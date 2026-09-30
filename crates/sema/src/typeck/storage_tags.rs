@@ -1,4 +1,5 @@
-//! Storage layout tags: `@custom:solar-fuse`, `@custom:solar-inline` and `@custom:solar-bitmap`.
+//! Storage layout tags: `@custom:solar-fuse`, `@custom:solar-inline`, `@custom:solar-bitmap` and
+//! `@custom:solar-handle`.
 //!
 //! A layout tag changes where the values of a state variable live in storage, never what the
 //! program computes. Every Solidity-level read and write behaves as without the tag; what differs
@@ -24,21 +25,34 @@
 //! `k` in bit `k % 256` of the word at `keccak256((k / 256) . slot)`, so 256 consecutive keys
 //! share one word where the standard layout gives each its own.
 //!
+//! `@custom:solar-handle <field> <dictionary>` on a struct declared in a contract keeps, in place
+//! of a field's value, its handle: one plus the index of the value in the dictionary, a state
+//! variable of the contract that lists values of the field's type, or zero for the value zero. A
+//! handle takes 9 bytes, so the field can share a word with others: a `bytes32` market id next to
+//! an `address` takes one word where the standard layout takes two. Reading the field reads the
+//! dictionary element, so the field can only be set to an element of its dictionary,
+//! `dictionary[index]`, or to zero, and the dictionary can only grow: its elements never change,
+//! so every handle keeps its value. A struct with handles cannot be written as a whole in storage,
+//! and only the struct's contract and the contracts that inherit it, which have the dictionary,
+//! can store it.
+//!
 //! The standard layout stays observable through a variable's slot, so the tagged variables may
 //! only be used where the compiler knows the tag. A fused or bitmap mapping may only be indexed. An
 //! inline array may be indexed, measured, pushed, popped, deleted and copied into memory, but not
 //! bound to a storage reference, a storage parameter or a storage return, passed to library
-//! functions, chosen by a conditional expression, or assigned as a whole. Inline assembly cannot
-//! take the `.slot` or `.offset` of either.
+//! functions, chosen by a conditional expression, or assigned as a whole. A handle dictionary has
+//! the same limits, and is never popped, deleted or written. Inline assembly cannot take the
+//! `.slot` or `.offset` of any of them, nor of a storage value that holds a struct with handles.
 
 use crate::{
+    builtins::Builtin,
     hir::{self, ExprKind, StmtKind, Visit},
     ty::{Gcx, Ty, TyKind},
 };
-use solar_ast::{DataLocation, ElementaryType};
+use solar_ast::{DataLocation, ElementaryType, LitKind, UnOpKind};
 use solar_data_structures::{
     Never,
-    map::{FxHashSet, FxIndexMap},
+    map::{FxHashMap, FxHashSet, FxIndexMap},
 };
 use solar_interface::{Span, Symbol, kw, sym};
 use std::ops::ControlFlow;
@@ -47,10 +61,19 @@ pub(super) fn check(gcx: Gcx<'_>) {
     let fused = check_fused_groups(gcx);
     let inline = check_inline_arrays(gcx);
     let bitmaps = check_bitmaps(gcx);
-    if fused.is_empty() && inline.is_empty() && bitmaps.is_empty() {
+    let handles = check_handles(gcx);
+    if fused.is_empty() && inline.is_empty() && bitmaps.is_empty() && handles.fields.is_empty() {
         return;
     }
-    let mut uses = Uses { gcx, fused: &fused, inline: &inline, bitmaps: &bitmaps, function: None };
+    check_handle_storage(gcx, &handles);
+    let mut uses = Uses {
+        gcx,
+        fused: &fused,
+        inline: &inline,
+        bitmaps: &bitmaps,
+        handles: &handles,
+        function: None,
+    };
     for id in gcx.hir.function_ids() {
         uses.function = Some(id);
         let _ = uses.visit_nested_function(id);
@@ -193,6 +216,229 @@ fn check_bitmaps(gcx: Gcx<'_>) -> FxHashSet<hir::VariableId> {
     bitmaps
 }
 
+/// The handle fields that `@custom:solar-handle` tags declare.
+#[derive(Default)]
+struct Handles {
+    /// The dictionary of every handle field.
+    fields: FxHashMap<hir::VariableId, hir::VariableId>,
+    /// The dictionaries of the handle fields.
+    dictionaries: FxHashSet<hir::VariableId>,
+    /// The structs with handle fields, each with the contract that declares it.
+    structs: FxHashMap<hir::StructId, hir::ContractId>,
+}
+
+impl Handles {
+    /// The first struct with handle fields that a value of type `ty` holds: the value itself, or
+    /// one of its members, elements or mapping values.
+    fn struct_in(&self, gcx: Gcx<'_>, ty: Ty<'_>) -> Option<hir::StructId> {
+        if self.structs.is_empty() {
+            return None;
+        }
+        self.struct_in_inner(gcx, ty, &mut FxHashSet::default())
+    }
+
+    fn struct_in_inner(
+        &self,
+        gcx: Gcx<'_>,
+        ty: Ty<'_>,
+        visited: &mut FxHashSet<hir::StructId>,
+    ) -> Option<hir::StructId> {
+        match ty.peel_refs().kind {
+            TyKind::Struct(id) if self.structs.contains_key(&id) => Some(id),
+            TyKind::Struct(id) if visited.insert(id) => gcx
+                .struct_field_types(id)
+                .iter()
+                .find_map(|&field| self.struct_in_inner(gcx, field, visited)),
+            TyKind::Array(element, _) | TyKind::DynArray(element) | TyKind::Mapping(_, element) => {
+                self.struct_in_inner(gcx, element, visited)
+            }
+            _ => None,
+        }
+    }
+}
+
+/// Checks every `@custom:solar-handle` tag and returns the handle fields the tags declare.
+fn check_handles(gcx: Gcx<'_>) -> Handles {
+    let mut handles = Handles::default();
+    for id in gcx.hir.strukt_ids() {
+        let strukt = gcx.hir.strukt(id);
+        // A tag on a struct outside a contract is reported as misplaced.
+        let Some(contract) = strukt.contract.filter(|&contract| {
+            matches!(
+                gcx.hir.contract(contract).kind,
+                hir::ContractKind::Contract | hir::ContractKind::AbstractContract
+            )
+        }) else {
+            continue;
+        };
+        let named = |id: hir::VariableId, name: Symbol| {
+            gcx.hir.variable(id).name.is_some_and(|ident| ident.name == name)
+        };
+        for (names, tag) in gcx.hir.solar_handle_tags(id) {
+            let Some((field_name, dictionary_name)) = names else {
+                gcx.dcx()
+                    .err("`@custom:solar-handle` must name a field and its dictionary")
+                    .span(tag)
+                    .help(
+                        "name a field of the struct and the state variable that lists its values: \
+                         `@custom:solar-handle marketId markets`",
+                    )
+                    .emit();
+                continue;
+            };
+            let Some(field) = strukt.fields.iter().copied().find(|&id| named(id, field_name))
+            else {
+                gcx.dcx()
+                    .err(format!("struct `{}` has no field `{field_name}`", strukt.name))
+                    .span(tag)
+                    .emit();
+                continue;
+            };
+            let field_ty = gcx.type_of_item(field.into());
+            if value_bytes(field_ty) != Some(32) {
+                gcx.dcx()
+                    .err("a handle field must be a value type that fills a word")
+                    .span(tag)
+                    .span_note(
+                        gcx.hir.variable(field).span,
+                        format!("`{field_name}` is `{}`", field_ty.display(gcx)),
+                    )
+                    .note(
+                        "the field keeps a 9-byte handle, which only saves space in place of a \
+                         word",
+                    )
+                    .emit();
+                continue;
+            }
+            let Some(dictionary) =
+                gcx.hir.contract(contract).variables().find(|&id| {
+                    gcx.hir.variable(id).is_state_variable() && named(id, dictionary_name)
+                })
+            else {
+                gcx.dcx()
+                    .err(format!(
+                        "contract `{}` has no state variable `{dictionary_name}`",
+                        gcx.hir.contract(contract).name
+                    ))
+                    .span(tag)
+                    .note("the dictionary must be a state variable of the struct's contract")
+                    .emit();
+                continue;
+            };
+            let variable = gcx.hir.variable(dictionary);
+            let dictionary_ty = gcx.type_of_item(dictionary.into());
+            let lists = matches!(
+                dictionary_ty.peel_refs().kind,
+                TyKind::DynArray(element) if element == field_ty
+            );
+            if !lists
+                || variable.is_constant()
+                || variable.is_immutable()
+                || variable.data_location == Some(DataLocation::Transient)
+            {
+                gcx.dcx()
+                    .err(format!(
+                        "a handle dictionary must be a storage array of `{}`",
+                        field_ty.display(gcx)
+                    ))
+                    .span(tag)
+                    .span_note(
+                        variable.span,
+                        format!("`{dictionary_name}` is `{}`", dictionary_ty.display(gcx)),
+                    )
+                    .emit();
+                continue;
+            }
+            if handles.fields.insert(field, dictionary).is_some() {
+                gcx.dcx()
+                    .err(format!("field `{field_name}` has more than one handle tag"))
+                    .span(tag)
+                    .emit();
+            }
+            handles.dictionaries.insert(dictionary);
+            handles.structs.insert(id, contract);
+        }
+    }
+    handles
+}
+
+/// Rejects storage that holds a struct with handles outside the contracts that have its
+/// dictionaries, the struct's contract and the contracts that inherit it, and state variable
+/// initializers that would write such a struct as a whole.
+fn check_handle_storage(gcx: Gcx<'_>, handles: &Handles) {
+    if handles.structs.is_empty() {
+        return;
+    }
+    for id in gcx.hir.variable_ids() {
+        let variable = gcx.hir.variable(id);
+        let storage = if variable.is_state_variable() {
+            !variable.is_constant() && !variable.is_immutable()
+        } else {
+            variable.data_location == Some(DataLocation::Storage)
+        };
+        if !storage {
+            continue;
+        }
+        let Some(strukt) = handles.struct_in(gcx, gcx.type_of_item(id.into())) else { continue };
+        let owner = handles.structs[&strukt];
+        // A local the compiler adds to a getter belongs to the getter's contract.
+        let contract = variable.contract.or_else(|| match variable.parent {
+            Some(hir::ItemId::Function(function)) => gcx.hir.function(function).contract,
+            _ => None,
+        });
+        let inherits = contract
+            .is_some_and(|contract| gcx.hir.contract(contract).linearized_bases.contains(&owner));
+        if !inherits {
+            gcx.dcx()
+                .err(
+                    "a struct with handles can only be stored by its contract and the contracts \
+                     that inherit it",
+                )
+                .span(variable.span)
+                .span_note(
+                    gcx.hir.strukt(strukt).span,
+                    format!(
+                        "`{}` keeps handles into the dictionaries of `{}`",
+                        gcx.hir.strukt(strukt).name,
+                        gcx.hir.contract(owner).name
+                    ),
+                )
+                .emit();
+        } else if variable.is_state_variable()
+            && let Some(initializer) = variable.initializer
+        {
+            report_whole_write(gcx, initializer.span);
+        }
+    }
+}
+
+/// Reports a write of a whole value that holds a struct with handles into storage at `span`.
+fn report_whole_write(gcx: Gcx<'_>, span: Span) {
+    gcx.dcx()
+        .err("a struct with handles cannot be written to storage as a whole")
+        .span(span)
+        .note(
+            "`@custom:solar-handle` fields keep indexes into their dictionaries, which a value from \
+             elsewhere does not have",
+        )
+        .help("set the fields one by one, each handle field to an element of its dictionary")
+        .emit();
+}
+
+/// Whether `expr` is a literal zero, possibly converted or wrapped: `0`, `bytes32(0)` or
+/// `Id.wrap(0)`.
+fn is_zero(gcx: Gcx<'_>, expr: &hir::Expr<'_>) -> bool {
+    let expr = expr.peel_parens();
+    if let ExprKind::Lit(lit) = expr.kind {
+        return matches!(lit.kind, LitKind::Number(value) if value.is_zero());
+    }
+    let Some((callee, args, None)) = expr.as_call() else { return false };
+    let hir::CallArgsKind::Unnamed([arg]) = args.kind else { return false };
+    let conversion = matches!(callee.peel_parens().kind, ExprKind::Type(_))
+        || gcx.resolved_builtin(callee) == Some(Builtin::UdvtWrap);
+    conversion && is_zero(gcx, arg)
+}
+
 /// The bytes a value of the value type `ty` takes in a storage word, or `None` for a type that
 /// does not pack.
 fn value_bytes(ty: Ty<'_>) -> Option<u64> {
@@ -211,14 +457,43 @@ fn value_bytes(ty: Ty<'_>) -> Option<u64> {
     })
 }
 
-/// Rejects the uses of tagged state variables that would reach their standard layout.
+/// Rejects the uses of tagged state variables that would reach their standard layout, and the
+/// writes that would give a handle field a value its dictionary does not list.
 struct Uses<'gcx, 'a> {
     gcx: Gcx<'gcx>,
     fused: &'a FxHashSet<hir::VariableId>,
     inline: &'a FxHashSet<hir::VariableId>,
     bitmaps: &'a FxHashSet<hir::VariableId>,
+    handles: &'a Handles,
     /// The function whose body is visited.
     function: Option<hir::FunctionId>,
+}
+
+/// A storage array that must not become a storage reference.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Kept {
+    /// An array documented `@custom:solar-inline`, whose inline form a storage reference would
+    /// read with the standard layout.
+    Inline,
+    /// The dictionary of handle fields, whose elements a storage reference could change.
+    Dictionary,
+}
+
+impl Kept {
+    fn what(self) -> &'static str {
+        match self {
+            Self::Inline => "an inline array",
+            Self::Dictionary => "a handle dictionary",
+        }
+    }
+
+    /// What a storage reference to the array would do wrong.
+    fn reference_risk(self) -> &'static str {
+        match self {
+            Self::Inline => "which reads the standard layout",
+            Self::Dictionary => "which could change its elements",
+        }
+    }
 }
 
 impl<'gcx> Uses<'gcx, '_> {
@@ -226,30 +501,187 @@ impl<'gcx> Uses<'gcx, '_> {
         self.gcx.resolved_variable(expr.peel_parens()).is_some_and(|id| self.fused.contains(&id))
     }
 
-    fn is_inline(&self, expr: &hir::Expr<'_>) -> bool {
-        self.gcx.resolved_variable(expr.peel_parens()).is_some_and(|id| self.inline.contains(&id))
-    }
-
     fn is_bitmap(&self, expr: &hir::Expr<'_>) -> bool {
         self.gcx.resolved_variable(expr.peel_parens()).is_some_and(|id| self.bitmaps.contains(&id))
     }
 
-    /// Reports an inline array that becomes a storage reference at `span`.
-    fn report_reference(&self, span: Span) {
-        self.gcx
-            .dcx()
-            .err("an inline array cannot be a storage reference")
-            .span(span)
-            .note(
+    /// The kind of array `expr` names, if it names an inline array or a handle dictionary.
+    fn kept(&self, expr: &hir::Expr<'_>) -> Option<Kept> {
+        let id = self.gcx.resolved_variable(expr.peel_parens())?;
+        if self.inline.contains(&id) {
+            Some(Kept::Inline)
+        } else if self.handles.dictionaries.contains(&id) {
+            Some(Kept::Dictionary)
+        } else {
+            None
+        }
+    }
+
+    /// Whether `expr` names a storage variable that holds a struct with handles.
+    fn holds_handles(&self, expr: &hir::Expr<'_>) -> bool {
+        self.gcx.resolved_variable(expr.peel_parens()).is_some_and(|id| {
+            self.handles.struct_in(self.gcx, self.gcx.type_of_item(id.into())).is_some()
+        })
+    }
+
+    /// Reports an array of kind `kept` that becomes a storage reference at `span`.
+    fn report_reference(&self, kept: Kept, span: Span) {
+        let (note, help) = match kept {
+            Kept::Inline => (
                 "`@custom:solar-inline` keeps a short array in its own slot, which a storage \
                  reference would read with the standard layout",
-            )
-            .help("index the array or copy it into memory")
+                "index the array or copy it into memory",
+            ),
+            Kept::Dictionary => (
+                "`@custom:solar-handle` fields keep indexes into the dictionary, whose elements a \
+                 storage reference could change",
+                "index the dictionary or copy it into memory",
+            ),
+        };
+        self.gcx
+            .dcx()
+            .err(format!("{} cannot be a storage reference", kept.what()))
+            .span(span)
+            .note(note)
+            .help(help)
             .emit();
     }
 
-    /// Reports every inline array among `args` passed to a storage parameter of a function of
-    /// type `callee`, named `names` for named arguments.
+    /// Reports a write at `span` that would change an element of a handle dictionary.
+    fn report_append_only(&self, span: Span) {
+        self.gcx
+            .dcx()
+            .err("a handle dictionary is append-only")
+            .span(span)
+            .note(
+                "`@custom:solar-handle` fields keep indexes into the dictionary, so its elements \
+                 must never change",
+            )
+            .help("`push` new elements instead")
+            .emit();
+    }
+
+    /// Reports a write at `span` of a value that a handle field into `dictionary` cannot keep.
+    fn report_handle_value(&self, span: Span, dictionary: hir::VariableId) {
+        let name = self.gcx.hir.variable(dictionary).name.map_or(kw::Empty, |ident| ident.name);
+        self.gcx
+            .dcx()
+            .err(format!("a handle field can only be set to an element of `{name}` or to zero"))
+            .span(span)
+            .note(
+                "`@custom:solar-handle` keeps the index of the field's value in the dictionary, \
+                 which other values do not have",
+            )
+            .help(format!("assign `{name}[index]`, or `delete` the field"))
+            .emit();
+    }
+
+    /// The dictionary of the handle field that `expr` names in storage.
+    fn handle_field(&self, expr: &hir::Expr<'_>) -> Option<hir::VariableId> {
+        let expr = expr.peel_parens();
+        let ExprKind::Member(base, _) = expr.kind else { return None };
+        let dictionary = *self.handles.fields.get(&self.gcx.resolved_variable(expr)?)?;
+        self.gcx.type_of_expr(base.id)?.is_ref_at(DataLocation::Storage).then_some(dictionary)
+    }
+
+    /// Whether assigning to `place` writes a whole storage value that holds a struct with handles.
+    /// Assigning to a local storage reference rebinds it instead.
+    fn writes_handles(&self, place: &hir::Expr<'_>) -> bool {
+        let Some(ty) = self.gcx.type_of_expr(place.id) else { return false };
+        let local = self
+            .gcx
+            .resolved_variable(place.peel_parens())
+            .is_some_and(|id| !self.gcx.hir.variable(id).is_state_variable());
+        ty.is_ref_at(DataLocation::Storage)
+            && !local
+            && self.handles.struct_in(self.gcx, ty).is_some()
+    }
+
+    /// Whether writing to `place` changes an element of a handle dictionary.
+    fn writes_dictionary(&self, place: &hir::Expr<'_>) -> bool {
+        match place.peel_parens().kind {
+            // dictionary[index] = value
+            ExprKind::Index(base, _) => self.kept(base) == Some(Kept::Dictionary),
+            // dictionary.push() = value
+            ExprKind::Call(callee, _) => matches!(
+                callee.peel_parens().kind,
+                ExprKind::Member(base, _) if self.kept(base) == Some(Kept::Dictionary)
+            ),
+            ExprKind::Tuple(elements) => {
+                elements.iter().flatten().any(|element| self.writes_dictionary(element))
+            }
+            _ => false,
+        }
+    }
+
+    /// Checks the writes of `expr` to handle fields, to storage values that hold them, and to the
+    /// elements of handle dictionaries.
+    fn check_handle_writes(&self, expr: &hir::Expr<'_>) {
+        match expr.kind {
+            ExprKind::Assign(lhs, op, rhs) => {
+                if let Some(dictionary) = self.handle_field(lhs) {
+                    // field = dictionary[index], field = 0
+                    let element = matches!(
+                        rhs.peel_parens().kind,
+                        ExprKind::Index(base, Some(_))
+                            if self.gcx.resolved_variable(base.peel_parens()) == Some(dictionary)
+                    );
+                    if op.is_some() || !(element || is_zero(self.gcx, rhs)) {
+                        self.report_handle_value(expr.span, dictionary);
+                    }
+                } else if self.writes_handles(lhs) {
+                    report_whole_write(self.gcx, expr.span);
+                } else if let ExprKind::Tuple(elements) = lhs.peel_parens().kind
+                    && elements.iter().flatten().any(|element| {
+                        self.handle_field(element).is_some() || self.writes_handles(element)
+                    })
+                {
+                    self.gcx
+                        .dcx()
+                        .err("a tuple assignment cannot write handle fields")
+                        .span(expr.span)
+                        .help("assign the handle fields in their own statements")
+                        .emit();
+                }
+                if self.writes_dictionary(lhs) {
+                    self.report_append_only(expr.span);
+                }
+            }
+            // field++, field--
+            ExprKind::Unary(op, operand)
+                if matches!(
+                    op.kind,
+                    UnOpKind::PreInc | UnOpKind::PreDec | UnOpKind::PostInc | UnOpKind::PostDec
+                ) =>
+            {
+                if let Some(dictionary) = self.handle_field(operand) {
+                    self.report_handle_value(expr.span, dictionary);
+                }
+            }
+            // delete dictionary, delete dictionary[index]
+            ExprKind::Delete(place)
+                if self.writes_dictionary(place) || self.kept(place) == Some(Kept::Dictionary) =>
+            {
+                self.report_append_only(expr.span);
+            }
+            // array.push(value) with elements that hold handles
+            ExprKind::Call(callee, ref args) if !args.is_empty() => {
+                if let ExprKind::Member(base, member) = callee.peel_parens().kind
+                    && member.name == sym::push
+                    && let Some(ty) = self.gcx.type_of_expr(base.id)
+                    && ty.is_ref_at(DataLocation::Storage)
+                    && let TyKind::DynArray(element) = ty.peel_refs().kind
+                    && self.handles.struct_in(self.gcx, element).is_some()
+                {
+                    report_whole_write(self.gcx, expr.span);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    /// Reports every inline array or handle dictionary among `args` passed to a storage
+    /// parameter of a function of type `callee`, named `names` for named arguments.
     fn check_arguments(
         &self,
         callee: Option<Ty<'gcx>>,
@@ -263,8 +695,10 @@ impl<'gcx> Uses<'gcx, '_> {
         match args.kind {
             hir::CallArgsKind::Unnamed(args) => {
                 for (index, arg) in args.iter().enumerate() {
-                    if self.is_inline(arg) && storage(index) {
-                        self.report_reference(arg.span);
+                    if let Some(kept) = self.kept(arg)
+                        && storage(index)
+                    {
+                        self.report_reference(kept, arg.span);
                     }
                 }
             }
@@ -272,8 +706,10 @@ impl<'gcx> Uses<'gcx, '_> {
                 for arg in args {
                     let index = names.and_then(|names| arg.parameter_index(names));
                     // A parameter the names cannot place is treated as a storage one.
-                    if self.is_inline(&arg.value) && index.is_none_or(storage) {
-                        self.report_reference(arg.value.span);
+                    if let Some(kept) = self.kept(&arg.value)
+                        && index.is_none_or(storage)
+                    {
+                        self.report_reference(kept, arg.value.span);
                     }
                 }
             }
@@ -306,10 +742,10 @@ impl<'gcx> Visit<'gcx> for Uses<'gcx, '_> {
             StmtKind::DeclSingle(id) => {
                 let variable = self.gcx.hir.variable(id);
                 if let Some(initializer) = variable.initializer
-                    && self.is_inline(initializer)
+                    && let Some(kept) = self.kept(initializer)
                     && self.gcx.type_of_item(id.into()).is_ref_at(DataLocation::Storage)
                 {
-                    self.report_reference(initializer.span);
+                    self.report_reference(kept, initializer.span);
                 }
             }
             // (T[] storage r, ..) = (array, ..);
@@ -317,13 +753,13 @@ impl<'gcx> Visit<'gcx> for Uses<'gcx, '_> {
                 if let ExprKind::Tuple(elements) = initializer.peel_parens().kind {
                     for (&variable, element) in variables.iter().zip(elements) {
                         if let (Some(variable), Some(element)) = (variable, element)
-                            && self.is_inline(element)
+                            && let Some(kept) = self.kept(element)
                             && self
                                 .gcx
                                 .type_of_item(variable.into())
                                 .is_ref_at(DataLocation::Storage)
                         {
-                            self.report_reference(element.span);
+                            self.report_reference(kept, element.span);
                         }
                     }
                 }
@@ -338,10 +774,10 @@ impl<'gcx> Visit<'gcx> for Uses<'gcx, '_> {
                     };
                     for (&ret, value) in returns.iter().zip(values) {
                         if let Some(value) = value
-                            && self.is_inline(value)
+                            && let Some(kept) = self.kept(value)
                             && self.gcx.type_of_item(ret.into()).is_ref_at(DataLocation::Storage)
                         {
-                            self.report_reference(value.span);
+                            self.report_reference(kept, value.span);
                         }
                     }
                 }
@@ -371,10 +807,13 @@ impl<'gcx> Visit<'gcx> for Uses<'gcx, '_> {
     }
 
     fn visit_expr(&mut self, expr: &'gcx hir::Expr<'gcx>) -> ControlFlow<Self::BreakValue> {
+        self.check_handle_writes(expr);
         match expr.kind {
             // mapping[key], array[index]
             ExprKind::Index(base, index)
-                if self.is_fused(base) || self.is_inline(base) || self.is_bitmap(base) =>
+                if self.is_fused(base)
+                    || self.kept(base) == Some(Kept::Inline)
+                    || self.is_bitmap(base) =>
             {
                 if let Some(index) = index {
                     self.visit_expr(index)?;
@@ -382,53 +821,66 @@ impl<'gcx> Visit<'gcx> for Uses<'gcx, '_> {
                 return ControlFlow::Continue(());
             }
             // array.length, array.push, array.pop
-            ExprKind::Member(base, member) if self.is_inline(base) => {
-                if !matches!(member.name, sym::length | sym::push | kw::Pop) {
-                    self.gcx
-                        .dcx()
-                        .err(format!(
-                            "an inline array has no member `{member}` this compiler keeps"
-                        ))
-                        .span(expr.span)
-                        .note(
-                            "a library function attached to it would take it as a storage \
-                             reference, which reads the standard layout",
-                        )
-                        .emit();
+            ExprKind::Member(base, member) if let Some(kept) = self.kept(base) => {
+                match (kept, member.name) {
+                    (_, sym::length | sym::push) | (Kept::Inline, kw::Pop) => {}
+                    (Kept::Dictionary, kw::Pop) => self.report_append_only(expr.span),
+                    _ => {
+                        self.gcx
+                            .dcx()
+                            .err(format!(
+                                "{} has no member `{member}` this compiler keeps",
+                                kept.what()
+                            ))
+                            .span(expr.span)
+                            .note(format!(
+                                "a library function attached to it would take it as a storage \
+                                 reference, {}",
+                                kept.reference_risk()
+                            ))
+                            .emit();
+                    }
                 }
                 return ControlFlow::Continue(());
             }
             // delete array
-            ExprKind::Delete(value) if self.is_inline(value) => return ControlFlow::Continue(()),
+            ExprKind::Delete(value) if self.kept(value).is_some() => {
+                return ControlFlow::Continue(());
+            }
             // array = value
-            ExprKind::Assign(lhs, _, rhs) if self.is_inline(lhs) => {
-                self.gcx
-                    .dcx()
-                    .err("an inline array cannot be assigned as a whole")
-                    .span(expr.span)
-                    .help("`delete` it and `push` the elements")
-                    .emit();
+            ExprKind::Assign(lhs, _, rhs) if let Some(kept) = self.kept(lhs) => {
+                match kept {
+                    Kept::Inline => {
+                        self.gcx
+                            .dcx()
+                            .err("an inline array cannot be assigned as a whole")
+                            .span(expr.span)
+                            .help("`delete` it and `push` the elements")
+                            .emit();
+                    }
+                    Kept::Dictionary => self.report_append_only(expr.span),
+                }
                 return self.visit_expr(rhs);
             }
             // r = array; with a local storage reference r
             ExprKind::Assign(lhs, None, rhs)
-                if self.is_inline(rhs)
+                if let Some(kept) = self.kept(rhs)
                     && self.gcx.resolved_variable(lhs.peel_parens()).is_some_and(|id| {
                         !self.gcx.hir.variable(id).is_state_variable()
                             && self.gcx.type_of_item(id.into()).is_ref_at(DataLocation::Storage)
                     }) =>
             {
-                self.report_reference(rhs.span);
+                self.report_reference(kept, rhs.span);
             }
             // condition ? array : other
             ExprKind::Ternary(_, then, otherwise)
-                if self.is_inline(then) || self.is_inline(otherwise) =>
+                if let Some(kept) = self.kept(then).or_else(|| self.kept(otherwise)) =>
             {
                 self.gcx
                     .dcx()
-                    .err("an inline array cannot be chosen by a conditional expression")
+                    .err(format!("{} cannot be chosen by a conditional expression", kept.what()))
                     .span(expr.span)
-                    .note("the result is a storage reference, which reads the standard layout")
+                    .note(format!("the result is a storage reference, {}", kept.reference_risk()))
                     .help("branch with `if` instead")
                     .emit();
             }
@@ -439,20 +891,47 @@ impl<'gcx> Visit<'gcx> for Uses<'gcx, '_> {
             }
             // variable.slot, variable.offset
             ExprKind::YulMember(base, member)
-                if self.is_fused(base) || self.is_inline(base) || self.is_bitmap(base) =>
+                if self.is_fused(base)
+                    || self.kept(base).is_some()
+                    || self.is_bitmap(base)
+                    || self.holds_handles(base) =>
             {
-                let (what, tag) = if self.is_fused(base) {
-                    ("a fused mapping", "`@custom:solar-fuse` moves the mapping's values")
+                let (what, note) = if self.is_fused(base) {
+                    (
+                        "a fused mapping",
+                        "`@custom:solar-fuse` moves the mapping's values out of their standard \
+                         slots",
+                    )
                 } else if self.is_bitmap(base) {
-                    ("a bitmap mapping", "`@custom:solar-bitmap` moves the mapping's values")
+                    (
+                        "a bitmap mapping",
+                        "`@custom:solar-bitmap` moves the mapping's values out of their standard \
+                         slots",
+                    )
+                } else if self.kept(base) == Some(Kept::Inline) {
+                    (
+                        "an inline array",
+                        "`@custom:solar-inline` moves the array's elements out of their standard \
+                         slots",
+                    )
+                } else if self.kept(base) == Some(Kept::Dictionary) {
+                    (
+                        "a handle dictionary",
+                        "`@custom:solar-handle` fields keep indexes into the dictionary, so its \
+                         elements must never change",
+                    )
                 } else {
-                    ("an inline array", "`@custom:solar-inline` moves the array's elements")
+                    (
+                        "a storage value that holds a struct with handles",
+                        "`@custom:solar-handle` narrows the handle fields out of their standard \
+                         slots",
+                    )
                 };
                 self.gcx
                     .dcx()
                     .err(format!("inline assembly cannot take the `.{member}` of {what}"))
                     .span(expr.span)
-                    .note(format!("{tag} out of their standard slots"))
+                    .note(note)
                     .emit();
                 return ControlFlow::Continue(());
             }

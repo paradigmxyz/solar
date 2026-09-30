@@ -1246,6 +1246,7 @@ symbols! {
         slot,
         solar_dash_bitmap: "solar-bitmap",
         solar_dash_fuse: "solar-fuse",
+        solar_dash_handle: "solar-handle",
         solar_dash_inline: "solar-inline",
         solar_dash_optimize: "solar-optimize",
         solar_dash_safe: "solar-safe",

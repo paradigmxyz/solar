@@ -313,7 +313,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         // slot = keccak256((key >> 8) . mapping_slot)
                         // bit = key & 255
                         let eight = self.builder.imm(8);
-                        let word = self.builder.shr(eight, index);
+                        let word = self.builder.shr(index, eight);
                         let slot = self.builder.mapping_slot(word, base.slot);
                         let mask = self.builder.imm(255);
                         let bit = self.builder.and(index, mask);
@@ -1011,6 +1011,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         } else {
             self.cx.storage.load_at(&mut self.builder, access.location, access.slot)
         };
+        let value = match access.location.handle {
+            Some(dictionary) => self.resolve_handle(value, dictionary, span)?,
+            None => value,
+        };
         self.validate_enum(ty, value);
         Some(value)
     }
@@ -1035,6 +1039,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     ) -> Option<()> {
         if self.types.memory_layout(ty).is_some() {
             return self.store_storage_object_with_source(ty, source_ty, access.slot, value, span);
+        }
+        // Type checking lets a handle field be set to zero here, and to its dictionary's
+        // elements only through `lower_handle_assignment`.
+        if access.location.handle.is_some()
+            && self.builder.func().value_u256(value) != Some(U256::ZERO)
+        {
+            return self.cx.report_unsupported(span, "write of a handle field");
         }
         let dirty = !self.in_inline_assembly && self.dirty_values.contains(&value);
         let value = self.normalize_dirty_scalar(value, ty);

@@ -36,6 +36,7 @@ mod calls;
 mod control_flow;
 mod entry;
 mod expressions;
+mod handles;
 mod indexing;
 mod inline_arrays;
 mod lvalues;
@@ -941,6 +942,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     };
                     self.storage_refs.insert(id, access);
                     return Some(access.slot);
+                }
+                if op.is_none()
+                    && let Some(dictionary) = self.handle_assignment_dictionary(lhs)
+                {
+                    return self.lower_handle_assignment(lhs, rhs, dictionary);
                 }
                 let lhs_ty = self.type_of_expr_or_variable(lhs)?;
                 let rhs_ty = self.cx.gcx.type_of_expr(rhs.id).unwrap_or(lhs_ty);

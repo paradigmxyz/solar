@@ -1,0 +1,1385 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/storage_handles.sol:Handles ===
+@module Handles
+@types
+  struct0: {i256, i256, i256, i256, i256, i256}
+  struct1: {i256, i256, i256, i256}
+  struct2: {i256, i256, i256}
+  struct3: {i256, i256}
+  struct4: {i256, i256, i256, i256, i256}
+
+fn @roundTrip() -> struct0 [selector=0x6643a628, abi_params=[], abi_returns=[word<u160>, word, word<u128>, word<u128>, word<u64>, word<bool>], abi_return_params=[address, bytes32, u128, u128, u64, bool]] {
+  bb0:
+    icall @listMarkets
+    v0 = mapping_slot 7, 1
+    v1 = trunc i256 0xbeef to i160
+    v2 = sload v0 !metadata(storage=symbolic(v0))
+    v3 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v4 = and v2, v3
+    v5 = zext i160 v1 to i256
+    v6 = and v5, 0xffffffffffffffffffffffffffffffffffffffff
+    v7 = or v4, v6
+    sstore v0, v7 !metadata(storage=symbolic(v0))
+    v8 = sload 0 !metadata(storage=slot(0))
+    v9 = lt 1, v8
+    v10 = eq v9, false
+    icall panic_if<0x32>, v10
+    v11 = add 1, 1
+    v12 = shl 160, 0xffffffffffffffffff
+    v13 = sload v0 !metadata(storage=symbolic(v0))
+    v14 = not v12
+    v15 = and v13, v14
+    v16 = and v11, 0xffffffffffffffffff
+    v17 = shl 160, v16
+    v18 = or v15, v17
+    sstore v0, v18 !metadata(storage=symbolic(v0))
+    v19 = add 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563, 1
+    v20 = sload v19 !metadata(storage=slot(0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e564))
+    v21 = add v0, 1
+    v22 = sload v21 !metadata(storage=offset(v0, 1))
+    v23 = not 0xffffffffffffffffffffffffffffffff
+    v24 = and v22, v23
+    v25 = and 5, 0xffffffffffffffffffffffffffffffff
+    v26 = or v24, v25
+    sstore v21, v26 !metadata(storage=offset(v0, 1))
+    v27 = add v0, 1
+    v28 = shl 128, 0xffffffffffffffffffffffffffffffff
+    v29 = sload v27 !metadata(storage=offset(v0, 1))
+    v30 = not v28
+    v31 = and v29, v30
+    v32 = and 7, 0xffffffffffffffffffffffffffffffff
+    v33 = shl 128, v32
+    v34 = or v31, v33
+    sstore v27, v34 !metadata(storage=offset(v0, 1))
+    v35 = add v0, 2
+    v36 = sload v35 !metadata(storage=offset(v0, 2))
+    v37 = not 0xffffffffffffffff
+    v38 = and v36, v37
+    v39 = and 99, 0xffffffffffffffff
+    v40 = or v38, v39
+    sstore v35, v40 !metadata(storage=offset(v0, 2))
+    v41 = add v0, 2
+    v42 = shl 64, 255
+    v43 = sload v41 !metadata(storage=offset(v0, 2))
+    v44 = not v42
+    v45 = and v43, v44
+    v46 = zext i1 1 to i256
+    v47 = and v46, 255
+    v48 = shl 64, v47
+    v49 = or v45, v48
+    sstore v41, v49 !metadata(storage=offset(v0, 2))
+    v50 = mapping_slot 7, 1
+    v51 = sload v50 !metadata(storage=symbolic(v50))
+    v52 = and v51, 0xffffffffffffffffffffffffffffffffffffffff
+    v53 = sload v50 !metadata(storage=symbolic(v50))
+    v54 = shr 160, v53
+    v55 = and v54, 0xffffffffffffffffff
+    v56 = ne v55, 0
+    jumpi v56, bb1, bb2
+  bb1:
+    v57 = add 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e562, v55
+    v58 = sload v57 !metadata(storage=offset(v55, 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e562))
+    jump bb2
+  bb2:
+    v59 = phi [bb0: 0], [bb1: v58]
+    v60 = add v50, 1
+    v61 = sload v60 !metadata(storage=offset(v50, 1))
+    v62 = and v61, 0xffffffffffffffffffffffffffffffff
+    v63 = add v50, 1
+    v64 = sload v63 !metadata(storage=offset(v50, 1))
+    v65 = shr 128, v64
+    v66 = and v65, 0xffffffffffffffffffffffffffffffff
+    v67 = add v50, 2
+    v68 = sload v67 !metadata(storage=offset(v50, 2))
+    v69 = and v68, 0xffffffffffffffff
+    v70 = add v50, 2
+    v71 = sload v70 !metadata(storage=offset(v50, 2))
+    v72 = shr 64, v71
+    v73 = and v72, 255
+    v74 = insert_value struct0, undef struct0, 0, v52
+    v75 = insert_value struct0, v74, 1, v59
+    v76 = insert_value struct0, v75, 2, v62
+    v77 = insert_value struct0, v76, 3, v66
+    v78 = insert_value struct0, v77, 4, v69
+    v79 = insert_value struct0, v78, 5, v73
+    ret v79
+}
+
+fn @rawRecord() -> struct1 [selector=0x4049c8d5, inline_assembly, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[bytes32, bytes32, bytes32, bytes32]] {
+  bb0:
+    icall @listMarkets
+    v0 = trunc i256 0xbeef to i160
+    v1 = mapping_slot 7, 1
+    v2 = sload v1 !metadata(storage=symbolic(v1))
+    v3 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v4 = and v2, v3
+    v5 = zext i160 v0 to i256
+    v6 = and v5, 0xffffffffffffffffffffffffffffffffffffffff
+    v7 = or v4, v6
+    sstore v1, v7 !metadata(storage=symbolic(v1))
+    v8 = sload 0 !metadata(storage=slot(0))
+    v9 = lt 1, v8
+    v10 = eq v9, false
+    icall panic_if<0x32>, v10
+    v11 = mapping_slot 7, 1
+    v12 = add 1, 1
+    v13 = shl 160, 0xffffffffffffffffff
+    v14 = sload v11 !metadata(storage=symbolic(v11))
+    v15 = not v13
+    v16 = and v14, v15
+    v17 = and v12, 0xffffffffffffffffff
+    v18 = shl 160, v17
+    v19 = or v16, v18
+    sstore v11, v19 !metadata(storage=symbolic(v11))
+    v20 = add 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563, 1
+    v21 = sload v20 !metadata(storage=slot(0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e564))
+    v22 = mapping_slot 7, 1
+    v23 = add v22, 1
+    v24 = sload v23 !metadata(storage=offset(v22, 1))
+    v25 = not 0xffffffffffffffffffffffffffffffff
+    v26 = and v24, v25
+    v27 = and 5, 0xffffffffffffffffffffffffffffffff
+    v28 = or v26, v27
+    sstore v23, v28 !metadata(storage=offset(v22, 1))
+    v29 = mapping_slot 7, 1
+    v30 = add v29, 1
+    v31 = shl 128, 0xffffffffffffffffffffffffffffffff
+    v32 = sload v30 !metadata(storage=offset(v29, 1))
+    v33 = not v31
+    v34 = and v32, v33
+    v35 = and 7, 0xffffffffffffffffffffffffffffffff
+    v36 = shl 128, v35
+    v37 = or v34, v36
+    sstore v30, v37 !metadata(storage=offset(v29, 1))
+    v38 = mapping_slot 7, 1
+    v39 = add v38, 2
+    v40 = sload v39 !metadata(storage=offset(v38, 2))
+    v41 = not 0xffffffffffffffff
+    v42 = and v40, v41
+    v43 = and 99, 0xffffffffffffffff
+    v44 = or v42, v43
+    sstore v39, v44 !metadata(storage=offset(v38, 2))
+    v45 = mapping_slot 7, 1
+    v46 = add v45, 2
+    v47 = shl 64, 255
+    v48 = sload v46 !metadata(storage=offset(v45, 2))
+    v49 = not v47
+    v50 = and v48, v49
+    v51 = zext i1 1 to i256
+    v52 = and v51, 255
+    v53 = shl 64, v52
+    v54 = or v50, v53
+    sstore v46, v54 !metadata(storage=offset(v45, 2))
+    v55 = keccak256_packed (u256 7, u256 1)
+    v56 = sload v55 !metadata(storage=symbolic(v55))
+    v57 = add v55, 1
+    v58 = sload v57 !metadata(storage=offset(v55, 1))
+    v59 = add v55, 2
+    v60 = sload v59 !metadata(storage=offset(v55, 2))
+    v61 = add v55, 3
+    v62 = sload v61 !metadata(storage=offset(v55, 3))
+    v63 = insert_value struct1, undef struct1, 0, v56
+    v64 = insert_value struct1, v63, 1, v58
+    v65 = insert_value struct1, v64, 2, v60
+    v66 = insert_value struct1, v65, 3, v62
+    ret v66
+}
+
+fn @zeroHandle() -> struct2 [selector=0x9ce3909d, abi_params=[], abi_returns=[word, word, word], abi_return_params=[bytes32, bytes32, bytes32]] {
+  bb0:
+    icall @listMarkets
+    v0 = mapping_slot 1, 1
+    v1 = sload v0 !metadata(storage=symbolic(v0))
+    v2 = shr 160, v1
+    v3 = and v2, 0xffffffffffffffffff
+    v4 = ne v3, 0
+    jumpi v4, bb1, bb2
+  bb1:
+    v5 = add 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e562, v3
+    v6 = sload v5 !metadata(storage=offset(v3, 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e562))
+    jump bb2
+  bb2:
+    v7 = phi [bb0: 0], [bb1: v6]
+    v8 = sload 0 !metadata(storage=slot(0))
+    v9 = lt 0, v8
+    v10 = eq v9, false
+    icall panic_if<0x32>, v10
+    v11 = mapping_slot 1, 1
+    v12 = add 0, 1
+    v13 = shl 160, 0xffffffffffffffffff
+    v14 = sload v11 !metadata(storage=symbolic(v11))
+    v15 = not v13
+    v16 = and v14, v15
+    v17 = and v12, 0xffffffffffffffffff
+    v18 = shl 160, v17
+    v19 = or v16, v18
+    sstore v11, v19 !metadata(storage=symbolic(v11))
+    v20 = add 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563, 0
+    v21 = sload v20 !metadata(storage=slot(0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563))
+    v22 = mapping_slot 1, 1
+    v23 = shl 160, 0xffffffffffffffffff
+    v24 = sload v22 !metadata(storage=symbolic(v22))
+    v25 = not v23
+    v26 = and v24, v25
+    v27 = and 0, 0xffffffffffffffffff
+    v28 = shl 160, v27
+    v29 = or v26, v28
+    sstore v22, v29 !metadata(storage=symbolic(v22))
+    v30 = mapping_slot 1, 1
+    v31 = sload v30 !metadata(storage=symbolic(v30))
+    v32 = shr 160, v31
+    v33 = and v32, 0xffffffffffffffffff
+    v34 = ne v33, 0
+    jumpi v34, bb3, bb4
+  bb3:
+    v35 = add 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e562, v33
+    v36 = sload v35 !metadata(storage=offset(v33, 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e562))
+    jump bb4
+  bb4:
+    v37 = phi [bb2: 0], [bb3: v36]
+    v38 = sload 0 !metadata(storage=slot(0))
+    v39 = lt 0, v38
+    v40 = eq v39, false
+    icall panic_if<0x32>, v40
+    v41 = mapping_slot 1, 1
+    v42 = add 0, 1
+    v43 = shl 160, 0xffffffffffffffffff
+    v44 = sload v41 !metadata(storage=symbolic(v41))
+    v45 = not v43
+    v46 = and v44, v45
+    v47 = and v42, 0xffffffffffffffffff
+    v48 = shl 160, v47
+    v49 = or v46, v48
+    sstore v41, v49 !metadata(storage=symbolic(v41))
+    v50 = add 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563, 0
+    v51 = sload v50 !metadata(storage=slot(0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563))
+    v52 = mapping_slot 1, 1
+    v53 = shl 160, 0xffffffffffffffffff
+    v54 = sload v52 !metadata(storage=symbolic(v52))
+    v55 = not v53
+    v56 = and v54, v55
+    v57 = and 0, 0xffffffffffffffffff
+    v58 = shl 160, v57
+    v59 = or v56, v58
+    sstore v52, v59 !metadata(storage=symbolic(v52))
+    v60 = mapping_slot 1, 1
+    v61 = sload v60 !metadata(storage=symbolic(v60))
+    v62 = shr 160, v61
+    v63 = and v62, 0xffffffffffffffffff
+    v64 = ne v63, 0
+    jumpi v64, bb5, bb6
+  bb5:
+    v65 = add 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e562, v63
+    v66 = sload v65 !metadata(storage=offset(v63, 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e562))
+    jump bb6
+  bb6:
+    v67 = phi [bb4: 0], [bb5: v66]
+    v68 = insert_value struct2, undef struct2, 0, v7
+    v69 = insert_value struct2, v68, 1, v37
+    v70 = insert_value struct2, v69, 2, v67
+    ret v70
+}
+
+fn @outOfBounds() [selector=0xc1ea953e, abi_params=[], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    icall @listMarkets
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = lt 2, v0
+    v2 = eq v1, false
+    icall panic_if<0x32>, v2
+    v3 = mapping_slot 1, 1
+    v4 = add 2, 1
+    v5 = shl 160, 0xffffffffffffffffff
+    v6 = sload v3 !metadata(storage=symbolic(v3))
+    v7 = not v5
+    v8 = and v6, v7
+    v9 = and v4, 0xffffffffffffffffff
+    v10 = shl 160, v9
+    v11 = or v8, v10
+    sstore v3, v11 !metadata(storage=symbolic(v3))
+    v12 = add 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563, 2
+    v13 = sload v12 !metadata(storage=slot(0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e565))
+    ret
+}
+
+fn @copy() -> struct2 [selector=0x60726abb, abi_params=[], abi_returns=[word, word<u128>, word<bool>], abi_return_params=[bytes32, u128, bool]] {
+  bb0:
+    icall @listMarkets
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = lt 0, v0
+    v2 = eq v1, false
+    icall panic_if<0x32>, v2
+    v3 = mapping_slot 3, 1
+    v4 = add 0, 1
+    v5 = shl 160, 0xffffffffffffffffff
+    v6 = sload v3 !metadata(storage=symbolic(v3))
+    v7 = not v5
+    v8 = and v6, v7
+    v9 = and v4, 0xffffffffffffffffff
+    v10 = shl 160, v9
+    v11 = or v8, v10
+    sstore v3, v11 !metadata(storage=symbolic(v3))
+    v12 = add 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563, 0
+    v13 = sload v12 !metadata(storage=slot(0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563))
+    v14 = mapping_slot 3, 1
+    v15 = add v14, 1
+    v16 = sload v15 !metadata(storage=offset(v14, 1))
+    v17 = not 0xffffffffffffffffffffffffffffffff
+    v18 = and v16, v17
+    v19 = and 11, 0xffffffffffffffffffffffffffffffff
+    v20 = or v18, v19
+    sstore v15, v20 !metadata(storage=offset(v14, 1))
+    v21 = mapping_slot 3, 1
+    v22 = alloc memorystruct<6>, exact, uninitialized, panic, 192
+    v23 = sload v21 !metadata(storage=symbolic(v21))
+    v24 = and v23, 0xffffffffffffffffffffffffffffffffffffffff
+    memory_object_store_field memorystruct<6>, v22, 0, v24
+    v25 = sload v21 !metadata(storage=symbolic(v21))
+    v26 = shr 160, v25
+    v27 = and v26, 0xffffffffffffffffff
+    v28 = ne v27, 0
+    jumpi v28, bb1, bb2
+  bb1:
+    v29 = add 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e562, v27
+    v30 = sload v29 !metadata(storage=offset(v27, 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e562))
+    jump bb2
+  bb2:
+    v31 = phi [bb0: 0], [bb1: v30]
+    memory_object_store_field memorystruct<6>, v22, 1, v31
+    v32 = add v21, 1
+    v33 = sload v32 !metadata(storage=offset(v21, 1))
+    v34 = and v33, 0xffffffffffffffffffffffffffffffff
+    memory_object_store_field memorystruct<6>, v22, 2, v34
+    v35 = add v21, 1
+    v36 = sload v35 !metadata(storage=offset(v21, 1))
+    v37 = shr 128, v36
+    v38 = and v37, 0xffffffffffffffffffffffffffffffff
+    memory_object_store_field memorystruct<6>, v22, 3, v38
+    v39 = add v21, 2
+    v40 = sload v39 !metadata(storage=offset(v21, 2))
+    v41 = and v40, 0xffffffffffffffff
+    memory_object_store_field memorystruct<6>, v22, 4, v41
+    v42 = add v21, 2
+    v43 = sload v42 !metadata(storage=offset(v21, 2))
+    v44 = shr 64, v43
+    v45 = and v44, 255
+    memory_object_store_field memorystruct<6>, v22, 5, v45
+    v46 = memory_object_load_field memorystruct<6>, v22, 1
+    v47 = memory_object_load_field memorystruct<6>, v22, 2
+    v48 = and v47, 0xffffffffffffffffffffffffffffffff
+    v49 = mapping_slot 3, 1
+    v50 = alloc memorystruct<6>, exact, uninitialized, panic, 192
+    v51 = sload v49 !metadata(storage=symbolic(v49))
+    v52 = and v51, 0xffffffffffffffffffffffffffffffffffffffff
+    memory_object_store_field memorystruct<6>, v50, 0, v52
+    v53 = sload v49 !metadata(storage=symbolic(v49))
+    v54 = shr 160, v53
+    v55 = and v54, 0xffffffffffffffffff
+    v56 = ne v55, 0
+    jumpi v56, bb3, bb4
+  bb3:
+    v57 = add 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e562, v55
+    v58 = sload v57 !metadata(storage=offset(v55, 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e562))
+    jump bb4
+  bb4:
+    v59 = phi [bb2: 0], [bb3: v58]
+    memory_object_store_field memorystruct<6>, v50, 1, v59
+    v60 = add v49, 1
+    v61 = sload v60 !metadata(storage=offset(v49, 1))
+    v62 = and v61, 0xffffffffffffffffffffffffffffffff
+    memory_object_store_field memorystruct<6>, v50, 2, v62
+    v63 = add v49, 1
+    v64 = sload v63 !metadata(storage=offset(v49, 1))
+    v65 = shr 128, v64
+    v66 = and v65, 0xffffffffffffffffffffffffffffffff
+    memory_object_store_field memorystruct<6>, v50, 3, v66
+    v67 = add v49, 2
+    v68 = sload v67 !metadata(storage=offset(v49, 2))
+    v69 = and v68, 0xffffffffffffffff
+    memory_object_store_field memorystruct<6>, v50, 4, v69
+    v70 = add v49, 2
+    v71 = sload v70 !metadata(storage=offset(v49, 2))
+    v72 = shr 64, v71
+    v73 = and v72, 255
+    memory_object_store_field memorystruct<6>, v50, 5, v73
+    v74 = abi_encode [tuple<word<u160>, word, word<u128>, word<u128>, word<u64>, word<bool>>], scratch, args v50
+    v75 = slice_ptr v74
+    v76 = slice_len v74
+    v77 = keccak256 v75, v76
+    v78 = abi_encode [tuple<word<u160>, word, word<u128>, word<u128>, word<u64>, word<bool>>], scratch, args v22
+    v79 = slice_ptr v78
+    v80 = slice_len v78
+    v81 = keccak256 v79, v80
+    v82 = eq v77, v81
+    v83 = zext i1 v82 to i256
+    v84 = insert_value struct2, undef struct2, 0, v46
+    v85 = insert_value struct2, v84, 1, v48
+    v86 = insert_value struct2, v85, 2, v83
+    ret v86
+}
+
+fn @getter() -> struct0 [selector=0x993a04b7, abi_params=[], abi_returns=[word<u160>, word, word<u128>, word<u128>, word<u64>, word<bool>], abi_return_params=[address, bytes32, u128, u128, u64, bool]] {
+  bb0:
+    icall @listMarkets
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = lt 1, v0
+    v2 = eq v1, false
+    icall panic_if<0x32>, v2
+    v3 = mapping_slot 4, 1
+    v4 = add 1, 1
+    v5 = shl 160, 0xffffffffffffffffff
+    v6 = sload v3 !metadata(storage=symbolic(v3))
+    v7 = not v5
+    v8 = and v6, v7
+    v9 = and v4, 0xffffffffffffffffff
+    v10 = shl 160, v9
+    v11 = or v8, v10
+    sstore v3, v11 !metadata(storage=symbolic(v3))
+    v12 = add 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563, 1
+    v13 = sload v12 !metadata(storage=slot(0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e564))
+    v14 = mapping_slot 4, 1
+    v15 = add v14, 2
+    v16 = shl 64, 255
+    v17 = sload v15 !metadata(storage=offset(v14, 2))
+    v18 = not v16
+    v19 = and v17, v18
+    v20 = zext i1 1 to i256
+    v21 = and v20, 255
+    v22 = shl 64, v21
+    v23 = or v19, v22
+    sstore v15, v23 !metadata(storage=offset(v14, 2))
+    v24 = address
+    v25 = gas
+    v26 = abi_encode [word], selector 0xa85c38ef00000000000000000000000000000000000000000000000000000000, args 4
+    v27 = slice_ptr v26
+    v28 = slice_len v26
+    v29 = zext i160 v24 to i256
+    v30 = staticcall v25, v29, v27, v28, v27, 192
+    jumpi v30, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v31 = returndatasize
+    v32 = lt v31, 192
+    icall revert_if<tuple_data_too_short>, v32
+    v33 = add v27, 0
+    v34 = mload v33
+    v35 = and v34, 0xffffffffffffffffffffffffffffffffffffffff
+    v36 = eq v34, v35
+    v37 = eq v36, false
+    icall revert_if<empty>, v37
+    v38 = add v27, 32
+    v39 = mload v38
+    v40 = add v27, 64
+    v41 = mload v40
+    v42 = and v41, 0xffffffffffffffffffffffffffffffff
+    v43 = eq v41, v42
+    v44 = eq v43, false
+    icall revert_if<empty>, v44
+    v45 = add v27, 96
+    v46 = mload v45
+    v47 = and v46, 0xffffffffffffffffffffffffffffffff
+    v48 = eq v46, v47
+    v49 = eq v48, false
+    icall revert_if<empty>, v49
+    v50 = add v27, 128
+    v51 = mload v50
+    v52 = and v51, 0xffffffffffffffff
+    v53 = eq v51, v52
+    v54 = eq v53, false
+    icall revert_if<empty>, v54
+    v55 = add v27, 160
+    v56 = mload v55
+    v57 = eq v56, 0
+    v58 = eq v57, false
+    v59 = zext i1 v58 to i256
+    v60 = eq v56, v59
+    v61 = eq v60, false
+    icall revert_if<empty>, v61
+    v62 = add v27, 0
+    v63 = mload v62
+    v64 = add v27, 32
+    v65 = mload v64
+    v66 = add v27, 64
+    v67 = mload v66
+    v68 = add v27, 96
+    v69 = mload v68
+    v70 = add v27, 128
+    v71 = mload v70
+    v72 = add v27, 160
+    v73 = mload v72
+    v74 = insert_value struct0, undef struct0, 0, v63
+    v75 = insert_value struct0, v74, 1, v65
+    v76 = insert_value struct0, v75, 2, v67
+    v77 = insert_value struct0, v76, 3, v69
+    v78 = insert_value struct0, v77, 4, v71
+    v79 = insert_value struct0, v78, 5, v73
+    v80 = extract_value struct0, v79, 0
+    v81 = extract_value struct0, v79, 1
+    v82 = extract_value struct0, v79, 2
+    v83 = extract_value struct0, v79, 3
+    v84 = extract_value struct0, v79, 4
+    v85 = extract_value struct0, v79, 5
+    v86 = insert_value struct0, undef struct0, 0, v80
+    v87 = insert_value struct0, v86, 1, v81
+    v88 = insert_value struct0, v87, 2, v82
+    v89 = insert_value struct0, v88, 3, v83
+    v90 = insert_value struct0, v89, 4, v84
+    v91 = insert_value struct0, v90, 5, v85
+    ret v91
+}
+
+fn @assignmentValue() -> struct3 [selector=0x454887fb, abi_params=[], abi_returns=[word, word], abi_return_params=[bytes32, bytes32]] {
+  bb0:
+    icall @listMarkets
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = lt 1, v0
+    v2 = eq v1, false
+    icall panic_if<0x32>, v2
+    v3 = mapping_slot 5, 1
+    v4 = add 1, 1
+    v5 = shl 160, 0xffffffffffffffffff
+    v6 = sload v3 !metadata(storage=symbolic(v3))
+    v7 = not v5
+    v8 = and v6, v7
+    v9 = and v4, 0xffffffffffffffffff
+    v10 = shl 160, v9
+    v11 = or v8, v10
+    sstore v3, v11 !metadata(storage=symbolic(v3))
+    v12 = add 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563, 1
+    v13 = sload v12 !metadata(storage=slot(0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e564))
+    v14 = mapping_slot 5, 1
+    v15 = sload v14 !metadata(storage=symbolic(v14))
+    v16 = shr 160, v15
+    v17 = and v16, 0xffffffffffffffffff
+    v18 = ne v17, 0
+    jumpi v18, bb1, bb2
+  bb1:
+    v19 = add 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e562, v17
+    v20 = sload v19 !metadata(storage=offset(v17, 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e562))
+    jump bb2
+  bb2:
+    v21 = phi [bb0: 0], [bb1: v20]
+    v22 = insert_value struct3, undef struct3, 0, v13
+    v23 = insert_value struct3, v22, 1, v21
+    ret v23
+}
+
+fn @arrays() -> struct1 [selector=0x3b1facaf, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[bytes32, bytes32, u256, bytes32]] {
+  bb0:
+    icall @listMarkets
+    v0 = sload 2 !metadata(storage=slot(2))
+    v1 = gt v0, 0xffffffffffffffff
+    icall panic_if<0x41>, v1
+    v2 = add v0, 1
+    v3 = storage_array_data_slot 2
+    v4 = mul v0, 3
+    v5 = add v3, v4
+    sstore 2, v2 !metadata(storage=slot(2))
+    v6 = sload 2 !metadata(storage=slot(2))
+    v7 = gt v6, 0xffffffffffffffff
+    icall panic_if<0x41>, v7
+    v8 = add v6, 1
+    v9 = storage_array_data_slot 2
+    v10 = mul v6, 3
+    v11 = add v9, v10
+    sstore 2, v8 !metadata(storage=slot(2))
+    v12 = sload 0 !metadata(storage=slot(0))
+    v13 = lt 1, v12
+    v14 = eq v13, false
+    icall panic_if<0x32>, v14
+    v15 = sload 2 !metadata(storage=slot(2))
+    v16 = lt 1, v15
+    v17 = eq v16, false
+    icall panic_if<0x32>, v17
+    v18 = storage_array_data_slot 2
+    v19 = mul 1, 3
+    v20 = add v18, v19
+    v21 = add 1, 1
+    v22 = shl 160, 0xffffffffffffffffff
+    v23 = sload v20 !metadata(storage=symbolic(v20))
+    v24 = not v22
+    v25 = and v23, v24
+    v26 = and v21, 0xffffffffffffffffff
+    v27 = shl 160, v26
+    v28 = or v25, v27
+    sstore v20, v28 !metadata(storage=symbolic(v20))
+    v29 = add 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563, 1
+    v30 = sload v29 !metadata(storage=slot(0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e564))
+    v31 = sload 2 !metadata(storage=slot(2))
+    v32 = lt 1, v31
+    v33 = eq v32, false
+    icall panic_if<0x32>, v33
+    v34 = storage_array_data_slot 2
+    v35 = mul 1, 3
+    v36 = add v34, v35
+    v37 = add v36, 1
+    v38 = sload v37 !metadata(storage=offset(v36, 1))
+    v39 = not 0xffffffffffffffffffffffffffffffff
+    v40 = and v38, v39
+    v41 = and 3, 0xffffffffffffffffffffffffffffffff
+    v42 = or v40, v41
+    sstore v37, v42 !metadata(storage=offset(v36, 1))
+    v43 = sload 0 !metadata(storage=slot(0))
+    v44 = lt 0, v43
+    v45 = eq v44, false
+    icall panic_if<0x32>, v45
+    v46 = add 0, 1
+    v47 = shl 160, 0xffffffffffffffffff
+    v48 = sload 3 !metadata(storage=slot(3))
+    v49 = not v47
+    v50 = and v48, v49
+    v51 = and v46, 0xffffffffffffffffff
+    v52 = shl 160, v51
+    v53 = or v50, v52
+    sstore 3, v53 !metadata(storage=slot(3))
+    v54 = add 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563, 0
+    v55 = sload v54 !metadata(storage=slot(0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563))
+    v56 = add 3, 3
+    sstore v56, 9 !metadata(storage=slot(6))
+    v57 = icall @load_storage_struct_array_0, 2
+    v58 = memory_object_len memoryarray, v57
+    v59 = lt 1, v58
+    v60 = eq v59, false
+    icall panic_if<0x32>, v60
+    v61 = memory_object_load_element memoryarray<1>, v57, 1
+    v62 = inttoptr i256 v61 to memorystruct
+    v63 = eq v61, 0
+    jumpi v63, bb1, bb2
+  bb1:
+    v64 = alloc memorystruct<6>, exact, uninitialized, infallible, 192
+    memory_object_store_field memorystruct<6>, v64, 0, 0
+    memory_object_store_field memorystruct<6>, v64, 1, 0
+    memory_object_store_field memorystruct<6>, v64, 2, 0
+    memory_object_store_field memorystruct<6>, v64, 3, 0
+    memory_object_store_field memorystruct<6>, v64, 4, 0
+    memory_object_store_field memorystruct<6>, v64, 5, 0
+    v65 = ptrtoint memorystruct v64 to i256
+    memory_object_store_element memoryarray<1>, v57, 1, v65
+    jump bb2
+  bb2:
+    v66 = phi [bb0: v62], [bb1: v64]
+    v67 = memory_object_load_field memorystruct<6>, v66, 1
+    v68 = sload 2 !metadata(storage=slot(2))
+    v69 = eq v68, 0
+    icall panic_if<0x31>, v69
+    v70 = sub v68, 1
+    sstore 2, v70 !metadata(storage=slot(2))
+    v71 = storage_array_data_slot 2
+    v72 = mul v70, 3
+    v73 = add v71, v72
+    sstore v73, 0 !metadata(storage=symbolic(v73))
+    v74 = add v73, 1
+    sstore v74, 0 !metadata(storage=offset(v73, 1))
+    v75 = add v73, 1
+    v76 = add v73, 2
+    sstore v76, 0 !metadata(storage=offset(v73, 2))
+    v77 = add v73, 2
+    v78 = sload 2 !metadata(storage=slot(2))
+    v79 = lt 0, v78
+    v80 = eq v79, false
+    icall panic_if<0x32>, v80
+    v81 = storage_array_data_slot 2
+    v82 = mul 0, 3
+    v83 = add v81, v82
+    v84 = sload v83 !metadata(storage=symbolic(v83))
+    v85 = shr 160, v84
+    v86 = and v85, 0xffffffffffffffffff
+    v87 = ne v86, 0
+    jumpi v87, bb3, bb4
+  bb3:
+    v88 = add 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e562, v86
+    v89 = sload v88 !metadata(storage=offset(v86, 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e562))
+    jump bb4
+  bb4:
+    v90 = phi [bb2: 0], [bb3: v89]
+    v91 = add 3, 3
+    v92 = sload v91 !metadata(storage=slot(6))
+    v93 = sload 3 !metadata(storage=slot(3))
+    v94 = shr 160, v93
+    v95 = and v94, 0xffffffffffffffffff
+    v96 = ne v95, 0
+    jumpi v96, bb5, bb6
+  bb5:
+    v97 = add 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e562, v95
+    v98 = sload v97 !metadata(storage=offset(v95, 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e562))
+    jump bb6
+  bb6:
+    v99 = phi [bb4: 0], [bb5: v98]
+    v100 = insert_value struct1, undef struct1, 0, v90
+    v101 = insert_value struct1, v100, 1, v67
+    v102 = insert_value struct1, v101, 2, v92
+    v103 = insert_value struct1, v102, 3, v99
+    ret v103
+}
+
+fn @viaReference() -> i256 [selector=0x90492757, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    icall @listMarkets
+    v0 = mapping_slot 6, 1
+    icall @fill, v0, 1
+    v1 = mapping_slot 6, 1
+    v2 = sload v1 !metadata(storage=symbolic(v1))
+    v3 = shr 160, v2
+    v4 = and v3, 0xffffffffffffffffff
+    v5 = ne v4, 0
+    jumpi v5, bb1, bb2
+  bb1:
+    v6 = add 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e562, v4
+    v7 = sload v6 !metadata(storage=offset(v4, 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e562))
+    jump bb2
+  bb2:
+    v8 = phi [bb0: 0], [bb1: v7]
+    ret v8
+}
+
+fn @next(arg0: i256) -> i256 {
+  bb0:
+    v0 = sload 10 !metadata(storage=slot(10))
+    v1 = checked_mul u256, v0, 10
+    v2 = checked_add u256, v1, arg0
+    sstore 10, v2 !metadata(storage=slot(10))
+    ret arg0
+}
+
+fn @order() -> struct3 [selector=0xbf15071d, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, bytes32]] {
+  bb0:
+    icall @listMarkets
+    v0 = icall @next, 1
+    v1 = sload 0 !metadata(storage=slot(0))
+    v2 = lt v0, v1
+    v3 = eq v2, false
+    icall panic_if<0x32>, v3
+    v4 = icall @next, 3
+    v5 = mapping_slot v4, 1
+    v6 = add v0, 1
+    v7 = shl 160, 0xffffffffffffffffff
+    v8 = sload v5 !metadata(storage=symbolic(v5))
+    v9 = not v7
+    v10 = and v8, v9
+    v11 = and v6, 0xffffffffffffffffff
+    v12 = shl 160, v11
+    v13 = or v10, v12
+    sstore v5, v13 !metadata(storage=symbolic(v5))
+    v14 = add 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563, v0
+    v15 = sload v14 !metadata(storage=offset(v0, 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563))
+    v16 = sload 10 !metadata(storage=slot(10))
+    v17 = mapping_slot 3, 1
+    v18 = sload v17 !metadata(storage=symbolic(v17))
+    v19 = shr 160, v18
+    v20 = and v19, 0xffffffffffffffffff
+    v21 = ne v20, 0
+    jumpi v21, bb1, bb2
+  bb1:
+    v22 = add 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e562, v20
+    v23 = sload v22 !metadata(storage=offset(v20, 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e562))
+    jump bb2
+  bb2:
+    v24 = phi [bb0: 0], [bb1: v23]
+    v25 = insert_value struct3, undef struct3, 0, v16
+    v26 = insert_value struct3, v25, 1, v24
+    ret v26
+}
+
+fn @duplicates() -> struct2 [selector=0xfee0f461, inline_assembly, abi_params=[], abi_returns=[word, word, word], abi_return_params=[bytes32, bytes32, bytes32]] {
+  bb0:
+    v0 = shl 0, 161
+    v1 = sload 0 !metadata(storage=slot(0))
+    v2 = gt v1, 0xffffffffffffffff
+    icall panic_if<0x41>, v2
+    v3 = add v1, 1
+    v4 = storage_array_data_slot 0
+    v5 = add v4, v1
+    sstore v5, v0 !metadata(storage=symbolic(v5))
+    sstore 0, v3 !metadata(storage=slot(0))
+    v6 = shl 0, 161
+    v7 = sload 0 !metadata(storage=slot(0))
+    v8 = gt v7, 0xffffffffffffffff
+    icall panic_if<0x41>, v8
+    v9 = add v7, 1
+    v10 = storage_array_data_slot 0
+    v11 = add v10, v7
+    sstore v11, v6 !metadata(storage=symbolic(v11))
+    sstore 0, v9 !metadata(storage=slot(0))
+    v12 = shl 0, 161
+    v13 = sload 0 !metadata(storage=slot(0))
+    v14 = gt v13, 0xffffffffffffffff
+    icall panic_if<0x41>, v14
+    v15 = add v13, 1
+    v16 = storage_array_data_slot 0
+    v17 = add v16, v13
+    sstore v17, v12 !metadata(storage=symbolic(v17))
+    sstore 0, v15 !metadata(storage=slot(0))
+    v18 = sload 0 !metadata(storage=slot(0))
+    v19 = lt 0, v18
+    v20 = eq v19, false
+    icall panic_if<0x32>, v20
+    v21 = mapping_slot 1, 1
+    v22 = add 0, 1
+    v23 = shl 160, 0xffffffffffffffffff
+    v24 = sload v21 !metadata(storage=symbolic(v21))
+    v25 = not v23
+    v26 = and v24, v25
+    v27 = and v22, 0xffffffffffffffffff
+    v28 = shl 160, v27
+    v29 = or v26, v28
+    sstore v21, v29 !metadata(storage=symbolic(v21))
+    v30 = add 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563, 0
+    v31 = sload v30 !metadata(storage=slot(0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563))
+    v32 = sload 0 !metadata(storage=slot(0))
+    v33 = lt 2, v32
+    v34 = eq v33, false
+    icall panic_if<0x32>, v34
+    v35 = mapping_slot 2, 1
+    v36 = add 2, 1
+    v37 = shl 160, 0xffffffffffffffffff
+    v38 = sload v35 !metadata(storage=symbolic(v35))
+    v39 = not v37
+    v40 = and v38, v39
+    v41 = and v36, 0xffffffffffffffffff
+    v42 = shl 160, v41
+    v43 = or v40, v42
+    sstore v35, v43 !metadata(storage=symbolic(v35))
+    v44 = add 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563, 2
+    v45 = sload v44 !metadata(storage=slot(0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e565))
+    v46 = keccak256_packed (u256 2, u256 1)
+    v47 = sload v46 !metadata(storage=symbolic(v46))
+    v48 = shr 160, v47
+    v49 = mapping_slot 1, 1
+    v50 = sload v49 !metadata(storage=symbolic(v49))
+    v51 = shr 160, v50
+    v52 = and v51, 0xffffffffffffffffff
+    v53 = ne v52, 0
+    jumpi v53, bb1, bb2
+  bb1:
+    v54 = add 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e562, v52
+    v55 = sload v54 !metadata(storage=offset(v52, 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e562))
+    jump bb2
+  bb2:
+    v56 = phi [bb0: 0], [bb1: v55]
+    v57 = mapping_slot 2, 1
+    v58 = sload v57 !metadata(storage=symbolic(v57))
+    v59 = shr 160, v58
+    v60 = and v59, 0xffffffffffffffffff
+    v61 = ne v60, 0
+    jumpi v61, bb3, bb4
+  bb3:
+    v62 = add 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e562, v60
+    v63 = sload v62 !metadata(storage=offset(v60, 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e562))
+    jump bb4
+  bb4:
+    v64 = phi [bb2: 0], [bb3: v63]
+    v65 = insert_value struct2, undef struct2, 0, v56
+    v66 = insert_value struct2, v65, 1, v64
+    v67 = insert_value struct2, v66, 2, v48
+    ret v67
+}
+
+fn @viaFunction() -> struct3 [selector=0x7724b01e, abi_params=[], abi_returns=[word, word], abi_return_params=[bytes32, bytes32]] {
+  bb0:
+    icall @listMarkets
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = lt 0, v0
+    v2 = eq v1, false
+    icall panic_if<0x32>, v2
+    v3 = icall @at, 8
+    v4 = add 0, 1
+    v5 = shl 160, 0xffffffffffffffffff
+    v6 = sload v3 !metadata(storage=symbolic(v3))
+    v7 = not v5
+    v8 = and v6, v7
+    v9 = and v4, 0xffffffffffffffffff
+    v10 = shl 160, v9
+    v11 = or v8, v10
+    sstore v3, v11 !metadata(storage=symbolic(v3))
+    v12 = add 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563, 0
+    v13 = sload v12 !metadata(storage=slot(0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563))
+    v14 = icall @at, 8
+    v15 = sload v14 !metadata(storage=symbolic(v14))
+    v16 = shr 160, v15
+    v17 = and v16, 0xffffffffffffffffff
+    v18 = ne v17, 0
+    jumpi v18, bb1, bb2
+  bb1:
+    v19 = add 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e562, v17
+    v20 = sload v19 !metadata(storage=offset(v17, 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e562))
+    jump bb2
+  bb2:
+    v21 = phi [bb0: 0], [bb1: v20]
+    v22 = mapping_slot 8, 1
+    v23 = sload v22 !metadata(storage=symbolic(v22))
+    v24 = shr 160, v23
+    v25 = and v24, 0xffffffffffffffffff
+    v26 = ne v25, 0
+    jumpi v26, bb3, bb4
+  bb3:
+    v27 = add 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e562, v25
+    v28 = sload v27 !metadata(storage=offset(v25, 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e562))
+    jump bb4
+  bb4:
+    v29 = phi [bb2: 0], [bb3: v28]
+    v30 = insert_value struct3, undef struct3, 0, v21
+    v31 = insert_value struct3, v30, 1, v29
+    ret v31
+}
+
+fn @memoryReturn() -> memorystruct [selector=0x72836607, abi_params=[], abi_returns=[tuple<word<u160>, word, word<u128>, word<u128>, word<u64>, word<bool>>], abi_return_params=[tuple<address, bytes32, u128, u128, u64, bool>]] {
+  bb0:
+    icall @listMarkets
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = lt 1, v0
+    v2 = eq v1, false
+    icall panic_if<0x32>, v2
+    v3 = mapping_slot 9, 1
+    v4 = add 1, 1
+    v5 = shl 160, 0xffffffffffffffffff
+    v6 = sload v3 !metadata(storage=symbolic(v3))
+    v7 = not v5
+    v8 = and v6, v7
+    v9 = and v4, 0xffffffffffffffffff
+    v10 = shl 160, v9
+    v11 = or v8, v10
+    sstore v3, v11 !metadata(storage=symbolic(v3))
+    v12 = add 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563, 1
+    v13 = sload v12 !metadata(storage=slot(0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e564))
+    v14 = mapping_slot 9, 1
+    v15 = add v14, 1
+    v16 = sload v15 !metadata(storage=offset(v14, 1))
+    v17 = not 0xffffffffffffffffffffffffffffffff
+    v18 = and v16, v17
+    v19 = and 4, 0xffffffffffffffffffffffffffffffff
+    v20 = or v18, v19
+    sstore v15, v20 !metadata(storage=offset(v14, 1))
+    v21 = alloc memorystruct<6>, exact, uninitialized, infallible, 192 !metadata(preserves_fmp)
+    v22 = ptrtoint memorystruct v21 to i256
+    memory_zero v22, 192
+    v23 = mapping_slot 9, 1
+    v24 = alloc memorystruct<6>, exact, uninitialized, panic, 192
+    v25 = sload v23 !metadata(storage=symbolic(v23))
+    v26 = and v25, 0xffffffffffffffffffffffffffffffffffffffff
+    memory_object_store_field memorystruct<6>, v24, 0, v26
+    v27 = sload v23 !metadata(storage=symbolic(v23))
+    v28 = shr 160, v27
+    v29 = and v28, 0xffffffffffffffffff
+    v30 = ne v29, 0
+    jumpi v30, bb1, bb2
+  bb1:
+    v31 = add 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e562, v29
+    v32 = sload v31 !metadata(storage=offset(v29, 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e562))
+    jump bb2
+  bb2:
+    v33 = phi [bb0: 0], [bb1: v32]
+    memory_object_store_field memorystruct<6>, v24, 1, v33
+    v34 = add v23, 1
+    v35 = sload v34 !metadata(storage=offset(v23, 1))
+    v36 = and v35, 0xffffffffffffffffffffffffffffffff
+    memory_object_store_field memorystruct<6>, v24, 2, v36
+    v37 = add v23, 1
+    v38 = sload v37 !metadata(storage=offset(v23, 1))
+    v39 = shr 128, v38
+    v40 = and v39, 0xffffffffffffffffffffffffffffffff
+    memory_object_store_field memorystruct<6>, v24, 3, v40
+    v41 = add v23, 2
+    v42 = sload v41 !metadata(storage=offset(v23, 2))
+    v43 = and v42, 0xffffffffffffffff
+    memory_object_store_field memorystruct<6>, v24, 4, v43
+    v44 = add v23, 2
+    v45 = sload v44 !metadata(storage=offset(v23, 2))
+    v46 = shr 64, v45
+    v47 = and v46, 255
+    memory_object_store_field memorystruct<6>, v24, 5, v47
+    ret v24
+}
+
+fn @tagged() -> struct4 [selector=0xb176f8e0, inline_assembly, abi_params=[], abi_returns=[word, word, word<u32>, word, word], abi_return_params=[bytes32, u256, u32, bytes32, bytes32]] {
+  bb0:
+    v0 = shl 0, 29
+    v1 = sload 7 !metadata(storage=slot(7))
+    v2 = gt v1, 0xffffffffffffffff
+    icall panic_if<0x41>, v2
+    v3 = add v1, 1
+    v4 = storage_array_data_slot 7
+    v5 = add v4, v1
+    sstore v5, v0 !metadata(storage=symbolic(v5))
+    sstore 7, v3 !metadata(storage=slot(7))
+    v6 = sload 8 !metadata(storage=slot(8))
+    v7 = gt v6, 0xffffffffffffffff
+    icall panic_if<0x41>, v7
+    v8 = add v6, 1
+    v9 = storage_array_data_slot 8
+    v10 = add v9, v6
+    sstore v10, 0x3e8 !metadata(storage=symbolic(v10))
+    sstore 8, v8 !metadata(storage=slot(8))
+    v11 = sload 7 !metadata(storage=slot(7))
+    v12 = lt 0, v11
+    v13 = eq v12, false
+    icall panic_if<0x32>, v13
+    v14 = add 0, 1
+    v15 = sload 9 !metadata(storage=slot(9))
+    v16 = not 0xffffffffffffffffff
+    v17 = and v15, v16
+    v18 = and v14, 0xffffffffffffffffff
+    v19 = or v17, v18
+    sstore 9, v19 !metadata(storage=slot(9))
+    v20 = add 0xa66cc928b5edb82af9bd49922954155ab7b0942694bea4ce44661d9a8736c688, 0
+    v21 = sload v20 !metadata(storage=slot(0xa66cc928b5edb82af9bd49922954155ab7b0942694bea4ce44661d9a8736c688))
+    v22 = sload 8 !metadata(storage=slot(8))
+    v23 = lt 0, v22
+    v24 = eq v23, false
+    icall panic_if<0x32>, v24
+    v25 = add 0, 1
+    v26 = shl 72, 0xffffffffffffffffff
+    v27 = sload 9 !metadata(storage=slot(9))
+    v28 = not v26
+    v29 = and v27, v28
+    v30 = and v25, 0xffffffffffffffffff
+    v31 = shl 72, v30
+    v32 = or v29, v31
+    sstore 9, v32 !metadata(storage=slot(9))
+    v33 = add 0xf3f7a9fe364faab93b216da50a3214154f22a0a2b415b23a84c8169e8b636ee3, 0
+    v34 = sload v33 !metadata(storage=slot(0xf3f7a9fe364faab93b216da50a3214154f22a0a2b415b23a84c8169e8b636ee3))
+    v35 = shl 144, 0xffffffff
+    v36 = sload 9 !metadata(storage=slot(9))
+    v37 = not v35
+    v38 = and v36, v37
+    v39 = and 3, 0xffffffff
+    v40 = shl 144, v39
+    v41 = or v38, v40
+    sstore 9, v41 !metadata(storage=slot(9))
+    v42 = sload 9 !metadata(storage=slot(9))
+    v43 = alloc memorystruct<3>, exact, uninitialized, panic, 96
+    v44 = sload 9 !metadata(storage=slot(9))
+    v45 = and v44, 0xffffffffffffffffff
+    v46 = ne v45, 0
+    jumpi v46, bb1, bb2
+  bb1:
+    v47 = add 0xa66cc928b5edb82af9bd49922954155ab7b0942694bea4ce44661d9a8736c687, v45
+    v48 = sload v47 !metadata(storage=offset(v45, 0xa66cc928b5edb82af9bd49922954155ab7b0942694bea4ce44661d9a8736c687))
+    jump bb2
+  bb2:
+    v49 = phi [bb0: 0], [bb1: v48]
+    memory_object_store_field memorystruct<3>, v43, 0, v49
+    v50 = sload 9 !metadata(storage=slot(9))
+    v51 = shr 72, v50
+    v52 = and v51, 0xffffffffffffffffff
+    v53 = ne v52, 0
+    jumpi v53, bb3, bb4
+  bb3:
+    v54 = add 0xf3f7a9fe364faab93b216da50a3214154f22a0a2b415b23a84c8169e8b636ee2, v52
+    v55 = sload v54 !metadata(storage=offset(v52, 0xf3f7a9fe364faab93b216da50a3214154f22a0a2b415b23a84c8169e8b636ee2))
+    jump bb4
+  bb4:
+    v56 = phi [bb2: 0], [bb3: v55]
+    memory_object_store_field memorystruct<3>, v43, 1, v56
+    v57 = sload 9 !metadata(storage=slot(9))
+    v58 = shr 144, v57
+    v59 = and v58, 0xffffffff
+    memory_object_store_field memorystruct<3>, v43, 2, v59
+    v60 = sload 9 !metadata(storage=slot(9))
+    v61 = not 0xffffffffffffffffff
+    v62 = and v60, v61
+    v63 = and 0, 0xffffffffffffffffff
+    v64 = or v62, v63
+    sstore 9, v64 !metadata(storage=slot(9))
+    v65 = sload 9 !metadata(storage=slot(9))
+    v66 = and v65, 0xffffffffffffffffff
+    v67 = ne v66, 0
+    jumpi v67, bb5, bb6
+  bb5:
+    v68 = add 0xa66cc928b5edb82af9bd49922954155ab7b0942694bea4ce44661d9a8736c687, v66
+    v69 = sload v68 !metadata(storage=offset(v66, 0xa66cc928b5edb82af9bd49922954155ab7b0942694bea4ce44661d9a8736c687))
+    jump bb6
+  bb6:
+    v70 = phi [bb4: 0], [bb5: v69]
+    v71 = memory_object_load_field memorystruct<3>, v43, 0
+    v72 = memory_object_load_field memorystruct<3>, v43, 1
+    v73 = memory_object_load_field memorystruct<3>, v43, 2
+    v74 = and v73, 0xffffffff
+    v75 = insert_value struct4, undef struct4, 0, v71
+    v76 = insert_value struct4, v75, 1, v72
+    v77 = insert_value struct4, v76, 2, v74
+    v78 = insert_value struct4, v77, 3, v42
+    v79 = insert_value struct4, v78, 4, v70
+    ret v79
+}
+
+fn @markets(arg0: i256) -> i256 [selector=0xb1283e77, view, abi_params=[u256], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = lt arg0, v0
+    icall revert_if_zero<empty>, v1
+    v2 = storage_array_data_slot 0
+    v3 = add v2, arg0
+    v4 = sload v3 !metadata(storage=symbolic(v3))
+    ret v4
+}
+
+fn @orders(arg0: i256) -> struct0 [selector=0xa85c38ef, view, abi_params=[u256], abi_returns=[word<u160>, word, word<u128>, word<u128>, word<u64>, word<bool>], abi_return_params=[address, bytes32, u128, u128, u64, bool]] {
+  bb0:
+    v0 = mapping_slot arg0, 1
+    v1 = sload v0 !metadata(storage=symbolic(v0))
+    v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffff
+    v3 = sload v0 !metadata(storage=symbolic(v0))
+    v4 = shr 160, v3
+    v5 = and v4, 0xffffffffffffffffff
+    v6 = ne v5, 0
+    jumpi v6, bb1, bb2
+  bb1:
+    v7 = add 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e562, v5
+    v8 = sload v7 !metadata(storage=offset(v5, 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e562))
+    jump bb2
+  bb2:
+    v9 = phi [bb0: 0], [bb1: v8]
+    v10 = add v0, 1
+    v11 = sload v10 !metadata(storage=offset(v0, 1))
+    v12 = and v11, 0xffffffffffffffffffffffffffffffff
+    v13 = add v0, 1
+    v14 = sload v13 !metadata(storage=offset(v0, 1))
+    v15 = shr 128, v14
+    v16 = and v15, 0xffffffffffffffffffffffffffffffff
+    v17 = add v0, 2
+    v18 = sload v17 !metadata(storage=offset(v0, 2))
+    v19 = and v18, 0xffffffffffffffff
+    v20 = add v0, 2
+    v21 = sload v20 !metadata(storage=offset(v0, 2))
+    v22 = shr 64, v21
+    v23 = and v22, 255
+    v24 = insert_value struct0, undef struct0, 0, v2
+    v25 = insert_value struct0, v24, 1, v9
+    v26 = insert_value struct0, v25, 2, v12
+    v27 = insert_value struct0, v26, 3, v16
+    v28 = insert_value struct0, v27, 4, v19
+    v29 = insert_value struct0, v28, 5, v23
+    ret v29
+}
+
+fn @listMarkets() {
+  bb0:
+    v0 = shl 0, 161
+    v1 = sload 0 !metadata(storage=slot(0))
+    v2 = gt v1, 0xffffffffffffffff
+    icall panic_if<0x41>, v2
+    v3 = add v1, 1
+    v4 = storage_array_data_slot 0
+    v5 = add v4, v1
+    sstore v5, v0 !metadata(storage=symbolic(v5))
+    sstore 0, v3 !metadata(storage=slot(0))
+    v6 = shl 0, 178
+    v7 = sload 0 !metadata(storage=slot(0))
+    v8 = gt v7, 0xffffffffffffffff
+    icall panic_if<0x41>, v8
+    v9 = add v7, 1
+    v10 = storage_array_data_slot 0
+    v11 = add v10, v7
+    sstore v11, v6 !metadata(storage=symbolic(v11))
+    sstore 0, v9 !metadata(storage=slot(0))
+    ret
+}
+
+fn @fill(arg0: i256, arg1: i256) {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = lt arg1, v0
+    v2 = eq v1, false
+    icall panic_if<0x32>, v2
+    v3 = add arg1, 1
+    v4 = shl 160, 0xffffffffffffffffff
+    v5 = sload arg0 !metadata(storage=symbolic(arg0))
+    v6 = not v4
+    v7 = and v5, v6
+    v8 = and v3, 0xffffffffffffffffff
+    v9 = shl 160, v8
+    v10 = or v7, v9
+    sstore arg0, v10 !metadata(storage=symbolic(arg0))
+    v11 = add 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563, arg1
+    v12 = sload v11 !metadata(storage=offset(arg1, 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563))
+    ret
+}
+
+fn @at(arg0: i256) -> i256 [view] {
+  bb0:
+    v0 = mapping_slot arg0, 1
+    ret v0
+}
+
+fn @load_storage_struct_array_0(arg0: i256) -> memoryarray {
+  bb0:
+    v0 = sload arg0 !metadata(storage=symbolic(arg0))
+    v1 = add v0, 1
+    v2 = lt v1, v0
+    icall panic_if<0x41>, v2
+    v3 = mul v1, 32
+    v4 = eq 32, 0
+    v5 = div v3, 32
+    v6 = eq v5, v1
+    v7 = or v4, v6
+    v8 = zext i1 v7 to i256
+    v9 = eq v8, 0
+    icall panic_if<0x41>, v9
+    v10 = alloc memoryarray<1>, exact, uninitialized, panic, v3
+    set_memory_object_len memoryarray, v10, v0
+    v11 = storage_array_data_slot arg0
+    jump bb1
+  bb1:
+    v12 = phi [bb0: 0], [bb5: v40]
+    v13 = phi [bb0: v11], [bb5: v41]
+    v14 = lt v12, v0
+    jumpi v14, bb2, bb3
+  bb3:
+    ret v10
+  bb2:
+    v15 = alloc memorystruct<6>, exact, uninitialized, panic, 192
+    v16 = sload v13 !metadata(storage=symbolic(v13))
+    v17 = and v16, 0xffffffffffffffffffffffffffffffffffffffff
+    memory_object_store_field memorystruct<6>, v15, 0, v17
+    v18 = sload v13 !metadata(storage=symbolic(v13))
+    v19 = shr 160, v18
+    v20 = and v19, 0xffffffffffffffffff
+    v21 = ne v20, 0
+    jumpi v21, bb4, bb5
+  bb4:
+    v22 = add 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e562, v20
+    v23 = sload v22 !metadata(storage=offset(v20, 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e562))
+    jump bb5
+  bb5:
+    v24 = phi [bb2: 0], [bb4: v23]
+    memory_object_store_field memorystruct<6>, v15, 1, v24
+    v25 = add v13, 1
+    v26 = sload v25 !metadata(storage=offset(v13, 1))
+    v27 = and v26, 0xffffffffffffffffffffffffffffffff
+    memory_object_store_field memorystruct<6>, v15, 2, v27
+    v28 = add v13, 1
+    v29 = sload v28 !metadata(storage=offset(v13, 1))
+    v30 = shr 128, v29
+    v31 = and v30, 0xffffffffffffffffffffffffffffffff
+    memory_object_store_field memorystruct<6>, v15, 3, v31
+    v32 = add v13, 2
+    v33 = sload v32 !metadata(storage=offset(v13, 2))
+    v34 = and v33, 0xffffffffffffffff
+    memory_object_store_field memorystruct<6>, v15, 4, v34
+    v35 = add v13, 2
+    v36 = sload v35 !metadata(storage=offset(v13, 2))
+    v37 = shr 64, v36
+    v38 = and v37, 255
+    memory_object_store_field memorystruct<6>, v15, 5, v38
+    v39 = ptrtoint memorystruct v15 to i256
+    memory_object_store_element memoryarray<1>, v10, v12, v39
+    v40 = add v12, 1
+    v41 = add v13, 3
+    jump bb1
+}
+
+fn @constructor() [constructor] {
+  bb0:
+    ret
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/storage_handles.sol:Padding ===
+@module Padding
+
+// === ROOT/tests/ui/codegen/lowering/run-call/storage_handles.sol:Shifted ===
+@module Shifted
+@types
+  struct0: {i256, i256}
+  struct1: {i256, i256, i256, i256, i256, i256}
+
+fn @shifted() -> struct0 [selector=0xd461625c, inline_assembly, abi_params=[], abi_returns=[word, word], abi_return_params=[bytes32, bytes32]] {
+  bb0:
+    v0 = shl 0, 195
+    v1 = sload 1 !metadata(storage=slot(1))
+    v2 = gt v1, 0xffffffffffffffff
+    icall panic_if<0x41>, v2
+    v3 = add v1, 1
+    v4 = storage_array_data_slot 1
+    v5 = add v4, v1
+    sstore v5, v0 !metadata(storage=symbolic(v5))
+    sstore 1, v3 !metadata(storage=slot(1))
+    v6 = sload 1 !metadata(storage=slot(1))
+    v7 = lt 0, v6
+    v8 = eq v7, false
+    icall panic_if<0x32>, v8
+    v9 = mapping_slot 1, 2
+    v10 = add 0, 1
+    v11 = shl 160, 0xffffffffffffffffff
+    v12 = sload v9 !metadata(storage=symbolic(v9))
+    v13 = not v11
+    v14 = and v12, v13
+    v15 = and v10, 0xffffffffffffffffff
+    v16 = shl 160, v15
+    v17 = or v14, v16
+    sstore v9, v17 !metadata(storage=symbolic(v9))
+    v18 = add 0xb10e2d527612073b26eecdfd717e6a320cf44b4afac2b0732d9fcbe2b7fa0cf6, 0
+    v19 = sload v18 !metadata(storage=slot(0xb10e2d527612073b26eecdfd717e6a320cf44b4afac2b0732d9fcbe2b7fa0cf6))
+    v20 = keccak256_packed (u256 1, u256 2)
+    v21 = sload v20 !metadata(storage=symbolic(v20))
+    v22 = shr 160, v21
+    v23 = mapping_slot 1, 2
+    v24 = sload v23 !metadata(storage=symbolic(v23))
+    v25 = shr 160, v24
+    v26 = and v25, 0xffffffffffffffffff
+    v27 = ne v26, 0
+    jumpi v27, bb1, bb2
+  bb1:
+    v28 = add 0xb10e2d527612073b26eecdfd717e6a320cf44b4afac2b0732d9fcbe2b7fa0cf5, v26
+    v29 = sload v28 !metadata(storage=offset(v26, 0xb10e2d527612073b26eecdfd717e6a320cf44b4afac2b0732d9fcbe2b7fa0cf5))
+    jump bb2
+  bb2:
+    v30 = phi [bb0: 0], [bb1: v29]
+    v31 = insert_value struct0, undef struct0, 0, v30
+    v32 = insert_value struct0, v31, 1, v22
+    ret v32
+}
+
+fn @markets(arg0: i256) -> i256 [selector=0xb1283e77, view, abi_params=[u256], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = sload 1 !metadata(storage=slot(1))
+    v1 = lt arg0, v0
+    icall revert_if_zero<empty>, v1
+    v2 = storage_array_data_slot 1
+    v3 = add v2, arg0
+    v4 = sload v3 !metadata(storage=symbolic(v3))
+    ret v4
+}
+
+fn @orders(arg0: i256) -> struct1 [selector=0xa85c38ef, view, abi_params=[u256], abi_returns=[word<u160>, word, word<u128>, word<u128>, word<u64>, word<bool>], abi_return_params=[address, bytes32, u128, u128, u64, bool]] {
+  bb0:
+    v0 = mapping_slot arg0, 2
+    v1 = sload v0 !metadata(storage=symbolic(v0))
+    v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffff
+    v3 = sload v0 !metadata(storage=symbolic(v0))
+    v4 = shr 160, v3
+    v5 = and v4, 0xffffffffffffffffff
+    v6 = ne v5, 0
+    jumpi v6, bb1, bb2
+  bb1:
+    v7 = add 0xb10e2d527612073b26eecdfd717e6a320cf44b4afac2b0732d9fcbe2b7fa0cf5, v5
+    v8 = sload v7 !metadata(storage=offset(v5, 0xb10e2d527612073b26eecdfd717e6a320cf44b4afac2b0732d9fcbe2b7fa0cf5))
+    jump bb2
+  bb2:
+    v9 = phi [bb0: 0], [bb1: v8]
+    v10 = add v0, 1
+    v11 = sload v10 !metadata(storage=offset(v0, 1))
+    v12 = and v11, 0xffffffffffffffffffffffffffffffff
+    v13 = add v0, 1
+    v14 = sload v13 !metadata(storage=offset(v0, 1))
+    v15 = shr 128, v14
+    v16 = and v15, 0xffffffffffffffffffffffffffffffff
+    v17 = add v0, 2
+    v18 = sload v17 !metadata(storage=offset(v0, 2))
+    v19 = and v18, 0xffffffffffffffff
+    v20 = add v0, 2
+    v21 = sload v20 !metadata(storage=offset(v0, 2))
+    v22 = shr 64, v21
+    v23 = and v22, 255
+    v24 = insert_value struct1, undef struct1, 0, v2
+    v25 = insert_value struct1, v24, 1, v9
+    v26 = insert_value struct1, v25, 2, v12
+    v27 = insert_value struct1, v26, 3, v16
+    v28 = insert_value struct1, v27, 4, v19
+    v29 = insert_value struct1, v28, 5, v23
+    ret v29
+}
+
+fn @constructor() [constructor] {
+  bb0:
+    ret
+}

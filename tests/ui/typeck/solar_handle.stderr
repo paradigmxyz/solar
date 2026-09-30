@@ -1,0 +1,393 @@
+error: `@custom:solar-handle` must document a struct declared in a contract
+   ╭▸ ROOT/tests/ui/typeck/solar_handle.sol:LL:CC
+   │
+LL │     /// @custom:solar-handle marketId markets
+   │          ━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: put it on a struct of the contract that keeps the dictionary: `@custom:solar-handle marketId markets`
+
+error: `@custom:solar-handle` must document a struct declared in a contract
+   ╭▸ ROOT/tests/ui/typeck/solar_handle.sol:LL:CC
+   │
+LL │ /// @custom:solar-handle id ids
+   │      ━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: put it on a struct of the contract that keeps the dictionary: `@custom:solar-handle marketId markets`
+
+error: `@custom:solar-handle` must name a field and its dictionary
+   ╭▸ ROOT/tests/ui/typeck/solar_handle.sol:LL:CC
+   │
+LL │     /// @custom:solar-handle
+   │          ━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: name a field of the struct and the state variable that lists its values: `@custom:solar-handle marketId markets`
+
+error: `@custom:solar-handle` must name a field and its dictionary
+   ╭▸ ROOT/tests/ui/typeck/solar_handle.sol:LL:CC
+   │
+LL │     /// @custom:solar-handle id
+   │          ━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: name a field of the struct and the state variable that lists its values: `@custom:solar-handle marketId markets`
+
+error: `@custom:solar-handle` must name a field and its dictionary
+   ╭▸ ROOT/tests/ui/typeck/solar_handle.sol:LL:CC
+   │
+LL │     /// @custom:solar-handle id markets extra
+   │          ━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: name a field of the struct and the state variable that lists its values: `@custom:solar-handle marketId markets`
+
+error: struct `Bad` has no field `missing`
+   ╭▸ ROOT/tests/ui/typeck/solar_handle.sol:LL:CC
+   │
+LL │     /// @custom:solar-handle missing markets
+   ╰╴         ━━━━━━━━━━━━━━━━━━━
+
+error: a handle field must be a value type that fills a word
+   ╭▸ ROOT/tests/ui/typeck/solar_handle.sol:LL:CC
+   │
+LL │     /// @custom:solar-handle small markets
+   │          ━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: `small` is `uint64`
+   ╭▸ ROOT/tests/ui/typeck/solar_handle.sol:LL:CC
+   │
+LL │         uint64 small;
+   │         ━━━━━━━━━━━━
+   ╰ note: the field keeps a 9-byte handle, which only saves space in place of a word
+
+error: contract `Book` has no state variable `missing`
+   ╭▸ ROOT/tests/ui/typeck/solar_handle.sol:LL:CC
+   │
+LL │     /// @custom:solar-handle id missing
+   │          ━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ note: the dictionary must be a state variable of the struct's contract
+
+error: a handle dictionary must be a storage array of `bytes32`
+   ╭▸ ROOT/tests/ui/typeck/solar_handle.sol:LL:CC
+   │
+LL │     /// @custom:solar-handle id amounts
+   │          ━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: `amounts` is `uint256[] storage`
+   ╭▸ ROOT/tests/ui/typeck/solar_handle.sol:LL:CC
+   │
+LL │     uint256[] amounts;
+   ╰╴    ━━━━━━━━━━━━━━━━━━
+
+error: a handle dictionary must be a storage array of `bytes32`
+   ╭▸ ROOT/tests/ui/typeck/solar_handle.sol:LL:CC
+   │
+LL │     /// @custom:solar-handle id pair
+   │          ━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: `pair` is `bytes32[2] storage`
+   ╭▸ ROOT/tests/ui/typeck/solar_handle.sol:LL:CC
+   │
+LL │     bytes32[2] pair;
+   ╰╴    ━━━━━━━━━━━━━━━━
+
+error: field `id` has more than one handle tag
+   ╭▸ ROOT/tests/ui/typeck/solar_handle.sol:LL:CC
+   │
+LL │     /// @custom:solar-handle id markets
+   ╰╴         ━━━━━━━━━━━━━━━━━━━
+
+error: a struct with handles cannot be written to storage as a whole
+   ╭▸ ROOT/tests/ui/typeck/solar_handle.sol:LL:CC
+   │
+LL │     Order initialized = Order(address(0), bytes32(0), 0);
+   │                         ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ├ note: `@custom:solar-handle` fields keep indexes into their dictionaries, which a value from elsewhere does not have
+   ╰ help: set the fields one by one, each handle field to an element of its dictionary
+
+error: a struct with handles can only be stored by its contract and the contracts that inherit it
+   ╭▸ ROOT/tests/ui/typeck/solar_handle.sol:LL:CC
+   │
+LL │     Book.Order kept;
+   │     ━━━━━━━━━━━━━━━━
+   ╰╴
+note: `Order` keeps handles into the dictionaries of `Book`
+   ╭▸ ROOT/tests/ui/typeck/solar_handle.sol:LL:CC
+   │
+LL │ ┏     struct Order {
+LL │ ┃         address maker;
+LL │ ┃         bytes32 marketId;
+LL │ ┃         uint128 amount;
+LL │ ┃     }
+   ╰╴┗━━━━━┛
+
+error: a struct with handles can only be stored by its contract and the contracts that inherit it
+   ╭▸ ROOT/tests/ui/typeck/solar_handle.sol:LL:CC
+   │
+LL │     function first(Book.Order storage order) internal view returns (bytes32) {
+   │                    ━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: `Order` keeps handles into the dictionaries of `Book`
+   ╭▸ ROOT/tests/ui/typeck/solar_handle.sol:LL:CC
+   │
+LL │ ┏     struct Order {
+LL │ ┃         address maker;
+LL │ ┃         bytes32 marketId;
+LL │ ┃         uint128 amount;
+LL │ ┃     }
+   ╰╴┗━━━━━┛
+
+error: a struct with handles can only be stored by its contract and the contracts that inherit it
+   ╭▸ ROOT/tests/ui/typeck/solar_handle.sol:LL:CC
+   │
+LL │ function free(Book.Order storage order) view returns (bytes32) {
+   │               ━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: `Order` keeps handles into the dictionaries of `Book`
+   ╭▸ ROOT/tests/ui/typeck/solar_handle.sol:LL:CC
+   │
+LL │ ┏     struct Order {
+LL │ ┃         address maker;
+LL │ ┃         bytes32 marketId;
+LL │ ┃         uint128 amount;
+LL │ ┃     }
+   ╰╴┗━━━━━┛
+
+error: a handle field can only be set to an element of `markets` or to zero
+   ╭▸ ROOT/tests/ui/typeck/solar_handle.sol:LL:CC
+   │
+LL │         orders[1].marketId = value;
+   │         ━━━━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ├ note: `@custom:solar-handle` keeps the index of the field's value in the dictionary, which other values do not have
+   ╰ help: assign `markets[index]`, or `delete` the field
+
+error: a handle field can only be set to an element of `markets` or to zero
+   ╭▸ ROOT/tests/ui/typeck/solar_handle.sol:LL:CC
+   │
+LL │         orders[1].marketId = other[0];
+   │         ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ├ note: `@custom:solar-handle` keeps the index of the field's value in the dictionary, which other values do not have
+   ╰ help: assign `markets[index]`, or `delete` the field
+
+error: a handle field can only be set to an element of `markets` or to zero
+   ╭▸ ROOT/tests/ui/typeck/solar_handle.sol:LL:CC
+   │
+LL │         orders[1].marketId = m.marketId;
+   │         ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ├ note: `@custom:solar-handle` keeps the index of the field's value in the dictionary, which other values do not have
+   ╰ help: assign `markets[index]`, or `delete` the field
+
+error: a handle field can only be set to an element of `markets` or to zero
+   ╭▸ ROOT/tests/ui/typeck/solar_handle.sol:LL:CC
+   │
+LL │         orders[1].marketId |= markets[0];
+   │         ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ├ note: `@custom:solar-handle` keeps the index of the field's value in the dictionary, which other values do not have
+   ╰ help: assign `markets[index]`, or `delete` the field
+
+error: a handle field can only be set to an element of `sizes` or to zero
+   ╭▸ ROOT/tests/ui/typeck/solar_handle.sol:LL:CC
+   │
+LL │         sized.size++;
+   │         ━━━━━━━━━━━━
+   │
+   ├ note: `@custom:solar-handle` keeps the index of the field's value in the dictionary, which other values do not have
+   ╰ help: assign `sizes[index]`, or `delete` the field
+
+error: a handle field can only be set to an element of `sizes` or to zero
+   ╭▸ ROOT/tests/ui/typeck/solar_handle.sol:LL:CC
+   │
+LL │         sized.size += 1;
+   │         ━━━━━━━━━━━━━━━
+   │
+   ├ note: `@custom:solar-handle` keeps the index of the field's value in the dictionary, which other values do not have
+   ╰ help: assign `sizes[index]`, or `delete` the field
+
+error: a tuple assignment cannot write handle fields
+   ╭▸ ROOT/tests/ui/typeck/solar_handle.sol:LL:CC
+   │
+LL │         (orders[1].marketId, value) = (markets[0], value);
+   │         ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: assign the handle fields in their own statements
+
+error: a struct with handles cannot be written to storage as a whole
+   ╭▸ ROOT/tests/ui/typeck/solar_handle.sol:LL:CC
+   │
+LL │         orders[1] = m;
+   │         ━━━━━━━━━━━━━
+   │
+   ├ note: `@custom:solar-handle` fields keep indexes into their dictionaries, which a value from elsewhere does not have
+   ╰ help: set the fields one by one, each handle field to an element of its dictionary
+
+error: a struct with handles cannot be written to storage as a whole
+   ╭▸ ROOT/tests/ui/typeck/solar_handle.sol:LL:CC
+   │
+LL │         orders[1] = orders[2];
+   │         ━━━━━━━━━━━━━━━━━━━━━
+   │
+   ├ note: `@custom:solar-handle` fields keep indexes into their dictionaries, which a value from elsewhere does not have
+   ╰ help: set the fields one by one, each handle field to an element of its dictionary
+
+error: a struct with handles cannot be written to storage as a whole
+   ╭▸ ROOT/tests/ui/typeck/solar_handle.sol:LL:CC
+   │
+LL │         list[0] = m;
+   │         ━━━━━━━━━━━
+   │
+   ├ note: `@custom:solar-handle` fields keep indexes into their dictionaries, which a value from elsewhere does not have
+   ╰ help: set the fields one by one, each handle field to an element of its dictionary
+
+error: a struct with handles cannot be written to storage as a whole
+   ╭▸ ROOT/tests/ui/typeck/solar_handle.sol:LL:CC
+   │
+LL │         list.push(m);
+   │         ━━━━━━━━━━━━
+   │
+   ├ note: `@custom:solar-handle` fields keep indexes into their dictionaries, which a value from elsewhere does not have
+   ╰ help: set the fields one by one, each handle field to an element of its dictionary
+
+error: a tuple assignment cannot write handle fields
+   ╭▸ ROOT/tests/ui/typeck/solar_handle.sol:LL:CC
+   │
+LL │         (orders[1], m) = (m, m);
+   │         ━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: assign the handle fields in their own statements
+
+error: a handle dictionary is append-only
+   ╭▸ ROOT/tests/ui/typeck/solar_handle.sol:LL:CC
+   │
+LL │         markets.pop();
+   │         ━━━━━━━━━━━
+   │
+   ├ note: `@custom:solar-handle` fields keep indexes into the dictionary, so its elements must never change
+   ╰ help: `push` new elements instead
+
+error: a handle dictionary is append-only
+   ╭▸ ROOT/tests/ui/typeck/solar_handle.sol:LL:CC
+   │
+LL │         markets[0] = value;
+   │         ━━━━━━━━━━━━━━━━━━
+   │
+   ├ note: `@custom:solar-handle` fields keep indexes into the dictionary, so its elements must never change
+   ╰ help: `push` new elements instead
+
+error: a handle dictionary is append-only
+   ╭▸ ROOT/tests/ui/typeck/solar_handle.sol:LL:CC
+   │
+LL │         delete markets[0];
+   │         ━━━━━━━━━━━━━━━━━
+   │
+   ├ note: `@custom:solar-handle` fields keep indexes into the dictionary, so its elements must never change
+   ╰ help: `push` new elements instead
+
+error: a handle dictionary is append-only
+   ╭▸ ROOT/tests/ui/typeck/solar_handle.sol:LL:CC
+   │
+LL │         delete markets;
+   │         ━━━━━━━━━━━━━━
+   │
+   ├ note: `@custom:solar-handle` fields keep indexes into the dictionary, so its elements must never change
+   ╰ help: `push` new elements instead
+
+error: a handle dictionary is append-only
+   ╭▸ ROOT/tests/ui/typeck/solar_handle.sol:LL:CC
+   │
+LL │         markets = other;
+   │         ━━━━━━━━━━━━━━━
+   │
+   ├ note: `@custom:solar-handle` fields keep indexes into the dictionary, so its elements must never change
+   ╰ help: `push` new elements instead
+
+error: a handle dictionary is append-only
+   ╭▸ ROOT/tests/ui/typeck/solar_handle.sol:LL:CC
+   │
+LL │         markets.push() = value;
+   │         ━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ├ note: `@custom:solar-handle` fields keep indexes into the dictionary, so its elements must never change
+   ╰ help: `push` new elements instead
+
+error: a handle dictionary is append-only
+   ╭▸ ROOT/tests/ui/typeck/solar_handle.sol:LL:CC
+   │
+LL │         (markets[0], value) = (value, value);
+   │         ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ├ note: `@custom:solar-handle` fields keep indexes into the dictionary, so its elements must never change
+   ╰ help: `push` new elements instead
+
+error: a handle dictionary cannot be a storage reference
+   ╭▸ ROOT/tests/ui/typeck/solar_handle.sol:LL:CC
+   │
+LL │         bytes32[] storage r = markets;
+   │                               ━━━━━━━
+   │
+   ├ note: `@custom:solar-handle` fields keep indexes into the dictionary, whose elements a storage reference could change
+   ╰ help: index the dictionary or copy it into memory
+
+error: a handle dictionary cannot be a storage reference
+   ╭▸ ROOT/tests/ui/typeck/solar_handle.sol:LL:CC
+   │
+LL │         r = markets;
+   │             ━━━━━━━
+   │
+   ├ note: `@custom:solar-handle` fields keep indexes into the dictionary, whose elements a storage reference could change
+   ╰ help: index the dictionary or copy it into memory
+
+error: a handle dictionary cannot be a storage reference
+   ╭▸ ROOT/tests/ui/typeck/solar_handle.sol:LL:CC
+   │
+LL │         Words.sum(markets);
+   │                   ━━━━━━━
+   │
+   ├ note: `@custom:solar-handle` fields keep indexes into the dictionary, whose elements a storage reference could change
+   ╰ help: index the dictionary or copy it into memory
+
+error: a handle dictionary has no member `sum` this compiler keeps
+   ╭▸ ROOT/tests/ui/typeck/solar_handle.sol:LL:CC
+   │
+LL │         markets.sum();
+   │         ━━━━━━━━━━━
+   │
+   ╰ note: a library function attached to it would take it as a storage reference, which could change its elements
+
+error: a handle dictionary cannot be chosen by a conditional expression
+   ╭▸ ROOT/tests/ui/typeck/solar_handle.sol:LL:CC
+   │
+LL │         (flag ? markets : other).push(value);
+   │          ━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ├ note: the result is a storage reference, which could change its elements
+   ╰ help: branch with `if` instead
+
+error: inline assembly cannot take the `.slot` of a handle dictionary
+   ╭▸ ROOT/tests/ui/typeck/solar_handle.sol:LL:CC
+   │
+LL │             let s := markets.slot
+   │                              ━━━━
+   │
+   ╰ note: `@custom:solar-handle` fields keep indexes into the dictionary, so its elements must never change
+
+error: inline assembly cannot take the `.slot` of a storage value that holds a struct with handles
+   ╭▸ ROOT/tests/ui/typeck/solar_handle.sol:LL:CC
+   │
+LL │             let t := orders.slot
+   │                             ━━━━
+   │
+   ╰ note: `@custom:solar-handle` narrows the handle fields out of their standard slots
+
+error: inline assembly cannot take the `.slot` of a storage value that holds a struct with handles
+   ╭▸ ROOT/tests/ui/typeck/solar_handle.sol:LL:CC
+   │
+LL │             let u := o.slot
+   │                        ━━━━
+   │
+   ╰ note: `@custom:solar-handle` narrows the handle fields out of their standard slots
+
+error: aborting due to 42 previous errors
+
