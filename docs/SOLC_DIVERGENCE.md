@@ -1025,3 +1025,25 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   `tests/ui/codegen/lowering/run-call/constant_runtime_initializer.sol`,
   `tests/ui/codegen/lowering/run-call/constant_bytes_too_large.sol` and
   `tests/ui/codegen/lowering/constant_values_too_large.sol`.
+
+### CODEGEN-014: Storage layout tags move values out of their standard slots
+
+- ID: CODEGEN-014
+- Status: intentional
+- Difference: a mapping documented `@custom:solar-fuse <group>` keeps its value
+  for a key in the group's record at `keccak256(key . slot)` with the slot of
+  the group's first mapping, at the offset a struct field would have, instead
+  of at `keccak256(key . slot)` with its own slot. Raw storage, as inline
+  assembly or `eth_getStorageAt` reads it, differs from solc's; every
+  Solidity-level read and write gives the same results. The `storageLayout`
+  output keeps each variable's standard entry and describes the records under
+  `fused`.
+- Rationale: the tags are explicit requests for a denser layout, which saves
+  the storage words a key would otherwise occupy. The compiler rejects the
+  uses that would observe the standard layout of a tagged variable: a storage
+  reference to it, and its `.slot` or `.offset` in inline assembly. The
+  module documentation of `crates/sema/src/typeck/storage_tags.rs` describes
+  the tags.
+- Coverage: `tests/ui/codegen/lowering/run-call/storage_fused_mappings.sol`,
+  `tests/ui/typeck/solar_fuse.sol`,
+  `tests/ui/standard-json/storage-layout-fused/`.

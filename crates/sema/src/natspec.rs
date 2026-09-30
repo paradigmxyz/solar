@@ -575,6 +575,10 @@ impl<'gcx> Resolver<'gcx> {
                 let function = gcx.hir.function(id);
                 function.kind == hir::FunctionKind::Function && function.body.is_some()
             }
+            (SolarTag::Fuse, hir::ItemId::Variable(id)) => {
+                let variable = gcx.hir.variable(id);
+                variable.is_state_variable() && matches!(variable.ty.kind, hir::TypeKind::Mapping(_))
+            }
             _ => false,
         };
         if !applies {
@@ -948,6 +952,9 @@ pub(crate) enum SolarTag {
     /// `@custom:solar-optimize <gas|size>`: the code of the contract or function is optimized for
     /// this objective instead of the one the build selects, even in an `-O none` build.
     Optimize,
+    /// `@custom:solar-fuse <group>`: the mappings of a group keep their values for one key
+    /// together, in one record.
+    Fuse,
     /// A `solar-` tag this compiler does not define.
     Unknown,
 }
@@ -960,6 +967,7 @@ impl SolarTag {
             sym::solar_dash_safe => Some(Self::Safe),
             sym::solar_dash_trusted => Some(Self::Trusted),
             sym::solar_dash_optimize => Some(Self::Optimize),
+            sym::solar_dash_fuse => Some(Self::Fuse),
             _ => name.as_str().starts_with("solar-").then_some(Self::Unknown),
         }
     }
@@ -1003,13 +1011,21 @@ pub(crate) fn report_misplaced_solar_tag(
                  objective: `@custom:solar-optimize size`",
             )
             .emit(),
+        SolarTag::Fuse => dcx
+            .err("`@custom:solar-fuse` must document a mapping state variable")
+            .span(span)
+            .help(
+                "put it on each mapping of the group, naming the group: \
+                 `@custom:solar-fuse account`",
+            )
+            .emit(),
         SolarTag::Unknown => dcx
             .err(format!("unknown tag `@custom:{name}`"))
             .span(span)
             .note("`@custom:solar-` tags are requirements this compiler checks")
             .help(
                 "the supported tags are `@custom:solar-inline`, `@custom:solar-optimize`, \
-                 `@custom:solar-safe`, and `@custom:solar-trusted`",
+                 `@custom:solar-safe`, `@custom:solar-trusted`, and `@custom:solar-fuse`",
             )
             .emit(),
     }

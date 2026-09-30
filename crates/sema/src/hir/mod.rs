@@ -11,7 +11,7 @@ use solar_data_structures::{
     newtype_index,
 };
 use solar_interface::{
-    Ident, Span, Symbol, diagnostics::ErrorGuaranteed, kw, source_map::SourceFile,
+    Ident, Span, Symbol, diagnostics::ErrorGuaranteed, kw, source_map::SourceFile, sym,
 };
 use std::{cell::Cell, fmt, ops::ControlFlow, sync::Arc};
 use strum::EnumIs;
@@ -328,6 +328,20 @@ impl<'hir> Hir<'hir> {
         next_id: &'id IdCounter,
     ) -> HirBuilder<'hir, 'id> {
         HirBuilder::new(arena, next_id)
+    }
+
+    /// Returns the group the `@custom:solar-fuse` tag on a state variable's declaration names,
+    /// or an empty name when it names none, with the tag's span.
+    pub fn solar_fuse(&self, id: VariableId) -> Option<(Symbol, Span)> {
+        let doc = self.doc(self.variable(id).doc);
+        doc.ast_comments.iter().flat_map(|comment| comment.natspec.iter()).find_map(|natspec| {
+            let ast::NatSpecKind::Custom { name } = natspec.kind else { return None };
+            if name.name != sym::solar_dash_fuse {
+                return None;
+            }
+            let group = natspec.content().split_whitespace().next();
+            Some((group.map_or(kw::Empty, Symbol::intern), natspec.span))
+        })
     }
 }
 
