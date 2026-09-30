@@ -53,12 +53,12 @@ fn @constructor() [constructor] {
     v3 = eq v2, false
     v4 = zext i1 v3 to i256
     v5 = abi_encode [word<bytes3>, word<bool>], args v0, v4
-    v6 = data_size ConstructorInternalArgumentsHelper_initcode_0
-    v7 = data_size ConstructorInternalArgumentsHelper_initcode_0, 64
-    v8 = data_size ConstructorInternalArgumentsHelper_initcode_0, 95, aligned
+    v6 = datasize ConstructorInternalArgumentsHelper_initcode_0
+    v7 = datasize ConstructorInternalArgumentsHelper_initcode_0, 64
+    v8 = datasize ConstructorInternalArgumentsHelper_initcode_0, 95, aligned
     v9 = alloc raw, exact, uninitialized, infallible, v8
     v10 = ptrtoint memptr v9 to i256
-    data_copy ConstructorInternalArgumentsHelper_initcode_0, v10, v6
+    datacopy ConstructorInternalArgumentsHelper_initcode_0, v10, v6
     v11 = slice_ptr v5
     v12 = ptrtoint memptr v9 to i256
     v13 = add v12, v6

@@ -14,7 +14,7 @@ fn @payload() -> memorybytes [selector=0xa878f858, pure, abi_params=[], abi_retu
     set_memory_object_len memorybytes, v0, 128
     v1 = memory_object_data memorybytes, v0
     v2 = ptrtoint memptr v1 to i256
-    data_copy literal_0, v2, 128
+    datacopy literal_0, v2, 128
     ret v0
 }
 
@@ -26,17 +26,17 @@ data:
 
 fn @deployCreationCode() -> i256 [selector=0x5986dddb, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = data_size CodeTarget_initcode_0
-    v1 = data_size CodeTarget_initcode_0, 63, aligned
+    v0 = datasize CodeTarget_initcode_0
+    v1 = datasize CodeTarget_initcode_0, 63, aligned
     v2 = alloc memorybytes, exact, uninitialized, infallible, v1 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v2, v0
     v3 = memory_object_data memorybytes, v2
-    v4 = data_size CodeTarget_initcode_0, 31, aligned
+    v4 = datasize CodeTarget_initcode_0, 31, aligned
     v5 = ptrtoint memorybytes v2 to i256
     v6 = add v5, v4
     mstore v6, 0
     v7 = ptrtoint memptr v3 to i256
-    data_copy CodeTarget_initcode_0, v7, v0
+    datacopy CodeTarget_initcode_0, v7, v0
     v8 = ptrtoint memorybytes v2 to i256
     v9 = mload v8
     v10 = ptrtoint memorybytes v2 to i256
@@ -66,11 +66,11 @@ fn @deployCreationCode() -> i256 [selector=0x5986dddb, abi_params=[], abi_return
 fn @runtimeCodeMatches() -> i256 [selector=0x337e11d0, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = abi_encode []
-    v1 = data_size CodeTarget_initcode_0
-    v2 = data_size CodeTarget_initcode_0, 31, aligned
+    v1 = datasize CodeTarget_initcode_0
+    v2 = datasize CodeTarget_initcode_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    data_copy CodeTarget_initcode_0, v4, v1
+    datacopy CodeTarget_initcode_0, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
@@ -84,17 +84,17 @@ fn @runtimeCodeMatches() -> i256 [selector=0x337e11d0, abi_params=[], abi_return
     revert_returndata
   bb2:
     v12 = zext i160 v9 to i256
-    v13 = data_size CodeTarget_runtime_code_1
-    v14 = data_size CodeTarget_runtime_code_1, 63, aligned
+    v13 = datasize CodeTarget_runtime_code_1
+    v14 = datasize CodeTarget_runtime_code_1, 63, aligned
     v15 = alloc memorybytes, exact, uninitialized, infallible, v14 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v15, v13
     v16 = memory_object_data memorybytes, v15
-    v17 = data_size CodeTarget_runtime_code_1, 31, aligned
+    v17 = datasize CodeTarget_runtime_code_1, 31, aligned
     v18 = ptrtoint memorybytes v15 to i256
     v19 = add v18, v17
     mstore v19, 0
     v20 = ptrtoint memptr v16 to i256
-    data_copy CodeTarget_runtime_code_1, v20, v13
+    datacopy CodeTarget_runtime_code_1, v20, v13
     v21 = keccak256_bytes v15
     v22 = zext i160 v9 to i256
     v23 = extcodehash v22

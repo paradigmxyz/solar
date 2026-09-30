@@ -6,6 +6,6 @@ data:
 
 fn @bad() {
   bb0:
-    v0 = data_size 0+1 //~ ERROR: data size cannot take an offset
+    v0 = datasize 0+1 //~ ERROR: data size cannot take an offset
     stop
 }

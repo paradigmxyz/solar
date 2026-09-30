@@ -12,16 +12,16 @@ data:
 
 fn @creationCode() -> memorybytes [selector=0x7213edad, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
-    v0 = data_size CreationCodeChild_initcode_0
-    v1 = data_size CreationCodeChild_initcode_0, 63, aligned
+    v0 = datasize CreationCodeChild_initcode_0
+    v1 = datasize CreationCodeChild_initcode_0, 63, aligned
     v2 = alloc memorybytes, exact, uninitialized, infallible, v1 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v2, v0
     v3 = memory_object_data memorybytes, v2
-    v4 = data_size CreationCodeChild_initcode_0, 31, aligned
+    v4 = datasize CreationCodeChild_initcode_0, 31, aligned
     v5 = ptrtoint memorybytes v2 to i256
     v6 = add v5, v4
     mstore v6, 0
     v7 = ptrtoint memptr v3 to i256
-    data_copy CreationCodeChild_initcode_0, v7, v0
+    datacopy CreationCodeChild_initcode_0, v7, v0
     ret v2
 }

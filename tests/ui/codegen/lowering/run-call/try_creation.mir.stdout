@@ -20,12 +20,12 @@ fn @f(arg0: i256) -> i256 [selector=0x98c3a6c1, abi_params=[bool], abi_returns=[
     v1 = eq v0, false
     v2 = zext i1 v1 to i256
     v3 = abi_encode [word<bool>], args v2
-    v4 = data_size TryCreationChild_initcode_0
-    v5 = data_size TryCreationChild_initcode_0, 32
-    v6 = data_size TryCreationChild_initcode_0, 63, aligned
+    v4 = datasize TryCreationChild_initcode_0
+    v5 = datasize TryCreationChild_initcode_0, 32
+    v6 = datasize TryCreationChild_initcode_0, 63, aligned
     v7 = alloc raw, exact, uninitialized, infallible, v6
     v8 = ptrtoint memptr v7 to i256
-    data_copy TryCreationChild_initcode_0, v8, v4
+    datacopy TryCreationChild_initcode_0, v8, v4
     v9 = slice_ptr v3
     v10 = ptrtoint memptr v7 to i256
     v11 = add v10, v4

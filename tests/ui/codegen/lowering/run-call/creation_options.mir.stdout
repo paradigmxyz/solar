@@ -9,11 +9,11 @@ data:
 fn @sameShortLiteralSalt() -> i256 [selector=0xae55518d, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = abi_encode []
-    v1 = data_size CreationOptionsChild_initcode_0
-    v2 = data_size CreationOptionsChild_initcode_0, 31, aligned
+    v1 = datasize CreationOptionsChild_initcode_0
+    v2 = datasize CreationOptionsChild_initcode_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    data_copy CreationOptionsChild_initcode_0, v4, v1
+    datacopy CreationOptionsChild_initcode_0, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
@@ -27,11 +27,11 @@ fn @sameShortLiteralSalt() -> i256 [selector=0xae55518d, abi_params=[], abi_retu
     revert_returndata
   bb2:
     v12 = abi_encode []
-    v13 = data_size CreationOptionsChild_initcode_0
-    v14 = data_size CreationOptionsChild_initcode_0, 31, aligned
+    v13 = datasize CreationOptionsChild_initcode_0
+    v14 = datasize CreationOptionsChild_initcode_0, 31, aligned
     v15 = alloc raw, exact, uninitialized, infallible, v14
     v16 = ptrtoint memptr v15 to i256
-    data_copy CreationOptionsChild_initcode_0, v16, v13
+    datacopy CreationOptionsChild_initcode_0, v16, v13
     v17 = slice_ptr v12
     v18 = ptrtoint memptr v15 to i256
     v19 = add v18, v13
@@ -60,11 +60,11 @@ fn @sameShortLiteralSalt() -> i256 [selector=0xae55518d, abi_params=[], abi_retu
 fn @sameEmptyLiteralSalt() -> i256 [selector=0x01dd6ed9, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = abi_encode []
-    v1 = data_size CreationOptionsChild_initcode_0
-    v2 = data_size CreationOptionsChild_initcode_0, 31, aligned
+    v1 = datasize CreationOptionsChild_initcode_0
+    v2 = datasize CreationOptionsChild_initcode_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    data_copy CreationOptionsChild_initcode_0, v4, v1
+    datacopy CreationOptionsChild_initcode_0, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
@@ -78,11 +78,11 @@ fn @sameEmptyLiteralSalt() -> i256 [selector=0x01dd6ed9, abi_params=[], abi_retu
     revert_returndata
   bb2:
     v12 = abi_encode []
-    v13 = data_size CreationOptionsChild_initcode_0
-    v14 = data_size CreationOptionsChild_initcode_0, 31, aligned
+    v13 = datasize CreationOptionsChild_initcode_0
+    v14 = datasize CreationOptionsChild_initcode_0, 31, aligned
     v15 = alloc raw, exact, uninitialized, infallible, v14
     v16 = ptrtoint memptr v15 to i256
-    data_copy CreationOptionsChild_initcode_0, v16, v13
+    datacopy CreationOptionsChild_initcode_0, v16, v13
     v17 = slice_ptr v12
     v18 = ptrtoint memptr v15 to i256
     v19 = add v18, v13
@@ -111,11 +111,11 @@ fn @sameEmptyLiteralSalt() -> i256 [selector=0x01dd6ed9, abi_params=[], abi_retu
 fn @sameFullLiteralSalt() -> i256 [selector=0xaf96a2f0, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = abi_encode []
-    v1 = data_size CreationOptionsChild_initcode_0
-    v2 = data_size CreationOptionsChild_initcode_0, 31, aligned
+    v1 = datasize CreationOptionsChild_initcode_0
+    v2 = datasize CreationOptionsChild_initcode_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    data_copy CreationOptionsChild_initcode_0, v4, v1
+    datacopy CreationOptionsChild_initcode_0, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
@@ -129,11 +129,11 @@ fn @sameFullLiteralSalt() -> i256 [selector=0xaf96a2f0, abi_params=[], abi_retur
     revert_returndata
   bb2:
     v12 = abi_encode []
-    v13 = data_size CreationOptionsChild_initcode_0
-    v14 = data_size CreationOptionsChild_initcode_0, 31, aligned
+    v13 = datasize CreationOptionsChild_initcode_0
+    v14 = datasize CreationOptionsChild_initcode_0, 31, aligned
     v15 = alloc raw, exact, uninitialized, infallible, v14
     v16 = ptrtoint memptr v15 to i256
-    data_copy CreationOptionsChild_initcode_0, v16, v13
+    datacopy CreationOptionsChild_initcode_0, v16, v13
     v17 = slice_ptr v12
     v18 = ptrtoint memptr v15 to i256
     v19 = add v18, v13
@@ -162,11 +162,11 @@ fn @sameFullLiteralSalt() -> i256 [selector=0xaf96a2f0, abi_params=[], abi_retur
 fn @differentLiteralSalts() -> i256 [selector=0x3109d26e, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = abi_encode []
-    v1 = data_size CreationOptionsChild_initcode_0
-    v2 = data_size CreationOptionsChild_initcode_0, 31, aligned
+    v1 = datasize CreationOptionsChild_initcode_0
+    v2 = datasize CreationOptionsChild_initcode_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    data_copy CreationOptionsChild_initcode_0, v4, v1
+    datacopy CreationOptionsChild_initcode_0, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
@@ -180,11 +180,11 @@ fn @differentLiteralSalts() -> i256 [selector=0x3109d26e, abi_params=[], abi_ret
     revert_returndata
   bb2:
     v12 = abi_encode []
-    v13 = data_size CreationOptionsChild_initcode_0
-    v14 = data_size CreationOptionsChild_initcode_0, 31, aligned
+    v13 = datasize CreationOptionsChild_initcode_0
+    v14 = datasize CreationOptionsChild_initcode_0, 31, aligned
     v15 = alloc raw, exact, uninitialized, infallible, v14
     v16 = ptrtoint memptr v15 to i256
-    data_copy CreationOptionsChild_initcode_0, v16, v13
+    datacopy CreationOptionsChild_initcode_0, v16, v13
     v17 = slice_ptr v12
     v18 = ptrtoint memptr v15 to i256
     v19 = add v18, v13

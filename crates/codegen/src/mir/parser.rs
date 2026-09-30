@@ -2053,7 +2053,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 (InstKind::MakeSlice { ptr, len, location }, Some(MirType::Slice(location)))
             }
 
-            sym::data_copy => {
+            kw::Datacopy => {
                 let data = self.parse_data_ref()?;
                 self.parser.expect(TokenKind::Comma)?;
                 let dest = self.parse_value(builder)?;
@@ -2061,7 +2061,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 let size = self.parse_value(builder)?;
                 (InstKind::DataCopy(data, dest, size), None)
             }
-            sym::data_size => {
+            kw::Datasize => {
                 let span = self.parser.token().span;
                 let data = self.parse_data_ref()?;
                 if data.offset != 0 {

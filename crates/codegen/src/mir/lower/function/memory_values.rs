@@ -261,8 +261,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn build_bytecode(builder: &mut FunctionBuilder<'_>, code: DataId) -> ValueId {
         let word = EvmMemoryLayout::WORD_SIZE;
-        // len = data_size code(C)
-        // size = data_size code(C), 63, aligned
+        // len = datasize code(C)
+        // size = datasize code(C), 63, aligned
         // object = bytes(size, len) !preserves_fmp
         let len = builder.data_size(code, 0, false);
         let size = builder.data_size(code, 2 * word - 1, true);
@@ -271,7 +271,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // The last data word starts one length word before the padded length. Empty code
         // has no data words, and this clears the length word, which is also zero.
         // mstore object + data_size(code(C), 31, aligned), 0
-        // data_copy code(C), data, len
+        // datacopy code(C), data, len
         let tail_offset = builder.data_size(code, word - 1, true);
         let tail = builder.add(object, tail_offset);
         let zero = builder.imm(0);

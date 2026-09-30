@@ -27,7 +27,7 @@ contract CodeTarget {
 // OPT-NOT: @data CodeTarget_runtime_code_
 contract CodeFactory {
     // MIR-LABEL: fn @deployCreationCode{{[( ]}}
-    // MIR: data_copy CodeTarget_initcode_0,
+    // MIR: datacopy CodeTarget_initcode_0,
     function deployCreationCode() external returns (uint256) {
         bytes memory code = type(CodeTarget).creationCode;
         address deployed;
@@ -38,8 +38,8 @@ contract CodeFactory {
     }
 
     // MIR-LABEL: fn @runtimeCodeMatches{{[( ]}}
-    // MIR: data_copy CodeTarget_initcode_0,
-    // MIR: data_copy CodeTarget_runtime_code_1,
+    // MIR: datacopy CodeTarget_initcode_0,
+    // MIR: datacopy CodeTarget_runtime_code_1,
     function runtimeCodeMatches() external returns (bool) {
         CodeTarget deployed = new CodeTarget();
         return keccak256(type(CodeTarget).runtimeCode) == address(deployed).codehash;

@@ -40,11 +40,11 @@ data:
 fn @plainCall() -> i256 [selector=0x707bf9ed, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
-    v1 = data_size WideCallee_initcode_0
-    v2 = data_size WideCallee_initcode_0, 31, aligned
+    v1 = datasize WideCallee_initcode_0
+    v2 = datasize WideCallee_initcode_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    data_copy WideCallee_initcode_0, v4, v1
+    datacopy WideCallee_initcode_0, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
@@ -122,11 +122,11 @@ fn @plainCall() -> i256 [selector=0x707bf9ed, abi_params=[], abi_returns=[word],
 fn @tryCall() -> i256 [selector=0x118dfb0e, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
-    v1 = data_size WideCallee_initcode_0
-    v2 = data_size WideCallee_initcode_0, 31, aligned
+    v1 = datasize WideCallee_initcode_0
+    v2 = datasize WideCallee_initcode_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    data_copy WideCallee_initcode_0, v4, v1
+    datacopy WideCallee_initcode_0, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
@@ -200,11 +200,11 @@ fn @tryCall() -> i256 [selector=0x118dfb0e, abi_params=[], abi_returns=[word], a
 fn @stringCall() -> i256 [selector=0xbdbbac6d, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
-    v1 = data_size WideCallee_initcode_0
-    v2 = data_size WideCallee_initcode_0, 31, aligned
+    v1 = datasize WideCallee_initcode_0
+    v2 = datasize WideCallee_initcode_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    data_copy WideCallee_initcode_0, v4, v1
+    datacopy WideCallee_initcode_0, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1

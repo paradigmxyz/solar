@@ -341,7 +341,7 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
     memory_object_store_field memorystruct<2>, v57, 1, v58
     v59 = abi_encode [memory_array<tuple<word, memory_bytes>>], args v0
     v60 = slice_len v59
-    v61 = data_size ConstructorAggregateMain_initcode_0
+    v61 = datasize ConstructorAggregateMain_initcode_0
     v62 = add v61, v60
     v63 = lt v62, v61
     icall panic_if<0x41>, v63
@@ -352,7 +352,7 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
     v67 = and v64, v66
     v68 = alloc raw, exact, uninitialized, infallible, v67
     v69 = ptrtoint memptr v68 to i256
-    data_copy ConstructorAggregateMain_initcode_0, v69, v61
+    datacopy ConstructorAggregateMain_initcode_0, v69, v61
     v70 = slice_ptr v59
     v71 = ptrtoint memptr v68 to i256
     v72 = add v71, v61

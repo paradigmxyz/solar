@@ -4,13 +4,13 @@
 
 contract CodeSizeData {
     // MIR-LABEL: fn @outer{{[( ]}}
-    // MIR: data_copy literal_0,
+    // MIR: datacopy literal_0,
     function outer() external pure returns (bytes memory) {
         return "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdefZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ!";
     }
 
     // MIR-LABEL: fn @inner{{[( ]}}
-    // MIR: data_copy literal_1,
+    // MIR: datacopy literal_1,
     function inner() external pure returns (bytes memory) {
         return "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdefZ";
     }

@@ -15,7 +15,7 @@
   
   fn @data_size(arg0: i256) -> i1 {
     bb0:
-      v0 = data_size child_0, 32
+      v0 = datasize child_0, 32
       v1 = add v0, 31
 -     v2 = lt v1, v0
 -     ret v2

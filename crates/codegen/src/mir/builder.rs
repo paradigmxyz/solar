@@ -1239,7 +1239,7 @@ impl<'a> FunctionBuilder<'a> {
         addend: u64,
         aligned: bool,
     ) -> ValueId {
-        // result = data_size data, addend[, aligned]
+        // result = datasize data, addend[, aligned]
         let size = crate::mir::DataSize { data, addend, aligned };
         self.emit_inst(InstKind::DataSize(size), Some(MirType::I256))
     }

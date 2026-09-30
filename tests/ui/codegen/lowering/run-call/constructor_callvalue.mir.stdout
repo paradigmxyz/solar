@@ -50,17 +50,17 @@ data:
 
 fn @rejectsExplicit() -> i256 [selector=0x90887b1f, payable, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = data_size ExplicitNonpayable_initcode_0
-    v1 = data_size ExplicitNonpayable_initcode_0, 63, aligned
+    v0 = datasize ExplicitNonpayable_initcode_0
+    v1 = datasize ExplicitNonpayable_initcode_0, 63, aligned
     v2 = alloc memorybytes, exact, uninitialized, infallible, v1 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v2, v0
     v3 = memory_object_data memorybytes, v2
-    v4 = data_size ExplicitNonpayable_initcode_0, 31, aligned
+    v4 = datasize ExplicitNonpayable_initcode_0, 31, aligned
     v5 = ptrtoint memorybytes v2 to i256
     v6 = add v5, v4
     mstore v6, 0
     v7 = ptrtoint memptr v3 to i256
-    data_copy ExplicitNonpayable_initcode_0, v7, v0
+    datacopy ExplicitNonpayable_initcode_0, v7, v0
     v8 = abi_encode [word], object, args 1
     v9 = abi_encode_packed (bytes v2, bytes v8)
     v10 = icall @deploy, v9
@@ -73,17 +73,17 @@ fn @rejectsExplicit() -> i256 [selector=0x90887b1f, payable, abi_params=[], abi_
 
 fn @rejectsImplicit() -> i256 [selector=0x05da30eb, payable, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = data_size ImplicitNonpayable_initcode_1
-    v1 = data_size ImplicitNonpayable_initcode_1, 63, aligned
+    v0 = datasize ImplicitNonpayable_initcode_1
+    v1 = datasize ImplicitNonpayable_initcode_1, 63, aligned
     v2 = alloc memorybytes, exact, uninitialized, infallible, v1 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v2, v0
     v3 = memory_object_data memorybytes, v2
-    v4 = data_size ImplicitNonpayable_initcode_1, 31, aligned
+    v4 = datasize ImplicitNonpayable_initcode_1, 31, aligned
     v5 = ptrtoint memorybytes v2 to i256
     v6 = add v5, v4
     mstore v6, 0
     v7 = ptrtoint memptr v3 to i256
-    data_copy ImplicitNonpayable_initcode_1, v7, v0
+    datacopy ImplicitNonpayable_initcode_1, v7, v0
     v8 = icall @deploy, v2
     v9 = trunc i256 v8 to i160
     v10 = trunc i256 0 to i160
@@ -94,17 +94,17 @@ fn @rejectsImplicit() -> i256 [selector=0x05da30eb, payable, abi_params=[], abi_
 
 fn @rejectsSynthetic() -> i256 [selector=0x28868c98, payable, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = data_size SyntheticNonpayable_initcode_2
-    v1 = data_size SyntheticNonpayable_initcode_2, 63, aligned
+    v0 = datasize SyntheticNonpayable_initcode_2
+    v1 = datasize SyntheticNonpayable_initcode_2, 63, aligned
     v2 = alloc memorybytes, exact, uninitialized, infallible, v1 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v2, v0
     v3 = memory_object_data memorybytes, v2
-    v4 = data_size SyntheticNonpayable_initcode_2, 31, aligned
+    v4 = datasize SyntheticNonpayable_initcode_2, 31, aligned
     v5 = ptrtoint memorybytes v2 to i256
     v6 = add v5, v4
     mstore v6, 0
     v7 = ptrtoint memptr v3 to i256
-    data_copy SyntheticNonpayable_initcode_2, v7, v0
+    datacopy SyntheticNonpayable_initcode_2, v7, v0
     v8 = icall @deploy, v2
     v9 = trunc i256 v8 to i160
     v10 = trunc i256 0 to i160
@@ -115,17 +115,17 @@ fn @rejectsSynthetic() -> i256 [selector=0x28868c98, payable, abi_params=[], abi
 
 fn @rejectsInherited() -> i256 [selector=0xb3ba0b5d, payable, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = data_size InheritedNonpayable_initcode_3
-    v1 = data_size InheritedNonpayable_initcode_3, 63, aligned
+    v0 = datasize InheritedNonpayable_initcode_3
+    v1 = datasize InheritedNonpayable_initcode_3, 63, aligned
     v2 = alloc memorybytes, exact, uninitialized, infallible, v1 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v2, v0
     v3 = memory_object_data memorybytes, v2
-    v4 = data_size InheritedNonpayable_initcode_3, 31, aligned
+    v4 = datasize InheritedNonpayable_initcode_3, 31, aligned
     v5 = ptrtoint memorybytes v2 to i256
     v6 = add v5, v4
     mstore v6, 0
     v7 = ptrtoint memptr v3 to i256
-    data_copy InheritedNonpayable_initcode_3, v7, v0
+    datacopy InheritedNonpayable_initcode_3, v7, v0
     v8 = icall @deploy, v2
     v9 = trunc i256 v8 to i160
     v10 = trunc i256 0 to i160
@@ -136,17 +136,17 @@ fn @rejectsInherited() -> i256 [selector=0xb3ba0b5d, payable, abi_params=[], abi
 
 fn @acceptsPayable() -> i256 [selector=0xd6e5da6b, payable, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = data_size ExplicitPayable_initcode_4
-    v1 = data_size ExplicitPayable_initcode_4, 63, aligned
+    v0 = datasize ExplicitPayable_initcode_4
+    v1 = datasize ExplicitPayable_initcode_4, 63, aligned
     v2 = alloc memorybytes, exact, uninitialized, infallible, v1 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v2, v0
     v3 = memory_object_data memorybytes, v2
-    v4 = data_size ExplicitPayable_initcode_4, 31, aligned
+    v4 = datasize ExplicitPayable_initcode_4, 31, aligned
     v5 = ptrtoint memorybytes v2 to i256
     v6 = add v5, v4
     mstore v6, 0
     v7 = ptrtoint memptr v3 to i256
-    data_copy ExplicitPayable_initcode_4, v7, v0
+    datacopy ExplicitPayable_initcode_4, v7, v0
     v8 = icall @deploy, v2
     v9 = trunc i256 v8 to i160
     v10 = trunc i256 0 to i160

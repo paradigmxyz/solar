@@ -1186,12 +1186,12 @@ impl<'a> Validator<'a> {
             InstKind::DataSize(size) => {
                 match module.data.get(size.data) {
                     None => self.emit_at_inst(
-                        format_args!("data_size references nonexistent data{}", size.data.index()),
+                        format_args!("datasize references nonexistent data{}", size.data.index()),
                         block_id,
                         inst_id,
                     ),
                     Some(data) if data.deferred.is_none() => {
-                        self.emit_at_inst("data_size requires deferred data", block_id, inst_id)
+                        self.emit_at_inst("datasize requires deferred data", block_id, inst_id)
                     }
                     Some(_) => {}
                 }
@@ -1201,13 +1201,13 @@ impl<'a> Validator<'a> {
         };
         let Some(entry) = module.data.get(data.id) else {
             self.emit_at_inst(
-                format_args!("data_copy references nonexistent data{}", data.id.index()),
+                format_args!("datacopy references nonexistent data{}", data.id.index()),
                 block_id,
                 inst_id,
             );
             return;
         };
-        // The length of deferred data is only known through its own `data_size`.
+        // The length of deferred data is only known through its own `datasize`.
         if let Value::Inst(size) = func.value(*size)
             && matches!(func.inst(*size).kind, InstKind::DataSize(size) if size.is_length_of(*data))
         {
@@ -1215,21 +1215,21 @@ impl<'a> Validator<'a> {
         }
         if entry.deferred.is_some() {
             self.emit_at_inst(
-                "data_copy size of deferred data must be its `data_size`",
+                "datacopy size of deferred data must be its `datasize`",
                 block_id,
                 inst_id,
             );
             return;
         }
         let Some(size) = func.value_u256(*size) else {
-            self.emit_at_inst("data_copy size must be an immediate", block_id, inst_id);
+            self.emit_at_inst("datacopy size must be an immediate", block_id, inst_id);
             return;
         };
         let end = U256::from(data.offset).checked_add(size);
         if end.is_none_or(|end| end > U256::from(entry.bytes.len())) {
             self.emit_at_inst(
                 format_args!(
-                    "data_copy range {}..{} exceeds data size {}",
+                    "datacopy range {}..{} exceeds data size {}",
                     data.offset,
                     end.map_or_else(|| "overflow".into(), |end| end.to_string()),
                     entry.bytes.len()
@@ -1901,7 +1901,7 @@ error: module is in the `lowered` phase but has no `entry` routing function
             assert_data_eq!(
                 sess.emitted_diagnostics().unwrap().to_string(),
                 str![[r#"
-error: [fn0] [bb0, inst0] data_copy references nonexistent data7
+error: [fn0] [bb0, inst0] datacopy references nonexistent data7
 
 
 "#]]
@@ -1927,7 +1927,7 @@ error: [fn0] [bb0, inst0] data_copy references nonexistent data7
             assert_data_eq!(
                 sess.emitted_diagnostics().unwrap().to_string(),
                 str![[r#"
-error: [fn0] [bb0, inst0] data_copy range 5..6 exceeds data size 4
+error: [fn0] [bb0, inst0] datacopy range 5..6 exceeds data size 4
 
 
 "#]]

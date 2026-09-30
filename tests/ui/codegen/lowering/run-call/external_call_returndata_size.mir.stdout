@@ -36,11 +36,11 @@ data:
 fn @directOne() -> struct0 [selector=0x6aec8241, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = abi_encode []
-    v1 = data_size LongReturn_initcode_0
-    v2 = data_size LongReturn_initcode_0, 31, aligned
+    v1 = datasize LongReturn_initcode_0
+    v2 = datasize LongReturn_initcode_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    data_copy LongReturn_initcode_0, v4, v1
+    datacopy LongReturn_initcode_0, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
@@ -82,11 +82,11 @@ fn @directOne() -> struct0 [selector=0x6aec8241, abi_params=[], abi_returns=[wor
 fn @pointerOne() -> struct0 [selector=0xc114b656, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = abi_encode []
-    v1 = data_size LongReturn_initcode_0
-    v2 = data_size LongReturn_initcode_0, 31, aligned
+    v1 = datasize LongReturn_initcode_0
+    v2 = datasize LongReturn_initcode_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    data_copy LongReturn_initcode_0, v4, v1
+    datacopy LongReturn_initcode_0, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
@@ -133,11 +133,11 @@ fn @pointerOne() -> struct0 [selector=0xc114b656, abi_params=[], abi_returns=[wo
 fn @directTwo() -> struct1 [selector=0x5ffbc6a1, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     v0 = abi_encode []
-    v1 = data_size LongReturn_initcode_0
-    v2 = data_size LongReturn_initcode_0, 31, aligned
+    v1 = datasize LongReturn_initcode_0
+    v2 = datasize LongReturn_initcode_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    data_copy LongReturn_initcode_0, v4, v1
+    datacopy LongReturn_initcode_0, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
@@ -188,11 +188,11 @@ fn @directTwo() -> struct1 [selector=0x5ffbc6a1, abi_params=[], abi_returns=[wor
 fn @pointerTwo() -> struct1 [selector=0x48c1a795, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     v0 = abi_encode []
-    v1 = data_size LongReturn_initcode_0
-    v2 = data_size LongReturn_initcode_0, 31, aligned
+    v1 = datasize LongReturn_initcode_0
+    v2 = datasize LongReturn_initcode_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    data_copy LongReturn_initcode_0, v4, v1
+    datacopy LongReturn_initcode_0, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
@@ -244,11 +244,11 @@ fn @pointerTwo() -> struct1 [selector=0x48c1a795, abi_params=[], abi_returns=[wo
 fn @directShort() -> struct0 [selector=0x4a8b977e, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = abi_encode []
-    v1 = data_size ShortReturn_initcode_1
-    v2 = data_size ShortReturn_initcode_1, 31, aligned
+    v1 = datasize ShortReturn_initcode_1
+    v2 = datasize ShortReturn_initcode_1, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    data_copy ShortReturn_initcode_1, v4, v1
+    datacopy ShortReturn_initcode_1, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
@@ -294,11 +294,11 @@ fn @directShort() -> struct0 [selector=0x4a8b977e, abi_params=[], abi_returns=[w
 fn @pointerShort() -> struct0 [selector=0xc6a7045a, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = abi_encode []
-    v1 = data_size ShortReturn_initcode_1
-    v2 = data_size ShortReturn_initcode_1, 31, aligned
+    v1 = datasize ShortReturn_initcode_1
+    v2 = datasize ShortReturn_initcode_1, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    data_copy ShortReturn_initcode_1, v4, v1
+    datacopy ShortReturn_initcode_1, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
@@ -345,11 +345,11 @@ fn @pointerShort() -> struct0 [selector=0xc6a7045a, abi_params=[], abi_returns=[
 fn @directInvalidBool() -> i256 [selector=0x78cd2593, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = abi_encode []
-    v1 = data_size ShortReturn_initcode_1
-    v2 = data_size ShortReturn_initcode_1, 31, aligned
+    v1 = datasize ShortReturn_initcode_1
+    v2 = datasize ShortReturn_initcode_1, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    data_copy ShortReturn_initcode_1, v4, v1
+    datacopy ShortReturn_initcode_1, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
@@ -391,11 +391,11 @@ fn @directInvalidBool() -> i256 [selector=0x78cd2593, abi_params=[], abi_returns
 fn @pointerInvalidBool() -> i256 [selector=0xa0f03ea6, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = abi_encode []
-    v1 = data_size ShortReturn_initcode_1
-    v2 = data_size ShortReturn_initcode_1, 31, aligned
+    v1 = datasize ShortReturn_initcode_1
+    v2 = datasize ShortReturn_initcode_1, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    data_copy ShortReturn_initcode_1, v4, v1
+    datacopy ShortReturn_initcode_1, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1

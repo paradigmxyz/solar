@@ -24,7 +24,7 @@ fn @payload() -> memorybytes [selector=0xa878f858, pure, abi_params=[], abi_retu
     set_memory_object_len memorybytes, v0, 128
     v1 = memory_object_data memorybytes, v0
     v2 = ptrtoint memptr v1 to i256
-    data_copy literal_0, v2, 128
+    datacopy literal_0, v2, 128
     ret v0
 }
 
@@ -36,12 +36,12 @@ data:
 fn @plain() -> i256 [selector=0x59748c98, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode [word], args 11
-    v1 = data_size ChildWithArg_initcode_0
-    v2 = data_size ChildWithArg_initcode_0, 32
-    v3 = data_size ChildWithArg_initcode_0, 63, aligned
+    v1 = datasize ChildWithArg_initcode_0
+    v2 = datasize ChildWithArg_initcode_0, 32
+    v3 = datasize ChildWithArg_initcode_0, 63, aligned
     v4 = alloc raw, exact, uninitialized, infallible, v3
     v5 = ptrtoint memptr v4 to i256
-    data_copy ChildWithArg_initcode_0, v5, v1
+    datacopy ChildWithArg_initcode_0, v5, v1
     v6 = slice_ptr v0
     v7 = ptrtoint memptr v4 to i256
     v8 = add v7, v1
@@ -78,12 +78,12 @@ fn @salted() -> i256 [selector=0x1f981516, abi_params=[], abi_returns=[word], ab
   bb0:
     v0 = shl 0, 1
     v1 = abi_encode [word], args 22
-    v2 = data_size ChildWithArg_initcode_0
-    v3 = data_size ChildWithArg_initcode_0, 32
-    v4 = data_size ChildWithArg_initcode_0, 63, aligned
+    v2 = datasize ChildWithArg_initcode_0
+    v3 = datasize ChildWithArg_initcode_0, 32
+    v4 = datasize ChildWithArg_initcode_0, 63, aligned
     v5 = alloc raw, exact, uninitialized, infallible, v4
     v6 = ptrtoint memptr v5 to i256
-    data_copy ChildWithArg_initcode_0, v6, v2
+    datacopy ChildWithArg_initcode_0, v6, v2
     v7 = slice_ptr v1
     v8 = ptrtoint memptr v5 to i256
     v9 = add v8, v2
@@ -118,12 +118,12 @@ fn @salted() -> i256 [selector=0x1f981516, abi_params=[], abi_returns=[word], ab
 fn @pair() -> i256 [selector=0xa8aa1b31, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode [word], args 3
-    v1 = data_size ChildWithArg_initcode_0
-    v2 = data_size ChildWithArg_initcode_0, 32
-    v3 = data_size ChildWithArg_initcode_0, 63, aligned
+    v1 = datasize ChildWithArg_initcode_0
+    v2 = datasize ChildWithArg_initcode_0, 32
+    v3 = datasize ChildWithArg_initcode_0, 63, aligned
     v4 = alloc raw, exact, uninitialized, infallible, v3
     v5 = ptrtoint memptr v4 to i256
-    data_copy ChildWithArg_initcode_0, v5, v1
+    datacopy ChildWithArg_initcode_0, v5, v1
     v6 = slice_ptr v0
     v7 = ptrtoint memptr v4 to i256
     v8 = add v7, v1
@@ -138,12 +138,12 @@ fn @pair() -> i256 [selector=0xa8aa1b31, abi_params=[], abi_returns=[word], abi_
   bb2:
     v13 = zext i160 v10 to i256
     v14 = abi_encode [word], args 4
-    v15 = data_size ChildWithArg_initcode_0
-    v16 = data_size ChildWithArg_initcode_0, 32
-    v17 = data_size ChildWithArg_initcode_0, 63, aligned
+    v15 = datasize ChildWithArg_initcode_0
+    v16 = datasize ChildWithArg_initcode_0, 32
+    v17 = datasize ChildWithArg_initcode_0, 63, aligned
     v18 = alloc raw, exact, uninitialized, infallible, v17
     v19 = ptrtoint memptr v18 to i256
-    data_copy ChildWithArg_initcode_0, v19, v15
+    datacopy ChildWithArg_initcode_0, v19, v15
     v20 = slice_ptr v14
     v21 = ptrtoint memptr v18 to i256
     v22 = add v21, v15

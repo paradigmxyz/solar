@@ -80,11 +80,11 @@ data:
 fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
-    v1 = data_size DynamicSink_initcode_0
-    v2 = data_size DynamicSink_initcode_0, 31, aligned
+    v1 = datasize DynamicSink_initcode_0
+    v2 = datasize DynamicSink_initcode_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    data_copy DynamicSink_initcode_0, v4, v1
+    datacopy DynamicSink_initcode_0, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
@@ -100,12 +100,12 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v12 = zext i160 v9 to i256
     v13 = zext i160 v9 to i256
     v14 = abi_encode [word<u160>], args v13
-    v15 = data_size DynamicCaller_initcode_1
-    v16 = data_size DynamicCaller_initcode_1, 32
-    v17 = data_size DynamicCaller_initcode_1, 63, aligned
+    v15 = datasize DynamicCaller_initcode_1
+    v16 = datasize DynamicCaller_initcode_1, 32
+    v17 = datasize DynamicCaller_initcode_1, 63, aligned
     v18 = alloc raw, exact, uninitialized, infallible, v17
     v19 = ptrtoint memptr v18 to i256
-    data_copy DynamicCaller_initcode_1, v19, v15
+    datacopy DynamicCaller_initcode_1, v19, v15
     v20 = slice_ptr v14
     v21 = ptrtoint memptr v18 to i256
     v22 = add v21, v15

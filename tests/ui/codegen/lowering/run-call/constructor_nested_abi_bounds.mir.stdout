@@ -138,7 +138,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     memory_object_store_element memoryarray<1>, v0, 1, v20
     v21 = abi_encode [memory_array<memory_bytes>], args v0
     v22 = slice_len v21
-    v23 = data_size NestedConstructor_initcode_0
+    v23 = datasize NestedConstructor_initcode_0
     v24 = add v23, v22
     v25 = lt v24, v23
     icall panic_if<0x41>, v25
@@ -149,7 +149,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v29 = and v26, v28
     v30 = alloc raw, exact, uninitialized, infallible, v29
     v31 = ptrtoint memptr v30 to i256
-    data_copy NestedConstructor_initcode_0, v31, v23
+    datacopy NestedConstructor_initcode_0, v31, v23
     v32 = slice_ptr v21
     v33 = ptrtoint memptr v30 to i256
     v34 = add v33, v23

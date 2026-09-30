@@ -1051,8 +1051,6 @@ symbols! {
         creationCode,
         custom_error,
         data,
-        data_copy,
-        data_size,
         decode,
         decode_aggregate,
         decode_calldata_slice,

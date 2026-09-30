@@ -238,11 +238,11 @@ data:
 fn @arrLenAndSum() -> struct0 [selector=0x3dc68ceb, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = abi_encode []
-    v1 = data_size Callee_initcode_0
-    v2 = data_size Callee_initcode_0, 31, aligned
+    v1 = datasize Callee_initcode_0
+    v2 = datasize Callee_initcode_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    data_copy Callee_initcode_0, v4, v1
+    datacopy Callee_initcode_0, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
@@ -309,11 +309,11 @@ data:
 fn @strFirstAndLen() -> struct0 [selector=0x2b10ead6, abi_params=[], abi_returns=[word<bytes1>, word], abi_return_params=[bytes1, u256]] {
   bb0:
     v0 = abi_encode []
-    v1 = data_size Callee_initcode_0
-    v2 = data_size Callee_initcode_0, 31, aligned
+    v1 = datasize Callee_initcode_0
+    v2 = datasize Callee_initcode_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    data_copy Callee_initcode_0, v4, v1
+    datacopy Callee_initcode_0, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
@@ -358,11 +358,11 @@ data:
 fn @bytesRoundTrip() -> i256 [selector=0x9700a482, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
-    v1 = data_size Callee_initcode_0
-    v2 = data_size Callee_initcode_0, 31, aligned
+    v1 = datasize Callee_initcode_0
+    v2 = datasize Callee_initcode_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    data_copy Callee_initcode_0, v4, v1
+    datacopy Callee_initcode_0, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
@@ -399,11 +399,11 @@ data:
 fn @fixedSum() -> i256 [selector=0x1f080ca7, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
-    v1 = data_size Callee_initcode_0
-    v2 = data_size Callee_initcode_0, 31, aligned
+    v1 = datasize Callee_initcode_0
+    v2 = datasize Callee_initcode_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    data_copy Callee_initcode_0, v4, v1
+    datacopy Callee_initcode_0, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
@@ -464,11 +464,11 @@ data:
 fn @stringElem() -> i256 [selector=0x8eb2047c, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
-    v1 = data_size Callee_initcode_0
-    v2 = data_size Callee_initcode_0, 31, aligned
+    v1 = datasize Callee_initcode_0
+    v2 = datasize Callee_initcode_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    data_copy Callee_initcode_0, v4, v1
+    datacopy Callee_initcode_0, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
@@ -505,11 +505,11 @@ data:
 fn @nestedSum() -> i256 [selector=0x002c8096, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
-    v1 = data_size Callee_initcode_0
-    v2 = data_size Callee_initcode_0, 31, aligned
+    v1 = datasize Callee_initcode_0
+    v2 = datasize Callee_initcode_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    data_copy Callee_initcode_0, v4, v1
+    datacopy Callee_initcode_0, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1

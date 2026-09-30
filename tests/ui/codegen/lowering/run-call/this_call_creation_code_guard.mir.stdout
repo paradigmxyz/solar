@@ -397,11 +397,11 @@ data:
 fn @viaHelper() [selector=0x9c6f4ff5, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = abi_encode []
-    v1 = data_size CreationHelper_initcode_0
-    v2 = data_size CreationHelper_initcode_0, 31, aligned
+    v1 = datasize CreationHelper_initcode_0
+    v2 = datasize CreationHelper_initcode_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    data_copy CreationHelper_initcode_0, v4, v1
+    datacopy CreationHelper_initcode_0, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
@@ -420,11 +420,11 @@ fn @viaHelper() [selector=0x9c6f4ff5, abi_params=[], abi_returns=[], abi_return_
 fn @direct() [selector=0x222b1407, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = abi_encode []
-    v1 = data_size CreationDirect_initcode_1
-    v2 = data_size CreationDirect_initcode_1, 31, aligned
+    v1 = datasize CreationDirect_initcode_1
+    v2 = datasize CreationDirect_initcode_1, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    data_copy CreationDirect_initcode_1, v4, v1
+    datacopy CreationDirect_initcode_1, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
@@ -443,11 +443,11 @@ fn @direct() [selector=0x222b1407, abi_params=[], abi_returns=[], abi_return_par
 fn @viaModifier() [selector=0xb93fa0d6, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = abi_encode []
-    v1 = data_size CreationModifier_initcode_2
-    v2 = data_size CreationModifier_initcode_2, 31, aligned
+    v1 = datasize CreationModifier_initcode_2
+    v2 = datasize CreationModifier_initcode_2, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    data_copy CreationModifier_initcode_2, v4, v1
+    datacopy CreationModifier_initcode_2, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
@@ -466,11 +466,11 @@ fn @viaModifier() [selector=0xb93fa0d6, abi_params=[], abi_returns=[], abi_retur
 fn @viaBase() [selector=0x0f982f84, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = abi_encode []
-    v1 = data_size CreationDerived_initcode_3
-    v2 = data_size CreationDerived_initcode_3, 31, aligned
+    v1 = datasize CreationDerived_initcode_3
+    v2 = datasize CreationDerived_initcode_3, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    data_copy CreationDerived_initcode_3, v4, v1
+    datacopy CreationDerived_initcode_3, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
@@ -489,11 +489,11 @@ fn @viaBase() [selector=0x0f982f84, abi_params=[], abi_returns=[], abi_return_pa
 fn @viaInitializer() [selector=0x7c61d018, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = abi_encode []
-    v1 = data_size CreationInitializer_initcode_4
-    v2 = data_size CreationInitializer_initcode_4, 31, aligned
+    v1 = datasize CreationInitializer_initcode_4
+    v2 = datasize CreationInitializer_initcode_4, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    data_copy CreationInitializer_initcode_4, v4, v1
+    datacopy CreationInitializer_initcode_4, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
@@ -512,11 +512,11 @@ fn @viaInitializer() [selector=0x7c61d018, abi_params=[], abi_returns=[], abi_re
 fn @viaTry() [selector=0x9369e272, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = abi_encode []
-    v1 = data_size CreationTry_initcode_5
-    v2 = data_size CreationTry_initcode_5, 31, aligned
+    v1 = datasize CreationTry_initcode_5
+    v2 = datasize CreationTry_initcode_5, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    data_copy CreationTry_initcode_5, v4, v1
+    datacopy CreationTry_initcode_5, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
@@ -539,12 +539,12 @@ fn @viaShared() [selector=0x86375232, abi_params=[], abi_returns=[], abi_return_
     v2 = eq v1, false
     v3 = zext i1 v2 to i256
     v4 = abi_encode [word<bool>], args v3
-    v5 = data_size SharedHelper_initcode_6
-    v6 = data_size SharedHelper_initcode_6, 32
-    v7 = data_size SharedHelper_initcode_6, 63, aligned
+    v5 = datasize SharedHelper_initcode_6
+    v6 = datasize SharedHelper_initcode_6, 32
+    v7 = datasize SharedHelper_initcode_6, 63, aligned
     v8 = alloc raw, exact, uninitialized, infallible, v7
     v9 = ptrtoint memptr v8 to i256
-    data_copy SharedHelper_initcode_6, v9, v5
+    datacopy SharedHelper_initcode_6, v9, v5
     v10 = slice_ptr v4
     v11 = ptrtoint memptr v8 to i256
     v12 = add v11, v5

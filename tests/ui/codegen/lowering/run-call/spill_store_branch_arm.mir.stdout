@@ -125,11 +125,11 @@ fn @constructor() [constructor] {
     v15 = or v11, v14
     sstore 0, v15 !metadata(storage=slot(0))
     v16 = abi_encode []
-    v17 = data_size Mgr_initcode_0
-    v18 = data_size Mgr_initcode_0, 31, aligned
+    v17 = datasize Mgr_initcode_0
+    v18 = datasize Mgr_initcode_0, 31, aligned
     v19 = alloc raw, exact, uninitialized, infallible, v18
     v20 = ptrtoint memptr v19 to i256
-    data_copy Mgr_initcode_0, v20, v17
+    datacopy Mgr_initcode_0, v20, v17
     v21 = slice_ptr v16
     v22 = ptrtoint memptr v19 to i256
     v23 = add v22, v17

@@ -18,19 +18,19 @@
 // CHECK-NOT: literal_3:
 contract C {
     // CHECK-LABEL: fn @data(
-    // CHECK: data_copy literal_0, {{.*}}, 288
+    // CHECK: datacopy literal_0, {{.*}}, 288
     // SIZE-LABEL: fn @data(
     // SIZE: mstore {{.*}}, 0
-    // SIZE: data_copy literal_0, {{.*}}, 257
+    // SIZE: datacopy literal_0, {{.*}}, 257
     function data() external pure returns (bytes memory) {
         return "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdefZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ!";
     }
 
     // CHECK-LABEL: fn @subslice(
-    // CHECK: data_copy literal_1, {{.*}}, 192
+    // CHECK: datacopy literal_1, {{.*}}, 192
     // SIZE-LABEL: fn @subslice(
     // SIZE: mstore {{.*}}, 0
-    // SIZE: data_copy literal_1, {{.*}}, 161
+    // SIZE: datacopy literal_1, {{.*}}, 161
     function subslice() external pure returns (bytes memory) {
         return "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdefZ";
     }
@@ -56,7 +56,7 @@ contract C {
     }
 
     // CHECK-LABEL: fn @splatData{{[.(]}}
-    // CHECK: data_copy literal_2, {{.*}}, 160
+    // CHECK: datacopy literal_2, {{.*}}, 160
     // SPLAT-LABEL: fn @splatData.body() -> memptr
     // SPLAT-COUNT-2: mstore {{.*}}, 0x112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00
     // SPLAT: mcopy {{.*}}, 64

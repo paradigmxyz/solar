@@ -125,11 +125,11 @@ data:
 fn @fixedRange() -> i256 [selector=0x5d040bd2, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
-    v1 = data_size ForwardingImplementation_initcode_0
-    v2 = data_size ForwardingImplementation_initcode_0, 31, aligned
+    v1 = datasize ForwardingImplementation_initcode_0
+    v2 = datasize ForwardingImplementation_initcode_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    data_copy ForwardingImplementation_initcode_0, v4, v1
+    datacopy ForwardingImplementation_initcode_0, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
@@ -145,12 +145,12 @@ fn @fixedRange() -> i256 [selector=0x5d040bd2, abi_params=[], abi_returns=[word]
     v12 = zext i160 v9 to i256
     v13 = zext i160 v9 to i256
     v14 = abi_encode [word<u160>], args v13
-    v15 = data_size FixedRangeProxy_initcode_1
-    v16 = data_size FixedRangeProxy_initcode_1, 32
-    v17 = data_size FixedRangeProxy_initcode_1, 63, aligned
+    v15 = datasize FixedRangeProxy_initcode_1
+    v16 = datasize FixedRangeProxy_initcode_1, 32
+    v17 = datasize FixedRangeProxy_initcode_1, 63, aligned
     v18 = alloc raw, exact, uninitialized, infallible, v17
     v19 = ptrtoint memptr v18 to i256
-    data_copy FixedRangeProxy_initcode_1, v19, v15
+    datacopy FixedRangeProxy_initcode_1, v19, v15
     v20 = slice_ptr v14
     v21 = ptrtoint memptr v18 to i256
     v22 = add v21, v15
@@ -207,11 +207,11 @@ fn @fixedRange() -> i256 [selector=0x5d040bd2, abi_params=[], abi_returns=[word]
 fn @crossBlock() -> i256 [selector=0xb0694ed5, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
-    v1 = data_size ForwardingImplementation_initcode_0
-    v2 = data_size ForwardingImplementation_initcode_0, 31, aligned
+    v1 = datasize ForwardingImplementation_initcode_0
+    v2 = datasize ForwardingImplementation_initcode_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    data_copy ForwardingImplementation_initcode_0, v4, v1
+    datacopy ForwardingImplementation_initcode_0, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
@@ -227,12 +227,12 @@ fn @crossBlock() -> i256 [selector=0xb0694ed5, abi_params=[], abi_returns=[word]
     v12 = zext i160 v9 to i256
     v13 = zext i160 v9 to i256
     v14 = abi_encode [word<u160>], args v13
-    v15 = data_size CrossBlockProxy_initcode_2
-    v16 = data_size CrossBlockProxy_initcode_2, 32
-    v17 = data_size CrossBlockProxy_initcode_2, 63, aligned
+    v15 = datasize CrossBlockProxy_initcode_2
+    v16 = datasize CrossBlockProxy_initcode_2, 32
+    v17 = datasize CrossBlockProxy_initcode_2, 63, aligned
     v18 = alloc raw, exact, uninitialized, infallible, v17
     v19 = ptrtoint memptr v18 to i256
-    data_copy CrossBlockProxy_initcode_2, v19, v15
+    datacopy CrossBlockProxy_initcode_2, v19, v15
     v20 = slice_ptr v14
     v21 = ptrtoint memptr v18 to i256
     v22 = add v21, v15
@@ -289,11 +289,11 @@ fn @crossBlock() -> i256 [selector=0xb0694ed5, abi_params=[], abi_returns=[word]
 fn @dynamicRevert() -> i256 [selector=0x5dbb0715, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
-    v1 = data_size RevertingProducer_initcode_3
-    v2 = data_size RevertingProducer_initcode_3, 31, aligned
+    v1 = datasize RevertingProducer_initcode_3
+    v2 = datasize RevertingProducer_initcode_3, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    data_copy RevertingProducer_initcode_3, v4, v1
+    datacopy RevertingProducer_initcode_3, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
@@ -309,12 +309,12 @@ fn @dynamicRevert() -> i256 [selector=0x5dbb0715, abi_params=[], abi_returns=[wo
     v12 = zext i160 v9 to i256
     v13 = zext i160 v9 to i256
     v14 = abi_encode [word<u160>], args v13
-    v15 = data_size DynamicReturnWrapper_initcode_4
-    v16 = data_size DynamicReturnWrapper_initcode_4, 32
-    v17 = data_size DynamicReturnWrapper_initcode_4, 63, aligned
+    v15 = datasize DynamicReturnWrapper_initcode_4
+    v16 = datasize DynamicReturnWrapper_initcode_4, 32
+    v17 = datasize DynamicReturnWrapper_initcode_4, 63, aligned
     v18 = alloc raw, exact, uninitialized, infallible, v17
     v19 = ptrtoint memptr v18 to i256
-    data_copy DynamicReturnWrapper_initcode_4, v19, v15
+    datacopy DynamicReturnWrapper_initcode_4, v19, v15
     v20 = slice_ptr v14
     v21 = ptrtoint memptr v18 to i256
     v22 = add v21, v15

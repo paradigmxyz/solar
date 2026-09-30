@@ -121,11 +121,11 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bytes4
     v8 = shl 64, v5
     memory_object_store_element memoryfixedarray<2, 1>, v0, 0, v8
     v9 = abi_encode []
-    v10 = data_size AbiEncodeCallMemoryTarget_initcode_0
-    v11 = data_size AbiEncodeCallMemoryTarget_initcode_0, 31, aligned
+    v10 = datasize AbiEncodeCallMemoryTarget_initcode_0
+    v11 = datasize AbiEncodeCallMemoryTarget_initcode_0, 31, aligned
     v12 = alloc raw, exact, uninitialized, infallible, v11
     v13 = ptrtoint memptr v12 to i256
-    data_copy AbiEncodeCallMemoryTarget_initcode_0, v13, v10
+    datacopy AbiEncodeCallMemoryTarget_initcode_0, v13, v10
     v14 = slice_ptr v9
     v15 = ptrtoint memptr v12 to i256
     v16 = add v15, v10

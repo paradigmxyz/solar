@@ -1,14 +1,14 @@
-error: [fn0] [bb0, inst0] data_copy size must be an immediate
+error: [fn0] [bb0, inst0] datacopy size must be an immediate
 
-error: [fn1] [bb0, inst0] data_copy range 1..3 exceeds data size 2
+error: [fn1] [bb0, inst0] datacopy range 1..3 exceeds data size 2
 
-error: [fn2] [bb0, inst0] data_copy range 2..3 exceeds data size 2
+error: [fn2] [bb0, inst0] datacopy range 2..3 exceeds data size 2
 
-error: [fn3] [bb0, inst0] data_copy size of deferred data must be its `data_size`
+error: [fn3] [bb0, inst0] datacopy size of deferred data must be its `datasize`
 
-error: [fn4] [bb0, inst1] data_copy size of deferred data must be its `data_size`
+error: [fn4] [bb0, inst1] datacopy size of deferred data must be its `datasize`
 
-error: [fn6] [bb0, inst0] data_size requires deferred data
+error: [fn6] [bb0, inst0] datasize requires deferred data
 
 error: aborting due to 6 previous errors
 

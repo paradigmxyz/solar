@@ -119,11 +119,11 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v24 = shl 64, v20
     memory_object_store_element memoryarray<1>, v3, 0, v24
     v25 = abi_encode []
-    v26 = data_size ExternalFunctionPointerNestedArrayTarget_initcode_0
-    v27 = data_size ExternalFunctionPointerNestedArrayTarget_initcode_0, 31, aligned
+    v26 = datasize ExternalFunctionPointerNestedArrayTarget_initcode_0
+    v27 = datasize ExternalFunctionPointerNestedArrayTarget_initcode_0, 31, aligned
     v28 = alloc raw, exact, uninitialized, infallible, v27
     v29 = ptrtoint memptr v28 to i256
-    data_copy ExternalFunctionPointerNestedArrayTarget_initcode_0, v29, v26
+    datacopy ExternalFunctionPointerNestedArrayTarget_initcode_0, v29, v26
     v30 = slice_ptr v25
     v31 = ptrtoint memptr v28 to i256
     v32 = add v31, v26

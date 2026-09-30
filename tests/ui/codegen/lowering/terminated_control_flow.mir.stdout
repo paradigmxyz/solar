@@ -27,11 +27,11 @@ data:
 fn @constructor() [constructor] {
   bb0:
     v0 = abi_encode []
-    v1 = data_size TryTarget_initcode_0
-    v2 = data_size TryTarget_initcode_0, 31, aligned
+    v1 = datasize TryTarget_initcode_0
+    v2 = datasize TryTarget_initcode_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    data_copy TryTarget_initcode_0, v4, v1
+    datacopy TryTarget_initcode_0, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
@@ -117,11 +117,11 @@ fn @tryFailure() -> i256 [selector=0x86763122, view, abi_params=[], abi_returns=
 fn @constructorStop() -> i256 [selector=0x2114ee15, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
-    v1 = data_size StopsInConstructor_initcode_1
-    v2 = data_size StopsInConstructor_initcode_1, 31, aligned
+    v1 = datasize StopsInConstructor_initcode_1
+    v2 = datasize StopsInConstructor_initcode_1, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    data_copy StopsInConstructor_initcode_1, v4, v1
+    datacopy StopsInConstructor_initcode_1, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
@@ -201,12 +201,12 @@ fn @recursiveFailure(arg0: i256, arg1: i256) -> i256 [selector=0x0d8ae7f2, pure,
 fn @constructorFailure(arg0: i256) -> i256 [selector=0x61e5bcd1, abi_params=[u256], abi_returns=[word<u160>], abi_return_params=[address]] {
   bb0:
     v0 = abi_encode [word], args arg0
-    v1 = data_size RevertsInConstructor_initcode_2
-    v2 = data_size RevertsInConstructor_initcode_2, 32
-    v3 = data_size RevertsInConstructor_initcode_2, 63, aligned
+    v1 = datasize RevertsInConstructor_initcode_2
+    v2 = datasize RevertsInConstructor_initcode_2, 32
+    v3 = datasize RevertsInConstructor_initcode_2, 63, aligned
     v4 = alloc raw, exact, uninitialized, infallible, v3
     v5 = ptrtoint memptr v4 to i256
-    data_copy RevertsInConstructor_initcode_2, v5, v1
+    datacopy RevertsInConstructor_initcode_2, v5, v1
     v6 = slice_ptr v0
     v7 = ptrtoint memptr v4 to i256
     v8 = add v7, v1
@@ -226,11 +226,11 @@ fn @constructorFailure(arg0: i256) -> i256 [selector=0x61e5bcd1, abi_params=[u25
 fn @constructorWithoutArgs() -> i256 [selector=0x1f01d869, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = abi_encode []
-    v1 = data_size RevertsWithoutArgs_initcode_3
-    v2 = data_size RevertsWithoutArgs_initcode_3, 31, aligned
+    v1 = datasize RevertsWithoutArgs_initcode_3
+    v2 = datasize RevertsWithoutArgs_initcode_3, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    data_copy RevertsWithoutArgs_initcode_3, v4, v1
+    datacopy RevertsWithoutArgs_initcode_3, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1

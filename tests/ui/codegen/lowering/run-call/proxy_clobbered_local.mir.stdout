@@ -36,11 +36,11 @@ fn @keepsLocal(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) -> i2
 fn @forwards() -> i256 [selector=0xa38e2a32, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
-    v1 = data_size Impl_initcode_0
-    v2 = data_size Impl_initcode_0, 31, aligned
+    v1 = datasize Impl_initcode_0
+    v2 = datasize Impl_initcode_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    data_copy Impl_initcode_0, v4, v1
+    datacopy Impl_initcode_0, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1

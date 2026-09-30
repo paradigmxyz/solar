@@ -20,11 +20,11 @@ data:
 fn @constructor() [constructor] {
   bb0:
     v0 = abi_encode []
-    v1 = data_size TryCatchPanicTarget_initcode_0
-    v2 = data_size TryCatchPanicTarget_initcode_0, 31, aligned
+    v1 = datasize TryCatchPanicTarget_initcode_0
+    v2 = datasize TryCatchPanicTarget_initcode_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    data_copy TryCatchPanicTarget_initcode_0, v4, v1
+    datacopy TryCatchPanicTarget_initcode_0, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1

@@ -175,11 +175,11 @@ fn @pointerNoReturn() [selector=0xcf820bfc, abi_params=[], abi_returns=[], abi_r
 fn @live() -> i256 [selector=0x957aa58c, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
-    v1 = data_size NoCodeCallee_initcode_0
-    v2 = data_size NoCodeCallee_initcode_0, 31, aligned
+    v1 = datasize NoCodeCallee_initcode_0
+    v2 = datasize NoCodeCallee_initcode_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    data_copy NoCodeCallee_initcode_0, v4, v1
+    datacopy NoCodeCallee_initcode_0, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
@@ -215,11 +215,11 @@ fn @live() -> i256 [selector=0x957aa58c, abi_params=[], abi_returns=[word], abi_
 fn @liveAggregate() -> struct0 [selector=0xc64a4ee9, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = abi_encode []
-    v1 = data_size NoCodeCallee_initcode_0
-    v2 = data_size NoCodeCallee_initcode_0, 31, aligned
+    v1 = datasize NoCodeCallee_initcode_0
+    v2 = datasize NoCodeCallee_initcode_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    data_copy NoCodeCallee_initcode_0, v4, v1
+    datacopy NoCodeCallee_initcode_0, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1

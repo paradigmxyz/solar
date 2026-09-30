@@ -194,7 +194,7 @@ fn @f(arg0: i256, arg1: memoryarray) -> struct0 [selector=0x1b2902dd, abi_params
   bb0:
     v0 = abi_encode [memory_array<word<u160>>, word], args arg1, arg0
     v1 = slice_len v0
-    v2 = data_size Main_initcode_0
+    v2 = datasize Main_initcode_0
     v3 = add v2, v1
     v4 = lt v3, v2
     icall panic_if<0x41>, v4
@@ -205,7 +205,7 @@ fn @f(arg0: i256, arg1: memoryarray) -> struct0 [selector=0x1b2902dd, abi_params
     v8 = and v5, v7
     v9 = alloc raw, exact, uninitialized, infallible, v8
     v10 = ptrtoint memptr v9 to i256
-    data_copy Main_initcode_0, v10, v2
+    datacopy Main_initcode_0, v10, v2
     v11 = slice_ptr v0
     v12 = ptrtoint memptr v9 to i256
     v13 = add v12, v2

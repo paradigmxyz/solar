@@ -14,7 +14,7 @@ fn @data() [selector=0x73d4a13a, abi_wrapper, pure] {
     v31 = add v32, 32
     v3 = add v32, 288
     mstore v3, 0
-    data_copy literal_0, v31, 257
+    datacopy literal_0, v31, 257
     v12 = ne v32, 0
     v13 = zext i1 v12 to i256
     v14 = mul v13, 257
@@ -39,7 +39,7 @@ fn @subslice() [selector=0xb9ad073e, abi_wrapper, pure] {
     v31 = add v32, 32
     v3 = add v32, 192
     mstore v3, 0
-    data_copy literal_1, v31, 161
+    datacopy literal_1, v31, 161
     v12 = ne v32, 0
     v13 = zext i1 v12 to i256
     v14 = mul v13, 161

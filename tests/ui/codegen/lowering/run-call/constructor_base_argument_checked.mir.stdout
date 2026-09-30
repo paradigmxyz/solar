@@ -251,12 +251,12 @@ data:
 fn @deployAdd(arg0: i256) -> i256 [selector=0xec1495a8, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode [word], args arg0
-    v1 = data_size CheckedBaseArgAdd_initcode_0
-    v2 = data_size CheckedBaseArgAdd_initcode_0, 32
-    v3 = data_size CheckedBaseArgAdd_initcode_0, 63, aligned
+    v1 = datasize CheckedBaseArgAdd_initcode_0
+    v2 = datasize CheckedBaseArgAdd_initcode_0, 32
+    v3 = datasize CheckedBaseArgAdd_initcode_0, 63, aligned
     v4 = alloc raw, exact, uninitialized, infallible, v3
     v5 = ptrtoint memptr v4 to i256
-    data_copy CheckedBaseArgAdd_initcode_0, v5, v1
+    datacopy CheckedBaseArgAdd_initcode_0, v5, v1
     v6 = slice_ptr v0
     v7 = ptrtoint memptr v4 to i256
     v8 = add v7, v1
@@ -292,12 +292,12 @@ fn @deployAdd(arg0: i256) -> i256 [selector=0xec1495a8, abi_params=[u256], abi_r
 fn @deployMul(arg0: i256) -> i256 [selector=0xcb7face2, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode [word], args arg0
-    v1 = data_size CheckedBaseArgMul_initcode_1
-    v2 = data_size CheckedBaseArgMul_initcode_1, 32
-    v3 = data_size CheckedBaseArgMul_initcode_1, 63, aligned
+    v1 = datasize CheckedBaseArgMul_initcode_1
+    v2 = datasize CheckedBaseArgMul_initcode_1, 32
+    v3 = datasize CheckedBaseArgMul_initcode_1, 63, aligned
     v4 = alloc raw, exact, uninitialized, infallible, v3
     v5 = ptrtoint memptr v4 to i256
-    data_copy CheckedBaseArgMul_initcode_1, v5, v1
+    datacopy CheckedBaseArgMul_initcode_1, v5, v1
     v6 = slice_ptr v0
     v7 = ptrtoint memptr v4 to i256
     v8 = add v7, v1
@@ -333,12 +333,12 @@ fn @deployMul(arg0: i256) -> i256 [selector=0xcb7face2, abi_params=[u256], abi_r
 fn @deployNegate(arg0: i256) -> i256 [selector=0x8ee51801, abi_params=[i256], abi_returns=[word], abi_return_params=[i256]] {
   bb0:
     v0 = abi_encode [word], args arg0
-    v1 = data_size CheckedBaseArgNegate_initcode_2
-    v2 = data_size CheckedBaseArgNegate_initcode_2, 32
-    v3 = data_size CheckedBaseArgNegate_initcode_2, 63, aligned
+    v1 = datasize CheckedBaseArgNegate_initcode_2
+    v2 = datasize CheckedBaseArgNegate_initcode_2, 32
+    v3 = datasize CheckedBaseArgNegate_initcode_2, 63, aligned
     v4 = alloc raw, exact, uninitialized, infallible, v3
     v5 = ptrtoint memptr v4 to i256
-    data_copy CheckedBaseArgNegate_initcode_2, v5, v1
+    datacopy CheckedBaseArgNegate_initcode_2, v5, v1
     v6 = slice_ptr v0
     v7 = ptrtoint memptr v4 to i256
     v8 = add v7, v1
@@ -374,12 +374,12 @@ fn @deployNegate(arg0: i256) -> i256 [selector=0x8ee51801, abi_params=[i256], ab
 fn @deployElement(arg0: i256) -> i256 [selector=0x178d3c81, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode [word], args arg0
-    v1 = data_size CheckedBaseArgElement_initcode_3
-    v2 = data_size CheckedBaseArgElement_initcode_3, 32
-    v3 = data_size CheckedBaseArgElement_initcode_3, 63, aligned
+    v1 = datasize CheckedBaseArgElement_initcode_3
+    v2 = datasize CheckedBaseArgElement_initcode_3, 32
+    v3 = datasize CheckedBaseArgElement_initcode_3, 63, aligned
     v4 = alloc raw, exact, uninitialized, infallible, v3
     v5 = ptrtoint memptr v4 to i256
-    data_copy CheckedBaseArgElement_initcode_3, v5, v1
+    datacopy CheckedBaseArgElement_initcode_3, v5, v1
     v6 = slice_ptr v0
     v7 = ptrtoint memptr v4 to i256
     v8 = add v7, v1
@@ -415,12 +415,12 @@ fn @deployElement(arg0: i256) -> i256 [selector=0x178d3c81, abi_params=[u256], a
 fn @deploySub(arg0: i256) -> i256 [selector=0xd5c4b324, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode [word], args arg0
-    v1 = data_size CheckedBaseArgSub_initcode_4
-    v2 = data_size CheckedBaseArgSub_initcode_4, 32
-    v3 = data_size CheckedBaseArgSub_initcode_4, 63, aligned
+    v1 = datasize CheckedBaseArgSub_initcode_4
+    v2 = datasize CheckedBaseArgSub_initcode_4, 32
+    v3 = datasize CheckedBaseArgSub_initcode_4, 63, aligned
     v4 = alloc raw, exact, uninitialized, infallible, v3
     v5 = ptrtoint memptr v4 to i256
-    data_copy CheckedBaseArgSub_initcode_4, v5, v1
+    datacopy CheckedBaseArgSub_initcode_4, v5, v1
     v6 = slice_ptr v0
     v7 = ptrtoint memptr v4 to i256
     v8 = add v7, v1
@@ -456,12 +456,12 @@ fn @deploySub(arg0: i256) -> i256 [selector=0xd5c4b324, abi_params=[u256], abi_r
 fn @deployExp(arg0: i256) -> i256 [selector=0x2744a5b3, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode [word], args arg0
-    v1 = data_size CheckedBaseArgExp_initcode_5
-    v2 = data_size CheckedBaseArgExp_initcode_5, 32
-    v3 = data_size CheckedBaseArgExp_initcode_5, 63, aligned
+    v1 = datasize CheckedBaseArgExp_initcode_5
+    v2 = datasize CheckedBaseArgExp_initcode_5, 32
+    v3 = datasize CheckedBaseArgExp_initcode_5, 63, aligned
     v4 = alloc raw, exact, uninitialized, infallible, v3
     v5 = ptrtoint memptr v4 to i256
-    data_copy CheckedBaseArgExp_initcode_5, v5, v1
+    datacopy CheckedBaseArgExp_initcode_5, v5, v1
     v6 = slice_ptr v0
     v7 = ptrtoint memptr v4 to i256
     v8 = add v7, v1
@@ -497,12 +497,12 @@ fn @deployExp(arg0: i256) -> i256 [selector=0x2744a5b3, abi_params=[u256], abi_r
 fn @deployShift(arg0: i256) -> i256 [selector=0xca2ccfdb, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode [word], args arg0
-    v1 = data_size CheckedBaseArgShift_initcode_6
-    v2 = data_size CheckedBaseArgShift_initcode_6, 32
-    v3 = data_size CheckedBaseArgShift_initcode_6, 63, aligned
+    v1 = datasize CheckedBaseArgShift_initcode_6
+    v2 = datasize CheckedBaseArgShift_initcode_6, 32
+    v3 = datasize CheckedBaseArgShift_initcode_6, 63, aligned
     v4 = alloc raw, exact, uninitialized, infallible, v3
     v5 = ptrtoint memptr v4 to i256
-    data_copy CheckedBaseArgShift_initcode_6, v5, v1
+    datacopy CheckedBaseArgShift_initcode_6, v5, v1
     v6 = slice_ptr v0
     v7 = ptrtoint memptr v4 to i256
     v8 = add v7, v1

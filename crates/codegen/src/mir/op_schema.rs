@@ -2121,7 +2121,7 @@ define_mir_ops! {
     // Code operations
     /// Copy constant module data to memory.
     #[mir_op(
-        mnemonic = "data_copy",
+        mnemonic = "datacopy",
         result = None,
         phases = PhaseSet::ALL,
         effect = MemoryWrite,
@@ -2138,7 +2138,7 @@ define_mir_ops! {
     /// the addend and rounding into the operation keeps sizes derived from
     /// the length constant after resolution.
     #[mir_op(
-        mnemonic = "data_size",
+        mnemonic = "datasize",
         result = I256,
         phases = PhaseSet::ALL,
         effect = Pure,

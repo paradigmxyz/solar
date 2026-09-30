@@ -459,14 +459,14 @@ fn display_inst_kind<'a>(
             let name = module.and_then(|module| module.data[id.id].name);
             write!(
                 f,
-                "data_copy {}",
+                "datacopy {}",
                 crate::utils::display_data_ref(name, id.id.index(), id.offset)
             )?;
             write!(f, ", {}, {}", display_val(*dest, func), display_val(*size, func))
         }
         InstKind::DataSize(size) => {
             let name = module.and_then(|module| module.data[size.data].name);
-            write!(f, "data_size {}", crate::utils::display_data_size(name, *size))
+            write!(f, "datasize {}", crate::utils::display_data_size(name, *size))
         }
         InstKind::Alloc { size, kind, semantics } => {
             let kind = match kind {

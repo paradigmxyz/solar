@@ -7,11 +7,11 @@ data:
 fn @unconditional() -> i256 [selector=0x7d06b8f6, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
-    v1 = data_size ConstructorStopAlways_initcode_0
-    v2 = data_size ConstructorStopAlways_initcode_0, 31, aligned
+    v1 = datasize ConstructorStopAlways_initcode_0
+    v2 = datasize ConstructorStopAlways_initcode_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    data_copy ConstructorStopAlways_initcode_0, v4, v1
+    datacopy ConstructorStopAlways_initcode_0, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
@@ -36,12 +36,12 @@ fn @conditional(arg0: i256) -> i256 [selector=0x9077f189, abi_params=[bool], abi
     v1 = eq v0, false
     v2 = zext i1 v1 to i256
     v3 = abi_encode [word<bool>], args v2
-    v4 = data_size ConstructorStopConditional_initcode_1
-    v5 = data_size ConstructorStopConditional_initcode_1, 32
-    v6 = data_size ConstructorStopConditional_initcode_1, 63, aligned
+    v4 = datasize ConstructorStopConditional_initcode_1
+    v5 = datasize ConstructorStopConditional_initcode_1, 32
+    v6 = datasize ConstructorStopConditional_initcode_1, 63, aligned
     v7 = alloc raw, exact, uninitialized, infallible, v6
     v8 = ptrtoint memptr v7 to i256
-    data_copy ConstructorStopConditional_initcode_1, v8, v4
+    datacopy ConstructorStopConditional_initcode_1, v8, v4
     v9 = slice_ptr v3
     v10 = ptrtoint memptr v7 to i256
     v11 = add v10, v4
@@ -67,12 +67,12 @@ fn @conditionalContinues() -> i256 [selector=0x828f9845, abi_params=[], abi_retu
     v2 = eq v1, false
     v3 = zext i1 v2 to i256
     v4 = abi_encode [word<bool>], args v3
-    v5 = data_size ConstructorStopConditional_initcode_1
-    v6 = data_size ConstructorStopConditional_initcode_1, 32
-    v7 = data_size ConstructorStopConditional_initcode_1, 63, aligned
+    v5 = datasize ConstructorStopConditional_initcode_1
+    v6 = datasize ConstructorStopConditional_initcode_1, 32
+    v7 = datasize ConstructorStopConditional_initcode_1, 63, aligned
     v8 = alloc raw, exact, uninitialized, infallible, v7
     v9 = ptrtoint memptr v8 to i256
-    data_copy ConstructorStopConditional_initcode_1, v9, v5
+    datacopy ConstructorStopConditional_initcode_1, v9, v5
     v10 = slice_ptr v4
     v11 = ptrtoint memptr v8 to i256
     v12 = add v11, v5

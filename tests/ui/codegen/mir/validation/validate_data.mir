@@ -6,50 +6,50 @@ data:
 
 fn @dynamic(arg0: i256) {
   bb0:
-    data_copy 0, 0, arg0
-    //~? ERROR: [fn0] [bb0, inst0] data_copy size must be an immediate
+    datacopy 0, 0, arg0
+    //~? ERROR: [fn0] [bb0, inst0] datacopy size must be an immediate
     stop
 }
 
 fn @past_end() {
   bb0:
-    data_copy 0+1, 0, 2
-    //~? ERROR: [fn1] [bb0, inst0] data_copy range 1..3 exceeds data size 2
+    datacopy 0+1, 0, 2
+    //~? ERROR: [fn1] [bb0, inst0] datacopy range 1..3 exceeds data size 2
     stop
 }
 
 fn @at_end() {
   bb0:
-    data_copy 0+2, 0, 1
-    //~? ERROR: [fn2] [bb0, inst0] data_copy range 2..3 exceeds data size 2
+    datacopy 0+2, 0, 1
+    //~? ERROR: [fn2] [bb0, inst0] datacopy range 2..3 exceeds data size 2
     stop
 }
 
 fn @deferred_immediate() {
   bb0:
-    data_copy 1, 0, 2
-    //~? ERROR: [fn3] [bb0, inst0] data_copy size of deferred data must be its `data_size`
+    datacopy 1, 0, 2
+    //~? ERROR: [fn3] [bb0, inst0] datacopy size of deferred data must be its `datasize`
     stop
 }
 
 fn @deferred_derived_size() {
   bb0:
-    v0 = data_size 1, 32
-    data_copy 1, 0, v0
-    //~? ERROR: [fn4] [bb0, inst1] data_copy size of deferred data must be its `data_size`
+    v0 = datasize 1, 32
+    datacopy 1, 0, v0
+    //~? ERROR: [fn4] [bb0, inst1] datacopy size of deferred data must be its `datasize`
     stop
 }
 
 fn @deferred_size() {
   bb0:
-    v0 = data_size 1
-    data_copy 1, 0, v0
+    v0 = datasize 1
+    datacopy 1, 0, v0
     stop
 }
 
 fn @literal_size() {
   bb0:
-    v0 = data_size 0
-    //~? ERROR: [fn6] [bb0, inst0] data_size requires deferred data
+    v0 = datasize 0
+    //~? ERROR: [fn6] [bb0, inst0] datasize requires deferred data
     stop
 }

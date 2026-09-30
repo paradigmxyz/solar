@@ -338,13 +338,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             None => self.builder.slice_len(encoded),
         };
 
-        // len = data_size initcode(C)
+        // len = datasize initcode(C)
         let bytecode_len_value = self.builder.data_size(bytecode, 0, false);
         // CREATE consumes a raw byte range, so do not reserve a semantic bytes
         // header that no later operation can observe.
         let (total_len, allocation_size) = if let Some(len) = static_len {
-            // total_len = data_size initcode(C), len
-            // allocation_size = data_size initcode(C), len + 31, aligned
+            // total_len = datasize initcode(C), len
+            // allocation_size = datasize initcode(C), len + 31, aligned
             let total_len = if len == 0 {
                 bytecode_len_value
             } else {
@@ -361,7 +361,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         };
         let data = self.builder.alloc_raw(allocation_size, AllocationSemantics::INTERNAL);
 
-        // data_copy initcode(C), data, len
+        // datacopy initcode(C), data, len
         self.builder.data_copy(DataRef::new(bytecode, 0), data, bytecode_len_value);
         let encoded_ptr = self.builder.slice_ptr(encoded);
         let copy_dest = self.builder.add(data, bytecode_len_value);

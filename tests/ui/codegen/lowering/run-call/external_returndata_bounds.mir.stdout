@@ -81,11 +81,11 @@ fn @check(arg0: memorystruct) -> i256 [pure] {
 fn @staticAggregate() -> i256 [selector=0x9982aedb, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
-    v1 = data_size ReturnProducer_initcode_0
-    v2 = data_size ReturnProducer_initcode_0, 31, aligned
+    v1 = datasize ReturnProducer_initcode_0
+    v2 = datasize ReturnProducer_initcode_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    data_copy ReturnProducer_initcode_0, v4, v1
+    datacopy ReturnProducer_initcode_0, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
@@ -128,11 +128,11 @@ fn @staticAggregate() -> i256 [selector=0x9982aedb, abi_params=[], abi_returns=[
 fn @projectedAggregate() -> i256 [selector=0xec2041b8, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
-    v1 = data_size ReturnProducer_initcode_0
-    v2 = data_size ReturnProducer_initcode_0, 31, aligned
+    v1 = datasize ReturnProducer_initcode_0
+    v2 = datasize ReturnProducer_initcode_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    data_copy ReturnProducer_initcode_0, v4, v1
+    datacopy ReturnProducer_initcode_0, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
@@ -182,11 +182,11 @@ fn @projectedAggregate() -> i256 [selector=0xec2041b8, abi_params=[], abi_return
 fn @functionPointerAggregate() -> i256 [selector=0xebe6d175, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
-    v1 = data_size ReturnProducer_initcode_0
-    v2 = data_size ReturnProducer_initcode_0, 31, aligned
+    v1 = datasize ReturnProducer_initcode_0
+    v2 = datasize ReturnProducer_initcode_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    data_copy ReturnProducer_initcode_0, v4, v1
+    datacopy ReturnProducer_initcode_0, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
@@ -234,11 +234,11 @@ fn @functionPointerAggregate() -> i256 [selector=0xebe6d175, abi_params=[], abi_
 fn @dirtyAddressBoundary() -> i256 [selector=0x2986c9cc, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
-    v1 = data_size ReturnProducer_initcode_0
-    v2 = data_size ReturnProducer_initcode_0, 31, aligned
+    v1 = datasize ReturnProducer_initcode_0
+    v2 = datasize ReturnProducer_initcode_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    data_copy ReturnProducer_initcode_0, v4, v1
+    datacopy ReturnProducer_initcode_0, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
@@ -282,11 +282,11 @@ fn @dirtyAddressBoundary() -> i256 [selector=0x2986c9cc, abi_params=[], abi_retu
 fn @truncated() -> i256 [selector=0xfc1dad0b, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
-    v1 = data_size ReturnProducer_initcode_0
-    v2 = data_size ReturnProducer_initcode_0, 31, aligned
+    v1 = datasize ReturnProducer_initcode_0
+    v2 = datasize ReturnProducer_initcode_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    data_copy ReturnProducer_initcode_0, v4, v1
+    datacopy ReturnProducer_initcode_0, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1

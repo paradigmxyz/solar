@@ -31,19 +31,19 @@ contract ChildWithArg {
 // OPT-NOT: @data ChildWithArg_initcode_1
 contract FactoryWithArgs {
     // MIR-LABEL: fn @plain{{[( ]}}
-    // MIR: data_copy ChildWithArg_initcode_0,
+    // MIR: datacopy ChildWithArg_initcode_0,
     function plain() external returns (uint256) {
         return new ChildWithArg(11).value();
     }
 
     // MIR-LABEL: fn @salted{{[( ]}}
-    // MIR: data_copy ChildWithArg_initcode_0,
+    // MIR: datacopy ChildWithArg_initcode_0,
     function salted() external returns (uint256) {
         return new ChildWithArg{salt: bytes32(uint256(1))}(22).value();
     }
 
     // MIR-LABEL: fn @pair{{[( ]}}
-    // MIR-COUNT-2: data_copy ChildWithArg_initcode_0,
+    // MIR-COUNT-2: datacopy ChildWithArg_initcode_0,
     function pair() external returns (uint256) {
         ChildWithArg left = new ChildWithArg(3);
         ChildWithArg right = new ChildWithArg(4);
