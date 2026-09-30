@@ -216,52 +216,42 @@ fn @pushAndReadSelectors() -> struct1 [selector=0x5c0d845c, abi_params=[], abi_r
     v26 = eq v24, 0
     jumpi v26, bb3, bb4
   bb3:
-    v27 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
-    memory_object_store_field memorystruct<2>, v27, 0, 0
-    v28 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    set_memory_object_len memoryarray, v28, 0
-    v29 = ptrtoint memoryarray v28 to i256
-    memory_object_store_field memorystruct<2>, v27, 1, v29
-    v30 = ptrtoint memorystruct v27 to i256
-    memory_object_store_element memoryarray<1>, v19, 0, v30
+    v27 = icall @default_struct_0
+    v28 = ptrtoint memorystruct v27 to i256
+    memory_object_store_element memoryarray<1>, v19, 0, v28
     jump bb4
   bb4:
-    v31 = phi [bb2: v25], [bb3: v27]
-    v32 = memory_object_load_field memorystruct<2>, v31, 1
-    v33 = inttoptr i256 v32 to memoryarray
-    v34 = memory_object_len memoryarray, v33
-    v35 = memory_object_len memoryarray, v19
-    v36 = lt 0, v35
-    v37 = eq v36, false
-    icall panic_if<0x32>, v37
-    v38 = memory_object_load_element memoryarray<1>, v19, 0
-    v39 = inttoptr i256 v38 to memorystruct
-    v40 = eq v38, 0
-    jumpi v40, bb5, bb6
+    v29 = phi [bb2: v25], [bb3: v27]
+    v30 = memory_object_load_field memorystruct<2>, v29, 1
+    v31 = inttoptr i256 v30 to memoryarray
+    v32 = memory_object_len memoryarray, v31
+    v33 = memory_object_len memoryarray, v19
+    v34 = lt 0, v33
+    v35 = eq v34, false
+    icall panic_if<0x32>, v35
+    v36 = memory_object_load_element memoryarray<1>, v19, 0
+    v37 = inttoptr i256 v36 to memorystruct
+    v38 = eq v36, 0
+    jumpi v38, bb5, bb6
   bb5:
-    v41 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
-    memory_object_store_field memorystruct<2>, v41, 0, 0
-    v42 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    set_memory_object_len memoryarray, v42, 0
-    v43 = ptrtoint memoryarray v42 to i256
-    memory_object_store_field memorystruct<2>, v41, 1, v43
-    v44 = ptrtoint memorystruct v41 to i256
-    memory_object_store_element memoryarray<1>, v19, 0, v44
+    v39 = icall @default_struct_0
+    v40 = ptrtoint memorystruct v39 to i256
+    memory_object_store_element memoryarray<1>, v19, 0, v40
     jump bb6
   bb6:
-    v45 = phi [bb4: v39], [bb5: v41]
-    v46 = memory_object_load_field memorystruct<2>, v45, 1
-    v47 = inttoptr i256 v46 to memoryarray
-    v48 = memory_object_len memoryarray, v47
-    v49 = lt 0, v48
-    v50 = eq v49, false
-    icall panic_if<0x32>, v50
-    v51 = memory_object_load_element memoryarray<1>, v47, 0
-    v52 = and v51, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v53 = insert_value struct1, undef struct1, 0, v20
-    v54 = insert_value struct1, v53, 1, v34
-    v55 = insert_value struct1, v54, 2, v52
-    ret v55
+    v41 = phi [bb4: v37], [bb5: v39]
+    v42 = memory_object_load_field memorystruct<2>, v41, 1
+    v43 = inttoptr i256 v42 to memoryarray
+    v44 = memory_object_len memoryarray, v43
+    v45 = lt 0, v44
+    v46 = eq v45, false
+    icall panic_if<0x32>, v46
+    v47 = memory_object_load_element memoryarray<1>, v43, 0
+    v48 = and v47, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v49 = insert_value struct1, undef struct1, 0, v20
+    v50 = insert_value struct1, v49, 1, v32
+    v51 = insert_value struct1, v50, 2, v48
+    ret v51
 }
 
 fn @load_storage_packed_array_20_0(arg0: i256) -> memoryarray {
@@ -314,5 +304,16 @@ fn @load_storage_struct_array_0(arg0: i256) -> memoryarray {
 fn @load_storage_packed_array_4_2(arg0: i256) -> memoryarray {
   bb0:
     v0 = load_storage_array bytes4, arg0
+    ret v0
+}
+
+fn @default_struct_0() -> memorystruct {
+  bb0:
+    v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    memory_object_store_field memorystruct<2>, v0, 0, 0
+    v1 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    set_memory_object_len memoryarray, v1, 0
+    v2 = ptrtoint memoryarray v1 to i256
+    memory_object_store_field memorystruct<2>, v0, 1, v2
     ret v0
 }

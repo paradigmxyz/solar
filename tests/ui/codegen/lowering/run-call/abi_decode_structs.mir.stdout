@@ -91,79 +91,52 @@ fn @dDynArr(arg0: memorybytes) -> struct4 [selector=0xaca542ca, pure, abi_params
     v7 = eq v5, 0
     jumpi v7, bb1, bb2
   bb1:
-    v8 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
-    memory_object_store_field memorystruct<3>, v8, 0, 0
-    v9 = alloc memorybytes, exact, uninitialized, infallible, 32
-    set_memory_object_len memorybytes, v9, 0
-    v10 = ptrtoint memorybytes v9 to i256
-    memory_object_store_field memorystruct<3>, v8, 1, v10
-    v11 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    set_memory_object_len memoryarray, v11, 0
-    v12 = ptrtoint memoryarray v11 to i256
-    memory_object_store_field memorystruct<3>, v8, 2, v12
-    v13 = ptrtoint memorystruct v8 to i256
-    memory_object_store_element memoryarray<1>, v0, 0, v13
+    v8 = icall @default_struct_1
+    v9 = ptrtoint memorystruct v8 to i256
+    memory_object_store_element memoryarray<1>, v0, 0, v9
     jump bb2
   bb2:
-    v14 = phi [bb0: v6], [bb1: v8]
-    v15 = memory_object_load_field memorystruct<3>, v14, 0
-    v16 = memory_object_len memoryarray, v0
-    v17 = lt 1, v16
-    v18 = eq v17, false
-    icall panic_if<0x32>, v18
-    v19 = memory_object_load_element memoryarray<1>, v0, 1
-    v20 = inttoptr i256 v19 to memorystruct
-    v21 = eq v19, 0
-    jumpi v21, bb3, bb4
+    v10 = phi [bb0: v6], [bb1: v8]
+    v11 = memory_object_load_field memorystruct<3>, v10, 0
+    v12 = memory_object_len memoryarray, v0
+    v13 = lt 1, v12
+    v14 = eq v13, false
+    icall panic_if<0x32>, v14
+    v15 = memory_object_load_element memoryarray<1>, v0, 1
+    v16 = inttoptr i256 v15 to memorystruct
+    v17 = eq v15, 0
+    jumpi v17, bb3, bb4
   bb3:
-    v22 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
-    memory_object_store_field memorystruct<3>, v22, 0, 0
-    v23 = alloc memorybytes, exact, uninitialized, infallible, 32
-    set_memory_object_len memorybytes, v23, 0
-    v24 = ptrtoint memorybytes v23 to i256
-    memory_object_store_field memorystruct<3>, v22, 1, v24
-    v25 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    set_memory_object_len memoryarray, v25, 0
-    v26 = ptrtoint memoryarray v25 to i256
-    memory_object_store_field memorystruct<3>, v22, 2, v26
-    v27 = ptrtoint memorystruct v22 to i256
-    memory_object_store_element memoryarray<1>, v0, 1, v27
+    v18 = icall @default_struct_1
+    v19 = ptrtoint memorystruct v18 to i256
+    memory_object_store_element memoryarray<1>, v0, 1, v19
     jump bb4
   bb4:
-    v28 = phi [bb2: v20], [bb3: v22]
-    v29 = memory_object_load_field memorystruct<3>, v28, 0
-    v30 = memory_object_len memoryarray, v0
-    v31 = lt 0, v30
-    v32 = eq v31, false
-    icall panic_if<0x32>, v32
-    v33 = memory_object_load_element memoryarray<1>, v0, 0
-    v34 = inttoptr i256 v33 to memorystruct
-    v35 = eq v33, 0
-    jumpi v35, bb5, bb6
+    v20 = phi [bb2: v16], [bb3: v18]
+    v21 = memory_object_load_field memorystruct<3>, v20, 0
+    v22 = memory_object_len memoryarray, v0
+    v23 = lt 0, v22
+    v24 = eq v23, false
+    icall panic_if<0x32>, v24
+    v25 = memory_object_load_element memoryarray<1>, v0, 0
+    v26 = inttoptr i256 v25 to memorystruct
+    v27 = eq v25, 0
+    jumpi v27, bb5, bb6
   bb5:
-    v36 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
-    memory_object_store_field memorystruct<3>, v36, 0, 0
-    v37 = alloc memorybytes, exact, uninitialized, infallible, 32
-    set_memory_object_len memorybytes, v37, 0
-    v38 = ptrtoint memorybytes v37 to i256
-    memory_object_store_field memorystruct<3>, v36, 1, v38
-    v39 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    set_memory_object_len memoryarray, v39, 0
-    v40 = ptrtoint memoryarray v39 to i256
-    memory_object_store_field memorystruct<3>, v36, 2, v40
-    v41 = ptrtoint memorystruct v36 to i256
-    memory_object_store_element memoryarray<1>, v0, 0, v41
+    v28 = icall @default_struct_1
+    v29 = ptrtoint memorystruct v28 to i256
+    memory_object_store_element memoryarray<1>, v0, 0, v29
     jump bb6
   bb6:
-    v42 = phi [bb4: v34], [bb5: v36]
-    v43 = memory_object_load_field memorystruct<3>, v42, 2
-    v44 = inttoptr i256 v43 to memoryarray
-    v45 = memory_object_len memoryarray, v44
-    v46 = insert_value struct4, undef struct4, 0, v1
-    v47 = insert_value struct4, v46, 1, v15
-    v48 = insert_value struct4, v47, 2, v29
-    v49 = insert_value struct4, v48, 3, v45
-    ret v49
+    v30 = phi [bb4: v26], [bb5: v28]
+    v31 = memory_object_load_field memorystruct<3>, v30, 2
+    v32 = inttoptr i256 v31 to memoryarray
+    v33 = memory_object_len memoryarray, v32
+    v34 = insert_value struct4, undef struct4, 0, v1
+    v35 = insert_value struct4, v34, 1, v11
+    v36 = insert_value struct4, v35, 2, v21
+    v37 = insert_value struct4, v36, 3, v33
+    ret v37
 }
 
 fn @dFixedDyn(arg0: memorybytes) -> struct5 [selector=0x94edd832, pure, abi_params=[bytes], abi_returns=[word, word], abi_return_params=[u256, u256]] {
@@ -989,4 +962,19 @@ fn @dOverlap(arg0: memorybytes) -> struct5 [selector=0x9297ba94, pure, abi_param
     v12 = insert_value struct5, undef struct5, 0, v6
     v13 = insert_value struct5, v12, 1, v11
     ret v13
+}
+
+fn @default_struct_1() -> memorystruct {
+  bb0:
+    v0 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
+    memory_object_store_field memorystruct<3>, v0, 0, 0
+    v1 = alloc memorybytes, exact, uninitialized, infallible, 32
+    set_memory_object_len memorybytes, v1, 0
+    v2 = ptrtoint memorybytes v1 to i256
+    memory_object_store_field memorystruct<3>, v0, 1, v2
+    v3 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    set_memory_object_len memoryarray, v3, 0
+    v4 = ptrtoint memoryarray v3 to i256
+    memory_object_store_field memorystruct<3>, v0, 2, v4
+    ret v0
 }

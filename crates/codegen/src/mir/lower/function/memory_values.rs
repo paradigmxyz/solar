@@ -70,7 +70,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.branch(is_null, allocate, merge);
 
         self.builder.switch_to_block(allocate);
-        let allocated = self.default_object(element)?;
+        let allocated = self.default_element_object(element)?;
         self.builder.memory_object_store_element(object, layout, index, allocated);
         let allocation_block = self.builder.current_block();
         self.builder.jump(merge);
@@ -78,6 +78,45 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // value = phi(value, allocated)
         self.builder.switch_to_block(merge);
         Some(self.builder.phi(vec![(preheader, value), (allocation_block, allocated)]))
+    }
+
+    /// Allocates the default object of an array element that was never assigned.
+    ///
+    /// Every read of a struct element can reach this path, so structs share one constructor
+    /// instead of repeating it at each read. A few value fields cost less inline than a call.
+    fn default_element_object(&mut self, element: Ty<'gcx>) -> Option<ValueId> {
+        let TyKind::Struct(id) = element.peel_refs().kind else {
+            return self.default_object(element);
+        };
+        let fields = self.cx.gcx.hir.strukt(id).fields;
+        let small = fields.len() < MIN_BULK_ZERO_STRUCT_FIELDS
+            && fields.iter().all(|&field| {
+                self.types.memory_layout(self.cx.gcx.type_of_item(field.into())).is_none()
+            });
+        if small {
+            return self.default_object(element);
+        }
+        let helper = self.default_struct_helper(id, element)?;
+        let kind = self.types.memory_layout(element)?.kind();
+        // object = icall @default_struct_N
+        Some(self.builder.icall(helper, Vec::new(), MirType::MemoryObject(kind)))
+    }
+
+    /// Returns the shared constructor of `struct_id`'s default object.
+    fn default_struct_helper(
+        &mut self,
+        struct_id: hir::StructId,
+        ty: Ty<'gcx>,
+    ) -> Option<FunctionId> {
+        // fn @default_struct_N() -> memorystruct { object = default(Struct); ret object }
+        self.lazy_helper(helper_name(sym::default_struct, struct_id.index()), |this, function| {
+            let mut lowerer = FunctionLowerer::new(this.cx.reborrow(), function);
+            let object = lowerer.default_object(ty)?;
+            let kind = lowerer.types.memory_layout(ty)?.kind();
+            lowerer.builder.set_return_type(MirType::MemoryObject(kind));
+            lowerer.builder.ret([object]);
+            Some(())
+        })
     }
 
     pub(super) fn lower_struct_constructor(

@@ -34,10 +34,9 @@ contract AbiDecodeStructs {
     // with the array's end instead of counting to two.
     // ADS-LABEL: fn @dFixed
     // ADS: mstore 64, {{v[0-9]+}}
-    // ADS-NEXT: [[END:v[0-9]+]] = add {{v[0-9]+}}, 64
-    // ADS: {{v[0-9]+}} = phi
-    // ADS-NEXT: [[PTR:v[0-9]+]] = phi
-    // ADS-NEXT: lt [[PTR]], [[END]]
+    // ADS-NEXT: [[END:v[0-9]+]] = add [[BASE:v[0-9]+]], 64
+    // ADS: [[PTR:v[0-9]+]] = phi [bb{{[0-9]+}}: [[BASE]]]
+    // ADS: lt [[PTR]], [[END]]
     // ADS: icall @[[FIXED_HELPER:decode_memory_type]]
     function dFixed(bytes memory b) public pure returns (uint256) {
         Dyn[2] memory ds = abi.decode(b, (Dyn[2]));

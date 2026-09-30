@@ -18,7 +18,7 @@ fn @constructor(arg0: memoryarray) [constructor, abi_params=[array<_, tuple<u256
     sstore 0, v0 !metadata(storage=slot(0))
     jump bb8
   bb8:
-    v19 = phi [bb2: 0], [bb12: v36]
+    v19 = phi [bb2: 0], [bb12: v34]
     v20 = lt v19, v0
     jumpi v20, bb9, bb10
   bb10:
@@ -29,27 +29,22 @@ fn @constructor(arg0: memoryarray) [constructor, abi_params=[array<_, tuple<u256
     v23 = eq v21, 0
     jumpi v23, bb11, bb12
   bb11:
-    v24 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
-    memory_object_store_field memorystruct<2>, v24, 0, 0
-    v25 = alloc memorybytes, exact, uninitialized, infallible, 32
-    set_memory_object_len memorybytes, v25, 0
-    v26 = ptrtoint memorybytes v25 to i256
-    memory_object_store_field memorystruct<2>, v24, 1, v26
-    v27 = ptrtoint memorystruct v24 to i256
-    memory_object_store_element memoryarray<1>, arg0, v19, v27
+    v24 = icall @default_struct_0
+    v25 = ptrtoint memorystruct v24 to i256
+    memory_object_store_element memoryarray<1>, arg0, v19, v25
     jump bb12
   bb12:
-    v28 = phi [bb9: v22], [bb11: v24]
-    v29 = storage_array_data_slot 0
-    v30 = mul v19, 2
-    v31 = add v29, v30
-    v32 = memory_object_load_field memorystruct<2>, v28, 0
-    sstore v31, v32 !metadata(storage=symbolic(v31))
-    v33 = add v31, 1
-    v34 = memory_object_load_field memorystruct<2>, v28, 1
-    v35 = inttoptr i256 v34 to memorybytes
-    icall @store_storage_bytes, v33, v35
-    v36 = add v19, 1
+    v26 = phi [bb9: v22], [bb11: v24]
+    v27 = storage_array_data_slot 0
+    v28 = mul v19, 2
+    v29 = add v27, v28
+    v30 = memory_object_load_field memorystruct<2>, v26, 0
+    sstore v29, v30 !metadata(storage=symbolic(v29))
+    v31 = add v29, 1
+    v32 = memory_object_load_field memorystruct<2>, v26, 1
+    v33 = inttoptr i256 v32 to memorybytes
+    icall @store_storage_bytes, v31, v33
+    v34 = add v19, 1
     jump bb8
   bb4:
     v5 = storage_array_data_slot 0
@@ -75,6 +70,17 @@ fn @constructor(arg0: memoryarray) [constructor, abi_params=[array<_, tuple<u256
     sstore v8, 0 !metadata(storage=offset(v7, 1))
     v18 = add v3, 1
     jump bb3
+}
+
+fn @default_struct_0() -> memorystruct {
+  bb0:
+    v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    memory_object_store_field memorystruct<2>, v0, 0, 0
+    v1 = alloc memorybytes, exact, uninitialized, infallible, 32
+    set_memory_object_len memorybytes, v1, 0
+    v2 = ptrtoint memorybytes v1 to i256
+    memory_object_store_field memorystruct<2>, v0, 1, v2
+    ret v0
 }
 
 fn @store_storage_bytes(arg0: i256, arg1: memorybytes) {
@@ -103,7 +109,7 @@ fn @constructor(arg0: memoryarray) [constructor, abi_params=[array<_, tuple<u256
     sstore 0, v0 !metadata(storage=slot(0))
     jump bb9
   bb9:
-    v19 = phi [bb3: 0], [bb13: v36]
+    v19 = phi [bb3: 0], [bb13: v34]
     v20 = lt v19, v0
     jumpi v20, bb10, bb11
   bb11:
@@ -118,27 +124,22 @@ fn @constructor(arg0: memoryarray) [constructor, abi_params=[array<_, tuple<u256
     v23 = eq v21, 0
     jumpi v23, bb12, bb13
   bb12:
-    v24 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
-    memory_object_store_field memorystruct<2>, v24, 0, 0
-    v25 = alloc memorybytes, exact, uninitialized, infallible, 32
-    set_memory_object_len memorybytes, v25, 0
-    v26 = ptrtoint memorybytes v25 to i256
-    memory_object_store_field memorystruct<2>, v24, 1, v26
-    v27 = ptrtoint memorystruct v24 to i256
-    memory_object_store_element memoryarray<1>, arg0, v19, v27
+    v24 = icall @default_struct_0
+    v25 = ptrtoint memorystruct v24 to i256
+    memory_object_store_element memoryarray<1>, arg0, v19, v25
     jump bb13
   bb13:
-    v28 = phi [bb10: v22], [bb12: v24]
-    v29 = storage_array_data_slot 0
-    v30 = mul v19, 2
-    v31 = add v29, v30
-    v32 = memory_object_load_field memorystruct<2>, v28, 0
-    sstore v31, v32 !metadata(storage=symbolic(v31))
-    v33 = add v31, 1
-    v34 = memory_object_load_field memorystruct<2>, v28, 1
-    v35 = inttoptr i256 v34 to memorybytes
-    icall @store_storage_bytes, v33, v35
-    v36 = add v19, 1
+    v26 = phi [bb10: v22], [bb12: v24]
+    v27 = storage_array_data_slot 0
+    v28 = mul v19, 2
+    v29 = add v27, v28
+    v30 = memory_object_load_field memorystruct<2>, v26, 0
+    sstore v29, v30 !metadata(storage=symbolic(v29))
+    v31 = add v29, 1
+    v32 = memory_object_load_field memorystruct<2>, v26, 1
+    v33 = inttoptr i256 v32 to memorybytes
+    icall @store_storage_bytes, v31, v33
+    v34 = add v19, 1
     jump bb9
   bb5:
     v5 = storage_array_data_slot 0
@@ -222,6 +223,17 @@ fn @read() -> i256 [selector=0x57de26a4, view, abi_params=[], abi_returns=[word]
     ret v44
 }
 
+fn @default_struct_0() -> memorystruct {
+  bb0:
+    v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    memory_object_store_field memorystruct<2>, v0, 0, 0
+    v1 = alloc memorybytes, exact, uninitialized, infallible, 32
+    set_memory_object_len memorybytes, v1, 0
+    v2 = ptrtoint memorybytes v1 to i256
+    memory_object_store_field memorystruct<2>, v0, 1, v2
+    ret v0
+}
+
 fn @store_storage_bytes(arg0: i256, arg1: memorybytes) {
   bb0:
     store_storage_bytes arg0, arg1
@@ -252,137 +264,117 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
     v12 = eq v10, 0
     jumpi v12, bb4, bb5
   bb4:
-    v13 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
-    memory_object_store_field memorystruct<2>, v13, 0, 0
-    v14 = alloc memorybytes, exact, uninitialized, infallible, 32
-    set_memory_object_len memorybytes, v14, 0
-    v15 = ptrtoint memorybytes v14 to i256
-    memory_object_store_field memorystruct<2>, v13, 1, v15
-    v16 = ptrtoint memorystruct v13 to i256
-    memory_object_store_element memoryarray<1>, v0, 0, v16
+    v13 = icall @default_struct_0
+    v14 = ptrtoint memorystruct v13 to i256
+    memory_object_store_element memoryarray<1>, v0, 0, v14
     jump bb5
   bb5:
-    v17 = phi [bb3: v11], [bb4: v13]
-    memory_object_store_field memorystruct<2>, v17, 0, 7
-    v18 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v18, 2
-    v19 = memory_object_data memorybytes, v18
-    v20 = ptrtoint memptr v19 to i256
-    mstore v20, 0x102000000000000000000000000000000000000000000000000000000000000
-    v21 = memory_object_len memoryarray, v0
-    v22 = lt 0, v21
-    v23 = eq v22, false
-    icall panic_if<0x32>, v23
-    v24 = memory_object_load_element memoryarray<1>, v0, 0
-    v25 = inttoptr i256 v24 to memorystruct
-    v26 = eq v24, 0
-    jumpi v26, bb6, bb7
+    v15 = phi [bb3: v11], [bb4: v13]
+    memory_object_store_field memorystruct<2>, v15, 0, 7
+    v16 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v16, 2
+    v17 = memory_object_data memorybytes, v16
+    v18 = ptrtoint memptr v17 to i256
+    mstore v18, 0x102000000000000000000000000000000000000000000000000000000000000
+    v19 = memory_object_len memoryarray, v0
+    v20 = lt 0, v19
+    v21 = eq v20, false
+    icall panic_if<0x32>, v21
+    v22 = memory_object_load_element memoryarray<1>, v0, 0
+    v23 = inttoptr i256 v22 to memorystruct
+    v24 = eq v22, 0
+    jumpi v24, bb6, bb7
   bb6:
-    v27 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
-    memory_object_store_field memorystruct<2>, v27, 0, 0
-    v28 = alloc memorybytes, exact, uninitialized, infallible, 32
-    set_memory_object_len memorybytes, v28, 0
-    v29 = ptrtoint memorybytes v28 to i256
-    memory_object_store_field memorystruct<2>, v27, 1, v29
-    v30 = ptrtoint memorystruct v27 to i256
-    memory_object_store_element memoryarray<1>, v0, 0, v30
+    v25 = icall @default_struct_0
+    v26 = ptrtoint memorystruct v25 to i256
+    memory_object_store_element memoryarray<1>, v0, 0, v26
     jump bb7
   bb7:
-    v31 = phi [bb5: v25], [bb6: v27]
-    v32 = ptrtoint memorybytes v18 to i256
-    memory_object_store_field memorystruct<2>, v31, 1, v32
-    v33 = memory_object_len memoryarray, v0
-    v34 = lt 1, v33
-    v35 = eq v34, false
-    icall panic_if<0x32>, v35
-    v36 = memory_object_load_element memoryarray<1>, v0, 1
-    v37 = inttoptr i256 v36 to memorystruct
-    v38 = eq v36, 0
-    jumpi v38, bb8, bb9
+    v27 = phi [bb5: v23], [bb6: v25]
+    v28 = ptrtoint memorybytes v16 to i256
+    memory_object_store_field memorystruct<2>, v27, 1, v28
+    v29 = memory_object_len memoryarray, v0
+    v30 = lt 1, v29
+    v31 = eq v30, false
+    icall panic_if<0x32>, v31
+    v32 = memory_object_load_element memoryarray<1>, v0, 1
+    v33 = inttoptr i256 v32 to memorystruct
+    v34 = eq v32, 0
+    jumpi v34, bb8, bb9
   bb8:
-    v39 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
-    memory_object_store_field memorystruct<2>, v39, 0, 0
-    v40 = alloc memorybytes, exact, uninitialized, infallible, 32
-    set_memory_object_len memorybytes, v40, 0
-    v41 = ptrtoint memorybytes v40 to i256
-    memory_object_store_field memorystruct<2>, v39, 1, v41
-    v42 = ptrtoint memorystruct v39 to i256
-    memory_object_store_element memoryarray<1>, v0, 1, v42
+    v35 = icall @default_struct_0
+    v36 = ptrtoint memorystruct v35 to i256
+    memory_object_store_element memoryarray<1>, v0, 1, v36
     jump bb9
   bb9:
-    v43 = phi [bb7: v37], [bb8: v39]
-    memory_object_store_field memorystruct<2>, v43, 0, 11
-    v44 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v44, 3
-    v45 = memory_object_data memorybytes, v44
-    v46 = ptrtoint memptr v45 to i256
-    mstore v46, 0x304050000000000000000000000000000000000000000000000000000000000
-    v47 = memory_object_len memoryarray, v0
-    v48 = lt 1, v47
-    v49 = eq v48, false
-    icall panic_if<0x32>, v49
-    v50 = memory_object_load_element memoryarray<1>, v0, 1
-    v51 = inttoptr i256 v50 to memorystruct
-    v52 = eq v50, 0
-    jumpi v52, bb10, bb11
+    v37 = phi [bb7: v33], [bb8: v35]
+    memory_object_store_field memorystruct<2>, v37, 0, 11
+    v38 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v38, 3
+    v39 = memory_object_data memorybytes, v38
+    v40 = ptrtoint memptr v39 to i256
+    mstore v40, 0x304050000000000000000000000000000000000000000000000000000000000
+    v41 = memory_object_len memoryarray, v0
+    v42 = lt 1, v41
+    v43 = eq v42, false
+    icall panic_if<0x32>, v43
+    v44 = memory_object_load_element memoryarray<1>, v0, 1
+    v45 = inttoptr i256 v44 to memorystruct
+    v46 = eq v44, 0
+    jumpi v46, bb10, bb11
   bb10:
-    v53 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
-    memory_object_store_field memorystruct<2>, v53, 0, 0
-    v54 = alloc memorybytes, exact, uninitialized, infallible, 32
-    set_memory_object_len memorybytes, v54, 0
-    v55 = ptrtoint memorybytes v54 to i256
-    memory_object_store_field memorystruct<2>, v53, 1, v55
-    v56 = ptrtoint memorystruct v53 to i256
-    memory_object_store_element memoryarray<1>, v0, 1, v56
+    v47 = icall @default_struct_0
+    v48 = ptrtoint memorystruct v47 to i256
+    memory_object_store_element memoryarray<1>, v0, 1, v48
     jump bb11
   bb11:
-    v57 = phi [bb9: v51], [bb10: v53]
-    v58 = ptrtoint memorybytes v44 to i256
-    memory_object_store_field memorystruct<2>, v57, 1, v58
-    v59 = abi_encode [memory_array<tuple<word, memory_bytes>>], args v0
-    v60 = slice_len v59
-    v61 = datasize ConstructorAggregateMain_creation_code_0
-    v62 = add v61, v60
-    v63 = lt v62, v61
-    icall panic_if<0x41>, v63
-    v64 = add v62, 31
-    v65 = lt v64, v62
-    icall panic_if<0x41>, v65
-    v66 = not 31
-    v67 = and v64, v66
-    v68 = alloc raw, exact, uninitialized, infallible, v67
-    v69 = ptrtoint memptr v68 to i256
-    datacopy ConstructorAggregateMain_creation_code_0, v69, v61
-    v70 = slice_ptr v59
-    v71 = ptrtoint memptr v68 to i256
-    v72 = add v71, v61
-    mcopy v72, v70, v60 !metadata(memory=heap)
-    v73 = ptrtoint memptr v68 to i256
-    v74 = create 0, v73, v62
-    v75 = zext i160 v74 to i256
-    v76 = ne v75, 0
-    jumpi v76, bb13, bb12
+    v49 = phi [bb9: v45], [bb10: v47]
+    v50 = ptrtoint memorybytes v38 to i256
+    memory_object_store_field memorystruct<2>, v49, 1, v50
+    v51 = abi_encode [memory_array<tuple<word, memory_bytes>>], args v0
+    v52 = slice_len v51
+    v53 = datasize ConstructorAggregateMain_creation_code_0
+    v54 = add v53, v52
+    v55 = lt v54, v53
+    icall panic_if<0x41>, v55
+    v56 = add v54, 31
+    v57 = lt v56, v54
+    icall panic_if<0x41>, v57
+    v58 = not 31
+    v59 = and v56, v58
+    v60 = alloc raw, exact, uninitialized, infallible, v59
+    v61 = ptrtoint memptr v60 to i256
+    datacopy ConstructorAggregateMain_creation_code_0, v61, v53
+    v62 = slice_ptr v51
+    v63 = ptrtoint memptr v60 to i256
+    v64 = add v63, v53
+    mcopy v64, v62, v52 !metadata(memory=heap)
+    v65 = ptrtoint memptr v60 to i256
+    v66 = create 0, v65, v54
+    v67 = zext i160 v66 to i256
+    v68 = ne v67, 0
+    jumpi v68, bb13, bb12
   bb12:
     revert_returndata
   bb13:
-    v77 = zext i160 v74 to i256
-    v78 = gas
-    v79 = abi_encode [], selector 0x57de26a400000000000000000000000000000000000000000000000000000000
-    v80 = slice_ptr v79
-    v81 = slice_len v79
-    v82 = staticcall v78, v77, v80, v81, 0, 32
-    jumpi v82, bb15, bb14
+    v69 = zext i160 v66 to i256
+    v70 = gas
+    v71 = abi_encode [], selector 0x57de26a400000000000000000000000000000000000000000000000000000000
+    v72 = slice_ptr v71
+    v73 = slice_len v71
+    v74 = staticcall v70, v69, v72, v73, 0, 32
+    jumpi v74, bb15, bb14
   bb14:
     revert_returndata
   bb15:
-    v83 = returndatasize
-    v84 = lt v83, 32
-    icall revert_if<tuple_data_too_short>, v84
-    v85 = add 0, 0
-    v86 = mload v85
-    v87 = add 0, 0
-    v88 = mload v87
-    ret v88
+    v75 = returndatasize
+    v76 = lt v75, 32
+    icall revert_if<tuple_data_too_short>, v76
+    v77 = add 0, 0
+    v78 = mload v77
+    v79 = add 0, 0
+    v80 = mload v79
+    ret v80
   bb2:
     v3 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<2>, v3, 0, 0
@@ -392,4 +384,15 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
     memory_object_store_element memoryarray<1>, v0, v1, v5
     v6 = add v1, 1
     jump bb1
+}
+
+fn @default_struct_0() -> memorystruct {
+  bb0:
+    v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    memory_object_store_field memorystruct<2>, v0, 0, 0
+    v1 = alloc memorybytes, exact, uninitialized, infallible, 32
+    set_memory_object_len memorybytes, v1, 0
+    v2 = ptrtoint memorybytes v1 to i256
+    memory_object_store_field memorystruct<2>, v0, 1, v2
+    ret v0
 }
