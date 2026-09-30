@@ -13,7 +13,7 @@ LL │         /// @custom:solar-veiw
    │              ━━━━━━━━━━━━━━━━━
    │
    ├ note: `@custom:solar-` tags are requirements this compiler checks
-   ╰ help: the supported tags are `@custom:solar-view`, `@custom:solar-scratch`, `@custom:solar-terminates`, `@custom:solar-safe`, `@custom:solar-trusted`, `@custom:solar-fuse`, `@custom:solar-inline`, and `@custom:solar-bitmap`
+   ╰ help: the supported tags are `@custom:solar-view`, `@custom:solar-scratch`, `@custom:solar-terminates`, `@custom:solar-safe`, `@custom:solar-trusted`, `@custom:solar-fuse`, `@custom:solar-inline`, `@custom:solar-bitmap`, and `@custom:solar-handle`
 
 error: `@custom:solar-scratch` must document a block statement
    ╭▸ ROOT/tests/ui/natspec/solar_tags.sol:LL:CC

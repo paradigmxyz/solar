@@ -35,6 +35,9 @@ pub(super) struct StorageLocation {
     pub(super) size: TypeSize,
     pub(super) encoding: StorageEncoding,
     transient: bool,
+    /// The dictionary of a handle field of a struct documented `@custom:solar-handle`, which
+    /// keeps one plus the index of the field's value in the dictionary, or zero for zero.
+    pub(super) handle: Option<VariableId>,
 }
 
 impl StorageLocation {
@@ -47,11 +50,12 @@ impl StorageLocation {
             size: Self::WORD,
             encoding: StorageEncoding::Unsigned,
             transient: false,
+            handle: None,
         }
     }
 
     pub(super) const fn packed_word(size: TypeSize, encoding: StorageEncoding) -> Self {
-        Self { slot: U256::ZERO, offset: 0, size, encoding, transient: false }
+        Self { slot: U256::ZERO, offset: 0, size, encoding, transient: false, handle: None }
     }
 
     /// A boolean in one bit of a word, at the bit index an access supplies as its offset.
@@ -209,6 +213,12 @@ impl<'gcx> StorageLayout<'gcx> {
         self.builder.inline_arrays.get(&slot).copied()
     }
 
+    /// The dictionary of the struct field `field`, if `@custom:solar-handle` makes it a handle
+    /// field.
+    pub(super) fn handle_dictionary(&self, field: VariableId) -> Option<VariableId> {
+        self.builder.handles.get(&field).copied()
+    }
+
     pub(super) fn store(
         &self,
         builder: &mut FunctionBuilder<'_>,
@@ -350,6 +360,8 @@ struct StorageBuilder<'gcx> {
     inline_arrays: FxHashMap<U256, InlineArray>,
     /// The mappings documented `@custom:solar-bitmap`.
     bitmaps: FxHashSet<VariableId>,
+    /// The dictionary of every struct field that `@custom:solar-handle` makes a handle field.
+    handles: FxHashMap<VariableId, VariableId>,
     field_types: IndexVec<StructId, OnceLock<&'gcx [Ty<'gcx>]>>,
     field_locations: RefCell<FxHashMap<StructId, Option<Box<[StorageLocation]>>>>,
     storage_cursor: StorageCursor,
@@ -387,6 +399,7 @@ impl StorageCursor {
                 size,
                 encoding,
                 transient: self.transient,
+                handle: None,
             };
             self.offset += bytes;
             if self.offset == StorageLocation::word_bytes() {
@@ -402,6 +415,7 @@ impl StorageCursor {
             size: StorageLocation::WORD,
             encoding: StorageEncoding::Unsigned,
             transient: self.transient,
+            handle: None,
         };
         self.slot = self.slot.checked_add(U256::from(slots))?;
         Some(location)
@@ -429,6 +443,7 @@ impl<'gcx> StorageBuilder<'gcx> {
             fused: FxHashMap::default(),
             inline_arrays: FxHashMap::default(),
             bitmaps: FxHashSet::default(),
+            handles: gcx.hir.strukt_ids().flat_map(|id| gcx.hir.solar_handles(id)).collect(),
             field_types: gcx.hir.strukt_ids().map(|_| OnceLock::new()).collect(),
             field_locations: RefCell::new(FxHashMap::default()),
             storage_cursor: StorageCursor::new(base_slot, false),
@@ -537,13 +552,16 @@ impl<'gcx> StorageBuilder<'gcx> {
         }
 
         let mut cursor = StorageCursor::new(U256::ZERO, false);
+        let fields = self.gcx.hir.strukt(struct_id).fields;
         let locations = self
             .struct_field_types(struct_id)
             .iter()
-            .map(|&ty| {
+            .zip(fields)
+            .map(|(&ty, id)| {
                 let encoding = self.packed_encoding(ty);
                 let slots = self.storage_slots(ty, Span::DUMMY);
-                cursor.take(encoding, slots)
+                let location = cursor.take(encoding, slots)?;
+                Some(StorageLocation { handle: self.handles.get(id).copied(), ..location })
             })
             .collect::<Option<Box<_>>>();
         if locations.is_none() {
@@ -553,8 +571,19 @@ impl<'gcx> StorageBuilder<'gcx> {
         cached.entry(struct_id).or_insert(locations).as_ref()?.get(field).copied()
     }
 
+    /// The types of a struct's fields in storage: `uint72` for a handle field, which keeps one
+    /// plus the index of its value in its dictionary.
     fn struct_field_types(&self, struct_id: StructId) -> &'gcx [Ty<'gcx>] {
-        self.field_types[struct_id].get_or_init(|| self.gcx.struct_field_types(struct_id))
+        self.field_types[struct_id].get_or_init(|| {
+            let types = self.gcx.struct_field_types(struct_id);
+            let fields = self.gcx.hir.strukt(struct_id).fields;
+            if !fields.iter().any(|field| self.handles.contains_key(field)) {
+                return types;
+            }
+            self.gcx.mk_ty_iter(fields.iter().zip(types).map(|(field, &ty)| {
+                if self.handles.contains_key(field) { self.gcx.types.uint(72) } else { ty }
+            }))
+        })
     }
 
     fn packed_encoding(&self, ty: Ty<'gcx>) -> Option<(TypeSize, StorageEncoding)> {

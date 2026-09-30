@@ -853,6 +853,9 @@ pub(crate) enum SolarTag {
     /// `@custom:solar-bitmap`: a mapping from unsigned integers to booleans keeps each value in
     /// one bit, 256 keys to a word.
     Bitmap,
+    /// `@custom:solar-handle <field> <dictionary>`: a struct keeps the index of a field's value
+    /// in an append-only dictionary array instead of the value.
+    Handle,
     /// A `solar-` tag this compiler does not define.
     Unknown,
 }
@@ -869,6 +872,7 @@ impl SolarTag {
             sym::solar_dash_fuse => Some(Self::Fuse),
             sym::solar_dash_inline => Some(Self::Inline),
             sym::solar_dash_bitmap => Some(Self::Bitmap),
+            sym::solar_dash_handle => Some(Self::Handle),
             _ => name.as_str().starts_with("solar-").then_some(Self::Unknown),
         }
     }
@@ -877,8 +881,8 @@ impl SolarTag {
 /// Whether the Solar tag `tag` can document the item `item`: `@custom:solar-safe` a contract or a
 /// library, `@custom:solar-trusted` one of those or a function or modifier with a body,
 /// `@custom:solar-fuse` and `@custom:solar-bitmap` a mapping state variable, `@custom:solar-inline`
-/// a dynamic storage array state variable, and the other declaration tags what
-/// [`declaration_tag_applies`] accepts.
+/// a dynamic storage array state variable, `@custom:solar-handle` a struct declared in a contract,
+/// and the other declaration tags what [`declaration_tag_applies`] accepts.
 fn item_tag_applies(gcx: Gcx<'_>, tag: SolarTag, item: hir::ItemId) -> bool {
     let code_contract = |id| gcx.hir.contract(id).kind != hir::ContractKind::Interface;
     match (tag, item) {
@@ -893,6 +897,14 @@ fn item_tag_applies(gcx: Gcx<'_>, tag: SolarTag, item: hir::ItemId) -> bool {
             let variable = gcx.hir.variable(id);
             variable.is_state_variable()
                 && matches!(variable.ty.kind, hir::TypeKind::Array(array) if array.size.is_none())
+        }
+        (SolarTag::Handle, hir::ItemId::Struct(id)) => {
+            gcx.hir.strukt(id).contract.is_some_and(|contract| {
+                matches!(
+                    gcx.hir.contract(contract).kind,
+                    hir::ContractKind::Contract | hir::ContractKind::AbstractContract
+                )
+            })
         }
         _ => false,
     }
@@ -964,6 +976,14 @@ pub(crate) fn report_misplaced_solar_tag(dcx: &DiagCtxt, tag: SolarTag, name: Sy
             .span(span)
             .help("put it on a mapping from an unsigned integer to `bool`")
             .emit(),
+        SolarTag::Handle => dcx
+            .err("`@custom:solar-handle` must document a struct declared in a contract")
+            .span(span)
+            .help(
+                "put it on a struct of the contract that keeps the dictionary: \
+                 `@custom:solar-handle marketId markets`",
+            )
+            .emit(),
         SolarTag::Unknown => dcx
             .err(format!("unknown Solar tag `@custom:{name}`"))
             .span(span)
@@ -971,7 +991,8 @@ pub(crate) fn report_misplaced_solar_tag(dcx: &DiagCtxt, tag: SolarTag, name: Sy
             .help(
                 "the supported tags are `@custom:solar-view`, `@custom:solar-scratch`, \
                  `@custom:solar-terminates`, `@custom:solar-safe`, `@custom:solar-trusted`, \
-                 `@custom:solar-fuse`, `@custom:solar-inline`, and `@custom:solar-bitmap`",
+                 `@custom:solar-fuse`, `@custom:solar-inline`, `@custom:solar-bitmap`, and \
+                 `@custom:solar-handle`",
             )
             .emit(),
     };

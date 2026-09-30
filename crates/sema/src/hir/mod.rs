@@ -447,6 +447,52 @@ impl<'hir> Hir<'hir> {
         self.variable_tag(id, sym::solar_dash_bitmap)
     }
 
+    /// Returns the field and the dictionary each `@custom:solar-handle` tag on a struct's
+    /// declaration names, or `None` for a tag that does not name exactly those two, with the
+    /// tag's span.
+    pub fn solar_handle_tags(
+        &self,
+        id: StructId,
+    ) -> impl Iterator<Item = (Option<(Symbol, Symbol)>, Span)> + '_ {
+        let doc = self.doc(self.strukt(id).doc);
+        doc.ast_comments.iter().flat_map(|comment| comment.natspec.iter()).filter_map(|natspec| {
+            let ast::NatSpecKind::Custom { name } = natspec.kind else { return None };
+            if name.name != sym::solar_dash_handle {
+                return None;
+            }
+            let mut words = natspec.content().split_whitespace();
+            let names = match (words.next(), words.next(), words.next()) {
+                (Some(field), Some(dictionary), None) => {
+                    Some((Symbol::intern(field), Symbol::intern(dictionary)))
+                }
+                _ => None,
+            };
+            Some((names, natspec.span))
+        })
+    }
+
+    /// Returns the handle fields of a struct with their dictionaries: the field each
+    /// `@custom:solar-handle` tag on the struct's declaration names, and the state variable of
+    /// the struct's contract that the tag names.
+    pub fn solar_handles(
+        &self,
+        id: StructId,
+    ) -> impl Iterator<Item = (VariableId, VariableId)> + '_ {
+        let strukt = self.strukt(id);
+        let named = move |id: VariableId, name: Symbol| {
+            self.variable(id).name.is_some_and(|ident| ident.name == name)
+        };
+        self.solar_handle_tags(id).filter_map(move |(names, _)| {
+            let (field, dictionary) = names?;
+            let field = strukt.fields.iter().copied().find(|&id| named(id, field))?;
+            let dictionary = self
+                .contract(strukt.contract?)
+                .variables()
+                .find(|&id| self.variable(id).is_state_variable() && named(id, dictionary))?;
+            Some((field, dictionary))
+        })
+    }
+
     /// Returns the span of the custom tag `tag` on a state variable's declaration.
     fn variable_tag(&self, id: VariableId, tag: Symbol) -> Option<Span> {
         let doc = self.doc(self.variable(id).doc);

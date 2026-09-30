@@ -952,6 +952,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         } else {
             self.cx.storage.load_at(&mut self.builder, access.location, access.slot)
         };
+        let value = match access.location.handle {
+            Some(dictionary) => self.resolve_handle(value, dictionary, span)?,
+            None => value,
+        };
         self.validate_enum(ty, value);
         Some(value)
     }
@@ -976,6 +980,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     ) -> Option<()> {
         if self.types.memory_layout(ty).is_some() {
             return self.store_storage_object_with_source(ty, source_ty, access.slot, value, span);
+        }
+        // Type checking lets a handle field be set to zero here, and to its dictionary's
+        // elements only through `lower_handle_assignment`.
+        if access.location.handle.is_some()
+            && self.builder.func().value_u256(value) != Some(U256::ZERO)
+        {
+            return self.cx.report_unsupported(span, "write of a handle field");
         }
         let dirty = !self.in_inline_assembly && self.dirty_values.contains(&value);
         let value = self.normalize_dirty_scalar(value, ty);

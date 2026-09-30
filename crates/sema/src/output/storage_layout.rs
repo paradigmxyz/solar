@@ -41,6 +41,13 @@ pub struct StorageLayoutOutput {
     /// field, so it is left out when empty.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub bitmaps: Option<Vec<StorageLayoutEntry>>,
+    /// The handle fields of the structs documented `@custom:solar-handle <field> <dictionary>`
+    /// that the contract stores, keyed by the struct's type. `types` lists a handle field as
+    /// `uint72`: it keeps one plus the index of the field's value in its dictionary, the storage
+    /// array this lists as `storage` does, or zero for the value zero. `solc` has no such field,
+    /// so it is left out when empty.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub handles: Option<FxIndexMap<String, Vec<StorageLayoutHandle>>>,
 }
 
 #[derive(Debug, Serialize)]
@@ -52,6 +59,16 @@ pub struct StorageLayoutEntry {
     pub offset: u64,
     pub slot: String,
     pub r#type: String,
+}
+
+/// A handle field of a struct documented `@custom:solar-handle`.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StorageLayoutHandle {
+    /// The field's name, its label among the struct's members.
+    pub member: String,
+    /// The dictionary the field's handle indexes.
+    pub dictionary: StorageLayoutEntry,
 }
 
 #[derive(Debug, Default, Serialize)]
@@ -127,6 +144,7 @@ impl<'gcx> Gcx<'gcx> {
             fused: None,
             inline: None,
             bitmaps: None,
+            handles: None,
         }
     }
 }
@@ -247,12 +265,42 @@ impl<'gcx> StorageLayoutBuilder<'gcx> {
             }
         }
 
+        let mut handles = FxIndexMap::default();
+        if matches!(self.location, DataLocation::Storage) {
+            for &base in &bases {
+                let structs =
+                    self.gcx.hir.contract(base).items.iter().filter_map(hir::ItemId::as_struct);
+                for id in structs {
+                    let ty = self.gcx.mk_ty(TyKind::Struct(id));
+                    let key =
+                        self.storage_type_key(ty.with_loc_if_ref(self.gcx, DataLocation::Storage));
+                    if !self.types.contains_key(&key) {
+                        continue;
+                    }
+                    let mut entries = Vec::new();
+                    for (field, dictionary) in self.gcx.hir.solar_handles(id) {
+                        let Some(&slot) = slots.get(&dictionary) else { continue };
+                        let ty_name =
+                            self.storage_type_key(self.gcx.type_of_item(dictionary.into()));
+                        entries.push(StorageLayoutHandle {
+                            member: self.gcx.hir.variable(field).name.unwrap().to_string(),
+                            dictionary: self.storage_entry(dictionary, slot, 0, ty_name),
+                        });
+                    }
+                    if !entries.is_empty() {
+                        handles.insert(key, entries);
+                    }
+                }
+            }
+        }
+
         let types = (!self.types.is_empty()).then_some(self.types);
         let namespaces = (!namespaces.is_empty()).then_some(namespaces);
         let fused = (!fused.is_empty()).then_some(fused);
         let inline = (!inline.is_empty()).then_some(inline);
         let bitmaps = (!bitmaps.is_empty()).then_some(bitmaps);
-        StorageLayoutOutput { storage, types, namespaces, fused, inline, bitmaps }
+        let handles = (!handles.is_empty()).then_some(handles);
+        StorageLayoutOutput { storage, types, namespaces, fused, inline, bitmaps, handles }
     }
 
     fn layout_members(&mut self, fields: &[hir::VariableId]) -> (Vec<StorageLayoutEntry>, U256) {
@@ -268,12 +316,23 @@ impl<'gcx> StorageLayoutBuilder<'gcx> {
     ) -> Vec<StorageLayoutEntry> {
         let mut members = Vec::with_capacity(fields.len());
         for &field in fields {
-            let ty = self.gcx.type_of_item(field.into());
+            let ty = self.field_type(field);
             let ty_name = self.generate_type(ty);
             let (slot, offset) = self.place_type(ty, cursor);
             members.push(self.storage_entry(field, slot, offset, ty_name));
         }
         members
+    }
+
+    /// The type of the struct field `field` in storage: `uint72` for a handle field, which keeps
+    /// one plus the index of its value in its dictionary.
+    fn field_type(&self, field: hir::VariableId) -> Ty<'gcx> {
+        if let Some(hir::ItemId::Struct(id)) = self.gcx.hir.variable(field).parent
+            && self.gcx.hir.solar_handles(id).any(|(handle, _)| handle == field)
+        {
+            return self.gcx.types.uint(72);
+        }
+        self.gcx.type_of_item(field.into())
     }
 
     fn storage_entry(
