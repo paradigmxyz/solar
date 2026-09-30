@@ -26,7 +26,7 @@
 // CHECK: mstore 64,
 // CHECK: mstore 64,
 // CHECK: mstore 64,
-// CHECK: = call {{v[0-9]+}}, 4, 0, {{v[0-9]+}}, {{v[0-9]+}},
+// CHECK: = call {{v[0-9]+}}, 4, 0, {{v[0-9]+}}, 36,
 import {Calls} from "solar:core/Calls.sol";
 
 contract CallsPayloadStaging {
