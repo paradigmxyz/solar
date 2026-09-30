@@ -3,9 +3,12 @@
 //@ run-call: words => true
 //@ run-call: bytesTail => true
 //@ run-call: concat => true
+//@ run-call: fresh => [1, 2, 3]
+//@ run-call: freshEmpty => []
 
 // Without `MCOPY`, memory copies lower to word loops: whole-word lengths skip
 // the partial-word merge, and a partial tail changes exactly the copied bytes.
+// Returning a fresh array encodes it in place, a backward whole-word copy.
 contract PreCancunMemoryCopies {
     function words() external pure returns (bool) {
         uint256[] memory values = new uint256[](3);
@@ -36,5 +39,16 @@ contract PreCancunMemoryCopies {
         return joined.length == 35
             && keccak256(joined)
                 == keccak256(hex"0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20212223");
+    }
+
+    function fresh() external pure returns (uint256[] memory values) {
+        values = new uint256[](3);
+        values[0] = 1;
+        values[1] = 2;
+        values[2] = 3;
+    }
+
+    function freshEmpty() external pure returns (uint256[] memory) {
+        return new uint256[](0);
     }
 }

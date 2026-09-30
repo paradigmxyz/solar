@@ -124,3 +124,32 @@ fn @concat() -> i256 [selector=0x6bdbf8e6, pure, abi_params=[], abi_returns=[wor
     v14 = zext i1 v13 to i256
     ret v14
 }
+
+fn @fresh() -> memoryarray [selector=0xb466b76f, pure, abi_params=[], abi_returns=[memory_array<word>], abi_return_params=[array<_, u256>]] {
+  bb0:
+    v0 = alloc memoryarray<1>, exact, zeroed, panic, 128
+    set_memory_object_len memoryarray, v0, 3
+    v1 = memory_object_len memoryarray, v0
+    v2 = lt 0, v1
+    v3 = eq v2, false
+    icall panic_if<0x32>, v3
+    memory_object_store_element memoryarray<1>, v0, 0, 1
+    v4 = memory_object_len memoryarray, v0
+    v5 = lt 1, v4
+    v6 = eq v5, false
+    icall panic_if<0x32>, v6
+    memory_object_store_element memoryarray<1>, v0, 1, 2
+    v7 = memory_object_len memoryarray, v0
+    v8 = lt 2, v7
+    v9 = eq v8, false
+    icall panic_if<0x32>, v9
+    memory_object_store_element memoryarray<1>, v0, 2, 3
+    ret v0
+}
+
+fn @freshEmpty() -> memoryarray [selector=0x2f9cb906, pure, abi_params=[], abi_returns=[memory_array<word>], abi_return_params=[array<_, u256>]] {
+  bb0:
+    v0 = alloc memoryarray<1>, exact, zeroed, panic, 32
+    set_memory_object_len memoryarray, v0, 0
+    ret v0
+}

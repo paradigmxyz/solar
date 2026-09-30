@@ -1438,7 +1438,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     metadata.set_preserves_fmp(true);
                 }
                 sym::disjoint => {
-                    metadata.set_disjoint();
+                    metadata.set_disjoint(true);
                 }
                 kw::Storage => {
                     self.parser.expect(TokenKind::Eq)?;

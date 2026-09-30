@@ -1634,7 +1634,8 @@ fn encode_bytes(
 /// Copies a source value's data into the output buffer.
 ///
 /// Source objects live below the free-memory pointer, and the output is either untouched memory
-/// above it or a fresh allocation, so memory copies never overlap.
+/// above it or a fresh allocation, so memory copies run forward, like solc's pre-Cancun
+/// `copy_memory_to_memory`.
 fn copy_source_data(
     builder: &mut FunctionBuilder<'_>,
     location: SliceLocation,

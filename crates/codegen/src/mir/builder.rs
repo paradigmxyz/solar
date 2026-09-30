@@ -1215,9 +1215,12 @@ impl<'a> FunctionBuilder<'a> {
 
     /// Emits a heap mcopy whose source and destination ranges never overlap.
     pub(crate) fn mcopy_disjoint_heap(&mut self, dest: ValueId, src: ValueId, len: ValueId) {
-        self.mcopy_heap(dest, src, len);
-        let inst = *self.func.blocks[self.current_block].instructions.last().unwrap();
-        self.func.inst_mut(inst).metadata.set_disjoint();
+        let mut kind = InstKind::MCopy(dest, src, len);
+        self.cast_operands(&mut kind);
+        let mut inst = self.make_inst(kind, None);
+        inst.metadata.set_memory_region(Some(MemoryRegion::Heap));
+        inst.metadata.set_disjoint(true);
+        self.append_instruction(inst);
     }
 
     /// Constructs a logical `(pointer, length, location)` slice.

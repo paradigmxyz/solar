@@ -94,8 +94,6 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &lower_frame_slots::LowerFrameSlots,
     &lower_evm_shaped::LowerEvmShaped,
     &lower_immutables::LowerImmutables,
-    // Expand copies while allocations are still symbolic, so provenance can
-    // prove more of their ranges disjoint and skip the runtime direction check.
     &lower_mcopy::LowerMCopy,
     &lower_abi_encode::LowerAbiEncode,
     &lower_aggregates::LowerAggregates,
@@ -277,7 +275,8 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     &check_elim::ImmutableCheckElim,
     &cfg_simplify::FunctionDce,
     // ABI lowering adds shared decoders whose callers often all pass the same
-    // constant head; substitute it before dead-argument elimination drops it.
+    // constant head; substitute it so dead-argument elimination can drop the
+    // parameter.
     &specialize::Specialize,
     &function_compaction::DeadArgElim,
     &dce::Dce,
@@ -338,6 +337,9 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     // physical memory stores that conservatively alias heap pointers.
     &readonly_eval::ReadonlyEval,
     &lower_immutables::LowerImmutables,
+    // Expand copies before `lower-alloc`, while allocations are still symbolic,
+    // so provenance can prove more ranges disjoint and skip the runtime
+    // direction check.
     &lower_mcopy::LowerMCopy,
     &lower_alloc::LowerAlloc,
     &lower_memory_zero::LowerMemoryZero,

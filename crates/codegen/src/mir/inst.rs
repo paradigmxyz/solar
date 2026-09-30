@@ -241,8 +241,8 @@ impl InstructionMetadata {
     }
 
     /// Marks a copy whose source and destination ranges never overlap.
-    pub(crate) fn set_disjoint(&mut self) {
-        self.flags.set_disjoint();
+    pub(crate) fn set_disjoint(&mut self, value: bool) {
+        self.flags.set_disjoint(value);
     }
 }
 
@@ -313,8 +313,12 @@ impl MetadataFlags {
         self.0 & Self::DISJOINT != 0
     }
 
-    fn set_disjoint(&mut self) {
-        self.0 |= Self::DISJOINT;
+    fn set_disjoint(&mut self, value: bool) {
+        if value {
+            self.0 |= Self::DISJOINT;
+        } else {
+            self.0 &= !Self::DISJOINT;
+        }
     }
 
     fn preserves_fmp(self) -> bool {

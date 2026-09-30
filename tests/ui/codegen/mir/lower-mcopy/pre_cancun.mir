@@ -13,8 +13,8 @@
 
 // PRE-LABEL: {{^[ +].*}}fn @copy{{[( ]}}
 // PRE: - mcopy arg0, arg1, arg2
+// PRE: + [[FULL:v[0-9]+]] = and arg2, {{v[0-9]+}}
 // PRE: + [[BACKWARD:v[0-9]+]] = lt arg1, arg0
-// PRE: + [[FORWARD_FULL:v[0-9]+]] = and arg2, {{v[0-9]+}}
 // PRE: + [[FORWARD_OFFSET:v[0-9]+]] = phi
 // PRE: + [[FORWARD_MERGED:v[0-9]+]] = or {{v[0-9]+}}, {{v[0-9]+}}
 // PRE: + mstore {{v[0-9]+}}, [[FORWARD_MERGED]]
@@ -22,7 +22,7 @@
 // PRE: + [[FORWARD_WORD:v[0-9]+]] = mload [[FORWARD_SOURCE]]
 // PRE: + mstore {{v[0-9]+}}, [[FORWARD_WORD]]
 // PRE: + [[FORWARD_NEXT:v[0-9]+]] = add [[FORWARD_OFFSET]], 32
-// PRE: + [[REVERSE_FULL:v[0-9]+]] = and arg2, {{v[0-9]+}}
+// PRE: + {{v[0-9]+}} = lt [[FULL]], arg2
 // PRE: + [[REVERSE_MERGED:v[0-9]+]] = or {{v[0-9]+}}, {{v[0-9]+}}
 // PRE: + mstore {{v[0-9]+}}, [[REVERSE_MERGED]]
 // PRE: + [[REVERSE_OFFSET:v[0-9]+]] = phi
