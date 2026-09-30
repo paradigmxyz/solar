@@ -1,0 +1,38 @@
+// CHECK: "Accounts": {
+// CHECK: "storageLayout": {
+// CHECK: "label": "nonce"
+// CHECK: "slot": "2"
+// CHECK: "fused": {
+// CHECK: "1": [
+// CHECK: "label": "balance"
+// CHECK: "offset": 0
+// CHECK: "slot": "0"
+// CHECK: "t_uint128"
+// CHECK: "label": "nonce"
+// CHECK: "offset": 16
+// CHECK: "slot": "0"
+// CHECK: "label": "expiry"
+// CHECK: "offset": 24
+// CHECK: "slot": "0"
+// CHECK: "4": [
+// CHECK: "label": "owner"
+// CHECK: "slot": "0"
+// CHECK: "label": "amount"
+// CHECK: "slot": "1"
+// CHECK: "label": "open"
+// CHECK: "offset": 0
+// CHECK: "slot": "2"
+// CHECK: "Plain": {
+// CHECK-NOT: "fused"
+// CHECK: "types"
+{
+  "language": "Solidity",
+  "settings": {
+    "outputSelection": {
+      "fused.sol": {
+        "Accounts": ["storageLayout"],
+        "Plain": ["storageLayout"]
+      }
+    }
+  }
+}
