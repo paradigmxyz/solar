@@ -109,8 +109,10 @@ impl<'gcx> EvmCodegen<'gcx> {
             );
             self.carried_call_values.clone_from(&carried);
             resident_call_values.extend(carried);
-            self.check_carried_call_values(func, &mut resident_call_values, 1);
-        } else {
+        }
+        if !self.carry_live_across_call
+            || !self.carried_call_values_fit(func, &mut resident_call_values, 3)
+        {
             self.spill_live_stack_values(func_id, func, liveness, block, inst_idx);
         }
 
@@ -551,7 +553,6 @@ impl<'gcx> EvmCodegen<'gcx> {
             if self.runtime_stack_args { self.stack_arg_mask(callee).cloned() } else { None };
         let argument_words = stack_mask.as_ref().map_or(0, DenseBitSet::count);
         let recursive_reentry = self.recursive_frame_edges.contains(&(func_id, callee));
-        let carry_live = recursive_reentry || self.carry_live_across_call;
         let mut recursive_call_values = Vec::new();
         if !recursive_reentry && self.carry_live_across_call {
             // The callee may write a dynamic spill area. Keep everything live after the call on
@@ -641,10 +642,26 @@ impl<'gcx> EvmCodegen<'gcx> {
             // The dynamic spill base has no memory home and must survive every call.
             resident_call_values.push(base.value);
         }
-        if self.carry_live_across_call {
-            self.check_carried_call_values(func, &mut resident_call_values, argument_words + 1);
-            recursive_call_values.retain(|value| resident_call_values.contains(value));
+        // Carried memory arguments are duplicated before their frame stores.
+        let duplicated_args = args
+            .iter()
+            .enumerate()
+            .filter(|&(index, arg)| {
+                stack_mask.as_ref().is_none_or(|mask| !mask.contains(index))
+                    && resident_call_values.contains(arg)
+            })
+            .count();
+        if self.carry_live_across_call
+            && !self.carried_call_values_fit(
+                func,
+                &mut resident_call_values,
+                argument_words + 2 + duplicated_args,
+            )
+            && !recursive_reentry
+        {
+            recursive_call_values.clear();
         }
+        let carry_live = recursive_reentry || self.carry_live_across_call;
         let carries_resident_stack = !resident_call_values.is_empty();
         let caller_stack_plan = (!carries_resident_stack).then(|| {
             self.plan_static_call_stack(
@@ -760,6 +777,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     && !caller_stack_plan
                         .as_ref()
                         .is_some_and(|plan| plan.caller_stack.contains(arg))
+                    && !resident_call_values.contains(&arg)
                     && matches!(func.value(arg), crate::mir::Value::Inst(_))
                     && !Self::is_always_rematerializable_value(func, arg)
                 {

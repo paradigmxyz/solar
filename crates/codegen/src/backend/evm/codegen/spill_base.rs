@@ -826,29 +826,36 @@ impl<'gcx> EvmCodegen<'gcx> {
         values
     }
 
-    /// Reports carried call values that cannot all stay within stack reach, and drops the extra
-    /// ones so emission can finish.
-    pub(super) fn check_carried_call_values(
+    /// Returns whether the values carried across an internal call stay within stack reach with
+    /// `words_above` more words pushed above them. Otherwise reports an error and stops carrying,
+    /// so emission can finish.
+    pub(super) fn carried_call_values_fit(
         &mut self,
         func: &Function,
-        values: &mut Vec<ValueId>,
+        resident: &mut Vec<ValueId>,
         words_above: usize,
-    ) {
+    ) -> bool {
         let limit = self.stack_access_limit();
-        if values.len() + words_above < limit {
-            return;
+        let deepest = resident.iter().filter_map(|&value| self.scheduler.stack.find(value)).max();
+        if resident.len() + words_above < limit
+            && deepest.is_none_or(|depth| depth + words_above < limit)
+        {
+            return true;
         }
+        let carried = std::mem::take(&mut self.carried_call_values);
         self.gcx
             .dcx()
             .err(format!(
                 "codegen cannot keep {} values of `{}` on the stack across an internal call after \
                  a dynamic low-memory write",
-                values.len(),
+                carried.len(),
                 func.name
             ))
             .note("the callee may write any memory the values could be spilled to")
             .emit();
-        values.truncate(limit.saturating_sub(words_above + 1));
+        resident.retain(|value| !carried.contains(value));
+        self.carry_live_across_call = false;
+        false
     }
 
     /// Moves the dynamic spill base above everything an internal call may have written, after

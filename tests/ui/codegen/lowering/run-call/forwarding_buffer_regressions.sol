@@ -13,6 +13,7 @@
 //@ run-call: AllocatingCalleeHarness::run => 1
 //@ run-call: RecursiveCarryHarness::run => 1
 //@ run-call: ConstructorLoopHarness::run => 1
+//@ run-call: CarriedStackArgsHarness::run => 1
 
 // Reduced regressions for the dynamic spill base. Expected results come from a model of each
 // program, not from compiling it.
@@ -545,6 +546,52 @@ contract ConstructorLoop {
 contract ConstructorLoopHarness {
     function run() external returns (uint256) {
         require(new ConstructorLoop(5).out() == 9068, "constructor loop");
+        return 1;
+    }
+}
+
+// Values carried across a helper's call are also its stack-passed arguments.
+contract CarriedStackArgs {
+    function f0(uint256 a0, uint256 a1, uint256 a2, uint256 a3) internal pure returns (uint256) {
+        unchecked {
+            uint256 l0 = a2 * 3 + 0;
+            uint256 l1 = a3 * 4 + 1;
+            uint256 l2 = a3 * 5 + 2;
+            return l0 ^ l1 ^ l2;
+        }
+    }
+    function f1(uint256 a0, uint256 a1, uint256 a2, uint256 a3) internal pure returns (uint256) {
+        unchecked {
+            uint256 l0 = a1 * 3 + 0;
+            uint256 l1 = a1 * 4 + 1;
+            uint256 l2 = a2 * 5 + 2;
+            uint256 l3 = a1 * 6 + 3;
+            uint256 l4 = a0 * 7 + 4;
+            uint256 l5 = a2 * 8 + 5;
+            uint256 l6 = a1 * 9 + 6;
+            uint256 l7 = a2 * 10 + 7;
+            uint256 l8 = a0 * 11 + 8;
+            uint256 l9 = a0 * 12 + 9;
+            uint256 l10 = a2 * 13 + 10;
+            uint256 l11 = a3 * 14 + 11;
+            uint256 l12 = a0 * 15 + 12;
+            assembly { calldatacopy(0x60, 0, calldatasize()) }
+            return l0 ^ l1 ^ l2 ^ l3 ^ l4 ^ l5 ^ l6 ^ l7 ^ l8 ^ l9 ^ l10 ^ l11 ^ l12;
+        }
+    }
+    function run(uint256 x) external pure returns (uint256) {
+        uint256 y = f1(x + 0, x + 1, x + 2, x + 3);
+        assembly { calldatacopy(0, 0, calldatasize()) }
+        return y ^ f1(x + 0, x + 1, x + 2, x + 3);
+    }
+}
+
+contract CarriedStackArgsHarness {
+    function run() external returns (uint256) {
+        (bool success, bytes memory result) = address(new CarriedStackArgs()).call(
+            abi.encodePacked(abi.encodeCall(CarriedStackArgs.run, (7)), new bytes(512))
+        );
+        require(success && abi.decode(result, (uint256)) == 0, "carried stack args");
         return 1;
     }
 }
