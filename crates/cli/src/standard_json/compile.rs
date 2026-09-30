@@ -311,8 +311,8 @@ fn compile(
                             // The compiler provides these; a copy supplied so
                             // another compiler can resolve the same input is
                             // set aside rather than allowed to stand in. An
-                            // exact copy, as `solar export-core` writes, is
-                            // the module itself; any other content is reported.
+                            // exact copy of `crates/std` is the module itself;
+                            // any other content is reported.
                             if solar_sema::core::is_reserved_path(name.as_ref()) {
                                 let exact = solar_sema::core::lookup(name.as_ref())
                                     .zip(source.content.as_deref())
