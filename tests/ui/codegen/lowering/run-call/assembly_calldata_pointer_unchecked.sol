@@ -16,7 +16,7 @@
 // encoding it, packing or concatenating it, hashing it with `sha256`, logging
 // it, passing it to an external call, and decoding it read what lies there,
 // past the end as zeros. A length whose bytes do not fit in a word fails with
-// `Panic(0x41)`, where solc runs out of gas (CODEGEN-009). Every other result
+// `Panic(0x41)`, where solc runs out of gas. Every other result
 // is solc 0.8.37's with --via-ir.
 contract AssemblyCalldataPointerUnchecked {
     event Logged(bytes data);
