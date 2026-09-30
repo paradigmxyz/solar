@@ -44,38 +44,34 @@ fn @put() [selector=0x94f47146, abi_wrapper] {
     v3 = calldataload 4
     v4 = add v3, 4
     v5 = add v4, 32
-    v6 = shr 64, v3
+    v6 = gt v3, 0xffffffffffffffff
     v7 = gt v5, v1
-    v8 = zext i1 v7 to i256
-    v9 = or v6, v8
-    v10 = ne v9, 0
-    jumpi v10, bb1, bb3
+    v8 = or v6, v7
+    jumpi v8, bb1, bb3
   bb3:
-    v11 = calldataload v4
-    v13 = add v11, 63
-    v14 = lt v13, v11
-    jumpi v14, bb4, bb5
+    v10 = calldataload v4
+    v12 = add v10, 63
+    v13 = lt v12, v10
+    jumpi v13, bb4, bb5
   bb5:
-    v16 = and v13, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v15 = and v12, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v26 = mload 64 !metadata(memory=scratch)
-    v17 = inttoptr i256 v26 to memptr !metadata(memory=scratch)
-    v27 = add v26, v16
+    v16 = inttoptr i256 v26 to memptr !metadata(memory=scratch)
+    v27 = add v26, v15
     v28 = lt v27, v26
-    v29 = zext i1 v28 to i256
-    v30 = shr 64, v27
-    v31 = or v29, v30
-    v32 = ne v31, 0
-    jumpi v32, bb4, bb7
+    v29 = gt v27, 0xffffffffffffffff
+    v30 = or v28, v29
+    jumpi v30, bb4, bb7
   bb7:
     mstore 64, v27 !metadata(memory=scratch)
-    mstore v26, v11
-    v18 = sub v1, v5
-    v19 = gt v11, v18
-    jumpi v19, bb1, bb6
+    mstore v26, v10
+    v17 = sub v1, v5
+    v18 = gt v10, v17
+    jumpi v18, bb1, bb6
   bb6:
-    v22 = add v26, 32
-    calldatacopy v22, v5, v11
-    icall @storeBytes, v17, v11
+    v21 = add v26, 32
+    calldatacopy v21, v5, v10
+    icall @storeBytes, v16, v10
     stop
   bb4:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
@@ -133,9 +129,9 @@ fn @storeBytes(arg0: memptr, arg1: i256) [may_return_memory, inline_assembly] {
     v42 = shl 3, v10
     jump bb4
   bb4:
-    v20 = phi [bb3: 0], [bb6: v41]
+    v15 = phi [bb3: 0], [bb6: v41]
     v43 = phi [bb3: v42], [bb6: v44]
-    v22 = shl 5, v20
+    v22 = shl 5, v15
     v23 = lt v22, v10
     jumpi v23, bb6, bb5
   bb5:
@@ -152,9 +148,9 @@ fn @storeBytes(arg0: memptr, arg1: i256) [may_return_memory, inline_assembly] {
     v48 = zext i1 v31 to i256
     v49 = mul v48, v47
     v50 = add v28, v49
-    v40 = add v20, 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563
-    sstore v40, v50 !metadata(storage=offset(v20, 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563))
-    v41 = add v20, 1
+    v40 = add v15, 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563
+    sstore v40, v50 !metadata(storage=offset(v15, 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563))
+    v41 = add v15, 1
     v44 = sub v43, 256
     jump bb4
   bb2:
@@ -166,11 +162,9 @@ fn @_outOfBounds() -> i256 [pure] {
     v6 = mload 64 !metadata(memory=scratch)
     v7 = add v6, 32
     v8 = lt v7, v6
-    v9 = zext i1 v8 to i256
-    v10 = shr 64, v7
-    v11 = or v9, v10
-    v12 = ne v11, 0
-    jumpi v12, bb2, bb1
+    v9 = gt v7, 0xffffffffffffffff
+    v10 = or v8, v9
+    jumpi v10, bb2, bb1
   bb1:
     mstore 64, v7 !metadata(memory=scratch)
     mstore v6, 0

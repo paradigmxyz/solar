@@ -1,8 +1,8 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/assembly_assign_cleanup.sol:C ===
 @module C
-fn @parseSel(arg0: memptr) -> i256 [pure] {
+fn @parseSel(arg0: memorybytes) -> i256 [inline_assembly, pure] {
   bb0:
-    v0 = ptrtoint memptr arg0 to i256
+    v0 = ptrtoint memorybytes arg0 to i256
     v1 = add v0, 32
     v2 = mload v1
     ret v2
@@ -22,14 +22,14 @@ fn @selectorCompare() -> i256 [selector=0x3c3fb316, pure, abi_params=[], abi_ret
     ret 1
 }
 
-fn @narrowMask() -> i256 [selector=0x14c62240, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @narrowMask() -> i256 [selector=0x14c62240, inline_assembly, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = eq i32 0xffffffff, i32 0xffffffff
     icall require<short_string>, v0, 4, 0x6d61736b00000000000000000000000000000000000000000000000000000000
     ret 1
 }
 
-fn @boolNorm() -> i256 [selector=0x3d176e51, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @boolNorm() -> i256 [selector=0x3d176e51, inline_assembly, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     icall require<short_string>, true, 6, 0x7472757468790000000000000000000000000000000000000000000000000000
     v0 = eq 7, 0
@@ -39,7 +39,7 @@ fn @boolNorm() -> i256 [selector=0x3d176e51, pure, abi_params=[], abi_returns=[w
     ret 1
 }
 
-fn @signedExtend() -> i256 [selector=0xae58e3e0, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @signedExtend() -> i256 [selector=0xae58e3e0, inline_assembly, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = eq i24 0x800000, i24 0x800000
     icall require<short_string>, v0, 7, 0x7369676e65787400000000000000000000000000000000000000000000000000
@@ -48,7 +48,7 @@ fn @signedExtend() -> i256 [selector=0xae58e3e0, pure, abi_params=[], abi_return
     ret 1
 }
 
-fn @firstShiftedByte(arg0: i256) -> i256 [pure] {
+fn @firstShiftedByte(arg0: i256) -> i256 [inline_assembly, pure] {
   bb0:
     v0 = shl 96, arg0
     v1 = byte 0, v0
@@ -63,18 +63,18 @@ fn @rawScratchReuse() -> i256 [selector=0xbc90d10b, pure, abi_params=[], abi_ret
     ret 1
 }
 
-fn @internalAssemblyRead() -> i256 [selector=0x282e3bb7, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @internalAssemblyRead() -> i256 [selector=0x282e3bb7, inline_assembly, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @readRaw, 257
     ret v0
 }
 
-fn @readRaw(arg0: i256) -> i256 [pure] {
+fn @readRaw(arg0: i256) -> i256 [inline_assembly, pure] {
   bb0:
     ret arg0
 }
 
-fn @memoryStoreCleanup() -> i256 [selector=0xa32f54c2, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @memoryStoreCleanup() -> i256 [selector=0xa32f54c2, inline_assembly, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = not 0
     v1 = alloc memoryarray<1>, exact, zeroed, panic, 64
@@ -88,7 +88,7 @@ fn @memoryStoreCleanup() -> i256 [selector=0xa32f54c2, pure, abi_params=[], abi_
     memory_object_store_element memoryarray<1>, v1, 0, v6
     v7 = shl 160, 1
     v8 = sub v7, 1
-    v9 = ptrtoint memptr v1 to i256
+    v9 = ptrtoint memoryarray v1 to i256
     v10 = add v9, 32
     v11 = mload v10
     v12 = eq v11, v8

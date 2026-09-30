@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/safe-solar/code/read/unsafe.sol:Unsafe ===
 @module Unsafe
 @phase lowered
-fn @part() [selector=0x107cd163, abi_wrapper] {
+fn @part() [selector=0x107cd163, abi_wrapper, inline_assembly] {
   bb0:
     v13 = calldatasize
     v14 = lt v13, 100
@@ -21,20 +21,20 @@ fn @part() [selector=0x107cd163, abi_wrapper] {
     jumpi v25, bb1, bb6
   bb6:
     v27 = and v24, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v71 = mload 64 !metadata(memory=scratch)
-    v72 = add v71, v27
-    v73 = lt v72, v71
-    v74 = gt v72, 0xffffffffffffffff
-    v75 = or v73, v74
-    jumpi v75, bb1, bb9
+    v70 = mload 64 !metadata(memory=scratch)
+    v71 = add v70, v27
+    v72 = lt v71, v70
+    v73 = gt v71, 0xffffffffffffffff
+    v74 = or v72, v73
+    jumpi v74, bb1, bb9
   bb9:
-    mstore 64, v72 !metadata(memory=scratch)
-    mstore v71, v22
+    mstore 64, v71 !metadata(memory=scratch)
+    mstore v70, v22
     v29 = sub v13, v17
     v30 = gt v22, v29
     jumpi v30, bb3, bb7
   bb7:
-    v57 = add v71, 32
+    v57 = add v70, 32
     calldatacopy v57, v17, v22
     v4 = create 0, v57, v22
     v5 = zext i160 v4 to i256
@@ -43,32 +43,32 @@ fn @part() [selector=0x107cd163, abi_wrapper] {
     jumpi v7, bb1, bb2
   bb2:
     v9 = and v6, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v65 = mload 64 !metadata(memory=scratch)
-    v66 = add v65, v9
-    v67 = lt v66, v65
-    v68 = gt v66, 0xffffffffffffffff
-    v69 = or v67, v68
-    jumpi v69, bb1, bb8
+    v64 = mload 64 !metadata(memory=scratch)
+    v65 = add v64, v9
+    v66 = lt v65, v64
+    v67 = gt v65, 0xffffffffffffffff
+    v68 = or v66, v67
+    jumpi v68, bb1, bb8
   bb8:
-    mstore 64, v66 !metadata(memory=scratch)
-    v77 = calldatasize
-    calldatacopy v65, v77, v9
-    mstore v65, arg2
-    v12 = add v65, 32
+    mstore 64, v65 !metadata(memory=scratch)
+    v76 = calldatasize
+    calldatacopy v64, v76, v9
+    mstore v64, arg2
+    v12 = add v64, 32
     extcodecopy v5, v12, arg1, arg2
-    v39 = ne v65, 0
+    v39 = ne v64, 0
     v40 = zext i1 v39 to i256
     v41 = mul arg2, v40
     v43 = add v41, 31
     v45 = and v43, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v47 = add v12, v45
     mstore v47, 0
-    v49 = add v65, 64
+    v49 = add v64, 64
     mcopy v49, v12, v41
-    mstore v65, 32
+    mstore v64, 32
     mstore v12, v41
     v53 = add v45, 64
-    returndata v65, v53
+    returndata v64, v53
   bb1:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)

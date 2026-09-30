@@ -3,14 +3,14 @@
 @types
   struct0: {i256, i256, i256}
 
-fn @f(arg0: memptr) -> struct0 [selector=0x9a869a74, pure, abi_params=[tuple<i16, u8, bytes2>], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @f(arg0: memorystruct) -> struct0 [selector=0x9a869a74, inline_assembly, pure, abi_params=[tuple<i16, u8, bytes2>], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
-    v0 = ptrtoint memptr arg0 to i256
+    v0 = ptrtoint memorystruct arg0 to i256
     v1 = mload v0
-    v2 = ptrtoint memptr arg0 to i256
+    v2 = ptrtoint memorystruct arg0 to i256
     v3 = add v2, 32
     v4 = mload v3
-    v5 = ptrtoint memptr arg0 to i256
+    v5 = ptrtoint memorystruct arg0 to i256
     v6 = add v5, 64
     v7 = mload v6
     v8 = insert_value struct0, undef struct0, 0, v1
@@ -19,14 +19,14 @@ fn @f(arg0: memptr) -> struct0 [selector=0x9a869a74, pure, abi_params=[tuple<i16
     ret v10
 }
 
-fn @encodeStruct() -> memptr [selector=0x01e941a3, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @encodeStruct() -> memorybytes [selector=0x01e941a3, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = icall @makeStruct
     v1 = abi_encode [tuple<word<u8>, word<u8>>], object, args v0
     ret v1
 }
 
-fn @makeStruct() -> calldataslice [pure] {
+fn @makeStruct() -> calldataslice [inline_assembly, pure] {
   bb0:
     v0 = make_calldata_slice 4, 0
     ret v0

@@ -19,40 +19,36 @@ fn @echo() [selector=0xf15da729, abi_wrapper, pure] {
     v11 = calldataload 4
     v12 = add v11, 4
     v13 = add v12, 32
-    v14 = shr 64, v11
+    v14 = gt v11, 0xffffffffffffffff
     v15 = gt v13, v9
-    v16 = zext i1 v15 to i256
-    v17 = or v14, v16
-    v18 = ne v17, 0
-    jumpi v18, bb1, bb3
+    v16 = or v14, v15
+    jumpi v16, bb1, bb3
   bb3:
-    v19 = calldataload v12
-    v21 = add v19, 63
-    v22 = lt v21, v19
-    jumpi v22, bb4, bb5
+    v18 = calldataload v12
+    v20 = add v18, 63
+    v21 = lt v20, v18
+    jumpi v21, bb4, bb5
   bb5:
-    v24 = and v21, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v37 = mload 64 !metadata(memory=scratch)
-    v38 = add v37, v24
-    v39 = lt v38, v37
-    v40 = zext i1 v39 to i256
-    v41 = shr 64, v38
-    v42 = or v40, v41
-    v43 = ne v42, 0
-    jumpi v43, bb4, bb7
+    v23 = and v20, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v36 = mload 64 !metadata(memory=scratch)
+    v37 = add v36, v23
+    v38 = lt v37, v36
+    v39 = gt v37, 0xffffffffffffffff
+    v40 = or v38, v39
+    jumpi v40, bb4, bb7
   bb7:
-    mstore 64, v38 !metadata(memory=scratch)
-    mstore v37, v19
-    v26 = sub v9, v13
-    v27 = gt v19, v26
-    jumpi v27, bb1, bb6
+    mstore 64, v37 !metadata(memory=scratch)
+    mstore v36, v18
+    v25 = sub v9, v13
+    v26 = gt v18, v25
+    jumpi v26, bb1, bb6
   bb6:
-    v30 = add v37, 32
-    calldatacopy v30, v13, v19
-    v1 = sub v37, 32
+    v29 = add v36, 32
+    calldatacopy v29, v13, v18
+    v1 = sub v36, 32
     mstore v1, 32
-    v2 = mload v37
-    v5 = add v30, v2
+    v2 = mload v36
+    v5 = add v29, v2
     mstore v5, 0
     v6 = add v2, 31
     v7 = and v6, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
@@ -91,11 +87,11 @@ fn @fallback() [abi_wrapper, fallback] {
   bb3:
     v9 = add v0, 63
     v12 = and v9, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v24 = mload 64 !metadata(memory=scratch)
-    v25 = add v24, v12
-    mstore 64, v25 !metadata(memory=scratch)
-    mstore v24, v0
-    v18 = add v24, 32
+    v25 = mload 64 !metadata(memory=scratch)
+    v26 = add v25, v12
+    mstore 64, v26 !metadata(memory=scratch)
+    mstore v25, v0
+    v18 = add v25, 32
     calldatacopy v18, 0, v0
     returndata v18, v0
   bb1:

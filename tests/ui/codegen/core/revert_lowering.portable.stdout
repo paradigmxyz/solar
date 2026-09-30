@@ -44,7 +44,7 @@ fn @maybe() [selector=0x5bab7980, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @raw(arg0: memptr) [may_return_memory, pure] {
+fn @raw(arg0: memptr) [may_return_memory, inline_assembly, pure] {
   bb0:
     v0 = ptrtoint memptr arg0 to i256
     v1 = mload v0

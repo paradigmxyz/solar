@@ -5,7 +5,7 @@
   struct1: {i256, i256, i256, i256, i128, i256}
   struct2: {i72, i72, i72, i256}
 
-fn @slots() -> struct0 [selector=0x48547d69, pure, abi_params=[], abi_returns=[word, word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256, u256]] {
+fn @slots() -> struct0 [selector=0x48547d69, inline_assembly, pure, abi_params=[], abi_returns=[word, word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256, u256]] {
   bb0:
     v0 = insert_value struct0, undef struct0, 0, 0
     v1 = insert_value struct0, v0, 1, 3

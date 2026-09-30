@@ -3,13 +3,13 @@
 @types
   struct0: {i256, i256}
 
-fn @getArray() -> i256 [pure] {
+fn @getArray() -> i256 [inline_assembly, pure] {
   bb0:
     v0 = sub 0, 1
     ret v0
 }
 
-fn @getCanary() -> i256 [pure] {
+fn @getCanary() -> i256 [inline_assembly, pure] {
   bb0:
     ret 2
 }

@@ -188,7 +188,7 @@ bb6:
   push 0
   return
 bb18:
-  push 224
+  push 256
   push 64
   mstore
   push 0
@@ -196,7 +196,7 @@ bb18:
   mstore
   push 64
   mload
-  push 256
+  dup 1
   dup 2
   add
   push 64
@@ -257,7 +257,8 @@ bb18:
   swap 3
   pop
   pop
-  swap 1
+  push 224
+  mstore
   iszero
   push bb26
   jumpi
@@ -284,13 +285,12 @@ bb18:
   push 0
   push 4
   dup 4
-  dup 7
+  push 224
+  mload
   gas
   staticcall
-  swap 3
-  pop
-  pop
   swap 1
+  pop
   iszero
   push bb26
   jumpi

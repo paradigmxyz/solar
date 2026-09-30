@@ -99,28 +99,28 @@ fn @encodeConstantCast() -> i256 [selector=0x355fad3a, pure, abi_params=[], abi_
     ret v4
 }
 
-fn @lenPlus(arg0: memptr, arg1: i256) -> i256 [pure] {
+fn @lenPlus(arg0: memorybytes, arg1: i256) -> i256 [pure] {
   bb0:
     v0 = memory_object_len memorybytes, arg0
     v1 = checked_add u256, v0, arg1
     ret v1
 }
 
-fn @lenBytes(arg0: memptr) -> i256 [pure] {
+fn @lenBytes(arg0: memorybytes) -> i256 [pure] {
   bb0:
     v0 = memory_object_len memorybytes, arg0
     ret v0
 }
 
-fn @firstWord(arg0: memptr) -> i256 [pure] {
+fn @firstWord(arg0: memorybytes) -> i256 [inline_assembly, pure] {
   bb0:
-    v0 = ptrtoint memptr arg0 to i256
+    v0 = ptrtoint memorybytes arg0 to i256
     v1 = add v0, 32
     v2 = mload v1
     ret v2
 }
 
-fn @literal_bytes_0() -> memptr {
+fn @literal_bytes_0() -> memorybytes {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 40

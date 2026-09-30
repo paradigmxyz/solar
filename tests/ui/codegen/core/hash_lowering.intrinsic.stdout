@@ -30,20 +30,20 @@ fn @hash() [selector=0x00d07523, abi_wrapper, pure] {
     jumpi v22, bb6, bb7
   bb7:
     v24 = and v21, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v38 = mload 64 !metadata(memory=scratch)
-    v39 = add v38, v24
-    v40 = lt v39, v38
-    v41 = gt v39, 0xffffffffffffffff
-    v42 = or v40, v41
-    jumpi v42, bb6, bb9
+    v39 = mload 64 !metadata(memory=scratch)
+    v40 = add v39, v24
+    v41 = lt v40, v39
+    v42 = gt v40, 0xffffffffffffffff
+    v43 = or v41, v42
+    jumpi v43, bb6, bb9
   bb9:
-    mstore 64, v39 !metadata(memory=scratch)
-    mstore v38, v19
+    mstore 64, v40 !metadata(memory=scratch)
+    mstore v39, v19
     v26 = sub v10, v14
     v27 = gt v19, v26
     jumpi v27, bb3, bb8
   bb8:
-    v32 = add v38, 32
+    v32 = add v39, 32
     calldatacopy v32, v14, v19
     v1 = add arg1, arg2
     v2 = lt v1, arg1

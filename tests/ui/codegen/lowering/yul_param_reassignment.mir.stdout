@@ -4,16 +4,16 @@
 
 // === ROOT/tests/ui/codegen/lowering/yul_param_reassignment.sol:YulParamReassignment ===
 @module YulParamReassignment
-fn @indexOf.0(arg0: memptr, arg1: memptr, arg2: i256) -> i256 [selector=0x86e2d68c, pure, abi_params=[bytes, bytes, u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @indexOf.0(arg0: memorybytes, arg1: memorybytes, arg2: i256) -> i256 [selector=0x86e2d68c, pure, abi_params=[bytes, bytes, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @indexOf.1, arg0, arg1, arg2
     ret v0
 }
 
-fn @indexOf.1(arg0: memptr, arg1: memptr, arg2: i256) -> i256 [pure] {
+fn @indexOf.1(arg0: memorybytes, arg1: memorybytes, arg2: i256) -> i256 [inline_assembly, pure] {
   bb0:
     v0 = not 0
-    v1 = ptrtoint memptr arg0 to i256
+    v1 = ptrtoint memorybytes arg0 to i256
     v2 = mload v1
     jump bb1
   bb1:
@@ -27,7 +27,7 @@ fn @indexOf.1(arg0: memptr, arg1: memptr, arg2: i256) -> i256 [pure] {
   bb4:
     jump bb2
   bb3:
-    v9 = ptrtoint memptr v7 to i256
+    v9 = ptrtoint memorybytes v7 to i256
     v10 = mload v9
     v11 = eq v10, 0
     v12 = zext i1 v11 to i256
@@ -36,9 +36,9 @@ fn @indexOf.1(arg0: memptr, arg1: memptr, arg2: i256) -> i256 [pure] {
   bb7:
     jump bb8
   bb8:
-    v19 = ptrtoint memptr v7 to i256
+    v19 = ptrtoint memorybytes v7 to i256
     v20 = mload v19
-    v21 = ptrtoint memptr v4 to i256
+    v21 = ptrtoint memorybytes v4 to i256
     v22 = add v21, 32
     v23 = add v22, v5
     v24 = add v22, v6
@@ -47,7 +47,7 @@ fn @indexOf.1(arg0: memptr, arg1: memptr, arg2: i256) -> i256 [pure] {
     v27 = and v20, 31
     v28 = sub 32, v27
     v29 = shl 3, v28
-    v30 = ptrtoint memptr v7 to i256
+    v30 = ptrtoint memorybytes v7 to i256
     v31 = add v30, 32
     v32 = mload v31
     v33 = lt v5, v6
@@ -119,10 +119,10 @@ fn @indexOf.1(arg0: memptr, arg1: memptr, arg2: i256) -> i256 [pure] {
   bb33:
     v104 = phi [bb37: v97], [bb40: v84], [bb35: v84]
     v105 = phi [bb37: v86], [bb40: v98], [bb35: v86]
-    v109 = inttoptr i256 v105 to memptr
+    v109 = inttoptr i256 v105 to memorybytes
     jump bb2
   bb15:
-    v46 = ptrtoint memptr v7 to i256
+    v46 = ptrtoint memorybytes v7 to i256
     v47 = add v46, 32
     v48 = keccak256 v47, v20
     jump bb18
@@ -184,10 +184,10 @@ fn @indexOf.1(arg0: memptr, arg1: memptr, arg2: i256) -> i256 [pure] {
   bb19:
     v78 = phi [bb26: v71], [bb29: v54], [bb21: v54]
     v79 = phi [bb26: v56], [bb29: v72], [bb21: v56]
-    v108 = inttoptr i256 v79 to memptr
+    v108 = inttoptr i256 v79 to memorybytes
     jump bb2
   bb12:
-    v107 = inttoptr i256 v23 to memptr
+    v107 = inttoptr i256 v23 to memorybytes
     jump bb2
   bb6:
     v14 = gt v5, v6

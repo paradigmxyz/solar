@@ -14,7 +14,7 @@ types:
   struct0: {i256, memptr}
   struct1: {i256, i256}
 
-fn @spawn() [selector=0x0da0cf17, abi_wrapper] {
+fn @spawn() [selector=0x0da0cf17, abi_wrapper, inline_assembly] {
   bb0:
     v19 = calldatasize
     v20 = lt v19, 36
@@ -35,32 +35,32 @@ fn @spawn() [selector=0x0da0cf17, abi_wrapper] {
     jumpi v3, bb2, bb3
   bb3:
     v5 = and v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v56 = mload 64 !metadata(memory=scratch)
-    v57 = add v56, v5
-    v58 = lt v57, v56
-    v59 = gt v57, 0xffffffffffffffff
-    v60 = or v58, v59
-    jumpi v60, bb8, bb7
+    v55 = mload 64 !metadata(memory=scratch)
+    v56 = add v55, v5
+    v57 = lt v56, v55
+    v58 = gt v56, 0xffffffffffffffff
+    v59 = or v57, v58
+    jumpi v59, bb8, bb7
   bb7:
-    mstore 64, v57 !metadata(memory=scratch)
-    v62 = calldatasize
-    calldatacopy v56, v62, v5
-    mstore v56, v1
-    v54 = add v56, 32
+    mstore 64, v56 !metadata(memory=scratch)
+    v61 = calldatasize
+    calldatacopy v55, v61, v5
+    mstore v55, v1
+    v54 = add v55, 32
     extcodecopy v13, v54, 0, v1
-    v29 = ne v56, 0
+    v29 = ne v55, 0
     v30 = zext i1 v29 to i256
     v31 = mul v1, v30
     v33 = add v31, 31
     v35 = and v33, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v37 = add v54, v35
     mstore v37, 0
-    v39 = add v56, 64
+    v39 = add v55, 64
     mcopy v39, v54, v31
-    mstore v56, 32
+    mstore v55, 32
     mstore v54, v31
     v43 = add v35, 64
-    returndata v56, v43
+    returndata v55, v43
   bb8:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
@@ -90,32 +90,32 @@ fn @spawnAt() [selector=0x9639302c, abi_wrapper] {
     jumpi v3, bb1, bb2
   bb2:
     v5 = and v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v40 = mload 64 !metadata(memory=scratch)
-    v41 = add v40, v5
-    v42 = lt v41, v40
-    v43 = gt v41, 0xffffffffffffffff
-    v44 = or v42, v43
-    jumpi v44, bb6, bb5
+    v39 = mload 64 !metadata(memory=scratch)
+    v40 = add v39, v5
+    v41 = lt v40, v39
+    v42 = gt v40, 0xffffffffffffffff
+    v43 = or v41, v42
+    jumpi v43, bb6, bb5
   bb5:
-    mstore 64, v41 !metadata(memory=scratch)
-    v46 = calldatasize
-    calldatacopy v40, v46, v5
-    mstore v40, v1
-    v38 = add v40, 32
+    mstore 64, v40 !metadata(memory=scratch)
+    v45 = calldatasize
+    calldatacopy v39, v45, v5
+    mstore v39, v1
+    v38 = add v39, 32
     extcodecopy v0, v38, 0, v1
-    v19 = ne v40, 0
+    v19 = ne v39, 0
     v20 = zext i1 v19 to i256
     v21 = mul v1, v20
     v23 = add v21, 31
     v25 = and v23, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v27 = add v38, v25
     mstore v27, 0
-    v29 = add v40, 64
+    v29 = add v39, 64
     mcopy v29, v38, v21
-    mstore v40, 32
+    mstore v39, 32
     mstore v38, v21
     v33 = add v25, 64
-    returndata v40, v33
+    returndata v39, v33
   bb6:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
@@ -161,7 +161,7 @@ fn @predicted() [selector=0x1aab0aa1, abi_wrapper] {
     revert 0, 0
 }
 
-fn @attempt() [selector=0xa95d7aa6, abi_wrapper] {
+fn @attempt() [selector=0xa95d7aa6, abi_wrapper, inline_assembly] {
   bb0:
     v23 = calldatasize
     v24 = lt v23, 36
@@ -314,7 +314,7 @@ fn @twice() [selector=0x8cf98279, abi_wrapper] {
     revert 0, 0
 }
 
-fn @deploy2(arg0: memptr, arg1: i256) -> i256 [may_return_memory] {
+fn @deploy2(arg0: memptr, arg1: i256) -> i256 [may_return_memory, inline_assembly] {
   bb0:
     v0 = ptrtoint memptr arg0 to i256
     v1 = mload v0
@@ -333,7 +333,7 @@ fn @deploy2(arg0: memptr, arg1: i256) -> i256 [may_return_memory] {
     revert v17, 4
 }
 
-fn @tryDeploy2(arg0: memptr, arg1: i256, arg2: i256) -> struct1 [may_return_memory, return_abi=[i256, i256]] {
+fn @tryDeploy2(arg0: memptr, arg1: i256, arg2: i256) -> struct1 [may_return_memory, inline_assembly, return_abi=[i256, i256]] {
   bb0:
     v0 = ptrtoint memptr arg0 to i256
     v1 = mload v0
