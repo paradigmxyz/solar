@@ -11,3 +11,7 @@ tests/foundry/**/cache*/
 tests/foundry/**/out*/
 crates/codegen/testdata/**/cache*/
 crates/codegen/testdata/**/out*/
+
+# Local agent skill installations
+.agents/
+skills-lock.json

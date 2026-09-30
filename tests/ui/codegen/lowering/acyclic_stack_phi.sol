@@ -8,7 +8,8 @@ contract AcyclicStackPhi {
     // CHECK-NEXT: push [[MERGE:bb[0-9]+]]
     // CHECK-NEXT: jumpi
     // CHECK: [[MERGE]]{{.*}}
-    // CHECK: dup 1
+    // CHECK: push 128
+    // CHECK-NEXT: mstore
     function trimLen(bytes calldata data) external pure returns (uint256) {
         return trim(data).length;
     }

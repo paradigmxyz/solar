@@ -1,0 +1,58 @@
+- // === ROOT/tests/ui/codegen/mir/defer-alloc/call_observes_fmp.mir (before defer-alloc) ===
++ // === ROOT/tests/ui/codegen/mir/defer-alloc/call_observes_fmp.mir (after defer-alloc) ===
+  @module Observer
+  fn @entry() -> i256 [selector=0x01020304] {
+    bb0:
+      v0 = alloc raw, exact, uninitialized, infallible, 32
+      v1 = ptrtoint memptr v0 to i256
+      mstore v1, 42
+      v2 = mload v1
+      v3 = icall @observe
+      v4 = add v2, v3
+      ret v4
+  }
+  
+  fn @observe() -> i256 {
+    bb0:
+      v0 = mload 64
+      ret v0
+  }
+  
+  fn @forwarded() -> i256 [selector=0x01020305] {
+    bb0:
+      v0 = alloc raw, exact, uninitialized, infallible, 32
+      v1 = ptrtoint memptr v0 to i256
+      mstore v1, 42
+      v2 = icall @forward
+      ret v2
+  }
+  
+  fn @forward() -> i256 {
+    bb0:
+      tail_call @observe
+  }
+  
+  fn @tail() [selector=0x01020306] {
+    bb0:
+      v0 = alloc raw, exact, uninitialized, infallible, 32
+      v1 = ptrtoint memptr v0 to i256
+      mstore v1, 42
+      tail_call @observe
+  }
+  
+  fn @scalar() -> i256 [selector=0x01020307] {
+    bb0:
+-     v0 = alloc raw, exact, uninitialized, infallible, 32
++     v0 = alloc raw, exact, uninitialized, infallible, 32 !metadata(deferred_alloc)
+      v1 = ptrtoint memptr v0 to i256
+      mstore v1, 42
+      v2 = mload v1
+      v3 = icall @identity, v2
+      ret v3
+  }
+  
+  fn @identity(arg0: i256) -> i256 {
+    bb0:
+      ret arg0
+  }
+  

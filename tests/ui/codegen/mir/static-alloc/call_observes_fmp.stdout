@@ -137,9 +137,8 @@
   
   fn @dereferencing_caller() -> i256 [selector=0x01020306] {
     bb0:
--     v0 = alloc raw, exact, uninitialized, infallible, 32
--     v1 = ptrtoint memptr v0 to i256
-+     v1 = ptrtoint memptr 128 to i256
+      v0 = alloc raw, exact, uninitialized, infallible, 32
+      v1 = ptrtoint memptr v0 to i256
       mstore v1, 7
       v2 = icall @dereferences, v1
       ret v2
@@ -205,9 +204,8 @@
   
   fn @iterating_caller() -> i256 [selector=0x01020309] {
     bb0:
--     v0 = alloc raw, exact, uninitialized, infallible, 32
--     v1 = ptrtoint memptr v0 to i256
-+     v1 = ptrtoint memptr 128 to i256
+      v0 = alloc raw, exact, uninitialized, infallible, 32
+      v1 = ptrtoint memptr v0 to i256
       mstore v1, 7
       v2 = icall @iterates, v1
       ret v2

@@ -185,19 +185,20 @@ bb8 [cold]:
   push 0
   revert
 bb10:
-  push 192
-  push 64
-  mstore
-  push 0
   push 160
-  mstore
+  dup 1
   push 64
-  mload
-  push 256
+  mstore
+  push 288
   dup 2
   add
   push 64
   mstore
+  push 0
+  dup 2
+  mstore
+  push 32
+  add
   push 255
   push_data CodeTarget_initcode_0
   dup 3
@@ -239,10 +240,10 @@ bb10:
   swap 1
   extcodehash
   eq
-  push 0
+  push 128
   mstore
   push 32
-  push 0
+  push 128
   return
 
 @data CodeTarget_initcode_0 hex"34600d5760ee8060115f395ff35b5f5ffd34601d575f3560e01c80633fa4f245146021578063a878f85814602c575b5f5ffd5b600760805260206080f35b60808060405260a081016040528081526020810181606e823981151560071b601f8101601f19168083015f9052604084018284825e5060208452915260400181f3112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00"

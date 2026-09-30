@@ -1,5 +1,9 @@
-//@ compile-flags: -Ogas -Zmir-pipeline=inline-single-use
-//@ filecheck:
+//@ revisions: single general
+//@ compile-flags: -Ogas
+//@[single] compile-flags: -Zmir-pipeline=inline-single-use
+//@[general] compile-flags: -Zmir-pipeline=inline
+//@[single] filecheck: --check-prefixes=CHECK,SINGLE
+//@[general] filecheck: --check-prefixes=CHECK,GENERAL
 @module StackBudget
 
 // A small acyclic helper fits beside the one word surviving its sole call.
@@ -62,9 +66,12 @@ fn @wide_choose(arg0: i1, arg1: i256) -> i256 {
 
 // Backward liveness bounds a read-only loop helper too, so its sole call
 // inlines with the loop-carried phi.
+// A loop-containing helper stays shared in every mode: cloning a loop nests
+// its carried words inside the caller, which measured gas regressions even
+// when the call site is outside a caller loop.
 // CHECK-LABEL: fn @loop_caller
-// CHECK: - {{v[0-9]+}} = icall @loop_body
-// CHECK: + {{v[0-9]+}} = phi [{{bb[0-9]+}}: 0], [{{bb[0-9]+}}: {{v[0-9]+}}]
+// SINGLE: {{^ +}}v0 = icall @loop_body
+// GENERAL: {{^ +}}v0 = icall @loop_body
 fn @loop_caller(arg0: i256) -> i256 [selector=0x01020306] {
   bb0:
     v0 = icall @loop_body, arg0

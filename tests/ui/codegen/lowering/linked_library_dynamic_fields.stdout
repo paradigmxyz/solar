@@ -39,7 +39,7 @@ bb1:
   eq
   push bb3
   jumpi
-  push 320
+  push 160
   push 64
   mstore
   push 68
@@ -67,7 +67,13 @@ bb1:
   gt
   push bb3
   jumpi
-  push 160
+  push 64
+  mload
+  dup 1
+  dup 2
+  add
+  push 64
+  mstore
   dup 2
   calldataload
   dup 2

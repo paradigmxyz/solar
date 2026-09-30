@@ -198,24 +198,14 @@ fn @oversizedCopy() [selector=0x1e820d5e, abi_wrapper, pure] {
 
 fn @zeroTripHeader() [selector=0xe0b1133b, abi_wrapper, pure] {
   bb0:
-    v11 = calldatasize
-    v12 = lt v11, 36
-    jumpi v12, bb4, bb5
-  bb5:
-    jump bb2
+    v3 = calldatasize
+    v4 = lt v3, 36
+    jumpi v4, bb1, bb2
   bb2:
-    v3 = phi [bb5: 0], [bb3: v9]
-    v4 = phi [bb5: 0], [bb3: v6]
-    v5 = lt v3, arg0
-    jumpi v5, bb3, bb1
-  bb1:
-    mstore 128, v4
+    v2 = icall @readHeaders, memptr 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, arg0
+    mstore 128, v2
     returndata 128, 32
-  bb3:
-    v6 = mload 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v9 = add v3, 1
-    jump bb2
-  bb4:
+  bb1:
     revert 0, 0
 }
 
@@ -371,6 +361,23 @@ fn @_slice(arg0: memptr, arg1: i256, arg2: i256) -> memptr [may_return_memory, p
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
     revert 28, 36
+}
+
+fn @readHeaders(arg0: memptr, arg1: i256) -> i256 [may_return_memory, pure] {
+  bb0:
+    v9 = ptrtoint memptr arg0 to i256
+    jump bb1
+  bb1:
+    v1 = phi [bb0: 0], [bb3: v7]
+    v3 = phi [bb0: 0], [bb3: v5]
+    v4 = lt v1, arg1
+    jumpi v4, bb3, bb2
+  bb2:
+    ret v3
+  bb3:
+    v5 = mload v9
+    v7 = add v1, 1
+    jump bb1
 }
 
 fn @copyObject(arg0: memptr, arg1: i256) -> memptr [may_return_memory, pure] {

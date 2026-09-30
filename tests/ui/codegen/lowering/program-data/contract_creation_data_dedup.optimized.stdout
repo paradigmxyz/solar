@@ -125,19 +125,20 @@ bb26 [cold]:
   push 0
   revert
 bb6:
-  push 192
-  push 64
-  mstore
-  push 0
   push 160
-  mstore
+  dup 1
   push 64
-  mload
-  push 256
+  mstore
+  push 288
   dup 2
   add
   push 64
   mstore
+  push 0
+  dup 2
+  mstore
+  push 32
+  add
   push 255
   push_data Child_initcode_0
   dup 3
@@ -182,25 +183,26 @@ bb6:
   jumpi
   push 0
   mload
-  push 0
+  push 128
   mstore
   push 32
-  push 0
+  push 128
   return
 bb18:
-  push 256
-  push 64
-  mstore
-  push 0
-  push 160
-  mstore
-  push 64
-  mload
+  push 192
   dup 1
+  push 64
+  mstore
+  push 288
   dup 2
   add
   push 64
   mstore
+  push 0
+  dup 2
+  mstore
+  push 32
+  add
   push 255
   push_data Child_initcode_0
   dup 3
@@ -213,16 +215,18 @@ bb18:
   iszero
   push bb26
   jumpi
-  push 0
-  push 192
-  mstore
   push 64
   mload
-  push 256
+  push 288
   dup 2
   add
   push 64
   mstore
+  push 0
+  dup 2
+  mstore
+  push 32
+  add
   push 255
   push_data Child_initcode_0
   dup 3
@@ -257,7 +261,7 @@ bb18:
   swap 3
   pop
   pop
-  push 224
+  push 160
   mstore
   iszero
   push bb26
@@ -285,7 +289,7 @@ bb18:
   push 0
   push 4
   dup 4
-  push 224
+  push 160
   mload
   gas
   staticcall

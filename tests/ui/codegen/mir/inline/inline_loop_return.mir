@@ -2,12 +2,9 @@
 //@filecheck: --enable-var-scope
 @module InlineLoopReturn
 
+// The general pass leaves frame-backed loops to dedicated adapters.
 // CHECK-LABEL: @caller
-// CHECK: -     {{v[0-9]+}} = icall @callee
-// CHECK: +     jump
-// CHECK: +     [[CONT:v[0-9]+]] = phi
-// CHECK: +     [[RESULT:v[0-9]+]] = add [[CONT]], 1
-// CHECK:       ret [[RESULT]]
+// CHECK: {{^ +}}{{v[0-9]+}} = icall @callee
 fn @caller() -> i256 [selector=0x01020304] {
   bb0:
     v0 = icall @callee, 4

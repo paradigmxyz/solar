@@ -100,18 +100,8 @@
   
   fn @tiny_stateful_caller(arg0: i256, arg1: i256) {
     bb0:
--     icall @tiny_stateful_callee, arg0
--     icall @tiny_stateful_callee, arg1
-+     jump bb2
-+   bb2:
-+     sstore 0, arg0
-+     jump bb1
-+   bb1:
-+     jump bb4
-+   bb4:
-+     sstore 0, arg1
-+     jump bb3
-+   bb3:
+      icall @tiny_stateful_callee, arg0
+      icall @tiny_stateful_callee, arg1
       stop
   }
   
@@ -131,37 +121,8 @@
   
   fn @large_shared_tail(arg0: i256) -> i256 {
     bb0:
--     v0 = icall @large_shared_callee, arg0
--     ret v0
-+     jump bb2
-+   bb2:
-+     jump bb3
-+   bb3:
-+     jump bb4
-+   bb4:
-+     jump bb5
-+   bb5:
-+     jump bb6
-+   bb6:
-+     jump bb7
-+   bb7:
-+     jump bb8
-+   bb8:
-+     jump bb9
-+   bb9:
-+     jump bb10
-+   bb10:
-+     jump bb11
-+   bb11:
-+     jump bb12
-+   bb12:
-+     jump bb13
-+   bb13:
-+     v1 = add arg0, 1
-+     jump bb1
-+   bb1:
-+     v2 = phi [bb13: v1]
-+     ret v2
+      v0 = icall @large_shared_callee, arg0
+      ret v0
   }
   
   fn @large_shared_callee(arg0: i256) -> i256 {
