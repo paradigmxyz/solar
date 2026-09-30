@@ -450,30 +450,58 @@ serialized while it is active so output is deterministic.
 
 ## Optimizations
 
-The facts enable transformations no local pass can justify. Each needs runtime or
-differential coverage.
+`StorageFacts` (`facts.rs`) snapshots the storage path analysis for one module and answers,
+for any instruction, which paths it may read or write. Internal calls answer with their
+callee's summary instantiated at the call site. Static calls write nothing. External calls
+whose target cannot call back (precompiles, and `new C()` or constant and immutable
+addresses whose known code has no call instructions) touch no storage of this contract. Any other call
+may re-enter and touch whatever a runtime entry touches. Delegate calls touch everything.
+Passes compute the facts at entry and do not consult them for instructions they create.
+Querying facts never changes bytecode by itself (`crates/solar/tests/it/dataflow.rs`).
 
-1. **Storage forwarding across calls.** Keep a loaded slot's value across an internal
-   call whose summary does not write it, across a static call, and across an external
-   call whose target cannot call back or whose reentrant entries cannot write the slot
-   under the current guards. Today storage load CSE forgets everything at calls whose
-   exact-slot footprint is unknown.
-2. **Reentrancy guard removal.** When no call between a lock's set and reset can call
-   back, the set and reset are unobservable: remove both stores and forward the lock
-   value to reads in between. The check stays unless every guarded region qualifies.
-3. **Cross-function check elimination.** Use call-string contexts with an interval
-   domain to prove that every caller passes arguments that make a callee's check or
-   overflow test redundant, then drop it in the callee.
+1. **Storage forwarding across calls** (`storage-load-cse`). A cached load survives a call
+   whose footprint cannot write its paths. Before this, the pass forgot every load at a
+   call. Test: `tests/ui/codegen/mir/storage-load-cse/across_calls.mir`.
+2. **Interprocedural and path-identity dead-store elimination** (`storage-dse`). A call
+   kills only the pending stores whose paths it may read; stores before a callee that
+   always ends the transaction are removed; stores to equal stable paths count as the same
+   slot even through different SSA slot values. Test:
+   `tests/ui/codegen/mir/storage-dse/across_calls.mir`.
+3. **Guard removal** (`guard-elim`, gas mode only, after the late storage DSE). It finds an
+   exact-slot store and every restore of the slot's prior value that it dominates. If no
+   instruction in between can call back into the contract or touch the slot in another
+   way, it deletes both stores and replaces reads with the stored value. The entry check
+   of the guard stays. Functions with gas observations are skipped. Tests:
+   `tests/ui/codegen/mir/guard-elim/guard_elim.mir` and `runtime.sol`, a run-call test
+   in which a guard around a call that can call back keeps reverting with `locked`.
 
-Measured upper bounds on the runtime corpus (baseline `8f8a48994`, `-O gas`): the final
-MIR of the 23 cases with artifacts contains 137 `sload` and 82 `sstore` instructions in
-total (static counts); 15 cases have at most four `sload`s, and 7 have none. Only `uniswap-v2-pair` uses
-a reentrancy guard, and its workload measures compilation only, so guard removal cannot
-change measured gas. Every transaction pays the 21,000 intrinsic gas, and per-call
-totals are dominated by it and by cold storage. A warm reload costs 100 gas and a
-removed restore-to-original `sstore` pair saves about 200 gas after refunds, so the
-storage transforms cannot reach 10% on this corpus; the later milestone reports the
-measured results.
+Cross-function check elimination (feeding interval contexts into `check-elim`) is not
+implemented.
+
+### Measured results
+
+Runtime benchmark suite (`benches/runtime/benchmark.py --suite all --gas --gas-profile
+hot`, baseline `8f8a48994`, candidate `f52073a41`): runtime gas totals 35,183,821 in both
+runs over the 23 comparable cases, a 0% change, and runtime bytes are unchanged in every
+case. `uniswap-v2-pair` fails to compile in both runs (Yul `chainid` without
+parentheses). The final MIR of the corpus contains only 137 `sload` and 82 `sstore`
+instructions in total, and none of them match the patterns above: no guarded region, no
+load reused after a call, no dead store across a call.
+
+Targeted contracts, measured on anvil with `-O gas`:
+
+| Contract | Call | Before | After | Saved |
+| --- | --- | ---: | ---: | ---: |
+| `nonReentrant` counter, call target cannot call back | `deposit` (first) | 71,113 | 70,774 | 339 |
+| same | `deposit` (warm) | 36,913 | 36,574 | 339 |
+| same | `bumpAndRead` | 31,317 | 31,108 | 209 |
+| store forwarding across an internal call | `writes(3)` (first) | 89,052 | 88,902 | 150 |
+| same | `writes(3)` (warm) | 30,202 | 30,002 | 200 |
+
+These are 0.2% to 0.7% of the transaction. Every transaction pays 21,000 intrinsic gas. A
+warm reload costs 100 gas, and after EIP-2200/3529 refunds a set/restore pair costs
+about 200 gas plus the pushes and jumps it needs. Storage transforms therefore cannot save
+10% of a transaction's gas unless a loop repeats the eliminated accesses.
 
 ## Milestones
 
@@ -482,8 +510,8 @@ measured results.
 | M0 | This design | done |
 | M1 | Framework core, storage paths, taint, reentrancy with path-sensitive guards, cross-contract trust, `-Zdataflow` dumps, Slither #515 and Sailfish tests | done |
 | M2 | Abstract-domain plug-in API with intervals, rounding direction, and units, NatSpec seeds, and narrowing | done |
-| M3 | Storage forwarding across calls, guard removal, cross-function check elimination, with runtime tests and benchmark measurements | planned |
-| Later | Summaries for public library functions reached through `delegatecall`; privileged origins through role mappings | planned |
+| M3 | Storage facts for passes; storage forwarding across calls, interprocedural DSE, guard removal, with runtime tests and benchmark measurements | done |
+| Later | Cross-function check elimination; summaries for public library functions reached through `delegatecall`; privileged origins through role mappings | planned |
 
 ## Limitations
 
