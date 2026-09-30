@@ -461,9 +461,12 @@ impl<'a, 'gcx> ContractJobs<'a, 'gcx> {
     /// Lowers, optimizes, and schedules a contract whose embedded bytecode stays deferred.
     fn schedule(&self, contract_id: ContractId) -> Result<ScheduledContract<'gcx>> {
         let Self { gcx, captures, graph, .. } = *self;
-        let contract = gcx.contract_fully_qualified_name(contract_id);
-        let _span =
-            tracing::debug_span!(parent: &self.span, "schedule_contract", %contract).entered();
+        let _span = tracing::debug_span!(
+            parent: &self.span,
+            "schedule_contract",
+            contract = %gcx.contract_fully_qualified_name(contract_id)
+        )
+        .entered();
         let mut module = lower::lower_contract(gcx, contract_id);
         gcx.dcx().has_errors()?;
         let capture_mir = captures.mir.contains(contract_id);
@@ -504,9 +507,12 @@ impl<'a, 'gcx> ContractJobs<'a, 'gcx> {
         scheduled: ScheduledContract<'gcx>,
     ) -> Result<ContractArtifact> {
         let Self { gcx, captures, graph, .. } = *self;
-        let contract = gcx.contract_fully_qualified_name(contract_id);
-        let _span =
-            tracing::debug_span!(parent: &self.span, "finish_contract", %contract).entered();
+        let _span = tracing::debug_span!(
+            parent: &self.span,
+            "finish_contract",
+            contract = %gcx.contract_fully_qualified_name(contract_id)
+        )
+        .entered();
         let ScheduledContract { module, codegen, built_mir } = scheduled;
         let children = graph.dependencies[contract_id]
             .iter()
