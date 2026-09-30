@@ -439,13 +439,20 @@ impl<'hir> Hir<'hir> {
 
     /// Returns the span of the `@custom:solar-inline` tag on a state variable's declaration.
     pub fn solar_inline(&self, id: VariableId) -> Option<Span> {
+        self.variable_tag(id, sym::solar_dash_inline)
+    }
+
+    /// Returns the span of the `@custom:solar-bitmap` tag on a state variable's declaration.
+    pub fn solar_bitmap(&self, id: VariableId) -> Option<Span> {
+        self.variable_tag(id, sym::solar_dash_bitmap)
+    }
+
+    /// Returns the span of the custom tag `tag` on a state variable's declaration.
+    fn variable_tag(&self, id: VariableId, tag: Symbol) -> Option<Span> {
         let doc = self.doc(self.variable(id).doc);
         doc.ast_comments.iter().flat_map(|comment| comment.natspec.iter()).find_map(|natspec| {
-            matches!(
-                natspec.kind,
-                ast::NatSpecKind::Custom { name } if name.name == sym::solar_dash_inline
-            )
-            .then_some(natspec.span)
+            matches!(natspec.kind, ast::NatSpecKind::Custom { name } if name.name == tag)
+                .then_some(natspec.span)
         })
     }
 }

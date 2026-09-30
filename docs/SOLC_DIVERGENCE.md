@@ -337,11 +337,13 @@ No intentional divergences documented yet.
   of at `keccak256(key . slot)` with its own slot. A dynamic array documented
   `@custom:solar-inline` keeps its length in the top byte of its slot and its
   elements below it while they fit, and has the standard layout once it grows
-  past them. Raw storage, as inline assembly or `eth_getStorageAt` reads it,
-  differs from solc's; every Solidity-level read and write gives the same
-  results. The `storageLayout` output keeps each variable's standard entry and
-  describes the fused records under `fused` and the inline arrays under
-  `inline`.
+  past them. A mapping documented `@custom:solar-bitmap` keeps the value for key
+  `k` in bit `k % 256` of the word at `keccak256((k / 256) . slot)`. Raw
+  storage, as inline assembly or `eth_getStorageAt` reads it, differs from
+  solc's; every Solidity-level read and write gives the same results. The
+  `storageLayout` output keeps each variable's standard entry and describes the
+  fused records under `fused`, the inline arrays under `inline` and the bitmap
+  mappings under `bitmaps`.
 - Rationale: the tags are explicit requests for a denser layout, which saves
   the storage words a key would otherwise occupy. The compiler rejects the
   uses that would observe the standard layout of a tagged variable: a storage
@@ -350,6 +352,9 @@ No intentional divergences documented yet.
   the tags.
 - Coverage: `tests/ui/codegen/lowering/run-call/storage_fused_mappings.sol`,
   `tests/ui/codegen/lowering/run-call/storage_inline_arrays.sol`,
+  `tests/ui/codegen/lowering/run-call/storage_bitmap_mappings.sol`,
   `tests/ui/typeck/solar_fuse.sol`, `tests/ui/typeck/solar_inline.sol`,
+  `tests/ui/typeck/solar_bitmap.sol`,
   `tests/ui/standard-json/storage-layout-fused/`,
-  `tests/ui/standard-json/storage-layout-inline/`.
+  `tests/ui/standard-json/storage-layout-inline/`,
+  `tests/ui/standard-json/storage-layout-bitmap/`.

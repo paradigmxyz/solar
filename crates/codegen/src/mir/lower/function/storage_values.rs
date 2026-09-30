@@ -273,6 +273,22 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         let slot = self.add_storage_offset(record, location.slot);
                         return Some(StorageAccess { slot, location, offset: None });
                     }
+                    if self
+                        .cx
+                        .gcx
+                        .resolved_variable(receiver.peel_parens())
+                        .is_some_and(|id| self.cx.storage.is_bitmap(id))
+                    {
+                        // slot = keccak256((key >> 8) . mapping_slot)
+                        // bit = key & 255
+                        let eight = self.builder.imm(8);
+                        let word = self.builder.shr(eight, index);
+                        let slot = self.builder.mapping_slot(word, base.slot);
+                        let mask = self.builder.imm(255);
+                        let bit = self.builder.and(index, mask);
+                        let location = StorageLocation::bit();
+                        return Some(StorageAccess { slot, location, offset: Some(bit) });
+                    }
                     let slot = self.mapping_slot(index, key, base.slot);
                     if let Some((size, encoding)) = self.cx.storage.packed_encoding(value) {
                         let location = StorageLocation::packed_word(size, encoding);
@@ -1154,7 +1170,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     build_storage_array_helper(
                         function,
                         match encoding {
-                            StorageEncoding::Unsigned => crate::mir::ValueLayout::UInt(size),
+                            StorageEncoding::Unsigned | StorageEncoding::Bit => {
+                                crate::mir::ValueLayout::UInt(size)
+                            }
                             StorageEncoding::Signed => crate::mir::ValueLayout::Int(size),
                             StorageEncoding::FixedBytes => {
                                 crate::mir::ValueLayout::FixedBytes(size)
