@@ -9,6 +9,9 @@ use lsp_types::{
 #[cfg(unix)]
 use std::{fs, os::unix::fs::symlink};
 
+mod nested_repositories;
+mod repository_grants;
+
 async fn assert_dependency_rename_rejected(state: &mut GlobalState, params: RenameParams) {
     assert_rename_rejected(
         state,
