@@ -10,7 +10,7 @@ fn @combine() [selector=0xd9171e32, abi_wrapper, pure] {
     v0 = alloc raw, exact, uninitialized, infallible, 96 !metadata(deferred_alloc)
     v41 = mload 64 !metadata(memory=scratch)
     v42 = add v41, 128
-    mstore 64, v42 !metadata(memory=scratch)
+    mstore 64, v42 !metadata(memory=scratch, preserves_valid_fmp)
     mstore v41, arg0
     v25 = add v41, 32
     mstore v25, 1

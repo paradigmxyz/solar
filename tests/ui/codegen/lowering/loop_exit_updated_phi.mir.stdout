@@ -1,5 +1,68 @@
 // === ROOT/tests/ui/codegen/lowering/loop_exit_updated_phi.sol:Test ===
 @module Test
+fn @nestedExit(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x5d8a2cec, pure, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb3: v6]
+    v1 = phi [bb0: arg0], [bb3: v8]
+    v2 = phi [bb0: arg2], [bb3: v9]
+    v3 = phi [bb0: 0], [bb3: v21]
+    v4 = phi [bb0: arg1], [bb3: v11]
+    v5 = lt v3, v1
+    jumpi v5, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    ret v0
+  bb4:
+    jump bb7
+  bb7:
+    v6 = phi [bb4: v0], [bb9: v19]
+    v7 = phi [bb4: 0], [bb9: v20]
+    v8 = phi [bb4: v1], [bb9: v8]
+    v9 = phi [bb4: v2], [bb9: v9]
+    v10 = phi [bb4: v3], [bb9: v10]
+    v11 = phi [bb4: v4], [bb9: v11]
+    v12 = lt v7, v11
+    jumpi v12, bb10, bb11
+  bb11:
+    jump bb8
+  bb10:
+    v13 = lt v7, v9
+    v14 = eq v13, false
+    jumpi v14, bb13, bb14
+  bb14:
+    jump bb15
+  bb15:
+    v15 = add v7, 1
+    v16 = lt v15, v11
+    jumpi v16, bb16, bb17
+  bb17:
+    jump bb18
+  bb16:
+    v17 = add v7, 1
+    v18 = add v6, v17
+    jump bb18
+  bb18:
+    v19 = phi [bb16: v18], [bb17: v6]
+    jump bb12
+  bb12:
+    jump bb9
+  bb9:
+    v20 = add v7, 1
+    jump bb7
+  bb13:
+    jump bb8
+  bb8:
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v21 = add v10, 1
+    jump bb1
+}
+
 fn @decimal(arg0: i256) -> memorybytes [selector=0xf371efa4, pure, abi_params=[u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
@@ -9,19 +72,19 @@ fn @decimal(arg0: i256) -> memorybytes [selector=0xf371efa4, pure, abi_params=[u
     mstore v1, 0
     jump bb1
   bb1:
-    v3 = phi [bb0: v1], [bb5: v3]
-    v4 = phi [bb0: v1], [bb5: v7]
-    v5 = phi [bb0: arg0], [bb5: v10]
+    v3 = phi [bb0: arg0], [bb5: v10]
+    v4 = phi [bb0: v1], [bb5: v4]
+    v5 = phi [bb0: v1], [bb5: v7]
     v6 = ne 1, 0
     jumpi v6, bb3, bb4
   bb4:
     jump bb2
   bb3:
-    v7 = sub v4, 1
-    v8 = mod v5, 10
+    v7 = sub v5, 1
+    v8 = mod v3, 10
     v9 = add 48, v8
     mstore8 v7, v9
-    v10 = div v5, 10
+    v10 = div v3, 10
     v11 = eq v10, 0
     v12 = zext i1 v11 to i256
     v13 = ne v12, 0
@@ -35,10 +98,10 @@ fn @decimal(arg0: i256) -> memorybytes [selector=0xf371efa4, pure, abi_params=[u
   bb6:
     jump bb2
   bb2:
-    v14 = phi [bb6: v7], [bb4: v4]
-    v15 = phi [bb6: v10], [bb4: v5]
-    v16 = sub v3, v14
-    v17 = sub v14, 32
+    v14 = phi [bb6: v10], [bb4: v3]
+    v15 = phi [bb6: v7], [bb4: v5]
+    v16 = sub v4, v15
+    v17 = sub v15, 32
     mstore v17, v16
     v18 = inttoptr i256 v17 to memorybytes
     ret v18

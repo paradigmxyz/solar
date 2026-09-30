@@ -19,6 +19,63 @@ fn @bindAfterDeclaration(arg0: i256, arg1: i256) -> struct0 [selector=0x605b6474
     ret v6
 }
 
+fn @yulBind(arg0: i256) -> struct0 [selector=0xd5bd9082, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+  bb0:
+    sstore 42, arg0 !metadata(storage=slot(42))
+    v0 = checked_add u256, arg0, 1
+    v1 = add 42, 1
+    sstore v1, v0 !metadata(storage=slot(43))
+    v2 = sload 42 !metadata(storage=slot(42))
+    v3 = icall @readB, 42
+    v4 = insert_value struct0, undef struct0, 0, v2
+    v5 = insert_value struct0, v4, 1, v3
+    ret v5
+}
+
+fn @branchBind(arg0: i256, arg1: i256) -> struct1 [selector=0x3ccc3db5, abi_params=[bool, u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+  bb0:
+    v0 = ne arg0, 0
+    jumpi v0, bb1, bb2
+  bb2:
+    v2 = mapping_slot 2, 0
+    jump bb3
+  bb1:
+    v1 = mapping_slot 1, 0
+    jump bb3
+  bb3:
+    v3 = phi [bb1: v1], [bb2: v2]
+    sstore v3, arg1 !metadata(storage=symbolic(v3))
+    v4 = checked_add u256, arg1, 1
+    v5 = add v3, 1
+    sstore v5, v4 !metadata(storage=offset(v3, 1))
+    v6 = mapping_slot 1, 0
+    v7 = sload v6 !metadata(storage=symbolic(v6))
+    v8 = icall @readB, v3
+    v9 = mapping_slot 2, 0
+    v10 = sload v9 !metadata(storage=symbolic(v9))
+    v11 = insert_value struct1, undef struct1, 0, v7
+    v12 = insert_value struct1, v11, 1, v8
+    v13 = insert_value struct1, v12, 2, v10
+    ret v13
+}
+
+fn @branchBindReturn(arg0: i256, arg1: i256) -> i256 [selector=0x69456020, abi_params=[bool, u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = ne arg0, 0
+    jumpi v0, bb1, bb2
+  bb2:
+    v1 = mapping_slot 2, 0
+    jump bb3
+  bb3:
+    v2 = checked_add u256, arg1, 1
+    v3 = add v1, 1
+    sstore v3, v2 !metadata(storage=offset(v1, 1))
+    v4 = icall @readB, v1
+    ret v4
+  bb1:
+    ret 0
+}
+
 fn @rebind(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> struct0 [selector=0xda61745d, abi_params=[bool, u256, u256, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = mapping_slot arg1, 0
@@ -231,5 +288,136 @@ fn @rebindParameterInner(arg0: i256, arg1: i256, arg2: i256) {
   bb0:
     v0 = mapping_slot arg1, 0
     sstore v0, arg2 !metadata(storage=symbolic(v0))
+    ret
+}
+
+fn @switchBind(arg0: i256, arg1: i256) -> i256 [selector=0x68f229f2, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    switch arg0, default bb5, [0 => bb2, 1 => bb3, 3 => bb4]
+  bb4:
+    revert 0, 0
+  bb3:
+    jump bb1
+  bb2:
+    jump bb1
+  bb5:
+    jump bb1
+  bb1:
+    v0 = phi [bb2: 42], [bb3: 43], [bb5: 44]
+    v1 = add v0, 1
+    sstore v1, arg1 !metadata(storage=offset(v0, 1))
+    v2 = icall @readB, v0
+    ret v2
+}
+
+fn @doWhileBind(arg0: i256) -> i256 [selector=0xe97129c1, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: arg0], [bb4: v0]
+    v1 = phi [bb0: 0], [bb4: v1]
+    v2 = mapping_slot 1, 0
+    jump bb3
+  bb3:
+    jumpi false, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    v3 = add v2, 1
+    sstore v3, v0 !metadata(storage=offset(v2, 1))
+    v4 = icall @readB, v2
+    ret v4
+  bb4:
+    jump bb1
+  bb6:
+    invalid
+}
+
+fn @mayFail(arg0: i256) [selector=0x8aef7752, pure, abi_params=[bool], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    v0 = eq arg0, 0
+    v1 = eq v0, false
+    v2 = eq v1, false
+    v3 = eq v2, false
+    icall revert_if<empty>, v3
+    ret
+}
+
+fn @tryBind(arg0: i256, arg1: i256) -> i256 [selector=0x9a0c8f93, abi_params=[bool, u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = address
+    v1 = gas
+    v2 = eq arg0, 0
+    v3 = eq v2, false
+    v4 = zext i1 v3 to i256
+    v5 = abi_encode [word<bool>], selector 0x8aef775200000000000000000000000000000000000000000000000000000000, args v4
+    v6 = slice_ptr v5
+    v7 = slice_len v5
+    v8 = zext i160 v0 to i256
+    v9 = extcodesize v8
+    v10 = eq v9, 0
+    icall revert_if<target_contract_has_no_code>, v10
+    v11 = zext i160 v0 to i256
+    v12 = staticcall v1, v11, v6, v7, 0, 0
+    jumpi v12, bb1, bb2
+  bb2:
+    jumpi true, bb4, bb5
+  bb5:
+    icall revert_if<empty>, true
+    invalid
+  bb4:
+    v14 = mapping_slot 2, 0
+    jump bb3
+  bb1:
+    v13 = mapping_slot 1, 0
+    jump bb3
+  bb3:
+    v15 = phi [bb1: v13], [bb4: v14]
+    v16 = add v15, 1
+    sstore v16, arg1 !metadata(storage=offset(v15, 1))
+    v17 = icall @readB, v15
+    ret v17
+}
+
+// === ROOT/tests/ui/codegen/lowering/storage_reference_reassignment.sol:BaseQualifiedStorage ===
+@module BaseQualifiedStorage
+
+// === ROOT/tests/ui/codegen/lowering/storage_reference_reassignment.sol:QualifiedStorage ===
+@module QualifiedStorage
+fn @signers(arg0: i256) -> memoryarray [selector=0x736c0d5b, abi_params=[address], abi_returns=[memory_array<word<u160>>], abi_return_params=[array<_, address>]] {
+  bb0:
+    v0 = sload 1 !metadata(storage=slot(1))
+    v1 = gt v0, 0xffffffffffffffff
+    icall panic_if<0x41>, v1
+    v2 = add v0, 1
+    v3 = storage_array_data_slot 1
+    v4 = div v0, 1
+    v5 = add v3, v4
+    v6 = mod v0, 1
+    v7 = mul v6, 20
+    v8 = trunc i256 arg0 to i160
+    v9 = mul v7, 8
+    v10 = shl v9, 0xffffffffffffffffffffffffffffffffffffffff
+    v11 = sload v5 !metadata(storage=symbolic(v5))
+    v12 = not v10
+    v13 = and v11, v12
+    v14 = zext i160 v8 to i256
+    v15 = and v14, 0xffffffffffffffffffffffffffffffffffffffff
+    v16 = shl v9, v15
+    v17 = or v13, v16
+    sstore v5, v17 !metadata(storage=symbolic(v5))
+    sstore 1, v2 !metadata(storage=slot(1))
+    v18 = icall @load_storage_packed_array_20_0, 1
+    ret v18
+}
+
+fn @load_storage_packed_array_20_0(arg0: i256) -> memoryarray {
+  bb0:
+    v0 = load_storage_array u160, arg0
+    ret v0
+}
+
+fn @constructor() [constructor] {
+  bb0:
     ret
 }

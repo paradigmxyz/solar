@@ -9,7 +9,170 @@ fn @double(arg0: i256) -> i256 [selector=0xeee97206, pure, abi_params=[u256], ab
 
 // === ROOT/tests/ui/codegen/lowering/run-call/unused_bound_library_function.sol:UnusedBoundLibraryFunction ===
 @module UnusedBoundLibraryFunction
+fn @constructor() [constructor] {
+  bb0:
+    v0 = address
+    v1 = zext i160 v0 to i256
+    v2 = icall @selfAddress, v1
+    v3 = trunc i256 v2 to i160
+    v4 = address
+    v5 = eq v3, v4
+    v6 = sload 1 !metadata(storage=slot(1))
+    v7 = not 255
+    v8 = and v6, v7
+    v9 = zext i1 v5 to i256
+    v10 = and v9, 255
+    v11 = or v8, v10
+    sstore 1, v11 !metadata(storage=slot(1))
+    ret
+}
+
+fn @receiverEffect() -> i256 [selector=0xc5280f8d, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = icall @next
+    v1 = sload 0 !metadata(storage=slot(0))
+    ret v1
+}
+
+fn @next() -> i256 {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = checked_add u256, v0, 1
+    sstore 0, v1 !metadata(storage=slot(0))
+    ret v1
+}
+
+fn @receiverRevert() [selector=0x2ebfeb9e, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    v0 = icall @fail
+    ret
+}
+
+fn @fail() -> i256 [pure] {
+  bb0:
+    icall revert_if<empty>, true
+    invalid
+}
+
+fn @checkedReceiver() [selector=0x2496b1c7, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
+    set_memory_object_len memoryarray, v0, 1
+    v1 = memory_object_len memoryarray, v0
+    v2 = lt 1, v1
+    v3 = eq v2, false
+    icall panic_if<0x32>, v3
+    v4 = memory_object_load_element memoryarray<1>, v0, 1
+    ret
+}
+
 fn @f(arg0: i256) [selector=0xb3de648b, pure, abi_params=[u256], abi_returns=[], abi_return_params=[]] {
   bb0:
     ret
 }
+
+fn @builtinReferences() -> i256 [selector=0x96f217d0, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    ret 7
+}
+
+fn @freeReceiverEffect() -> i256 [selector=0xe6b85063, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = icall @next
+    v1 = sload 0 !metadata(storage=slot(0))
+    ret v1
+}
+
+fn @tupleReceiverEffect() -> i256 [selector=0x838a913a, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = icall @next
+    v1 = sload 0 !metadata(storage=slot(0))
+    v2 = checked_add u256, v1, 3
+    ret v2
+}
+
+fn @tupleAssignmentEffect() -> i256 [selector=0x2e89541f, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = icall @next
+    v1 = sload 0 !metadata(storage=slot(0))
+    v2 = checked_add u256, v1, 3
+    ret v2
+}
+
+fn @freeReceiverRevert() [selector=0xe1675ff9, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    v0 = icall @fail
+    ret
+}
+
+fn @tupleReceiverRevert() -> i256 [selector=0x48efbf0f, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = icall @fail
+    ret 3
+}
+
+fn @nestedReceiverEffect(arg0: i256) -> i256 [selector=0xa644188c, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = ne arg0, 0
+    jumpi v0, bb1, bb2
+  bb2:
+    v2 = icall @fail
+    jump bb3
+  bb1:
+    v1 = icall @next
+    jump bb3
+  bb3:
+    v3 = phi [bb1: v1], [bb2: v2]
+    v4 = sload 0 !metadata(storage=slot(0))
+    ret v4
+}
+
+fn @freeCheckedReceiver() [selector=0x13dcdc32, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
+    set_memory_object_len memoryarray, v0, 1
+    v1 = memory_object_len memoryarray, v0
+    v2 = lt 1, v1
+    v3 = eq v2, false
+    icall panic_if<0x32>, v3
+    v4 = memory_object_load_element memoryarray<1>, v0, 1
+    ret
+}
+
+fn @attachedThis() -> i256 [selector=0x9c4e0a78, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = sload 1 !metadata(storage=slot(1))
+    v1 = and v0, 255
+    v2 = ne v1, 0
+    jumpi v2, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    v3 = address
+    v4 = zext i160 v3 to i256
+    v5 = icall @selfAddress, v4
+    v6 = trunc i256 v5 to i160
+    v7 = address
+    v8 = eq v6, v7
+    jump bb3
+  bb3:
+    v9 = phi [bb1: v8], [bb2: false]
+    v10 = zext i1 v9 to i256
+    ret v10
+}
+
+fn @identity(arg0: i256) -> i256 [pure] {
+  bb0:
+    ret arg0
+}
+
+fn @selfAddress(arg0: i256) -> i256 [pure] {
+  bb0:
+    v0 = trunc i256 arg0 to i160
+    v1 = zext i160 v0 to i256
+    ret v1
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/unused_bound_library_function.sol:ThisMethods ===
+@module ThisMethods
+@library

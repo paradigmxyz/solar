@@ -5,6 +5,9 @@
 
 //@ run-call: DeepCallArguments::wide 3 => 5253
 
+//@ run-call: DeepCallArguments::check 3 => 600
+//@ run-call: DeepCallArguments::buried 7 => 7
+
 // A static internal call whose computed calldata-slice arguments are not
 // resident when the call is planned: the backend materializes such arguments
 // only to give them a spill slot and must drop the transient stack copy again,
@@ -86,6 +89,78 @@ contract StaticCallTransientArgs {
 }
 
 contract DeepCallArguments {
+    function buried(uint256 seed) external view returns (uint256) {
+        return buriedInner(seed);
+    }
+
+    function buriedInner(uint256 seed) internal view returns (uint256) {
+        uint256 a0;
+        uint256 a1;
+        uint256 a2;
+        uint256 a3;
+        uint256 a4;
+        uint256 a5;
+        uint256 a6;
+        uint256 a7;
+        uint256 a8;
+        uint256 a9;
+        uint256 a10;
+        uint256 a11;
+        uint256 a12;
+        uint256 a13;
+        uint256 a14;
+        uint256 a15;
+        uint256 a16;
+        uint256 a17;
+        uint256 a18;
+        uint256 a19;
+        assembly {
+            a0 := sload(0)
+            a1 := sload(1)
+            a2 := sload(2)
+            a3 := sload(3)
+            a4 := sload(4)
+            a5 := sload(5)
+            a6 := sload(6)
+            a7 := sload(7)
+            a8 := sload(8)
+            a9 := sload(9)
+            a10 := sload(10)
+            a11 := sload(11)
+            a12 := sload(12)
+            a13 := sload(13)
+            a14 := sload(14)
+            a15 := sload(15)
+            a16 := sload(16)
+            a17 := sload(17)
+            a18 := sload(18)
+            a19 := sload(19)
+        }
+        unchecked {
+            return seed + a0 + a1 + a2 + a3 + a4 + a5 + a6 + a7 + a8 + a9 + a10 + a11 + a12 + a13 + a14 + a15 + a16 + a17 + a18 + a19;
+        }
+    }
+
+    function check(uint256 x) external pure returns (uint256) {
+        uint256 a = x + 1;
+        uint256 b = x + 2;
+        uint256 c = x + 3;
+        uint256 d = x + 4;
+        uint256 e = x + 5;
+        uint256 f = x + 6;
+        uint256 g = x + 7;
+        uint256 h = x + 8;
+        uint256 first = combine(a, b, c, d, e, f, g, h);
+        uint256 second = combine(h, g, f, e, d, c, b, a);
+        return first + second + a + b + c + d + e + f + g + h;
+    }
+
+    function combine(uint256 a, uint256 b, uint256 c, uint256 d, uint256 e, uint256 f, uint256 g, uint256 h)
+        internal pure returns (uint256)
+    {
+        return a + 2 * b + 3 * c + 4 * d + 5 * e + 6 * f + 7 * g + 8 * h;
+    }
+
     function wide(uint256 x) external pure returns (uint256) {
         unchecked {
             uint256 a0 = x + 0;

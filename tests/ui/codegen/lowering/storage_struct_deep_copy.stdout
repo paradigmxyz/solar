@@ -24,7 +24,7 @@ fn @assign() [selector=0x4bd0273c, abi_wrapper] {
     v96 = or v94, v95
     jumpi v96, bb15, bb14
   bb14:
-    mstore 64, v93 !metadata(memory=scratch)
+    mstore 64, v93 !metadata(memory=scratch, preserves_valid_fmp)
     v98 = calldatasize
     calldatacopy v92, v98, 64
     mstore v92, 1
@@ -142,7 +142,7 @@ fn @push() [selector=0xa60249a3, abi_wrapper] {
     v103 = or v101, v102
     jumpi v103, bb10, bb16
   bb16:
-    mstore 64, v100 !metadata(memory=scratch)
+    mstore 64, v100 !metadata(memory=scratch, preserves_valid_fmp)
     v105 = calldatasize
     calldatacopy v99, v105, 64
     mstore v99, 1
@@ -316,7 +316,7 @@ fn @assignFixed() [selector=0xb7ffd825, abi_wrapper] {
     v100 = or v98, v99
     jumpi v100, bb15, bb14
   bb14:
-    mstore 64, v97 !metadata(memory=scratch)
+    mstore 64, v97 !metadata(memory=scratch, preserves_valid_fmp)
     v102 = calldatasize
     calldatacopy v96, v102, 64
     mstore v96, 1

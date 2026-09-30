@@ -135,6 +135,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
                 ScheduledOp::LoadArg(index) => {
                     if self.in_internal_function {
+                        self.scheduler.reject_hazard_arg_load(func, index);
                         self.emit_internal_arg_load(index);
                     } else if self.in_constructor {
                         self.emit_constructor_arg_load(index);
@@ -458,6 +459,22 @@ impl<'gcx> EvmCodegen<'gcx> {
                                     opcode,
                                     op::is_commutative(opcode),
                                 );
+                            }
+                            crate::mir::InstKind::Zext(value)
+                            | crate::mir::InstKind::IntToPtr(value)
+                            | crate::mir::InstKind::Bitcast(value)
+                            | crate::mir::InstKind::PtrToInt(value, _)
+                                if !self.scheduler.stack.contains(val) =>
+                            {
+                                self.emit_value_fresh(func, *value);
+                                if let crate::mir::InstKind::PtrToInt(_, bits) = *inst_kind
+                                    && bits < 256
+                                {
+                                    self.asm.emit_push(U256::MAX >> (256 - bits));
+                                    self.asm.emit_op(op::AND);
+                                }
+                                self.scheduler.stack.pop();
+                                self.scheduler.stack.push(val);
                             }
                             crate::mir::InstKind::SLoad(slot) => {
                                 // Re-emit SLOAD. CALL operands are materialized in a

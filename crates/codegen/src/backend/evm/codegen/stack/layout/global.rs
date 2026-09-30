@@ -28,6 +28,7 @@ pub(in crate::backend::evm::codegen) struct GlobalStackPlan {
     /// External arguments can reload in revert blocks; resident internal
     /// arguments have no memory fallback and therefore cannot ignore them.
     pub(in crate::backend::evm::codegen) terminal_sensitive: bool,
+    pub(in crate::backend::evm::codegen) layout_limit: Option<usize>,
 }
 
 impl GlobalStackPlan {
@@ -189,7 +190,7 @@ impl GlobalStackPlan {
             entries.clear();
         }
         aliases.retain(|_, arg| entries.values().any(|entry| entry.contains(arg)));
-        Self { entries, aliases, terminal_sensitive: false }
+        Self { entries, aliases, terminal_sensitive: false, layout_limit: None }
     }
 
     /// Plans a single physical layout for stack-passed arguments that never
@@ -202,18 +203,30 @@ impl GlobalStackPlan {
         values: &[ValueId],
         preserve_across_calls: bool,
     ) -> Option<Self> {
+        Self::analyze_resident_args_with_limit(
+            func,
+            liveness,
+            values,
+            preserve_across_calls,
+            GLOBAL_STACK_LAYOUT_LIMIT,
+        )
+    }
+
+    pub(in crate::backend::evm::codegen) fn analyze_resident_args_with_limit(
+        func: &Function,
+        liveness: &Liveness,
+        values: &[ValueId],
+        preserve_across_calls: bool,
+        layout_limit: usize,
+    ) -> Option<Self> {
         if values.is_empty() {
             return None;
         }
-        // Nested calls are eligible only when runtime emission can retain the live resident prefix
-        // below their return address. Stack-phi edges compose their changing values above this
-        // invariant prefix. The analysis remains deliberately all-or-nothing because resident
-        // arguments cannot fall back to memory on just one edge.
-        if func.blocks.iter().any(|block| {
-            block.instructions.iter().any(|&inst_id| {
-                !preserve_across_calls && matches!(func.inst(inst_id).kind, InstKind::ICall { .. })
-            })
-        }) {
+        // Values live across calls need runtime emission to retain the resident prefix below
+        // the return address. A call's own result needs no such protection. Stack-phi edges compose
+        // their changing values above this invariant prefix. The analysis remains all-or-nothing
+        // because resident arguments cannot fall back to memory on just one edge.
+        if !preserve_across_calls && Self::values_live_across_calls(func, liveness, values) {
             return None;
         }
 
@@ -231,7 +244,7 @@ impl GlobalStackPlan {
                 .copied()
                 .filter(|&value| liveness.live_in(block_id).contains(value))
                 .collect();
-            if entry.len() > GLOBAL_STACK_LAYOUT_LIMIT {
+            if entry.len() > layout_limit {
                 return None;
             }
             if !entry.is_empty() {
@@ -275,7 +288,7 @@ impl GlobalStackPlan {
                         union.push(value);
                     }
                 }
-                if union.len() > GLOBAL_STACK_LAYOUT_LIMIT {
+                if union.len() > layout_limit {
                     return None;
                 }
             }
@@ -303,12 +316,17 @@ impl GlobalStackPlan {
                     }
                 }
             }
-            if union.len() > GLOBAL_STACK_LAYOUT_LIMIT {
+            if union.len() > layout_limit {
                 return None;
             }
         }
 
-        let plan = Self { entries, aliases: FxHashMap::default(), terminal_sensitive: true };
+        let plan = Self {
+            entries,
+            aliases: FxHashMap::default(),
+            terminal_sensitive: true,
+            layout_limit: Some(layout_limit),
+        };
         // Prove that every live-in is represented and every predecessor can
         // establish precisely the target layout. This is what makes omitting
         // the argument's frame store sound rather than merely profitable.
@@ -429,7 +447,8 @@ impl GlobalStackPlan {
         }
         let union_len = then_layout.len()
             + else_layout.iter().filter(|value| !then_layout.contains(value)).count();
-        (union_len <= GLOBAL_STACK_LAYOUT_LIMIT).then_some((then_layout, else_layout))
+        (union_len <= self.layout_limit.unwrap_or(GLOBAL_STACK_LAYOUT_LIMIT))
+            .then_some((then_layout, else_layout))
     }
 
     pub(in crate::backend::evm::codegen) fn switch_layouts(
@@ -451,7 +470,8 @@ impl GlobalStackPlan {
                 }
             }
         }
-        (!union.is_empty() && union.len() <= GLOBAL_STACK_LAYOUT_LIMIT).then_some(layouts)
+        (!union.is_empty() && union.len() <= self.layout_limit.unwrap_or(GLOBAL_STACK_LAYOUT_LIMIT))
+            .then_some(layouts)
     }
 
     /// Returns values present in every physical successor layout of `term`.
@@ -494,5 +514,32 @@ impl GlobalStackPlan {
             func.blocks[block].terminator,
             Some(Terminator::Revert { .. } | Terminator::RevertReturndata | Terminator::Invalid)
         )
+    }
+
+    fn values_live_across_calls(func: &Function, liveness: &Liveness, values: &[ValueId]) -> bool {
+        if values.is_empty() {
+            return false;
+        }
+        for (block_id, block) in func.blocks.iter_enumerated() {
+            let mut live = DenseBitSet::from(liveness.live_out(block_id));
+            for value in block.terminator.iter().flat_map(Terminator::operands) {
+                live.insert(value);
+            }
+            for &inst_id in block.instructions.iter().rev() {
+                if let Some(result) = func.inst_result_value(inst_id) {
+                    live.remove(result);
+                }
+                let kind = &func.inst(inst_id).kind;
+                if matches!(kind, InstKind::ICall { .. })
+                    && values.iter().any(|&value| live.contains(value))
+                {
+                    return true;
+                }
+                for operand in kind.operands() {
+                    live.insert(operand);
+                }
+            }
+        }
+        false
     }
 }

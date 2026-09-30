@@ -138,7 +138,7 @@ fn @encode.4(arg0: memptr, arg1: i256, arg2: i256) -> memptr [may_return_memory,
     v419 = or v417, v418
     jumpi v419, bb105, bb104
   bb104:
-    mstore 64, v416 !metadata(memory=scratch)
+    mstore 64, v416 !metadata(memory=scratch, preserves_valid_fmp)
     v421 = calldatasize
     calldatacopy v415, v421, v15
     mstore v415, v11
@@ -637,7 +637,7 @@ fn @decode.8(arg0: memptr) -> memptr [may_return_memory, pure] {
     v441 = or v439, v440
     jumpi v441, bb80, bb81
   bb81:
-    mstore 64, v438 !metadata(memory=scratch)
+    mstore 64, v438 !metadata(memory=scratch, preserves_valid_fmp)
     v443 = calldatasize
     calldatacopy v437, v443, v33
     mstore v437, v29
@@ -1016,7 +1016,7 @@ fn @decode.8(arg0: memptr) -> memptr [may_return_memory, pure] {
     v435 = or v433, v434
     jumpi v435, bb80, bb79
   bb79:
-    mstore 64, v432 !metadata(memory=scratch)
+    mstore 64, v432 !metadata(memory=scratch, preserves_valid_fmp)
     mstore v431, 0
     mstore v431, 0
     ret v4
@@ -1065,7 +1065,7 @@ fn @decode_calldata_type(arg0: i256) -> memptr [may_return_memory] {
     v27 = or v25, v26
     jumpi v27, bb3, bb6
   bb6:
-    mstore 64, v24 !metadata(memory=scratch)
+    mstore 64, v24 !metadata(memory=scratch, preserves_valid_fmp)
     mstore v23, v8
     v15 = sub v0, v3
     v16 = gt v8, v15

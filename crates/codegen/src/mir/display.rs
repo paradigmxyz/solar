@@ -894,6 +894,7 @@ fn display_metadata<'a>(
         Unchecked,
         DeferredAlloc,
         PreservesFmp,
+        PreservesValidFmp,
         LoopDepth(u16),
         Effect(EffectKind),
     }
@@ -920,6 +921,7 @@ fn display_metadata<'a>(
             MetadataField::Unchecked => write!(f, "unchecked"),
             MetadataField::DeferredAlloc => write!(f, "deferred_alloc"),
             MetadataField::PreservesFmp => write!(f, "preserves_fmp"),
+            MetadataField::PreservesValidFmp => write!(f, "preserves_valid_fmp"),
             MetadataField::LoopDepth(loop_depth) => write!(f, "loop_depth={loop_depth}"),
             MetadataField::Effect(effect) => write!(f, "effect={}", effect.name()),
         })
@@ -936,7 +938,7 @@ fn display_metadata<'a>(
     }
 
     fmt::from_fn(move |f| {
-        let mut fields = ArrayVec::<MetadataField<'_>, 10>::new();
+        let mut fields = ArrayVec::<MetadataField<'_>, 11>::new();
 
         if let Some(storage) = metadata.storage_alias() {
             fields.push(MetadataField::Storage(storage, func));
@@ -969,6 +971,9 @@ fn display_metadata<'a>(
         }
         if metadata.preserves_fmp() {
             fields.push(MetadataField::PreservesFmp);
+        }
+        if metadata.preserves_valid_fmp() {
+            fields.push(MetadataField::PreservesValidFmp);
         }
         if metadata.loop_depth != 0 {
             fields.push(MetadataField::LoopDepth(metadata.loop_depth));

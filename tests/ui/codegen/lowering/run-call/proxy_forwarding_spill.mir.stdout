@@ -160,3 +160,235 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     icall require<short_string>, v51, 7, 0x666f727761726400000000000000000000000000000000000000000000000000
     ret 1
 }
+
+// === ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_spill.sol:FrameForwarding ===
+@module FrameForwarding
+fn @run(arg0: i256, arg1: i256) -> i256 [selector=0x7357f5d2, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = icall @forward, arg0, arg1
+    ret v0
+}
+
+fn @forward(arg0: i256, arg1: i256) -> i256 [pure] {
+  bb0:
+    v0 = calldatasize
+    calldatacopy 128, v0, arg1
+    ret arg0
+}
+
+fn @branch(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x2c4d4a2d, pure, abi_params=[u256, u256, bool], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = icall @forwardBranch, arg0, arg1, arg2
+    ret v0
+}
+
+fn @forwardBranch(arg0: i256, arg1: i256, arg2: i256) -> i256 [pure] {
+  bb0:
+    v0 = calldatasize
+    calldatacopy 128, v0, arg1
+    v1 = ne arg2, 0
+    jumpi v1, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    v3 = checked_add u256, arg0, 2
+    ret v3
+  bb1:
+    v2 = checked_add u256, arg0, 1
+    ret v2
+}
+
+fn @derived(arg0: i256, arg1: i256) -> i256 [selector=0xd36a3746, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = icall @forwardDerived, arg0, arg1
+    ret v0
+}
+
+fn @forwardDerived(arg0: i256, arg1: i256) -> i256 [pure] {
+  bb0:
+    v0 = checked_mul u256, arg0, 3
+    v1 = checked_add u256, v0, 1
+    v2 = calldatasize
+    calldatacopy 128, v2, arg1
+    ret v1
+}
+
+fn @sweep(arg0: i256, arg1: i256) -> i256 [selector=0x066dd830, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = icall @forwardSweep, arg0, arg1
+    ret v0
+}
+
+fn @forwardSweep(arg0: i256, arg1: i256) -> i256 [pure] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: arg1], [bb3: v0]
+    v1 = phi [bb0: 0], [bb3: v7]
+    v2 = phi [bb0: arg0], [bb3: v2]
+    v3 = phi [bb0: 0], [bb3: v3]
+    v4 = lt v1, v0
+    v5 = zext i1 v4 to i256
+    v6 = ne v5, 0
+    jumpi v6, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    ret v2
+  bb4:
+    mstore v1, 0
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v7 = add v1, 32
+    jump bb1
+}
+
+fn @callAfterCopy(arg0: i256, arg1: i256) -> i256 [selector=0xb05a9bce, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = icall @forwardCall, arg0, arg1
+    ret v0
+}
+
+fn @forwardCall(arg0: i256, arg1: i256) -> i256 [pure] {
+  bb0:
+    v0 = calldatasize
+    calldatacopy 128, v0, arg1
+    v1 = icall @consume, arg0, arg1
+    v2 = checked_add u256, v1, 1
+    ret v2
+}
+
+fn @consumeDirect(arg0: i256, arg1: i256) -> i256 [selector=0x23c27248, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = icall @consume, arg0, arg1
+    ret v0
+}
+
+fn @consume(arg0: i256, arg1: i256) -> i256 [pure] {
+  bb0:
+    v0 = add arg0, arg1
+    ret v0
+}
+
+fn @loopCallAfterCopy(arg0: i256, arg1: i256) -> i256 [selector=0x522de8de, view, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = icall @loopForward, arg0, arg1
+    ret v0
+}
+
+fn @loopForward(arg0: i256, arg1: i256) -> i256 [view] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb3: v26]
+    v1 = phi [bb0: arg1], [bb3: v1]
+    v2 = phi [bb0: 0x78710d3700000000000000000000000000000000000000000000000000000000], [bb3: v2]
+    v3 = phi [bb0: arg0], [bb3: v3]
+    v4 = phi [bb0: arg0], [bb3: v25]
+    v5 = lt v0, v3
+    v6 = zext i1 v5 to i256
+    v7 = ne v6, 0
+    jumpi v7, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    ret v4
+  bb4:
+    v8 = calldatasize
+    calldatacopy 128, v8, v1
+    v9 = address
+    v10 = zext i160 v9 to i256
+    v11 = extcodesize v10
+    v12 = eq v11, 0
+    v13 = zext i1 v12 to i256
+    v14 = ne v13, 0
+    jumpi v14, bb7, bb8
+  bb8:
+    jump bb9
+  bb9:
+    mstore 0, v2 !metadata(memory=scratch)
+    v15 = address
+    v16 = zext i160 v15 to i256
+    v17 = gas
+    v18 = staticcall v17, v16, 0, 4, 0, 32
+    v19 = zext i1 v18 to i256
+    v20 = eq v19, 0
+    v21 = zext i1 v20 to i256
+    v22 = ne v21, 0
+    jumpi v22, bb10, bb11
+  bb11:
+    jump bb12
+  bb12:
+    v23 = mload 0 !metadata(memory=scratch)
+    v24 = add v3, v23
+    v25 = add v4, v24
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v26 = add v0, 1
+    jump bb1
+  bb10:
+    revert 0, 0
+  bb7:
+    revert 0, 0
+}
+
+fn @computedAfterCopy(arg0: i256, arg1: i256) -> i256 [selector=0xc94ac0c7, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = icall @forwardComputed, arg0, arg1
+    ret v0
+}
+
+fn @forwardComputed(arg0: i256, arg1: i256) -> i256 [pure] {
+  bb0:
+    v0 = checked_mul u256, arg0, 3
+    v1 = calldatasize
+    calldatacopy 128, v1, arg1
+    v2 = ne arg1, 0
+    jumpi v2, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    v5 = icall @consumeComputed, v0, arg0, arg1
+    v6 = checked_add u256, v5, arg0
+    ret v6
+  bb1:
+    v3 = icall @consumeComputed, v0, v0, arg1
+    v4 = checked_add u256, v3, arg0
+    ret v4
+}
+
+fn @consumeComputed(arg0: i256, arg1: i256, arg2: i256) -> i256 [pure] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: arg0], [bb3: v0]
+    v1 = phi [bb0: arg2], [bb3: v1]
+    v2 = phi [bb0: 0], [bb3: v9]
+    v3 = phi [bb0: arg1], [bb3: v3]
+    v4 = phi [bb0: arg0], [bb3: v8]
+    v5 = and v1, 3
+    v6 = gt v2, v5
+    v7 = eq v6, false
+    jumpi v7, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    ret v4
+  bb4:
+    v8 = checked_add u256, v4, v3
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v9 = checked_add u256, v2, 1
+    jump bb1
+}
+
+fn @seven() -> i256 [selector=0x78710d37, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    ret 7
+}

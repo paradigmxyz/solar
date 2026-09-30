@@ -453,9 +453,9 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// that output to a call.
     pub(in crate::backend::evm::codegen) fn compute_spill_hazard_stack_layout(
         &self,
+        func_id: FunctionId,
         func: &Function,
         liveness: &Liveness,
-        stack_phi_plan: &StackPhiPlan,
         values: &[ValueId],
     ) -> Option<(Vec<ValueId>, GlobalStackPlan)> {
         if self.spill_hazard_insts.is_empty() {
@@ -466,25 +466,13 @@ impl<'gcx> EvmCodegen<'gcx> {
             return None;
         }
 
-        let mut plan = GlobalStackPlan::analyze_resident_args(
+        let plan = GlobalStackPlan::analyze_resident_args_with_limit(
             func,
             liveness,
             values,
-            self.preserve_caller_stack,
+            self.preserve_caller_stack || self.can_preserve_hazard_caller_stack(func_id),
+            self.global_stack_layout_limit(),
         )?;
-        // Phi operands are edge uses, not unchanged target live-ins. Full
-        // liveness conservatively includes them at the header; remove those
-        // incoming identities from the resident prefix so the phi edge can
-        // replace each source with its result instead of trying to carry both.
-        for (&pred, edge) in &stack_phi_plan.edges {
-            let Some(Terminator::Jump(target)) = func.blocks[pred].terminator.as_ref() else {
-                continue;
-            };
-            if let Some(entry) = plan.entries.get_mut(target) {
-                entry.retain(|value| !edge.sources.contains(value));
-            }
-        }
-        plan.entries.retain(|_, entry| !entry.is_empty());
         Some((values.to_vec(), plan))
     }
 
@@ -496,14 +484,25 @@ impl<'gcx> EvmCodegen<'gcx> {
         cross_block_live: &OnceCell<DenseBitSet<ValueId>>,
         recomputable: &DenseBitSet<ValueId>,
     ) -> Vec<ValueId> {
+        let needs_protection = |value| {
+            (Self::can_own_spill_slot(func, value)
+                || (self.in_internal_function && matches!(func.value(value), Value::Arg(_))))
+                && !recomputable.contains(value)
+        };
         if self.spill_hazard_is_repeated_low_phi(func) {
-            return cross_block_live
+            let mut values = cross_block_live
                 .get_or_init(|| Self::cross_block_live_values(func, liveness))
-                .iter()
-                .filter(|&value| {
-                    Self::can_own_spill_slot(func, value) && !recomputable.contains(value)
-                })
-                .collect();
+                .clone();
+            if self.in_internal_function {
+                for block in func.blocks.indices() {
+                    for value in liveness.live_in(block) {
+                        if matches!(func.value(value), Value::Arg(_)) {
+                            values.insert(value);
+                        }
+                    }
+                }
+            }
+            return values.iter().filter(|&value| needs_protection(value)).collect();
         }
 
         let inst_blocks = func.inst_blocks();
@@ -511,7 +510,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         for inst in &self.spill_hazard_insts {
             let Some(&block) = inst_blocks.get(inst) else { continue };
             for value in liveness.live_out(block) {
-                if Self::can_own_spill_slot(func, value) && !recomputable.contains(value) {
+                if needs_protection(value) {
                     values.insert(value);
                 }
             }

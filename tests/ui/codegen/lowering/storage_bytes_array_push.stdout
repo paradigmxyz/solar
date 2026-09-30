@@ -28,7 +28,7 @@ fn @pushStr() [selector=0xe6e6accc, abi_wrapper] {
     v102 = or v100, v101
     jumpi v102, bb18, bb21
   bb21:
-    mstore 64, v99 !metadata(memory=scratch)
+    mstore 64, v99 !metadata(memory=scratch, preserves_valid_fmp)
     mstore v98, v73
     v80 = sub v64, v68
     v81 = gt v73, v80
@@ -262,7 +262,7 @@ fn @load_storage_bytes(arg0: i256) -> memptr [may_return_memory] {
     v37 = or v35, v36
     jumpi v37, bb9, bb8
   bb8:
-    mstore 64, v34 !metadata(memory=scratch)
+    mstore 64, v34 !metadata(memory=scratch, preserves_valid_fmp)
     mstore v33, v7
     jumpi v3, bb4, bb3
   bb3:

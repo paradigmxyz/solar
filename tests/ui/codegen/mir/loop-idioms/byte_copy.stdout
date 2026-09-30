@@ -57,7 +57,7 @@ fn @rawOverlap() [selector=0x3facacff, abi_wrapper, pure] {
     v32 = and v30, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v40 = mload 64 !metadata(memory=scratch)
     v41 = add v40, v32
-    mstore 64, v41 !metadata(memory=scratch)
+    mstore 64, v41 !metadata(memory=scratch, preserves_valid_fmp)
     returndata v40, v28
 }
 
@@ -91,7 +91,7 @@ fn @objectOverlap() [selector=0xb7a73332, abi_wrapper, pure] {
     v34 = and v32, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v42 = mload 64 !metadata(memory=scratch)
     v43 = add v42, v34
-    mstore 64, v43 !metadata(memory=scratch)
+    mstore 64, v43 !metadata(memory=scratch, preserves_valid_fmp)
     returndata v42, v30
 }
 
@@ -106,7 +106,7 @@ fn @allocationOverlap() [selector=0x46aad008, abi_wrapper, pure] {
     v23 = or v21, v22
     jumpi v23, bb6, bb5
   bb5:
-    mstore 64, v20 !metadata(memory=scratch)
+    mstore 64, v20 !metadata(memory=scratch, preserves_valid_fmp)
     v25 = calldatasize
     calldatacopy v19, v25, 64
     mstore v19, 7
@@ -143,7 +143,7 @@ fn @oversizedCopy() [selector=0x1e820d5e, abi_wrapper, pure] {
     v50 = or v48, v49
     jumpi v50, bb8, bb7
   bb7:
-    mstore 64, v47 !metadata(memory=scratch)
+    mstore 64, v47 !metadata(memory=scratch, preserves_valid_fmp)
     v58 = calldatasize
     calldatacopy v46, v58, 64
     mstore v46, 32
@@ -154,7 +154,7 @@ fn @oversizedCopy() [selector=0x1e820d5e, abi_wrapper, pure] {
     v56 = or v54, v55
     jumpi v56, bb8, bb9
   bb9:
-    mstore 64, v53 !metadata(memory=scratch)
+    mstore 64, v53 !metadata(memory=scratch, preserves_valid_fmp)
     v59 = calldatasize
     calldatacopy v52, v59, 128
     mstore v52, 65
@@ -313,7 +313,7 @@ fn @_slice(arg0: memptr, arg1: i256, arg2: i256) -> memptr [may_return_memory, p
     v69 = mload 64 !metadata(memory=scratch)
     v10 = inttoptr i256 v69 to memptr !metadata(memory=scratch)
     v70 = add v69, 32
-    mstore 64, v70 !metadata(memory=scratch)
+    mstore 64, v70 !metadata(memory=scratch, preserves_valid_fmp)
     mstore v69, 0
     ret v10
   bb2:
@@ -331,7 +331,7 @@ fn @_slice(arg0: memptr, arg1: i256, arg2: i256) -> memptr [may_return_memory, p
     v67 = or v65, v66
     jumpi v67, bb6, bb12
   bb12:
-    mstore 64, v64 !metadata(memory=scratch)
+    mstore 64, v64 !metadata(memory=scratch, preserves_valid_fmp)
     v71 = calldatasize
     calldatacopy v63, v71, v16
     mstore v63, v36
@@ -457,7 +457,7 @@ fn @decode_calldata_type(arg0: i256) -> memptr [may_return_memory] {
     v27 = or v25, v26
     jumpi v27, bb3, bb6
   bb6:
-    mstore 64, v24 !metadata(memory=scratch)
+    mstore 64, v24 !metadata(memory=scratch, preserves_valid_fmp)
     mstore v23, v8
     v15 = sub v0, v3
     v16 = gt v8, v15

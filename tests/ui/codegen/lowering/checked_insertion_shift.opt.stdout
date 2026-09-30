@@ -144,7 +144,7 @@ fn @decode_calldata_type(arg0: i256) -> memptr [may_return_memory] {
     v33 = or v31, v32
     jumpi v33, bb3, bb7
   bb7:
-    mstore 64, v30 !metadata(memory=scratch)
+    mstore 64, v30 !metadata(memory=scratch, preserves_valid_fmp)
     mstore v29, v8
     v20 = sub v0, v3
     v21 = shr 5, v20

@@ -207,6 +207,16 @@ impl InstructionMetadata {
         self.flags.set_effect(effect);
     }
 
+    /// Whether this instruction preserves validity of an initially valid free-memory pointer.
+    pub(crate) fn preserves_valid_fmp(&self) -> bool {
+        self.flags.0 & MetadataFlags::PRESERVES_VALID_FMP != 0
+    }
+
+    /// Records an allocation bump proved valid by its producer or runtime checks.
+    pub(crate) fn set_preserves_valid_fmp(&mut self) {
+        self.flags.0 |= MetadataFlags::PRESERVES_VALID_FMP;
+    }
+
     /// Returns whether final placement of this allocation is deferred to the backend.
     #[must_use]
     pub(crate) fn deferred_alloc(&self) -> bool {
@@ -248,6 +258,7 @@ impl MetadataFlags {
     const PRESERVES_FMP: u16 = 0b100_0000_0000;
     const DISPLAY_SOURCE_SPAN: u16 = 0b1000_0000_0000;
     const DEBUG_INFO_HANDLED: u16 = 0b1_0000_0000_0000;
+    const PRESERVES_VALID_FMP: u16 = 0b10_0000_0000_0000;
 
     fn memory_region(self) -> Option<MemoryRegion> {
         match self.0 & Self::MEMORY_MASK {

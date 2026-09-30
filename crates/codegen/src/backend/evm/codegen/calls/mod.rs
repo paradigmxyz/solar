@@ -68,7 +68,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             return;
         }
 
-        let resident_call_values: Vec<_> = if self.preserve_caller_stack {
+        let mut resident_call_values: Vec<_> = if self.preserve_caller_stack {
             self.resident_stack_args(func_id)
                 .into_iter()
                 .flatten()
@@ -82,6 +82,10 @@ impl<'gcx> EvmCodegen<'gcx> {
             Vec::new()
         };
 
+        if self.can_preserve_hazard_caller_stack(func_id) {
+            self.retain_hazard_call_values(liveness, block, inst_idx, &mut resident_call_values);
+        }
+
         // Frame layout: [reserved][saved frame ptr][args][returns][locals][spills].
         // The first slot is reserved (the return address used to live there;
         // it now travels on the EVM stack) so downstream offsets stay stable.
@@ -89,12 +93,16 @@ impl<'gcx> EvmCodegen<'gcx> {
         let frame_size = self.asm.new_deferred_const();
         self.pending_frame_size_consts.push((frame_size, callee));
 
-        // Spill values that are live after this call BEFORE consuming the
-        // arguments. An argument that is also used later (e.g. a flag passed to
-        // a helper and then stored, as in `tryAdd`) would otherwise be popped by
-        // the arg-store loop below and then lost when the stack is cleared for
-        // the call, leaving it unavailable at its later use.
-        self.spill_live_stack_values(func_id, func, liveness, block, inst_idx);
+        // Spill live values outside the retained caller prefix before consuming arguments.
+        // The argument stores and stack drain would otherwise discard their last copies.
+        self.spill_live_stack_values(
+            func_id,
+            func,
+            liveness,
+            block,
+            inst_idx,
+            &resident_call_values,
+        );
 
         // The dynamic-frame base is an anonymous word kept on the physical stack while arguments
         // are stored. Give any argument that this extra word would bury beyond `DUP` a memory
@@ -132,7 +140,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         let caller_stack = if resident_call_values.is_empty() {
             None
         } else {
-            self.pop_stack_values_not_needed_by(&resident_call_values);
+            self.pop_stack_values_not_needed_by(func, &resident_call_values);
             let target =
                 resident_call_values.iter().copied().map(TargetSlot::Value).collect::<Vec<_>>();
             let shuffle = self.scheduler.shuffle_to_layout(&target).unwrap_or_else(|| {
@@ -604,6 +612,19 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
             }
         }
+        if self.can_preserve_hazard_caller_stack(func_id) && !self.spill_hazard_insts.is_empty() {
+            self.retain_hazard_call_values(liveness, block, inst_idx, &mut resident_call_values);
+            if let Some(mask) = &stack_mask {
+                for index in mask.iter() {
+                    let arg = args[index];
+                    if self.scheduler.is_hazard_protected(arg)
+                        && !resident_call_values.contains(&arg)
+                    {
+                        resident_call_values.push(arg);
+                    }
+                }
+            }
+        }
         let carries_resident_stack = !resident_call_values.is_empty();
         let caller_stack_plan = (!carries_resident_stack).then(|| {
             self.plan_static_call_stack(
@@ -652,9 +673,15 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
         }
         if !recursive_reentry && caller_stack_plan.is_none() {
-            // The fallback drains the caller stack, so park every value needed after the call
-            // before consuming arguments.
-            self.spill_live_stack_values(func_id, func, liveness, block, inst_idx);
+            // Park live values outside the retained caller prefix before consuming arguments.
+            self.spill_live_stack_values(
+                func_id,
+                func,
+                liveness,
+                block,
+                inst_idx,
+                &resident_call_values,
+            );
         }
 
         let memory_args = args
@@ -715,6 +742,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         if let Some(mask) = &stack_mask {
             for (i, &arg) in args.iter().enumerate() {
                 if mask.contains(i)
+                    && !resident_call_values.contains(&arg)
                     && !retention_plan.as_ref().is_some_and(|plan| plan.retained.contains(i))
                     && !caller_stack_plan
                         .as_ref()
@@ -726,17 +754,11 @@ impl<'gcx> EvmCodegen<'gcx> {
                         slot
                     } else {
                         self.emit_value(func, arg);
-                        self.spill_value_if_needed(func, arg);
-                        if self.scheduler.stack.top() == Some(arg) {
-                            self.emit_stack_op(StackOp::Pop);
-                        }
-                        self.scheduler.reloadable_spill(arg).unwrap_or_else(|| {
-                            panic!(
-                                "computed stack argument {arg:?} is neither resident nor \
-                                 runtime-reloadable in `{}`",
-                                func.name
-                            )
-                        })
+                        let slot = self.scheduler.spills.allocate(arg);
+                        self.spill_accessible_stack_value(func, arg, slot, 0);
+                        self.scheduler.materialize_stack_only_value(arg);
+                        self.emit_stack_op(StackOp::Pop);
+                        slot
                     };
                     raw_spill_slots[i] = Some(slot);
                 }
@@ -744,7 +766,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
 
         let caller_stack = if carries_resident_stack {
-            self.pop_stack_values_not_needed_by(&resident_call_values);
+            self.pop_stack_values_not_needed_by(func, &resident_call_values);
             let target =
                 resident_call_values.iter().copied().map(TargetSlot::Value).collect::<Vec<_>>();
             let shuffle = self.scheduler.shuffle_to_layout(&target).unwrap_or_else(|| {
@@ -768,6 +790,25 @@ impl<'gcx> EvmCodegen<'gcx> {
                 plan.caller_stack
             })
         };
+        // Preserve a memory home before the return label and earlier arguments bury a value.
+        if let (Some(caller_stack), Some(mask)) = (&caller_stack, &stack_mask) {
+            for (pushed, index) in mask.iter().enumerate() {
+                let arg = args[index];
+                if let Some(depth) = caller_stack.find(arg)
+                    && depth + pushed + 2 > self.stack_access_limit()
+                {
+                    self.materialize_stack_only_home(func_id, func, arg);
+                    if Self::can_own_spill_slot(func, arg) {
+                        let slot = self.scheduler.reloadable_spill(arg).unwrap_or_else(|| {
+                            let slot = self.scheduler.spills.allocate(arg);
+                            self.spill_accessible_stack_value(func, arg, slot, depth);
+                            slot
+                        });
+                        raw_spill_slots[index] = Some(slot);
+                    }
+                }
+            }
+        }
         let preserved_words = caller_stack.as_ref().map_or(0, StackModel::depth);
         if let Some(plan) = &retention_plan {
             for &op in &plan.drain_ops {
@@ -823,6 +864,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         // state rather than the child activation's last stores.
         for &value in &recursive_call_values {
             if let crate::mir::Value::Arg(index) = func.value(value) {
+                self.scheduler.reject_hazard_value_fallback(value);
                 let depth = self.scheduler.stack.find(value).unwrap_or_else(|| {
                     panic!("recursive caller argument {value:?} was not preserved")
                 });
@@ -1089,6 +1131,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn spill_live_stack_values(
         &mut self,
         func_id: FunctionId,
@@ -1096,12 +1139,39 @@ impl<'gcx> EvmCodegen<'gcx> {
         liveness: &Liveness,
         block: BlockId,
         inst_idx: usize,
+        retained: &[ValueId],
     ) {
         let stack_values: Vec<_> = self.scheduler.stack.iter().flatten().collect();
         for value in stack_values {
-            if !liveness.is_dead_after(value, block, inst_idx) {
+            if !retained.contains(&value) && !liveness.is_dead_after(value, block, inst_idx) {
                 self.materialize_stack_only_home(func_id, func, value);
                 self.spill_value_if_needed(func, value);
+            }
+        }
+    }
+
+    pub(in crate::backend::evm::codegen) fn can_preserve_hazard_caller_stack(
+        &self,
+        func_id: FunctionId,
+    ) -> bool {
+        !self.in_constructor
+            && !self.recursion_reaching_functions.contains(func_id)
+            && !self.recursive_stack_functions.contains(func_id)
+    }
+
+    fn retain_hazard_call_values(
+        &self,
+        liveness: &Liveness,
+        block: BlockId,
+        inst_idx: usize,
+        retained: &mut Vec<ValueId>,
+    ) {
+        for value in self.scheduler.stack.iter().flatten() {
+            if self.scheduler.is_hazard_protected(value)
+                && liveness.is_used_at_or_after(value, block, inst_idx + 1)
+                && !retained.contains(&value)
+            {
+                retained.push(value);
             }
         }
     }

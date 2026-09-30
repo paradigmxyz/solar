@@ -1,6 +1,7 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
+//@ compile-flags: -Zvalidate-ir=true
 //@ run-call: test_cleanup => true
 // ported-from: test/libsolidity/semanticTests/viaYul/storage/mappings.sol
 
@@ -8,6 +9,7 @@ contract C {
     mapping(uint16 => uint) cleanup;
 
     function test_cleanup() public returns (bool) {
+        cleanup;
         uint16 x;
         assembly {
             x := 0xffff0001

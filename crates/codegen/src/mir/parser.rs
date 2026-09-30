@@ -1457,6 +1457,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 sym::deferred_alloc => {
                     metadata.set_deferred_alloc();
                 }
+                sym::preserves_valid_fmp => {
+                    metadata.set_preserves_valid_fmp();
+                }
                 sym::preserves_fmp => {
                     metadata.set_preserves_fmp(true);
                 }

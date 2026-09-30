@@ -124,11 +124,11 @@ fn @copyDoesNotOverlapSource() -> struct1 [selector=0x8b005e62, abi_params=[], a
     jump bb1
   bb1:
     v0 = phi [bb0: 0], [bb3: v0]
-    v1 = phi [bb0: 0], [bb3: v23]
+    v1 = phi [bb0: 0], [bb3: v1]
     v2 = phi [bb0: 0], [bb3: v2]
     v3 = phi [bb0: 0], [bb3: v3]
-    v4 = phi [bb0: 0], [bb3: v4]
-    v5 = lt v1, 7
+    v4 = phi [bb0: 0], [bb3: v23]
+    v5 = lt v4, 7
     jumpi v5, bb4, bb5
   bb5:
     jump bb2
@@ -222,14 +222,14 @@ fn @copyDoesNotOverlapSource() -> struct1 [selector=0x8b005e62, abi_params=[], a
     v43 = add v32, 1
     jump bb7
   bb4:
-    v6 = and v1, 0xffffffffffffffffff
+    v6 = and v4, 0xffffffffffffffffff
     v7 = shl 184, v6
-    v8 = lt v1, 7
+    v8 = lt v4, 7
     v9 = eq v8, false
     icall panic_if<0x32>, v9
-    v10 = div v1, 3
+    v10 = div v4, 3
     v11 = add 0, v10
-    v12 = mod v1, 3
+    v12 = mod v4, 3
     v13 = mul v12, 9
     v14 = mul v13, 8
     v15 = shl v14, 0xffffffffffffffffff
@@ -245,6 +245,157 @@ fn @copyDoesNotOverlapSource() -> struct1 [selector=0x8b005e62, abi_params=[], a
   bb6:
     jump bb3
   bb3:
-    v23 = checked_add u256, v1, 1
+    v23 = checked_add u256, v4, 1
     jump bb1
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/storage_fixed_array_layout.sol:LargeStorageArrays ===
+@module LargeStorageArrays
+fn @check() -> i256 [selector=0x919840ad, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = lt 0xffffffffffffffff, 0x10000000000000000
+    v1 = eq v0, false
+    icall panic_if<0x32>, v1
+    v2 = mul 0xffffffffffffffff, 0x10000000000000000000000000000000000000001
+    v3 = add 0, v2
+    v4 = shl 160, 1
+    v5 = sub v4, 1
+    v6 = lt v5, 0x10000000000000000000000000000000000000000
+    v7 = eq v6, false
+    icall panic_if<0x32>, v7
+    v8 = add v3, v5
+    sstore v8, 7 !metadata(storage=symbolic(v8))
+    v9 = lt 0xffffffffffffffff, 0x10000000000000000
+    v10 = eq v9, false
+    icall panic_if<0x32>, v10
+    v11 = mul 0xffffffffffffffff, 0x10000000000000000000000000000000000000001
+    v12 = add 0, v11
+    v13 = add v12, 0x10000000000000000000000000000000000000000
+    sstore v13, 11 !metadata(storage=offset(v11, 0x10000000000000000000000000000000000000000))
+    v14 = shl 64, 1
+    v15 = lt v14, 0x10000000000000001
+    v16 = eq v15, false
+    icall panic_if<0x32>, v16
+    v17 = div v14, 32
+    v18 = add 0x100000000000000000000000000000000000000010000000000000000, v17
+    v19 = mod v14, 32
+    v20 = mul v19, 1
+    v21 = mul v20, 8
+    v22 = shl v21, 255
+    v23 = sload v18 !metadata(storage=offset(v17, 0x100000000000000000000000000000000000000010000000000000000))
+    v24 = not v22
+    v25 = and v23, v24
+    v26 = and 13, 255
+    v27 = shl v21, v26
+    v28 = or v25, v27
+    sstore v18, v28 !metadata(storage=offset(v17, 0x100000000000000000000000000000000000000010000000000000000))
+    sstore 0x100000000000000000000000000000000000000010800000000000001, 17 !metadata(storage=slot(0x100000000000000000000000000000000000000010800000000000001))
+    v29 = shl 160, 1
+    v30 = sub v29, 1
+    v31 = shl 160, 1
+    v32 = add v31, 1
+    v33 = mul 0xffffffffffffffff, v32
+    v34 = add v33, v30
+    v35 = sload v34 !metadata(storage=symbolic(v34))
+    v36 = shl 224, 1
+    v37 = shl 64, 1
+    v38 = add v36, v37
+    v39 = eq 0x100000000000000000000000000000000000000010000000000000000, v38
+    jumpi v39, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    v40 = shl 59, 1
+    v41 = checked_add u256, 0x100000000000000000000000000000000000000010000000000000000, v40
+    v42 = checked_add u256, v41, 1
+    v43 = eq 0x100000000000000000000000000000000000000010800000000000001, v42
+    jump bb3
+  bb3:
+    v44 = phi [bb1: v43], [bb2: false]
+    jumpi v44, bb4, bb5
+  bb5:
+    jump bb6
+  bb4:
+    v45 = eq v35, 7
+    jump bb6
+  bb6:
+    v46 = phi [bb4: v45], [bb5: false]
+    jumpi v46, bb7, bb8
+  bb8:
+    jump bb9
+  bb7:
+    v47 = lt 0xffffffffffffffff, 0x10000000000000000
+    v48 = eq v47, false
+    icall panic_if<0x32>, v48
+    v49 = mul 0xffffffffffffffff, 0x10000000000000000000000000000000000000001
+    v50 = add 0, v49
+    v51 = shl 160, 1
+    v52 = sub v51, 1
+    v53 = lt v52, 0x10000000000000000000000000000000000000000
+    v54 = eq v53, false
+    icall panic_if<0x32>, v54
+    v55 = add v50, v52
+    v56 = sload v55 !metadata(storage=symbolic(v55))
+    v57 = eq v56, 7
+    jump bb9
+  bb9:
+    v58 = phi [bb7: v57], [bb8: false]
+    jumpi v58, bb10, bb11
+  bb11:
+    jump bb12
+  bb10:
+    v59 = lt 0xffffffffffffffff, 0x10000000000000000
+    v60 = eq v59, false
+    icall panic_if<0x32>, v60
+    v61 = mul 0xffffffffffffffff, 0x10000000000000000000000000000000000000001
+    v62 = add 0, v61
+    v63 = add v62, 0x10000000000000000000000000000000000000000
+    v64 = sload v63 !metadata(storage=offset(v61, 0x10000000000000000000000000000000000000000))
+    v65 = eq v64, 11
+    jump bb12
+  bb12:
+    v66 = phi [bb10: v65], [bb11: false]
+    jumpi v66, bb13, bb14
+  bb14:
+    jump bb15
+  bb13:
+    v67 = shl 64, 1
+    v68 = lt v67, 0x10000000000000001
+    v69 = eq v68, false
+    icall panic_if<0x32>, v69
+    v70 = div v67, 32
+    v71 = add 0x100000000000000000000000000000000000000010000000000000000, v70
+    v72 = mod v67, 32
+    v73 = mul v72, 1
+    v74 = sload v71 !metadata(storage=offset(v70, 0x100000000000000000000000000000000000000010000000000000000))
+    v75 = mul v73, 8
+    v76 = shr v75, v74
+    v77 = and v76, 255
+    v78 = eq v77, 13
+    jump bb15
+  bb15:
+    v79 = phi [bb13: v78], [bb14: false]
+    jumpi v79, bb16, bb17
+  bb17:
+    jump bb18
+  bb16:
+    v80 = sload 0x100000000000000000000000000000000000000010800000000000001 !metadata(storage=slot(0x100000000000000000000000000000000000000010800000000000001))
+    v81 = eq v80, 17
+    jump bb18
+  bb18:
+    v82 = phi [bb16: v81], [bb17: false]
+    v83 = zext i1 v82 to i256
+    ret v83
+}
+
+fn @read(arg0: i256) -> i256 [selector=0xed2e5a97, view, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = lt arg0, 0x10000000000000000
+    v1 = eq v0, false
+    icall panic_if<0x32>, v1
+    v2 = mul arg0, 0x10000000000000000000000000000000000000001
+    v3 = add 0, v2
+    v4 = add v3, 0x10000000000000000000000000000000000000000
+    v5 = sload v4 !metadata(storage=offset(v2, 0x10000000000000000000000000000000000000000))
+    ret v5
 }

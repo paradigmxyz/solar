@@ -5,6 +5,9 @@
 //@ run-call: preserveNeighbors => 0x000000000000000006, 11, 0x0000000000000000000000000000000003, 12, 3, 13
 //@ run-call: copyDoesNotOverlapSource => 6, 1, 6, 0x0000000000000000000000000000000000000000000000000000000000000000
 
+//@ run-call: LargeStorageArrays::check => true
+//@ run-call-fail: LargeStorageArrays::read 18446744073709551616 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
+
 contract StorageFixedArrayLayout {
     bytes9[7] private bytes9Values;
     uint256 private afterBytes9;
@@ -78,5 +81,39 @@ contract StorageFixedArrayLayout {
             uint72(bytes9(destination[6])),
             destination[9]
         );
+    }
+}
+
+contract LargeStorageArrays {
+    struct Wide {
+        uint256[1 << 160] values;
+        uint256 tail;
+    }
+    Wide[1 << 64] private wide;
+    uint8[(1 << 64) + 1] private packed;
+    uint256 private afterPacked;
+
+    function check() external returns (bool) {
+        uint256 index = (1 << 64) - 1;
+        wide[index].values[(1 << 160) - 1] = 7;
+        wide[index].tail = 11;
+        packed[1 << 64] = 13;
+        afterPacked = 17;
+        uint256 packedSlot;
+        uint256 afterSlot;
+        uint256 stored;
+        assembly {
+            packedSlot := packed.slot
+            afterSlot := afterPacked.slot
+            stored := sload(add(mul(index, add(shl(160, 1), 1)), sub(shl(160, 1), 1)))
+        }
+        return packedSlot == (1 << 224) + (1 << 64)
+            && afterSlot == packedSlot + (1 << 59) + 1
+            && stored == 7 && wide[index].values[(1 << 160) - 1] == 7
+            && wide[index].tail == 11 && packed[1 << 64] == 13 && afterPacked == 17;
+    }
+
+    function read(uint256 index) external view returns (uint256) {
+        return wide[index].tail;
     }
 }

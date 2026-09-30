@@ -186,6 +186,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     entries: FxHashMap::default(),
                     aliases: FxHashMap::default(),
                     terminal_sensitive: true,
+                    layout_limit: None,
                 }
             };
             let abi = self.static_call_abi_mut(func_id, func.params.len());
@@ -499,6 +500,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
             crate::mir::Value::Arg(index) => {
                 if self.in_internal_function {
+                    self.scheduler.reject_hazard_value_fallback(val);
                     let func_id = self
                         .current_internal_function
                         .expect("internal caller has a current function");
@@ -516,6 +518,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
             crate::mir::Value::Inst(_) => {
                 let slot = spill_slot.expect("computed stack argument has a validated spill slot");
+                self.scheduler.reject_hazard_value_fallback(val);
                 self.emit_spill_load(func, slot);
             }
             other => unreachable!("stack-arg mask admitted an unsupported value: {other:?}"),
@@ -610,14 +613,27 @@ impl<'gcx> EvmCodegen<'gcx> {
     }
 
     /// Gives a stack-passed argument a valid frame home while retaining its stack copy.
-    fn materialize_stack_arg(&mut self, func_id: FunctionId, index: ArgIdx, value: ValueId) {
+    fn materialize_stack_arg(
+        &mut self,
+        func_id: FunctionId,
+        func: &Function,
+        index: ArgIdx,
+        value: ValueId,
+    ) {
         if !self.scheduler.is_stack_only_value(value) {
+            return;
+        }
+        if self.scheduler.reject_hazard_value_fallback(value) {
+            // Finish this failed attempt without repeating the depth-materialization loop.
+            self.scheduler.materialize_stack_only_value(value);
             return;
         }
         let depth = self.scheduler.stack.find(value).unwrap_or_else(|| {
             panic!("stack argument {value:?} was lost before frame materialization")
         });
-        assert!(depth < self.stack_access_limit(), "stack argument exceeded DUP reach");
+        let saved =
+            self.save_stack_prefix(func, (depth + 1).saturating_sub(self.stack_access_limit()));
+        let depth = self.scheduler.stack.find(value).expect("exposed stack argument");
         self.emit_stack_op(StackOp::Dup((depth + 1) as u8));
 
         let addr = self.static_frame_addr(
@@ -630,6 +646,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.asm.emit_op(op::MSTORE);
         self.scheduler.instruction_executed(2, None);
         self.scheduler.materialize_stack_only_value(value);
+        self.restore_stack_prefix(func, saved);
     }
 
     /// Gives a stack-only value a memory home before a fallback drains the physical stack.
@@ -643,7 +660,9 @@ impl<'gcx> EvmCodegen<'gcx> {
             return;
         }
         match func.value(value) {
-            crate::mir::Value::Arg(index) => self.materialize_stack_arg(func_id, *index, value),
+            crate::mir::Value::Arg(index) => {
+                self.materialize_stack_arg(func_id, func, *index, value)
+            }
             crate::mir::Value::Inst(_) => {
                 let depth = self.scheduler.stack.find(value).unwrap_or_else(|| {
                     panic!("stack-only value {value:?} was lost before memory materialization")
@@ -674,13 +693,19 @@ impl<'gcx> EvmCodegen<'gcx> {
         if transient_growth == 0 {
             return;
         }
+        // Protected values cannot use a speculative memory home. They may sit below temporary
+        // operands until the instruction consumes those operands; exact operand staging still
+        // checks every access. Reserve room for the persistent result instead.
         let materialize_depth = self.stack_access_limit().saturating_sub(transient_growth);
         let mut disabled_residency = false;
         loop {
             let entry = self.scheduler.stack.iter().enumerate().find_map(|(depth, value)| {
                 value
                     .filter(|&value| {
-                        depth >= materialize_depth && self.scheduler.is_stack_only_value(value)
+                        depth >= materialize_depth
+                            && self.scheduler.is_stack_only_value(value)
+                            && (!self.scheduler.is_hazard_protected(value)
+                                || depth >= self.stack_access_limit().saturating_sub(1))
                     })
                     .map(|value| (depth, value))
             });
@@ -688,7 +713,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             disabled_residency |= matches!(func.value(value), crate::mir::Value::Arg(_));
             self.materialize_stack_only_home(func_id, func, value);
         }
-        if disabled_residency {
+        if disabled_residency && !self.scheduler.preservation_failed() {
             self.disabled_stack_only_functions.insert(func_id);
         }
     }
@@ -697,6 +722,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     pub(in crate::backend::evm::codegen) fn materialize_lazy_stack_args(
         &mut self,
         func_id: FunctionId,
+        func: &Function,
         kind: &InstKind,
         block: BlockId,
         inst_idx: usize,
@@ -709,12 +735,12 @@ impl<'gcx> EvmCodegen<'gcx> {
         for (index, value) in plan.args {
             debug_assert!(operands.contains(&value));
             if plan.frame_values.contains(value) {
-                self.materialize_stack_arg(func_id, index, value);
+                self.materialize_stack_arg(func_id, func, index, value);
             }
         }
     }
 
-    /// Plans a bounded rotation that keeps computed arguments on the physical
+    /// Plans a bounded rotation that keeps computed and stack-only arguments on the physical
     /// stack while the rest of the caller stack is drained. The resulting
     /// layout matches the existing stack-argument convention: selected
     /// arguments in descending index order above the return address.
@@ -738,7 +764,10 @@ impl<'gcx> EvmCodegen<'gcx> {
         // occurrence independently.
         let mut selected_value_counts = FxHashMap::default();
         for (i, &arg) in args.iter().enumerate() {
-            if mask.contains(i) && matches!(func.value(arg), crate::mir::Value::Inst(_)) {
+            if mask.contains(i)
+                && (matches!(func.value(arg), crate::mir::Value::Inst(_))
+                    || self.scheduler.is_stack_only_value(arg))
+            {
                 *selected_value_counts.entry(arg).or_insert(0usize) += 1;
             }
         }

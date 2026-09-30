@@ -19,7 +19,7 @@
 +     v12 = ne v11, 0
 +     jumpi v12, bb2, bb1
 +   bb1:
-+     mstore 64, v5 !metadata(memory=scratch)
++     mstore 64, v5 !metadata(memory=scratch, preserves_valid_fmp)
 +     memory_zero v1, v4
       ret v0
 +   bb2:
@@ -34,7 +34,7 @@
 +     v2 = mload 64 !metadata(memory=scratch)
 +     v0 = inttoptr i256 v2 to memptr !metadata(memory=scratch, span=10..20)
 +     v3 = add v2, 32
-+     mstore 64, v3 !metadata(memory=scratch)
++     mstore 64, v3 !metadata(memory=scratch, preserves_valid_fmp)
       v1 = ptrtoint memptr v0 to i256
       ret v1
   }

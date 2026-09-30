@@ -1,6 +1,8 @@
 //@compile-flags: -Zmir-pipeline=if-convert
 //@filecheck:
 @module SelectArms
+types:
+  struct0: {i256, i256}
 
 // A bit-search step: both phis merge a value with one derived from it, so
 // the triangle becomes a scaled shift and a scaled or with no branch.
@@ -212,4 +214,17 @@ fn @pointer_arms(arg0: i1, arg1: memorystruct, arg2: memorystruct) -> i256 {
     v2 = ptrtoint memorystruct v0 to i256
     v1 = mload v2
     ret v1
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @aggregate_arms{{[( ]}}
+// CHECK: {{^ +}}jumpi
+// CHECK: {{^ +}}v0 = phi
+fn @aggregate_arms(arg0: i1, arg1: struct0, arg2: struct0) -> struct0 {
+  bb0:
+    jumpi arg0, bb2, bb1
+  bb1:
+    jump bb2
+  bb2:
+    v0 = phi [bb0: arg1], [bb1: arg2]
+    ret v0
 }

@@ -1,0 +1,20 @@
+error: codegen rewrite does not support this oversized fixed-array materialization yet
+   ╭▸ ROOT/tests/ui/codegen/lowering/storage_oversized_copy.sol:LL:CC
+   │
+LL │         target = source;
+   ╰╴                 ━━━━━━
+
+error: codegen rewrite does not support this oversized fixed-array materialization yet
+   ╭▸ ROOT/tests/ui/codegen/lowering/storage_oversized_copy.sol:LL:CC
+   │
+LL │         (target, target) = (source, source);
+   ╰╴                                    ━━━━━━
+
+error: codegen rewrite does not support this oversized fixed-array materialization yet
+   ╭▸ ROOT/tests/ui/codegen/lowering/storage_oversized_copy.sol:LL:CC
+   │
+LL │         target = source;
+   ╰╴                 ━━━━━━
+
+error: aborting due to 3 previous errors
+

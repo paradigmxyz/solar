@@ -25,7 +25,7 @@ fn @pack() [selector=0x62b0ae87, abi_wrapper, pure] {
     v181 = or v179, v180
     jumpi v181, bb5, bb22
   bb22:
-    mstore 64, v178 !metadata(memory=scratch)
+    mstore 64, v178 !metadata(memory=scratch, preserves_valid_fmp)
     mstore v177, v93
     v100 = sub v84, v88
     v101 = gt v93, v100
@@ -51,7 +51,7 @@ fn @pack() [selector=0x62b0ae87, abi_wrapper, pure] {
     v175 = or v173, v174
     jumpi v175, bb5, bb21
   bb21:
-    mstore 64, v172 !metadata(memory=scratch)
+    mstore 64, v172 !metadata(memory=scratch, preserves_valid_fmp)
     v183 = calldatasize
     calldatacopy v171, v183, v6
     mstore v171, v59

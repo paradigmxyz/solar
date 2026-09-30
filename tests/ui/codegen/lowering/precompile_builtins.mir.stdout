@@ -10,7 +10,7 @@ fn @recover() [selector=0xce746024, abi_wrapper, pure] {
     v39 = or v37, v38
     jumpi v39, bb2, bb1
   bb1:
-    mstore 64, v36 !metadata(memory=scratch)
+    mstore 64, v36 !metadata(memory=scratch, preserves_valid_fmp)
     v47 = calldatasize
     calldatacopy v35, v47, 192
     mstore v35, 160
@@ -29,7 +29,7 @@ fn @recover() [selector=0xce746024, abi_wrapper, pure] {
     v45 = or v43, v44
     jumpi v45, bb2, bb3
   bb3:
-    mstore 64, v42 !metadata(memory=scratch)
+    mstore 64, v42 !metadata(memory=scratch, preserves_valid_fmp)
     v48 = calldatasize
     calldatacopy v41, v48, 64
     mstore v41, 32
@@ -55,7 +55,7 @@ fn @recoverInvalid() [selector=0x008f4bed, abi_wrapper, pure] {
     v38 = or v36, v37
     jumpi v38, bb2, bb1
   bb1:
-    mstore 64, v35 !metadata(memory=scratch)
+    mstore 64, v35 !metadata(memory=scratch, preserves_valid_fmp)
     v46 = calldatasize
     calldatacopy v34, v46, 192
     mstore v34, 160
@@ -74,7 +74,7 @@ fn @recoverInvalid() [selector=0x008f4bed, abi_wrapper, pure] {
     v44 = or v42, v43
     jumpi v44, bb2, bb3
   bb3:
-    mstore 64, v41 !metadata(memory=scratch)
+    mstore 64, v41 !metadata(memory=scratch, preserves_valid_fmp)
     v47 = calldatasize
     calldatacopy v40, v47, 64
     mstore v40, 32
@@ -104,7 +104,7 @@ fn @sha() [selector=0x65707d6f, abi_wrapper, pure] {
     v26 = or v24, v25
     jumpi v26, bb2, bb1
   bb1:
-    mstore 64, v23 !metadata(memory=scratch)
+    mstore 64, v23 !metadata(memory=scratch, preserves_valid_fmp)
     v28 = calldatasize
     calldatacopy v22, v28, 64
     mstore v22, 32
@@ -133,7 +133,7 @@ fn @ripemd() [selector=0xa1e754ea, abi_wrapper, pure] {
     v27 = or v25, v26
     jumpi v27, bb2, bb1
   bb1:
-    mstore 64, v24 !metadata(memory=scratch)
+    mstore 64, v24 !metadata(memory=scratch, preserves_valid_fmp)
     v29 = calldatasize
     calldatacopy v23, v29, 64
     mstore v23, 32
@@ -163,7 +163,7 @@ fn @shaLiteral() [selector=0x4aa7a4c7, abi_wrapper, pure] {
     v26 = or v24, v25
     jumpi v26, bb2, bb1
   bb1:
-    mstore 64, v23 !metadata(memory=scratch)
+    mstore 64, v23 !metadata(memory=scratch, preserves_valid_fmp)
     v28 = calldatasize
     calldatacopy v22, v28, 64
     mstore v22, 32
@@ -192,7 +192,7 @@ fn @ripemdLiteral() [selector=0x062c5650, abi_wrapper, pure] {
     v27 = or v25, v26
     jumpi v27, bb2, bb1
   bb1:
-    mstore 64, v24 !metadata(memory=scratch)
+    mstore 64, v24 !metadata(memory=scratch, preserves_valid_fmp)
     v29 = calldatasize
     calldatacopy v23, v29, 64
     mstore v23, 32
@@ -213,7 +213,7 @@ fn @shaEmpty() [selector=0xf1609893, abi_wrapper, pure] {
   bb0:
     v29 = mload 64 !metadata(memory=scratch)
     v30 = add v29, 32
-    mstore 64, v30 !metadata(memory=scratch)
+    mstore 64, v30 !metadata(memory=scratch, preserves_valid_fmp)
     mstore v29, 0
     v23 = mload 64 !metadata(memory=scratch)
     v24 = add v23, 64
@@ -222,7 +222,7 @@ fn @shaEmpty() [selector=0xf1609893, abi_wrapper, pure] {
     v27 = or v25, v26
     jumpi v27, bb2, bb1
   bb1:
-    mstore 64, v24 !metadata(memory=scratch)
+    mstore 64, v24 !metadata(memory=scratch, preserves_valid_fmp)
     v31 = calldatasize
     calldatacopy v23, v31, 64
     mstore v23, 32
@@ -242,7 +242,7 @@ fn @ripemdEmpty() [selector=0x0c4b170a, abi_wrapper, pure] {
   bb0:
     v30 = mload 64 !metadata(memory=scratch)
     v31 = add v30, 32
-    mstore 64, v31 !metadata(memory=scratch)
+    mstore 64, v31 !metadata(memory=scratch, preserves_valid_fmp)
     mstore v30, 0
     v24 = mload 64 !metadata(memory=scratch)
     v25 = add v24, 64
@@ -251,7 +251,7 @@ fn @ripemdEmpty() [selector=0x0c4b170a, abi_wrapper, pure] {
     v28 = or v26, v27
     jumpi v28, bb2, bb1
   bb1:
-    mstore 64, v25 !metadata(memory=scratch)
+    mstore 64, v25 !metadata(memory=scratch, preserves_valid_fmp)
     v32 = calldatasize
     calldatacopy v24, v32, 64
     mstore v24, 32
@@ -273,7 +273,7 @@ fn @literal_bytes_word(arg0: i256, arg1: i256) -> memptr [may_return_memory] {
     v5 = mload 64 !metadata(memory=scratch)
     v0 = inttoptr i256 v5 to memptr !metadata(memory=scratch)
     v6 = add v5, 64
-    mstore 64, v6 !metadata(memory=scratch)
+    mstore 64, v6 !metadata(memory=scratch, preserves_valid_fmp)
     mstore v5, arg1
     v2 = add v5, 32
     mstore v2, arg0
