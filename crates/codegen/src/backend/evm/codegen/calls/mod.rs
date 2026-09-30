@@ -110,9 +110,10 @@ impl<'gcx> EvmCodegen<'gcx> {
             resident_call_values.extend(carried);
         }
         // Frame setup keeps the frame base, a staged word, and its address above the stack.
-        if !self.carry_live_across_call
-            || !self.carried_call_values_fit(func, &mut resident_call_values, args, 3)
-        {
+        // Carried words beyond `DUP` reach stay where they are.
+        let deep_carry = self.carry_live_across_call
+            && !self.carried_call_values_fit(&resident_call_values, args, 3);
+        if !self.carry_live_across_call {
             self.spill_live_stack_values(func_id, func, liveness, block, inst_idx);
         }
 
@@ -151,6 +152,9 @@ impl<'gcx> EvmCodegen<'gcx> {
         // validation accounts for the preserved words after emission.
         let caller_stack = if resident_call_values.is_empty() {
             None
+        } else if deep_carry {
+            self.drop_reachable_values_not_needed_by(&resident_call_values);
+            Some(self.scheduler.stack.clone())
         } else {
             self.pop_stack_values_not_needed_by(&resident_call_values);
             let target =
@@ -558,7 +562,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         // may write a dynamic spill area. Recover every caller word needed after
         // the call before argument stores overwrite that memory, then keep those
         // words below the hidden return address for the duration of the call.
-        let mut recursive_call_values = if recursive_reentry || self.carry_live_across_call {
+        let recursive_call_values = if recursive_reentry || self.carry_live_across_call {
             self.carry_live_call_values(
                 func,
                 liveness,
@@ -617,17 +621,15 @@ impl<'gcx> EvmCodegen<'gcx> {
                     && resident_call_values.contains(arg)
             })
             .count();
-        if self.carry_live_across_call
+        // Carried words beyond `DUP` reach stay where they are; after the call, the moved spill
+        // area can hold them again.
+        let deep_carry = self.carry_live_across_call
             && !recursive_reentry
             && !self.carried_call_values_fit(
-                func,
-                &mut resident_call_values,
+                &resident_call_values,
                 args,
                 argument_words + 2 + duplicated_args,
-            )
-        {
-            recursive_call_values.clear();
-        }
+            );
         let carry_live = recursive_reentry || self.carry_live_across_call;
         let carries_resident_stack = !resident_call_values.is_empty();
         let caller_stack_plan = (!carries_resident_stack).then(|| {
@@ -656,6 +658,12 @@ impl<'gcx> EvmCodegen<'gcx> {
                     .count();
                 while self.scheduler.stack.iter().filter(|slot| *slot == Some(value)).count()
                     <= consumed
+                    && !(deep_carry
+                        && self
+                            .scheduler
+                            .stack
+                            .find(value)
+                            .is_some_and(|depth| depth >= self.stack_access_limit()))
                 {
                     let depth = self.scheduler.stack.find(value).unwrap_or_else(|| {
                         if self.recover_lost_internal_stack_value(value) {
@@ -744,7 +752,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     && !caller_stack_plan
                         .as_ref()
                         .is_some_and(|plan| plan.caller_stack.contains(arg))
-                    && !resident_call_values.contains(&arg)
+                    && (deep_carry || !resident_call_values.contains(&arg))
                     && matches!(func.value(arg), crate::mir::Value::Inst(_))
                     && !Self::is_always_rematerializable_value(func, arg)
                 {
@@ -769,7 +777,10 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
         }
 
-        let caller_stack = if carries_resident_stack {
+        let caller_stack = if deep_carry {
+            self.drop_reachable_values_not_needed_by(&resident_call_values);
+            Some(self.scheduler.stack.clone())
+        } else if carries_resident_stack {
             self.pop_stack_values_not_needed_by(&resident_call_values);
             let target =
                 resident_call_values.iter().copied().map(TargetSlot::Value).collect::<Vec<_>>();

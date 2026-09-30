@@ -477,7 +477,11 @@ impl<'gcx> EvmCodegen<'gcx> {
             return;
         }
 
-        if let Some(depth) = caller_stack.and_then(|stack| stack.find(val)) {
+        // A carried word beyond `DUP` reach has a spill slot, or loads from calldata or its frame.
+        if let Some(depth) = caller_stack.and_then(|stack| stack.find(val))
+            && (depth + words_above < self.stack_access_limit()
+                || spill_slot.is_none() && matches!(func.value(val), crate::mir::Value::Inst(_)))
+        {
             let dup = depth + words_above + 1;
             if recover_inaccessible
                 && dup > self.stack_access_limit()

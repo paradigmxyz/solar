@@ -1,6 +1,0 @@
-error: codegen cannot keep 18 values of `fallback` on the stack across an internal call after a dynamic low-memory write
-   │
-   ╰ note: the callee may write any memory the values could be spilled to
-
-error: aborting due to 1 previous error
-

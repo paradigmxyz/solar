@@ -29,9 +29,18 @@
 //! write can have left something else in the `0x40` word: that word may hold part of a buffer,
 //! and writing it would corrupt the buffer.
 //!
-//! NOTE: A callee can still write a moved area when the pointer word may hold buffer data, or
-//! when it writes memory without allocating. A recursive function's frame pointer lives at a
-//! fixed word that no move can protect; a clobber that may cover it is reported as an error.
+//! A call to a function that may write memory it did not allocate, or whose pointer could not
+//! be raised, carries every value used after it on the stack instead, since no address is safe
+//! from the callee. Values rebuilt from arguments and immediates are recomputed afterwards
+//! instead of carried. Carried words may sit below `DUP` reach during the call. Afterwards the
+//! base moves above `msize()`, the carried values that had slots are stored there again, since
+//! blocks emitted earlier may reload them, and the words above any value still out of reach are
+//! stored and popped. A call to a function that may make a low-memory clobber before returning
+//! is a clobber in its caller too, so the caller gets the same treatment.
+//!
+//! NOTE: A recursive function's frame pointer lives at a fixed word that no move can protect; a
+//! clobber in the function itself that may cover it is reported as an error. A callee's clobber
+//! of that word is not detected.
 
 use super::{
     ArgIdx, BlockId, CfgInfo, DenseBitSet, DynamicSpillBase, EvmCodegen, EvmMemoryLayout, Function,
@@ -870,6 +879,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         for &value in &values {
             if !self.scheduler.stack.contains(value) {
                 self.emit_value(func, value);
+                self.refresh_spill_base();
             }
         }
         let spills = &self.scheduler.spills;
@@ -883,50 +893,34 @@ impl<'gcx> EvmCodegen<'gcx> {
         values
     }
 
-    /// Drops the stack words an internal call neither carries nor passes, then returns whether
-    /// the carried values stay within stack reach with `words_above` more words pushed above
-    /// them. Otherwise reports an error and stops carrying, so emission can finish.
+    /// Drops the reachable stack words an internal call neither carries nor passes, then returns
+    /// whether the carried values stay within stack reach with `words_above` more words pushed
+    /// above them.
     pub(super) fn carried_call_values_fit(
         &mut self,
-        func: &Function,
-        resident: &mut Vec<ValueId>,
+        resident: &[ValueId],
         args: &[ValueId],
         words_above: usize,
     ) -> bool {
         let limit = self.stack_access_limit();
-        let needed = resident.iter().chain(args).copied().collect::<Vec<_>>();
-        while let Some(depth) = self.first_stack_value_not_needed_by(&needed)
-            && depth <= limit
+        self.drop_reachable_values_not_needed_by(
+            &resident.iter().chain(args).copied().collect::<Vec<_>>(),
+        );
+        let deepest = resident.iter().filter_map(|&value| self.scheduler.stack.find(value)).max();
+        resident.len() + words_above < limit
+            && deepest.is_none_or(|depth| depth + words_above < limit)
+    }
+
+    /// Pops every stack word within `SWAP` reach that `needed` does not claim.
+    pub(super) fn drop_reachable_values_not_needed_by(&mut self, needed: &[ValueId]) {
+        while let Some(depth) = self.first_stack_value_not_needed_by(needed)
+            && depth <= self.stack_access_limit()
         {
             if depth > 0 {
                 self.emit_stack_op(StackOp::Swap(depth as u8));
             }
             self.emit_stack_op(StackOp::Pop);
         }
-        let deepest = resident.iter().filter_map(|&value| self.scheduler.stack.find(value)).max();
-        if resident.len() + words_above < limit
-            && deepest.is_none_or(|depth| depth + words_above < limit)
-        {
-            return true;
-        }
-        let carried = std::mem::take(&mut self.carried_call_values);
-        if let Some(func_id) = self.emitting_function
-            && self.carried_call_errors.insert(func_id)
-        {
-            self.gcx
-                .dcx()
-                .err(format!(
-                    "codegen cannot keep {} values of `{}` on the stack across an internal call \
-                     after a dynamic low-memory write",
-                    carried.len(),
-                    func.name
-                ))
-                .note("the callee may write any memory the values could be spilled to")
-                .emit();
-        }
-        resident.retain(|value| !carried.contains(value));
-        self.carry_live_across_call = false;
-        false
     }
 
     /// Moves the dynamic spill base above everything an internal call may have written, after
@@ -953,6 +947,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         values: &[ValueId],
         spilled: &[ValueId],
     ) {
+        self.unwind_carried_values(func, values);
         for &value in values {
             let Value::Arg(index) = func.value(value) else { continue };
             if !self.in_internal_function {
@@ -976,6 +971,39 @@ impl<'gcx> EvmCodegen<'gcx> {
             // mstore(spill_base + slot_offset, value)
             self.emit_stack_op(StackOp::Dup((depth + 1) as u8));
             self.store_stack_top_to_spill(func, value, slot);
+        }
+    }
+
+    /// Stores and pops the words above `values` in the moved area until each is within `DUP`
+    /// reach. Every popped word stays reloadable, rematerializable, or stored in its frame.
+    fn unwind_carried_values(&mut self, func: &Function, values: &[ValueId]) {
+        let limit = self.stack_access_limit();
+        let spill_base = self.spill_base.as_ref().map(|base| base.value);
+        while values
+            .iter()
+            .filter_map(|&value| self.scheduler.stack.find(value))
+            .any(|depth| depth >= limit)
+        {
+            // swap1
+            if spill_base.is_some() && self.scheduler.stack.top() == spill_base {
+                self.emit_stack_op(StackOp::Swap(1));
+            }
+            let top = self.scheduler.stack.top().expect("carried values lie below tracked words");
+            if self.in_internal_function
+                && let Value::Arg(index) = func.value(top)
+            {
+                // mstore(spill_base + argument_offset, argument)
+                self.emit_dynamic_frame_arg_addr(*index);
+                self.scheduler.stack.push_unknown();
+                self.emit_untracked_op(op::MSTORE);
+            } else if Self::always_rematerializable_op(func, top).is_some()
+                || self.scheduler.reloadable_spill(top).is_some()
+            {
+                self.emit_stack_op(StackOp::Pop);
+            } else {
+                let slot = self.scheduler.spills.allocate(top);
+                self.store_stack_top_to_spill(func, top, slot);
+            }
         }
     }
 }
