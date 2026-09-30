@@ -288,11 +288,9 @@ bb22:
   push bb6
   jumpi
   push bb24
-  push 4
   jump bb41
 bb41:
-  calldatasize
-  swap 1
+  push 4
   calldataload
   push 4
   dup 2
@@ -306,15 +304,12 @@ bb41:
   push 192
   shr
   lt
-  swap 3
-  dup 3
+  calldatasize
+  dup 4
   gt
-  swap 1
-  swap 3
   or
   push bb6
   jumpi
-  swap 1
   calldataload
   push 63
   dup 2
@@ -451,7 +446,6 @@ bb27:
   push bb6
   jumpi
   push bb29
-  push 4
   jump bb41
 bb29 [continuation]:
   push bb24

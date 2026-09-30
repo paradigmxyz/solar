@@ -7,7 +7,7 @@
 
 fn @dFlat() [selector=0x6644232b, abi_wrapper, pure] {
   bb0:
-    v35 = icall @decode_calldata_type, 4
+    v35 = icall @decode_calldata_type
     v52 = ptrtoint memptr v35 to i256
     v53 = add v52, 32
     v13 = mload v52
@@ -51,7 +51,7 @@ fn @dFlat() [selector=0x6644232b, abi_wrapper, pure] {
 
 fn @dNested() [selector=0xfc7ec666, abi_wrapper, pure] {
   bb0:
-    v67 = icall @decode_calldata_type, 4
+    v67 = icall @decode_calldata_type
     v121 = ptrtoint memptr v67 to i256
     v122 = add v121, 32
     v15 = mload v121
@@ -173,7 +173,7 @@ fn @dNested() [selector=0xfc7ec666, abi_wrapper, pure] {
 
 fn @dFixed() [selector=0xc298c02b, abi_wrapper, pure] {
   bb0:
-    v40 = icall @decode_calldata_type, 4
+    v40 = icall @decode_calldata_type
     v52 = ptrtoint memptr v40 to i256
     v53 = add v52, 32
     v13 = mload v52
@@ -246,7 +246,7 @@ fn @dFixed() [selector=0xc298c02b, abi_wrapper, pure] {
 
 fn @dDynArr() [selector=0xaca542ca, abi_wrapper, pure] {
   bb0:
-    v53 = icall @decode_calldata_type, 4
+    v53 = icall @decode_calldata_type
     v60 = ptrtoint memptr v53 to i256
     v61 = add v60, 32
     v3 = mload v60
@@ -323,10 +323,10 @@ fn @dDynArr() [selector=0xaca542ca, abi_wrapper, pure] {
     revert 0, 0
 }
 
-fn @decode_calldata_type(arg0: i256) -> memptr [may_return_memory] {
+fn @decode_calldata_type() -> memptr [may_return_memory] {
   bb0:
     v0 = calldatasize
-    v1 = calldataload arg0
+    v1 = calldataload 4
     v2 = add v1, 4
     v3 = add v2, 32
     v4 = gt v1, 0xffffffffffffffff

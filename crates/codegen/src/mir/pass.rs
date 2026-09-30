@@ -276,6 +276,9 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     // Getter inlining exposes runtime immutable widths after the general check passes.
     &check_elim::ImmutableCheckElim,
     &cfg_simplify::FunctionDce,
+    // ABI lowering adds shared decoders whose callers often all pass the same
+    // constant head; substitute it before dead-argument elimination drops it.
+    &specialize::Specialize,
     &function_compaction::DeadArgElim,
     &dce::Dce,
     &function_compaction::MergeEquivalentFunctions,
