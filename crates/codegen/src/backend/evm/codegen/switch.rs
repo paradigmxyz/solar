@@ -2024,6 +2024,11 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.emit_stack_op(StackOp::Swap(1));
                 self.emit_stack_op(StackOp::Pop);
             }
+        } else if self.after_spill_hazard {
+            // A spill slot after a low-memory clobber may lie in the written buffer. Keep the
+            // scrutinee on the stack while draining the rest, like a branch condition.
+            self.pop_stack_values_not_needed_by(&[value]);
+            self.emit_value(func, value);
         } else {
             let mut operands = Vec::with_capacity(cases.len() + 1);
             operands.push(value);
