@@ -14,6 +14,11 @@
 //@ run-call: RecursiveCarryHarness::run => 1
 //@ run-call: ConstructorLoopHarness::run => 1
 //@ run-call: CarriedStackArgsHarness::run => 1
+//@ run-call: StackReturnCallHarness::run => 1
+//@ run-call: CopyingCalleeLoopHarness::run => 1
+//@ run-call: IfElseReturnHarness::run => 1
+//@ run-call: SwitchExitHarness::run => 1
+//@ run-call: CopyingHelperHarness::run => 1
 
 // Reduced regressions for the dynamic spill base. Expected results come from a model of each
 // program, not from compiling it.
@@ -594,6 +599,240 @@ contract CarriedStackArgsHarness {
             abi.encodePacked(abi.encodeCall(CarriedStackArgs.run, (7)), new bytes(512))
         );
         require(success && abi.decode(result, (uint256)) == 0, "carried stack args");
+        return 1;
+    }
+}
+
+// A carried call in a nested loop to a callee that returns on the stack at `-O size`; the
+// inner loop exit, emitted before the call, still reloads a slot the call moved.
+contract StackReturnCall {
+    function h(uint256 a0, uint256 a1) internal pure returns (uint256 r) {
+        unchecked {
+            r = a0;
+            for (uint256 k = 0; k < (a1 & 3) + 1; k++) {
+                r = r * 39 + a1;
+                r ^= a0 >> 3;
+            }
+            if (a0 & 7 == 0) {
+                uint256[] memory m = new uint256[]((a0 & 15) + 1);
+                m[0] = r;
+                r += m[0] + m.length;
+            }
+        }
+    }
+    function f(uint256 seed) external pure returns (uint256 acc) {
+        unchecked {
+            uint256 v0 = seed;
+            uint256 v1 = seed * 3 + 1;
+            uint256 v2 = seed * 5 + 4;
+            uint256 v3 = seed * 7 + 9;
+            uint256 v4 = seed * 9 + 16;
+            uint256 v5 = seed * 11 + 25;
+            assembly { calldatacopy(0, 0, calldatasize()) }
+            if (v2 % 3 == 1) {
+                v3 = v0 * (893 | v4) + (v2 & v5) * (464 ^ 615);
+            }
+            for (uint256 i = 0; i < v3 % 3; i++) {
+                for (uint256 j = 0; j < v0 % 3; j++) {
+                    v4 = v5 ^ v2;
+                    v2 = h(v0 ^ 950, 802) + v1;
+                }
+            }
+            acc = v0 ^ (v1 << 1) ^ (v2 << 2) ^ (v3 << 3) ^ (v4 << 4) ^ (v5 << 5);
+        }
+    }
+}
+
+contract StackReturnCallHarness {
+    function run() external returns (uint256) {
+        address target = address(new StackReturnCall());
+        uint256[4] memory seeds = [uint256(0x1234567), 3, 1000, 77];
+        uint256[4] memory expected =
+            [uint256(0x42073d1947f), 0x26f73, 0x1a7cfaa, 0x3470ac75];
+        for (uint256 i; i < 4; i++) {
+            (bool success, bytes memory result) = target.call(
+                abi.encodePacked(abi.encodeCall(StackReturnCall.f, (seeds[i])), new bytes(512))
+            );
+            require(success && abi.decode(result, (uint256)) == expected[i], "stack return call");
+        }
+        return 1;
+    }
+}
+
+// A loop that calls a helper which copies into low memory itself.
+contract CopyingCalleeLoop {
+    function g(uint256 a) internal pure returns (uint256 r) {
+        unchecked {
+            assembly { calldatacopy(0, 0, calldatasize()) }
+            r = a * 3 + 1;
+        }
+    }
+    function f(uint256 seed) external pure returns (uint256 acc) {
+        unchecked {
+            uint256 v0 = seed;
+            uint256 v1 = seed * 3 + 1;
+            uint256 v2 = seed * 5 + 4;
+            uint256 v3 = seed * 7 + 9;
+            uint256 v4 = seed * 9 + 16;
+            uint256 v5 = seed * 11 + 25;
+            assembly { calldatacopy(0, 0, calldatasize()) }
+            for (uint256 i = 0; i < v3 % 4; i++) {
+                v4 = v5 ^ v2;
+                v2 = g(v0 ^ i) + v1;
+            }
+            acc = v0 ^ (v1 << 1) ^ (v2 << 2) ^ (v3 << 3) ^ (v4 << 4) ^ (v5 << 5);
+        }
+    }
+}
+
+contract CopyingCalleeLoopHarness {
+    function run() external returns (uint256) {
+        address target = address(new CopyingCalleeLoop());
+        uint256[4] memory seeds = [uint256(0x1234567), 3, 1000, 77];
+        uint256[4] memory expected = [uint256(0x11673841f), 0x503, 0x679aa, 0x57f9];
+        for (uint256 i; i < 4; i++) {
+            (bool success, bytes memory result) = target.call(
+                abi.encodePacked(abi.encodeCall(CopyingCalleeLoop.f, (seeds[i])), new bytes(512))
+            );
+            require(success && abi.decode(result, (uint256)) == expected[i], "copying callee");
+        }
+        return 1;
+    }
+}
+
+// Both arms return, so `-O none` keeps an unreachable join block.
+contract IfElseReturn {
+    function f(uint256 s) external pure returns (uint256) {
+        unchecked {
+            uint256 a0 = s;
+            uint256 a1 = s * 3 + 1;
+            uint256 a2 = s * 5 + 2;
+            uint256 a3 = s * 7 + 3;
+            uint256 a4 = s * 9 + 4;
+            uint256 a5 = s * 11 + 5;
+            uint256 a6 = s * 13 + 6;
+            uint256 a7 = s * 15 + 7;
+            uint256 a8 = s * 17 + 8;
+            uint256 a9 = s * 19 + 9;
+            uint256 b0 = s * 21 + 10;
+            uint256 b1 = s * 23 + 11;
+            uint256 b2 = s * 25 + 12;
+            uint256 b3 = s * 27 + 13;
+            uint256 b4 = s * 29 + 14;
+            uint256 b5 = s * 31 + 15;
+            uint256 b6 = s * 33 + 16;
+            uint256 b7 = s * 35 + 17;
+            uint256 b8 = s * 37 + 18;
+            uint256 b9 = s * 39 + 19;
+            assembly { calldatacopy(0, 0, calldatasize()) }
+            uint256 a = a0 ^ a1 ^ a2 ^ a3 ^ a4 ^ a5 ^ a6 ^ a7 ^ a8 ^ a9;
+            uint256 b = b0 ^ b1 ^ b2 ^ b3 ^ b4 ^ b5 ^ b6 ^ b7 ^ b8 ^ b9;
+            if (s & 1 == 0) {
+                return a;
+            } else {
+                return b;
+            }
+        }
+    }
+}
+
+contract IfElseReturnHarness {
+    function run() external returns (uint256) {
+        address target = address(new IfElseReturn());
+        uint256[4] memory seeds = [uint256(0x1234567), 3, 1000, 77];
+        uint256[4] memory expected = [uint256(0x8a2bab1), 0x19, 0x931, 0xd2d];
+        for (uint256 i; i < 4; i++) {
+            (bool success, bytes memory result) = target.call(
+                abi.encodePacked(abi.encodeCall(IfElseReturn.f, (seeds[i])), new bytes(512))
+            );
+            require(success && abi.decode(result, (uint256)) == expected[i], "if else return");
+        }
+        return 1;
+    }
+}
+
+// OpenZeppelin's `Proxy._delegate` shape, forwarding to the identity precompile.
+contract SwitchExit {
+    fallback() external {
+        assembly {
+            calldatacopy(0, 0, calldatasize())
+            let ok := staticcall(gas(), 4, 0, calldatasize(), 0, 0)
+            returndatacopy(0, 0, returndatasize())
+            switch ok
+            case 0 { revert(0, returndatasize()) }
+            default { return(0, returndatasize()) }
+        }
+    }
+}
+
+contract SwitchExitHarness {
+    function run() external returns (uint256) {
+        bytes memory data = input();
+        (bool success, bytes memory result) = address(new SwitchExit()).call(data);
+        require(success && keccak256(result) == keccak256(data), "switch exit");
+        return 1;
+    }
+}
+
+// A caller with many live values calls a helper that copies over low memory.
+contract CopyingHelper {
+    function z(uint256 a0, uint256 a1) internal pure returns (uint256 r) {
+        unchecked {
+            uint256 l0 = a0 * 3 + 1;
+            uint256 l1 = a1 * 5 + 2;
+            uint256 l2 = a0 * 7 + 3;
+            uint256 l3 = a1 * 9 + 4;
+            uint256 l4 = a0 * 11 + 5;
+            uint256 l5 = a1 * 13 + 6;
+            uint256 l6 = a0 * 15 + 7;
+            uint256 l7 = a1 * 17 + 8;
+            uint256 l8 = a0 * 19 + 9;
+            assembly { calldatacopy(0, 0, calldatasize()) }
+            for (uint256 i = 0; i < (a0 & 3); i++) {
+                l0 = l0 * 31 + l8;
+                l8 ^= l1;
+            }
+            r = l0 ^ l1 ^ l2 ^ l3 ^ l4 ^ l5 ^ l6 ^ l7 ^ l8;
+        }
+    }
+    function f(uint256 s) external pure returns (uint256) {
+        unchecked {
+            uint256 v0 = s;
+            uint256 v1 = s * 3 + 1;
+            uint256 v2 = s * 5 + 2;
+            uint256 v3 = s * 7 + 3;
+            uint256 v4 = s * 9 + 4;
+            uint256 v5 = s * 11 + 5;
+            uint256 v6 = s * 13 + 6;
+            uint256 v7 = s * 15 + 7;
+            uint256 v8 = s * 17 + 8;
+            uint256 v9 = s * 19 + 9;
+            uint256 v10 = s * 21 + 10;
+            uint256 v11 = s * 23 + 11;
+            uint256 v12 = s * 25 + 12;
+            uint256 v13 = s * 27 + 13;
+            uint256 v14 = s * 29 + 14;
+            uint256 v15 = s * 31 + 15;
+            uint256 v16 = z(v2, v4);
+            uint256 v17 = s * 35 + 17;
+            uint256 v18 = s * 37 + 18;
+            return v0 ^ v1 ^ v2 ^ v3 ^ v4 ^ v5 ^ v6 ^ v7 ^ v8 ^ v9 ^ v10 ^ v11 ^ v12 ^ v13 ^ v14
+                ^ v15 ^ v16 ^ v17 ^ v18;
+        }
+    }
+}
+
+contract CopyingHelperHarness {
+    function run() external returns (uint256) {
+        address target = address(new CopyingHelper());
+        uint256[4] memory seeds = [uint256(0x1234567), 3, 1000, 77];
+        uint256[4] memory expected = [uint256(0x234d1b502), 0x546, 0x108fc5a, 0x27e6dc1];
+        for (uint256 i; i < 4; i++) {
+            (bool success, bytes memory result) = target.call(
+                abi.encodePacked(abi.encodeCall(CopyingHelper.f, (seeds[i])), new bytes(512))
+            );
+            require(success && abi.decode(result, (uint256)) == expected[i], "copying helper");
+        }
         return 1;
     }
 }

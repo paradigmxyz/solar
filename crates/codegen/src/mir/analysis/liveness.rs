@@ -281,7 +281,18 @@ impl Liveness {
     pub(crate) fn pin(&mut self, func: &Function, value: ValueId) {
         let last_uses =
             self.last_use_in_block.as_mut().expect("liveness was computed without last uses");
-        for (block_id, block) in func.blocks.iter_enumerated() {
+        // Unreachable blocks never see the value.
+        let mut reachable = DenseBitSet::new_empty(func.blocks.len());
+        let mut worklist = vec![BlockId::ENTRY];
+        while let Some(block) = worklist.pop() {
+            if reachable.insert(block)
+                && let Some(term) = &func.blocks[block].terminator
+            {
+                worklist.extend(term.successors());
+            }
+        }
+        for block_id in reachable.iter() {
+            let block = &func.blocks[block_id];
             if block_id != BlockId::ENTRY {
                 self.live_in.insert(block_id, value);
             }

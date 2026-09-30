@@ -125,7 +125,23 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// need the forwarding-buffer protocol: its exact runtime address does
     /// not create an unbounded clobber range, unless it is repeated through a
     /// loop-carried pointer that starts below the spill area and sweeps it.
+    /// A call to a function that may make such a write counts as one too.
     pub(in crate::backend::evm::codegen) fn compute_spill_hazard_insts(
+        &self,
+        func: &Function,
+    ) -> FxHashSet<InstId> {
+        let mut hazards = self.direct_spill_hazard_insts(func);
+        hazards.extend(func.instructions().filter(|&inst_id| {
+            matches!(func.inst(inst_id).kind, InstKind::ICall {
+                function: Callee::Function(callee), ..
+            } if callee.index() < self.spill_hazard_functions.domain_size()
+                && self.spill_hazard_functions.contains(callee))
+        }));
+        hazards
+    }
+
+    /// Collects the writes of `func` itself that [`Self::compute_spill_hazard_insts`] reports.
+    pub(in crate::backend::evm::codegen) fn direct_spill_hazard_insts(
         &self,
         func: &Function,
     ) -> FxHashSet<InstId> {

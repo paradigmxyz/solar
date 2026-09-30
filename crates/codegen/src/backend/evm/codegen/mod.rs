@@ -402,6 +402,8 @@ pub struct EvmCodegen<'gcx> {
     free_memory_clobbering_functions: DenseBitSet<FunctionId>,
     /// Functions that, directly or through calls, may write memory they did not allocate.
     unowned_memory_writers: DenseBitSet<FunctionId>,
+    /// Functions that, directly or through calls, may write memory a spill slot can occupy.
+    spill_hazard_functions: DenseBitSet<FunctionId>,
     /// Functions that, directly or through calls, may write memory reached through the
     /// free-memory pointer.
     heap_memory_writers: DenseBitSet<FunctionId>,
@@ -410,6 +412,10 @@ pub struct EvmCodegen<'gcx> {
     carry_live_across_call: bool,
     /// Values the internal call being emitted carried on the stack.
     carried_call_values: Vec<ValueId>,
+    /// Carried values whose spill slots held them before the call.
+    carried_spill_values: Vec<ValueId>,
+    /// Functions already reported for values that do not fit on the stack across a call.
+    carried_call_errors: FxHashSet<FunctionId>,
     /// Leaf helpers whose sole returned word is derived from the free-memory pointer.
     /// Their callers may safely use the result as a dynamic forwarding-buffer base.
     heap_pointer_return_functions: DenseBitSet<FunctionId>,
@@ -512,9 +518,12 @@ impl<'gcx> EvmCodegen<'gcx> {
             external_spill_base_consts: FxHashMap::default(),
             free_memory_clobbering_functions: DenseBitSet::new_empty(0),
             unowned_memory_writers: DenseBitSet::new_empty(0),
+            spill_hazard_functions: DenseBitSet::new_empty(0),
             heap_memory_writers: DenseBitSet::new_empty(0),
             carry_live_across_call: false,
             carried_call_values: Vec::new(),
+            carried_spill_values: Vec::new(),
+            carried_call_errors: FxHashSet::default(),
             heap_pointer_return_functions: DenseBitSet::new_empty(0),
             global_stack_active: false,
             global_stack_aliases: FxHashMap::default(),
@@ -587,9 +596,12 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.external_spill_base_consts.clear();
         self.free_memory_clobbering_functions.clear_to(module.functions.len());
         self.unowned_memory_writers.clear_to(module.functions.len());
+        self.spill_hazard_functions.clear_to(module.functions.len());
         self.heap_memory_writers.clear_to(module.functions.len());
         self.carry_live_across_call = false;
         self.carried_call_values.clear();
+        self.carried_spill_values.clear();
+        self.carried_call_errors.clear();
         self.heap_pointer_return_functions.clear_to(module.functions.len());
         self.global_stack_active = false;
         self.global_stack_aliases.clear();

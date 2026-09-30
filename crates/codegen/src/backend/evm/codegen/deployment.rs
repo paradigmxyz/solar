@@ -76,6 +76,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.free_memory_clobbering_functions,
             self.unowned_memory_writers,
             self.heap_memory_writers,
+            self.spill_hazard_functions,
         ] = self.collect_memory_summaries(module);
         self.cold_functions = if matches!(self.gcx.sess.opts.optimization, OptimizationMode::None) {
             DenseBitSet::new_empty(module.functions.len())

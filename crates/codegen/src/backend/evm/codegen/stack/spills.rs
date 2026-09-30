@@ -1133,7 +1133,12 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
     }
 
-    fn store_stack_top_to_spill(&mut self, func: &Function, value: ValueId, slot: SpillSlot) {
+    pub(in crate::backend::evm::codegen) fn store_stack_top_to_spill(
+        &mut self,
+        func: &Function,
+        value: ValueId,
+        slot: SpillSlot,
+    ) {
         // Store to spill slot: PUSH offset, MSTORE.
         // The PUSH creates an untracked stack entry, so we track it as unknown.
         self.emit_spill_slot_addr(func, slot);

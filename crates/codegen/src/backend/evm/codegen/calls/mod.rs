@@ -111,7 +111,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
         // Frame setup keeps the frame base, a staged word, and its address above the stack.
         if !self.carry_live_across_call
-            || !self.carried_call_values_fit(func, &mut resident_call_values, 3)
+            || !self.carried_call_values_fit(func, &mut resident_call_values, args, 3)
         {
             self.spill_live_stack_values(func_id, func, liveness, block, inst_idx);
         }
@@ -622,6 +622,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             && !self.carried_call_values_fit(
                 func,
                 &mut resident_call_values,
+                args,
                 argument_words + 2 + duplicated_args,
             )
         {
@@ -845,8 +846,10 @@ impl<'gcx> EvmCodegen<'gcx> {
         // The nested activation is finished, so rebuild the caller's frame
         // homes from the words retained below its return address. This makes
         // later block entries and another recursive call see the caller's
-        // state rather than the child activation's last stores.
-        for &value in &recursive_call_values {
+        // state rather than the child activation's last stores. Values carried
+        // past a call that may write the dynamic spill area stay on the stack;
+        // their area moves once the call completes.
+        for &value in recursive_call_values.iter().filter(|_| recursive_reentry) {
             if let crate::mir::Value::Arg(index) = func.value(value) {
                 let depth = self.scheduler.stack.find(value).unwrap_or_else(|| {
                     panic!("recursive caller argument {value:?} was not preserved")

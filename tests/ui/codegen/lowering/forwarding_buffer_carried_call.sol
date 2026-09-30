@@ -1,8 +1,9 @@
 //@ compile-flags: -O gas --emit=bin
 
 // Too many values live across a call to a helper that writes memory it never allocated,
-// after a low-memory copy. No spill address is safe from the helper, and the values do not
-// fit on the stack, so codegen reports it instead of emitting code that loses them.
+// after a low-memory copy. No spill address is safe from the helper, storage loads cannot be
+// recomputed after it, and the values do not fit on the stack, so codegen reports it instead
+// of emitting code that loses them.
 // https://github.com/paradigmxyz/solar/issues/1625
 
 contract C {
@@ -14,41 +15,41 @@ contract C {
 
     fallback() external {
         uint256 v0;
-        assembly { v0 := add(calldataload(0x0), 0) }
+        assembly { v0 := add(sload(0x0), 0) }
         uint256 v1;
-        assembly { v1 := add(calldataload(0x20), 1) }
+        assembly { v1 := add(sload(0x20), 1) }
         uint256 v2;
-        assembly { v2 := add(calldataload(0x40), 2) }
+        assembly { v2 := add(sload(0x40), 2) }
         uint256 v3;
-        assembly { v3 := add(calldataload(0x60), 3) }
+        assembly { v3 := add(sload(0x60), 3) }
         uint256 v4;
-        assembly { v4 := add(calldataload(0x80), 4) }
+        assembly { v4 := add(sload(0x80), 4) }
         uint256 v5;
-        assembly { v5 := add(calldataload(0xa0), 5) }
+        assembly { v5 := add(sload(0xa0), 5) }
         uint256 v6;
-        assembly { v6 := add(calldataload(0xc0), 6) }
+        assembly { v6 := add(sload(0xc0), 6) }
         uint256 v7;
-        assembly { v7 := add(calldataload(0xe0), 7) }
+        assembly { v7 := add(sload(0xe0), 7) }
         uint256 v8;
-        assembly { v8 := add(calldataload(0x100), 8) }
+        assembly { v8 := add(sload(0x100), 8) }
         uint256 v9;
-        assembly { v9 := add(calldataload(0x120), 9) }
+        assembly { v9 := add(sload(0x120), 9) }
         uint256 v10;
-        assembly { v10 := add(calldataload(0x140), 10) }
+        assembly { v10 := add(sload(0x140), 10) }
         uint256 v11;
-        assembly { v11 := add(calldataload(0x160), 11) }
+        assembly { v11 := add(sload(0x160), 11) }
         uint256 v12;
-        assembly { v12 := add(calldataload(0x180), 12) }
+        assembly { v12 := add(sload(0x180), 12) }
         uint256 v13;
-        assembly { v13 := add(calldataload(0x1a0), 13) }
+        assembly { v13 := add(sload(0x1a0), 13) }
         uint256 v14;
-        assembly { v14 := add(calldataload(0x1c0), 14) }
+        assembly { v14 := add(sload(0x1c0), 14) }
         uint256 v15;
-        assembly { v15 := add(calldataload(0x1e0), 15) }
+        assembly { v15 := add(sload(0x1e0), 15) }
         uint256 v16;
-        assembly { v16 := add(calldataload(0x200), 16) }
+        assembly { v16 := add(sload(0x200), 16) }
         uint256 v17;
-        assembly { v17 := add(calldataload(0x220), 17) }
+        assembly { v17 := add(sload(0x220), 17) }
         assembly { calldatacopy(0x80, 0, calldatasize()) }
         append(2);
         append(1);
@@ -60,5 +61,4 @@ contract C {
     }
 }
 
-//~? ERROR: codegen cannot keep 18 values of `fallback` on the stack across an internal call after a dynamic low-memory write
 //~? ERROR: codegen cannot keep 18 values of `fallback` on the stack across an internal call after a dynamic low-memory write

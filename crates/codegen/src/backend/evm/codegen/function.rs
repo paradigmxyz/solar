@@ -675,6 +675,10 @@ impl<'gcx> EvmCodegen<'gcx> {
                             available.remove(&value);
                         }
                     }
+                    // The callee writes during the call, so a spill around it is already exposed.
+                    if matches!(inst.kind, InstKind::ICall { .. }) {
+                        self.after_spill_hazard = true;
+                    }
                 }
 
                 // Find the value ID that corresponds to this instruction (if any)
@@ -692,10 +696,11 @@ impl<'gcx> EvmCodegen<'gcx> {
                     result_value,
                 );
                 let carried = std::mem::take(&mut self.carried_call_values);
+                let spilled = std::mem::take(&mut self.carried_spill_values);
                 if std::mem::take(&mut self.carry_live_across_call) {
                     // The call may have written anywhere the area was.
                     self.move_spill_base_above_msize();
-                    self.restore_carried_frame_args(func, &carried);
+                    self.restore_carried_values(func, &carried, &spilled);
                 }
                 if !stack_only_disabled_at_entry && self.stack_only_function_disabled(func_id) {
                     return;

@@ -36,7 +36,7 @@
 use super::{
     ArgIdx, BlockId, CfgInfo, DenseBitSet, DynamicSpillBase, EvmCodegen, EvmMemoryLayout, Function,
     FunctionId, FxHashMap, FxHashSet, InstId, InstKind, Liveness, MirType, SpillSlot, StackEffect,
-    StackModel, StackOp, StackPush, Terminator, U256, Value, ValueId, op,
+    StackModel, StackOp, StackPush, Terminator, U256, Value, ValueId, cross_block_values, op,
 };
 use crate::mir::{
     Callee, Instruction, MemoryRegion, Module,
@@ -136,7 +136,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.in_internal_function
             && self.own_frame_addr_is_dynamic()
             && self.spill_hazard_insts.iter().any(|&inst| {
-                Self::dynamic_spill_write_dest(func, inst).is_none_or(|dest| {
+                Self::dynamic_spill_write_dest(func, inst).is_some_and(|dest| {
                     func.value_u64(dest).is_none_or(|dest| dest < frame_pointer_end)
                 })
             })
@@ -381,13 +381,13 @@ impl<'gcx> EvmCodegen<'gcx> {
         let Some((dest, size)) = Self::dynamic_memory_write(func, inst) else { return };
 
         // Words reloaded at or after the write: spill slots, and an internal function's frame
-        // arguments.
-        let mut live_words = self
-            .scheduler
-            .spills
+        // arguments. A later block may reload a slot stored on another path.
+        let spills = &self.scheduler.spills;
+        let mut live_words = spills
             .reloadable_values()
+            .chain(spills.stored_values())
             .filter(|&value| liveness.is_used_at_or_after(value, block, inst_idx))
-            .filter_map(|value| self.scheduler.reloadable_spill(value))
+            .filter_map(|value| spills.get(value))
             .map(|slot| self.spill_slot_base_offset(func, slot))
             .collect::<Vec<_>>();
         if self.in_internal_function {
@@ -563,13 +563,16 @@ impl<'gcx> EvmCodegen<'gcx> {
     }
 
     /// Summarizes, directly or through calls, which functions may leave something other than a
-    /// pointer in the free-memory-pointer word, may write memory they did not allocate, and may
-    /// write memory reached through the free-memory pointer. Any internal call counts as the
-    /// last, since a dynamic frame comes from that pointer.
-    pub(super) fn collect_memory_summaries(&self, module: &Module) -> [DenseBitSet<FunctionId>; 3] {
-        let [mut free_memory, mut unowned, mut heap] =
+    /// pointer in the free-memory-pointer word, may write memory they did not allocate, may
+    /// write memory reached through the free-memory pointer, and may make a spill hazard. Any
+    /// internal call counts as the third, since a dynamic frame comes from that pointer.
+    pub(super) fn collect_memory_summaries(&self, module: &Module) -> [DenseBitSet<FunctionId>; 4] {
+        let [mut free_memory, mut unowned, mut heap, mut hazards] =
             std::array::from_fn(|_| DenseBitSet::new_empty(module.functions.len()));
         for (func_id, func) in module.functions.iter_enumerated() {
+            if !self.direct_spill_hazard_insts(func).is_empty() {
+                hazards.insert(func_id);
+            }
             let aa = AliasAnalysis::new(func);
             for inst in func.instructions() {
                 if matches!(func.inst(inst).kind, InstKind::ICall { .. }) {
@@ -594,7 +597,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             for (func_id, func) in module.functions.iter_enumerated() {
                 for inst in func.instructions() {
                     let InstKind::ICall { function, .. } = &func.inst(inst).kind else { continue };
-                    for set in [&mut free_memory, &mut unowned, &mut heap] {
+                    for set in [&mut free_memory, &mut unowned, &mut heap, &mut hazards] {
                         if !matches!(function, Callee::Function(callee) if !set.contains(*callee)) {
                             changed |= set.insert(func_id);
                         }
@@ -602,7 +605,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
             }
         }
-        [free_memory, unowned, heap]
+        [free_memory, unowned, heap, hazards]
     }
 
     /// Returns the internal calls before which the free-memory-pointer word still holds the
@@ -746,31 +749,69 @@ impl<'gcx> EvmCodegen<'gcx> {
     ) -> Vec<ValueId> {
         let mut seen = FxHashSet::default();
         let mut values = Vec::new();
+        let mut recomputed = Vec::new();
+        // A constructor's arguments live in memory the callee may write.
+        let rebuildable = (!self.in_constructor)
+            .then(|| cross_block_values(func, |value| !self.scheduler.is_stack_only_value(value)));
         let spill_base = self.spill_base.as_ref().map(|base| base.value);
         // A reserved slot can be reloadable before the block defines its value.
         let pending = &func.blocks[block].instructions[inst_idx..];
+        // A later block may reload a slot stored on another path, so stored values count too.
         for value in self
             .scheduler
             .stack
             .iter()
             .flatten()
             .chain(self.scheduler.spills.reloadable_values())
+            .chain(self.scheduler.spills.stored_values())
             .collect::<Vec<_>>()
         {
             if Some(value) != result
                 && Some(value) != spill_base
                 && !matches!(func.value(value), Value::Inst(def) if pending.contains(def))
                 && liveness.is_used_at_or_after(value, block, inst_idx + 1)
+                && (self.scheduler.stack.contains(value)
+                    || self.scheduler.can_emit_value(value, func))
                 && seen.insert(value)
             {
-                values.push(value);
+                // Rebuild a value from its arguments after the call, unless a slot holds it.
+                let spills = &mut self.scheduler.spills;
+                if rebuildable.as_ref().is_some_and(|set| set.contains(value))
+                    && !matches!(func.value(value), Value::Arg(_))
+                    && !spills.is_stored(value)
+                    && !spills.is_reloadable(value)
+                {
+                    recomputed.push(value);
+                } else {
+                    values.push(value);
+                }
+            }
+        }
+        // A rebuilt value recomputes its operands and reloads the arguments they depend on from
+        // the moved frame.
+        let mut used_args = DenseBitSet::new_empty(func.num_values());
+        while let Some(value) = recomputed.pop() {
+            match func.value(value) {
+                Value::Arg(_) => {
+                    used_args.insert(value);
+                }
+                Value::Inst(def) => {
+                    let spills = &mut self.scheduler.spills;
+                    if !spills.is_stored(value) && !spills.is_reloadable(value) {
+                        spills.allocate(value);
+                        spills.mark_recomputable(value);
+                    }
+                    recomputed.extend(func.inst(*def).kind.operands());
+                }
+                _ => {}
             }
         }
         if include_args {
             for value in func.live_values() {
                 if Some(value) != result
                     && matches!(func.value(value), Value::Arg(_))
-                    && liveness.is_used_at_or_after(value, block, inst_idx + 1)
+                    && (used_args.contains(value)
+                        || liveness.is_used_at_or_after(value, block, inst_idx + 1))
                     && seen.insert(value)
                 {
                     values.push(value);
@@ -782,21 +823,37 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.emit_value(func, value);
             }
         }
+        let spills = &self.scheduler.spills;
+        self.carried_spill_values = values
+            .iter()
+            .copied()
+            .filter(|&value| spills.get(value).is_some() && spills.is_reloadable(value))
+            .collect();
         self.forget_spill_stores(values.iter().copied());
         self.carried_call_values.clone_from(&values);
         values
     }
 
-    /// Returns whether the values carried across an internal call stay within stack reach with
-    /// `words_above` more words pushed above them. Otherwise reports an error and stops carrying,
-    /// so emission can finish.
+    /// Drops the stack words an internal call neither carries nor passes, then returns whether
+    /// the carried values stay within stack reach with `words_above` more words pushed above
+    /// them. Otherwise reports an error and stops carrying, so emission can finish.
     pub(super) fn carried_call_values_fit(
         &mut self,
         func: &Function,
         resident: &mut Vec<ValueId>,
+        args: &[ValueId],
         words_above: usize,
     ) -> bool {
         let limit = self.stack_access_limit();
+        let needed = resident.iter().chain(args).copied().collect::<Vec<_>>();
+        while let Some(depth) = self.first_stack_value_not_needed_by(&needed)
+            && depth <= limit
+        {
+            if depth > 0 {
+                self.emit_stack_op(StackOp::Swap(depth as u8));
+            }
+            self.emit_stack_op(StackOp::Pop);
+        }
         let deepest = resident.iter().filter_map(|&value| self.scheduler.stack.find(value)).max();
         if resident.len() + words_above < limit
             && deepest.is_none_or(|depth| depth + words_above < limit)
@@ -804,16 +861,20 @@ impl<'gcx> EvmCodegen<'gcx> {
             return true;
         }
         let carried = std::mem::take(&mut self.carried_call_values);
-        self.gcx
-            .dcx()
-            .err(format!(
-                "codegen cannot keep {} values of `{}` on the stack across an internal call after \
-                 a dynamic low-memory write",
-                carried.len(),
-                func.name
-            ))
-            .note("the callee may write any memory the values could be spilled to")
-            .emit();
+        if let Some(func_id) = self.emitting_function
+            && self.carried_call_errors.insert(func_id)
+        {
+            self.gcx
+                .dcx()
+                .err(format!(
+                    "codegen cannot keep {} values of `{}` on the stack across an internal call \
+                     after a dynamic low-memory write",
+                    carried.len(),
+                    func.name
+                ))
+                .note("the callee may write any memory the values could be spilled to")
+                .emit();
+        }
         resident.retain(|value| !carried.contains(value));
         self.carry_live_across_call = false;
         false
@@ -835,13 +896,19 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.forget_spill_stores(stored);
     }
 
-    /// Stores carried frame arguments of an internal function back into its moved area.
-    pub(super) fn restore_carried_frame_args(&mut self, func: &Function, values: &[ValueId]) {
-        if !self.in_internal_function {
-            return;
-        }
+    /// Stores carried values back into the moved area wherever the old area held them, so
+    /// blocks that expect those slots, including blocks already emitted, still find them.
+    pub(super) fn restore_carried_values(
+        &mut self,
+        func: &Function,
+        values: &[ValueId],
+        spilled: &[ValueId],
+    ) {
         for &value in values {
             let Value::Arg(index) = func.value(value) else { continue };
+            if !self.in_internal_function {
+                break;
+            }
             let Some(depth) = self.scheduler.stack.find(value) else { continue };
             assert!(depth < self.stack_access_limit(), "carried argument exceeded DUP reach");
             // mstore(spill_base + argument_offset, argument)
@@ -849,6 +916,17 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.emit_dynamic_frame_arg_addr(*index);
             self.scheduler.stack.push_unknown();
             self.emit_untracked_op(op::MSTORE);
+        }
+        for &value in spilled {
+            let (Some(slot), Some(depth)) =
+                (self.scheduler.spills.get(value), self.scheduler.stack.find(value))
+            else {
+                continue;
+            };
+            assert!(depth < self.stack_access_limit(), "carried value exceeded DUP reach");
+            // mstore(spill_base + slot_offset, value)
+            self.emit_stack_op(StackOp::Dup((depth + 1) as u8));
+            self.store_stack_top_to_spill(func, value, slot);
         }
     }
 }
