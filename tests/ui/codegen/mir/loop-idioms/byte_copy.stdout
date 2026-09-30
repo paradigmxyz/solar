@@ -177,7 +177,7 @@ fn @oversizedCopy() [selector=0x1e820d5e, abi_wrapper, pure] {
   bb4:
     tail_call @revert_stub
   bb6:
-    v39 = add v52, 96
+    v39 = add v23, 64
     v40 = mload v39
     v41 = byte 0, v40
     mstore 128, v41

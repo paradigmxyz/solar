@@ -282,6 +282,18 @@ enum ExprKey {
     SelfBalance,
     BlobHash(OperandKey),
     LoadImmutable(ImmutableId),
+    Cast(CastKey, OperandKey, Option<MirType>),
+}
+
+/// A conversion, with the widths that distinguish conversions of one operand to one type.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+enum CastKey {
+    Zext,
+    Trunc(u32),
+    Sext(u32, u32),
+    PtrToInt(u32),
+    IntToPtr,
+    Bitcast,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -1188,6 +1200,23 @@ impl CommonSubexprEliminator {
             )),
 
             InstKind::SelfBalance => Some(ExprKey::SelfBalance),
+
+            InstKind::Zext(a)
+            | InstKind::Trunc(a, _)
+            | InstKind::Sext(a, _, _)
+            | InstKind::PtrToInt(a, _)
+            | InstKind::IntToPtr(a)
+            | InstKind::Bitcast(a) => {
+                let cast = match *kind {
+                    InstKind::Zext(_) => CastKey::Zext,
+                    InstKind::Trunc(_, bits) => CastKey::Trunc(bits),
+                    InstKind::Sext(_, from, to) => CastKey::Sext(from, to),
+                    InstKind::PtrToInt(_, bits) => CastKey::PtrToInt(bits),
+                    InstKind::IntToPtr(_) => CastKey::IntToPtr,
+                    _ => CastKey::Bitcast,
+                };
+                Some(ExprKey::Cast(cast, operand(*a), func.inst(inst_id).result_ty))
+            }
 
             // Don't cache these:
             // - Cheap nullary reads usually cost less than their extra stack lifetime

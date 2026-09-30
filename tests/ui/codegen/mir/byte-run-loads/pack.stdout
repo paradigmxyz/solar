@@ -70,7 +70,7 @@ fn @stored() [selector=0xab0edd4e, abi_wrapper, pure] {
     v38 = mload v36
     v39 = byte 0, v38
     v8 = shl 16, v39
-    v42 = add v53, 33
+    v42 = add v36, 1
     mstore8 v42, 74
     v46 = mload v42
     v47 = byte 0, v46

@@ -91,18 +91,20 @@ bb7:
   push 4
   calldataload
   and
+  swap 2
   push 32
-  dup 4
   add
+  swap 2
+  dup 3
   mstore8
-  push 33
+  push 1
   dup 3
   add
   push 34
   swap 1
   mstore8
   swap 1
-  push 34
+  push 2
   add
   push 51
   swap 1
@@ -188,37 +190,39 @@ bb10 [continuation]:
   lt
   push bb40
   jumpi
+  swap 1
   push 32
-  dup 3
   add
+  dup 1
   mload
   push 0
   byte
   push 2
-  dup 3
+  dup 4
   lt
   push bb40
   jumpi
-  push 33
-  dup 4
+  push 1
+  dup 3
   add
   mload
   push 0
   byte
-  swap 2
+  swap 3
   push 3
   gt
   push bb40
   jumpi
-  swap 2
-  push 34
+  swap 1
+  push 2
   add
   mload
   push 0
   byte
-  swap 2
+  swap 1
   push 128
   mstore
+  swap 1
   push 160
   mstore
   push 192
