@@ -47,9 +47,9 @@ use crate::mir::{
 /// at most seven operands, so a spill reload for its last operand still reaches the base.
 const SPILL_BASE_MAX_DEPTH: usize = 4;
 
-/// Size operand of a memory write whose address or size is only known at runtime.
+/// Size operand of a memory write.
 #[derive(Clone, Copy)]
-enum WriteSize {
+pub(super) enum WriteSize {
     Const(u64),
     Value(ValueId),
 }
@@ -71,8 +71,8 @@ impl<'gcx> EvmCodegen<'gcx> {
         func.blocks[BlockId::ENTRY].instructions.insert(0, inst);
         let area = self.asm.new_deferred_const();
         self.spill_base_area_consts.push((area, func_id, self.in_internal_function));
-        let floor = self.asm.new_deferred_const();
-        self.spill_base_floor_consts.push(floor);
+        let floor =
+            *self.spill_base_floor_const.get_or_insert_with(|| self.asm.new_deferred_const());
         self.spill_base = Some(DynamicSpillBase { value, inst, area, floor });
         func
     }
@@ -88,8 +88,8 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// Its arguments then arrive in its frame, where they move with the spill area; a stack-only
     /// argument convention would need words the moves cannot reach.
     pub(super) fn request_dynamic_spill_base(&mut self, func_id: FunctionId) {
-        self.dynamic_spill_base_functions.insert(func_id);
-        if func_id.index() < self.disabled_stack_only_functions.domain_size() {
+        if func_id.index() < self.dynamic_spill_base_functions.domain_size() {
+            self.dynamic_spill_base_functions.insert(func_id);
             self.disabled_stack_only_functions.insert(func_id);
         }
     }
@@ -169,7 +169,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// Returns the physical stack depth of the dynamic spill base, if the function has one.
     fn spill_base_depth(&self) -> Option<usize> {
         let base = self.spill_base.as_ref()?;
-        Some(self.spill_base_depth.unwrap_or_else(|| {
+        Some(self.spill_base_depth_override.unwrap_or_else(|| {
             self.scheduler.stack.find(base.value).unwrap_or_else(|| {
                 panic!("dynamic spill base was lost: stack={:?}", self.scheduler.stack)
             })
@@ -316,6 +316,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     pub(super) fn drop_spill_base(&mut self) {
         let Some(depth) = self.spill_base_model_depth() else { return };
         self.raise_spill_base(depth);
+        // pop spill_base
         self.emit_stack_op(StackOp::Pop);
     }
 
@@ -327,24 +328,16 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
     }
 
-    /// Returns the destination and size of a memory write whose range is not a compile-time
-    /// constant. Constant ranges stay below the dynamic spill floor.
-    fn dynamic_memory_write(func: &Function, inst: InstId) -> Option<(ValueId, WriteSize)> {
-        let range = |dest: ValueId, size: ValueId| {
-            let size = match func.value_u64(size) {
-                Some(0) => return None,
-                Some(size) => WriteSize::Const(size),
-                None => WriteSize::Value(size),
-            };
-            (func.value_u64(dest).is_none() || matches!(size, WriteSize::Value(_)))
-                .then_some((dest, size))
-        };
-        let fixed = |dest: ValueId, size: u64| {
-            func.value_u64(dest).is_none().then_some((dest, WriteSize::Const(size)))
+    /// Returns the destination and size of a memory write that may write at least one byte.
+    pub(super) fn memory_write(func: &Function, inst: InstId) -> Option<(ValueId, WriteSize)> {
+        let range = |dest: ValueId, size: ValueId| match func.value_u64(size) {
+            Some(0) => None,
+            Some(size) => Some((dest, WriteSize::Const(size))),
+            None => Some((dest, WriteSize::Value(size))),
         };
         match func.inst(inst).kind {
-            InstKind::MStore(dest, _) => fixed(dest, EvmMemoryLayout::WORD_SIZE),
-            InstKind::MStore8(dest, _) => fixed(dest, 1),
+            InstKind::MStore(dest, _) => Some((dest, WriteSize::Const(EvmMemoryLayout::WORD_SIZE))),
+            InstKind::MStore8(dest, _) => Some((dest, WriteSize::Const(1))),
             InstKind::CalldataCopy(dest, _, size)
             | InstKind::CodeCopy(dest, _, size)
             | InstKind::DataCopy(_, dest, size)
@@ -364,6 +357,14 @@ impl<'gcx> EvmCodegen<'gcx> {
             | InstKind::DelegateCall { ret_offset, ret_size, .. } => range(ret_offset, ret_size),
             _ => None,
         }
+    }
+
+    /// Returns the destination and size of a memory write whose range is not a compile-time
+    /// constant. Constant ranges stay below the dynamic spill floor.
+    fn dynamic_memory_write(func: &Function, inst: InstId) -> Option<(ValueId, WriteSize)> {
+        Self::memory_write(func, inst).filter(|&(dest, size)| {
+            func.value_u64(dest).is_none() || matches!(size, WriteSize::Value(_))
+        })
     }
 
     /// Moves the spill area above a memory write that may overlap it.
@@ -418,24 +419,24 @@ impl<'gcx> EvmCodegen<'gcx> {
         // end = dest + size
         self.emit_stack_op(StackOp::Dup(2));
         self.emit_stack_op(StackOp::Dup(2));
-        self.emit_untracked_op(op::ADD, 2);
+        self.emit_untracked_op(op::ADD);
 
         // overlap = spill_base < end && dest < spill_base + area [&& size != 0]
         self.emit_stack_op(StackOp::Dup(1));
         self.emit_spill_base_copy();
-        self.emit_untracked_op(op::LT, 2);
+        self.emit_untracked_op(op::LT);
         self.asm.emit_push_deferred(area);
         self.scheduler.stack.push_unknown();
         self.emit_spill_base_copy();
-        self.emit_untracked_op(op::ADD, 2);
+        self.emit_untracked_op(op::ADD);
         self.emit_stack_op(StackOp::Dup(4));
-        self.emit_untracked_op(op::LT, 2);
-        self.emit_untracked_op(op::AND, 2);
+        self.emit_untracked_op(op::LT);
+        self.emit_untracked_op(op::AND);
         if matches!(size, WriteSize::Value(_)) {
             self.emit_stack_op(StackOp::Dup(4));
-            self.emit_untracked_op(op::ISZERO, 1);
-            self.emit_untracked_op(op::ISZERO, 1);
-            self.emit_untracked_op(op::AND, 2);
+            self.emit_untracked_op(op::ISZERO);
+            self.emit_untracked_op(op::ISZERO);
+            self.emit_untracked_op(op::AND);
         }
 
         // jumpi skip, iszero(overlap)
@@ -446,12 +447,12 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.emit_stack_op(StackOp::Dup(1));
         self.asm.emit_push(U256::from(EvmMemoryLayout::WORD_SIZE - 1));
         self.scheduler.stack.push_unknown();
-        self.emit_untracked_op(op::ADD, 2);
+        self.emit_untracked_op(op::ADD);
         self.asm.emit_push(U256::from(EvmMemoryLayout::WORD_SIZE - 1));
         self.scheduler.stack.push_unknown();
-        self.emit_untracked_op(op::NOT, 1);
-        self.emit_untracked_op(op::AND, 2);
-        self.emit_untracked_op(op::MSIZE, 0);
+        self.emit_untracked_op(op::NOT);
+        self.emit_untracked_op(op::AND);
+        self.emit_untracked_op(op::MSIZE);
         self.emit_max();
         self.asm.emit_push_deferred(floor);
         self.scheduler.stack.push_unknown();
@@ -463,24 +464,20 @@ impl<'gcx> EvmCodegen<'gcx> {
             if offset != 0 {
                 self.asm.emit_push(U256::from(offset));
                 self.scheduler.stack.push_unknown();
-                self.emit_untracked_op(op::ADD, 2);
+                self.emit_untracked_op(op::ADD);
             }
-            self.emit_untracked_op(op::MLOAD, 1);
+            self.emit_untracked_op(op::MLOAD);
             self.emit_stack_op(StackOp::Dup(2));
             if offset != 0 {
                 self.asm.emit_push(U256::from(offset));
                 self.scheduler.stack.push_unknown();
-                self.emit_untracked_op(op::ADD, 2);
+                self.emit_untracked_op(op::ADD);
             }
-            self.emit_untracked_op(op::MSTORE, 2);
+            self.emit_untracked_op(op::MSTORE);
         }
 
         // spill_base = new_base
-        let depth = self.spill_base_depth().expect("dynamic spill base is active");
-        assert!(StackOp::Swap(depth as u8).is_valid(), "dynamic spill base exceeded SWAP reach");
-        self.asm.emit_stack_op(StackOp::Swap(depth as u8));
-        self.asm.emit_stack_op(StackOp::Pop);
-        self.scheduler.stack.pop();
+        self.replace_spill_base_with_top();
 
         // skip: pop end [; swap1; pop]
         self.asm.define_label(skip);
@@ -491,17 +488,39 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
     }
 
+    /// Replaces the dynamic spill base with the anonymous word on top of the stack. The model
+    /// keeps the base's identity at its position.
+    fn replace_spill_base_with_top(&mut self) {
+        let depth = self.spill_base_depth().expect("dynamic spill base is active");
+        assert!(StackOp::Swap(depth as u8).is_valid(), "dynamic spill base exceeded SWAP reach");
+        // swap depth(spill_base); pop
+        self.asm.emit_stack_op(StackOp::Swap(depth as u8));
+        self.asm.emit_stack_op(StackOp::Pop);
+        self.scheduler.stack.pop();
+    }
+
+    /// Forgets the spill stores of `values`, whose slots no longer hold them.
+    fn forget_spill_stores(&mut self, values: impl IntoIterator<Item = ValueId>) {
+        for value in values {
+            self.scheduler.spills.invalidate_stored(value);
+            if let Some(available) = &mut self.spill_available {
+                available.remove(&value);
+            }
+        }
+    }
+
     /// Pushes an anonymous copy of the dynamic spill base.
     fn emit_spill_base_copy(&mut self) {
         self.emit_spill_base_offset(0);
         self.scheduler.stack.push_unknown();
     }
 
-    /// Emits an opcode over anonymous words and pushes one anonymous result, if any.
-    fn emit_untracked_op(&mut self, opcode: u8, pops: usize) {
-        let pushes = usize::from(!matches!(opcode, op::MSTORE));
+    /// Emits an opcode over anonymous words and pushes its anonymous result, if any.
+    fn emit_untracked_op(&mut self, opcode: u8) {
+        let (pops, pushes) = op::stack_io(opcode).expect("opcode has a stack effect");
         let push = if pushes == 0 { StackPush::None } else { StackPush::Unknown };
-        self.emit_op_with_effect(opcode, StackEffect { pops, pushes }, push);
+        let effect = StackEffect { pops: pops.into(), pushes: pushes.into() };
+        self.emit_op_with_effect(opcode, effect, push);
     }
 
     /// Replaces the top two anonymous words with their unsigned maximum.
@@ -509,12 +528,12 @@ impl<'gcx> EvmCodegen<'gcx> {
         // [a, b] => [a ^ ((a ^ b) * (a < b))]
         self.emit_stack_op(StackOp::Dup(2));
         self.emit_stack_op(StackOp::Dup(2));
-        self.emit_untracked_op(op::LT, 2);
+        self.emit_untracked_op(op::LT);
         self.emit_stack_op(StackOp::Dup(3));
         self.emit_stack_op(StackOp::Dup(3));
-        self.emit_untracked_op(op::XOR, 2);
-        self.emit_untracked_op(op::MUL, 2);
-        self.emit_untracked_op(op::XOR, 2);
+        self.emit_untracked_op(op::XOR);
+        self.emit_untracked_op(op::MUL);
+        self.emit_untracked_op(op::XOR);
         self.emit_stack_op(StackOp::Swap(1));
         self.emit_stack_op(StackOp::Pop);
     }
@@ -526,75 +545,64 @@ impl<'gcx> EvmCodegen<'gcx> {
         &self,
         func: &Function,
         aa: &AliasAnalysis,
-        inst_id: InstId,
+        inst: InstId,
     ) -> bool {
-        if let Some((dest, _)) = Self::dynamic_memory_write(func, inst_id)
-            && self.write_is_owned(func, aa, inst_id, dest)
+        let Some((dest, size)) = Self::memory_write(func, inst) else { return false };
+        let dest_offset = func.value_u64(dest);
+        if matches!(func.inst(inst).kind, InstKind::MStore(..))
+            && dest_offset == Some(EvmMemoryLayout::FMP_SLOT)
         {
             return false;
         }
-        let inst = func.inst(inst_id);
-        if matches!(
-            inst.metadata.memory_region(),
-            Some(MemoryRegion::Heap | MemoryRegion::InternalFrame | MemoryRegion::AbiReturn)
-        ) {
-            return false;
-        }
-        let covers = |dest: ValueId, size: Option<u64>| {
-            size != Some(0)
-                && Self::constant_memory_range_may_overlap_fmp(func.value_u64(dest), size)
+        let size = match size {
+            WriteSize::Const(size) => Some(size),
+            WriteSize::Value(_) => None,
         };
-        match inst.kind {
-            InstKind::MStore(dest, _) => {
-                func.value_u64(dest) != Some(EvmMemoryLayout::FMP_SLOT)
-                    && covers(dest, Some(EvmMemoryLayout::WORD_SIZE))
-            }
-            InstKind::MStore8(dest, _) => covers(dest, Some(1)),
-            InstKind::CalldataCopy(dest, _, size)
-            | InstKind::CodeCopy(dest, _, size)
-            | InstKind::DataCopy(_, dest, size)
-            | InstKind::ExtCodeCopy(_, dest, _, size)
-            | InstKind::ReturnDataCopy(dest, _, size)
-            | InstKind::MCopy(dest, _, size) => covers(dest, func.value_u64(size)),
-            InstKind::Call { ret_offset, ret_size, .. }
-            | InstKind::CallCode { ret_offset, ret_size, .. }
-            | InstKind::StaticCall { ret_offset, ret_size, .. }
-            | InstKind::DelegateCall { ret_offset, ret_size, .. } => {
-                covers(ret_offset, func.value_u64(ret_size))
-            }
-            _ => false,
-        }
+        Self::constant_memory_range_may_overlap_fmp(dest_offset, size)
+            && !self.write_is_owned(func, aa, inst, dest)
     }
 
-    /// Finds functions that may leave something other than a pointer in the free-memory-pointer
-    /// word, directly or through a call.
-    pub(super) fn collect_free_memory_clobbering_functions(
-        &self,
-        module: &Module,
-    ) -> DenseBitSet<FunctionId> {
-        let mut clobbering = DenseBitSet::new_empty(module.functions.len());
+    /// Summarizes, directly or through calls, which functions may leave something other than a
+    /// pointer in the free-memory-pointer word, may write memory they did not allocate, and may
+    /// write memory reached through the free-memory pointer. Any internal call counts as the
+    /// last, since a dynamic frame comes from that pointer.
+    pub(super) fn collect_memory_summaries(&self, module: &Module) -> [DenseBitSet<FunctionId>; 3] {
+        let [mut free_memory, mut unowned, mut heap] =
+            std::array::from_fn(|_| DenseBitSet::new_empty(module.functions.len()));
         for (func_id, func) in module.functions.iter_enumerated() {
             let aa = AliasAnalysis::new(func);
-            if func.instructions().any(|inst| self.may_clobber_free_memory_slot(func, &aa, inst)) {
-                clobbering.insert(func_id);
+            for inst in func.instructions() {
+                if matches!(func.inst(inst).kind, InstKind::ICall { .. }) {
+                    heap.insert(func_id);
+                    continue;
+                }
+                if self.may_clobber_free_memory_slot(func, &aa, inst) {
+                    free_memory.insert(func_id);
+                }
+                if let Some((dest, _)) = Self::dynamic_memory_write(func, inst) {
+                    if self.write_is_owned(func, &aa, inst, dest) {
+                        heap.insert(func_id);
+                    } else {
+                        unowned.insert(func_id);
+                    }
+                }
             }
         }
         let mut changed = true;
         while changed {
             changed = false;
             for (func_id, func) in module.functions.iter_enumerated() {
-                if !clobbering.contains(func_id)
-                    && func.instructions().any(|inst| {
-                        matches!(&func.inst(inst).kind, InstKind::ICall { function, .. }
-                            if !matches!(function, Callee::Function(callee)
-                                if !clobbering.contains(*callee)))
-                    })
-                {
-                    changed |= clobbering.insert(func_id);
+                for inst in func.instructions() {
+                    let InstKind::ICall { function, .. } = &func.inst(inst).kind else { continue };
+                    for set in [&mut free_memory, &mut unowned, &mut heap] {
+                        if !matches!(function, Callee::Function(callee) if !set.contains(*callee)) {
+                            changed |= set.insert(func_id);
+                        }
+                    }
                 }
             }
         }
-        clobbering
+        [free_memory, unowned, heap]
     }
 
     /// Returns the internal calls before which the free-memory-pointer word still holds the
@@ -659,15 +667,15 @@ impl<'gcx> EvmCodegen<'gcx> {
         // mstore(FMP_SLOT, max(mload(FMP_SLOT), spill_base + area))
         self.asm.emit_push(U256::from(EvmMemoryLayout::FMP_SLOT));
         self.scheduler.stack.push_unknown();
-        self.emit_untracked_op(op::MLOAD, 1);
+        self.emit_untracked_op(op::MLOAD);
         self.emit_spill_base_copy();
         self.asm.emit_push_deferred(area);
         self.scheduler.stack.push_unknown();
-        self.emit_untracked_op(op::ADD, 2);
+        self.emit_untracked_op(op::ADD);
         self.emit_max();
         self.asm.emit_push(U256::from(EvmMemoryLayout::FMP_SLOT));
         self.scheduler.stack.push_unknown();
-        self.emit_untracked_op(op::MSTORE, 2);
+        self.emit_untracked_op(op::MSTORE);
     }
 
     /// Returns whether a write at the runtime address `dest` lands in memory its function owns:
@@ -704,51 +712,6 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
     }
 
-    /// Finds functions that, directly or through calls, may write memory they did not allocate,
-    /// and functions that may write memory reached through the free-memory pointer. Any internal
-    /// call counts as the latter, since a dynamic frame comes from that pointer.
-    pub(super) fn collect_memory_writers(
-        &self,
-        module: &Module,
-    ) -> (DenseBitSet<FunctionId>, DenseBitSet<FunctionId>) {
-        let mut unowned = DenseBitSet::new_empty(module.functions.len());
-        let mut heap = DenseBitSet::new_empty(module.functions.len());
-        for (func_id, func) in module.functions.iter_enumerated() {
-            let aa = AliasAnalysis::new(func);
-            for inst in func.instructions() {
-                if matches!(func.inst(inst).kind, InstKind::ICall { .. }) {
-                    heap.insert(func_id);
-                } else if let Some((dest, _)) = Self::dynamic_memory_write(func, inst) {
-                    if self.write_is_owned(func, &aa, inst, dest) {
-                        heap.insert(func_id);
-                    } else {
-                        unowned.insert(func_id);
-                    }
-                }
-            }
-        }
-        let mut changed = true;
-        while changed {
-            changed = false;
-            for (func_id, func) in module.functions.iter_enumerated() {
-                for inst in func.instructions() {
-                    let InstKind::ICall { function, .. } = &func.inst(inst).kind else { continue };
-                    let Callee::Function(callee) = function else {
-                        changed |= unowned.insert(func_id);
-                        continue;
-                    };
-                    if unowned.contains(*callee) {
-                        changed |= unowned.insert(func_id);
-                    }
-                    if heap.contains(*callee) {
-                        changed |= heap.insert(func_id);
-                    }
-                }
-            }
-        }
-        (unowned, heap)
-    }
-
     /// Returns whether an internal call may write a dynamic spill area. The callee may write
     /// memory it did not allocate, or it allocates while the free-memory pointer was not raised
     /// past the area.
@@ -770,8 +733,8 @@ impl<'gcx> EvmCodegen<'gcx> {
     }
 
     /// Emits every value used after an internal call onto the stack, where the call cannot
-    /// write it, and forgets their spill stores. An internal function's frame arguments move
-    /// with the spill area, so they are carried too.
+    /// write it, and forgets their spill stores. Frame arguments are carried with
+    /// `include_args`: a recursive callee reuses the frame, and a dynamic spill base moves it.
     pub(super) fn carry_live_call_values(
         &mut self,
         func: &Function,
@@ -818,11 +781,9 @@ impl<'gcx> EvmCodegen<'gcx> {
             if !self.scheduler.stack.contains(value) {
                 self.emit_value(func, value);
             }
-            self.scheduler.spills.invalidate_stored(value);
-            if let Some(available) = &mut self.spill_available {
-                available.remove(&value);
-            }
         }
+        self.forget_spill_stores(values.iter().copied());
+        self.carried_call_values.clone_from(&values);
         values
     }
 
@@ -864,22 +825,14 @@ impl<'gcx> EvmCodegen<'gcx> {
         let Some(base) = &self.spill_base else { return };
         let floor = base.floor;
         // spill_base = max(msize(), floor)
-        self.emit_untracked_op(op::MSIZE, 0);
+        self.emit_untracked_op(op::MSIZE);
         self.asm.emit_push_deferred(floor);
         self.scheduler.stack.push_unknown();
         self.emit_max();
-        let depth = self.spill_base_depth().expect("dynamic spill base is active");
-        assert!(StackOp::Swap(depth as u8).is_valid(), "dynamic spill base exceeded SWAP reach");
-        self.asm.emit_stack_op(StackOp::Swap(depth as u8));
-        self.asm.emit_stack_op(StackOp::Pop);
-        self.scheduler.stack.pop();
+        self.replace_spill_base_with_top();
         // Every stored slot now lies in the abandoned area.
-        for value in self.scheduler.spills.reloadable_values().collect::<Vec<_>>() {
-            self.scheduler.spills.invalidate_stored(value);
-            if let Some(available) = &mut self.spill_available {
-                available.remove(&value);
-            }
-        }
+        let stored = self.scheduler.spills.reloadable_values().collect::<Vec<_>>();
+        self.forget_spill_stores(stored);
     }
 
     /// Stores carried frame arguments of an internal function back into its moved area.
@@ -895,7 +848,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.emit_stack_op(StackOp::Dup((depth + 1) as u8));
             self.emit_dynamic_frame_arg_addr(*index);
             self.scheduler.stack.push_unknown();
-            self.emit_untracked_op(op::MSTORE, 2);
+            self.emit_untracked_op(op::MSTORE);
         }
     }
 }

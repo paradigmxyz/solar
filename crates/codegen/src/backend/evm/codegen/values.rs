@@ -123,7 +123,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         mut spill_base_depth: Option<usize>,
     ) {
         for op in ops {
-            self.spill_base_depth = spill_base_depth;
+            self.spill_base_depth_override = spill_base_depth;
             spill_base_depth = spill_base_depth.map(|depth| match op {
                 ScheduledOp::Stack(StackOp::Swap(n)) if depth == 0 => usize::from(n),
                 ScheduledOp::Stack(StackOp::Swap(n)) if depth == usize::from(n) => 0,
@@ -168,7 +168,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
             }
         }
-        self.spill_base_depth = None;
+        self.spill_base_depth_override = None;
     }
 
     fn emit_fresh_scheduled_value(&mut self, func: &Function, value: ValueId, op: ScheduledOp) {

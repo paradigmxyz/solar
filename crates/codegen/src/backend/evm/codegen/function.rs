@@ -149,9 +149,10 @@ impl<'gcx> EvmCodegen<'gcx> {
                      write",
                     func.name
                 ))
-                .note(
-                    "the write can cover the frame pointer this recursive function keeps at `0xa0`",
-                )
+                .note(format!(
+                    "the write can cover the frame pointer this recursive function keeps at `{:#x}`",
+                    EvmMemoryLayout::INTERNAL_FRAME_PTR_SLOT
+                ))
                 .emit();
             return;
         }
@@ -690,10 +691,10 @@ impl<'gcx> EvmCodegen<'gcx> {
                     inst_idx,
                     result_value,
                 );
+                let carried = std::mem::take(&mut self.carried_call_values);
                 if std::mem::take(&mut self.carry_live_across_call) {
                     // The call may have written anywhere the area was.
                     self.move_spill_base_above_msize();
-                    let carried = std::mem::take(&mut self.carried_call_values);
                     self.restore_carried_frame_args(func, &carried);
                 }
                 if !stack_only_disabled_at_entry && self.stack_only_function_disabled(func_id) {

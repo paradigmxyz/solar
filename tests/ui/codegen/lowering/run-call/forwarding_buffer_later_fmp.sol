@@ -1,4 +1,5 @@
-//@ revisions: gas size
+//@ revisions: none gas size
+//@[none] compile-flags: -Onone
 //@[gas] compile-flags: -Ogas
 //@[size] compile-flags: -Osize
 //@ run-call: createPair => 17, 100, 200, 4660
@@ -8,8 +9,6 @@
 // across it to remain on the stack. The creation payload's free-memory-pointer load
 // comes after the copy in the same block; its slot is reserved before its
 // definition stores it, so the copy must not reload it as a live value.
-// NOTE: Unoptimized builds keep internal calls' callers off the resident
-// stack layout, so they still reject values live across such a copy here.
 contract Child {
     uint256 public start;
     uint256 public b0;

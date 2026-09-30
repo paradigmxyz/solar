@@ -1068,6 +1068,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         let mut saved_above = Vec::with_capacity(depth + 1 - stack_access_limit);
         let spill_base = self.spill_base.as_ref().map(|base| base.value);
         for _ in 0..(depth + 1 - stack_access_limit) {
+            // swap1
             // The dynamic spill base addresses every save below; keep it on top and save the
             // word under it instead.
             if spill_base.is_some() && self.scheduler.stack.top() == spill_base {

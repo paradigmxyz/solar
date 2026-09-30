@@ -107,9 +107,9 @@ impl<'gcx> EvmCodegen<'gcx> {
                 result,
                 self.in_internal_function,
             );
-            self.carried_call_values.clone_from(&carried);
             resident_call_values.extend(carried);
         }
+        // Frame setup keeps the frame base, a staged word, and its address above the stack.
         if !self.carry_live_across_call
             || !self.carried_call_values_fit(func, &mut resident_call_values, 3)
         {
@@ -553,59 +553,23 @@ impl<'gcx> EvmCodegen<'gcx> {
             if self.runtime_stack_args { self.stack_arg_mask(callee).cloned() } else { None };
         let argument_words = stack_mask.as_ref().map_or(0, DenseBitSet::count);
         let recursive_reentry = self.recursive_frame_edges.contains(&(func_id, callee));
-        let mut recursive_call_values = Vec::new();
-        if !recursive_reentry && self.carry_live_across_call {
-            // The callee may write a dynamic spill area. Keep everything live after the call on
-            // the stack instead.
-            recursive_call_values = self.carry_live_call_values(
+        // A recursive callee is about to reuse a scratch frame that may belong
+        // to an older activation in the same recursive component, and a callee
+        // may write a dynamic spill area. Recover every caller word needed after
+        // the call before argument stores overwrite that memory, then keep those
+        // words below the hidden return address for the duration of the call.
+        let mut recursive_call_values = if recursive_reentry || self.carry_live_across_call {
+            self.carry_live_call_values(
                 func,
                 liveness,
                 block,
                 inst_idx,
                 result,
-                self.in_internal_function,
-            );
-            self.carried_call_values.clone_from(&recursive_call_values);
-        } else if recursive_reentry {
-            // The callee is about to reuse a scratch frame that may belong to
-            // an older activation in the same recursive component. Recover
-            // every caller word needed after the call before argument stores
-            // overwrite that frame, then keep those words below the hidden
-            // return address for the duration of the nested activation.
-            let mut seen = FxHashSet::default();
-            for value in self
-                .scheduler
-                .stack
-                .iter()
-                .flatten()
-                .chain(self.scheduler.spills.reloadable_values())
-            {
-                if Some(value) != result
-                    && liveness.is_used_at_or_after(value, block, inst_idx + 1)
-                    && seen.insert(value)
-                {
-                    recursive_call_values.push(value);
-                }
-            }
-            for value in func.live_values() {
-                if Some(value) != result
-                    && matches!(func.value(value), crate::mir::Value::Arg(_))
-                    && liveness.is_used_at_or_after(value, block, inst_idx + 1)
-                    && seen.insert(value)
-                {
-                    recursive_call_values.push(value);
-                }
-            }
-            for &value in &recursive_call_values {
-                if !self.scheduler.stack.contains(value) {
-                    self.emit_value(func, value);
-                }
-                self.scheduler.spills.invalidate_stored(value);
-                if let Some(available) = &mut self.spill_available {
-                    available.remove(&value);
-                }
-            }
-        }
+                recursive_reentry || self.in_internal_function,
+            )
+        } else {
+            Vec::new()
+        };
         let mut resident_call_values = recursive_call_values.clone();
         if recursive_reentry && let Some(mask) = &stack_mask {
             // Stack-passed actuals are installed after the memory arguments.
@@ -642,7 +606,9 @@ impl<'gcx> EvmCodegen<'gcx> {
             // The dynamic spill base has no memory home and must survive every call.
             resident_call_values.push(base.value);
         }
-        // Carried memory arguments are duplicated before their frame stores.
+        // The carried words must stay reachable below the return label, the stack-passed
+        // arguments above it, one staged memory argument, and a copy of every carried memory
+        // argument.
         let duplicated_args = args
             .iter()
             .enumerate()
@@ -652,12 +618,12 @@ impl<'gcx> EvmCodegen<'gcx> {
             })
             .count();
         if self.carry_live_across_call
+            && !recursive_reentry
             && !self.carried_call_values_fit(
                 func,
                 &mut resident_call_values,
                 argument_words + 2 + duplicated_args,
             )
-            && !recursive_reentry
         {
             recursive_call_values.clear();
         }

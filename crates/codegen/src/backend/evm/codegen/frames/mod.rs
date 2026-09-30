@@ -17,6 +17,7 @@ use super::{
     EvmCodegen, EvmMemoryLayout, Function, FunctionId, FxHashMap, FxHashSet, IndexVec, InstKind,
     MirType, Module, RelayoutAddress, SpillSlot, StackEffect, StackOp, StackPush, Terminator, U256,
     Value, ValueId, WORD_BYTES, immutable_staging_end, op, preserves_push_width,
+    spill_base::WriteSize,
 };
 use crate::mir::{
     Callee,
@@ -420,6 +421,15 @@ impl<'gcx> EvmCodegen<'gcx> {
         id
     }
 
+    /// Size of the frame header `func_id` emits. Runtime static frames drop it.
+    fn emitted_frame_header_size(&self, func_id: FunctionId) -> u64 {
+        if self.runtime_stack_args && self.static_frame_functions.contains(func_id) {
+            0
+        } else {
+            EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
+        }
+    }
+
     /// Total emitted frame size of `func_id`, including its exact spill area.
     pub(in crate::backend::evm::codegen) fn emitted_frame_size(
         &self,
@@ -430,11 +440,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             return size;
         }
         let func = &module.functions[func_id];
-        let header = if self.runtime_stack_args && self.static_frame_functions.contains(func_id) {
-            0
-        } else {
-            EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
-        };
+        let header = self.emitted_frame_header_size(func_id);
         let size = header
             + ((func.params.len() + func.return_components().len()) as u64)
                 * EvmMemoryLayout::WORD_SIZE
@@ -938,7 +944,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             let floor = free_memory_floors[&entry];
             self.asm.set_deferred_const(id, U256::from(floor));
         }
-        if !self.spill_base_floor_consts.is_empty() {
+        if self.spill_base_floor_const.is_some() {
             // floor = max(static compiler memory + heap prefix, constant memory ranges)
             let static_end = frame_bases
                 .iter()
@@ -967,7 +973,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             .map(Self::constant_memory_write_end)
             .fold(static_end, u64::max)
             .next_multiple_of(EvmMemoryLayout::WORD_SIZE);
-        for id in std::mem::take(&mut self.spill_base_floor_consts) {
+        if let Some(id) = self.spill_base_floor_const.take() {
             self.asm.set_deferred_const(id, U256::from(constant_end));
         }
     }
@@ -977,13 +983,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         for (id, func_id, frame_body) in std::mem::take(&mut self.spill_base_area_consts) {
             let size = if frame_body {
                 // An internal base starts at the first argument, after any frame header.
-                let header =
-                    if self.runtime_stack_args && self.static_frame_functions.contains(func_id) {
-                        0
-                    } else {
-                        EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
-                    };
-                self.emitted_frame_size(module, func_id) - header
+                self.emitted_frame_size(module, func_id) - self.emitted_frame_header_size(func_id)
             } else {
                 self.function_spill_sizes.get(&func_id).copied().unwrap_or(0)
             };
@@ -1379,27 +1379,13 @@ impl<'gcx> EvmCodegen<'gcx> {
     ///
     /// Writes ending above 4 GiB cannot pay for their memory expansion and are ignored.
     fn constant_memory_write_end(func: &Function) -> u64 {
-        let range_end = |offset: ValueId, size: Option<u64>| {
-            let end = func.value_u64(offset)?.checked_add(size.filter(|&size| size != 0)?)?;
-            (end <= u64::from(u32::MAX)).then_some(end)
-        };
         func.instructions()
-            .filter_map(|inst_id| match func.inst(inst_id).kind {
-                InstKind::MStore(addr, _) => range_end(addr, Some(EvmMemoryLayout::WORD_SIZE)),
-                InstKind::MStore8(addr, _) => range_end(addr, Some(1)),
-                InstKind::CalldataCopy(dest, _, size)
-                | InstKind::CodeCopy(dest, _, size)
-                | InstKind::DataCopy(_, dest, size)
-                | InstKind::ExtCodeCopy(_, dest, _, size)
-                | InstKind::ReturnDataCopy(dest, _, size)
-                | InstKind::MCopy(dest, _, size) => range_end(dest, func.value_u64(size)),
-                InstKind::Call { ret_offset, ret_size, .. }
-                | InstKind::CallCode { ret_offset, ret_size, .. }
-                | InstKind::StaticCall { ret_offset, ret_size, .. }
-                | InstKind::DelegateCall { ret_offset, ret_size, .. } => {
-                    range_end(ret_offset, func.value_u64(ret_size))
-                }
-                _ => None,
+            .filter_map(|inst| {
+                let (dest, WriteSize::Const(size)) = Self::memory_write(func, inst)? else {
+                    return None;
+                };
+                let end = func.value_u64(dest)?.checked_add(size)?;
+                (end <= u64::from(u32::MAX)).then_some(end)
             })
             .max()
             .unwrap_or(0)

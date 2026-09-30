@@ -153,12 +153,7 @@ struct SpillStore {
     range: std::ops::Range<usize>,
 }
 
-/// Spill-area addressing for a function that clobbers low memory with a dynamic-length write.
-///
-/// A copy such as `calldatacopy(0, 0, calldatasize())` can overwrite every fixed spill slot, and
-/// the copied buffer stays readable for an unknown time afterwards. Such a function keeps the
-/// address of its spill area in one stack word instead. The area starts at its static location
-/// and moves above every write that may overlap it; slots are addressed relative to the word.
+/// Runtime spill-area addressing for a function that clobbers low memory. See [`spill_base`].
 struct DynamicSpillBase {
     /// Stack word holding the current spill-area address.
     value: ValueId,
@@ -391,7 +386,7 @@ pub struct EvmCodegen<'gcx> {
     /// The runtime spill base of the function being emitted.
     spill_base: Option<DynamicSpillBase>,
     /// Physical depth of the spill base while scheduled operations emit ahead of the model.
-    spill_base_depth: Option<usize>,
+    spill_base_depth_override: Option<usize>,
     /// The function whose body is being emitted.
     emitting_function: Option<FunctionId>,
     /// Whether the current emission point may follow a low-memory clobber.
@@ -399,8 +394,8 @@ pub struct EvmCodegen<'gcx> {
     /// Area-size constants of dynamic spill bases, resolved after emission, and whether each
     /// covers an internal frame body rather than only a spill area.
     spill_base_area_consts: Vec<(DeferredConst, FunctionId, bool)>,
-    /// Memory-floor constants of dynamic spill bases, resolved after frame placement.
-    spill_base_floor_consts: Vec<DeferredConst>,
+    /// Memory floor that dynamic spill areas move above, resolved after frame placement.
+    spill_base_floor_const: Option<DeferredConst>,
     /// Initial spill-area addresses of external entries with a dynamic spill base.
     external_spill_base_consts: FxHashMap<FunctionId, DeferredConst>,
     /// Functions that may leave something other than a pointer in the free-memory-pointer word.
@@ -509,11 +504,11 @@ impl<'gcx> EvmCodegen<'gcx> {
             spill_hazard_insts: FxHashSet::default(),
             dynamic_spill_base_functions: DenseBitSet::new_empty(0),
             spill_base: None,
-            spill_base_depth: None,
+            spill_base_depth_override: None,
             emitting_function: None,
             after_spill_hazard: false,
             spill_base_area_consts: Vec::new(),
-            spill_base_floor_consts: Vec::new(),
+            spill_base_floor_const: None,
             external_spill_base_consts: FxHashMap::default(),
             free_memory_clobbering_functions: DenseBitSet::new_empty(0),
             unowned_memory_writers: DenseBitSet::new_empty(0),
@@ -584,11 +579,11 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.spill_hazard_insts.clear();
         self.dynamic_spill_base_functions.clear_to(module.functions.len());
         self.spill_base = None;
-        self.spill_base_depth = None;
+        self.spill_base_depth_override = None;
         self.emitting_function = None;
         self.after_spill_hazard = false;
         self.spill_base_area_consts.clear();
-        self.spill_base_floor_consts.clear();
+        self.spill_base_floor_const = None;
         self.external_spill_base_consts.clear();
         self.free_memory_clobbering_functions.clear_to(module.functions.len());
         self.unowned_memory_writers.clear_to(module.functions.len());

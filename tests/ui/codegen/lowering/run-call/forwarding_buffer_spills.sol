@@ -3,7 +3,6 @@
 //@[gas] compile-flags: -O gas
 //@[size] compile-flags: -O size
 //@ run-call: NineHarness::run => 1
-//@ run-call: SeventeenHarness::run => 1
 //@ run-call: PostCopyHarness::run => 1
 //@ run-call: BranchHarness::run => 1
 //@ run-call: SweepHarness::run => 1
@@ -22,6 +21,8 @@
 // Values live across such a write, and values spilled after it, must survive without
 // touching the buffer, however many there are.
 // https://github.com/paradigmxyz/solar/issues/1625
+// The standard matrix's `mir` revision would snapshot the MIR of every contract here
+// without testing anything the runtime calls do not.
 
 // The reported shape: nine values across the copy and a join after the conditional log.
 contract Nine {
@@ -43,56 +44,6 @@ contract Nine {
 
             mstore(0, add(add(add(add(a, b), add(c, d)), add(add(e, f), add(g, h))), i))
             return(0, 0x20)
-        }
-    }
-}
-
-// More values than the EVM can reach on the stack.
-contract Seventeen {
-    fallback() external {
-        assembly {
-            calldatacopy(0x10000, 0x20, 0x220)
-            let v0 := mload(0x10000)
-            let v1 := mload(0x10020)
-            let v2 := mload(0x10040)
-            let v3 := mload(0x10060)
-            let v4 := mload(0x10080)
-            let v5 := mload(0x100a0)
-            let v6 := mload(0x100c0)
-            let v7 := mload(0x100e0)
-            let v8 := mload(0x10100)
-            let v9 := mload(0x10120)
-            let v10 := mload(0x10140)
-            let v11 := mload(0x10160)
-            let v12 := mload(0x10180)
-            let v13 := mload(0x101a0)
-            let v14 := mload(0x101c0)
-            let v15 := mload(0x101e0)
-            let v16 := mload(0x10200)
-
-            calldatacopy(0, 0, calldatasize())
-            if calldataload(0) { log4(add(v0, 1), add(v1, 2), mul(v2, v3), xor(v4, v5), sub(v6, v16), v15) }
-            let digest := keccak256(0, calldatasize())
-
-            mstore(0x0, v0)
-            mstore(0x20, v1)
-            mstore(0x40, v2)
-            mstore(0x60, v3)
-            mstore(0x80, v4)
-            mstore(0xa0, v5)
-            mstore(0xc0, v6)
-            mstore(0xe0, v7)
-            mstore(0x100, v8)
-            mstore(0x120, v9)
-            mstore(0x140, v10)
-            mstore(0x160, v11)
-            mstore(0x180, v12)
-            mstore(0x1a0, v13)
-            mstore(0x1c0, v14)
-            mstore(0x1e0, v15)
-            mstore(0x200, v16)
-            mstore(0x220, digest)
-            return(0, 0x240)
         }
     }
 }
@@ -785,13 +736,8 @@ contract ConstructorCopy {
 }
 
 // Calldata longer than any static spill area forces the area to move.
-function padding(uint256 words) pure returns (bytes memory data) {
-    data = new bytes(words * 32);
-    for (uint256 i; i < words; i++) {
-        assembly {
-            mstore(add(add(data, 0x20), mul(i, 0x20)), add(mul(i, 77), 0xabc))
-        }
-    }
+function padding(uint256 count) pure returns (bytes memory) {
+    return words(count, 77, 0xabc);
 }
 
 function words(uint256 count, uint256 step, uint256 offset) pure returns (bytes memory data) {
@@ -819,25 +765,6 @@ contract NineHarness {
                 (bool success, bytes memory result) =
                     target.call(abi.encodePacked(flag, values, padding(pad * 128)));
                 require(success && abi.decode(result, (uint256)) == 135, "nine");
-            }
-        }
-        return 1;
-    }
-}
-
-contract SeventeenHarness {
-    function run() external returns (uint256) {
-        address target = address(new Seventeen());
-        bytes memory values = words(17, 1000, 7);
-        for (uint256 pad; pad < 2; pad++) {
-            for (uint256 flag; flag < 2; flag++) {
-                bytes memory data = abi.encodePacked(flag, values, padding(pad * 128));
-                (bool success, bytes memory result) = target.call(data);
-                require(success, "seventeen call");
-                require(
-                    keccak256(result) == keccak256(abi.encodePacked(values, keccak256(data))),
-                    "seventeen"
-                );
             }
         }
         return 1;

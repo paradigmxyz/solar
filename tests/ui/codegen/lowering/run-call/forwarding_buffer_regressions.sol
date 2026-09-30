@@ -18,6 +18,8 @@
 // Reduced regressions for the dynamic spill base. Expected results come from a model of each
 // program, not from compiling it.
 // https://github.com/paradigmxyz/solar/issues/1625
+// The standard matrix's `mir` revision would snapshot the MIR of every contract here
+// without testing anything the runtime calls do not.
 
 function input() pure returns (bytes memory data) {
     data = new bytes(0x400);

@@ -1,11 +1,14 @@
-//@ revisions: none gas size
+//@ revisions: none gas size amsterdam
 //@[none] compile-flags: -O none
 //@[gas] compile-flags: -O gas
 //@[size] compile-flags: -O size
+//@[amsterdam] compile-flags: -O gas --evm-version amsterdam
 //@ run-call: ThreeHundredHarness::run => 1
 
-// Three hundred values cross a low-memory copy, far more than the sixteen words `DUP`
-// reaches before Amsterdam. They spill above the copied buffer.
+// Three hundred values cross a low-memory copy, more than `DUP` reaches on any fork. They
+// spill above the copied buffer.
+// The standard matrix's `mir` revision would snapshot the MIR of every contract here
+// without testing anything the runtime calls do not.
 // https://github.com/paradigmxyz/solar/issues/1625
 
 contract ThreeHundred {
