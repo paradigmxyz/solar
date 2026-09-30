@@ -5,8 +5,11 @@ use std::{cell::RefCell, sync::OnceLock};
 use crate::mir::{FunctionBuilder, TypeSize, ValueId};
 use alloy_primitives::U256;
 use solar_ast::DataLocation;
-use solar_data_structures::{index::IndexVec, map::FxHashMap};
-use solar_interface::Span;
+use solar_data_structures::{
+    index::IndexVec,
+    map::{FxHashMap, FxIndexMap},
+};
+use solar_interface::{Span, Symbol};
 use solar_sema::{
     Gcx,
     hir::{ContractId, ElementaryType, StructId, VariableId},
@@ -126,6 +129,12 @@ impl<'gcx> StorageLayout<'gcx> {
 
     pub(super) fn get(&self, id: VariableId) -> Option<StorageLocation> {
         self.builder.locations.get(&id).copied()
+    }
+
+    /// The slot whose hash with a key locates the record of the `@custom:solar-fuse` group of the
+    /// mapping `id`, and where the mapping's value lies in the record, relative to its start.
+    pub(super) fn fused(&self, id: VariableId) -> Option<(U256, StorageLocation)> {
+        self.builder.fused.get(&id).copied()
     }
 
     pub(super) fn store(
@@ -265,6 +274,8 @@ impl<'gcx> StorageLayout<'gcx> {
 struct StorageBuilder<'gcx> {
     gcx: Gcx<'gcx>,
     locations: FxHashMap<VariableId, StorageLocation>,
+    /// The record slot and value location of every mapping in a `@custom:solar-fuse` group.
+    fused: FxHashMap<VariableId, (U256, StorageLocation)>,
     field_types: IndexVec<StructId, OnceLock<&'gcx [Ty<'gcx>]>>,
     field_locations: RefCell<FxHashMap<StructId, Option<Box<[StorageLocation]>>>>,
     storage_cursor: StorageCursor,
@@ -341,6 +352,7 @@ impl<'gcx> StorageBuilder<'gcx> {
         Self {
             gcx,
             locations: FxHashMap::default(),
+            fused: FxHashMap::default(),
             field_types: gcx.hir.strukt_ids().map(|_| OnceLock::new()).collect(),
             field_locations: RefCell::new(FxHashMap::default()),
             storage_cursor: StorageCursor::new(base_slot, false),
@@ -363,7 +375,40 @@ impl<'gcx> StorageBuilder<'gcx> {
                 }
             }
         }
+        self.fuse_mappings(contract_id);
         StorageLayout { builder: self }
+    }
+
+    /// Lays out the records of the `@custom:solar-fuse` groups of the contract's mappings: the
+    /// values of a group's mappings for one key follow each other like a struct's fields, in
+    /// declaration order, at `keccak256(key . slot)` with the slot of the group's first mapping.
+    fn fuse_mappings(&mut self, contract_id: ContractId) {
+        let contract = self.gcx.hir.contract(contract_id);
+        let mut groups = FxIndexMap::<(ContractId, Symbol), Vec<(VariableId, Ty<'gcx>)>>::default();
+        for &base in contract.linearized_bases.iter().rev() {
+            for id in self.gcx.hir.contract(base).variables() {
+                if let Some((group, _)) = self.gcx.hir.solar_fuse(id)
+                    && let TyKind::Mapping(_, value) =
+                        self.gcx.type_of_item(id.into()).peel_refs().kind
+                {
+                    groups.entry((base, group)).or_default().push((id, value));
+                }
+            }
+        }
+        for members in groups.values() {
+            let &[(first, _), _, ..] = members.as_slice() else { continue };
+            let Some(record) = self.locations.get(&first).map(|location| location.slot) else {
+                continue;
+            };
+            let mut cursor = StorageCursor::new(U256::ZERO, false);
+            for &(id, value) in members {
+                let encoding = self.packed_encoding(value);
+                let slots = self.storage_slots(value, self.gcx.hir.variable(id).span);
+                if let Some(location) = cursor.take(encoding, slots) {
+                    self.fused.insert(id, (record, location));
+                }
+            }
+        }
     }
 
     fn allocate(&mut self, ty: Ty<'gcx>, span: Span, transient: bool) -> Option<StorageLocation> {

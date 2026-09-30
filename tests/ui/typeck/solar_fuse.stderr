@@ -1,0 +1,76 @@
+error: `@custom:solar-fuse` must document a mapping state variable
+   ╭▸ ROOT/tests/ui/typeck/solar_fuse.sol:LL:CC
+   │
+LL │     /// @custom:solar-fuse account
+   │          ━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: put it on each mapping of the group, naming the group: `@custom:solar-fuse account`
+
+error: `@custom:solar-fuse` must name the group of its mapping
+   ╭▸ ROOT/tests/ui/typeck/solar_fuse.sol:LL:CC
+   │
+LL │     /// @custom:solar-fuse
+   │          ━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: name the group on every mapping of it: `@custom:solar-fuse account`
+
+error: fused group `single` has only one mapping
+   ╭▸ ROOT/tests/ui/typeck/solar_fuse.sol:LL:CC
+   │
+LL │     /// @custom:solar-fuse single
+   │          ━━━━━━━━━━━━━━━━━
+   │
+   ├ note: a group keeps the values that several mappings hold for one key in one record
+   ╰ help: tag the other mappings of the group, or remove the tag
+
+error: the mappings of fused group `keys` must have the same key type
+   ╭▸ ROOT/tests/ui/typeck/solar_fuse.sol:LL:CC
+   │
+LL │     /// @custom:solar-fuse keys
+   │          ━━━━━━━━━━━━━━━━━
+   ╰╴
+note: the group's first mapping takes `address` keys
+   ╭▸ ROOT/tests/ui/typeck/solar_fuse.sol:LL:CC
+   │
+LL │     mapping(address => uint128) byAddress;
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: a fused mapping must map to a value type
+   ╭▸ ROOT/tests/ui/typeck/solar_fuse.sol:LL:CC
+   │
+LL │     /// @custom:solar-fuse values
+   │          ━━━━━━━━━━━━━━━━━
+   ╰╴
+note: it maps to `uint256[]`
+   ╭▸ ROOT/tests/ui/typeck/solar_fuse.sol:LL:CC
+   │
+LL │     mapping(address => uint256[]) list;
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰ note: a record holds the values of the group's mappings side by side, like a struct's fields
+
+error: a fused mapping can only be indexed
+   ╭▸ ROOT/tests/ui/typeck/solar_fuse.sol:LL:CC
+   │
+LL │         mapping(address => uint128) storage m = balance;
+   │                                                 ━━━━━━━
+   │
+   ╰ note: `@custom:solar-fuse` moves the mapping's values out of the standard slots that a storage reference reaches
+
+error: a fused mapping can only be indexed
+   ╭▸ ROOT/tests/ui/typeck/solar_fuse.sol:LL:CC
+   │
+LL │         return nonceOf(nonce);
+   │                        ━━━━━
+   │
+   ╰ note: `@custom:solar-fuse` moves the mapping's values out of the standard slots that a storage reference reaches
+
+error: inline assembly cannot take the `.slot` of a fused mapping
+   ╭▸ ROOT/tests/ui/typeck/solar_fuse.sol:LL:CC
+   │
+LL │             s := balance.slot
+   │                          ━━━━
+   │
+   ╰ note: `@custom:solar-fuse` moves the mapping's values out of their standard slots
+
+error: aborting due to 8 previous errors
+

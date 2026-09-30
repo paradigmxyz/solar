@@ -422,6 +422,20 @@ impl<'hir> Hir<'hir> {
         };
         self.solar_view_names(id).iter().any(|&(view, _)| view == name.name)
     }
+
+    /// Returns the group the `@custom:solar-fuse` tag on a state variable's declaration names,
+    /// or an empty name when it names none, with the tag's span.
+    pub fn solar_fuse(&self, id: VariableId) -> Option<(Symbol, Span)> {
+        let doc = self.doc(self.variable(id).doc);
+        doc.ast_comments.iter().flat_map(|comment| comment.natspec.iter()).find_map(|natspec| {
+            let ast::NatSpecKind::Custom { name } = natspec.kind else { return None };
+            if name.name != sym::solar_dash_fuse {
+                return None;
+            }
+            let group = natspec.content().split_whitespace().next();
+            Some((group.map_or(kw::Empty, Symbol::intern), natspec.span))
+        })
+    }
 }
 
 /// A statement documented by a `@custom:solar-*` tag.

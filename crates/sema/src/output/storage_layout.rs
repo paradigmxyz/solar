@@ -5,7 +5,7 @@ use crate::{
 use alloy_primitives::U256;
 use serde::Serialize;
 use solar_ast::{DataLocation, ElementaryType};
-use solar_data_structures::map::{FxIndexMap, IndexEntry};
+use solar_data_structures::map::{FxHashMap, FxIndexMap, IndexEntry};
 
 /// Storage layout in solc's Standard JSON `storageLayout` and `transientStorageLayout` output
 /// fields.
@@ -23,6 +23,13 @@ pub struct StorageLayoutOutput {
     /// member's is to the struct. `solc` has no such field, so it is left out when empty.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub namespaces: Option<FxIndexMap<String, Vec<StorageLayoutEntry>>>,
+    /// The records of the mapping groups documented `@custom:solar-fuse <group>`, keyed by the
+    /// slot of each group's first mapping, whose hash with a key locates the group's record for
+    /// that key as a mapping's slot locates its value. Each member is the value one mapping
+    /// keeps in the record, with its slot relative to the record's start. `solc` has no such
+    /// field, so it is left out when empty.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fused: Option<FxIndexMap<String, Vec<StorageLayoutEntry>>>,
 }
 
 #[derive(Debug, Serialize)]
@@ -102,7 +109,7 @@ impl<'gcx> Gcx<'gcx> {
         let mut builder = StorageLayoutBuilder::new(self, contract_name, DataLocation::Storage);
         let storage = builder.layout_fields(strukt.fields, &mut StorageCursor::new(base_slot));
         let types = (!builder.types.is_empty()).then_some(builder.types);
-        StorageLayoutOutput { storage, types, namespaces: None }
+        StorageLayoutOutput { storage, types, namespaces: None, fused: None }
     }
 }
 
@@ -142,6 +149,7 @@ impl<'gcx> StorageLayoutBuilder<'gcx> {
         .collect::<Vec<_>>();
         let mut cursor = StorageCursor::new(base_slot);
         let mut storage = Vec::new();
+        let mut slots = FxHashMap::default();
 
         for &base in &bases {
             for variable_id in self.gcx.hir.contract(base).variables() {
@@ -158,6 +166,7 @@ impl<'gcx> StorageLayoutBuilder<'gcx> {
                 let ty_name = self.generate_type(ty);
                 let (slot, offset) = self.place_type(ty, &mut cursor);
                 storage.push(self.storage_entry(variable_id, slot, offset, ty_name));
+                slots.insert(variable_id, slot);
             }
         }
 
@@ -180,9 +189,38 @@ impl<'gcx> StorageLayoutBuilder<'gcx> {
             }
         }
 
+        let mut fused = FxIndexMap::default();
+        if matches!(self.location, DataLocation::Storage) {
+            let mut groups = FxIndexMap::<_, Vec<_>>::default();
+            for &base in &bases {
+                for variable_id in self.gcx.hir.contract(base).variables() {
+                    if let Some((group, _)) = self.gcx.hir.solar_fuse(variable_id)
+                        && let TyKind::Mapping(_, value) =
+                            self.gcx.type_of_item(variable_id.into()).peel_refs().kind
+                    {
+                        groups.entry((base, group)).or_default().push((variable_id, value));
+                    }
+                }
+            }
+            for members in groups.values() {
+                let [(first, _), _, ..] = members.as_slice() else { continue };
+                let Some(record) = slots.get(first) else { continue };
+                let mut cursor = StorageCursor::new(U256::ZERO);
+                let mut entries = Vec::with_capacity(members.len());
+                for &(id, value) in members {
+                    let value = value.with_loc_if_ref(self.gcx, DataLocation::Storage);
+                    let ty_name = self.generate_type(value);
+                    let (slot, offset) = self.place_type(value, &mut cursor);
+                    entries.push(self.storage_entry(id, slot, offset, ty_name));
+                }
+                fused.insert(record.to_string(), entries);
+            }
+        }
+
         let types = (!self.types.is_empty()).then_some(self.types);
         let namespaces = (!namespaces.is_empty()).then_some(namespaces);
-        StorageLayoutOutput { storage, types, namespaces }
+        let fused = (!fused.is_empty()).then_some(fused);
+        StorageLayoutOutput { storage, types, namespaces, fused }
     }
 
     fn layout_members(&mut self, fields: &[hir::VariableId]) -> (Vec<StorageLayoutEntry>, U256) {

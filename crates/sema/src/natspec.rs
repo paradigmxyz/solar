@@ -844,6 +844,9 @@ pub(crate) enum SolarTag {
     Safe,
     /// `@custom:solar-trusted`: reviewed code a `@custom:solar-safe` contract may run.
     Trusted,
+    /// `@custom:solar-fuse <group>`: the mappings of a group keep their values for one key
+    /// together, in one record.
+    Fuse,
     /// A `solar-` tag this compiler does not define.
     Unknown,
 }
@@ -857,20 +860,26 @@ impl SolarTag {
             sym::solar_dash_terminates => Some(Self::Terminates),
             sym::solar_dash_safe => Some(Self::Safe),
             sym::solar_dash_trusted => Some(Self::Trusted),
+            sym::solar_dash_fuse => Some(Self::Fuse),
             _ => name.as_str().starts_with("solar-").then_some(Self::Unknown),
         }
     }
 }
 
 /// Whether the Solar tag `tag` can document the item `item`: `@custom:solar-safe` a contract or a
-/// library, `@custom:solar-trusted` one of those or a function or modifier with a body, and the
-/// other declaration tags what [`declaration_tag_applies`] accepts.
+/// library, `@custom:solar-trusted` one of those or a function or modifier with a body,
+/// `@custom:solar-fuse` a mapping state variable, and the other declaration tags what
+/// [`declaration_tag_applies`] accepts.
 fn item_tag_applies(gcx: Gcx<'_>, tag: SolarTag, item: hir::ItemId) -> bool {
     let code_contract = |id| gcx.hir.contract(id).kind != hir::ContractKind::Interface;
     match (tag, item) {
         (SolarTag::Terminates | SolarTag::View, item) => declaration_tag_applies(gcx, item),
         (SolarTag::Safe | SolarTag::Trusted, hir::ItemId::Contract(id)) => code_contract(id),
         (SolarTag::Trusted, hir::ItemId::Function(id)) => gcx.hir.function(id).body.is_some(),
+        (SolarTag::Fuse, hir::ItemId::Variable(id)) => {
+            let variable = gcx.hir.variable(id);
+            variable.is_state_variable() && matches!(variable.ty.kind, hir::TypeKind::Mapping(_))
+        }
         _ => false,
     }
 }
@@ -923,13 +932,22 @@ pub(crate) fn report_misplaced_solar_tag(dcx: &DiagCtxt, tag: SolarTag, name: Sy
             .span(span)
             .help("put it on the reviewed code a `@custom:solar-safe` contract runs")
             .emit(),
+        SolarTag::Fuse => dcx
+            .err("`@custom:solar-fuse` must document a mapping state variable")
+            .span(span)
+            .help(
+                "put it on each mapping of the group, naming the group: \
+                 `@custom:solar-fuse account`",
+            )
+            .emit(),
         SolarTag::Unknown => dcx
             .err(format!("unknown Solar tag `@custom:{name}`"))
             .span(span)
             .note("`@custom:solar-` tags are requirements this compiler checks")
             .help(
                 "the supported tags are `@custom:solar-view`, `@custom:solar-scratch`, \
-                 `@custom:solar-terminates`, `@custom:solar-safe`, and `@custom:solar-trusted`",
+                 `@custom:solar-terminates`, `@custom:solar-safe`, `@custom:solar-trusted`, and \
+                 `@custom:solar-fuse`",
             )
             .emit(),
     };

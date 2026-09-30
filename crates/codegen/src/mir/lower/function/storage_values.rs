@@ -260,6 +260,19 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         .lower_fixed_bytes_literal(key, index)
                         .or_else(|| self.lower_typed_expr(index, key))?;
                     let index = self.normalize_abi_scalar(index, key);
+                    if let Some((record, location)) = self
+                        .cx
+                        .gcx
+                        .resolved_variable(receiver.peel_parens())
+                        .and_then(|id| self.cx.storage.fused(id))
+                    {
+                        // record = keccak256(key . first_slot)
+                        // slot = record + value_slot
+                        let record = self.builder.imm(record);
+                        let record = self.mapping_slot(index, key, record);
+                        let slot = self.add_storage_offset(record, location.slot);
+                        return Some(StorageAccess { slot, location, offset: None });
+                    }
                     let slot = self.mapping_slot(index, key, base.slot);
                     if let Some((size, encoding)) = self.cx.storage.packed_encoding(value) {
                         let location = StorageLocation::packed_word(size, encoding);

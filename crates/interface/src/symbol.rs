@@ -1334,6 +1334,7 @@ symbols! {
         slice_ptr,
         slice_starts_after_end,
         slot,
+        solar_dash_fuse: "solar-fuse",
         solar_dash_safe: "solar-safe",
         solar_dash_scratch: "solar-scratch",
         solar_dash_terminates: "solar-terminates",
