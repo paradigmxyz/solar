@@ -94,6 +94,8 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &lower_frame_slots::LowerFrameSlots,
     &lower_evm_shaped::LowerEvmShaped,
     &lower_immutables::LowerImmutables,
+    // Expand copies while allocations are still symbolic, so provenance can
+    // prove more of their ranges disjoint and skip the runtime direction check.
     &lower_mcopy::LowerMCopy,
     &lower_abi_encode::LowerAbiEncode,
     &lower_aggregates::LowerAggregates,
@@ -333,9 +335,9 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     // physical memory stores that conservatively alias heap pointers.
     &readonly_eval::ReadonlyEval,
     &lower_immutables::LowerImmutables,
+    &lower_mcopy::LowerMCopy,
     &lower_alloc::LowerAlloc,
     &lower_memory_zero::LowerMemoryZero,
-    &lower_mcopy::LowerMCopy,
     // Carry proved argument widths across calls before simplifying word masks.
     &call_cleanup::CallCleanup,
     // Shared scalar ABI words and wrapper bodies become one CFG before extraction.
