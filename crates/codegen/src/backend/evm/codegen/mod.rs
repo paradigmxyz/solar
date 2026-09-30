@@ -424,8 +424,6 @@ pub struct EvmCodegen<'gcx> {
     carry_live_across_call: bool,
     /// Values the internal call being emitted carries on the stack.
     carried_call: Option<CarriedCall>,
-    /// Functions already reported for a low-memory write over their frame pointer.
-    frame_pointer_errors: FxHashSet<FunctionId>,
     /// Leaf helpers whose sole returned word is derived from the free-memory pointer.
     /// Their callers may safely use the result as a dynamic forwarding-buffer base.
     heap_pointer_return_functions: DenseBitSet<FunctionId>,
@@ -532,7 +530,6 @@ impl<'gcx> EvmCodegen<'gcx> {
             heap_memory_writers: DenseBitSet::new_empty(0),
             carry_live_across_call: false,
             carried_call: None,
-            frame_pointer_errors: FxHashSet::default(),
             heap_pointer_return_functions: DenseBitSet::new_empty(0),
             global_stack_active: false,
             global_stack_aliases: FxHashMap::default(),
@@ -609,7 +606,6 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.heap_memory_writers.clear_to(module.functions.len());
         self.carry_live_across_call = false;
         self.carried_call = None;
-        self.frame_pointer_errors.clear();
         self.heap_pointer_return_functions.clear_to(module.functions.len());
         self.global_stack_active = false;
         self.global_stack_aliases.clear();

@@ -26,6 +26,8 @@
 //@ run-call: ReservedSlotHarness::run => 1
 //@ run-call: CarriedStackArgHarness::run => 1
 //@ run-call: ConstructorCopyHelperHarness::run => 1
+//@ run-call: SharedCopyHelperHarness::run => 1
+//@ run-call: ShortReturnCopy::f 3, 0x0000000000000000000000000000000000000002 => 169
 
 // Reduced regressions for the dynamic spill base. Expected results come from a model of each
 // program, not from compiling it.
@@ -1299,5 +1301,53 @@ contract ConstructorCopyHelperHarness {
     function run() external returns (uint256) {
         require(new ConstructorCopyHelper(5).x() == 36, "constructor copy helper");
         return 1;
+    }
+}
+
+// Creation code and the runtime both call a helper that copies calldata. Each artifact decides
+// on its own whether the helper needs a dynamic spill base.
+contract SharedCopyHelper {
+    uint256 s;
+
+    function h(uint256 x) internal view returns (uint256, uint256) {
+        uint256 y = x + s;
+        assembly { calldatacopy(0, 0, calldatasize()) }
+        return (y, x);
+    }
+
+    constructor() {
+        (s,) = h(1);
+    }
+
+    function f(uint256 b) external view returns (uint256 r) {
+        (r,) = h(b);
+    }
+}
+
+contract SharedCopyHelperHarness {
+    function run() external returns (uint256) {
+        (bool success, bytes memory result) = address(new SharedCopyHelper()).call(
+            abi.encodePacked(abi.encodeCall(SharedCopyHelper.f, (41)), new bytes(1500))
+        );
+        require(success && abi.decode(result, (uint256)) == 42, "shared copy helper");
+        return 1;
+    }
+}
+
+// A recursive function copies a short return value to `0`, over its dynamic frame's pointer
+// word only if the data were longer.
+contract ShortReturnCopy {
+    function rd(uint256 n, address t) internal view returns (uint256 r) {
+        if (n == 0) return 1;
+        assembly {
+            pop(staticcall(gas(), t, 0, 0, 0, 0))
+            returndatacopy(0, 0, returndatasize())
+            r := mload(0)
+        }
+        r = (r >> 250) + rd(n - 1, t);
+    }
+
+    function f(uint256 n, address t) external view returns (uint256) {
+        return rd(n, t);
     }
 }

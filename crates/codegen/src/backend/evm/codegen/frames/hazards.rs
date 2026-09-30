@@ -130,6 +130,8 @@ impl<'gcx> EvmCodegen<'gcx> {
                     Self::value_u64_upper_bound(func, if_true, visiting)?
                         .max(Self::value_u64_upper_bound(func, if_false, visiting)?),
                 ),
+                InstKind::Add(left, right) => Self::value_u64_upper_bound(func, left, visiting)?
+                    .checked_add(Self::value_u64_upper_bound(func, right, visiting)?),
                 InstKind::And(left, right) => {
                     match (
                         Self::value_u64_upper_bound(func, left, visiting),

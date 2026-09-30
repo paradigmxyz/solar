@@ -142,26 +142,6 @@ impl<'gcx> EvmCodegen<'gcx> {
         let mut function_returns = FxHashSet::default();
 
         self.spill_hazard_insts = self.compute_spill_hazard_insts(func);
-        if self.spill_hazard_clobbers_frame_pointer(func) {
-            // Later retries regenerate the function, but report it once.
-            if !self.frame_pointer_errors.insert(func_id) {
-                return;
-            }
-            self.gcx
-                .dcx()
-                .err(format!(
-                    "codegen cannot keep the internal frame of `{}` across a dynamic low-memory \
-                     write",
-                    func.name
-                ))
-                .note(format!(
-                    "the write can cover the frame pointer its dynamic frame keeps at `{:#x}`",
-                    EvmMemoryLayout::INTERNAL_FRAME_PTR_SLOT
-                ))
-                .emit();
-            return;
-        }
-
         // Eliminate phis.
         self.block_copies.clear();
         self.elided_insts.clear();

@@ -38,10 +38,12 @@
 //! of reach. A call to a function that may make a variable-length write to a low constant
 //! address before returning counts as such a write in its caller too.
 //!
-//! NOTE: A recursive function's frame pointer lives at a fixed word that no move can protect;
-//! codegen reports an error for a write in the function itself that may cover it, but does not
-//! detect a callee's write over it. A callee's write through a computed pointer or a sweeping
-//! word store does not count as a write in its caller.
+//! NOTE: A function with a dynamic frame, such as a recursive function or any helper in creation
+//! code, keeps its frame pointer at a fixed word that no move can protect, and a write that
+//! covers the word breaks the frame. Codegen accepts such writes because they are usually short
+//! at run time, like a revert reason copied to `0`. Internal calls made while
+//! a copied buffer is still read can also write callee frames into it. A callee's write through
+//! a computed pointer or a sweeping word store does not count as a write in its caller.
 
 use super::{
     ArgIdx, BlockId, CarriedCall, CfgInfo, DeferredConst, DenseBitSet, DynamicSpillBase,
@@ -141,33 +143,6 @@ impl<'gcx> EvmCodegen<'gcx> {
         if let Some(func_id) = self.emitting_function {
             self.request_dynamic_spill_base(func_id);
         }
-    }
-
-    /// Returns whether a low-memory clobber can overwrite the frame-pointer word of a function
-    /// with a dynamic internal frame. The word has no stack copy, so a moved spill area cannot
-    /// protect the frame.
-    pub(super) fn spill_hazard_clobbers_frame_pointer(&self, func: &Function) -> bool {
-        let frame_pointer_end =
-            EvmMemoryLayout::INTERNAL_FRAME_PTR_SLOT + EvmMemoryLayout::WORD_SIZE;
-        if self.spill_hazard_insts.is_empty()
-            || !self.in_internal_function
-            || !self.own_frame_addr_is_dynamic()
-        {
-            return false;
-        }
-        // The caller reads the word after the function returns, so a write on a path that ends
-        // the call frame is harmless. Without a dynamic spill base, only a write whose
-        // destination provably starts below the word counts: an unbounded destination is almost
-        // always on the heap.
-        Self::blocks_returning_to_caller(func).iter().any(|block| {
-            func.blocks[block].instructions.iter().any(|&inst| {
-                self.spill_hazard_insts.contains(&inst)
-                    && Self::dynamic_spill_write_dest(func, inst).is_some_and(|dest| {
-                        Self::value_upper_bound(func, dest)
-                            .map_or(self.spill_base.is_some(), |dest| dest < frame_pointer_end)
-                    })
-            })
-        })
     }
 
     /// Returns whether `inst` is the placeholder that defines the dynamic spill base.

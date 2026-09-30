@@ -101,6 +101,8 @@ impl<'gcx> EvmCodegen<'gcx> {
         // and the runtime-code offset depend on its final push widths. Only
         // repeat final assembly while both offsets stabilize.
         // A constructor body can request a dynamic spill base while it emits; regenerate it.
+        // Creation code decides its dynamic spill bases apart from the runtime.
+        self.dynamic_spill_base_functions.clear_to(module.functions.len());
         let prepared_deploy_code = loop {
             if let Some(prepared) = self.prepare_deployment_prefix(
                 module,
