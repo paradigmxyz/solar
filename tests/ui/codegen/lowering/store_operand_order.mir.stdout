@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/store_operand_order.sol:StoreOperands ===
 @module StoreOperands
-types:
+@types
   struct0: {i256, i256, i256}
 
 fn @memoryWords(arg0: i256) -> struct0 [selector=0x9d17b978, inline_assembly, pure, abi_params=[u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {

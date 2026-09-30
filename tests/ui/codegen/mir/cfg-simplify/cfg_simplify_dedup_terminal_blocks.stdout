@@ -1,6 +1,10 @@
 - // === ROOT/tests/ui/codegen/mir/cfg-simplify/cfg_simplify_dedup_terminal_blocks.mir (before cfg-simplify) ===
 + // === ROOT/tests/ui/codegen/mir/cfg-simplify/cfg_simplify_dedup_terminal_blocks.mir (after cfg-simplify) ===
   @module CfgDedupTerminalBlocks
+  @libraries
+    L_0: "A.sol:L"
+    L_1: "B.sol:L"
+  
   fn @dedup_identical_panics(arg0: i256, arg1: i256) {
     bb0:
       v0 = ne arg0, 0
@@ -198,12 +202,12 @@
     bb0:
       jumpi arg0, bb1, bb2
     bb2:
-      v2 = library_address "B.sol":"L"
+      v2 = library_address L_1
       v3 = zext i160 v2 to i256
       mstore 0, v3
       returndata 0, 32
     bb1:
-      v0 = library_address "A.sol":"L"
+      v0 = library_address L_0
       v1 = zext i160 v0 to i256
       mstore 0, v1
       returndata 0, 32

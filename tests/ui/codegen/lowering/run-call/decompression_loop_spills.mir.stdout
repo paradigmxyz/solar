@@ -123,23 +123,23 @@ fn @_decompress() [inline_assembly] {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/decompression_loop_spills.sol:Harness ===
 @module Harness
-data:
-  Decompressor_initcode_0: hex"34600e576101008060125f395ff35b5f5ffd60c06040525f5460ff901615156028575f5460ff1981169050600160ff9016811790505f556036565b365f5f37365f205f5260205ff35b3615151560fc576003195f5f91905b823681101515606c575f38835f305af493505050503d5f5f3e1515156068573d5ff35b3d5ffd5b35838381018290189150815f1a9150600181019050935080151515609b57818181539050600181019150506045565b83359050838381018290189150815f1a915060018101905093505f1982818152905081607f811115151560d3579150915090919260e2565b60018101368337915091509091925b607f82169150600182019150818301915091509091906045565b3636f3"
+@data
+  Decompressor_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/decompression_loop_spills.sol:Decompressor"
 
 fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
-    v1 = not 31
-    v2 = and 305, v1
+    v1 = datasize Decompressor_creation_code_0
+    v2 = datasize Decompressor_creation_code_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    data_copy Decompressor_initcode_0, v4, 274
+    datacopy Decompressor_creation_code_0, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
-    v7 = add v6, 274
+    v7 = add v6, v1
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
-    v9 = create 0, v8, 274
+    v9 = create 0, v8, v1
     v10 = zext i160 v9 to i256
     v11 = ne v10, 0
     jumpi v11, bb2, bb1

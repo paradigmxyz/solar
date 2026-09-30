@@ -4,7 +4,7 @@
 
 // === ROOT/tests/ui/codegen/mir/memory-dse/zero_init_runtime.sol:Test ===
 @module Test
-types:
+@types
   struct0: {i256, i256}
   struct1: {i256, i256, i256}
 

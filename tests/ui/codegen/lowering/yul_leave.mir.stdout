@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/yul_leave.sol:YulLeave ===
 @module YulLeave
-types:
+@types
   struct0: {i256, i256}
 
 fn @simple() -> i256 [selector=0xdf201a46, inline_assembly, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {

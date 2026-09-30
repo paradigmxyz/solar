@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/storage_layout_base.sol:LayoutSlots ===
 @module LayoutSlots
-types:
+@types
   struct0: {i256, i256, i256, i256, i256, i256}
 
 fn @slots() -> struct0 [selector=0x48547d69, inline_assembly, pure, abi_params=[], abi_returns=[word, word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256, u256]] {
@@ -16,7 +16,7 @@ fn @slots() -> struct0 [selector=0x48547d69, inline_assembly, pure, abi_params=[
 
 // === ROOT/tests/ui/codegen/lowering/storage_layout_base.sol:LayoutStorage ===
 @module LayoutStorage
-types:
+@types
   struct0: {i256, i256}
 
 fn @store(arg0: i256) -> struct0 [selector=0x6057361d, inline_assembly, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
@@ -41,7 +41,7 @@ fn @constructor() [constructor] {
 
 // === ROOT/tests/ui/codegen/lowering/storage_layout_base.sol:LayoutDerived ===
 @module LayoutDerived
-types:
+@types
   struct0: {i256, i256, i256}
 
 fn @slots() -> struct0 [selector=0x48547d69, inline_assembly, pure, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
@@ -59,7 +59,7 @@ fn @constructor() [constructor] {
 
 // === ROOT/tests/ui/codegen/lowering/storage_layout_base.sol:LayoutTransient ===
 @module LayoutTransient
-types:
+@types
   struct0: {i256, i256}
 
 fn @slots() -> struct0 [selector=0x48547d69, inline_assembly, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {

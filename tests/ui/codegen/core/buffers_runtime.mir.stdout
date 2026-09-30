@@ -12,7 +12,7 @@
 
 // === ROOT/tests/ui/codegen/core/buffers_runtime.sol:Test ===
 @module Test
-types:
+@types
   struct0: {memorybytes, i256}
   struct1: {memorybytes, memorybytes}
 

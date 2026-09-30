@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/check-elim/binary_search_runtime.sol:Search ===
 @module Search
-types:
+@types
   struct0: {i256, i256}
 
 fn @search(arg0: memoryarray, arg1: i256) -> struct0 [selector=0xd43fc471, pure, abi_params=[array<_, u256>, u256], abi_returns=[word<bool>, word], abi_return_params=[bool, u256]] {
@@ -139,7 +139,7 @@ fn @searchSigned(arg0: memoryarray, arg1: i256) -> struct0 [selector=0x9c2637a2,
 
 // === ROOT/tests/ui/codegen/mir/check-elim/binary_search_runtime.sol:ForgedSearch ===
 @module ForgedSearch
-types:
+@types
   struct0: {i256, i256}
 
 fn @forged(arg0: i256, arg1: i256) -> struct0 [selector=0xdd29ebdb, inline_assembly, pure, abi_params=[u256, u256], abi_returns=[word<bool>, word], abi_return_params=[bool, u256]] {

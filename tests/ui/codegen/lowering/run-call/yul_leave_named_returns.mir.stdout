@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/yul_leave_named_returns.sol:C ===
 @module C
-types:
+@types
   struct0: {i256, i256}
 
 fn @leaveInFor() -> i256 [selector=0xc89cb30d, inline_assembly, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
