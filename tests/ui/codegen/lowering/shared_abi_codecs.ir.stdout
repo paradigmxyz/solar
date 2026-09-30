@@ -31,7 +31,7 @@ fn @encodeFirst() [selector=0xe9a7b169, abi_wrapper, pure] {
   bb4:
     v29 = add v24, v23
     v42 = add v40, 32
-    mcopy v24, v42, v20
+    mcopy v24, v42, v20 !metadata(disjoint)
     v32 = sub v29, v43
     v34 = add v32, 31
     v36 = and v34, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
@@ -95,7 +95,7 @@ fn @encodeSecond() [selector=0x108c1ec5, abi_wrapper, pure] {
   bb6:
     v49 = add v44, v43
     v66 = add v68, 32
-    mcopy v44, v66, v40
+    mcopy v44, v66, v40 !metadata(disjoint)
     v52 = sub v49, v70
     v54 = add v52, 31
     v56 = and v54, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
@@ -598,7 +598,7 @@ fn @encode_abi_array(arg0: i256, arg1: memptr) -> i256 [may_return_memory] {
     v27 = add v13, 32
     v30 = add v27, v26
     v38 = add v18, 32
-    mcopy v27, v38, v26
+    mcopy v27, v38, v26 !metadata(disjoint)
     v32 = sub v12, 1
     v35 = add v14, 32
     v34 = add v17, 32

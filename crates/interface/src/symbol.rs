@@ -1061,6 +1061,7 @@ symbols! {
         decode_static_ptr,
         deferred_alloc,
         deployment,
+        disjoint,
         dispatch,
         display_test,
         dup,

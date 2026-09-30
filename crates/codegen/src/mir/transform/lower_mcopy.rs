@@ -36,7 +36,8 @@ use solar_sema::Gcx;
 /// could overlap either copied range.
 ///
 /// Copies whose destination starts above their source run backward; all other
-/// copies run forward. A masked partial-word merge ensures that the lowering
+/// copies run forward, as do copies marked `disjoint`, such as ABI encoding's copies
+/// of source data into its output. A masked partial-word merge ensures that the lowering
 /// changes exactly `len` bytes; a length that is provably a multiple of 32, such
 /// as a word array's `len << 5`, copies whole words and needs no merge. Pointer provenance selects
 /// a direction at compile time for disjoint allocations and constant offsets; unknown pointer
@@ -159,6 +160,9 @@ fn lower_function(
         .instructions()
         .filter_map(|inst| {
             let InstKind::MCopy(dest, src, len) = func.inst(inst).kind else { return None };
+            if func.inst(inst).metadata.disjoint() {
+                return Some((inst, CopyDirection::Forward));
+            }
             Some((inst, copy_direction(func, &alias, fresh_returns, dest, src, len)))
         })
         .collect::<solar_data_structures::map::FxHashMap<_, _>>();

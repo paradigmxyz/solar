@@ -321,7 +321,7 @@ fn @strs() [selector=0x68f4ce0b, abi_wrapper, pure] {
     mstore v90, v102
     v110 = add v106, v105
     v142 = add v95, 32
-    mcopy v106, v142, v102
+    mcopy v106, v142, v102 !metadata(disjoint)
     v112 = sub v89, 1
     v115 = add v91, 32
     v114 = add v94, 32
@@ -469,7 +469,7 @@ fn @mixed() [selector=0x6791505c, abi_wrapper, pure] {
     v95 = shl 5, v94
     v96 = add v82, 32
     v98 = add v96, v95
-    mcopy v96, v129, v95
+    mcopy v96, v129, v95 !metadata(disjoint)
     v103 = sub v98, v159
     v101 = add v159, 64
     mstore v101, v103
@@ -484,7 +484,7 @@ fn @mixed() [selector=0x6791505c, abi_wrapper, pure] {
     mstore v115, 0
     mstore v98, v110
     v117 = add v114, v113
-    mcopy v114, v133, v110
+    mcopy v114, v133, v110 !metadata(disjoint)
     v120 = sub v117, v159
     v122 = add v120, 31
     v124 = and v122, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0

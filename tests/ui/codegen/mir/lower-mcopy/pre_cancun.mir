@@ -49,3 +49,16 @@ fn @copy_words(arg0: i256, arg1: i256, arg2: i256) -> i256 {
     mcopy arg0, arg1, v0
     ret arg0
 }
+
+// ABI encoding marks copies from its sources into its output `disjoint`, so
+// they copy forward without a runtime direction check.
+// PRE-LABEL: {{^[ +].*}}fn @copy_disjoint{{[( ]}}
+// PRE: - mcopy arg0, arg1, arg2 !metadata(disjoint)
+// PRE-NOT: {{^\+.*}} = lt arg1, arg0
+// PRE-NOT: {{^\+.*}} = sub {{v[0-9]+}}, 32
+// PRE: {{^[ +].*}}ret arg0
+fn @copy_disjoint(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+  bb0:
+    mcopy arg0, arg1, arg2 !metadata(disjoint)
+    ret arg0
+}

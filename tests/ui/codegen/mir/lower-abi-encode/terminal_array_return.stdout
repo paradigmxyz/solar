@@ -66,7 +66,7 @@
 +     v18 = memory_object_data memoryarray, arg0
 +     v19 = add v17, v16
 +     v20 = ptrtoint memptr v18 to i256
-+     mcopy v17, v20, v16 !metadata(memory=heap)
++     mcopy v17, v20, v16 !metadata(memory=heap, disjoint)
 +     v21 = ptrtoint memptr v3 to i256
 +     v22 = sub v19, v21
 +     v23 = add v22, 0

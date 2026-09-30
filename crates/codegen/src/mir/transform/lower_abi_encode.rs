@@ -1552,7 +1552,7 @@ fn encode_word_array(
         builder.switch_to_block(done);
         return builder.phi(vec![(preheader, data_dest), (backedge, next_destination)]);
     }
-    builder.copy_slice_data(location, data_dest, data_source, bytes);
+    copy_source_data(builder, location, data_dest, data_source, bytes);
     tail
 }
 
@@ -1627,8 +1627,27 @@ fn encode_bytes(
         SliceLocation::Calldata | SliceLocation::Returndata => builder.slice_ptr(value),
     };
     let tail = builder.add(data_dest, padded);
-    builder.copy_slice_data(location, data_dest, data_source, len);
+    copy_source_data(builder, location, data_dest, data_source, len);
     tail
+}
+
+/// Copies a source value's data into the output buffer.
+///
+/// Source objects live below the free-memory pointer, and the output is either untouched memory
+/// above it or a fresh allocation, so memory copies never overlap.
+fn copy_source_data(
+    builder: &mut FunctionBuilder<'_>,
+    location: SliceLocation,
+    dest: ValueId,
+    source: ValueId,
+    size: ValueId,
+) {
+    match location {
+        SliceLocation::Memory => builder.mcopy_disjoint_heap(dest, source, size),
+        SliceLocation::Calldata | SliceLocation::Returndata => {
+            builder.copy_slice_data(location, dest, source, size)
+        }
+    }
 }
 
 fn memory_object_len(

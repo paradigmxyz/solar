@@ -152,7 +152,7 @@
 +     v35 = memory_object_data memoryarray, v34
 +     v36 = add v33, v32
 +     v37 = ptrtoint memptr v35 to i256
-+     mcopy v33, v37, v32 !metadata(memory=heap)
++     mcopy v33, v37, v32 !metadata(memory=heap, disjoint)
 +     v38 = sub v18, 1
 +     v39 = ptrtoint memptr v21 to i256
 +     v40 = add v39, 32

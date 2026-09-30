@@ -233,6 +233,17 @@ impl InstructionMetadata {
     pub(crate) fn set_preserves_fmp(&mut self, value: bool) {
         self.flags.set_preserves_fmp(value);
     }
+
+    /// Returns whether this copy's source and destination ranges never overlap.
+    #[must_use]
+    pub(crate) fn disjoint(&self) -> bool {
+        self.flags.disjoint()
+    }
+
+    /// Marks a copy whose source and destination ranges never overlap.
+    pub(crate) fn set_disjoint(&mut self) {
+        self.flags.set_disjoint();
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -245,6 +256,7 @@ impl MetadataFlags {
     const EFFECT_SHIFT: u16 = 3;
     const UNCHECKED: u16 = 0b1000_0000;
     const DEFERRED_ALLOC: u16 = 0b1_0000_0000;
+    const DISJOINT: u16 = 0b10_0000_0000;
     const PRESERVES_FMP: u16 = 0b100_0000_0000;
     const DISPLAY_SOURCE_SPAN: u16 = 0b1000_0000_0000;
     const DEBUG_INFO_HANDLED: u16 = 0b1_0000_0000_0000;
@@ -295,6 +307,14 @@ impl MetadataFlags {
 
     fn clear_deferred_alloc(&mut self) {
         self.0 &= !Self::DEFERRED_ALLOC;
+    }
+
+    fn disjoint(self) -> bool {
+        self.0 & Self::DISJOINT != 0
+    }
+
+    fn set_disjoint(&mut self) {
+        self.0 |= Self::DISJOINT;
     }
 
     fn preserves_fmp(self) -> bool {

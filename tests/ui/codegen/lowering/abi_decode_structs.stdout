@@ -153,7 +153,7 @@ fn @dNested() [selector=0xfc7ec666, abi_wrapper, pure] {
     mstore v73, v84
     v91 = add v88, v87
     v128 = add v6, 32
-    mcopy v88, v128, v84
+    mcopy v88, v128, v84 !metadata(disjoint)
     v94 = add v137, 64
     mstore v94, v10
     v96 = sub v91, v137
