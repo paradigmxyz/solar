@@ -1135,6 +1135,7 @@ symbols! {
         indexOf,
         indexed_jump,
         infallible,
+        inline_assembly,
         insert_value,
         interfaceId,
         internal_dispatcher,

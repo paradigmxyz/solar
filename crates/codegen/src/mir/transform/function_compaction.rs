@@ -977,6 +977,8 @@ fn equivalent_attributes(lhs: &Function, rhs: &Function) -> bool {
         && lhs.attributes.is_fallback == rhs.attributes.is_fallback
         && lhs.attributes.is_receive == rhs.attributes.is_receive
         && lhs.attributes.may_return_memory == rhs.attributes.may_return_memory
+        // Assembly can keep pointers no analysis follows, so a merge keeps it visible.
+        && lhs.attributes.inline_assembly == rhs.attributes.inline_assembly
         && lhs.attributes.is_function_pointer_dispatcher
             == rhs.attributes.is_function_pointer_dispatcher
         && lhs.attributes.no_inline == rhs.attributes.no_inline
