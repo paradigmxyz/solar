@@ -122,7 +122,7 @@ types:
   struct0: {i256, i256}
 
 data:
-  ConstructorBytesMain_initcode_0: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/constructor_bytes_forwarding.sol":"ConstructorBytesMain"
+  ConstructorBytesMain_initcode_0: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/constructor_bytes_forwarding.sol:ConstructorBytesMain"
 
 fn @f(arg0: i256, arg1: memorybytes) -> struct0 [selector=0xcdc9dc79, abi_params=[u256, bytes], abi_returns=[word, word<bytes1>], abi_return_params=[u256, bytes1]] {
   bb0:

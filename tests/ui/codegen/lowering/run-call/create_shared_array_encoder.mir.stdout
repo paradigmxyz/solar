@@ -62,7 +62,7 @@ types:
   struct0: {i256, i256, i256, i256}
 
 data:
-  Child_initcode_0: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/create_shared_array_encoder.sol":"Child"
+  Child_initcode_0: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/create_shared_array_encoder.sol:Child"
 
 fn @one(arg0: i256) -> memoryarray [pure] {
   bb0:

@@ -103,8 +103,8 @@ placeholder bytes carry no identity. Embedded creation and runtime bytecode carr
 their library tables and relocations; lowering remaps their IDs into the parent
 module's table.
 Data pooling shares bytes only when the library identities and offsets also match.
-The textual IR prints library identities as `"source.sol":"Library"` and data
-relocations as `library_relocations [offset: "source.sol":"Library"]`.
+The textual IR prints library identities as fully qualified names, `"source.sol:Library"`,
+and data relocations as `library_relocations [offset: "source.sol:Library"]`.
 
 ### Optimization search and costs
 

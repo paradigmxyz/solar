@@ -107,7 +107,7 @@ types:
   struct0: {i256, i256}
 
 data:
-  Child_initcode_0: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/shared_array_encoder_create.sol":"Child"
+  Child_initcode_0: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/shared_array_encoder_create.sol:Child"
 
 fn @mk(arg0: i256, arg1: i256) -> i256 {
   bb0:

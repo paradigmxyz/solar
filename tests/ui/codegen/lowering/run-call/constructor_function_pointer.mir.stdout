@@ -50,8 +50,8 @@ fn @constructor(arg0: memoryfixedarray) [constructor, abi_params=[array<1, funct
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_function_pointer.sol:Caller ===
 @module Caller
 data:
-  Target_initcode_0: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/constructor_function_pointer.sol":"Target"
-  ArrayTarget_initcode_1: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/constructor_function_pointer.sol":"ArrayTarget"
+  Target_initcode_0: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/constructor_function_pointer.sol:Target"
+  ArrayTarget_initcode_1: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/constructor_function_pointer.sol:ArrayTarget"
 
 fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:

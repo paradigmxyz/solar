@@ -43,7 +43,7 @@ fn @getFlag() -> i256 [selector=0xf9633930, view, abi_params=[], abi_returns=[wo
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_internal_arguments.sol:ConstructorInternalArguments ===
 @module ConstructorInternalArguments
 data:
-  ConstructorInternalArgumentsHelper_initcode_0: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/constructor_internal_arguments.sol":"ConstructorInternalArgumentsHelper"
+  ConstructorInternalArgumentsHelper_initcode_0: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/constructor_internal_arguments.sol:ConstructorInternalArgumentsHelper"
 
 fn @constructor() [constructor] {
   bb0:

@@ -231,7 +231,7 @@ fn @store_storage_bytes(arg0: i256, arg1: memorybytes) {
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_nested_aggregate_forwarding.sol:Creator ===
 @module Creator
 data:
-  ConstructorAggregateMain_initcode_0: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/constructor_nested_aggregate_forwarding.sol":"ConstructorAggregateMain"
+  ConstructorAggregateMain_initcode_0: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/constructor_nested_aggregate_forwarding.sol:ConstructorAggregateMain"
 
 fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:

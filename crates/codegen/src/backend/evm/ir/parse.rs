@@ -625,10 +625,10 @@ mod tests {
                 r#"
 @module libraries
 bb0:
-  push_library "a.sol":"L"
+  push_library "a.sol:L"
   push 0
   mstore
-  push_library "b.sol":"L"
+  push_library "b.sol:L"
   push 32
   mstore
   push 64
@@ -647,8 +647,8 @@ bb0:
             assert_data_eq!(
                 relocations,
                 str![[r#"
-1: "a.sol":"L"
-24: "b.sol":"L"
+1: "a.sol:L"
+24: "b.sol:L"
 "#]]
             );
         });

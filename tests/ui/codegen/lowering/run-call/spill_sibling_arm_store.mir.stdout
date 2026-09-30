@@ -36,7 +36,7 @@ fn @settle() [selector=0x11da60b4, payable, abi_params=[], abi_returns=[], abi_r
 // === ROOT/tests/ui/codegen/lowering/run-call/spill_sibling_arm_store.sol:IntNegate ===
 @module IntNegate
 data:
-  Recorder_initcode_0: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/spill_sibling_arm_store.sol":"Recorder"
+  Recorder_initcode_0: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/spill_sibling_arm_store.sol:Recorder"
 
 fn @run(arg0: i256) -> i256 [selector=0x96c07422, abi_params=[i128], abi_returns=[word], abi_return_params=[u256]] {
   bb0:

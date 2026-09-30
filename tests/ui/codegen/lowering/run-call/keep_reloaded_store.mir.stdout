@@ -9,7 +9,7 @@ fn @six(arg0: i256) -> i256 [selector=0x84b8ba08, pure, abi_params=[u256], abi_r
 // === ROOT/tests/ui/codegen/lowering/run-call/keep_reloaded_store.sol:KeepReloadedStore ===
 @module KeepReloadedStore
 data:
-  Target_initcode_0: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/keep_reloaded_store.sol":"Target"
+  Target_initcode_0: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/keep_reloaded_store.sol:Target"
 
 fn @constructor() [constructor] {
   bb0:

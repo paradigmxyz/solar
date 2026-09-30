@@ -3,4 +3,4 @@
 bb0:
   stop
 
-@data child_0 deferred initcode "child.sol":"Child" //~ ERROR: expected `creation` or `runtime`
+@data child_0 deferred initcode "child.sol:Child" //~ ERROR: expected `creation` or `runtime`

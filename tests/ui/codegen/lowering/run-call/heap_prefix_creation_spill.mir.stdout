@@ -8,7 +8,7 @@ fn @ping() -> i256 [selector=0x5c36b186, pure, abi_params=[], abi_returns=[word]
 // === ROOT/tests/ui/codegen/lowering/run-call/heap_prefix_creation_spill.sol:Harness ===
 @module Harness
 data:
-  Implementation_initcode_0: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/heap_prefix_creation_spill.sol":"Implementation"
+  Implementation_initcode_0: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/heap_prefix_creation_spill.sol:Implementation"
 
 fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:

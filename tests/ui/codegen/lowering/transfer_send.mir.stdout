@@ -27,8 +27,8 @@ types:
   struct0: {i256, i256, i256}
 
 data:
-  GasReceiver_initcode_0: deferred creation "ROOT/tests/ui/codegen/lowering/transfer_send.sol":"GasReceiver"
-  RevertReceiver_initcode_1: deferred creation "ROOT/tests/ui/codegen/lowering/transfer_send.sol":"RevertReceiver"
+  GasReceiver_initcode_0: deferred creation "ROOT/tests/ui/codegen/lowering/transfer_send.sol:GasReceiver"
+  RevertReceiver_initcode_1: deferred creation "ROOT/tests/ui/codegen/lowering/transfer_send.sol:RevertReceiver"
 
 fn @constructor() [constructor] {
   bb0:

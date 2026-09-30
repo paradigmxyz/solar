@@ -106,30 +106,35 @@ impl DataSize {
     }
 }
 
-/// A source-qualified contract name, identifying a library or an embedded contract.
+/// A fully qualified contract name, `source:Name`, identifying a library or an embedded contract.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct QualifiedName {
-    pub source: Symbol,
-    pub name: Symbol,
-}
+pub struct QualifiedName(Symbol);
 
 impl QualifiedName {
-    /// Returns the source-qualified name of a contract.
+    /// Returns the fully qualified name of a contract.
     pub fn of_contract(gcx: Gcx<'_>, id: ContractId) -> Self {
-        let contract = gcx.hir.contract(id);
-        let source = gcx.hir.source(contract.source).file.name.display().to_string();
-        Self { source: Symbol::intern(&source), name: contract.name.name }
+        Self(Symbol::intern(&gcx.contract_fully_qualified_name(id).to_string()))
+    }
+
+    /// Parses `source:Name`.
+    pub(crate) fn parse(text: &str) -> Option<Self> {
+        text.contains(':').then(|| Self(Symbol::intern(text)))
+    }
+
+    /// Returns the fully qualified name.
+    pub fn as_str(&self) -> &str {
+        self.0.as_str()
+    }
+
+    /// Returns the source unit name and the contract name.
+    pub fn split(&self) -> (&str, &str) {
+        self.as_str().rsplit_once(':').expect("qualified names contain `:`")
     }
 }
 
 impl fmt::Display for QualifiedName {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "\"{}\":\"{}\"",
-            self.source.as_str().as_bytes().escape_ascii(),
-            self.name.as_str().as_bytes().escape_ascii()
-        )
+        write!(f, "\"{}\"", self.as_str().as_bytes().escape_ascii())
     }
 }
 

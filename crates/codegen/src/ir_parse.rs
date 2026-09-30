@@ -170,23 +170,18 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         Ok((addend, aligned))
     }
 
+    /// Parses a fully qualified contract name: `"source:Name"`.
     fn parse_qualified_name(&mut self) -> Result<QualifiedName, PErr<'sess>> {
-        let source = self.parse_library_component()?;
-        self.expect(TokenKind::Colon)?;
-        let name = self.parse_library_component()?;
-        Ok(QualifiedName { source, name })
-    }
-
-    fn parse_library_component(&mut self) -> Result<Symbol, PErr<'sess>> {
         if !matches!(self.token().kind, TokenKind::Literal(TokenLitKind::Str, _)) {
-            return Err(self.error("expected library source or name string"));
+            return Err(self.error("expected fully qualified name string"));
         }
+        let span = self.token().span;
         let (literal, _) = self.parser.parse_lit(false)?;
         let solar_ast::LitKind::Str(_, value, _) = literal.kind else { unreachable!() };
-        let value = value.as_byte_str();
-        let text = std::str::from_utf8(value)
-            .map_err(|_| self.error("library source and name must be UTF-8"))?;
-        Ok(Symbol::intern(text))
+        let text = std::str::from_utf8(value.as_byte_str())
+            .map_err(|_| self.error_at(span, "fully qualified name must be UTF-8"))?;
+        QualifiedName::parse(text)
+            .ok_or_else(|| self.error_at(span, "expected fully qualified name `source:Name`"))
     }
 
     /// Parses optional library relocations following a constant-data declaration.

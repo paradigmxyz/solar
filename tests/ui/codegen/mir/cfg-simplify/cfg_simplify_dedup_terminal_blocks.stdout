@@ -165,10 +165,10 @@
     bb0:
       jumpi arg0, bb1, bb2
     bb2:
-      v1 = library_address "B.sol":"L"
+      v1 = library_address "B.sol:L"
       ret v1
     bb1:
-      v0 = library_address "A.sol":"L"
+      v0 = library_address "A.sol:L"
       ret v0
   }
   

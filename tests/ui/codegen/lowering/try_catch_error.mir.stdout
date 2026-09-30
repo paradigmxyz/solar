@@ -14,7 +14,7 @@ fn @fail() [selector=0xa9cc4718, pure, abi_params=[], abi_returns=[], abi_return
 // === ROOT/tests/ui/codegen/lowering/try_catch_error.sol:TryCatchError ===
 @module TryCatchError
 data:
-  TryCatchErrorTarget_initcode_0: deferred creation "ROOT/tests/ui/codegen/lowering/try_catch_error.sol":"TryCatchErrorTarget"
+  TryCatchErrorTarget_initcode_0: deferred creation "ROOT/tests/ui/codegen/lowering/try_catch_error.sol:TryCatchErrorTarget"
 
 fn @constructor() [constructor] {
   bb0:

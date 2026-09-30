@@ -188,7 +188,7 @@ types:
   struct0: {i256, i256}
 
 data:
-  Main_initcode_0: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/constructor_dynamic_array_forwarding.sol":"Main"
+  Main_initcode_0: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/constructor_dynamic_array_forwarding.sol:Main"
 
 fn @f(arg0: i256, arg1: memoryarray) -> struct0 [selector=0x1b2902dd, abi_params=[u256, array<_, address>], abi_returns=[word, word<u160>], abi_return_params=[u256, address]] {
   bb0:

@@ -17,8 +17,8 @@ contract CodeTarget {
 
 // MIR-LABEL: contract_code_data.sol:CodeFactory ===
 // MIR: data:
-// MIR: CodeTarget_initcode_0: deferred creation "{{.*}}contract_code_data.sol":"CodeTarget"
-// MIR: CodeTarget_runtime_code_1: deferred runtime "{{.*}}contract_code_data.sol":"CodeTarget"
+// MIR: CodeTarget_initcode_0: deferred creation "{{.*}}contract_code_data.sol:CodeTarget"
+// MIR: CodeTarget_runtime_code_1: deferred runtime "{{.*}}contract_code_data.sol:CodeTarget"
 // MIR-NOT: CodeTarget_initcode_2:
 // OPT-LABEL: contract_code_data.sol:CodeFactory (runtime) ===
 // OPT: @module CodeFactory_runtime

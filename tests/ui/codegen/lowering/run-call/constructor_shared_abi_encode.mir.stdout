@@ -74,8 +74,8 @@ fn @recordSecond(arg0: i256) {
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_shared_abi_encode.sol:ConstructorSharedAbiEncode ===
 @module ConstructorSharedAbiEncode
 data:
-  DynamicSink_initcode_0: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/constructor_shared_abi_encode.sol":"DynamicSink"
-  DynamicCaller_initcode_1: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/constructor_shared_abi_encode.sol":"DynamicCaller"
+  DynamicSink_initcode_0: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/constructor_shared_abi_encode.sol:DynamicSink"
+  DynamicCaller_initcode_1: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/constructor_shared_abi_encode.sol:DynamicCaller"
 
 fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:

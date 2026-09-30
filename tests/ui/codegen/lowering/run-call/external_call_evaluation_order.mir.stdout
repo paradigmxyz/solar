@@ -11,7 +11,7 @@ fn @mutate() -> i256 [selector=0x7795b5fc, abi_params=[], abi_returns=[word], ab
 // === ROOT/tests/ui/codegen/lowering/run-call/external_call_evaluation_order.sol:ExternalCallEvaluationOrder ===
 @module ExternalCallEvaluationOrder
 data:
-  MutatingBase_initcode_0: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/external_call_evaluation_order.sol":"MutatingBase"
+  MutatingBase_initcode_0: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/external_call_evaluation_order.sol:MutatingBase"
 
 immutables:
   target: u256

@@ -8,8 +8,8 @@ fn @fallback() [fallback, payable] {
 // === ROOT/tests/ui/codegen/lowering/program-data/empty_runtime_code.sol:EmptyFactory ===
 @module EmptyFactory
 data:
-  EmptyRuntime_runtime_code_0: deferred runtime "ROOT/tests/ui/codegen/lowering/program-data/empty_runtime_code.sol":"EmptyRuntime"
-  EmptyRuntime_initcode_1: deferred creation "ROOT/tests/ui/codegen/lowering/program-data/empty_runtime_code.sol":"EmptyRuntime"
+  EmptyRuntime_runtime_code_0: deferred runtime "ROOT/tests/ui/codegen/lowering/program-data/empty_runtime_code.sol:EmptyRuntime"
+  EmptyRuntime_initcode_1: deferred creation "ROOT/tests/ui/codegen/lowering/program-data/empty_runtime_code.sol:EmptyRuntime"
 
 fn @runtimeLength() -> i256 [selector=0xb379b2a0, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:

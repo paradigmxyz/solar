@@ -9,7 +9,7 @@ fn @addTwo(arg0: i256) -> i256 [selector=0xcae57913, pure, abi_params=[u256], ab
 // === ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_higher_order.sol:ExternalFunctionPointerHigherOrder ===
 @module ExternalFunctionPointerHigherOrder
 data:
-  ExternalFunctionPointerHigherOrderTarget_initcode_0: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_higher_order.sol":"ExternalFunctionPointerHigherOrderTarget"
+  ExternalFunctionPointerHigherOrderTarget_initcode_0: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_higher_order.sol:ExternalFunctionPointerHigherOrderTarget"
 
 fn @store(arg0: i256) [selector=0xf018a0a7, abi_params=[function], abi_returns=[], abi_return_params=[]] {
   bb0:

@@ -8,7 +8,7 @@ fn @ping(arg0: i256) -> i256 [selector=0x773acdef, payable, abi_params=[u256], a
 // === ROOT/tests/ui/codegen/lowering/run-call/try_external_call_evaluation_order.sol:TryExternalCallEvaluationOrder ===
 @module TryExternalCallEvaluationOrder
 data:
-  TryExternalCallEvaluationOrderTarget_initcode_0: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/try_external_call_evaluation_order.sol":"TryExternalCallEvaluationOrderTarget"
+  TryExternalCallEvaluationOrderTarget_initcode_0: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/try_external_call_evaluation_order.sol:TryExternalCallEvaluationOrderTarget"
 
 fn @constructor() [constructor] {
   bb0:

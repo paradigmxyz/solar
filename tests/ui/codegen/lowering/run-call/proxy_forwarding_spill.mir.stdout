@@ -76,8 +76,8 @@ fn @fallback() [fallback, payable] {
 // === ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_spill.sol:Harness ===
 @module Harness
 data:
-  Impl_initcode_0: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_spill.sol":"Impl"
-  Proxy_initcode_1: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_spill.sol":"Proxy"
+  Impl_initcode_0: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_spill.sol:Impl"
+  Proxy_initcode_1: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_spill.sol:Proxy"
 
 fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:

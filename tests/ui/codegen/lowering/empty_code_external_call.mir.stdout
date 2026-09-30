@@ -243,7 +243,7 @@ fn @noop() [selector=0x5dfc2e4a, abi_params=[], abi_returns=[], abi_return_param
 // === ROOT/tests/ui/codegen/lowering/empty_code_external_call.sol:EmptyCodeTryFactory ===
 @module EmptyCodeTryFactory
 data:
-  EmptyCodeTryConstructor_initcode_0: deferred creation "ROOT/tests/ui/codegen/lowering/empty_code_external_call.sol":"EmptyCodeTryConstructor"
+  EmptyCodeTryConstructor_initcode_0: deferred creation "ROOT/tests/ui/codegen/lowering/empty_code_external_call.sol:EmptyCodeTryConstructor"
 
 fn @deploy() [selector=0x775c300c, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:

@@ -9,4 +9,4 @@ bb0:
   codecopy
   stop
 
-@data child_0 deferred creation "child.sol":"Child"
+@data child_0 deferred creation "child.sol:Child"

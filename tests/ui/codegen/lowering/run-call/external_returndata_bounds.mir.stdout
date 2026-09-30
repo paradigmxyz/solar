@@ -48,7 +48,7 @@ fn @dirtyAddress() -> i256 [selector=0x986597e5, pure, abi_params=[], abi_return
 // === ROOT/tests/ui/codegen/lowering/run-call/external_returndata_bounds.sol:ReturnHarness ===
 @module ReturnHarness
 data:
-  ReturnProducer_initcode_0: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/external_returndata_bounds.sol":"ReturnProducer"
+  ReturnProducer_initcode_0: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/external_returndata_bounds.sol:ReturnProducer"
 
 fn @check(arg0: memorystruct) -> i256 [pure] {
   bb0:

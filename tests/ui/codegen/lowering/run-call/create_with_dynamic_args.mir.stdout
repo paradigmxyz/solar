@@ -38,7 +38,7 @@ types:
   struct0: {i256, i256}
 
 data:
-  Token_initcode_0: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/create_with_dynamic_args.sol":"Token"
+  Token_initcode_0: deferred creation "ROOT/tests/ui/codegen/lowering/run-call/create_with_dynamic_args.sol:Token"
 
 fn @makeAndRead() -> struct0 [selector=0x42c589ac, abi_params=[], abi_returns=[word, word<u8>], abi_return_params=[u256, u8]] {
   bb0:

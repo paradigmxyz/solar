@@ -3,8 +3,8 @@
 // CHECK: push_data_size child_0{{$}}
 // CHECK: push_data_size child_0, 63, aligned
 // CHECK: push_data child_0
-// CHECK: @data child_0 deferred creation "child.sol":"Child"
-// CHECK: @data child_1 deferred runtime "child.sol":"Child"
+// CHECK: @data child_0 deferred creation "child.sol:Child"
+// CHECK: @data child_1 deferred runtime "child.sol:Child"
 @module deferred
 bb0:
   push_data_size child_0
@@ -18,5 +18,5 @@ bb0:
   codecopy
   stop
 
-@data child_0 deferred creation "child.sol":"Child"
-@data child_1 deferred runtime "child.sol":"Child"
+@data child_0 deferred creation "child.sol:Child"
+@data child_1 deferred runtime "child.sol:Child"
