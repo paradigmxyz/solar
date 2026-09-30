@@ -99,6 +99,7 @@ pub(super) enum RecursiveStorageHelper {
 pub(super) struct LoweringState {
     pub(super) invalid_event_topics: FxHashSet<hir::EventId>,
     pub(super) pointer_registry: InternalFunctionPointerRegistry,
+    /// DO NOT ADD OTHER HELPER MAPS. USE THIS ONE ONLY.
     pub(super) helpers: FxHashMap<Symbol, FunctionId>,
 }
 
