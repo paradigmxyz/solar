@@ -9,8 +9,8 @@
 // A public function takes its calldata arguments from internal calls as well
 // as from ABI decoding, and an internal call can pass it a range that assembly
 // set past the end of the calldata. Hashing a range of such an argument or
-// copying it to memory checks it and reverts, as with solc's IR pipeline
-// (CODEGEN-009). Every result is solc 0.8.37's with --via-ir.
+// copying it to memory checks it and reverts, as with solc's IR pipeline.
+// Every result is solc 0.8.37's with --via-ir.
 contract PublicCalldataArgumentInternalCall {
     function f(bytes calldata data) public pure returns (bytes32) {
         return keccak256(data[1:]);

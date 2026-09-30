@@ -23,7 +23,7 @@
 // validated as they are read, like any others: encoding, packing or logging
 // one reverts when a word is dirty, whether the variable is encoded where
 // assembly set it or passed to an internal function first. Its range is not
-// checked: words past the end of the calldata read as zeros (CODEGEN-009).
+// checked: words past the end of the calldata read as zeros.
 // Every result is solc 0.8.37's with --via-ir.
 contract AssemblyCalldataAggregateValidation {
     struct S {
