@@ -111,6 +111,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     }
 
     /// Generates the body of a function.
+    #[tracing::instrument(name = "function", level = "trace", skip_all, fields(name = %func.name))]
     pub(super) fn generate_function_body(&mut self, func_id: FunctionId, func: &Function) {
         let stack_only_disabled_at_entry = self.stack_only_function_disabled(func_id);
         let report_missing_spill_home = self.gcx.sess.opts.unstable.assert_planned_edge_spill_home;

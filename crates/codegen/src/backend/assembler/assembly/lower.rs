@@ -75,6 +75,7 @@ impl Assembler<'_> {
 
     /// Links embedded contract bytecode into the optimized program's deferred data, interning
     /// its libraries into `libraries`, and lowers the program to primitive assembly.
+    #[tracing::instrument(name = "link_and_lower", level = "debug", skip_all)]
     pub(in crate::backend) fn prepare_linked(
         &mut self,
         bytecodes: &EmbeddedBytecodes,

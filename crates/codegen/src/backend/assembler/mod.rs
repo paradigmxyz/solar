@@ -328,6 +328,7 @@ impl<'gcx> Assembler<'gcx> {
         self.assemble_owned(prepared.clone(), deferred_values)
     }
 
+    #[tracing::instrument(name = "assemble", level = "debug", skip_all)]
     fn assemble_owned(
         &mut self,
         prepared: PreparedAssembly,

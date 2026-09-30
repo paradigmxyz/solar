@@ -125,17 +125,19 @@ fn analysis(gcx: Gcx<'_>) -> Result<ControlFlow<()>> {
     }
 
     // Lower HIR types.
-    gcx.hir.par_item_ids().for_each(|id| {
-        let _ = gcx.type_of_item(id);
-        match id {
-            hir::ItemId::Struct(id) => {
-                let _ = gcx.struct_recursiveness(id);
-                let _ = gcx.struct_field_types(id);
+    debug_span!("item_types").in_scope(|| {
+        gcx.hir.par_item_ids().for_each(|id| {
+            let _ = gcx.type_of_item(id);
+            match id {
+                hir::ItemId::Struct(id) => {
+                    let _ = gcx.struct_recursiveness(id);
+                    let _ = gcx.struct_field_types(id);
+                }
+                hir::ItemId::Contract(id) => _ = gcx.interface_functions(id),
+                _ => {}
             }
-            hir::ItemId::Contract(id) => _ = gcx.interface_functions(id),
-            _ => {}
-        }
-        natspec::validate_item_docs(gcx, id);
+            natspec::validate_item_docs(gcx, id);
+        });
     });
 
     typeck::check(gcx);

@@ -13,6 +13,12 @@ impl<'gcx> EvmCodegen<'gcx> {
     }
 
     /// Schedules the runtime code of a module into the assembler's EVM IR.
+    #[tracing::instrument(
+        name = "stack_scheduling",
+        level = "debug",
+        skip_all,
+        fields(artifact = "runtime")
+    )]
     pub(super) fn schedule_runtime_code(
         &mut self,
         module: &crate::mir::LoweredModule<'_>,

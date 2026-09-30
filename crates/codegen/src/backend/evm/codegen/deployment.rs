@@ -21,12 +21,6 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// Returns whether the module has code to finish. If so, [`Self::finish_module`]
     /// completes the artifact once the embedded bytecode is available.
     /// Otherwise the artifact is empty.
-    #[tracing::instrument(
-        name = "evm_codegen",
-        level = "debug",
-        skip_all,
-        fields(module = %module.name),
-    )]
     pub(crate) fn schedule_module(&mut self, module: &mut Module) -> bool {
         // Interfaces have no code. An internal-only library keeps its rejecting
         // dispatch stub, like `solc`.
@@ -96,12 +90,6 @@ impl<'gcx> EvmCodegen<'gcx> {
 
     /// Completes the artifact of a module scheduled by [`Self::schedule_module`], linking in the
     /// bytecode of the contracts it embeds.
-    #[tracing::instrument(
-        name = "evm_finish",
-        level = "debug",
-        skip_all,
-        fields(module = %module.name),
-    )]
     pub(crate) fn finish_module(
         &mut self,
         module: &Module,
@@ -349,6 +337,12 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// Constructor arguments are read from the end of the initcode using CODECOPY.
     /// The args are ABI-encoded and appended after the deployment bytecode.
     /// Returns the deferred constructor-argument and runtime-code offsets.
+    #[tracing::instrument(
+        name = "stack_scheduling",
+        level = "debug",
+        skip_all,
+        fields(artifact = "deployment")
+    )]
     fn emit_deployment_prefix(
         &mut self,
         module: &Module,
