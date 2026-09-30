@@ -26,7 +26,6 @@ workspace = true
 [dependencies]
 bumpalo.workspace = true
 diff.workspace = true
-hashbrown.workspace = true
 oxc_index.workspace = true
 indexmap.workspace = true
 parking_lot.workspace = true

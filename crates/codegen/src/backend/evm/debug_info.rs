@@ -21,11 +21,11 @@ use super::op;
 use smallvec::SmallVec;
 use solar_data_structures::{
     index::IndexVec,
-    map::{FxBuildHasher, FxHashMap, HashTable, hashbrown::hash_table::Entry},
+    map::{FxHashMap, FxIndexSet},
     newtype_index,
 };
 use solar_interface::{BytePos, Span, Symbol};
-use std::{hash::BuildHasher, iter::FusedIterator};
+use std::iter::FusedIterator;
 
 pub use crate::source_info::MAX_DEBUG_SPANS;
 
@@ -75,7 +75,7 @@ newtype_index! {
 }
 
 /// Interned form of a [`DebugLocation`].
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 struct Location {
     /// The only source span, or the bounds of a [`DebugInfo::spans`] range
     /// when [`Flags::table_spans`] is set.
@@ -90,7 +90,7 @@ const _: () = assert!(size_of::<Location>() == 16);
 ///
 /// Bits 0 and 1 hold the exit, bit 2 marks table spans, and the remaining
 /// bits hold the modifier depth.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 struct Flags(u32);
 
 impl Flags {
@@ -235,9 +235,10 @@ impl FusedIterator for DebugInstructions<'_> {}
 #[derive(Debug, Default)]
 pub(crate) struct DebugInfoBuilder {
     info: DebugInfo,
-    /// Interned locations, keyed by the hash of their [`DebugLocation`].
-    location_ids: HashTable<DebugLocationId>,
-    function_ids: FxHashMap<DebugFunction, DebugFunctionId>,
+    locations: FxIndexSet<Location>,
+    functions: FxIndexSet<DebugFunction>,
+    /// Ranges of [`DebugInfo::spans`] holding each span set added to it.
+    span_sets: FxHashMap<DebugSpans, Span>,
     /// The current row, encoded once it ends.
     row: Option<PendingRow>,
     /// Location index of the last encoded row.
@@ -266,20 +267,20 @@ impl DebugInfoBuilder {
         modifier_depth: u32,
     ) {
         let offset = u32::try_from(offset).expect("EVM bytecode offset exceeds u32");
-        let location =
-            DebugLocation { source_spans, function_invoke, function_exit, modifier_depth };
+        let location = self.location(source_spans, function_invoke, function_exit, modifier_depth);
         self.info.len += 1;
         // Extend the current run only when decoding it reaches this instruction.
         if let Some(row) = &mut self.row
             && self.next_offset == offset
-            && self.info.location(row.location) == location
+            && self.locations[row.location.index()] == location
         {
             row.len += 1;
         } else {
+            let (location, _) = self.locations.insert_full(location);
             let row = PendingRow {
                 gap: i64::from(offset) - i64::from(self.next_offset),
                 len: 1,
-                location: self.intern(location),
+                location: DebugLocationId::from_usize(location),
             };
             if let Some(row) = self.row.replace(row) {
                 self.encode(row);
@@ -293,40 +294,42 @@ impl DebugInfoBuilder {
             self.encode(row);
         }
         let mut info = self.info;
-        info.locations.shrink_to_fit();
+        info.locations = self.locations.into_iter().collect();
+        info.functions = self.functions.into_iter().collect();
         info.spans.shrink_to_fit();
-        info.functions.shrink_to_fit();
         info.rows.shrink_to_fit();
         info
     }
 
-    /// Returns the index of `location`, adding it on first use.
-    fn intern(&mut self, location: DebugLocation<'_>) -> DebugLocationId {
-        let info = &mut self.info;
-        let entry = self.location_ids.entry(
-            FxBuildHasher.hash_one(location),
-            |&id| info.location(id) == location,
-            |&id| FxBuildHasher.hash_one(info.location(id)),
-        );
-        let entry = match entry {
-            Entry::Occupied(entry) => return *entry.get(),
-            Entry::Vacant(entry) => entry,
-        };
-        let (span, table_spans) = match location.source_spans {
+    /// Returns the interned form of a location, adding its span set and function on first use.
+    fn location(
+        &mut self,
+        source_spans: &[Span],
+        function_invoke: Option<DebugFunction>,
+        function_exit: Option<DebugFunctionExit>,
+        modifier_depth: u32,
+    ) -> Location {
+        let (span, table_spans) = match source_spans {
             &[span] => (span, false),
             spans => {
-                let start = BytePos::from_usize(info.spans.len());
-                info.spans.extend_from_slice(spans);
-                (Span::new_unchecked(start, BytePos::from_usize(info.spans.len())), true)
+                let range = match self.span_sets.get(spans) {
+                    Some(&range) => range,
+                    None => {
+                        let start = BytePos::from_usize(self.info.spans.len());
+                        self.info.spans.extend_from_slice(spans);
+                        let end = BytePos::from_usize(self.info.spans.len());
+                        let range = Span::new_unchecked(start, end);
+                        self.span_sets.insert(spans.into(), range);
+                        range
+                    }
+                };
+                (range, true)
             }
         };
-        let function_invoke = location.function_invoke.map(|function| {
-            *self.function_ids.entry(function).or_insert_with(|| info.functions.push(function))
-        });
-        let flags = Flags::new(location.function_exit, table_spans, location.modifier_depth);
-        let id = info.locations.push(Location { span, function_invoke, flags });
-        entry.insert(id);
-        id
+        let function_invoke = function_invoke
+            .map(|function| DebugFunctionId::from_usize(self.functions.insert_full(function).0));
+        let flags = Flags::new(function_exit, table_spans, modifier_depth);
+        Location { span, function_invoke, flags }
     }
 
     fn encode(&mut self, row: PendingRow) {

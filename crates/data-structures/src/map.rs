@@ -3,7 +3,6 @@
 use indexmap::{IndexMap, IndexSet};
 use std::collections::{HashMap, HashSet};
 
-pub use hashbrown::{self, HashTable};
 pub use rustc_hash::{self, FxBuildHasher, FxHasher};
 
 /// [`HashMap`] entry type.
