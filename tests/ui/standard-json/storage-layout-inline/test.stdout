@@ -1,0 +1,123 @@
+{
+  "sources": {
+    "inline.sol": {
+      "id": 0
+    }
+  },
+  "contracts": {
+    "inline.sol": {
+      "Lists": {
+        "storageLayout": {
+          "storage": [
+            {
+              "astId": 2,
+              "contract": "inline.sol:Lists",
+              "label": "total",
+              "offset": 0,
+              "slot": "0",
+              "type": "t_uint256"
+            },
+            {
+              "astId": 3,
+              "contract": "inline.sol:Lists",
+              "label": "small",
+              "offset": 0,
+              "slot": "1",
+              "type": "t_array(t_uint64)dyn_storage"
+            },
+            {
+              "astId": 4,
+              "contract": "inline.sol:Lists",
+              "label": "plain",
+              "offset": 0,
+              "slot": "2",
+              "type": "t_array(t_uint64)dyn_storage"
+            },
+            {
+              "astId": 5,
+              "contract": "inline.sol:Lists",
+              "label": "codes",
+              "offset": 0,
+              "slot": "3",
+              "type": "t_array(t_bytes3)dyn_storage"
+            }
+          ],
+          "types": {
+            "t_uint256": {
+              "encoding": "inplace",
+              "label": "uint256",
+              "numberOfBytes": "32"
+            },
+            "t_array(t_uint64)dyn_storage": {
+              "encoding": "dynamic_array",
+              "label": "uint64[]",
+              "numberOfBytes": "32",
+              "base": "t_uint64"
+            },
+            "t_uint64": {
+              "encoding": "inplace",
+              "label": "uint64",
+              "numberOfBytes": "8"
+            },
+            "t_array(t_bytes3)dyn_storage": {
+              "encoding": "dynamic_array",
+              "label": "bytes3[]",
+              "numberOfBytes": "32",
+              "base": "t_bytes3"
+            },
+            "t_bytes3": {
+              "encoding": "inplace",
+              "label": "bytes3",
+              "numberOfBytes": "3"
+            }
+          },
+          "inline": [
+            {
+              "astId": 3,
+              "contract": "inline.sol:Lists",
+              "label": "small",
+              "offset": 0,
+              "slot": "1",
+              "type": "t_array(t_uint64)dyn_storage"
+            },
+            {
+              "astId": 5,
+              "contract": "inline.sol:Lists",
+              "label": "codes",
+              "offset": 0,
+              "slot": "3",
+              "type": "t_array(t_bytes3)dyn_storage"
+            }
+          ]
+        }
+      },
+      "Plain": {
+        "storageLayout": {
+          "storage": [
+            {
+              "astId": 6,
+              "contract": "inline.sol:Plain",
+              "label": "plain",
+              "offset": 0,
+              "slot": "0",
+              "type": "t_array(t_uint64)dyn_storage"
+            }
+          ],
+          "types": {
+            "t_array(t_uint64)dyn_storage": {
+              "encoding": "dynamic_array",
+              "label": "uint64[]",
+              "numberOfBytes": "32",
+              "base": "t_uint64"
+            },
+            "t_uint64": {
+              "encoding": "inplace",
+              "label": "uint64",
+              "numberOfBytes": "8"
+            }
+          }
+        }
+      }
+    }
+  }
+}

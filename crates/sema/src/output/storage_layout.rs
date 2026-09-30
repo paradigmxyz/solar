@@ -24,6 +24,12 @@ pub struct StorageLayoutOutput {
     /// field, so it is left out when empty.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub fused: Option<FxIndexMap<String, Vec<StorageLayoutEntry>>>,
+    /// The arrays documented `@custom:solar-inline`, as `storage` lists them. While such an array
+    /// has at most `31 / size` elements of `size` bytes, its slot holds them, element `i` at byte
+    /// `i * size`, and its length in the top byte; a longer array has the standard layout, whose
+    /// length leaves the top byte zero. `solc` has no such field, so it is left out when empty.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub inline: Option<Vec<StorageLayoutEntry>>,
 }
 
 #[derive(Debug, Serialize)]
@@ -103,7 +109,7 @@ impl<'gcx> Gcx<'gcx> {
         let mut builder = StorageLayoutBuilder::new(self, contract_name, DataLocation::Storage);
         let storage = builder.layout_fields(strukt.fields, &mut StorageCursor::new(base_slot));
         let types = (!builder.types.is_empty()).then_some(builder.types);
-        StorageLayoutOutput { storage, types, fused: None }
+        StorageLayoutOutput { storage, types, fused: None, inline: None }
     }
 }
 
@@ -138,6 +144,7 @@ impl<'gcx> StorageLayoutBuilder<'gcx> {
         let mut cursor = StorageCursor::new(base_slot);
         let mut storage = Vec::new();
         let mut slots = FxHashMap::default();
+        let mut inline = Vec::new();
 
         for &base in &bases {
             for variable_id in self.gcx.hir.contract(base).variables() {
@@ -153,6 +160,11 @@ impl<'gcx> StorageLayoutBuilder<'gcx> {
                 let ty = self.gcx.type_of_item(variable_id.into());
                 let ty_name = self.generate_type(ty);
                 let (slot, offset) = self.place_type(ty, &mut cursor);
+                if self.gcx.hir.solar_inline(variable_id).is_some()
+                    && matches!(ty.peel_refs().kind, TyKind::DynArray(_))
+                {
+                    inline.push(self.storage_entry(variable_id, slot, offset, ty_name.clone()));
+                }
                 storage.push(self.storage_entry(variable_id, slot, offset, ty_name));
                 slots.insert(variable_id, slot);
             }
@@ -188,7 +200,8 @@ impl<'gcx> StorageLayoutBuilder<'gcx> {
 
         let types = (!self.types.is_empty()).then_some(self.types);
         let fused = (!fused.is_empty()).then_some(fused);
-        StorageLayoutOutput { storage, types, fused }
+        let inline = (!inline.is_empty()).then_some(inline);
+        StorageLayoutOutput { storage, types, fused, inline }
     }
 
     fn layout_members(&mut self, fields: &[hir::VariableId]) -> (Vec<StorageLayoutEntry>, U256) {

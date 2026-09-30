@@ -37,6 +37,7 @@ mod control_flow;
 mod entry;
 mod expressions;
 mod indexing;
+mod inline_arrays;
 mod lvalues;
 mod memory_values;
 mod modifiers;
