@@ -222,6 +222,8 @@ struct CommonSubexprEliminator {
     cfg: Option<Rc<CfgInfo>>,
     /// Number of instructions eliminated.
     eliminated_count: usize,
+    /// Number of eliminated casts, which never call for another fixpoint round.
+    eliminated_casts: usize,
     /// Gas observations and their forward CFG closure, including backedges.
     gas: Option<GasObservations>,
     alias: Option<AliasAnalysis>,
@@ -478,6 +480,7 @@ impl CommonSubexprEliminator {
     /// Runs CSE iteratively until no more changes.
     fn run_to_fixpoint(&mut self, func: &mut Function) -> usize {
         self.eliminated_count = 0;
+        self.eliminated_casts = 0;
         let cfg = self.cfg.as_ref().map_or_else(|| Rc::new(CfgInfo::new(func)), Rc::clone);
 
         // Sinking only creates pure expressions, while elimination removes instructions and
@@ -487,10 +490,12 @@ impl CommonSubexprEliminator {
         self.refresh_alias(func);
         self.gas = Some(GasObservations::new(func, &cfg, self.alias()));
         loop {
-            let before = self.eliminated_count;
+            let before = self.eliminated_count - self.eliminated_casts;
             self.alias().clear_cached_addresses();
             self.run_with_cfg(func, &cfg);
-            if self.eliminated_count == before {
+            // Later instructions of a round already read merged casts through its
+            // replacements, so a round that merged only casts leaves nothing for the next.
+            if self.eliminated_count - self.eliminated_casts == before {
                 break;
             }
         }
@@ -704,6 +709,7 @@ impl CommonSubexprEliminator {
                     ctx.replacements.insert(*result, *cached);
                     ctx.dead.insert(inst_id);
                     self.eliminated_count += 1;
+                    self.eliminated_casts += usize::from(matches!(key, ExprKey::Cast(..)));
                     continue;
                 }
                 if kind.has_side_effects() {
@@ -976,6 +982,7 @@ impl CommonSubexprEliminator {
                 replacements.insert(*result, cached_value);
                 to_remove.insert(inst_id);
                 self.eliminated_count += 1;
+                self.eliminated_casts += usize::from(matches!(key, ExprKey::Cast(..)));
                 continue;
             }
             if kind.has_side_effects() {
