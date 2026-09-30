@@ -35,8 +35,9 @@
 
 use super::{
     ArgIdx, BlockId, CfgInfo, DenseBitSet, DynamicSpillBase, EvmCodegen, EvmMemoryLayout, Function,
-    FunctionId, FxHashMap, FxHashSet, InstId, InstKind, Liveness, MirType, SpillSlot, StackEffect,
-    StackModel, StackOp, StackPush, Terminator, U256, Value, ValueId, cross_block_values, op,
+    FunctionId, FxHashMap, FxHashSet, IndexVec, InstId, InstKind, Liveness, MirType, SpillSlot,
+    StackEffect, StackModel, StackOp, StackPush, Terminator, U256, Value, ValueId,
+    cross_block_values, op,
 };
 use crate::mir::{
     Callee, Instruction, MemoryRegion, Module,
@@ -564,13 +565,29 @@ impl<'gcx> EvmCodegen<'gcx> {
 
     /// Summarizes, directly or through calls, which functions may leave something other than a
     /// pointer in the free-memory-pointer word, may write memory they did not allocate, may
-    /// write memory reached through the free-memory pointer, and may make a spill hazard. Any
-    /// internal call counts as the third, since a dynamic frame comes from that pointer.
+    /// write memory reached through the free-memory pointer, and may make a spill hazard before
+    /// returning. Any internal call counts as the third, since a dynamic frame comes from that
+    /// pointer.
     pub(super) fn collect_memory_summaries(&self, module: &Module) -> [DenseBitSet<FunctionId>; 4] {
         let [mut free_memory, mut unowned, mut heap, mut hazards] =
             std::array::from_fn(|_| DenseBitSet::new_empty(module.functions.len()));
+        // A hazard on a path that ends the call frame cannot reach the caller's spills. Only
+        // variable-length writes count: a sweeping word store is usually bounded in ways the
+        // hazard analysis cannot see, such as a byte scan over scratch space.
+        let returning = module
+            .functions
+            .iter()
+            .map(Self::blocks_returning_to_caller)
+            .collect::<IndexVec<FunctionId, _>>();
         for (func_id, func) in module.functions.iter_enumerated() {
-            if !self.direct_spill_hazard_insts(func).is_empty() {
+            let mut direct = self.direct_spill_hazard_insts(func);
+            direct.retain(|&inst| {
+                !matches!(func.inst(inst).kind, InstKind::MStore(..) | InstKind::MStore8(..))
+            });
+            if func.blocks.iter_enumerated().any(|(block_id, block)| {
+                returning[func_id].contains(block_id)
+                    && block.instructions.iter().any(|inst| direct.contains(inst))
+            }) {
                 hazards.insert(func_id);
             }
             let aa = AliasAnalysis::new(func);
@@ -595,17 +612,49 @@ impl<'gcx> EvmCodegen<'gcx> {
         while changed {
             changed = false;
             for (func_id, func) in module.functions.iter_enumerated() {
-                for inst in func.instructions() {
-                    let InstKind::ICall { function, .. } = &func.inst(inst).kind else { continue };
-                    for set in [&mut free_memory, &mut unowned, &mut heap, &mut hazards] {
-                        if !matches!(function, Callee::Function(callee) if !set.contains(*callee)) {
-                            changed |= set.insert(func_id);
+                for (block_id, block) in func.blocks.iter_enumerated() {
+                    for &inst in &block.instructions {
+                        let InstKind::ICall { function, .. } = &func.inst(inst).kind else {
+                            continue;
+                        };
+                        for set in [&mut free_memory, &mut unowned, &mut heap] {
+                            if !matches!(function, Callee::Function(callee) if !set.contains(*callee))
+                            {
+                                changed |= set.insert(func_id);
+                            }
+                        }
+                        if returning[func_id].contains(block_id)
+                            && matches!(function, Callee::Function(callee) if hazards.contains(*callee))
+                        {
+                            changed |= hazards.insert(func_id);
                         }
                     }
                 }
             }
         }
         [free_memory, unowned, heap, hazards]
+    }
+
+    /// Returns the blocks of `func` from which control can return to its caller.
+    fn blocks_returning_to_caller(func: &Function) -> DenseBitSet<BlockId> {
+        let mut blocks = DenseBitSet::new_empty(func.blocks.len());
+        let mut worklist = func
+            .blocks
+            .iter_enumerated()
+            .filter(|(_, block)| {
+                matches!(
+                    block.terminator,
+                    Some(Terminator::Return { .. } | Terminator::TailCall { .. })
+                )
+            })
+            .map(|(block_id, _)| block_id)
+            .collect::<Vec<_>>();
+        while let Some(block) = worklist.pop() {
+            if blocks.insert(block) {
+                worklist.extend(func.blocks[block].predecessors.iter().copied());
+            }
+        }
+        blocks
     }
 
     /// Returns the internal calls before which the free-memory-pointer word still holds the
