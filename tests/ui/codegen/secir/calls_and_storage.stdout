@@ -9,47 +9,64 @@ contract CallsAndStorage
     slot 2: items
     slot 3: pair
   fn pay [external 0xb3d76188 nonpayable] @ 30:5
+    modifiers onlyOwner
+    entry checks msg.sender, owner, call result, memory (access control)
     reads owner @ 26:27
-    reads items @ 33:9
-    writes allowance[..] keyed by msg.sender, arg1 @ 31:9
-    writes items[..] keyed by items @ 33:9
-    writes items @ 33:9
-    call to arg0 @ 32:17
+    reads items [guarded, after call] @ 33:9
+    writes allowance[..] keyed by msg.sender, arg1 from arg2 [guarded] @ 31:9
+    writes items[..] keyed by items from arg2 [guarded, after call] @ 33:9
+    writes items from items [guarded, after call] @ 33:9
+    call 0xa9059cbb to arg0 args (arg1; arg2) [controlled target, guarded] @ 32:17
     guard revert (access control) on msg.sender, owner @ 26:9
     guard revert on call result @ 32:17
     guard revert on call result @ 32:17
     guard revert on memory @ 32:17
     guard revert on memory @ 32:9
     guard panic on items @ 33:9
-    writes after external call items[..] keyed by items @ 33:9
-    writes after external call items @ 33:9
+    writes storage without emitting an event
   fn exec [external 0xbe6002c2 nonpayable] @ 36:5
+    entry checks tx.origin, arg1, owner, call result, calldata (access control)
     reads owner @ 37:30
-    reads pair @ 40:9
-    writes pair @ 40:9
-    delegatecall to arg0 @ 38:9
+    reads pair [guarded, after call] @ 40:9
+    writes pair from block.timestamp [guarded, after call] @ 40:9
+    delegatecall to arg0 args (arg1) [controlled target, guarded] @ 38:9
     guard revert (access control) on tx.origin, owner @ 37:9
     guard revert on arg1 @ 38:9
     guard revert on arg1, calldata @ 38:9
     guard panic on arg1 @ 38:9
     guard revert on call result @ 39:9
-    writes after external call pair @ 40:9
+    writes storage without emitting an event
   fn peek [external 0xacefafae view] @ 43:5
-    reads pair @ 45:29
-    reads items @ 45:38
-    reads items[..] @ 45:38
-    staticcall to arg0 @ 44:9
+    returns pair, items[..], call result, memory
+    reads pair [after call] @ 45:29
+    reads items [after call] @ 45:38
+    reads items[..] [after call] @ 45:38
+    staticcall to arg0 [controlled target, unchecked result] @ 44:9
     guard panic on items @ 45:38
   fn spawn [external 0xb547aeda nonpayable] @ 48:5
+    modifiers onlyOwner
+    entry checks msg.sender, owner, call result (access control)
+    returns call result
     reads owner @ 26:27
-    create @ 49:24
+    create [guarded] @ 49:24
     guard revert (access control) on msg.sender, owner @ 26:9
     guard revert on call result @ 49:24
   fn raw [external 0x302e678f nonpayable] @ 52:5
-    writes slot ? @ 54:13
+    writes slot ? from arg0 @ 54:13
     unchecked @ 54:31
     unchecked @ 54:20
+    writes storage without emitting an event
   fn kill [external 0x41c0e1b5 nonpayable] @ 58:5
+    modifiers onlyOwner
+    entry checks msg.sender, owner (access control)
     reads owner @ 26:27
     guard revert (access control) on msg.sender, owner @ 26:9
-    selfdestruct
+    selfdestruct to msg.sender [guarded] @ 59:9
+  storage flows:
+    owner: read by pay, exec, spawn, kill
+    items: written by pay from items [guarded]; read by pay, peek
+    pair: written by exec from block.timestamp [guarded]; read by exec, peek
+    allowance[..]: written by pay from arg2 [guarded]
+    items[..]: written by pay from arg2 [guarded]; read by peek
+    slot ? [externally controlled]: written by raw from arg0
+  sends value

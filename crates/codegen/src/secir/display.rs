@@ -1,10 +1,11 @@
 //! Textual SecIR dump.
 
 use super::{
-    CallKind, ContractFacts, ExternalCall, FunctionFacts, FunctionKind, Guard, GuardKind, Source,
+    Branch, CallKind, ContractFacts, EventEmission, ExternalCall, FunctionFacts, FunctionKind,
+    Guard, GuardKind, Hazard, HazardKind, InternalCall, SelfDestruct, SlotFlow, Source,
     StorageAccess, StorageSlot,
 };
-use alloy_primitives::hex;
+use alloy_primitives::{U256, hex};
 use solar_interface::Span;
 use solar_sema::Gcx;
 use std::{collections::BTreeSet, fmt};
@@ -33,6 +34,22 @@ impl ContractFacts {
             for function in &self.functions {
                 cx.function(f, function)?;
             }
+            if !self.storage_flows.is_empty() {
+                writeln!(f, "  storage flows:")?;
+                for flow in &self.storage_flows {
+                    cx.flow(f, flow)?;
+                }
+            }
+            let value = [
+                (self.receives_value, "receives value"),
+                (self.sends_value, "sends value"),
+                (self.locks_value(), "locks value"),
+            ];
+            let value = value.iter().filter(|(set, _)| *set).map(|(_, name)| *name);
+            let value = value.collect::<Vec<_>>();
+            if !value.is_empty() {
+                writeln!(f, "  {}", value.join(", "))?;
+            }
             Ok(())
         })
     }
@@ -58,73 +75,164 @@ impl DisplayCx<'_, '_> {
         }
         writeln!(f, " {}] {}", function.state_mutability, self.span(Some(function.span)))?;
 
-        self.accesses(f, "reads", &function.storage_reads)?;
-        self.accesses(f, "writes", &function.storage_writes)?;
+        if !function.modifiers.is_empty() {
+            let modifiers = function.modifiers.iter().map(|name| name.to_string());
+            writeln!(f, "    modifiers {}", modifiers.collect::<Vec<_>>().join(", "))?;
+        }
+        if !function.entry_checks.is_empty() {
+            let access = if function.is_access_controlled() { " (access control)" } else { "" };
+            writeln!(f, "    entry checks {}{access}", self.sources(&function.entry_checks))?;
+        }
+        if !function.returns.is_empty() {
+            writeln!(f, "    returns {}", self.sources(&function.returns))?;
+        }
+        for access in &function.storage_reads {
+            self.access(f, "reads", access)?;
+        }
+        for access in &function.storage_writes {
+            self.access(f, "writes", access)?;
+        }
         for call in &function.external_calls {
-            self.external_call(f, call)?;
+            self.external_call(f, "", call)?;
         }
         for call in &function.internal_calls {
-            let callee = self.facts.functions.get(call.callee).map_or("?", |callee| &callee.name);
-            writeln!(f, "    icall {callee} {}", self.span(call.span))?;
+            self.internal_call(f, call)?;
         }
         for guard in &function.guards {
             self.guard(f, guard)?;
         }
+        for branch in &function.branches {
+            self.branch(f, branch)?;
+        }
+        for event in &function.events {
+            self.event(f, "", event)?;
+        }
+        for self_destruct in &function.self_destructs {
+            self.self_destruct(f, "", self_destruct)?;
+        }
+        if !function.constants.is_empty() {
+            let constants = function.constants.iter().map(|&value| constant(value));
+            writeln!(f, "    constants {}", constants.collect::<Vec<_>>().join(", "))?;
+        }
         for &span in &function.unchecked_arithmetic {
             writeln!(f, "    unchecked {}", self.span(Some(span)))?;
         }
-        self.accesses(f, "writes after external call", &function.writes_after_external_call)?;
-        if function.self_destructs {
-            writeln!(f, "    selfdestruct")?;
+        for hazard in &function.hazards {
+            self.hazard(f, hazard)?;
         }
 
+        // Effects reached only through internal calls.
         let summary = &function.summary;
-        let direct_reads = function.storage_reads.iter().map(|access| access.slot).collect();
-        let direct_writes = function.storage_writes.iter().map(|access| access.slot).collect();
-        let direct_calls = function.external_calls.iter().map(|call| call.kind).collect();
-        if summary.storage_reads != direct_reads
-            || summary.storage_writes != direct_writes
-            || summary.external_calls != direct_calls
-            || summary.self_destructs != function.self_destructs
+        let reads = summary
+            .storage_reads
+            .iter()
+            .filter(|access| {
+                !function.storage_reads.iter().any(|direct| direct.slot == access.slot)
+            })
+            .map(|access| access.slot)
+            .collect::<BTreeSet<_>>();
+        if !reads.is_empty() {
+            let reads = reads.iter().map(|&slot| self.slot(slot));
+            writeln!(f, "    transitive reads {}", reads.collect::<Vec<_>>().join(", "))?;
+        }
+        for access in &summary.storage_writes {
+            if !function.storage_writes.contains(access) {
+                self.access(f, "transitive writes", access)?;
+            }
+        }
+        for call in &summary.external_calls {
+            if !function.external_calls.contains(call) {
+                self.external_call(f, "transitive ", call)?;
+            }
+        }
+        for event in &summary.events {
+            if !function.events.contains(event) {
+                self.event(f, "transitive ", event)?;
+            }
+        }
+        for self_destruct in &summary.self_destructs {
+            if !function.self_destructs.contains(self_destruct) {
+                self.self_destruct(f, "transitive ", self_destruct)?;
+            }
+        }
+
+        let reentrancy = summary.reentrancy_slots();
+        if !reentrancy.is_empty() {
+            let slots = reentrancy.iter().map(|&slot| self.slot(slot));
+            writeln!(
+                f,
+                "    read before and written after external call: {}",
+                slots.collect::<Vec<_>>().join(", ")
+            )?;
+        }
+        if matches!(
+            function.kind,
+            FunctionKind::External | FunctionKind::Fallback | FunctionKind::Receive
+        ) && function.writes_without_event()
         {
-            write!(f, "    transitive:")?;
-            if !summary.storage_reads.is_empty() {
-                write!(f, " reads {}", self.slots(&summary.storage_reads))?;
-            }
-            if !summary.storage_writes.is_empty() {
-                write!(f, " writes {}", self.slots(&summary.storage_writes))?;
-            }
-            if !summary.external_calls.is_empty() {
-                let calls = summary.external_calls.iter().map(|&kind| call_kind(kind));
-                write!(f, " calls {}", calls.collect::<Vec<_>>().join(", "))?;
-            }
-            if summary.self_destructs {
-                write!(f, " selfdestruct")?;
-            }
-            writeln!(f)?;
+            writeln!(f, "    writes storage without emitting an event")?;
         }
         Ok(())
     }
 
-    fn accesses(
+    fn flow(&self, f: &mut fmt::Formatter<'_>, flow: &SlotFlow) -> fmt::Result {
+        let controlled = if flow.externally_controlled { " [externally controlled]" } else { "" };
+        write!(f, "    {}{controlled}:", self.slot(flow.slot))?;
+        if !flow.writers.is_empty() {
+            let writers = flow.writers.iter().map(|writer| {
+                let mut text = self.function_name(writer.function).to_owned();
+                if !writer.value.is_empty() {
+                    text = format!("{text} from {}", self.sources(&writer.value));
+                }
+                if writer.guarded {
+                    text.push_str(" [guarded]");
+                }
+                text
+            });
+            write!(f, " written by {}", writers.collect::<Vec<_>>().join(", "))?;
+            if !flow.readers.is_empty() {
+                write!(f, ";")?;
+            }
+        }
+        if !flow.readers.is_empty() {
+            let readers = flow.readers.iter().map(|&reader| self.function_name(reader));
+            write!(f, " read by {}", readers.collect::<Vec<_>>().join(", "))?;
+        }
+        writeln!(f)
+    }
+
+    fn access(
         &self,
         f: &mut fmt::Formatter<'_>,
         label: &str,
-        accesses: &[StorageAccess],
+        access: &StorageAccess,
     ) -> fmt::Result {
-        for access in accesses {
-            let transient = if access.transient { "transient " } else { "" };
-            write!(f, "    {label} {transient}{}", self.slot(access.slot))?;
-            if !access.keys.is_empty() {
-                write!(f, " keyed by {}", self.sources(&access.keys))?;
-            }
-            writeln!(f, " {}", self.span(access.span))?;
+        let transient = if access.transient { "transient " } else { "" };
+        write!(f, "    {label} {transient}{}", self.slot(access.slot))?;
+        if !access.keys.is_empty() {
+            write!(f, " keyed by {}", self.sources(&access.keys))?;
         }
-        Ok(())
+        if !access.value.is_empty() {
+            write!(f, " from {}", self.sources(&access.value))?;
+        }
+        let flags = flags(&[
+            (access.guarded, "guarded"),
+            (access.in_loop, "in loop"),
+            (access.after_external_call, "after call"),
+        ]);
+        writeln!(f, "{flags} {}", self.span(access.span))
     }
 
-    fn external_call(&self, f: &mut fmt::Formatter<'_>, call: &ExternalCall) -> fmt::Result {
-        write!(f, "    {}", call_kind(call.kind))?;
+    fn external_call(
+        &self,
+        f: &mut fmt::Formatter<'_>,
+        prefix: &str,
+        call: &ExternalCall,
+    ) -> fmt::Result {
+        write!(f, "    {prefix}{}", call_kind(call.kind))?;
+        if let Some(selector) = call.selector {
+            write!(f, " 0x{}", hex::encode(selector))?;
+        }
         if !call.target.is_empty() {
             write!(f, " to {}", self.sources(&call.target))?;
         }
@@ -135,7 +243,27 @@ impl DisplayCx<'_, '_> {
                 write!(f, " with value from {}", self.sources(&call.value))?;
             }
         }
-        writeln!(f, " {}", self.span(call.span))
+        if call.args.iter().any(|arg| !arg.is_empty()) {
+            write!(f, " args ({})", self.args(&call.args))?;
+        }
+        let flags = flags(&[
+            (call.target_controlled, "controlled target"),
+            (call.result_unchecked, "unchecked result"),
+            (call.guarded, "guarded"),
+            (call.in_loop, "in loop"),
+            (call.after_external_call, "after call"),
+        ]);
+        writeln!(f, "{flags} {}", self.span(call.span))
+    }
+
+    fn internal_call(&self, f: &mut fmt::Formatter<'_>, call: &InternalCall) -> fmt::Result {
+        let flags = flags(&[
+            (call.guarded, "guarded"),
+            (call.in_loop, "in loop"),
+            (call.after_external_call, "after call"),
+        ]);
+        let callee = self.function_name(call.callee);
+        writeln!(f, "    icall {callee}({}){flags} {}", self.args(&call.args), self.span(call.span))
     }
 
     fn guard(&self, f: &mut fmt::Formatter<'_>, guard: &Guard) -> fmt::Result {
@@ -151,6 +279,73 @@ impl DisplayCx<'_, '_> {
         writeln!(f, " {}", self.span(guard.span))
     }
 
+    fn branch(&self, f: &mut fmt::Formatter<'_>, branch: &Branch) -> fmt::Result {
+        write!(f, "    branch")?;
+        if !branch.sources.is_empty() {
+            write!(f, " on {}", self.sources(&branch.sources))?;
+        }
+        let flags = flags(&[(branch.in_loop, "in loop")]);
+        writeln!(f, "{flags} {}", self.span(branch.span))
+    }
+
+    fn event(
+        &self,
+        f: &mut fmt::Formatter<'_>,
+        prefix: &str,
+        event: &EventEmission,
+    ) -> fmt::Result {
+        let name = event.name.map_or_else(|| "?".to_owned(), |name| name.to_string());
+        let flags = flags(&[
+            (event.guarded, "guarded"),
+            (event.in_loop, "in loop"),
+            (event.after_external_call, "after call"),
+        ]);
+        writeln!(
+            f,
+            "    {prefix}emit {name}({}){flags} {}",
+            self.args(&event.args),
+            self.span(event.span)
+        )
+    }
+
+    fn self_destruct(
+        &self,
+        f: &mut fmt::Formatter<'_>,
+        prefix: &str,
+        self_destruct: &SelfDestruct,
+    ) -> fmt::Result {
+        write!(f, "    {prefix}selfdestruct")?;
+        if !self_destruct.beneficiary.is_empty() {
+            write!(f, " to {}", self.sources(&self_destruct.beneficiary))?;
+        }
+        let flags = flags(&[(self_destruct.guarded, "guarded")]);
+        writeln!(f, "{flags} {}", self.span(self_destruct.span))
+    }
+
+    fn hazard(&self, f: &mut fmt::Formatter<'_>, hazard: &Hazard) -> fmt::Result {
+        let kind = match hazard.kind {
+            HazardKind::StrictEquality => "strict equality",
+            HazardKind::DivideBeforeMultiply => "divide before multiply",
+            HazardKind::WeakRandomness => "weak randomness",
+            HazardKind::CallValueInLoop => "msg.value in loop",
+        };
+        write!(f, "    hazard {kind}")?;
+        if !hazard.sources.is_empty() {
+            write!(f, " on {}", self.sources(&hazard.sources))?;
+        }
+        writeln!(f, " {}", self.span(hazard.span))
+    }
+
+    fn function_name(&self, index: usize) -> &str {
+        self.facts.functions.get(index).map_or("?", |function| &function.name)
+    }
+
+    fn args(&self, args: &[BTreeSet<Source>]) -> String {
+        let args =
+            args.iter().map(|arg| if arg.is_empty() { "_".to_owned() } else { self.sources(arg) });
+        args.collect::<Vec<_>>().join("; ")
+    }
+
     fn sources(&self, sources: &BTreeSet<Source>) -> String {
         sources
             .iter()
@@ -161,18 +356,20 @@ impl DisplayCx<'_, '_> {
                 Source::Argument(index) => format!("arg{index}"),
                 Source::Storage(slot) => self.slot(slot),
                 Source::TransientStorage(slot) => format!("transient {}", self.slot(slot)),
+                Source::KeyedByCaller => "[msg.sender]".to_owned(),
+                Source::KeyedByArgument(index) => format!("[arg{index}]"),
                 Source::Immutable => "immutable".to_owned(),
                 Source::CallResult => "call result".to_owned(),
                 Source::Calldata => "calldata".to_owned(),
+                Source::Timestamp => "block.timestamp".to_owned(),
+                Source::BlockNumber => "block.number".to_owned(),
+                Source::Randomness => "randomness".to_owned(),
+                Source::Balance => "balance".to_owned(),
                 Source::Environment => "environment".to_owned(),
                 Source::Memory => "memory".to_owned(),
             })
             .collect::<Vec<_>>()
             .join(", ")
-    }
-
-    fn slots(&self, slots: &BTreeSet<StorageSlot>) -> String {
-        slots.iter().map(|&slot| self.slot(slot)).collect::<Vec<_>>().join(", ")
     }
 
     fn slot(&self, slot: StorageSlot) -> String {
@@ -203,6 +400,17 @@ impl DisplayCx<'_, '_> {
             write!(f, "@ {}:{}", loc.data.line, loc.data.col.0 + 1)
         })
     }
+}
+
+/// Formats the set flags as ` [a, b]`, or nothing when none is set.
+fn flags(flags: &[(bool, &str)]) -> String {
+    let set = flags.iter().filter(|(set, _)| *set).map(|(_, name)| *name).collect::<Vec<_>>();
+    if set.is_empty() { String::new() } else { format!(" [{}]", set.join(", ")) }
+}
+
+/// Formats a constant in decimal when small and in hexadecimal otherwise.
+fn constant(value: U256) -> String {
+    if value <= U256::from(0xffff) { value.to_string() } else { format!("{value:#x}") }
 }
 
 fn call_kind(kind: CallKind) -> &'static str {

@@ -1,0 +1,68 @@
+// === ROOT/tests/ui/codegen/secir/hazards.sol:Hazards ===
+contract Hazards
+  storage:
+    slot 0: credit
+    slot 1: total
+    slot 2: lastDraw
+  fn airdrop [external 0x729ad39e payable] @ 13:5
+    reads credit[..] keyed by arg0, calldata [in loop, after call] @ 16:13
+    writes credit[..] keyed by arg0, calldata from msg.value, credit[..], [arg0] [in loop, after call] @ 16:13
+    transfer to arg0, calldata with value from msg.value [controlled target, in loop, after call] @ 15:13
+    guard panic on arg0 @ 15:13
+    guard panic @ 15:13
+    guard revert on arg0, calldata @ 15:13
+    guard panic on arg0 @ 16:20
+    guard panic @ 16:20
+    guard revert on arg0, calldata @ 16:20
+    branch on arg0 [in loop] @ 14:49
+    hazard msg.value in loop @ 15:28
+    hazard msg.value in loop @ 16:30
+    writes storage without emitting an event
+  fn batch [external 0xb9d096b2 payable] @ 20:5
+    delegatecall to arg0 args (arg1, calldata) [controlled target, in loop, after call] @ 22:13
+    guard panic on arg1 @ 22:46
+    guard panic @ 22:46
+    guard revert on arg1, calldata @ 22:46
+    guard revert on arg1, calldata @ 22:46
+    guard revert on arg1, calldata @ 22:46
+    guard revert on arg1, calldata @ 22:46
+    guard revert on arg1, calldata @ 22:13
+    guard revert on arg1, calldata @ 22:13
+    guard panic on arg1, calldata @ 22:13
+    guard revert on call result @ 23:13
+    branch on arg1 [in loop] @ 21:52
+  fn resetIfEmpty [external 0x086b9113 nonpayable] @ 27:5
+    writes total @ 28:41
+    branch on balance @ 28:9
+    constants 0
+    hazard strict equality on balance @ 28:13
+    writes storage without emitting an event
+  fn share [external 0xa882106d pure] @ 31:5
+    returns arg0, arg1, arg2
+    hazard divide before multiply on arg0, arg1, arg2 @ 32:16
+  fn draw [external 0x0eecae21 nonpayable] @ 35:5
+    entry checks lastDraw, block.timestamp
+    returns randomness
+    reads lastDraw @ 36:36
+    writes lastDraw from block.timestamp @ 37:9
+    guard revert on lastDraw, block.timestamp @ 36:9
+    hazard weak randomness on randomness @ 38:16
+    writes storage without emitting an event
+  fn magic [external 0x0d52ad0b pure] @ 41:5
+    returns arg1
+    branch on arg0 @ 42:16
+    branch on arg0 @ 42:16
+    constants 1000, 0xdeadbeef, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffb
+  fn ping [external 0x14df9e43 nonpayable] @ 45:5
+    call to arg0 [controlled target, unchecked result] @ 46:9
+    send to arg0 [controlled target, unchecked result, after call] @ 47:9
+  storage flows:
+    total: written by resetIfEmpty
+    lastDraw: written by draw from block.timestamp; read by draw
+    credit[..] [externally controlled]: written by airdrop from msg.value, credit[..], [arg0]; read by airdrop
+  receives value, sends value
+
+// === ROOT/tests/ui/codegen/secir/hazards.sol:Piggy ===
+contract Piggy
+  fn receive [receive payable] @ 52:5
+  receives value, locks value

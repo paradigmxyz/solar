@@ -5,39 +5,51 @@ contract Vault
     slot 1: balances
     slot 2: total
   fn owner [external 0x8da5cb5b view] @ 10:5
+    returns owner
     reads owner @ 10:5
   fn balances [external 0x27e235e3 view] @ 11:5
+    returns balances[..], [arg0]
     reads balances[..] keyed by arg0 @ 11:5
   fn total [external 0x2ddbd13a view] @ 12:5
+    returns total
     reads total @ 12:5
   fn constructor [constructor nonpayable] @ 14:5
     reads owner @ 15:9
-    writes owner @ 15:9
+    writes owner from msg.sender @ 15:9
   fn deposit [external 0xd0e30db0 payable] @ 18:5
     reads balances[..] keyed by msg.sender @ 19:9
     reads total @ 20:9
-    writes balances[..] keyed by msg.sender @ 19:9
-    writes total @ 20:9
+    writes balances[..] keyed by msg.sender from msg.value, balances[..], [msg.sender] @ 19:9
+    writes total from msg.value, total @ 20:9
+    writes storage without emitting an event
   fn withdraw [external 0x2e1a7d4d nonpayable] @ 23:5
+    entry checks arg0, balances[..], [msg.sender], call result
     reads balances[..] keyed by msg.sender @ 24:17
-    reads balances[..] keyed by msg.sender @ 27:9
-    reads total @ 29:13
-    writes balances[..] keyed by msg.sender @ 27:9
-    writes total @ 29:13
+    reads balances[..] keyed by msg.sender [after call] @ 27:9
+    reads total [after call] @ 29:13
+    writes balances[..] keyed by msg.sender from arg0, balances[..], [msg.sender] [after call] @ 27:9
+    writes total from arg0, total [after call] @ 29:13
     call to msg.sender with value from arg0 @ 25:9
-    guard revert on arg0, balances[..] @ 24:9
+    guard revert on arg0, balances[..], [msg.sender] @ 24:9
     guard revert on call result @ 26:9
     unchecked @ 29:13
-    writes after external call balances[..] keyed by msg.sender @ 27:9
-    writes after external call total @ 29:13
+    read before and written after external call: balances[..]
+    writes storage without emitting an event
   fn sweep [external 0x01681a62 nonpayable] @ 33:5
+    entry checks msg.sender, owner (access control)
     reads owner @ 34:31
-    icall _send @ 35:9
-    icall _clear @ 36:9
+    icall _send(arg0; balance) [guarded] @ 35:9
+    icall _clear() [guarded, after call] @ 36:9
     guard revert (access control) on msg.sender, owner @ 34:9
-    writes after external call total @ 36:9
-    transitive: reads owner writes total calls transfer
+    transitive writes total [guarded, after call] @ 44:9
+    transitive transfer to arg0 with value from balance [controlled target, guarded] @ 40:9
+    writes storage without emitting an event
   fn _send [internal nonpayable] @ 39:5
-    transfer to arg0 with value from arg1 @ 40:9
+    transfer to arg0 with value from arg1 [controlled target] @ 40:9
   fn _clear [internal nonpayable] @ 43:5
     writes total @ 44:9
+  storage flows:
+    owner: written by constructor from msg.sender; read by owner, constructor, sweep
+    total [externally controlled]: written by deposit from msg.value, total, withdraw from arg0, total, sweep [guarded]; read by total, deposit, withdraw
+    balances[..] [externally controlled]: written by deposit from msg.value, balances[..], [msg.sender], withdraw from arg0, balances[..], [msg.sender]; read by balances, deposit, withdraw
+  receives value, sends value

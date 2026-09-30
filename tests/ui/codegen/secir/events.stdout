@@ -1,0 +1,31 @@
+// === ROOT/tests/ui/codegen/secir/events.sol:Events ===
+contract Events
+  storage:
+    slot 0: balances
+    slot 1: limit
+  fn transfer [external 0xa9059cbb nonpayable] @ 16:5
+    reads balances[..] keyed by msg.sender @ 17:9
+    reads balances[..] keyed by arg0 @ 18:9
+    writes balances[..] keyed by msg.sender from arg1, balances[..], [msg.sender] @ 17:9
+    writes balances[..] keyed by arg0 from arg1, balances[..], [arg0] @ 18:9
+    emit Transfer(msg.sender; arg0; arg1) @ 19:9
+  fn note [external 0xebec23ce nonpayable] @ 22:5
+    reads limit @ 23:25
+    emit Note(arg0; limit; arg1) @ 23:9
+  fn anon [external 0xef0652a4 nonpayable] @ 26:5
+    reads limit @ 27:28
+    emit Anonymous(arg0, limit) @ 27:9
+  fn setLimit [external 0x27ea6f2b nonpayable] @ 30:5
+    writes limit from arg0 @ 31:9
+    writes storage without emitting an event
+  fn callThenLog [external 0xb038a3b8 nonpayable] @ 34:5
+    entry checks call result
+    call to arg0 [controlled target] @ 35:9
+    icall _log(arg0) [after call] @ 37:9
+    guard revert on call result @ 36:9
+    transitive emit Called(arg0) [after call] @ 41:9
+  fn _log [internal nonpayable] @ 40:5
+    emit Called(arg0) @ 41:9
+  storage flows:
+    limit [externally controlled]: written by setLimit from arg0; read by note, anon
+    balances[..] [externally controlled]: written by transfer from arg1, balances[..], [msg.sender], [arg0]; read by transfer
