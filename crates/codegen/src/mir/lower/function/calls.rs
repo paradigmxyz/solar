@@ -1425,10 +1425,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.builder.mcopy(data, offset, size);
             }
             if object == data {
-                // A single static aggregate returns into a raw buffer; decode a bytes copy.
-                // object = bytes(size); copy(make_slice(data, size), object.data)
-                let slice = self.builder.make_slice(data, size, SliceLocation::Memory);
-                Some(self.materialize_memory_slice(slice))
+                // A single static aggregate returns into a raw buffer, which decoding copies.
+                // source = make_slice(data, size)
+                Some(self.builder.make_slice(data, size, SliceLocation::Memory))
             } else {
                 Some(object)
             }

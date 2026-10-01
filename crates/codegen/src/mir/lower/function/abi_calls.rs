@@ -339,13 +339,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             Some(value)
         } else {
             let value = self.materialize_memory_argument(ty, value, span)?;
-            if types::TypeLowerer::mir_type(ty) == MirType::MemPtr
-                && self.builder.func().value_ty(value) != Some(MirType::MemPtr)
-                && self.builder.func().value_slice_location(value).is_none()
-            {
-                // object = inttoptr value to memptr
-                Some(self.builder.cast(value, MirType::MemPtr))
-            } else if self.builder.func().value_slice_location(value).is_none() {
+            if self.builder.func().value_slice_location(value).is_none() {
                 // argument = cast value to the declared parameter type
                 Some(self.builder.cast(value, types::TypeLowerer::mir_signature_type(ty)))
             } else {

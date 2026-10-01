@@ -605,10 +605,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return self.load_static_abi_return_value(base, index, returns);
         }
         let index = self.builder.imm(u64::try_from(index).unwrap_or(u64::MAX));
-        self.builder.memory_object_load_object(
+        self.builder.memory_object_load_element_as(
             base,
             MemoryObjectLayout::word_fixed_array(u64::try_from(returns).unwrap_or(u64::MAX)),
             index,
+            MirType::MemPtr,
         )
     }
 }

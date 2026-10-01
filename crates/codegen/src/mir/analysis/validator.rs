@@ -1479,14 +1479,13 @@ fn return_abi_matches(
 
 /// Returns the first type, in signature and then block order, that is not a scalar word.
 fn first_non_word_type(func: &Function) -> Option<MirType> {
-    let non_word = |ty: MirType| !ty.is_word();
     let signature = func.arg_indices().map(|index| func.arg_ty(index));
     if let Some(ty) =
-        signature.chain(func.return_components().iter().copied()).find(|&ty| non_word(ty))
+        signature.chain(func.return_components().iter().copied()).find(|&ty| !ty.is_word())
     {
         return Some(ty);
     }
-    let value_type = |value| func.value_ty(value).filter(|&ty| non_word(ty));
+    let value_type = |value| func.value_ty(value).filter(|&ty| !ty.is_word());
     let find = |found: &mut Option<MirType>, value| {
         if found.is_none() {
             *found = value_type(value);
@@ -1511,7 +1510,7 @@ fn first_non_word_type(func: &Function) -> Option<MirType> {
             return found;
         }
     }
-    func.instructions().filter_map(|id| func.inst(id).result_ty).find(|&ty| non_word(ty))
+    func.instructions().filter_map(|id| func.inst(id).result_ty).find(|&ty| !ty.is_word())
 }
 
 // =============================================================================

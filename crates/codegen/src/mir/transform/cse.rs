@@ -222,8 +222,8 @@ struct CommonSubexprEliminator {
     cfg: Option<Rc<CfgInfo>>,
     /// Number of instructions eliminated.
     eliminated_count: usize,
-    /// Number of eliminated casts, which call for another fixpoint round only through phi
-    /// sinking.
+    /// Number of casts the dominator-scoped pass eliminated, which call for another fixpoint
+    /// round only through phi sinking.
     eliminated_casts: usize,
     /// Gas observations and their forward CFG closure, including backedges.
     gas: Option<GasObservations>,
@@ -288,13 +288,13 @@ enum ExprKey {
     Cast(CastKey, OperandKey, Option<MirType>),
 }
 
-/// A conversion, with the widths that distinguish conversions of one operand to one type.
+/// A conversion. Its operand and result types imply every width it carries.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 enum CastKey {
     Zext,
-    Trunc(u32),
-    Sext(u32, u32),
-    PtrToInt(u32),
+    Trunc,
+    Sext,
+    PtrToInt,
     IntToPtr,
 }
 
@@ -496,8 +496,9 @@ impl CommonSubexprEliminator {
             if self.eliminated_count - self.eliminated_casts != before - casts {
                 continue;
             }
-            // Later instructions of a round already read merged casts through its replacements,
-            // but phi sinking ran before the merges. Rerun only it, and keep going if it sinks.
+            // Later instructions of the dominator-scoped pass read its merged casts through its
+            // replacements, but phi sinking ran before the merges. Rerun only it, and keep going
+            // if it sinks.
             if self.eliminated_casts == casts {
                 break;
             }
@@ -990,7 +991,6 @@ impl CommonSubexprEliminator {
                 replacements.insert(*result, cached_value);
                 to_remove.insert(inst_id);
                 self.eliminated_count += 1;
-                self.eliminated_casts += usize::from(matches!(key, ExprKey::Cast(..)));
                 continue;
             }
             if kind.has_side_effects() {
@@ -1218,9 +1218,9 @@ impl CommonSubexprEliminator {
             InstKind::SelfBalance => Some(ExprKey::SelfBalance),
 
             InstKind::Zext(a) => cast(CastKey::Zext, *a),
-            InstKind::Trunc(a, bits) => cast(CastKey::Trunc(*bits), *a),
-            InstKind::Sext(a, from, to) => cast(CastKey::Sext(*from, *to), *a),
-            InstKind::PtrToInt(a, bits) => cast(CastKey::PtrToInt(*bits), *a),
+            InstKind::Trunc(a, _) => cast(CastKey::Trunc, *a),
+            InstKind::Sext(a, ..) => cast(CastKey::Sext, *a),
+            InstKind::PtrToInt(a, _) => cast(CastKey::PtrToInt, *a),
             InstKind::IntToPtr(a) => cast(CastKey::IntToPtr, *a),
 
             // Don't cache these:

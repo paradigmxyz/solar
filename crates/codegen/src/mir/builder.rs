@@ -582,7 +582,7 @@ impl<'a> FunctionBuilder<'a> {
         } else if result.admits_type(requested) {
             requested
         } else {
-            result.default_type().unwrap_or(requested)
+            result.default_type().expect("result kinds without a default type admit every type")
         };
         // result = op operands
         // requested = cast result
@@ -847,24 +847,20 @@ impl<'a> FunctionBuilder<'a> {
         layout: crate::mir::MemoryObjectLayout,
         field: u64,
     ) -> ValueId {
-        self.emit_inst(
-            InstKind::MemoryObjectLoadField { object, layout, field },
-            Some(MirType::I256),
-        )
+        self.memory_object_load_field_as(object, layout, field, MirType::I256)
     }
 
-    /// Loads a memory-object pointer stored in a struct field.
-    pub(crate) fn memory_object_load_object_field(
+    /// Loads a struct field as a `memptr` when `ty` is one, and as a word otherwise.
+    pub(crate) fn memory_object_load_field_as(
         &mut self,
         object: ValueId,
         layout: MemoryObjectLayout,
         field: u64,
+        ty: MirType,
     ) -> ValueId {
+        let result = if ty == MirType::MemPtr { ty } else { MirType::I256 };
         // result = memory_object_load_field layout, object, field
-        self.emit_inst(
-            InstKind::MemoryObjectLoadField { object, layout, field },
-            Some(MirType::MemPtr),
-        )
+        self.emit_inst(InstKind::MemoryObjectLoadField { object, layout, field }, Some(result))
     }
 
     /// Stores a direct struct field through the semantic object layout.
@@ -885,23 +881,20 @@ impl<'a> FunctionBuilder<'a> {
         layout: crate::mir::MemoryObjectLayout,
         index: ValueId,
     ) -> ValueId {
-        self.emit_inst(
-            InstKind::MemoryObjectLoadElement { object, layout, index },
-            Some(MirType::I256),
-        )
+        self.memory_object_load_element_as(object, layout, index, MirType::I256)
     }
 
-    /// Loads a memory-object pointer stored in a one-word array.
-    pub(crate) fn memory_object_load_object(
+    /// Loads an array element as a `memptr` when `ty` is one, and as a word otherwise.
+    pub(crate) fn memory_object_load_element_as(
         &mut self,
         object: ValueId,
         layout: MemoryObjectLayout,
         index: ValueId,
+        ty: MirType,
     ) -> ValueId {
-        self.emit_inst(
-            InstKind::MemoryObjectLoadElement { object, layout, index },
-            Some(MirType::MemPtr),
-        )
+        let result = if ty == MirType::MemPtr { ty } else { MirType::I256 };
+        // result = memory_object_load_element layout, object, index
+        self.emit_inst(InstKind::MemoryObjectLoadElement { object, layout, index }, Some(result))
     }
 
     /// Loads one byte from a bytes object through its semantic layout.

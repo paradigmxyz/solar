@@ -725,23 +725,22 @@ impl LowerAbiCx {
     ) {
         // Parameters share a helper per type, and so do the dynamic tuples repeated
         // anywhere inside them, which the helpers of enclosing types then call.
+        // Debug revert strings give nested sites their own offset reasons, which only inline
+        // decoding reports, so only parameters count there.
+        let nested = !self.revert_strings.is_debug();
         let mut counts = FxHashMap::<AbiParamType, (usize, usize)>::default();
         for &id in targets {
             let func = module.function(id);
             let Some(layout) = func.abi_params.as_ref() else { continue };
             for (ty, &arg_type) in layout.types.iter().zip(&func.params) {
                 if !ty.is_scalar_word() && arg_type == MirType::MemPtr {
-                    // Debug revert strings give nested sites their own offset reasons, which
-                    // only inline decoding reports, so only parameters count there.
-                    if self.revert_strings.is_debug() {
-                        count_type(&mut counts, ty, 1);
-                        continue;
-                    }
                     // `count_dynamic_tuple_types` counts a dynamic tuple itself.
-                    if !decodes_nested(ty) {
+                    if !nested || !decodes_nested(ty) {
                         count_type(&mut counts, ty, 1);
                     }
-                    count_dynamic_tuple_types(ty, 1, &mut counts);
+                    if nested {
+                        count_dynamic_tuple_types(ty, 1, &mut counts);
+                    }
                 }
             }
         }
@@ -1164,10 +1163,11 @@ impl LowerAbiCx {
             for index in 1..return_types.len() {
                 let index_value = builder.imm(index as u64);
                 let value = match return_types[index] {
-                    MirType::MemPtr => builder.memory_object_load_object(
+                    MirType::MemPtr => builder.memory_object_load_element_as(
                         base,
                         MemoryObjectLayout::word_fixed_array(return_types.len() as u64),
                         index_value,
+                        MirType::MemPtr,
                     ),
                     _ => {
                         let position = builder.add_u64_offset(
@@ -3159,7 +3159,10 @@ fn count_type(
     occurrences: usize,
 ) {
     let first = counts.len();
-    let count = counts.entry(ty.clone()).or_insert((0, first));
+    let count = match counts.get_mut(ty) {
+        Some(count) => count,
+        None => counts.entry(ty.clone()).or_insert((0, first)),
+    };
     count.0 = count.0.saturating_add(occurrences).min(2);
 }
 

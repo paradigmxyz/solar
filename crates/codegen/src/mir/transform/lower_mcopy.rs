@@ -49,7 +49,7 @@ use crate::{
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
 use solar_interface::{Ident, sym};
 use solar_sema::Gcx;
-use std::sync::Arc;
+use std::{collections::BTreeMap, sync::Arc};
 
 /// Lowers `mcopy` to overlap-safe word-copy loops without an `MCOPY` opcode.
 pub(crate) struct LowerMCopy;
@@ -83,41 +83,29 @@ impl MirPass for LowerMCopy {
                 constructor_reachable.insert(id);
             }
         }
-        let has_runtime_sites = module
-            .functions
-            .iter_enumerated()
-            .filter(|(id, _)| !constructor_reachable.contains(*id))
-            .any(|(_, func)| func.instructions().any(|inst| is_mcopy(func, inst)));
-        let constructor_sites = module
-            .functions
-            .iter_enumerated()
-            .filter(|(id, _)| constructor_reachable.contains(*id))
-            .any(|(_, func)| func.instructions().any(|inst| is_mcopy(func, inst)));
-        if !has_runtime_sites && !constructor_sites {
+        if !module.functions.iter().any(|func| func.instructions().any(|inst| is_mcopy(func, inst)))
+        {
             return false;
         }
 
         let target = Target::new(gcx);
         let fresh_returns = super::lower_abi_encode::fresh_object_returning_functions(module);
         let summaries = analyses.call_summaries(module);
-        let is_runtime = |id: FunctionId| {
-            id.index() >= constructor_reachable.domain_size() || !constructor_reachable.contains(id)
-        };
         let sites = module
             .functions
             .iter_enumerated()
-            .map(|(id, func)| copy_sites(func, is_runtime(id), &fresh_returns, &summaries))
+            .map(|(id, func)| {
+                copy_sites(func, !constructor_reachable.contains(id), &fresh_returns, &summaries)
+            })
             .collect::<IndexVec<FunctionId, _>>();
 
         // One helper per copy shape, when its sites are worth sharing.
-        let mut counts = FxHashMap::<CopyShape, u32>::default();
+        let mut counts = BTreeMap::<CopyShape, u32>::new();
         for site in sites.iter().flatten().filter(|site| site.shareable) {
             *counts.entry(site.shape).or_default() += 1;
         }
-        let mut shapes = counts.into_iter().collect::<Vec<_>>();
-        shapes.sort_by_key(|&(shape, _)| shape);
         let mut helpers = FxHashMap::default();
-        for (shape, count) in shapes {
+        for (shape, count) in counts {
             if let Some(helper) = shared_copy_helper(target, shape, count) {
                 helpers.insert(shape, module.add_function(helper));
             }
@@ -206,11 +194,13 @@ fn shared_copy_helper(target: Target, shape: CopyShape, sites: u32) -> Option<Fu
         EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE / EvmMemoryLayout::WORD_SIZE + params as u64;
     let call = target.icall(params, 0, frame_words);
     let ret = target.internal_return(params, 0);
-    let shared = Cost::new(
-        call.gas.saturating_add(ret.gas).saturating_mul(sites),
-        body.bytes.saturating_add(ret.bytes).saturating_add(call.bytes.saturating_mul(sites)),
-    );
-    let expanded = Cost::new(0, body.bytes.saturating_mul(sites));
+    let shared = Cost::new(call.gas, 0)
+        .plus(Cost::new(ret.gas, 0))
+        .times(sites)
+        .plus(Cost::new(0, call.bytes).times(sites))
+        .plus(Cost::new(0, body.bytes))
+        .plus(Cost::new(0, ret.bytes));
+    let expanded = Cost::new(0, body.bytes).times(sites);
     target.cmp_lifetime(shared, expanded).is_lt().then_some(function)
 }
 
@@ -229,6 +219,10 @@ fn lower_function(
         }
     }
 
+    if expanded.is_empty() {
+        return;
+    }
+
     // Expanding a copy splits its block at the copy, so the rest of the block,
     // with any later copy, is visited as the continuation.
     let mut block_index = 0;
@@ -237,11 +231,10 @@ fn lower_function(
         let mcopy = func.blocks[block]
             .instructions
             .iter()
-            .copied()
             .enumerate()
-            .find(|&(_, inst)| expanded.contains_key(&inst));
-        if let Some((position, inst)) = mcopy {
-            lower_mcopy(func, block, position, inst, expanded[&inst]);
+            .find_map(|(position, &inst)| Some((position, inst, *expanded.get(&inst)?)));
+        if let Some((position, inst, shape)) = mcopy {
+            lower_mcopy(func, block, position, inst, shape);
         }
         block_index += 1;
     }
@@ -405,13 +398,7 @@ fn emit_copy_loop(
     builder.switch_to_block(copy);
 
     // full = len & ~31, or len when it is whole words
-    let full = if shape.whole_words {
-        len
-    } else {
-        let thirty_one = builder.imm(31);
-        let not_thirty_one = builder.not(thirty_one);
-        builder.and(len, not_thirty_one)
-    };
+    let full = if shape.whole_words { len } else { builder.mask_padded_size(len) };
     let copy = WordCopy { dest, src, len, full };
     match shape.direction {
         CopyDirection::Forward => emit_forward_copy(builder, copy, continuation),
