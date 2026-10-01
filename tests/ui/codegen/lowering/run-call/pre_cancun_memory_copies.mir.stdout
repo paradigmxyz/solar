@@ -149,6 +149,30 @@ fn @assembled() -> i256 [selector=0xd1381062, pure, abi_params=[], abi_returns=[
     ret v13
 }
 
+fn @recycled() -> i256 [selector=0xa163996f, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = not 31
+    v1 = and 127, v0
+    v2 = alloc memorybytes, exact, zeroed, panic, v1
+    set_memory_object_len memorybytes, v2, 64
+    v3 = ptrtoint memptr v2 to i256
+    v4 = add v3, 32
+    mstore v4, 0x1111111111111111111111111111111111111111111111111111111111111111
+    v5 = ptrtoint memptr v2 to i256
+    v6 = add v5, 64
+    mstore v6, 0x2222222222222222222222222222222222222222222222222222222222222222
+    v7 = ptrtoint memptr v2 to i256
+    v8 = add v7, 32
+    mstore 64, v8 !metadata(memory=scratch)
+    v9 = icall concat<memorybytes>, v2
+    v10 = ptrtoint memptr v9 to i256
+    v11 = add v10, 64
+    v12 = mload v11
+    v13 = eq v12, 0x2222222222222222222222222222222222222222222222222222222222222222
+    v14 = zext i1 v13 to i256
+    ret v14
+}
+
 fn @fresh() -> memptr [selector=0xb466b76f, pure, abi_params=[], abi_returns=[memory_array<word>], abi_return_params=[array<_, u256>]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 128

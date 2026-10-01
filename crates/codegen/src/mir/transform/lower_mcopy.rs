@@ -279,8 +279,8 @@ fn copy_direction(
     if alias.memory_alias(dest_location, src_location) == AliasResult::NoAlias {
         return CopyDirection::Forward;
     }
-    let dest_fresh = fresh_base(func, dest.base, fresh_returns);
-    let src_fresh = fresh_base(func, src.base, fresh_returns);
+    let dest_fresh = fresh_base(func, alias, dest.base, fresh_returns);
+    let src_fresh = fresh_base(func, alias, src.base, fresh_returns);
     if dest_fresh.is_some() && src_fresh.is_some() && dest_fresh != src_fresh {
         return CopyDirection::Forward;
     }
@@ -294,12 +294,13 @@ fn copy_direction(
 /// Returns the instruction that created a fresh memory base.
 fn fresh_base(
     func: &Function,
+    alias: &AliasAnalysis,
     base: MemoryBase,
     fresh_returns: &DenseBitSet<FunctionId>,
 ) -> Option<InstId> {
     match base {
         MemoryBase::Allocation(inst) | MemoryBase::DynamicAllocation(inst) => Some(inst),
-        MemoryBase::Value(value) => fresh_value_base(func, value, fresh_returns, 0),
+        MemoryBase::Value(value) => fresh_value_base(func, alias, value, fresh_returns, 0),
         MemoryBase::Absolute | MemoryBase::InternalFrame => None,
     }
 }
@@ -307,6 +308,7 @@ fn fresh_base(
 /// Traces constant and dynamic offsets back to one fresh allocation.
 fn fresh_value_base(
     func: &Function,
+    alias: &AliasAnalysis,
     value: ValueId,
     fresh_returns: &DenseBitSet<FunctionId>,
     depth: usize,
@@ -316,24 +318,25 @@ fn fresh_value_base(
     }
     let Value::Inst(inst) = func.value(value) else { return None };
     match func.inst(*inst).kind {
-        InstKind::Alloc { .. } => Some(*inst),
+        // Assembly that may move the FMP back can place an allocation over live memory.
+        InstKind::Alloc { .. } if alias.allocation_is_unrecycled(func, *inst) => Some(*inst),
         InstKind::ICall { function: crate::mir::Callee::Function(function), .. }
             if fresh_returns.contains(function) =>
         {
             Some(*inst)
         }
         InstKind::Add(first, second) => {
-            let first = fresh_value_base(func, first, fresh_returns, depth + 1);
-            let second = fresh_value_base(func, second, fresh_returns, depth + 1);
+            let first = fresh_value_base(func, alias, first, fresh_returns, depth + 1);
+            let second = fresh_value_base(func, alias, second, fresh_returns, depth + 1);
             match (first, second) {
                 (Some(first), None) | (None, Some(first)) => Some(first),
                 _ => None,
             }
         }
         InstKind::Sub(base, offset)
-            if fresh_value_base(func, offset, fresh_returns, depth + 1).is_none() =>
+            if fresh_value_base(func, alias, offset, fresh_returns, depth + 1).is_none() =>
         {
-            fresh_value_base(func, base, fresh_returns, depth + 1)
+            fresh_value_base(func, alias, base, fresh_returns, depth + 1)
         }
         _ => None,
     }

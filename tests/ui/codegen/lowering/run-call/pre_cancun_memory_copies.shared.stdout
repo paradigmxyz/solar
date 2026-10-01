@@ -294,6 +294,120 @@ fn @assembled() [selector=0xd1381062, abi_wrapper, pure] {
     revert 28, 36
 }
 
+fn @recycled() [selector=0xa163996f, abi_wrapper, pure] {
+  bb0:
+    v83 = mload 64 !metadata(memory=scratch)
+    v84 = add v83, 96
+    v85 = lt v84, v83
+    v86 = gt v84, 0xffffffffffffffff
+    v87 = or v85, v86
+    jumpi v87, bb14, bb13
+  bb13:
+    mstore 64, v84
+    v95 = calldatasize
+    calldatacopy v83, v95, 96
+    mstore v83, 64
+    v4 = add v83, 32
+    mstore v4, 0x1111111111111111111111111111111111111111111111111111111111111111
+    v6 = add v83, 64
+    mstore v6, 0x2222222222222222222222222222222222222222222222222222222222222222
+    mstore 64, v4
+    v15 = mload v83
+    v17 = add v15, 63
+    v19 = and v17, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v89 = mload 64
+    v90 = add v89, v19
+    v91 = lt v90, v89
+    v92 = gt v90, 0xffffffffffffffff
+    v93 = or v91, v92
+    jumpi v93, bb14, bb15
+  bb15:
+    mstore 64, v90
+    mstore v89, v15
+    v31 = add v89, 32
+    v39 = eq v15, 0
+    jumpi v39, bb1, bb2
+  bb2:
+    v41 = and v15, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v42 = lt v4, v31
+    jumpi v42, bb4, bb3
+  bb3:
+    jump bb5
+  bb5:
+    v43 = phi [bb3: 0], [bb6: v48]
+    v44 = lt v43, v41
+    jumpi v44, bb6, bb7
+  bb7:
+    v49 = lt v41, v15
+    jumpi v49, bb8, bb1
+  bb8:
+    v50 = and v15, 31
+    v51 = sub 32, v50
+    v52 = shl 3, v51
+    v53 = add v4, v41
+    v54 = mload v53
+    v55 = shr v52, v54
+    v56 = shl v52, v55
+    v57 = add v31, v41
+    v58 = mload v57
+    v59 = shl v52, 1
+    v60 = sub v59, 1
+    v61 = and v58, v60
+    v62 = or v56, v61
+    mstore v57, v62
+    jump bb1
+  bb6:
+    v45 = add v4, v43
+    v46 = mload v45
+    v47 = add v31, v43
+    mstore v47, v46
+    v48 = add v43, 32
+    jump bb5
+  bb4:
+    v63 = lt v41, v15
+    jumpi v63, bb12, bb11
+  bb11:
+    jump bb9
+  bb12:
+    v64 = and v15, 31
+    v65 = sub 32, v64
+    v66 = shl 3, v65
+    v67 = add v4, v41
+    v68 = mload v67
+    v69 = shr v66, v68
+    v70 = shl v66, v69
+    v71 = add v31, v41
+    v72 = mload v71
+    v73 = shl v66, 1
+    v74 = sub v73, 1
+    v75 = and v72, v74
+    v76 = or v70, v75
+    mstore v71, v76
+    jump bb9
+  bb9:
+    v77 = phi [bb11: v41], [bb12: v41], [bb10: v79]
+    v78 = eq v77, 0
+    jumpi v78, bb1, bb10
+  bb10:
+    v79 = sub v77, 32
+    v80 = add v4, v79
+    v81 = mload v80
+    v82 = add v31, v79
+    mstore v82, v81
+    jump bb9
+  bb1:
+    v11 = add v89, 64
+    v12 = mload v11
+    v13 = eq v12, 0x2222222222222222222222222222222222222222222222222222222222222222
+    v14 = zext i1 v13 to i256
+    mstore 128, v14
+    returndata 128, 32
+  bb14:
+    mstore 0, 0x4e487b71
+    mstore 32, 65
+    revert 28, 36
+}
+
 fn @fresh() [selector=0xb466b76f, abi_wrapper, pure] {
   bb0:
     v47 = mload 64 !metadata(memory=scratch)
@@ -369,24 +483,26 @@ fn @entry() [entry] {
   bb0:
     v0 = callvalue
     v1 = ne v0, 0
-    jumpi v1, bb8, bb1
+    jumpi v1, bb9, bb1
   bb1:
     v2 = calldataload 0
     v3 = shr 224, v2
-    switch v3, default bb8, [0x2f9cb906 => bb2, 0x56818b01 => bb3, 0x6bdbf8e6 => bb4, 0xb466b76f => bb5, 0xd1381062 => bb6, 0xf2c31bd9 => bb7]
-  bb7:
+    switch v3, default bb9, [0x2f9cb906 => bb2, 0x56818b01 => bb3, 0x6bdbf8e6 => bb4, 0xa163996f => bb5, 0xb466b76f => bb6, 0xd1381062 => bb7, 0xf2c31bd9 => bb8]
+  bb8:
     tail_call @words
-  bb6:
+  bb7:
     tail_call @assembled
-  bb5:
+  bb6:
     tail_call @fresh
+  bb5:
+    tail_call @recycled
   bb4:
     tail_call @concat
   bb3:
     tail_call @bytesTail
   bb2:
     tail_call @freshEmpty
-  bb8:
+  bb9:
     revert 0, 0
 }
 

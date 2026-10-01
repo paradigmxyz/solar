@@ -6,6 +6,7 @@
 //@ run-call: bytesTail => true
 //@ run-call: concat => true
 //@ run-call: assembled => true
+//@ run-call: recycled => true
 //@ run-call: fresh => [1, 2, 3]
 //@ run-call: freshEmpty => []
 
@@ -14,6 +15,8 @@
 // Returning a fresh array encodes it in place, a backward whole-word copy.
 // In size mode, the forward byte copies of ABI encoding share one helper, which
 // needs no runtime direction check, even for an object that assembly allocates.
+// Once assembly moves the free memory pointer back, a new object can overlap a
+// live one, and the copy between them must check its direction at runtime.
 contract PreCancunMemoryCopies {
     function words() external pure returns (bool) {
         uint256[] memory values = new uint256[](3);
@@ -70,6 +73,21 @@ contract PreCancunMemoryCopies {
             actual := keccak256(add(encoded, 128), 70)
         }
         return actual == expected;
+    }
+
+    function recycled() external pure returns (bool) {
+        bytes memory source = new bytes(64);
+        assembly {
+            mstore(add(source, 32), 0x1111111111111111111111111111111111111111111111111111111111111111)
+            mstore(add(source, 64), 0x2222222222222222222222222222222222222222222222222222222222222222)
+            mstore(0x40, add(source, 32))
+        }
+        bytes memory copy = bytes.concat(source, "");
+        bytes32 second;
+        assembly {
+            second := mload(add(copy, 64))
+        }
+        return second == 0x2222222222222222222222222222222222222222222222222222222222222222;
     }
 
     function fresh() external pure returns (uint256[] memory values) {
