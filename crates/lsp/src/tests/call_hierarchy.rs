@@ -1,6 +1,8 @@
 use super::*;
 use crate::symbols::SymbolTablesAggregator;
-use lsp_types::{CallHierarchyIncomingCall, CallHierarchyItem, CallHierarchyOutgoingCall};
+use lsp_types::{
+    CallHierarchyIncomingCall, CallHierarchyItem, CallHierarchyOutgoingCall, SymbolKind,
+};
 
 #[test]
 fn groups_direct_calls_and_selects_call_site_endpoints() {
@@ -247,8 +249,6 @@ fn excludes_non_direct_and_non_source_calls() {
     let calls = Calls::new(
         r#"
         //- /Excluded.sol
-        contract Created {}
-
         abstract contract AbstractCreated {
             constructor() {}
         }
@@ -266,7 +266,6 @@ fn excludes_non_direct_and_non_source_calls() {
                 require(true);
                 address(this).call("");
                 this.value();
-                new Created();
                 new AbstractCreated();
                 emit Called();
                 $3target();
@@ -466,6 +465,188 @@ fn conflicting_batches_reject_partial_relations() {
     assert_eq!(tables.call_hierarchy_outgoing(&caller), None);
 }
 
+#[test]
+fn indexes_calls_to_implicit_constructors() {
+    let calls = Calls::new(
+        r#"
+        //- /Implicit.sol
+        contract $1Empty {}
+        contract $2Derived is $3Empty() {}
+        contract Explicit is $10Empty {
+            $4constructor() $5Empty() {}
+        }
+        contract Factory {
+            function $6deploy() external returns (Derived) {
+                return new $7Derived();
+            }
+        }
+        interface $8I {}
+        library $9Lib {}
+        "#,
+    );
+    let tables = calls.analyze_clean(&["/Implicit.sol"]);
+    let [empty, derived, explicit, deploy] =
+        ["$1", "$2", "$4", "$6"].map(|m| calls.item(&tables, m));
+    for (site, callee) in [("$3", &empty), ("$5", &empty), ("$7", &derived)] {
+        assert_eq!(calls.prepare_at(&tables, site, 0), Some(vec![callee.clone()]));
+    }
+    let [to_empty, from_explicit, creation] =
+        [("$3", 5), ("$5", 5), ("$7", 7)].map(|(marker, len)| vec![calls.range(marker, len)]);
+    assert_eq!(
+        tables.call_hierarchy_outgoing(&derived),
+        Some(vec![outgoing(&empty, to_empty.clone())])
+    );
+    assert_eq!(
+        tables.call_hierarchy_outgoing(&explicit),
+        Some(vec![outgoing(&empty, from_explicit.clone())])
+    );
+    assert_eq!(
+        tables.call_hierarchy_outgoing(&deploy),
+        Some(vec![outgoing(&derived, creation.clone())])
+    );
+    assert_eq!(
+        tables.call_hierarchy_incoming(&empty),
+        Some(vec![incoming(&derived, to_empty), incoming(&explicit, from_explicit)])
+    );
+    assert_eq!(tables.call_hierarchy_incoming(&derived), Some(vec![incoming(&deploy, creation)]));
+    // Interfaces, libraries, and bare inheritance have no constructor call.
+    for marker in ["$8", "$9", "$10"] {
+        assert_eq!(calls.prepare_at(&tables, marker, 0), None);
+    }
+}
+
+#[test]
+fn indexes_implicit_constructor_inheritance_calls() {
+    let calls = Calls::new(
+        r#"
+        //- /Token.sol
+        contract ERC20 {
+            $1constructor(string memory name_, string memory symbol_) {}
+        }
+        contract $2T is $3ERC20("N", "S") {
+            $4uint256 value;
+        }
+        "#,
+    );
+    let tables = calls.analyze_clean(&["/Token.sol"]);
+    let [base, derived] = ["$1", "$2"].map(|marker| calls.item(&tables, marker));
+    assert_eq!(calls.prepare_at(&tables, "$3", 0), Some(vec![base.clone()]));
+    assert_eq!(
+        (derived.name.as_str(), derived.kind, derived.detail.as_deref()),
+        ("T", SymbolKind::CONSTRUCTOR, Some("implicit constructor"))
+    );
+    let call = vec![calls.range("$3", 5)];
+    assert_eq!(derived.selection_range, calls.range("$2", 1));
+    assert!(derived.range.start <= derived.selection_range.start);
+    assert!(derived.range.end >= call[0].end);
+    assert_eq!(tables.call_hierarchy_outgoing(&derived), Some(vec![outgoing(&base, call.clone())]));
+    assert_eq!(tables.call_hierarchy_incoming(&base), Some(vec![incoming(&derived, call)]));
+    // The whole contract must not become an enclosing constructor body.
+    assert_eq!(calls.prepare_at(&tables, "$4", 0), None);
+}
+
+#[test]
+fn merges_implicit_constructors_and_isolates_conflicting_base_calls() {
+    let calls = Calls::new(
+        r#"
+        //- /Base.sol
+        contract Base {
+            $1constructor(uint256) {}
+        }
+        //- /Caller.sol
+        import {Base} from "./Base.sol";
+        function $2argument() pure returns (uint256) { return 1; }
+        contract $3T is $4Base($5argument()) {}
+        contract Factory {
+            function $6deploy() external { new $7T(); }
+        }
+        //- /RootA.sol
+        import "./Caller.sol";
+        //- /RootB.sol
+        import "./Caller.sol";
+        //- /RootC.sol
+        import "./Caller.sol";
+        "#,
+    );
+    let tables = calls.analyze_clean(&["/RootA.sol"]);
+    let [base, argument, constructor, deploy] =
+        ["$1", "$2", "$3", "$6"].map(|marker| calls.item(&tables, marker));
+    let [base_call, argument_call, creation] =
+        [("$4", 4), ("$5", 8), ("$7", 1)].map(|(marker, len)| vec![calls.range(marker, len)]);
+
+    // Items prepared before the merge retain one edge per source call after deduplication.
+    let tables = merge_symbol_tables(tables, calls.analyze_clean(&["/RootB.sol"]));
+    assert_eq!(calls.prepare_at(&tables, "$3", 0), Some(vec![constructor.clone()]));
+    assert_eq!(
+        tables.call_hierarchy_outgoing(&constructor),
+        Some(vec![outgoing(&base, base_call.clone()), outgoing(&argument, argument_call.clone())])
+    );
+    assert_eq!(
+        tables.call_hierarchy_incoming(&base),
+        Some(vec![incoming(&constructor, base_call)])
+    );
+    assert_eq!(
+        tables.call_hierarchy_incoming(&argument),
+        Some(vec![incoming(&constructor, argument_call)])
+    );
+    assert_eq!(
+        tables.call_hierarchy_incoming(&constructor),
+        Some(vec![incoming(&deploy, creation.clone())])
+    );
+    assert_eq!(
+        tables.call_hierarchy_outgoing(&deploy),
+        Some(vec![outgoing(&constructor, creation)])
+    );
+
+    // The caller's text stays identical, but a moved imported constructor changes its call facts.
+    let project = calls.0.project();
+    project.write_file(
+        "/Base.sol",
+        &project.read_file("/Base.sol").replace("constructor(", "\nconstructor("),
+    );
+    let tables = merge_symbol_tables(tables, calls.analyze_clean(&["/RootC.sol"]));
+    assert_eq!(calls.prepare_at(&tables, "$3", 0), None);
+    assert_eq!(tables.call_hierarchy_outgoing(&constructor), None);
+    assert_eq!(tables.call_hierarchy_incoming(&argument), None);
+    assert_eq!(tables.call_hierarchy_outgoing(&deploy), None);
+}
+
+#[test]
+fn rejects_renamed_or_explicitly_replaced_implicit_constructors() {
+    let calls = Calls::new(
+        r#"
+        //- /Replaced.sol
+        contract Base { $1constructor(uint256) {} }
+        contract $2T is $3Base(1) {}
+        "#,
+    );
+    let contents = calls.0.project().read_file("/Replaced.sol");
+    let analyze = |contents: String| {
+        let result = analyze_source(calls.0.project().path("/Replaced.sol"), contents);
+        assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
+        result.symbol_tables
+    };
+    let tables = analyze(contents.clone());
+    let [base, constructor] = ["$1", "$2"].map(|marker| calls.item(&tables, marker));
+
+    let renamed = analyze(contents.replace("contract T", "contract U"));
+    let renamed_constructor = calls.item(&renamed, "$2");
+    assert_eq!(constructor.selection_range, renamed_constructor.selection_range);
+    assert_eq!(renamed_constructor.name, "U");
+    assert_eq!(
+        renamed.call_hierarchy_outgoing(&renamed_constructor),
+        Some(vec![outgoing(&base, vec![calls.range("$3", 4)])])
+    );
+    let explicit = analyze(
+        contents.replace("contract T is Base(1) {}", "contract T is Base(1) { constructor() {} }"),
+    );
+    assert_eq!(calls.prepare_at(&explicit, "$2", 0), None);
+    for tables in [&renamed, &explicit] {
+        assert_eq!(tables.call_hierarchy_outgoing(&constructor), None);
+        assert_eq!(tables.call_hierarchy_incoming(&constructor), None);
+    }
+}
+
 struct Calls(MarkedProject);
 
 impl Calls {
@@ -473,13 +654,22 @@ impl Calls {
         Self(MarkedProject::from_fixture(fixture))
     }
 
-    fn analyze(&self, paths: &[&str]) -> SymbolTables {
+    fn analysis(&self, paths: &[&str]) -> AnalysisResult {
         let project = self.0.project();
         analyze(AnalysisBatch::from_files(
             CompileOpts::default(),
             paths.iter().map(|path| (project.path(path), project.read_file(path))),
         ))
-        .symbol_tables
+    }
+
+    fn analyze(&self, paths: &[&str]) -> SymbolTables {
+        self.analysis(paths).symbol_tables
+    }
+
+    fn analyze_clean(&self, paths: &[&str]) -> SymbolTables {
+        let result = self.analysis(paths);
+        assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
+        result.symbol_tables
     }
 
     fn analyze_contents(&self, path: &str, contents: String) -> SymbolTables {
