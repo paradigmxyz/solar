@@ -36,12 +36,9 @@ use super::{
     compact_pushes::{ImmediatePolicy, materialize_immediate, policy_materialization_cost},
     utils::MachineInstKey,
 };
-use crate::{
-    backend::evm::{
-        ir::{Instruction, Module, PushValue, TerminatorKind},
-        op,
-    },
-    target::Target,
+use crate::backend::evm::{
+    ir::{Instruction, Module, PushValue, TerminatorKind},
+    op,
 };
 use alloy_primitives::U256;
 use solar_data_structures::map::{FxHashMap, FxHasher};
@@ -174,7 +171,7 @@ impl fmt::Debug for CleanBlocks {
 }
 
 fn optimize_module(gcx: Gcx<'_>, module: &mut Module, late: bool, final_cleanup: bool) -> bool {
-    let policy = ImmediatePolicy::of(Target::new(gcx));
+    let policy = ImmediatePolicy::of(module.target(gcx));
     let mut changed = false;
     let mut scratch = Vec::new();
     let clean = &mut module.peephole_clean;

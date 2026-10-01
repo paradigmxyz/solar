@@ -1,0 +1,25 @@
+- // === ROOT/tests/ui/codegen/mir/none/optimize.mir (before none) ===
++ // === ROOT/tests/ui/codegen/mir/none/optimize.mir (after none) ===
+  @module Optimize
+  @phase lowered
+  @optimize size
+  fn @entry() [entry] {
+    bb0:
+      mstore 0, 0x101010101010101010101010101010101010101010101010101010101010101
+      returndata 0, 32
+  }
+  
+// === ROOT/tests/ui/codegen/mir/none/optimize.mir:Optimize (runtime) ===
+@module Optimize_runtime
+@optimize size
+bb0:
+  push 255
+  push 0
+  not
+  div
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+{"contracts":{"ROOT/tests/ui/codegen/mir/none/optimize.mir:Optimize":{"bin-runtime":"60ff5f19045f5260205ff3"}},"version":"VERSION"}

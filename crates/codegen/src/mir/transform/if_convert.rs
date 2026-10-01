@@ -100,7 +100,7 @@ impl MirPass for IfConvert {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        let target = Target::new(gcx);
+        let target = module.target(gcx);
         run_function_pass(module, analyses, |func, _| if_convert_function(func, target, true))
     }
 }
@@ -119,7 +119,7 @@ impl MirPass for MergeConditions {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        let target = Target::new(gcx);
+        let target = module.target(gcx);
         run_function_pass(module, analyses, |func, _| if_convert_function(func, target, false))
     }
 }

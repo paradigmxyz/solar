@@ -107,12 +107,12 @@ impl MirPass for LlmOptimize {
 
     fn is_enabled(&self, gcx: Gcx<'_>, module: &Module) -> bool {
         gcx.sess.opts.unstable.llm_optimize.is_some()
-            && !matches!(gcx.sess.opts.optimization, OptimizationMode::None)
+            && !matches!(module.optimization(gcx), OptimizationMode::None)
             && module.phase() == MirPhase::Lowered
     }
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module, _analyses: &mut ModuleAnalyses) -> bool {
-        let Some(optimizer) = Optimizer::new(gcx) else { return false };
+        let Some(optimizer) = Optimizer::new(gcx, module.target(gcx)) else { return false };
         let rewrites = optimizer.run(module);
         let changed = !rewrites.is_empty();
         for (id, rewrite) in rewrites {
@@ -166,7 +166,7 @@ struct Optimizer<'gcx> {
 }
 
 impl<'gcx> Optimizer<'gcx> {
-    fn new(gcx: Gcx<'gcx>) -> Option<Self> {
+    fn new(gcx: Gcx<'gcx>, target: Target) -> Option<Self> {
         let unstable = &gcx.sess.opts.unstable;
         let (rewriter, source): (Option<Arc<dyn LlmRewriter>>, _) = match unstable.llm_optimize? {
             LlmOptimizeMode::Replay => (None, "replay".to_string()),
@@ -194,7 +194,6 @@ impl<'gcx> Optimizer<'gcx> {
             }
             _ => return None,
         };
-        let target = Target::new(gcx);
         Some(Self {
             gcx,
             target,

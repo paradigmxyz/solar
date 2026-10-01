@@ -406,9 +406,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             CoreIntrinsic::Mul512 => self.lower_core_mul512(function_id, &operands),
             // A constant, so the path it guards folds away in the other builds.
-            CoreIntrinsic::GasFirst => {
-                Some(self.builder.imm_bool(self.cx.gcx.sess.opts.optimization.is_gas()))
-            }
+            CoreIntrinsic::GasFirst => Some(self.builder.imm_bool(self.cx.optimization().is_gas())),
             CoreIntrinsic::WrappingAdd
             | CoreIntrinsic::WrappingSub
             | CoreIntrinsic::WrappingMul => {
@@ -543,7 +541,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // Other builds than gas take the table for every length.
         self.builder.switch_to_block(sized);
         let allocate = self.builder.create_block();
-        if self.cx.gcx.sess.opts.optimization.is_gas() {
+        if self.cx.optimization().is_gas() {
             let seven = self.builder.imm(7);
             let few = self.builder.lt(length, seven);
             let pairwise = self.builder.create_block();
@@ -811,7 +809,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let TyKind::DynArray(element) = array_ty.peel_refs().kind else { return None };
         let signed = element.is_signed();
         let address = matches!(element.kind, TyKind::Elementary(ElementaryType::Address(_)));
-        if !self.cx.gcx.sess.opts.optimization.is_gas() {
+        if !self.cx.optimization().is_gas() {
             return self.lower_core_array_set_shared_call(*a, *b, operation, signed, address);
         }
         let name = match (operation, signed, address) {
@@ -900,7 +898,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let ([a], [array_ty]) = (operands, parameter_tys) else { return None };
         let addresses = Self::is_address_array(*array_ty)?;
         // Other builds than gas share the word helper with addresses too.
-        let address = addresses && self.cx.gcx.sess.opts.optimization.is_gas();
+        let address = addresses && self.cx.optimization().is_gas();
         let name = if address { sym::core_array_copy_address } else { sym::core_array_copy };
         let array = MirType::MemoryObject(MemoryObjectKind::DynamicArray);
         let helper = self.lazy_helper(name, |this, function| {
@@ -1197,7 +1195,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     ) -> Option<ValueId> {
         let ([keys, values], [keys_ty, _]) = (operands, parameter_tys) else { return None };
         let addresses = Self::is_address_array(*keys_ty)?;
-        let shared = !self.cx.gcx.sess.opts.optimization.is_gas();
+        let shared = !self.cx.optimization().is_gas();
         let sort = if shared {
             self.core_shared_sort(addresses)?
         } else {
@@ -1427,7 +1425,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let addresses = Self::is_address_array(*array_ty)?;
         // Other builds than gas call the one paired sort that `groupSum` also
         // uses, with a zero pair and a flip for signed elements.
-        let shared = !self.cx.gcx.sess.opts.optimization.is_gas();
+        let shared = !self.cx.optimization().is_gas();
         let helper = if shared {
             self.core_shared_sort(addresses)?
         } else {
@@ -1510,7 +1508,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         pair: Option<ValueId>,
     ) {
         // Other builds than gas sort every range, sorted or not, without the scans.
-        if !self.cx.gcx.sess.opts.optimization.is_gas() {
+        if !self.cx.optimization().is_gas() {
             self.call_core_sort_inner(inner, order, low, high, pair);
             return;
         }
@@ -2993,7 +2991,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         result: MirType,
         lower: for<'a, 'b> fn(&mut FunctionLowerer<'a, 'b>, &[ValueId]) -> Option<ValueId>,
     ) -> Option<ValueId> {
-        if self.cx.gcx.sess.opts.optimization.is_gas() {
+        if self.cx.optimization().is_gas() {
             return lower(self, operands);
         }
         let tys = operands

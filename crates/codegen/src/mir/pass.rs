@@ -129,7 +129,7 @@ impl<P: MirPass> MirPass for SizeOnly<P> {
     }
 
     fn is_enabled(&self, gcx: solar_sema::Gcx<'_>, module: &Module) -> bool {
-        gcx.sess.opts.optimization.is_size() && self.0.is_enabled(gcx, module)
+        module.optimization(gcx).is_size() && self.0.is_enabled(gcx, module)
     }
 
     fn is_required(&self) -> bool {
@@ -160,7 +160,7 @@ impl<P: MirPass> MirPass for GasOnly<P> {
     }
 
     fn is_enabled(&self, gcx: solar_sema::Gcx<'_>, module: &Module) -> bool {
-        gcx.sess.opts.optimization.is_gas() && self.0.is_enabled(gcx, module)
+        module.optimization(gcx).is_gas() && self.0.is_enabled(gcx, module)
     }
 
     fn is_required(&self) -> bool {

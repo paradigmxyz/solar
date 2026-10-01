@@ -22,12 +22,9 @@ use super::{
     peephole::{invert_comparison, materialization_cost},
     utils::is_split_point,
 };
-use crate::{
-    backend::evm::{
-        ir::{BlockId, Instruction, Module, PushValue, Terminator, TerminatorKind},
-        op,
-    },
-    target::Target,
+use crate::backend::evm::{
+    ir::{BlockId, Instruction, Module, PushValue, Terminator, TerminatorKind},
+    op,
 };
 use alloy_primitives::U256;
 use solar_data_structures::bit_set::DenseBitSet;
@@ -47,7 +44,7 @@ impl EvmPass for ShareReverts {
 
 fn share_reverts(gcx: Gcx<'_>, module: &mut Module) -> bool {
     let evm_version = gcx.sess.opts.evm_version;
-    let policy = ImmediatePolicy::of(Target::new(gcx));
+    let policy = ImmediatePolicy::of(module.target(gcx));
     let mut empty_reverts = DenseBitSet::new_empty(module.blocks.len());
     for block in module.blocks.indices().filter(|&block| is_empty_revert(module, block)) {
         empty_reverts.insert(block);

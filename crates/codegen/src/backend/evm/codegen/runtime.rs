@@ -29,8 +29,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             MirPhase::Lowered,
             "EVM codegen requires MIR in the final phase"
         );
-        let mut preserve_caller_stack =
-            !matches!(self.gcx.sess.opts.optimization, OptimizationMode::None);
+        let mut preserve_caller_stack = !matches!(self.optimization, OptimizationMode::None);
         let mut runtime_stack_args = true;
         let mut stack_returns_enabled = true;
         self.disabled_stack_only_functions.clear_to(module.functions.len());
@@ -115,6 +114,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.asm.clear();
         self.asm.set_artifact_kind(ArtifactKind::Runtime);
         self.asm.set_evm_ir_name(module.name.name);
+        self.asm.set_optimize(module.optimize);
         self.asm.load_data(module);
         self.block_labels.clear();
         self.function_labels.clear();
@@ -386,7 +386,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         // Compact dispatch can leave its selector below a separately scheduled wrapper.
         // An entry with inlined bodies uses ordinary intra-function switch cleanup instead.
         self.record_runtime_entry_reachability(call_graph, entry_id);
-        if self.gcx.sess.opts.optimization.is_size() {
+        if self.optimization.is_size() {
             let entries = module
                 .functions
                 .iter_enumerated()

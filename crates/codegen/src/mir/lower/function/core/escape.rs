@@ -68,7 +68,7 @@ impl FunctionLowerer<'_, '_> {
     ) -> Option<ValueId> {
         // Size-first builds keep one JSON body: the unquoted form passes a false flag, which
         // specialization folds when no other caller shares the body.
-        let size_first = !self.cx.gcx.sess.opts.optimization.is_gas();
+        let size_first = !self.cx.optimization().is_gas();
         let (subject, quotes) = match (escape, operands) {
             (Escape::Json, &[subject, quotes]) => (subject, Some(quotes)),
             (Escape::Json, &[subject]) if size_first => (subject, Some(self.builder.imm(0))),
@@ -133,7 +133,7 @@ impl FunctionLowerer<'_, '_> {
         let tail_bytes = self.builder.create_block();
         let finish = self.builder.create_block();
         // Size-first builds copy byte by byte only.
-        let has_word_test = escape != Escape::Uri && self.cx.gcx.sess.opts.optimization.is_gas();
+        let has_word_test = escape != Escape::Uri && self.cx.optimization().is_gas();
         // Every byte loop resumes at the word loop, or at the tail without one.
         let resume = if has_word_test { self.builder.create_block() } else { tail };
         let words = resume;

@@ -59,7 +59,7 @@ const LOW_GAS: usize = GasTier::Low.fixed_gas() as usize;
 
 fn compact_pushes(gcx: Gcx<'_>, module: &mut Module) -> bool {
     // Size builds and cold blocks put bytes first, which the repeated-pattern recipes serve.
-    let policy = match ImmediatePolicy::of(Target::new(gcx)) {
+    let policy = match ImmediatePolicy::of(module.target(gcx)) {
         ImmediatePolicy::Bytes(evm_version) => ImmediatePolicy::Smallest(evm_version),
         policy => policy,
     };
@@ -430,8 +430,8 @@ fn select(policy: ImmediatePolicy, value: U256) -> ((usize, usize), CompactPush)
     best
 }
 
-pub(super) fn selected_len(gcx: Gcx<'_>, value: U256) -> usize {
-    select(ImmediatePolicy::of(Target::new(gcx)), value).0.0
+pub(super) fn selected_len(target: Target, value: U256) -> usize {
+    select(ImmediatePolicy::of(target), value).0.0
 }
 
 pub(in crate::backend) fn immediate_materialization_len(

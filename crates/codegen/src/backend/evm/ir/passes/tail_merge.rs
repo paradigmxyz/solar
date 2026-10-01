@@ -133,7 +133,7 @@ impl RunState {
         self.tail_representatives.clear();
         self.tail_lazy.clear();
         let in_gas_loop =
-            |block: &Block| gcx.sess.opts.optimization.is_gas() && block.metadata.in_loop;
+            |block: &Block| module.optimization(gcx).is_gas() && block.metadata.in_loop;
         let blocks = module.blocks.iter_enumerated();
         for (block_id, block) in blocks
             .clone()
@@ -146,11 +146,11 @@ impl RunState {
             // Do not use loop bodies to seed sharing groups. They may reuse a tail
             // from a non-loop path to preserve common loop entries.
             let keep_branches =
-                gcx.sess.opts.optimization.is_gas() && has_short_word_backedge(module, block_id);
+                module.optimization(gcx).is_gas() && has_short_word_backedge(module, block_id);
             let matched = self.longest_common_tail(module, block, keep_branches);
-            let in_gas_loop = gcx.sess.opts.optimization.is_gas() && block.metadata.in_loop;
+            let in_gas_loop = module.optimization(gcx).is_gas() && block.metadata.in_loop;
 
-            let target = Target::new(gcx);
+            let target = module.target(gcx);
             let transfer_bytes = (target.opcode(op::PUSH2).bytes
                 + target.opcode(op::JUMP).bytes
                 + target.opcode(op::JUMPDEST).bytes) as usize;
@@ -165,7 +165,7 @@ impl RunState {
                     let suffix_size = suffix_size(gcx, module, block_id, common);
                     let saved_bytes = suffix_size.saturating_sub(transfer_bytes);
                     suffix_size > transfer_bytes
-                        && (!gcx.sess.opts.optimization.is_gas()
+                        && (!module.optimization(gcx).is_gas()
                             || !hot
                             || tail_merge_improves_lifetime(
                                 saved_bytes,
@@ -586,7 +586,7 @@ fn suffix_size(gcx: Gcx<'_>, module: &Module, block_id: BlockId, common: usize) 
             .iter()
             .map(|inst| match inst.as_stack_op() {
                 Some(StackOp::Exchange(_, ..=16)) => 3,
-                _ => instruction_size_lower_bound(gcx, inst),
+                _ => instruction_size_lower_bound(module.target(gcx), inst),
             })
             .sum::<usize>()
 }
@@ -611,7 +611,7 @@ fn terminator_lower_bound(
 /// keeps the one-byte bound, leaving its lifetime pricing of hot tails unchanged.
 fn label_push_lower_bound(gcx: Gcx<'_>, module: &Module, target: BlockId) -> usize {
     let entry = BlockId::from_usize(0);
-    let past_entry = !gcx.sess.opts.optimization.is_gas()
+    let past_entry = !module.optimization(gcx).is_gas()
         && target != entry
         && !module.blocks[entry].instructions.is_empty();
     push_len(gcx.sess.opts.evm_version, alloy_primitives::U256::from(u8::from(past_entry)))

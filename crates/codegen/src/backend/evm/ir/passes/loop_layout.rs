@@ -20,12 +20,9 @@ use super::{
     block_layout::{BlockLayout, is_physical_terminal_boundary, layout_successor},
     utils::remap_block_order,
 };
-use crate::{
-    backend::evm::{
-        ir::{BlockId, Module, TerminatorKind},
-        op,
-    },
-    target::Target,
+use crate::backend::evm::{
+    ir::{BlockId, Module, TerminatorKind},
+    op,
 };
 use smallvec::SmallVec;
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
@@ -39,7 +36,7 @@ impl EvmPass for LoopLayout {
     }
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
-        if !gcx.sess.opts.optimization.is_gas() {
+        if !module.optimization(gcx).is_gas() {
             return false;
         }
         BlockLayout.run_pass(gcx, module) | place_loop_latches(gcx, module)
@@ -171,7 +168,7 @@ fn place_loop_latches(gcx: Gcx<'_>, module: &mut Module) -> bool {
                 let weights = backedge_weights(module, &mut branches, *header);
                 let before = weights.get(&preheader).copied().unwrap_or(0);
                 let after = weights.get(&latch).copied().unwrap_or(0);
-                let price = u128::from(Target::new(gcx).opcode(op::JUMP).gas);
+                let price = u128::from(module.target(gcx).opcode(op::JUMP).gas);
                 after != 0 && u128::from(after) * price > u128::from(before) * price * 2
             } else {
                 true

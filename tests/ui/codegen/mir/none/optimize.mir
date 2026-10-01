@@ -1,0 +1,23 @@
+//@ revisions: gas size
+//@[gas] compile-flags: -Ogas --emit=bin-runtime -Zdump=evm-ir-runtime
+//@[size] compile-flags: -Osize --emit=bin-runtime -Zdump=evm-ir-runtime
+//@ filecheck:
+// A lowered module's `@optimize` line, which a contract's `@custom:solar-optimize` tag sets,
+// selects the objective of its code in every optimized build: the gas build emits the same
+// size-first code as the size build, and the program keeps the line.
+@module Optimize
+@phase lowered
+@optimize size
+// CHECK-LABEL: (runtime) ===
+// CHECK-NEXT: @module Optimize_runtime
+// CHECK-NEXT: @optimize size
+// CHECK-NEXT: bb0:
+// CHECK-NEXT: push 255
+// CHECK-NEXT: push 0
+// CHECK-NEXT: not
+// CHECK-NEXT: div
+fn @entry() [entry] {
+  bb0:
+    mstore 0, 0x0101010101010101010101010101010101010101010101010101010101010101
+    returndata 0, 32
+}

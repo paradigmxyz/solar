@@ -20,6 +20,7 @@ use crate::mir::{Function, FunctionAttributes, FunctionBuilder, FunctionId, Modu
 pub(super) fn lower(gcx: Gcx<'_>, contract_id: ContractId) -> Module {
     let contract = gcx.hir.contract(contract_id);
     let mut module = Module::new(contract.name);
+    module.optimize = gcx.hir.solar_optimize(contract_id);
     let storage = StorageLayout::for_contract(gcx, contract_id);
     let mut immutable_ids = FxHashMap::default();
     for &base in contract.linearized_bases.iter().rev() {

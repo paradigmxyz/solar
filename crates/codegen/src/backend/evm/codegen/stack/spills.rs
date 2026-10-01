@@ -83,7 +83,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         // Coloring minimizes the local frame, which reduces memory expansion in gas mode. It is
         // deliberately disabled in size mode because renumbering spill addresses disturbed
         // downstream block sharing and regressed aggregate CI bytecode despite smaller frames.
-        if self.gcx.sess.opts.optimization.is_gas() {
+        if self.optimization.is_gas() {
             let colorable = cross_block_live;
             let ranges = Self::spill_live_ranges(func, liveness, colorable, &recomputable);
             let interferences =
@@ -119,7 +119,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         // A free-memory-pointer load cannot be recomputed after the pointer moves. Reserve stable
         // slots for cross-block values, including direct uses that liveness does not carry. Size
         // mode keeps every FMP slot stable because block-local reuse can increase output size.
-        let reserve_all = matches!(self.gcx.sess.opts.optimization, OptimizationMode::Size);
+        let reserve_all = matches!(self.optimization, OptimizationMode::Size);
         let reloaded = Self::cross_block_reload_values(func);
         for val in Self::fmp_load_values(func) {
             if reserve_all || values.contains(val) || reloaded.contains(val) {
@@ -936,7 +936,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             Load(SpillSlot),
         }
 
-        if matches!(self.gcx.sess.opts.optimization, OptimizationMode::None) {
+        if matches!(self.optimization, OptimizationMode::None) {
             return;
         }
 

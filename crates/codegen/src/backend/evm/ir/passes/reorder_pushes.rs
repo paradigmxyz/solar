@@ -52,8 +52,8 @@ impl EvmPass for ReorderPushes {
         if self.reorder_closed_expressions { "reorder-expressions" } else { "reorder-pushes" }
     }
 
-    fn is_enabled(&self, gcx: Gcx<'_>, _module: &Module) -> bool {
-        !matches!(gcx.sess.opts.optimization, OptimizationMode::None)
+    fn is_enabled(&self, gcx: Gcx<'_>, module: &Module) -> bool {
+        !matches!(module.optimization(gcx), OptimizationMode::None)
     }
 
     fn cache_config(&self) -> u64 {
@@ -64,7 +64,7 @@ impl EvmPass for ReorderPushes {
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
         let evm_version = gcx.sess.opts.evm_version;
         let reorder_expressions = self.reorder_legacy_size_expressions
-            || !gcx.sess.opts.optimization.is_size()
+            || !module.optimization(gcx).is_size()
             || gcx.sess.opts.evm_version.has_extended_stack_ops();
         let mut state = ReorderState::default();
         let mut changed = false;

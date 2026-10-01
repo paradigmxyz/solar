@@ -1,0 +1,76 @@
+// === ROOT/tests/ui/codegen/lowering/solar_optimize.sol:Small ===
+@module Small
+@phase lowered
+@optimize size
+fn @f() [selector=0xb3de648b, abi_wrapper, pure] {
+  bb0:
+    v3 = calldatasize
+    v4 = lt v3, 36
+    jumpi v4, bb3, bb4
+  bb4:
+    v1 = add arg0, 1
+    v2 = eq v1, 0
+    jumpi v2, bb1, bb2
+  bb2:
+    mstore 0, v1 !metadata(memory=scratch)
+    returndata 0, 32
+  bb1:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 17 !metadata(memory=scratch)
+    revert 28, 36
+  bb3:
+    revert 0, 0
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb3, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr 224, v2
+    switch v3, default bb3, [0xb3de648b => bb2]
+  bb2:
+    tail_call @f
+  bb3:
+    revert 0, 0
+}
+
+// === ROOT/tests/ui/codegen/lowering/solar_optimize.sol:Plain ===
+@module Plain
+@phase lowered
+fn @f() [selector=0xb3de648b, abi_wrapper, pure] {
+  bb0:
+    v3 = calldatasize
+    v4 = lt v3, 36
+    jumpi v4, bb3, bb4
+  bb4:
+    v1 = add arg0, 1
+    v2 = eq v1, 0
+    jumpi v2, bb1, bb2
+  bb2:
+    mstore 0, v1 !metadata(memory=scratch)
+    returndata 0, 32
+  bb1:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 17 !metadata(memory=scratch)
+    revert 28, 36
+  bb3:
+    revert 0, 0
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb3, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr 224, v2
+    switch v3, default bb3, [0xb3de648b => bb2]
+  bb2:
+    tail_call @f
+  bb3:
+    revert 0, 0
+}

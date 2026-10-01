@@ -26,7 +26,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 abi.entry = StaticCallEntry::Stored;
             }
         }
-        if matches!(self.gcx.sess.opts.optimization, OptimizationMode::None) {
+        if matches!(self.optimization, OptimizationMode::None) {
             return;
         }
 
@@ -206,7 +206,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         module: &Module,
     ) -> FxHashMap<FunctionId, StackArgUseInfo> {
         let mut all_uses = FxHashMap::default();
-        if matches!(self.gcx.sess.opts.optimization, OptimizationMode::None) {
+        if matches!(self.optimization, OptimizationMode::None) {
             return all_uses;
         }
 
@@ -278,7 +278,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 abi.entry = StaticCallEntry::Stored;
             }
         }
-        if matches!(self.gcx.sess.opts.optimization, OptimizationMode::None) {
+        if matches!(self.optimization, OptimizationMode::None) {
             return;
         }
 
@@ -363,7 +363,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 abi.entry = StaticCallEntry::Stored;
             }
         }
-        if matches!(self.gcx.sess.opts.optimization, OptimizationMode::None) {
+        if matches!(self.optimization, OptimizationMode::None) {
             return;
         }
 
@@ -583,7 +583,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
             let target: Vec<_> = resident.iter().copied().map(TargetSlot::Value).collect();
             let mut scheduler = StackScheduler::for_evm_version(self.gcx.sess.opts.evm_version)
-                .with_wide_permutation_search(self.gcx.sess.opts.optimization.is_gas());
+                .with_wide_permutation_search(self.optimization.is_gas());
             scheduler.stack = incoming;
             let shuffle = scheduler.shuffle_to_layout(&target).unwrap_or_else(|| {
                 panic!("could not construct selective resident entry layout for `{}`", func.name)

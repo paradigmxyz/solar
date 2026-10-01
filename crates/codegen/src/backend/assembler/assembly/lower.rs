@@ -10,7 +10,6 @@ use crate::{
         },
     },
     link::{EmbeddedBytecodes, LibraryTable},
-    target::Target,
 };
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec};
 
@@ -155,24 +154,21 @@ pub(in crate::backend) fn lower_evm_ir(
     // deleted block's assembler label.
     reset_assembler_labels(labels);
     // Moving case comparisons into table entries trades padding for gas.
-    let entry_head_executions = assembler
-        .gcx
-        .sess
-        .opts
-        .optimization
+    let entry_head_executions = module
+        .optimization(assembler.gcx)
         .is_gas()
-        .then(|| Target::new(assembler.gcx).expected_executions());
+        .then(|| module.target(assembler.gcx).expected_executions());
     let (mut indexed_jump_lowerings, mut tables) = indexed_jump::materialize_tables_with_metadata(
         module,
         assembler.gcx.sess.opts.evm_version,
-        assembler.gcx.sess.opts.optimization.is_size(),
+        module.optimization(assembler.gcx).is_size(),
         entry_head_executions,
     );
     indexed_jump::initialize_indexed_jump_widths(
         &mut indexed_jump_lowerings,
         &tables,
         assembler.gcx.sess.opts.evm_version,
-        assembler.gcx.sess.opts.optimization.is_size(),
+        module.optimization(assembler.gcx).is_size(),
     );
     let data_layout_is_observable = module.data_layout_is_observable();
     for _ in 0..=32 {
@@ -196,7 +192,7 @@ pub(in crate::backend) fn lower_evm_ir(
             labels,
             &label_offsets,
             assembler.gcx.sess.opts.evm_version,
-            assembler.gcx.sess.opts.optimization.is_size(),
+            module.optimization(assembler.gcx).is_size(),
         ) {
             return program;
         }

@@ -40,7 +40,7 @@ impl EvmPass for Dce {
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
         let copies_changed = eliminate_dead_stack_copies(
             module,
-            !gcx.sess.opts.optimization.is_size(),
+            !module.optimization(gcx).is_size(),
             gcx.sess.opts.evm_version,
         );
         cleanup_dead_stack_tails(module) || copies_changed

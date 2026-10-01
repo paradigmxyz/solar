@@ -94,7 +94,7 @@ impl MirPass for LowerAbiEncode {
         _analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
         let revert_strings = gcx.sess.opts.revert_strings;
-        let target = Target::new(gcx);
+        let target = module.target(gcx);
         // Unoptimized lowering keeps the null mask on every memory object length.
         let optimize = target.optimization().is_gas() || target.optimization().is_size();
         let non_null_returns = optimize.then(|| non_null_returning_functions(module));

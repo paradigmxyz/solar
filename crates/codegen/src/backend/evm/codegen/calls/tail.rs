@@ -38,7 +38,7 @@ impl EvmCodegen<'_> {
         func: &'a Function,
         block: BlockId,
     ) -> Option<&'a [ValueId]> {
-        if matches!(self.gcx.sess.opts.optimization, OptimizationMode::None)
+        if matches!(self.optimization, OptimizationMode::None)
             || !self.in_internal_function
             || !func.return_components().is_empty()
             || self.stack_arg_mask(caller).is_some()
@@ -108,7 +108,7 @@ impl EvmCodegen<'_> {
         func: &'a Function,
         block: BlockId,
     ) -> Option<(FunctionId, &'a [ValueId])> {
-        if matches!(self.gcx.sess.opts.optimization, OptimizationMode::None)
+        if matches!(self.optimization, OptimizationMode::None)
             || !self.in_internal_function
             || !func.return_components().is_empty()
             || !self.static_frame_functions.contains(caller)

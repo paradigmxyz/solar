@@ -68,7 +68,7 @@ impl MirPass for DeadArgElim {
         _analyses: &mut ModuleAnalyses,
     ) -> bool {
         let forwarded = forward_returned_values(module) + forward_calldata_args(module);
-        if !gcx.sess.opts.optimization.is_size() {
+        if !module.optimization(gcx).is_size() {
             return prune_unused_args(module) != 0 || forwarded != 0;
         }
         let mut changed = forwarded != 0;

@@ -419,47 +419,39 @@ impl<'gcx> EvmCodegen<'gcx> {
         for operands in &orders {
             let preserved =
                 self.preserved_operands_for(&post_call, func, operands, liveness, block, next_idx);
-            let Some(plan) = post_call.plan_operands(
-                operands,
-                &preserved,
-                func,
-                self.gcx.sess.opts.optimization,
-                cost_model,
-            ) else {
+            let Some(plan) =
+                post_call.plan_operands(operands, &preserved, func, self.optimization, cost_model)
+            else {
                 continue;
             };
             let cost = plan.cost();
-            if preserve_cost.is_none_or(|best: ScheduleCost| {
-                cost.cmp_for(best, self.gcx.sess.opts.optimization).is_lt()
-            }) {
+            if preserve_cost
+                .is_none_or(|best: ScheduleCost| cost.cmp_for(best, self.optimization).is_lt())
+            {
                 preserve_cost = Some(cost);
             }
 
             let preserved =
                 self.preserved_operands_for(&drained, func, operands, liveness, block, next_idx);
-            if let Some(plan) = drained.plan_operands(
-                operands,
-                &preserved,
-                func,
-                self.gcx.sess.opts.optimization,
-                cost_model,
-            ) {
+            if let Some(plan) =
+                drained.plan_operands(operands, &preserved, func, self.optimization, cost_model)
+            {
                 let cost = plan.cost();
-                if drained_next_cost.is_none_or(|best: ScheduleCost| {
-                    cost.cmp_for(best, self.gcx.sess.opts.optimization).is_lt()
-                }) {
+                if drained_next_cost
+                    .is_none_or(|best: ScheduleCost| cost.cmp_for(best, self.optimization).is_lt())
+                {
                     drained_next_cost = Some(cost);
                 }
             }
         }
 
         let drain_cost = drain_cost.plus(drained_next_cost?);
-        preserve_cost
-            .filter(|cost| cost.cmp_for(drain_cost, self.gcx.sess.opts.optimization).is_lt())
-            .map(|_| StaticCallStackPlan {
+        preserve_cost.filter(|cost| cost.cmp_for(drain_cost, self.optimization).is_lt()).map(|_| {
+            StaticCallStackPlan {
                 prepare_ops: Vec::new(),
                 caller_stack: self.scheduler.stack.clone(),
-            })
+            }
+        })
     }
 
     fn static_call_operand_orders(kind: &InstKind) -> SmallVec<[SmallVec<[ValueId; 3]>; 2]> {

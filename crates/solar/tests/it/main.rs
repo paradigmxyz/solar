@@ -10,3 +10,6 @@ mod llm;
 
 #[cfg(feature = "cli")]
 mod lsp;
+
+#[cfg(feature = "cli")]
+mod optimize_tags;

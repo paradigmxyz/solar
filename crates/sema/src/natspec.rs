@@ -317,6 +317,7 @@ impl<'gcx> Resolver<'gcx> {
         let mut inheritdoc = None;
         let mut state = ValidationState::default();
         let mut local_tags = SmallVec::<[NatSpecItem; 8]>::new();
+        let mut first_optimize = None;
 
         for doc_comment in docs.iter() {
             for natspec in doc_comment.natspec.iter() {
@@ -331,9 +332,17 @@ impl<'gcx> Resolver<'gcx> {
                         // `solar-trusted` are the Solar tags of a declaration.
                         if let NatSpecKind::Custom { name } = natspec.kind
                             && let Some(tag) = SolarTag::from_custom(name.name)
-                            && !item_tag_applies(self.gcx, tag, item_id)
                         {
-                            report_misplaced_solar_tag(self.gcx.dcx(), tag, name.name, tag_span);
+                            if !item_tag_applies(self.gcx, tag, item_id) {
+                                report_misplaced_solar_tag(
+                                    self.gcx.dcx(),
+                                    tag,
+                                    name.name,
+                                    tag_span,
+                                );
+                            } else if tag == SolarTag::Optimize {
+                                self.validate_solar_optimize(natspec, &mut first_optimize);
+                            }
                         }
                         local_tags.push(*natspec);
                     }
@@ -546,6 +555,31 @@ impl<'gcx> Resolver<'gcx> {
     }
 
     #[cold]
+    /// Checks that a `@custom:solar-optimize` tag names one objective, and that it is the only one
+    /// on its item.
+    fn validate_solar_optimize(&self, natspec: &ast::NatSpecItem, first: &mut Option<Span>) {
+        if let Some(first) = *first {
+            self.gcx
+                .dcx()
+                .err("duplicate `@custom:solar-optimize` tag")
+                .span(natspec.span)
+                .span_note(first, "the first tag is here")
+                .help("keep one tag naming the objective")
+                .emit();
+            return;
+        }
+        *first = Some(natspec.span);
+        let mut words = natspec.content().split_whitespace();
+        if !matches!((words.next(), words.next()), (Some("gas" | "size"), None)) {
+            self.gcx
+                .dcx()
+                .err("`@custom:solar-optimize` must name one objective, `gas` or `size`")
+                .span(natspec.span)
+                .help("write `@custom:solar-optimize size` to optimize this code for size")
+                .emit();
+        }
+    }
+
     fn emit_forbidden_tag_warning(&self, tag_name: &str, tag_span: Span, item_id: hir::ItemId) {
         let item_desc = self.gcx.hir.item(item_id).description();
         self.gcx
@@ -856,6 +890,9 @@ pub(crate) enum SolarTag {
     /// `@custom:solar-handle <field> <dictionary>`: a struct keeps the index of a field's value
     /// in an append-only dictionary array instead of the value.
     Handle,
+    /// `@custom:solar-optimize <gas|size>`: optimized builds of the contract optimize its code for
+    /// this objective instead of the one the build selects.
+    Optimize,
     /// A `solar-` tag this compiler does not define.
     Unknown,
 }
@@ -873,6 +910,7 @@ impl SolarTag {
             sym::solar_dash_inline => Some(Self::Inline),
             sym::solar_dash_bitmap => Some(Self::Bitmap),
             sym::solar_dash_handle => Some(Self::Handle),
+            sym::solar_dash_optimize => Some(Self::Optimize),
             _ => name.as_str().starts_with("solar-").then_some(Self::Unknown),
         }
     }
@@ -882,12 +920,17 @@ impl SolarTag {
 /// library, `@custom:solar-trusted` one of those or a function or modifier with a body,
 /// `@custom:solar-fuse` and `@custom:solar-bitmap` a mapping state variable, `@custom:solar-inline`
 /// a dynamic storage array state variable, `@custom:solar-handle` a struct declared in a contract,
-/// and the other declaration tags what [`declaration_tag_applies`] accepts.
+/// `@custom:solar-optimize` a non-abstract contract or a library, and the other declaration tags
+/// what [`declaration_tag_applies`] accepts.
 fn item_tag_applies(gcx: Gcx<'_>, tag: SolarTag, item: hir::ItemId) -> bool {
     let code_contract = |id| gcx.hir.contract(id).kind != hir::ContractKind::Interface;
     match (tag, item) {
         (SolarTag::Terminates | SolarTag::View, item) => declaration_tag_applies(gcx, item),
         (SolarTag::Safe | SolarTag::Trusted, hir::ItemId::Contract(id)) => code_contract(id),
+        (SolarTag::Optimize, hir::ItemId::Contract(id)) => matches!(
+            gcx.hir.contract(id).kind,
+            hir::ContractKind::Contract | hir::ContractKind::Library
+        ),
         (SolarTag::Trusted, hir::ItemId::Function(id)) => gcx.hir.function(id).body.is_some(),
         (SolarTag::Fuse | SolarTag::Bitmap, hir::ItemId::Variable(id)) => {
             let variable = gcx.hir.variable(id);
@@ -984,6 +1027,14 @@ pub(crate) fn report_misplaced_solar_tag(dcx: &DiagCtxt, tag: SolarTag, name: Sy
                  `@custom:solar-handle marketId markets`",
             )
             .emit(),
+        SolarTag::Optimize => dcx
+            .err("`@custom:solar-optimize` must document a non-abstract contract or a library")
+            .span(span)
+            .help(
+                "put it on the contract or library whose code to optimize, naming the objective: \
+                 `@custom:solar-optimize size`",
+            )
+            .emit(),
         SolarTag::Unknown => dcx
             .err(format!("unknown Solar tag `@custom:{name}`"))
             .span(span)
@@ -991,8 +1042,8 @@ pub(crate) fn report_misplaced_solar_tag(dcx: &DiagCtxt, tag: SolarTag, name: Sy
             .help(
                 "the supported tags are `@custom:solar-view`, `@custom:solar-scratch`, \
                  `@custom:solar-terminates`, `@custom:solar-safe`, `@custom:solar-trusted`, \
-                 `@custom:solar-fuse`, `@custom:solar-inline`, `@custom:solar-bitmap`, and \
-                 `@custom:solar-handle`",
+                 `@custom:solar-fuse`, `@custom:solar-inline`, `@custom:solar-bitmap`, \
+                 `@custom:solar-handle`, and `@custom:solar-optimize`",
             )
             .emit(),
     };

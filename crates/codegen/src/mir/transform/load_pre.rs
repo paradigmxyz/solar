@@ -134,7 +134,7 @@ impl MirPass for LoadPre {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        let target = Target::new(gcx);
+        let target = module.target(gcx);
         run_function_pass_with_alias_and_cfg(module, analyses, |func, analyses| {
             let mut eliminator = LoadRedundancyEliminator::new(target);
             eliminator.storage_only = matches!(self, Self::Storage);

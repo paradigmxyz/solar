@@ -85,7 +85,7 @@ impl MirPass for LowerMCopy {
             return false;
         }
 
-        let target = Target::new(gcx);
+        let target = module.target(gcx);
         let fresh_returns = super::lower_abi_encode::fresh_object_returning_functions(module);
         let summaries = analyses.call_summaries(module);
         let helper_sites = module

@@ -17,6 +17,7 @@ use crate::{
         op,
     },
     mir::lower::data_copy_cost,
+    target::Target,
 };
 use alloy_primitives::{Bytes, U256};
 use solar_interface::sym;
@@ -46,11 +47,12 @@ fn materialize_constant_data(gcx: Gcx<'_>, module: &mut Module) -> bool {
         return false;
     }
 
+    let target = module.target(gcx);
     let mut rewrites = Vec::new();
     for (block_id, block) in module.blocks.iter_enumerated() {
         let mut start = 0;
         while start < block.instructions.len() {
-            let Some(rewrite) = find_run(gcx, block_id, &block.instructions, start) else {
+            let Some(rewrite) = find_run(target, block_id, &block.instructions, start) else {
                 start += 1;
                 continue;
             };
@@ -92,7 +94,7 @@ fn materialize_constant_data(gcx: Gcx<'_>, module: &mut Module) -> bool {
 }
 
 fn find_run(
-    gcx: Gcx<'_>,
+    target: Target,
     block: BlockId,
     instructions: &[Instruction],
     start: usize,
@@ -105,10 +107,10 @@ fn find_run(
 
     let old_size = instructions[start..end]
         .iter()
-        .map(|inst| instruction_size_lower_bound(gcx, inst))
+        .map(|inst| instruction_size_lower_bound(target, inst))
         .sum::<usize>();
     // Account for PUSH3 conservatively so a selected rewrite cannot grow an
     // EIP-170-sized program when the data lands above the PUSH2 boundary.
-    let new_size = data.len() + data_copy_cost(gcx.sess.opts.evm_version, data.len()).0;
+    let new_size = data.len() + data_copy_cost(target.evm_version(), data.len()).0;
     (new_size < old_size).then(|| Rewrite { block, start, end, data })
 }

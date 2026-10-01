@@ -211,7 +211,10 @@ No intentional divergences documented yet.
   decoder control-flow subgraphs, so these large wrappers retain duplicated
   validation and materialization code. The external artifact audit exempts
   only these named contracts while continuing to enforce artifact presence
-  and EIP-170 parity for the rest of the corpus.
+  and EIP-170 parity for the rest of the corpus. A contract that must fit can
+  be built with `-O size`, or documented `@custom:solar-optimize size`, which
+  compiles its code as a `-O size` build would while the rest of the build
+  keeps its objective; other compilers read the tag as documentation.
 - Coverage: `cargo tq foundry-external seaport`; the exact exemptions live in
   `SEAPORT_CODE_SIZE_SKIPS` in `tools/tester/src/foundry/external.rs`.
 

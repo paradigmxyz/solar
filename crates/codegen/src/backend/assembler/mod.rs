@@ -17,7 +17,7 @@ use crate::{
 };
 use alloy_primitives::U256;
 use solar_data_structures::{bit_set::GrowableBitSet, map::FxHashMap};
-use solar_interface::{Span, Symbol, sym};
+use solar_interface::{Span, Symbol, config::OptimizationMode, sym};
 use solar_sema::Gcx;
 
 pub(crate) mod assembly;
@@ -233,6 +233,11 @@ impl<'gcx> Assembler<'gcx> {
     /// Sets the source module name carried by emitted EVM IR.
     pub(crate) fn set_evm_ir_name(&mut self, name: Symbol) {
         self.program.set_name(Symbol::intern(&format!("{name}_{}", self.artifact_kind.name())));
+    }
+
+    /// Sets the objective the source module's `@custom:solar-optimize` tag selects.
+    pub(crate) fn set_optimize(&mut self, optimize: Option<OptimizationMode>) {
+        self.program.optimize = optimize;
     }
 
     /// Returns the conservative indexed-jump target width for this artifact.

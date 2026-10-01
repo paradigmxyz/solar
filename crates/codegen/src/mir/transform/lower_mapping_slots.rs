@@ -45,7 +45,7 @@ impl MirPass for LowerMappingSlots {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        let target = Target::new(gcx);
+        let target = module.target(gcx);
         run_function_pass(module, analyses, |func, _| {
             let has_mapping_slots = func.instructions().any(|inst_id| {
                 matches!(

@@ -1952,7 +1952,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         // dup selector; [push value; eq/sub]; jumpi [iszero] condition, target/next
         self.emit_stack_op(StackOp::Dup(1));
         let compare_zero = value.is_some_and(|value| value.is_zero())
-            && self.gcx.sess.opts.optimization != OptimizationMode::None;
+            && self.optimization != OptimizationMode::None;
         if !compare_zero {
             self.emit_operand(func, value_id);
             // A miss needs only nonzero, so subtraction avoids EQ followed by ISZERO.
@@ -2015,10 +2015,10 @@ impl<'gcx> EvmCodegen<'gcx> {
                     &values,
                     linear_values,
                     SwitchPlanOptions {
-                        optimization: self.gcx.sess.opts.optimization,
+                        optimization: self.optimization,
                         evm_version: self.gcx.sess.opts.evm_version,
                         expected_executions: lifetime_priced
-                            .then(|| Target::new(self.gcx).expected_executions()),
+                            .then(|| self.target().expected_executions()),
                         default,
                         table_target_width: self.asm.indexed_jump_target_width_bound(),
                         max_gas_code_growth: if lifetime_priced {

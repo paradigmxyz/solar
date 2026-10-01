@@ -1,0 +1,19 @@
+//@ revisions: gas size
+//@[gas] compile-flags: -Ogas -Zevm-ir-pipeline=compact-pushes
+//@[size] compile-flags: -Osize -Zevm-ir-pipeline=compact-pushes
+//@ filecheck:
+@module OptimizeSize
+@optimize size
+
+// A program whose contract is tagged `@custom:solar-optimize size` is size-first in every
+// optimized build, so a gas build divides the all-ones word for a repeated pattern too.
+// CHECK: @optimize size
+// CHECK-LABEL: bb0:
+// CHECK: + push 255
+// CHECK-NEXT: + push 0
+// CHECK-NEXT: + not
+// CHECK-NEXT: + div
+bb0:
+  push 0x0101010101010101010101010101010101010101010101010101010101010101
+  pop
+  stop

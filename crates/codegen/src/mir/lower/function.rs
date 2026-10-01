@@ -19,7 +19,7 @@ use solar_data_structures::{
     bit_set::DenseBitSet,
     map::{FxHashMap, FxHashSet, FxIndexSet, StdEntry},
 };
-use solar_interface::{ByteSymbol, Ident, Span, Symbol, kw, sym};
+use solar_interface::{ByteSymbol, Ident, Span, Symbol, config::OptimizationMode, kw, sym};
 use solar_sema::{
     Gcx,
     builtins::Builtin,
@@ -91,6 +91,11 @@ impl<'gcx, 'ctx> LoweringContext<'gcx, 'ctx> {
             shared_word_literals: self.shared_word_literals,
             share_storage_bytes: self.share_storage_bytes,
         }
+    }
+
+    /// Returns the objective the contract's code is optimized for.
+    pub(super) fn optimization(&self) -> OptimizationMode {
+        self.module.optimization(self.gcx)
     }
 
     /// Reports a lowering bail-out and returns `None`.

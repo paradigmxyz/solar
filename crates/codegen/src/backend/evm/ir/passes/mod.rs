@@ -53,8 +53,8 @@ pub trait EvmPass: Any + Sync {
     fn name(&self) -> &'static str;
 
     /// Returns whether this pass is enabled with the current compiler flags.
-    fn is_enabled(&self, gcx: Gcx<'_>, _module: &Module) -> bool {
-        self.is_required() || !matches!(gcx.sess.opts.optimization, OptimizationMode::None)
+    fn is_enabled(&self, gcx: Gcx<'_>, module: &Module) -> bool {
+        self.is_required() || !matches!(module.optimization(gcx), OptimizationMode::None)
     }
 
     /// Returns whether this pass must run independently of the optimization level.
