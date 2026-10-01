@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/uninitialized_memory_references.sol:UninitializedMemoryReferences ===
 @module UninitializedMemoryReferences
-types:
+@types
   struct0: {i1, i256, i256}
 
 fn @sharedWordLiteral(arg0: i256) -> i256 [selector=0x55fe9b37, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {

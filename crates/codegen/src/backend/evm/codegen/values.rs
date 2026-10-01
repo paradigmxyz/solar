@@ -213,14 +213,14 @@ impl<'gcx> EvmCodegen<'gcx> {
         let mut use_counts = index_vec![0u32; func.num_values()];
         for block in &func.blocks {
             for &inst_id in &block.instructions {
-                for operand in func.inst(inst_id).kind.operands() {
+                func.inst(inst_id).kind.visit_operands(|operand| {
                     use_counts[operand] += 1;
-                }
+                });
             }
             if let Some(terminator) = &block.terminator {
-                for operand in terminator.operands() {
+                terminator.visit_operands(|operand| {
                     use_counts[operand] += 1;
-                }
+                });
             }
         }
 

@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/licm/licm_memory_alias.mir (before licm) ===
 + // === ROOT/tests/ui/codegen/mir/licm/licm_memory_alias.mir (after licm) ===
   @module LicmMemoryAlias
-  immutables:
+  @immutables
     value: u256
   
   fn @hoist_non_aliasing_mload() -> i256 {

@@ -1,0 +1,8 @@
+error: expected `hex"..."`, `creation_code`, or `runtime_code`
+   ╭▸ ROOT/tests/ui/codegen/evm-ir/validation/parse_deferred_kind.evmir:LL:CC
+   │
+LL │   child_0: initcode "child.sol:Child"
+   ╰╴           ━━━━━━━━
+
+error: aborting due to 1 previous error
+

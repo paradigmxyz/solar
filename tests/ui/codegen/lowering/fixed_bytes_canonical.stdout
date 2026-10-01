@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/fixed_bytes_canonical.sol:FixedBytesCanonical ===
 @module FixedBytesCanonical
-types:
+@types
   struct0: {i128, i128, i160, i160}
 
 fn @fromUint(arg0: i8) -> i256 [selector=0x0b5b6892, pure, abi_params=[u8], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {

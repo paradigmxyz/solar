@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_array_push_rvalue.sol:StorageArrayPushRvalue ===
 @module StorageArrayPushRvalue
-types:
+@types
   struct0: {i256, i256}
   struct1: {i8, i8, i256}
   struct2: {i1, i1, i256}

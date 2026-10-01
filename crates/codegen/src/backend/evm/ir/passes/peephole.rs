@@ -14,13 +14,12 @@
 //! Comparison inversion tracks a constant through up to 24 instructions that cannot observe
 //! or copy it. Adjusting that bound and flipping LT/GT or SLT/SGT removes ISZERO after branch
 //! layout chooses the taken edge. Operand computations stay in place; wrapping bounds,
-//! protected boundaries, custom stack effects, and materializations that grow in size or stack
-//! peak are rejected.
+//! protected boundaries, and materializations that grow in size or stack peak are rejected.
 //! Literal unary expressions use the same evaluator as MIR and require a Pareto
 //! improvement under the target's immediate materialization costs. A known-false
 //! inline conditional jump then disappears with its two pushes. These rules
-//! preserve custom stack effects and protected instruction boundaries, and never
-//! treat symbolic label addresses or deferred values as literal constants.
+//! preserve protected instruction boundaries, and never treat symbolic label
+//! addresses or deferred values as literal constants.
 //!
 //! The separate `late-word` entry point runs only after structural cleanup. It
 //! replaces a low-mask construction with a shorter complement/shift form. A closed
@@ -35,6 +34,7 @@
 use super::{
     EvmPass,
     compact_pushes::{immediate_materialization_cost, materialize_immediate},
+    utils::MachineInstKey,
 };
 use crate::backend::evm::{
     ir::{Instruction, Module, PushValue, TerminatorKind},
@@ -42,8 +42,12 @@ use crate::backend::evm::{
 };
 use alloy_primitives::U256;
 use solar_config::EvmVersion;
+use solar_data_structures::map::{FxHashMap, FxHasher};
 use solar_sema::Gcx;
-use std::fmt;
+use std::{
+    fmt,
+    hash::{Hash, Hasher},
+};
 use tracing::trace;
 
 mod isle;
@@ -69,7 +73,7 @@ impl EvmPass for Peephole {
     }
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
-        optimize_module::<false>(gcx, module, self.final_cleanup)
+        optimize_module(gcx, module, false, self.final_cleanup)
     }
 }
 
@@ -82,7 +86,7 @@ impl EvmPass for LateWord {
     }
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
-        optimize_module::<true>(gcx, module, false)
+        optimize_module(gcx, module, true, false)
     }
 }
 
@@ -117,24 +121,90 @@ impl<T: EvmPass> EvmPass for Cleanup<T> {
 
 const TRACE_TARGET: &str = "solar::codegen::evm_ir::peephole";
 
-fn optimize_module<const LATE: bool>(
-    gcx: Gcx<'_>,
-    module: &mut Module,
-    final_cleanup: bool,
-) -> bool {
+/// Block contents on which a peephole run found no rewrite, so the same contents can be skipped.
+///
+/// Matching reads only each instruction's opcode, encoding, value, stack operation, and
+/// `keep_with_next` flag, and no other metadata, so equal keys produce the same result. The final
+/// rules extend the early ones, so contents clean under them are clean under both. Records are
+/// keyed by contents rather than by block, so they survive block reordering and removal and cover
+/// every block with equal contents.
+/// Module clones start without the cache, and it never affects module equality.
+///
+/// NOTE: Records hold a hash of the keys rather than a copy, which would retain every clean
+/// block's contents a second time for the module's lifetime. A collision between recorded and
+/// current contents of equal length would skip a rewrite; the result stays deterministic.
+#[derive(Default)]
+pub(crate) struct CleanBlocks(FxHashMap<(u32, u64), bool>);
+
+/// Returns the length and hash of the keys of `instructions`.
+fn clean_key(instructions: &[Instruction]) -> (u32, u64) {
+    let mut hasher = FxHasher::default();
+    for inst in instructions {
+        MachineInstKey::new(inst).hash(&mut hasher);
+    }
+    (instructions.len() as u32, hasher.finish())
+}
+
+impl CleanBlocks {
+    pub(in crate::backend::evm::ir) fn clear(&mut self) {
+        self.0.clear();
+    }
+}
+
+impl Clone for CleanBlocks {
+    fn clone(&self) -> Self {
+        Self::default()
+    }
+}
+
+impl PartialEq for CleanBlocks {
+    fn eq(&self, _other: &Self) -> bool {
+        true
+    }
+}
+
+impl Eq for CleanBlocks {}
+
+impl fmt::Debug for CleanBlocks {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("CleanBlocks")
+    }
+}
+
+fn optimize_module(gcx: Gcx<'_>, module: &mut Module, late: bool, final_cleanup: bool) -> bool {
     let evm_version = gcx.sess.opts.evm_version;
     let mut changed = false;
     let mut scratch = Vec::new();
+    let clean = &mut module.peephole_clean;
     for block in &mut module.blocks {
+        // The late rules are separate from the cached early and final ones.
+        let key = (!late).then(|| clean_key(&block.instructions));
+        let recorded = key.and_then(|key| clean.0.get(&key).copied());
+        let skip = recorded.is_some_and(|recorded_final| recorded_final || !final_cleanup);
+        let early_clean = final_cleanup && recorded == Some(false);
         // Dead stack traffic before a terminator that cannot observe it is dead-code
         // elimination's to remove; this pass only rewrites what it can see locally.
-        let rewrites = optimize::<LATE>(
-            evm_version,
-            &mut block.instructions,
-            &mut scratch,
-            block.label,
-            final_cleanup,
-        );
+        let rewrites = if skip {
+            0
+        } else {
+            optimize(
+                evm_version,
+                &mut block.instructions,
+                &mut scratch,
+                block.label,
+                late,
+                final_cleanup,
+                early_clean,
+            )
+        };
+        // The unchanged contents are clean under these rules, and under the final rules as well
+        // when they were already clean under the early ones.
+        if let Some(key) = key
+            && !skip
+            && rewrites == 0
+        {
+            *clean.0.entry(key).or_default() |= final_cleanup;
+        }
         changed |= rewrites != 0;
         // mstore(offset, value); return(offset, 32)
         // -> mstore(0, value); return(0, 32)
@@ -144,9 +214,6 @@ fn optimize_module<const LATE: bool>(
                 Some(TerminatorKind::Op(op::RETURN))
             )
             && let [prefix @ .., offset, store, size, returned] = block.instructions.as_mut_slice()
-            && [&*offset, &*store, &*size, &*returned]
-                .iter()
-                .all(|inst| inst.has_canonical_stack_effect())
             && store.as_evm_opcode() == Some(op::MSTORE)
             && size.concrete_immediate() == Some(U256::from(32))
             && let Some(address) = offset.concrete_immediate()
@@ -157,9 +224,7 @@ fn optimize_module<const LATE: bool>(
                 .rev()
                 .take_while(|pair| pair[1].as_evm_opcode() != Some(op::JUMPDEST))
                 .any(|pair| {
-                    pair[0].has_canonical_stack_effect()
-                        && pair[1].has_canonical_stack_effect()
-                        && pair[1].as_evm_opcode() == Some(op::MSTORE)
+                    pair[1].as_evm_opcode() == Some(op::MSTORE)
                         && pair[0].concrete_immediate().is_some_and(|previous| previous >= address)
                 })
         {
@@ -171,19 +236,23 @@ fn optimize_module<const LATE: bool>(
     changed
 }
 
-fn optimize<const LATE: bool>(
+fn optimize(
     evm_version: EvmVersion,
     instructions: &mut Vec<Instruction>,
     scratch: &mut Vec<Instruction>,
     block: u32,
+    late: bool,
     final_cleanup: bool,
+    early_clean: bool,
 ) -> usize {
     // Inspect the original prefix without copying instructions. Until the first
     // rewrite, this is exactly the optimized prefix the streaming matcher sees.
+    // The early rules match no prefix of an early-clean block, so only the final
+    // rules can supply its first rewrite.
     let first = (1..=instructions.len()).find_map(|end| {
-        isle::PeepContext::new(&instructions[..end], evm_version)
-            .with_final_cleanup(final_cleanup)
-            .select::<LATE>()
+        let mut context = isle::PeepContext::new(&instructions[..end], evm_version)
+            .with_final_cleanup(final_cleanup);
+        if early_clean { context.final_rewrite() } else { context.select(late) }
             .map(|rewrite| (end, rewrite))
     });
     let Some((end, isle::Rewrite { skip, edit })) = first else { return 0 };
@@ -194,27 +263,28 @@ fn optimize<const LATE: bool>(
     scratch.extend(instructions.drain(end..));
     rewrite(evm_version, instructions, usize::from(skip), edit, block);
     let mut rewrites = 1;
-    while try_peephole::<LATE>(evm_version, instructions, block, final_cleanup) {
+    while try_peephole(evm_version, instructions, block, late, final_cleanup) {
         rewrites += 1;
     }
     for inst in scratch.drain(..) {
         instructions.push(inst);
-        while try_peephole::<LATE>(evm_version, instructions, block, final_cleanup) {
+        while try_peephole(evm_version, instructions, block, late, final_cleanup) {
             rewrites += 1;
         }
     }
     rewrites
 }
 
-fn try_peephole<const LATE: bool>(
+fn try_peephole(
     evm_version: EvmVersion,
     instructions: &mut Vec<Instruction>,
     block: u32,
+    late: bool,
     final_cleanup: bool,
 ) -> bool {
     let Some(isle::Rewrite { skip, edit }) = isle::PeepContext::new(instructions, evm_version)
         .with_final_cleanup(final_cleanup)
-        .select::<LATE>()
+        .select(late)
     else {
         return false;
     };
@@ -418,14 +488,12 @@ fn overwrite_raw(inst: &mut Instruction, opcode: u8) {
     let metadata = std::mem::take(&mut inst.metadata);
     *inst = Instruction::opcode(opcode);
     inst.metadata = metadata;
-    inst.metadata.stack = None;
 }
 
 fn overwrite_stack_op(inst: &mut Instruction, stack_op: op::StackOp) {
     let metadata = std::mem::take(&mut inst.metadata);
     *inst = Instruction::stack_op(stack_op);
     inst.metadata = metadata;
-    inst.metadata.stack = None;
 }
 
 /// Returns the byte length and static gas of the selected materialization of `value`.

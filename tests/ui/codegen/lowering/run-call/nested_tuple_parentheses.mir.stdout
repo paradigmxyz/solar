@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/nested_tuple_parentheses.sol:NestedTupleParentheses ===
 @module NestedTupleParentheses
-types:
+@types
   struct0: {i256, i1}
   struct1: {i256, i256}
 

@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/calldata_nested_element_slices.sol:CalldataNestedElementSlices ===
 @module CalldataNestedElementSlices
-types:
+@types
   struct0: {i256, i1}
   struct1: {i48, i48, calldataslice}
 

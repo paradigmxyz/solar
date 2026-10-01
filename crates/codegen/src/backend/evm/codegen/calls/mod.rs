@@ -1007,7 +1007,8 @@ impl<'gcx> EvmCodegen<'gcx> {
         let (base_offset, base_inst) = base?;
         let base_value = func.inst_result_value(base_inst)?;
 
-        let mut elided = vec![base_inst];
+        let mut elided = Vec::new();
+        elided.push(base_inst);
         let mut addresses = FxHashMap::default();
         let mut extras = vec![None; arity - 1];
         for &inst_id in &tail[base_offset + 1..] {

@@ -45,10 +45,8 @@ fn descending_ranges(
     }
     // Reject sequential and adjacent edits before indexing the document. An insertion at the
     // boundary of a neighboring edit can observe that edit's newly inserted text.
-    for pair in changes.windows(2) {
-        if pair[1].range?.end >= pair[0].range?.start {
-            return None;
-        }
+    if !changes.is_sorted_by(|a, b| a.range.zip(b.range).is_some_and(|(a, b)| b.end < a.start)) {
+        return None;
     }
     let index = proto::LspPositionIndex::new(text);
     let mut ranges = Vec::with_capacity(changes.len());

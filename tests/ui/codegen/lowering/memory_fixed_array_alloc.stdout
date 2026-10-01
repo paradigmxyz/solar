@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/memory_fixed_array_alloc.sol:MemoryFixedArrayAlloc ===
 @module MemoryFixedArrayAlloc
-types:
+@types
   struct0: {i256, i256}
 
 fn @guardedFix(arg0: i256) -> i256 [selector=0x93390577, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
@@ -149,7 +149,7 @@ fn @bulkDefault(arg0: i256) -> i256 [selector=0xbe4421b6, pure, abi_params=[u256
 
 // === ROOT/tests/ui/codegen/lowering/memory_fixed_array_alloc.sol:NamedReturnAndDelete ===
 @module NamedReturnAndDelete
-types:
+@types
   struct0: {memoryfixedarray, i256}
   struct1: {memoryarray, memorybytes}
   struct2: {i256, i256}

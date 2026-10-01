@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/function_pointer_mutability_conversion.sol:FunctionPointerMutabilityConversion ===
 @module FunctionPointerMutabilityConversion
-types:
+@types
   struct0: {i256, i256}
 
 fn @externalDefaultTarget() -> i256 [selector=0x7660b402, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {

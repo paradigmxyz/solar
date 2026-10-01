@@ -8,5 +8,10 @@ contract C {
         f({b: true,  s: "abc", u: 1});
         f({u: 1,     b: true,  s: "abc"});
         f({b: true,  u: 1,     s: "abc"});
+        new Created({enabled: true, count: 7});
     }
+}
+
+contract Created {
+    constructor(uint count, bool enabled) {}
 }

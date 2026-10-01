@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_return_pointer_mixed_decl.sol:StorageReturnPointerMixedDecl ===
 @module StorageReturnPointerMixedDecl
-types:
+@types
   struct0: {i256, i256, i256}
 
 fn @g() -> struct0 {

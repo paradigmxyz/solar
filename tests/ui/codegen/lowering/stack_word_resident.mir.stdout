@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/stack_word_resident.sol:ResidentWords ===
 @module ResidentWords
-types:
+@types
   struct0: {i256, i256, i256}
 
 fn @masked(arg0: i256, arg1: i256) -> struct0 [selector=0x966953d1, pure, abi_params=[u256, u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {

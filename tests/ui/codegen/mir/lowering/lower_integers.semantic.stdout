@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/lowering/lower_integers.mir (before none) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_integers.mir (after none) ===
   @module Integers
-  immutables:
+  @immutables
     signed: i64
   
   fn @arithmetic(arg0: i8, arg1: i8) -> i8 {

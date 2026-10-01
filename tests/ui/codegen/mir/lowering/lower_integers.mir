@@ -4,7 +4,7 @@
 //@[lowered] compile-flags: -Zmir-pipeline=lower-integers,integer-cleanup,egraph,lower-evm-shaped
 
 @module Integers
-immutables:
+@immutables
   signed: i64
 
 fn @arithmetic(arg0: i8, arg1: i8) -> i8 {

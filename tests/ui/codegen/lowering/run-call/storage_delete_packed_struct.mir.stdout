@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_delete_packed_struct.sol:StorageDeletePackedStruct ===
 @module StorageDeletePackedStruct
-types:
+@types
   struct0: {i8, i16, i8, i8, i16, i8}
   struct1: {i8, i16, i8}
   struct2: {i256, i8, i256, i256}

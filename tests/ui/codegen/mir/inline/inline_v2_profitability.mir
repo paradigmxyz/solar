@@ -6,7 +6,7 @@
 // CHECK: - {{.*}}icall @single_large_callee
 // CHECK: + [[INLINED:v[0-9]+]] = add arg0, 1
 // CHECK: + {{v[0-9]+}} = phi [bb13: [[INLINED]]]
-types:
+@types
   struct0: {i256, i256}
 
 fn @single_large_caller(arg0: i256) -> i256 {

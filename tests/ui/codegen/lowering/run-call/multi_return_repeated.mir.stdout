@@ -4,7 +4,7 @@
 
 // === ROOT/tests/ui/codegen/lowering/run-call/multi_return_repeated.sol:MultiReturnRepeated ===
 @module MultiReturnRepeated
-types:
+@types
   struct0: {i256, i256}
 
 fn @test() -> i256 [selector=0xf8a8fd6d, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {

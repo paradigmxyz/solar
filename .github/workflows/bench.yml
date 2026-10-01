@@ -28,6 +28,7 @@ env:
   RUSTC_WRAPPER: "sccache"
   SOLC_VERSION: ${{ inputs.solc_version || '0.8.37' }}
   SOLX_VERSION: '0.1.8'
+  OKSOLC_REVISION: d5ff7399356b1ad238c839278a334e13e0e2dc81
 
 jobs:
   codegen-runtime:
@@ -48,7 +49,7 @@ jobs:
       BASE_BRANCH: ${{ github.base_ref || 'main' }}
     steps:
       - name: Secure runner
-        uses: tempoxyz/gh-actions/actions/secure-runner@117919c943b804057be733b0c4034c5542e58959 # 2026-09-23T05-09-41Z-117919c9
+        uses: tempoxyz/gh-actions/actions/secure-runner@d5402286a7abdfb7232173b3228d56473feb8a66 # 2026-09-29T02-04-45Z-d5402286
       - name: Checkout Solar
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -96,6 +97,39 @@ jobs:
           echo "2f6b8feb6a28ac6297a2c0c5afa936e4c013e7175ca88a9bf8e435e61fa1a226  $RUNNER_TEMP/solx/solx" | sha256sum --check
           chmod +x "$RUNNER_TEMP/solx/solx"
           "$RUNNER_TEMP/solx/solx" --version
+
+      - name: Restore oksolc build
+        id: oksolc-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: target/oksolc/zig-out/bin/oksolc
+          key: oksolc-cli-v2-${{ runner.os }}-${{ runner.arch }}-zig-0.16.0-ReleaseFast-baseline-${{ env.OKSOLC_REVISION }}
+
+      - name: Checkout oksolc
+        if: steps.oksolc-cache.outputs.cache-hit != 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: okcontract/oksolc
+          ref: ${{ env.OKSOLC_REVISION }}
+          path: target/oksolc
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Install Zig
+        if: steps.oksolc-cache.outputs.cache-hit != 'true'
+        uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
+        with:
+          version: 0.16.0
+
+      - name: Build oksolc
+        if: steps.oksolc-cache.outputs.cache-hit != 'true'
+        working-directory: target/oksolc
+        run: |
+          set -euo pipefail
+          zig build build-cli -Doptimize=ReleaseFast -Dcpu=baseline -j4
+
+      - name: Check oksolc
+        run: target/oksolc/zig-out/bin/oksolc --version
 
       - name: Build Solar
         run: |
@@ -231,6 +265,7 @@ jobs:
           args=(
             --verbose
             --solar target/release/solar-head
+            --oksolc target/oksolc/zig-out/bin/oksolc
             --mode runtime compile-time
             --suite all
             --compile-repeats 5
@@ -330,7 +365,7 @@ jobs:
       contents: read
     steps:
       - name: Secure runner
-        uses: tempoxyz/gh-actions/actions/secure-runner@117919c943b804057be733b0c4034c5542e58959 # 2026-09-23T05-09-41Z-117919c9
+        uses: tempoxyz/gh-actions/actions/secure-runner@d5402286a7abdfb7232173b3228d56473feb8a66 # 2026-09-29T02-04-45Z-d5402286
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -347,7 +382,7 @@ jobs:
           cache-targets: false
       - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba # v0.0.11
       - name: Install cargo-codspeed
-        uses: taiki-e/install-action@3f74d7c16a4242f1c95561e98edc25d36adb4375 # v2.87.12
+        uses: taiki-e/install-action@dfae9bf3d6f6c6f20ef4ebb3486c01a51341ff12 # v2.87.18
         with:
           tool: cargo-codspeed
       - name: Build the benchmark targets

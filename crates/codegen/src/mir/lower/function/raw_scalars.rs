@@ -80,7 +80,7 @@ impl<'gcx> Exposure<'gcx> {
                 self.sources(yes, out);
                 self.sources(no, out);
             }
-            ExprKind::Call(callee, _, _) => {
+            ExprKind::Call(callee, _) => {
                 for id in self.callees(callee) {
                     out.extend_from_slice(self.gcx.hir.function(id).returns);
                 }
@@ -182,7 +182,7 @@ impl<'gcx> Visit<'gcx> for Exposure<'gcx> {
                     self.sources(lhs, &mut ids);
                     self.connect(&ids, rhs);
                 }
-                ExprKind::Call(callee, args, _) => {
+                ExprKind::Call(callee, args) => {
                     let callees = self.callees(callee);
                     if callees.is_empty() {
                         return self.walk_expr(expr);

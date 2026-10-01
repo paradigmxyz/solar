@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_return_pointer_direct.sol:StorageReturnPointerDirect ===
 @module StorageReturnPointerDirect
-types:
+@types
   struct0: {i256, i256}
 
 fn @pick(arg0: i1) -> i256 [view] {

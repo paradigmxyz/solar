@@ -1,5 +1,8 @@
-use super::workspace_edit::{validated_code_actions, validated_rename_workspace_edit};
+use super::workspace_edit::{
+    check_edit_scope, validated_code_actions, validated_rename_workspace_edit,
+};
 use crate::{
+    config::Config,
     diagnostics::PullReport,
     document_links::solidity_string_contents,
     formatter::{self, FormatterError},
@@ -11,8 +14,10 @@ use crate::{
     natspec_completion::{self, NatSpecCompletionResult},
     progress::send_progress,
     proto::normalize_file_uri,
+    rename::RenameCandidate,
     symbols::{CompletionContext, CompletionItemData, SymbolTables},
     vfs::{Vfs, VfsPath},
+    workspace::WorkspaceEditError,
 };
 use arc_swap::ArcSwap;
 use async_lsp::{ClientSocket, ErrorCode, ResponseError};
@@ -299,6 +304,18 @@ fn latest_navigation_analysis_for_uri(
     uri: &Url,
 ) -> Option<impl Future<Output = Result<Arc<ArcSwap<SymbolTables>>, ResponseError>> + use<>> {
     let analysis = latest_analysis_for_uri(state, uri)?;
+    state.prioritize_pending_analysis();
+    Some(analysis)
+}
+
+type ConfiguredAnalysis = (Arc<ArcSwap<SymbolTables>>, Arc<Config>);
+
+fn latest_navigation_analysis_with_config_for_uri(
+    state: &GlobalState,
+    uri: &Url,
+) -> Option<impl Future<Output = Result<ConfiguredAnalysis, ResponseError>> + use<>> {
+    crate::proto::vfs_path(uri)?;
+    let analysis = state.latest_analysis_with_config();
     state.prioritize_pending_analysis();
     Some(analysis)
 }
@@ -912,15 +929,21 @@ pub(crate) fn prepare_rename(
     mut params: TextDocumentPositionParams,
 ) -> impl Future<Output = Result<Option<PrepareRenameResponse>, ResponseError>> + use<> {
     params.text_document.uri = normalize_file_uri(params.text_document.uri);
-    let latest_analysis = latest_navigation_analysis_for_uri(state, &params.text_document.uri);
+    let latest_analysis =
+        latest_navigation_analysis_with_config_for_uri(state, &params.text_document.uri);
     async move {
         let Some(latest_analysis) = latest_analysis else { return Ok(None) };
-        let symbol_tables = latest_analysis.await?;
-        let response = symbol_tables
-            .load()
-            .rename_candidate(&params.text_document.uri, params.position)
-            .map(|candidate| PrepareRenameResponse::Range(candidate.range));
-        Ok(response)
+        let (symbol_tables, config) = latest_analysis.await?;
+        let candidate =
+            symbol_tables.load().rename_candidate(&params.text_document.uri, params.position);
+        let Some(candidate) = candidate else { return Ok(None) };
+        tokio::task::spawn_blocking(move || {
+            validate_rename_scope(&candidate, &config)?;
+            ensure_rename_coverage(&candidate, &config)?;
+            Ok(Some(PrepareRenameResponse::Range(candidate.range)))
+        })
+        .await
+        .map_err(rename_task_failed)?
     }
 }
 
@@ -939,7 +962,7 @@ pub(crate) fn rename(
     let latest_analysis = if invalid_name {
         None
     } else {
-        latest_navigation_analysis_for_uri(state, &params_position.text_document.uri)
+        latest_navigation_analysis_with_config_for_uri(state, &params_position.text_document.uri)
     };
     let vfs = state.vfs.clone();
     let document_changes = state.config.supports_workspace_edit_document_changes();
@@ -949,7 +972,7 @@ pub(crate) fn rename(
         }
 
         let Some(latest_analysis) = latest_analysis else { return Ok(None) };
-        let symbol_tables = latest_analysis.await?;
+        let (symbol_tables, config) = latest_analysis.await?;
         let candidate = symbol_tables
             .load()
             .rename_candidate(&params_position.text_document.uri, params_position.position);
@@ -962,14 +985,52 @@ pub(crate) fn rename(
         }
 
         tokio::task::spawn_blocking(move || {
+            validate_rename_scope(&candidate, &config)?;
+            ensure_rename_coverage(&candidate, &config)?;
             validated_rename_workspace_edit(candidate, new_name, vfs, document_changes)
         })
         .await
-        .map_err(|error| {
-            ResponseError::new(ErrorCode::INTERNAL_ERROR, format!("rename task failed: {error}"))
-        })?
+        .map_err(rename_task_failed)?
         .map(Some)
     }
+}
+
+fn rename_task_failed(error: tokio::task::JoinError) -> ResponseError {
+    ResponseError::new(ErrorCode::INTERNAL_ERROR, format!("rename task failed: {error}"))
+}
+
+fn validate_rename_scope(
+    candidate: &RenameCandidate,
+    config: &Config,
+) -> Result<(), ResponseError> {
+    let uris =
+        candidate.locations.chunk_by(|a, b| a.uri == b.uri).map(|locations| &locations[0].uri);
+    check_edit_scope(uris, config).map_err(|error| {
+        let message = match error {
+            WorkspaceEditError::Dependency => {
+                "cannot rename this symbol because it would modify dependency files"
+            }
+            WorkspaceEditError::OutsideWorkspace => {
+                "cannot rename this symbol because it would modify files outside the workspace"
+            }
+            WorkspaceEditError::UnresolvedPath => {
+                "cannot rename this symbol because its file paths could not be verified"
+            }
+        };
+        request_failed(message)
+    })
+}
+
+fn ensure_rename_coverage(
+    candidate: &RenameCandidate,
+    config: &Config,
+) -> Result<(), ResponseError> {
+    if candidate.requires_complete_workspace && config.may_omit_source_files() {
+        return Err(request_failed(
+            "cannot rename this symbol because workspace indexing may omit source files",
+        ));
+    }
+    Ok(())
 }
 
 pub(crate) fn inlay_hints(

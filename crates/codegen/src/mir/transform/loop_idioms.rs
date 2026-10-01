@@ -966,7 +966,8 @@ struct CopyLoop {
 fn address_addends(func: &Function, address: ValueId) -> Option<(Vec<ValueId>, u64)> {
     let mut addends = Vec::new();
     let mut offset = 0u64;
-    let mut pending = vec![address];
+    let mut pending = Vec::new();
+    pending.push(address);
     while let Some(value) = pending.pop() {
         if let Some(constant) = func.value_u64(value) {
             offset = offset.checked_add(constant)?;
@@ -1012,7 +1013,7 @@ fn counter_escapes(func: &Function, header: BlockId, body: BlockId, index: Value
         }
         if let Some(term) = &contents.terminator {
             let mut found = false;
-            term.for_each_operand(|operand| found |= operand == index);
+            term.visit_operands(|operand| found |= operand == index);
             if found {
                 return true;
             }
@@ -1029,11 +1030,6 @@ fn counter_escapes(func: &Function, header: BlockId, body: BlockId, index: Value
 /// terms, so each range starts where its address stands at index zero and runs
 /// for the bound.
 fn match_copy_loop(func: &Function, alias: &AliasAnalysis, header: BlockId) -> Option<CopyLoop> {
-    // A discarded read raises the memory high-water mark, and the copy this
-    // builds touches less of it than the reads it replaces.
-    if alias.may_observe_msize(func) {
-        return None;
-    }
     // header: index = phi [preheader: 0], [body: next]; jumpi lt(index, bound), body, exit
     let [phi_inst, less_inst] = func.blocks[header].instructions.as_slice() else { return None };
     let InstKind::Phi(incoming) = &func.inst(*phi_inst).kind else { return None };
@@ -1059,7 +1055,7 @@ fn match_copy_loop(func: &Function, alias: &AliasAnalysis, header: BlockId) -> O
     if !matches!(func.blocks[body].terminator, Some(Terminator::Jump(target)) if target == header) {
         return None;
     }
-    if !defined_outside(func, header, body, bound) || counter_escapes(func, header, body, index) {
+    if !defined_outside(func, header, body, bound) {
         return None;
     }
 
@@ -1097,7 +1093,12 @@ fn match_copy_loop(func: &Function, alias: &AliasAnalysis, header: BlockId) -> O
         }
     }
     let ((source_address, _), byte, dest_address) = (load?, extract?, store?);
-    if !step {
+    if !step || counter_escapes(func, header, body, index) {
+        return None;
+    }
+    // A discarded read raises the memory high-water mark, and the copy this
+    // builds touches less of it than the reads it replaces.
+    if alias.may_observe_msize(func) {
         return None;
     }
     // The byte read must feed only the write.

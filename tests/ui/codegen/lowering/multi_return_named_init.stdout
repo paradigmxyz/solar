@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/multi_return_named_init.sol:MultiReturnNamedInit ===
 @module MultiReturnNamedInit
-types:
+@types
   struct0: {i64, i256}
   struct1: {i64, i64}
 

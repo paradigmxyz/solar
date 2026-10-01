@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/egraph/bit_slices_runtime.sol:BitSlices ===
 @module BitSlices
-types:
+@types
   struct0: {i8, i8, i160}
   struct1: {i1, i1, i1, i1}
   struct2: {i256, i256}

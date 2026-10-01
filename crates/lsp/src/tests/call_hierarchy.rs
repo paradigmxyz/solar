@@ -3,7 +3,9 @@ use crate::{
     symbols::{SymbolTables, SymbolTablesAggregator},
     test_support::MarkedProject,
 };
-use lsp_types::{CallHierarchyIncomingCall, CallHierarchyOutgoingCall, Position, Range, Url};
+use lsp_types::{
+    CallHierarchyIncomingCall, CallHierarchyOutgoingCall, Position, Range, SymbolKind, Url,
+};
 use solar_config::CompileOpts;
 
 #[test]
@@ -128,7 +130,7 @@ fn groups_repeated_calls_and_preserves_recursion() {
         //- /Repeated.sol
         contract C {
             function $1callee() internal {}
-            function $2caller() external {
+            function $2caller() public {
                 $3callee();
                 $4callee();
                 $5caller();
@@ -548,8 +550,6 @@ fn excludes_non_direct_and_non_source_calls() {
     let marked = MarkedProject::from_fixture(
         r#"
         //- /Excluded.sol
-        contract Created {}
-
         abstract contract AbstractCreated {
             constructor() {}
         }
@@ -567,7 +567,6 @@ fn excludes_non_direct_and_non_source_calls() {
                 require(true);
                 address(this).call("");
                 this.value();
-                new Created();
                 new AbstractCreated();
                 emit Called();
                 $3target();
@@ -1089,4 +1088,277 @@ fn merge_symbol_tables(first: SymbolTables, second: SymbolTables) -> SymbolTable
 fn marker_range(marked: &MarkedProject, marker: &str, utf16_len: u32) -> Range {
     let start = marked.marker(marker).position();
     Range::new(start, Position::new(start.line, start.character + utf16_len))
+}
+
+#[test]
+fn indexes_calls_to_implicit_constructors() {
+    let marked = MarkedProject::from_fixture(
+        r#"
+        //- /Implicit.sol
+        contract $1Empty {}
+        contract $2Derived is $3Empty() {}
+        contract Explicit is $10Empty {
+            $4constructor() $5Empty() {}
+        }
+        contract Factory {
+            function $6deploy() external returns (Derived) {
+                return new $7Derived();
+            }
+        }
+        interface $8I {}
+        library $9Lib {}
+        "#,
+    );
+    let project = marked.project();
+    let path = project.path("/Implicit.sol");
+    let result = analyze(AnalysisBatch::from_files(
+        CompileOpts::default(),
+        [(path.clone(), project.read_file("/Implicit.sol"))],
+    ));
+    assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
+    let tables = result.symbol_tables;
+    let uri = Url::from_file_path(path).unwrap();
+    let item = |marker: &str| {
+        tables
+            .prepare_call_hierarchy(&uri, marked.marker(marker).position())
+            .unwrap()
+            .pop()
+            .unwrap()
+    };
+    for (caller, callee, site, length) in
+        [("$2", "$1", "$3", 5), ("$4", "$1", "$5", 5), ("$6", "$2", "$7", 7)]
+    {
+        let caller = item(caller);
+        let callee = item(callee);
+        let from_ranges = vec![marker_range(&marked, site, length)];
+        assert_eq!(
+            tables.prepare_call_hierarchy(&uri, marked.marker(site).position()),
+            Some(vec![callee.clone()])
+        );
+        assert_eq!(
+            tables.call_hierarchy_outgoing(&caller),
+            Some(vec![CallHierarchyOutgoingCall {
+                to: callee.clone(),
+                from_ranges: from_ranges.clone()
+            }])
+        );
+        assert!(
+            tables
+                .call_hierarchy_incoming(&callee)
+                .unwrap()
+                .iter()
+                .any(|call| { call.from == caller && call.from_ranges == from_ranges })
+        );
+    }
+    assert_eq!(tables.call_hierarchy_incoming(&item("$1")).unwrap().len(), 2);
+    assert_eq!(tables.call_hierarchy_incoming(&item("$2")).unwrap().len(), 1);
+    for marker in ["$8", "$9", "$10"] {
+        assert_eq!(tables.prepare_call_hierarchy(&uri, marked.marker(marker).position()), None);
+    }
+}
+
+#[test]
+fn indexes_implicit_constructor_inheritance_calls() {
+    let marked = MarkedProject::from_fixture(
+        r#"
+        //- /Token.sol
+        contract ERC20 {
+            $1constructor(string memory name_, string memory symbol_) {}
+        }
+        contract $2T is $3ERC20("N", "S") {
+            $4uint256 value;
+        }
+        "#,
+    );
+    let project = marked.project();
+    let path = project.path("/Token.sol");
+    let result = analyze(AnalysisBatch::from_files(
+        CompileOpts::default(),
+        [(path.clone(), project.read_file("/Token.sol"))],
+    ));
+    assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
+    let tables = result.symbol_tables;
+    let uri = Url::from_file_path(path).unwrap();
+    let base =
+        tables.prepare_call_hierarchy(&uri, marked.marker("$1").position()).unwrap().pop().unwrap();
+    assert_eq!(
+        tables.prepare_call_hierarchy(&uri, marked.marker("$3").position()),
+        Some(vec![base.clone()])
+    );
+    let derived =
+        tables.prepare_call_hierarchy(&uri, marked.marker("$2").position()).unwrap().pop().unwrap();
+    assert_eq!(derived.name, "T");
+    assert_eq!(derived.kind, SymbolKind::CONSTRUCTOR);
+    assert_eq!(derived.detail.as_deref(), Some("implicit constructor"));
+    assert_eq!(derived.selection_range, marker_range(&marked, "$2", 1));
+    assert!(derived.range.start <= derived.selection_range.start);
+    assert!(derived.range.end >= marker_range(&marked, "$3", 5).end);
+    let from_ranges = vec![marker_range(&marked, "$3", 5)];
+    assert_eq!(
+        tables.call_hierarchy_outgoing(&derived),
+        Some(vec![CallHierarchyOutgoingCall {
+            to: base.clone(),
+            from_ranges: from_ranges.clone()
+        }])
+    );
+    assert_eq!(
+        tables.call_hierarchy_incoming(&base),
+        Some(vec![CallHierarchyIncomingCall { from: derived, from_ranges }])
+    );
+    // The whole contract must not become an enclosing constructor body.
+    assert_eq!(tables.prepare_call_hierarchy(&uri, marked.marker("$4").position()), None);
+}
+
+#[test]
+fn merges_implicit_constructors_and_isolates_conflicting_base_calls() {
+    let marked = MarkedProject::from_fixture(
+        r#"
+        //- /Base.sol
+        contract Base {
+            $1constructor(uint256) {}
+        }
+        //- /Caller.sol
+        import {Base} from "./Base.sol";
+        function $2argument() pure returns (uint256) { return 1; }
+        contract $3T is $4Base($5argument()) {}
+        contract Factory {
+            function $6deploy() external { new $7T(); }
+        }
+        //- /RootA.sol
+        import "./Caller.sol";
+        //- /RootB.sol
+        import "./Caller.sol";
+        //- /RootC.sol
+        import "./Caller.sol";
+        "#,
+    );
+    let project = marked.project();
+    let analyze_root = |root: &str| {
+        let result = analyze(AnalysisBatch::from_files(
+            CompileOpts::default(),
+            [(project.path(root), project.read_file(root))],
+        ));
+        assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
+        result.symbol_tables
+    };
+    let mut tables = analyze_root("/RootA.sol");
+    let base_uri = Url::from_file_path(project.path("/Base.sol")).unwrap();
+    let caller_uri = Url::from_file_path(project.path("/Caller.sol")).unwrap();
+    let item = |uri: &Url, marker: &str| {
+        tables.prepare_call_hierarchy(uri, marked.marker(marker).position()).unwrap().pop().unwrap()
+    };
+    let base = item(&base_uri, "$1");
+    let argument = item(&caller_uri, "$2");
+    let constructor = item(&caller_uri, "$3");
+    let deploy = item(&caller_uri, "$6");
+    let base_ranges = vec![marker_range(&marked, "$4", 4)];
+    let argument_ranges = vec![marker_range(&marked, "$5", 8)];
+    let creation_ranges = vec![marker_range(&marked, "$7", 1)];
+
+    tables = merge_symbol_tables(tables, analyze_root("/RootB.sol"));
+
+    // Items prepared before the merge retain one edge per source call after deduplication.
+    assert_eq!(
+        tables.prepare_call_hierarchy(&caller_uri, marked.marker("$3").position()),
+        Some(vec![constructor.clone()])
+    );
+    assert_eq!(
+        tables.call_hierarchy_outgoing(&constructor),
+        Some(vec![
+            CallHierarchyOutgoingCall { to: base.clone(), from_ranges: base_ranges.clone() },
+            CallHierarchyOutgoingCall {
+                to: argument.clone(),
+                from_ranges: argument_ranges.clone(),
+            },
+        ])
+    );
+    assert_eq!(
+        tables.call_hierarchy_incoming(&base),
+        Some(vec![CallHierarchyIncomingCall {
+            from: constructor.clone(),
+            from_ranges: base_ranges,
+        }])
+    );
+    assert_eq!(
+        tables.call_hierarchy_incoming(&argument),
+        Some(vec![CallHierarchyIncomingCall {
+            from: constructor.clone(),
+            from_ranges: argument_ranges,
+        }])
+    );
+    assert_eq!(
+        tables.call_hierarchy_incoming(&constructor),
+        Some(vec![CallHierarchyIncomingCall {
+            from: deploy.clone(),
+            from_ranges: creation_ranges.clone(),
+        }])
+    );
+    assert_eq!(
+        tables.call_hierarchy_outgoing(&deploy),
+        Some(vec![CallHierarchyOutgoingCall {
+            to: constructor.clone(),
+            from_ranges: creation_ranges,
+        }])
+    );
+
+    // The caller's text stays identical, but a moved imported constructor changes its call facts.
+    let moved_base = project.read_file("/Base.sol").replace("constructor(", "\nconstructor(");
+    project.write_file("/Base.sol", &moved_base);
+    tables = merge_symbol_tables(tables, analyze_root("/RootC.sol"));
+
+    assert_eq!(tables.prepare_call_hierarchy(&caller_uri, marked.marker("$3").position()), None);
+    assert_eq!(tables.call_hierarchy_outgoing(&constructor), None);
+    assert_eq!(tables.call_hierarchy_incoming(&argument), None);
+    assert_eq!(tables.call_hierarchy_outgoing(&deploy), None);
+}
+
+#[test]
+fn rejects_renamed_or_explicitly_replaced_implicit_constructors() {
+    let marked = MarkedProject::from_fixture(
+        r#"
+        //- /Replaced.sol
+        contract Base { $1constructor(uint256) {} }
+        contract $2T is $3Base(1) {}
+        "#,
+    );
+    let project = marked.project();
+    let path = project.path("/Replaced.sol");
+    let uri = Url::from_file_path(&path).unwrap();
+    let contents = project.read_file("/Replaced.sol");
+    let analyze_contents = |contents: String| {
+        let result =
+            analyze(AnalysisBatch::from_files(CompileOpts::default(), [(path.clone(), contents)]));
+        assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
+        result.symbol_tables
+    };
+    let tables = analyze_contents(contents.clone());
+    let constructor =
+        tables.prepare_call_hierarchy(&uri, marked.marker("$2").position()).unwrap().pop().unwrap();
+    let base =
+        tables.prepare_call_hierarchy(&uri, marked.marker("$1").position()).unwrap().pop().unwrap();
+
+    let renamed = analyze_contents(contents.replace("contract T", "contract U"));
+    let renamed_constructor = renamed
+        .prepare_call_hierarchy(&uri, marked.marker("$2").position())
+        .unwrap()
+        .pop()
+        .unwrap();
+    assert_eq!(constructor.selection_range, renamed_constructor.selection_range);
+    assert_eq!(renamed_constructor.name, "U");
+    assert_eq!(
+        renamed.call_hierarchy_outgoing(&renamed_constructor),
+        Some(vec![CallHierarchyOutgoingCall {
+            to: base,
+            from_ranges: vec![marker_range(&marked, "$3", 4)],
+        }])
+    );
+    assert_eq!(renamed.call_hierarchy_outgoing(&constructor), None);
+    assert_eq!(renamed.call_hierarchy_incoming(&constructor), None);
+
+    let explicit = analyze_contents(
+        contents.replace("contract T is Base(1) {}", "contract T is Base(1) { constructor() {} }"),
+    );
+    assert_eq!(explicit.prepare_call_hierarchy(&uri, marked.marker("$2").position()), None);
+    assert_eq!(explicit.call_hierarchy_outgoing(&constructor), None);
+    assert_eq!(explicit.call_hierarchy_incoming(&constructor), None);
 }

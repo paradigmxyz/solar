@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/low_level_call_storage_bytes.sol:LowLevelCallStorageBytes ===
 @module LowLevelCallStorageBytes
-types:
+@types
   struct0: {i1, memorybytes}
 
 fn @callData() -> memorybytes [selector=0x4e417a98, view, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {

@@ -7,23 +7,23 @@ fn @ping() -> i256 [selector=0x5c36b186, pure, abi_params=[], abi_returns=[word]
 
 // === ROOT/tests/ui/codegen/lowering/run-call/heap_prefix_creation_spill.sol:Harness ===
 @module Harness
-data:
-  Implementation_initcode_0: hex"34600d5760328060115f395ff35b5f5ffd341515601c575f3560e01c80635c36b18614601857601c565b6020565b5f5ffd5b60076080526020608001608090036080f3"
+@data
+  Implementation_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/heap_prefix_creation_spill.sol:Implementation"
 
 fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
-    v1 = not 31
-    v2 = and 98, v1
+    v1 = datasize Implementation_creation_code_0
+    v2 = datasize Implementation_creation_code_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    data_copy Implementation_initcode_0, v4, 67
+    datacopy Implementation_creation_code_0, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
-    v7 = add v6, 67
+    v7 = add v6, v1
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
-    v9 = create 0, v8, 67
+    v9 = create 0, v8, v1
     v10 = ne v9, i160 0
     jumpi v10, bb2, bb1
   bb1:
@@ -137,7 +137,7 @@ fn @_creationStart(arg0: memorybytes) -> i256 [pure] {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/heap_prefix_creation_spill.sol:HeapPrefixTuple ===
 @module HeapPrefixTuple
-types:
+@types
   struct0: {i256, i256}
 
 fn @check(arg0: i256) -> i256 [selector=0x5f72f450, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {

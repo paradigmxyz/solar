@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/low_level_call_evaluation_order.sol:LowLevelCallEvaluationOrder ===
 @module LowLevelCallEvaluationOrder
-types:
+@types
   struct0: {memorybytes, memorybytes}
   struct1: {i1, memorybytes}
 

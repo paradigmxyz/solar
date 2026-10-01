@@ -1,20 +1,22 @@
 //! MIR module (top-level container).
 
 use super::{
-    AbiLayout, AbiLayoutRef, AbiParamLayout, AbiParamLayoutRef, DataId, DataRef, Disambiguator,
-    Function, FunctionId, ImmutableId, MangledSymbol, MirType, StructId, StructType, Terminator,
+    AbiLayout, AbiLayoutRef, AbiParamLayout, AbiParamLayoutRef, Data, DataBytes, DataId, DataRef,
+    Disambiguator, Function, FunctionId, ImmutableId, MangledSymbol, MirType, StructId, StructType,
+    Terminator, ValueId,
 };
-use crate::link::{LibraryRelocation, LibraryTable};
+use crate::link::{ContractCode, LibraryTable};
 use alloy_primitives::Bytes;
+use smallvec::SmallVec;
 use solar_data_structures::{
     bit_set::DenseBitSet,
-    fmt::{self, FmtIteratorExt},
+    fmt::FmtIteratorExt,
     index::{IndexVec, index_vec},
     map::FxHashMap,
 };
 use solar_interface::{Ident, Symbol, sym};
 use solar_sema::hir::VariableId;
-use std::{borrow::Cow, sync::Arc};
+use std::{borrow::Cow, fmt, sync::Arc};
 
 /// A named immutable declared by a MIR module.
 #[derive(Clone, Copy, Debug)]
@@ -25,15 +27,6 @@ pub(crate) struct Immutable {
     pub(crate) ty: super::ValueLayout,
     /// The source variable, when this module was lowered from Solidity.
     pub(crate) variable_id: Option<VariableId>,
-}
-
-/// One constant byte string and its optional display name.
-#[derive(Clone, Debug)]
-struct Data {
-    bytes: Bytes,
-    name: Option<Symbol>,
-    emit_in_runtime: bool,
-    library_relocations: Vec<LibraryRelocation>,
 }
 
 /// The representation contract of a MIR module.
@@ -104,11 +97,9 @@ pub struct Module {
     /// Named immutable declarations indexed by their stable MIR identifiers.
     immutables: IndexVec<ImmutableId, Immutable>,
     /// Constant byte strings embedded in generated code.
-    data: IndexVec<DataId, Data>,
+    pub(crate) data: IndexVec<DataId, Data>,
     /// Exact data lookup used before the final subslice-packing pass.
     data_index: FxHashMap<Bytes, DataId>,
-    /// Linked data has a separate identity from literal bytes with the same contents.
-    linked_data_index: FxHashMap<(Bytes, Vec<LibraryRelocation>), DataId>,
     /// Whether this is an interface (no bytecode generation).
     pub(crate) is_interface: bool,
     /// Whether this module was lowered from a library.
@@ -178,7 +169,6 @@ impl Module {
             data: IndexVec::new(),
             data_index: FxHashMap::default(),
             libraries: LibraryTable::default(),
-            linked_data_index: FxHashMap::default(),
             is_interface: false,
             is_library: false,
             phase: MirPhase::Semantic,
@@ -246,12 +236,32 @@ impl Module {
     }
 
     fn has_value_type(&self, predicate: impl Fn(MirType) -> bool) -> bool {
+        let mut operands = SmallVec::<[ValueId; 8]>::new();
         self.functions.iter().any(|func| {
-            func.arg_indices()
-                .map(|index| func.arg_ty(index))
-                .chain(func.return_components().iter().copied())
-                .chain(func.live_values().filter_map(|value| func.value_ty(value)))
-                .any(&predicate)
+            let matches = |value| func.value_ty(value).is_some_and(&predicate);
+            if func.arg_indices().any(|index| predicate(func.arg_ty(index)))
+                || func.return_components().iter().any(|&ty| predicate(ty))
+            {
+                return true;
+            }
+            for block in &func.blocks {
+                for &inst_id in &block.instructions {
+                    let inst = func.inst(inst_id);
+                    operands.clear();
+                    inst.kind.collect_operands(&mut operands);
+                    if operands.iter().copied().chain(inst.result()).any(matches) {
+                        return true;
+                    }
+                }
+                let mut found = false;
+                if let Some(term) = &block.terminator {
+                    term.visit_operands(|value| found |= matches(value));
+                }
+                if found {
+                    return true;
+                }
+            }
+            false
         })
     }
 
@@ -435,46 +445,24 @@ impl Module {
         self.immutables.iter_enumerated()
     }
 
-    /// Returns library relocation offsets in a data blob.
-    pub(crate) fn data_library_relocations(&self, id: DataId) -> &[LibraryRelocation] {
-        &self.data[id].library_relocations
+    /// Adds a data entry, interning its bytes when they are plain literal data.
+    pub(crate) fn add_data_entry(&mut self, data: Data) -> DataId {
+        let bytes = data.bytes.known().filter(|_| data.library_relocations.is_empty()).cloned();
+        let id = self.data.push(data);
+        if let Some(bytes) = bytes {
+            self.data_index.entry(bytes).or_insert(id);
+        }
+        id
     }
 
-    /// Adds a declaration with library relocations without interning it as literal data.
-    pub(crate) fn add_linked_data(
-        &mut self,
-        bytes: Bytes,
-        name: Option<Symbol>,
-        offsets: Vec<LibraryRelocation>,
-    ) -> DataId {
-        if offsets.is_empty() {
-            return self.add_data(bytes, name);
+    /// Interns another contract's bytecode, which final assembly links in.
+    pub(crate) fn intern_contract_code(&mut self, code: ContractCode, name: Symbol) -> DataId {
+        let existing =
+            self.data.iter_enumerated().find(|(_, data)| data.bytes == DataBytes::Deferred(code));
+        match existing {
+            Some((id, _)) => id,
+            None => self.data.push(Data::contract_code(code, Some(name))),
         }
-        self.data.push(Data { bytes, name, emit_in_runtime: false, library_relocations: offsets })
-    }
-
-    /// Interns embedded bytecode without sharing its relocations with literal data.
-    pub(crate) fn intern_linked_data(
-        &mut self,
-        bytes: Bytes,
-        name: Option<Symbol>,
-        offsets: Vec<LibraryRelocation>,
-    ) -> DataRef {
-        if offsets.is_empty() {
-            return self.intern_data(Cow::Borrowed(&bytes), name);
-        }
-        let key = (bytes.clone(), offsets.clone());
-        if let Some(&id) = self.linked_data_index.get(&key) {
-            return DataRef::new(id, 0);
-        }
-        let id = self.data.push(Data {
-            bytes,
-            name,
-            emit_in_runtime: false,
-            library_relocations: offsets,
-        });
-        self.linked_data_index.insert(key, id);
-        DataRef::new(id, 0)
     }
 
     /// Interns constant data and returns its stable identifier.
@@ -500,39 +488,7 @@ impl Module {
     }
 
     fn push_data(&mut self, data: Bytes, name: Option<Symbol>, emit_in_runtime: bool) -> DataId {
-        let id = self.data.push(Data {
-            bytes: data.clone(),
-            name,
-            emit_in_runtime,
-            library_relocations: Vec::new(),
-        });
-        self.data_index.entry(data).or_insert(id);
-        id
-    }
-
-    pub(crate) fn data_name(&self, id: DataId) -> Option<Symbol> {
-        self.data[id].name
-    }
-
-    pub(crate) fn data_is_emitted_in_runtime(&self, id: DataId) -> bool {
-        self.data[id].emit_in_runtime
-    }
-
-    /// Returns constant data if the identifier is allocated.
-    #[must_use]
-    pub(crate) fn get_data(&self, id: DataId) -> Option<&Bytes> {
-        self.data.get(id).map(|data| &data.bytes)
-    }
-
-    /// Returns the number of constant data entries.
-    #[must_use]
-    pub(crate) fn data_count(&self) -> usize {
-        self.data.len()
-    }
-
-    /// Returns all constant data entries.
-    pub(crate) fn iter_data(&self) -> impl Iterator<Item = (DataId, &Bytes)> {
-        self.data.iter_enumerated().map(|(id, data)| (id, &data.bytes))
+        self.add_data_entry(Data { emit_in_runtime, ..Data::new(data, name) })
     }
 
     /// Returns an iterator over all functions.
@@ -551,39 +507,15 @@ impl Module {
                 writeln!(f, "@library")?;
             }
             if !self.struct_types.is_empty() {
-                writeln!(f, "types:")?;
+                writeln!(f, "@types")?;
                 for (id, ty) in self.struct_types.iter_enumerated() {
                     writeln!(f, "  struct{}: {{{}}}", id.index(), ty.fields.iter().format(", "))?;
                 }
                 writeln!(f)?;
             }
-            if !self.data.is_empty() {
-                writeln!(f, "data:")?;
-                for (id, data) in self.iter_data() {
-                    if let Some(name) = self.data_name(id) {
-                        write!(f, "  {}", crate::utils::display_data_name(name, id.index()))?;
-                    } else {
-                        write!(f, "  {}", id.index())?;
-                    }
-                    write!(f, ": hex\"")?;
-                    for byte in data {
-                        write!(f, "{byte:02x}")?;
-                    }
-                    write!(f, "\"")?;
-                    let offsets = self.data_library_relocations(id);
-                    if !offsets.is_empty() {
-                        write!(
-                            f,
-                            " library_relocations [{}]",
-                            offsets.iter().map(|reloc| reloc.display(&self.libraries)).format(", ")
-                        )?;
-                    }
-                    writeln!(f)?;
-                }
-                writeln!(f)?;
-            }
+            write!(f, "{}", crate::link::display_declarations(&self.libraries, &self.data))?;
             if !self.immutables.is_empty() {
-                writeln!(f, "immutables:")?;
+                writeln!(f, "@immutables")?;
                 for (id, immutable) in self.iter_immutables() {
                     writeln!(
                         f,

@@ -23,27 +23,27 @@ fn @receive() [receive, payable] {
 
 // === ROOT/tests/ui/codegen/lowering/transfer_send.sol:TransferSend ===
 @module TransferSend
-types:
+@types
   struct0: {i256, i256, i256}
 
-data:
-  GasReceiver_initcode_0: hex"34600d5760238060115f395ff35b5f5ffd361515600957600d565b5f5ffd5b5f5fa05f5fa05f5fa05f5fa05f5fa05f5fa05f5fa0"
-  RevertReceiver_initcode_1: hex"34600d57601c8060115f395ff35b5f5ffd361515600957600d565b5f5ffd5b63deadbeef60e01b5f5260045ffd"
+@data
+  GasReceiver_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/transfer_send.sol:GasReceiver"
+  RevertReceiver_creation_code_1: creation_code "ROOT/tests/ui/codegen/lowering/transfer_send.sol:RevertReceiver"
 
 fn @constructor() [constructor] {
   bb0:
     v0 = abi_encode []
-    v1 = not 31
-    v2 = and 83, v1
+    v1 = datasize GasReceiver_creation_code_0
+    v2 = datasize GasReceiver_creation_code_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    data_copy GasReceiver_initcode_0, v4, 52
+    datacopy GasReceiver_creation_code_0, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
-    v7 = add v6, 52
+    v7 = add v6, v1
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
-    v9 = create 0, v8, 52
+    v9 = create 0, v8, v1
     v10 = ne v9, i160 0
     jumpi v10, bb2, bb1
   bb1:
@@ -57,17 +57,17 @@ fn @constructor() [constructor] {
     v16 = or v13, v15
     sstore 0, v16 !metadata(storage=slot(0))
     v17 = abi_encode []
-    v18 = not 31
-    v19 = and 76, v18
+    v18 = datasize RevertReceiver_creation_code_1
+    v19 = datasize RevertReceiver_creation_code_1, 31, aligned
     v20 = alloc raw, exact, uninitialized, infallible, v19
     v21 = ptrtoint memptr v20 to i256
-    data_copy RevertReceiver_initcode_1, v21, 45
+    datacopy RevertReceiver_creation_code_1, v21, v18
     v22 = slice_ptr v17
     v23 = ptrtoint memptr v20 to i256
-    v24 = add v23, 45
+    v24 = add v23, v18
     mcopy v24, v22, 0 !metadata(memory=heap)
     v25 = ptrtoint memptr v20 to i256
-    v26 = create 0, v25, 45
+    v26 = create 0, v25, v18
     v27 = ne v26, i160 0
     jumpi v27, bb4, bb3
   bb3:

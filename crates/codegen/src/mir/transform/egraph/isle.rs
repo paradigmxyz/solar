@@ -91,18 +91,18 @@ impl<'a> RuleContext<'a> {
         self
     }
 
-    /// Appends every equivalent instruction the rules can build for `op`.
+    /// Appends every equivalent instruction the rules can build for `op`,
+    /// whose operands must be in [`canonical_operands`] order.
     pub(super) fn rewrite(&mut self, op: &Op, alternatives: &mut Vec<Op>) {
-        let op = canonical_operands(self.func, *op);
-        self.integer_ty = self.operation_type(&op).unwrap_or(MirType::I256);
-        generated::constructor_rewrite(self, &op, alternatives);
+        self.integer_ty = self.operation_type(op).unwrap_or(MirType::I256);
+        generated::constructor_rewrite(self, op, alternatives);
     }
 
-    /// Returns the value `op` is equal to, when a rule applies.
+    /// Returns the value `op` is equal to, when a rule applies. The operands
+    /// of `op` must be in [`canonical_operands`] order.
     pub(super) fn simplify(&mut self, op: &Op) -> Option<ValueId> {
-        let op = canonical_operands(self.func, *op);
-        self.integer_ty = self.operation_type(&op).unwrap_or(MirType::I256);
-        generated::constructor_simplify(self, &op)
+        self.integer_ty = self.operation_type(op).unwrap_or(MirType::I256);
+        generated::constructor_simplify(self, op)
     }
 
     fn integer_mask(&self) -> U256 {
@@ -177,6 +177,7 @@ pub(in crate::mir::transform) fn max_bits_with_args(
     let shift = |shift| func.value_u256(shift).map(|shift| shift.min(U256::from(256)).to::<u32>());
     match *kind {
         InstKind::Zext(value) | InstKind::Bitcast(value) | InstKind::Trunc(value, _) => bits(value),
+        InstKind::DataSize(size) => size.bound().bit_len() as u32,
         InstKind::And(a, b) => {
             let a = bits(a);
             if a == 0 { 0 } else { a.min(bits(b)) }

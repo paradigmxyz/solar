@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/external_call_gas_evm_version.sol:CallGasCallee ===
 @module CallGasCallee
-types:
+@types
   struct0: {i256, i256}
   struct1: {i256, i256, i256, i256, i256, i256, i256, i256}
 
@@ -62,27 +62,27 @@ fn @receive() [receive, payable] {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/external_call_gas_evm_version.sol:CallGasCalls ===
 @module CallGasCalls
-types:
+@types
   struct0: {i256, i256}
   struct1: {i256, i256, i256, i256, i256, i256, i256, i256}
 
-data:
-  CallGasCallee_initcode_0: hex"346010576102108060166000396000f35b60006000fe361515600a5761020f565b6000357c010000000000000000000000000000000000000000000000000000000090048063295b4e171460825780633fa4f24514607e5780635dfc2e4a14607a578063a8aa1b31146076578063cb94343e146072578063f5e34bfa14606d576086565b61014d565b60f1565b60c7565b608b565b6098565b60b5565b600080fe5b341515609357005b600080fe5b34151560b057602a6080526020608001608090036080f35b600080fe5b60076080526020608001608090036080f35b60c060405234151560ec57600160805260206080016002815260209001608090036080f35b600080fe5b61018060405234151561014857600160805260206080016002815260209001600381526020900160048152602090016005815260209001600681526020900160078152602090016008815260209001608090036080f35b600080fe5b61014060405234151561020a576040518060e0528060e0528060c0528060c052604060e051016040528060c0526040368237506002600010156101f75760c0518060c052600b8152506002600110156101f75760c0518060c052602090016016815250600060c051905b8061010052600281106101d4576040608001915050608090036080f35b602081806101005202828060c052015160208202608001526001810190506101b7565b634e487b7160005260326020526024601cfe5b600080fe5b"
+@data
+  CallGasCallee_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/external_call_gas_evm_version.sol:CallGasCallee"
 
 fn @noReturn() -> i256 [selector=0x31794254, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
-    v1 = not 31
-    v2 = and 581, v1
+    v1 = datasize CallGasCallee_creation_code_0
+    v2 = datasize CallGasCallee_creation_code_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    data_copy CallGasCallee_initcode_0, v4, 550
+    datacopy CallGasCallee_creation_code_0, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
-    v7 = add v6, 550
+    v7 = add v6, v1
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
-    v9 = create 0, v8, 550
+    v9 = create 0, v8, v1
     v10 = ne v9, i160 0
     jumpi v10, bb2, bb1
   bb1:
@@ -109,17 +109,17 @@ fn @noReturn() -> i256 [selector=0x31794254, abi_params=[], abi_returns=[word], 
 fn @withReturn() -> i256 [selector=0x2149184b, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
-    v1 = not 31
-    v2 = and 581, v1
+    v1 = datasize CallGasCallee_creation_code_0
+    v2 = datasize CallGasCallee_creation_code_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    data_copy CallGasCallee_initcode_0, v4, 550
+    datacopy CallGasCallee_creation_code_0, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
-    v7 = add v6, 550
+    v7 = add v6, v1
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
-    v9 = create 0, v8, 550
+    v9 = create 0, v8, v1
     v10 = ne v9, i160 0
     jumpi v10, bb2, bb1
   bb1:
@@ -152,17 +152,17 @@ fn @withReturn() -> i256 [selector=0x2149184b, abi_params=[], abi_returns=[word]
 fn @withValue() -> i256 [selector=0xd6b69802, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
-    v1 = not 31
-    v2 = and 581, v1
+    v1 = datasize CallGasCallee_creation_code_0
+    v2 = datasize CallGasCallee_creation_code_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    data_copy CallGasCallee_initcode_0, v4, 550
+    datacopy CallGasCallee_creation_code_0, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
-    v7 = add v6, 550
+    v7 = add v6, v1
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
-    v9 = create 0, v8, 550
+    v9 = create 0, v8, v1
     v10 = ne v9, i160 0
     jumpi v10, bb2, bb1
   bb1:
@@ -195,17 +195,17 @@ fn @withValue() -> i256 [selector=0xd6b69802, abi_params=[], abi_returns=[word],
 fn @twoReturns() -> i256 [selector=0xf7f4979a, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
-    v1 = not 31
-    v2 = and 581, v1
+    v1 = datasize CallGasCallee_creation_code_0
+    v2 = datasize CallGasCallee_creation_code_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    data_copy CallGasCallee_initcode_0, v4, 550
+    datacopy CallGasCallee_creation_code_0, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
-    v7 = add v6, 550
+    v7 = add v6, v1
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
-    v9 = create 0, v8, 550
+    v9 = create 0, v8, v1
     v10 = ne v9, i160 0
     jumpi v10, bb2, bb1
   bb1:
@@ -245,17 +245,17 @@ fn @twoReturns() -> i256 [selector=0xf7f4979a, abi_params=[], abi_returns=[word]
 fn @eightReturns() -> i256 [selector=0x67b0b213, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
-    v1 = not 31
-    v2 = and 581, v1
+    v1 = datasize CallGasCallee_creation_code_0
+    v2 = datasize CallGasCallee_creation_code_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    data_copy CallGasCallee_initcode_0, v4, 550
+    datacopy CallGasCallee_creation_code_0, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
-    v7 = add v6, 550
+    v7 = add v6, v1
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
-    v9 = create 0, v8, 550
+    v9 = create 0, v8, v1
     v10 = ne v9, i160 0
     jumpi v10, bb2, bb1
   bb1:
@@ -325,17 +325,17 @@ fn @eightReturns() -> i256 [selector=0x67b0b213, abi_params=[], abi_returns=[wor
 fn @aggregate() -> i256 [selector=0xaf36778b, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
-    v1 = not 31
-    v2 = and 581, v1
+    v1 = datasize CallGasCallee_creation_code_0
+    v2 = datasize CallGasCallee_creation_code_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    data_copy CallGasCallee_initcode_0, v4, 550
+    datacopy CallGasCallee_creation_code_0, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
-    v7 = add v6, 550
+    v7 = add v6, v1
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
-    v9 = create 0, v8, 550
+    v9 = create 0, v8, v1
     v10 = ne v9, i160 0
     jumpi v10, bb2, bb1
   bb1:
@@ -381,17 +381,17 @@ fn @aggregate() -> i256 [selector=0xaf36778b, abi_params=[], abi_returns=[word],
 fn @bare() -> i256 [selector=0x8095dd0b, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
-    v1 = not 31
-    v2 = and 581, v1
+    v1 = datasize CallGasCallee_creation_code_0
+    v2 = datasize CallGasCallee_creation_code_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    data_copy CallGasCallee_initcode_0, v4, 550
+    datacopy CallGasCallee_creation_code_0, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
-    v7 = add v6, 550
+    v7 = add v6, v1
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
-    v9 = create 0, v8, 550
+    v9 = create 0, v8, v1
     v10 = ne v9, i160 0
     jumpi v10, bb2, bb1
   bb1:
@@ -413,17 +413,17 @@ fn @bare() -> i256 [selector=0x8095dd0b, abi_params=[], abi_returns=[word], abi_
 fn @sendZero() -> i256 [selector=0xe857d88b, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
-    v1 = not 31
-    v2 = and 581, v1
+    v1 = datasize CallGasCallee_creation_code_0
+    v2 = datasize CallGasCallee_creation_code_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    data_copy CallGasCallee_initcode_0, v4, 550
+    datacopy CallGasCallee_creation_code_0, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
-    v7 = add v6, 550
+    v7 = add v6, v1
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
-    v9 = create 0, v8, 550
+    v9 = create 0, v8, v1
     v10 = ne v9, i160 0
     jumpi v10, bb2, bb1
   bb1:

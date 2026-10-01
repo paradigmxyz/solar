@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/library_call_evm_version.sol:Lib ===
 @module Lib
 @library
-types:
+@types
   struct0: {i256, i256}
   struct1: {i256, i256, i256, i256, i256, i256}
 
@@ -74,7 +74,7 @@ fn @six(arg0: memorybytes) -> struct1 [selector=0xb84d18fb, pure, abi_params=[by
 
 // === ROOT/tests/ui/codegen/lowering/library_call_evm_version.sol:C ===
 @module C
-types:
+@types
   struct0: {i256, i256}
   struct1: {i256, i256, i256, i256, i256, i256}
 

@@ -1,6 +1,11 @@
 - // === ROOT/tests/ui/codegen/evm-ir/pack-data/subslice_escape.evmir (before pack-data) ===
 + // === ROOT/tests/ui/codegen/evm-ir/pack-data/subslice_escape.evmir (after pack-data) ===
   @module subslice_escape
+  @data
+    literal_0: hex"2233"
+    literal_1: hex"2233"
+    literal_2: hex"aa"
+  
   bb0:
     push 3
     push_data literal_0
@@ -22,8 +27,4 @@
     dup 2
     mstore
     stop
-  
-  @data literal_0 hex"2233"
-  @data literal_1 hex"2233"
-  @data literal_2 hex"aa"
   

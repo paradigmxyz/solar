@@ -9,51 +9,28 @@ fn @constructor(arg0: i1) [constructor, abi_params=[bool]] {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/try_creation.sol:TryCreation ===
 @module TryCreation
+@data
+  TryCreationChild_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/try_creation.sol:TryCreationChild"
+
 fn @f(arg0: i1) -> i1 [selector=0x98c3a6c1, abi_params=[bool], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = zext i1 arg0 to i256
     v1 = abi_encode [word<bool>], args v0
-    v2 = not 31
-    v3 = and 359, v2
-    v4 = alloc raw, exact, uninitialized, infallible, v3
-    v5 = ptrtoint memptr v4 to i256
-    mstore v5, 0x61012838038061012860e03960e001601f017fffffffffffffffffffffffffff
-    v6 = ptrtoint memptr v4 to i256
-    v7 = add v6, 32
-    mstore v7, 0xffffffffffffffffffffffffffffffffffffe016604052607b565b7f08c379a0
-    v8 = ptrtoint memptr v4 to i256
-    v9 = add v8, 64
-    mstore v9, 0x5f526020
-    v10 = ptrtoint memptr v4 to i256
-    v11 = add v10, 96
-    mstore v11, 0x60045260a0516040015160245260a0516060015160445260645ffd5b34151561
-    v12 = ptrtoint memptr v4 to i256
-    v13 = add v12, 128
-    mstore v13, 0x1165760e08060c0528060c05260e06101283803016020820111610112578060
-    v14 = ptrtoint memptr v4 to i256
-    v15 = add v14, 160
-    mstore v15, 0xc0525160029010156101125760e0511561010d5760405160a051816020015260
-    v16 = ptrtoint memptr v4 to i256
-    v17 = add v16, 192
-    mstore v17, 0x181604001527f78000000000000000000000000000000000000000000000000
-    v18 = ptrtoint memptr v4 to i256
-    v19 = add v18, 224
-    mstore v19, 0x81606001528060a05260800160405260fb603a565b60a05160
-    v20 = ptrtoint memptr v4 to i256
-    v21 = add v20, 256
-    mstore v21, 0x405260a0516020015160a052fe5b61011a565b5f5ffd5b5f5ffd5b6003806101
-    v22 = ptrtoint memptr v4 to i256
-    v23 = add v22, 288
-    mstore v23, 0x255f395ff35f5ffd000000000000000000000000000000000000000000000000
-    v24 = slice_ptr v1
-    v25 = ptrtoint memptr v4 to i256
-    v26 = add v25, 296
-    mcopy v26, v24, 32 !metadata(memory=heap)
-    v27 = ptrtoint memptr v4 to i256
-    v28 = create 0, v27, 328
-    v29 = eq v28, i160 0
-    v30 = eq v29, false
-    jumpi v30, bb1, bb2
+    v2 = datasize TryCreationChild_creation_code_0
+    v3 = datasize TryCreationChild_creation_code_0, 32
+    v4 = datasize TryCreationChild_creation_code_0, 63, aligned
+    v5 = alloc raw, exact, uninitialized, infallible, v4
+    v6 = ptrtoint memptr v5 to i256
+    datacopy TryCreationChild_creation_code_0, v6, v2
+    v7 = slice_ptr v1
+    v8 = ptrtoint memptr v5 to i256
+    v9 = add v8, v2
+    mcopy v9, v7, 32 !metadata(memory=heap)
+    v10 = ptrtoint memptr v5 to i256
+    v11 = create 0, v10, v3
+    v12 = eq v11, i160 0
+    v13 = eq v12, false
+    jumpi v13, bb1, bb2
   bb2:
     jumpi true, bb4, bb5
   bb5:
@@ -62,8 +39,8 @@ fn @f(arg0: i1) -> i1 [selector=0x98c3a6c1, abi_params=[bool], abi_returns=[word
   bb4:
     ret false
   bb1:
-    v31 = ne v28, i160 0
-    ret v31
+    v14 = ne v11, i160 0
+    ret v14
   bb3:
     ret false
 }

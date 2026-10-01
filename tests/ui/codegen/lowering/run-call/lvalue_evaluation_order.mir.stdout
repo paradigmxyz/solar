@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/lvalue_evaluation_order.sol:LValueEvaluationOrder ===
 @module LValueEvaluationOrder
-types:
+@types
   struct0: {i256, i256, i256}
 
 fn @constructor() [constructor] {

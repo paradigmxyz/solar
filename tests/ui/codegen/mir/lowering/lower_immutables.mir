@@ -1,7 +1,7 @@
 //@ compile-flags: -Zmir-pipeline=lower-immutables
 //@ filecheck:
 @module LowerImmutables
-immutables:
+@immutables
   first: u8
   second: bool
 

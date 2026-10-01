@@ -1,6 +1,9 @@
 - // === ROOT/tests/ui/codegen/evm-ir/pack-data/reuse.evmir (before pack-data) ===
 + // === ROOT/tests/ui/codegen/evm-ir/pack-data/reuse.evmir (after pack-data) ===
   @module reuse
+  @data
+    zero_words_0: hex"00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+  
   bb0:
     push 64
     push_data zero_words_0
@@ -21,6 +24,4 @@
 +   dup 3
 +   codecopy
     stop
-  
-  @data zero_words_0 hex"00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
   

@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/external_return_validation.sol:ExternalReturnValidation ===
 @module ExternalReturnValidation
-types:
+@types
   struct0: {i8, i1, i128}
   struct1: {memorystruct, memorystruct}
 

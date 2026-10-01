@@ -2758,9 +2758,6 @@ impl LowerAbiCx {
                 | InstKind::CallCode { .. }
                 | InstKind::StaticCall { .. }
                 | InstKind::DelegateCall { .. }
-                | InstKind::ExtCall { .. }
-                | InstKind::ExtDelegateCall { .. }
-                | InstKind::ExtStaticCall { .. }
                 | InstKind::FrameStore { .. } => (true, false),
                 InstKind::MappingSlotMemory(key, _)
                     if tainted.contains(*key) && Self::can_encode_calldata_slice(ty) =>
@@ -2936,10 +2933,7 @@ impl LowerAbiCx {
                 | InstKind::Call { .. }
                 | InstKind::CallCode { .. }
                 | InstKind::StaticCall { .. }
-                | InstKind::DelegateCall { .. }
-                | InstKind::ExtCall { .. }
-                | InstKind::ExtDelegateCall { .. }
-                | InstKind::ExtStaticCall { .. } => return true,
+                | InstKind::DelegateCall { .. } => return true,
                 InstKind::ICall { function: Callee::Function(function), args, .. } => {
                     let callee_params = self.function_params.get(*function);
                     let preserves_calldata = args.iter().enumerate().all(|(index, value)| {
@@ -3574,7 +3568,8 @@ fn memory_writes_stay_private(
 
 /// A stored pointer cannot be reloaded or exposed through its containing object.
 fn container_keeps_pointer_private(func: &Function, object: ValueId) -> bool {
-    let mut pending = vec![pointer_alias_root(func, object)];
+    let mut pending = Vec::new();
+    pending.push(pointer_alias_root(func, object));
     let mut seen = FxHashSet::default();
     while let Some(object) = pending.pop() {
         if !seen.insert(object) {

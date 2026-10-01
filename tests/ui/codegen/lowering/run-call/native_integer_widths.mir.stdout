@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/native_integer_widths.sol:NativeInteger8 ===
 @module NativeInteger8
-types:
+@types
   struct0: {i8, i8}
 
 fn @compareUnsignedLiterals(arg0: i8) -> i1 [selector=0xdc492d0e, pure, abi_params=[u8], abi_returns=[word<bool>], abi_return_params=[bool]] {
@@ -1104,7 +1104,7 @@ fn @identity(arg0: i8, arg1: i8) -> struct0 [pure] {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/native_integer_widths.sol:NativeInteger16 ===
 @module NativeInteger16
-types:
+@types
   struct0: {i16, i16}
 
 fn @compoundUnchecked16(arg0: i16, arg1: i8) -> i1 [selector=0xb812f80f, pure, abi_params=[i16, i8], abi_returns=[word<bool>], abi_return_params=[bool]] {
@@ -1632,7 +1632,7 @@ fn @identity(arg0: i16, arg1: i16) -> struct0 [pure] {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/native_integer_widths.sol:NativeInteger24 ===
 @module NativeInteger24
-types:
+@types
   struct0: {i24, i24}
 
 fn @checkedUnsigned24(arg0: i24, arg1: i24) -> i24 [selector=0xab0cb9e5, pure, abi_params=[u24, u24], abi_returns=[word<u24>], abi_return_params=[u24]] {
@@ -1974,7 +1974,7 @@ fn @identity(arg0: i24, arg1: i24) -> struct0 [pure] {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/native_integer_widths.sol:NativeInteger32 ===
 @module NativeInteger32
-types:
+@types
   struct0: {i32, i32}
 
 fn @compareComputedLiteral(arg0: i32) -> i1 [selector=0x83b388b9, pure, abi_params=[u32], abi_returns=[word<bool>], abi_return_params=[bool]] {
@@ -2333,7 +2333,7 @@ fn @identity(arg0: i32, arg1: i32) -> struct0 [pure] {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/native_integer_widths.sol:NativeInteger40 ===
 @module NativeInteger40
-types:
+@types
   struct0: {i40, i40}
 
 fn @checkedUnsigned40(arg0: i40, arg1: i40) -> i40 [selector=0x30c91b4c, pure, abi_params=[u40, u40], abi_returns=[word<u40>], abi_return_params=[u40]] {
@@ -2675,7 +2675,7 @@ fn @identity(arg0: i40, arg1: i40) -> struct0 [pure] {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/native_integer_widths.sol:NativeInteger48 ===
 @module NativeInteger48
-types:
+@types
   struct0: {i48, i48}
 
 fn @checkedUnsigned48(arg0: i48, arg1: i48) -> i48 [selector=0x2ab1a0fe, pure, abi_params=[u48, u48], abi_returns=[word<u48>], abi_return_params=[u48]] {
@@ -3017,7 +3017,7 @@ fn @identity(arg0: i48, arg1: i48) -> struct0 [pure] {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/native_integer_widths.sol:NativeInteger56 ===
 @module NativeInteger56
-types:
+@types
   struct0: {i56, i56}
 
 fn @checkedUnsigned56(arg0: i56, arg1: i56) -> i56 [selector=0xfa621cde, pure, abi_params=[u56, u56], abi_returns=[word<u56>], abi_return_params=[u56]] {
@@ -3359,7 +3359,7 @@ fn @identity(arg0: i56, arg1: i56) -> struct0 [pure] {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/native_integer_widths.sol:NativeInteger64 ===
 @module NativeInteger64
-types:
+@types
   struct0: {i64, i64}
 
 fn @checkedUnsigned64(arg0: i64, arg1: i64) -> i64 [selector=0xa3cf5e75, pure, abi_params=[u64, u64], abi_returns=[word<u64>], abi_return_params=[u64]] {
@@ -3701,7 +3701,7 @@ fn @identity(arg0: i64, arg1: i64) -> struct0 [pure] {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/native_integer_widths.sol:NativeInteger72 ===
 @module NativeInteger72
-types:
+@types
   struct0: {i72, i72}
 
 fn @checkedUnsigned72(arg0: i72, arg1: i72) -> i72 [selector=0x5b129d38, pure, abi_params=[u72, u72], abi_returns=[word<u72>], abi_return_params=[u72]] {
@@ -4043,7 +4043,7 @@ fn @identity(arg0: i72, arg1: i72) -> struct0 [pure] {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/native_integer_widths.sol:NativeInteger80 ===
 @module NativeInteger80
-types:
+@types
   struct0: {i80, i80}
 
 fn @checkedUnsigned80(arg0: i80, arg1: i80) -> i80 [selector=0xb204440a, pure, abi_params=[u80, u80], abi_returns=[word<u80>], abi_return_params=[u80]] {
@@ -4385,7 +4385,7 @@ fn @identity(arg0: i80, arg1: i80) -> struct0 [pure] {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/native_integer_widths.sol:NativeInteger88 ===
 @module NativeInteger88
-types:
+@types
   struct0: {i88, i88}
 
 fn @checkedUnsigned88(arg0: i88, arg1: i88) -> i88 [selector=0xc6f3f335, pure, abi_params=[u88, u88], abi_returns=[word<u88>], abi_return_params=[u88]] {
@@ -4727,7 +4727,7 @@ fn @identity(arg0: i88, arg1: i88) -> struct0 [pure] {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/native_integer_widths.sol:NativeInteger96 ===
 @module NativeInteger96
-types:
+@types
   struct0: {i96, i96}
 
 fn @checkedUnsigned96(arg0: i96, arg1: i96) -> i96 [selector=0x4645a8bd, pure, abi_params=[u96, u96], abi_returns=[word<u96>], abi_return_params=[u96]] {
@@ -5069,7 +5069,7 @@ fn @identity(arg0: i96, arg1: i96) -> struct0 [pure] {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/native_integer_widths.sol:NativeInteger104 ===
 @module NativeInteger104
-types:
+@types
   struct0: {i104, i104}
 
 fn @checkedUnsigned104(arg0: i104, arg1: i104) -> i104 [selector=0xe4361caf, pure, abi_params=[u104, u104], abi_returns=[word<u104>], abi_return_params=[u104]] {
@@ -5411,7 +5411,7 @@ fn @identity(arg0: i104, arg1: i104) -> struct0 [pure] {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/native_integer_widths.sol:NativeInteger112 ===
 @module NativeInteger112
-types:
+@types
   struct0: {i112, i112}
 
 fn @checkedUnsigned112(arg0: i112, arg1: i112) -> i112 [selector=0x2dc4b92b, pure, abi_params=[u112, u112], abi_returns=[word<u112>], abi_return_params=[u112]] {
@@ -5753,7 +5753,7 @@ fn @identity(arg0: i112, arg1: i112) -> struct0 [pure] {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/native_integer_widths.sol:NativeInteger120 ===
 @module NativeInteger120
-types:
+@types
   struct0: {i120, i120}
 
 fn @checkedUnsigned120(arg0: i120, arg1: i120) -> i120 [selector=0x53e32307, pure, abi_params=[u120, u120], abi_returns=[word<u120>], abi_return_params=[u120]] {
@@ -6095,7 +6095,7 @@ fn @identity(arg0: i120, arg1: i120) -> struct0 [pure] {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/native_integer_widths.sol:NativeInteger128 ===
 @module NativeInteger128
-types:
+@types
   struct0: {i128, i128}
 
 fn @checkedUnsigned128(arg0: i128, arg1: i128) -> i128 [selector=0x6da4cc73, pure, abi_params=[u128, u128], abi_returns=[word<u128>], abi_return_params=[u128]] {
@@ -6437,7 +6437,7 @@ fn @identity(arg0: i128, arg1: i128) -> struct0 [pure] {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/native_integer_widths.sol:NativeInteger136 ===
 @module NativeInteger136
-types:
+@types
   struct0: {i136, i136}
 
 fn @checkedUnsigned136(arg0: i136, arg1: i136) -> i136 [selector=0x960f9074, pure, abi_params=[u136, u136], abi_returns=[word<u136>], abi_return_params=[u136]] {
@@ -6779,7 +6779,7 @@ fn @identity(arg0: i136, arg1: i136) -> struct0 [pure] {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/native_integer_widths.sol:NativeInteger144 ===
 @module NativeInteger144
-types:
+@types
   struct0: {i144, i144}
 
 fn @checkedUnsigned144(arg0: i144, arg1: i144) -> i144 [selector=0x5b3e4349, pure, abi_params=[u144, u144], abi_returns=[word<u144>], abi_return_params=[u144]] {
@@ -7121,7 +7121,7 @@ fn @identity(arg0: i144, arg1: i144) -> struct0 [pure] {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/native_integer_widths.sol:NativeInteger152 ===
 @module NativeInteger152
-types:
+@types
   struct0: {i152, i152}
 
 fn @checkedUnsigned152(arg0: i152, arg1: i152) -> i152 [selector=0x795e1a33, pure, abi_params=[u152, u152], abi_returns=[word<u152>], abi_return_params=[u152]] {
@@ -7463,7 +7463,7 @@ fn @identity(arg0: i152, arg1: i152) -> struct0 [pure] {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/native_integer_widths.sol:NativeInteger160 ===
 @module NativeInteger160
-types:
+@types
   struct0: {i160, i160}
 
 fn @checkedUnsigned160(arg0: i160, arg1: i160) -> i160 [selector=0xdec4c846, pure, abi_params=[u160, u160], abi_returns=[word<u160>], abi_return_params=[u160]] {
@@ -7805,7 +7805,7 @@ fn @identity(arg0: i160, arg1: i160) -> struct0 [pure] {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/native_integer_widths.sol:NativeInteger168 ===
 @module NativeInteger168
-types:
+@types
   struct0: {i168, i168}
 
 fn @checkedUnsigned168(arg0: i168, arg1: i168) -> i168 [selector=0xdf115c9a, pure, abi_params=[u168, u168], abi_returns=[word<u168>], abi_return_params=[u168]] {
@@ -8147,7 +8147,7 @@ fn @identity(arg0: i168, arg1: i168) -> struct0 [pure] {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/native_integer_widths.sol:NativeInteger176 ===
 @module NativeInteger176
-types:
+@types
   struct0: {i176, i176}
 
 fn @checkedUnsigned176(arg0: i176, arg1: i176) -> i176 [selector=0x546a0c30, pure, abi_params=[u176, u176], abi_returns=[word<u176>], abi_return_params=[u176]] {
@@ -8489,7 +8489,7 @@ fn @identity(arg0: i176, arg1: i176) -> struct0 [pure] {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/native_integer_widths.sol:NativeInteger184 ===
 @module NativeInteger184
-types:
+@types
   struct0: {i184, i184}
 
 fn @checkedUnsigned184(arg0: i184, arg1: i184) -> i184 [selector=0x48c6e206, pure, abi_params=[u184, u184], abi_returns=[word<u184>], abi_return_params=[u184]] {
@@ -8831,7 +8831,7 @@ fn @identity(arg0: i184, arg1: i184) -> struct0 [pure] {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/native_integer_widths.sol:NativeInteger192 ===
 @module NativeInteger192
-types:
+@types
   struct0: {i192, i192}
 
 fn @checkedUnsigned192(arg0: i192, arg1: i192) -> i192 [selector=0x9eb69171, pure, abi_params=[u192, u192], abi_returns=[word<u192>], abi_return_params=[u192]] {
@@ -9173,7 +9173,7 @@ fn @identity(arg0: i192, arg1: i192) -> struct0 [pure] {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/native_integer_widths.sol:NativeInteger200 ===
 @module NativeInteger200
-types:
+@types
   struct0: {i200, i200}
 
 fn @checkedUnsigned200(arg0: i200, arg1: i200) -> i200 [selector=0xa380d171, pure, abi_params=[u200, u200], abi_returns=[word<u200>], abi_return_params=[u200]] {
@@ -9515,7 +9515,7 @@ fn @identity(arg0: i200, arg1: i200) -> struct0 [pure] {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/native_integer_widths.sol:NativeInteger208 ===
 @module NativeInteger208
-types:
+@types
   struct0: {i208, i208}
 
 fn @checkedUnsigned208(arg0: i208, arg1: i208) -> i208 [selector=0xa58c5954, pure, abi_params=[u208, u208], abi_returns=[word<u208>], abi_return_params=[u208]] {
@@ -9857,7 +9857,7 @@ fn @identity(arg0: i208, arg1: i208) -> struct0 [pure] {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/native_integer_widths.sol:NativeInteger216 ===
 @module NativeInteger216
-types:
+@types
   struct0: {i216, i216}
 
 fn @checkedUnsigned216(arg0: i216, arg1: i216) -> i216 [selector=0x05466290, pure, abi_params=[u216, u216], abi_returns=[word<u216>], abi_return_params=[u216]] {
@@ -10199,7 +10199,7 @@ fn @identity(arg0: i216, arg1: i216) -> struct0 [pure] {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/native_integer_widths.sol:NativeInteger224 ===
 @module NativeInteger224
-types:
+@types
   struct0: {i224, i224}
 
 fn @checkedUnsigned224(arg0: i224, arg1: i224) -> i224 [selector=0x3fb96750, pure, abi_params=[u224, u224], abi_returns=[word<u224>], abi_return_params=[u224]] {
@@ -10541,7 +10541,7 @@ fn @identity(arg0: i224, arg1: i224) -> struct0 [pure] {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/native_integer_widths.sol:NativeInteger232 ===
 @module NativeInteger232
-types:
+@types
   struct0: {i232, i232}
 
 fn @checkedUnsigned232(arg0: i232, arg1: i232) -> i232 [selector=0xd9b682c2, pure, abi_params=[u232, u232], abi_returns=[word<u232>], abi_return_params=[u232]] {
@@ -10883,7 +10883,7 @@ fn @identity(arg0: i232, arg1: i232) -> struct0 [pure] {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/native_integer_widths.sol:NativeInteger240 ===
 @module NativeInteger240
-types:
+@types
   struct0: {i240, i240}
 
 fn @checkedUnsigned240(arg0: i240, arg1: i240) -> i240 [selector=0x9bf15061, pure, abi_params=[u240, u240], abi_returns=[word<u240>], abi_return_params=[u240]] {
@@ -11225,7 +11225,7 @@ fn @identity(arg0: i240, arg1: i240) -> struct0 [pure] {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/native_integer_widths.sol:NativeInteger248 ===
 @module NativeInteger248
-types:
+@types
   struct0: {i248, i248}
 
 fn @checkedUnsigned248(arg0: i248, arg1: i248) -> i248 [selector=0x6d66b8b8, pure, abi_params=[u248, u248], abi_returns=[word<u248>], abi_return_params=[u248]] {
@@ -11567,7 +11567,7 @@ fn @identity(arg0: i248, arg1: i248) -> struct0 [pure] {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/native_integer_widths.sol:NativeInteger256 ===
 @module NativeInteger256
-types:
+@types
   struct0: {i256, i256}
 
 fn @compoundUnchecked256(arg0: i256, arg1: i8) -> i1 [selector=0x27316e92, pure, abi_params=[i256, i8], abi_returns=[word<bool>], abi_return_params=[bool]] {

@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/storage_packed_struct.sol:PackedStruct ===
 @module PackedStruct
-types:
+@types
   struct0: {i8, i8, i256}
   struct1: {i160, i1, i16}
   struct2: {i256, i8}

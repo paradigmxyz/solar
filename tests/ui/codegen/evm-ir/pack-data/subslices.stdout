@@ -1,6 +1,23 @@
 - // === ROOT/tests/ui/codegen/evm-ir/pack-data/subslices.evmir (before pack-data) ===
 + // === ROOT/tests/ui/codegen/evm-ir/pack-data/subslices.evmir (after pack-data) ===
   @module subslices
+  @libraries
+    L_0: "A.sol:L"
+    L_1: "B.sol:L"
+  
+  @data
+    small_0: hex"1122334455"
+-   needle_1: hex"2233"
+-   container_2: hex"00112233445566"
+-   linked_container_3: hex"0073800000000000000000000000000000000000000000ff" library_relocations [2: L_0]
+-   linked_address_4: hex"8000000000000000000000000000000000000000" library_relocations [0: L_0]
+-   literal_address_5: hex"8000000000000000000000000000000000000000"
+-   other_library_6: hex"8000000000000000000000000000000000000000" library_relocations [0: L_1]
++   container_1: hex"00112233445566"
++   linked_container_2: hex"0073800000000000000000000000000000000000000000ff" library_relocations [2: L_0]
++   literal_address_3: hex"8000000000000000000000000000000000000000"
++   other_library_4: hex"8000000000000000000000000000000000000000" library_relocations [0: L_1]
+  
   bb0:
     push 5
     push_data small_0
@@ -37,16 +54,4 @@
     push 192
     codecopy
     stop
-  
-  @data small_0 hex"1122334455"
-- @data needle_1 hex"2233"
-- @data container_2 hex"00112233445566"
-- @data linked_container_3 hex"0073800000000000000000000000000000000000000000ff" library_relocations [2: "A.sol":"L"]
-- @data linked_address_4 hex"8000000000000000000000000000000000000000" library_relocations [0: "A.sol":"L"]
-- @data literal_address_5 hex"8000000000000000000000000000000000000000"
-- @data other_library_6 hex"8000000000000000000000000000000000000000" library_relocations [0: "B.sol":"L"]
-+ @data container_1 hex"00112233445566"
-+ @data linked_container_2 hex"0073800000000000000000000000000000000000000000ff" library_relocations [2: "A.sol":"L"]
-+ @data literal_address_3 hex"8000000000000000000000000000000000000000"
-+ @data other_library_4 hex"8000000000000000000000000000000000000000" library_relocations [0: "B.sol":"L"]
   

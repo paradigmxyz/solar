@@ -53,7 +53,7 @@ fn @test(arg0: i256) [selector=0x29e99f07, view, abi_params=[u256], abi_returns=
 
 // === ROOT/tests/ui/codegen/lowering/live_branch_condition.sol:ReloadableBranch ===
 @module ReloadableBranch
-types:
+@types
   struct0: {i256, i1}
 
 fn @aggregate(arg0: i1, arg1: i256) -> struct0 [selector=0xb22b6a9f, pure, abi_params=[bool, u256], abi_returns=[word, word<bool>], abi_return_params=[u256, bool]] {

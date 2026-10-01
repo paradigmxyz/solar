@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/branch_condition_live_out.sol:BranchConditionLiveOut ===
 @module BranchConditionLiveOut
-types:
+@types
   struct0: {i1, i1, i256}
 
 fn @comparisons(arg0: i256, arg1: i256) -> struct0 [selector=0xb5d0691b, pure, abi_params=[u256, u256], abi_returns=[word<bool>, word<bool>, word], abi_return_params=[bool, bool, u256]] {

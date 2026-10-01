@@ -221,7 +221,7 @@ fn @internal_dispatcher_p_address_r_address(arg0: i256, arg1: i256) -> i256 [fun
 
 // === ROOT/tests/ui/codegen/lowering/run-call/dirty_internal_named_return.sol:DirtyCarrierPaths ===
 @module DirtyCarrierPaths
-types:
+@types
   struct0: {i8, i16}
   struct1: {i256, i16}
 

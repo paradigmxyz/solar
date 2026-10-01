@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/abi_decode_structs.sol:AbiDecodeStructs ===
 @module AbiDecodeStructs
 @phase lowered
-types:
+@types
   struct0: {i256, i256, i1}
   struct1: {i256, memptr, i256}
 

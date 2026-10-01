@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_large_fixed_array_index.sol:StorageLargeFixedArrayIndex ===
 @module StorageLargeFixedArrayIndex
-types:
+@types
   struct0: {i256, i256}
 
 fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {

@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/try_catch_full.sol:TryCatchFull ===
 @module TryCatchFull
 @phase lowered
-types:
+@types
   struct0: {i256, memptr}
 
 fn @full() [selector=0xd17b272f, abi_wrapper, view] {

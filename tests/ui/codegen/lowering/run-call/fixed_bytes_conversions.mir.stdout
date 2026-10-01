@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/fixed_bytes_conversions.sol:FixedBytesConversions ===
 @module FixedBytesConversions
-types:
+@types
   struct0: {i256, i256, i256}
   struct1: {i16, i32, i48}
 

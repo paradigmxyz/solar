@@ -25,3 +25,39 @@ fn @builtin() -> i256 [selector=0x44d2c8a8, pure, abi_params=[], abi_returns=[wo
     v0 = or 0x1234000000000000000000000000000000000000000000000000000000000000, 0
     ret v0
 }
+
+fn @loop() -> i256 [selector=0xa92100cb, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = ne 0, 0
+    jumpi v0, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    jump bb3
+  bb3:
+    v1 = phi [bb1: 99], [bb2: 0]
+    jump bb4
+  bb4:
+    v2 = phi [bb3: v1], [bb8: v4]
+    v3 = ne 1, 0
+    jumpi v3, bb6, bb7
+  bb7:
+    jump bb5
+  bb6:
+    v4 = add v2, 1
+    v5 = eq v4, 3
+    v6 = zext i1 v5 to i256
+    v7 = ne v6, 0
+    jumpi v7, bb9, bb10
+  bb10:
+    jump bb11
+  bb11:
+    jump bb8
+  bb8:
+    jump bb4
+  bb9:
+    jump bb5
+  bb5:
+    v8 = phi [bb9: v4], [bb7: v2]
+    ret v8
+}

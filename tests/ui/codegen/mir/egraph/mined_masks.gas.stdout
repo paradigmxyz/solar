@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/egraph/mined_masks.mir (before egraph) ===
 + // === ROOT/tests/ui/codegen/mir/egraph/mined_masks.mir (after egraph) ===
   @module MinedMasks
-  types:
+  @types
     struct0: {i256, i256}
   
   fn @high_mask(arg0: i256) -> i256 {
@@ -40,7 +40,7 @@
 - // === ROOT/tests/ui/codegen/mir/egraph/mined_masks.mir (before dce) ===
 + // === ROOT/tests/ui/codegen/mir/egraph/mined_masks.mir (after dce) ===
   @module MinedMasks
-  types:
+  @types
     struct0: {i256, i256}
   
   fn @high_mask(arg0: i256) -> i256 {

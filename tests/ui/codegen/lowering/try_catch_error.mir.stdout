@@ -13,47 +13,35 @@ fn @fail() [selector=0xa9cc4718, pure, abi_params=[], abi_returns=[], abi_return
 
 // === ROOT/tests/ui/codegen/lowering/try_catch_error.sol:TryCatchError ===
 @module TryCatchError
+@data
+  TryCatchErrorTarget_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/try_catch_error.sol:TryCatchErrorTarget"
+
 fn @constructor() [constructor] {
   bb0:
     v0 = abi_encode []
-    v1 = not 31
-    v2 = and 209, v1
+    v1 = datasize TryCatchErrorTarget_creation_code_0
+    v2 = datasize TryCatchErrorTarget_creation_code_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    mstore v4, 0x34600d5760a18060115f395ff35b5f5ffd341515602a575f3560e01c8063a9cc
-    v5 = ptrtoint memptr v3 to i256
-    v6 = add v5, 32
-    mstore v6, 0x4718146026578063d909b40314602257602a565b602e565b6030565b5f5ffd5b
-    v7 = ptrtoint memptr v3 to i256
-    v8 = add v7, 64
-    mstore v8, 0x5b60c06040525f60665760026080527f6e6f00000000000000000000000000
-    v9 = ptrtoint memptr v3 to i256
-    v10 = add v9, 96
-    mstore v10, 0x60a0526068565bfe5b7f08c379a000
-    v11 = ptrtoint memptr v3 to i256
-    v12 = add v11, 128
-    mstore v12, 0x5f52602060
-    v13 = ptrtoint memptr v3 to i256
-    v14 = add v13, 160
-    mstore v14, 0x45260805160245260a05160445260645ffd0000000000000000000000000000
-    v15 = slice_ptr v0
-    v16 = ptrtoint memptr v3 to i256
-    v17 = add v16, 178
-    mcopy v17, v15, 0 !metadata(memory=heap)
-    v18 = ptrtoint memptr v3 to i256
-    v19 = create 0, v18, 178
-    v20 = ne v19, i160 0
-    jumpi v20, bb2, bb1
+    datacopy TryCatchErrorTarget_creation_code_0, v4, v1
+    v5 = slice_ptr v0
+    v6 = ptrtoint memptr v3 to i256
+    v7 = add v6, v1
+    mcopy v7, v5, 0 !metadata(memory=heap)
+    v8 = ptrtoint memptr v3 to i256
+    v9 = create 0, v8, v1
+    v10 = ne v9, i160 0
+    jumpi v10, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v21 = sload 0 !metadata(storage=slot(0))
-    v22 = not 0xffffffffffffffffffffffffffffffffffffffff
-    v23 = and v21, v22
-    v24 = zext i160 v19 to i256
-    v25 = and v24, 0xffffffffffffffffffffffffffffffffffffffff
-    v26 = or v23, v25
-    sstore 0, v26 !metadata(storage=slot(0))
+    v11 = sload 0 !metadata(storage=slot(0))
+    v12 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v13 = and v11, v12
+    v14 = zext i160 v9 to i256
+    v15 = and v14, 0xffffffffffffffffffffffffffffffffffffffff
+    v16 = or v13, v15
+    sstore 0, v16 !metadata(storage=slot(0))
     ret
 }
 

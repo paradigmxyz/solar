@@ -11,7 +11,7 @@
 //~? ERROR: [fn17] [bb0, inst0] `trunc` has incompatible scalar types; use an explicit cast
 @module InvalidStructValues
 
-types:
+@types
   struct0: {i256, i1}
   struct1: {struct0, i256}
 

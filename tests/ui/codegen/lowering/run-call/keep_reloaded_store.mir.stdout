@@ -8,23 +8,23 @@ fn @six(arg0: i256) -> i256 [selector=0x84b8ba08, pure, abi_params=[u256], abi_r
 
 // === ROOT/tests/ui/codegen/lowering/run-call/keep_reloaded_store.sol:KeepReloadedStore ===
 @module KeepReloadedStore
-data:
-  Target_initcode_0: hex"34600d5760738060115f395ff35b5f5ffd341515601c575f3560e01c806384b8ba0814601857601c565b6020565b5f5ffd5b60243610606f576006600435028060a0528060a0526006156006820460043590148117905015605d578060a0526080526020608001608090036080f35b634e487b715f5260116020526024601cfd5b5f5ffd"
+@data
+  Target_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/keep_reloaded_store.sol:Target"
 
 fn @constructor() [constructor] {
   bb0:
     v0 = abi_encode []
-    v1 = not 31
-    v2 = and 163, v1
+    v1 = datasize Target_creation_code_0
+    v2 = datasize Target_creation_code_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    data_copy Target_initcode_0, v4, 132
+    datacopy Target_creation_code_0, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
-    v7 = add v6, 132
+    v7 = add v6, v1
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
-    v9 = create 0, v8, 132
+    v9 = create 0, v8, v1
     v10 = ne v9, i160 0
     jumpi v10, bb2, bb1
   bb1:

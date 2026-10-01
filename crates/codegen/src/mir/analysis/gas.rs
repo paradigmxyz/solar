@@ -97,23 +97,23 @@ impl GasObservations {
                 _ => None,
             };
             let mut accepted_call_gas = false;
-            for operand in kind.operands() {
-                let Some(&gas_inst) = gas_values.get(&operand) else { continue };
+            kind.visit_operands(|operand| {
+                let Some(&gas_inst) = gas_values.get(&operand) else { return };
                 if call_gas == Some(operand) && !accepted_call_gas {
                     forwarded.insert(gas_inst);
                     accepted_call_gas = true;
                 } else {
                     observed.insert(gas_inst);
                 }
-            }
+            });
         }
         for block in func.blocks.iter() {
             if let Some(terminator) = &block.terminator {
-                for operand in terminator.operands() {
+                terminator.visit_operands(|operand| {
                     if let Some(&gas_inst) = gas_values.get(&operand) {
                         observed.insert(gas_inst);
                     }
-                }
+                });
             }
         }
         for gas_inst in observed.iter() {

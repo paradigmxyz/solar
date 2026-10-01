@@ -28,7 +28,7 @@ use alloy_primitives::Bytes;
 
 use super::{
     AbiEncodeMode, AbiLayoutRef, AbiParamLayoutRef, AddressCallKind, AllocationKind,
-    AllocationSemantics, ArithmeticKind, BlockId, Callee, CheckedOp, DataRef, EffectKind,
+    AllocationSemantics, ArithmeticKind, BlockId, Callee, CheckedOp, DataRef, DataSize, EffectKind,
     FrameMode, FrameSlotKind, Function, FunctionId, ImmutableId, InstructionMetadata,
     MemoryObjectKind, MemoryObjectLayout, MirPhase, MirType, PackedPart, RevertKind, SliceLocation,
     StorageLayoutRef, StructId, ValueId, ValueLayout, typing,
@@ -152,6 +152,8 @@ pub(crate) trait Operands {
 
     /// Appends every value operand held by this field in canonical order.
     fn collect<A: Array<Item = ValueId>>(&self, out: &mut SmallVec<A>);
+    /// Visits every value operand held by this field in canonical order.
+    fn visit(&self, f: &mut impl FnMut(ValueId));
     /// Visits every value operand held by this field mutably.
     fn visit_mut(&mut self, f: &mut impl FnMut(&mut ValueId));
     /// Projects the field for rewrite rules.
@@ -178,6 +180,11 @@ impl Operands for ValueId {
     #[inline]
     fn collect<A: Array<Item = Self>>(&self, out: &mut SmallVec<A>) {
         out.push(*self);
+    }
+
+    #[inline]
+    fn visit(&self, f: &mut impl FnMut(Self)) {
+        f(*self);
     }
 
     #[inline]
@@ -219,6 +226,13 @@ impl Operands for Option<ValueId> {
     }
 
     #[inline]
+    fn visit(&self, f: &mut impl FnMut(ValueId)) {
+        if let Some(value) = *self {
+            f(value);
+        }
+    }
+
+    #[inline]
     fn visit_mut(&mut self, f: &mut impl FnMut(&mut ValueId)) {
         if let Some(value) = self {
             f(value);
@@ -254,7 +268,12 @@ impl Operands for Box<[ValueId]> {
 
     #[inline]
     fn collect<A: Array<Item = ValueId>>(&self, out: &mut SmallVec<A>) {
-        out.extend(self.iter().copied());
+        out.extend_from_slice(self);
+    }
+
+    #[inline]
+    fn visit(&self, f: &mut impl FnMut(ValueId)) {
+        self.iter().copied().for_each(f);
     }
 
     #[inline]
@@ -291,6 +310,11 @@ impl Operands for Vec<(BlockId, ValueId)> {
     }
 
     #[inline]
+    fn visit(&self, f: &mut impl FnMut(ValueId)) {
+        self.iter().for_each(|&(_, value)| f(value));
+    }
+
+    #[inline]
     fn visit_mut(&mut self, f: &mut impl FnMut(&mut ValueId)) {
         self.iter_mut().for_each(|(_, value)| f(value));
     }
@@ -320,6 +344,9 @@ impl Operands for Box<[PackedPart]> {
     fn collect<A: Array<Item = ValueId>>(&self, out: &mut SmallVec<A>) {
         out.extend(self.iter().filter_map(PackedPart::value));
     }
+    fn visit(&self, f: &mut impl FnMut(ValueId)) {
+        self.iter().filter_map(PackedPart::value).for_each(f);
+    }
     fn visit_mut(&mut self, f: &mut impl FnMut(&mut ValueId)) {
         self.iter_mut().filter_map(PackedPart::value_mut).for_each(f);
     }
@@ -345,6 +372,9 @@ macro_rules! attributes {
 
                 #[inline]
                 fn collect<A: Array<Item = ValueId>>(&self, _out: &mut SmallVec<A>) {}
+
+                #[inline]
+                fn visit(&self, _f: &mut impl FnMut(ValueId)) {}
 
                 #[inline]
                 fn visit_mut(&mut self, _f: &mut impl FnMut(&mut ValueId)) {}
@@ -385,6 +415,9 @@ macro_rules! opaque_attributes {
 
                 #[inline]
                 fn collect<A: Array<Item = ValueId>>(&self, _out: &mut SmallVec<A>) {}
+
+                #[inline]
+                fn visit(&self, _f: &mut impl FnMut(ValueId)) {}
 
                 #[inline]
                 fn visit_mut(&mut self, _f: &mut impl FnMut(&mut ValueId)) {}
@@ -475,6 +508,7 @@ attributes! {
     AllocationKind,
     AllocationSemantics,
     DataRef,
+    DataSize,
     FrameMode,
     FrameSlotKind,
     FunctionId,
@@ -622,6 +656,25 @@ macro_rules! define_mir_ops {
                         Self::$variant $( ( $( $operand ),+ ) )? $( { $( $field ),+ } )? => {
                             $( $( Operands::collect($operand, out); )+ )?
                             $( $( Operands::collect($field, out); )+ )?
+                        }
+                    )+
+                }
+            }
+
+            /// Visits every value operand in canonical order, without collecting them.
+            #[inline]
+            pub(crate) fn visit_operands(&self, mut f: impl FnMut(ValueId)) {
+                self.visit_operands_dyn(&mut f);
+            }
+
+            /// Shares one copy of the operand match between all visitors, instead of
+            /// instantiating it for every closure.
+            fn visit_operands_dyn(&self, mut f: &mut dyn FnMut(ValueId)) {
+                match self {
+                    $(
+                        Self::$variant $( ( $( $operand ),+ ) )? $( { $( $field ),+ } )? => {
+                            $( $( Operands::visit($operand, &mut f); )+ )?
+                            $( $( Operands::visit($field, &mut f); )+ )?
                         }
                     )+
                 }
@@ -2095,7 +2148,7 @@ define_mir_ops! {
     // Code operations
     /// Copy constant module data to memory.
     #[mir_op(
-        mnemonic = "data_copy",
+        mnemonic = "datacopy",
         result = None,
         phases = PhaseSet::ALL,
         effect = MemoryWrite,
@@ -2105,6 +2158,23 @@ define_mir_ops! {
     )]
     #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256]))]
     DataCopy(data: DataRef, dest: ValueId, size: ValueId),
+    /// Byte length of deferred module data, such as another contract's
+    /// bytecode, plus an addend, rounded down to a multiple of 32 when aligned.
+    ///
+    /// The length is only known once the data is linked during final assembly. Folding
+    /// the addend and rounding into the operation keeps sizes derived from
+    /// the length constant after resolution.
+    #[mir_op(
+        mnemonic = "datasize",
+        result = I256,
+        phases = PhaseSet::ALL,
+        effect = Pure,
+        traits = OpTraits::NONE,
+        side_effects = false,
+        category = None
+    )]
+    #[operand_types(func => Some(smallvec![]))]
+    DataSize(size: DataSize),
     /// Get code size: `codesize()`
     #[mir_op(
         mnemonic = "codesize",
@@ -2679,42 +2749,6 @@ define_mir_ops! {
         ret_offset: ValueId,
         ret_size: ValueId,
     },
-    /// EOF external call: `extcall(addr, argsOffset, argsSize, value)`.
-    #[mir_op(
-        mnemonic = "extcall",
-        result = I256,
-        phases = PhaseSet::ALL,
-        effect = ExternalCall,
-        traits = OpTraits::NONE,
-        side_effects = true,
-        category = None
-    )]
-    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256, MirType::I256, MirType::I256]))]
-    ExtCall { addr: ValueId, args_offset: ValueId, args_size: ValueId, value: ValueId },
-    /// EOF external delegate call: `extdelegatecall(addr, argsOffset, argsSize)`.
-    #[mir_op(
-        mnemonic = "extdelegatecall",
-        result = I256,
-        phases = PhaseSet::ALL,
-        effect = ExternalCall,
-        traits = OpTraits::NONE,
-        side_effects = true,
-        category = None
-    )]
-    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256, MirType::I256]))]
-    ExtDelegateCall { addr: ValueId, args_offset: ValueId, args_size: ValueId },
-    /// EOF external static call: `extstaticcall(addr, argsOffset, argsSize)`.
-    #[mir_op(
-        mnemonic = "extstaticcall",
-        result = I256,
-        phases = PhaseSet::ALL,
-        effect = ExternalCall,
-        traits = OpTraits::NONE,
-        side_effects = true,
-        category = None
-    )]
-    #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256, MirType::I256]))]
-    ExtStaticCall { addr: ValueId, args_offset: ValueId, args_size: ValueId },
     /// Internal function call lowered to a direct jump.
     #[mir_op(
         mnemonic = "icall",

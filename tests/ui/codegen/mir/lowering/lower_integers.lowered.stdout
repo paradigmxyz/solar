@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/lowering/lower_integers.mir (before lower-integers) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_integers.mir (after lower-integers) ===
   @module Integers
-  immutables:
+  @immutables
     signed: i64
   
 - fn @arithmetic(arg0: i8, arg1: i8) -> i8 {
@@ -249,7 +249,7 @@
 - // === ROOT/tests/ui/codegen/mir/lowering/lower_integers.mir (before integer-cleanup) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_integers.mir (after integer-cleanup) ===
   @module Integers
-  immutables:
+  @immutables
     signed: i64
   
   fn @arithmetic(arg0: i256, arg1: i256) -> i256 {
@@ -453,7 +453,7 @@
 - // === ROOT/tests/ui/codegen/mir/lowering/lower_integers.mir (before egraph) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_integers.mir (after egraph) ===
   @module Integers
-  immutables:
+  @immutables
     signed: i64
   
   fn @arithmetic(arg0: i256, arg1: i256) -> i256 {
@@ -665,7 +665,7 @@
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_integers.mir (after lower-evm-shaped) ===
   @module Integers
 + @phase lowered
-  immutables:
+  @immutables
     signed: i64
   
   fn @arithmetic(arg0: i256, arg1: i256) -> i256 {

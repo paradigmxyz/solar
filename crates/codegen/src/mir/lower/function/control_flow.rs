@@ -202,7 +202,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // `try (c.f()) { ... }` because its target must be a call syntactically, but the
         // statement has only one meaning and we compile it.
         let try_expr = try_stmt.expr.peel_parens();
-        let ExprKind::Call(callee, args, call_opts) = &try_expr.kind else {
+        let Some((callee, args, call_opts)) = try_expr.as_call() else {
             return self.cx.report_unsupported(try_stmt.expr.span, "try expression");
         };
         let target = if let ExprKind::New(ty) = &callee.kind {
@@ -375,7 +375,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         {
             // address = create(...)
             // ok = address != 0
-            let created = self.lower_create_contract(ty, contract_id, *args, *call_opts)?;
+            let created = self.lower_create_contract(ty, contract_id, *args, call_opts)?;
             let zero = self.builder.imm(U256::ZERO);
             let failed = self.builder.eq(created, zero);
             (self.builder.eq_zero(failed), Some(created), None)
@@ -386,7 +386,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 TryCallee::FunctionPointer { address, .. } => address,
                 TryCallee::Creation { .. } => unreachable!(),
             };
-            let options = self.lower_call_options(*call_opts, true, "try call option")?;
+            let options = self.lower_call_options(call_opts, true, "try call option")?;
             let (call_value, zero) = (options.value, options.zero);
             let (mut values, mut types) =
                 if let TryCallee::LinkedLibrary { function, receiver, .. } = target.callee {

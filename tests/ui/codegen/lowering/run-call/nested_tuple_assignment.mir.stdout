@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/nested_tuple_assignment.sol:NestedTupleAssignment ===
 @module NestedTupleAssignment
-types:
+@types
   struct0: {i16, i256}
   struct1: {i16, i1}
   struct2: {i256, i16}

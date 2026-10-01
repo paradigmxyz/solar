@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_storage_struct.sol:ExternalFunctionPointerStorageStruct ===
 @module ExternalFunctionPointerStorageStruct
-types:
+@types
   struct0: {i256, i256}
 
 fn @firstTarget() -> i256 [selector=0xf5db9820, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {

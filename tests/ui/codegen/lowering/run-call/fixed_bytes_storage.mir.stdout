@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/fixed_bytes_storage.sol:FixedBytesStorage ===
 @module FixedBytesStorage
-types:
+@types
   struct0: {i8, i8, i16, i8, i24}
   struct1: {i256, i32}
 

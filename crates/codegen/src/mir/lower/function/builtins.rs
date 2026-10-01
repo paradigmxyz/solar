@@ -1,6 +1,7 @@
 //! Builtin call and value lowering.
 
 use super::*;
+use crate::link::CodeKind;
 
 impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn lower_builtin_call(
@@ -186,17 +187,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn low_level_call_builtin(&self, expr: &hir::Expr<'_>) -> Option<Builtin> {
-        match &expr.kind {
-            ExprKind::Call(callee, ..) if matches!(callee.kind, ExprKind::Member(..)) => {
-                match self.cx.gcx.resolved_builtin(callee) {
-                    Some(
-                        builtin @ (Builtin::AddressCall
-                        | Builtin::AddressStaticcall
-                        | Builtin::AddressDelegatecall),
-                    ) => Some(builtin),
-                    _ => None,
-                }
-            }
+        let (callee, _, _) = expr.as_call()?;
+        match self.cx.gcx.resolved_builtin(callee) {
+            Some(
+                builtin @ (Builtin::AddressCall
+                | Builtin::AddressStaticcall
+                | Builtin::AddressDelegatecall),
+            ) => Some(builtin),
             _ => None,
         }
     }
@@ -208,7 +205,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         count: usize,
         first_is_omitted: bool,
     ) -> Option<Vec<ValueId>> {
-        let ExprKind::Call(callee, args, call_opts) = &expr.kind else { return None };
+        let (callee, args, call_opts) = expr.as_call()?;
         let ExprKind::Member(receiver, _) = callee.kind else { return None };
         let capture_returndata = count > 1 || first_is_omitted;
         // ok, data? = low_level_call(...)
@@ -217,7 +214,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             receiver,
             builtin,
             *args,
-            *call_opts,
+            call_opts,
             capture_returndata,
         )?;
         // values = [ok] | [ok, data] | [data]
@@ -273,39 +270,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     }
                     Builtin::ContractCreationCode | Builtin::ContractRuntimeCode => {
                         // value = bytes(creation_bytecode(C) | runtime_bytecode(C))
-                        let creation = builtin == Builtin::ContractCreationCode;
-                        let bytecode =
-                            self.cx.child_bytecodes.get(&contract_id).and_then(|bytecodes| {
-                                if creation { bytecodes.deployment() } else { bytecodes.runtime() }
-                            });
-                        match bytecode {
-                            Some(bytecode) => Self::build_bytecode(
-                                self.cx.gcx,
-                                self.cx.module,
-                                &mut self.builder,
-                                bytecode,
-                                super::super::data::contract_bytecode_data_name(
-                                    self.cx.gcx,
-                                    contract_id,
-                                    creation,
-                                ),
-                            ),
-                            None => {
-                                let (kind, name) = match builtin {
-                                    Builtin::ContractCreationCode => ("creation", "creationCode"),
-                                    Builtin::ContractRuntimeCode => ("runtime", "runtimeCode"),
-                                    _ => unreachable!(),
-                                };
-                                self.cx
-                                    .gcx
-                                    .dcx()
-                                    .err(format!("codegen is missing {kind} bytecode for `{name}`"))
-                                    .span(expr.span)
-                                    .note("the referenced contract did not compile or was not lowered first")
-                                    .emit();
-                                None
-                            }
-                        }
+                        let kind = if builtin == Builtin::ContractCreationCode {
+                            CodeKind::Creation
+                        } else {
+                            CodeKind::Runtime
+                        };
+                        let code = self.contract_code(expr.span, contract_id, kind)?;
+                        Some(Self::build_bytecode(&mut self.builder, code))
                     }
                     _ => unreachable!(),
                 }
@@ -551,6 +522,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn is_external_function_value(&self, expr: &hir::Expr<'_>) -> bool {
+        if let ExprKind::CallOptions(callee, _) = expr.peel_parens().kind {
+            return self.is_external_function_value(callee);
+        }
         matches!(
             self.type_of_expr_or_variable(expr).map(|ty| ty.kind),
             Some(TyKind::Fn(function)) if function.is_external()
@@ -638,13 +612,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     let hash = keccak256(bytes.as_byte_str());
                     return Some(self.builder.imm(U256::from_be_slice(hash.as_slice())));
                 }
-                if let ExprKind::Call(callee, encode_args, _) = &value.kind
+                if let Some((callee, encode_args, _)) = value.as_call()
                     && self.cx.gcx.resolved_builtin(callee) == Some(Builtin::AbiEncodePacked)
                     && let Some(hash) = self.lower_keccak_abi_encode_packed(*encode_args)
                 {
                     return Some(hash);
                 }
-                if let ExprKind::Call(callee, encode_args, _) = &value.kind
+                if let Some((callee, encode_args, _)) = value.as_call()
                     && self.cx.gcx.resolved_builtin(callee) == Some(Builtin::AbiEncode)
                 {
                     let exprs = self.variadic_builtin_args(Builtin::AbiEncode, encode_args)?;
@@ -954,12 +928,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             Builtin::YulCreate => lower!(create(value, offset, size)),
             Builtin::YulCreate2 => lower!(create2(value, offset, size, salt)),
-            Builtin::YulExtcall | Builtin::YulExtdelegatecall | Builtin::YulExtstaticcall => self
-                .unsupported_yul_version(
-                    "codegen cannot emit EOF-only external calls in legacy bytecode",
-                    "remove the EOF-only call or use a compiler that emits EOF containers",
-                    args.span,
-                ),
             _ => report_error(
                 self.cx.gcx,
                 args.span,
@@ -1132,16 +1100,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             .err(format!("unsupported builtin call `{}`", builtin.name()))
             .span(span)
             .emit();
-        None
-    }
-
-    fn unsupported_yul_version<T>(
-        &self,
-        message: &'static str,
-        help: &'static str,
-        span: Span,
-    ) -> Option<T> {
-        self.cx.gcx.dcx().err(message).span(span).help(help).emit();
         None
     }
 }

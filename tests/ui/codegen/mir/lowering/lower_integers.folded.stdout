@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/lowering/lower_integers.mir (before sccp) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_integers.mir (after sccp) ===
   @module Integers
-  immutables:
+  @immutables
     signed: i64
   
   fn @arithmetic(arg0: i8, arg1: i8) -> i8 {
@@ -173,7 +173,7 @@
 - // === ROOT/tests/ui/codegen/mir/lowering/lower_integers.mir (before egraph) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_integers.mir (after egraph) ===
   @module Integers
-  immutables:
+  @immutables
     signed: i64
   
   fn @arithmetic(arg0: i8, arg1: i8) -> i8 {
@@ -342,7 +342,7 @@
 - // === ROOT/tests/ui/codegen/mir/lowering/lower_integers.mir (before check-elim) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_integers.mir (after check-elim) ===
   @module Integers
-  immutables:
+  @immutables
     signed: i64
   
   fn @arithmetic(arg0: i8, arg1: i8) -> i8 {

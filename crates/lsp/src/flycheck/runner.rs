@@ -20,39 +20,48 @@ use tokio::{
     time,
 };
 
+/// Diagnostics and the disk inputs that remained stable for the entire command.
+#[derive(Debug)]
+pub(crate) struct FlycheckResult {
+    pub(crate) diagnostics: DiagnosticMap,
+    pub(crate) sources: SourceSnapshot,
+    /// False if any expected input was missing, unreadable, or changed during the command.
+    pub(crate) sources_unchanged: bool,
+}
+
 pub(crate) async fn run(
     config: FlycheckConfig,
     timeout: Duration,
     cancel: oneshot::Receiver<()>,
     source_paths: Vec<PathBuf>,
-) -> Result<DiagnosticMap, FlycheckError> {
+) -> Result<FlycheckResult, FlycheckError> {
     let source_snapshot = disk_source_snapshot(source_paths.clone()).await?;
     let output = command_output(&config, timeout, cancel).await?;
     let current_source_snapshot = disk_source_snapshot(source_paths).await?;
-    let source_snapshot = stable_source_snapshot(source_snapshot, &current_source_snapshot);
-    let (output, diagnostics) = tokio::task::spawn_blocking(move || {
-        let diagnostics = parse_output_with_snapshot(&output, &config, Some(&source_snapshot));
-        (output, diagnostics)
+    let (sources, sources_unchanged) =
+        stable_source_snapshot(source_snapshot, current_source_snapshot);
+    tokio::task::spawn_blocking(move || {
+        let diagnostics = match parse_output_with_snapshot(&output, &config, Some(&sources)) {
+            Ok(diagnostics) => diagnostics,
+            Err(_) if !output.status.success() => return Err(command_failed(&output)),
+            Err(error) => return Err(error.into()),
+        };
+
+        if !output.status.success() && diagnostics.is_empty() {
+            return Err(command_failed(&output));
+        }
+
+        Ok(FlycheckResult { diagnostics, sources, sources_unchanged })
     })
     .await
-    .map_err(io::Error::other)?;
-    let diagnostics = match diagnostics {
-        Ok(diagnostics) => diagnostics,
-        Err(_) if !output.status.success() => return Err(command_failed(&output)),
-        Err(error) => return Err(error.into()),
-    };
-
-    if !output.status.success() && diagnostics.is_empty() {
-        return Err(command_failed(&output));
-    }
-
-    Ok(diagnostics)
+    .map_err(io::Error::other)?
 }
 
 #[derive(Debug, Default)]
 struct DiskSourceSnapshot {
     sources: SourceSnapshot,
     revisions: FxHashMap<PathBuf, FileRevision>,
+    incomplete: bool,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -100,6 +109,8 @@ async fn disk_source_snapshot(paths: Vec<PathBuf>) -> io::Result<DiskSourceSnaps
             {
                 snapshot.revisions.insert(path.clone(), after);
                 snapshot.sources.insert(path, Rope::from(contents));
+            } else {
+                snapshot.incomplete = true;
             }
         }
         snapshot
@@ -110,21 +121,24 @@ async fn disk_source_snapshot(paths: Vec<PathBuf>) -> io::Result<DiskSourceSnaps
 
 fn stable_source_snapshot(
     source_snapshot: DiskSourceSnapshot,
-    current_source_snapshot: &DiskSourceSnapshot,
-) -> SourceSnapshot {
-    let DiskSourceSnapshot { sources, revisions } = source_snapshot;
-    sources
-        .into_iter()
-        .filter(|(path, contents)| {
-            current_source_snapshot
-                .sources
-                .get(path)
-                .is_some_and(|current| current.byte_slice(..) == contents.byte_slice(..))
-                && revisions.get(path).is_some_and(|revision| {
-                    current_source_snapshot.revisions.get(path) == Some(revision)
-                })
-        })
-        .collect()
+    current_source_snapshot: DiskSourceSnapshot,
+) -> (SourceSnapshot, bool) {
+    let DiskSourceSnapshot { mut sources, revisions, incomplete } = source_snapshot;
+    let source_count = sources.len();
+    sources.retain(|path, contents| {
+        current_source_snapshot
+            .sources
+            .get(path)
+            .is_some_and(|current| current.byte_slice(..) == contents.byte_slice(..))
+            && revisions.get(path).is_some_and(|revision| {
+                current_source_snapshot.revisions.get(path) == Some(revision)
+            })
+    });
+    let sources_unchanged = !incomplete
+        && !current_source_snapshot.incomplete
+        && sources.len() == source_count
+        && sources.len() == current_source_snapshot.sources.len();
+    (sources, sources_unchanged)
 }
 
 fn command_failed(output: &Output) -> FlycheckError {
@@ -358,7 +372,9 @@ mod tests {
         project.write_file("/Test.sol", "new");
         let after = disk_source_snapshot(vec![path]).await.unwrap();
 
-        assert!(stable_source_snapshot(before, &after).is_empty());
+        let (sources, unchanged) = stable_source_snapshot(before, after);
+        assert!(sources.is_empty());
+        assert!(!unchanged);
     }
 
     #[tokio::test(flavor = "current_thread")]
@@ -373,6 +389,22 @@ mod tests {
 
         let snapshot = disk_source_snapshot(vec![path.clone()]).await.unwrap();
         assert_eq!(snapshot.sources[&path].byte_slice(..), "contract Test {}");
+        let current = disk_source_snapshot(vec![path.clone()]).await.unwrap();
+        let (sources, unchanged) = stable_source_snapshot(snapshot, current);
+        assert!(unchanged);
+        assert_eq!(sources[&path].byte_slice(..), "contract Test {}");
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn missing_expected_sources_invalidate_snapshot() {
+        let project = TestProject::new();
+        let path = project.path("/Missing.sol");
+        let before = disk_source_snapshot(vec![path.clone()]).await.unwrap();
+        let after = disk_source_snapshot(vec![path]).await.unwrap();
+
+        let (sources, unchanged) = stable_source_snapshot(before, after);
+        assert!(sources.is_empty());
+        assert!(!unchanged);
     }
 
     #[cfg(unix)]
@@ -426,13 +458,61 @@ mod tests {
         };
         let (_cancel, cancelled) = oneshot::channel();
 
-        let diagnostics =
+        let result =
             run(config, Duration::from_secs(30), cancelled, vec![path.clone()]).await.unwrap();
 
+        assert!(!result.sources_unchanged);
+        let diagnostics = result.diagnostics;
         let uri = lsp_types::Url::from_file_path(path).unwrap();
         assert_eq!(diagnostics[&uri].len(), 1);
         assert_eq!(diagnostics[&uri][0].message, "source changed");
         assert!(diagnostics[&uri][0].data.is_none());
+    }
+
+    #[cfg(unix)]
+    #[tokio::test(flavor = "current_thread")]
+    async fn changed_dependency_during_flycheck_invalidates_result() {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /src/Test.sol
+            import "./Dependency.sol";
+            contract Test {}
+            //- /src/Dependency.sol
+            contract Dependency {}
+            "#,
+        );
+        let path = project.path("/src/Test.sol");
+        let dependency = project.path("/src/Dependency.sol");
+        let diagnostic = String::from_utf8(solc_diagnostic("unchanged source")).unwrap();
+        let config = FlycheckConfig {
+            id: "changing-dependency".into(),
+            command: "/bin/sh".into(),
+            args: vec![
+                "-c".into(),
+                "printf '%s\\n' 'contract Dependency { uint256 changed; }' > \"$1\"; printf '%s\\n' \"$2\""
+                    .into(),
+                "sh".into(),
+                dependency.display().to_string(),
+                diagnostic,
+            ],
+            cwd: project.root().to_path_buf(),
+            workspace_root: project.root().to_path_buf(),
+            output: FlycheckOutput::SolcJson,
+        };
+        let (_cancel, cancelled) = oneshot::channel();
+
+        let result =
+            run(config, Duration::from_secs(30), cancelled, vec![path.clone(), dependency.clone()])
+                .await
+                .unwrap();
+
+        let uri = lsp_types::Url::from_file_path(&path).unwrap();
+        assert_eq!(result.diagnostics[&uri].len(), 1);
+        assert_eq!(result.diagnostics[&uri][0].message, "unchanged source");
+        assert!(result.diagnostics[&uri][0].data.is_some());
+        assert!(result.sources.contains_key(&path));
+        assert!(!result.sources.contains_key(&dependency));
+        assert!(!result.sources_unchanged);
     }
 
     #[cfg(unix)]
@@ -471,9 +551,11 @@ mod tests {
         };
         let (_cancel, cancelled) = oneshot::channel();
 
-        let diagnostics =
+        let result =
             run(config, Duration::from_secs(30), cancelled, vec![path.clone()]).await.unwrap();
 
+        assert!(!result.sources_unchanged);
+        let diagnostics = result.diagnostics;
         assert_eq!(project.read_file("/src/Test.sol"), original);
         let uri = lsp_types::Url::from_file_path(path).unwrap();
         assert_eq!(diagnostics[&uri].len(), 1);

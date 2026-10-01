@@ -323,7 +323,7 @@ impl Symbol {
     #[inline]
     pub fn is_yul_builtin(self) -> bool {
         (self >= kw::Add && self <= kw::Xor)
-            || (self >= kw::Auxdataloadn && self <= kw::Setimmutable)
+            || (self >= kw::Datacopy && self <= kw::Setimmutable)
             || matches!(self, kw::Address | kw::Byte | kw::Return | kw::Revert)
     }
 
@@ -331,7 +331,7 @@ impl Symbol {
     #[inline]
     pub fn is_reserved_yul_builtin(self) -> bool {
         (self >= kw::Add && self <= kw::Xor)
-            || matches!(self, kw::Address | kw::Byte | kw::Clz | kw::Return | kw::Revert)
+            || matches!(self, kw::Address | kw::Byte | kw::Return | kw::Revert)
     }
 
     /// Returns `true` if the symbol is a Yul EVM builtin keyword reserved by `evm_version`.
@@ -888,6 +888,7 @@ symbols! {
         Caller:         "caller",
         Callvalue:      "callvalue",
         Chainid:        "chainid",
+        Clz:            "clz",
         Codecopy:       "codecopy",
         Codesize:       "codesize",
         Coinbase:       "coinbase",
@@ -951,19 +952,13 @@ symbols! {
         Tstore:         "tstore",
         Xor:            "xor",
 
-        Auxdataloadn:   "auxdataloadn",
-        Clz:            "clz",
+        // Yul object and compiler builtins, which are not reserved names.
         Datacopy:       "datacopy",
         Dataoffset:     "dataoffset",
         Datasize:       "datasize",
-        Eofcreate:      "eofcreate",
-        Extcall:        "extcall",
-        Extdelegatecall: "extdelegatecall",
-        Extstaticcall:   "extstaticcall",
         Linkersymbol:   "linkersymbol",
         Loadimmutable:  "loadimmutable",
         Memoryguard:    "memoryguard",
-        Returncontract: "returncontract",
         Setimmutable:   "setimmutable",
 
         // Experimental Solidity specific keywords.
@@ -1017,6 +1012,7 @@ symbols! {
         address_call,
         address_delegatecall,
         address_staticcall,
+        aligned,
         alloc,
         args,
         array,
@@ -1052,9 +1048,9 @@ symbols! {
         constructor_args_end,
         continuation,
         creationCode,
+        creation_code,
         custom_error,
         data,
-        data_copy,
         decode,
         decode_aggregate,
         decode_calldata_slice,
@@ -1139,6 +1135,7 @@ symbols! {
         keep_with_next,
         layout,
         length,
+        libraries,
         library_address,
         library_called_without_delegatecall,
         library_deploy_address,
@@ -1215,6 +1212,7 @@ symbols! {
         ptrtoint,
         push,
         push_data,
+        push_data_size,
         push_deferred,
         push_immutable,
         push_library,
@@ -1235,6 +1233,7 @@ symbols! {
         ripemd160,
         runtime,
         runtimeCode,
+        runtime_code,
         salt,
         scratch,
         select,

@@ -18,7 +18,7 @@ fn @setBig(arg0: i256, arg1: i256, arg2: i256, arg3: calldataslice) [selector=0x
 
 // === ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_spill.sol:Proxy ===
 @module Proxy
-immutables:
+@immutables
   _defaultImplementation: bytes32
 
 fn @constructor(arg0: i160) [constructor, abi_params=[address]] {
@@ -74,24 +74,24 @@ fn @fallback() [fallback, payable] {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_spill.sol:Harness ===
 @module Harness
-data:
-  Impl_initcode_0: hex"34600e576101178060125f395ff35b5f5ffd341515602a575f3560e01c80637c2efcba146026578063e6a9b50514602257602a565b6040565b602e565b5f5ffd5b5f546080526020608001608090036080f35b60843610610113576064358060e0526004016020810167ffffffffffffffff60e05111368061012052821191501781358060a0528060a0526020830192508236039250828111925082925082821791509150151561010f57602435600435018060c0528060c052600435811060fd57604435818060c052018060805280608052818060c052811091508260a05250905060fd5760a0518060a052608051018061010052806101005260805180608052811060fd5780610100525f55005b634e487b715f5260116020526024601cfd5b5f5ffd5b5f5ffd"
-  Proxy_initcode_1: hex"61011a38038061011a6101003961010001601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0166040523415156078576101008060e0528060e05261010061011a38030160208201116074578060e0525160a01c1515607457610100515f1b60c052607c565b5f5ffd5b5f5ffd5b608e80608c5f3960c0516043525ff360e06040523d6040527f360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc54806080528060805280608052156041576080516063565b7f00000000000000000000000000000000000000000000000000000000000000005b3d3d3682823750503d3d81383683865af4925050501515156086573d5f5f3e3d5ff35b3d5f5f3e3d5ffd"
+@data
+  Impl_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_spill.sol:Impl"
+  Proxy_creation_code_1: creation_code "ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_spill.sol:Proxy"
 
 fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
-    v1 = not 31
-    v2 = and 328, v1
+    v1 = datasize Impl_creation_code_0
+    v2 = datasize Impl_creation_code_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    data_copy Impl_initcode_0, v4, 297
+    datacopy Impl_creation_code_0, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
-    v7 = add v6, 297
+    v7 = add v6, v1
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
-    v9 = create 0, v8, 297
+    v9 = create 0, v8, v1
     v10 = ne v9, i160 0
     jumpi v10, bb2, bb1
   bb1:
@@ -99,57 +99,58 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
   bb2:
     v11 = zext i160 v9 to i256
     v12 = abi_encode [word<u160>], args v11
-    v13 = not 31
-    v14 = and 345, v13
-    v15 = alloc raw, exact, uninitialized, infallible, v14
-    v16 = ptrtoint memptr v15 to i256
-    data_copy Proxy_initcode_1, v16, 282
-    v17 = slice_ptr v12
-    v18 = ptrtoint memptr v15 to i256
-    v19 = add v18, 282
-    mcopy v19, v17, 32 !metadata(memory=heap)
-    v20 = ptrtoint memptr v15 to i256
-    v21 = create 0, v20, 314
-    v22 = ne v21, i160 0
-    jumpi v22, bb4, bb3
+    v13 = datasize Proxy_creation_code_1
+    v14 = datasize Proxy_creation_code_1, 32
+    v15 = datasize Proxy_creation_code_1, 63, aligned
+    v16 = alloc raw, exact, uninitialized, infallible, v15
+    v17 = ptrtoint memptr v16 to i256
+    datacopy Proxy_creation_code_1, v17, v13
+    v18 = slice_ptr v12
+    v19 = ptrtoint memptr v16 to i256
+    v20 = add v19, v13
+    mcopy v20, v18, 32 !metadata(memory=heap)
+    v21 = ptrtoint memptr v16 to i256
+    v22 = create 0, v21, v14
+    v23 = ne v22, i160 0
+    jumpi v23, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v23 = gas
-    v24 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v24, 16
-    v25 = memory_object_data memorybytes, v24
-    v26 = ptrtoint memptr v25 to i256
-    mstore v26, 0xdeadbeefdeadbeefdeadbeefdeadbeef00000000000000000000000000000000
-    v27 = abi_encode [word, word, word, memory_bytes], selector 0xe6a9b50500000000000000000000000000000000000000000000000000000000, args 10, 20, 30, v24
-    v28 = slice_ptr v27
-    v29 = slice_len v27
-    v30 = zext i160 v21 to i256
-    v31 = extcodesize v30
-    v32 = eq v31, 0
-    icall revert_if<target_contract_has_no_code>, v32
-    v33 = zext i160 v21 to i256
-    v34 = call v23, v33, 0, v28, v29, 0, 0
-    jumpi v34, bb6, bb5
+    v24 = gas
+    v25 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v25, 16
+    v26 = memory_object_data memorybytes, v25
+    v27 = ptrtoint memptr v26 to i256
+    mstore v27, 0xdeadbeefdeadbeefdeadbeefdeadbeef00000000000000000000000000000000
+    v28 = abi_encode [word, word, word, memory_bytes], selector 0xe6a9b50500000000000000000000000000000000000000000000000000000000, args 10, 20, 30, v25
+    v29 = slice_ptr v28
+    v30 = slice_len v28
+    v31 = zext i160 v22 to i256
+    v32 = extcodesize v31
+    v33 = eq v32, 0
+    icall revert_if<target_contract_has_no_code>, v33
+    v34 = zext i160 v22 to i256
+    v35 = call v24, v34, 0, v29, v30, 0, 0
+    jumpi v35, bb6, bb5
   bb5:
     revert_returndata
   bb6:
-    v35 = gas
-    v36 = abi_encode [], selector 0x7c2efcba00000000000000000000000000000000000000000000000000000000
-    v37 = slice_ptr v36
-    v38 = slice_len v36
-    v39 = zext i160 v21 to i256
-    v40 = staticcall v35, v39, v37, v38, 0, 32
-    jumpi v40, bb8, bb7
+    v36 = gas
+    v37 = abi_encode [], selector 0x7c2efcba00000000000000000000000000000000000000000000000000000000
+    v38 = slice_ptr v37
+    v39 = slice_len v37
+    v40 = zext i160 v22 to i256
+    v41 = staticcall v36, v40, v38, v39, 0, 32
+    jumpi v41, bb8, bb7
   bb7:
     revert_returndata
   bb8:
-    v41 = returndatasize
-    v42 = lt v41, 32
-    icall revert_if<tuple_data_too_short>, v42
-    v43 = add 0, 0
-    v44 = mload v43
-    v45 = eq v44, 76
-    icall require<short_string>, v45, 7, 0x666f727761726400000000000000000000000000000000000000000000000000
+    v42 = returndatasize
+    v43 = lt v42, 32
+    icall revert_if<tuple_data_too_short>, v43
+    v44 = add 0, 0
+    v45 = mload v44
+    v46 = eq v45, 76
+    icall require<short_string>, v46, 7, 0x666f727761726400000000000000000000000000000000000000000000000000
     ret 1
 }

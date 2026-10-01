@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/stack_expression_selection.sol:StackExpressionSelection ===
 @module StackExpressionSelection
-types:
+@types
   struct0: {i256, i256, i1}
   struct1: {i256, i1}
 

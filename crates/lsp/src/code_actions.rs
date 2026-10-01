@@ -314,8 +314,17 @@ fn fallback_plans(
         .collect()
 }
 
+// Presentation may append labels, notes, and help after the compiler's primary message.
+fn diagnostic_primary_message(diagnostic: &Diagnostic) -> &str {
+    diagnostic.message.lines().next().unwrap_or_default().trim_end()
+}
+
 fn is_unused_import_diagnostic(diagnostic: &Diagnostic) -> bool {
-    match (diagnostic.source.as_deref(), diagnostic.code.as_ref(), diagnostic.message.as_str()) {
+    match (
+        diagnostic.source.as_deref(),
+        diagnostic.code.as_ref(),
+        diagnostic_primary_message(diagnostic),
+    ) {
         (Some("solar"), None, "unused import") => true,
         (Some("solar"), Some(NumberOrString::String(code)), "unused import")
         | (
@@ -331,7 +340,7 @@ fn unused_local_variable_fix(
     diagnostic: &Diagnostic,
     context: &CodeActionSource<'_>,
 ) -> Option<(String, Applicability, Vec<TextEdit>)> {
-    let message = diagnostic.message.trim_end();
+    let message = diagnostic_primary_message(diagnostic);
     let message = message.strip_suffix('.').unwrap_or(message);
     if !matches!(message, "unused local variable" | "Unused local variable") {
         return None;
@@ -496,7 +505,7 @@ fn compiler_pragma_fix(
         return None;
     }
     let source = context.source();
-    let recommendation = diagnostic.message.trim_end().strip_prefix(PREFIX)?;
+    let recommendation = diagnostic_primary_message(diagnostic).strip_prefix(PREFIX)?;
     let recommendation = recommendation.strip_suffix('.').unwrap_or(recommendation);
     let pragma = recommendation.strip_suffix('"')?;
     if pragma.len() > 128 || pragma.contains(['\r', '\n']) || !is_single_solidity_pragma(pragma) {
@@ -566,7 +575,7 @@ fn function_mutability_fix(
     diagnostic: &Diagnostic,
     context: &CodeActionSource<'_>,
 ) -> Option<(String, Applicability, Vec<TextEdit>)> {
-    let message = diagnostic.message.trim_end();
+    let message = diagnostic_primary_message(diagnostic);
     let message = message.strip_suffix('.').unwrap_or(message);
     let target = match message {
         "function state mutability can be restricted to view"
@@ -606,7 +615,7 @@ fn unimplemented_function_fix(
     diagnostic: &Diagnostic,
     context: &CodeActionSource<'_>,
 ) -> Option<(String, Applicability, Vec<TextEdit>)> {
-    let message = diagnostic.message.trim_end();
+    let message = diagnostic_primary_message(diagnostic);
     let message = message.strip_suffix('.').unwrap_or(message);
     if !matches!(
         message,
@@ -641,7 +650,7 @@ fn missing_override_fix(
         PublicVariable,
     }
 
-    let message = diagnostic.message.trim_end();
+    let message = diagnostic_primary_message(diagnostic);
     let message = message.strip_suffix('.').unwrap_or(message);
     let target = match message {
         "overriding function is missing `override` specifier"
@@ -968,5 +977,28 @@ mod tests {
             work_done_progress_params: WorkDoneProgressParams::default(),
             partial_result_params: PartialResultParams::default(),
         }
+    }
+
+    #[test]
+    fn diagnostic_details_preserve_fallback_quick_fixes() {
+        let uri = Url::from_file_path(std::env::temp_dir().join("Details.sol")).unwrap();
+        let contents = Rope::from("contract Test { function f() public { uint256 unused; } }");
+        let index = proto::LspPositionIndex::new(&contents);
+        let range = Range::new(Position::new(0, 38), Position::new(0, 52));
+        let mut params =
+            params(uri.clone(), DiagnosticData::from_rope(uri, &contents, Vec::new()).to_value());
+        params.range = range;
+        let diagnostic = &mut params.context.diagnostics[0];
+        diagnostic.range = range;
+        diagnostic.code = Some(NumberOrString::String("2072".into()));
+        diagnostic.message = "Unused local variable.\nnote: the declaration is never read".into();
+
+        let fixes = plans(&params, &params.context.diagnostics, &index);
+        assert_eq!(fixes.len(), 1);
+        snapbox::assert_data_eq!(fixes[0].title.as_str(), "Remove unused local variable");
+        assert_eq!(
+            fixes[0].edits,
+            [TextEdit::new(Range::new(Position::new(0, 38), Position::new(0, 53)), String::new())]
+        );
     }
 }

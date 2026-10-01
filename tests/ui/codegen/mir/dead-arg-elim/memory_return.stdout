@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/dead-arg-elim/memory_return.mir (before dead-arg-elim) ===
 + // === ROOT/tests/ui/codegen/mir/dead-arg-elim/memory_return.mir (after dead-arg-elim) ===
   @module MemoryReturn
-  types:
+  @types
     struct0: {memoryslice, i256}
     struct1: {struct0, i1}
   

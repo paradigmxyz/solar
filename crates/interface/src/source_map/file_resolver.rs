@@ -12,7 +12,7 @@ use std::{
     borrow::Cow,
     io,
     ops::ControlFlow,
-    path::{Path, PathBuf},
+    path::{Component, Path, PathBuf},
     sync::{Arc, OnceLock},
 };
 
@@ -253,12 +253,26 @@ impl<'a> FileResolver<'a> {
         // will only check the path relative to the current file.
         let is_relative = path.starts_with("./") || path.starts_with("../");
         if is_relative {
-            let try_path = if let Some(parent_dir) = parent.and_then(Path::parent) {
-                Cow::Owned(parent_dir.join(path))
+            // Normalize only the import suffix: leading `../` and `./` in an
+            // inline source-unit name are part of its identity.
+            let source_unit = if let Some(parent_dir) = parent.and_then(Path::parent) {
+                let mut source_unit = parent_dir.to_path_buf();
+                for component in path.components() {
+                    match component {
+                        Component::CurDir => {}
+                        Component::ParentDir => {
+                            source_unit.pop();
+                        }
+                        component => source_unit.push(component.as_os_str()),
+                    }
+                }
+                Cow::Owned(source_unit)
             } else {
                 Cow::Borrowed(path)
             };
-            visit(&try_path, ResolutionCandidateKind::RelativeFile)?;
+            let source_unit = self.remap_path(&source_unit, parent);
+            visit(&source_unit, ResolutionCandidateKind::SourceUnit)?;
+            visit(&source_unit, ResolutionCandidateKind::RelativeFile)?;
             return ControlFlow::Continue(());
         }
 
@@ -273,6 +287,9 @@ impl<'a> FileResolver<'a> {
 
         let path = &*self.remap_path(path, parent);
         if path.is_absolute() {
+            // An absolute remapping target inside the base path names the same source unit as its
+            // base-relative path, matching how importing files are treated in `import_parent`.
+            visit(path, ResolutionCandidateKind::SourceUnit)?;
             visit(path, ResolutionCandidateKind::SearchFile)?;
             return ControlFlow::Continue(());
         }
@@ -313,7 +330,7 @@ impl<'a> FileResolver<'a> {
     /// Resolves an import path.
     ///
     /// `parent` is the path of the file that contains the import, if any.
-    #[instrument(level = "debug", skip_all, fields(path = %path.display()))]
+    #[instrument(level = "trace", skip_all, fields(path = %path.display()))]
     pub fn resolve_file(
         &self,
         path: &Path,
@@ -332,11 +349,6 @@ impl<'a> FileResolver<'a> {
             ResolutionCandidateKind::RelativeFile
             | ResolutionCandidateKind::DirectFile
             | ResolutionCandidateKind::SearchFile => {
-                if matches!(kind, ResolutionCandidateKind::RelativeFile)
-                    && let Some(file) = self.source_map().get_file(&*self.normalize(path))
-                {
-                    return ControlFlow::Break(Ok(file));
-                }
                 let file = match self.try_file(path) {
                     Ok(file) => file,
                     Err(err) => return ControlFlow::Break(Err(err)),
@@ -388,9 +400,13 @@ impl<'a> FileResolver<'a> {
     }
 
     fn get_source_unit_file(&self, path: &Path) -> Option<Arc<SourceFile>> {
-        if path.is_absolute() {
-            return None;
-        }
+        let normalized;
+        let path = if path.is_absolute() {
+            normalized = self.normalize(path);
+            normalized.strip_prefix(self.try_base_path()?).ok()?
+        } else {
+            path
+        };
         if let Some(file) = self.source_map().get_file(path) {
             return Some(file);
         }
@@ -454,7 +470,9 @@ pub fn apply_import_remappings<'a>(
     let mut longest_prefix = 0;
     let mut longest_context = 0;
     let mut best_match_target = None;
-    let mut unprefixed_path = path;
+    let path_text = path.to_string_lossy();
+    let path_text = sanitize_path(&path_text);
+    let mut unprefixed_path = &*path_text;
     for ImportRemapping { context, prefix, path: target } in remappings {
         let context = &*sanitize_path(context);
         let prefix = &*sanitize_path(prefix);
@@ -472,7 +490,7 @@ pub fn apply_import_remappings<'a>(
             continue;
         }
         // Skip if the prefix does not match.
-        let Ok(up) = path.strip_prefix(prefix) else {
+        let Some(up) = path_text.strip_prefix(prefix) else {
             continue;
         };
         longest_context = context.len();
@@ -481,11 +499,9 @@ pub fn apply_import_remappings<'a>(
         unprefixed_path = up;
     }
     if let Some(best_match_target) = best_match_target {
-        let mut out = PathBuf::from(&*best_match_target);
-        out.push(unprefixed_path);
-        Cow::Owned(out)
+        Cow::Owned(PathBuf::from(format!("{best_match_target}{unprefixed_path}")))
     } else {
-        Cow::Borrowed(unprefixed_path)
+        Cow::Borrowed(path)
     }
 }
 
@@ -768,6 +784,42 @@ mod tests {
             file_resolver.resolve_file(Path::new("src/B.sol"), Some(Path::new("test/A.sol")));
 
         assert!(Arc::ptr_eq(&resolved.unwrap(), &imported));
+    }
+
+    #[test]
+    fn absolute_remapping_reuses_preloaded_source_unit_name() {
+        let tmp = tempfile::Builder::new().prefix("solar-file-resolver-test").tempdir().unwrap();
+        let base_path = tmp.path().to_path_buf();
+        for path in ["lib/dep/Test.sol", "lib/dep/Base.sol"] {
+            let path = base_path.join(path);
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(path, "").unwrap();
+        }
+
+        let sm = SourceMap::empty();
+        sm.set_base_path(Some(base_path.clone()));
+        let test = sm.new_source_file(PathBuf::from("lib/dep/Test.sol"), "").unwrap();
+        let base = sm.new_source_file(PathBuf::from("lib/dep/Base.sol"), "").unwrap();
+        let mut file_resolver = FileResolver::new(&sm);
+        file_resolver.set_current_dir(&base_path);
+        file_resolver.add_import_remapping(
+            format!("dep/={}/", base_path.join("lib/dep").display()).parse().unwrap(),
+        );
+
+        // `dep/Test.sol` remaps to an absolute path that names the preloaded `lib/dep/Test.sol`.
+        let resolved = file_resolver
+            .resolve_file(Path::new("dep/Test.sol"), Some(Path::new("test/A.t.sol")))
+            .unwrap();
+        assert!(Arc::ptr_eq(&resolved, &test));
+
+        // Its relative imports then resolve to the same copies as direct imports do.
+        let parent = resolved.name.as_real().unwrap();
+        let relative = file_resolver.resolve_file(Path::new("./Base.sol"), Some(parent)).unwrap();
+        let direct = file_resolver
+            .resolve_file(Path::new("dep/Base.sol"), Some(Path::new("test/A.t.sol")))
+            .unwrap();
+        assert!(Arc::ptr_eq(&relative, &base));
+        assert!(Arc::ptr_eq(&direct, &base));
     }
 
     #[test]

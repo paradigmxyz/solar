@@ -315,7 +315,7 @@ class ReportFormattingTests(unittest.TestCase):
 
     def test_codegen_report_adds_reference_compiler_columns(self):
         current = result()
-        current["compilers"]["extra"] = {
+        current["compilers"]["oksolc"] = {
             "status": "ok",
             "total_gas": 10,
             "runtime_size": 20,
@@ -326,13 +326,13 @@ class ReportFormattingTests(unittest.TestCase):
             benchmark.codegen_report([current], [current]),
             "## Codegen benchmark\n"
             "\n"
-            "| bench | gas (vs main) | solc | extra | size (vs main) | solc | extra |\n"
+            "| bench | gas (vs main) | solc | oksolc | size (vs main) | solc | oksolc |\n"
             "| ----- | ------------- | ---- | ---- | -------------- | ---- | ---- |\n"
             "| test | n/a (n/a) | n/a (n/a) | 10 (n/a) | n/a (n/a) | n/a (n/a) | 20B (n/a) |\n"
             "\n"
             "### Deployment\n"
             "\n"
-            "| bench | gas (vs main) | solc | extra | size (vs main) | solc | extra |\n"
+            "| bench | gas (vs main) | solc | oksolc | size (vs main) | solc | oksolc |\n"
             "| ----- | ------------- | ---- | ---- | -------------- | ---- | ---- |\n"
             "| test | n/a (n/a) | n/a (n/a) | 30 (n/a) | n/a (n/a) | n/a (n/a) | 40B (n/a) |\n",
         )
@@ -438,17 +438,17 @@ class CommonBenchmarkResultTests(unittest.TestCase):
             result(
                 status="ok",
                 total_gas=10,
+                runtime_size=40,
                 deploy_gas=20,
                 bytecode_size=30,
-                runtime_size=40,
                 peak_rss_bytes=100,
             ),
             result(
                 status="ok",
                 total_gas=1,
+                runtime_size=4,
                 deploy_gas=2,
                 bytecode_size=3,
-                runtime_size=4,
                 peak_rss_bytes=200,
             ),
         ]
@@ -525,9 +525,9 @@ class CommonBenchmarkResultTests(unittest.TestCase):
             result(
                 status="ok",
                 total_gas=10,
+                runtime_size=40,
                 deploy_gas=20,
                 bytecode_size=30,
-                runtime_size=40,
             ),
             result(status="failed"),
         ]
@@ -545,15 +545,15 @@ class CommonBenchmarkResultTests(unittest.TestCase):
         complete = {
             "status": "ok",
             "total_gas": 10,
+            "runtime_size": 40,
             "deploy_gas": 20,
             "bytecode_size": 30,
-            "runtime_size": 40,
         }
         cases = [
             ("total_gas", "gas", "runtime"),
+            ("runtime_size", "compiler", "runtime_bytecode_size"),
             ("deploy_gas", "gas", "deployment"),
             ("bytecode_size", "compiler", "creation_bytecode_size"),
-            ("runtime_size", "compiler", "runtime_bytecode_size"),
         ]
         for missing, group, metric_name in cases:
             with self.subTest(missing=missing):
@@ -584,9 +584,9 @@ class CommonBenchmarkResultTests(unittest.TestCase):
                 suite="large",
                 status="ok",
                 total_gas=10,
+                runtime_size=40,
                 deploy_gas=20,
                 bytecode_size=30,
-                runtime_size=40,
             )
         ]
         document = self.write_result(
@@ -885,42 +885,43 @@ class RunComparisonTests(unittest.TestCase):
                 "## Codegen benchmark\n\nNo benchmark results were produced.\n",
             )
 
-    def test_solc_report_uses_selected_compiler(self):
-        before = self.fixture()
-        before["compilers"]["solc"] = copy.deepcopy(before["compilers"]["solar"])
-        after = copy.deepcopy(before)
-        after["compilers"]["solc"]["runtime_size"] = 90
-        with (
-            tempfile.TemporaryDirectory() as directory,
-            patch.dict(os.environ, {}, clear=True),
-            patch("sys.stdout", new_callable=io.StringIO),
-            patch("sys.stderr", new_callable=io.StringIO),
-        ):
-            root = Path(directory)
-            paths = [root / "before.json", root / "after.json"]
-            for path, row in zip(paths, [before, after], strict=True):
-                path.write_text(json.dumps({"results": [row]}))
-            output = root / "report.md"
-            self.assertEqual(
-                benchmark.main(
+    def test_reference_report_uses_selected_compiler(self):
+        for compiler in ("solc", "solx", "oksolc"):
+            before = self.fixture()
+            before["compilers"][compiler] = copy.deepcopy(before["compilers"]["solar"])
+            after = copy.deepcopy(before)
+            after["compilers"][compiler]["runtime_size"] = 90
+            with (
+                tempfile.TemporaryDirectory() as directory,
+                patch.dict(os.environ, {}, clear=True),
+                patch("sys.stdout", new_callable=io.StringIO),
+                patch("sys.stderr", new_callable=io.StringIO),
+            ):
+                root = Path(directory)
+                paths = [root / "before.json", root / "after.json"]
+                for path, row in zip(paths, [before, after], strict=True):
+                    path.write_text(json.dumps({"results": [row]}))
+                output = root / "report.md"
+                self.assertEqual(
+                    benchmark.main(
+                        [
+                            *(str(path) for path in paths),
+                            "--compiler",
+                            compiler,
+                            "--report-output",
+                            str(output),
+                        ]
+                    ),
+                    0,
+                )
+                self.assertEqual(
+                    output.read_text().splitlines()[:3],
                     [
-                        *(str(path) for path in paths),
-                        "--compiler",
-                        "solc",
-                        "--report-output",
-                        str(output),
-                    ]
-                ),
-                0,
-            )
-            self.assertEqual(
-                output.read_text().splitlines()[:3],
-                [
-                    "### Run comparison",
-                    "",
-                    "Compiler: `solc`. Deltas are candidate minus baseline; lower is better.",
-                ],
-            )
+                        "### Run comparison",
+                        "",
+                        f"Compiler: `{compiler}`. Deltas are candidate minus baseline; lower is better.",
+                    ],
+                )
 
     def fixture(self, test_id="test", **values):
         row = result(
@@ -930,10 +931,10 @@ class RunComparisonTests(unittest.TestCase):
             output_fingerprint="output",
             label="solar test",
             command="target/debug/solar --standard-json",
-            runtime_size=100,
-            bytecode_size=120,
             total_gas=30,
+            runtime_size=100,
             deploy_gas=50,
+            bytecode_size=120,
             compile_time_seconds=0.1,
             compile_time_samples=[0.09, 0.1, 0.11],
             peak_rss_bytes=1000,
@@ -1028,7 +1029,7 @@ class RunComparisonTests(unittest.TestCase):
         self.assertIn("candidate gas run failed", row["issues"])
 
     def test_reference_failures_do_not_trigger_comments_or_warnings(self):
-        for compiler in ("solc", "solx"):
+        for compiler in ("solc", "solx", "oksolc"):
             for stage in ("status", "runtime_status", "gas_status"):
                 with self.subTest(compiler=compiler, stage=stage):
                     before = self.fixture()
@@ -1176,7 +1177,7 @@ class RunComparisonTests(unittest.TestCase):
     def test_pr_comment_lists_only_changed_benchmarks_against_baseline(self):
         before = [self.fixture("changed"), self.fixture("unchanged")]
         after = [
-            self.fixture("changed", runtime_size=110, bytecode_size=60),
+            self.fixture("changed", runtime_size=110, bytecode_size=60, deploy_gas=75),
             self.fixture("unchanged"),
         ]
         for row in after:
@@ -1189,9 +1190,9 @@ class RunComparisonTests(unittest.TestCase):
         self.assertEqual(
             comment.split("### Changed benchmarks", 1)[1].split("[![", 1)[0],
             " vs `main`\n\n"
-            "| Benchmark | Runtime gas | Runtime bytes | Creation bytes |\n"
-            "| --- | ---: | ---: | ---: |\n"
-            "| changed | ~0% | ❌ +10.00% | ✅ -50.00% |\n\n",
+            "| Benchmark | Runtime gas | Runtime bytes | Creation gas | Creation bytes |\n"
+            "| --- | ---: | ---: | ---: | ---: |\n"
+            "| changed | ~0% | ❌ +10.00% | ❌ +50.00% | ✅ -50.00% |\n\n",
         )
 
     def test_detailed_overview_omits_counts(self):
@@ -1203,8 +1204,8 @@ class RunComparisonTests(unittest.TestCase):
                 "| --- | ---: |",
                 "| runtime gas | ~0% |",
                 "| runtime bytes | ~0% |",
+                "| creation gas | ~0% |",
                 "| creation bytes | ~0% |",
-                "| deployment gas | ~0% |",
                 "| compile seconds | ~0% |",
                 "| peak RSS bytes | ~0% |",
             ],
@@ -1401,6 +1402,7 @@ class RunComparisonTests(unittest.TestCase):
                 "| Metric | Change |\n| --- | ---: |\n"
                 "| runtime gas | ~0% |\n"
                 "| runtime bytes | ~0% |\n"
+                "| creation gas | ~0% |\n"
                 "| creation bytes | ~0% |\n\n"
                 "Equal-weight geometric means; lower is better.\n\n"
                 "[![View benchmark overview](https://img.shields.io/badge/View_benchmark_overview-2563eb?style=for-the-badge)](https://www.getfoundry.sh/perf/solar/)\n",

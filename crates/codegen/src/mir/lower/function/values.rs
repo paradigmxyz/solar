@@ -21,7 +21,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if let ExprKind::Ternary(condition, then_expr, else_expr) = &expr.kind {
             return self.lower_ternary_values(condition, then_expr, else_expr);
         }
-        if let ExprKind::Call(callee, args, call_opts) = &expr.kind {
+        if let Some((callee, args, call_opts)) = expr.as_call() {
             if let Some(builtin) = self.low_level_call_builtin(expr) {
                 return self.lower_low_level_call_values(expr, builtin, 2, false);
             }
@@ -47,7 +47,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 && function.is_external()
             {
                 return self.lower_external_function_pointer_call_values(
-                    callee, function, *args, *call_opts,
+                    callee, function, *args, call_opts,
                 );
             }
             if let Some(returns) = returns
@@ -519,7 +519,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         &mut self,
         expr: &hir::Expr<'_>,
     ) -> Option<Vec<(ValueId, Ty<'gcx>, Option<StorageAccess>)>> {
-        let ExprKind::Call(callee, ..) = &expr.kind else { return None };
+        let (callee, _, _) = expr.as_call()?;
         let return_types = if let Some(function_id) = self.cx.gcx.resolved_function(callee) {
             self.cx
                 .gcx

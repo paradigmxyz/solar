@@ -3,11 +3,7 @@
 @module StackNormalizePeak
 
 // The parser rejects stack-overflowing EVM IR before it reaches the pass pipeline.
-bb0:
-  callf !metadata(stack=0->255)
-  callf !metadata(stack=0->255)
-  callf !metadata(stack=0->255)
-  callf !metadata(stack=0->255)
+bb0 [stack=1020]:
   push 0
   push 0
   push 0
