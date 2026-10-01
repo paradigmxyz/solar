@@ -7,6 +7,12 @@
       ret v0
   }
   
+  fn @small(arg0: i256) -> memoryarray {
+    bb0:
+      v0 = load_storage_array u8, arg0
+      ret v0
+  }
+  
   fn @signed(arg0: i256) -> memoryarray {
     bb0:
       v0 = load_storage_array i24, arg0

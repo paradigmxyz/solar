@@ -5,8 +5,11 @@ use std::{cell::RefCell, sync::OnceLock};
 use crate::mir::{FunctionBuilder, TypeSize, ValueId};
 use alloy_primitives::U256;
 use solar_ast::DataLocation;
-use solar_data_structures::{index::IndexVec, map::FxHashMap};
-use solar_interface::Span;
+use solar_data_structures::{
+    index::IndexVec,
+    map::{FxHashMap, FxHashSet, FxIndexMap},
+};
+use solar_interface::{Span, Symbol};
 use solar_sema::{
     Gcx,
     hir::{ContractId, ElementaryType, StructId, VariableId},
@@ -20,6 +23,8 @@ pub(super) enum StorageEncoding {
     Unsigned,
     Signed,
     FixedBytes,
+    /// A boolean kept in one bit, whose access supplies the bit's index as its offset.
+    Bit,
 }
 
 /// A logical storage location relative to the contract's storage root.
@@ -30,6 +35,9 @@ pub(super) struct StorageLocation {
     pub(super) size: TypeSize,
     pub(super) encoding: StorageEncoding,
     transient: bool,
+    /// The dictionary of a handle field of a struct documented `@custom:solar-handle`, which
+    /// keeps one plus the index of the field's value in the dictionary, or zero for zero.
+    pub(super) handle: Option<VariableId>,
 }
 
 impl StorageLocation {
@@ -42,23 +50,42 @@ impl StorageLocation {
             size: Self::WORD,
             encoding: StorageEncoding::Unsigned,
             transient: false,
+            handle: None,
         }
     }
 
     pub(super) const fn packed_word(size: TypeSize, encoding: StorageEncoding) -> Self {
-        Self { slot: U256::ZERO, offset: 0, size, encoding, transient: false }
+        Self { slot: U256::ZERO, offset: 0, size, encoding, transient: false, handle: None }
+    }
+
+    /// A boolean in one bit of a word, at the bit index an access supplies as its offset.
+    pub(super) const fn bit() -> Self {
+        Self::packed_word(TypeSize::new_int_bits(8), StorageEncoding::Bit)
+    }
+
+    /// The shift that moves the value at `offset`, as an access supplies it, to the low end.
+    fn offset_shift(self, builder: &mut FunctionBuilder<'_>, offset: ValueId) -> ValueId {
+        if self.encoding == StorageEncoding::Bit {
+            // shift = offset
+            return offset;
+        }
+        // shift = offset * 8
+        let eight = builder.imm(8);
+        builder.mul(offset, eight)
     }
 
     const fn packed(self) -> bool {
         self.offset != 0 || self.size.bits() != Self::WORD.bits()
     }
 
-    const fn word_bytes() -> u8 {
+    pub(super) const fn word_bytes() -> u8 {
         Self::WORD.bytes()
     }
 
-    fn mask(self) -> U256 {
-        if self.size >= Self::WORD {
+    pub(super) fn mask(self) -> U256 {
+        if self.encoding == StorageEncoding::Bit {
+            U256::from(1)
+        } else if self.size >= Self::WORD {
             U256::MAX
         } else {
             (U256::from(1) << self.size.bits()) - U256::from(1)
@@ -77,6 +104,21 @@ impl StorageLocation {
         }
     }
 
+    /// The bits a packed store puts in the word for `value`, before they are shifted into place:
+    /// `value & mask`, after aligning a fixed-bytes value to the low end.
+    pub(super) fn encode(self, builder: &mut FunctionBuilder<'_>, value: ValueId) -> ValueId {
+        // encoded = (fixed_bytes ? value >> align_shift : value) & field_mask
+        let value = match self.encoding {
+            StorageEncoding::FixedBytes => {
+                let shift = builder.imm(u64::from(Self::word_bytes() - self.size.bytes()) * 8);
+                builder.shr(shift, value)
+            }
+            StorageEncoding::Unsigned | StorageEncoding::Signed | StorageEncoding::Bit => value,
+        };
+        let field_mask = builder.imm(self.mask());
+        builder.and(value, field_mask)
+    }
+
     pub(super) fn load_word(
         self,
         builder: &mut FunctionBuilder<'_>,
@@ -92,7 +134,7 @@ impl StorageLocation {
         let field_mask = builder.imm(self.mask());
         let masked = builder.and(shifted, field_mask);
         match self.encoding {
-            StorageEncoding::Unsigned => {
+            StorageEncoding::Unsigned | StorageEncoding::Bit => {
                 // value = field
                 masked
             }
@@ -107,6 +149,31 @@ impl StorageLocation {
                 builder.shl(shift, masked)
             }
         }
+    }
+}
+
+/// The layout of a storage array documented `@custom:solar-inline`. While the array holds at most
+/// `capacity` elements, they lie in its own slot, element `i` at byte `i * size` as in the first
+/// word of the standard data area, and the slot's top byte holds the length. An array that grows
+/// past `capacity` moves to the standard layout, whose length never reaches the top byte, so a
+/// nonzero top byte marks the inline form, and an empty array reads the same in both.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct InlineArray {
+    /// How many elements fit below the length byte.
+    pub(super) capacity: u8,
+    /// Where an element lies in its word, at a byte offset the access supplies.
+    pub(super) element: StorageLocation,
+}
+
+impl InlineArray {
+    /// The width of an element in bytes.
+    pub(super) fn size(self) -> u64 {
+        u64::from(self.element.size.bytes())
+    }
+
+    /// How many elements share a word of the standard data area.
+    pub(super) fn per_slot(self) -> u64 {
+        32 / self.size()
     }
 }
 
@@ -126,6 +193,30 @@ impl<'gcx> StorageLayout<'gcx> {
 
     pub(super) fn get(&self, id: VariableId) -> Option<StorageLocation> {
         self.builder.locations.get(&id).copied()
+    }
+
+    /// The slot whose hash with a key locates the record of the `@custom:solar-fuse` group of the
+    /// mapping `id`, and where the mapping's value lies in the record, relative to its start.
+    pub(super) fn fused(&self, id: VariableId) -> Option<(U256, StorageLocation)> {
+        self.builder.fused.get(&id).copied()
+    }
+
+    /// Whether the mapping `id` is documented `@custom:solar-bitmap`: the value for key `k` is bit
+    /// `k % 256` of the word at `keccak256((k / 256) . slot)`.
+    pub(super) fn is_bitmap(&self, id: VariableId) -> bool {
+        self.builder.bitmaps.contains(&id)
+    }
+
+    /// The layout of the storage array documented `@custom:solar-inline` at `slot`. Such an
+    /// array is reached only through its state variable, so its slot is always this constant.
+    pub(super) fn inline_array_at(&self, slot: U256) -> Option<InlineArray> {
+        self.builder.inline_arrays.get(&slot).copied()
+    }
+
+    /// The dictionary of the struct field `field`, if `@custom:solar-handle` makes it a handle
+    /// field.
+    pub(super) fn handle_dictionary(&self, field: VariableId) -> Option<VariableId> {
+        self.builder.handles.get(&field).copied()
     }
 
     pub(super) fn store(
@@ -178,8 +269,7 @@ impl<'gcx> StorageLayout<'gcx> {
         if !location.packed() {
             return word;
         }
-        let eight = builder.imm(8);
-        let shift = builder.mul(offset, eight);
+        let shift = location.offset_shift(builder, offset);
         self.load_word(builder, location, word, Some(shift))
     }
 
@@ -221,8 +311,7 @@ impl<'gcx> StorageLayout<'gcx> {
             return;
         }
 
-        let eight = builder.imm(8);
-        let shift = builder.mul(offset, eight);
+        let shift = location.offset_shift(builder, offset);
         self.store_word(builder, location, slot, Some(shift), value);
     }
 
@@ -250,7 +339,7 @@ impl<'gcx> StorageLayout<'gcx> {
                     .imm(u64::from(StorageLocation::word_bytes() - location.size.bytes()) * 8);
                 builder.shr(shift, value)
             }
-            StorageEncoding::Unsigned | StorageEncoding::Signed => value,
+            StorageEncoding::Unsigned | StorageEncoding::Signed | StorageEncoding::Bit => value,
         };
         // updated = cleared | (shift ? (encoded & field_mask) << shift : encoded & field_mask)
         // store(slot, updated)
@@ -265,6 +354,14 @@ impl<'gcx> StorageLayout<'gcx> {
 struct StorageBuilder<'gcx> {
     gcx: Gcx<'gcx>,
     locations: FxHashMap<VariableId, StorageLocation>,
+    /// The record slot and value location of every mapping in a `@custom:solar-fuse` group.
+    fused: FxHashMap<VariableId, (U256, StorageLocation)>,
+    /// The layout of every storage array documented `@custom:solar-inline`, by its slot.
+    inline_arrays: FxHashMap<U256, InlineArray>,
+    /// The mappings documented `@custom:solar-bitmap`.
+    bitmaps: FxHashSet<VariableId>,
+    /// The dictionary of every struct field that `@custom:solar-handle` makes a handle field.
+    handles: FxHashMap<VariableId, VariableId>,
     field_types: IndexVec<StructId, OnceLock<&'gcx [Ty<'gcx>]>>,
     field_locations: RefCell<FxHashMap<StructId, Option<Box<[StorageLocation]>>>>,
     storage_cursor: StorageCursor,
@@ -302,6 +399,7 @@ impl StorageCursor {
                 size,
                 encoding,
                 transient: self.transient,
+                handle: None,
             };
             self.offset += bytes;
             if self.offset == StorageLocation::word_bytes() {
@@ -317,6 +415,7 @@ impl StorageCursor {
             size: StorageLocation::WORD,
             encoding: StorageEncoding::Unsigned,
             transient: self.transient,
+            handle: None,
         };
         self.slot = self.slot.checked_add(U256::from(slots))?;
         Some(location)
@@ -341,6 +440,10 @@ impl<'gcx> StorageBuilder<'gcx> {
         Self {
             gcx,
             locations: FxHashMap::default(),
+            fused: FxHashMap::default(),
+            inline_arrays: FxHashMap::default(),
+            bitmaps: FxHashSet::default(),
+            handles: gcx.hir.strukt_ids().flat_map(|id| gcx.hir.solar_handles(id)).collect(),
             field_types: gcx.hir.strukt_ids().map(|_| OnceLock::new()).collect(),
             field_locations: RefCell::new(FxHashMap::default()),
             storage_cursor: StorageCursor::new(base_slot, false),
@@ -363,7 +466,70 @@ impl<'gcx> StorageBuilder<'gcx> {
                 }
             }
         }
+        self.fuse_mappings(contract_id);
+        self.inline_arrays(contract_id);
+        for &base in contract.linearized_bases.iter() {
+            for id in self.gcx.hir.contract(base).variables() {
+                if self.gcx.hir.solar_bitmap(id).is_some() {
+                    self.bitmaps.insert(id);
+                }
+            }
+        }
         StorageLayout { builder: self }
+    }
+
+    /// Records the layout of the contract's storage arrays documented `@custom:solar-inline`
+    /// whose elements leave room for the length byte.
+    fn inline_arrays(&mut self, contract_id: ContractId) {
+        let contract = self.gcx.hir.contract(contract_id);
+        for &base in contract.linearized_bases.iter() {
+            for id in self.gcx.hir.contract(base).variables() {
+                if self.gcx.hir.solar_inline(id).is_some()
+                    && let TyKind::DynArray(element) =
+                        self.gcx.type_of_item(id.into()).peel_refs().kind
+                    && let Some((size, encoding)) = self.packed_encoding(element)
+                    && let capacity = (StorageLocation::word_bytes() - 1) / size.bytes()
+                    && capacity > 0
+                    && let Some(location) = self.locations.get(&id)
+                    && !location.transient
+                {
+                    let element = StorageLocation::packed_word(size, encoding);
+                    self.inline_arrays.insert(location.slot, InlineArray { capacity, element });
+                }
+            }
+        }
+    }
+
+    /// Lays out the records of the `@custom:solar-fuse` groups of the contract's mappings: the
+    /// values of a group's mappings for one key follow each other like a struct's fields, in
+    /// declaration order, at `keccak256(key . slot)` with the slot of the group's first mapping.
+    fn fuse_mappings(&mut self, contract_id: ContractId) {
+        let contract = self.gcx.hir.contract(contract_id);
+        let mut groups = FxIndexMap::<(ContractId, Symbol), Vec<(VariableId, Ty<'gcx>)>>::default();
+        for &base in contract.linearized_bases.iter().rev() {
+            for id in self.gcx.hir.contract(base).variables() {
+                if let Some((group, _)) = self.gcx.hir.solar_fuse(id)
+                    && let TyKind::Mapping(_, value) =
+                        self.gcx.type_of_item(id.into()).peel_refs().kind
+                {
+                    groups.entry((base, group)).or_default().push((id, value));
+                }
+            }
+        }
+        for members in groups.values() {
+            let &[(first, _), _, ..] = members.as_slice() else { continue };
+            let Some(record) = self.locations.get(&first).map(|location| location.slot) else {
+                continue;
+            };
+            let mut cursor = StorageCursor::new(U256::ZERO, false);
+            for &(id, value) in members {
+                let encoding = self.packed_encoding(value);
+                let slots = self.storage_slots(value, self.gcx.hir.variable(id).span);
+                if let Some(location) = cursor.take(encoding, slots) {
+                    self.fused.insert(id, (record, location));
+                }
+            }
+        }
     }
 
     fn allocate(&mut self, ty: Ty<'gcx>, span: Span, transient: bool) -> Option<StorageLocation> {
@@ -386,13 +552,16 @@ impl<'gcx> StorageBuilder<'gcx> {
         }
 
         let mut cursor = StorageCursor::new(U256::ZERO, false);
+        let fields = self.gcx.hir.strukt(struct_id).fields;
         let locations = self
             .struct_field_types(struct_id)
             .iter()
-            .map(|&ty| {
+            .zip(fields)
+            .map(|(&ty, id)| {
                 let encoding = self.packed_encoding(ty);
                 let slots = self.storage_slots(ty, Span::DUMMY);
-                cursor.take(encoding, slots)
+                let location = cursor.take(encoding, slots)?;
+                Some(StorageLocation { handle: self.handles.get(id).copied(), ..location })
             })
             .collect::<Option<Box<_>>>();
         if locations.is_none() {
@@ -402,8 +571,19 @@ impl<'gcx> StorageBuilder<'gcx> {
         cached.entry(struct_id).or_insert(locations).as_ref()?.get(field).copied()
     }
 
+    /// The types of a struct's fields in storage: `uint72` for a handle field, which keeps one
+    /// plus the index of its value in its dictionary.
     fn struct_field_types(&self, struct_id: StructId) -> &'gcx [Ty<'gcx>] {
-        self.field_types[struct_id].get_or_init(|| self.gcx.struct_field_types(struct_id))
+        self.field_types[struct_id].get_or_init(|| {
+            let types = self.gcx.struct_field_types(struct_id);
+            let fields = self.gcx.hir.strukt(struct_id).fields;
+            if !fields.iter().any(|field| self.handles.contains_key(field)) {
+                return types;
+            }
+            self.gcx.mk_ty_iter(fields.iter().zip(types).map(|(field, &ty)| {
+                if self.handles.contains_key(field) { self.gcx.types.uint(72) } else { ty }
+            }))
+        })
     }
 
     fn packed_encoding(&self, ty: Ty<'gcx>) -> Option<(TypeSize, StorageEncoding)> {

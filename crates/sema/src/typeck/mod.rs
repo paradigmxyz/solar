@@ -18,6 +18,7 @@ mod erc7201;
 pub(crate) mod override_checker;
 pub(crate) mod safe_profile;
 mod solar_tags;
+mod storage_tags;
 mod udvt;
 mod view_pure_checker;
 
@@ -44,6 +45,7 @@ pub(crate) fn check(gcx: Gcx<'_>) {
     builders::check(gcx);
     code_views::check(gcx);
     erc7201::check(gcx);
+    storage_tags::check(gcx);
     safe_profile::check(gcx);
     call_exits::check(gcx);
 }

@@ -8,8 +8,8 @@ mod storage_layout;
 pub use natspec::{Documentation, DocumentationItem};
 pub use safety::SafetyOutput;
 pub use storage_layout::{
-    StorageEncoding, StorageLayoutEntry, StorageLayoutMember, StorageLayoutOutput,
-    StorageLayoutType,
+    StorageEncoding, StorageLayoutEntry, StorageLayoutHandle, StorageLayoutMember,
+    StorageLayoutOutput, StorageLayoutType,
 };
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "lowercase")]

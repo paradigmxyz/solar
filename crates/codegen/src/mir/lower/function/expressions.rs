@@ -193,6 +193,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if receiver_ty.is_ref_at(DataLocation::Storage) {
             if let Some(access) = self.storage_access(receiver) {
                 return match receiver_ty.peel_refs().kind {
+                    TyKind::DynArray(_) if self.inline_array_at(access.slot).is_some() => {
+                        // length = inline_array_length(slot)
+                        Some(self.inline_array_length(access.slot))
+                    }
                     TyKind::DynArray(_) => {
                         // length = sload(slot)
                         Some(self.builder.sload(access.slot))
