@@ -49,7 +49,7 @@ runs it only on pushes to main. Its measurements appear alongside solc in the Ma
 
 Pass `--oksolc PATH` to include [oksolc](https://github.com/okcontract/oksolc) with the same
 compilation, gas, runtime checks, and artifacts. CI builds revision
-`a59339132a1aecc8594a34cbba6b5a1bffbeeca8` with Zig 0.16.0 in ReleaseFast mode and runs it on
+`d5ff7399356b1ad238c839278a334e13e0e2dc81` with Zig 0.16.0 in ReleaseFast mode and runs it on
 main, PRs, and manual runs. CI caches the executable by revision, Zig version, OS, architecture,
 and build settings, skipping its shallow checkout and build on a cache hit. The build targets
 the baseline CPU for its architecture so the cached executable works across runners.
@@ -271,8 +271,9 @@ creation size and deployment gas include the helper implementation.
 
 ## Reproducing oksolc via-IR failures
 
-These commands reproduce the three full-project failures observed with oksolc
-`a59339132a1aecc8594a34cbba6b5a1bffbeeca8` on Ubuntu 24.04 x86-64. Start from
+These commands recheck the three full-project inputs reported in
+[oksolc issue #8](https://github.com/okcontract/oksolc/issues/8), using revision
+`d5ff7399356b1ad238c839278a334e13e0e2dc81` on Ubuntu 24.04 x86-64. Start from
 [Solar PR #1601](https://github.com/paradigmxyz/solar/pull/1601):
 
 ```sh
@@ -287,7 +288,7 @@ Build the same compiler-only executable as CI:
 ```sh
 mkdir -p target/oksolc-repro/source
 git -C target/oksolc-repro/source init
-git -C target/oksolc-repro/source fetch --depth 1 https://github.com/okcontract/oksolc.git a59339132a1aecc8594a34cbba6b5a1bffbeeca8
+git -C target/oksolc-repro/source fetch --depth 1 https://github.com/okcontract/oksolc.git d5ff7399356b1ad238c839278a334e13e0e2dc81
 git -C target/oksolc-repro/source checkout --detach FETCH_HEAD
 zig build --build-file target/oksolc-repro/source/build.zig build-cli \
   -Doptimize=ReleaseFast -Dcpu=baseline -j4 \
@@ -324,8 +325,6 @@ PY
 
 Run each compiler request directly, with the persistent compiler cache disabled
 and eight workers. Each input embeds its sources, so no import checkout is needed.
-The OpenZeppelin case reached 46,749,839,360 bytes of peak RSS (about 43.5 GiB) before
-exiting 137 locally; that exit status alone does not establish why it was killed.
 
 ```sh
 mkdir -p target/oksolc-repro/outputs
@@ -346,8 +345,8 @@ status does not mean compilation succeeded. Observed results:
 | Input | Sources | EVM target | Optimizer runs | Result |
 | --- | ---: | --- | ---: | --- |
 | `seaport-1.6-project` | 386 | london | 4294967295 | Yul stack-depth error for `var_parameters_offset` |
-| `solady-0.1.26-project` | 208 | paris | 1000 | `error: InternalFailure` |
-| `openzeppelin-5.6.1-project` | 390 | osaka | 200 | Exit 137, empty stdout/stderr, about 43.5 GiB peak RSS |
+| `solady-0.1.26-project` | 208 | paris | 1000 | Compiles successfully |
+| `openzeppelin-5.6.1-project` | 390 | osaka | 200 | `Yul optimizer failed: MissingReference` |
 
 Expected input SHA-256 hashes:
 
@@ -357,15 +356,16 @@ solady-0.1.26-project     c6f7fda591cc00d880fcd21e18da99b4fab4bcd2fc9309cea78b85
 openzeppelin-5.6.1-project 666aacb77d7fdf356de4fcabc93a230e6daccb642e1857b41c8c727ee2cf33d6
 ```
 
-These are full-project reproducers, not reduced cases. On 2026-09-30, all 32
+These are full-project reproducers, not reduced cases. On 2026-10-01, all 32
 CI-selected cases were retested with this revision. With the original settings,
 22 cases compiled; ten required via-IR, and two runtime helpers also required it.
-With `viaIR: true` on every input, including helpers, 29 cases compiled and all
+With `viaIR: true` on every input, including helpers, 30 cases compiled and all
 23 runtime cases completed their execution checks and hot gas calls. This run
 used oksolc alone and did not compare outputs against another compiler.
 CI retains each case's original settings.
 
-The Solady fix is in [upstream PR #12](https://github.com/okcontract/oksolc/pull/12),
-which was not merged into this revision. The upstream maintainer reports that
-Seaport produces the same diagnostic with solc; see
+[Upstream PR #12](https://github.com/okcontract/oksolc/pull/12) fixes Solady's internal
+failure. OpenZeppelin now returns a Yul diagnostic instead of exiting 137; its
+measured peak RSS was 2,654,486,528 bytes in this run. The upstream maintainer
+reports that Seaport produces the same diagnostic with solc; see
 [issue #8](https://github.com/okcontract/oksolc/issues/8#issuecomment-5902965134).

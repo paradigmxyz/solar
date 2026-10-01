@@ -28,7 +28,7 @@ env:
   RUSTC_WRAPPER: "sccache"
   SOLC_VERSION: ${{ inputs.solc_version || '0.8.37' }}
   SOLX_VERSION: '0.1.8'
-  OKSOLC_REVISION: a59339132a1aecc8594a34cbba6b5a1bffbeeca8
+  OKSOLC_REVISION: d5ff7399356b1ad238c839278a334e13e0e2dc81
 
 jobs:
   codegen-runtime:
