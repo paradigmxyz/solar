@@ -89,7 +89,7 @@ fn specialize_round(
     tried: &mut FxHashSet<(FunctionId, Constants, usize, bool)>,
 ) -> bool {
     let graph = CallGraphInfo::new(module);
-    let target = Target::new(gcx);
+    let target = module.target(gcx);
     // A trial module holds only the priced body, so it inherits the module's length bound.
     let lengths_bounded = check_elim::object_lengths_bounded(module);
     let mut sites: IndexVec<FunctionId, Vec<CallSite>> =
@@ -140,7 +140,7 @@ fn specialize_round(
             || body.attributes.is_constructor
             || body.attributes.is_fallback
             || body.attributes.is_receive
-            || (body.attributes.no_inline && gcx.sess.opts.optimization.is_gas())
+            || (body.attributes.no_inline && module.optimization(gcx).is_gas())
             || module.dispatch_entry() == Some(callee)
         {
             continue;
@@ -204,7 +204,7 @@ fn specialize_round(
         // such as a sign flip can cost more at every use than the argument it replaces, while
         // a zero beside it, such as a plain sort's pair distance, still folds away.
         let mut attempts = vec![constants];
-        if gcx.sess.opts.optimization.is_size() {
+        if module.optimization(gcx).is_size() {
             let narrow = attempts[0]
                 .iter()
                 .filter(|(_, immediate)| {

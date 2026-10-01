@@ -10,7 +10,7 @@ use super::{
     Terminator, Value, ValueId, cross_block_values, planned_entry_carries,
     stack::layout::LIVE_JOIN_LAYOUT_LIMIT,
 };
-use crate::{mir::Callee, target::Target};
+use crate::mir::Callee;
 use std::{cell::LazyCell, sync::Arc};
 
 impl<'gcx> EvmCodegen<'gcx> {
@@ -146,7 +146,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 func,
                 liveness,
                 &self.cold_functions,
-                Target::new(self.gcx),
+                self.target(),
             )))
         };
         let loops_analyzed = phi_plan.is_some();
@@ -210,12 +210,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         let required_stack_plan = resident_stack_plan.is_some() || hazard_stack_plan.is_some();
         let mut global_stack_plan =
             hazard_stack_plan.clone().or(resident_stack_plan).unwrap_or_else(|| {
-                GlobalStackPlan::analyze(
-                    func,
-                    liveness,
-                    &stack_phi_plan,
-                    self.gcx.sess.opts.optimization,
-                )
+                GlobalStackPlan::analyze(func, liveness, &stack_phi_plan, self.optimization)
             });
         let mut stack_phi_sources = stack_phi_plan.edge_sources();
         if required_stack_plan {
@@ -371,7 +366,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         let store_cfg = CfgInfo::new(func);
         // Loops entered from a single block outside them, by header. Their carried invariants
         // may still be reordered to the stack that enters them before any of them is emitted.
-        let loop_bodies = if self.gcx.sess.opts.optimization.is_gas()
+        let loop_bodies = if self.optimization.is_gas()
             && !stack_phi_plan.entries.is_empty()
             && !store_cfg.cyclic_blocks().is_empty()
         {
@@ -1409,7 +1404,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 worklist.push(block_id);
             }
         }
-        if matches!(self.gcx.sess.opts.optimization, OptimizationMode::None) {
+        if matches!(self.optimization, OptimizationMode::None) {
             return cold;
         }
 
@@ -1549,14 +1544,14 @@ impl<'gcx> EvmCodegen<'gcx> {
                     *target
                 }
                 Some(Terminator::Branch { then_block, else_block, .. })
-                    if !matches!(self.gcx.sess.opts.optimization, OptimizationMode::None) =>
+                    if !matches!(self.optimization, OptimizationMode::None) =>
                 {
                     match (self.block_is_cold(*then_block), self.block_is_cold(*else_block)) {
                         (true, false) => *else_block,
                         (false, true) => *then_block,
                         // jumpi condition, then; else ... exit; then ... exit
                         (false, false)
-                            if self.gcx.sess.opts.optimization.is_gas()
+                            if self.optimization.is_gas()
                                 && [*then_block, *else_block].into_iter().all(|target| {
                                     func.blocks[target]
                                         .terminator

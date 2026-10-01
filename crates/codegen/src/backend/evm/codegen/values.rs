@@ -5,7 +5,6 @@ use super::{
     OperandCostModel, OperandPlan, ScheduleCost, ScheduledOp, SmallVec, StackOp, StackScheduler,
     U256, Value, ValueId, WORD_BYTES, index_vec, op, rematerializable_nullary_value,
 };
-use crate::target::Target;
 use std::cmp::Ordering;
 
 /// Straight-line instructions within which an argument's next use keeps a stack copy.
@@ -60,7 +59,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             operands,
             &preserved,
             func,
-            self.gcx.sess.opts.optimization,
+            self.optimization,
             self.operand_cost_model(),
         )
     }
@@ -77,7 +76,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         let mut preserved = SmallVec::<[ValueId; 8]>::new();
         // An external entry reloads an argument by pushing its offset and reading calldata
         // again. Internal functions keep arguments through their own stack-argument plans.
-        let optimization = self.gcx.sess.opts.optimization;
+        let optimization = self.optimization;
         let arg_reload_costs_more = !self.in_internal_function
             && !self.in_constructor
             && ScheduleCost::memory_load(self.operand_cost_model()).cmp_for(
@@ -130,7 +129,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     .as_immediate()
                     .and_then(|immediate| immediate.as_u256())
                     .is_some_and(|word| {
-                        let target = Target::new(self.gcx);
+                        let target = self.target();
                         target.push(word).bytes
                             > 2 * (target.dup().bytes + target.opcode(op::SWAP1).bytes)
                     })

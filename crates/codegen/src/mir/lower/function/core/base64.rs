@@ -119,7 +119,7 @@ impl FunctionLowerer<'_, '_> {
         self.builder.ret([empty_out]);
 
         self.builder.switch_to_block(nonempty);
-        if !self.cx.gcx.sess.opts.optimization.is_gas() {
+        if !self.cx.optimization().is_gas() {
             let out = encode_compact(&mut self.builder, input, n, file_safe, no_padding);
             self.builder.ret([out]);
             return Some(());
@@ -720,7 +720,7 @@ impl FunctionLowerer<'_, '_> {
         let n = self.builder.sub(raw_length, padding);
         let tail = self.builder.and(n, three);
         let mut exits = vec![(empty, empty_out)];
-        if !self.cx.gcx.sess.opts.optimization.is_gas() {
+        if !self.cx.optimization().is_gas() {
             reject_invalid(&mut self.builder, lone);
             let out = decode_compact(&mut self.builder, input, n, tail, imap);
             exits.push((self.builder.current_block(), out));

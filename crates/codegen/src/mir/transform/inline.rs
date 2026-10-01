@@ -110,7 +110,7 @@ impl MirPass for Inline {
         module: &mut Module,
         _analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        let mut inliner = if gcx.sess.opts.optimization == solar_config::OptimizationMode::Size {
+        let mut inliner = if module.optimization(gcx) == solar_config::OptimizationMode::Size {
             MirInliner::for_size()
         } else {
             MirInliner::default()
@@ -176,7 +176,7 @@ impl MirPass for InlineMemoryWrappers {
         module: &mut Module,
         _analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        if !gcx.sess.opts.optimization.is_gas() || !module.functions.iter().any(is_memory_wrapper) {
+        if !module.optimization(gcx).is_gas() || !module.functions.iter().any(is_memory_wrapper) {
             return false;
         }
         MirInliner {
@@ -205,7 +205,7 @@ impl MirPass for InlineHotLeaves {
         module: &mut Module,
         _analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        if !gcx.sess.opts.optimization.is_gas() {
+        if !module.optimization(gcx).is_gas() {
             return false;
         }
         MirInliner {
@@ -526,7 +526,7 @@ impl MirInliner {
     /// Runs the inliner over the whole module.
     fn run(&mut self, gcx: Gcx<'_>, module: &mut Module) -> MirInlineStats {
         let mut stats = MirInlineStats::default();
-        self.target = Target::new(gcx);
+        self.target = module.target(gcx);
         self.expected_executions_per_deployment = self.target.expected_executions();
 
         // A zero budget is an explicit off switch (used by `-O size`). Avoid
@@ -1210,7 +1210,7 @@ fn summarize_function(
     peak: PeakAnalysis,
     loops: bool,
 ) -> MirInlineSummary {
-    let target = Target::new(gcx);
+    let target = module.target(gcx);
     let mut summary = MirInlineSummary {
         block_count: func.blocks.len(),
         return_values: func.return_components().len(),
@@ -1648,7 +1648,7 @@ fn abi_layout_has_loops(layout: &AbiLayout) -> bool {
 /// An operation that lowers to one opcode is priced by the target directly; immediates are
 /// left out throughout, as they are for those.
 fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> (Cost, usize) {
-    let target = Target::new(gcx);
+    let target = module.target(gcx);
     let seq =
         |codes: &[u8]| codes.iter().map(|&code| target.opcode(code)).fold(Cost::ZERO, Cost::plus);
     if !matches!(kind, InstKind::ICall { .. } | InstKind::LoadImmutable(_)) {
@@ -1780,7 +1780,7 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> (Cost, 
             let encoding = ty.immutable_encoding().expect("validated immutable declaration");
             let type_size = immutable_push_type_size(
                 encoding,
-                gcx.sess.opts.optimization,
+                module.optimization(gcx),
                 gcx.sess.opts.evm_version.has_bitwise_shifting(),
             );
             let push = op::PUSH1 + (type_size.bytes() - 1);

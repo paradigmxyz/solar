@@ -28,9 +28,9 @@ impl EvmPass for CoalesceCopies {
         "coalesce-copies"
     }
 
-    fn is_enabled(&self, gcx: Gcx<'_>, _module: &Module) -> bool {
+    fn is_enabled(&self, gcx: Gcx<'_>, module: &Module) -> bool {
         gcx.sess.opts.evm_version.has_mcopy()
-            && !matches!(gcx.sess.opts.optimization, OptimizationMode::None)
+            && !matches!(module.optimization(gcx), OptimizationMode::None)
     }
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
@@ -41,7 +41,8 @@ impl EvmPass for CoalesceCopies {
 const COPY_INSTRUCTIONS: usize = 4;
 
 fn coalesce_copies(gcx: Gcx<'_>, module: &mut Module) -> bool {
-    if !module.blocks.iter().any(|block| has_candidate(gcx, &block.instructions)) {
+    let target = module.target(gcx);
+    if !module.blocks.iter().any(|block| has_candidate(target, &block.instructions)) {
         return false;
     }
     let mut groups = 0usize;
@@ -73,7 +74,7 @@ fn coalesce_copies(gcx: Gcx<'_>, module: &mut Module) -> bool {
             }
 
             let length = U256::from(count * WORD_BYTES);
-            if !profitable(gcx, source, destination, length, count) {
+            if !profitable(target, source, destination, length, count) {
                 index += COPY_INSTRUCTIONS;
                 continue;
             }
@@ -107,7 +108,7 @@ fn coalesce_copies(gcx: Gcx<'_>, module: &mut Module) -> bool {
     groups != 0
 }
 
-fn has_candidate(gcx: Gcx<'_>, instructions: &[Instruction]) -> bool {
+fn has_candidate(target: Target, instructions: &[Instruction]) -> bool {
     let mut index = 0;
     while index + COPY_INSTRUCTIONS <= instructions.len() {
         let Some((source, destination)) = word_copy(&instructions[index..]) else {
@@ -128,7 +129,7 @@ fn has_candidate(gcx: Gcx<'_>, instructions: &[Instruction]) -> bool {
         }
         if count >= 2
             && ranges_disjoint(source, destination, count)
-            && profitable(gcx, source, destination, U256::from(count * WORD_BYTES), count)
+            && profitable(target, source, destination, U256::from(count * WORD_BYTES), count)
         {
             return true;
         }
@@ -152,8 +153,8 @@ fn ranges_disjoint(source: U256, destination: U256, words: usize) -> bool {
     source_end <= destination || destination_end <= source
 }
 
-fn profitable(gcx: Gcx<'_>, source: U256, destination: U256, length: U256, words: usize) -> bool {
-    let policy = ImmediatePolicy::of(Target::new(gcx));
+fn profitable(target: Target, source: U256, destination: U256, length: U256, words: usize) -> bool {
+    let policy = ImmediatePolicy::of(target);
     let mut old_size = words * 2;
     let mut old_gas = words * 6;
     for index in 0..words {

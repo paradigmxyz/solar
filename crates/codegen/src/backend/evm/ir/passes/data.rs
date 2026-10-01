@@ -31,6 +31,7 @@ use crate::{
 };
 use alloy_primitives::{Bytes, U256};
 use memchr::memmem;
+use solar_config::OptimizationMode;
 use solar_data_structures::{index::IndexVec, map::FxHashMap};
 use solar_interface::sym;
 use solar_sema::Gcx;
@@ -52,7 +53,7 @@ impl EvmPass for PackExistingData {
     }
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
-        let optimization = gcx.sess.opts.optimization;
+        let optimization = module.optimization(gcx);
         pack_existing_data(module, optimization.is_gas() || optimization.is_size())
     }
 }
@@ -69,7 +70,7 @@ impl EvmPass for PackData {
     }
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
-        let optimization = gcx.sess.opts.optimization;
+        let optimization = module.optimization(gcx);
         if !(optimization.is_gas() || optimization.is_size()) {
             return pack_existing_data(module, false);
         }
@@ -205,12 +206,12 @@ fn materialize_data(gcx: Gcx<'_>, module: &mut Module, groups: RewriteGroups) ->
             };
             let contained_improvement =
                 rewrite_improvement(gcx, contained.len(), contained_rewrites, 0);
-            if is_profitable(gcx, contained_improvement) {
+            if is_profitable(module.optimization(gcx), contained_improvement) {
                 improvement.add(contained_improvement);
                 absorbed.push((index, offset));
             }
         }
-        if !is_profitable(gcx, improvement) {
+        if !is_profitable(module.optimization(gcx), improvement) {
             rejected.push((data, rewrites));
             continue;
         }
@@ -268,7 +269,7 @@ fn prepare_rewrites(
 }
 
 fn find_run(
-    gcx: Gcx<'_>,
+    target: Target,
     block: BlockId,
     instructions: &[Instruction],
     start: usize,
@@ -276,8 +277,8 @@ fn find_run(
     let (words, end) = literal_store_words(instructions, start)?;
     let data = literal_store_bytes(instructions, start, end, words);
     let instructions = &instructions[start..end];
-    let old_size = instructions.iter().map(|inst| instruction_size_lower_bound(gcx, inst)).sum();
-    let old_gas = instructions.iter().map(|inst| static_gas(gcx, inst)).sum();
+    let old_size = instructions.iter().map(|inst| instruction_size_lower_bound(target, inst)).sum();
+    let old_gas = instructions.iter().map(|inst| static_gas(target, inst)).sum();
     Some((data, Rewrite { block, start, end, old_size, old_gas }))
 }
 
@@ -346,10 +347,10 @@ fn rewrite_improvement(
     Improvement { runtime_gas, bytes }
 }
 
-fn is_profitable(gcx: Gcx<'_>, improvement: Improvement) -> bool {
+fn is_profitable(optimization: OptimizationMode, improvement: Improvement) -> bool {
     // Static sites have no execution-frequency estimate, so never buy gas by
     // growing code for a copy that may stay cold.
-    data_copy_is_profitable(gcx.sess.opts.optimization, improvement.runtime_gas, improvement.bytes)
+    data_copy_is_profitable(optimization, improvement.runtime_gas, improvement.bytes)
 }
 
 /// Shares storage between data entries after deferred data is linked in.
@@ -533,6 +534,7 @@ pub(crate) fn data_layout_is_observable(module: &Module) -> bool {
 }
 
 fn data_references_and_runs(gcx: Gcx<'_>, module: &Module) -> (DataReferences, RewriteGroups) {
+    let target = module.target(gcx);
     let mut groups = RewriteGroups::default();
     let mut next_run_start = 0;
     let references = scan_data_references(module, |block_id, index, instructions| {
@@ -540,7 +542,7 @@ fn data_references_and_runs(gcx: Gcx<'_>, module: &Module) -> (DataReferences, R
             next_run_start = 0;
         }
         if index >= next_run_start
-            && let Some((data, rewrite)) = find_run(gcx, block_id, instructions, index)
+            && let Some((data, rewrite)) = find_run(target, block_id, instructions, index)
         {
             next_run_start = rewrite.end;
             let rewrites = groups.entry(data).or_default();
@@ -734,9 +736,9 @@ fn data_copy_size(gcx: Gcx<'_>, size: usize) -> usize {
     data_copy_cost(gcx.sess.opts.evm_version, size).0
 }
 
-fn static_gas(gcx: Gcx<'_>, inst: &Instruction) -> usize {
+fn static_gas(target: Target, inst: &Instruction) -> usize {
     inst.concrete_immediate().map_or(GasTier::VeryLow.fixed_gas() as usize, |value| {
-        let policy = ImmediatePolicy::of(Target::new(gcx));
+        let policy = ImmediatePolicy::of(target);
         policy_materialization_cost(policy, value).1
     })
 }

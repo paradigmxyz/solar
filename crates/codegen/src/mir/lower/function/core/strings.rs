@@ -65,7 +65,7 @@ impl FunctionLowerer<'_, '_> {
     ) -> Option<ValueId> {
         let [value] = *operands else { return None };
         let prefix_length = self.builder.imm(if prefixed { 2 } else { 0 });
-        if !self.cx.gcx.sess.opts.optimization.is_gas() {
+        if !self.cx.optimization().is_gas() {
             let minimal = self.builder.imm(1);
             return self.call_core_hex_digits(value, prefix_length, minimal);
         }
@@ -92,7 +92,7 @@ impl FunctionLowerer<'_, '_> {
         let zero = self.builder.imm(0);
         self.builder.mstore(end, zero);
 
-        if !self.cx.gcx.sess.opts.optimization.is_gas() {
+        if !self.cx.optimization().is_gas() {
             let cursor = self.lower_core_hex_bytes(value, end);
             let result = self.lower_core_hex_header(cursor, end, prefix_length, leading);
             return self.builder.memory_object_in_allocation(result, MemoryObjectKind::Bytes);
@@ -626,7 +626,7 @@ impl FunctionLowerer<'_, '_> {
     /// take the whole count inline. Loads may read past the subject, but those
     /// bytes are masked or never stepped to.
     fn lower_core_string_rune_count(&mut self, subject: ValueId) -> ValueId {
-        if !self.cx.gcx.sess.opts.optimization.is_gas() {
+        if !self.cx.optimization().is_gas() {
             return self.lower_core_string_rune_count_compact(subject);
         }
         let bytes = MemoryObjectKind::Bytes;
@@ -1112,7 +1112,7 @@ impl FunctionLowerer<'_, '_> {
         needle: ValueId,
         split_mode: ValueId,
     ) {
-        if !self.cx.gcx.sess.opts.optimization.is_gas() {
+        if !self.cx.optimization().is_gas() {
             return self.lower_core_string_indices_of_compact(subject, needle, split_mode);
         }
         let bytes = MemoryObjectKind::Bytes;
@@ -1591,7 +1591,7 @@ impl FunctionLowerer<'_, '_> {
         self.builder.ret([subject]);
 
         self.builder.switch_to_block(fits);
-        if !self.cx.gcx.sess.opts.optimization.is_gas() {
+        if !self.cx.optimization().is_gas() {
             return self.lower_core_string_replace_compact(
                 subject,
                 needle,

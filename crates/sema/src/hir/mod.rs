@@ -12,7 +12,8 @@ use solar_data_structures::{
     smallvec::SmallVec,
 };
 use solar_interface::{
-    Ident, Span, Symbol, diagnostics::ErrorGuaranteed, kw, source_map::SourceFile, sym,
+    Ident, Span, Symbol, config::OptimizationMode, diagnostics::ErrorGuaranteed, kw,
+    source_map::SourceFile, sym,
 };
 use std::{cell::Cell, fmt, ops::ControlFlow, sync::Arc};
 use strum::EnumIs;
@@ -491,6 +492,34 @@ impl<'hir> Hir<'hir> {
                 .find(|&id| self.variable(id).is_state_variable() && named(id, dictionary))?;
             Some((field, dictionary))
         })
+    }
+
+    /// Returns the objective each `@custom:solar-optimize` tag on a contract's declaration names,
+    /// or `None` for a tag that does not name exactly `gas` or `size`, with the tag's span.
+    pub fn solar_optimize_tags(
+        &self,
+        id: ContractId,
+    ) -> impl Iterator<Item = (Option<OptimizationMode>, Span)> + '_ {
+        let doc = self.doc(self.contract(id).doc);
+        doc.ast_comments.iter().flat_map(|comment| comment.natspec.iter()).filter_map(|natspec| {
+            let ast::NatSpecKind::Custom { name } = natspec.kind else { return None };
+            if name.name != sym::solar_dash_optimize {
+                return None;
+            }
+            let mut words = natspec.content().split_whitespace();
+            let objective = match (words.next(), words.next()) {
+                (Some("gas"), None) => Some(OptimizationMode::Gas),
+                (Some("size"), None) => Some(OptimizationMode::Size),
+                _ => None,
+            };
+            Some((objective, natspec.span))
+        })
+    }
+
+    /// Returns the objective a contract's `@custom:solar-optimize` tag selects for its code in
+    /// optimized builds.
+    pub fn solar_optimize(&self, id: ContractId) -> Option<OptimizationMode> {
+        self.solar_optimize_tags(id).find_map(|(objective, _)| objective)
     }
 
     /// Returns the span of the custom tag `tag` on a state variable's declaration.

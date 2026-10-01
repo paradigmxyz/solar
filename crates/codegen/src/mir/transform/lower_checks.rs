@@ -67,14 +67,10 @@ impl MirPass for LowerChecks {
             }
         }
         let helper = needs_helper.then(|| create_short_string_helper(module, &helper_context));
+        let optimize = !matches!(module.optimization(gcx), OptimizationMode::None);
         let mut changed = false;
         for function in &mut module.functions {
-            changed |= lower_function(
-                function,
-                helper,
-                gcx.sess.opts.revert_strings,
-                !matches!(gcx.sess.opts.optimization, OptimizationMode::None),
-            );
+            changed |= lower_function(function, helper, gcx.sess.opts.revert_strings, optimize);
         }
         changed
     }

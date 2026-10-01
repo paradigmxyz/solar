@@ -136,7 +136,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         held.sort_unstable();
         let held = held.into_iter().map(|(_, value)| value).collect::<Vec<_>>();
         let old_rank = rank(&old);
-        let target = Target::new(self.gcx);
+        let target = self.target();
         let price =
             |source: &[Option<ValueId>], goal: &[ValueId]| edge_gas(func, source, goal, target);
 
@@ -240,7 +240,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         old: &[ValueId],
         order: &[ValueId],
     ) -> Option<Rebinding> {
-        let target = Target::new(self.gcx);
+        let target = self.target();
         let price =
             |source: &[Option<ValueId>], goal: &[ValueId]| edge_gas(func, source, goal, target);
         let (old_rank, new_rank) = (rank(old), rank(order));

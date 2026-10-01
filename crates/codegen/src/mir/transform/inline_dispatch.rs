@@ -43,8 +43,8 @@ impl MirPass for InlineDispatch {
         "inline-dispatch"
     }
 
-    fn is_enabled(&self, gcx: Gcx<'_>, _module: &Module) -> bool {
-        gcx.sess.opts.optimization != solar_config::OptimizationMode::None
+    fn is_enabled(&self, gcx: Gcx<'_>, module: &Module) -> bool {
+        module.optimization(gcx) != solar_config::OptimizationMode::None
     }
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module, analyses: &mut ModuleAnalyses) -> bool {

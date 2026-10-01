@@ -56,7 +56,7 @@ impl FunctionLowerer<'_, '_> {
         prefixed: bool,
     ) -> Option<ValueId> {
         let prefix_length = self.builder.imm(if prefixed { 2 } else { 0 });
-        let gas = self.cx.gcx.sess.opts.optimization.is_gas();
+        let gas = self.cx.optimization().is_gas();
         match *operands {
             [value] if gas => Some(self.lower_core_string_minimal_hex(
                 value,
@@ -127,7 +127,7 @@ impl FunctionLowerer<'_, '_> {
         prefixed: bool,
     ) -> Option<ValueId> {
         let [data] = *operands else { return None };
-        if self.cx.gcx.sess.opts.optimization.is_gas() {
+        if self.cx.optimization().is_gas() {
             return Some(self.lower_core_hex_encode(data, prefixed));
         }
         let helper = self.lazy_helper(sym::core_hex_encode, |this, function| {

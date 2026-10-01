@@ -156,7 +156,7 @@ impl MirPass for Egraph {
                 }
             }
         }
-        let target = Target::new(gcx);
+        let target = module.target(gcx);
         let mut changed = run_selected_function_pass_without_analyses_cached::<FlatEgraph>(
             module,
             analyses,

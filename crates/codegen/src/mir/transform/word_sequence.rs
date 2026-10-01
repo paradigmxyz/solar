@@ -52,7 +52,8 @@ impl MirPass for WordSequence {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        run_function_pass(module, analyses, |func, _| run(func, Target::new(gcx)))
+        let target = module.target(gcx);
+        run_function_pass(module, analyses, |func, _| run(func, target))
     }
 }
 

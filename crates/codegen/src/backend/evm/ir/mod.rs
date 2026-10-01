@@ -19,10 +19,12 @@ use crate::{
     backend::assembler::{self, assembly},
     link::{EmbeddedBytecodes, LibraryId, LibraryTable, RelocatableBytecode},
     mir::{ImmutableId, TypeSize},
+    target,
 };
 use alloy_primitives::U256;
 use solar_data_structures::{index::IndexVec, newtype_index};
-use solar_interface::{Span, Symbol};
+use solar_interface::{Span, Symbol, config::OptimizationMode};
+use solar_sema::Gcx;
 use std::fmt;
 
 pub(crate) use crate::link::{Data, DataBytes, DataId, DataRef, DataSize};
@@ -82,6 +84,9 @@ pub struct Module {
     debug_info_tracked: bool,
     /// Block contents in which an earlier peephole run found nothing to rewrite.
     pub(super) peephole_clean: passes::CleanBlocks,
+    /// The objective the source contract's `@custom:solar-optimize` tag selects, which replaces
+    /// the build's in optimized builds.
+    pub(crate) optimize: Option<OptimizationMode>,
 }
 
 impl Module {
@@ -161,7 +166,18 @@ impl Module {
             code_follows: false,
             debug_info_tracked: false,
             peephole_clean: passes::CleanBlocks::default(),
+            optimize: None,
         }
+    }
+
+    /// Returns the objective this program's code is optimized for.
+    pub(crate) fn optimization(&self, gcx: Gcx<'_>) -> OptimizationMode {
+        target::objective(gcx.sess.opts.optimization, self.optimize)
+    }
+
+    /// Returns the cost model of this program's code.
+    pub(crate) fn target(&self, gcx: Gcx<'_>) -> target::Target {
+        target::Target::new(gcx, self.optimization(gcx))
     }
 
     /// Clears the module while retaining its outer allocations.
@@ -172,6 +188,7 @@ impl Module {
         self.code_follows = false;
         self.debug_info_tracked = false;
         self.peephole_clean.clear();
+        self.optimize = None;
     }
 
     /// Enables source debug information auditing for optimization passes.

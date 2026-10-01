@@ -57,9 +57,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// A multiword helper that returns on the stack has no such buffer unless a call site
     /// staged its results there. Constructors retain their independent frame convention.
     pub(in crate::backend::evm::codegen) fn pack_scalar_static_frames(&mut self, module: &Module) {
-        if !self.runtime_stack_args
-            || !(self.gcx.sess.opts.optimization.is_gas()
-                || self.gcx.sess.opts.optimization.is_size())
+        if !self.runtime_stack_args || !(self.optimization.is_gas() || self.optimization.is_size())
         {
             return;
         }

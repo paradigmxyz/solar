@@ -6,6 +6,7 @@ use crate::{
         op::{WORD_BYTES, push_len},
     },
     mir::{FunctionBuilder, Module, ValueId, memory::EvmMemoryLayout},
+    target::Target,
 };
 use alloy_primitives::U256;
 use solar_config::{EvmVersion, OptimizationMode};
@@ -55,7 +56,8 @@ pub(super) fn copy_data_to_memory(
         builder.memory_zero(dest, size);
         return;
     }
-    let separate_tail = (name.is_some() || gcx.sess.opts.optimization.is_size())
+    let target = module.target(gcx);
+    let separate_tail = (name.is_some() || target.optimization().is_size())
         && padded_size > data.len()
         && padded_size == data.len().next_multiple_of(EvmMemoryLayout::WORD_SIZE as usize);
     let data = if separate_tail || padded_size == data.len() {
@@ -66,10 +68,10 @@ pub(super) fn copy_data_to_memory(
         padded.resize(padded_size, 0);
         Cow::Owned(padded)
     };
-    if copy_splat_to_memory(gcx, builder, dest, &data, separate_tail) {
+    if copy_splat_to_memory(target, builder, dest, &data, separate_tail) {
         return;
     }
-    if !data_copy_is_profitable_for(gcx, &data, separate_tail) {
+    if !data_copy_is_profitable_for(target, &data, separate_tail) {
         store_data_words(builder, dest, &data);
         return;
     }
@@ -85,8 +87,8 @@ pub(super) fn copy_data_to_memory(
     builder.data_copy(data, dest, size);
 }
 
-fn data_copy_is_profitable_for(gcx: Gcx<'_>, data: &[u8], separate_tail: bool) -> bool {
-    let evm_version = gcx.sess.opts.evm_version;
+fn data_copy_is_profitable_for(target: Target, data: &[u8], separate_tail: bool) -> bool {
+    let evm_version = target.evm_version();
     let word_size = EvmMemoryLayout::WORD_SIZE as usize;
     let mut old_size = 0;
     let mut old_gas = 0;
@@ -119,7 +121,7 @@ fn data_copy_is_profitable_for(gcx: Gcx<'_>, data: &[u8], separate_tail: bool) -
     }
 
     data_copy_is_profitable(
-        gcx.sess.opts.optimization,
+        target.optimization(),
         old_gas as i128 - new_gas as i128,
         old_size as i128 - new_size as i128,
     )
@@ -137,15 +139,15 @@ pub(super) fn store_data_words(builder: &mut FunctionBuilder<'_>, dest: ValueId,
 
 /// Expands a repeated word with logarithmically many `MCOPY` operations.
 fn copy_splat_to_memory(
-    gcx: Gcx<'_>,
+    target: Target,
     builder: &mut FunctionBuilder<'_>,
     dest: ValueId,
     data: &[u8],
     clear_tail: bool,
 ) -> bool {
     let word_size = EvmMemoryLayout::WORD_SIZE as usize;
-    if !gcx.sess.opts.optimization.is_size()
-        || !gcx.sess.opts.evm_version.has_mcopy()
+    if !target.optimization().is_size()
+        || !target.evm_version().has_mcopy()
         || !is_repeated_word(data)
     {
         return false;

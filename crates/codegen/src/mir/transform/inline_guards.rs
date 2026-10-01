@@ -37,8 +37,8 @@ impl MirPass for InlineGuards {
         "inline-guards"
     }
 
-    fn is_enabled(&self, gcx: Gcx<'_>, _module: &Module) -> bool {
-        gcx.sess.opts.optimization.is_gas()
+    fn is_enabled(&self, gcx: Gcx<'_>, module: &Module) -> bool {
+        module.optimization(gcx).is_gas()
     }
 
     fn run_pass(&self, _gcx: Gcx<'_>, module: &mut Module, _: &mut ModuleAnalyses) -> bool {

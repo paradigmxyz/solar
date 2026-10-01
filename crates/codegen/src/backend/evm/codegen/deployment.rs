@@ -57,10 +57,10 @@ impl<'gcx> EvmCodegen<'gcx> {
         for func in &mut module.functions {
             Self::split_phi_critical_edges(func);
         }
-        if !matches!(self.gcx.sess.opts.optimization, OptimizationMode::None) {
+        if !matches!(self.optimization, OptimizationMode::None) {
             for func in &mut module.functions {
                 func.canonicalize_argument_uses();
-                if matches!(self.gcx.sess.opts.optimization, OptimizationMode::Size) {
+                if matches!(self.optimization, OptimizationMode::Size) {
                     func.canonicalize_immediate_uses();
                 }
             }
@@ -73,7 +73,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         // once instead of rebuilding them for each artifact and caller-stack retry.
         let call_graph = CallGraphInfo::new(module);
         self.heap_pointer_return_functions = Self::collect_heap_pointer_return_functions(module);
-        self.cold_functions = if matches!(self.gcx.sess.opts.optimization, OptimizationMode::None) {
+        self.cold_functions = if matches!(self.optimization, OptimizationMode::None) {
             DenseBitSet::new_empty(module.functions.len())
         } else {
             Self::collect_cold_functions(module)
@@ -238,7 +238,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             debug_assert_eq!(
                 immutable_push_type_size(
                     encoding,
-                    self.gcx.sess.opts.optimization,
+                    self.optimization,
                     self.gcx.sess.opts.evm_version.has_bitwise_shifting(),
                 ),
                 r.type_size
@@ -313,7 +313,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         let encoding = self.immutable_encodings[id];
         let type_size = immutable_push_type_size(
             encoding,
-            self.gcx.sess.opts.optimization,
+            self.optimization,
             self.gcx.sess.opts.evm_version.has_bitwise_shifting(),
         );
         let byte_width = type_size.bytes();
@@ -357,6 +357,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.asm.clear();
         self.asm.set_artifact_kind(ArtifactKind::Constructor);
         self.asm.set_evm_ir_name(module.name.name);
+        self.asm.set_optimize(module.optimize);
         self.asm.load_data(module);
         let runtime_offset = self.asm.new_deferred_const();
 

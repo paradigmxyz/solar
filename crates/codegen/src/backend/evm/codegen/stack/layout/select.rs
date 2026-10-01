@@ -17,7 +17,6 @@ use super::super::super::{
     Liveness, LoopAnalyzer, Module, OnceCell, OperandCostModel, OptimizationMode,
     ResidentSearchContext, ScheduleCost, StackOp, StackPhiPlan, Terminator, Value, ValueId,
 };
-use crate::target::Target;
 use std::sync::Arc;
 
 impl<'gcx> EvmCodegen<'gcx> {
@@ -28,10 +27,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         liveness: &Liveness,
         phi_plan: &StackPhiPlan,
     ) -> Option<(Vec<ValueId>, GlobalStackPlan)> {
-        if !self.gcx.sess.opts.optimization.is_gas()
-            || self.in_internal_function
-            || self.in_constructor
-        {
+        if !self.optimization.is_gas() || self.in_internal_function || self.in_constructor {
             return None;
         }
         for (header, block) in func.blocks.iter_enumerated() {
@@ -84,9 +80,10 @@ impl<'gcx> EvmCodegen<'gcx> {
         func: &Function,
         liveness: &Liveness,
     ) -> Arc<StackPhiPlan> {
+        let target = self.target();
         let cold_functions = &self.cold_functions;
         Arc::clone(self.stack_phi_plans.entry(func_id).or_insert_with(|| {
-            Arc::new(StackPhiPlan::analyze(func, liveness, cold_functions, Target::new(self.gcx)))
+            Arc::new(StackPhiPlan::analyze(func, liveness, cold_functions, target))
         }))
     }
 
@@ -98,7 +95,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         module: &Module,
     ) -> FxHashMap<FunctionId, CanonicalArgValues> {
         let mut all_values = FxHashMap::default();
-        if matches!(self.gcx.sess.opts.optimization, OptimizationMode::None) {
+        if matches!(self.optimization, OptimizationMode::None) {
             return all_values;
         }
 
@@ -314,7 +311,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         let baseline = values
             .iter()
             .fold(ScheduleCost::default(), |cost, &value| cost.plus(memory_cost(value)));
-        let target = Target::new(self.gcx);
+        let target = self.target();
         let context = self.resident_search_context(func, values, phi_plan);
         let mut best = Option::<(ScheduleCost, Vec<ValueId>, GlobalStackPlan)>::None;
         for bits in 1usize..(1usize << values.len()) {
@@ -370,7 +367,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         cross_block_live: &OnceCell<DenseBitSet<ValueId>>,
         phi_plan: Option<Arc<StackPhiPlan>>,
     ) -> Option<(Vec<ValueId>, GlobalStackPlan)> {
-        if matches!(self.gcx.sess.opts.optimization, OptimizationMode::None)
+        if matches!(self.optimization, OptimizationMode::None)
             || !Self::is_external_entry(func)
             || func.blocks.len() < 3
         {
@@ -605,7 +602,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         let baseline = values
             .iter()
             .fold(ScheduleCost::default(), |cost, &value| cost.plus(memory_cost(value)));
-        let target = Target::new(self.gcx);
+        let target = self.target();
         let context = self.resident_search_context(func, values, phi_plan);
         let mut best = Option::<(ScheduleCost, Vec<ValueId>, GlobalStackPlan)>::None;
         for bits in 1usize..(1usize << values.len()) {

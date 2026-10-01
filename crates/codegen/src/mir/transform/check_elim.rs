@@ -293,9 +293,9 @@ impl MirPass for LateCheckElim {
             .collect::<FxHashSet<_>>();
         let object_lengths = object_length_bound(module);
         let never_returning = Arc::new(never_returning(module));
+        let gas = module.optimization(gcx).is_gas();
         run_function_pass_with_cfg(module, analyses, |func, analyses| {
-            let selected =
-                gcx.sess.opts.optimization.is_gas().then(|| analyses.cfg().cyclic_blocks());
+            let selected = gas.then(|| analyses.cfg().cyclic_blocks());
             if selected.is_some_and(DenseBitSet::is_empty) {
                 return false;
             }
@@ -444,7 +444,7 @@ impl MirPass for ImmutableCheckElim {
                 };
                 let width = immutable_push_type_size(
                     encoding,
-                    gcx.sess.opts.optimization,
+                    module.optimization(gcx),
                     gcx.sess.opts.evm_version.has_bitwise_shifting(),
                 )
                 .bits();

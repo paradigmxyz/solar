@@ -372,7 +372,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             .iter()
             .copied()
             .filter(|&value| {
-                !self.gcx.sess.opts.optimization.is_gas()
+                !self.optimization.is_gas()
                     || func.value(value).as_immediate().is_none()
                     || self.scheduler.stack.find(value).is_some()
                     || (branch.then_edge.sources.contains(&value)

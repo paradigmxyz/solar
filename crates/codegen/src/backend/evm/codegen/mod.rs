@@ -47,6 +47,7 @@ use crate::{
         memory::EvmMemoryLayout,
         pass::run_pipeline,
     },
+    target::Target,
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
@@ -433,6 +434,9 @@ pub struct EvmCodegen<'gcx> {
     capture_debug_info: bool,
     /// Whether the MIR pipeline runs before code generation; MIR input has already run it.
     run_pipeline: bool,
+    /// The objective of the module being generated, which its `@custom:solar-optimize` tag may
+    /// select.
+    optimization: OptimizationMode,
 }
 
 impl<'gcx> EvmCodegen<'gcx> {
@@ -510,11 +514,14 @@ impl<'gcx> EvmCodegen<'gcx> {
             capture_evm_ir: false,
             capture_debug_info: false,
             run_pipeline: true,
+            optimization: gcx.sess.opts.optimization,
         }
     }
 
     /// Clears state that belongs to one lowered MIR module.
     fn reset_for_module(&mut self, module: &Module) {
+        self.optimization = module.optimization(self.gcx);
+        self.scheduler.set_wide_permutation_search(self.optimization.is_gas());
         self.asm.clear();
         self.scheduler.reset();
         self.block_labels.clear();
@@ -572,6 +579,11 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.in_internal_function = false;
         self.emitting_entry = false;
         self.reset_switch_gas_code_growth();
+    }
+
+    /// Returns the cost model of the module being generated.
+    pub(crate) fn target(&self) -> Target {
+        Target::new(self.gcx, self.optimization)
     }
 
     fn reset_switch_gas_code_growth(&mut self) {

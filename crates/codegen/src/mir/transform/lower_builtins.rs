@@ -80,6 +80,7 @@ impl MirPass for LowerBuiltins {
                 (bytes, helper)
             })
             .collect::<FxHashMap<_, _>>();
+        let size = module.optimization(gcx).is_size();
         run_function_pass(module, analyses, |func, _| {
             if !func.instructions().any(|id| is_builtin(&func.inst(id).kind)) {
                 return false;
@@ -197,11 +198,9 @@ impl MirPass for LowerBuiltins {
                                 bytes_helper,
                             )
                         }
-                        InstKind::StorageBytesLoad(slot) => super::lower_storage_bytes::load(
-                            &mut builder,
-                            slot,
-                            gcx.sess.opts.optimization.is_size(),
-                        ),
+                        InstKind::StorageBytesLoad(slot) => {
+                            super::lower_storage_bytes::load(&mut builder, slot, size)
+                        }
                         InstKind::AddressCall { kind, address, input, gas, value } => {
                             lower_address_call(
                                 &mut builder,

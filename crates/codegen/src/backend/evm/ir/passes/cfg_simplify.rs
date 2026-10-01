@@ -83,7 +83,7 @@ fn simplify_cfg(gcx: Gcx<'_>, module: &mut Module, thread_shared_jumps: bool) ->
     let mut state = RunState::default();
     state.reserve(module.blocks.len());
     let mut changed =
-        gcx.sess.opts.optimization.is_gas() && rotate_loop_exits(module, &mut state.references);
+        module.optimization(gcx).is_gas() && rotate_loop_exits(module, &mut state.references);
     // Later rounds only add `POP`s or move instructions of already truncated blocks.
     changed |= truncate_after_terminal(module);
     loop {
@@ -98,10 +98,10 @@ fn simplify_cfg(gcx: Gcx<'_>, module: &mut Module, thread_shared_jumps: bool) ->
             &mut state.order,
         );
         let inlined = thread_shared_jumps
-            && gcx.sess.opts.optimization.is_gas()
+            && module.optimization(gcx).is_gas()
             && inline_shared_return_thunks(gcx, module, &mut state.references);
         let branches = thread_shared_jumps
-            && gcx.sess.opts.optimization.is_size()
+            && module.optimization(gcx).is_size()
             && expose_shared_branches(module);
         let swept = remove_unreachable_blocks(
             module,
@@ -262,7 +262,7 @@ fn inline_shared_return_thunks(
             || body
                 .instructions
                 .iter()
-                .map(|inst| instruction_size_lower_bound(gcx, inst))
+                .map(|inst| instruction_size_lower_bound(module.target(gcx), inst))
                 .sum::<usize>()
                 > 7
             || offset.concrete_immediate().is_none()

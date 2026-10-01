@@ -15,12 +15,9 @@
 //! does not depend on debug metadata. It runs after sharing, which can create these tiny tails.
 
 use super::{EvmPass, utils::is_split_point};
-use crate::{
-    backend::evm::{
-        ir::{BlockId, Module, PushValue, TerminatorKind},
-        op,
-    },
-    target::Target,
+use crate::backend::evm::{
+    ir::{BlockId, Module, PushValue, TerminatorKind},
+    op,
 };
 use alloy_primitives::U256;
 use solar_sema::Gcx;
@@ -33,8 +30,8 @@ impl EvmPass for InlineReturns {
     }
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
-        let target = Target::new(gcx);
-        let address_bytes = if gcx.sess.opts.optimization.is_gas() {
+        let target = module.target(gcx);
+        let address_bytes = if module.optimization(gcx).is_gas() {
             target.opcode(op::PUSH1).bytes
         } else {
             target.push(U256::ZERO).bytes

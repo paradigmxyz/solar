@@ -84,13 +84,13 @@ impl MirPass for LowerAbi {
     ) -> bool {
         let changed = LowerAbiCx {
             revert_strings: gcx.sess.opts.revert_strings,
-            scratch_returns: gcx.sess.opts.optimization.is_gas()
-                || gcx.sess.opts.optimization.is_size(),
-            prove_returned_calls: gcx.sess.opts.optimization.is_gas()
-                || gcx.sess.opts.optimization.is_size(),
+            scratch_returns: module.optimization(gcx).is_gas()
+                || module.optimization(gcx).is_size(),
+            prove_returned_calls: module.optimization(gcx).is_gas()
+                || module.optimization(gcx).is_size(),
             ..Default::default()
         }
-        .run(module, gcx.sess.opts.evm_version, gcx.sess.opts.optimization.is_gas());
+        .run(module, gcx.sess.opts.evm_version, module.optimization(gcx).is_gas());
         if !module.has_explicit_abi()
             || module.functions.iter().any(|func| {
                 func.instructions()

@@ -82,7 +82,7 @@ impl EvmCodegen<'_> {
         let Some(baseline) = self.expression_plan(func, &op, result, liveness, block, index) else {
             return false;
         };
-        let target = Target::new(self.gcx);
+        let target = self.target();
         let mut best = None;
         for op in alternatives {
             if let Some(candidate) = self.expression_plan(func, &op, result, liveness, block, index)
@@ -135,7 +135,7 @@ impl EvmCodegen<'_> {
             });
             operands.reverse();
         }
-        let target = Target::new(self.gcx);
+        let target = self.target();
         let mut scheduler = self.scheduler.clone();
         let preserved =
             self.preserved_operands_for(&scheduler, func, &operands, liveness, block, index);
@@ -193,7 +193,7 @@ impl EvmCodegen<'_> {
         if current.is_free() && candidate.is_free() {
             return false;
         }
-        let target = Target::new(self.gcx);
+        let target = self.target();
         if let Some((old_scheduler, old_cost)) =
             self.binary_window_start(current, result, liveness, block, index)
             && let Some((new_scheduler, new_cost)) =
@@ -241,7 +241,7 @@ impl EvmCodegen<'_> {
         {
             return None;
         }
-        let target = Target::new(self.gcx);
+        let target = self.target();
         let mut scheduler = self.scheduler.clone();
         let mut cost = first.cost().target_cost();
         // prepare operands; binary_op; drop dead words
@@ -263,7 +263,7 @@ impl EvmCodegen<'_> {
         block: BlockId,
         index: usize,
     ) -> SmallVec<[WindowPlan; 2]> {
-        let target = Target::new(self.gcx);
+        let target = self.target();
         let mut windows = SmallVec::new();
         for (offset, &inst) in
             func.blocks[block].instructions[index + 1..].iter().take(2).enumerate()

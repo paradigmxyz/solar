@@ -788,8 +788,13 @@ impl StackScheduler {
 
     /// Selects the objective-specific edge permutation search.
     pub(crate) fn with_wide_permutation_search(mut self, enabled: bool) -> Self {
-        self.wide_permutations = enabled;
+        self.set_wide_permutation_search(enabled);
         self
+    }
+
+    /// Selects the objective-specific edge permutation search for the next module.
+    pub(crate) fn set_wide_permutation_search(&mut self, enabled: bool) {
+        self.wide_permutations = enabled;
     }
 
     /// Clears per-function state while retaining its backing allocations.

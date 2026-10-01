@@ -1,0 +1,13 @@
+- // === ROOT/tests/ui/codegen/evm-ir/compact-pushes/optimize_size.evmir (before compact-pushes) ===
++ // === ROOT/tests/ui/codegen/evm-ir/compact-pushes/optimize_size.evmir (after compact-pushes) ===
+  @module OptimizeSize
+  @optimize size
+  bb0:
+-   push 0x101010101010101010101010101010101010101010101010101010101010101
++   push 255
++   push 0
++   not
++   div
+    pop
+    stop
+  
