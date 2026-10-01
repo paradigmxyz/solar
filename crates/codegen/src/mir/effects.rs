@@ -207,6 +207,7 @@ impl InstKind {
             | Self::ExtCodeHash(..)
             | Self::StoreImmutable(..)
             | Self::LibraryAddress(..)
+            | Self::DataSize(..)
             | Self::LoadImmutable(..)
             | Self::ReturnDataSize
             | Self::Caller
@@ -242,9 +243,6 @@ impl InstKind {
             | Self::CallCode { .. }
             | Self::StaticCall { .. }
             | Self::DelegateCall { .. }
-            | Self::ExtCall { .. }
-            | Self::ExtDelegateCall { .. }
-            | Self::ExtStaticCall { .. }
             | Self::Create(..)
             | Self::Create2(..)
             | Self::Log0(..)

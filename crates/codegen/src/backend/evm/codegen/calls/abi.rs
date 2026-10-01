@@ -2,8 +2,8 @@
 
 use super::super::{
     ArgIdx, DenseBitSet, EvmCodegen, EvmMemoryLayout, FunctionId, FxHashMap, GlobalStackPlan,
-    IndexVec, InstKind, LazyStackArgPlan, MAX_STACK_ACCESS, Module, OptimizationMode,
-    StackReturnPlan, StaticCallAbi, StaticCallEntry, Terminator, ValueId, index_vec,
+    IndexVec, InstKind, LazyStackArgPlan, Module, OptimizationMode, StackReturnPlan, StaticCallAbi,
+    StaticCallEntry, Terminator, ValueId, index_vec,
 };
 use crate::mir::Callee;
 
@@ -133,7 +133,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 && !matches!(self.gcx.sess.opts.optimization, OptimizationMode::None)
                 && !self.disabled_stack_only_functions.contains(func_id)
                 && !self.recursive_frame_functions.contains(func_id)
-                && (1..=MAX_STACK_ACCESS).contains(&arity)
+                && (1..=self.stack_access_limit()).contains(&arity)
                 && has_return
                 && has_consistent_returns
             {
@@ -210,14 +210,14 @@ impl<'gcx> EvmCodegen<'gcx> {
             for (block_idx, block) in func.blocks.iter().enumerate() {
                 for &inst_id in &block.instructions {
                     inst_block[inst_id] = Some(block_idx);
-                    for operand in func.inst(inst_id).kind.operands() {
+                    func.inst(inst_id).kind.visit_operands(|operand| {
                         *use_counts.entry(operand).or_default() += 1;
-                    }
+                    });
                 }
                 if let Some(term) = &block.terminator {
-                    for operand in term.operands() {
+                    term.visit_operands(|operand| {
                         *use_counts.entry(operand).or_default() += 1;
-                    }
+                    });
                 }
             }
             for (block_idx, block) in func.blocks.iter().enumerate() {
@@ -328,9 +328,9 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
             }
             // The tail-call emitter shuffles the selected tuple into an exact
-            // entry layout, so a mask beyond DUP16/SWAP16 reach could never be
+            // entry layout, so a mask beyond the target stack reach could never be
             // constructed.
-            if !mask.is_empty() && mask.count() <= MAX_STACK_ACCESS {
+            if !mask.is_empty() && mask.count() <= self.stack_access_limit() {
                 masks.insert(func_id, mask);
             }
         }

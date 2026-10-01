@@ -14,7 +14,7 @@
 // CHECK: {{^[ +].*}}[[ADDR:v[0-9]+]] = {{(zext|ptrtoint)}} {{[^ ]+}} [[NARROW_ADDR]]
 // CHECK-NOT: {{^[ +].*}}= and
 // CHECK: {{^[ +].*}}ret [[LT_WORD]], [[BYTE]], [[SHR]], [[ADDR]]
-types:
+@types
   struct0: {i256, i256, i256, i256}
   struct1: {i256, i256}
   struct2: {i1, i1}

@@ -1,5 +1,6 @@
 use crate::{
     code_actions::{DiagnosticData, DiagnosticSuggestion},
+    diagnostics::presentation::{DiagnosticMessage, solidity_diagnostic_tags},
     vfs::{self, VfsPath},
 };
 use crop::{Rope, RopeSlice};
@@ -143,34 +144,139 @@ pub(crate) fn range_key(range: lsp_types::Range) -> (u32, u32, u32, u32) {
     (range.start.line, range.start.character, range.end.line, range.end.character)
 }
 
+/// A start-sorted interval index for point queries.
+///
+/// A running maximum end lets queries skip earlier entries that end before the cursor while
+/// retaining the order of entries with equal ranges.
+#[derive(Clone, Debug)]
+pub(crate) struct PositionIndex<T> {
+    pub(crate) entries: Vec<T>,
+    prefix_max_end: Vec<lsp_types::Position>,
+}
+
+impl<T> Default for PositionIndex<T> {
+    fn default() -> Self {
+        Self { entries: Vec::new(), prefix_max_end: Vec::new() }
+    }
+}
+
+impl<T: Copy> PositionIndex<T> {
+    /// Stably sorts entries by range, then indexes them.
+    pub(crate) fn rebuild(&mut self, range: impl Fn(T) -> lsp_types::Range) {
+        self.entries.sort_by_key(|&entry| {
+            let range = range(entry);
+            (range.start, range.end)
+        });
+        self.index_sorted(range);
+    }
+
+    /// Indexes entries that are already sorted by start position.
+    pub(crate) fn index_sorted(&mut self, range: impl Fn(T) -> lsp_types::Range) {
+        let mut max_end = lsp_types::Position::default();
+        self.prefix_max_end = self
+            .entries
+            .iter()
+            .map(|&entry| {
+                max_end = max_end.max(range(entry).end);
+                max_end
+            })
+            .collect();
+    }
+
+    /// Returns entries containing `position`, from the latest start to the earliest.
+    pub(crate) fn candidates_at<'a>(
+        &'a self,
+        position: lsp_types::Position,
+        range: impl Fn(T) -> lsp_types::Range + Copy + 'a,
+    ) -> impl Iterator<Item = T> + 'a {
+        self.candidates_at_with(position, range, range_contains)
+    }
+
+    pub(crate) fn candidates_at_with<'a>(
+        &'a self,
+        position: lsp_types::Position,
+        range: impl Fn(T) -> lsp_types::Range + Copy + 'a,
+        contains: impl Fn(lsp_types::Range, lsp_types::Position) -> bool + 'a,
+    ) -> impl Iterator<Item = T> + 'a {
+        let end = self.entries.partition_point(|&entry| range(entry).start <= position);
+        self.entries[..end]
+            .iter()
+            .copied()
+            .zip(self.prefix_max_end[..end].iter().copied())
+            .rev()
+            .take_while(move |(_, prefix_max_end)| *prefix_max_end >= position)
+            .filter(move |&(entry, _)| contains(range(entry), position))
+            .map(|(entry, _)| entry)
+    }
+}
+
 pub(crate) fn vfs_path(url: &lsp_types::Url) -> Option<vfs::VfsPath> {
     url.to_file_path().map(VfsPath::from).ok()
 }
 
-/// Converts an [`lsp_types::Range`] to a [`Range`].
+/// Returns the internal document URI using the same lexical identity as the VFS.
+///
+/// This does not resolve symlinks or require the file to exist. Non-file URIs are preserved;
+/// callers retain their existing support checks. Common canonical URIs need no allocation.
+pub(crate) fn normalize_file_uri(uri: lsp_types::Url) -> lsp_types::Url {
+    if uri.scheme() != "file" || is_normalized_file_uri(&uri) {
+        return uri;
+    }
+    vfs_path(&uri)
+        .and_then(|path| lsp_types::Url::from_file_path(path.as_path()).ok())
+        .unwrap_or(uri)
+}
+
+/// Checks the allocation-free fast path for lexical file URI normalization.
+#[inline(always)]
+pub(crate) fn is_normalized_file_uri(uri: &lsp_types::Url) -> bool {
+    let path = uri.path();
+    let is_windows_drive_root = cfg!(windows)
+        && path.len() == 4
+        && path.as_bytes()[0] == b'/'
+        && path.as_bytes()[1].is_ascii_alphabetic()
+        && path.as_bytes()[2] == b':'
+        && path.as_bytes()[3] == b'/';
+    let has_lowercase_windows_drive = cfg!(windows)
+        && path.len() >= 3
+        && path.as_bytes()[0] == b'/'
+        && path.as_bytes()[1].is_ascii_lowercase()
+        && path.as_bytes()[2] == b':';
+    uri.scheme() == "file"
+        && uri.host_str().is_none()
+        && uri.query().is_none()
+        && uri.fragment().is_none()
+        && path.starts_with('/')
+        && !path.as_bytes().contains(&b'%')
+        && !path.as_bytes().windows(2).any(|bytes| bytes == b"//")
+        && (!path.ends_with('/') || path == "/" || is_windows_drive_root)
+        && !path.split('/').any(|segment| matches!(segment, "." | ".."))
+        && !has_lowercase_windows_drive
+}
+
+/// Converts an LSP UTF-16 range, clamping oversized columns to the line end and missing lines
+/// to EOF. Reversed ranges and positions inside surrogate pairs are rejected.
 ///
 /// This assumes the position encoding in LSP is UTF-16, which is mandatory to support in the LSP
 /// spec.
-///
-/// [`Range`]: std::ops::Range
-pub(crate) fn text_range(rope: &Rope, range: lsp_types::Range) -> std::ops::Range<usize> {
-    // Rope already indexes LF and CRLF lines. Only standalone CR needs the explicit LSP index;
-    // avoid rebuilding a document-wide line vector for every incoming character edit.
-    if (range.start.line != 0 || range.end.line != 0) && has_standalone_cr(rope) {
-        return LspPositionIndex::new(rope).text_range(range);
+pub(crate) fn text_range(rope: &Rope, range: lsp_types::Range) -> Option<std::ops::Range<usize>> {
+    // First-line edits need no document-wide index or standalone-CR scan.
+    if range.start.line == 0 && range.end.line == 0 {
+        let mut end = 0;
+        for chunk in rope.chunks() {
+            if let Some(offset) = memchr::memchr2(b'\r', b'\n', chunk.as_bytes()) {
+                end += offset;
+                break;
+            }
+            end += chunk.len();
+        }
+        return byte_range_in_line(
+            &rope.byte_slice(..end),
+            range.start.character,
+            range.end.character,
+        );
     }
-    let byte_position = |position: lsp_types::Position| {
-        let start = if position.line > rope.line_len() as u32 {
-            0
-        } else {
-            rope.byte_of_line(position.line as usize)
-        };
-        let start_utf16 = rope.utf16_code_unit_of_byte(start);
-        rope.byte_of_utf16_code_unit(start_utf16 + position.character as usize)
-    };
-    let start = byte_position(range.start);
-    let end = if range.start == range.end { start } else { byte_position(range.end) };
-    start..end
+    LspPositionIndex::new(rope).text_range(range)
 }
 
 fn has_standalone_cr(rope: &Rope) -> bool {
@@ -221,35 +327,36 @@ impl<R: Borrow<Rope>> LspPositionIndex<R> {
         &self,
         range: lsp_types::Range,
     ) -> Option<std::ops::Range<usize>> {
+        if range.start > range.end {
+            return None;
+        }
         let line = usize::try_from(range.start.line).ok()?;
         let line_start = self.line_start(line)?;
         // Most source ranges stay on one line; reuse its slice for both UTF-16 endpoints.
         let contents = self.rope().byte_slice(line_start..self.line_end(line));
+        if range.start.line == range.end.line {
+            let bytes = byte_range_in_line(&contents, range.start.character, range.end.character)?;
+            return Some(line_start + bytes.start..line_start + bytes.end);
+        }
         let start = line_start + byte_column(&contents, range.start.character)?;
-        let end = if range.start == range.end {
-            start
-        } else if range.start.line == range.end.line {
-            line_start + byte_column(&contents, range.end.character)?
-        } else {
-            self.byte_position(range.end)?
-        };
+        let end = self.byte_position(range.end)?;
         (start <= end).then_some(start..end)
     }
 
-    pub(crate) fn text_range(&self, range: lsp_types::Range) -> std::ops::Range<usize> {
-        let start = self.byte_position_clamped(range.start);
-        let end = self.byte_position_clamped(range.end);
-        start..end
-    }
-
-    fn byte_position_clamped(&self, position: lsp_types::Position) -> usize {
-        let rope = self.rope();
-        let line = usize::try_from(position.line).unwrap_or(usize::MAX);
-        let start = self.line_start(line).unwrap_or_else(|| {
-            if position.line > rope.line_len() as u32 { 0 } else { rope.byte_of_line(line) }
-        });
-        let start_utf16 = rope.utf16_code_unit_of_byte(start);
-        rope.byte_of_utf16_code_unit(start_utf16 + position.character as usize)
+    /// Like `checked_text_range`, but maps missing lines to EOF for incoming protocol positions.
+    pub(crate) fn text_range(&self, range: lsp_types::Range) -> Option<std::ops::Range<usize>> {
+        if range.start > range.end {
+            return None;
+        }
+        if self.line_start(range.end.line as usize).is_some() {
+            return self.checked_text_range(range);
+        }
+        let start = if self.line_start(range.start.line as usize).is_some() {
+            self.byte_position(range.start)?
+        } else {
+            self.byte_len()
+        };
+        Some(start..self.byte_len())
     }
 
     fn byte_position(&self, position: lsp_types::Position) -> Option<usize> {
@@ -311,6 +418,19 @@ impl<R: Borrow<Rope>> LspPositionIndex<R> {
     }
 }
 
+fn byte_range_in_line(
+    contents: &RopeSlice<'_>,
+    start: u32,
+    end: u32,
+) -> Option<std::ops::Range<usize>> {
+    if start > end {
+        return None;
+    }
+    let start_byte = byte_column(contents, start)?;
+    let end_byte = if start == end { start_byte } else { byte_column(contents, end)? };
+    Some(start_byte..end_byte)
+}
+
 fn byte_column(contents: &RopeSlice<'_>, character: u32) -> Option<usize> {
     let target = usize::try_from(character).ok()?;
     // ASCII lines use one UTF-16 code unit per byte.
@@ -334,12 +454,20 @@ fn byte_column(contents: &RopeSlice<'_>, character: u32) -> Option<usize> {
 }
 
 fn collect_line_starts(rope: &Rope) -> Vec<usize> {
-    let mut line_starts = Vec::with_capacity(rope.line_len() + 1);
+    line_starts(rope.chunks(), rope.line_len() + 1)
+}
+
+/// Returns the byte offset of every LSP line start, treating CR, LF, and CRLF as line breaks.
+pub(crate) fn line_starts<'a>(
+    chunks: impl IntoIterator<Item = &'a str>,
+    capacity: usize,
+) -> Vec<usize> {
+    let mut line_starts = Vec::with_capacity(capacity);
     line_starts.push(0);
 
     let mut chunk_start = 0;
     let mut previous_cr_end = None;
-    for chunk in rope.chunks() {
+    for chunk in chunks {
         for index in memchr::memchr2_iter(b'\r', b'\n', chunk.as_bytes()) {
             let offset = chunk_start + index;
             let is_cr = chunk.as_bytes()[index] == b'\r';
@@ -378,6 +506,37 @@ pub(crate) fn diagnostic_with_cache(
     let primary_span = diag.span.primary_span()?;
     let lsp_types::Location { uri, range } = span_to_location(source_map, primary_span)?;
     let data = diagnostic_data(source_map, &uri, primary_span, diag, cache)?;
+    let mut message = DiagnosticMessage::new(
+        lsp_types::Location::new(uri.clone(), range),
+        diag.label().into_owned(),
+    );
+    for label in diag.span.span_labels() {
+        if let Some(text) = label.label {
+            message.push(span_to_location(source_map, label.span), text.as_str());
+        } else if label.span != primary_span {
+            message.push(span_to_location(source_map, label.span), &diag.label());
+        }
+    }
+    for child in &diag.children {
+        let text = child.label();
+        let spans = child.span.span_labels();
+        if child.span.primary_spans().is_empty() {
+            message.push(None, &format!("{}: {text}", child.level.to_str()));
+        }
+        for label in spans {
+            let location = span_to_location(source_map, label.span);
+            if label.is_primary {
+                if location.is_none() || label.span == primary_span {
+                    message.push(None, &format!("{}: {text}", child.level.to_str()));
+                } else {
+                    message.push(location.clone(), &text);
+                }
+            }
+            if let Some(text) = label.label {
+                message.push(location, text.as_str());
+            }
+        }
+    }
     Some((
         // SAFETY: currently we only use `FileName::Real`
         uri,
@@ -387,19 +546,9 @@ pub(crate) fn diagnostic_with_cache(
             code: diag.code.as_ref().map(|id| NumberOrString::String(id.as_str().to_owned())),
             code_description: None,
             source: Some("solar".into()),
-            message: diag.label().into_owned(),
-            related_information: Some(
-                diag.children
-                    .iter()
-                    .filter_map(|subdiag| {
-                        Some(lsp_types::DiagnosticRelatedInformation {
-                            location: span_to_location(source_map, subdiag.span.primary_span()?)?,
-                            message: subdiag.label().to_string(),
-                        })
-                    })
-                    .collect(),
-            ),
-            tags: None,
+            message: message.message,
+            related_information: Some(message.related_information),
+            tags: solidity_diagnostic_tags(diag.id()),
             data: Some(data),
         },
     ))
@@ -529,17 +678,7 @@ impl LocationConverter {
     }
 }
 
-pub(crate) fn span_to_location(source_map: &SourceMap, span: Span) -> Option<lsp_types::Location> {
-    span_to_location_with(source_map, span, |file| {
-        lsp_types::Url::from_file_path(file.name.as_real().unwrap()).ok()
-    })
-}
-
-fn span_to_location_with(
-    source_map: &SourceMap,
-    span: Span,
-    uri: impl FnOnce(&SourceFile) -> Option<lsp_types::Url>,
-) -> Option<lsp_types::Location> {
+fn span_to_location(source_map: &SourceMap, span: Span) -> Option<lsp_types::Location> {
     if source_map.is_empty() || span.is_dummy() {
         return None;
     }
@@ -550,7 +689,7 @@ fn span_to_location_with(
         return None;
     }
     Some(lsp_types::Location {
-        uri: uri(&file)?,
+        uri: lsp_types::Url::from_file_path(file.name.as_real().unwrap()).ok()?,
         range: lsp_types::Range {
             start: lsp_position(&file, span.lo())?,
             end: lsp_position(&file, span.hi())?,
@@ -598,33 +737,111 @@ fn severity(level: Level) -> lsp_types::DiagnosticSeverity {
 
 #[cfg(test)]
 mod tests {
-    use super::{checked_text_range, collect_line_starts, position_at_byte, text_range};
-    use crate::utils::apply_document_changes;
-    use crop::Rope;
-    use lsp_types::{Position, Range, TextDocumentContentChangeEvent, request::Request};
+    use super::*;
+    use crate::{test_support::from_json, utils::apply_document_changes};
+    use lsp_types::{Position, Range, TextDocumentContentChangeEvent, Url};
+    use serde_json::json;
+    use snapbox::{assert_data_eq, str};
     use solar_interface::{
-        BytePos, SourceMap, Span,
-        diagnostics::{Applicability, Diag, DiagMsg, Level},
+        diagnostics::{Applicability, DiagMsg, MultiSpan},
         source_map::FileName,
     };
-    use std::{
-        panic::{AssertUnwindSafe, catch_unwind},
-        sync::Arc,
-    };
 
-    fn diagnostic_refresh_support(workspace: serde_json::Value) -> Option<bool> {
-        let params: <super::Initialize as Request>::Params =
-            serde_json::from_value(serde_json::json!({
-                "capabilities": { "workspace": workspace }
-            }))
-            .unwrap();
+    fn source_file(source_map: &SourceMap, name: &str, source: &str) -> Arc<SourceFile> {
+        source_map.new_source_file(std::env::temp_dir().join(name), source).unwrap()
+    }
 
-        params
-            .into_inner()
-            .capabilities
-            .workspace
-            .and_then(|workspace| workspace.diagnostic)
-            .and_then(|diagnostic| diagnostic.refresh_support)
+    fn span(file: &SourceFile, range: std::ops::Range<usize>) -> Span {
+        Span::new(
+            file.start_pos + BytePos::from_usize(range.start),
+            file.start_pos + BytePos::from_usize(range.end),
+        )
+    }
+
+    fn convert(source_map: &SourceMap, diagnostic: &Diag) -> lsp_types::Diagnostic {
+        diagnostic_with_cache(source_map, diagnostic, &mut DiagnosticDataCache::default())
+            .unwrap()
+            .1
+    }
+
+    #[test]
+    fn normalize_file_uri_matches_vfs_identity() {
+        let canonical = Url::from_file_path(std::env::temp_dir().join("Token.sol")).unwrap();
+        for spelling in ["%54oken.sol", "/Token.sol", "nested%2F..%2FToken.sol"] {
+            let alias = Url::parse(&canonical.as_str().replacen("Token.sol", spelling, 1)).unwrap();
+            assert_ne!(alias, canonical);
+            assert_eq!(vfs_path(&alias), vfs_path(&canonical));
+            assert_eq!(normalize_file_uri(alias), canonical);
+        }
+        let untitled = Url::parse("untitled:/tmp/Virtual.sol").unwrap();
+        assert_eq!(normalize_file_uri(untitled.clone()), untitled);
+
+        let mut uris = vec![
+            canonical,
+            Url::from_file_path(std::env::temp_dir().join("nested/../Token.sol")).unwrap(),
+            Url::from_file_path(std::env::temp_dir().join("nested/./Token.sol")).unwrap(),
+            Url::parse("file:///").unwrap(),
+            Url::parse("file:///tmp/Encoded%20Name.sol").unwrap(),
+            Url::parse("file:///tmp//Repeated.sol").unwrap(),
+            Url::parse("file:///tmp/directory/").unwrap(),
+            Url::parse("file://localhost/tmp/Hosted.sol").unwrap(),
+            Url::parse("file:///tmp/Query.sol?version=1").unwrap(),
+            Url::parse("file:///tmp/Fragment.sol#source").unwrap(),
+        ];
+        if cfg!(windows) {
+            uris.extend([
+                Url::parse("file:///C:/tmp/Canonical.sol").unwrap(),
+                Url::parse("file:///C:/").unwrap(),
+                Url::parse("file:///tmp/NoDrive.sol").unwrap(),
+                Url::parse("file:///C%3A/tmp/EncodedDrive.sol").unwrap(),
+                Url::parse("file://server/share/Hosted.sol").unwrap(),
+            ]);
+        }
+        for uri in uris {
+            let expected = vfs_path(&uri)
+                .and_then(|path| Url::from_file_path(path.as_path()).ok())
+                .unwrap_or_else(|| uri.clone());
+            assert_eq!(normalize_file_uri(uri.clone()), expected, "{uri}");
+        }
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn normalize_file_uri_canonicalizes_lowercase_windows_drive() {
+        let lowercase = Url::parse("file:///c:/tmp/Contract.sol").unwrap();
+        let uppercase = Url::parse("file:///C:/tmp/Contract.sol").unwrap();
+
+        assert_eq!(normalize_file_uri(lowercase), uppercase);
+    }
+
+    #[test]
+    fn initialize_params_prefer_standard_diagnostics_capability() {
+        for (workspace, expected) in [
+            (json!({ "diagnostics": { "refreshSupport": true } }), true),
+            (json!({ "diagnostic": { "refreshSupport": true } }), true),
+            (
+                json!({
+                    "diagnostic": { "refreshSupport": false },
+                    "diagnostics": { "refreshSupport": true },
+                }),
+                true,
+            ),
+            (
+                json!({
+                    "diagnostic": { "refreshSupport": true },
+                    "diagnostics": { "refreshSupport": false },
+                }),
+                false,
+            ),
+        ] {
+            let params = from_json::<InitializeParams>(
+                json!({ "capabilities": { "workspace": workspace } }),
+            );
+            let refresh = params.into_inner().capabilities.workspace.and_then(|workspace| {
+                workspace.diagnostic.and_then(|diagnostic| diagnostic.refresh_support)
+            });
+            assert_eq!(refresh, Some(expected));
+        }
     }
 
     #[test]
@@ -646,74 +863,18 @@ mod tests {
     }
 
     #[test]
-    fn initialize_params_accept_standard_diagnostics_capability() {
-        assert_eq!(
-            diagnostic_refresh_support(serde_json::json!({
-                "diagnostics": { "refreshSupport": true }
-            })),
-            Some(true)
-        );
-    }
-
-    #[test]
-    fn initialize_params_accept_singular_diagnostic_fallback() {
-        assert_eq!(
-            diagnostic_refresh_support(serde_json::json!({
-                "diagnostic": { "refreshSupport": true }
-            })),
-            Some(true)
-        );
-    }
-
-    #[test]
-    fn initialize_params_prefer_standard_diagnostics_capability() {
-        for (diagnostic, diagnostics, expected) in
-            [(false, true, Some(true)), (true, false, Some(false))]
-        {
-            assert_eq!(
-                diagnostic_refresh_support(serde_json::json!({
-                    "diagnostic": { "refreshSupport": diagnostic },
-                    "diagnostics": { "refreshSupport": diagnostics }
-                })),
-                expected
-            );
-        }
-    }
-
-    #[test]
-    fn initialize_params_preserve_pull_diagnostic_data_support() {
-        for (data_support, expected) in [(None, false), (Some(false), false), (Some(true), true)] {
-            let diagnostic =
-                data_support.map(|data_support| serde_json::json!({ "dataSupport": data_support }));
-            let params: <super::Initialize as Request>::Params =
-                serde_json::from_value(serde_json::json!({
-                    "capabilities": { "textDocument": { "diagnostic": diagnostic } }
-                }))
-                .unwrap();
-
-            assert_eq!(params.pull_diagnostic_data_support(), expected);
-        }
-    }
-
-    #[test]
     fn diagnostic_preserves_structured_suggestion_alternatives() {
         let source = "contract Test {\n    function f() public view {}\n}\n";
         let source_map = SourceMap::empty();
-        let file = source_map
-            .new_source_file(std::env::temp_dir().join("StructuredSuggestion.sol"), source)
-            .unwrap();
+        let file = source_file(&source_map, "StructuredSuggestion.sol", source);
         let named_span = |name: &str| {
             let start = source.find(name).unwrap();
-            Span::new(
-                file.start_pos + BytePos::from_usize(start),
-                file.start_pos + BytePos::from_usize(start + name.len()),
-            )
+            span(&file, start..start + name.len())
         };
-        let name = named_span("f");
         let public = named_span("public");
         let view = named_span("view");
         let mut diagnostic = Diag::new(Level::Warning, "inefficient function");
-        diagnostic.span(name).multipart_suggestions(
+        diagnostic.span(named_span("f")).multipart_suggestions(
             "change visibility and mutability",
             [
                 vec![(public, DiagMsg::from("external")), (view, DiagMsg::from("pure"))],
@@ -722,81 +883,36 @@ mod tests {
             Applicability::MaybeIncorrect,
         );
 
-        let mut cache = super::DiagnosticDataCache::default();
-        let (_, diagnostic) =
-            super::diagnostic_with_cache(&source_map, &diagnostic, &mut cache).unwrap();
-        let data = diagnostic.data.expect("structured suggestions should be preserved");
-
-        assert_eq!(data["version"], serde_json::json!(1));
+        let data = convert(&source_map, &diagnostic).data.unwrap();
+        let edit = |start, end, text| {
+            json!({
+                "range": {
+                    "start": { "line": 1, "character": start },
+                    "end": { "line": 1, "character": end }
+                },
+                "newText": text
+            })
+        };
+        assert_eq!(data["version"], json!(1));
         assert_eq!(data["sourceFingerprint"], crate::code_actions::source_fingerprint(source));
         assert_eq!(
             data["suggestions"],
-            serde_json::json!([{
+            json!([{
                 "title": "change visibility and mutability",
                 "applicability": "MaybeIncorrect",
                 "alternatives": [
-                    [
-                        {
-                            "range": {
-                                "start": { "line": 1, "character": 17 },
-                                "end": { "line": 1, "character": 23 }
-                            },
-                            "newText": "external"
-                        },
-                        {
-                            "range": {
-                                "start": { "line": 1, "character": 24 },
-                                "end": { "line": 1, "character": 28 }
-                            },
-                            "newText": "pure"
-                        }
-                    ],
-                    [
-                        {
-                            "range": {
-                                "start": { "line": 1, "character": 17 },
-                                "end": { "line": 1, "character": 23 }
-                            },
-                            "newText": "internal"
-                        },
-                        {
-                            "range": {
-                                "start": { "line": 1, "character": 24 },
-                                "end": { "line": 1, "character": 28 }
-                            },
-                            "newText": "payable"
-                        }
-                    ]
+                    [edit(17, 23, "external"), edit(24, 28, "pure")],
+                    [edit(17, 23, "internal"), edit(24, 28, "payable")],
                 ]
             }])
         );
     }
 
     #[test]
-    fn span_to_location_uses_utf16_columns() {
-        let source = "a😀中value\n";
-        let source_map = SourceMap::empty();
-        let file = source_map
-            .new_source_file(std::env::temp_dir().join("Utf16Location.sol"), source)
-            .unwrap();
-        let start = source.find("value").unwrap();
-        let span = Span::new(
-            file.start_pos + BytePos::from_usize(start),
-            file.start_pos + BytePos::from_usize(start + "value".len()),
-        );
-
-        let location = super::span_to_location(&source_map, span).unwrap();
-
-        assert_eq!(location.range, Range::new(Position::new(0, 4), Position::new(0, 9)));
-    }
-
-    #[test]
     fn span_to_location_matches_character_columns_on_later_lines() {
         let source = "// 😀中é\r\n// ─────────\ncontract C { string s = unicode\"😀é\"; }\n";
         let source_map = SourceMap::empty();
-        let file = source_map
-            .new_source_file(std::env::temp_dir().join("MultilineLocation.sol"), source)
-            .unwrap();
+        let file = source_file(&source_map, "MultilineLocation.sol", source);
         for offset in source.char_indices().map(|(offset, _)| offset).chain([source.len()]) {
             let pos = file.start_pos + BytePos::from_usize(offset);
             let span = Span::new(pos, pos);
@@ -811,7 +927,7 @@ mod tests {
                 .take(column.to_usize())
                 .map(char::len_utf16)
                 .sum::<usize>();
-            let location = super::span_to_location(&source_map, span).unwrap();
+            let location = span_to_location(&source_map, span).unwrap();
             let expected = Position::new((line - 1) as u32, expected_column as u32);
             assert_eq!(location.range, Range::new(expected, expected), "byte {offset}");
         }
@@ -821,14 +937,10 @@ mod tests {
     fn span_to_location_clamps_ascii_line_terminators() {
         for (source, end_character) in [("value\n", 5), ("value\r\n", 6), ("value", 5)] {
             let source_map = SourceMap::empty();
-            let file = source_map
-                .new_source_file(std::env::temp_dir().join("AsciiLocation.sol"), source)
-                .unwrap();
-            let location = super::span_to_location(
-                &source_map,
-                Span::new(file.start_pos, file.end_position()),
-            )
-            .unwrap();
+            let file = source_file(&source_map, "AsciiLocation.sol", source);
+            let location =
+                span_to_location(&source_map, Span::new(file.start_pos, file.end_position()))
+                    .unwrap();
 
             assert_eq!(
                 location.range,
@@ -838,47 +950,26 @@ mod tests {
     }
 
     #[test]
-    fn span_to_location_rejects_empty_dummy_and_cross_file_spans() {
-        let empty = SourceMap::empty();
-        assert!(super::span_to_location(&empty, Span::DUMMY).is_none());
-
-        let source_map = SourceMap::empty();
-        let first = source_map
-            .new_source_file(std::env::temp_dir().join("FirstLocation.sol"), "first")
-            .unwrap();
-        let second = source_map
-            .new_source_file(std::env::temp_dir().join("SecondLocation.sol"), "second")
-            .unwrap();
-        let cross_file = Span::new(first.start_pos, second.start_pos);
-
-        assert!(super::span_to_location(&source_map, cross_file).is_none());
-    }
-
-    #[test]
     fn location_converter_matches_source_map_positions() {
         let source_map = Arc::new(SourceMap::empty());
-        let empty = super::LocationConverter::new(source_map.clone());
+        let empty = LocationConverter::new(source_map.clone());
         for span in [Span::DUMMY, Span::new(BytePos(1), BytePos(2))] {
-            assert_eq!(empty.location(span), super::span_to_location(&source_map, span));
+            assert_eq!(empty.location(span), None);
+            assert_eq!(span_to_location(&source_map, span), None);
         }
 
         let files = ["value\n", "", "a😀中value\r\nsecond line\n", "value\r\n", "last"]
             .iter()
             .enumerate()
             .map(|(index, &source)| {
-                source_map
-                    .new_source_file(
-                        std::env::temp_dir().join(format!("Location {index}.sol")),
-                        source,
-                    )
-                    .unwrap()
+                source_file(&source_map, &format!("Location {index}.sol"), source)
             })
             .collect::<Vec<_>>();
-        let locations = super::LocationConverter::new(source_map.clone());
+        let locations = LocationConverter::new(source_map.clone());
         for file in &files {
             assert_eq!(
                 locations.file_uri(file),
-                lsp_types::Url::from_file_path(file.name.as_real().unwrap()).ok().as_ref()
+                Url::from_file_path(file.name.as_real().unwrap()).ok().as_ref()
             );
             let positions = file
                 .src
@@ -892,86 +983,43 @@ mod tests {
                     let span = Span::new(lo, hi);
                     assert_eq!(
                         locations.location(span),
-                        super::span_to_location(&source_map, span),
+                        span_to_location(&source_map, span),
                         "span {lo:?}..{hi:?}"
                     );
                 }
             }
         }
+        // Spans that cross into the next file have no location.
         for pair in files.windows(2) {
             let span = Span::new(pair[0].end_position(), pair[1].start_pos);
-            assert_eq!(locations.location(span), super::span_to_location(&source_map, span));
-            assert!(locations.location(span).is_none());
+            assert_eq!(locations.location(span), None);
+            assert_eq!(span_to_location(&source_map, span), None);
         }
 
         // The original conversion clamps positions beyond the last file's end.
         let last = files.last().unwrap();
         let span = Span::new(last.start_pos, last.end_position() + BytePos(5));
-        assert_eq!(locations.location(span), super::span_to_location(&source_map, span));
+        assert_eq!(locations.location(span), span_to_location(&source_map, span));
     }
 
     #[test]
     fn location_converter_preserves_files_without_uris() {
         let source_map = Arc::new(SourceMap::empty());
-        let first =
-            source_map.new_source_file(std::env::temp_dir().join("FirstUri.sol"), "first").unwrap();
+        let first = source_file(&source_map, "FirstUri.sol", "first");
         let custom = source_map.new_source_file(FileName::custom("virtual.sol"), "custom").unwrap();
         let relative =
             source_map.new_source_file(FileName::real("relative.sol"), "relative").unwrap();
-        let last =
-            source_map.new_source_file(std::env::temp_dir().join("LastUri.sol"), "last").unwrap();
-        let locations = super::LocationConverter::new(source_map.clone());
+        let last = source_file(&source_map, "LastUri.sol", "last");
+        let locations = LocationConverter::new(source_map.clone());
 
         for file in [&custom, &relative] {
             assert!(locations.file_uri(file).is_none());
             assert!(locations.location(Span::new(file.start_pos, file.end_position())).is_none());
             assert!(locations.location(Span::new(first.start_pos, file.start_pos)).is_none());
         }
-        let relative_span = Span::new(relative.start_pos, relative.end_position());
-        assert_eq!(
-            locations.location(relative_span),
-            super::span_to_location(&source_map, relative_span)
-        );
-        let last_span = Span::new(last.start_pos, last.end_position());
-        assert_eq!(locations.location(last_span), super::span_to_location(&source_map, last_span));
-    }
-
-    #[test]
-    fn checked_text_range_uses_utf16_columns() {
-        let rope = Rope::from("a😀中value\r\n");
-        let range = checked_text_range(&rope, Range::new(Position::new(0, 4), Position::new(0, 9)))
-            .unwrap();
-        assert_eq!(rope.byte_slice(range).to_string(), "value");
-    }
-
-    #[test]
-    fn checked_text_range_rejects_split_surrogates_and_missing_lines() {
-        let rope = Rope::from("😀");
-        assert!(
-            checked_text_range(&rope, Range::new(Position::new(0, 1), Position::new(0, 2)),)
-                .is_none()
-        );
-        assert!(
-            checked_text_range(&rope, Range::new(Position::new(1, 0), Position::new(1, 0)),)
-                .is_none()
-        );
-        assert!(
-            checked_text_range(&rope, Range::new(Position::new(0, 1), Position::new(0, 1)),)
-                .is_none()
-        );
-    }
-
-    #[test]
-    fn checked_text_range_clamps_columns_past_crlf_line_end() {
-        let rope = Rope::from("value\r\nnext");
-        for character in [6, u32::MAX] {
-            assert_eq!(
-                checked_text_range(
-                    &rope,
-                    Range::new(Position::new(0, character), Position::new(0, character)),
-                ),
-                Some(5..5)
-            );
+        for file in [&relative, &last] {
+            let span = Span::new(file.start_pos, file.end_position());
+            assert_eq!(locations.location(span), span_to_location(&source_map, span));
         }
     }
 
@@ -986,12 +1034,13 @@ mod tests {
                 let prefix = format!("😀{ending}");
                 let source = format!("{prefix}{line}{ending}tail");
                 let rope = Rope::from(source.as_str());
-                let index = super::LspPositionIndex::new(&rope);
+                let index = LspPositionIndex::new(&rope);
                 for (&start, &start_offset) in columns.iter().zip(&offsets) {
                     for (&end, &end_offset) in columns.iter().zip(&offsets) {
-                        let expected = start_offset.zip(end_offset).and_then(|(start, end)| {
-                            (start <= end).then_some(prefix.len() + start..prefix.len() + end)
-                        });
+                        let expected = start_offset
+                            .zip(end_offset)
+                            .filter(|_| start <= end)
+                            .map(|(start, end)| prefix.len() + start..prefix.len() + end);
                         assert_eq!(
                             index.checked_text_range(Range::new(
                                 Position::new(1, start),
@@ -1013,7 +1062,7 @@ mod tests {
             let prefix = format!("😀{ending}");
             let source = format!("{prefix}{ascii}{ending}");
             let rope = Rope::from(source.as_str());
-            let index = super::LspPositionIndex::new(&rope);
+            let index = LspPositionIndex::new(&rope);
             for character in [0, 1, 1023, ascii.len() as u32, u32::MAX] {
                 let position = Position::new(1, character);
                 let byte = prefix.len() + (character as usize).min(ascii.len());
@@ -1040,60 +1089,83 @@ mod tests {
     }
 
     #[test]
-    fn lsp_position_index_supports_standalone_carriage_returns() {
-        let rope = Rope::from("a😀\rvalue");
-        let index = super::LspPositionIndex::new(&rope);
-        for (position, byte) in
-            [(Position::new(0, 3), 5), (Position::new(1, 0), 6), (Position::new(1, 5), 11)]
-        {
-            let range = Range::new(position, position);
-            assert_eq!(index.checked_text_range(range), Some(byte..byte));
-            assert_eq!(index.position_at_byte(byte), Some(position));
+    fn position_conversions_round_trip_line_boundaries() {
+        for (source, line, character, byte) in [
+            ("", 0, 0, Some(0)),
+            ("value\n", 1, 0, Some(6)),
+            ("value\r\n", 1, 0, Some(7)),
+            ("value\r", 1, 0, Some(6)),
+            ("a😀\rvalue", 0, 3, Some(5)),
+            ("a😀\rvalue", 1, 0, Some(6)),
+            ("a😀\rvalue", 1, 5, Some(11)),
+            ("a😀中\r\nvalue", 0, 1, Some(1)),
+            ("a😀中\r\nvalue", 0, 3, Some(5)),
+            ("a😀中\r\nvalue", 1, 5, Some(15)),
+            ("😀", 1, 0, None),
+        ] {
+            let rope = Rope::from(source);
+            let position = Position::new(line, character);
+            let range = checked_text_range(&rope, Range::new(position, position));
+            assert_eq!(range, byte.map(|byte| byte..byte), "{source:?}: {position:?}");
+            if let Some(byte) = byte {
+                assert_eq!(position_at_byte(&rope, byte), Some(position), "{source:?}: {byte}");
+            }
         }
-        assert!(index.position_at_byte(2).is_none());
-    }
-
-    #[test]
-    fn lsp_position_index_accepts_trailing_carriage_return_line() {
-        let rope = Rope::from("value\r");
-        let index = super::LspPositionIndex::new(&rope);
-        let position = Position::new(1, 0);
-        assert_eq!(
-            index.checked_text_range(Range::new(position, position)),
-            Some(rope.byte_len()..rope.byte_len())
-        );
-        assert_eq!(index.position_at_byte(rope.byte_len()), Some(position));
-    }
-
-    #[test]
-    fn position_conversions_support_standalone_carriage_returns() {
-        let rope = Rope::from("a😀\rvalue");
-        for (position, byte) in
-            [(Position::new(0, 3), 5), (Position::new(1, 0), 6), (Position::new(1, 5), 11)]
+        // Bytes inside a character or a CRLF terminator, or past EOF, have no position.
+        for (source, byte) in
+            [("a😀\rvalue", 2), ("a😀中\r\nvalue", 2), ("a😀中\r\nvalue", 9), ("value", 6)]
         {
-            let range = Range::new(position, position);
-            assert_eq!(checked_text_range(&rope, range), Some(byte..byte));
-            assert_eq!(position_at_byte(&rope, byte), Some(position));
+            assert_eq!(position_at_byte(&Rope::from(source), byte), None, "{source:?}: {byte}");
         }
-        assert!(position_at_byte(&rope, 2).is_none());
     }
 
     #[test]
-    fn position_conversions_accept_trailing_carriage_return_line() {
-        let rope = Rope::from("value\r");
-        let position = Position::new(1, 0);
-        assert_eq!(
-            checked_text_range(&rope, Range::new(position, position)),
-            Some(rope.byte_len()..rope.byte_len())
-        );
-        assert_eq!(position_at_byte(&rope, rope.byte_len()), Some(position));
+    fn text_range_clamps_protocol_positions() {
+        for ending in ["\n", "\r\n", "\r"] {
+            for padding in [String::new(), "x".repeat(2048)] {
+                let first = format!("{padding}a😀b");
+                let source = format!("{first}{ending}céc{ending}");
+                let rope = Rope::from(source.as_str());
+                let index = LspPositionIndex::from_rope(rope.clone());
+                let columns = padding.len() as u32;
+                for (position, byte) in [
+                    (Position::new(0, columns + 1), Some(padding.len() + 1)),
+                    (Position::new(0, columns + 2), None),
+                    (Position::new(0, columns + 3), Some(padding.len() + 5)),
+                    (Position::new(0, columns + 5), Some(first.len())),
+                    (Position::new(0, u32::MAX), Some(first.len())),
+                    (Position::new(1, 2), Some(first.len() + ending.len() + 3)),
+                    (Position::new(1, u32::MAX), Some(source.len() - ending.len())),
+                    (Position::new(2, u32::MAX), Some(source.len())),
+                    (Position::new(99, 1), Some(source.len())),
+                    (Position::new(u32::MAX, u32::MAX), Some(source.len())),
+                ] {
+                    let range = Range::new(position, position);
+                    let expected = byte.map(|byte| byte..byte);
+                    assert_eq!(text_range(&rope, range), expected, "{ending:?}: {position:?}");
+                    assert_eq!(index.text_range(range), expected, "{ending:?}: {position:?}");
+                }
+                let range = Range::new(Position::new(0, u32::MAX), Position::new(99, 1));
+                let expected = Some(first.len()..source.len());
+                assert_eq!(text_range(&rope, range), expected);
+                assert_eq!(index.text_range(range), expected);
+            }
+        }
+        let position = Position::new(u32::MAX, u32::MAX);
+        assert_eq!(text_range(&Rope::new(), Range::new(position, position)), Some(0..0));
     }
 
     #[test]
-    fn text_range_uses_standalone_carriage_return_lines() {
-        let rope = Rope::from("first\rsecond");
-        let range = text_range(&rope, Range::new(Position::new(1, 0), Position::new(1, 6)));
-        assert_eq!(rope.byte_slice(range).to_string(), "second");
+    fn text_range_rejects_reversed_ranges_even_after_clamping() {
+        let rope = Rope::from("abc\n😀");
+        for range in [
+            Range::new(Position::new(0, u32::MAX), Position::new(0, 4)),
+            Range::new(Position::new(99, 0), Position::new(2, 0)),
+            Range::new(Position::new(1, 1), Position::new(1, 2)),
+        ] {
+            assert_eq!(text_range(&rope, range), None);
+            assert_eq!(LspPositionIndex::from_rope(rope.clone()).text_range(range), None);
+        }
     }
 
     #[test]
@@ -1111,14 +1183,12 @@ mod tests {
         ];
         for source in ["", "abc", "abc\n", "abc\r\n", "a😀b\ncdef\n", "a😀b\rcdef\r"] {
             let rope = Rope::from(source);
-            let index = super::LspPositionIndex::from_rope(rope.clone());
+            let index = LspPositionIndex::from_rope(rope.clone());
             for &start in &positions {
                 for &end in &positions {
                     let range = Range::new(start, end);
-                    let expected =
-                        catch_unwind(AssertUnwindSafe(|| index.text_range(range))).map_err(|_| ());
-                    let actual =
-                        catch_unwind(AssertUnwindSafe(|| text_range(&rope, range))).map_err(|_| ());
+                    let expected = index.text_range(range);
+                    let actual = text_range(&rope, range);
                     assert_eq!(actual, expected, "source: {source:?}, range: {range:?}");
                 }
             }
@@ -1135,16 +1205,16 @@ mod tests {
             assert!(chunks.len() > 1);
             split_crlf |=
                 chunks.windows(2).any(|pair| pair[0].ends_with('\r') && pair[1].starts_with('\n'));
-            assert!(!super::has_standalone_cr(&rope));
+            assert!(!has_standalone_cr(&rope));
 
             // Removing LF changes a CRLF into a standalone CR, including chunk boundaries.
             let newline = source.find('\n').unwrap();
             rope.replace(newline..newline + 1, "");
-            assert!(super::has_standalone_cr(&rope));
+            assert!(has_standalone_cr(&rope));
         }
         assert!(split_crlf, "fixture must include a CRLF split across rope chunks");
-        assert!(super::has_standalone_cr(&Rope::from("tail\r")));
-        assert!(!super::has_standalone_cr(&Rope::new()));
+        assert!(has_standalone_cr(&Rope::from("tail\r")));
+        assert!(!has_standalone_cr(&Rope::new()));
     }
 
     #[test]
@@ -1166,11 +1236,12 @@ mod tests {
             });
             let mut expected = original.clone();
             for change in &changes {
-                let range = super::LspPositionIndex::from_rope(expected.clone())
-                    .text_range(change.range.unwrap());
+                let range = LspPositionIndex::from_rope(expected.clone())
+                    .text_range(change.range.unwrap())
+                    .unwrap();
                 expected.replace(range, &change.text);
             }
-            assert_eq!(apply_document_changes(&original, changes.into()), expected);
+            assert_eq!(apply_document_changes(&original, changes.into()).unwrap(), expected);
         }
     }
 
@@ -1185,8 +1256,8 @@ mod tests {
             "a😀b\r\n".repeat(1024),
         ] {
             let rope = Rope::from(source.as_str());
-            let transient = super::LspPositionIndex::new(&rope);
-            let snapshot = super::LspPositionIndex::from_rope(rope.clone());
+            let transient = LspPositionIndex::new(&rope);
+            let snapshot = LspPositionIndex::from_rope(rope.clone());
             for byte in 0..=source.len() + 1 {
                 assert_eq!(transient.position_at_byte(byte), snapshot.position_at_byte(byte));
             }
@@ -1207,27 +1278,13 @@ mod tests {
     }
 
     #[test]
-    fn position_at_byte_round_trips_utf16_positions_across_crlf() {
-        let rope = Rope::from("a😀中\r\nvalue");
-        for position in
-            [Position::new(0, 0), Position::new(0, 1), Position::new(0, 3), Position::new(1, 5)]
-        {
-            let byte = checked_text_range(&rope, Range::new(position, position)).unwrap().start;
-            assert_eq!(position_at_byte(&rope, byte), Some(position));
-        }
-        assert!(position_at_byte(&rope, 2).is_none());
-        assert!(position_at_byte(&rope, 9).is_none());
-        assert!(position_at_byte(&rope, rope.byte_len() + 1).is_none());
-    }
-
-    #[test]
     fn position_at_byte_matches_utf16_columns_across_rope_chunks() {
         let long_line = "xé中😀".repeat(512);
         for ending in ["\n", "\r\n", "\r"] {
             let lines = ["preceding😀", long_line.as_str(), ""];
             let source = lines.join(ending);
             let rope = Rope::from(source.as_str());
-            let index = super::LspPositionIndex::new(&rope);
+            let index = LspPositionIndex::new(&rope);
             let mut start = 0;
             for (line, text) in lines.into_iter().enumerate() {
                 for byte in 0..=text.len() {
@@ -1246,16 +1303,58 @@ mod tests {
     }
 
     #[test]
-    fn position_conversions_accept_empty_and_trailing_lines() {
-        for (source, position) in [
-            ("", Position::new(0, 0)),
-            ("value\n", Position::new(1, 0)),
-            ("value\r\n", Position::new(1, 0)),
-        ] {
-            let rope = Rope::from(source);
-            let range = Range::new(position, position);
-            assert_eq!(checked_text_range(&rope, range), Some(rope.byte_len()..rope.byte_len()));
-            assert_eq!(position_at_byte(&rope, rope.byte_len()), Some(position));
-        }
+    fn diagnostic_preserves_labels_and_children() {
+        let source_map = SourceMap::empty();
+        let file = source_file(&source_map, "DiagnosticDetails.sol", "abc");
+        let primary = span(&file, 0..1);
+        let secondary = span(&file, 1..2);
+        let secondary_location = span_to_location(&source_map, secondary).unwrap();
+
+        let mut diagnostic = Diag::new(Level::Error, "mismatched types");
+        diagnostic
+            .span(primary)
+            .span_label(primary, "expected `uint8`, found `int_literal[9]`")
+            .span_label(secondary, "type declared here")
+            .note("the value does not fit")
+            .help("use a wider type")
+            .span_note(secondary, "related declaration");
+        let diagnostic = convert(&source_map, &diagnostic);
+        assert_data_eq!(
+            diagnostic.message,
+            str![[r#"
+mismatched types
+expected `uint8`, found `int_literal[9]`
+note: the value does not fit
+help: use a wider type
+"#]]
+        );
+        let related = diagnostic.related_information.unwrap();
+        assert_eq!(related.len(), 2);
+        assert_data_eq!(related[0].message.as_str(), "type declared here");
+        assert_data_eq!(related[1].message.as_str(), "related declaration");
+        assert_eq!(related[0].location, secondary_location);
+        assert_eq!(related[1].location, secondary_location);
+
+        let mut labels = MultiSpan::new();
+        labels.push_span_label(secondary, "related label");
+        let mut diagnostic = Diag::new(Level::Error, "main message");
+        diagnostic
+            .span(primary)
+            .span_label(primary, "main message")
+            .span_note(labels, "context without a primary span")
+            .span_help(Span::DUMMY, "help without a valid location");
+        let diagnostic = convert(&source_map, &diagnostic);
+        assert_data_eq!(
+            diagnostic.message,
+            str![[r#"
+main message
+note: context without a primary span
+help: help without a valid location
+"#]]
+        );
+        let related = diagnostic.related_information.unwrap();
+        assert_eq!(related.len(), 1);
+        assert_data_eq!(related[0].message.as_str(), "related label");
+        assert_eq!(related[0].location, secondary_location);
     }
 }

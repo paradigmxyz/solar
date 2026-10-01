@@ -31,7 +31,7 @@
 
 use super::super::super::{
     BlockId, DenseBitSet, Function, FunctionId, FxHashMap, FxHashSet, GlobalStackPlan,
-    GrowableBitSet, IndexVec, InstId, InstKind, Liveness, Loop, LoopAnalyzer, MAX_STACK_ACCESS,
+    GrowableBitSet, IndexVec, InstId, InstKind, Liveness, Loop, LoopAnalyzer,
     STACK_PHI_LAYOUT_LIMIT, SmallVec, StackModel, TargetSlot, Terminator, ValueId, index_vec,
     lowered_stack_cost, rematerializable_nullary_value,
 };
@@ -40,6 +40,7 @@ use crate::{
     backend::evm::codegen::stack::shuffler::StackShuffler,
     target::{Cost, Target},
 };
+use solar_data_structures::bit_set::BitMatrix;
 
 #[derive(Clone, Default)]
 pub(in crate::backend::evm::codegen) struct StackPhiPlan {
@@ -111,11 +112,12 @@ impl StackPhiPlan {
     pub(in crate::backend::evm::codegen) fn edge_fits(
         edge: &StackPhiEdge,
         values: &[ValueId],
+        stack_access_limit: usize,
     ) -> bool {
         let source_additions = values.iter().filter(|value| !edge.sources.contains(value)).count();
         let result_additions = values.iter().filter(|value| !edge.results.contains(value)).count();
-        edge.sources.len().saturating_add(source_additions) <= MAX_STACK_ACCESS
-            && edge.results.len().saturating_add(result_additions) <= MAX_STACK_ACCESS
+        edge.sources.len().saturating_add(source_additions) <= stack_access_limit
+            && edge.results.len().saturating_add(result_additions) <= stack_access_limit
     }
 
     pub(in crate::backend::evm::codegen) fn merge_edge(
@@ -152,11 +154,12 @@ impl StackPhiPlan {
         &mut self,
         func: &Function,
         resident: &GlobalStackPlan,
+        stack_access_limit: usize,
     ) -> bool {
         for (&block, entry) in &self.entries {
             if let Some(values) = resident.entry(block) {
                 let additions = values.iter().filter(|value| !entry.contains(value)).count();
-                if entry.len().saturating_add(additions) > MAX_STACK_ACCESS {
+                if entry.len().saturating_add(additions) > stack_access_limit {
                     return false;
                 }
             }
@@ -164,7 +167,7 @@ impl StackPhiPlan {
         for (&pred, edge) in &self.edges {
             let Some(term) = func.blocks[pred].terminator.as_ref() else { return false };
             if let Some(values) = resident.edge_layout(func, term)
-                && !Self::edge_fits(edge, values)
+                && !Self::edge_fits(edge, values, stack_access_limit)
             {
                 return false;
             }
@@ -182,7 +185,7 @@ impl StackPhiPlan {
             for (edge, values) in
                 [(&branch.then_edge, then_values), (&branch.else_edge, else_values)]
             {
-                if !Self::edge_fits(edge, values) {
+                if !Self::edge_fits(edge, values, stack_access_limit) {
                     return false;
                 }
             }
@@ -229,6 +232,8 @@ struct StackPhiPlanner<'a> {
     loops: Vec<Loop>,
     header_results: FxHashMap<BlockId, Vec<ValueId>>,
     definitions: IndexVec<ValueId, Option<BlockId>>,
+    /// Instruction results that are cheaper to keep than to recompute.
+    carriable: DenseBitSet<ValueId>,
     /// Functions whose every exit aborts; a tail call into one never returns to the words a
     /// carried stack leaves beneath it.
     cold_functions: &'a DenseBitSet<FunctionId>,
@@ -254,7 +259,7 @@ struct LiveJoinFacts {
     /// The non-phi operands a block reads that are live into it.
     own_uses: IndexVec<BlockId, Vec<ValueId>>,
     /// The values live both into and out of a block: what it may carry onward.
-    live_through: IndexVec<BlockId, DenseBitSet<ValueId>>,
+    live_through: BitMatrix<BlockId, ValueId>,
     /// The carriable results a block defines after its last internal call and keeps live at
     /// its exit, top of the stack first.
     defs: IndexVec<BlockId, Vec<ValueId>>,
@@ -276,11 +281,12 @@ struct LiveJoinFacts {
 struct LiveJoinState {
     layouts: FxHashMap<BlockId, Vec<ValueId>>,
     resident_out: FxHashMap<BlockId, Vec<ValueId>>,
-    wanted: IndexVec<BlockId, DenseBitSet<ValueId>>,
+    wanted: BitMatrix<BlockId, ValueId>,
     /// The next `wanted` set under construction, swapped in when it differs.
     scratch: DenseBitSet<ValueId>,
     /// A successor's wants masked to what the block carries through.
     mask: DenseBitSet<ValueId>,
+    epochs: RefreshEpochs,
 }
 
 impl LiveJoinState {
@@ -288,9 +294,63 @@ impl LiveJoinState {
         Self {
             layouts: FxHashMap::default(),
             resident_out: FxHashMap::default(),
-            wanted: IndexVec::from_vec(vec![DenseBitSet::new_empty(num_values); num_blocks]),
+            wanted: BitMatrix::new(num_blocks, num_values),
             scratch: DenseBitSet::new_empty(num_values),
             mask: DenseBitSet::new_empty(num_values),
+            epochs: RefreshEpochs::new(num_blocks),
+        }
+    }
+}
+
+/// When each block's layout, resident set and wants last changed, and when each refresh last
+/// ran. Every refresh is a pure function of the state it reads, and only a block's own refresh
+/// writes its entry, so a refresh whose inputs are unchanged since it last ran would recompute
+/// the stored result and report no change; rounds skip it. Debug builds still run skipped
+/// refreshes and assert that they change nothing.
+struct RefreshEpochs {
+    epoch: u32,
+    layout_changed: IndexVec<BlockId, u32>,
+    resident_changed: IndexVec<BlockId, u32>,
+    wanted_changed: IndexVec<BlockId, u32>,
+    /// Zero means the refresh has not run since the last invalidation.
+    layout_ran: IndexVec<BlockId, u32>,
+    resident_ran: IndexVec<BlockId, u32>,
+    wanted_ran: IndexVec<BlockId, u32>,
+}
+
+impl RefreshEpochs {
+    fn new(num_blocks: usize) -> Self {
+        let zeros = IndexVec::from_vec(vec![0; num_blocks]);
+        Self {
+            epoch: 1,
+            layout_changed: zeros.clone(),
+            resident_changed: zeros.clone(),
+            wanted_changed: zeros.clone(),
+            layout_ran: zeros.clone(),
+            resident_ran: zeros.clone(),
+            wanted_ran: zeros,
+        }
+    }
+
+    /// Returns whether a refresh must run, given the latest change among its inputs, and
+    /// stamps it as run.
+    fn begin(ran: &mut u32, epoch: u32, inputs_changed: u32) -> bool {
+        if *ran != 0 && inputs_changed <= *ran {
+            return false;
+        }
+        *ran = epoch;
+        true
+    }
+
+    fn next(&mut self) -> u32 {
+        self.epoch += 1;
+        self.epoch
+    }
+
+    /// Reruns every refresh after a round-wide input, the bans or the phase, changes.
+    fn invalidate(&mut self) {
+        for ran in [&mut self.layout_ran, &mut self.resident_ran, &mut self.wanted_ran] {
+            ran.raw.fill(0);
         }
     }
 }
@@ -302,14 +362,18 @@ impl<'a> StackPhiPlanner<'a> {
         target: Target,
     ) -> Self {
         let mut loop_analyzer = LoopAnalyzer::new();
-        let loop_info = loop_analyzer.analyze(func);
+        let loop_info = loop_analyzer.analyze_structure(func);
         let loops = loop_info.all_loops().cloned().collect();
 
         let mut definitions = index_vec![None; func.num_values()];
+        let mut carriable = DenseBitSet::new_empty(func.num_values());
         for (block_id, block) in func.blocks.iter_enumerated() {
             for &inst_id in &block.instructions {
                 if let Some(value) = func.inst_result_value(inst_id) {
                     definitions[value] = Some(block_id);
+                    if rematerializable_nullary_value(func, value).is_none() {
+                        carriable.insert(value);
+                    }
                 }
             }
         }
@@ -319,6 +383,7 @@ impl<'a> StackPhiPlanner<'a> {
             loops,
             header_results: FxHashMap::default(),
             definitions,
+            carriable,
             cold_functions,
         };
         planner.collect_header_results();
@@ -461,7 +526,7 @@ impl<'a> StackPhiPlanner<'a> {
             back_edges
                 .entry(loop_info.header)
                 .or_default()
-                .extend(loop_info.back_edges.iter().copied());
+                .extend_from_slice(&loop_info.back_edges);
         }
         // Two phases: an optimistic one where a successor asks for everything it wants, so a
         // word can enter a chain of layouts that each depend on the next, then a precise one
@@ -519,12 +584,14 @@ impl<'a> StackPhiPlanner<'a> {
                 }
             }
             if changed {
+                state.epochs.invalidate();
                 continue;
             }
             if precise {
                 break;
             }
             precise = true;
+            state.epochs.invalidate();
         }
         let mut layouts = state.layouts;
         layouts.retain(|_, layout| !layout.is_empty());
@@ -600,7 +667,9 @@ impl<'a> StackPhiPlanner<'a> {
                             } else {
                                 union_values(&then_edge.sources, &else_edge.sources)
                             };
-                            if union.is_empty() || union.len() > MAX_STACK_ACCESS {
+                            if union.is_empty()
+                                || union.len() > self.target.evm_version().reachable_stack_depth()
+                            {
                                 dropped.push(join);
                                 continue 'joins;
                             }
@@ -671,7 +740,7 @@ impl<'a> StackPhiPlanner<'a> {
         let count = func.blocks.len();
         let num_values = func.num_values();
         let mut own_uses = IndexVec::with_capacity(count);
-        let mut live_through = IndexVec::with_capacity(count);
+        let mut live_through = BitMatrix::new(count, num_values);
         let mut defs = IndexVec::with_capacity(count);
         let mut has_call = DenseBitSet::new_empty(count);
         let mut carries_arm = DenseBitSet::new_empty(count);
@@ -703,11 +772,9 @@ impl<'a> StackPhiPlanner<'a> {
             }
             uses.sort_unstable_by_key(|value| value.index());
             uses.dedup();
-            let mut through = DenseBitSet::new_empty(num_values);
-            for value in live_in.iter().filter(|&value| live_out.contains(value)) {
-                through.insert(value);
-            }
-            live_through.push(through);
+            let mut through = DenseBitSet::from(live_in);
+            through.intersect(&live_out);
+            live_through.replace_row(block_id, &through);
             // Layouts list the top of the stack first; a new definition lands on top.
             kept.reverse();
             own_uses.push(uses);
@@ -783,6 +850,26 @@ impl<'a> StackPhiPlanner<'a> {
         state: &mut LiveJoinState,
     ) -> bool {
         let func = self.func;
+        let epochs = &mut state.epochs;
+        let inputs_changed = if facts.is_join.contains(&block_id) {
+            let preds = func.blocks[block_id].predecessors.iter();
+            let headers = facts.loop_headers_of[block_id].iter();
+            preds
+                .map(|&pred| epochs.resident_changed[pred])
+                .chain(headers.map(|&header| epochs.layout_changed[header]))
+                .fold(epochs.wanted_changed[block_id], u32::max)
+        } else if let Some(&(pred, join)) = facts.arms.get(&block_id) {
+            epochs.layout_changed[join]
+                .max(epochs.resident_changed[pred])
+                .max(epochs.wanted_changed[block_id])
+        } else {
+            return false;
+        };
+        let stale =
+            RefreshEpochs::begin(&mut epochs.layout_ran[block_id], epochs.epoch, inputs_changed);
+        if !stale && !cfg!(debug_assertions) {
+            return false;
+        }
         let layout = if facts.is_join.contains(&block_id) {
             let join = block_id;
             let block = &func.blocks[join];
@@ -800,7 +887,7 @@ impl<'a> StackPhiPlanner<'a> {
             // every iteration instead of shuffled once.
             let wide = block.predecessors.len() > 2 && !facts.back_edges.contains_key(&join);
             let used_here = &facts.join_uses[&join];
-            let wanted = &state.wanted[join];
+            let wanted = state.wanted.row(join);
             let loop_carried = |value: ValueId| {
                 facts.loop_headers_of[join].iter().any(|header| {
                     state.layouts.get(header).is_some_and(|layout| layout.contains(&value))
@@ -909,7 +996,7 @@ impl<'a> StackPhiPlanner<'a> {
                 });
             }
             let resident = state.resident_out.get(&pred).map(Vec::as_slice).unwrap_or_default();
-            let wanted = &state.wanted[arm];
+            let wanted = state.wanted.row(arm);
             let mut carried = resident
                 .iter()
                 .copied()
@@ -941,7 +1028,9 @@ impl<'a> StackPhiPlanner<'a> {
         if state.layouts.get(&block_id) == Some(&layout) {
             return false;
         }
+        debug_assert!(stale, "skipped layout refresh of {block_id:?} changed its result");
         state.layouts.insert(block_id, layout);
+        state.epochs.layout_changed[block_id] = state.epochs.next();
         true
     }
 
@@ -959,6 +1048,16 @@ impl<'a> StackPhiPlanner<'a> {
     ) -> bool {
         let func = self.func;
         let block = &func.blocks[block_id];
+        let epochs = &mut state.epochs;
+        let mut inputs_changed = epochs.layout_changed[block_id];
+        if let [pred] = block.predecessors.as_slice() {
+            inputs_changed = inputs_changed.max(epochs.resident_changed[*pred]);
+        }
+        let stale =
+            RefreshEpochs::begin(&mut epochs.resident_ran[block_id], epochs.epoch, inputs_changed);
+        if !stale && !cfg!(debug_assertions) {
+            return false;
+        }
         let incoming: &[ValueId] = if let Some(layout) = state.layouts.get(&block_id) {
             layout
         } else if let Some(entry) = plan.entries.get(&block_id) {
@@ -1003,7 +1102,9 @@ impl<'a> StackPhiPlanner<'a> {
         if state.resident_out.get(&block_id) == Some(&resident) {
             return false;
         }
+        debug_assert!(stale, "skipped resident refresh of {block_id:?} changed its result");
         state.resident_out.insert(block_id, resident);
+        state.epochs.resident_changed[block_id] = state.epochs.next();
         true
     }
 
@@ -1020,8 +1121,23 @@ impl<'a> StackPhiPlanner<'a> {
     ) -> bool {
         let func = self.func;
         let block = &func.blocks[block_id];
-        let live_through = &facts.live_through[block_id];
-        let LiveJoinState { layouts, wanted, scratch, mask, .. } = state;
+        let LiveJoinState { layouts, wanted, scratch, mask, epochs, .. } = state;
+        let mut inputs_changed = facts.loop_headers_of[block_id]
+            .iter()
+            .fold(0, |latest, &header| latest.max(epochs.layout_changed[header]));
+        if let Some(term) = &block.terminator {
+            term.for_each_successor(|succ| {
+                inputs_changed = inputs_changed
+                    .max(epochs.layout_changed[succ])
+                    .max(epochs.wanted_changed[succ]);
+            });
+        }
+        let stale =
+            RefreshEpochs::begin(&mut epochs.wanted_ran[block_id], epochs.epoch, inputs_changed);
+        if !stale && !cfg!(debug_assertions) {
+            return false;
+        }
+        let live_through = facts.live_through.row(block_id);
         scratch.clear();
         for &value in &facts.own_uses[block_id] {
             scratch.insert(value);
@@ -1075,8 +1191,9 @@ impl<'a> StackPhiPlanner<'a> {
                 } else if let Some(entry) = plan.entries.get(&succ) {
                     want(scratch, succ, entry);
                 } else {
-                    mask.clone_from(&wanted[succ]);
-                    mask.intersect(live_through);
+                    mask.clear();
+                    mask.union(&wanted.row(succ));
+                    mask.intersect(&live_through);
                     scratch.union(mask);
                 }
             }
@@ -1093,11 +1210,12 @@ impl<'a> StackPhiPlanner<'a> {
                 }
             }
         }
-        if wanted[block_id] == *scratch {
-            return false;
+        let changed = wanted.replace_row(block_id, scratch);
+        if changed {
+            debug_assert!(stale, "skipped wanted refresh of {block_id:?} changed its result");
+            epochs.wanted_changed[block_id] = epochs.next();
         }
-        std::mem::swap(&mut wanted[block_id], scratch);
-        true
+        changed
     }
 
     /// The words of an edge that feed phis rather than ride through unchanged. Only these skip
@@ -1178,11 +1296,7 @@ impl<'a> StackPhiPlanner<'a> {
     /// Whether a layout may carry `value`: an instruction result that is cheaper to keep than
     /// to recompute.
     fn carriable(&self, value: ValueId) -> bool {
-        matches!(
-            self.func.value(value),
-            crate::mir::Value::Inst(_)
-                if rematerializable_nullary_value(self.func, value).is_none()
-        )
+        self.carriable.contains(value)
     }
 
     /// The words `pred` places for `block`'s layout: a phi result comes from its incoming
@@ -1319,7 +1433,9 @@ impl<'a> StackPhiPlanner<'a> {
             };
             let then_sources = self.phi_sources_for_block_pred(*pred_then, pred)?;
             let else_sources = self.phi_sources_for_block_pred(*pred_else, pred)?;
-            if then_sources.len() > MAX_STACK_ACCESS || else_sources.len() > MAX_STACK_ACCESS {
+            if then_sources.len() > self.target.evm_version().reachable_stack_depth()
+                || else_sources.len() > self.target.evm_version().reachable_stack_depth()
+            {
                 return None;
             }
             edges.push((
@@ -1429,7 +1545,7 @@ impl<'a> StackPhiPlanner<'a> {
             return self.reject_loop(loop_info, "layout exceeds the phi limit");
         }
         let mut entry = carry_through.clone();
-        entry.extend(results.iter().copied());
+        entry.extend_from_slice(&results);
 
         let mut edges = Vec::with_capacity(loop_info.back_edges.len() + 1);
         for pred in std::iter::once(preheader).chain(loop_info.back_edges.iter().copied()) {
@@ -1531,7 +1647,7 @@ impl<'a> StackPhiPlanner<'a> {
             self.extend_live_across_exits(loop_info, liveness, &mut carry_through);
         }
         let mut entry = carry_through.clone();
-        entry.extend(results.iter().copied());
+        entry.extend_from_slice(&results);
         if entry.len() > STACK_PHI_LAYOUT_LIMIT {
             return false;
         }
@@ -1548,8 +1664,8 @@ impl<'a> StackPhiPlanner<'a> {
         backedge_sources.extend(backedge_phi_sources);
         if initial_sources.len() != entry.len()
             || backedge_sources.len() != entry.len()
-            || initial_sources.len() > MAX_STACK_ACCESS
-            || backedge_sources.len() > MAX_STACK_ACCESS
+            || initial_sources.len() > self.target.evm_version().reachable_stack_depth()
+            || backedge_sources.len() > self.target.evm_version().reachable_stack_depth()
         {
             return false;
         }
@@ -1575,7 +1691,7 @@ impl<'a> StackPhiPlanner<'a> {
         let (then_edge, else_edge) =
             if self_is_then { (backedge, exit_edge) } else { (exit_edge, backedge) };
         let union = union_values(&then_edge.sources, &else_edge.sources);
-        if union.is_empty() || union.len() > MAX_STACK_ACCESS {
+        if union.is_empty() || union.len() > self.target.evm_version().reachable_stack_depth() {
             return false;
         }
 
@@ -1803,14 +1919,14 @@ impl<'a> StackPhiPlanner<'a> {
                 if matches!(inst.kind, InstKind::Phi(_)) {
                     continue;
                 }
-                for value in inst.kind.operands() {
+                inst.kind.visit_operands(|value| {
                     self.push_live_through_value(loop_info, value, values);
-                }
+                });
             }
             if let Some(term) = &block.terminator {
-                for value in term.operands() {
+                term.visit_operands(|value| {
                     self.push_live_through_value(loop_info, value, values);
-                }
+                });
             }
         }
     }

@@ -145,6 +145,20 @@ impl PartialRedundancyEliminator {
     fn run(&mut self, func: &mut Function) -> PreStats {
         self.stats = PreStats::default();
 
+        // Candidates are expressions in blocks with several distinct predecessors.
+        let has_candidate = func.blocks.iter().any(|block| {
+            block.predecessors.len() >= 2
+                && block.instructions.iter().any(|&inst| {
+                    let instruction = func.inst(inst);
+                    Self::is_pre_expression(&instruction.kind)
+                        && instruction.result_ty.is_some()
+                        && func.inst_result_value(inst).is_some()
+                })
+        });
+        if !has_candidate {
+            return self.stats;
+        }
+
         let mut inst_blocks = func.inst_blocks();
 
         let mut eliminated_keys = FxHashSet::default();
@@ -201,7 +215,7 @@ impl PartialRedundancyEliminator {
         let mut eliminated_values = DenseBitSet::new_empty(func.num_values());
 
         'targets: for target in func.blocks.indices() {
-            let predecessors = func.unique_predecessors(target);
+            let predecessors = &func.blocks[target].predecessors;
             if predecessors.len() < 2 {
                 continue;
             }
@@ -233,7 +247,7 @@ impl PartialRedundancyEliminator {
                     result,
                     result_ty,
                     instruction.metadata.clone(),
-                    &predecessors,
+                    predecessors,
                     inst_blocks,
                     dominators,
                     eliminated_keys,

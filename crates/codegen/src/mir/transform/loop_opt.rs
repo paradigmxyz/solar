@@ -41,15 +41,15 @@ use crate::mir::{
     BlockId, Callee, EffectKind, Function, ImmutableId, InstId, InstKind, Module, OpTraits,
     StorageAlias, Terminator, Value, ValueId,
     analysis::{
-        Access, AddressSpace, AffineExpr, AliasAnalysis, AliasResult, Location, LocationSize, Loop,
-        LoopAnalyzer, ScalarEvolution,
+        Access, AddressSpace, AffineExpr, AliasAnalysis, AliasResult, CfgInfo, Location,
+        LocationSize, Loop, LoopAnalyzer, ScalarEvolution,
     },
-    pass::{MirPass, run_function_pass_with_alias},
+    pass::{MirPass, run_selected_function_pass_with_alias_and_cfg},
     utils as mir_utils,
 };
 use alloy_primitives::U256;
 use arrayvec::ArrayVec;
-use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
+use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
 use std::rc::Rc;
 
 /// Most words a loop may carry after a below-threshold hoist. The count is the header's phis
@@ -75,12 +75,31 @@ impl MirPass for Licm {
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
         let hoist_cheap = gcx.sess.opts.optimization.is_gas();
-        run_function_pass_with_alias(module, analyses, |func, analyses| {
-            let mut optimizer = LoopOptimizer::with_limits(3, 8);
-            optimizer.hoist_cheap = hoist_cheap;
-            optimizer.alias = Some(Rc::clone(analyses.alias()));
-            optimizer.optimize(func).instructions_hoisted != 0
-        })
+        let mut selected = DenseBitSet::new_empty(module.functions.len());
+        for (id, func) in module.functions.iter_enumerated() {
+            if func.blocks.is_empty() {
+                continue;
+            }
+            if !analyses.cfg(id, func).cyclic_blocks().is_empty() {
+                selected.insert(id);
+            }
+        }
+        run_selected_function_pass_with_alias_and_cfg(
+            module,
+            analyses,
+            &selected,
+            |func, analyses| {
+                let mut optimizer = LoopOptimizer::with_limits(3, 8);
+                optimizer.hoist_cheap = hoist_cheap;
+                optimizer.alias = Some(Rc::clone(analyses.alias()));
+                let changed =
+                    optimizer.optimize(func, Rc::clone(analyses.cfg())).instructions_hoisted != 0;
+                if optimizer.annotated_aliases {
+                    analyses.note_unreported_edit();
+                }
+                changed
+            },
+        )
     }
 }
 
@@ -119,6 +138,8 @@ struct LoopOptimizer {
     hoist_cheap: bool,
     stats: LoopOptStats,
     alias: Option<Rc<AliasAnalysis>>,
+    /// Whether storage-alias annotation changed metadata, which is not reported as a change.
+    annotated_aliases: bool,
 }
 
 impl Default for LoopOptimizer {
@@ -129,6 +150,7 @@ impl Default for LoopOptimizer {
             hoist_cheap: false,
             stats: LoopOptStats::default(),
             alias: None,
+            annotated_aliases: false,
         }
     }
 }
@@ -148,28 +170,31 @@ impl LoopOptimizer {
             hoist_cheap: false,
             stats: LoopOptStats::default(),
             alias: None,
+            annotated_aliases: false,
         }
     }
 
     /// Runs loop-invariant code motion on a function.
-    fn optimize(&mut self, func: &mut Function) -> &LoopOptStats {
+    fn optimize(&mut self, func: &mut Function, cfg: Rc<CfgInfo>) -> &LoopOptStats {
         self.stats = LoopOptStats::default();
-        func.annotate_storage_aliases(mir_utils::StorageAliasScope::StorageAndTransient);
+        self.annotated_aliases |=
+            func.annotate_storage_aliases(mir_utils::StorageAliasScope::StorageAndTransient);
         if self.alias.is_none() {
             self.alias = Some(Rc::new(AliasAnalysis::new(func)));
         }
 
         let mut analyzer = LoopAnalyzer::new();
-        let loop_info = analyzer.analyze(func);
+        let loop_info = analyzer.analyze_with_cfg(func, cfg);
 
         if loop_info.loops.is_empty() {
             return &self.stats;
         }
 
         let loops = loop_info.loops.values().cloned().collect::<Vec<_>>();
+        let inst_blocks = func.inst_block_table();
         let mut carried = loops
             .iter()
-            .map(|loop_data| (loop_data.header, Self::carried_words(func, loop_data)))
+            .map(|loop_data| (loop_data.header, Self::carried_words(func, loop_data, &inst_blocks)))
             .collect::<FxHashMap<_, _>>();
         for loop_data in &loops {
             self.apply_licm(func, loop_data, &analyzer, &loops, &mut carried);
@@ -181,7 +206,11 @@ impl LoopOptimizer {
     /// The words the backend carries through a loop: the header's phis and the values defined
     /// outside the loop that its non-phi instructions read. Immediates, arguments, and nullary
     /// rematerializable reads are rebuilt where used and cost no word.
-    fn carried_words(func: &Function, loop_data: &Loop) -> usize {
+    fn carried_words(
+        func: &Function,
+        loop_data: &Loop,
+        inst_blocks: &IndexVec<InstId, Option<BlockId>>,
+    ) -> usize {
         let header = &func.blocks[loop_data.header];
         let mut count = header
             .instructions
@@ -189,29 +218,43 @@ impl LoopOptimizer {
             .filter(|&&inst_id| matches!(func.inst(inst_id).kind, InstKind::Phi(_)))
             .count();
         let mut seen = DenseBitSet::new_empty(func.num_values());
+        let mut visit = |operand| {
+            if Self::is_carried_operand(func, loop_data, inst_blocks, operand)
+                && seen.insert(operand)
+            {
+                count += 1;
+            }
+        };
         for block in loop_data.blocks.iter() {
             let block = &func.blocks[block];
-            for operand in block
-                .instructions
-                .iter()
-                .filter(|&&inst_id| !matches!(func.inst(inst_id).kind, InstKind::Phi(_)))
-                .flat_map(|&inst_id| func.inst(inst_id).kind.operands())
-                .chain(block.terminator.iter().flat_map(Terminator::operands))
-            {
-                if Self::is_carried_operand(func, loop_data, operand) && seen.insert(operand) {
-                    count += 1;
+            for &inst_id in &block.instructions {
+                let kind = &func.inst(inst_id).kind;
+                if !matches!(kind, InstKind::Phi(_)) {
+                    kind.visit_operands(&mut visit);
                 }
+            }
+            if let Some(term) = &block.terminator {
+                term.visit_operands(&mut visit);
             }
         }
         count
     }
 
     /// Whether a value read inside `loop_data` occupies a carried word: an instruction result
-    /// defined outside the loop that is not a nullary rematerializable read.
-    fn is_carried_operand(func: &Function, loop_data: &Loop, value: ValueId) -> bool {
+    /// outside the loop that is not a nullary rematerializable read.
+    fn is_carried_operand(
+        func: &Function,
+        loop_data: &Loop,
+        inst_blocks: &IndexVec<InstId, Option<BlockId>>,
+        value: ValueId,
+    ) -> bool {
         let Value::Inst(inst_id) = func.value(value) else { return false };
         let kind = &func.inst(*inst_id).kind;
-        !loop_data.blocks.iter().any(|block| func.blocks[block].instructions.contains(inst_id))
+        inst_blocks
+            .get(*inst_id)
+            .copied()
+            .flatten()
+            .is_none_or(|block| !loop_data.blocks.contains(block))
             && !(kind.operands().is_empty()
                 && kind.op_def().traits.contains(OpTraits::REMATERIALIZABLE))
     }
@@ -225,16 +268,13 @@ impl LoopOptimizer {
         inner: &Loop,
         closure: &[InstId],
         closure_set: &DenseBitSet<InstId>,
+        inst_blocks: &IndexVec<InstId, Option<BlockId>>,
     ) -> isize {
         let reads_outside_closure = |value: ValueId, block: BlockId| {
             let block = &func.blocks[block];
-            block
-                .instructions
-                .iter()
-                .filter(|&&inst_id| !closure_set.contains(inst_id))
-                .flat_map(|&inst_id| func.inst(inst_id).kind.operands())
-                .chain(block.terminator.iter().flat_map(Terminator::operands))
-                .any(|operand| operand == value)
+            block.instructions.iter().any(|&inst_id| {
+                !closure_set.contains(inst_id) && func.inst(inst_id).kind.reads(value)
+            }) || block.terminator.as_ref().is_some_and(|term| term.reads(value))
         };
         let mut delta = 0isize;
         for &inst_id in closure {
@@ -246,7 +286,7 @@ impl LoopOptimizer {
         }
         let mut released = DenseBitSet::new_empty(func.num_values());
         for operand in closure.iter().flat_map(|&inst_id| func.inst(inst_id).kind.operands()) {
-            if Self::is_carried_operand(func, inner, operand)
+            if Self::is_carried_operand(func, inner, inst_blocks, operand)
                 && !released.contains(operand)
                 && !inner.blocks.iter().any(|block| reads_outside_closure(operand, block))
             {
@@ -270,7 +310,7 @@ impl LoopOptimizer {
         carried: &mut FxHashMap<BlockId, usize>,
     ) {
         let Some(preheader) = loop_data.preheader else { return };
-        if self.loop_observes_gas(func, loop_data) {
+        if loop_data.invariant_insts.is_empty() || self.loop_observes_gas(func, loop_data) {
             return;
         }
 
@@ -284,13 +324,16 @@ impl LoopOptimizer {
                     && self.is_profitable_licm_root(func, inst_id, ctx)
             })
             .collect();
+        if roots.is_empty() {
+            return;
+        }
         roots.sort_unstable_by(|&a, &b| {
             self.licm_profit(func, b)
                 .cmp(&self.licm_profit(func, a))
                 .then_with(|| a.index().cmp(&b.index()))
         });
 
-        let inst_blocks = func.inst_blocks();
+        let inst_blocks = func.inst_block_table();
         let mut selected = DenseBitSet::new_empty(func.num_insts());
         let mut closure = Vec::new();
         let mut closure_set = DenseBitSet::new_empty(func.num_insts());
@@ -314,14 +357,17 @@ impl LoopOptimizer {
             for &inst_id in &closure {
                 closure_set.insert(inst_id);
             }
-            let Some(&root_block) = inst_blocks.get(&root) else { continue };
+            let Some(root_block) = inst_blocks.get(root).copied().flatten() else { continue };
             let nest = loops
                 .iter()
                 .filter(|inner| {
                     inner.blocks.contains(root_block) && loop_data.blocks.superset(&inner.blocks)
                 })
                 .map(|inner| {
-                    (inner.header, Self::carried_delta(func, inner, &closure, &closure_set))
+                    (
+                        inner.header,
+                        Self::carried_delta(func, inner, &closure, &closure_set, &inst_blocks),
+                    )
                 })
                 .collect::<Vec<_>>();
             if self.licm_profit(func, root) < self.min_licm_profit
@@ -1081,13 +1127,13 @@ impl LoopOptimizer {
             }
 
             let inst = func.inst(inst_id);
-            for operand in inst.kind.operands() {
+            inst.kind.visit_operands(|operand| {
                 if let Value::Inst(dep_inst) = func.value(operand)
                     && inst_set.contains(*dep_inst)
                 {
                     visit(func, *dep_inst, inst_set, visited, result);
                 }
-            }
+            });
             result.push(inst_id);
         }
 

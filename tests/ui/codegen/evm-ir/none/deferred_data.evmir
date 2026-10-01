@@ -1,0 +1,23 @@
+//@filecheck:
+// CHECK-LABEL: @module deferred
+// CHECK: child_0: creation_code "child.sol:Child"
+// CHECK: child_1: runtime_code "child.sol:Child"
+// CHECK: push_data_size child_0{{$}}
+// CHECK: push_data_size child_0, 63, aligned
+// CHECK: push_data child_0
+@module deferred
+@data
+  child_0: creation_code "child.sol:Child"
+  child_1: runtime_code "child.sol:Child"
+
+bb0:
+  push_data_size child_0
+  push_data_size child_0, 63, aligned
+  push_data child_0
+  push 0
+  codecopy
+  push_data_size child_1
+  push_data child_1
+  push 0
+  codecopy
+  stop

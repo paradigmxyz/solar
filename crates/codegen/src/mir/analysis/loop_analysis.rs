@@ -13,8 +13,10 @@ use crate::mir::{
 use smallvec::SmallVec;
 use solar_data_structures::{
     bit_set::DenseBitSet,
+    index::index_vec,
     map::{FxHashMap, FxIndexMap},
 };
+use std::rc::Rc;
 
 /// A natural loop in the control flow graph.
 #[derive(Clone, Debug)]
@@ -78,7 +80,7 @@ impl LoopInfo {
 /// Loop analyzer that detects and analyzes loops in MIR functions.
 #[derive(Debug, Default)]
 pub(crate) struct LoopAnalyzer {
-    cfg: Option<CfgInfo>,
+    cfg: Option<Rc<CfgInfo>>,
 }
 
 impl LoopAnalyzer {
@@ -94,33 +96,72 @@ impl LoopAnalyzer {
     }
 
     /// Analyzes loops in a function.
+    #[cfg(test)]
     pub(crate) fn analyze(&mut self, func: &Function) -> LoopInfo {
+        self.analyze_with_cfg(func, Rc::new(CfgInfo::new(func)))
+    }
+
+    /// Analyzes loops using a CFG snapshot of the current function.
+    pub(crate) fn analyze_with_cfg(&mut self, func: &Function, cfg: Rc<CfgInfo>) -> LoopInfo {
+        self.analyze_facts(func, cfg, true)
+    }
+
+    /// Analyzes loops without their invariant instructions.
+    pub(crate) fn analyze_trip_counts(&mut self, func: &Function) -> LoopInfo {
+        self.analyze_facts(func, Rc::new(CfgInfo::new(func)), false)
+    }
+
+    fn analyze_facts(&mut self, func: &Function, cfg: Rc<CfgInfo>, invariants: bool) -> LoopInfo {
+        let mut info = self.analyze_structure_with_cfg(func, cfg);
+        for loop_info in info.loops.values_mut() {
+            self.analyze_induction_vars(func, loop_info);
+            if invariants {
+                self.find_invariant_instructions(func, loop_info);
+            }
+            self.analyze_trip_count(func, loop_info);
+        }
+        info
+    }
+
+    /// Finds loop membership, exits, and preheaders.
+    /// Leaves induction variables, invariants, and trip counts unset.
+    pub(crate) fn analyze_structure(&mut self, func: &Function) -> LoopInfo {
+        self.analyze_structure_with_cfg(func, Rc::new(CfgInfo::new(func)))
+    }
+
+    fn analyze_structure_with_cfg(&mut self, func: &Function, cfg: Rc<CfgInfo>) -> LoopInfo {
         let mut info = LoopInfo::default();
-
-        self.cfg = Some(CfgInfo::new(func));
+        self.cfg = Some(cfg);
         let mut loops = self.find_natural_loops(func);
-
         loops.sort_unstable_by_key(|loop_info| loop_info.header.index());
-
         for mut loop_info in loops {
             self.find_exit_blocks(func, &mut loop_info);
             self.find_preheader(func, &mut loop_info);
-            self.analyze_induction_vars(func, &mut loop_info);
-            self.find_invariant_instructions(func, &mut loop_info);
-            self.analyze_trip_count(func, &mut loop_info);
-
             for block in &loop_info.blocks {
                 info.block_to_loop.insert(block, loop_info.header);
             }
             info.loops.insert(loop_info.header, loop_info);
         }
-
         info
     }
 
     fn find_natural_loops(&self, func: &Function) -> Vec<Loop> {
         let mut loops: FxHashMap<BlockId, Loop> = FxHashMap::default();
         let Some(cfg) = &self.cfg else { return Vec::new() };
+
+        // A back edge targets a dominator of its source, and a dominator precedes
+        // every block it dominates in reverse postorder. Without an edge to the
+        // same or an earlier position there are no loops, and no dominator tree to build.
+        let mut positions = index_vec![usize::MAX; cfg.num_blocks()];
+        for (position, &block_id) in cfg.rpo().iter().enumerate() {
+            positions[block_id] = position;
+        }
+        let has_retreating_edge = cfg.rpo().iter().any(|&block_id| {
+            cfg.successors(block_id).iter().any(|&succ| positions[succ] <= positions[block_id])
+        });
+        if !has_retreating_edge {
+            return Vec::new();
+        }
 
         for &block_id in cfg.rpo() {
             let block = &func.blocks[block_id];
@@ -299,7 +340,7 @@ impl LoopAnalyzer {
         }
         for block in &loop_info.blocks {
             for &inst_id in &func.blocks[block].instructions {
-                for operand in func.inst(inst_id).kind.operands() {
+                func.inst(inst_id).kind.visit_operands(|operand| {
                     if matches!(func.value(operand), Value::Immediate(_) | Value::Arg(_))
                         || matches!(
                             func.value(operand),
@@ -308,7 +349,7 @@ impl LoopAnalyzer {
                     {
                         invariant_values.insert(operand);
                     }
-                }
+                });
             }
         }
 
@@ -329,8 +370,9 @@ impl LoopAnalyzer {
                         continue;
                     }
 
-                    let operands = inst.kind.operands();
-                    if operands.iter().all(|&op| invariant_values.contains(op)) {
+                    let mut invariant = true;
+                    inst.kind.visit_operands(|op| invariant &= invariant_values.contains(op));
+                    if invariant {
                         loop_info.invariant_insts.insert(inst_id);
                         if let Some(result) = func.inst_result_value(inst_id) {
                             invariant_values.insert(result);

@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_struct_two_bytes.sol:StorageStructTwoBytes ===
 @module StorageStructTwoBytes
-types:
+@types
   struct0: {memorybytes, memorybytes}
 
 fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[memory_bytes, memory_bytes], abi_return_params=[bytes, bytes]] {

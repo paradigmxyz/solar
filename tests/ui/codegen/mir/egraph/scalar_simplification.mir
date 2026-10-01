@@ -6,7 +6,7 @@
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = shr 3, [[SHIFTED]]
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = and arg0, 15
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = mul arg0, arg0
-types:
+@types
   struct0: {i256, i256, i256, i256, i256}
   struct1: {i256, i256, i256, i256, i256, i256, i256, i256, i256, i1, i1, i256, i256, i256, i256, i256, i256, i256, i256, i256, i256}
   struct2: {i256, i256}
@@ -510,17 +510,6 @@ fn @cross_block_address_cast(arg0: i256) -> i1 {
     jump bb1
   bb1:
     v2 = call 100, v1, 0, 0, 0, 0, 0
-    ret v2
-}
-
-// CHECK-LABEL: fn @eof_address_cast
-// CHECK: {{^[ +].*}}[[CLEAN:v[0-9]+]] = zext i160
-// CHECK: {{^[ +].*}}{{v[0-9]+}} = extcall [[CLEAN]], 0, 0, 0
-fn @eof_address_cast(arg0: i256) -> i256 {
-  bb0:
-    v0 = trunc i256 arg0 to i160
-    v1 = zext i160 v0 to i256
-    v2 = extcall v1, 0, 0, 0
     ret v2
 }
 

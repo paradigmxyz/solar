@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/program-data/cross_artifact_data.sol:C ===
 @module C
-data:
+@data
   literal_0: hex"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
   literal_1: hex"11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111"
 
@@ -10,7 +10,7 @@ fn @constructor() [constructor] {
     set_memory_object_len memorybytes, v0, 224
     v1 = memory_object_data memorybytes, v0
     v2 = ptrtoint memptr v1 to i256
-    data_copy literal_0, v2, 224
+    datacopy literal_0, v2, 224
     v3 = abi_encode [memory_bytes], args v0
     v4 = slice_ptr v3
     v5 = slice_len v3
@@ -24,6 +24,6 @@ fn @runtimeData() -> memorybytes [selector=0x69ad4ffa, pure, abi_params=[], abi_
     set_memory_object_len memorybytes, v0, 160
     v1 = memory_object_data memorybytes, v0
     v2 = ptrtoint memptr v1 to i256
-    data_copy literal_1, v2, 160
+    datacopy literal_1, v2, 160
     ret v0
 }

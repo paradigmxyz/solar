@@ -1,0 +1,8 @@
+error: library `a.sol:L` is already declared
+   ╭▸ ROOT/tests/ui/codegen/mir/validation/parse_duplicate_library.mir:LL:CC
+   │
+LL │   L_1: "a.sol:L"
+   ╰╴  ━━━
+
+error: aborting due to 1 previous error
+

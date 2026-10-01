@@ -323,7 +323,7 @@ impl Symbol {
     #[inline]
     pub fn is_yul_builtin(self) -> bool {
         (self >= kw::Add && self <= kw::Xor)
-            || (self >= kw::Auxdataloadn && self <= kw::Setimmutable)
+            || (self >= kw::Datacopy && self <= kw::Setimmutable)
             || matches!(self, kw::Address | kw::Byte | kw::Return | kw::Revert)
     }
 
@@ -331,7 +331,7 @@ impl Symbol {
     #[inline]
     pub fn is_reserved_yul_builtin(self) -> bool {
         (self >= kw::Add && self <= kw::Xor)
-            || matches!(self, kw::Address | kw::Byte | kw::Clz | kw::Return | kw::Revert)
+            || matches!(self, kw::Address | kw::Byte | kw::Return | kw::Revert)
     }
 
     /// Returns `true` if the symbol is a Yul EVM builtin keyword reserved by `evm_version`.
@@ -626,6 +626,7 @@ pub mod kw {
 /// For example `sym::rustfmt` or `sym::u8`.
 pub mod sym {
     use super::Symbol;
+    use core::fmt::NumBuffer;
 
     #[doc(inline)]
     pub use super::sym_generated::*;
@@ -633,11 +634,12 @@ pub mod sym {
     /// Get the symbol for an integer.
     ///
     /// The first few non-negative integers each have a static symbol and therefore are fast.
-    pub fn integer<N: TryInto<usize> + Copy + itoa::Integer>(n: N) -> Symbol {
-        if let Ok(idx @ 0..=9) = n.try_into() {
-            return Symbol::new(super::SYMBOL_DIGITS_BASE + idx as u32);
+    pub fn integer<N: Into<u128>>(n: N) -> Symbol {
+        let n = n.into();
+        if n <= 9 {
+            return Symbol::new(super::SYMBOL_DIGITS_BASE + n as u32);
         }
-        Symbol::intern(itoa::Buffer::new().format(n))
+        Symbol::intern(n.format_into(&mut NumBuffer::new()))
     }
 }
 
@@ -886,6 +888,7 @@ symbols! {
         Caller:         "caller",
         Callvalue:      "callvalue",
         Chainid:        "chainid",
+        Clz:            "clz",
         Codecopy:       "codecopy",
         Codesize:       "codesize",
         Coinbase:       "coinbase",
@@ -949,19 +952,13 @@ symbols! {
         Tstore:         "tstore",
         Xor:            "xor",
 
-        Auxdataloadn:   "auxdataloadn",
-        Clz:            "clz",
+        // Yul object and compiler builtins, which are not reserved names.
         Datacopy:       "datacopy",
         Dataoffset:     "dataoffset",
         Datasize:       "datasize",
-        Eofcreate:      "eofcreate",
-        Extcall:        "extcall",
-        Extdelegatecall: "extdelegatecall",
-        Extstaticcall:   "extstaticcall",
         Linkersymbol:   "linkersymbol",
         Loadimmutable:  "loadimmutable",
         Memoryguard:    "memoryguard",
-        Returncontract: "returncontract",
         Setimmutable:   "setimmutable",
 
         // Experimental Solidity specific keywords.
@@ -1015,6 +1012,7 @@ symbols! {
         address_call,
         address_delegatecall,
         address_staticcall,
+        aligned,
         alloc,
         args,
         array,
@@ -1050,9 +1048,9 @@ symbols! {
         constructor_args_end,
         continuation,
         creationCode,
+        creation_code,
         custom_error,
         data,
-        data_copy,
         decode,
         decode_aggregate,
         decode_calldata_slice,
@@ -1137,6 +1135,7 @@ symbols! {
         keep_with_next,
         layout,
         length,
+        libraries,
         library_address,
         library_called_without_delegatecall,
         library_deploy_address,
@@ -1213,6 +1212,7 @@ symbols! {
         ptrtoint,
         push,
         push_data,
+        push_data_size,
         push_deferred,
         push_immutable,
         push_library,
@@ -1233,6 +1233,7 @@ symbols! {
         ripemd160,
         runtime,
         runtimeCode,
+        runtime_code,
         salt,
         scratch,
         select,
@@ -1336,6 +1337,26 @@ mod tests {
             assert_eq!(Symbol::DUMMY.to_string(), "");
             assert_eq!(Ident::DUMMY.as_str(), "");
             assert_eq!(Ident::DUMMY.to_string(), "");
+        });
+    }
+
+    #[test]
+    fn integer_symbols() {
+        crate::enter(|| {
+            for n in 0_u8..=9 {
+                assert_eq!(sym::integer(n), Symbol::new(SYMBOL_DIGITS_BASE + n as u32));
+            }
+            snapbox::assert_data_eq!(sym::integer(0_u8).as_str(), snapbox::str!["0"]);
+            snapbox::assert_data_eq!(sym::integer(9_u16).as_str(), snapbox::str!["9"]);
+            snapbox::assert_data_eq!(sym::integer(10_u32).as_str(), snapbox::str!["10"]);
+            snapbox::assert_data_eq!(
+                sym::integer(u64::MAX).as_str(),
+                snapbox::str!["18446744073709551615"]
+            );
+            snapbox::assert_data_eq!(
+                sym::integer(u128::MAX).as_str(),
+                snapbox::str!["340282366920938463463374607431768211455"]
+            );
         });
     }
 }

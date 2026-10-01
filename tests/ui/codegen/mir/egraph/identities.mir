@@ -1,7 +1,7 @@
 //@compile-flags: -Zmir-pipeline=egraph
 //@filecheck: --enable-var-scope
 @module Identities
-types:
+@types
   struct0: {i256, i256}
   struct1: {struct0, i256}
 

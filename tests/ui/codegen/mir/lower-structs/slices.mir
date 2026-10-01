@@ -4,7 +4,7 @@
 @module StructSlices
 @phase semantic
 
-types:
+@types
   struct0: {}
   struct1: {calldataslice, i256}
   struct2: {memoryslice, struct0, struct1, returndataslice}

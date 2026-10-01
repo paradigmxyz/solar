@@ -17,7 +17,7 @@
 use crate::mir::{
     BlockId, Function, InstId, InstKind, Module, StorageAlias, Terminator, ValueId,
     analysis::{Access, AddressSpace, AliasAnalysis, CfgInfo, Location, ModRef},
-    pass::{MirPass, run_function_pass_with_alias},
+    pass::{MirPass, run_selected_function_pass_with_alias_and_cfg},
     utils as mir_utils,
 };
 use solar_data_structures::{
@@ -41,11 +41,27 @@ impl MirPass for StorageDse {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        run_function_pass_with_alias(module, analyses, |func, analyses| {
-            let mut eliminator = StorageStoreEliminator::new();
-            eliminator.alias = Some(Rc::clone(analyses.alias()));
-            eliminator.run_to_fixpoint(func) != 0
-        })
+        let mut selected = DenseBitSet::new_empty(module.functions.len());
+        for (id, func) in module.functions.iter_enumerated() {
+            if func.instructions().any(|inst| matches!(func.inst(inst).kind, InstKind::SStore(..)))
+            {
+                selected.insert(id);
+            }
+        }
+        run_selected_function_pass_with_alias_and_cfg(
+            module,
+            analyses,
+            &selected,
+            |func, analyses| {
+                let mut eliminator = StorageStoreEliminator::new();
+                eliminator.alias = Some(Rc::clone(analyses.alias()));
+                let changed = eliminator.run_to_fixpoint(func) != 0;
+                if eliminator.annotated_aliases {
+                    analyses.note_unreported_edit();
+                }
+                changed
+            },
+        )
     }
 }
 
@@ -55,6 +71,8 @@ struct StorageStoreEliminator {
     /// Number of storage stores eliminated.
     eliminated_count: usize,
     alias: Option<Rc<AliasAnalysis>>,
+    /// Whether storage-alias annotation changed metadata, which is not reported as a change.
+    annotated_aliases: bool,
 }
 
 struct RunState {
@@ -76,7 +94,8 @@ impl StorageStoreEliminator {
 
     fn run_with_state(&mut self, func: &mut Function, state: &mut RunState) -> usize {
         self.eliminated_count = 0;
-        func.annotate_storage_aliases(mir_utils::StorageAliasScope::Storage);
+        self.annotated_aliases |=
+            func.annotate_storage_aliases(mir_utils::StorageAliasScope::Storage);
         if self.alias.is_none() {
             self.alias = Some(Rc::new(AliasAnalysis::new(func)));
         }

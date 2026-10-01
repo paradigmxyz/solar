@@ -2,9 +2,9 @@ use super::{Gcx, Recursiveness, print::TySolcPrinter};
 use crate::{builtins::Builtin, hir};
 use alloy_primitives::U256;
 use solar_ast::{DataLocation, ElementaryType, StateMutability, TypeSize};
-use solar_data_structures::{Interned, bit_set::GrowableBitSet, fmt};
+use solar_data_structures::{Interned, bit_set::GrowableBitSet};
 use solar_interface::diagnostics::ErrorGuaranteed;
-use std::{borrow::Borrow, hash::Hash, ops::ControlFlow};
+use std::{borrow::Borrow, fmt, hash::Hash, ops::ControlFlow};
 
 /// An interned type.
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
@@ -323,9 +323,15 @@ impl<'gcx> Ty<'gcx> {
     }
 
     /// Returns `true` if this type contains a non-public (internal/private) function type.
-    #[inline]
-    pub fn has_internal_function(self) -> bool {
-        self.flags.contains(TyFlags::HAS_INTERNAL_FN)
+    pub fn has_internal_function(self, gcx: Gcx<'gcx>) -> bool {
+        self.visit_with_structs(gcx, &mut |ty| {
+            if ty.flags.contains(TyFlags::HAS_INTERNAL_FN) {
+                ControlFlow::Break(())
+            } else {
+                ControlFlow::Continue(())
+            }
+        })
+        .is_break()
     }
 
     /// Returns `Err(guar)` if this type contains an error.
@@ -345,7 +351,7 @@ impl<'gcx> Ty<'gcx> {
     pub fn can_be_exported(self, gcx: Gcx<'gcx>) -> bool {
         !(self.is_recursive(gcx)
             || self.has_mapping(gcx)
-            || self.has_internal_function()
+            || self.has_internal_function(gcx)
             || self.references_error())
     }
 
@@ -442,7 +448,8 @@ impl<'gcx> Ty<'gcx> {
             | TyKind::Struct(_)
             | TyKind::Err(_) => ControlFlow::Continue(()),
 
-            TyKind::Ref(ty, _)
+            TyKind::CallOptions(ty)
+            | TyKind::Ref(ty, _)
             | TyKind::DynArray(ty)
             | TyKind::Array(ty, _)
             | TyKind::Slice(ty)
@@ -506,7 +513,8 @@ impl<'gcx> Ty<'gcx> {
             | TyKind::Variadic
             | TyKind::Err(_) => ControlFlow::Continue(()),
 
-            TyKind::Ref(ty, _)
+            TyKind::CallOptions(ty)
+            | TyKind::Ref(ty, _)
             | TyKind::DynArray(ty)
             | TyKind::Array(ty, _)
             | TyKind::Slice(ty)
@@ -788,7 +796,7 @@ impl<'gcx> Ty<'gcx> {
                 Ok(())
             }
             (StringLiteral(_, size_from), Elementary(FixedBytes(size_to))) => {
-                if size_from.bytes() <= size_to.bytes() {
+                if size_from.bytes_raw() <= size_to.bytes() {
                     Ok(())
                 } else {
                     Result::Err(TyConvertError::LiteralTooLarge)
@@ -1147,6 +1155,7 @@ impl<'gcx> Ty<'gcx> {
     #[doc(alias = "mobile_type")]
     pub fn mobile(self, gcx: Gcx<'gcx>) -> Option<Self> {
         Some(match self.kind {
+            TyKind::CallOptions(_) => return None,
             TyKind::IntLiteral(false, size, _) => gcx.types.uint_(size),
             TyKind::IntLiteral(true, size, _) => gcx.types.int_(size),
             TyKind::StringLiteral(..) => gcx.types.string_ref.memory,
@@ -1249,6 +1258,9 @@ pub enum TyKind<'gcx> {
     /// Any integer or fixed-point number literal.
     /// Contains `(negative, minimum bits, compatible fixed-bytes size)`.
     IntLiteral(bool, TypeSize, Option<TypeSize>),
+
+    /// An ephemeral function value with call options.
+    CallOptions(Ty<'gcx>),
 
     /// A reference to another type which lives in the data location.
     Ref(Ty<'gcx>, DataLocation),
@@ -1474,7 +1486,8 @@ impl TyFlags {
                 }
             }
 
-            TyKind::Ref(ty, _)
+            TyKind::CallOptions(ty)
+            | TyKind::Ref(ty, _)
             | TyKind::DynArray(ty)
             | TyKind::Array(ty, _)
             | TyKind::Slice(ty)

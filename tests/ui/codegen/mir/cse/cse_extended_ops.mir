@@ -8,7 +8,7 @@
 // CHECK: - {{v[0-9]+}} = signextend arg1, arg0
 // CHECK: - {{v[0-9]+}} = addmod arg1, arg0, 97
 // CHECK: - {{v[0-9]+}} = select arg2, arg0, arg1
-types:
+@types
   struct0: {i256, i256, i256, i256, i256, i1}
 
 fn @extended_pure_ops(arg0: i256, arg1: i256, arg2: i1) -> struct0 [return_abi=[i256, i256, i256, i256, i256, i1]] {

@@ -3,12 +3,28 @@
     {
       "sourceLocation": null,
       "secondarySourceLocations": [],
-      "type": "Exception",
+      "type": "Warning",
       "component": "general",
-      "severity": "error",
-      "errorCode": null,
-      "message": "JSON parse error: unknown field `verbose`, expected `revertStrings` or `debugInfo` at line 5 column 15",
-      "formattedMessage": "error: JSON parse error: unknown field `verbose`, expected `revertStrings` or `debugInfo` at line 5 column 15\n\n"
+      "severity": "warning",
+      "errorCode": "2264",
+      "message": "code generation is experimental",
+      "formattedMessage": "warning[2264]: code generation is experimental\n\n"
     }
-  ]
+  ],
+  "sources": {
+    "A.sol": {
+      "id": 0
+    }
+  },
+  "contracts": {
+    "A.sol": {
+      "A": {
+        "evm": {
+          "bytecode": {
+            "object": "34600d57603a8060115f395ff35b5f5ffd5f5ffdfea2646970667358221220bfeb5d83a0ea16c4bbb79fb4b1b3b150397f5308443b4d69dd6f2fb7481733e865736f6c6172430002000034"
+          }
+        }
+      }
+    }
+  }
 }

@@ -589,20 +589,21 @@ impl<'gcx, W: fmt::Write> HirPrinter<'gcx, W> {
                 self.print_expr(rhs)?;
                 self.out.write_char(')')?;
             }
-            ExprKind::Call(callee, args, opts) => {
+            ExprKind::Call(callee, args) => {
                 self.print_expr(callee)?;
-                if let Some(opts) = opts {
-                    self.out.write_str(" { ")?;
-                    for (i, arg) in opts.args.iter().enumerate() {
-                        if i != 0 {
-                            self.out.write_str(", ")?;
-                        }
-                        write!(self.out, "{}: ", arg.name)?;
-                        self.print_expr(&arg.value)?;
-                    }
-                    self.out.write_str(" }")?;
-                }
                 self.print_call_args(args)?;
+            }
+            ExprKind::CallOptions(callee, opts) => {
+                self.print_expr(callee)?;
+                self.out.write_str(" { ")?;
+                for (i, arg) in opts.args.iter().enumerate() {
+                    if i != 0 {
+                        self.out.write_str(", ")?;
+                    }
+                    write!(self.out, "{}: ", arg.name)?;
+                    self.print_expr(&arg.value)?;
+                }
+                self.out.write_str(" }")?;
             }
             ExprKind::Delete(expr) => {
                 self.out.write_str("delete ")?;
@@ -886,5 +887,5 @@ enum VarMode {
 }
 
 fn builtin_name(builtin: Builtin) -> impl fmt::Display {
-    solar_data_structures::fmt::from_fn(move |f| f.write_str(builtin.name().as_str()))
+    fmt::from_fn(move |f| f.write_str(builtin.name().as_str()))
 }

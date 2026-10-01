@@ -84,8 +84,8 @@ impl ImportEditPlan {
         self.by_file.is_empty()
     }
 
-    pub(crate) fn all_files(&self, predicate: impl FnMut(&Url) -> bool) -> bool {
-        self.by_file.keys().all(predicate)
+    pub(crate) fn files(&self) -> impl Iterator<Item = &Url> {
+        self.by_file.keys()
     }
 
     pub(crate) fn into_entries(self) -> impl Iterator<Item = (Url, PlannedImportEdits)> {

@@ -2,16 +2,12 @@
 //!
 //! Transformation pipelines follow rustc MIR's pass-manager shape: passes
 //! implement [`MirPass`] and pipelines are slices of trait-object references.
-//! Analyses retain their LLVM/MLIR-style cache: read-only `AnalysisPass`es
-//! produce results cached in an `AnalysisManager`.
+//! [`ModuleAnalyses`] caches per-function CFG and alias analyses and module
+//! call summaries between the passes of one pipeline run.
 //!
 //! # Usage
 //!
 //! ```ignore
-//! // Read-only analysis pipeline (codegen):
-//! let mut am = AnalysisManager::new();
-//! let liveness = am.get_or_compute(&LivenessAnalysis, &func);
-//!
 //! let changed = run_passes(
 //!     gcx,
 //!     &mut module,
@@ -22,18 +18,14 @@
 
 use crate::mir::{
     Function, FunctionId, InstId, MirPhase, Module,
-    analysis::{AliasAnalysis, CfgInfo, MemoryCallSummaries},
+    analysis::{AliasAnalysis, CfgInfo, LocalSummaryCache, MemoryCallSummaries},
     pass_manager::{mir_output_name, parse_pass_pipeline, print_pass_diff, run_passes_inner},
     transform::*,
 };
 use smallvec::SmallVec;
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 use solar_interface::diagnostics::ErrorGuaranteed;
-use std::{
-    any::{Any, TypeId},
-    rc::Rc,
-    sync::Arc,
-};
+use std::{any::TypeId, cell::Cell, rc::Rc, sync::Arc};
 
 pub use crate::mir::pass_manager::{MirPass, pipeline_label, run_passes, run_passes_no_validate};
 
@@ -400,12 +392,7 @@ static LOWERED_PIPELINE: &[&dyn MirPass] = &[
 /// `name` overrides the module name in pass output. The canonical pipeline advances the module
 /// through semantic optimization, representation conversion, and word optimization. Individual
 /// passes preserve the phase except the checked completion of `lower-evm-shaped`.
-#[tracing::instrument(
-    name = "mir_pipeline",
-    level = "debug",
-    skip_all,
-    fields(module = %module.name),
-)]
+#[tracing::instrument(name = "mir_pipeline", level = "debug", skip_all)]
 #[must_use]
 pub fn run_pipeline(gcx: solar_sema::Gcx<'_>, module: &mut Module, name: Option<&str>) -> bool {
     if let Some(value) = gcx.sess.opts.unstable.mir_pipeline.as_deref() {
@@ -454,29 +441,6 @@ pub fn run_pipeline(gcx: solar_sema::Gcx<'_>, module: &mut Module, name: Option<
     }
     changed |= run_passes_inner(gcx, module, LOWERED_PIPELINE, true, None).0;
     changed
-}
-
-/// A key identifying a particular analysis, derived from its result type.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-struct AnalysisKey(TypeId);
-
-impl AnalysisKey {
-    /// Creates a key from a type.
-    pub(crate) fn of<T: 'static>() -> Self {
-        Self(TypeId::of::<T>())
-    }
-}
-
-/// A read-only analysis pass.
-///
-/// Analysis passes inspect a function without modifying it and produce a
-/// cacheable result that downstream passes can query via [`AnalysisManager`].
-pub(crate) trait AnalysisPass {
-    /// The result type produced by this analysis.
-    type Result: 'static;
-
-    /// Computes the analysis result for the given function.
-    fn run(&self, func: &Function) -> Self::Result;
 }
 
 /// Runs a function-local transform over every bodied function in a module.
@@ -647,6 +611,8 @@ pub(crate) struct FunctionAnalyses {
     alias: Option<Rc<AliasAnalysis>>,
     /// Shared CFG snapshot; RPO, dominators, and reachability build lazily.
     cfg: Option<Rc<CfgInfo>>,
+    /// Whether the transform edited the body while reporting no change.
+    unreported_edit: Cell<bool>,
 }
 
 impl FunctionAnalyses {
@@ -658,6 +624,13 @@ impl FunctionAnalyses {
     /// Returns the CFG analysis requested by the running transform.
     pub(crate) fn cfg(&self) -> &Rc<CfgInfo> {
         self.cfg.as_ref().expect("function pass must request CFG analysis")
+    }
+
+    /// Records an edit that the transform does not report as a change, such as removing dead
+    /// instructions or annotating metadata, so the cached local memory summary drops the
+    /// function.
+    pub(crate) fn note_unreported_edit(&self) {
+        self.unreported_edit.set(true);
     }
 }
 
@@ -691,6 +664,8 @@ pub struct ModuleAnalyses {
     /// no change. Any intervening mutation of that body removes the entry.
     local_no_change: FxHashMap<TypeId, DenseBitSet<FunctionId>>,
     call_summaries: Option<Arc<MemoryCallSummaries>>,
+    /// Local summaries of the functions no pass has changed since the last summary build.
+    local_summaries: LocalSummaryCache,
     preserved_by_pass: bool,
     call_summaries_preserved: bool,
 }
@@ -712,6 +687,7 @@ impl ModuleAnalyses {
         }
         if !self.preserved_by_pass {
             self.invalidate_all();
+            self.local_summaries.clear();
         }
         if !self.call_summaries_preserved {
             self.call_summaries = None;
@@ -746,19 +722,29 @@ impl ModuleAnalyses {
     ) -> FunctionAnalyses {
         FunctionAnalyses {
             alias: requirements.alias().then(|| {
+                if let Some(alias) = self.alias.get(&func_id) {
+                    return Rc::clone(alias);
+                }
                 let summaries = self.call_summaries(module);
                 self.alias_with_summaries(func_id, summaries)
             }),
             cfg: requirements.cfg().then(|| self.cfg(func_id, &module.functions[func_id])),
+            unreported_edit: Cell::new(false),
         }
     }
 
     /// Returns the module call summaries, computing them on first use. A pass that changes
     /// the module drops them unless it calls [`Self::preserve_call_summaries`].
     pub(crate) fn call_summaries(&mut self, module: &Module) -> Arc<MemoryCallSummaries> {
-        Arc::clone(
-            self.call_summaries.get_or_insert_with(|| Arc::new(MemoryCallSummaries::new(module))),
-        )
+        Arc::clone(self.call_summaries.get_or_insert_with(|| {
+            Arc::new(MemoryCallSummaries::new_cached(module, &mut self.local_summaries))
+        }))
+    }
+
+    /// Drops every cached local memory summary after a module pass edited bodies without
+    /// reporting a change.
+    pub(crate) fn note_unreported_module_edit(&mut self) {
+        self.local_summaries.clear();
     }
 
     /// Declares that the running pass leaves the module call summaries valid.
@@ -796,6 +782,7 @@ impl ModuleAnalyses {
         changed: bool,
     ) {
         if changed {
+            self.local_summaries.invalidate(func_id);
             for cached in self.local_no_change.values_mut() {
                 if func_id.index() < cached.domain_size() {
                     cached.remove(func_id);
@@ -865,6 +852,9 @@ fn run_function_pass_cached(
     let func = &mut module.functions[func_id];
     let insts_before = func.num_insts();
     let changed = run(func, &bundle);
+    if bundle.unreported_edit.get() {
+        analyses.local_summaries.invalidate(func_id);
+    }
     if changed {
         if let Some(cfg) = &bundle.cfg {
             let (keep_alias, keep_cfg) = verified_preservation(func, cfg, insts_before);
@@ -875,49 +865,6 @@ fn run_function_pass_cached(
     }
     analyses.record_function_result(func_id, module.functions.len(), cache_key, changed);
     changed
-}
-
-/// Manages cached analysis results for a function.
-///
-/// Analyses are keyed by their result type via [`AnalysisKey`].
-#[derive(Default)]
-pub(crate) struct AnalysisManager {
-    results: FxHashMap<AnalysisKey, Box<dyn Any>>,
-}
-
-impl AnalysisManager {
-    /// Creates a new, empty analysis manager.
-    pub(crate) fn new() -> Self {
-        Self::default()
-    }
-
-    /// Returns the result of the analysis, computing and caching it if not already present.
-    ///
-    /// This is the recommended way to obtain analysis results, matching
-    /// LLVM's `AnalysisManager::getResult<AnalysisT>(F)` pattern.
-    pub(crate) fn get_or_compute<A: AnalysisPass>(
-        &mut self,
-        analysis: &A,
-        func: &Function,
-    ) -> &A::Result {
-        let key = AnalysisKey::of::<A::Result>();
-        self.results.entry(key).or_insert_with(|| {
-            let result = analysis.run(func);
-            Box::new(result)
-        });
-        self.results[&key].downcast_ref::<A::Result>().unwrap()
-    }
-}
-
-/// Liveness analysis pass.
-pub(crate) struct LivenessAnalysis;
-
-impl AnalysisPass for LivenessAnalysis {
-    type Result = crate::mir::analysis::Liveness;
-
-    fn run(&self, func: &Function) -> Self::Result {
-        crate::mir::analysis::Liveness::compute(func)
-    }
 }
 
 #[cfg(test)]

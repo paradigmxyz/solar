@@ -4,7 +4,7 @@ use serde::Serialize;
 use serde_json::{Map, Value};
 use solar_codegen::{
     ContractArtifact,
-    backend::evm::{DebugFunction, DebugFunctionExit, DebugInstruction},
+    backend::evm::{DebugFunction, DebugFunctionExit, DebugInstruction, op},
 };
 use solar_data_structures::map::{FxHashMap, FxHashSet};
 use solar_sema::{Gcx, hir::ContractId};
@@ -151,6 +151,7 @@ impl EthdebugCompilation {
     }
 }
 
+#[tracing::instrument(name = "ethdebug_compilation", level = "debug", skip_all)]
 pub(crate) fn make_ethdebug_compilation(
     gcx: Gcx<'_>,
     metadata_identity: Option<alloy_primitives::B256>,
@@ -218,7 +219,7 @@ pub(crate) fn make_ethdebug_compilation(
         append_length_prefixed(&mut identity, &source.language);
     }
     let digest = alloy_primitives::keccak256(identity.as_bytes());
-    let id = format!("solar-{}", alloy_primitives::hex::encode(digest.as_slice()));
+    let id = format!("solar-{}", alloy_primitives::hex::display(digest));
 
     EthdebugCompilation {
         id: EthdebugId::Text(id),
@@ -266,31 +267,28 @@ pub(crate) fn make_ethdebug_program(
         .ok()
         .map(|range| EthdebugRange { offset: range.start, length: range.end - range.start });
 
+    let mut previous = None;
     let instructions = debug_info
-        .iter()
-        .enumerate()
-        .map(|(index, instruction)| {
-            let mnemonic = solar_codegen::backend::evm::opcode_mnemonic(instruction.opcode)
+        .instructions(bytecode)
+        .map(|instruction| {
+            let mnemonic = op::mnemonic(instruction.opcode)
                 .expect("assembled opcode should have a mnemonic")
                 .to_ascii_uppercase();
-            let arguments = push_argument(bytecode, instruction)
+            let arguments = push_argument(bytecode, &instruction)
                 // NOTE: A library relocation is not a concrete operand. Omit it
                 // until linking, instead of exposing the backend's placeholder
                 // bytes as an address that can become stale after linking.
                 .filter(|_| !unlinked_arguments.contains(&(instruction.offset as usize + 1)))
-                .map(|argument| format!("0x{}", alloy_primitives::hex::encode(argument)))
+                .map(|argument| format!("0x{}", alloy_primitives::hex::display(argument)))
                 .into_iter()
                 .collect();
+            let context =
+                make_ethdebug_context(gcx, &source_ids, bytecode, previous.as_ref(), &instruction);
+            previous = Some(instruction);
             EthdebugInstruction {
                 offset: instruction.offset as usize,
                 operation: EthdebugOperation { mnemonic, arguments },
-                context: make_ethdebug_context(
-                    gcx,
-                    &source_ids,
-                    bytecode,
-                    debug_info.get(index.wrapping_sub(1)),
-                    instruction,
-                ),
+                context,
             }
         })
         .collect();
@@ -311,7 +309,7 @@ pub(crate) fn make_ethdebug_program(
     })
 }
 
-fn push_argument<'a>(bytecode: &'a [u8], instruction: &DebugInstruction) -> Option<&'a [u8]> {
+fn push_argument<'a>(bytecode: &'a [u8], instruction: &DebugInstruction<'_>) -> Option<&'a [u8]> {
     let width = instruction.opcode.checked_sub(0x5f)? as usize;
     if !(1..=32).contains(&width) {
         return None;
@@ -325,10 +323,11 @@ fn make_ethdebug_context(
     gcx: Gcx<'_>,
     source_ids: &FxHashMap<u32, u32>,
     bytecode: &[u8],
-    previous: Option<&DebugInstruction>,
-    instruction: &DebugInstruction,
+    previous: Option<&DebugInstruction<'_>>,
+    instruction: &DebugInstruction<'_>,
 ) -> Option<EthdebugContext> {
-    let mut contexts = instruction
+    let location = instruction.location;
+    let mut contexts = location
         .source_spans
         .iter()
         .filter_map(|&span| make_ethdebug_source_range(gcx, source_ids, span))
@@ -345,10 +344,10 @@ fn make_ethdebug_context(
         1 => (contexts.pop().and_then(|context| context.code), Vec::new()),
         _ => (None, contexts),
     };
-    let invoke = instruction.function_invoke.and_then(|function| {
+    let invoke = location.function_invoke.and_then(|function| {
         make_ethdebug_function_invoke(gcx, source_ids, bytecode, previous, function, instruction)
     });
-    let (r#return, revert) = match (instruction.function_exit, instruction.opcode) {
+    let (r#return, revert) = match (location.function_exit, instruction.opcode) {
         (Some(DebugFunctionExit::Return), 0x00 | 0x56 | 0x57 | 0xf3) => {
             (Some(EthdebugFunctionExit {}), None)
         }
@@ -371,9 +370,9 @@ fn make_ethdebug_function_invoke(
     gcx: Gcx<'_>,
     source_ids: &FxHashMap<u32, u32>,
     bytecode: &[u8],
-    previous: Option<&DebugInstruction>,
+    previous: Option<&DebugInstruction<'_>>,
     function: DebugFunction,
-    instruction: &DebugInstruction,
+    instruction: &DebugInstruction<'_>,
 ) -> Option<EthdebugFunctionInvoke> {
     // NOTE: Constructors, entry labels, dynamic jumps, and optimized fallthroughs
     // are not statically identified internal calls. Leave their invocation

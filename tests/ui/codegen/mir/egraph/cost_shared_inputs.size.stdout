@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/egraph/cost_shared_inputs.mir (before egraph) ===
 + // === ROOT/tests/ui/codegen/mir/egraph/cost_shared_inputs.mir (after egraph) ===
   @module SharedInputCosts
-  types:
+  @types
     struct0: {i256, i256}
     struct1: {i256, i256, i256}
   
@@ -52,7 +52,7 @@
 - // === ROOT/tests/ui/codegen/mir/egraph/cost_shared_inputs.mir (before dce) ===
 + // === ROOT/tests/ui/codegen/mir/egraph/cost_shared_inputs.mir (after dce) ===
   @module SharedInputCosts
-  types:
+  @types
     struct0: {i256, i256}
     struct1: {i256, i256, i256}
   

@@ -54,6 +54,11 @@ from replay import main as replay_main
 from replay import replay_query, replay_report
 from verify import main
 
+# These tests check proof results, not solver performance. Leave headroom for
+# slower CI runners; timeout behavior is tested separately with controlled clocks.
+PROOF_TIMEOUT_MS = 30_000
+PARTITION_TIMEOUT_MS = 120_000
+
 
 def expression(op, *args):
     return Expr(op, tuple(Expr.const(a) if isinstance(a, int) else a for a in args))
@@ -197,15 +202,15 @@ class StackProofTests(unittest.TestCase):
 
     def test_wrong_depth_and_opcode_have_replayed_counterexamples(self):
         for source in (
-            "(rule (peep_nonpush (last2 (dup 2) (swap 1))) (rewrite 2 (Edit.Keep 1)))",
-            "(rule (peep_nonpush (last2 (opcode $NOT) (opcode $NOT))) (rewrite 2 (Edit.OverwriteOne $ISZERO)))",
+            "(rule (peep_swap (last2 (dup 2) (swap 1))) (rewrite 2 (Edit.Keep 1)))",
+            "(rule (peep_op (last2 (opcode $NOT) (opcode $NOT))) (rewrite 2 (Edit.OverwriteOne $ISZERO)))",
         ):
             result = self.verify(source)["rules"][0]
             self.assertEqual(result["status"], "counterexample")
             self.assertTrue(result["variants"][0]["replayed"])
 
     def test_equality_shuffle_requires_symmetric_operands(self):
-        correct = "(rule (peep_nonpush (unprotected_last5 (opcode $DUP2) (opcode $EQ) (opcode $ISZERO) (opcode $SWAP1) (opcode $POP))) (rewrite 5 (Edit.RemoveFirstKeepTwo)))"
+        correct = "(rule (peep_pop (unprotected_last5 (opcode $DUP2) (opcode $EQ) (opcode $ISZERO) (opcode $SWAP1) (opcode $POP))) (rewrite 5 (Edit.RemoveFirstKeepTwo)))"
         self.assertEqual(self.verify(correct)["rules"][0]["status"], "proved")
         wrong = correct.replace("$DUP2", "$DUP1")
         result = self.verify(wrong)["rules"][0]
@@ -214,9 +219,10 @@ class StackProofTests(unittest.TestCase):
 
     def test_unknown_effect_and_changed_extent_fail_closed(self):
         for source in (
-            "(rule (peep_nonpush (last2 (opcode $MLOAD) (pop))) (rewrite 2 (Edit.Keep 0)))",
-            "(rule (peep_nonpush (last2 (dup 1) (pop))) (rewrite 3 (Edit.Keep 0)))",
-            "(rule (peep_nonpush (last2 (dup 1) (pop))) (rewrite 2 (Edit.Unknown)))",
+            "(rule (peep_pop (last2 (opcode $MLOAD) (pop))) (rewrite 2 (Edit.Keep 0)))",
+            "(rule (peep_pop (last2 (dup 1) (pop))) (rewrite 3 (Edit.Keep 0)))",
+            "(rule (peep_pop (last2 (dup 1) (pop))) (rewrite 2 (Edit.Unknown)))",
+            "(rule (peep_op (last2 (dup 1) (pop))) (rewrite 2 (Edit.Keep 0)))",
         ):
             self.assertEqual(self.verify(source)["rules"][0]["status"], "unsupported")
 
@@ -476,8 +482,8 @@ class SemanticsTests(unittest.TestCase):
     def test_multiple_indices_remain_independent(self):
         x, a, b = map(Expr.var, ("x", "a", "b"))
         lhs = expression("signextend", a, expression("shl", b, x))
-        result, queries = partition_shift(lhs, lhs, [], 5000, Model())
-        self.assertEqual(result["status"], "proved")
+        result, queries = partition_shift(lhs, lhs, [], PARTITION_TIMEOUT_MS, Model())
+        self.assertEqual(result["status"], "proved", result)
         # The 31 concrete byte indices leave b symbolic. Only the identity
         # tail splits b into 256 concrete counts and its full saturating range.
         self.assertEqual((result["cases"], len(queries)), (288, 289))
@@ -486,7 +492,7 @@ class SemanticsTests(unittest.TestCase):
         self.assertIn('"a"', queries[-1][1])
         self.assertIn('"b"', queries[-1][1])
         wrong = expression("signextend", a, expression("shl", a, x))
-        result, _ = partition_shift(lhs, wrong, [], 5000, Model())
+        result, _ = partition_shift(lhs, wrong, [], PARTITION_TIMEOUT_MS, Model())
         self.assertEqual(result["status"], "counterexample")
         self.assertNotEqual(result["inputs"]["a"], result["inputs"]["b"])
         self.assertTrue(result["replayed"])
@@ -1356,10 +1362,12 @@ class RuleTests(unittest.TestCase):
             with self.subTest(rule=rule.form):
                 cx = Context()
                 lhs, rhs = cx.obligation(rule)
-                result, query = check(lhs, rhs, cx.assumptions, 10000, cx.model)
+                result, query = check(
+                    lhs, rhs, cx.assumptions, PROOF_TIMEOUT_MS, cx.model
+                )
                 if result["status"] == "unknown" and query:
                     result, _ = partition_shift(
-                        lhs, rhs, cx.assumptions, 30000, cx.model
+                        lhs, rhs, cx.assumptions, PARTITION_TIMEOUT_MS, cx.model
                     )
                 self.assertEqual(result["status"], "proved", result)
 
@@ -1433,7 +1441,7 @@ class RuleTests(unittest.TestCase):
         self.assertEqual(len(rules), 1)
         cx = Context()
         lhs, rhs = cx.obligation(rules[0])
-        result, _ = check(lhs, rhs, cx.assumptions, 5000, cx.model)
+        result, _ = check(lhs, rhs, cx.assumptions, PROOF_TIMEOUT_MS, cx.model)
         self.assertEqual(result["status"], "proved", result)
 
     def test_shift_cancellation_requires_a_lossless_input(self):
@@ -2015,7 +2023,7 @@ class SolverFallbackTests(unittest.TestCase):
             if form[0] == "rule" and uses_clz(form)
         ]
         self.assertGreaterEqual(len(rules), 10)
-        fallback = Cvc5(timeout_ms=1000)
+        fallback = Cvc5(timeout_ms=PROOF_TIMEOUT_MS)
         for rule in rules:
             with self.subTest(line=rule.line):
                 cx = Context()
@@ -2023,7 +2031,8 @@ class SolverFallbackTests(unittest.TestCase):
                 result, query = check(lhs, rhs, cx.assumptions, 1000, cx.model)
                 self.assertIn(result["status"], ("proved", "unknown"), result)
                 self.assertTrue(query)
-                self.assertEqual(fallback.solve(query)["status"], "unsat")
+                replay = fallback.solve(query)
+                self.assertEqual(replay["status"], "unsat", (rule.line, replay))
 
     @unittest.skipUnless(
         shutil.which("cvc5"), "cvc5 is optional for local verifier tests"
@@ -2045,8 +2054,8 @@ class SolverFallbackTests(unittest.TestCase):
             for form, line in forms(read_egraph_source())
             if form[0] == "rule" and selected(form)
         ]
-        self.assertEqual(len(rules), 7)
-        fallback = Cvc5(timeout_ms=1000)
+        self.assertEqual(len(rules), 8)
+        fallback = Cvc5(timeout_ms=PROOF_TIMEOUT_MS)
         for rule in rules:
             cx = Context()
             lhs, rhs = cx.obligation(rule)

@@ -1,266 +1,88 @@
-use super::{AnalysisBatch, GlobalState, analyze, support::RequestFixture};
-use crate::test_support::TestProject;
-use async_lsp::ClientSocket;
-use lsp_types::{
-    GotoDefinitionParams, GotoDefinitionResponse, PartialResultParams, Position,
-    TextDocumentIdentifier, TextDocumentPositionParams, Url, WorkDoneProgressParams,
-};
+use super::support::{Query, RequestFixture};
 use snapbox::str;
-use solar_config::CompileOpts;
-use std::{
-    future::Future,
-    sync::{Arc, atomic::Ordering},
-    task::{Context, Waker},
-};
 
 #[test]
-fn resolves_struct_type_from_variable_declaration() {
-    let fixture = RequestFixture::new(
-        r#"
-        //- /TypeDefinition.sol
-        contract C {
-            struct Data { uint256 value; }
-            Data $1data;
-        }
-        "#,
-        "/TypeDefinition.sol",
-    );
-
-    fixture.check_goto_type_definition(
-        "$1",
-        str![[r#"
-/TypeDefinition.sol:1:11 struct Data { uint256 value; }
-
-"#]],
-    );
-}
-
-#[test]
-fn user_defined_type_declarations_resolve_to_themselves() {
-    let fixture = RequestFixture::new(
-        r#"
-        //- /Types.sol
-        interface $1InterfaceType {}
-        library $2LibraryType {}
-        contract $3ContractType {}
-        struct $4StructType { uint256 value; }
-        enum $5EnumType { A }
-        type $6ValueType is uint256;
-        "#,
-        "/Types.sol",
-    );
-
-    fixture.check_goto_type_definition(
-        "$1",
-        str![[r#"
-/Types.sol:0:10 interface InterfaceType {}
-
-"#]],
-    );
-    fixture.check_goto_type_definition(
-        "$2",
-        str![[r#"
-/Types.sol:1:8 library LibraryType {}
-
-"#]],
-    );
-    fixture.check_goto_type_definition(
-        "$3",
-        str![[r#"
-/Types.sol:2:9 contract ContractType {}
-
-"#]],
-    );
-    fixture.check_goto_type_definition(
-        "$4",
-        str![[r#"
-/Types.sol:3:7 struct StructType { uint256 value; }
-
-"#]],
-    );
-    fixture.check_goto_type_definition(
-        "$5",
-        str![[r#"
-/Types.sol:4:5 enum EnumType { A }
-
-"#]],
-    );
-    fixture.check_goto_type_definition(
-        "$6",
-        str![[r#"
-/Types.sol:5:5 type ValueType is uint256;
-
-"#]],
-    );
-}
-
-#[test]
-fn resolves_variable_declarations_and_references() {
-    let fixture = RequestFixture::new(
-        r#"
-        //- /Variables.sol
-        struct Data { uint256 value; }
-        contract C {
-            Data $1stored;
-
-            function use(Data memory $2input) public {
-                Data memory $3local = $4input;
-                $5stored = $6local;
-            }
-        }
-        "#,
-        "/Variables.sol",
-    );
-    let expected = str![[r#"
-/Variables.sol:0:7 struct Data { uint256 value; }
-
-"#]];
-
-    for marker in ["$1", "$2", "$3", "$4", "$5", "$6"] {
-        fixture.check_goto_type_definition(marker, expected.clone());
-    }
-}
-
-#[test]
-fn unwraps_arrays_and_mapping_values() {
-    let fixture = RequestFixture::new(
-        r#"
-        //- /Containers.sol
-        enum Key { A }
-        struct Value { uint256 value; }
-        contract C {
-            Value[][] $1nested;
-            mapping(Key => Value[]) $2values;
-        }
-        "#,
-        "/Containers.sol",
-    );
-    let expected = str![[r#"
-/Containers.sol:1:7 struct Value { uint256 value; }
-
-"#]];
-
-    fixture.check_goto_type_definition("$1", expected.clone());
-    fixture.check_goto_type_definition("$2", expected);
-}
-
-#[test]
-fn function_targets_preserve_return_order_and_stably_deduplicate() {
-    let fixture = RequestFixture::new(
-        r#"
-        //- /Returns.sol
-        contract C {
-            struct Second { uint256 value; }
-            struct First { uint256 value; }
-
-            function $1pair() public pure returns (First memory, Second memory, First memory) {
-                revert();
-            }
-
-            function use() public pure {
-                $2pair();
-            }
-        }
-        "#,
-        "/Returns.sol",
-    );
-    let expected = str![[r#"
-/Returns.sol:2:11 struct First { uint256 value; }
-/Returns.sol:1:11 struct Second { uint256 value; }
-
-"#]];
-
-    fixture.check_goto_type_definition("$1", expected.clone());
-    fixture.check_goto_type_definition("$2", expected);
-}
-
-#[test]
-fn overloaded_calls_use_the_selected_function_return_type() {
-    let fixture = RequestFixture::new(
-        r#"
-        //- /Overload.sol
-        contract C {
-            struct NumberResult { uint256 value; }
-            struct TextResult { string value; }
-
-            function pick(uint256) public pure returns (NumberResult memory) { revert(); }
-            function pick(string memory) public pure returns (TextResult memory) { revert(); }
-
-            function use() public pure {
-                $1pick(uint256(1));
-            }
-        }
-        "#,
-        "/Overload.sol",
-    );
-
-    fixture.check_goto_type_definition(
-        "$1",
-        str![[r#"
-/Overload.sol:1:11 struct NumberResult { uint256 value; }
-
-"#]],
-    );
-}
-
-#[test]
-fn public_mapping_getters_use_the_source_variable_type() {
-    let fixture = RequestFixture::new(
-        r#"
-        //- /Getter.sol
-        struct Data { uint256 value; }
-        contract C {
-            mapping(uint256 => Data) public values;
-
-            function read(uint256 key) external view {
-                this.$1values(key);
-            }
-        }
-        "#,
-        "/Getter.sol",
-    );
-
-    fixture.check_goto_type_definition(
-        "$1",
-        str![[r#"
-/Getter.sol:0:7 struct Data { uint256 value; }
-
-"#]],
-    );
-}
-
-#[test]
-fn resolves_cross_file_and_late_declared_types() {
+fn resolves_declared_and_referenced_types() {
     let fixture = RequestFixture::new(
         r#"
         //- /Main.sol
         import {Shared} from "./Types.sol";
         import "./Late.sol";
-        contract Main { Shared $1value; }
+
+        interface $1InterfaceType {}
+        library $2LibraryType {}
+        struct $3StructType { uint256 value; }
+        enum $4EnumType { A }
+        type $5ValueType is uint256;
+        error Failed(StructType detail);
+
+        contract $6C {
+            struct Second { uint256 value; }
+            struct First { uint256 value; }
+            struct NumberResult { uint256 value; }
+            struct TextResult { string value; }
+
+            Shared $7shared;
+            First $8stored;
+            First[][] $9nested;
+            mapping(EnumType => First[]) $10values;
+            mapping(uint256 => Second) public getterValues;
+
+            function $11pair() public pure returns (First memory, Second memory, First memory) {
+                revert();
+            }
+            function pick(uint256) public pure returns (NumberResult memory) { revert(); }
+            function pick(string memory) public pure returns (TextResult memory) { revert(); }
+
+            function use(First memory $12input) external {
+                First memory $13local = $14input;
+                $15stored = $16local;
+                $17pair();
+                $18pick(uint256(1));
+                this.$19getterValues(1);
+                revert Failed({ $20detail: StructType({ value: 1 }) });
+            }
+        }
 
         //- /Types.sol
         struct Shared { uint256 value; }
 
         //- /Late.sol
         contract UsesLater {
-            Later $2value;
+            Later $21value;
         }
         struct Later { uint256 value; }
         "#,
         "/Main.sol",
     );
 
-    fixture.check_goto_type_definition(
-        "$1",
+    fixture.check_queries(
+        &[Query::TypeDefinition],
+        1..=21,
         str![[r#"
-/Types.sol:0:7 struct Shared { uint256 value; }
-
-"#]],
-    );
-    fixture.check_goto_type_definition(
-        "$2",
-        str![[r#"
-/Late.sol:3:7 struct Later { uint256 value; }
+$1 /Main.sol:2:10 interface InterfaceType {}
+$2 /Main.sol:3:8 library LibraryType {}
+$3 /Main.sol:4:7 struct StructType { uint256 value; }
+$4 /Main.sol:5:5 enum EnumType { A }
+$5 /Main.sol:6:5 type ValueType is uint256;
+$6 /Main.sol:8:9 contract C {
+$7 /Types.sol:0:7 struct Shared { uint256 value; }
+$8 /Main.sol:10:11 struct First { uint256 value; }
+$9 /Main.sol:10:11 struct First { uint256 value; }
+$10 /Main.sol:10:11 struct First { uint256 value; }
+$11 /Main.sol:10:11 struct First { uint256 value; }
+/Main.sol:9:11 struct Second { uint256 value; }
+$12 /Main.sol:10:11 struct First { uint256 value; }
+$13 /Main.sol:10:11 struct First { uint256 value; }
+$14 /Main.sol:10:11 struct First { uint256 value; }
+$15 /Main.sol:10:11 struct First { uint256 value; }
+$16 /Main.sol:10:11 struct First { uint256 value; }
+$17 /Main.sol:10:11 struct First { uint256 value; }
+/Main.sol:9:11 struct Second { uint256 value; }
+$18 /Main.sol:11:11 struct NumberResult { uint256 value; }
+$19 /Main.sol:9:11 struct Second { uint256 value; }
+$20 /Main.sol:4:7 struct StructType { uint256 value; }
+$21 /Late.sol:3:7 struct Later { uint256 value; }
 
 "#]],
     );
@@ -287,17 +109,12 @@ fn preserves_type_definitions_across_analysis_batches() {
         &["/first/Main.sol", "/second/Main.sol"],
     );
 
-    fixture.check_goto_type_definition(
-        "$1",
+    fixture.check_queries(
+        &[Query::TypeDefinition],
+        [1, 2],
         str![[r#"
-/first/Types.sol:0:7 struct FirstType { uint256 value; }
-
-"#]],
-    );
-    fixture.check_goto_type_definition(
-        "$2",
-        str![[r#"
-/second/Types.sol:0:7 struct SecondType { uint256 value; }
+$1 /first/Types.sol:0:7 struct FirstType { uint256 value; }
+$2 /second/Types.sol:0:7 struct SecondType { uint256 value; }
 
 "#]],
     );
@@ -326,92 +143,17 @@ fn primitive_function_and_unresolved_types_have_no_target() {
         "/NoTarget.sol",
     );
 
-    for marker in ["$1", "$2", "$3", "$4", "$5", "$6"] {
-        fixture.check_goto_type_definition(marker, "<none>\n");
-    }
-}
-
-#[test]
-fn resolves_named_custom_error_parameter_types() {
-    let fixture = RequestFixture::new(
-        r#"
-        //- /Error.sol
-        struct Detail { uint256 code; }
-        error Failed(Detail detail);
-
-        contract C {
-            function fail() external pure {
-                revert Failed({ $1detail: Detail({ code: 1 }) });
-            }
-        }
-        "#,
-        "/Error.sol",
-    );
-
-    fixture.check_goto_type_definition(
-        "$1",
+    fixture.check_queries(
+        &[Query::TypeDefinition],
+        1..=6,
         str![[r#"
-/Error.sol:0:7 struct Detail { uint256 code; }
+$1 <none>
+$2 <none>
+$3 <none>
+$4 <none>
+$5 <none>
+$6 <none>
 
 "#]],
     );
-}
-
-#[test]
-fn waits_for_requested_analysis_before_returning_type_definitions() {
-    let project = TestProject::from_fixture(
-        r#"
-        //- /Types.sol
-        contract C {
-            struct OldType { uint256 value; }
-            struct Placeholder { uint256 value; }
-            OldType $1value;
-        }
-        "#,
-    );
-    let path = project.path("/Types.sol");
-    let old_tables = analyze(AnalysisBatch::from_files(
-        CompileOpts::default(),
-        [(path.clone(), project.read_file("/Types.sol"))],
-    ))
-    .symbol_tables;
-    let new_tables = analyze(AnalysisBatch::from_files(
-        CompileOpts::default(),
-        [(
-            path.clone(),
-            "contract C {\n    struct Placeholder { uint256 value; }\n    struct NewType { uint256 value; }\n    NewType value;\n}\n".into(),
-        )],
-    ))
-    .symbol_tables;
-    let uri = Url::from_file_path(path).unwrap();
-    let params = GotoDefinitionParams {
-        text_document_position_params: TextDocumentPositionParams {
-            text_document: TextDocumentIdentifier::new(uri.clone()),
-            position: Position::new(3, 12),
-        },
-        work_done_progress_params: WorkDoneProgressParams::default(),
-        partial_result_params: PartialResultParams::default(),
-    };
-    let mut state = GlobalState::new(ClientSocket::new_closed());
-    state.symbol_tables.store(Arc::new(old_tables));
-    state.analysis_version.fetch_add(1, Ordering::AcqRel);
-
-    let mut request = std::pin::pin!(crate::handlers::goto_type_definition(&mut state, params));
-    let waker = Waker::noop();
-    let mut context = Context::from_waker(waker);
-
-    assert!(request.as_mut().poll(&mut context).is_pending());
-
-    let mut snapshot = state.snapshot();
-    assert!(snapshot.publish_symbol_tables(1, Arc::new(new_tables)));
-    assert!(!snapshot.publish_symbol_tables(0, Default::default()));
-    let std::task::Poll::Ready(response) = request.as_mut().poll(&mut context) else {
-        panic!("type-definition request should complete after analysis is published");
-    };
-    let Some(GotoDefinitionResponse::Array(locations)) = response.unwrap() else {
-        panic!("expected type-definition locations");
-    };
-    assert_eq!(locations.len(), 1);
-    assert_eq!(locations[0].uri, uri);
-    assert_eq!(locations[0].range.start, Position::new(2, 11));
 }

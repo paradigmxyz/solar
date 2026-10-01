@@ -42,8 +42,8 @@ fn @getFlag() -> i256 [selector=0xf9633930, view, abi_params=[], abi_returns=[wo
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_internal_arguments.sol:ConstructorInternalArguments ===
 @module ConstructorInternalArguments
-data:
-  ConstructorInternalArgumentsHelper_initcode_0: hex"61014938038061014960e03960e001601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe01660405234151560d75760e08060c0528060c05260e0610149380301604082011160d3578060c0528060c0525160181b151560d357602060c0510151600290101560d3577fffffff000000000000000000000000000000000000000000000000000000000060e051165f5462ffffff19811690508160e81c9150175f5560e060200151151560ff60181b5f5481199150168191508160181b9150175f5560db565b5f5ffd5b5f5ffd5b60648060e55f395ff3341515602a575f3560e01c806317d7de7c146026578063f963393014602257602a565b6049565b602e565b5f5ffd5b5f5462ffffff901660e81b6080526020608001608090036080f35b5f5460181c60ff901615156080526020608001608090036080f3"
+@data
+  ConstructorInternalArgumentsHelper_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/constructor_internal_arguments.sol:ConstructorInternalArgumentsHelper"
 
 fn @constructor() [constructor] {
   bb0:
@@ -53,30 +53,31 @@ fn @constructor() [constructor] {
     v3 = eq v2, false
     v4 = zext i1 v3 to i256
     v5 = abi_encode [word<bytes3>, word<bool>], args v0, v4
-    v6 = not 31
-    v7 = and 424, v6
-    v8 = alloc raw, exact, uninitialized, infallible, v7
-    v9 = ptrtoint memptr v8 to i256
-    data_copy ConstructorInternalArgumentsHelper_initcode_0, v9, 329
-    v10 = slice_ptr v5
-    v11 = ptrtoint memptr v8 to i256
-    v12 = add v11, 329
-    mcopy v12, v10, 64 !metadata(memory=heap)
-    v13 = ptrtoint memptr v8 to i256
-    v14 = create 0, v13, 393
-    v15 = zext i160 v14 to i256
-    v16 = ne v15, 0
-    jumpi v16, bb2, bb1
+    v6 = datasize ConstructorInternalArgumentsHelper_creation_code_0
+    v7 = datasize ConstructorInternalArgumentsHelper_creation_code_0, 64
+    v8 = datasize ConstructorInternalArgumentsHelper_creation_code_0, 95, aligned
+    v9 = alloc raw, exact, uninitialized, infallible, v8
+    v10 = ptrtoint memptr v9 to i256
+    datacopy ConstructorInternalArgumentsHelper_creation_code_0, v10, v6
+    v11 = slice_ptr v5
+    v12 = ptrtoint memptr v9 to i256
+    v13 = add v12, v6
+    mcopy v13, v11, 64 !metadata(memory=heap)
+    v14 = ptrtoint memptr v9 to i256
+    v15 = create 0, v14, v7
+    v16 = zext i160 v15 to i256
+    v17 = ne v16, 0
+    jumpi v17, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v17 = sload 0 !metadata(storage=slot(0))
-    v18 = not 0xffffffffffffffffffffffffffffffffffffffff
-    v19 = and v17, v18
-    v20 = zext i160 v14 to i256
-    v21 = and v20, 0xffffffffffffffffffffffffffffffffffffffff
-    v22 = or v19, v21
-    sstore 0, v22 !metadata(storage=slot(0))
+    v18 = sload 0 !metadata(storage=slot(0))
+    v19 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v20 = and v18, v19
+    v21 = zext i160 v15 to i256
+    v22 = and v21, 0xffffffffffffffffffffffffffffffffffffffff
+    v23 = or v20, v22
+    sstore 0, v23 !metadata(storage=slot(0))
     ret
 }
 

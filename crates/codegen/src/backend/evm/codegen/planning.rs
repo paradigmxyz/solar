@@ -29,7 +29,7 @@
 //! rejoins; a partial trial cannot be compared with a longer baseline.
 
 use super::{
-    EvmCodegen, OperandPlan, ScheduleCost,
+    EvmCodegen, OperandPlan, ScheduleCost, StackScheduler,
     select::{self, OpcodeLowering},
 };
 use crate::{
@@ -194,28 +194,42 @@ impl EvmCodegen<'_> {
             return false;
         }
         let target = Target::new(self.gcx);
-        if let Some(old) = self.binary_window(func, current, result, liveness, block, index)
-            && let Some(new) = self.binary_window(func, candidate, result, liveness, block, index)
+        if let Some((old_scheduler, old_cost)) =
+            self.binary_window_start(current, result, liveness, block, index)
+            && let Some((new_scheduler, new_cost)) =
+                self.binary_window_start(candidate, result, liveness, block, index)
         {
-            for (old, new) in old.iter().zip(&new).rev() {
-                if old.layout == new.layout {
-                    return target.cmp(new.cost, old.cost).is_lt();
+            if old_scheduler.stack.iter().eq(new_scheduler.stack.iter()) {
+                // Window planning reads only the stack, so equal stacks plan equal windows
+                // whose costs differ only by the starting cost.
+                let windows =
+                    self.binary_window(func, old_scheduler, Cost::ZERO, liveness, block, index);
+                if let Some(window) = windows.last() {
+                    return target.cmp(new_cost + window.cost, old_cost + window.cost).is_lt();
+                }
+            } else {
+                let old = self.binary_window(func, old_scheduler, old_cost, liveness, block, index);
+                let new = self.binary_window(func, new_scheduler, new_cost, liveness, block, index);
+                for (old, new) in old.iter().zip(&new).rev() {
+                    if old.layout == new.layout {
+                        return target.cmp(new.cost, old.cost).is_lt();
+                    }
                 }
             }
         }
         candidate.cost().cmp_for(current.cost(), target.optimization()).is_lt()
     }
 
-    #[allow(clippy::too_many_arguments)]
-    fn binary_window(
+    /// Applies `first` and the binary operation it prepares to a copy of the scheduler,
+    /// returning the copy and the cost so far, or `None` when no window applies.
+    fn binary_window_start(
         &self,
-        func: &Function,
         first: &OperandPlan,
         result: Option<ValueId>,
         liveness: &Liveness,
         block: BlockId,
         index: usize,
-    ) -> Option<SmallVec<[WindowPlan; 2]>> {
+    ) -> Option<(StackScheduler, Cost)> {
         if self.global_stack_active
             || self.scheduler.stack.depth() > 8
             || !self.global_stack_aliases.is_empty()
@@ -236,6 +250,20 @@ impl EvmCodegen<'_> {
         for op in scheduler.drop_dead_values(liveness, block, index) {
             cost += ScheduleCost::stack_op(op, target.evm_version()).target_cost();
         }
+        Some((scheduler, cost))
+    }
+
+    /// Plans the next two instructions from `scheduler`, accumulating onto `cost`.
+    fn binary_window(
+        &self,
+        func: &Function,
+        mut scheduler: StackScheduler,
+        mut cost: Cost,
+        liveness: &Liveness,
+        block: BlockId,
+        index: usize,
+    ) -> SmallVec<[WindowPlan; 2]> {
+        let target = Target::new(self.gcx);
         let mut windows = SmallVec::new();
         for (offset, &inst) in
             func.blocks[block].instructions[index + 1..].iter().take(2).enumerate()
@@ -313,6 +341,6 @@ impl EvmCodegen<'_> {
             }
             windows.push(WindowPlan { cost, layout: scheduler.stack.iter().collect() });
         }
-        (!windows.is_empty()).then_some(windows)
+        windows
     }
 }

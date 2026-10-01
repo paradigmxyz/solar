@@ -802,6 +802,7 @@ impl Instruction {
             | InstKind::ExtCodeCopy(..)
             | InstKind::ExtCodeHash(..)
             | InstKind::LibraryAddress(..)
+            | InstKind::DataSize(..)
             | InstKind::LoadImmutable(..)
             | InstKind::ReturnDataSize
             | InstKind::ReturnDataCopy(..)
@@ -829,9 +830,6 @@ impl Instruction {
             | InstKind::CallCode { .. }
             | InstKind::StaticCall { .. }
             | InstKind::DelegateCall { .. }
-            | InstKind::ExtCall { .. }
-            | InstKind::ExtDelegateCall { .. }
-            | InstKind::ExtStaticCall { .. }
             | InstKind::ICall { function: Callee::Function(_), .. }
             | InstKind::Create(..)
             | InstKind::Create2(..)
@@ -874,6 +872,11 @@ impl Instruction {
     #[must_use]
     pub(crate) fn operands(&self) -> SmallVec<[ValueId; 8]> {
         self.kind.operands()
+    }
+
+    /// Visits the operands of this instruction in canonical order, without collecting them.
+    pub(crate) fn visit_operands(&self, f: impl FnMut(ValueId)) {
+        self.kind.visit_operands(f);
     }
 
     /// Replaces an operation with an equivalent one, preserving its result and provenance.
@@ -941,16 +944,15 @@ impl InstKind {
     /// Checks scalar operation contracts without applying implicit conversions.
     pub(crate) fn scalar_types_match(&self, func: &Function, result: Option<MirType>) -> bool {
         let ty = |value| func.value_ty(value);
-        let expected = self.operand_types(func);
-        if let Some(expected) = expected
-            && (expected.len() != self.operands().len()
-                || self
-                    .operands()
-                    .iter()
-                    .zip(expected)
-                    .any(|(&value, expected)| ty(value) != Some(expected)))
-        {
-            return false;
+        if let Some(expected) = self.operand_types(func) {
+            let mut expected = expected.into_iter();
+            let mut matches = true;
+            self.visit_operands(|value| {
+                matches &= expected.next().is_some_and(|expected| ty(value) == Some(expected));
+            });
+            if !matches || expected.next().is_some() {
+                return false;
+            }
         }
         match *self {
             Self::Eq(a, b) | Self::Ne(a, b) => {
@@ -1060,6 +1062,21 @@ impl InstKind {
         let mut out = SmallVec::new();
         self.collect_operands(&mut out);
         out
+    }
+
+    /// Returns whether `value` is an operand of this instruction, without collecting them.
+    #[must_use]
+    pub(crate) fn reads(&self, value: ValueId) -> bool {
+        self.any_operand(|operand| operand == value)
+    }
+
+    /// Returns whether any operand of this instruction satisfies `predicate`, without collecting
+    /// them.
+    #[must_use]
+    pub(crate) fn any_operand(&self, mut predicate: impl FnMut(ValueId) -> bool) -> bool {
+        let mut found = false;
+        self.visit_operands(|operand| found = found || predicate(operand));
+        found
     }
 
     /// Returns the mnemonic for this instruction.

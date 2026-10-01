@@ -79,6 +79,12 @@
 ;; a < a => false.
 (rule 6 (simplify (Op.Lt a a)) (imm_bool false))
 
+;; a + c < a => false.
+;; Requires: a < -c, so the sum cannot wrap.
+(rule 4 (simplify (Op.Lt (add a (iconst c)) a))
+    (if-let true (below_const a (u256_neg c)))
+    (imm_bool false))
+
 ;; _ < 0 => false.
 (rule 5 (simplify (Op.Lt _ (zero))) (imm_bool false))
 

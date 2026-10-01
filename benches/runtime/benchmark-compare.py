@@ -29,8 +29,8 @@ PERF_SITE_URL = "https://www.getfoundry.sh/perf/solar/"
 METRICS = {
     "total_gas": "runtime gas",
     "runtime_size": "runtime bytes",
+    "deploy_gas": "creation gas",
     "bytecode_size": "creation bytes",
-    "deploy_gas": "deployment gas",
     "compile_time_seconds": "compile seconds",
     "peak_rss_bytes": "peak RSS bytes",
 }
@@ -770,7 +770,7 @@ def baseline_regression_details(
             and solar_deploy_gas > base_solar_deploy_gas
         ):
             details.append(
-                f"{test_id} solar deployment gas regressed vs previous Solar run: "
+                f"{test_id} solar creation gas regressed vs previous Solar run: "
                 f"{base_solar_deploy_gas:,} -> {solar_deploy_gas:,} "
                 f"({absolute_delta(solar_deploy_gas, base_solar_deploy_gas)}, "
                 f"{pct_increase(solar_deploy_gas, base_solar_deploy_gas)} worse)"
@@ -961,7 +961,7 @@ def perf_link(
     head = os.environ.get("BENCHMARK_PR_HEAD_SHA")
     if not base or not head:
         return label
-    query = {"base": base[:8], "head": head[:8]}
+    query = {"base": base, "head": head}
     if benchmark is not None:
         query["benchmark"] = benchmark
         section = "artifacts"
@@ -1174,8 +1174,8 @@ def comparison_has_changes(
                 for metric in (
                     "total_gas",
                     "runtime_size",
-                    "bytecode_size",
                     "deploy_gas",
+                    "bytecode_size",
                 )
             )
             or any(call["delta"] not in (None, 0) for call in row["gas_calls"])
@@ -1605,7 +1605,7 @@ def pr_comment(
             else f"No significant benchmark changes against `{base_ref}`."
         )
         lines.extend(["", "### Overview", "", "| Metric | Change |", "| --- | ---: |"])
-        metrics = ("total_gas", "runtime_size", "bytecode_size")
+        metrics = ("total_gas", "runtime_size", "deploy_gas", "bytecode_size")
         for name in metrics:
             values = comparison["summary"][name]
             change = (
@@ -1634,8 +1634,8 @@ def pr_comment(
                     "",
                     f"### Changed benchmarks vs `{base_ref}`",
                     "",
-                    "| Benchmark | Runtime gas | Runtime bytes | Creation bytes |",
-                    "| --- | ---: | ---: | ---: |",
+                    "| Benchmark | Runtime gas | Runtime bytes | Creation gas | Creation bytes |",
+                    "| --- | ---: | ---: | ---: | ---: |",
                     *changed,
                 ]
             )
@@ -1710,15 +1710,15 @@ def common_benchmark(
         benchmark["gas"] = gas
 
     compiler_metrics = {}
-    creation_sizes = complete_values("bytecode_size")
     runtime_sizes = complete_values("runtime_size")
-    if creation_sizes is not None:
-        compiler_metrics["creation_bytecode_size"] = metric(
-            sum(creation_sizes), "byte", "total"
-        )
+    creation_sizes = complete_values("bytecode_size")
     if runtime_sizes is not None:
         compiler_metrics["runtime_bytecode_size"] = metric(
             sum(runtime_sizes), "byte", "total"
+        )
+    if creation_sizes is not None:
+        compiler_metrics["creation_bytecode_size"] = metric(
+            sum(creation_sizes), "byte", "total"
         )
     if compiler_metrics:
         benchmark["compiler"] = compiler_metrics
@@ -1823,7 +1823,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--tests", nargs="+", help="Select test IDs from either run")
     parser.add_argument(
-        "--compiler", choices=("solar", "solc", "solx"), default="solar"
+        "--compiler", choices=("solar", "solc", "solx", "oksolc"), default="solar"
     )
     parser.add_argument(
         "--comment-output", type=Path, help="Write CI should-comment metadata"
@@ -1921,7 +1921,7 @@ def main(argv: list[str] | None = None) -> int:
         parser.error(str(error))
     emit_warnings(results, [])
     for row in comparison["rows"]:
-        for name in ("total_gas", "runtime_size", "bytecode_size", "deploy_gas"):
+        for name in ("total_gas", "runtime_size", "deploy_gas", "bytecode_size"):
             values = row["metrics"][name]
             if values["delta"] is not None and values["delta"] > 0:
                 warning(

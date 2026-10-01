@@ -7,6 +7,11 @@
 //@ run-call: accumulate 7, 11, 64 => 42375
 //@ run-call: accumulate 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 1, 1 => 0
 
+//@ run-call: orderedSuffix [1, 2, 3, 4] => 3
+//@ run-call: orderedSuffix [4, 3, 2, 1] => 0
+//@ run-call: orderedSuffix [3, 1, 2, 4] => 2
+//@ run-call: orderedSuffix [7] => 0
+
 contract LoopBoundResident {
     // CHECK-LABEL: @module LoopBoundResident_runtime
     // The header duplicates both the resident bound and the current counter.
@@ -21,5 +26,22 @@ contract LoopBoundResident {
             }
         }
         return x;
+    }
+}
+
+contract ScanLoop {
+    // CHECK-LABEL: @module ScanLoop_runtime
+    // CHECK: {{bb[0-9]+}} [loop]:
+    // CHECK: mload
+    function orderedSuffix(uint256[] memory values) external pure returns (uint256 result) {
+        assembly {
+            let end := add(values, shl(5, mload(values)))
+            let cursor := end
+            for {} gt(cursor, add(values, 32)) {} {
+                if gt(mload(sub(cursor, 32)), mload(cursor)) { break }
+                cursor := sub(cursor, 32)
+            }
+            result := shr(5, sub(end, cursor))
+        }
     }
 }

@@ -3,6 +3,7 @@
 // CHECK: "file": "Bad.sol"
 // CHECK: "severity": "error"
 // CHECK: "type": "Exception"
+// CHECK: "sources": {}
 // CHECK-NOT: "contracts"
 {
   "language": "Solidity",

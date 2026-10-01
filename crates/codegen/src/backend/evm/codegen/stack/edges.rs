@@ -6,9 +6,8 @@
 //! constants and existing stack words retain the ordinary union layout.
 
 use super::super::{
-    BlockId, EvmCodegen, Function, FxHashMap, GLOBAL_STACK_LAYOUT_LIMIT, GlobalStackPlan,
-    MAX_STACK_ACCESS, StackModel, StackPhiBranch, StackPhiEdge, TargetSlot, Terminator, ValueId,
-    op,
+    BlockId, EvmCodegen, Function, FxHashMap, GlobalStackPlan, StackModel, StackPhiBranch,
+    StackPhiEdge, TargetSlot, Terminator, ValueId, op,
 };
 
 impl<'gcx> EvmCodegen<'gcx> {
@@ -25,7 +24,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         term: &Terminator,
         layout: &[ValueId],
     ) -> bool {
-        if layout.is_empty() || layout.len() > GLOBAL_STACK_LAYOUT_LIMIT {
+        if layout.is_empty() || layout.len() >= self.stack_access_limit() {
             return false;
         }
 
@@ -80,7 +79,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         else_layout: &[ValueId],
     ) -> Option<Vec<ValueId>> {
         let union = Self::global_branch_union(then_layout, else_layout);
-        if union.is_empty() || union.len() > GLOBAL_STACK_LAYOUT_LIMIT {
+        if union.is_empty() || union.len() >= self.stack_access_limit() {
             return None;
         }
         let mut needed = Vec::with_capacity(union.len() + 1);
@@ -246,7 +245,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     ) -> bool {
         if edge.sources.len() != edge.results.len()
             || edge.sources.is_empty()
-            || edge.sources.len() > MAX_STACK_ACCESS
+            || edge.sources.len() > self.stack_access_limit()
         {
             return false;
         }
@@ -288,14 +287,14 @@ impl<'gcx> EvmCodegen<'gcx> {
     ) -> bool {
         if edge.sources.len() != edge.results.len()
             || edge.sources.is_empty()
-            || edge.sources.len() > MAX_STACK_ACCESS
+            || edge.sources.len() > self.stack_access_limit()
         {
             return false;
         }
 
         let present =
             Self::stack_phi_source_counts_after_trim(&self.scheduler.stack, &edge.sources);
-        if present.len() > MAX_STACK_ACCESS {
+        if present.len() > self.stack_access_limit() {
             return false;
         }
 
@@ -327,7 +326,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         branch: &StackPhiBranch,
     ) -> bool {
         !branch.union.is_empty()
-            && branch.union.len() <= MAX_STACK_ACCESS
+            && branch.union.len() <= self.stack_access_limit()
             && self.can_emit_stack_phi_value(func, condition)
             && self.can_prepare_stack_phi_branch_edge(func, &branch.then_edge)
             && self.can_prepare_stack_phi_branch_edge(func, &branch.else_edge)

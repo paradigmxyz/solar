@@ -52,12 +52,17 @@
 use crate::mir::{
     ArithmeticKind, BlockId, CheckedOp, Function, Immediate, InstId, InstKind, Instruction,
     MemoryRegion, MirType, Module, Terminator, Value, ValueId,
-    analysis::{AffineTerm, AliasAnalysis, InductionVariable, Loop, LoopAnalyzer, ScalarEvolution},
-    pass::{MirPass, run_function_pass_with_alias},
+    analysis::{
+        AffineTerm, AliasAnalysis, CfgInfo, InductionVariable, Loop, LoopAnalyzer, ScalarEvolution,
+    },
+    pass::{MirPass, run_selected_function_pass_with_alias_and_cfg},
     utils as mir_utils,
 };
 use alloy_primitives::U256;
-use solar_data_structures::map::{FxHashMap, FxHashSet};
+use solar_data_structures::{
+    bit_set::DenseBitSet,
+    map::{FxHashMap, FxHashSet},
+};
 use std::rc::Rc;
 
 /// Function pass for induction-variable simplification and strength reduction.
@@ -74,9 +79,30 @@ impl MirPass for IndVarSimplify {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        run_function_pass_with_alias(module, analyses, |func, analyses| {
-            IndVarSimplifier::new(Rc::clone(analyses.alias())).run(func).total() != 0
-        })
+        let mut selected = DenseBitSet::new_empty(module.functions.len());
+        for (id, func) in module.functions.iter_enumerated() {
+            if !func.blocks.is_empty() && !analyses.cfg(id, func).cyclic_blocks().is_empty() {
+                selected.insert(id);
+            }
+        }
+        run_selected_function_pass_with_alias_and_cfg(
+            module,
+            analyses,
+            &selected,
+            |func, analyses| {
+                let insts = func.num_insts();
+                let changed = IndVarSimplifier::new(Rc::clone(analyses.alias()))
+                    .run(func, Rc::clone(analyses.cfg()))
+                    .total()
+                    != 0;
+                // NOTE: A pointer phi that fails to materialize leaves the instructions it
+                // already inserted in place without reporting a change.
+                if !changed && func.num_insts() != insts {
+                    analyses.note_unreported_edit();
+                }
+                changed
+            },
+        )
     }
 }
 
@@ -157,11 +183,11 @@ impl IndVarSimplifier {
     }
 
     /// Runs induction-variable simplification once over `func`.
-    fn run(&mut self, func: &mut Function) -> &IndVarSimplifyStats {
+    fn run(&mut self, func: &mut Function, cfg: Rc<CfgInfo>) -> &IndVarSimplifyStats {
         self.stats = IndVarSimplifyStats::default();
 
         let mut analyzer = LoopAnalyzer::new();
-        let loop_info = analyzer.analyze(func);
+        let loop_info = analyzer.analyze_with_cfg(func, cfg);
         let loops: Vec<_> = loop_info.loops.values().cloned().collect();
 
         for loop_data in loops {
@@ -399,21 +425,21 @@ impl IndVarSimplifier {
     fn remove_dead_address_arithmetic(&self, func: &mut Function, loop_data: &Loop) {
         let mut uses = FxHashMap::<ValueId, usize>::default();
         for block in &func.blocks {
-            for operand in block
-                .instructions
-                .iter()
-                .flat_map(|&inst_id| func.inst(inst_id).kind.operands())
-                .chain(block.terminator.iter().flat_map(Terminator::operands))
-            {
-                *uses.entry(operand).or_default() += 1;
+            for &inst_id in &block.instructions {
+                func.inst(inst_id)
+                    .kind
+                    .visit_operands(|operand| *uses.entry(operand).or_default() += 1);
+            }
+            if let Some(term) = &block.terminator {
+                term.visit_operands(|operand| *uses.entry(operand).or_default() += 1);
             }
         }
-        let in_loop = |func: &Function, inst_id: InstId| {
-            loop_data.blocks.iter().any(|block| func.blocks[block].instructions.contains(&inst_id))
-        };
+        // The loop's instructions, less those removed below.
+        let mut in_loop = DenseBitSet::new_empty(func.num_insts());
         let mut pending = Vec::new();
         for block in loop_data.blocks.iter() {
             for &inst_id in &func.blocks[block].instructions {
+                in_loop.insert(inst_id);
                 if Self::is_address_builder(&func.inst(inst_id).kind)
                     && func
                         .inst_result_value(inst_id)
@@ -423,21 +449,24 @@ impl IndVarSimplifier {
                 }
             }
         }
+        let mut removed = false;
         while let Some(inst_id) = pending.pop() {
-            let operands = func.inst(inst_id).kind.operands();
-            for block in loop_data.blocks.iter() {
-                func.blocks[block].instructions.retain(|&other| other != inst_id);
-            }
-            for operand in operands {
-                let Some(count) = uses.get_mut(&operand) else { continue };
+            removed |= in_loop.remove(inst_id);
+            func.inst(inst_id).kind.visit_operands(|operand| {
+                let Some(count) = uses.get_mut(&operand) else { return };
                 *count = count.saturating_sub(1);
                 if *count == 0
                     && let Value::Inst(definer) = *func.value(operand)
-                    && in_loop(func, definer)
+                    && in_loop.contains(definer)
                     && Self::is_address_builder(&func.inst(definer).kind)
                 {
                     pending.push(definer);
                 }
+            });
+        }
+        if removed {
+            for block in loop_data.blocks.iter() {
+                func.blocks[block].instructions.retain(|&inst_id| in_loop.contains(inst_id));
             }
         }
     }
@@ -486,27 +515,28 @@ impl IndVarSimplifier {
         update: Option<InstId>,
         addresses: &FxHashSet<ValueId>,
     ) -> bool {
-        let mut pending = vec![iv];
-        let mut visited = FxHashSet::default();
+        let mut pending = Vec::new();
+        pending.push(iv);
+        let mut visited = DenseBitSet::new_empty(func.num_values());
         while let Some(value) = pending.pop() {
             if !visited.insert(value) {
                 continue;
             }
-            for (block_id, block) in func.blocks.iter_enumerated() {
-                let in_loop = loop_data.blocks.contains(block_id);
-                if block.terminator.as_ref().is_some_and(|term| term.operands().contains(&value)) {
+            for block_id in loop_data.blocks.iter() {
+                let block = &func.blocks[block_id];
+                if block.terminator.as_ref().is_some_and(|term| term.reads(value)) {
                     return false;
                 }
                 for &inst_id in &block.instructions {
                     let inst = func.inst(inst_id);
-                    if !inst.kind.operands().contains(&value) {
+                    if !inst.kind.reads(value) {
                         continue;
                     }
                     if inst_id == condition || Some(inst_id) == update {
                         continue;
                     }
                     let Some(result) = func.inst_result_value(inst_id) else { return false };
-                    if !in_loop || matches!(inst.kind, InstKind::Phi(_)) {
+                    if matches!(inst.kind, InstKind::Phi(_)) {
                         return false;
                     }
                     if addresses.contains(&result) {
@@ -519,7 +549,19 @@ impl IndVarSimplifier {
                 }
             }
         }
-        true
+        // Outside the loop, only the exit test and the update may read any of them.
+        func.blocks
+            .iter_enumerated()
+            .filter(|&(block_id, _)| !loop_data.blocks.contains(block_id))
+            .all(|(_, block)| {
+                let read = |operand| visited.contains(operand);
+                !block.terminator.as_ref().is_some_and(|term| term.any_operand(read))
+                    && !block.instructions.iter().any(|&inst_id| {
+                        inst_id != condition
+                            && Some(inst_id) != update
+                            && func.inst(inst_id).kind.any_operand(read)
+                    })
+            })
     }
 
     /// Removes the counter phi and its update once nothing else reads either: the plain
@@ -536,10 +578,11 @@ impl IndVarSimplifier {
         let Some(next) = func.inst_result_value(update) else { return };
         let read_elsewhere = |value: ValueId, except: InstId| {
             func.blocks.iter().any(|block| {
-                block.terminator.as_ref().is_some_and(|term| term.operands().contains(&value))
-                    || block.instructions.iter().any(|&inst_id| {
-                        inst_id != except && func.inst(inst_id).kind.operands().contains(&value)
-                    })
+                block.terminator.as_ref().is_some_and(|term| term.reads(value))
+                    || block
+                        .instructions
+                        .iter()
+                        .any(|&inst_id| inst_id != except && func.inst(inst_id).kind.reads(value))
             })
         };
         if read_elsewhere(counter, update) || read_elsewhere(next, phi) {
@@ -682,7 +725,13 @@ impl IndVarSimplifier {
             .iter()
             .filter(|&&inst_id| matches!(func.inst(inst_id).kind, InstKind::Phi(_)))
             .count();
-        let mut seen = FxHashSet::default();
+        let mut defined_inside = DenseBitSet::new_empty(func.num_insts());
+        for block in loop_data.blocks.iter() {
+            for &inst in &func.blocks[block].instructions {
+                defined_inside.insert(inst);
+            }
+        }
+        let mut seen = DenseBitSet::new_empty(func.num_values());
         for block in loop_data.blocks.iter() {
             let block = &func.blocks[block];
             for operand in block
@@ -693,11 +742,7 @@ impl IndVarSimplifier {
                 .chain(block.terminator.iter().flat_map(Terminator::operands))
             {
                 let Value::Inst(inst_id) = func.value(operand) else { continue };
-                let defined_inside = loop_data
-                    .blocks
-                    .iter()
-                    .any(|block| func.blocks[block].instructions.contains(inst_id));
-                if !defined_inside && seen.insert(operand) {
+                if !defined_inside.contains(*inst_id) && seen.insert(operand) {
                     count += 1;
                 }
             }
@@ -905,15 +950,11 @@ impl IndVarSimplifier {
         for block in &loop_data.blocks {
             for &inst_id in &func.blocks[block].instructions {
                 let kind = &func.inst(inst_id).kind;
-                if kind.operands().contains(&value) && !Self::is_address_builder(kind) {
+                if kind.reads(value) && !Self::is_address_builder(kind) {
                     return true;
                 }
             }
-            if func.blocks[block]
-                .terminator
-                .as_ref()
-                .is_some_and(|term| term.operands().contains(&value))
-            {
+            if func.blocks[block].terminator.as_ref().is_some_and(|term| term.reads(value)) {
                 return true;
             }
         }

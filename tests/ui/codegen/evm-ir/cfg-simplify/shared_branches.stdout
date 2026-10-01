@@ -35,11 +35,12 @@
 +   jumpi bb7, bb8 !metadata(invoke=callee@10..20)
   bb5:
     push 1
-    push bb7
+-   push bb7
 -   jump bb6
 - bb6:
-    jumpi
-    jump bb8
+-   jumpi
+-   jump bb8
++   jumpi bb7, bb8
   bb7:
     stop
   bb8:

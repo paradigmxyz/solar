@@ -6,14 +6,16 @@ use super::{
     utils,
 };
 use alloy_primitives::U256;
+use smallvec::SmallVec;
 use solar_data_structures::{
     bit_set::DenseBitSet,
-    fmt::{self, FmtIteratorExt},
+    fmt::FmtIteratorExt,
     index::IndexVec,
     map::{FxHashMap, StdEntry},
 };
 use solar_interface::{Ident, Span, Symbol};
 use solar_sema::hir::{StateMutability, Visibility};
+use std::fmt;
 
 /// A function in the MIR.
 #[derive(Clone, Debug)]
@@ -286,14 +288,7 @@ impl Function {
     /// Each instruction yields its operands followed by its result, if any. Terminator operands
     /// follow the instructions in their block. A value is yielded once for every occurrence.
     pub(crate) fn live_values(&self) -> impl Iterator<Item = ValueId> + '_ {
-        self.blocks.iter().flat_map(|block| {
-            let instructions = block.instructions.iter().flat_map(|&inst_id| {
-                let inst = self.inst(inst_id);
-                inst.operands().into_iter().chain(inst.result())
-            });
-            let terminator = block.terminator.iter().flat_map(|term| term.operands());
-            instructions.chain(terminator)
-        })
+        LiveValues { func: self, block: BlockId::ENTRY, inst: 0, values: SmallVec::new(), next: 0 }
     }
 
     /// Reuses one value identity for active uses of each exactly equal immediate.
@@ -429,16 +424,16 @@ impl Function {
         inst_blocks
     }
 
-    /// Returns predecessors with duplicate CFG edges collapsed.
+    /// Returns the block containing each placed instruction, indexed by instruction.
     #[must_use]
-    pub(crate) fn unique_predecessors(&self, block: BlockId) -> Vec<BlockId> {
-        let mut predecessors = Vec::new();
-        for &pred in &self.blocks[block].predecessors {
-            if !predecessors.contains(&pred) {
-                predecessors.push(pred);
+    pub(crate) fn inst_block_table(&self) -> IndexVec<InstId, Option<BlockId>> {
+        let mut inst_blocks = IndexVec::from_vec(vec![None; self.instructions.len()]);
+        for (block_id, block) in self.blocks.iter_enumerated() {
+            for &inst_id in &block.instructions {
+                inst_blocks[inst_id] = Some(block_id);
             }
         }
-        predecessors
+        inst_blocks
     }
 
     /// Returns true if the block contains any phi instruction.
@@ -600,9 +595,14 @@ impl Function {
         }
     }
 
-    /// Annotates storage-alias metadata for state-access instructions.
-    pub(crate) fn annotate_storage_aliases(&mut self, scope: super::utils::StorageAliasScope) {
+    /// Annotates storage-alias metadata for state-access instructions and returns whether any
+    /// metadata changed.
+    pub(crate) fn annotate_storage_aliases(
+        &mut self,
+        scope: super::utils::StorageAliasScope,
+    ) -> bool {
         let inst_ids: Vec<_> = self.instructions().collect();
+        let mut changed = false;
         for inst_id in inst_ids {
             let slot = match self.inst(inst_id).kind {
                 InstKind::SLoad(slot) | InstKind::SStore(slot, _) => Some(slot),
@@ -614,8 +614,11 @@ impl Function {
                 _ => None,
             };
             let alias = slot.map(|slot| StorageAlias::for_value(self, slot));
-            self.inst_mut(inst_id).metadata.set_storage_alias(alias);
+            let metadata = &mut self.inst_mut(inst_id).metadata;
+            changed |= metadata.storage_alias() != alias;
+            metadata.set_storage_alias(alias);
         }
+        changed
     }
 
     /// Returns stored storage-alias metadata, or computes a conservative alias key.
@@ -648,6 +651,43 @@ impl Function {
     #[must_use]
     pub(crate) fn is_public(&self) -> bool {
         matches!(self.attributes.visibility, Visibility::Public | Visibility::External)
+    }
+}
+
+/// Iterator for [`Function::live_values`], refilling one buffer per instruction or terminator.
+struct LiveValues<'a> {
+    func: &'a Function,
+    block: BlockId,
+    inst: usize,
+    values: SmallVec<[ValueId; 8]>,
+    next: usize,
+}
+
+impl Iterator for LiveValues<'_> {
+    type Item = ValueId;
+
+    fn next(&mut self) -> Option<ValueId> {
+        loop {
+            if let Some(&value) = self.values.get(self.next) {
+                self.next += 1;
+                return Some(value);
+            }
+            let block = self.func.blocks.get(self.block)?;
+            self.values.clear();
+            self.next = 0;
+            if let Some(&inst_id) = block.instructions.get(self.inst) {
+                let inst = self.func.inst(inst_id);
+                inst.kind.collect_operands(&mut self.values);
+                self.values.extend(inst.result());
+                self.inst += 1;
+            } else {
+                if let Some(term) = &block.terminator {
+                    term.visit_operands(|value| self.values.push(value));
+                }
+                self.block += 1;
+                self.inst = 0;
+            }
+        }
     }
 }
 

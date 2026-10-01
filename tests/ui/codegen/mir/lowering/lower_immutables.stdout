@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/lowering/lower_immutables.mir (before lower-immutables) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_immutables.mir (after lower-immutables) ===
   @module LowerImmutables
-  immutables:
+  @immutables
     first: u8
     second: bool
   

@@ -14,9 +14,9 @@
 
 use super::{
     ArgIdx, CallGraphInfo, DebugFunction, DebugFunctionExit, DeferredConst, DenseBitSet,
-    EvmCodegen, EvmMemoryLayout, Function, FunctionId, FxHashMap, FxHashSet, InstKind, MirType,
-    Module, RelayoutAddress, SpillSlot, StackEffect, StackOp, StackPush, Terminator, U256, Value,
-    ValueId, WORD_BYTES, immutable_staging_end, op, preserves_push_width,
+    EvmCodegen, EvmMemoryLayout, Function, FunctionId, FxHashMap, FxHashSet, IndexVec, InstKind,
+    MirType, Module, RelayoutAddress, SpillSlot, StackEffect, StackOp, StackPush, Terminator, U256,
+    Value, ValueId, WORD_BYTES, immutable_staging_end, op, preserves_push_width,
 };
 use crate::mir::{
     Callee,
@@ -657,15 +657,17 @@ impl<'gcx> EvmCodegen<'gcx> {
             })
             .collect();
         let heap_prefix = Self::heap_prefix_offsets(module);
+        let heap_prefix_guards = module
+            .functions
+            .iter_enumerated()
+            .map(|(func_id, func)| heap_prefix.guard(func_id, func))
+            .collect::<IndexVec<FunctionId, _>>();
         let reachable_heap_prefix_guards: FxHashMap<FunctionId, u64> = self
             .runtime_entry_reachability
             .iter()
             .map(|(&entry, reachable)| {
-                let guard = reachable
-                    .iter()
-                    .map(|func_id| heap_prefix.guard(func_id, &module.functions[func_id]))
-                    .max()
-                    .unwrap_or(0);
+                let guard =
+                    reachable.iter().map(|func_id| heap_prefix_guards[func_id]).max().unwrap_or(0);
                 (entry, guard)
             })
             .collect();
