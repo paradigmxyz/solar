@@ -731,6 +731,12 @@ impl LowerAbiCx {
             let Some(layout) = func.abi_params.as_ref() else { continue };
             for (ty, &arg_type) in layout.types.iter().zip(&func.params) {
                 if !ty.is_scalar_word() && arg_type == MirType::MemPtr {
+                    // Debug revert strings give nested sites their own offset reasons, which
+                    // only inline decoding reports, so only parameters count there.
+                    if self.revert_strings.is_debug() {
+                        count_type(&mut counts, ty, 1);
+                        continue;
+                    }
                     // `count_dynamic_tuple_types` counts a dynamic tuple itself.
                     if !decodes_nested(ty) {
                         count_type(&mut counts, ty, 1);

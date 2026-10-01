@@ -34,8 +34,8 @@
 
 use crate::{
     mir::{
-        BlockId, EffectKind, Function, FunctionBuilder, FunctionId, InstId, InstKind, MirType,
-        Module, Value, ValueId,
+        BlockId, Function, FunctionBuilder, FunctionId, InstId, InstKind, MirType, Module, Value,
+        ValueId,
         analysis::{
             AliasAnalysis, AliasResult, CallGraphInfo, LocationSize, MemoryBase,
             MemoryCallSummaries, MemoryLocation,
@@ -219,12 +219,12 @@ fn lower_function(
     sites: &[CopySite],
     helpers: &FxHashMap<CopyShape, FunctionId>,
 ) {
-    let mut shapes = FxHashMap::default();
+    let mut expanded = FxHashMap::default();
     for site in sites {
         match helpers.get(&site.shape) {
             Some(&helper) if site.shareable => call_copy_helper(func, site.inst, helper),
             _ => {
-                shapes.insert(site.inst, site.shape);
+                expanded.insert(site.inst, site.shape);
             }
         }
     }
@@ -239,9 +239,9 @@ fn lower_function(
             .iter()
             .copied()
             .enumerate()
-            .find(|&(_, inst)| shapes.contains_key(&inst));
+            .find(|&(_, inst)| expanded.contains_key(&inst));
         if let Some((position, inst)) = mcopy {
-            lower_mcopy(func, block, position, inst, shapes[&inst]);
+            lower_mcopy(func, block, position, inst, expanded[&inst]);
         }
         block_index += 1;
     }
@@ -341,12 +341,6 @@ fn fresh_value_base(
             if fresh_value_base(func, offset, fresh_returns, depth + 1).is_none() =>
         {
             fresh_value_base(func, base, fresh_returns, depth + 1)
-        }
-        InstKind::MLoad(address)
-            if func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT)
-                && func.inst(*inst).metadata.effect() == Some(EffectKind::MemoryWrite) =>
-        {
-            Some(*inst)
         }
         _ => None,
     }

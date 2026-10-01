@@ -3,9 +3,12 @@
 //@[lowered] filecheck: --check-prefix=LOWERED
 //@ run-call: pair ((1,0x11),(2,0x2233)) => 1, 2, 2
 //@ run-call: pairs [((1,0x),(2,0x33)),((4,0x),(5,0x))] => 6
+//@ run-call-fail: 0x7a5de1e90000000000000000000000000000000000000000000000010000000000000000
+//@ run-call-fail: 0x7a5de1e9000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000000000000000000040
 
 // A dynamic struct repeated inside calldata parameters decodes through one
 // shared helper, which enclosing decoders call with their own tuple base.
+// Offsets past the end of calldata revert inside the helper.
 contract NestedStructHelpers {
     struct Item {
         uint256 id;
