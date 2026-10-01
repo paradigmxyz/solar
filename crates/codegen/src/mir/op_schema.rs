@@ -972,10 +972,6 @@ define_mir_ops! {
         effect = Pure, traits = OpTraits::EGRAPH_REWRITE, side_effects = false, category = None)]
     #[operand_types(func => None)]
     IntToPtr(operand0: ValueId),
-    #[mir_op(mnemonic = "bitcast", result = Custom, phases = PhaseSet::ALL,
-        effect = Pure, traits = OpTraits::EGRAPH_REWRITE, side_effects = false, category = None)]
-    #[operand_types(func => None)]
-    Bitcast(operand0: ValueId),
     #[mir_op(mnemonic = "checked_binary", result = I256, phases = PhaseSet::SEMANTIC,
         effect = Pure, traits = OpTraits::NONE, side_effects = true, category = Some("semantic operation"))]
     #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256]))]

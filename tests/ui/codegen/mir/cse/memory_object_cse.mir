@@ -201,7 +201,6 @@ fn @fabricated_parameter() -> i256 {
   bb0:
     v0 = mload 64
     v1 = inttoptr i256 v0 to memptr
-    v2 = bitcast memptr v1 to memptr
-    v3 = icall @parameter_may_overlap_allocation, v2
+    v3 = icall @parameter_may_overlap_allocation, v1
     ret v3
 }

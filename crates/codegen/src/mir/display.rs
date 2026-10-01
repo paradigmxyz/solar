@@ -427,8 +427,7 @@ fn display_inst_kind<'a>(
         | InstKind::Zext(value)
         | InstKind::Sext(value, _, _)
         | InstKind::PtrToInt(value, _)
-        | InstKind::IntToPtr(value)
-        | InstKind::Bitcast(value) => {
+        | InstKind::IntToPtr(value) => {
             let from = func.value_ty(*value).unwrap_or(MirType::I256);
             let to = result_ty.unwrap_or(MirType::I256);
             write!(f, "{} {from} ", kind.mnemonic())?;

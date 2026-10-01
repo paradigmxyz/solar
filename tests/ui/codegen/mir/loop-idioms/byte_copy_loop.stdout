@@ -86,9 +86,8 @@
       v0 = mload 64
       v1 = sub v0, 1
       v2 = inttoptr i256 v1 to memptr
-      v3 = bitcast memptr v2 to memptr
-      v4 = icall @copy_object, v3, 4
-      ret v4
+      v3 = icall @copy_object, v2, 4
+      ret v3
   }
   
   fn @copy_allocations() -> i256 {

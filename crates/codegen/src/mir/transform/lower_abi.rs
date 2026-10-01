@@ -3540,11 +3540,6 @@ fn lossless_pointer_cast(func: &Function, inst: InstId) -> Option<ValueId> {
         {
             Some(value)
         }
-        InstKind::Bitcast(value)
-            if result.is_pointer() && func.value_ty(value).is_some_and(MirType::is_pointer) =>
-        {
-            Some(value)
-        }
         _ => None,
     }
 }

@@ -605,7 +605,7 @@ impl<'a> FunctionBuilder<'a> {
         };
         if let Value::Inst(id) = self.func.value(value) {
             let original = match self.func.inst(*id).kind {
-                InstKind::Zext(inner) | InstKind::Bitcast(inner) => Some(inner),
+                InstKind::Zext(inner) => Some(inner),
                 InstKind::PtrToInt(inner, 256) if ty.is_pointer() => Some(inner),
                 InstKind::IntToPtr(inner) if ty == MirType::I256 => Some(inner),
                 _ => None,
@@ -631,8 +631,6 @@ impl<'a> FunctionBuilder<'a> {
             (from, MirType::Int(to)) if from.is_pointer() => InstKind::PtrToInt(value, to.get()),
             // pointer = inttoptr integer to destination
             (MirType::Int(_), to) if to.is_pointer() => InstKind::IntToPtr(value),
-            // pointer = bitcast pointer to destination
-            (from, to) if from.is_pointer() && to.is_pointer() => InstKind::Bitcast(value),
             _ => panic!("cannot cast MIR value from `{from}` to `{ty}`"),
         };
         let inst = self.make_inst(kind, Some(ty));

@@ -1019,7 +1019,6 @@ symbols! {
         asm,
         assert,
         at,
-        bitcast,
         block,
         built,
         calldata_array,

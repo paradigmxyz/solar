@@ -313,8 +313,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     }
                     InstKind::Sub(base, _)
                     | InstKind::IntToPtr(base)
-                    | InstKind::PtrToInt(base, 256)
-                    | InstKind::Bitcast(base) => derive(*base, visiting, memo),
+                    | InstKind::PtrToInt(base, 256) => derive(*base, visiting, memo),
                     InstKind::And(first, second) if aligned_mask(*second) => {
                         derive(*first, visiting, memo)
                     }

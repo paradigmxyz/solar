@@ -2348,7 +2348,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 let ty = builder.func().value_ty(then_value).unwrap_or(MirType::I256);
                 (InstKind::Select(condition, then_value, else_value), Some(ty))
             }
-            sym::trunc | sym::zext | sym::sext | sym::ptrtoint | sym::inttoptr | sym::bitcast => {
+            sym::trunc | sym::zext | sym::sext | sym::ptrtoint | sym::inttoptr => {
                 let from = self.parse_type()?;
                 let value = if self.parser.eat_keyword(sym::undef) {
                     builder.undef(from)
@@ -2381,7 +2381,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     sym::sext => InstKind::Sext(value, bits(from), bits(to)),
                     sym::ptrtoint => InstKind::PtrToInt(value, bits(to)),
                     sym::inttoptr => InstKind::IntToPtr(value),
-                    sym::bitcast => InstKind::Bitcast(value),
                     _ => unreachable!(),
                 };
                 (kind, Some(to))

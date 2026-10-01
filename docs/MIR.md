@@ -36,7 +36,6 @@ and use `opcode source-type value to destination-type`:
 - `sext i160 value to i256` widens by copying the sign bit.
 - `ptrtoint memptr value to i256` exposes a pointer's bits; narrower results truncate.
 - `inttoptr i256 value to memptr` interprets integer bits as a pointer.
-- `bitcast memptr value to memptr` renames a value without changing its type or bits.
 
 `trunc i256 value to i1` keeps only the low bit. Use `ne value, 0` for
 nonzero truth conversion. Pointer casts establish no validity or ownership. Phi

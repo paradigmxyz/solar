@@ -1626,8 +1626,7 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> (Cost, 
         InstKind::InsertValue { .. }
         | InstKind::ExtractValue { .. }
         | InstKind::IntToPtr(..)
-        | InstKind::Zext(_)
-        | InstKind::Bitcast(_) => Cost::ZERO,
+        | InstKind::Zext(_) => Cost::ZERO,
         InstKind::MakeSlice { .. } | InstKind::SlicePtr(_) | InstKind::SliceLen(_) => Cost::ZERO,
         InstKind::MemoryObjectData(_, kind) => {
             if EvmMemoryLayout::object_data_offset(*kind) == 0 {

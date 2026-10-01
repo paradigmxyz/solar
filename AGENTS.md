@@ -636,7 +636,7 @@ Default format (conventional commits): `type: description` (feat, fix, perf, cho
   belongs in EVM IR, not MIR. Rewrites must preserve both value and type;
   boolean-to-word conversions require `zext i1 value to i256`.
 - Use LLVM cast names and semantics: `trunc`, `zext`, `sext`, `ptrtoint`,
-  `inttoptr`, and `bitcast`, with `source-type value to destination-type` syntax.
+  and `inttoptr`, with `source-type value to destination-type` syntax.
   `trunc` to `i1` keeps the low bit; it does not test for nonzero.
 - Keep `memptr` distinct from integers. Pointer casts do not establish validity,
   heap provenance, ownership, or non-wrapping arithmetic.

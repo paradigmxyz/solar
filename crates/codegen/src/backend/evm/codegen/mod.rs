@@ -796,12 +796,6 @@ mod tests {
                     MirType::MemPtr,
                     InstKind::IntToPtr(ValueId::from_usize(0)),
                 ),
-                (
-                    "bitcast",
-                    MirType::MemPtr,
-                    MirType::MemPtr,
-                    InstKind::Bitcast(ValueId::from_usize(0)),
-                ),
             ] {
                 output.push_str(name);
                 output.push('\n');
@@ -931,13 +925,6 @@ MSTORE
 PUSH1 0x20
 PUSH1 0x00
 RETURN
-bitcast
-CALLVALUE
-PUSH1 0x00
-MSTORE
-PUSH1 0x20
-PUSH1 0x00
-RETURN
 Osaka
 sext_i1_i256
 CALLVALUE
@@ -1025,13 +1012,6 @@ PUSH1 0x20
 PUSH0
 RETURN
 inttoptr
-CALLVALUE
-PUSH0
-MSTORE
-PUSH1 0x20
-PUSH0
-RETURN
-bitcast
 CALLVALUE
 PUSH0
 MSTORE

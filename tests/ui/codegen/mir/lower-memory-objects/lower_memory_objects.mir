@@ -66,14 +66,14 @@ fn @word_carrier(arg0: memptr) -> i256 {
 
 // CHECK-LABEL: {{^[ +].*}}fn @unreachable_cast_cycle{{[( ]}}
 // CHECK: ret 0
-// CHECK: {{v[0-9]+}} = bitcast
+// CHECK: {{v[0-9]+}} = inttoptr
 fn @unreachable_cast_cycle() -> i256 {
   bb0:
     ret 0
   bb1:
-    v0 = bitcast i256 v1 to i256
-    v1 = bitcast i256 v0 to i256
-    ret v0
+    v0 = inttoptr i256 v1 to memptr
+    v1 = ptrtoint memptr v0 to i256
+    ret v1
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @merged_allocations{{[( ]}}

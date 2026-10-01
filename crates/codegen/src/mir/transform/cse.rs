@@ -295,7 +295,6 @@ enum CastKey {
     Sext(u32, u32),
     PtrToInt(u32),
     IntToPtr,
-    Bitcast,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -1214,7 +1213,6 @@ impl CommonSubexprEliminator {
             InstKind::Sext(a, from, to) => cast(CastKey::Sext(*from, *to), *a),
             InstKind::PtrToInt(a, bits) => cast(CastKey::PtrToInt(*bits), *a),
             InstKind::IntToPtr(a) => cast(CastKey::IntToPtr, *a),
-            InstKind::Bitcast(a) => cast(CastKey::Bitcast, *a),
 
             // Don't cache these:
             // - Cheap nullary reads usually cost less than their extra stack lifetime

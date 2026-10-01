@@ -50,8 +50,7 @@ fn @canonicalAddressArrays() -> memptr {
     jumpi v3, bb2, bb3
   bb2:
     v4 = icall @canonicalAddresses
-    v7 = bitcast memptr v4 to memptr
-    v8 = ptrtoint memptr v7 to i256
+    v8 = ptrtoint memptr v4 to i256
     v9 = inttoptr i256 v8 to memptr
     v6 = ptrtoint memptr v9 to i256
     memory_object_store_element memoryarray<1>, v0, v2, v6

@@ -869,7 +869,6 @@ impl AliasAnalysis {
                 InstKind::SlicePtr(predecessor)
                 | InstKind::IntToPtr(predecessor)
                 | InstKind::PtrToInt(predecessor, 256)
-                | InstKind::Bitcast(predecessor)
                 | InstKind::MemoryObjectData(predecessor, _)
                 | InstKind::MemoryObjectFieldAddr { object: predecessor, .. } => {
                     propagate(*predecessor);
@@ -910,7 +909,7 @@ impl AliasAnalysis {
             | InstKind::MakeSlice { .. }
             | InstKind::SlicePtr(_)
             | InstKind::IntToPtr(..)
-            | InstKind::PtrToInt(_, 256) | InstKind::Bitcast(_)
+            | InstKind::PtrToInt(_, 256)
             | InstKind::MemoryObjectData(_, _)
             | InstKind::MemoryObjectFieldAddr { .. }
             | InstKind::MemoryObjectElementAddr { .. }
@@ -1780,7 +1779,7 @@ impl AliasAnalysis {
                         Some(MemoryAddress::symbolic(value, self.pointer_region(func, value, 0)))
                     })
                 }
-                InstKind::IntToPtr(ptr) | InstKind::PtrToInt(ptr, 256) | InstKind::Bitcast(ptr) => {
+                InstKind::IntToPtr(ptr) | InstKind::PtrToInt(ptr, 256) => {
                     self.memory_address_with_depth(func, ptr, depth + 1)
                 }
                 InstKind::SlicePtr(slice) => self.slice_pointer_address(func, slice, depth),
@@ -1923,7 +1922,6 @@ impl AliasAnalysis {
             InstKind::Sub(base, _)
             | InstKind::IntToPtr(base)
             | InstKind::PtrToInt(base, 256)
-            | InstKind::Bitcast(base)
             | InstKind::MemoryObjectData(base, _)
             | InstKind::MemoryObjectFieldAddr { object: base, .. }
             | InstKind::MemoryObjectElementAddr { object: base, .. } => {
@@ -2072,9 +2070,9 @@ impl AliasAnalysis {
             {
                 Some(EvmMemoryLayout::HEAP_START)
             }
-            InstKind::PtrToInt(value, 256)
-            | InstKind::Bitcast(value)
-            | InstKind::IntToPtr(value) => Self::pointer_lower_bound(func, *value, depth + 1),
+            InstKind::PtrToInt(value, 256) | InstKind::IntToPtr(value) => {
+                Self::pointer_lower_bound(func, *value, depth + 1)
+            }
             InstKind::InternalFrameAddr(offset) => EvmMemoryLayout::HEAP_START.checked_add(*offset),
             InstKind::MemoryObjectData(object, kind) => {
                 Self::pointer_lower_bound(func, *object, depth + 1)?

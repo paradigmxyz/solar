@@ -774,7 +774,6 @@ impl Instruction {
             | InstKind::Sext(..)
             | InstKind::PtrToInt(..)
             | InstKind::IntToPtr(..)
-            | InstKind::Bitcast(..)
             | InstKind::Add(..)
             | InstKind::Sub(..)
             | InstKind::Mul(..)
@@ -999,11 +998,6 @@ impl InstKind {
             Self::IntToPtr(value) => {
                 matches!(ty(value), Some(MirType::Int(_)))
                     && result.is_some_and(MirType::is_pointer)
-            }
-            Self::Bitcast(value) => {
-                (ty(value).is_some_and(MirType::is_pointer)
-                    && result.is_some_and(MirType::is_pointer))
-                    || (matches!(ty(value), Some(MirType::Int(_))) && ty(value) == result)
             }
             Self::Alloc { kind, .. } => result == Some(kind.result_type()),
             Self::MakeSlice { location, .. } => result == Some(MirType::Slice(location)),

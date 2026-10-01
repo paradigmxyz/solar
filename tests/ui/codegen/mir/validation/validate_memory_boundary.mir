@@ -23,12 +23,12 @@
 //~? ERROR: [fn3] [bb0, inst5] `mapping_slot_calldata` has incompatible scalar types; use an explicit cast
 //~? ERROR: [fn3] [bb0, inst6] `storage_array_data_slot` has incompatible scalar types; use an explicit cast
 //~? ERROR: [fn3] [bb0, inst7] `storage_array_element_slot` has incompatible scalar types; use an explicit cast
+//~? ERROR: [fn12] [bb0, inst0] `icall` has incompatible scalar types; use an explicit cast
 //~? ERROR: [fn13] [bb0, inst0] `icall` has incompatible scalar types; use an explicit cast
-//~? ERROR: [fn14] [bb0, inst0] `icall` has incompatible scalar types; use an explicit cast
-//~? ERROR: [fn17] [bb0, inst0] `icall` has incompatible scalar types; use an explicit cast
-//~? ERROR: [fn19] [bb0, inst0] `icall` has incompatible scalar types; use an explicit cast
-//~? ERROR: [fn19] [bb0, inst1] `icall` has incompatible scalar types; use an explicit cast
-//~? ERROR: [fn20] [bb0, inst1] `address_call` has incompatible scalar types; use an explicit cast
+//~? ERROR: [fn16] [bb0, inst0] `icall` has incompatible scalar types; use an explicit cast
+//~? ERROR: [fn18] [bb0, inst0] `icall` has incompatible scalar types; use an explicit cast
+//~? ERROR: [fn18] [bb0, inst1] `icall` has incompatible scalar types; use an explicit cast
+//~? ERROR: [fn19] [bb0, inst1] `address_call` has incompatible scalar types; use an explicit cast
 @module ValidateMemoryBoundary
 @phase lowered
 fn @slice(arg0: i256, arg1: i256) -> i256 {
@@ -73,91 +73,85 @@ fn @returndataSignature(arg0: returndataslice) -> returndataslice {
     ret arg0
 }
 
-fn @integer_bitcast(arg0: i256) -> i256 {
-  bb0:
-    v0 = bitcast i256 arg0 to i256
-    ret v0
-}
-
-//~? ERROR: [fn8] [bb0, inst0] abstract allocation instruction `alloc` survives the `lowered` phase boundary
+//~? ERROR: [fn7] [bb0, inst0] abstract allocation instruction `alloc` survives the `lowered` phase boundary
 fn @checked_deferred() -> memptr {
   bb0:
     v0 = alloc raw, exact, zeroed, panic, 32 !metadata(deferred_alloc)
     ret v0
 }
 
-//~? ERROR: [fn9] [bb0, inst0] deferred allocation requires a constant size
+//~? ERROR: [fn8] [bb0, inst0] deferred allocation requires a constant size
 fn @dynamic_deferred(arg0: i256) -> memptr {
   bb0:
     v0 = alloc raw, exact, uninitialized, infallible, arg0 !metadata(deferred_alloc)
     ret v0
 }
 
-//~? ERROR: [fn10] [bb0, inst0] builtin instruction `icall` survives the `lowered` phase boundary
+//~? ERROR: [fn9] [bb0, inst0] builtin instruction `icall` survives the `lowered` phase boundary
 fn @unlowered_precompile() -> i256 {
   bb0:
     v0 = icall ecrecover<>, 0, 0, 0, 0
     ret v0
 }
 
-//~? ERROR: [fn11] [bb0, inst0] checked arithmetic instruction `checked_add` survives the `lowered` phase boundary
+//~? ERROR: [fn10] [bb0, inst0] checked arithmetic instruction `checked_add` survives the `lowered` phase boundary
 fn @unlowered_arithmetic(arg0: i256) -> i256 {
   bb0:
     v0 = checked_add u256, arg0, 1
     ret v0
 }
 
-//~? ERROR: [fn12] [bb0, inst0] ABI validation instruction `validate_abi` survives the `lowered` phase boundary
+//~? ERROR: [fn11] [bb0, inst0] ABI validation instruction `validate_abi` survives the `lowered` phase boundary
 fn @pending_validation(arg0: i256) {
   bb0:
     validate_abi arg0
     ret
 }
 
-//~? ERROR: [fn13] [bb0, inst0] conditional check instruction `icall` survives the `lowered` phase boundary
+//~? ERROR: [fn12] [bb0, inst0] conditional check instruction `icall` survives the `lowered` phase boundary
 fn @unlowered_check(arg0: i256) {
   bb0:
     icall panic_if_zero<0x1>, arg0
     ret
 }
 
-//~? ERROR: [fn14] [bb0, inst0] conditional check instruction `icall` survives the `lowered` phase boundary
+//~? ERROR: [fn13] [bb0, inst0] conditional check instruction `icall` survives the `lowered` phase boundary
 fn @unlowered_payload(arg0: i256) {
   bb0:
     icall require<empty_string>, arg0
     ret
 }
 
-//~? ERROR: [fn15] [bb0, inst0] builtin instruction `keccak256_packed` survives the `lowered` phase boundary
+//~? ERROR: [fn14] [bb0, inst0] builtin instruction `keccak256_packed` survives the `lowered` phase boundary
 fn @unlowered_packed() -> i256 {
   bb0:
     v0 = keccak256_packed (data hex"abcd")
     ret v0
 }
 
-//~? ERROR: [fn16] [bb0, inst0] builtin instruction `icall` survives the `lowered` phase boundary
+//~? ERROR: [fn15] [bb0, inst0] builtin instruction `icall` survives the `lowered` phase boundary
 fn @unlowered_modular() -> i256 {
   bb0:
     v0 = icall checked_addmod<>, 1, 2, 3
     ret v0
 }
 
-//~? ERROR: [fn17] [bb0, inst0] builtin instruction `icall` survives the `lowered` phase boundary
+//~? ERROR: [fn16] [bb0, inst0] builtin instruction `icall` survives the `lowered` phase boundary
 fn @unlowered_namespace(arg0: i256) -> i256 {
   bb0:
     v0 = icall erc7201<>, arg0
     ret v0
 }
 
-//~? ERROR: [fn18] [bb0, inst0] builtin instruction `validate_storage_bytes` survives the `lowered` phase boundary
+//~? ERROR: [fn17] [bb0, inst0] builtin instruction `validate_storage_bytes` survives the `lowered` phase boundary
 fn @unlowered_storage_header(arg0: i256) -> i256 {
   bb0:
     validate_storage_bytes arg0
     ret arg0
 }
 
-//~? ERROR: [fn19] [bb0, inst0] builtin instruction `icall` survives the `lowered` phase boundary
-//~? ERROR: [fn19] [bb0, inst1] builtin instruction `icall` survives the `lowered` phase boundary
+//~? ERROR: [fn18] [bb0, inst0] builtin instruction `icall` survives the `lowered` phase boundary
+//~? ERROR: [fn18] [bb0, inst1] builtin instruction `icall` survives the `lowered` phase boundary
 fn @payable(arg0: i256) {
   bb0:
     v0 = icall send<>, arg0, 0
@@ -165,8 +159,8 @@ fn @payable(arg0: i256) {
     ret
 }
 
-//~? ERROR: [fn20] [bb0, inst0] builtin instruction `icall` survives the `lowered` phase boundary
-//~? ERROR: [fn20] [bb0, inst1] builtin instruction `address_call` survives the `lowered` phase boundary
+//~? ERROR: [fn19] [bb0, inst0] builtin instruction `icall` survives the `lowered` phase boundary
+//~? ERROR: [fn19] [bb0, inst1] builtin instruction `address_call` survives the `lowered` phase boundary
 fn @unlowered_address_call(arg0: i256) {
   bb0:
     v0 = icall returndata_bytes<>

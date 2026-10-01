@@ -91,16 +91,15 @@
       revert v2, 32
   }
   
-  fn @zeroed_through_bitcast() -> i256 {
+  fn @zeroed_through_word() -> i256 {
     bb0:
       v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
--     v1 = bitcast memptr v0 to memptr
--     v2 = ptrtoint memptr v1 to i256
--     memory_zero v2, 32
--     v3 = memory_object_field_addr memorystruct<1>, v0, 0
--     v4 = ptrtoint memptr v3 to i256
--     v5 = mload v4
--     ret v5
+-     v1 = ptrtoint memptr v0 to i256
+-     memory_zero v1, 32
+-     v2 = memory_object_field_addr memorystruct<1>, v0, 0
+-     v3 = ptrtoint memptr v2 to i256
+-     v4 = mload v3
+-     ret v4
 +     ret 0
   }
   
@@ -192,7 +191,7 @@
       revert v2, 32
   }
   
-  fn @zeroed_through_bitcast() -> i256 {
+  fn @zeroed_through_word() -> i256 {
     bb0:
       v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
       ret 0

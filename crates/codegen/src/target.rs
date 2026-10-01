@@ -473,7 +473,7 @@ impl Target {
                     Cost::ZERO
                 };
         }
-        if matches!(op, Op::Zext { .. } | Op::IntToPtr { .. } | Op::Bitcast { .. }) {
+        if matches!(op, Op::Zext { .. } | Op::IntToPtr { .. }) {
             return Cost::ZERO;
         }
         if matches!(op, Op::Eq { .. } | Op::Ne { .. }) {

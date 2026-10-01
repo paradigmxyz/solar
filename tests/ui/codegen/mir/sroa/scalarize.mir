@@ -127,13 +127,12 @@ fn @revert_field_successor(arg0: i256) {
     revert v1, 32
 }
 
-// CHECK-LABEL: fn @zeroed_through_bitcast
+// CHECK-LABEL: fn @zeroed_through_word
 // CHECK: {{^[ +].*}}ret 0
-fn @zeroed_through_bitcast() -> i256 {
+fn @zeroed_through_word() -> i256 {
   bb0:
     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
-    v1 = bitcast memptr v0 to memptr
-    v2 = ptrtoint memptr v1 to i256
+    v2 = ptrtoint memptr v0 to i256
     memory_zero v2, 32
     v3 = memory_object_field_addr memorystruct<1>, v0, 0
     v4 = ptrtoint memptr v3 to i256

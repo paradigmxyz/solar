@@ -241,7 +241,6 @@ fn @integer_undef() -> i24 {
 // CHECK: sext i1 arg1 to i256
 // CHECK: ptrtoint memptr arg2 to i160
 // CHECK: inttoptr i256 arg0 to memptr
-// CHECK: bitcast memptr arg2 to memptr
 fn @llvm_casts(arg0: i256, arg1: i1, arg2: memptr) -> memptr {
   bb0:
     v0 = trunc i256 arg0 to i1
@@ -249,15 +248,14 @@ fn @llvm_casts(arg0: i256, arg1: i1, arg2: memptr) -> memptr {
     v2 = sext i1 arg1 to i256
     v3 = ptrtoint memptr arg2 to i160
     v4 = inttoptr i256 arg0 to memptr
-    v5 = bitcast memptr arg2 to memptr
     ret v4
 }
 
 // CHECK-LABEL: fn @cast_undef
-// CHECK: bitcast memptr undef to memptr
+// CHECK: inttoptr i256 undef to memptr
 fn @cast_undef() -> memptr {
   bb0:
-    v0 = bitcast memptr undef to memptr
+    v0 = inttoptr i256 undef to memptr
     ret v0
 }
 

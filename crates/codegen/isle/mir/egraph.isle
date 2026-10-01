@@ -694,15 +694,15 @@
 (rule 1 (simplify (Op.Select (and cond (bool_value)) (one) (zero))) cond)
 
 ;; memory_object_data(object, kind) => object, when kind has zero data offset
-(rule (rewrite (Op.MemoryObjectData object kind)) (if-let 0 (object_data_offset kind)) (Op.Bitcast object))
+(rule (simplify (Op.MemoryObjectData object kind)) (if-let 0 (object_data_offset kind)) object)
 ;; memory_object_field_addr(object, layout, field) => object, when the field offset is zero
-(rule (rewrite (Op.MemoryObjectFieldAddr object layout field))
+(rule (simplify (Op.MemoryObjectFieldAddr object layout field))
       (if-let 0 (field_offset layout field))
-      (Op.Bitcast object))
+      object)
 ;; memory_object_element_addr(object, layout, 0) => object, when the layout has zero data offset
-(rule (rewrite (Op.MemoryObjectElementAddr object layout (zero)))
+(rule (simplify (Op.MemoryObjectElementAddr object layout (zero)))
       (if-let 0 (object_data_offset (layout_kind layout)))
-      (Op.Bitcast object))
+      object)
 
 ;; Canonical zero tests preserve the operand's scalar type.
 (rule (rewrite (Op.Gt x (zero))) (Op.Ne x (imm (u256 0))))
@@ -742,7 +742,6 @@
 (extern constructor u32_le u32_le)
 
 ;; Identity casts require the result type to match before their values merge.
-(rule (simplify (Op.Bitcast value)) value)
 (rule (simplify (Op.Trunc (zext (and value (integer_bits bits))) bits)) value)
 (rule (simplify (Op.Trunc (sext (and value (integer_bits bits)) bits middle) bits))
       (if-let true (u32_lt bits middle)) value)
@@ -783,15 +782,10 @@
                        (sext (and b (integer_bits from)) from to)))
       (if-let true (u32_lt from to)) (Op.Ne a b))
 
-;; Pointer casts preserve bits across changes of nominal pointer type.
-(rule (rewrite (Op.PtrToInt (bitcast value) bits)) (Op.PtrToInt value bits))
-(rule (rewrite (Op.Bitcast (bitcast value))) (Op.Bitcast value))
-(rule (rewrite (Op.Bitcast (inttoptr value))) (Op.IntToPtr value))
+;; Pointer casts see through integer extensions and truncations.
 (rule (rewrite (Op.IntToPtr (zext value))) (Op.IntToPtr value))
 (rule (rewrite (Op.IntToPtr (trunc value bits)))
       (if-let true (u32_le 256 bits)) (Op.IntToPtr value))
-(rule (rewrite (Op.IntToPtr (ptrtoint value bits)))
-      (if-let true (u32_le 256 bits)) (Op.Bitcast value))
 (rule (rewrite (Op.Trunc (ptrtoint value middle) bits))
       (if-let true (u32_lt bits middle)) (Op.PtrToInt value bits))
 (rule (simplify (Op.IntToPtr (ptrtoint value 256))) value)

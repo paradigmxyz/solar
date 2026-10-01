@@ -24,19 +24,18 @@
 + fn @caller() [selector=0x0a0a0a02, abi_wrapper] {
     bb0:
 -     v0 = icall @pub, arg0
-+     v2 = calldatasize
-+     v3 = lt v2, 36
-+     jumpi v3, bb2, bb3
+-     ret v0
++     v1 = calldatasize
++     v2 = lt v1, 36
++     jumpi v2, bb2, bb3
 +   bb3:
 +     jump bb1
 +   bb1:
 +     v0 = icall @pub.body, arg0
-      v1 = bitcast i256 v0 to i256
--     ret v1
-+     mstore 128, v1
-+     v4 = add 128, 32
-+     v5 = sub v4, 128
-+     returndata 128, v5
++     mstore 128, v0
++     v3 = add 128, 32
++     v4 = sub v3, 128
++     returndata 128, v4
 +   bb2:
 +     revert 0, 0
   }
