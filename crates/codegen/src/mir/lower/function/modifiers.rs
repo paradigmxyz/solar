@@ -28,19 +28,30 @@ impl<'hir> hir::Visit<'hir> for ModifierLocalIds<'hir> {
 impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn snapshot_bindings(&self, ids: &[hir::VariableId]) -> BindingSnapshot {
         ids.iter()
-            .map(|&id| (id, self.values.get(&id).copied(), self.storage_refs.get(&id).copied()))
+            .map(|&id| {
+                (
+                    id,
+                    self.values.get(&id).copied(),
+                    self.storage_refs.get(&id).copied(),
+                    self.views.get(&id).copied(),
+                )
+            })
             .collect()
     }
 
     pub(super) fn restore_bindings(&mut self, snapshot: &BindingSnapshot) {
-        for &(id, value, access) in snapshot {
+        for &(id, value, access, view) in snapshot {
             self.values.remove(&id);
             self.storage_refs.remove(&id);
+            self.views.remove(&id);
             if let Some(value) = value {
                 self.values.insert(id, value);
             }
             if let Some(access) = access {
                 self.storage_refs.insert(id, access);
+            }
+            if let Some(view) = view {
+                self.views.insert(id, view);
             }
         }
     }
@@ -136,10 +147,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             },
         )?;
 
+        let postlude = terminates::modifier_postlude(modifier_body.stmts)
+            .map(|span| (span, self.cx.gcx.item_name(modifier_id).name));
         let context = ModifierContext {
             modifiers,
             body,
             next: index + 1,
+            postlude,
             parameters: self.snapshot_bindings(&self.parameters),
             returns: self.snapshot_bindings(&self.returns),
             incoming_returns,
@@ -220,7 +234,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.push_return_target(continuation);
         self.modifier_depth = self.modifier_depth.saturating_add(1);
         self.builder.replace_modifier_depth(self.modifier_depth);
+        let pending = self.pending_postludes.len();
+        self.pending_postludes.extend(context.postlude);
         let result = self.lower_modifier_at(context.modifiers, context.body, context.next);
+        self.pending_postludes.truncate(pending);
         self.modifier_depth = self.modifier_depth.saturating_sub(1);
         self.builder.replace_modifier_depth(self.modifier_depth);
         result?;

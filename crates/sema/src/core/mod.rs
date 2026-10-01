@@ -1,0 +1,598 @@
+//! Compiler-owned modules under the reserved `solar:core/` import prefix.
+//!
+//! A source importing `solar:core/Bytes.sol` gets the text `solar-std` embeds,
+//! never a file: the prefix is intercepted before file resolution, so neither
+//! a remapping nor a file on disk can stand in for a module, and a source unit
+//! supplied under one of these names is set aside in favour of the module.
+//! A source that an embedder loads under a reserved name, or that already
+//! holds one when an import asks for the module, is accepted only when it is
+//! the module's exact text. That is what gives a module's declarations an
+//! identity the compiler can trust by name.
+//!
+//! Every function in a module carries a body that any Solidity compiler
+//! accepts and that defines the operation's behaviour, so the same source
+//! serves any other compiler and differs only in gas. This compiler lowers the
+//! entry points listed in [`CoreIntrinsic`] directly by module identity; the
+//! body is what runs under `-Zno-core-intrinsics`, which is how the two are
+//! compared.
+
+use crate::hir;
+use solar_data_structures::map::FxHashMap;
+use solar_interface::{
+    Symbol,
+    diagnostics::{DiagCtxt, ErrorGuaranteed},
+    source_map::{FileName, SourceFile},
+    sym,
+};
+use std::sync::OnceLock;
+
+pub use solar_std::{MODULES, Module as CoreModule, PREFIX};
+
+/// Whether `path` lies under the reserved prefix.
+pub fn is_reserved_path(path: &str) -> bool {
+    path.starts_with(PREFIX)
+}
+
+/// Returns the module imported as `path`, if there is one.
+pub fn lookup(path: &str) -> Option<&'static CoreModule> {
+    MODULES.iter().find(|module| module.path == path)
+}
+
+/// Whether `name` is a compiler-owned module's source file.
+pub fn is_core_file(name: &FileName) -> bool {
+    matches!(name, FileName::Custom(path) if is_reserved_path(path))
+}
+
+/// The file name a compiler-owned module is registered under.
+pub fn file_name(module: &CoreModule) -> FileName {
+    FileName::Custom(module.path.to_string())
+}
+
+/// Checks that `file`, when a reserved name holds it, is the compiler-owned module that name
+/// reserves, with exactly its text. Every identity check trusts the name alone afterwards.
+pub fn check_reserved_source(dcx: &DiagCtxt, file: &SourceFile) -> Result<(), ErrorGuaranteed> {
+    let FileName::Custom(path) = &file.name else { return Ok(()) };
+    if !is_reserved_path(path)
+        || lookup(path).is_some_and(|module| module.source == file.src.as_str())
+    {
+        return Ok(());
+    }
+    Err(dcx
+        .err(format!("source `{path}` is reserved for a compiler module"))
+        .note(format!(
+            "names under `{PREFIX}` identify the modules this compiler provides, so a source \
+             under one must be that module's exact text"
+        ))
+        .emit())
+}
+
+/// An operation the compiler lowers directly instead of calling its body.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CoreIntrinsic {
+    /// Base64 encoding with standard/URL alphabets and optional padding.
+    Base64Encode,
+    /// Validated Base64 decoding; the optional flag also accepts IMAP.
+    Base64Decode,
+    /// `Bytes.readBytesN(b, offset)`: the `N` bytes at `offset`, left-aligned.
+    ReadBytes(u8),
+    /// `Bytes.readUint256BE(b, offset)`: the word at `offset`.
+    ReadUint256Be,
+    /// `Bytes.writeBytesN(b, offset, value)`: the leading `N` bytes of `value`.
+    WriteBytes(u8),
+    /// `Bytes.writeUint256BE(b, offset, value)`: the word at `offset`.
+    WriteUint256Be,
+    /// `Bytes.copyInto(dst, dstOffset, src, srcOffset, count)`, a move.
+    CopyInto,
+    /// `Bytes.fill(dst, offset, count, value)`.
+    Fill,
+    /// `Bytes.equalsAt(a, offset, b)`: whether `b` occurs in `a` at `offset`.
+    EqualsAt,
+    /// `Bytes.slice(b, offset, count)`: a copy of the range, or a view of it when
+    /// the declaration carries `@custom:solar-view`.
+    Slice,
+    /// `Arrays.truncate(a, n)` for every supported array type.
+    Truncate,
+    /// `WordArrays.groupSum(keys, values)` for one-word key arrays.
+    ArrayGroupSum,
+    /// `WordArrays.hasDuplicate(a)` for one-word dynamic arrays.
+    ArrayHasDuplicate,
+    /// `WordArrays.sort(a)` for one-word dynamic arrays.
+    ArraySort,
+    /// `WordArrays.uniquifySorted(a)` for one-word dynamic arrays.
+    ArrayUniquifySorted,
+    /// `WordArrays.union(a, b)` for one-word dynamic arrays.
+    ArrayUnion,
+    /// `WordArrays.intersection(a, b)` for one-word dynamic arrays.
+    ArrayIntersection,
+    /// `WordArrays.difference(a, b)` for one-word dynamic arrays.
+    ArrayDifference,
+    /// `WordArrays.copy(a)` for one-word dynamic arrays.
+    ArrayCopy,
+    /// `Strings.replace(subject, needle, replacement)`.
+    StringReplace,
+    /// `Strings.indicesOf(subject, needle)`.
+    StringIndicesOf,
+    /// `Strings.split(subject, delimiter)`.
+    StringSplit,
+    /// `Strings.indexOf(subject, needle, from)`.
+    StringIndexOf,
+    /// `Strings.lastIndexOf(subject, needle, from)`.
+    StringLastIndexOf,
+    /// `Strings.runeCount(subject)`.
+    StringRuneCount,
+    /// `Strings.repeat(subject, times)`.
+    StringRepeat,
+    /// `Strings.toString(value)` for `uint256` and `int256` values.
+    StringToString,
+    /// `Strings.escapeHTML(subject)`.
+    StringEscapeHTML,
+    /// `Strings.escapeJSON(subject)` and `Strings.escapeJSON(subject, addDoubleQuotes)`.
+    StringEscapeJSON,
+    /// `Strings.encodeURIComponent(subject)`.
+    StringEncodeURIComponent,
+    /// `Strings.toMinimalHexStringNoPrefix(value)`.
+    StringMinimalHex,
+    /// `Strings.toMinimalHexString(value)`.
+    StringMinimalHexPrefixed,
+    /// `Strings.toHexStringNoPrefix(value)` and
+    /// `Strings.toHexStringNoPrefix(value, byteCount)`.
+    StringHex,
+    /// `Strings.toHexString(value)` and `Strings.toHexString(value, byteCount)`.
+    StringHexPrefixed,
+    /// `Hex.encode(data)`.
+    HexEncode,
+    /// `Hex.encodePrefixed(data)`.
+    HexEncodePrefixed,
+    /// `Strings.packOne(value)`.
+    StringPackOne,
+    /// `Strings.unpackOne(packed)`.
+    StringUnpackOne,
+    /// `Strings.packTwo(a, b)`.
+    StringPackTwo,
+    /// `Strings.unpackTwo(packed)`.
+    StringUnpackTwo,
+    /// `Revert.raw(data)`: revert with exactly `data`.
+    RevertRaw,
+    /// `Return.abiEncoded(value)`: end the call returning `value` ABI-encoded.
+    ReturnAbiEncoded,
+    /// `Return.raw(data)`: end the call returning exactly `data`.
+    ReturnRaw,
+    /// `Calls.forward(target, value, data)`: call `target` and end the call
+    /// with its response.
+    Forward,
+    /// `Calls.forwardDelegate(target, data)`: delegate-call `target` and end
+    /// the call with its response.
+    ForwardDelegate,
+    /// `Slots.load(root, index)`: the word `index` slots past the root's hash.
+    SlotsLoad,
+    /// `Slots.store(root, index, value)`.
+    SlotsStore,
+    /// `Slots.storeBytes(root, b, offset, count)`: bytes of a memory buffer
+    /// into the region's words.
+    SlotsStoreBytes,
+    /// `Slots.storeCalldataBytes(root, b, offset, count)`.
+    SlotsStoreCalldataBytes,
+    /// `Slots.loadBytes(root, b, offset, count)`: the region's bytes into a
+    /// memory buffer.
+    SlotsLoadBytes,
+    /// `Hash.keccak256Range(b, offset, count)`: hash a range where it lies.
+    Keccak256Range,
+    /// `Create.deploy(initcode, value)`: create, reverting on failure.
+    Deploy,
+    /// `Create.deploy2(initcode, salt, value)`: create2, reverting on failure.
+    Deploy2,
+    /// `Code.copyInto(dst, dstOffset, target, start, count)` and
+    /// `Code.copyInto(dst, dstOffset, section)`: a checked `extcodecopy`.
+    CodeCopyInto,
+    /// `Code.read(target, start, count)` and `Code.read(section)`: a checked
+    /// `extcodecopy` into a new buffer, which the copy fills.
+    CodeRead,
+    /// `Bits.leadingZeros(x)`: `clz`, on targets that have it.
+    LeadingZeros,
+    /// `Bits.highestSetBit(x)`: `255 - clz`, with 256 for zero.
+    HighestSetBit,
+    /// `Bits.trailingZeros(x)`: the highest set bit of the isolated lowest one.
+    TrailingZeros,
+    /// `Calls.callInto(target, value, gasLimit, payload, output)`.
+    CallInto,
+    /// `Calls.staticCallInto(target, gasLimit, payload, output)`.
+    StaticCallInto,
+    /// `Calls.delegateCallInto(target, gasLimit, payload, output)`.
+    DelegateCallInto,
+    /// `Calls.callBounded(target, value, gasLimit, payload, maxCopy)`.
+    CallBounded,
+    /// `Calls.staticCallBounded(target, gasLimit, payload, maxCopy)`.
+    StaticCallBounded,
+    /// `Bytes.tryReadBytesN(b, offset)`: a read that answers instead of
+    /// reverting. The payload is `N`.
+    TryReadBytes(u8),
+    /// `Bytes.tryReadUint256BE(b, offset)`.
+    TryReadUint256Be,
+    /// `CalldataBytes.readBytesN(b, offset)`: a checked load of `N` bytes
+    /// from a calldata slice. The payload is `N`.
+    CalldataReadBytes(u8),
+    /// `CalldataBytes.readUint256BE(b, offset)`.
+    CalldataReadUint256Be,
+    /// `CalldataBytes.copyInto(dst, dstOffset, src, srcOffset, count)`.
+    CalldataCopyInto,
+    /// `CalldataBytes.tryReadBytesN(b, offset)`. The payload is `N`.
+    CalldataTryReadBytes(u8),
+    /// `CalldataBytes.tryReadUint256BE(b, offset)`.
+    CalldataTryReadUint256Be,
+    /// `Create.tryDeploy(initcode, value)`: create, reporting failure.
+    TryDeploy,
+    /// `Create.tryDeploy2(initcode, salt, value)`: create2, reporting failure.
+    TryDeploy2,
+    /// `Create.tryDeployInto(initcode, value, diagnostics)`: create, with a
+    /// failed constructor's revert data bounded into the caller's buffer.
+    TryDeployInto,
+    /// `Math.mul512(x, y)`: both words of the product.
+    Mul512,
+    /// `Math.wrappingAdd(x, y)`.
+    WrappingAdd,
+    /// `Math.wrappingSub(x, y)`.
+    WrappingSub,
+    /// `Math.wrappingMul(x, y)`.
+    WrappingMul,
+    /// `Build.gasFirst()`: whether the build optimizes for runtime gas.
+    GasFirst,
+    /// `Abi.writeEncoding(out, offset, encoding)`: an encoding written in
+    /// place as the argument is staged past the free memory pointer instead
+    /// of allocated, then copied into `out`.
+    WriteEncoding,
+    /// `Abi.tryWriteEncoding(out, offset, encoding)`.
+    TryWriteEncoding,
+    /// `Abi.encodedSize(encoding)`: the encoding's length, computed from the
+    /// arguments of the `abi.encode` call written as the argument.
+    EncodedSize,
+    /// The private backing allocations of `Buffers`: an object of the declared
+    /// type and length whose contents are left as memory holds them.
+    BuilderBacking,
+}
+
+impl CoreIntrinsic {
+    /// Whether a call to this operation can end the external call successfully, from however
+    /// deep in its internal calls it runs.
+    pub fn returns_from_call(self) -> bool {
+        matches!(
+            self,
+            Self::ReturnAbiEncoded | Self::ReturnRaw | Self::Forward | Self::ForwardDelegate
+        )
+    }
+
+    /// Whether a call to this operation never returns to its caller.
+    pub fn ends_call(self) -> bool {
+        self == Self::RevertRaw || self.returns_from_call()
+    }
+}
+
+/// Returns the intrinsic `function` names, if it is one.
+///
+/// Identity is the pair of the compiler-owned module the function is declared
+/// in and its name; a function of the same name in any other file is an
+/// ordinary function.
+pub fn intrinsic_of(gcx: crate::ty::Gcx<'_>, function: hir::FunctionId) -> Option<CoreIntrinsic> {
+    let f = gcx.hir.function(function);
+    let FileName::Custom(path) = &gcx.hir.source(f.source).file.name else { return None };
+    if !is_reserved_path(path) {
+        return None;
+    }
+    let name = gcx.item_name(function).name;
+    intrinsics_of_module(path)?.get(&name).copied()
+}
+
+/// The intrinsic table of the module at `path`.
+fn intrinsics_of_module(path: &str) -> Option<&'static FxHashMap<Symbol, CoreIntrinsic>> {
+    static BYTES: OnceLock<FxHashMap<Symbol, CoreIntrinsic>> = OnceLock::new();
+    static ARRAYS: OnceLock<FxHashMap<Symbol, CoreIntrinsic>> = OnceLock::new();
+    static WORD_ARRAYS: OnceLock<FxHashMap<Symbol, CoreIntrinsic>> = OnceLock::new();
+    static REVERT: OnceLock<FxHashMap<Symbol, CoreIntrinsic>> = OnceLock::new();
+    static HASH: OnceLock<FxHashMap<Symbol, CoreIntrinsic>> = OnceLock::new();
+    static CREATE: OnceLock<FxHashMap<Symbol, CoreIntrinsic>> = OnceLock::new();
+    static CODE: OnceLock<FxHashMap<Symbol, CoreIntrinsic>> = OnceLock::new();
+    static BITS: OnceLock<FxHashMap<Symbol, CoreIntrinsic>> = OnceLock::new();
+    static CALLS: OnceLock<FxHashMap<Symbol, CoreIntrinsic>> = OnceLock::new();
+    static CALLDATA_BYTES: OnceLock<FxHashMap<Symbol, CoreIntrinsic>> = OnceLock::new();
+    static MATH: OnceLock<FxHashMap<Symbol, CoreIntrinsic>> = OnceLock::new();
+    static BUILD: OnceLock<FxHashMap<Symbol, CoreIntrinsic>> = OnceLock::new();
+    static BASE64: OnceLock<FxHashMap<Symbol, CoreIntrinsic>> = OnceLock::new();
+    static STRINGS: OnceLock<FxHashMap<Symbol, CoreIntrinsic>> = OnceLock::new();
+    static HEX: OnceLock<FxHashMap<Symbol, CoreIntrinsic>> = OnceLock::new();
+    static RETURN: OnceLock<FxHashMap<Symbol, CoreIntrinsic>> = OnceLock::new();
+    static SLOTS: OnceLock<FxHashMap<Symbol, CoreIntrinsic>> = OnceLock::new();
+    static ABI: OnceLock<FxHashMap<Symbol, CoreIntrinsic>> = OnceLock::new();
+    static BUFFERS: OnceLock<FxHashMap<Symbol, CoreIntrinsic>> = OnceLock::new();
+    match path {
+        "solar:core/codecs/Hex.sol" => Some(HEX.get_or_init(|| {
+            // `decode` is library code.
+            FxHashMap::from_iter([
+                (sym::encode, CoreIntrinsic::HexEncode),
+                (Symbol::intern("encodePrefixed"), CoreIntrinsic::HexEncodePrefixed),
+            ])
+        })),
+        "solar:core/codecs/Base64.sol" => Some(BASE64.get_or_init(|| {
+            FxHashMap::from_iter([
+                (sym::encode, CoreIntrinsic::Base64Encode),
+                (sym::decode, CoreIntrinsic::Base64Decode),
+            ])
+        })),
+        "solar:core/Bytes.sol" => Some(BYTES.get_or_init(|| {
+            // The names are built here, so each family shares one
+            // definition instead of a symbol per width.
+            let mut table = FxHashMap::default();
+            for width in 1..=32u8 {
+                table.insert(
+                    Symbol::intern(&format!("readBytes{width}")),
+                    CoreIntrinsic::ReadBytes(width),
+                );
+                table.insert(
+                    Symbol::intern(&format!("writeBytes{width}")),
+                    CoreIntrinsic::WriteBytes(width),
+                );
+                table.insert(
+                    Symbol::intern(&format!("tryReadBytes{width}")),
+                    CoreIntrinsic::TryReadBytes(width),
+                );
+            }
+            table.insert(sym::readUint256BE, CoreIntrinsic::ReadUint256Be);
+            table.insert(sym::writeUint256BE, CoreIntrinsic::WriteUint256Be);
+            table.insert(sym::tryReadUint256BE, CoreIntrinsic::TryReadUint256Be);
+            table.insert(sym::copyInto, CoreIntrinsic::CopyInto);
+            table.insert(sym::fill, CoreIntrinsic::Fill);
+            table.insert(sym::equalsAt, CoreIntrinsic::EqualsAt);
+            table.insert(sym::slice, CoreIntrinsic::Slice);
+            table
+        })),
+        "solar:core/Arrays.sol" => Some(ARRAYS.get_or_init(|| {
+            // Every overload shares the name; the lowering reads the array
+            // kind off the declared parameter type.
+            FxHashMap::from_iter([(sym::truncate, CoreIntrinsic::Truncate)])
+        })),
+        "solar:core/WordArrays.sol" => Some(WORD_ARRAYS.get_or_init(|| {
+            FxHashMap::from_iter([
+                (sym::groupSum, CoreIntrinsic::ArrayGroupSum),
+                (Symbol::intern("hasDuplicate"), CoreIntrinsic::ArrayHasDuplicate),
+                (Symbol::intern("sort"), CoreIntrinsic::ArraySort),
+                (Symbol::intern("uniquifySorted"), CoreIntrinsic::ArrayUniquifySorted),
+                (sym::union, CoreIntrinsic::ArrayUnion),
+                (sym::intersection, CoreIntrinsic::ArrayIntersection),
+                (sym::difference, CoreIntrinsic::ArrayDifference),
+                (sym::copy, CoreIntrinsic::ArrayCopy),
+            ])
+        })),
+        "solar:core/Strings.sol" => Some(STRINGS.get_or_init(|| {
+            FxHashMap::from_iter([
+                (Symbol::intern("replace"), CoreIntrinsic::StringReplace),
+                (Symbol::intern("indicesOf"), CoreIntrinsic::StringIndicesOf),
+                (Symbol::intern("split"), CoreIntrinsic::StringSplit),
+                (sym::indexOf, CoreIntrinsic::StringIndexOf),
+                (sym::lastIndexOf, CoreIntrinsic::StringLastIndexOf),
+                (sym::runeCount, CoreIntrinsic::StringRuneCount),
+                (sym::repeat, CoreIntrinsic::StringRepeat),
+                // Both overloads share a name; the lowering reads the parameter type.
+                (sym::toString, CoreIntrinsic::StringToString),
+                (sym::escapeHTML, CoreIntrinsic::StringEscapeHTML),
+                // Both arities share a name; the lowering reads the operand count.
+                (sym::escapeJSON, CoreIntrinsic::StringEscapeJSON),
+                (sym::encodeURIComponent, CoreIntrinsic::StringEncodeURIComponent),
+                (Symbol::intern("toMinimalHexStringNoPrefix"), CoreIntrinsic::StringMinimalHex),
+                (Symbol::intern("toMinimalHexString"), CoreIntrinsic::StringMinimalHexPrefixed),
+                // Both arities share a name; the lowering reads the operand count.
+                (Symbol::intern("toHexStringNoPrefix"), CoreIntrinsic::StringHex),
+                (Symbol::intern("toHexString"), CoreIntrinsic::StringHexPrefixed),
+                (Symbol::intern("packOne"), CoreIntrinsic::StringPackOne),
+                (Symbol::intern("unpackOne"), CoreIntrinsic::StringUnpackOne),
+                (Symbol::intern("packTwo"), CoreIntrinsic::StringPackTwo),
+                (Symbol::intern("unpackTwo"), CoreIntrinsic::StringUnpackTwo),
+            ])
+        })),
+        "solar:core/Revert.sol" => Some(
+            REVERT.get_or_init(|| FxHashMap::from_iter([(sym::raw, CoreIntrinsic::RevertRaw)])),
+        ),
+        "solar:core/Return.sol" => Some(RETURN.get_or_init(|| {
+            // Every `abiEncoded` overload shares the name; the lowering reads the parameter type.
+            FxHashMap::from_iter([
+                (sym::abiEncoded, CoreIntrinsic::ReturnAbiEncoded),
+                (sym::raw, CoreIntrinsic::ReturnRaw),
+            ])
+        })),
+        "solar:core/Slots.sol" => Some(SLOTS.get_or_init(|| {
+            FxHashMap::from_iter([
+                (sym::load, CoreIntrinsic::SlotsLoad),
+                (sym::store, CoreIntrinsic::SlotsStore),
+                (sym::storeBytes, CoreIntrinsic::SlotsStoreBytes),
+                (sym::storeCalldataBytes, CoreIntrinsic::SlotsStoreCalldataBytes),
+                (sym::loadBytes, CoreIntrinsic::SlotsLoadBytes),
+            ])
+        })),
+        "solar:core/Hash.sol" => Some(HASH.get_or_init(|| {
+            FxHashMap::from_iter([(sym::keccak256Range, CoreIntrinsic::Keccak256Range)])
+        })),
+        "solar:core/Create.sol" => Some(CREATE.get_or_init(|| {
+            // `predict2` is arithmetic and stays a call to its body.
+            FxHashMap::from_iter([
+                (sym::deploy, CoreIntrinsic::Deploy),
+                (sym::deploy2, CoreIntrinsic::Deploy2),
+                (sym::tryDeploy, CoreIntrinsic::TryDeploy),
+                (sym::tryDeploy2, CoreIntrinsic::TryDeploy2),
+                (sym::tryDeployInto, CoreIntrinsic::TryDeployInto),
+            ])
+        })),
+        "solar:core/Code.sol" => Some(CODE.get_or_init(|| {
+            // Both overloads of each share a name; the lowering reads the operand count.
+            FxHashMap::from_iter([
+                (sym::copyInto, CoreIntrinsic::CodeCopyInto),
+                (sym::read, CoreIntrinsic::CodeRead),
+            ])
+        })),
+        "solar:core/Bits.sol" => Some(BITS.get_or_init(|| {
+            // `popCount` has no instruction to lower to.
+            FxHashMap::from_iter([
+                (sym::leadingZeros, CoreIntrinsic::LeadingZeros),
+                (sym::highestSetBit, CoreIntrinsic::HighestSetBit),
+                (sym::trailingZeros, CoreIntrinsic::TrailingZeros),
+            ])
+        })),
+        "solar:core/Calls.sol" => Some(CALLS.get_or_init(|| {
+            FxHashMap::from_iter([
+                (sym::callInto, CoreIntrinsic::CallInto),
+                (sym::staticCallInto, CoreIntrinsic::StaticCallInto),
+                (sym::delegateCallInto, CoreIntrinsic::DelegateCallInto),
+                (sym::callBounded, CoreIntrinsic::CallBounded),
+                (sym::staticCallBounded, CoreIntrinsic::StaticCallBounded),
+                (sym::forward, CoreIntrinsic::Forward),
+                (sym::forwardDelegate, CoreIntrinsic::ForwardDelegate),
+            ])
+        })),
+        "solar:core/CalldataBytes.sol" => Some(CALLDATA_BYTES.get_or_init(|| {
+            let mut table = FxHashMap::default();
+            for width in 1..=32u8 {
+                table.insert(
+                    Symbol::intern(&format!("readBytes{width}")),
+                    CoreIntrinsic::CalldataReadBytes(width),
+                );
+                table.insert(
+                    Symbol::intern(&format!("tryReadBytes{width}")),
+                    CoreIntrinsic::CalldataTryReadBytes(width),
+                );
+            }
+            table.insert(sym::readUint256BE, CoreIntrinsic::CalldataReadUint256Be);
+            table.insert(sym::tryReadUint256BE, CoreIntrinsic::CalldataTryReadUint256Be);
+            table.insert(sym::copyInto, CoreIntrinsic::CalldataCopyInto);
+            table
+        })),
+        "solar:core/Math.sol" => Some(MATH.get_or_init(|| {
+            // `mulDiv` is a long division and stays a call to its body.
+            FxHashMap::from_iter([
+                (sym::mul512, CoreIntrinsic::Mul512),
+                (sym::wrappingAdd, CoreIntrinsic::WrappingAdd),
+                (sym::wrappingSub, CoreIntrinsic::WrappingSub),
+                (sym::wrappingMul, CoreIntrinsic::WrappingMul),
+            ])
+        })),
+        "solar:core/Build.sol" => Some(
+            BUILD.get_or_init(|| FxHashMap::from_iter([(sym::gasFirst, CoreIntrinsic::GasFirst)])),
+        ),
+        "solar:core/Buffers.sol" => Some(BUFFERS.get_or_init(|| {
+            // Every other function is library code; the backing is what no code can read before
+            // it is written.
+            FxHashMap::from_iter([
+                (sym::_backing, CoreIntrinsic::BuilderBacking),
+                (sym::_wordBacking, CoreIntrinsic::BuilderBacking),
+                (sym::_addressBacking, CoreIntrinsic::BuilderBacking),
+                (sym::_bytes32Backing, CoreIntrinsic::BuilderBacking),
+                (sym::_int256Backing, CoreIntrinsic::BuilderBacking),
+            ])
+        })),
+        "solar:core/Abi.sol" => Some(ABI.get_or_init(|| {
+            // The word writers are library code over `Bytes`.
+            FxHashMap::from_iter([
+                (sym::writeEncoding, CoreIntrinsic::WriteEncoding),
+                (sym::tryWriteEncoding, CoreIntrinsic::TryWriteEncoding),
+                (sym::encodedSize, CoreIntrinsic::EncodedSize),
+            ])
+        })),
+        // `Cast`, `Precompiles` and the remaining codecs are library code
+        // throughout.
+        _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Compiler;
+    use snapbox::{assert_data_eq, str};
+    use solar_interface::{ColorChoice, Session};
+    use std::path::PathBuf;
+
+    const MAIN: &str = r#"import {Bytes} from "solar:core/Bytes.sol"; contract C {}"#;
+
+    /// Parses `main.sol`, which imports `Bytes`, after `load` registers other sources, and
+    /// returns the errors emitted.
+    fn parse_errors(load: impl FnOnce(&mut crate::ParsingContext<'_>, &Session) + Send) -> String {
+        let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
+        sess.dcx.set_flags(|flags| flags.track_diagnostics = false);
+        let mut compiler = Compiler::new(sess);
+        compiler.enter_mut(|c| {
+            let mut pcx = c.parse();
+            load(&mut pcx, c.sess());
+            pcx.add_file(
+                c.sess().source_map().new_source_file(PathBuf::from("main.sol"), MAIN).unwrap(),
+            );
+            pcx.parse();
+        });
+        match compiler.sess().dcx.emitted_errors().unwrap() {
+            Ok(()) => String::new(),
+            Err(errors) => errors.to_string(),
+        }
+    }
+
+    const FORGED: &str = "library Bytes {}";
+
+    #[test]
+    fn loaded_module_must_be_exact() {
+        let errors = parse_errors(|pcx, _| {
+            let _ = pcx.par_load_files_with_contents([(
+                "solar:core/Bytes.sol".to_string(),
+                FORGED.to_string(),
+            )]);
+        });
+        assert_data_eq!(
+            errors,
+            str![[r#"
+error: source `solar:core/Bytes.sol` is reserved for a compiler module
+  │
+  ╰ note: names under `solar:core/` identify the modules this compiler provides, so a source under one must be that module's exact text
+
+
+"#]]
+        );
+    }
+
+    #[test]
+    fn unknown_reserved_name() {
+        let errors = parse_errors(|pcx, _| {
+            let _ = pcx.par_load_files_with_contents([(
+                "solar:core/Fake.sol".to_string(),
+                FORGED.to_string(),
+            )]);
+        });
+        assert_data_eq!(
+            errors,
+            str![[r#"
+error: source `solar:core/Fake.sol` is reserved for a compiler module
+  │
+  ╰ note: names under `solar:core/` identify the modules this compiler provides, so a source under one must be that module's exact text
+
+
+"#]]
+        );
+    }
+
+    #[test]
+    fn import_rejects_preloaded_text() {
+        let errors = parse_errors(|_, sess| {
+            sess.source_map().new_source_file("solar:core/Bytes.sol".to_string(), FORGED).unwrap();
+        });
+        assert_data_eq!(
+            errors,
+            str![[r#"
+error: source `solar:core/Bytes.sol` is reserved for a compiler module
+  │
+  ╰ note: names under `solar:core/` identify the modules this compiler provides, so a source under one must be that module's exact text
+
+
+"#]]
+        );
+    }
+
+    #[test]
+    fn exact_copy_is_the_module() {
+        let errors = parse_errors(|pcx, _| {
+            let module = lookup("solar:core/Bytes.sol").unwrap();
+            pcx.par_load_files_with_contents([(module.path.to_string(), module.source)]).unwrap();
+        });
+        assert_data_eq!(errors, str![""]);
+    }
+}

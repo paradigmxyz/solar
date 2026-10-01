@@ -308,6 +308,24 @@ fn compile(
                     |pcx| {
                         let mut files = Vec::<(PathBuf, String)>::with_capacity(sources.len());
                         for (name, source) in sources {
+                            // The compiler provides these; a copy supplied so
+                            // another compiler can resolve the same input is
+                            // set aside rather than allowed to stand in. An
+                            // exact copy of `crates/std` is the module itself;
+                            // any other content is reported.
+                            if solar_sema::core::is_reserved_path(name.as_ref()) {
+                                let exact = solar_sema::core::lookup(name.as_ref())
+                                    .zip(source.content.as_deref())
+                                    .is_some_and(|(module, content)| module.source == content);
+                                if !exact {
+                                    pcx.dcx()
+                                        .warn(format!(
+                                            "source `{name}` is provided by the compiler; the supplied content differs from it and is ignored"
+                                        ))
+                                        .emit();
+                                }
+                                continue;
+                            }
                             let Some(content) = source.content else {
                                 let message = if source.urls.is_empty() {
                                     format!("source `{name}` is missing `content`")
@@ -584,6 +602,12 @@ fn make_contract_output<'gcx>(
     }
     if output_selection.contains(OutputSelectionFlags::TRANSIENT_STORAGE_LAYOUT) {
         output.transient_storage_layout = Some(gcx.transient_storage_layout(contract_id));
+    }
+    if output_selection.contains(OutputSelectionFlags::SOLAR_SAFETY) {
+        output.solar_safety = Some(gcx.safety(contract_id));
+    }
+    if output_selection.contains(OutputSelectionFlags::SOLAR_BUILD) {
+        output.solar_build = Some(super::build_info::build_output(gcx, contract_id));
     }
 
     let mut evm = EvmOutput::default();

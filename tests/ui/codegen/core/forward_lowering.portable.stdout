@@ -1,0 +1,57 @@
+// === <solar:core/Calls.sol>:Calls ===
+@module Calls
+@phase lowered
+@library
+fn @entry() [entry] {
+  bb0:
+    revert 0, 0
+}
+
+// === ROOT/tests/ui/codegen/core/forward_lowering.sol:Test ===
+@module Test
+@phase lowered
+@immutables
+  implementation: u160
+
+fn @fallback() [abi_wrapper, fallback, payable] {
+  bb0:
+    v0 = loadimmutable implementation
+    v1 = calldatasize
+    tail_call @forwardDelegate, v0, 0, v1
+}
+
+fn @forwardDelegate(arg0: i256, arg1: i256, arg2: i256) [inline_assembly] {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    calldatacopy v0, arg1, arg2
+    v4 = gas
+    v5 = delegatecall v4, arg0, v0, arg2, 0, 0
+    v7 = returndatasize
+    returndatacopy v0, 0, v7
+    jumpi v5, bb2, bb1
+  bb1:
+    v11 = returndatasize
+    revert v0, v11
+  bb2:
+    v12 = returndatasize
+    returndata v0, v12
+}
+
+fn @constructor() [abi_wrapper, constructor] {
+  bb0:
+    v2 = callvalue
+    v3 = ne v2, 0
+    jumpi v3, bb2, bb1
+  bb1:
+    v0 = address
+    v1 = zext i160 v0 to i256
+    mstore 192, v1
+    ret
+  bb2:
+    revert 0, 0
+}
+
+fn @entry() [entry] {
+  bb0:
+    tail_call @fallback
+}

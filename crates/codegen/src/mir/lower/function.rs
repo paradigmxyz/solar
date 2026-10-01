@@ -30,19 +30,32 @@ use std::{fmt::Display, sync::Arc};
 
 mod abi_calls;
 mod abi_values;
+mod builders;
 mod builtins;
 mod calls;
 mod control_flow;
+mod core;
 mod entry;
 mod expressions;
 mod indexing;
 mod lvalues;
+mod memory_facts;
 mod memory_values;
 mod modifiers;
 mod operators;
+mod scratch;
 mod statements;
 mod storage_values;
+mod terminates;
 mod values;
+mod views;
+
+pub(super) use builders::{check_builder_finishes, finish_functions};
+pub(super) use scratch::{ScratchRegion, check_scratch_regions};
+pub(super) use terminates::{PostludeCall, check_postlude_calls};
+pub(super) use views::{
+    ViewBorrow, ViewPass, check_view_borrows, is_view_parameter, parameter_type,
+};
 
 /// Shared inputs for one contract's function lowering.
 pub(super) struct LoweringContext<'gcx, 'ctx> {
@@ -100,13 +113,31 @@ pub(super) struct LoweringState {
     pub(super) invalid_event_topics: FxHashSet<hir::EventId>,
     pub(super) pointer_registry: InternalFunctionPointerRegistry,
     pub(super) helpers: FxHashMap<Symbol, FunctionId>,
+    /// The `@custom:solar-view` borrows of the function being lowered, which the contract
+    /// driver claims for its MIR function.
+    pub(super) view_borrows: Vec<ViewBorrow>,
+    /// The calls the function being lowered makes while a modifier's code after `_` is pending.
+    pub(super) postlude_calls: Vec<PostludeCall>,
+    /// Whether the function being lowered calls `Return.abiEncoded`.
+    pub(super) returns_from_call: bool,
+    /// The `@custom:solar-scratch` blocks of the function being lowered.
+    pub(super) scratch_regions: Vec<ScratchRegion>,
+    /// The copies of functions with `@custom:solar-view` parameters that take some of them as
+    /// views, keyed by the function and how each parameter is passed.
+    pub(super) view_clones: FxHashMap<(hir::FunctionId, Box<[ViewPass]>), FunctionId>,
+    /// The copies in `view_clones` that are not lowered yet.
+    pub(super) pending_view_clones: Vec<(hir::FunctionId, Box<[ViewPass]>, FunctionId)>,
 }
 
 /// Lowers one HIR function into a typed MIR function.
+///
+/// `passes` gives how the copy being lowered takes each `@custom:solar-view` parameter, for the
+/// copy of the function that the calls passing views reach; it is empty for the function itself.
 pub(super) fn lower(
     mut context: LoweringContext<'_, '_>,
     id: hir::FunctionId,
     expose_selector: bool,
+    passes: &[ViewPass],
 ) -> Option<Function> {
     let gcx = context.gcx;
     let hir_function = gcx.hir.function(id);
@@ -163,7 +194,7 @@ pub(super) fn lower(
 
     let mut lowerer = FunctionLowerer::new(context.reborrow(), &mut mir);
     lowerer.is_getter = hir_function.is_getter();
-    lowerer.bind_signature(hir_function);
+    lowerer.bind_signature(id, hir_function, passes);
     if hir_function.kind == hir::FunctionKind::Constructor {
         let Some(contract_id) = hir_function.contract else {
             return context.report_unsupported(hir_function.span, "free constructor");
@@ -238,6 +269,18 @@ struct FunctionLowerer<'gcx, 'ctx> {
     /// branches that just hand their value up to it qualify: every other subexpression feeds the
     /// value it belongs to.
     discarded_exprs: Vec<hir::ExprId>,
+    /// `@custom:solar-view` variables and the slices they read.
+    views: FxHashMap<VariableId, ValueId>,
+    /// The memory object each view slice reads, or `None` for calldata.
+    view_roots: FxHashMap<ValueId, Option<ValueId>>,
+    /// The `Bytes.slice` call initializing the `@custom:solar-view` variable being declared.
+    forming_view: Option<(hir::ExprId, VariableId)>,
+    /// The modifiers whose code after `_` runs once the code being lowered finishes, innermost
+    /// last: the first statement of that code and the modifier's name.
+    pending_postludes: Vec<(Span, Symbol)>,
+    /// The tags of the `@custom:solar-scratch` blocks the code being lowered runs inside,
+    /// innermost last, including those a modifier's `_` runs the function's body in.
+    open_scratch: Vec<Span>,
 }
 
 /// The lowered `{gas: ..., value: ...}` options of an external call.
@@ -296,12 +339,14 @@ struct TernaryBranch<T> {
     terminated: bool,
 }
 
-type BindingSnapshot = Vec<(VariableId, Option<ValueId>, Option<StorageAccess>)>;
+type BindingSnapshot = Vec<(VariableId, Option<ValueId>, Option<StorageAccess>, Option<ValueId>)>;
 
 struct ModifierContext<'gcx> {
     modifiers: &'gcx [hir::Modifier<'gcx>],
     body: hir::Block<'gcx>,
     next: usize,
+    /// The first statement this modifier runs after `_`, and the modifier's name.
+    postlude: Option<(Span, Symbol)>,
     parameters: BindingSnapshot,
     returns: BindingSnapshot,
     incoming_returns: BindingSnapshot,
@@ -437,6 +482,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             unchecked: false,
             in_inline_assembly: false,
             discarded_exprs: Vec::new(),
+            views: FxHashMap::default(),
+            view_roots: FxHashMap::default(),
+            forming_view: None,
+            pending_postludes: Vec::new(),
+            open_scratch: Vec::new(),
         }
     }
 

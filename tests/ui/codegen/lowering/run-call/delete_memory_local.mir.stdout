@@ -23,7 +23,7 @@ fn @length(arg0: i256) -> i256 [selector=0x80328f7c, pure, abi_params=[bool], ab
     ret v7
 }
 
-fn @lengthAfterDirtyScratch() -> i256 [selector=0x0b1ce329, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @lengthAfterDirtyScratch() -> i256 [selector=0x0b1ce329, inline_assembly, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
     set_memory_object_len memoryarray, v0, 1

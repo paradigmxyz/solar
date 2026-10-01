@@ -627,6 +627,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     let length = self.builder.slice_len(encoded);
                     return Some(self.builder.keccak256(pointer, length));
                 }
+                if self.is_view_expr(value) {
+                    // hash = keccak256(view)
+                    let view = self.lower_view_expr(value)?;
+                    return Some(self.hash_view(view));
+                }
                 let value_ty = self.cx.gcx.type_of_expr(value.id)?;
                 let memory_ty = value_ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
                 let span = value.span;
@@ -767,6 +772,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         continue;
                     }
                     all_literals = None;
+                    if self.is_view_expr(expr) {
+                        // A view's bytes are copied from where it reads them.
+                        let value = self.lower_view_expr(expr)?;
+                        parts.push(match self.builder.func().value_slice_location(value) {
+                            Some(location) => ConcatPart::Slice { value, location },
+                            None => ConcatPart::Bytes(value),
+                        });
+                        continue;
+                    }
                     let memory_ty = ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
                     let value = self.lower_typed_expr(expr, memory_ty)?;
                     let value = self.materialize_memory_argument(memory_ty, value, expr.span)?;

@@ -1,0 +1,303 @@
+- // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_decode_views.mir (before lower-abi) ===
++ // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_decode_views.mir (after lower-abi) ===
+  @module DecodeViews
+  @types
+    struct0: {calldataslice, calldataslice, i256}
+    struct1: {memoryslice, memoryslice, i256}
+  
+  fn @fromCalldata(arg0: calldataslice) -> i256 [pure] {
+    bb0:
+-     v0 = abi_decode [array<_, array<_, u256>>, tuple<u256, bytes>, u256], arg0, views
+-     v1 = extract_value struct0, v0, 0
++     v3 = slice_ptr arg0
++     v4 = slice_len arg0
++     v5 = add v3, v4
++     v6 = lt v5, v3
++     v7 = lt v4, 96
++     v8 = or v6, v7
++     v9 = zext i1 v8 to i256
++     jumpi v8, bb1, bb2
++   bb2:
++     v10 = fmp
++     v11 = ptrtoint memptr v10 to i256
++     v12 = calldataload v3
++     v13 = add v3, v12
++     v14 = add v13, 32
++     v15 = gt v12, 0xffffffffffffffff
++     v16 = gt v14, v5
++     v17 = or v15, v16
++     v18 = zext i1 v17 to i256
++     jumpi v17, bb1, bb3
++   bb3:
++     v19 = calldataload v13
++     v20 = add v13, 32
++     v21 = gt v19, 0xffffffffffffffff
++     v22 = mul v19, 32
++     v23 = add v22, 32
++     v24 = add v11, v23
++     v25 = lt v24, v11
++     v26 = gt v24, 0xffffffffffffffff
++     v27 = or v21, v25
++     v28 = zext i1 v27 to i256
++     v29 = zext i1 v26 to i256
++     v30 = or v28, v29
++     v31 = ne v30, 0
++     jumpi v31, bb4, bb5
++   bb5:
++     v32 = sub v5, v20
++     v33 = shr 5, v32
++     v34 = gt v19, v33
++     jumpi v34, bb1, bb6
++   bb6:
++     jump bb7
++   bb7:
++     v35 = phi [bb6: v19], [bb12: v63]
++     v36 = phi [bb6: v20], [bb12: v64]
++     v37 = phi [bb6: v24], [bb12: v51]
++     v38 = gt v35, 0
++     jumpi v38, bb8, bb9
++   bb9:
++     v65 = make_calldata_slice v20, v19
++     v66 = add v3, 32
++     v67 = calldataload v66
++     v68 = add v3, v67
++     v69 = sub v5, v3
++     v70 = gt v67, v69
++     jumpi v70, bb1, bb13
++   bb13:
++     v71 = sub v5, v68
++     v72 = gt 64, v71
++     jumpi v72, bb1, bb14
++   bb14:
++     v73 = add v37, 96
++     v74 = calldataload v68
++     v75 = add v68, 32
++     v76 = calldataload v75
++     v77 = add v68, v76
++     v78 = add v77, 32
++     v79 = gt v76, 0xffffffffffffffff
++     v80 = gt v78, v5
++     v81 = or v79, v80
++     v82 = zext i1 v81 to i256
++     jumpi v81, bb1, bb15
++   bb15:
++     v83 = calldataload v77
++     v84 = add v77, 32
++     v85 = gt v83, 0xffffffffffffffff
++     v86 = add v83, 63
++     v87 = not 31
++     v88 = and v86, v87
++     v89 = add v73, v88
++     v90 = lt v89, v73
++     v91 = gt v89, 0xffffffffffffffff
++     v92 = or v85, v90
++     v93 = zext i1 v92 to i256
++     v94 = zext i1 v91 to i256
++     v95 = or v93, v94
++     v96 = ne v95, 0
++     jumpi v96, bb4, bb16
++   bb16:
++     v97 = sub v5, v84
++     v98 = gt v83, v97
++     jumpi v98, bb1, bb17
++   bb17:
++     v99 = make_calldata_slice v84, v83
++     v100 = make_calldata_slice v68, 64
++     v101 = add v3, 64
++     v102 = calldataload v101
++     v103 = insert_value struct0, undef struct0, 0, v65
++     v104 = insert_value struct0, v103, 1, v100
++     v105 = insert_value struct0, v104, 2, v102
++     v1 = extract_value struct0, v105, 0
+      v2 = slice_len v1
+      ret v2
++   bb8:
++     v39 = calldataload v36
++     v40 = add v20, v39
++     v41 = add v40, 32
++     v42 = gt v39, 0xffffffffffffffff
++     v43 = gt v41, v5
++     v44 = or v42, v43
++     v45 = zext i1 v44 to i256
++     jumpi v44, bb1, bb10
++   bb10:
++     v46 = calldataload v40
++     v47 = add v40, 32
++     v48 = gt v46, 0xffffffffffffffff
++     v49 = mul v46, 32
++     v50 = add v49, 32
++     v51 = add v37, v50
++     v52 = lt v51, v37
++     v53 = gt v51, 0xffffffffffffffff
++     v54 = or v48, v52
++     v55 = zext i1 v54 to i256
++     v56 = zext i1 v53 to i256
++     v57 = or v55, v56
++     v58 = ne v57, 0
++     jumpi v58, bb4, bb11
++   bb11:
++     v59 = sub v5, v47
++     v60 = shr 5, v59
++     v61 = gt v46, v60
++     jumpi v61, bb1, bb12
++   bb12:
++     v62 = make_calldata_slice v47, v46
++     v63 = sub v35, 1
++     v64 = add v36, 32
++     jump bb7
++   bb4:
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     mstore 32, 65 !metadata(memory=scratch)
++     revert 28, 36
++   bb1:
++     revert 0, 0
+  }
+  
+  fn @fromMemory(arg0: memoryslice) -> i256 [pure] {
+    bb0:
+-     v0 = abi_decode [array<_, array<_, u256>>, tuple<u256, bytes>, u256], arg0, views
+-     v1 = extract_value struct1, v0, 1
++     v3 = slice_ptr arg0
++     v4 = slice_len arg0
++     v5 = add v3, v4
++     v6 = lt v5, v3
++     v7 = lt v4, 96
++     v8 = or v6, v7
++     v9 = zext i1 v8 to i256
++     jumpi v8, bb1, bb2
++   bb2:
++     v10 = fmp
++     v11 = ptrtoint memptr v10 to i256
++     v12 = mload v3
++     v13 = add v3, v12
++     v14 = add v13, 32
++     v15 = gt v12, 0xffffffffffffffff
++     v16 = gt v14, v5
++     v17 = or v15, v16
++     v18 = zext i1 v17 to i256
++     jumpi v17, bb1, bb3
++   bb3:
++     v19 = mload v13
++     v20 = add v13, 32
++     v21 = gt v19, 0xffffffffffffffff
++     v22 = mul v19, 32
++     v23 = add v22, 32
++     v24 = add v11, v23
++     v25 = lt v24, v11
++     v26 = gt v24, 0xffffffffffffffff
++     v27 = or v21, v25
++     v28 = zext i1 v27 to i256
++     v29 = zext i1 v26 to i256
++     v30 = or v28, v29
++     v31 = ne v30, 0
++     jumpi v31, bb4, bb5
++   bb5:
++     v32 = sub v5, v20
++     v33 = shr 5, v32
++     v34 = gt v19, v33
++     jumpi v34, bb1, bb6
++   bb6:
++     jump bb7
++   bb7:
++     v35 = phi [bb6: v19], [bb12: v63]
++     v36 = phi [bb6: v20], [bb12: v64]
++     v37 = phi [bb6: v24], [bb12: v51]
++     v38 = gt v35, 0
++     jumpi v38, bb8, bb9
++   bb9:
++     v65 = make_memory_slice v20, v19
++     v66 = add v3, 32
++     v67 = mload v66
++     v68 = add v3, v67
++     v69 = sub v5, v3
++     v70 = gt v67, v69
++     jumpi v70, bb1, bb13
++   bb13:
++     v71 = sub v5, v68
++     v72 = gt 64, v71
++     jumpi v72, bb1, bb14
++   bb14:
++     v73 = add v37, 64
++     v74 = mload v68
++     v75 = add v68, 32
++     v76 = mload v75
++     v77 = add v68, v76
++     v78 = add v77, 32
++     v79 = gt v76, 0xffffffffffffffff
++     v80 = gt v78, v5
++     v81 = or v79, v80
++     v82 = zext i1 v81 to i256
++     jumpi v81, bb1, bb15
++   bb15:
++     v83 = mload v77
++     v84 = add v77, 32
++     v85 = gt v83, 0xffffffffffffffff
++     v86 = add v83, 63
++     v87 = not 31
++     v88 = and v86, v87
++     v89 = add v73, v88
++     v90 = lt v89, v73
++     v91 = gt v89, 0xffffffffffffffff
++     v92 = or v85, v90
++     v93 = zext i1 v92 to i256
++     v94 = zext i1 v91 to i256
++     v95 = or v93, v94
++     v96 = ne v95, 0
++     jumpi v96, bb4, bb16
++   bb16:
++     v97 = sub v5, v84
++     v98 = gt v83, v97
++     jumpi v98, bb1, bb17
++   bb17:
++     v99 = make_memory_slice v84, v83
++     v100 = make_memory_slice v68, 64
++     v101 = add v3, 64
++     v102 = mload v101
++     v103 = insert_value struct1, undef struct1, 0, v65
++     v104 = insert_value struct1, v103, 1, v100
++     v105 = insert_value struct1, v104, 2, v102
++     v1 = extract_value struct1, v105, 1
+      v2 = slice_len v1
+      ret v2
++   bb8:
++     v39 = mload v36
++     v40 = add v20, v39
++     v41 = add v40, 32
++     v42 = gt v39, 0xffffffffffffffff
++     v43 = gt v41, v5
++     v44 = or v42, v43
++     v45 = zext i1 v44 to i256
++     jumpi v44, bb1, bb10
++   bb10:
++     v46 = mload v40
++     v47 = add v40, 32
++     v48 = gt v46, 0xffffffffffffffff
++     v49 = mul v46, 32
++     v50 = add v49, 32
++     v51 = add v37, v50
++     v52 = lt v51, v37
++     v53 = gt v51, 0xffffffffffffffff
++     v54 = or v48, v52
++     v55 = zext i1 v54 to i256
++     v56 = zext i1 v53 to i256
++     v57 = or v55, v56
++     v58 = ne v57, 0
++     jumpi v58, bb4, bb11
++   bb11:
++     v59 = sub v5, v47
++     v60 = shr 5, v59
++     v61 = gt v46, v60
++     jumpi v61, bb1, bb12
++   bb12:
++     v62 = make_memory_slice v47, v46
++     v63 = sub v35, 1
++     v64 = add v36, 32
++     jump bb7
++   bb4:
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     mstore 32, 65 !metadata(memory=scratch)
++     revert 28, 36
++   bb1:
++     revert 0, 0
+  }
+  

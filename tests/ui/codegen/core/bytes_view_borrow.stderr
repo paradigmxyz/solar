@@ -1,0 +1,106 @@
+error: this may change bytes that the view `v` still reads
+   ╭▸ ROOT/tests/ui/codegen/core/bytes_view_borrow.sol:LL:CC
+   │
+LL │         b[0] = 0x01;
+   │         ━━━━━━━━━━━
+   ╰╴
+note: `v` reads the bytes in place and is read after this
+   ╭▸ ROOT/tests/ui/codegen/core/bytes_view_borrow.sol:LL:CC
+   │
+LL │         bytes memory v = b.slice(0, 2);
+   │         ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰ help: finish reading the view first, or remove `@custom:solar-view` to read a copy
+
+error: this may change bytes that the view `v` still reads
+   ╭▸ ROOT/tests/ui/codegen/core/bytes_view_borrow.sol:LL:CC
+   │
+LL │         c[1] = 0x01;
+   │         ━━━━━━━━━━━
+   ╰╴
+note: `v` reads the bytes in place and is read after this
+   ╭▸ ROOT/tests/ui/codegen/core/bytes_view_borrow.sol:LL:CC
+   │
+LL │         bytes memory v = b.slice(0, 2);
+   │         ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰ help: finish reading the view first, or remove `@custom:solar-view` to read a copy
+
+error: this may change bytes that the view `v` still reads
+   ╭▸ ROOT/tests/ui/codegen/core/bytes_view_borrow.sol:LL:CC
+   │
+LL │         c[0] = 0x01;
+   │         ━━━━━━━━━━━
+   ╰╴
+note: `v` reads the bytes in place and is read after this
+   ╭▸ ROOT/tests/ui/codegen/core/bytes_view_borrow.sol:LL:CC
+   │
+LL │         bytes memory v = b.slice(0, 2);
+   │         ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰ help: finish reading the view first, or remove `@custom:solar-view` to read a copy
+
+error: this may change bytes that the view `v` still reads
+   ╭▸ ROOT/tests/ui/codegen/core/bytes_view_borrow.sol:LL:CC
+   │
+LL │         clear(b);
+   │         ━━━━━━━━
+   ╰╴
+note: `v` reads the bytes in place and is read after this
+   ╭▸ ROOT/tests/ui/codegen/core/bytes_view_borrow.sol:LL:CC
+   │
+LL │         bytes memory v = b.slice(0, 2);
+   │         ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰ help: finish reading the view first, or remove `@custom:solar-view` to read a copy
+
+error: this may change bytes that the view `v` still reads
+   ╭▸ ROOT/tests/ui/codegen/core/bytes_view_borrow.sol:LL:CC
+   │
+LL │             b[i] = 0;
+   │             ━━━━━━━━
+   ╰╴
+note: `v` reads the bytes in place and is read after this
+   ╭▸ ROOT/tests/ui/codegen/core/bytes_view_borrow.sol:LL:CC
+   │
+LL │         bytes memory v = b.slice(0, b.length);
+   │         ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰ help: finish reading the view first, or remove `@custom:solar-view` to read a copy
+
+error: this may change bytes that the view `v` still reads
+   ╭▸ ROOT/tests/ui/codegen/core/bytes_view_borrow.sol:LL:CC
+   │
+LL │         b.writeUint256BE(0, 1);
+   │         ━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: `v` reads the bytes in place and is read after this
+   ╭▸ ROOT/tests/ui/codegen/core/bytes_view_borrow.sol:LL:CC
+   │
+LL │         bytes memory v = b.slice(0, 32);
+   │         ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰ help: finish reading the view first, or remove `@custom:solar-view` to read a copy
+
+error: this may change bytes that the view `v` still reads
+   ╭▸ ROOT/tests/ui/codegen/core/bytes_view_borrow.sol:LL:CC
+   │
+LL │             mstore(0x80, 1)
+   │             ━━━━━━━━━━━━━━━
+   ╰╴
+note: `v` reads the bytes in place and is read after this
+   ╭▸ ROOT/tests/ui/codegen/core/bytes_view_borrow.sol:LL:CC
+   │
+LL │         bytes memory v = b.slice(0, 1);
+   │         ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰ help: finish reading the view first, or remove `@custom:solar-view` to read a copy
+
+error: this may change bytes that the view `v` still reads
+   ╭▸ ROOT/tests/ui/codegen/core/bytes_view_borrow.sol:LL:CC
+   │
+LL │             mstore(add(p, 500), 1)
+   │             ━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: `v` reads the bytes in place and is read after this
+   ╭▸ ROOT/tests/ui/codegen/core/bytes_view_borrow.sol:LL:CC
+   │
+LL │         bytes memory v = data.slice(0, 2);
+   │         ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰ help: finish reading the view first, or remove `@custom:solar-view` to read a copy
+
+error: aborting due to 8 previous errors
+

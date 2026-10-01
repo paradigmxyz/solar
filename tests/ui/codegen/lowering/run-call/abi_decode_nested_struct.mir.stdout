@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_decode_nested_struct.sol:Probe ===
 @module Probe
-fn @roundTrip() -> i256 [selector=0x6643a628, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @roundTrip() -> i256 [selector=0x6643a628, inline_assembly, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memorystruct<6>, exact, uninitialized, infallible, 192
     v1 = alloc memorystruct<5>, exact, uninitialized, infallible, 160
@@ -144,7 +144,7 @@ fn @roundTrip() -> i256 [selector=0x6643a628, pure, abi_params=[], abi_returns=[
 
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_decode_nested_struct.sol:Probe2 ===
 @module Probe2
-fn @outer() -> i256 [selector=0x87c3dbb6, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @outer() -> i256 [selector=0x87c3dbb6, inline_assembly, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memorystruct<4>, exact, uninitialized, infallible, 128
     v1 = alloc memorystruct<5>, exact, uninitialized, infallible, 160
@@ -195,7 +195,7 @@ fn @outer() -> i256 [selector=0x87c3dbb6, view, abi_params=[], abi_returns=[word
     ret 1
 }
 
-fn @inner(arg0: calldataslice) -> i256 [selector=0x3c12b05c, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[bytes32]] {
+fn @inner(arg0: calldataslice) -> i256 [selector=0x3c12b05c, inline_assembly, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = slice_len arg0
@@ -223,21 +223,21 @@ fn @inner(arg0: calldataslice) -> i256 [selector=0x3c12b05c, pure, abi_params=[b
 
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_decode_nested_struct.sol:Probe3 ===
 @module Probe3
-fn @idOfKeyOnly(arg0: memorystruct, arg1: i256) -> i256 [selector=0x128e91fc, pure, abi_params=[tuple<address, address, u24, i24, address>, u160], abi_returns=[word], abi_return_params=[bytes32]] {
+fn @idOfKeyOnly(arg0: memorystruct, arg1: i256) -> i256 [selector=0x128e91fc, inline_assembly, pure, abi_params=[tuple<address, address, u24, i24, address>, u160], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = ptrtoint memorystruct arg0 to i256
     v1 = keccak256 v0, 160
     ret v1
 }
 
-fn @idOfKeyMixed(arg0: memorystruct, arg1: memorystruct, arg2: calldataslice) -> i256 [selector=0xd0a3f749, pure, abi_params=[tuple<address, address, u24, i24, address>, tuple<i24, i24, i256, bytes32>, bytes], abi_returns=[word], abi_return_params=[bytes32]] {
+fn @idOfKeyMixed(arg0: memorystruct, arg1: memorystruct, arg2: calldataslice) -> i256 [selector=0xd0a3f749, inline_assembly, pure, abi_params=[tuple<address, address, u24, i24, address>, tuple<i24, i24, i256, bytes32>, bytes], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = ptrtoint memorystruct arg0 to i256
     v1 = keccak256 v0, 160
     ret v1
 }
 
-fn @run() -> i256 [selector=0xc0406226, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @run() -> i256 [selector=0xc0406226, inline_assembly, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memorystruct<5>, exact, uninitialized, infallible, 160
     v1 = trunc i256 0 to i160

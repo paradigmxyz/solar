@@ -33,7 +33,7 @@ fn @f() -> i256 [selector=0x26121ff0, pure, abi_params=[], abi_returns=[word], a
   LongReturn_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/external_call_returndata_size.sol:LongReturn"
   ShortReturn_creation_code_1: creation_code "ROOT/tests/ui/codegen/lowering/run-call/external_call_returndata_size.sol:ShortReturn"
 
-fn @directOne() -> struct0 [selector=0x6aec8241, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @directOne() -> struct0 [selector=0x6aec8241, inline_assembly, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = abi_encode []
     v1 = datasize LongReturn_creation_code_0
@@ -79,7 +79,7 @@ fn @directOne() -> struct0 [selector=0x6aec8241, abi_params=[], abi_returns=[wor
     ret v29
 }
 
-fn @pointerOne() -> struct0 [selector=0xc114b656, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @pointerOne() -> struct0 [selector=0xc114b656, inline_assembly, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = abi_encode []
     v1 = datasize LongReturn_creation_code_0
@@ -130,7 +130,7 @@ fn @pointerOne() -> struct0 [selector=0xc114b656, abi_params=[], abi_returns=[wo
     ret v34
 }
 
-fn @directTwo() -> struct1 [selector=0x5ffbc6a1, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @directTwo() -> struct1 [selector=0x5ffbc6a1, inline_assembly, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     v0 = abi_encode []
     v1 = datasize LongReturn_creation_code_0
@@ -185,7 +185,7 @@ fn @directTwo() -> struct1 [selector=0x5ffbc6a1, abi_params=[], abi_returns=[wor
     ret v38
 }
 
-fn @pointerTwo() -> struct1 [selector=0x48c1a795, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+fn @pointerTwo() -> struct1 [selector=0x48c1a795, inline_assembly, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     v0 = abi_encode []
     v1 = datasize LongReturn_creation_code_0

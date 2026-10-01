@@ -7,6 +7,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let variable = self.cx.gcx.hir.variable(id);
         variable.is_state_variable()
             || self.values.contains_key(&id)
+            // A view is a place only for the store to reject.
+            || self.views.contains_key(&id)
             || self.default_bindings.contains(&id)
             || self.deferred_bindings.contains(&id)
             || variable.parent.is_none()
@@ -30,6 +32,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return Some(LValuePlace::Variable { id, span: expr.span });
         }
 
+        // Nothing writes through a view, or through an element or a field of one.
+        if let ExprKind::Member(receiver, _) | ExprKind::Index(receiver, _) = &expr.kind
+            && self.is_view_expr(receiver)
+        {
+            return self.report_view_use(self.view_root(receiver)?, receiver.span);
+        }
         match &expr.kind {
             ExprKind::Member(receiver, name) => {
                 if self.cx.gcx.resolved_builtin(expr) == Some(Builtin::ArrayLength)
@@ -205,6 +213,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if let Some(value) = self.values.get(&id).copied() {
             return Some(value);
         }
+        if self.views.contains_key(&id) {
+            return self.report_view_use(id, span);
+        }
         if self.default_bindings.contains(&id) || self.deferred_bindings.contains(&id) {
             let ty = self.cx.gcx.type_of_item(id.into());
             let value = self.default_binding_value(ty);
@@ -254,6 +265,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         mut value: ValueId,
         span: Span,
     ) -> Option<()> {
+        if self.views.contains_key(&id) {
+            return self.report_view_use(id, span);
+        }
         if self.in_inline_assembly {
             let ty = self.cx.gcx.type_of_item(id.into());
             if self.builder.func().value_slice_location(value) != Some(SliceLocation::Calldata)

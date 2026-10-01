@@ -1,0 +1,535 @@
+- // === <solar:core/Arrays.sol>:Arrays (before element-cleanup) ===
++ // === <solar:core/Arrays.sol>:Arrays (after element-cleanup) ===
+  @module Arrays
+  @library
+  
+- // === <solar:core/WordArrays.sol>:WordArrays (before element-cleanup) ===
++ // === <solar:core/WordArrays.sol>:WordArrays (after element-cleanup) ===
+  @module WordArrays
+  @library
+  
+- // === ROOT/tests/ui/codegen/mir/element-cleanup/address_helpers.sol:Clean (before element-cleanup) ===
++ // === ROOT/tests/ui/codegen/mir/element-cleanup/address_helpers.sol:Clean (after element-cleanup) ===
+  @module Clean
+  fn @hasDuplicate.0(arg0: memoryarray) -> i256 [selector=0x64c20abc, pure, abi_params=[array<_, address>], abi_returns=[word<bool>], abi_return_params=[bool]] {
+    bb0:
+      v0 = icall @core_array_has_duplicate_address, arg0
+      v1 = zext i1 v0 to i256
+      ret v1
+  }
+  
+  fn @hasDuplicate.1(arg0: memoryarray) -> i256 [pure] {
+    bb0:
+      v0 = memory_object_len memoryarray, arg0
+      v1 = lt v0, 2
+      jumpi v1, bb1, bb2
+    bb2:
+      jump bb3
+    bb3:
+      jump bb4
+    bb4:
+      v3 = phi [bb3: arg0], [bb8: v3]
+      v4 = phi [bb3: 0], [bb8: v4]
+      v5 = phi [bb3: 1], [bb8: v9]
+      v6 = memory_object_len memoryarray, v3
+      v7 = checked_mul u256, v6, 2
+      v8 = lt v5, v7
+      jumpi v8, bb6, bb7
+    bb7:
+      jump bb5
+    bb5:
+      v10 = mul v5, 1
+      v11 = eq 1, 0
+      v12 = div v10, 1
+      v13 = eq v12, v5
+      v14 = or v11, v13
+      v15 = zext i1 v14 to i256
+      v16 = eq v15, 0
+      icall panic_if<0x41>, v16
+      v17 = add v10, 1
+      v18 = lt v17, v10
+      icall panic_if<0x41>, v18
+      v19 = mul v17, 32
+      v20 = eq 32, 0
+      v21 = div v19, 32
+      v22 = eq v21, v17
+      v23 = or v20, v22
+      v24 = zext i1 v23 to i256
+      v25 = eq v24, 0
+      icall panic_if<0x41>, v25
+      v26 = alloc memoryarray<1>, exact, zeroed, panic, v19
+      set_memory_object_len memoryarray, v26, v5
+      v27 = checked_sub u256, v5, 1
+      v28 = memory_object_len memoryarray, v3
+      jump bb9
+    bb9:
+      v29 = phi [bb5: v3], [bb13: v46]
+      v30 = phi [bb5: v5], [bb13: v47]
+      v31 = phi [bb5: v27], [bb13: v48]
+      v32 = phi [bb5: v4], [bb13: v50]
+      v33 = phi [bb5: v26], [bb13: v51]
+      v34 = phi [bb5: v28], [bb13: v52]
+      v35 = ne v34, 0
+      jumpi v35, bb11, bb12
+    bb12:
+      jump bb10
+    bb10:
+      v81 = zext i1 0 to i256
+      ret v81
+    bb11:
+      v36 = checked_sub u256, v34, 1
+      v37 = memory_object_len memoryarray, v29
+      v38 = lt v36, v37
+      v39 = eq v38, false
+      icall panic_if<0x32>, v39
+      v40 = memory_object_load_element memoryarray<1>, v29, v36
+      v41 = trunc i256 v40 to i160
+      v42 = not 188
+      v43 = zext i160 v41 to i256
+      v44 = icall checked_mulmod<>, v43, 0x100000000000000000000000000000051, v42
+      v45 = and v44, v31
+      jump bb14
+    bb14:
+      v46 = phi [bb11: v29], [bb18: v46]
+      v47 = phi [bb11: v30], [bb18: v47]
+      v48 = phi [bb11: v31], [bb18: v48]
+      v49 = phi [bb11: v45], [bb18: v76]
+      v50 = phi [bb11: v32], [bb18: v50]
+      v51 = phi [bb11: v33], [bb18: v51]
+      v52 = phi [bb11: v36], [bb18: v52]
+      v53 = memory_object_len memoryarray, v51
+      v54 = lt v49, v53
+      v55 = eq v54, false
+      icall panic_if<0x32>, v55
+      v56 = memory_object_load_element memoryarray<1>, v51, v49
+      v57 = ne v56, 0
+      jumpi v57, bb16, bb17
+    bb17:
+      jump bb15
+    bb15:
+      v77 = checked_add u256, v52, 1
+      v78 = memory_object_len memoryarray, v51
+      v79 = lt v49, v78
+      v80 = eq v79, false
+      icall panic_if<0x32>, v80
+      memory_object_store_element memoryarray<1>, v51, v49, v77
+      jump bb13
+    bb13:
+      jump bb9
+    bb16:
+      v58 = memory_object_len memoryarray, v51
+      v59 = lt v49, v58
+      v60 = eq v59, false
+      icall panic_if<0x32>, v60
+      v61 = memory_object_load_element memoryarray<1>, v51, v49
+      v62 = checked_sub u256, v61, 1
+      v63 = memory_object_len memoryarray, v46
+      v64 = lt v62, v63
+      v65 = eq v64, false
+      icall panic_if<0x32>, v65
+      v66 = memory_object_load_element memoryarray<1>, v46, v62
+      v67 = trunc i256 v66 to i160
+      v68 = memory_object_len memoryarray, v46
+      v69 = lt v52, v68
+      v70 = eq v69, false
+      icall panic_if<0x32>, v70
+      v71 = memory_object_load_element memoryarray<1>, v46, v52
+      v72 = trunc i256 v71 to i160
+      v73 = eq v67, v72
+      jumpi v73, bb19, bb20
+    bb20:
+      jump bb21
+    bb21:
+      v75 = checked_add u256, v49, 1
+      v76 = and v75, v48
+      jump bb18
+    bb18:
+      jump bb14
+    bb19:
+      v74 = zext i1 1 to i256
+      ret v74
+    bb6:
+      v9 = checked_mul u256, v5, 2
+      jump bb8
+    bb8:
+      jump bb4
+    bb1:
+      v2 = zext i1 0 to i256
+      ret v2
+  }
+  
+  fn @core_array_has_duplicate_address(arg0: memoryarray) -> i1 {
+    bb0:
+      v0 = memory_object_len memoryarray, arg0
+      v1 = lt v0, 2
+      jumpi v1, bb1, bb2
+    bb2:
+      v2 = lt v0, 7
+      jumpi v2, bb4, bb3
+    bb3:
+      v19 = mul v0, 48
+      v20 = eq 48, 0
+      v21 = div v19, 48
+      v22 = eq v21, v0
+      v23 = or v20, v22
+      v24 = zext i1 v23 to i256
+      v25 = eq v24, 0
+      icall panic_if<0x41>, v25
+      v26 = shr 1, v19
+      v27 = or v19, v26
+      v28 = shr 2, v27
+      v29 = or v27, v28
+      v30 = shr 4, v29
+      v31 = or v29, v30
+      v32 = shr 8, v31
+      v33 = or v31, v32
+      v34 = shr 16, v33
+      v35 = or v33, v34
+      v36 = shr 32, v35
+      v37 = or v35, v36
+      v38 = shr 64, v37
+      v39 = or v37, v38
+      v40 = shr 128, v39
+      v41 = or v39, v40
+      v42 = and v41, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+      v43 = add v42, 32
+      v44 = lt v43, v42
+      icall panic_if<0x41>, v44
+      v45 = alloc raw, exact, zeroed, panic, v43
+      v46 = ptrtoint memptr v45 to i256
+      v47 = memory_object_data memoryarray, arg0
+      v48 = ptrtoint memptr v47 to i256
+      v49 = shl 5, v0
+      v50 = add v48, v49
+      jump bb11
+    bb11:
+      v51 = phi [bb3: v50], [bb15: v53]
+      v52 = gt v51, v48
+      jumpi v52, bb12, bb13
+    bb13:
+      ret false
+    bb12:
+      v53 = sub v51, 32
+      v54 = mload v53
+-     v55 = and v54, 0xffffffffffffffffffffffffffffffffffffffff
+-     v56 = mulmod v55, 0x100000000000000000000000000000051, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff43
++     v56 = mulmod v54, 0x100000000000000000000000000000051, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff43
+      v57 = and v56, v42
+      jump bb14
+    bb14:
+      v58 = phi [bb12: v57], [bb17: v66]
+      v59 = add v46, v58
+      v60 = mload v59
+      v61 = eq v60, 0
+      jumpi v61, bb15, bb16
+    bb16:
+      v62 = mload v60
+-     v63 = and v62, 0xffffffffffffffffffffffffffffffffffffffff
+-     v64 = eq v63, v55
++     v64 = eq v62, v54
+      jumpi v64, bb18, bb17
+    bb17:
+      v65 = add v58, 32
+      v66 = and v65, v42
+      jump bb14
+    bb18:
+      ret true
+    bb15:
+      mstore v59, v53
+      jump bb11
+    bb4:
+      v3 = memory_object_data memoryarray, arg0
+      v4 = ptrtoint memptr v3 to i256
+      v5 = shl 5, v0
+      v6 = add v4, v5
+      v7 = sub v6, 32
+      jump bb5
+    bb5:
+      v8 = phi [bb4: v4], [bb8: v11]
+      v9 = mload v8
+-     v10 = and v9, 0xffffffffffffffffffffffffffffffffffffffff
+      v11 = add v8, 32
+      jump bb6
+    bb6:
+      v12 = phi [bb5: v11], [bb7: v16]
+      v13 = mload v12
+-     v14 = and v13, 0xffffffffffffffffffffffffffffffffffffffff
+-     v15 = eq v14, v10
++     v15 = eq v13, v9
+      jumpi v15, bb10, bb7
+    bb7:
+      v16 = add v12, 32
+      v17 = lt v16, v6
+      jumpi v17, bb6, bb8
+    bb8:
+      v18 = lt v11, v7
+      jumpi v18, bb5, bb9
+    bb9:
+      ret false
+    bb10:
+      ret true
+    bb1:
+      ret false
+  }
+  
+- // === ROOT/tests/ui/codegen/mir/element-cleanup/address_helpers.sol:Dirty (before element-cleanup) ===
++ // === ROOT/tests/ui/codegen/mir/element-cleanup/address_helpers.sol:Dirty (after element-cleanup) ===
+  @module Dirty
+  fn @hasDuplicate.0(arg0: memoryarray) -> i256 [selector=0x7cf7d2f5, inline_assembly, pure, abi_params=[array<_, u256>], abi_returns=[word<bool>], abi_return_params=[bool]] {
+    bb0:
+      v0 = icall @core_array_has_duplicate_address, arg0
+      v1 = zext i1 v0 to i256
+      ret v1
+  }
+  
+  fn @hasDuplicate.1(arg0: memoryarray) -> i256 [pure] {
+    bb0:
+      v0 = memory_object_len memoryarray, arg0
+      v1 = lt v0, 2
+      jumpi v1, bb1, bb2
+    bb2:
+      jump bb3
+    bb3:
+      jump bb4
+    bb4:
+      v3 = phi [bb3: arg0], [bb8: v3]
+      v4 = phi [bb3: 0], [bb8: v4]
+      v5 = phi [bb3: 1], [bb8: v9]
+      v6 = memory_object_len memoryarray, v3
+      v7 = checked_mul u256, v6, 2
+      v8 = lt v5, v7
+      jumpi v8, bb6, bb7
+    bb7:
+      jump bb5
+    bb5:
+      v10 = mul v5, 1
+      v11 = eq 1, 0
+      v12 = div v10, 1
+      v13 = eq v12, v5
+      v14 = or v11, v13
+      v15 = zext i1 v14 to i256
+      v16 = eq v15, 0
+      icall panic_if<0x41>, v16
+      v17 = add v10, 1
+      v18 = lt v17, v10
+      icall panic_if<0x41>, v18
+      v19 = mul v17, 32
+      v20 = eq 32, 0
+      v21 = div v19, 32
+      v22 = eq v21, v17
+      v23 = or v20, v22
+      v24 = zext i1 v23 to i256
+      v25 = eq v24, 0
+      icall panic_if<0x41>, v25
+      v26 = alloc memoryarray<1>, exact, zeroed, panic, v19
+      set_memory_object_len memoryarray, v26, v5
+      v27 = checked_sub u256, v5, 1
+      v28 = memory_object_len memoryarray, v3
+      jump bb9
+    bb9:
+      v29 = phi [bb5: v3], [bb13: v46]
+      v30 = phi [bb5: v5], [bb13: v47]
+      v31 = phi [bb5: v27], [bb13: v48]
+      v32 = phi [bb5: v4], [bb13: v50]
+      v33 = phi [bb5: v26], [bb13: v51]
+      v34 = phi [bb5: v28], [bb13: v52]
+      v35 = ne v34, 0
+      jumpi v35, bb11, bb12
+    bb12:
+      jump bb10
+    bb10:
+      v81 = zext i1 0 to i256
+      ret v81
+    bb11:
+      v36 = checked_sub u256, v34, 1
+      v37 = memory_object_len memoryarray, v29
+      v38 = lt v36, v37
+      v39 = eq v38, false
+      icall panic_if<0x32>, v39
+      v40 = memory_object_load_element memoryarray<1>, v29, v36
+      v41 = trunc i256 v40 to i160
+      v42 = not 188
+      v43 = zext i160 v41 to i256
+      v44 = icall checked_mulmod<>, v43, 0x100000000000000000000000000000051, v42
+      v45 = and v44, v31
+      jump bb14
+    bb14:
+      v46 = phi [bb11: v29], [bb18: v46]
+      v47 = phi [bb11: v30], [bb18: v47]
+      v48 = phi [bb11: v31], [bb18: v48]
+      v49 = phi [bb11: v45], [bb18: v76]
+      v50 = phi [bb11: v32], [bb18: v50]
+      v51 = phi [bb11: v33], [bb18: v51]
+      v52 = phi [bb11: v36], [bb18: v52]
+      v53 = memory_object_len memoryarray, v51
+      v54 = lt v49, v53
+      v55 = eq v54, false
+      icall panic_if<0x32>, v55
+      v56 = memory_object_load_element memoryarray<1>, v51, v49
+      v57 = ne v56, 0
+      jumpi v57, bb16, bb17
+    bb17:
+      jump bb15
+    bb15:
+      v77 = checked_add u256, v52, 1
+      v78 = memory_object_len memoryarray, v51
+      v79 = lt v49, v78
+      v80 = eq v79, false
+      icall panic_if<0x32>, v80
+      memory_object_store_element memoryarray<1>, v51, v49, v77
+      jump bb13
+    bb13:
+      jump bb9
+    bb16:
+      v58 = memory_object_len memoryarray, v51
+      v59 = lt v49, v58
+      v60 = eq v59, false
+      icall panic_if<0x32>, v60
+      v61 = memory_object_load_element memoryarray<1>, v51, v49
+      v62 = checked_sub u256, v61, 1
+      v63 = memory_object_len memoryarray, v46
+      v64 = lt v62, v63
+      v65 = eq v64, false
+      icall panic_if<0x32>, v65
+      v66 = memory_object_load_element memoryarray<1>, v46, v62
+      v67 = trunc i256 v66 to i160
+      v68 = memory_object_len memoryarray, v46
+      v69 = lt v52, v68
+      v70 = eq v69, false
+      icall panic_if<0x32>, v70
+      v71 = memory_object_load_element memoryarray<1>, v46, v52
+      v72 = trunc i256 v71 to i160
+      v73 = eq v67, v72
+      jumpi v73, bb19, bb20
+    bb20:
+      jump bb21
+    bb21:
+      v75 = checked_add u256, v49, 1
+      v76 = and v75, v48
+      jump bb18
+    bb18:
+      jump bb14
+    bb19:
+      v74 = zext i1 1 to i256
+      ret v74
+    bb6:
+      v9 = checked_mul u256, v5, 2
+      jump bb8
+    bb8:
+      jump bb4
+    bb1:
+      v2 = zext i1 0 to i256
+      ret v2
+  }
+  
+  fn @core_array_has_duplicate_address(arg0: memoryarray) -> i1 {
+    bb0:
+      v0 = memory_object_len memoryarray, arg0
+      v1 = lt v0, 2
+      jumpi v1, bb1, bb2
+    bb2:
+      v2 = lt v0, 7
+      jumpi v2, bb4, bb3
+    bb3:
+      v19 = mul v0, 48
+      v20 = eq 48, 0
+      v21 = div v19, 48
+      v22 = eq v21, v0
+      v23 = or v20, v22
+      v24 = zext i1 v23 to i256
+      v25 = eq v24, 0
+      icall panic_if<0x41>, v25
+      v26 = shr 1, v19
+      v27 = or v19, v26
+      v28 = shr 2, v27
+      v29 = or v27, v28
+      v30 = shr 4, v29
+      v31 = or v29, v30
+      v32 = shr 8, v31
+      v33 = or v31, v32
+      v34 = shr 16, v33
+      v35 = or v33, v34
+      v36 = shr 32, v35
+      v37 = or v35, v36
+      v38 = shr 64, v37
+      v39 = or v37, v38
+      v40 = shr 128, v39
+      v41 = or v39, v40
+      v42 = and v41, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+      v43 = add v42, 32
+      v44 = lt v43, v42
+      icall panic_if<0x41>, v44
+      v45 = alloc raw, exact, zeroed, panic, v43
+      v46 = ptrtoint memptr v45 to i256
+      v47 = memory_object_data memoryarray, arg0
+      v48 = ptrtoint memptr v47 to i256
+      v49 = shl 5, v0
+      v50 = add v48, v49
+      jump bb11
+    bb11:
+      v51 = phi [bb3: v50], [bb15: v53]
+      v52 = gt v51, v48
+      jumpi v52, bb12, bb13
+    bb13:
+      ret false
+    bb12:
+      v53 = sub v51, 32
+      v54 = mload v53
+      v55 = and v54, 0xffffffffffffffffffffffffffffffffffffffff
+      v56 = mulmod v55, 0x100000000000000000000000000000051, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff43
+      v57 = and v56, v42
+      jump bb14
+    bb14:
+      v58 = phi [bb12: v57], [bb17: v66]
+      v59 = add v46, v58
+      v60 = mload v59
+      v61 = eq v60, 0
+      jumpi v61, bb15, bb16
+    bb16:
+      v62 = mload v60
+      v63 = and v62, 0xffffffffffffffffffffffffffffffffffffffff
+      v64 = eq v63, v55
+      jumpi v64, bb18, bb17
+    bb17:
+      v65 = add v58, 32
+      v66 = and v65, v42
+      jump bb14
+    bb18:
+      ret true
+    bb15:
+      mstore v59, v53
+      jump bb11
+    bb4:
+      v3 = memory_object_data memoryarray, arg0
+      v4 = ptrtoint memptr v3 to i256
+      v5 = shl 5, v0
+      v6 = add v4, v5
+      v7 = sub v6, 32
+      jump bb5
+    bb5:
+      v8 = phi [bb4: v4], [bb8: v11]
+      v9 = mload v8
+      v10 = and v9, 0xffffffffffffffffffffffffffffffffffffffff
+      v11 = add v8, 32
+      jump bb6
+    bb6:
+      v12 = phi [bb5: v11], [bb7: v16]
+      v13 = mload v12
+      v14 = and v13, 0xffffffffffffffffffffffffffffffffffffffff
+      v15 = eq v14, v10
+      jumpi v15, bb10, bb7
+    bb7:
+      v16 = add v12, 32
+      v17 = lt v16, v6
+      jumpi v17, bb6, bb8
+    bb8:
+      v18 = lt v11, v7
+      jumpi v18, bb5, bb9
+    bb9:
+      ret false
+    bb10:
+      ret true
+    bb1:
+      ret false
+  }
+  

@@ -31,7 +31,7 @@ fn @constructor(arg0: i256) [constructor, abi_params=[address]] {
     ret
 }
 
-fn @fallback() [fallback] {
+fn @fallback() [inline_assembly, fallback] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
@@ -73,7 +73,7 @@ fn @constructor(arg0: i256) [constructor, abi_params=[address]] {
     ret
 }
 
-fn @fallback() [fallback] {
+fn @fallback() [inline_assembly, fallback] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
@@ -286,7 +286,7 @@ fn @crossBlock() -> i256 [selector=0xb0694ed5, abi_params=[], abi_returns=[word]
     ret 1
 }
 
-fn @dynamicRevert() -> i256 [selector=0x5dbb0715, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @dynamicRevert() -> i256 [selector=0x5dbb0715, inline_assembly, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
     v1 = datasize RevertingProducer_creation_code_3
@@ -348,7 +348,7 @@ fn @dynamicRevert() -> i256 [selector=0x5dbb0715, abi_params=[], abi_returns=[wo
 
 // === ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_cross_block.sol:RevertingProducer ===
 @module RevertingProducer
-fn @fail() [selector=0xa9cc4718, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @fail() [selector=0xa9cc4718, inline_assembly, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     mstore 0, 0x1234 !metadata(memory=scratch)
     revert 0, 228
@@ -384,7 +384,7 @@ fn @bubble() -> memorybytes [selector=0x4ce637d6, view, abi_params=[], abi_retur
 
 // === ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_cross_block.sol:SharedPublicFrame ===
 @module SharedPublicFrame
-fn @helper(arg0: i256) -> i256 [selector=0xdabf7ec4, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @helper(arg0: i256) -> i256 [selector=0xdabf7ec4, inline_assembly, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     calldatacopy 0, 0, 0x1000 !metadata(memory=scratch)
     ret arg0
@@ -398,13 +398,13 @@ fn @entry() -> i256 [selector=0x67f239dd, pure, abi_params=[], abi_returns=[word
 
 // === ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_cross_block.sol:HelperReturnedHeapBuffer ===
 @module HelperReturnedHeapBuffer
-fn @buffer() -> i256 [pure] {
+fn @buffer() -> i256 [inline_assembly, pure] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     ret v0
 }
 
-fn @forward(arg0: i256, arg1: calldataslice) -> i256 [selector=0x6fadcf72, abi_params=[address, bytes], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @forward(arg0: i256, arg1: calldataslice) -> i256 [selector=0x6fadcf72, inline_assembly, abi_params=[address, bytes], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = icall @buffer
     v1 = slice_len arg1

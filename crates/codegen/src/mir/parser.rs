@@ -638,6 +638,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 sym::may_return_memory => {
                     builder.func_mut().attributes.may_return_memory = true;
                 }
+                sym::inline_assembly => builder.func_mut().attributes.inline_assembly = true,
                 sym::function_pointer_dispatcher => {
                     builder.func_mut().attributes.is_function_pointer_dispatcher = true;
                 }
@@ -1959,7 +1960,14 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     Value::Inst(inst)
                         if matches!(builder.func().inst(*inst).kind, InstKind::ICall { function: super::Callee::Function(_), .. })
                 );
+                let slice = match data_ty {
+                    Some(MirType::Slice(
+                        location @ (SliceLocation::Memory | SliceLocation::Calldata),
+                    )) => Some(location),
+                    _ => None,
+                };
                 if !matches!(data_ty, Some(MirType::MemoryObject(MemoryObjectKind::Bytes)))
+                    && slice.is_none()
                     && !(data_ty == Some(MirType::I256)
                         && !layout.types.iter().any(AbiParamType::has_dynamic_child))
                     && !pending_call
@@ -1968,7 +1976,27 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                         .parser
                         .error("ABI decode requires bytes or a static memory pointer"));
                 }
-                let fields = layout.types.iter().map(AbiParamType::mir_type).collect::<Vec<_>>();
+                // `views`: every `bytes`, array, and struct value is a view of the data, in its
+                // location.
+                let views = if self.parser.eat(TokenKind::Comma) {
+                    let group = self.parser.parse_ident()?;
+                    if group != sym::views {
+                        return Err(self
+                            .parser
+                            .error(format!("unexpected ABI decode operand group `{group}`")));
+                    }
+                    Some(MirType::Slice(slice.unwrap_or(SliceLocation::Memory)))
+                } else {
+                    None
+                };
+                let fields = layout
+                    .types
+                    .iter()
+                    .map(|ty| match views {
+                        Some(view) if !ty.is_scalar_word() => view,
+                        _ => ty.mir_type(),
+                    })
+                    .collect::<Vec<_>>();
                 let result_ty = match fields.as_slice() {
                     [] => return Err(self.parser.error("ABI decode requires a result type")),
                     [ty] => *ty,

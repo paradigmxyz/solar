@@ -213,6 +213,8 @@ fn config(cmd: &'static Path, args: &ui_test::Args, mode: Mode) -> ui_test::Conf
         (r"\\/", "/"),
         //
         (&env!("CARGO_PKG_VERSION").replace(".", r"\."), "VERSION"),
+        // The commit `solarBuild` records changes with every commit.
+        (r#""commit": "[^"]*""#, r#""commit": "COMMIT""#),
     ];
     add_root_stdout_filters(&mut config, root);
     for &(pattern, replacement) in stdout_filters {

@@ -44,7 +44,7 @@ fn @vAddressTarget(arg0: i256) -> i256 [selector=0x9e9aa54a, pure, abi_params=[a
     ret arg0
 }
 
-fn @dirtyBytes1(arg0: i256) -> i256 [selector=0x92fef914, view, abi_params=[bytes32], abi_returns=[word], abi_return_params=[bytes32]] {
+fn @dirtyBytes1(arg0: i256) -> i256 [selector=0x92fef914, inline_assembly, view, abi_params=[bytes32], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = address
     v1 = gas
@@ -74,7 +74,7 @@ fn @bytes1Target(arg0: i256) -> i256 [selector=0xa408523c, pure, abi_params=[byt
     ret v0
 }
 
-fn @dirtyEnumArg(arg0: i256) -> i256 [selector=0xc3e104d2, view, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+fn @dirtyEnumArg(arg0: i256) -> i256 [selector=0xc3e104d2, inline_assembly, view, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = address
     v1 = gas

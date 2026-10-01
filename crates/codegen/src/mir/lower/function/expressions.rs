@@ -122,6 +122,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let Some(field) = resolved.struct_field_index(&self.cx.gcx.hir) else {
             return self.cx.report_unsupported(expr.span, "struct field");
         };
+        if self.is_view_aggregate(receiver) {
+            // value = field of the view, read in place
+            return self.lower_view_read(expr);
+        }
         let receiver_ty = self.type_of_expr_or_variable(receiver)?;
         let object = self.lower_expr(receiver)?;
         if receiver_ty.is_ref_at(DataLocation::Calldata)
@@ -179,7 +183,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     ) -> Option<ValueId> {
         if let TyKind::Array(_, len) = receiver_ty.peel_refs().kind {
             // length = static_len
-            if !matches!(receiver.peel_parens().kind, ExprKind::Ident(_)) {
+            if self.is_view_expr(receiver) {
+                self.lower_view_expr(receiver)?;
+            } else if !matches!(receiver.peel_parens().kind, ExprKind::Ident(_)) {
                 self.lower_expr(receiver)?;
             }
             return Some(self.builder.imm(len));
@@ -207,7 +213,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 _ => self.cx.report_unsupported(span, what),
             };
         }
-        let object = self.lower_expr(receiver)?;
+        let object = self.lower_view_or_expr(receiver)?;
         if matches!(self.builder.func().value_ty(object), Some(MirType::Slice(_))) {
             // length = slice.len
             return Some(self.builder.slice_len(object));

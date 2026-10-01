@@ -25,7 +25,7 @@ fn @setUp() [selector=0x0a9254e4, abi_params=[], abi_returns=[], abi_return_para
     ret
 }
 
-fn @read(arg0: i256) -> struct0 [view] {
+fn @read(arg0: i256) -> struct0 [inline_assembly, view] {
   bb0:
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
     v1 = add arg0, 1

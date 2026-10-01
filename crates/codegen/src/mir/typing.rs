@@ -29,17 +29,11 @@ impl AbiType {
         if self.input_type(Some(actual)) != actual {
             return false;
         }
+        // A memory or calldata slice of an aggregate may be a view of its ABI encoding; a
+        // returndata slice holds only words.
         match (self, actual) {
-            (Self::FixedArray { .. } | Self::Tuple(_), MirType::Slice(SliceLocation::Calldata)) => {
-                !self.is_dynamic()
-            }
-            (
-                Self::DynamicArray { element, .. },
-                MirType::Slice(location @ (SliceLocation::Calldata | SliceLocation::Returndata)),
-            ) => {
+            (Self::DynamicArray { element, .. }, MirType::Slice(SliceLocation::Returndata)) => {
                 matches!(element.as_ref(), Self::Word(_) | Self::Function)
-                    || (location == SliceLocation::Calldata
-                        && matches!(element.as_ref(), Self::Bytes(_)))
             }
             _ => true,
         }

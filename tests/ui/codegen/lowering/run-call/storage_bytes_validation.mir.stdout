@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_bytes_validation.sol:StorageBytesValidation ===
 @module StorageBytesValidation
-fn @unusedInvalidLength() [selector=0x200cc212, abi_params=[], abi_returns=[], abi_return_params=[]] {
+fn @unusedInvalidLength() [selector=0x200cc212, inline_assembly, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     sstore 0, 64 !metadata(storage=slot(0))
     v0 = sload 0 !metadata(storage=slot(0))
@@ -14,28 +14,28 @@ fn @unusedInvalidLength() [selector=0x200cc212, abi_params=[], abi_returns=[], a
     ret
 }
 
-fn @unusedInvalidCopy() [selector=0x6ec2db3e, abi_params=[], abi_returns=[], abi_return_params=[]] {
+fn @unusedInvalidCopy() [selector=0x6ec2db3e, inline_assembly, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     sstore 0, 64 !metadata(storage=slot(0))
     v0 = load_storage_bytes 0
     ret
 }
 
-fn @invalidShort() -> memorybytes [selector=0xa647fa44, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @invalidShort() -> memorybytes [selector=0xa647fa44, inline_assembly, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     sstore 0, 64 !metadata(storage=slot(0))
     v0 = load_storage_bytes 0
     ret v0
 }
 
-fn @invalidLong() -> memorybytes [selector=0x540f7c10, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @invalidLong() -> memorybytes [selector=0x540f7c10, inline_assembly, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     sstore 0, 33 !metadata(storage=slot(0))
     v0 = load_storage_bytes 0
     ret v0
 }
 
-fn @invalidShortDelete() [selector=0x1cba07c2, abi_params=[], abi_returns=[], abi_return_params=[]] {
+fn @invalidShortDelete() [selector=0x1cba07c2, inline_assembly, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     sstore 0, 64 !metadata(storage=slot(0))
     v0 = sload 0 !metadata(storage=slot(0))
@@ -57,7 +57,7 @@ fn @invalidShortDelete() [selector=0x1cba07c2, abi_params=[], abi_returns=[], ab
     ret
 }
 
-fn @invalidLongDelete() [selector=0x7dd42e48, abi_params=[], abi_returns=[], abi_return_params=[]] {
+fn @invalidLongDelete() [selector=0x7dd42e48, inline_assembly, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     sstore 0, 33 !metadata(storage=slot(0))
     v0 = sload 0 !metadata(storage=slot(0))
@@ -79,7 +79,7 @@ fn @invalidLongDelete() [selector=0x7dd42e48, abi_params=[], abi_returns=[], abi
     ret
 }
 
-fn @invalidShortLength() -> i256 [selector=0xe7a318a7, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @invalidShortLength() -> i256 [selector=0xe7a318a7, inline_assembly, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     sstore 0, 64 !metadata(storage=slot(0))
     v0 = sload 0 !metadata(storage=slot(0))
@@ -93,7 +93,7 @@ fn @invalidShortLength() -> i256 [selector=0xe7a318a7, abi_params=[], abi_return
     ret v6
 }
 
-fn @invalidLongLength() -> i256 [selector=0xc14ec391, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @invalidLongLength() -> i256 [selector=0xc14ec391, inline_assembly, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     sstore 0, 33 !metadata(storage=slot(0))
     v0 = sload 0 !metadata(storage=slot(0))
@@ -107,7 +107,7 @@ fn @invalidLongLength() -> i256 [selector=0xc14ec391, abi_params=[], abi_returns
     ret v6
 }
 
-fn @invalidShortIndex() -> i256 [selector=0x94523747, abi_params=[], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {
+fn @invalidShortIndex() -> i256 [selector=0x94523747, inline_assembly, abi_params=[], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {
   bb0:
     sstore 0, 64 !metadata(storage=slot(0))
     v0 = sload 0 !metadata(storage=slot(0))
@@ -141,7 +141,7 @@ fn @invalidShortIndex() -> i256 [selector=0x94523747, abi_params=[], abi_returns
     ret v19
 }
 
-fn @invalidLongIndex() -> i256 [selector=0xb45f5bca, abi_params=[], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {
+fn @invalidLongIndex() -> i256 [selector=0xb45f5bca, inline_assembly, abi_params=[], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {
   bb0:
     sstore 0, 33 !metadata(storage=slot(0))
     v0 = sload 0 !metadata(storage=slot(0))
@@ -175,7 +175,7 @@ fn @invalidLongIndex() -> i256 [selector=0xb45f5bca, abi_params=[], abi_returns=
     ret v19
 }
 
-fn @invalidShortIndexWrite() [selector=0x9cb6505e, abi_params=[], abi_returns=[], abi_return_params=[]] {
+fn @invalidShortIndexWrite() [selector=0x9cb6505e, inline_assembly, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     sstore 0, 64 !metadata(storage=slot(0))
     v0 = sload 0 !metadata(storage=slot(0))
@@ -214,7 +214,7 @@ fn @invalidShortIndexWrite() [selector=0x9cb6505e, abi_params=[], abi_returns=[]
     ret
 }
 
-fn @invalidLongIndexWrite() [selector=0x31e8b582, abi_params=[], abi_returns=[], abi_return_params=[]] {
+fn @invalidLongIndexWrite() [selector=0x31e8b582, inline_assembly, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     sstore 0, 33 !metadata(storage=slot(0))
     v0 = sload 0 !metadata(storage=slot(0))
@@ -253,7 +253,7 @@ fn @invalidLongIndexWrite() [selector=0x31e8b582, abi_params=[], abi_returns=[],
     ret
 }
 
-fn @invalidShortIndexDelete() [selector=0x5a79d84c, abi_params=[], abi_returns=[], abi_return_params=[]] {
+fn @invalidShortIndexDelete() [selector=0x5a79d84c, inline_assembly, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     sstore 0, 64 !metadata(storage=slot(0))
     v0 = sload 0 !metadata(storage=slot(0))
@@ -292,7 +292,7 @@ fn @invalidShortIndexDelete() [selector=0x5a79d84c, abi_params=[], abi_returns=[
     ret
 }
 
-fn @invalidLongIndexDelete() [selector=0x3cb34688, abi_params=[], abi_returns=[], abi_return_params=[]] {
+fn @invalidLongIndexDelete() [selector=0x3cb34688, inline_assembly, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     sstore 0, 33 !metadata(storage=slot(0))
     v0 = sload 0 !metadata(storage=slot(0))
@@ -331,7 +331,7 @@ fn @invalidLongIndexDelete() [selector=0x3cb34688, abi_params=[], abi_returns=[]
     ret
 }
 
-fn @encodingCheckedBeforeBounds() -> i256 [selector=0x4f384528, abi_params=[], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {
+fn @encodingCheckedBeforeBounds() -> i256 [selector=0x4f384528, inline_assembly, abi_params=[], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {
   bb0:
     sstore 0, 33 !metadata(storage=slot(0))
     v0 = sload 0 !metadata(storage=slot(0))
@@ -365,7 +365,7 @@ fn @encodingCheckedBeforeBounds() -> i256 [selector=0x4f384528, abi_params=[], a
     ret v19
 }
 
-fn @encodingCheckedBeforeBoundsWrite() [selector=0xc6da2038, abi_params=[], abi_returns=[], abi_return_params=[]] {
+fn @encodingCheckedBeforeBoundsWrite() [selector=0xc6da2038, inline_assembly, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     sstore 0, 33 !metadata(storage=slot(0))
     v0 = sload 0 !metadata(storage=slot(0))
@@ -404,7 +404,7 @@ fn @encodingCheckedBeforeBoundsWrite() [selector=0xc6da2038, abi_params=[], abi_
     ret
 }
 
-fn @invalidShortPush() [selector=0x6753fa56, abi_params=[], abi_returns=[], abi_return_params=[]] {
+fn @invalidShortPush() [selector=0x6753fa56, inline_assembly, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     sstore 0, 64 !metadata(storage=slot(0))
     v0 = sload 0 !metadata(storage=slot(0))
@@ -467,7 +467,7 @@ fn @invalidShortPush() [selector=0x6753fa56, abi_params=[], abi_returns=[], abi_
     ret
 }
 
-fn @invalidLongPush() [selector=0xefd41847, abi_params=[], abi_returns=[], abi_return_params=[]] {
+fn @invalidLongPush() [selector=0xefd41847, inline_assembly, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     sstore 0, 33 !metadata(storage=slot(0))
     v0 = sload 0 !metadata(storage=slot(0))
@@ -530,7 +530,7 @@ fn @invalidLongPush() [selector=0xefd41847, abi_params=[], abi_returns=[], abi_r
     ret
 }
 
-fn @invalidShortPushZero() [selector=0xcba0ded0, abi_params=[], abi_returns=[], abi_return_params=[]] {
+fn @invalidShortPushZero() [selector=0xcba0ded0, inline_assembly, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     sstore 0, 64 !metadata(storage=slot(0))
     v0 = sload 0 !metadata(storage=slot(0))
@@ -589,7 +589,7 @@ fn @invalidShortPushZero() [selector=0xcba0ded0, abi_params=[], abi_returns=[], 
     ret
 }
 
-fn @invalidLongPushZero() [selector=0xe8ec99d3, abi_params=[], abi_returns=[], abi_return_params=[]] {
+fn @invalidLongPushZero() [selector=0xe8ec99d3, inline_assembly, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     sstore 0, 33 !metadata(storage=slot(0))
     v0 = sload 0 !metadata(storage=slot(0))
@@ -648,7 +648,7 @@ fn @invalidLongPushZero() [selector=0xe8ec99d3, abi_params=[], abi_returns=[], a
     ret
 }
 
-fn @invalidShortPushAssign() [selector=0xa1663e71, abi_params=[], abi_returns=[], abi_return_params=[]] {
+fn @invalidShortPushAssign() [selector=0xa1663e71, inline_assembly, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     sstore 0, 64 !metadata(storage=slot(0))
     v0 = sload 0 !metadata(storage=slot(0))
@@ -712,7 +712,7 @@ fn @invalidShortPushAssign() [selector=0xa1663e71, abi_params=[], abi_returns=[]
     ret
 }
 
-fn @invalidLongPushAssign() [selector=0x666fac34, abi_params=[], abi_returns=[], abi_return_params=[]] {
+fn @invalidLongPushAssign() [selector=0x666fac34, inline_assembly, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     sstore 0, 33 !metadata(storage=slot(0))
     v0 = sload 0 !metadata(storage=slot(0))
@@ -776,7 +776,7 @@ fn @invalidLongPushAssign() [selector=0x666fac34, abi_params=[], abi_returns=[],
     ret
 }
 
-fn @invalidShortPop() [selector=0xeaec3c61, abi_params=[], abi_returns=[], abi_return_params=[]] {
+fn @invalidShortPop() [selector=0xeaec3c61, inline_assembly, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     sstore 0, 64 !metadata(storage=slot(0))
     v0 = sload 0 !metadata(storage=slot(0))
@@ -843,7 +843,7 @@ fn @invalidShortPop() [selector=0xeaec3c61, abi_params=[], abi_returns=[], abi_r
     ret
 }
 
-fn @invalidLongPop() [selector=0x66075ed1, abi_params=[], abi_returns=[], abi_return_params=[]] {
+fn @invalidLongPop() [selector=0x66075ed1, inline_assembly, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     sstore 0, 33 !metadata(storage=slot(0))
     v0 = sload 0 !metadata(storage=slot(0))
@@ -910,7 +910,7 @@ fn @invalidLongPop() [selector=0x66075ed1, abi_params=[], abi_returns=[], abi_re
     ret
 }
 
-fn @pushAtMaxLength() -> i256 [selector=0x35078c3f, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @pushAtMaxLength() -> i256 [selector=0x35078c3f, inline_assembly, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = shl 64, 1
     v1 = sub v0, 1
@@ -978,7 +978,7 @@ fn @pushAtMaxLength() -> i256 [selector=0x35078c3f, abi_params=[], abi_returns=[
     ret v44
 }
 
-fn @pushPastMaxLength() [selector=0xd9fa2828, abi_params=[], abi_returns=[], abi_return_params=[]] {
+fn @pushPastMaxLength() [selector=0xd9fa2828, inline_assembly, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = shl 64, 1
     v1 = mul v0, 2
@@ -1044,7 +1044,7 @@ fn @pushPastMaxLength() [selector=0xd9fa2828, abi_params=[], abi_returns=[], abi
     ret
 }
 
-fn @pushZeroPastMaxLength() [selector=0x65c6159f, abi_params=[], abi_returns=[], abi_return_params=[]] {
+fn @pushZeroPastMaxLength() [selector=0x65c6159f, inline_assembly, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = shl 64, 1
     v1 = mul v0, 2

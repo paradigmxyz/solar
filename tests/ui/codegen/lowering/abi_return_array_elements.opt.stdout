@@ -19,7 +19,7 @@ fn @clean() [selector=0x945bb2ba, abi_wrapper, pure] {
     returndata v23, v20
 }
 
-fn @dirty() [selector=0x74016a59, abi_wrapper, pure] {
+fn @dirty() [selector=0x74016a59, abi_wrapper, inline_assembly, pure] {
   bb0:
     v5 = icall @decode_calldata_type.8, 4
     v1 = ptrtoint memptr v5 to i256
@@ -40,7 +40,7 @@ fn @dirty() [selector=0x74016a59, abi_wrapper, pure] {
     returndata v28, v19
 }
 
-fn @viaHelper() [selector=0x43a4968c, abi_wrapper, pure] {
+fn @viaHelper() [selector=0x43a4968c, abi_wrapper, inline_assembly, pure] {
   bb0:
     v4 = icall @decode_calldata_type.8, 4
     v0 = ptrtoint memptr v4 to i256
@@ -61,7 +61,7 @@ fn @viaHelper() [selector=0x43a4968c, abi_wrapper, pure] {
     returndata v27, v18
 }
 
-fn @aliasedStruct() [selector=0x8c175a3d, abi_wrapper, pure] {
+fn @aliasedStruct() [selector=0x8c175a3d, abi_wrapper, inline_assembly, pure] {
   bb0:
     v11 = icall @decode_calldata_type.9, 4
     v18 = mload 64 !metadata(memory=scratch)
@@ -81,7 +81,7 @@ fn @aliasedStruct() [selector=0x8c175a3d, abi_wrapper, pure] {
     returndata 128, 32
 }
 
-fn @aliasedBytes() [selector=0x4a6c046c, abi_wrapper, pure] {
+fn @aliasedBytes() [selector=0x4a6c046c, abi_wrapper, inline_assembly, pure] {
   bb0:
     v13 = icall @decode_calldata_type.9, 4
     v21 = ptrtoint memptr v13 to i256
@@ -99,7 +99,7 @@ fn @aliasedBytes() [selector=0x4a6c046c, abi_wrapper, pure] {
     returndata 128, 32
 }
 
-fn @unalignedArray() [selector=0xd621b19f, abi_wrapper, pure] {
+fn @unalignedArray() [selector=0xd621b19f, abi_wrapper, inline_assembly, pure] {
   bb0:
     v14 = icall @decode_calldata_type.9, 4
     v20 = mload 64 !metadata(memory=scratch)
@@ -122,7 +122,7 @@ fn @unalignedArray() [selector=0xd621b19f, abi_wrapper, pure] {
     returndata 128, 32
 }
 
-fn @unalignedHelper() [selector=0x29dcbdaa, abi_wrapper, pure] {
+fn @unalignedHelper() [selector=0x29dcbdaa, abi_wrapper, inline_assembly, pure] {
   bb0:
     v12 = icall @decode_calldata_type.9, 4
     v18 = mload 64 !metadata(memory=scratch)

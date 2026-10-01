@@ -33,7 +33,7 @@ fn @twice(arg0: i256) -> i256 [selector=0x3cf3bbf4, pure, abi_params=[u256], abi
     ret v0
 }
 
-fn @probe() -> struct0 [selector=0xb74af5a9, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+fn @probe() -> struct0 [selector=0xb74af5a9, inline_assembly, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = msize
     v1 = mload 128
