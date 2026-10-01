@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/inline/return_words.mir (before inline-tiny-leaves) ===
 + // === ROOT/tests/ui/codegen/mir/inline/return_words.mir (after inline-tiny-leaves) ===
   @module ReturnWords
-  types:
+  @types
     struct0: {i256, i256}
   
   fn @entry(arg0: i256, arg1: i256) -> i256 [selector=0x00000001] {
@@ -51,7 +51,7 @@
 - // === ROOT/tests/ui/codegen/mir/inline/return_words.mir (before cfg-simplify) ===
 + // === ROOT/tests/ui/codegen/mir/inline/return_words.mir (after cfg-simplify) ===
   @module ReturnWords
-  types:
+  @types
     struct0: {i256, i256}
   
   fn @entry(arg0: i256, arg1: i256) -> i256 [selector=0x00000001] {
@@ -100,7 +100,7 @@
 - // === ROOT/tests/ui/codegen/mir/inline/return_words.mir (before dce) ===
 + // === ROOT/tests/ui/codegen/mir/inline/return_words.mir (after dce) ===
   @module ReturnWords
-  types:
+  @types
     struct0: {i256, i256}
   
   fn @entry(arg0: i256, arg1: i256) -> i256 [selector=0x00000001] {

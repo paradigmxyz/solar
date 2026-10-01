@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/cse/cse_global_loads.mir (before cse) ===
 + // === ROOT/tests/ui/codegen/mir/cse/cse_global_loads.mir (after cse) ===
   @module CseGlobalLoads
-  immutables:
+  @immutables
     value: u256
   
   fn @dominating_mload(arg0: i1) -> i256 {

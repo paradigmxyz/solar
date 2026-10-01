@@ -3,7 +3,7 @@
 //@[size] compile-flags: -Osize -Zmir-pipeline=egraph,dce
 @module BitSlices
 
-types:
+@types
   struct0: {i256, i256}
 
 fn @shl_discard_mask_0(arg0: i256) -> i256 {

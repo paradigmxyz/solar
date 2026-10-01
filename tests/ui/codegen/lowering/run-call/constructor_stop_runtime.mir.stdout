@@ -1,23 +1,23 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_stop_runtime.sol:ConstructorStopRuntime ===
 @module ConstructorStopRuntime
-data:
-  ConstructorStopAlways_initcode_0: hex"60c060405234151560105760015f55005b5f5ffd603280601d5f395ff3341515601c575f3560e01c80633fa4f24514601857601c565b6020565b5f5ffd5b5f546080526020608001608090036080f3"
-  ConstructorStopConditional_initcode_1: hex"60b638038060b660e03960e001601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe01660405234151560765760e08060c0528060c05260e060b638030160208201116072578060c05251600290101560725760015f5560e0511515607057607a565b005b5f5ffd5b5f5ffd5b60328060845f395ff3341515601c575f3560e01c80633fa4f24514601857601c565b6020565b5f5ffd5b5f546080526020608001608090036080f3"
+@data
+  ConstructorStopAlways_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/constructor_stop_runtime.sol:ConstructorStopAlways"
+  ConstructorStopConditional_creation_code_1: creation_code "ROOT/tests/ui/codegen/lowering/run-call/constructor_stop_runtime.sol:ConstructorStopConditional"
 
 fn @unconditional() -> i256 [selector=0x7d06b8f6, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
-    v1 = not 31
-    v2 = and 110, v1
+    v1 = datasize ConstructorStopAlways_creation_code_0
+    v2 = datasize ConstructorStopAlways_creation_code_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    data_copy ConstructorStopAlways_initcode_0, v4, 79
+    datacopy ConstructorStopAlways_creation_code_0, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
-    v7 = add v6, 79
+    v7 = add v6, v1
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
-    v9 = create 0, v8, 79
+    v9 = create 0, v8, v1
     v10 = zext i160 v9 to i256
     v11 = ne v10, 0
     jumpi v11, bb2, bb1
@@ -36,47 +36,18 @@ fn @conditional(arg0: i256) -> i256 [selector=0x9077f189, abi_params=[bool], abi
     v1 = eq v0, false
     v2 = zext i1 v1 to i256
     v3 = abi_encode [word<bool>], args v2
-    v4 = not 31
-    v5 = and 245, v4
-    v6 = alloc raw, exact, uninitialized, infallible, v5
-    v7 = ptrtoint memptr v6 to i256
-    data_copy ConstructorStopConditional_initcode_1, v7, 182
-    v8 = slice_ptr v3
-    v9 = ptrtoint memptr v6 to i256
-    v10 = add v9, 182
-    mcopy v10, v8, 32 !metadata(memory=heap)
-    v11 = ptrtoint memptr v6 to i256
-    v12 = create 0, v11, 214
-    v13 = zext i160 v12 to i256
-    v14 = ne v13, 0
-    jumpi v14, bb2, bb1
-  bb1:
-    revert_returndata
-  bb2:
-    v15 = zext i160 v12 to i256
-    v16 = zext i160 v12 to i256
-    v17 = extcodesize v16
-    ret v17
-}
-
-fn @conditionalContinues() -> i256 [selector=0x828f9845, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
-  bb0:
-    v0 = zext i1 0 to i256
-    v1 = eq v0, 0
-    v2 = eq v1, false
-    v3 = zext i1 v2 to i256
-    v4 = abi_encode [word<bool>], args v3
-    v5 = not 31
-    v6 = and 245, v5
+    v4 = datasize ConstructorStopConditional_creation_code_1
+    v5 = datasize ConstructorStopConditional_creation_code_1, 32
+    v6 = datasize ConstructorStopConditional_creation_code_1, 63, aligned
     v7 = alloc raw, exact, uninitialized, infallible, v6
     v8 = ptrtoint memptr v7 to i256
-    data_copy ConstructorStopConditional_initcode_1, v8, 182
-    v9 = slice_ptr v4
+    datacopy ConstructorStopConditional_creation_code_1, v8, v4
+    v9 = slice_ptr v3
     v10 = ptrtoint memptr v7 to i256
-    v11 = add v10, 182
+    v11 = add v10, v4
     mcopy v11, v9, 32 !metadata(memory=heap)
     v12 = ptrtoint memptr v7 to i256
-    v13 = create 0, v12, 214
+    v13 = create 0, v12, v5
     v14 = zext i160 v13 to i256
     v15 = ne v14, 0
     jumpi v15, bb2, bb1
@@ -86,9 +57,40 @@ fn @conditionalContinues() -> i256 [selector=0x828f9845, abi_params=[], abi_retu
     v16 = zext i160 v13 to i256
     v17 = zext i160 v13 to i256
     v18 = extcodesize v17
-    v19 = ne v18, 0
-    v20 = zext i1 v19 to i256
-    ret v20
+    ret v18
+}
+
+fn @conditionalContinues() -> i256 [selector=0x828f9845, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = zext i1 0 to i256
+    v1 = eq v0, 0
+    v2 = eq v1, false
+    v3 = zext i1 v2 to i256
+    v4 = abi_encode [word<bool>], args v3
+    v5 = datasize ConstructorStopConditional_creation_code_1
+    v6 = datasize ConstructorStopConditional_creation_code_1, 32
+    v7 = datasize ConstructorStopConditional_creation_code_1, 63, aligned
+    v8 = alloc raw, exact, uninitialized, infallible, v7
+    v9 = ptrtoint memptr v8 to i256
+    datacopy ConstructorStopConditional_creation_code_1, v9, v5
+    v10 = slice_ptr v4
+    v11 = ptrtoint memptr v8 to i256
+    v12 = add v11, v5
+    mcopy v12, v10, 32 !metadata(memory=heap)
+    v13 = ptrtoint memptr v8 to i256
+    v14 = create 0, v13, v6
+    v15 = zext i160 v14 to i256
+    v16 = ne v15, 0
+    jumpi v16, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v17 = zext i160 v14 to i256
+    v18 = zext i160 v14 to i256
+    v19 = extcodesize v18
+    v20 = ne v19, 0
+    v21 = zext i1 v20 to i256
+    ret v21
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_stop_runtime.sol:ConstructorStopAlways ===

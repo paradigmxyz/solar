@@ -296,7 +296,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
                 // Paths are not allowed in call expressions, but Solc parses them anyway.
                 let ident = self.expect_single_ident_path(path);
                 self.parse_yul_expr_call_with(ident).map(ExprKind::Call)
-            } else if path.segments().len() == 1 && self.is_reserved_yul_ident(*path.first()) {
+            } else if path.segments().len() == 1 && self.is_reserved_yul_expr_ident(*path.first()) {
                 let name = path.first();
                 self.dcx()
                     .emit_err(path.span(), format!("builtin function `{name}` must be called"));
@@ -341,7 +341,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         // https://github.com/argotorg/solidity/issues/16054
         let first = *path.first();
         if first.is_yul_keyword()
-            || (path.segments().len() == 1 && self.is_reserved_yul_ident(first))
+            || (path.segments().len() == 1 && self.is_reserved_yul_expr_ident(first))
         {
             self.expected_ident_found_other(first.into(), false).unwrap_err().emit();
         }
@@ -350,5 +350,10 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
                 self.expected_ident_found_other(ident.into(), false).unwrap_err().emit();
             }
         }
+    }
+
+    fn is_reserved_yul_expr_ident(&self, ident: Ident) -> bool {
+        self.is_reserved_yul_ident(ident)
+            && !(ident.name == kw::Difficulty && self.sess.opts.evm_version.has_prev_randao())
     }
 }

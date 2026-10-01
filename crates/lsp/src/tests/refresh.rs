@@ -1,4 +1,8 @@
 use super::*;
+use lsp_types::{
+    DiagnosticRelatedInformation, DiagnosticTag, Location, PublishDiagnosticsClientCapabilities,
+    TagSupport,
+};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum RefreshEvent {
@@ -143,6 +147,124 @@ fn changed_pull_result() -> AnalysisResult {
     );
     result.diagnostics.insert(uri, vec![diagnostic("changed")]);
     result
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn published_diagnostics_preserve_related_text_without_client_support() {
+    let mut harness = refresh_harness();
+    let state = GlobalState::new(harness.client.clone());
+    let uri = diagnostic_uri();
+    let mut original = diagnostic("cannot override non-virtual function");
+    original.related_information = Some(vec![DiagnosticRelatedInformation {
+        location: Location::new(uri.clone(), original.range),
+        message: "note: overriding function is here".into(),
+    }]);
+    original.data = Some(serde_json::json!({ "retained": true }));
+    state.snapshot().publish_diagnostics(
+        DiagnosticOwner::Compiler,
+        DiagnosticMap::from_iter([(uri.clone(), vec![original.clone()])]),
+    );
+
+    let published = harness.next_published().await;
+    let [diagnostic] = published.diagnostics.as_slice() else {
+        panic!("expected one published diagnostic");
+    };
+    snapbox::assert_data_eq!(
+        diagnostic.message.as_str(),
+        snapbox::str![[r#"
+cannot override non-virtual function
+note: overriding function is here
+"#]],
+    );
+    assert_eq!(diagnostic.related_information, None);
+    assert_eq!(diagnostic.data, None);
+    assert_eq!(
+        state.diagnostics.read().code_action_diagnostics(&uri, original.range),
+        vec![original],
+        "outgoing presentation must not change cached code-action diagnostics",
+    );
+    harness.shutdown().await;
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn published_diagnostics_honor_supported_tags_and_related_information() {
+    for supported in [
+        None,
+        Some(vec![]),
+        Some(vec![DiagnosticTag::DEPRECATED]),
+        Some(vec![DiagnosticTag::UNNECESSARY, DiagnosticTag::DEPRECATED]),
+    ] {
+        let mut harness = refresh_harness();
+        let mut state = GlobalState::new(harness.client.clone());
+        let mut params = InitializeParams::default();
+        params.capabilities.text_document.get_or_insert_default().publish_diagnostics =
+            Some(PublishDiagnosticsClientCapabilities {
+                related_information: Some(true),
+                tag_support: supported.clone().map(|value_set| TagSupport { value_set }),
+                data_support: Some(true),
+                ..Default::default()
+            });
+        state.config = Arc::new(negotiate_capabilities(params).1);
+        let uri = diagnostic_uri();
+        let mut original = diagnostic("deprecated unused declaration");
+        original.related_information = Some(vec![DiagnosticRelatedInformation {
+            location: Location::new(uri.clone(), original.range),
+            message: "declaration is here".into(),
+        }]);
+        original.tags = Some(vec![DiagnosticTag::UNNECESSARY, DiagnosticTag::DEPRECATED]);
+        original.data = Some(serde_json::json!({ "retained": true }));
+        state.snapshot().publish_diagnostics(
+            DiagnosticOwner::Compiler,
+            DiagnosticMap::from_iter([(uri.clone(), vec![original.clone()])]),
+        );
+
+        let published = harness.next_published().await;
+        let mut expected = original.clone();
+        expected.tags = supported.filter(|tags| !tags.is_empty());
+        assert_eq!(published.diagnostics, [expected]);
+        assert_eq!(
+            state.diagnostics.read().code_action_diagnostics(&uri, original.range),
+            vec![original],
+            "tag negotiation must not remove metadata from cached diagnostics",
+        );
+        harness.shutdown().await;
+    }
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn pulled_diagnostics_preserve_details_without_publish_capabilities() {
+    let mut state = GlobalState::new(ClientSocket::new_closed());
+    state.config = Arc::new(pull_refresh_config(true, false));
+    let uri = diagnostic_uri();
+    let mut original = diagnostic("deprecated declaration");
+    original.related_information = Some(vec![DiagnosticRelatedInformation {
+        location: Location::new(uri.clone(), original.range),
+        message: "declaration is here".into(),
+    }]);
+    original.tags = Some(vec![DiagnosticTag::DEPRECATED]);
+    original.data = Some(serde_json::json!({ "retained": true }));
+    state.snapshot().publish_diagnostics(
+        DiagnosticOwner::Compiler,
+        DiagnosticMap::from_iter([(uri.clone(), vec![original.clone()])]),
+    );
+    let mut expected = original.clone();
+    expected.data = None;
+
+    let PullReport::Full { diagnostics, .. } =
+        state.pull_diagnostic_report(uri.clone(), None).await.unwrap()
+    else {
+        panic!("expected a full document report");
+    };
+    assert_eq!(diagnostics, [expected.clone()]);
+    let reports = state.workspace_diagnostic_reports(Vec::new()).await.unwrap();
+    let [report] = reports.as_slice() else {
+        panic!("expected one workspace report");
+    };
+    let PullReport::Full { diagnostics, .. } = &report.report else {
+        panic!("expected a full workspace report");
+    };
+    assert_eq!(diagnostics, &[expected]);
+    assert_eq!(state.code_action_diagnostics(uri, original.range).await.unwrap(), [original]);
 }
 
 #[tokio::test(flavor = "current_thread")]

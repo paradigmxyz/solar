@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/egraph/unit_carry.mir (before egraph) ===
 + // === ROOT/tests/ui/codegen/mir/egraph/unit_carry.mir (after egraph) ===
   @module UnitCarry
-  types:
+  @types
     struct0: {i256, i1}
   
   fn @increment_lt(arg0: i256) -> i1 {
@@ -120,7 +120,7 @@
 - // === ROOT/tests/ui/codegen/mir/egraph/unit_carry.mir (before dce) ===
 + // === ROOT/tests/ui/codegen/mir/egraph/unit_carry.mir (after dce) ===
   @module UnitCarry
-  types:
+  @types
     struct0: {i256, i1}
   
   fn @increment_lt(arg0: i256) -> i1 {

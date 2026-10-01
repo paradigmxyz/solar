@@ -395,6 +395,62 @@ class FailureHandlingTests(unittest.TestCase):
         )
         self.assertEqual(set(document["results"][0]["compilers"]), {"solar", "solc"})
 
+    def test_saved_reference_results_preserve_solc_version_filter(self) -> None:
+        case = next(
+            case for case in benchmark.TEST_CASES if case.test_id == "uniswap-v2-pair"
+        )
+        for version, flags, expected_calls in (
+            ("0.8.37", [], 0),
+            ("0.5.16", [], 1),
+            ("0.8.37", ["--include-incompatible"], 1),
+        ):
+            with (
+                self.subTest(version=version, flags=flags),
+                tempfile.TemporaryDirectory() as directory,
+                mock.patch.object(benchmark, "select_tests", return_value=[case]),
+                mock.patch.object(benchmark, "find_binary", return_value=Path("solar")),
+                mock.patch.object(
+                    benchmark, "binary_version", return_value=("0.2.0", "")
+                ),
+                mock.patch.object(
+                    benchmark,
+                    "run_test_case",
+                    return_value={
+                        "test_id": case.test_id,
+                        "suite": case.suite,
+                        "compilers": {"solar": {"status": "ok"}},
+                    },
+                ) as run_case,
+            ):
+                reference_path = Path(directory) / "reference.json"
+                reference_path.write_text(
+                    json.dumps(
+                        {
+                            "results": [
+                                {
+                                    "test_id": "another-case",
+                                    "compilers": {"solc": {"label": f"solc {version}"}},
+                                }
+                            ]
+                        }
+                    )
+                )
+                self.assertEqual(
+                    benchmark.main(
+                        [
+                            "--solar",
+                            "solar",
+                            "--reference-results",
+                            str(reference_path),
+                            "--output",
+                            str(Path(directory) / "results.json"),
+                            *flags,
+                        ]
+                    ),
+                    0,
+                )
+                self.assertEqual(run_case.call_count, expected_calls)
+
     def test_saved_results_reject_live_reference_options(self) -> None:
         for flag in ("--solc", "--solx"):
             with (

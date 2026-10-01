@@ -348,7 +348,8 @@ fn lower_function(func: &mut Function, layouts: &Layouts) {
                             Vec::new()
                         } else {
                             let first = builder.icall(function, args, types[0]);
-                            let mut values = vec![first];
+                            let mut values = Vec::with_capacity(fields.len());
+                            values.push(first);
                             if fields.len() > 1 {
                                 let base = builder.frame_load(
                                     0,

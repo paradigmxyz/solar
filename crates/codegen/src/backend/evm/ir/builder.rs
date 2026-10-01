@@ -13,9 +13,7 @@ use crate::{
         },
     },
     link::LibraryId,
-    mir::{
-        DataRef as MirDataRef, ImmutableId, Module as MirModule, TypeSize, memory::EvmMemoryLayout,
-    },
+    mir::{ImmutableId, Module as MirModule, TypeSize, memory::EvmMemoryLayout},
 };
 use alloy_primitives::U256;
 use solar_data_structures::{
@@ -40,17 +38,9 @@ impl<'gcx> Assembler<'gcx> {
                 .err("cannot assemble unresolved `push_deferred` instruction")
                 .emit());
         }
-        if module.blocks.iter().any(|block| {
-            block.instructions.iter().any(|inst| {
-                matches!(inst.opcode, op::EXTCALL | op::EXTDELEGATECALL | op::EXTSTATICCALL)
-            })
-        }) {
-            return Err(gcx
-                .dcx()
-                .err("cannot assemble EOF-only external calls into legacy bytecode")
-                .emit());
+        if module.data.iter().any(|data| data.bytes.known().is_none()) {
+            return Err(gcx.dcx().err("cannot assemble unlinked deferred program data").emit());
         }
-
         debug_assert!(ir::verify::Verifier::is_valid(&module));
 
         // Parsed block labels may be sparse, but assembly indexes labels with a vector.
@@ -141,24 +131,24 @@ impl<'gcx> Assembler<'gcx> {
     pub(crate) fn load_data(&mut self, module: &MirModule) {
         assert!(self.program.data.is_empty(), "EVM IR data must be empty before loading MIR data");
         self.program.libraries = module.libraries.clone();
-        self.program.data = module
-            .iter_data()
-            .map(|(id, data)| ir::Data {
-                bytes: data.clone(),
-                library_relocations: module.data_library_relocations(id).to_vec(),
-                name: module.data_name(id),
-                emit_in_runtime: self.artifact_kind == ArtifactKind::Runtime
-                    && module.data_is_emitted_in_runtime(id),
-            })
-            .collect();
+        self.program.data = module.data.clone();
+        // Only the runtime artifact ends with the runtime's trailing data.
+        if self.artifact_kind != ArtifactKind::Runtime {
+            for data in &mut self.program.data {
+                data.emit_in_runtime = false;
+            }
+        }
     }
 
     /// Emits a relocatable constant-data address push.
-    pub(crate) fn emit_push_data(&mut self, data: MirDataRef) {
-        self.push_ir_instruction(ir::Instruction::push_data(ir::DataRef::new(
-            ir::DataId::from_usize(data.id.index()),
-            data.offset,
-        )));
+    pub(crate) fn emit_push_data(&mut self, data: ir::DataRef) {
+        self.push_ir_instruction(ir::Instruction::push_data(data));
+    }
+
+    /// Emits a size derived from a data length, which final assembly supplies.
+    pub(crate) fn emit_push_data_size(&mut self, size: ir::DataSize) {
+        // push_data_size data, addend[, aligned]
+        self.push_ir_instruction(ir::Instruction::push_data_size(size));
     }
 
     /// Returns optimistic and block-layout byte sizes for the entry trace through
@@ -192,7 +182,8 @@ impl<'gcx> Assembler<'gcx> {
             }
         }
 
-        let mut trace = vec![current];
+        let mut trace = Vec::new();
+        trace.push(current);
         while trace.last().copied() != Some(ir::BlockId::ENTRY) {
             let target = *trace.last()?;
             let mut predecessors = self
@@ -261,15 +252,8 @@ impl<'gcx> Assembler<'gcx> {
     }
 
     fn debug_assert_dataflow_relocations_sorted(&self) {
-        debug_assert!(self.label_relocations.windows(2).all(|pair| {
-            let [lhs, rhs] = pair else { return true };
-            (lhs.0.index(), lhs.1) <= (rhs.0.index(), rhs.1)
-        }));
-        debug_assert!(
-            self.indexed_jump_relocations
-                .windows(2)
-                .all(|pair| pair[0].0.index() <= pair[1].0.index())
-        );
+        debug_assert!(self.label_relocations.is_sorted_by_key(|r| (r.0, r.1)));
+        debug_assert!(self.indexed_jump_relocations.is_sorted_by_key(|r| r.0));
     }
 
     /// Control-flow edges among the blocks in `range` before EVM IR finalization.
@@ -556,7 +540,11 @@ impl<'gcx> Assembler<'gcx> {
         removals: &mut [(ir::BlockId, std::ops::Range<usize>)],
     ) {
         self.debug_assert_dataflow_relocations_sorted();
+        if removals.is_empty() {
+            return;
+        }
         removals.sort_unstable_by_key(|(block, range)| (*block, range.start));
+        let first = removals[0].0;
         let mut per_block =
             FxHashMap::<ir::BlockId, Vec<(std::ops::Range<usize>, usize)>>::default();
         for (block, range) in removals.iter() {
@@ -564,27 +552,32 @@ impl<'gcx> Assembler<'gcx> {
             let before = ranges.last().map_or(0, |(range, before)| before + range.len());
             ranges.push((range.clone(), before));
         }
+        // Relocations before the first edited block stay as they are.
         fn shift<T>(
             relocations: &mut Vec<(ir::BlockId, usize, T)>,
+            first: ir::BlockId,
             ranges: &FxHashMap<ir::BlockId, Vec<(std::ops::Range<usize>, usize)>>,
         ) {
             relocations.retain_mut(|(block, index, _)| {
-                let Some(ranges) = ranges.get(block) else { return true };
-                let position = ranges.partition_point(|(range, _)| range.start <= *index);
-                let Some((range, before)) = position.checked_sub(1).map(|index| &ranges[index])
-                else {
+                if *block < first {
                     return true;
-                };
-                if range.contains(index) {
-                    return false;
                 }
-                *index -= before + range.len();
+                if let Some(ranges) = ranges.get(block)
+                    && let Some(position) =
+                        ranges.partition_point(|(range, _)| range.start <= *index).checked_sub(1)
+                {
+                    let (range, before) = &ranges[position];
+                    if range.contains(index) {
+                        return false;
+                    }
+                    *index -= before + range.len();
+                }
                 true
             });
         }
-        shift(&mut self.label_relocations, &per_block);
-        shift(&mut self.deferred_relocations, &per_block);
-        shift(&mut self.alloc_relocations, &per_block);
+        shift(&mut self.label_relocations, first, &per_block);
+        shift(&mut self.deferred_relocations, first, &per_block);
+        shift(&mut self.alloc_relocations, first, &per_block);
         for (block, ranges) in per_block {
             let instructions = &mut self.program.blocks[block].instructions;
             for (range, _) in ranges.into_iter().rev() {

@@ -103,14 +103,14 @@ impl ValueUsers {
         for (block_id, block) in func.blocks.iter_enumerated() {
             for &inst_id in &block.instructions {
                 inst_blocks[inst_id] = block_id;
-                for operand in func.inst(inst_id).kind.operands() {
+                func.inst(inst_id).kind.visit_operands(|operand| {
                     instructions[operand].push(inst_id);
-                }
+                });
             }
             if let Some(terminator) = &block.terminator {
-                for operand in terminator.operands() {
+                terminator.visit_operands(|operand| {
                     terminators[operand].push(block_id);
-                }
+                });
             }
         }
         for users in &mut instructions {
@@ -704,7 +704,8 @@ fn can_change(func: &Function) -> bool {
     }
 
     let mut reachable = DenseBitSet::new_empty(func.blocks.len());
-    let mut pending = vec![BlockId::ENTRY];
+    let mut pending = Vec::new();
+    pending.push(BlockId::ENTRY);
     while let Some(block) = pending.pop() {
         if reachable.insert(block)
             && let Some(terminator) = &func.blocks[block].terminator

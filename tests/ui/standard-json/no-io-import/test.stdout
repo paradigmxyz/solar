@@ -29,9 +29,5 @@
       "formattedMessage": "error: unresolved symbol `OnDisk`\n   ╭▸ A.sol:LL:CC\n   │\nLL │ contract A is OnDisk {}\n   ╰╴              ━━━━━━\n\n"
     }
   ],
-  "sources": {
-    "A.sol": {
-      "id": 0
-    }
-  }
+  "sources": {}
 }

@@ -1,10 +1,10 @@
 //! EVM IR verifier.
 //!
 //! Two checks run over a module. The shape check is local: it validates labels, push encodings,
-//! terminators, and that every instruction declares a stack effect consistent with its opcode.
-//! The stack-operation check is global: it walks the direct control-flow edges and models the
-//! physical stack height so that per-block imbalances, operand underflows, and depth violations
-//! are caught before assembly.
+//! terminators, and that every instruction and terminator has a known stack effect. The
+//! stack-operation check is global: it walks the direct control-flow edges from the entry block,
+//! and from any block that declares an entry depth, and models the physical stack height so that
+//! per-block imbalances, operand underflows, and depth violations are caught before assembly.
 //!
 //! EVM IR is one flat CFG of blocks with no function boundaries: an internal call is a block
 //! that pushes a return address and jumps to the callee's first block, and a return is a dynamic
@@ -58,7 +58,7 @@ use super::*;
 use crate::backend::evm::{codegen::MAX_STACK_DEPTH, op};
 use solar_config::EvmVersion;
 use solar_data_structures::{
-    index::IndexVec,
+    index::index_vec,
     map::{FxHashMap, FxHashSet},
 };
 use solar_interface::diagnostics::{DiagCtxt, ErrorGuaranteed};
@@ -301,6 +301,30 @@ impl<'a> Verifier<'a> {
                 encoding if encoding == Instruction::ENCODED_PUSH | Instruction::IMMUTABLE => {
                     self.verify_immutable_id(block_id, inst, value);
                 }
+                encoding if encoding == Instruction::ENCODED_PUSH | Instruction::DATA_SIZE => {
+                    let PushValue::DataSize(size) = value else {
+                        self.error_in_block(block_id, "`push_data_size` must carry a data size");
+                        return;
+                    };
+                    match module.data.get(size.data) {
+                        None => {
+                            self.error_in_block(
+                                block_id,
+                                format_args!(
+                                    "program data `{}` is out of range",
+                                    size.data.index()
+                                ),
+                            );
+                        }
+                        Some(data) if data.bytes.known().is_some() => {
+                            self.error_in_block(
+                                block_id,
+                                "`push_data_size` requires deferred data",
+                            );
+                        }
+                        Some(_) => {}
+                    }
+                }
                 encoding if encoding == Instruction::ENCODED_PUSH | Instruction::DATA => {
                     let PushValue::Data(data) = value else {
                         self.error_in_block(block_id, "`push_data` must carry a data ID");
@@ -311,13 +335,15 @@ impl<'a> Verifier<'a> {
                             block_id,
                             format_args!("program data `{}` is out of range", data.id.index()),
                         );
-                    } else if data.offset as usize > module.data[data.id].bytes.len() {
+                    } else if let len =
+                        module.data[data.id].bytes.known().map_or(0, |bytes| bytes.len())
+                        && data.offset as usize > len
+                    {
                         self.error_in_block(
                             block_id,
                             format_args!(
-                                "program data offset `{}` exceeds data size `{}`",
-                                data.offset,
-                                module.data[data.id].bytes.len()
+                                "program data offset `{}` exceeds data size `{len}`",
+                                data.offset
                             ),
                         );
                     }
@@ -363,30 +389,15 @@ impl<'a> Verifier<'a> {
             }
         }
 
-        match (inst.metadata.stack, default_instruction_stack_effect(inst)) {
-            (Some(effect), Some(expected)) if effect != expected => {
-                self.error_in_block(
-                    block_id,
-                    format_args!(
-                        "`{}` has stack effect {}->{}, expected {}->{}",
-                        inst.mnemonic(),
-                        effect.inputs,
-                        effect.outputs,
-                        expected.inputs,
-                        expected.outputs
-                    ),
-                );
-            }
-            (None, None) => {
-                self.error_in_block(
-                    block_id,
-                    format_args!(
-                        "instruction `{}` must declare an explicit stack effect",
-                        inst.mnemonic()
-                    ),
-                );
-            }
-            _ => {}
+        // Stack operation depths are checked above.
+        if inst.as_stack_op().is_none()
+            && !inst.is_encoded_push()
+            && op::stack_io(inst.opcode).is_none()
+        {
+            self.error_in_block(
+                block_id,
+                format_args!("instruction `{}` has no known stack effect", inst.mnemonic()),
+            );
         }
     }
 
@@ -440,26 +451,11 @@ impl<'a> Verifier<'a> {
                 format_args!("terminator opcode `0x{opcode:02x}` is not terminal"),
             );
         }
-        match (term.metadata.stack, default_terminator_stack_effect(&term.kind)) {
-            (Some(effect), Some(expected)) if effect != expected => {
-                self.error_in_block(
-                    block_id,
-                    format_args!(
-                        "`{}` has stack effect {}->{}, expected {}->{}",
-                        term.kind, effect.inputs, effect.outputs, expected.inputs, expected.outputs
-                    ),
-                );
-            }
-            (None, None) => {
-                self.error_in_block(
-                    block_id,
-                    format_args!(
-                        "terminator `{}` must declare an explicit stack effect",
-                        term.kind
-                    ),
-                );
-            }
-            _ => {}
+        if default_terminator_stack_effect(&term.kind).is_none() {
+            self.error_in_block(
+                block_id,
+                format_args!("terminator `{}` has no known stack effect", term.kind),
+            );
         }
     }
 
@@ -469,11 +465,23 @@ impl<'a> Verifier<'a> {
     /// post-cycle maximum stops at a cycle-closing edge.
     fn verify_stack_ops(&self, module: &Module) {
         let mut reported = ReportedErrors::default();
-        let cycle_edges = cycle_edges(module);
-        let empty = EntryDepths::default();
-        let mut entry_depths = IndexVec::<BlockId, _>::from_vec(vec![empty; module.blocks.len()]);
-        entry_depths[BlockId::ENTRY] = EntryDepths::entry();
-        let mut pending = vec![(BlockId::ENTRY, 0, Bounds::ENTRY)];
+        // The entry block starts with an empty stack unless it declares a depth, and any other
+        // block that declares one is also entered at it.
+        let roots = module
+            .blocks
+            .iter_enumerated()
+            .filter_map(|(block_id, block)| {
+                let depth = block.metadata.entry_depth.map(usize::from);
+                depth.or((block_id == BlockId::ENTRY).then_some(0)).map(|depth| (block_id, depth))
+            })
+            .collect::<Vec<_>>();
+        let cycle_edges = cycle_edges(module, roots.iter().map(|&(block_id, _)| block_id));
+        let mut entry_depths = index_vec![EntryDepths::default(); module.blocks.len()];
+        let mut pending = Vec::with_capacity(roots.len());
+        for (block_id, depth) in roots {
+            entry_depths[block_id].merge(depth, Bounds::ENTRY);
+            pending.push((block_id, depth, Bounds::ENTRY));
+        }
         while let Some((block_id, mut stack, bounds)) = pending.pop() {
             let block = &module.blocks[block_id];
             let term =
@@ -490,9 +498,7 @@ impl<'a> Verifier<'a> {
                         break;
                     }
                 } else {
-                    let effect = inst
-                        .effective_stack_effect()
-                        .expect("instruction stack effect must be known after shape validation");
+                    let effect = inst.stack_effect();
                     if self
                         .apply_effect(&mut reported, block_id, inst.mnemonic(), effect, &mut stack)
                         .is_err()
@@ -524,7 +530,6 @@ impl<'a> Verifier<'a> {
                     valid = false;
                 } else {
                     let effect = default_terminator_stack_effect(&term.kind)
-                        .or(term.metadata.stack)
                         .expect("terminator stack effect must be known after shape validation");
                     valid = self
                         .apply_effect(&mut reported, block_id, &term.kind, effect, &mut stack)
@@ -774,11 +779,6 @@ struct EntryDepths {
 }
 
 impl EntryDepths {
-    /// The depths of the entry block, which is always reached at depth zero.
-    const fn entry() -> Self {
-        Self { ingress_min: Some(0), cycle_min: None, ingress_max: Some(0), cycle_max: None }
-    }
-
     /// Merges `depth` into the bounds named by `bounds`, returning the ones it moved.
     fn merge(&mut self, depth: usize, bounds: Bounds) -> Bounds {
         let mut moved = Bounds::default();
@@ -815,7 +815,7 @@ struct Bounds {
 }
 
 impl Bounds {
-    /// The bounds the entry block starts with.
+    /// The bounds a block the walk starts at begins with.
     const ENTRY: Self =
         Self { ingress_min: true, cycle_min: false, ingress_max: true, cycle_max: false };
 
@@ -866,7 +866,10 @@ fn direct_successors(block: &Block, out: &mut Vec<BlockId>) {
 ///
 /// Removing them leaves an acyclic graph, which is what bounds the stack-depth walk. Only edges
 /// reachable from the entry are classified; the walk never leaves that region either.
-fn cycle_edges(module: &Module) -> FxHashSet<(BlockId, BlockId)> {
+fn cycle_edges(
+    module: &Module,
+    roots: impl IntoIterator<Item = BlockId>,
+) -> FxHashSet<(BlockId, BlockId)> {
     /// Depth-first states: not yet reached, on the current path, and fully walked.
     #[derive(Clone, Copy, PartialEq, Eq)]
     enum State {
@@ -876,33 +879,36 @@ fn cycle_edges(module: &Module) -> FxHashSet<(BlockId, BlockId)> {
     }
 
     let mut edges = FxHashSet::default();
-    if module.blocks.is_empty() {
-        return edges;
-    }
-    let mut states = IndexVec::<BlockId, _>::from_vec(vec![State::Unseen; module.blocks.len()]);
+    let mut states = index_vec![State::Unseen; module.blocks.len()];
     // Successors of every block on the current path, each frame owning the tail of the buffer
     // from its recorded start.
     let mut successors = Vec::new();
-    let mut path = vec![(BlockId::ENTRY, 0)];
-    states[BlockId::ENTRY] = State::OnPath;
-    direct_successors(&module.blocks[BlockId::ENTRY], &mut successors);
-    while let Some(&(block_id, start)) = path.last() {
-        if successors.len() == start {
-            states[block_id] = State::Done;
-            path.pop();
+    let mut path = Vec::new();
+    for root in roots {
+        if states[root] != State::Unseen {
             continue;
         }
-        let target = successors.pop().expect("frame owns the buffer tail");
-        match states[target] {
-            State::Unseen => {
-                states[target] = State::OnPath;
-                path.push((target, successors.len()));
-                direct_successors(&module.blocks[target], &mut successors);
+        path.push((root, 0));
+        states[root] = State::OnPath;
+        direct_successors(&module.blocks[root], &mut successors);
+        while let Some(&(block_id, start)) = path.last() {
+            if successors.len() == start {
+                states[block_id] = State::Done;
+                path.pop();
+                continue;
             }
-            State::OnPath => {
-                edges.insert((block_id, target));
+            let target = successors.pop().expect("frame owns the buffer tail");
+            match states[target] {
+                State::Unseen => {
+                    states[target] = State::OnPath;
+                    path.push((target, successors.len()));
+                    direct_successors(&module.blocks[target], &mut successors);
+                }
+                State::OnPath => {
+                    edges.insert((block_id, target));
+                }
+                State::Done => {}
             }
-            State::Done => {}
         }
     }
     edges

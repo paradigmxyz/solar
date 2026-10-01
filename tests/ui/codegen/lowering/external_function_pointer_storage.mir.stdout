@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/external_function_pointer_storage.sol:Flow ===
 @module Flow
-types:
+@types
   struct0: {i256, i256}
 
 fn @first() -> i256 [selector=0x3df4ddf4, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {

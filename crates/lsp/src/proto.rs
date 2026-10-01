@@ -1,5 +1,6 @@
 use crate::{
     code_actions::{DiagnosticData, DiagnosticSuggestion},
+    diagnostics::presentation::{DiagnosticMessage, solidity_diagnostic_tags},
     vfs::{self, VfsPath},
 };
 use crop::{Rope, RopeSlice};
@@ -431,6 +432,37 @@ pub(crate) fn diagnostic_with_cache(
     let primary_span = diag.span.primary_span()?;
     let lsp_types::Location { uri, range } = span_to_location(source_map, primary_span)?;
     let data = diagnostic_data(source_map, &uri, primary_span, diag, cache)?;
+    let mut message = DiagnosticMessage::new(
+        lsp_types::Location::new(uri.clone(), range),
+        diag.label().into_owned(),
+    );
+    for label in diag.span.span_labels() {
+        if let Some(text) = label.label {
+            message.push(span_to_location(source_map, label.span), text.as_str());
+        } else if label.span != primary_span {
+            message.push(span_to_location(source_map, label.span), &diag.label());
+        }
+    }
+    for child in &diag.children {
+        let text = child.label();
+        let spans = child.span.span_labels();
+        if child.span.primary_spans().is_empty() {
+            message.push(None, &format!("{}: {text}", child.level.to_str()));
+        }
+        for label in spans {
+            let location = span_to_location(source_map, label.span);
+            if label.is_primary {
+                if location.is_none() || label.span == primary_span {
+                    message.push(None, &format!("{}: {text}", child.level.to_str()));
+                } else {
+                    message.push(location.clone(), &text);
+                }
+            }
+            if let Some(text) = label.label {
+                message.push(location, text.as_str());
+            }
+        }
+    }
     Some((
         // SAFETY: currently we only use `FileName::Real`
         uri,
@@ -440,19 +472,9 @@ pub(crate) fn diagnostic_with_cache(
             code: diag.code.as_ref().map(|id| NumberOrString::String(id.as_str().to_owned())),
             code_description: None,
             source: Some("solar".into()),
-            message: diag.label().into_owned(),
-            related_information: Some(
-                diag.children
-                    .iter()
-                    .filter_map(|subdiag| {
-                        Some(lsp_types::DiagnosticRelatedInformation {
-                            location: span_to_location(source_map, subdiag.span.primary_span()?)?,
-                            message: subdiag.label().to_string(),
-                        })
-                    })
-                    .collect(),
-            ),
-            tags: None,
+            message: message.message,
+            related_information: Some(message.related_information),
+            tags: solidity_diagnostic_tags(diag.id()),
             data: Some(data),
         },
     ))
@@ -659,7 +681,7 @@ mod tests {
     use lsp_types::{Position, Range, TextDocumentContentChangeEvent, Url, request::Request};
     use solar_interface::{
         BytePos, SourceMap, Span,
-        diagnostics::{Applicability, Diag, DiagMsg, Level},
+        diagnostics::{Applicability, Diag, DiagMsg, Level, MultiSpan},
         source_map::FileName,
     };
     use std::sync::Arc;
@@ -1422,5 +1444,82 @@ mod tests {
             assert_eq!(checked_text_range(&rope, range), Some(rope.byte_len()..rope.byte_len()));
             assert_eq!(position_at_byte(&rope, rope.byte_len()), Some(position));
         }
+    }
+
+    #[test]
+    fn diagnostic_preserves_labels_and_unlocated_children() {
+        let source_map = SourceMap::empty();
+        let file = source_map
+            .new_source_file(std::env::temp_dir().join("DiagnosticDetails.sol"), "abc")
+            .unwrap();
+        let primary = Span::new(file.start_pos, file.start_pos + BytePos(1));
+        let secondary = Span::new(file.start_pos + BytePos(1), file.start_pos + BytePos(2));
+        let mut diagnostic = Diag::new(Level::Error, "mismatched types");
+        diagnostic
+            .span(primary)
+            .span_label(primary, "expected `uint8`, found `int_literal[9]`")
+            .span_label(secondary, "type declared here")
+            .note("the value does not fit")
+            .help("use a wider type")
+            .span_note(secondary, "related declaration");
+
+        let (_, diagnostic) = super::diagnostic_with_cache(
+            &source_map,
+            &diagnostic,
+            &mut super::DiagnosticDataCache::default(),
+        )
+        .unwrap();
+        snapbox::assert_data_eq!(
+            diagnostic.message,
+            snapbox::str![[r#"
+mismatched types
+expected `uint8`, found `int_literal[9]`
+note: the value does not fit
+help: use a wider type
+"#]]
+        );
+        let related = diagnostic.related_information.unwrap();
+        assert_eq!(related.len(), 2);
+        snapbox::assert_data_eq!(related[0].message.as_str(), "type declared here");
+        snapbox::assert_data_eq!(related[1].message.as_str(), "related declaration");
+        assert_eq!(related[0].location, super::span_to_location(&source_map, secondary).unwrap());
+        assert_eq!(related[1].location, related[0].location);
+    }
+
+    #[test]
+    fn diagnostic_preserves_children_without_primary_locations() {
+        let source_map = SourceMap::empty();
+        let file = source_map
+            .new_source_file(std::env::temp_dir().join("RelatedLabels.sol"), "abc")
+            .unwrap();
+        let primary = Span::new(file.start_pos, file.start_pos + BytePos(1));
+        let secondary = Span::new(file.start_pos + BytePos(1), file.start_pos + BytePos(2));
+        let mut labels = MultiSpan::new();
+        labels.push_span_label(secondary, "related label");
+        let mut diagnostic = Diag::new(Level::Error, "main message");
+        diagnostic
+            .span(primary)
+            .span_label(primary, "main message")
+            .span_note(labels, "context without a primary span")
+            .span_help(Span::DUMMY, "help without a valid location");
+
+        let (_, diagnostic) = super::diagnostic_with_cache(
+            &source_map,
+            &diagnostic,
+            &mut super::DiagnosticDataCache::default(),
+        )
+        .unwrap();
+        snapbox::assert_data_eq!(
+            diagnostic.message,
+            snapbox::str![[r#"
+main message
+note: context without a primary span
+help: help without a valid location
+"#]]
+        );
+        let related = diagnostic.related_information.unwrap();
+        assert_eq!(related.len(), 1);
+        snapbox::assert_data_eq!(related[0].message.as_str(), "related label");
+        assert_eq!(related[0].location, super::span_to_location(&source_map, secondary).unwrap());
     }
 }

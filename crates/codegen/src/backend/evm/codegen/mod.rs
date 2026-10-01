@@ -14,9 +14,8 @@
 
 use self::{
     stack::{
-        MAX_STACK_ACCESS, OperandCostModel, OperandPlan, ScheduleCost, ScheduledOp, SpillSlot,
-        StackScheduler, TargetSlot, cross_block_values, is_cross_block_recomputable_kind,
-        is_rematerializable_leaf,
+        OperandCostModel, OperandPlan, ScheduleCost, ScheduledOp, SpillSlot, StackScheduler,
+        TargetSlot, cross_block_values, is_cross_block_recomputable_kind, is_rematerializable_leaf,
         layout::{
             GlobalStackPlan, StackPhiBranch, StackPhiEdge, StackPhiPlan, planned_entry_carries,
         },
@@ -25,7 +24,7 @@ use self::{
     switch::MAX_GAS_CODE_GROWTH,
 };
 use super::{
-    DebugFunction, DebugFunctionExit, DebugInstruction, ir,
+    DebugFunction, DebugFunctionExit, DebugInfo, ir,
     layout::{RelayoutAddress, preserves_push_width},
     op::{self, WORD_BYTES},
 };
@@ -33,7 +32,7 @@ use crate::{
     backend::assembler::{
         ArtifactKind, Assembler, DeferredAlloc, DeferredConst, ImmutableRef, Label,
     },
-    link::LibraryRelocation,
+    link::{EmbeddedBytecodes, LibraryRelocation, LibraryTable},
     mir::{
         ArgIdx, BlockId, EffectKind, Function, FunctionId, ImmutableEncoding, ImmutableId, InstId,
         InstKind, MemoryRegion, MirPhase, MirType, Module, Terminator, Value, ValueId,
@@ -58,7 +57,7 @@ use solar_data_structures::{
     map::{FxHashMap, FxHashSet},
 };
 use solar_sema::Gcx;
-use std::{cell::OnceCell, collections::hash_map::Entry as StdEntry, rc::Rc};
+use std::{cell::OnceCell, sync::Arc};
 
 mod stack;
 pub(super) use stack::{
@@ -86,7 +85,7 @@ struct GeneratedCode {
     bytecode: Vec<u8>,
     library_relocations: Vec<LibraryRelocation>,
     evm_ir: Option<ir::Module>,
-    debug_info: Option<Vec<DebugInstruction>>,
+    debug_info: Option<DebugInfo>,
 }
 
 /// Describes the stack effect of an EVM instruction.
@@ -194,7 +193,7 @@ struct StackResultProjection {
 /// Subset-invariant analyses shared by one resident-layout subset search.
 struct ResidentSearchContext {
     /// Planned stack-phi edges, present when the function has phis.
-    phi_plan: Option<Rc<StackPhiPlan>>,
+    phi_plan: Option<Arc<StackPhiPlan>>,
     /// CFG facts whose memoized dominators persist across candidates.
     cfg: CfgInfo,
     /// Operand occurrences per candidate value across the whole function.
@@ -359,7 +358,9 @@ pub struct EvmCodegen<'gcx> {
     /// Stack-phi plans by function, shared by the resident-argument search and body emission.
     /// A plan depends only on the function, its whole-function liveness, and the module's cold
     /// functions, so one analysis per function serves both.
-    stack_phi_plans: FxHashMap<FunctionId, Rc<StackPhiPlan>>,
+    stack_phi_plans: FxHashMap<FunctionId, Arc<StackPhiPlan>>,
+    /// Whole-function liveness by function, shared the same way as `stack_phi_plans`.
+    function_liveness: FxHashMap<FunctionId, Arc<Liveness>>,
     function_ir_block_start: usize,
     /// Whole-calldata-forwarding clobbers (`calldatacopy(0, 0, calldatasize())`
     /// in a proxy) whose write reaches the compiler spill area. Values live
@@ -369,6 +370,8 @@ pub struct EvmCodegen<'gcx> {
     /// Leaf helpers whose sole returned word is derived from the free-memory pointer.
     /// Their callers may safely use the result as a dynamic forwarding-buffer base.
     heap_pointer_return_functions: DenseBitSet<FunctionId>,
+    /// Runtime code of a scheduled module, waiting for embedded bytecode to be linked in.
+    pending_runtime: Option<PendingRuntime>,
     /// Whether the current function has canonical cross-block argument layouts.
     global_stack_active: bool,
     /// Calldata words physically identical to arguments in the active global
@@ -455,9 +458,11 @@ impl<'gcx> EvmCodegen<'gcx> {
             spill_loads: Vec::new(),
             early_spill_removals: Vec::new(),
             stack_phi_plans: FxHashMap::default(),
+            function_liveness: FxHashMap::default(),
             function_ir_block_start: 0,
             spill_hazard_insts: FxHashSet::default(),
             heap_pointer_return_functions: DenseBitSet::new_empty(0),
+            pending_runtime: None,
             global_stack_active: false,
             global_stack_aliases: FxHashMap::default(),
             runtime_immutable_refs: Vec::new(),
@@ -517,6 +522,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.elided_insts.clear();
         self.late_gas_operands.clear();
         self.stack_phi_plans.clear();
+        self.function_liveness.clear();
         self.spill_hazard_insts.clear();
         self.heap_pointer_return_functions.clear_to(module.functions.len());
         self.global_stack_active = false;
@@ -609,6 +615,11 @@ impl<'gcx> EvmCodegen<'gcx> {
     }
 }
 
+/// Runtime code whose EVM IR pipeline has run in the assembler, waiting for embedded bytecode.
+struct PendingRuntime {
+    call_graph: CallGraphInfo,
+}
+
 /// The artifact produced by the EVM backend.
 #[derive(Clone, Debug, Default)]
 pub struct EvmArtifact {
@@ -629,16 +640,19 @@ pub struct EvmArtifact {
     /// Final runtime EVM IR immediately before byte emission.
     pub runtime_evm_ir: Option<ir::Module>,
     /// Final deployment-prefix instruction locations.
-    pub deployment_debug_info: Option<Vec<DebugInstruction>>,
+    pub deployment_debug_info: Option<DebugInfo>,
     /// Final runtime instruction locations.
-    pub runtime_debug_info: Option<Vec<DebugInstruction>>,
+    pub runtime_debug_info: Option<DebugInfo>,
 }
 
 impl crate::backend::Backend for EvmCodegen<'_> {
     type Output = EvmArtifact;
 
-    fn lower_module(&mut self, module: &mut Module) -> EvmArtifact {
-        self.generate_deployment_artifact(module)
+    fn lower_module(&mut self, module: &mut Module, bytecodes: &EmbeddedBytecodes) -> EvmArtifact {
+        if !self.schedule_module(module) {
+            return EvmArtifact::default();
+        }
+        self.finish_module(module, bytecodes)
     }
 }
 
@@ -1040,9 +1054,9 @@ RETURN
             module.advance_phase(codegen.gcx.dcx(), MirPhase::Lowered).unwrap();
 
             let mut first_module = module.clone();
-            let first = codegen.lower_module(&mut first_module);
+            let first = codegen.lower_module(&mut first_module, &Default::default());
             let mut second_module = module.clone();
-            let second = codegen.lower_module(&mut second_module);
+            let second = codegen.lower_module(&mut second_module, &Default::default());
 
             assert_eq!(second.deployment, first.deployment);
             assert_eq!(second.runtime, first.runtime);
@@ -1096,10 +1110,10 @@ RETURN
             let function = &module.functions[function];
             let liveness = Liveness::compute(function);
             codegen.scheduler.stack.push(dest);
-            for _ in 0..MAX_STACK_ACCESS - 2 {
+            for _ in 0..16 - 2 {
                 codegen.scheduler.stack.push_unknown();
             }
-            assert_eq!(codegen.scheduler.stack.find(dest), Some(MAX_STACK_ACCESS - 2));
+            assert_eq!(codegen.scheduler.stack.find(dest), Some(16 - 2));
 
             codegen.emit_data_copy(
                 function,
@@ -1111,7 +1125,7 @@ RETURN
                 1,
             );
 
-            assert_eq!(codegen.scheduler.stack.find(dest), Some(MAX_STACK_ACCESS - 2));
+            assert_eq!(codegen.scheduler.stack.find(dest), Some(16 - 2));
         });
     }
 
@@ -1247,8 +1261,8 @@ RETURN
             let call_graph = CallGraphInfo::new(&module);
             codegen.cold_functions = DenseBitSet::new_empty(module.functions.len());
 
-            let _ = codegen
-                .generate_runtime_code(&module.as_lowered(codegen.gcx.dcx()).unwrap(), &call_graph);
+            codegen
+                .schedule_runtime_code(&module.as_lowered(codegen.gcx.dcx()).unwrap(), &call_graph);
 
             assert!(!codegen.stack_returns_enabled);
             assert!(codegen.gcx.dcx().has_errors().is_err());
@@ -1275,7 +1289,7 @@ RETURN
         assert!(EvmCodegen::stack_arg_site_eligible(&function, true, computed));
 
         with_codegen(CompileOpts::default(), |mut codegen| {
-            codegen.emit_raw_stack_arg(&function, calldata_size, None, None, 0);
+            codegen.emit_raw_stack_arg(&function, calldata_size, None, None, 0, false);
             assert_eq!(codegen.asm.assemble().bytecode, [op::CALLDATASIZE]);
         });
     }
@@ -1320,12 +1334,9 @@ RETURN
         let value = ValueId::from_usize(0);
         let call = InstKind::ICall {
             function: Callee::Function(FunctionId::from_usize(0)),
-            args: vec![value; MAX_STACK_ACCESS].into(),
+            args: vec![value; 16].into(),
         };
-        assert_eq!(
-            EvmCodegen::instruction_transient_growth(&call, MAX_STACK_ACCESS),
-            MAX_STACK_ACCESS
-        );
+        assert_eq!(EvmCodegen::instruction_transient_growth(&call, 16), 16);
 
         let add = InstKind::Add(value, value);
         assert_eq!(EvmCodegen::instruction_transient_growth(&add, 2), 1);
@@ -1351,15 +1362,19 @@ RETURN
         let mut function = Function::new(Ident::DUMMY);
         let join = function.alloc_block();
         let mut phi = StackPhiPlan::default();
-        phi.entries.insert(join, (0..MAX_STACK_ACCESS).map(ValueId::from_usize).collect());
+        phi.entries.insert(join, (0..16).map(ValueId::from_usize).collect());
         let resident = GlobalStackPlan {
-            entries: FxHashMap::from_iter([(join, vec![ValueId::from_usize(MAX_STACK_ACCESS)])]),
+            entries: FxHashMap::from_iter([(join, vec![ValueId::from_usize(16)])]),
             aliases: FxHashMap::default(),
             terminal_sensitive: true,
         };
 
-        assert!(!phi.merge_resident(&function, &resident));
-        assert_eq!(phi.entries[&join].len(), MAX_STACK_ACCESS);
+        assert!(!phi.merge_resident(
+            &function,
+            &resident,
+            EvmVersion::Osaka.reachable_stack_depth()
+        ));
+        assert_eq!(phi.entries[&join].len(), 16);
     }
 
     #[test]
@@ -1666,22 +1681,21 @@ RETURN
         let value1 = ValueId::from_usize(1);
         let interferences = FxHashMap::default();
         let mut color = SpillColor::new(2);
-        color
-            .insert(value0, &FxHashMap::from_iter([(block0, SpillLiveRange { start: 2, end: 4 })]));
+        color.insert(value0, &[(block0, SpillLiveRange { start: 2, end: 4 })]);
 
         assert!(color.accepts(
             value1,
-            &FxHashMap::from_iter([(block0, SpillLiveRange { start: 5, end: 7 })]),
+            &[(block0, SpillLiveRange { start: 5, end: 7 })],
             &interferences,
         ));
         assert!(!color.accepts(
             value1,
-            &FxHashMap::from_iter([(block0, SpillLiveRange { start: 4, end: 7 })]),
+            &[(block0, SpillLiveRange { start: 4, end: 7 })],
             &interferences,
         ));
         assert!(color.accepts(
             value1,
-            &FxHashMap::from_iter([(block1, SpillLiveRange { start: 2, end: 4 })]),
+            &[(block1, SpillLiveRange { start: 2, end: 4 })],
             &interferences,
         ));
     }

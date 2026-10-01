@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/egraph/rewrite_metadata.mir (before egraph) ===
 + // === ROOT/tests/ui/codegen/mir/egraph/rewrite_metadata.mir (after egraph) ===
   @module RewriteMetadata
-  types:
+  @types
     struct0: {i256, i256}
   
   fn @arithmetic(arg0: i256) -> i256 {

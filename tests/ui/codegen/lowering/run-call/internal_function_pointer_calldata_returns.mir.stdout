@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/internal_function_pointer_calldata_returns.sol:InternalFunctionPointerCalldataReturns ===
 @module InternalFunctionPointerCalldataReturns
-types:
+@types
   struct0: {i256, i256, i256}
   struct1: {calldataslice, i256, calldataslice}
 

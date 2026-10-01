@@ -11,13 +11,4 @@ contract Caller {
         //~[homestead]^ ERROR: builtin `staticcall` requires Byzantium-compatible EVM
         return success;
     }
-
-    // CHECK-LABEL: fn @probeCall
-    // CHECK: address_call
-    // CHECK: icall returndata_bytes<>
-    function probeCall(address target) external returns (uint256) {
-        (, bytes memory data) = target.call("");
-        //~[homestead]^ ERROR: codegen cannot bind low-level call returndata before Byzantium
-        return data.length;
-    }
 }

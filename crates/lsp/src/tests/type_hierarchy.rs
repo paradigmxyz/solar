@@ -544,7 +544,7 @@ fn incompatible_compile_contexts_exclude_nodes_and_incident_edges_in_both_orders
                 import_remappings: vec![ImportRemapping {
                     context: String::new(),
                     prefix: "@dep/".into(),
-                    path: project.path(remapping_dir).to_string_lossy().into_owned(),
+                    path: format!("{}/", project.path(remapping_dir).display()),
                 }],
                 ..Default::default()
             };
