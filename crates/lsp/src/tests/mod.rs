@@ -1519,6 +1519,91 @@ fn analysis_resolves_overlay_remapped_and_auto_remapped_imports() {
 }
 
 #[test]
+fn analysis_uses_nested_dependency_remappings_for_import_resolution() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /foundry.toml
+        [profile.default]
+        src = "src"
+
+        //- /src/Main.sol
+        import "x/X.sol"; contract Main { function value() external pure returns (uint) { return X.value(); } }
+
+        //- /lib/x/src/X.sol
+        pragma solidity ^0.8.0;
+        import "y/Vendored.sol";
+        library X { function value() internal pure returns (uint) { return Vendored.value(); } }
+
+        //- /lib/x/remappings.txt
+        y/=lib/vendored/
+
+        //- /lib/x/lib/vendored/Vendored.sol
+        pragma solidity ^0.8.0;
+        library Vendored { function value() internal pure returns (uint) { return 7; } }
+        "#,
+    );
+    let result = analyze_single_batch(&snapshot(&project));
+
+    assert!(result.diagnostics.is_empty(), "{:#?}", result.diagnostics);
+}
+
+#[test]
+fn analysis_keeps_root_and_nested_package_remappings_distinct() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /foundry.toml
+        [profile.default]
+        src = "src"
+
+        //- /src/Main.sol
+        import "x/X.sol";
+        import {Z} from "z/Z.sol";
+        contract Main { function value() external pure returns (uint) { return X.rootValue() + Z.value(); } }
+
+        //- /lib/x/src/X.sol
+        library X { function rootValue() internal pure returns (uint) { return 1; } }
+
+        //- /lib/z/src/Z.sol
+        import "x/X.sol";
+        library Z { function value() internal pure returns (uint) { return X.nestedValue(); } }
+
+        //- /lib/z/lib/x/src/X.sol
+        library X { function nestedValue() internal pure returns (uint) { return 2; } }
+        "#,
+    );
+    let result = analyze_single_batch(&snapshot(&project));
+
+    assert!(result.diagnostics.is_empty(), "{:#?}", result.diagnostics);
+}
+
+#[cfg(unix)]
+#[test]
+fn analysis_resolves_symlink_and_physical_package_remappings() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /foundry.toml
+        [profile.default]
+        src = "src"
+
+        //- /src/Main.sol
+        import {Z as AliasZ} from "a/Z.sol";
+        import {Z as PhysicalZ} from "z/Z.sol";
+        contract Main { function value() external pure returns (uint) { return AliasZ.aliasValue() + PhysicalZ.physicalValue(); } }
+
+        //- /lib/z/src/Z.sol
+        library Z {
+            function aliasValue() internal pure returns (uint) { return 1; }
+            function physicalValue() internal pure returns (uint) { return 2; }
+        }
+        "#,
+    );
+    symlink(project.path("/lib/z"), project.path("/lib/a")).unwrap();
+    let result = analyze_single_batch(&snapshot(&project));
+
+    assert!(result.diagnostics.is_empty(), "{:#?}", result.diagnostics);
+}
+
+#[test]
 fn analysis_batches_use_cached_workspace_source_files() {
     let project = TestProject::from_fixture(
         r#"
