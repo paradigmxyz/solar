@@ -1,10 +1,11 @@
-use crate::{LaunchConfig, flycheck, global_state::GlobalState, test_support::TestProject};
-use async_lsp::ClientSocket;
-use lsp_types::{
-    CodeActionClientCapabilities, CodeActionContext, CodeActionKind, CodeActionKindLiteralSupport,
-    CodeActionLiteralSupport, CodeActionOrCommand, CodeActionParams,
-    PublishDiagnosticsClientCapabilities, TextDocumentIdentifier, WorkDoneProgressParams,
+use crate::{
+    LaunchConfig, flycheck,
+    global_state::GlobalState,
+    test_support::{TestProject, request_params, with_capabilities, with_options},
 };
+use async_lsp::ClientSocket;
+use lsp_types::{CodeActionOrCommand, Position};
+use serde_json::json;
 use solar_interface::{
     BytePos, ColorChoice, Span,
     diagnostics::{Applicability, Diag, DiagCtxt, JsonEmitter, Level},
@@ -13,21 +14,19 @@ use solar_interface::{
 use std::{io, path::Path, sync::Arc, time::Duration};
 use tokio::sync::oneshot;
 
-const SOURCE: &str = "contract Test { function run() public view {} }";
+const FIXTURE: &str = r#"
+//- /foundry.toml
+[profile.default]
+src = "src"
+
+//- /src/Test.sol
+contract Test { function run() public view {} }
+"#;
 const FAKE_FLYCHECK_TEST: &str = "flycheck_tests::fake_json_emitter";
 
 #[tokio::test(flavor = "current_thread")]
 async fn default_forge_flycheck_uses_selected_profile() {
-    let project = TestProject::from_fixture(
-        r#"
-        //- /foundry.toml
-        [profile.default]
-        src = "src"
-
-        //- /src/Test.sol
-        contract Test {}
-        "#,
-    );
+    let project = TestProject::from_fixture(FIXTURE);
     // Libtest accepts `lint --help`, providing a portable successful capability probe.
     let forge = std::env::current_exe().unwrap();
 
@@ -44,41 +43,29 @@ async fn default_forge_flycheck_uses_selected_profile() {
 
 #[tokio::test(flavor = "current_thread")]
 async fn json_emitter_alternatives_become_separate_flycheck_code_actions() {
-    let project = TestProject::new();
-    project.write_file("/foundry.toml", "[profile.default]\nsrc = \"src\"\n");
-    project.write_file("/src/Test.sol", SOURCE);
+    let project = TestProject::from_fixture(FIXTURE);
     let path = project.path("/src/Test.sol");
-    let uri = lsp_types::Url::from_file_path(&path).unwrap();
+    let uri = project.uri("/src/Test.sol");
 
-    let mut params = project.initialize_params();
-    let text_document = params.capabilities.text_document.get_or_insert_default();
-    text_document.code_action = Some(CodeActionClientCapabilities {
-        code_action_literal_support: Some(CodeActionLiteralSupport {
-            code_action_kind: CodeActionKindLiteralSupport {
-                value_set: vec![CodeActionKind::QUICKFIX.as_str().into()],
-            },
+    let quick_fix = json!({ "codeActionKind": { "valueSet": ["quickfix"] } });
+    let capabilities = json!({ "textDocument": {
+        "codeAction": { "codeActionLiteralSupport": quick_fix },
+        "publishDiagnostics": { "dataSupport": true },
+    } });
+    let params = with_capabilities(project.initialize_params(), capabilities);
+    let params = with_options(
+        params,
+        json!({
+            "flychecks": [{
+                "id": "json-emitter-contract",
+                "command": std::env::current_exe().unwrap(),
+                "args": [
+                    "--ignored", "--exact", FAKE_FLYCHECK_TEST, "--no-capture", "--color", "never"
+                ],
+                "output": "forge-lint-json"
+            }]
         }),
-        ..Default::default()
-    });
-    text_document.publish_diagnostics = Some(PublishDiagnosticsClientCapabilities {
-        data_support: Some(true),
-        ..Default::default()
-    });
-    params.initialization_options = Some(serde_json::json!({
-        "flychecks": [{
-            "id": "json-emitter-contract",
-            "command": std::env::current_exe().unwrap(),
-            "args": [
-                "--ignored",
-                "--exact",
-                FAKE_FLYCHECK_TEST,
-                "--no-capture",
-                "--color",
-                "never"
-            ],
-            "output": "forge-lint-json"
-        }]
-    }));
+    );
 
     let mut state = GlobalState::new(ClientSocket::new_closed());
     state.on_initialize(params).await.unwrap();
@@ -92,14 +79,8 @@ async fn json_emitter_alternatives_become_separate_flycheck_code_actions() {
     let [diagnostic] = diagnostics[&uri].as_slice() else {
         panic!("expected one flycheck diagnostic, got {diagnostics:#?}");
     };
-    let diagnostic = diagnostic.clone();
-    let request = CodeActionParams {
-        text_document: TextDocumentIdentifier::new(uri.clone()),
-        range: diagnostic.range,
-        context: CodeActionContext { diagnostics: vec![diagnostic], ..Default::default() },
-        work_done_progress_params: WorkDoneProgressParams::default(),
-        partial_result_params: Default::default(),
-    };
+    let context = json!({ "range": diagnostic.range, "context": { "diagnostics": [diagnostic] } });
+    let request = request_params(&uri, Position::default(), context);
     state.replace_diagnostics_for_test(diagnostics);
 
     let actions = crate::handlers::code_actions(&mut state, request).await.unwrap().unwrap();

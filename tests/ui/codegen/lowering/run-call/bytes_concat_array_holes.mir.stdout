@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/bytes_concat_array_holes.sol:BytesConcatArrayHoles ===
 @module BytesConcatArrayHoles
 @types
-  struct0: {memoryarray, i256}
+  struct0: {memptr, i256}
   struct1: {i256, i256}
 
 fn @chunksAndHash() -> struct0 [pure] {
@@ -26,7 +26,7 @@ fn @chunksAndHash() -> struct0 [pure] {
     v10 = lt 0, v9
     v11 = eq v10, false
     icall panic_if<0x32>, v11
-    v12 = ptrtoint memorybytes v4 to i256
+    v12 = ptrtoint memptr v4 to i256
     memory_object_store_element memoryarray<1>, v0, 0, v12
     v13 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v13, 4
@@ -37,7 +37,7 @@ fn @chunksAndHash() -> struct0 [pure] {
     v17 = lt 15, v16
     v18 = eq v17, false
     icall panic_if<0x32>, v18
-    v19 = ptrtoint memorybytes v13 to i256
+    v19 = ptrtoint memptr v13 to i256
     memory_object_store_element memoryarray<1>, v0, 15, v19
     v20 = shl 0, 7
     v21 = insert_value struct0, undef struct0, 0, v0
@@ -57,7 +57,7 @@ fn @join() -> struct1 [selector=0xb688a363, pure, abi_params=[], abi_returns=[wo
     jump bb1
   bb1:
     v3 = phi [bb0: v2], [bb3: v3]
-    v4 = phi [bb0: memorybytes 96], [bb3: v19]
+    v4 = phi [bb0: memptr 96], [bb3: v19]
     v5 = phi [bb0: v1], [bb3: v5]
     v6 = phi [bb0: 0], [bb3: v20]
     v7 = phi [bb0: 0], [bb3: v7]
@@ -77,13 +77,13 @@ fn @join() -> struct1 [selector=0xb688a363, pure, abi_params=[], abi_returns=[wo
     v12 = eq v11, false
     icall panic_if<0x32>, v12
     v13 = memory_object_load_element memoryarray<1>, v5, v6
-    v14 = inttoptr i256 v13 to memorybytes
+    v14 = inttoptr i256 v13 to memptr
     v15 = eq v13, 0
     jumpi v15, bb7, bb8
   bb7:
     v16 = alloc memorybytes, exact, uninitialized, infallible, 32
     set_memory_object_len memorybytes, v16, 0
-    v17 = ptrtoint memorybytes v16 to i256
+    v17 = ptrtoint memptr v16 to i256
     memory_object_store_element memoryarray<1>, v5, v6, v17
     jump bb8
   bb8:

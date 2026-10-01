@@ -1,10 +1,6 @@
 use super::*;
-use crate::{handlers, test_support::MarkedProject};
-use async_lsp::ClientSocket;
-use lsp_types::{
-    DidOpenTextDocumentParams, RenameParams, TextDocumentIdentifier, TextDocumentItem,
-    TextDocumentPositionParams, WorkspaceFolder,
-};
+use lsp_types::RenameParams;
+use snapbox::{IntoData, assert_data_eq};
 
 #[cfg(unix)]
 use std::{fs, os::unix::fs::symlink};
@@ -12,31 +8,42 @@ use std::{fs, os::unix::fs::symlink};
 mod nested_repositories;
 mod repository_grants;
 
-async fn assert_dependency_rename_rejected(state: &mut GlobalState, params: RenameParams) {
-    assert_rename_rejected(
-        state,
-        params,
-        "cannot rename this symbol because it would modify dependency files",
-    )
-    .await;
-}
+const DEPENDENCY: &str = "cannot rename this symbol because it would modify dependency files\n";
+const OUTSIDE: &str =
+    "cannot rename this symbol because it would modify files outside the workspace\n";
+const INCOMPLETE: &str =
+    "cannot rename this symbol because workspace indexing may omit source files\n";
 
-async fn assert_rename_rejected(
+async fn check_report(
+    fixture: &RequestFixture,
     state: &mut GlobalState,
     params: RenameParams,
-    message: &'static str,
+    expected: impl IntoData,
 ) {
-    let prepared = tokio::time::timeout(
-        super::super::ASYNC_TEST_TIMEOUT,
-        handlers::prepare_rename(state, params.text_document_position.clone()),
-    )
-    .await
-    .unwrap();
-    let renamed = handlers::rename(state, params).await;
-    for error in [prepared.unwrap_err(), renamed.unwrap_err()] {
-        assert_eq!(error.code, ErrorCode::REQUEST_FAILED);
-        snapbox::assert_data_eq!(error.message, message);
-    }
+    assert_data_eq!(rename_report(state, params, &fixture.project_path("/")).await, expected);
+}
+
+/// Checks the report of renaming `marker` to `Renamed` with the given workspace `roots`.
+async fn check_marker(
+    fixture: &RequestFixture,
+    marker: &str,
+    roots: &[&str],
+    expected: impl IntoData,
+) {
+    let (mut state, params) = fixture.rename_state_with_roots(marker, "Renamed", roots);
+    check_report(fixture, &mut state, params, expected).await;
+}
+
+fn check_allowed_each(
+    fixture: &str,
+    path: &str,
+    markers: &str,
+    prepare: &str,
+    expected: impl IntoData,
+) {
+    let fixture = RequestFixture::new(fixture, path);
+    fixture.check_renames(&[(markers, "Renamed")], expected);
+    fixture.check_prepare_rename(markers.split_whitespace().next().unwrap(), prepare);
 }
 
 #[tokio::test]
@@ -64,8 +71,7 @@ async fn rejects_renaming_dependency_declarations_and_override_families() {
             fixture.set_open_file_contents("/lib/dep/src/IDep.sol", &contents);
         }
         for marker in ["$1", "$2", "$3", "$4", "$5"] {
-            let (mut state, params) = fixture.rename_state_and_params(marker, "renamed");
-            assert_dependency_rename_rejected(&mut state, params).await;
+            check_marker(&fixture, marker, &["/"], DEPENDENCY).await;
         }
     }
 }
@@ -114,8 +120,48 @@ contract Impl is $1IDep {{
             "/src/Impl.sol",
         );
         for marker in ["$1", "$2"] {
-            let (mut state, params) = fixture.rename_state_and_params(marker, "renamed");
-            assert_dependency_rename_rejected(&mut state, params).await;
+            check_marker(&fixture, marker, &["/"], DEPENDENCY).await;
+        }
+    }
+}
+
+#[tokio::test]
+async fn protects_dependencies_outside_or_above_workspace_roots() {
+    for (fixture, path, root, markers) in [
+        (
+            r#"
+            //- /project/foundry.toml
+            [profile.default]
+            remappings = ["dep/=../external/"]
+            //- /external/IDep.sol
+            interface IDep {}
+            //- /project/src/Impl.sol
+            import {IDep} from "../../external/IDep.sol";
+            contract Impl is $1IDep {}
+            "#,
+            "/project/src/Impl.sol",
+            "/project",
+            &["$1"][..],
+        ),
+        (
+            r#"
+            //- /foundry.toml
+            [profile.default]
+            libs = ["src/vendor"]
+            //- /src/vendor/IDep.sol
+            interface $1IDep {}
+            //- /src/Impl.sol
+            import {IDep} from "./vendor/IDep.sol";
+            contract Impl is $2IDep {}
+            "#,
+            "/src/Impl.sol",
+            "/src",
+            &["$1", "$2"],
+        ),
+    ] {
+        let fixture = RequestFixture::new(fixture, path);
+        for marker in markers {
+            check_marker(&fixture, marker, &[root], DEPENDENCY).await;
         }
     }
 }
@@ -153,26 +199,18 @@ async fn discovered_dependency_cannot_grant_sources_in_another_projects_library(
             let (mut state, params) = fixture.rename_state_and_params(marker, "Renamed");
             // Exercise real manifest discovery, not a manually synthesized workspace list.
             assert_eq!(state.config.workspaces().len(), 3);
-            let dependency = state
-                .config
-                .workspaces()
-                .iter()
-                .find(|workspace| {
-                    workspace.compile_opts().base_path.as_ref()
-                        == Some(&fixture.project_path("/c/vendor/dep"))
-                })
-                .expect("the remapped dependency manifest is discovered");
+            let dependency = workspace_at(&state.config, &fixture.project_path("/c/vendor/dep"));
             assert!(
                 dependency.import_source_roots().contains(&fixture.project_path("/a/vendor/owned"))
             );
-            assert_dependency_rename_rejected(&mut state, params).await;
+            check_report(&fixture, &mut state, params, DEPENDENCY).await;
         }
     }
 }
 
 #[test]
-fn allows_local_import_aliases_of_dependencies() {
-    let fixture = RequestFixture::new(
+fn allows_local_aliases_and_project_sources() {
+    check_allowed_each(
         r#"
         //- /foundry.toml
         //- /lib/dep/IDep.sol
@@ -184,59 +222,43 @@ fn allows_local_import_aliases_of_dependencies() {
         }
         "#,
         "/src/Impl.sol",
-    );
-    for marker in ["$1", "$2"] {
-        fixture.check_rename(
-            marker,
-            "RenamedLocal",
-            str![[r#"
-/src/Impl.sol:0:16-0:24 -> RenamedLocal
-/src/Impl.sol:2:4-2:12 -> RenamedLocal
+        "$1 $2",
+        "0:16-0:24\n",
+        str![[r#"
+$1 $2:
+/src/Impl.sol:0:16-0:24 -> Renamed
+/src/Impl.sol:2:4-2:12 -> Renamed
 
 "#]],
-        );
-    }
-    fixture.check_prepare_rename("$1", "0:16-0:24\n");
-}
-
-#[test]
-fn allows_project_override_families_and_source_alias_remappings() {
-    let fixture = RequestFixture::new(
+    );
+    check_allowed_each(
         r#"
         //- /foundry.toml
         [profile.default]
         remappings = ["local/=src/"]
         //- /src/IProject.sol
         interface IProject {
-            function $1ping() external;
+            function $2ping() external;
         }
         //- /src/Impl.sol
         import {IProject} from "./IProject.sol";
         contract Impl is IProject {
-            function $2ping() external override {}
+            function $1ping() external override {}
             function callProject(IProject project) external { project.$3ping(); }
         }
         "#,
         "/src/Impl.sol",
-    );
-    for marker in ["$1", "$2", "$3"] {
-        fixture.check_rename(
-            marker,
-            "pong",
-            str![[r#"
-/src/IProject.sol:1:13-1:17 -> pong
-/src/Impl.sol:2:13-2:17 -> pong
-/src/Impl.sol:3:62-3:66 -> pong
+        "$1 $2 $3",
+        "2:13-2:17\n",
+        str![[r#"
+$1 $2 $3:
+/src/IProject.sol:1:13-1:17 -> Renamed
+/src/Impl.sol:2:13-2:17 -> Renamed
+/src/Impl.sol:3:62-3:66 -> Renamed
 
 "#]],
-        );
-    }
-    fixture.check_prepare_rename("$2", "2:13-2:17\n");
-}
-
-#[test]
-fn allows_explicit_project_sources_under_library_roots() {
-    let fixture = RequestFixture::new(
+    );
+    check_allowed_each(
         r#"
         //- /foundry.toml
         [profile.default]
@@ -249,25 +271,44 @@ fn allows_explicit_project_sources_under_library_roots() {
         contract Impl is $2Owned {}
         "#,
         "/lib/contracts/Impl.sol",
-    );
-    for marker in ["$1", "$2"] {
-        fixture.check_rename(
-            marker,
-            "Renamed",
-            str![[r#"
+        "$1 $2",
+        "0:9-0:14\n",
+        str![[r#"
+$1 $2:
 /lib/contracts/Impl.sol:0:8-0:13 -> Renamed
 /lib/contracts/Impl.sol:1:17-1:22 -> Renamed
 /lib/contracts/Owned.sol:0:9-0:14 -> Renamed
 
 "#]],
-        );
-    }
-    fixture.check_prepare_rename("$1", "0:9-0:14\n");
+    );
+    check_allowed_each(
+        r#"
+        //- /foundry.toml
+        [profile.default]
+        src = "."
+        remappings = ["local/=modules/"]
+        //- /modules/Owned.sol
+        contract $1Owned {}
+        //- /Main.sol
+        import {Owned} from "./modules/Owned.sol";
+        contract Impl is $2Owned {}
+        "#,
+        "/Main.sol",
+        "$1 $2",
+        "0:9-0:14\n",
+        str![[r#"
+$1 $2:
+/Main.sol:0:8-0:13 -> Renamed
+/Main.sol:1:17-1:22 -> Renamed
+/modules/Owned.sol:0:9-0:14 -> Renamed
+
+"#]],
+    );
 }
 
 #[test]
-fn allows_other_workspace_sources_inside_library_roots() {
-    let fixture = RequestFixture::new(
+fn allows_sources_owned_by_other_workspaces() {
+    check_allowed_each(
         r#"
         //- /a/foundry.toml
         [profile.default]
@@ -290,19 +331,74 @@ fn allows_other_workspace_sources_inside_library_roots() {
         }
         "#,
         "/a/src/Impl.sol",
+        "$1 $2",
+        "1:13-1:17\n",
+        str![[r#"
+$1 $2:
+/a/src/Impl.sol:2:48-2:52 -> Renamed
+/a/vendor/owned/Owned.sol:1:13-1:17 -> Renamed
+
+"#]],
     );
-    for marker in ["$1", "$2"] {
-        fixture.check_rename(
-            marker,
-            "pong",
+    check_allowed_each(
+        r#"
+        //- /a/foundry.toml
+        [profile.default]
+        remappings = ["shared/=../shared/"]
+        auto_detect_remappings = false
+        //- /b/foundry.toml
+        [profile.default]
+        src = "../shared"
+        libs = []
+        auto_detect_remappings = false
+        //- /shared/Owned.sol
+        contract Owned {
+            function $1ping() external {}
+        }
+        //- /a/src/Impl.sol
+        import {Owned} from "../../shared/Owned.sol";
+        contract Impl {
+            function call(Owned owned) external { owned.$2ping(); }
+        }
+        "#,
+        "/a/src/Impl.sol",
+        "$1 $2",
+        "1:13-1:17\n",
+        str![[r#"
+$1 $2:
+/a/src/Impl.sol:2:48-2:52 -> Renamed
+/shared/Owned.sol:1:13-1:17 -> Renamed
+
+"#]],
+    );
+    for target in ["../b/src/", "../b/"] {
+        check_allowed_each(
+            &format!(
+                r#"
+                //- /a/foundry.toml
+                [profile.default]
+                remappings = ["b/={target}"]
+                //- /b/foundry.toml
+                [profile.default]
+                //- /b/src/Owned.sol
+                contract $1Owned {{}}
+                //- /a/src/Impl.sol
+                import {{Owned}} from "../../b/src/Owned.sol";
+                contract Impl is $2Owned {{}}
+                "#,
+            ),
+            "/a/src/Impl.sol",
+            "$1 $2",
+            "0:9-0:14\n",
             str![[r#"
-/a/src/Impl.sol:2:48-2:52 -> pong
-/a/vendor/owned/Owned.sol:1:13-1:17 -> pong
+$1 $2:
+/a/src/Impl.sol:0:8-0:13 -> Renamed
+/a/src/Impl.sol:1:17-1:22 -> Renamed
+/b/src/Owned.sol:0:9-0:14 -> Renamed
 
 "#]],
         );
     }
-    fixture.check_prepare_rename("$1", "1:13-1:17\n");
 }
 
 #[tokio::test]
@@ -320,66 +416,19 @@ async fn allows_dependency_projects_explicitly_opened_as_workspace_roots() {
         "/src/Impl.sol",
     );
     for marker in ["$1", "$2"] {
-        let (mut state, params) = fixture.rename_state_and_params(marker, "Renamed");
-        let initialize = InitializeParams {
-            workspace_folders: Some(
-                ["/", "/lib/dep"]
-                    .into_iter()
-                    .map(|path| WorkspaceFolder {
-                        uri: Url::from_file_path(fixture.project_path(path)).unwrap(),
-                        name: path.into(),
-                    })
-                    .collect(),
-            ),
-            ..Default::default()
-        };
-        let (_, mut config) = negotiate_capabilities(initialize);
-        config.rediscover_workspaces();
-        state.config = Arc::new(config);
-        assert!(
-            handlers::prepare_rename(&mut state, params.text_document_position.clone())
-                .await
-                .unwrap()
-                .is_some()
-        );
-        let edit = handlers::rename(&mut state, params).await.unwrap().unwrap();
-        let changes = edit.changes.unwrap();
-        assert_eq!(changes.len(), 2);
-        for (path, count) in [("/lib/dep/src/Owned.sol", 1), ("/src/Impl.sol", 2)] {
-            let uri = Url::from_file_path(fixture.project_path(path)).unwrap();
-            assert_eq!(changes[&uri].len(), count);
-            assert!(changes[&uri].iter().all(|edit| edit.new_text == "Renamed"));
-        }
-    }
-}
+        check_marker(
+            &fixture,
+            marker,
+            &["/", "/lib/dep"],
+            str![[r#"
+/lib/dep/src/Owned.sol:0:9-0:14 -> Renamed
+/src/Impl.sol:0:8-0:13 -> Renamed
+/src/Impl.sol:1:17-1:22 -> Renamed
 
-#[tokio::test]
-async fn rejects_external_remapped_dependencies() {
-    let fixture = RequestFixture::new(
-        r#"
-        //- /project/foundry.toml
-        [profile.default]
-        remappings = ["dep/=../external/"]
-        //- /external/IDep.sol
-        interface IDep {}
-        //- /project/src/Impl.sol
-        import {IDep} from "../../external/IDep.sol";
-        contract Impl is $1IDep {}
-        "#,
-        "/project/src/Impl.sol",
-    );
-    let (mut state, params) = fixture.rename_state_and_params("$1", "Renamed");
-    let initialize = InitializeParams {
-        workspace_folders: Some(vec![WorkspaceFolder {
-            uri: Url::from_file_path(fixture.project_path("/project")).unwrap(),
-            name: "project".into(),
-        }]),
-        ..Default::default()
-    };
-    let (_, mut config) = negotiate_capabilities(initialize);
-    config.rediscover_workspaces();
-    state.config = Arc::new(config);
-    assert_dependency_rename_rejected(&mut state, params).await;
+"#]],
+        )
+        .await;
+    }
 }
 
 #[tokio::test]
@@ -401,23 +450,25 @@ async fn rename_refreshes_dependency_policy_after_workspace_rediscovery() {
     let (mut state, params) = fixture.rename_state_and_params("$1", "Renamed");
     // Fixtures without a published analysis configuration use the current configuration.
     assert!(state.analysis_commit.lock().analysis_config.is_none());
-    assert!(
-        handlers::prepare_rename(&mut state, params.text_document_position.clone())
-            .await
-            .unwrap()
-            .is_some()
-    );
-    let changes =
-        handlers::rename(&mut state, params.clone()).await.unwrap().unwrap().changes.unwrap();
-    assert_eq!(changes.len(), 2);
-    assert_eq!(changes.values().map(Vec::len).sum::<usize>(), 3);
+    check_report(
+        &fixture,
+        &mut state,
+        params.clone(),
+        str![[r#"
+/src/Impl.sol:0:8-0:13 -> Renamed
+/src/Impl.sol:1:17-1:22 -> Renamed
+/vendor/Owned.sol:0:9-0:14 -> Renamed
+
+"#]],
+    )
+    .await;
 
     fixture.write_file(
         "/foundry.toml",
         "[profile.default]\nlibs = [\"vendor\"]\nauto_detect_remappings = false\n",
     );
     Arc::make_mut(&mut state.config).rediscover_workspaces();
-    assert_dependency_rename_rejected(&mut state, params).await;
+    check_report(&fixture, &mut state, params, DEPENDENCY).await;
 }
 
 #[tokio::test]
@@ -440,7 +491,7 @@ async fn rename_uses_dependency_policy_published_with_analysis() {
     fixture.write_file("/foundry.toml", "[profile.default]\nlibs = []\n");
     Arc::make_mut(&mut state.config).rediscover_workspaces();
     state.analysis_commit.lock().analysis_config = Some(published);
-    assert_dependency_rename_rejected(&mut state, params).await;
+    check_report(&fixture, &mut state, params, DEPENDENCY).await;
 }
 
 #[tokio::test]
@@ -455,83 +506,43 @@ async fn allows_first_party_library_directories_inside_sources() {
         "#,
         "/src/lib/Math.sol",
     );
-    for use_default_excludes in [true, false] {
+    for (use_default_excludes, expected) in
+        [(true, INCOMPLETE), (false, "/src/lib/Math.sol:0:8-0:12 -> Numbers\n")]
+    {
         let (mut state, params) = fixture.rename_state_and_params("$1", "Numbers");
-        let initialize = InitializeParams {
-            workspace_folders: Some(vec![WorkspaceFolder {
-                uri: Url::from_file_path(fixture.project_path("/")).unwrap(),
-                name: "fixture".into(),
-            }]),
-            initialization_options: Some(serde_json::json!({
-                "indexing": { "useDefaultExcludes": use_default_excludes },
-            })),
-            ..Default::default()
-        };
-        let (_, mut config) = negotiate_capabilities(initialize);
-        config.rediscover_workspaces();
+        let options = json!({ "indexing": { "useDefaultExcludes": use_default_excludes } });
+        let config = config_with_options(fixture.project().initialize_params(), options);
         assert_eq!(config.may_omit_source_files(), use_default_excludes);
         state.config = Arc::new(config);
-
-        let prepared =
-            handlers::prepare_rename(&mut state, params.text_document_position.clone()).await;
-        let renamed = handlers::rename(&mut state, params).await;
-        if use_default_excludes {
-            for error in [prepared.unwrap_err(), renamed.unwrap_err()] {
-                assert_eq!(error.code, ErrorCode::REQUEST_FAILED);
-                snapbox::assert_data_eq!(
-                    error.message,
-                    "cannot rename this symbol because workspace indexing may omit source files",
-                );
-            }
-        } else {
-            assert!(prepared.unwrap().is_some());
-            let changes = renamed.unwrap().unwrap().changes.unwrap();
-            let uri = Url::from_file_path(fixture.project_path("/src/lib/Math.sol")).unwrap();
-            assert_eq!(
-                changes,
-                std::collections::HashMap::from([(
-                    uri,
-                    vec![lsp_types::TextEdit::new(
-                        lsp_types::Range::new(
-                            lsp_types::Position::new(0, 8),
-                            lsp_types::Position::new(0, 12),
-                        ),
-                        "Numbers".into(),
-                    )],
-                )]),
-            );
-        }
+        check_report(&fixture, &mut state, params, expected).await;
     }
 }
 
 #[cfg(unix)]
 #[tokio::test]
-async fn rejects_symlinks_from_source_files_and_roots_into_dependencies() {
-    for directory in [false, true] {
+async fn rejects_source_symlinks_into_dependencies() {
+    for (configuration, dependency, directory) in [
+        ("", "/lib/dep/src", false),
+        ("", "/lib/dep/src", true),
+        ("libs = []\nremappings = [\"dep/=vendor/dep/src/\"]", "/vendor/dep/src", true),
+    ] {
         let fixture = RequestFixture::new(
-            r#"
-            //- /foundry.toml
-            [profile.default]
-            //- /lib/dep/src/IDep.sol
-            interface IDep {}
-            //- /src/IDep.sol
-            interface $1IDep {}
-            "#,
+            &format!(
+                "//- /foundry.toml\n[profile.default]\n{configuration}\n\
+                 //- {dependency}/IDep.sol\ninterface IDep {{}}\n\
+                 //- /src/IDep.sol\ninterface $1IDep {{}}\n"
+            ),
             "/src/IDep.sol",
         );
-        if directory {
+        let (link, target) = if directory {
             fs::remove_dir_all(fixture.project_path("/src")).unwrap();
-            symlink(fixture.project_path("/lib/dep/src"), fixture.project_path("/src")).unwrap();
+            ("/src".to_owned(), dependency.to_owned())
         } else {
             fs::remove_file(fixture.project_path("/src/IDep.sol")).unwrap();
-            symlink(
-                fixture.project_path("/lib/dep/src/IDep.sol"),
-                fixture.project_path("/src/IDep.sol"),
-            )
-            .unwrap();
-        }
-        let (mut state, params) = fixture.rename_state_and_params("$1", "Renamed");
-        assert_dependency_rename_rejected(&mut state, params).await;
+            ("/src/IDep.sol".to_owned(), format!("{dependency}/IDep.sol"))
+        };
+        symlink(fixture.project_path(&target), fixture.project_path(&link)).unwrap();
+        check_marker(&fixture, "$1", &["/"], DEPENDENCY).await;
     }
 }
 
@@ -557,18 +568,8 @@ async fn rejects_retargeted_dependency_symlinks_without_configuration_changes() 
     symlink(fixture.project_path("/vendor_old"), &library).unwrap();
     let (mut state, params) = fixture.rename_state_and_params("$1", "Renamed");
     let config = Arc::clone(&state.config);
-    assert!(
-        handlers::prepare_rename(&mut state, params.text_document_position.clone())
-            .await
-            .unwrap()
-            .is_some()
-    );
-    let edits = handlers::rename(&mut state, params.clone()).await.unwrap().unwrap();
-    let changes = edits.changes.unwrap();
-    let uri = Url::from_file_path(&source).unwrap();
-    assert_eq!(changes.len(), 1);
-    assert_eq!(changes[&uri].len(), 1);
-    assert_eq!(changes[&uri][0].new_text, "Renamed");
+    check_report(&fixture, &mut state, params.clone(), "/src/IDep.sol:0:10-0:14 -> Renamed\n")
+        .await;
 
     fs::remove_file(&library).unwrap();
     symlink(fixture.project_path("/vendor_new"), &library).unwrap();
@@ -576,167 +577,8 @@ async fn rejects_retargeted_dependency_symlinks_without_configuration_changes() 
     symlink(fixture.project_path("/vendor_new/IDep.sol"), &source).unwrap();
 
     assert!(Arc::ptr_eq(&state.config, &config));
-    assert_dependency_rename_rejected(&mut state, params).await;
+    check_report(&fixture, &mut state, params, DEPENDENCY).await;
     assert!(Arc::ptr_eq(&state.config, &config));
-}
-
-#[tokio::test]
-async fn protects_parent_project_libraries_when_source_directory_is_workspace_root() {
-    let fixture = RequestFixture::new(
-        r#"
-        //- /foundry.toml
-        [profile.default]
-        libs = ["src/vendor"]
-        //- /src/vendor/IDep.sol
-        interface $1IDep {}
-        //- /src/Impl.sol
-        import {IDep} from "./vendor/IDep.sol";
-        contract Impl is $2IDep {}
-        "#,
-        "/src/Impl.sol",
-    );
-    for marker in ["$1", "$2"] {
-        let (mut state, params) = fixture.rename_state_and_params(marker, "Renamed");
-        let initialize = InitializeParams {
-            workspace_folders: Some(vec![WorkspaceFolder {
-                uri: Url::from_file_path(fixture.project_path("/src")).unwrap(),
-                name: "src".into(),
-            }]),
-            ..Default::default()
-        };
-        let (_, mut config) = negotiate_capabilities(initialize);
-        config.rediscover_workspaces();
-        state.config = Arc::new(config);
-        assert_dependency_rename_rejected(&mut state, params).await;
-    }
-}
-
-#[test]
-fn allows_source_alias_remappings_when_project_root_is_explicit_source() {
-    let fixture = RequestFixture::new(
-        r#"
-        //- /foundry.toml
-        [profile.default]
-        src = "."
-        remappings = ["local/=modules/"]
-        //- /modules/Owned.sol
-        contract $1Owned {}
-        //- /Main.sol
-        import {Owned} from "./modules/Owned.sol";
-        contract Impl is $2Owned {}
-        "#,
-        "/Main.sol",
-    );
-    for marker in ["$1", "$2"] {
-        fixture.check_rename(
-            marker,
-            "Renamed",
-            str![[r#"
-/Main.sol:0:8-0:13 -> Renamed
-/Main.sol:1:17-1:22 -> Renamed
-/modules/Owned.sol:0:9-0:14 -> Renamed
-
-"#]],
-        );
-    }
-    fixture.check_prepare_rename("$1", "0:9-0:14\n");
-}
-
-#[test]
-fn allows_remappings_to_sibling_project_sources() {
-    for target in ["../b/src/", "../b/"] {
-        let fixture = RequestFixture::new(
-            &format!(
-                r#"
-                //- /a/foundry.toml
-                [profile.default]
-                remappings = ["b/={target}"]
-                //- /b/foundry.toml
-                [profile.default]
-                //- /b/src/Owned.sol
-                contract $1Owned {{}}
-                //- /a/src/Impl.sol
-                import {{Owned}} from "../../b/src/Owned.sol";
-                contract Impl is $2Owned {{}}
-                "#,
-            ),
-            "/a/src/Impl.sol",
-        );
-        for marker in ["$1", "$2"] {
-            fixture.check_rename(
-                marker,
-                "Renamed",
-                str![[r#"
-/a/src/Impl.sol:0:8-0:13 -> Renamed
-/a/src/Impl.sol:1:17-1:22 -> Renamed
-/b/src/Owned.sol:0:9-0:14 -> Renamed
-
-"#]],
-            );
-        }
-        fixture.check_prepare_rename("$1", "0:9-0:14\n");
-    }
-}
-
-#[test]
-fn allows_remappings_to_other_workspace_external_sources() {
-    let fixture = RequestFixture::new(
-        r#"
-        //- /a/foundry.toml
-        [profile.default]
-        remappings = ["shared/=../shared/"]
-        auto_detect_remappings = false
-        //- /b/foundry.toml
-        [profile.default]
-        src = "../shared"
-        libs = []
-        auto_detect_remappings = false
-        //- /shared/Owned.sol
-        contract Owned {
-            function $1ping() external {}
-        }
-        //- /a/src/Impl.sol
-        import {Owned} from "../../shared/Owned.sol";
-        contract Impl {
-            function call(Owned owned) external { owned.$2ping(); }
-        }
-        "#,
-        "/a/src/Impl.sol",
-    );
-    for marker in ["$1", "$2"] {
-        fixture.check_rename(
-            marker,
-            "pong",
-            str![[r#"
-/a/src/Impl.sol:2:48-2:52 -> pong
-/shared/Owned.sol:1:13-1:17 -> pong
-
-"#]],
-        );
-    }
-    fixture.check_prepare_rename("$1", "1:13-1:17\n");
-}
-
-#[cfg(unix)]
-#[tokio::test]
-async fn rejects_source_root_symlinks_into_remapping_only_dependencies() {
-    let fixture = RequestFixture::new(
-        r#"
-        //- /foundry.toml
-        [profile.default]
-        libs = []
-        remappings = ["dep/=vendor/dep/src/"]
-        //- /vendor/dep/src/IDep.sol
-        interface IDep {}
-        //- /src/IDep.sol
-        interface $1IDep {}
-        "#,
-        "/src/IDep.sol",
-    );
-    fs::remove_dir_all(fixture.project_path("/src")).unwrap();
-    symlink(fixture.project_path("/vendor/dep/src"), fixture.project_path("/src")).unwrap();
-    let (mut state, params) = fixture.rename_state_and_params("$1", "Renamed");
-    assert_dependency_rename_rejected(&mut state, params).await;
 }
 
 #[cfg(unix)]
@@ -744,37 +586,19 @@ async fn rejects_source_root_symlinks_into_remapping_only_dependencies() {
 async fn rejects_dangling_links_but_allows_unsaved_files() {
     for target in [None, Some("/lib/dep/Missing.sol"), Some("/scratch/Missing.sol")] {
         let fixture = RequestFixture::new(
-            r#"
-            //- /foundry.toml
-            //- /src/New.sol open
-            contract $1New {}
-            "#,
+            "//- /foundry.toml\n//- /src/New.sol open\ncontract $1New {}\n",
             "/src/New.sol",
         );
         fs::remove_file(fixture.project_path("/src/New.sol")).unwrap();
         if let Some(target) = target {
             symlink(fixture.project_path(target), fixture.project_path("/src/New.sol")).unwrap();
         }
-        let (mut state, params) = fixture.rename_state_and_params("$1", "Renamed");
-        if target.is_some() {
-            assert_rename_rejected(
-                &mut state,
-                params,
-                "cannot rename this symbol because its file paths could not be verified",
-            )
-            .await;
+        let expected = if target.is_some() {
+            "cannot rename this symbol because its file paths could not be verified\n"
         } else {
-            assert!(
-                handlers::prepare_rename(&mut state, params.text_document_position.clone())
-                    .await
-                    .unwrap()
-                    .is_some()
-            );
-            let changes =
-                handlers::rename(&mut state, params).await.unwrap().unwrap().changes.unwrap();
-            assert_eq!(changes.len(), 1);
-            assert_eq!(changes.values().next().unwrap().len(), 1);
-        }
+            "/src/New.sol:0:9-0:12 -> Renamed\n"
+        };
+        check_marker(&fixture, "$1", &["/"], expected).await;
     }
 }
 
@@ -802,147 +626,87 @@ async fn keeps_dependency_locals_read_only() {
         "#,
         "/src/Main.sol",
     );
+    let state = |marker: &str, complete: bool| {
+        let (state, params) = fixture.rename_state_and_params(marker, "renamed");
+        publish_analysis_config(&state, complete);
+        (state, params)
+    };
     for complete in [true, false] {
-        for marker in ["$1", "$2", "$3"] {
-            let (mut state, params) = fixture.rename_state_and_params(marker, "renamed");
-            assert!(!state.config.may_omit_source_files());
-            let mut analyzed_config = (*state.config).clone();
-            if !complete {
-                analyzed_config.mark_analysis_source_files_incomplete();
-            }
-            state.analysis_commit.lock().analysis_config = Some(Arc::new(analyzed_config));
-            if marker == "$1" {
-                assert_dependency_rename_rejected(&mut state, params).await;
-                continue;
-            }
+        let (mut dependency, params) = state("$1", complete);
+        check_report(&fixture, &mut dependency, params, DEPENDENCY).await;
 
-            let prepared =
-                handlers::prepare_rename(&mut state, params.text_document_position.clone()).await;
-            let renamed = handlers::rename(&mut state, params).await;
-            if !complete && marker == "$3" {
-                for error in [prepared.unwrap_err(), renamed.unwrap_err()] {
-                    assert_eq!(error.code, ErrorCode::REQUEST_FAILED);
-                    snapbox::assert_data_eq!(
-                        error.message,
-                        "cannot rename this symbol because workspace indexing may omit source files",
-                    );
-                }
-            } else {
-                assert!(prepared.unwrap().is_some());
-                let changes = renamed.unwrap().unwrap().changes.unwrap();
-                let source_uri =
-                    Url::from_file_path(fixture.project_path("/src/Main.sol")).unwrap();
-                assert_eq!(changes.len(), 1);
-                let edits = &changes[&source_uri];
-                assert_eq!(edits.len(), if marker == "$2" { 2 } else { 1 });
-                assert!(edits.iter().all(|edit| edit.new_text == "renamed"));
-            }
+        let (mut local, params) = state("$2", complete);
+        check_report(
+            &fixture,
+            &mut local,
+            params,
+            str![[r#"
+/src/Main.sol:3:16-3:21 -> renamed
+/src/Main.sol:4:15-4:20 -> renamed
+
+"#]],
+        )
+        .await;
+
+        let (mut function, params) = state("$3", complete);
+        if complete {
+            check_report(&fixture, &mut function, params, "/src/Main.sol:2:13-2:17 -> renamed\n")
+                .await;
+        } else {
+            check_report(&fixture, &mut function, params, INCOMPLETE).await;
         }
     }
+}
+
+fn scratch_fixture(source: &str, target: &str) -> RequestFixture {
+    RequestFixture::new(
+        &format!(
+            r#"
+            //- /ws/foundry.toml
+            //- {source} open
+            contract Scratch {{
+                function value() public pure returns (uint256) {{
+                    uint256 $1local = 1;
+                    return local;
+                }}
+            }}
+            //- {target}
+            contract Target {{}}
+            "#,
+        ),
+        source,
+    )
 }
 
 #[tokio::test]
 async fn reports_open_files_outside_the_workspace() {
     for unsaved in [false, true] {
-        let marked = MarkedProject::from_fixture(
-            r#"
-            //- /ws/foundry.toml
-            //- /scratch/Scratch.sol
-            contract Scratch {
-                function value() public pure returns (uint256) {
-                    uint256 $1local = 1;
-                    return local;
-                }
-            }
-            "#,
-        );
-        let project = marked.project();
-        let source = "/scratch/Scratch.sol";
-        let contents = project.read_file(source);
-        let uri = Url::from_file_path(project.path(source)).unwrap();
+        let fixture = scratch_fixture("/scratch/Scratch.sol", "/ws/src/Target.sol");
+        let contents = fixture.project_contents("/scratch/Scratch.sol");
         if unsaved {
-            project.remove_file(source);
+            std::fs::remove_file(fixture.project_path("/scratch/Scratch.sol")).unwrap();
         }
-        let mut state = GlobalState::new(ClientSocket::new_closed());
-        state.config = Arc::new(project.config_with_roots(&["/ws"]));
-        assert!(
-            handlers::did_open_text_document(
-                &mut state,
-                DidOpenTextDocumentParams {
-                    text_document: TextDocumentItem::new(
-                        uri.clone(),
-                        "solidity".into(),
-                        1,
-                        contents,
-                    ),
-                },
-            )
-            .is_continue()
-        );
-        let params = RenameParams {
-            text_document_position: TextDocumentPositionParams::new(
-                TextDocumentIdentifier::new(uri),
-                marked.marker("$1").position(),
-            ),
-            new_name: "renamed".into(),
-            work_done_progress_params: Default::default(),
-        };
-        assert_rename_rejected(
-            &mut state,
-            params,
-            "cannot rename this symbol because it would modify files outside the workspace",
-        )
-        .await;
+        // An unanalyzed server must analyze the open buffer before rejecting the rename.
+        let (uri, position) = fixture.marker_location("$1");
+        let mut state = state_with(fixture.project().config_with_roots(&["/ws"]));
+        open(&mut state, &uri, 1, contents);
+        let params = rename_params(&uri, position, "Renamed");
+        check_report(&fixture, &mut state, params, OUTSIDE).await;
     }
 }
 
 #[cfg(unix)]
 #[tokio::test]
 async fn distinguishes_outside_symlinks_from_dependencies() {
-    for (source, target, dependency) in [
-        ("/ws/src/Scratch.sol", "/scratch/Target.sol", false),
-        ("/scratch/Scratch.sol", "/ws/src/Target.sol", false),
-        ("/scratch/Scratch.sol", "/ws/lib/dep/Target.sol", true),
-        ("/ws/lib/dep/Scratch.sol", "/scratch/Target.sol", true),
+    for (source, target, message) in [
+        ("/ws/src/Scratch.sol", "/scratch/Target.sol", OUTSIDE),
+        ("/scratch/Scratch.sol", "/ws/src/Target.sol", OUTSIDE),
+        ("/scratch/Scratch.sol", "/ws/lib/dep/Target.sol", DEPENDENCY),
+        ("/ws/lib/dep/Scratch.sol", "/scratch/Target.sol", DEPENDENCY),
     ] {
-        let fixture = RequestFixture::new(
-            &format!(
-                r#"
-                //- /ws/foundry.toml
-                //- {source} open
-                contract Scratch {{
-                    function value() public pure returns (uint256) {{
-                        uint256 $1local = 1;
-                        return local;
-                    }}
-                }}
-                //- {target}
-                contract Target {{}}
-                "#,
-            ),
-            source,
-        );
+        let fixture = scratch_fixture(source, target);
         fs::remove_file(fixture.project_path(source)).unwrap();
         symlink(fixture.project_path(target), fixture.project_path(source)).unwrap();
-        let (mut state, params) = fixture.rename_state_and_params("$1", "renamed");
-        let (_, mut config) = negotiate_capabilities(InitializeParams {
-            workspace_folders: Some(vec![WorkspaceFolder {
-                uri: Url::from_file_path(fixture.project_path("/ws")).unwrap(),
-                name: "ws".into(),
-            }]),
-            ..Default::default()
-        });
-        config.rediscover_workspaces();
-        state.config = Arc::new(config);
-        if dependency {
-            assert_dependency_rename_rejected(&mut state, params).await;
-        } else {
-            assert_rename_rejected(
-                &mut state,
-                params,
-                "cannot rename this symbol because it would modify files outside the workspace",
-            )
-            .await;
-        }
+        check_marker(&fixture, "$1", &["/ws"], message).await;
     }
 }

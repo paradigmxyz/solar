@@ -108,7 +108,7 @@ fn @copyDynamic() -> i32 [selector=0x902a0a84, abi_params=[], abi_returns=[word<
 fn @copyFixed() -> i32 [selector=0x23235673, abi_params=[], abi_returns=[word<u32>], abi_return_params=[u32]] {
   bb0:
     v0 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
-    v1 = ptrtoint memoryfixedarray v0 to i256
+    v1 = ptrtoint memptr v0 to i256
     memory_zero v1, 96
     v2 = lt 0, 3
     v3 = eq v2, false

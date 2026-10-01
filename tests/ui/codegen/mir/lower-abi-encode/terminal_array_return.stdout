@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/lower-abi-encode/terminal_array_return.mir (before lower-abi-encode) ===
 + // === ROOT/tests/ui/codegen/mir/lower-abi-encode/terminal_array_return.mir (after lower-abi-encode) ===
   @module TerminalArrayReturn
-  fn @fresh_array() -> memoryarray {
+  fn @fresh_array() -> memptr {
     bb0:
       v0 = alloc memoryarray<1>, exact, uninitialized, infallible, 96
       set_memory_object_len memoryarray, v0, 2
@@ -16,7 +16,7 @@
 -     v3 = slice_len v1
 -     returndata v2, v3
 +     v4 = memory_object_len memoryarray, v0
-+     v5 = ptrtoint memoryarray v0 to i256
++     v5 = ptrtoint memptr v0 to i256
 +     v6 = eq v5, 0
 +     v7 = eq v6, false
 +     v8 = zext i1 v7 to i256
@@ -27,19 +27,19 @@
 +     v13 = add v12, 32
 +     v14 = ptrtoint memptr v10 to i256
 +     mcopy v13, v14, v11
-+     v15 = ptrtoint memoryarray v0 to i256
++     v15 = ptrtoint memptr v0 to i256
 +     mstore v15, 32
 +     v16 = ptrtoint memptr v10 to i256
 +     mstore v16, v9
 +     v17 = add v11, 64
-+     v18 = ptrtoint memoryarray v0 to i256
++     v18 = ptrtoint memptr v0 to i256
 +     v19 = make_memory_slice v18, v17
 +     v2 = slice_ptr v19
 +     v3 = slice_len v19
 +     returndata v18, v17
   }
   
-  fn @borrowed(arg0: memoryarray) {
+  fn @borrowed(arg0: memptr) {
     bb0:
 -     v0 = abi_encode [memory_array<word>], args arg0
 -     v1 = slice_ptr v0
@@ -53,7 +53,7 @@
 +     v8 = ptrtoint memptr v3 to i256
 +     mstore v8, v7
 +     v9 = memory_object_len memoryarray, arg0
-+     v10 = ptrtoint memoryarray arg0 to i256
++     v10 = ptrtoint memptr arg0 to i256
 +     v11 = eq v10, 0
 +     v12 = eq v11, false
 +     v13 = zext i1 v12 to i256
@@ -64,7 +64,7 @@
 +     v17 = memory_object_data memoryarray, arg0
 +     v18 = add v16, v15
 +     v19 = ptrtoint memptr v17 to i256
-+     mcopy v16, v19, v15 !metadata(memory=heap)
++     mcopy v16, v19, v15 !metadata(memory=heap, disjoint)
 +     v20 = ptrtoint memptr v3 to i256
 +     v21 = sub v18, v20
 +     v22 = add v21, 0
@@ -79,14 +79,14 @@
 +     returndata v27, v22
   }
   
-  fn @fresh_bytes(arg0: i256) -> memorybytes {
+  fn @fresh_bytes(arg0: i256) -> memptr {
     bb0:
       v0 = alloc memorybytes, exact, uninitialized, infallible, 96
       set_memory_object_len memorybytes, v0, arg0
       ret v0
   }
   
-  fn @fresh_bytes_wrapper(arg0: i256) -> memorybytes {
+  fn @fresh_bytes_wrapper(arg0: i256) -> memptr {
     bb0:
       v0 = icall @fresh_bytes, arg0
       ret v0
@@ -100,7 +100,7 @@
 -     v3 = slice_len v1
 -     returndata v2, v3
 +     v4 = memory_object_len memorybytes, v0
-+     v5 = ptrtoint memorybytes v0 to i256
++     v5 = ptrtoint memptr v0 to i256
 +     v6 = eq v5, 0
 +     v7 = eq v6, false
 +     v8 = zext i1 v7 to i256
@@ -116,12 +116,12 @@
 +     v17 = add v16, 32
 +     v18 = ptrtoint memptr v10 to i256
 +     mcopy v17, v18, v9
-+     v19 = ptrtoint memorybytes v0 to i256
++     v19 = ptrtoint memptr v0 to i256
 +     mstore v19, 32
 +     v20 = ptrtoint memptr v10 to i256
 +     mstore v20, v9
 +     v21 = add v13, 64
-+     v22 = ptrtoint memorybytes v0 to i256
++     v22 = ptrtoint memptr v0 to i256
 +     v23 = make_memory_slice v22, v21
 +     v2 = slice_ptr v23
 +     v3 = slice_len v23

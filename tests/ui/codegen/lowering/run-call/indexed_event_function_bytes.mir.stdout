@@ -21,11 +21,11 @@ fn @emitEvent() [selector=0x7b0cb839, abi_params=[], abi_returns=[], abi_return_
     v7 = memory_object_data memorybytes, v6
     v8 = ptrtoint memptr v7 to i256
     mstore v8, 0x7800000000000000000000000000000000000000000000000000000000000000
-    v9 = ptrtoint memorybytes v6 to i256
+    v9 = ptrtoint memptr v6 to i256
     memory_object_store_field memorystruct<2>, v0, 1, v9
     v10 = memory_object_load_field memorystruct<2>, v0, 0
     v11 = memory_object_load_field memorystruct<2>, v0, 1
-    v12 = inttoptr i256 v11 to memorybytes
+    v12 = inttoptr i256 v11 to memptr
     v13 = memory_object_len memorybytes, v12
     v14 = eq v11, 0
     v15 = eq v14, false
@@ -57,7 +57,7 @@ fn @emitEvent() [selector=0x7b0cb839, abi_params=[], abi_returns=[], abi_return_
     v36 = and v35, 0xffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000
     memory_object_store_word memorybytes, v34, 0, v36
     v37 = memory_object_load_field memorystruct<2>, v0, 1
-    v38 = inttoptr i256 v37 to memorybytes
+    v38 = inttoptr i256 v37 to memptr
     v39 = memory_object_len memorybytes, v38
     v40 = eq v37, 0
     v41 = eq v40, false
@@ -76,7 +76,7 @@ fn @emitEvent() [selector=0x7b0cb839, abi_params=[], abi_returns=[], abi_return_
     memory_object_store_word memorybytes, v34, v50, 0
     jump bb2
   bb2:
-    v51 = inttoptr i256 v37 to memorybytes
+    v51 = inttoptr i256 v37 to memptr
     v52 = memory_object_data memorybytes, v51
     v53 = ptrtoint memptr v52 to i256
     v54 = make_memory_slice v53, v43

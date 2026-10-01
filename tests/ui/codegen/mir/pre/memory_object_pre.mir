@@ -7,7 +7,7 @@
 // CHECK: + [[MERGE:v[0-9]+]] = phi [bb1: {{v[0-9]+}}], [bb2: [[INSERTED]]]
 // CHECK: [[WORD:v[0-9]+]] = ptrtoint memptr [[MERGE]] to i256
 // CHECK: ret [[WORD]]
-fn @hoist_projection(arg0: memorystruct, arg1: i1) -> i256 {
+fn @hoist_projection(arg0: memptr, arg1: i1) -> i256 {
   bb0:
     jumpi arg1, bb1, bb2
   bb1:

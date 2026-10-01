@@ -36,7 +36,7 @@ fn @asValue() [selector=0x440a9300, abi_wrapper, pure] {
     mstore v32, 0
     mstore v18, v27
     v34 = add v31, v30
-    mcopy v31, v47, v27
+    mcopy v31, v47, v27 !metadata(disjoint)
     v37 = sub v34, v51
     v39 = add v37, 31
     v41 = and v39, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0

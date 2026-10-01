@@ -18,20 +18,20 @@ fn @lengths() -> i256 [selector=0xdab1fa12, view, abi_params=[], abi_returns=[wo
     ret v0
 }
 
-fn @constructor(arg0: memoryarray) [constructor, abi_params=[array<_, bytes>]] {
+fn @constructor(arg0: memptr) [constructor, abi_params=[array<_, bytes>]] {
   bb0:
     v0 = memory_object_len memoryarray, arg0
     v1 = lt 0, v0
     v2 = eq v1, false
     icall panic_if<0x32>, v2
     v3 = memory_object_load_element memoryarray<1>, arg0, 0
-    v4 = inttoptr i256 v3 to memorybytes
+    v4 = inttoptr i256 v3 to memptr
     v5 = eq v3, 0
     jumpi v5, bb1, bb2
   bb1:
     v6 = alloc memorybytes, exact, uninitialized, infallible, 32
     set_memory_object_len memorybytes, v6, 0
-    v7 = ptrtoint memorybytes v6 to i256
+    v7 = ptrtoint memptr v6 to i256
     memory_object_store_element memoryarray<1>, arg0, 0, v7
     jump bb2
   bb2:
@@ -43,13 +43,13 @@ fn @constructor(arg0: memoryarray) [constructor, abi_params=[array<_, bytes>]] {
     v12 = eq v11, false
     icall panic_if<0x32>, v12
     v13 = memory_object_load_element memoryarray<1>, arg0, 1
-    v14 = inttoptr i256 v13 to memorybytes
+    v14 = inttoptr i256 v13 to memptr
     v15 = eq v13, 0
     jumpi v15, bb3, bb4
   bb3:
     v16 = alloc memorybytes, exact, uninitialized, infallible, 32
     set_memory_object_len memorybytes, v16, 0
-    v17 = ptrtoint memorybytes v16 to i256
+    v17 = ptrtoint memptr v16 to i256
     memory_object_store_element memoryarray<1>, arg0, 1, v17
     jump bb4
   bb4:
@@ -61,13 +61,13 @@ fn @constructor(arg0: memoryarray) [constructor, abi_params=[array<_, bytes>]] {
     v22 = eq v21, false
     icall panic_if<0x32>, v22
     v23 = memory_object_load_element memoryarray<1>, arg0, 0
-    v24 = inttoptr i256 v23 to memorybytes
+    v24 = inttoptr i256 v23 to memptr
     v25 = eq v23, 0
     jumpi v25, bb5, bb6
   bb5:
     v26 = alloc memorybytes, exact, uninitialized, infallible, 32
     set_memory_object_len memorybytes, v26, 0
-    v27 = ptrtoint memorybytes v26 to i256
+    v27 = ptrtoint memptr v26 to i256
     memory_object_store_element memoryarray<1>, arg0, 0, v27
     jump bb6
   bb6:
@@ -79,13 +79,13 @@ fn @constructor(arg0: memoryarray) [constructor, abi_params=[array<_, bytes>]] {
     v33 = eq v32, false
     icall panic_if<0x32>, v33
     v34 = memory_object_load_element memoryarray<1>, arg0, 1
-    v35 = inttoptr i256 v34 to memorybytes
+    v35 = inttoptr i256 v34 to memptr
     v36 = eq v34, 0
     jumpi v36, bb7, bb8
   bb7:
     v37 = alloc memorybytes, exact, uninitialized, infallible, 32
     set_memory_object_len memorybytes, v37, 0
-    v38 = ptrtoint memorybytes v37 to i256
+    v38 = ptrtoint memptr v37 to i256
     memory_object_store_element memoryarray<1>, arg0, 1, v38
     jump bb8
   bb8:
@@ -123,7 +123,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v10 = lt 0, v9
     v11 = eq v10, false
     icall panic_if<0x32>, v11
-    v12 = ptrtoint memorybytes v4 to i256
+    v12 = ptrtoint memptr v4 to i256
     memory_object_store_element memoryarray<1>, v0, 0, v12
     v13 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v13, 5
@@ -134,7 +134,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v17 = lt 1, v16
     v18 = eq v17, false
     icall panic_if<0x32>, v18
-    v19 = ptrtoint memorybytes v13 to i256
+    v19 = ptrtoint memptr v13 to i256
     memory_object_store_element memoryarray<1>, v0, 1, v19
     v20 = abi_encode [memory_array<memory_bytes>], args v0
     v21 = slice_len v20
@@ -181,13 +181,13 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v49 = eq v48, false
     icall panic_if<0x32>, v49
     v50 = memory_object_load_element memoryarray<1>, v0, 0
-    v51 = inttoptr i256 v50 to memorybytes
+    v51 = inttoptr i256 v50 to memptr
     v52 = eq v50, 0
     jumpi v52, bb8, bb9
   bb8:
     v53 = alloc memorybytes, exact, uninitialized, infallible, 32
     set_memory_object_len memorybytes, v53, 0
-    v54 = ptrtoint memorybytes v53 to i256
+    v54 = ptrtoint memptr v53 to i256
     memory_object_store_element memoryarray<1>, v0, 0, v54
     jump bb9
   bb9:
@@ -218,13 +218,13 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v70 = eq v69, false
     icall panic_if<0x32>, v70
     v71 = memory_object_load_element memoryarray<1>, v0, 1
-    v72 = inttoptr i256 v71 to memorybytes
+    v72 = inttoptr i256 v71 to memptr
     v73 = eq v71, 0
     jumpi v73, bb15, bb16
   bb15:
     v74 = alloc memorybytes, exact, uninitialized, infallible, 32
     set_memory_object_len memorybytes, v74, 0
-    v75 = ptrtoint memorybytes v74 to i256
+    v75 = ptrtoint memptr v74 to i256
     memory_object_store_element memoryarray<1>, v0, 1, v75
     jump bb16
   bb16:
@@ -254,13 +254,13 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v92 = eq v91, false
     icall panic_if<0x32>, v92
     v93 = memory_object_load_element memoryarray<1>, v0, 0
-    v94 = inttoptr i256 v93 to memorybytes
+    v94 = inttoptr i256 v93 to memptr
     v95 = eq v93, 0
     jumpi v95, bb19, bb20
   bb19:
     v96 = alloc memorybytes, exact, uninitialized, infallible, 32
     set_memory_object_len memorybytes, v96, 0
-    v97 = ptrtoint memorybytes v96 to i256
+    v97 = ptrtoint memptr v96 to i256
     memory_object_store_element memoryarray<1>, v0, 0, v97
     jump bb20
   bb20:
@@ -272,13 +272,13 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v103 = eq v102, false
     icall panic_if<0x32>, v103
     v104 = memory_object_load_element memoryarray<1>, v0, 1
-    v105 = inttoptr i256 v104 to memorybytes
+    v105 = inttoptr i256 v104 to memptr
     v106 = eq v104, 0
     jumpi v106, bb21, bb22
   bb21:
     v107 = alloc memorybytes, exact, uninitialized, infallible, 32
     set_memory_object_len memorybytes, v107, 0
-    v108 = ptrtoint memorybytes v107 to i256
+    v108 = ptrtoint memptr v107 to i256
     memory_object_store_element memoryarray<1>, v0, 1, v108
     jump bb22
   bb22:

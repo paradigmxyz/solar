@@ -1,9 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/external_call_returndata_size.sol:LongReturn ===
 @module LongReturn
-fn @f() -> memoryfixedarray [selector=0x26121ff0, pure, abi_params=[], abi_returns=[array<20, word>], abi_return_params=[array<20, u256>]] {
+fn @f() -> memptr [selector=0x26121ff0, pure, abi_params=[], abi_returns=[array<20, word>], abi_return_params=[array<20, u256>]] {
   bb0:
     v0 = alloc memoryfixedarray<20, 1>, exact, uninitialized, infallible, 640 !metadata(preserves_fmp)
-    v1 = ptrtoint memoryfixedarray v0 to i256
+    v1 = ptrtoint memptr v0 to i256
     memory_zero v1, 640
     v2 = lt 0, 20
     v3 = eq v2, false

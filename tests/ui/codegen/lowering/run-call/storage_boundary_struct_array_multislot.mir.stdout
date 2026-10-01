@@ -38,7 +38,7 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_
     v34 = lt v33, 3
     jumpi v34, bb8, bb9
   bb9:
-    v45 = ptrtoint memoryfixedarray v32 to i256
+    v45 = ptrtoint memptr v32 to i256
     v46 = lt 0, 1
     v47 = eq v46, false
     icall panic_if<0x32>, v47
@@ -129,15 +129,15 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_
     jump bb15
   bb13:
     v55 = memory_object_load_element memoryfixedarray<3, 1>, v32, v50
-    v56 = inttoptr i256 v55 to memorystruct
+    v56 = inttoptr i256 v55 to memptr
     v57 = memory_object_load_field memorystruct<3>, v56, 0
     sstore v53, v57 !metadata(storage=symbolic(v53))
     v58 = add v53, 1
-    v59 = inttoptr i256 v55 to memorystruct
+    v59 = inttoptr i256 v55 to memptr
     v60 = memory_object_load_field memorystruct<3>, v59, 1
     sstore v58, v60 !metadata(storage=offset(v53, 1))
     v61 = add v53, 2
-    v62 = inttoptr i256 v55 to memorystruct
+    v62 = inttoptr i256 v55 to memptr
     v63 = memory_object_load_field memorystruct<3>, v62, 2
     sstore v61, v63 !metadata(storage=offset(v53, 2))
     jump bb15
@@ -156,7 +156,7 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_
     v41 = add v36, 2
     v42 = sload v41 !metadata(storage=offset(v36, 2))
     memory_object_store_field memorystruct<3>, v37, 2, v42
-    v43 = ptrtoint memorystruct v37 to i256
+    v43 = ptrtoint memptr v37 to i256
     memory_object_store_element memoryfixedarray<3, 1>, v32, v33, v43
     v44 = add v33, 1
     jump bb7

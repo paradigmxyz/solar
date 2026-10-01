@@ -62,7 +62,7 @@ fn @loop(arg0: i256, arg1: i256) -> i256 [selector=0x402b7423, pure, abi_params=
     jump bb1
 }
 
-fn @memParam(arg0: memorybytes, arg1: i1) -> i256 [selector=0x7f0132b5, pure, abi_params=[bytes, bool], abi_returns=[word], abi_return_params=[u256]] {
+fn @memParam(arg0: memptr, arg1: i1) -> i256 [selector=0x7f0132b5, pure, abi_params=[bytes, bool], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jumpi arg1, bb1, bb2
   bb2:
@@ -93,7 +93,7 @@ fn @deferredMemory(arg0: i1) -> i256 [selector=0xfd723601, pure, abi_params=[boo
     mstore v2, 0xaabbcc0000000000000000000000000000000000000000000000000000000000
     jump bb3
   bb3:
-    v3 = phi [bb1: v0], [bb2: memorybytes 96]
+    v3 = phi [bb1: v0], [bb2: memptr 96]
     v4 = memory_object_len memorybytes, v3
     ret v4
 }

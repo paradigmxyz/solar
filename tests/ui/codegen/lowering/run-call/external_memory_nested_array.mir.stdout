@@ -3,7 +3,7 @@
 @types
   struct0: {i256, i256}
 
-fn @inspect(arg0: memoryarray) -> struct0 [selector=0x9d6ce1dc, pure, abi_params=[array<_, bytes>], abi_returns=[word, word], abi_return_params=[u256, bytes32]] {
+fn @inspect(arg0: memptr) -> struct0 [selector=0x9d6ce1dc, pure, abi_params=[array<_, bytes>], abi_returns=[word, word], abi_return_params=[u256, bytes32]] {
   bb0:
     v0 = memory_object_len memoryarray, arg0
     v1 = abi_encode [memory_array<memory_bytes>], scratch, args arg0
@@ -60,7 +60,7 @@ fn @test() -> i1 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<bo
     v8 = lt 0, v7
     v9 = eq v8, false
     icall panic_if<0x32>, v9
-    v10 = ptrtoint memorybytes v4 to i256
+    v10 = ptrtoint memptr v4 to i256
     memory_object_store_element memoryarray<1>, v0, 0, v10
     v11 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v11, 2
@@ -71,7 +71,7 @@ fn @test() -> i1 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<bo
     v15 = lt 1, v14
     v16 = eq v15, false
     icall panic_if<0x32>, v16
-    v17 = ptrtoint memorybytes v11 to i256
+    v17 = ptrtoint memptr v11 to i256
     memory_object_store_element memoryarray<1>, v0, 1, v17
     v18 = abi_encode [memory_array<memory_bytes>], scratch, args v0
     v19 = slice_ptr v18
@@ -117,7 +117,7 @@ fn @test() -> i1 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<bo
     v48 = lt 0, v47
     v49 = eq v48, false
     icall panic_if<0x32>, v49
-    v50 = ptrtoint memorystruct v46 to i256
+    v50 = ptrtoint memptr v46 to i256
     memory_object_store_element memoryarray<1>, v39, 0, v50
     v51 = eq v37, 2
     jumpi v51, bb9, bb10
@@ -155,9 +155,9 @@ fn @test() -> i1 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<bo
     ret v66
   bb7:
     v42 = alloc memorystruct<5>, exact, uninitialized, infallible, 160 !metadata(preserves_fmp)
-    v43 = ptrtoint memorystruct v42 to i256
+    v43 = ptrtoint memptr v42 to i256
     memory_zero v43, 160
-    v44 = ptrtoint memorystruct v42 to i256
+    v44 = ptrtoint memptr v42 to i256
     memory_object_store_element memoryarray<1>, v39, v40, v44
     v45 = add v40, 1
     jump bb6

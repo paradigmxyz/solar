@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/abi_packed_calldata_struct_field.sol:AbiPackedCalldataStructField ===
 @module AbiPackedCalldataStructField
-fn @pack(arg0: calldataslice) -> memorybytes [selector=0xc917a597, pure, abi_params=[tuple<address, address, u256, u256, u48, bytes, bytes>], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @pack(arg0: calldataslice) -> memptr [selector=0xc917a597, pure, abi_params=[tuple<address, address, u256, u256, u48, bytes, bytes>], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = add v0, 160

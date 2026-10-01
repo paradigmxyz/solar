@@ -88,20 +88,20 @@ fn @testInline() [selector=0x2bb29eb9, view, abi_params=[], abi_returns=[], abi_
     ret
 }
 
-fn @fullyInitializedNamedStruct() -> memorystruct [selector=0x03e8d290, pure, abi_params=[], abi_returns=[tuple<memory_array<word>, memory_bytes>], abi_return_params=[tuple<array<_, u256>, bytes>]] {
+fn @fullyInitializedNamedStruct() -> memptr [selector=0x03e8d290, pure, abi_params=[], abi_returns=[tuple<memory_array<word>, memory_bytes>], abi_return_params=[tuple<array<_, u256>, bytes>]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
     set_memory_object_len memoryarray, v0, 1
     v1 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<2>, v1, 0, 96
     memory_object_store_field memorystruct<2>, v1, 1, 96
-    v2 = ptrtoint memoryarray v0 to i256
+    v2 = ptrtoint memptr v0 to i256
     memory_object_store_field memorystruct<2>, v1, 0, v2
     v3 = not 31
     v4 = and 64, v3
     v5 = alloc memorybytes, exact, zeroed, panic, v4
     set_memory_object_len memorybytes, v5, 1
-    v6 = ptrtoint memorybytes v5 to i256
+    v6 = ptrtoint memptr v5 to i256
     memory_object_store_field memorystruct<2>, v1, 1, v6
     ret v1
 }
@@ -141,14 +141,14 @@ fn @pairInternal(arg0: i256) -> struct1 [pure] {
     ret v3
 }
 
-fn @fill(arg0: i256) -> memoryfixedarray [selector=0x3fda5389, pure, abi_params=[u256], abi_returns=[array<4, word>], abi_return_params=[array<4, u256>]] {
+fn @fill(arg0: i256) -> memptr [selector=0x3fda5389, pure, abi_params=[u256], abi_returns=[array<4, word>], abi_return_params=[array<4, u256>]] {
   bb0:
     v0 = gt arg0, 4
     v1 = eq v0, false
     v2 = eq v1, false
     icall revert_if<empty>, v2
     v3 = alloc memoryfixedarray<4, 1>, exact, uninitialized, infallible, 128 !metadata(preserves_fmp)
-    v4 = ptrtoint memoryfixedarray v3 to i256
+    v4 = ptrtoint memptr v3 to i256
     memory_zero v4, 128
     jump bb1
   bb1:
@@ -164,7 +164,7 @@ fn @fill(arg0: i256) -> memoryfixedarray [selector=0x3fda5389, pure, abi_params=
   bb4:
     v9 = add v6, 7
     v10 = shl 5, v6
-    v11 = ptrtoint memoryfixedarray v7 to i256
+    v11 = ptrtoint memptr v7 to i256
     v12 = add v11, v10
     mstore v12, v9
     jump bb6

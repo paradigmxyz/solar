@@ -57,7 +57,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<byt
     jump bb12
   bb12:
     v78 = icall @load_storage_packed_array_8_2, 0
-    v79 = ptrtoint memoryarray v78 to i256
+    v79 = ptrtoint memptr v78 to i256
     v80 = memory_object_len memoryarray, v78
     v81 = sload 1 !metadata(storage=slot(1))
     v82 = gt v81, v80
@@ -269,7 +269,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<byt
     jump bb3
 }
 
-fn @load_storage_packed_array_8_2(arg0: i256) -> memoryarray {
+fn @load_storage_packed_array_8_2(arg0: i256) -> memptr {
   bb0:
     v0 = load_storage_array bytes8, arg0
     ret v0

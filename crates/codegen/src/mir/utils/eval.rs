@@ -90,16 +90,14 @@ pub(crate) fn eval_inst<E>(
             }
             return Ok(Some(get(value)? & (U256::MAX >> (256 - bits))));
         }
-        InstKind::Zext(value) | InstKind::IntToPtr(value) | InstKind::Bitcast(value) => {
+        InstKind::Zext(value) | InstKind::IntToPtr(value) => {
             return Ok(Some(get(value)?));
         }
         InstKind::Sext(value, from, to) => {
             if from == 0 || from >= to || to > 256 {
                 return Ok(None);
             }
-            let value = get(value)?;
-            let value =
-                if value.bit((from - 1) as usize) { value | (U256::MAX << from) } else { value };
+            let value = sign_extend(get(value)?, from);
             return Ok(Some(value & (U256::MAX >> (256 - to))));
         }
         _ => {}
@@ -450,7 +448,6 @@ mod tests {
             (InstKind::Sext(value, 160, 256), U256::ONE, U256::ONE),
             (InstKind::PtrToInt(value, 160), U256::MAX, address_mask),
             (InstKind::IntToPtr(value), U256::MAX, U256::MAX),
-            (InstKind::Bitcast(value), U256::MAX, U256::MAX),
         ] {
             assert_eq!(eval_inst(&kind, |_| Ok::<_, ()>(input)), Ok(Some(expected)), "{kind:?}");
         }

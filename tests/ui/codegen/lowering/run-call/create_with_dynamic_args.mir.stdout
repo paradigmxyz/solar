@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/create_with_dynamic_args.sol:Token ===
 @module Token
-fn @name() -> memorybytes [selector=0x06fdde03, view, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @name() -> memptr [selector=0x06fdde03, view, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = load_storage_bytes 0
     ret v0
@@ -13,7 +13,7 @@ fn @decimals() -> i8 [selector=0x313ce567, view, abi_params=[], abi_returns=[wor
     ret v1
 }
 
-fn @constructor(arg0: memorybytes, arg1: i8) [constructor, abi_params=[bytes, u8]] {
+fn @constructor(arg0: memptr, arg1: i8) [constructor, abi_params=[bytes, u8]] {
   bb0:
     icall @store_storage_bytes, 0, arg0
     v0 = sload 1 !metadata(storage=slot(1))
@@ -26,7 +26,7 @@ fn @constructor(arg0: memorybytes, arg1: i8) [constructor, abi_params=[bytes, u8
     ret
 }
 
-fn @store_storage_bytes(arg0: i256, arg1: memorybytes) {
+fn @store_storage_bytes(arg0: i256, arg1: memptr) {
   bb0:
     store_storage_bytes arg0, arg1
     ret

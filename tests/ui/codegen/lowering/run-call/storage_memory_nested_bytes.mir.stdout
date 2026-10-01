@@ -39,13 +39,13 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v23 = eq v22, false
     icall panic_if<0x32>, v23
     v24 = memory_object_load_element memoryarray<1>, v20, 0
-    v25 = inttoptr i256 v24 to memorybytes
+    v25 = inttoptr i256 v24 to memptr
     v26 = eq v24, 0
     jumpi v26, bb1, bb2
   bb1:
     v27 = alloc memorybytes, exact, uninitialized, infallible, 32
     set_memory_object_len memorybytes, v27, 0
-    v28 = ptrtoint memorybytes v27 to i256
+    v28 = ptrtoint memptr v27 to i256
     memory_object_store_element memoryarray<1>, v20, 0, v28
     jump bb2
   bb2:
@@ -56,13 +56,13 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v33 = eq v32, false
     icall panic_if<0x32>, v33
     v34 = memory_object_load_element memoryarray<1>, v20, 1
-    v35 = inttoptr i256 v34 to memorybytes
+    v35 = inttoptr i256 v34 to memptr
     v36 = eq v34, 0
     jumpi v36, bb3, bb4
   bb3:
     v37 = alloc memorybytes, exact, uninitialized, infallible, 32
     set_memory_object_len memorybytes, v37, 0
-    v38 = ptrtoint memorybytes v37 to i256
+    v38 = ptrtoint memptr v37 to i256
     memory_object_store_element memoryarray<1>, v20, 1, v38
     jump bb4
   bb4:
@@ -74,13 +74,13 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v44 = eq v43, false
     icall panic_if<0x32>, v44
     v45 = memory_object_load_element memoryarray<1>, v20, 0
-    v46 = inttoptr i256 v45 to memorybytes
+    v46 = inttoptr i256 v45 to memptr
     v47 = eq v45, 0
     jumpi v47, bb5, bb6
   bb5:
     v48 = alloc memorybytes, exact, uninitialized, infallible, 32
     set_memory_object_len memorybytes, v48, 0
-    v49 = ptrtoint memorybytes v48 to i256
+    v49 = ptrtoint memptr v48 to i256
     memory_object_store_element memoryarray<1>, v20, 0, v49
     jump bb6
   bb6:
@@ -100,13 +100,13 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v62 = eq v61, false
     icall panic_if<0x32>, v62
     v63 = memory_object_load_element memoryarray<1>, v20, 1
-    v64 = inttoptr i256 v63 to memorybytes
+    v64 = inttoptr i256 v63 to memptr
     v65 = eq v63, 0
     jumpi v65, bb7, bb8
   bb7:
     v66 = alloc memorybytes, exact, uninitialized, infallible, 32
     set_memory_object_len memorybytes, v66, 0
-    v67 = ptrtoint memorybytes v66 to i256
+    v67 = ptrtoint memptr v66 to i256
     memory_object_store_element memoryarray<1>, v20, 1, v67
     jump bb8
   bb8:
@@ -124,13 +124,13 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     ret v77
 }
 
-fn @store_storage_bytes(arg0: i256, arg1: memorybytes) {
+fn @store_storage_bytes(arg0: i256, arg1: memptr) {
   bb0:
     store_storage_bytes arg0, arg1
     ret
 }
 
-fn @load_storage_bytes_array(arg0: i256) -> memoryarray {
+fn @load_storage_bytes_array(arg0: i256) -> memptr {
   bb0:
     v0 = load_storage_array memorybytes, arg0
     ret v0

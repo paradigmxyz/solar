@@ -217,7 +217,7 @@ fn scalar(
     memory: &Memory,
 ) -> Option<Datum> {
     match *kind {
-        InstKind::PtrToInt(value, 256) | InstKind::IntToPtr(value) | InstKind::Bitcast(value) => {
+        InstKind::PtrToInt(value, 256) | InstKind::IntToPtr(value) => {
             return get(value);
         }
         InstKind::MLoad(address) => {

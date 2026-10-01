@@ -32,9 +32,9 @@ contract MemoryFixedArrayAlloc {
     // CHECK: memory_object_load_element memoryfixedarray<3, 1>, [[OUTER]], arg0
     // CHECK: memory_object_load_element memoryfixedarray<2, 1>, {{v[0-9]+}}, arg1
     // CHECK: [[INNER:v[0-9]+]] = alloc memoryfixedarray<2, 1>
-    // CHECK: [[INNER_ZERO:v[0-9]+]] = ptrtoint memoryfixedarray [[INNER]] to i256
+    // CHECK: [[INNER_ZERO:v[0-9]+]] = ptrtoint memptr [[INNER]] to i256
     // CHECK-NEXT: memory_zero [[INNER_ZERO]], 64
-    // CHECK: [[INNER_WORD:v[0-9]+]] = ptrtoint memoryfixedarray [[INNER]] to i256
+    // CHECK: [[INNER_WORD:v[0-9]+]] = ptrtoint memptr [[INNER]] to i256
     // CHECK: memory_object_store_element memoryfixedarray<3, 1>, [[OUTER]], [[INDEX]], [[INNER_WORD]]
     function nested(uint256 i, uint256 j) public pure returns (uint256) {
         uint256[2][3] memory x;
@@ -114,8 +114,8 @@ contract NamedReturnAndDelete {
     // CHECK: [[STRUCT:v[0-9]+]] = alloc memorystruct<2>
     // CHECK: memory_object_store_field memorystruct<2>, [[STRUCT]], 0, 96
     // CHECK: memory_object_store_field memorystruct<2>, [[STRUCT]], 1, 96
-    // CHECK: memory_object_len memoryarray, memoryarray 96
-    // CHECK: memory_object_len memorybytes, memorybytes 96
+    // CHECK: memory_object_len memoryarray, memptr 96
+    // CHECK: memory_object_len memorybytes, memptr 96
     function emptyMemoryReferences() public pure returns (uint256) {
         uint256[] memory values;
         bytes memory data;
@@ -125,8 +125,8 @@ contract NamedReturnAndDelete {
 
     // Named dynamic returns also start at the zero slot.
     // CHECK-LABEL: fn @emptyNamedReturns{{[( ]}}
-    // CHECK: [[RET_0:v[0-9]+]] = insert_value [[RET_TY:struct[0-9]+]], undef [[RET_TY]], 0, memoryarray 96
-    // CHECK: [[RET_1:v[0-9]+]] = insert_value [[RET_TY]], [[RET_0]], 1, memorybytes 96
+    // CHECK: [[RET_0:v[0-9]+]] = insert_value [[RET_TY:struct[0-9]+]], undef [[RET_TY]], 0, memptr 96
+    // CHECK: [[RET_1:v[0-9]+]] = insert_value [[RET_TY]], [[RET_0]], 1, memptr 96
     // CHECK: ret [[RET_1]]
     function emptyNamedReturns()
         public
@@ -137,7 +137,7 @@ contract NamedReturnAndDelete {
     // Wide named struct defaults bulk-zero scalars and initialize references.
     // CHECK-LABEL: fn @emptyWideNamedStruct{{[( ]}}
     // CHECK: [[WIDE:v[0-9]+]] = alloc memorystruct<4>, exact, uninitialized, infallible, 128
-    // CHECK: [[WIDE_WORD:v[0-9]+]] = ptrtoint memorystruct [[WIDE]] to i256
+    // CHECK: [[WIDE_WORD:v[0-9]+]] = ptrtoint memptr [[WIDE]] to i256
     // CHECK: memory_zero [[WIDE_WORD]], 128
     // CHECK: memory_object_store_field memorystruct<4>, [[WIDE]], 1, 96
     // CHECK: ret [[WIDE]]

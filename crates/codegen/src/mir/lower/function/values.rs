@@ -563,7 +563,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         values: Vec<ValueId>,
         types: &[Ty<'gcx>],
     ) -> ValueId {
-        let fields = types.iter().map(|&ty| types::TypeLowerer::mir_return_type(ty)).collect();
+        let fields = types.iter().map(|&ty| types::TypeLowerer::mir_type(ty)).collect();
         let ty = self.cx.module.intern_return_type(fields).expect("return values are not empty");
         if let MirType::Struct(id) = ty {
             // result = insert_value(undef, field0), ...
@@ -618,15 +618,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         returns: usize,
         ty: Ty<'gcx>,
     ) -> ValueId {
-        let MirType::MemoryObject(kind) = types::TypeLowerer::mir_return_type(ty) else {
+        if types::TypeLowerer::mir_type(ty) != MirType::MemPtr {
             return self.load_static_abi_return_value(base, index, returns);
-        };
+        }
         let index = self.builder.imm(u64::try_from(index).unwrap_or(u64::MAX));
-        self.builder.memory_object_load_object(
+        self.builder.memory_object_load_element_as(
             base,
             MemoryObjectLayout::word_fixed_array(u64::try_from(returns).unwrap_or(u64::MAX)),
             index,
-            kind,
+            MirType::MemPtr,
         )
     }
 }

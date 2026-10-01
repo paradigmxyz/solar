@@ -114,8 +114,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             // The selected expression already produced the original result.
         } else if let InstKind::Zext(value)
         | InstKind::PtrToInt(value, _)
-        | InstKind::IntToPtr(value)
-        | InstKind::Bitcast(value) = *kind
+        | InstKind::IntToPtr(value) = *kind
         {
             // cast value -> schedule the operand under the result identity
             if let Some(plan) = self.plan_operands(func, &[value], liveness, block, inst_idx) {

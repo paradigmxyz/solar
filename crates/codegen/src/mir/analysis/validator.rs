@@ -30,8 +30,8 @@
 //! 13. **Program data consistency**: data references name allocated entries at valid offsets.
 //! 14. **Return contracts**: return counts match signatures, including through tail-call chains;
 //!     signatures cannot contain void values.
-//! 15. **Representation boundaries**: SSA aggregates and semantic memory types/operations cannot
-//!     survive their lowering boundaries. Object operations agree with nominal reference kinds.
+//! 15. **Representation boundaries**: SSA aggregates and semantic memory operations cannot survive
+//!     their lowering boundaries.
 //!
 //! # Usage
 //!
@@ -868,7 +868,7 @@ impl<'a> Validator<'a> {
                     InstKind::AbiDecode { data, layout } => {
                         self.check_value_type(
                             func.value_ty(*data),
-                            Some(MirType::MemoryObject(MemoryObjectKind::Bytes)),
+                            Some(MirType::MemPtr),
                             block,
                             id,
                         );
@@ -1035,11 +1035,6 @@ impl<'a> Validator<'a> {
             }
             Some(ty) => self.validate_integer_type(ty),
         }
-        if let Value::Immediate(crate::mir::Immediate::Pointer(_, ty)) = func.value(value)
-            && !ty.is_pointer()
-        {
-            self.emit("pointer constant must have a pointer type");
-        }
         if let Value::Immediate(immediate) = func.value(value)
             && let MirType::Int(bits) = immediate.ty()
             && bits.get() < 256
@@ -1062,9 +1057,7 @@ impl<'a> Validator<'a> {
                     InstKind::ICall { function: Callee::Builtin(builtin), args } => {
                         let result = match builtin {
                             Builtin::Require(_) | Builtin::Check { .. } | Builtin::Transfer => None,
-                            Builtin::ReturndataBytes | Builtin::Concat(_) => {
-                                Some(MirType::MemoryObject(MemoryObjectKind::Bytes))
-                            }
+                            Builtin::ReturndataBytes | Builtin::Concat(_) => Some(MirType::MemPtr),
                             Builtin::CheckedAddMod
                             | Builtin::CheckedMulMod
                             | Builtin::Sha256
@@ -1126,11 +1119,7 @@ impl<'a> Validator<'a> {
                         });
                         valid_parts
                             && inst.result_ty
-                                == Some(if *hash {
-                                    MirType::I256
-                                } else {
-                                    MirType::MemoryObject(MemoryObjectKind::Bytes)
-                                })
+                                == Some(if *hash { MirType::I256 } else { MirType::MemPtr })
                     }
                     InstKind::CheckedBinary { arithmetic, .. } => {
                         let (crate::mir::ArithmeticKind::Unsigned(bits)
@@ -1148,12 +1137,9 @@ impl<'a> Validator<'a> {
                             (1..=256).contains(&variants)
                                 && *element
                                     == crate::mir::ValueLayout::UInt(TypeSize::new_int_bits(8))
-                        }) && inst.result_ty
-                            == Some(MirType::MemoryObject(MemoryObjectKind::DynamicArray))
+                        }) && inst.result_ty == Some(MirType::MemPtr)
                     }
-                    InstKind::StorageBytesLoad(_) => {
-                        inst.result_ty == Some(MirType::MemoryObject(MemoryObjectKind::Bytes))
-                    }
+                    InstKind::StorageBytesLoad(_) => inst.result_ty == Some(MirType::MemPtr),
                     InstKind::AddressCall { kind, value, .. } => {
                         *kind == AddressCallKind::Call || value.is_none()
                     }
@@ -1484,7 +1470,7 @@ fn return_abi_matches(
                     continue;
                 }
                 match ty {
-                    MirType::MemoryObject(_) if actual == MirType::I256 => {}
+                    MirType::MemPtr if actual == MirType::I256 => {}
                     MirType::Slice(location) => {
                         let pointer = match location {
                             SliceLocation::Memory => MirType::I256,

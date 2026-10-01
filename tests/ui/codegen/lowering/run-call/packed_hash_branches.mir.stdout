@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/packed_hash_branches.sol:PackedHashBranches ===
 @module PackedHashBranches
-fn @prefix(arg0: i1, arg1: memorybytes) -> memorybytes [selector=0xf6c3bdc1, pure, abi_params=[bool, bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @prefix(arg0: i1, arg1: memptr) -> memptr [selector=0xf6c3bdc1, pure, abi_params=[bool, bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     jumpi arg0, bb1, bb2
   bb2:

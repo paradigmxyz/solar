@@ -10,7 +10,7 @@ fn @constructor(arg0: i256) [constructor, abi_params=[u256]] {
 @data
   CreationCodeChild_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/creation_code.sol:CreationCodeChild"
 
-fn @creationCode() -> memorybytes [selector=0x7213edad, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @creationCode() -> memptr [selector=0x7213edad, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = datasize CreationCodeChild_creation_code_0
     v1 = datasize CreationCodeChild_creation_code_0, 63, aligned
@@ -18,7 +18,7 @@ fn @creationCode() -> memorybytes [selector=0x7213edad, pure, abi_params=[], abi
     set_memory_object_len memorybytes, v2, v0
     v3 = memory_object_data memorybytes, v2
     v4 = datasize CreationCodeChild_creation_code_0, 31, aligned
-    v5 = ptrtoint memorybytes v2 to i256
+    v5 = ptrtoint memptr v2 to i256
     v6 = add v5, v4
     mstore v6, 0
     v7 = ptrtoint memptr v3 to i256

@@ -1,4 +1,4 @@
-use super::workspace_edit::validated_import_workspace_edit;
+use super::{reqs::task_error, workspace_edit::validated_import_workspace_edit};
 use crate::{
     NotifyResult,
     config::Config,
@@ -7,15 +7,12 @@ use crate::{
     global_state::{GlobalState, SourceFileEventDisposition},
     proto,
     symbols::SymbolTables,
-    vfs::Vfs,
 };
-use arc_swap::ArcSwap;
 use async_lsp::{ErrorCode, ResponseError};
 use lsp_types::{
     CreateFilesParams, DeleteFilesParams, FileChangeType, FileEvent, RenameFilesParams, Url,
     WorkspaceEdit,
 };
-use solar_interface::data_structures::sync::RwLock;
 use std::{
     future::ready,
     ops::ControlFlow,
@@ -38,63 +35,62 @@ pub(crate) fn will_rename_files(
         state.vfs.read().validate_rename_file_prefixes(&moves)?;
         Ok(moves)
     });
-    let relevant = moves.as_ref().is_ok_and(|moves| {
-        moves.old_paths().any(|path| state.deleted_file_operation_path_is_relevant(path))
-            || moves.new_paths().any(|path| state.created_file_operation_path_is_relevant(path))
-    });
-    let preparation = if let Ok(moves) = &moves
-        && relevant
-    {
-        Some(state.file_operations.prepare_rename(moves.clone()))
-    } else {
-        None
-    };
-    let request = relevant.then(|| {
-        (
-            state.latest_analysis_with_config(),
-            state.vfs.clone(),
-            state.config.supports_workspace_edit_document_changes(),
-        )
-    });
-    async move {
-        let result = async {
-            let moves = moves.map_err(|error| {
-                ResponseError::new(ErrorCode::INVALID_PARAMS, error.to_string())
-            })?;
-            let Some((latest_analysis, vfs, document_changes)) = request else {
-                return Ok(None);
-            };
-            let (symbol_tables, config) = latest_analysis.await?;
-            let plan = symbol_tables.load().import_rename_edits(&moves);
-            if plan.is_empty() || !workspace_source_edits_are_complete(&plan, &config) {
-                return Ok(None);
-            }
-            tokio::task::spawn_blocking(move || {
-                validated_import_workspace_edit(plan, &config, vfs, document_changes)
-            })
-            .await
-            .map_err(file_operation_task_failed)?
-        }
-        .await;
-        if result.is_ok()
-            && let Some(preparation) = preparation
+    let request = match moves {
+        Err(error) => Err(ResponseError::new(ErrorCode::INVALID_PARAMS, error.to_string())),
+        Ok(moves)
+            if moves
+                .old_paths()
+                .any(|path| state.deleted_file_operation_path_is_relevant(path))
+                || moves
+                    .new_paths()
+                    .any(|path| state.created_file_operation_path_is_relevant(path)) =>
         {
+            let preparation = state.file_operations.prepare_rename(moves.clone());
+            let edit =
+                import_workspace_edit(state, move |tables| tables.import_rename_edits(&moves));
+            Ok(Some((preparation, edit)))
+        }
+        Ok(_) => Ok(None),
+    };
+    async move {
+        let Some((preparation, edit)) = request? else { return Ok(None) };
+        let result = edit.await;
+        if result.is_ok() {
             preparation.activate();
         }
         result
     }
 }
 
-fn watched_paths_under(
-    config: &Config,
-    vfs: &RwLock<Vfs>,
-    symbol_tables: &ArcSwap<SymbolTables>,
-    roots: &[PathBuf],
-) -> Vec<PathBuf> {
-    let mut paths = config.file_operation_paths_under(roots);
-    paths.extend(symbol_tables.load().file_operation_paths_under(roots));
-    paths.extend(vfs.read().iter().filter_map(|(path, _)| {
-        let path = path.as_path()?;
+fn import_workspace_edit<F>(
+    state: &GlobalState,
+    plan: F,
+) -> impl Future<Output = Result<Option<WorkspaceEdit>, ResponseError>> + use<F>
+where
+    F: FnOnce(&SymbolTables) -> ImportEditPlan,
+{
+    let latest_analysis = state.latest_analysis_with_config();
+    let vfs = state.vfs.clone();
+    let document_changes = state.config.client.workspace_edit_document_changes;
+    async move {
+        let (symbol_tables, config) = latest_analysis.await?;
+        let plan = plan(&symbol_tables.load());
+        if plan.is_empty() || !workspace_source_edits_are_complete(&plan, &config) {
+            return Ok(None);
+        }
+        tokio::task::spawn_blocking(move || {
+            validated_import_workspace_edit(plan, &config, vfs, document_changes)
+        })
+        .await
+        .map_err(task_error("file-operation"))?
+    }
+}
+
+fn watched_paths_under(state: &GlobalState, roots: &[PathBuf]) -> Vec<PathBuf> {
+    let mut paths = state.config.file_operation_paths_under(roots);
+    paths.extend(state.symbol_tables.load().file_operation_paths_under(roots));
+    paths.extend(state.vfs.read().iter().filter_map(|(path, _)| {
+        let path = path.as_path();
         roots.iter().any(|root| path.starts_with(root)).then(|| path.to_path_buf())
     }));
     paths.extend(roots.iter().filter(|path| is_watched_path(path)).cloned());
@@ -130,16 +126,23 @@ fn completed_file_operation_path_is_relevant(
     )
 }
 
-fn classify_completed_file_operation_paths<'a>(
-    state: &GlobalState,
-    paths: impl IntoIterator<Item = &'a Path>,
-    typ: FileChangeType,
-) -> bool {
+/// Classifies every moved path, since classification can defer events, and returns whether any
+/// of them is relevant.
+fn completed_moves_are_relevant(state: &GlobalState, moves: &FileMoveBatch) -> bool {
     let mut relevant = false;
-    for path in paths {
-        relevant |= completed_file_operation_path_is_relevant(state, path, typ);
+    for path in moves.old_paths() {
+        relevant |= completed_file_operation_path_is_relevant(state, path, FileChangeType::DELETED);
+    }
+    for path in moves.new_paths() {
+        relevant |= completed_file_operation_path_is_relevant(state, path, FileChangeType::CREATED);
     }
     relevant
+}
+
+fn sort_existing_paths(paths: &mut Vec<PathBuf>) {
+    paths.sort_unstable();
+    paths.dedup();
+    paths.retain(|path| path.exists());
 }
 
 const CREATED_DIRECTORY_ECHO_SCAN_LIMIT: usize = 4096;
@@ -181,19 +184,16 @@ pub(crate) fn did_create_files(state: &mut GlobalState, params: CreateFilesParam
             completed_file_operation_path_is_relevant(state, path, FileChangeType::CREATED)
         })
         .collect::<Vec<_>>();
-    let mut watched_paths =
-        watched_paths_under(&state.config, &state.vfs, &state.symbol_tables, &created_paths);
+    let mut watched_paths = watched_paths_under(state, &created_paths);
     // Snapshot only bounded, policy-relevant echoes. Events beyond the bound are harmless: they
     // may schedule a redundant analysis instead of blocking the router on an unbounded scan.
     collect_watched_disk_paths(state, &created_paths, &mut watched_paths);
     watched_paths.extend(
         state.file_operations.watched_event_paths_under(FileChangeType::CREATED, &created_paths),
     );
-    watched_paths.sort_unstable();
-    watched_paths.dedup();
     // Workspace configuration includes the optional `remappings.txt`; a missing path cannot
     // produce a create watcher echo and must not prevent matching the paths that did.
-    watched_paths.retain(|path| path.exists());
+    sort_existing_paths(&mut watched_paths);
     let schedule_analysis =
         !state.file_operations.consume_watched_events(FileChangeType::CREATED, &watched_paths);
     reconcile_workspace_file_operations(
@@ -204,17 +204,10 @@ pub(crate) fn did_create_files(state: &mut GlobalState, params: CreateFilesParam
         schedule_analysis,
     );
     if schedule_analysis {
-        watched_paths.extend(watched_paths_under(
-            &state.config,
-            &state.vfs,
-            &state.symbol_tables,
-            &created_paths,
-        ));
-        watched_paths.sort_unstable();
-        watched_paths.dedup();
-        watched_paths.retain(|path| path.exists());
+        watched_paths.extend(watched_paths_under(state, &created_paths));
+        sort_existing_paths(&mut watched_paths);
     }
-    state.file_operations.record_direct_create_events(watched_paths);
+    state.file_operations.record_direct_events(FileChangeType::CREATED, watched_paths, []);
     ControlFlow::Continue(())
 }
 
@@ -230,17 +223,9 @@ pub(crate) fn did_rename_files(state: &mut GlobalState, params: RenameFilesParam
         tracing::warn!(%error, "ignoring file rename with colliding VFS destinations");
         return ControlFlow::Continue(());
     }
-    let deleted_relevant =
-        classify_completed_file_operation_paths(state, moves.old_paths(), FileChangeType::DELETED);
-    let created_relevant =
-        classify_completed_file_operation_paths(state, moves.new_paths(), FileChangeType::CREATED);
-    if !deleted_relevant && !created_relevant {
-        return ControlFlow::Continue(());
+    if completed_moves_are_relevant(state, &moves) && state.file_operations.apply_rename(&moves) {
+        reconcile_workspace_file_operations(state, Vec::new(), moves, Vec::new(), true);
     }
-    if !state.file_operations.apply_rename(&moves) {
-        return ControlFlow::Continue(());
-    }
-    reconcile_workspace_file_operations(state, Vec::new(), moves, Vec::new(), true);
     ControlFlow::Continue(())
 }
 
@@ -253,8 +238,7 @@ pub(crate) fn did_delete_files(state: &mut GlobalState, params: DeleteFilesParam
             completed_file_operation_path_is_relevant(state, path, FileChangeType::DELETED)
         })
         .collect::<Vec<_>>();
-    let mut watched_paths =
-        watched_paths_under(&state.config, &state.vfs, &state.symbol_tables, &deleted_paths);
+    let mut watched_paths = watched_paths_under(state, &deleted_paths);
     watched_paths.extend(
         state.file_operations.watched_event_paths_under(FileChangeType::DELETED, &deleted_paths),
     );
@@ -267,7 +251,11 @@ pub(crate) fn did_delete_files(state: &mut GlobalState, params: DeleteFilesParam
         deleted_paths.clone(),
         schedule_analysis,
     );
-    state.file_operations.record_direct_delete_events(watched_paths, deleted_paths);
+    state.file_operations.record_direct_events(
+        FileChangeType::DELETED,
+        watched_paths,
+        deleted_paths,
+    );
     ControlFlow::Continue(())
 }
 
@@ -277,11 +265,9 @@ pub(super) fn reconcile_watched_file_events(
 ) -> Vec<FileEvent> {
     let mut changes = Vec::with_capacity(events.len());
     for event in events {
-        let action = proto::vfs_path(&event.uri)
-            .and_then(|path| path.as_path().map(ToOwned::to_owned))
-            .map_or(WatchedFileAction::Process, |path| {
-                state.file_operations.observe_watcher_event(&path, event.typ)
-            });
+        let action = proto::vfs_path(&event.uri).map_or(WatchedFileAction::Process, |path| {
+            state.file_operations.observe_watcher_event(path.as_path(), event.typ)
+        });
         match action {
             WatchedFileAction::ApplyRenames(moves) => {
                 for moves in moves {
@@ -289,18 +275,9 @@ pub(super) fn reconcile_watched_file_events(
                         tracing::warn!(%error, "deferring watched rename with colliding VFS destinations");
                         continue;
                     }
-                    let deleted_relevant = classify_completed_file_operation_paths(
-                        state,
-                        moves.old_paths(),
-                        FileChangeType::DELETED,
-                    );
-                    let created_relevant = classify_completed_file_operation_paths(
-                        state,
-                        moves.new_paths(),
-                        FileChangeType::CREATED,
-                    );
-                    let relevant = deleted_relevant || created_relevant;
-                    if relevant && state.file_operations.claim_watched_rename(&moves) {
+                    if completed_moves_are_relevant(state, &moves)
+                        && state.file_operations.claim_watched_rename(&moves)
+                    {
                         reconcile_workspace_file_operations(
                             state,
                             Vec::new(),
@@ -338,7 +315,7 @@ fn reconcile_workspace_file_operations(
     {
         let mut vfs = state.vfs.write();
         removed_paths.extend(vfs.iter().filter_map(|(path, _)| {
-            let path = path.as_path()?;
+            let path = path.as_path();
             removed_roots.iter().any(|root| path.starts_with(root)).then(|| path.to_path_buf())
         }));
         if let Err(error) = vfs.rename_file_prefixes(&moves) {
@@ -379,42 +356,22 @@ pub(crate) fn will_delete_files(
         .filter_map(|file| parse_file_uri(&file.uri))
         .filter(|path| state.deleted_file_operation_path_is_relevant(path))
         .collect::<Vec<_>>();
-    let request = (!deleted_paths.is_empty()).then(|| {
-        (
-            state.latest_analysis_with_config(),
-            state.vfs.clone(),
-            state.config.supports_workspace_edit_document_changes(),
-        )
+    let edit = (!deleted_paths.is_empty()).then(|| {
+        import_workspace_edit(state, move |tables| tables.import_delete_edits(&deleted_paths))
     });
     async move {
-        let Some((latest_analysis, vfs, document_changes)) = request else {
-            return Ok(None);
-        };
-        let (symbol_tables, config) = latest_analysis.await?;
-        let plan = symbol_tables.load().import_delete_edits(&deleted_paths);
-        if plan.is_empty() || !workspace_source_edits_are_complete(&plan, &config) {
-            return Ok(None);
+        match edit {
+            Some(edit) => edit.await,
+            None => Ok(None),
         }
-        tokio::task::spawn_blocking(move || {
-            validated_import_workspace_edit(plan, &config, vfs, document_changes)
-        })
-        .await
-        .map_err(file_operation_task_failed)?
     }
 }
 
-fn workspace_source_edits_are_complete(
-    plan: &ImportEditPlan,
-    config: &crate::config::Config,
-) -> bool {
+fn workspace_source_edits_are_complete(plan: &ImportEditPlan, config: &Config) -> bool {
     if config.may_omit_source_files() {
         return false;
     }
     let is_workspace_source =
         |uri: &Url| uri.to_file_path().is_ok_and(|path| config.tracks_source_file(&path));
     plan.files().all(is_workspace_source)
-}
-
-fn file_operation_task_failed(error: tokio::task::JoinError) -> ResponseError {
-    ResponseError::new(ErrorCode::INTERNAL_ERROR, format!("file-operation task failed: {error}"))
 }

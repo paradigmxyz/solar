@@ -6,7 +6,7 @@ fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word
     ret v0
 }
 
-fn @constructor(arg0: i256, arg1: memorybytes) [constructor, abi_params=[u256, bytes]] {
+fn @constructor(arg0: i256, arg1: memptr) [constructor, abi_params=[u256, bytes]] {
   bb0:
     sstore 0, arg0 !metadata(storage=slot(0))
     icall @store_storage_bytes, 1, arg1
@@ -45,7 +45,7 @@ fn @byteAt(arg0: i256) -> i256 [selector=0x710422c6, view, abi_params=[u256], ab
     ret v18
 }
 
-fn @store_storage_bytes(arg0: i256, arg1: memorybytes) {
+fn @store_storage_bytes(arg0: i256, arg1: memptr) {
   bb0:
     store_storage_bytes arg0, arg1
     ret
@@ -53,7 +53,7 @@ fn @store_storage_bytes(arg0: i256, arg1: memorybytes) {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_bytes_forwarding.sol:ConstructorBytesMain ===
 @module ConstructorBytesMain
-fn @constructor(arg0: memorybytes, arg1: i256) [constructor, abi_params=[bytes, u256]] {
+fn @constructor(arg0: memptr, arg1: i256) [constructor, abi_params=[bytes, u256]] {
   bb0:
     v0 = icall @forward, arg0
     sstore 0, arg1 !metadata(storage=slot(0))
@@ -65,7 +65,7 @@ fn @constructor(arg0: memorybytes, arg1: i256) [constructor, abi_params=[bytes, 
     ret
 }
 
-fn @forward(arg0: memorybytes) -> memorybytes [pure] {
+fn @forward(arg0: memptr) -> memptr [pure] {
   bb0:
     ret arg0
 }
@@ -108,7 +108,7 @@ fn @byteAt(arg0: i256) -> i256 [selector=0x710422c6, view, abi_params=[u256], ab
     ret v18
 }
 
-fn @store_storage_bytes(arg0: i256, arg1: memorybytes) {
+fn @store_storage_bytes(arg0: i256, arg1: memptr) {
   bb0:
     store_storage_bytes arg0, arg1
     ret
@@ -122,7 +122,7 @@ fn @store_storage_bytes(arg0: i256, arg1: memorybytes) {
 @data
   ConstructorBytesMain_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/constructor_bytes_forwarding.sol:ConstructorBytesMain"
 
-fn @f(arg0: i256, arg1: memorybytes) -> struct0 [selector=0xcdc9dc79, abi_params=[u256, bytes], abi_returns=[word, word<bytes1>], abi_return_params=[u256, bytes1]] {
+fn @f(arg0: i256, arg1: memptr) -> struct0 [selector=0xcdc9dc79, abi_params=[u256, bytes], abi_returns=[word, word<bytes1>], abi_return_params=[u256, bytes1]] {
   bb0:
     v0 = abi_encode [memory_bytes, word], args arg1, arg0
     v1 = slice_len v0

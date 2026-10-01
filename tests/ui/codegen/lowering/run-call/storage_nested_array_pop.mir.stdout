@@ -333,7 +333,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     jump bb9
 }
 
-fn @load_storage_packed_array_2_0(arg0: i256) -> memoryarray {
+fn @load_storage_packed_array_2_0(arg0: i256) -> memptr {
   bb0:
     v0 = load_storage_array u16, arg0
     ret v0

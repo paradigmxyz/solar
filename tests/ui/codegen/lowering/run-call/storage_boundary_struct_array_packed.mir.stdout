@@ -49,7 +49,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v70 = lt v69, 10
     jumpi v70, bb8, bb9
   bb9:
-    v90 = ptrtoint memoryfixedarray v68 to i256
+    v90 = ptrtoint memptr v68 to i256
     v91 = lt 0, 1
     v92 = eq v91, false
     icall panic_if<0x32>, v92
@@ -222,7 +222,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     jump bb15
   bb13:
     v99 = memory_object_load_element memoryfixedarray<10, 1>, v68, v95
-    v100 = inttoptr i256 v99 to memorystruct
+    v100 = inttoptr i256 v99 to memptr
     v101 = memory_object_load_field memorystruct<4>, v100, 0
     v102 = sload v97 !metadata(storage=symbolic(v97))
     v103 = not 0xffffffffffffffff
@@ -230,7 +230,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v105 = and v101, 0xffffffffffffffff
     v106 = or v104, v105
     sstore v97, v106 !metadata(storage=symbolic(v97))
-    v107 = inttoptr i256 v99 to memorystruct
+    v107 = inttoptr i256 v99 to memptr
     v108 = memory_object_load_field memorystruct<4>, v107, 1
     v109 = shl 64, 0xffffffffffffffff
     v110 = sload v97 !metadata(storage=symbolic(v97))
@@ -240,7 +240,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v114 = shl 64, v113
     v115 = or v112, v114
     sstore v97, v115 !metadata(storage=symbolic(v97))
-    v116 = inttoptr i256 v99 to memorystruct
+    v116 = inttoptr i256 v99 to memptr
     v117 = memory_object_load_field memorystruct<4>, v116, 2
     v118 = shl 128, 0xffffffffffffffff
     v119 = sload v97 !metadata(storage=symbolic(v97))
@@ -250,7 +250,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v123 = shl 128, v122
     v124 = or v121, v123
     sstore v97, v124 !metadata(storage=symbolic(v97))
-    v125 = inttoptr i256 v99 to memorystruct
+    v125 = inttoptr i256 v99 to memptr
     v126 = memory_object_load_field memorystruct<4>, v125, 3
     v127 = shl 192, 0xffffffffffffffff
     v128 = sload v97 !metadata(storage=symbolic(v97))
@@ -286,7 +286,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v86 = trunc i256 v85 to i64
     v87 = zext i64 v86 to i256
     memory_object_store_field memorystruct<4>, v72, 3, v87
-    v88 = ptrtoint memorystruct v72 to i256
+    v88 = ptrtoint memptr v72 to i256
     memory_object_store_element memoryfixedarray<10, 1>, v68, v69, v88
     v89 = add v69, 1
     jump bb7

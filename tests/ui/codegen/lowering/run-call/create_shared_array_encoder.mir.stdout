@@ -25,7 +25,7 @@ fn @r0() -> i160 [selector=0x659621b5, view, abi_params=[], abi_returns=[word<u1
     ret v1
 }
 
-fn @constructor(arg0: memoryarray, arg1: memoryarray, arg2: i256) [constructor, abi_params=[array<_, address>, array<_, u256>, u256]] {
+fn @constructor(arg0: memptr, arg1: memptr, arg2: i256) [constructor, abi_params=[array<_, address>, array<_, u256>, u256]] {
   bb0:
     sstore 0, arg2 !metadata(storage=slot(0))
     v0 = memory_object_len memoryarray, arg1
@@ -64,7 +64,7 @@ fn @constructor(arg0: memoryarray, arg1: memoryarray, arg2: i256) [constructor, 
 @data
   Child_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/create_shared_array_encoder.sol:Child"
 
-fn @one(arg0: i160) -> memoryarray [pure] {
+fn @one(arg0: i160) -> memptr [pure] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
     set_memory_object_len memoryarray, v0, 1

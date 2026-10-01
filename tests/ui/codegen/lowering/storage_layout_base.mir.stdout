@@ -83,7 +83,7 @@ fn @matchesReference() -> i1 [selector=0xedf3feeb, pure, abi_params=[], abi_retu
     ret v4
 }
 
-fn @erc7201Reference(arg0: memorybytes) -> i256 [pure] {
+fn @erc7201Reference(arg0: memptr) -> i256 [pure] {
   bb0:
     v0 = keccak256_bytes arg0
     v1 = checked_sub u256, v0, 1

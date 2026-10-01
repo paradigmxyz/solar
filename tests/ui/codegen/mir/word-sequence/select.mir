@@ -220,11 +220,11 @@ fn @canonical_bool(arg0: i1, arg1: i256) -> i256 {
 }
 
 // RECIPE-LABEL: fn @pointer_arm(
-// RECIPE: {{^ *}}[[R:v[0-9]+]] = select arg0, arg1, memorybytes 0
+// RECIPE: {{^ *}}[[R:v[0-9]+]] = select arg0, arg1, memptr 0
 // RECIPE-NEXT: {{ *}}ret [[R]]
-fn @pointer_arm(arg0: i1, arg1: memorybytes) -> memorybytes {
+fn @pointer_arm(arg0: i1, arg1: memptr) -> memptr {
   bb0:
-    v0 = select arg0, arg1, memorybytes 0
+    v0 = select arg0, arg1, memptr 0
     ret v0
 }
 

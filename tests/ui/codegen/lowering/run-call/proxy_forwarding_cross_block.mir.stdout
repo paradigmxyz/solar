@@ -323,7 +323,7 @@ fn @dynamicRevert() -> i256 [selector=0x5dbb0715, abi_params=[], abi_returns=[wo
     v29 = memory_object_len memorybytes, v27
     v30 = eq v29, 228
     icall require<short_string>, v30, 6, 0x6c656e6774680000000000000000000000000000000000000000000000000000
-    v31 = ptrtoint memorybytes v27 to i256
+    v31 = ptrtoint memptr v27 to i256
     v32 = add v31, 32
     v33 = mload v32
     v34 = shl 0, 0x1234
@@ -352,7 +352,7 @@ fn @constructor(arg0: i160) [constructor, abi_params=[address]] {
     ret
 }
 
-fn @bubble() -> memorybytes [selector=0x4ce637d6, view, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @bubble() -> memptr [selector=0x4ce637d6, view, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = loadimmutable producer
     v1 = gas

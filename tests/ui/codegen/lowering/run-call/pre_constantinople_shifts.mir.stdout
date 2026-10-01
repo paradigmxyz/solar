@@ -42,7 +42,7 @@ fn @partialCopy() -> i256 [selector=0xb787ef80, pure, abi_params=[], abi_returns
     mstore v2, 0xab01020304050600000000000000000000000000000000000000000000000000
     v3 = abi_encode [memory_bytes], object, args v0
     v4 = abi_decode [bytes], v3
-    v5 = ptrtoint memorybytes v4 to i256
+    v5 = ptrtoint memptr v4 to i256
     v6 = add v5, 32
     v7 = mload v6
     ret v7

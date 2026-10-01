@@ -1,12 +1,12 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/state_string_initializers.sol:StateStringInitializers ===
 @module StateStringInitializers
-fn @name() -> memorybytes [selector=0x06fdde03, view, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @name() -> memptr [selector=0x06fdde03, view, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = icall @load_storage_bytes, 0
     ret v0
 }
 
-fn @symbol() -> memorybytes [selector=0x95d89b41, view, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @symbol() -> memptr [selector=0x95d89b41, view, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = icall @load_storage_bytes, 1
     ret v0
@@ -19,7 +19,7 @@ fn @decimals() -> i8 [selector=0x313ce567, view, abi_params=[], abi_returns=[wor
     ret v1
 }
 
-fn @load_storage_bytes(arg0: i256) -> memorybytes {
+fn @load_storage_bytes(arg0: i256) -> memptr {
   bb0:
     v0 = load_storage_bytes arg0
     ret v0
@@ -48,7 +48,7 @@ fn @constructor() [constructor] {
     ret
 }
 
-fn @store_storage_bytes(arg0: i256, arg1: memorybytes) {
+fn @store_storage_bytes(arg0: i256, arg1: memptr) {
   bb0:
     store_storage_bytes arg0, arg1
     ret
@@ -57,7 +57,7 @@ fn @store_storage_bytes(arg0: i256, arg1: memorybytes) {
 // === ROOT/tests/ui/codegen/lowering/run-call/state_string_initializers.sol:DeployStateStringInitializers ===
 @module DeployStateStringInitializers
 @types
-  struct0: {memorybytes, memorybytes, i8}
+  struct0: {memptr, memptr, i8}
 
 @data
   StateStringInitializers_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/state_string_initializers.sol:StateStringInitializers"

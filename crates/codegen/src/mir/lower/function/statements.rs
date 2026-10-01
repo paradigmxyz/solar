@@ -710,10 +710,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if let Some(value) = self.lower_fixed_bytes_literal(ty, expr) {
             return value;
         }
-        if matches!(
-            self.builder.func().value_ty(value),
-            Some(MirType::MemoryObject(MemoryObjectKind::Bytes))
-        ) {
+        if matches!(self.builder.func().value_ty(value), Some(MirType::MemPtr)) {
             let zero = self.builder.imm(0);
             return self.builder.memory_object_load_element(value, MemoryObjectLayout::Bytes, zero);
         }

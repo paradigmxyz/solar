@@ -1,11 +1,11 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_bytes_pop_copy_long.sol:StorageBytesPopCopyLong ===
 @module StorageBytesPopCopyLong
-fn @test() -> memorybytes [selector=0xf8a8fd6d, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @test() -> memptr [selector=0xf8a8fd6d, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     jump bb1
   bb1:
     v0 = phi [bb0: 0], [bb3: v43]
-    v1 = phi [bb0: memorybytes 96], [bb3: v1]
+    v1 = phi [bb0: memptr 96], [bb3: v1]
     v2 = lt v0, 33
     jumpi v2, bb4, bb5
   bb5:
@@ -157,11 +157,11 @@ fn @test() -> memorybytes [selector=0xf8a8fd6d, abi_params=[], abi_returns=[memo
     jump bb1
 }
 
-fn @testNoPop() -> memorybytes [selector=0xa43e8948, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @testNoPop() -> memptr [selector=0xa43e8948, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: memorybytes 96], [bb3: v0]
+    v0 = phi [bb0: memptr 96], [bb3: v0]
     v1 = phi [bb0: 0], [bb3: v43]
     v2 = lt v1, 33
     jumpi v2, bb4, bb5

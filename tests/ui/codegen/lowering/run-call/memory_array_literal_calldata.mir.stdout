@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/memory_array_literal_calldata.sol:MemoryArrayLiteralCalldata ===
 @module MemoryArrayLiteralCalldata
-fn @collect(arg0: calldataslice, arg1: calldataslice) -> memoryfixedarray [selector=0xcc62604c, pure, abi_params=[bytes, bytes], abi_returns=[array<2, memory_bytes>], abi_return_params=[array<2, bytes>]] {
+fn @collect(arg0: calldataslice, arg1: calldataslice) -> memptr [selector=0xcc62604c, pure, abi_params=[bytes, bytes], abi_returns=[array<2, memory_bytes>], abi_return_params=[array<2, bytes>]] {
   bb0:
     v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     jump bb1
@@ -27,7 +27,7 @@ fn @collect(arg0: calldataslice, arg1: calldataslice) -> memoryfixedarray [selec
     v16 = alloc memorybytes, exact, uninitialized, infallible, v15
     set_memory_object_len memorybytes, v16, v11
     memory_object_copy_from_slice memorybytes, v16, arg0
-    v17 = ptrtoint memorybytes v16 to i256
+    v17 = ptrtoint memptr v16 to i256
     memory_object_store_element memoryfixedarray<2, 1>, v4, 0, v17
     v18 = slice_ptr arg1
     v19 = slice_len arg1
@@ -46,7 +46,7 @@ fn @collect(arg0: calldataslice, arg1: calldataslice) -> memoryfixedarray [selec
     v29 = alloc memorybytes, exact, uninitialized, infallible, v28
     set_memory_object_len memorybytes, v29, v24
     memory_object_copy_from_slice memorybytes, v29, arg1
-    v30 = ptrtoint memorybytes v29 to i256
+    v30 = ptrtoint memptr v29 to i256
     memory_object_store_element memoryfixedarray<2, 1>, v4, 1, v30
     ret v4
   bb2:

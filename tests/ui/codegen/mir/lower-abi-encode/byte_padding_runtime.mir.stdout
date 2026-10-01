@@ -52,10 +52,10 @@ fn @check(arg0: i256) -> i1 [selector=0x5f72f450, pure, abi_params=[u256], abi_r
     v44 = eq v41, v43
     v45 = eq v44, false
     icall revert_if<empty>, v45
-    v46 = ptrtoint memorybytes v37 to i256
+    v46 = ptrtoint memptr v37 to i256
     v47 = add v46, 32
     v48 = mload v47
-    v49 = ptrtoint memorybytes v37 to i256
+    v49 = ptrtoint memptr v37 to i256
     v50 = add v49, 64
     v51 = mload v50
     v52 = eq v48, 64
@@ -98,7 +98,7 @@ fn @check(arg0: i256) -> i1 [selector=0x5f72f450, pure, abi_params=[u256], abi_r
     jump bb24
   bb24:
     v70 = phi [bb22: v66], [bb23: v58]
-    v71 = ptrtoint memorybytes v60 to i256
+    v71 = ptrtoint memptr v60 to i256
     v72 = add v71, 32
     v73 = add v72, v70
     v74 = mload v73

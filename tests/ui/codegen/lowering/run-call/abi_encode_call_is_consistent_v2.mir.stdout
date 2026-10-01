@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_encode_call_is_consistent_v2.sol:AbiEncodeCallConsistent ===
 @module AbiEncodeCallConsistent
-fn @fExternal(arg0: i256, arg1: memorybytes) [selector=0x33d85810, abi_params=[u256, bytes], abi_returns=[], abi_return_params=[]] {
+fn @fExternal(arg0: i256, arg1: memptr) [selector=0x33d85810, abi_params=[u256, bytes], abi_returns=[], abi_return_params=[]] {
   bb0:
     ret
 }
@@ -23,7 +23,7 @@ fn @getExternalFunctionPointer() -> i256 [selector=0x0d5de1f2, abi_params=[], ab
 fn @test() -> i8 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<u8>], abi_return_params=[u8]] {
   bb0:
     v0 = icall @literal_bytes_word, 0x3132330000000000000000000000000000000000000000000000000000000000, 3
-    v1 = ptrtoint memorybytes v0 to i256
+    v1 = ptrtoint memptr v0 to i256
     v2 = abi_encode [word, memory_bytes], object, selector 0x33d8581000000000000000000000000000000000000000000000000000000000, args 1, v0
     v3 = address
     v4 = zext i160 v3 to i256
@@ -105,7 +105,7 @@ fn @test() -> i8 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<u8>], ab
     ret v54
 }
 
-fn @storageEncoded() -> memorybytes [selector=0x46ad9d89, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @storageEncoded() -> memptr [selector=0x46ad9d89, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = address
     v1 = zext i160 v0 to i256
@@ -130,7 +130,7 @@ fn @storageEncoded() -> memorybytes [selector=0x46ad9d89, abi_params=[], abi_ret
     ret v18
 }
 
-fn @localEncoded() -> memorybytes [selector=0xde7d55c6, view, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @localEncoded() -> memptr [selector=0xde7d55c6, view, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = address
     v1 = zext i160 v0 to i256
@@ -143,7 +143,7 @@ fn @localEncoded() -> memorybytes [selector=0xde7d55c6, view, abi_params=[], abi
     ret v7
 }
 
-fn @returnedEncoded() -> memorybytes [selector=0xb62b7ad3, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @returnedEncoded() -> memptr [selector=0xb62b7ad3, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = icall @getExternalFunctionPointer
     v1 = and v0, 0xffffffff
@@ -153,7 +153,7 @@ fn @returnedEncoded() -> memorybytes [selector=0xb62b7ad3, abi_params=[], abi_re
     ret v4
 }
 
-fn @literal_bytes_word(arg0: i256, arg1: i256) -> memorybytes {
+fn @literal_bytes_word(arg0: i256, arg1: i256) -> memptr {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, arg1

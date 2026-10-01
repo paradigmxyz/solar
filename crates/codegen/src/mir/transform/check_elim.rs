@@ -188,10 +188,20 @@ impl MirPass for IntegerCleanup {
             let facts = index_vec![Facts::default(); func.blocks.len()];
             let _ =
                 eliminator.collect_folds(func, &cfg, &preds, &facts, &[], &mut Vec::new(), None);
-            for &(id, value) in &eliminator.redundant_masks {
-                func.inst_mut(id).replace_kind(InstKind::Bitcast(value));
+            if eliminator.redundant_masks.is_empty() {
+                return false;
             }
-            !eliminator.redundant_masks.is_empty()
+            let mut replacements = FxHashMap::default();
+            let mut dead = DenseBitSet::new_empty(func.num_insts());
+            for &(id, value) in &eliminator.redundant_masks {
+                replacements.insert(func.inst_result_value(id).unwrap(), value);
+                dead.insert(id);
+            }
+            func.replace_uses_canonicalized(&replacements);
+            for block in &mut func.blocks {
+                block.instructions.retain(|&id| !dead.contains(id));
+            }
+            true
         })
     }
 }
@@ -1447,9 +1457,7 @@ impl<'a> CheckEliminator<'a> {
         let Some(depth) = depth.checked_sub(1) else { return range };
         let Some(kind) = inst_kind(func, value) else { return range };
         let derived = match *kind {
-            InstKind::Zext(source) | InstKind::Bitcast(source) => {
-                self.range_of(func, source, depth)
-            }
+            InstKind::Zext(source) => self.range_of(func, source, depth),
             InstKind::Trunc(source, bits) if (1..=256).contains(&bits) => {
                 let source = self.range_of(func, source, depth);
                 let mask = integer_mask(bits);
@@ -1942,7 +1950,7 @@ fn universal_relations(func: &Function, relevant: &DenseBitSet<ValueId>) -> FxHa
             InstKind::Shr(_, x) | InstKind::Mod(x, _) | InstKind::Trunc(x, _) => {
                 relations.insert(Relation::Le(value, x));
             }
-            InstKind::Zext(x) | InstKind::Bitcast(x) => {
+            InstKind::Zext(x) => {
                 let (a, b) = ordered(value, x);
                 relations.insert(Relation::Eq(a, b));
             }

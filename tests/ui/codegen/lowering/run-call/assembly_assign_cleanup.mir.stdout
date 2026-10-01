@@ -1,8 +1,8 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/assembly_assign_cleanup.sol:C ===
 @module C
-fn @parseSel(arg0: memorybytes) -> i256 [pure] {
+fn @parseSel(arg0: memptr) -> i256 [pure] {
   bb0:
-    v0 = ptrtoint memorybytes arg0 to i256
+    v0 = ptrtoint memptr arg0 to i256
     v1 = add v0, 32
     v2 = mload v1
     ret v2
@@ -90,7 +90,7 @@ fn @memoryStoreCleanup() -> i256 [selector=0xa32f54c2, pure, abi_params=[], abi_
     memory_object_store_element memoryarray<1>, v1, 0, v6
     v7 = shl 160, 1
     v8 = sub v7, 1
-    v9 = ptrtoint memoryarray v1 to i256
+    v9 = ptrtoint memptr v1 to i256
     v10 = add v9, 32
     v11 = mload v10
     v12 = eq v11, v8

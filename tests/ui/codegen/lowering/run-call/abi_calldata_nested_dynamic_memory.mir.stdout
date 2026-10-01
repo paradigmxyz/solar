@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_nested_dynamic_memory.sol:AbiCalldataNestedDynamicMemory ===
 @module AbiCalldataNestedDynamicMemory
-fn @g(arg0: calldataslice) -> memoryarray [selector=0xc12c508e, pure, abi_params=[array<_, array<_, array<_, u256>>>], abi_returns=[memory_array<memory_array<memory_array<word>>>], abi_return_params=[array<_, array<_, array<_, u256>>>]] {
+fn @g(arg0: calldataslice) -> memptr [selector=0xc12c508e, pure, abi_params=[array<_, array<_, array<_, u256>>>], abi_returns=[memory_array<memory_array<memory_array<word>>>], abi_return_params=[array<_, array<_, array<_, u256>>>]] {
   bb0:
     v0 = slice_len arg0
     v1 = slice_ptr arg0
@@ -80,7 +80,7 @@ fn @g(arg0: calldataslice) -> memoryarray [selector=0xc12c508e, pure, abi_params
     v55 = lt v54, v36
     jumpi v55, bb5, bb6
   bb6:
-    v89 = ptrtoint memoryarray v53 to i256
+    v89 = ptrtoint memptr v53 to i256
     memory_object_store_element memoryarray<1>, v21, v22, v89
     v90 = add v22, 1
     jump bb1
@@ -124,13 +124,13 @@ fn @g(arg0: calldataslice) -> memoryarray [selector=0xc12c508e, pure, abi_params
     set_memory_object_len memoryarray, v85, v68
     v86 = make_calldata_slice v75, v76
     memory_object_copy_from_slice memoryarray, v85, v86
-    v87 = ptrtoint memoryarray v85 to i256
+    v87 = ptrtoint memptr v85 to i256
     memory_object_store_element memoryarray<1>, v53, v54, v87
     v88 = add v54, 1
     jump bb4
 }
 
-fn @h(arg0: calldataslice) -> memoryarray [selector=0xba9ef85f, pure, abi_params=[array<_, array<_, array<2, u256>>>], abi_returns=[memory_array<memory_array<array<2, word>>>], abi_return_params=[array<_, array<_, array<2, u256>>>]] {
+fn @h(arg0: calldataslice) -> memptr [selector=0xba9ef85f, pure, abi_params=[array<_, array<_, array<2, u256>>>], abi_returns=[memory_array<memory_array<array<2, word>>>], abi_return_params=[array<_, array<_, array<2, u256>>>]] {
   bb0:
     v0 = slice_len arg0
     v1 = slice_ptr arg0
@@ -210,7 +210,7 @@ fn @h(arg0: calldataslice) -> memoryarray [selector=0xba9ef85f, pure, abi_params
     v55 = lt v54, v36
     jumpi v55, bb5, bb6
   bb6:
-    v68 = ptrtoint memoryarray v53 to i256
+    v68 = ptrtoint memptr v53 to i256
     memory_object_store_element memoryarray<1>, v21, v22, v68
     v69 = add v22, 1
     jump bb1
@@ -227,7 +227,7 @@ fn @h(arg0: calldataslice) -> memoryarray [selector=0xba9ef85f, pure, abi_params
     v64 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
     v65 = make_calldata_slice v63, 64
     memory_object_copy_from_slice memoryfixedarray, v64, v65
-    v66 = ptrtoint memoryfixedarray v64 to i256
+    v66 = ptrtoint memptr v64 to i256
     memory_object_store_element memoryarray<1>, v53, v54, v66
     v67 = add v54, 1
     jump bb4

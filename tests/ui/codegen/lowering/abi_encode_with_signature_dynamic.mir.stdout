@@ -9,20 +9,20 @@ fn @callCond(arg0: i160, arg1: i1, arg2: i256) -> i1 [selector=0x407a1bfe, abi_p
     ret v3
 }
 
-fn @encodeCond(arg0: i1, arg1: i256) -> memorybytes [selector=0x3e8cea54, pure, abi_params=[bool, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @encodeCond(arg0: i1, arg1: i256) -> memptr [selector=0x3e8cea54, pure, abi_params=[bool, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = select arg0, 0x2b8fbce800000000000000000000000000000000000000000000000000000000, 0xe74800c00000000000000000000000000000000000000000000000000000000
     v1 = abi_encode [word], object, selector v0, args arg1
     ret v1
 }
 
-fn @encodeLiteral(arg0: i256) -> memorybytes [selector=0xb7e00125, pure, abi_params=[u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @encodeLiteral(arg0: i256) -> memptr [selector=0xb7e00125, pure, abi_params=[u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = abi_encode [word], object, selector 0x2b8fbce800000000000000000000000000000000000000000000000000000000, args arg0
     ret v0
 }
 
-fn @encodeRuntime(arg0: memorybytes, arg1: i256) -> memorybytes [selector=0xc69a8386, pure, abi_params=[bytes, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @encodeRuntime(arg0: memptr, arg1: i256) -> memptr [selector=0xc69a8386, pure, abi_params=[bytes, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = keccak256_bytes arg0
     v1 = shr 224, v0

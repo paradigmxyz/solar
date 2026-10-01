@@ -49,7 +49,7 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_
     v19 = lt v18, 10
     jumpi v19, bb8, bb9
   bb9:
-    v23 = ptrtoint memoryfixedarray v17 to i256
+    v23 = ptrtoint memptr v17 to i256
     v24 = lt 0, 1
     v25 = eq v24, false
     icall panic_if<0x32>, v25

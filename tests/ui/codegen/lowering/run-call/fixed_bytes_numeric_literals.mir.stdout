@@ -65,7 +65,7 @@ fn @encodeLocalSelector() -> i256 [selector=0x0e6d4a3f, pure, abi_params=[], abi
     v2 = memory_object_data memorybytes, v1
     v3 = ptrtoint memptr v2 to i256
     mstore v3, 0x6162630000000000000000000000000000000000000000000000000000000000
-    v4 = ptrtoint memorybytes v1 to i256
+    v4 = ptrtoint memptr v1 to i256
     v5 = abi_encode [memory_bytes], object, selector v0, args v1
     v6 = memory_object_load_element memorybytes, v5, 0
     v7 = memory_object_len memorybytes, v5

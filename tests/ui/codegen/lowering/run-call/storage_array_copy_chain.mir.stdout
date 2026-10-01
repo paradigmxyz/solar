@@ -193,7 +193,7 @@ fn @runtimeNested(arg0: i256) -> struct1 [selector=0x916a6a26, abi_params=[u256]
 fn @storageToStorage() -> struct0 [selector=0xdb07d74b, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     v0 = icall @load_storage_word_array, 0
-    v1 = ptrtoint memoryarray v0 to i256
+    v1 = ptrtoint memptr v0 to i256
     v2 = memory_object_len memoryarray, v0
     v3 = sload 2 !metadata(storage=slot(2))
     v4 = gt v3, v2
@@ -250,7 +250,7 @@ fn @storageToStorage() -> struct0 [selector=0xdb07d74b, abi_params=[], abi_retur
     jump bb3
 }
 
-fn @load_storage_word_array(arg0: i256) -> memoryarray {
+fn @load_storage_word_array(arg0: i256) -> memptr {
   bb0:
     v0 = load_storage_array u256, arg0
     ret v0

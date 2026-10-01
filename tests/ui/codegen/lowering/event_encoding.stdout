@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/event_encoding.sol:EventEncoding ===
 @module EventEncoding
-fn @emitArray(arg0: memoryfixedarray) [selector=0x86cb3475, abi_params=[array<2, u256>], abi_returns=[], abi_return_params=[]] {
+fn @emitArray(arg0: memptr) [selector=0x86cb3475, abi_params=[array<2, u256>], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = abi_encode [array<2, word>], args arg0
     v1 = slice_ptr v0
@@ -17,7 +17,7 @@ fn @emitAnonymous(arg0: i160, arg1: i256) [selector=0xb834ce50, abi_params=[addr
     ret
 }
 
-fn @emitIndexedBytes(arg0: memorybytes) [selector=0xcc07e605, abi_params=[bytes], abi_returns=[], abi_return_params=[]] {
+fn @emitIndexedBytes(arg0: memptr) [selector=0xcc07e605, abi_params=[bytes], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = keccak256_bytes arg0
     log2 0, 0, 0x302971c456dab97076d583d969187faf914418423e0641b0c0f01537060f04e7, v0

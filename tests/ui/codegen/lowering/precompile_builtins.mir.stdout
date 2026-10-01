@@ -16,18 +16,18 @@ fn @recover() [selector=0xce746024, abi_wrapper, pure] {
     mstore v31, 160
     v30 = add v31, 32
     mstore v30, 1
-    v20 = add v31, 64
+    v20 = add v30, 32
     mstore v20, 28
-    v23 = add v31, 96
+    v23 = add v30, 64
     mstore v23, 0x6673ffad2147741f04772b6f921f0ba6af0c1e77fc439e65c36dedf4092e8898
-    v26 = add v31, 128
+    v26 = add v30, 96
     mstore v26, 0x4c1a971652e0ada880120ef8025e709fff2080c4a39aae068d12eed009b68c89
-    v6 = add v31, 160
+    v6 = add v30, 128
     v7 = gas
     v9 = staticcall v7, 1, v30, 128, v6, 32
     v11 = mload v6
-    v2 = and v11, 0xffffffffffffffffffffffffffffffffffffffff
-    mstore 128, v2
+    v38 = and v11, 0xffffffffffffffffffffffffffffffffffffffff
+    mstore 128, v38
     returndata 128, 32
   bb2:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
@@ -50,18 +50,18 @@ fn @recoverInvalid() [selector=0x008f4bed, abi_wrapper, pure] {
     mstore v30, 160
     v29 = add v30, 32
     mstore v29, 0
-    v19 = add v30, 64
+    v19 = add v29, 32
     mstore v19, 0
-    v22 = add v30, 96
+    v22 = add v29, 64
     mstore v22, 0
-    v25 = add v30, 128
+    v25 = add v29, 96
     mstore v25, 0
-    v5 = add v30, 160
+    v5 = add v29, 128
     v6 = gas
     v8 = staticcall v6, 1, v29, 128, v5, 32
     v10 = mload v5
-    v1 = and v10, 0xffffffffffffffffffffffffffffffffffffffff
-    mstore 128, v1
+    v37 = and v10, 0xffffffffffffffffffffffffffffffffffffffff
+    mstore 128, v37
     returndata 128, 32
   bb2:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)

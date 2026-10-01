@@ -266,7 +266,7 @@ impl LoweringState {
     }
 
     pub(in crate::mir::lower) fn scalar_carrier(&self, gcx: Gcx<'_>, id: VariableId) -> MirType {
-        let ty = types::TypeLowerer::mir_signature_type(gcx.type_of_item(id.into()));
+        let ty = types::TypeLowerer::mir_type(gcx.type_of_item(id.into()));
         if ty.integer_bits().is_some() && self.raw_scalars.contains(&id) {
             MirType::I256
         } else {

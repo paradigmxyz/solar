@@ -62,7 +62,7 @@ fn bounds_with(
     let Value::Inst(id) = func.value(value) else { return full };
     let mut bounds = |value| bounds_with(func, value, depth, budget, known);
     match &func.inst(*id).kind {
-        InstKind::Zext(value) | InstKind::Bitcast(value) => bounds(*value),
+        InstKind::Zext(value) => bounds(*value),
         InstKind::Trunc(value, _) => {
             let range = bounds(*value);
             if range.1 <= max { range } else { full }

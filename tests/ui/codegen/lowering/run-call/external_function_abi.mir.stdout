@@ -11,7 +11,7 @@ fn @echo(arg0: i256) -> i256 [selector=0x90898ee4, pure, abi_params=[function], 
     ret arg0
 }
 
-fn @echoHolder(arg0: memorystruct) -> memorystruct [selector=0x030fb1b2, pure, abi_params=[tuple<function, u256>], abi_returns=[tuple<function, word>], abi_return_params=[tuple<function, u256>]] {
+fn @echoHolder(arg0: memptr) -> memptr [selector=0x030fb1b2, pure, abi_params=[tuple<function, u256>], abi_returns=[tuple<function, word>], abi_return_params=[tuple<function, u256>]] {
   bb0:
     v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<2>, v0, 0, 0
@@ -19,7 +19,7 @@ fn @echoHolder(arg0: memorystruct) -> memorystruct [selector=0x030fb1b2, pure, a
     ret arg0
 }
 
-fn @echoArray(arg0: memoryarray) -> memoryarray [selector=0xb4b16456, pure, abi_params=[array<_, function>], abi_returns=[memory_array<function>], abi_return_params=[array<_, function>]] {
+fn @echoArray(arg0: memptr) -> memptr [selector=0xb4b16456, pure, abi_params=[array<_, function>], abi_returns=[memory_array<function>], abi_return_params=[array<_, function>]] {
   bb0:
     ret arg0
 }
@@ -54,14 +54,14 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v20 = eq v19, 0x9811c7c100000000000000000000000000000000000000000000000000000000
     icall require<short_string>, v20, 8, 0x73656c6563746f72000000000000000000000000000000000000000000000000
     v21 = abi_encode [function], object, args v3
-    v22 = ptrtoint memorybytes v21 to i256
+    v22 = ptrtoint memptr v21 to i256
     v23 = add v22, 32
     v24 = mload v23
     v25 = trunc i256 v24 to i64
     v26 = eq v25, i64 0
     icall require<short_string>, v26, 7, 0x70616464696e6700000000000000000000000000000000000000000000000000
     v27 = abi_encode [function], object, selector 0x90898ee400000000000000000000000000000000000000000000000000000000, args v3
-    v28 = ptrtoint memorybytes v27 to i256
+    v28 = ptrtoint memptr v27 to i256
     v29 = add v28, 67
     mstore8 v29, 1
     v30 = address
@@ -89,73 +89,77 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v45 = returndatasize
     v46 = lt v45, 64
     icall revert_if<tuple_data_too_short>, v46
-    v47 = not 31
-    v48 = and 127, v47
-    v49 = alloc memorybytes, exact, uninitialized, infallible, v48
-    set_memory_object_len memorybytes, v49, 64
-    v50 = ptrtoint memptr v41 to i256
-    v51 = make_memory_slice v50, 64
-    memory_object_copy_from_slice memorybytes, v49, v51
-    v52 = abi_decode [tuple<function, u256>], v49
-    v53 = memory_object_load_field memorystruct<2>, v52, 0
-    v54 = shr 64, v53
-    v55 = shr 32, v54
-    v56 = and v55, 0xffffffffffffffffffffffffffffffffffffffff
-    v57 = trunc i256 v56 to i160
-    v58 = address
-    v59 = eq v57, v58
-    icall require<short_string>, v59, 14, 0x686f6c6465722061646472657373000000000000000000000000000000000000
-    v60 = memory_object_load_field memorystruct<2>, v52, 0
-    v61 = shr 64, v60
-    v62 = and v61, 0xffffffff
-    v63 = shl 224, v62
-    v64 = eq v63, 0x9811c7c100000000000000000000000000000000000000000000000000000000
-    icall require<short_string>, v64, 15, 0x686f6c6465722073656c6563746f720000000000000000000000000000000000
-    v65 = memory_object_load_field memorystruct<2>, v52, 1
-    v66 = eq v65, 7
-    icall require<short_string>, v66, 10, 0x686f6c6465722074616700000000000000000000000000000000000000000000
-    v67 = alloc memoryarray<1>, exact, zeroed, panic, 64
-    set_memory_object_len memoryarray, v67, 1
-    v68 = memory_object_len memoryarray, v67
-    v69 = lt 0, v68
-    v70 = eq v69, false
-    icall panic_if<0x32>, v70
-    v71 = shl 64, v3
-    memory_object_store_element memoryarray<1>, v67, 0, v71
-    v72 = address
-    v73 = gas
-    v74 = abi_encode [memory_array<function>], selector 0xb4b1645600000000000000000000000000000000000000000000000000000000, args v67
-    v75 = slice_ptr v74
-    v76 = slice_len v74
-    v77 = zext i160 v72 to i256
-    v78 = staticcall v73, v77, v75, v76, 0, 0
-    jumpi v78, bb6, bb5
+    v47 = ptrtoint memptr v41 to i256
+    v48 = make_memory_slice v47, 64
+    v49 = slice_len v48
+    v50 = add v49, 63
+    v51 = lt v50, v49
+    icall panic_if<0x41>, v51
+    v52 = not 31
+    v53 = and v50, v52
+    v54 = alloc memorybytes, exact, uninitialized, infallible, v53
+    set_memory_object_len memorybytes, v54, v49
+    memory_object_copy_from_slice memorybytes, v54, v48
+    v55 = abi_decode [tuple<function, u256>], v54
+    v56 = memory_object_load_field memorystruct<2>, v55, 0
+    v57 = shr 64, v56
+    v58 = shr 32, v57
+    v59 = and v58, 0xffffffffffffffffffffffffffffffffffffffff
+    v60 = trunc i256 v59 to i160
+    v61 = address
+    v62 = eq v60, v61
+    icall require<short_string>, v62, 14, 0x686f6c6465722061646472657373000000000000000000000000000000000000
+    v63 = memory_object_load_field memorystruct<2>, v55, 0
+    v64 = shr 64, v63
+    v65 = and v64, 0xffffffff
+    v66 = shl 224, v65
+    v67 = eq v66, 0x9811c7c100000000000000000000000000000000000000000000000000000000
+    icall require<short_string>, v67, 15, 0x686f6c6465722073656c6563746f720000000000000000000000000000000000
+    v68 = memory_object_load_field memorystruct<2>, v55, 1
+    v69 = eq v68, 7
+    icall require<short_string>, v69, 10, 0x686f6c6465722074616700000000000000000000000000000000000000000000
+    v70 = alloc memoryarray<1>, exact, zeroed, panic, 64
+    set_memory_object_len memoryarray, v70, 1
+    v71 = memory_object_len memoryarray, v70
+    v72 = lt 0, v71
+    v73 = eq v72, false
+    icall panic_if<0x32>, v73
+    v74 = shl 64, v3
+    memory_object_store_element memoryarray<1>, v70, 0, v74
+    v75 = address
+    v76 = gas
+    v77 = abi_encode [memory_array<function>], selector 0xb4b1645600000000000000000000000000000000000000000000000000000000, args v70
+    v78 = slice_ptr v77
+    v79 = slice_len v77
+    v80 = zext i160 v75 to i256
+    v81 = staticcall v76, v80, v78, v79, 0, 0
+    jumpi v81, bb6, bb5
   bb5:
     revert_returndata
   bb6:
-    v79 = icall returndata_bytes<>
-    v80 = abi_decode [array<_, function>], v79
-    v81 = memory_object_len memoryarray, v80
-    v82 = lt 0, v81
-    v83 = eq v82, false
-    icall panic_if<0x32>, v83
-    v84 = memory_object_load_element memoryarray<1>, v80, 0
-    v85 = shr 64, v84
-    v86 = shr 32, v85
-    v87 = and v86, 0xffffffffffffffffffffffffffffffffffffffff
-    v88 = trunc i256 v87 to i160
-    v89 = address
-    v90 = eq v88, v89
-    icall require<short_string>, v90, 13, 0x6172726179206164647265737300000000000000000000000000000000000000
-    v91 = memory_object_len memoryarray, v80
-    v92 = lt 0, v91
-    v93 = eq v92, false
-    icall panic_if<0x32>, v93
-    v94 = memory_object_load_element memoryarray<1>, v80, 0
-    v95 = shr 64, v94
-    v96 = and v95, 0xffffffff
-    v97 = shl 224, v96
-    v98 = eq v97, 0x9811c7c100000000000000000000000000000000000000000000000000000000
-    icall require<short_string>, v98, 14, 0x61727261792073656c6563746f72000000000000000000000000000000000000
+    v82 = icall returndata_bytes<>
+    v83 = abi_decode [array<_, function>], v82
+    v84 = memory_object_len memoryarray, v83
+    v85 = lt 0, v84
+    v86 = eq v85, false
+    icall panic_if<0x32>, v86
+    v87 = memory_object_load_element memoryarray<1>, v83, 0
+    v88 = shr 64, v87
+    v89 = shr 32, v88
+    v90 = and v89, 0xffffffffffffffffffffffffffffffffffffffff
+    v91 = trunc i256 v90 to i160
+    v92 = address
+    v93 = eq v91, v92
+    icall require<short_string>, v93, 13, 0x6172726179206164647265737300000000000000000000000000000000000000
+    v94 = memory_object_len memoryarray, v83
+    v95 = lt 0, v94
+    v96 = eq v95, false
+    icall panic_if<0x32>, v96
+    v97 = memory_object_load_element memoryarray<1>, v83, 0
+    v98 = shr 64, v97
+    v99 = and v98, 0xffffffff
+    v100 = shl 224, v99
+    v101 = eq v100, 0x9811c7c100000000000000000000000000000000000000000000000000000000
+    icall require<short_string>, v101, 14, 0x61727261792073656c6563746f72000000000000000000000000000000000000
     ret 1
 }

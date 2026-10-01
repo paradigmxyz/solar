@@ -1263,9 +1263,9 @@ impl<'gcx> EvmCodegen<'gcx> {
                     let (base, padding) = Self::heap_prefix_alignment(func, value)?;
                     Some(derive(base, visiting, memo)?.saturating_add(padding))
                 }
-                InstKind::PtrToInt(base, 256)
-                | InstKind::Bitcast(base)
-                | InstKind::IntToPtr(base) => derive(*base, visiting, memo),
+                InstKind::PtrToInt(base, 256) | InstKind::IntToPtr(base) => {
+                    derive(*base, visiting, memo)
+                }
                 InstKind::Phi(incoming) => incoming
                     .iter()
                     .filter_map(|&(_, incoming)| derive(incoming, visiting, memo))

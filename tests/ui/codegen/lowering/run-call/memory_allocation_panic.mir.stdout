@@ -93,20 +93,20 @@ fn @makeNestedArray(arg0: i256) -> i256 [selector=0x95572958, pure, abi_params=[
     v22 = lt 0, v21
     v23 = eq v22, false
     icall panic_if<0x32>, v23
-    v24 = ptrtoint memoryarray v20 to i256
+    v24 = ptrtoint memptr v20 to i256
     memory_object_store_element memoryarray<1>, v0, 0, v24
     v25 = memory_object_len memoryarray, v0
     v26 = lt 0, v25
     v27 = eq v26, false
     icall panic_if<0x32>, v27
     v28 = memory_object_load_element memoryarray<1>, v0, 0
-    v29 = inttoptr i256 v28 to memoryarray
+    v29 = inttoptr i256 v28 to memptr
     v30 = eq v28, 0
     jumpi v30, bb4, bb5
   bb4:
     v31 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
     set_memory_object_len memoryarray, v31, 0
-    v32 = ptrtoint memoryarray v31 to i256
+    v32 = ptrtoint memptr v31 to i256
     memory_object_store_element memoryarray<1>, v0, 0, v32
     jump bb5
   bb5:
@@ -154,7 +154,7 @@ fn @makeStructArray(arg0: i256) -> i256 [selector=0x4273d03f, pure, abi_params=[
     v19 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<2>, v19, 0, 0
     memory_object_store_field memorystruct<2>, v19, 1, 96
-    v20 = ptrtoint memorystruct v19 to i256
+    v20 = ptrtoint memptr v19 to i256
     memory_object_store_element memoryarray<1>, v16, v17, v20
     v21 = add v17, 1
     jump bb1

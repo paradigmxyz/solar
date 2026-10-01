@@ -530,7 +530,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let return_types = function
             .returns
             .iter()
-            .map(|&ty| self.cx.state.pointer_carrier(types::TypeLowerer::mir_return_type(ty)))
+            .map(|&ty| self.cx.state.pointer_carrier(types::TypeLowerer::mir_type(ty)))
             .collect();
         let result_ty = self.cx.module.intern_return_type(return_types)?;
         // result = icall(dispatcher, function, args)
@@ -625,7 +625,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         {
             let zero = self.builder.imm(0);
             let word_and_length = match self.builder.func().value_ty(value) {
-                Some(MirType::MemoryObject(MemoryObjectKind::Bytes)) => {
+                Some(MirType::MemPtr) => {
                     let word = self.builder.memory_object_load_element(
                         value,
                         MemoryObjectLayout::Bytes,
@@ -686,12 +686,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         };
         let byte_value = match from.peel_refs().kind {
             TyKind::StringLiteral(..) => match self.builder.func().value_ty(value) {
-                Some(MirType::MemoryObject(MemoryObjectKind::Bytes)) => Some(value),
+                Some(MirType::MemPtr) => Some(value),
                 _ => return value,
             },
             TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
                 match self.builder.func().value_ty(value) {
-                    Some(MirType::MemoryObject(MemoryObjectKind::Bytes)) => Some(value),
+                    Some(MirType::MemPtr) => Some(value),
                     Some(MirType::Slice(_)) => Some(self.materialize_memory_slice(value)),
                     _ => return value,
                 }
@@ -1439,7 +1439,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 // mcopy(data, ret_offset, ret_size)
                 self.builder.mcopy(data, offset, size);
             }
-            Some(object)
+            if object == data {
+                // A single static aggregate returns into a raw buffer, which decoding copies.
+                // source = make_slice(data, size)
+                Some(self.builder.make_slice(data, size, SliceLocation::Memory))
+            } else {
+                Some(object)
+            }
         } else if decode_returndata {
             if !self.cx.gcx.sess.opts.evm_version.supports_returndata() {
                 return report_error(self.cx.gcx, span, unsupported_returndata);
@@ -1549,7 +1555,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             .map(|(index, &ty)| {
                 let value = self.load_static_abi_return_value(offset, index, returns.len());
                 self.validate_external_return_value(ty, value);
-                if matches!(types::TypeLowerer::mir_return_type(ty), MirType::MemoryObject(_)) {
+                if matches!(types::TypeLowerer::mir_type(ty), MirType::MemPtr) {
                     self.load_static_abi_return_value_as(offset, index, returns.len(), ty)
                 } else {
                     value

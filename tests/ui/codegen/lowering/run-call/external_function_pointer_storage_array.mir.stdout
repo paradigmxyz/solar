@@ -123,7 +123,7 @@ fn @storeCalldata(arg0: calldataslice) [selector=0x6aabe1c4, abi_params=[array<_
     jump bb1
 }
 
-fn @runAll() -> memorybytes [selector=0x34ba89a6, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @runAll() -> memptr [selector=0x34ba89a6, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
     set_memory_object_len memoryarray, v0, 2
@@ -326,7 +326,7 @@ fn @runAll() -> memorybytes [selector=0x34ba89a6, abi_params=[], abi_returns=[me
     v175 = lt v174, v156
     jumpi v175, bb20, bb21
   bb21:
-    v188 = ptrtoint memoryarray v173 to i256
+    v188 = ptrtoint memptr v173 to i256
     v189 = memory_object_len memoryarray, v173
     v190 = sload 2 !metadata(storage=slot(2))
     v191 = gt v190, v189
@@ -496,7 +496,7 @@ fn @runAll() -> memorybytes [selector=0x34ba89a6, abi_params=[], abi_returns=[me
     jump bb3
 }
 
-fn @store_storage_bytes(arg0: i256, arg1: memorybytes) {
+fn @store_storage_bytes(arg0: i256, arg1: memptr) {
   bb0:
     store_storage_bytes arg0, arg1
     ret

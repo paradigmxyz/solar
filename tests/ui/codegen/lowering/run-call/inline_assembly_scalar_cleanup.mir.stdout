@@ -1,8 +1,8 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/inline_assembly_scalar_cleanup.sol:InlineAssemblyScalarCleanup ===
 @module InlineAssemblyScalarCleanup
 @types
-  struct0: {i256, memorybytes}
-  struct1: {i8, memorybytes}
+  struct0: {i256, memptr}
+  struct1: {i8, memptr}
   struct2: {i256, i256}
   struct3: {i8, i8, i8, i8, i8, i8}
   struct4: {i1, i1, i1, i1, i1, i1}

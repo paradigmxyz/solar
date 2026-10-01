@@ -177,13 +177,13 @@ fn @test(arg0: calldataslice) [selector=0x787210b9, abi_params=[array<_, array<_
     ret
   bb13:
     v106 = memory_object_load_element memoryarray<1>, v45, v104
-    v107 = inttoptr i256 v106 to memoryarray
+    v107 = inttoptr i256 v106 to memptr
     v108 = eq v106, 0
     jumpi v108, bb15, bb16
   bb15:
     v109 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
     set_memory_object_len memoryarray, v109, 0
-    v110 = ptrtoint memoryarray v109 to i256
+    v110 = ptrtoint memptr v109 to i256
     memory_object_store_element memoryarray<1>, v45, v104, v110
     jump bb16
   bb16:
@@ -320,7 +320,7 @@ fn @test(arg0: calldataslice) [selector=0x787210b9, abi_params=[array<_, array<_
     v79 = lt v78, v60
     jumpi v79, bb5, bb6
   bb6:
-    v87 = ptrtoint memoryarray v77 to i256
+    v87 = ptrtoint memptr v77 to i256
     memory_object_store_element memoryarray<1>, v45, v46, v87
     v88 = add v46, 1
     jump bb1
@@ -565,13 +565,13 @@ fn @test2(arg0: calldataslice) [selector=0x56647b67, abi_params=[array<_, array<
     ret
   bb49:
     v195 = memory_object_load_element memoryarray<1>, v129, v193
-    v196 = inttoptr i256 v195 to memoryarray
+    v196 = inttoptr i256 v195 to memptr
     v197 = eq v195, 0
     jumpi v197, bb51, bb52
   bb51:
     v198 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
     set_memory_object_len memoryarray, v198, 0
-    v199 = ptrtoint memoryarray v198 to i256
+    v199 = ptrtoint memptr v198 to i256
     memory_object_store_element memoryarray<1>, v129, v193, v199
     jump bb52
   bb52:
@@ -708,7 +708,7 @@ fn @test2(arg0: calldataslice) [selector=0x56647b67, abi_params=[array<_, array<
     v163 = lt v162, v144
     jumpi v163, bb41, bb42
   bb42:
-    v171 = ptrtoint memoryarray v161 to i256
+    v171 = ptrtoint memptr v161 to i256
     memory_object_store_element memoryarray<1>, v129, v130, v171
     v172 = add v130, 1
     jump bb37
@@ -725,13 +725,13 @@ fn @test2(arg0: calldataslice) [selector=0x56647b67, abi_params=[array<_, array<
     jump bb40
   bb13:
     v27 = memory_object_load_element memoryarray<1>, v0, v25
-    v28 = inttoptr i256 v27 to memoryarray
+    v28 = inttoptr i256 v27 to memptr
     v29 = eq v27, 0
     jumpi v29, bb15, bb16
   bb15:
     v30 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
     set_memory_object_len memoryarray, v30, 0
-    v31 = ptrtoint memoryarray v30 to i256
+    v31 = ptrtoint memptr v30 to i256
     memory_object_store_element memoryarray<1>, v0, v25, v31
     jump bb16
   bb16:
@@ -762,13 +762,13 @@ fn @test2(arg0: calldataslice) [selector=0x56647b67, abi_params=[array<_, array<
     jump bb12
   bb23:
     v52 = memory_object_load_element memoryarray<1>, v32, v50
-    v53 = inttoptr i256 v52 to memoryarray
+    v53 = inttoptr i256 v52 to memptr
     v54 = eq v52, 0
     jumpi v54, bb25, bb26
   bb25:
     v55 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
     set_memory_object_len memoryarray, v55, 0
-    v56 = ptrtoint memoryarray v55 to i256
+    v56 = ptrtoint memptr v55 to i256
     memory_object_store_element memoryarray<1>, v32, v50, v56
     jump bb26
   bb26:

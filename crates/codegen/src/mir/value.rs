@@ -45,8 +45,8 @@ pub(crate) enum Immediate {
     Int(U256, NonZeroU32),
     /// A 256-bit integer constant.
     I256(U256),
-    /// A constant pointer; its type implies no validity or aliasing guarantee.
-    Pointer(U256, MirType),
+    /// A constant `memptr`, with no implied validity or aliasing guarantee.
+    Pointer(U256),
 }
 
 impl Immediate {
@@ -69,7 +69,7 @@ impl Immediate {
                 );
                 Self::Int(value, bits)
             }
-            Some(ty @ (MirType::MemPtr | MirType::MemoryObject(_))) => Self::Pointer(value, ty),
+            Some(MirType::MemPtr) => Self::Pointer(value),
             _ => Self::I256(value),
         }
     }
@@ -81,7 +81,7 @@ impl Immediate {
             Self::I1(_) => MirType::I1,
             Self::I256(_) => MirType::I256,
             Self::Int(_, bits) => MirType::Int(*bits),
-            Self::Pointer(_, ty) => *ty,
+            Self::Pointer(_) => MirType::MemPtr,
         }
     }
 
@@ -90,7 +90,7 @@ impl Immediate {
     pub(crate) fn as_u256(&self) -> Option<U256> {
         match self {
             Self::I1(b) => Some(U256::from(*b as u64)),
-            Self::I256(v) | Self::Int(v, _) | Self::Pointer(v, _) => Some(*v),
+            Self::I256(v) | Self::Int(v, _) | Self::Pointer(v) => Some(*v),
         }
     }
 }
@@ -99,7 +99,7 @@ impl fmt::Display for Immediate {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::I1(b) => write!(f, "{b}"),
-            Self::I256(v) | Self::Int(v, _) | Self::Pointer(v, _) => {
+            Self::I256(v) | Self::Int(v, _) | Self::Pointer(v) => {
                 write!(f, "{v}")
             }
         }
@@ -111,13 +111,8 @@ impl Ord for Immediate {
         let rank = |value: &Self| match value {
             Self::I1(_) => 0,
             Self::I256(_) => 1,
-            Self::Pointer(_, _) => 2,
+            Self::Pointer(_) => 2,
             Self::Int(_, _) => 3,
-        };
-        let pointer_rank = |ty| match ty {
-            MirType::MemPtr => 2,
-            MirType::MemoryObject(kind) => 3 + kind as u8,
-            _ => unreachable!("pointer immediate has a pointer type"),
         };
         rank(self).cmp(&rank(other)).then_with(|| match (self, other) {
             (Self::I1(a), Self::I1(b)) => a.cmp(b),
@@ -125,9 +120,7 @@ impl Ord for Immediate {
             (Self::Int(a, a_bits), Self::Int(b, b_bits)) => {
                 a_bits.cmp(b_bits).then_with(|| a.cmp(b))
             }
-            (Self::Pointer(a, a_ty), Self::Pointer(b, b_ty)) => {
-                pointer_rank(*a_ty).cmp(&pointer_rank(*b_ty)).then_with(|| a.cmp(b))
-            }
+            (Self::Pointer(a), Self::Pointer(b)) => a.cmp(b),
             _ => Ordering::Equal,
         })
     }

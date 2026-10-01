@@ -2,17 +2,16 @@
 //!
 //! The selected memory-layout policy supplies object headers, field offsets, and element strides.
 //! Semantic accesses and allocations become raw pointer arithmetic, loads, stores, and allocation
-//! operations, then object types are erased. Mixed slice/object merges are materialized before
-//! that erasure so later operations still use the correct representation. Unreachable blocks are
-//! removed before substitution: their definitions need not obey SSA and can contain cast cycles.
+//! operations. Mixed slice/object merges are materialized first so later operations still use the
+//! correct representation. Unreachable blocks are removed before substitution: their definitions
+//! need not obey SSA and can contain cast cycles.
 //!
-//! This runs after SSA structs and mutable frame slots have been lowered. It leaves modules with
-//! live SSA structs untouched: erasing an object's type while a struct still declares that field
-//! would break the aggregate type contract. The module stays semantic until
-//! the final conversion verifies all backend representation requirements.
+//! This runs after SSA structs and mutable frame slots have been lowered, and rejects modules
+//! that still have live SSA structs. The module stays semantic until the final conversion
+//! verifies all backend representation requirements.
 //! An earlier simplification can replace a zero-offset object projection with
 //! its slice operand. Such a function still needs slice-load lowering even if
-//! it no longer contains object types or object operations. Unsupported layouts
+//! it no longer contains object operations. Unsupported layouts
 //! and address spaces retain their operations for the subsequent phase checks.
 
 use crate::mir::{
@@ -23,7 +22,7 @@ use crate::mir::{
     pass::MirPass,
 };
 use alloy_primitives::U256;
-use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
+use solar_data_structures::{index::IndexVec, map::FxHashMap};
 use solar_sema::Gcx;
 
 /// Lowers semantic object layouts under the selected physical memory policy.
@@ -58,13 +57,6 @@ impl MirPass for LowerMemoryObjects {
             return false;
         }
         let mut changed = false;
-        // struct { memory_object, ... } -> struct { memptr, ... }
-        for structure in &mut module.struct_types {
-            for field in &mut structure.fields {
-                changed |= is_object_type(field);
-                erase_object_type(field);
-            }
-        }
         for func in module.functions.iter_mut() {
             changed |= lower_function::<EvmMemoryLayout>(func);
         }
@@ -73,10 +65,10 @@ impl MirPass for LowerMemoryObjects {
 }
 
 fn lower_function<P: MemoryLayoutPolicy>(func: &mut Function) -> bool {
-    let is_object_value = |value| func.value_ty(value).as_ref().is_some_and(is_object_type);
-    let needs_lowering = func.arg_indices().any(|index| is_object_type(&func.arg_ty(index)))
-        || func.return_components().iter().any(is_object_type)
-        || func.live_values().any(is_object_value)
+    let is_pointer = |ty: MirType| ty == MirType::MemPtr;
+    let needs_lowering = func.arg_indices().any(|index| is_pointer(func.arg_ty(index)))
+        || func.return_components().iter().copied().any(is_pointer)
+        || func.live_values().any(|value| func.value_ty(value).is_some_and(is_pointer))
         || func.instructions().any(|inst_id| {
             let kind = &func.inst(inst_id).kind;
             kind.is_memory_object_op()
@@ -447,7 +439,8 @@ fn lower_function<P: MemoryLayoutPolicy>(func: &mut Function) -> bool {
     }
 
     func.replace_uses_canonicalized(&replacements);
-    erase_object_types(func);
+    func.attributes.may_return_memory |=
+        func.params.iter().chain(func.return_components()).any(|ty| ty.is_memory_reference());
     coalesce_constant_allocations(func);
     normalize_pointer_operands(func);
     true
@@ -599,6 +592,9 @@ fn slice_load_kind(location: SliceLocation, address: crate::mir::ValueId) -> Opt
 /// edge. The memory-object users after this pass expect the same header/data
 /// representation on both edges, so copy the slice into a fresh bytes object
 /// before forming the phi.
+///
+/// NOTE: pointers carry no object kind, so this treats every pointer phi with a
+/// slice input as bytes; only `bytes` and `string` values join slices in source.
 fn materialize_mixed_byte_phis(func: &mut Function) {
     let blocks = func.blocks.indices();
     for block in blocks {
@@ -608,10 +604,8 @@ fn materialize_mixed_byte_phis(func: &mut Function) {
             .copied()
             .filter(|&inst| {
                 let Some(result) = func.inst_result_value(inst) else { return false };
-                matches!(
-                    func.value_ty(result),
-                    Some(MirType::MemoryObject(MemoryObjectKind::Bytes))
-                ) && matches!(func.inst(inst).kind, InstKind::Phi(_))
+                matches!(func.value_ty(result), Some(MirType::MemPtr))
+                    && matches!(func.inst(inst).kind, InstKind::Phi(_))
             })
             .collect();
         for inst in phis {
@@ -620,10 +614,7 @@ fn materialize_mixed_byte_phis(func: &mut Function) {
                 .iter()
                 .any(|(_, value)| matches!(func.value_ty(*value), Some(MirType::Slice(_))))
                 || !incoming.iter().all(|(_, value)| {
-                    matches!(
-                        func.value_ty(*value),
-                        Some(MirType::Slice(_) | MirType::MemoryObject(MemoryObjectKind::Bytes),)
-                    )
+                    matches!(func.value_ty(*value), Some(MirType::Slice(_) | MirType::MemPtr))
                 })
             {
                 continue;
@@ -710,13 +701,6 @@ fn lower_slice_copy<P: MemoryLayoutPolicy>(
     source: crate::mir::ValueId,
 ) -> Option<InstKind> {
     match builder.func().value_ty(source)? {
-        MirType::MemoryObject(kind) => {
-            let length_offset = P::object_length_offset(kind)?;
-            let source_ptr = builder.add_u64_offset(source, P::object_data_offset(kind));
-            let length_address = builder.add_u64_offset(source, length_offset);
-            let length = builder.mload(length_address);
-            Some(InstKind::MCopy(destination, source_ptr, length))
-        }
         MirType::Slice(location) => {
             let source_ptr = builder.slice_ptr(source);
             let length = builder.slice_len(source);
@@ -746,44 +730,6 @@ fn lower_object_copy<P: MemoryLayoutPolicy>(
     let base = builder.add_u64_offset(object, P::object_data_offset(kind));
     let destination = offset.map_or(base, |offset| dynamic_offset_address(builder, base, offset));
     lower_slice_copy::<P>(builder, destination, source)
-}
-
-fn erase_object_types(func: &mut Function) {
-    func.attributes.may_return_memory |=
-        func.params.iter().chain(func.return_components()).any(|ty| ty.is_memory_reference());
-    for index in func.arg_indices() {
-        let mut ty = func.arg_ty(index);
-        erase_object_type(&mut ty);
-        func.set_arg_ty(index, ty);
-    }
-    for ty in func.return_components_mut() {
-        erase_object_type(ty);
-    }
-    let mut values = DenseBitSet::new_empty(func.num_values());
-    for value in func.live_values() {
-        values.insert(value);
-    }
-    for value in values.iter() {
-        match func.value_mut(value) {
-            Value::Undef(ty) | Value::Immediate(Immediate::Pointer(_, ty)) => erase_object_type(ty),
-            Value::Arg(_) | Value::Inst(_) | Value::Immediate(_) | Value::Error(_) => {}
-        }
-    }
-    func.for_each_instruction_mut(|_, inst| {
-        if let Some(ty) = &mut inst.result_ty {
-            erase_object_type(ty);
-        }
-    });
-}
-
-fn erase_object_type(ty: &mut MirType) {
-    if is_object_type(ty) {
-        *ty = MirType::MemPtr;
-    }
-}
-
-fn is_object_type(ty: &MirType) -> bool {
-    matches!(ty, MirType::MemoryObject(_))
 }
 
 /// Materializes integer operands and pointer results at the physical opcode boundary.

@@ -6,7 +6,7 @@
 
 // CHECK-LABEL: fn @mixed(
 // CHECK: alloc memorybytes, {{.*}} !metadata(preserves_fmp)
-fn @mixed(arg0: i16, arg1: memorybytes) -> memorybytes {
+fn @mixed(arg0: i16, arg1: memptr) -> memptr {
   bb0:
     v0 = abi_encode_packed (data hex"000102", u16 arg0, bytes arg1)
     ret v0
@@ -20,19 +20,19 @@ fn @hash(arg0: i16) -> i256 {
 
 // CHECK-LABEL: fn @arrays(
 // CHECK: alloc memorybytes, {{.*}} !metadata(preserves_fmp)
-fn @arrays(arg0: memoryarray, arg1: calldataslice) -> memorybytes {
+fn @arrays(arg0: memptr, arg1: calldataslice) -> memptr {
   bb0:
     v0 = abi_encode_packed (array<word<i16>> memoryarray<1> arg0, array<word<bool>> calldata arg1)
     ret v0
 }
 
-fn @nested(arg0: memoryfixedarray) -> memorybytes {
+fn @nested(arg0: memptr) -> memptr {
   bb0:
     v0 = abi_encode_packed (array<array<2, word<enum 3>>> memoryfixedarray<2, 1> arg0)
     ret v0
 }
 
-fn @edge(arg0: i1, arg1: memoryarray, arg2: memorybytes) -> memorybytes {
+fn @edge(arg0: i1, arg1: memptr, arg2: memptr) -> memptr {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:
@@ -60,7 +60,7 @@ fn @edge(arg0: i1, arg1: memoryarray, arg2: memorybytes) -> memorybytes {
 // CHECK-NEXT: {{.*}}[[OFFSET:v[0-9]+]] = mul [[INDEX]], 32
 // CHECK-NEXT: {{.*}}[[DEST:v[0-9]+]] = add 1, [[OFFSET]]
 // CHECK-NEXT: {{.*}}memory_object_load_element memoryarray<1>, arg0, [[INDEX]]
-fn @prefixed_array(arg0: memoryarray) -> memorybytes {
+fn @prefixed_array(arg0: memptr) -> memptr {
   bb0:
     v0 = abi_encode_packed (data hex"ab", array<word<u8>> memoryarray<1> arg0)
     ret v0

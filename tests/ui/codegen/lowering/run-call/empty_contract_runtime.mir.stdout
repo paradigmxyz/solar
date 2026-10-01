@@ -15,7 +15,7 @@ fn @nonEmptyCode() -> i1 [selector=0x73c60a6b, pure, abi_params=[], abi_returns=
     set_memory_object_len memorybytes, v2, v0
     v3 = memory_object_data memorybytes, v2
     v4 = datasize A_creation_code_0, 31, aligned
-    v5 = ptrtoint memorybytes v2 to i256
+    v5 = ptrtoint memptr v2 to i256
     v6 = add v5, v4
     mstore v6, 0
     v7 = ptrtoint memptr v3 to i256
@@ -32,7 +32,7 @@ fn @nonEmptyCode() -> i1 [selector=0x73c60a6b, pure, abi_params=[], abi_returns=
     set_memory_object_len memorybytes, v12, v10
     v13 = memory_object_data memorybytes, v12
     v14 = datasize A_runtime_code_1, 31, aligned
-    v15 = ptrtoint memorybytes v12 to i256
+    v15 = ptrtoint memptr v12 to i256
     v16 = add v15, v14
     mstore v16, 0
     v17 = ptrtoint memptr v13 to i256
@@ -75,7 +75,7 @@ fn @hasNonCallableRuntime() -> i1 [selector=0x0fedb051, pure, abi_params=[], abi
     set_memory_object_len memorybytes, v2, v0
     v3 = memory_object_data memorybytes, v2
     v4 = datasize InternalContract_runtime_code_0, 31, aligned
-    v5 = ptrtoint memorybytes v2 to i256
+    v5 = ptrtoint memptr v2 to i256
     v6 = add v5, v4
     mstore v6, 0
     v7 = ptrtoint memptr v3 to i256
@@ -92,7 +92,7 @@ fn @hasNonCallableRuntime() -> i1 [selector=0x0fedb051, pure, abi_params=[], abi
     set_memory_object_len memorybytes, v12, v10
     v13 = memory_object_data memorybytes, v12
     v14 = datasize ConstructorOnly_runtime_code_1, 31, aligned
-    v15 = ptrtoint memorybytes v12 to i256
+    v15 = ptrtoint memptr v12 to i256
     v16 = add v15, v14
     mstore v16, 0
     v17 = ptrtoint memptr v13 to i256
@@ -112,7 +112,7 @@ fn @hasNonCallableRuntime() -> i1 [selector=0x0fedb051, pure, abi_params=[], abi
     set_memory_object_len memorybytes, v23, v21
     v24 = memory_object_data memorybytes, v23
     v25 = datasize InternalLibrary_runtime_code_2, 31, aligned
-    v26 = ptrtoint memorybytes v23 to i256
+    v26 = ptrtoint memptr v23 to i256
     v27 = add v26, v25
     mstore v27, 0
     v28 = ptrtoint memptr v24 to i256

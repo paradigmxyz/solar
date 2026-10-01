@@ -17,7 +17,7 @@ fn @xs(arg0: i256) -> i160 [selector=0x6ee65772, view, abi_params=[u256], abi_re
     ret v10
 }
 
-fn @constructor(arg0: memoryarray) [constructor, abi_params=[array<_, address>]] {
+fn @constructor(arg0: memptr) [constructor, abi_params=[array<_, address>]] {
   bb0:
     v0 = memory_object_len memoryarray, arg0
     v1 = sload 0 !metadata(storage=slot(0))

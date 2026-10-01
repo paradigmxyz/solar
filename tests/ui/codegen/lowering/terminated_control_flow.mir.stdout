@@ -361,7 +361,7 @@ fn @storageRevertPayload() -> i1 [selector=0x0156c876, abi_params=[], abi_return
     v19 = memory_object_data memorybytes, v18
     v20 = ptrtoint memptr v19 to i256
     mstore v20, 0
-    v21 = ptrtoint memorybytes v18 to i256
+    v21 = ptrtoint memptr v18 to i256
     v22 = abi_encode [memory_bytes], object, selector 0xe53184de00000000000000000000000000000000000000000000000000000000, args v18
     v23 = keccak256_bytes v22
     v24 = eq v17, v23

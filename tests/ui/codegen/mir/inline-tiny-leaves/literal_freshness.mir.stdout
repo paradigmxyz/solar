@@ -6,7 +6,7 @@ fn @freshInLoop(arg0: i256) -> i1 [selector=0x533a7d1b, pure, abi_params=[bytes1
   bb1:
     v0 = phi [bb0: 0], [bb3: v28]
     v1 = phi [bb0: arg0], [bb3: v1]
-    v2 = phi [bb0: memorybytes 96], [bb3: v5]
+    v2 = phi [bb0: memptr 96], [bb3: v5]
     v3 = phi [bb0: 0], [bb3: v3]
     v4 = lt v0, 2
     jumpi v4, bb4, bb5
@@ -81,7 +81,7 @@ fn @emptyLiteral() -> i256 [selector=0x298b653f, pure, abi_params=[], abi_return
     ret v1
 }
 
-fn @encoded(arg0: i256) -> memorybytes [selector=0xdbafcb80, pure, abi_params=[u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @encoded(arg0: i256) -> memptr [selector=0xdbafcb80, pure, abi_params=[u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = shl 224, 0x12345678
     v1 = icall @encodedWord
@@ -92,7 +92,7 @@ fn @encoded(arg0: i256) -> memorybytes [selector=0xdbafcb80, pure, abi_params=[u
     ret v4
 }
 
-fn @literal() -> memorybytes [pure] {
+fn @literal() -> memptr [pure] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 1
@@ -102,7 +102,7 @@ fn @literal() -> memorybytes [pure] {
     ret v0
 }
 
-fn @empty() -> memorybytes [pure] {
+fn @empty() -> memptr [pure] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 0
@@ -110,7 +110,7 @@ fn @empty() -> memorybytes [pure] {
     ret v0
 }
 
-fn @encodedWord() -> memorybytes [pure] {
+fn @encodedWord() -> memptr [pure] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 1

@@ -75,20 +75,20 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word]
     v46 = lt 0, v45
     v47 = eq v46, false
     icall panic_if<0x32>, v47
-    v48 = ptrtoint memoryarray v44 to i256
+    v48 = ptrtoint memptr v44 to i256
     memory_object_store_element memoryarray<1>, v40, 0, v48
     v49 = memory_object_len memoryarray, v40
     v50 = lt 0, v49
     v51 = eq v50, false
     icall panic_if<0x32>, v51
     v52 = memory_object_load_element memoryarray<1>, v40, 0
-    v53 = inttoptr i256 v52 to memoryarray
+    v53 = inttoptr i256 v52 to memptr
     v54 = eq v52, 0
     jumpi v54, bb4, bb5
   bb4:
     v55 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
     set_memory_object_len memoryarray, v55, 0
-    v56 = ptrtoint memoryarray v55 to i256
+    v56 = ptrtoint memptr v55 to i256
     memory_object_store_element memoryarray<1>, v40, 0, v56
     jump bb5
   bb5:
@@ -132,13 +132,13 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word]
     ret v107
   bb15:
     v77 = memory_object_load_element memoryarray<1>, v40, v75
-    v78 = inttoptr i256 v77 to memoryarray
+    v78 = inttoptr i256 v77 to memptr
     v79 = eq v77, 0
     jumpi v79, bb17, bb18
   bb17:
     v80 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
     set_memory_object_len memoryarray, v80, 0
-    v81 = ptrtoint memoryarray v80 to i256
+    v81 = ptrtoint memptr v80 to i256
     memory_object_store_element memoryarray<1>, v40, v75, v81
     jump bb18
   bb18:

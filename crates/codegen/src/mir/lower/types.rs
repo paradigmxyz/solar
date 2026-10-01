@@ -77,16 +77,6 @@ impl<'gcx> TypeLowerer<'gcx> {
         }
     }
 
-    /// Retains native scalar widths in function signatures.
-    pub(super) fn mir_signature_type(ty: Ty<'_>) -> MirType {
-        Self::mir_type(ty)
-    }
-
-    /// Returns the MIR representation used for a function return value.
-    pub(super) fn mir_return_type(ty: Ty<'_>) -> MirType {
-        Self::mir_signature_type(ty)
-    }
-
     /// Preserves raw scalar bits in immutables for inline assembly reads.
     pub(super) fn immutable_layout(ty: Ty<'_>) -> ValueLayout {
         match Self::value_layout(ty) {

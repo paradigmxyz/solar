@@ -59,7 +59,7 @@ fn @full() [selector=0xd17b272f, abi_wrapper, view] {
     mstore v146, 0
     mstore v130, v141
     v148 = add v145, v144
-    mcopy v145, v237, v141
+    mcopy v145, v237, v141 !metadata(disjoint)
     v151 = sub v148, v263
     v153 = add v151, 31
     v155 = and v153, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
@@ -68,7 +68,7 @@ fn @full() [selector=0xd17b272f, abi_wrapper, view] {
     mstore 64, v265 !metadata(memory=scratch)
     returndata v264, v151
   bb6:
-    v47 = add v276, 36
+    v47 = add v237, 4
     v49 = mload v47
     v258 = mload 64 !metadata(memory=scratch)
     v259 = add v258, 64
@@ -92,7 +92,7 @@ fn @full() [selector=0xd17b272f, abi_wrapper, view] {
     mstore v115, 0
     mstore v99, v110
     v117 = add v114, v113
-    mcopy v114, v243, v110
+    mcopy v114, v243, v110 !metadata(disjoint)
     v120 = sub v117, v260
     v122 = add v120, 31
     v124 = and v122, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
@@ -101,7 +101,7 @@ fn @full() [selector=0xd17b272f, abi_wrapper, view] {
     mstore 64, v262 !metadata(memory=scratch)
     returndata v261, v120
   bb4:
-    v28 = add v276, 36
+    v28 = add v237, 4
     v29 = sub v65, 4
     v32 = add v29, 63
     v33 = lt v32, v29
@@ -134,7 +134,7 @@ fn @full() [selector=0xd17b272f, abi_wrapper, view] {
     mstore v161, v172
     v179 = add v176, v175
     v249 = add v247, 32
-    mcopy v176, v249, v172
+    mcopy v176, v249, v172 !metadata(disjoint)
     v182 = sub v179, v268
     v184 = add v182, 31
     v186 = and v184, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
@@ -177,7 +177,7 @@ fn @full() [selector=0xd17b272f, abi_wrapper, view] {
     mstore v192, v203
     v210 = add v207, v206
     v251 = add v224, 32
-    mcopy v207, v251, v203
+    mcopy v207, v251, v203 !metadata(disjoint)
     v213 = sub v210, v273
     v215 = add v213, 31
     v217 = and v215, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
@@ -224,7 +224,7 @@ fn @rethrows() [selector=0x0d7fadfb, abi_wrapper, view] {
   bb6:
     revert v78, v45
   bb5:
-    v26 = add v94, 36
+    v26 = add v78, 4
     v27 = sub v45, 4
     v30 = add v27, 63
     v31 = lt v30, v27

@@ -33,7 +33,7 @@ fn @choose(arg0: calldataslice, arg1: i1) -> i256 [selector=0x1fae9324, pure, ab
     ret v2
 }
 
-fn @memoryFirst(arg0: memorystruct) -> i256 [selector=0xfd428e4b, pure, abi_params=[tuple<u256, u256>], abi_returns=[word], abi_return_params=[u256]] {
+fn @memoryFirst(arg0: memptr) -> i256 [selector=0xfd428e4b, pure, abi_params=[tuple<u256, u256>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = memory_object_load_field memorystruct<2>, arg0, 0
     ret v0

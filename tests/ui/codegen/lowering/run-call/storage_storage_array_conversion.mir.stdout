@@ -106,7 +106,7 @@ fn @dynamic() -> i256 [selector=0x4bd54f04, abi_params=[], abi_returns=[word], a
     sstore v84, 11 !metadata(storage=symbolic(v84))
     sstore 1, v82 !metadata(storage=slot(1))
     v85 = icall @load_storage_packed_array_8_0, 0
-    v86 = ptrtoint memoryarray v85 to i256
+    v86 = ptrtoint memptr v85 to i256
     v87 = memory_object_len memoryarray, v85
     v88 = sload 1 !metadata(storage=slot(1))
     v89 = gt v88, v87
@@ -344,7 +344,7 @@ fn @nested() -> i256 [selector=0x4ce2d543, abi_params=[], abi_returns=[word], ab
     v158 = lt v157, 2
     jumpi v158, bb2, bb3
   bb3:
-    v175 = ptrtoint memoryfixedarray v156 to i256
+    v175 = ptrtoint memptr v156 to i256
     jump bb7
   bb7:
     v176 = phi [bb3: 0], [bb12: v235]
@@ -377,7 +377,7 @@ fn @nested() -> i256 [selector=0x4ce2d543, abi_params=[], abi_returns=[word], ab
     jumpi v180, bb10, bb11
   bb11:
     v208 = alloc memoryfixedarray<6, 1>, exact, uninitialized, infallible, 192
-    v209 = ptrtoint memoryfixedarray v208 to i256
+    v209 = ptrtoint memptr v208 to i256
     memory_zero v209, 192
     jump bb19
   bb19:
@@ -450,7 +450,7 @@ fn @nested() -> i256 [selector=0x4ce2d543, abi_params=[], abi_returns=[word], ab
     sstore v185, v206 !metadata(storage=symbolic(v185))
     jump bb18
   bb16:
-    v189 = inttoptr i256 v181 to memoryfixedarray
+    v189 = inttoptr i256 v181 to memptr
     v190 = memory_object_load_element memoryfixedarray<5, 1>, v189, v182
     v191 = mul v187, 8
     v192 = shl v191, 0xffffffffffffffffffffffffffffff
@@ -474,7 +474,7 @@ fn @nested() -> i256 [selector=0x4ce2d543, abi_params=[], abi_returns=[word], ab
     v162 = lt v161, 5
     jumpi v162, bb5, bb6
   bb6:
-    v173 = ptrtoint memoryfixedarray v160 to i256
+    v173 = ptrtoint memptr v160 to i256
     memory_object_store_element memoryfixedarray<2, 1>, v156, v157, v173
     v174 = add v157, 1
     jump bb1
@@ -507,7 +507,7 @@ fn @fixedToDynamic() -> i256 [selector=0xf12520ec, abi_params=[], abi_returns=[w
     v5 = lt v4, 9
     jumpi v5, bb2, bb3
   bb3:
-    v9 = ptrtoint memoryfixedarray v3 to i256
+    v9 = ptrtoint memptr v3 to i256
     v10 = sload 11 !metadata(storage=slot(11))
     v11 = gt v10, 9
     jumpi v11, bb4, bb5
@@ -558,7 +558,7 @@ fn @fixedToDynamic() -> i256 [selector=0xf12520ec, abi_params=[], abi_returns=[w
     jump bb1
 }
 
-fn @load_storage_packed_array_8_0(arg0: i256) -> memoryarray {
+fn @load_storage_packed_array_8_0(arg0: i256) -> memptr {
   bb0:
     v0 = load_storage_array u64, arg0
     ret v0

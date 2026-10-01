@@ -3,7 +3,7 @@
 @types
   struct0: {i256, i1, i160}
 
-fn @decode(arg0: memorybytes) -> struct0 [selector=0xe5c5e9a3, pure, abi_params=[bytes], abi_returns=[word, word<bool>, word<u160>], abi_return_params=[u256, bool, address]] {
+fn @decode(arg0: memptr) -> struct0 [selector=0xe5c5e9a3, pure, abi_params=[bytes], abi_returns=[word, word<bool>, word<u160>], abi_return_params=[u256, bool, address]] {
   bb0:
     v0 = abi_decode [u256, bool, address], arg0
     v1 = extract_value struct0, v0, 0

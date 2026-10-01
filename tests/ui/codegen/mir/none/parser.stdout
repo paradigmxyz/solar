@@ -108,7 +108,7 @@
       stop
   }
   
-  fn @precompiles(arg0: memorybytes) -> i256 {
+  fn @precompiles(arg0: memptr) -> i256 {
     bb0:
       v0 = icall sha256<>, arg0
       v1 = icall ripemd160<>, arg0
@@ -116,7 +116,7 @@
       ret v2
   }
   
-  fn @concatenate(arg0: memorybytes) -> memorybytes {
+  fn @concatenate(arg0: memptr) -> memptr {
     bb0:
       v0 = icall concat<memorybytes, bytes2>, arg0, 0x1234000000000000000000000000000000000000000000000000000000000000
       ret v0
@@ -175,13 +175,12 @@
       v2 = sext i1 arg1 to i256
       v3 = ptrtoint memptr arg2 to i160
       v4 = inttoptr i256 arg0 to memptr
-      v5 = bitcast memptr arg2 to memorybytes
       ret v4
   }
   
-  fn @cast_undef() -> memorybytes {
+  fn @cast_undef() -> memptr {
     bb0:
-      v0 = bitcast memptr undef to memorybytes
+      v0 = inttoptr i256 undef to memptr
       ret v0
   }
   

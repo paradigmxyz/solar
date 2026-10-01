@@ -88,7 +88,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v2 = lt v1, 9
     jumpi v2, bb2, bb3
   bb3:
-    v12 = ptrtoint memoryfixedarray v0 to i256
+    v12 = ptrtoint memptr v0 to i256
     jump bb4
   bb4:
     v13 = phi [bb3: 0], [bb9: v39]

@@ -14,7 +14,7 @@ fn @codeHash(arg0: i160) -> i256 [selector=0x3dc44827, view, abi_params=[address
     ret v1
 }
 
-fn @code(arg0: i160) -> memorybytes [selector=0x5b90b752, view, abi_params=[address], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @code(arg0: i160) -> memptr [selector=0x5b90b752, view, abi_params=[address], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = zext i160 arg0 to i256
     v1 = extcodesize v0

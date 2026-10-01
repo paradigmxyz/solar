@@ -71,7 +71,7 @@ fn @memoryDisjoint() -> i256 [selector=0xc1ce920c, pure, abi_params=[], abi_retu
     v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
     memory_object_store_element memoryfixedarray<2, 1>, v0, 0, 10
     memory_object_store_element memoryfixedarray<2, 1>, v0, 1, 20
-    v1 = ptrtoint memoryfixedarray v0 to i256
+    v1 = ptrtoint memptr v0 to i256
     v2 = lt 0, 2
     v3 = eq v2, false
     icall panic_if<0x32>, v3
@@ -91,7 +91,7 @@ fn @memoryOverlap() -> i256 [selector=0xb7b7ef77, pure, abi_params=[], abi_retur
     v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
     memory_object_store_element memoryfixedarray<2, 1>, v0, 0, 10
     memory_object_store_element memoryfixedarray<2, 1>, v0, 1, 20
-    v1 = ptrtoint memoryfixedarray v0 to i256
+    v1 = ptrtoint memptr v0 to i256
     v2 = lt 0, 2
     v3 = eq v2, false
     icall panic_if<0x32>, v3
@@ -110,7 +110,7 @@ fn @memoryPartialOverlap() -> i256 [selector=0x3f1d4740, pure, abi_params=[], ab
     v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
     memory_object_store_element memoryfixedarray<2, 1>, v0, 0, 10
     memory_object_store_element memoryfixedarray<2, 1>, v0, 1, 20
-    v1 = ptrtoint memoryfixedarray v0 to i256
+    v1 = ptrtoint memptr v0 to i256
     v2 = lt 0, 2
     v3 = eq v2, false
     icall panic_if<0x32>, v3
@@ -131,7 +131,7 @@ fn @memoryRecursive() -> i256 [selector=0xff857f19, pure, abi_params=[], abi_ret
     memory_object_store_element memoryfixedarray<3, 1>, v0, 0, 10
     memory_object_store_element memoryfixedarray<3, 1>, v0, 1, 20
     memory_object_store_element memoryfixedarray<3, 1>, v0, 2, 30
-    v1 = ptrtoint memoryfixedarray v0 to i256
+    v1 = ptrtoint memptr v0 to i256
     v2 = lt 0, 3
     v3 = eq v2, false
     icall panic_if<0x32>, v3

@@ -19,7 +19,7 @@ fn @runtimeLength() -> i256 [selector=0xb379b2a0, pure, abi_params=[], abi_retur
     set_memory_object_len memorybytes, v2, v0
     v3 = memory_object_data memorybytes, v2
     v4 = datasize EmptyRuntime_runtime_code_0, 31, aligned
-    v5 = ptrtoint memorybytes v2 to i256
+    v5 = ptrtoint memptr v2 to i256
     v6 = add v5, v4
     mstore v6, 0
     v7 = ptrtoint memptr v3 to i256
@@ -28,7 +28,7 @@ fn @runtimeLength() -> i256 [selector=0xb379b2a0, pure, abi_params=[], abi_retur
     ret v8
 }
 
-fn @runtimeCode() -> memorybytes [selector=0x40e70806, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @runtimeCode() -> memptr [selector=0x40e70806, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = datasize EmptyRuntime_runtime_code_0
     v1 = datasize EmptyRuntime_runtime_code_0, 63, aligned
@@ -36,7 +36,7 @@ fn @runtimeCode() -> memorybytes [selector=0x40e70806, pure, abi_params=[], abi_
     set_memory_object_len memorybytes, v2, v0
     v3 = memory_object_data memorybytes, v2
     v4 = datasize EmptyRuntime_runtime_code_0, 31, aligned
-    v5 = ptrtoint memorybytes v2 to i256
+    v5 = ptrtoint memptr v2 to i256
     v6 = add v5, v4
     mstore v6, 0
     v7 = ptrtoint memptr v3 to i256

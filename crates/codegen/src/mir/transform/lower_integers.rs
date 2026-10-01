@@ -8,7 +8,7 @@
 //! pointers retain their distinct types and explicit pointer conversions.
 //!
 //! Sign extension uses SIGNEXTEND for byte widths and negation for i1. All signatures and value
-//! types change together, preserving SSA identities across calls and cyclic phis. No ABI layout
+//! types change together, rewriting uses across calls and cyclic phis. No ABI layout
 //! changes: narrow argument bit patterns are already clean at this internal boundary.
 //! Signed immutable loads need explicit cleanup because runtime placeholders can
 //! sign-extend their stored bits to a full word.
@@ -19,7 +19,7 @@ use crate::mir::{
     pass::{MirPass, ModuleAnalyses},
 };
 use alloy_primitives::U256;
-use solar_data_structures::map::FxHashSet;
+use solar_data_structures::map::{FxHashMap, FxHashSet};
 
 pub(crate) struct LowerIntegers;
 
@@ -111,7 +111,6 @@ fn lower_function(func: &mut Function, signed_immutables: &FxHashSet<ImmutableId
     let types = (0..func.num_values())
         .map(|index| func.value_ty(ValueId::from_usize(index)))
         .collect::<Vec<_>>();
-    let instructions = func.instructions().collect::<Vec<_>>();
     let mut changed = false;
     let returns = func.return_components().iter().copied().map(lower_type).collect::<Vec<_>>();
     let result = lower_type(func.return_type());
@@ -139,10 +138,10 @@ fn lower_function(func: &mut Function, signed_immutables: &FxHashSet<ImmutableId
             }
         }
     }
-    for &id in &instructions {
-        let inst = func.inst_mut(id);
+    func.for_each_instruction_mut(|_, inst| {
         inst.result_ty = inst.result_ty.map(lower_type);
-    }
+    });
+    let mut replacements = FxHashMap::default();
     // Keep original types while rewriting; earlier producers now have word results.
     for block in func.blocks.indices() {
         let instructions = std::mem::take(&mut func.blocks[block].instructions);
@@ -172,7 +171,7 @@ fn lower_function(func: &mut Function, signed_immutables: &FxHashSet<ImmutableId
             }
             let inst = inst.clone();
             builder.set_debug_context(&inst.metadata.debug_context());
-            let kind = match inst.kind {
+            let replacement = match inst.kind {
                 InstKind::LoadImmutable(immutable) if narrow_immutable => {
                     // Runtime placeholders may sign-extend the stored integer.
                     let value = builder.load_immutable(immutable, MirType::I256);
@@ -186,7 +185,7 @@ fn lower_function(func: &mut Function, signed_immutables: &FxHashSet<ImmutableId
                 InstKind::Zext(value)
                     if builder.func().value_ty(value) == builder.func().inst(id).result_ty =>
                 {
-                    Some(InstKind::Bitcast(value))
+                    Some(value)
                 }
                 InstKind::PtrToInt(value, width) if width < 256 => {
                     let value = builder.cast_word(value);
@@ -228,36 +227,37 @@ fn lower_function(func: &mut Function, signed_immutables: &FxHashSet<ImmutableId
                     let a = signed(&mut builder, a, bits(a));
                     let b = signed(&mut builder, b, bits(b));
                     Some(if matches!(inst.kind, InstKind::SLt(..)) {
-                        InstKind::SLt(a, b)
+                        builder.slt(a, b)
                     } else {
-                        InstKind::SGt(a, b)
+                        builder.sgt(a, b)
                     })
                 }
                 _ => None,
             };
-            if let Some(kind) = kind {
-                // Preserve the result identity, including uses in backedge phis.
-                builder.func_mut().inst_mut(id).replace_kind(kind);
+            if let Some(value) = replacement {
+                replacements.insert(inst.result().unwrap(), value);
                 changed = true;
+            } else {
+                builder.func_mut().blocks[block].instructions.push(id);
             }
-            builder.func_mut().blocks[block].instructions.push(id);
         }
     }
+    func.replace_uses_canonicalized(&replacements);
     changed
 }
 
-fn clean(builder: &mut FunctionBuilder<'_>, value: ValueId, bits: u32) -> InstKind {
+fn clean(builder: &mut FunctionBuilder<'_>, value: ValueId, bits: u32) -> ValueId {
     let value = builder.cast_word(value);
     if bits == 256 {
-        return InstKind::Bitcast(value);
+        return value;
     }
     let mask = builder.imm(U256::MAX >> (256 - bits));
     if bits == 1 {
         let value = builder.and(value, mask);
         let zero = builder.imm(0);
-        InstKind::Ne(value, zero)
+        builder.ne(value, zero)
     } else {
-        InstKind::And(value, mask)
+        builder.and(value, mask)
     }
 }
 

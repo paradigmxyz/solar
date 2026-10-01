@@ -11,18 +11,16 @@
 +   bb2:
 +     jump bb1
 +   bb1:
-+     v6 = phi [bb2: arg1]
-+     v7 = phi [bb2: arg0]
-+     mstore 160, v7
++     v5 = phi [bb2: arg1]
++     v6 = phi [bb2: arg0]
++     mstore 160, v6
 +     frame_store multi_return, word, 0, 128 !metadata(memory=scratch)
       v1 = frame_load multi_return, word, 0
       v2 = add v1, 32
 -     v3 = mload v2
--     v4 = bitcast i256 v0 to i256
--     v5 = sub v4, v3
-+     v4 = bitcast i256 v6 to i256
-+     v5 = sub v4, v7
-      ret v5
+-     v4 = sub v0, v3
++     v4 = sub v5, v6
+      ret v4
   }
   
   fn @swap(arg0: i256, arg1: i256) -> struct0 [return_abi=[i256, i256]] {
@@ -60,18 +58,16 @@
 -   bb2:
 -     jump bb1
 -   bb1:
--     v6 = phi [bb2: arg1]
--     v7 = phi [bb2: arg0]
--     mstore 160, v7
+-     v5 = phi [bb2: arg1]
+-     v6 = phi [bb2: arg0]
+-     mstore 160, v6
 +     mstore 160, arg0
       frame_store multi_return, word, 0, 128 !metadata(memory=scratch)
       v1 = frame_load multi_return, word, 0
       v2 = add v1, 32
--     v4 = bitcast i256 v6 to i256
--     v5 = sub v4, v7
-+     v4 = bitcast i256 arg1 to i256
-+     v5 = sub v4, arg0
-      ret v5
+-     v4 = sub v5, v6
++     v4 = sub arg1, arg0
+      ret v4
   }
   
   fn @swap(arg0: i256, arg1: i256) -> struct0 [return_abi=[i256, i256]] {
@@ -109,9 +105,8 @@
       frame_store multi_return, word, 0, 128 !metadata(memory=scratch)
 -     v1 = frame_load multi_return, word, 0
 -     v2 = add v1, 32
-      v4 = bitcast i256 arg1 to i256
-      v5 = sub v4, arg0
-      ret v5
+      v4 = sub arg1, arg0
+      ret v4
   }
   
   fn @swap(arg0: i256, arg1: i256) -> struct0 [return_abi=[i256, i256]] {

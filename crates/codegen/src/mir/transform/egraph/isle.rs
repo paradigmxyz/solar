@@ -176,7 +176,7 @@ pub(in crate::mir::transform) fn max_bits_with_args(
     let bits = |value| max_bits_with_args(func, value, depth - 1, argument_bits);
     let shift = |shift| func.value_u256(shift).map(|shift| shift.min(U256::from(256)).to::<u32>());
     match *kind {
-        InstKind::Zext(value) | InstKind::Bitcast(value) | InstKind::Trunc(value, _) => bits(value),
+        InstKind::Zext(value) | InstKind::Trunc(value, _) => bits(value),
         InstKind::DataSize(size) => size.bound().bit_len() as u32,
         InstKind::And(a, b) => {
             let a = bits(a);
@@ -289,7 +289,6 @@ impl generated::Context for RuleContext<'_> {
                         | Op::Sext { .. }
                         | Op::PtrToInt { .. }
                         | Op::IntToPtr { .. }
-                        | Op::Bitcast { .. }
                 ) || if op.result_kind() == crate::mir::ResultKind::Integer
                     || matches!(op, Op::Select { .. })
                 {

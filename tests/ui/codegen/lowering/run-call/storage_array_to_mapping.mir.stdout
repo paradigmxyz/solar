@@ -347,13 +347,13 @@ fn @constructor() [constructor] {
     jump bb26
   bb10:
     v21 = memory_object_load_element memoryarray<1>, v0, v19
-    v22 = inttoptr i256 v21 to memoryarray
+    v22 = inttoptr i256 v21 to memptr
     v23 = eq v21, 0
     jumpi v23, bb12, bb13
   bb12:
     v24 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
     set_memory_object_len memoryarray, v24, 0
-    v25 = ptrtoint memoryarray v24 to i256
+    v25 = ptrtoint memptr v24 to i256
     memory_object_store_element memoryarray<1>, v0, v19, v25
     jump bb13
   bb13:
@@ -452,7 +452,7 @@ fn @constructor() [constructor] {
     jump bb1
 }
 
-fn @from_storage() -> memoryarray [selector=0x904f60db, abi_params=[], abi_returns=[memory_array<memory_array<word<u8>>>], abi_return_params=[array<_, array<_, u8>>]] {
+fn @from_storage() -> memptr [selector=0x904f60db, abi_params=[], abi_returns=[memory_array<memory_array<word<u8>>>], abi_return_params=[array<_, array<_, u8>>]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = mul v0, 1
@@ -482,7 +482,7 @@ fn @from_storage() -> memoryarray [selector=0x904f60db, abi_params=[], abi_retur
     v19 = lt v18, v0
     jumpi v19, bb2, bb3
   bb3:
-    v25 = ptrtoint memoryarray v17 to i256
+    v25 = ptrtoint memptr v17 to i256
     v26 = mapping_slot 0, 0
     v27 = memory_object_len memoryarray, v17
     v28 = sload v26 !metadata(storage=symbolic(v26))
@@ -538,19 +538,19 @@ fn @from_storage() -> memoryarray [selector=0x904f60db, abi_params=[], abi_retur
     v120 = storage_array_data_slot v99
     v121 = add v120, v118
     v122 = icall @load_storage_packed_array_1_0, v121
-    v123 = ptrtoint memoryarray v122 to i256
+    v123 = ptrtoint memptr v122 to i256
     memory_object_store_element memoryarray<1>, v117, v118, v123
     v124 = add v118, 1
     jump bb24
   bb10:
     v44 = memory_object_load_element memoryarray<1>, v17, v42
-    v45 = inttoptr i256 v44 to memoryarray
+    v45 = inttoptr i256 v44 to memptr
     v46 = eq v44, 0
     jumpi v46, bb12, bb13
   bb12:
     v47 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
     set_memory_object_len memoryarray, v47, 0
-    v48 = ptrtoint memoryarray v47 to i256
+    v48 = ptrtoint memptr v47 to i256
     memory_object_store_element memoryarray<1>, v17, v42, v48
     jump bb13
   bb13:
@@ -647,13 +647,13 @@ fn @from_storage() -> memoryarray [selector=0x904f60db, abi_params=[], abi_retur
     v20 = storage_array_data_slot 1
     v21 = add v20, v18
     v22 = icall @load_storage_packed_array_1_0, v21
-    v23 = ptrtoint memoryarray v22 to i256
+    v23 = ptrtoint memptr v22 to i256
     memory_object_store_element memoryarray<1>, v17, v18, v23
     v24 = add v18, 1
     jump bb1
 }
 
-fn @from_storage_ptr() -> memoryarray [selector=0x764eb525, abi_params=[], abi_returns=[memory_array<memory_array<word<u8>>>], abi_return_params=[array<_, array<_, u8>>]] {
+fn @from_storage_ptr() -> memptr [selector=0x764eb525, abi_params=[], abi_returns=[memory_array<memory_array<word<u8>>>], abi_return_params=[array<_, array<_, u8>>]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = mul v0, 1
@@ -683,7 +683,7 @@ fn @from_storage_ptr() -> memoryarray [selector=0x764eb525, abi_params=[], abi_r
     v19 = lt v18, v0
     jumpi v19, bb2, bb3
   bb3:
-    v25 = ptrtoint memoryarray v17 to i256
+    v25 = ptrtoint memptr v17 to i256
     v26 = mapping_slot 0, 0
     v27 = memory_object_len memoryarray, v17
     v28 = sload v26 !metadata(storage=symbolic(v26))
@@ -739,19 +739,19 @@ fn @from_storage_ptr() -> memoryarray [selector=0x764eb525, abi_params=[], abi_r
     v120 = storage_array_data_slot v99
     v121 = add v120, v118
     v122 = icall @load_storage_packed_array_1_0, v121
-    v123 = ptrtoint memoryarray v122 to i256
+    v123 = ptrtoint memptr v122 to i256
     memory_object_store_element memoryarray<1>, v117, v118, v123
     v124 = add v118, 1
     jump bb24
   bb10:
     v44 = memory_object_load_element memoryarray<1>, v17, v42
-    v45 = inttoptr i256 v44 to memoryarray
+    v45 = inttoptr i256 v44 to memptr
     v46 = eq v44, 0
     jumpi v46, bb12, bb13
   bb12:
     v47 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
     set_memory_object_len memoryarray, v47, 0
-    v48 = ptrtoint memoryarray v47 to i256
+    v48 = ptrtoint memptr v47 to i256
     memory_object_store_element memoryarray<1>, v17, v42, v48
     jump bb13
   bb13:
@@ -848,13 +848,13 @@ fn @from_storage_ptr() -> memoryarray [selector=0x764eb525, abi_params=[], abi_r
     v20 = storage_array_data_slot 1
     v21 = add v20, v18
     v22 = icall @load_storage_packed_array_1_0, v21
-    v23 = ptrtoint memoryarray v22 to i256
+    v23 = ptrtoint memptr v22 to i256
     memory_object_store_element memoryarray<1>, v17, v18, v23
     v24 = add v18, 1
     jump bb1
 }
 
-fn @from_memory() -> memoryarray [selector=0x841ae8f5, abi_params=[], abi_returns=[memory_array<memory_array<word<u8>>>], abi_return_params=[array<_, array<_, u8>>]] {
+fn @from_memory() -> memptr [selector=0x841ae8f5, abi_params=[], abi_returns=[memory_array<memory_array<word<u8>>>], abi_return_params=[array<_, array<_, u8>>]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = mul v0, 1
@@ -939,19 +939,19 @@ fn @from_memory() -> memoryarray [selector=0x841ae8f5, abi_params=[], abi_return
     v119 = storage_array_data_slot v98
     v120 = add v119, v117
     v121 = icall @load_storage_packed_array_1_0, v120
-    v122 = ptrtoint memoryarray v121 to i256
+    v122 = ptrtoint memptr v121 to i256
     memory_object_store_element memoryarray<1>, v116, v117, v122
     v123 = add v117, 1
     jump bb24
   bb10:
     v43 = memory_object_load_element memoryarray<1>, v17, v41
-    v44 = inttoptr i256 v43 to memoryarray
+    v44 = inttoptr i256 v43 to memptr
     v45 = eq v43, 0
     jumpi v45, bb12, bb13
   bb12:
     v46 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
     set_memory_object_len memoryarray, v46, 0
-    v47 = ptrtoint memoryarray v46 to i256
+    v47 = ptrtoint memptr v46 to i256
     memory_object_store_element memoryarray<1>, v17, v41, v47
     jump bb13
   bb13:
@@ -1048,13 +1048,13 @@ fn @from_memory() -> memoryarray [selector=0x841ae8f5, abi_params=[], abi_return
     v20 = storage_array_data_slot 1
     v21 = add v20, v18
     v22 = icall @load_storage_packed_array_1_0, v21
-    v23 = ptrtoint memoryarray v22 to i256
+    v23 = ptrtoint memptr v22 to i256
     memory_object_store_element memoryarray<1>, v17, v18, v23
     v24 = add v18, 1
     jump bb1
 }
 
-fn @from_calldata(arg0: calldataslice) -> memoryarray [selector=0xbc57f638, abi_params=[array<_, array<_, u8>>], abi_returns=[memory_array<memory_array<word<u8>>>], abi_return_params=[array<_, array<_, u8>>]] {
+fn @from_calldata(arg0: calldataslice) -> memptr [selector=0xbc57f638, abi_params=[array<_, array<_, u8>>], abi_returns=[memory_array<memory_array<word<u8>>>], abi_return_params=[array<_, array<_, u8>>]] {
   bb0:
     v0 = slice_len arg0
     v1 = slice_ptr arg0
@@ -1144,19 +1144,19 @@ fn @from_calldata(arg0: calldataslice) -> memoryarray [selector=0xbc57f638, abi_
     v159 = storage_array_data_slot v138
     v160 = add v159, v157
     v161 = icall @load_storage_packed_array_1_0, v160
-    v162 = ptrtoint memoryarray v161 to i256
+    v162 = ptrtoint memptr v161 to i256
     memory_object_store_element memoryarray<1>, v156, v157, v162
     v163 = add v157, 1
     jump bb27
   bb13:
     v83 = memory_object_load_element memoryarray<1>, v21, v81
-    v84 = inttoptr i256 v83 to memoryarray
+    v84 = inttoptr i256 v83 to memptr
     v85 = eq v83, 0
     jumpi v85, bb15, bb16
   bb15:
     v86 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
     set_memory_object_len memoryarray, v86, 0
-    v87 = ptrtoint memoryarray v86 to i256
+    v87 = ptrtoint memptr v86 to i256
     memory_object_store_element memoryarray<1>, v21, v81, v87
     jump bb16
   bb16:
@@ -1293,7 +1293,7 @@ fn @from_calldata(arg0: calldataslice) -> memoryarray [selector=0xbc57f638, abi_
     v55 = lt v54, v36
     jumpi v55, bb5, bb6
   bb6:
-    v63 = ptrtoint memoryarray v53 to i256
+    v63 = ptrtoint memptr v53 to i256
     memory_object_store_element memoryarray<1>, v21, v22, v63
     v64 = add v22, 1
     jump bb1
@@ -1310,19 +1310,19 @@ fn @from_calldata(arg0: calldataslice) -> memoryarray [selector=0xbc57f638, abi_
     jump bb4
 }
 
-fn @from_address_storage() -> memoryarray [selector=0x2c88d24b, view, abi_params=[], abi_returns=[memory_array<word<u160>>], abi_return_params=[array<_, address>]] {
+fn @from_address_storage() -> memptr [selector=0x2c88d24b, view, abi_params=[], abi_returns=[memory_array<word<u160>>], abi_return_params=[array<_, address>]] {
   bb0:
     v0 = icall @load_storage_packed_array_20_0, 2
     ret v0
 }
 
-fn @load_storage_packed_array_1_0(arg0: i256) -> memoryarray {
+fn @load_storage_packed_array_1_0(arg0: i256) -> memptr {
   bb0:
     v0 = load_storage_array u8, arg0
     ret v0
 }
 
-fn @load_storage_packed_array_20_0(arg0: i256) -> memoryarray {
+fn @load_storage_packed_array_20_0(arg0: i256) -> memptr {
   bb0:
     v0 = load_storage_array u160, arg0
     ret v0

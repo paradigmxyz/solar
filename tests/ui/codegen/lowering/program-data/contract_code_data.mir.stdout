@@ -8,7 +8,7 @@ fn @value() -> i256 [selector=0x3fa4f245, pure, abi_params=[], abi_returns=[word
     ret 7
 }
 
-fn @payload() -> memorybytes [selector=0xa878f858, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @payload() -> memptr [selector=0xa878f858, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 160 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 128
@@ -32,14 +32,14 @@ fn @deployCreationCode() -> i256 [selector=0x5986dddb, abi_params=[], abi_return
     set_memory_object_len memorybytes, v2, v0
     v3 = memory_object_data memorybytes, v2
     v4 = datasize CodeTarget_creation_code_0, 31, aligned
-    v5 = ptrtoint memorybytes v2 to i256
+    v5 = ptrtoint memptr v2 to i256
     v6 = add v5, v4
     mstore v6, 0
     v7 = ptrtoint memptr v3 to i256
     datacopy CodeTarget_creation_code_0, v7, v0
-    v8 = ptrtoint memorybytes v2 to i256
+    v8 = ptrtoint memptr v2 to i256
     v9 = mload v8
-    v10 = ptrtoint memorybytes v2 to i256
+    v10 = ptrtoint memptr v2 to i256
     v11 = add v10, 32
     v12 = create 0, v11, v9
     v13 = zext i160 v12 to i256
@@ -86,7 +86,7 @@ fn @runtimeCodeMatches() -> i1 [selector=0x337e11d0, abi_params=[], abi_returns=
     set_memory_object_len memorybytes, v13, v11
     v14 = memory_object_data memorybytes, v13
     v15 = datasize CodeTarget_runtime_code_1, 31, aligned
-    v16 = ptrtoint memorybytes v13 to i256
+    v16 = ptrtoint memptr v13 to i256
     v17 = add v16, v15
     mstore v17, 0
     v18 = ptrtoint memptr v14 to i256

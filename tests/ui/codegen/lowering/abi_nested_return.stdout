@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/abi_nested_return.sol:AbiNestedReturn ===
 @module AbiNestedReturn
-fn @structArray(arg0: i256) -> memoryarray [selector=0x0f634b74, pure, abi_params=[u256], abi_returns=[memory_array<tuple<word, word>>], abi_return_params=[array<_, tuple<u256, u256>>]] {
+fn @structArray(arg0: i256) -> memptr [selector=0x0f634b74, pure, abi_params=[u256], abi_returns=[memory_array<tuple<word, word>>], abi_return_params=[array<_, tuple<u256, u256>>]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
     set_memory_object_len memoryarray, v0, 1
@@ -18,20 +18,20 @@ fn @structArray(arg0: i256) -> memoryarray [selector=0x0f634b74, pure, abi_param
     v9 = lt 0, v8
     v10 = eq v9, false
     icall panic_if<0x32>, v10
-    v11 = ptrtoint memorystruct v6 to i256
+    v11 = ptrtoint memptr v6 to i256
     memory_object_store_element memoryarray<1>, v0, 0, v11
     ret v0
   bb2:
     v3 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<2>, v3, 0, 0
     memory_object_store_field memorystruct<2>, v3, 1, 0
-    v4 = ptrtoint memorystruct v3 to i256
+    v4 = ptrtoint memptr v3 to i256
     memory_object_store_element memoryarray<1>, v0, v1, v4
     v5 = add v1, 1
     jump bb1
 }
 
-fn @nestedArray(arg0: i256) -> memoryarray [selector=0x5abcbd75, pure, abi_params=[u256], abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, u256>>]] {
+fn @nestedArray(arg0: i256) -> memptr [selector=0x5abcbd75, pure, abi_params=[u256], abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, u256>>]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
     set_memory_object_len memoryarray, v0, 1
@@ -66,7 +66,7 @@ fn @nestedArray(arg0: i256) -> memoryarray [selector=0x5abcbd75, pure, abi_param
     v22 = lt 0, v21
     v23 = eq v22, false
     icall panic_if<0x32>, v23
-    v24 = ptrtoint memoryarray v20 to i256
+    v24 = ptrtoint memptr v20 to i256
     memory_object_store_element memoryarray<1>, v0, 0, v24
     ret v0
   bb2:
