@@ -77,7 +77,7 @@ pub(crate) fn emit_requested(
     if let Some(contracts) = dump_contracts.as_ref().filter(|_| has_mir_dump(gcx)) {
         capture_mir.union_with(contracts);
     }
-    if pipeline_mir_output {
+    if pipeline_mir_output || gcx.sess.opts.unstable.dataflow.is_some() {
         capture_mir.union_with(&ContractSelection::All);
     }
     let mut capture_evm_ir = ContractSelection::empty(gcx);
@@ -140,6 +140,10 @@ fn emit_ir_input(gcx: Gcx<'_>) -> Result {
         validate(&gcx.sess.dcx, &module);
         if gcx.dcx().has_errors().is_ok() {
             let name = source.name.display().to_string();
+            if let Some(report) = solar_codegen::mir::run_dataflow(gcx, &module, &name) {
+                print!("{report}");
+            }
+            gcx.dcx().has_errors()?;
             let _changed = pass::run_pipeline(gcx, &mut module, Some(&name));
             gcx.dcx().has_errors()?;
             validate(&gcx.sess.dcx, &module);

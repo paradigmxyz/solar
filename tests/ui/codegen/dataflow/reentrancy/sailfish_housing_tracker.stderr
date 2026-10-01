@@ -1,0 +1,17 @@
+warning: possible single-function reentrancy: `list` writes storage after an external call
+   ╭▸ ROOT/tests/ui/codegen/dataflow/reentrancy/sailfish_housing_tracker.sol:LL:CC
+   │
+LL │         escrow.hold{value: msg.value}(msg.sender);
+   │         ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: `list` writes `slot(0)[caller]` after the call
+   ╭▸ ROOT/tests/ui/codegen/dataflow/reentrancy/sailfish_housing_tracker.sol:LL:CC
+   │
+LL │         hasListing[msg.sender] = true;
+   ╰╴        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+note: a reentrant call to `list` can read it here (stale read)
+   ╭▸ ROOT/tests/ui/codegen/dataflow/reentrancy/sailfish_housing_tracker.sol:LL:CC
+   │
+LL │         require(!hasListing[msg.sender]);
+   ╰╴                 ━━━━━━━━━━━━━━━━━━━━━━
+

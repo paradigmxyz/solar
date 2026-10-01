@@ -1,0 +1,12 @@
+warning: possible transaction-order dependence: the value of a transfer in `buy` depends on storage written by `setPrice`
+   ╭▸ ROOT/tests/ui/codegen/dataflow/reentrancy/sailfish_tod_prices.sol:LL:CC
+   │
+LL │         payable(msg.sender).transfer(msg.value - price);
+   ╰╴        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+warning: possible transaction-order dependence: the value of a transfer in `sell` depends on storage written by `buy`
+   ╭▸ ROOT/tests/ui/codegen/dataflow/reentrancy/sailfish_tod_prices.sol:LL:CC
+   │
+LL │         payable(msg.sender).transfer(amount * 1e18 / (totalSupply + 1));
+   ╰╴        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+

@@ -1,0 +1,6 @@
+warning: possible transaction-order dependence: the value of a transfer in `settleBet` depends on storage written by `recordBet`
+   ╭▸ ROOT/tests/ui/codegen/dataflow/reentrancy/sailfish_fig15_bet.sol:LL:CC
+   │
+LL │         payable(msg.sender).transfer(totalWth);
+   ╰╴        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+

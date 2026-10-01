@@ -23,6 +23,7 @@ pub use debug_info::{
 };
 
 mod disasm;
+pub(crate) use disasm::may_execute_code;
 pub use disasm::{disassemble, disassemble_standard_json};
 
 pub mod ir;

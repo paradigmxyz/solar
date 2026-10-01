@@ -3,6 +3,9 @@
 mod lint;
 
 #[cfg(feature = "cli")]
+mod dataflow;
+
+#[cfg(feature = "cli")]
 mod debug_outputs;
 
 #[cfg(feature = "cli")]

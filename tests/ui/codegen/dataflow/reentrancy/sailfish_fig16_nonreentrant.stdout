@@ -1,0 +1,15 @@
+// === dataflow reentrancy (k=0): ROOT/tests/ui/codegen/dataflow/reentrancy/sailfish_fig16_nonreentrant.sol:FreeTaxManFarmer ===
+fn @reapFarm:
+  bb0:
+    v0 = sload 0  ; read slot(0)
+    v4 = sload 0  ; read slot(0) if entry(slot(0)) & 0xff == 0
+    sstore 0, v9  ; write slot(0) if entry(slot(0)) & 0xff == 0
+    v16 = sload v15  ; read slot(1)[caller][arg0] if entry(slot(0)) & 0xff == 0
+    v28 = sload v27  ; read slot(1)[caller][arg0] if entry(slot(0)) & 0xff == 0
+    v37 = call v20, v36, 0, v31, v32, 0, 0  ; call to arg0 slot(0)=(entry(slot(0)) & 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00 | 0x1) if entry(slot(0)) & 0xff == 0
+  bb4:
+    sstore v43, 0  ; write slot(1)[caller][arg0] if entry(slot(0)) & 0xff == 0 after call#0.41
+  bb2:
+    v44 = sload 0  ; read slot(0) if entry(slot(0)) & 0xff == 0 after call#0.41
+    sstore 0, v49  ; write slot(0) if entry(slot(0)) & 0xff == 0 after call#0.41
+  exit: slot(0)=(? & 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00 | 0x0) requires entry(slot(0)) & 0xff == 0 clobbers

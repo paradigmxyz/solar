@@ -1,0 +1,7 @@
+// === dataflow reentrancy (k=0): ROOT/tests/ui/codegen/dataflow/reentrancy/event_ordering.sol:Rewards ===
+fn @claim:
+  bb0:
+    v4 = address_call v0, v2, gas v1, value arg0  ; call to caller
+    log1 v9, v10, 0xd8138f8a3f377c5259ca548e70e4c2de94f129f5a11036a15b69513cba2b426a  ; log after call#0.5
+  exit:
+finding: event-ordering @claim call#0.5: reentrant @claim emits events

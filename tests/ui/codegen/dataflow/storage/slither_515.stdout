@@ -1,0 +1,138 @@
+// === dataflow storage (k=0): ROOT/tests/ui/codegen/dataflow/storage/slither_515.sol:LocalPointer ===
+fn @set:
+  bb0:
+    sstore 0, arg0  ; write=slot(0)
+  summary: writes={slot(0)}
+// === dataflow storage (k=0): ROOT/tests/ui/codegen/dataflow/storage/slither_515.sol:InnerMapping ===
+fn @init:
+  bb0:
+    sstore v2, 0  ; write=slot(0)[0][0]
+  summary: writes={slot(0)[0][0]}
+// === dataflow storage (k=0): ROOT/tests/ui/codegen/dataflow/storage/slither_515.sol:ConditionalPointer ===
+fn @set:
+  bb3:
+    sstore v1, 4  ; write=slot(1)|slot(0)
+  summary: writes={slot(1), slot(0)}
+// === dataflow storage (k=0): ROOT/tests/ui/codegen/dataflow/storage/slither_515.sol:ReturnedPointer ===
+fn @increment:
+  bb0:
+    v1 = sload v0  ; read=slot(0)|slot(2)
+    sstore v0, v2  ; write=slot(0)|slot(2)
+  summary: reads={slot(0), slot(2)} writes={slot(0), slot(2)}
+fn @choose:
+  summary: ret0={slot(0), slot(2)}
+// === dataflow storage (k=0): ROOT/tests/ui/codegen/dataflow/storage/slither_515.sol:MappingEntryParam ===
+fn @f:
+  bb0:
+    sstore arg0, 10  ; write=arg0
+  summary: writes={arg0}
+fn @g:
+  bb0:
+    icall @f, v2  ; write=slot(0)[caller]
+  summary: writes={slot(0)[caller]}
+// === dataflow storage (k=0): ROOT/tests/ui/codegen/dataflow/storage/slither_515.sol:Roles ===
+// === dataflow storage (k=0): ROOT/tests/ui/codegen/dataflow/storage/slither_515.sol:MinterRole ===
+fn @addMinter:
+  bb0:
+    icall @_addMinter, arg0  ; read=slot(1)[arg0] write=slot(1)[arg0]
+  summary: reads={slot(1)[arg0]} writes={slot(1)[arg0]}
+fn @_addMinter:
+  bb0:
+    icall @add, 1, arg0  ; read=slot(1)[arg0] write=slot(1)[arg0]
+  summary: reads={slot(1)[arg0]} writes={slot(1)[arg0]}
+fn @add:
+  bb0:
+    v0 = icall @has, arg0, arg1  ; read=arg0[arg1]
+    v8 = sload v7  ; read=arg0[arg1]
+    sstore v7, v13  ; write=arg0[arg1]
+  summary: reads={arg0[arg1]} writes={arg0[arg1]}
+fn @has:
+  bb0:
+    v3 = sload v2  ; read=arg0[arg1]
+  summary: reads={arg0[arg1]}
+// === dataflow storage (k=0): ROOT/tests/ui/codegen/dataflow/storage/slither_515.sol:GroupSelection ===
+// === dataflow storage (k=0): ROOT/tests/ui/codegen/dataflow/storage/slither_515.sol:DeleteField ===
+fn @cleanup.0:
+  bb0:
+    icall @cleanup.1, 0  ; read=slot(0) write=slot(0)|slot(1)|data(slot(0))<*>
+  summary: reads={slot(0)} writes={slot(0), slot(1), data(slot(0))<*>}
+fn @cleanup.1:
+  bb0:
+    v0 = sload arg0  ; read=arg0
+    sstore arg0, 0  ; write=arg0
+  bb3:
+    sstore v6, 0  ; write=arg0.1
+  bb2:
+    sstore v4, 0  ; write=data(arg0)<v1>
+  summary: reads={arg0} writes={arg0, arg0.1, data(arg0)<*>}
+// === dataflow storage (k=0): ROOT/tests/ui/codegen/dataflow/storage/slither_515.sol:Setter ===
+// === dataflow storage (k=0): ROOT/tests/ui/codegen/dataflow/storage/slither_515.sol:FixedArrayLibrary ===
+fn @f:
+  bb0:
+    icall @set, 1, arg0, arg1  ; write=slot(1)<arg0>
+  summary: writes={slot(1)<arg0>}
+fn @set:
+  bb0:
+    sstore v2, arg2  ; write=arg0<arg1>
+  summary: writes={arg0<arg1>}
+// === dataflow storage (k=0): ROOT/tests/ui/codegen/dataflow/storage/slither_515.sol:NestedMember ===
+fn @updateDailySpent:
+  bb0:
+    icall @_update, v3, arg1  ; read=slot(0)[arg0].1 write=slot(0)[arg0].1
+  summary: reads={slot(0)[arg0].1} writes={slot(0)[arg0].1}
+fn @_update:
+  bb0:
+    v0 = sload arg0  ; read=arg0
+    v4 = sload arg0  ; read=arg0
+    sstore arg0, v8  ; write=arg0
+  summary: reads={arg0} writes={arg0}
+// === dataflow storage (k=0): ROOT/tests/ui/codegen/dataflow/storage/slither_515.sol:ReturnedElement ===
+fn @get:
+  bb0:
+    v0 = sload 0  ; read=slot(0)
+  summary: reads={slot(0)} ret0=data(slot(0))<arg0 x2>
+fn @set:
+  bb0:
+    v0 = icall @get, arg0  ; read=slot(0)
+    sstore v0, arg1  ; write=data(slot(0))<arg0 x2>
+  summary: reads={slot(0)} writes={data(slot(0))<arg0 x2>}
+// === dataflow storage (k=0): ROOT/tests/ui/codegen/dataflow/storage/slither_515.sol:NestedPath ===
+fn @f:
+  bb0:
+    sstore v3, arg1  ; write=slot(0)[arg0].1
+  summary: writes={slot(0)[arg0].1}
+// === dataflow storage (k=0): ROOT/tests/ui/codegen/dataflow/storage/slither_515.sol:DeleteThroughPointer ===
+fn @clear:
+  bb0:
+    sstore v0, 0  ; write=slot(0)[arg0]
+    v2 = sload v1  ; read=slot(0)[arg0].1
+    sstore v1, 0  ; write=slot(0)[arg0].1
+  bb2:
+    sstore v6, 0  ; write=data(slot(0)[arg0].1)<v3>
+  summary: reads={slot(0)[arg0].1} writes={slot(0)[arg0], slot(0)[arg0].1, data(slot(0)[arg0].1)<*>}
+fn @clearViaParam:
+  bb0:
+    icall @_clear, 1  ; read=slot(2) write=slot(2)|data(slot(2))<*>
+  summary: reads={slot(2)} writes={slot(2), data(slot(2))<*>}
+fn @_clear:
+  bb0:
+    v1 = sload v0  ; read=arg0.1
+    sstore v0, 0  ; write=arg0.1
+  bb2:
+    sstore v5, 0  ; write=data(arg0.1)<v2>
+  summary: reads={arg0.1} writes={arg0.1, data(arg0.1)<*>}
+// === dataflow storage (k=0): ROOT/tests/ui/codegen/dataflow/storage/slither_515.sol:SharedCallee ===
+fn @pick:
+  summary: ret0=arg0
+fn @test1:
+  bb0:
+    v1 = sload v0  ; read=slot(0)
+    sstore v5, arg0  ; write=data(slot(0))<v1>
+    sstore v0, v3  ; write=slot(0)
+  summary: reads={slot(0)} writes={slot(0), data(slot(0))<*>}
+fn @test2:
+  bb0:
+    v1 = sload v0  ; read=slot(1)
+    sstore v5, arg0  ; write=data(slot(1))<v1>
+    sstore v0, v3  ; write=slot(1)
+  summary: reads={slot(1)} writes={slot(1), data(slot(1))<*>}

@@ -1,0 +1,50 @@
+// === dataflow reentrancy (k=0): ROOT/tests/ui/codegen/dataflow/reentrancy/cross_contract.sol:Relay ===
+fn @forward:
+  bb0:
+    v9 = call v1, v8, 0, v3, v4, 0, 0  ; call to arg0
+  exit:
+// === dataflow reentrancy (k=0): ROOT/tests/ui/codegen/dataflow/reentrancy/cross_contract.sol:Vault ===
+fn @constructor:
+  bb0:
+    v9 = create 0, v8, v1  ; create of code that may call out
+  exit:
+fn @withdraw:
+  bb0:
+    v3 = sload v2  ; read slot(0)[caller]
+    v15 = call v7, v6, 0, v11, v12, 0, 0  ; call to immutable0
+  bb2:
+    sstore v18, 0  ; write slot(0)[caller] after call#1.17
+  exit:
+fn @deposit:
+  bb0:
+    v4 = sload v3  ; read slot(0)[caller]
+    sstore v3, v5  ; write slot(0)[caller]
+  exit:
+finding: reentrancy cross-contract @withdraw call#1.17: writes slot(0)[caller] after the call; reentrant @deposit reads slot(0)[caller] (stale read)
+// === dataflow reentrancy (k=0): ROOT/tests/ui/codegen/dataflow/reentrancy/cross_contract.sol:Counter ===
+fn @bump:
+  bb0:
+    v0 = sload 0  ; read slot(0)
+    sstore 0, v1  ; write slot(0)
+  exit: slot(0)=?
+// === dataflow reentrancy (k=0): ROOT/tests/ui/codegen/dataflow/reentrancy/cross_contract.sol:QuietVault ===
+fn @constructor:
+  bb0:
+    v9 = create 0, v8, v1  ; create of code that may call out
+  exit: slot(1)=?
+fn @withdraw:
+  bb0:
+    v0 = sload 1  ; read slot(1)
+    sstore 1, 1  ; write slot(1) if entry(slot(1)) == 0
+    v6 = sload v5  ; read slot(0)[caller] if entry(slot(1)) == 0
+    v16 = call v10, v9, 0, v12, v13, 0, 0  ; call to immutable0 slot(1)=1 if entry(slot(1)) == 0
+  bb2:
+    sstore v19, 0  ; write slot(0)[caller] if entry(slot(1)) == 0 after call#1.20
+    sstore 1, 0  ; write slot(1) if entry(slot(1)) == 0 after call#1.20
+  exit: slot(1)=0 requires entry(slot(1)) == 0
+fn @deposit:
+  bb0:
+    v4 = sload v3  ; read slot(0)[caller]
+    sstore v3, v5  ; write slot(0)[caller]
+  exit:
+finding: reentrancy cross-contract @withdraw call#1.20: writes slot(0)[caller] after the call; reentrant @deposit reads slot(0)[caller] (stale read)

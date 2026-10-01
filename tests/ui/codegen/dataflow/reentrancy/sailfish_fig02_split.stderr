@@ -1,0 +1,23 @@
+warning: possible cross-function reentrancy: `splitFunds` reads storage after an external call
+   ╭▸ ROOT/tests/ui/codegen/dataflow/reentrancy/sailfish_fig02_split.sol:LL:CC
+   │
+LL │         (bool ok, ) = a.call{value: depo * splits[id] / 100}("");
+   │         ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: `splitFunds` reads `slot(0)[arg0]` after the call
+   ╭▸ ROOT/tests/ui/codegen/dataflow/reentrancy/sailfish_fig02_split.sol:LL:CC
+   │
+LL │         b.transfer(depo * (100 - splits[id]) / 100);
+   ╰╴                                 ━━━━━━━━━━
+note: a reentrant call to `updateSplit` can write it here (destructive write)
+   ╭▸ ROOT/tests/ui/codegen/dataflow/reentrancy/sailfish_fig02_split.sol:LL:CC
+   │
+LL │         splits[id] = split;
+   ╰╴        ━━━━━━━━━━━━━━━━━━
+
+warning: possible transaction-order dependence: the value of a transfer in `splitFunds` depends on storage written by `updateSplit`
+   ╭▸ ROOT/tests/ui/codegen/dataflow/reentrancy/sailfish_fig02_split.sol:LL:CC
+   │
+LL │         (bool ok, ) = a.call{value: depo * splits[id] / 100}("");
+   ╰╴        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+

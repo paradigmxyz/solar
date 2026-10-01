@@ -1,0 +1,23 @@
+// === dataflow reentrancy (k=0): ROOT/tests/ui/codegen/dataflow/reentrancy/transient_guard.sol:TransientVault ===
+fn @withdraw:
+  bb0:
+    v0 = tload 0  ; read transient slot(0)
+  bb4:
+    tstore 0, 1  ; write transient slot(0) if entry(tslot(0)) == 0
+    v5 = sload v4  ; read slot(0)[caller] if entry(tslot(0)) == 0
+    v10 = address_call v6, v8, gas v7, value v5  ; call to caller tslot(0)=1 if entry(tslot(0)) == 0
+    sstore v14, 0  ; write slot(0)[caller] if entry(tslot(0)) == 0 after call#0.12
+  bb5:
+    tstore 0, 0  ; write transient slot(0) if entry(tslot(0)) == 0 after call#0.12
+  exit: tslot(0)=0 requires entry(tslot(0)) == 0
+fn @deposit:
+  bb0:
+    v0 = tload 0  ; read transient slot(0)
+  bb4:
+    tstore 0, 1  ; write transient slot(0) if entry(tslot(0)) == 0
+    v6 = sload v5  ; read slot(0)[caller] if entry(tslot(0)) == 0
+    sstore v5, v7  ; write slot(0)[caller] if entry(tslot(0)) == 0
+  bb5:
+    tstore 0, 0  ; write transient slot(0) if entry(tslot(0)) == 0
+  exit: tslot(0)=0 requires entry(tslot(0)) == 0
+finding: tod @withdraw call#0.12: value depends on slot(0)[caller] written by @deposit

@@ -1,0 +1,38 @@
+// === dataflow reentrancy (k=0): ROOT/tests/ui/codegen/dataflow/reentrancy/openzeppelin_guard.sol:Vault ===
+fn @constructor:
+  bb0:
+    sstore 0, 1  ; write slot(0)
+  exit: slot(0)=1
+fn @withdraw:
+  bb0:
+    v3 = sload v2  ; read slot(1)[caller] if entry(slot(0)) != 2
+    sstore v2, v4  ; write slot(1)[caller] if entry(slot(0)) != 2
+    v5 = sload 2  ; read slot(2) if entry(slot(0)) != 2
+    sstore 2, v6  ; write slot(2) if entry(slot(0)) != 2
+    v14 = call v8, v7, 0, v12, v13, 0, 32  ; call to immutable0 slot(0)=2 slot(2)=? if entry(slot(0)) != 2
+  bb4:
+    v26 = sload 2  ; read slot(2) if entry(slot(0)) != 2 after call#1.17
+    sstore 2, v27  ; write slot(2) if entry(slot(0)) != 2 after call#1.17
+  exit: slot(0)=1 slot(2)=? requires entry(slot(0)) != 2
+fn @deposit:
+  bb0:
+    v3 = sload v2  ; read slot(1)[caller] if entry(slot(0)) != 2
+    sstore v2, v4  ; write slot(1)[caller] if entry(slot(0)) != 2
+  exit: slot(0)=1 requires entry(slot(0)) != 2
+fn @sweep:
+  bb0:
+    v0 = sload 2  ; read slot(2)
+  bb1:
+    sstore v4, 0  ; write slot(1)[v2] if entry(slot(2)) == 0
+  exit: slot(2)=? clobbers
+fn @_nonReentrantBefore:
+  bb0:
+    v0 = sload 0  ; read slot(0)
+  bb3:
+    sstore 0, 2  ; write slot(0) if entry(slot(0)) != 2
+  exit: slot(0)=2 requires entry(slot(0)) != 2
+fn @_nonReentrantAfter:
+  bb0:
+    sstore 0, 1  ; write slot(0)
+  exit: slot(0)=1
+finding: reentrancy cross-function @withdraw call#1.17: writes slot(2) after the call; reentrant @sweep reads slot(2) (stale read)

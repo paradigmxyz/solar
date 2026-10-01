@@ -4,6 +4,7 @@
 //! - Liveness analysis for tracking value lifetimes
 //! - Phi elimination for converting SSA to CSSA
 //! - Loop analysis for detecting and analyzing natural loops
+//! - A generic compositional dataflow framework with on-demand summaries
 
 mod alias;
 pub(crate) use alias::{
@@ -39,3 +40,5 @@ pub(crate) use scalar_evolution::{AffineExpr, AffineTerm, ScalarEvolution};
 
 mod validator;
 pub(crate) use validator::{validate, validate_phase};
+
+pub(crate) mod dataflow;

@@ -1,0 +1,34 @@
+// === dataflow reentrancy (k=0): ROOT/tests/ui/codegen/dataflow/reentrancy/sailfish_tod_prices.sol:OwnerPrice ===
+fn @constructor:
+  bb0:
+    v1 = sload 0  ; read slot(0)
+    sstore 0, v6  ; write slot(0)
+  exit: slot(0)=?
+fn @setPrice:
+  bb0:
+    v1 = sload 0  ; read slot(0)
+    sstore 1, arg0  ; write slot(1) if caller == entry(slot(0)) & 0xffffffffffffffffffffffffffffffffffffffff
+  exit: slot(1)=? requires caller == entry(slot(0)) & 0xffffffffffffffffffffffffffffffffffffffff
+fn @buy:
+  bb0:
+    v1 = sload 1  ; read slot(1)
+    v7 = sload 1  ; read slot(1)
+    icall transfer<>, v5, v8  ; stipend to caller
+  exit:
+finding: tod @buy call#2.10: value depends on slot(1) written by @setPrice
+// === dataflow reentrancy (k=0): ROOT/tests/ui/codegen/dataflow/reentrancy/sailfish_tod_prices.sol:SupplyPrice ===
+fn @buy:
+  bb0:
+    v4 = sload v3  ; read slot(1)[caller]
+    sstore v3, v5  ; write slot(1)[caller]
+    v7 = sload 0  ; read slot(0)
+    sstore 0, v8  ; write slot(0)
+  exit: slot(0)=?
+fn @sell:
+  bb0:
+    v3 = sload v2  ; read slot(1)[caller]
+    sstore v2, v4  ; write slot(1)[caller]
+    v7 = sload 0  ; read slot(0)
+    icall transfer<>, v5, v9  ; stipend to caller
+  exit:
+finding: tod @sell call#1.11: value depends on slot(0) written by @buy

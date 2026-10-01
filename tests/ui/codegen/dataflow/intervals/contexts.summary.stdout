@@ -1,0 +1,33 @@
+// === dataflow intervals (k=0): ROOT/tests/ui/codegen/dataflow/intervals/contexts.sol:Intervals ===
+fn @inc:
+  bb0:
+    v0 = checked_add u256, arg0, 1  ; [1, max]
+  summary: ret0=[1, max]
+fn @bounded:
+  bb0:
+    v0 = lt arg0, 100  ; [0, 1]
+  bb1:
+    v1 = checked_mul u256, arg0, 2  ; [0, 198]
+    v2 = icall @inc, v1  ; [1, max]
+  summary: ret0=[0, max]
+fn @constants:
+  bb0:
+    v0 = icall @inc, 1  ; [1, max]
+    v1 = icall @inc, 2  ; [1, max]
+    v2 = checked_add u256, v0, v1  ; [2, max]
+  summary: ret0=[2, max]
+fn @loop:
+  bb1:
+    v1 = phi [bb0: 0], [bb3: v4]  ; [0, 10]
+    v2 = lt v1, 10  ; [0, 1]
+  bb3:
+    v4 = checked_add u256, v1, 1  ; [1, 10]
+  summary: ret0=[0, max]
+fn @index:
+  bb0:
+    v0 = lt arg0, 5  ; [0, 1]
+    v1 = eq v0, false  ; [0, 1]
+    v2 = lt arg0, 10  ; 1
+    v3 = eq v2, false  ; 0
+    v4 = add 0, arg0  ; [0, 4]
+  summary: ret0=[0, max]

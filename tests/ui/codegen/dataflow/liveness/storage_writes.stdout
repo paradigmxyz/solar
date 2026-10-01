@@ -1,0 +1,18 @@
+// === dataflow liveness (k=0): ROOT/tests/ui/codegen/dataflow/liveness/storage_writes.sol:Liveness ===
+fn @overwritten:
+    sstore 0, 1  ; dead
+    sstore 1, arg0  ; live
+    sstore 0, 2  ; live
+fn @acrossCallee:
+    sstore 0, 1  ; dead
+    sstore 0, 2  ; live
+fn @readByCallee:
+    sstore 0, 1  ; live
+    sstore 0, 2  ; live
+fn @beforeRevert:
+    sstore 0, arg0  ; dead
+fn @acrossExternalCall:
+    sstore v2, 1  ; live
+    sstore v10, 2  ; live
+fn @readA:
+fn @readB:

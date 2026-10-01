@@ -1,0 +1,6 @@
+warning: possible event reordering: `claim` emits an event after an external call
+   ╭▸ ROOT/tests/ui/codegen/dataflow/reentrancy/event_ordering.sol:LL:CC
+   │
+LL │         (bool ok, ) = msg.sender.call{value: amount}("");
+   ╰╴        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+

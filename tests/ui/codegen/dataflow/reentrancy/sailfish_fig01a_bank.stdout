@@ -1,0 +1,10 @@
+// === dataflow reentrancy (k=0): ROOT/tests/ui/codegen/dataflow/reentrancy/sailfish_fig01a_bank.sol:Bank ===
+fn @withdraw:
+  bb0:
+    v3 = sload v2  ; read slot(0)[caller]
+  bb1:
+    v10 = address_call v6, v8, gas v7, value arg0  ; call to caller
+    v14 = sload v13  ; read slot(0)[caller] after call#0.11
+    sstore v13, v15  ; write slot(0)[caller] after call#0.11
+  exit:
+finding: reentrancy single-function @withdraw call#0.11: writes slot(0)[caller] after the call; reentrant @withdraw reads slot(0)[caller] (stale read)

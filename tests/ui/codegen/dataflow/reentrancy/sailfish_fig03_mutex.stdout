@@ -1,0 +1,32 @@
+// === dataflow reentrancy (k=0): ROOT/tests/ui/codegen/dataflow/reentrancy/sailfish_fig03_mutex.sol:Mutex ===
+fn @withdrawBalance:
+  bb0:
+    v0 = sload 0  ; read slot(0)
+  bb1:
+    v4 = sload 0  ; read slot(0) if entry(slot(0)) & 0xff == 0
+    sstore 0, v9  ; write slot(0) if entry(slot(0)) & 0xff == 0
+    v13 = sload v12  ; read slot(1)[caller] if entry(slot(0)) & 0xff == 0
+  bb4:
+    v19 = address_call v15, v17, gas v16, value arg0  ; call to caller slot(0)=(entry(slot(0)) & 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00 | 0x1) if entry(slot(0)) & 0xff == 0
+    v23 = sload v22  ; read slot(1)[caller] if entry(slot(0)) & 0xff == 0 after call#0.21
+    sstore v22, v24  ; write slot(1)[caller] if entry(slot(0)) & 0xff == 0 after call#0.21
+  bb6:
+    v25 = sload 0  ; read slot(0) if entry(slot(0)) & 0xff == 0 after call#0.21
+    sstore 0, v30  ; write slot(0) if entry(slot(0)) & 0xff == 0 after call#0.21
+  exit: slot(0)=?
+fn @transfer:
+  bb0:
+    v0 = sload 0  ; read slot(0)
+  bb1:
+    v4 = sload 0  ; read slot(0) if entry(slot(0)) & 0xff == 0
+    sstore 0, v9  ; write slot(0) if entry(slot(0)) & 0xff == 0
+    v13 = sload v12  ; read slot(1)[caller] if entry(slot(0)) & 0xff == 0
+  bb4:
+    v18 = sload v17  ; read slot(1)[arg0] if entry(slot(0)) & 0xff == 0
+    sstore v17, v19  ; write slot(1)[arg0] if entry(slot(0)) & 0xff == 0
+    v23 = sload v22  ; read slot(1)[caller] if entry(slot(0)) & 0xff == 0
+    sstore v22, v24  ; write slot(1)[caller] if entry(slot(0)) & 0xff == 0
+  bb6:
+    v25 = sload 0  ; read slot(0) if entry(slot(0)) & 0xff == 0
+    sstore 0, v30  ; write slot(0) if entry(slot(0)) & 0xff == 0
+  exit: slot(0)=? clobbers

@@ -1,0 +1,83 @@
+- // === ROOT/tests/ui/codegen/mir/storage-load-cse/across_calls.mir (before storage-load-cse) ===
++ // === ROOT/tests/ui/codegen/mir/storage-load-cse/across_calls.mir (after storage-load-cse) ===
+  @module AcrossCalls
+  fn @bump_field(arg0: i256) {
+    bb0:
+      v0 = add arg0, 1
+-     v1 = sload v0
++     v1 = sload v0 !metadata(storage=offset(arg0, 1))
+      v2 = add v1, 1
+-     sstore v0, v2
++     sstore v0, v2 !metadata(storage=offset(arg0, 1))
+      ret
+  }
+  
+  fn @write_entry(arg0: i256) {
+    bb0:
+      v0 = mapping_slot arg0, 5
+      sstore v0, 1
+      ret
+  }
+  
+  fn @forward_across_disjoint_field() -> i256 {
+    bb0:
+-     v0 = sload 0
++     v0 = sload 0 !metadata(storage=slot(0))
+      icall @bump_field, 0
+-     v1 = sload 0
+-     v2 = add v0, v1
++     v2 = add v0, v0
+      ret v2
+  }
+  
+  fn @keep_across_written_field() -> i256 {
+    bb0:
+-     v0 = sload 1
++     v0 = sload 1 !metadata(storage=slot(1))
+      icall @bump_field, 0
+-     v1 = sload 1
++     v1 = sload 1 !metadata(storage=slot(1))
+      v2 = add v0, v1
+      ret v2
+  }
+  
+  fn @forward_across_other_mapping(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      v0 = mapping_slot arg0, 4
+-     v1 = sload v0
++     v1 = sload v0 !metadata(storage=symbolic(v0))
+      icall @write_entry, arg1
+-     v2 = sload v0
+-     v3 = add v1, v2
++     v3 = add v1, v1
+      ret v3
+  }
+  
+  fn @forward_across_reentrant_call(arg0: i256) -> i256 [selector=0x00000001] {
+    bb0:
+-     v0 = sload 9
++     v0 = sload 9 !metadata(storage=slot(9))
+      v1 = call 0, arg0, 0, 0, 0, 0, 0
+-     v2 = sload 9
++     v2 = sload 9 !metadata(storage=slot(9))
+      v3 = add v0, v2
+      ret v3
+  }
+  
+  fn @keep_across_reentrant_writer(arg0: i256) -> i256 [selector=0x00000002] {
+    bb0:
+-     v0 = sload 0
++     v0 = sload 0 !metadata(storage=slot(0))
+      v1 = call 0, arg0, 0, 0, 0, 0, 0
+-     v2 = sload 0
++     v2 = sload 0 !metadata(storage=slot(0))
+      v3 = add v0, v2
+      ret v3
+  }
+  
+  fn @writer() [selector=0x00000003] {
+    bb0:
+      sstore 0, 7
+      stop
+  }
+  

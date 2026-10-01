@@ -1,0 +1,99 @@
+//@compile-flags: -Zmir-pipeline=storage-load-cse -Zdataflow-optimizations
+//@filecheck:
+// Calls invalidate only the storage their summarized footprint may write.
+@module AcrossCalls
+
+fn @bump_field(arg0: i256) {
+  bb0:
+    v0 = add arg0, 1
+    v1 = sload v0
+    v2 = add v1, 1
+    sstore v0, v2
+    ret
+}
+
+fn @write_entry(arg0: i256) {
+  bb0:
+    v0 = mapping_slot arg0, 5
+    sstore v0, 1
+    ret
+}
+
+// The helper writes field 1 of the struct at slot 0, so slot 0 stays available.
+// CHECK-LABEL: {{^[ +].*}}fn @forward_across_disjoint_field{{[( ]}}
+// CHECK: + [[LOAD:v[0-9]+]] = sload 0
+// CHECK-NEXT: icall @bump_field, 0
+// CHECK-NEXT: - {{v[0-9]+}} = sload 0
+// CHECK: + {{v[0-9]+}} = add [[LOAD]], [[LOAD]]
+fn @forward_across_disjoint_field() -> i256 {
+  bb0:
+    v1 = sload 0
+    icall @bump_field, 0
+    v2 = sload 0
+    v3 = add v1, v2
+    ret v3
+}
+
+// The helper writes the field that was loaded.
+// CHECK-LABEL: {{^[ +].*}}fn @keep_across_written_field{{[( ]}}
+// CHECK: + {{v[0-9]+}} = sload 1
+// CHECK-NEXT: icall @bump_field, 0
+// CHECK: + {{v[0-9]+}} = sload 1
+fn @keep_across_written_field() -> i256 {
+  bb0:
+    v1 = sload 1
+    icall @bump_field, 0
+    v2 = sload 1
+    v3 = add v1, v2
+    ret v3
+}
+
+// Different mappings never alias, even with unknown keys.
+// CHECK-LABEL: {{^[ +].*}}fn @forward_across_other_mapping{{[( ]}}
+// CHECK: [[ENTRY:v[0-9]+]] = mapping_slot arg0, 4
+// CHECK: + {{v[0-9]+}} = sload [[ENTRY]]
+// CHECK-NEXT: icall @write_entry, arg1
+// CHECK-NEXT: - {{v[0-9]+}} = sload [[ENTRY]]
+fn @forward_across_other_mapping(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = mapping_slot arg0, 4
+    v1 = sload v0
+    icall @write_entry, arg1
+    v2 = sload v0
+    v3 = add v1, v2
+    ret v3
+}
+
+// An unknown external call remains opaque, including when this code runs via delegatecall.
+// CHECK-LABEL: {{^[ +].*}}fn @forward_across_reentrant_call{{[( ]}}
+// CHECK: + {{v[0-9]+}} = sload 9
+// CHECK: call
+// CHECK: + {{v[0-9]+}} = sload 9
+fn @forward_across_reentrant_call(arg0: i256) -> i256 [selector=0x00000001] {
+  bb0:
+    v1 = sload 9
+    v2 = call 0, arg0, 0, 0, 0, 0, 0
+    v3 = sload 9
+    v4 = add v1, v3
+    ret v4
+}
+
+// Slot 0 is written by an external entry, which a re-entered call may run.
+// CHECK-LABEL: {{^[ +].*}}fn @keep_across_reentrant_writer{{[( ]}}
+// CHECK: + {{v[0-9]+}} = sload 0
+// CHECK-NEXT: {{v[0-9]+}} = call
+// CHECK: + {{v[0-9]+}} = sload 0
+fn @keep_across_reentrant_writer(arg0: i256) -> i256 [selector=0x00000002] {
+  bb0:
+    v1 = sload 0
+    v2 = call 0, arg0, 0, 0, 0, 0, 0
+    v3 = sload 0
+    v4 = add v1, v3
+    ret v4
+}
+
+fn @writer() [selector=0x00000003] {
+  bb0:
+    sstore 0, 7
+    stop
+}

@@ -1,0 +1,84 @@
+//@compile-flags: -Zmir-pipeline=storage-dse -Zdataflow-optimizations
+//@filecheck:
+// Crossing a call backward kills only the overwrite facts its footprint may read.
+@module AcrossCalls
+
+fn @read_other() -> i256 {
+  bb0:
+    v0 = sload 1
+    ret v0
+}
+
+fn @read_same() -> i256 {
+  bb0:
+    v0 = sload 0
+    ret v0
+}
+
+fn @finish() {
+  bb0:
+    stop
+}
+
+// The helper reads slot 1, so the first store to slot 0 is overwritten unobserved.
+// CHECK-LABEL: {{^[ +].*}}fn @dead_across_unrelated_read{{[( ]}}
+// CHECK: - sstore 0, arg0
+// CHECK: + sstore 0, 7
+fn @dead_across_unrelated_read(arg0: i256) {
+  bb0:
+    sstore 0, arg0
+    v0 = icall @read_other
+    sstore 0, 7
+    ret
+}
+
+// The helper reads the stored slot.
+// CHECK-LABEL: {{^[ +].*}}fn @live_across_reader{{[( ]}}
+// CHECK: + sstore 0, arg0
+// CHECK: + sstore 0, 7
+fn @live_across_reader(arg0: i256) {
+  bb0:
+    sstore 0, arg0
+    v0 = icall @read_same
+    sstore 0, 7
+    ret
+}
+
+// The helper may end the transaction before the later store runs.
+// CHECK-LABEL: {{^[ +].*}}fn @live_across_terminating_callee{{[( ]}}
+// CHECK: + sstore 0, arg0
+// CHECK: + sstore 0, 7
+fn @live_across_terminating_callee(arg0: i256) {
+  bb0:
+    sstore 0, arg0
+    icall @finish
+    sstore 0, 7
+    ret
+}
+
+fn @touch_other(arg0: i256) {
+  bb0:
+    v0 = add arg0, 1
+    sstore v0, 5
+    ret
+}
+
+// The two stores compute `bal[msg.sender]` separately; their storage paths are equal and
+// stable. The helper only writes, so it cannot observe the first store even if it aliases.
+// CHECK-LABEL: {{^[ +].*}}fn @dead_through_recomputed_slot{{[( ]}}
+// CHECK: - sstore {{v[0-9]+}}, 1
+// CHECK: + sstore {{v[0-9]+}}, 2
+fn @dead_through_recomputed_slot() [selector=0x00000001] {
+  bb0:
+    v0 = caller
+    v1 = zext i160 v0 to i256
+    v2 = mapping_slot v1, 1
+    sstore v2, 1
+    v3 = mapping_slot v1, 0
+    icall @touch_other, v3
+    v4 = caller
+    v5 = zext i160 v4 to i256
+    v6 = mapping_slot v5, 1
+    sstore v6, 2
+    stop
+}

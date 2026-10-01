@@ -1,0 +1,17 @@
+warning: possible single-function reentrancy: `borrow` writes storage after an external call
+   ╭▸ ROOT/tests/ui/codegen/dataflow/reentrancy/sailfish_cream_hook.sol:LL:CC
+   │
+LL │         amp.transfer(msg.sender, amount);
+   │         ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: `borrow` writes `slot(0)[caller]` after the call
+   ╭▸ ROOT/tests/ui/codegen/dataflow/reentrancy/sailfish_cream_hook.sol:LL:CC
+   │
+LL │         borrowed[msg.sender] += amount;
+   ╰╴        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+note: a reentrant call to `borrow` can read it here (stale read)
+   ╭▸ ROOT/tests/ui/codegen/dataflow/reentrancy/sailfish_cream_hook.sol:LL:CC
+   │
+LL │         require(borrowed[msg.sender] + amount <= collateral[msg.sender]);
+   ╰╴                ━━━━━━━━━━━━━━━━━━━━
+

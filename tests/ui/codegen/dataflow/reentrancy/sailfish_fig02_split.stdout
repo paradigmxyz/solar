@@ -1,0 +1,16 @@
+// === dataflow reentrancy (k=0): ROOT/tests/ui/codegen/dataflow/reentrancy/sailfish_fig02_split.sol:Split ===
+fn @updateSplit:
+  bb0:
+    sstore v3, arg1  ; write slot(0)[arg0]
+  exit: clobbers
+fn @splitFunds:
+  bb0:
+    v1 = sload v0  ; read slot(1)[arg0]
+    sstore v2, 0  ; write slot(1)[arg0]
+    v5 = sload v4  ; read slot(0)[arg0]
+    v11 = address_call v10, v8, gas v3, value v7  ; call to arg1
+    v13 = sload v12  ; read slot(0)[arg0] after call#1.13
+    icall transfer<>, v17, v16  ; stipend to arg2 after call#1.13
+  exit: clobbers
+finding: reentrancy cross-function @splitFunds call#1.13: reads slot(0)[arg0] after the call; reentrant @updateSplit writes slot(0)[arg0] (destructive write)
+finding: tod @splitFunds call#1.13: value depends on slot(0)[arg0] written by @updateSplit

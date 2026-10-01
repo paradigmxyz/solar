@@ -1,0 +1,58 @@
+- // === ROOT/tests/ui/codegen/mir/guard-elim/call_barriers.mir (before guard-elim) ===
++ // === ROOT/tests/ui/codegen/mir/guard-elim/call_barriers.mir (after guard-elim) ===
+  @module CallBarriers
+  fn @read_transient() -> i256 {
+    bb0:
+      v0 = tload 0
+      ret v0
+  }
+  
+  fn @transient_reader() -> i256 [selector=0x00000001] {
+    bb0:
+      v0 = tload 0
+      v1 = eq v0, 0
+      jumpi v1, bb1, bb2
+    bb2:
+      revert 0, 0
+    bb1:
+      tstore 0, 1
+      v2 = icall @read_transient
+      tstore 0, 0
+      ret v2
+  }
+  
+  fn @callback(arg0: i256) {
+    bb0:
+      v0 = call 0x186a0, arg0, 0, 0, 0, 0, 0
+      ret
+  }
+  
+  fn @indirect_callback(arg0: i256) [selector=0x00000002] {
+    bb0:
+      v0 = sload 0
+      v1 = eq v0, 0
+      jumpi v1, bb1, bb2
+    bb2:
+      revert 0, 0
+    bb1:
+      sstore 0, 1
+      icall @callback, arg0
+      sstore 0, 0
+      ret
+  }
+  
+  fn @creation_memory(arg0: i256) [selector=0x00000003] {
+    bb0:
+      v0 = sload 0
+      v1 = eq v0, 0
+      jumpi v1, bb1, bb2
+    bb2:
+      revert 0, 0
+    bb1:
+      sstore 0, 1
+      v2 = create 0, arg0, 32
+      mstore arg0, 0
+      sstore 0, 0
+      ret
+  }
+  

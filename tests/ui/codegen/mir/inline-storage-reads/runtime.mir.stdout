@@ -1,0 +1,55 @@
+// === ROOT/tests/ui/codegen/mir/inline-storage-reads/runtime.sol:StorageReaders ===
+@module StorageReaders
+fn @addValue(arg0: i256) -> i256 [view] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = checked_add u256, v0, arg0
+    ret v1
+}
+
+fn @same(arg0: i256) -> i256 [selector=0x8f5383a4, view, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = icall @addValue, arg0
+    v1 = sload 0 !metadata(storage=slot(0))
+    v2 = checked_add u256, v0, v1
+    ret v2
+}
+
+fn @other(arg0: i256) -> i256 [selector=0x369984d6, view, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = icall @addValue, arg0
+    v1 = sload 1 !metadata(storage=slot(1))
+    v2 = checked_add u256, v0, v1
+    ret v2
+}
+
+fn @checked(arg0: i256) -> i256 [selector=0x2e53fee2, view, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = icall @addValue, arg0
+    v1 = sload 0 !metadata(storage=slot(0))
+    v2 = checked_add u256, v0, v1
+    ret v2
+}
+
+fn @writeThenRead(arg0: i256) -> i256 {
+  bb0:
+    sstore 0, arg0 !metadata(storage=slot(0))
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @writeBarrier(arg0: i256) -> i256 [selector=0x48c335e3, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = icall @writeThenRead, arg0
+    v2 = sload 0 !metadata(storage=slot(0))
+    v3 = checked_add u256, v0, v2
+    ret v3
+}
+
+fn @constructor() [constructor] {
+  bb0:
+    sstore 0, 7 !metadata(storage=slot(0))
+    sstore 1, 11 !metadata(storage=slot(1))
+    ret
+}

@@ -1,0 +1,23 @@
+warning: possible cross-function reentrancy: `funcA` reads storage after an external call
+   ╭▸ ROOT/tests/ui/codegen/dataflow/reentrancy/sailfish_fig13_cross_function.sol:LL:CC
+   │
+LL │         erc721.transferFrom(msg.sender, item_1.creator, amt);
+   │         ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: `funcA` reads `slot(0)` after the call
+   ╭▸ ROOT/tests/ui/codegen/dataflow/reentrancy/sailfish_fig13_cross_function.sol:LL:CC
+   │
+LL │         item_1.creator.transfer(item_1.fee);
+   ╰╴        ━━━━━━━━━━━━━━
+note: a reentrant call to `funcB` can write it here (destructive write)
+   ╭▸ ROOT/tests/ui/codegen/dataflow/reentrancy/sailfish_fig13_cross_function.sol:LL:CC
+   │
+LL │         item_1.creator = _creator;
+   ╰╴        ━━━━━━━━━━━━━━━━━━━━━━━━━
+
+warning: possible transaction-order dependence: the recipient of a transfer in `funcA` depends on storage written by `funcB`
+   ╭▸ ROOT/tests/ui/codegen/dataflow/reentrancy/sailfish_fig13_cross_function.sol:LL:CC
+   │
+LL │         item_1.creator.transfer(item_1.fee);
+   ╰╴        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+

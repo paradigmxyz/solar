@@ -1,0 +1,16 @@
+// === dataflow units (k=0): ROOT/tests/ui/codegen/dataflow/units/natspec.sol:Units ===
+fn @value:
+  bb0:
+    v0 = checked_mul u256, arg0, arg1  ; D26{UoA}
+    v1 = checked_div u256, v0, 0x5f5e100  ; D18{UoA}
+  summary: ret0=D18{UoA}
+fn @shares:
+  bb0:
+    v0 = checked_mul u256, arg0, arg1  ; D36{share}
+    v1 = checked_div u256, v0, 0xde0b6b3a7640000  ; D18{share}
+  summary: ret0=D18{share}
+fn @mixed:
+  summary: ret0=?
+finding: units @mixed: `v0 = checked_add u256, arg0, arg1` combines D18{tok} with D18{share}
+fn @unannotated:
+  summary: ret0=?

@@ -1,0 +1,34 @@
+warning: possible contract creation reentrancy: `spawn` writes storage after an external call
+   ╭▸ ROOT/tests/ui/codegen/dataflow/reentrancy/create_callback.sol:LL:CC
+   │
+LL │         new Callback();
+   │         ━━━━━━━━━━━━━━
+   ╰╴
+note: `spawn` writes `slot(0)` after the call
+   ╭▸ ROOT/tests/ui/codegen/dataflow/reentrancy/create_callback.sol:LL:CC
+   │
+LL │         children += 1;
+   ╰╴        ━━━━━━━━━━━━━
+note: a reentrant call to `spawn` can read it here (stale read)
+   ╭▸ ROOT/tests/ui/codegen/dataflow/reentrancy/create_callback.sol:LL:CC
+   │
+LL │         require(children < 3);
+   ╰╴                ━━━━━━━━
+
+warning: possible contract creation reentrancy: `spawn` writes storage after an external call
+   ╭▸ ROOT/tests/ui/codegen/dataflow/reentrancy/create_callback.sol:LL:CC
+   │
+LL │         new Quiet();
+   │         ━━━━━━━━━━━
+   ╰╴
+note: `spawn` writes `slot(0)` after the call
+   ╭▸ ROOT/tests/ui/codegen/dataflow/reentrancy/create_callback.sol:LL:CC
+   │
+LL │         children += 1;
+   ╰╴        ━━━━━━━━━━━━━
+note: a reentrant call to `spawn` can read it here (stale read)
+   ╭▸ ROOT/tests/ui/codegen/dataflow/reentrancy/create_callback.sol:LL:CC
+   │
+LL │         require(children < 3);
+   ╰╴                ━━━━━━━━
+

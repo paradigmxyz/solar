@@ -1,0 +1,17 @@
+// === dataflow reentrancy (k=0): ROOT/tests/ui/codegen/dataflow/reentrancy/sailfish_fig18_owner_withdraw.sol:Depay ===
+fn @constructor:
+  bb0:
+    v1 = sload 0  ; read slot(0)
+    sstore 0, v6  ; write slot(0)
+  exit: slot(0)=?
+fn @pay:
+  bb0:
+    v0 = sload 1  ; read slot(1)
+    sstore 1, v1  ; write slot(1)
+  exit: slot(1)=?
+fn @withdrawDonations:
+  bb0:
+    v1 = sload 0  ; read slot(0)
+    v6 = sload 1  ; read slot(1) if caller == entry(slot(0)) & 0xffffffffffffffffffffffffffffffffffffffff
+    icall transfer<>, v7, v6  ; stipend to arg0 if caller == entry(slot(0)) & 0xffffffffffffffffffffffffffffffffffffffff
+  exit: requires caller == entry(slot(0)) & 0xffffffffffffffffffffffffffffffffffffffff

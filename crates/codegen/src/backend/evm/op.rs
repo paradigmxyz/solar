@@ -29,6 +29,8 @@ impl OpcodeTraits {
     pub(crate) const WRITES_STORAGE: Self = Self(1 << 3);
     /// The operation halts or unconditionally transfers control.
     pub(crate) const TERMINAL: Self = Self(1 << 4);
+    /// The operation may run other code, which can call back into the executing contract.
+    pub(crate) const EXECUTES_CODE: Self = Self(1 << 5);
 
     /// Returns the union of two property sets.
     pub(crate) const fn union(self, other: Self) -> Self {
@@ -451,13 +453,13 @@ opcodes! {
     0xe6 => DUPN => dupn => stack_io(_, _) => traits() => gas(verylow) => available(extended_stack_ops);
     0xe7 => SWAPN => swapn => stack_io(_, _) => traits() => gas(verylow) => available(extended_stack_ops);
     0xe8 => EXCHANGE => exchange => stack_io(_, _) => traits() => gas(verylow) => available(extended_stack_ops);
-    0xf0 => CREATE => create => stack_io(3, 1) => traits(WRITES_STORAGE) => gas(create) => available(legacy) => result_bits(160);
-    0xf1 => CALL => call => stack_io(7, 1) => traits(WRITES_MEMORY | WRITES_STORAGE) => gas(call) => available(legacy) => result_bits(1) => input_bits(256, 160);
-    0xf2 => CALLCODE => callcode => stack_io(7, 1) => traits(WRITES_MEMORY | WRITES_STORAGE) => gas(call) => available(legacy) => result_bits(1) => input_bits(256, 160);
+    0xf0 => CREATE => create => stack_io(3, 1) => traits(WRITES_STORAGE | EXECUTES_CODE) => gas(create) => available(legacy) => result_bits(160);
+    0xf1 => CALL => call => stack_io(7, 1) => traits(WRITES_MEMORY | WRITES_STORAGE | EXECUTES_CODE) => gas(call) => available(legacy) => result_bits(1) => input_bits(256, 160);
+    0xf2 => CALLCODE => callcode => stack_io(7, 1) => traits(WRITES_MEMORY | WRITES_STORAGE | EXECUTES_CODE) => gas(call) => available(legacy) => result_bits(1) => input_bits(256, 160);
     0xf3 => RETURN => r#return => stack_io(2, 0) => traits(TERMINAL) => gas(zero) => available(legacy);
-    0xf4 => DELEGATECALL => delegatecall => stack_io(6, 1) => traits(WRITES_MEMORY | WRITES_STORAGE) => gas(call) => available(legacy) => result_bits(1) => input_bits(256, 160);
-    0xf5 => CREATE2 => create2 => stack_io(4, 1) => traits(WRITES_STORAGE) => gas(create) => available(since Constantinople) => result_bits(160);
-    0xfa => STATICCALL => staticcall => stack_io(6, 1) => traits(WRITES_MEMORY | WRITES_STORAGE) => gas(call) => available(since Byzantium) => result_bits(1) => input_bits(256, 160);
+    0xf4 => DELEGATECALL => delegatecall => stack_io(6, 1) => traits(WRITES_MEMORY | WRITES_STORAGE | EXECUTES_CODE) => gas(call) => available(legacy) => result_bits(1) => input_bits(256, 160);
+    0xf5 => CREATE2 => create2 => stack_io(4, 1) => traits(WRITES_STORAGE | EXECUTES_CODE) => gas(create) => available(since Constantinople) => result_bits(160);
+    0xfa => STATICCALL => staticcall => stack_io(6, 1) => traits(WRITES_MEMORY | WRITES_STORAGE | EXECUTES_CODE) => gas(call) => available(since Byzantium) => result_bits(1) => input_bits(256, 160);
     0xfd => REVERT => revert => stack_io(2, 0) => traits(TERMINAL) => gas(zero) => available(since Byzantium);
     0xfe => INVALID => invalid => stack_io(0, 0) => traits(TERMINAL) => gas(zero) => available(legacy);
     0xff => SELFDESTRUCT => selfdestruct => stack_io(1, 0) => traits(TERMINAL) => gas(selfdestruct) => available(legacy) => input_bits(160);
@@ -515,6 +517,12 @@ impl OpDef {
     #[must_use]
     pub(crate) const fn writes_storage(self) -> bool {
         self.traits.contains(OpcodeTraits::WRITES_STORAGE)
+    }
+
+    /// Returns whether this operation may run other code.
+    #[must_use]
+    pub(crate) const fn executes_code(self) -> bool {
+        self.traits.contains(OpcodeTraits::EXECUTES_CODE)
     }
 }
 
@@ -901,6 +909,16 @@ pub(crate) const fn writes_storage(op: u8) -> bool {
     }
 }
 
+/// Returns whether an opcode may run other code, which can call back into the executing
+/// contract. Unassigned opcodes halt execution, so they run nothing.
+#[must_use]
+pub(crate) const fn executes_code(op: u8) -> bool {
+    match definition(op) {
+        Some(definition) => definition.executes_code(),
+        None => false,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1003,6 +1021,7 @@ mod tests {
                 ("writes_memory", def.writes_memory()),
                 ("writes_storage", def.writes_storage()),
                 ("terminal", def.is_terminal()),
+                ("executes_code", def.executes_code()),
             ];
             for (name, set) in traits {
                 if set {

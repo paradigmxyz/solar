@@ -1,0 +1,290 @@
+// === ROOT/tests/ui/codegen/lowering/static_frames.sol:SF ===
+@module SF
+@types
+  struct0: {i256, i256}
+
+fn @s() -> i256 [selector=0x86b714e2, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @top(arg0: i256) -> i256 [selector=0x313ae541, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = checked_mul u256, arg0, 3
+    v1 = icall @chainA, arg0
+    v2 = checked_rem u256, arg0, 7
+    v3 = icall @rec, v2, arg0
+    v4 = checked_rem u256, arg0, 5
+    v5 = icall @m1, v4, arg0
+    v6 = sload 0 !metadata(storage=slot(0))
+    v7 = checked_add u256, v6, v0
+    sstore 0, v7 !metadata(storage=slot(0))
+    v8 = checked_add u256, v0, v1
+    v9 = checked_add u256, v8, v3
+    v10 = checked_add u256, v9, v5
+    ret v10
+}
+
+fn @chainA(arg0: i256) -> i256 {
+  bb0:
+    v0 = checked_add u256, arg0, 1
+    v1 = icall @chainB, v0, arg0
+    v2 = checked_mul u256, v0, 2
+    v3 = checked_add u256, v2, v1
+    ret v3
+}
+
+fn @chainB(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = xor arg0, arg1
+    v1 = icall @chainC, v0
+    v2 = extract_value struct0, v1, 0
+    v3 = extract_value struct0, v1, 1
+    v4 = sload 0 !metadata(storage=slot(0))
+    v5 = checked_add u256, v4, v2
+    sstore 0, v5 !metadata(storage=slot(0))
+    v6 = checked_mul u256, v2, 2
+    v7 = checked_add u256, v0, v6
+    v8 = checked_add u256, v7, v3
+    ret v8
+}
+
+fn @chainC(arg0: i256) -> struct0 {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = checked_add u256, v0, 1
+    sstore 0, v1 !metadata(storage=slot(0))
+    v2 = checked_div u256, arg0, 3
+    v3 = checked_add u256, v2, 1
+    v4 = checked_rem u256, arg0, 5
+    v5 = checked_add u256, v4, 2
+    v6 = insert_value struct0, undef struct0, 0, v3
+    v7 = insert_value struct0, v6, 1, v5
+    ret v7
+}
+
+fn @rec(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = checked_add u256, arg1, arg0
+    v1 = icall @leafS, v0
+    v2 = eq arg0, 0
+    jumpi v2, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    v3 = checked_sub u256, arg0, 1
+    v4 = checked_add u256, arg1, 1
+    v5 = icall @rec, v3, v4
+    v6 = checked_add u256, v1, v5
+    v7 = icall @leafS, v5
+    v8 = checked_add u256, v6, v7
+    ret v8
+  bb1:
+    ret v1
+}
+
+fn @leafS(arg0: i256) -> i256 {
+  bb0:
+    v0 = checked_mul u256, arg0, 2
+    v1 = checked_add u256, v0, 1
+    v2 = sload 0 !metadata(storage=slot(0))
+    v3 = xor v2, v1
+    sstore 0, v3 !metadata(storage=slot(0))
+    v4 = checked_rem u256, v1, 0x3e8
+    ret v4
+}
+
+fn @m1(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = eq arg0, 0
+    jumpi v0, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    v3 = icall @leaf2, arg1
+    v4 = checked_sub u256, arg0, 1
+    v5 = checked_add u256, arg1, 3
+    v6 = icall @m2, v4, v5
+    v7 = checked_add u256, v3, v6
+    ret v7
+  bb1:
+    v1 = icall @leaf2, arg1
+    v2 = checked_add u256, v1, 7
+    ret v2
+}
+
+fn @m2(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = eq arg0, 0
+    jumpi v0, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    v2 = checked_sub u256, arg0, 1
+    v3 = checked_add u256, arg1, 5
+    v4 = icall @m1, v2, v3
+    v5 = checked_add u256, v4, 1
+    ret v5
+  bb1:
+    v1 = checked_rem u256, arg1, 13
+    ret v1
+}
+
+fn @leaf2(arg0: i256) -> i256 {
+  bb0:
+    v0 = checked_rem u256, arg0, 3
+    v1 = sload 0 !metadata(storage=slot(0))
+    v2 = checked_add u256, v1, v0
+    sstore 0, v2 !metadata(storage=slot(0))
+    v3 = checked_rem u256, arg0, 97
+    ret v3
+}
+
+// === ROOT/tests/ui/codegen/lowering/static_frames_runtime.sol:StaticFramesRuntime ===
+@module StaticFramesRuntime
+@types
+  struct0: {i256, i256}
+
+fn @s() -> i256 [selector=0x86b714e2, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @top(arg0: i256) -> i256 [selector=0x313ae541, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = checked_mul u256, arg0, 3
+    v1 = icall @chainA, arg0
+    v2 = checked_rem u256, arg0, 7
+    v3 = icall @rec, v2, arg0
+    v4 = checked_rem u256, arg0, 5
+    v5 = icall @m1, v4, arg0
+    v6 = sload 0 !metadata(storage=slot(0))
+    v7 = checked_add u256, v6, v0
+    sstore 0, v7 !metadata(storage=slot(0))
+    v8 = checked_add u256, v0, v1
+    v9 = checked_add u256, v8, v3
+    v10 = checked_add u256, v9, v5
+    ret v10
+}
+
+fn @chainA(arg0: i256) -> i256 {
+  bb0:
+    v0 = checked_add u256, arg0, 1
+    v1 = icall @chainB, v0, arg0
+    v2 = checked_mul u256, v0, 2
+    v3 = checked_add u256, v2, v1
+    ret v3
+}
+
+fn @chainB(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = xor arg0, arg1
+    v1 = icall @chainC, v0
+    v2 = extract_value struct0, v1, 0
+    v3 = extract_value struct0, v1, 1
+    v4 = sload 0 !metadata(storage=slot(0))
+    v5 = checked_add u256, v4, v2
+    sstore 0, v5 !metadata(storage=slot(0))
+    v6 = checked_mul u256, v2, 2
+    v7 = checked_add u256, v0, v6
+    v8 = checked_add u256, v7, v3
+    ret v8
+}
+
+fn @chainC(arg0: i256) -> struct0 {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = checked_add u256, v0, 1
+    sstore 0, v1 !metadata(storage=slot(0))
+    v2 = checked_div u256, arg0, 3
+    v3 = checked_add u256, v2, 1
+    v4 = checked_rem u256, arg0, 5
+    v5 = checked_add u256, v4, 2
+    v6 = insert_value struct0, undef struct0, 0, v3
+    v7 = insert_value struct0, v6, 1, v5
+    ret v7
+}
+
+fn @rec(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = checked_add u256, arg1, arg0
+    v1 = icall @leafS, v0
+    v2 = eq arg0, 0
+    jumpi v2, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    v3 = checked_sub u256, arg0, 1
+    v4 = checked_add u256, arg1, 1
+    v5 = icall @rec, v3, v4
+    v6 = checked_add u256, v1, v5
+    v7 = icall @leafS, v5
+    v8 = checked_add u256, v6, v7
+    ret v8
+  bb1:
+    ret v1
+}
+
+fn @leafS(arg0: i256) -> i256 {
+  bb0:
+    v0 = checked_mul u256, arg0, 2
+    v1 = checked_add u256, v0, 1
+    v2 = sload 0 !metadata(storage=slot(0))
+    v3 = xor v2, v1
+    sstore 0, v3 !metadata(storage=slot(0))
+    v4 = checked_rem u256, v1, 0x3e8
+    ret v4
+}
+
+fn @m1(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = eq arg0, 0
+    jumpi v0, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    v3 = icall @leaf2, arg1
+    v4 = checked_sub u256, arg0, 1
+    v5 = checked_add u256, arg1, 3
+    v6 = icall @m2, v4, v5
+    v7 = checked_add u256, v3, v6
+    ret v7
+  bb1:
+    v1 = icall @leaf2, arg1
+    v2 = checked_add u256, v1, 7
+    ret v2
+}
+
+fn @m2(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = eq arg0, 0
+    jumpi v0, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    v2 = checked_sub u256, arg0, 1
+    v3 = checked_add u256, arg1, 5
+    v4 = icall @m1, v2, v3
+    v5 = checked_add u256, v4, 1
+    ret v5
+  bb1:
+    v1 = checked_rem u256, arg1, 13
+    ret v1
+}
+
+fn @leaf2(arg0: i256) -> i256 {
+  bb0:
+    v0 = checked_rem u256, arg0, 3
+    v1 = sload 0 !metadata(storage=slot(0))
+    v2 = checked_add u256, v1, v0
+    sstore 0, v2 !metadata(storage=slot(0))
+    v3 = checked_rem u256, arg0, 97
+    ret v3
+}
+
+fn @constructor() [constructor] {
+  bb0:
+    ret
+}

@@ -189,6 +189,7 @@ pub fn generate_contract_bytecodes(
 
     // Pass debugging writes directly to stdout and stderr, so keep its output ordered.
     let parallel = gcx.sess.is_parallel()
+        && gcx.sess.opts.unstable.dataflow.is_none()
         && !gcx.sess.opts.unstable.print_after_each
         && !gcx.sess.opts.unstable.pass_diff
         && !gcx.sess.opts.unstable.time_passes;
@@ -468,6 +469,14 @@ impl<'a, 'gcx> ContractJobs<'a, 'gcx> {
         )
         .entered();
         let mut module = lower::lower_contract(gcx, contract_id);
+        gcx.dcx().has_errors()?;
+        if let Some(report) = crate::mir::analysis::dataflow::run_requested(
+            gcx,
+            &module,
+            &gcx.contract_fully_qualified_name(contract_id).to_string(),
+        ) {
+            print!("{report}");
+        }
         gcx.dcx().has_errors()?;
         let capture_mir = captures.mir.contains(contract_id);
         let needs_backend = captures.bytecode.contains(contract_id)

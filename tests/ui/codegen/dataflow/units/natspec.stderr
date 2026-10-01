@@ -1,0 +1,6 @@
+warning: units: `v0 = checked_add u256, arg0, arg1` combines D18{tok} with D18{share}
+   ╭▸ ROOT/tests/ui/codegen/dataflow/units/natspec.sol:LL:CC
+   │
+LL │         return amount + bonus;
+   ╰╴               ━━━━━━━━━━━━━━
+

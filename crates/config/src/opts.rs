@@ -447,6 +447,36 @@ pub struct UnstableOpts {
     #[cfg_attr(feature = "clap", arg(long))]
     pub assert_planned_edge_spill_home: bool,
 
+    /// Run MIR dataflow analyses and print their facts at every program point.
+    ///
+    /// Valid analyses are `storage`, `taint`, `reentrancy`, `liveness`, `intervals`, `rounding`,
+    /// and `units`. Analyses run on each contract's MIR before optimization and never change
+    /// generated code.
+    #[cfg_attr(
+        feature = "clap",
+        arg(long, require_equals = true, value_name = "ANALYSIS[,ANALYSIS...]")
+    )]
+    pub dataflow: Option<String>,
+
+    /// Call-string length for context-sensitive dataflow analyses; `0` uses one summary per
+    /// function.
+    #[cfg_attr(
+        feature = "clap",
+        arg(
+            long,
+            require_equals = true,
+            value_name = "K",
+            default_value_t = 0,
+            hide_default_value = true
+        )
+    )]
+    pub dataflow_k: usize,
+
+    /// Enable experimental dataflow-based storage and guard optimizations.
+    /// These transforms are under soundness review and are disabled by default.
+    #[cfg_attr(feature = "clap", arg(long))]
+    pub dataflow_optimizations: bool,
+
     /// Drop the compiler context after compilation.
     /// Library callers can enable this to reclaim memory between compilations.
     #[cfg_attr(feature = "clap", arg(skip))]

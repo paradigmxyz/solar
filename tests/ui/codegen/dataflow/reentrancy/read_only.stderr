@@ -1,0 +1,17 @@
+warning: possible read-only reentrancy: `withdraw` writes storage after an external call
+   ╭▸ ROOT/tests/ui/codegen/dataflow/reentrancy/read_only.sol:LL:CC
+   │
+LL │         (bool ok, ) = msg.sender.call{value: assets}("");
+   │         ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: `withdraw` writes `slot(1)` after the call
+   ╭▸ ROOT/tests/ui/codegen/dataflow/reentrancy/read_only.sol:LL:CC
+   │
+LL │         totalShares -= amount;
+   ╰╴        ━━━━━━━━━━━━━━━━━━━━━
+note: a reentrant call to `price` can read it here (stale read)
+   ╭▸ ROOT/tests/ui/codegen/dataflow/reentrancy/read_only.sol:LL:CC
+   │
+LL │         return totalAssets * 1e18 / totalShares;
+   ╰╴                                    ━━━━━━━━━━━
+

@@ -856,7 +856,7 @@ fn display_function_ref(function: FunctionId, module: Option<&Module>) -> impl f
     })
 }
 
-fn display_val(vid: ValueId, func: &Function) -> impl fmt::Display + '_ {
+pub(crate) fn display_val(vid: ValueId, func: &Function) -> impl fmt::Display + '_ {
     fmt::from_fn(move |f| match func.value(vid) {
         Value::Immediate(imm) if let Some(u256) = imm.as_u256() => match imm {
             Immediate::I1(value) => write!(f, "{value}"),
@@ -1047,5 +1047,20 @@ fn display_terminator<'a>(
             write!(f, "selfdestruct {}", display_val(*recipient, func))
         }
         Terminator::Invalid => write!(f, "invalid"),
+    })
+}
+
+/// Displays one instruction as it appears in function text, without indentation or metadata.
+pub(crate) fn display_instruction<'a>(
+    func: &'a Function,
+    module: Option<&'a Module>,
+    inst_id: InstId,
+) -> impl fmt::Display + 'a {
+    fmt::from_fn(move |f| {
+        let inst = func.inst(inst_id);
+        if inst.result_ty.is_some() {
+            write!(f, "v{} = ", inst_result_index(func, inst_id))?;
+        }
+        write!(f, "{}", display_inst_kind(&inst.kind, inst.result_ty, func, module))
     })
 }

@@ -1,0 +1,12 @@
+warning: rounding: `v6 = checked_add u256, v2, v5` combines values rounded up and down
+   ╭▸ ROOT/tests/ui/codegen/dataflow/rounding/directions.sol:LL:CC
+   │
+LL │         return up + down;
+   ╰╴               ━━━━━━━━━
+
+warning: rounding: `v6 = checked_div u256, v2, v5` divides a value rounded down by a value rounded the same way, which rounds the quotient the other way
+   ╭▸ ROOT/tests/ui/codegen/dataflow/rounding/directions.sol:LL:CC
+   │
+LL │         return shares / assets;
+   ╰╴               ━━━━━━━━━━━━━━━
+
