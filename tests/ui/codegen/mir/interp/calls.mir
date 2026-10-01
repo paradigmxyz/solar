@@ -1,0 +1,149 @@
+//@ run-call: twice(uint256)(uint256) 21 => 42
+//@ run-call-fail: twice(uint256)(uint256) 0x8000000000000000000000000000000000000000000000000000000000000000 => Panic(17)
+//@ run-call: divmod(uint256,uint256)(uint256,uint256) 17, 5 => 3, 2
+//@ run-call-fail: divmod(uint256,uint256)(uint256,uint256) 17, 0 => Panic(18)
+//@ run-call: factorial(uint256)(uint256) 0 => 1
+//@ run-call: factorial(uint256)(uint256) 10 => 3628800
+//@ run-call: sumTo(uint256)(uint256) 100 => 5050
+//@ run-call: stopEarly()
+//@ run-call: returnEarly()(uint256) => 7
+// Internal calls, recursion, and a callee returning two values, whose second the caller reads
+// from the buffer the word at 0x20 points to. A callee that stops or returns data ends the
+// transaction, whether it was called or tail called.
+@module Calls
+@phase lowered
+@types
+  struct0: {i256, i256}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = calldataload 0
+    v1 = shr 224, v0
+    switch v1, default bb7, [0x3cf3bbf4 => bb1, 0x8efe1b6c => bb2, 0x83714834 => bb3, 0xef0baad9 => bb4, 0x934fcf39 => bb5, 0x4680b567 => bb6]
+  bb1:
+    tail_call @twice
+  bb2:
+    tail_call @divmod
+  bb3:
+    tail_call @factorial
+  bb4:
+    tail_call @sum_to
+  bb5:
+    tail_call @stop_early
+  bb6:
+    tail_call @return_early
+  bb7:
+    revert 0, 0
+}
+
+fn @twice() [selector=0x3cf3bbf4, abi_wrapper] {
+  bb0:
+    v0 = icall @double, arg0
+    mstore 0, v0
+    returndata 0, 32
+}
+
+fn @double(arg0: i256) -> i256 {
+  bb0:
+    v0 = icall @checked_add, arg0, arg0
+    ret v0
+}
+
+fn @checked_add(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = add arg0, arg1
+    v1 = lt v0, arg0
+    jumpi v1, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b71
+    mstore 32, 17
+    revert 28, 36
+  bb2:
+    ret v0
+}
+
+fn @divmod() [selector=0x8efe1b6c, abi_wrapper] {
+  bb0:
+    v0 = icall @quot_rem, arg0, arg1
+    v1 = mload 32
+    v2 = add v1, 32
+    v3 = mload v2
+    mstore 0, v0
+    mstore 32, v3
+    returndata 0, 64
+}
+
+fn @quot_rem(arg0: i256, arg1: i256) -> struct0 [return_abi=[i256, i256]] {
+  bb0:
+    v0 = eq arg1, 0
+    jumpi v0, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b71
+    mstore 32, 18
+    revert 28, 36
+  bb2:
+    v1 = div arg0, arg1
+    v2 = mod arg0, arg1
+    ret v1, v2
+}
+
+fn @factorial() [selector=0x83714834, abi_wrapper] {
+  bb0:
+    v0 = icall @fact, arg0
+    mstore 0, v0
+    returndata 0, 32
+}
+
+fn @fact(arg0: i256) -> i256 {
+  bb0:
+    v0 = eq arg0, 0
+    jumpi v0, bb1, bb2
+  bb1:
+    ret 1
+  bb2:
+    v1 = sub arg0, 1
+    v2 = icall @fact, v1
+    v3 = mul arg0, v2
+    ret v3
+}
+
+fn @sum_to() [selector=0xef0baad9, abi_wrapper] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb2: v3]
+    v1 = phi [bb0: 0], [bb2: v4]
+    v2 = gt v0, arg0
+    jumpi v2, bb3, bb2
+  bb2:
+    v3 = add v0, 1
+    v4 = add v1, v0
+    jump bb1
+  bb3:
+    mstore 0, v1
+    returndata 0, 32
+}
+
+fn @stop_early() [selector=0x934fcf39, abi_wrapper] {
+  bb0:
+    icall @record_and_stop
+    sstore 0, 1
+    stop
+}
+
+fn @record_and_stop() {
+  bb0:
+    sstore 1, 2
+    stop
+}
+
+fn @return_early() [selector=0x4680b567, abi_wrapper] {
+  bb0:
+    tail_call @answer, 7
+}
+
+fn @answer(arg0: i256) {
+  bb0:
+    mstore 0, arg0
+    returndata 0, 32
+}

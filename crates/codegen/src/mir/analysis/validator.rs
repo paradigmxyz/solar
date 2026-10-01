@@ -136,7 +136,7 @@ impl<'a> Validator<'a> {
             self.validate_value_types(module, func);
             self.validate_memory_object_types(func);
         }
-        self.validate_function_phase(phase, func);
+        self.validate_function_phase(module, phase, func);
     }
 
     /// Checks arena references before any operation can query operand types.
@@ -168,6 +168,29 @@ impl<'a> Validator<'a> {
                 term.visit_operands(|value| {
                     self.validate_value_reference(func, value, num_args, block);
                 });
+            }
+        }
+        // A storage alias names its base slot like an operand, so the base must stay defined.
+        for (block, body) in func.blocks.iter_enumerated() {
+            for &id in body.instructions.iter().filter(|id| id.index() < func.num_insts()) {
+                let alias = func.inst(id).metadata.storage_alias();
+                let Some(base) = alias.and_then(|alias| alias.symbolic_base()) else { continue };
+                let defined = base.index() < func.num_values()
+                    && match func.value(base) {
+                        Value::Inst(defining) => seen.contains(*defining),
+                        Value::Arg(index) => index.index() < num_args,
+                        Value::Immediate(_) | Value::Undef(_) | Value::Error(_) => true,
+                    };
+                if !defined {
+                    self.emit_at_inst(
+                        format_args!(
+                            "storage alias names v{}, which the function does not define",
+                            base.index()
+                        ),
+                        block,
+                        id,
+                    );
+                }
             }
         }
         self.error_count == errors_before
@@ -729,6 +752,10 @@ impl<'a> Validator<'a> {
         if !module.functions.iter().any(|func| func.return_abi().is_some()) {
             return;
         }
+        self.count_return_fields(module);
+    }
+
+    fn count_return_fields(&mut self, module: &Module) {
         for (id, structure) in module.struct_types.iter_enumerated() {
             let count = structure.fields.iter().try_fold(0usize, |count, &field| {
                 let fields = match field {
@@ -1372,7 +1399,7 @@ impl<'a> Validator<'a> {
         }
     }
 
-    fn validate_function_phase(&mut self, phase: MirPhase, func: &Function) {
+    fn validate_function_phase(&mut self, module: &Module, phase: MirPhase, func: &Function) {
         if phase == MirPhase::Lowered && func.is_external_entry() && !func.attributes.is_abi_wrapper
         {
             self.emit("external entry has no explicit ABI implementation");
@@ -1406,6 +1433,28 @@ impl<'a> Validator<'a> {
                 if matches!(block.terminator, Some(crate::mir::Terminator::RevertReturndata)) {
                     self.emit_at_block(
                         "returndata bubbling survives the `lowered` phase boundary",
+                        block_id,
+                    );
+                }
+                // The backend jumps to a tail call's target and never expects it back: an
+                // internal function returns its results where its own caller reads them, not
+                // where this function's caller does. `lower-evm-shaped` forms tail calls only
+                // to functions that never return, and an external entry's return ends the
+                // transaction.
+                if let Some(Terminator::TailCall { function, .. }) = block.terminator
+                    && let Some(callee) = module.functions.get(function)
+                    && !callee.is_external_entry()
+                    && self
+                        .returning_functions
+                        .as_ref()
+                        .is_some_and(|returning| returning.contains(function))
+                {
+                    self.emit_at_block(
+                        format_args!(
+                            "tail call to returning function `{}` survives the `lowered` phase \
+                             boundary",
+                            callee.name
+                        ),
                         block_id,
                     );
                 }
@@ -1454,6 +1503,26 @@ pub(crate) fn validate_phase(
 ) -> solar_interface::Result<()> {
     let mut validator = Validator::new(dcx);
     validator.validate_module_at_phase(module, phase);
+    validator.error.map_or(Ok(()), Err)
+}
+
+/// Checks `function` against the requested phase as a replacement for function `id` of `module`.
+///
+/// Calls resolve against the rest of the module, which is not checked again.
+pub(crate) fn validate_function_at_phase(
+    dcx: &DiagCtxt,
+    module: &Module,
+    id: FunctionId,
+    function: &Function,
+    phase: MirPhase,
+) -> solar_interface::Result<()> {
+    let mut validator = Validator::new(dcx);
+    validator.returning_functions = Some(module.returning_functions());
+    if function.return_abi().is_some() {
+        validator.count_return_fields(module);
+    }
+    validator.function = Some(id);
+    validator.validate_function(module, function, phase);
     validator.error.map_or(Ok(()), Err)
 }
 
@@ -1827,24 +1896,26 @@ error: [fn0] tail_call targets nonexistent function fn98
     }
 
     #[test]
-    fn phase_boundary_checks_tail_call_results() {
+    fn phase_boundary_rejects_returning_tail_calls() {
         for mode in 0..3 {
             with_session(|sess| {
                 let mut module = Module::new(Ident::DUMMY);
                 let mut callee = make_func();
                 callee.set_return_type(MirType::I256);
-                // ret 0
-                let mut builder = FunctionBuilder::new(&mut callee);
-                let zero = builder.imm(0);
-                builder.ret([zero]);
+                // stop
+                FunctionBuilder::new(&mut callee).stop();
                 let callee = module.add_function(callee);
                 let mut caller = make_func();
                 caller.set_return_type(MirType::I256);
                 // tail_call callee
                 FunctionBuilder::new(&mut caller).tail_call(callee, Vec::new());
-                let caller = module.add_function(caller);
+                module.add_function(caller);
                 assert!(module.advance_phase(&sess.dcx, MirPhase::Lowered).is_ok());
-                module.functions[caller].set_return_type(MirType::Void);
+                // stop -> ret 0
+                let function = &mut module.functions[callee];
+                let zero = function.alloc_value(Value::Immediate(Immediate::I256(U256::ZERO)));
+                function.blocks[BlockId::ENTRY].terminator =
+                    Some(Terminator::Return { values: smallvec::smallvec![zero] });
                 match mode {
                     0 => validate(&sess.dcx, &module),
                     1 => assert!(module.advance_phase(&sess.dcx, MirPhase::Lowered).is_err()),
@@ -1853,7 +1924,7 @@ error: [fn0] tail_call targets nonexistent function fn98
                 assert_data_eq!(
                     sess.emitted_diagnostics().unwrap().to_string(),
                     str![[r#"
-error: [fn1] tail_call to `.0` returns 1 value(s), caller signature expects 0
+error: [fn1] [bb0] tail call to returning function `.0` survives the `lowered` phase boundary
 
 
 "#]]
@@ -2103,6 +2174,36 @@ error: [bb1] predecessor bb0 is listed more than once
                 sess.emitted_diagnostics().unwrap().to_string(),
                 str![[r#"
 error: function has no entry block
+
+
+"#]]
+            );
+        });
+    }
+
+    #[test]
+    fn storage_alias_base_must_be_defined() {
+        with_session(|sess| {
+            let mut module = Module::new(Ident::DUMMY);
+            let mut function = make_func();
+            let (removed, store) = {
+                let mut builder = FunctionBuilder::new(&mut function);
+                let slot = builder.add_param(MirType::I256);
+                let removed = builder.add(slot, slot);
+                builder.sstore(slot, slot);
+                builder.ret([]);
+                (removed, builder.func().blocks[BlockId::ENTRY].instructions[1])
+            };
+            // The alias still names the `add` a pass deleted.
+            function.blocks[BlockId::ENTRY].instructions.remove(0);
+            let alias = crate::mir::StorageAlias::Offset { base: removed, offset: U256::ONE };
+            function.inst_mut(store).metadata.set_storage_alias(Some(alias));
+            module.add_function(function);
+            assert!(validate_phase(&sess.dcx, &module, MirPhase::Semantic).is_err());
+            assert_data_eq!(
+                sess.emitted_diagnostics().unwrap().to_string(),
+                str![[r#"
+error: [fn0] [bb0, inst1] storage alias names v1, which the function does not define
 
 
 "#]]

@@ -1,0 +1,102 @@
+llm-optimize TailCalls @constructor: not offered: is an external entry
+llm-optimize TailCalls @main: not offered: is the dispatch entry
+llm-optimize TailCalls @helper: offered at 52 gas, 21 bytes
+llm-optimize TailCalls @helper: round 1: nothing cheaper
+llm-optimize TailCalls @parity: not offered: is recursive
+llm-optimize TailCalls @wraps: offered at 255 gas, 53 bytes
+llm-optimize TailCalls @wraps: round 1: rejected at constraints: tail calls `@helper`, which returns; call it and return its results instead
+llm-optimize TailCalls @wraps: round 2: accepted at 245 gas, 50 bytes
+llm-optimize TailCalls @wraps: round 3: nothing cheaper
+llm-optimize TailCalls @wraps: rewritten from 255 gas, 53 bytes to 245 gas, 50 bytes
+llm-optimize TailCalls @forwards: offered at 368 gas, 50 bytes
+llm-optimize TailCalls @forwards: round 1: rejected at constraints: tail calls `@parity`, which is recursive or an entry point; call it instead
+llm-optimize TailCalls @forwards: round 2: nothing cheaper
+llm-optimize TailCalls @shared: offered at 247 gas, 50 bytes
+llm-optimize TailCalls @shared: round 1: rejected at constraints: tail calls from code the constructor runs, which deployment cannot do; call and return instead
+llm-optimize TailCalls @shared: round 2: nothing cheaper
+llm-optimize TailCalls @ends: offered at 47 gas, 13 bytes
+llm-optimize TailCalls @ends: round 1: accepted at 37 gas, 10 bytes
+llm-optimize TailCalls @ends: round 2: nothing cheaper
+llm-optimize TailCalls @ends: rewritten from 47 gas, 13 bytes to 37 gas, 10 bytes
+llm-optimize TailCalls @finish: offered at 13 gas, 7 bytes
+llm-optimize TailCalls @finish: round 1: nothing cheaper
+- // === ROOT/tests/ui/codegen/mir/llm-optimize/tail_calls.mir (before llm-optimize) ===
++ // === ROOT/tests/ui/codegen/mir/llm-optimize/tail_calls.mir (after llm-optimize) ===
+  @module TailCalls
+  @phase lowered
+  fn @constructor() [abi_wrapper, constructor] {
+    bb0:
+      v0 = icall @shared, 7
+      sstore 0, v0
+      stop
+  }
+  
+  fn @main() [entry] {
+    bb0:
+      v0 = calldataload 0
+      v1 = icall @wraps, v0
+      v2 = icall @forwards, v1
+      v3 = icall @shared, v2
+      icall @ends, v3
+      invalid
+  }
+  
+  fn @helper(arg0: i256) -> i256 {
+    bb0:
+      v0 = add arg0, 1
+      ret v0
+  }
+  
+  fn @parity(arg0: i256) -> i256 {
+    bb0:
+      v0 = and arg0, 1
+      v1 = eq v0, 0
+      jumpi v1, bb1, bb2
+    bb2:
+      v2 = sub arg0, 1
+      v3 = icall @parity, v2
+      ret v3
+    bb1:
+      ret arg0
+  }
+  
+  fn @wraps(arg0: i256) -> i256 {
+    bb0:
+-     v0 = mul arg0, 4
+-     v1 = add v0, 0
+-     v2 = icall @helper, v1
+-     ret v2
++     v0 = shl 2, arg0
++     v1 = icall @helper, v0
++     ret v1
+  }
+  
+  fn @forwards(arg0: i256) -> i256 {
+    bb0:
+      v0 = mul arg0, 3
+      v1 = icall @parity, v0
+      ret v1
+  }
+  
+  fn @shared(arg0: i256) -> i256 {
+    bb0:
+      v0 = mul arg0, 3
+      v1 = icall @helper, v0
+      ret v1
+  }
+  
+  fn @ends(arg0: i256) {
+    bb0:
+-     v0 = mul arg0, 4
+-     v1 = add v0, 0
+-     tail_call @finish, v1
++     v0 = shl 2, arg0
++     tail_call @finish, v0
+  }
+  
+  fn @finish(arg0: i256) {
+    bb0:
+      mstore 0, arg0
+      returndata 0, 32
+  }
+  

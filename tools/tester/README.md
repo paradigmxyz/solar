@@ -17,6 +17,40 @@ cargo tq foundry
 
 Set `SOLAR_FOUNDRY_PROJECT` to run one discovered project while debugging.
 
+## MIR interpreter check
+
+With `SOLAR_RUN_CALL_MIR` set, every `run-call` and `run-call-fail` directive also
+runs through the MIR interpreter (`solar_codegen::interpret`) on the final MIR of
+the called contract, which the runner obtains by compiling the test again with
+`-Zdump=mir-final`, along with the frames the backend takes from the heap for
+internal calls. The interpreter starts from the storage, balances, code, and
+heap start the EVM had just before the call, and must end the same way, return
+the same data, emit the same logs, and write the same storage. A disagreement
+fails the test: it is a bug in the backend or in the interpreter. Calls the
+interpreter cannot run are skipped: calls to other contracts, contract creation,
+`gas`, and deployed code that is not the compiled runtime, such as a contract
+with immutables.
+
+`SOLAR_RUN_CALL_MIR=1` reports only disagreements. Any other value names a file
+that receives one line per call, `checked`, `skipped` with the reason, or
+`mismatch`:
+
+```console
+SOLAR_RUN_CALL_MIR=target/run-call-mir.log TESTER_MODE=ui cargo test -p solar-compiler --test tests
+```
+
+A test written in lowered MIR, such as those in `tests/ui/codegen/mir/interp/`,
+exists to run its calls both ways, so its directives are always checked, and a
+call the interpreter cannot run fails the test instead of being skipped. The
+runner compiles the module like a contract named after the file and the module.
+MIR has no ABI, so a directive names the function by its signature, followed by
+its outputs when it returns values, as in `add(uint256,uint256)(uint256) 2, 3 => 5`.
+
+To look into a disagreement, run the call by hand with
+[solar-mir-interp](../mir-interp/README.md): pass it the test's
+`-Zdump=mir-final` output and the call, and add `--trace` to see every operation
+the interpreter runs.
+
 ## Compiler artifact comparisons
 
 Use [compiler-diff](../compiler-diff/README.md) for local or Sourcify standard-JSON

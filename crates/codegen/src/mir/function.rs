@@ -621,6 +621,29 @@ impl Function {
         changed
     }
 
+    /// Drops storage aliases whose base slot no instruction defines any more.
+    ///
+    /// A key naming a deleted value is consistent only until values are renumbered, when it could
+    /// come to name another value. Readers recompute a dropped key from the slot operand.
+    pub(crate) fn drop_dangling_storage_aliases(&mut self) {
+        let mut placed = DenseBitSet::new_empty(self.num_insts());
+        for inst in self.instructions() {
+            placed.insert(inst);
+        }
+        let dangling = self
+            .instructions()
+            .filter(|&inst| {
+                let base = self.inst(inst).metadata.storage_alias().and_then(|a| a.symbolic_base());
+                base.is_some_and(|base| {
+                    matches!(self.value(base), Value::Inst(defining) if !placed.contains(*defining))
+                })
+            })
+            .collect::<Vec<_>>();
+        for inst in dangling {
+            self.inst_mut(inst).metadata.set_storage_alias(None);
+        }
+    }
+
     /// Returns stored storage-alias metadata, or computes a conservative alias key.
     #[must_use]
     pub(crate) fn storage_alias(&self, inst_id: InstId, slot: ValueId) -> StorageAlias {
@@ -651,6 +674,17 @@ impl Function {
     #[must_use]
     pub(crate) fn is_public(&self) -> bool {
         matches!(self.attributes.visibility, Visibility::Public | Visibility::External)
+    }
+
+    /// Replaces the body of this function, its argument slots, values, instructions, and blocks,
+    /// with that of `body`, which must take the same parameters. The function keeps its name,
+    /// signature, attributes, spans, and memory layout.
+    pub(crate) fn replace_body(&mut self, body: Self) {
+        debug_assert_eq!(self.params, body.params);
+        self.arg_types = body.arg_types;
+        self.values = body.values;
+        self.instructions = body.instructions;
+        self.blocks = body.blocks;
     }
 }
 
@@ -902,5 +936,52 @@ mod tests {
         assert_eq!(inst.metadata.memory_region(), None);
         assert_eq!(inst.metadata.storage_alias(), None);
         assert_eq!(inst.metadata.effect(), None);
+    }
+
+    #[test]
+    fn replace_uses_renames_storage_alias_bases() {
+        let mut func = Function::new(Ident::DUMMY);
+        let (old, new, store) = {
+            let mut builder = FunctionBuilder::new(&mut func);
+            let old = builder.add_param(MirType::I256);
+            let new = builder.add_param(MirType::I256);
+            let slot = builder.add_param(MirType::I256);
+            builder.sstore(slot, new);
+            builder.ret([]);
+            let store = builder.func().blocks[BlockId::ENTRY].instructions[0];
+            (old, new, store)
+        };
+        let alias = StorageAlias::Offset { base: old, offset: U256::from(1) };
+        func.inst_mut(store).metadata.set_storage_alias(Some(alias));
+
+        // The store's operands stay, so its alias survives with the base renamed.
+        func.replace_uses(&FxHashMap::from_iter([(old, new)]));
+
+        let renamed = StorageAlias::Offset { base: new, offset: U256::from(1) };
+        assert_eq!(func.inst(store).metadata.storage_alias(), Some(renamed));
+    }
+
+    #[test]
+    fn drops_storage_aliases_of_deleted_bases() {
+        let mut func = Function::new(Ident::DUMMY);
+        let (base, store) = {
+            let mut builder = FunctionBuilder::new(&mut func);
+            let slot = builder.add_param(MirType::I256);
+            let base = builder.add(slot, slot);
+            builder.sstore(slot, slot);
+            builder.ret([]);
+            (base, builder.func().blocks[BlockId::ENTRY].instructions[1])
+        };
+        let alias = StorageAlias::Offset { base, offset: U256::from(1) };
+        func.inst_mut(store).metadata.set_storage_alias(Some(alias));
+
+        // A live base keeps the alias.
+        func.drop_dangling_storage_aliases();
+        assert_eq!(func.inst(store).metadata.storage_alias(), Some(alias));
+
+        // Deleting the base drops it.
+        func.blocks[BlockId::ENTRY].instructions.remove(0);
+        func.drop_dangling_storage_aliases();
+        assert_eq!(func.inst(store).metadata.storage_alias(), None);
     }
 }

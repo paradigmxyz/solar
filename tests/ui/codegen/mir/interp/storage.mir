@@ -1,0 +1,64 @@
+//@ run-call: increment()
+//@ run-call: count()(uint256) => 0
+//@ run-call: add(uint256,uint256)(uint256) 2, 3 => 5
+//@ run-call-fail: add(uint256,uint256)(uint256) 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 1 => Panic(17)
+//@ run-call-fail: 0x12345678
+// Each call runs on the EVM and on the MIR interpreter, which must end the same way, return the
+// same data, log the same events, and write the same storage.
+@module Counter
+@phase lowered
+fn @entry() [entry] {
+  bb0:
+    v0 = calldataload 0
+    v1 = shr 224, v0
+    switch v1, default bb4, [0xd09de08a => bb1, 0x06661abd => bb2, 0x771602f7 => bb3]
+  bb1:
+    tail_call @increment
+  bb2:
+    tail_call @count
+  bb3:
+    tail_call @sum
+  bb4:
+    revert 0, 0
+}
+
+fn @increment() [selector=0xd09de08a, abi_wrapper] {
+  bb0:
+    v0 = sload 0
+    v1 = icall @add, v0, 1
+    sstore 0, v1
+    v2 = caller
+    v3 = zext i160 v2 to i256
+    mstore 0, v1
+    log2 0, 32, 0x7a2e4c9bdfb0c1ee2fb7e6d8d0e21e4d2e1c73f3a9a7ff1d6d8b1e8c1b0a9f01, v3
+    stop
+}
+
+fn @count() [selector=0x06661abd, abi_wrapper] {
+  bb0:
+    v0 = sload 0
+    mstore 0, v0
+    returndata 0, 32
+}
+
+fn @sum() [selector=0x771602f7, abi_wrapper] {
+  bb0:
+    v0 = calldataload 4
+    v1 = calldataload 36
+    v2 = icall @add, v0, v1
+    mstore 0, v2
+    returndata 0, 32
+}
+
+fn @add(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = add arg0, arg1
+    v1 = lt v0, arg0
+    jumpi v1, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b71
+    mstore 32, 17
+    revert 28, 36
+  bb2:
+    ret v0
+}

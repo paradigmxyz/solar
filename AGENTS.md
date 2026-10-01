@@ -25,6 +25,7 @@ cargo fmt --all                        # Format
 cargo cl                               # Lint
 cargo run -- file.sol                  # Run compiler
 cargo run -- -Zhelp                    # Unstable flags help
+cargo run -p solar-mir-interp -- f.mir # Run lowered MIR in the MIR interpreter
 ```
 
 Prefer focused tests during iteration and broader relevant checks once the change
@@ -121,15 +122,22 @@ for the architecture and remaining semantic-builtin migration.
 
 MIR operations are declared once in `crates/codegen/src/mir/op_schema.rs`.
 Each row carries the typed payload with named tuple operands, the mnemonic,
-result kind, operand type contract, phase set, effect, traits, and side-effect
-flag. The macro generates operand traversal, the `Op` rewrite view, the ISLE prelude, a
+result kind, operand type contract, phase set, effect, traits, side-effect
+flag, and, when the operation has one, its meaning in `#[semantics(...)]`: an
+EVM opcode on the operands in pop order, a cast, a comparison, `select`, a
+phi, a call, or checked arithmetic (see `mir/semantics.rs`). Constant folding
+and the MIR interpreter evaluate operations through `InstKind::semantics`.
+The macro generates operand traversal, the `Op` rewrite view, the ISLE prelude, a
 constructor per operation that the textual parser uses for every operation
 built from value operands alone, and a `FunctionBuilder` method for every
 variant marked `#[builder(name)]` or `#[builder(name, void)]`. Give an
 operation custom text syntax or a custom builder only when it carries an
 attribute the generic forms cannot express.
-EVM opcodes are declared the same way in `backend/evm/op.rs`, with traits and
-availability per row and a snapshot of the whole table in `op_table.snap`.
+EVM opcodes are declared the same way in `backend/evm/op.rs`, with traits,
+availability, and, for pure opcodes, word semantics (`op/word.rs`, reached
+through `op::eval`) per row. `op_table.snap` snapshots the whole table, and
+`op/word.snap` lists pure opcode results on boundary words, which the rule
+checker's tests evaluate with their own word models.
 Add new operations to those tables only; never add a parallel `match` that
 classifies operations elsewhere.
 
@@ -388,6 +396,8 @@ for a one-line restatement of the pass name.
     the pass's command-line name for the directory.
   - Progressive MIR lowering pass tests (`lower-abi`, `lower-dispatch`, and
     `lower-evm-shaped`) go together under `tests/ui/codegen/mir/lowering/`.
+  - Lowered MIR programs whose `run-call` directives check the MIR interpreter
+    against the EVM go under `tests/ui/codegen/mir/interp/`.
   - EVM IR optimization tests go under `tests/ui/codegen/evm-ir/<pass-name>/`,
     using the `-Zevm-ir-pipeline` pass name for the directory.
   - Pass-free round-trip fixtures, pipeline tests, and validation tests belong
@@ -450,7 +460,12 @@ Common file-level UI directives:
 - `//@ run-call-fail: fail()`: Like `run-call`, but require the call to fail.
   Add `=> 0x...` to check exact revert data. Both directives use the EVM version
   selected by `--evm-version`. Calls to functions named `test*` run a
-  zero-argument `setUp()` first when the contract defines it.
+  zero-argument `setUp()` first when the contract defines it. With
+  `SOLAR_RUN_CALL_MIR` set, both also run on the contract's final MIR through
+  the MIR interpreter, which must agree with the EVM (see
+  `tools/tester/README.md`). Lowered `.mir` tests always run that check. Their
+  modules have no ABI, so name the function by its signature and outputs, as in
+  `add(uint256,uint256)(uint256) 2, 3 => 5`.
 - `//@ filecheck: ...`: Run LLVM FileCheck against the generated `.stdout` file
   after the UI test. Arguments after `filecheck:` are passed directly to
   FileCheck, for example `--check-prefix=ABI` or

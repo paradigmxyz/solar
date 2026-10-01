@@ -1,0 +1,104 @@
+//@ run-call: who()(address,address,address,uint256,uint256,uint256); value=5 => 0x2222222222222222222222222222222222222222, 0x2222222222222222222222222222222222222222, 0x659b375d76a8e9a2c68da8818022d6561aa60845, 5, 5, 5
+//@ run-call: who()(address,address,address,uint256,uint256,uint256) => 0x2222222222222222222222222222222222222222, 0x2222222222222222222222222222222222222222, 0x659b375d76a8e9a2c68da8818022d6561aa60845, 0, 0, 0
+//@ run-call: callerBalance()(uint256); value=5 => 115792089237316195423570985008687907853269984665640564039457584007913129639930
+//@ run-call: chain()(uint256,uint256,uint256,uint256,uint256,address,uint256,uint256,uint256) => 1, 1, 0, 0, 18446744073709551615, 0x0000000000000000000000000000000000000000, 0, 0, 1
+//@ run-call: code()(bool,bool,uint256,bytes32,bytes32,bytes32) => true, true, 0, 0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470, 0x0000000000000000000000000000000000000000000000000000000000000000, 0x0000000000000000000000000000000000000000000000000000000000000000
+// The interpreter answers context reads with what the EVM held for the call: the caller, the
+// value it sent and the balances it moved, the block, and the code of the accounts it reads.
+@module Context
+@phase lowered
+fn @entry() [entry] {
+  bb0:
+    v0 = calldataload 0
+    v1 = shr 224, v0
+    switch v1, default bb5, [0xd6d21dfd => bb1, 0xeb46f435 => bb2, 0xc763e5a1 => bb3, 0x24c12bf6 => bb4]
+  bb1:
+    tail_call @who
+  bb2:
+    tail_call @caller_balance
+  bb3:
+    tail_call @chain
+  bb4:
+    tail_call @code
+  bb5:
+    revert 0, 0
+}
+
+fn @who() [selector=0xd6d21dfd, abi_wrapper, payable] {
+  bb0:
+    v0 = caller
+    v1 = zext i160 v0 to i256
+    v2 = origin
+    v3 = zext i160 v2 to i256
+    v4 = address
+    v5 = zext i160 v4 to i256
+    v6 = callvalue
+    v7 = selfbalance
+    v8 = balance v5
+    mstore 0x80, v1
+    mstore 0xa0, v3
+    mstore 0xc0, v5
+    mstore 0xe0, v6
+    mstore 0x100, v7
+    mstore 0x120, v8
+    returndata 0x80, 0xc0
+}
+
+fn @caller_balance() [selector=0xeb46f435, abi_wrapper, payable] {
+  bb0:
+    v0 = caller
+    v1 = zext i160 v0 to i256
+    v2 = balance v1
+    mstore 0, v2
+    returndata 0, 32
+}
+
+fn @chain() [selector=0xc763e5a1, abi_wrapper] {
+  bb0:
+    v0 = chainid
+    v1 = timestamp
+    v2 = number
+    v3 = basefee
+    v4 = gaslimit
+    v5 = coinbase
+    v6 = zext i160 v5 to i256
+    v7 = prevrandao
+    v8 = gasprice
+    v9 = blobbasefee
+    mstore 0x80, v0
+    mstore 0xa0, v1
+    mstore 0xc0, v2
+    mstore 0xe0, v3
+    mstore 0x100, v4
+    mstore 0x120, v6
+    mstore 0x140, v7
+    mstore 0x160, v8
+    mstore 0x180, v9
+    returndata 0x80, 0x120
+}
+
+fn @code() [selector=0x24c12bf6, abi_wrapper] {
+  bb0:
+    v0 = codesize
+    v1 = gt v0, 0
+    v2 = zext i1 v1 to i256
+    v3 = address
+    v4 = zext i160 v3 to i256
+    v5 = extcodesize v4
+    v6 = eq v0, v5
+    v7 = zext i1 v6 to i256
+    v8 = caller
+    v9 = zext i160 v8 to i256
+    v10 = extcodesize v9
+    v11 = extcodehash v9
+    v12 = extcodehash 0xdead
+    v13 = number
+    v14 = blockhash v13
+    mstore 0x80, v2
+    mstore 0xa0, v7
+    mstore 0xc0, v10
+    mstore 0xe0, v11
+    mstore 0x100, v12
+    mstore 0x120, v14
+    returndata 0x80, 0xc0
+}

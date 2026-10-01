@@ -17,6 +17,7 @@ mod gas;
 pub(crate) use gas::{pre_tangerine_call_gas, precompile_gas};
 mod index_lists;
 pub(crate) use index_lists::IndexLists;
+pub(crate) mod interp;
 
 pub(crate) fn remap_block_order(
     func: &mut Function,
@@ -323,25 +324,6 @@ pub(crate) fn replace_terminator_uses_canonicalized(
 /// Converts a U256 to a u64 when lossless.
 pub(crate) fn u256_to_u64(value: U256) -> Option<u64> {
     value.try_into().ok()
-}
-
-/// Returns true for instructions whose operands derive memory metadata.
-pub(crate) fn is_memory_inst(kind: &InstKind) -> bool {
-    matches!(
-        kind,
-        InstKind::MLoad(_)
-            | InstKind::MStore(_, _)
-            | InstKind::MStore8(_, _)
-            | InstKind::MemoryZero(_, _)
-            | InstKind::MCopy(_, _, _)
-            | InstKind::CalldataCopy(_, _, _)
-            | InstKind::DataCopy(_, _, _)
-            | InstKind::CodeCopy(_, _, _)
-            | InstKind::ReturnDataCopy(_, _, _)
-            | InstKind::ExtCodeCopy(_, _, _, _)
-            | InstKind::Keccak256(_, _)
-            | InstKind::MappingSlotMemory(_, _)
-    )
 }
 
 fn replace_inst_operands(

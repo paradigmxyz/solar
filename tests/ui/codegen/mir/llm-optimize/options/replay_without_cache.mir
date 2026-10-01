@@ -1,0 +1,9 @@
+//@ compile-flags: -Zllm-optimize=replay
+@module Options
+@phase lowered
+fn @main() [entry] {
+  bb0:
+    stop
+}
+
+//~? ERROR: `-Zllm-optimize=replay` requires `-Zllm-cache`

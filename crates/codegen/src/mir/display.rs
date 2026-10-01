@@ -192,16 +192,21 @@ pub(crate) fn display_function_dot<'a>(
 ///     ret arg0
 /// }
 /// ```
+///
+/// Without `metadata`, instructions and terminators print without their `!metadata(...)`
+/// annotations: the form [`Module::parse_function`] accepts for candidate replacements.
 pub(crate) fn display_function_text<'a>(
     func: &'a Function,
     module: Option<&'a Module>,
     is_dispatch_entry: bool,
+    metadata: bool,
 ) -> impl fmt::Display + 'a {
     fn display_text_block<'a>(
         func: &'a Function,
         module: Option<&'a Module>,
         block_id: BlockId,
         block: &'a BasicBlock,
+        metadata: bool,
     ) -> impl fmt::Display + 'a {
         fmt::from_fn(move |f| {
             writeln!(f, "  bb{}:", block_id.index())?;
@@ -212,17 +217,16 @@ pub(crate) fn display_function_text<'a>(
                 block.instructions.iter().format_with("", |f, inst_id| write!(
                     f,
                     "{}",
-                    display_text_instruction(func, module, *inst_id)
+                    display_text_instruction(func, module, *inst_id, metadata)
                 ))
             )?;
 
             if let Some(term) = &block.terminator {
-                writeln!(
-                    f,
-                    "    {}{}",
-                    display_terminator(term, func, module),
-                    display_metadata(&block.terminator_metadata, None, func)
-                )?;
+                write!(f, "    {}", display_terminator(term, func, module))?;
+                if metadata {
+                    write!(f, "{}", display_metadata(&block.terminator_metadata, None, func))?;
+                }
+                writeln!(f)?;
             }
             Ok(())
         })
@@ -232,20 +236,19 @@ pub(crate) fn display_function_text<'a>(
         func: &'a Function,
         module: Option<&'a Module>,
         inst_id: InstId,
+        metadata: bool,
     ) -> impl fmt::Display + 'a {
         fmt::from_fn(move |f| {
             let inst = func.inst(inst_id);
-
-            write!(f, "    ")?;
-            if inst.result_ty.is_some() {
-                write!(f, "v{} = ", inst_result_index(func, inst_id))?;
+            write!(f, "    {}", display_instruction(func, module, inst_id))?;
+            if metadata {
+                write!(
+                    f,
+                    "{}",
+                    display_metadata(&inst.metadata, Some(inst.kind.effect_kind()), func)
+                )?;
             }
-            writeln!(
-                f,
-                "{}{}",
-                display_inst_kind(&inst.kind, inst.result_ty, func, module),
-                display_metadata(&inst.metadata, Some(inst.kind.effect_kind()), func)
-            )
+            writeln!(f)
         })
     }
 
@@ -270,11 +273,12 @@ pub(crate) fn display_function_text<'a>(
 
         let cfg = CfgInfo::new(func);
         for &block_id in cfg.rpo() {
-            write!(f, "{}", display_text_block(func, module, block_id, &func.blocks[block_id]))?;
+            let block = &func.blocks[block_id];
+            write!(f, "{}", display_text_block(func, module, block_id, block, metadata))?;
         }
         for (block_id, block) in func.blocks.iter_enumerated() {
             if !cfg.is_reachable(block_id) {
-                write!(f, "{}", display_text_block(func, module, block_id, block))?;
+                write!(f, "{}", display_text_block(func, module, block_id, block, metadata))?;
             }
         }
 
@@ -365,6 +369,22 @@ fn function_prints_return_values(func: &Function) -> bool {
             .blocks
             .iter()
             .any(|block| matches!(block.terminator, Some(Terminator::Return { .. })))
+}
+
+/// Formats instruction `inst_id` of `func` as the text printer prints it, without indentation or
+/// metadata.
+pub(crate) fn display_instruction<'a>(
+    func: &'a Function,
+    module: Option<&'a Module>,
+    inst_id: InstId,
+) -> impl fmt::Display + 'a {
+    fmt::from_fn(move |f| {
+        let inst = func.inst(inst_id);
+        if inst.result_ty.is_some() {
+            write!(f, "v{} = ", inst_result_index(func, inst_id))?;
+        }
+        write!(f, "{}", display_inst_kind(&inst.kind, inst.result_ty, func, module))
+    })
 }
 
 fn inst_result_index(func: &Function, inst_id: InstId) -> usize {
@@ -874,7 +894,8 @@ fn display_function_ref(function: FunctionId, module: Option<&Module>) -> impl f
     })
 }
 
-fn display_val(vid: ValueId, func: &Function) -> impl fmt::Display + '_ {
+/// Formats a value as the text printer names it: an immediate, an argument, or a result.
+pub(crate) fn display_val(vid: ValueId, func: &Function) -> impl fmt::Display + '_ {
     fmt::from_fn(move |f| match func.value(vid) {
         Value::Immediate(imm) if let Some(u256) = imm.as_u256() => match imm {
             Immediate::I1(value) => write!(f, "{value}"),
@@ -1015,7 +1036,7 @@ fn display_metadata<'a>(
 }
 
 /// Format a terminator for display, rendering operands via [`display_val`].
-fn display_terminator<'a>(
+pub(crate) fn display_terminator<'a>(
     term: &'a Terminator,
     func: &'a Function,
     module: Option<&'a Module>,

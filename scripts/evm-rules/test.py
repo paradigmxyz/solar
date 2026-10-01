@@ -27,7 +27,7 @@ from evm_rules.discovery import (
     enumerate_rules,
     read_seeds,
 )
-from evm_rules.isle import ISLE, Context, Rule, forms, verify_file
+from evm_rules.isle import ISLE, ROOT, Context, Rule, forms, verify_file
 from evm_rules.late import execute as execute_late
 from evm_rules.late import verify_late_file
 from evm_rules.memory import MemoryAddresses
@@ -568,6 +568,17 @@ class SemanticsTests(unittest.TestCase):
         )
         self.assertEqual(result["status"], "counterexample")
         self.assertTrue(result["replayed"])
+
+    def test_compiler_opcode_table(self):
+        """Every pure opcode of the compiler's table agrees with both word models."""
+        table = ROOT / "crates/codegen/src/backend/evm/op/word.snap"
+        lines = table.read_text().splitlines()
+        self.assertGreater(len(lines), 0)
+        for line in lines:
+            evaluation, result = line.split(" -> ")
+            op, *args = evaluation.split()
+            with self.subTest(line=line):
+                self.assert_evaluation(op, [int(a, 16) for a in args], int(result, 16))
 
 
 class OutputBitPartitionTests(unittest.TestCase):

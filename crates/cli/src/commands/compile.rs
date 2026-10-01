@@ -21,36 +21,55 @@ pub fn run_compiler_args(opts: CompileOpts) -> Result {
     run_compiler_with(opts, run_default)
 }
 
+/// Compiles in `sess` the sources that `load_sources` adds to the parsing context, in place of
+/// the files `sess.opts.input` names, and emits the outputs the options request as the command
+/// line does.
+///
+/// An embedder uses it to compile sources it resolves itself, such as a project's, with the
+/// command line's outputs and its `-Zllm-optimize=live` rewriter, while the session's diagnostic
+/// emitter and flags stay the embedder's. `load_sources` can also set how imports resolve through
+/// the parsing context's file resolver.
+pub fn run_compiler_with_sources(
+    sess: Session,
+    load_sources: impl FnOnce(&mut ParsingContext<'_>) -> Result + Send,
+) -> Result {
+    run_compiler_session_with(sess, |compiler| compile_and_emit(compiler, load_sources), true)
+}
+
 fn run_default(compiler: &mut CompilerRef<'_>) -> Result {
-    let control_flow = run_pipeline(
-        compiler,
-        |pcx| {
-            // Partition arguments into three categories:
-            // - `stdin`: `-`, occurrences after the first are ignored
-            // - remappings: `[context:]prefix=path`, already parsed as part of `CompileOpts`
-            // - paths: everything else
-            let mut seen_stdin = false;
-            let mut paths = Vec::new();
-            for arg in pcx.sess.opts.input.clone() {
-                if arg == "-" {
-                    if !seen_stdin {
-                        pcx.load_stdin()?;
-                    }
-                    seen_stdin = true;
-                    continue;
+    compile_and_emit(compiler, |pcx| {
+        // Partition arguments into three categories:
+        // - `stdin`: `-`, occurrences after the first are ignored
+        // - remappings: `[context:]prefix=path`, already parsed as part of `CompileOpts`
+        // - paths: everything else
+        let mut seen_stdin = false;
+        let mut paths = Vec::new();
+        for arg in pcx.sess.opts.input.clone() {
+            if arg == "-" {
+                if !seen_stdin {
+                    pcx.load_stdin()?;
                 }
-
-                if arg.contains('=') {
-                    continue;
-                }
-
-                paths.push(arg);
+                seen_stdin = true;
+                continue;
             }
 
-            pcx.par_load_files(paths)
-        },
-        |_| {},
-    )?;
+            if arg.contains('=') {
+                continue;
+            }
+
+            paths.push(arg);
+        }
+
+        pcx.par_load_files(paths)
+    })
+}
+
+/// Compiles the sources `load_sources` adds and emits the requested outputs.
+fn compile_and_emit(
+    compiler: &mut CompilerRef<'_>,
+    load_sources: impl FnOnce(&mut ParsingContext<'_>) -> Result,
+) -> Result {
+    let control_flow = run_pipeline(compiler, load_sources, |_| {})?;
     if control_flow.is_break() {
         return Ok(());
     }
@@ -128,9 +147,13 @@ pub(crate) fn run_compiler_session_with(
     finish: bool,
 ) -> Result {
     sess.validate()?;
+    let rewriter = crate::llm::install(&sess)?;
     let mut compiler = solar_sema::Compiler::new(sess);
     let result = compiler.enter_mut(|compiler| {
         let result = f(compiler);
+        if let Some(rewriter) = rewriter {
+            rewriter.finish(compiler.gcx().sess);
+        }
         if !finish {
             return result;
         }

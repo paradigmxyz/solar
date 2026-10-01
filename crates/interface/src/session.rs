@@ -3,7 +3,8 @@ use crate::{
     diagnostics::{DiagCtxt, EmittedDiagnostics},
 };
 use solar_config::{
-    CompileOpts, CompilerOutput, CompilerStage, Language, SINGLE_THREADED_TARGET, UnstableOpts,
+    CompileOpts, CompilerOutput, CompilerStage, Language, LlmOptimizeMode, SINGLE_THREADED_TARGET,
+    UnstableOpts,
 };
 use std::{
     fmt,
@@ -219,11 +220,29 @@ impl Session {
         Self::builder().opts(opts).build()
     }
 
+    /// Creates a session that shares this session's globals, including the symbol interner, but
+    /// reports its diagnostics to `dcx`.
+    ///
+    /// Symbols are the same in both sessions, so code running inside this session's
+    /// [`enter`](Self::enter) can parse through the fork and keep what it parses, while every
+    /// diagnostic stays in `dcx`, for example a buffer the caller inspects instead of failing the
+    /// compilation. Files a caller adds to the source map of `dcx` are only used to render those
+    /// diagnostics; they are not visible through [`source_map`](Self::source_map).
+    pub fn with_diagnostics(&self, dcx: DiagCtxt) -> Self {
+        Self {
+            opts: self.opts.clone(),
+            dcx,
+            globals: self.globals.clone(),
+            thread_pool: OnceLock::new(),
+        }
+    }
+
     /// Validates the session options.
     pub fn validate(&self) -> crate::Result<()> {
         let mut result = Ok(());
         result = result.and(self.check_unique("emit", &self.opts.emit));
         result = result.and(self.validate_language());
+        result = result.and(self.validate_llm_optimize());
         result
     }
 
@@ -243,6 +262,49 @@ impl Session {
             return Err(self.dcx.err("`-Zmir-pipeline` requires a .sol or .mir input file").emit());
         }
         Ok(())
+    }
+
+    fn validate_llm_optimize(&self) -> crate::Result<()> {
+        let unstable = &self.opts.unstable;
+        let mode = unstable.llm_optimize;
+        let requirements = [
+            ("llm-cache", unstable.llm_cache.is_some(), None),
+            ("llm-rounds", unstable.llm_rounds.is_some(), None),
+            ("llm-samples", unstable.llm_samples.is_some(), None),
+            ("llm-trace", unstable.llm_trace, None),
+            ("llm-script", unstable.llm_script.is_some(), Some(LlmOptimizeMode::Script)),
+            ("llm-model", unstable.llm_model.is_some(), Some(LlmOptimizeMode::Live)),
+            ("llm-endpoint", unstable.llm_endpoint.is_some(), Some(LlmOptimizeMode::Live)),
+            ("llm-effort", unstable.llm_effort.is_some(), Some(LlmOptimizeMode::Live)),
+        ];
+        for (flag, set, required) in requirements {
+            if !set {
+                continue;
+            }
+            match (mode, required) {
+                (None, None) => {
+                    let message = format!("`-Z{flag}` requires `-Zllm-optimize`");
+                    return Err(self.dcx.err(message).emit());
+                }
+                (_, Some(required)) if mode != Some(required) => {
+                    let message = format!("`-Z{flag}` requires `-Zllm-optimize={required}`");
+                    return Err(self.dcx.err(message).emit());
+                }
+                _ => {}
+            }
+        }
+        if unstable.llm_samples == Some(0) {
+            return Err(self.dcx.err("`-Zllm-samples` must be positive").emit());
+        }
+        match mode {
+            Some(LlmOptimizeMode::Script) if unstable.llm_script.is_none() => {
+                Err(self.dcx.err("`-Zllm-optimize=script` requires `-Zllm-script`").emit())
+            }
+            Some(LlmOptimizeMode::Replay) if unstable.llm_cache.is_none() => {
+                Err(self.dcx.err("`-Zllm-optimize=replay` requires `-Zllm-cache`").emit())
+            }
+            _ => Ok(()),
+        }
     }
 
     /// Reconfigures inner state to match any new options.
@@ -773,5 +835,19 @@ mod tests {
                 ..Default::default()
             })
             .build();
+    }
+
+    #[test]
+    fn with_diagnostics() {
+        let sess = enter_tests_session();
+        let fork = sess.with_diagnostics(DiagCtxt::with_buffer_emitter(None, ColorChoice::Never));
+        sess.enter(|| {
+            assert!(fork.is_entered());
+            assert_eq!(fork.intern("shared"), sess.intern("shared"));
+            fork.dcx.err("private").emit();
+        });
+        assert!(sess.dcx.emitted_errors().unwrap().is_ok());
+        let err = fork.dcx.emitted_errors().unwrap().unwrap_err();
+        assert!(err.to_string().contains("error: private"), "{err:?}");
     }
 }
