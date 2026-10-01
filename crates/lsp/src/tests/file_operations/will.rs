@@ -15,6 +15,8 @@ use lsp_types::{
 };
 use std::{fs, future::Future, sync::Arc};
 
+mod scope;
+
 fn block_on<F: Future>(future: F) -> F::Output {
     tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap().block_on(future)
 }
@@ -965,4 +967,70 @@ fn will_rename_rejects_expanded_vfs_destination_collision() {
     .unwrap_err();
 
     assert_eq!(error.code, ErrorCode::INVALID_PARAMS);
+}
+
+#[test]
+fn will_rename_preserves_valid_import_paths_when_importer_moves() {
+    for (old, new, importer, moved_importer) in [
+        ("/src/Importer.sol", "/src/Renamed.sol", "/src/Importer.sol", "/src/Renamed.sol"),
+        (
+            "/src/Importer.sol",
+            "/src/nested/Importer.sol",
+            "/src/Importer.sol",
+            "/src/nested/Importer.sol",
+        ),
+        (
+            "/src/consumer",
+            "/src/renamed",
+            "/src/consumer/Importer.sol",
+            "/src/renamed/Importer.sol",
+        ),
+    ] {
+        let project = TestProject::from_fixture(&format!(
+            r#"
+            //- /foundry.toml
+            [profile.default]
+            src = "src"
+            auto_detect_remappings = false
+            remappings = ["@lib/=lib/"]
+
+            //- {importer}
+            import "@lib/Target.sol";
+            import "src/Target.sol";
+
+            //- /lib/Target.sol
+            contract RemappedTarget {{}}
+
+            //- /src/Target.sol
+            contract DirectTarget {{}}
+            "#,
+        ));
+        let mut state = state(&project);
+        let edit = block_on(crate::handlers::will_rename_files(
+            &mut state,
+            RenameFilesParams {
+                files: vec![FileRename {
+                    old_uri: Url::from_file_path(project.path(old)).unwrap().to_string(),
+                    new_uri: Url::from_file_path(project.path(new)).unwrap().to_string(),
+                }],
+            },
+        ))
+        .unwrap();
+        assert_eq!(edit, None, "{old} -> {new}");
+
+        let new = project.path(new);
+        fs::create_dir_all(new.parent().unwrap()).unwrap();
+        fs::rename(project.path(old), new).unwrap();
+        let tables = super::analyze_project(&project);
+        let links = tables.document_links(&project.path(moved_importer));
+        assert_eq!(links.len(), 2);
+        assert_eq!(
+            links[0].target,
+            Some(Url::from_file_path(project.path("/lib/Target.sol")).unwrap())
+        );
+        assert_eq!(
+            links[1].target,
+            Some(Url::from_file_path(project.path("/src/Target.sol")).unwrap())
+        );
+    }
 }

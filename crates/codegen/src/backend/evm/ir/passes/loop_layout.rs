@@ -27,6 +27,7 @@ use crate::{
     },
     target::Target,
 };
+use smallvec::SmallVec;
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
 use solar_sema::Gcx;
 
@@ -45,9 +46,34 @@ impl EvmPass for LoopLayout {
     }
 }
 
+/// The targets of each block's physical `PUSH target; JUMPI` pairs, in instruction order,
+/// decoded on first use.
+struct BranchTargets(IndexVec<BlockId, Option<SmallVec<[BlockId; 2]>>>);
+
+impl BranchTargets {
+    fn new(module: &Module) -> Self {
+        Self(IndexVec::from_vec(vec![None; module.blocks.len()]))
+    }
+
+    fn get(&mut self, module: &Module, block: BlockId) -> &[BlockId] {
+        self.0[block].get_or_insert_with(|| {
+            module.blocks[block]
+                .instructions
+                .windows(2)
+                .filter(|pair| pair[1].as_evm_opcode() == Some(op::JUMPI))
+                .filter_map(|pair| pair[0].pushed_block())
+                .collect()
+        })
+    }
+}
+
 /// Estimates one loop traversal with equiprobable branches. Header returns stop propagation;
 /// bounded inner-loop rounds approximate their exit probability without an unbounded fixed point.
-fn backedge_weights(module: &Module, header: BlockId) -> FxHashMap<BlockId, u64> {
+fn backedge_weights(
+    module: &Module,
+    branches: &mut BranchTargets,
+    header: BlockId,
+) -> FxHashMap<BlockId, u64> {
     let mut frontier = FxHashMap::from_iter([(header, 1u64 << 32)]);
     let mut result = FxHashMap::default();
     let mut seen = DenseBitSet::new_empty(module.blocks.len());
@@ -70,16 +96,11 @@ fn backedge_weights(module: &Module, header: BlockId) -> FxHashMap<BlockId, u64>
                     *frontier.entry(to).or_default() += weight;
                 }
             };
-            let block = &module.blocks[id];
-            for pair in block.instructions.windows(2) {
-                if pair[1].as_evm_opcode() == Some(op::JUMPI)
-                    && let Some(to) = pair[0].pushed_block()
-                {
-                    weight /= 2;
-                    send(to, weight);
-                }
+            for &to in branches.get(module, id) {
+                weight /= 2;
+                send(to, weight);
             }
-            if let Some(term) = &block.terminator {
+            if let Some(term) = &module.blocks[id].terminator {
                 match term.kind {
                     TerminatorKind::Jump(to) => send(to, weight),
                     TerminatorKind::JumpI { then_block, else_block } => {
@@ -107,6 +128,7 @@ fn place_loop_latches(gcx: Gcx<'_>, module: &mut Module) -> bool {
     let mut moved = DenseBitSet::new_empty(module.blocks.len());
     let mut reachable = DenseBitSet::new_empty(module.blocks.len());
     let mut pending = Vec::new();
+    let mut branches = BranchTargets::new(module);
     for latch in module.blocks.indices() {
         if let Some(TerminatorKind::Jump(header)) =
             module.blocks[latch].terminator.as_ref().map(|term| &term.kind)
@@ -140,20 +162,13 @@ fn place_loop_latches(gcx: Gcx<'_>, module: &mut Module) -> bool {
                 if visited > 256 {
                     break;
                 }
-                let block = &module.blocks[block];
-                if let Some(term) = &block.terminator {
+                if let Some(term) = &module.blocks[block].terminator {
                     term.kind.visit_targets(|target| pending.push(target));
                 }
-                for pair in block.instructions.windows(2) {
-                    if pair[1].as_evm_opcode() == Some(op::JUMPI)
-                        && let Some(target) = pair[0].pushed_block()
-                    {
-                        pending.push(target);
-                    }
-                }
+                pending.extend_from_slice(branches.get(module, block));
             }
             let hotter = if reachable.contains(preheader) {
-                let weights = backedge_weights(module, *header);
+                let weights = backedge_weights(module, &mut branches, *header);
                 let before = weights.get(&preheader).copied().unwrap_or(0);
                 let after = weights.get(&latch).copied().unwrap_or(0);
                 let price = u128::from(Target::new(gcx).opcode(op::JUMP).gas);

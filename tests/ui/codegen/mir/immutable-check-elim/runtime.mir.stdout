@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/immutable-check-elim/runtime.sol:ImmutableBounds ===
 @module ImmutableBounds
-immutables:
+@immutables
   a: u64
   b: u64
   signedValue: i64

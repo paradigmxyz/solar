@@ -6,7 +6,7 @@ use lsp_types::{
 };
 use serde::Deserialize;
 use solar_interface::{
-    Span,
+    Ident, Span, Symbol,
     data_structures::{
         Never,
         index::IndexVec,
@@ -42,9 +42,11 @@ use crate::{
     override_index::OverrideFamilyIndex,
     proto,
     rename::{
-        ImportBindings, MappingBindings, RenameCandidate, RenameIndex, RenameReferenceContext,
+        ImportBindings, MappingBindings, NamespaceBinding, RenameCandidate, RenameIndex,
+        RenameReferenceContext,
     },
     signature_help::SignatureHelpIndex,
+    source_paths::SourcePath,
     type_hierarchy::TypeHierarchyIndex,
 };
 
@@ -358,7 +360,7 @@ impl SymbolTables {
             };
 
             let symbol_id = tables.push_declaration(
-                SymbolKey::Item(item_id),
+                Some(SymbolKey::Item(item_id)),
                 DeclarationSymbol {
                     id: tables.declarations.next_idx(),
                     name,
@@ -1376,10 +1378,16 @@ impl SymbolTables {
         }))
     }
 
-    fn push_declaration(&mut self, key: SymbolKey, declaration: DeclarationSymbol) -> SymbolId {
+    fn push_declaration(
+        &mut self,
+        key: Option<SymbolKey>,
+        declaration: DeclarationSymbol,
+    ) -> SymbolId {
         let id = declaration.id;
         self.files.entry(declaration.location.uri.clone()).or_default().push(id);
-        self.symbols_by_key.insert(key, id);
+        if let Some(key) = key {
+            self.symbols_by_key.insert(key, id);
+        }
         let pushed_id = self.declarations.push(declaration);
         debug_assert_eq!(id, pushed_id);
         id
@@ -1517,6 +1525,36 @@ impl SymbolTables {
         item_symbols: &FxHashMap<ItemId, SymbolId>,
     ) {
         let bindings = self.rename.build_imports(gcx, locations, item_symbols);
+        let mut namespace_symbols = FxHashMap::default();
+        for &NamespaceBinding { id, alias, span } in &bindings.namespaces {
+            if let Some(location) = locations.location(span)
+                && let Some(name_location) = locations.location(alias.span)
+                && let Ok(signature) = gcx.sess.source_map().span_to_snippet(span)
+            {
+                let symbol_id = self.push_declaration(
+                    None,
+                    DeclarationSymbol {
+                        id: self.declarations.next_idx(),
+                        name: alias.to_string(),
+                        kind: SymbolKind::NAMESPACE,
+                        location,
+                        name_range: name_location.range,
+                        parent: None,
+                        rename_is_local: false,
+                        has_definition: true,
+                        has_getter_completion: false,
+                        documentation: Some(
+                            crate::documentation::ResolvedDocumentation::signature(signature),
+                        ),
+                    },
+                );
+                namespace_symbols.insert(id, symbol_id);
+            }
+        }
+        let namespace_symbols = bindings
+            .namespace_aliases()
+            .filter_map(|(key, alias)| namespace_symbols.get(&alias).map(|&symbol| (key, symbol)))
+            .collect();
         for (span, targets) in bindings.references() {
             self.push_reference_entry(
                 locations,
@@ -1569,6 +1607,7 @@ impl SymbolTables {
             item_symbols,
             bindings: &bindings,
             mapping_bindings: &mapping_bindings,
+            namespace_symbols: &namespace_symbols,
             source: None,
             contract: None,
             in_yul: false,
@@ -2543,6 +2582,7 @@ struct ReferenceCollector<'a, 'gcx> {
     item_symbols: &'a FxHashMap<ItemId, SymbolId>,
     bindings: &'a ImportBindings,
     mapping_bindings: &'a MappingBindings,
+    namespace_symbols: &'a FxHashMap<(hir::SourceId, hir::SourceId, Symbol), SymbolId>,
     source: Option<hir::SourceId>,
     contract: Option<hir::ContractId>,
     in_yul: bool,
@@ -2577,7 +2617,24 @@ impl<'gcx> ReferenceCollector<'_, 'gcx> {
                 &targets,
             );
         }
-        self.tables.push_reference_entry(self.locations, span, targets, kind);
+        if !self.in_yul
+            && let Some(source) = self.source
+            && let Some(path) = SourcePath::resolve(self.gcx, span, source, self.contract)
+        {
+            self.tables.push_reference_entry(self.locations, path.final_ident.span, targets, kind);
+            for qualifier in path.qualifiers {
+                let targets =
+                    self.path_symbol_ids(qualifier.source, qualifier.ident, qualifier.resolutions);
+                self.tables.push_reference_entry(
+                    self.locations,
+                    qualifier.ident.span,
+                    targets,
+                    DocumentHighlightKind::READ,
+                );
+            }
+        } else {
+            self.tables.push_reference_entry(self.locations, span, targets, kind);
+        }
     }
 
     fn visit_ident_reference(
@@ -2641,6 +2698,23 @@ impl<'gcx> ReferenceCollector<'_, 'gcx> {
         );
     }
 
+    fn path_symbol_ids(
+        &self,
+        source: hir::SourceId,
+        ident: Ident,
+        resolutions: impl IntoIterator<Item = Res>,
+    ) -> ReferenceTargets {
+        resolutions
+            .into_iter()
+            .filter_map(|res| match res {
+                Res::Namespace(namespace) => {
+                    self.namespace_symbols.get(&(source, namespace, ident.name)).copied()
+                }
+                _ => self.symbol_id_for_res(res),
+            })
+            .collect()
+    }
+
     fn symbol_ids_for_res(&self, res: impl IntoIterator<Item = Res>) -> ReferenceTargets {
         res.into_iter().filter_map(|res| self.symbol_id_for_res(res)).collect()
     }
@@ -2695,19 +2769,6 @@ impl<'gcx> ReferenceCollector<'_, 'gcx> {
                 self.push_reference(arg.name.span, ReferenceTargets::from_buf([symbol_id]));
             }
         }
-    }
-
-    fn call_param_source(&self, callee: &'gcx hir::Expr<'gcx>) -> Option<CallableParamSource> {
-        if let hir::ExprKind::New(ty) = &callee.kind
-            && let TyKind::Contract(id) = self.gcx.type_of_hir_ty(ty).kind
-        {
-            return self.item_param_source(id.into());
-        }
-
-        self.gcx
-            .type_of_expr(callee.id)
-            .and_then(|ty| self.gcx.callable_signature_of_ty(ty))
-            .and_then(|signature| signature.param_source)
     }
 
     fn item_param_source(&self, item: ItemId) -> Option<CallableParamSource> {
@@ -2829,7 +2890,7 @@ impl<'gcx> hir::Visit<'gcx> for ReferenceCollector<'_, 'gcx> {
                 self.visit_expr(rhs)?;
             }
             hir::ExprKind::Call(callee, ref args) => {
-                if let Some(source) = self.call_param_source(callee) {
+                if let Some(source) = self.gcx.call_param_source(callee) {
                     self.push_named_arg_references(source, args);
                 }
                 hir::Visit::walk_expr(self, expr)?;

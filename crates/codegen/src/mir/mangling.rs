@@ -1,7 +1,8 @@
 //! MIR symbol mangling.
 
-use solar_data_structures::{fmt, newtype_index};
+use solar_data_structures::newtype_index;
 use solar_interface::Symbol;
+use std::fmt;
 
 newtype_index! {
     /// A numeric symbol disambiguator.

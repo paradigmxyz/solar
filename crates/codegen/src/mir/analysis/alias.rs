@@ -387,14 +387,14 @@ fn add_storage_range(effects: &mut ModRef, base: StorageAlias, slots: u64, write
     }
 }
 
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 struct AllocationProvenance {
     dynamic: bool,
     unique: bool,
 }
 
 /// Memoized address resolution of one value.
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 enum AddressState {
     #[default]
     Unresolved,
@@ -403,7 +403,7 @@ enum AddressState {
     Resolved(Option<MemoryAddress>),
 }
 
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 struct PointerProvenance {
     allocations: FxHashMap<InstId, AllocationProvenance>,
     /// Grows on demand, since transforms may add values after construction.
@@ -493,7 +493,7 @@ impl PointerProvenance {
 ///
 /// One instance is an immutable snapshot of a function. Recompute it after a
 /// transform mutates definitions or CFG edges.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub(crate) struct AliasAnalysis {
     /// Pointer-provenance facts, built on first use: many pass invocations
     /// construct the analysis but never issue a memory query (pure or
@@ -537,6 +537,35 @@ impl AliasAnalysis {
     /// Includes memory-size observations in callees and tail calls.
     pub(crate) fn may_observe_msize(&self, func: &Function) -> bool {
         super::may_observe_msize(func, self.call_summaries.as_deref())
+    }
+
+    /// Returns whether a fresh snapshot of one function holds the same memoized facts as this
+    /// one. Values added since this snapshot, such as immediates a rewrite created and
+    /// discarded, must be unresolved.
+    #[cfg(debug_assertions)]
+    pub(crate) fn same_memo(&self, fresh: &Self) -> bool {
+        let same_provenance = match (self.provenance.get(), fresh.provenance.get()) {
+            (None, None) => true,
+            (Some(cached), Some(fresh)) => {
+                let (cached_addresses, fresh_addresses) =
+                    (cached.addresses.borrow(), fresh.addresses.borrow());
+                let common = cached_addresses.len().min(fresh_addresses.len());
+                cached.allocations == fresh.allocations
+                    && cached_addresses.raw[..common] == fresh_addresses.raw[..common]
+                    && cached_addresses.raw[common..]
+                        .iter()
+                        .chain(&fresh_addresses.raw[common..])
+                        .all(|state| matches!(state, AddressState::Unresolved))
+            }
+            _ => false,
+        };
+        let same_escaping =
+            match (&*self.escaping_values.borrow(), &*fresh.escaping_values.borrow()) {
+                (None, None) => true,
+                (Some(cached), Some(fresh)) => cached.iter().eq(fresh.iter()),
+                _ => false,
+            };
+        same_provenance && same_escaping
     }
 
     /// Drops value-dependent memoization after instruction operands are rewritten.

@@ -1045,7 +1045,7 @@ fn match_copy_loop(func: &Function, alias: &AliasAnalysis, header: BlockId) -> O
     if !matches!(func.blocks[body].terminator, Some(Terminator::Jump(target)) if target == header) {
         return None;
     }
-    if !defined_outside(func, header, body, bound) || counter_escapes(func, header, body, index) {
+    if !defined_outside(func, header, body, bound) {
         return None;
     }
 
@@ -1083,7 +1083,7 @@ fn match_copy_loop(func: &Function, alias: &AliasAnalysis, header: BlockId) -> O
         }
     }
     let ((source_address, _), byte, dest_address) = (load?, extract?, store?);
-    if !step {
+    if !step || counter_escapes(func, header, body, index) {
         return None;
     }
     // A discarded read raises the memory high-water mark, and the copy this

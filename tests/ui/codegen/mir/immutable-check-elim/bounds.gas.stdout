@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/immutable-check-elim/bounds.mir (before immutable-check-elim) ===
 + // === ROOT/tests/ui/codegen/mir/immutable-check-elim/bounds.mir (after immutable-check-elim) ===
   @module ImmutableBounds
-  immutables:
+  @immutables
     small: u64
     signed: i64
     wide: u256

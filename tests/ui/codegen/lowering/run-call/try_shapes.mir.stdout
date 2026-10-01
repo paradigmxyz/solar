@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/try_shapes.sol:Callee ===
 @module Callee
-types:
+@types
   struct0: {i256, i256}
 
 fn @f(arg0: i256) -> i256 [selector=0xb3de648b, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
@@ -19,26 +19,26 @@ fn @g(arg0: i256) -> struct0 [selector=0xe420264a, pure, abi_params=[u256], abi_
 
 // === ROOT/tests/ui/codegen/lowering/run-call/try_shapes.sol:TryShapes ===
 @module TryShapes
-types:
+@types
   struct0: {i256, i256}
 
-data:
-  Callee_initcode_0: hex"34600d5760d28060115f395ff35b5f5ffd6024361034171515602f575f3560e01c8063b3de648b14602b578063e420264a14602757602f565b6080565b6033565b5f5ffd5b60243610506002600435028060a0528060a0526002156002820460043590148117905015606e578060a0526080526020608001608090036080f35b634e487b715f5260116020526024601cfd5b60e060405260243610506001600435018060c0528060c052600435811060c0576004356080526020608001818060c0528152905060209001608090036080f35b634e487b715f5260116020526024601cfd"
+@data
+  Callee_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/try_shapes.sol:Callee"
 
 fn @constructor() [constructor] {
   bb0:
     v0 = abi_encode []
-    v1 = not 31
-    v2 = and 258, v1
+    v1 = datasize Callee_creation_code_0
+    v2 = datasize Callee_creation_code_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    data_copy Callee_initcode_0, v4, 227
+    datacopy Callee_creation_code_0, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
-    v7 = add v6, 227
+    v7 = add v6, v1
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
-    v9 = create 0, v8, 227
+    v9 = create 0, v8, v1
     v10 = zext i160 v9 to i256
     v11 = ne v10, 0
     jumpi v11, bb2, bb1
@@ -280,17 +280,17 @@ fn @test_try() -> i256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word], 
   bb33:
     v132 = phi [bb31: v130], [bb34: v131]
     v133 = abi_encode []
-    v134 = not 31
-    v135 = and 258, v134
+    v134 = datasize Callee_creation_code_0
+    v135 = datasize Callee_creation_code_0, 31, aligned
     v136 = alloc raw, exact, uninitialized, infallible, v135
     v137 = ptrtoint memptr v136 to i256
-    data_copy Callee_initcode_0, v137, 227
+    datacopy Callee_creation_code_0, v137, v134
     v138 = slice_ptr v133
     v139 = ptrtoint memptr v136 to i256
-    v140 = add v139, 227
+    v140 = add v139, v134
     mcopy v140, v138, 0 !metadata(memory=heap)
     v141 = ptrtoint memptr v136 to i256
-    v142 = create 0, v141, 227
+    v142 = create 0, v141, v134
     v143 = zext i160 v142 to i256
     v144 = eq v143, 0
     v145 = eq v144, false

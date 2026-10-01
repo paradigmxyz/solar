@@ -18,9 +18,9 @@ use crate::{
 };
 use lsp_types::{
     CallHierarchyServerCapability, CodeActionKind, CodeActionOptions, CodeActionProviderCapability,
-    CodeLensOptions as CodeLensServerOptions, CompletionOptions, DeclarationCapability,
-    DiagnosticOptions, DiagnosticServerCapabilities, DocumentLinkOptions, ExecuteCommandOptions,
-    FileOperationFilter, FileOperationPattern, FileOperationPatternKind,
+    CodeLensOptions as CodeLensServerOptions, CompletionOptions, DeclarationCapability, Diagnostic,
+    DiagnosticOptions, DiagnosticServerCapabilities, DiagnosticTag, DocumentLinkOptions,
+    ExecuteCommandOptions, FileOperationFilter, FileOperationPattern, FileOperationPatternKind,
     FileOperationRegistrationOptions, FoldingRangeProviderCapability, HoverProviderCapability,
     ImplementationProviderCapability, InitializeParams, MarkupKind, OneOf, RenameOptions,
     SaveOptions, SelectionRangeProviderCapability, ServerCapabilities, SignatureHelpOptions,
@@ -70,6 +70,8 @@ pub(crate) struct Config {
     code_action_literals: bool,
     code_action_is_preferred: bool,
     diagnostic_delivery: DiagnosticDelivery,
+    publish_diagnostics_related_information: bool,
+    publish_diagnostics_tags: Vec<DiagnosticTag>,
     publish_diagnostics_data: bool,
     pull_diagnostics_data: bool,
     code_lens_refresh_support: bool,
@@ -156,6 +158,8 @@ impl Default for Config {
             code_action_literals: false,
             code_action_is_preferred: false,
             diagnostic_delivery: DiagnosticDelivery::Push,
+            publish_diagnostics_related_information: false,
+            publish_diagnostics_tags: Vec::new(),
             publish_diagnostics_data: false,
             pull_diagnostics_data: false,
             code_lens_refresh_support: false,
@@ -264,6 +268,26 @@ impl Config {
         self.uses_push_diagnostics() && self.publish_diagnostics_data
     }
 
+    /// Adapts an outgoing diagnostic without changing the server's cached diagnostic or fix data.
+    pub(crate) fn prepare_publish_diagnostic(&self, diagnostic: &mut Diagnostic) {
+        if !self.publish_diagnostics_related_information
+            && let Some(related) = diagnostic.related_information.take()
+        {
+            for information in related {
+                crate::diagnostics::presentation::append_message(
+                    &mut diagnostic.message,
+                    &information.message,
+                );
+            }
+        }
+        if let Some(tags) = &mut diagnostic.tags {
+            tags.retain(|tag| self.publish_diagnostics_tags.contains(tag));
+            if tags.is_empty() {
+                diagnostic.tags = None;
+            }
+        }
+    }
+
     pub(crate) fn supports_pull_diagnostics_data(&self) -> bool {
         self.uses_pull_diagnostics() && self.pull_diagnostics_data
     }
@@ -358,8 +382,13 @@ impl Config {
 
     /// Returns cached lexical ownership; filesystem resolution remains request-local.
     pub(crate) fn workspace_edit_scope(&self) -> &WorkspaceEditScope {
-        self.workspace_edit_scope
-            .get_or_init(|| WorkspaceEditScope::new(&self.workspace_roots, &self.workspaces))
+        self.workspace_edit_scope.get_or_init(|| {
+            WorkspaceEditScope::new(
+                &self.workspace_roots,
+                &self.workspaces,
+                &self.git_marker_watch_roots,
+            )
+        })
     }
 
     pub(crate) fn workspace_path_index(&self) -> WorkspacePathIndex<'_> {
@@ -1138,12 +1167,19 @@ pub(crate) fn negotiate_capabilities_with_pull_diagnostic_data(
         .is_some();
     let code_action_is_preferred =
         code_action.and_then(|capabilities| capabilities.is_preferred_support).unwrap_or(false);
-    let publish_diagnostics_data = capabilities
+    let publish_diagnostics = capabilities
         .text_document
         .as_ref()
-        .and_then(|text_document| text_document.publish_diagnostics.as_ref())
-        .and_then(|capabilities| capabilities.data_support)
+        .and_then(|text_document| text_document.publish_diagnostics.as_ref());
+    let publish_diagnostics_related_information = publish_diagnostics
+        .and_then(|capabilities| capabilities.related_information)
         .unwrap_or(false);
+    let publish_diagnostics_tags = publish_diagnostics
+        .and_then(|capabilities| capabilities.tag_support.as_ref())
+        .map(|support| support.value_set.clone())
+        .unwrap_or_default();
+    let publish_diagnostics_data =
+        publish_diagnostics.and_then(|capabilities| capabilities.data_support).unwrap_or(false);
     let work_done_progress =
         capabilities.window.as_ref().and_then(|window| window.work_done_progress).unwrap_or(false);
     let hierarchical_document_symbol_support = capabilities
@@ -1296,6 +1332,8 @@ pub(crate) fn negotiate_capabilities_with_pull_diagnostic_data(
             code_action_literals,
             code_action_is_preferred,
             diagnostic_delivery,
+            publish_diagnostics_related_information,
+            publish_diagnostics_tags,
             publish_diagnostics_data,
             pull_diagnostics_data,
             code_lens_refresh_support,

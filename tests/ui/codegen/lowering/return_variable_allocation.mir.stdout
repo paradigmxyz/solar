@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/return_variable_allocation.sol:C ===
 @module C
-types:
+@types
   struct0: {i256, i256, i256}
 
 fn @memorySize() -> i256 [pure] {

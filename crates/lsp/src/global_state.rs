@@ -1533,11 +1533,19 @@ impl GlobalState {
             Err(()) => (uri, None),
         };
         let diagnostics = self.diagnostics.clone();
+        let config = self.config.clone();
         async move {
             if let Some(latest_analysis) = latest_analysis {
                 latest_analysis.await?;
             }
-            Ok(diagnostics.read().code_action_diagnostics(&uri, range))
+            let mut diagnostics = diagnostics.read().code_action_diagnostics(&uri, range);
+            if config.uses_push_diagnostics() {
+                // Match client context against the published presentation, keeping fix data.
+                for diagnostic in &mut diagnostics {
+                    config.prepare_publish_diagnostic(diagnostic);
+                }
+            }
+            Ok(diagnostics)
         }
     }
 
@@ -2499,8 +2507,9 @@ fn publish_diagnostic_batches(
     }
     let include_data = config.supports_publish_diagnostics_data();
     for mut batch in batches {
-        if !include_data {
-            for diagnostic in &mut batch.diagnostics {
+        for diagnostic in &mut batch.diagnostics {
+            config.prepare_publish_diagnostic(diagnostic);
+            if !include_data {
                 diagnostic.data = None;
             }
         }
@@ -3297,7 +3306,8 @@ fn analyze_cancellable_with_source_map(
     let sess = Session::builder()
         .opts(opts)
         .source_map(source_map)
-        .dcx(DiagCtxt::new(Box::new(emitter)))
+        // Include compiler-internal diagnostic origins only when explicitly requested in opts.
+        .dcx(DiagCtxt::new(Box::new(emitter)).with_flags(|flags| flags.track_diagnostics = false))
         .build();
     // Session construction canonicalizes the base path through the same loader. Only subsequent
     // resolver probes are import candidates.

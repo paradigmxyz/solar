@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/external_memory_nested_array.sol:ExternalMemoryNestedArray ===
 @module ExternalMemoryNestedArray
-types:
+@types
   struct0: {i256, i256}
 
 fn @inspect(arg0: memoryarray) -> struct0 [selector=0x9d6ce1dc, pure, abi_params=[array<_, bytes>], abi_returns=[word, word], abi_return_params=[u256, bytes32]] {

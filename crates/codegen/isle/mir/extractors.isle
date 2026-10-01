@@ -276,6 +276,9 @@
 (decl datacopy (DataRef Value Value) Value)
 (extractor (datacopy data dest size) (inst (Op.DataCopy data dest size)))
 
+(decl datasize (DataSize) Value)
+(extractor (datasize size) (inst (Op.DataSize size)))
+
 (decl codesize () Value)
 (extractor (codesize) (inst (Op.CodeSize)))
 

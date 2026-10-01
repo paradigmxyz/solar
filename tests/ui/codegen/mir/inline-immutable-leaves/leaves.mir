@@ -2,7 +2,7 @@
 //@[gas] compile-flags: -Ogas -Zmir-pipeline=inline-immutable-leaves,cfg-simplify,dce
 //@[size] compile-flags: -Osize -Zmir-pipeline=inline-immutable-leaves,cfg-simplify,dce
 @module ImmutableLeaves
-immutables:
+@immutables
   start: u64
   duration: u64
   initial: u256

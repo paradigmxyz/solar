@@ -8,7 +8,7 @@
 // CHECK-NOT: bb1:
 @module LowerEvmShapedCleanup
 @phase semantic
-types:
+@types
   struct0: {i256, i256}
 fn @entry() {
   bb0:

@@ -267,7 +267,7 @@ by its constructor, using assembly only to forward revert data. Both gas profile
 measure storage writes, reads, and empty, short, and 1 KiB byte echoes through the
 proxy. Runtime checks compare the stored value and returned bytes across compilers.
 Runtime size measures the proxy alone;
-creation size and deployment gas include the helper implementation.
+creation gas and size include the helper implementation.
 
 ## Reproducing oksolc via-IR failures
 

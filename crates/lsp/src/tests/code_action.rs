@@ -1225,6 +1225,40 @@ fn uses_current_server_diagnostic_when_client_presentation_is_stale() {
 }
 
 #[test]
+fn diagnostic_presentation_fallback_preserves_selected_fix() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /Test.sol
+        contract Test { uint256 bad_name; }
+        "#,
+    );
+    let (uri, edit, mut first, mut params) = native_request(&project);
+    first.related_information = Some(vec![lsp_types::DiagnosticRelatedInformation {
+        location: lsp_types::Location::new(uri.clone(), first.range),
+        message: "related declaration".into(),
+    }]);
+    let mut second = first.clone();
+    second.data.as_mut().unwrap()["suggestions"][0]["title"] =
+        serde_json::json!("apply alternate fix");
+    second.data.as_mut().unwrap()["suggestions"][0]["alternatives"][0][0]["newText"] =
+        serde_json::json!("alternateName");
+    let mut state = state(&project, false);
+    replace_diagnostics(&state, uri.clone(), vec![first.clone(), second]);
+    let mut published = first;
+    published.message.push_str("\nrelated declaration");
+    published.related_information = None;
+    params.context.diagnostics = vec![published.clone()];
+
+    let response = block_on(crate::handlers::code_actions(&mut state, params)).unwrap().unwrap();
+
+    let [CodeActionOrCommand::CodeAction(action)] = response.as_slice() else {
+        panic!("expected only the selected fix, got {response:#?}");
+    };
+    assert_eq!(action.diagnostics.as_deref(), Some(std::slice::from_ref(&published)));
+    assert_eq!(action.edit.as_ref().unwrap().changes.as_ref().unwrap()[&uri], [edit]);
+}
+
+#[test]
 fn uses_all_server_diagnostics_when_client_context_is_incomplete() {
     let project = TestProject::from_fixture(
         r#"

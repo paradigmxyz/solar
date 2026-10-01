@@ -176,7 +176,8 @@ pub(crate) fn run_passes_inner(
                 false
             } else {
                 analyses.begin_pass();
-                let pass_changed = pass.run_pass(gcx, module, &mut analyses);
+                let pass_changed = tracing::trace_span!("mir_pass", pass = pass_name)
+                    .in_scope(|| pass.run_pass(gcx, module, &mut analyses));
                 analyses.finish_pass(pass_changed);
                 pass_changed
             };

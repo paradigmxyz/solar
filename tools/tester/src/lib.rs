@@ -4,9 +4,6 @@
 
 #![allow(unreachable_pub)]
 
-#[cfg(test)]
-use cfg_if as _;
-
 use eyre::{Result, eyre};
 use regex::bytes::Regex;
 use std::{

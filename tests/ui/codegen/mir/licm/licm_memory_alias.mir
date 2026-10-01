@@ -1,7 +1,7 @@
 //@compile-flags: -Zmir-pipeline=licm
 //@filecheck: --enable-var-scope
 @module LicmMemoryAlias
-immutables:
+@immutables
   value: u256
 
 // CHECK-LABEL: @hoist_non_aliasing_mload

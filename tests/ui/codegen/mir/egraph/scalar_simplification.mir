@@ -6,7 +6,7 @@
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = shr 3, [[SHIFTED]]
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = and arg0, 15
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = mul arg0, arg0
-types:
+@types
   struct0: {i256, i256, i256, i256, i256}
   struct1: {i256, i256, i256, i256, i256, i256, i256, i256, i256, i1, i1, i256, i256, i256, i256, i256, i256, i256, i256, i256, i256}
   struct2: {i256, i256}

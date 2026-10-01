@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/lower-structs/debug_origins.mir (before lower-structs) ===
 + // === ROOT/tests/ui/codegen/mir/lower-structs/debug_origins.mir (after lower-structs) ===
   @module StructDebugOrigins
-  types:
+  @types
     struct0: {i256, i256}
   
 - fn @caller(arg0: i256, arg1: i1) -> struct0 {

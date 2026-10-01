@@ -1,9 +1,16 @@
 //@ compile-flags: -Ogas -Zevm-ir-pipeline=pack-data
 //@ filecheck:
 @module subslice_escape
+@data
+  literal_0: hex"2233"
+  literal_1: hex"2233"
+  literal_2: hex"aa"
 
 // An out-of-range copy may observe bytes after this entry, so packing must
 // preserve its address and surrounding data.
+// CHECK: literal_0: hex"2233"
+// CHECK: literal_1: hex"2233"
+// CHECK: literal_2: hex"aa"
 // CHECK-LABEL: {{^[ +].*}}bb0:
 // CHECK: {{^[ +].*}}push_data literal_0
 // CHECK: {{^[ +].*}}push_data literal_1
@@ -31,10 +38,3 @@ bb0:
   dup 2
   mstore
   stop
-
-// CHECK: @data literal_0 hex"2233"
-// CHECK: @data literal_1 hex"2233"
-// CHECK: @data literal_2 hex"aa"
-@data literal_0 hex"2233"
-@data literal_1 hex"2233"
-@data literal_2 hex"aa"

@@ -286,6 +286,7 @@ struct LiveJoinState {
     scratch: DenseBitSet<ValueId>,
     /// A successor's wants masked to what the block carries through.
     mask: DenseBitSet<ValueId>,
+    epochs: RefreshEpochs,
 }
 
 impl LiveJoinState {
@@ -296,6 +297,60 @@ impl LiveJoinState {
             wanted: BitMatrix::new(num_blocks, num_values),
             scratch: DenseBitSet::new_empty(num_values),
             mask: DenseBitSet::new_empty(num_values),
+            epochs: RefreshEpochs::new(num_blocks),
+        }
+    }
+}
+
+/// When each block's layout, resident set and wants last changed, and when each refresh last
+/// ran. Every refresh is a pure function of the state it reads, and only a block's own refresh
+/// writes its entry, so a refresh whose inputs are unchanged since it last ran would recompute
+/// the stored result and report no change; rounds skip it. Debug builds still run skipped
+/// refreshes and assert that they change nothing.
+struct RefreshEpochs {
+    epoch: u32,
+    layout_changed: IndexVec<BlockId, u32>,
+    resident_changed: IndexVec<BlockId, u32>,
+    wanted_changed: IndexVec<BlockId, u32>,
+    /// Zero means the refresh has not run since the last invalidation.
+    layout_ran: IndexVec<BlockId, u32>,
+    resident_ran: IndexVec<BlockId, u32>,
+    wanted_ran: IndexVec<BlockId, u32>,
+}
+
+impl RefreshEpochs {
+    fn new(num_blocks: usize) -> Self {
+        let zeros = IndexVec::from_vec(vec![0; num_blocks]);
+        Self {
+            epoch: 1,
+            layout_changed: zeros.clone(),
+            resident_changed: zeros.clone(),
+            wanted_changed: zeros.clone(),
+            layout_ran: zeros.clone(),
+            resident_ran: zeros.clone(),
+            wanted_ran: zeros,
+        }
+    }
+
+    /// Returns whether a refresh must run, given the latest change among its inputs, and
+    /// stamps it as run.
+    fn begin(ran: &mut u32, epoch: u32, inputs_changed: u32) -> bool {
+        if *ran != 0 && inputs_changed <= *ran {
+            return false;
+        }
+        *ran = epoch;
+        true
+    }
+
+    fn next(&mut self) -> u32 {
+        self.epoch += 1;
+        self.epoch
+    }
+
+    /// Reruns every refresh after a round-wide input, the bans or the phase, changes.
+    fn invalidate(&mut self) {
+        for ran in [&mut self.layout_ran, &mut self.resident_ran, &mut self.wanted_ran] {
+            ran.raw.fill(0);
         }
     }
 }
@@ -529,12 +584,14 @@ impl<'a> StackPhiPlanner<'a> {
                 }
             }
             if changed {
+                state.epochs.invalidate();
                 continue;
             }
             if precise {
                 break;
             }
             precise = true;
+            state.epochs.invalidate();
         }
         let mut layouts = state.layouts;
         layouts.retain(|_, layout| !layout.is_empty());
@@ -793,6 +850,26 @@ impl<'a> StackPhiPlanner<'a> {
         state: &mut LiveJoinState,
     ) -> bool {
         let func = self.func;
+        let epochs = &mut state.epochs;
+        let inputs_changed = if facts.is_join.contains(&block_id) {
+            let preds = func.blocks[block_id].predecessors.iter();
+            let headers = facts.loop_headers_of[block_id].iter();
+            preds
+                .map(|&pred| epochs.resident_changed[pred])
+                .chain(headers.map(|&header| epochs.layout_changed[header]))
+                .fold(epochs.wanted_changed[block_id], u32::max)
+        } else if let Some(&(pred, join)) = facts.arms.get(&block_id) {
+            epochs.layout_changed[join]
+                .max(epochs.resident_changed[pred])
+                .max(epochs.wanted_changed[block_id])
+        } else {
+            return false;
+        };
+        let stale =
+            RefreshEpochs::begin(&mut epochs.layout_ran[block_id], epochs.epoch, inputs_changed);
+        if !stale && !cfg!(debug_assertions) {
+            return false;
+        }
         let layout = if facts.is_join.contains(&block_id) {
             let join = block_id;
             let block = &func.blocks[join];
@@ -951,7 +1028,9 @@ impl<'a> StackPhiPlanner<'a> {
         if state.layouts.get(&block_id) == Some(&layout) {
             return false;
         }
+        debug_assert!(stale, "skipped layout refresh of {block_id:?} changed its result");
         state.layouts.insert(block_id, layout);
+        state.epochs.layout_changed[block_id] = state.epochs.next();
         true
     }
 
@@ -969,6 +1048,16 @@ impl<'a> StackPhiPlanner<'a> {
     ) -> bool {
         let func = self.func;
         let block = &func.blocks[block_id];
+        let epochs = &mut state.epochs;
+        let mut inputs_changed = epochs.layout_changed[block_id];
+        if let [pred] = block.predecessors.as_slice() {
+            inputs_changed = inputs_changed.max(epochs.resident_changed[*pred]);
+        }
+        let stale =
+            RefreshEpochs::begin(&mut epochs.resident_ran[block_id], epochs.epoch, inputs_changed);
+        if !stale && !cfg!(debug_assertions) {
+            return false;
+        }
         let incoming: &[ValueId] = if let Some(layout) = state.layouts.get(&block_id) {
             layout
         } else if let Some(entry) = plan.entries.get(&block_id) {
@@ -1013,7 +1102,9 @@ impl<'a> StackPhiPlanner<'a> {
         if state.resident_out.get(&block_id) == Some(&resident) {
             return false;
         }
+        debug_assert!(stale, "skipped resident refresh of {block_id:?} changed its result");
         state.resident_out.insert(block_id, resident);
+        state.epochs.resident_changed[block_id] = state.epochs.next();
         true
     }
 
@@ -1030,8 +1121,23 @@ impl<'a> StackPhiPlanner<'a> {
     ) -> bool {
         let func = self.func;
         let block = &func.blocks[block_id];
+        let LiveJoinState { layouts, wanted, scratch, mask, epochs, .. } = state;
+        let mut inputs_changed = facts.loop_headers_of[block_id]
+            .iter()
+            .fold(0, |latest, &header| latest.max(epochs.layout_changed[header]));
+        if let Some(term) = &block.terminator {
+            term.for_each_successor(|succ| {
+                inputs_changed = inputs_changed
+                    .max(epochs.layout_changed[succ])
+                    .max(epochs.wanted_changed[succ]);
+            });
+        }
+        let stale =
+            RefreshEpochs::begin(&mut epochs.wanted_ran[block_id], epochs.epoch, inputs_changed);
+        if !stale && !cfg!(debug_assertions) {
+            return false;
+        }
         let live_through = facts.live_through.row(block_id);
-        let LiveJoinState { layouts, wanted, scratch, mask, .. } = state;
         scratch.clear();
         for &value in &facts.own_uses[block_id] {
             scratch.insert(value);
@@ -1104,7 +1210,12 @@ impl<'a> StackPhiPlanner<'a> {
                 }
             }
         }
-        wanted.replace_row(block_id, scratch)
+        let changed = wanted.replace_row(block_id, scratch);
+        if changed {
+            debug_assert!(stale, "skipped wanted refresh of {block_id:?} changed its result");
+            epochs.wanted_changed[block_id] = epochs.next();
+        }
+        changed
     }
 
     /// The words of an edge that feed phis rather than ride through unchanged. Only these skip

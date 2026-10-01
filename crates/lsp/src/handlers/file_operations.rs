@@ -70,11 +70,10 @@ pub(crate) fn will_rename_files(
                 return Ok(None);
             }
             tokio::task::spawn_blocking(move || {
-                validated_import_workspace_edit(plan, vfs, document_changes)
+                validated_import_workspace_edit(plan, &config, vfs, document_changes)
             })
             .await
             .map_err(file_operation_task_failed)?
-            .map(Some)
         }
         .await;
         if result.is_ok()
@@ -397,11 +396,10 @@ pub(crate) fn will_delete_files(
             return Ok(None);
         }
         tokio::task::spawn_blocking(move || {
-            validated_import_workspace_edit(plan, vfs, document_changes)
+            validated_import_workspace_edit(plan, &config, vfs, document_changes)
         })
         .await
         .map_err(file_operation_task_failed)?
-        .map(Some)
     }
 }
 
@@ -414,7 +412,7 @@ fn workspace_source_edits_are_complete(
     }
     let is_workspace_source =
         |uri: &Url| uri.to_file_path().is_ok_and(|path| config.tracks_source_file(&path));
-    plan.all_files(is_workspace_source)
+    plan.files().all(is_workspace_source)
 }
 
 fn file_operation_task_failed(error: tokio::task::JoinError) -> ResponseError {

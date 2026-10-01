@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/frame-slot-promotion/builder_cases.mir (before frame-slot-promotion) ===
 + // === ROOT/tests/ui/codegen/mir/frame-slot-promotion/builder_cases.mir (after frame-slot-promotion) ===
   @module FramePromotionBuilderCases
-  types:
+  @types
     struct0: {i256, i256}
   
   fn @loop_carried() -> i256 {

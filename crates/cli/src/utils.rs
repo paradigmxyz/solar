@@ -5,7 +5,7 @@ use solar_interface::diagnostics::DiagCtxt;
 #[cfg(feature = "tracing")]
 use solar_sema::ast::Either;
 #[cfg(feature = "tracing")]
-use std::io;
+use std::io::{self, IsTerminal};
 
 #[cfg(feature = "mimalloc")]
 use mimalloc as _;
@@ -14,25 +14,29 @@ use tikv_jemallocator as _;
 
 // Keep the system allocator in tests, where we spawn a ton of processes and any extra startup cost
 // slows down tests massively.
-cfg_if::cfg_if! {
-    if #[cfg(debug_assertions)] {
+std::cfg_select! {
+    debug_assertions => {
         type AllocatorInner = std::alloc::System;
-    } else if #[cfg(feature = "mimalloc")] {
+    }
+    feature = "mimalloc" => {
         type AllocatorInner = mimalloc::MiMalloc;
-    } else if #[cfg(all(feature = "jemalloc", unix))] {
+    }
+    all(feature = "jemalloc", unix) => {
         type AllocatorInner = tikv_jemallocator::Jemalloc;
-    } else {
+    }
+    _ => {
         type AllocatorInner = std::alloc::System;
     }
 }
 
-cfg_if::cfg_if! {
-    if #[cfg(feature = "tracy-allocator")] {
+std::cfg_select! {
+    feature = "tracy-allocator" => {
         pub(super) type WrappedAllocator = tracing_tracy::client::ProfiledAllocator<AllocatorInner>;
         pub(super) const fn new_wrapped_allocator() -> WrappedAllocator {
             Allocator::new(AllocatorInner {}, 100)
         }
-    } else {
+    }
+    _ => {
         pub(super) type WrappedAllocator = AllocatorInner;
         pub(super) const fn new_wrapped_allocator() -> WrappedAllocator {
             AllocatorInner {}
@@ -56,6 +60,17 @@ pub enum LogDestination {
     Stdout,
     /// [`io::stderr`].
     Stderr,
+}
+
+#[cfg(feature = "tracing")]
+impl LogDestination {
+    /// Returns whether the destination is a terminal, which renders ANSI colors.
+    fn is_terminal(&self) -> bool {
+        match self {
+            Self::Stdout => io::stdout().is_terminal(),
+            Self::Stderr => io::stderr().is_terminal(),
+        }
+    }
 }
 
 #[cfg(feature = "tracing")]
@@ -128,7 +143,7 @@ fn try_init_logger(dst: LogDestination) -> Result<impl Sized, String> {
     tracing_subscriber::Registry::default()
         .with(tracing_subscriber::EnvFilter::from_default_env())
         .with(profile_layer)
-        .with(tracing_subscriber::fmt::layer().with_writer(dst))
+        .with(tracing_subscriber::fmt::layer().with_ansi(dst.is_terminal()).with_writer(dst))
         .try_init()
         .map(|()| guard)
         .map_err(|e| e.to_string())

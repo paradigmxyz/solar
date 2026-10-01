@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/program-data/contract_code_data.sol:CodeTarget ===
 @module CodeTarget
-data:
+@data
   literal_0: hex"112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00"
 
 fn @value() -> i256 [selector=0x3fa4f245, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
@@ -14,66 +14,69 @@ fn @payload() -> memorybytes [selector=0xa878f858, pure, abi_params=[], abi_retu
     set_memory_object_len memorybytes, v0, 128
     v1 = memory_object_data memorybytes, v0
     v2 = ptrtoint memptr v1 to i256
-    data_copy literal_0, v2, 128
+    datacopy literal_0, v2, 128
     ret v0
 }
 
 // === ROOT/tests/ui/codegen/lowering/program-data/contract_code_data.sol:CodeFactory ===
 @module CodeFactory
-data:
-  CodeTarget_initcode_0: hex"34600e5761019b8060125f395ff35b5f5ffd341515602a575f3560e01c80633fa4f245146026578063a878f85814602257602a565b6040565b602e565b5f5ffd5b60076080526020608001608090036080f35b6101206040526040518060c0528060c05260a060c05101604052806080526080815250608051806080526020900160808161011b903950604051806101005280610100528060a0526020900160a0518060a052810360a0518060a052526080518060805251608051806080525f811490501581029050601f19601f820116602083018184015f8152508284529250608051806080526020900181840191508281855e5091505060a0518060a052810390505f9001601f8101601f19811690506040518060e0528060e0528160e0510191508160405290508181f3112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00"
-  CodeTarget_runtime_code_1: hex"341515602a575f3560e01c80633fa4f245146026578063a878f85814602257602a565b6040565b602e565b5f5ffd5b60076080526020608001608090036080f35b6101206040526040518060c0528060c05260a060c05101604052806080526080815250608051806080526020900160808161011b903950604051806101005280610100528060a0526020900160a0518060a052810360a0518060a052526080518060805251608051806080525f811490501581029050601f19601f820116602083018184015f8152508284529250608051806080526020900181840191508281855e5091505060a0518060a052810390505f9001601f8101601f19811690506040518060e0528060e0528160e0510191508160405290508181f3112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00"
+@data
+  CodeTarget_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/program-data/contract_code_data.sol:CodeTarget"
+  CodeTarget_runtime_code_1: runtime_code "ROOT/tests/ui/codegen/lowering/program-data/contract_code_data.sol:CodeTarget"
 
 fn @deployCreationCode() -> i256 [selector=0x5986dddb, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 480 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v0, 429
-    v1 = memory_object_data memorybytes, v0
-    v2 = ptrtoint memptr v1 to i256
-    v3 = add v2, 416
-    mstore v3, 0
-    v4 = ptrtoint memptr v1 to i256
-    data_copy CodeTarget_initcode_0, v4, 429
-    v5 = ptrtoint memorybytes v0 to i256
-    v6 = mload v5
-    v7 = ptrtoint memorybytes v0 to i256
-    v8 = add v7, 32
-    v9 = create 0, v8, v6
-    v10 = zext i160 v9 to i256
-    v11 = gas
-    v12 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
-    v13 = slice_ptr v12
-    v14 = slice_len v12
-    v15 = zext i160 v9 to i256
-    v16 = staticcall v11, v15, v13, v14, 0, 32
-    jumpi v16, bb2, bb1
+    v0 = datasize CodeTarget_creation_code_0
+    v1 = datasize CodeTarget_creation_code_0, 63, aligned
+    v2 = alloc memorybytes, exact, uninitialized, infallible, v1 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v2, v0
+    v3 = memory_object_data memorybytes, v2
+    v4 = datasize CodeTarget_creation_code_0, 31, aligned
+    v5 = ptrtoint memorybytes v2 to i256
+    v6 = add v5, v4
+    mstore v6, 0
+    v7 = ptrtoint memptr v3 to i256
+    datacopy CodeTarget_creation_code_0, v7, v0
+    v8 = ptrtoint memorybytes v2 to i256
+    v9 = mload v8
+    v10 = ptrtoint memorybytes v2 to i256
+    v11 = add v10, 32
+    v12 = create 0, v11, v9
+    v13 = zext i160 v12 to i256
+    v14 = gas
+    v15 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
+    v16 = slice_ptr v15
+    v17 = slice_len v15
+    v18 = zext i160 v12 to i256
+    v19 = staticcall v14, v18, v16, v17, 0, 32
+    jumpi v19, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v17 = returndatasize
-    v18 = lt v17, 32
-    icall revert_if<tuple_data_too_short>, v18
-    v19 = add 0, 0
-    v20 = mload v19
-    v21 = add 0, 0
-    v22 = mload v21
-    ret v22
+    v20 = returndatasize
+    v21 = lt v20, 32
+    icall revert_if<tuple_data_too_short>, v21
+    v22 = add 0, 0
+    v23 = mload v22
+    v24 = add 0, 0
+    v25 = mload v24
+    ret v25
 }
 
 fn @runtimeCodeMatches() -> i256 [selector=0x337e11d0, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = abi_encode []
-    v1 = not 31
-    v2 = and 460, v1
+    v1 = datasize CodeTarget_creation_code_0
+    v2 = datasize CodeTarget_creation_code_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    data_copy CodeTarget_initcode_0, v4, 429
+    datacopy CodeTarget_creation_code_0, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
-    v7 = add v6, 429
+    v7 = add v6, v1
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
-    v9 = create 0, v8, 429
+    v9 = create 0, v8, v1
     v10 = zext i160 v9 to i256
     v11 = ne v10, 0
     jumpi v11, bb2, bb1
@@ -81,18 +84,21 @@ fn @runtimeCodeMatches() -> i256 [selector=0x337e11d0, abi_params=[], abi_return
     revert_returndata
   bb2:
     v12 = zext i160 v9 to i256
-    v13 = alloc memorybytes, exact, uninitialized, infallible, 448 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v13, 411
-    v14 = memory_object_data memorybytes, v13
-    v15 = ptrtoint memptr v14 to i256
-    v16 = add v15, 384
-    mstore v16, 0
-    v17 = ptrtoint memptr v14 to i256
-    data_copy CodeTarget_runtime_code_1, v17, 411
-    v18 = keccak256_bytes v13
-    v19 = zext i160 v9 to i256
-    v20 = extcodehash v19
-    v21 = eq v18, v20
-    v22 = zext i1 v21 to i256
-    ret v22
+    v13 = datasize CodeTarget_runtime_code_1
+    v14 = datasize CodeTarget_runtime_code_1, 63, aligned
+    v15 = alloc memorybytes, exact, uninitialized, infallible, v14 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v15, v13
+    v16 = memory_object_data memorybytes, v15
+    v17 = datasize CodeTarget_runtime_code_1, 31, aligned
+    v18 = ptrtoint memorybytes v15 to i256
+    v19 = add v18, v17
+    mstore v19, 0
+    v20 = ptrtoint memptr v16 to i256
+    datacopy CodeTarget_runtime_code_1, v20, v13
+    v21 = keccak256_bytes v15
+    v22 = zext i160 v9 to i256
+    v23 = extcodehash v22
+    v24 = eq v21, v23
+    v25 = zext i1 v24 to i256
+    ret v25
 }
