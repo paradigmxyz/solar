@@ -505,8 +505,8 @@ fn display_inst_kind<'a>(
                 "memory_object_load_field {layout}, {}, {field}",
                 display_val(*object, func)
             )?;
-            if let Some(ty @ MirType::MemPtr) = result_ty {
-                write!(f, ", {ty}")?;
+            if result_ty == Some(MirType::MemPtr) {
+                write!(f, ", memptr")?;
             }
             Ok(())
         }
@@ -523,8 +523,8 @@ fn display_inst_kind<'a>(
                 display_val(*object, func),
                 display_val(*index, func)
             )?;
-            if let Some(ty @ MirType::MemPtr) = result_ty {
-                write!(f, ", {ty}")?;
+            if result_ty == Some(MirType::MemPtr) {
+                write!(f, ", memptr")?;
             }
             Ok(())
         }

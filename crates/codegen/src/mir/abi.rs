@@ -151,10 +151,9 @@ impl AbiParamType {
         match self {
             Self::Scalar(ty) => ty.mir_type(),
             Self::Enum { ty, .. } => ty.mir_type(),
-            Self::Bytes => super::MirType::MemPtr,
-            Self::DynamicArray(_) => super::MirType::MemPtr,
-            Self::FixedArray { .. } => super::MirType::MemPtr,
-            Self::Tuple(_) => super::MirType::MemPtr,
+            Self::Bytes | Self::DynamicArray(_) | Self::FixedArray { .. } | Self::Tuple(_) => {
+                super::MirType::MemPtr
+            }
         }
     }
 

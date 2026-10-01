@@ -409,12 +409,11 @@ impl ScheduleCost {
         if !target.optimization().is_gas() {
             return self.cmp_for(other, target.optimization());
         }
-        let score =
-            |cost: Self| target.lifetime_gas(Cost::new(cost.static_gas, cost.encoded_bytes));
-        score(self)
-            .cmp(&score(other))
-            .then_with(|| self.static_gas.cmp(&other.static_gas))
-            .then_with(|| self.encoded_bytes.cmp(&other.encoded_bytes))
+        target
+            .cmp_lifetime(
+                Cost::new(self.static_gas, self.encoded_bytes),
+                Cost::new(other.static_gas, other.encoded_bytes),
+            )
             .then_with(|| self.actions.cmp(&other.actions))
     }
 

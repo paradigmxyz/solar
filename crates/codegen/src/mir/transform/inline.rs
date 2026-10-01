@@ -2176,9 +2176,7 @@ fn inline_call_impl(
     let mut args = args;
     let mut argument_views = Vec::new();
     for (arg, &ty) in args.iter_mut().zip(&callee.params) {
-        if let MirType::MemPtr = ty
-            && caller.value_ty(*arg) != Some(ty)
-        {
+        if ty == MirType::MemPtr && caller.value_ty(*arg) != Some(ty) {
             if !caller.value_ty(*arg).is_some_and(MirType::is_word) {
                 return None;
             }

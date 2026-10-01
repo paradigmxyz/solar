@@ -190,10 +190,6 @@ fn is_word_array(layout: MemoryObjectLayout) -> bool {
     )
 }
 
-fn is_array(ty: MirType) -> bool {
-    matches!(ty, MirType::MemPtr)
-}
-
 /// The value a contiguous low-bit mask keeps, and the mask's width in bits.
 fn masked_element(func: &Function, inst: InstId) -> Option<(ValueId, u32)> {
     if let InstKind::Zext(narrow) = func.inst(inst).kind
@@ -328,8 +324,8 @@ fn externally_callable(func: &Function) -> bool {
         || func.attributes.is_fallback
 }
 
-/// The widest word each array parameter may hold on entry: what ABI
-/// decoding admits, or the widest argument any call site passes.
+/// The widest word each pointer parameter's array elements may hold on entry:
+/// what ABI decoding admits, or the widest argument any call site passes.
 fn param_bounds(
     module: &Module,
     transitive: &IndexVec<FunctionId, u32>,
@@ -337,7 +333,7 @@ fn param_bounds(
     let mut bounds = FxHashMap::default();
     for (id, func) in module.functions.iter_enumerated() {
         for (index, &ty) in func.params.iter_enumerated() {
-            if !is_array(ty) {
+            if ty != MirType::MemPtr {
                 continue;
             }
             let entry = if !externally_callable(func) {

@@ -5,8 +5,8 @@ use crate::link::{CodeKind, ContractCode, QualifiedName};
 
 const MIN_BULK_ZERO_STRUCT_FIELDS: usize = 4;
 
-/// Default structs with fewer value fields than this are built inline: one allocation and a few
-/// stores cost less than calling a shared constructor.
+/// Default structs with fewer value fields than this are built inline. A heuristic: one allocation
+/// and a few stores usually cost less than calling a shared constructor.
 const MIN_SHARED_DEFAULT_STRUCT_FIELDS: usize = 4;
 
 impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
@@ -99,25 +99,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if small {
             return self.default_object(element);
         }
-        let helper = self.default_struct_helper(id, element)?;
+        // fn @default_struct_N() -> memptr { object = default(Struct); ret object }
+        let helper =
+            self.lazy_helper(helper_name(sym::default_struct, id.index()), |this, function| {
+                let mut lowerer = FunctionLowerer::new(this.cx.reborrow(), function);
+                let object = lowerer.default_object(element)?;
+                lowerer.builder.set_return_type(MirType::MemPtr);
+                lowerer.builder.ret([object]);
+                Some(())
+            })?;
         // object = icall @default_struct_N
         Some(self.builder.icall(helper, Vec::new(), MirType::MemPtr))
-    }
-
-    /// Returns the shared constructor of `struct_id`'s default object.
-    fn default_struct_helper(
-        &mut self,
-        struct_id: hir::StructId,
-        ty: Ty<'gcx>,
-    ) -> Option<FunctionId> {
-        // fn @default_struct_N() -> memptr { object = default(Struct); ret object }
-        self.lazy_helper(helper_name(sym::default_struct, struct_id.index()), |this, function| {
-            let mut lowerer = FunctionLowerer::new(this.cx.reborrow(), function);
-            let object = lowerer.default_object(ty)?;
-            lowerer.builder.set_return_type(MirType::MemPtr);
-            lowerer.builder.ret([object]);
-            Some(())
-        })
     }
 
     pub(super) fn lower_struct_constructor(

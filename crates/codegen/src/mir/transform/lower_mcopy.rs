@@ -37,7 +37,8 @@ use crate::{
         BlockId, EffectKind, Function, FunctionBuilder, FunctionId, InstId, InstKind, MirType,
         Module, Value, ValueId,
         analysis::{
-            AliasAnalysis, AliasResult, CallGraphInfo, LocationSize, MemoryBase, MemoryLocation,
+            AliasAnalysis, AliasResult, CallGraphInfo, LocationSize, MemoryBase,
+            MemoryCallSummaries, MemoryLocation,
         },
         memory::EvmMemoryLayout,
         pass::MirPass,
@@ -48,6 +49,7 @@ use crate::{
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
 use solar_interface::{Ident, sym};
 use solar_sema::Gcx;
+use std::sync::Arc;
 
 /// Lowers `mcopy` to overlap-safe word-copy loops without an `MCOPY` opcode.
 pub(crate) struct LowerMCopy;
@@ -153,7 +155,7 @@ fn copy_sites(
     func: &Function,
     runtime: bool,
     fresh_returns: &DenseBitSet<FunctionId>,
-    summaries: &std::sync::Arc<crate::mir::analysis::MemoryCallSummaries>,
+    summaries: &Arc<MemoryCallSummaries>,
 ) -> Vec<CopySite> {
     if func.blocks.is_empty() || !func.instructions().any(|inst| is_mcopy(func, inst)) {
         return Vec::new();
@@ -209,12 +211,7 @@ fn shared_copy_helper(target: Target, shape: CopyShape, sites: u32) -> Option<Fu
         body.bytes.saturating_add(ret.bytes).saturating_add(call.bytes.saturating_mul(sites)),
     );
     let expanded = Cost::new(0, body.bytes.saturating_mul(sites));
-    let shares = if target.optimization().is_gas() {
-        target.lifetime_gas(shared) < target.lifetime_gas(expanded)
-    } else {
-        target.cmp(shared, expanded).is_lt()
-    };
-    shares.then_some(function)
+    target.cmp_lifetime(shared, expanded).is_lt().then_some(function)
 }
 
 fn lower_function(
@@ -447,16 +444,19 @@ impl WordCopy {
 
 /// Returns whether `len` is provably a multiple of 32.
 fn is_whole_words(func: &Function, len: ValueId, depth: usize) -> bool {
+    /// How deep to look through the arithmetic that computes a length.
+    const MAX_DEPTH: usize = 4;
+    const WORD_BITS: u64 = EvmMemoryLayout::WORD_SIZE.trailing_zeros() as u64;
     if let Some(len) = func.value_u256(len) {
-        return len.as_limbs()[0] % 32 == 0;
+        return len.as_limbs()[0] % EvmMemoryLayout::WORD_SIZE == 0;
     }
     let Value::Inst(inst) = func.value(len) else { return false };
-    if depth >= 4 {
+    if depth >= MAX_DEPTH {
         return false;
     }
     let whole = |value| is_whole_words(func, value, depth + 1);
     match func.inst(*inst).kind {
-        InstKind::Shl(shift, _) => func.value_u64(shift).is_some_and(|shift| shift >= 5),
+        InstKind::Shl(shift, _) => func.value_u64(shift).is_some_and(|shift| shift >= WORD_BITS),
         InstKind::Mul(a, b) | InstKind::And(a, b) => whole(a) || whole(b),
         InstKind::Add(a, b) | InstKind::Sub(a, b) => whole(a) && whole(b),
         _ => false,

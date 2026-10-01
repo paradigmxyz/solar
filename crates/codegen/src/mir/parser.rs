@@ -1743,7 +1743,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     .map_err(|_| self.parser.error("memory field index does not fit in u64"))?;
                 let ty = if self.parser.eat(TokenKind::Comma) {
                     let ty = self.parse_type()?;
-                    if !matches!(ty, MirType::MemPtr) {
+                    if ty != MirType::MemPtr {
                         return Err(self.parser.error("object load annotation must be `memptr`"));
                     }
                     ty
@@ -1776,7 +1776,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 let index = self.parse_value(builder)?;
                 let ty = if self.parser.eat(TokenKind::Comma) {
                     let ty = self.parse_type()?;
-                    if !matches!(ty, MirType::MemPtr) {
+                    if ty != MirType::MemPtr {
                         return Err(self.parser.error("object load annotation must be `memptr`"));
                     }
                     ty

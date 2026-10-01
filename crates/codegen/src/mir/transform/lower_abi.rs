@@ -730,9 +730,9 @@ impl LowerAbiCx {
             let func = module.function(id);
             let Some(layout) = func.abi_params.as_ref() else { continue };
             for (ty, &arg_type) in layout.types.iter().zip(&func.params) {
-                if !ty.is_scalar_word() && matches!(arg_type, MirType::MemPtr) {
+                if !ty.is_scalar_word() && arg_type == MirType::MemPtr {
                     // `count_dynamic_tuple_types` counts a dynamic tuple itself.
-                    if !(matches!(ty, AbiParamType::Tuple(_)) && ty.has_dynamic_child()) {
+                    if !decodes_nested(ty) {
                         count_type(&mut counts, ty, 1);
                     }
                     count_dynamic_tuple_types(ty, 1, &mut counts);
@@ -1078,7 +1078,7 @@ impl LowerAbiCx {
             && layout.types.iter().zip(&func.params).all(|(abi_ty, &param_ty)| {
                 (abi_ty.is_scalar_word()
                     && !matches!(abi_ty, AbiParamType::Scalar(crate::mir::ValueLayout::Function))
-                    && !matches!(param_ty, MirType::MemPtr))
+                    && param_ty != MirType::MemPtr)
                     || (!abi_ty.is_scalar_word()
                         && matches!(param_ty, MirType::MemPtr | MirType::Slice(_)))
             })
@@ -1414,7 +1414,7 @@ impl LowerAbiCx {
                             );
                         } else if location == AbiParamLocation::Memory {
                             if !constructor
-                                && matches!(arg_type, MirType::MemPtr)
+                                && arg_type == MirType::MemPtr
                                 && let Some(&helper) = self.aggregate_type_helpers.get(ty)
                             {
                                 // value = icall @decode_calldata_type, head[, tuple_base]
@@ -1437,7 +1437,7 @@ impl LowerAbiCx {
                     } else {
                         let value = if !constructor
                             && decode_type == arg_type
-                            && matches!(arg_type, MirType::MemPtr)
+                            && arg_type == MirType::MemPtr
                             && let Some(&helper) = self.aggregate_type_helpers.get(ty)
                         {
                             // value = icall @decode_calldata_type, head[, tuple_base]
@@ -1785,7 +1785,7 @@ impl LowerAbiCx {
             head
         };
         if !is_dynamic
-            && matches!(arg_type, MirType::MemPtr)
+            && arg_type == MirType::MemPtr
             && !constructor
             && !allow_alias
             && matches!(
@@ -1942,9 +1942,7 @@ impl LowerAbiCx {
                 Self::validate_scalar_array(builder, data, element, len, current, options);
                 base
             }
-            crate::mir::AbiParamType::DynamicArray(element)
-                if matches!(arg_type, MirType::MemPtr) =>
-            {
+            crate::mir::AbiParamType::DynamicArray(element) if arg_type == MirType::MemPtr => {
                 let checked_decode = constructor && !allow_alias;
                 let len = Self::load_input_word(builder, base, constructor);
                 let data_base = builder.add_u64_offset(base, 32);
@@ -2117,7 +2115,7 @@ impl LowerAbiCx {
                 }
                 if constructor
                     && allow_alias
-                    && matches!(arg_type, MirType::MemPtr)
+                    && arg_type == MirType::MemPtr
                     && fields.iter().all(Self::is_scalar_or_enum)
                 {
                     let mut offset = 0;
@@ -2659,7 +2657,7 @@ impl LowerAbiCx {
         ty: &crate::mir::AbiParamType,
         arg_type: MirType,
     ) -> bool {
-        if !matches!(arg_type, MirType::MemPtr) || !Self::can_encode_calldata_slice(ty) {
+        if arg_type != MirType::MemPtr || !Self::can_encode_calldata_slice(ty) {
             return false;
         }
         if func.instructions().any(|inst_id| match &func.inst(inst_id).kind {

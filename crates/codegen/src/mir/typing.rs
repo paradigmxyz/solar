@@ -13,12 +13,13 @@ impl AbiType {
     pub(crate) fn operand_type(&self) -> MirType {
         match self {
             Self::Word(_) | Self::Function => MirType::I256,
-            Self::Bytes(SliceLocation::Memory) => MirType::MemPtr,
-            Self::Bytes(location) => MirType::Slice(*location),
-            Self::DynamicArray { location: SliceLocation::Memory, .. } => MirType::MemPtr,
-            Self::DynamicArray { location, .. } => MirType::Slice(*location),
-            Self::FixedArray { .. } => MirType::MemPtr,
-            Self::Tuple(_) => MirType::MemPtr,
+            Self::Bytes(SliceLocation::Memory)
+            | Self::DynamicArray { location: SliceLocation::Memory, .. }
+            | Self::FixedArray { .. }
+            | Self::Tuple(_) => MirType::MemPtr,
+            Self::Bytes(location) | Self::DynamicArray { location, .. } => {
+                MirType::Slice(*location)
+            }
         }
     }
 

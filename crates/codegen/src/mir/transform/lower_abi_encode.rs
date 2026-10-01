@@ -1643,7 +1643,13 @@ fn copy_source_data(
     size: ValueId,
 ) {
     match location {
-        SliceLocation::Memory => builder.mcopy_disjoint_heap(dest, source, size),
+        // mcopy dest, source, size !metadata(disjoint)
+        SliceLocation::Memory => {
+            let copy = builder.mcopy_heap(dest, source, size);
+            builder.func_mut().inst_mut(copy).metadata.set_disjoint(true);
+        }
+        // calldatacopy dest, source, size
+        // returndatacopy dest, source, size
         SliceLocation::Calldata | SliceLocation::Returndata => {
             builder.copy_slice_data(location, dest, source, size)
         }

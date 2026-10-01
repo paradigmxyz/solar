@@ -14,15 +14,6 @@
 // Returning a fresh array encodes it in place, a backward whole-word copy.
 // In size mode, the forward byte copies of ABI encoding share one helper, which
 // needs no runtime direction check, even for an object that assembly allocates.
-// SHARED-LABEL: fn @bytesTail(
-// SHARED: icall @[[FORWARD:mcopy_words[.0-9]*]],
-// SHARED-LABEL: fn @concat(
-// SHARED: icall @[[FORWARD]],
-// SHARED-LABEL: fn @assembled(
-// SHARED: icall @[[FORWARD]],
-// SHARED: {{^}}fn @[[FORWARD]](
-// SHARED-NOT: lt arg1, arg0
-// SHARED: ret
 contract PreCancunMemoryCopies {
     function words() external pure returns (bool) {
         uint256[] memory values = new uint256[](3);
@@ -33,6 +24,8 @@ contract PreCancunMemoryCopies {
             == keccak256(abi.encodePacked(uint256(32), uint256(3), uint256(1), uint256(2), uint256(3)));
     }
 
+    // SHARED-LABEL: fn @bytesTail(
+    // SHARED: icall @[[FORWARD:mcopy_words[.0-9]*]],
     function bytesTail() external pure returns (bool) {
         bytes memory payload = new bytes(33);
         for (uint256 i; i < 33; ++i) {
@@ -46,6 +39,8 @@ contract PreCancunMemoryCopies {
         return encoded.length == 128 && encoded[64] == 0x01 && last == uint256(33) << 248;
     }
 
+    // SHARED-LABEL: fn @concat(
+    // SHARED: icall @[[FORWARD]],
     function concat() external pure returns (bool) {
         bytes memory first = hex"0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f2021";
         bytes memory second = hex"2223";
@@ -55,6 +50,8 @@ contract PreCancunMemoryCopies {
                 == keccak256(hex"0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20212223");
     }
 
+    // SHARED-LABEL: fn @assembled(
+    // SHARED: icall @[[FORWARD]],
     function assembled() external pure returns (bool) {
         bytes memory payload;
         bytes32 expected;
@@ -85,4 +82,8 @@ contract PreCancunMemoryCopies {
     function freshEmpty() external pure returns (uint256[] memory) {
         return new uint256[](0);
     }
+
+    // SHARED: {{^}}fn @[[FORWARD]](
+    // SHARED-NOT: lt arg1, arg0
+    // SHARED: ret
 }

@@ -609,6 +609,15 @@ impl Target {
         self.objective_key(a).cmp(&self.objective_key(b))
     }
 
+    /// Ranks two costs over the deployment lifetime when optimizing for gas, and
+    /// under the objective otherwise.
+    pub(crate) fn cmp_lifetime(self, a: Cost, b: Cost) -> Ordering {
+        if !self.optimization.is_gas() {
+            return self.cmp(a, b);
+        }
+        self.lifetime_gas(a).cmp(&self.lifetime_gas(b)).then_with(|| self.cmp(a, b))
+    }
+
     /// Whether a change that saves `gas_saving` gas and `byte_saving` bytes
     /// per site improves the objective; negative savings are growth.
     pub(crate) fn improves(self, gas_saving: i128, byte_saving: i128) -> bool {
@@ -751,6 +760,10 @@ mod tests {
         assert_eq!(gas.cmp(cheap_gas, cheap_bytes), Ordering::Less);
         assert_eq!(size.cmp(cheap_gas, cheap_bytes), Ordering::Greater);
         assert_eq!(gas.lifetime_gas(Cost::new(1, 1)), 400);
+        let once = Target::with(EvmVersion::Osaka, OptimizationMode::Gas, 1);
+        assert_eq!(gas.cmp_lifetime(Cost::new(10, 1), Cost::new(1, 10)), Ordering::Greater);
+        assert_eq!(once.cmp_lifetime(Cost::new(10, 1), Cost::new(1, 10)), Ordering::Less);
+        assert_eq!(size.cmp_lifetime(cheap_gas, cheap_bytes), Ordering::Greater);
         assert!(gas.improves(1, 0));
         assert!(!gas.improves(1, -1));
         assert!(size.improves(-5, 1));

@@ -648,11 +648,11 @@ impl<'a> FunctionBuilder<'a> {
     }
 
     /// Emits a void memory instruction with a proven destination region.
-    fn emit_void_inst_in_region(&mut self, mut kind: InstKind, region: MemoryRegion) {
+    fn emit_void_inst_in_region(&mut self, mut kind: InstKind, region: MemoryRegion) -> InstId {
         self.cast_operands(&mut kind);
         let mut inst = self.make_inst(kind, None);
         inst.metadata.set_memory_region(Some(region));
-        self.append_instruction(inst);
+        self.append_instruction(inst).0
     }
 
     fn memory_region_for_inst(&self, kind: &InstKind) -> Option<MemoryRegion> {
@@ -1200,18 +1200,8 @@ impl<'a> FunctionBuilder<'a> {
     }
 
     /// Emits an mcopy whose destination is proven to be in the heap.
-    pub(crate) fn mcopy_heap(&mut self, dest: ValueId, src: ValueId, len: ValueId) {
+    pub(crate) fn mcopy_heap(&mut self, dest: ValueId, src: ValueId, len: ValueId) -> InstId {
         self.emit_void_inst_in_region(InstKind::MCopy(dest, src, len), MemoryRegion::Heap)
-    }
-
-    /// Emits a heap mcopy whose source and destination ranges never overlap.
-    pub(crate) fn mcopy_disjoint_heap(&mut self, dest: ValueId, src: ValueId, len: ValueId) {
-        let mut kind = InstKind::MCopy(dest, src, len);
-        self.cast_operands(&mut kind);
-        let mut inst = self.make_inst(kind, None);
-        inst.metadata.set_memory_region(Some(MemoryRegion::Heap));
-        inst.metadata.set_disjoint(true);
-        self.append_instruction(inst);
     }
 
     /// Constructs a logical `(pointer, length, location)` slice.
@@ -1250,7 +1240,7 @@ impl<'a> FunctionBuilder<'a> {
         self.emit_void_inst_in_region(
             InstKind::CalldataCopy(dest, offset, size),
             MemoryRegion::Heap,
-        )
+        );
     }
 
     /// Emits an opaque library address supplied by the linker.
@@ -1291,7 +1281,7 @@ impl<'a> FunctionBuilder<'a> {
         self.emit_void_inst_in_region(
             InstKind::ExtCodeCopy(addr, dest, offset, size),
             MemoryRegion::Heap,
-        )
+        );
     }
 
     /// Emits a returndatasize instruction.
@@ -1305,7 +1295,9 @@ impl<'a> FunctionBuilder<'a> {
         size: ValueId,
     ) {
         match location {
-            SliceLocation::Memory => self.mcopy_heap(dest, source, size),
+            SliceLocation::Memory => {
+                self.mcopy_heap(dest, source, size);
+            }
             SliceLocation::Calldata => self.calldatacopy_heap(dest, source, size),
             SliceLocation::Returndata => self.returndatacopy_heap(dest, source, size),
         }
@@ -1316,7 +1308,7 @@ impl<'a> FunctionBuilder<'a> {
         self.emit_void_inst_in_region(
             InstKind::ReturnDataCopy(dest, offset, size),
             MemoryRegion::Heap,
-        )
+        );
     }
 
     /// Emits a returndata copy that feeds an external return or revert.
@@ -1329,7 +1321,7 @@ impl<'a> FunctionBuilder<'a> {
         self.emit_void_inst_in_region(
             InstKind::ReturnDataCopy(dest, offset, size),
             MemoryRegion::AbiReturn,
-        )
+        );
     }
 
     /// Emits an internal function call.

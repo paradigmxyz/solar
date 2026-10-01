@@ -592,6 +592,9 @@ fn slice_load_kind(location: SliceLocation, address: crate::mir::ValueId) -> Opt
 /// edge. The memory-object users after this pass expect the same header/data
 /// representation on both edges, so copy the slice into a fresh bytes object
 /// before forming the phi.
+///
+/// NOTE: pointers carry no object kind, so this treats every pointer phi with a
+/// slice input as bytes; only `bytes` and `string` values join slices in source.
 fn materialize_mixed_byte_phis(func: &mut Function) {
     let blocks = func.blocks.indices();
     for block in blocks {
@@ -611,7 +614,7 @@ fn materialize_mixed_byte_phis(func: &mut Function) {
                 .iter()
                 .any(|(_, value)| matches!(func.value_ty(*value), Some(MirType::Slice(_))))
                 || !incoming.iter().all(|(_, value)| {
-                    matches!(func.value_ty(*value), Some(MirType::Slice(_) | MirType::MemPtr,))
+                    matches!(func.value_ty(*value), Some(MirType::Slice(_) | MirType::MemPtr))
                 })
             {
                 continue;

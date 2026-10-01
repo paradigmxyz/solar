@@ -91,7 +91,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             LValuePlace::Storage { ty, access, span } => self.load_storage_value(ty, access, span),
             LValuePlace::MemoryField { object, layout, field, ty } => {
                 // value = memory_object_load_field layout, object, field
-                let value = if let MirType::MemPtr = types::TypeLowerer::mir_type(ty) {
+                let value = if types::TypeLowerer::mir_type(ty) == MirType::MemPtr {
                     self.builder.memory_object_load_object_field(object, layout, field)
                 } else {
                     self.builder.memory_object_load_field(object, layout, field)
@@ -100,7 +100,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             LValuePlace::MemoryElement { object, layout, index, ty } => {
                 // value = memory_object_load_element layout, object, index
-                let value = if let MirType::MemPtr = types::TypeLowerer::mir_type(ty) {
+                let value = if types::TypeLowerer::mir_type(ty) == MirType::MemPtr {
                     self.builder.memory_object_load_object(object, layout, index)
                 } else {
                     self.builder.memory_object_load_element(object, layout, index)
