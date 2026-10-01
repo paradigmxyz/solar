@@ -1,169 +1,83 @@
 use super::*;
-use lsp_types::{
-    DiagnosticRelatedInformation, DiagnosticTag, Location, PublishDiagnosticsClientCapabilities,
-    TagSupport,
-};
+use lsp_types::{DiagnosticRelatedInformation, DiagnosticTag, Location};
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum RefreshEvent {
-    Diagnostics,
-    InlayHints,
-}
-
-struct RefreshHarness {
-    client: ClientSocket,
-    server: ServerSocket,
-    events: mpsc::UnboundedReceiver<RefreshEvent>,
-    published: mpsc::UnboundedReceiver<PublishDiagnosticsParams>,
-    server_task: tokio::task::JoinHandle<async_lsp::Result<()>>,
-    client_task: tokio::task::JoinHandle<async_lsp::Result<()>>,
-}
-
-impl RefreshHarness {
-    async fn next_event(&mut self) -> RefreshEvent {
-        let event = tokio::time::timeout(ASYNC_TEST_TIMEOUT, self.events.recv())
-            .await
-            .expect("refresh request should arrive");
-        let Some(event) = event else {
-            let result = (&mut self.client_task).await;
-            panic!("refresh event channel closed after client loop exited: {result:?}");
-        };
-        event
-    }
-
-    async fn expect_no_event(&mut self) {
-        match tokio::time::timeout(Duration::from_millis(100), self.events.recv()).await {
-            Err(_) => {}
-            Ok(Some(event)) => panic!("unexpected refresh request: {event:?}"),
-            Ok(None) => {
-                let result = (&mut self.client_task).await;
-                panic!("refresh event channel closed after client loop exited: {result:?}");
-            }
-        }
-    }
-
-    async fn next_published(&mut self) -> PublishDiagnosticsParams {
-        tokio::time::timeout(ASYNC_TEST_TIMEOUT, self.published.recv())
-            .await
-            .expect("published diagnostics should arrive")
-            .expect("published diagnostic channel should stay open")
-    }
-
-    async fn expect_no_published(&mut self) {
-        match tokio::time::timeout(Duration::from_millis(100), self.published.recv()).await {
-            Err(_) => {}
-            Ok(Some(params)) => panic!("unexpected published diagnostics: {params:?}"),
-            Ok(None) => {
-                let result = (&mut self.client_task).await;
-                panic!("published diagnostic channel closed after client loop exited: {result:?}");
-            }
-        }
-    }
-
-    async fn expect_pull_result_refreshes(&mut self) {
-        let first = self.next_event().await;
-        let second = self.next_event().await;
-        assert_ne!(first, second);
-        assert!([first, second].contains(&RefreshEvent::Diagnostics));
-        assert!([first, second].contains(&RefreshEvent::InlayHints));
-    }
-
-    async fn shutdown(self) {
-        self.server.notify::<notification::Exit>(()).unwrap();
-        assert!(self.server_task.await.unwrap().is_ok());
-        assert!(matches!(self.client_task.await.unwrap(), Err(async_lsp::Error::Eof)));
-    }
-}
-
-fn refresh_harness() -> RefreshHarness {
-    let (server_main, client) = async_lsp::MainLoop::new_server(|_| {
-        let mut router = Router::new(());
-        router.notification::<notification::Exit>(|_, ()| ControlFlow::Break(Ok(())));
-        router
-    });
-    let (events_tx, events) = mpsc::unbounded_channel();
-    let (published_tx, published) = mpsc::unbounded_channel();
-    let (client_main, server) = async_lsp::MainLoop::new_client(move |_| {
-        let mut router = Router::new(events_tx);
-        router.request::<request::WorkspaceDiagnosticRefresh, _>(|events, ()| {
-            events.send(RefreshEvent::Diagnostics).unwrap();
-            async { Ok(()) }
-        });
-        router.request::<request::InlayHintRefreshRequest, _>(|events, ()| {
-            events.send(RefreshEvent::InlayHints).unwrap();
-            async { Ok(()) }
-        });
-        router.notification::<notification::PublishDiagnostics>(move |_, params| {
-            published_tx.send(params).unwrap();
-            ControlFlow::Continue(())
-        });
-        router
-    });
-
-    let (server_task, client_task) = spawn_lsp_pair(server_main, client_main);
-
-    RefreshHarness { client, server, events, published, server_task, client_task }
-}
-
+/// A config with diagnostic refresh support, and pull diagnostics and inlay hint refresh support
+/// as requested.
 fn pull_refresh_config(diagnostics: bool, inlay_hints: bool) -> Config {
-    diagnostic_refresh_config(diagnostics, diagnostics, inlay_hints)
+    let text_document = if diagnostics { json!({ "diagnostic": {} }) } else { json!({}) };
+    let params = from_json(json!({ "capabilities": {
+        "textDocument": text_document,
+        "workspace": {
+            "diagnostic": { "refreshSupport": true },
+            "inlayHint": { "refreshSupport": inlay_hints },
+        },
+    } }));
+    negotiate_capabilities(params).1
 }
 
-fn diagnostic_refresh_config(
-    document_diagnostics: bool,
-    diagnostic_refresh: bool,
+fn pull_refresh_state(
+    harness: &ClientHarness,
+    diagnostics: bool,
     inlay_hints: bool,
-) -> Config {
-    let mut params = InitializeParams::default();
-    params.capabilities.text_document.get_or_insert_default().diagnostic =
-        document_diagnostics.then(DiagnosticClientCapabilities::default);
-    params.capabilities.workspace = Some(WorkspaceClientCapabilities {
-        diagnostic: Some(DiagnosticWorkspaceClientCapabilities {
-            refresh_support: Some(diagnostic_refresh),
-        }),
-        inlay_hint: Some(InlayHintWorkspaceClientCapabilities {
-            refresh_support: Some(inlay_hints),
-        }),
-        ..Default::default()
-    });
-    negotiate_capabilities(params).1
+) -> GlobalState {
+    harness.state(pull_refresh_config(diagnostics, inlay_hints))
+}
+
+fn begin(state: &mut GlobalState, removed_paths: Vec<PathBuf>, trigger: AnalysisTrigger) -> usize {
+    begin_recompute(state, removed_paths, trigger).0
+}
+
+fn publish_compiler(state: &GlobalState, uri: &Url, diagnostics: Vec<Diagnostic>) {
+    let diagnostics = DiagnosticMap::from_iter([(uri.clone(), diagnostics)]);
+    state.snapshot().publish_diagnostics(DiagnosticOwner::Compiler, diagnostics);
+}
+
+/// A pull-refresh state with a published compiler diagnostic, and the path of its document.
+fn removed_diagnostic_state(harness: &ClientHarness) -> (GlobalState, PathBuf) {
+    let state = pull_refresh_state(harness, true, true);
+    let uri = diagnostic_uri();
+    publish_compiler(&state, &uri, vec![diagnostic("removed")]);
+    (state, uri.to_file_path().unwrap())
 }
 
 fn changed_pull_result() -> AnalysisResult {
     let path = std::env::temp_dir().join("Hints.sol");
     let uri = Url::from_file_path(&path).unwrap();
-    let mut result = analyze(AnalysisBatch::from_files(
-        CompileOpts::default(),
-        [(
-            path,
-            "contract C { function target(uint amount) public pure returns (uint) { return amount; } function caller() public pure returns (uint) { return target(1); } }".into(),
-        )],
-    ));
+    let mut result = analyze_source(
+        path,
+        "contract C { function target(uint amount) public pure returns (uint) { return amount; } function caller() public pure returns (uint) { return target(1); } }",
+    );
     assert!(
         !result
             .symbol_tables
             .inlay_hints(&uri, Range::new(Position::new(0, 0), Position::new(u32::MAX, u32::MAX)),)
             .is_empty()
     );
-    result.diagnostics.insert(uri, vec![diagnostic("changed")]);
+    result.diagnostics = diagnostics_for(&uri, "changed");
     result
+}
+
+fn diagnostic_with_details(uri: &Url, message: &str, related: &str) -> Diagnostic {
+    let mut diagnostic = diagnostic(message);
+    diagnostic.related_information = Some(vec![DiagnosticRelatedInformation {
+        location: Location::new(uri.clone(), diagnostic.range),
+        message: related.into(),
+    }]);
+    diagnostic.data = Some(json!({ "retained": true }));
+    diagnostic
 }
 
 #[tokio::test(flavor = "current_thread")]
 async fn published_diagnostics_preserve_related_text_without_client_support() {
-    let mut harness = refresh_harness();
-    let state = GlobalState::new(harness.client.clone());
+    let mut harness = ClientHarness::new();
+    let state = harness.state(Config::default());
     let uri = diagnostic_uri();
-    let mut original = diagnostic("cannot override non-virtual function");
-    original.related_information = Some(vec![DiagnosticRelatedInformation {
-        location: Location::new(uri.clone(), original.range),
-        message: "note: overriding function is here".into(),
-    }]);
-    original.data = Some(serde_json::json!({ "retained": true }));
-    state.snapshot().publish_diagnostics(
-        DiagnosticOwner::Compiler,
-        DiagnosticMap::from_iter([(uri.clone(), vec![original.clone()])]),
+    let original = diagnostic_with_details(
+        &uri,
+        "cannot override non-virtual function",
+        "note: overriding function is here",
     );
+    publish_compiler(&state, &uri, vec![original.clone()]);
 
     let published = harness.next_published().await;
     let [diagnostic] = published.diagnostics.as_slice() else {
@@ -183,7 +97,7 @@ note: overriding function is here
         vec![original],
         "outgoing presentation must not change cached code-action diagnostics",
     );
-    harness.shutdown().await;
+    harness.exit().await;
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -194,29 +108,21 @@ async fn published_diagnostics_honor_supported_tags_and_related_information() {
         Some(vec![DiagnosticTag::DEPRECATED]),
         Some(vec![DiagnosticTag::UNNECESSARY, DiagnosticTag::DEPRECATED]),
     ] {
-        let mut harness = refresh_harness();
-        let mut state = GlobalState::new(harness.client.clone());
-        let mut params = InitializeParams::default();
-        params.capabilities.text_document.get_or_insert_default().publish_diagnostics =
-            Some(PublishDiagnosticsClientCapabilities {
-                related_information: Some(true),
-                tag_support: supported.clone().map(|value_set| TagSupport { value_set }),
-                data_support: Some(true),
-                ..Default::default()
-            });
-        state.config = Arc::new(negotiate_capabilities(params).1);
+        let mut harness = ClientHarness::new();
+        let tag_support = supported.clone().map(|value_set| json!({ "valueSet": value_set }));
+        let params = from_json(json!({ "capabilities": { "textDocument": {
+            "publishDiagnostics": {
+                "relatedInformation": true,
+                "tagSupport": tag_support,
+                "dataSupport": true,
+            },
+        } } }));
+        let state = harness.state(negotiate_capabilities(params).1);
         let uri = diagnostic_uri();
-        let mut original = diagnostic("deprecated unused declaration");
-        original.related_information = Some(vec![DiagnosticRelatedInformation {
-            location: Location::new(uri.clone(), original.range),
-            message: "declaration is here".into(),
-        }]);
+        let mut original =
+            diagnostic_with_details(&uri, "deprecated unused declaration", "declaration is here");
         original.tags = Some(vec![DiagnosticTag::UNNECESSARY, DiagnosticTag::DEPRECATED]);
-        original.data = Some(serde_json::json!({ "retained": true }));
-        state.snapshot().publish_diagnostics(
-            DiagnosticOwner::Compiler,
-            DiagnosticMap::from_iter([(uri.clone(), vec![original.clone()])]),
-        );
+        publish_compiler(&state, &uri, vec![original.clone()]);
 
         let published = harness.next_published().await;
         let mut expected = original.clone();
@@ -227,26 +133,18 @@ async fn published_diagnostics_honor_supported_tags_and_related_information() {
             vec![original],
             "tag negotiation must not remove metadata from cached diagnostics",
         );
-        harness.shutdown().await;
+        harness.exit().await;
     }
 }
 
 #[tokio::test(flavor = "current_thread")]
 async fn pulled_diagnostics_preserve_details_without_publish_capabilities() {
-    let mut state = GlobalState::new(ClientSocket::new_closed());
-    state.config = Arc::new(pull_refresh_config(true, false));
+    let state = state_with(pull_refresh_config(true, false));
     let uri = diagnostic_uri();
-    let mut original = diagnostic("deprecated declaration");
-    original.related_information = Some(vec![DiagnosticRelatedInformation {
-        location: Location::new(uri.clone(), original.range),
-        message: "declaration is here".into(),
-    }]);
+    let mut original =
+        diagnostic_with_details(&uri, "deprecated declaration", "declaration is here");
     original.tags = Some(vec![DiagnosticTag::DEPRECATED]);
-    original.data = Some(serde_json::json!({ "retained": true }));
-    state.snapshot().publish_diagnostics(
-        DiagnosticOwner::Compiler,
-        DiagnosticMap::from_iter([(uri.clone(), vec![original.clone()])]),
-    );
+    publish_compiler(&state, &uri, vec![original.clone()]);
     let mut expected = original.clone();
     expected.data = None;
 
@@ -268,357 +166,152 @@ async fn pulled_diagnostics_preserve_details_without_publish_capabilities() {
 }
 
 #[tokio::test(flavor = "current_thread")]
-async fn diagnostic_updates_use_only_the_negotiated_delivery() {
-    for (document_diagnostics, expected_pull) in [(false, false), (true, true)] {
-        let mut harness = refresh_harness();
-        let mut state = GlobalState::new(harness.client.clone());
-        state.config = Arc::new(diagnostic_refresh_config(document_diagnostics, true, false));
-        assert_eq!(state.config.uses_pull_diagnostics(), expected_pull);
-        let (version, _progress) = state
-            .begin_analysis(
-                AnalysisMode::Recompute,
-                Vec::new(),
-                Vec::new(),
-                AnalysisTrigger::External,
-            )
-            .unwrap();
+async fn external_analysis_refreshes_changed_pull_results_per_capability() {
+    for (diagnostics, inlay_hints) in [(true, true), (true, false), (false, true), (false, false)] {
+        let mut harness = ClientHarness::new();
+        let mut state = pull_refresh_state(&harness, diagnostics, inlay_hints);
+        assert_eq!(state.config.uses_pull_diagnostics(), diagnostics);
+        SymbolTables::take_inlay_hint_comparisons();
 
+        let version = begin(&mut state, Vec::new(), AnalysisTrigger::External);
         assert!(state.snapshot().publish_analysis(version, changed_pull_result()));
 
-        if expected_pull {
-            assert_eq!(harness.next_event().await, RefreshEvent::Diagnostics);
-            harness.expect_no_published().await;
-        } else {
-            assert!(!harness.next_published().await.diagnostics.is_empty());
-            harness.expect_no_event().await;
+        assert_eq!(SymbolTables::take_inlay_hint_comparisons(), usize::from(inlay_hints));
+        if !diagnostics {
+            // Without pull support, the changed diagnostics are pushed instead, even though the
+            // client supports diagnostic refreshes.
+            assert_eq!(
+                diagnostic_messages(&harness.next_published().await.diagnostics),
+                ["changed"]
+            );
         }
-        harness.shutdown().await;
+        harness.expect_refreshes(diagnostics, inlay_hints).await;
+        harness.exit().await;
     }
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn external_analysis_refreshes_changed_pull_results() {
-    let mut harness = refresh_harness();
-    let mut state = GlobalState::new(harness.client.clone());
-    state.config = Arc::new(pull_refresh_config(true, true));
-
-    let (version, _progress) = state
-        .begin_analysis(AnalysisMode::Recompute, Vec::new(), Vec::new(), AnalysisTrigger::External)
-        .unwrap();
-    assert!(state.snapshot().publish_analysis(version, changed_pull_result()));
-
-    harness.expect_pull_result_refreshes().await;
-
-    harness.shutdown().await;
 }
 
 #[tokio::test(flavor = "current_thread")]
 async fn external_analysis_refreshes_changed_workspace_membership_once() {
-    let mut harness = refresh_harness();
-    let mut state = GlobalState::new(harness.client.clone());
-    state.config = Arc::new(pull_refresh_config(true, false));
+    let mut harness = ClientHarness::new();
+    let mut state = pull_refresh_state(&harness, true, false);
     let uri = diagnostic_uri();
 
-    let (version, _progress) = state
-        .begin_analysis(AnalysisMode::Recompute, Vec::new(), Vec::new(), AnalysisTrigger::External)
-        .unwrap();
-    assert!(state.snapshot().publish_analysis(
-        version,
-        AnalysisResult {
-            analyzed_documents: AnalyzedDocuments::from_iter([(uri.clone(), Some(1))]),
-            diagnostics: DiagnosticMap::default(),
-            symbol_tables: Default::default(),
-        },
-    ));
-    assert_eq!(harness.next_event().await, RefreshEvent::Diagnostics);
-    harness.expect_no_event().await;
+    for (analyzed_version, refresh) in [(1, true), (2, false)] {
+        let version = begin(&mut state, Vec::new(), AnalysisTrigger::External);
+        let analyzed_documents =
+            AnalyzedDocuments::from_iter([(uri.clone(), Some(analyzed_version))]);
+        let result = AnalysisResult { analyzed_documents, ..Default::default() };
+        assert!(state.snapshot().publish_analysis(version, result));
+        harness.expect_refreshes(refresh, false).await;
+    }
 
-    let (version, _progress) = state
-        .begin_analysis(AnalysisMode::Recompute, Vec::new(), Vec::new(), AnalysisTrigger::External)
-        .unwrap();
-    assert!(state.snapshot().publish_analysis(
-        version,
-        AnalysisResult {
-            analyzed_documents: AnalyzedDocuments::from_iter([(uri, Some(2))]),
-            diagnostics: DiagnosticMap::default(),
-            symbol_tables: Default::default(),
-        },
-    ));
-    harness.expect_no_event().await;
-
-    harness.shutdown().await;
+    harness.exit().await;
 }
 
 #[tokio::test(flavor = "current_thread")]
 async fn ordinary_and_unchanged_analyses_do_not_refresh_pull_results() {
-    let mut harness = refresh_harness();
-    let mut state = GlobalState::new(harness.client.clone());
-    state.config = Arc::new(pull_refresh_config(true, true));
+    let mut harness = ClientHarness::new();
+    let mut state = pull_refresh_state(&harness, true, true);
     SymbolTables::take_inlay_hint_comparisons();
 
-    let (version, _progress) = state
-        .begin_analysis(AnalysisMode::Recompute, Vec::new(), Vec::new(), AnalysisTrigger::Document)
-        .unwrap();
+    let version = begin(&mut state, Vec::new(), AnalysisTrigger::Document);
     assert!(state.snapshot().publish_analysis(version, changed_pull_result()));
     assert_eq!(SymbolTables::take_inlay_hint_comparisons(), 0);
-    assert_eq!(harness.next_event().await, RefreshEvent::Diagnostics);
-    harness.expect_no_event().await;
+    harness.expect_refreshes(true, false).await;
 
-    let (version, _progress) = state
-        .begin_analysis(AnalysisMode::Recompute, Vec::new(), Vec::new(), AnalysisTrigger::External)
-        .unwrap();
+    let version = begin(&mut state, Vec::new(), AnalysisTrigger::External);
     assert!(state.snapshot().publish_analysis(version, changed_pull_result()));
     assert_eq!(SymbolTables::take_inlay_hint_comparisons(), 1);
     harness.expect_no_event().await;
 
-    harness.shutdown().await;
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn unsupported_pull_refresh_capabilities_send_no_requests() {
-    let mut harness = refresh_harness();
-    let mut state = GlobalState::new(harness.client.clone());
-    state.config = Arc::new(pull_refresh_config(false, false));
-    SymbolTables::take_inlay_hint_comparisons();
-
-    let (version, _progress) = state
-        .begin_analysis(AnalysisMode::Recompute, Vec::new(), Vec::new(), AnalysisTrigger::External)
-        .unwrap();
-    assert!(state.snapshot().publish_analysis(version, changed_pull_result()));
-    assert_eq!(SymbolTables::take_inlay_hint_comparisons(), 0);
-    harness.expect_no_event().await;
-
-    harness.shutdown().await;
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn pull_refresh_requests_honor_independent_capabilities() {
-    for (diagnostics, inlay_hints, expected) in
-        [(true, false, RefreshEvent::Diagnostics), (false, true, RefreshEvent::InlayHints)]
-    {
-        let mut harness = refresh_harness();
-        let mut state = GlobalState::new(harness.client.clone());
-        state.config = Arc::new(pull_refresh_config(diagnostics, inlay_hints));
-        let (version, _progress) = state
-            .begin_analysis(
-                AnalysisMode::Recompute,
-                Vec::new(),
-                Vec::new(),
-                AnalysisTrigger::External,
-            )
-            .unwrap();
-
-        assert!(state.snapshot().publish_analysis(version, changed_pull_result()));
-
-        assert_eq!(harness.next_event().await, expected);
-        harness.expect_no_event().await;
-        harness.shutdown().await;
-    }
+    harness.exit().await;
 }
 
 #[tokio::test(flavor = "current_thread")]
 async fn external_analysis_preserves_early_diagnostic_changes_until_commit() {
-    let mut harness = refresh_harness();
-    let mut state = GlobalState::new(harness.client.clone());
-    state.config = Arc::new(pull_refresh_config(true, true));
-    let uri = diagnostic_uri();
-    state.snapshot().publish_diagnostics(
-        DiagnosticOwner::Compiler,
-        DiagnosticMap::from_iter([(uri.clone(), vec![diagnostic("removed")])]),
-    );
+    let mut harness = ClientHarness::new();
+    let (mut state, removed) = removed_diagnostic_state(&harness);
 
-    let (version, _progress) = state
-        .begin_analysis(
-            AnalysisMode::Recompute,
-            vec![uri.to_file_path().unwrap()],
-            Vec::new(),
-            AnalysisTrigger::External,
-        )
-        .unwrap();
-    assert!(state.snapshot().publish_analysis(
-        version,
-        AnalysisResult {
-            analyzed_documents: AnalyzedDocuments::default(),
-            diagnostics: DiagnosticMap::default(),
-            symbol_tables: Default::default(),
-        },
-    ));
+    let version = begin(&mut state, vec![removed], AnalysisTrigger::External);
+    assert!(state.snapshot().publish_analysis(version, AnalysisResult::default()));
 
-    assert_eq!(harness.next_event().await, RefreshEvent::Diagnostics);
-    harness.expect_no_event().await;
-    harness.shutdown().await;
+    harness.expect_refreshes(true, false).await;
+    harness.exit().await;
 }
 
 #[tokio::test(flavor = "current_thread")]
-async fn removed_flycheck_diagnostics_coalesce_with_external_analysis_refresh() {
-    let mut harness = refresh_harness();
-    let mut state = GlobalState::new(harness.client.clone());
-    state.config = Arc::new(pull_refresh_config(true, true));
+async fn removed_flycheck_diagnostics_refresh_immediately_or_with_external_analysis() {
+    let mut harness = ClientHarness::new();
+    let mut state = pull_refresh_state(&harness, true, true);
     let owner = flycheck_owner("/workspace");
     let uri = diagnostic_uri();
-    state.snapshot().publish_diagnostics(
-        owner.clone(),
-        DiagnosticMap::from_iter([(uri, vec![diagnostic("removed")])]),
-    );
-    let (version, _progress) = state
-        .begin_analysis(AnalysisMode::Recompute, Vec::new(), Vec::new(), AnalysisTrigger::External)
-        .unwrap();
 
+    state.snapshot().publish_diagnostics(owner.clone(), diagnostics_for(&uri, "removed"));
+    state.clear_removed_flycheck_diagnostics([owner.clone()]);
+    harness.expect_refreshes(true, false).await;
+
+    state.snapshot().publish_diagnostics(owner.clone(), diagnostics_for(&uri, "removed"));
+    let version = begin(&mut state, Vec::new(), AnalysisTrigger::External);
     state.clear_removed_flycheck_diagnostics([owner]);
-
     harness.expect_no_event().await;
-    assert!(state.snapshot().publish_analysis(
-        version,
-        AnalysisResult {
-            analyzed_documents: AnalyzedDocuments::default(),
-            diagnostics: DiagnosticMap::default(),
-            symbol_tables: Default::default(),
-        },
-    ));
-    assert_eq!(harness.next_event().await, RefreshEvent::Diagnostics);
-    harness.expect_no_event().await;
-    harness.shutdown().await;
-}
+    assert!(state.snapshot().publish_analysis(version, AnalysisResult::default()));
+    harness.expect_refreshes(true, false).await;
 
-#[tokio::test(flavor = "current_thread")]
-async fn removed_flycheck_diagnostics_refresh_without_external_analysis() {
-    let mut harness = refresh_harness();
-    let mut state = GlobalState::new(harness.client.clone());
-    state.config = Arc::new(pull_refresh_config(true, true));
-    let owner = flycheck_owner("/workspace");
-    state.snapshot().publish_diagnostics(
-        owner.clone(),
-        DiagnosticMap::from_iter([(diagnostic_uri(), vec![diagnostic("removed")])]),
-    );
-
-    state.clear_removed_flycheck_diagnostics([owner]);
-
-    assert_eq!(harness.next_event().await, RefreshEvent::Diagnostics);
-    harness.expect_no_event().await;
-    harness.shutdown().await;
+    harness.exit().await;
 }
 
 #[tokio::test(flavor = "current_thread")]
 async fn external_refresh_intent_survives_superseded_analysis() {
-    let mut harness = refresh_harness();
-    let mut state = GlobalState::new(harness.client.clone());
-    state.config = Arc::new(pull_refresh_config(true, true));
-    let uri = diagnostic_uri();
-    state.snapshot().publish_diagnostics(
-        DiagnosticOwner::Compiler,
-        DiagnosticMap::from_iter([(uri.clone(), vec![diagnostic("removed")])]),
-    );
+    let mut harness = ClientHarness::new();
+    let (mut state, removed) = removed_diagnostic_state(&harness);
 
-    let (stale_version, _progress) = state
-        .begin_analysis(
-            AnalysisMode::Recompute,
-            vec![uri.to_file_path().unwrap()],
-            Vec::new(),
-            AnalysisTrigger::External,
-        )
-        .unwrap();
+    let stale_version = begin(&mut state, vec![removed], AnalysisTrigger::External);
     let mut stale_snapshot = state.snapshot();
-    let (current_version, _progress) = state
-        .begin_analysis(AnalysisMode::Recompute, Vec::new(), Vec::new(), AnalysisTrigger::Document)
-        .unwrap();
+    let current_version = begin(&mut state, Vec::new(), AnalysisTrigger::Document);
     let mut current_snapshot = state.snapshot();
-    let unchanged_result = || AnalysisResult {
-        analyzed_documents: AnalyzedDocuments::default(),
-        diagnostics: DiagnosticMap::default(),
-        symbol_tables: Default::default(),
-    };
 
-    assert!(!stale_snapshot.publish_analysis(stale_version, unchanged_result()));
+    assert!(!stale_snapshot.publish_analysis(stale_version, AnalysisResult::default()));
     harness.expect_no_event().await;
-    assert!(current_snapshot.publish_analysis(current_version, unchanged_result()));
-    assert_eq!(harness.next_event().await, RefreshEvent::Diagnostics);
-    harness.expect_no_event().await;
-    {
-        let commit = state.analysis_commit.lock();
-        assert!(commit.external_refresh.is_none());
-    }
+    assert!(current_snapshot.publish_analysis(current_version, AnalysisResult::default()));
+    harness.expect_refreshes(true, false).await;
+    assert!(state.analysis_commit.lock().external_refresh.is_none());
 
-    harness.shutdown().await;
+    harness.exit().await;
 }
 
 #[tokio::test(flavor = "current_thread")]
 async fn external_refresh_intent_survives_failed_analysis() {
-    let mut harness = refresh_harness();
-    let mut state = GlobalState::new(harness.client.clone());
-    state.config = Arc::new(pull_refresh_config(true, true));
-    let uri = diagnostic_uri();
-    state.snapshot().publish_diagnostics(
-        DiagnosticOwner::Compiler,
-        DiagnosticMap::from_iter([(uri.clone(), vec![diagnostic("removed")])]),
-    );
+    let mut harness = ClientHarness::new();
+    let (mut state, removed) = removed_diagnostic_state(&harness);
 
-    let (failed_version, progress) = state
-        .begin_analysis(
-            AnalysisMode::Recompute,
-            vec![uri.to_file_path().unwrap()],
-            Vec::new(),
-            AnalysisTrigger::External,
-        )
-        .unwrap();
+    let (failed_version, progress) =
+        begin_recompute(&mut state, vec![removed], AnalysisTrigger::External);
     let task = tokio::spawn(async { panic!("test analysis failure") });
     state.monitor_analysis_task(failed_version, task, progress);
-    tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis())
-        .await
-        .expect("failed analysis should release waiters")
-        .unwrap();
-    {
-        let commit = state.analysis_commit.lock();
-        let refresh = commit.external_refresh.as_ref().expect("external refresh intent");
-        assert!(!refresh.diagnostics_changed);
-    }
-    assert_eq!(harness.next_event().await, RefreshEvent::Diagnostics);
-    harness.expect_no_event().await;
+    settle(&state).await;
+    assert_eq!(state.analysis_commit.lock().external_refresh, Some(false));
+    harness.expect_refreshes(true, false).await;
 
-    let (recovery_version, _progress) = state
-        .begin_analysis(AnalysisMode::Recompute, Vec::new(), Vec::new(), AnalysisTrigger::Document)
-        .unwrap();
+    let recovery_version = begin(&mut state, Vec::new(), AnalysisTrigger::Document);
     let mut recovery_result = changed_pull_result();
     recovery_result.diagnostics.clear();
     assert!(state.snapshot().publish_analysis(recovery_version, recovery_result));
-    harness.expect_pull_result_refreshes().await;
-    harness.expect_no_event().await;
-    {
-        let commit = state.analysis_commit.lock();
-        assert!(commit.external_refresh.is_none());
-    }
+    harness.expect_refreshes(true, true).await;
+    assert!(state.analysis_commit.lock().external_refresh.is_none());
 
-    harness.shutdown().await;
+    harness.exit().await;
 }
 
 #[tokio::test(flavor = "current_thread")]
-async fn clearing_analysis_cache_refreshes_only_changed_pull_results() {
-    let mut harness = refresh_harness();
-    let mut state = GlobalState::new(harness.client.clone());
-    state.config = Arc::new(pull_refresh_config(true, true));
+async fn clearing_and_restoring_the_analysis_cache_refresh_only_changed_pull_results() {
+    let mut harness = ClientHarness::new();
+    let mut state = pull_refresh_state(&harness, true, true);
     assert!(state.snapshot().publish_analysis(0, changed_pull_result()));
-    assert_eq!(harness.next_event().await, RefreshEvent::Diagnostics);
-    harness.expect_no_event().await;
+    harness.expect_refreshes(true, false).await;
 
     state.clear_analysis_cache();
-    harness.expect_pull_result_refreshes().await;
-    harness.expect_no_event().await;
-
+    harness.expect_refreshes(true, true).await;
     state.clear_analysis_cache();
-    harness.expect_no_event().await;
-    harness.shutdown().await;
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn invalidated_analysis_refreshes_restored_pull_results() {
-    let mut harness = refresh_harness();
-    let mut state = GlobalState::new(harness.client.clone());
-    state.config = Arc::new(pull_refresh_config(true, true));
-    assert!(state.snapshot().publish_analysis(0, changed_pull_result()));
-    assert_eq!(harness.next_event().await, RefreshEvent::Diagnostics);
-    harness.expect_no_event().await;
-
-    state.clear_analysis_cache();
-    harness.expect_pull_result_refreshes().await;
     harness.expect_no_event().await;
 
     let (version, _progress) = state
@@ -630,165 +323,88 @@ async fn invalidated_analysis_refreshes_restored_pull_results() {
         )
         .unwrap();
     assert!(state.snapshot().publish_analysis(version, changed_pull_result()));
+    harness.expect_refreshes(true, true).await;
 
-    harness.expect_pull_result_refreshes().await;
-    harness.expect_no_event().await;
-    harness.shutdown().await;
+    harness.exit().await;
 }
 
 #[tokio::test(flavor = "current_thread")]
 async fn current_flycheck_refreshes_only_changed_diagnostics() {
-    let mut harness = refresh_harness();
-    let mut state = GlobalState::new(harness.client.clone());
-    state.config = Arc::new(pull_refresh_config(true, true));
+    let mut harness = ClientHarness::new();
+    let mut state = pull_refresh_state(&harness, true, true);
     let owner = flycheck_owner("/workspace");
     let uri = diagnostic_uri();
 
-    let version = state.begin_flycheck_epoch(&owner);
-    state.snapshot().publish_flycheck_diagnostics(
-        owner.clone(),
-        version,
-        DiagnosticMap::from_iter([(uri.clone(), vec![diagnostic("flycheck")])]),
-    );
-    assert_eq!(harness.next_event().await, RefreshEvent::Diagnostics);
-    harness.expect_no_event().await;
+    let publish = |state: &GlobalState, version, message: Option<&str>| {
+        let diagnostics = message.map(|message| diagnostics_for(&uri, message)).unwrap_or_default();
+        state.snapshot().publish_flycheck_diagnostics(owner.clone(), version, diagnostics);
+    };
 
-    let version = state.begin_flycheck_epoch(&owner);
-    state.snapshot().publish_flycheck_diagnostics(
-        owner.clone(),
-        version,
-        DiagnosticMap::from_iter([(uri.clone(), vec![diagnostic("flycheck")])]),
-    );
-    harness.expect_no_event().await;
+    for (message, refresh) in
+        [(Some("flycheck"), true), (Some("flycheck"), false), (None, true), (None, false)]
+    {
+        let version = state.begin_flycheck_epoch(&owner);
+        publish(&state, version, message);
+        harness.expect_refreshes(refresh, false).await;
+    }
 
     let stale_version = state.begin_flycheck_epoch(&owner);
     let current_version = state.begin_flycheck_epoch(&owner);
-    state.snapshot().publish_flycheck_diagnostics(
-        owner.clone(),
-        stale_version,
-        DiagnosticMap::from_iter([(uri.clone(), vec![diagnostic("stale")])]),
-    );
+    publish(&state, stale_version, Some("stale"));
     harness.expect_no_event().await;
-    state.snapshot().publish_flycheck_diagnostics(
-        owner.clone(),
-        current_version,
-        DiagnosticMap::from_iter([(uri, vec![diagnostic("flycheck")])]),
-    );
+    publish(&state, current_version, None);
     harness.expect_no_event().await;
 
-    let version = state.begin_flycheck_epoch(&owner);
-    state.snapshot().publish_flycheck_diagnostics(owner.clone(), version, DiagnosticMap::default());
-    assert_eq!(harness.next_event().await, RefreshEvent::Diagnostics);
-    harness.expect_no_event().await;
-
-    let version = state.begin_flycheck_epoch(&owner);
-    state.snapshot().publish_flycheck_diagnostics(owner, version, DiagnosticMap::default());
-    harness.expect_no_event().await;
-
-    harness.shutdown().await;
+    harness.exit().await;
 }
 
 #[cfg(unix)]
 #[tokio::test(flavor = "current_thread")]
-async fn failed_save_flycheck_refreshes_cleared_diagnostics() {
-    let project = TestProject::from_fixture(
-        r#"
-        //- /foundry.toml
-        [profile.default]
-        src = "src"
+async fn failed_or_invalidated_saves_refresh_removed_flycheck_diagnostics() {
+    for invalidated in [false, true] {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /foundry.toml
+            [profile.default]
+            src = "src"
 
-        //- /src/Test.sol
-        contract Test {}
-        "#,
-    );
-    let path = project.path("/src/Test.sol");
-    let uri = Url::from_file_path(&path).unwrap();
-    let mut params = project.initialize_params();
-    params.capabilities.text_document.get_or_insert_default().diagnostic =
-        Some(DiagnosticClientCapabilities::default());
-    params.capabilities.workspace = Some(WorkspaceClientCapabilities {
-        diagnostic: Some(DiagnosticWorkspaceClientCapabilities { refresh_support: Some(true) }),
-        ..Default::default()
-    });
-    params.initialization_options = Some(serde_json::json!({
-        "flychecks": [{
-            "id": "save-error",
-            "command": "/bin/sh",
-            "args": ["-c", "exit 1"]
-        }]
-    }));
-    let (_, mut config) = negotiate_capabilities(params);
-    config.rediscover_workspaces();
-    let [flycheck] = config.flychecks_for_path(&path).try_into().unwrap();
+            //- /src/Test.sol
+            contract Test {}
+            "#,
+        );
+        let path = project.path("/src/Test.sol");
+        let uri = project.uri("/src/Test.sol");
+        let capabilities = json!({
+            "textDocument": { "diagnostic": {} },
+            "workspace": { "diagnostic": { "refreshSupport": true } },
+        });
+        // A failing flycheck clears its diagnostics; an invalidated cache drops the flycheck.
+        let options = if invalidated {
+            json!({ "forgePath": "/usr/bin/true" })
+        } else {
+            json!({
+                "flychecks": [{ "id": "save-error", "command": "/bin/sh", "args": ["-c", "exit 1"] }]
+            })
+        };
+        let params = with_capabilities(project.initialize_params(), capabilities);
+        let config = config_with_options(params, options);
+        let [flycheck] = config.flychecks_for_path(&path).try_into().unwrap();
+        let mut harness = ClientHarness::new();
+        let mut state = harness.state(config);
+        let diagnostics = diagnostics_for(&uri, "stale flycheck");
+        state.snapshot().publish_diagnostics(flycheck.owner(), diagnostics);
+        if invalidated {
+            state.clear_analysis_cache();
+            harness.expect_no_event().await;
+            project.remove_file("/foundry.toml");
+        }
 
-    let mut harness = refresh_harness();
-    let mut state = GlobalState::new(harness.client.clone());
-    state.config = Arc::new(config);
-    state.snapshot().publish_diagnostics(
-        flycheck.owner(),
-        DiagnosticMap::from_iter([(uri.clone(), vec![diagnostic("stale flycheck")])]),
-    );
+        save(&mut state, &uri);
 
-    let result = crate::handlers::did_save_text_document(
-        &mut state,
-        DidSaveTextDocumentParams { text_document: TextDocumentIdentifier::new(uri), text: None },
-    );
-
-    assert!(matches!(result, ControlFlow::Continue(())));
-    assert_eq!(harness.next_event().await, RefreshEvent::Diagnostics);
-    harness.expect_no_event().await;
-    harness.shutdown().await;
-}
-
-#[cfg(unix)]
-#[tokio::test(flavor = "current_thread")]
-async fn invalidated_save_refreshes_removed_flycheck_diagnostics() {
-    let project = TestProject::from_fixture(
-        r#"
-        //- /foundry.toml
-        [profile.default]
-        src = "src"
-
-        //- /src/Test.sol
-        contract Test {}
-        "#,
-    );
-    let path = project.path("/src/Test.sol");
-    let uri = Url::from_file_path(&path).unwrap();
-    let mut params = project.initialize_params();
-    params.capabilities.text_document.get_or_insert_default().diagnostic =
-        Some(DiagnosticClientCapabilities::default());
-    params.capabilities.workspace = Some(WorkspaceClientCapabilities {
-        diagnostic: Some(DiagnosticWorkspaceClientCapabilities { refresh_support: Some(true) }),
-        ..Default::default()
-    });
-    params.initialization_options = Some(serde_json::json!({ "forgePath": "/usr/bin/true" }));
-    let (_, mut config) = negotiate_capabilities(params);
-    config.rediscover_workspaces();
-    let [flycheck] = config.flychecks_for_path(&path).try_into().unwrap();
-
-    let mut harness = refresh_harness();
-    let mut state = GlobalState::new(harness.client.clone());
-    state.config = Arc::new(config);
-    state.snapshot().publish_diagnostics(
-        flycheck.owner(),
-        DiagnosticMap::from_iter([(uri.clone(), vec![diagnostic("removed flycheck")])]),
-    );
-    state.clear_analysis_cache();
-    harness.expect_no_event().await;
-    project.remove_file("/foundry.toml");
-
-    let result = crate::handlers::did_save_text_document(
-        &mut state,
-        DidSaveTextDocumentParams { text_document: TextDocumentIdentifier::new(uri), text: None },
-    );
-
-    assert!(matches!(result, ControlFlow::Continue(())));
-    tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis())
-        .await
-        .expect("invalidated save analysis should finish")
-        .unwrap();
-    assert_eq!(harness.next_event().await, RefreshEvent::Diagnostics);
-    harness.expect_no_event().await;
-    harness.shutdown().await;
+        if invalidated {
+            settle(&state).await;
+        }
+        harness.expect_refreshes(true, false).await;
+        harness.exit().await;
+    }
 }

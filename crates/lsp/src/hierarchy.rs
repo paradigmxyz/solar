@@ -1,7 +1,9 @@
 //! Shared hierarchy storage, converted to owned LSP items only at the response boundary.
 
+use crate::{proto, symbols::SymbolId};
 use lsp_types::{CallHierarchyItem, Position, Range, SymbolKind, TypeHierarchyItem, Url};
 use serde::Deserialize;
+use solar_interface::data_structures::map::{FxHashMap, FxHashSet};
 use std::{cmp::Ordering, sync::Arc};
 
 const DATA_VERSION: u8 = 2;
@@ -28,13 +30,9 @@ impl HierarchyKey {
 
 impl Ord for HierarchyKey {
     fn cmp(&self, other: &Self) -> Ordering {
-        let range_key = |range: Range| {
-            (range.start.line, range.start.character, range.end.line, range.end.character)
-        };
-        self.uri
-            .as_str()
-            .cmp(other.uri.as_str())
-            .then_with(|| range_key(self.selection_range).cmp(&range_key(other.selection_range)))
+        self.uri.as_str().cmp(other.uri.as_str()).then_with(|| {
+            proto::range_key(self.selection_range).cmp(&proto::range_key(other.selection_range))
+        })
     }
 }
 
@@ -119,5 +117,49 @@ impl HierarchyItem {
             selection_range: self.key.selection_range,
             data: Some(self.data()),
         }
+    }
+}
+
+/// Canonical symbols for hierarchy nodes merged across analysis batches.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct CanonicalSymbols {
+    pub(crate) by_key: FxHashMap<HierarchyKey, SymbolId>,
+    pub(crate) by_symbol: FxHashMap<SymbolId, SymbolId>,
+}
+
+impl CanonicalSymbols {
+    /// Picks one symbol per source key.
+    ///
+    /// Identical source nodes can be merged only when their compile-context-dependent facts
+    /// agree. Otherwise, the node is excluded and endpoint filtering drops its incident edges.
+    /// Nodes in files with conflicting contents and candidates without items are excluded too.
+    pub(crate) fn new(
+        candidate_keys: &FxHashMap<SymbolId, HierarchyKey>,
+        items: &FxHashMap<SymbolId, HierarchyItem>,
+        conflicting_contents: &FxHashSet<Url>,
+        same_facts: impl Fn(SymbolId, SymbolId) -> bool,
+    ) -> Self {
+        let mut by_key = FxHashMap::<HierarchyKey, SymbolId>::default();
+        let mut incompatible_keys = FxHashSet::default();
+        for (&symbol, key) in candidate_keys {
+            if conflicting_contents.contains(key.uri.as_ref()) || incompatible_keys.contains(key) {
+                continue;
+            }
+            if let Some(&existing) = by_key.get(key) {
+                if items.get(&symbol) != items.get(&existing) || !same_facts(symbol, existing) {
+                    by_key.remove(key);
+                    incompatible_keys.insert(key.clone());
+                }
+            } else {
+                by_key.insert(key.clone(), symbol);
+            }
+        }
+        by_key.retain(|_, symbol| items.contains_key(symbol));
+        let by_symbol = candidate_keys
+            .iter()
+            .filter(|(symbol, _)| items.contains_key(symbol))
+            .filter_map(|(&symbol, key)| Some((symbol, *by_key.get(key)?)))
+            .collect();
+        Self { by_key, by_symbol }
     }
 }

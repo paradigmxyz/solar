@@ -64,29 +64,31 @@ pub(crate) struct Config {
     analysis_source_files_complete: bool,
     flycheck_options: FlycheckInitializationOptions,
     flychecks: Vec<FlycheckConfig>,
-    watched_file_dynamic_registration: bool,
-    watched_file_relative_pattern_support: bool,
-    workspace_edit_document_changes: bool,
-    code_action_literals: bool,
-    code_action_is_preferred: bool,
+    pub(crate) client: ClientSupport,
     diagnostic_delivery: DiagnosticDelivery,
-    publish_diagnostics_related_information: bool,
     publish_diagnostics_tags: Vec<DiagnosticTag>,
     publish_diagnostics_data: bool,
     pull_diagnostics_data: bool,
-    code_lens_refresh_support: bool,
-    diagnostic_refresh_support: bool,
-    inlay_hint_refresh_support: bool,
-    work_done_progress: bool,
-    hierarchical_document_symbol_support: bool,
-    completion: CompletionClientOptions,
-    signature_help: SignatureHelpClientOptions,
+    pub(crate) completion: CompletionClientOptions,
+    pub(crate) signature_help: SignatureHelpClientOptions,
     source_change_debounce: Duration,
-    progress_delay: Duration,
-    progress_create_timeout: Duration,
-    formatter_timeout: Duration,
-    flycheck_timeout: Duration,
-    code_lens: CodeLensConfig,
+    pub(crate) code_lens: CodeLensConfig,
+}
+
+/// Boolean client capabilities negotiated at initialization.
+#[derive(Clone, Copy, Debug, Default)]
+pub(crate) struct ClientSupport {
+    pub(crate) watched_file_dynamic_registration: bool,
+    pub(crate) watched_file_relative_patterns: bool,
+    pub(crate) workspace_edit_document_changes: bool,
+    pub(crate) code_action_literals: bool,
+    pub(crate) code_action_is_preferred: bool,
+    publish_diagnostics_related_information: bool,
+    pub(crate) code_lens_refresh: bool,
+    pub(crate) diagnostic_refresh: bool,
+    pub(crate) inlay_hint_refresh: bool,
+    pub(crate) work_done_progress: bool,
+    pub(crate) hierarchical_document_symbols: bool,
 }
 
 pub(crate) struct WorkspaceDiscoveryResult {
@@ -96,7 +98,7 @@ pub(crate) struct WorkspaceDiscoveryResult {
     pub(crate) metrics: WorkspaceIndexMetrics,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct WatchedFileSpec {
     pub(crate) base: PathBuf,
     pub(crate) pattern: &'static str,
@@ -111,20 +113,9 @@ impl WatchedFileSpec {
     fn with_kind(base: PathBuf, pattern: &'static str, kind: WatchKind) -> Self {
         Self { base, pattern, kind }
     }
-}
 
-impl PartialOrd for WatchedFileSpec {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Ord for WatchedFileSpec {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.base
-            .cmp(&other.base)
-            .then_with(|| self.pattern.cmp(other.pattern))
-            .then_with(|| self.kind.bits().cmp(&other.kind.bits()))
+    fn create_delete(base: PathBuf, pattern: &'static str) -> Self {
+        Self::with_kind(base, pattern, WatchKind::Create | WatchKind::Delete)
     }
 }
 
@@ -152,28 +143,14 @@ impl Default for Config {
             analysis_source_files_complete: true,
             flycheck_options: FlycheckInitializationOptions::default(),
             flychecks: Vec::new(),
-            watched_file_dynamic_registration: false,
-            watched_file_relative_pattern_support: false,
-            workspace_edit_document_changes: false,
-            code_action_literals: false,
-            code_action_is_preferred: false,
+            client: ClientSupport::default(),
             diagnostic_delivery: DiagnosticDelivery::Push,
-            publish_diagnostics_related_information: false,
             publish_diagnostics_tags: Vec::new(),
             publish_diagnostics_data: false,
             pull_diagnostics_data: false,
-            code_lens_refresh_support: false,
-            diagnostic_refresh_support: false,
-            inlay_hint_refresh_support: false,
-            work_done_progress: false,
-            hierarchical_document_symbol_support: false,
             completion: CompletionClientOptions::default(),
             signature_help: SignatureHelpClientOptions::default(),
             source_change_debounce: DEFAULT_SOURCE_CHANGE_DEBOUNCE,
-            progress_delay: Duration::from_millis(250),
-            progress_create_timeout: Duration::from_secs(1),
-            formatter_timeout: Duration::from_secs(30),
-            flycheck_timeout: Duration::from_secs(30),
             code_lens: CodeLensConfig::default(),
         }
     }
@@ -225,37 +202,9 @@ impl CodeLensConfig {
     pub(crate) fn is_active(self) -> bool {
         self.enable && (self.selectors || self.references || self.inheritance)
     }
-
-    fn from_json(value: Option<serde_json::Value>) -> Self {
-        value
-            .and_then(|value| {
-                value.get("codeLens").cloned().and_then(|value| serde_json::from_value(value).ok())
-            })
-            .unwrap_or_default()
-    }
 }
 
 impl Config {
-    pub(crate) fn supports_watched_file_dynamic_registration(&self) -> bool {
-        self.watched_file_dynamic_registration
-    }
-
-    pub(crate) fn supports_watched_file_relative_patterns(&self) -> bool {
-        self.watched_file_relative_pattern_support
-    }
-
-    pub(crate) fn supports_workspace_edit_document_changes(&self) -> bool {
-        self.workspace_edit_document_changes
-    }
-
-    pub(crate) fn supports_code_action_literals(&self) -> bool {
-        self.code_action_literals
-    }
-
-    pub(crate) fn supports_code_action_is_preferred(&self) -> bool {
-        self.code_action_is_preferred
-    }
-
     pub(crate) fn uses_push_diagnostics(&self) -> bool {
         self.diagnostic_delivery == DiagnosticDelivery::Push
     }
@@ -270,7 +219,7 @@ impl Config {
 
     /// Adapts an outgoing diagnostic without changing the server's cached diagnostic or fix data.
     pub(crate) fn prepare_publish_diagnostic(&self, diagnostic: &mut Diagnostic) {
-        if !self.publish_diagnostics_related_information
+        if !self.client.publish_diagnostics_related_information
             && let Some(related) = diagnostic.related_information.take()
         {
             for information in related {
@@ -296,61 +245,13 @@ impl Config {
         self.supports_publish_diagnostics_data() || self.supports_pull_diagnostics_data()
     }
 
-    pub(crate) fn supports_code_lens_refresh(&self) -> bool {
-        self.code_lens_refresh_support
-    }
-
-    pub(crate) fn supports_diagnostic_refresh(&self) -> bool {
-        self.diagnostic_refresh_support
-    }
-
-    pub(crate) fn supports_inlay_hint_refresh(&self) -> bool {
-        self.inlay_hint_refresh_support
-    }
-
-    pub(crate) fn supports_work_done_progress(&self) -> bool {
-        self.work_done_progress
-    }
-
-    pub(crate) fn supports_hierarchical_document_symbols(&self) -> bool {
-        self.hierarchical_document_symbol_support
-    }
-
     pub(crate) fn source_change_debounce(&self) -> Duration {
         self.source_change_debounce
-    }
-
-    pub(crate) fn progress_delay(&self) -> Duration {
-        self.progress_delay
-    }
-
-    pub(crate) fn progress_create_timeout(&self) -> Duration {
-        self.progress_create_timeout
-    }
-
-    pub(crate) fn formatter_timeout(&self) -> Duration {
-        self.formatter_timeout
-    }
-
-    pub(crate) fn flycheck_timeout(&self) -> Duration {
-        self.flycheck_timeout
-    }
-
-    pub(crate) fn completion_options(&self) -> CompletionClientOptions {
-        self.completion
     }
 
     #[cfg(test)]
     pub(crate) fn enable_completion_snippets(&mut self) {
         self.completion.snippet_support = true;
-    }
-
-    pub(crate) fn signature_help_options(&self) -> SignatureHelpClientOptions {
-        self.signature_help
-    }
-
-    pub(crate) fn code_lens_options(&self) -> CodeLensConfig {
-        self.code_lens
     }
 
     #[cfg(test)]
@@ -427,34 +328,13 @@ impl Config {
             );
         }
 
-        for SourceWatchRoot { path, recursive, watch_contents } in &self.manifest_watch_roots {
-            if !self.workspace_roots.iter().any(|root| path.starts_with(root)) {
-                continue;
-            }
-            if !watch_contents {
-                specs.insert(WatchedFileSpec::with_kind(
-                    path.clone(),
-                    "*",
-                    WatchKind::Create | WatchKind::Delete,
-                ));
-                continue;
-            }
-            if *recursive {
-                specs.insert(WatchedFileSpec::new(path.clone(), "**/foundry.toml"));
-                if watch_nested_repositories {
-                    specs.insert(WatchedFileSpec::with_kind(
-                        path.clone(),
-                        "**/.git",
-                        WatchKind::Create | WatchKind::Delete,
-                    ));
-                }
-            } else {
-                specs.insert(WatchedFileSpec::with_kind(
-                    path.clone(),
-                    "*",
-                    WatchKind::Create | WatchKind::Delete,
-                ));
-                specs.insert(WatchedFileSpec::new(path.clone(), "foundry.toml"));
+        for root in &self.manifest_watch_roots {
+            if self
+                .workspace_roots
+                .iter()
+                .any(|workspace_root| root.path.starts_with(workspace_root))
+            {
+                insert_watch_root_specs(&mut specs, root, false, watch_nested_repositories);
             }
         }
 
@@ -473,64 +353,23 @@ impl Config {
             specs.insert(WatchedFileSpec::new(base_path.to_path_buf(), "remappings.txt"));
 
             for root in workspace.index_import_only_roots() {
-                if !is_approved_index_root(root, base_path, &self.workspace_roots) {
-                    continue;
+                if is_approved_index_root(root, base_path, &self.workspace_roots) {
+                    specs.insert(WatchedFileSpec::create_delete(root.clone(), "*"));
                 }
-                specs.insert(WatchedFileSpec::with_kind(
-                    root.clone(),
-                    "*",
-                    WatchKind::Create | WatchKind::Delete,
-                ));
             }
 
-            for SourceWatchRoot { path, recursive, watch_contents } in
+            for root in
                 workspace.source_watch_roots().iter().chain(workspace.flycheck_watch_roots())
             {
-                if !is_approved_index_root(path, base_path, &self.workspace_roots) {
-                    continue;
-                }
-                if !watch_contents {
-                    specs.insert(WatchedFileSpec::with_kind(
-                        path.clone(),
-                        "*",
-                        WatchKind::Create | WatchKind::Delete,
-                    ));
-                    continue;
-                }
-                if *recursive {
-                    specs.insert(WatchedFileSpec::new(path.clone(), "**/*.sol"));
-                    specs.insert(WatchedFileSpec::new(path.clone(), "**/foundry.toml"));
-                    if watch_nested_repositories {
-                        specs.insert(WatchedFileSpec::with_kind(
-                            path.clone(),
-                            "**/.git",
-                            WatchKind::Create | WatchKind::Delete,
-                        ));
-                    }
-                } else {
-                    // Discover new child directories without recursively watching pruned paths.
-                    specs.insert(WatchedFileSpec::with_kind(
-                        path.clone(),
-                        "*",
-                        WatchKind::Create | WatchKind::Delete,
-                    ));
-                    specs.insert(WatchedFileSpec::with_kind(
-                        path.clone(),
-                        "*.sol",
-                        WatchKind::Change,
-                    ));
-                    specs.insert(WatchedFileSpec::new(path.clone(), "foundry.toml"));
+                if is_approved_index_root(&root.path, base_path, &self.workspace_roots) {
+                    insert_watch_root_specs(&mut specs, root, true, watch_nested_repositories);
                 }
             }
         }
         if watch_nested_repositories {
             for root in &self.git_marker_watch_roots {
                 if self.is_approved_watch_root(root) {
-                    specs.insert(WatchedFileSpec::with_kind(
-                        root.clone(),
-                        ".git",
-                        WatchKind::Create | WatchKind::Delete,
-                    ));
+                    specs.insert(WatchedFileSpec::create_delete(root.clone(), ".git"));
                 }
             }
         }
@@ -592,10 +431,7 @@ impl Config {
         if self.git_marker_watch_roots.iter().any(|root| root == directory) {
             return true;
         }
-        let covers = |root: &SourceWatchRoot| {
-            if root.recursive { directory.starts_with(&root.path) } else { directory == root.path }
-        };
-        self.watch_roots().any(covers)
+        self.watch_roots().any(|root| covers_directory(root, directory))
     }
 
     pub(crate) fn shallow_watch_event_is_relevant(&self, path: &Path) -> bool {
@@ -633,13 +469,7 @@ impl Config {
         self.workspaces
             .iter()
             .any(|workspace| workspace.compile_opts().base_path.as_deref() == Some(directory))
-            || self.watch_roots().any(|root| {
-                if root.recursive {
-                    directory.starts_with(&root.path)
-                } else {
-                    directory == root.path
-                }
-            })
+            || self.watch_roots().any(|root| covers_directory(root, directory))
     }
 
     pub(crate) fn index_policy(&self) -> &WorkspaceIndexPolicy {
@@ -697,9 +527,7 @@ impl Config {
 
     pub(crate) fn formatter_root_for_path(&self, path: &Path) -> Option<PathBuf> {
         ProjectManifest::discover_in_parents(path)
-            .and_then(|manifest| match manifest {
-                ProjectManifest::Foundry(path) => path.parent().map(Path::to_path_buf),
-            })
+            .and_then(|ProjectManifest::Foundry(path)| path.parent().map(Path::to_path_buf))
             .or_else(|| {
                 workspace_idx_containing_path(&self.workspaces, path)
                     .and_then(|idx| self.workspaces[idx].compile_opts().base_path.clone())
@@ -834,16 +662,15 @@ impl Config {
             else {
                 return Ok(None);
             };
-            match load_discovered_workspaces(
+            let loaded = load_discovered_workspaces(
                 discovered,
                 &self.workspace_roots,
                 &mut foundry_config,
                 &mut seen_manifests,
                 &mut workspaces,
-            ) {
-                Ok(0) => break,
-                Ok(_) => {}
-                Err(error) => return Err(error),
+            )?;
+            if loaded == 0 {
+                break;
             }
         }
         WorkspacePathIndex::reconcile_source_files(
@@ -928,14 +755,16 @@ impl Config {
         changed
     }
 
+    fn source_and_flycheck_workspace_idx(&self, path: &Path) -> (Option<usize>, Option<usize>) {
+        let index = self.workspace_path_index();
+        (
+            index.workspace_idx_for_source_path(&self.index_policy, path),
+            index.workspace_idx_for_flycheck_path(&self.index_policy, path),
+        )
+    }
+
     pub(crate) fn add_source_file(&mut self, path: PathBuf) {
-        let (source_idx, flycheck_idx) = {
-            let index = self.workspace_path_index();
-            (
-                index.workspace_idx_for_source_path(&self.index_policy, &path),
-                index.workspace_idx_for_flycheck_path(&self.index_policy, &path),
-            )
-        };
+        let (source_idx, flycheck_idx) = self.source_and_flycheck_workspace_idx(&path);
         if let Some(idx) = source_idx {
             self.workspaces[idx].add_source_file(&self.index_policy, path.clone());
         }
@@ -945,13 +774,7 @@ impl Config {
     }
 
     pub(crate) fn remove_source_file(&mut self, path: &Path) {
-        let (source_idx, flycheck_idx) = {
-            let index = self.workspace_path_index();
-            (
-                index.workspace_idx_for_source_path(&self.index_policy, path),
-                index.workspace_idx_for_flycheck_path(&self.index_policy, path),
-            )
-        };
+        let (source_idx, flycheck_idx) = self.source_and_flycheck_workspace_idx(path);
         if let Some(idx) = source_idx {
             self.workspaces[idx].remove_source_file(path);
         }
@@ -992,21 +815,17 @@ fn load_discovered_workspaces(
         if !seen_manifests.insert(manifest.clone()) {
             continue;
         }
-        match manifest {
-            ProjectManifest::Foundry(path) => {
-                let fallback_root = path.parent().map(PathBuf::from);
-                match Workspace::load_foundry_bounded(path, workspace_roots, foundry_config) {
-                    Ok(workspace) => workspaces.push(workspace),
-                    Err(error @ WorkspaceError::HostConfig { .. }) => {
-                        warn!(%error, "failed to load workspace");
-                        return Err(error);
-                    }
-                    Err(error) => {
-                        warn!(%error, "failed to load workspace");
-                        if let Some(root) = fallback_root {
-                            workspaces.push(Workspace::naked(root));
-                        }
-                    }
+        let ProjectManifest::Foundry(path) = manifest;
+        let fallback_root = path.parent().map(PathBuf::from);
+        match Workspace::load_foundry_bounded(path, workspace_roots, foundry_config) {
+            Ok(workspace) => workspaces.push(workspace),
+            Err(error) => {
+                warn!(%error, "failed to load workspace");
+                if matches!(error, WorkspaceError::HostConfig { .. }) {
+                    return Err(error);
+                }
+                if let Some(root) = fallback_root {
+                    workspaces.push(Workspace::naked(root));
                 }
             }
         }
@@ -1015,43 +834,49 @@ fn load_discovered_workspaces(
     Ok(loaded)
 }
 
-fn workspace_file_operation_options() -> FileOperationRegistrationOptions {
-    FileOperationRegistrationOptions {
-        filters: vec![
-            FileOperationFilter {
-                scheme: Some("file".into()),
-                pattern: FileOperationPattern {
-                    glob: "**/*.sol".into(),
-                    matches: Some(FileOperationPatternKind::File),
-                    options: None,
-                },
-            },
-            FileOperationFilter {
-                scheme: Some("file".into()),
-                pattern: FileOperationPattern {
-                    glob: "**/foundry.toml".into(),
-                    matches: Some(FileOperationPatternKind::File),
-                    options: None,
-                },
-            },
-            FileOperationFilter {
-                scheme: Some("file".into()),
-                pattern: FileOperationPattern {
-                    glob: "**/remappings.txt".into(),
-                    matches: Some(FileOperationPatternKind::File),
-                    options: None,
-                },
-            },
-            FileOperationFilter {
-                scheme: Some("file".into()),
-                pattern: FileOperationPattern {
-                    glob: "**".into(),
-                    matches: Some(FileOperationPatternKind::Folder),
-                    options: None,
-                },
-            },
-        ],
+fn covers_directory(root: &SourceWatchRoot, directory: &Path) -> bool {
+    if root.recursive { directory.starts_with(&root.path) } else { directory == root.path }
+}
+
+fn insert_watch_root_specs(
+    specs: &mut BTreeSet<WatchedFileSpec>,
+    root: &SourceWatchRoot,
+    sources: bool,
+    nested_repositories: bool,
+) {
+    let SourceWatchRoot { path, recursive, watch_contents } = root;
+    if !watch_contents {
+        specs.insert(WatchedFileSpec::create_delete(path.clone(), "*"));
+    } else if *recursive {
+        if sources {
+            specs.insert(WatchedFileSpec::new(path.clone(), "**/*.sol"));
+        }
+        specs.insert(WatchedFileSpec::new(path.clone(), "**/foundry.toml"));
+        if nested_repositories {
+            specs.insert(WatchedFileSpec::create_delete(path.clone(), "**/.git"));
+        }
+    } else {
+        // Discover new child directories without recursively watching pruned paths.
+        specs.insert(WatchedFileSpec::create_delete(path.clone(), "*"));
+        if sources {
+            specs.insert(WatchedFileSpec::with_kind(path.clone(), "*.sol", WatchKind::Change));
+        }
+        specs.insert(WatchedFileSpec::new(path.clone(), "foundry.toml"));
     }
+}
+
+fn workspace_file_operation_options() -> FileOperationRegistrationOptions {
+    let filters = [
+        ("**/*.sol", FileOperationPatternKind::File),
+        ("**/foundry.toml", FileOperationPatternKind::File),
+        ("**/remappings.txt", FileOperationPatternKind::File),
+        ("**", FileOperationPatternKind::Folder),
+    ]
+    .map(|(glob, matches)| FileOperationFilter {
+        scheme: Some("file".into()),
+        pattern: FileOperationPattern { glob: glob.into(), matches: Some(matches), options: None },
+    });
+    FileOperationRegistrationOptions { filters: filters.into() }
 }
 
 fn workspace_roots_from_initialize(
@@ -1060,13 +885,10 @@ fn workspace_roots_from_initialize(
     fallback_root: impl FnOnce() -> Option<PathBuf>,
 ) -> Vec<PathBuf> {
     let workspace_roots = workspace_folders
-        .map(|workspaces| {
-            workspaces
-                .into_iter()
-                .filter_map(|it| proto::normalize_file_uri(it.uri).to_file_path().ok())
-                .collect::<Vec<_>>()
-        })
-        .unwrap_or_default();
+        .into_iter()
+        .flatten()
+        .filter_map(|it| proto::normalize_file_uri(it.uri).to_file_path().ok())
+        .collect::<Vec<_>>();
     if !workspace_roots.is_empty() {
         return workspace_roots;
     }
@@ -1093,134 +915,100 @@ pub(crate) fn negotiate_capabilities_with_pull_diagnostic_data(
     #[allow(deprecated)]
     let root_uri = params.root_uri;
     let workspace_folders = params.workspace_folders;
-    let forge_path = initialization_options
-        .as_ref()
-        .and_then(|options| options.get("forgePath"))
-        .and_then(|path| serde_json::from_value::<PathBuf>(path.clone()).ok())
+    let option = |key| initialization_options.as_ref().and_then(|options| options.get(key));
+    let forge_path = option("forgePath")
+        .and_then(|path| PathBuf::deserialize(path).ok())
         .or_else(|| launch_config.default_forge_path().map(Path::to_path_buf))
         .unwrap_or_else(|| PathBuf::from("forge"));
-    let flycheck_options = FlycheckInitializationOptions::from_json(initialization_options.clone());
-    let indexing_options = IndexingOptions::from_json(initialization_options.clone());
-    let index_policy = WorkspaceIndexPolicy::new(indexing_options);
-    let source_change_debounce = initialization_options
-        .as_ref()
-        .and_then(|options| options.get("sourceChangeDebounce"))
+    let source_change_debounce = option("sourceChangeDebounce")
         .and_then(serde_json::Value::as_u64)
         .map(Duration::from_millis)
         .unwrap_or(DEFAULT_SOURCE_CHANGE_DEBOUNCE);
-    let code_lens = CodeLensConfig::from_json(initialization_options);
+    let code_lens = option("codeLens")
+        .and_then(|value| CodeLensConfig::deserialize(value).ok())
+        .unwrap_or_default();
+    let flycheck_options = FlycheckInitializationOptions::from_json(initialization_options.clone());
+    let indexing_options = IndexingOptions::from_json(initialization_options);
+    let index_policy = WorkspaceIndexPolicy::new(indexing_options);
 
     // The latest LSP spec mandates clients report `workspace_folders`, but some might still report
     // `root_uri`.
-    let watched_file_dynamic_registration = capabilities
-        .workspace
-        .as_ref()
-        .and_then(|workspace| workspace.did_change_watched_files.as_ref())
-        .and_then(|capabilities| capabilities.dynamic_registration)
-        .unwrap_or(false);
-    let watched_file_relative_pattern_support = capabilities
-        .workspace
-        .as_ref()
-        .and_then(|workspace| workspace.did_change_watched_files.as_ref())
-        .and_then(|capabilities| capabilities.relative_pattern_support)
-        .unwrap_or(false);
-    let workspace_edit_document_changes = capabilities
-        .workspace
-        .as_ref()
-        .and_then(|workspace| workspace.workspace_edit.as_ref())
-        .and_then(|capabilities| capabilities.document_changes)
-        .unwrap_or(false);
-    let code_lens_refresh_support = capabilities
-        .workspace
-        .as_ref()
-        .and_then(|workspace| workspace.code_lens.as_ref())
-        .and_then(|capabilities| capabilities.refresh_support)
-        .unwrap_or(false);
-    let diagnostic_refresh_support = capabilities
-        .workspace
-        .as_ref()
-        .and_then(|workspace| workspace.diagnostic.as_ref())
-        .and_then(|capabilities| capabilities.refresh_support)
-        .unwrap_or(false);
-    let supports_document_diagnostics = capabilities
-        .text_document
-        .as_ref()
-        .and_then(|text_document| text_document.diagnostic.as_ref())
-        .is_some();
-    let diagnostic_delivery = if supports_document_diagnostics && diagnostic_refresh_support {
+    let workspace = capabilities.workspace.as_ref();
+    let text_document = capabilities.text_document.as_ref();
+    let watched_files = workspace.and_then(|it| it.did_change_watched_files.as_ref());
+    let code_action = text_document.and_then(|it| it.code_action.as_ref());
+    let publish_diagnostics = text_document.and_then(|it| it.publish_diagnostics.as_ref());
+    let client = ClientSupport {
+        watched_file_dynamic_registration: watched_files
+            .and_then(|it| it.dynamic_registration)
+            .unwrap_or(false),
+        watched_file_relative_patterns: watched_files
+            .and_then(|it| it.relative_pattern_support)
+            .unwrap_or(false),
+        workspace_edit_document_changes: workspace
+            .and_then(|it| it.workspace_edit.as_ref()?.document_changes)
+            .unwrap_or(false),
+        code_action_literals: code_action
+            .is_some_and(|it| it.code_action_literal_support.is_some()),
+        code_action_is_preferred: code_action
+            .and_then(|it| it.is_preferred_support)
+            .unwrap_or(false),
+        publish_diagnostics_related_information: publish_diagnostics
+            .and_then(|it| it.related_information)
+            .unwrap_or(false),
+        code_lens_refresh: workspace
+            .and_then(|it| it.code_lens.as_ref()?.refresh_support)
+            .unwrap_or(false),
+        diagnostic_refresh: workspace
+            .and_then(|it| it.diagnostic.as_ref()?.refresh_support)
+            .unwrap_or(false),
+        inlay_hint_refresh: workspace
+            .and_then(|it| it.inlay_hint.as_ref()?.refresh_support)
+            .unwrap_or(false),
+        work_done_progress: capabilities
+            .window
+            .as_ref()
+            .and_then(|window| window.work_done_progress)
+            .unwrap_or(false),
+        hierarchical_document_symbols: text_document
+            .and_then(|it| it.document_symbol.as_ref()?.hierarchical_document_symbol_support)
+            .unwrap_or(false),
+    };
+    let supports_document_diagnostics = text_document.is_some_and(|it| it.diagnostic.is_some());
+    let diagnostic_delivery = if supports_document_diagnostics && client.diagnostic_refresh {
         DiagnosticDelivery::Pull
     } else {
         DiagnosticDelivery::Push
     };
-    let inlay_hint_refresh_support = capabilities
-        .workspace
-        .as_ref()
-        .and_then(|workspace| workspace.inlay_hint.as_ref())
-        .and_then(|capabilities| capabilities.refresh_support)
-        .unwrap_or(false);
-    let code_action = capabilities
-        .text_document
-        .as_ref()
-        .and_then(|text_document| text_document.code_action.as_ref());
-    let code_action_literals = code_action
-        .and_then(|capabilities| capabilities.code_action_literal_support.as_ref())
-        .is_some();
-    let code_action_is_preferred =
-        code_action.and_then(|capabilities| capabilities.is_preferred_support).unwrap_or(false);
-    let publish_diagnostics = capabilities
-        .text_document
-        .as_ref()
-        .and_then(|text_document| text_document.publish_diagnostics.as_ref());
-    let publish_diagnostics_related_information = publish_diagnostics
-        .and_then(|capabilities| capabilities.related_information)
-        .unwrap_or(false);
     let publish_diagnostics_tags = publish_diagnostics
-        .and_then(|capabilities| capabilities.tag_support.as_ref())
-        .map(|support| support.value_set.clone())
+        .and_then(|it| Some(it.tag_support.as_ref()?.value_set.clone()))
         .unwrap_or_default();
     let publish_diagnostics_data =
-        publish_diagnostics.and_then(|capabilities| capabilities.data_support).unwrap_or(false);
-    let work_done_progress =
-        capabilities.window.as_ref().and_then(|window| window.work_done_progress).unwrap_or(false);
-    let hierarchical_document_symbol_support = capabilities
-        .text_document
-        .as_ref()
-        .and_then(|text_document| text_document.document_symbol.as_ref())
-        .and_then(|capabilities| capabilities.hierarchical_document_symbol_support)
-        .unwrap_or(false);
-    let completion_item = capabilities
-        .text_document
-        .as_ref()
-        .and_then(|text_document| text_document.completion.as_ref())
-        .and_then(|capabilities| capabilities.completion_item.as_ref());
+        publish_diagnostics.and_then(|it| it.data_support).unwrap_or(false);
+    let completion_item =
+        text_document.and_then(|it| it.completion.as_ref()?.completion_item.as_ref());
     let completion = CompletionClientOptions {
-        snippet_support: completion_item
-            .and_then(|capabilities| capabilities.snippet_support)
-            .unwrap_or(false),
+        snippet_support: completion_item.and_then(|it| it.snippet_support).unwrap_or(false),
         markdown_documentation: prefers_markdown_documentation(
-            completion_item.and_then(|capabilities| capabilities.documentation_format.as_deref()),
+            completion_item.and_then(|it| it.documentation_format.as_deref()),
         ),
         resolve_documentation: completion_item
-            .and_then(|capabilities| capabilities.resolve_support.as_ref())
+            .and_then(|it| it.resolve_support.as_ref())
             .is_none_or(|support| {
                 support.properties.iter().any(|property| property == "documentation")
             }),
     };
-    let signature_information = capabilities
-        .text_document
-        .as_ref()
-        .and_then(|text_document| text_document.signature_help.as_ref())
-        .and_then(|capabilities| capabilities.signature_information.as_ref());
+    let signature_information =
+        text_document.and_then(|it| it.signature_help.as_ref()?.signature_information.as_ref());
     let signature_help = SignatureHelpClientOptions {
         label_offsets: signature_information
-            .and_then(|settings| settings.parameter_information.as_ref())
-            .and_then(|settings| settings.label_offset_support)
+            .and_then(|it| it.parameter_information.as_ref()?.label_offset_support)
             .unwrap_or(false),
         markdown_documentation: prefers_markdown_documentation(
-            signature_information.and_then(|settings| settings.documentation_format.as_deref()),
+            signature_information.and_then(|it| it.documentation_format.as_deref()),
         ),
         signature_active_parameter: signature_information
-            .and_then(|settings| settings.active_parameter_support)
+            .and_then(|it| it.active_parameter_support)
             .unwrap_or(false),
     };
 
@@ -1231,13 +1019,7 @@ pub(crate) fn negotiate_capabilities_with_pull_diagnostic_data(
     (
         ServerCapabilities {
             completion_provider: Some(CompletionOptions {
-                trigger_characters: Some(vec![
-                    ".".into(),
-                    "/".into(),
-                    "*".into(),
-                    "\"".into(),
-                    "'".into(),
-                ]),
+                trigger_characters: Some([".", "/", "*", "\"", "'"].map(Into::into).into()),
                 resolve_provider: Some(true),
                 ..Default::default()
             }),
@@ -1261,7 +1043,7 @@ pub(crate) fn negotiate_capabilities_with_pull_diagnostic_data(
                 resolve_provider: Some(false),
                 work_done_progress_options: WorkDoneProgressOptions::default(),
             }),
-            code_action_provider: code_action_literals.then(|| {
+            code_action_provider: client.code_action_literals.then(|| {
                 CodeActionProviderCapability::Options(CodeActionOptions {
                     code_action_kinds: Some(vec![CodeActionKind::QUICKFIX]),
                     work_done_progress_options: WorkDoneProgressOptions::default(),
@@ -1326,21 +1108,11 @@ pub(crate) fn negotiate_capabilities_with_pull_diagnostic_data(
                 .clone(),
             index_policy,
             flycheck_options,
-            watched_file_dynamic_registration,
-            watched_file_relative_pattern_support,
-            workspace_edit_document_changes,
-            code_action_literals,
-            code_action_is_preferred,
+            client,
             diagnostic_delivery,
-            publish_diagnostics_related_information,
             publish_diagnostics_tags,
             publish_diagnostics_data,
             pull_diagnostics_data,
-            code_lens_refresh_support,
-            diagnostic_refresh_support,
-            inlay_hint_refresh_support,
-            work_done_progress,
-            hierarchical_document_symbol_support,
             completion,
             signature_help,
             code_lens,
@@ -1360,204 +1132,315 @@ fn prefers_markdown_documentation(formats: Option<&[MarkupKind]>) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{test_support::TestProject, workspace::WorkspaceKind};
-    use lsp_types::{
-        CallHierarchyServerCapability, CodeActionClientCapabilities, CodeActionKind,
-        CodeActionKindLiteralSupport, CodeActionLiteralSupport, CodeActionOptions,
-        CodeActionProviderCapability, CodeLensWorkspaceClientCapabilities,
-        CompletionClientCapabilities, CompletionItemCapability,
-        CompletionItemCapabilityResolveSupport, DiagnosticClientCapabilities,
-        DiagnosticWorkspaceClientCapabilities, DidChangeWatchedFilesClientCapabilities,
-        DocumentSymbolClientCapabilities, FileOperationFilter, FileOperationPattern,
-        FileOperationPatternKind, FileOperationRegistrationOptions,
-        InlayHintWorkspaceClientCapabilities, MarkupKind, OneOf, ParameterInformationSettings,
-        PublishDiagnosticsClientCapabilities, RenameOptions, SignatureHelpClientCapabilities,
-        SignatureInformationSettings, TextDocumentClientCapabilities, TextDocumentSyncCapability,
-        TextDocumentSyncSaveOptions, TypeDefinitionProviderCapability, WindowClientCapabilities,
-        WorkspaceClientCapabilities, WorkspaceEditClientCapabilities,
+    use crate::test_support::{
+        TestProject, from_json, rediscovered_config, with_options, workspace_at,
     };
+    use serde_json::{Value, json};
+    use snapbox::{IntoData, assert_data_eq, str};
+
+    /// Negotiates like the server, including the pull diagnostic data support read from JSON.
+    fn negotiate(capabilities: Value) -> (ServerCapabilities, Config) {
+        let params = from_json::<proto::InitializeParams>(json!({ "capabilities": capabilities }));
+        let pull_data = params.pull_diagnostic_data_support();
+        negotiate_capabilities_with_pull_diagnostic_data(
+            params.into_inner(),
+            pull_data,
+            &LaunchConfig::default(),
+        )
+    }
+
+    fn discover(project: &TestProject, roots: &[&str], options: Option<Value>) -> Config {
+        let mut params = project.initialize_params_with_roots(roots);
+        params.initialization_options = options;
+        rediscovered_config(params)
+    }
+
+    fn relative(project: &TestProject, path: &Path) -> Option<String> {
+        let path = path.strip_prefix(project.root()).ok()?;
+        Some(format!("/{}", path.to_string_lossy().replace('\\', "/")))
+    }
+
+    /// Renders the watched-file specs inside the project, one per line.
+    fn watched_specs(project: &TestProject, config: &Config) -> String {
+        config
+            .watched_file_specs()
+            .iter()
+            .filter_map(|spec| {
+                let base = relative(project, &spec.base)?;
+                Some(format!("{base} {} {:?}\n", spec.pattern, spec.kind))
+            })
+            .collect()
+    }
 
     #[test]
-    fn source_change_debounce_initialization_options() {
+    fn negotiate_capabilities_advertises_server_capabilities() {
+        let (capabilities, _) = negotiate(json!({
+            "textDocument": { "codeAction": { "codeActionLiteralSupport": {
+                "codeActionKind": { "valueSet": [] }
+            } }, "diagnostic": {} },
+            "workspace": { "diagnostics": { "refreshSupport": true } },
+        }));
+        let mut capabilities = serde_json::to_value(capabilities).unwrap();
+        let operations =
+            capabilities["workspace"].as_object_mut().unwrap().remove("fileOperations").unwrap();
+        let operations = operations.as_object().unwrap();
+        let options = &operations["didCreate"];
+        assert_eq!(operations.len(), 6);
+        assert!(operations.values().all(|operation| operation == options));
+        let lines = capabilities
+            .as_object()
+            .unwrap()
+            .iter()
+            .map(|(key, value)| format!("{key}: {value}\n"))
+            .chain(
+                options["filters"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|filter| format!("fileOperations: {filter}\n")),
+            )
+            .collect::<String>();
+        assert_data_eq!(lines, str![[r#"
+callHierarchyProvider: true
+codeActionProvider: {"codeActionKinds":["quickfix"],"resolveProvider":false}
+codeLensProvider: {"resolveProvider":false}
+completionProvider: {"resolveProvider":true,"triggerCharacters":[".","/","*","\"","'"]}
+declarationProvider: true
+definitionProvider: true
+diagnosticProvider: {"interFileDependencies":true,"workDoneProgress":true,"workspaceDiagnostics":true}
+documentFormattingProvider: true
+documentHighlightProvider: true
+documentLinkProvider: {"resolveProvider":false}
+documentSymbolProvider: true
+executeCommandProvider: {"commands":["solar.clearCache","solar.reindex"]}
+foldingRangeProvider: true
+hoverProvider: true
+implementationProvider: true
+inlayHintProvider: true
+referencesProvider: true
+renameProvider: {"prepareProvider":true}
+selectionRangeProvider: true
+signatureHelpProvider: {"retriggerCharacters":[","],"triggerCharacters":["(",","]}
+textDocumentSync: {"change":2,"openClose":true,"save":{"includeText":false},"willSave":true}
+typeDefinitionProvider: true
+workspace: {"workspaceFolders":{"changeNotifications":true,"supported":true}}
+workspaceSymbolProvider: true
+fileOperations: {"pattern":{"glob":"**/*.sol","matches":"file"},"scheme":"file"}
+fileOperations: {"pattern":{"glob":"**/foundry.toml","matches":"file"},"scheme":"file"}
+fileOperations: {"pattern":{"glob":"**/remappings.txt","matches":"file"},"scheme":"file"}
+fileOperations: {"pattern":{"glob":"**","matches":"folder"},"scheme":"file"}
+
+"#]]
+        .raw());
+    }
+
+    #[test]
+    fn negotiate_capabilities_records_client_support() {
+        type Flag = fn(&ServerCapabilities, &Config) -> bool;
+        let flags: [(&str, Flag); 23] = [
+            ("push_diagnostics", |_, config| config.uses_push_diagnostics()),
+            ("pull_diagnostics", |_, config| config.uses_pull_diagnostics()),
+            ("diagnostic_provider", |capabilities, _| capabilities.diagnostic_provider.is_some()),
+            ("publish_data", |_, config| config.supports_publish_diagnostics_data()),
+            ("pull_data", |_, config| config.supports_pull_diagnostics_data()),
+            ("code_action_data", |_, config| config.supports_code_action_diagnostic_data()),
+            ("diagnostic_refresh", |_, config| config.client.diagnostic_refresh),
+            ("inlay_hint_refresh", |_, config| config.client.inlay_hint_refresh),
+            ("code_lens_refresh", |_, config| config.client.code_lens_refresh),
+            ("watched_files", |_, config| config.client.watched_file_dynamic_registration),
+            ("relative_patterns", |_, config| config.client.watched_file_relative_patterns),
+            ("document_changes", |_, config| config.client.workspace_edit_document_changes),
+            ("code_action_literals", |_, config| config.client.code_action_literals),
+            ("code_action_provider", |capabilities, _| capabilities.code_action_provider.is_some()),
+            ("code_action_is_preferred", |_, config| config.client.code_action_is_preferred),
+            ("work_done_progress", |_, config| config.client.work_done_progress),
+            ("hierarchical_symbols", |_, config| config.client.hierarchical_document_symbols),
+            ("completion_snippets", |_, config| config.completion.snippet_support),
+            ("completion_markdown", |_, config| config.completion.markdown_documentation),
+            ("completion_resolve", |_, config| config.completion.resolve_documentation),
+            ("signature_offsets", |_, config| config.signature_help.label_offsets),
+            ("signature_markdown", |_, config| config.signature_help.markdown_documentation),
+            ("signature_active_parameter", |_, config| {
+                config.signature_help.signature_active_parameter
+            }),
+        ];
+        let enabled = |capabilities: &Value| {
+            let (server, config) = negotiate(capabilities.clone());
+            flags.map(|(name, flag)| (name, flag(&server, &config)))
+        };
+        let default = enabled(&json!({}));
+        let default_names = default.iter().filter(|flag| flag.1).map(|flag| flag.0);
+        assert_eq!(default_names.collect::<Vec<_>>(), ["push_diagnostics", "completion_resolve"]);
+
+        let completion_item =
+            |item| json!({ "textDocument": { "completion": { "completionItem": item } } });
+        let signature_information = |information| json!({ "textDocument": { "signatureHelp": { "signatureInformation": information } } });
+        // Each row lists the flags that differ from the defaults.
+        for (capabilities, changed) in [
+            (json!({ "window": { "workDoneProgress": false } }), &[][..]),
+            (json!({ "window": { "workDoneProgress": true } }), &["work_done_progress"]),
+            (
+                json!({ "workspace": { "didChangeWatchedFiles": {
+                    "dynamicRegistration": true,
+                    "relativePatternSupport": true,
+                } } }),
+                &["watched_files", "relative_patterns"],
+            ),
+            (
+                json!({ "workspace": { "workspaceEdit": { "documentChanges": true } } }),
+                &["document_changes"],
+            ),
+            (
+                json!({ "workspace": { "codeLens": { "refreshSupport": true } } }),
+                &["code_lens_refresh"],
+            ),
+            (
+                json!({ "workspace": { "inlayHint": { "refreshSupport": true } } }),
+                &["inlay_hint_refresh"],
+            ),
+            // Pull delivery requires both document diagnostics and refresh support.
+            (
+                json!({ "workspace": { "diagnostics": { "refreshSupport": true } } }),
+                &["diagnostic_refresh"],
+            ),
+            (
+                json!({ "textDocument": {
+                    "diagnostic": { "dataSupport": true },
+                    "publishDiagnostics": { "dataSupport": true },
+                } }),
+                &["publish_data", "code_action_data"],
+            ),
+            (
+                json!({
+                    "textDocument": {
+                        "diagnostic": { "dataSupport": true },
+                        "publishDiagnostics": { "dataSupport": true },
+                    },
+                    "workspace": { "diagnostics": { "refreshSupport": true } },
+                }),
+                &[
+                    "push_diagnostics",
+                    "pull_diagnostics",
+                    "diagnostic_provider",
+                    "pull_data",
+                    "code_action_data",
+                    "diagnostic_refresh",
+                ],
+            ),
+            (
+                json!({
+                    "textDocument": {
+                        "diagnostic": {},
+                        "publishDiagnostics": { "dataSupport": true },
+                    },
+                    "workspace": { "diagnostics": { "refreshSupport": true } },
+                }),
+                &[
+                    "push_diagnostics",
+                    "pull_diagnostics",
+                    "diagnostic_provider",
+                    "diagnostic_refresh",
+                ],
+            ),
+            // Any literal support enables quick fixes, even without the quick-fix kind.
+            (
+                json!({ "textDocument": { "codeAction": { "codeActionLiteralSupport": {
+                    "codeActionKind": { "valueSet": ["refactor"] }
+                } } } }),
+                &["code_action_literals", "code_action_provider"],
+            ),
+            (
+                json!({ "textDocument": { "codeAction": { "isPreferredSupport": true } } }),
+                &["code_action_is_preferred"],
+            ),
+            (
+                json!({ "textDocument": { "documentSymbol": {
+                    "hierarchicalDocumentSymbolSupport": true
+                } } }),
+                &["hierarchical_symbols"],
+            ),
+            (
+                completion_item(json!({
+                    "snippetSupport": true,
+                    "documentationFormat": ["markdown", "plaintext"],
+                })),
+                &["completion_snippets", "completion_markdown"],
+            ),
+            (completion_item(json!({ "documentationFormat": ["plaintext", "markdown"] })), &[]),
+            (
+                completion_item(
+                    json!({ "resolveSupport": { "properties": ["additionalTextEdits"] } }),
+                ),
+                &["completion_resolve"],
+            ),
+            (
+                completion_item(json!({ "resolveSupport": {
+                    "properties": ["additionalTextEdits", "documentation"]
+                } })),
+                &[],
+            ),
+            (
+                signature_information(json!({
+                    "documentationFormat": ["markdown"],
+                    "parameterInformation": { "labelOffsetSupport": true },
+                    "activeParameterSupport": true,
+                })),
+                &["signature_offsets", "signature_markdown", "signature_active_parameter"],
+            ),
+            (
+                signature_information(json!({ "documentationFormat": ["plaintext", "markdown"] })),
+                &[],
+            ),
+        ] {
+            let flags = enabled(&capabilities);
+            let flipped = flags
+                .iter()
+                .zip(&default)
+                .filter(|(flag, default)| flag.1 != default.1)
+                .map(|(&(name, _), _)| name)
+                .collect::<Vec<_>>();
+            assert_eq!(flipped, changed, "{capabilities}");
+        }
+    }
+
+    #[test]
+    fn negotiate_capabilities_reads_initialization_options() {
+        let config = |options, launch_config: &LaunchConfig| {
+            let params = InitializeParams { initialization_options: options, ..Default::default() };
+            negotiate_capabilities_with_pull_diagnostic_data(params, false, launch_config).1
+        };
+        let default_launch = LaunchConfig::default();
+
         assert_eq!(Config::default().source_change_debounce(), Duration::from_millis(150));
         for (options, expected_ms) in [
             (None, 150),
-            (Some(serde_json::json!({})), 150),
-            (Some(serde_json::json!({ "sourceChangeDebounce": 500 })), 500),
-            (Some(serde_json::json!({ "sourceChangeDebounce": 0 })), 0),
-            (Some(serde_json::json!({ "sourceChangeDebounce": -1 })), 150),
-            (Some(serde_json::json!({ "sourceChangeDebounce": 1.5 })), 150),
-            (Some(serde_json::json!({ "sourceChangeDebounce": "500" })), 150),
-            (Some(serde_json::json!({ "sourceChangeDebounce": null })), 150),
+            (Some(json!({})), 150),
+            (Some(json!({ "sourceChangeDebounce": 500 })), 500),
+            (Some(json!({ "sourceChangeDebounce": 0 })), 0),
+            (Some(json!({ "sourceChangeDebounce": -1 })), 150),
+            (Some(json!({ "sourceChangeDebounce": 1.5 })), 150),
+            (Some(json!({ "sourceChangeDebounce": "500" })), 150),
+            (Some(json!({ "sourceChangeDebounce": null })), 150),
         ] {
-            let (_, config) = negotiate_capabilities(InitializeParams {
-                initialization_options: options,
-                ..Default::default()
-            });
-            assert_eq!(config.source_change_debounce(), Duration::from_millis(expected_ms));
-        }
-    }
-
-    #[test]
-    fn workspace_folders_skip_root_fallback() {
-        let workspace_root = env::temp_dir().join("solar-lsp-workspace");
-        let workspace_folders = Some(vec![WorkspaceFolder {
-            uri: Url::from_file_path(&workspace_root).unwrap(),
-            name: "workspace".into(),
-        }]);
-
-        let roots = workspace_roots_from_initialize(workspace_folders, None, || {
-            panic!("root fallback should not be evaluated")
-        });
-
-        assert_eq!(roots, [workspace_root]);
-    }
-
-    #[test]
-    fn initialize_normalizes_equivalent_workspace_uris() {
-        let workspace_root = env::temp_dir().join("solar-lsp-workspace");
-        let uri = Url::from_file_path(&workspace_root).unwrap();
-        let equivalent = Url::parse(&uri.as_str().replacen(
-            "solar-lsp-workspace",
-            "missing%2F..%2Fsolar-lsp-workspace",
-            1,
-        ))
-        .unwrap();
-        let folder = WorkspaceFolder { uri: equivalent.clone(), name: "workspace".into() };
-
-        for (folders, root_uri) in [(Some(vec![folder]), None), (None, Some(equivalent))] {
-            let roots = workspace_roots_from_initialize(folders, root_uri, || {
-                panic!("valid workspace URI should not use the fallback")
-            });
-
-            assert_eq!(roots, std::slice::from_ref(&workspace_root));
-        }
-    }
-
-    #[test]
-    fn unavailable_root_fallback_leaves_workspace_roots_empty() {
-        let roots = workspace_roots_from_initialize(None, None, || None);
-
-        assert!(roots.is_empty());
-    }
-
-    #[test]
-    fn negotiate_capabilities_records_work_done_progress_support() {
-        let (_, config) = negotiate_capabilities(InitializeParams::default());
-        assert!(!config.supports_work_done_progress());
-
-        let mut params = InitializeParams::default();
-        params.capabilities.window = Some(WindowClientCapabilities {
-            work_done_progress: Some(false),
-            ..Default::default()
-        });
-        let (_, config) = negotiate_capabilities(params.clone());
-        assert!(!config.supports_work_done_progress());
-
-        params.capabilities.window.as_mut().unwrap().work_done_progress = Some(true);
-        let (_, config) = negotiate_capabilities(params);
-        assert!(config.supports_work_done_progress());
-    }
-
-    #[test]
-    fn negotiate_capabilities_records_watched_file_dynamic_registration_support() {
-        let (_, config) = negotiate_capabilities(InitializeParams::default());
-        assert!(!config.supports_watched_file_dynamic_registration());
-
-        let mut params = InitializeParams::default();
-        params.capabilities.workspace = Some(WorkspaceClientCapabilities {
-            did_change_watched_files: Some(DidChangeWatchedFilesClientCapabilities {
-                dynamic_registration: Some(true),
-                ..Default::default()
-            }),
-            ..Default::default()
-        });
-
-        let (_, config) = negotiate_capabilities(params);
-
-        assert!(config.supports_watched_file_dynamic_registration());
-    }
-
-    #[test]
-    fn negotiate_capabilities_records_document_changes_support() {
-        let (_, config) = negotiate_capabilities(InitializeParams::default());
-        assert!(!config.supports_workspace_edit_document_changes());
-
-        let mut params = InitializeParams::default();
-        params.capabilities.workspace = Some(WorkspaceClientCapabilities {
-            workspace_edit: Some(WorkspaceEditClientCapabilities {
-                document_changes: Some(true),
-                ..Default::default()
-            }),
-            ..Default::default()
-        });
-
-        let (_, config) = negotiate_capabilities(params);
-
-        assert!(config.supports_workspace_edit_document_changes());
-    }
-
-    #[test]
-    fn negotiate_capabilities_records_code_lens_refresh_support() {
-        let (_, config) = negotiate_capabilities(InitializeParams::default());
-        assert!(!config.supports_code_lens_refresh());
-
-        let mut params = InitializeParams::default();
-        params.capabilities.workspace = Some(WorkspaceClientCapabilities {
-            code_lens: Some(CodeLensWorkspaceClientCapabilities { refresh_support: Some(true) }),
-            ..Default::default()
-        });
-
-        let (_, config) = negotiate_capabilities(params);
-
-        assert!(config.supports_code_lens_refresh());
-    }
-
-    #[test]
-    fn negotiate_capabilities_records_pull_refresh_support_independently() {
-        for (diagnostic, inlay_hint) in [(false, false), (true, false), (false, true), (true, true)]
-        {
-            let mut params = InitializeParams::default();
-            params.capabilities.workspace = Some(WorkspaceClientCapabilities {
-                diagnostic: Some(DiagnosticWorkspaceClientCapabilities {
-                    refresh_support: Some(diagnostic),
-                }),
-                inlay_hint: Some(InlayHintWorkspaceClientCapabilities {
-                    refresh_support: Some(inlay_hint),
-                }),
-                ..Default::default()
-            });
-
-            let (_, config) = negotiate_capabilities(params);
-
-            assert_eq!(config.supports_diagnostic_refresh(), diagnostic);
-            assert_eq!(config.supports_inlay_hint_refresh(), inlay_hint);
+            let debounce = config(options, &default_launch).source_change_debounce();
+            assert_eq!(debounce, Duration::from_millis(expected_ms));
         }
 
-        let (_, config) = negotiate_capabilities(InitializeParams::default());
-        assert!(!config.supports_diagnostic_refresh());
-        assert!(!config.supports_inlay_hint_refresh());
-    }
+        let embedded = LaunchConfig::default().with_default_forge_path("/embedded/forge");
+        let forge = json!({ "forgePath": "/tools/forge" });
+        assert_eq!(config(None, &default_launch).forge_path(), PathBuf::from("forge"));
+        assert_eq!(config(None, &embedded).forge_path(), PathBuf::from("/embedded/forge"));
+        assert_eq!(config(Some(forge), &embedded).forge_path(), PathBuf::from("/tools/forge"));
 
-    #[test]
-    fn negotiate_capabilities_reads_code_lens_initialization_options() {
-        let params = InitializeParams {
-            initialization_options: Some(serde_json::json!({
-                "codeLens": {
-                    "enable": false,
-                    "selectors": false,
-                    "references": true,
-                    "inheritance": false,
-                    "clientCommands": true,
-                }
-            })),
-            ..Default::default()
-        };
-
-        let (_, config) = negotiate_capabilities(params);
-
+        let code_lens = json!({ "codeLens": {
+            "enable": false,
+            "selectors": false,
+            "references": true,
+            "inheritance": false,
+            "clientCommands": true,
+        } });
         assert_eq!(
-            config.code_lens_options(),
+            config(Some(code_lens), &default_launch).code_lens,
             CodeLensConfig {
                 enable: false,
                 selectors: false,
@@ -1566,41 +1449,25 @@ mod tests {
                 client_commands: true,
             }
         );
-    }
 
-    #[test]
-    fn negotiate_capabilities_reads_workspace_indexing_options() {
-        let project = TestProject::new();
-        let params = InitializeParams {
-            initialization_options: Some(serde_json::json!({
-                "indexing": {
-                    "exclude": ["generated/**"],
-                    "useDefaultExcludes": false,
-                    "excludeHiddenDirectories": false,
-                    "excludeNestedRepositories": false
-                }
-            })),
-            ..Default::default()
-        };
-
-        let (_, config) = negotiate_capabilities(params);
-        let policy = config.index_policy();
-
-        assert!(policy.should_prune_directory(
-            project.root(),
-            project.root(),
-            &project.path("/generated")
-        ));
-        assert!(!policy.should_prune_directory(
-            project.root(),
-            project.root(),
-            &project.path("/node_modules")
-        ));
-        assert!(!policy.should_prune_directory(
-            project.root(),
-            project.root(),
-            &project.path("/.hidden")
-        ));
+        let indexing = json!({ "indexing": {
+            "exclude": ["generated/**"],
+            "useDefaultExcludes": false,
+            "excludeHiddenDirectories": false,
+            "excludeNestedRepositories": false,
+        } });
+        let config = config(Some(indexing), &default_launch);
+        let root = env::temp_dir();
+        for (directory, pruned) in
+            [("generated", true), ("node_modules", false), (".hidden", false)]
+        {
+            let prunes = config.index_policy().should_prune_source_directory(
+                &root,
+                &root,
+                &root.join(directory),
+            );
+            assert_eq!(prunes, pruned, "{directory}");
+        }
     }
 
     #[test]
@@ -1626,512 +1493,33 @@ mod tests {
     }
 
     #[test]
-    fn negotiate_capabilities_advertises_symbol_providers() {
-        let (capabilities, _) = negotiate_capabilities(InitializeParams::default());
+    fn initialize_workspace_roots_prefer_folders_and_normalize_uris() {
+        let workspace_root = env::temp_dir().join("solar-lsp-workspace");
+        let uri = Url::from_file_path(&workspace_root).unwrap();
+        let equivalent = Url::parse(&uri.as_str().replacen(
+            "solar-lsp-workspace",
+            "missing%2F..%2Fsolar-lsp-workspace",
+            1,
+        ))
+        .unwrap();
+        let folders = |uri| Some(vec![WorkspaceFolder { uri, name: "workspace".into() }]);
+        let other_root = Url::from_file_path(env::temp_dir().join("other")).unwrap();
 
-        let completion_provider = capabilities.completion_provider.unwrap();
-        assert_eq!(
-            completion_provider.trigger_characters,
-            Some(vec![
-                ".".to_string(),
-                "/".to_string(),
-                "*".to_string(),
-                "\"".to_string(),
-                "'".to_string(),
-            ])
-        );
-        assert_eq!(completion_provider.resolve_provider, Some(true));
-        assert_eq!(capabilities.declaration_provider, Some(DeclarationCapability::Simple(true)));
-        assert_eq!(capabilities.definition_provider, Some(OneOf::Left(true)));
-        assert_eq!(
-            capabilities.implementation_provider,
-            Some(ImplementationProviderCapability::Simple(true))
-        );
-        assert_eq!(
-            capabilities.type_definition_provider,
-            Some(TypeDefinitionProviderCapability::Simple(true))
-        );
-        assert_eq!(capabilities.document_formatting_provider, Some(OneOf::Left(true)));
-        assert_eq!(
-            capabilities.folding_range_provider,
-            Some(FoldingRangeProviderCapability::Simple(true))
-        );
-        assert_eq!(capabilities.document_symbol_provider, Some(OneOf::Left(true)));
-        assert_eq!(
-            capabilities.code_lens_provider,
-            Some(CodeLensServerOptions { resolve_provider: Some(false) })
-        );
-        assert_eq!(capabilities.hover_provider, Some(HoverProviderCapability::Simple(true)));
-        let document_link_provider = capabilities.document_link_provider.unwrap();
-        assert_eq!(document_link_provider.resolve_provider, Some(false));
-        assert_eq!(capabilities.inlay_hint_provider, Some(OneOf::Left(true)));
-        assert_eq!(capabilities.document_highlight_provider, Some(OneOf::Left(true)));
-        assert_eq!(capabilities.references_provider, Some(OneOf::Left(true)));
-        assert_eq!(
-            capabilities.call_hierarchy_provider,
-            Some(CallHierarchyServerCapability::Simple(true))
-        );
-        assert_eq!(
-            capabilities.selection_range_provider,
-            Some(SelectionRangeProviderCapability::Simple(true))
-        );
-        assert_eq!(
-            capabilities.rename_provider,
-            Some(OneOf::Right(RenameOptions {
-                prepare_provider: Some(true),
-                work_done_progress_options: Default::default(),
-            }))
-        );
-        let signature_help_provider = capabilities.signature_help_provider.unwrap();
-        assert_eq!(
-            signature_help_provider.trigger_characters,
-            Some(vec!["(".to_string(), ",".to_string()])
-        );
-        assert_eq!(signature_help_provider.retrigger_characters, Some(vec![",".to_string()]));
-        assert_eq!(capabilities.workspace_symbol_provider, Some(OneOf::Left(true)));
-
-        let TextDocumentSyncCapability::Options(sync_options) =
-            capabilities.text_document_sync.unwrap()
-        else {
-            panic!("expected text document sync options");
-        };
-        assert_eq!(sync_options.will_save, Some(true));
-        assert_eq!(sync_options.will_save_wait_until, None);
-        let TextDocumentSyncSaveOptions::SaveOptions(save_options) = sync_options.save.unwrap()
-        else {
-            panic!("expected save options");
-        };
-        assert_eq!(save_options.include_text, Some(false));
-    }
-
-    #[test]
-    fn negotiate_capabilities_advertises_workspace_file_operations() {
-        let (capabilities, _) = negotiate_capabilities(InitializeParams::default());
-        let operations = capabilities.workspace.unwrap().file_operations.unwrap();
-        let options = FileOperationRegistrationOptions {
-            filters: vec![
-                FileOperationFilter {
-                    scheme: Some("file".into()),
-                    pattern: FileOperationPattern {
-                        glob: "**/*.sol".into(),
-                        matches: Some(FileOperationPatternKind::File),
-                        options: None,
-                    },
-                },
-                FileOperationFilter {
-                    scheme: Some("file".into()),
-                    pattern: FileOperationPattern {
-                        glob: "**/foundry.toml".into(),
-                        matches: Some(FileOperationPatternKind::File),
-                        options: None,
-                    },
-                },
-                FileOperationFilter {
-                    scheme: Some("file".into()),
-                    pattern: FileOperationPattern {
-                        glob: "**/remappings.txt".into(),
-                        matches: Some(FileOperationPatternKind::File),
-                        options: None,
-                    },
-                },
-                FileOperationFilter {
-                    scheme: Some("file".into()),
-                    pattern: FileOperationPattern {
-                        glob: "**".into(),
-                        matches: Some(FileOperationPatternKind::Folder),
-                        options: None,
-                    },
-                },
-            ],
-        };
-
-        assert_eq!(operations.did_create, Some(options.clone()));
-        assert_eq!(operations.will_create, Some(options.clone()));
-        assert_eq!(operations.did_rename, Some(options.clone()));
-        assert_eq!(operations.will_rename, Some(options.clone()));
-        assert_eq!(operations.did_delete, Some(options.clone()));
-        assert_eq!(operations.will_delete, Some(options));
-    }
-
-    #[test]
-    fn negotiate_capabilities_advertises_workspace_folder_changes() {
-        let (capabilities, _) = negotiate_capabilities(InitializeParams::default());
-        let workspace = capabilities.workspace.unwrap();
-        assert_eq!(
-            workspace.workspace_folders,
-            Some(WorkspaceFoldersServerCapabilities {
-                supported: Some(true),
-                change_notifications: Some(OneOf::Left(true)),
-            })
-        );
-    }
-
-    #[test]
-    fn negotiate_capabilities_selects_one_diagnostic_delivery() {
-        for (document_diagnostics, diagnostic_refresh, expected_delivery) in [
-            (false, false, DiagnosticDelivery::Push),
-            (true, false, DiagnosticDelivery::Push),
-            (false, true, DiagnosticDelivery::Push),
-            (true, true, DiagnosticDelivery::Pull),
+        for (folders, root_uri) in [
+            (folders(uri), Some(other_root)),
+            (folders(equivalent.clone()), None),
+            (None, Some(equivalent)),
         ] {
-            let mut params = InitializeParams::default();
-            params.capabilities.text_document = Some(TextDocumentClientCapabilities {
-                diagnostic: document_diagnostics.then(DiagnosticClientCapabilities::default),
-                ..Default::default()
+            let roots = workspace_roots_from_initialize(folders, root_uri, || {
+                panic!("valid workspace URI should not use the fallback")
             });
-            params.capabilities.workspace = Some(WorkspaceClientCapabilities {
-                diagnostic: Some(DiagnosticWorkspaceClientCapabilities {
-                    refresh_support: Some(diagnostic_refresh),
-                }),
-                ..Default::default()
-            });
-
-            let (capabilities, config) = negotiate_capabilities(params);
-
-            assert_eq!(config.diagnostic_delivery, expected_delivery);
-            assert_eq!(
-                config.uses_push_diagnostics(),
-                expected_delivery == DiagnosticDelivery::Push
-            );
-            assert_eq!(
-                config.uses_pull_diagnostics(),
-                expected_delivery == DiagnosticDelivery::Pull
-            );
-            assert_eq!(
-                capabilities.diagnostic_provider,
-                (expected_delivery == DiagnosticDelivery::Pull).then_some({
-                    DiagnosticServerCapabilities::Options(DiagnosticOptions {
-                        identifier: None,
-                        inter_file_dependencies: true,
-                        workspace_diagnostics: true,
-                        work_done_progress_options: WorkDoneProgressOptions {
-                            work_done_progress: Some(true),
-                        },
-                    })
-                })
-            );
+            assert_eq!(roots, std::slice::from_ref(&workspace_root));
         }
+        assert!(workspace_roots_from_initialize(None, None, || None).is_empty());
     }
 
     #[test]
-    fn negotiate_capabilities_omits_code_actions_without_literal_support() {
-        let (capabilities, _) = negotiate_capabilities(InitializeParams::default());
-
-        assert_eq!(capabilities.code_action_provider, None);
-    }
-
-    #[test]
-    fn negotiate_capabilities_advertises_code_actions_with_other_literal_kinds() {
-        let mut params = InitializeParams::default();
-        params.capabilities.text_document = Some(TextDocumentClientCapabilities {
-            code_action: Some(CodeActionClientCapabilities {
-                code_action_literal_support: Some(CodeActionLiteralSupport {
-                    code_action_kind: CodeActionKindLiteralSupport {
-                        value_set: vec![CodeActionKind::REFACTOR.as_str().into()],
-                    },
-                }),
-                ..Default::default()
-            }),
-            ..Default::default()
-        });
-
-        let (capabilities, config) = negotiate_capabilities(params);
-
-        assert!(config.supports_code_action_literals());
-        assert_eq!(
-            capabilities.code_action_provider,
-            Some(CodeActionProviderCapability::Options(CodeActionOptions {
-                code_action_kinds: Some(vec![CodeActionKind::QUICKFIX]),
-                work_done_progress_options: WorkDoneProgressOptions::default(),
-                resolve_provider: Some(false),
-            }))
-        );
-    }
-
-    #[test]
-    fn negotiate_capabilities_advertises_and_records_code_action_literal_support() {
-        let mut params = InitializeParams::default();
-        params.capabilities.text_document = Some(TextDocumentClientCapabilities {
-            code_action: Some(CodeActionClientCapabilities {
-                code_action_literal_support: Some(CodeActionLiteralSupport {
-                    code_action_kind: CodeActionKindLiteralSupport {
-                        value_set: vec![CodeActionKind::QUICKFIX.as_str().into()],
-                    },
-                }),
-                ..Default::default()
-            }),
-            ..Default::default()
-        });
-
-        let (capabilities, config) = negotiate_capabilities(params);
-
-        assert!(config.supports_code_action_literals());
-        assert_eq!(
-            capabilities.code_action_provider,
-            Some(CodeActionProviderCapability::Options(CodeActionOptions {
-                code_action_kinds: Some(vec![CodeActionKind::QUICKFIX]),
-                work_done_progress_options: WorkDoneProgressOptions::default(),
-                resolve_provider: Some(false),
-            }))
-        );
-    }
-
-    #[test]
-    fn negotiate_capabilities_records_code_action_is_preferred_support() {
-        let (_, config) = negotiate_capabilities(InitializeParams::default());
-        assert!(!config.supports_code_action_is_preferred());
-
-        let mut params = InitializeParams::default();
-        params.capabilities.text_document = Some(TextDocumentClientCapabilities {
-            code_action: Some(CodeActionClientCapabilities {
-                is_preferred_support: Some(true),
-                ..Default::default()
-            }),
-            ..Default::default()
-        });
-
-        let (_, config) = negotiate_capabilities(params);
-
-        assert!(config.supports_code_action_is_preferred());
-    }
-
-    #[test]
-    fn negotiate_capabilities_records_publish_diagnostics_data_support() {
-        let (_, config) = negotiate_capabilities(InitializeParams::default());
-        assert!(!config.supports_publish_diagnostics_data());
-
-        let mut params = InitializeParams::default();
-        params.capabilities.text_document = Some(TextDocumentClientCapabilities {
-            publish_diagnostics: Some(PublishDiagnosticsClientCapabilities {
-                data_support: Some(true),
-                ..Default::default()
-            }),
-            ..Default::default()
-        });
-
-        let (_, config) = negotiate_capabilities(params);
-
-        assert!(config.supports_publish_diagnostics_data());
-    }
-
-    #[test]
-    fn negotiate_capabilities_uses_only_selected_diagnostic_data_support() {
-        for delivery in [DiagnosticDelivery::Push, DiagnosticDelivery::Pull] {
-            for (publish, pull) in [(false, false), (false, true), (true, false), (true, true)] {
-                let mut params = InitializeParams::default();
-                params.capabilities.text_document = Some(TextDocumentClientCapabilities {
-                    diagnostic: (delivery == DiagnosticDelivery::Pull)
-                        .then(DiagnosticClientCapabilities::default),
-                    publish_diagnostics: Some(PublishDiagnosticsClientCapabilities {
-                        data_support: Some(publish),
-                        ..Default::default()
-                    }),
-                    ..Default::default()
-                });
-                params.capabilities.workspace = Some(WorkspaceClientCapabilities {
-                    diagnostic: Some(DiagnosticWorkspaceClientCapabilities {
-                        refresh_support: Some(delivery == DiagnosticDelivery::Pull),
-                    }),
-                    ..Default::default()
-                });
-
-                let (_, config) = negotiate_capabilities_with_pull_diagnostic_data(
-                    params,
-                    pull,
-                    &LaunchConfig::default(),
-                );
-
-                let expected_publish = delivery == DiagnosticDelivery::Push && publish;
-                let expected_pull = delivery == DiagnosticDelivery::Pull && pull;
-                assert_eq!(config.supports_publish_diagnostics_data(), expected_publish);
-                assert_eq!(config.supports_pull_diagnostics_data(), expected_pull);
-                assert_eq!(
-                    config.supports_code_action_diagnostic_data(),
-                    expected_publish || expected_pull
-                );
-            }
-        }
-    }
-
-    #[test]
-    fn negotiate_capabilities_advertises_cache_commands() {
-        let (capabilities, _) = negotiate_capabilities(InitializeParams::default());
-
-        assert_eq!(
-            capabilities.execute_command_provider,
-            Some(ExecuteCommandOptions {
-                commands: vec!["solar.clearCache".into(), "solar.reindex".into()],
-                work_done_progress_options: WorkDoneProgressOptions::default(),
-            })
-        );
-    }
-
-    #[test]
-    fn negotiate_capabilities_records_hierarchical_document_symbol_support() {
-        let (_, config) = negotiate_capabilities(InitializeParams::default());
-        assert!(!config.supports_hierarchical_document_symbols());
-
-        let mut params = InitializeParams::default();
-        params.capabilities.text_document = Some(TextDocumentClientCapabilities {
-            document_symbol: Some(DocumentSymbolClientCapabilities {
-                hierarchical_document_symbol_support: Some(true),
-                ..Default::default()
-            }),
-            ..Default::default()
-        });
-
-        let (_, config) = negotiate_capabilities(params);
-
-        assert!(config.supports_hierarchical_document_symbols());
-    }
-
-    #[test]
-    fn negotiate_capabilities_defaults_completion_snippet_support_to_false() {
-        let (_, config) = negotiate_capabilities(InitializeParams::default());
-
-        assert!(!config.completion_options().snippet_support);
-        assert!(!config.completion_options().markdown_documentation);
-        assert!(config.completion_options().resolve_documentation);
-    }
-
-    #[test]
-    fn negotiate_capabilities_records_completion_snippet_support() {
-        let mut params = InitializeParams::default();
-        params.capabilities.text_document = Some(TextDocumentClientCapabilities {
-            completion: Some(CompletionClientCapabilities {
-                completion_item: Some(CompletionItemCapability {
-                    snippet_support: Some(true),
-                    ..Default::default()
-                }),
-                ..Default::default()
-            }),
-            ..Default::default()
-        });
-
-        let (_, config) = negotiate_capabilities(params);
-
-        assert!(config.completion_options().snippet_support);
-    }
-
-    #[test]
-    fn negotiate_capabilities_records_completion_documentation_preference() {
-        let mut params = InitializeParams::default();
-        params.capabilities.text_document = Some(TextDocumentClientCapabilities {
-            completion: Some(CompletionClientCapabilities {
-                completion_item: Some(CompletionItemCapability {
-                    documentation_format: Some(vec![MarkupKind::Markdown, MarkupKind::PlainText]),
-                    ..Default::default()
-                }),
-                ..Default::default()
-            }),
-            ..Default::default()
-        });
-
-        let (_, config) = negotiate_capabilities(params.clone());
-        assert!(config.completion_options().markdown_documentation);
-
-        params
-            .capabilities
-            .text_document
-            .as_mut()
-            .unwrap()
-            .completion
-            .as_mut()
-            .unwrap()
-            .completion_item
-            .as_mut()
-            .unwrap()
-            .documentation_format = Some(vec![MarkupKind::PlainText, MarkupKind::Markdown]);
-        let (_, config) = negotiate_capabilities(params);
-        assert!(!config.completion_options().markdown_documentation);
-    }
-
-    #[test]
-    fn negotiate_capabilities_records_completion_documentation_resolve_support() {
-        let mut params = InitializeParams::default();
-        params.capabilities.text_document = Some(TextDocumentClientCapabilities {
-            completion: Some(CompletionClientCapabilities {
-                completion_item: Some(CompletionItemCapability {
-                    resolve_support: Some(CompletionItemCapabilityResolveSupport {
-                        properties: vec!["additionalTextEdits".into()],
-                    }),
-                    ..Default::default()
-                }),
-                ..Default::default()
-            }),
-            ..Default::default()
-        });
-
-        let (_, config) = negotiate_capabilities(params.clone());
-        assert!(!config.completion_options().resolve_documentation);
-
-        params
-            .capabilities
-            .text_document
-            .as_mut()
-            .unwrap()
-            .completion
-            .as_mut()
-            .unwrap()
-            .completion_item
-            .as_mut()
-            .unwrap()
-            .resolve_support
-            .as_mut()
-            .unwrap()
-            .properties
-            .push("documentation".into());
-        let (_, config) = negotiate_capabilities(params);
-        assert!(config.completion_options().resolve_documentation);
-    }
-
-    #[test]
-    fn negotiate_capabilities_records_signature_help_label_offset_support() {
-        let (_, config) = negotiate_capabilities(InitializeParams::default());
-        let options = config.signature_help_options();
-        assert!(!options.label_offsets);
-        assert!(!options.markdown_documentation);
-        assert!(!options.signature_active_parameter);
-
-        let mut params = InitializeParams::default();
-        params.capabilities.text_document = Some(TextDocumentClientCapabilities {
-            signature_help: Some(SignatureHelpClientCapabilities {
-                signature_information: Some(SignatureInformationSettings {
-                    documentation_format: Some(vec![MarkupKind::Markdown]),
-                    parameter_information: Some(ParameterInformationSettings {
-                        label_offset_support: Some(true),
-                    }),
-                    active_parameter_support: Some(true),
-                }),
-                ..Default::default()
-            }),
-            ..Default::default()
-        });
-
-        let (_, config) = negotiate_capabilities(params.clone());
-        let options = config.signature_help_options();
-        assert!(options.label_offsets);
-        assert!(options.markdown_documentation);
-        assert!(options.signature_active_parameter);
-
-        params
-            .capabilities
-            .text_document
-            .as_mut()
-            .unwrap()
-            .signature_help
-            .as_mut()
-            .unwrap()
-            .signature_information
-            .as_mut()
-            .unwrap()
-            .documentation_format = Some(vec![MarkupKind::PlainText, MarkupKind::Markdown]);
-        let (_, config) = negotiate_capabilities(params);
-        assert!(!config.signature_help_options().markdown_documentation);
-    }
-
-    #[test]
-    fn negotiate_capabilities_records_configured_flychecks() {
+    fn flychecks_follow_configured_and_removed_workspaces() {
         let project = TestProject::from_fixture(
             r#"
             //- /foundry.toml
@@ -2145,22 +1533,19 @@ mod tests {
             contract Dependency {}
             "#,
         );
-        let mut params = project.initialize_params();
-        params.initialization_options = Some(serde_json::json!({
-            "flychecks": [{
-                "id": "custom",
-                "command": "custom-lint",
-                "args": ["--json"],
-                "output": "solc-json"
-            }]
-        }));
-        let (_, mut config) = negotiate_capabilities(params);
-        config.rediscover_workspaces();
+        let options = json!({ "flychecks": [{
+            "id": "custom",
+            "command": "custom-lint",
+            "args": ["--json"],
+            "output": "solc-json",
+        }] });
+        let (_, mut config) =
+            negotiate_capabilities(with_options(project.initialize_params(), options));
+        assert!(config.rediscover_workspaces().is_empty());
 
-        let flychecks = config.flychecks_for_path(&project.path("/src/Test.sol"));
-        let owners =
-            config.flycheck_owners_for_path(&project.path("/src/Test.sol")).collect::<Vec<_>>();
-
+        let path = project.path("/src/Test.sol");
+        let flychecks = config.flychecks_for_path(&path);
+        let owners = config.flycheck_owners_for_path(&path).collect::<Vec<_>>();
         assert_eq!(flychecks.len(), 1);
         assert_eq!(owners, flychecks.iter().map(FlycheckConfig::owner).collect::<Vec<_>>());
         assert_eq!(flychecks[0].id, "custom");
@@ -2168,6 +1553,15 @@ mod tests {
         assert_eq!(flychecks[0].args, ["--json"]);
         assert_eq!(flychecks[0].cwd, project.root());
         assert_eq!(config.flychecks_for_path(&project.path("/lib/Dependency.sol")).len(), 1);
+
+        config.remove_workspace(project.root());
+        assert_eq!(
+            config.rediscover_workspaces(),
+            [DiagnosticOwner::Flycheck {
+                id: "custom".into(),
+                workspace: project.root().to_path_buf(),
+            }]
+        );
     }
 
     #[test]
@@ -2187,43 +1581,20 @@ mod tests {
         let mut config = project.config_with_roots(&["/"]);
         let path = project.path("/checks/New.t.sol");
         project.write_file("/checks/New.t.sol", "contract NewTest {}\n");
+        let tracked = |config: &Config, root| {
+            workspace_at(config, &project.path(root)).flycheck_source_files().contains(&path)
+        };
 
         config.add_source_file(path.clone());
-
-        let second = config
-            .workspaces()
-            .iter()
-            .find(|workspace| {
-                workspace.compile_opts().base_path.as_deref()
-                    == Some(project.path("/second").as_path())
-            })
-            .unwrap();
-        assert!(second.flycheck_source_files().contains(&path));
-        let first = config
-            .workspaces()
-            .iter()
-            .find(|workspace| {
-                workspace.compile_opts().base_path.as_deref()
-                    == Some(project.path("/first").as_path())
-            })
-            .unwrap();
-        assert!(!first.flycheck_source_files().contains(&path));
+        assert!(tracked(&config, "/second"));
+        assert!(!tracked(&config, "/first"));
 
         config.remove_source_file(&path);
-
-        let second = config
-            .workspaces()
-            .iter()
-            .find(|workspace| {
-                workspace.compile_opts().base_path.as_deref()
-                    == Some(project.path("/second").as_path())
-            })
-            .unwrap();
-        assert!(!second.flycheck_source_files().contains(&path));
+        assert!(!tracked(&config, "/second"));
     }
 
     #[test]
-    fn watched_file_specs_cover_foundry_flycheck_roots() {
+    fn watched_file_specs_cover_flycheck_roots_and_unpruned_manifests() {
         let project = TestProject::from_fixture(
             r#"
             //- /project/foundry.toml
@@ -2240,66 +1611,287 @@ mod tests {
 
             //- /project/automation/Deploy.s.sol
             contract Deploy {}
+
+            //- /project/packages/app/foundry.toml
+
+            //- /project/node_modules/ignored/foundry.toml
             "#,
         );
         let config = project.config_with_roots(&["/project"]);
-        let specs = config.watched_file_specs();
 
-        for root in ["/project/checks", "/project/automation"] {
-            assert!(
-                specs
-                    .iter()
-                    .any(|spec| { spec.base == project.path(root) && spec.pattern == "**/*.sol" })
-            );
-        }
+        assert_data_eq!(
+            watched_specs(&project, &config),
+            str![[r#"
+/ foundry.toml Create | Change | Delete
+/project * Create | Delete
+/project *.sol Change
+/project foundry.toml Create | Change | Delete
+/project remappings.txt Create | Change | Delete
+/project/automation **/*.sol Create | Change | Delete
+/project/automation **/.git Create | Delete
+/project/automation **/foundry.toml Create | Change | Delete
+/project/checks **/*.sol Create | Change | Delete
+/project/checks **/.git Create | Delete
+/project/checks **/foundry.toml Create | Change | Delete
+/project/contracts **/*.sol Create | Change | Delete
+/project/contracts **/.git Create | Delete
+/project/contracts **/foundry.toml Create | Change | Delete
+/project/lib * Create | Delete
+/project/packages * Create | Delete
+/project/packages **/.git Create | Delete
+/project/packages **/foundry.toml Create | Change | Delete
+/project/packages *.sol Change
+/project/packages foundry.toml Create | Change | Delete
+/project/packages/app * Create | Delete
+/project/packages/app **/.git Create | Delete
+/project/packages/app **/foundry.toml Create | Change | Delete
+/project/packages/app *.sol Change
+/project/packages/app foundry.toml Create | Change | Delete
+/project/packages/app remappings.txt Create | Change | Delete
+/project/packages/app/lib * Create | Delete
+/project/packages/app/script **/*.sol Create | Change | Delete
+/project/packages/app/script **/.git Create | Delete
+/project/packages/app/script **/foundry.toml Create | Change | Delete
+/project/packages/app/src **/*.sol Create | Change | Delete
+/project/packages/app/src **/.git Create | Delete
+/project/packages/app/src **/foundry.toml Create | Change | Delete
+/project/packages/app/test **/*.sol Create | Change | Delete
+/project/packages/app/test **/.git Create | Delete
+/project/packages/app/test **/foundry.toml Create | Change | Delete
+
+"#]]
+        );
     }
 
     #[test]
-    fn watched_file_specs_cover_approved_import_only_roots() {
+    fn watched_file_specs_cover_bounded_source_and_config_paths() {
         let project = TestProject::from_fixture(
             r#"
             //- /repo/foundry.toml
             [profile.default]
-            libs = ["../shared/lib"]
+            src = "../external-src"
+            libs = ["../external-lib"]
+            remappings = ["@external/=../external-remapping/"]
+
+            //- /repo/workspace/nested/foundry.toml
+            "#,
+        );
+        let config = project.config_with_roots(&["/repo/workspace"]);
+        let specs = config.watched_file_specs();
+
+        assert!(specs.is_sorted());
+        assert!(project.root().ancestors().all(|ancestor| {
+            specs.contains(&WatchedFileSpec::new(ancestor.to_path_buf(), "foundry.toml"))
+        }));
+        // Outside the project, only the ancestor manifests are watched.
+        assert_eq!(
+            specs.iter().filter(|spec| !spec.base.starts_with(project.root())).count(),
+            project.root().ancestors().count() - 1
+        );
+        assert_data_eq!(
+            watched_specs(&project, &config),
+            str![[r#"
+/ foundry.toml Create | Change | Delete
+/repo * Create | Delete
+/repo *.sol Change
+/repo foundry.toml Create | Change | Delete
+/repo remappings.txt Create | Change | Delete
+/repo/script **/*.sol Create | Change | Delete
+/repo/script **/.git Create | Delete
+/repo/script **/foundry.toml Create | Change | Delete
+/repo/test **/*.sol Create | Change | Delete
+/repo/test **/.git Create | Delete
+/repo/test **/foundry.toml Create | Change | Delete
+/repo/workspace * Create | Delete
+/repo/workspace **/.git Create | Delete
+/repo/workspace **/foundry.toml Create | Change | Delete
+/repo/workspace *.sol Change
+/repo/workspace foundry.toml Create | Change | Delete
+/repo/workspace remappings.txt Create | Change | Delete
+/repo/workspace/nested * Create | Delete
+/repo/workspace/nested **/.git Create | Delete
+/repo/workspace/nested **/foundry.toml Create | Change | Delete
+/repo/workspace/nested *.sol Change
+/repo/workspace/nested foundry.toml Create | Change | Delete
+/repo/workspace/nested remappings.txt Create | Change | Delete
+/repo/workspace/nested/lib * Create | Delete
+/repo/workspace/nested/script **/*.sol Create | Change | Delete
+/repo/workspace/nested/script **/.git Create | Delete
+/repo/workspace/nested/script **/foundry.toml Create | Change | Delete
+/repo/workspace/nested/src **/*.sol Create | Change | Delete
+/repo/workspace/nested/src **/.git Create | Delete
+/repo/workspace/nested/src **/foundry.toml Create | Change | Delete
+/repo/workspace/nested/test **/*.sol Create | Change | Delete
+/repo/workspace/nested/test **/.git Create | Delete
+/repo/workspace/nested/test **/foundry.toml Create | Change | Delete
+
+"#]]
+        );
+    }
+
+    #[test]
+    fn external_foundry_roots_require_an_explicit_workspace_root() {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /workspace/foundry.toml
+            [profile.default]
+            src = "../shared/contracts"
+            libs = ["../shared/contracts", "../shared/lib"]
+            remappings = ["@shared/=../shared/contracts/"]
+
+            //- /shared/contracts/Shared.sol
+            contract Shared {}
 
             //- /shared/lib/pkg/src/Target.sol
             contract Target {}
             "#,
         );
-        let config = project.config_with_roots(&["/repo", "/shared"]);
-        let import_root = project.path("/shared/lib");
-        let expected_kind = WatchKind::Create | WatchKind::Delete;
-
-        assert!(config.watched_file_specs().iter().any(|spec| {
-            spec.base == import_root && spec.pattern == "*" && spec.kind == expected_kind
+        let config = project.config_with_roots(&["/workspace"]);
+        assert!(config.workspaces().iter().all(|workspace| {
+            workspace.source_roots() != [project.path("/shared/contracts")]
+                && workspace
+                    .source_files()
+                    .iter()
+                    .all(|path| !path.starts_with(project.path("/shared")))
         }));
-        assert!(config.shallow_watch_event_is_relevant(&import_root.join("new-pkg")));
+        assert_data_eq!(
+            watched_specs(&project, &config),
+            str![[r#"
+/ foundry.toml Create | Change | Delete
+/workspace * Create | Delete
+/workspace **/.git Create | Delete
+/workspace **/foundry.toml Create | Change | Delete
+/workspace *.sol Change
+/workspace foundry.toml Create | Change | Delete
+/workspace remappings.txt Create | Change | Delete
+/workspace/script **/*.sol Create | Change | Delete
+/workspace/script **/.git Create | Delete
+/workspace/script **/foundry.toml Create | Change | Delete
+/workspace/test **/*.sol Create | Change | Delete
+/workspace/test **/.git Create | Delete
+/workspace/test **/foundry.toml Create | Change | Delete
+
+"#]]
+        );
+
+        let config = project.config_with_roots(&["/workspace", "/shared"]);
+        assert_data_eq!(
+            watched_specs(&project, &config),
+            str![[r#"
+/ foundry.toml Create | Change | Delete
+/shared * Create | Delete
+/shared *.sol Change
+/shared foundry.toml Create | Change | Delete
+/shared remappings.txt Create | Change | Delete
+/shared/contracts * Create | Delete
+/shared/contracts **/*.sol Create | Change | Delete
+/shared/contracts **/.git Create | Delete
+/shared/contracts **/foundry.toml Create | Change | Delete
+/shared/lib * Create | Delete
+/workspace * Create | Delete
+/workspace **/.git Create | Delete
+/workspace **/foundry.toml Create | Change | Delete
+/workspace *.sol Change
+/workspace foundry.toml Create | Change | Delete
+/workspace remappings.txt Create | Change | Delete
+/workspace/script **/*.sol Create | Change | Delete
+/workspace/script **/.git Create | Delete
+/workspace/script **/foundry.toml Create | Change | Delete
+/workspace/test **/*.sol Create | Change | Delete
+/workspace/test **/.git Create | Delete
+/workspace/test **/foundry.toml Create | Change | Delete
+
+"#]]
+        );
+        assert!(config.workspace_config_event_is_relevant(
+            &project.path("/shared/contracts/nested/foundry.toml")
+        ));
+        assert!(config.shallow_watch_event_is_relevant(&project.path("/shared/lib/new-pkg")));
     }
 
     #[test]
-    fn negotiate_capabilities_records_configured_forge_path() {
-        let (_, default_config) = negotiate_capabilities(InitializeParams::default());
-        assert_eq!(default_config.forge_path(), PathBuf::from("forge"));
+    fn workspace_config_events_follow_watch_boundaries() {
+        let nested_fixture = r#"
+            //- /foundry.toml
 
-        let launch_config = LaunchConfig::default().with_default_forge_path("/embedded/forge");
-        let (_, embedded_config) = negotiate_capabilities_with_pull_diagnostic_data(
-            InitializeParams::default(),
-            false,
-            &launch_config,
-        );
-        assert_eq!(embedded_config.forge_path(), PathBuf::from("/embedded/forge"));
+            //- /packages/app/foundry.toml
 
-        let params = InitializeParams {
-            initialization_options: Some(serde_json::json!({
-                "forgePath": "/tools/forge"
-            })),
-            ..Default::default()
-        };
+            //- /packages/app/generated/.keep
+        "#;
+        let exclude = |glob| Some(json!({ "indexing": { "exclude": [glob] } }));
+        for (fixture, roots, options, cases) in [
+            (
+                r#"
+                //- /project/foundry.toml
+                [profile.default]
+                src = "src"
 
-        let (_, config) =
-            negotiate_capabilities_with_pull_diagnostic_data(params, false, &launch_config);
+                //- /project/packages/app/src/.keep
+                "#,
+                &["/project/packages/app/src"][..],
+                None,
+                &[
+                    ("/project/foundry.toml", true),
+                    ("/project/remappings.txt", true),
+                    ("/project/packages/app/foundry.toml", true),
+                    ("/other/foundry.toml", false),
+                ][..],
+            ),
+            // Custom globs are relative to the deepest workspace.
+            (
+                nested_fixture,
+                &["/"],
+                exclude("packages/app/generated/**"),
+                &[("/packages/app/generated/foundry.toml", true)],
+            ),
+            (
+                nested_fixture,
+                &["/"],
+                exclude("generated/**"),
+                &[("/packages/app/generated/foundry.toml", false)],
+            ),
+            // Only the deepest workspace's import roots apply.
+            (
+                r#"
+                //- /foundry.toml
+                [profile.default]
+                libs = ["packages/app/vendor"]
 
-        assert_eq!(config.forge_path(), PathBuf::from("/tools/forge"));
+                //- /packages/app/foundry.toml
+
+                //- /packages/app/vendor/.keep
+
+                //- /packages/app/lib/.keep
+                "#,
+                &["/"],
+                None,
+                &[
+                    ("/packages/app/vendor/foundry.toml", true),
+                    ("/packages/app/lib/foundry.toml", false),
+                ],
+            ),
+            // Import-only directories leading to a source root are not watched.
+            (
+                r#"
+                //- /foundry.toml
+                [profile.default]
+                src = "lib/contracts"
+
+                //- /lib/contracts/Main.sol
+                contract Main {}
+                "#,
+                &["/"],
+                None,
+                &[("/lib/foundry.toml", false), ("/lib/contracts/nested/foundry.toml", true)],
+            ),
+        ] {
+            let project = TestProject::from_fixture(fixture);
+            let config = discover(&project, roots, options);
+            for &(path, expected) in cases {
+                let relevant = config.workspace_config_event_is_relevant(&project.path(path));
+                assert_eq!(relevant, expected, "{path}");
+            }
+        }
     }
 
     #[test]
@@ -2323,22 +1915,17 @@ mod tests {
         );
         let config = project.config_with_roots(&["/workspace", "/workspace/nested"]);
 
-        assert_eq!(
-            config.formatter_root_for_path(&project.path("/workspace/nested/B.sol")),
-            Some(project.path("/workspace/nested"))
-        );
-        assert_eq!(
-            config.formatter_root_for_path(&project.path("/workspace/A.sol")),
-            Some(project.path("/workspace"))
-        );
-        assert_eq!(
-            config.formatter_root_for_path(&project.path("/outside/src/C.sol")),
-            Some(project.path("/outside"))
-        );
-        assert_eq!(
-            config.formatter_root_for_path(&project.path("/standalone/D.sol")),
-            Some(project.path("/standalone"))
-        );
+        for (path, root) in [
+            ("/workspace/nested/B.sol", "/workspace/nested"),
+            ("/workspace/A.sol", "/workspace"),
+            ("/outside/src/C.sol", "/outside"),
+            ("/standalone/D.sol", "/standalone"),
+        ] {
+            assert_eq!(
+                config.formatter_root_for_path(&project.path(path)),
+                Some(project.path(root))
+            );
+        }
     }
 
     #[test]
@@ -2352,91 +1939,124 @@ mod tests {
             src = "contracts"
             "#,
         );
-
         let config = project.config();
-        let nested = config
-            .workspaces()
-            .iter()
-            .find(|workspace| {
-                workspace.compile_opts().base_path.as_deref()
-                    == Some(project.path("/packages/token").as_path())
-            })
-            .unwrap();
 
         assert_eq!(config.workspaces().len(), 2);
         assert!(
             config.workspaces().iter().all(|workspace| workspace.kind() == WorkspaceKind::Foundry)
         );
         assert_eq!(
-            nested.source_roots(),
-            &[
-                project.path("/packages/token"),
-                project.path("/packages/token/contracts"),
-                project.path("/packages/token/test"),
-                project.path("/packages/token/script")
+            workspace_at(&config, &project.path("/packages/token")).source_roots(),
+            ["", "/contracts", "/test", "/script"]
+                .map(|dir| project.path(&format!("/packages/token{dir}")))
+        );
+    }
+
+    #[test]
+    fn rediscover_workspaces_falls_back_to_naked_roots() {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /broken/foundry.toml
+            not valid toml =
+
+            //- /configured/foundry.toml
+            [profile.default]
+            src = "contracts"
+
+            //- /naked/.keep
+            "#,
+        );
+        let mut config = project.config_with_roots(&["/broken", "/configured", "/naked"]);
+        let kinds = |config: &Config| {
+            config
+                .workspaces()
+                .iter()
+                .map(|workspace| {
+                    let root = workspace.compile_opts().base_path.as_deref().unwrap();
+                    (relative(&project, root).unwrap(), workspace.kind())
+                })
+                .collect::<Vec<_>>()
+        };
+
+        assert_eq!(
+            kinds(&config),
+            [
+                ("/broken".to_owned(), WorkspaceKind::Naked),
+                ("/configured".to_owned(), WorkspaceKind::Foundry),
+                ("/naked".to_owned(), WorkspaceKind::Naked),
+            ]
+        );
+        assert_eq!(
+            workspace_at(&config, &project.path("/configured")).source_roots(),
+            ["", "/contracts", "/test", "/script"]
+                .map(|dir| project.path(&format!("/configured{dir}")))
+        );
+
+        project.remove_file("/configured/foundry.toml");
+        config.rediscover_workspaces();
+        assert_eq!(
+            kinds(&config),
+            [
+                ("/broken".to_owned(), WorkspaceKind::Naked),
+                ("/configured".to_owned(), WorkspaceKind::Naked),
+                ("/naked".to_owned(), WorkspaceKind::Naked),
             ]
         );
     }
 
     #[test]
-    fn dedicated_foundry_source_root_excludes_default_named_descendants() {
-        let project = TestProject::from_fixture(
-            r#"
-            //- /foundry.toml
-            [profile.default]
-            src = "src"
+    fn foundry_source_roots_apply_index_exclusions() {
+        for (fixture, options, expected) in [
+            (
+                r#"
+                //- /foundry.toml
+                [profile.default]
+                src = "src"
 
-            //- /src/Main.sol
-            contract Main {}
+                //- /src/Main.sol
+                contract Main {}
 
-            //- /src/lib/Library.sol
-            library Library {}
+                //- /src/lib/Library.sol
+                library Library {}
 
-            //- /src/out/Generated.sol
-            contract Generated {}
+                //- /src/out/Generated.sol
+                contract Generated {}
 
-            //- /src/.hidden/Hidden.sol
-            contract Hidden {}
+                //- /src/.hidden/Hidden.sol
+                contract Hidden {}
 
-            //- /src/vendor/.git
-            gitdir: elsewhere
+                //- /src/vendor/.git
+                gitdir: elsewhere
 
-            //- /src/vendor/Nested.sol
-            contract Nested {}
+                //- /src/vendor/Nested.sol
+                contract Nested {}
 
-            //- /src/generated/Custom.sol
-            contract Custom {}
-            "#,
-        );
-        let mut params = project.initialize_params();
-        params.initialization_options = Some(serde_json::json!({
-            "indexing": { "exclude": ["src/generated/**"] }
-        }));
-        let (_, mut config) = negotiate_capabilities(params);
-        config.rediscover_workspaces();
-        let workspace = &config.workspaces()[0];
+                //- /src/generated/Custom.sol
+                contract Custom {}
+                "#,
+                Some(json!({ "indexing": { "exclude": ["src/generated/**"] } })),
+                "/src/Main.sol",
+            ),
+            (
+                r#"
+                //- /foundry.toml
+                [profile.default]
+                src = "."
 
-        assert_eq!(workspace.source_files(), [project.path("/src/Main.sol")]);
-    }
+                //- /Main.sol
+                contract Main {}
 
-    #[test]
-    fn whole_root_foundry_source_keeps_default_directory_exclusions() {
-        let project = TestProject::from_fixture(
-            r#"
-            //- /foundry.toml
-            [profile.default]
-            src = "."
-
-            //- /Main.sol
-            contract Main {}
-
-            //- /out/Generated.sol
-            contract Generated {}
-            "#,
-        );
-        let config = project.config();
-
-        assert_eq!(config.workspaces()[0].source_files(), [project.path("/Main.sol")]);
+                //- /out/Generated.sol
+                contract Generated {}
+                "#,
+                None,
+                "/Main.sol",
+            ),
+        ] {
+            let project = TestProject::from_fixture(fixture);
+            let config = discover(&project, &["/"], options);
+            assert_eq!(config.workspaces()[0].source_files(), [project.path(expected)]);
+        }
     }
 
     #[test]
@@ -2461,431 +2081,22 @@ mod tests {
             contract Excluded {}
             "#,
         );
-        let mut params = project.initialize_params();
-        params.initialization_options = Some(serde_json::json!({
-            "indexing": { "exclude": ["generated/**"] }
-        }));
-        let (_, mut config) = negotiate_capabilities(params);
-        config.rediscover_workspaces();
+        let config = discover(
+            &project,
+            &["/"],
+            Some(json!({
+                "indexing": { "exclude": ["generated/**"] }
+            })),
+        );
 
-        let outer = config
-            .workspaces()
-            .iter()
-            .find(|workspace| workspace.compile_opts().base_path.as_deref() == Some(project.root()))
-            .unwrap();
-        let nested = config
-            .workspaces()
-            .iter()
-            .find(|workspace| {
-                workspace.compile_opts().base_path.as_deref()
-                    == Some(project.path("/nested").as_path())
-            })
-            .unwrap();
-        assert_eq!(outer.source_files(), &[project.path("/Outer.sol")]);
-        assert_eq!(nested.source_files(), &[project.path("/nested/Inner.sol")]);
+        assert_eq!(
+            workspace_at(&config, &project.path("/")).source_files(),
+            [project.path("/Outer.sol")]
+        );
+        assert_eq!(
+            workspace_at(&config, &project.path("/nested")).source_files(),
+            [project.path("/nested/Inner.sol")]
+        );
         assert_eq!(config.index_metrics().eager, 2);
-    }
-
-    #[test]
-    fn workspace_config_events_accept_parent_manifest_candidates() {
-        let project = TestProject::from_fixture(
-            r#"
-            //- /project/foundry.toml
-            [profile.default]
-            src = "src"
-
-            //- /project/packages/app/src/.keep
-            "#,
-        );
-        let config = project.config_with_roots(&["/project/packages/app/src"]);
-
-        assert!(config.workspace_config_event_is_relevant(&project.path("/project/foundry.toml")));
-        assert!(
-            config.workspace_config_event_is_relevant(&project.path("/project/remappings.txt"))
-        );
-        assert!(config.workspace_config_event_is_relevant(
-            &project.path("/project/packages/app/foundry.toml")
-        ));
-        assert!(!config.workspace_config_event_is_relevant(&project.path("/other/foundry.toml")));
-    }
-
-    #[test]
-    fn workspace_config_events_reset_custom_globs_at_nested_workspaces() {
-        let project = TestProject::from_fixture(
-            r#"
-            //- /foundry.toml
-
-            //- /packages/app/foundry.toml
-
-            //- /packages/app/generated/.keep
-            "#,
-        );
-        let candidate = project.path("/packages/app/generated/foundry.toml");
-
-        let mut params = project.initialize_params();
-        params.initialization_options = Some(serde_json::json!({
-            "indexing": { "exclude": ["packages/app/generated/**"] }
-        }));
-        let (_, mut outer_scoped) = negotiate_capabilities(params);
-        outer_scoped.rediscover_workspaces();
-        assert!(outer_scoped.workspace_config_event_is_relevant(&candidate));
-
-        let mut params = project.initialize_params();
-        params.initialization_options = Some(serde_json::json!({
-            "indexing": { "exclude": ["generated/**"] }
-        }));
-        let (_, mut nested_scoped) = negotiate_capabilities(params);
-        nested_scoped.rediscover_workspaces();
-        assert!(!nested_scoped.workspace_config_event_is_relevant(&candidate));
-    }
-
-    #[test]
-    fn workspace_config_events_use_only_the_deepest_workspace_import_roots() {
-        let project = TestProject::from_fixture(
-            r#"
-            //- /foundry.toml
-            [profile.default]
-            libs = ["packages/app/vendor"]
-
-            //- /packages/app/foundry.toml
-
-            //- /packages/app/vendor/.keep
-
-            //- /packages/app/lib/.keep
-            "#,
-        );
-        let config = project.config();
-
-        assert!(config.workspace_config_event_is_relevant(
-            &project.path("/packages/app/vendor/foundry.toml")
-        ));
-        assert!(
-            !config.workspace_config_event_is_relevant(
-                &project.path("/packages/app/lib/foundry.toml")
-            )
-        );
-    }
-
-    #[test]
-    fn workspace_config_events_skip_import_only_source_corridor_manifests() {
-        let project = TestProject::from_fixture(
-            r#"
-            //- /foundry.toml
-            [profile.default]
-            src = "lib/contracts"
-
-            //- /lib/contracts/Main.sol
-            contract Main {}
-            "#,
-        );
-        let config = project.config();
-
-        assert!(!config.workspace_config_event_is_relevant(&project.path("/lib/foundry.toml")));
-        assert!(config.workspace_config_event_is_relevant(
-            &project.path("/lib/contracts/nested/foundry.toml")
-        ));
-    }
-
-    #[test]
-    fn watched_file_specs_cover_nested_manifest_candidates_without_pruned_subtrees() {
-        let project = TestProject::from_fixture(
-            r#"
-            //- /project/foundry.toml
-            [profile.default]
-            src = "contracts"
-
-            //- /project/contracts/Main.sol
-            contract Main {}
-
-            //- /project/packages/app/foundry.toml
-
-            //- /project/node_modules/ignored/foundry.toml
-            "#,
-        );
-        let config = project.config_with_roots(&["/project"]);
-        let specs = config.watched_file_specs();
-
-        assert!(specs.iter().any(|spec| {
-            spec.base == project.path("/project/packages") && spec.pattern == "**/foundry.toml"
-        }));
-        assert!(!specs.iter().any(|spec| {
-            spec.base == project.path("/project/node_modules") && spec.pattern == "**/foundry.toml"
-        }));
-    }
-
-    #[test]
-    fn watched_file_specs_cover_bounded_source_and_config_paths() {
-        let project = TestProject::from_fixture(
-            r#"
-            //- /repo/foundry.toml
-            [profile.default]
-            src = "../external-src"
-            libs = ["../external-lib"]
-            remappings = ["@external/=../external-remapping/"]
-
-            //- /repo/workspace/nested/foundry.toml
-            "#,
-        );
-        let explicit_root = project.path("/repo/workspace");
-        let config = project.config_with_roots(&["/repo/workspace"]);
-        let mut expected = vec![
-            WatchedFileSpec::new(explicit_root.clone(), "foundry.toml"),
-            WatchedFileSpec::new(explicit_root.clone(), "remappings.txt"),
-            WatchedFileSpec::new(project.path("/repo"), "foundry.toml"),
-            WatchedFileSpec::new(project.path("/repo"), "remappings.txt"),
-            WatchedFileSpec::new(project.path("/repo/workspace/nested"), "foundry.toml"),
-            WatchedFileSpec::new(project.path("/repo/workspace/nested"), "remappings.txt"),
-            WatchedFileSpec::with_kind(
-                project.path("/repo/workspace/nested/lib"),
-                "*",
-                WatchKind::Create | WatchKind::Delete,
-            ),
-            WatchedFileSpec::with_kind(
-                project.path("/repo"),
-                "*",
-                WatchKind::Create | WatchKind::Delete,
-            ),
-            WatchedFileSpec::with_kind(
-                project.path("/repo/workspace/nested"),
-                "*",
-                WatchKind::Create | WatchKind::Delete,
-            ),
-        ];
-        for root in [explicit_root.clone(), project.path("/repo/workspace/nested")] {
-            expected.push(WatchedFileSpec::with_kind(
-                root.clone(),
-                "**/.git",
-                WatchKind::Create | WatchKind::Delete,
-            ));
-            expected.push(WatchedFileSpec::new(root, "**/foundry.toml"));
-        }
-        for path in [
-            "/repo/test",
-            "/repo/script",
-            "/repo/workspace/nested/src",
-            "/repo/workspace/nested/test",
-            "/repo/workspace/nested/script",
-        ] {
-            let root = project.path(path);
-            expected.push(WatchedFileSpec::new(root.clone(), "**/*.sol"));
-            expected.push(WatchedFileSpec::with_kind(
-                root.clone(),
-                "**/.git",
-                WatchKind::Create | WatchKind::Delete,
-            ));
-            expected.push(WatchedFileSpec::new(root, "**/foundry.toml"));
-        }
-        for path in ["/repo", "/repo/workspace", "/repo/workspace/nested"] {
-            expected.push(WatchedFileSpec::with_kind(
-                project.path(path),
-                "*.sol",
-                WatchKind::Change,
-            ));
-        }
-        expected.push(WatchedFileSpec::with_kind(
-            explicit_root.clone(),
-            "*",
-            WatchKind::Create | WatchKind::Delete,
-        ));
-        expected.extend(
-            explicit_root
-                .ancestors()
-                .skip(1)
-                .map(|ancestor| WatchedFileSpec::new(ancestor.to_path_buf(), "foundry.toml")),
-        );
-        expected.sort();
-        expected.dedup();
-
-        assert_eq!(config.watched_file_specs(), expected);
-    }
-
-    #[test]
-    fn external_foundry_roots_require_an_explicit_workspace_root() {
-        let project = TestProject::from_fixture(
-            r#"
-            //- /workspace/foundry.toml
-            [profile.default]
-            src = "../shared/contracts"
-
-            //- /shared/contracts/Shared.sol
-            contract Shared {}
-            "#,
-        );
-
-        let config = project.config_with_roots(&["/workspace"]);
-        assert!(config.workspaces().iter().all(|workspace| {
-            workspace.source_roots() != [project.path("/shared/contracts")]
-                && workspace
-                    .source_files()
-                    .iter()
-                    .all(|path| !path.starts_with(project.path("/shared")))
-        }));
-        assert!(
-            config
-                .watched_file_specs()
-                .iter()
-                .all(|spec| !spec.base.starts_with(project.path("/shared")))
-        );
-
-        let config = project.config_with_roots(&["/workspace", "/shared"]);
-        assert!(config.watched_file_specs().iter().any(|spec| {
-            spec.base == project.path("/shared/contracts") && spec.pattern == "**/*.sol"
-        }));
-    }
-
-    #[test]
-    fn workspace_config_events_follow_external_source_watch_roots() {
-        let project = TestProject::from_fixture(
-            r#"
-            //- /workspace/foundry.toml
-            [profile.default]
-            src = "../shared/contracts"
-
-            //- /shared/contracts/Main.sol
-            contract Main {}
-            "#,
-        );
-        let config = project.config_with_roots(&["/workspace", "/shared"]);
-        let source_root = project.path("/shared/contracts");
-        let candidate = project.path("/shared/contracts/nested/foundry.toml");
-
-        assert!(
-            config
-                .watched_file_specs()
-                .iter()
-                .any(|spec| spec.base == source_root && spec.pattern == "**/foundry.toml")
-        );
-        assert!(config.workspace_config_event_is_relevant(&candidate));
-    }
-
-    #[test]
-    fn watched_file_specs_are_sorted_and_deduplicate_external_roots() {
-        let project = TestProject::from_fixture(
-            r#"
-            //- /repo/foundry.toml
-            [profile.default]
-            src = "../shared/contracts"
-            libs = ["../shared/contracts"]
-            remappings = ["@shared/=../shared/contracts/"]
-            "#,
-        );
-        let config = project.config_with_roots(&["/repo", "/shared"]);
-
-        let specs = config.watched_file_specs();
-        assert!(specs.is_sorted());
-        assert_eq!(
-            specs
-                .iter()
-                .filter(|spec| {
-                    spec.base == project.path("/shared/contracts") && spec.pattern == "**/*.sol"
-                })
-                .count(),
-            1
-        );
-    }
-
-    #[test]
-    fn rediscover_workspaces_reports_removed_flycheck_owners() {
-        let project = TestProject::from_fixture(
-            r#"
-            //- /foundry.toml
-            [profile.default]
-            src = "src"
-
-            //- /src/Test.sol
-            contract Test {}
-            "#,
-        );
-        let mut params = project.initialize_params();
-        params.initialization_options = Some(serde_json::json!({
-            "flychecks": [{
-                "id": "custom",
-                "command": "custom-lint",
-                "output": "solc-json"
-            }]
-        }));
-        let (_, mut config) = negotiate_capabilities(params);
-        assert!(config.rediscover_workspaces().is_empty());
-
-        config.remove_workspace(project.root());
-        let removed_owners = config.rediscover_workspaces();
-
-        assert_eq!(
-            removed_owners,
-            vec![DiagnosticOwner::Flycheck {
-                id: "custom".into(),
-                workspace: project.root().to_path_buf()
-            }]
-        );
-    }
-
-    #[test]
-    fn rediscover_workspaces_loads_manifests_and_falls_back_to_naked_roots() {
-        let project = TestProject::from_fixture(
-            r#"
-            //- /configured/foundry.toml
-            [profile.default]
-            src = "contracts"
-
-            //- /naked/.keep
-            "#,
-        );
-        let mut config = project.config_with_roots(&["/configured", "/naked"]);
-
-        assert_eq!(config.workspaces().len(), 2);
-        let foundry = config
-            .workspaces()
-            .iter()
-            .find(|workspace| workspace.kind() == WorkspaceKind::Foundry)
-            .unwrap();
-        assert_eq!(
-            foundry.source_roots(),
-            &[
-                project.path("/configured"),
-                project.path("/configured/contracts"),
-                project.path("/configured/test"),
-                project.path("/configured/script")
-            ]
-        );
-
-        project.remove_file("/configured/foundry.toml");
-        config.rediscover_workspaces();
-
-        assert_eq!(config.workspaces().len(), 2);
-        assert!(
-            config.workspaces().iter().all(|workspace| workspace.kind() == WorkspaceKind::Naked)
-        );
-    }
-
-    #[test]
-    fn rediscover_workspaces_keeps_naked_root_after_manifest_load_error() {
-        let project = TestProject::from_fixture(
-            r#"
-            //- /broken/foundry.toml
-            not valid toml =
-
-            //- /configured/foundry.toml
-            [profile.default]
-            src = "contracts"
-            "#,
-        );
-        let config = project.config_with_roots(&["/broken", "/configured"]);
-
-        assert_eq!(config.workspaces().len(), 2);
-        assert!(config.workspaces().iter().any(|workspace| {
-            workspace.kind() == WorkspaceKind::Naked
-                && workspace.compile_opts().base_path.as_deref()
-                    == Some(project.path("/broken").as_path())
-        }));
-        assert!(config.workspaces().iter().any(|workspace| {
-            workspace.kind() == WorkspaceKind::Foundry
-                && workspace.source_roots()
-                    == [
-                        project.path("/configured"),
-                        project.path("/configured/contracts"),
-                        project.path("/configured/test"),
-                        project.path("/configured/script"),
-                    ]
-        }));
     }
 }

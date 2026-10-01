@@ -1,29 +1,15 @@
-use super::{
-    AnalysisBatch, AnalysisResultAccumulator, GlobalState, analyze, snapshot_with_config,
-    support::RequestFixture,
-};
-use crate::test_support::TestProject;
-use async_lsp::ClientSocket;
-use lsp_types::{
-    DocumentLinkParams, PartialResultParams, Position, Range, TextDocumentIdentifier, Url,
-    WorkDoneProgressParams,
-};
+use super::*;
 use snapbox::str;
-use solar_config::CompileOpts;
-use std::{
-    future::Future,
-    sync::{Arc, atomic::Ordering},
-    task::{Context, Waker},
-};
 
 #[test]
-fn all_import_forms_use_full_literal_utf16_ranges() {
-    let fixture = RequestFixture::new(
+fn links_resolved_import_forms_with_full_literal_utf16_ranges() {
+    let fixture = RequestFixture::new_allowing_diagnostics(
         r#"
         //- /Imports.sol
         /* 😀 */ import "./Plain.sol";
         import * as Glob from "./Glob.sol";
         import {Named as Alias} from "./Named.sol";
+        import "./Missing.sol";
 
         //- /Plain.sol
         contract Plain {}
@@ -37,85 +23,21 @@ fn all_import_forms_use_full_literal_utf16_ranges() {
         "/Imports.sol",
     );
 
-    fixture.check_document_links(
-        "/Imports.sol",
-        str![[r#"
+    let expected = str![[r#"
 0:16..0:29 -> /Plain.sol
 1:22..1:34 -> /Glob.sol
 2:29..2:42 -> /Named.sol
 
-"#]],
-    );
-}
+"#]];
+    fixture.check_document_links("/Imports.sol", expected.clone());
 
-#[test]
-fn returns_only_successfully_resolved_imports() {
-    let fixture = RequestFixture::new_allowing_diagnostics(
-        r#"
-        //- /Imports.sol
-        import "./Valid.sol";
-        import "./Missing.sol";
-
-        //- /Valid.sol
-        contract Valid {}
-        "#,
-        "/Imports.sol",
-    );
-
-    fixture.check_document_links(
-        "/Imports.sol",
-        str![[r#"
-0:7..0:20 -> /Valid.sol
-
-"#]],
-    );
-}
-
-#[test]
-fn equivalent_file_uris_return_document_links() {
-    let project = TestProject::from_fixture(
-        r#"
-        //- /Imports.sol
-        import "./Target.sol";
-
-        //- /Target.sol
-        contract Target {}
-        "#,
-    );
-    let path = project.path("/Imports.sol");
-    let tables = analyze(AnalysisBatch::from_files(
-        CompileOpts::default(),
-        [(path.clone(), project.read_file("/Imports.sol"))],
-    ))
-    .symbol_tables;
-    let canonical_uri = Url::from_file_path(&path).unwrap();
-    let mut state = GlobalState::new(ClientSocket::new_closed());
-    state.symbol_tables.store(Arc::new(tables));
+    // Equivalent file URIs return the same links.
+    let canonical_uri = fixture.project().uri("/Imports.sol");
     for spelling in ["%49mports.sol", "nested%2F..%2FImports.sol"] {
-        let encoded_uri =
-            Url::parse(&canonical_uri.as_str().replacen("Imports.sol", spelling, 1)).unwrap();
-
-        assert_ne!(canonical_uri, encoded_uri);
-        assert_eq!(crate::proto::vfs_path(&canonical_uri), crate::proto::vfs_path(&encoded_uri));
-
-        let params = DocumentLinkParams {
-            text_document: TextDocumentIdentifier::new(encoded_uri),
-            work_done_progress_params: WorkDoneProgressParams::default(),
-            partial_result_params: PartialResultParams::default(),
-        };
-        let mut request = std::pin::pin!(crate::handlers::document_links(&mut state, params));
-        let waker = Waker::noop();
-        let mut context = Context::from_waker(waker);
-        let std::task::Poll::Ready(response) = request.as_mut().poll(&mut context) else {
-            panic!("document-link request should be ready");
-        };
-
-        let links = response.unwrap().unwrap();
-        assert_eq!(links.len(), 1);
-        assert_eq!(
-            links[0].target,
-            Some(Url::from_file_path(project.path("/Target.sol")).unwrap())
-        );
+        let uri = Url::parse(&canonical_uri.as_str().replacen("Imports.sol", spelling, 1)).unwrap();
+        assert_ne!(canonical_uri, uri);
+        assert_eq!(crate::proto::vfs_path(&canonical_uri), crate::proto::vfs_path(&uri));
+        fixture.check_document_links_at(uri, expected.clone());
     }
 }
 
@@ -146,15 +68,8 @@ fn overlapping_workspaces_prefer_vfs_document_links() {
     project.open_file("/nested/A.sol", "import \"./OverlayLonger.sol\";\nimport \"./New.sol\";");
 
     let config = project.config_with_roots(&["/", "/nested"]);
-    let snapshot = snapshot_with_config(config, project.vfs());
-    let mut results = AnalysisResultAccumulator::default();
-
-    for batch in snapshot.analysis_batches(Vec::new()) {
-        if !batch.files.is_empty() {
-            results.push(analyze(batch));
-        }
-    }
-    let tables = results.finish().symbol_tables;
+    let tables =
+        analyze_workspace(&snapshot_with_config(config, project.vfs())).result.symbol_tables;
 
     let path = project.path("/nested/A.sol");
     let links = tables
@@ -168,12 +83,9 @@ fn overlapping_workspaces_prefer_vfs_document_links() {
         [
             (
                 Range::new(Position::new(0, 7), Position::new(0, 28)),
-                Url::from_file_path(project.path("/nested/OverlayLonger.sol")).unwrap(),
+                project.uri("/nested/OverlayLonger.sol"),
             ),
-            (
-                Range::new(Position::new(1, 7), Position::new(1, 18)),
-                Url::from_file_path(project.path("/nested/New.sol")).unwrap(),
-            ),
+            (Range::new(Position::new(1, 7), Position::new(1, 18)), project.uri("/nested/New.sol"),),
         ]
     );
 }
@@ -193,39 +105,19 @@ fn waits_for_requested_analysis_before_returning_document_links() {
         "#,
     );
     let path = project.path("/Imports.sol");
-    let old_tables = analyze(AnalysisBatch::from_files(
-        CompileOpts::default(),
-        [(path.clone(), project.read_file("/Imports.sol"))],
-    ))
-    .symbol_tables;
-    let new_tables = analyze(AnalysisBatch::from_files(
-        CompileOpts::default(),
-        [(path.clone(), "import \"./New.sol\";".into())],
-    ))
-    .symbol_tables;
-    let uri = Url::from_file_path(path).unwrap();
-    let params = DocumentLinkParams {
-        text_document: TextDocumentIdentifier::new(uri),
-        work_done_progress_params: WorkDoneProgressParams::default(),
-        partial_result_params: PartialResultParams::default(),
-    };
-    let mut state = GlobalState::new(ClientSocket::new_closed());
+    let old_tables = analyze_source(path.clone(), project.read_file("/Imports.sol")).symbol_tables;
+    let new_tables = analyze_source(path, "import \"./New.sol\";").symbol_tables;
+    let params = document_params(&project.uri("/Imports.sol"));
+    let mut state = state_with(Config::default());
     state.symbol_tables.store(Arc::new(old_tables));
     state.analysis_version.fetch_add(1, Ordering::AcqRel);
 
-    let mut request = std::pin::pin!(crate::handlers::document_links(&mut state, params));
-    let waker = Waker::noop();
-    let mut context = Context::from_waker(waker);
-
-    assert!(request.as_mut().poll(&mut context).is_pending());
+    let mut request = start_request(crate::handlers::document_links(&mut state, params));
 
     let mut snapshot = state.snapshot();
     assert!(snapshot.publish_symbol_tables(1, Arc::new(new_tables)));
     assert!(!snapshot.publish_symbol_tables(0, Default::default()));
-    let std::task::Poll::Ready(response) = request.as_mut().poll(&mut context) else {
-        panic!("document-link request should complete after analysis is published");
-    };
-    let links = response.unwrap().unwrap();
+    let links = expect_ready(request.as_mut()).unwrap().unwrap();
     assert_eq!(links.len(), 1);
-    assert_eq!(links[0].target, Some(Url::from_file_path(project.path("/New.sol")).unwrap()));
+    assert_eq!(links[0].target, Some(project.uri("/New.sol")));
 }
