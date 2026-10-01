@@ -101,6 +101,7 @@ impl FoundryProfile {
         &self,
         root: &Path,
         include_paths: &[PathBuf],
+        dependency_config_roots: &mut Vec<PathBuf>,
     ) -> Vec<ImportRemapping> {
         let mut remappings = Vec::new();
         let mut authoritative = read_remappings_txt(root);
@@ -108,7 +109,31 @@ impl FoundryProfile {
             authoritative.extend(configured.iter().cloned());
         }
         if self.auto_detect_remappings.unwrap_or(true) {
-            remappings.extend(self.discover_lib_remappings(root, include_paths, &authoritative));
+            remappings.extend(self.discover_lib_remappings(
+                root,
+                include_paths,
+                &authoritative,
+                dependency_config_roots,
+            ));
+            // Relative imports are normalized to source-unit names before remapping. Keep
+            // dependency aliases that overlap the project's source namespaces contextual.
+            let source_prefixes = self
+                .build_source_roots(root)
+                .iter()
+                // Reserving an empty namespace would disable every dependency alias.
+                .filter(|path| path.as_path() != root)
+                .map(|path| remapping_path(root, path, true))
+                .collect::<Vec<_>>();
+            remappings.retain(|remapping| {
+                #[cfg(windows)]
+                let prefix = remapping.prefix.replace('\\', "/");
+                #[cfg(not(windows))]
+                let prefix = &remapping.prefix;
+                !remapping.context.is_empty()
+                    || !source_prefixes.iter().any(|source| {
+                        source.starts_with(prefix.as_str()) || prefix.starts_with(source)
+                    })
+            });
             preserve_root_remappings(&mut remappings, &authoritative);
         }
         remappings.extend(authoritative);
@@ -124,6 +149,7 @@ impl FoundryProfile {
         root: &Path,
         include_paths: &[PathBuf],
         authoritative: &[ImportRemapping],
+        dependency_config_roots: &mut Vec<PathBuf>,
     ) -> Vec<ImportRemapping> {
         let mut remappings = Vec::<ImportRemapping>::new();
         let source_map = solar_interface::source_map::SourceMap::empty();
@@ -135,13 +161,14 @@ impl FoundryProfile {
                 if !package.is_dir() {
                     continue;
                 }
-                self.discover_dependency_remappings(
+                Self::discover_dependency_remappings(
                     root,
                     &package,
                     None,
                     &mut ancestors,
                     &mut remappings,
                     authoritative,
+                    dependency_config_roots,
                 );
             }
         }
@@ -154,13 +181,13 @@ impl FoundryProfile {
     /// Keep a global alias for root imports and a contextual refinement for each dependency.
     /// Explicit contexts remain scoped, and equal global aliases prefer the nearest package.
     fn discover_dependency_remappings(
-        &self,
         root: &Path,
         dependency: &Path,
         parent_context: Option<&str>,
         ancestors: &mut HashSet<PathBuf>,
         remappings: &mut Vec<ImportRemapping>,
         authoritative: &[ImportRemapping],
+        dependency_config_roots: &mut Vec<PathBuf>,
     ) {
         let source_map = solar_interface::source_map::SourceMap::empty();
         let identity = source_map
@@ -172,6 +199,9 @@ impl FoundryProfile {
         if !ancestors.insert(identity.clone()) {
             return;
         }
+
+        // Both config files are inputs even when absent, so creating either must rediscover.
+        dependency_config_roots.push(dependency.normalize());
 
         let name = dependency.file_name().and_then(|name| name.to_str());
         let context = remapping_path(root, dependency, true);
@@ -208,13 +238,14 @@ impl FoundryProfile {
                 if !package.is_dir() || is_symlink(&package) {
                     continue;
                 }
-                self.discover_dependency_remappings(
+                Self::discover_dependency_remappings(
                     root,
                     &package,
                     Some(&context),
                     ancestors,
                     remappings,
                     authoritative,
+                    dependency_config_roots,
                 );
             }
         }
@@ -437,11 +468,11 @@ mod tests {
         assert_eq!(profile.include_paths(root), workspace_paths(&["default-libs"]));
         assert_eq!(profile.auto_detect_remappings, Some(false));
         assert_eq!(profile.evm_version(), Some(EvmVersion::Paris));
-        assert!(profile.remappings_with_include_paths(root, &[]).is_empty());
+        assert!(profile.remappings_with_include_paths(root, &[], &mut Vec::new()).is_empty());
         assert_eq!(
             document
                 .profile_for(Some("missing"))
-                .remappings_with_include_paths(root, &[])
+                .remappings_with_include_paths(root, &[], &mut Vec::new())
                 .iter()
                 .map(ToString::to_string)
                 .collect::<Vec<_>>(),
@@ -487,7 +518,7 @@ mod tests {
         std::fs::write(dependency.join("remappings.txt"), "y/=lib/y/src/\n").unwrap();
 
         let remappings = FoundryProfile::default()
-            .remappings_with_include_paths(root, &[root.join("lib")])
+            .remappings_with_include_paths(root, &[root.join("lib")], &mut Vec::new())
             .into_iter()
             .map(|remapping| remapping.to_string())
             .collect::<Vec<_>>();
@@ -511,7 +542,7 @@ mod tests {
         .unwrap();
 
         let remappings = FoundryProfile::default()
-            .remappings_with_include_paths(root, &[root.join("lib")])
+            .remappings_with_include_paths(root, &[root.join("lib")], &mut Vec::new())
             .into_iter()
             .map(|remapping| remapping.to_string())
             .collect::<Vec<_>>();
@@ -529,8 +560,11 @@ mod tests {
         let dependency = root.join("lib/x");
         fs::create_dir_all(dependency.join("src")).unwrap();
         fs::write(dependency.join("remappings.txt"), "src/:y/=private/\n").unwrap();
-        let remappings =
-            FoundryProfile::default().remappings_with_include_paths(root, &[root.join("lib")]);
+        let remappings = FoundryProfile::default().remappings_with_include_paths(
+            root,
+            &[root.join("lib")],
+            &mut Vec::new(),
+        );
 
         for (importer, expected) in [
             ("lib/x/src/X.sol", "lib/x/private/Y.sol"),
@@ -576,7 +610,8 @@ mod tests {
                 remappings: Some(configured.lines().map(|line| line.parse().unwrap()).collect()),
                 ..Default::default()
             };
-            let remappings = profile.remappings_with_include_paths(root, &[root.join("lib")]);
+            let remappings =
+                profile.remappings_with_include_paths(root, &[root.join("lib")], &mut Vec::new());
             for importer in ["lib/x/src/X.sol", "lib/x/lib/z/src/Z.sol"] {
                 assert_eq!(
                     apply_import_remappings(
@@ -603,8 +638,11 @@ mod tests {
             "[profile.default]\nremappings = [\"y/=lib/y/src/\"]\n",
         )
         .unwrap();
-        let remappings =
-            FoundryProfile::default().remappings_with_include_paths(root, &[root.join("lib")]);
+        let remappings = FoundryProfile::default().remappings_with_include_paths(
+            root,
+            &[root.join("lib")],
+            &mut Vec::new(),
+        );
 
         assert_eq!(
             apply_import_remappings(
@@ -623,12 +661,49 @@ mod tests {
         let dependency = root.join("lib/x");
         fs::create_dir_all(dependency.join("src")).unwrap();
         fs::write(dependency.join("foundry.toml"), "[profile.default]\nlibs = [\"..\"]\n").unwrap();
-        let remappings =
-            FoundryProfile::default().remappings_with_include_paths(root, &[root.join("lib")]);
+        let remappings = FoundryProfile::default().remappings_with_include_paths(
+            root,
+            &[root.join("lib")],
+            &mut Vec::new(),
+        );
 
         assert_eq!(remappings.len(), 1);
         assert_eq!(remappings[0].prefix, "x/");
         assert_eq!(remappings[0].context, "");
         assert_eq!(remappings[0].path, "lib/x/src/");
+    }
+
+    #[test]
+    fn source_namespaces_preserve_unrelated_and_explicit_root_aliases() {
+        let project = tempfile::tempdir().unwrap();
+        let root = project.path().join("workspace");
+        let dependency = root.join("lib/x");
+        fs::create_dir_all(dependency.join("src")).unwrap();
+        fs::write(dependency.join("remappings.txt"), "src/=src/\nsrc2/=src/\n").unwrap();
+
+        for src in ["src", ".", "../external"] {
+            let profile = FoundryProfile {
+                src: Some(src.into()),
+                remappings: Some(vec!["src/=local/".parse().unwrap()]),
+                ..Default::default()
+            };
+            let remappings =
+                profile.remappings_with_include_paths(&root, &[root.join("lib")], &mut Vec::new());
+            for (import, expected) in [
+                ("x/X.sol", "lib/x/src/X.sol"),
+                ("src2/X.sol", "lib/x/src/X.sol"),
+                ("src/X.sol", "local/X.sol"),
+            ] {
+                assert_eq!(
+                    apply_import_remappings(
+                        &remappings,
+                        Path::new(import),
+                        Some(Path::new("Main.sol"))
+                    ),
+                    Path::new(expected),
+                    "src={src}, import={import}",
+                );
+            }
+        }
     }
 }
