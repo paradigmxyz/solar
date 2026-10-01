@@ -1,12 +1,18 @@
 use super::support::RequestFixture;
-use crate::{config::negotiate_capabilities, global_state::GlobalState};
+use crate::{
+    config::negotiate_capabilities,
+    global_state::{AnalysisBatch, GlobalState, analyze},
+    utils::apply_document_changes,
+};
 use async_lsp::ErrorCode;
+use crop::Rope;
 use lsp_types::{
     DidChangeTextDocumentParams, DocumentChanges, InitializeParams, TextDocumentContentChangeEvent,
     Url, VersionedTextDocumentIdentifier, WorkspaceClientCapabilities,
     WorkspaceEditClientCapabilities, WorkspaceFolder,
 };
 use snapbox::str;
+use solar_config::CompileOpts;
 use std::{
     future::Future,
     sync::{Arc, mpsc},
@@ -212,6 +218,130 @@ fn renames_named_call_arguments_with_the_parameter() {
 
 "#]],
     );
+}
+
+#[test]
+fn renames_named_call_arguments_with_call_options() {
+    let fixture = RequestFixture::new(
+        r#"
+        //- /Target.sol
+        contract Target {
+            function pay(uint256 $1amount) external payable returns (uint256) {
+                return amount;
+            }
+        }
+        //- /Caller.sol
+        import "./Target.sol";
+        contract Caller {
+            function run(Target t) external {
+                t.pay({$2amount: 2});
+                t.pay{value: 1}({$3amount: 2});
+                (t.pay){gas: 100000, value: 1}({$4amount: 2});
+            }
+        }
+        "#,
+        "/Caller.sol",
+    );
+
+    let expected = str![[r#"
+/Caller.sol:3:15-3:21 -> renamed
+/Caller.sol:4:25-4:31 -> renamed
+/Caller.sol:5:40-5:46 -> renamed
+/Target.sol:1:25-1:31 -> renamed
+/Target.sol:2:15-2:21 -> renamed
+
+"#]];
+    for marker in ["$1", "$2", "$3", "$4"] {
+        fixture.check_rename(marker, "renamed", expected.clone());
+    }
+
+    let (mut state, params) = fixture.rename_state_and_params("$1", "renamed");
+    let edits = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap()
+        .block_on(crate::handlers::rename(&mut state, params))
+        .unwrap()
+        .unwrap();
+    let mut changes = edits.changes.unwrap();
+    let mut files = Vec::new();
+    for file in ["/Caller.sol", "/Target.sol"] {
+        let path = fixture.project_path(file);
+        let uri = Url::from_file_path(&path).unwrap();
+        let mut edits = changes.remove(&uri).unwrap();
+        let contents = Rope::from(fixture.project_contents(file));
+        edits.sort_by_key(|edit| std::cmp::Reverse(edit.range.start));
+        let changes = edits
+            .into_iter()
+            .map(|edit| TextDocumentContentChangeEvent {
+                range: Some(edit.range),
+                range_length: None,
+                text: edit.new_text,
+            })
+            .collect();
+        let renamed = apply_document_changes(&contents, changes).unwrap().to_string();
+        fixture.write_file(file, &renamed);
+        files.push((path, renamed));
+    }
+    assert!(changes.is_empty());
+    let result = analyze(AnalysisBatch::from_files(CompileOpts::default(), files));
+    assert!(result.diagnostics.is_empty(), "{:#?}", result.diagnostics);
+}
+
+#[test]
+fn renames_named_constructor_arguments_with_call_options() {
+    let fixture = RequestFixture::new(
+        r#"
+        //- /Creation.sol
+        contract Target {
+            constructor(uint256 $1value) payable {}
+        }
+        contract Caller {
+            function deploy() external {
+                new Target({$2value: 2});
+                new Target{value: 1, salt: bytes32(0)}({$3value: 2});
+            }
+        }
+        "#,
+        "/Creation.sol",
+    );
+
+    let expected = str![[r#"
+/Creation.sol:1:24-1:29 -> renamed
+/Creation.sol:5:20-5:25 -> renamed
+/Creation.sol:6:48-6:53 -> renamed
+
+"#]];
+    for marker in ["$1", "$2", "$3"] {
+        fixture.check_rename(marker, "renamed", expected.clone());
+    }
+}
+
+#[test]
+fn renames_named_function_type_arguments_with_call_options() {
+    // Named function type parameters emit a deprecation warning.
+    let fixture = RequestFixture::new_allowing_diagnostics(
+        r#"
+        //- /Callback.sol
+        contract Caller {
+            function run(function(uint256 $1value) external payable target) external {
+                target({$2value: 2});
+                target{value: 1, gas: 100000}({$3value: 2});
+            }
+        }
+        "#,
+        "/Callback.sol",
+    );
+
+    let expected = str![[r#"
+/Callback.sol:1:34-1:39 -> renamed
+/Callback.sol:2:16-2:21 -> renamed
+/Callback.sol:3:39-3:44 -> renamed
+
+"#]];
+    for marker in ["$1", "$2", "$3"] {
+        fixture.check_rename(marker, "renamed", expected.clone());
+    }
 }
 
 #[test]
