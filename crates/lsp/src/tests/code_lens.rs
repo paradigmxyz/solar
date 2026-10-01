@@ -9,6 +9,126 @@ use snapbox::{assert_data_eq, str};
 use solar_config::CompileOpts;
 
 #[test]
+fn keeps_annotations_around_broken_statements() {
+    for broken in [
+        "uint x = 1 + * 2;",
+        "if (true) { uint x = 1 + * 2; }",
+        "for (uint i = * 2; i < 3; i++) {}",
+        "assembly { let x := add(1, *) }",
+        "uint x = missing;",
+        "uint x = 1",
+    ] {
+        let fixture = RequestFixture::new_allowing_diagnostics(
+            &format!(
+                r#"
+                //- /Editing.sol
+                contract C {{
+                    function target(uint amount) public pure returns (uint) {{ return amount; }}
+                    function caller() public pure {{
+                        target(1);
+                        {broken}
+                        target(2);
+                    }}
+                    function afterError() external {{}}
+                }}
+                "#
+            ),
+            "/Editing.sol",
+        );
+        fixture.check_inlay_hints(
+            "/Editing.sol",
+            str![[r#"
+PARAMETER amount:
+TYPE : uint256
+PARAMETER amount:
+TYPE : uint256
+
+"#]],
+        );
+        fixture.check_code_lenses(
+            "/Editing.sol",
+            str![[r#"
+0:9 references=0 command=<none>
+1:13 references=2 command=solar.showReferences
+1:13 selector=0x9811c7c1 command=solar.copySelector
+1:25 references=1 command=solar.showReferences
+2:13 references=0 command=<none>
+2:13 selector=0xfc9c8d39 command=solar.copySelector
+7:13 references=0 command=<none>
+7:13 selector=0x317c90e4 command=solar.copySelector
+
+"#]],
+        );
+    }
+}
+
+#[test]
+fn keeps_selectors_around_broken_declarations() {
+    for broken in [
+        "uint broken = * 2;",
+        "function broken(uint value +) external {}",
+        "???;",
+        "function broken() external { uint x = * 2;",
+    ] {
+        let fixture = RequestFixture::new_allowing_diagnostics(
+            &format!(
+                r#"
+                //- /Editing.sol
+                contract C {{
+                    function beforeError() external {{}}
+                    {broken}
+                    function afterError() external {{}}
+                }}
+                "#
+            ),
+            "/Editing.sol",
+        );
+        let state = fixture.state();
+        let uri = Url::from_file_path(fixture.project_path("/Editing.sol")).unwrap();
+        let lenses = state.symbol_tables.load().code_lenses(&uri, CodeLensConfig::default());
+        let selectors = lenses
+            .iter()
+            .filter(|lens| matches!(lens.range.start.line, 1 | 3))
+            .filter_map(|lens| lens.command.as_ref())
+            .map(|command| command.title.as_str())
+            .collect::<Vec<_>>();
+        assert_data_eq!(
+            selectors.join("\n"),
+            str![[r#"
+0 references
+0xe357ca3c
+0 references
+0x317c90e4"#]],
+        );
+    }
+}
+
+#[test]
+fn keeps_existing_selectors_while_typing_a_new_function() {
+    let declaration = "function editing() external { if (true) { uint x = 1 + * 2; } assembly { let y := add(1, 2) } }";
+    for end in 0..=declaration.len() {
+        let fixture = RequestFixture::new_allowing_diagnostics(
+            &format!(
+                "//- /Editing.sol\ncontract C {{\nfunction beforeError() external {{}}\n{}\n}}\n",
+                &declaration[..end],
+            ),
+            "/Editing.sol",
+        );
+        let state = fixture.state();
+        let uri = Url::from_file_path(fixture.project_path("/Editing.sol")).unwrap();
+        let options = CodeLensConfig { references: false, ..Default::default() };
+        let lenses = state.symbol_tables.load().code_lenses(&uri, options);
+        let titles = lenses
+            .iter()
+            .filter(|lens| lens.range.start.line == 1)
+            .filter_map(|lens| lens.command.as_ref())
+            .map(|command| command.title.as_str())
+            .collect::<Vec<_>>();
+        assert_data_eq!(titles.join("\n"), str![["0xe357ca3c"]]);
+    }
+}
+
+#[test]
 fn shows_selectors_and_references() {
     let fixture = RequestFixture::new(
         r#"

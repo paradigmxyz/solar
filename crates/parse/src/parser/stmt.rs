@@ -22,6 +22,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
 
     /// Parses a statement kind.
     fn parse_stmt_kind(&mut self) -> PResult<'sess, StmtKind<'ast>> {
+        let start = self.recovery_point();
         let mut semi = true;
         let kind = if self.eat_keyword(kw::If) {
             semi = false;
@@ -68,10 +69,21 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
             self.bump(); // `_`
             Ok(StmtKind::Placeholder)
         } else {
-            self.parse_simple_stmt_kind()
+            self.parse_simple_stmt_kind(VarFlags::VAR | VarFlags::RECOVER_INITIALIZER)
         };
-        if semi && kind.is_ok() {
-            self.expect_semi()?;
+        if semi
+            && kind.is_ok()
+            && let Err(err) = self.expect_semi()
+        {
+            if self.recover_incomplete_input
+                && matches!(kind, Ok(StmtKind::DeclSingle(_) | StmtKind::DeclMulti(..)))
+            {
+                // A malformed terminator must not erase an already parsed local binding.
+                err.emit();
+                self.recover_statement(start);
+            } else {
+                return Err(err);
+            }
         }
         kind
     }
@@ -195,17 +207,14 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     /// Parses a simple statement. These are just variable declarations and expressions.
     fn parse_simple_stmt(&mut self) -> PResult<'sess, Stmt<'ast>> {
         let docs = self.parse_doc_comments();
-        self.parse_spanned(Self::parse_simple_stmt_kind).map(|(span, kind)| Stmt {
-            docs,
-            kind,
-            span,
-        })
+        self.parse_spanned(|this| this.parse_simple_stmt_kind(VarFlags::VAR))
+            .map(|(span, kind)| Stmt { docs, kind, span })
     }
 
     /// Parses a simple statement kind. These are just variable declarations and expressions.
     ///
     /// Also used in the for loop initializer. Does not parse the trailing semicolon.
-    fn parse_simple_stmt_kind(&mut self) -> PResult<'sess, StmtKind<'ast>> {
+    fn parse_simple_stmt_kind(&mut self, flags: VarFlags) -> PResult<'sess, StmtKind<'ast>> {
         let lo = self.token.span;
         if self.eat(TokenKind::OpenDelim(Delimiter::Parenthesis)) {
             let mut none_elements = SmallVec::<[_; 8]>::new();
@@ -230,7 +239,11 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
                         |this| this.parse_variable_definition(VarFlags::FUNCTION),
                     )?;
                     self.expect(TokenKind::Eq)?;
-                    let expr = self.parse_expr()?;
+                    let expr = if flags.contains(VarFlags::RECOVER_INITIALIZER) {
+                        self.parse_local_initializer()?
+                    } else {
+                        self.parse_expr()?
+                    };
                     Ok(StmtKind::DeclMulti(self.alloc_smallvec(variables), expr))
                 }
                 LookAheadInfo::Expression => {
@@ -258,7 +271,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
             match statement_type {
                 LookAheadInfo::VariableDeclaration => {
                     let ty = iap.into_ty(self);
-                    self.parse_variable_definition_with(VarFlags::VAR, ty)
+                    self.parse_variable_definition_with(flags, ty)
                         .map(|var| StmtKind::DeclSingle(self.alloc(var)))
                 }
                 LookAheadInfo::Expression => {

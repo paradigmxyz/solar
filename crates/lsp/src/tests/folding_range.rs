@@ -385,7 +385,7 @@ fn lexical_fallback_ignores_call_options_in_single_statement_control_flow() {
 }
 
 #[test]
-fn lexical_fallback_does_not_treat_function_types_as_declarations() {
+fn folds_recovered_function_typed_variables() {
     let source = concat!(
         "@ invalid\n",
         "contract C {\n",
@@ -399,6 +399,7 @@ fn lexical_fallback_does_not_treat_function_types_as_declarations() {
         folding_range_output(&folding_ranges(source.into())),
         str![[r#"
 1:0-5:1 code
+2:4-4:6 code
 
 "#]],
     );
