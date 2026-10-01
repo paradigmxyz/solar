@@ -1,7 +1,7 @@
 //! Memory-backed value construction and default aggregate values.
 
 use super::*;
-use crate::link::RelocatableBytecode;
+use crate::link::{CodeKind, ContractCode, QualifiedName};
 
 const MIN_BULK_ZERO_STRUCT_FIELDS: usize = 4;
 
@@ -233,25 +233,48 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some(object)
     }
 
-    pub(super) fn build_bytecode(
-        gcx: Gcx<'_>,
-        module: &mut Module,
-        builder: &mut FunctionBuilder<'_>,
-        bytecode: &RelocatableBytecode,
-        name: Symbol,
-    ) -> Option<ValueId> {
-        let (object, data, padded_size) =
-            Self::alloc_const_bytes(builder, bytecode.bytes.len(), AllocationSemantics::INTERNAL)?;
-        super::super::data::copy_bytecode_to_memory(
-            gcx,
-            module,
-            builder,
-            data,
-            bytecode,
-            padded_size,
-            name,
-        );
-        Some(object)
+    /// Returns the deferred data for the creation or runtime bytecode of a contract that
+    /// this contract embeds, reporting an error when it is not a bytecode dependency.
+    pub(super) fn contract_code(
+        &mut self,
+        span: Span,
+        contract_id: hir::ContractId,
+        kind: CodeKind,
+    ) -> Option<DataId> {
+        let gcx = self.cx.gcx;
+        let name = gcx.hir.contract(contract_id).name;
+        if !self.cx.bytecode_dependencies.contains(contract_id) {
+            gcx.dcx()
+                .err(format!("codegen is missing {} for `{name}`", kind.keyword()))
+                .span(span)
+                .note("the contract is not a bytecode dependency of the contract being compiled")
+                .emit();
+            return None;
+        }
+        let data_name = Symbol::intern(&format!("{name}_{}", kind.keyword()));
+        let code = ContractCode { contract: QualifiedName::of_contract(gcx, contract_id), kind };
+        Some(self.cx.module.intern_contract_code(code, data_name))
+    }
+
+    pub(super) fn build_bytecode(builder: &mut FunctionBuilder<'_>, code: DataId) -> ValueId {
+        let word = EvmMemoryLayout::WORD_SIZE;
+        // len = datasize code(C)
+        // size = datasize code(C), 63, aligned
+        // object = bytes(size, len) !preserves_fmp
+        let len = builder.data_size(code, 0, false);
+        let size = builder.data_size(code, 2 * word - 1, true);
+        let (object, data) =
+            Self::alloc_bytes_object(builder, size, len, AllocationSemantics::INTERNAL);
+        // The last data word starts one length word before the padded length. Empty code
+        // has no data words, and this clears the length word, which is also zero.
+        // mstore object + data_size(code(C), 31, aligned), 0
+        // datacopy code(C), data, len
+        let tail_offset = builder.data_size(code, word - 1, true);
+        let tail = builder.add(object, tail_offset);
+        let zero = builder.imm(0);
+        builder.mstore(tail, zero);
+        builder.data_copy(DataRef::new(code, 0), data, len);
+        object
     }
 
     fn alloc_const_bytes(
@@ -259,18 +282,31 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         len: usize,
         semantics: AllocationSemantics,
     ) -> Option<(ValueId, ValueId, usize)> {
-        // object = bytes(len) !preserves_fmp
         let words = u64::try_from(len.div_ceil(32)).ok()?;
         let size = builder.imm(words.checked_add(1)?.checked_mul(32)?);
+        let length = builder.imm(u64::try_from(len).ok()?);
+        let (object, data) = Self::alloc_bytes_object(builder, size, length, semantics);
+        Some((object, data, usize::try_from(words.checked_mul(32)?).ok()?))
+    }
+
+    /// Allocates a bytes object of `size` bytes, including its length word, holding `len` bytes.
+    fn alloc_bytes_object(
+        builder: &mut FunctionBuilder<'_>,
+        size: ValueId,
+        len: ValueId,
+        semantics: AllocationSemantics,
+    ) -> (ValueId, ValueId) {
+        // object = bytes(size) !preserves_fmp
+        // set_memory_object_len object, len
+        // data = memory_object_data object
         let object = builder.alloc_object(size, MemoryObjectLayout::Bytes, semantics);
         let Value::Inst(alloc) = *builder.func().value(object) else {
             unreachable!("allocation result must reference its instruction")
         };
         builder.func_mut().inst_mut(alloc).metadata.set_preserves_fmp(true);
-        let length = builder.imm(u64::try_from(len).ok()?);
-        builder.set_memory_object_len(object, length, MemoryObjectKind::Bytes);
+        builder.set_memory_object_len(object, len, MemoryObjectKind::Bytes);
         let data = builder.memory_object_data(object, MemoryObjectKind::Bytes);
-        Some((object, data, usize::try_from(words.checked_mul(32)?).ok()?))
+        (object, data)
     }
 
     fn ensure_bytes_literal_helper(&mut self, symbol: ByteSymbol, index: usize) -> FunctionId {

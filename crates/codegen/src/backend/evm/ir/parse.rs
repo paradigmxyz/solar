@@ -23,6 +23,7 @@ struct ParsedBlockHeader {
     in_loop: bool,
     is_continuation: bool,
     function_invoke: Option<DebugFunction>,
+    entry_depth: Option<u16>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -53,6 +54,14 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let name = self.parser.parse_ident()?;
 
         let mut module = Module::new(name);
+        while self.parser.eat(TokenKind::At) {
+            let section = self.parser.parse_ident()?;
+            match section {
+                sym::libraries => self.parser.parse_library_declarations()?,
+                sym::data => module.data = self.parser.parse_data_declarations()?,
+                _ => return Err(self.parser.error(format!("unknown module section `@{section}`"))),
+            }
+        }
         self.parse_program_body(&mut module)?;
         let tracks_debug_info = module.blocks.iter().any(|block| {
             block.metadata.function_invoke.is_some()
@@ -91,17 +100,13 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     fn parse_program_body(&mut self, module: &mut Module) -> PResult<'sess, ()> {
         let mut current_block = None;
         while !self.parser.is_eof() {
-            if self.parser.eat(TokenKind::At) {
-                self.parse_data(module)?;
-                current_block = None;
-                continue;
-            }
             if let Some(header) = self.try_parse_block_header()? {
                 let block_id = self.define_block(module, header.label)?;
                 module.blocks[block_id].metadata.hotness = header.hotness;
                 module.blocks[block_id].metadata.in_loop = header.in_loop;
                 module.blocks[block_id].metadata.is_continuation = header.is_continuation;
                 module.blocks[block_id].metadata.function_invoke = header.function_invoke;
+                module.blocks[block_id].metadata.entry_depth = header.entry_depth;
                 current_block = Some(block_id);
                 continue;
             }
@@ -120,21 +125,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         Ok(())
     }
 
-    fn parse_data(&mut self, module: &mut Module) -> PResult<'sess, ()> {
-        self.parser.expect_keyword(sym::data)?;
-        let (id, name) = self.parse_data_id()?;
-        let id = id as usize;
-        if id != module.data.len() {
-            return Err(self
-                .parser
-                .error(format!("expected program data ID {}, found {id}", module.data.len())));
-        }
-        let bytes = self.parser.parse_data_bytes()?;
-        let library_relocations = self.parser.parse_data_library_relocations(&bytes)?;
-        module.data.push(Data { bytes, name, emit_in_runtime: false, library_relocations });
-        Ok(())
-    }
-
     fn try_parse_block_header(&mut self) -> PResult<'sess, Option<ParsedBlockHeader>> {
         let Some(label) = self.current_block_label()? else { return Ok(None) };
         self.parser.bump();
@@ -142,6 +132,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let mut in_loop = false;
         let mut is_continuation = false;
         let mut function_invoke = None;
+        let mut entry_depth = None;
         while self.parser.eat(TokenKind::OpenDelim(Delimiter::Bracket)) {
             loop {
                 if self.parser.eat_keyword(sym::cold) {
@@ -159,9 +150,17 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                         identifier,
                         declaration: Span::new(BytePos(lo), BytePos(hi)),
                     });
+                } else if self.parser.eat_keyword(sym::stack) {
+                    self.parser.expect(TokenKind::Eq)?;
+                    let depth = self.parser.parse_uint()?;
+                    entry_depth =
+                        Some(u16::try_from(depth).map_err(|_| {
+                            self.parser.error("block entry depth does not fit in u16")
+                        })?);
                 } else {
                     return Err(self.parser.error(
-                        "expected `cold`, `loop`, `continuation`, or `invoke` block attribute",
+                        "expected `cold`, `loop`, `continuation`, `invoke`, or `stack` block \
+                         attribute",
                     ));
                 }
                 if !self.parser.eat(TokenKind::Comma) {
@@ -173,7 +172,14 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
         self.parser.expect(TokenKind::Colon)?;
 
-        Ok(Some(ParsedBlockHeader { label, hotness, in_loop, is_continuation, function_invoke }))
+        Ok(Some(ParsedBlockHeader {
+            label,
+            hotness,
+            in_loop,
+            is_continuation,
+            function_invoke,
+            entry_depth,
+        }))
     }
 
     fn current_block_label(&self) -> PResult<'sess, Option<Symbol>> {
@@ -263,16 +269,27 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             sym::push => match self.parse_push_value(module)? {
                 PushValue::Immediate(value) => Instruction::push_value(value),
                 PushValue::Block(block) => Instruction::push_block(block),
-                PushValue::Data(_) | PushValue::Library(_) => {
+                PushValue::Data(_) | PushValue::DataSize(_) | PushValue::Library(_) => {
                     unreachable!("ordinary push parser only produces immediates and blocks")
                 }
             },
-            sym::push_library => Instruction::push_library(self.parser.parse_library()?),
+            sym::push_library => Instruction::push_library(self.parser.parse_library_ref()?),
             sym::push_data => {
                 let span = self.parser.token().span;
                 let (id, offset, _) = self.parser.parse_data_ref()?;
                 let id = self.check_assembly_id("program data", span, id)?;
                 Instruction::push_data(DataRef::new(DataId::from_usize(id as usize), offset))
+            }
+            sym::push_data_size => {
+                let span = self.parser.token().span;
+                let (id, offset, _) = self.parser.parse_data_ref()?;
+                let id = self.check_assembly_id("program data", span, id)?;
+                if offset != 0 {
+                    return Err(self.parser.error_at(span, "data size cannot take an offset"));
+                }
+                let data = DataId::from_usize(id as usize);
+                let (addend, aligned) = self.parser.parse_data_size_operands()?;
+                Instruction::push_data_size(DataSize { data, addend, aligned })
             }
             sym::push_deferred => {
                 let id = self.parse_assembly_id("deferred constant")?;
@@ -342,7 +359,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 TerminatorKind::JumpI { then_block, else_block }
             }
             sym::indexed_jump => {
-                let mut targets = vec![self.parse_block_ref(module)?];
+                let mut targets = Vec::new();
+                targets.push(self.parse_block_ref(module)?);
                 while self.parser.eat(TokenKind::Comma) {
                     targets.push(self.parse_block_ref(module)?);
                 }
@@ -401,12 +419,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         self.check_assembly_id(name, span, value)
     }
 
-    fn parse_data_id(&mut self) -> PResult<'sess, (u32, Option<Symbol>)> {
-        let span = self.parser.token().span;
-        let (value, name) = self.parser.parse_data_id()?;
-        self.check_assembly_id("program data", span, value).map(|id| (id, name))
-    }
-
     fn check_assembly_id(&self, name: &str, span: Span, value: U256) -> PResult<'sess, u32> {
         let Ok(value) = u32::try_from(value) else {
             return Err(self
@@ -460,11 +472,10 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         loop {
             let key = self.parser.parse_ident()?;
             if key == sym::stack {
-                self.parser.expect(TokenKind::Eq)?;
-                let inputs = self.parse_u8()?;
-                self.parser.expect(TokenKind::Arrow)?;
-                let outputs = self.parse_u8()?;
-                metadata.stack = Some(StackEffect::new(inputs, outputs));
+                return Err(self.parser.error(
+                    "instructions cannot declare a stack effect; declare a block's entry depth \
+                     with `[stack=N]` instead",
+                ));
             } else if key == sym::span {
                 self.parser.expect(TokenKind::Eq)?;
                 let (lo, hi) = self.parser.parse_span_bounds()?;
@@ -590,11 +601,15 @@ mod tests {
                 gcx.sess,
                 r#"
 @module libraries
+@libraries
+  L_0: "a.sol:L"
+  L_1: "b.sol:L"
+
 bb0:
-  push_library "a.sol":"L"
+  push_library L_0
   push 0
   mstore
-  push_library "b.sol":"L"
+  push_library L_1
   push 32
   mstore
   push 64
@@ -607,14 +622,17 @@ bb0:
             let relocations = bytecode
                 .relocations
                 .iter()
-                .map(|relocation| relocation.display(&bytecode.libraries).to_string())
+                .map(|relocation| {
+                    let library = bytecode.libraries.get(relocation.library).unwrap();
+                    format!("{}: {library}", relocation.offset)
+                })
                 .collect::<Vec<_>>()
                 .join("\n");
             assert_data_eq!(
                 relocations,
                 str![[r#"
-1: "a.sol":"L"
-24: "b.sol":"L"
+1: "a.sol:L"
+24: "b.sol:L"
 "#]]
             );
         });

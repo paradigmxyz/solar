@@ -7,7 +7,7 @@
 // CHECK-LABEL: {{^[ +].*}}fn @reuse_gt_after_lt{{[( ]}}
 // CHECK: - {{v[0-9]+}} = gt arg1, arg0
 // CHECK: + ret [[CMP:v[0-9]+]], [[CMP]]
-types:
+@types
   struct0: {i1, i1}
 
 fn @reuse_gt_after_lt(arg0: i256, arg1: i256) -> struct0 [return_abi=[i1, i1]] {

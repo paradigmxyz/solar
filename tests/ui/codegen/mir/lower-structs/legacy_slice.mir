@@ -6,7 +6,7 @@
 @module LegacySlice
 @phase semantic
 
-types:
+@types
   struct0: {memoryslice, i256}
   struct1: {memorybytes}
 

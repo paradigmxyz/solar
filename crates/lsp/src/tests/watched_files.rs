@@ -144,6 +144,50 @@ async fn watched_file_specs_are_prepared_after_the_analysis_commit_unlocks() {
 }
 
 #[tokio::test(flavor = "current_thread")]
+async fn workspace_folder_changes_normalize_equivalent_uris() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /old/Old.sol
+        contract Old {}
+        //- /new/New.sol
+        contract New {}
+        "#,
+    );
+    let mut state = GlobalState::new(ClientSocket::new_closed());
+    let (_, config) = negotiate_capabilities(project.initialize_params_with_roots(&["/old"]));
+    state.config = Arc::new(config);
+    let equivalent = |name: &str| WorkspaceFolder {
+        uri: Url::parse(&format!(
+            "{}/missing%2F..%2F{name}",
+            Url::from_file_path(project.root()).unwrap()
+        ))
+        .unwrap(),
+        name: name.into(),
+    };
+
+    let result = crate::handlers::did_change_workspace_folders(
+        &mut state,
+        DidChangeWorkspaceFoldersParams {
+            event: WorkspaceFoldersChangeEvent {
+                added: vec![equivalent("new")],
+                removed: vec![equivalent("old")],
+            },
+        },
+    );
+
+    assert!(matches!(result, ControlFlow::Continue(())));
+    assert_eq!(state.config.workspace_roots(), [project.path("/new")]);
+    let tables = tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis())
+        .await
+        .expect("workspace-folder analysis should finish")
+        .unwrap();
+    let tables = tables.load();
+    assert!(tables.workspace_symbols("Old").is_empty());
+    let new_uri = Url::from_file_path(project.path("/new/New.sol")).unwrap();
+    assert_eq!(tables.document_symbols(&new_uri)[0].name, "New");
+}
+
+#[tokio::test(flavor = "current_thread")]
 async fn workspace_folder_change_advances_epoch_before_watcher_reregistration() {
     let project = TestProject::new();
     let old_root = project.path("/old");

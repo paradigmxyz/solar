@@ -1,8 +1,10 @@
-use crate::file_operations::file_path_from_url;
-use lsp_types::{Diagnostic, PreviousResultId, Range, Url};
+use crate::{file_operations::file_path_from_url, proto::normalize_file_uri};
+use lsp_types::{Diagnostic, PreviousResultId, PublishDiagnosticsParams, Range, Url};
 use normalize_path::NormalizePath;
 use solar_interface::data_structures::map::{FxHashMap, FxHashSet};
 use std::{borrow::Cow, path::PathBuf};
+
+pub(crate) mod presentation;
 
 pub(crate) type DiagnosticMap = FxHashMap<Url, Vec<Diagnostic>>;
 pub(crate) type AnalyzedDocuments = FxHashMap<Url, Option<i64>>;
@@ -51,7 +53,7 @@ pub(crate) struct DiagnosticStore {
 
 #[derive(Debug, Default)]
 pub(crate) struct DiagnosticUpdate {
-    pub(crate) batches: Vec<(Url, Vec<Diagnostic>)>,
+    pub(crate) batches: Vec<PublishDiagnosticsParams>,
     pub(crate) pull_reports_changed: bool,
     pub(crate) workspace_documents_changed: bool,
 }
@@ -133,6 +135,9 @@ impl DiagnosticStore {
             if let Some(diagnostics) = self.diagnostics.remove(&owner) {
                 affected_uris.extend(diagnostics.into_keys());
             }
+        }
+        if affected_uris.is_empty() {
+            return DiagnosticUpdate::default();
         }
         self.publish_batches(affected_uris)
     }
@@ -302,7 +307,9 @@ impl DiagnosticStore {
             return DiagnosticUpdate::default();
         }
 
-        let Self { diagnostics: all_diagnostics, reports, next_result_id, .. } = self;
+        let Self {
+            diagnostics: all_diagnostics, reports, analyzed_documents, next_result_id, ..
+        } = self;
         let mut owners = all_diagnostics.iter().collect::<Vec<_>>();
         owners.sort_by_key(|(owner, _)| *owner);
 
@@ -319,7 +326,7 @@ impl DiagnosticStore {
                 for (_, owner_diagnostics) in &owners {
                     if let Some(uri_diagnostics) = owner_diagnostics.get(&uri) {
                         has_entry = true;
-                        diagnostics.extend(uri_diagnostics.iter().cloned());
+                        diagnostics.extend_from_slice(uri_diagnostics);
                     }
                 }
 
@@ -340,7 +347,17 @@ impl DiagnosticStore {
                     );
                 }
 
-                (has_entry || was_published).then_some((uri, diagnostics))
+                // Carry the analyzed version with the report, even if the VFS changes before send.
+                let version = analyzed_documents
+                    .get(&uri)
+                    .copied()
+                    .flatten()
+                    .and_then(|version| i32::try_from(version).ok());
+                (has_entry || was_published).then_some(PublishDiagnosticsParams::new(
+                    uri,
+                    diagnostics,
+                    version,
+                ))
             })
             .collect();
         self.rebuild_workspace_uris();
@@ -363,37 +380,6 @@ impl DiagnosticStore {
     }
 }
 
-pub(crate) fn normalize_file_uri(uri: Url) -> Url {
-    if uri.scheme() != "file" {
-        return uri;
-    }
-
-    let path = uri.path();
-    let is_windows_drive_root = cfg!(windows)
-        && path.len() == 4
-        && path.as_bytes()[0] == b'/'
-        && path.as_bytes()[1].is_ascii_alphabetic()
-        && path.as_bytes()[2] == b':'
-        && path.as_bytes()[3] == b'/';
-    let has_lowercase_windows_drive = cfg!(windows)
-        && path.len() >= 3
-        && path.as_bytes()[0] == b'/'
-        && path.as_bytes()[1].is_ascii_lowercase()
-        && path.as_bytes()[2] == b':';
-    if uri.host_str().is_none()
-        && uri.query().is_none()
-        && uri.fragment().is_none()
-        && path.starts_with('/')
-        && !path.as_bytes().contains(&b'%')
-        && !path.as_bytes().windows(2).any(|bytes| bytes == b"//")
-        && (!path.ends_with('/') || path == "/" || is_windows_drive_root)
-        && !has_lowercase_windows_drive
-    {
-        return uri;
-    }
-    uri.to_file_path().ok().and_then(|path| Url::from_file_path(path).ok()).unwrap_or(uri)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -411,53 +397,6 @@ mod tests {
 
     fn uri(path: &str) -> Url {
         Url::from_file_path(std::env::temp_dir().join("solar-lsp-diagnostics").join(path)).unwrap()
-    }
-
-    fn round_trip_file_uri(uri: Url) -> Url {
-        uri.to_file_path().ok().and_then(|path| Url::from_file_path(path).ok()).unwrap_or(uri)
-    }
-
-    #[test]
-    fn file_uri_fast_path_matches_round_trip_normalization() {
-        let mut uris = vec![
-            uri("src/Canonical.sol"),
-            Url::parse("file:///").unwrap(),
-            Url::parse("file:///tmp/Encoded%20Name.sol").unwrap(),
-            Url::parse("file:///tmp//Repeated.sol").unwrap(),
-            Url::parse("file:///tmp/directory/").unwrap(),
-            Url::parse("file://localhost/tmp/Hosted.sol").unwrap(),
-            Url::parse("file:///tmp/Query.sol?version=1").unwrap(),
-            Url::parse("file:///tmp/Fragment.sol#source").unwrap(),
-        ];
-        if cfg!(windows) {
-            uris.extend([
-                Url::parse("file:///C:/tmp/Canonical.sol").unwrap(),
-                Url::parse("file:///C:/").unwrap(),
-                Url::parse("file:///tmp/NoDrive.sol").unwrap(),
-                Url::parse("file:///C%3A/tmp/EncodedDrive.sol").unwrap(),
-                Url::parse("file://server/share/Hosted.sol").unwrap(),
-            ]);
-        }
-
-        for uri in uris {
-            assert_eq!(normalize_file_uri(uri.clone()), round_trip_file_uri(uri.clone()), "{uri}");
-        }
-    }
-
-    #[test]
-    fn normalize_file_uri_preserves_non_file_uris() {
-        let uri = Url::parse("untitled:/tmp/Virtual.sol").unwrap();
-
-        assert_eq!(normalize_file_uri(uri.clone()), uri);
-    }
-
-    #[cfg(windows)]
-    #[test]
-    fn normalize_file_uri_canonicalizes_lowercase_windows_drive() {
-        let lowercase = Url::parse("file:///c:/tmp/Contract.sol").unwrap();
-        let uppercase = Url::parse("file:///C:/tmp/Contract.sol").unwrap();
-
-        assert_eq!(normalize_file_uri(lowercase), uppercase);
     }
 
     #[test]
@@ -547,6 +486,49 @@ mod tests {
     }
 
     #[test]
+    fn publish_batches_capture_analyzed_version_for_all_owners() {
+        let file = uri("src/Test.sol");
+        let mut store = DiagnosticStore::default();
+        let compiler = store.replace_compiler_snapshot_and_publish_batches(
+            DiagnosticMap::from_iter([(file.clone(), vec![diagnostic("compiler")])]),
+            AnalyzedDocuments::from_iter([(file.clone(), Some(7))]),
+        );
+
+        store.update_analyzed_document_version(file.clone(), 8);
+        assert_eq!(
+            compiler.batches,
+            vec![PublishDiagnosticsParams::new(
+                file.clone(),
+                vec![diagnostic("compiler")],
+                Some(7),
+            )]
+        );
+
+        let owner = DiagnosticOwner::Flycheck {
+            id: "forge-lint".into(),
+            workspace: PathBuf::from("/workspace"),
+        };
+        let flycheck = store.replace_and_publish_batches(
+            owner.clone(),
+            DiagnosticMap::from_iter([(file.clone(), vec![diagnostic("lint")])]),
+        );
+        assert_eq!(
+            flycheck.batches,
+            vec![PublishDiagnosticsParams::new(
+                file.clone(),
+                vec![diagnostic("compiler"), diagnostic("lint")],
+                Some(8),
+            )]
+        );
+
+        let cleared = store.clear_owners_and_publish_batches([owner]);
+        assert_eq!(
+            cleared.batches,
+            vec![PublishDiagnosticsParams::new(file, vec![diagnostic("compiler")], Some(8))]
+        );
+    }
+
+    #[test]
     fn publish_batches_merges_owners_for_same_uri() {
         let file = uri("src/Test.sol");
         let mut store = DiagnosticStore::default();
@@ -570,9 +552,13 @@ mod tests {
             .batches;
 
         assert_eq!(batches.len(), 1);
-        assert_eq!(batches[0].0, file);
+        assert_eq!(batches[0].uri, file);
         assert_eq!(
-            batches[0].1.iter().map(|diagnostic| diagnostic.message.as_str()).collect::<Vec<_>>(),
+            batches[0]
+                .diagnostics
+                .iter()
+                .map(|diagnostic| diagnostic.message.as_str())
+                .collect::<Vec<_>>(),
             ["compiler", "lint"]
         );
     }
@@ -605,7 +591,11 @@ mod tests {
 
         assert_eq!(batches.len(), 1);
         assert_eq!(
-            batches[0].1.iter().map(|diagnostic| diagnostic.message.as_str()).collect::<Vec<_>>(),
+            batches[0]
+                .diagnostics
+                .iter()
+                .map(|diagnostic| diagnostic.message.as_str())
+                .collect::<Vec<_>>(),
             ["compiler"]
         );
     }
@@ -622,7 +612,10 @@ mod tests {
                 DiagnosticMap::from_iter([(first.clone(), vec![diagnostic("first")])]),
             )
             .batches;
-        assert_eq!(initial, vec![(first.clone(), vec![diagnostic("first")])]);
+        assert_eq!(
+            initial,
+            vec![PublishDiagnosticsParams::new(first.clone(), vec![diagnostic("first")], None)]
+        );
 
         let batches = store
             .replace_and_publish_batches(
@@ -632,8 +625,11 @@ mod tests {
             .batches;
 
         assert_eq!(batches.len(), 2);
-        assert_eq!(batches[0], (first, Vec::new()));
-        assert_eq!(batches[1], (second, vec![diagnostic("second")]));
+        assert_eq!(batches[0], PublishDiagnosticsParams::new(first, Vec::new(), None));
+        assert_eq!(
+            batches[1],
+            PublishDiagnosticsParams::new(second, vec![diagnostic("second")], None)
+        );
     }
 
     #[test]
@@ -661,9 +657,13 @@ mod tests {
             .batches;
 
         assert_eq!(batches.len(), 1);
-        assert_eq!(batches[0].0, first);
+        assert_eq!(batches[0].uri, first);
         assert_eq!(
-            batches[0].1.iter().map(|diagnostic| diagnostic.message.as_str()).collect::<Vec<_>>(),
+            batches[0]
+                .diagnostics
+                .iter()
+                .map(|diagnostic| diagnostic.message.as_str())
+                .collect::<Vec<_>>(),
             ["first", "lint"]
         );
     }
@@ -706,7 +706,13 @@ mod tests {
         let batches =
             store.clear_file_path_prefixes_retaining_and_publish_batches(&[prefix], &[]).batches;
 
-        assert_eq!(batches, vec![(deleted.clone(), Vec::new()), (nested.clone(), Vec::new())]);
+        assert_eq!(
+            batches,
+            vec![
+                PublishDiagnosticsParams::new(deleted.clone(), Vec::new(), None),
+                PublishDiagnosticsParams::new(nested.clone(), Vec::new(), None),
+            ]
+        );
         assert!(store.diagnostics.values().all(|diagnostics| {
             !diagnostics.contains_key(&deleted) && !diagnostics.contains_key(&nested)
         }));
@@ -730,7 +736,7 @@ mod tests {
         let batches =
             store.clear_file_path_prefixes_retaining_and_publish_batches(&[prefix], &[]).batches;
 
-        assert_eq!(batches, vec![(file, Vec::new())]);
+        assert_eq!(batches, vec![PublishDiagnosticsParams::new(file, Vec::new(), None)]);
     }
 
     #[test]
@@ -760,8 +766,81 @@ mod tests {
 
         let update = store.clear_owners_and_publish_batches([first, second]);
 
-        assert_eq!(update.batches, vec![(file, vec![diagnostic("compiler")])]);
+        assert_eq!(
+            update.batches,
+            vec![PublishDiagnosticsParams::new(file, vec![diagnostic("compiler")], None)]
+        );
         assert!(update.pull_reports_changed);
+    }
+
+    #[test]
+    fn clearing_empty_owner_keeps_workspace_uri_cache() {
+        let file = uri("src/Test.sol");
+        let mut store = DiagnosticStore::default();
+        let retained_owner = DiagnosticOwner::Flycheck {
+            id: "retained".into(),
+            workspace: PathBuf::from("/workspace"),
+        };
+        let absent_owner = DiagnosticOwner::Flycheck {
+            id: "absent".into(),
+            workspace: PathBuf::from("/workspace"),
+        };
+        store.replace_compiler_snapshot_and_publish_batches(
+            DiagnosticMap::from_iter([(file.clone(), vec![diagnostic("compiler")])]),
+            AnalyzedDocuments::from_iter([(file.clone(), Some(7))]),
+        );
+        store.replace_and_publish_batches(
+            retained_owner.clone(),
+            DiagnosticMap::from_iter([(file.clone(), vec![diagnostic("lint")])]),
+        );
+        let initial = store.workspace_pull_reports(Vec::new());
+        let [initial] = initial.try_into().unwrap();
+        let PullReport::Full { result_id: initial_result_id, diagnostics } = initial.report else {
+            panic!("initial report should be full");
+        };
+        assert_eq!(initial.version, Some(7));
+        assert_eq!(diagnostics, [diagnostic("compiler"), diagnostic("lint")]);
+
+        let previous = [PreviousResultId { uri: file.clone(), value: initial_result_id.clone() }];
+        let update = store.clear_owners_and_publish_batches([absent_owner.clone()]);
+        assert!(update.batches.is_empty());
+        assert!(!update.pull_reports_changed);
+        let [unchanged] = store.workspace_pull_reports(previous.to_vec()).try_into().unwrap();
+        assert_eq!(unchanged.uri, file);
+        assert_eq!(unchanged.version, Some(7));
+        assert_eq!(
+            unchanged.report,
+            PullReport::Unchanged { result_id: initial_result_id.clone() }
+        );
+
+        let update = store.clear_owners_and_publish_batches([absent_owner]);
+        assert!(update.batches.is_empty());
+        assert!(!update.pull_reports_changed);
+        let [unchanged] = store.workspace_pull_reports(previous.to_vec()).try_into().unwrap();
+        assert_eq!(unchanged.version, Some(7));
+        assert_eq!(
+            unchanged.report,
+            PullReport::Unchanged { result_id: initial_result_id.clone() }
+        );
+
+        let update = store.clear_owners_and_publish_batches([retained_owner]);
+        assert_eq!(
+            update.batches,
+            vec![PublishDiagnosticsParams::new(
+                file.clone(),
+                vec![diagnostic("compiler")],
+                Some(7),
+            )]
+        );
+        assert!(update.pull_reports_changed);
+        let [cleared] = store.workspace_pull_reports(previous.to_vec()).try_into().unwrap();
+        assert_eq!(cleared.uri, file);
+        assert_eq!(cleared.version, Some(7));
+        let PullReport::Full { result_id, diagnostics } = cleared.report else {
+            panic!("clearing an owner should change the report");
+        };
+        assert_ne!(result_id, initial_result_id);
+        assert_eq!(diagnostics, [diagnostic("compiler")]);
     }
 
     #[test]
@@ -780,13 +859,13 @@ mod tests {
         let empty_diagnostics = || DiagnosticMap::from_iter([(file.clone(), Vec::new())]);
         assert_eq!(
             store.replace_and_publish_batches(owner.clone(), empty_diagnostics()).batches,
-            vec![(file.clone(), Vec::new())]
+            vec![PublishDiagnosticsParams::new(file.clone(), Vec::new(), None)]
         );
         assert!(store.reports.is_empty());
 
         assert_eq!(
             store.replace_and_publish_batches(owner.clone(), empty_diagnostics()).batches,
-            vec![(file, Vec::new())]
+            vec![PublishDiagnosticsParams::new(file, Vec::new(), None)]
         );
         assert!(store.reports.is_empty());
 
@@ -912,7 +991,10 @@ mod tests {
             DiagnosticOwner::Compiler,
             DiagnosticMap::from_iter([(file.clone(), Vec::new())]),
         );
-        assert_eq!(update.batches, vec![(file.clone(), Vec::new())]);
+        assert_eq!(
+            update.batches,
+            vec![PublishDiagnosticsParams::new(file.clone(), Vec::new(), None)]
+        );
         assert!(!update.pull_reports_changed);
 
         let path = file.to_file_path().unwrap();

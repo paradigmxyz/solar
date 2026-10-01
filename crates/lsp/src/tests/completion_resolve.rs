@@ -323,7 +323,7 @@ async fn resolves_only_compatible_completion_items_across_analysis_batches() {
             import_remappings: vec![ImportRemapping {
                 context: String::new(),
                 prefix: "@dep/".into(),
-                path: project.path(dependency_directory).to_string_lossy().into_owned(),
+                path: format!("{}/", project.path(dependency_directory).display()),
             }],
             ..Default::default()
         };

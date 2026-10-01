@@ -45,7 +45,7 @@ use std::{
     borrow::Cow,
     io, mem,
     ops::ControlFlow,
-    path::{Path, PathBuf},
+    path::{Component, Path, PathBuf},
     sync::{
         Arc,
         atomic::{AtomicUsize, Ordering},
@@ -459,6 +459,9 @@ pub(crate) struct GlobalState {
     diagnostics: Arc<RwLock<DiagnosticStore>>,
     import_completion_cache: Mutex<ImportCompletionCache>,
     last_vfs_path: Option<(Url, Arc<VfsPath>)>,
+    /// Keep scheduled benchmark analyses on the same compiler thread policy as CPU benchmarks.
+    #[cfg(any(test, feature = "bench"))]
+    benchmark_threads: Option<solar_config::Threads>,
 }
 
 pub(crate) struct AnalysisRevision {
@@ -509,6 +512,8 @@ impl GlobalState {
             diagnostics: Arc::new(Default::default()),
             import_completion_cache: Mutex::new(ImportCompletionCache::default()),
             last_vfs_path: None,
+            #[cfg(any(test, feature = "bench"))]
+            benchmark_threads: None,
             config,
             launch_config: crate::LaunchConfig::default(),
         }
@@ -825,6 +830,7 @@ impl GlobalState {
     ///
     /// [`salsa`]: https://docs.rs/salsa/latest/salsa/
     pub(crate) fn recompute_with_disk_files(&mut self, disk_paths: Vec<PathBuf>) {
+        self.invalidate_flychecks_for_paths(&disk_paths);
         // New project files also need discovery to establish watches for their directories.
         let rediscover = disk_paths.iter().any(|path| {
             !self
@@ -854,6 +860,7 @@ impl GlobalState {
     }
 
     pub(crate) fn recompute_after_opening_source(&mut self, changed_paths: Vec<PathBuf>) {
+        self.invalidate_flychecks_for_paths(&changed_paths);
         self.request_analysis(
             AnalysisMode::Recompute,
             AnalysisRequest { changed_paths, ..Default::default() },
@@ -863,6 +870,7 @@ impl GlobalState {
     }
 
     pub(crate) fn recompute_after_source_changes(&mut self, changed_paths: Vec<PathBuf>) {
+        self.invalidate_flychecks_for_paths(&changed_paths);
         let delay = self.config.source_change_debounce();
         self.request_analysis(
             AnalysisMode::Recompute,
@@ -878,6 +886,7 @@ impl GlobalState {
         removed_paths: Vec<PathBuf>,
         force_rediscover: bool,
     ) {
+        self.invalidate_flychecks_for_paths(disk_paths.iter().chain(&removed_paths));
         let changed_paths = disk_paths.clone();
         let mode =
             if force_rediscover { AnalysisMode::Rediscover } else { AnalysisMode::Recompute };
@@ -1497,7 +1506,7 @@ impl GlobalState {
         previous_result_id: Option<String>,
     ) -> impl Future<Output = Result<PullReport, ResponseError>> + use<> {
         let (uri, latest_analysis) = match uri.to_file_path() {
-            Ok(path) => (Url::from_file_path(path).unwrap_or(uri), Some(self.latest_analysis())),
+            Ok(path) => (normalize_diagnostic_uri(uri, path), Some(self.latest_analysis())),
             Err(()) => (uri, None),
         };
         let diagnostics = self.diagnostics.clone();
@@ -1520,15 +1529,23 @@ impl GlobalState {
         range: Range,
     ) -> impl Future<Output = Result<Vec<Diagnostic>, ResponseError>> + use<> {
         let (uri, latest_analysis) = match uri.to_file_path() {
-            Ok(path) => (Url::from_file_path(path).unwrap_or(uri), Some(self.latest_analysis())),
+            Ok(path) => (normalize_diagnostic_uri(uri, path), Some(self.latest_analysis())),
             Err(()) => (uri, None),
         };
         let diagnostics = self.diagnostics.clone();
+        let config = self.config.clone();
         async move {
             if let Some(latest_analysis) = latest_analysis {
                 latest_analysis.await?;
             }
-            Ok(diagnostics.read().code_action_diagnostics(&uri, range))
+            let mut diagnostics = diagnostics.read().code_action_diagnostics(&uri, range);
+            if config.uses_push_diagnostics() {
+                // Match client context against the published presentation, keeping fix data.
+                for diagnostic in &mut diagnostics {
+                    config.prepare_publish_diagnostic(diagnostic);
+                }
+            }
+            Ok(diagnostics)
         }
     }
 
@@ -1645,7 +1662,17 @@ impl GlobalState {
                 }
 
                 match result {
-                    Ok(diagnostics) => {
+                    Ok(result) => {
+                        let diagnostics = if result.sources_unchanged
+                            && snapshot.flycheck_sources_match_vfs(&result)
+                        {
+                            result.diagnostics
+                        } else {
+                            // The command analyzed a disk snapshot that no longer describes the
+                            // open VFS. Keep the owner empty instead of publishing ranges from
+                            // an unrelated source revision.
+                            DiagnosticMap::default()
+                        };
                         snapshot.publish_flycheck_diagnostics(task_owner, version, diagnostics)
                     }
                     Err(error) => {
@@ -1666,13 +1693,32 @@ impl GlobalState {
         &mut self,
         owners: impl IntoIterator<Item = DiagnosticOwner>,
     ) {
+        self.invalidate_flycheck_owners(owners, false);
+    }
+
+    fn invalidate_flychecks_for_paths<'a>(&mut self, paths: impl IntoIterator<Item = &'a PathBuf>) {
+        let owners = paths
+            .into_iter()
+            .flat_map(|path| self.config.flycheck_owners_for_path(path))
+            .collect::<FxHashSet<_>>();
+        self.invalidate_flycheck_owners(owners, true);
+    }
+
+    fn invalidate_flycheck_owners(
+        &mut self,
+        owners: impl IntoIterator<Item = DiagnosticOwner>,
+        use_current_versions: bool,
+    ) {
         let owners = owners.into_iter().collect::<Vec<_>>();
+        if owners.is_empty() {
+            return;
+        }
         for owner in &owners {
             self.begin_flycheck_epoch(owner);
         }
 
         let mut snapshot = self.snapshot();
-        let refresh_diagnostics = snapshot.clear_diagnostic_owners(owners);
+        let refresh_diagnostics = snapshot.clear_diagnostic_owners(owners, use_current_versions);
         request_pull_result_refreshes(
             &self.client,
             &self.config,
@@ -1723,7 +1769,7 @@ impl GlobalState {
             symbol_tables: self.symbol_tables.clone(),
             diagnostics: self.diagnostics.clone(),
             #[cfg(any(test, feature = "bench"))]
-            benchmark_threads: None,
+            benchmark_threads: self.benchmark_threads,
         }
     }
 
@@ -2453,21 +2499,40 @@ fn watched_file_registration_params_with_specs(
 
 fn publish_diagnostic_batches(
     client: &mut ClientSocket,
-    batches: impl IntoIterator<Item = (Url, Vec<Diagnostic>)>,
+    batches: impl IntoIterator<Item = PublishDiagnosticsParams>,
     config: &Config,
 ) {
     if !config.uses_push_diagnostics() {
         return;
     }
     let include_data = config.supports_publish_diagnostics_data();
-    for (uri, mut uri_diagnostics) in batches {
-        if !include_data {
-            for diagnostic in &mut uri_diagnostics {
+    for mut batch in batches {
+        for diagnostic in &mut batch.diagnostics {
+            config.prepare_publish_diagnostic(diagnostic);
+            if !include_data {
                 diagnostic.data = None;
             }
         }
-        let _ =
-            client.publish_diagnostics(PublishDiagnosticsParams::new(uri, uri_diagnostics, None));
+        let _ = client.publish_diagnostics(batch);
+    }
+}
+
+/// Reuses the decoded path while retaining diagnostics' support for convertible non-file URIs.
+fn normalize_diagnostic_uri(uri: Url, mut path: PathBuf) -> Url {
+    if cfg!(unix) {
+        if proto::is_normalized_file_uri(&uri) {
+            return uri;
+        }
+        // URI construction already drops redundant separators and `.` components on Unix.
+        // Only `..` requires rebuilding the path before encoding it.
+        if path.components().any(|component| component == Component::ParentDir) {
+            path = path.normalize();
+        }
+        Url::from_file_path(path).unwrap_or(uri)
+    } else {
+        // NOTE: Preserve both conversions on Windows, where rebuilding paths can interpret
+        // drive prefixes differently from URI construction.
+        proto::normalize_file_uri(Url::from_file_path(path).unwrap_or(uri))
     }
 }
 
@@ -2530,6 +2595,24 @@ impl GlobalStateSnapshot {
         paths.sort_unstable();
         paths.dedup();
         paths
+    }
+
+    fn flycheck_sources_match_vfs(&self, result: &flycheck::FlycheckResult) -> bool {
+        let vfs = self.vfs.read();
+        if result.sources.iter().any(|(path, source)| {
+            let path = VfsPath::from(path.clone());
+            vfs.get_file_contents(&path)
+                .is_some_and(|current| current.byte_slice(..) != source.byte_slice(..))
+        }) {
+            return false;
+        }
+
+        result.diagnostics.keys().all(|uri| {
+            let Some(path) = proto::vfs_path(uri) else { return true };
+            let Some(_current) = vfs.get_file_contents(&path) else { return true };
+            let Some(path) = path.as_path() else { return false };
+            result.sources.contains_key(path)
+        })
     }
 
     #[cfg(any(test, feature = "bench"))]
@@ -2831,10 +2914,23 @@ impl GlobalStateSnapshot {
     fn clear_diagnostic_owners(
         &mut self,
         owners: impl IntoIterator<Item = DiagnosticOwner>,
+        use_current_versions: bool,
     ) -> bool {
         let analysis_commit = self.analysis_commit.clone();
         let mut commit = analysis_commit.lock();
-        let update = self.diagnostics.write().clear_owners_and_publish_batches(owners);
+        let mut update = self.diagnostics.write().clear_owners_and_publish_batches(owners);
+        if use_current_versions {
+            let vfs = self.vfs.read();
+            for batch in &mut update.batches {
+                if let Some(path) = proto::vfs_path(&batch.uri)
+                    && let Some(version) = vfs.get_file_version(&path)
+                {
+                    // A content edit invalidates the previous owner snapshot. Use the current
+                    // document version so clients accept the clearing publication.
+                    batch.version = Some(version);
+                }
+            }
+        }
 
         let refresh_immediately = update.pull_reports_changed && commit.external_refresh.is_none();
         commit.record_external_diagnostics_change(update.pull_reports_changed);
@@ -3210,7 +3306,8 @@ fn analyze_cancellable_with_source_map(
     let sess = Session::builder()
         .opts(opts)
         .source_map(source_map)
-        .dcx(DiagCtxt::new(Box::new(emitter)))
+        // Include compiler-internal diagnostic origins only when explicitly requested in opts.
+        .dcx(DiagCtxt::new(Box::new(emitter)).with_flags(|flags| flags.track_diagnostics = false))
         .build();
     // Session construction canonicalizes the base path through the same loader. Only subsequent
     // resolver probes are import candidates.

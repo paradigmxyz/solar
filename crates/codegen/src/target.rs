@@ -71,8 +71,6 @@ pub(crate) enum GasTier {
     Call,
     /// `SELFDESTRUCT`, priced by EIP-150.
     SelfDestruct,
-    /// A fixed price outside the tiered schedule.
-    Fixed(u32),
 }
 
 /// Whether an account or storage slot was already touched in the transaction.
@@ -181,7 +179,6 @@ impl GasTier {
                     0
                 }
             }
-            Self::Fixed(gas) => gas,
         }
     }
 
@@ -573,11 +570,11 @@ impl Target {
                     _ => None,
                 };
                 cost += self.op(&kind.op(), immediate);
-                for operand in kind.operands() {
+                kind.visit_operands(|operand| {
                     if let Some(value) = immediate(operand) {
                         cost += self.push(value);
                     }
-                }
+                });
             }
             let edges =
                 block.terminator.as_ref().map_or(0, |terminator| terminator.successors().len());

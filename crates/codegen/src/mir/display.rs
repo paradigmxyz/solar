@@ -10,10 +10,11 @@ use super::{
 use crate::mir::{Builtin, Callee, RequireKind, analysis::CfgInfo};
 use arrayvec::ArrayVec;
 use solar_data_structures::{
-    fmt::{self, FmtIteratorExt},
+    fmt::FmtIteratorExt,
     map::{FxHashMap, FxHashSet},
 };
 use solar_sema::hir;
+use std::fmt;
 
 /// Displays a DOT format CFG for a function.
 pub(crate) fn display_function_dot<'a>(
@@ -445,8 +446,8 @@ fn display_inst_kind<'a>(
             write!(f, ", {}", display_val(*value, func))
         }
         InstKind::LibraryAddress(id) => {
-            if let Some(library) = module.and_then(|module| module.libraries.get(*id)) {
-                write!(f, "library_address {library}")
+            if let Some(module) = module {
+                write!(f, "library_address {}", module.libraries.display_ref(*id))
             } else {
                 write!(f, "library_address {id:?}")
             }
@@ -455,13 +456,17 @@ fn display_inst_kind<'a>(
             write!(f, "loadimmutable {}", display_immutable_ref(*id, module))
         }
         InstKind::DataCopy(id, dest, size) => {
-            let name = module.and_then(|module| module.data_name(id.id));
+            let name = module.and_then(|module| module.data[id.id].name);
             write!(
                 f,
-                "data_copy {}",
+                "datacopy {}",
                 crate::utils::display_data_ref(name, id.id.index(), id.offset)
             )?;
             write!(f, ", {}, {}", display_val(*dest, func), display_val(*size, func))
+        }
+        InstKind::DataSize(size) => {
+            let name = module.and_then(|module| module.data[size.data].name);
+            write!(f, "datasize {}", crate::utils::display_data_size(name, *size))
         }
         InstKind::Alloc { size, kind, semantics } => {
             let kind = match kind {
@@ -593,7 +598,7 @@ fn display_inst_kind<'a>(
             f,
             "store_storage_bytes_literal {}, hex\"{}\"",
             display_val(*slot, func),
-            alloy_primitives::hex::encode(bytes)
+            alloy_primitives::hex::display(bytes)
         ),
         InstKind::StorageArrayLoad { slot, element, enum_variants } => {
             write!(f, "load_storage_array ")?;
@@ -638,7 +643,7 @@ fn display_inst_kind<'a>(
                 }
                 match part {
                     super::PackedPart::Literal(bytes) => {
-                        write!(f, "data hex\"{}\"", alloy_primitives::hex::encode(bytes))?
+                        write!(f, "data hex\"{}\"", alloy_primitives::hex::display(bytes))?
                     }
                     super::PackedPart::Scalar { value, ty } => {
                         write!(f, "{ty} {}", display_val(*value, func))?

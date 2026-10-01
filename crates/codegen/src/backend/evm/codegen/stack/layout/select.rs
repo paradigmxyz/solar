@@ -18,7 +18,7 @@ use super::super::super::{
     ResidentSearchContext, ScheduleCost, StackOp, StackPhiPlan, Terminator, Value, ValueId,
 };
 use crate::target::Target;
-use std::rc::Rc;
+use std::sync::Arc;
 
 impl<'gcx> EvmCodegen<'gcx> {
     /// Carries a calldata loop bound beneath a small pure loop's changing words.
@@ -64,16 +64,29 @@ impl<'gcx> EvmCodegen<'gcx> {
         None
     }
 
+    /// Returns the whole-function liveness of a function, computing it on first use.
+    pub(in crate::backend::evm::codegen) fn function_liveness(
+        &mut self,
+        func_id: FunctionId,
+        func: &Function,
+    ) -> Arc<Liveness> {
+        Arc::clone(
+            self.function_liveness
+                .entry(func_id)
+                .or_insert_with(|| Arc::new(Liveness::compute(func))),
+        )
+    }
+
     /// Returns the stack-phi plan for a function, computing it on first use.
     pub(in crate::backend::evm::codegen) fn stack_phi_plan(
         &mut self,
         func_id: FunctionId,
         func: &Function,
         liveness: &Liveness,
-    ) -> Rc<StackPhiPlan> {
+    ) -> Arc<StackPhiPlan> {
         let cold_functions = &self.cold_functions;
-        Rc::clone(self.stack_phi_plans.entry(func_id).or_insert_with(|| {
-            Rc::new(StackPhiPlan::analyze(func, liveness, cold_functions, Target::new(self.gcx)))
+        Arc::clone(self.stack_phi_plans.entry(func_id).or_insert_with(|| {
+            Arc::new(StackPhiPlan::analyze(func, liveness, cold_functions, Target::new(self.gcx)))
         }))
     }
 
@@ -116,7 +129,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         &self,
         func: &Function,
         values: &[ValueId],
-        phi_plan: Option<Rc<StackPhiPlan>>,
+        phi_plan: Option<Arc<StackPhiPlan>>,
     ) -> ResidentSearchContext {
         let mut value_uses = FxHashMap::default();
         for block in &func.blocks {
@@ -264,7 +277,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         liveness: &Liveness,
         values: &[ValueId],
         preserve_across_calls: bool,
-        phi_plan: Option<Rc<StackPhiPlan>>,
+        phi_plan: Option<Arc<StackPhiPlan>>,
     ) -> Option<(Vec<ValueId>, GlobalStackPlan)> {
         debug_assert!(values.len() <= GLOBAL_STACK_LAYOUT_LIMIT);
         let mut use_counts = FxHashMap::default();
@@ -355,7 +368,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         func: &Function,
         liveness: &Liveness,
         cross_block_live: &OnceCell<DenseBitSet<ValueId>>,
-        phi_plan: Option<Rc<StackPhiPlan>>,
+        phi_plan: Option<Arc<StackPhiPlan>>,
     ) -> Option<(Vec<ValueId>, GlobalStackPlan)> {
         if matches!(self.gcx.sess.opts.optimization, OptimizationMode::None)
             || !Self::is_external_entry(func)
@@ -382,7 +395,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         for (block_id, block) in func.blocks.iter_enumerated() {
             for &user in &block.instructions {
                 let phi = matches!(func.inst(user).kind, InstKind::Phi(_));
-                for operand in func.inst(user).kind.operands() {
+                func.inst(user).kind.visit_operands(|operand| {
                     if let Some((definition, count, blocks, used_in_definition, used_by_phi, _)) =
                         uses.get_mut(&operand)
                     {
@@ -391,7 +404,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                         *count += 1;
                         blocks.insert(block_id);
                     }
-                }
+                });
             }
             for operand in block.terminator.iter().flat_map(Terminator::operands) {
                 if let Some((definition, count, blocks, used_in_definition, _, _)) =
@@ -513,7 +526,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     fn spill_hazard_is_repeated_low_phi(&self, func: &Function) -> bool {
         let inst_blocks = func.inst_blocks();
         let mut loop_analyzer = LoopAnalyzer::new();
-        let loop_info = loop_analyzer.analyze(func);
+        let loop_info = loop_analyzer.analyze_structure(func);
         loop_info.all_loops().any(|loop_info| {
             self.spill_hazard_insts.iter().any(|inst| {
                 inst_blocks.get(inst).is_some_and(|block| loop_info.blocks.contains(*block))
@@ -555,7 +568,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         func: &Function,
         liveness: &Liveness,
         values: &[ValueId],
-        phi_plan: Option<Rc<StackPhiPlan>>,
+        phi_plan: Option<Arc<StackPhiPlan>>,
     ) -> Option<(Vec<ValueId>, GlobalStackPlan)> {
         if values.is_empty() {
             return None;

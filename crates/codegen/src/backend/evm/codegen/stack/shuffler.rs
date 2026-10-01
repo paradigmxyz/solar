@@ -33,11 +33,14 @@
 //! the same bounded question.
 
 use super::model::StackModel;
-use crate::{backend::evm::op::StackOp, mir::ValueId};
+use crate::{
+    backend::evm::op::{StackOp, StackOpMetrics},
+    mir::ValueId,
+};
 use smallvec::SmallVec;
 use solar_config::EvmVersion;
 use solar_data_structures::map::{FxHashMap, StdEntry};
-use std::{cell::RefCell, collections::VecDeque};
+use std::{cell::RefCell, collections::VecDeque, ops::ControlFlow};
 
 const MAX_LAYOUT_SEARCH_STATES: usize = 100_000;
 const MAX_SHARED_EXACT_SEARCHES: usize = 2_048;
@@ -170,34 +173,113 @@ fn synthesize_unique_layout(
         return None;
     }
     removed.sort_unstable();
-    let mut best = None;
-    loop {
-        let mut current = source.clone();
-        let mut ops = Vec::new();
-        for &value in &removed {
-            let depth = current.iter().position(|&current| current == value)?;
-            if depth != 0 {
-                ops.push(StackOp::Swap(depth as u8));
-                current.swap(0, depth);
+    let mut search = RemovalSearch {
+        evm_version,
+        pop: StackOp::Pop.metrics(evm_version)?,
+        swap: StackOp::Swap(1).metrics(evm_version)?,
+        target: &target_values,
+        removed: &removed,
+        current: source,
+        ops: Vec::new(),
+        best: None,
+    };
+    match search.visit(0, (0, 0, 0)) {
+        ControlFlow::Break(ops) => Some(ops),
+        ControlFlow::Continue(()) => search.best.map(|(ops, _)| ops),
+    }
+}
+
+/// A depth-first search over removal orders in lexicographic order of the removed values,
+/// keeping the first cheapest complete sequence.
+struct RemovalSearch<'a> {
+    evm_version: EvmVersion,
+    pop: StackOpMetrics,
+    swap: StackOpMetrics,
+    target: &'a [ValueId],
+    /// Values to remove; the ones the current prefix has not removed yet are still in `current`.
+    removed: &'a [ValueId],
+    current: SmallVec<[ValueId; 16]>,
+    ops: Vec<StackOp>,
+    best: Option<(Vec<StackOp>, (usize, usize, usize))>,
+}
+
+impl RemovalSearch<'_> {
+    /// Extends the current prefix of `depth` removals, breaking with a sequence nothing can beat.
+    fn visit(
+        &mut self,
+        depth: usize,
+        prefix_cost: (usize, usize, usize),
+    ) -> ControlFlow<Vec<StackOp>> {
+        let count = self.removed.len();
+        if depth == count {
+            let mut current = self.current.clone();
+            let mut ops = self.ops.clone();
+            ops.extend(synthesize_unique_permutation(&mut current, self.target));
+            if ops.iter().all(|op| op.lowering(self.evm_version).is_some()) {
+                let cost = lowered_stack_cost(&ops, self.evm_version);
+                // Removing k words requires at least k POPs. Nothing can improve
+                // a sequence that meets this bound, regardless of removal order.
+                if ops.len() == count {
+                    return ControlFlow::Break(ops);
+                }
+                if self.best.as_ref().is_none_or(|(_, best_cost)| cost < *best_cost) {
+                    self.best = Some((ops, cost));
+                }
             }
-            ops.push(StackOp::Pop);
-            current.remove(0);
+            return ControlFlow::Continue(());
         }
-        ops.extend(synthesize_unique_permutation(&mut current, &target_values));
-        if ops.iter().all(|op| op.lowering(evm_version).is_some()) {
-            let cost = lowered_stack_cost(&ops, evm_version);
-            // Removing k words requires at least k POPs. Nothing can improve
-            // a sequence that meets this bound, regardless of removal order.
-            if ops.len() == removed.len() {
-                return Some(ops);
+        for &value in self.removed {
+            let Some(position) = self.current.iter().position(|&current| current == value) else {
+                continue;
+            };
+            let start = self.ops.len();
+            if position != 0 {
+                self.ops.push(StackOp::Swap(position as u8));
+                self.current.swap(0, position);
             }
-            if best.as_ref().is_none_or(|(_, best_cost)| cost < *best_cost) {
-                best = Some((ops, cost));
+            self.ops.push(StackOp::Pop);
+            self.current.remove(0);
+            // Costs only grow, every remaining removal needs a `POP`, and a `SWAP` must come
+            // next unless the top is removed next or the layout is final. No order sharing this
+            // prefix can beat `best` then, and a prefix without a lowering makes every such order
+            // invalid. Skip them all.
+            let cost =
+                self.ops[start..].iter().try_fold(prefix_cost, |(instructions, gas, size), op| {
+                    let metrics = op.metrics(self.evm_version)?;
+                    Some((
+                        instructions + metrics.instruction_count,
+                        gas + metrics.static_gas,
+                        size + metrics.assembled_len,
+                    ))
+                });
+            let pops = count - depth - 1;
+            let swaps = usize::from(if pops == 0 {
+                self.current.as_slice() != self.target
+            } else {
+                !self.removed.contains(&self.current[0])
+            });
+            if let Some(cost) = cost
+                && self.best.as_ref().is_none_or(|(_, best_cost)| {
+                    let bound = (
+                        cost.0
+                            + pops * self.pop.instruction_count
+                            + swaps * self.swap.instruction_count,
+                        cost.1 + pops * self.pop.static_gas + swaps * self.swap.static_gas,
+                        cost.2 + pops * self.pop.assembled_len + swaps * self.swap.assembled_len,
+                    );
+                    bound < *best_cost
+                })
+            {
+                self.visit(depth + 1, cost)?;
             }
+            // Restore the prefix before trying the next value.
+            self.current.insert(0, value);
+            if position != 0 {
+                self.current.swap(0, position);
+            }
+            self.ops.truncate(start);
         }
-        if !next_permutation(&mut removed) {
-            return best.map(|(ops, _)| ops);
-        }
+        ControlFlow::Continue(())
     }
 }
 
@@ -222,19 +304,6 @@ fn synthesize_unique_permutation(
         ops.push(StackOp::Swap(cycle as u8));
         current.swap(0, cycle);
     }
-}
-
-fn next_permutation(values: &mut [ValueId]) -> bool {
-    let Some(pivot) =
-        (0..values.len().saturating_sub(1)).rev().find(|&index| values[index] < values[index + 1])
-    else {
-        return false;
-    };
-    let successor =
-        (pivot + 1..values.len()).rev().find(|&index| values[pivot] < values[index]).unwrap();
-    values.swap(pivot, successor);
-    values[pivot + 1..].reverse();
-    true
 }
 
 /// Result of a shuffle operation.
@@ -671,7 +740,6 @@ impl<'a> StackShuffler<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::backend::evm::codegen::stack::model::MAX_STACK_ACCESS;
 
     fn make_model(values: &[Option<ValueId>]) -> StackModel {
         let mut model = StackModel::new();
@@ -922,15 +990,15 @@ mod tests {
 
     #[test]
     fn test_shuffle_uses_swap16() {
-        let values: Vec<_> = (0..=MAX_STACK_ACCESS).map(ValueId::from_usize).collect();
+        let values: Vec<_> = (0..=16).map(ValueId::from_usize).collect();
         let source = make_model(&values.iter().copied().map(Some).collect::<Vec<_>>());
         let mut target_values = values;
-        target_values.swap(0, MAX_STACK_ACCESS);
+        target_values.swap(0, 16);
         let target: Vec<_> = target_values.into_iter().map(TargetSlot::Value).collect();
 
         let result = StackShuffler::new(&source, &target).shuffle().unwrap();
 
-        assert_eq!(result.ops, [StackOp::Swap(MAX_STACK_ACCESS as u8)]);
+        assert_eq!(result.ops, [StackOp::Swap(16)]);
         assert_reaches(&source, &target, &result);
     }
 
@@ -955,14 +1023,9 @@ mod tests {
             counts
         });
 
-        let result = StackShuffler::search_exact(
-            source,
-            &target,
-            &multiplicities,
-            MAX_STACK_ACCESS,
-            EvmVersion::Osaka,
-        )
-        .unwrap();
+        let result =
+            StackShuffler::search_exact(source, &target, &multiplicities, 16, EvmVersion::Osaka)
+                .unwrap();
 
         assert_eq!(
             result.ops,
@@ -1013,7 +1076,7 @@ mod tests {
                     shuffler.source,
                     &target,
                     &shuffler.multiplicities,
-                    MAX_STACK_ACCESS,
+                    16,
                     shuffler.evm_version,
                 )
                 .unwrap();

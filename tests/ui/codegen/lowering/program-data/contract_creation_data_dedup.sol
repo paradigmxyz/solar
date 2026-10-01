@@ -17,31 +17,31 @@ contract Child {
 }
 
 // MIR-LABEL: contract_creation_data_dedup.sol:Factory ===
-// MIR: data:
-// MIR: Child_initcode_0: hex"
-// MIR-NOT: Child_initcode_1:
+// MIR: @data
+// MIR: Child_creation_code_0: creation_code
+// MIR-NOT: Child_creation_code_1:
 // OPT-LABEL: contract_creation_data_dedup.sol:Factory (runtime) ===
 // OPT: @module Factory_runtime
+// OPT: Child_creation_code_0: hex"
+// OPT-NOT: Child_creation_code_1
 // Every creation site references the one canonical data object.
-// OPT: push_data Child_initcode_0
-// OPT-NOT: push_data Child_initcode_1
-// OPT: @data Child_initcode_0 hex"
-// OPT-NOT: @data Child_initcode_1
+// OPT: push_data Child_creation_code_0
+// OPT-NOT: push_data Child_creation_code_1
 contract Factory {
     // MIR-LABEL: fn @first{{[( ]}}
-    // MIR: data_copy Child_initcode_0,
+    // MIR: datacopy Child_creation_code_0,
     function first() external returns (uint256) {
         return new Child().value();
     }
 
     // MIR-LABEL: fn @second{{[( ]}}
-    // MIR: data_copy Child_initcode_0,
+    // MIR: datacopy Child_creation_code_0,
     function second() external returns (uint256) {
         return new Child().value();
     }
 
     // MIR-LABEL: fn @pair{{[( ]}}
-    // MIR-COUNT-2: data_copy Child_initcode_0,
+    // MIR-COUNT-2: datacopy Child_creation_code_0,
     function pair() external returns (uint256) {
         Child left = new Child();
         Child right = new Child();

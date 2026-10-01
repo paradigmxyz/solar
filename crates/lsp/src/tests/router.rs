@@ -741,6 +741,180 @@ async fn router_handles_document_formatting_requests() {
 }
 
 #[tokio::test(flavor = "current_thread")]
+async fn document_symbols_use_one_identity_for_equivalent_file_uris() {
+    for spelling in ["%54oken.sol", "/Token.sol", "nested%2F..%2FToken.sol"] {
+        let project = TestProject::new();
+        let canonical = lsp_types::Url::from_file_path(project.path("/Token.sol")).unwrap();
+        let prefix = canonical.as_str().strip_suffix("Token.sol").unwrap();
+        let alias = lsp_types::Url::parse(&format!("{prefix}{spelling}")).unwrap();
+        let initialize = project.initialize_params();
+        let (server_main, _client) = async_lsp::MainLoop::new_server(new_router);
+        let (client_main, mut server) = async_lsp::MainLoop::new_client(|_| {
+            let mut router = Router::new(());
+            router.notification::<notif::PublishDiagnostics>(|_, _| ControlFlow::Continue(()));
+            router.notification::<notif::LogMessage>(|_, _| ControlFlow::Continue(()));
+            router
+        });
+        let (server_task, client_task) = spawn_lsp_pair(server_main, client_main);
+        server.initialize(initialize).await.unwrap();
+        server.initialized(InitializedParams {}).unwrap();
+        server
+            .notify::<notif::DidOpenTextDocument>(lsp_types::DidOpenTextDocumentParams {
+                text_document: lsp_types::TextDocumentItem {
+                    uri: alias.clone(),
+                    language_id: "solidity".into(),
+                    version: 1,
+                    text: "contract Token { uint value; }".into(),
+                },
+            })
+            .unwrap();
+
+        let mut responses = Vec::new();
+        for uri in [canonical, alias.clone()] {
+            let response = tokio::time::timeout(
+                Duration::from_secs(2),
+                server.request::<request::DocumentSymbolRequest>(DocumentSymbolParams {
+                    text_document: TextDocumentIdentifier::new(uri),
+                    work_done_progress_params: WorkDoneProgressParams::default(),
+                    partial_result_params: PartialResultParams::default(),
+                }),
+            )
+            .await
+            .expect("document symbols should finish after analysis")
+            .unwrap()
+            .unwrap();
+            responses.push(response);
+        }
+        let [canonical_response, alias_response] = responses.try_into().unwrap();
+        let lsp_types::DocumentSymbolResponse::Flat(symbols) = &canonical_response else {
+            panic!("expected flat document symbols");
+        };
+        assert_eq!(
+            symbols.iter().map(|symbol| symbol.name.as_str()).collect::<Vec<_>>(),
+            ["Token", "value"]
+        );
+        assert_eq!(alias_response, canonical_response, "equivalent URI: {alias}");
+
+        server.shutdown(()).await.unwrap();
+        server.exit(()).unwrap();
+        assert!(server_task.await.unwrap().is_ok());
+        assert!(matches!(client_task.await.unwrap(), Err(async_lsp::Error::Eof)));
+    }
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn semantic_requests_use_one_identity_for_equivalent_file_uris() {
+    async fn response<R: Request>(
+        server: &async_lsp::ServerSocket,
+        params: serde_json::Value,
+    ) -> serde_json::Value {
+        let params = serde_json::from_value(params).unwrap();
+        let response = tokio::time::timeout(Duration::from_secs(2), server.request::<R>(params))
+            .await
+            .unwrap_or_else(|_| panic!("{} should finish after analysis", R::METHOD))
+            .unwrap();
+        serde_json::to_value(response).unwrap()
+    }
+
+    let marked = crate::test_support::MarkedProject::from_fixture(
+        r#"
+        //- /Token.sol
+        contract Base {}
+        contract $4Token is Base {
+            uint value;
+            function callee(uint input) internal pure returns (uint) { return input; }
+            function $1caller() public view returns (uint) { return $2callee($3value); }
+        }
+        "#,
+    );
+    let project = marked.project();
+    let canonical = lsp_types::Url::from_file_path(project.path("/Token.sol")).unwrap();
+    let prefix = canonical.as_str().strip_suffix("Token.sol").unwrap();
+    let (server_main, _client) = async_lsp::MainLoop::new_server(new_router);
+    let (client_main, mut server) = async_lsp::MainLoop::new_client(|_| {
+        let mut router = Router::new(());
+        router.notification::<notif::PublishDiagnostics>(|_, _| ControlFlow::Continue(()));
+        router.notification::<notif::LogMessage>(|_, _| ControlFlow::Continue(()));
+        router
+    });
+    let (server_task, client_task) = spawn_lsp_pair(server_main, client_main);
+    server.initialize(project.initialize_params()).await.unwrap();
+    server.initialized(InitializedParams {}).unwrap();
+    server
+        .notify::<notif::DidOpenTextDocument>(lsp_types::DidOpenTextDocumentParams {
+            text_document: lsp_types::TextDocumentItem {
+                uri: canonical.clone(),
+                language_id: "solidity".into(),
+                version: 1,
+                text: project.read_file("/Token.sol"),
+            },
+        })
+        .unwrap();
+
+    for spelling in ["%54oken.sol", "/Token.sol", "nested%2F..%2FToken.sol"] {
+        let alias = lsp_types::Url::parse(&format!("{prefix}{spelling}")).unwrap();
+        macro_rules! equivalent_response {
+            ($request:ty, $params:expr) => {{
+                let mut params = $params;
+                params["textDocument"] = serde_json::json!({ "uri": canonical });
+                let expected = response::<$request>(&server, params.clone()).await;
+                assert!(!expected.is_null(), "{} should return a result", <$request>::METHOD);
+                if let Some(items) = expected.as_array() {
+                    assert!(!items.is_empty(), "{} should return items", <$request>::METHOD);
+                }
+                params["textDocument"] = serde_json::json!({ "uri": alias });
+                let actual = response::<$request>(&server, params).await;
+                assert_eq!(actual, expected, "{} for {alias}", <$request>::METHOD);
+                actual
+            }};
+        }
+        let position = marked.marker("$2").position();
+        equivalent_response!(request::HoverRequest, serde_json::json!({ "position": position }));
+        equivalent_response!(request::GotoDefinition, serde_json::json!({ "position": position }));
+        equivalent_response!(
+            request::References,
+            serde_json::json!({ "position": position, "context": { "includeDeclaration": true } })
+        );
+        let argument = marked.marker("$3").position();
+        let completions =
+            equivalent_response!(request::Completion, serde_json::json!({ "position": argument }));
+        assert!(completions.as_array().unwrap().iter().any(|item| item["label"] == "value"));
+        let signature = equivalent_response!(
+            request::SignatureHelpRequest,
+            serde_json::json!({ "position": argument })
+        );
+        assert!(!signature["signatures"].as_array().unwrap().is_empty());
+
+        let calls = equivalent_response!(
+            request::CallHierarchyPrepare,
+            serde_json::json!({ "position": marked.marker("$1").position() })
+        );
+        let outgoing = response::<request::CallHierarchyOutgoingCalls>(
+            &server,
+            serde_json::json!({ "item": calls[0] }),
+        )
+        .await;
+        assert_eq!(outgoing[0]["to"]["name"], "callee");
+
+        let types = equivalent_response!(
+            request::TypeHierarchyPrepare,
+            serde_json::json!({ "position": marked.marker("$4").position() })
+        );
+        let supertypes = response::<request::TypeHierarchySupertypes>(
+            &server,
+            serde_json::json!({ "item": types[0] }),
+        )
+        .await;
+        assert_eq!(supertypes[0]["name"], "Base");
+    }
+
+    server.shutdown(()).await.unwrap();
+    server.exit(()).unwrap();
+    assert!(server_task.await.unwrap().is_ok());
+    assert!(matches!(client_task.await.unwrap(), Err(async_lsp::Error::Eof)));
+}
+
+#[tokio::test(flavor = "current_thread")]
 async fn pending_analysis_requests_do_not_block_completion_or_cancellation() {
     const TIMEOUT: Duration = Duration::from_secs(1);
 

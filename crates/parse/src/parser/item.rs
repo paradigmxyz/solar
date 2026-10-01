@@ -82,7 +82,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     }
 
     /// Parses an item.
-    #[instrument(level = "debug", skip_all)]
+    #[instrument(level = "trace", skip_all)]
     pub fn parse_item(&mut self) -> PResult<'sess, Option<Item<'ast>>> {
         let docs = self.parse_doc_comments();
         self.parse_spanned(Self::parse_item_kind)
@@ -1041,6 +1041,16 @@ impl<'p, 'sess, 'ast, 'cb> SemverVersionParser<'p, 'sess, 'ast, 'cb> {
             minor = Some(self.parse_version_part());
             if self.eat_dot() {
                 patch = Some(self.parse_version_part());
+                // Solc starts another match component after the third dot.
+                if self.eat_dot() && self.pos_inside > 0 {
+                    let suffix = self.current_str().unwrap();
+                    self.p.token.kind = TokenKind::Literal(
+                        solar_ast::token::TokenLitKind::Integer,
+                        Symbol::intern(suffix),
+                    );
+                    self.p.token.span = self.current_span();
+                    self.pos_inside = 0;
+                }
             }
         }
         if self.pos_inside > 0 || self.bumps == 0 {

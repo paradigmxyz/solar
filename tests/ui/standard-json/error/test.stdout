@@ -29,9 +29,5 @@
       "formattedMessage": "error: expected one of `)`, `,`, `[`, `calldata`, `constant`, `external`, `immutable`, `indexed`, `internal`, `memory`, `override`, `private`, `public`, `storage`, `transient`, `virtual`, or identifier, found `{`\n   ╭▸ Bad.sol:LL:CC\n   │\nLL │     function f( public {}\n   ╰╴                       ━ expected one of 17 possible tokens\n\n"
     }
   ],
-  "sources": {
-    "Bad.sol": {
-      "id": 0
-    }
-  }
+  "sources": {}
 }

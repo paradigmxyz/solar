@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/coalesce-allocs/coalesce_allocs_basic.mir (before coalesce-allocs) ===
 + // === ROOT/tests/ui/codegen/mir/coalesce-allocs/coalesce_allocs_basic.mir (after coalesce-allocs) ===
   @module CoalesceAllocsBasic
-  immutables:
+  @immutables
     stored: u256
   
   fn @fuse_consecutive() -> i256 {

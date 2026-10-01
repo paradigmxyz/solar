@@ -10,7 +10,7 @@
 // CHECK-NEXT: [[SUB:v[0-9]+]] = sub [[ADD]], [[MUL]]
 // CHECK-NEXT: - [[XOR]] = xor arg4, arg5
 // CHECK-NEXT: {{v[0-9]+}} = div [[SUB]], [[XOR]]
-types:
+@types
   struct0: {i1, i1, i256}
   struct1: {i256, i256}
 

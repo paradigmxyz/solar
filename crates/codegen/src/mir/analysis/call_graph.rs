@@ -102,6 +102,11 @@ impl CallGraphInfo {
         component
     }
 
+    /// Returns the functions `func` calls or tail-calls directly, in ascending order.
+    pub(crate) fn callees(&self, func: FunctionId) -> impl Iterator<Item = FunctionId> + '_ {
+        self.callees.get(&func).into_iter().flatten()
+    }
+
     /// Returns functions reachable from `roots` through MIR call edges.
     #[must_use]
     pub(crate) fn reachable_callees_from(
@@ -199,7 +204,8 @@ impl CallGraphInfo {
             if visited.contains(root) {
                 continue;
             }
-            let mut stack = vec![(root, false)];
+            let mut stack = Vec::new();
+            stack.push((root, false));
             while let Some((func, expanded)) = stack.pop() {
                 if expanded {
                     finish_order.push(func);
@@ -228,7 +234,8 @@ impl CallGraphInfo {
                 continue;
             }
             let mut component = Vec::new();
-            let mut stack = vec![root];
+            let mut stack = Vec::new();
+            stack.push(root);
             while let Some(func) = stack.pop() {
                 component.push(func);
                 for &caller in &reverse[func] {

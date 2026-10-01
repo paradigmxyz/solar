@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/library_storage_pointer_return.sol:Lib ===
 @module Lib
 @library
-types:
+@types
   struct0: {i256, memoryfixedarray}
   struct1: {i256, i256}
 
@@ -53,7 +53,7 @@ fn @pairRef(arg0: i256) -> struct1 [selector=0x4a3c24da, view, abi_params=[stora
 
 // === ROOT/tests/ui/codegen/lowering/library_storage_pointer_return.sol:C ===
 @module C
-types:
+@types
   struct0: {i256, i256}
   struct1: {i256, memoryfixedarray}
 

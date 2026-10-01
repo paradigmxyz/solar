@@ -6,11 +6,15 @@
 //! that observe program-data layout through `CODESIZE`, because appending data would change the
 //! observed final byte.
 
-use super::{EvmPass, data::literal_store_run, utils::instruction_size_lower_bound};
+use super::{
+    EvmPass,
+    data::{literal_store_bytes, literal_store_words},
+    utils::instruction_size_lower_bound,
+};
 use crate::{
     backend::evm::{
         ir::{BlockId, Data, DataRef, Instruction, Metadata, Module},
-        op::{self, WORD_BYTES},
+        op,
     },
     mir::lower::data_copy_cost,
 };
@@ -61,12 +65,7 @@ fn materialize_constant_data(gcx: Gcx<'_>, module: &mut Module) -> bool {
     let mut prepared = Vec::with_capacity(rewrites.len());
     for rewrite in rewrites {
         let size = rewrite.data.len();
-        let id = module.data.push(Data {
-            bytes: rewrite.data,
-            name: Some(sym::literal),
-            emit_in_runtime: false,
-            library_relocations: Vec::new(),
-        });
+        let id = module.data.push(Data::new(rewrite.data, Some(sym::literal)));
         let data = DataRef::new(id, 0);
         prepared.push((rewrite.block, rewrite.start, rewrite.end, size, data));
     }
@@ -98,10 +97,11 @@ fn find_run(
     instructions: &[Instruction],
     start: usize,
 ) -> Option<Rewrite> {
-    let (data, end) = literal_store_run(instructions, start)?;
-    if data.len() < 2 * WORD_BYTES {
+    let (words, end) = literal_store_words(instructions, start)?;
+    if words < 2 {
         return None;
     }
+    let data = literal_store_bytes(instructions, start, end, words);
 
     let old_size = instructions[start..end]
         .iter()

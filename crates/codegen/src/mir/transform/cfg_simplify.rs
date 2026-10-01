@@ -40,6 +40,7 @@ use solar_data_structures::{
     index::{IndexVec, index_vec},
     map::FxHashMap,
 };
+use std::cell::OnceCell;
 
 /// Function pass for CFG simplification.
 pub(crate) struct CfgSimplify;
@@ -271,10 +272,28 @@ impl CfgSimplifier {
     /// no phis and a terminal block has no successors, so no phi inputs
     /// elsewhere can mention it.
     fn deduplicate_terminal_blocks(&mut self, func: &mut Function) {
+        // Equal keys imply equal terminator mnemonics and block lengths, so only
+        // blocks sharing that shape with another candidate need a key.
+        let shape = |block_id: BlockId| {
+            let block = &func.blocks[block_id];
+            let term = block.terminator.as_ref()?;
+            let mut has_successor = false;
+            term.for_each_successor(|_| has_successor = true);
+            (!block.predecessors.is_empty()
+                && !matches!(term, Terminator::Invalid)
+                && !has_successor)
+                .then(|| (term.mnemonic(), block.instructions.len()))
+        };
+        let mut shapes = FxHashMap::<_, usize>::default();
+        for block_id in func.blocks.indices() {
+            if let Some(shape) = shape(block_id) {
+                *shapes.entry(shape).or_default() += 1;
+            }
+        }
         let mut kept: FxHashMap<CanonBlock, BlockId> = FxHashMap::default();
         let mut merges: Vec<(BlockId, BlockId)> = Vec::new();
         for block_id in func.blocks.indices() {
-            if func.blocks[block_id].predecessors.is_empty() {
+            if shape(block_id).is_none_or(|shape| shapes[&shape] < 2) {
                 continue;
             }
             let Some(canon) = Self::canonicalize_terminal_block(func, block_id) else {
@@ -398,7 +417,7 @@ impl CfgSimplifier {
         let mut raw = FxHashMap::default();
 
         for block_id in func.blocks.indices() {
-            let same_block_phi_results = func.block_phi_results(block_id);
+            let mut same_block_phi_results = None;
             for &inst_id in &func.blocks[block_id].instructions {
                 let InstKind::Phi(incoming) = &func.inst(inst_id).kind else {
                     continue;
@@ -406,8 +425,10 @@ impl CfgSimplifier {
                 let Some(phi_value) = func.inst_result_value(inst_id) else {
                     continue;
                 };
+                let same_block_phi_results =
+                    same_block_phi_results.get_or_insert_with(|| func.block_phi_results(block_id));
                 let Some(replacement) =
-                    Self::trivial_phi_replacement(incoming, phi_value, &same_block_phi_results)
+                    Self::trivial_phi_replacement(incoming, phi_value, same_block_phi_results)
                 else {
                     continue;
                 };
@@ -471,14 +492,19 @@ impl CfgSimplifier {
 
     fn simplify_degenerate_terminators(&mut self, func: &mut Function) {
         for block_id in func.blocks.indices() {
-            if !matches!(
-                func.blocks[block_id].terminator,
-                Some(Terminator::Branch { .. } | Terminator::Switch { .. })
-            ) {
+            let Some(term) = &func.blocks[block_id].terminator else { continue };
+            let distinct = match term {
+                Terminator::Branch { then_block, else_block, .. } => then_block != else_block,
+                Terminator::Switch { default, cases, .. } => {
+                    cases.last().is_some_and(|(_, target)| target != default)
+                }
+                _ => continue,
+            };
+            let mut replacement = Self::known_branch_target(func, block_id);
+            if replacement.is_none() && distinct {
                 continue;
             }
             let mut terminator = func.blocks[block_id].terminator.clone();
-            let mut replacement = Self::known_branch_target(func, block_id);
             if replacement.is_none() {
                 replacement = match terminator.as_mut() {
                     Some(Terminator::Branch { then_block, else_block, .. })
@@ -684,19 +710,25 @@ impl CfgSimplifier {
 
     /// Eliminates empty blocks that only contain an unconditional jump.
     fn eliminate_empty_blocks(&mut self, func: &mut Function) {
+        // Only a forwarder consults the CFG. Eliminating one contracts it into its target, which
+        // changes neither reachability nor dominance among the other blocks, so one snapshot
+        // answers every round; the eliminated block is never a forwarder again.
+        let snapshot = OnceCell::new();
         let mut eliminated = true;
         while eliminated {
             eliminated = false;
 
-            let cfg = CfgInfo::new(func);
+            let cfg = || snapshot.get_or_init(|| CfgInfo::new(func));
             let block_ids = func.blocks.indices();
             for block_id in block_ids {
-                if func.blocks[block_id].predecessors.is_empty() && cfg.is_reachable(block_id) {
+                if !self.is_empty_forwarder(func, block_id)
+                    || (func.blocks[block_id].predecessors.is_empty()
+                        && cfg().is_reachable(block_id))
+                {
                     continue;
                 }
 
-                if self.is_empty_forwarder(func, block_id)
-                    && !self.is_loop_preheader_forwarder(func, block_id, &cfg)
+                if !self.is_loop_preheader_forwarder(func, block_id, cfg())
                     && self.forwarder_elimination_preserves_phis(func, block_id)
                 {
                     self.eliminate_forwarder(func, block_id);
@@ -781,8 +813,9 @@ impl CfgSimplifier {
 
         for pred_id in predecessors {
             self.redirect_terminator(func, pred_id, block_id, target);
-
-            func.blocks[target].predecessors.push(pred_id);
+            if !func.blocks[target].predecessors.contains(&pred_id) {
+                func.blocks[target].predecessors.push(pred_id);
+            }
         }
 
         func.blocks[target].predecessors.retain(|p| *p != block_id);

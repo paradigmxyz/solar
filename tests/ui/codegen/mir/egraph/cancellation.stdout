@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/egraph/cancellation.mir (before egraph) ===
 + // === ROOT/tests/ui/codegen/mir/egraph/cancellation.mir (after egraph) ===
   @module Cancellation
-  types:
+  @types
     struct0: {i256, i256, i256, i256}
     struct1: {i1, i1}
     struct2: {i256, i1}
@@ -259,7 +259,7 @@
 - // === ROOT/tests/ui/codegen/mir/egraph/cancellation.mir (before dce) ===
 + // === ROOT/tests/ui/codegen/mir/egraph/cancellation.mir (after dce) ===
   @module Cancellation
-  types:
+  @types
     struct0: {i256, i256, i256, i256}
     struct1: {i1, i1}
     struct2: {i256, i1}

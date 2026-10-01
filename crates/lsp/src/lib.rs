@@ -343,6 +343,7 @@ mod request_cancellation;
 mod selection_range;
 mod serde;
 mod signature_help;
+mod source_paths;
 mod symbols;
 mod type_hierarchy;
 mod utils;
@@ -355,10 +356,10 @@ mod workspace;
 pub use global_state::benchmark::{
     BenchmarkAnalysis, BenchmarkCallHierarchyRequests, BenchmarkCodeActionRequests,
     BenchmarkDocumentChange, BenchmarkDocumentUpdate, BenchmarkEdit, BenchmarkError,
-    BenchmarkFoldingRangeRequests, BenchmarkOpenDocuments, BenchmarkProject,
-    BenchmarkRenameRequests, BenchmarkRepeatedAnalysis, BenchmarkRequest, BenchmarkResponse,
-    BenchmarkSelectionRangeRequests, BenchmarkSignatureHelpRequests, BenchmarkWorkspaceDiscovery,
-    BenchmarkWorkspacePathQueries, BenchmarkWorkspaceReports,
+    BenchmarkFoldingRangeRequests, BenchmarkOpenDocuments, BenchmarkPendingRequests,
+    BenchmarkProject, BenchmarkRenameRequests, BenchmarkRepeatedAnalysis, BenchmarkRequest,
+    BenchmarkResponse, BenchmarkSelectionRangeRequests, BenchmarkSignatureHelpRequests,
+    BenchmarkWorkspaceDiscovery, BenchmarkWorkspacePathQueries, BenchmarkWorkspaceReports,
 };
 
 /// Checks whether a source position belongs to a parsed import path.

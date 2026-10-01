@@ -1,5 +1,8 @@
-use super::workspace_edit::{validated_code_actions, validated_rename_workspace_edit};
+use super::workspace_edit::{
+    check_edit_scope, validated_code_actions, validated_rename_workspace_edit,
+};
 use crate::{
+    config::Config,
     diagnostics::PullReport,
     document_links::solidity_string_contents,
     formatter::{self, FormatterError},
@@ -10,8 +13,11 @@ use crate::{
     },
     natspec_completion::{self, NatSpecCompletionResult},
     progress::send_progress,
+    proto::normalize_file_uri,
+    rename::RenameCandidate,
     symbols::{CompletionContext, CompletionItemData, SymbolTables},
     vfs::{Vfs, VfsPath},
+    workspace::WorkspaceEditError,
 };
 use arc_swap::ArcSwap;
 use async_lsp::{ClientSocket, ErrorCode, ResponseError};
@@ -99,8 +105,9 @@ impl Drop for RequestWorkDoneProgress {
 
 pub(crate) fn folding_range(
     state: &mut GlobalState,
-    params: FoldingRangeParams,
+    mut params: FoldingRangeParams,
 ) -> impl Future<Output = Result<Option<Vec<FoldingRange>>, ResponseError>> + use<> {
+    params.text_document.uri = normalize_file_uri(params.text_document.uri);
     let vfs = state.vfs.clone();
     let request = params
         .text_document
@@ -140,8 +147,9 @@ pub(crate) fn folding_range(
 
 pub(crate) fn selection_range(
     state: &mut GlobalState,
-    params: SelectionRangeParams,
+    mut params: SelectionRangeParams,
 ) -> impl Future<Output = Result<Option<Vec<SelectionRange>>, ResponseError>> + use<> {
+    params.text_document.uri = normalize_file_uri(params.text_document.uri);
     let vfs = state.vfs.clone();
     let request = params
         .text_document
@@ -174,8 +182,9 @@ pub(crate) fn selection_range(
 
 pub(crate) fn formatting(
     state: &mut GlobalState,
-    params: DocumentFormattingParams,
+    mut params: DocumentFormattingParams,
 ) -> impl Future<Output = Result<Option<Vec<TextEdit>>, ResponseError>> + use<> {
+    params.text_document.uri = normalize_file_uri(params.text_document.uri);
     let vfs = state.vfs.clone();
     let request = params
         .text_document
@@ -299,6 +308,18 @@ fn latest_navigation_analysis_for_uri(
     Some(analysis)
 }
 
+type ConfiguredAnalysis = (Arc<ArcSwap<SymbolTables>>, Arc<Config>);
+
+fn latest_navigation_analysis_with_config_for_uri(
+    state: &GlobalState,
+    uri: &Url,
+) -> Option<impl Future<Output = Result<ConfiguredAnalysis, ResponseError>> + use<>> {
+    crate::proto::vfs_path(uri)?;
+    let analysis = state.latest_analysis_with_config();
+    state.prioritize_pending_analysis();
+    Some(analysis)
+}
+
 fn formatting_edits(source: &str, formatted: String) -> Option<Vec<TextEdit>> {
     if source == formatted {
         return None;
@@ -338,7 +359,7 @@ pub(crate) fn document_symbol(
     params: DocumentSymbolParams,
 ) -> impl Future<Output = Result<Option<DocumentSymbolResponse>, ResponseError>> + use<> {
     let hierarchical = state.config.supports_hierarchical_document_symbols();
-    let uri = params.text_document.uri;
+    let uri = normalize_file_uri(params.text_document.uri);
     let latest_analysis = latest_analysis_for_uri(state, &uri);
     async move {
         let Some(latest_analysis) = latest_analysis else {
@@ -361,8 +382,9 @@ pub(crate) fn document_symbol(
 
 pub(crate) fn document_links(
     state: &mut GlobalState,
-    params: DocumentLinkParams,
+    mut params: DocumentLinkParams,
 ) -> impl Future<Output = Result<Option<Vec<DocumentLink>>, ResponseError>> + use<> {
+    params.text_document.uri = normalize_file_uri(params.text_document.uri);
     let request =
         params.text_document.uri.to_file_path().ok().map(|path| (path, state.latest_analysis()));
     async move {
@@ -377,7 +399,7 @@ pub(crate) fn code_actions(
     state: &mut GlobalState,
     mut params: CodeActionParams,
 ) -> impl Future<Output = Result<Option<CodeActionResponse>, ResponseError>> + use<> {
-    params.text_document.uri = crate::diagnostics::normalize_file_uri(params.text_document.uri);
+    params.text_document.uri = normalize_file_uri(params.text_document.uri);
     let vfs = state.vfs.clone();
     let document_changes = state.config.supports_workspace_edit_document_changes();
     let literals = state.config.supports_code_action_literals();
@@ -531,7 +553,8 @@ pub(crate) fn prepare_type_hierarchy(
     state: &mut GlobalState,
     params: TypeHierarchyPrepareParams,
 ) -> impl Future<Output = Result<Option<Vec<TypeHierarchyItem>>, ResponseError>> + use<> {
-    let params = params.text_document_position_params;
+    let mut params = params.text_document_position_params;
+    params.text_document.uri = normalize_file_uri(params.text_document.uri);
     let uri = params.text_document.uri;
     let latest_analysis = latest_analysis_for_uri(state, &uri);
     async move {
@@ -572,7 +595,8 @@ pub(crate) fn goto_definition(
     state: &mut GlobalState,
     params: GotoDefinitionParams,
 ) -> impl Future<Output = Result<Option<GotoDefinitionResponse>, ResponseError>> + use<> {
-    let params = params.text_document_position_params;
+    let mut params = params.text_document_position_params;
+    params.text_document.uri = normalize_file_uri(params.text_document.uri);
     let latest_analysis = latest_navigation_analysis_for_uri(state, &params.text_document.uri);
     let analysis_revision = state.analysis_revision();
     let import_request = import_definition_request(
@@ -745,7 +769,8 @@ pub(crate) fn goto_type_definition(
     state: &mut GlobalState,
     params: GotoDefinitionParams,
 ) -> impl Future<Output = Result<Option<GotoDefinitionResponse>, ResponseError>> + use<> {
-    let params = params.text_document_position_params;
+    let mut params = params.text_document_position_params;
+    params.text_document.uri = normalize_file_uri(params.text_document.uri);
     let latest_analysis = latest_navigation_analysis_for_uri(state, &params.text_document.uri);
     async move {
         let Some(latest_analysis) = latest_analysis else { return Ok(None) };
@@ -760,7 +785,8 @@ pub(crate) fn goto_declaration(
     state: &mut GlobalState,
     params: GotoDefinitionParams,
 ) -> impl Future<Output = Result<Option<GotoDefinitionResponse>, ResponseError>> + use<> {
-    let params = params.text_document_position_params;
+    let mut params = params.text_document_position_params;
+    params.text_document.uri = normalize_file_uri(params.text_document.uri);
     let latest_analysis = latest_navigation_analysis_for_uri(state, &params.text_document.uri);
     async move {
         let Some(latest_analysis) = latest_analysis else { return Ok(None) };
@@ -775,7 +801,8 @@ pub(crate) fn goto_implementation(
     state: &mut GlobalState,
     params: GotoImplementationParams,
 ) -> impl Future<Output = Result<Option<GotoDefinitionResponse>, ResponseError>> + use<> {
-    let params = params.text_document_position_params;
+    let mut params = params.text_document_position_params;
+    params.text_document.uri = normalize_file_uri(params.text_document.uri);
     let latest_analysis = latest_navigation_analysis_for_uri(state, &params.text_document.uri);
     async move {
         let Some(latest_analysis) = latest_analysis else { return Ok(None) };
@@ -790,7 +817,8 @@ pub(crate) fn prepare_call_hierarchy(
     state: &mut GlobalState,
     params: CallHierarchyPrepareParams,
 ) -> impl Future<Output = Result<Option<Vec<CallHierarchyItem>>, ResponseError>> + use<> {
-    let params = params.text_document_position_params;
+    let mut params = params.text_document_position_params;
+    params.text_document.uri = normalize_file_uri(params.text_document.uri);
     let latest_analysis = latest_analysis_for_uri(state, &params.text_document.uri);
     async move {
         let Some(latest_analysis) = latest_analysis else { return Ok(None) };
@@ -834,7 +862,8 @@ pub(crate) fn references(
     params: ReferenceParams,
 ) -> impl Future<Output = Result<Option<Vec<lsp_types::Location>>, ResponseError>> + use<> {
     let include_declaration = params.context.include_declaration;
-    let params = params.text_document_position;
+    let mut params = params.text_document_position;
+    params.text_document.uri = normalize_file_uri(params.text_document.uri);
     let latest_analysis = latest_navigation_analysis_for_uri(state, &params.text_document.uri);
     async move {
         let Some(latest_analysis) = latest_analysis else { return Ok(None) };
@@ -852,7 +881,7 @@ pub(crate) fn code_lens(
     state: &mut GlobalState,
     params: CodeLensParams,
 ) -> impl Future<Output = Result<Option<Vec<CodeLens>>, ResponseError>> + use<> {
-    let uri = params.text_document.uri;
+    let uri = normalize_file_uri(params.text_document.uri);
     let options = state.config.code_lens_options();
     let latest_analysis =
         if options.is_active() { latest_analysis_for_uri(state, &uri) } else { None };
@@ -868,7 +897,8 @@ pub(crate) fn document_highlight(
     state: &mut GlobalState,
     params: DocumentHighlightParams,
 ) -> impl Future<Output = Result<Option<Vec<DocumentHighlight>>, ResponseError>> + use<> {
-    let params = params.text_document_position_params;
+    let mut params = params.text_document_position_params;
+    params.text_document.uri = normalize_file_uri(params.text_document.uri);
     let latest_analysis = latest_analysis_for_uri(state, &params.text_document.uri);
     async move {
         let Some(latest_analysis) = latest_analysis else { return Ok(None) };
@@ -883,7 +913,8 @@ pub(crate) fn hover(
     state: &mut GlobalState,
     params: HoverParams,
 ) -> impl Future<Output = Result<Option<Hover>, ResponseError>> + use<> {
-    let params = params.text_document_position_params;
+    let mut params = params.text_document_position_params;
+    params.text_document.uri = normalize_file_uri(params.text_document.uri);
     let latest_analysis = latest_navigation_analysis_for_uri(state, &params.text_document.uri);
     async move {
         let Some(latest_analysis) = latest_analysis else { return Ok(None) };
@@ -895,17 +926,24 @@ pub(crate) fn hover(
 
 pub(crate) fn prepare_rename(
     state: &mut GlobalState,
-    params: TextDocumentPositionParams,
+    mut params: TextDocumentPositionParams,
 ) -> impl Future<Output = Result<Option<PrepareRenameResponse>, ResponseError>> + use<> {
-    let latest_analysis = latest_navigation_analysis_for_uri(state, &params.text_document.uri);
+    params.text_document.uri = normalize_file_uri(params.text_document.uri);
+    let latest_analysis =
+        latest_navigation_analysis_with_config_for_uri(state, &params.text_document.uri);
     async move {
         let Some(latest_analysis) = latest_analysis else { return Ok(None) };
-        let symbol_tables = latest_analysis.await?;
-        let response = symbol_tables
-            .load()
-            .rename_candidate(&params.text_document.uri, params.position)
-            .map(|candidate| PrepareRenameResponse::Range(candidate.range));
-        Ok(response)
+        let (symbol_tables, config) = latest_analysis.await?;
+        let candidate =
+            symbol_tables.load().rename_candidate(&params.text_document.uri, params.position);
+        let Some(candidate) = candidate else { return Ok(None) };
+        tokio::task::spawn_blocking(move || {
+            validate_rename_scope(&candidate, &config)?;
+            ensure_rename_coverage(&candidate, &config)?;
+            Ok(Some(PrepareRenameResponse::Range(candidate.range)))
+        })
+        .await
+        .map_err(rename_task_failed)?
     }
 }
 
@@ -913,7 +951,8 @@ pub(crate) fn rename(
     state: &mut GlobalState,
     params: RenameParams,
 ) -> impl Future<Output = Result<Option<WorkspaceEdit>, ResponseError>> + use<> {
-    let RenameParams { text_document_position: params_position, new_name, .. } = params;
+    let RenameParams { text_document_position: mut params_position, new_name, .. } = params;
+    params_position.text_document.uri = normalize_file_uri(params_position.text_document.uri);
     let (invalid_name, invalid_yul_name) = if is_ident(&new_name) {
         let name = state.sess.intern(&new_name);
         (name.is_reserved(false), name.is_reserved(true))
@@ -923,7 +962,7 @@ pub(crate) fn rename(
     let latest_analysis = if invalid_name {
         None
     } else {
-        latest_navigation_analysis_for_uri(state, &params_position.text_document.uri)
+        latest_navigation_analysis_with_config_for_uri(state, &params_position.text_document.uri)
     };
     let vfs = state.vfs.clone();
     let document_changes = state.config.supports_workspace_edit_document_changes();
@@ -933,7 +972,7 @@ pub(crate) fn rename(
         }
 
         let Some(latest_analysis) = latest_analysis else { return Ok(None) };
-        let symbol_tables = latest_analysis.await?;
+        let (symbol_tables, config) = latest_analysis.await?;
         let candidate = symbol_tables
             .load()
             .rename_candidate(&params_position.text_document.uri, params_position.position);
@@ -946,20 +985,59 @@ pub(crate) fn rename(
         }
 
         tokio::task::spawn_blocking(move || {
+            validate_rename_scope(&candidate, &config)?;
+            ensure_rename_coverage(&candidate, &config)?;
             validated_rename_workspace_edit(candidate, new_name, vfs, document_changes)
         })
         .await
-        .map_err(|error| {
-            ResponseError::new(ErrorCode::INTERNAL_ERROR, format!("rename task failed: {error}"))
-        })?
+        .map_err(rename_task_failed)?
         .map(Some)
     }
 }
 
+fn rename_task_failed(error: tokio::task::JoinError) -> ResponseError {
+    ResponseError::new(ErrorCode::INTERNAL_ERROR, format!("rename task failed: {error}"))
+}
+
+fn validate_rename_scope(
+    candidate: &RenameCandidate,
+    config: &Config,
+) -> Result<(), ResponseError> {
+    let uris =
+        candidate.locations.chunk_by(|a, b| a.uri == b.uri).map(|locations| &locations[0].uri);
+    check_edit_scope(uris, config).map_err(|error| {
+        let message = match error {
+            WorkspaceEditError::Dependency => {
+                "cannot rename this symbol because it would modify dependency files"
+            }
+            WorkspaceEditError::OutsideWorkspace => {
+                "cannot rename this symbol because it would modify files outside the workspace"
+            }
+            WorkspaceEditError::UnresolvedPath => {
+                "cannot rename this symbol because its file paths could not be verified"
+            }
+        };
+        request_failed(message)
+    })
+}
+
+fn ensure_rename_coverage(
+    candidate: &RenameCandidate,
+    config: &Config,
+) -> Result<(), ResponseError> {
+    if candidate.requires_complete_workspace && config.may_omit_source_files() {
+        return Err(request_failed(
+            "cannot rename this symbol because workspace indexing may omit source files",
+        ));
+    }
+    Ok(())
+}
+
 pub(crate) fn inlay_hints(
     state: &mut GlobalState,
-    params: InlayHintParams,
+    mut params: InlayHintParams,
 ) -> impl Future<Output = Result<Option<Vec<InlayHint>>, ResponseError>> + use<> {
+    params.text_document.uri = normalize_file_uri(params.text_document.uri);
     let latest_analysis = latest_analysis_for_uri(state, &params.text_document.uri);
     async move {
         let Some(latest_analysis) = latest_analysis else { return Ok(Some(Vec::new())) };
@@ -973,17 +1051,18 @@ pub(crate) fn signature_help(
     state: &mut GlobalState,
     params: SignatureHelpParams,
 ) -> impl Future<Output = Result<Option<SignatureHelp>, ResponseError>> + use<> {
-    let params = params.text_document_position_params;
+    let mut params = params.text_document_position_params;
+    params.text_document.uri = normalize_file_uri(params.text_document.uri);
     let response = state.cached_vfs_path(&params.text_document.uri).and_then(|path| {
         let source = state.vfs.read().get_file_source(&path)?;
         let cursor = source
             .positions()
-            .text_range(lsp_types::Range::new(params.position, params.position))
+            .text_range(lsp_types::Range::new(params.position, params.position))?
             .start;
         let statement_boundary = Some(source.statement_boundary(cursor));
         state.symbol_tables.load().signature_help(
             &params.text_document.uri,
-            params.position,
+            cursor,
             source.positions(),
             &source.source(),
             statement_boundary,
@@ -999,7 +1078,8 @@ pub(crate) fn completion(
 ) -> impl Future<Output = Result<Option<CompletionResponse>, ResponseError>> + use<> {
     let trigger_character =
         params.context.as_ref().and_then(|context| context.trigger_character.as_deref());
-    let params = params.text_document_position;
+    let mut params = params.text_document_position;
+    params.text_document.uri = normalize_file_uri(params.text_document.uri);
     let source = state
         .cached_vfs_path(&params.text_document.uri)
         .and_then(|path| state.vfs.read().get_file_source(&path));

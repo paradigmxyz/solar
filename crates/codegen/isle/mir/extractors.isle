@@ -276,6 +276,9 @@
 (decl datacopy (DataRef Value Value) Value)
 (extractor (datacopy data dest size) (inst (Op.DataCopy data dest size)))
 
+(decl datasize (DataSize) Value)
+(extractor (datasize size) (inst (Op.DataSize size)))
+
 (decl codesize () Value)
 (extractor (codesize) (inst (Op.CodeSize)))
 
@@ -395,15 +398,6 @@
 
 (decl delegatecall (Value Value Value Value Value Value) Value)
 (extractor (delegatecall gas addr args_offset args_size ret_offset ret_size) (inst (Op.DelegateCall gas addr args_offset args_size ret_offset ret_size)))
-
-(decl extcall (Value Value Value Value) Value)
-(extractor (extcall addr args_offset args_size value) (inst (Op.ExtCall addr args_offset args_size value)))
-
-(decl extdelegatecall (Value Value Value) Value)
-(extractor (extdelegatecall addr args_offset args_size) (inst (Op.ExtDelegateCall addr args_offset args_size)))
-
-(decl extstaticcall (Value Value Value) Value)
-(extractor (extstaticcall addr args_offset args_size) (inst (Op.ExtStaticCall addr args_offset args_size)))
 
 (decl icall (Unit Unit) Value)
 (extractor (icall function args) (inst (Op.ICall function args)))
