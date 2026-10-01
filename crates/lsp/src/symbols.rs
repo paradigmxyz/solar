@@ -2771,19 +2771,6 @@ impl<'gcx> ReferenceCollector<'_, 'gcx> {
         }
     }
 
-    fn call_param_source(&self, callee: &'gcx hir::Expr<'gcx>) -> Option<CallableParamSource> {
-        if let hir::ExprKind::New(ty) = &callee.kind
-            && let TyKind::Contract(id) = self.gcx.type_of_hir_ty(ty).kind
-        {
-            return self.item_param_source(id.into());
-        }
-
-        self.gcx
-            .type_of_expr(callee.id)
-            .and_then(|ty| self.gcx.callable_signature_of_ty(ty))
-            .and_then(|signature| signature.param_source)
-    }
-
     fn item_param_source(&self, item: ItemId) -> Option<CallableParamSource> {
         let id = match item {
             ItemId::Function(id) => id,
@@ -2903,7 +2890,7 @@ impl<'gcx> hir::Visit<'gcx> for ReferenceCollector<'_, 'gcx> {
                 self.visit_expr(rhs)?;
             }
             hir::ExprKind::Call(callee, ref args) => {
-                if let Some(source) = self.call_param_source(callee) {
+                if let Some(source) = self.gcx.call_param_source(callee) {
                     self.push_named_arg_references(source, args);
                 }
                 hir::Visit::walk_expr(self, expr)?;

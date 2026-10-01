@@ -695,9 +695,9 @@ fn make_bytecode_output(
     if output_selection.contains(source_map_flag) {
         let debug_info = artifact.and_then(|artifact| {
             if deployed {
-                artifact.runtime_debug_info.as_deref()
+                artifact.runtime_debug_info.as_ref()
             } else {
-                artifact.deployment_debug_info.as_deref()
+                artifact.deployment_debug_info.as_ref()
             }
         });
         output.source_map = Some(match (source_map_encoder, debug_info) {

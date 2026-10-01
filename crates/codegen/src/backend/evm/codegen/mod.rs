@@ -24,7 +24,7 @@ use self::{
     switch::MAX_GAS_CODE_GROWTH,
 };
 use super::{
-    DebugFunction, DebugFunctionExit, DebugInstruction, ir,
+    DebugFunction, DebugFunctionExit, DebugInfo, ir,
     layout::{RelayoutAddress, preserves_push_width},
     op::{self, WORD_BYTES},
 };
@@ -85,7 +85,7 @@ struct GeneratedCode {
     bytecode: Vec<u8>,
     library_relocations: Vec<LibraryRelocation>,
     evm_ir: Option<ir::Module>,
-    debug_info: Option<Vec<DebugInstruction>>,
+    debug_info: Option<DebugInfo>,
 }
 
 /// Describes the stack effect of an EVM instruction.
@@ -640,9 +640,9 @@ pub struct EvmArtifact {
     /// Final runtime EVM IR immediately before byte emission.
     pub runtime_evm_ir: Option<ir::Module>,
     /// Final deployment-prefix instruction locations.
-    pub deployment_debug_info: Option<Vec<DebugInstruction>>,
+    pub deployment_debug_info: Option<DebugInfo>,
     /// Final runtime instruction locations.
-    pub runtime_debug_info: Option<Vec<DebugInstruction>>,
+    pub runtime_debug_info: Option<DebugInfo>,
 }
 
 impl crate::backend::Backend for EvmCodegen<'_> {
