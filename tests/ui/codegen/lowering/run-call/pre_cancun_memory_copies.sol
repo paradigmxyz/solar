@@ -5,6 +5,7 @@
 //@ run-call: words => true
 //@ run-call: bytesTail => true
 //@ run-call: concat => true
+//@ run-call: assembled => true
 //@ run-call: fresh => [1, 2, 3]
 //@ run-call: freshEmpty => []
 
@@ -12,10 +13,12 @@
 // the partial-word merge, and a partial tail changes exactly the copied bytes.
 // Returning a fresh array encodes it in place, a backward whole-word copy.
 // In size mode, the forward byte copies of ABI encoding share one helper, which
-// needs no runtime direction check.
+// needs no runtime direction check, even for an object that assembly allocates.
 // SHARED-LABEL: fn @bytesTail(
 // SHARED: icall @[[FORWARD:mcopy_words[.0-9]*]],
 // SHARED-LABEL: fn @concat(
+// SHARED: icall @[[FORWARD]],
+// SHARED-LABEL: fn @assembled(
 // SHARED: icall @[[FORWARD]],
 // SHARED: {{^}}fn @[[FORWARD]](
 // SHARED-NOT: lt arg1, arg0
@@ -50,6 +53,26 @@ contract PreCancunMemoryCopies {
         return joined.length == 35
             && keccak256(joined)
                 == keccak256(hex"0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20212223");
+    }
+
+    function assembled() external pure returns (bool) {
+        bytes memory payload;
+        bytes32 expected;
+        assembly ("memory-safe") {
+            payload := mload(0x40)
+            mstore(payload, 70)
+            mstore(add(payload, 32), 0x0101010101010101010101010101010101010101010101010101010101010101)
+            mstore(add(payload, 64), 0x0202020202020202020202020202020202020202020202020202020202020202)
+            mstore(add(payload, 96), 0x0303030303030303030303030303030303030303030303030303030303030303)
+            mstore(0x40, add(payload, 128))
+            expected := keccak256(add(payload, 32), 70)
+        }
+        bytes memory encoded = abi.encode(payload, uint256(7));
+        bytes32 actual;
+        assembly {
+            actual := keccak256(add(encoded, 128), 70)
+        }
+        return actual == expected;
     }
 
     function fresh() external pure returns (uint256[] memory values) {

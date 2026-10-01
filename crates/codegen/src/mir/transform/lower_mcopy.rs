@@ -169,6 +169,9 @@ fn copy_sites(
                 copy_direction(func, &alias, fresh_returns, dest, src, len)
             };
             let shape = CopyShape { direction, whole_words: is_whole_words(func, len, 0) };
+            // NOTE: a disjoint copy reads a Solidity memory object, which lies outside every
+            // static frame unless assembly placed it there; see CODEGEN-009 in
+            // `docs/SOLC_DIVERGENCE.md`.
             let shareable = runtime && (disjoint || copy_helper_eligible(func, &alias, inst));
             Some(CopySite { inst, shape, shareable })
         })
