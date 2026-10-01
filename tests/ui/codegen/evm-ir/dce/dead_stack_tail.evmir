@@ -29,3 +29,34 @@ bb2:
 bb3:
   push 0
   revert
+
+// Reads of the call's context have no effect besides their gas, so unused ones
+// before a halt go too.
+// CHECK-LABEL: bb4:
+// CHECK-NOT: {{^[ +].*}}calldatasize
+// CHECK-NOT: {{^[ +].*}}caller
+// CHECK-NOT: {{^[ +].*}}callvalue
+// CHECK: {{^[ +].*}}revert
+bb4:
+  calldatasize
+  caller
+  callvalue
+  pop
+  push 0
+  push 0
+  revert
+
+// An account read warms the account and a memory read expands memory, so both
+// stay.
+// CHECK-LABEL: bb5:
+// CHECK: {{^[ +].*}}balance
+// CHECK: {{^[ +].*}}mload
+// CHECK: {{^[ +].*}}revert
+bb5:
+  push 5
+  balance
+  push 0
+  mload
+  push 0
+  push 0
+  revert

@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/extended_stack.sol:ExtendedStack (runtime) ===
 CALLVALUE
-PUSH2 0x0173 ; bb0
+PUSH2 0x0171 ; bb0
 JUMPI
 PUSH0
 CALLDATALOAD
@@ -9,7 +9,7 @@ SHR
 DUP1
 PUSH4 0x919840ad
 SUB
-PUSH2 0x0173 ; bb0
+PUSH2 0x0171 ; bb0
 JUMPI
 GAS
 GAS
@@ -287,10 +287,10 @@ LT
 EXCHANGE 1, 2
 AND
 AND
-PUSH1 0x80
+PUSH0
 MSTORE
 PUSH1 0x20
-PUSH1 0x80
+PUSH0
 RETURN
 ; bb0
 JUMPDEST

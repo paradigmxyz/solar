@@ -715,8 +715,14 @@ pub(crate) struct FunctionAttributes {
     /// avoid reclaiming memory that may have escaped through inline assembly.
     pub(crate) may_return_memory: bool,
     /// Whether this function's body came from inline assembly, directly or through a callee
-    /// inlined into it. The bit is sticky: inlining carries it into the caller, and only
-    /// functions with equal bits merge.
+    /// inlined into it.
+    ///
+    /// Only assembly can write a memory object's length word or turn an arbitrary word into a
+    /// memory object. While no function in a module has this bit, every length was written by
+    /// a checked allocation, an ABI decoder, or a core operation that only shortens an object,
+    /// so each stays below
+    /// [`MAX_ALLOCATION_END`](super::memory::EvmMemoryLayout::MAX_ALLOCATION_END). The bit is
+    /// sticky: inlining carries it into the caller, and only functions with equal bits merge.
     pub(crate) inline_assembly: bool,
     /// Whether this function dispatches an internal function-pointer shape.
     pub(crate) is_function_pointer_dispatcher: bool,
@@ -756,6 +762,10 @@ pub(crate) struct FunctionAttributes {
     /// The widest word the single array this function returns can hold, when element
     /// cleanup proved one. Its caller can re-encode the array without cleaning it.
     pub(crate) array_return_element_bits: Option<u32>,
+    /// Whether this public function was lowered as entered only through its selector: no
+    /// internal call or internal function pointer in the contract reaches it, so its calldata
+    /// arguments are the ones the ABI decoder checked, and nothing may call it internally.
+    pub(crate) abi_entry_only: bool,
 }
 
 impl Default for FunctionAttributes {
@@ -778,6 +788,7 @@ impl Default for FunctionAttributes {
             only_cleans_address_elements: false,
             array_element_bits: FxHashMap::default(),
             array_return_element_bits: None,
+            abi_entry_only: false,
         }
     }
 }

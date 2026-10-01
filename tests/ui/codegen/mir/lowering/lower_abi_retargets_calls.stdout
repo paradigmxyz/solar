@@ -12,10 +12,9 @@
 +   bb1:
       v0 = add arg0, 1
 -     ret v0
-+     mstore 128, v0
-+     v3 = add 128, 32
-+     v4 = sub v3, 128
-+     returndata 128, v4
++     mstore 0, v0 !metadata(memory=scratch)
++     v3 = sub 32, 0
++     returndata 0, v3
 +   bb2:
 +     revert 0, 0
   }
@@ -33,10 +32,9 @@
 +     v0 = icall @pub.body, arg0
       v1 = bitcast i256 v0 to i256
 -     ret v1
-+     mstore 128, v1
-+     v4 = add 128, 32
-+     v5 = sub v4, 128
-+     returndata 128, v5
++     mstore 0, v1 !metadata(memory=scratch)
++     v4 = sub 32, 0
++     returndata 0, v4
 +   bb2:
 +     revert 0, 0
   }
@@ -60,7 +58,7 @@
 -     v0 = icall @literal
 -     ret v0
 +     v0 = icall @literal.body
-+     v1 = abi_encode [memory_bytes], args v0
++     v1 = abi_encode [memory_bytes], scratch, args v0
 +     v2 = slice_ptr v1
 +     v3 = slice_len v1
 +     returndata v2, v3
@@ -95,7 +93,7 @@
       v3 = add v2, 16
       mstore v3, 7
 -     ret v0
-+     v4 = abi_encode [memory_bytes], args v0
++     v4 = abi_encode [memory_bytes], scratch, args v0
 +     v5 = slice_ptr v4
 +     v6 = slice_len v4
 +     returndata v5, v6
@@ -128,7 +126,7 @@
     bb0:
       v0 = abi_encode [word<u8>], object, args 0x1234
 -     ret v0
-+     v1 = abi_encode [memory_bytes], args v0
++     v1 = abi_encode [memory_bytes], scratch, args v0
 +     v2 = slice_ptr v1
 +     v3 = slice_len v1
 +     returndata v2, v3
@@ -138,7 +136,7 @@
 + fn @prefixedEncoding() [selector=0x0a0a0a0a, abi_wrapper] {
     bb0:
       v0 = abi_encode [word], object, selector 0x1234567800000000000000000000000000000000000000000000000000000000, args 1
-+     v1 = abi_encode [memory_bytes], args v0
++     v1 = abi_encode [memory_bytes], scratch, args v0
 +     v2 = slice_ptr v1
 +     v3 = slice_len v1
 +     returndata v2, v3
@@ -147,19 +145,17 @@
 + fn @sliceBody() [selector=0x0a0a0a0b, abi_wrapper] {
 +   bb0:
 +     v2 = icall @sliceBody.body
-+     mstore 128, v2
-+     v3 = add 128, 32
-+     v4 = sub v3, 128
-+     returndata 128, v4
++     mstore 0, v2 !metadata(memory=scratch)
++     v3 = sub 32, 0
++     returndata 0, v3
 + }
 + 
 + fn @sliceCaller() [selector=0x0a0a0a0c, abi_wrapper] {
 +   bb0:
 +     v0 = icall @sliceBody.body
-+     mstore 128, v0
-+     v1 = add 128, 32
-+     v2 = sub v1, 128
-+     returndata 128, v2
++     mstore 0, v0 !metadata(memory=scratch)
++     v1 = sub 32, 0
++     returndata 0, v1
 + }
 + 
 + fn @pub.body(arg0: i256) -> i256 {

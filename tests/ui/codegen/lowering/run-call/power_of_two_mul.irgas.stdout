@@ -53,18 +53,18 @@ bb9:
   push 4
   calldataload
   shl
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
-bb38 [cold]:
+bb37 [cold]:
   push 0x4e487b71
   push 0
   mstore
   push 65
-  jump bb40
-bb40 [cold]:
+  jump bb39
+bb39 [cold]:
   push 32
   mstore
   push 36
@@ -86,10 +86,10 @@ bb17 [loop]:
   dup 3
   push bb19
   jumpi
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb19 [loop]:
   push 1
@@ -152,7 +152,7 @@ bb21 [cold]:
   push 0
   mstore
   push 17
-  jump bb40
+  jump bb39
 bb23:
   push 36
   calldatasize
@@ -163,10 +163,10 @@ bb23:
   calldataload
   push 5
   shl
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb26:
   push 36
@@ -178,13 +178,13 @@ bb26:
   calldataload
   push 255
   shl
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb29:
-  push 160
+  push 128
   push 64
   mstore
   push 68
@@ -201,11 +201,8 @@ bb29:
   dup 2
   add
   swap 2
-  push 0
-  not
-  push 192
+  push 64
   shr
-  lt
   calldatasize
   dup 4
   gt
@@ -214,23 +211,16 @@ bb29:
   jumpi
   calldataload
   dup 1
-  push 5
-  shl
+  push 64
+  shr
+  push bb37
+  jumpi
   dup 1
   push 5
-  shr
-  dup 3
-  sub
-  push bb38
-  jumpi
+  shl
   push 32
   dup 2
   add
-  dup 2
-  dup 2
-  lt
-  push bb38
-  jumpi
   push 64
   mload
   swap 1
@@ -239,27 +229,22 @@ bb29:
   dup 2
   dup 2
   lt
-  push 0
-  not
-  push 192
+  dup 2
+  push 64
   shr
-  dup 3
-  gt
   or
-  push bb38
+  push bb37
   jumpi
   push 64
   mstore
   dup 3
   dup 2
   mstore
-  dup 4
+  dup 2
+  dup 5
+  add
   calldatasize
-  sub
-  push 5
-  shr
-  dup 4
-  gt
+  lt
   push bb8
   jumpi
   push 32
@@ -275,7 +260,7 @@ bb29:
   calldataload
   lt
   iszero
-  push bb37
+  push bb36
   jumpi
   push 36
   calldataload
@@ -283,14 +268,14 @@ bb29:
   shl
   add
   mload
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
-bb37 [cold]:
+bb36 [cold]:
   push 0x4e487b71
   push 0
   mstore
   push 50
-  jump bb40
+  jump bb39

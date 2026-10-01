@@ -14,10 +14,10 @@ bb0:
   shr
   push 4
   calldataload
-  push 160
+  push 128
   mstore
   dup 1
-  push 192
+  push 160
   mstore
   dup 1
   push 0x75de2d6b
@@ -25,22 +25,22 @@ bb0:
   push bb2
   jumpi
   pop
-  push 160
+  push 128
   mload
   dup 1
   push bb8
   jumpi
   pop
   push 7
-  push 160
+  push 128
   mload
   add
   jump bb11
 bb11:
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb12 [cold]:
   push 0
@@ -54,22 +54,22 @@ bb2:
   jumpi
   pop
   push 1
-  push 160
+  push 128
   mload
   add
   dup 1
   iszero
   push bb6
   jumpi
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb8:
   pop
   push 9
-  push 160
+  push 128
   mload
   add
   jump bb11
@@ -98,7 +98,7 @@ bb0:
   sub
   push bb3
   jumpi
-  push 160
+  push 128
   push 64
   mstore
   push 36

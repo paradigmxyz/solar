@@ -28,16 +28,8 @@ fn @encPackedBytesReference(arg0: calldataslice, arg1: i256, arg2: i256) -> memo
     v6 = sub arg2, arg1
     v7 = add v0, arg1
     v8 = make_calldata_slice v7, v6
-    v9 = slice_ptr v8
-    v10 = slice_len v8
-    v11 = gt v10, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v11
-    v12 = calldatasize
-    v13 = sub v12, v10
-    v14 = sgt v9, v13
-    icall revert_if<calldata_tail_too_short>, v14
-    v15 = abi_encode_packed (bytes v8)
-    ret v15
+    v9 = abi_encode_packed (bytes v8)
+    ret v9
 }
 
 fn @encBytes(arg0: calldataslice, arg1: i256, arg2: i256) -> memorybytes [selector=0x676eb8e5, pure, abi_params=[bytes, u256, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
@@ -52,16 +44,8 @@ fn @encBytes(arg0: calldataslice, arg1: i256, arg2: i256) -> memorybytes [select
     v6 = sub arg2, arg1
     v7 = add v0, arg1
     v8 = make_calldata_slice v7, v6
-    v9 = slice_ptr v8
-    v10 = slice_len v8
-    v11 = gt v10, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v11
-    v12 = calldatasize
-    v13 = sub v12, v10
-    v14 = sgt v9, v13
-    icall revert_if<calldata_tail_too_short>, v14
-    v15 = abi_encode [calldata_bytes], object, args v8
-    ret v15
+    v9 = abi_encode [calldata_bytes], object, args v8
+    ret v9
 }
 
 fn @encBytesReference(arg0: calldataslice, arg1: i256, arg2: i256) -> memorybytes [selector=0x94ba4b13, pure, abi_params=[bytes, u256, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
@@ -76,16 +60,8 @@ fn @encBytesReference(arg0: calldataslice, arg1: i256, arg2: i256) -> memorybyte
     v6 = sub arg2, arg1
     v7 = add v0, arg1
     v8 = make_calldata_slice v7, v6
-    v9 = slice_ptr v8
-    v10 = slice_len v8
-    v11 = gt v10, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v11
-    v12 = calldatasize
-    v13 = sub v12, v10
-    v14 = sgt v9, v13
-    icall revert_if<calldata_tail_too_short>, v14
-    v15 = abi_encode [calldata_bytes], object, args v8
-    ret v15
+    v9 = abi_encode [calldata_bytes], object, args v8
+    ret v9
 }
 
 fn @encUint256(arg0: calldataslice, arg1: i256, arg2: i256) -> memorybytes [selector=0x5f29ad1d, pure, abi_params=[array<_, u256>, u256, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
@@ -207,48 +183,27 @@ fn @encPackedUint8(arg0: calldataslice, arg1: i256, arg2: i256) -> memorybytes [
     v16 = slice_len v15
     v17 = slice_ptr v15
     v18 = mul v16, 32
-    v19 = eq 32, 0
-    v20 = div v18, 32
-    v21 = eq v20, v16
-    v22 = or v19, v21
-    v23 = zext i1 v22 to i256
-    v24 = eq v23, 0
-    icall panic_if<0x41>, v24
-    v25 = calldatasize
-    v26 = sub v25, v17
-    v27 = slt v26, v18
-    icall revert_if<calldata_tail_too_short>, v27
-    v28 = mul v16, 32
-    v29 = eq 32, 0
-    v30 = div v28, 32
-    v31 = eq v30, v16
-    v32 = or v29, v31
-    v33 = zext i1 v32 to i256
-    v34 = eq v33, 0
-    icall panic_if<0x41>, v34
-    v35 = add 32, v28
-    v36 = lt v35, 32
-    icall panic_if<0x41>, v36
-    v37 = alloc memoryarray<1>, exact, uninitialized, infallible, v35
-    set_memory_object_len memoryarray, v37, v16
+    v19 = add 32, v18
+    v20 = alloc memoryarray<1>, exact, uninitialized, infallible, v19
+    set_memory_object_len memoryarray, v20, v16
     jump bb1
   bb1:
-    v38 = phi [bb0: 0], [bb2: v46]
-    v39 = lt v38, v16
-    jumpi v39, bb2, bb3
+    v21 = phi [bb0: 0], [bb2: v29]
+    v22 = lt v21, v16
+    jumpi v22, bb2, bb3
   bb3:
-    v47 = abi_encode_packed (array<word<u8>> memoryarray<1> v37)
-    ret v47
+    v30 = abi_encode_packed (array<word<u8>> memoryarray<1> v20)
+    ret v30
   bb2:
-    v40 = mul v38, 32
-    v41 = add v17, v40
-    v42 = calldataload v41
-    v43 = and v42, 255
-    v44 = eq v42, v43
-    v45 = eq v44, false
-    icall revert_if<empty>, v45
-    memory_object_store_element memoryarray<1>, v37, v38, v42
-    v46 = add v38, 1
+    v23 = mul v21, 32
+    v24 = add v17, v23
+    v25 = calldataload v24
+    v26 = and v25, 255
+    v27 = eq v25, v26
+    v28 = eq v27, false
+    icall revert_if<empty>, v28
+    memory_object_store_element memoryarray<1>, v20, v21, v25
+    v29 = add v21, 1
     jump bb1
 }
 
@@ -261,28 +216,28 @@ fn @compare(arg0: memorybytes, arg1: memorybytes) [pure] {
     icall panic_if<0x1>, v3
     jump bb1
   bb1:
-    v4 = phi [bb0: arg1], [bb3: v4]
-    v5 = phi [bb0: 0], [bb3: v21]
-    v6 = phi [bb0: arg0], [bb3: v6]
-    v7 = memory_object_len memorybytes, v6
-    v8 = lt v5, v7
+    v4 = phi [bb0: arg0], [bb3: v4]
+    v5 = phi [bb0: arg1], [bb3: v5]
+    v6 = phi [bb0: 0], [bb3: v21]
+    v7 = memory_object_len memorybytes, v4
+    v8 = lt v6, v7
     jumpi v8, bb4, bb5
   bb5:
     jump bb2
   bb2:
     ret
   bb4:
-    v9 = memory_object_len memorybytes, v6
-    v10 = lt v5, v9
+    v9 = memory_object_len memorybytes, v4
+    v10 = lt v6, v9
     v11 = eq v10, false
     icall panic_if<0x32>, v11
-    v12 = memory_object_load_byte memorybytes, v6, v5
+    v12 = memory_object_load_byte memorybytes, v4, v6
     v13 = shl 248, v12
-    v14 = memory_object_len memorybytes, v4
-    v15 = lt v5, v14
+    v14 = memory_object_len memorybytes, v5
+    v15 = lt v6, v14
     v16 = eq v15, false
     icall panic_if<0x32>, v16
-    v17 = memory_object_load_byte memorybytes, v4, v5
+    v17 = memory_object_load_byte memorybytes, v5, v6
     v18 = shl 248, v17
     v19 = eq v13, v18
     v20 = eq v19, false
@@ -291,7 +246,7 @@ fn @compare(arg0: memorybytes, arg1: memorybytes) [pure] {
   bb6:
     jump bb3
   bb3:
-    v21 = checked_add u256, v5, 1
+    v21 = checked_add u256, v6, 1
     jump bb1
 }
 

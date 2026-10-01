@@ -1,0 +1,63 @@
+// === ROOT/tests/ui/codegen/lowering/abi_return_calldata_tails.sol:CalldataReturns ===
+@module CalldataReturns
+fn @echo(arg0: calldataslice) -> calldataslice [selector=0x9412810b, pure, abi_params=[array<_, array<_, u256>>], abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, u256>>]] {
+  bb0:
+    v0 = make_calldata_slice 0, 0
+    ret arg0
+}
+
+fn @narrow(arg0: calldataslice) -> calldataslice [selector=0x640909b1, pure, abi_params=[array<_, array<_, u8>>], abi_returns=[memory_array<memory_array<word<u8>>>], abi_return_params=[array<_, array<_, u8>>]] {
+  bb0:
+    v0 = make_calldata_slice 0, 0
+    ret arg0
+}
+
+fn @inner(arg0: calldataslice) -> calldataslice [pure] {
+  bb0:
+    v0 = make_calldata_slice 0, 0
+    ret arg0
+}
+
+fn @viaCall(arg0: calldataslice) -> calldataslice [selector=0x3cade364, pure, abi_params=[array<_, u8>], abi_returns=[memory_array<word<u8>>], abi_return_params=[array<_, u8>]] {
+  bb0:
+    v0 = make_calldata_slice 0, 0
+    v1 = icall @inner, arg0
+    ret v1
+}
+
+fn @deep(arg0: calldataslice) -> calldataslice [selector=0x51ac7146, pure, abi_params=[array<_, array<_, array<_, u8>>>], abi_returns=[memory_array<memory_array<memory_array<word<u8>>>>], abi_return_params=[array<_, array<_, array<_, u8>>>]] {
+  bb0:
+    v0 = make_calldata_slice 0, 0
+    ret arg0
+}
+
+fn @structs(arg0: calldataslice) -> calldataslice [selector=0xe12fb1be, pure, abi_params=[array<_, tuple<u256, bytes>>], abi_returns=[memory_array<tuple<word, memory_bytes>>], abi_return_params=[array<_, tuple<u256, bytes>>]] {
+  bb0:
+    v0 = make_calldata_slice 0, 0
+    ret arg0
+}
+
+fn @pairs(arg0: calldataslice) -> calldataslice [selector=0xebfa7a4a, pure, abi_params=[array<_, array<2, bytes>>], abi_returns=[memory_array<array<2, memory_bytes>>], abi_return_params=[array<_, array<2, bytes>>]] {
+  bb0:
+    v0 = make_calldata_slice 0, 0
+    ret arg0
+}
+
+fn @pointers(arg0: calldataslice) -> calldataslice [selector=0xb58edf5a, pure, abi_params=[array<_, function>], abi_returns=[memory_array<function>], abi_return_params=[array<_, function>]] {
+  bb0:
+    v0 = make_calldata_slice 0, 0
+    ret arg0
+}
+
+fn @innerPointers(arg0: calldataslice) -> calldataslice [pure] {
+  bb0:
+    v0 = make_calldata_slice 0, 0
+    ret arg0
+}
+
+fn @pointersViaCall(arg0: calldataslice) -> calldataslice [selector=0xb4826f63, pure, abi_params=[array<_, function>], abi_returns=[memory_array<function>], abi_return_params=[array<_, function>]] {
+  bb0:
+    v0 = make_calldata_slice 0, 0
+    v1 = icall @innerPointers, arg0
+    ret v1
+}

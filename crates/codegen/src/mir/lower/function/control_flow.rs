@@ -661,7 +661,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         else_branch: MergeBranch<StorageAccess>,
     ) -> FxHashMap<VariableId, StorageAccess> {
         let mut merged = before;
-        let ids = merged.keys().copied().collect::<Vec<_>>();
+        let mut ids = merged.keys().copied().collect::<Vec<_>>();
+        ids.sort_unstable();
         for id in ids {
             let then = then_branch.values.get(&id).copied().or_else(|| merged.get(&id).copied());
             let else_ = else_branch.values.get(&id).copied().or_else(|| merged.get(&id).copied());
@@ -832,14 +833,22 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let before_storage_refs = self.storage_refs.clone();
         let mut header_values = before_values.clone();
         let mut header_phis = FxHashMap::default();
-        for (&id, &value) in &before_values {
+        // Phis follow the variables' declaration order, not the hash order of
+        // their ids, which shifts with unrelated sources.
+        let mut loop_values =
+            before_values.iter().map(|(&id, &value)| (id, value)).collect::<Vec<_>>();
+        loop_values.sort_unstable_by_key(|&(id, _)| id);
+        for (id, value) in loop_values {
             let phi = self.merge_value_phi(vec![(preheader, value)]);
             header_values.insert(id, phi);
             header_phis.insert(id, phi);
         }
         self.values = header_values.clone();
         let mut header_storage_refs = before_storage_refs.clone();
-        for (&id, &access) in &before_storage_refs {
+        let mut loop_refs =
+            before_storage_refs.iter().map(|(&id, &access)| (id, access)).collect::<Vec<_>>();
+        loop_refs.sort_unstable_by_key(|&(id, _)| id);
+        for (id, access) in loop_refs {
             let slot = self.builder.phi(vec![(preheader, access.slot)]);
             let offset = access.offset.map(|offset| self.builder.phi(vec![(preheader, offset)]));
             header_storage_refs.insert(id, StorageAccess { slot, offset, ..access });
@@ -962,7 +971,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         exits: &[LoopState],
         header_phis: &FxHashMap<VariableId, ValueId>,
     ) -> FxHashMap<VariableId, ValueId> {
-        let ids = before.keys().copied().collect::<Vec<_>>();
+        let mut ids = before.keys().copied().collect::<Vec<_>>();
+        ids.sort_unstable();
         let mut merged = before;
         for id in ids {
             let before_value = merged[&id];
@@ -1033,7 +1043,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         else_branch: MergeBranch<ValueId>,
     ) -> FxHashMap<VariableId, ValueId> {
         let mut values = before;
-        let ids = values.keys().copied().collect::<Vec<_>>();
+        let mut ids = values.keys().copied().collect::<Vec<_>>();
+        ids.sort_unstable();
         for id in ids {
             let then_value = then_branch.values.get(&id).copied();
             let else_value = else_branch.values.get(&id).copied();
@@ -1061,7 +1072,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         mut before: FxHashMap<VariableId, ValueId>,
         states: &[LoopState],
     ) -> FxHashMap<VariableId, ValueId> {
-        let ids = before.keys().copied().collect::<Vec<_>>();
+        let mut ids = before.keys().copied().collect::<Vec<_>>();
+        ids.sort_unstable();
         for id in ids {
             let incoming = states
                 .iter()
@@ -1113,7 +1125,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         mut before: FxHashMap<VariableId, StorageAccess>,
         states: &[LoopState],
     ) -> FxHashMap<VariableId, StorageAccess> {
-        let ids = before.keys().copied().collect::<Vec<_>>();
+        let mut ids = before.keys().copied().collect::<Vec<_>>();
+        ids.sort_unstable();
         for id in ids {
             let fallback = before.get(&id).copied();
             let incoming = states

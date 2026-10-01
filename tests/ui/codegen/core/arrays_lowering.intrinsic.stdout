@@ -22,44 +22,44 @@ fn @shorten() [selector=0xf0187838, abi_wrapper, pure] {
     v8 = calldataload 4
     v9 = add v8, 4
     v10 = add v9, 32
-    v11 = gt v8, 0xffffffffffffffff
+    v11 = shr 64, v8
     v12 = gt v10, v6
-    v13 = or v11, v12
-    jumpi v13, bb3, bb5
+    v13 = zext i1 v12 to i256
+    v14 = or v11, v13
+    v15 = ne v14, 0
+    jumpi v15, bb3, bb5
   bb5:
-    v15 = calldataload v9
-    v17 = shl 5, v15
-    v19 = shr 5, v17
-    v23 = ne v19, v15
-    jumpi v23, bb6, bb7
+    v16 = calldataload v9
+    v18 = shr 64, v16
+    v19 = ne v18, 0
+    jumpi v19, bb6, bb7
   bb7:
-    v24 = add v17, 32
-    v25 = lt v24, v17
-    jumpi v25, bb6, bb8
-  bb8:
-    v41 = mload 64 !metadata(memory=scratch)
-    v42 = add v41, v24
-    v43 = lt v42, v41
-    v44 = gt v42, 0xffffffffffffffff
-    v45 = or v43, v44
-    jumpi v45, bb6, bb10
-  bb10:
-    mstore 64, v42 !metadata(memory=scratch)
-    mstore v41, v15
-    v27 = sub v6, v10
-    v28 = shr 5, v27
-    v29 = gt v15, v28
-    jumpi v29, bb3, bb9
+    v20 = shl 5, v16
+    v21 = add v20, 32
+    v35 = mload 64 !metadata(memory=scratch)
+    v36 = add v35, v21
+    v37 = lt v36, v35
+    v38 = zext i1 v37 to i256
+    v39 = shr 64, v36
+    v40 = or v38, v39
+    v41 = ne v40, 0
+    jumpi v41, bb6, bb9
   bb9:
-    v35 = add v41, 32
-    calldatacopy v35, v10, v17
-    v2 = gt arg1, v15
+    mstore 64, v36 !metadata(memory=scratch)
+    mstore v35, v16
+    v23 = add v10, v20
+    v24 = gt v23, v6
+    jumpi v24, bb3, bb8
+  bb8:
+    v29 = add v35, 32
+    calldatacopy v29, v10, v20
+    v2 = gt arg1, v16
     jumpi v2, bb1, bb2
   bb2:
-    mstore v41, arg1
-    mstore 128, v15
-    mstore 160, arg1
-    returndata 128, 64
+    mstore v35, arg1
+    mstore 0, v16
+    mstore 32, arg1 !metadata(memory=scratch)
+    returndata 0, 64
   bb1:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 50 !metadata(memory=scratch)

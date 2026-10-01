@@ -1,0 +1,81 @@
+- // === ROOT/tests/ui/codegen/mir/cse/cse_length_across_alloc.mir (before cse) ===
++ // === ROOT/tests/ui/codegen/mir/cse/cse_length_across_alloc.mir (after cse) ===
+  @module CseLengthAcrossAlloc
+  fn @argument(arg0: memorybytes) -> i256 {
+    bb0:
+      v0 = memory_object_len memorybytes, arg0
+      v1 = alloc memorybytes, exact, zeroed, panic, 64
+      v2 = memory_object_len memorybytes, arg0
+      v3 = add v0, v2
+      ret v3
+  }
+  
+  fn @earlier(arg0: i256) -> i256 {
+    bb0:
+      v0 = alloc memorybytes, exact, zeroed, panic, 64
+      set_memory_object_len memorybytes, v0, arg0
+-     v1 = memory_object_len memorybytes, v0
+      v2 = alloc memorybytes, exact, uninitialized, infallible, 64
+-     v3 = memory_object_len memorybytes, v0
+-     v4 = add v1, v3
++     v4 = add arg0, arg0
+      ret v4
+  }
+  
+  fn @sized(arg0: memorybytes, arg1: i256) -> i256 {
+    bb0:
+      v0 = memory_object_len memorybytes, arg0
+      v1 = alloc memorybytes, exact, zeroed, panic, arg1
+      set_memory_object_len memorybytes, v1, 7
+      v2 = memory_object_len memorybytes, arg0
+      v3 = add v0, v2
+      ret v3
+  }
+  
+  fn @loop(arg0: memorybytes, arg1: i256) -> i256 {
+    bb0:
+      v0 = memory_object_len memorybytes, arg0
+      v1 = alloc memorybytes, exact, zeroed, panic, arg1
+      set_memory_object_len memorybytes, v1, 32
+      v2 = ne v0, 0
+      jumpi v2, bb1, bb4
+    bb1:
+      v3 = phi [bb0: 0], [bb3: v9]
+      v4 = memory_object_len memorybytes, arg0
+      v5 = lt v3, v4
+      jumpi v5, bb2, bb4
+    bb4:
+      ret v0
+    bb2:
+-     v6 = memory_object_len memorybytes, arg0
+-     v7 = lt v3, v6
+-     icall panic_if_zero<0x32>, v7
++     icall panic_if_zero<0x32>, v5
+      v8 = memory_object_load_byte memorybytes, arg0, v3
+      memory_object_store_byte memorybytes, v1, 0, v8
+      jump bb3
+    bb3:
+      v9 = add v3, 1
+      jump bb1
+  }
+  
+  fn @raw(arg0: i256) -> i256 {
+    bb0:
+      v0 = mload arg0
+      v1 = alloc memorybytes, exact, zeroed, panic, 64
+      v2 = mload arg0
+      v3 = add v0, v2
+      ret v3
+  }
+  
+  fn @raw_allocation(arg0: memorybytes, arg1: i256) -> i256 {
+    bb0:
+      v0 = memory_object_len memorybytes, arg0
+      v1 = alloc raw, exact, uninitialized, infallible, arg1
+      v2 = ptrtoint memptr v1 to i256
+      mstore v2, 7
+      v3 = memory_object_len memorybytes, arg0
+      v4 = add v0, v3
+      ret v4
+  }
+  

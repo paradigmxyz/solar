@@ -16,8 +16,9 @@ contract AbiPackedFunctionPointerArray {
         return abi.encodePacked(pointers);
     }
 
+    // The copy of an argument that lies inside the calldata cannot overflow its size.
     // SEMANTIC-LABEL: fn @encode(
-    // SEMANTIC: icall panic_if<0x41>, {{v[0-9]+}}
+    // SEMANTIC-NOT: panic_if<0x41>
     // SEMANTIC: alloc memoryarray<1>
     // SEMANTIC: [[OFFSET:v[0-9]+]] = mul {{v[0-9]+}}, 32
     // SEMANTIC-NEXT: [[HEAD:v[0-9]+]] = add {{v[0-9]+}}, [[OFFSET]]

@@ -18,12 +18,11 @@
 +   bb1:
       v0 = add arg0, 1
 -     ret arg0, v0
-+     mstore 128, arg0
-+     v3 = add 128, 32
-+     mstore v3, v0
-+     v4 = add v3, 32
-+     v5 = sub v4, 128
-+     returndata 128, v5
++     mstore 0, arg0 !metadata(memory=scratch)
++     mstore 32, v0 !metadata(memory=scratch)
++     v3 = add 32, 32
++     v4 = sub v3, 0
++     returndata 0, v4
 +   bb2:
 +     revert 0, 0
   }
@@ -34,10 +33,9 @@
       v0 = loadimmutable owner
       v1 = zext i160 v0 to i256
 -     ret v1
-+     mstore 128, v1
-+     v3 = add 128, 32
-+     v4 = sub v3, 128
-+     returndata 128, v4
++     mstore 0, v1
++     v3 = sub 32, 0
++     returndata 0, v3
   }
   
 - fn @unreachable_cycle() -> struct0 [selector=0x01020304, abi_params=[], abi_returns=[word, word]] {
@@ -46,22 +44,20 @@
 -     ret undef struct0
 +     v1 = extract_value struct0, undef struct0, 0
 +     v2 = extract_value struct0, undef struct0, 1
-+     mstore 128, v1
-+     v4 = add 128, 32
-+     mstore v4, v2
-+     v5 = add v4, 32
-+     v6 = sub v5, 128
-+     returndata 128, v6
++     mstore 0, v1 !metadata(memory=scratch)
++     mstore 32, v2 !metadata(memory=scratch)
++     v4 = add 32, 32
++     v5 = sub v4, 0
++     returndata 0, v5
     bb1:
       v0 = insert_value struct0, v0, 0, 1
 -     ret v0
 +     v3 = extract_value struct0, v0, 1
-+     mstore 128, 1
-+     v7 = add 128, 32
-+     mstore v7, v3
-+     v8 = add v7, 32
-+     v9 = sub v8, 128
-+     returndata 128, v9
++     mstore 0, 1 !metadata(memory=scratch)
++     mstore 32, v3 !metadata(memory=scratch)
++     v6 = add 32, 32
++     v7 = sub v6, 0
++     returndata 0, v7
   }
   
 - fn @typed_address(arg0: i160, arg1: i256) -> i160 [selector=0x01020305, abi_params=[address, bool], abi_returns=[word<u160>], abi_return_params=[address]] {
@@ -85,10 +81,9 @@
 +     jump bb1
 +   bb1:
 +     v8 = zext i160 v7 to i256
-+     mstore 128, v8
-+     v10 = add 128, 32
-+     v11 = sub v10, 128
-+     returndata 128, v11
++     mstore 0, v8
++     v10 = sub 32, 0
++     returndata 0, v10
 +   bb2:
 +     revert 0, 0
   }

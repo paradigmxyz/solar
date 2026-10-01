@@ -7,11 +7,20 @@
 //! Encodings made entirely of whole words need no allocation-size rounding. Array loops use
 //! plain element-offset arithmetic: their index is below the length whose total extent was checked.
 //! Bytes results retain their FMP bump at the encoding point even when their size becomes constant.
+//!
+//! An encoding that ends with bytes in memory, after literals and scalars of at most one word in
+//! all, can be read without being copied: the prefix is written over the length word of the bytes,
+//! which it then immediately precedes, and the length is written back once the encoding has been
+//! read. The hash of such an encoding is taken that way, and creations and calls that take one as
+//! their input read it the same way ([`prefix_over_length`]).
+//! Between the two writes run only the instruction reading the range and code that touches
+//! neither the bytes nor their length, so nothing observes the borrowed length word.
 
 use crate::mir::{
     AbiType, AbiWordValidator, AllocationSemantics, FunctionBuilder, MemoryObjectKind,
     MemoryObjectLayout, PackedArraySource, PackedPart, PanicCode, SliceLocation, Value, ValueId,
-    ValueLayout, memory::EvmMemoryLayout, packed_element_bytes,
+    ValueLayout, memory::EvmMemoryLayout, packed_element_bytes, prefix_over_length, restore_length,
+    static_prefix_size,
 };
 use alloy_primitives::{Bytes, U256};
 
@@ -27,6 +36,17 @@ pub(super) fn lower_packed(
     parts: Box<[PackedPart]>,
     hash: bool,
 ) -> ValueId {
+    if hash
+        && let Some((PackedPart::Bytes(object), prefix)) = parts.split_last()
+        && builder.func().value_slice_location(*object).is_none()
+        && static_prefix_size(prefix).is_some()
+    {
+        // hash = keccak256(prefix ++ object.data), read over the object's length word
+        let prefixed = prefix_over_length(builder, prefix, *object);
+        let hash = builder.keccak256(prefixed.start, prefixed.size);
+        restore_length(builder, &prefixed);
+        return hash;
+    }
     let mut encoder = PackedEncoder { builder };
     let (pieces, total) = encoder.prepare(parts, !hash);
     if hash {

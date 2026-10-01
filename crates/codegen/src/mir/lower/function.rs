@@ -9,8 +9,9 @@ use crate::mir::{
     AbiLayout, AbiParamLayout, AbiParamLocation, AbiParamType, AbiType, AbiWordValidator,
     AddressCallKind, AllocationSemantics, ArithmeticKind, BlockId, CheckedOp, ConcatPart, DataId,
     DataRef, Function, FunctionBuilder, FunctionId, ImmutableId, InstKind, MemoryObjectKind,
-    MemoryObjectLayout, MirType, Module, PackedArraySource, PackedPart, PanicCode, RevertPayload,
-    RevertReason, SliceLocation, Value, ValueId, memory::EvmMemoryLayout,
+    MemoryObjectLayout, MirType, Module, PackedArraySource, PackedPart, PanicCode, PrefixedBytes,
+    RevertPayload, RevertReason, SliceLocation, Value, ValueId, memory::EvmMemoryLayout,
+    prefix_over_length, restore_length, static_prefix_size,
 };
 use alloy_primitives::{U256, keccak256};
 use solar_ast::{BinOpKind, DataLocation, LitKind, StateMutability, StrKind, TypeSize, UnOpKind};
@@ -192,6 +193,11 @@ pub(super) fn lower(
         }
     }
 
+    // A public function that no internal call or internal function pointer reaches is only
+    // entered through its selector, with the arguments the ABI decoder checked.
+    mir.attributes.abi_entry_only = mir.selector.is_some()
+        && hir_function.visibility == hir::Visibility::Public
+        && !gcx.contract_internal_call_targets(context.contract_id).contains(id);
     let mut lowerer = FunctionLowerer::new(context.reborrow(), &mut mir);
     lowerer.is_getter = hir_function.is_getter();
     lowerer.bind_signature(id, hir_function, passes);
@@ -245,6 +251,10 @@ struct FunctionLowerer<'gcx, 'ctx> {
     builder: FunctionBuilder<'ctx>,
     values: FxHashMap<VariableId, ValueId>,
     dirty_values: FxHashSet<ValueId>,
+    /// Calldata slices known to lie inside the calldata: `msg.data`, validated ABI tails, and
+    /// ranges sliced out of them. A check that one of these lies inside the calldata can never
+    /// fail, so it is left out.
+    calldata_in_bounds: FxHashSet<ValueId>,
     default_bindings: FxHashSet<VariableId>,
     deferred_bindings: FxHashSet<VariableId>,
     storage_refs: FxHashMap<VariableId, StorageAccess>,
@@ -467,6 +477,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             types: types::TypeLowerer::new(gcx),
             values: FxHashMap::default(),
             dirty_values: FxHashSet::default(),
+            calldata_in_bounds: FxHashSet::default(),
             default_bindings: FxHashSet::default(),
             deferred_bindings: FxHashSet::default(),
             storage_refs: FxHashMap::default(),

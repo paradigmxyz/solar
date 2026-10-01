@@ -33,37 +33,37 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_
   bb3:
     jump bb7
   bb7:
-    v12 = phi [bb3: 0], [bb9: v29]
-    v13 = phi [bb3: 0], [bb9: v28]
+    v12 = phi [bb3: 0], [bb9: v28]
+    v13 = phi [bb3: 0], [bb9: v29]
     v14 = phi [bb3: v0], [bb9: v14]
     v15 = lt 0, 1
     v16 = eq v15, false
     icall panic_if<0x32>, v16
     v17 = mul 0, 10
     v18 = add v14, v17
-    v19 = lt v12, 10
+    v19 = lt v13, 10
     jumpi v19, bb10, bb11
   bb11:
     jump bb8
   bb8:
-    ret v13
+    ret v12
   bb10:
     v20 = lt 0, 1
     v21 = eq v20, false
     icall panic_if<0x32>, v21
     v22 = mul 0, 10
     v23 = add v14, v22
-    v24 = lt v12, 10
+    v24 = lt v13, 10
     v25 = eq v24, false
     icall panic_if<0x32>, v25
-    v26 = add v23, v12
+    v26 = add v23, v13
     v27 = sload v26 !metadata(storage=symbolic(v26))
-    v28 = checked_add u256, v13, v27
+    v28 = checked_add u256, v12, v27
     jump bb12
   bb12:
     jump bb9
   bb9:
-    v29 = checked_add u256, v12, 1
+    v29 = checked_add u256, v13, 1
     jump bb7
   bb2:
     v8 = add v5, v6

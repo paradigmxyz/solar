@@ -11,8 +11,8 @@
 
 // Returning an array parameter re-encodes its elements only when a word wider
 // than the element type can have reached them. ABI decoding validates every
-// element, so a function that stores nothing wider returns the payload with one
-// copy; assembly that stores a full word, here or in a callee, keeps the
+// element, so a function that stores nothing wider returns the payload in
+// place; assembly that stores a full word, here or in a callee, keeps the
 // per-element cleanup.
 contract AbiReturnArrayElements {
     struct Word {
@@ -20,15 +20,17 @@ contract AbiReturnArrayElements {
     }
 
     // MIR-LABEL: fn @clean
-    // MIR: mcopy
-    // MIR-NOT: and {{v[0-9]+}}, 0xffffffffffffffffffffffffffffffffffffffff
-    // MIR: returndata
+    // MIR-NOT: cleanup_return
+    // MIR: [[HEAD:v[0-9]+]] = sub {{v[0-9]+}}, 32
+    // MIR-NEXT: mstore [[HEAD]], 32
+    // MIR-NOT: and {{v[0-9]+}}, 0xffffffffffffffffffffffffffffffffffffffff{{$}}
+    // MIR: returndata [[HEAD]],
     function clean(address[] memory a) external pure returns (address[] memory) {
         return a;
     }
 
     // MIR-LABEL: fn @dirty
-    // MIR: and {{v[0-9]+}}, 0xffffffffffffffffffffffffffffffffffffffff
+    // MIR: icall @cleanup_return
     function dirty(address[] memory a) external pure returns (address[] memory) {
         assembly {
             mstore(add(a, 32), not(0))
@@ -37,7 +39,7 @@ contract AbiReturnArrayElements {
     }
 
     // MIR-LABEL: fn @viaHelper
-    // MIR: and {{v[0-9]+}}, 0xffffffffffffffffffffffffffffffffffffffff
+    // MIR: icall @cleanup_return
     function viaHelper(address[] memory a) external pure returns (address[] memory) {
         _scribble(a);
         return a;

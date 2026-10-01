@@ -1,0 +1,49 @@
+// === ROOT/tests/ui/codegen/mir/check-elim/scaled_cursor_raw_length.sol:ScaledCursorRawLength ===
+@module ScaledCursorRawLength
+fn @shrink(arg0: i256, arg1: i256) -> memorybytes [selector=0xefab6938, inline_assembly, pure, abi_params=[u256, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = checked_mul u256, arg0, 3
+    v1 = add v0, 63
+    v2 = lt v1, v0
+    icall panic_if<0x41>, v2
+    v3 = not 31
+    v4 = and v1, v3
+    v5 = alloc memorybytes, exact, zeroed, panic, v4
+    set_memory_object_len memorybytes, v5, v0
+    jump bb1
+  bb1:
+    v6 = phi [bb0: arg0], [bb3: v6]
+    v7 = phi [bb0: arg1], [bb3: v7]
+    v8 = phi [bb0: v5], [bb3: v8]
+    v9 = phi [bb0: 0], [bb3: v18]
+    v10 = phi [bb0: 0], [bb3: v19]
+    v11 = lt v10, v6
+    jumpi v11, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    ret v8
+  bb4:
+    v12 = eq v10, v7
+    jumpi v12, bb7, bb8
+  bb8:
+    jump bb9
+  bb7:
+    v13 = ptrtoint memorybytes v8 to i256
+    mstore v13, 1
+    jump bb9
+  bb9:
+    v14 = memory_object_len memorybytes, v8
+    v15 = lt v9, v14
+    v16 = eq v15, false
+    icall panic_if<0x32>, v16
+    v17 = byte 0, 0x6100000000000000000000000000000000000000000000000000000000000000
+    memory_object_store_byte memorybytes, v8, v9, v17
+    v18 = checked_add u256, v9, 3
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v19 = checked_add u256, v10, 1
+    jump bb1
+}

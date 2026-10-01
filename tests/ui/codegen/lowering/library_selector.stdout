@@ -8,8 +8,8 @@ fn @f() [selector=0xb3de648b, abi_wrapper, pure] {
     v1 = lt v0, 36
     jumpi v1, bb1, bb2
   bb2:
-    mstore 128, arg0
-    returndata 128, 32
+    mstore 0, arg0 !metadata(memory=scratch)
+    returndata 0, 32
   bb1:
     revert 0, 0
 }
@@ -30,8 +30,8 @@ fn @entry() [entry] {
 @phase lowered
 fn @sel() [selector=0x41c910e1, abi_wrapper, pure] {
   bb0:
-    mstore 128, 0xb3de648b00000000000000000000000000000000000000000000000000000000
-    returndata 128, 32
+    mstore 0, 0xb3de648b00000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    returndata 0, 32
 }
 
 fn @entry() [entry] {

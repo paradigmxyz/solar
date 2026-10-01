@@ -1,0 +1,147 @@
+//@ revisions: gas none
+//@[gas] compile-flags: -O gas -Zmir-pipeline=lower-abi-encode
+//@[none] compile-flags: -O none -Zmir-pipeline=lower-abi-encode
+//@[gas] filecheck: --check-prefixes=CHECK,GAS
+//@[none] filecheck: --check-prefixes=CHECK,NONE
+@module NonNullObjects
+
+// A zeroed aggregate slot stores null for its default object, so an encoded
+// length is masked unless every value the object can be is a real object.
+
+fn @default_or_fresh(arg0: i256) -> memorybytes {
+  bb0:
+    v0 = ne arg0, 0
+    jumpi v0, bb1, bb2
+  bb1:
+    v1 = alloc memorybytes, exact, uninitialized, infallible, 64
+    set_memory_object_len memorybytes, v1, 32
+    ret v1
+  bb2:
+    ret memorybytes 96
+}
+
+// Optimized builds read a proved object's length directly.
+// CHECK-LABEL: {{^[ +].*}}fn @encode_default_or_fresh{{[( ]}}
+// CHECK: + [[LENGTH:v[0-9]+]] = memory_object_len memorybytes, [[OBJECT:v[0-9]+]]
+// GAS-NOT: mul
+// NONE: + {{v[0-9]+}} = mul [[LENGTH]],
+// CHECK: + mcopy
+fn @encode_default_or_fresh(arg0: i256) -> memoryslice {
+  bb0:
+    v0 = icall @default_or_fresh, arg0
+    v1 = abi_encode [memory_bytes], args v0
+    ret v1
+}
+
+// A phi carried around a loop selects only its entry values.
+fn @loop_carried(arg0: i256) -> memorybytes {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: memorybytes 96], [bb2: v2]
+    v1 = phi [bb0: arg0], [bb2: v3]
+    v4 = ne v1, 0
+    jumpi v4, bb2, bb3
+  bb2:
+    v2 = alloc memorybytes, exact, uninitialized, infallible, 32
+    set_memory_object_len memorybytes, v2, 0
+    v3 = sub v1, 1
+    jump bb1
+  bb3:
+    ret v0
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @encode_loop_carried{{[( ]}}
+// CHECK: + [[LENGTH:v[0-9]+]] = memory_object_len memorybytes, [[OBJECT:v[0-9]+]]
+// GAS-NOT: mul
+// NONE: + {{v[0-9]+}} = mul [[LENGTH]],
+// CHECK: + mcopy
+fn @encode_loop_carried(arg0: i256) -> memoryslice {
+  bb0:
+    v0 = icall @loop_carried, arg0
+    v1 = abi_encode [memory_bytes], args v0
+    ret v1
+}
+
+// An argument may be a caller's null default object.
+fn @forward(arg0: memorybytes) -> memorybytes {
+  bb0:
+    ret arg0
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @encode_forwarded{{[( ]}}
+// CHECK: + [[LENGTH:v[0-9]+]] = memory_object_len memorybytes, [[OBJECT:v[0-9]+]]
+// CHECK: + {{v[0-9]+}} = mul [[LENGTH]],
+// CHECK: + mcopy
+fn @encode_forwarded(arg0: memorybytes) -> memoryslice {
+  bb0:
+    v0 = icall @forward, arg0
+    v1 = abi_encode [memory_bytes], args v0
+    ret v1
+}
+
+// The least fixpoint leaves a result that recurses unproved.
+fn @recursive(arg0: i256) -> memorybytes {
+  bb0:
+    v0 = ne arg0, 0
+    jumpi v0, bb1, bb2
+  bb1:
+    v1 = sub arg0, 1
+    v2 = icall @recursive, v1
+    ret v2
+  bb2:
+    ret memorybytes 96
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @encode_recursive{{[( ]}}
+// CHECK: + [[LENGTH:v[0-9]+]] = memory_object_len memorybytes, [[OBJECT:v[0-9]+]]
+// CHECK: + {{v[0-9]+}} = mul [[LENGTH]],
+// CHECK: + mcopy
+fn @encode_recursive(arg0: i256) -> memoryslice {
+  bb0:
+    v0 = icall @recursive, arg0
+    v1 = abi_encode [memory_bytes], args v0
+    ret v1
+}
+
+// A core operation that builds its result inside its own allocation marks the
+// cast that types it.
+fn @in_allocation(arg0: i256) -> memorybytes {
+  bb0:
+    v0 = alloc raw, exact, uninitialized, infallible, 96
+    v1 = ptrtoint memptr v0 to i256
+    v2 = add v1, 32
+    mstore v2, arg0
+    v3 = inttoptr i256 v2 to memorybytes !metadata(nonnull)
+    ret v3
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @encode_in_allocation{{[( ]}}
+// CHECK: + [[LENGTH:v[0-9]+]] = memory_object_len memorybytes, [[OBJECT:v[0-9]+]]
+// GAS-NOT: mul
+// NONE: + {{v[0-9]+}} = mul [[LENGTH]],
+// CHECK: + mcopy
+fn @encode_in_allocation(arg0: i256) -> memoryslice {
+  bb0:
+    v0 = icall @in_allocation, arg0
+    v1 = abi_encode [memory_bytes], args v0
+    ret v1
+}
+
+// An unmarked cast may type any word, including null.
+fn @unmarked_cast(arg0: i256) -> memorybytes {
+  bb0:
+    v0 = inttoptr i256 arg0 to memorybytes
+    ret v0
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @encode_unmarked_cast{{[( ]}}
+// CHECK: + [[LENGTH:v[0-9]+]] = memory_object_len memorybytes, [[OBJECT:v[0-9]+]]
+// CHECK: + {{v[0-9]+}} = mul [[LENGTH]],
+// CHECK: + mcopy
+fn @encode_unmarked_cast(arg0: i256) -> memoryslice {
+  bb0:
+    v0 = icall @unmarked_cast, arg0
+    v1 = abi_encode [memory_bytes], args v0
+    ret v1
+}

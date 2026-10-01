@@ -335,10 +335,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn canonicalize_abi_value(&mut self, ty: Ty<'gcx>, value: ValueId) -> ValueId {
-        let external_argument = self.is_external_abi_argument(value);
+        let external_only = self.is_decoded_external_argument(value);
         let dirty = self.dirty_values.contains(&value);
-        let external_only = external_argument
-            && self.builder.func().attributes.visibility == solar_ast::Visibility::External;
         match ty.peel_refs().kind {
             // Aggregates are cleaned and validated word by word while encoding, like solc's
             // per-type encoders; copying them into a canonical object first would duplicate
@@ -385,13 +383,25 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         {
             return self.lower_view_materialization(exprs, &decoded_types, args[1].span);
         }
+        let data_ty = self.cx.gcx.type_of_expr(data_expr.id)?;
+        let memory_ty = data_ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
         let (data, layout) = if self.is_view_expr(data_expr) {
             // A view's bytes are decoded where they are, in memory or in calldata.
             let view = self.lower_view_expr(data_expr)?;
             (view, self.abi_decode_layout(&decoded_types, args[1].span)?)
+        } else if lies_in_calldata(data_ty) {
+            // Calldata is decoded where it lies, as solc decodes it, instead of from a copy: the
+            // decode checks its offsets against the data's own length, and reads past the end of
+            // the calldata as zeros.
+            let data = self.lower_expr(data_expr)?;
+            if self.builder.func().value_slice_location(data) == Some(SliceLocation::Calldata) {
+                (data, self.abi_decode_layout(&decoded_types, args[1].span)?)
+            } else {
+                let data = self.coerce_value(data, data_ty, memory_ty);
+                let data = self.materialize_memory_argument(memory_ty, data, data_expr.span)?;
+                self.lower_abi_decode_layout(data, &decoded_types, args[1].span)?
+            }
         } else {
-            let data_ty = self.cx.gcx.type_of_expr(data_expr.id)?;
-            let memory_ty = data_ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
             let data = self.lower_typed_expr(data_expr, memory_ty)?;
             let data = self.materialize_memory_argument(memory_ty, data, data_expr.span)?;
             self.lower_abi_decode_layout(data, &decoded_types, args[1].span)?
@@ -467,7 +477,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // copy(slice, object.data)
         // return object
         let length = self.builder.slice_len(slice);
-        let object = self.builder.alloc_bytes_object(length, AllocationSemantics::INTERNAL);
+        // A range inside the calldata is too short for its padded size to overflow.
+        let object = if self.calldata_in_bounds(slice) {
+            self.builder.alloc_bounded_bytes_object(length, AllocationSemantics::INTERNAL)
+        } else {
+            self.builder.alloc_bytes_object(length, AllocationSemantics::INTERNAL)
+        };
         self.builder.memory_object_copy_from_slice(object, MemoryObjectKind::Bytes, slice);
         object
     }
@@ -609,6 +624,73 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         ))
     }
 
+    /// The arguments of `expr` when it is an `abi.encodePacked` call that ends with a `bytes` or
+    /// `string` in memory, after literals and scalars of at most one word in all: an encoding
+    /// [`Self::lower_packed_in_place`] lays out over the length word of those bytes instead of
+    /// copying them.
+    pub(super) fn packed_in_place_args<'a>(
+        &self,
+        expr: &'a hir::Expr<'a>,
+    ) -> Option<&'a [hir::Expr<'a>]> {
+        let (callee, args, _) = expr.peel_parens().as_call()?;
+        if self.cx.gcx.resolved_builtin(callee)? != Builtin::AbiEncodePacked {
+            return None;
+        }
+        let hir::CallArgsKind::Unnamed(exprs) = args.kind else { return None };
+        let (bytes, prefix) = exprs.split_last()?;
+        let ty = self.cx.gcx.type_of_expr(bytes.id)?;
+        if !ty.is_ref_at(DataLocation::Memory)
+            || !self.is_dynamic_bytes_type(ty)
+            || self.is_view_expr(bytes)
+        {
+            return None;
+        }
+        let mut size = 0;
+        for expr in prefix {
+            if let ExprKind::Lit(lit) = self.peel_bytes_conversion(expr).peel_parens().kind
+                && let LitKind::Str(_, bytes, _) = &lit.kind
+            {
+                size += bytes.as_byte_str().len() as u64;
+            } else if !self.is_view_expr(expr)
+                && let Some((length, _)) =
+                    self.packed_static_shape(self.cx.gcx.type_of_expr(expr.id)?)
+            {
+                size += length;
+            } else {
+                return None;
+            }
+        }
+        (size <= 32).then_some(exprs)
+    }
+
+    /// Lowers the `abi.encodePacked` arguments [`Self::packed_in_place_args`] accepted, laid out
+    /// over the length word of the bytes they end with: a memory slice of the encoding, and the
+    /// layout [`restore_length`] undoes once the slice has been read. Bytes that turn out not to
+    /// be a memory object are encoded as usual instead.
+    pub(super) fn lower_packed_in_place(
+        &mut self,
+        exprs: &[hir::Expr<'_>],
+    ) -> Option<(ValueId, Option<PrefixedBytes>)> {
+        let parts = self.lower_packed_parts(exprs)?;
+        if let Some((PackedPart::Bytes(object), prefix)) = parts.split_last()
+            && self.builder.func().value_slice_location(*object).is_none()
+            && static_prefix_size(prefix).is_some()
+        {
+            // mstore(object.header, prefix)
+            // input = memory_slice(object.header + 32 - prefix_size, prefix_size + object.len)
+            let prefixed = prefix_over_length(&mut self.builder, prefix, *object);
+            let input =
+                self.builder.make_slice(prefixed.start, prefixed.size, SliceLocation::Memory);
+            return Some((input, Some(prefixed)));
+        }
+        // output = abi_encode_packed(parts)
+        let output = self.builder.emit_inst(
+            InstKind::AbiEncodePacked { parts, hash: false },
+            Some(MirType::MemoryObject(MemoryObjectKind::Bytes)),
+        );
+        Some((output, None))
+    }
+
     pub(super) fn lower_keccak_abi_encode_packed(
         &mut self,
         args: hir::CallArgs<'_>,
@@ -623,6 +705,58 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             self.builder
                 .emit_inst(InstKind::AbiEncodePacked { parts, hash: true }, Some(MirType::I256)),
         )
+    }
+
+    /// `keccak256(abi.encode(a))` and `keccak256(abi.encode(a, b))` over value
+    /// types. Each such argument encodes as exactly its cleaned word, which is
+    /// what the packed encoder writes for a full-width scalar, so the hash is
+    /// built in scratch space the way the packed form already is, with no
+    /// free-pointer traffic. Anything else keeps the general encoder.
+    pub(super) fn lower_keccak_abi_encode_words(
+        &mut self,
+        exprs: &[hir::Expr<'_>],
+    ) -> Option<ValueId> {
+        if !(1..=2).contains(&exprs.len()) {
+            return None;
+        }
+        let tys = exprs
+            .iter()
+            .map(|expr| self.cx.gcx.type_of_expr(expr.id))
+            .collect::<Option<Vec<_>>>()?;
+        if !tys.iter().all(|&ty| Self::is_abi_word_value_type(ty)) {
+            return None;
+        }
+        let mut parts = Vec::with_capacity(exprs.len());
+        // words = clean(evaluate_arguments_in_order(args))
+        for (expr, &ty) in exprs.iter().zip(&tys) {
+            let value = self.lower_typed_expr(expr, ty)?;
+            let value = self.normalize_abi_scalar(value, ty);
+            parts.push(PackedPart::Scalar { value, ty: crate::mir::ValueLayout::uint256() });
+        }
+        // hash = keccak256_packed(words)
+        Some(self.builder.emit_inst(
+            InstKind::AbiEncodePacked { parts: parts.into_boxed_slice(), hash: true },
+            Some(MirType::I256),
+        ))
+    }
+
+    /// Whether `abi.encode` of a `ty` value is its one cleaned word. External
+    /// function values and literals without a concrete type are left to the
+    /// general encoder.
+    fn is_abi_word_value_type(ty: Ty<'gcx>) -> bool {
+        match ty.kind {
+            TyKind::Elementary(elementary) => matches!(
+                elementary,
+                solar_sema::hir::ElementaryType::Bool
+                    | solar_sema::hir::ElementaryType::Address(_)
+                    | solar_sema::hir::ElementaryType::Int(_)
+                    | solar_sema::hir::ElementaryType::UInt(_)
+                    | solar_sema::hir::ElementaryType::FixedBytes(_)
+            ),
+            TyKind::Contract(_) | TyKind::Enum(_) => true,
+            TyKind::Udvt(inner, _) => Self::is_abi_word_value_type(inner),
+            _ => false,
+        }
     }
 
     pub(super) fn is_scratch_packed_expr(&self, expr: &hir::Expr<'_>) -> bool {
@@ -681,12 +815,18 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             let memory_ty = ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
             let mut value = self.lower_typed_expr(expr, memory_ty)?;
-            if let Some(abi_type) = self.types.abi_type(ty) {
-                self.validate_calldata_bytes_argument(value, &abi_type);
-                self.validate_calldata_array_head(value, ty, &abi_type);
+            let abi_type = self.types.abi_type(ty);
+            if let Some(abi_type) = &abi_type {
+                self.check_calldata_array_size(value, ty, abi_type);
             }
             if self.needs_calldata_aggregate_validation(value, ty) {
-                value = self.materialize_calldata_argument(ty, value, expr.span)?;
+                // Packing takes no ABI argument's elements validated, so even those of an
+                // argument that only ABI decoding passes are validated here.
+                if abi_type.as_ref().is_some_and(Self::is_calldata_word_array) {
+                    self.validate_calldata_word_array(value, ty);
+                } else {
+                    value = self.materialize_calldata_argument(ty, value, expr.span)?;
+                }
             }
             if self.is_dynamic_bytes_type(ty) {
                 parts.push(PackedPart::Bytes(value));
@@ -1134,6 +1274,59 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let input = &self.builtin_args::<1>(builtin, &args)?[0];
         let span = input.span;
         let memory_ty = self.cx.gcx.types.bytes_ref.memory;
+        let ripemd = builtin == Builtin::Ripemd160;
+        let evm = self.cx.gcx.sess.opts.evm_version;
+        // A view and a calldata range are hashed without a copy of their own: a memory view where
+        // it lies, and calldata from past the free memory pointer, without reserving the copy.
+        let calldata = self.cx.gcx.type_of_expr(input.id).is_some_and(lies_in_calldata);
+        if self.is_view_expr(input) || calldata {
+            let range =
+                if calldata { self.lower_expr(input)? } else { self.lower_view_expr(input)? };
+            match self.builder.func().value_slice_location(range) {
+                Some(SliceLocation::Calldata) => {
+                    // The range is packed from where it lies, unchecked, as solc does.
+                    // scratch = fmp
+                    // calldatacopy(scratch, range.ptr, range.len)
+                    // result = sha256 | ripemd160(scratch, range.len)
+                    let pointer = self.builder.slice_ptr(range);
+                    let length = self.builder.slice_len(range);
+                    let scratch = self.builder.fmp();
+                    self.builder.calldatacopy_heap(scratch, pointer, length);
+                    let scratch = self.builder.cast_word(scratch);
+                    return Some(crate::mir::transform::lower_builtins::hash_precompile(
+                        &mut self.builder,
+                        evm,
+                        scratch,
+                        length,
+                        ripemd,
+                    ));
+                }
+                Some(SliceLocation::Memory) => {
+                    // result = sha256 | ripemd160(range.ptr, range.len)
+                    let pointer = self.builder.slice_ptr(range);
+                    let length = self.builder.slice_len(range);
+                    return Some(crate::mir::transform::lower_builtins::hash_precompile(
+                        &mut self.builder,
+                        evm,
+                        pointer,
+                        length,
+                        ripemd,
+                    ));
+                }
+                _ => {
+                    // input = materialize(bytes)
+                    let input_ty = self.cx.gcx.type_of_expr(input.id)?;
+                    let range = self.coerce_value(range, input_ty, memory_ty);
+                    let range = self.materialize_memory_argument(memory_ty, range, span)?;
+                    let kind = if ripemd {
+                        InstKind::builtin(crate::mir::Builtin::Ripemd160, [range])
+                    } else {
+                        InstKind::builtin(crate::mir::Builtin::Sha256, [range])
+                    };
+                    return Some(self.builder.emit_inst(kind, Some(MirType::I256)));
+                }
+            }
+        }
         // input = materialize(bytes)
         let input = self.lower_typed_expr(input, memory_ty)?;
         let input = self.materialize_memory_argument(memory_ty, input, span)?;
@@ -1162,6 +1355,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             InstKind::builtin(crate::mir::Builtin::EcRecover, [hash, v, r, s]),
             Some(MirType::I256),
         ))
+    }
+}
+
+/// Whether a value of type `ty` lies in calldata: a calldata reference, or a slice of one.
+pub(super) fn lies_in_calldata(ty: Ty<'_>) -> bool {
+    match ty.kind {
+        TyKind::Slice(inner) => inner.is_ref_at(DataLocation::Calldata),
+        _ => ty.is_ref_at(DataLocation::Calldata),
     }
 }
 

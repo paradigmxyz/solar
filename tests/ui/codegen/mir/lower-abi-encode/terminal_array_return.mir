@@ -2,8 +2,8 @@
 //@ filecheck:
 @module TerminalArrayReturn
 
-// A terminal ABI encoder may reuse a fresh full-word array. The payload moves
-// forward once, then the old length and data words become the tuple header.
+// A terminal ABI encoder may reuse a fresh full-word array. The offset goes in
+// the word below the object, and the length and payload stay where they are.
 // CHECK-LABEL: {{^[ +].*}}fn @fresh_array{{[( ]}}
 fn @fresh_array() -> memoryarray {
   bb0:
@@ -15,20 +15,14 @@ fn @fresh_array() -> memoryarray {
 // CHECK-LABEL: {{^[ +].*}}fn @terminal{{[( ]}}
 // CHECK: - {{v[0-9]+}} = abi_encode
 // CHECK: + [[LENGTH:v[0-9]+]] = memory_object_len memoryarray, [[OBJECT:v[0-9]+]]
-// CHECK: + [[ENCODE_LENGTH:v[0-9]+]] = mul [[LENGTH]], {{v[0-9]+}}
-// CHECK: + [[SOURCE_PTR:v[0-9]+]] = memory_object_data memoryarray, [[OBJECT]]
-// CHECK: + [[BYTES:v[0-9]+]] = shl 5, [[ENCODE_LENGTH]]
-// CHECK: + [[SOURCE:v[0-9]+]] = ptrtoint memptr [[SOURCE_PTR]] to i256
-// CHECK: + [[DESTINATION:v[0-9]+]] = add [[SOURCE]], 32
-// CHECK: + [[COPY_SOURCE:v[0-9]+]] = ptrtoint memptr [[SOURCE_PTR]] to i256
-// CHECK: + mcopy [[DESTINATION]], [[COPY_SOURCE]], [[BYTES]]
-// CHECK: + [[POINTER:v[0-9]+]] = {{(zext|ptrtoint)}} {{[^ ]+}} [[OBJECT]]
-// CHECK: + mstore [[POINTER]], 32
-// CHECK: + [[LENGTH_POINTER:v[0-9]+]] = ptrtoint memptr [[SOURCE_PTR]] to i256
-// CHECK: + mstore [[LENGTH_POINTER]], [[ENCODE_LENGTH]]
+// CHECK-NOT: mul
+// CHECK: + [[BYTES:v[0-9]+]] = shl 5, [[LENGTH]]
+// CHECK: + [[BASE:v[0-9]+]] = ptrtoint memoryarray [[OBJECT]] to i256
+// CHECK: + [[HEAD:v[0-9]+]] = sub [[BASE]], 32
+// CHECK: + mstore [[HEAD]], 32
 // CHECK: + [[TOTAL:v[0-9]+]] = add [[BYTES]], 64
-// CHECK: + [[SLICE_POINTER:v[0-9]+]] = ptrtoint memoryarray [[OBJECT]] to i256
-// CHECK: + [[ENCODED:v[0-9]+]] = make_memory_slice [[SLICE_POINTER]], [[TOTAL]]
+// CHECK: + [[ENCODED:v[0-9]+]] = make_memory_slice [[HEAD]], [[TOTAL]]
+// CHECK-NOT: mcopy
 fn @terminal() {
   bb0:
     v0 = icall @fresh_array
@@ -65,21 +59,19 @@ fn @fresh_bytes_wrapper(arg0: i256) -> memorybytes {
 }
 
 // Freshness propagates through the wrapper call. A terminal byte encoding
-// clears the padding before moving the payload over its old length word.
+// clears the padding after the payload and puts the offset below the object.
 // CHECK-LABEL: {{^[ +].*}}fn @terminal_bytes{{[( ]}}
 // CHECK: - {{v[0-9]+}} = abi_encode
 // CHECK: + [[LENGTH:v[0-9]+]] = memory_object_len memorybytes, [[OBJECT:v[0-9]+]]
-// CHECK: + [[ENCODE_LENGTH:v[0-9]+]] = mul [[LENGTH]],
+// CHECK-NOT: mul
 // CHECK: + [[SOURCE_PTR:v[0-9]+]] = memory_object_data memorybytes, [[OBJECT]]
 // CHECK: [[SOURCE:v[0-9]+]] = ptrtoint memptr [[SOURCE_PTR]] to i256
-// CHECK: + [[LAST:v[0-9]+]] = add [[SOURCE]],
-// CHECK: + mstore [[LAST]], 0
-// CHECK: + [[MOVE_SOURCE:v[0-9]+]] = ptrtoint memptr [[SOURCE_PTR]] to i256
-// CHECK: + [[DESTINATION:v[0-9]+]] = add [[MOVE_SOURCE]], 32
-// CHECK: + [[COPY_SOURCE:v[0-9]+]] = ptrtoint memptr [[SOURCE_PTR]] to i256
-// CHECK: + mcopy [[DESTINATION]], [[COPY_SOURCE]], [[ENCODE_LENGTH]]
-// CHECK: + [[POINTER:v[0-9]+]] = {{(zext|ptrtoint)}} {{[^ ]+}} [[OBJECT]]
-// CHECK: + mstore [[POINTER]], 32
+// CHECK: + [[END:v[0-9]+]] = add [[SOURCE]], [[LENGTH]]
+// CHECK: + mstore [[END]], 0
+// CHECK: + [[BASE:v[0-9]+]] = ptrtoint memorybytes [[OBJECT]] to i256
+// CHECK: + [[HEAD:v[0-9]+]] = sub [[BASE]], 32
+// CHECK: + mstore [[HEAD]], 32
+// CHECK-NOT: mcopy
 fn @terminal_bytes(arg0: i256) {
   bb0:
     v0 = icall @fresh_bytes_wrapper, arg0

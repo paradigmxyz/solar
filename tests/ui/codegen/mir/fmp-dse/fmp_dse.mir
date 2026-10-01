@@ -1,0 +1,125 @@
+//@ compile-flags: -Zmir-pipeline=fmp-dse
+//@ filecheck:
+@module FmpDse
+
+// The bump of an allocation that a restore follows is dead, and the restore
+// then stores the pointer the slot already holds.
+// CHECK-LABEL: {{^[ +].*}}fn @scratch{{[( ]}}
+// CHECK: - mstore 64, {{v[0-9]+}}
+// CHECK: - mstore 64, {{v[0-9]+}}
+// CHECK: ret
+fn @scratch(arg0: i256) -> i256 {
+  bb0:
+    v0 = mload 64
+    v1 = add v0, 96
+    mstore 64, v1
+    mstore v0, 64
+    v2 = add v0, 32
+    mstore v2, arg0
+    v3 = keccak256 v2, 64
+    mstore 64, v0
+    ret v3
+}
+
+// A block entered from its only predecessor knows the pointer it left.
+// CHECK-LABEL: {{^[ +].*}}fn @successor{{[( ]}}
+// CHECK: - mstore 64, {{v[0-9]+}}
+// CHECK: - mstore 64, {{v[0-9]+}}
+// CHECK: ret
+fn @successor(arg0: i256) -> i256 {
+  bb0:
+    v0 = mload 64
+    v1 = add v0, 64
+    v2 = lt v1, v0
+    jumpi v2, bb2, bb1
+  bb1:
+    mstore 64, v1
+    mstore v0, arg0
+    v3 = keccak256 v0, 32
+    mstore 64, v0
+    ret v3
+  bb2:
+    revert 0, 0
+}
+
+// A join does not know which pointer each predecessor left.
+// CHECK-LABEL: {{^[ +].*}}fn @join{{[( ]}}
+// CHECK-NOT: {{^-}}
+// CHECK: ret
+fn @join(arg0: i1) {
+  bb0:
+    v0 = mload 64
+    jumpi arg0, bb1, bb2
+  bb1:
+    v1 = add v0, 32
+    mstore 64, v1
+    jump bb3
+  bb2:
+    jump bb3
+  bb3:
+    mstore 64, v0
+    ret
+}
+
+// A load of the pointer between the stores observes the bump.
+// CHECK-LABEL: {{^[ +].*}}fn @observed{{[( ]}}
+// CHECK-NOT: {{^-}}
+// CHECK: ret
+fn @observed() -> i256 {
+  bb0:
+    v0 = mload 64
+    v1 = add v0, 32
+    mstore 64, v1
+    v2 = mload 64
+    mstore 64, v0
+    ret v2
+}
+
+// A hash of memory the analysis cannot place above the heap may read the slot.
+// CHECK-LABEL: {{^[ +].*}}fn @unbounded_read{{[( ]}}
+// CHECK-NOT: {{^-}}
+// CHECK: ret
+fn @unbounded_read(arg0: i256) -> i256 {
+  bb0:
+    v0 = mload 64
+    v1 = add v0, 32
+    mstore 64, v1
+    v2 = keccak256 arg0, 32
+    mstore 64, v0
+    ret v2
+}
+
+// A store the analysis cannot place above the heap may write the slot.
+// CHECK-LABEL: {{^[ +].*}}fn @unbounded_write{{[( ]}}
+// CHECK-NOT: {{^-}}
+// CHECK: ret
+fn @unbounded_write(arg0: i256) {
+  bb0:
+    v0 = mload 64
+    v1 = add v0, 32
+    mstore 64, v1
+    mstore arg0, 1
+    mstore 64, v0
+    ret
+}
+
+// A call may read the pointer.
+// CHECK-LABEL: {{^[ +].*}}fn @call{{[( ]}}
+// CHECK-NOT: {{^-}}
+// CHECK: ret
+fn @call() {
+  bb0:
+    v0 = mload 64
+    v1 = add v0, 32
+    mstore 64, v1
+    icall @callee
+    mstore 64, v0
+    ret
+}
+
+fn @callee() {
+  bb0:
+    v0 = mload 64
+    mstore v0, 1
+    ret
+}

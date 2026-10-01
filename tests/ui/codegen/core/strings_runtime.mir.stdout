@@ -37,7 +37,7 @@ fn @decimal(arg0: i256) -> memorybytes [selector=0xf371efa4, pure, abi_params=[u
     v10 = sub v2, v5
     v11 = sub v5, 32
     mstore v11, v10
-    v12 = inttoptr i256 v11 to memorybytes
+    v12 = inttoptr i256 v11 to memorybytes !metadata(nonnull)
     ret v12
 }
 
@@ -69,7 +69,7 @@ fn @signed(arg0: i256) -> memorybytes [selector=0xbfe355dd, pure, abi_params=[i2
     v16 = sub v5, v15
     v17 = sub v15, 32
     mstore v17, v16
-    v18 = inttoptr i256 v17 to memorybytes
+    v18 = inttoptr i256 v17 to memorybytes !metadata(nonnull)
     ret v18
 }
 
@@ -118,32 +118,32 @@ fn @readBytes32(arg0: memorybytes, arg1: i256) -> i256 [pure] {
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: 0], [bb3: v14]
-    v1 = phi [bb0: arg0], [bb3: v1]
+    v0 = phi [bb0: arg0], [bb3: v0]
+    v1 = phi [bb0: arg1], [bb3: v1]
     v2 = phi [bb0: 0], [bb3: v13]
-    v3 = phi [bb0: arg1], [bb3: v3]
-    v4 = lt v0, 32
+    v3 = phi [bb0: 0], [bb3: v14]
+    v4 = lt v3, 32
     jumpi v4, bb4, bb5
   bb5:
     jump bb2
   bb2:
     ret v2
   bb4:
-    v5 = checked_add u256, v3, v0
-    v6 = memory_object_len memorybytes, v1
+    v5 = checked_add u256, v1, v3
+    v6 = memory_object_len memorybytes, v0
     v7 = lt v5, v6
     v8 = eq v7, false
     icall panic_if<0x32>, v8
-    v9 = memory_object_load_byte memorybytes, v1, v5
+    v9 = memory_object_load_byte memorybytes, v0, v5
     v10 = shl 248, v9
-    v11 = checked_mul u256, 8, v0
+    v11 = checked_mul u256, 8, v3
     v12 = shr v11, v10
     v13 = or v2, v12
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v14 = checked_add u256, v0, 1
+    v14 = checked_add u256, v3, 1
     jump bb1
 }
 
@@ -151,34 +151,34 @@ fn @writeBytes1(arg0: memorybytes, arg1: i256, arg2: i256) [pure] {
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: arg1], [bb3: v0]
-    v1 = phi [bb0: 0], [bb3: v14]
-    v2 = phi [bb0: arg0], [bb3: v2]
-    v3 = phi [bb0: arg2], [bb3: v3]
-    v4 = lt v1, 1
+    v0 = phi [bb0: arg0], [bb3: v0]
+    v1 = phi [bb0: arg1], [bb3: v1]
+    v2 = phi [bb0: arg2], [bb3: v2]
+    v3 = phi [bb0: 0], [bb3: v14]
+    v4 = lt v3, 1
     jumpi v4, bb4, bb5
   bb5:
     jump bb2
   bb2:
     ret
   bb4:
-    v5 = lt v1, 1
+    v5 = lt v3, 1
     v6 = eq v5, false
     icall panic_if<0x32>, v6
-    v7 = byte v1, v3
+    v7 = byte v3, v2
     v8 = shl 248, v7
-    v9 = checked_add u256, v0, v1
-    v10 = memory_object_len memorybytes, v2
+    v9 = checked_add u256, v1, v3
+    v10 = memory_object_len memorybytes, v0
     v11 = lt v9, v10
     v12 = eq v11, false
     icall panic_if<0x32>, v12
     v13 = byte 0, v8
-    memory_object_store_byte memorybytes, v2, v9, v13
+    memory_object_store_byte memorybytes, v0, v9, v13
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v14 = checked_add u256, v1, 1
+    v14 = checked_add u256, v3, 1
     jump bb1
 }
 
@@ -228,49 +228,49 @@ fn @copyInto(arg0: memorybytes, arg1: i256, arg2: memorybytes, arg3: i256, arg4:
   bb14:
     jump bb22
   bb22:
-    v37 = phi [bb14: arg2], [bb24: v37]
-    v38 = phi [bb14: v14], [bb24: v38]
-    v39 = phi [bb14: 0], [bb24: v55]
-    v40 = phi [bb14: arg1], [bb24: v40]
-    v41 = phi [bb14: arg3], [bb24: v41]
-    v42 = phi [bb14: arg0], [bb24: v42]
-    v43 = lt v39, v38
+    v37 = phi [bb14: arg0], [bb24: v37]
+    v38 = phi [bb14: arg1], [bb24: v38]
+    v39 = phi [bb14: arg2], [bb24: v39]
+    v40 = phi [bb14: arg3], [bb24: v40]
+    v41 = phi [bb14: v14], [bb24: v41]
+    v42 = phi [bb14: 0], [bb24: v55]
+    v43 = lt v42, v41
     jumpi v43, bb25, bb26
   bb26:
     jump bb23
   bb23:
     jump bb15
   bb25:
-    v44 = checked_add u256, v41, v39
-    v45 = memory_object_len memorybytes, v37
+    v44 = checked_add u256, v40, v42
+    v45 = memory_object_len memorybytes, v39
     v46 = lt v44, v45
     v47 = eq v46, false
     icall panic_if<0x32>, v47
-    v48 = memory_object_load_byte memorybytes, v37, v44
+    v48 = memory_object_load_byte memorybytes, v39, v44
     v49 = shl 248, v48
-    v50 = checked_add u256, v40, v39
-    v51 = memory_object_len memorybytes, v42
+    v50 = checked_add u256, v38, v42
+    v51 = memory_object_len memorybytes, v37
     v52 = lt v50, v51
     v53 = eq v52, false
     icall panic_if<0x32>, v53
     v54 = byte 0, v49
-    memory_object_store_byte memorybytes, v42, v50, v54
+    memory_object_store_byte memorybytes, v37, v50, v54
     jump bb27
   bb27:
     jump bb24
   bb24:
-    v55 = checked_add u256, v39, 1
+    v55 = checked_add u256, v42, 1
     jump bb22
   bb13:
     jump bb16
   bb16:
-    v16 = phi [bb13: arg2], [bb18: v16]
-    v17 = phi [bb13: v14], [bb18: v17]
-    v18 = phi [bb13: arg1], [bb18: v18]
+    v16 = phi [bb13: arg0], [bb18: v16]
+    v17 = phi [bb13: arg1], [bb18: v17]
+    v18 = phi [bb13: arg2], [bb18: v18]
     v19 = phi [bb13: arg3], [bb18: v19]
-    v20 = phi [bb13: v14], [bb18: v36]
-    v21 = phi [bb13: arg0], [bb18: v21]
-    v22 = gt v20, 0
+    v20 = phi [bb13: v14], [bb18: v20]
+    v21 = phi [bb13: v14], [bb18: v36]
+    v22 = gt v21, 0
     jumpi v22, bb19, bb20
   bb20:
     jump bb17
@@ -279,32 +279,32 @@ fn @copyInto(arg0: memorybytes, arg1: i256, arg2: memorybytes, arg3: i256, arg4:
   bb15:
     v56 = phi [bb17: v16], [bb23: v37]
     v57 = phi [bb17: v17], [bb23: v38]
-    v58 = phi [bb17: v18], [bb23: v40]
-    v59 = phi [bb17: v19], [bb23: v41]
-    v60 = phi [bb17: v21], [bb23: v42]
+    v58 = phi [bb17: v18], [bb23: v39]
+    v59 = phi [bb17: v19], [bb23: v40]
+    v60 = phi [bb17: v20], [bb23: v41]
     ret
   bb19:
-    v23 = checked_add u256, v19, v20
+    v23 = checked_add u256, v19, v21
     v24 = checked_sub u256, v23, 1
-    v25 = memory_object_len memorybytes, v16
+    v25 = memory_object_len memorybytes, v18
     v26 = lt v24, v25
     v27 = eq v26, false
     icall panic_if<0x32>, v27
-    v28 = memory_object_load_byte memorybytes, v16, v24
+    v28 = memory_object_load_byte memorybytes, v18, v24
     v29 = shl 248, v28
-    v30 = checked_add u256, v18, v20
+    v30 = checked_add u256, v17, v21
     v31 = checked_sub u256, v30, 1
-    v32 = memory_object_len memorybytes, v21
+    v32 = memory_object_len memorybytes, v16
     v33 = lt v31, v32
     v34 = eq v33, false
     icall panic_if<0x32>, v34
     v35 = byte 0, v29
-    memory_object_store_byte memorybytes, v21, v31, v35
+    memory_object_store_byte memorybytes, v16, v31, v35
     jump bb21
   bb21:
     jump bb18
   bb18:
-    v36 = checked_sub u256, v20, 1
+    v36 = checked_sub u256, v21, 1
     jump bb16
 }
 
@@ -319,24 +319,24 @@ fn @equals.9(arg0: memorybytes, arg1: memorybytes) -> i256 [pure] {
   bb3:
     jump bb4
   bb4:
-    v4 = phi [bb3: arg1], [bb8: v4]
-    v5 = phi [bb3: v0], [bb8: v5]
-    v6 = phi [bb3: arg0], [bb8: v6]
-    v7 = phi [bb3: 0], [bb8: v7]
+    v4 = phi [bb3: arg0], [bb8: v4]
+    v5 = phi [bb3: arg1], [bb8: v5]
+    v6 = phi [bb3: 0], [bb8: v6]
+    v7 = phi [bb3: v0], [bb8: v7]
     v8 = phi [bb3: 0], [bb8: v34]
     v9 = checked_add u256, v8, 32
-    v10 = gt v9, v5
+    v10 = gt v9, v7
     v11 = eq v10, false
     jumpi v11, bb6, bb7
   bb7:
     jump bb5
   bb5:
-    v35 = eq v8, v5
+    v35 = eq v8, v7
     jumpi v35, bb12, bb13
   bb13:
     jump bb14
   bb14:
-    v37 = lt v5, 32
+    v37 = lt v7, 32
     v38 = eq v37, false
     jumpi v38, bb15, bb16
   bb16:
@@ -349,7 +349,7 @@ fn @equals.9(arg0: memorybytes, arg1: memorybytes) -> i256 [pure] {
     v65 = phi [bb17: v6], [bb20: v65]
     v66 = phi [bb17: v7], [bb20: v66]
     v67 = phi [bb17: v8], [bb20: v81]
-    v68 = lt v67, v64
+    v68 = lt v67, v66
     jumpi v68, bb21, bb22
   bb22:
     jump bb19
@@ -357,17 +357,17 @@ fn @equals.9(arg0: memorybytes, arg1: memorybytes) -> i256 [pure] {
     v82 = zext i1 1 to i256
     ret v82
   bb21:
-    v69 = memory_object_len memorybytes, v65
+    v69 = memory_object_len memorybytes, v63
     v70 = lt v67, v69
     v71 = eq v70, false
     icall panic_if<0x32>, v71
-    v72 = memory_object_load_byte memorybytes, v65, v67
+    v72 = memory_object_load_byte memorybytes, v63, v67
     v73 = shl 248, v72
-    v74 = memory_object_len memorybytes, v63
+    v74 = memory_object_len memorybytes, v64
     v75 = lt v67, v74
     v76 = eq v75, false
     icall panic_if<0x32>, v76
-    v77 = memory_object_load_byte memorybytes, v63, v67
+    v77 = memory_object_load_byte memorybytes, v64, v67
     v78 = shl 248, v77
     v79 = ne v73, v78
     jumpi v79, bb24, bb25
@@ -384,27 +384,27 @@ fn @equals.9(arg0: memorybytes, arg1: memorybytes) -> i256 [pure] {
     v80 = zext i1 0 to i256
     ret v80
   bb15:
-    v39 = checked_sub u256, v5, 32
-    v40 = memory_object_len memorybytes, v6
+    v39 = checked_sub u256, v7, 32
+    v40 = memory_object_len memorybytes, v4
     v41 = add v39, 32
     v42 = lt v41, v39
     v43 = gt v41, v40
     v44 = or v42, v43
     v45 = zext i1 v44 to i256
     icall panic_if<0x32>, v44
-    v46 = memory_object_data memorybytes, v6
+    v46 = memory_object_data memorybytes, v4
     v47 = ptrtoint memptr v46 to i256
     v48 = add v47, v39
     v49 = mload v48
-    v50 = checked_sub u256, v5, 32
-    v51 = memory_object_len memorybytes, v4
+    v50 = checked_sub u256, v7, 32
+    v51 = memory_object_len memorybytes, v5
     v52 = add v50, 32
     v53 = lt v52, v50
     v54 = gt v52, v51
     v55 = or v53, v54
     v56 = zext i1 v55 to i256
     icall panic_if<0x32>, v55
-    v57 = memory_object_data memorybytes, v4
+    v57 = memory_object_data memorybytes, v5
     v58 = ptrtoint memptr v57 to i256
     v59 = add v58, v50
     v60 = mload v59
@@ -415,25 +415,25 @@ fn @equals.9(arg0: memorybytes, arg1: memorybytes) -> i256 [pure] {
     v36 = zext i1 1 to i256
     ret v36
   bb6:
-    v12 = memory_object_len memorybytes, v6
+    v12 = memory_object_len memorybytes, v4
     v13 = add v8, 32
     v14 = lt v13, v8
     v15 = gt v13, v12
     v16 = or v14, v15
     v17 = zext i1 v16 to i256
     icall panic_if<0x32>, v16
-    v18 = memory_object_data memorybytes, v6
+    v18 = memory_object_data memorybytes, v4
     v19 = ptrtoint memptr v18 to i256
     v20 = add v19, v8
     v21 = mload v20
-    v22 = memory_object_len memorybytes, v4
+    v22 = memory_object_len memorybytes, v5
     v23 = add v8, 32
     v24 = lt v23, v8
     v25 = gt v23, v22
     v26 = or v24, v25
     v27 = zext i1 v26 to i256
     icall panic_if<0x32>, v26
-    v28 = memory_object_data memorybytes, v4
+    v28 = memory_object_data memorybytes, v5
     v29 = ptrtoint memptr v28 to i256
     v30 = add v29, v8
     v31 = mload v30
@@ -657,78 +657,78 @@ fn @toString.17(arg0: i256) -> memorybytes [pure] {
     v3 = checked_add u256, 1, 64
     jump bb3
   bb3:
-    v4 = phi [bb1: v2], [bb2: arg0]
-    v5 = phi [bb1: v3], [bb2: 1]
-    v6 = lt v4, 0x4ee2d6d415b85acef8100000000
+    v4 = phi [bb1: v3], [bb2: 1]
+    v5 = phi [bb1: v2], [bb2: arg0]
+    v6 = lt v5, 0x4ee2d6d415b85acef8100000000
     v7 = eq v6, false
     jumpi v7, bb4, bb5
   bb5:
     jump bb6
   bb4:
-    v8 = checked_div u256, v4, 0x4ee2d6d415b85acef8100000000
-    v9 = checked_add u256, v5, 32
+    v8 = checked_div u256, v5, 0x4ee2d6d415b85acef8100000000
+    v9 = checked_add u256, v4, 32
     jump bb6
   bb6:
-    v10 = phi [bb4: v8], [bb5: v4]
-    v11 = phi [bb4: v9], [bb5: v5]
-    v12 = lt v10, 0x2386f26fc10000
+    v10 = phi [bb4: v9], [bb5: v4]
+    v11 = phi [bb4: v8], [bb5: v5]
+    v12 = lt v11, 0x2386f26fc10000
     v13 = eq v12, false
     jumpi v13, bb7, bb8
   bb8:
     jump bb9
   bb7:
-    v14 = checked_div u256, v10, 0x2386f26fc10000
-    v15 = checked_add u256, v11, 16
+    v14 = checked_div u256, v11, 0x2386f26fc10000
+    v15 = checked_add u256, v10, 16
     jump bb9
   bb9:
-    v16 = phi [bb7: v14], [bb8: v10]
-    v17 = phi [bb7: v15], [bb8: v11]
-    v18 = lt v16, 0x5f5e100
+    v16 = phi [bb7: v15], [bb8: v10]
+    v17 = phi [bb7: v14], [bb8: v11]
+    v18 = lt v17, 0x5f5e100
     v19 = eq v18, false
     jumpi v19, bb10, bb11
   bb11:
     jump bb12
   bb10:
-    v20 = checked_div u256, v16, 0x5f5e100
-    v21 = checked_add u256, v17, 8
+    v20 = checked_div u256, v17, 0x5f5e100
+    v21 = checked_add u256, v16, 8
     jump bb12
   bb12:
-    v22 = phi [bb10: v20], [bb11: v16]
-    v23 = phi [bb10: v21], [bb11: v17]
-    v24 = lt v22, 0x2710
+    v22 = phi [bb10: v21], [bb11: v16]
+    v23 = phi [bb10: v20], [bb11: v17]
+    v24 = lt v23, 0x2710
     v25 = eq v24, false
     jumpi v25, bb13, bb14
   bb14:
     jump bb15
   bb13:
-    v26 = checked_div u256, v22, 0x2710
-    v27 = checked_add u256, v23, 4
+    v26 = checked_div u256, v23, 0x2710
+    v27 = checked_add u256, v22, 4
     jump bb15
   bb15:
-    v28 = phi [bb13: v26], [bb14: v22]
-    v29 = phi [bb13: v27], [bb14: v23]
-    v30 = lt v28, 100
+    v28 = phi [bb13: v27], [bb14: v22]
+    v29 = phi [bb13: v26], [bb14: v23]
+    v30 = lt v29, 100
     v31 = eq v30, false
     jumpi v31, bb16, bb17
   bb17:
     jump bb18
   bb16:
-    v32 = checked_div u256, v28, 100
-    v33 = checked_add u256, v29, 2
+    v32 = checked_div u256, v29, 100
+    v33 = checked_add u256, v28, 2
     jump bb18
   bb18:
-    v34 = phi [bb16: v32], [bb17: v28]
-    v35 = phi [bb16: v33], [bb17: v29]
-    v36 = lt v34, 10
+    v34 = phi [bb16: v33], [bb17: v28]
+    v35 = phi [bb16: v32], [bb17: v29]
+    v36 = lt v35, 10
     v37 = eq v36, false
     jumpi v37, bb19, bb20
   bb20:
     jump bb21
   bb19:
-    v38 = checked_add u256, v35, 1
+    v38 = checked_add u256, v34, 1
     jump bb21
   bb21:
-    v39 = phi [bb19: v38], [bb20: v35]
+    v39 = phi [bb19: v38], [bb20: v34]
     v40 = add v39, 63
     v41 = lt v40, v39
     icall panic_if<0x41>, v41
@@ -738,13 +738,13 @@ fn @toString.17(arg0: i256) -> memorybytes [pure] {
     set_memory_object_len memorybytes, v44, v39
     jump bb22
   bb22:
-    v45 = phi [bb21: v34], [bb25: v45]
+    v45 = phi [bb21: arg0], [bb25: v59]
     v46 = phi [bb21: memorybytes 96], [bb25: v46]
-    v47 = phi [bb21: arg0], [bb25: v59]
-    v48 = phi [bb21: v39], [bb25: v50]
+    v47 = phi [bb21: v39], [bb25: v50]
+    v48 = phi [bb21: v35], [bb25: v48]
     v49 = phi [bb21: v44], [bb25: v49]
-    v50 = checked_sub u256, v48, 1
-    v51 = checked_rem u256, v47, 10
+    v50 = checked_sub u256, v47, 1
+    v51 = checked_rem u256, v45, 10
     v52 = checked_add u256, 48, v51
     v53 = and v52, 255
     v54 = shl 248, v53
@@ -754,7 +754,7 @@ fn @toString.17(arg0: i256) -> memorybytes [pure] {
     icall panic_if<0x32>, v57
     v58 = byte 0, v54
     memory_object_store_byte memorybytes, v49, v50, v58
-    v59 = checked_div u256, v47, 10
+    v59 = checked_div u256, v45, 10
     jump bb24
   bb24:
     v60 = ne v50, 0
@@ -806,7 +806,7 @@ fn @toString.18(arg0: i256) -> memorybytes [pure] {
     v29 = sub v21, v24
     v30 = sub v24, 32
     mstore v30, v29
-    v31 = inttoptr i256 v30 to memorybytes
+    v31 = inttoptr i256 v30 to memorybytes !metadata(nonnull)
     v32 = icall concat<bytes1, memorybytes>, 0x2d00000000000000000000000000000000000000000000000000000000000000, v31
     ret v32
   bb1:
@@ -829,7 +829,7 @@ fn @toString.18(arg0: i256) -> memorybytes [pure] {
     v12 = sub v4, v7
     v13 = sub v7, 32
     mstore v13, v12
-    v14 = inttoptr i256 v13 to memorybytes
+    v14 = inttoptr i256 v13 to memorybytes !metadata(nonnull)
     ret v14
 }
 
@@ -861,19 +861,19 @@ fn @escapeJSON.21(arg0: memorybytes, arg1: i256) -> memorybytes [pure] {
   bb3:
     jump bb4
   bb4:
-    v4 = phi [bb3: arg1], [bb6: v4]
-    v5 = phi [bb3: arg0], [bb6: v5]
-    v6 = phi [bb3: 0], [bb6: v58]
+    v4 = phi [bb3: arg0], [bb6: v4]
+    v5 = phi [bb3: arg1], [bb6: v5]
+    v6 = phi [bb3: memorybytes 96], [bb6: v6]
     v7 = phi [bb3: arg0], [bb6: v7]
     v8 = phi [bb3: v2], [bb6: v8]
-    v9 = phi [bb3: memorybytes 96], [bb6: v9]
-    v10 = memory_object_len memorybytes, v5
-    v11 = lt v6, v10
+    v9 = phi [bb3: 0], [bb6: v58]
+    v10 = memory_object_len memorybytes, v7
+    v11 = lt v9, v10
     jumpi v11, bb7, bb8
   bb8:
     jump bb5
   bb5:
-    v59 = ne v4, 0
+    v59 = ne v5, 0
     jumpi v59, bb34, bb35
   bb35:
     jump bb36
@@ -884,11 +884,11 @@ fn @escapeJSON.21(arg0: memorybytes, arg1: i256) -> memorybytes [pure] {
     v60 = icall @finish, v8
     ret v60
   bb7:
-    v12 = memory_object_len memorybytes, v5
-    v13 = lt v6, v12
+    v12 = memory_object_len memorybytes, v7
+    v13 = lt v9, v12
     v14 = eq v13, false
     icall panic_if<0x32>, v14
-    v15 = memory_object_load_byte memorybytes, v5, v6
+    v15 = memory_object_load_byte memorybytes, v7, v9
     v16 = shl 248, v15
     v17 = eq v16, 0x2200000000000000000000000000000000000000000000000000000000000000
     jumpi v17, bb11, bb10
@@ -1008,7 +1008,7 @@ fn @escapeJSON.21(arg0: memorybytes, arg1: i256) -> memorybytes [pure] {
   bb9:
     jump bb6
   bb6:
-    v58 = checked_add u256, v6, 1
+    v58 = checked_add u256, v9, 1
     jump bb4
 }
 

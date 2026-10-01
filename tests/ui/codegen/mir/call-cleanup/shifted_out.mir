@@ -1,0 +1,38 @@
+//@ compile-flags: -Zmir-pipeline=call-cleanup
+//@ filecheck:
+@module ShiftedOut
+
+fn @root() -> i256 {
+  bb0:
+    v0 = caller
+    v1 = zext i160 v0 to i256
+    v2 = icall @fits, v1
+    v3 = icall @partial, v1
+    v4 = add v2, v3
+    ret v4
+}
+
+// Every caller passes an address, so shifting it right by 160 moves out every
+// bit it can hold: the shift folds to zero and the check against it with it.
+// CHECK-LABEL: fn @fits
+// CHECK-NOT: {{^[ +].*}}shr
+// CHECK: {{^[ +].*}}= ne 0, 0
+fn @fits(arg0: i256) -> i256 {
+  bb0:
+    v0 = shr 160, arg0
+    v1 = ne v0, 0
+    jumpi v1, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    ret arg0
+}
+
+// A shift by less than the width keeps the address's high bits.
+// CHECK-LABEL: fn @partial
+// CHECK: {{^[ +].*}}= shr 159, arg0
+fn @partial(arg0: i256) -> i256 {
+  bb0:
+    v0 = shr 159, arg0
+    ret v0
+}

@@ -61,18 +61,39 @@
 +   bb4:
 +     jumpi arg0, bb6, bb5
 +   bb5:
-+     v0 = abi_encode [memory_bytes], selector 0x8c379a000000000000000000000000000000000000000000000000000000000, args arg1
++     v0 = abi_encode [memory_bytes], scratch, selector 0x8c379a000000000000000000000000000000000000000000000000000000000, args arg1
 +     v1 = slice_ptr v0
 +     v2 = slice_len v0
 +     revert v1, v2
 +   bb6:
 +     jumpi arg0, bb8, bb7
 +   bb7:
-+     v3 = abi_encode [word, memory_bytes], selector 0, args arg2, arg1
++     v3 = abi_encode [word, memory_bytes], scratch, selector 0, args arg2, arg1
 +     v4 = slice_ptr v3
 +     v5 = slice_len v3
 +     revert v4, v5
 +   bb8:
+      ret
+  }
+  
+  fn @word_error_payloads(arg0: i1, arg1: i256, arg2: i256) {
+    bb0:
+-     icall require<custom_error [word, word]>, arg0, 0x1234567800000000000000000000000000000000000000000000000000000000, arg1, arg2
+-     icall require<custom_error [word, word, word, word]>, arg0, 0x1234567800000000000000000000000000000000000000000000000000000000, arg1, arg2, arg1, arg2
++     jumpi arg0, bb2, bb1
++   bb1:
++     mstore 0, 0x12345678 !metadata(memory=scratch)
++     mstore 32, arg1 !metadata(memory=scratch)
++     mstore 64, arg2 !metadata(memory=scratch)
++     revert 28, 68
++   bb2:
++     jumpi arg0, bb4, bb3
++   bb3:
++     v0 = abi_encode [word, word, word, word], scratch, selector 0x1234567800000000000000000000000000000000000000000000000000000000, args arg1, arg2, arg1, arg2
++     v1 = slice_ptr v0
++     v2 = slice_len v0
++     revert v1, v2
++   bb4:
       ret
   }
   

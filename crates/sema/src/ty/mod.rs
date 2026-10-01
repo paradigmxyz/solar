@@ -1648,6 +1648,27 @@ fn all_contract_reachable_functions(
     &gcx.all_contract_items(id).functions
 }
 
+/// Returns the functions of the given contract that its creation or deployed code calls
+/// internally or references as internal function pointers. A public function outside the set is
+/// only ever entered through its selector, with arguments the ABI decoder checked.
+pub fn contract_internal_call_targets(
+    gcx: _,
+    id: hir::ContractId
+) -> &'gcx DenseBitSet<hir::FunctionId> {
+    assert!(gcx.has_typeck_results(), "contract functions require type checking");
+    if gcx.sess.opts.unstable.codegen_all_functions {
+        return &gcx.all_contract_items(id).internal_call_targets;
+    }
+    let items = gcx.interface_items(id);
+    let mut targets = DenseBitSet::new_empty(gcx.hir.function_ids().len());
+    for target in
+        items.creation.internal_call_targets.iter().chain(items.deployed.internal_call_targets.iter())
+    {
+        targets.insert(target);
+    }
+    gcx.alloc(targets)
+}
+
 /// Returns the [ERC-165] interface ID of the given contract.
 ///
 /// This is the XOR of the selectors of all function selectors in the interface.

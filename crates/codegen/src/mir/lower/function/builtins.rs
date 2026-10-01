@@ -451,9 +451,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 Some(self.builder.and(value, mask))
             }
             Builtin::MsgData => {
+                // data = calldata_slice(0, calldatasize())
                 let offset = self.builder.imm(0);
                 let length = self.builder.calldatasize();
-                Some(self.builder.make_slice(offset, length, SliceLocation::Calldata))
+                let data = self.builder.make_slice(offset, length, SliceLocation::Calldata);
+                self.calldata_in_bounds.insert(data);
+                Some(data)
             }
             Builtin::TxOrigin => Some(self.builder.origin()),
             Builtin::TxGasPrice => Some(self.builder.gasprice()),
@@ -622,6 +625,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     && self.cx.gcx.resolved_builtin(callee) == Some(Builtin::AbiEncode)
                 {
                     let exprs = self.variadic_builtin_args(Builtin::AbiEncode, encode_args)?;
+                    if let Some(hash) = self.lower_keccak_abi_encode_words(exprs) {
+                        return Some(hash);
+                    }
                     let encoded = self.lower_abi_encode_scratch(exprs, None)?;
                     let pointer = self.builder.slice_ptr(encoded);
                     let length = self.builder.slice_len(encoded);
@@ -635,6 +641,24 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let value_ty = self.cx.gcx.type_of_expr(value.id)?;
                 let memory_ty = value_ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
                 let span = value.span;
+                if abi_values::lies_in_calldata(value_ty) {
+                    // A calldata range is checked against the calldata, as its copy to memory
+                    // would be, and hashed from past the free memory pointer, without reserving
+                    // the copy.
+                    // validate(range)
+                    // hash = keccak256(calldatacopy(fmp, range))
+                    let range = self.lower_expr(value)?;
+                    if self.builder.func().value_slice_location(range)
+                        == Some(SliceLocation::Calldata)
+                    {
+                        let bytes = AbiType::Bytes(SliceLocation::Calldata);
+                        self.validate_calldata_bytes_argument(range, &bytes);
+                        return Some(self.hash_view(range));
+                    }
+                    let range = self.coerce_value(range, value_ty, memory_ty);
+                    let range = self.materialize_memory_argument(memory_ty, range, span)?;
+                    return Some(self.builder.keccak256_bytes(range));
+                }
                 let value = self.lower_typed_expr(value, memory_ty)?;
                 let value = self.materialize_memory_argument(memory_ty, value, span)?;
                 Some(self.builder.keccak256_bytes(value))
@@ -782,6 +806,24 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         continue;
                     }
                     let memory_ty = ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
+                    if abi_values::lies_in_calldata(ty) {
+                        // Calldata is copied from where it lies, unchecked, as solc does.
+                        let value = self.lower_expr(expr)?;
+                        if self.builder.func().value_slice_location(value)
+                            == Some(SliceLocation::Calldata)
+                        {
+                            parts.push(ConcatPart::Slice {
+                                value,
+                                location: SliceLocation::Calldata,
+                            });
+                            continue;
+                        }
+                        let value = self.coerce_value(value, ty, memory_ty);
+                        let value =
+                            self.materialize_memory_argument(memory_ty, value, expr.span)?;
+                        parts.push(ConcatPart::Bytes(value));
+                        continue;
+                    }
                     let value = self.lower_typed_expr(expr, memory_ty)?;
                     let value = self.materialize_memory_argument(memory_ty, value, expr.span)?;
                     parts.push(ConcatPart::Bytes(value));

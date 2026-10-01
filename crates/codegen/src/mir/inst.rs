@@ -233,6 +233,17 @@ impl InstructionMetadata {
     pub(crate) fn set_preserves_fmp(&mut self, value: bool) {
         self.flags.set_preserves_fmp(value);
     }
+
+    /// Returns whether this cast yields a real memory object, never the null default object.
+    #[must_use]
+    pub(crate) fn nonnull(&self) -> bool {
+        self.flags.nonnull()
+    }
+
+    /// Marks a cast of an address inside a live allocation to a memory object.
+    pub(crate) fn set_nonnull(&mut self) {
+        self.flags.set_nonnull();
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -248,6 +259,7 @@ impl MetadataFlags {
     const PRESERVES_FMP: u16 = 0b100_0000_0000;
     const DISPLAY_SOURCE_SPAN: u16 = 0b1000_0000_0000;
     const DEBUG_INFO_HANDLED: u16 = 0b1_0000_0000_0000;
+    const NONNULL: u16 = 0b10_0000_0000_0000;
 
     fn memory_region(self) -> Option<MemoryRegion> {
         match self.0 & Self::MEMORY_MASK {
@@ -307,6 +319,14 @@ impl MetadataFlags {
         } else {
             self.0 &= !Self::PRESERVES_FMP;
         }
+    }
+
+    fn nonnull(self) -> bool {
+        self.0 & Self::NONNULL != 0
+    }
+
+    fn set_nonnull(&mut self) {
+        self.0 |= Self::NONNULL;
     }
 
     fn displays_source_span(self) -> bool {

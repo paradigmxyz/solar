@@ -61,7 +61,7 @@ fn @longLiteral() -> memorybytes [selector=0x0a0a0a05, abi_params=[], abi_return
 }
 
 // CHECK-LABEL: + fn @overlappingLiteral()
-// CHECK: + {{v[0-9]+}} = abi_encode [memory_bytes], args
+// CHECK: + {{v[0-9]+}} = abi_encode [memory_bytes], scratch, args
 fn @overlappingLiteral() -> memorybytes [selector=0x0a0a0a06, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 96
@@ -98,7 +98,7 @@ fn @emptyEncoding() -> memorybytes [selector=0x0a0a0a08, abi_params=[], abi_retu
 
 // CHECK-LABEL: + fn @narrowEncoding()
 // CHECK: abi_encode [word<u8>], object, args 0x1234
-// CHECK: + {{v[0-9]+}} = abi_encode [memory_bytes], args
+// CHECK: + {{v[0-9]+}} = abi_encode [memory_bytes], scratch, args
 fn @narrowEncoding() -> memorybytes [selector=0x0a0a0a09, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
     v0 = abi_encode [word<u8>], object, args 0x1234
@@ -107,7 +107,7 @@ fn @narrowEncoding() -> memorybytes [selector=0x0a0a0a09, abi_params=[], abi_ret
 
 // CHECK-LABEL: + fn @prefixedEncoding()
 // CHECK: abi_encode [word], object, selector
-// CHECK: + {{v[0-9]+}} = abi_encode [memory_bytes], args
+// CHECK: + {{v[0-9]+}} = abi_encode [memory_bytes], scratch, args
 fn @prefixedEncoding() -> memorybytes [selector=0x0a0a0a0a, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
     v0 = abi_encode [word], object, selector 0x1234567800000000000000000000000000000000000000000000000000000000, args 1

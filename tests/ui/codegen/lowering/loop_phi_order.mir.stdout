@@ -7,11 +7,11 @@ fn @packed(arg0: i256, arg1: i256) -> i256 [selector=0xaf080e88, inline_assembly
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: 0], [bb3: v12]
-    v1 = phi [bb0: arg0], [bb3: v11]
+    v0 = phi [bb0: arg0], [bb3: v11]
+    v1 = phi [bb0: arg1], [bb3: v1]
     v2 = phi [bb0: 0], [bb3: v9]
-    v3 = phi [bb0: arg1], [bb3: v3]
-    v4 = lt v0, v3
+    v3 = phi [bb0: 0], [bb3: v12]
+    v4 = lt v3, v1
     v5 = zext i1 v4 to i256
     v6 = ne v5, 0
     jumpi v6, bb4, bb5
@@ -20,16 +20,16 @@ fn @packed(arg0: i256, arg1: i256) -> i256 [selector=0xaf080e88, inline_assembly
   bb2:
     ret v2
   bb4:
-    v7 = shr 160, v1
+    v7 = shr 160, v0
     v8 = and v7, 255
     v9 = add v2, v8
-    v10 = shl 1, v1
-    v11 = add v10, v0
+    v10 = shl 1, v0
+    v11 = add v10, v3
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v12 = add v0, 1
+    v12 = add v3, 1
     jump bb1
 }
 
@@ -37,22 +37,22 @@ fn @complement(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x82829e9f,
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: arg1], [bb3: v9]
-    v1 = phi [bb0: arg0], [bb3: v8]
-    v2 = phi [bb0: arg0], [bb3: v2]
-    v3 = phi [bb0: arg2], [bb3: v3]
+    v0 = phi [bb0: arg0], [bb3: v0]
+    v1 = phi [bb0: arg1], [bb3: v9]
+    v2 = phi [bb0: arg2], [bb3: v2]
+    v3 = phi [bb0: arg0], [bb3: v8]
     v4 = phi [bb0: 0], [bb3: v10]
-    v5 = lt v4, v3
+    v5 = lt v4, v2
     v6 = zext i1 v5 to i256
     v7 = ne v6, 0
     jumpi v7, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    ret v1
+    ret v3
   bb4:
-    v8 = sub v0, v1
-    v9 = add v0, v4
+    v8 = sub v1, v3
+    v9 = add v1, v4
     jump bb6
   bb6:
     jump bb3
@@ -65,33 +65,33 @@ fn @rotate(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> struct0 [selector=
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: 0], [bb3: v14]
-    v1 = phi [bb0: arg0], [bb3: v11]
-    v2 = phi [bb0: 0], [bb3: v2]
-    v3 = phi [bb0: arg1], [bb3: v12]
+    v0 = phi [bb0: arg0], [bb3: v11]
+    v1 = phi [bb0: arg1], [bb3: v12]
+    v2 = phi [bb0: arg2], [bb3: v13]
+    v3 = phi [bb0: arg3], [bb3: v3]
     v4 = phi [bb0: 0], [bb3: v4]
-    v5 = phi [bb0: arg2], [bb3: v13]
+    v5 = phi [bb0: 0], [bb3: v5]
     v6 = phi [bb0: 0], [bb3: v6]
-    v7 = phi [bb0: arg3], [bb3: v7]
-    v8 = lt v0, v7
+    v7 = phi [bb0: 0], [bb3: v14]
+    v8 = lt v7, v3
     v9 = zext i1 v8 to i256
     v10 = ne v9, 0
     jumpi v10, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    v15 = insert_value struct0, undef struct0, 0, v1
-    v16 = insert_value struct0, v15, 1, v3
-    v17 = insert_value struct0, v16, 2, v5
+    v15 = insert_value struct0, undef struct0, 0, v0
+    v16 = insert_value struct0, v15, 1, v1
+    v17 = insert_value struct0, v16, 2, v2
     ret v17
   bb4:
-    v11 = xor v1, v3
-    v12 = add v3, v5
-    v13 = add v5, v0
+    v11 = xor v0, v1
+    v12 = add v1, v2
+    v13 = add v2, v7
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v14 = add v0, 1
+    v14 = add v7, 1
     jump bb1
 }

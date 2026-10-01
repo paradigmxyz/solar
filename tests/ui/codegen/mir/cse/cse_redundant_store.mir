@@ -1,0 +1,67 @@
+//@compile-flags: -Zmir-pipeline=cse
+//@filecheck:
+// A word store of the value the word already holds is removed; a store after
+// any write that may overlap the word, or of another value, stays.
+@module CseRedundantStore
+
+// CHECK-LABEL: {{^[ +].*}}fn @loaded_word_written_back{{[( ]}}
+// CHECK: - mstore arg0, v0
+fn @loaded_word_written_back(arg0: i256) -> i256 {
+  bb0:
+    v0 = mload arg0
+    mstore arg0, v0
+    ret v0
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @repeated_store{{[( ]}}
+// CHECK: {{^ +}}mstore arg0, arg1
+// CHECK-NEXT: - mstore arg0, arg1
+fn @repeated_store(arg0: i256, arg1: i256) {
+  bb0:
+    mstore arg0, arg1
+    mstore arg0, arg1
+    stop
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @dominated_store{{[( ]}}
+// CHECK: - mstore arg0, v0
+fn @dominated_store(arg0: i256, arg1: i1) -> i256 {
+  bb0:
+    v0 = mload arg0
+    jumpi arg1, bb1, bb2
+  bb1:
+    mstore arg0, v0
+    ret v0
+  bb2:
+    ret 0
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @overlapping_byte_kept{{[( ]}}
+// CHECK: {{^ +}}mstore arg0, v0
+fn @overlapping_byte_kept(arg0: i256) -> i256 {
+  bb0:
+    v0 = mload arg0
+    v1 = add arg0, 31
+    mstore8 v1, 1
+    mstore arg0, v0
+    ret v0
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @copy_kept{{[( ]}}
+// CHECK: {{^ +}}mstore arg0, v0
+fn @copy_kept(arg0: i256) -> i256 {
+  bb0:
+    v0 = mload arg0
+    calldatacopy arg0, 0, 32
+    mstore arg0, v0
+    ret v0
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @other_value_kept{{[( ]}}
+// CHECK: {{^ +}}mstore arg0, arg1
+fn @other_value_kept(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = mload arg0
+    mstore arg0, arg1
+    ret v0
+}

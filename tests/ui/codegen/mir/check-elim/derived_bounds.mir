@@ -153,3 +153,100 @@ fn @wide_casts(arg0: i1024) -> i256 {
   bb2:
     ret 0
 }
+
+// If conversion writes `min(a, b)` as `b + (a < b) * (a - b)`. The result is
+// at most both values, so an index below it is below each length.
+// CHECK-LABEL: {{^[ +].*}}fn @minimum{{[( ]}}
+// CHECK: - jumpi {{v[0-9]+}}, [[FAIL:bb[0-9]+]], [[NEXT:bb[0-9]+]]
+// CHECK: + jump [[NEXT]]
+// CHECK: - jumpi {{v[0-9]+}}, [[FAIL]], [[LAST:bb[0-9]+]]
+// CHECK: + jump [[LAST]]
+fn @minimum(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+  bb0:
+    v0 = lt arg0, arg1
+    v1 = sub arg0, arg1
+    v2 = zext i1 v0 to i256
+    v3 = mul v2, v1
+    v4 = add arg1, v3
+    v5 = gt arg2, v4
+    jumpi v5, bb1, bb2
+  bb1:
+    ret 0
+  bb2:
+    v6 = gt arg2, arg0
+    jumpi v6, bb3, bb4
+  bb4:
+    v7 = gt arg2, arg1
+    jumpi v7, bb3, bb5
+  bb5:
+    ret arg2
+  bb3:
+    revert 0, 0
+}
+
+// The same shape selecting the larger value bounds neither.
+// CHECK-LABEL: {{^[ +].*}}fn @maximum{{[( ]}}
+// CHECK-NOT: + jump
+fn @maximum(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+  bb0:
+    v0 = gt arg0, arg1
+    v1 = sub arg0, arg1
+    v2 = zext i1 v0 to i256
+    v3 = mul v2, v1
+    v4 = add arg1, v3
+    v5 = gt arg2, v4
+    jumpi v5, bb1, bb2
+  bb1:
+    ret 0
+  bb2:
+    v6 = gt arg2, arg0
+    jumpi v6, bb3, bb4
+  bb4:
+    ret arg2
+  bb3:
+    revert 0, 0
+}
+
+// A byte table lookup mixed into a shifted index by `xor` stays below 256, so
+// the digit count built from it never exceeds 32 and `32 - count` cannot
+// underflow; `or` of the same bounded bytes fits the same way.
+// CHECK-LABEL: {{^[ +].*}}fn @xor_or_bounds{{[( ]}}
+// CHECK: - jumpi {{(arg[0-9]+|v[0-9]+)}}, bb2, bb1
+// CHECK: + jump bb1
+// CHECK: - jumpi {{(arg[0-9]+|v[0-9]+)}}, bb4, bb3
+// CHECK: + jump bb3
+fn @xor_or_bounds(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = byte 3, arg0
+    v1 = and arg1, 248
+    v2 = xor v1, v0
+    v3 = shr 3, v2
+    v4 = gt v3, 32
+    jumpi v4, bb2, bb1
+  bb1:
+    v5 = sub 32, v3
+    v6 = or v1, v0
+    v7 = gt v6, 255
+    jumpi v7, bb4, bb3
+  bb2:
+    revert 0, 0
+  bb3:
+    ret v5
+  bb4:
+    revert 0, 0
+}
+
+// An arbitrary word mixed in can set any bit.
+// CHECK-LABEL: {{^[ +].*}}fn @keep_xor_word{{[( ]}}
+// CHECK: {{^ +}}jumpi {{(arg[0-9]+|v[0-9]+)}}, bb2, bb1
+fn @keep_xor_word(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = byte 3, arg0
+    v2 = xor arg1, v0
+    v4 = gt v2, 255
+    jumpi v4, bb2, bb1
+  bb1:
+    ret v2
+  bb2:
+    revert 0, 0
+}

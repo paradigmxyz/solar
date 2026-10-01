@@ -1,7 +1,9 @@
 //@ compile-flags: -Zmir-pipeline=cfg-simplify,lower-abi,lower-abi-encode,lower-dispatch,lower-frame-slots,lower-memory-objects,lower-slices,lower-alloc,lower-evm-shaped
 //@ normalize-stdout-test: "solar-[0-9a-f]{64}" -> "solar-COMPILATION_ID"
 //@ filecheck:
-// MIR sharing reaches ETHDebug as alternatives, never as a guessed legacy location.
+// Code shared between two returns reaches ETHDebug as alternatives, never as a
+// guessed legacy location. CFG simplification folds the branch between the two
+// equal returns into the `then` arm, which gains the `else` arm's locations.
 // CHECK-LABEL: "deployedBytecode": {
 // CHECK: "mnemonic": "ADD"
 // CHECK: "pick": [

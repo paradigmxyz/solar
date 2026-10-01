@@ -28,69 +28,51 @@ bb4 [cold]:
   revert
 bb5:
   push_immutable 0, 32
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb6:
-  push 128
+  push 160
   dup 1
   push 64
   mstore
-  push 160
+  dup 1
   dup 2
   add
   push 64
   mstore
-  dup 1
+  push 128
   dup 2
   mstore
   push 32
   dup 2
   add
-  dup 2
+  push 128
   push_data literal_0
   dup 3
   codecopy
-  dup 2
-  iszero
-  iszero
-  push 7
-  shl
-  push 31
-  dup 2
-  add
-  push 31
-  not
-  and
+  pop
   dup 1
-  dup 4
+  dup 2
   add
   push 0
   swap 1
   mstore
-  push 64
-  dup 5
-  add
-  dup 3
-  dup 5
-  dup 3
-  mcopy
-  pop
   push 32
-  dup 5
+  swap 1
+  sub
+  push 32
+  dup 2
   mstore
-  swap 2
-  mstore
-  push 64
-  add
+  push 192
   dup 2
   return
 // === ROOT/tests/ui/codegen/lowering/program-data/contract_creation_args_data_dedup.sol:FactoryWithArgs (runtime) ===
 @module FactoryWithArgs_runtime
 @data
-  ChildWithArg_creation_code_0: hex"6101d63803806101d660e03960e001601f01601f19166040523460455760e06101d63803016101001160455760e05160c05261010d8060c960e03960c0516101035260e0f35b5f5ffdffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa9988776655443322110034601d575f3560e01c80633fa4f245146021578063a878f85814604b575b5f5ffd5b7f000000000000000000000000000000000000000000000000000000000000000060805260206080f35b60808060405260a081016040528081526020810181608d823981151560071b601f8101601f19168083015f9052604084018284825e5060208452915260400181f3ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100"
+  ChildWithArg_creation_code_0: hex"6101bf3803806101bf60e03960e001601f01601f19166040523460445760e06101bf3803016101001160445760e05160c05260f78060c860e03960c0516101035260e0f35b5f5ffdffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa9988776655443322110034601d575f3560e01c80633fa4f245146021578063a878f858146049575b5f5ffd5b7f00000000000000000000000000000000000000000000000000000000000000005f5260205ff35b60a0806040528081016040526080815260208101608060778239508081015f9052602090036020815260c081f3ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100"
 
 bb0:
   callvalue
@@ -129,7 +111,7 @@ bb26 [cold]:
   push 0
   revert
 bb6:
-  push 160
+  push 128
   dup 1
   push 64
   mstore
@@ -146,9 +128,9 @@ bb6:
   push 11
   dup 2
   mstore
-  push 470
-  push 502
-  push 512
+  push 447
+  push 479
+  push 480
   push 64
   mload
   swap 1
@@ -208,15 +190,11 @@ bb28:
   gt
   push bb5
   jumpi
-  push 0
-  mload
-  push 128
-  mstore
   push 32
-  push 128
+  push 0
   return
 bb12:
-  push 160
+  push 128
   dup 1
   push 64
   mstore
@@ -233,9 +211,9 @@ bb12:
   push 22
   dup 2
   mstore
-  push 470
-  push 502
-  push 512
+  push 447
+  push 479
+  push 480
   push 64
   mload
   swap 1
@@ -264,7 +242,7 @@ bb12:
   create2
   jump bb28
 bb18:
-  push 192
+  push 128
   dup 1
   push 64
   mstore
@@ -281,9 +259,9 @@ bb18:
   push 3
   dup 2
   mstore
-  push 470
-  push 502
-  push 512
+  push 447
+  push 479
+  push 480
   push 64
   mload
   dup 2
@@ -380,8 +358,7 @@ bb18:
   swap 3
   pop
   pop
-  push 160
-  mstore
+  swap 1
   iszero
   push bb26
   jumpi
@@ -408,12 +385,13 @@ bb18:
   push 0
   push 4
   dup 4
-  push 160
-  mload
+  dup 7
   gas
   staticcall
-  swap 1
+  swap 3
   pop
+  pop
+  swap 1
   iszero
   push bb26
   jumpi

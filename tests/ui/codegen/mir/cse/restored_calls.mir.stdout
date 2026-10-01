@@ -76,30 +76,30 @@ fn @scan(arg0: memorybytes, arg1: i256) -> i256 [inline_assembly, pure] {
     mstore v1, 0
     jump bb1
   bb1:
-    v3 = phi [bb0: v2], [bb3: v3]
-    v4 = phi [bb0: 0], [bb3: v14]
-    v5 = phi [bb0: arg1], [bb3: v5]
+    v3 = phi [bb0: arg0], [bb3: v3]
+    v4 = phi [bb0: arg1], [bb3: v4]
+    v5 = phi [bb0: 0], [bb3: v14]
     v6 = phi [bb0: v1], [bb3: v6]
-    v7 = phi [bb0: 0], [bb3: v15]
-    v8 = phi [bb0: arg0], [bb3: v8]
-    v9 = lt v7, v5
+    v7 = phi [bb0: v2], [bb3: v7]
+    v8 = phi [bb0: 0], [bb3: v15]
+    v9 = lt v8, v4
     v10 = zext i1 v9 to i256
     v11 = ne v10, 0
     jumpi v11, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    mstore v6, v3
-    ret v4
+    mstore v6, v7
+    ret v5
   bb4:
     v12 = add v6, 32
     v13 = mload v12
-    v14 = add v4, v13
+    v14 = add v5, v13
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v15 = add v7, 1
+    v15 = add v8, 1
     jump bb1
 }
 
@@ -133,29 +133,29 @@ fn @temporary(arg0: memorybytes, arg1: i256) -> i256 [inline_assembly, pure] {
     mstore v1, 17
     jump bb1
   bb1:
-    v3 = phi [bb0: v2], [bb3: v3]
-    v4 = phi [bb0: 0], [bb3: v13]
-    v5 = phi [bb0: arg1], [bb3: v5]
+    v3 = phi [bb0: arg0], [bb3: v3]
+    v4 = phi [bb0: arg1], [bb3: v4]
+    v5 = phi [bb0: 0], [bb3: v13]
     v6 = phi [bb0: v1], [bb3: v6]
-    v7 = phi [bb0: 0], [bb3: v14]
-    v8 = phi [bb0: arg0], [bb3: v8]
-    v9 = lt v7, v5
+    v7 = phi [bb0: v2], [bb3: v7]
+    v8 = phi [bb0: 0], [bb3: v14]
+    v9 = lt v8, v4
     v10 = zext i1 v9 to i256
     v11 = ne v10, 0
     jumpi v11, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    mstore v6, v3
-    ret v4
+    mstore v6, v7
+    ret v5
   bb4:
     v12 = mload v6
-    v13 = add v4, v12
+    v13 = add v5, v12
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v14 = add v7, 1
+    v14 = add v8, 1
     jump bb1
 }
 

@@ -125,12 +125,12 @@ bb20:
   push 4
   calldataload
   sub
-  push 128
+  push 0
   mstore
-  push 160
+  push 32
   mstore
   push 64
-  push 128
+  push 0
   return
 bb23:
   push 68
@@ -148,12 +148,12 @@ bb23:
   push 36
   calldataload
   sub
-  push 128
+  push 0
   mstore
-  push 160
+  push 32
   mstore
   push 64
-  push 128
+  push 0
   return
 bb26:
   push 68
@@ -171,12 +171,12 @@ bb26:
   push 4
   calldataload
   xor
-  push 128
+  push 0
   mstore
-  push 160
+  push 32
   mstore
   push 64
-  push 128
+  push 0
   return
 bb29:
   push 36
@@ -197,8 +197,8 @@ bb31 [loop]:
   lt
   push bb33
   jumpi
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return

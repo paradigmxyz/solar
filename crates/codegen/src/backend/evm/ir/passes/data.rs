@@ -21,13 +21,13 @@ use crate::{
     backend::evm::{
         data_copy_cost, data_copy_gas, data_copy_is_profitable,
         ir::{
-            BlockId, Data, DataId, DataRef, DataSize, Instruction, Module, PushValue, Terminator,
-            TerminatorKind, immediate_materialization_cost,
+            BlockId, Data, DataId, DataRef, DataSize, ImmediatePolicy, Instruction, Module,
+            PushValue, Terminator, TerminatorKind, policy_materialization_cost,
         },
         op::{self, WORD_BYTES},
     },
     link::LibraryRelocation,
-    target::GasTier,
+    target::{GasTier, Target},
 };
 use alloy_primitives::{Bytes, U256};
 use memchr::memmem;
@@ -736,6 +736,7 @@ fn data_copy_size(gcx: Gcx<'_>, size: usize) -> usize {
 
 fn static_gas(gcx: Gcx<'_>, inst: &Instruction) -> usize {
     inst.concrete_immediate().map_or(GasTier::VeryLow.fixed_gas() as usize, |value| {
-        immediate_materialization_cost(gcx.sess.opts.evm_version, value).1
+        let policy = ImmediatePolicy::of(Target::new(gcx));
+        policy_materialization_cost(policy, value).1
     })
 }

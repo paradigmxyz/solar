@@ -69,12 +69,9 @@ bb7:
   dup 3
   dup 2
   lt
-  push 0
-  not
-  push 192
+  dup 2
+  push 64
   shr
-  dup 3
-  gt
   or
   push bb46
   jumpi
@@ -269,10 +266,10 @@ bb19 [continuation]:
   mload
   push 0
   byte
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb22:
   push 256
@@ -297,11 +294,8 @@ bb41:
   dup 2
   add
   swap 2
-  push 0
-  not
-  push 192
+  push 64
   shr
-  lt
   swap 3
   dup 3
   gt
@@ -332,12 +326,9 @@ bb41:
   dup 2
   dup 2
   lt
-  push 0
-  not
-  push 192
+  dup 2
+  push 64
   shr
-  dup 3
-  gt
   or
   push bb46
   jumpi
@@ -419,22 +410,9 @@ bb25 [continuation]:
   pop
   swap 2
   pop
-  swap 1
+  dup 1
+  swap 2
   sub
-  push 31
-  dup 2
-  add
-  push 31
-  not
-  and
-  push 64
-  mload
-  swap 1
-  dup 2
-  add
-  push 64
-  mstore
-  dup 2
   dup 2
   return
 bb27:

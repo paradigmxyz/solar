@@ -95,7 +95,7 @@ impl FunctionLowerer<'_, '_> {
         if !self.cx.gcx.sess.opts.optimization.is_gas() {
             let cursor = self.lower_core_hex_bytes(value, end);
             let result = self.lower_core_hex_header(cursor, end, prefix_length, leading);
-            return self.builder.memory_object_from_ptr(result, MemoryObjectKind::Bytes);
+            return self.builder.memory_object_in_allocation(result, MemoryObjectKind::Bytes);
         }
 
         // The lowest byte is spelled first, which finishes one-byte values at
@@ -148,7 +148,7 @@ impl FunctionLowerer<'_, '_> {
             (two_exit, two_result),
             (words_exit, words_result),
         ]);
-        self.builder.memory_object_from_ptr(result, MemoryObjectKind::Bytes)
+        self.builder.memory_object_in_allocation(result, MemoryObjectKind::Bytes)
     }
 
     /// Spells the fewest whole bytes of `value` two digits at a time through
@@ -220,7 +220,7 @@ impl FunctionLowerer<'_, '_> {
         let digits = self.builder.sub(pair_digits, leading_zero);
         let length = self.builder.add(digits, prefix_length);
         self.builder.mstore(result, length);
-        self.builder.memory_object_from_ptr(result, MemoryObjectKind::Bytes)
+        result
     }
 
     /// Spells the low byte of `x` as the two digits before `output` through
@@ -323,7 +323,7 @@ impl FunctionLowerer<'_, '_> {
         let header_size = self.builder.imm(32);
         let result = self.builder.sub(start, header_size);
         self.builder.mstore(result, length);
-        self.builder.memory_object_from_ptr(result, MemoryObjectKind::Bytes)
+        self.builder.memory_object_in_allocation(result, MemoryObjectKind::Bytes)
     }
 
     /// Packs one short string with word operations instead of a byte loop.
@@ -370,8 +370,16 @@ impl FunctionLowerer<'_, '_> {
         let thirty_one = self.builder.imm(31);
         let too_long = self.builder.gt(raw_length, thirty_one);
         let length = self.builder.select(too_long, thirty_one, raw_length);
-        let out =
-            self.builder.alloc_bytes_object(length, AllocationSemantics::SOLIDITY_UNINITIALIZED);
+        // Every result fits in one payload word, so its header and payload
+        // occupy exactly two words. Avoid rebuilding and checking the generic
+        // `align32(length + 32)` allocation expression.
+        let size = self.builder.imm(64);
+        let out = self.builder.alloc_object(
+            size,
+            MemoryObjectLayout::Bytes,
+            AllocationSemantics::INTERNAL,
+        );
+        self.builder.set_memory_object_len(out, length, MemoryObjectKind::Bytes);
         let data = self.builder.memory_object_data(out, MemoryObjectKind::Bytes);
         // mstore(data, leading(packed << 8, length))
         let eight = self.builder.imm(8);
@@ -445,34 +453,39 @@ impl FunctionLowerer<'_, '_> {
         let raw_a_length = self.builder.byte(zero, packed);
         let a_too_long = self.builder.gt(raw_a_length, thirty);
         let a_length = self.builder.select(a_too_long, thirty, raw_a_length);
-        let a =
-            self.builder.alloc_bytes_object(a_length, AllocationSemantics::SOLIDITY_UNINITIALIZED);
-        let a_data = self.builder.memory_object_data(a, MemoryObjectKind::Bytes);
-        // Each payload word holds the payload and zeros, as the body's `new bytes` leaves it.
-        // mstore(data(a), leading(packed << 8, a_length))
-        let eight = self.builder.imm(8);
-        let a_contents = self.builder.shl(eight, packed);
-        let a_contents = self.keep_leading_bytes(a_contents, a_length);
-        self.builder.mstore(a_data, a_contents);
-
         // b's length byte follows a's payload.
         // b_length = min(byte(a_length + 1, packed), 30 - a_length)
         let one = self.builder.imm(1);
-        let b_index = self.builder.add(a_length, one);
-        let raw_b_length = self.builder.byte(b_index, packed);
+        let b_tag = self.builder.add(a_length, one);
+        let raw_b_length = self.builder.byte(b_tag, packed);
         let remaining = self.builder.sub(thirty, a_length);
         let b_too_long = self.builder.gt(raw_b_length, remaining);
         let b_length = self.builder.select(b_too_long, remaining, raw_b_length);
-        let b =
-            self.builder.alloc_bytes_object(b_length, AllocationSemantics::SOLIDITY_UNINITIALIZED);
-        let b_data = self.builder.memory_object_data(b, MemoryObjectKind::Bytes);
+        // Both bounded strings fit in one payload word. Reserve the two
+        // header/payload pairs with one bump and derive the second object from
+        // the upper half of that allocation.
+        let total_size = self.builder.imm(128);
+        let allocation = self.builder.alloc_raw(total_size, AllocationSemantics::INTERNAL);
+        let a = self.builder.memory_object_in_allocation(allocation, MemoryObjectKind::Bytes);
+        let object_size = self.builder.imm(64);
+        let b_ptr = self.builder.add(allocation, object_size);
+        let b = self.builder.memory_object_in_allocation(b_ptr, MemoryObjectKind::Bytes);
+        // Each payload word holds the payload and zeros, as the body's `new bytes` leaves it.
+        // mstore(data(a), leading(packed << 8, a_length))
         // mstore(data(b), leading(packed << 8 * (a_length + 2), b_length))
-        let two = self.builder.imm(2);
-        let b_byte_offset = self.builder.add(a_length, two);
+        self.builder.set_memory_object_len(a, a_length, MemoryObjectKind::Bytes);
+        let eight = self.builder.imm(8);
+        let a_contents = self.builder.shl(eight, packed);
+        let a_contents = self.keep_leading_bytes(a_contents, a_length);
+        let a_data = self.builder.memory_object_data(a, MemoryObjectKind::Bytes);
+        self.builder.mstore(a_data, a_contents);
+        self.builder.set_memory_object_len(b, b_length, MemoryObjectKind::Bytes);
+        let b_start = self.builder.add(b_tag, one);
         let three = self.builder.imm(3);
-        let b_bit_offset = self.builder.shl(three, b_byte_offset);
-        let b_contents = self.builder.shl(b_bit_offset, packed);
+        let b_shift = self.builder.shl(three, b_start);
+        let b_contents = self.builder.shl(b_shift, packed);
         let b_contents = self.keep_leading_bytes(b_contents, b_length);
+        let b_data = self.builder.memory_object_data(b, MemoryObjectKind::Bytes);
         self.builder.mstore(b_data, b_contents);
         Some(vec![a, b])
     }

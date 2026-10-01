@@ -22,11 +22,13 @@ contract Test {
         hash = keccak256(payload);
     }
 
-    // Without the tag, the decode copies the calldata to memory first.
+    // Without the tag, the decode copies each dynamic value out of the calldata
+    // into memory, as solc's does; it decodes the calldata where it lies rather
+    // than from a copy of the whole input.
     // CHECK-LABEL: fn @copied(
+    // CHECK-NOT: icall @decode_aggregate
     // CHECK: mstore 64
     // CHECK: calldatacopy
-    // CHECK: icall @decode_aggregate
     function copied(bytes calldata data) external pure returns (uint256 id, bytes32 hash) {
         (uint256 n, bytes memory payload) = abi.decode(data, (uint256, bytes));
         id = n;
@@ -62,8 +64,10 @@ contract Test {
         total += pair.a + pair.b.length;
     }
 
+    // Without the tag, a decode of memory copies the bytes out.
     // CHECK-LABEL: fn @copiedMemory(
-    // CHECK: icall @decode_aggregate
+    // CHECK: mstore 64
+    // CHECK: mcopy
     function copiedMemory(bytes memory data) public pure returns (uint256 id, bytes32 hash) {
         (uint256 n, bytes memory payload) = abi.decode(data, (uint256, bytes));
         id = n;

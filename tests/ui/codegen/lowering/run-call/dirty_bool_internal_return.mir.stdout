@@ -72,17 +72,17 @@ fn @loopValue(arg0: i256) -> i256 [selector=0x0f49c3a4, inline_assembly, pure, a
     jump bb1
   bb1:
     v1 = phi [bb0: arg0], [bb3: v1]
-    v2 = phi [bb0: v0], [bb3: v6]
-    v3 = phi [bb0: 0], [bb3: v3]
+    v2 = phi [bb0: 0], [bb3: v2]
+    v3 = phi [bb0: v0], [bb3: v6]
     v4 = phi [bb0: 0], [bb3: v7]
     v5 = lt v4, v1
     jumpi v5, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    ret v2
+    ret v3
   bb4:
-    v6 = add v2, 1
+    v6 = add v3, 1
     jump bb6
   bb6:
     jump bb3

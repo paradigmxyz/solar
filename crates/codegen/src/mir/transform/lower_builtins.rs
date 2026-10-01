@@ -378,6 +378,8 @@ fn lower_send(builder: &mut FunctionBuilder<'_>, address: ValueId, amount: Value
     builder.call(gas, address, amount, zero, zero, zero, zero)
 }
 
+/// `sha256` and `ripemd160` of a bytes object, read where it lies, into scratch space; a failed
+/// call reverts with its return data, as solc's does.
 fn lower_hash(
     builder: &mut FunctionBuilder<'_>,
     evm: EvmVersion,
@@ -386,18 +388,37 @@ fn lower_hash(
 ) -> ValueId {
     // input_ptr = memory_object_data input
     // input_len = memory_object_len input
-    // output = bytes(32)
-    // precompile_call(sha256 ? 2 : 3, input, output)
-    // result = mload(output.data)
     let input_ptr = builder.memory_object_data(input, MemoryObjectKind::Bytes);
     let input_len = builder.memory_object_len(input, MemoryObjectKind::Bytes);
-    let (output_ptr, output_len) = alloc_output(builder);
+    hash_precompile(builder, evm, input_ptr, input_len, ripemd)
+}
+
+/// Calls the `sha256` or `ripemd160` precompile over `input_len` bytes of memory at `input_ptr`,
+/// with the digest written to scratch space.
+pub(crate) fn hash_precompile(
+    builder: &mut FunctionBuilder<'_>,
+    evm: EvmVersion,
+    input_ptr: ValueId,
+    input_len: ValueId,
+    ripemd: bool,
+) -> ValueId {
+    // success = precompile_call(sha256 ? 2 : 3, input_ptr, input_len, 0, 32)
+    // branch success, done, failed
+    // failed:
+    //   revert_returndata
+    // done:
+    //   result = mload(0)
     let address = builder.imm(if ripemd { 3 } else { 2 });
-    let output_size = builder.imm(32);
-    precompile_call(builder, evm, address, input_ptr, input_len, output_ptr, output_size);
     let zero = builder.imm(0);
-    let output = builder.make_slice(output_ptr, output_len, SliceLocation::Memory);
-    let value = builder.memory_slice_load_word(output, zero);
+    let output_size = builder.imm(32);
+    let success = precompile_call(builder, evm, address, input_ptr, input_len, zero, output_size);
+    let done = builder.create_block();
+    let failed = builder.create_block();
+    builder.branch(success, done, failed);
+    builder.switch_to_block(failed);
+    builder.revert_returndata();
+    builder.switch_to_block(done);
+    let value = builder.mload(zero);
     if ripemd {
         // result = result << 96
         let scale = builder.imm(1_u128 << 96);
@@ -415,46 +436,44 @@ fn lower_ecrecover(
     r: ValueId,
     s: ValueId,
 ) -> ValueId {
-    // input = bytes(160)
-    // store(input, hash, 0)
-    // store(input, v, 32)
-    // store(input, r, 64)
-    // store(input, s, 96)
-    // precompile_call(1, input.data, 128, output.data, 32)
-    // result = load(output, 0)
-    let size = builder.imm(192);
-    let input =
-        builder.alloc_object(size, MemoryObjectLayout::Bytes, AllocationSemantics::SOLIDITY_ZEROED);
-    let length = builder.imm(160);
-    builder.set_memory_object_len(input, length, MemoryObjectKind::Bytes);
-    let pointer = builder.memory_object_data(input, MemoryObjectKind::Bytes);
+    // The input is staged past the free memory pointer without reserving it, and the address is
+    // returned in scratch space, as solc does. An invalid signature returns no data, so the
+    // output word is cleared first.
+    // input = fmp
+    // mstore(input, hash)
+    // mstore(input + 32, v)
+    // mstore(input + 64, r)
+    // mstore(input + 96, s)
+    // mstore(0, 0)
+    // success = precompile_call(1, input, 128, 0, 32)
+    // branch success, done, failed
+    // failed:
+    //   revert_returndata
+    // done:
+    //   result = mload(0)
+    let input = builder.fmp();
+    let input = builder.cast_word(input);
     for (offset, value) in [(0, hash), (32, v), (64, r), (96, s)] {
-        let offset = builder.imm(offset);
-        builder.memory_object_store_word(input, offset, value);
+        let address = builder.add_u64_offset(input, offset);
+        let value = builder.cast_word(value);
+        builder.mstore(address, value);
     }
-    let (output, output_len) = alloc_output(builder);
+    let zero = builder.imm(0);
+    builder.mstore(zero, zero);
     let address = builder.imm(1);
     let input_size = builder.imm(128);
     let output_size = builder.imm(32);
-    precompile_call(builder, evm, address, pointer, input_size, output, output_size);
-    let slice = builder.make_slice(output, output_len, SliceLocation::Memory);
-    let zero = builder.imm(0);
-    builder.memory_slice_load_word(slice, zero)
+    let success = precompile_call(builder, evm, address, input, input_size, zero, output_size);
+    let done = builder.create_block();
+    let failed = builder.create_block();
+    builder.branch(success, done, failed);
+    builder.switch_to_block(failed);
+    builder.revert_returndata();
+    builder.switch_to_block(done);
+    builder.mload(zero)
 }
 
-fn alloc_output(builder: &mut FunctionBuilder<'_>) -> (ValueId, ValueId) {
-    // output = alloc bytes(64), zeroed
-    // memory_object_len output = 32
-    // pointer = memory_object_data output
-    let size = builder.imm(64);
-    let output =
-        builder.alloc_object(size, MemoryObjectLayout::Bytes, AllocationSemantics::SOLIDITY_ZEROED);
-    let length = builder.imm(32);
-    builder.set_memory_object_len(output, length, MemoryObjectKind::Bytes);
-    let pointer = builder.memory_object_data(output, MemoryObjectKind::Bytes);
-    (pointer, length)
-}
-
+/// Calls a precompile with the gas left and returns whether the call succeeded.
 fn precompile_call(
     builder: &mut FunctionBuilder<'_>,
     evm: EvmVersion,
@@ -463,15 +482,15 @@ fn precompile_call(
     input_size: ValueId,
     output: ValueId,
     output_size: ValueId,
-) {
+) -> ValueId {
     let gas = crate::mir::utils::precompile_gas(builder, evm);
     if evm.has_static_call() {
-        // staticcall(precompile_gas, address, input, output)
-        builder.staticcall(gas, address, input, input_size, output, output_size);
+        // success = staticcall(precompile_gas, address, input, output)
+        builder.staticcall(gas, address, input, input_size, output, output_size)
     } else {
-        // call(precompile_gas, address, 0, input, output)
+        // success = call(precompile_gas, address, 0, input, output)
         let zero = builder.imm(0);
-        builder.call(gas, address, zero, input, input_size, output, output_size);
+        builder.call(gas, address, zero, input, input_size, output, output_size)
     }
 }
 

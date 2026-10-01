@@ -1,4 +1,4 @@
-error: [fn0] [bb0, inst0] storage slot instruction `storage_array_data_slot` survives the `lowered` phase boundary
+error: [fn0] [bb0, inst1] storage slot instruction `storage_array_data_slot` survives the `lowered` phase boundary
 
 error: aborting due to 1 previous error
 

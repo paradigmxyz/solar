@@ -29,12 +29,23 @@
 //! length. This removes a branch without touching memory beyond the encoded tail.
 //! Size mode retains the guarded padding store: its encoder tails share better
 //! in the machine outlining pipeline on large ABI-heavy contracts.
-//! A terminal external return of a freshly allocated full-word array or byte
-//! string is encoded in place. Moving its payload forward by one word makes
-//! room for the ABI tuple offset and reuses the object's length word, avoiding
-//! a second allocation. A module-wide plan selects those sites before shared
-//! tuple helpers are built, so locally cheaper terminal encodings do not leave
-//! an unused shared body.
+//! A terminal external return of a full-word array or byte string that is a
+//! real object, not the null default, is encoded in place: the ABI tuple offset
+//! goes in the word below the object, the length word and payload stay, and a
+//! byte string's padding is zeroed past its payload. Only the return reads
+//! memory afterwards, so the overwritten words may belong to anything, and the
+//! object need not have been allocated for the return: a string written into
+//! the end of a larger buffer returns without a copy. Two bounded byte strings
+//! backed by adjacent words use the same treatment: load both payloads before
+//! overwriting their source, then lay out both ABI tails over the original
+//! allocation. A module-wide plan selects those sites before shared tuple
+//! helpers are built, so locally cheaper terminal encodings do not leave an
+//! unused shared body.
+//! A zeroed aggregate slot stores null for its default memory object, so an
+//! encoded length is masked to zero unless the object is known to be real.
+//! Optimized builds prove that for allocations, encoded byte strings, nonzero
+//! constant pointers, phis of those, and calls whose every exit returns one,
+//! found by a module-wide least fixpoint over the functions' returns.
 //! A dynamic aggregate held in a memory or calldata slice is a `@custom:solar-view`
 //! of its own ABI encoding, validated by the decode that made it, except for the
 //! calldata arrays of words and byte strings encoded from their slices directly.
@@ -84,8 +95,11 @@ impl MirPass for LowerAbiEncode {
     ) -> bool {
         let revert_strings = gcx.sess.opts.revert_strings;
         let target = Target::new(gcx);
-        let (fresh_object_returns, mut destructive_returns) =
-            plan_destructive_terminal_returns(target, module);
+        // Unoptimized lowering keeps the null mask on every memory object length.
+        let optimize = target.optimization().is_gas() || target.optimization().is_size();
+        let non_null_returns = optimize.then(|| non_null_returning_functions(module));
+        let mut destructive_returns =
+            plan_destructive_terminal_returns(module, non_null_returns.as_ref());
         let mut helpers = synthesize_array_helpers(target, module, revert_strings);
         synthesize_tuple_helpers(
             target,
@@ -109,6 +123,7 @@ impl MirPass for LowerAbiEncode {
         }
         let mut inline_helpers = EncodeHelpers {
             branchless_byte_tails: !target.optimization().is_size(),
+            has_bitwise_shifting: target.evm_version().has_bitwise_shifting(),
             ..EncodeHelpers::default()
         };
         let mut changed = !helpers.arrays.is_empty() || !helpers.tuples.is_empty();
@@ -122,7 +137,7 @@ impl MirPass for LowerAbiEncode {
                 func,
                 helpers,
                 revert_strings,
-                &fresh_object_returns,
+                non_null_returns.as_ref(),
                 &destructive_returns[func_id],
             );
         }
@@ -181,7 +196,11 @@ struct EncodeHelpers {
     tuples: FxHashMap<TupleHelperKey, FunctionId>,
     /// Proven on the original function, before encoding emits raw memory operations.
     literal_objects: FxHashSet<ValueId>,
+    /// Encoded memory objects proven never to be the null default object, so their lengths
+    /// are read without the null mask. Proven on the original function.
+    non_null_objects: FxHashSet<ValueId>,
     branchless_byte_tails: bool,
+    has_bitwise_shifting: bool,
 }
 
 /// Builds `encode_abi_tuple(args.., [selector]) -> encoded` for every encoding shape at least
@@ -321,6 +340,7 @@ fn synthesize_array_helpers(
 
     let mut helpers = EncodeHelpers {
         branchless_byte_tails: !target.optimization().is_size(),
+        has_bitwise_shifting: target.evm_version().has_bitwise_shifting(),
         ..EncodeHelpers::default()
     };
     for (_, key) in keys {
@@ -412,7 +432,7 @@ fn lower_function(
     func: &mut Function,
     helpers: &mut EncodeHelpers,
     revert_strings: RevertStrings,
-    fresh_object_returns: &DenseBitSet<FunctionId>,
+    non_null_returns: Option<&DenseBitSet<FunctionId>>,
     destructive_returns: &FxHashSet<InstId>,
 ) -> bool {
     let has_encodes =
@@ -421,6 +441,9 @@ fn lower_function(
         return false;
     }
     helpers.literal_objects = literal_objects_at_encodes(func);
+    helpers.non_null_objects = non_null_returns
+        .map(|returns| non_null_objects_at_encodes(func, returns))
+        .unwrap_or_default();
 
     let mut replacements = FxHashMap::default();
     let mut literal_objects = FxHashSet::default();
@@ -452,12 +475,10 @@ fn lower_function(
             let result =
                 builder.func().inst_result_value(inst).expect("ABI encode must produce a value");
             let replacement = if destructive_returns.contains(&inst)
-                && let Some(encoded) = encode_dynamic_return_in_place(
-                    &mut builder,
-                    &layout,
-                    &args,
-                    fresh_object_returns,
-                ) {
+                && let Some(non_null_returns) = non_null_returns
+                && let Some(encoded) =
+                    encode_dynamic_return_in_place(&mut builder, &layout, &args, non_null_returns)
+            {
                 encoded
             } else {
                 match helpers.tuples.get(&key) {
@@ -488,22 +509,19 @@ fn lower_function(
 }
 
 /// Selects destructive terminal encodings before module-wide helper sharing is
-/// costed. Unoptimized lowering retains the direct semantic expansion.
+/// costed. Unoptimized lowering, which has no proofs of real objects, retains the
+/// direct semantic expansion.
 fn plan_destructive_terminal_returns(
-    target: Target,
     module: &Module,
-) -> (DenseBitSet<FunctionId>, IndexVec<FunctionId, FxHashSet<InstId>>) {
-    let mut fresh = DenseBitSet::new_empty(module.functions.len());
+    non_null_returns: Option<&DenseBitSet<FunctionId>>,
+) -> IndexVec<FunctionId, FxHashSet<InstId>> {
     let mut plan = IndexVec::from_vec(vec![FxHashSet::default(); module.functions.len()]);
-    if !(target.optimization().is_gas() || target.optimization().is_size()) {
-        return (fresh, plan);
-    }
+    let Some(non_null_returns) = non_null_returns else { return plan };
     let candidates = module.functions.iter().map(terminal_return_encodes).collect::<Vec<_>>();
-    if candidates.iter().all(FxHashSet::is_empty) {
-        return (fresh, plan);
-    }
-    fresh = fresh_object_returning_functions(module);
     for (func_id, candidates) in IndexVec::<FunctionId, _>::from_vec(candidates).iter_enumerated() {
+        if candidates.is_empty() {
+            continue;
+        }
         let func = &module.functions[func_id];
         let literal_objects = literal_objects_at_encodes(func);
         for &inst in candidates {
@@ -511,13 +529,13 @@ fn plan_destructive_terminal_returns(
                 unreachable!()
             };
             if args.iter().all(|arg| !literal_objects.contains(arg))
-                && can_encode_dynamic_return_in_place(func, layout, args, &fresh)
+                && can_encode_dynamic_return_in_place(func, layout, args, non_null_returns)
             {
                 plan[func_id].insert(inst);
             }
         }
     }
-    (fresh, plan)
+    plan
 }
 
 /// Finds encodes used only by the two projections of an immediate
@@ -606,6 +624,107 @@ pub(super) fn fresh_object_returning_functions(module: &Module) -> DenseBitSet<F
     fresh
 }
 
+/// Finds functions whose every successful exit returns one real memory object.
+///
+/// Only a zeroed aggregate slot produces the null default object, so a caller
+/// reads such a result's length without the null mask. Like the fresh-object
+/// analysis this is a least fixpoint: recursion stays unproved.
+fn non_null_returning_functions(module: &Module) -> DenseBitSet<FunctionId> {
+    let mut non_null = DenseBitSet::new_empty(module.functions.len());
+    loop {
+        let mut changed = false;
+        for (func_id, func) in module.functions.iter_enumerated() {
+            if non_null.contains(func_id) {
+                continue;
+            }
+            let mut returns = func.blocks.iter().filter_map(|block| match &block.terminator {
+                Some(Terminator::Return { values }) => Some(values.as_slice()),
+                _ => None,
+            });
+            let proved = |values: &[ValueId]| {
+                let [value] = values else { return false };
+                non_null_memory_object(func, *value, &non_null)
+            };
+            let Some(first) = returns.next() else { continue };
+            if proved(first) && returns.all(proved) {
+                non_null.insert(func_id);
+                changed = true;
+            }
+        }
+        if !changed {
+            break;
+        }
+    }
+    non_null
+}
+
+/// Collects the encoded values that are real memory objects.
+fn non_null_objects_at_encodes(
+    func: &Function,
+    non_null_returns: &DenseBitSet<FunctionId>,
+) -> FxHashSet<ValueId> {
+    let mut objects = FxHashSet::default();
+    for inst in func.instructions() {
+        let InstKind::AbiEncode { args, .. } = &func.inst(inst).kind else { continue };
+        for &arg in args.iter() {
+            if non_null_memory_object(func, arg, non_null_returns) {
+                objects.insert(arg);
+            }
+        }
+    }
+    objects
+}
+
+/// Proves that `value` is a real memory object rather than the null default
+/// object: an allocation, an encoded byte string, a nonzero constant pointer, a
+/// cast marked `nonnull` by the lowering that allocated it, a call proved by
+/// `non_null_returns`, or a phi selecting among them.
+fn non_null_memory_object(
+    func: &Function,
+    value: ValueId,
+    non_null_returns: &DenseBitSet<FunctionId>,
+) -> bool {
+    let mut phis = FxHashSet::default();
+    let mut pending = vec![value];
+    while let Some(value) = pending.pop() {
+        let proved = match func.value(value) {
+            Value::Immediate(immediate) => {
+                immediate.as_u256().is_some_and(|value| !value.is_zero())
+            }
+            Value::Inst(inst) => match &func.inst(*inst).kind {
+                InstKind::Alloc { .. } | InstKind::AbiEncode { mode: AbiEncodeMode::Bytes, .. } => {
+                    true
+                }
+                &InstKind::MLoad(address) => {
+                    func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT)
+                        && func.inst(*inst).metadata.effect() == Some(EffectKind::MemoryWrite)
+                }
+                // Helpers synthesized after the proof have no entry and stay unproved.
+                InstKind::ICall { function: crate::mir::Callee::Function(function), .. } => {
+                    function.index() < non_null_returns.domain_size()
+                        && non_null_returns.contains(*function)
+                }
+                // A cast lowering marked as addressing its own allocation.
+                InstKind::IntToPtr(_) | InstKind::Bitcast(_) => func.inst(*inst).metadata.nonnull(),
+                // A phi selects one of its incoming values. A phi reached again
+                // adds none, which also settles loop-carried cycles.
+                InstKind::Phi(incoming) => {
+                    if phis.insert(value) {
+                        pending.extend(incoming.iter().map(|&(_, value)| value));
+                    }
+                    true
+                }
+                _ => false,
+            },
+            Value::Arg(_) | Value::Undef(_) | Value::Error(_) => false,
+        };
+        if !proved {
+            return false;
+        }
+    }
+    true
+}
+
 /// Proves that a successful exit returns one allocation owned by its caller.
 fn return_values_are_fresh(
     func: &Function,
@@ -613,28 +732,56 @@ fn return_values_are_fresh(
     fresh: &DenseBitSet<FunctionId>,
 ) -> bool {
     let [value] = values else { return false };
-    let Value::Inst(inst) = func.value(*value) else { return false };
-    match func.inst(*inst).kind {
+    returned_value_is_fresh(func, *value, fresh, 0)
+}
+
+/// A phi of fresh values is fresh to the caller: whichever allocation it
+/// selects was made by this call and is distinct from the caller's objects.
+fn returned_value_is_fresh(
+    func: &Function,
+    value: ValueId,
+    fresh: &DenseBitSet<FunctionId>,
+    depth: usize,
+) -> bool {
+    let Value::Inst(inst) = func.value(value) else { return false };
+    match &func.inst(*inst).kind {
         InstKind::Alloc { .. } => true,
-        InstKind::MLoad(address)
+        &InstKind::MLoad(address)
             if func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT)
                 && func.inst(*inst).metadata.effect() == Some(EffectKind::MemoryWrite) =>
         {
             true
         }
         InstKind::ICall { function: crate::mir::Callee::Function(function), .. } => {
-            fresh.contains(function)
+            fresh.contains(*function)
         }
+        InstKind::Phi(incoming) if depth < MAX_FRESH_PHI_DEPTH => incoming
+            .iter()
+            .all(|&(_, value)| returned_value_is_fresh(func, value, fresh, depth + 1)),
         _ => false,
     }
 }
 
+/// Bounds the phi nesting a freshness proof follows; loops fail it.
+const MAX_FRESH_PHI_DEPTH: usize = 4;
+
+/// A terminal return can encode a real memory object around its own storage:
+/// the words it overwrites below and past the object are never read again.
+/// Only the null default object has no word below it, so the proof it needs is
+/// that the object is real, not that it is fresh.
 fn can_encode_dynamic_return_in_place(
     func: &Function,
     layout: &AbiLayout,
     args: &[ValueId],
-    fresh_object_returns: &DenseBitSet<FunctionId>,
+    non_null_returns: &DenseBitSet<FunctionId>,
 ) -> bool {
+    if matches!(
+        &*layout.types,
+        [AbiType::Bytes(SliceLocation::Memory), AbiType::Bytes(SliceLocation::Memory)]
+    ) && adjacent_bounded_bytes_pair_base(func, args).is_some()
+    {
+        return true;
+    }
     let [object] = args else { return false };
     let kind = match &*layout.types {
         [AbiType::DynamicArray { element, location: SliceLocation::Memory }]
@@ -646,18 +793,25 @@ fn can_encode_dynamic_return_in_place(
         _ => return false,
     };
     func.value_ty(*object) == Some(MirType::MemoryObject(kind))
-        && fresh_memory_object(func, *object, fresh_object_returns)
+        && non_null_memory_object(func, *object, non_null_returns)
+        && func.value_u256(*object).is_none_or(|address| address >= U256::from(32))
 }
 
-/// Encodes a one-element dynamic tuple over the returned object's storage.
+/// Encodes a one-element dynamic tuple around the returned object's storage:
+/// the offset goes in the word below the object and the payload stays where it
+/// is. Only a terminal return reads memory after the encode, so the word below,
+/// whatever it held, is free to overwrite.
 fn encode_dynamic_return_in_place(
     builder: &mut FunctionBuilder<'_>,
     layout: &AbiLayout,
     args: &[ValueId],
-    fresh_object_returns: &DenseBitSet<FunctionId>,
+    non_null_returns: &DenseBitSet<FunctionId>,
 ) -> Option<ValueId> {
-    if !can_encode_dynamic_return_in_place(builder.func(), layout, args, fresh_object_returns) {
+    if !can_encode_dynamic_return_in_place(builder.func(), layout, args, non_null_returns) {
         return None;
+    }
+    if let Some(base) = adjacent_bounded_bytes_pair_base(builder.func(), args) {
+        return Some(encode_bounded_bytes_pair_in_place(builder, args, base));
     }
     let [object] = args else { unreachable!() };
 
@@ -666,8 +820,7 @@ fn encode_dynamic_return_in_place(
         [AbiType::Bytes(_)] => MemoryObjectKind::Bytes,
         _ => unreachable!(),
     };
-    let length = memory_object_len(builder, *object, kind);
-    let source = builder.memory_object_data(*object, kind);
+    let length = memory_object_len(builder, *object, kind, true);
     let bytes = if kind == MemoryObjectKind::DynamicArray {
         let five = builder.imm(5);
         builder.shl(five, length)
@@ -677,38 +830,192 @@ fn encode_dynamic_return_in_place(
         let mask = builder.not(thirty_one);
         let padded = builder.and(rounded, mask);
         // object: [length, bytes..., padding]
-        // => [32, length, bytes..., zero padding]
-        let last = builder.add(source, padded);
+        // => [length, bytes..., zero padding]
+        let source = builder.memory_object_data(*object, kind);
+        let end = builder.add(source, length);
         let zero = builder.imm(0);
-        builder.mstore(last, zero);
+        builder.mstore(end, zero);
         padded
     };
 
-    // object: [length, payload...]
-    // => [32, length, payload...]
-    let destination = builder.add_u64_offset(source, 32);
-    let copy_size = if kind == MemoryObjectKind::Bytes { length } else { bytes };
-    builder.mcopy(destination, source, copy_size);
-    let offset = builder.imm(32);
-    builder.mstore(*object, offset);
-    builder.mstore(source, length);
+    // The word below the object only needs to hold the offset until the
+    // return reads it, since nothing runs after the encode.
+    // object - 32: [32, length, payload...]
+    let base = builder.cast(*object, MirType::I256);
+    let word = builder.imm(32);
+    let head = builder.sub(base, word);
+    builder.mstore(head, word);
     let total = builder.add_u64_offset(bytes, 64);
-    Some(builder.make_slice(*object, total, SliceLocation::Memory))
+    Some(builder.make_slice(head, total, SliceLocation::Memory))
 }
 
-fn fresh_memory_object(
-    func: &Function,
-    value: ValueId,
-    fresh_object_returns: &DenseBitSet<FunctionId>,
-) -> bool {
-    let Value::Inst(inst) = func.value(value) else { return false };
-    match func.inst(*inst).kind {
-        InstKind::Alloc { kind: AllocationKind::Object(_), .. } => true,
-        InstKind::ICall { function: crate::mir::Callee::Function(function), .. } => {
-            fresh_object_returns.contains(function)
+/// Returns the shared base of two adjacent two-word byte objects.
+///
+/// This is the compact layout produced for bounded short-string unpacking:
+/// one exact four-word allocation, with object headers at offsets zero and 64.
+fn adjacent_bounded_bytes_pair_base(func: &Function, args: &[ValueId]) -> Option<ValueId> {
+    let [a, b] = args else { return None };
+    if func.value_ty(*a) != Some(MirType::MemoryObject(MemoryObjectKind::Bytes))
+        || func.value_ty(*b) != Some(MirType::MemoryObject(MemoryObjectKind::Bytes))
+        || !has_bounded_object_length(func, *a, 32)
+        || !has_bounded_object_length(func, *b, 32)
+    {
+        return None;
+    }
+    let base = object_pointer_source(func, *a)?;
+    let b_ptr = object_pointer_source(func, *b)?;
+    let Value::Inst(allocation) = func.value(base) else { return None };
+    let InstKind::Alloc { size, kind: AllocationKind::Raw, .. } = func.inst(*allocation).kind
+    else {
+        return None;
+    };
+    if func.value_u64(size) != Some(128) {
+        return None;
+    }
+    let Value::Inst(add) = func.value(b_ptr) else { return None };
+    let InstKind::Add(lhs, rhs) = func.inst(*add).kind else { return None };
+    ((same_pointer_base(func, lhs, base) && func.value_u64(rhs) == Some(64))
+        || (same_pointer_base(func, rhs, base) && func.value_u64(lhs) == Some(64)))
+    .then_some(base)
+}
+
+/// Whether scalar/pointer casts still name the same allocation base.
+fn same_pointer_base(func: &Function, value: ValueId, base: ValueId) -> bool {
+    if value == base {
+        return true;
+    }
+    let Value::Inst(cast) = func.value(value) else { return false };
+    match func.inst(*cast).kind {
+        InstKind::PtrToInt(source, _) | InstKind::IntToPtr(source) | InstKind::Bitcast(source) => {
+            same_pointer_base(func, source, base)
         }
         _ => false,
     }
+}
+
+/// Proves that the object's sole logical-length write is within `limit`.
+fn has_bounded_object_length(func: &Function, object: ValueId, limit: u64) -> bool {
+    let mut lengths = func.instructions().filter_map(|inst| match func.inst(inst).kind {
+        InstKind::SetMemoryObjectLen(value, length, MemoryObjectKind::Bytes) if value == object => {
+            Some(length)
+        }
+        _ => None,
+    });
+    let Some(length) = lengths.next() else { return false };
+    lengths.next().is_none() && bounded_value_max(func, length, 12).is_some_and(|max| max <= limit)
+}
+
+/// Computes a conservative maximum for the small expressions used as object lengths.
+fn bounded_value_max(func: &Function, value: ValueId, depth: usize) -> Option<u64> {
+    if let Some(value) = func.value_u64(value) {
+        return Some(value);
+    }
+    let depth = depth.checked_sub(1)?;
+    let Value::Inst(inst) = func.value(value) else { return None };
+    match func.inst(*inst).kind {
+        InstKind::Byte(..) => Some(u8::MAX.into()),
+        InstKind::Zext(source) | InstKind::Bitcast(source) => {
+            bounded_value_max(func, source, depth)
+        }
+        InstKind::Trunc(_, bits) if (1..=64).contains(&bits) => Some(u64::MAX >> (64 - bits)),
+        InstKind::And(a, b) => match (func.value_u64(a), func.value_u64(b)) {
+            (Some(mask), None) => bounded_value_max(func, b, depth).map(|max| max.min(mask)),
+            (None, Some(mask)) => bounded_value_max(func, a, depth).map(|max| max.min(mask)),
+            _ => None,
+        },
+        InstKind::Sub(a, b) => {
+            let a = bounded_value_max(func, a, depth)?;
+            (bounded_value_max(func, b, depth)? <= a).then_some(a)
+        }
+        InstKind::Select(condition, then_value, else_value) => {
+            if let Some(limit) = clamped_max(func, condition, then_value, else_value, depth) {
+                return Some(limit);
+            }
+            Some(
+                bounded_value_max(func, then_value, depth)?
+                    .max(bounded_value_max(func, else_value, depth)?),
+            )
+        }
+        _ => None,
+    }
+}
+
+/// Recognizes `select(value > limit, limit, value)` and its `lt` spelling.
+fn clamped_max(
+    func: &Function,
+    condition: ValueId,
+    then_value: ValueId,
+    else_value: ValueId,
+    depth: usize,
+) -> Option<u64> {
+    let Value::Inst(inst) = func.value(condition) else { return None };
+    let (value, limit) = match func.inst(*inst).kind {
+        InstKind::Gt(value, limit) | InstKind::Lt(limit, value) => (value, limit),
+        _ => return None,
+    };
+    if then_value != limit || else_value != value {
+        return None;
+    }
+    bounded_value_max(func, limit, depth)
+}
+
+/// Strips the pointer-to-object cast emitted by `memory_object_from_ptr`.
+fn object_pointer_source(func: &Function, object: ValueId) -> Option<ValueId> {
+    let Value::Inst(cast) = func.value(object) else { return None };
+    match func.inst(*cast).kind {
+        InstKind::Bitcast(pointer) | InstKind::IntToPtr(pointer) => Some(pointer),
+        _ => None,
+    }
+}
+
+/// Encodes two adjacent byte objects over their source allocation.
+fn encode_bounded_bytes_pair_in_place(
+    builder: &mut FunctionBuilder<'_>,
+    args: &[ValueId],
+    base: ValueId,
+) -> ValueId {
+    let [a, b] = args else { unreachable!() };
+    let bytes = MemoryObjectKind::Bytes;
+
+    // Read everything before the ABI heads and first tail overwrite the source.
+    let a_length = builder.memory_object_len(*a, bytes);
+    let a_source = builder.memory_object_data(*a, bytes);
+    let a_word = builder.mload(a_source);
+    let b_length = builder.memory_object_len(*b, bytes);
+    let b_source = builder.memory_object_data(*b, bytes);
+    let b_word = builder.mload(b_source);
+
+    let thirty_one = builder.imm(31);
+    let word_mask = builder.not(thirty_one);
+    let a_rounded = builder.add(a_length, thirty_one);
+    let a_padded = builder.and(a_rounded, word_mask);
+    let b_rounded = builder.add(b_length, thirty_one);
+    let b_padded = builder.and(b_rounded, word_mask);
+
+    let first_offset = builder.imm(64);
+    let first_tail = builder.add(base, first_offset);
+    let first_data = builder.add_u64_offset(first_tail, 32);
+    let first_end = builder.add_u64_offset(first_tail, 32);
+    let second_tail = builder.add(first_end, a_padded);
+    let second_offset = builder.sub(second_tail, base);
+    let second_data = builder.add_u64_offset(second_tail, 32);
+
+    builder.mstore(base, first_offset);
+    let second_head = builder.add_u64_offset(base, 32);
+    builder.mstore(second_head, second_offset);
+    builder.mstore(first_tail, a_length);
+    builder.mstore(first_data, a_word);
+    let zero = builder.imm(0);
+    let first_padding = builder.add(first_data, a_length);
+    builder.mstore(first_padding, zero);
+    builder.mstore(second_tail, b_length);
+    builder.mstore(second_data, b_word);
+    let second_padding = builder.add(second_data, b_length);
+    builder.mstore(second_padding, zero);
+
+    let end = builder.add(second_data, b_padded);
+    let total = builder.sub(end, base);
+    builder.make_slice(base, total, SliceLocation::Memory)
 }
 
 fn fold_slice_projections(func: &Function, replacements: &mut FxHashMap<ValueId, ValueId>) {
@@ -1217,10 +1524,16 @@ fn encode_dynamic_body(
     helpers: &EncodeHelpers,
 ) -> ValueId {
     if let Some(location) = encoded_view_location(builder.func(), ty, value) {
+        // A view's layout names the location it reads. A calldata array under a memory layout
+        // is an external function's returned input instead, which only its top-level decode
+        // checked.
+        let checked = location == SliceLocation::Calldata
+            && matches!(ty, AbiType::DynamicArray { location: SliceLocation::Memory, .. });
+        let input = EncodedInput { location, checked };
         // tail = encode_encoded(ty, value.ptr, value.len)
         let data = builder.slice_ptr(value);
         let len = builder.slice_len(value);
-        return encode_encoded(builder, ty, data, len, dest, location, helpers);
+        return encode_encoded(builder, ty, data, len, dest, input, helpers);
     }
     match ty {
         AbiType::Bytes(location) => {
@@ -1231,6 +1544,7 @@ fn encode_dynamic_body(
                 dest,
                 location,
                 helpers.literal_objects.contains(&value),
+                helpers.non_null_objects.contains(&value),
                 helpers.branchless_byte_tails,
             )
         }
@@ -1253,7 +1567,8 @@ fn encode_dynamic_body(
                 _ => None,
             };
             if let Some(cleanup) = word_cleanup {
-                return encode_word_array(builder, value, dest, location, cleanup);
+                let non_null = helpers.non_null_objects.contains(&value);
+                return encode_word_array(builder, value, dest, location, cleanup, non_null);
             }
             match location {
                 SliceLocation::Calldata => {
@@ -1303,13 +1618,23 @@ fn encode_dynamic_body(
     }
 }
 
+/// Where [`encode_encoded`] reads an ABI encoding, and whether it checks what it reads.
+#[derive(Clone, Copy)]
+struct EncodedInput {
+    location: SliceLocation,
+    /// Calldata that only its top-level decode checked: every tail and word below it is checked
+    /// as it is read, as solc's encoder checks calldata. A view's decode validated all of it.
+    checked: bool,
+}
+
 /// The location of the ABI encoding that `value`, the dynamic aggregate of type `ty`, is a
 /// `@custom:solar-view` of, when it is one, for [`encode_encoded`].
 ///
 /// A dynamic aggregate held in a memory or calldata slice is a view, except for a calldata
 /// argument that [`encode_dynamic_body`] encodes from its slice while checking its offsets and
-/// lengths against the calldata size: a dynamic array of words or of byte strings. Other calldata
-/// aggregates are copied to memory before an encoding takes them.
+/// lengths against the calldata size: a dynamic array of words or of byte strings. An encoding's
+/// other calldata arguments are copied to memory before it takes them, but an external function
+/// returns a calldata array as it arrived, which [`encode_encoded`] then reads as checked input.
 fn encoded_view_location(func: &Function, ty: &AbiType, value: ValueId) -> Option<SliceLocation> {
     if !ty.is_dynamic() || matches!(ty, AbiType::Bytes(_)) {
         return None;
@@ -1335,33 +1660,44 @@ fn encoded_view_location(func: &Function, ty: &AbiType, value: ValueId) -> Optio
 /// The decode that made the view validated every word of it, and nothing can change them while
 /// the view is read, so words are copied as they are, with no cleanup. The output is the
 /// canonical encoding the copying decode's objects would have: every value's tail follows the
-/// heads it belongs to in order, whatever offsets the input used.
+/// heads it belongs to in order, whatever offsets the input used. A calldata array that an
+/// external function returns reaches here as its input held it, with only its own span checked,
+/// so its `input` is checked: every tail and word below it is checked as it is read.
 fn encode_encoded(
     builder: &mut FunctionBuilder<'_>,
     ty: &AbiType,
     data: ValueId,
     len: ValueId,
     dest: ValueId,
-    location: SliceLocation,
+    input: EncodedInput,
     helpers: &EncodeHelpers,
 ) -> ValueId {
+    let location = input.location;
     match ty {
         AbiType::Bytes(_) => {
             // tail = encode_bytes(slice(data, len))
             let value = builder.make_slice(data, len, location);
-            encode_bytes(builder, value, dest, location, false, helpers.branchless_byte_tails)
+            encode_bytes(
+                builder,
+                value,
+                dest,
+                location,
+                false,
+                false,
+                helpers.branchless_byte_tails,
+            )
         }
         AbiType::DynamicArray { element, .. } => {
             // mstore dest, len
             // tail = encode_encoded_elements(element, data, len, dest + 32)
             builder.mstore(dest, len);
             let heads = offset_ptr(builder, dest, 32);
-            encode_encoded_elements(builder, element, data, len, heads, location, helpers)
+            encode_encoded_elements(builder, element, data, len, heads, input, helpers)
         }
         AbiType::FixedArray { element, len } => {
             // tail = encode_encoded_elements(element, data, len, dest)
             let count = builder.imm(*len);
-            encode_encoded_elements(builder, element, data, count, dest, location, helpers)
+            encode_encoded_elements(builder, element, data, count, dest, input, helpers)
         }
         AbiType::Tuple(fields) => {
             let head_size = fields.iter().map(AbiType::head_size).sum::<u64>();
@@ -1376,12 +1712,15 @@ fn encode_encoded(
                     let relative = builder.sub(tail, dest);
                     builder.mstore(head, relative);
                     let (field_data, field_len) =
-                        encoded_value(builder, field, data, source, location);
-                    tail = encode_encoded(
-                        builder, field, field_data, field_len, tail, location, helpers,
-                    );
+                        encoded_value(builder, field, data, source, input, helpers);
+                    tail =
+                        encode_encoded(builder, field, field_data, field_len, tail, input, helpers);
                 } else {
+                    // checked: validate_calldata_words(field at source)
                     // copy(head, source, head_size(field))
+                    if input.checked {
+                        validate_calldata_words(builder, field, source, helpers);
+                    }
                     let size = builder.imm(field.head_size());
                     builder.copy_slice_data(location, head, source, size);
                 }
@@ -1395,21 +1734,55 @@ fn encode_encoded(
 
 /// The slice, as [`encode_encoded`] takes it, of the dynamic value of type `ty` whose offset
 /// from `base` the head at `head` holds.
+///
+/// Checked input has its offset and length checked as solc checks a calldata tail access, as
+/// [`encode_calldata_bytes_array`] does, and reverts where solc's encoder reverts.
 fn encoded_value(
     builder: &mut FunctionBuilder<'_>,
     ty: &AbiType,
     base: ValueId,
     head: ValueId,
-    location: SliceLocation,
+    input: EncodedInput,
+    helpers: &EncodeHelpers,
 ) -> (ValueId, ValueId) {
     // position = base + load(head)
-    let offset = load_slice_word(builder, head, location);
+    let offset = load_slice_word(builder, head, input.location);
+    if input.checked {
+        // revert InvalidCalldataAccessOffset
+        //   unless slt(offset, calldatasize - base - (first_size - 1))
+        // The value's first word, or all the heads of a tuple's fields or a fixed array's
+        // elements, must lie inside calldata.
+        let first_size = ty.tail_size();
+        let calldata_size = builder.calldatasize();
+        let available = builder.sub(calldata_size, base);
+        let slack = builder.imm(first_size.saturating_sub(1));
+        let bound = builder.sub(available, slack);
+        let valid_offset = builder.slt(offset, bound);
+        let invalid_offset = builder.eq_zero(valid_offset);
+        builder.revert_if(invalid_offset, RevertReason::InvalidCalldataAccessOffset);
+    }
     let position = builder.add(base, offset);
     match ty {
         AbiType::Bytes(_) | AbiType::DynamicArray { .. } => {
             // slice = (position + 32, load(position))
-            let len = load_slice_word(builder, position, location);
+            let len = load_slice_word(builder, position, input.location);
             let data = offset_ptr(builder, position, 32);
+            if input.checked {
+                // revert InvalidCalldataAccessLength if len >= 2**64
+                // revert InvalidCalldataAccessStride if sgt(data, calldatasize - len * stride)
+                let invalid_length = builder.exceeds_bits(len, 64, helpers.has_bitwise_shifting);
+                builder.revert_if(invalid_length, RevertReason::InvalidCalldataAccessLength);
+                let stride = match ty {
+                    AbiType::DynamicArray { element, .. } => element.head_size(),
+                    _ => 1,
+                };
+                let stride = builder.imm(stride);
+                let bytes = builder.mul(len, stride);
+                let calldata_size = builder.calldatasize();
+                let limit = builder.sub(calldata_size, bytes);
+                let short_tail = builder.sgt(data, limit);
+                builder.revert_if(short_tail, RevertReason::InvalidCalldataAccessStride);
+            }
             (data, len)
         }
         _ => {
@@ -1428,14 +1801,24 @@ fn encode_encoded_elements(
     heads: ValueId,
     count: ValueId,
     dest: ValueId,
-    location: SliceLocation,
+    input: EncodedInput,
     helpers: &EncodeHelpers,
 ) -> ValueId {
+    let location = input.location;
     let head_size = builder.imm(element.head_size());
     let bytes = builder.mul(count, head_size);
     let end = builder.add(dest, bytes);
     if !element.is_dynamic() {
+        // checked: for index in 0..count:
+        //   validate_calldata_words(element at heads + index * head_size)
         // copy(dest, heads, count * head_size)
+        if input.checked && has_word_validators(element) {
+            builder.counted_loop(count, |builder, index| {
+                let offset = builder.mul(index, head_size);
+                let source = builder.add(heads, offset);
+                validate_calldata_words(builder, element, source, helpers);
+            });
+        }
         builder.copy_slice_data(location, dest, heads, bytes);
         return end;
     }
@@ -1466,9 +1849,10 @@ fn encode_encoded_elements(
     builder.switch_to_block(body);
     let relative = builder.sub(tail, dest);
     builder.mstore(head, relative);
-    let (element_data, element_len) = encoded_value(builder, element, heads, source, location);
+    let (element_data, element_len) =
+        encoded_value(builder, element, heads, source, input, helpers);
     let next_tail =
-        encode_encoded(builder, element, element_data, element_len, tail, location, helpers);
+        encode_encoded(builder, element, element_data, element_len, tail, input, helpers);
     let one = builder.imm(1);
     let next_remaining = builder.sub(remaining, one);
     let next_source = offset_ptr(builder, source, 32);
@@ -1482,6 +1866,65 @@ fn encode_encoded_elements(
 
     builder.switch_to_block(done);
     tail
+}
+
+/// Reverts unless every word of the static value of type `ty` at `source` in calldata is
+/// canonical, as solc's encoder checks each calldata word it reads, for checked input.
+fn validate_calldata_words(
+    builder: &mut FunctionBuilder<'_>,
+    ty: &AbiType,
+    source: ValueId,
+    helpers: &EncodeHelpers,
+) {
+    match ty {
+        AbiType::Word(None) => {}
+        AbiType::Word(Some(_)) | AbiType::Function => {
+            // revert unless canonical(calldataload source)
+            let validator = match ty {
+                AbiType::Word(Some(validator)) => *validator,
+                _ => AbiWordValidator::from_layout(crate::mir::ValueLayout::Function)
+                    .expect("function words have a validator"),
+            };
+            let word = builder.calldataload(source);
+            let valid = validator.condition(builder, word, helpers.has_bitwise_shifting);
+            builder.revert_if_zero(valid, RevertReason::Empty);
+        }
+        AbiType::FixedArray { element, len } => {
+            if !has_word_validators(element) {
+                return;
+            }
+            // for index in 0..len: validate_calldata_words(element at source + index * size)
+            let count = builder.imm(*len);
+            let stride = builder.imm(element.head_size());
+            builder.counted_loop(count, |builder, index| {
+                let offset = builder.mul(index, stride);
+                let element_source = builder.add(source, offset);
+                validate_calldata_words(builder, element, element_source, helpers);
+            });
+        }
+        AbiType::Tuple(fields) => {
+            let mut offset = 0;
+            for field in fields {
+                let field_source = offset_ptr(builder, source, offset);
+                validate_calldata_words(builder, field, field_source, helpers);
+                offset += field.head_size();
+            }
+        }
+        AbiType::Bytes(_) | AbiType::DynamicArray { .. } => {
+            unreachable!("a static ABI value holds no dynamic parts")
+        }
+    }
+}
+
+/// Whether the static ABI type `ty` holds a word that must be canonical.
+fn has_word_validators(ty: &AbiType) -> bool {
+    match ty {
+        AbiType::Word(validator) => validator.is_some(),
+        AbiType::Function => true,
+        AbiType::FixedArray { element, .. } => has_word_validators(element),
+        AbiType::Tuple(fields) => fields.iter().any(has_word_validators),
+        AbiType::Bytes(_) | AbiType::DynamicArray { .. } => false,
+    }
 }
 
 fn effective_slice_location(
@@ -1522,9 +1965,14 @@ fn encode_memory_array(
             None,
             helpers,
         ),
-        cleanup => {
-            encode_word_array(builder, value, dest, SliceLocation::Memory, cleanup.flatten())
-        }
+        cleanup => encode_word_array(
+            builder,
+            value,
+            dest,
+            SliceLocation::Memory,
+            cleanup.flatten(),
+            helpers.non_null_objects.contains(&value),
+        ),
     }
 }
 
@@ -1539,7 +1987,8 @@ fn encode_memory_array_elements(
 ) -> ValueId {
     let (len, element_area) = match layout {
         MemoryObjectLayout::DynamicArray { .. } => {
-            let len = memory_object_len(builder, value, MemoryObjectKind::DynamicArray);
+            let non_null = helpers.non_null_objects.contains(&value);
+            let len = memory_object_len(builder, value, MemoryObjectKind::DynamicArray, non_null);
             builder.mstore(dest, len);
             let word = builder.imm(32);
             (len, builder.add(dest, word))
@@ -1644,8 +2093,7 @@ fn encode_calldata_bytes_array(
     builder.revert_if(invalid_offset, RevertReason::InvalidCalldataAccessOffset);
     let element_base = builder.add(source_base, offset);
     let length = builder.calldataload(element_base);
-    let max_length = builder.imm(u64::MAX);
-    let invalid_length = builder.gt(length, max_length);
+    let invalid_length = builder.exceeds_bits(length, 64, helpers.has_bitwise_shifting);
     builder.revert_if(invalid_length, RevertReason::InvalidCalldataAccessLength);
     let data = builder.add(element_base, word);
     let limit = builder.sub(calldata_size, length);
@@ -1682,9 +2130,12 @@ fn encode_word_array(
     dest: ValueId,
     location: SliceLocation,
     cleanup: Option<AbiWordValidator>,
+    non_null: bool,
 ) -> ValueId {
     let len = match location {
-        SliceLocation::Memory => memory_object_len(builder, value, MemoryObjectKind::DynamicArray),
+        SliceLocation::Memory => {
+            memory_object_len(builder, value, MemoryObjectKind::DynamicArray, non_null)
+        }
         SliceLocation::Calldata | SliceLocation::Returndata => builder.slice_len(value),
     };
     builder.mstore(dest, len);
@@ -1758,6 +2209,7 @@ fn encode_bytes(
     dest: ValueId,
     location: SliceLocation,
     literal_folding: bool,
+    non_null: bool,
     branchless_padding: bool,
 ) -> ValueId {
     if literal_folding
@@ -1784,7 +2236,7 @@ fn encode_bytes(
     let len = if slice {
         builder.slice_len(value)
     } else {
-        memory_object_len(builder, value, MemoryObjectKind::Bytes)
+        memory_object_len(builder, value, MemoryObjectKind::Bytes, non_null)
     };
     if !branchless_padding {
         // mstore dest, len
@@ -1831,16 +2283,24 @@ fn encode_bytes(
     tail
 }
 
+/// Reads a memory object's length, as zero for the null default object unless
+/// `non_null` proves the object real.
 fn memory_object_len(
     builder: &mut FunctionBuilder<'_>,
     value: ValueId,
     kind: MemoryObjectKind,
+    non_null: bool,
 ) -> ValueId {
     if builder.func().value_slice_location(value).is_some() {
         // len = slice_len value
         return builder.slice_len(value);
     }
     let len = builder.memory_object_len(value, kind);
+    if non_null {
+        // len = memory_object_len value
+        return len;
+    }
+    // len = memory_object_len value * (value != 0)
     let non_null = memory_object_non_null(builder, value);
     builder.mul(len, non_null)
 }

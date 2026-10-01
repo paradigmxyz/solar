@@ -57,27 +57,27 @@ fn @join() -> struct1 [selector=0xb688a363, pure, abi_params=[], abi_returns=[wo
     v2 = extract_value struct0, v0, 1
     jump bb1
   bb1:
-    v3 = phi [bb0: v2], [bb3: v3]
-    v4 = phi [bb0: memorybytes 96], [bb3: v19]
+    v3 = phi [bb0: 0], [bb3: v3]
+    v4 = phi [bb0: v2], [bb3: v4]
     v5 = phi [bb0: v1], [bb3: v5]
-    v6 = phi [bb0: 0], [bb3: v20]
-    v7 = phi [bb0: 0], [bb3: v7]
+    v6 = phi [bb0: memorybytes 96], [bb3: v19]
+    v7 = phi [bb0: 0], [bb3: v20]
     v8 = memory_object_len memoryarray, v5
-    v9 = lt v6, v8
+    v9 = lt v7, v8
     jumpi v9, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    v21 = keccak256_bytes v4
+    v21 = keccak256_bytes v6
     v22 = insert_value struct1, undef struct1, 0, v21
-    v23 = insert_value struct1, v22, 1, v3
+    v23 = insert_value struct1, v22, 1, v4
     ret v23
   bb4:
     v10 = memory_object_len memoryarray, v5
-    v11 = lt v6, v10
+    v11 = lt v7, v10
     v12 = eq v11, false
     icall panic_if<0x32>, v12
-    v13 = memory_object_load_element memoryarray<1>, v5, v6
+    v13 = memory_object_load_element memoryarray<1>, v5, v7
     v14 = inttoptr i256 v13 to memorybytes
     v15 = eq v13, 0
     jumpi v15, bb7, bb8
@@ -85,15 +85,15 @@ fn @join() -> struct1 [selector=0xb688a363, pure, abi_params=[], abi_returns=[wo
     v16 = alloc memorybytes, exact, uninitialized, infallible, 32
     set_memory_object_len memorybytes, v16, 0
     v17 = ptrtoint memorybytes v16 to i256
-    memory_object_store_element memoryarray<1>, v5, v6, v17
+    memory_object_store_element memoryarray<1>, v5, v7, v17
     jump bb8
   bb8:
     v18 = phi [bb4: v14], [bb7: v16]
-    v19 = icall concat<memorybytes, memorybytes>, v4, v18
+    v19 = icall concat<memorybytes, memorybytes>, v6, v18
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v20 = checked_add u256, v6, 1
+    v20 = checked_add u256, v7, 1
     jump bb1
 }

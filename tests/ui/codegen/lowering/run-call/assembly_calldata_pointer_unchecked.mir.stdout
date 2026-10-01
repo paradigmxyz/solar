@@ -1,0 +1,195 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/assembly_calldata_pointer_unchecked.sol:AssemblyCalldataPointerUnchecked ===
+@module AssemblyCalldataPointerUnchecked
+fn @b() -> calldataslice [inline_assembly, pure] {
+  bb0:
+    v0 = make_calldata_slice 0, 0
+    v1 = slice_ptr v0
+    v2 = slice_len v0
+    v3 = make_calldata_slice 4, v2
+    v4 = slice_ptr v3
+    v5 = slice_len v3
+    v6 = make_calldata_slice v4, 64
+    ret v6
+}
+
+fn @words(arg0: i256) -> calldataslice [inline_assembly, pure] {
+  bb0:
+    v0 = make_calldata_slice 0, 0
+    v1 = slice_ptr v0
+    v2 = slice_len v0
+    v3 = make_calldata_slice 4, v2
+    v4 = slice_ptr v3
+    v5 = slice_len v3
+    v6 = make_calldata_slice v4, arg0
+    ret v6
+}
+
+fn @sink(arg0: calldataslice) -> i256 [selector=0xa49cb33b, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = slice_len arg0
+    ret v0
+}
+
+fn @hashIt() -> i256 [selector=0x6f37ecea, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = icall @b
+    v1 = slice_ptr v0
+    v2 = slice_len v0
+    v3 = gt v2, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v3
+    v4 = calldatasize
+    v5 = sub v4, v2
+    v6 = sgt v1, v5
+    icall revert_if<calldata_tail_too_short>, v6
+    v7 = slice_ptr v0
+    v8 = slice_len v0
+    v9 = fmp
+    v10 = ptrtoint memptr v9 to i256
+    calldatacopy v10, v7, v8 !metadata(memory=heap)
+    v11 = ptrtoint memptr v9 to i256
+    v12 = keccak256 v11, v8
+    ret v12
+}
+
+fn @copyIt() -> memorybytes [selector=0x531102fd, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = icall @b
+    v1 = slice_len v0
+    v2 = add v1, 63
+    v3 = lt v2, v1
+    icall panic_if<0x41>, v3
+    v4 = not 31
+    v5 = and v2, v4
+    v6 = alloc memorybytes, exact, uninitialized, infallible, v5
+    set_memory_object_len memorybytes, v6, v1
+    v7 = slice_ptr v0
+    v8 = slice_len v0
+    v9 = gt v8, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v9
+    v10 = calldatasize
+    v11 = sub v10, v8
+    v12 = sgt v7, v11
+    icall revert_if<calldata_tail_too_short>, v12
+    memory_object_copy_from_slice memorybytes, v6, v0
+    ret v6
+}
+
+fn @encodeIt() -> memorybytes [selector=0xba83eae4, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = icall @b
+    v1 = abi_encode [calldata_bytes], object, args v0
+    ret v1
+}
+
+fn @packIt() -> memorybytes [selector=0x3ba102e0, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = icall @b
+    v1 = icall @words, 2
+    v2 = slice_len v1
+    v3 = mul v2, 32
+    v4 = eq 32, 0
+    v5 = div v3, 32
+    v6 = eq v5, v2
+    v7 = or v4, v6
+    v8 = zext i1 v7 to i256
+    v9 = eq v8, 0
+    icall panic_if<0x41>, v9
+    v10 = abi_encode_packed (bytes v0, array<word> calldata v1)
+    ret v10
+}
+
+fn @concatIt() -> memorybytes [selector=0xe95a0beb, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = icall @b
+    v1 = icall concat<calldataslice, bytes1>, v0, 0x100000000000000000000000000000000000000000000000000000000000000
+    ret v1
+}
+
+fn @shaIt() -> i256 [selector=0x43234fee, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = icall @b
+    v1 = slice_ptr v0
+    v2 = slice_len v0
+    v3 = fmp
+    v4 = ptrtoint memptr v3 to i256
+    calldatacopy v4, v1, v2 !metadata(memory=heap)
+    v5 = ptrtoint memptr v3 to i256
+    v6 = gas
+    v7 = staticcall v6, 2, v5, v2, 0, 32
+    jumpi v7, bb1, bb2
+  bb2:
+    revert_returndata
+  bb1:
+    v8 = mload 0 !metadata(memory=scratch)
+    ret v8
+}
+
+fn @decodeIt() -> i256 [selector=0xd2549072, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = icall @b
+    v1 = abi_decode [u256], v0
+    ret v1
+}
+
+fn @eventIt() [selector=0x3af46c3b, abi_params=[], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    v0 = icall @b
+    v1 = abi_encode [calldata_bytes], args v0
+    v2 = slice_ptr v1
+    v3 = slice_len v1
+    log1 v2, v3, 0x1a948835e19c6a208bbb0d247d13c5cc94e0d0663badcbaba4abf920ae29e9b1
+    ret
+}
+
+fn @callIt() -> i256 [selector=0x83d6f579, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = address
+    v1 = gas
+    v2 = icall @b
+    v3 = slice_ptr v2
+    v4 = slice_len v2
+    v5 = gt 4, v4
+    v6 = lt 4, 1
+    v7 = or v5, v6
+    v8 = zext i1 v7 to i256
+    icall revert_if<empty>, v7
+    v9 = sub 4, 1
+    v10 = add v3, 1
+    v11 = make_calldata_slice v10, v9
+    v12 = abi_encode [calldata_bytes], selector 0xa49cb33b00000000000000000000000000000000000000000000000000000000, args v11
+    v13 = slice_ptr v12
+    v14 = slice_len v12
+    v15 = zext i160 v0 to i256
+    v16 = staticcall v1, v15, v13, v14, 0, 32
+    jumpi v16, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v17 = returndatasize
+    v18 = lt v17, 32
+    icall revert_if<tuple_data_too_short>, v18
+    v19 = add 0, 0
+    v20 = mload v19
+    v21 = add 0, 0
+    v22 = mload v21
+    ret v22
+}
+
+fn @hugeWords() -> i256 [selector=0x450b33f5, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = exp 2, 251
+    v1 = add v0, 1
+    v2 = icall @words, v1
+    v3 = slice_len v2
+    v4 = mul v3, 32
+    v5 = eq 32, 0
+    v6 = div v4, 32
+    v7 = eq v6, v3
+    v8 = or v5, v7
+    v9 = zext i1 v8 to i256
+    v10 = eq v9, 0
+    icall panic_if<0x41>, v10
+    v11 = abi_encode [calldata_array<word>], object, args v2
+    v12 = memory_object_len memorybytes, v11
+    ret v12
+}

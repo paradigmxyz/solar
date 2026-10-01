@@ -10,6 +10,14 @@
 //! fail after memory writes emit their payload in place, exposing those writes to dead-store
 //! elimination. Other failures retain shared helpers. Instructions after an unconditional
 //! failure move to an unreachable continuation.
+//!
+//! Revert payloads are never read after the revert, so none of them reserves memory. A custom
+//! error with at most three word arguments stages its selector and words in the reserved low
+//! memory like a panic (`mstore(0, selector)`, `mstore(32 * (i + 1), word)`, `revert(28, size)`):
+//! the words are already evaluated SSA values, so clobbering the scratch, free-memory-pointer, and
+//! zero slots cannot change the payload, and a payload that does not reach the free-memory
+//! pointer slot lets the entry skip initializing it. Other custom errors and error strings encode
+//! at the free-memory pointer without advancing it.
 
 use crate::mir::{
     AbiLayout, AbiType, Builtin, Callee, ERROR_SELECTOR, EffectKind, Function, FunctionBuilder,
@@ -19,6 +27,10 @@ use crate::mir::{
 use solar_config::{OptimizationMode, RevertStrings};
 use solar_interface::{Ident, sym};
 use std::sync::Arc;
+
+/// Word arguments of a custom error staged in scratch memory. The payload spans
+/// `[28, 32 * (words + 1))`, which stays below the heap start at `0x80`.
+const MAX_SCRATCH_ERROR_WORDS: usize = 3;
 
 pub(crate) struct LowerChecks;
 
@@ -190,22 +202,41 @@ fn emit_payload(
             builder.revert(zero, size);
         }
         RevertPayload::ErrorString(value) => {
-            // payload = abi_encode(Error.selector, value)
+            // payload = abi_encode_scratch(Error.selector, value)
             // revert(payload.ptr, payload.len)
             let selector = builder.imm(ERROR_SELECTOR);
             let layout = Arc::new(AbiLayout::new(
                 vec![AbiType::Bytes(SliceLocation::Memory)].into_boxed_slice(),
             ));
             let encoded =
-                builder.abi_encode(layout, Some(selector), vec![value].into_boxed_slice());
+                builder.abi_encode_scratch(layout, Some(selector), vec![value].into_boxed_slice());
             let pointer = builder.slice_ptr(encoded);
             let length = builder.slice_len(encoded);
             builder.revert(pointer, length);
         }
         RevertPayload::CustomError { selector, layout, values } => {
-            // payload = abi_encode(selector, values)
+            if let Some(selector) = builder.func().value_u256(selector)
+                && values.len() <= MAX_SCRATCH_ERROR_WORDS
+                && layout.types.iter().all(|ty| matches!(ty, AbiType::Word(_)))
+            {
+                // mstore(0, selector >> 224)
+                // mstore(32 * (i + 1), values[i])
+                // revert(28, 4 + 32 * values.len())
+                let selector = builder.imm(selector >> 224);
+                let zero = builder.imm(0);
+                builder.mstore(zero, selector);
+                for (index, &value) in values.iter().enumerate() {
+                    let offset = builder.imm(32 * (index as u64 + 1));
+                    builder.mstore(offset, value);
+                }
+                let offset = builder.imm(28);
+                let size = builder.imm(4 + 32 * values.len() as u64);
+                builder.revert(offset, size);
+                return;
+            }
+            // payload = abi_encode_scratch(selector, values)
             // revert(payload.ptr, payload.len)
-            let encoded = builder.abi_encode(layout, Some(selector), values);
+            let encoded = builder.abi_encode_scratch(layout, Some(selector), values);
             let pointer = builder.slice_ptr(encoded);
             let length = builder.slice_len(encoded);
             builder.revert(pointer, length);

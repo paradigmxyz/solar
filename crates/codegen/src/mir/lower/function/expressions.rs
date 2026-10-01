@@ -291,7 +291,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.shl(shift, value)
     }
 
-    pub(super) fn peel_bytes_conversion<'b>(&self, expr: &'b hir::Expr<'b>) -> &'b hir::Expr<'b> {
+    /// Peels `bytes(...)` and `string(...)` conversions and the names of `bytes` and `string`
+    /// constants from `expr`, so a literal they carry is seen as that literal.
+    pub(super) fn peel_bytes_conversion<'b>(&self, expr: &'b hir::Expr<'b>) -> &'b hir::Expr<'b>
+    where
+        'gcx: 'b,
+    {
+        let gcx = self.cx.gcx;
         let mut expr = expr;
         loop {
             expr = expr.peel_parens();
@@ -304,6 +310,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 && let hir::CallArgsKind::Unnamed([inner]) = args.kind
             {
                 expr = inner;
+            } else if matches!(expr.kind, ExprKind::Ident(_) | ExprKind::Member(..))
+                && let Some(id) = gcx.resolved_variable(expr)
+                && let variable = gcx.hir.variable(id)
+                && variable.is_constant()
+                && let Some(initializer) = variable.initializer
+                && self.is_dynamic_bytes_type(gcx.type_of_item(id.into()))
+            {
+                // A `bytes` or `string` constant is its initializer.
+                expr = initializer;
             } else {
                 return expr;
             }

@@ -1,0 +1,299 @@
+- // === ROOT/tests/ui/codegen/mir/lower-abi-encode/non_null_objects.mir (before lower-abi-encode) ===
++ // === ROOT/tests/ui/codegen/mir/lower-abi-encode/non_null_objects.mir (after lower-abi-encode) ===
+  @module NonNullObjects
+  fn @default_or_fresh(arg0: i256) -> memorybytes {
+    bb0:
+      v0 = ne arg0, 0
+      jumpi v0, bb1, bb2
+    bb2:
+      ret memorybytes 96
+    bb1:
+      v1 = alloc memorybytes, exact, uninitialized, infallible, 64
+      set_memory_object_len memorybytes, v1, 32
+      ret v1
+  }
+  
+  fn @encode_default_or_fresh(arg0: i256) -> memoryslice {
+    bb0:
+      v0 = icall @default_or_fresh, arg0
+-     v1 = abi_encode [memory_bytes], args v0
+-     ret v1
++     v2 = fmp
++     v3 = ptrtoint memptr v2 to i256
++     v4 = add v3, 32
++     v5 = ptrtoint memptr v2 to i256
++     v6 = sub v4, v5
++     v7 = ptrtoint memptr v2 to i256
++     mstore v7, v6
++     v8 = memory_object_len memorybytes, v0
++     v9 = not 31
++     v10 = add v8, 31
++     v11 = and v10, v9
++     v12 = add v4, 32
++     v13 = add v4, v11
++     mstore v13, 0
++     mstore v4, v8
++     v14 = memory_object_data memorybytes, v0
++     v15 = add v12, v11
++     v16 = ptrtoint memptr v14 to i256
++     mcopy v12, v16, v8 !metadata(memory=heap)
++     v17 = ptrtoint memptr v2 to i256
++     v18 = sub v15, v17
++     v19 = add v18, 0
++     v20 = add v19, 31
++     v21 = not 31
++     v22 = and v20, v21
++     v23 = alloc raw, exact, uninitialized, infallible, v22 !metadata(preserves_fmp)
++     v24 = ptrtoint memptr v23 to i256
++     v25 = make_memory_slice v24, v19
++     ret v25
+  }
+  
+  fn @loop_carried(arg0: i256) -> memorybytes {
+    bb0:
+      jump bb1
+    bb1:
+      v0 = phi [bb0: memorybytes 96], [bb2: v3]
+      v1 = phi [bb0: arg0], [bb2: v4]
+      v2 = ne v1, 0
+      jumpi v2, bb2, bb3
+    bb3:
+      ret v0
+    bb2:
+      v3 = alloc memorybytes, exact, uninitialized, infallible, 32
+      set_memory_object_len memorybytes, v3, 0
+      v4 = sub v1, 1
+      jump bb1
+  }
+  
+  fn @encode_loop_carried(arg0: i256) -> memoryslice {
+    bb0:
+      v0 = icall @loop_carried, arg0
+-     v1 = abi_encode [memory_bytes], args v0
+-     ret v1
++     v2 = fmp
++     v3 = ptrtoint memptr v2 to i256
++     v4 = add v3, 32
++     v5 = ptrtoint memptr v2 to i256
++     v6 = sub v4, v5
++     v7 = ptrtoint memptr v2 to i256
++     mstore v7, v6
++     v8 = memory_object_len memorybytes, v0
++     v9 = not 31
++     v10 = add v8, 31
++     v11 = and v10, v9
++     v12 = add v4, 32
++     v13 = add v4, v11
++     mstore v13, 0
++     mstore v4, v8
++     v14 = memory_object_data memorybytes, v0
++     v15 = add v12, v11
++     v16 = ptrtoint memptr v14 to i256
++     mcopy v12, v16, v8 !metadata(memory=heap)
++     v17 = ptrtoint memptr v2 to i256
++     v18 = sub v15, v17
++     v19 = add v18, 0
++     v20 = add v19, 31
++     v21 = not 31
++     v22 = and v20, v21
++     v23 = alloc raw, exact, uninitialized, infallible, v22 !metadata(preserves_fmp)
++     v24 = ptrtoint memptr v23 to i256
++     v25 = make_memory_slice v24, v19
++     ret v25
+  }
+  
+  fn @forward(arg0: memorybytes) -> memorybytes {
+    bb0:
+      ret arg0
+  }
+  
+  fn @encode_forwarded(arg0: memorybytes) -> memoryslice {
+    bb0:
+      v0 = icall @forward, arg0
+-     v1 = abi_encode [memory_bytes], args v0
+-     ret v1
++     v2 = fmp
++     v3 = ptrtoint memptr v2 to i256
++     v4 = add v3, 32
++     v5 = ptrtoint memptr v2 to i256
++     v6 = sub v4, v5
++     v7 = ptrtoint memptr v2 to i256
++     mstore v7, v6
++     v8 = memory_object_len memorybytes, v0
++     v9 = ptrtoint memorybytes v0 to i256
++     v10 = ptrtoint memorybytes 0 to i256
++     v11 = eq v9, v10
++     v12 = eq v11, false
++     v13 = zext i1 v12 to i256
++     v14 = mul v8, v13
++     v15 = not 31
++     v16 = add v14, 31
++     v17 = and v16, v15
++     v18 = add v4, 32
++     v19 = add v4, v17
++     mstore v19, 0
++     mstore v4, v14
++     v20 = memory_object_data memorybytes, v0
++     v21 = add v18, v17
++     v22 = ptrtoint memptr v20 to i256
++     mcopy v18, v22, v14 !metadata(memory=heap)
++     v23 = ptrtoint memptr v2 to i256
++     v24 = sub v21, v23
++     v25 = add v24, 0
++     v26 = add v25, 31
++     v27 = not 31
++     v28 = and v26, v27
++     v29 = alloc raw, exact, uninitialized, infallible, v28 !metadata(preserves_fmp)
++     v30 = ptrtoint memptr v29 to i256
++     v31 = make_memory_slice v30, v25
++     ret v31
+  }
+  
+  fn @recursive(arg0: i256) -> memorybytes {
+    bb0:
+      v0 = ne arg0, 0
+      jumpi v0, bb1, bb2
+    bb2:
+      ret memorybytes 96
+    bb1:
+      v1 = sub arg0, 1
+      v2 = icall @recursive, v1
+      ret v2
+  }
+  
+  fn @encode_recursive(arg0: i256) -> memoryslice {
+    bb0:
+      v0 = icall @recursive, arg0
+-     v1 = abi_encode [memory_bytes], args v0
+-     ret v1
++     v2 = fmp
++     v3 = ptrtoint memptr v2 to i256
++     v4 = add v3, 32
++     v5 = ptrtoint memptr v2 to i256
++     v6 = sub v4, v5
++     v7 = ptrtoint memptr v2 to i256
++     mstore v7, v6
++     v8 = memory_object_len memorybytes, v0
++     v9 = ptrtoint memorybytes v0 to i256
++     v10 = ptrtoint memorybytes 0 to i256
++     v11 = eq v9, v10
++     v12 = eq v11, false
++     v13 = zext i1 v12 to i256
++     v14 = mul v8, v13
++     v15 = not 31
++     v16 = add v14, 31
++     v17 = and v16, v15
++     v18 = add v4, 32
++     v19 = add v4, v17
++     mstore v19, 0
++     mstore v4, v14
++     v20 = memory_object_data memorybytes, v0
++     v21 = add v18, v17
++     v22 = ptrtoint memptr v20 to i256
++     mcopy v18, v22, v14 !metadata(memory=heap)
++     v23 = ptrtoint memptr v2 to i256
++     v24 = sub v21, v23
++     v25 = add v24, 0
++     v26 = add v25, 31
++     v27 = not 31
++     v28 = and v26, v27
++     v29 = alloc raw, exact, uninitialized, infallible, v28 !metadata(preserves_fmp)
++     v30 = ptrtoint memptr v29 to i256
++     v31 = make_memory_slice v30, v25
++     ret v31
+  }
+  
+  fn @in_allocation(arg0: i256) -> memorybytes {
+    bb0:
+      v0 = alloc raw, exact, uninitialized, infallible, 96
+      v1 = ptrtoint memptr v0 to i256
+      v2 = add v1, 32
+      mstore v2, arg0
+      v3 = inttoptr i256 v2 to memorybytes !metadata(nonnull)
+      ret v3
+  }
+  
+  fn @encode_in_allocation(arg0: i256) -> memoryslice {
+    bb0:
+      v0 = icall @in_allocation, arg0
+-     v1 = abi_encode [memory_bytes], args v0
+-     ret v1
++     v2 = fmp
++     v3 = ptrtoint memptr v2 to i256
++     v4 = add v3, 32
++     v5 = ptrtoint memptr v2 to i256
++     v6 = sub v4, v5
++     v7 = ptrtoint memptr v2 to i256
++     mstore v7, v6
++     v8 = memory_object_len memorybytes, v0
++     v9 = not 31
++     v10 = add v8, 31
++     v11 = and v10, v9
++     v12 = add v4, 32
++     v13 = add v4, v11
++     mstore v13, 0
++     mstore v4, v8
++     v14 = memory_object_data memorybytes, v0
++     v15 = add v12, v11
++     v16 = ptrtoint memptr v14 to i256
++     mcopy v12, v16, v8 !metadata(memory=heap)
++     v17 = ptrtoint memptr v2 to i256
++     v18 = sub v15, v17
++     v19 = add v18, 0
++     v20 = add v19, 31
++     v21 = not 31
++     v22 = and v20, v21
++     v23 = alloc raw, exact, uninitialized, infallible, v22 !metadata(preserves_fmp)
++     v24 = ptrtoint memptr v23 to i256
++     v25 = make_memory_slice v24, v19
++     ret v25
+  }
+  
+  fn @unmarked_cast(arg0: i256) -> memorybytes {
+    bb0:
+      v0 = inttoptr i256 arg0 to memorybytes
+      ret v0
+  }
+  
+  fn @encode_unmarked_cast(arg0: i256) -> memoryslice {
+    bb0:
+      v0 = icall @unmarked_cast, arg0
+-     v1 = abi_encode [memory_bytes], args v0
+-     ret v1
++     v2 = fmp
++     v3 = ptrtoint memptr v2 to i256
++     v4 = add v3, 32
++     v5 = ptrtoint memptr v2 to i256
++     v6 = sub v4, v5
++     v7 = ptrtoint memptr v2 to i256
++     mstore v7, v6
++     v8 = memory_object_len memorybytes, v0
++     v9 = ptrtoint memorybytes v0 to i256
++     v10 = ptrtoint memorybytes 0 to i256
++     v11 = eq v9, v10
++     v12 = eq v11, false
++     v13 = zext i1 v12 to i256
++     v14 = mul v8, v13
++     v15 = not 31
++     v16 = add v14, 31
++     v17 = and v16, v15
++     v18 = add v4, 32
++     v19 = add v4, v17
++     mstore v19, 0
++     mstore v4, v14
++     v20 = memory_object_data memorybytes, v0
++     v21 = add v18, v17
++     v22 = ptrtoint memptr v20 to i256
++     mcopy v18, v22, v14 !metadata(memory=heap)
++     v23 = ptrtoint memptr v2 to i256
++     v24 = sub v21, v23
++     v25 = add v24, 0
++     v26 = add v25, 31
++     v27 = not 31
++     v28 = and v26, v27
++     v29 = alloc raw, exact, uninitialized, infallible, v28 !metadata(preserves_fmp)
++     v30 = ptrtoint memptr v29 to i256
++     v31 = make_memory_slice v30, v25
++     ret v31
+  }
+  

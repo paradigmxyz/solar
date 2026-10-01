@@ -8,11 +8,11 @@ fn @hashTracksWrites() -> i256 [selector=0xfa4d6080, pure, abi_params=[], abi_re
     set_memory_object_len memorybytes, v2, 1
     jump bb1
   bb1:
-    v3 = phi [bb0: 0], [bb3: v15]
-    v4 = phi [bb0: 0], [bb3: v4]
+    v3 = phi [bb0: 0], [bb3: v3]
+    v4 = phi [bb0: v2], [bb3: v4]
     v5 = phi [bb0: 0], [bb3: v14]
-    v6 = phi [bb0: v2], [bb3: v6]
-    v7 = lt v3, 2
+    v6 = phi [bb0: 0], [bb3: v15]
+    v7 = lt v6, 2
     jumpi v7, bb4, bb5
   bb5:
     jump bb2
@@ -21,19 +21,19 @@ fn @hashTracksWrites() -> i256 [selector=0xfa4d6080, pure, abi_params=[], abi_re
     v17 = zext i1 v16 to i256
     ret v17
   bb4:
-    v8 = and v3, 255
+    v8 = and v6, 255
     v9 = shl 248, v8
-    v10 = memory_object_len memorybytes, v6
+    v10 = memory_object_len memorybytes, v4
     v11 = lt 0, v10
     v12 = eq v11, false
     icall panic_if<0x32>, v12
     v13 = byte 0, v9
-    memory_object_store_byte memorybytes, v6, 0, v13
-    v14 = keccak256_bytes v6
+    memory_object_store_byte memorybytes, v4, 0, v13
+    v14 = keccak256_bytes v4
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v15 = checked_add u256, v3, 1
+    v15 = checked_add u256, v6, 1
     jump bb1
 }

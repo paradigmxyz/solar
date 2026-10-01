@@ -1276,6 +1276,7 @@ symbols! {
         multi_return,
         name,
         no_fallback_nor_receive,
+        nonnull,
         object,
         offset,
         optimized,

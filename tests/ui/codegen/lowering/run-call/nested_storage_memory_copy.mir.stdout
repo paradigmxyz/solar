@@ -4,9 +4,9 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: 0], [bb3: v9]
-    v1 = phi [bb0: 0], [bb3: v1]
-    v2 = lt v0, 4
+    v0 = phi [bb0: 0], [bb3: v0]
+    v1 = phi [bb0: 0], [bb3: v9]
+    v2 = lt v1, 4
     jumpi v2, bb4, bb5
   bb5:
     jump bb2
@@ -401,6 +401,6 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
   bb6:
     jump bb3
   bb3:
-    v9 = checked_add u256, v0, 1
+    v9 = checked_add u256, v1, 1
     jump bb1
 }

@@ -26,25 +26,15 @@ fn @adopt(arg0: i256, arg1: calldataslice) -> memorybytes [selector=0x7b54f632, 
   bb2:
     jump bb3
   bb1:
-    v4 = slice_ptr arg1
-    v5 = slice_len arg1
-    v6 = gt v5, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v6
-    v7 = calldatasize
-    v8 = sub v7, v5
-    v9 = sgt v4, v8
-    icall revert_if<calldata_tail_too_short>, v9
-    v10 = slice_len arg1
-    v11 = add v10, 63
-    v12 = lt v11, v10
-    icall panic_if<0x41>, v12
-    v13 = not 31
-    v14 = and v11, v13
-    v15 = alloc memorybytes, exact, uninitialized, infallible, v14
-    set_memory_object_len memorybytes, v15, v10
-    memory_object_copy_from_slice memorybytes, v15, arg1
+    v4 = slice_len arg1
+    v5 = add v4, 63
+    v6 = not 31
+    v7 = and v5, v6
+    v8 = alloc memorybytes, exact, uninitialized, infallible, v7
+    set_memory_object_len memorybytes, v8, v4
+    memory_object_copy_from_slice memorybytes, v8, arg1
     jump bb3
   bb3:
-    v16 = phi [bb1: v15], [bb2: v0]
-    ret v16
+    v9 = phi [bb1: v8], [bb2: v0]
+    ret v9
 }

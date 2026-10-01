@@ -4,9 +4,9 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bool>]
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: 0], [bb3: v47]
-    v1 = phi [bb0: 0], [bb3: v1]
-    v2 = gt v0, 40
+    v0 = phi [bb0: 0], [bb3: v0]
+    v1 = phi [bb0: 0], [bb3: v47]
+    v2 = gt v1, 40
     v3 = eq v2, false
     jumpi v3, bb4, bb5
   bb5:
@@ -15,9 +15,9 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bool>]
     jump bb12
   bb12:
     v48 = phi [bb2: v0], [bb14: v48]
-    v49 = phi [bb2: 40], [bb14: v132]
-    v50 = phi [bb2: v1], [bb14: v50]
-    v51 = slt v49, 0
+    v49 = phi [bb2: v1], [bb14: v49]
+    v50 = phi [bb2: 40], [bb14: v132]
+    v51 = slt v50, 0
     v52 = eq v51, false
     jumpi v52, bb15, bb16
   bb16:
@@ -34,7 +34,7 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bool>]
     v57 = or 127, v56
     v58 = shr 1, v53
     v59 = and v58, v57
-    v60 = lt v49, v59
+    v60 = lt v50, v59
     v61 = eq v60, false
     icall panic_if<0x32>, v61
     jumpi v55, bb18, bb19
@@ -42,19 +42,19 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bool>]
     jump bb20
   bb18:
     v62 = storage_array_data_slot 0
-    v63 = shr 5, v49
+    v63 = shr 5, v50
     v64 = add v62, v63
     jump bb20
   bb20:
     v65 = phi [bb18: v64], [bb19: 0]
-    v66 = and v49, 31
+    v66 = and v50, 31
     v67 = sub 31, v66
     v68 = sload v65 !metadata(storage=symbolic(v65))
     v69 = mul v67, 8
     v70 = shr v69, v68
     v71 = and v70, 255
     v72 = shl 248, v71
-    v73 = checked_add u256, v49, 1
+    v73 = checked_add u256, v50, 1
     v74 = and v73, 255
     v75 = shl 248, v74
     v76 = eq v72, v75
@@ -68,7 +68,7 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bool>]
     v82 = or 127, v81
     v83 = shr 1, v78
     v84 = and v83, v82
-    v85 = checked_add i256, v49, 1
+    v85 = checked_add i256, v50, 1
     v86 = eq v84, v85
     v87 = eq v86, false
     icall revert_if<empty>, v87
@@ -137,10 +137,10 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bool>]
   bb17:
     jump bb14
   bb14:
-    v132 = checked_sub i256, v49, 1
+    v132 = checked_sub i256, v50, 1
     jump bb12
   bb4:
-    v4 = checked_add u256, v0, 1
+    v4 = checked_add u256, v1, 1
     v5 = and v4, 255
     v6 = shl 248, v5
     v7 = sload 0 !metadata(storage=slot(0))
@@ -204,6 +204,6 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bool>]
   bb6:
     jump bb3
   bb3:
-    v47 = checked_add u256, v0, 1
+    v47 = checked_add u256, v1, 1
     jump bb1
 }

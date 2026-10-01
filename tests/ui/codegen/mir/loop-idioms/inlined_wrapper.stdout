@@ -1,0 +1,140 @@
+// === ROOT/tests/ui/codegen/mir/loop-idioms/inlined_wrapper.sol:InlinedScan ===
+@module InlinedScan
+@phase lowered
+fn @viaHelper() [selector=0xfda51b2f, abi_wrapper, pure] {
+  bb0:
+    v11 = calldatasize
+    v12 = lt v11, 36
+    jumpi v12, bb2, bb3
+  bb3:
+    v13 = calldataload 4
+    v14 = add v13, 4
+    v15 = add v14, 32
+    v16 = shr 64, v13
+    v17 = gt v15, v11
+    v18 = zext i1 v17 to i256
+    v19 = or v16, v18
+    v20 = ne v19, 0
+    jumpi v20, bb2, bb4
+  bb4:
+    v21 = calldataload v14
+    v23 = add v21, 63
+    v24 = lt v23, v21
+    jumpi v24, bb5, bb6
+  bb6:
+    v26 = and v23, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v45 = mload 64 !metadata(memory=scratch)
+    v46 = add v45, v26
+    v47 = lt v46, v45
+    v48 = zext i1 v47 to i256
+    v49 = shr 64, v46
+    v50 = or v48, v49
+    v51 = ne v50, 0
+    jumpi v51, bb5, bb8
+  bb8:
+    mstore 64, v46 !metadata(memory=scratch)
+    mstore v45, v21
+    v28 = sub v11, v15
+    v29 = gt v21, v28
+    jumpi v29, bb2, bb7
+  bb7:
+    v41 = add v45, 32
+    calldatacopy v41, v15, v21
+    v52 = lt v21, 64
+    jumpi v52, bb9, bb13
+  bb13:
+    v72 = add v45, 32
+    v73 = and v21, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffc0
+    v74 = add v72, v73
+    jump bb14
+  bb14:
+    v75 = phi [bb13: v72], [bb16: v82]
+    v76 = xor v75, v74
+    v77 = ne v76, 0
+    jumpi v77, bb16, bb15
+  bb15:
+    v85 = and v21, 32
+    v86 = ne v85, 0
+    jumpi v86, bb18, bb17
+  bb18:
+    v97 = mload v75
+    v98 = add v75, 32
+    jump bb17
+  bb17:
+    v87 = phi [bb15: v75], [bb18: v98]
+    v88 = phi [bb15: 0], [bb18: v97]
+    v92 = mload v87
+    v89 = and v21, 31
+    v90 = sub 32, v89
+    v91 = mul v90, 8
+    v93 = shr v91, v92
+    v94 = or v88, v93
+    v95 = and v94, 0x8080808080808080808080808080808080808080808080808080808080808080
+    v96 = eq v95, 0
+    jump bb19
+  bb16:
+    v78 = mload v75
+    v79 = add v75, 32
+    v82 = add v79, 32
+    v80 = mload v79
+    v81 = or v78, v80
+    v83 = and v81, 0x8080808080808080808080808080808080808080808080808080808080808080
+    v84 = ne v83, 0
+    jumpi v84, bb1, bb14
+  bb9:
+    v53 = ne v21, 0
+    jumpi v53, bb11, bb1
+  bb11:
+    v54 = lt v21, 33
+    jumpi v54, bb10, bb12
+  bb12:
+    v62 = add v45, 32
+    v63 = mload v62
+    v64 = add v62, 32
+    v65 = mload v64
+    v66 = sub 64, v21
+    v67 = mul v66, 8
+    v68 = shr v67, v65
+    v69 = or v63, v68
+    v70 = and v69, 0x8080808080808080808080808080808080808080808080808080808080808080
+    v71 = eq v70, 0
+    jump bb19
+  bb10:
+    v55 = add v45, 32
+    v56 = mload v55
+    v57 = sub 32, v21
+    v58 = mul v57, 8
+    v59 = shr v58, v56
+    v60 = and v59, 0x8080808080808080808080808080808080808080808080808080808080808080
+    v61 = eq v60, 0
+    jump bb19
+  bb19:
+    v99 = phi [bb10: v61], [bb12: v71], [bb17: v96]
+    v100 = zext i1 v99 to i256
+    jump bb1
+  bb1:
+    v8 = phi [bb9: 1], [bb16: 0], [bb19: v100]
+    mstore 0, v8
+    returndata 0, 32
+  bb5:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
+  bb2:
+    revert 0, 0
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb3, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr 224, v2
+    switch v3, default bb3, [0xfda51b2f => bb2]
+  bb2:
+    tail_call @viaHelper
+  bb3:
+    revert 0, 0
+}

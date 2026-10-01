@@ -33,15 +33,17 @@
 
 use super::{
     EvmPass,
-    compact_pushes::{immediate_materialization_cost, materialize_immediate},
+    compact_pushes::{ImmediatePolicy, materialize_immediate, policy_materialization_cost},
     utils::MachineInstKey,
 };
-use crate::backend::evm::{
-    ir::{Instruction, Module, PushValue, TerminatorKind},
-    op,
+use crate::{
+    backend::evm::{
+        ir::{Instruction, Module, PushValue, TerminatorKind},
+        op,
+    },
+    target::Target,
 };
 use alloy_primitives::U256;
-use solar_config::EvmVersion;
 use solar_data_structures::map::{FxHashMap, FxHasher};
 use solar_sema::Gcx;
 use std::{
@@ -172,7 +174,7 @@ impl fmt::Debug for CleanBlocks {
 }
 
 fn optimize_module(gcx: Gcx<'_>, module: &mut Module, late: bool, final_cleanup: bool) -> bool {
-    let evm_version = gcx.sess.opts.evm_version;
+    let policy = ImmediatePolicy::of(Target::new(gcx));
     let mut changed = false;
     let mut scratch = Vec::new();
     let clean = &mut module.peephole_clean;
@@ -188,7 +190,7 @@ fn optimize_module(gcx: Gcx<'_>, module: &mut Module, late: bool, final_cleanup:
             0
         } else {
             optimize(
-                evm_version,
+                policy,
                 &mut block.instructions,
                 &mut scratch,
                 block.label,
@@ -237,7 +239,7 @@ fn optimize_module(gcx: Gcx<'_>, module: &mut Module, late: bool, final_cleanup:
 }
 
 fn optimize(
-    evm_version: EvmVersion,
+    policy: ImmediatePolicy,
     instructions: &mut Vec<Instruction>,
     scratch: &mut Vec<Instruction>,
     block: u32,
@@ -250,8 +252,8 @@ fn optimize(
     // The early rules match no prefix of an early-clean block, so only the final
     // rules can supply its first rewrite.
     let first = (1..=instructions.len()).find_map(|end| {
-        let mut context = isle::PeepContext::new(&instructions[..end], evm_version)
-            .with_final_cleanup(final_cleanup);
+        let mut context =
+            isle::PeepContext::new(&instructions[..end], policy).with_final_cleanup(final_cleanup);
         if early_clean { context.final_rewrite() } else { context.select(late) }
             .map(|rewrite| (end, rewrite))
     });
@@ -261,14 +263,14 @@ fn optimize(
     // Resume the streaming matcher at the first changed tail, including cascades.
     scratch.clear();
     scratch.extend(instructions.drain(end..));
-    rewrite(evm_version, instructions, usize::from(skip), edit, block);
+    rewrite(policy, instructions, usize::from(skip), edit, block);
     let mut rewrites = 1;
-    while try_peephole(evm_version, instructions, block, late, final_cleanup) {
+    while try_peephole(policy, instructions, block, late, final_cleanup) {
         rewrites += 1;
     }
     for inst in scratch.drain(..) {
         instructions.push(inst);
-        while try_peephole(evm_version, instructions, block, late, final_cleanup) {
+        while try_peephole(policy, instructions, block, late, final_cleanup) {
             rewrites += 1;
         }
     }
@@ -276,25 +278,24 @@ fn optimize(
 }
 
 fn try_peephole(
-    evm_version: EvmVersion,
+    policy: ImmediatePolicy,
     instructions: &mut Vec<Instruction>,
     block: u32,
     late: bool,
     final_cleanup: bool,
 ) -> bool {
-    let Some(isle::Rewrite { skip, edit }) = isle::PeepContext::new(instructions, evm_version)
-        .with_final_cleanup(final_cleanup)
-        .select(late)
+    let Some(isle::Rewrite { skip, edit }) =
+        isle::PeepContext::new(instructions, policy).with_final_cleanup(final_cleanup).select(late)
     else {
         return false;
     };
-    rewrite(evm_version, instructions, usize::from(skip), edit, block)
+    rewrite(policy, instructions, usize::from(skip), edit, block)
 }
 
 // Keep trace formatting out of the hot matcher's stack frame.
 #[inline(never)]
 fn rewrite(
-    evm_version: EvmVersion,
+    policy: ImmediatePolicy,
     instructions: &mut Vec<Instruction>,
     skip: usize,
     edit: Edit,
@@ -303,7 +304,7 @@ fn rewrite(
     let start = instructions.len() - skip;
     let input = tracing::enabled!(target: TRACE_TARGET, tracing::Level::TRACE)
         .then(|| instructions[start..].to_vec());
-    edit.apply(evm_version, instructions, start);
+    edit.apply(policy, instructions, start);
     if let Some(input) = input {
         trace!(
             target: TRACE_TARGET,
@@ -373,7 +374,7 @@ enum Edit {
 }
 
 impl Edit {
-    fn apply(self, evm_version: EvmVersion, instructions: &mut Vec<Instruction>, start: usize) {
+    fn apply(self, policy: ImmediatePolicy, instructions: &mut Vec<Instruction>, start: usize) {
         match self {
             Self::LowMaskWithSwap => {
                 // push 0; not; protected_count; shl; not
@@ -404,7 +405,7 @@ impl Edit {
             }
             Self::FoldConstants { value } => {
                 instructions.truncate(start);
-                materialize_immediate(instructions, evm_version, value);
+                materialize_immediate(instructions, policy, value);
             }
             Self::RemoveFirstKeepOne => {
                 instructions.remove(start);
@@ -496,9 +497,9 @@ fn overwrite_stack_op(inst: &mut Instruction, stack_op: op::StackOp) {
     inst.metadata = metadata;
 }
 
-/// Returns the byte length and static gas of the selected materialization of `value`.
-pub(super) fn materialization_cost(evm_version: EvmVersion, value: U256) -> (usize, usize) {
-    immediate_materialization_cost(evm_version, value)
+/// Returns the byte length and static gas of the materialization `policy` selects for `value`.
+pub(super) fn materialization_cost(policy: ImmediatePolicy, value: U256) -> (usize, usize) {
+    policy_materialization_cost(policy, value)
 }
 
 fn raw_opcode(inst: &Instruction) -> Option<u8> {

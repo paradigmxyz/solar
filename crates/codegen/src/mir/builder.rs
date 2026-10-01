@@ -770,6 +770,19 @@ impl<'a> FunctionBuilder<'a> {
         object
     }
 
+    /// Allocates a bytes object for a length known to fit in 64 bits, such as the length of a
+    /// range inside the calldata, whose padded size therefore cannot overflow.
+    pub(crate) fn alloc_bounded_bytes_object(
+        &mut self,
+        length: ValueId,
+        semantics: AllocationSemantics,
+    ) -> ValueId {
+        let size = self.padded_size(length);
+        let object = self.alloc_object(size, MemoryObjectLayout::Bytes, semantics);
+        self.set_memory_object_len(object, length, MemoryObjectKind::Bytes);
+        object
+    }
+
     /// Allocates a fixed array whose elements each occupy one memory word.
     pub(crate) fn alloc_word_array(
         &mut self,
@@ -1211,6 +1224,24 @@ impl<'a> FunctionBuilder<'a> {
     ) -> ValueId {
         // object = inttoptr word to object, or bitcast pointer to object
         self.cast(ptr, MirType::MemoryObject(kind))
+    }
+
+    /// Gives an address inside a region the caller allocated an object type,
+    /// marking the cast as a real object: the null default object, which only a
+    /// zeroed aggregate slot produces, never comes from here.
+    pub(crate) fn memory_object_in_allocation(
+        &mut self,
+        ptr: ValueId,
+        kind: MemoryObjectKind,
+    ) -> ValueId {
+        // object = inttoptr word to object !metadata(nonnull)
+        let object = self.memory_object_from_ptr(ptr, kind);
+        if object != ptr
+            && let Value::Inst(inst) = *self.func.value(object)
+        {
+            self.func.inst_mut(inst).metadata.set_nonnull();
+        }
+        object
     }
 
     /// Builds a struct from its ordered field values.

@@ -34,7 +34,8 @@
 //! bytes memory first = items[0];
 //! ```
 //!
-//! A view itself can only be read in place: `.length`, indexing, field reads, `keccak256`,
+//! A view itself can only be read in place: `.length`, indexing, field reads, the hashes
+//! (`keccak256`, and `sha256` and `ripemd160`, whose precompiles read a memory view where it lies),
 //! `abi.decode`, the encodings that copy it from where it is into their output (`abi.encode` and
 //! its variants, `abi.encodePacked`, `bytes.concat` and `string.concat`, event and error
 //! arguments, and the arguments of external calls), the reads of `solar:core/Bytes.sol` and
@@ -820,7 +821,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             .err(format!("the view `{name}` can only be read in place"))
             .span(span)
             .note(
-                "a view supports `.length`, indexing, field reads, `keccak256`, `abi.decode`, ABI \
+                "a view supports `.length`, indexing, field reads, hashing, `abi.decode`, ABI \
                  encodings and concatenation, the `Bytes` and `Hash` reads of a range, and view \
                  parameters",
             )

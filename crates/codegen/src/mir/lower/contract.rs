@@ -424,6 +424,7 @@ pub(super) fn declaration(
         only_cleans_address_elements: false,
         array_element_bits: Default::default(),
         array_return_element_bits: None,
+        abi_entry_only: false,
     };
 
     if function.kind == hir::FunctionKind::Function

@@ -61,11 +61,13 @@ fn @calldata(arg0: calldataslice) -> i256 {
     ret v3
 }
 
+// A slot hash depends on its word operands alone: no instruction may read the
+// scratch words it writes, so a write between two equal hashes keeps one.
 // CHECK: {{^[ +].*}}fn @word_after_scratch_write{{[( ]}}
-// CHECK: + [[BEFORE:v[0-9]+]] = keccak256 0, 64
+// CHECK: + [[HASH:v[0-9]+]] = keccak256 0, 64
 // CHECK: {{^[ +].*}}mstore 0, arg1
-// CHECK: + [[AFTER:v[0-9]+]] = keccak256 0, 64
-// CHECK: {{^[ +].*}}add [[BEFORE]], [[AFTER]]
+// CHECK-NOT: keccak256
+// CHECK: {{^[ +].*}}add [[HASH]], [[HASH]]
 fn @word_after_scratch_write(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v2 = mapping_slot arg0, 7
