@@ -786,6 +786,66 @@ fn rename_importer_folder_recalculates_relative_import() {
 }
 
 #[test]
+fn rename_importer_out_of_remapping_context_rewrites_import() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /project/foundry.toml
+        [profile.default]
+        src = "src"
+        remappings = ["src:@lib/=lib/", "@lib/=other/"]
+
+        //- /project/src/Importer.sol
+        import "@lib/Target.sol";
+
+        //- /project/lib/Target.sol
+        contract Target {}
+        "#,
+    );
+    let tables = analyze_project(&project);
+    let importer = project.path("/project/src/Importer.sol");
+    let moves = move_batch([(project.path("/project/src"), project.path("/project/other"))]);
+    let edits = tables.import_rename_edits(&moves);
+
+    assert_eq!(
+        edits.changes(),
+        [(
+            Url::from_file_path(importer).unwrap(),
+            vec![TextEdit::new(
+                Range::new(Position::new(0, 7), Position::new(0, 24)),
+                "\"../lib/Target.sol\"".into(),
+            )],
+        )]
+        .into_iter()
+        .collect()
+    );
+}
+
+#[test]
+fn rename_importer_with_opaque_remapping_preserves_import() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /project/foundry.toml
+        [profile.default]
+        src = "src"
+        remappings = ["Alias=lib/Target.sol"]
+
+        //- /project/src/Importer.sol
+        import "Alias";
+
+        //- /project/lib/Target.sol
+        contract Target {}
+        "#,
+    );
+    let tables = analyze_project(&project);
+    let moves = move_batch([(
+        project.path("/project/src/Importer.sol"),
+        project.path("/project/src/nested/Importer.sol"),
+    )]);
+
+    assert!(tables.import_rename_edits(&moves).is_empty());
+}
+
+#[test]
 fn delete_file_removes_complete_import_directive() {
     let project = TestProject::from_fixture(
         r#"
