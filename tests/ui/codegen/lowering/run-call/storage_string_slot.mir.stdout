@@ -32,7 +32,7 @@ fn @length(arg0: i256) -> i256 [view] {
     ret v6
 }
 
-fn @read(arg0: i256) -> memorybytes [pure] {
+fn @read(arg0: i256) -> memptr [pure] {
   bb0:
     v0 = load_storage_bytes arg0
     ret v0

@@ -7,7 +7,7 @@ fn @slice() [selector=0xe0041396, abi_wrapper, pure] {
     v2 = lt v1, 100
     jumpi v2, bb1, bb2
   bb2:
-    v3 = icall @decode_calldata_type, 4
+    v3 = icall @decode_calldata_type
     v0 = icall @_slice, v3, arg1, arg2
     v28 = ptrtoint memptr v0 to i256
     v11 = ne v28, 0
@@ -51,7 +51,7 @@ fn @rawOverlap() [selector=0x3facacff, abi_wrapper, pure] {
     mstore v8, v18
     v25 = add v22, v21
     v38 = add v36, 32
-    mcopy v22, v38, v18
+    mcopy v22, v38, v18 !metadata(disjoint)
     v28 = sub v25, v39
     v30 = add v28, 31
     v32 = and v30, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
@@ -85,7 +85,7 @@ fn @objectOverlap() [selector=0xb7a73332, abi_wrapper, pure] {
     mstore v10, v20
     v27 = add v24, v23
     v40 = add v38, 32
-    mcopy v24, v40, v20
+    mcopy v24, v40, v20 !metadata(disjoint)
     v30 = sub v27, v41
     v32 = add v30, 31
     v34 = and v32, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
@@ -177,7 +177,7 @@ fn @oversizedCopy() [selector=0x1e820d5e, abi_wrapper, pure] {
   bb4:
     tail_call @revert_stub
   bb6:
-    v39 = add v52, 96
+    v39 = add v23, 64
     v40 = mload v39
     v41 = byte 0, v40
     mstore 128, v41
@@ -257,7 +257,7 @@ fn @inPlace() [selector=0xda1b3040, abi_wrapper, pure] {
     v24 = lt v23, 36
     jumpi v24, bb4, bb5
   bb5:
-    v25 = icall @decode_calldata_type, 4
+    v25 = icall @decode_calldata_type
     v58 = ptrtoint memptr v25 to i256
     v51 = add v58, 32
     jump bb1
@@ -432,10 +432,10 @@ fn @revert_stub() {
     revert 28, 36
 }
 
-fn @decode_calldata_type(arg0: i256) -> memptr [may_return_memory] {
+fn @decode_calldata_type() -> memptr [may_return_memory] {
   bb0:
     v0 = calldatasize
-    v1 = calldataload arg0
+    v1 = calldataload 4
     v2 = add v1, 4
     v3 = add v2, 32
     v4 = gt v1, 0xffffffffffffffff

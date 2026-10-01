@@ -3,8 +3,8 @@
 //! and module-dependent signatures are checked by their dedicated validators.
 
 use super::{
-    AbiLayout, AbiType, Builtin, Callee, Function, MemoryObjectKind, MirType, PackedArraySource,
-    PackedPart, RequireKind, SliceLocation, StorageLayout, ValueId,
+    AbiLayout, AbiType, Builtin, Callee, Function, MirType, PackedArraySource, PackedPart,
+    RequireKind, SliceLocation, ValueId,
 };
 use smallvec::{SmallVec, smallvec};
 
@@ -13,14 +13,13 @@ impl AbiType {
     pub(crate) fn operand_type(&self) -> MirType {
         match self {
             Self::Word(_) | Self::Function => MirType::I256,
-            Self::Bytes(SliceLocation::Memory) => MirType::MemoryObject(MemoryObjectKind::Bytes),
-            Self::Bytes(location) => MirType::Slice(*location),
-            Self::DynamicArray { location: SliceLocation::Memory, .. } => {
-                MirType::MemoryObject(MemoryObjectKind::DynamicArray)
+            Self::Bytes(SliceLocation::Memory)
+            | Self::DynamicArray { location: SliceLocation::Memory, .. }
+            | Self::FixedArray { .. }
+            | Self::Tuple(_) => MirType::MemPtr,
+            Self::Bytes(location) | Self::DynamicArray { location, .. } => {
+                MirType::Slice(*location)
             }
-            Self::DynamicArray { location, .. } => MirType::Slice(*location),
-            Self::FixedArray { .. } => MirType::MemoryObject(MemoryObjectKind::FixedArray),
-            Self::Tuple(_) => MirType::MemoryObject(MemoryObjectKind::Struct),
         }
     }
 
@@ -66,29 +65,22 @@ pub(super) fn slice_type(func: &Function, value: ValueId) -> MirType {
     }
 }
 
-pub(super) fn read_object(func: &Function, value: ValueId, kind: MemoryObjectKind) -> MirType {
+pub(super) fn read_object(func: &Function, value: ValueId) -> MirType {
     match func.value_ty(value) {
         Some(ty @ MirType::Slice(SliceLocation::Memory | SliceLocation::Calldata)) => ty,
-        _ => MirType::MemoryObject(kind),
+        _ => MirType::MemPtr,
     }
 }
 
-pub(super) fn memory_object(func: &Function, value: ValueId, kind: MemoryObjectKind) -> MirType {
+pub(super) fn memory_object(func: &Function, value: ValueId) -> MirType {
     match func.value_ty(value) {
         Some(ty @ MirType::Slice(SliceLocation::Memory)) => ty,
-        _ => MirType::MemoryObject(kind),
+        _ => MirType::MemPtr,
     }
-}
-
-pub(super) fn storage_object_type(layout: &StorageLayout) -> MirType {
-    MirType::MemoryObject(match layout {
-        StorageLayout::Struct(_) => MemoryObjectKind::Struct,
-        StorageLayout::Array { .. } => MemoryObjectKind::FixedArray,
-    })
 }
 
 pub(super) fn address_call_types(gas: bool, value: bool) -> SmallVec<[MirType; 8]> {
-    let mut types = smallvec![MirType::I160, MirType::MemoryObject(MemoryObjectKind::Bytes)];
+    let mut types = smallvec![MirType::I160, MirType::MemPtr];
     types.extend(std::iter::repeat_n(MirType::I256, usize::from(gas) + usize::from(value)));
     types
 }
@@ -112,9 +104,9 @@ pub(super) fn packed_types(func: &Function, parts: &[PackedPart]) -> SmallVec<[M
         .filter_map(|part| match part {
             PackedPart::Literal(_) => None,
             PackedPart::Scalar { ty, .. } => Some(ty.mir_type()),
-            PackedPart::Bytes(value) => Some(read_object(func, *value, MemoryObjectKind::Bytes)),
+            PackedPart::Bytes(value) => Some(read_object(func, *value)),
             PackedPart::Array { source, .. } => Some(match source {
-                PackedArraySource::Memory { layout } => MirType::MemoryObject(layout.kind()),
+                PackedArraySource::Memory { .. } => MirType::MemPtr,
                 PackedArraySource::Slice(location) => MirType::Slice(*location),
             }),
         })
@@ -126,7 +118,7 @@ pub(super) fn callee_types(
     callee: &Callee,
     args: &[ValueId],
 ) -> Option<SmallVec<[MirType; 8]>> {
-    let bytes = MirType::MemoryObject(MemoryObjectKind::Bytes);
+    let bytes = MirType::MemPtr;
     let Callee::Builtin(builtin) = callee else { return None };
     Some(match builtin {
         Builtin::Check { .. } => smallvec![MirType::I1],

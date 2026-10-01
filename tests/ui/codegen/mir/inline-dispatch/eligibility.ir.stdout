@@ -164,7 +164,7 @@ fn @a() [selector=0x1e3badd9, abi_wrapper, pure] {
     v46 = zext i1 v45 to i256
     v47 = mul v32, v46
     v49 = shl 5, v47
-    v51 = add v66, 64
+    v51 = add v59, 32
     mcopy v51, v59, v49
     mstore v66, 32
     mstore v59, v47

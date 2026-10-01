@@ -339,13 +339,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             Some(value)
         } else {
             let value = self.materialize_memory_argument(ty, value, span)?;
-            if let MirType::MemoryObject(kind) = types::TypeLowerer::mir_type(ty)
-                && self.builder.func().value_ty(value) != Some(MirType::MemoryObject(kind))
-                && self.builder.func().value_slice_location(value).is_none()
-            {
-                // object = inttoptr value
-                Some(self.builder.memory_object_from_ptr(value, kind))
-            } else if self.builder.func().value_slice_location(value).is_none() {
+            if self.builder.func().value_slice_location(value).is_none() {
                 // argument = cast value to the declared parameter type
                 Some(self.builder.cast(value, types::TypeLowerer::mir_signature_type(ty)))
             } else {
@@ -392,7 +386,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
         } else if matches!(
             self.builder.func().value_ty(value),
-            Some(MirType::MemoryObject(_)) | Some(MirType::Slice(SliceLocation::Memory))
+            Some(MirType::MemPtr) | Some(MirType::Slice(SliceLocation::Memory))
         ) || (matches!(ty, AbiType::Bytes(_) | AbiType::DynamicArray { .. })
             && self.builder.func().value_u64(value) == Some(EvmMemoryLayout::ZERO_SLOT))
             || matches!(self.builder.func().value(value), Value::Inst(inst) if matches!(

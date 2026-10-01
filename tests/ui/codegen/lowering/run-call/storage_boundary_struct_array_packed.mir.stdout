@@ -221,7 +221,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     jump bb15
   bb13:
     v90 = memory_object_load_element memoryfixedarray<10, 1>, v64, v86
-    v91 = inttoptr i256 v90 to memorystruct
+    v91 = inttoptr i256 v90 to memptr
     v92 = memory_object_load_field memorystruct<4>, v91, 0
     v93 = sload v88 !metadata(storage=symbolic(v88))
     v94 = not 0xffffffffffffffff
@@ -229,7 +229,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v96 = and v92, 0xffffffffffffffff
     v97 = or v95, v96
     sstore v88, v97 !metadata(storage=symbolic(v88))
-    v98 = inttoptr i256 v90 to memorystruct
+    v98 = inttoptr i256 v90 to memptr
     v99 = memory_object_load_field memorystruct<4>, v98, 1
     v100 = shl 64, 0xffffffffffffffff
     v101 = sload v88 !metadata(storage=symbolic(v88))
@@ -239,7 +239,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v105 = shl 64, v104
     v106 = or v103, v105
     sstore v88, v106 !metadata(storage=symbolic(v88))
-    v107 = inttoptr i256 v90 to memorystruct
+    v107 = inttoptr i256 v90 to memptr
     v108 = memory_object_load_field memorystruct<4>, v107, 2
     v109 = shl 128, 0xffffffffffffffff
     v110 = sload v88 !metadata(storage=symbolic(v88))
@@ -249,7 +249,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v114 = shl 128, v113
     v115 = or v112, v114
     sstore v88, v115 !metadata(storage=symbolic(v88))
-    v116 = inttoptr i256 v90 to memorystruct
+    v116 = inttoptr i256 v90 to memptr
     v117 = memory_object_load_field memorystruct<4>, v116, 3
     v118 = shl 192, 0xffffffffffffffff
     v119 = sload v88 !metadata(storage=symbolic(v88))
@@ -281,7 +281,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v78 = shr 192, v77
     v79 = and v78, 0xffffffffffffffff
     memory_object_store_field memorystruct<4>, v68, 3, v79
-    v80 = ptrtoint memorystruct v68 to i256
+    v80 = ptrtoint memptr v68 to i256
     memory_object_store_element memoryfixedarray<10, 1>, v64, v65, v80
     v81 = add v65, 1
     jump bb7

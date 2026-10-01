@@ -79,11 +79,11 @@ impl FrameSlotKind {
     }
 }
 
-/// The semantic shape carried by a one-word memory-object reference.
+/// The semantic shape of a memory object, named by the operations that access it.
 ///
 /// The physical representation is selected by the memory model during late
-/// lowering. Keeping the shape in MIR prevents Solidity-compatible headers
-/// and field layouts from being inferred from an untyped pointer.
+/// lowering. Naming the shape at each access prevents Solidity-compatible headers
+/// and field layouts from being inferred from an opaque pointer.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(crate) enum MemoryObjectKind {
     /// Dynamically sized bytes or string data, addressed in word chunks.
@@ -207,10 +207,10 @@ pub(crate) enum MirType {
     /// must be truncated or validated before acquiring a narrower type.
     /// Signed operations interpret the top bit; signedness is not part of the type.
     Int(NonZeroU32),
-    /// A raw memory pointer, with no implied validity or heap provenance.
+    /// An opaque memory pointer, with no implied validity or heap provenance.
+    ///
+    /// Memory objects are pointers too: the operations that access them carry the object layout.
     MemPtr,
-    /// Reference to a semantically shaped memory object.
-    MemoryObject(MemoryObjectKind),
     /// A pointer/length pair in the given address space.
     Slice(SliceLocation),
     /// A fixed aggregate declared in the module type table.
@@ -234,7 +234,6 @@ impl MirType {
             Self::I160 => ValueLayout::Address,
             Self::Int(_) => ValueLayout::uint256(),
             Self::MemPtr => ValueLayout::MemPtr,
-            Self::MemoryObject(kind) => ValueLayout::MemoryObject(kind),
             Self::Slice(location) => ValueLayout::Slice(location),
             Self::Struct(id) => ValueLayout::Struct(id),
             Self::Void => ValueLayout::Void,
@@ -242,15 +241,15 @@ impl MirType {
     }
 
     pub(crate) const fn is_pointer(self) -> bool {
-        matches!(self, Self::MemPtr | Self::MemoryObject(_))
+        matches!(self, Self::MemPtr)
     }
 
     pub(crate) const fn is_word(self) -> bool {
-        matches!(self, Self::I256 | Self::I160 | Self::I1 | Self::MemPtr | Self::MemoryObject(_))
+        matches!(self, Self::I256 | Self::I160 | Self::I1 | Self::MemPtr)
     }
 
     pub(crate) const fn is_memory_reference(self) -> bool {
-        matches!(self, Self::MemPtr | Self::MemoryObject(_) | Self::Slice(SliceLocation::Memory))
+        matches!(self, Self::MemPtr | Self::Slice(SliceLocation::Memory))
     }
 }
 
@@ -259,7 +258,6 @@ impl fmt::Display for MirType {
         match self {
             Self::Int(bits) => write!(f, "i{bits}"),
             Self::MemPtr => f.write_str("memptr"),
-            Self::MemoryObject(kind) => write!(f, "{kind}"),
             Self::Slice(location) => write!(f, "{location}slice"),
             Self::Struct(id) => write!(f, "struct{}", id.index()),
             Self::Void => f.write_str("void"),
@@ -282,7 +280,7 @@ pub(crate) enum ValueLayout {
     FixedBytes(TypeSize),
     /// Memory pointer.
     MemPtr,
-    /// Reference to a semantically shaped memory object.
+    /// Pointer to a memory object of the given shape.
     MemoryObject(MemoryObjectKind),
     /// Storage pointer.
     StoragePtr,
@@ -387,8 +385,7 @@ impl ValueLayout {
         match self {
             Self::Bool => MirType::I1,
             Self::Address => MirType::I160,
-            Self::MemPtr => MirType::MemPtr,
-            Self::MemoryObject(kind) => MirType::MemoryObject(kind),
+            Self::MemPtr | Self::MemoryObject(_) => MirType::MemPtr,
             Self::Slice(location) => MirType::Slice(location),
             Self::Struct(id) => MirType::Struct(id),
             Self::Void => MirType::Void,

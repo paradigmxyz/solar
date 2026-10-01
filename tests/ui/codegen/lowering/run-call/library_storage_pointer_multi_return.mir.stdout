@@ -5,13 +5,11 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/library_storage_pointer_multi_return.sol:LibraryStoragePointerMultiReturn ===
 @module LibraryStoragePointerMultiReturn
 @types
-  struct0: {i256, memoryarray}
+  struct0: {i256, memptr}
   struct1: {i256, i256}
-  struct2: {i256, memorybytes}
-  struct3: {i256, memorystruct}
-  struct4: {memoryarray, i256}
-  struct5: {memoryarray, i256, memorybytes}
-  struct6: {i256, i256, i256}
+  struct2: {memptr, i256}
+  struct3: {memptr, i256, memptr}
+  struct4: {i256, i256, i256}
 
 fn @constructor() [constructor] {
   bb0:
@@ -56,22 +54,22 @@ fn @forwardPair() -> struct0 [selector=0x9948ca45, view, abi_params=[], abi_retu
     ret v5
 }
 
-fn @forwardBytesPair() -> struct2 [selector=0x244e77d3, view, abi_params=[], abi_returns=[word, memory_bytes], abi_return_params=[u256, bytes]] {
+fn @forwardBytesPair() -> struct0 [selector=0x244e77d3, view, abi_params=[], abi_returns=[word, memory_bytes], abi_return_params=[u256, bytes]] {
   bb0:
     v0 = icall @bytesPair, 1
     v1 = extract_value struct1, v0, 0
     v2 = extract_value struct1, v0, 1
     v3 = load_storage_bytes v2
-    v4 = insert_value struct2, undef struct2, 0, v1
-    v5 = insert_value struct2, v4, 1, v3
+    v4 = insert_value struct0, undef struct0, 0, v1
+    v5 = insert_value struct0, v4, 1, v3
     ret v5
 }
 
-fn @forwardStructPair() -> struct3 [selector=0x89663e35, view, abi_params=[], abi_returns=[word, tuple<word, memory_array<word>>], abi_return_params=[u256, tuple<u256, array<_, u256>>]] {
+fn @forwardStructPair() -> struct0 [selector=0x89663e35, view, abi_params=[], abi_returns=[word, tuple<word, memory_array<word>>], abi_return_params=[u256, tuple<u256, array<_, u256>>]] {
   bb0:
     v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<2>, v0, 0, 0
-    v1 = ptrtoint memoryarray 96 to i256
+    v1 = ptrtoint memptr 96 to i256
     memory_object_store_field memorystruct<2>, v0, 1, v1
     v2 = icall @structPair, 2
     v3 = extract_value struct1, v2, 0
@@ -81,10 +79,10 @@ fn @forwardStructPair() -> struct3 [selector=0x89663e35, view, abi_params=[], ab
     memory_object_store_field memorystruct<2>, v5, 0, v6
     v7 = add v4, 1
     v8 = icall @load_storage_word_array, v7
-    v9 = ptrtoint memoryarray v8 to i256
+    v9 = ptrtoint memptr v8 to i256
     memory_object_store_field memorystruct<2>, v5, 1, v9
-    v10 = insert_value struct3, undef struct3, 0, v3
-    v11 = insert_value struct3, v10, 1, v5
+    v10 = insert_value struct0, undef struct0, 0, v3
+    v11 = insert_value struct0, v10, 1, v5
     ret v11
 }
 
@@ -100,28 +98,28 @@ fn @forwardNarrowPair() -> struct0 [selector=0x1c173dc4, view, abi_params=[], ab
     ret v6
 }
 
-fn @forwardLeadingPair() -> struct4 [selector=0x59d1f54e, view, abi_params=[], abi_returns=[memory_array<word>, word], abi_return_params=[array<_, u256>, u256]] {
+fn @forwardLeadingPair() -> struct2 [selector=0x59d1f54e, view, abi_params=[], abi_returns=[memory_array<word>, word], abi_return_params=[array<_, u256>, u256]] {
   bb0:
     v0 = icall @leadingPair, 0
     v1 = extract_value struct1, v0, 0
     v2 = extract_value struct1, v0, 1
     v3 = icall @load_storage_word_array, v1
-    v4 = insert_value struct4, undef struct4, 0, v3
-    v5 = insert_value struct4, v4, 1, v2
+    v4 = insert_value struct2, undef struct2, 0, v3
+    v5 = insert_value struct2, v4, 1, v2
     ret v5
 }
 
-fn @forwardTriple() -> struct5 [selector=0xd5d6b86b, view, abi_params=[], abi_returns=[memory_array<word>, word, memory_bytes], abi_return_params=[array<_, u256>, u256, bytes]] {
+fn @forwardTriple() -> struct3 [selector=0xd5d6b86b, view, abi_params=[], abi_returns=[memory_array<word>, word, memory_bytes], abi_return_params=[array<_, u256>, u256, bytes]] {
   bb0:
     v0 = icall @triple, 0, 1
-    v1 = extract_value struct6, v0, 0
-    v2 = extract_value struct6, v0, 1
-    v3 = extract_value struct6, v0, 2
+    v1 = extract_value struct4, v0, 0
+    v2 = extract_value struct4, v0, 1
+    v3 = extract_value struct4, v0, 2
     v4 = icall @load_storage_word_array, v1
     v5 = load_storage_bytes v3
-    v6 = insert_value struct5, undef struct5, 0, v4
-    v7 = insert_value struct5, v6, 1, v2
-    v8 = insert_value struct5, v7, 2, v5
+    v6 = insert_value struct3, undef struct3, 0, v4
+    v7 = insert_value struct3, v6, 1, v2
+    v8 = insert_value struct3, v7, 2, v5
     ret v8
 }
 
@@ -216,16 +214,16 @@ fn @leadingPair(arg0: i256) -> struct1 [view] {
     ret v2
 }
 
-fn @triple(arg0: i256, arg1: i256) -> struct6 [view] {
+fn @triple(arg0: i256, arg1: i256) -> struct4 [view] {
   bb0:
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
-    v1 = insert_value struct6, undef struct6, 0, arg0
-    v2 = insert_value struct6, v1, 1, v0
-    v3 = insert_value struct6, v2, 2, arg1
+    v1 = insert_value struct4, undef struct4, 0, arg0
+    v2 = insert_value struct4, v1, 1, v0
+    v3 = insert_value struct4, v2, 2, arg1
     ret v3
 }
 
-fn @load_storage_word_array(arg0: i256) -> memoryarray {
+fn @load_storage_word_array(arg0: i256) -> memptr {
   bb0:
     v0 = load_storage_array u256, arg0
     ret v0

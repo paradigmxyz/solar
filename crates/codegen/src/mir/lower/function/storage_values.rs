@@ -7,11 +7,8 @@ fn build_storage_bytes_helper(function: &mut Function) {
     // load_storage_bytes(slot) -> bytes_object
     let mut builder = FunctionBuilder::new_semantic(function);
     let slot = builder.add_param(MirType::I256);
-    builder.set_return_type(MirType::MemoryObject(MemoryObjectKind::Bytes));
-    let object = builder.emit_inst(
-        InstKind::StorageBytesLoad(slot),
-        Some(MirType::MemoryObject(MemoryObjectKind::Bytes)),
-    );
+    builder.set_return_type(MirType::MemPtr);
+    let object = builder.emit_inst(InstKind::StorageBytesLoad(slot), Some(MirType::MemPtr));
     builder.ret([object]);
 }
 
@@ -23,7 +20,7 @@ fn build_storage_array_helper(
     // object = load_storage_array element, slot; ret object
     let mut builder = FunctionBuilder::new_semantic(function);
     let slot = builder.add_param(MirType::I256);
-    let ty = MirType::MemoryObject(MemoryObjectKind::DynamicArray);
+    let ty = MirType::MemPtr;
     builder.set_return_type(ty);
     let object =
         builder.emit_inst(InstKind::StorageArrayLoad { slot, element, enum_variants }, Some(ty));
@@ -57,7 +54,7 @@ fn build_storage_bytes_store_helper(function: &mut Function) {
     // store_storage_bytes(slot, object); ret
     let mut builder = FunctionBuilder::new_semantic(function);
     let slot = builder.add_param(MirType::I256);
-    let object = builder.add_param(MirType::MemoryObject(MemoryObjectKind::Bytes));
+    let object = builder.add_param(MirType::MemPtr);
     builder.store_storage_bytes(slot, object);
     builder.ret([]);
 }
@@ -1101,7 +1098,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         //     element_slot += element_slots
         // }
         let slot = self.builder.add_param(MirType::I256);
-        self.builder.set_return_type(MirType::MemoryObject(MemoryObjectKind::DynamicArray));
+        self.builder.set_return_type(MirType::MemPtr);
 
         let length = self.builder.sload(slot);
         let (object, layout) = self
@@ -1144,12 +1141,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     ) -> Option<ValueId> {
         let element_words = self.types.element_words(element);
         if let Some(helper) = self.ensure_storage_array_helper(element) {
-            let layout = MemoryObjectLayout::DynamicArray { element_words };
-            return Some(self.builder.icall(
-                helper,
-                vec![slot],
-                MirType::MemoryObject(layout.kind()),
-            ));
+            return Some(self.builder.icall(helper, vec![slot], MirType::MemPtr));
         }
 
         // length = sload(slot)
@@ -1279,13 +1271,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn load_storage_bytes(&mut self, slot: ValueId) -> ValueId {
         if !self.cx.share_storage_bytes {
             // object = load_storage_bytes(slot)
-            return self.builder.emit_inst(
-                InstKind::StorageBytesLoad(slot),
-                Some(MirType::MemoryObject(MemoryObjectKind::Bytes)),
-            );
+            return self.builder.emit_inst(InstKind::StorageBytesLoad(slot), Some(MirType::MemPtr));
         }
         let helper = self.ensure_storage_bytes_helper();
-        self.builder.icall(helper, vec![slot], MirType::MemoryObject(MemoryObjectKind::Bytes))
+        self.builder.icall(helper, vec![slot], MirType::MemPtr)
     }
 
     /// Reads the length of a storage `bytes`/`string` value from its header slot.
@@ -1338,7 +1327,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         })?;
         // object = inttoptr object
         // icall store_storage_bytes(slot, object)
-        let object = self.builder.cast(object, MirType::MemoryObject(MemoryObjectKind::Bytes));
+        let object = self.builder.cast(object, MirType::MemPtr);
         self.builder.icall_void(helper, vec![slot, object]);
         Some(())
     }
@@ -1510,8 +1499,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let slot = lowerer.builder.add_param(MirType::I256);
             let lowered = match helper {
                 RecursiveStorageHelper::Store { target, source } => {
-                    let object =
-                        lowerer.builder.add_param(MirType::MemoryObject(MemoryObjectKind::Struct));
+                    let object = lowerer.builder.add_param(MirType::MemPtr);
                     lowerer
                         .store_storage_struct_fields_with_source(target, source, slot, object, span)
                         .is_some()

@@ -910,6 +910,7 @@ fn equivalent_functions(
                 || lhs_inst.metadata.unchecked() != rhs_inst.metadata.unchecked()
                 || lhs_inst.metadata.deferred_alloc() != rhs_inst.metadata.deferred_alloc()
                 || lhs_inst.metadata.preserves_fmp() != rhs_inst.metadata.preserves_fmp()
+                || lhs_inst.metadata.disjoint() != rhs_inst.metadata.disjoint()
                 || !equivalent_storage_aliases(
                     &lhs_values,
                     lhs_inst.metadata.storage_alias(),

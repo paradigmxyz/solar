@@ -1,9 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/dynamic_return_unused_evm_version.sol:DynamicCallee ===
 @module DynamicCallee
 @types
-  struct0: {i256, memorybytes}
+  struct0: {i256, memptr}
 
-fn @dynBytes() -> memorybytes [selector=0x7271bb2c, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @dynBytes() -> memptr [selector=0x7271bb2c, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 34
@@ -16,7 +16,7 @@ fn @dynBytes() -> memorybytes [selector=0x7271bb2c, pure, abi_params=[], abi_ret
     ret v0
 }
 
-fn @dynString() -> memorybytes [selector=0x2f4e7409, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @dynString() -> memptr [selector=0x2f4e7409, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 5
@@ -41,7 +41,7 @@ fn @mixed() -> struct0 [selector=0x354df1f9, pure, abi_params=[], abi_returns=[w
 // === ROOT/tests/ui/codegen/lowering/run-call/dynamic_return_unused_evm_version.sol:DynamicReturnUnused ===
 @module DynamicReturnUnused
 @types
-  struct0: {i256, memorybytes}
+  struct0: {i256, memptr}
 
 @data
   DynamicCallee_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/dynamic_return_unused_evm_version.sol:DynamicCallee"

@@ -9,7 +9,7 @@ fn @emitEvent() [selector=0x7b0cb839, abi_params=[], abi_returns=[], abi_return_
   bb0:
     v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<2>, v0, 0, 0
-    v1 = ptrtoint memorybytes 96 to i256
+    v1 = ptrtoint memptr 96 to i256
     memory_object_store_field memorystruct<2>, v0, 1, v1
     v2 = address
     v3 = zext i160 v2 to i256
@@ -22,11 +22,11 @@ fn @emitEvent() [selector=0x7b0cb839, abi_params=[], abi_returns=[], abi_return_
     v8 = memory_object_data memorybytes, v7
     v9 = ptrtoint memptr v8 to i256
     mstore v9, 0x7800000000000000000000000000000000000000000000000000000000000000
-    v10 = ptrtoint memorybytes v7 to i256
+    v10 = ptrtoint memptr v7 to i256
     memory_object_store_field memorystruct<2>, v0, 1, v10
     v11 = memory_object_load_field memorystruct<2>, v0, 0
     v12 = memory_object_load_field memorystruct<2>, v0, 1
-    v13 = inttoptr i256 v12 to memorybytes
+    v13 = inttoptr i256 v12 to memptr
     v14 = memory_object_len memorybytes, v13
     v15 = eq v12, 0
     v16 = eq v15, false
@@ -58,7 +58,7 @@ fn @emitEvent() [selector=0x7b0cb839, abi_params=[], abi_returns=[], abi_return_
     v37 = and v36, 0xffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000
     memory_object_store_word memorybytes, v35, 0, v37
     v38 = memory_object_load_field memorystruct<2>, v0, 1
-    v39 = inttoptr i256 v38 to memorybytes
+    v39 = inttoptr i256 v38 to memptr
     v40 = memory_object_len memorybytes, v39
     v41 = eq v38, 0
     v42 = eq v41, false
@@ -77,7 +77,7 @@ fn @emitEvent() [selector=0x7b0cb839, abi_params=[], abi_returns=[], abi_return_
     memory_object_store_word memorybytes, v35, v51, 0
     jump bb2
   bb2:
-    v52 = inttoptr i256 v38 to memorybytes
+    v52 = inttoptr i256 v38 to memptr
     v53 = memory_object_data memorybytes, v52
     v54 = ptrtoint memptr v53 to i256
     v55 = make_memory_slice v54, v44

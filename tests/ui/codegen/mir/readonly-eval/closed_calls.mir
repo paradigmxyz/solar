@@ -117,12 +117,12 @@ fn @read(arg0: i256) -> i256 {
 // Constant references remain calls to avoid disrupting pointer induction.
 // CHECK-LABEL: fn @reference_caller
 // CHECK: {{^ +}}v0 = icall @reference
-fn @reference_caller() -> memorybytes {
+fn @reference_caller() -> memptr {
   bb0:
     v0 = icall @reference
     ret v0
 }
-fn @reference() -> memorybytes {
+fn @reference() -> memptr {
   bb0:
-    ret memorybytes 5
+    ret memptr 5
 }

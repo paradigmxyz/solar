@@ -185,7 +185,7 @@ fn @a() -> i256 [selector=0x0dbe671f, pure, abi_params=[], abi_returns=[word], a
     ret 7
 }
 
-fn @load_storage_packed_array_8_0(arg0: i256) -> memoryarray {
+fn @load_storage_packed_array_8_0(arg0: i256) -> memptr {
   bb0:
     v0 = load_storage_array u64, arg0
     ret v0

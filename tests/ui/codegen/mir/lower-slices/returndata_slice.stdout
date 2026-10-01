@@ -16,7 +16,7 @@
       v7 = ptrtoint memptr v6 to i256
 -     returndatacopy v7, v2, v3
 +     returndatacopy v7, 0, v0
-      v8 = ptrtoint memorybytes v5 to i256
+      v8 = ptrtoint memptr v5 to i256
       ret v8
   }
   

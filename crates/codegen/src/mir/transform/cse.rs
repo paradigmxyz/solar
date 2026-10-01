@@ -222,6 +222,9 @@ struct CommonSubexprEliminator {
     cfg: Option<Rc<CfgInfo>>,
     /// Number of instructions eliminated.
     eliminated_count: usize,
+    /// Number of casts the dominator-scoped pass eliminated, which call for another fixpoint
+    /// round only through phi sinking.
+    eliminated_casts: usize,
     /// Gas observations and their forward CFG closure, including backedges.
     gas: Option<GasObservations>,
     alias: Option<AliasAnalysis>,
@@ -282,6 +285,17 @@ enum ExprKey {
     SelfBalance,
     BlobHash(OperandKey),
     LoadImmutable(ImmutableId),
+    Cast(CastKey, OperandKey, Option<MirType>),
+}
+
+/// A conversion. Its operand and result types imply every width it carries.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+enum CastKey {
+    Zext,
+    Trunc,
+    Sext,
+    PtrToInt,
+    IntToPtr,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -466,6 +480,7 @@ impl CommonSubexprEliminator {
     /// Runs CSE iteratively until no more changes.
     fn run_to_fixpoint(&mut self, func: &mut Function) -> usize {
         self.eliminated_count = 0;
+        self.eliminated_casts = 0;
         let cfg = self.cfg.as_ref().map_or_else(|| Rc::new(CfgInfo::new(func)), Rc::clone);
 
         // Sinking only creates pure expressions, while elimination removes instructions and
@@ -475,10 +490,21 @@ impl CommonSubexprEliminator {
         self.refresh_alias(func);
         self.gas = Some(GasObservations::new(func, &cfg, self.alias()));
         loop {
-            let before = self.eliminated_count;
+            let (before, casts) = (self.eliminated_count, self.eliminated_casts);
             self.alias().clear_cached_addresses();
             self.run_with_cfg(func, &cfg);
-            if self.eliminated_count == before {
+            if self.eliminated_count - self.eliminated_casts != before - casts {
+                continue;
+            }
+            // Later instructions of the dominator-scoped pass read its merged casts through its
+            // replacements, but phi sinking ran before the merges. Rerun only it, and keep going
+            // if it sinks.
+            if self.eliminated_casts == casts {
+                break;
+            }
+            let sunk = self.eliminated_count;
+            self.sink_redundant_phi_expressions(func, &cfg);
+            if self.eliminated_count == sunk {
                 break;
             }
         }
@@ -692,6 +718,7 @@ impl CommonSubexprEliminator {
                     ctx.replacements.insert(*result, *cached);
                     ctx.dead.insert(inst_id);
                     self.eliminated_count += 1;
+                    self.eliminated_casts += usize::from(matches!(key, ExprKey::Cast(..)));
                     continue;
                 }
                 if kind.has_side_effects() {
@@ -1030,6 +1057,7 @@ impl CommonSubexprEliminator {
         // Helper to get canonical operands after in-block replacements.
         let operand = |v: ValueId| Self::operand_key(func, v, replacements);
         let value = |v: ValueId| mir_utils::resolve_replacement(v, replacements);
+        let cast = |cast, v| Some(ExprKey::Cast(cast, operand(v), func.inst(inst_id).result_ty));
 
         match kind {
             InstKind::ICall { function: Callee::Function(function), args }
@@ -1188,6 +1216,12 @@ impl CommonSubexprEliminator {
             )),
 
             InstKind::SelfBalance => Some(ExprKey::SelfBalance),
+
+            InstKind::Zext(a) => cast(CastKey::Zext, *a),
+            InstKind::Trunc(a, _) => cast(CastKey::Trunc, *a),
+            InstKind::Sext(a, ..) => cast(CastKey::Sext, *a),
+            InstKind::PtrToInt(a, _) => cast(CastKey::PtrToInt, *a),
+            InstKind::IntToPtr(a) => cast(CastKey::IntToPtr, *a),
 
             // Don't cache these:
             // - Cheap nullary reads usually cost less than their extra stack lifetime

@@ -117,8 +117,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         | InstKind::Trunc(value, _)
         | InstKind::Sext(value, _, _)
         | InstKind::PtrToInt(value, _)
-        | InstKind::IntToPtr(value)
-        | InstKind::Bitcast(value) = *kind
+        | InstKind::IntToPtr(value) = *kind
         {
             // cast value -> schedule the operand under the result identity
             if let Some(plan) = self.plan_operands(func, &[value], liveness, block, inst_idx) {

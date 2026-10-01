@@ -487,13 +487,13 @@ fn @constructor() [constructor] {
     ret
   bb117:
     v468 = memory_object_load_element memoryarray<1>, v443, v466
-    v469 = inttoptr i256 v468 to memoryarray
+    v469 = inttoptr i256 v468 to memptr
     v470 = eq v468, 0
     jumpi v470, bb119, bb120
   bb119:
     v471 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
     set_memory_object_len memoryarray, v471, 0
-    v472 = ptrtoint memoryarray v471 to i256
+    v472 = ptrtoint memptr v471 to i256
     memory_object_store_element memoryarray<1>, v443, v466, v472
     jump bb120
   bb120:
@@ -587,19 +587,19 @@ fn @constructor() [constructor] {
     v465 = add v454, 1
     jump bb113
   bb109:
-    v446 = ptrtoint memoryarray 96 to i256
+    v446 = ptrtoint memptr 96 to i256
     memory_object_store_element memoryarray<1>, v443, v444, v446
     v447 = add v444, 1
     jump bb108
   bb94:
     v284 = memory_object_load_element memoryarray<1>, v257, v282
-    v285 = inttoptr i256 v284 to memoryarray
+    v285 = inttoptr i256 v284 to memptr
     v286 = eq v284, 0
     jumpi v286, bb96, bb97
   bb96:
     v287 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
     set_memory_object_len memoryarray, v287, 0
-    v288 = ptrtoint memoryarray v287 to i256
+    v288 = ptrtoint memptr v287 to i256
     memory_object_store_element memoryarray<1>, v257, v282, v288
     jump bb97
   bb97:
@@ -693,19 +693,19 @@ fn @constructor() [constructor] {
     v281 = add v270, 1
     jump bb90
   bb86:
-    v260 = ptrtoint memoryarray 96 to i256
+    v260 = ptrtoint memptr 96 to i256
     memory_object_store_element memoryarray<1>, v257, v258, v260
     v261 = add v258, 1
     jump bb85
   bb61:
     v176 = memory_object_load_element memoryarray<1>, v148, v174
-    v177 = inttoptr i256 v176 to memoryarray
+    v177 = inttoptr i256 v176 to memptr
     v178 = eq v176, 0
     jumpi v178, bb63, bb64
   bb63:
     v179 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
     set_memory_object_len memoryarray, v179, 0
-    v180 = ptrtoint memoryarray v179 to i256
+    v180 = ptrtoint memptr v179 to i256
     memory_object_store_element memoryarray<1>, v148, v174, v180
     jump bb64
   bb64:
@@ -736,13 +736,13 @@ fn @constructor() [constructor] {
     jump bb60
   bb71:
     v201 = memory_object_load_element memoryarray<1>, v181, v199
-    v202 = inttoptr i256 v201 to memoryarray
+    v202 = inttoptr i256 v201 to memptr
     v203 = eq v201, 0
     jumpi v203, bb73, bb74
   bb73:
     v204 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
     set_memory_object_len memoryarray, v204, 0
-    v205 = ptrtoint memoryarray v204 to i256
+    v205 = ptrtoint memptr v204 to i256
     memory_object_store_element memoryarray<1>, v181, v199, v205
     jump bb74
   bb74:
@@ -863,13 +863,13 @@ fn @constructor() [constructor] {
     v172 = add v161, 1
     jump bb57
   bb50:
-    v151 = ptrtoint memoryarray 96 to i256
+    v151 = ptrtoint memptr 96 to i256
     memory_object_store_element memoryarray<1>, v148, v149, v151
     v152 = add v149, 1
     jump bb49
   bb16:
     v32 = memory_object_load_element memoryarray<1>, v0, v30
-    v33 = inttoptr i256 v32 to memoryfixedarray
+    v33 = inttoptr i256 v32 to memptr
     v34 = eq v32, 0
     jumpi v34, bb18, bb19
   bb18:
@@ -880,7 +880,7 @@ fn @constructor() [constructor] {
     v37 = lt v36, 2
     jumpi v37, bb21, bb22
   bb22:
-    v41 = ptrtoint memoryfixedarray v35 to i256
+    v41 = ptrtoint memptr v35 to i256
     memory_object_store_element memoryarray<1>, v0, v30, v41
     jump bb19
   bb19:
@@ -976,7 +976,7 @@ fn @constructor() [constructor] {
     jump bb41
   bb26:
     v50 = memory_object_load_element memoryfixedarray<2, 1>, v42, v46
-    v51 = inttoptr i256 v50 to memoryarray
+    v51 = inttoptr i256 v50 to memptr
     v52 = memory_object_len memoryarray, v51
     v53 = sload v48 !metadata(storage=symbolic(v48))
     v54 = gt v53, v52
@@ -1017,7 +1017,7 @@ fn @constructor() [constructor] {
     v146 = add v46, 1
     jump bb23
   bb35:
-    v73 = inttoptr i256 v50 to memoryarray
+    v73 = inttoptr i256 v50 to memptr
     v74 = memory_object_load_element memoryarray<1>, v73, v71
     v75 = storage_array_data_slot v48
     v76 = div v71, 32
@@ -1055,7 +1055,7 @@ fn @constructor() [constructor] {
   bb21:
     v38 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
     set_memory_object_len memoryarray, v38, 0
-    v39 = ptrtoint memoryarray v38 to i256
+    v39 = ptrtoint memptr v38 to i256
     memory_object_store_element memoryfixedarray<2, 1>, v35, v36, v39
     v40 = add v36, 1
     jump bb20
@@ -1092,12 +1092,12 @@ fn @constructor() [constructor] {
     v5 = lt v4, 2
     jumpi v5, bb5, bb6
   bb6:
-    v8 = ptrtoint memoryfixedarray v3 to i256
+    v8 = ptrtoint memptr v3 to i256
     memory_object_store_element memoryarray<1>, v0, v1, v8
     v9 = add v1, 1
     jump bb1
   bb5:
-    v6 = ptrtoint memoryarray 96 to i256
+    v6 = ptrtoint memptr 96 to i256
     memory_object_store_element memoryfixedarray<2, 1>, v3, v4, v6
     v7 = add v4, 1
     jump bb4
@@ -1241,13 +1241,13 @@ fn @copyDynamic() -> i256 [selector=0x902a0a84, abi_params=[], abi_returns=[word
     ret v172
   bb10:
     v47 = memory_object_load_element memoryarray<1>, v22, v45
-    v48 = inttoptr i256 v47 to memoryarray
+    v48 = inttoptr i256 v47 to memptr
     v49 = eq v47, 0
     jumpi v49, bb12, bb13
   bb12:
     v50 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
     set_memory_object_len memoryarray, v50, 0
-    v51 = ptrtoint memoryarray v50 to i256
+    v51 = ptrtoint memptr v50 to i256
     memory_object_store_element memoryarray<1>, v22, v45, v51
     jump bb13
   bb13:
@@ -1344,7 +1344,7 @@ fn @copyDynamic() -> i256 [selector=0x902a0a84, abi_params=[], abi_returns=[word
     v25 = storage_array_data_slot v4
     v26 = add v25, v23
     v27 = icall @load_storage_packed_array_1_0, v26
-    v28 = ptrtoint memoryarray v27 to i256
+    v28 = ptrtoint memptr v27 to i256
     memory_object_store_element memoryarray<1>, v22, v23, v28
     v29 = add v23, 1
     jump bb1
@@ -1486,13 +1486,13 @@ fn @copyFixed() -> i256 [selector=0x23235673, abi_params=[], abi_returns=[word],
     ret v170
   bb10:
     v45 = memory_object_load_element memoryarray<1>, v20, v43
-    v46 = inttoptr i256 v45 to memoryarray
+    v46 = inttoptr i256 v45 to memptr
     v47 = eq v45, 0
     jumpi v47, bb12, bb13
   bb12:
     v48 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
     set_memory_object_len memoryarray, v48, 0
-    v49 = ptrtoint memoryarray v48 to i256
+    v49 = ptrtoint memptr v48 to i256
     memory_object_store_element memoryarray<1>, v20, v43, v49
     jump bb13
   bb13:
@@ -1589,7 +1589,7 @@ fn @copyFixed() -> i256 [selector=0x23235673, abi_params=[], abi_returns=[word],
     v23 = storage_array_data_slot v2
     v24 = add v23, v21
     v25 = icall @load_storage_packed_array_1_0, v24
-    v26 = ptrtoint memoryarray v25 to i256
+    v26 = ptrtoint memptr v25 to i256
     memory_object_store_element memoryarray<1>, v20, v21, v26
     v27 = add v21, 1
     jump bb1
@@ -1769,7 +1769,7 @@ fn @copyMixed() -> i256 [selector=0x0eb8f89e, abi_params=[], abi_returns=[word],
     jump bb22
   bb7:
     v17 = memory_object_load_element memoryfixedarray<2, 1>, v6, v13
-    v18 = inttoptr i256 v17 to memoryarray
+    v18 = inttoptr i256 v17 to memptr
     v19 = memory_object_len memoryarray, v18
     v20 = sload v15 !metadata(storage=offset(v13, 5))
     v21 = gt v20, v19
@@ -1810,7 +1810,7 @@ fn @copyMixed() -> i256 [selector=0x0eb8f89e, abi_params=[], abi_returns=[word],
     v113 = add v13, 1
     jump bb4
   bb16:
-    v40 = inttoptr i256 v17 to memoryarray
+    v40 = inttoptr i256 v17 to memptr
     v41 = memory_object_load_element memoryarray<1>, v40, v38
     v42 = storage_array_data_slot v15
     v43 = div v38, 32
@@ -1848,13 +1848,13 @@ fn @copyMixed() -> i256 [selector=0x0eb8f89e, abi_params=[], abi_returns=[word],
   bb2:
     v9 = add v5, v7
     v10 = icall @load_storage_packed_array_1_0, v9
-    v11 = ptrtoint memoryarray v10 to i256
+    v11 = ptrtoint memptr v10 to i256
     memory_object_store_element memoryfixedarray<2, 1>, v6, v7, v11
     v12 = add v7, 1
     jump bb1
 }
 
-fn @load_storage_packed_array_1_0(arg0: i256) -> memoryarray {
+fn @load_storage_packed_array_1_0(arg0: i256) -> memptr {
   bb0:
     v0 = load_storage_array u8, arg0
     ret v0

@@ -45,7 +45,7 @@ fn @balanceOf(arg0: i256) -> i256 [selector=0x70a08231, view, abi_params=[addres
     ret v8
 }
 
-fn @forward(arg0: i256, arg1: memorybytes) -> memorybytes [selector=0x6fadcf72, abi_params=[address, bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @forward(arg0: i256, arg1: memptr) -> memptr [selector=0x6fadcf72, abi_params=[address, bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = gas
     v1 = trunc i256 arg0 to i160

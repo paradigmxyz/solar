@@ -471,7 +471,7 @@ impl LoopOptimizer {
             // header. Element, byte, and word stores address the payload that
             // follows the header, so alias analysis can prove the loop leaves
             // the length alone while the object identity is still explicit.
-            // Nominal object types do not prove that the header is allocated.
+            // An object layout does not prove that the header is allocated.
             // As with raw loads, require execution on every path through the loop.
             InstKind::MemoryObjectLen(..) => {
                 return !self.function_observes_msize(func)

@@ -16,11 +16,11 @@ fn @recover() [selector=0xce746024, abi_wrapper, pure] {
     mstore v35, 160
     v31 = add v35, 32
     mstore v31, 1
-    v21 = add v35, 64
+    v21 = add v31, 32
     mstore v21, 28
-    v24 = add v35, 96
+    v24 = add v31, 64
     mstore v24, 0x6673ffad2147741f04772b6f921f0ba6af0c1e77fc439e65c36dedf4092e8898
-    v27 = add v35, 128
+    v27 = add v31, 96
     mstore v27, 0x4c1a971652e0ada880120ef8025e709fff2080c4a39aae068d12eed009b68c89
     v41 = mload 64 !metadata(memory=scratch)
     v42 = add v41, 64
@@ -61,11 +61,11 @@ fn @recoverInvalid() [selector=0x008f4bed, abi_wrapper, pure] {
     mstore v34, 160
     v30 = add v34, 32
     mstore v30, 0
-    v20 = add v34, 64
+    v20 = add v30, 32
     mstore v20, 0
-    v23 = add v34, 96
+    v23 = add v30, 64
     mstore v23, 0
-    v26 = add v34, 128
+    v26 = add v30, 96
     mstore v26, 0
     v40 = mload 64 !metadata(memory=scratch)
     v41 = add v40, 64

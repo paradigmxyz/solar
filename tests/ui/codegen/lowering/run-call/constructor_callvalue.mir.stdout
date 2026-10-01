@@ -56,7 +56,7 @@ fn @rejectsExplicit() -> i256 [selector=0x90887b1f, payable, abi_params=[], abi_
     set_memory_object_len memorybytes, v2, v0
     v3 = memory_object_data memorybytes, v2
     v4 = datasize ExplicitNonpayable_creation_code_0, 31, aligned
-    v5 = ptrtoint memorybytes v2 to i256
+    v5 = ptrtoint memptr v2 to i256
     v6 = add v5, v4
     mstore v6, 0
     v7 = ptrtoint memptr v3 to i256
@@ -79,7 +79,7 @@ fn @rejectsImplicit() -> i256 [selector=0x05da30eb, payable, abi_params=[], abi_
     set_memory_object_len memorybytes, v2, v0
     v3 = memory_object_data memorybytes, v2
     v4 = datasize ImplicitNonpayable_creation_code_1, 31, aligned
-    v5 = ptrtoint memorybytes v2 to i256
+    v5 = ptrtoint memptr v2 to i256
     v6 = add v5, v4
     mstore v6, 0
     v7 = ptrtoint memptr v3 to i256
@@ -100,7 +100,7 @@ fn @rejectsSynthetic() -> i256 [selector=0x28868c98, payable, abi_params=[], abi
     set_memory_object_len memorybytes, v2, v0
     v3 = memory_object_data memorybytes, v2
     v4 = datasize SyntheticNonpayable_creation_code_2, 31, aligned
-    v5 = ptrtoint memorybytes v2 to i256
+    v5 = ptrtoint memptr v2 to i256
     v6 = add v5, v4
     mstore v6, 0
     v7 = ptrtoint memptr v3 to i256
@@ -121,7 +121,7 @@ fn @rejectsInherited() -> i256 [selector=0xb3ba0b5d, payable, abi_params=[], abi
     set_memory_object_len memorybytes, v2, v0
     v3 = memory_object_data memorybytes, v2
     v4 = datasize InheritedNonpayable_creation_code_3, 31, aligned
-    v5 = ptrtoint memorybytes v2 to i256
+    v5 = ptrtoint memptr v2 to i256
     v6 = add v5, v4
     mstore v6, 0
     v7 = ptrtoint memptr v3 to i256
@@ -142,7 +142,7 @@ fn @acceptsPayable() -> i256 [selector=0xd6e5da6b, payable, abi_params=[], abi_r
     set_memory_object_len memorybytes, v2, v0
     v3 = memory_object_data memorybytes, v2
     v4 = datasize ExplicitPayable_creation_code_4, 31, aligned
-    v5 = ptrtoint memorybytes v2 to i256
+    v5 = ptrtoint memptr v2 to i256
     v6 = add v5, v4
     mstore v6, 0
     v7 = ptrtoint memptr v3 to i256
@@ -165,11 +165,11 @@ fn @acceptsPayable() -> i256 [selector=0xd6e5da6b, payable, abi_params=[], abi_r
     ret v16
 }
 
-fn @deploy(arg0: memorybytes) -> i256 {
+fn @deploy(arg0: memptr) -> i256 {
   bb0:
-    v0 = ptrtoint memorybytes arg0 to i256
+    v0 = ptrtoint memptr arg0 to i256
     v1 = mload v0
-    v2 = ptrtoint memorybytes arg0 to i256
+    v2 = ptrtoint memptr arg0 to i256
     v3 = add v2, 32
     v4 = callvalue
     v5 = create v4, v3, v1

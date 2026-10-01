@@ -1,9 +1,6 @@
 //! MIR instructions.
 
-use super::{
-    Function, InstKind, MemoryObjectKind, MemoryObjectLayout, MirType, SliceLocation, Value,
-    ValueId,
-};
+use super::{Function, InstKind, MemoryObjectLayout, MirType, SliceLocation, Value, ValueId};
 use crate::mir::{Builtin, Callee};
 use alloy_primitives::U256;
 use smallvec::SmallVec;
@@ -233,6 +230,17 @@ impl InstructionMetadata {
     pub(crate) fn set_preserves_fmp(&mut self, value: bool) {
         self.flags.set_preserves_fmp(value);
     }
+
+    /// Returns whether this copy's source and destination ranges never overlap.
+    #[must_use]
+    pub(crate) fn disjoint(&self) -> bool {
+        self.flags.disjoint()
+    }
+
+    /// Marks a copy whose source and destination ranges never overlap.
+    pub(crate) fn set_disjoint(&mut self, value: bool) {
+        self.flags.set_disjoint(value);
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -245,6 +253,7 @@ impl MetadataFlags {
     const EFFECT_SHIFT: u16 = 3;
     const UNCHECKED: u16 = 0b1000_0000;
     const DEFERRED_ALLOC: u16 = 0b1_0000_0000;
+    const DISJOINT: u16 = 0b10_0000_0000;
     const PRESERVES_FMP: u16 = 0b100_0000_0000;
     const DISPLAY_SOURCE_SPAN: u16 = 0b1000_0000_0000;
     const DEBUG_INFO_HANDLED: u16 = 0b1_0000_0000_0000;
@@ -295,6 +304,18 @@ impl MetadataFlags {
 
     fn clear_deferred_alloc(&mut self) {
         self.0 &= !Self::DEFERRED_ALLOC;
+    }
+
+    fn disjoint(self) -> bool {
+        self.0 & Self::DISJOINT != 0
+    }
+
+    fn set_disjoint(&mut self, value: bool) {
+        if value {
+            self.0 |= Self::DISJOINT;
+        } else {
+            self.0 &= !Self::DISJOINT;
+        }
     }
 
     fn preserves_fmp(self) -> bool {
@@ -610,7 +631,7 @@ impl AbiEncodeMode {
     pub(crate) const fn result_type(self) -> MirType {
         match self {
             Self::Slice | Self::Scratch => MirType::Slice(SliceLocation::Memory),
-            Self::Bytes => MirType::MemoryObject(MemoryObjectKind::Bytes),
+            Self::Bytes => MirType::MemPtr,
         }
     }
 }
@@ -620,8 +641,7 @@ impl AllocationKind {
     #[must_use]
     pub(crate) const fn result_type(self) -> MirType {
         match self {
-            Self::Raw => MirType::MemPtr,
-            Self::Object(layout) => MirType::MemoryObject(layout.kind()),
+            Self::Raw | Self::Object(_) => MirType::MemPtr,
         }
     }
 }
@@ -754,7 +774,6 @@ impl Instruction {
             | InstKind::Sext(..)
             | InstKind::PtrToInt(..)
             | InstKind::IntToPtr(..)
-            | InstKind::Bitcast(..)
             | InstKind::Add(..)
             | InstKind::Sub(..)
             | InstKind::Mul(..)
@@ -980,11 +999,6 @@ impl InstKind {
                 matches!(ty(value), Some(MirType::Int(_)))
                     && result.is_some_and(MirType::is_pointer)
             }
-            Self::Bitcast(value) => {
-                (ty(value).is_some_and(MirType::is_pointer)
-                    && result.is_some_and(MirType::is_pointer))
-                    || (matches!(ty(value), Some(MirType::Int(_))) && ty(value) == result)
-            }
             Self::Alloc { kind, .. } => result == Some(kind.result_type()),
             Self::MakeSlice { location, .. } => result == Some(MirType::Slice(location)),
             Self::FrameLoad { kind, .. } => result == Some(kind.result_type()),
@@ -1009,8 +1023,11 @@ impl InstKind {
             // Module and builtin signatures are checked by the validator.
             Self::ICall { .. } => true,
             _ => {
-                self.op_def().result != super::ResultKind::Custom
-                    && self.op_def().result.default_type() == result
+                let kind = self.op_def().result;
+                kind != super::ResultKind::Custom
+                    && result.map_or(!kind.produces_value(), |ty| {
+                        kind.produces_value() && kind.admits_type(ty)
+                    })
             }
         }
     }
