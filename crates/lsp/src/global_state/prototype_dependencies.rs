@@ -153,7 +153,7 @@ mod tests {
         // A rewrite that keeps the length must still compare the bytes.
         let snapshot = DependencySnapshot::default();
         record(&snapshot, &path);
-        fs::write(&path, "contract Sourc_ {}\n").unwrap();
+        fs::write(&path, "contract Target {}\n").unwrap();
         assert!(!unchanged(&snapshot));
     }
 
