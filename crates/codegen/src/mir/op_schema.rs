@@ -28,7 +28,7 @@ use alloy_primitives::Bytes;
 
 use super::{
     AbiEncodeMode, AbiLayoutRef, AbiParamLayoutRef, AddressCallKind, AllocationKind,
-    AllocationSemantics, ArithmeticKind, BlockId, Callee, CheckedOp, DataRef, EffectKind,
+    AllocationSemantics, ArithmeticKind, BlockId, Callee, CheckedOp, DataRef, DataSize, EffectKind,
     FrameMode, FrameSlotKind, Function, FunctionId, ImmutableId, InstructionMetadata,
     MemoryObjectKind, MemoryObjectLayout, MirPhase, MirType, PackedPart, RevertKind, SliceLocation,
     StorageLayoutRef, StructId, ValueId, ValueLayout, typing,
@@ -500,6 +500,7 @@ attributes! {
     AllocationKind,
     AllocationSemantics,
     DataRef,
+    DataSize,
     FrameMode,
     FrameSlotKind,
     FunctionId,
@@ -2120,7 +2121,7 @@ define_mir_ops! {
     // Code operations
     /// Copy constant module data to memory.
     #[mir_op(
-        mnemonic = "data_copy",
+        mnemonic = "datacopy",
         result = None,
         phases = PhaseSet::ALL,
         effect = MemoryWrite,
@@ -2130,6 +2131,23 @@ define_mir_ops! {
     )]
     #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256]))]
     DataCopy(data: DataRef, dest: ValueId, size: ValueId),
+    /// Byte length of deferred module data, such as another contract's
+    /// bytecode, plus an addend, rounded down to a multiple of 32 when aligned.
+    ///
+    /// The length is only known once the data is linked during final assembly. Folding
+    /// the addend and rounding into the operation keeps sizes derived from
+    /// the length constant after resolution.
+    #[mir_op(
+        mnemonic = "datasize",
+        result = I256,
+        phases = PhaseSet::ALL,
+        effect = Pure,
+        traits = OpTraits::NONE,
+        side_effects = false,
+        category = None
+    )]
+    #[operand_types(func => Some(smallvec![]))]
+    DataSize(size: DataSize),
     /// Get code size: `codesize()`
     #[mir_op(
         mnemonic = "codesize",

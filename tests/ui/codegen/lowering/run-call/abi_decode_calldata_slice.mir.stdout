@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_decode_calldata_slice.sol:AbiDecodeCalldataSlice ===
 @module AbiDecodeCalldataSlice
-types:
+@types
   struct0: {i256, i256, i256, i256}
   struct1: {i256, i256}
 

@@ -82,6 +82,33 @@ impl StoredDocumentLink {
         {
             return Some(self.import_path.clone());
         }
+        // A moved importer can keep an opaque or anchored path that still resolves to the target.
+        if moved_source != source
+            && moved_target == self.target
+            && match &self.import_style {
+                ImportPathStyle::Relative { .. } => false,
+                ImportPathStyle::Opaque { .. } => import_resolves_to_target(
+                    &self.import_path,
+                    moved_source,
+                    moved_target,
+                    resolver_root,
+                    remappings,
+                    moves,
+                ),
+                ImportPathStyle::Anchored { configuration_root, .. } => {
+                    anchored_import_resolves_to_target(
+                        &self.import_path,
+                        moved_source,
+                        moved_target,
+                        configuration_root.as_deref(),
+                        remappings,
+                        moves,
+                    )
+                }
+            }
+        {
+            return Some(self.import_path.clone());
+        }
 
         if let ImportPathStyle::Anchored { prefix, target_root, configuration_root, .. } =
             &self.import_style
@@ -183,6 +210,27 @@ fn absolute_import_resolves_to_target(
         resolver_root.as_deref().and_then(|root| source.strip_prefix(root).ok()).unwrap_or(source);
     let remapped = apply_import_remappings(remappings, import_path, Some(parent));
     remapped.is_absolute() && remapped.as_ref().normalize() == target.normalize()
+}
+
+fn import_resolves_to_target(
+    import_path: &Path,
+    source: &Path,
+    target: &Path,
+    resolver_root: Option<&Path>,
+    remappings: &[ImportRemapping],
+    moves: &FileMoveBatch,
+) -> bool {
+    let resolver_root = resolver_root.map(|root| moved_path(root, moves));
+    let parent =
+        resolver_root.as_deref().and_then(|root| source.strip_prefix(root).ok()).unwrap_or(source);
+    let remapped = apply_import_remappings(remappings, import_path, Some(parent));
+    let resolved = if remapped.is_absolute() {
+        remapped.as_ref().normalize()
+    } else {
+        let Some(root) = resolver_root else { return false };
+        root.join(remapped.as_ref()).normalize()
+    };
+    resolved == target.normalize()
 }
 
 fn relative_import_path(source: &Path, target: &Path) -> Option<PathBuf> {

@@ -1,5 +1,6 @@
 use crate::{
     code_actions::{CodeActionPlan, exact_byte_range, ranges_overlap, rope_source_fingerprint},
+    config::Config,
     document_links::ImportEditPlan,
     proto,
     rename::RenameCandidate,
@@ -15,6 +16,10 @@ use solar_interface::{
     data_structures::sync::RwLock, diagnostics::Applicability, source_map::SourceMap,
 };
 use std::{collections::HashMap, sync::Arc};
+
+mod scope;
+
+pub(super) use scope::check_edit_scope;
 
 pub(crate) fn validated_code_actions(
     params: CodeActionParams,
@@ -180,9 +185,13 @@ pub(crate) fn validated_rename_workspace_edit(
 
 pub(super) fn validated_import_workspace_edit(
     plan: ImportEditPlan,
+    config: &Config,
     vfs: Arc<RwLock<Vfs>>,
     document_changes: bool,
-) -> Result<WorkspaceEdit, ResponseError> {
+) -> Result<Option<WorkspaceEdit>, ResponseError> {
+    if check_edit_scope(plan.files(), config).is_err() {
+        return Ok(None);
+    }
     let source_map = SourceMap::empty();
     let mut changes = HashMap::new();
     let mut versions = HashMap::new();
@@ -192,7 +201,7 @@ pub(super) fn validated_import_workspace_edit(
         versions.insert(uri.clone(), version);
         changes.insert(uri, edits);
     }
-    Ok(ValidatedWorkspaceEdit { changes, versions }.into_workspace_edit(document_changes))
+    Ok(Some(ValidatedWorkspaceEdit { changes, versions }.into_workspace_edit(document_changes)))
 }
 
 /// Loads a file's current contents, requiring them to match the analyzed snapshot.

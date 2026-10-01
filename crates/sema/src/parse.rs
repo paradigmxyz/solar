@@ -259,7 +259,7 @@ impl<'gcx> ParsingContext<'gcx> {
             let parent = parent_path(&file);
             let imports_len = sources[id].imports.len();
             let ast = self.parse_one(&file, arena, |item_id, _, import| {
-                let _guard = debug_span!("resolve_import").entered();
+                let _guard = trace_span!("resolve_import").entered();
                 let Some(import_file) = self.resolve_import_directive(import, parent) else {
                     return;
                 };
@@ -314,7 +314,7 @@ impl<'gcx> ParsingContext<'gcx> {
         let mut imports = Vec::new();
         let parent = parent_path(&file);
         let ast = self.parse_one(&file, arenas.get_or_default(), |item_id, _, import| {
-            let _guard = debug_span!("resolve_import").entered();
+            let _guard = trace_span!("resolve_import").entered();
             let Some(import_file) = self.resolve_import_directive(import, parent) else {
                 return;
             };
@@ -517,7 +517,7 @@ impl<'ast> Sources<'ast> {
     /// Returns the ID of the given file, or inserts it if it doesn't exist.
     ///
     /// Returns `true` if the file was newly inserted.
-    #[instrument(level = "debug", skip_all)]
+    #[instrument(level = "trace", skip_all)]
     pub fn get_or_insert_file(&mut self, file: Arc<SourceFile>) -> (SourceId, bool) {
         let mut new = false;
         let id = *self.file_to_id.entry(file).or_insert_with_key(|file| {

@@ -1,4 +1,6 @@
-use super::workspace_edit::{validated_code_actions, validated_rename_workspace_edit};
+use super::workspace_edit::{
+    check_edit_scope, validated_code_actions, validated_rename_workspace_edit,
+};
 use crate::{
     config::Config,
     diagnostics::PullReport,
@@ -12,9 +14,10 @@ use crate::{
     natspec_completion::{self, NatSpecCompletionResult},
     progress::send_progress,
     proto::normalize_file_uri,
-    rename::validate_rename,
+    rename::RenameCandidate,
     symbols::{CompletionContext, CompletionItemData, SymbolTables},
     vfs::{Vfs, VfsPath},
+    workspace::WorkspaceEditError,
 };
 use arc_swap::ArcSwap;
 use async_lsp::{ClientSocket, ErrorCode, ResponseError};
@@ -875,6 +878,31 @@ pub(crate) fn rename(
         .map_err(task_error("rename"))?
         .map(Some)
     }
+}
+
+/// Validates that a rename may edit every candidate location and knows all of its references.
+fn validate_rename(candidate: &RenameCandidate, config: &Config) -> Result<(), ResponseError> {
+    let uris =
+        candidate.locations.chunk_by(|a, b| a.uri == b.uri).map(|locations| &locations[0].uri);
+    check_edit_scope(uris, config).map_err(|error| {
+        request_failed(match error {
+            WorkspaceEditError::Dependency => {
+                "cannot rename this symbol because it would modify dependency files"
+            }
+            WorkspaceEditError::OutsideWorkspace => {
+                "cannot rename this symbol because it would modify files outside the workspace"
+            }
+            WorkspaceEditError::UnresolvedPath => {
+                "cannot rename this symbol because its file paths could not be verified"
+            }
+        })
+    })?;
+    if candidate.requires_complete_workspace && config.may_omit_source_files() {
+        return Err(request_failed(
+            "cannot rename this symbol because workspace indexing may omit source files",
+        ));
+    }
+    Ok(())
 }
 
 pub(crate) fn inlay_hints(

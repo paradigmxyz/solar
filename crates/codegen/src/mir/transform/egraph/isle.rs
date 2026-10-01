@@ -152,6 +152,7 @@ pub(in crate::mir::transform) fn max_bits_with_args(
     let shift = |shift| func.value_u256(shift).map(|shift| shift.min(U256::from(256)).to::<u32>());
     match *kind {
         InstKind::Zext(value) => bits(value),
+        InstKind::DataSize(size) => size.bound().bit_len() as u32,
         InstKind::And(a, b) => {
             let a = bits(a);
             if a == 0 { 0 } else { a.min(bits(b)) }

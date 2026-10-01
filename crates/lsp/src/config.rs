@@ -283,8 +283,13 @@ impl Config {
 
     /// Returns cached lexical ownership; filesystem resolution remains request-local.
     pub(crate) fn workspace_edit_scope(&self) -> &WorkspaceEditScope {
-        self.workspace_edit_scope
-            .get_or_init(|| WorkspaceEditScope::new(&self.workspace_roots, &self.workspaces))
+        self.workspace_edit_scope.get_or_init(|| {
+            WorkspaceEditScope::new(
+                &self.workspace_roots,
+                &self.workspaces,
+                &self.git_marker_watch_roots,
+            )
+        })
     }
 
     pub(crate) fn workspace_path_index(&self) -> WorkspacePathIndex<'_> {

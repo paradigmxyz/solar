@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/mapping_nested_struct_copy.sol:MappingNestedStructCopy ===
 @module MappingNestedStructCopy
-types:
+@types
   struct0: {i256, i256, i256, i256}
 
 fn @set(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) [selector=0xeccd65dc, abi_params=[u256, u256, u256, u256, u256], abi_returns=[], abi_return_params=[]] {

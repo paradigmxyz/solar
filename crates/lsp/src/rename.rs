@@ -21,10 +21,6 @@ use solar_sema::{
 };
 use std::{borrow::Cow, path::PathBuf, sync::Arc};
 
-mod scope;
-
-pub(crate) use scope::validate_rename;
-
 newtype_index! {
     /// A file-local import alias in the rename index.
     pub(crate) struct ImportAliasId;

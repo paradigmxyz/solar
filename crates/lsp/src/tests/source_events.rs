@@ -2,6 +2,7 @@ use super::{
     indexing::{GENERATED_DEPENDENCY, analyze_project, host_config, symbol_names, workspace_bases},
     *,
 };
+use crate::workspace::WorkspaceEditError;
 use lsp_types::{CreateFilesParams, DeleteFilesParams, FileCreate, FileDelete};
 
 fn create_files(state: &mut GlobalState, path: &Path) {
@@ -116,18 +117,30 @@ async fn watched_nested_repository_markers_prune_and_restore_nested_projects() {
     let tracked = |state: &GlobalState| {
         state.config.tracked_source_files_under(std::slice::from_ref(&nested_root))
     };
+    // Pruned repositories become read-only dependencies; earlier configs keep their own policy.
+    let is_dependency =
+        |config: &Config, path: &Path| match config.workspace_edit_scope().check(path) {
+            Ok(()) => false,
+            Err(WorkspaceEditError::Dependency) => true,
+            Err(error) => panic!("{error:?}"),
+        };
     let mut state = state_with(project.config());
+    let initial = Arc::clone(&state.config);
     assert_eq!(tracked(&state), std::slice::from_ref(&nested_source));
+    assert!(!is_dependency(&initial, &nested_source));
 
     project.write_file("/src/nested/.git", "gitdir: elsewhere");
     watch_files(&mut state, [(&marker, FileChangeType::CREATED)]);
     assert_eq!(analysis_version(&state), 1);
     assert!(tracked(&state).is_empty());
+    assert!(is_dependency(&state.config, &nested_source));
+    assert!(!is_dependency(&initial, &nested_source));
 
     std::fs::remove_file(&marker).unwrap();
     watch_files(&mut state, [(&marker, FileChangeType::DELETED)]);
     assert_eq!(analysis_version(&state), 2);
     assert_eq!(tracked(&state), std::slice::from_ref(&nested_source));
+    assert!(!is_dependency(&state.config, &nested_source));
     cancel_analysis(&state);
 
     // The marker events are ignored when nested repositories stay indexed.
@@ -142,9 +155,11 @@ async fn watched_nested_repository_markers_prune_and_restore_nested_projects() {
             .all(|spec| spec.pattern != "**/.git" && spec.pattern != ".git")
     );
     project.write_file("/src/nested/.git", "gitdir: elsewhere");
+    assert!(!is_dependency(&config, &nested_source));
     let mut state = state_with(config);
     watch_files(&mut state, [(&marker, FileChangeType::CREATED)]);
     assert_eq!(analysis_version(&state), 0);
+    assert!(!is_dependency(&state.config, &nested_source));
     assert_eq!(tracked(&state), [nested_source]);
 
     // Deleting a marker also restores a nested project that manifest discovery skipped.
@@ -168,12 +183,17 @@ async fn watched_nested_repository_markers_prune_and_restore_nested_projects() {
     let tracked = |state: &GlobalState| {
         state.config.tracked_source_files_under(std::slice::from_ref(&packages_root))
     };
+    let nested_source = project.path("/packages/app/src/Nested.sol");
     let mut state = state_with(project.config());
+    let initial = Arc::clone(&state.config);
     assert!(tracked(&state).is_empty());
+    assert!(is_dependency(&initial, &nested_source));
     std::fs::remove_file(&marker).unwrap();
     watch_files(&mut state, [(&marker, FileChangeType::DELETED)]);
     assert_eq!(analysis_version(&state), 1);
-    assert_eq!(tracked(&state), [project.path("/packages/app/src/Nested.sol")]);
+    assert_eq!(tracked(&state), std::slice::from_ref(&nested_source));
+    assert!(!is_dependency(&state.config, &nested_source));
+    assert!(is_dependency(&initial, &nested_source));
     cancel_analysis(&state);
 }
 

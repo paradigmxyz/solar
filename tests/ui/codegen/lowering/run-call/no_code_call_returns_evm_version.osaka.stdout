@@ -23,11 +23,11 @@ fn @pair() -> memoryfixedarray [selector=0xa8aa1b31, pure, abi_params=[], abi_re
 
 // === ROOT/tests/ui/codegen/lowering/run-call/no_code_call_returns_evm_version.sol:NoCodeReturnCalls ===
 @module NoCodeReturnCalls
-types:
+@types
   struct0: {i256, i256}
 
-data:
-  NoCodeCallee_initcode_0: hex"34600d5760ef8060115f395ff35b5f5ffd341515602a575f3560e01c80633fa4f245146026578063a8aa1b3114602257602a565b6040565b602e565b5f5ffd5b602a6080526020608001608090036080f35b6101406040526040518060e0528060e0528060c0528060c052604060e051016040528060c05260403682375060025f101560dd5760c0518060c052600181525060026001101560dd5760c0518060c0526020900160028152505f60c051905b80610100526002811060bb576040608001915050608090036080f35b602081806101005202828060c05201516020820260800152600181019050609f565b634e487b715f5260326020526024601cfd"
+@data
+  NoCodeCallee_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/no_code_call_returns_evm_version.sol:NoCodeCallee"
 
 fn @direct() -> i256 [selector=0x222b1407, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
@@ -175,17 +175,17 @@ fn @pointerNoReturn() [selector=0xcf820bfc, abi_params=[], abi_returns=[], abi_r
 fn @live() -> i256 [selector=0x957aa58c, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
-    v1 = not 31
-    v2 = and 287, v1
+    v1 = datasize NoCodeCallee_creation_code_0
+    v2 = datasize NoCodeCallee_creation_code_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    data_copy NoCodeCallee_initcode_0, v4, 256
+    datacopy NoCodeCallee_creation_code_0, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
-    v7 = add v6, 256
+    v7 = add v6, v1
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
-    v9 = create 0, v8, 256
+    v9 = create 0, v8, v1
     v10 = zext i160 v9 to i256
     v11 = ne v10, 0
     jumpi v11, bb2, bb1
@@ -215,17 +215,17 @@ fn @live() -> i256 [selector=0x957aa58c, abi_params=[], abi_returns=[word], abi_
 fn @liveAggregate() -> struct0 [selector=0xc64a4ee9, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = abi_encode []
-    v1 = not 31
-    v2 = and 287, v1
+    v1 = datasize NoCodeCallee_creation_code_0
+    v2 = datasize NoCodeCallee_creation_code_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    data_copy NoCodeCallee_initcode_0, v4, 256
+    datacopy NoCodeCallee_creation_code_0, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
-    v7 = add v6, 256
+    v7 = add v6, v1
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
-    v9 = create 0, v8, 256
+    v9 = create 0, v8, v1
     v10 = zext i160 v9 to i256
     v11 = ne v10, 0
     jumpi v11, bb2, bb1

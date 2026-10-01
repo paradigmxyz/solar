@@ -1,4 +1,6 @@
 use super::*;
+use crate::utils::apply_document_changes;
+use crop::Rope;
 use lsp_types::DocumentChanges;
 use snapbox::str;
 
@@ -147,6 +149,106 @@ fn renames_named_call_arguments_with_the_parameter() {
 /NamedArgs.sol:1:21-1:22 -> Renamed
 /NamedArgs.sol:2:15-2:16 -> Renamed
 /NamedArgs.sol:5:30-5:31 -> Renamed
+
+"#]],
+    );
+}
+
+#[test]
+fn renames_named_call_and_constructor_arguments_with_call_options() {
+    let fixture = RequestFixture::new(
+        r#"
+        //- /Target.sol
+        contract Target {
+            function pay(uint256 $1amount) external payable returns (uint256) {
+                return amount;
+            }
+        }
+        contract Created {
+            constructor(uint256 $5value) payable {}
+        }
+        //- /Caller.sol
+        import "./Target.sol";
+        contract Caller {
+            function run(Target t) external {
+                t.pay({$2amount: 2});
+                t.pay{value: 1}({$3amount: 2});
+                (t.pay){gas: 100000, value: 1}({$4amount: 2});
+            }
+            function deploy() external {
+                new Created({$6value: 2});
+                new Created{value: 1, salt: bytes32(0)}({$7value: 2});
+            }
+        }
+        "#,
+        "/Caller.sol",
+    );
+    fixture.check_renames(
+        &[("$1 $2 $3 $4", "renamed"), ("$5 $6 $7", "renamed")],
+        str![[r#"
+$1 $2 $3 $4:
+/Caller.sol:3:15-3:21 -> renamed
+/Caller.sol:4:25-4:31 -> renamed
+/Caller.sol:5:40-5:46 -> renamed
+/Target.sol:1:25-1:31 -> renamed
+/Target.sol:2:15-2:21 -> renamed
+$5 $6 $7:
+/Caller.sol:8:21-8:26 -> renamed
+/Caller.sol:9:49-9:54 -> renamed
+/Target.sol:6:24-6:29 -> renamed
+
+"#]],
+    );
+
+    // The renamed sources still analyze without diagnostics.
+    let (mut state, params) = fixture.rename_state_and_params("$1", "renamed");
+    let mut changes =
+        block_on(crate::handlers::rename(&mut state, params)).unwrap().unwrap().changes.unwrap();
+    let files = ["/Caller.sol", "/Target.sol"].map(|file| {
+        let path = fixture.project_path(file);
+        let mut edits = changes.remove(&Url::from_file_path(&path).unwrap()).unwrap();
+        edits.sort_by_key(|edit| std::cmp::Reverse(edit.range.start));
+        let changes = edits
+            .into_iter()
+            .map(|edit| TextDocumentContentChangeEvent {
+                range: Some(edit.range),
+                range_length: None,
+                text: edit.new_text,
+            })
+            .collect();
+        let contents = Rope::from(fixture.project_contents(file));
+        let renamed = apply_document_changes(&contents, changes).unwrap().to_string();
+        fixture.write_file(file, &renamed);
+        (path, renamed)
+    });
+    assert!(changes.is_empty());
+    let result = analyze(AnalysisBatch::from_files(CompileOpts::default(), files));
+    assert!(result.diagnostics.is_empty(), "{:#?}", result.diagnostics);
+}
+
+#[test]
+fn renames_named_function_type_arguments_with_call_options() {
+    // Named function type parameters emit a deprecation warning.
+    let fixture = RequestFixture::new_allowing_diagnostics(
+        r#"
+        //- /Callback.sol
+        contract Caller {
+            function run(function(uint256 $1value) external payable target) external {
+                target({$2value: 2});
+                target{value: 1, gas: 100000}({$3value: 2});
+            }
+        }
+        "#,
+        "/Callback.sol",
+    );
+
+    fixture.check_renames(
+        &[("$1 $2 $3", "renamed")],
+        str![[r#"
+$1 $2 $3:
+/Callback.sol:1:34-1:39 -> renamed
+/Callback.sol:2:16-2:21 -> renamed
+/Callback.sol:3:39-3:44 -> renamed
 
 "#]],
     );

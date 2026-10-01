@@ -56,7 +56,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     }
 
     /// Parses an item.
-    #[instrument(level = "debug", skip_all)]
+    #[instrument(level = "trace", skip_all)]
     pub fn parse_item(&mut self) -> PResult<'sess, Option<Item<'ast>>> {
         let docs = self.parse_doc_comments();
         self.parse_spanned(Self::parse_item_kind)

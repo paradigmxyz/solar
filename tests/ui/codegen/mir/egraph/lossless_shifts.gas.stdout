@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/egraph/lossless_shifts.mir (before egraph) ===
 + // === ROOT/tests/ui/codegen/mir/egraph/lossless_shifts.mir (after egraph) ===
   @module LosslessShifts
-  types:
+  @types
     struct0: {i256, i256}
     struct1: {i256, i256, i256}
     struct2: {i256, i256, i256, i256, i256, i256}
@@ -256,7 +256,7 @@
 - // === ROOT/tests/ui/codegen/mir/egraph/lossless_shifts.mir (before dce) ===
 + // === ROOT/tests/ui/codegen/mir/egraph/lossless_shifts.mir (after dce) ===
   @module LosslessShifts
-  types:
+  @types
     struct0: {i256, i256}
     struct1: {i256, i256, i256}
     struct2: {i256, i256, i256, i256, i256, i256}

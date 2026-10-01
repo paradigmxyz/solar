@@ -3,6 +3,8 @@ use crate::{handlers, vfs::VfsPath};
 use lsp_types::{CreateFilesParams, DeleteFilesParams, FileDelete, TextEdit, WorkspaceEdit};
 use std::{collections::HashMap, fs};
 
+mod scope;
+
 type EditResult = Result<Option<WorkspaceEdit>, ResponseError>;
 
 fn will_delete(state: &mut GlobalState, path: impl AsRef<Path>) -> EditResult {
@@ -360,4 +362,54 @@ fn will_rename_rewrites_independently_moved_importer_and_target() {
         new_text,
         [&target, &moved_target],
     );
+}
+
+#[test]
+fn will_rename_preserves_valid_import_paths_when_importer_moves() {
+    for (old, new, importer, moved_importer) in [
+        ("/src/Importer.sol", "/src/Renamed.sol", "/src/Importer.sol", "/src/Renamed.sol"),
+        (
+            "/src/Importer.sol",
+            "/src/nested/Importer.sol",
+            "/src/Importer.sol",
+            "/src/nested/Importer.sol",
+        ),
+        (
+            "/src/consumer",
+            "/src/renamed",
+            "/src/consumer/Importer.sol",
+            "/src/renamed/Importer.sol",
+        ),
+    ] {
+        let project = TestProject::from_fixture(&format!(
+            r#"
+            //- /foundry.toml
+            [profile.default]
+            src = "src"
+            auto_detect_remappings = false
+            remappings = ["@lib/=lib/"]
+
+            //- {importer}
+            import "@lib/Target.sol";
+            import "src/Target.sol";
+
+            //- /lib/Target.sol
+            contract RemappedTarget {{}}
+
+            //- /src/Target.sol
+            contract DirectTarget {{}}
+            "#,
+        ));
+        let mut state = state(&project);
+        let (old, new) = (project.path(old), project.path(new));
+        assert_eq!(will_rename(&mut state, &old, &new).unwrap(), None, "{old:?} -> {new:?}");
+
+        fs::create_dir_all(new.parent().unwrap()).unwrap();
+        fs::rename(old, new).unwrap();
+        let links = analyze_project(&project).document_links(&project.path(moved_importer));
+        let targets = links.into_iter().map(|link| link.target.unwrap()).collect::<Vec<_>>();
+        let expected = ["/lib/Target.sol", "/src/Target.sol"]
+            .map(|path| Url::from_file_path(project.path(path)).unwrap());
+        assert_eq!(targets, expected);
+    }
 }

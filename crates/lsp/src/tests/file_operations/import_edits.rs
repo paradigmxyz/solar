@@ -229,6 +229,40 @@ fn rename_edits_rewrite_imports() {
             &[("/src", "/contracts/nested")],
             &[("/src/Importer.sol", 7, 29, "\"../../shared/Target.sol\"")],
         ),
+        // The importer moves out of its contextual remapping.
+        (
+            r#"
+            //- /project/foundry.toml
+            [profile.default]
+            src = "src"
+            remappings = ["src:@lib/=lib/", "@lib/=other/"]
+
+            //- /project/src/Importer.sol
+            import "@lib/Target.sol";
+
+            //- /project/lib/Target.sol
+            contract Target {}
+            "#,
+            &[("/project/src", "/project/other")],
+            &[("/project/src/Importer.sol", 7, 24, "\"../lib/Target.sol\"")],
+        ),
+        // A moved importer keeps an opaque remapping that still resolves.
+        (
+            r#"
+            //- /project/foundry.toml
+            [profile.default]
+            src = "src"
+            remappings = ["Alias=lib/Target.sol"]
+
+            //- /project/src/Importer.sol
+            import "Alias";
+
+            //- /project/lib/Target.sol
+            contract Target {}
+            "#,
+            &[("/project/src/Importer.sol", "/project/src/nested/Importer.sol")],
+            &[],
+        ),
     ];
 
     for (fixture, moves, expected) in cases {

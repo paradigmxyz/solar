@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/evm-inst-schedule/policy_boundaries.mir (before evm-inst-schedule) ===
 + // === ROOT/tests/ui/codegen/mir/evm-inst-schedule/policy_boundaries.mir (after evm-inst-schedule) ===
   @module EvmInstSchedulePolicy
-  types:
+  @types
     struct0: {i1, i1, i256}
     struct1: {i256, i256}
     struct2: {i256, i256, i256}

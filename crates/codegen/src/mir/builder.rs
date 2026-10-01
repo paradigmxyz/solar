@@ -469,7 +469,8 @@ impl<'a> FunctionBuilder<'a> {
         self.mask_padded_size(rounded)
     }
 
-    fn mask_padded_size(&mut self, rounded: ValueId) -> ValueId {
+    /// Rounds `rounded` down to a multiple of 32.
+    pub(crate) fn mask_padded_size(&mut self, rounded: ValueId) -> ValueId {
         let mask = self.imm(31);
         let mask = self.not(mask);
         self.and(rounded, mask)
@@ -1229,6 +1230,20 @@ impl<'a> FunctionBuilder<'a> {
     pub(crate) fn data_copy(&mut self, data: crate::mir::DataRef, dest: ValueId, size: ValueId) {
         self.emit_void_inst(InstKind::DataCopy(data, dest, size))
     }
+
+    /// Emits the byte length of deferred module data plus `addend`, rounded down to a
+    /// multiple of 32 when `aligned` is set.
+    pub(crate) fn data_size(
+        &mut self,
+        data: crate::mir::DataId,
+        addend: u64,
+        aligned: bool,
+    ) -> ValueId {
+        // result = datasize data, addend[, aligned]
+        let size = crate::mir::DataSize { data, addend, aligned };
+        self.emit_inst(InstKind::DataSize(size), Some(MirType::I256))
+    }
+
     /// Emits a calldatacopy whose destination is proven to be in the heap.
     pub(crate) fn calldatacopy_heap(&mut self, dest: ValueId, offset: ValueId, size: ValueId) {
         self.emit_void_inst_in_region(

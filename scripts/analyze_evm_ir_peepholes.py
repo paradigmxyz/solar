@@ -99,7 +99,9 @@ def analyze(args: argparse.Namespace) -> int:
         for raw_line in log:
             line = ANSI_RE.sub("", raw_line)
             if "solar::codegen::evm_ir::peephole: rewrite" in line:
-                module_match = re.search(r"evm_codegen\{module=([^}]+)\}", line)
+                module_match = re.search(
+                    r"(?:schedule|finish)_contract\{contract=([^}]+)\}", line
+                )
                 if module_match is None:
                     module_match = re.search(
                         r"evm_ir_pipeline\{program=([^}]+)\}", line

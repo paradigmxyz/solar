@@ -38,8 +38,11 @@ semver.workspace = true
 
 tracing.workspace = true
 tracing-subscriber = { workspace = true, optional = true, features = [
-    "registry",
+    "ansi",
     "env-filter",
+    "fmt",
+    "registry",
+    "smallvec",
 ] }
 
 # LSP

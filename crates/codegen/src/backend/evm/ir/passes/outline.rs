@@ -3,7 +3,7 @@
 //! The pass finds repeated straight-line machine instruction runs, replaces each profitable site
 //! with a jump to one shared body, and returns from that body through a stack-held continuation.
 //! It also finds structurally equal runs whose concrete pushes differ, turning those pushes into
-//! stack parameters in size-oriented modes. A final specialized path shares repeated large pushes
+//! stack parameters in size mode. A final specialized path shares repeated large pushes
 //! when the call and return sequence is smaller than spelling out each literal.
 //!
 //! Gas-mode candidates are closed stack computations: they leave the incoming stack untouched
@@ -86,7 +86,7 @@ fn outline(gcx: Gcx<'_>, module: &mut Module) -> bool {
     let pushes = may_share_pushes(gcx);
     let runs = pushes || may_share_machine_runs(gcx, module);
     (runs && outline_machine_runs(gcx, module, &mut state))
-        | ((gcx.sess.opts.optimization.is_size() || module.enable_size_outlining)
+        | (gcx.sess.opts.optimization.is_size()
             && outline_parametric_machine_runs(gcx, module, &mut state))
         | (pushes && outline_repeated_pushes(gcx, module, &mut state))
 }

@@ -5,7 +5,7 @@ use solar_interface::diagnostics::DiagCtxt;
 #[cfg(feature = "tracing")]
 use solar_sema::ast::Either;
 #[cfg(feature = "tracing")]
-use std::io;
+use std::io::{self, IsTerminal};
 
 #[cfg(feature = "mimalloc")]
 use mimalloc as _;
@@ -60,6 +60,17 @@ pub enum LogDestination {
     Stdout,
     /// [`io::stderr`].
     Stderr,
+}
+
+#[cfg(feature = "tracing")]
+impl LogDestination {
+    /// Returns whether the destination is a terminal, which renders ANSI colors.
+    fn is_terminal(&self) -> bool {
+        match self {
+            Self::Stdout => io::stdout().is_terminal(),
+            Self::Stderr => io::stderr().is_terminal(),
+        }
+    }
 }
 
 #[cfg(feature = "tracing")]
@@ -132,7 +143,7 @@ fn try_init_logger(dst: LogDestination) -> Result<impl Sized, String> {
     tracing_subscriber::Registry::default()
         .with(tracing_subscriber::EnvFilter::from_default_env())
         .with(profile_layer)
-        .with(tracing_subscriber::fmt::layer().with_writer(dst))
+        .with(tracing_subscriber::fmt::layer().with_ansi(dst.is_terminal()).with_writer(dst))
         .try_init()
         .map(|()| guard)
         .map_err(|e| e.to_string())

@@ -5,6 +5,9 @@ use snapbox::{IntoData, assert_data_eq};
 #[cfg(unix)]
 use std::{fs, os::unix::fs::symlink};
 
+mod nested_repositories;
+mod repository_grants;
+
 const DEPENDENCY: &str = "cannot rename this symbol because it would modify dependency files\n";
 const OUTSIDE: &str =
     "cannot rename this symbol because it would modify files outside the workspace\n";

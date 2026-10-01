@@ -2,7 +2,7 @@
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_dispatch_library.mir (after lower-dispatch) ===
   @module DispatchLibrary
   @library
-  immutables:
+  @immutables
     library_deploy_address: address
   
   fn @view() [selector=0x00000001, abi_wrapper, view] {

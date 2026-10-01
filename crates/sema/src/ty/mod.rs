@@ -11,7 +11,7 @@ use solar_ast::{DataLocation, StateMutability, TypeSize, UserDefinableOperator, 
 use solar_data_structures::{
     BumpExt,
     bit_set::{DenseBitSet, GrowableBitSet},
-    fmt::{from_fn, or_list},
+    fmt::or_list,
     map::{FxBuildHasher, FxHashMap, FxHashSet},
     smallvec::SmallVec,
     trustme,
@@ -821,7 +821,7 @@ impl<'gcx> Gcx<'gcx> {
     fn item_canonical_name_(self, id: hir::ItemId) -> impl fmt::Display {
         let name = self.item_name(id);
         let contract = self.hir.item(id).contract().map(|id| self.item_name(id));
-        from_fn(move |f| {
+        fmt::from_fn(move |f| {
             if let Some(contract) = contract {
                 write!(f, "{contract}.")?;
             }
@@ -834,7 +834,7 @@ impl<'gcx> Gcx<'gcx> {
         self,
         id: hir::ContractId,
     ) -> impl fmt::Display + use<'gcx> {
-        from_fn(move |f| {
+        fmt::from_fn(move |f| {
             let c = self.hir.contract(id);
             let source = self.hir.source(c.source);
             write!(f, "{}:{}", source.file.name.display(), c.name)

@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/spill_slot_recomputed_operand.sol:SpillSlotRecomputedOperand ===
 @module SpillSlotRecomputedOperand
-types:
+@types
   struct0: {i256, i256}
 
 fn @mix(arg0: i256) -> i256 [pure] {
