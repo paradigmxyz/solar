@@ -4,6 +4,10 @@
 //! compatible declarations. Query adjacency uses canonical symbol IDs and is sorted once by
 //! URI and selection range, so expanding a callable only builds the owned protocol response.
 //! Conflicting declarations and incomplete relations remain excluded from navigation.
+//! Contracts without a declared constructor use their contract declaration as an implicit
+//! constructor node, without treating the contract body as a callable body. Inheritance-list
+//! argument calls belong to the constructor whether it is explicit or implicit. Only written
+//! calls are collected; bare inheritance does not synthesize C3 constructor execution edges.
 
 use crate::{
     hierarchy::{HierarchyItem, HierarchyKey as CallableKey},
@@ -11,7 +15,8 @@ use crate::{
     symbols::{DeclarationSymbol, SymbolId},
 };
 use lsp_types::{
-    CallHierarchyIncomingCall, CallHierarchyItem, CallHierarchyOutgoingCall, Position, Range, Url,
+    CallHierarchyIncomingCall, CallHierarchyItem, CallHierarchyOutgoingCall, Position, Range,
+    SymbolKind, Url,
 };
 use solar_interface::{
     Span,
@@ -53,6 +58,7 @@ struct CallHierarchyFacts {
 struct CallableFact {
     symbol: SymbolId,
     body_range: Option<Range>,
+    implicit_constructor: bool,
 }
 
 #[derive(Debug, Default)]
@@ -163,7 +169,22 @@ impl CallHierarchyIndex {
             } else {
                 None
             };
-            index.facts.callables.push(CallableFact { symbol: symbol_id, body_range });
+            index.facts.callables.push(CallableFact {
+                symbol: symbol_id,
+                body_range,
+                implicit_constructor: false,
+            });
+        }
+        for contract_id in gcx.hir.contract_ids() {
+            if let Some(item @ ItemId::Contract(_)) = constructor_item(gcx, contract_id)
+                && let Some(&symbol) = item_symbols.get(&item)
+            {
+                index.facts.callables.push(CallableFact {
+                    symbol,
+                    body_range: None,
+                    implicit_constructor: true,
+                });
+            }
         }
 
         if gcx.has_typeck_results() {
@@ -174,10 +195,12 @@ impl CallHierarchyIndex {
 
     pub(crate) fn extend(&mut self, other: Self, symbol_offset: usize) {
         let Self { facts, query: _ } = other;
-        self.facts.callables.extend(facts.callables.into_iter().map(|fact| CallableFact {
-            symbol: fact.symbol.offset_by(symbol_offset),
-            body_range: fact.body_range,
-        }));
+        self.facts.callables.extend(
+            facts
+                .callables
+                .into_iter()
+                .map(|fact| CallableFact { symbol: fact.symbol.offset_by(symbol_offset), ..fact }),
+        );
         self.facts.direct_calls.extend(facts.direct_calls.into_iter().map(|call| DirectCall {
             caller: call.caller.offset_by(symbol_offset),
             callee: call.callee.offset_by(symbol_offset),
@@ -251,13 +274,20 @@ impl QueryIndex {
                     .clone(),
                 selection_range: declaration.name_range,
             };
-            let detail = declaration.parent.map(|parent| declarations[parent].name.clone());
+            let (kind, detail) = if fact.implicit_constructor {
+                (SymbolKind::CONSTRUCTOR, Some("implicit constructor".into()))
+            } else {
+                (
+                    declaration.kind,
+                    declaration.parent.map(|parent| declarations[parent].name.clone()),
+                )
+            };
             index.items_by_symbol.insert(
                 fact.symbol,
                 HierarchyItem {
                     key: key.clone(),
                     name: declaration.name.clone(),
-                    kind: declaration.kind,
+                    kind,
                     detail,
                     range: declaration.location.range,
                 },
@@ -478,6 +508,19 @@ fn collect_direct_calls<'gcx>(
     item_symbols: &FxHashMap<ItemId, SymbolId>,
     declarations: &IndexVec<SymbolId, DeclarationSymbol>,
 ) {
+    for contract_id in gcx.hir.contract_ids() {
+        if let Some(item) = constructor_item(gcx, contract_id)
+            && let Some(&caller) = item_symbols.get(&item)
+        {
+            let mut collector =
+                CallCollector { gcx, locations, item_symbols, declarations, facts, caller };
+            for base in gcx.hir.contract(contract_id).bases_args {
+                if !base.args.is_dummy() {
+                    let _ = collector.visit_modifier(base);
+                }
+            }
+        }
+    }
     for caller_id in gcx.hir.function_ids() {
         let function = gcx.hir.function(caller_id);
         if !is_source_callable(function) {
@@ -489,15 +532,6 @@ fn collect_direct_calls<'gcx>(
 
         let mut collector =
             CallCollector { gcx, locations, item_symbols, declarations, facts, caller };
-        if function.is_constructor()
-            && let Some(contract_id) = function.contract
-        {
-            for base in gcx.hir.contract(contract_id).bases_args {
-                if !base.args.is_dummy() {
-                    let _ = collector.visit_modifier(base);
-                }
-            }
-        }
         for modifier in function.modifiers {
             let _ = collector.visit_modifier(modifier);
         }
@@ -530,8 +564,8 @@ impl<'gcx> Visit<'gcx> for CallCollector<'_, 'gcx> {
         modifier: &'gcx hir::Modifier<'gcx>,
     ) -> ControlFlow<Self::BreakValue> {
         let callee = match modifier.id {
-            ItemId::Function(callee) => Some(callee),
-            ItemId::Contract(contract) => self.gcx.hir.contract(contract).ctor,
+            ItemId::Function(_) => Some(modifier.id),
+            ItemId::Contract(contract) => constructor_item(self.gcx, contract),
             _ => None,
         };
         if let Some(callee) = callee {
@@ -564,11 +598,13 @@ impl<'gcx> Visit<'gcx> for CallCollector<'_, 'gcx> {
 }
 
 impl CallCollector<'_, '_> {
-    fn push_call(&mut self, callee_id: hir::FunctionId, span: Span) {
-        if !is_source_callable(self.gcx.hir.function(callee_id)) {
+    fn push_call(&mut self, callee_id: ItemId, span: Span) {
+        if let ItemId::Function(function) = callee_id
+            && !is_source_callable(self.gcx.hir.function(function))
+        {
             return;
         }
-        let Some(&callee) = self.item_symbols.get(&ItemId::Function(callee_id)) else {
+        let Some(&callee) = self.item_symbols.get(&callee_id) else {
             return;
         };
         let Some(location) = self.locations.location(span) else { return };
@@ -587,24 +623,21 @@ fn is_source_callable(function: &hir::Function<'_>) -> bool {
     !function.is_yul && !function.is_getter()
 }
 
-fn resolved_source_call<'gcx>(
-    gcx: Gcx<'gcx>,
-    expr: &hir::Expr<'gcx>,
-) -> Option<(hir::FunctionId, Span)> {
+fn resolved_source_call<'gcx>(gcx: Gcx<'gcx>, expr: &hir::Expr<'gcx>) -> Option<(ItemId, Span)> {
     let (callee, _, _) = expr.as_call()?;
     if let hir::ExprKind::New(ty) = &callee.kind
         && let TyKind::Fn(function) = gcx.type_of_expr(callee.id)?.kind
         && function.is_creation()
         && let hir::TypeKind::Custom(ItemId::Contract(contract_id)) = ty.kind
     {
-        return Some((gcx.hir.contract(contract_id).ctor?, ty.span));
+        return Some((constructor_item(gcx, contract_id)?, ty.span));
     }
     let callee_id = gcx.resolved_call(expr)?.res.as_function()?;
     let span = match callee.kind {
         hir::ExprKind::Member(_, member) => member.span,
         _ => callee.span,
     };
-    Some((callee_id, span))
+    Some((ItemId::Function(callee_id), span))
 }
 
 fn normalize_relations(relations: &mut CallRelations, items: &FxHashMap<SymbolId, HierarchyItem>) {
@@ -614,6 +647,15 @@ fn normalize_relations(relations: &mut CallRelations, items: &FxHashMap<SymbolId
         calls.sort_by_cached_key(|(symbol, range)| (&items[symbol].key, proto::range_key(*range)));
         calls.dedup();
     }
+}
+
+/// Uses the contract declaration to locate an implicit constructor without adding a HIR function.
+fn constructor_item(gcx: Gcx<'_>, contract_id: hir::ContractId) -> Option<ItemId> {
+    let contract = gcx.hir.contract(contract_id);
+    if contract.kind.is_interface() || contract.kind.is_library() {
+        return None;
+    }
+    Some(contract.ctor.map_or(ItemId::Contract(contract_id), ItemId::Function))
 }
 
 #[cfg(test)]
