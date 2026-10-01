@@ -406,14 +406,8 @@ impl ScheduleCost {
     /// bytes. This matches the model used by the MIR inliner for choices that
     /// trade emitted bytes against runtime gas.
     pub(crate) fn cmp_lifetime_for(self, other: Self, target: Target) -> Ordering {
-        if !target.optimization().is_gas() {
-            return self.cmp_for(other, target.optimization());
-        }
         target
-            .cmp_lifetime(
-                Cost::new(self.static_gas, self.encoded_bytes),
-                Cost::new(other.static_gas, other.encoded_bytes),
-            )
+            .cmp_lifetime(self.target_cost(), other.target_cost())
             .then_with(|| self.actions.cmp(&other.actions))
     }
 
