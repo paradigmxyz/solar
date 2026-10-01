@@ -30,8 +30,8 @@
 //! 13. **Program data consistency**: data references name allocated entries at valid offsets.
 //! 14. **Return contracts**: return counts match signatures, including through tail-call chains;
 //!     signatures cannot contain void values.
-//! 15. **Representation boundaries**: SSA aggregates and semantic memory types/operations cannot
-//!     survive their lowering boundaries. Object operations agree with nominal reference kinds.
+//! 15. **Representation boundaries**: SSA aggregates and semantic memory operations cannot survive
+//!     their lowering boundaries.
 //!
 //! # Usage
 //!

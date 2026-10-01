@@ -701,15 +701,6 @@ fn lower_slice_copy<P: MemoryLayoutPolicy>(
     source: crate::mir::ValueId,
 ) -> Option<InstKind> {
     match builder.func().value_ty(source)? {
-        // A pointer source is a bytes object, whose header holds its byte length.
-        MirType::MemPtr => {
-            let kind = MemoryObjectKind::Bytes;
-            let length_offset = P::object_length_offset(kind)?;
-            let source_ptr = builder.add_u64_offset(source, P::object_data_offset(kind));
-            let length_address = builder.add_u64_offset(source, length_offset);
-            let length = builder.mload(length_address);
-            Some(InstKind::MCopy(destination, source_ptr, length))
-        }
         MirType::Slice(location) => {
             let source_ptr = builder.slice_ptr(source);
             let length = builder.slice_len(source);

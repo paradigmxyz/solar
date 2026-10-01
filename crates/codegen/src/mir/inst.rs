@@ -1025,7 +1025,9 @@ impl InstKind {
             _ => {
                 let kind = self.op_def().result;
                 kind != super::ResultKind::Custom
-                    && result.map_or(!kind.produces_value(), |ty| kind.admits_type(ty))
+                    && result.map_or(!kind.produces_value(), |ty| {
+                        kind.produces_value() && kind.admits_type(ty)
+                    })
             }
         }
     }

@@ -222,7 +222,8 @@ struct CommonSubexprEliminator {
     cfg: Option<Rc<CfgInfo>>,
     /// Number of instructions eliminated.
     eliminated_count: usize,
-    /// Number of eliminated casts, which never call for another fixpoint round.
+    /// Number of eliminated casts, which call for another fixpoint round only through phi
+    /// sinking.
     eliminated_casts: usize,
     /// Gas observations and their forward CFG closure, including backedges.
     gas: Option<GasObservations>,
@@ -489,12 +490,20 @@ impl CommonSubexprEliminator {
         self.refresh_alias(func);
         self.gas = Some(GasObservations::new(func, &cfg, self.alias()));
         loop {
-            let before = self.eliminated_count - self.eliminated_casts;
+            let (before, casts) = (self.eliminated_count, self.eliminated_casts);
             self.alias().clear_cached_addresses();
             self.run_with_cfg(func, &cfg);
-            // Later instructions of a round already read merged casts through its
-            // replacements, so a round that merged only casts leaves nothing for the next.
-            if self.eliminated_count - self.eliminated_casts == before {
+            if self.eliminated_count - self.eliminated_casts != before - casts {
+                continue;
+            }
+            // Later instructions of a round already read merged casts through its replacements,
+            // but phi sinking ran before the merges. Rerun only it, and keep going if it sinks.
+            if self.eliminated_casts == casts {
+                break;
+            }
+            let sunk = self.eliminated_count;
+            self.sink_redundant_phi_expressions(func, &cfg);
+            if self.eliminated_count == sunk {
                 break;
             }
         }

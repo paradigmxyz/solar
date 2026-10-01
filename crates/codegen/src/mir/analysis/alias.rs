@@ -1643,8 +1643,7 @@ impl AliasAnalysis {
         // disjoint from every other allocation site. Two accesses to the same
         // loop-instance allocation may hit the same or different instances, so
         // they stay `MayAlias`; a dynamic allocation against a
-        // non-allocation base is likewise `MayAlias`. A memory-object
-        // argument has a nominal type but no allocation ownership proof.
+        // non-allocation base is likewise `MayAlias`.
         let first_alloc = Self::allocation_base(first.address.base);
         let second_alloc = Self::allocation_base(second.address.base);
         match (first_alloc, second_alloc) {
