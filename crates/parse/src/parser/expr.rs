@@ -1,4 +1,4 @@
-use crate::{PResult, Parser};
+use crate::{PResult, Parser, Recovered, parser::SeqSep};
 use smallvec::SmallVec;
 use solar_ast::{token::*, *};
 
@@ -143,7 +143,12 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
             let kind = if self.eat(TokenKind::Dot) {
                 let dot_span = self.prev_token.span;
                 // expr.member
-                match self.parse_ident_any() {
+                let member = if self.can_recover_statement_boundary() {
+                    Err(self.expected_ident_found_err())
+                } else {
+                    self.parse_ident_any()
+                };
+                match member {
                     Ok(member) => ExprKind::Member(expr, member),
                     Err(err) => {
                         err.emit();
@@ -240,7 +245,15 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
 
     #[track_caller]
     fn parse_call_args_kind(&mut self) -> PResult<'sess, CallArgsKind<'ast>> {
-        if self.look_ahead(1).kind == TokenKind::OpenDelim(Delimiter::Brace) {
+        let named = self.look_ahead(1).kind == TokenKind::OpenDelim(Delimiter::Brace);
+        // An unfinished `f(` can be followed by a block statement. Preserve actual named
+        // arguments, including `f({})`, regardless of intervening whitespace or comments.
+        let named = named
+            && (!self.recover_incomplete_input
+                || (self.look_ahead(2).is_ident() && self.look_ahead(3).kind == TokenKind::Colon)
+                || (self.look_ahead(2).kind == TokenKind::CloseDelim(Delimiter::Brace)
+                    && self.look_ahead(3).kind == TokenKind::CloseDelim(Delimiter::Parenthesis)));
+        if named {
             self.expect(TokenKind::OpenDelim(Delimiter::Parenthesis))?;
             let args = self.parse_named_args(true).map(CallArgsKind::Named)?;
             self.expect(TokenKind::CloseDelim(Delimiter::Parenthesis))?;
@@ -294,7 +307,19 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     #[allow(clippy::vec_box)]
     #[track_caller]
     fn parse_unnamed_args(&mut self) -> PResult<'sess, BoxSlice<'ast, Box<'ast, Expr<'ast>>>> {
-        self.parse_paren_comma_seq(true, Self::parse_expr)
+        self.expect(TokenKind::OpenDelim(Delimiter::Parenthesis))?;
+        let close = TokenKind::CloseDelim(Delimiter::Parenthesis);
+        let (args, recovered) = self.parse_seq_to_before_tokens(
+            close,
+            SeqSep::trailing_disallowed(TokenKind::Comma),
+            true,
+            true,
+            Self::parse_expr,
+        )?;
+        if recovered == Recovered::No {
+            self.expect(close)?;
+        }
+        Ok(args)
     }
 }
 
