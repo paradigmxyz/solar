@@ -6,11 +6,12 @@
 //! scratch right before a revert that returns it, as bubbling a failed call does.
 
 use crate::mir::{
-    BasicBlock, Callee, Function, InstId, InstKind, Terminator, Value, ValueId,
+    BasicBlock, Callee, EffectKind, Function, InstId, InstKind, Terminator, Value, ValueId,
     analysis::AliasAnalysis, memory::EvmMemoryLayout,
 };
 use alloy_primitives::U256;
 use solar_data_structures::bit_set::DenseBitSet;
+use std::cell::OnceCell;
 
 /// Returns whether `func` itself keeps a heap free memory pointer in the heap.
 ///
@@ -18,16 +19,17 @@ use solar_data_structures::bit_set::DenseBitSet;
 /// replace it must store a heap pointer or grow one; see [`heap_values`]. Callers
 /// check internal calls themselves.
 pub(crate) fn fmp_grows_in_heap(func: &Function) -> bool {
-    let heap = heap_values(func);
+    let heap = OnceCell::new();
+    let heap = |value| heap.get_or_init(|| heap_values(func)).contains(value);
     func.blocks.iter().all(|block| {
         block.instructions.iter().all(|&inst_id| {
             match func.inst(inst_id).kind {
                 InstKind::MStore(address, value)
                     if func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT) =>
                 {
-                    heap.contains(value)
+                    heap(value)
                 }
-                InstKind::SetFmp(value) => heap.contains(value),
+                InstKind::SetFmp(value) => heap(value),
                 // Writes from the heap up never reach the reserved slot.
                 InstKind::MStore(dest, _)
                 | InstKind::MStore8(dest, _)
@@ -38,7 +40,7 @@ pub(crate) fn fmp_grows_in_heap(func: &Function) -> bool {
                 | InstKind::DataCopy(_, dest, _)
                 | InstKind::ReturnDataCopy(dest, _, _)
                 | InstKind::ExtCodeCopy(_, dest, _, _)
-                    if heap.contains(dest) =>
+                    if heap(dest) =>
                 {
                     true
                 }
@@ -70,7 +72,8 @@ pub(crate) fn fmp_grows_in_heap(func: &Function) -> bool {
 fn heap_values(func: &Function) -> DenseBitSet<ValueId> {
     let mut heap = DenseBitSet::new_empty(func.num_values());
     let mut candidates = Vec::new();
-    for value in func.live_values() {
+    let mut seen = DenseBitSet::new_empty(func.num_values());
+    for value in func.live_values().filter(|&value| seen.insert(value)) {
         if AliasAnalysis::pointer_lower_bound(func, value, 0)
             .is_some_and(|bound| bound >= EvmMemoryLayout::HEAP_START)
         {
@@ -138,14 +141,8 @@ pub(crate) fn bubbled_return_data_copy(func: &Function, block: &BasicBlock) -> O
     })?;
     let calls = block.instructions.iter().any(|&inst| {
         matches!(
-            func.inst(inst).kind,
-            InstKind::Call { .. }
-                | InstKind::CallCode { .. }
-                | InstKind::StaticCall { .. }
-                | InstKind::DelegateCall { .. }
-                | InstKind::Create(..)
-                | InstKind::Create2(..)
-                | InstKind::ICall { .. }
+            func.inst(inst).kind.effect_kind(),
+            EffectKind::ExternalCall | EffectKind::ICall | EffectKind::Create
         )
     });
     let tail = block.instructions[index + 1..]

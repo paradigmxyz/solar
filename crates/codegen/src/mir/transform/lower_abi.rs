@@ -149,8 +149,7 @@ struct DecodeOptions<'a> {
     /// The debug message for an out-of-range head offset, which depends on whether the value is
     /// a tuple element, a struct member, or an array element.
     offset_reason: RevertReason,
-    /// Decodes a read-only memory `bytes` parameter as a calldata slice while keeping the
-    /// checked allocation the memory copy would have used.
+    /// Decodes a read-only memory `bytes` parameter as a calldata slice.
     memory_view: bool,
 }
 
@@ -849,6 +848,9 @@ impl LowerAbiCx {
     fn memory_view_args(&self, func: &Function) -> DenseBitSet<ArgIdx> {
         let mut views = DenseBitSet::new_empty(func.params.len());
         if let (Some(layout), Some(locations)) = (&func.abi_params, &func.abi_param_locations)
+            && layout.types.iter().zip(locations.iter()).any(|(ty, &location)| {
+                matches!(ty, AbiParamType::Bytes) && location == AbiParamLocation::Memory
+            })
             && !Self::may_reach_skipped_copy(func)
         {
             let arg_uses = func.arg_uses();
@@ -902,7 +904,6 @@ impl LowerAbiCx {
                 || Self::points_into_new_object(func, offset, 0)
         };
         let known = |offset, size| known_range(offset, func.value_u64(size));
-        let known_word = |offset, width| known_range(offset, Some(width));
         let raw_read = func.blocks.iter().any(|block| match block.terminator {
             Some(Terminator::ReturnData { offset, size }) => !known(offset, size),
             // Bubbled return data overwrites the range it then returns.
@@ -935,8 +936,8 @@ impl LowerAbiCx {
         // A raw write outside scratch or a new object may land on the copy.
         let raw_write = func.blocks.iter().any(|block| {
             block.instructions.iter().any(|&inst_id| match func.inst(inst_id).kind {
-                InstKind::MStore(dest, _) => !known_word(dest, 32),
-                InstKind::MStore8(dest, _) => !known_word(dest, 1),
+                InstKind::MStore(dest, _) => !known_range(dest, Some(32)),
+                InstKind::MStore8(dest, _) => !known_range(dest, Some(1)),
                 InstKind::ReturnDataCopy(..)
                     if bubbled_return_data_copy(func, block) == Some(inst_id) =>
                 {
@@ -948,7 +949,13 @@ impl LowerAbiCx {
                 | InstKind::CodeCopy(dest, _, size)
                 | InstKind::DataCopy(_, dest, size)
                 | InstKind::ReturnDataCopy(dest, _, size)
-                | InstKind::ExtCodeCopy(_, dest, _, size) => !known(dest, size),
+                | InstKind::ExtCodeCopy(_, dest, _, size)
+                | InstKind::Call { ret_offset: dest, ret_size: size, .. }
+                | InstKind::CallCode { ret_offset: dest, ret_size: size, .. }
+                | InstKind::StaticCall { ret_offset: dest, ret_size: size, .. }
+                | InstKind::DelegateCall { ret_offset: dest, ret_size: size, .. } => {
+                    !known(dest, size)
+                }
                 _ => false,
             })
         });
@@ -1626,7 +1633,10 @@ impl LowerAbiCx {
                                 &mut current,
                             );
                         } else if location == AbiParamLocation::Memory {
-                            if !constructor
+                            if memory_view && let Some(helper) = self.memory_view_helper {
+                                // icall @decode_memory_view, head
+                                builder.icall(helper, vec![head], MirType::I256);
+                            } else if !constructor
                                 && !memory_view
                                 && arg_type == MirType::MemPtr
                                 && let Some(&helper) = self.aggregate_type_helpers.get(ty)
@@ -1635,9 +1645,6 @@ impl LowerAbiCx {
                                 let args = calldata_type_helper_args(ty, head, tuple_base);
                                 let value = builder.icall(helper, args, arg_type);
                                 logical_values[index] = Some(value);
-                            } else if memory_view && let Some(helper) = self.memory_view_helper {
-                                // icall @decode_memory_view, head
-                                builder.icall(helper, vec![head], MirType::I256);
                             } else {
                                 let value = Self::decode_aggregate_argument(
                                     &mut builder,

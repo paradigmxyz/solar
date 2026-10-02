@@ -2111,12 +2111,12 @@ impl AliasAnalysis {
                     _ => None,
                 }
             }
-            InstKind::Phi(incoming) => incoming
-                .iter()
-                .map(|(_, value)| Self::pointer_lower_bound(func, *value, depth + 1))
-                .collect::<Option<Vec<_>>>()?
-                .into_iter()
-                .min(),
+            InstKind::Phi(incoming) => {
+                incoming.iter().try_fold(None, |bound: Option<u64>, (_, value)| {
+                    let value = Self::pointer_lower_bound(func, *value, depth + 1)?;
+                    Some(Some(bound.map_or(value, |bound| bound.min(value))))
+                })?
+            }
             InstKind::Select(_, first, second) => {
                 Some(
                     Self::pointer_lower_bound(func, *first, depth + 1)?

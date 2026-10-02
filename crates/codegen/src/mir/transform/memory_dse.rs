@@ -22,8 +22,8 @@ use crate::mir::{
     BlockId, Callee, Function, FunctionId, Immediate, InstId, InstKind, MemoryObjectKind,
     MemoryRegion, Module, Terminator, Value, ValueId,
     analysis::{
-        Access, AddressSpace, AliasAnalysis, CallGraphInfo, CfgInfo, Location, LocationSize,
-        MemoryAddress, MemoryBase, MemoryLocation, fmp_grows_in_heap,
+        Access, AddressSpace, AliasAnalysis, CfgInfo, Location, LocationSize, MemoryAddress,
+        MemoryBase, MemoryLocation, fmp_grows_in_heap,
     },
     memory::EvmMemoryLayout,
     pass::{MirPass, run_selected_function_pass_with_alias_and_cfg},
@@ -92,7 +92,7 @@ fn run_memory_dse(
     analyses: &mut crate::mir::pass::ModuleAnalyses,
     late: bool,
 ) -> bool {
-    let heap_reads = heap_read_functions(module, &CallGraphInfo::new(module));
+    let heap_reads = heap_read_functions(module);
     let mut trusted = DenseBitSet::new_empty(module.functions.len());
     let mut untrusted = DenseBitSet::new_empty(module.functions.len());
     for (func_id, func) in module.functions.iter_enumerated() {
@@ -131,40 +131,43 @@ fn run_memory_dse(
 /// it there. Every such function must also keep the pointer in the heap, as must every
 /// function it calls; see [`fmp_grows_in_heap`]. A tail call counts as a call when its
 /// target may return to the caller's caller.
-fn heap_read_functions(module: &Module, call_graph: &CallGraphInfo) -> DenseBitSet<FunctionId> {
+fn heap_read_functions(module: &Module) -> DenseBitSet<FunctionId> {
+    let is_root =
+        |func: &Function| func.attributes.is_abi_wrapper && !func.attributes.is_constructor;
+    let mut grows = DenseBitSet::new_empty(module.functions.len());
+    // Before ABI lowering no function is a root.
+    if !module.functions.iter().any(is_root) {
+        return grows;
+    }
     let returning = module.returning_functions();
     let mut callers = index_vec![Vec::new(); module.functions.len()];
-    let mut calls = IndexVec::with_capacity(module.functions.len());
-    let mut grows = DenseBitSet::new_empty(module.functions.len());
+    let mut calls = index_vec![Vec::new(); module.functions.len()];
     for (func_id, func) in module.functions.iter_enumerated() {
         if fmp_grows_in_heap(func) {
             grows.insert(func_id);
         }
-        for callee in call_graph.callees(func_id) {
-            callers[callee].push(func_id);
-        }
-        let mut callees = func
-            .instructions()
-            .filter_map(|inst| match func.inst(inst).kind {
-                InstKind::ICall { function: Callee::Function(callee), .. } => Some(callee),
-                _ => None,
-            })
-            .collect::<Vec<_>>();
-        callees.extend(func.blocks.iter().filter_map(|block| match block.terminator {
-            Some(Terminator::TailCall { function, .. }) if returning.contains(function) => {
-                Some(function)
+        for inst in func.instructions() {
+            if let InstKind::ICall { function: Callee::Function(callee), .. } = func.inst(inst).kind
+            {
+                callers[callee].push(func_id);
+                calls[func_id].push(callee);
             }
-            _ => None,
-        }));
-        calls.push(callees);
+        }
+        for block in &func.blocks {
+            if let Some(Terminator::TailCall { function, .. }) = block.terminator {
+                callers[function].push(func_id);
+                if returning.contains(function) {
+                    calls[func_id].push(function);
+                }
+            }
+        }
     }
     remove_until_fixpoint(&mut grows, |grows, func_id| {
         calls[func_id].iter().all(|&callee| grows.contains(callee))
     });
     let mut heap = grows;
     remove_until_fixpoint(&mut heap, |heap, func_id| {
-        let func = module.function(func_id);
-        (func.attributes.is_abi_wrapper && !func.attributes.is_constructor)
+        is_root(module.function(func_id))
             || (!callers[func_id].is_empty()
                 && callers[func_id].iter().all(|&caller| heap.contains(caller)))
     });
