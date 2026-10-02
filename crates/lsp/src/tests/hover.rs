@@ -508,7 +508,7 @@ $11 44:8-44:14 function update(uint256 renamed) public pure override returns (ui
 }
 
 #[test]
-fn shows_builtin_type_and_documentation() {
+fn shows_builtin_signature() {
     let fixture = RequestFixture::new(
         r#"
         //- /Builtins.sol open
@@ -526,12 +526,6 @@ fn shows_builtin_type_and_documentation() {
         [1],
         str![[r#"
 $1 2:15-2:24 function keccak256(bytes memory) pure returns (bytes32)
-
-Computes the Keccak-256 hash of the input bytes.
-
-*Compiler-provided builtin; no Solidity source declaration.*
-
-[Solidity documentation](https://docs.soliditylang.org/en/latest/units-and-global-variables.html#mathematical-and-cryptographic-functions)
 
 "#]],
     );
@@ -574,54 +568,12 @@ fn builtin_hover_distinguishes_selectors_and_bound_array_overloads() {
         1..=7,
         str![[r#"
 $1 6:23-6:31 bytes4 function.selector
-
-The four-byte selector of a function or custom error, derived from its canonical ABI signature.
-
-*Compiler-provided builtin; no Solidity source declaration.*
-
-[Solidity documentation](https://docs.soliditylang.org/en/latest/types.html#function-types)
 $2 6:35-6:43 bytes32 event.selector
-
-The Keccak-256 hash of the event's canonical ABI signature, used as its signature topic.
-
-*Compiler-provided builtin; no Solidity source declaration.*
-
-[Solidity documentation](https://docs.soliditylang.org/en/latest/contracts.html#members-of-events)
 $3 6:49-6:57 bytes4 error.selector
-
-The four-byte selector of a function or custom error, derived from its canonical ABI signature.
-
-*Compiler-provided builtin; no Solidity source declaration.*
-
-[Solidity documentation](https://docs.soliditylang.org/en/latest/contracts.html#members-of-errors)
 $4 6:72-6:78 address msg.sender
-
-The address of the sender of the current message call.
-
-*Compiler-provided builtin; no Solidity source declaration.*
-
-[Solidity documentation](https://docs.soliditylang.org/en/latest/units-and-global-variables.html#block-and-transaction-properties)
 $5 9:15-9:19 function array.push() returns (uint256)
-
-Appends a zero-initialized element to the storage array and returns a reference to the new element.
-
-*Compiler-provided builtin; no Solidity source declaration.*
-
-[Solidity documentation](https://docs.soliditylang.org/en/latest/types.html#array-members)
 $6 10:15-10:19 function array.push(uint256)
-
-Appends the supplied element to the storage array.
-
-*Compiler-provided builtin; no Solidity source declaration.*
-
-[Solidity documentation](https://docs.soliditylang.org/en/latest/types.html#array-members)
 $7 11:15-11:18 function array.pop()
-
-Removes the final element from the storage array. Reverts if the array is empty.
-
-*Compiler-provided builtin; no Solidity source declaration.*
-
-[Solidity documentation](https://docs.soliditylang.org/en/latest/types.html#array-members)
 
 "#]],
     );
