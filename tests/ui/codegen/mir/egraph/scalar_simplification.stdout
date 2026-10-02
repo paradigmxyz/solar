@@ -38,9 +38,9 @@
       v1 = eq arg0, false
 -     v2 = select true, arg1, arg2
 -     v3 = select arg0, true, false
-      v4 = select arg0, false, true
+-     v4 = select arg0, false, true
 -     ret v0, v1, v2, v3, v4
-+     ret arg0, v1, arg1, arg0, v4
++     ret arg0, v1, arg1, arg0, v1
   }
   
   fn @remove_zero_length_copies(arg0: i256) -> i256 {

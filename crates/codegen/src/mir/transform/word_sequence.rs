@@ -1,4 +1,4 @@
-//! Bounded, proved word-expression recipes after e-graph extraction.
+//! Bounded word-expression recipes after e-graph extraction.
 //!
 //! ISLE can propose a small tree of operations, including intermediate results
 //! that do not exist in MIR yet. Matching uses earlier definitions in the same
@@ -16,6 +16,9 @@
 //! a proof of scheduled cost; gas and size corpus measurements remain required.
 //! Scalar selects can also be roots: their arithmetic recipes preserve zero/nonzero
 //! conditions, while pointer and aggregate selects retain their provenance.
+//! Shared integer casts can move outside a select when their source widths match;
+//! temporary selects retain that source type. Pointer and wider-than-word roots
+//! remain excluded from arithmetic selection.
 //! Inequality recipes use the backend's EQ/ISZERO expansion and its target cost.
 //! Pure, nontrapping operations without recipes stay in place without breaking
 //! the segment; they never earn deletion credit.
@@ -69,6 +72,9 @@ struct Recipe {
 }
 
 fn legal(op: &Op, target: Target) -> bool {
+    if matches!(op, Op::Select { .. } | Op::Zext { .. } | Op::Sext { .. } | Op::Trunc { .. }) {
+        return true;
+    }
     if matches!(op, Op::Ne { .. }) {
         return [op::EQ, op::ISZERO].into_iter().all(|opcode| {
             op::definition(opcode).is_some_and(|def| def.is_available(target.evm_version()))
@@ -77,7 +83,9 @@ fn legal(op: &Op, target: Target) -> bool {
     select::opcode_lowering(op).is_some_and(|lowering| {
         matches!(
             lowering,
-            select::OpcodeLowering::Unary { .. } | select::OpcodeLowering::Binary { .. }
+            select::OpcodeLowering::Unary { .. }
+                | select::OpcodeLowering::Binary { .. }
+                | select::OpcodeLowering::Nary { .. }
         ) && op::definition(lowering.opcode())
             .is_some_and(|def| def.is_available(target.evm_version()))
     }) && op.into_kind().is_some_and(|kind| kind.effect_kind() == EffectKind::Pure)
@@ -91,15 +99,14 @@ fn removable(func: &Function, inst: &Instruction, target: Target) -> bool {
         return false;
     }
     let op = inst.kind.op();
-    let scalar_select = match op {
+    match op {
         Op::Select { true_val, false_val, .. } => {
             [inst.result_ty, func.value_ty(true_val), func.value_ty(false_val)]
                 .into_iter()
                 .all(|ty| matches!(ty, Some(MirType::I256 | MirType::I1)))
         }
-        _ => false,
-    };
-    scalar_select || legal(&op, target)
+        _ => legal(&op, target),
+    }
 }
 
 fn operation_cost(
@@ -217,7 +224,11 @@ impl Recipe {
                 });
                 // %temporary = recipe_child(earlier_values)
                 let kind = op.into_kind().expect("legal recipe child");
-                let ty = kind.op_def().result.default_type().unwrap_or(MirType::I256);
+                let ty = if let InstKind::Select(_, a, _) = kind {
+                    func.value_ty(a).expect("typed select arm")
+                } else {
+                    kind.op_def().result.default_type().unwrap_or(MirType::I256)
+                };
                 emit_recipe(func, root, kind, ty, inserted)
             }
         };

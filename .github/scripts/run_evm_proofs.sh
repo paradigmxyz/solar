@@ -12,9 +12,14 @@ unset SOLAR_PROOF_CACHE
 uv run scripts/evm-rules/verify.py --help >/dev/null
 
 prove() {
-  local suite="$1" shard="$2" shards="$3" directory="$4"
+  local suite="$1" shard="$2" shards="$3" directory="$4" timeout=5000 index_timeout=30000
+  if [[ "$suite" == word ]]; then
+    timeout=30000
+    index_timeout=120000
+  fi
   local files=("mir/$suite")
-  local options=(--index-partition-timeout-ms 30000)
+  local options=(--timeout-ms "$timeout" --index-partition-timeout-ms "$index_timeout" --fallback-solver cvc5
+    --bit-partition-timeout-ms 120000 --bit-partition-jobs 2)
   if [[ "$audit" == true ]]; then
     options+=(--partition-shifts)
   else
@@ -22,20 +27,21 @@ prove() {
   fi
   if [[ "$suite" == other ]]; then
     files=(mir/word_sequence mir-to-evm/stack_select evm-ir/stack_peephole evm-ir/late_word)
-  elif [[ "$suite" == egraph ]]; then
-    options+=(--fallback-solver cvc5
-      --bit-partition-timeout-ms 120000 --bit-partition-jobs 2)
   fi
   local inputs=()
   for file in "${files[@]}"; do
-    inputs+=("crates/codegen/isle/$file.isle")
+    if [[ -d "crates/codegen/isle/$file" ]]; then
+      inputs+=("crates/codegen/isle/$file")
+    else
+      inputs+=("crates/codegen/isle/$file.isle")
+    fi
   done
   uv run scripts/evm-rules/verify.py verify "${inputs[@]}" \
     --shard-index "$shard" --shard-count "$shards" "${options[@]}" \
     --output "$directory/proofs.json" --artifacts "$directory/smt"
   if [[ "$audit" == true ]]; then
     uv run scripts/evm-rules/replay.py "$directory/proofs.json" \
-      --jobs 2 --output "$directory/cvc5.json"
+      --jobs 2 --timeout-ms "$timeout" --output "$directory/cvc5.json"
   fi
 }
 

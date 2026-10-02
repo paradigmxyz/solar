@@ -8,7 +8,7 @@
     bb0:
       v0 = add arg0, 1
 -     v1 = lt v0, arg0
-+     v1 = eq v0, 0
++     v1 = eq arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
       ret v1
   }
   
@@ -17,7 +17,7 @@
 -     v0 = add 1, arg0
 -     v1 = lt v0, arg0
 +     v0 = add arg0, 1
-+     v1 = eq v0, 0
++     v1 = eq arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
       ret v1
   }
   
@@ -25,7 +25,7 @@
     bb0:
       v0 = add arg0, 1
 -     v1 = gt arg0, v0
-+     v1 = eq v0, 0
++     v1 = eq arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
       ret v1
   }
   
@@ -34,7 +34,7 @@
 -     v0 = add 1, arg0
 -     v1 = gt arg0, v0
 +     v0 = add arg0, 1
-+     v1 = eq v0, 0
++     v1 = eq arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
       ret v1
   }
   
@@ -125,29 +125,29 @@
   
   fn @increment_lt(arg0: i256) -> i1 {
     bb0:
-      v0 = add arg0, 1
-      v1 = eq v0, 0
+-     v0 = add arg0, 1
+      v1 = eq arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
       ret v1
   }
   
   fn @increment_lt_commuted(arg0: i256) -> i1 {
     bb0:
-      v0 = add arg0, 1
-      v1 = eq v0, 0
+-     v0 = add arg0, 1
+      v1 = eq arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
       ret v1
   }
   
   fn @increment_gt(arg0: i256) -> i1 {
     bb0:
-      v0 = add arg0, 1
-      v1 = eq v0, 0
+-     v0 = add arg0, 1
+      v1 = eq arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
       ret v1
   }
   
   fn @increment_gt_commuted(arg0: i256) -> i1 {
     bb0:
-      v0 = add arg0, 1
-      v1 = eq v0, 0
+-     v0 = add arg0, 1
+      v1 = eq arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
       ret v1
   }
   
