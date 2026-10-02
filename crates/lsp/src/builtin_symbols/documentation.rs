@@ -32,17 +32,13 @@ impl BuiltinDocumentation {
         }
         let name = builtin_name(gcx, expr, builtin);
         let signature = match ty.kind {
-            TyKind::BuiltinModule(_) => format!("namespace {name}"),
+            _ if builtin.members().is_some() => format!("namespace {name}"),
             TyKind::Fn(function) => {
                 let mut parameters = function.parameters;
                 // Called members already have the implicit receiver removed by type checking.
                 // A member value can still carry its unbound storage-array parameter.
                 if function.attached
-                    || (gcx.resolved_callee(expr.id).is_none()
-                        && matches!(
-                            builtin,
-                            Builtin::ArrayPush0 | Builtin::ArrayPush | Builtin::ArrayPop
-                        ))
+                    || (gcx.resolved_callee(expr.id).is_none() && builtin.is_array_mutator())
                 {
                     parameters = parameters.get(1..)?;
                 }
@@ -87,28 +83,12 @@ fn builtin_name<'gcx>(gcx: Gcx<'gcx>, expr: &hir::Expr<'gcx>, builtin: Builtin) 
         && let Some(receiver_ty) = gcx.type_of_expr(receiver.id)
     {
         match receiver_ty.kind {
-            TyKind::BuiltinModule(module) => return format!("{}.{name}", module.name()),
             TyKind::Type(inner) => return format!("{}.{name}", inner.display(gcx)),
-            TyKind::Meta(inner) => return format!("type({}).{name}", inner.display(gcx)),
             TyKind::Fn(_) => return format!("function.{name}"),
             TyKind::Error(..) => return format!("error.{name}"),
             TyKind::Event(..) => return format!("event.{name}"),
-            _ => {}
+            _ => return format!("{}.{name}", receiver_ty.display(gcx)),
         }
     }
-    let receiver = match builtin {
-        Builtin::AddressBalance
-        | Builtin::AddressCode
-        | Builtin::AddressCodehash
-        | Builtin::AddressCall
-        | Builtin::AddressDelegatecall
-        | Builtin::AddressStaticcall => "address",
-        Builtin::AddressPayableTransfer | Builtin::AddressPayableSend => "address payable",
-        Builtin::ArrayLength | Builtin::ArrayPush0 | Builtin::ArrayPush | Builtin::ArrayPop => {
-            "array"
-        }
-        Builtin::FixedBytesLength => "bytesN",
-        _ => return name.to_string(),
-    };
-    format!("{receiver}.{name}")
+    name.to_string()
 }
