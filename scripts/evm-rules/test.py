@@ -30,6 +30,7 @@ from evm_rules.discovery import (
 from evm_rules.isle import ISLE, Context, Rule, forms, rule_sources, verify_file
 from evm_rules.late import execute as execute_late
 from evm_rules.late import verify_late_file
+from evm_rules.lean import THEOREM_PRELUDE, UnsupportedQuery, theorem
 from evm_rules.memory import MemoryAddresses
 from evm_rules.mining import abstract_patterns, mine
 from evm_rules.semantics import (
@@ -50,6 +51,7 @@ from evm_rules.semantics import (
 )
 from evm_rules.solver import Cvc5, QueryCache, solve_query
 from evm_rules.stack import verify_stack_file
+from lean_verify import DEFAULT_FILES, HELPERS, LEAN_PROJECT, MANUAL_PROOFS, obligations
 from replay import main as replay_main
 from replay import replay_query, replay_report
 from verify import main
@@ -2364,6 +2366,119 @@ class DiscoveryTests(unittest.TestCase):
         self.assertTrue(
             any(lhs.variables() and rhs == Expr.const(0) for lhs, rhs, _, _ in rules)
         )
+
+
+WORDS = "(declare-fun x () (_ BitVec 256)) (declare-fun y () (_ BitVec 256))"
+ZERO = "#x" + "0" * 64
+ONE = "#x" + "0" * 63 + "1"
+ONES = "#x" + "f" * 64
+
+
+class LeanTranslationTests(unittest.TestCase):
+    def test_operations_keep_smt_semantics(self):
+        query = (
+            f"(set-logic QF_BV) {WORDS} (assert (let ((a!1 (bvudiv x y))) "
+            "(distinct a!1 (bvurem x ((_ zero_extend 128) ((_ extract 127 0) y))))))"
+        )
+        self.assertEqual(
+            theorem("t", query, "bv_decide"),
+            "theorem t (x : BitVec 256) (y : BitVec 256) :\n"
+            "    ((let t1 := (BitVec.smtUDiv x y); "
+            "(t1 != (x % (BitVec.setWidth 256 (BitVec.extractLsb' 0 128 y)))))) = false := by\n"
+            "  bv_decide\n",
+        )
+
+    def test_balance_arrays_become_functions(self):
+        query = (
+            "(set-logic QF_ABV) (declare-fun b () (Array (_ BitVec 160) (_ BitVec 256))) "
+            "(declare-fun a () (_ BitVec 256)) "
+            "(assert (distinct (select b ((_ extract 159 0) a)) (bvsdiv a (_ bv7 256))))"
+        )
+        self.assertEqual(
+            theorem("t", query, "simp"),
+            "theorem t (b : BitVec 160 → BitVec 256) (a : BitVec 256) :\n"
+            "    (((b (BitVec.extractLsb' 0 160 a)) != (BitVec.smtSDiv a (7#256)))) = false := by\n"
+            "  simp\n",
+        )
+
+    def test_unsupported_queries_fail_closed(self):
+        for query in [
+            "(set-logic QF_UF) (assert true)",
+            f"(set-logic QF_BV) {WORDS} (assert (= (bvcomp x y) #b1))",
+            "(set-logic QF_BV) (declare-fun f ((_ BitVec 256)) (_ BitVec 256)) (assert true)",
+            f"(set-logic QF_BV) {WORDS} (assert (forall ((z (_ BitVec 256))) true))",
+            f"(set-logic QF_BV) {WORDS} (check-sat)",
+        ]:
+            with self.subTest(query=query), self.assertRaises(UnsupportedQuery):
+                theorem("t", query, "bv_decide")
+
+
+def lean_accepts(
+    name, query, tactic="bv_decide (config := { timeout := 60 })", helpers=""
+):
+    with tempfile.TemporaryDirectory() as directory:
+        path = Path(directory) / "Proof.lean"
+        path.write_text(
+            THEOREM_PRELUDE + "\n" + helpers + "\n" + theorem(name, query, tactic)
+        )
+        process = subprocess.run(
+            ["lean", str(path)],
+            cwd=LEAN_PROJECT,
+            capture_output=True,
+            text=True,
+            timeout=600,
+            check=False,
+        )
+        return (
+            process.returncode == 0 and "error" not in process.stdout + process.stderr
+        )
+
+
+@unittest.skipUnless(shutil.which("lean"), "Lean is optional for local verifier tests")
+class LeanProofTests(unittest.TestCase):
+    def test_smt_corner_cases_prove(self):
+        cases = {
+            "udiv_by_zero": f"(distinct (bvudiv x {ZERO}) {ONES})",
+            "urem_by_zero": f"(distinct (bvurem x {ZERO}) x)",
+            "sdiv_by_zero": f"(distinct (bvsdiv x {ZERO}) (ite (bvslt x {ZERO}) {ONE} {ONES}))",
+            "srem_by_zero": f"(distinct (bvsrem x {ZERO}) x)",
+            "smod_by_zero": f"(distinct (bvsmod x {ZERO}) x)",
+            "shift_saturates": f"(distinct (bvshl x #x{'0' * 61}100) {ZERO})",
+            "halves": "(distinct (concat ((_ extract 255 128) x) ((_ extract 127 0) x)) x)",
+        }
+        for name, assertion in cases.items():
+            with self.subTest(name=name):
+                query = f"(set-logic QF_BV) {WORDS} (assert {assertion})"
+                self.assertTrue(lean_accepts(name, query))
+
+    def test_false_obligations_fail(self):
+        cases = {
+            "mutated_identity": "(distinct (bvor x y) (bvadd (bvand x y) (bvor x y)))",
+            "udiv_by_zero_is_not_zero": f"(distinct (bvudiv x {ZERO}) {ZERO})",
+            "ashr_is_not_lshr": "(distinct (bvashr x y) (bvlshr x y))",
+        }
+        for name, assertion in cases.items():
+            with self.subTest(name=name):
+                query = f"(set-logic QF_BV) {WORDS} (assert {assertion})"
+                self.assertFalse(lean_accepts(name, query))
+
+    def test_hand_proofs_check_the_current_rules(self):
+        proofs = {path.stem: path.read_text() for path in MANUAL_PROOFS.glob("*.lean")}
+        self.assertTrue(proofs)
+        queries = {}
+        for path in DEFAULT_FILES:
+            if not any(name.startswith(f"{path.stem}_L") for name in proofs):
+                continue
+            for line, query in obligations(path):
+                if f"{path.stem}_L{line}" in proofs:
+                    queries[f"{path.stem}_L{line}"] = query
+        # Every proof names a current rule; a moved or deleted rule fails here.
+        self.assertEqual(sorted(queries), sorted(proofs))
+        for name, query in queries.items():
+            with self.subTest(name=name):
+                self.assertTrue(
+                    lean_accepts(name, query, proofs[name], HELPERS.read_text())
+                )
 
 
 if __name__ == "__main__":
