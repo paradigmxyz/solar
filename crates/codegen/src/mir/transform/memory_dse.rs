@@ -10,16 +10,17 @@
 //! observations act as barriers to memory elimination.
 //!
 //! A backward liveness analysis over constant word-aligned slots removes
-//! stores no later read can observe. Halts discard memory. A read from a
-//! pointer derived from the free-memory pointer or another compiler-owned heap
+//! stores no later read can observe. Halts discard memory. In an ABI wrapper
+//! whose free-memory pointer, and that of every callee, only grows from the heap
+//! floor, a read from a pointer derived from it or another compiler-owned heap
 //! base keeps only heap addresses live, so reserved slots such as the
 //! free-memory pointer stay dead before it. `late-memory-dse` reruns only this
 //! analysis on lowered word MIR, after allocation lowering has materialized the
 //! pointer bumps.
 
 use crate::mir::{
-    BlockId, Callee, Function, Immediate, InstId, InstKind, MemoryObjectKind, MemoryRegion, Module,
-    Terminator, Value, ValueId,
+    BlockId, Callee, Function, FunctionId, Immediate, InstId, InstKind, MemoryObjectKind,
+    MemoryRegion, Module, Terminator, Value, ValueId,
     analysis::{
         Access, AddressSpace, AliasAnalysis, CfgInfo, Location, LocationSize, MemoryAddress,
         MemoryBase, MemoryLocation,
@@ -60,6 +61,7 @@ impl MirPass for MemoryDse {
                 selected.insert(func_id);
             }
         }
+        let heap_fmp = heap_fmp_functions(module);
         run_selected_function_pass_with_alias_and_cfg(
             module,
             analyses,
@@ -68,6 +70,7 @@ impl MirPass for MemoryDse {
                 let mut eliminator = MemoryStoreEliminator::new();
                 eliminator.alias = Some(Rc::clone(analyses.alias()));
                 eliminator.cfg = Some(Rc::clone(analyses.cfg()));
+                eliminator.heap_reads = fmp_stays_in_heap(func, &heap_fmp);
                 eliminator.run_to_fixpoint(func) != 0
             },
         )
@@ -99,6 +102,7 @@ impl MirPass for LateMemoryDse {
                 selected.insert(func_id);
             }
         }
+        let heap_fmp = heap_fmp_functions(module);
         run_selected_function_pass_with_alias_and_cfg(
             module,
             analyses,
@@ -106,11 +110,87 @@ impl MirPass for LateMemoryDse {
             |func, analyses| {
                 let mut eliminator = MemoryStoreEliminator::new();
                 eliminator.alias = Some(Rc::clone(analyses.alias()));
+                eliminator.heap_reads = fmp_stays_in_heap(func, &heap_fmp);
                 eliminator.remove_dead_memory_stores(func);
                 eliminator.eliminated_count != 0
             },
         )
     }
+}
+
+/// Returns whether reads from heap pointers in `func` can only observe heap memory.
+///
+/// ABI wrappers start from the entry's heap floor, since they run only from the
+/// dispatcher, and their free memory pointer must only grow from there; see
+/// [`fmp_grows_in_heap`].
+fn fmp_stays_in_heap(func: &Function, heap_fmp: &DenseBitSet<FunctionId>) -> bool {
+    func.attributes.is_abi_wrapper
+        && !func.attributes.is_constructor
+        && fmp_grows_in_heap(func, heap_fmp)
+}
+
+/// Returns the functions that only keep a heap free memory pointer in the heap.
+///
+/// This is the greatest fixpoint of [`fmp_grows_in_heap`] over internal calls.
+fn heap_fmp_functions(module: &Module) -> DenseBitSet<FunctionId> {
+    let mut heap_fmp = DenseBitSet::new_empty(module.functions.len());
+    heap_fmp.insert_all();
+    loop {
+        let mut changed = false;
+        for (func_id, func) in module.functions.iter_enumerated() {
+            if heap_fmp.contains(func_id) && !fmp_grows_in_heap(func, &heap_fmp) {
+                heap_fmp.remove(func_id);
+                changed = true;
+            }
+        }
+        if !changed {
+            return heap_fmp;
+        }
+    }
+}
+
+/// Returns whether `func` keeps a heap free memory pointer in the heap.
+///
+/// Inline assembly can move the pointer into reserved memory, so every write that may
+/// replace it must store a heap pointer or grow one, and every callee must do the same.
+///
+/// NOTE: a heap pointer plus any offset, as in an allocation bump `fmp + size` or a
+/// write into an allocation, counts as staying in the heap. Only assembly that is not
+/// memory-safe can wrap that sum below the heap.
+fn fmp_grows_in_heap(func: &Function, heap_fmp: &DenseBitSet<FunctionId>) -> bool {
+    let bounded = |value| {
+        AliasAnalysis::pointer_lower_bound(func, value, 0)
+            .is_some_and(|bound| bound >= EvmMemoryLayout::HEAP_START)
+    };
+    let in_heap = |value| {
+        bounded(value)
+            || matches!(func.value(value), Value::Inst(inst)
+                if matches!(func.inst(*inst).kind, InstKind::Add(a, b) if bounded(a) || bounded(b)))
+    };
+    func.instructions().all(|inst_id| match func.inst(inst_id).kind {
+        InstKind::MStore(address, value)
+            if func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT) =>
+        {
+            in_heap(value)
+        }
+        InstKind::SetFmp(value) => in_heap(value),
+        // Writes from the heap up never reach the reserved slot.
+        InstKind::MStore(dest, _)
+        | InstKind::MStore8(dest, _)
+        | InstKind::MemoryZero(dest, _)
+        | InstKind::MCopy(dest, _, _)
+        | InstKind::CalldataCopy(dest, _, _)
+        | InstKind::CodeCopy(dest, _, _)
+        | InstKind::DataCopy(_, dest, _)
+        | InstKind::ReturnDataCopy(dest, _, _)
+        | InstKind::ExtCodeCopy(_, dest, _, _)
+            if in_heap(dest) =>
+        {
+            true
+        }
+        InstKind::ICall { function: Callee::Function(callee), .. } => heap_fmp.contains(callee),
+        _ => !AliasAnalysis::instruction_may_reset_fmp_with_summaries(func, inst_id, None),
+    })
 }
 
 /// Returns whether the function contains a memory write this pass can remove
@@ -144,6 +224,8 @@ struct MemoryStoreEliminator {
     /// Number of memory instructions eliminated.
     eliminated_count: usize,
     alias: Option<Rc<AliasAnalysis>>,
+    /// Whether reads from heap pointers keep only heap memory live; see [`fmp_stays_in_heap`].
+    heap_reads: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -533,7 +615,7 @@ impl MemoryStoreEliminator {
             return;
         }
 
-        let heap_reads = self.fmp_stays_in_heap(func);
+        let heap_reads = self.heap_reads;
 
         // Backward fixpoint: live_in[b] = transfer(b, ∪ live_in[succ(b)]).
         //
@@ -768,52 +850,6 @@ impl MemoryStoreEliminator {
             live.add_addr(word);
             word += 32;
         }
-    }
-
-    /// Returns whether every free-memory-pointer value in the function stays in the heap.
-    ///
-    /// ABI wrappers start from the entry's heap floor, since they run only from the
-    /// dispatcher. Inline assembly can still move the pointer into reserved memory, so
-    /// every write that may replace it must store a heap pointer or grow one.
-    ///
-    /// NOTE: a heap pointer plus any offset, as in an allocation bump `fmp + size` or a
-    /// write into an allocation, counts as staying in the heap. Only assembly that is not
-    /// memory-safe can wrap that sum below the heap.
-    fn fmp_stays_in_heap(&self, func: &Function) -> bool {
-        let bounded = |value| {
-            AliasAnalysis::pointer_lower_bound(func, value, 0)
-                .is_some_and(|bound| bound >= EvmMemoryLayout::HEAP_START)
-        };
-        let in_heap = |value| {
-            bounded(value)
-                || matches!(func.value(value), Value::Inst(inst)
-                    if matches!(func.inst(*inst).kind, InstKind::Add(a, b) if bounded(a) || bounded(b)))
-        };
-        func.attributes.is_abi_wrapper
-            && !func.attributes.is_constructor
-            && func.instructions().all(|inst_id| match func.inst(inst_id).kind {
-                InstKind::MStore(address, value)
-                    if func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT) =>
-                {
-                    in_heap(value)
-                }
-                InstKind::SetFmp(value) => in_heap(value),
-                // Writes from the heap up never reach the reserved slot.
-                InstKind::MStore(dest, _)
-                | InstKind::MStore8(dest, _)
-                | InstKind::MemoryZero(dest, _)
-                | InstKind::MCopy(dest, _, _)
-                | InstKind::CalldataCopy(dest, _, _)
-                | InstKind::CodeCopy(dest, _, _)
-                | InstKind::DataCopy(_, dest, _)
-                | InstKind::ReturnDataCopy(dest, _, _)
-                | InstKind::ExtCodeCopy(_, dest, _, _)
-                    if in_heap(dest) =>
-                {
-                    true
-                }
-                _ => !self.alias().instruction_may_reset_fmp(func, inst_id),
-            })
     }
 
     /// Returns a constant, 32-byte-aligned memory address, or `None` otherwise.

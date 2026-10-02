@@ -1988,7 +1988,7 @@ impl AliasAnalysis {
         Self::instruction_may_reset_fmp_with_summaries(func, inst, self.call_summaries.as_deref())
     }
 
-    fn instruction_may_reset_fmp_with_summaries(
+    pub(crate) fn instruction_may_reset_fmp_with_summaries(
         func: &Function,
         inst: InstId,
         call_summaries: Option<&MemoryCallSummaries>,
