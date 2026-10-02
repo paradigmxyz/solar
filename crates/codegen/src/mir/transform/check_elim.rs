@@ -20,8 +20,11 @@
 //! dominated block. Branch conditions are then evaluated against the
 //! recorded facts with checked 256-bit arithmetic; a condition that is
 //! provably constant folds the branch to an unconditional jump, and the dead
-//! panic block is cleaned up by the existing CFG passes. Anything that is
-//! not provable is left untouched. Explicit integer casts retain range facts only
+//! panic block is cleaned up by the existing CFG passes. A condition that stays
+//! undecided drops any `or` operand proven false and `and` operand proven true,
+//! as the `x == 0` half of a checked product's `x == 0 || x * y / x == y` when
+//! `x` is a counter above zero, and the branch reads what remains. Anything
+//! that is not provable is left untouched. Explicit integer casts retain range facts only
 //! when their width and sign semantics preserve the bounded values. Semantic checks use the same
 //! facts in instruction order: a passing check refines all later execution, and a proven passing
 //! check can be removed before expansion. Facts roll back on leaving each dominator subtree, so a
@@ -447,6 +450,8 @@ struct CheckElimStats {
     /// Number of branches folded to unconditional jumps.
     branches_folded: usize,
     checks_removed: usize,
+    /// Number of branch conditions reduced to one operand of their `or` or `and`.
+    conditions_reduced: usize,
 }
 
 /// An inclusive unsigned 256-bit interval.
@@ -558,6 +563,10 @@ impl MonotonePhi {
         }
     }
 }
+
+/// Branches to fold to one target, passing checks to remove, and branch conditions to reduce to
+/// one operand, as a dominator walk decides them.
+type Folds = (Vec<(BlockId, BlockId)>, DenseBitSet<InstId>, Vec<(BlockId, ValueId)>);
 
 /// Range-based overflow-check eliminator.
 #[derive(Default)]
@@ -675,7 +684,7 @@ impl<'a> CheckEliminator<'a> {
             self.trip_bounds.entry(value).or_insert(bound);
         }
         let mut proven = Vec::new();
-        let (mut folds, mut checks) =
+        let (mut folds, mut checks, mut reductions) =
             self.collect_folds(func, &cfg, &preds, &facts, &candidates, &mut proven, selected);
         if !proven.is_empty() {
             // The invariant is available wherever the phi is: attach it to the
@@ -699,7 +708,7 @@ impl<'a> CheckEliminator<'a> {
             self.relation_index = None;
             self.reverse_index = None;
             self.strict_lower_bounds = None;
-            (folds, checks) =
+            (folds, checks, reductions) =
                 self.collect_folds(func, &cfg, &preds, &facts, &[], &mut Vec::new(), selected);
         }
         self.ranges.clear();
@@ -707,7 +716,7 @@ impl<'a> CheckEliminator<'a> {
         self.range_undo.clear();
         self.relation_undo.clear();
 
-        if folds.is_empty() && checks.is_empty() {
+        if folds.is_empty() && checks.is_empty() && reductions.is_empty() {
             return 0;
         }
         // branch proven_condition, keep, discard => jump keep
@@ -721,13 +730,20 @@ impl<'a> CheckEliminator<'a> {
                 block.instructions.retain(|&id| !checks.contains(id));
             }
         }
+        // jumpi (or c, 0) | (and c, 1), then, else -> jumpi c, then, else
+        for &(block, reduced) in &reductions {
+            if let Some(Terminator::Branch { condition, .. }) = &mut func.blocks[block].terminator {
+                *condition = reduced;
+            }
+        }
         self.stats.branches_folded = folds.len();
         self.stats.checks_removed = checks.count();
-        self.stats.branches_folded + self.stats.checks_removed
+        self.stats.conditions_reduced = reductions.len();
+        self.stats.branches_folded + self.stats.checks_removed + self.stats.conditions_reduced
     }
 
-    /// Walks the dominator tree, recording edge and check facts. Returns branch folds and
-    /// proven passing checks to remove.
+    /// Walks the dominator tree, recording edge and check facts. Returns branch folds, proven
+    /// passing checks to remove, and branch conditions to reduce to one of their operands.
     /// `candidates` whose update is proven wrap-free in its defining block's
     /// scope are appended to `proven`. With `selected`, only folds of selected branches whose
     /// discarded arm reverts are evaluated and returned; evaluation records no facts.
@@ -741,7 +757,7 @@ impl<'a> CheckEliminator<'a> {
         candidates: &[MonotonePhi],
         proven: &mut Vec<MonotonePhi>,
         selected: Option<(&DenseBitSet<BlockId>, &FxHashSet<FunctionId>)>,
-    ) -> (Vec<(BlockId, BlockId)>, DenseBitSet<InstId>) {
+    ) -> Folds {
         enum Walk {
             Enter(BlockId),
             Exit { range_mark: usize, relation_mark: usize },
@@ -749,6 +765,7 @@ impl<'a> CheckEliminator<'a> {
 
         let mut folds = Vec::new();
         let mut checks = DenseBitSet::new_empty(func.num_insts());
+        let mut reductions = Vec::new();
         let mut stack = Vec::new();
         stack.push(Walk::Enter(BlockId::ENTRY));
         while let Some(item) = stack.pop() {
@@ -824,13 +841,27 @@ impl<'a> CheckEliminator<'a> {
                                 && (leads_to_revert(func, *then_block, reverting)
                                     || leads_to_revert(func, *else_block, reverting))
                         })
-                        && let Some(truth) = self.eval_truth(func, *condition, MAX_DEPTH)
-                        && selected.is_none_or(|(_, reverting)| {
-                            let discarded = if truth { *else_block } else { *then_block };
-                            leads_to_revert(func, discarded, reverting)
-                        })
                     {
-                        folds.push((block, if truth { *then_block } else { *else_block }));
+                        match self.eval_truth(func, *condition, MAX_DEPTH) {
+                            Some(truth)
+                                if selected.is_none_or(|(_, reverting)| {
+                                    let discarded = if truth { *else_block } else { *then_block };
+                                    leads_to_revert(func, discarded, reverting)
+                                }) =>
+                            {
+                                folds.push((block, if truth { *then_block } else { *else_block }));
+                            }
+                            None if selected.is_none() => {
+                                let mut reduced = *condition;
+                                while let Some(operand) = self.reduced_condition(func, reduced) {
+                                    reduced = operand;
+                                }
+                                if reduced != *condition {
+                                    reductions.push((block, reduced));
+                                }
+                            }
+                            _ => {}
+                        }
                     }
 
                     for &child in cfg.dominators().children(block) {
@@ -839,7 +870,25 @@ impl<'a> CheckEliminator<'a> {
                 }
             }
         }
-        (folds, checks)
+        (folds, checks, reductions)
+    }
+
+    /// The operand an `or` or `and` condition reduces to when the other one is decided as the
+    /// neutral value of the operation: false for `or`, true for `and`, whose `i1` operands are
+    /// then exactly zero and one.
+    fn reduced_condition(&mut self, func: &Function, condition: ValueId) -> Option<ValueId> {
+        let (a, b, neutral) = match *inst_kind(func, condition)? {
+            InstKind::Or(a, b) => (a, b, false),
+            InstKind::And(a, b) => (a, b, true),
+            _ => return None,
+        };
+        if self.eval_truth(func, a, MAX_DEPTH) == Some(neutral) {
+            Some(b)
+        } else if self.eval_truth(func, b, MAX_DEPTH) == Some(neutral) {
+            Some(a)
+        } else {
+            None
+        }
     }
 
     /// Decides in the current scope whether a monotone phi's update cannot

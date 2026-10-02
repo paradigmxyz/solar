@@ -55,16 +55,11 @@ bb13 [loop]:
   dup 3
   mul
   dup 2
-  iszero
-  dup 3
-  dup 3
+  dup 2
   div
   swap 1
-  swap 4
-  eq
-  swap 1
   swap 3
-  or
+  eq
   swap 1
   push 1
   add
@@ -72,16 +67,11 @@ bb13 [loop]:
   dup 4
   mul
   dup 2
-  iszero
-  dup 3
-  dup 3
+  dup 2
   div
   swap 1
-  swap 5
-  eq
-  swap 1
   swap 4
-  or
+  eq
   swap 1
   swap 2
   and
@@ -104,17 +94,11 @@ bb11 [loop]:
   dup 3
   mul
   dup 2
-  iszero
-  dup 3
-  dup 3
+  dup 2
   div
   swap 1
-  swap 4
-  eq
-  swap 1
   swap 3
-  or
-  iszero
+  sub
   push bb15
   jumpi
   push 1
@@ -176,16 +160,11 @@ bb13 [loop]:
   dup 2
   mul
   dup 3
-  iszero
-  dup 4
-  dup 3
+  dup 2
   div
   swap 1
-  swap 3
-  eq
-  swap 1
   swap 2
-  or
+  eq
   swap 2
   push 1
   add
@@ -193,16 +172,11 @@ bb13 [loop]:
   dup 3
   mul
   dup 2
-  iszero
-  dup 3
-  dup 3
+  dup 2
   div
   swap 1
-  swap 4
-  eq
-  swap 1
   swap 3
-  or
+  eq
   swap 1
   swap 3
   and
@@ -227,17 +201,11 @@ bb11 [loop]:
   dup 2
   mul
   dup 3
-  iszero
-  dup 4
-  dup 3
+  dup 2
   div
   swap 1
-  swap 3
-  eq
-  swap 1
   swap 2
-  or
-  iszero
+  sub
   push bb15
   jumpi
   swap 1
