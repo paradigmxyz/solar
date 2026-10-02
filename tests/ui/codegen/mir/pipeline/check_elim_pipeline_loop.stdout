@@ -6,10 +6,10 @@ fn @sum(arg0: i256) {
     mstore 128, 0
     jump bb6
   bb6:
-    v8 = phi [bb0: 0], [bb9: v19]
-    v20 = add v8, 1
-    v21 = lt v20, arg0
-    jumpi v21, bb7, bb1
+    v8 = phi [bb0: 0], [bb11: v31]
+    v32 = add v8, 3
+    v33 = lt v32, arg0
+    jumpi v33, bb7, bb1
   bb1:
     v0 = phi [bb6: v8], [bb5: v3]
     v1 = lt v0, arg0
@@ -42,6 +42,20 @@ fn @sum(arg0: i256) {
   bb9:
     mstore 128, v17
     v19 = add v13, 1
+    v22 = mload 128
+    v23 = add v22, v19
+    v24 = lt v23, v22
+    jumpi v24, bb4, bb10
+  bb10:
+    mstore 128, v23
+    v25 = add v19, 1
+    v28 = mload 128
+    v29 = add v28, v25
+    v30 = lt v29, v28
+    jumpi v30, bb4, bb11
+  bb11:
+    mstore 128, v29
+    v31 = add v25, 1
     jump bb6
   bb4:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)

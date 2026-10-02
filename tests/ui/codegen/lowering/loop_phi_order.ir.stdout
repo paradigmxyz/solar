@@ -68,12 +68,36 @@ bb28 [loop]:
   swap 1
   push 1
   add
-  swap 3
-  swap 1
   swap 2
+  dup 4
+  xor
+  swap 3
+  dup 2
+  add
+  swap 1
+  dup 3
+  add
+  swap 2
+  push 1
+  add
+  swap 3
+  dup 2
+  xor
+  swap 1
+  dup 3
+  add
+  swap 2
+  dup 4
+  add
+  swap 3
+  push 1
+  add
+  swap 3
+  swap 2
+  swap 1
   jump bb24
 bb24 [loop]:
-  push 1
+  push 3
   dup 5
   add
   dup 6
@@ -159,9 +183,27 @@ bb21 [loop]:
   push 1
   add
   swap 2
+  dup 2
+  sub
+  swap 1
+  dup 3
+  add
+  swap 2
+  push 1
+  add
+  swap 1
+  dup 3
+  sub
+  swap 2
+  dup 2
+  add
+  swap 1
+  push 1
+  add
+  swap 2
   jump bb17
 bb17 [loop]:
-  push 1
+  push 3
   dup 4
   add
   push 288
@@ -213,45 +255,75 @@ bb3:
   push 0
   swap 2
   jump bb10
-bb14 [loop]:
-  dup 2
-  push 11
-  byte
-  add
-  swap 1
-  dup 1
-  add
-  dup 3
-  add
-  swap 2
-  push 1
-  add
-  dup 3
-  push 11
-  byte
-  swap 1
-  swap 2
-  add
-  swap 2
-  dup 1
-  add
-  dup 2
-  add
-  swap 1
-  push 1
-  add
-  swap 2
-  jump bb10
 bb10 [loop]:
-  push 1
-  dup 4
+  push 3
+  dup 2
   add
   push 224
   mload
   gt
-  push bb14
+  exchange 1, 3
+  iszero
+  push bb11
   jumpi
-  jump bb11
+  swap 2
+  dup 2
+  push 11
+  byte
+  swap 1
+  swap 3
+  add
+  swap 1
+  dup 1
+  add
+  dup 3
+  add
+  swap 2
+  push 1
+  add
+  dup 3
+  push 11
+  byte
+  swap 1
+  swap 2
+  add
+  swap 2
+  dup 1
+  add
+  dup 2
+  add
+  swap 1
+  push 1
+  add
+  dup 2
+  push 11
+  byte
+  swap 1
+  swap 3
+  add
+  swap 1
+  dup 1
+  add
+  dup 3
+  add
+  swap 2
+  push 1
+  add
+  dup 3
+  push 11
+  byte
+  swap 1
+  swap 2
+  add
+  swap 2
+  dup 1
+  add
+  dup 2
+  add
+  swap 1
+  push 1
+  add
+  jump bb10
 bb13 [loop]:
   dup 2
   push 11

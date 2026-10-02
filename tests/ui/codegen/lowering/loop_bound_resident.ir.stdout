@@ -46,9 +46,27 @@ bb10 [loop]:
   push 1
   add
   swap 2
+  dup 2
+  add
+  swap 1
+  dup 3
+  add
+  swap 2
+  push 1
+  add
+  swap 1
+  dup 3
+  add
+  swap 2
+  dup 2
+  add
+  swap 1
+  push 1
+  add
+  swap 2
   jump bb6
 bb6 [loop]:
-  push 1
+  push 3
   dup 4
   add
   dup 5

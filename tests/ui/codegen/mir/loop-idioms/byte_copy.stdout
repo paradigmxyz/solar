@@ -204,11 +204,11 @@ fn @zeroTripHeader() [selector=0xe0b1133b, abi_wrapper, pure] {
   bb5:
     jump bb6
   bb6:
-    v16 = phi [bb5: 0], [bb7: v25]
-    v17 = phi [bb5: 0], [bb7: v24]
-    v26 = add v16, 1
-    v27 = lt v26, arg0
-    jumpi v27, bb7, bb2
+    v16 = phi [bb5: 0], [bb7: v35]
+    v17 = phi [bb5: 0], [bb7: v34]
+    v36 = add v16, 3
+    v37 = lt v36, arg0
+    jumpi v37, bb7, bb2
   bb2:
     v3 = phi [bb6: v16], [bb3: v9]
     v4 = phi [bb6: v17], [bb3: v6]
@@ -222,9 +222,11 @@ fn @zeroTripHeader() [selector=0xe0b1133b, abi_wrapper, pure] {
     v9 = add v3, 1
     jump bb2
   bb7:
-    v24 = mload 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v34 = mload 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     v20 = add v16, 1
     v25 = add v20, 1
+    v30 = add v25, 1
+    v35 = add v30, 1
     jump bb6
   bb4:
     revert 0, 0
@@ -238,11 +240,11 @@ fn @headerExpansion() [selector=0xfb7c0847, abi_wrapper, pure] {
   bb5:
     jump bb6
   bb6:
-    v32 = phi [bb5: 0], [bb7: v59]
-    v33 = phi [bb5: 0], [bb7: v58]
-    v60 = add v33, 1
-    v61 = lt v60, arg0
-    jumpi v61, bb7, bb1
+    v32 = phi [bb5: 0], [bb7: v87]
+    v33 = phi [bb5: 0], [bb7: v86]
+    v88 = add v33, 3
+    v89 = lt v88, arg0
+    jumpi v89, bb7, bb1
   bb1:
     v0 = phi [bb6: v32], [bb3: v13]
     v1 = phi [bb6: v33], [bb3: v18]
@@ -266,18 +268,22 @@ fn @headerExpansion() [selector=0xfb7c0847, abi_wrapper, pure] {
     jump bb1
   bb7:
     v36 = mload 0x10000
-    v44 = add v33, 1
-    v49 = msize
     v50 = mload 0x10000
-    v51 = msize
-    v52 = gt v51, v49
-    v53 = eq v50, 0
-    v54 = zext i1 v52 to i256
-    v55 = zext i1 v53 to i256
-    v56 = mul v54, v55
-    v57 = ne v56, 0
+    v64 = mload 0x10000
+    v44 = add v33, 1
     v58 = add v44, 1
-    v59 = zext i1 v57 to i256
+    v72 = add v58, 1
+    v77 = msize
+    v78 = mload 0x10000
+    v79 = msize
+    v80 = gt v79, v77
+    v81 = eq v78, 0
+    v82 = zext i1 v80 to i256
+    v83 = zext i1 v81 to i256
+    v84 = mul v82, v83
+    v85 = ne v84, 0
+    v86 = add v72, 1
+    v87 = zext i1 v85 to i256
     jump bb6
   bb4:
     revert 0, 0
