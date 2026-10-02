@@ -17,6 +17,8 @@
 //! header: state = phi [main_header: state], [latch: next]; the original loop
 //! ```
 //!
+//! A loop that runs while `i <= n` leaves its main loop once `i + s > n`.
+//!
 //! A loop that runs until its counter reaches the bound, `for (; i != n; i += s)`
 //! as assembly loops over pointers are written, knows its remaining count
 //! exactly: `n - i` is `s` times the count, so with `s = 2^t * u` for an odd
@@ -36,34 +38,36 @@
 //! ```
 //!
 //! Recognition: as for `loop-split`, a natural loop with a preheader and no
-//! inner loop, whose header branches on `i < n` or `i != n` into the body and
-//! otherwise leaves the loop, where `i` is a header phi, or a pointer phi the
-//! header converts to an integer, that the loop's single back edge advances by
-//! a literal positive step, and `n` is defined outside the loop. A `<` test
-//! also needs a literal start. The header's other instructions must be free of
-//! effects, because the original header repeats them for the iteration the
-//! main loop declined. The body must be straight-line: every branch inside it
-//! continues the loop on one arm and aborts on the other, such as an arithmetic
-//! panic, where a block aborts when it reverts or calls a function that never
-//! returns. The body may read words computed before the loop only when the
-//! backend rebuilds them where they are read, as calldata words at fixed offsets
-//! and environment reads: the stack scheduler spills other such words, and
-//! their copies measured slower than the original loop.
+//! inner loop, whose header branches into the body while `i < n`, `i <= n` or
+//! `i != n` and otherwise leaves the loop, where `i` is a header phi, or a
+//! pointer phi the header converts to an integer, that the loop's single back
+//! edge advances by a literal positive step, and `n` is defined outside the
+//! loop. A `<` or `<=` test also needs a literal start. The header's other
+//! instructions must be free of effects, because the original header repeats
+//! them for the iteration the main loop declined. The body must be
+//! straight-line: every branch inside it continues the loop on one arm and
+//! aborts on the other, such as an arithmetic panic, where a block aborts when
+//! it reverts or calls a function that never returns. The body may read words
+//! computed before the loop only when the backend rebuilds them where they are
+//! read, as calldata words at fixed offsets and environment reads: the stack
+//! scheduler spills other such words, and their copies measured slower than the
+//! original loop.
 //!
-//! Safety: for `<`, `i` starts at a literal and grows by a literal step, so
-//! within the target's trip-count bound `i + s` cannot wrap, and `i + s < n`
-//! implies `i < n`. The main loop therefore runs the iterations the original
-//! loop runs next, in the same order with the same values and effects, two at
-//! a time. The second copy's header test holds by the main header's test, so it
-//! enters its body directly. When the main test fails, the original loop receives
-//! the exact loop-carried state and finishes. Every loop block is cloned with
-//! its instructions and effects unchanged. Edges that leave the loop from its
-//! body, such as panics, reach the same blocks from every copy; their phis gain
-//! the cloned edges, and a loop qualifies only when no block reachable from
-//! such an edge uses a loop-defined value except as a phi input on that edge,
-//! so every definition still dominates its uses. The header's exit stays the
-//! only way to leave the original loop normally, so values read after the loop
-//! keep their definitions.
+//! Safety: for `<` and `<=`, `i` starts at a literal and grows by a literal
+//! step, so within the target's trip-count bound `i + s` cannot wrap, and
+//! `i + s < n` implies `i < n`, as `i + s <= n` implies `i <= n`. The main loop
+//! therefore runs the iterations the original loop runs next, in the same order
+//! with the same values and effects, two at a time. The second copy's header
+//! test holds by the main header's test, so it enters its body directly. When
+//! the main test fails, the original loop receives the exact loop-carried state
+//! and finishes. Every loop block is cloned with its instructions and effects
+//! unchanged. Edges that leave the loop from its body, such as panics, reach
+//! the same blocks from every copy; their phis gain the cloned edges, and a
+//! loop qualifies only when no block reachable from such an edge uses a
+//! loop-defined value except as a phi input on that edge, so every definition
+//! still dominates its uses. The header's exit stays the only way to leave the
+//! original loop normally, so values read after the loop keep their
+//! definitions.
 //!
 //! For `!=`, counts are taken modulo `2^256`, as the counter wraps. When `n - i`
 //! is `s` times some count `k`, the loop runs exactly `k` more iterations, and
@@ -83,8 +87,8 @@
 //!
 //! Profitability: gas mode only, priced by the target over the deployment's
 //! expected executions. Each pair of iterations skips a header test and a
-//! back-edge jump. For `<`, the first pair skips nothing and every test of the
-//! main loop, including the declined one, adds the step first; for `!=`, the
+//! back-edge jump. For `<` and `<=`, the first pair skips nothing and every test
+//! of the main loop, including the declined one, adds the step first; for `!=`, the
 //! parity check costs about one test per entry. The new code holds two more
 //! copies of the body and one of the header. Literal bounds give the trip
 //! count, and other loops are assumed to run the target's estimate for
@@ -134,6 +138,8 @@ impl MirPass for LoopUnroll {
 enum Test {
     /// `i < n`, with a literal start so `i + s` cannot wrap.
     Below,
+    /// `i <= n`, with a literal start so `i + s` cannot wrap.
+    AtMost,
     /// `i != n`.
     Reaches,
 }
@@ -230,9 +236,12 @@ fn plan(
     else {
         return None;
     };
-    if !l.blocks.contains(then_block) || l.blocks.contains(else_block) {
-        return None;
-    }
+    let (body, exit, enters_on_true) =
+        match (l.blocks.contains(then_block), l.blocks.contains(else_block)) {
+            (true, false) => (then_block, else_block, true),
+            (false, true) => (else_block, then_block, false),
+            _ => return None,
+        };
     if loops.all_loops().any(|other| other.header != l.header && l.blocks.contains(other.header)) {
         return None;
     }
@@ -291,11 +300,18 @@ fn plan(
     // header: counter = phi [preheader: start], [latch: next]
     //         word = counter | ptrtoint counter
     //         jumpi (lt word, bound) | (ne word, bound), body, exit
+    //         jumpi (gt word, bound) | (eq word, bound), exit, body
     // latch:  next = add word, step | inttoptr (add word, step)
-    let (test, word, bound) = match *inst_kind(func, condition)? {
-        InstKind::Lt(word, bound) => (Test::Below, word, bound),
-        InstKind::Ne(a, b) if defined_in_loop(a) => (Test::Reaches, a, b),
-        InstKind::Ne(a, b) => (Test::Reaches, b, a),
+    let reaches =
+        |a, b| if defined_in_loop(a) { (Test::Reaches, a, b) } else { (Test::Reaches, b, a) };
+    let (test, word, bound) = match (inst_kind(func, condition)?, enters_on_true) {
+        (&InstKind::Lt(word, bound), true) | (&InstKind::Gt(bound, word), true) => {
+            (Test::Below, word, bound)
+        }
+        (&InstKind::Gt(word, bound), false) | (&InstKind::Lt(bound, word), false) => {
+            (Test::AtMost, word, bound)
+        }
+        (&InstKind::Ne(a, b), true) | (&InstKind::Eq(a, b), false) => reaches(a, b),
         _ => return None,
     };
     if defined_in_loop(bound) {
@@ -337,14 +353,20 @@ fn plan(
         return None;
     }
     let trips = match test {
-        Test::Below => {
+        Test::Below | Test::AtMost => {
             // The counter travels at most `step << MAX_TRIP_COUNT_BITS` from its start, so
             // `word + step` never wraps.
             let start = func.value_u256(start)?;
             let travel = step.checked_shl(Target::MAX_TRIP_COUNT_BITS)?;
             start.checked_add(travel)?.checked_add(step)?;
+            let trips = |limit: U256| match test {
+                Test::Below => limit.saturating_sub(start).div_ceil(step),
+                _ => {
+                    limit.checked_sub(start).map_or(U256::ZERO, |left| left / step + U256::from(1))
+                }
+            };
             func.value_u256(bound).map_or(Target::UNCOUNTED_LOOP_ITERATIONS, |limit| {
-                u64::try_from(limit.saturating_sub(start).div_ceil(step)).unwrap_or(u64::MAX)
+                u64::try_from(trips(limit)).unwrap_or(u64::MAX)
             })
         }
         Test::Reaches => match (func.value_u256(start), func.value_u256(bound)) {
@@ -365,7 +387,7 @@ fn plan(
     for block in l.blocks.iter() {
         for successor in func.blocks[block].terminator.as_ref()?.successors() {
             if !l.blocks.contains(successor)
-                && !(block == l.header && successor == else_block)
+                && !(block == l.header && successor == exit)
                 && reachable.insert(successor)
             {
                 worklist.push(successor);
@@ -406,7 +428,7 @@ fn plan(
         header: l.header,
         preheader,
         latch,
-        body: then_block,
+        body,
         blocks: l.blocks.clone(),
         test,
         word,
@@ -420,6 +442,7 @@ fn plan(
 fn repays(func: &Function, l: &Loop, test: Test, trips: u64, step: U256, target: Target) -> bool {
     let compare = match test {
         Test::Below => op::LT,
+        Test::AtMost => op::GT,
         Test::Reaches => op::SUB,
     };
     let tested = target.opcode(compare)
@@ -432,7 +455,7 @@ fn repays(func: &Function, l: &Loop, test: Test, trips: u64, step: U256, target:
     let saving = match test {
         // Every pair of iterations after the first skips a test and a back edge, and every test
         // of the main loop, including the declined one, first adds the step.
-        Test::Below => {
+        Test::Below | Test::AtMost => {
             let advance = target.opcode(op::ADD) + target.push(step);
             let skipped = (tested + back_edge).times(pairs.saturating_sub(1));
             skipped.gas.saturating_sub(advance.times(pairs.saturating_add(1)).gas)
@@ -593,16 +616,25 @@ fn apply(func: &mut Function, unroll: &Unroll) -> BlockId {
 
     let mut replacements = FxHashMap::default();
     let (entry, main_header) = match unroll.test {
-        Test::Below => {
-            // main_header: ahead = add word', step
-            //              jumpi (lt ahead, bound), body', header
+        Test::Below | Test::AtMost => {
             let main_header = first.blocks[&unroll.header];
             let step = func.alloc_value(Value::Immediate(Immediate::I256(unroll.step)));
             let word = first.value(unroll.word);
             let ahead = append(func, main_header, InstKind::Add(word, step), MirType::I256);
-            let condition =
-                append(func, main_header, InstKind::Lt(ahead, unroll.bound), MirType::I1);
-            branch(func, main_header, condition, first.blocks[&unroll.body], unroll.header);
+            let first_body = first.blocks[&unroll.body];
+            if let Test::Below = unroll.test {
+                // main_header: ahead = add word', step
+                //              jumpi (lt ahead, bound), body', header
+                let below =
+                    append(func, main_header, InstKind::Lt(ahead, unroll.bound), MirType::I1);
+                branch(func, main_header, below, first_body, unroll.header);
+            } else {
+                // main_header: ahead = add word', step
+                //              jumpi (gt ahead, bound), header, body'
+                let beyond =
+                    append(func, main_header, InstKind::Gt(ahead, unroll.bound), MirType::I1);
+                branch(func, main_header, beyond, unroll.header, first_body);
+            }
 
             // latch': jump header''
             // latch'': jump main_header
