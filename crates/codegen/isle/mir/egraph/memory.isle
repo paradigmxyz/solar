@@ -72,52 +72,52 @@
 
 ;; call(gas, addr, value, offset, 0, out, size) => call(gas, addr, value, 0, 0, out, size).
 ;; Requires: offset != 0.
-(rule (rewrite (Op.Call gas addr value offset (zero) out size)) (if-let false (same_value offset (imm (u256 0)))) (Op.Call gas addr value (imm (u256 0)) (imm (u256 0)) out size))
+(rule (rewrite (Op.Call gas addr value offset (and empty (zero)) out size)) (if-let false (same_value offset empty)) (Op.Call gas addr value empty empty out size))
 
 ;; call(gas, addr, value, offset, size, out, 0) => call(gas, addr, value, offset, size, 0, 0).
 ;; Requires: out != 0.
-(rule (rewrite (Op.Call gas addr value offset size out (zero))) (if-let false (same_value out (imm (u256 0)))) (Op.Call gas addr value offset size (imm (u256 0)) (imm (u256 0))))
+(rule (rewrite (Op.Call gas addr value offset size out (and empty (zero)))) (if-let false (same_value out empty)) (Op.Call gas addr value offset size empty empty))
 
 ;; callcode(gas, addr, value, offset, 0, out, size) => callcode(gas, addr, value, 0, 0, out, size).
 ;; Requires: offset != 0.
-(rule (rewrite (Op.CallCode gas addr value offset (zero) out size)) (if-let false (same_value offset (imm (u256 0)))) (Op.CallCode gas addr value (imm (u256 0)) (imm (u256 0)) out size))
+(rule (rewrite (Op.CallCode gas addr value offset (and empty (zero)) out size)) (if-let false (same_value offset empty)) (Op.CallCode gas addr value empty empty out size))
 
 ;; callcode(gas, addr, value, offset, size, out, 0) => callcode(gas, addr, value, offset, size, 0, 0).
 ;; Requires: out != 0.
-(rule (rewrite (Op.CallCode gas addr value offset size out (zero))) (if-let false (same_value out (imm (u256 0)))) (Op.CallCode gas addr value offset size (imm (u256 0)) (imm (u256 0))))
+(rule (rewrite (Op.CallCode gas addr value offset size out (and empty (zero)))) (if-let false (same_value out empty)) (Op.CallCode gas addr value offset size empty empty))
 
 ;; staticcall(gas, addr, offset, 0, out, size) => staticcall(gas, addr, 0, 0, out, size).
 ;; Requires: offset != 0.
-(rule (rewrite (Op.StaticCall gas addr offset (zero) out size)) (if-let false (same_value offset (imm (u256 0)))) (Op.StaticCall gas addr (imm (u256 0)) (imm (u256 0)) out size))
+(rule (rewrite (Op.StaticCall gas addr offset (and empty (zero)) out size)) (if-let false (same_value offset empty)) (Op.StaticCall gas addr empty empty out size))
 
 ;; staticcall(gas, addr, offset, size, out, 0) => staticcall(gas, addr, offset, size, 0, 0).
 ;; Requires: out != 0.
-(rule (rewrite (Op.StaticCall gas addr offset size out (zero))) (if-let false (same_value out (imm (u256 0)))) (Op.StaticCall gas addr offset size (imm (u256 0)) (imm (u256 0))))
+(rule (rewrite (Op.StaticCall gas addr offset size out (and empty (zero)))) (if-let false (same_value out empty)) (Op.StaticCall gas addr offset size empty empty))
 
 ;; delegatecall(gas, addr, offset, 0, out, size) => delegatecall(gas, addr, 0, 0, out, size).
 ;; Requires: offset != 0.
-(rule (rewrite (Op.DelegateCall gas addr offset (zero) out size)) (if-let false (same_value offset (imm (u256 0)))) (Op.DelegateCall gas addr (imm (u256 0)) (imm (u256 0)) out size))
+(rule (rewrite (Op.DelegateCall gas addr offset (and empty (zero)) out size)) (if-let false (same_value offset empty)) (Op.DelegateCall gas addr empty empty out size))
 
 ;; delegatecall(gas, addr, offset, size, out, 0) => delegatecall(gas, addr, offset, size, 0, 0).
 ;; Requires: out != 0.
-(rule (rewrite (Op.DelegateCall gas addr offset size out (zero))) (if-let false (same_value out (imm (u256 0)))) (Op.DelegateCall gas addr offset size (imm (u256 0)) (imm (u256 0))))
+(rule (rewrite (Op.DelegateCall gas addr offset size out (and empty (zero)))) (if-let false (same_value out empty)) (Op.DelegateCall gas addr offset size empty empty))
 
 ;; log0(offset, 0) => log0(0, 0).
 ;; Requires: offset != 0.
-(rule (rewrite (Op.Log0 offset (zero) )) (if-let false (same_value offset (imm (u256 0)))) (Op.Log0 (imm (u256 0)) (imm (u256 0)) ))
+(rule (rewrite (Op.Log0 offset (and empty (zero)) )) (if-let false (same_value offset empty)) (Op.Log0 empty empty ))
 
 ;; log1(offset, 0, t0) => log1(0, 0, t0).
 ;; Requires: offset != 0.
-(rule (rewrite (Op.Log1 offset (zero) t0)) (if-let false (same_value offset (imm (u256 0)))) (Op.Log1 (imm (u256 0)) (imm (u256 0)) t0))
+(rule (rewrite (Op.Log1 offset (and empty (zero)) t0)) (if-let false (same_value offset empty)) (Op.Log1 empty empty t0))
 
 ;; log2(offset, 0, t0, t1) => log2(0, 0, t0, t1).
 ;; Requires: offset != 0.
-(rule (rewrite (Op.Log2 offset (zero) t0 t1)) (if-let false (same_value offset (imm (u256 0)))) (Op.Log2 (imm (u256 0)) (imm (u256 0)) t0 t1))
+(rule (rewrite (Op.Log2 offset (and empty (zero)) t0 t1)) (if-let false (same_value offset empty)) (Op.Log2 empty empty t0 t1))
 
 ;; log3(offset, 0, t0, t1, t2) => log3(0, 0, t0, t1, t2).
 ;; Requires: offset != 0.
-(rule (rewrite (Op.Log3 offset (zero) t0 t1 t2)) (if-let false (same_value offset (imm (u256 0)))) (Op.Log3 (imm (u256 0)) (imm (u256 0)) t0 t1 t2))
+(rule (rewrite (Op.Log3 offset (and empty (zero)) t0 t1 t2)) (if-let false (same_value offset empty)) (Op.Log3 empty empty t0 t1 t2))
 
 ;; log4(offset, 0, t0, t1, t2, t3) => log4(0, 0, t0, t1, t2, t3).
 ;; Requires: offset != 0.
-(rule (rewrite (Op.Log4 offset (zero) t0 t1 t2 t3)) (if-let false (same_value offset (imm (u256 0)))) (Op.Log4 (imm (u256 0)) (imm (u256 0)) t0 t1 t2 t3))
+(rule (rewrite (Op.Log4 offset (and empty (zero)) t0 t1 t2 t3)) (if-let false (same_value offset empty)) (Op.Log4 empty empty t0 t1 t2 t3))

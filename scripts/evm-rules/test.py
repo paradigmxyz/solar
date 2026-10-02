@@ -631,7 +631,7 @@ class AlgebraicPartitionTests(unittest.TestCase):
                 lhs = expression(op, expression("mul", x, c), expression("mul", y, c))
                 rhs = expression(op, x, y)
                 result, queries = partition_odd_factor(
-                    lhs, rhs, [model.eval(c) & 1 == 1], 30000, model
+                    lhs, rhs, [model.eval(c) & 1 == 1], 120000, model
                 )
                 self.assertEqual(result["status"], "proved", result)
                 self.assertEqual(result["cases"], 256)

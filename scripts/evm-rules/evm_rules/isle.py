@@ -590,13 +590,16 @@ def verify_file(
                     {name: int(value, 16) for name, value in constants.items()}
                 )
             if query and result["status"] == "unknown":
-                for partitioner in (partition_select, partition_odd_factor):
+                partition_timeout = index_partition_timeout_ms or timeout_ms
+                for partitioner, budget in (
+                    (partition_select, partition_timeout),
+                    (
+                        partition_odd_factor,
+                        max(partition_timeout, bit_partition_timeout_ms),
+                    ),
+                ):
                     partitioned, proofs = partitioner(
-                        lhs,
-                        rhs,
-                        context.assumptions,
-                        index_partition_timeout_ms or timeout_ms,
-                        context.model,
+                        lhs, rhs, context.assumptions, budget, context.model
                     )
                     if partitioned["status"] == "proved":
                         result, partitions = partitioned, proofs

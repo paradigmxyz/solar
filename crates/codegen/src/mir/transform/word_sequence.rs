@@ -99,15 +99,14 @@ fn removable(func: &Function, inst: &Instruction, target: Target) -> bool {
         return false;
     }
     let op = inst.kind.op();
-    let scalar_select = match op {
+    match op {
         Op::Select { true_val, false_val, .. } => {
             [inst.result_ty, func.value_ty(true_val), func.value_ty(false_val)]
                 .into_iter()
                 .all(|ty| matches!(ty, Some(MirType::I256 | MirType::I1)))
         }
-        _ => false,
-    };
-    if matches!(op, Op::Select { .. }) { scalar_select } else { legal(&op, target) }
+        _ => legal(&op, target),
+    }
 }
 
 fn operation_cost(

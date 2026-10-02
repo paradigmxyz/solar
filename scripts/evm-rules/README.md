@@ -45,6 +45,8 @@ zero product, coverage, each bit parameterization, and its contradictory
 product bit: 772 saved obligations in total. No modular-inverse axiom is
 assumed. This partition rejects constant-specialized input models. Incomplete
 partitions remain unknown, and artifact validation rejects missing cases.
+The factor partition uses the larger of the index and bit partition budgets;
+CI allows 120 seconds for the full set of queries.
 
 If the guard-satisfiability check times out, a concrete assignment may establish
 that the guards are satisfiable. This only establishes applicability; the
@@ -331,7 +333,7 @@ solver, semantics, reader, generated bindings, Rust extractors/constructors and
 backend implementation are trusted. Range predicates are conditional contracts,
 not proofs of the Rust analyses that implement them. Resident-value selection
 assumes the original expression has already executed and remains available.
-The new `word.isle` rules need no range-analysis predicates.
+The new `mir/word/` rules need no range-analysis predicates.
 The older `has_known_sign_bit` contract means bit 255 is set; its false result
 does not imply the bit is clear. The Rust extractor is conservative and remains
 part of the trusted, fingerprinted implementation.
@@ -428,7 +430,7 @@ shift-count arithmetic or repeated literal masks. Equivalence must hold for
 every value of the new input, not merely values observed in the source program.
 The exact emitted ISLE must pass verification, then gas/size measurements decide
 whether to integrate it. Mining the optimized runtime corpus motivated the
-doubling rule in `word.isle` and odd-word recipes in `word_sequence.isle`.
+doubling rule in `mir/word/` and odd-word recipes in `mir/word_sequence/`.
 The doubling rule keeps the producer at its original position: rebuilding it at
 the later addition regressed stack traffic across intervening computations.
 
@@ -502,7 +504,7 @@ limbs. Search bounds and expression budget exhaustion are recorded. The emitter 
 alpha-renames them, then verifies the **emitted ISLE** again. Single-operation
 or leaf replacements use `rewrite`. Larger replacements use `sequence_rewrite`,
 with fallible `make` and `imm` constructors bound by `if-let` clauses. `--max-rhs-ops` bounds the replacement tree (default two). Place accepted
-ordinary rules in `word.isle` and recipes in `word_sequence.isle`; a mixed
+ordinary rules in `mir/word/` and recipes in `mir/word_sequence/`; a mixed
 candidate file is a proposal, not an automatically registered compiler rule set.
 Failed emitted-source checks retain the discovery report and cause a nonzero exit.
 No candidates produces an empty candidate file and an explicit `no_candidates`
