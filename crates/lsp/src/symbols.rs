@@ -763,7 +763,11 @@ impl SymbolTables {
         uri: &Url,
         position: Position,
     ) -> Option<GotoDefinitionResponse> {
-        self.locations_for_position(uri, position, NavigationTarget::Definition)
+        self.locations_for_position(uri, position, NavigationTarget::Definition).or_else(|| {
+            // Interface and abstract functions have no body-bearing definition. Keep navigation
+            // useful by falling back to the resolved declaration when no concrete target exists.
+            self.locations_for_position(uri, position, NavigationTarget::Declaration)
+        })
     }
 
     pub(crate) fn goto_declaration(
