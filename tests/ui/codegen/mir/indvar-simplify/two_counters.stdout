@@ -42,35 +42,34 @@ fn @pack() [selector=0x62b0ae87, abi_wrapper, pure] {
   bb0:
     v83 = calldatasize
     v84 = lt v83, 36
-    jumpi v84, bb17, bb18
-  bb18:
     v85 = calldataload 4
     v86 = add v85, 4
     v87 = add v86, 32
     v88 = gt v85, 0xffffffffffffffff
     v89 = gt v87, v83
     v90 = or v88, v89
-    jumpi v90, bb17, bb19
-  bb19:
+    v185 = or v84, v90
+    jumpi v185, bb17, bb18
+  bb18:
     v92 = calldataload v86
     v94 = add v92, 63
     v95 = lt v94, v92
-    jumpi v95, bb5, bb20
-  bb20:
+    jumpi v95, bb5, bb19
+  bb19:
     v97 = and v94, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v175 = mload 64 !metadata(memory=scratch)
     v176 = add v175, v97
     v177 = lt v176, v175
     v178 = gt v176, 0xffffffffffffffff
     v179 = or v177, v178
-    jumpi v179, bb5, bb23
-  bb23:
+    jumpi v179, bb5, bb22
+  bb22:
     mstore 64, v176 !metadata(memory=scratch)
     mstore v175, v92
     v99 = sub v83, v87
     v100 = gt v92, v99
-    jumpi v100, bb17, bb21
-  bb21:
+    jumpi v100, bb17, bb20
+  bb20:
     v153 = add v175, 32
     calldatacopy v153, v87, v92
     v57 = div v92, 3
@@ -89,8 +88,8 @@ fn @pack() [selector=0x62b0ae87, abi_wrapper, pure] {
     v171 = lt v170, v169
     v172 = gt v170, 0xffffffffffffffff
     v173 = or v171, v172
-    jumpi v173, bb5, bb22
-  bb22:
+    jumpi v173, bb5, bb21
+  bb21:
     mstore 64, v170 !metadata(memory=scratch)
     v181 = calldatasize
     calldatacopy v169, v181, v6
@@ -98,9 +97,9 @@ fn @pack() [selector=0x62b0ae87, abi_wrapper, pure] {
     v182 = add v169, 32
     jump bb1
   bb1:
-    v10 = phi [bb22: 0], [bb14: v79]
-    v13 = phi [bb22: 0], [bb14: v81]
-    v183 = phi [bb22: v182], [bb14: v184]
+    v10 = phi [bb21: 0], [bb14: v79]
+    v13 = phi [bb21: 0], [bb14: v81]
+    v183 = phi [bb21: v182], [bb14: v184]
     v65 = add v10, 2
     v15 = lt v65, v92
     jumpi v15, bb3, bb2

@@ -5,35 +5,34 @@ fn @pushStr() [selector=0xe6e6accc, abi_wrapper] {
   bb0:
     v63 = calldatasize
     v64 = lt v63, 36
-    jumpi v64, bb15, bb16
-  bb16:
     v65 = calldataload 4
     v66 = add v65, 4
     v67 = add v66, 32
     v68 = gt v65, 0xffffffffffffffff
     v69 = gt v67, v63
     v70 = or v68, v69
-    jumpi v70, bb15, bb17
-  bb17:
+    v103 = or v64, v70
+    jumpi v103, bb15, bb16
+  bb16:
     v72 = calldataload v66
     v74 = add v72, 63
     v75 = lt v74, v72
-    jumpi v75, bb18, bb19
-  bb19:
+    jumpi v75, bb17, bb18
+  bb18:
     v77 = and v74, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v97 = mload 64 !metadata(memory=scratch)
     v98 = add v97, v77
     v99 = lt v98, v97
     v100 = gt v98, 0xffffffffffffffff
     v101 = or v99, v100
-    jumpi v101, bb18, bb21
-  bb21:
+    jumpi v101, bb17, bb20
+  bb20:
     mstore 64, v98 !metadata(memory=scratch)
     mstore v97, v72
     v79 = sub v63, v67
     v80 = gt v72, v79
-    jumpi v80, bb15, bb20
-  bb20:
+    jumpi v80, bb15, bb19
+  bb19:
     v90 = add v97, 32
     calldatacopy v90, v67, v72
     v0 = sload 0 !metadata(storage=slot(0))
@@ -127,7 +126,7 @@ fn @pushStr() [selector=0xe6e6accc, abi_wrapper] {
     tail_call @revert_stub.7
   bb2:
     tail_call @revert_stub.6
-  bb18:
+  bb17:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
     revert 28, 36

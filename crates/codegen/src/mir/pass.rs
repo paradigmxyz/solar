@@ -66,6 +66,7 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &loop_idioms::LoopIdioms,
     &loop_split::LoopSplit,
     &loop_unroll::LoopUnroll,
+    &merge_aborts::MergeAborts,
     &indvar_simplify::IndVarSimplify,
     &storage_promotion::StorageScalarPromotion,
     &loop_opt::Licm,
@@ -385,6 +386,9 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     // ABI and memory lowering leave dead guards and empty trampoline blocks.
     // Clean them before EVM shaping isolates phi copies on critical edges.
     &cfg_simplify::CfgSimplify,
+    // With each straight-line run in one block, the checks that remain branch
+    // once per run.
+    &merge_aborts::MergeAborts,
     // A word-at-a-time loop is compact enough to consume at its sole call site.
     // This removes the internal frame protocol without duplicating the body;
     // the pass drops the consumed callee itself.

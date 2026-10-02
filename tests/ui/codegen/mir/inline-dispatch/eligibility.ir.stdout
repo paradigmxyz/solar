@@ -132,14 +132,13 @@ fn @a() [selector=0x1e3badd9, abi_wrapper, pure] {
     v28 = gt v25, 0xffffffffffffffff
     v29 = gt v27, v23
     v30 = or v28, v29
-    jumpi v30, bb3, bb5
-  bb5:
     v32 = calldataload v26
     v34 = sub v23, v27
     v35 = shr 5, v34
     v36 = gt v32, v35
-    jumpi v36, bb3, bb6
-  bb6:
+    v67 = or v30, v36
+    jumpi v67, bb3, bb5
+  bb5:
     v2 = shl 5, v32
     v4 = shr 5, v2
     v8 = ne v4, v32

@@ -6,7 +6,7 @@
 //! become cold together. Optimizations use it to tell an abort edge, such as an
 //! arithmetic panic inside a loop, from control flow that continues.
 
-use crate::mir::{BlockId, Callee, FunctionId, InstKind, Module, Terminator};
+use crate::mir::{BlockId, Callee, Function, FunctionId, InstKind, Module, Terminator};
 use solar_data_structures::bit_set::{DenseBitSet, GrowableBitSet};
 
 /// Finds functions whose reachable exits all abort, including chains of
@@ -74,4 +74,18 @@ pub(crate) fn cold_functions(module: &Module) -> DenseBitSet<FunctionId> {
             return cold;
         }
     }
+}
+
+/// Whether a block aborts instead of continuing: it reverts, or calls a cold function.
+pub(crate) fn aborts(func: &Function, block: BlockId, cold: &DenseBitSet<FunctionId>) -> bool {
+    let body = &func.blocks[block];
+    body.instructions.iter().any(|&inst| {
+        matches!(
+            func.inst(inst).kind,
+            InstKind::ICall { function: Callee::Function(function), .. } if cold.contains(function)
+        )
+    }) || matches!(
+        body.terminator,
+        Some(Terminator::Revert { .. } | Terminator::RevertReturndata | Terminator::Invalid)
+    ) || matches!(body.terminator, Some(Terminator::TailCall { function, .. }) if cold.contains(function))
 }
