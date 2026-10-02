@@ -345,3 +345,24 @@ No intentional divergences documented yet.
   them.
 - Coverage: `tests/ui/codegen/lowering/run-call/pre_cancun_memory_copies.sol`
   encodes an object that assembly allocates through the shared copy helper.
+
+### CODEGEN-010: Free memory pointer growth is assumed not to wrap
+
+- ID: CODEGEN-010
+- Status: intentional
+- Difference: Memory dead-store elimination treats a free memory pointer that
+  starts in the heap and is only replaced by itself plus an offset as staying
+  in the heap. A read through such a pointer then cannot observe scratch
+  memory or the free memory pointer slot, so earlier stores there may be
+  removed before a `return` or `revert` from the heap. Inline assembly that
+  adds a runtime value which wraps the pointer below `0x80`, such as
+  `mstore(0x40, add(mload(0x40), x))` with `x` near `2**256`, and then returns
+  through it can see those stores under `solc` but not under `solar`. Pointers
+  set to other values, and constant offsets that do not fit in 64 bits, keep
+  every store.
+- Rationale: Memory-safe assembly may only allocate by advancing the free
+  memory pointer, and a wrapped addition is not an allocation. Removing the
+  pointer bump before an ABI-encoded return or a custom-error revert saves gas
+  and code size in ordinary contracts.
+- Coverage: `tests/ui/codegen/mir/memory-dse/halting_reads.mir` and
+  `tests/ui/codegen/mir/memory-dse/lowered_fmp_runtime.sol`.
