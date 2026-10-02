@@ -1,12 +1,13 @@
 //@compile-flags: -Zmir-pipeline=cse
 //@filecheck:
-// Calldata is immutable, so hashing the same calldata key into the same slot
-// repeats the same scratch write and result until memory changes.
+// Calldata is immutable, so where the free memory pointer stays in the heap,
+// hashing the same calldata key into the same slot repeats the same scratch
+// write and result until memory changes.
 @module CseMappingSlotCalldata
 // CHECK-LABEL: {{^[ +].*}}fn @repeated{{[( ]}}
 // CHECK: - {{v[0-9]+}} = mapping_slot_calldata arg0, 0
 // CHECK: + sstore [[SLOT:v[0-9]+]], [[SLOT]]
-fn @repeated(arg0: calldataslice) {
+fn @repeated(arg0: calldataslice) [abi_wrapper] {
   bb0:
     v1 = mapping_slot_calldata arg0, 0
     v2 = mapping_slot_calldata arg0, 0
@@ -17,7 +18,7 @@ fn @repeated(arg0: calldataslice) {
 // CHECK-LABEL: {{^[ +].*}}fn @dominated{{[( ]}}
 // CHECK: - {{v[0-9]+}} = mapping_slot_calldata arg0, 0
 // CHECK: + sstore [[SLOT:v[0-9]+]], 1
-fn @dominated(arg0: calldataslice, arg1: i1) {
+fn @dominated(arg0: calldataslice, arg1: i1) [abi_wrapper] {
   bb0:
     v1 = mapping_slot_calldata arg0, 0
     v2 = sload v1
@@ -32,7 +33,7 @@ fn @dominated(arg0: calldataslice, arg1: i1) {
 
 // CHECK-LABEL: {{^[ +].*}}fn @different_slot{{[( ]}}
 // CHECK-NOT: {{^-}}
-fn @different_slot(arg0: calldataslice) {
+fn @different_slot(arg0: calldataslice) [abi_wrapper] {
   bb0:
     v1 = mapping_slot_calldata arg0, 0
     v2 = mapping_slot_calldata arg0, 1
@@ -42,10 +43,21 @@ fn @different_slot(arg0: calldataslice) {
 
 // CHECK-LABEL: {{^[ +].*}}fn @after_memory_write{{[( ]}}
 // CHECK-NOT: {{^-}}
-fn @after_memory_write(arg0: calldataslice, arg1: i256) {
+fn @after_memory_write(arg0: calldataslice, arg1: i256) [abi_wrapper] {
   bb0:
     v1 = mapping_slot_calldata arg0, 0
     mstore arg1, 1
+    v2 = mapping_slot_calldata arg0, 0
+    sstore v1, v2
+    ret
+}
+
+// Outside an ABI wrapper the incoming pointer may sit below the heap.
+// CHECK-LABEL: {{^[ +].*}}fn @internal{{[( ]}}
+// CHECK-NOT: {{^-}}
+fn @internal(arg0: calldataslice) {
+  bb0:
+    v1 = mapping_slot_calldata arg0, 0
     v2 = mapping_slot_calldata arg0, 0
     sstore v1, v2
     ret

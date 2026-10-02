@@ -896,14 +896,15 @@ impl LowerAbiCx {
     fn may_reach_skipped_copy(func: &Function) -> bool {
         // Constant scratch ranges such as error payloads end below the heap, and
         // compiler-built objects never cover the skipped copy.
-        let known_range = |offset, size: Option<u64>| {
+        let known_range = |offset, size: Option<u64>, write: bool| {
             func.value_u64(offset)
                 .zip(size)
                 .and_then(|(offset, size)| offset.checked_add(size))
                 .is_some_and(|end| end <= EvmMemoryLayout::HEAP_START)
-                || Self::points_into_new_object(func, offset, 0)
+                || Self::points_into_new_object(func, offset, write, 0)
         };
-        let known = |offset, size| known_range(offset, func.value_u64(size));
+        let known = |offset, size| known_range(offset, func.value_u64(size), false);
+        let written = |offset, size| known_range(offset, func.value_u64(size), true);
         let raw_read = func.blocks.iter().any(|block| match block.terminator {
             Some(Terminator::ReturnData { offset, size }) => !known(offset, size),
             // Bubbled return data overwrites the range it then returns.
@@ -914,7 +915,7 @@ impl LowerAbiCx {
         }) || func.instructions().any(|inst_id| match func.inst(inst_id).kind {
             // A pointer forged from an integer may reach the copy through any memory-object read.
             InstKind::MLoad(offset) | InstKind::IntToPtr(offset) => {
-                !Self::points_into_new_object(func, offset, 0)
+                !Self::points_into_new_object(func, offset, false, 0)
             }
             InstKind::Keccak256(offset, size)
             | InstKind::Log0(offset, size)
@@ -936,8 +937,8 @@ impl LowerAbiCx {
         // A raw write outside scratch or a new object may land on the copy.
         let raw_write = func.blocks.iter().any(|block| {
             block.instructions.iter().any(|&inst_id| match func.inst(inst_id).kind {
-                InstKind::MStore(dest, _) => !known_range(dest, Some(32)),
-                InstKind::MStore8(dest, _) => !known_range(dest, Some(1)),
+                InstKind::MStore(dest, _) => !known_range(dest, Some(32), true),
+                InstKind::MStore8(dest, _) => !known_range(dest, Some(1), true),
                 InstKind::ReturnDataCopy(..)
                     if bubbled_return_data_copy(func, block) == Some(inst_id) =>
                 {
@@ -954,7 +955,7 @@ impl LowerAbiCx {
                 | InstKind::CallCode { ret_offset: dest, ret_size: size, .. }
                 | InstKind::StaticCall { ret_offset: dest, ret_size: size, .. }
                 | InstKind::DelegateCall { ret_offset: dest, ret_size: size, .. } => {
-                    !known(dest, size)
+                    !written(dest, size)
                 }
                 _ => false,
             })
@@ -963,8 +964,22 @@ impl LowerAbiCx {
     }
 
     /// Returns whether a raw address points into an object this function allocates.
-    fn points_into_new_object(func: &Function, value: ValueId, depth: usize) -> bool {
+    ///
+    /// A 64-bit constant offset stays above the object's base. With `runtime_offsets`, so does
+    /// an offset computed at runtime, as when a copy fills an allocation past its prefix.
+    ///
+    /// NOTE: only assembly that adds a wrapped runtime value reaches below the object that way;
+    /// see CODEGEN-010.
+    fn points_into_new_object(
+        func: &Function,
+        value: ValueId,
+        runtime_offsets: bool,
+        depth: usize,
+    ) -> bool {
         let Value::Inst(inst) = func.value(value) else { return false };
+        let offset = |value| {
+            func.value_u64(value).is_some() || (runtime_offsets && func.value_u256(value).is_none())
+        };
         depth <= 8
             && match func.inst(*inst).kind {
                 InstKind::Alloc { .. }
@@ -974,14 +989,12 @@ impl LowerAbiCx {
                 | InstKind::IntToPtr(value)
                 | InstKind::SlicePtr(value)
                 | InstKind::MemoryObjectData(value, _) => {
-                    Self::points_into_new_object(func, value, depth + 1)
+                    Self::points_into_new_object(func, value, runtime_offsets, depth + 1)
                 }
-                // Only a 64-bit constant offset stays above the object's base.
                 InstKind::Add(a, b) => {
-                    (func.value_u64(b).is_some()
-                        && Self::points_into_new_object(func, a, depth + 1))
-                        || (func.value_u64(a).is_some()
-                            && Self::points_into_new_object(func, b, depth + 1))
+                    (offset(b) && Self::points_into_new_object(func, a, runtime_offsets, depth + 1))
+                        || (offset(a)
+                            && Self::points_into_new_object(func, b, runtime_offsets, depth + 1))
                 }
                 _ => false,
             }

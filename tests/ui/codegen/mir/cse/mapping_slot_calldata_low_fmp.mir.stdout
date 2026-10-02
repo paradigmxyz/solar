@@ -1,0 +1,11 @@
+// === ROOT/tests/ui/codegen/mir/cse/mapping_slot_calldata_low_fmp.sol:MappingSlotCalldataLowFmp ===
+@module MappingSlotCalldataLowFmp
+fn @f(arg0: calldataslice) [selector=0xd45754f8, abi_params=[bytes], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    mstore 64, 32 !metadata(memory=scratch)
+    v0 = mapping_slot_calldata arg0, 0
+    sstore v0, 7 !metadata(storage=symbolic(v0))
+    v1 = mapping_slot_calldata arg0, 0
+    v2 = sload v1 !metadata(storage=symbolic(v1))
+    returndata 0x1000, 32
+}

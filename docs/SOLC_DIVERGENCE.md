@@ -361,7 +361,8 @@ No intentional divergences documented yet.
   set to other values, and constant offsets that do not fit in 64 bits, keep
   every store. A read-only `memory` bytes parameter read from calldata relies on
   the same assumption: such assembly could place a later allocation over the
-  memory copy that `solar` skips.
+  memory copy that `solar` skips, or reach that copy by writing below a new
+  object through a wrapped runtime offset.
 - Rationale: Memory-safe assembly may only allocate by advancing the free
   memory pointer, and a wrapped addition is not an allocation. Removing the
   pointer bump before an ABI-encoded return or a custom-error revert saves gas

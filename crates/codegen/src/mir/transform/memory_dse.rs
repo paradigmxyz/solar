@@ -19,11 +19,11 @@
 //! pointer bumps.
 
 use crate::mir::{
-    BlockId, Callee, Function, FunctionId, Immediate, InstId, InstKind, MemoryObjectKind,
-    MemoryRegion, Module, Terminator, Value, ValueId,
+    BlockId, Callee, Function, Immediate, InstId, InstKind, MemoryObjectKind, MemoryRegion, Module,
+    Terminator, Value, ValueId,
     analysis::{
         Access, AddressSpace, AliasAnalysis, CfgInfo, Location, LocationSize, MemoryAddress,
-        MemoryBase, MemoryLocation, fmp_grows_in_heap,
+        MemoryBase, MemoryLocation, heap_fmp_functions,
     },
     memory::EvmMemoryLayout,
     pass::{MirPass, run_selected_function_pass_with_alias_and_cfg},
@@ -86,13 +86,13 @@ impl MirPass for LateMemoryDse {
 /// analysis when `late`.
 ///
 /// The functions where heap reads observe only heap memory run separately, since
-/// the function runner does not pass their IDs; see [`heap_read_functions`].
+/// the function runner does not pass their IDs; see [`heap_fmp_functions`].
 fn run_memory_dse(
     module: &mut Module,
     analyses: &mut crate::mir::pass::ModuleAnalyses,
     late: bool,
 ) -> bool {
-    let heap_reads = heap_read_functions(module);
+    let heap_reads = heap_fmp_functions(module);
     let mut trusted = DenseBitSet::new_empty(module.functions.len());
     let mut untrusted = DenseBitSet::new_empty(module.functions.len());
     for (func_id, func) in module.functions.iter_enumerated() {
@@ -122,72 +122,6 @@ fn run_memory_dse(
         run_selected_function_pass_with_alias_and_cfg(module, analyses, &trusted, run(true));
     run_selected_function_pass_with_alias_and_cfg(module, analyses, &untrusted, run(false))
         || changed
-}
-
-/// Returns the functions whose free memory pointer is always in the heap.
-///
-/// ABI wrappers start from the entry's heap floor, since they run only from the
-/// dispatcher. Another function starts in the heap when every caller does and keeps
-/// it there. Every such function must also keep the pointer in the heap, as must every
-/// function it calls; see [`fmp_grows_in_heap`]. A tail call counts as a call when its
-/// target may return to the caller's caller.
-fn heap_read_functions(module: &Module) -> DenseBitSet<FunctionId> {
-    let is_root =
-        |func: &Function| func.attributes.is_abi_wrapper && !func.attributes.is_constructor;
-    let mut grows = DenseBitSet::new_empty(module.functions.len());
-    // Before ABI lowering no function is a root.
-    if !module.functions.iter().any(is_root) {
-        return grows;
-    }
-    let returning = module.returning_functions();
-    let mut callers = index_vec![Vec::new(); module.functions.len()];
-    let mut calls = index_vec![Vec::new(); module.functions.len()];
-    for (func_id, func) in module.functions.iter_enumerated() {
-        if fmp_grows_in_heap(func) {
-            grows.insert(func_id);
-        }
-        for inst in func.instructions() {
-            if let InstKind::ICall { function: Callee::Function(callee), .. } = func.inst(inst).kind
-            {
-                callers[callee].push(func_id);
-                calls[func_id].push(callee);
-            }
-        }
-        for block in &func.blocks {
-            if let Some(Terminator::TailCall { function, .. }) = block.terminator {
-                callers[function].push(func_id);
-                if returning.contains(function) {
-                    calls[func_id].push(function);
-                }
-            }
-        }
-    }
-    remove_until_fixpoint(&mut grows, |grows, func_id| {
-        calls[func_id].iter().all(|&callee| grows.contains(callee))
-    });
-    let mut heap = grows;
-    remove_until_fixpoint(&mut heap, |heap, func_id| {
-        is_root(module.function(func_id))
-            || (!callers[func_id].is_empty()
-                && callers[func_id].iter().all(|&caller| heap.contains(caller)))
-    });
-    heap
-}
-
-/// Removes members of `set` that fail `keep` until every remaining member passes.
-fn remove_until_fixpoint(
-    set: &mut DenseBitSet<FunctionId>,
-    keep: impl Fn(&DenseBitSet<FunctionId>, FunctionId) -> bool,
-) {
-    loop {
-        let removed = set.iter().filter(|&func_id| !keep(set, func_id)).collect::<Vec<_>>();
-        if removed.is_empty() {
-            return;
-        }
-        for func_id in removed {
-            set.remove(func_id);
-        }
-    }
 }
 
 /// Returns whether the function contains a memory write this pass can remove
@@ -221,7 +155,7 @@ struct MemoryStoreEliminator {
     /// Number of memory instructions eliminated.
     eliminated_count: usize,
     alias: Option<Rc<AliasAnalysis>>,
-    /// Whether reads from heap pointers keep only heap memory live; see [`heap_read_functions`].
+    /// Whether reads from heap pointers keep only heap memory live; see [`heap_fmp_functions`].
     heap_reads: bool,
 }
 

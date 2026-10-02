@@ -34,7 +34,7 @@
       ret v3
   }
   
-  fn @calldata(arg0: calldataslice) -> i256 {
+  fn @calldata(arg0: calldataslice) -> i256 [abi_wrapper] {
     bb0:
       v0 = mapping_slot_calldata arg0, 11
 -     v1 = mapping_slot_calldata arg0, 11
@@ -127,7 +127,7 @@
       ret v3
   }
   
-  fn @calldata(arg0: calldataslice) -> i256 {
+  fn @calldata(arg0: calldataslice) -> i256 [abi_wrapper] {
     bb0:
 -     v0 = mapping_slot_calldata arg0, 11
 -     v2 = add v0, v0
@@ -231,8 +231,8 @@
       ret v3
   }
   
-- fn @calldata(arg0: calldataslice) -> i256 {
-+ fn @calldata(arg0: i256, arg1: i256) -> i256 {
+- fn @calldata(arg0: calldataslice) -> i256 [abi_wrapper] {
++ fn @calldata(arg0: i256, arg1: i256) -> i256 [abi_wrapper] {
     bb0:
 -     v3 = slice_len arg0
 -     v4 = add v3, 32

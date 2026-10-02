@@ -1994,10 +1994,9 @@ impl AliasAnalysis {
         call_summaries: Option<&MemoryCallSummaries>,
     ) -> bool {
         match func.inst(inst).kind {
-            InstKind::SetFmp(_) | InstKind::MappingSlotMemory(..) => true,
-            // A calldata-key hash writes its key and slot from the FMP up, never
-            // below the heap.
-            InstKind::MappingSlotCalldata(..) => false,
+            InstKind::SetFmp(_)
+            | InstKind::MappingSlotMemory(..)
+            | InstKind::MappingSlotCalldata(..) => true,
             InstKind::ICall { function: Callee::Function(function), .. } => call_summaries
                 .and_then(|summaries| summaries.get(function))
                 .is_none_or(|summary| summary.may_reset_fmp()),
@@ -2243,7 +2242,7 @@ mod tests {
                 (size.is_some() || calldata_key) && func.inst(inst).result_ty.is_some()
             );
             assert!(!behavior.can_speculate());
-            assert_eq!(aa.instruction_may_reset_fmp(&func, inst), size.is_none() && !calldata_key);
+            assert_eq!(aa.instruction_may_reset_fmp(&func, inst), size.is_none());
         }
     }
 

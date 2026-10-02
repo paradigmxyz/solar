@@ -6,11 +6,11 @@
 //! scratch right before a revert that returns it, as bubbling a failed call does.
 
 use crate::mir::{
-    BasicBlock, Callee, EffectKind, Function, InstId, InstKind, Terminator, Value, ValueId,
-    analysis::AliasAnalysis, memory::EvmMemoryLayout,
+    BasicBlock, Callee, EffectKind, Function, FunctionId, InstId, InstKind, Module, Terminator,
+    Value, ValueId, analysis::AliasAnalysis, memory::EvmMemoryLayout,
 };
 use alloy_primitives::U256;
-use solar_data_structures::bit_set::DenseBitSet;
+use solar_data_structures::{bit_set::DenseBitSet, index::index_vec};
 use std::cell::OnceCell;
 
 /// Returns whether `func` itself keeps a heap free memory pointer in the heap.
@@ -50,10 +50,10 @@ pub(crate) fn fmp_grows_in_heap(func: &Function) -> bool {
                 {
                     true
                 }
-                // Mapping hashes write their key from the pointer up; the alias analysis still
-                // counts memory keys as resets, since their source may lie anywhere.
+                // Mapping hashes write their key from the pointer up.
                 InstKind::ICall { function: Callee::Function(_), .. }
-                | InstKind::MappingSlotMemory(..) => true,
+                | InstKind::MappingSlotMemory(..)
+                | InstKind::MappingSlotCalldata(..) => true,
                 _ => !AliasAnalysis::instruction_may_reset_fmp_with_summaries(func, inst_id, None),
             }
         })
@@ -149,4 +149,70 @@ pub(crate) fn bubbled_return_data_copy(func: &Function, block: &BasicBlock) -> O
         .iter()
         .all(|&inst| matches!(func.inst(inst).kind, InstKind::ReturnDataSize));
     (!calls && tail).then_some(block.instructions[index])
+}
+
+/// Returns the functions whose free memory pointer is always in the heap.
+///
+/// ABI wrappers start from the entry's heap floor, since they run only from the
+/// dispatcher. Another function starts in the heap when every caller does and keeps
+/// it there. Every such function must also keep the pointer in the heap, as must every
+/// function it calls; see [`fmp_grows_in_heap`]. A tail call counts as a call when its
+/// target may return to the caller's caller.
+pub(crate) fn heap_fmp_functions(module: &Module) -> DenseBitSet<FunctionId> {
+    let is_root =
+        |func: &Function| func.attributes.is_abi_wrapper && !func.attributes.is_constructor;
+    let mut grows = DenseBitSet::new_empty(module.functions.len());
+    // Before ABI lowering no function is a root.
+    if !module.functions.iter().any(is_root) {
+        return grows;
+    }
+    let returning = module.returning_functions();
+    let mut callers = index_vec![Vec::new(); module.functions.len()];
+    let mut calls = index_vec![Vec::new(); module.functions.len()];
+    for (func_id, func) in module.functions.iter_enumerated() {
+        if fmp_grows_in_heap(func) {
+            grows.insert(func_id);
+        }
+        for inst in func.instructions() {
+            if let InstKind::ICall { function: Callee::Function(callee), .. } = func.inst(inst).kind
+            {
+                callers[callee].push(func_id);
+                calls[func_id].push(callee);
+            }
+        }
+        for block in &func.blocks {
+            if let Some(Terminator::TailCall { function, .. }) = block.terminator {
+                callers[function].push(func_id);
+                if returning.contains(function) {
+                    calls[func_id].push(function);
+                }
+            }
+        }
+    }
+    remove_until_fixpoint(&mut grows, |grows, func_id| {
+        calls[func_id].iter().all(|&callee| grows.contains(callee))
+    });
+    let mut heap = grows;
+    remove_until_fixpoint(&mut heap, |heap, func_id| {
+        is_root(module.function(func_id))
+            || (!callers[func_id].is_empty()
+                && callers[func_id].iter().all(|&caller| heap.contains(caller)))
+    });
+    heap
+}
+
+/// Removes members of `set` that fail `keep` until every remaining member passes.
+fn remove_until_fixpoint(
+    set: &mut DenseBitSet<FunctionId>,
+    keep: impl Fn(&DenseBitSet<FunctionId>, FunctionId) -> bool,
+) {
+    loop {
+        let removed = set.iter().filter(|&func_id| !keep(set, func_id)).collect::<Vec<_>>();
+        if removed.is_empty() {
+            return;
+        }
+        for func_id in removed {
+            set.remove(func_id);
+        }
+    }
 }
