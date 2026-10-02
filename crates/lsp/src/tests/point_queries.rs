@@ -1,4 +1,5 @@
 use super::*;
+use crate::symbols::SymbolTablesAggregator;
 use lsp_types::GotoDefinitionResponse;
 use snapbox::{assert_data_eq, str};
 use std::fmt::Write as _;
@@ -416,4 +417,274 @@ hover: 3:12-3:17 NewType value
 
 "#]]
     );
+}
+
+#[test]
+fn compatible_builtin_queries_survive_both_batch_orders() {
+    let marked = MarkedProject::from_fixture(
+        r#"
+        //- /Shared.sol
+        type Price is uint256;
+        contract Shared {
+            function use(Price price) external view returns (
+                bytes32, bytes memory, Price, address, bytes4
+            ) {
+                return (
+                    $1keccak256("a"),
+                    $2abi.$3encode(price),
+                    Price.$4wrap(Price.$5unwrap(price)),
+                    $6msg.$7sender,
+                    $9this.use.$8selector
+                );
+            }
+        }
+
+        //- /left/Main.sol
+        import "../Shared.sol";
+        contract Left is Shared {}
+
+        //- /right/Main.sol
+        import "../Shared.sol";
+        contract Right is Shared {}
+        "#,
+    );
+    let project = marked.project();
+    let uri = project.uri("/Shared.sol");
+
+    for paths in [["/left/Main.sol", "/right/Main.sol"], ["/right/Main.sol", "/left/Main.sol"]] {
+        let (baseline, tables) =
+            analyze_files(paths.map(|path| (project.path(path), project.read_file(path))), false);
+        for marker in ["$1", "$2", "$3", "$4", "$5", "$6", "$7", "$8", "$9"] {
+            let position = marked.marker(marker).position();
+            let hover = baseline.hover(&uri, position);
+            assert!(hover.is_some(), "{marker}");
+            assert_eq!(tables.hover(&uri, position), hover, "{marker}");
+            assert_eq!(tables.goto_definition(&uri, position), None, "{marker}");
+            assert_eq!(tables.goto_declaration(&uri, position), None, "{marker}");
+        }
+    }
+}
+
+#[test]
+fn builtin_and_user_member_conflicts_fail_closed_in_both_workspace_orders() {
+    let marked = MarkedProject::from_fixture(
+        r#"
+        //- /left/foundry.toml
+        [profile.default]
+        auto_detect_remappings = false
+        remappings = ["@dep/=lib/dep/", "shared/=../shared/"]
+
+        //- /left/src/Main.sol
+        import "shared/Shared.sol";
+
+        //- /left/lib/dep/Base.sol
+        contract Base { bytes internal value; }
+
+        //- /right/foundry.toml
+        [profile.default]
+        auto_detect_remappings = false
+        remappings = ["@dep/=lib/dep/", "shared/=../shared/"]
+
+        //- /right/src/Main.sol
+        import "shared/Shared.sol";
+
+        //- /right/lib/dep/Base.sol
+        contract Base {
+            struct Value { uint256 length; }
+            Value internal value;
+        }
+
+        //- /shared/Shared.sol
+        import {Base} from "@dep/Base.sol";
+        contract Shared is Base {
+            function read() external view returns (uint256) {
+                return value.$1length;
+            }
+        }
+        "#,
+    );
+    let uri = marked.project().uri("/shared/Shared.sol");
+    let position = marked.marker("$1").position();
+    let left = analyze_roots(&marked, &["/left"]);
+    let right = analyze_roots(&marked, &["/right"]);
+    assert!(left.hover(&uri, position).is_some());
+    assert_eq!(left.goto_definition(&uri, position), None);
+    assert_eq!(left.goto_declaration(&uri, position), None);
+    assert!(right.hover(&uri, position).is_some());
+    assert!(right.goto_definition(&uri, position).is_some());
+    assert!(right.goto_declaration(&uri, position).is_some());
+
+    for roots in [["/left", "/right"], ["/right", "/left"]] {
+        let tables = analyze_roots(&marked, &roots);
+        assert_eq!(tables.hover(&uri, position), None);
+        assert_eq!(tables.goto_definition(&uri, position), None);
+        assert_eq!(tables.goto_declaration(&uri, position), None);
+    }
+}
+
+fn remapped_price_project() -> MarkedProject {
+    MarkedProject::from_fixture(
+        r#"
+        //- /left/foundry.toml
+        [profile.default]
+        auto_detect_remappings = false
+        remappings = ["@dep/=lib/dep/", "shared/=../shared/"]
+
+        //- /left/src/Main.sol
+        import "shared/Shared.sol";
+
+        //- /left/lib/dep/Price.sol
+        type Price is uint256;
+
+        //- /right/foundry.toml
+        [profile.default]
+        auto_detect_remappings = false
+        remappings = ["@dep/=lib/dep/", "shared/=../shared/"]
+
+        //- /right/src/Main.sol
+        import "shared/Shared.sol";
+
+        //- /right/lib/dep/Price.sol
+        type Price is uint256;
+
+        //- /shared/Shared.sol
+        import {Price} from "@dep/Price.sol";
+        contract Shared {
+            function roundTrip(Price value) external pure returns (Price) {
+                return Price.$1wrap(Price.$2unwrap(value));
+            }
+        }
+        "#,
+    )
+}
+
+#[test]
+fn builtin_queries_compare_signatures_in_both_workspace_orders() {
+    let marked = remapped_price_project();
+    let project = marked.project();
+    let uri = project.uri("/shared/Shared.sol");
+
+    // Builtin hovers can agree even when their signature types name different declarations.
+    for underlying in ["uint256", "bytes32"] {
+        project.write_file("/right/lib/dep/Price.sol", &format!("type Price is {underlying};\n"));
+        let [left, right] = ["/left", "/right"].map(|root| analyze_roots(&marked, &[root]));
+        for marker in ["$1", "$2"] {
+            let position = marked.marker(marker).position();
+            let left_hover = left.hover(&uri, position);
+            let right_hover = right.hover(&uri, position);
+            assert!(left_hover.is_some(), "{underlying} {marker}");
+            assert!(right_hover.is_some(), "{underlying} {marker}");
+            if underlying == "uint256" {
+                assert_eq!(left_hover, right_hover, "{underlying} {marker}");
+            } else {
+                assert_ne!(left_hover, right_hover, "{underlying} {marker}");
+            }
+            for tables in [&left, &right] {
+                assert_eq!(tables.goto_definition(&uri, position), None);
+                assert_eq!(tables.goto_declaration(&uri, position), None);
+            }
+        }
+        for roots in [["/left", "/right"], ["/right", "/left"]] {
+            let tables = analyze_roots(&marked, &roots);
+            for marker in ["$1", "$2"] {
+                let position = marked.marker(marker).position();
+                let expected =
+                    if underlying == "uint256" { left.hover(&uri, position) } else { None };
+                assert_eq!(tables.hover(&uri, position), expected, "{underlying} {marker}");
+                assert_eq!(tables.goto_definition(&uri, position), None, "{underlying} {marker}");
+                assert_eq!(tables.goto_declaration(&uri, position), None, "{underlying} {marker}");
+            }
+        }
+    }
+}
+
+#[test]
+fn builtin_queries_reject_conflicting_dependency_snapshots_in_all_batch_orders() {
+    let marked = remapped_price_project();
+    let project = marked.project();
+    let uri = project.uri("/shared/Shared.sol");
+    let [left, right] = ["/left", "/right"].map(|root| analyze_roots(&marked, &[root]));
+    for marker in ["$1", "$2"] {
+        let position = marked.marker(marker).position();
+        let baseline = left.hover(&uri, position);
+        assert!(baseline.is_some(), "{marker}");
+        assert_eq!(baseline, right.hover(&uri, position), "{marker}");
+    }
+
+    // Only the type file changes. Its own batch has no competing builtin occurrence in Shared.sol.
+    let type_path = "/left/lib/dep/Price.sol";
+    let changed_source = project.read_file(type_path).replace("uint256", "bytes32");
+    project.write_file(type_path, &changed_source);
+    let changed = analyze_source(project.path(type_path), changed_source);
+    assert!(changed.diagnostics.is_empty(), "{:#?}", changed.diagnostics);
+    let fresh = analyze_roots(&marked, &["/left"]);
+    for marker in ["$1", "$2"] {
+        let position = marked.marker(marker).position();
+        let current = fresh.hover(&uri, position);
+        assert!(current.is_some(), "{marker}");
+        assert_ne!(current, left.hover(&uri, position), "{marker}");
+    }
+
+    // A single stale candidate and either ordering of compatible candidates must all fail closed.
+    for (order, candidates) in [
+        ("left only", &[&left][..]),
+        ("left, right", &[&left, &right]),
+        ("right, left", &[&right, &left]),
+    ] {
+        for changed_position in 0..=candidates.len() {
+            let mut tables = SymbolTablesAggregator::default();
+            for (index, candidate) in candidates.iter().enumerate() {
+                if index == changed_position {
+                    tables.push(changed.symbol_tables.clone());
+                }
+                tables.push((*candidate).clone());
+            }
+            if changed_position == candidates.len() {
+                tables.push(changed.symbol_tables.clone());
+            }
+            let tables = tables.finish();
+            for marker in ["$1", "$2"] {
+                let position = marked.marker(marker).position();
+                assert_eq!(
+                    tables.hover(&uri, position),
+                    None,
+                    "{order} {changed_position} {marker}"
+                );
+                assert_eq!(tables.goto_definition(&uri, position), None);
+                assert_eq!(tables.goto_declaration(&uri, position), None);
+            }
+        }
+    }
+}
+
+#[test]
+fn builtin_queries_reject_conflicting_source_snapshots_in_both_batch_orders() {
+    let marked = MarkedProject::from_fixture(
+        r#"
+        //- /Shared.sol
+        contract Shared {
+            function read() external view returns (address, bytes32, Shared) {
+                return ($1msg.$2sender, $3keccak256("a"), $4this);
+            }
+        }
+        "#,
+    );
+    let project = marked.project();
+    let path = project.path("/Shared.sol");
+    let uri = project.uri("/Shared.sol");
+    let current = project.read_file("/Shared.sol");
+    // Both snapshots retain the same builtin tokens at the same offsets.
+    let changed = current.replace("\"a\"", "\"b\"");
+
+    for sources in [[&current, &changed], [&changed, &current]] {
+        let (baseline, tables) =
+            analyze_files(sources.map(|source| (path.clone(), source.clone())), false);
+        for marker in ["$1", "$2", "$3", "$4"] {
+            let position = marked.marker(marker).position();
+            assert!(baseline.hover(&uri, position).is_some());
+            assert_eq!(tables.hover(&uri, position), None, "{marker}");
+            assert_eq!(tables.goto_definition(&uri, position), None, "{marker}");
+            assert_eq!(tables.goto_declaration(&uri, position), None, "{marker}");
+        }
+    }
 }
