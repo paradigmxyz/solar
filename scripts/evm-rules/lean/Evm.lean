@@ -160,8 +160,7 @@ theorem sar_eq (count value : Word) : sar count value = value.sshiftRight count.
   · rw [Nat.min_eq_left (by omega)]
     exact BitVec.sshiftRight_eq_sshiftRight_of_le (by omega) (by omega)
 
-@[simp] theorem div_clz (x b : Word) (h : 256#256 < b) : div (clz x) b = 0#256 := by
-  rw [div_eq]
+@[simp] theorem div_clz (x b : Word) (h : 256#256 < b) : clz x / b = 0#256 := by
   apply div_lt
   have hc := BitVec.clz_le (x := x)
   change x.clz < b
