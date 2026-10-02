@@ -17,7 +17,8 @@
 //! header: state = phi [main_header: state], [latch: next]; the original loop
 //! ```
 //!
-//! A loop that runs while `i <= n` leaves its main loop once `i + s > n`.
+//! A loop that runs while `i <= n` leaves its main loop once `i + s > n`, or,
+//! stepping by one, once `i < n` fails, which needs no addition.
 //!
 //! A loop that runs until its counter reaches the bound, `for (; i != n; i += s)`
 //! as assembly loops over pointers are written, knows its remaining count
@@ -42,28 +43,30 @@
 //! `i != n` and otherwise leaves the loop, where `i` is a header phi, or a
 //! pointer phi the header converts to an integer, that the loop's single back
 //! edge advances by a literal positive step, and `n` is defined outside the
-//! loop. A `<` or `<=` test also needs a literal start. The header's other
-//! instructions must be free of effects, because the original header repeats
-//! them for the iteration the main loop declined. The body must be
-//! straight-line: every branch inside it continues the loop on one arm and
-//! aborts on the other, such as an arithmetic panic, where a block aborts when
-//! it reverts or calls a function that never returns. The body may read words
-//! computed before the loop only when the backend rebuilds them where they are
-//! read, as calldata words at fixed offsets and environment reads: the stack
-//! scheduler spills other such words, and their copies measured slower than the
-//! original loop.
+//! loop. The latch may also branch to a block that aborts, such as the
+//! increment's overflow check. A `<` or `<=` test also needs a literal start,
+//! except for `<=` stepping by one. The header's other instructions must be
+//! free of effects, because the original header repeats them for the iteration
+//! the main loop declined. The body must be straight-line: every branch inside
+//! it continues the loop on one arm and aborts on the other, such as an
+//! arithmetic panic, where a block aborts when it reverts or calls a function
+//! that never returns. The body may read words computed before the loop only
+//! when the backend rebuilds them where they are read, as calldata words at
+//! fixed offsets and environment reads: the stack scheduler spills other such
+//! words, and their copies measured slower than the original loop.
 //!
 //! Safety: for `<` and `<=`, `i` starts at a literal and grows by a literal
 //! step, so within the target's trip-count bound `i + s` cannot wrap, and
-//! `i + s < n` implies `i < n`, as `i + s <= n` implies `i <= n`. The main loop
-//! therefore runs the iterations the original loop runs next, in the same order
-//! with the same values and effects, two at a time. The second copy's header
-//! test holds by the main header's test, so it enters its body directly. When
-//! the main test fails, the original loop receives the exact loop-carried state
-//! and finishes. Every loop block is cloned with its instructions and effects
-//! unchanged. Edges that leave the loop from its body, such as panics, reach
-//! the same blocks from every copy; their phis gain the cloned edges, and a
-//! loop qualifies only when no block reachable from such an edge uses a
+//! `i + s < n` implies `i < n`, as `i + s <= n` implies `i <= n`. Stepping by
+//! one, `i < n` gives `i + 1 <= n` without wrapping from any start. The main
+//! loop therefore runs the iterations the original loop runs next, in the same
+//! order with the same values and effects, two at a time. The second copy's
+//! header test holds by the main header's test, so it enters its body directly.
+//! When the main test fails, the original loop receives the exact loop-carried
+//! state and finishes. Every loop block is cloned with its instructions and
+//! effects unchanged. Edges that leave the loop from its body, such as panics,
+//! reach the same blocks from every copy; their phis gain the cloned edges, and
+//! a loop qualifies only when no block reachable from such an edge uses a
 //! loop-defined value except as a phi input on that edge, so every definition
 //! still dominates its uses. The header's exit stays the only way to leave the
 //! original loop normally, so values read after the loop keep their
@@ -87,14 +90,15 @@
 //!
 //! Profitability: gas mode only, priced by the target over the deployment's
 //! expected executions. Each pair of iterations skips a header test and a
-//! back-edge jump. For `<` and `<=`, the first pair skips nothing and every test
-//! of the main loop, including the declined one, adds the step first; for `!=`, the
-//! parity check costs about one test per entry. The new code holds two more
-//! copies of the body and one of the header. Literal bounds give the trip
-//! count, and other loops are assumed to run the target's estimate for
-//! uncounted loops. Runs after the late loop passes have fixed the loop's
-//! physical shape, and before the final CFG cleanup and dead-code elimination
-//! remove the cloned tests the copies no longer read.
+//! back-edge jump. For `<` and `<=`, the first pair skips nothing and every
+//! test of the main loop, including the declined one, adds the step first,
+//! except for `<=` stepping by one; for `!=`, the parity check costs about one
+//! test per entry. The new code holds two more copies of the body and one of
+//! the header. Literal bounds give the trip count, and other loops are assumed
+//! to run the target's estimate for uncounted loops. Runs after the late loop
+//! passes have fixed the loop's physical shape, and before the final CFG
+//! cleanup and dead-code elimination remove the cloned tests the copies no
+//! longer read.
 
 use super::loop_split::{rebuild_predecessors, retarget};
 use crate::{
@@ -140,6 +144,8 @@ enum Test {
     Below,
     /// `i <= n`, with a literal start so `i + s` cannot wrap.
     AtMost,
+    /// `i <= n` stepping by one: two more iterations run while `i < n`, from any start.
+    UpTo,
     /// `i != n`.
     Reaches,
 }
@@ -190,6 +196,20 @@ fn jumps_to(func: &Function, block: BlockId, target: BlockId) -> bool {
     matches!(func.blocks[block].terminator, Some(Terminator::Jump(to)) if to == target)
 }
 
+/// Whether a block continues only to `target`, apart from edges into aborting blocks such as
+/// an overflow check's panic.
+fn continues_to(
+    func: &Function,
+    block: BlockId,
+    target: BlockId,
+    cold: &DenseBitSet<FunctionId>,
+) -> bool {
+    let Some(terminator) = &func.blocks[block].terminator else { return false };
+    let successors = terminator.successors();
+    successors.contains(&target)
+        && successors.iter().all(|&successor| successor == target || is_cold(func, successor, cold))
+}
+
 /// Whether the backend rebuilds a word where it is read instead of keeping it live: a calldata
 /// word at a fixed offset or a stable environment read.
 fn rebuilt_at_use(func: &Function, value: ValueId) -> bool {
@@ -227,7 +247,9 @@ fn plan(
 ) -> Option<Unroll> {
     let preheader = l.preheader?;
     let &[latch] = l.back_edges.as_slice() else { return None };
-    if latch == l.header || !jumps_to(func, preheader, l.header) || !jumps_to(func, latch, l.header)
+    if latch == l.header
+        || !jumps_to(func, preheader, l.header)
+        || !continues_to(func, latch, l.header, cold)
     {
         return None;
     }
@@ -352,6 +374,10 @@ fn plan(
     if step.is_zero() {
         return None;
     }
+    let test = match test {
+        Test::AtMost if step == U256::from(1) => Test::UpTo,
+        test => test,
+    };
     let trips = match test {
         Test::Below | Test::AtMost => {
             // The counter travels at most `step << MAX_TRIP_COUNT_BITS` from its start, so
@@ -369,6 +395,13 @@ fn plan(
                 u64::try_from(trips(limit)).unwrap_or(u64::MAX)
             })
         }
+        // `i + 1 <= n` follows from `i < n` without wrapping, whatever the start.
+        Test::UpTo => match (func.value_u256(start), func.value_u256(bound)) {
+            (Some(start), Some(limit)) => limit
+                .checked_sub(start)
+                .map_or(0, |left| u64::try_from(left).unwrap_or(u64::MAX).saturating_add(1)),
+            _ => Target::UNCOUNTED_LOOP_ITERATIONS,
+        },
         Test::Reaches => match (func.value_u256(start), func.value_u256(bound)) {
             (Some(start), Some(limit)) if (limit.wrapping_sub(start) % step).is_zero() => {
                 u64::try_from(limit.wrapping_sub(start) / step).unwrap_or(u64::MAX)
@@ -442,7 +475,7 @@ fn plan(
 fn repays(func: &Function, l: &Loop, test: Test, trips: u64, step: U256, target: Target) -> bool {
     let compare = match test {
         Test::Below => op::LT,
-        Test::AtMost => op::GT,
+        Test::AtMost | Test::UpTo => op::GT,
         Test::Reaches => op::SUB,
     };
     let tested = target.opcode(compare)
@@ -460,6 +493,8 @@ fn repays(func: &Function, l: &Loop, test: Test, trips: u64, step: U256, target:
             let skipped = (tested + back_edge).times(pairs.saturating_sub(1));
             skipped.gas.saturating_sub(advance.times(pairs.saturating_add(1)).gas)
         }
+        // Every pair of iterations after the first skips a test and a back edge.
+        Test::UpTo => (tested + back_edge).times(pairs.saturating_sub(1)).gas,
         // Every pair skips a test and a back edge, and entering the loop tests the parity of
         // the remaining count once.
         Test::Reaches => {
@@ -565,11 +600,11 @@ fn branch(func: &mut Function, block: BlockId, condition: ValueId, then: BlockId
     );
 }
 
-/// Sends every edge of a block's terminator to `target`.
-fn jump_to(func: &mut Function, block: BlockId, target: BlockId) {
+/// Sends a block's edges to `from` to `to` instead.
+fn redirect(func: &mut Function, block: BlockId, from: BlockId, to: BlockId) {
     let (terminator, metadata) = func.blocks[block].take_terminator();
     let mut terminator = terminator.expect("loop blocks are terminated");
-    retarget(&mut terminator, |_| target);
+    retarget(&mut terminator, |successor| if successor == from { to } else { successor });
     func.blocks[block].set_terminator(terminator, metadata);
 }
 
@@ -616,30 +651,40 @@ fn apply(func: &mut Function, unroll: &Unroll) -> BlockId {
 
     let mut replacements = FxHashMap::default();
     let (entry, main_header) = match unroll.test {
-        Test::Below | Test::AtMost => {
+        Test::Below | Test::AtMost | Test::UpTo => {
             let main_header = first.blocks[&unroll.header];
-            let step = func.alloc_value(Value::Immediate(Immediate::I256(unroll.step)));
             let word = first.value(unroll.word);
-            let ahead = append(func, main_header, InstKind::Add(word, step), MirType::I256);
             let first_body = first.blocks[&unroll.body];
-            if let Test::Below = unroll.test {
+            let step = func.alloc_value(Value::Immediate(Immediate::I256(unroll.step)));
+            match unroll.test {
                 // main_header: ahead = add word', step
                 //              jumpi (lt ahead, bound), body', header
-                let below =
-                    append(func, main_header, InstKind::Lt(ahead, unroll.bound), MirType::I1);
-                branch(func, main_header, below, first_body, unroll.header);
-            } else {
+                Test::Below => {
+                    let ahead = append(func, main_header, InstKind::Add(word, step), MirType::I256);
+                    let below =
+                        append(func, main_header, InstKind::Lt(ahead, unroll.bound), MirType::I1);
+                    branch(func, main_header, below, first_body, unroll.header);
+                }
                 // main_header: ahead = add word', step
                 //              jumpi (gt ahead, bound), header, body'
-                let beyond =
-                    append(func, main_header, InstKind::Gt(ahead, unroll.bound), MirType::I1);
-                branch(func, main_header, beyond, unroll.header, first_body);
+                Test::AtMost => {
+                    let ahead = append(func, main_header, InstKind::Add(word, step), MirType::I256);
+                    let beyond =
+                        append(func, main_header, InstKind::Gt(ahead, unroll.bound), MirType::I1);
+                    branch(func, main_header, beyond, unroll.header, first_body);
+                }
+                // main_header: jumpi (lt word', bound), body', header
+                _ => {
+                    let below =
+                        append(func, main_header, InstKind::Lt(word, unroll.bound), MirType::I1);
+                    branch(func, main_header, below, first_body, unroll.header);
+                }
             }
 
-            // latch': jump header''
-            // latch'': jump main_header
-            jump_to(func, first_latch, second_header);
-            jump_to(func, second_latch, main_header);
+            // latch': ... header''
+            // latch'': ... main_header
+            redirect(func, first_latch, main_header, second_header);
+            redirect(func, second_latch, second_header, main_header);
 
             // main_header: state' = phi [preheader: start], [latch'': next'']
             // header: state = phi [main_header: state'], [latch: next]
@@ -683,12 +728,12 @@ fn apply(func: &mut Function, unroll: &Unroll) -> BlockId {
             let odd = append(func, check, InstKind::Ne(bit, zero), MirType::I1);
             branch(func, check, odd, first.blocks[&unroll.body], unroll.header);
 
-            // latch': jump header
-            // latch: jump header''
-            // latch'': jump header
-            jump_to(func, first_latch, unroll.header);
-            jump_to(func, unroll.latch, second_header);
-            jump_to(func, second_latch, unroll.header);
+            // latch': ... header
+            // latch: ... header''
+            // latch'': ... header
+            redirect(func, first_latch, check, unroll.header);
+            redirect(func, unroll.latch, unroll.header, second_header);
+            redirect(func, second_latch, second_header, unroll.header);
 
             // check: state' = phi [preheader: start]
             // header: state = phi [check: state'], [latch': next'], [latch'': next'']
