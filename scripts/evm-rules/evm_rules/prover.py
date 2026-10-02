@@ -39,11 +39,13 @@ from .lean import theorem as lean_theorem
 from .lean import witness as lean_witness
 
 LEAN_PROJECT = Path(__file__).resolve().parents[1] / "lean"
-# Hand-written proof scripts, by theorem name, for obligations `evm_decide` cannot
-# finish. Their lemmas live in `lean/EvmRules/Lemmas.lean`.
+# Hand-written proof scripts, named after their rules, for obligations `evm_auto`
+# cannot finish. Their lemmas live in `lean/EvmRules/Lemmas.lean` and `Arith.lean`.
 MANUAL_PROOFS = LEAN_PROJECT / "proofs"
 CHECKER = LEAN_PROJECT / ".lake/build/bin/evm_check"
 ADDRESS_MASK = (1 << 160) - 1
+# `evm_auto` reports which of its tactics proved the theorem.
+PROVED_BY = re.compile(r"proved by (evm_arith|evm_decide)")
 
 
 def lean_environment():
@@ -313,6 +315,8 @@ def prove(task):
                     break
         return name, result
     result["status"] = "proved"
+    if tactic := PROVED_BY.search(output):
+        result["tactic"] = tactic[1]
     if search_line is None:
         return name, result
     search = [
@@ -397,7 +401,7 @@ class Checker:
     def check(self, lhs, rhs, assumptions=(), timeout_ms=5000, tactic=None):
         """Decide `assumptions → lhs = rhs`, first requiring satisfiable assumptions.
 
-        `tactic` replaces `evm_decide` for the equality, as a hand-written proof does.
+        `tactic` replaces `evm_auto` for the equality, as a hand-written proof does.
         """
         assumptions = simplify(assumptions)
         witness = None
@@ -423,14 +427,17 @@ class Checker:
             if witness is None:
                 return {"status": "unknown", "reason": "applicability is unconfirmed"}
         statement = lean_theorem(
-            "query", lhs, rhs, assumptions, tactic or f"evm_decide {seconds}"
+            "query", lhs, rhs, assumptions, tactic or f"evm_auto {seconds}"
         )
         reply = self.ask(COMMANDS + "\n" + statement, limit)
         if reply is None:
             return {"status": "unknown", "reason": "the proof timed out"}
         ok, text = reply
         if ok:
-            return {"status": "proved"} | ({"witness": witness} if witness else {})
+            result = {"status": "proved"} | ({"witness": witness} if witness else {})
+            if proved_by := PROVED_BY.search(text):
+                result["tactic"] = proved_by[1]
+            return result
         variables = {}
         for item in (lhs, rhs, *assumptions):
             word_variables(item, variables)

@@ -2,8 +2,10 @@
 
 Readers turn each rule into words and preconditions; `lean.py` states them as a
 theorem over the EVM semantics in `lean/EvmRules`, and `prover.py` checks it in its
-own `lean` process. A physical stack rule has one theorem per distinct shape of its
-per-depth variants: each variant is that theorem with its variables renamed.
+own `lean` process. `evm_auto` proves it over natural numbers with `evm_arith`, or by
+bit-blasting with `evm_decide`; a hand-written proof replaces both. A physical stack
+rule has one theorem per distinct shape of its per-depth variants: each variant is
+that theorem with its variables renamed.
 
 An optional cache keeps proved results, keyed by the exact theorem file and a digest
 of the Lean library and toolchain. Failures, timeouts and unknown results are never
@@ -121,7 +123,7 @@ def verify_files(
     With a `checker`, every theorem is answered by that one process instead of a
     `lean` process per theorem: faster for small files, with the same statuses.
     """
-    tactic = f"evm_decide {timeout_s}"
+    tactic = f"evm_auto {timeout_s}"
     manual = {path.stem: path.read_text() for path in MANUAL_PROOFS.glob("*.lean")}
     digest = library_digest() if cache_dir is not None else None
     files, tasks, proofs = [], [], {}
@@ -161,7 +163,7 @@ def verify_files(
                         entry["error"] = str(error)
                         continue
                     result["seconds"] = round(time.monotonic() - start, 2)
-                    result["method"] = "manual" if proof else "evm_decide"
+                    result["method"] = "manual" if proof else result.pop("tactic", "")
                     proofs[name] = result
                     continue
                 try:
@@ -191,14 +193,14 @@ def verify_files(
         for (_, cached, manual_proof), (name, result) in zip(
             tasks, pool.map(prove, [task for task, *_ in tasks])
         ):
-            result["method"] = "manual" if manual_proof else "evm_decide"
+            result["method"] = "manual" if manual_proof else result.pop("tactic", "")
             proofs[name] = result
             if cached is not None and result["status"] == "proved":
                 cached.parent.mkdir(parents=True, exist_ok=True)
                 cached.write_text(json.dumps(result))
             if progress is not None:
                 progress(f"{result['status']:12s} {result['seconds']:7.2f}s {name}")
-    counts = {}
+    counts, methods = {}, {}
     for file in files:
         for entry in file["rules"]:
             theorems = [proofs.get(name, {}) for name, *_ in entry.pop("theorems", [])]
@@ -214,5 +216,9 @@ def verify_files(
                     "proved",
                 )
                 entry["proofs"] = theorems
+                for proof in theorems:
+                    if proof.get("status") == "proved":
+                        method = proof.get("method") or "unrecorded"
+                        methods[method] = methods.get(method, 0) + 1
             counts[entry["status"]] = counts.get(entry["status"], 0) + 1
-    return {"tactic": tactic, "files": files, "counts": counts}
+    return {"tactic": tactic, "files": files, "counts": counts, "methods": methods}

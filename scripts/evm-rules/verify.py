@@ -240,6 +240,8 @@ def main():
     args.output.write_text(
         json.dumps(report, indent=2, sort_keys=True, default=str) + "\n"
     )
+    if "methods" in report:
+        print(json.dumps({"methods": report["methods"]}, sort_keys=True))
     print(json.dumps(report.get("counts", report.get("summary")), sort_keys=True))
     return exit_code
 
