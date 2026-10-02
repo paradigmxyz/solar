@@ -193,8 +193,16 @@ fn plan(func: &Function, loops: &LoopInfo, l: &Loop) -> Option<Split> {
     }
     // The counter travels at most `step << MAX_TRIP_COUNT_BITS` from its
     // start, so `counter + lookahead` never wraps.
-    let travel = step.checked_shl(Target::MAX_TRIP_COUNT_BITS)?;
-    start.checked_add(travel)?.checked_add(lookahead)?;
+    let travel = if let Some(trips) = l.trip_count {
+        step.checked_mul(U256::from(trips))?
+    } else {
+        step.checked_shl(Target::MAX_TRIP_COUNT_BITS)?
+    };
+    if start.checked_add(travel)?.checked_add(lookahead)?
+        > crate::mir::analysis::integers::integer_max(func, counter)
+    {
+        return None;
+    }
 
     let mut body_exit = false;
     for block in l.blocks.iter() {
@@ -303,9 +311,11 @@ fn apply(func: &mut Function, split: &Split) {
 
     // main_header: ahead = add counter', lookahead
     //              jumpi (lt ahead, bound), body', header
-    let lookahead = func.alloc_value(Value::Immediate(Immediate::I256(split.lookahead)));
+    let ty = func.value_ty(split.counter).unwrap();
+    let lookahead =
+        func.alloc_value(Value::Immediate(Immediate::for_type(Some(ty), split.lookahead)));
     let (add, ahead) = func.alloc_value_inst(
-        Instruction::new(InstKind::Add(mapped(split.counter), lookahead), Some(MirType::I256))
+        Instruction::new(InstKind::Add(mapped(split.counter), lookahead), Some(ty))
             .with_debug_info_dropped(),
     );
     let (lt, condition) = func.alloc_value_inst(

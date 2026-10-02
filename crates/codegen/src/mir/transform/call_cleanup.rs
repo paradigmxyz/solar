@@ -19,9 +19,12 @@
 //! of proved-clean truncations compare the original value in its wider type.
 //! Instructions stay in place until their uses are redirected; no code is
 //! moved or cloned; comparisons may insert a zero-cost extension to keep operand
-//! types equal. The pass runs after memory lowering and before
-//! final local simplification, when the complete call graph and ABI guards are
-//! explicit. Unknown return values and path-dependent bounds remain conservative.
+//! types equal. ABI lowering calls this cleanup before integer legalization, while
+//! truncations and extensions still exist. The standalone pass runs after memory
+//! and integer lowering, before final local simplification, when the complete call
+//! graph and ABI guards are explicit. Its mask replacements also redirect lowered
+//! zero tests to the unmasked value. Unknown return values and path-dependent bounds
+//! remain conservative.
 //! Explicit frame-address functions do not receive argument facts: parsed MIR
 //! may write into argument homes through those pointers. Masks live across calls
 //! are retained for profitability, since replacing their materialized result

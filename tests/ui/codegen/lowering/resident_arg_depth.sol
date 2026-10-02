@@ -1,4 +1,5 @@
 //@ compile-flags: -Ogas
+//@ run-call: first 0 => 0
 //@ run-call: first 1 => 171
 //@ run-call: second 2 => 189
 
@@ -12,6 +13,7 @@ contract ResidentArgDepth {
     }
 
     function sum(uint256 value) internal pure returns (uint256) {
+        if (value == 0) return 0;
         unchecked {
             uint256 a0 = value + 1;
             uint256 a1 = value + 2;

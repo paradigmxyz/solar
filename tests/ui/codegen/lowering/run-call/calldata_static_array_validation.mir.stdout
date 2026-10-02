@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/calldata_static_array_validation.sol:CalldataStaticArrayValidation ===
 @module CalldataStaticArrayValidation
-fn @readSecond(arg0: calldataslice) -> i256 [selector=0xe9d33e2a, pure, abi_params=[array<2, u8>], abi_returns=[word<u8>], abi_return_params=[u8]] {
+fn @readSecond(arg0: calldataslice) -> i8 [selector=0xe9d33e2a, pure, abi_params=[array<2, u8>], abi_returns=[word<u8>], abi_return_params=[u8]] {
   bb0:
     v0 = slice_len arg0
     v1 = lt 1, v0
@@ -13,10 +13,11 @@ fn @readSecond(arg0: calldataslice) -> i256 [selector=0xe9d33e2a, pure, abi_para
     v7 = eq v5, v6
     v8 = eq v7, false
     icall revert_if<empty>, v8
-    ret v5
+    v9 = trunc i256 v5 to i8
+    ret v9
 }
 
-fn @readFirst(arg0: calldataslice) -> i256 [selector=0x77c98de5, pure, abi_params=[array<2, u8>], abi_returns=[word<u8>], abi_return_params=[u8]] {
+fn @readFirst(arg0: calldataslice) -> i8 [selector=0x77c98de5, pure, abi_params=[array<2, u8>], abi_returns=[word<u8>], abi_return_params=[u8]] {
   bb0:
     v0 = slice_len arg0
     v1 = lt 0, v0
@@ -29,7 +30,8 @@ fn @readFirst(arg0: calldataslice) -> i256 [selector=0x77c98de5, pure, abi_param
     v7 = eq v5, v6
     v8 = eq v7, false
     icall revert_if<empty>, v8
-    ret v5
+    v9 = trunc i256 v5 to i8
+    ret v9
 }
 
 fn @unused(arg0: calldataslice) -> i256 [selector=0x492c7c0b, pure, abi_params=[array<2, u8>], abi_returns=[word], abi_return_params=[u256]] {
@@ -37,7 +39,7 @@ fn @unused(arg0: calldataslice) -> i256 [selector=0x492c7c0b, pure, abi_params=[
     ret 2
 }
 
-fn @nested(arg0: calldataslice) -> i256 [selector=0xf4e4bddf, pure, abi_params=[array<2, array<2, u8>>], abi_returns=[word<u8>], abi_return_params=[u8]] {
+fn @nested(arg0: calldataslice) -> i8 [selector=0xf4e4bddf, pure, abi_params=[array<2, array<2, u8>>], abi_returns=[word<u8>], abi_return_params=[u8]] {
   bb0:
     v0 = slice_len arg0
     v1 = lt 1, v0
@@ -57,16 +59,17 @@ fn @nested(arg0: calldataslice) -> i256 [selector=0xf4e4bddf, pure, abi_params=[
     v13 = eq v11, v12
     v14 = eq v13, false
     icall revert_if<empty>, v14
-    ret v11
+    v15 = trunc i256 v11 to i8
+    ret v15
 }
 
-fn @passToInternal(arg0: calldataslice) -> i256 [selector=0xbdb87238, pure, abi_params=[array<2, u8>], abi_returns=[word<u8>], abi_return_params=[u8]] {
+fn @passToInternal(arg0: calldataslice) -> i8 [selector=0xbdb87238, pure, abi_params=[array<2, u8>], abi_returns=[word<u8>], abi_return_params=[u8]] {
   bb0:
     v0 = icall @second, arg0
     ret v0
 }
 
-fn @second(arg0: calldataslice) -> i256 [pure] {
+fn @second(arg0: calldataslice) -> i8 [pure] {
   bb0:
     v0 = slice_len arg0
     v1 = lt 1, v0
@@ -79,10 +82,11 @@ fn @second(arg0: calldataslice) -> i256 [pure] {
     v7 = eq v5, v6
     v8 = eq v7, false
     icall revert_if<empty>, v8
-    ret v5
+    v9 = trunc i256 v5 to i8
+    ret v9
 }
 
-fn @copyToMemory(arg0: calldataslice) -> i256 [selector=0x13aac4cb, pure, abi_params=[array<2, u8>], abi_returns=[word<u8>], abi_return_params=[u8]] {
+fn @copyToMemory(arg0: calldataslice) -> i8 [selector=0x13aac4cb, pure, abi_params=[array<2, u8>], abi_returns=[word<u8>], abi_return_params=[u8]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = calldatasize
@@ -102,7 +106,7 @@ fn @copyToMemory(arg0: calldataslice) -> i256 [selector=0x13aac4cb, pure, abi_pa
     v16 = eq v15, false
     icall panic_if<0x32>, v16
     v17 = memory_object_load_element memoryfixedarray<2, 1>, v4, 1
-    v18 = and v17, 255
+    v18 = trunc i256 v17 to i8
     ret v18
   bb2:
     v7 = mul v5, 32

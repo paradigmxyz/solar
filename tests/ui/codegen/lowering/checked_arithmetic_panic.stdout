@@ -140,15 +140,16 @@ fn @signed_neg(arg0: i256) -> i256 [selector=0x85cce915, pure, abi_params=[i256]
     revert 28, 36
 }
 
-fn @narrow_add(arg0: i256, arg1: i256) -> i256 [selector=0xeb8645e0, pure, abi_params=[u8, u8], abi_returns=[word<u8>], abi_return_params=[u8]] {
+fn @narrow_add(arg0: i8, arg1: i8) -> i8 [selector=0xeb8645e0, pure, abi_params=[u8, u8], abi_returns=[word<u8>], abi_return_params=[u8]] {
   bb0:
-    v0 = and arg0, 255
-    v1 = and arg1, 255
-    v3 = add v0, v1
+    v1 = zext i8 arg0 to i256
+    v2 = zext i8 arg1 to i256
+    v3 = add v1, v2
     v4 = gt v3, 255
     jumpi v4, bb1, bb2
   bb2:
-    ret v3
+    v5 = trunc i256 v3 to i8
+    ret v5
   bb1:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 17 !metadata(memory=scratch)

@@ -6,7 +6,7 @@
 @data
   CreationOptionsChild_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/creation_options.sol:CreationOptionsChild"
 
-fn @sameShortLiteralSalt() -> i256 [selector=0xae55518d, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @sameShortLiteralSalt() -> i1 [selector=0xae55518d, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = abi_encode []
     v1 = datasize CreationOptionsChild_creation_code_0
@@ -19,13 +19,13 @@ fn @sameShortLiteralSalt() -> i256 [selector=0xae55518d, abi_params=[], abi_retu
     v7 = add v6, v1
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
-    v9 = create2 0, v8, v1, 0x78797a0000000000000000000000000000000000000000000000000000000000
-    v10 = zext i160 v9 to i256
-    v11 = ne v10, 0
-    jumpi v11, bb2, bb1
+    v9: i256 = create2 0, v8, v1, 0x78797a0000000000000000000000000000000000000000000000000000000000
+    v10 = ne v9, 0
+    jumpi v10, bb2, bb1
   bb1:
     revert_returndata
   bb2:
+    v11 = trunc i256 v9 to i160
     v12 = abi_encode []
     v13 = datasize CreationOptionsChild_creation_code_0
     v14 = datasize CreationOptionsChild_creation_code_0, 31, aligned
@@ -37,27 +37,24 @@ fn @sameShortLiteralSalt() -> i256 [selector=0xae55518d, abi_params=[], abi_retu
     v19 = add v18, v13
     mcopy v19, v17, 0 !metadata(memory=heap)
     v20 = ptrtoint memptr v15 to i256
-    v21 = create2 0, v20, v13, 0x78797a0000000000000000000000000000000000000000000000000000000000
-    v22 = zext i160 v21 to i256
-    v23 = eq v22, 0
-    v24 = eq v23, false
-    jumpi v24, bb3, bb4
+    v21: i256 = create2 0, v20, v13, 0x78797a0000000000000000000000000000000000000000000000000000000000
+    v22 = eq v21, 0
+    v23 = eq v22, false
+    jumpi v23, bb3, bb4
   bb4:
     jumpi true, bb6, bb7
   bb7:
     icall revert_if<empty>, true
     invalid
   bb6:
-    v26 = zext i1 1 to i256
-    ret v26
+    ret true
   bb3:
-    v25 = zext i1 0 to i256
-    ret v25
+    ret false
   bb5:
-    ret 0
+    ret false
 }
 
-fn @sameEmptyLiteralSalt() -> i256 [selector=0x01dd6ed9, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @sameEmptyLiteralSalt() -> i1 [selector=0x01dd6ed9, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = abi_encode []
     v1 = datasize CreationOptionsChild_creation_code_0
@@ -70,13 +67,13 @@ fn @sameEmptyLiteralSalt() -> i256 [selector=0x01dd6ed9, abi_params=[], abi_retu
     v7 = add v6, v1
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
-    v9 = create2 0, v8, v1, 0
-    v10 = zext i160 v9 to i256
-    v11 = ne v10, 0
-    jumpi v11, bb2, bb1
+    v9: i256 = create2 0, v8, v1, 0
+    v10 = ne v9, 0
+    jumpi v10, bb2, bb1
   bb1:
     revert_returndata
   bb2:
+    v11 = trunc i256 v9 to i160
     v12 = abi_encode []
     v13 = datasize CreationOptionsChild_creation_code_0
     v14 = datasize CreationOptionsChild_creation_code_0, 31, aligned
@@ -88,27 +85,24 @@ fn @sameEmptyLiteralSalt() -> i256 [selector=0x01dd6ed9, abi_params=[], abi_retu
     v19 = add v18, v13
     mcopy v19, v17, 0 !metadata(memory=heap)
     v20 = ptrtoint memptr v15 to i256
-    v21 = create2 0, v20, v13, 0
-    v22 = zext i160 v21 to i256
-    v23 = eq v22, 0
-    v24 = eq v23, false
-    jumpi v24, bb3, bb4
+    v21: i256 = create2 0, v20, v13, 0
+    v22 = eq v21, 0
+    v23 = eq v22, false
+    jumpi v23, bb3, bb4
   bb4:
     jumpi true, bb6, bb7
   bb7:
     icall revert_if<empty>, true
     invalid
   bb6:
-    v26 = zext i1 1 to i256
-    ret v26
+    ret true
   bb3:
-    v25 = zext i1 0 to i256
-    ret v25
+    ret false
   bb5:
-    ret 0
+    ret false
 }
 
-fn @sameFullLiteralSalt() -> i256 [selector=0xaf96a2f0, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @sameFullLiteralSalt() -> i1 [selector=0xaf96a2f0, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = abi_encode []
     v1 = datasize CreationOptionsChild_creation_code_0
@@ -121,13 +115,13 @@ fn @sameFullLiteralSalt() -> i256 [selector=0xaf96a2f0, abi_params=[], abi_retur
     v7 = add v6, v1
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
-    v9 = create2 0, v8, v1, 0x3132333435363738393031323334353637383930313233343536373839303132
-    v10 = zext i160 v9 to i256
-    v11 = ne v10, 0
-    jumpi v11, bb2, bb1
+    v9: i256 = create2 0, v8, v1, 0x3132333435363738393031323334353637383930313233343536373839303132
+    v10 = ne v9, 0
+    jumpi v10, bb2, bb1
   bb1:
     revert_returndata
   bb2:
+    v11 = trunc i256 v9 to i160
     v12 = abi_encode []
     v13 = datasize CreationOptionsChild_creation_code_0
     v14 = datasize CreationOptionsChild_creation_code_0, 31, aligned
@@ -139,27 +133,24 @@ fn @sameFullLiteralSalt() -> i256 [selector=0xaf96a2f0, abi_params=[], abi_retur
     v19 = add v18, v13
     mcopy v19, v17, 0 !metadata(memory=heap)
     v20 = ptrtoint memptr v15 to i256
-    v21 = create2 0, v20, v13, 0x3132333435363738393031323334353637383930313233343536373839303132
-    v22 = zext i160 v21 to i256
-    v23 = eq v22, 0
-    v24 = eq v23, false
-    jumpi v24, bb3, bb4
+    v21: i256 = create2 0, v20, v13, 0x3132333435363738393031323334353637383930313233343536373839303132
+    v22 = eq v21, 0
+    v23 = eq v22, false
+    jumpi v23, bb3, bb4
   bb4:
     jumpi true, bb6, bb7
   bb7:
     icall revert_if<empty>, true
     invalid
   bb6:
-    v26 = zext i1 1 to i256
-    ret v26
+    ret true
   bb3:
-    v25 = zext i1 0 to i256
-    ret v25
+    ret false
   bb5:
-    ret 0
+    ret false
 }
 
-fn @differentLiteralSalts() -> i256 [selector=0x3109d26e, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @differentLiteralSalts() -> i1 [selector=0x3109d26e, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = abi_encode []
     v1 = datasize CreationOptionsChild_creation_code_0
@@ -172,13 +163,13 @@ fn @differentLiteralSalts() -> i256 [selector=0x3109d26e, abi_params=[], abi_ret
     v7 = add v6, v1
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
-    v9 = create2 0, v8, v1, 0x6162630000000000000000000000000000000000000000000000000000000000
-    v10 = zext i160 v9 to i256
-    v11 = ne v10, 0
-    jumpi v11, bb2, bb1
+    v9: i256 = create2 0, v8, v1, 0x6162630000000000000000000000000000000000000000000000000000000000
+    v10 = ne v9, 0
+    jumpi v10, bb2, bb1
   bb1:
     revert_returndata
   bb2:
+    v11 = trunc i256 v9 to i160
     v12 = abi_encode []
     v13 = datasize CreationOptionsChild_creation_code_0
     v14 = datasize CreationOptionsChild_creation_code_0, 31, aligned
@@ -190,14 +181,13 @@ fn @differentLiteralSalts() -> i256 [selector=0x3109d26e, abi_params=[], abi_ret
     v19 = add v18, v13
     mcopy v19, v17, 0 !metadata(memory=heap)
     v20 = ptrtoint memptr v15 to i256
-    v21 = create2 0, v20, v13, 0x6465660000000000000000000000000000000000000000000000000000000000
-    v22 = zext i160 v21 to i256
-    v23 = ne v22, 0
-    jumpi v23, bb4, bb3
+    v21: i256 = create2 0, v20, v13, 0x6465660000000000000000000000000000000000000000000000000000000000
+    v22 = ne v21, 0
+    jumpi v22, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v24 = ne v10, v22
-    v25 = zext i1 v24 to i256
-    ret v25
+    v23 = trunc i256 v21 to i160
+    v24 = ne v11, v23
+    ret v24
 }

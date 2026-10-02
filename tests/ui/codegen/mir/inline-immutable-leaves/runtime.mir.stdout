@@ -11,12 +11,12 @@ fn @initial() -> i256 [selector=0xbb806dc9, view, abi_params=[], abi_returns=[wo
     ret v0
 }
 
-fn @constructor(arg0: i256, arg1: i256) [constructor, abi_params=[u64, u64]] {
+fn @constructor(arg0: i64, arg1: i64) [constructor, abi_params=[u64, u64]] {
   bb0:
     storeimmutable start, arg0
     storeimmutable duration, arg1
-    v0 = and arg0, 0xffffffffffffffff
-    v1 = and arg1, 0xffffffffffffffff
+    v0 = zext i64 arg0 to i256
+    v1 = zext i64 arg1 to i256
     v2 = checked_add u256, v0, v1
     storeimmutable initial, v2
     ret
@@ -25,34 +25,36 @@ fn @constructor(arg0: i256, arg1: i256) [constructor, abi_params=[u64, u64]] {
 fn @end() -> i256 [selector=0xefbe1c1c, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = loadimmutable start
-    v1 = loadimmutable duration
-    v2 = checked_add u256, v0, v1
-    ret v2
+    v1 = zext i64 v0 to i256
+    v2 = loadimmutable duration
+    v3 = zext i64 v2 to i256
+    v4 = checked_add u256, v1, v3
+    ret v4
 }
 
-fn @vested(arg0: i256, arg1: i256) -> i256 [selector=0xcc71fadf, view, abi_params=[u256, u64], abi_returns=[word], abi_return_params=[u256]] {
+fn @vested(arg0: i256, arg1: i64) -> i256 [selector=0xcc71fadf, view, abi_params=[u256, u64], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = and arg1, 0xffffffffffffffff
-    v1 = loadimmutable start
-    v2 = lt v0, v1
-    jumpi v2, bb1, bb2
+    v0 = loadimmutable start
+    v1 = lt arg1, v0
+    jumpi v1, bb1, bb2
   bb2:
     jump bb3
   bb3:
-    v3 = and arg1, 0xffffffffffffffff
-    v4 = icall @end
-    v5 = lt v3, v4
-    v6 = eq v5, false
-    jumpi v6, bb4, bb5
+    v2 = icall @end
+    v3 = zext i64 arg1 to i256
+    v4 = lt v3, v2
+    v5 = eq v4, false
+    jumpi v5, bb4, bb5
   bb5:
     jump bb6
   bb6:
-    v7 = and arg1, 0xffffffffffffffff
-    v8 = loadimmutable start
-    v9 = checked_sub u64, v7, v8
-    v10 = checked_mul u256, arg0, v9
-    v11 = loadimmutable duration
-    v12 = checked_div u256, v10, v11
+    v6 = loadimmutable start
+    v7 = checked_sub u64, arg1, v6
+    v8 = zext i64 v7 to i256
+    v9 = checked_mul u256, arg0, v8
+    v10 = loadimmutable duration
+    v11 = zext i64 v10 to i256
+    v12 = checked_div u256, v9, v11
     ret v12
   bb4:
     ret arg0

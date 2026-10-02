@@ -38,6 +38,7 @@ pub(crate) mod lower_dispatch;
 pub(crate) mod lower_evm_shaped;
 pub(crate) mod lower_frame_slots;
 pub(crate) mod lower_immutables;
+pub(crate) mod lower_integers;
 pub(crate) mod lower_mapping_slots;
 pub(crate) mod lower_mcopy;
 pub(crate) mod lower_memory_objects;

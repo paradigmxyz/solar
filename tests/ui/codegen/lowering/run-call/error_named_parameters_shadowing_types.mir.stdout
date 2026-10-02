@@ -12,9 +12,12 @@ fn @g() [selector=0xe2179b8e, pure, abi_params=[], abi_returns=[], abi_return_pa
   bb0:
     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
     memory_object_store_field memorystruct<1>, v0, 0, 42
-    v1 = lt 1, 3
+    v1 = lt i8 1, i8 3
     v2 = eq v1, false
     icall panic_if<0x21>, v2
+    v3 = lt i8 1, i8 3
+    v4 = eq v3, false
+    icall panic_if<0x21>, v4
     icall require<custom_error [word<enum 3>, tuple<word>]>, false, 0x374b938700000000000000000000000000000000000000000000000000000000, 1, v0
     invalid
 }

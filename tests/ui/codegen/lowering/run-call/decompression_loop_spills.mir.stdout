@@ -3,8 +3,8 @@
 fn @fallback() [fallback, payable] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = and v0, 255
-    v2 = ne v1, 0
+    v1 = trunc i256 v0 to i8
+    v2 = ne v1, i8 0
     jumpi v2, bb1, bb2
   bb2:
     jump bb3
@@ -12,10 +12,9 @@ fn @fallback() [fallback, payable] {
     v6 = sload 0 !metadata(storage=slot(0))
     v7 = not 255
     v8 = and v6, v7
-    v9 = zext i1 1 to i256
-    v10 = and v9, 255
-    v11 = or v8, v10
-    sstore 0, v11 !metadata(storage=slot(0))
+    v9 = and 1, 255
+    v10 = or v8, v9
+    sstore 0, v10 !metadata(storage=slot(0))
     icall @_decompress
     ret
   bb1:
@@ -140,29 +139,27 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
     v9 = create 0, v8, v1
-    v10 = zext i160 v9 to i256
-    v11 = ne v10, 0
-    jumpi v11, bb2, bb1
+    v10 = ne v9, i160 0
+    jumpi v10, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v12 = zext i160 v9 to i256
-    v13 = gas
-    v14 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v14, 4
-    v15 = memory_object_data memorybytes, v14
-    v16 = ptrtoint memptr v15 to i256
-    mstore v16, 0xff80ff8000000000000000000000000000000000000000000000000000000000
-    v17 = address_call v9, v14, gas v13
-    v18 = icall returndata_bytes<>
-    icall require<short_string>, v17, 4, 0x63616c6c00000000000000000000000000000000000000000000000000000000
-    v19 = abi_decode [bytes32], v18
-    v20 = not 31
-    v21 = and 319, v20
-    v22 = alloc memorybytes, exact, zeroed, panic, v21
-    set_memory_object_len memorybytes, v22, 256
-    v23 = keccak256_bytes v22
-    v24 = eq v19, v23
-    icall require<short_string>, v24, 6, 0x6f75747075740000000000000000000000000000000000000000000000000000
+    v11 = gas
+    v12 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v12, 4
+    v13 = memory_object_data memorybytes, v12
+    v14 = ptrtoint memptr v13 to i256
+    mstore v14, 0xff80ff8000000000000000000000000000000000000000000000000000000000
+    v15 = address_call v9, v12, gas v11
+    v16 = icall returndata_bytes<>
+    icall require<short_string>, v15, 4, 0x63616c6c00000000000000000000000000000000000000000000000000000000
+    v17 = abi_decode [bytes32], v16
+    v18 = not 31
+    v19 = and 319, v18
+    v20 = alloc memorybytes, exact, zeroed, panic, v19
+    set_memory_object_len memorybytes, v20, 256
+    v21 = keccak256_bytes v20
+    v22 = eq v17, v21
+    icall require<short_string>, v22, 6, 0x6f75747075740000000000000000000000000000000000000000000000000000
     ret 1
 }

@@ -12,7 +12,7 @@ fn @g() -> struct0 {
     ret v2
 }
 
-fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = icall @g
     v1 = extract_value struct0, v0, 0
@@ -40,46 +40,41 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], a
   bb8:
     jump bb9
   bb9:
-    v11 = icall @g
-    v12 = extract_value struct0, v11, 0
-    v13 = extract_value struct0, v11, 1
-    v14 = extract_value struct0, v11, 2
-    v15 = sload v13 !metadata(storage=symbolic(v13))
-    v16 = ne v15, 7
-    jumpi v16, bb10, bb11
+    v10 = icall @g
+    v11 = extract_value struct0, v10, 0
+    v12 = extract_value struct0, v10, 1
+    v13 = extract_value struct0, v10, 2
+    v14 = sload v12 !metadata(storage=symbolic(v12))
+    v15 = ne v14, 7
+    jumpi v15, bb10, bb11
   bb11:
     jump bb12
   bb12:
-    v18 = icall @g
-    v19 = extract_value struct0, v18, 0
-    v20 = extract_value struct0, v18, 1
-    v21 = extract_value struct0, v18, 2
-    v22 = ne v19, 1
-    jumpi v22, bb13, bb14
+    v16 = icall @g
+    v17 = extract_value struct0, v16, 0
+    v18 = extract_value struct0, v16, 1
+    v19 = extract_value struct0, v16, 2
+    v20 = ne v17, 1
+    jumpi v20, bb13, bb14
   bb14:
     jump bb15
   bb15:
-    v24 = icall @g
-    v25 = extract_value struct0, v24, 0
-    v26 = extract_value struct0, v24, 1
-    v27 = extract_value struct0, v24, 2
-    v28 = ne v27, 2
-    jumpi v28, bb16, bb17
+    v21 = icall @g
+    v22 = extract_value struct0, v21, 0
+    v23 = extract_value struct0, v21, 1
+    v24 = extract_value struct0, v21, 2
+    v25 = ne v24, 2
+    jumpi v25, bb16, bb17
   bb17:
     jump bb18
   bb18:
-    v30 = zext i1 1 to i256
-    ret v30
+    ret true
   bb16:
-    v29 = zext i1 0 to i256
-    ret v29
+    ret false
   bb13:
-    v23 = zext i1 0 to i256
-    ret v23
+    ret false
   bb10:
-    v17 = zext i1 0 to i256
-    ret v17
+    ret false
   bb7:
-    v10 = zext i1 0 to i256
-    ret v10
+    ret false
 }

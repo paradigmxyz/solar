@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/array_copy_cleanup_uint40.sol:ArrayCopyCleanupUint40 ===
 @module ArrayCopyCleanupUint40
-fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = gt v0, 0xffffffffffffffff
@@ -437,8 +437,8 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], a
     v378 = sload v375 !metadata(storage=symbolic(v375))
     v379 = mul v377, 8
     v380 = shr v379, v378
-    v381 = and v380, 0xffffffffff
-    v382 = eq v381, 23
+    v381 = trunc i256 v380 to i40
+    v382 = eq v381, i40 23
     v383 = eq v382, false
     icall panic_if<0x1>, v383
     v384 = sload 0 !metadata(storage=slot(0))
@@ -453,8 +453,8 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], a
     v392 = sload v389 !metadata(storage=symbolic(v389))
     v393 = mul v391, 8
     v394 = shr v393, v392
-    v395 = and v394, 0xffffffffff
-    v396 = eq v395, 0
+    v395 = trunc i256 v394 to i40
+    v396 = eq v395, i40 0
     v397 = eq v396, false
     icall panic_if<0x1>, v397
     v398 = sload 0 !metadata(storage=slot(0))
@@ -469,8 +469,8 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], a
     v406 = sload v403 !metadata(storage=symbolic(v403))
     v407 = mul v405, 8
     v408 = shr v407, v406
-    v409 = and v408, 0xffffffffff
-    v410 = eq v409, 0
+    v409 = trunc i256 v408 to i40
+    v410 = eq v409, i40 0
     v411 = eq v410, false
     icall panic_if<0x1>, v411
     v412 = sload 0 !metadata(storage=slot(0))
@@ -485,8 +485,8 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], a
     v420 = sload v417 !metadata(storage=symbolic(v417))
     v421 = mul v419, 8
     v422 = shr v421, v420
-    v423 = and v422, 0xffffffffff
-    v424 = eq v423, 0
+    v423 = trunc i256 v422 to i40
+    v424 = eq v423, i40 0
     v425 = eq v424, false
     icall panic_if<0x1>, v425
     v426 = sload 0 !metadata(storage=slot(0))
@@ -501,8 +501,8 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], a
     v434 = sload v431 !metadata(storage=symbolic(v431))
     v435 = mul v433, 8
     v436 = shr v435, v434
-    v437 = and v436, 0xffffffffff
-    v438 = eq v437, 0
+    v437 = trunc i256 v436 to i40
+    v438 = eq v437, i40 0
     v439 = eq v438, false
     icall panic_if<0x1>, v439
     v440 = sload 0 !metadata(storage=slot(0))
@@ -517,8 +517,8 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], a
     v448 = sload v445 !metadata(storage=symbolic(v445))
     v449 = mul v447, 8
     v450 = shr v449, v448
-    v451 = and v450, 0xffffffffff
-    v452 = eq v451, 0
+    v451 = trunc i256 v450 to i40
+    v452 = eq v451, i40 0
     v453 = eq v452, false
     icall panic_if<0x1>, v453
     v454 = sload 0 !metadata(storage=slot(0))
@@ -533,8 +533,8 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], a
     v462 = sload v459 !metadata(storage=symbolic(v459))
     v463 = mul v461, 8
     v464 = shr v463, v462
-    v465 = and v464, 0xffffffffff
-    v466 = eq v465, 0
+    v465 = trunc i256 v464 to i40
+    v466 = eq v465, i40 0
     v467 = eq v466, false
     icall panic_if<0x1>, v467
     v468 = sload 0 !metadata(storage=slot(0))
@@ -549,8 +549,8 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], a
     v476 = sload v473 !metadata(storage=symbolic(v473))
     v477 = mul v475, 8
     v478 = shr v477, v476
-    v479 = and v478, 0xffffffffff
-    v480 = eq v479, 0
+    v479 = trunc i256 v478 to i40
+    v480 = eq v479, i40 0
     v481 = eq v480, false
     icall panic_if<0x1>, v481
     v482 = sload 0 !metadata(storage=slot(0))
@@ -565,8 +565,8 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], a
     v490 = sload v487 !metadata(storage=symbolic(v487))
     v491 = mul v489, 8
     v492 = shr v491, v490
-    v493 = and v492, 0xffffffffff
-    v494 = eq v493, 0
+    v493 = trunc i256 v492 to i40
+    v494 = eq v493, i40 0
     v495 = eq v494, false
     icall panic_if<0x1>, v495
     v496 = sload 0 !metadata(storage=slot(0))
@@ -581,8 +581,8 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], a
     v504 = sload v501 !metadata(storage=symbolic(v501))
     v505 = mul v503, 8
     v506 = shr v505, v504
-    v507 = and v506, 0xffffffffff
-    v508 = eq v507, 0
+    v507 = trunc i256 v506 to i40
+    v508 = eq v507, i40 0
     v509 = eq v508, false
     icall panic_if<0x1>, v509
     v510 = sload 0 !metadata(storage=slot(0))
@@ -597,8 +597,8 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], a
     v518 = sload v515 !metadata(storage=symbolic(v515))
     v519 = mul v517, 8
     v520 = shr v519, v518
-    v521 = and v520, 0xffffffffff
-    v522 = eq v521, 0
+    v521 = trunc i256 v520 to i40
+    v522 = eq v521, i40 0
     v523 = eq v522, false
     icall panic_if<0x1>, v523
     v524 = sload 0 !metadata(storage=slot(0))
@@ -613,8 +613,8 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], a
     v532 = sload v529 !metadata(storage=symbolic(v529))
     v533 = mul v531, 8
     v534 = shr v533, v532
-    v535 = and v534, 0xffffffffff
-    v536 = eq v535, 0
+    v535 = trunc i256 v534 to i40
+    v536 = eq v535, i40 0
     v537 = eq v536, false
     icall panic_if<0x1>, v537
     v538 = sload 0 !metadata(storage=slot(0))
@@ -629,8 +629,8 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], a
     v546 = sload v543 !metadata(storage=symbolic(v543))
     v547 = mul v545, 8
     v548 = shr v547, v546
-    v549 = and v548, 0xffffffffff
-    v550 = eq v549, 0
+    v549 = trunc i256 v548 to i40
+    v550 = eq v549, i40 0
     v551 = eq v550, false
     icall panic_if<0x1>, v551
     v552 = sload 0 !metadata(storage=slot(0))
@@ -645,8 +645,8 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], a
     v560 = sload v557 !metadata(storage=symbolic(v557))
     v561 = mul v559, 8
     v562 = shr v561, v560
-    v563 = and v562, 0xffffffffff
-    v564 = eq v563, 0
+    v563 = trunc i256 v562 to i40
+    v564 = eq v563, i40 0
     v565 = eq v564, false
     icall panic_if<0x1>, v565
     v566 = sload 0 !metadata(storage=slot(0))
@@ -661,8 +661,8 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], a
     v574 = sload v571 !metadata(storage=symbolic(v571))
     v575 = mul v573, 8
     v576 = shr v575, v574
-    v577 = and v576, 0xffffffffff
-    v578 = eq v577, 0
+    v577 = trunc i256 v576 to i40
+    v578 = eq v577, i40 0
     v579 = eq v578, false
     icall panic_if<0x1>, v579
     v580 = sload 0 !metadata(storage=slot(0))
@@ -677,8 +677,8 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], a
     v588 = sload v585 !metadata(storage=symbolic(v585))
     v589 = mul v587, 8
     v590 = shr v589, v588
-    v591 = and v590, 0xffffffffff
-    v592 = eq v591, 0
+    v591 = trunc i256 v590 to i40
+    v592 = eq v591, i40 0
     v593 = eq v592, false
     icall panic_if<0x1>, v593
     v594 = sload 0 !metadata(storage=slot(0))
@@ -693,8 +693,8 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], a
     v602 = sload v599 !metadata(storage=symbolic(v599))
     v603 = mul v601, 8
     v604 = shr v603, v602
-    v605 = and v604, 0xffffffffff
-    v606 = eq v605, 0
+    v605 = trunc i256 v604 to i40
+    v606 = eq v605, i40 0
     v607 = eq v606, false
     icall panic_if<0x1>, v607
     v608 = sload 0 !metadata(storage=slot(0))
@@ -709,8 +709,8 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], a
     v616 = sload v613 !metadata(storage=symbolic(v613))
     v617 = mul v615, 8
     v618 = shr v617, v616
-    v619 = and v618, 0xffffffffff
-    v620 = eq v619, 0
+    v619 = trunc i256 v618 to i40
+    v620 = eq v619, i40 0
     v621 = eq v620, false
     icall panic_if<0x1>, v621
     v622 = sload 0 !metadata(storage=slot(0))
@@ -725,8 +725,8 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], a
     v630 = sload v627 !metadata(storage=symbolic(v627))
     v631 = mul v629, 8
     v632 = shr v631, v630
-    v633 = and v632, 0xffffffffff
-    v634 = eq v633, 0
+    v633 = trunc i256 v632 to i40
+    v634 = eq v633, i40 0
     v635 = eq v634, false
     icall panic_if<0x1>, v635
     v636 = sload 0 !metadata(storage=slot(0))
@@ -741,12 +741,11 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], a
     v644 = sload v641 !metadata(storage=symbolic(v641))
     v645 = mul v643, 8
     v646 = shr v645, v644
-    v647 = and v646, 0xffffffffff
-    v648 = eq v647, 0
+    v647 = trunc i256 v646 to i40
+    v648 = eq v647, i40 0
     v649 = eq v648, false
     icall panic_if<0x1>, v649
-    v650 = zext i1 1 to i256
-    ret v650
+    ret true
   bb7:
     v345 = memory_object_load_element memoryarray<1>, v320, v343
     v346 = storage_array_data_slot 0

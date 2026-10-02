@@ -247,7 +247,9 @@ fn join_selects(func: &Function, site: &Site) -> Option<Vec<Select>> {
         let incoming_from =
             |pred| incoming.iter().find(|&&(from, _)| from == pred).map(|&(_, v)| v);
         let (then_value, else_value) = (incoming_from(then_pred)?, incoming_from(else_pred)?);
-        if is_pointer(func, then_value) || is_pointer(func, else_value) {
+        if !matches!(func.value_ty(then_value), Some(MirType::Int(_)))
+            || func.value_ty(then_value) != func.value_ty(else_value)
+        {
             return None;
         }
         let form = select_form(func, site.condition, then_value, else_value);
@@ -257,12 +259,6 @@ fn join_selects(func: &Function, site: &Site) -> Option<Vec<Select>> {
         }
     }
     Some(selects)
-}
-
-/// Whether a value carries memory, storage, or calldata provenance that the
-/// arithmetic forms would erase.
-fn is_pointer(func: &Function, value: ValueId) -> bool {
-    matches!(func.value_ty(value), Some(MirType::MemPtr | MirType::Slice(_)))
 }
 
 fn select_form(
@@ -640,7 +636,9 @@ fn append(func: &mut Function, block: BlockId, kind: InstKind, ty: Option<MirTyp
     let start = func.blocks[block].instructions.len();
     let mut builder = crate::mir::FunctionBuilder::new(func);
     builder.switch_to_block(block);
-    let value = builder.emit_inst(kind, ty);
+    let operation_ty = kind.op_def().result.default_type().or(ty);
+    let value = builder.emit_inst(kind, operation_ty);
+    let value = ty.map_or(value, |ty| builder.cast(value, ty));
     let insts = builder.func().blocks[block].instructions[start..].to_vec();
     for inst in insts {
         builder.func_mut().inst_mut(inst).metadata.mark_debug_info_dropped();

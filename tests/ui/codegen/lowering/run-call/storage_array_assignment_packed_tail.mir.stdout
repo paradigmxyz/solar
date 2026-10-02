@@ -119,8 +119,9 @@ fn @fixedLength() -> i256 [selector=0x47f1a57f, abi_params=[], abi_returns=[word
     v112 = sload v109 !metadata(storage=symbolic(v109))
     v113 = mul v111, 8
     v114 = shr v113, v112
-    v115 = and v114, 0xffffffff
-    ret v115
+    v115 = trunc i256 v114 to i32
+    v116 = zext i32 v115 to i256
+    ret v116
   bb15:
     v77 = memory_object_load_element memoryfixedarray<1, 1>, v56, v75
     v78 = storage_array_data_slot 0
@@ -338,8 +339,9 @@ fn @dynamicLength(arg0: i256) -> i256 [selector=0x3e3319e9, abi_params=[u256], a
     v156 = sload v153 !metadata(storage=symbolic(v153))
     v157 = mul v155, 8
     v158 = shr v157, v156
-    v159 = and v158, 0xffffffff
-    ret v159
+    v159 = trunc i256 v158 to i32
+    v160 = zext i32 v159 to i256
+    ret v160
   bb23:
     v115 = memory_object_load_element memoryarray<1>, v31, v113
     v116 = storage_array_data_slot 0
@@ -522,8 +524,9 @@ fn @exactSlotBoundary() -> i256 [selector=0xe55d27b8, abi_params=[], abi_returns
     v117 = sload v114 !metadata(storage=symbolic(v114))
     v118 = mul v116, 8
     v119 = shr v118, v117
-    v120 = and v119, 0xffffffff
-    ret v120
+    v120 = trunc i256 v119 to i32
+    v121 = zext i32 v120 to i256
+    ret v121
   bb21:
     v86 = memory_object_load_element memoryfixedarray<8, 1>, v13, v84
     v87 = storage_array_data_slot 0

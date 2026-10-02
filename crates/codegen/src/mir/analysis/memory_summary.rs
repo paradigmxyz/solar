@@ -877,6 +877,9 @@ fn observe_sources(
     sources: &BitMatrix<ValueId, ArgIdx>,
     value: ValueId,
 ) {
+    if summary.observes.domain_size() == 0 {
+        return;
+    }
     if let Value::Arg(index) = func.value(value)
         && index.index() < summary.observes.domain_size()
     {
@@ -1026,6 +1029,9 @@ fn capture_sources(
     sources: &BitMatrix<ValueId, ArgIdx>,
     value: ValueId,
 ) {
+    if summary.captures.domain_size() == 0 {
+        return;
+    }
     if let Value::Arg(index) = func.value(value)
         && index.index() < summary.captures.domain_size()
     {
