@@ -1,0 +1,5 @@
+name = "evm_rules"
+defaultTargets = ["EvmRules"]
+
+[[lean_lib]]
+name = "EvmRules"

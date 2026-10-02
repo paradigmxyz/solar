@@ -1,2 +1,2 @@
 -- A left shift distributes over wrapping addition.
-simp [BitVec.shiftLeft_add_distrib]
+simp only [Evm.add, Evm.shl_eq, BitVec.shiftLeft_eq', BitVec.shiftLeft_add_distrib]

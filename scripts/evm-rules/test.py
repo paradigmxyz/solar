@@ -6,10 +6,13 @@
 
 import hashlib
 import io
+import itertools
 import json
 import os
+import random
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
@@ -27,10 +30,19 @@ from evm_rules.discovery import (
     enumerate_rules,
     read_seeds,
 )
-from evm_rules.expr import MASK, MODULUS, SIGN, Cond, Expr, Unsupported, concrete
+from evm_rules.expr import MASK, MODULUS, SIGN, Cond, Expr, Unsupported, concrete, holds
 from evm_rules.isle import ISLE, Context, Rule, forms, rule_sources
 from evm_rules.late import execute as execute_late
-from evm_rules.lean import THEOREM_PRELUDE, UnsupportedQuery, theorem
+from evm_rules.lean import (
+    OPERATIONS,
+    PRELUDE,
+    canonical,
+    lean_name,
+    prop,
+    simplify,
+    term,
+    theorem,
+)
 from evm_rules.memory import MemoryAddresses
 from evm_rules.mining import abstract_patterns, mine
 from evm_rules.semantics import (
@@ -45,7 +57,15 @@ from evm_rules.semantics import (
 )
 from evm_rules.smt import verify_file, verify_late_file, verify_stack_file
 from evm_rules.solver import Cvc5, QueryCache, solve_query
-from lean_verify import DEFAULT_FILES, HELPERS, LEAN_PROJECT, MANUAL_PROOFS, obligations
+from lean_verify import (
+    DEFAULT_FILES,
+    LEAN_PROJECT,
+    MANUAL_PROOFS,
+    job,
+    lean_environment,
+    obligations,
+    prove,
+)
 from replay import main as replay_main
 from replay import replay_query, replay_report
 from verify import main
@@ -2354,117 +2374,258 @@ class DiscoveryTests(unittest.TestCase):
         )
 
 
-WORDS = "(declare-fun x () (_ BitVec 256)) (declare-fun y () (_ BitVec 256))"
-ZERO = "#x" + "0" * 64
-ONE = "#x" + "0" * 63 + "1"
-ONES = "#x" + "f" * 64
+def lean_rule(source):
+    """The theorem parts of the first rule in an ISLE snippet."""
+    form, line = forms(source)[0]
+    context = Context()
+    lhs, rhs = context.obligation(Rule(form, line, "snippet.isle"))
+    return lhs, rhs, simplify(context.assumptions)
 
 
-class LeanTranslationTests(unittest.TestCase):
-    def test_operations_keep_smt_semantics(self):
-        query = (
-            f"(set-logic QF_BV) {WORDS} (assert (let ((a!1 (bvudiv x y))) "
-            "(distinct a!1 (bvurem x ((_ zero_extend 128) ((_ extract 127 0) y))))))"
+BELOW_CONST = (
+    "(rule (simplify (Op.Div a (iconst d)))"
+    " (if-let true (below_const a d)) (imm (u256 0)))"
+)
+
+
+class LeanStatementTests(unittest.TestCase):
+    def test_rules_become_theorems_over_the_evm_definitions(self):
+        lhs, rhs, assumptions = lean_rule(BELOW_CONST)
+        self.assertEqual(
+            theorem("t", lhs, rhs, assumptions, "evm_decide"),
+            "theorem t (a d : Word) (h₁ : (a < d)) :\n"
+            "    (Evm.div a d) = 0 := by\n"
+            "  evm_decide\n",
+        )
+
+    def test_environment_reads_quantify_one_snapshot(self):
+        lhs, rhs, assumptions = lean_rule(
+            "(rule (rewrite (Op.Balance (current_address)))"
+            " (if-let true (has_self_balance)) (Op.SelfBalance))"
         )
         self.assertEqual(
-            theorem("t", query, "bv_decide"),
-            "theorem t (x : BitVec 256) (y : BitVec 256) :\n"
-            "    ((let t1 := (BitVec.smtUDiv x y); "
-            "(t1 != (x % (BitVec.setWidth 256 (BitVec.extractLsb' 0 128 y)))))) = false := by\n"
-            "  bv_decide\n",
+            theorem("t", lhs, rhs, assumptions, "evm_decide"),
+            "theorem t («@environment:balances» : BitVec 160 → Word)"
+            " («@environment:address» : BitVec 160) :\n"
+            "    (Evm.balance «@environment:balances» (Evm.address «@environment:address»))"
+            " = (Evm.selfbalance «@environment:balances» «@environment:address») := by\n"
+            "  evm_decide\n",
         )
 
-    def test_balance_arrays_become_functions(self):
-        query = (
-            "(set-logic QF_ABV) (declare-fun b () (Array (_ BitVec 160) (_ BitVec 256))) "
-            "(declare-fun a () (_ BitVec 256)) "
-            "(assert (distinct (select b ((_ extract 159 0) a)) (bvsdiv a (_ bv7 256))))"
-        )
+    def test_forced_flags_leave_word_preconditions(self):
+        x = Expr.var("x")
+        flag, free = Cond.flag("f"), Cond.flag("g")
+        bound = Cond("ult", (x, Expr.const(3)))
+        one = Cond("eq", (x, Expr.const(1)))
         self.assertEqual(
-            theorem("t", query, "simp"),
-            "theorem t (b : BitVec 160 → BitVec 256) (a : BitVec 256) :\n"
-            "    (((b (BitVec.extractLsb' 0 160 a)) != (BitVec.smtSDiv a (7#256)))) = false := by\n"
-            "  simp\n",
+            simplify(
+                [
+                    Cond("implies", (flag, bound)),
+                    Cond("iff", (Cond.const(True), flag)),
+                    Cond("iff", (Cond.const(False), one)),
+                    Cond("implies", (free, bound)),
+                    bound,
+                ]
+            ),
+            [bound, Cond("not", (one,)), Cond("implies", (free, bound))],
         )
 
-    def test_unsupported_queries_fail_closed(self):
-        for query in [
-            "(set-logic QF_UF) (assert true)",
-            f"(set-logic QF_BV) {WORDS} (assert (= (bvcomp x y) #b1))",
-            "(set-logic QF_BV) (declare-fun f ((_ BitVec 256)) (_ BitVec 256)) (assert true)",
-            f"(set-logic QF_BV) {WORDS} (assert (forall ((z (_ BitVec 256))) true))",
-            f"(set-logic QF_BV) {WORDS} (check-sat)",
-        ]:
-            with self.subTest(query=query), self.assertRaises(UnsupportedQuery):
-                theorem("t", query, "bv_decide")
+    def test_unmodeled_terms_fail_closed(self):
+        x = Expr.var("x")
+        for build in (
+            lambda: term(Expr("keccak256", (x,))),
+            lambda: term(Expr("add", (x,))),
+            lambda: prop(Cond("weird", ())),
+            lambda: lean_name("a«b"),
+        ):
+            with self.subTest(build=build), self.assertRaises(Unsupported):
+                build()
 
+    def test_stack_variants_share_theorems_up_to_renaming(self):
+        def double_not(name):
+            value = Expr.var(name)
+            return Expr("xor", (Expr("not", (Expr("not", (value,)),)), value))
 
-def lean_accepts(
-    name, query, tactic="bv_decide (config := { timeout := 60 })", helpers=""
-):
-    with tempfile.TemporaryDirectory() as directory:
-        path = Path(directory) / "Proof.lean"
-        path.write_text(
-            THEOREM_PRELUDE + "\n" + helpers + "\n" + theorem(name, query, tactic)
+        self.assertEqual(canonical(double_not("s3")), canonical(double_not("s7")))
+        self.assertEqual(canonical(double_not("s7")).variables(), {"s0"})
+
+    def test_the_lean_lane_imports_no_solver(self):
+        script = (
+            "import sys; sys.modules['z3'] = None; import lean_verify; "
+            "print(sum(len(e.get('theorems', [])) for path in lean_verify.DEFAULT_FILES "
+            "for e in lean_verify.obligations(path)))"
         )
         process = subprocess.run(
-            ["lean", str(path)],
-            cwd=LEAN_PROJECT,
+            [sys.executable, "-c", script],
+            cwd=Path(__file__).parent,
             capture_output=True,
             text=True,
-            timeout=600,
             check=False,
         )
-        return (
-            process.returncode == 0 and "error" not in process.stdout + process.stderr
-        )
+        self.assertEqual(process.returncode, 0, process.stderr)
+        self.assertGreater(int(process.stdout), 440)
 
 
-@unittest.skipUnless(shutil.which("lean"), "Lean is optional for local verifier tests")
+@unittest.skipUnless(
+    shutil.which("lean") and shutil.which("lake"),
+    "Lean is optional for local verifier tests",
+)
 class LeanProofTests(unittest.TestCase):
-    def test_smt_corner_cases_prove(self):
-        cases = {
-            "udiv_by_zero": f"(distinct (bvudiv x {ZERO}) {ONES})",
-            "urem_by_zero": f"(distinct (bvurem x {ZERO}) x)",
-            "sdiv_by_zero": f"(distinct (bvsdiv x {ZERO}) (ite (bvslt x {ZERO}) {ONE} {ONES}))",
-            "srem_by_zero": f"(distinct (bvsrem x {ZERO}) x)",
-            "smod_by_zero": f"(distinct (bvsmod x {ZERO}) x)",
-            "shift_saturates": f"(distinct (bvshl x #x{'0' * 61}100) {ZERO})",
-            "halves": "(distinct (concat ((_ extract 255 128) x) ((_ extract 127 0) x)) x)",
-        }
-        for name, assertion in cases.items():
-            with self.subTest(name=name):
-                query = f"(set-logic QF_BV) {WORDS} (assert {assertion})"
-                self.assertTrue(lean_accepts(name, query))
+    @classmethod
+    def setUpClass(cls):
+        cls.lean_path = lean_environment()
 
-    def test_false_obligations_fail(self):
+    def check(self, text):
+        """Check Lean source with the semantics library; return success and output."""
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "Check.lean"
+            path.write_text(PRELUDE + "\n" + text)
+            process = subprocess.run(
+                ["lean", str(path)],
+                cwd=LEAN_PROJECT,
+                capture_output=True,
+                text=True,
+                timeout=600,
+                check=False,
+                env={**os.environ, "LEAN_PATH": self.lean_path},
+            )
+        output = process.stdout + process.stderr
+        return process.returncode == 0 and "error" not in output, output
+
+    def test_semantics_match_the_integer_evaluator(self):
+        rng = random.Random(7)
+        words = [0, 1, 2, 7, 8, 30, 31, 32, 33, 255, 256, 257, SIGN - 1, SIGN]
+        words += [SIGN + 1, MASK - 1, MASK, *(rng.getrandbits(256) for _ in range(3))]
+        lines = []
+        for op, arity in sorted(OPERATIONS.items()):
+            if arity == 3:
+                inputs = [tuple(rng.choices(words, k=3)) for _ in range(150)]
+            else:
+                inputs = list(itertools.product(words, repeat=arity))
+            for args in inputs:
+                if op == "exp":
+                    # `BitVec.pow` is linear in the exponent.
+                    args = (args[0], args[1] % 300)
+                expr = Expr(op, tuple(Expr.const(arg) for arg in args))
+                lines.append(f"#guard {term(expr)} == {hex(concrete(expr, {}))}")
+        ok, output = self.check("\n".join(lines))
+        self.assertTrue(ok, output[-2000:])
+
+    def test_preconditions_match_the_integer_evaluator(self):
+        rng = random.Random(11)
+        words = [
+            0,
+            1,
+            2,
+            255,
+            SIGN - 1,
+            SIGN,
+            MASK,
+            *(rng.getrandbits(256) for _ in range(3)),
+        ]
+        x, y = Expr.var("x"), Expr.var("y")
+        conditions = [
+            Cond(op, (x, y)) for op in ("eq", "ne", "ult", "ule", "ugt", "uge")
+        ]
+        conditions += [
+            Cond("msb", (x,)),
+            Cond("not", (Cond("ult", (x, y)),)),
+            Cond("implies", (Cond("ult", (x, y)), Cond("ne", (x, y)))),
+            Cond("iff", (Cond("eq", (x, y)), Cond("ule", (y, x)))),
+            Cond("bool_word", (x, Cond("ult", (y, x)))),
+        ]
+        lines = [
+            f"#guard (fun (x y : Word) => decide {prop(cond)}) {a} {b} == "
+            + str(holds(cond, {"x": a, "y": b})).lower()
+            for cond in conditions
+            for a in words
+            for b in words
+        ]
+        ok, output = self.check("\n".join(lines))
+        self.assertTrue(ok, output[-2000:])
+
+    def test_false_rules_fail_with_counterexamples(self):
+        a, b, x = Expr.var("a"), Expr.var("b"), Expr.var("x")
+        difference = Expr("sub", (a, b))
+        equal = Cond("eq", (a, b))
         cases = {
-            "mutated_identity": "(distinct (bvor x y) (bvadd (bvand x y) (bvor x y)))",
-            "udiv_by_zero_is_not_zero": f"(distinct (bvudiv x {ZERO}) {ZERO})",
-            "ashr_is_not_lshr": "(distinct (bvashr x y) (bvlshr x y))",
+            "wrong_constant": (
+                Expr("add", (x, Expr.const(0))),
+                Expr("add", (x, Expr.const(1))),
+                [],
+            ),
+            "missing_guard": (difference, Expr.const(0), []),
+            "logical_for_arithmetic": (
+                Expr("shr", (Expr.const(1), x)),
+                Expr("sar", (Expr.const(1), x)),
+                [],
+            ),
+            "smt_zero_divisor": (Expr("mod", (x, Expr.const(0))), x, []),
         }
-        for name, assertion in cases.items():
+        for name, (lhs, rhs, assumptions) in cases.items():
             with self.subTest(name=name):
-                query = f"(set-logic QF_BV) {WORDS} (assert {assertion})"
-                self.assertFalse(lean_accepts(name, query))
+                ok, output = self.check(
+                    theorem(name, lhs, rhs, assumptions, "evm_decide 60")
+                )
+                self.assertFalse(ok)
+                # Preprocessing may refute a goal before it reaches the SAT solver.
+                self.assertRegex(output, "counterexample|reduced to False")
+        ok, output = self.check(
+            theorem("guarded", difference, Expr.const(0), [equal], "evm_decide 60")
+        )
+        self.assertTrue(ok, output)
 
     def test_hand_proofs_check_the_current_rules(self):
         proofs = {path.stem: path.read_text() for path in MANUAL_PROOFS.glob("*.lean")}
         self.assertTrue(proofs)
-        queries = {}
+        theorems = {}
         for path in DEFAULT_FILES:
             if not any(name.startswith(f"{path.stem}_L") for name in proofs):
                 continue
-            for line, query in obligations(path):
-                if f"{path.stem}_L{line}" in proofs:
-                    queries[f"{path.stem}_L{line}"] = query
+            for entry in obligations(path):
+                for name, lhs, rhs, assumptions in entry.get("theorems", []):
+                    if name in proofs:
+                        theorems[name] = theorem(
+                            name, lhs, rhs, assumptions, proofs[name]
+                        )
         # Every proof names a current rule; a moved or deleted rule fails here.
-        self.assertEqual(sorted(queries), sorted(proofs))
-        for name, query in queries.items():
-            with self.subTest(name=name):
-                self.assertTrue(
-                    lean_accepts(name, query, proofs[name], HELPERS.read_text())
+        self.assertEqual(sorted(theorems), sorted(proofs))
+        ok, output = self.check("\n".join(theorems.values()))
+        self.assertTrue(ok, output[-3000:])
+
+    def test_applicability_needs_a_witness_of_the_preconditions(self):
+        lhs, rhs, guards = lean_rule(
+            "(rule (simplify (Op.Sub a (iconst c))) (if-let true (u256_is_zero c)) a)"
+        )
+        vacuous = lean_rule(
+            "(rule (simplify (Op.Add a (iconst c)))"
+            " (if-let true (u256_lt c 1)) (if-let true (u256_gt c 1)) a)"
+        )
+        cases = (
+            ("found", (lhs, rhs, guards), "evm_decide 60"),
+            ("vacuous", vacuous, "evm_decide 60"),
+            # `sorry` is never accepted as a proof.
+            ("unproved", (lhs, rhs, guards), "sorry"),
+        )
+        results = {}
+        with tempfile.TemporaryDirectory() as directory:
+            for name, (left, right, assumptions), tactic in cases:
+                task = job(
+                    Path(directory),
+                    name,
+                    left,
+                    right,
+                    assumptions,
+                    tactic,
+                    60,
+                    self.lean_path,
                 )
+                results[name] = prove(task)[1]
+        found = results["found"]
+        self.assertEqual(found["status"], "proved", found)
+        self.assertEqual(found["witness"]["c"], "0x0")
+        self.assertEqual(results["vacuous"]["status"], "inapplicable", results)
+        self.assertEqual(results["unproved"]["status"], "failed", results)
 
 
 if __name__ == "__main__":
