@@ -4,3 +4,7 @@ rules:
   - ignore: true
     conditions:
       - expr: ActionName == "tempoxyz/gh-actions/.github/workflows/rust-deny.yml" && ActionVersion == "d5402286a7abdfb7232173b3228d56473feb8a66"
+  # Waive min-age for the reviewed v1 retry change; remove after 2026-10-09.
+  - min_age: 0
+    conditions:
+      - expr: ActionName == "dtolnay/rust-toolchain" && ActionVersion == "7e38f4b43b4db5c8dd498af069a4f6196df1d067"
