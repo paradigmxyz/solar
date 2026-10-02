@@ -5,21 +5,20 @@ fn @toHex() [selector=0xc5bec6fc, abi_wrapper, pure] {
   bb0:
     v33 = calldatasize
     v34 = lt v33, 36
-    jumpi v34, bb4, bb5
-  bb5:
     v35 = calldataload 4
     v36 = add v35, 4
     v37 = add v36, 32
     v38 = gt v35, 0xffffffffffffffff
     v39 = gt v37, v33
     v40 = or v38, v39
-    jumpi v40, bb4, bb6
-  bb6:
+    v131 = or v34, v40
+    jumpi v131, bb4, bb5
+  bb5:
     v42 = calldataload v36
     v44 = add v42, 63
     v45 = lt v44, v42
-    jumpi v45, bb7, bb8
-  bb8:
+    jumpi v45, bb6, bb7
+  bb7:
     v47 = and v44, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v90 = mload 64 !metadata(memory=scratch)
     v48 = inttoptr i256 v90 to memptr !metadata(memory=scratch)
@@ -27,14 +26,14 @@ fn @toHex() [selector=0xc5bec6fc, abi_wrapper, pure] {
     v92 = lt v91, v90
     v93 = gt v91, 0xffffffffffffffff
     v94 = or v92, v93
-    jumpi v94, bb7, bb10
-  bb10:
+    jumpi v94, bb6, bb9
+  bb9:
     mstore 64, v91 !metadata(memory=scratch)
     mstore v90, v42
     v49 = sub v33, v37
     v50 = gt v42, v49
-    jumpi v50, bb4, bb9
-  bb9:
+    jumpi v50, bb4, bb8
+  bb8:
     v85 = add v90, 32
     calldatacopy v85, v37, v42
     v2 = mload 64 !metadata(memory=scratch)
@@ -47,8 +46,8 @@ fn @toHex() [selector=0xc5bec6fc, abi_wrapper, pure] {
     v101 = ptrtoint memptr v48 to i256
     v129 = sub v7, v101
     v130 = trunc i256 v129 to i1
-    jumpi v130, bb11, bb1
-  bb11:
+    jumpi v130, bb10, bb1
+  bb10:
     v103 = add v101, 1
     v104 = mload v103
     v105 = and v104, 15
@@ -64,8 +63,8 @@ fn @toHex() [selector=0xc5bec6fc, abi_wrapper, pure] {
     v113 = inttoptr i256 v103 to memptr
     jump bb1
   bb1:
-    v8 = phi [bb9: v5], [bb3: v127], [bb11: v112]
-    v9 = phi [bb9: v48], [bb3: v128], [bb11: v113]
+    v8 = phi [bb8: v5], [bb3: v127], [bb10: v112]
+    v9 = phi [bb8: v48], [bb3: v128], [bb10: v113]
     v13 = ptrtoint memptr v9 to i256
     v16 = ne v13, v7
     jumpi v16, bb3, bb2
@@ -123,7 +122,7 @@ fn @toHex() [selector=0xc5bec6fc, abi_wrapper, pure] {
     v127 = add v29, 2
     v128 = inttoptr i256 v118 to memptr
     jump bb1
-  bb7:
+  bb6:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
     revert 28, 36
@@ -135,55 +134,53 @@ fn @sumWords() [selector=0x5a761098, abi_wrapper, pure] {
   bb0:
     v18 = calldatasize
     v19 = lt v18, 36
-    jumpi v19, bb4, bb5
-  bb5:
     v20 = calldataload 4
     v21 = add v20, 4
     v22 = add v21, 32
     v23 = gt v20, 0xffffffffffffffff
     v24 = gt v22, v18
     v25 = or v23, v24
-    jumpi v25, bb4, bb6
-  bb6:
+    v71 = or v19, v25
+    jumpi v71, bb4, bb5
+  bb5:
     v27 = calldataload v21
     v29 = shl 5, v27
     v31 = shr 5, v29
     v35 = ne v31, v27
-    jumpi v35, bb7, bb8
-  bb8:
     v36 = add v29, 32
     v37 = lt v36, v29
-    jumpi v37, bb7, bb9
-  bb9:
+    v72 = or v35, v37
+    jumpi v72, bb6, bb7
+  bb7:
     v50 = mload 64 !metadata(memory=scratch)
     v51 = add v50, v36
     v52 = lt v51, v50
     v53 = gt v51, 0xffffffffffffffff
     v54 = or v52, v53
-    jumpi v54, bb7, bb11
-  bb11:
+    jumpi v54, bb6, bb9
+  bb9:
     mstore 64, v51 !metadata(memory=scratch)
     mstore v50, v27
     v39 = sub v18, v22
     v40 = shr 5, v39
     v41 = gt v27, v40
-    jumpi v41, bb4, bb10
-  bb10:
+    jumpi v41, bb4, bb8
+  bb8:
     v46 = add v50, 32
     calldatacopy v46, v22, v29
     v5 = add v46, v29
     v68 = sub v5, v46
     v69 = shr 5, v68
     v70 = trunc i256 v69 to i1
-    jumpi v70, bb12, bb1
-  bb12:
+    jumpi v70, bb10, bb1
+  bb10:
     v59 = mload v46
     v60 = add 0, v59
     v61 = add v46, 32
     jump bb1
   bb1:
-    v7 = phi [bb10: v46], [bb3: v67], [bb12: v61]
-    v8 = phi [bb10: 0], [bb3: v66], [bb12: v60]
+    v7 = phi [bb8: v46], [bb3: v67], [bb10: v61]
+    v8 = phi [bb8: 0], [bb3: v66], [bb10: v60]
     v12 = ne v7, v5
     jumpi v12, bb3, bb2
   bb2:
@@ -197,7 +194,7 @@ fn @sumWords() [selector=0x5a761098, abi_wrapper, pure] {
     v66 = add v16, v65
     v67 = add v17, 32
     jump bb1
-  bb7:
+  bb6:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
     revert 28, 36

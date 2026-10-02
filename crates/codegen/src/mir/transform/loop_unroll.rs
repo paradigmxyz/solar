@@ -107,9 +107,9 @@ use super::loop_split::{rebuild_predecessors, retarget};
 use crate::{
     backend::evm::op,
     mir::{
-        BlockId, Callee, EffectKind, Function, FunctionId, Immediate, InstKind, Instruction,
-        MirType, Module, OpTraits, Terminator, Value, ValueId,
-        analysis::{Loop, LoopAnalyzer, LoopInfo, cold_functions},
+        BlockId, EffectKind, Function, FunctionId, Immediate, InstKind, Instruction, MirType,
+        Module, OpTraits, Terminator, Value, ValueId,
+        analysis::{Loop, LoopAnalyzer, LoopInfo, aborts, cold_functions},
         pass::{MirPass, run_function_pass},
     },
     target::{Cost, Target},
@@ -225,7 +225,7 @@ fn continues_to(
     let Some(terminator) = &func.blocks[block].terminator else { return false };
     let successors = terminator.successors();
     successors.contains(&target)
-        && successors.iter().all(|&successor| successor == target || is_cold(func, successor, cold))
+        && successors.iter().all(|&successor| successor == target || aborts(func, successor, cold))
 }
 
 /// Whether the backend rebuilds a word where it is read instead of keeping it live: a calldata
@@ -240,20 +240,6 @@ fn rebuilt_at_use(func: &Function, value: ValueId) -> bool {
             def.traits.contains(OpTraits::REMATERIALIZABLE) && def.effect != EffectKind::Pure
         }
     }
-}
-
-/// Whether a block aborts instead of continuing: it reverts, or calls a cold function.
-fn is_cold(func: &Function, block: BlockId, cold: &DenseBitSet<FunctionId>) -> bool {
-    let body = &func.blocks[block];
-    body.instructions.iter().any(|&inst| {
-        matches!(
-            func.inst(inst).kind,
-            InstKind::ICall { function: Callee::Function(function), .. } if cold.contains(function)
-        )
-    }) || matches!(
-        body.terminator,
-        Some(Terminator::Revert { .. } | Terminator::RevertReturndata | Terminator::Invalid)
-    ) || matches!(body.terminator, Some(Terminator::TailCall { function, .. }) if cold.contains(function))
 }
 
 fn plan(
@@ -294,12 +280,12 @@ fn plan(
     // Only a straight-line body gains: every branch inside it continues the loop on one arm
     // and aborts on the other, such as an arithmetic panic.
     for block in l.blocks.iter() {
-        if block == l.header || is_cold(func, block, cold) {
+        if block == l.header || aborts(func, block, cold) {
             continue;
         }
         let successors = func.blocks[block].terminator.as_ref()?.successors();
         let continuing: Vec<_> =
-            successors.iter().filter(|&&successor| !is_cold(func, successor, cold)).collect();
+            successors.iter().filter(|&&successor| !aborts(func, successor, cold)).collect();
         if continuing.len() != 1 || !l.blocks.contains(*continuing[0]) {
             return None;
         }

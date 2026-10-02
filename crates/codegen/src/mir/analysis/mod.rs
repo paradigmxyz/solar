@@ -26,7 +26,7 @@ mod call_graph;
 pub(crate) use call_graph::CallGraphInfo;
 
 mod cold;
-pub(crate) use cold::cold_functions;
+pub(crate) use cold::{aborts, cold_functions};
 
 mod liveness;
 pub(crate) use liveness::Liveness;
