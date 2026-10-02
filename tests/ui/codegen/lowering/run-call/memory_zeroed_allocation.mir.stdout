@@ -79,13 +79,13 @@ fn @readNested(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> i256 [selector
     v53 = eq v52, false
     icall panic_if<0x32>, v53
     v54 = memory_object_load_element memoryarray<1>, v23, v25
-    v55 = inttoptr i256 v54 to memoryarray
+    v55 = inttoptr i256 v54 to memptr
     v56 = eq v54, 0
     jumpi v56, bb10, bb11
   bb10:
     v57 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
     set_memory_object_len memoryarray, v57, 0
-    v58 = ptrtoint memoryarray v57 to i256
+    v58 = ptrtoint memptr v57 to i256
     memory_object_store_element memoryarray<1>, v23, v25, v58
     jump bb11
   bb11:
@@ -122,7 +122,7 @@ fn @readNested(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> i256 [selector
     v47 = lt v26, v46
     v48 = eq v47, false
     icall panic_if<0x32>, v48
-    v49 = ptrtoint memoryarray v45 to i256
+    v49 = ptrtoint memptr v45 to i256
     memory_object_store_element memoryarray<1>, v23, v26, v49
     jump bb9
   bb9:
@@ -131,7 +131,7 @@ fn @readNested(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> i256 [selector
     v50 = checked_add u256, v26, 1
     jump bb4
   bb2:
-    v19 = ptrtoint memoryarray 96 to i256
+    v19 = ptrtoint memptr 96 to i256
     memory_object_store_element memoryarray<1>, v16, v17, v19
     v20 = add v17, 1
     jump bb1
@@ -140,7 +140,7 @@ fn @readNested(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> i256 [selector
 fn @readFixed(arg0: i256) -> i256 [selector=0x6a11db72, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
-    v1 = ptrtoint memoryfixedarray v0 to i256
+    v1 = ptrtoint memptr v0 to i256
     memory_zero v1, 96
     v2 = lt arg0, 3
     v3 = eq v2, false
@@ -183,14 +183,14 @@ fn @readStatic(arg0: i256, arg1: i256) -> i256 [selector=0xf90f6c35, pure, abi_p
     v25 = eq v24, false
     icall panic_if<0x32>, v25
     v26 = memory_object_load_element memoryarray<1>, v16, arg1
-    v27 = inttoptr i256 v26 to memoryfixedarray
+    v27 = inttoptr i256 v26 to memptr
     v28 = eq v26, 0
     jumpi v28, bb4, bb5
   bb4:
     v29 = alloc memoryfixedarray<4, 1>, exact, uninitialized, infallible, 128
-    v30 = ptrtoint memoryfixedarray v29 to i256
+    v30 = ptrtoint memptr v29 to i256
     memory_zero v30, 128
-    v31 = ptrtoint memoryfixedarray v29 to i256
+    v31 = ptrtoint memptr v29 to i256
     memory_object_store_element memoryarray<1>, v16, arg1, v31
     jump bb5
   bb5:
@@ -202,9 +202,9 @@ fn @readStatic(arg0: i256, arg1: i256) -> i256 [selector=0xf90f6c35, pure, abi_p
     ret v35
   bb2:
     v19 = alloc memoryfixedarray<4, 1>, exact, uninitialized, infallible, 128 !metadata(preserves_fmp)
-    v20 = ptrtoint memoryfixedarray v19 to i256
+    v20 = ptrtoint memptr v19 to i256
     memory_zero v20, 128
-    v21 = ptrtoint memoryfixedarray v19 to i256
+    v21 = ptrtoint memptr v19 to i256
     memory_object_store_element memoryarray<1>, v16, v17, v21
     v22 = add v17, 1
     jump bb1

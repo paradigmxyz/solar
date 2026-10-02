@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_constructor_params.mir (before lower-abi) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_constructor_params.mir (after lower-abi) ===
   @module LowerAbiConstructorParams
-- fn @constructor(arg0: memoryfixedarray, arg1: i256) [constructor, abi_params=[array<2, array<2, u256>>, u256]] {
+- fn @constructor(arg0: memptr, arg1: i256) [constructor, abi_params=[array<2, array<2, u256>>, u256]] {
 + fn @constructor(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) [abi_wrapper, constructor] {
     bb0:
 -     v0 = memory_object_load_element memoryfixedarray<2, 1>, arg0, 1
@@ -26,7 +26,7 @@
 +     jump bb2
 +   bb2:
 +     v0 = memory_object_load_element memoryfixedarray<2, 1>, v9, 1
-      v1 = inttoptr i256 v0 to memoryfixedarray
+      v1 = inttoptr i256 v0 to memptr
       v2 = memory_object_load_element memoryfixedarray<2, 1>, v1, 0
 -     v3 = add v2, arg1
 +     v3 = add v2, arg4
@@ -42,7 +42,7 @@
 +     v16 = lt v15, 2
 +     jumpi v16, bb9, bb10
 +   bb10:
-+     v21 = ptrtoint memoryfixedarray v14 to i256
++     v21 = ptrtoint memptr v14 to i256
 +     memory_object_store_element memoryfixedarray<2, 1>, v9, v10, v21
 +     v22 = add v10, 1
 +     jump bb5

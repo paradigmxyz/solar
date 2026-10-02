@@ -3,7 +3,7 @@
 @types
   struct0: {i256, i256, i256, i256, i256, i256}
 
-fn @encodeDynamicStatic(arg0: calldataslice) -> memorybytes [selector=0x199f835c, abi_params=[array<_, array<2, u256>>], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @encodeDynamicStatic(arg0: calldataslice) -> memptr [selector=0x199f835c, abi_params=[array<_, array<2, u256>>], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = slice_len arg0
     v1 = slice_ptr arg0
@@ -99,7 +99,7 @@ fn @encodeDynamicStatic(arg0: calldataslice) -> memorybytes [selector=0x199f835c
     v93 = lt v92, 2
     jumpi v93, bb27, bb28
   bb28:
-    v97 = ptrtoint memoryfixedarray v91 to i256
+    v97 = ptrtoint memptr v91 to i256
     memory_object_store_element memoryarray<1>, v85, v86, v97
     v98 = add v86, 1
     jump bb23
@@ -111,14 +111,14 @@ fn @encodeDynamicStatic(arg0: calldataslice) -> memorybytes [selector=0x199f835c
     jump bb26
   bb13:
     v51 = memory_object_load_element memoryarray<1>, v21, v49
-    v52 = inttoptr i256 v51 to memoryfixedarray
+    v52 = inttoptr i256 v51 to memptr
     v53 = eq v51, 0
     jumpi v53, bb15, bb16
   bb15:
     v54 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
-    v55 = ptrtoint memoryfixedarray v54 to i256
+    v55 = ptrtoint memptr v54 to i256
     memory_zero v55, 64
-    v56 = ptrtoint memoryfixedarray v54 to i256
+    v56 = ptrtoint memptr v54 to i256
     memory_object_store_element memoryarray<1>, v21, v49, v56
     jump bb16
   bb16:
@@ -178,7 +178,7 @@ fn @encodeDynamicStatic(arg0: calldataslice) -> memorybytes [selector=0x199f835c
     v32 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
     v33 = make_calldata_slice v31, 64
     memory_object_copy_from_slice memoryfixedarray, v32, v33
-    v34 = ptrtoint memoryfixedarray v32 to i256
+    v34 = ptrtoint memptr v32 to i256
     memory_object_store_element memoryarray<1>, v21, v22, v34
     v35 = add v22, 1
     jump bb1
@@ -320,14 +320,14 @@ fn @readDynamicStorage(arg0: calldataslice) -> struct0 [selector=0x26153afa, abi
     ret v133
   bb13:
     v51 = memory_object_load_element memoryarray<1>, v21, v49
-    v52 = inttoptr i256 v51 to memoryfixedarray
+    v52 = inttoptr i256 v51 to memptr
     v53 = eq v51, 0
     jumpi v53, bb15, bb16
   bb15:
     v54 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
-    v55 = ptrtoint memoryfixedarray v54 to i256
+    v55 = ptrtoint memptr v54 to i256
     memory_zero v55, 64
-    v56 = ptrtoint memoryfixedarray v54 to i256
+    v56 = ptrtoint memptr v54 to i256
     memory_object_store_element memoryarray<1>, v21, v49, v56
     jump bb16
   bb16:
@@ -387,13 +387,13 @@ fn @readDynamicStorage(arg0: calldataslice) -> struct0 [selector=0x26153afa, abi
     v32 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
     v33 = make_calldata_slice v31, 64
     memory_object_copy_from_slice memoryfixedarray, v32, v33
-    v34 = ptrtoint memoryfixedarray v32 to i256
+    v34 = ptrtoint memptr v32 to i256
     memory_object_store_element memoryarray<1>, v21, v22, v34
     v35 = add v22, 1
     jump bb1
 }
 
-fn @encodeStaticStatic(arg0: calldataslice) -> memorybytes [selector=0x60e1923b, abi_params=[array<2, array<2, u256>>], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @encodeStaticStatic(arg0: calldataslice) -> memptr [selector=0x60e1923b, abi_params=[array<2, array<2, u256>>], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = calldatasize
@@ -432,7 +432,7 @@ fn @encodeStaticStatic(arg0: calldataslice) -> memorybytes [selector=0x60e1923b,
     v42 = lt v41, 2
     jumpi v42, bb26, bb27
   bb27:
-    v46 = ptrtoint memoryfixedarray v40 to i256
+    v46 = ptrtoint memptr v40 to i256
     memory_object_store_element memoryfixedarray<2, 1>, v35, v36, v46
     v47 = add v36, 1
     jump bb22
@@ -449,7 +449,7 @@ fn @encodeStaticStatic(arg0: calldataslice) -> memorybytes [selector=0x60e1923b,
     jumpi v17, bb7, bb8
   bb8:
     v26 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
-    v27 = ptrtoint memoryfixedarray v26 to i256
+    v27 = ptrtoint memptr v26 to i256
     memory_zero v27, 64
     jump bb16
   bb16:
@@ -492,7 +492,7 @@ fn @encodeStaticStatic(arg0: calldataslice) -> memorybytes [selector=0x60e1923b,
     sstore v21, 0 !metadata(storage=symbolic(v21))
     jump bb15
   bb13:
-    v23 = inttoptr i256 v18 to memoryfixedarray
+    v23 = inttoptr i256 v18 to memptr
     v24 = memory_object_load_element memoryfixedarray<2, 1>, v23, v19
     sstore v21, v24 !metadata(storage=symbolic(v21))
     jump bb15
@@ -505,7 +505,7 @@ fn @encodeStaticStatic(arg0: calldataslice) -> memorybytes [selector=0x60e1923b,
     v9 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
     v10 = make_calldata_slice v8, 64
     memory_object_copy_from_slice memoryfixedarray, v9, v10
-    v11 = ptrtoint memoryfixedarray v9 to i256
+    v11 = ptrtoint memptr v9 to i256
     memory_object_store_element memoryfixedarray<2, 1>, v4, v5, v11
     v12 = add v5, 1
     jump bb1

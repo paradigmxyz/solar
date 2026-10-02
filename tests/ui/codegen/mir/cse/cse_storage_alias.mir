@@ -72,7 +72,7 @@ fn @clear_clobbers_storage(arg0: i256, arg1: i256) -> i256 {
 // CHECK: {{^[ +].*}}sload 0
 // CHECK: {{^[ +].*}}store_storage_bytes arg0, arg1
 // CHECK: {{^[ +].*}}sload 0
-fn @store_bytes_clobbers_storage(arg0: i256, arg1: memorybytes) -> i256 {
+fn @store_bytes_clobbers_storage(arg0: i256, arg1: memptr) -> i256 {
   bb0:
     v0 = sload 0
     store_storage_bytes arg0, arg1

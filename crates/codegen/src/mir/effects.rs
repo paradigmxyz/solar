@@ -130,7 +130,6 @@ impl InstKind {
             | Self::Sext(..)
             | Self::PtrToInt(..)
             | Self::IntToPtr(..)
-            | Self::Bitcast(..)
             | Self::Add(..)
             | Self::Sub(..)
             | Self::Mul(..)

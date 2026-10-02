@@ -184,7 +184,7 @@ fn @pushStruct(arg0: calldataslice) -> i256 [selector=0x1696eca8, abi_params=[tu
   bb3:
     v31 = make_calldata_slice v17, 96
     memory_object_copy_from_slice memoryfixedarray, v21, v31
-    v32 = ptrtoint memoryfixedarray v21 to i256
+    v32 = ptrtoint memptr v21 to i256
     memory_object_store_field memorystruct<4>, v1, 2, v32
     v33 = add v0, 160
     v34 = calldatasize
@@ -228,7 +228,7 @@ fn @pushStruct(arg0: calldataslice) -> i256 [selector=0x1696eca8, abi_params=[tu
     v63 = lt v62, v44
     jumpi v63, bb5, bb6
   bb6:
-    v71 = ptrtoint memoryarray v61 to i256
+    v71 = ptrtoint memptr v61 to i256
     memory_object_store_field memorystruct<4>, v1, 3, v71
     v72 = sload 1 !metadata(storage=slot(1))
     v73 = gt v72, 0xffffffffffffffff
@@ -263,7 +263,7 @@ fn @pushStruct(arg0: calldataslice) -> i256 [selector=0x1696eca8, abi_params=[tu
   bb9:
     v120 = add v77, 2
     v121 = memory_object_load_field memorystruct<4>, v1, 3
-    v122 = inttoptr i256 v121 to memoryarray
+    v122 = inttoptr i256 v121 to memptr
     v123 = memory_object_len memoryarray, v122
     v124 = sload v120 !metadata(storage=offset(v77, 2))
     v125 = gt v124, v123
@@ -367,7 +367,7 @@ fn @pushStruct(arg0: calldataslice) -> i256 [selector=0x1696eca8, abi_params=[tu
     v228 = checked_add u256, v208, v227
     ret v228
   bb19:
-    v144 = inttoptr i256 v121 to memoryarray
+    v144 = inttoptr i256 v121 to memptr
     v145 = memory_object_load_element memoryarray<1>, v144, v142
     v146 = storage_array_data_slot v120
     v147 = div v142, 16
@@ -421,7 +421,7 @@ fn @pushStruct(arg0: calldataslice) -> i256 [selector=0x1696eca8, abi_params=[tu
     sstore v97, v118 !metadata(storage=symbolic(v97))
     jump bb12
   bb10:
-    v101 = inttoptr i256 v93 to memoryfixedarray
+    v101 = inttoptr i256 v93 to memptr
     v102 = memory_object_load_element memoryfixedarray<3, 1>, v101, v94
     v103 = mul v99, 8
     v104 = shl v103, 0xffff

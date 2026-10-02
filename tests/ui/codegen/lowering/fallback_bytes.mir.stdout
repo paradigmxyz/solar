@@ -3,7 +3,7 @@
 @types
   struct0: {i256, i256}
 
-fn @invoke(arg0: memorybytes) -> struct0 [selector=0xa6514259, abi_params=[bytes], abi_returns=[word, word], abi_return_params=[u256, bytes32]] {
+fn @invoke(arg0: memptr) -> struct0 [selector=0xa6514259, abi_params=[bytes], abi_returns=[word, word], abi_return_params=[u256, bytes32]] {
   bb0:
     v0 = address
     v1 = gas
@@ -18,7 +18,7 @@ fn @invoke(arg0: memorybytes) -> struct0 [selector=0xa6514259, abi_params=[bytes
     ret v8
 }
 
-fn @fallback(arg0: calldataslice) -> memorybytes [fallback] {
+fn @fallback(arg0: calldataslice) -> memptr [fallback] {
   bb0:
     v0 = slice_ptr arg0
     v1 = slice_len arg0

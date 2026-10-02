@@ -627,16 +627,15 @@ fn can_encode_dynamic_return_in_place(
     fresh_object_returns: &DenseBitSet<FunctionId>,
 ) -> bool {
     let [object] = args else { return false };
-    let kind = match &*layout.types {
-        [AbiType::DynamicArray { element, location: SliceLocation::Memory }]
-            if matches!(element.as_ref(), AbiType::Word(None)) =>
-        {
-            MemoryObjectKind::DynamicArray
+    let word_array_or_bytes = match &*layout.types {
+        [AbiType::DynamicArray { element, location: SliceLocation::Memory }] => {
+            matches!(element.as_ref(), AbiType::Word(None))
         }
-        [AbiType::Bytes(SliceLocation::Memory)] => MemoryObjectKind::Bytes,
-        _ => return false,
+        [AbiType::Bytes(SliceLocation::Memory)] => true,
+        _ => false,
     };
-    func.value_ty(*object) == Some(MirType::MemoryObject(kind))
+    word_array_or_bytes
+        && func.value_ty(*object) == Some(MirType::MemPtr)
         && fresh_memory_object(func, *object, fresh_object_returns)
 }
 
@@ -1295,7 +1294,7 @@ fn effective_slice_location(
 ) -> SliceLocation {
     match func.value_ty(value) {
         Some(MirType::Slice(location)) => location,
-        Some(MirType::I256 | MirType::MemoryObject(_)) => SliceLocation::Memory,
+        Some(MirType::I256 | MirType::MemPtr) => SliceLocation::Memory,
         _ if matches!(func.value(value), Value::Inst(inst) if matches!(
             func.inst(*inst).kind,
             InstKind::MemoryObjectLoadField { .. } | InstKind::MemoryObjectLoadElement { .. }
@@ -1552,7 +1551,7 @@ fn encode_word_array(
         builder.switch_to_block(done);
         return builder.phi(vec![(preheader, data_dest), (backedge, next_destination)]);
     }
-    builder.copy_slice_data(location, data_dest, data_source, bytes);
+    copy_source_data(builder, location, data_dest, data_source, bytes);
     tail
 }
 
@@ -1627,8 +1626,34 @@ fn encode_bytes(
         SliceLocation::Calldata | SliceLocation::Returndata => builder.slice_ptr(value),
     };
     let tail = builder.add(data_dest, padded);
-    builder.copy_slice_data(location, data_dest, data_source, len);
+    copy_source_data(builder, location, data_dest, data_source, len);
     tail
+}
+
+/// Copies a source value's data into the output buffer.
+///
+/// Source objects live below the free-memory pointer, and the output is either untouched memory
+/// above it or a fresh allocation, so memory copies run forward, like solc's pre-Cancun
+/// `copy_memory_to_memory`.
+fn copy_source_data(
+    builder: &mut FunctionBuilder<'_>,
+    location: SliceLocation,
+    dest: ValueId,
+    source: ValueId,
+    size: ValueId,
+) {
+    match location {
+        // mcopy dest, source, size !metadata(disjoint)
+        SliceLocation::Memory => {
+            let copy = builder.mcopy_heap(dest, source, size);
+            builder.func_mut().inst_mut(copy).metadata.set_disjoint(true);
+        }
+        // calldatacopy dest, source, size
+        // returndatacopy dest, source, size
+        SliceLocation::Calldata | SliceLocation::Returndata => {
+            builder.copy_slice_data(location, dest, source, size)
+        }
+    }
 }
 
 fn memory_object_len(
@@ -1676,8 +1701,7 @@ fn literal_objects_at_encodes(func: &Function) -> FxHashSet<ValueId> {
             }
             if let InstKind::AbiEncode { args, .. } = kind {
                 for &object in args.iter() {
-                    if func.value_ty(object) == Some(MirType::MemoryObject(MemoryObjectKind::Bytes))
-                    {
+                    if func.value_ty(object) == Some(MirType::MemPtr) {
                         if available.contains(&object) {
                             objects.insert(object);
                         } else {
@@ -1733,7 +1757,7 @@ fn literal_store_in_bounds(func: &Function, object: ValueId, end: Option<u64>) -
 /// uses are initialization operations preceding this encoding in the same block.
 /// The caller must also exclude opaque observers using the original IR.
 fn literal_bytes(func: &Function, object: ValueId, block: BlockId) -> Option<Vec<u8>> {
-    if func.value_ty(object) != Some(MirType::MemoryObject(MemoryObjectKind::Bytes)) {
+    if func.value_ty(object) != Some(MirType::MemPtr) {
         return None;
     }
     let Value::Inst(defining_inst) = func.value(object) else { return None };

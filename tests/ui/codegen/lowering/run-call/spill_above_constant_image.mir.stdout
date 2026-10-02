@@ -108,13 +108,13 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     v38 = memory_object_len memorybytes, v35
     v39 = eq v38, 173
     icall require<short_string>, v39, 6, 0x6c656e6774680000000000000000000000000000000000000000000000000000
-    v40 = ptrtoint memorybytes v35 to i256
+    v40 = ptrtoint memptr v35 to i256
     v41 = add v40, 109
     v42 = mload v41
-    v43 = ptrtoint memorybytes v35 to i256
+    v43 = ptrtoint memptr v35 to i256
     v44 = add v43, 141
     v45 = mload v44
-    v46 = ptrtoint memorybytes v35 to i256
+    v46 = ptrtoint memptr v35 to i256
     v47 = add v46, 173
     v48 = mload v47
     v49 = eq v42, 0x7a69

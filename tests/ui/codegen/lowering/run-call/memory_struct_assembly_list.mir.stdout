@@ -3,14 +3,14 @@
 @types
   struct0: {i256, i256}
 
-fn @empty() -> memorystruct [pure] {
+fn @empty() -> memptr [pure] {
   bb0:
     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<1>, v0, 0, 0
     ret v0
 }
 
-fn @append.1(arg0: memorystruct, arg1: i256) -> memorystruct [pure] {
+fn @append.1(arg0: memptr, arg1: i256) -> memptr [pure] {
   bb0:
     v0 = shl 48, arg1
     v1 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
@@ -20,15 +20,15 @@ fn @append.1(arg0: memorystruct, arg1: i256) -> memorystruct [pure] {
     ret arg0
 }
 
-fn @append.2(arg0: memorystruct, arg1: memorystruct) -> memorystruct [pure] {
+fn @append.2(arg0: memptr, arg1: memptr) -> memptr [pure] {
   bb0:
-    v0 = ptrtoint memorystruct arg1 to i256
+    v0 = ptrtoint memptr arg1 to i256
     v1 = shl 8, v0
     v2 = or 3, v1
     v3 = shl 40, v2
     v4 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<1>, v4, 0, 0
-    v5 = ptrtoint memorystruct v4 to i256
+    v5 = ptrtoint memptr v4 to i256
     mstore v5, v3
     icall @updateTail, arg0, v4
     ret arg0
@@ -53,7 +53,7 @@ fn @defaultLocal() -> i256 [selector=0x2f73c827, view, abi_params=[], abi_return
     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<1>, v0, 0, 0
     icall @dirtyFreeMemory
-    v1 = ptrtoint memorystruct v0 to i256
+    v1 = ptrtoint memptr v0 to i256
     v2 = mload v1
     v3 = eq v2, 0
     v4 = zext i1 v3 to i256
@@ -64,7 +64,7 @@ fn @defaultReturn() -> i256 [selector=0x099c80fd, view, abi_params=[], abi_retur
   bb0:
     icall @dirtyFreeMemory
     v0 = icall @empty
-    v1 = ptrtoint memorystruct v0 to i256
+    v1 = ptrtoint memptr v0 to i256
     v2 = mload v1
     v3 = eq v2, 0
     v4 = zext i1 v3 to i256
@@ -77,7 +77,7 @@ fn @firstAppend() -> i256 [selector=0x9d2b282b, view, abi_params=[], abi_returns
     memory_object_store_field memorystruct<1>, v0, 0, 0
     icall @dirtyFreeMemory
     v1 = icall @append.1, v0, 7
-    v2 = ptrtoint memorystruct v1 to i256
+    v2 = ptrtoint memptr v1 to i256
     v3 = mload v2
     v4 = and v3, 0xffffffffff
     v5 = shr 40, v3
@@ -103,7 +103,7 @@ fn @secondAppend() -> i256 [selector=0xdce19125, view, abi_params=[], abi_return
     icall @dirtyFreeMemory
     v1 = icall @append.1, v0, 7
     v2 = icall @append.1, v1, 9
-    v3 = ptrtoint memorystruct v2 to i256
+    v3 = ptrtoint memptr v2 to i256
     v4 = mload v3
     v5 = and v4, 0xffffffffff
     v6 = shr 40, v4
@@ -149,7 +149,7 @@ fn @nestedListEncoding() -> struct0 [selector=0xb61d93a1, pure, abi_params=[], a
     v13 = icall @append.2, v9, v12
     v14 = icall @append.2, v6, v13
     v15 = mload 64 !metadata(memory=scratch)
-    v16 = ptrtoint memorystruct v14 to i256
+    v16 = ptrtoint memptr v14 to i256
     v17 = icall @encodeList, v16, v15
     v18 = sub v17, v15
     v19 = mload v15
@@ -158,24 +158,24 @@ fn @nestedListEncoding() -> struct0 [selector=0xb61d93a1, pure, abi_params=[], a
     ret v21
 }
 
-fn @updateTail(arg0: memorystruct, arg1: memorystruct) [pure] {
+fn @updateTail(arg0: memptr, arg1: memptr) [pure] {
   bb0:
-    v0 = ptrtoint memorystruct arg0 to i256
+    v0 = ptrtoint memptr arg0 to i256
     v1 = mload v0
-    v2 = ptrtoint memorystruct arg0 to i256
+    v2 = ptrtoint memptr arg0 to i256
     v3 = mload v2
-    v4 = ptrtoint memorystruct arg1 to i256
+    v4 = ptrtoint memptr arg1 to i256
     v5 = shr v3, v4
     v6 = or v5, v1
     v7 = shr 40, v6
-    v8 = ptrtoint memorystruct arg1 to i256
+    v8 = ptrtoint memptr arg1 to i256
     v9 = xor v7, v8
     v10 = shl 40, v9
     v11 = xor v10, v6
-    v12 = ptrtoint memorystruct arg0 to i256
+    v12 = ptrtoint memptr arg0 to i256
     mstore v12, v11
     v13 = mload v7
-    v14 = ptrtoint memorystruct arg1 to i256
+    v14 = ptrtoint memptr arg1 to i256
     v15 = or v13, v14
     mstore v7, v15
     ret

@@ -73,7 +73,7 @@
       ret v5
   }
   
-  fn @argument_header(arg0: memorybytes) -> i256 {
+  fn @argument_header(arg0: memptr) -> i256 {
     bb0:
       v0 = alloc memorybytes, exact, uninitialized, infallible, 64
       v1 = memory_object_len memorybytes, arg0

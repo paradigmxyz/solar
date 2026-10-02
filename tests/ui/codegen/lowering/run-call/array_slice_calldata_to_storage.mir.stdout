@@ -79,20 +79,20 @@ fn @copy(arg0: calldataslice, arg1: i256, arg2: i256) -> i256 [selector=0xaabf50
     ret v64
   bb7:
     v49 = memory_object_load_element memoryarray<1>, v37, v47
-    v50 = inttoptr i256 v49 to memoryarray
+    v50 = inttoptr i256 v49 to memptr
     v51 = eq v49, 0
     jumpi v51, bb9, bb10
   bb9:
     v52 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
     set_memory_object_len memoryarray, v52, 0
-    v53 = ptrtoint memoryarray v52 to i256
+    v53 = ptrtoint memptr v52 to i256
     memory_object_store_element memoryarray<1>, v37, v47, v53
     jump bb10
   bb10:
     v54 = phi [bb7: v50], [bb9: v52]
     v55 = storage_array_data_slot 0
     v56 = add v55, v47
-    v57 = ptrtoint memoryarray v54 to i256
+    v57 = ptrtoint memptr v54 to i256
     sstore v56, v57 !metadata(storage=symbolic(v56))
     v58 = add v47, 1
     jump bb6

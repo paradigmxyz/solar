@@ -21,8 +21,8 @@
 +     v8 = ptrtoint memptr v3 to i256
 +     mstore v8, v7
 +     v9 = memory_object_len memorybytes, v0
-+     v10 = ptrtoint memorybytes v0 to i256
-+     v11 = ptrtoint memorybytes 0 to i256
++     v10 = ptrtoint memptr v0 to i256
++     v11 = ptrtoint memptr 0 to i256
 +     v12 = eq v10, v11
 +     v13 = eq v12, false
 +     v14 = zext i1 v13 to i256
@@ -37,7 +37,7 @@
 +     v21 = memory_object_data memorybytes, v0
 +     v22 = add v19, v18
 +     v23 = ptrtoint memptr v21 to i256
-+     mcopy v19, v23, v15 !metadata(memory=heap)
++     mcopy v19, v23, v15 !metadata(memory=heap, disjoint)
 +     v24 = ptrtoint memptr v3 to i256
 +     v25 = sub v22, v24
 +     v26 = add v25, 0
@@ -68,8 +68,8 @@
 +     v8 = ptrtoint memptr v3 to i256
 +     mstore v8, v7
 +     v9 = memory_object_len memorybytes, v0
-+     v10 = ptrtoint memorybytes v0 to i256
-+     v11 = ptrtoint memorybytes 0 to i256
++     v10 = ptrtoint memptr v0 to i256
++     v11 = ptrtoint memptr 0 to i256
 +     v12 = eq v10, v11
 +     v13 = eq v12, false
 +     v14 = zext i1 v13 to i256
@@ -84,7 +84,7 @@
 +     v21 = memory_object_data memorybytes, v0
 +     v22 = add v19, v18
 +     v23 = ptrtoint memptr v21 to i256
-+     mcopy v19, v23, v15 !metadata(memory=heap)
++     mcopy v19, v23, v15 !metadata(memory=heap, disjoint)
 +     v24 = ptrtoint memptr v3 to i256
 +     v25 = sub v22, v24
 +     v26 = add v25, 0
@@ -112,8 +112,8 @@
 +     v7 = ptrtoint memptr v2 to i256
 +     mstore v7, v6
 +     v8 = memory_object_len memorybytes, v0
-+     v9 = ptrtoint memorybytes v0 to i256
-+     v10 = ptrtoint memorybytes 0 to i256
++     v9 = ptrtoint memptr v0 to i256
++     v10 = ptrtoint memptr 0 to i256
 +     v11 = eq v9, v10
 +     v12 = eq v11, false
 +     v13 = zext i1 v12 to i256
@@ -128,7 +128,7 @@
 +     v20 = memory_object_data memorybytes, v0
 +     v21 = add v18, v17
 +     v22 = ptrtoint memptr v20 to i256
-+     mcopy v18, v22, v14 !metadata(memory=heap)
++     mcopy v18, v22, v14 !metadata(memory=heap, disjoint)
 +     v23 = ptrtoint memptr v2 to i256
 +     v24 = sub v21, v23
 +     v25 = add v24, 0

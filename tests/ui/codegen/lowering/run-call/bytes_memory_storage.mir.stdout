@@ -56,7 +56,7 @@ fn @dirty() -> i256 [selector=0x7dce0fd0, abi_params=[], abi_returns=[word], abi
     v2 = alloc memorybytes, exact, zeroed, panic, v1
     set_memory_object_len memorybytes, v2, 3
     v3 = not 0
-    v4 = ptrtoint memorybytes v2 to i256
+    v4 = ptrtoint memptr v2 to i256
     v5 = add v4, 32
     mstore v5, v3
     icall @store_storage_bytes, 0, v2
@@ -131,7 +131,7 @@ fn @dirty() -> i256 [selector=0x7dce0fd0, abi_params=[], abi_returns=[word], abi
     ret v56
 }
 
-fn @store_storage_bytes(arg0: i256, arg1: memorybytes) {
+fn @store_storage_bytes(arg0: i256, arg1: memptr) {
   bb0:
     store_storage_bytes arg0, arg1
     ret

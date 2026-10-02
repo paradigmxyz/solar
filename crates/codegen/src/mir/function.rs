@@ -144,17 +144,6 @@ impl Function {
         })
     }
 
-    /// Returns mutable component types for representation lowering.
-    pub(crate) fn return_components_mut(&mut self) -> &mut [MirType] {
-        if let Some(components) = &mut self.return_abi {
-            components
-        } else if self.return_type == MirType::Void {
-            &mut []
-        } else {
-            std::slice::from_mut(&mut self.return_type)
-        }
-    }
-
     /// Returns whether this function is an external ABI entry.
     pub(crate) fn is_external_entry(&self) -> bool {
         self.selector.is_some()

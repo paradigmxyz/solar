@@ -46,8 +46,6 @@ pub(crate) enum MemoryBase {
     Allocation(InstId),
     /// An unrecycled allocation site with multiple dynamic loop instances.
     DynamicAllocation(InstId),
-    /// A nominal memory-object argument, without allocation ownership.
-    Param(ValueId),
     /// A symbolic MIR value.
     Value(ValueId),
 }
@@ -87,12 +85,6 @@ impl MemoryAddress {
         Self { region, base: MemoryBase::Value(value), offset: 0 }
     }
 
-    /// Creates the address of a memory object passed in as an argument.
-    #[must_use]
-    pub(crate) const fn param(value: ValueId) -> Self {
-        Self { region: MemoryRegion::Heap, base: MemoryBase::Param(value), offset: 0 }
-    }
-
     /// Returns the absolute address, if known.
     #[must_use]
     pub(crate) const fn as_absolute(self) -> Option<u64> {
@@ -101,7 +93,6 @@ impl MemoryAddress {
             MemoryBase::InternalFrame
             | MemoryBase::Allocation(_)
             | MemoryBase::DynamicAllocation(_)
-            | MemoryBase::Param(_)
             | MemoryBase::Value(_) => None,
         }
     }
@@ -114,7 +105,6 @@ impl MemoryAddress {
             MemoryBase::Absolute
             | MemoryBase::Allocation(_)
             | MemoryBase::DynamicAllocation(_)
-            | MemoryBase::Param(_)
             | MemoryBase::Value(_) => None,
         }
     }
@@ -879,7 +869,6 @@ impl AliasAnalysis {
                 InstKind::SlicePtr(predecessor)
                 | InstKind::IntToPtr(predecessor)
                 | InstKind::PtrToInt(predecessor, 256)
-                | InstKind::Bitcast(predecessor)
                 | InstKind::MemoryObjectData(predecessor, _)
                 | InstKind::MemoryObjectFieldAddr { object: predecessor, .. } => {
                     propagate(*predecessor);
@@ -920,7 +909,7 @@ impl AliasAnalysis {
             | InstKind::MakeSlice { .. }
             | InstKind::SlicePtr(_)
             | InstKind::IntToPtr(..)
-            | InstKind::PtrToInt(_, 256) | InstKind::Bitcast(_)
+            | InstKind::PtrToInt(_, 256)
             | InstKind::MemoryObjectData(_, _)
             | InstKind::MemoryObjectFieldAddr { .. }
             | InstKind::MemoryObjectElementAddr { .. }
@@ -1654,8 +1643,7 @@ impl AliasAnalysis {
         // disjoint from every other allocation site. Two accesses to the same
         // loop-instance allocation may hit the same or different instances, so
         // they stay `MayAlias`; a dynamic allocation against a
-        // non-allocation base is likewise `MayAlias`. A memory-object
-        // argument has a nominal type but no allocation ownership proof.
+        // non-allocation base is likewise `MayAlias`.
         let first_alloc = Self::allocation_base(first.address.base);
         let second_alloc = Self::allocation_base(second.address.base);
         match (first_alloc, second_alloc) {
@@ -1759,14 +1747,8 @@ impl AliasAnalysis {
             Value::Immediate(immediate) => {
                 Some(MemoryAddress::absolute(immediate.as_u256()?.try_into().ok()?))
             }
-            // Preserve parameter identity without assuming an allocation origin.
-            Value::Arg(index) => {
-                Some(if matches!(func.arg_ty(*index), crate::mir::MirType::MemoryObject(_)) {
-                    MemoryAddress::param(value)
-                } else {
-                    MemoryAddress::symbolic(value, MemoryRegion::Unknown)
-                })
-            }
+            // An opaque pointer argument implies no allocation origin or region.
+            Value::Arg(_) => Some(MemoryAddress::symbolic(value, MemoryRegion::Unknown)),
             Value::Undef(_) | Value::Error(_) => None,
             Value::Inst(inst_id) => match func.inst(*inst_id).kind {
                 InstKind::InternalFrameAddr(offset) => Some(MemoryAddress::internal_frame(offset)),
@@ -1796,7 +1778,7 @@ impl AliasAnalysis {
                         Some(MemoryAddress::symbolic(value, self.pointer_region(func, value, 0)))
                     })
                 }
-                InstKind::IntToPtr(ptr) | InstKind::PtrToInt(ptr, 256) | InstKind::Bitcast(ptr) => {
+                InstKind::IntToPtr(ptr) | InstKind::PtrToInt(ptr, 256) => {
                     self.memory_address_with_depth(func, ptr, depth + 1)
                 }
                 InstKind::SlicePtr(slice) => self.slice_pointer_address(func, slice, depth),
@@ -1918,14 +1900,7 @@ impl AliasAnalysis {
             return MemoryRegion::Unknown;
         }
         let Value::Inst(inst_id) = func.value(value) else {
-            return match func.value(value) {
-                Value::Arg(index)
-                    if matches!(func.arg_ty(*index), crate::mir::MirType::MemoryObject(_)) =>
-                {
-                    MemoryRegion::Heap
-                }
-                _ => MemoryRegion::Unknown,
-            };
+            return MemoryRegion::Unknown;
         };
         match func.inst(*inst_id).kind {
             InstKind::InternalFrameAddr(_) => MemoryRegion::InternalFrame,
@@ -1946,7 +1921,6 @@ impl AliasAnalysis {
             InstKind::Sub(base, _)
             | InstKind::IntToPtr(base)
             | InstKind::PtrToInt(base, 256)
-            | InstKind::Bitcast(base)
             | InstKind::MemoryObjectData(base, _)
             | InstKind::MemoryObjectFieldAddr { object: base, .. }
             | InstKind::MemoryObjectElementAddr { object: base, .. } => {
@@ -1999,6 +1973,15 @@ impl AliasAnalysis {
         self.provenance(func).allocations.get(&target).is_some_and(|facts| facts.dynamic)
     }
 
+    /// Returns whether an allocation runs before anything can recycle the FMP, so it
+    /// never overlaps memory allocated earlier.
+    pub(crate) fn allocation_is_unrecycled(&self, func: &Function, target: InstId) -> bool {
+        self.provenance(func)
+            .allocations
+            .get(&target)
+            .is_some_and(|facts| facts.unique || facts.dynamic)
+    }
+
     /// Returns whether an instruction may recycle or arbitrarily replace the FMP.
     #[must_use]
     pub(crate) fn instruction_may_reset_fmp(&self, func: &Function, inst: InstId) -> bool {
@@ -2027,8 +2010,8 @@ impl AliasAnalysis {
             | InstKind::MemoryObjectCopyFromSlice { object, .. }
             | InstKind::MemoryObjectCopyFromSliceAt { object, .. }
             | InstKind::MemoryObjectCopy { destination: object, .. } => {
-                // Object types do not prove ownership: raw pointers can be rebound
-                // to objects, and lowering exposes their writes to reserved memory.
+                // Object layouts do not prove ownership: any pointer can be accessed
+                // as an object, and lowering exposes their writes to reserved memory.
                 Self::range_may_overlap_fmp(func, object, None)
             }
             InstKind::MCopy(dest, _, size)
@@ -2095,9 +2078,9 @@ impl AliasAnalysis {
             {
                 Some(EvmMemoryLayout::HEAP_START)
             }
-            InstKind::PtrToInt(value, 256)
-            | InstKind::Bitcast(value)
-            | InstKind::IntToPtr(value) => Self::pointer_lower_bound(func, *value, depth + 1),
+            InstKind::PtrToInt(value, 256) | InstKind::IntToPtr(value) => {
+                Self::pointer_lower_bound(func, *value, depth + 1)
+            }
             InstKind::InternalFrameAddr(offset) => EvmMemoryLayout::HEAP_START.checked_add(*offset),
             InstKind::MemoryObjectData(object, kind) => {
                 Self::pointer_lower_bound(func, *object, depth + 1)?
@@ -2199,7 +2182,7 @@ mod tests {
         let cases = {
             let mut builder = FunctionBuilder::new(&mut func);
             let slot = builder.add_param(MirType::I256);
-            let object = builder.add_param(MirType::MemoryObject(MemoryObjectKind::Bytes));
+            let object = builder.add_param(MirType::MemPtr);
             let calldata = builder.add_param(MirType::Slice(SliceLocation::Calldata));
             let cases = [
                 (InstKind::StorageBytesStore(slot, object), Some(32), false),
@@ -2280,7 +2263,7 @@ mod tests {
                             crate::mir::AllocationSemantics::INTERNAL,
                         )
                     } else {
-                        builder.add_param(MirType::MemoryObject(layout.kind()))
+                        builder.add_param(MirType::MemPtr)
                     }
                 });
                 let [bytes, structure, array] = objects;

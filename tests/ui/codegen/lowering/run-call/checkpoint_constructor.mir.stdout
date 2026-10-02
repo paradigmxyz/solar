@@ -10,7 +10,7 @@
 @immutables
   offset: u96
 
-fn @constructor(arg0: memoryarray, arg1: i256, arg2: i256) [constructor, abi_params=[array<_, u96>, address, u96]] {
+fn @constructor(arg0: memptr, arg1: i256, arg2: i256) [constructor, abi_params=[array<_, u96>, address, u96]] {
   bb0:
     storeimmutable offset, arg2
     jump bb1

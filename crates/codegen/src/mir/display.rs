@@ -427,8 +427,7 @@ fn display_inst_kind<'a>(
         | InstKind::Zext(value)
         | InstKind::Sext(value, _, _)
         | InstKind::PtrToInt(value, _)
-        | InstKind::IntToPtr(value)
-        | InstKind::Bitcast(value) => {
+        | InstKind::IntToPtr(value) => {
             let from = func.value_ty(*value).unwrap_or(MirType::I256);
             let to = result_ty.unwrap_or(MirType::I256);
             write!(f, "{} {from} ", kind.mnemonic())?;
@@ -506,8 +505,8 @@ fn display_inst_kind<'a>(
                 "memory_object_load_field {layout}, {}, {field}",
                 display_val(*object, func)
             )?;
-            if let Some(ty @ MirType::MemoryObject(_)) = result_ty {
-                write!(f, ", {ty}")?;
+            if result_ty == Some(MirType::MemPtr) {
+                write!(f, ", memptr")?;
             }
             Ok(())
         }
@@ -524,8 +523,8 @@ fn display_inst_kind<'a>(
                 display_val(*object, func),
                 display_val(*index, func)
             )?;
-            if let Some(ty @ MirType::MemoryObject(_)) = result_ty {
-                write!(f, ", {ty}")?;
+            if result_ty == Some(MirType::MemPtr) {
+                write!(f, ", memptr")?;
             }
             Ok(())
         }
@@ -898,6 +897,7 @@ fn display_metadata<'a>(
         Unchecked,
         DeferredAlloc,
         PreservesFmp,
+        Disjoint,
         LoopDepth(u16),
         Effect(EffectKind),
     }
@@ -924,6 +924,7 @@ fn display_metadata<'a>(
             MetadataField::Unchecked => write!(f, "unchecked"),
             MetadataField::DeferredAlloc => write!(f, "deferred_alloc"),
             MetadataField::PreservesFmp => write!(f, "preserves_fmp"),
+            MetadataField::Disjoint => write!(f, "disjoint"),
             MetadataField::LoopDepth(loop_depth) => write!(f, "loop_depth={loop_depth}"),
             MetadataField::Effect(effect) => write!(f, "effect={}", effect.name()),
         })
@@ -940,7 +941,7 @@ fn display_metadata<'a>(
     }
 
     fmt::from_fn(move |f| {
-        let mut fields = ArrayVec::<MetadataField<'_>, 10>::new();
+        let mut fields = ArrayVec::<MetadataField<'_>, 11>::new();
 
         if let Some(storage) = metadata.storage_alias() {
             fields.push(MetadataField::Storage(storage, func));
@@ -973,6 +974,9 @@ fn display_metadata<'a>(
         }
         if metadata.preserves_fmp() {
             fields.push(MetadataField::PreservesFmp);
+        }
+        if metadata.disjoint() {
+            fields.push(MetadataField::Disjoint);
         }
         if metadata.loop_depth != 0 {
             fields.push(MetadataField::LoopDepth(metadata.loop_depth));

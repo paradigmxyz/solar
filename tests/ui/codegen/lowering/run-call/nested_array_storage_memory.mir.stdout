@@ -194,12 +194,12 @@ fn @constructor() [constructor] {
     v156 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
     memory_object_store_element memoryfixedarray<2, 1>, v156, 0, 10
     memory_object_store_element memoryfixedarray<2, 1>, v156, 1, 11
-    v157 = ptrtoint memoryfixedarray v156 to i256
+    v157 = ptrtoint memptr v156 to i256
     memory_object_store_element memoryfixedarray<2, 1>, v155, 0, v157
     v158 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
     memory_object_store_element memoryfixedarray<2, 1>, v158, 0, 12
     memory_object_store_element memoryfixedarray<2, 1>, v158, 1, 13
-    v159 = ptrtoint memoryfixedarray v158 to i256
+    v159 = ptrtoint memptr v158 to i256
     memory_object_store_element memoryfixedarray<2, 1>, v155, 1, v159
     jump bb75
   bb75:
@@ -215,7 +215,7 @@ fn @constructor() [constructor] {
     jumpi v164, bb78, bb79
   bb79:
     v173 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
-    v174 = ptrtoint memoryfixedarray v173 to i256
+    v174 = ptrtoint memptr v173 to i256
     memory_zero v174, 64
     jump bb87
   bb87:
@@ -258,7 +258,7 @@ fn @constructor() [constructor] {
     sstore v168, 0 !metadata(storage=symbolic(v168))
     jump bb86
   bb84:
-    v170 = inttoptr i256 v165 to memoryfixedarray
+    v170 = inttoptr i256 v165 to memptr
     v171 = memory_object_load_element memoryfixedarray<2, 1>, v170, v166
     sstore v168, v171 !metadata(storage=symbolic(v168))
     jump bb86
@@ -361,13 +361,13 @@ fn @constructor() [constructor] {
     jump bb27
   bb13:
     v21 = memory_object_load_element memoryarray<1>, v0, v19
-    v22 = inttoptr i256 v21 to memoryarray
+    v22 = inttoptr i256 v21 to memptr
     v23 = eq v21, 0
     jumpi v23, bb15, bb16
   bb15:
     v24 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
     set_memory_object_len memoryarray, v24, 0
-    v25 = ptrtoint memoryarray v24 to i256
+    v25 = ptrtoint memptr v24 to i256
     memory_object_store_element memoryarray<1>, v0, v19, v25
     jump bb16
   bb16:
@@ -429,13 +429,13 @@ fn @constructor() [constructor] {
     v17 = add v13, 1
     jump bb9
   bb2:
-    v3 = ptrtoint memoryarray 96 to i256
+    v3 = ptrtoint memptr 96 to i256
     memory_object_store_element memoryarray<1>, v0, v1, v3
     v4 = add v1, 1
     jump bb1
 }
 
-fn @test1() -> memoryarray [selector=0x6b59084d, view, abi_params=[], abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, u256>>]] {
+fn @test1() -> memptr [selector=0x6b59084d, view, abi_params=[], abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, u256>>]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = mul v0, 1
@@ -470,13 +470,13 @@ fn @test1() -> memoryarray [selector=0x6b59084d, view, abi_params=[], abi_return
     v20 = storage_array_data_slot 0
     v21 = add v20, v18
     v22 = icall @load_storage_word_array, v21
-    v23 = ptrtoint memoryarray v22 to i256
+    v23 = ptrtoint memptr v22 to i256
     memory_object_store_element memoryarray<1>, v17, v18, v23
     v24 = add v18, 1
     jump bb1
 }
 
-fn @test2() -> memoryfixedarray [selector=0x66e41cb7, view, abi_params=[], abi_returns=[array<2, memory_array<word>>], abi_return_params=[array<2, array<_, u256>>]] {
+fn @test2() -> memptr [selector=0x66e41cb7, view, abi_params=[], abi_returns=[array<2, memory_array<word>>], abi_return_params=[array<2, array<_, u256>>]] {
   bb0:
     v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     jump bb1
@@ -496,18 +496,18 @@ fn @test2() -> memoryfixedarray [selector=0x66e41cb7, view, abi_params=[], abi_r
   bb5:
     v8 = add 1, v6
     v9 = icall @load_storage_word_array, v8
-    v10 = ptrtoint memoryarray v9 to i256
+    v10 = ptrtoint memptr v9 to i256
     memory_object_store_element memoryfixedarray<2, 1>, v5, v6, v10
     v11 = add v6, 1
     jump bb4
   bb2:
-    v3 = ptrtoint memoryarray 96 to i256
+    v3 = ptrtoint memptr 96 to i256
     memory_object_store_element memoryfixedarray<2, 1>, v0, v1, v3
     v4 = add v1, 1
     jump bb1
 }
 
-fn @test3() -> memoryarray [selector=0x0a8e8e01, view, abi_params=[], abi_returns=[memory_array<array<2, word>>], abi_return_params=[array<_, array<2, u256>>]] {
+fn @test3() -> memptr [selector=0x0a8e8e01, view, abi_params=[], abi_returns=[memory_array<array<2, word>>], abi_return_params=[array<_, array<2, u256>>]] {
   bb0:
     v0 = sload 3 !metadata(storage=slot(3))
     v1 = mul v0, 1
@@ -549,7 +549,7 @@ fn @test3() -> memoryarray [selector=0x0a8e8e01, view, abi_params=[], abi_return
     v25 = lt v24, 2
     jumpi v25, bb5, bb6
   bb6:
-    v29 = ptrtoint memoryfixedarray v23 to i256
+    v29 = ptrtoint memptr v23 to i256
     memory_object_store_element memoryarray<1>, v17, v18, v29
     v30 = add v18, 1
     jump bb1
@@ -561,7 +561,7 @@ fn @test3() -> memoryarray [selector=0x0a8e8e01, view, abi_params=[], abi_return
     jump bb4
 }
 
-fn @test4() -> memoryfixedarray [selector=0x8f0d282d, view, abi_params=[], abi_returns=[array<2, array<2, word>>], abi_return_params=[array<2, array<2, u256>>]] {
+fn @test4() -> memptr [selector=0x8f0d282d, view, abi_params=[], abi_returns=[array<2, array<2, word>>], abi_return_params=[array<2, array<2, u256>>]] {
   bb0:
     v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     jump bb1
@@ -588,7 +588,7 @@ fn @test4() -> memoryfixedarray [selector=0x8f0d282d, view, abi_params=[], abi_r
     v14 = lt v13, 2
     jumpi v14, bb8, bb9
   bb9:
-    v18 = ptrtoint memoryfixedarray v12 to i256
+    v18 = ptrtoint memptr v12 to i256
     memory_object_store_element memoryfixedarray<2, 1>, v7, v8, v18
     v19 = add v8, 1
     jump bb4
@@ -600,15 +600,15 @@ fn @test4() -> memoryfixedarray [selector=0x8f0d282d, view, abi_params=[], abi_r
     jump bb7
   bb2:
     v3 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    v4 = ptrtoint memoryfixedarray v3 to i256
+    v4 = ptrtoint memptr v3 to i256
     memory_zero v4, 64
-    v5 = ptrtoint memoryfixedarray v3 to i256
+    v5 = ptrtoint memptr v3 to i256
     memory_object_store_element memoryfixedarray<2, 1>, v0, v1, v5
     v6 = add v1, 1
     jump bb1
 }
 
-fn @load_storage_word_array(arg0: i256) -> memoryarray {
+fn @load_storage_word_array(arg0: i256) -> memptr {
   bb0:
     v0 = load_storage_array u256, arg0
     ret v0

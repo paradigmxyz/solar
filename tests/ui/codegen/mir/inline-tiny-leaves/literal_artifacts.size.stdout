@@ -12,13 +12,13 @@
       stop
   }
   
-  fn @entry() -> memorybytes [selector=0x01020304] {
+  fn @entry() -> memptr [selector=0x01020304] {
     bb0:
       v0 = icall @literal
       ret v0
   }
   
-  fn @literal() -> memorybytes {
+  fn @literal() -> memptr {
     bb0:
       v0 = alloc memorybytes, exact, uninitialized, infallible, 64
       set_memory_object_len memorybytes, v0, 1
@@ -28,7 +28,7 @@
       ret v0
   }
   
-  fn @shared() -> memorybytes [selector=0x01020305] {
+  fn @shared() -> memptr [selector=0x01020305] {
     bb0:
       v0 = icall @shared_literal
       v1 = icall @shared_literal
@@ -36,7 +36,7 @@
       ret v1
   }
   
-  fn @shared_literal() -> memorybytes {
+  fn @shared_literal() -> memptr {
     bb0:
       v0 = alloc memorybytes, exact, uninitialized, infallible, 64
       set_memory_object_len memorybytes, v0, 1
@@ -49,13 +49,13 @@
       tail_call @tail_literal
   }
   
-  fn @call_entry() -> memorybytes [selector=0x01020307] {
+  fn @call_entry() -> memptr [selector=0x01020307] {
     bb0:
       v0 = icall @tail_literal
       ret v0
   }
   
-  fn @tail_literal() -> memorybytes {
+  fn @tail_literal() -> memptr {
     bb0:
       v0 = alloc memorybytes, exact, uninitialized, infallible, 64
       set_memory_object_len memorybytes, v0, 1
@@ -63,13 +63,13 @@
       ret v0
   }
   
-  fn @effect_entry() -> memorybytes [selector=0x01020308] {
+  fn @effect_entry() -> memptr [selector=0x01020308] {
     bb0:
       v0 = icall @effect_literal
       ret v0
   }
   
-  fn @effect_literal() -> memorybytes {
+  fn @effect_literal() -> memptr {
     bb0:
       v0 = alloc memorybytes, exact, uninitialized, infallible, 64
       set_memory_object_len memorybytes, v0, 1
@@ -78,26 +78,26 @@
       ret v0
   }
   
-  fn @unknown() -> memorybytes {
+  fn @unknown() -> memptr {
     bb0:
       v0 = icall @indirect
       ret v0
   }
   
-  fn @indirect() -> memorybytes {
+  fn @indirect() -> memptr {
     bb0:
       v0 = icall @unknown_literal
       sstore 2, 1
       ret v0
   }
   
-  fn @unknown_entry() -> memorybytes [selector=0x01020309] {
+  fn @unknown_entry() -> memptr [selector=0x01020309] {
     bb0:
       v0 = icall @unknown_literal
       ret v0
   }
   
-  fn @unknown_literal() -> memorybytes {
+  fn @unknown_literal() -> memptr {
     bb0:
       v0 = alloc memorybytes, exact, uninitialized, infallible, 64
       set_memory_object_len memorybytes, v0, 1
@@ -105,13 +105,13 @@
       ret v0
   }
   
-  fn @preserved_entry() -> memorybytes [selector=0x0102030a] {
+  fn @preserved_entry() -> memptr [selector=0x0102030a] {
     bb0:
       v0 = icall @preserved_literal
       ret v0
   }
   
-  fn @preserved_literal() -> memorybytes {
+  fn @preserved_literal() -> memptr {
     bb0:
       v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
       set_memory_object_len memorybytes, v0, 1
@@ -133,13 +133,13 @@
       stop
   }
   
-  fn @entry() -> memorybytes [selector=0x01020304] {
+  fn @entry() -> memptr [selector=0x01020304] {
     bb0:
       v0 = icall @literal
       ret v0
   }
   
-  fn @literal() -> memorybytes {
+  fn @literal() -> memptr {
     bb0:
       v0 = alloc memorybytes, exact, uninitialized, infallible, 64
       set_memory_object_len memorybytes, v0, 1
@@ -149,7 +149,7 @@
       ret v0
   }
   
-  fn @shared() -> memorybytes [selector=0x01020305] {
+  fn @shared() -> memptr [selector=0x01020305] {
     bb0:
       v0 = icall @shared_literal
       v1 = icall @shared_literal
@@ -157,7 +157,7 @@
       ret v1
   }
   
-  fn @shared_literal() -> memorybytes {
+  fn @shared_literal() -> memptr {
     bb0:
       v0 = alloc memorybytes, exact, uninitialized, infallible, 64
       set_memory_object_len memorybytes, v0, 1
@@ -170,13 +170,13 @@
       tail_call @tail_literal
   }
   
-  fn @call_entry() -> memorybytes [selector=0x01020307] {
+  fn @call_entry() -> memptr [selector=0x01020307] {
     bb0:
       v0 = icall @tail_literal
       ret v0
   }
   
-  fn @tail_literal() -> memorybytes {
+  fn @tail_literal() -> memptr {
     bb0:
       v0 = alloc memorybytes, exact, uninitialized, infallible, 64
       set_memory_object_len memorybytes, v0, 1
@@ -184,13 +184,13 @@
       ret v0
   }
   
-  fn @effect_entry() -> memorybytes [selector=0x01020308] {
+  fn @effect_entry() -> memptr [selector=0x01020308] {
     bb0:
       v0 = icall @effect_literal
       ret v0
   }
   
-  fn @effect_literal() -> memorybytes {
+  fn @effect_literal() -> memptr {
     bb0:
       v0 = alloc memorybytes, exact, uninitialized, infallible, 64
       set_memory_object_len memorybytes, v0, 1
@@ -199,26 +199,26 @@
       ret v0
   }
   
-  fn @unknown() -> memorybytes {
+  fn @unknown() -> memptr {
     bb0:
       v0 = icall @indirect
       ret v0
   }
   
-  fn @indirect() -> memorybytes {
+  fn @indirect() -> memptr {
     bb0:
       v0 = icall @unknown_literal
       sstore 2, 1
       ret v0
   }
   
-  fn @unknown_entry() -> memorybytes [selector=0x01020309] {
+  fn @unknown_entry() -> memptr [selector=0x01020309] {
     bb0:
       v0 = icall @unknown_literal
       ret v0
   }
   
-  fn @unknown_literal() -> memorybytes {
+  fn @unknown_literal() -> memptr {
     bb0:
       v0 = alloc memorybytes, exact, uninitialized, infallible, 64
       set_memory_object_len memorybytes, v0, 1
@@ -226,13 +226,13 @@
       ret v0
   }
   
-  fn @preserved_entry() -> memorybytes [selector=0x0102030a] {
+  fn @preserved_entry() -> memptr [selector=0x0102030a] {
     bb0:
       v0 = icall @preserved_literal
       ret v0
   }
   
-  fn @preserved_literal() -> memorybytes {
+  fn @preserved_literal() -> memptr {
     bb0:
       v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
       set_memory_object_len memorybytes, v0, 1
@@ -254,13 +254,13 @@
       stop
   }
   
-  fn @entry() -> memorybytes [selector=0x01020304] {
+  fn @entry() -> memptr [selector=0x01020304] {
     bb0:
       v0 = icall @literal
       ret v0
   }
   
-  fn @literal() -> memorybytes {
+  fn @literal() -> memptr {
     bb0:
       v0 = alloc memorybytes, exact, uninitialized, infallible, 64
       set_memory_object_len memorybytes, v0, 1
@@ -270,7 +270,7 @@
       ret v0
   }
   
-  fn @shared() -> memorybytes [selector=0x01020305] {
+  fn @shared() -> memptr [selector=0x01020305] {
     bb0:
       v0 = icall @shared_literal
       v1 = icall @shared_literal
@@ -278,7 +278,7 @@
       ret v1
   }
   
-  fn @shared_literal() -> memorybytes {
+  fn @shared_literal() -> memptr {
     bb0:
       v0 = alloc memorybytes, exact, uninitialized, infallible, 64
       set_memory_object_len memorybytes, v0, 1
@@ -291,13 +291,13 @@
       tail_call @tail_literal
   }
   
-  fn @call_entry() -> memorybytes [selector=0x01020307] {
+  fn @call_entry() -> memptr [selector=0x01020307] {
     bb0:
       v0 = icall @tail_literal
       ret v0
   }
   
-  fn @tail_literal() -> memorybytes {
+  fn @tail_literal() -> memptr {
     bb0:
       v0 = alloc memorybytes, exact, uninitialized, infallible, 64
       set_memory_object_len memorybytes, v0, 1
@@ -305,13 +305,13 @@
       ret v0
   }
   
-  fn @effect_entry() -> memorybytes [selector=0x01020308] {
+  fn @effect_entry() -> memptr [selector=0x01020308] {
     bb0:
       v0 = icall @effect_literal
       ret v0
   }
   
-  fn @effect_literal() -> memorybytes {
+  fn @effect_literal() -> memptr {
     bb0:
       v0 = alloc memorybytes, exact, uninitialized, infallible, 64
       set_memory_object_len memorybytes, v0, 1
@@ -320,26 +320,26 @@
       ret v0
   }
   
-  fn @unknown() -> memorybytes {
+  fn @unknown() -> memptr {
     bb0:
       v0 = icall @indirect
       ret v0
   }
   
-  fn @indirect() -> memorybytes {
+  fn @indirect() -> memptr {
     bb0:
       v0 = icall @unknown_literal
       sstore 2, 1
       ret v0
   }
   
-  fn @unknown_entry() -> memorybytes [selector=0x01020309] {
+  fn @unknown_entry() -> memptr [selector=0x01020309] {
     bb0:
       v0 = icall @unknown_literal
       ret v0
   }
   
-  fn @unknown_literal() -> memorybytes {
+  fn @unknown_literal() -> memptr {
     bb0:
       v0 = alloc memorybytes, exact, uninitialized, infallible, 64
       set_memory_object_len memorybytes, v0, 1
@@ -347,13 +347,13 @@
       ret v0
   }
   
-  fn @preserved_entry() -> memorybytes [selector=0x0102030a] {
+  fn @preserved_entry() -> memptr [selector=0x0102030a] {
     bb0:
       v0 = icall @preserved_literal
       ret v0
   }
   
-  fn @preserved_literal() -> memorybytes {
+  fn @preserved_literal() -> memptr {
     bb0:
       v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
       set_memory_object_len memorybytes, v0, 1

@@ -1187,7 +1187,7 @@ class RuleTests(unittest.TestCase):
             for form, line in forms(source[start:])
             if form[0] == "rule"
         ]
-        self.assertEqual(len(rules), 26)
+        self.assertEqual(len(rules), 21)
         for rule in rules:
             with self.subTest(rule=rule.form):
                 cx = Context()

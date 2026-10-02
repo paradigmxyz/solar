@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/lower-memory-objects/lower_memory_objects.mir (before lower-memory-objects) ===
 + // === ROOT/tests/ui/codegen/mir/lower-memory-objects/lower_memory_objects.mir (after lower-memory-objects) ===
   @module LowerMemoryObjects
-- fn @objects(arg0: memorybytes, arg1: memoryarray, arg2: memorystruct, arg3: memoryfixedarray) {
+- fn @objects(arg0: memptr, arg1: memptr, arg2: memptr, arg3: memptr) {
 + fn @objects(arg0: memptr, arg1: memptr, arg2: memptr, arg3: memptr) [may_return_memory] {
     bb0:
 -     v0 = alloc memorybytes, exact, zeroed, panic, 96
@@ -42,7 +42,7 @@
       stop
   }
   
-- fn @copy_from_slice(arg0: memorybytes, arg1: memoryslice, arg2: calldataslice, arg3: returndataslice) {
+- fn @copy_from_slice(arg0: memptr, arg1: memoryslice, arg2: calldataslice, arg3: returndataslice) {
 + fn @copy_from_slice(arg0: memptr, arg1: memoryslice, arg2: calldataslice, arg3: returndataslice) [may_return_memory] {
     bb0:
 -     memory_object_copy_from_slice memorybytes, arg0, arg1
@@ -66,7 +66,7 @@
       stop
   }
   
-- fn @copy_object(arg0: memorybytes, arg1: memorybytes, arg2: i256) {
+- fn @copy_object(arg0: memptr, arg1: memptr, arg2: i256) {
 + fn @copy_object(arg0: memptr, arg1: memptr, arg2: i256) [may_return_memory] {
     bb0:
 -     memory_object_copy memorybytes, arg0, memorybytes, arg1, arg2
@@ -78,22 +78,12 @@
       stop
   }
   
-- fn @raw_pointer(arg0: i256) -> memorybytes {
-+ fn @raw_pointer(arg0: i256) -> memptr [may_return_memory] {
-    bb0:
--     v0 = inttoptr i256 arg0 to memorybytes
-+     v0 = inttoptr i256 arg0 to memptr
-      ret v0
-  }
-  
-- fn @word_carrier(arg0: memorystruct) -> i256 {
+- fn @word_carrier(arg0: memptr) -> i256 {
 + fn @word_carrier(arg0: memptr) -> i256 [may_return_memory] {
     bb0:
--     v0 = ptrtoint memorystruct arg0 to i256
--     v1 = inttoptr i256 v0 to memorybytes
+      v0 = ptrtoint memptr arg0 to i256
+      v1 = inttoptr i256 v0 to memptr
 -     v2 = memory_object_len memorybytes, v1
-+     v0 = ptrtoint memptr arg0 to i256
-+     v1 = inttoptr i256 v0 to memptr
 +     v2 = mload v0
       ret v2
   }
@@ -101,13 +91,13 @@
   fn @unreachable_cast_cycle() -> i256 {
     bb0:
       ret 0
-    bb1:
-      v0 = bitcast i256 v1 to i256
-      v1 = bitcast i256 v0 to i256
-      ret v0
+-   bb1:
+-     v0 = inttoptr i256 v1 to memptr
+-     v1 = ptrtoint memptr v0 to i256
+-     ret v1
   }
   
-- fn @merged_allocations() -> memorybytes {
+- fn @merged_allocations() -> memptr {
 + fn @merged_allocations() -> memptr [may_return_memory] {
     bb0:
 -     v0 = alloc memorybytes, exact, uninitialized, infallible, 32

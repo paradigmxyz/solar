@@ -159,7 +159,7 @@ fn @view() [view] {
 // CHECK: = icall sha256<>, arg0
 // CHECK: = icall ripemd160<>, arg0
 // CHECK: icall ecrecover<>, 0, 0, 0, 0
-fn @precompiles(arg0: memorybytes) -> i256 {
+fn @precompiles(arg0: memptr) -> i256 {
   bb0:
     icall sha256<>, arg0
     icall ripemd160<>, arg0
@@ -169,7 +169,7 @@ fn @precompiles(arg0: memorybytes) -> i256 {
 
 // CHECK-LABEL: fn @concatenate
 // CHECK: icall concat<memorybytes, bytes2>, arg0,
-fn @concatenate(arg0: memorybytes) -> memorybytes {
+fn @concatenate(arg0: memptr) -> memptr {
   bb0:
     v0 = icall concat<memorybytes, bytes2>, arg0, 0x1234000000000000000000000000000000000000000000000000000000000000
     ret v0
@@ -241,7 +241,6 @@ fn @integer_undef() -> i24 {
 // CHECK: sext i1 arg1 to i256
 // CHECK: ptrtoint memptr arg2 to i160
 // CHECK: inttoptr i256 arg0 to memptr
-// CHECK: bitcast memptr arg2 to memorybytes
 fn @llvm_casts(arg0: i256, arg1: i1, arg2: memptr) -> memptr {
   bb0:
     v0 = trunc i256 arg0 to i1
@@ -249,15 +248,14 @@ fn @llvm_casts(arg0: i256, arg1: i1, arg2: memptr) -> memptr {
     v2 = sext i1 arg1 to i256
     v3 = ptrtoint memptr arg2 to i160
     v4 = inttoptr i256 arg0 to memptr
-    v5 = bitcast memptr arg2 to memorybytes
     ret v4
 }
 
 // CHECK-LABEL: fn @cast_undef
-// CHECK: bitcast memptr undef to memorybytes
-fn @cast_undef() -> memorybytes {
+// CHECK: inttoptr i256 undef to memptr
+fn @cast_undef() -> memptr {
   bb0:
-    v0 = bitcast memptr undef to memorybytes
+    v0 = inttoptr i256 undef to memptr
     ret v0
 }
 

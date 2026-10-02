@@ -168,7 +168,6 @@ impl<'gcx> EvmCodegen<'gcx> {
         match address.base {
             MemoryBase::Allocation(_)
             | MemoryBase::DynamicAllocation(_)
-            | MemoryBase::Param(_)
             | MemoryBase::InternalFrame => false,
             MemoryBase::Absolute => {
                 address.offset < EvmMemoryLayout::HEAP_START.saturating_add(SPILL_HAZARD_BOUND)
@@ -314,8 +313,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     }
                     InstKind::Sub(base, _)
                     | InstKind::IntToPtr(base)
-                    | InstKind::PtrToInt(base, 256)
-                    | InstKind::Bitcast(base) => derive(*base, visiting, memo),
+                    | InstKind::PtrToInt(base, 256) => derive(*base, visiting, memo),
                     InstKind::And(first, second) if aligned_mask(*second) => {
                         derive(*first, visiting, memo)
                     }
