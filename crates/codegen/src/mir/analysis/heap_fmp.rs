@@ -2,8 +2,8 @@
 //!
 //! The free memory pointer starts at the heap floor in every ABI wrapper. These
 //! helpers decide whether a function can only keep it in the heap from there, and
-//! recognize the one compiler pattern that may overwrite its slot harmlessly: return
-//! data copied to scratch right before a revert that returns it.
+//! recognize a write that may overwrite its slot harmlessly: return data copied to
+//! scratch right before a revert that returns it, as bubbling a failed call does.
 
 use crate::mir::{
     BasicBlock, Callee, Function, InstId, InstKind, Terminator, Value, ValueId,
@@ -116,15 +116,18 @@ fn heap_values(func: &Function) -> DenseBitSet<ValueId> {
 ///
 /// The block copies the latest call's return data and reverts with exactly that range,
 /// as bubbling a failed call does, with no call that could replace the return data and
-/// nothing after the copy but `returndatasize`.
+/// nothing after the copy but `returndatasize`. Sizes read in other blocks may follow
+/// another call, so they must be the same value.
 pub(crate) fn bubbled_return_data_copy(func: &Function, block: &BasicBlock) -> Option<InstId> {
     let Some(Terminator::Revert { offset, size }) = block.terminator else { return None };
     let same = |a: ValueId, b: ValueId| {
         a == b || func.value_u256(a).is_some_and(|value| func.value_u256(b) == Some(value))
     };
+    // Two `returndatasize` reads agree when no call runs between them; the block has none.
     let returndatasize = |value| {
         matches!(func.value(value), Value::Inst(inst)
-            if matches!(func.inst(*inst).kind, InstKind::ReturnDataSize))
+            if matches!(func.inst(*inst).kind, InstKind::ReturnDataSize)
+                && block.instructions.contains(inst))
     };
     let copies_range = |dest, len| {
         same(dest, offset) && (same(len, size) || (returndatasize(len) && returndatasize(size)))

@@ -1,0 +1,29 @@
+// === ROOT/tests/ui/codegen/lowering/memory_bytes_view_bubble.sol:MemoryBytesViewBubble ===
+@module MemoryBytesViewBubble
+fn @fallback() [fallback] {
+  bb0:
+    mstore 0, 0x1111 !metadata(memory=scratch)
+    revert 0, 256
+}
+
+fn @bubbleStale(arg0: memptr) [selector=0xa3128cb9, abi_params=[bytes], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = memory_object_len memorybytes, arg0
+    v1 = address
+    v2 = zext i160 v1 to i256
+    v3 = returndatasize
+    v4 = gas
+    v5 = call v4, v2, 0, 0, 0, 0, 0
+    v6 = zext i1 v5 to i256
+    v7 = ne v6, 0
+    jumpi v7, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    returndatacopy 0, 0, v3 !metadata(memory=scratch)
+    v8 = returndatasize
+    revert 0, v8
+  bb1:
+    mstore 0, v0 !metadata(memory=scratch)
+    returndata 0, 32
+}

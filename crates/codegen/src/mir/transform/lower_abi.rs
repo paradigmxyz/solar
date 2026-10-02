@@ -902,8 +902,9 @@ impl LowerAbiCx {
                 || Self::points_into_new_object(func, offset, 0)
         };
         let raw_read = func.blocks.iter().any(|block| match block.terminator {
+            Some(Terminator::ReturnData { offset, size }) => !known(offset, size),
             // Bubbled return data overwrites the range it then returns.
-            Some(Terminator::Revert { offset, size } | Terminator::ReturnData { offset, size }) => {
+            Some(Terminator::Revert { offset, size }) => {
                 !known(offset, size) && bubbled_return_data_copy(func, block).is_none()
             }
             _ => false,

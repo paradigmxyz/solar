@@ -132,30 +132,7 @@ fn run_memory_dse(
 /// function it calls; see [`fmp_grows_in_heap`]. A tail call counts as a call when its
 /// target may return to the caller's caller.
 fn heap_read_functions(module: &Module, call_graph: &CallGraphInfo) -> DenseBitSet<FunctionId> {
-    let tail_calls = |func: &Function| {
-        func.blocks
-            .iter()
-            .filter_map(|block| match block.terminator {
-                Some(Terminator::TailCall { function, .. }) => Some(function),
-                _ => None,
-            })
-            .collect::<Vec<_>>()
-    };
-    // A function returns through a `ret` or a tail call to a function that returns.
-    let mut never_returns = DenseBitSet::new_empty(module.functions.len());
-    for (func_id, func) in module.functions.iter_enumerated() {
-        if !func
-            .blocks
-            .iter()
-            .any(|block| matches!(block.terminator, Some(Terminator::Return { .. })))
-        {
-            never_returns.insert(func_id);
-        }
-    }
-    remove_until_fixpoint(&mut never_returns, |never_returns, func_id| {
-        tail_calls(module.function(func_id)).iter().all(|&callee| never_returns.contains(callee))
-    });
-
+    let returning = module.returning_functions();
     let mut callers = index_vec![Vec::new(); module.functions.len()];
     let mut calls = IndexVec::with_capacity(module.functions.len());
     let mut grows = DenseBitSet::new_empty(module.functions.len());
@@ -173,8 +150,12 @@ fn heap_read_functions(module: &Module, call_graph: &CallGraphInfo) -> DenseBitS
                 _ => None,
             })
             .collect::<Vec<_>>();
-        callees
-            .extend(tail_calls(func).into_iter().filter(|&callee| !never_returns.contains(callee)));
+        callees.extend(func.blocks.iter().filter_map(|block| match block.terminator {
+            Some(Terminator::TailCall { function, .. }) if returning.contains(function) => {
+                Some(function)
+            }
+            _ => None,
+        }));
         calls.push(callees);
     }
     remove_until_fixpoint(&mut grows, |grows, func_id| {
