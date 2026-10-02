@@ -523,16 +523,16 @@ class SemanticsTests(unittest.TestCase):
         x, n = Expr.var("x"), Expr.var("n")
         rhs = expression("signextend", n, x)
         lhs = expression("signextend", n, rhs)
-        result, queries = partition_shift(lhs, rhs, [], 5000, Model())
-        self.assertEqual(result["status"], "proved")
+        result, queries = partition_shift(lhs, rhs, [], PARTITION_TIMEOUT_MS, Model())
+        self.assertEqual(result["status"], "proved", result)
         self.assertEqual(result["proof_method"], "exhaustive-word-index-partition")
         self.assertEqual((result["cases"], len(queries)), (32, 33))
         # The error exists only at MAX, not at the range's first index, 31.
         wrong = expression(
             "select", expression("eq", n, MASK), expression("not", rhs), rhs
         )
-        result, _ = partition_shift(lhs, wrong, [], 5000, Model())
-        self.assertEqual(result["status"], "counterexample")
+        result, _ = partition_shift(lhs, wrong, [], PARTITION_TIMEOUT_MS, Model())
+        self.assertEqual(result["status"], "counterexample", result)
         self.assertEqual(int(result["inputs"]["n"], 16), MASK)
         self.assertTrue(result["replayed"])
 
