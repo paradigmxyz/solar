@@ -23,8 +23,10 @@
 //! A loop that runs until its counter reaches the bound, `for (; i != n; i += s)`
 //! as assembly loops over pointers are written, knows its remaining count
 //! exactly: `n - i` is `s` times the count, so with `s = 2^t * u` for an odd
-//! `u`, bit `t` of `n - i` is the count's parity. One peeled iteration evens
-//! the count out, and the original header's test then admits two iterations:
+//! `u`, bit `t` of `n - i` is the count's parity. A counter that counts down,
+//! `for (; i != 0; i -= m)` or `i > 0`, steps by `s = 2^256 - m`. One peeled
+//! iteration evens the count out, and the original header's test then admits
+//! two iterations:
 //!
 //! ```text
 //! check:
@@ -39,21 +41,22 @@
 //! ```
 //!
 //! Recognition: as for `loop-split`, a natural loop with a preheader and no
-//! inner loop, whose header branches into the body while `i < n`, `i <= n` or
-//! `i != n` and otherwise leaves the loop, where `i` is a header phi, or a
-//! pointer phi the header converts to an integer, that the loop's single back
-//! edge advances by a literal positive step, and `n` is defined outside the
-//! loop. The latch may also branch to a block that aborts, such as the
-//! increment's overflow check. A `<` or `<=` test also needs a literal start,
-//! except for `<=` stepping by one. The header's other instructions must be
-//! free of effects, because the original header repeats them for the iteration
-//! the main loop declined. The body must be straight-line: every branch inside
-//! it continues the loop on one arm and aborts on the other, such as an
-//! arithmetic panic, where a block aborts when it reverts or calls a function
-//! that never returns. The body may read words computed before the loop only
-//! when the backend rebuilds them where they are read, as calldata words at
-//! fixed offsets and environment reads: the stack scheduler spills other such
-//! words, and their copies measured slower than the original loop.
+//! inner loop, whose header branches into the body while `i < n`, `i <= n`,
+//! `i != n` or `i > 0` and otherwise leaves the loop, where `i` is a header
+//! phi, or a pointer phi the header converts to an integer, that the loop's
+//! single back edge advances by adding a literal step, or for `!=` and `> 0`
+//! also by subtracting one, and `n` is defined outside the loop. The latch may
+//! also branch to a block that aborts, such as the increment's overflow check.
+//! A `<` or `<=` test also needs a literal start, except for `<=` stepping by
+//! one. The header's other instructions must be free of effects, because the
+//! original header repeats them for the iteration the main loop declined. The
+//! body must be straight-line: every branch inside it continues the loop on one
+//! arm and aborts on the other, such as an arithmetic panic, where a block
+//! aborts when it reverts or calls a function that never returns. The body may
+//! read words computed before the loop only when the backend rebuilds them
+//! where they are read, as calldata words at fixed offsets and environment
+//! reads: the stack scheduler spills other such words, and their copies
+//! measured slower than the original loop.
 //!
 //! Safety: for `<` and `<=`, `i` starts at a literal and grows by a literal
 //! step, so within the target's trip-count bound `i + (k - 1) * s` cannot wrap,
@@ -72,7 +75,8 @@
 //! header's exit stays the only way to leave the original loop normally, so
 //! values read after the loop keep their definitions.
 //!
-//! For `!=`, counts are taken modulo `2^256`, as the counter wraps. When `n - i`
+//! For `!=`, counts are taken modulo `2^256`, as the counter wraps, and a step
+//! that subtracts `m` adds `2^256 - m`; `i > 0` is `i != 0`. When `n - i`
 //! is `s` times some count `k`, the loop runs exactly `k` more iterations, and
 //! bit `t` of `n - i` is `k`'s parity. A set bit means `i != n`, so the peeled
 //! iteration is one the original loop runs; an even count remains after it, so
@@ -325,12 +329,17 @@ fn plan(
 
     // header: counter = phi [preheader: start], [latch: next]
     //         word = counter | ptrtoint counter
-    //         jumpi (lt word, bound) | (ne word, bound), body, exit
+    //         jumpi (lt word, bound) | (ne word, bound) | (gt word, 0), body, exit
     //         jumpi (gt word, bound) | (eq word, bound), exit, body
-    // latch:  next = add word, step | inttoptr (add word, step)
+    // latch:  next = add word, step | sub word, step | inttoptr (add|sub word, step)
     let reaches =
         |a, b| if defined_in_loop(a) { (Test::Reaches, a, b) } else { (Test::Reaches, b, a) };
+    let is_zero = |value| func.value_u256(value).is_some_and(|value| value.is_zero());
     let (test, word, bound) = match (inst_kind(func, condition)?, enters_on_true) {
+        // A word above zero has not reached it.
+        (&InstKind::Gt(word, zero), true) | (&InstKind::Lt(zero, word), true) if is_zero(zero) => {
+            (Test::Reaches, word, zero)
+        }
         (&InstKind::Lt(word, bound), true) | (&InstKind::Gt(bound, word), true) => {
             (Test::Below, word, bound)
         }
@@ -369,10 +378,17 @@ fn plan(
         _ if counter == word => next,
         _ => return None,
     };
-    let &InstKind::Add(a, b) = inst_kind(func, advance)? else { return None };
-    let step = match (func.value_u256(a), func.value_u256(b)) {
-        (_, Some(step)) if a == word => step,
-        (Some(step), _) if b == word => step,
+    let step = match *inst_kind(func, advance)? {
+        InstKind::Add(a, b) => match (func.value_u256(a), func.value_u256(b)) {
+            (_, Some(step)) if a == word => step,
+            (Some(step), _) if b == word => step,
+            _ => return None,
+        },
+        // Counting down by `m` steps by `-m`, modulo 2^256, which only a loop that runs until
+        // its counter reaches the bound can do.
+        InstKind::Sub(a, b) if a == word && matches!(test, Test::Reaches) => {
+            func.value_u256(b)?.wrapping_neg()
+        }
         _ => return None,
     };
     if step.is_zero() {
@@ -383,17 +399,22 @@ fn plan(
         test => test,
     };
     let literal_start = func.value_u256(start);
+    let uncounted = U256::from(Target::UNCOUNTED_LOOP_ITERATIONS);
     let trips = match (test, literal_start, func.value_u256(bound)) {
         (Test::Below, Some(start), Some(limit)) => limit.saturating_sub(start).div_ceil(step),
         (Test::AtMost | Test::UpTo, Some(start), Some(limit)) => {
             limit.checked_sub(start).map_or(U256::ZERO, |left| left / step + U256::from(1))
         }
-        (Test::Reaches, Some(start), Some(limit))
-            if (limit.wrapping_sub(start) % step).is_zero() =>
-        {
-            limit.wrapping_sub(start) / step
+        // A step of `2^256 - m` counts down by `m`.
+        (Test::Reaches, Some(start), Some(limit)) => {
+            let (distance, magnitude) = if step.bit(255) {
+                (start.wrapping_sub(limit), step.wrapping_neg())
+            } else {
+                (limit.wrapping_sub(start), step)
+            };
+            if (distance % magnitude).is_zero() { distance / magnitude } else { uncounted }
         }
-        _ => U256::from(Target::UNCOUNTED_LOOP_ITERATIONS),
+        _ => uncounted,
     };
     let trips = u64::try_from(trips).unwrap_or(u64::MAX);
     // The counter travels at most `step << MAX_TRIP_COUNT_BITS` from a literal start, so
@@ -669,11 +690,17 @@ fn apply(func: &mut Function, unroll: &Unroll) -> BlockId {
     let mut replacements = FxHashMap::default();
     let (entry, main_header) = if let MainTest::Parity = unroll.main_test {
         // check: state' = phi [preheader: start]
-        //        left = sub bound, word'
+        //        left = sub bound, word' | word' when bound = 0
         //        jumpi (ne (and (shr zeros(step), left), 1), 0), body', header
         let check = first.blocks[&unroll.header];
         let word = first.value(unroll.word);
-        let mut left = append(func, check, InstKind::Sub(unroll.bound, word), MirType::I256);
+        // Against a zero bound, `0 - i` and `i` agree at bit `t` whenever `i` is a multiple of
+        // `2^t`, and otherwise neither loop ends.
+        let mut left = if func.value_u256(unroll.bound).is_some_and(|bound| bound.is_zero()) {
+            word
+        } else {
+            append(func, check, InstKind::Sub(unroll.bound, word), MirType::I256)
+        };
         let zeros = unroll.step.trailing_zeros();
         if zeros != 0 {
             let shift = func.alloc_value(Value::Immediate(Immediate::I256(U256::from(zeros))));

@@ -1,0 +1,180 @@
+// === ROOT/tests/ui/codegen/mir/loop-unroll/count_down.sol:CountDown ===
+@module CountDown
+@phase lowered
+fn @countDown() [selector=0x3b396421, abi_wrapper, pure] {
+  bb0:
+    v6 = calldatasize
+    v7 = lt v6, 36
+    jumpi v7, bb4, bb5
+  bb5:
+    v20 = and arg0, 1
+    v21 = ne v20, 0
+    jumpi v21, bb6, bb1
+  bb6:
+    v13 = add 0, arg0
+    v14 = sub arg0, 1
+    jump bb1
+  bb1:
+    v0 = phi [bb5: arg0], [bb3: v19], [bb6: v14]
+    v1 = phi [bb5: 0], [bb3: v18], [bb6: v13]
+    v3 = ne v0, 0
+    jumpi v3, bb3, bb2
+  bb2:
+    mstore 128, v1
+    returndata 128, 32
+  bb3:
+    v4 = add v1, v0
+    v5 = sub v0, 1
+    v18 = add v4, v5
+    v19 = sub v5, 1
+    jump bb1
+  bb4:
+    revert 0, 0
+}
+
+fn @squaresDown() [selector=0x45ce5caf, abi_wrapper, pure] {
+  bb0:
+    v18 = calldatasize
+    v19 = lt v18, 36
+    jumpi v19, bb7, bb8
+  bb8:
+    v44 = and arg0, 1
+    v45 = ne v44, 0
+    jumpi v45, bb9, bb1
+  bb9:
+    v25 = mul arg0, arg0
+    v26 = eq arg0, 0
+    v27 = div v25, arg0
+    v28 = eq v27, arg0
+    v29 = or v26, v28
+    jumpi v29, bb10, bb4
+  bb10:
+    v30 = add 0, v25
+    v32 = sub arg0, 1
+    jump bb1
+  bb1:
+    v1 = phi [bb8: arg0], [bb12: v43], [bb10: v32]
+    v2 = phi [bb8: 0], [bb12: v41], [bb10: v30]
+    v3 = gt v1, 0
+    jumpi v3, bb3, bb2
+  bb2:
+    mstore 128, v2
+    returndata 128, 32
+  bb3:
+    v7 = mul v1, v1
+    v8 = eq v1, 0
+    v9 = div v7, v1
+    v10 = eq v9, v1
+    v11 = or v8, v10
+    jumpi v11, bb5, bb4
+  bb5:
+    v14 = add v2, v7
+    v15 = lt v14, v2
+    jumpi v15, bb4, bb6
+  bb6:
+    v16 = sub v1, 1
+    v36 = mul v16, v16
+    v37 = eq v16, 0
+    v38 = div v36, v16
+    v39 = eq v38, v16
+    v40 = or v37, v39
+    jumpi v40, bb11, bb4
+  bb11:
+    v41 = add v14, v36
+    v42 = lt v41, v14
+    jumpi v42, bb4, bb12
+  bb12:
+    v43 = sub v16, 1
+    jump bb1
+  bb4:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 17 !metadata(memory=scratch)
+    revert 28, 36
+  bb7:
+    revert 0, 0
+}
+
+fn @stepDown() [selector=0x4e0372c8, abi_wrapper, pure] {
+  bb0:
+    v8 = calldatasize
+    v9 = lt v8, 36
+    jumpi v9, bb4, bb5
+  bb5:
+    v22 = shr 1, arg0
+    v23 = and v22, 1
+    v24 = ne v23, 0
+    jumpi v24, bb6, bb1
+  bb6:
+    v15 = add 0, arg0
+    v16 = sub arg0, 2
+    jump bb1
+  bb1:
+    v1 = phi [bb5: arg0], [bb3: v21], [bb6: v16]
+    v2 = phi [bb5: 0], [bb3: v20], [bb6: v15]
+    v3 = gt v1, 0
+    jumpi v3, bb3, bb2
+  bb2:
+    mstore 128, v2
+    returndata 128, 32
+  bb3:
+    v6 = add v2, v1
+    v7 = sub v1, 2
+    v20 = add v6, v7
+    v21 = sub v7, 2
+    jump bb1
+  bb4:
+    revert 0, 0
+}
+
+fn @downTo() [selector=0x4930868e, abi_wrapper, pure] {
+  bb0:
+    v11 = calldatasize
+    v12 = lt v11, 68
+    jumpi v12, bb4, bb5
+  bb5:
+    v25 = sub arg1, arg0
+    v26 = and v25, 1
+    v27 = ne v26, 0
+    jumpi v27, bb6, bb1
+  bb6:
+    v18 = add 0, arg0
+    v19 = sub arg0, 1
+    jump bb1
+  bb1:
+    v1 = phi [bb5: 0], [bb3: v23], [bb6: v18]
+    v3 = phi [bb5: arg0], [bb3: v24], [bb6: v19]
+    v6 = ne v3, arg1
+    jumpi v6, bb3, bb2
+  bb2:
+    mstore 128, v1
+    returndata 128, 32
+  bb3:
+    v9 = add v1, v3
+    v10 = sub v3, 1
+    v23 = add v9, v10
+    v24 = sub v10, 1
+    jump bb1
+  bb4:
+    revert 0, 0
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb6, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr 224, v2
+    switch v3, default bb6, [0x3b396421 => bb2, 0x45ce5caf => bb3, 0x4930868e => bb4, 0x4e0372c8 => bb5]
+  bb5:
+    tail_call @stepDown
+  bb4:
+    tail_call @downTo
+  bb3:
+    tail_call @squaresDown
+  bb2:
+    tail_call @countDown
+  bb6:
+    revert 0, 0
+}

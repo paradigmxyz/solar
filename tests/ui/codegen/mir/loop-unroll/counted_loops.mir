@@ -479,3 +479,92 @@ fn @two_copies(arg0: i256, arg1: i256) -> i256 {
   bb3:
     ret v1
 }
+
+// A counter that counts down to zero reads its parity from its own low bit:
+// with a step of `2^256 - 1`, `0 - i` and `i` agree there.
+// CHECK-LABEL: {{^[ +].*}}fn @count_down{{[( ]}}
+// CHECK: + jump [[CHECK:bb[0-9]+]]
+// CHECK-NEXT: + [[CHECK]]:
+// CHECK-NEXT: + [[I:v[0-9]+]] = phi [bb0: arg0]
+// CHECK-NEXT: + {{v[0-9]+}} = phi [bb0: 0]
+// CHECK: + [[BIT:v[0-9]+]] = and [[I]], 1
+// CHECK-NEXT: + [[ODD:v[0-9]+]] = ne [[BIT]], 0
+// CHECK-NEXT: + jumpi [[ODD]], {{bb[0-9]+}}, bb1
+// CHECK: = sub {{v[0-9]+}}, 1
+fn @count_down(arg0: i256) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: arg0], [bb2: v4]
+    v1 = phi [bb0: 0], [bb2: v3]
+    v2 = ne v0, 0
+    jumpi v2, bb2, bb3
+  bb2:
+    v3 = add v1, v0
+    v4 = sub v0, 1
+    jump bb1
+  bb3:
+    ret v1
+}
+
+// A counter above zero has not reached it; stepping down by two, the parity
+// comes from bit 1.
+// CHECK-LABEL: {{^[ +].*}}fn @above_zero{{[( ]}}
+// CHECK: + [[I:v[0-9]+]] = phi [bb0: arg0]
+// CHECK: + [[COUNT:v[0-9]+]] = shr 1, [[I]]
+// CHECK-NEXT: + {{v[0-9]+}} = and [[COUNT]], 1
+fn @above_zero(arg0: i256) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: arg0], [bb2: v4]
+    v1 = phi [bb0: 0], [bb2: v3]
+    v2 = gt v0, 0
+    jumpi v2, bb2, bb3
+  bb2:
+    v3 = add v1, v0
+    v4 = sub v0, 2
+    jump bb1
+  bb3:
+    ret v1
+}
+
+// Counting down to a nonzero bound subtracts the counter from it.
+// CHECK-LABEL: {{^[ +].*}}fn @count_down_to{{[( ]}}
+// CHECK: + [[I:v[0-9]+]] = phi [bb0: arg0]
+// CHECK: + [[LEFT:v[0-9]+]] = sub arg1, [[I]]
+// CHECK-NEXT: + {{v[0-9]+}} = and [[LEFT]], 1
+fn @count_down_to(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: arg0], [bb2: v4]
+    v1 = phi [bb0: 0], [bb2: v3]
+    v2 = ne v0, arg1
+    jumpi v2, bb2, bb3
+  bb2:
+    v3 = add v1, v0
+    v4 = sub v0, 1
+    jump bb1
+  bb3:
+    ret v1
+}
+
+// A `<` test bounds a counter that grows; one that shrinks keeps the loop.
+// CHECK-LABEL: {{^[ +].*}}fn @shrinking_below{{[( ]}}
+// CHECK-NOT: {{^[-+]}}
+fn @shrinking_below(arg0: i256) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 100], [bb2: v4]
+    v1 = phi [bb0: 0], [bb2: v3]
+    v2 = lt v0, arg0
+    jumpi v2, bb2, bb3
+  bb2:
+    v3 = add v1, v0
+    v4 = sub v0, 1
+    jump bb1
+  bb3:
+    ret v1
+}
