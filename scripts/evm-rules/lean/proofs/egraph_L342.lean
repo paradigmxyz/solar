@@ -1,11 +1,7 @@
--- balance(address & mask) => balance(address), when the mask keeps the low 160 bits:
--- both read the balance at the same 160-bit address.
-have key : solar_query_3 = solar_query_1 &&& solar_query_2 →
-    0#256 = (~~~solar_query_2) <<< 96 →
-    BitVec.extractLsb' 0 160 solar_query_3 = BitVec.extractLsb' 0 160 solar_query_1 := by
-  intro h1 h2
-  subst h1
+-- balance(address & mask) => balance(address) when the mask keeps the low 160 bits: both
+-- read the balance of the same account.
+subst h₁
+have key : (Evm.and address mask).setWidth 160 = address.setWidth 160 := by
+  simp only [Evm.and, Evm.shl_eq, Evm.not] at h₂ ⊢
   bv_decide
-simp
-intro h1 _ _ h2
-rw [key h1 h2]
+simp only [Evm.balance, key]
