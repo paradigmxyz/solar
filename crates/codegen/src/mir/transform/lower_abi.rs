@@ -50,7 +50,7 @@ use crate::mir::{
     EffectKind, FrameMode, FrameSlotKind, Function, FunctionBuilder, FunctionId, InstId, InstKind,
     MangledSymbol, MemoryObjectKind, MemoryObjectLayout, MirPhase, MirType, Module, PanicCode,
     RevertReason, SliceLocation, Terminator, Value, ValueId,
-    analysis::{AliasAnalysis, MemoryBase},
+    analysis::{AliasAnalysis, MemoryBase, bubbled_return_data_copy, fmp_grows_in_heap},
     memory::EvmMemoryLayout,
     pass::MirPass,
     transform::cfg_simplify::remove_unreachable_blocks,
@@ -268,7 +268,20 @@ impl LowerAbiCx {
             return mark_abi_wrappers(module);
         }
 
-        self.synthesize_shared_calldata_slice_helpers(module, &targets);
+        // A called body keeps memory arguments. Otherwise decide on the source body, before
+        // return encoding and helper calls.
+        let memory_views = targets
+            .iter()
+            .map(|&id| {
+                let func = module.function(id);
+                if Self::calls_body(func, internally_called.contains(id), gas_mode) {
+                    DenseBitSet::new_empty(func.params.len())
+                } else {
+                    self.memory_view_args(func)
+                }
+            })
+            .collect::<Vec<_>>();
+        self.synthesize_shared_calldata_slice_helpers(module, &targets, &memory_views);
         self.synthesize_shared_aggregate_type_helpers(module, &targets);
         if gas_mode {
             self.synthesize_shared_return_cleanup_helpers(module, &targets);
@@ -322,13 +335,14 @@ impl LowerAbiCx {
         }
 
         let mut body_of_wrapper = FxHashMap::default();
-        for id in targets {
+        for (id, memory_views) in targets.into_iter().zip(memory_views) {
             if let Some(body_id) = self.wrap_function(
                 module,
                 id,
                 internally_called.contains(id),
                 gas_mode,
                 &canonical_return_calls,
+                &memory_views,
             ) {
                 body_of_wrapper.insert(id, body_id);
             }
@@ -799,6 +813,7 @@ impl LowerAbiCx {
         &mut self,
         module: &mut Module,
         targets: &[FunctionId],
+        memory_views: &[DenseBitSet<ArgIdx>],
     ) {
         let count = targets
             .iter()
@@ -820,10 +835,7 @@ impl LowerAbiCx {
         if count >= 2 {
             self.calldata_slice_helper = Some(self.synthesize_calldata_slice_helper(module));
         }
-        let views = targets
-            .iter()
-            .map(|&id| self.memory_view_args(module.function(id)).count())
-            .sum::<usize>();
+        let views = memory_views.iter().map(DenseBitSet::count).sum::<usize>();
         if views >= 2 {
             self.memory_view_helper = Some(self.synthesize_memory_view_helper(module));
         }
@@ -889,31 +901,10 @@ impl LowerAbiCx {
                 .is_some_and(|end| end <= EvmMemoryLayout::HEAP_START)
                 || Self::points_into_new_object(func, offset, 0)
         };
-        // Bubbled return data overwrites the range it then returns.
-        let returndatasize = |value| {
-            matches!(func.value(value), Value::Inst(inst)
-                if matches!(func.inst(*inst).kind, InstKind::ReturnDataSize))
-        };
-        let copied = |block: &crate::mir::BasicBlock, offset, size| {
-            !block.instructions.iter().any(|&inst| {
-                matches!(
-                    func.inst(inst).kind,
-                    InstKind::Call { .. }
-                        | InstKind::CallCode { .. }
-                        | InstKind::StaticCall { .. }
-                        | InstKind::DelegateCall { .. }
-                        | InstKind::Create(..)
-                        | InstKind::Create2(..)
-                )
-            }) && block.instructions.iter().any(|&inst| {
-                matches!(func.inst(inst).kind, InstKind::ReturnDataCopy(dest, _, len)
-                    if dest == offset
-                        && (len == size || (returndatasize(len) && returndatasize(size))))
-            })
-        };
         let raw_read = func.blocks.iter().any(|block| match block.terminator {
+            // Bubbled return data overwrites the range it then returns.
             Some(Terminator::Revert { offset, size } | Terminator::ReturnData { offset, size }) => {
-                !known(offset, size) && !copied(block, offset, size)
+                !known(offset, size) && bubbled_return_data_copy(func, block).is_none()
             }
             _ => false,
         }) || func.instructions().any(|inst_id| match func.inst(inst_id).kind {
@@ -938,7 +929,7 @@ impl LowerAbiCx {
             }
             _ => false,
         });
-        raw_read || !super::memory_dse::fmp_grows_in_heap(func)
+        raw_read || !fmp_grows_in_heap(func)
     }
 
     /// Returns whether a raw address points into an object this function allocates.
@@ -1140,28 +1131,12 @@ impl LowerAbiCx {
         needs_body: bool,
         gas_mode: bool,
         canonical_return_calls: &FxHashSet<(FunctionId, AbiParamType)>,
+        memory_views: &DenseBitSet<ArgIdx>,
     ) -> Option<FunctionId> {
         let original = module.function(wrapper_id).clone();
         let static_bytes_return = static_bytes_return(&original);
-        // Keep the external body in place only when several dynamic
-        // aggregates can benefit from calldata aliases. A single aggregate
-        // does not repay the duplicate body in the gas/size trade-off.
-        let keep_external_body = gas_mode
-            && original.abi_params.as_ref().is_some_and(|layout| {
-                layout.types.iter().filter(|ty| ty.is_dynamic()).count() >= 3
-            });
         let original_entry_inst = original.blocks[BlockId::ENTRY].instructions.first().copied();
-        let call_body = !keep_external_body
-            && needs_body
-            && Self::can_call_body(&original, original.abi_params.as_ref())
-            && original_entry_inst.is_some();
-        // A called body keeps memory arguments. Otherwise decide on the source body, before
-        // return encoding and helper calls.
-        let memory_views = if call_body {
-            DenseBitSet::new_empty(original.params.len())
-        } else {
-            self.memory_view_args(&original)
-        };
+        let call_body = Self::calls_body(&original, needs_body, gas_mode);
         let abi_params = original.abi_params.clone();
         // The copy must precede wrapper mutation and callvalue injection so
         // internal callers keep the original function semantics.
@@ -1172,7 +1147,7 @@ impl LowerAbiCx {
             abi_params.as_ref(),
             false,
             call_body,
-            &memory_views,
+            memory_views,
         );
         self.validated_abi_arguments.extend(
             abi_params
@@ -1265,6 +1240,21 @@ impl LowerAbiCx {
         wrapper.set_return_type(MirType::Void);
         Self::clear_abi_metadata(wrapper);
         body_id
+    }
+
+    /// Returns whether the wrapper of `func` decodes its arguments and calls an extracted body.
+    fn calls_body(func: &Function, needs_body: bool, gas_mode: bool) -> bool {
+        // Keep the external body in place only when several dynamic
+        // aggregates can benefit from calldata aliases. A single aggregate
+        // does not repay the duplicate body in the gas/size trade-off.
+        let keep_external_body = gas_mode
+            && func.abi_params.as_ref().is_some_and(|layout| {
+                layout.types.iter().filter(|ty| ty.is_dynamic()).count() >= 3
+            });
+        !keep_external_body
+            && needs_body
+            && Self::can_call_body(func, func.abi_params.as_ref())
+            && !func.blocks[BlockId::ENTRY].instructions.is_empty()
     }
 
     fn can_call_body(func: &Function, abi_params: Option<&AbiParamLayout>) -> bool {

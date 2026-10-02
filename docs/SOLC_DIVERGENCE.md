@@ -359,7 +359,9 @@ No intentional divergences documented yet.
   `mstore(0x40, add(mload(0x40), x))` with `x` near `2**256`, and then returns
   through it can see those stores under `solc` but not under `solar`. Pointers
   set to other values, and constant offsets that do not fit in 64 bits, keep
-  every store.
+  every store. A read-only `memory` bytes parameter read from calldata relies on
+  the same assumption: such assembly could place a later allocation over the
+  memory copy that `solar` skips.
 - Rationale: Memory-safe assembly may only allocate by advancing the free
   memory pointer, and a wrapped addition is not an allocation. Removing the
   pointer bump before an ABI-encoded return or a custom-error revert saves gas

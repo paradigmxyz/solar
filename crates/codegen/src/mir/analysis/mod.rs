@@ -22,6 +22,9 @@ pub(crate) use cfg::{CfgInfo, DominatorTree};
 mod gas;
 pub(crate) use gas::GasObservations;
 
+mod heap_fmp;
+pub(crate) use heap_fmp::{bubbled_return_data_copy, fmp_grows_in_heap};
+
 mod call_graph;
 pub(crate) use call_graph::CallGraphInfo;
 
