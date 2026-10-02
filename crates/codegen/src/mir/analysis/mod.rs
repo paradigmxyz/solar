@@ -27,6 +27,9 @@ pub(crate) use gas::GasObservations;
 mod call_graph;
 pub(crate) use call_graph::CallGraphInfo;
 
+mod cold;
+pub(crate) use cold::cold_functions;
+
 mod liveness;
 pub(crate) use liveness::Liveness;
 
