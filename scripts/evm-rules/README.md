@@ -114,13 +114,16 @@ against the integer evaluator on boundary and random words, check printed
 preconditions the same way, require false rules to fail with replayed
 counterexamples, and require the tools to run without an SMT solver installed.
 
-On 2026-10-02 the lane proved all 465 selected rules: 89 with `evm_arith`, 350
-with `evm_decide` and 26 with hand-written scripts. `evm_decide` alone proves
-424 rules, nine of them only after 66 to 205 seconds. It cannot prove the five
+On 2026-10-02 the lane proved all 474 selected rules: 98 with `evm_arith`, 350
+with `evm_decide` and 26 with hand-written scripts. With 18 jobs and a
+120-second SAT limit it took 146 seconds of wall time and 1,254 seconds of user
+CPU; back to back on the same machine, the lane before `evm_arith` took 139 and
+1,315 seconds for 465 rules and 50 scripts. `evm_decide` alone proves 426
+rules, eleven of them only after 66 to 205 seconds. It cannot prove the five
 `EXP` rules, whose symbolic exponents it cannot bit-blast, or a balance rule
 whose reads at two addresses that a guard makes equal it treats as unrelated
 words. It times out on 14 more, mostly division, remainder and shifts by
-symbolic amounts, and on all 21 division rules below. All 182 rules with
+symbolic amounts, and on 28 of the 30 division rules below. All 191 rules with
 preconditions have a confirmed witness, and the 918 physical stack variants
 reduce to seven theorems. Before the division rules, the Z3 and cvc5 lane this
 replaces proved the other 444 rules in 101 seconds of wall time and 583 seconds
@@ -144,10 +147,18 @@ in Z3 and in cvc5's bit-vector strategies on all 21. cvc5's translation to
 integer arithmetic proved 15, and the other six stayed unknown, which would
 have failed CI.
 
-`evm_arith` proves each of them in about a second, for every word; until it
-existed, each needed a script of up to 19 lines over the same lemmas. It also
-replaces three older scripts.
-`tests/ui/codegen/mir/egraph/division.mir` covers each rewrite,
+Nine more fold the checked subtraction of a share of `x` (`x - x / y`, and
+`x - x * c / d` for `c <= d`, also when `x * c` wraps), bound remainders
+(`x % c < d` for `0 < c <= d`), turn `x - (x / c) * c` into `x % c`, and test
+divisibility with one remainder: `(x / c) * c == x` becomes `x % c == 0` in
+`word_sequence.isle`. `evm_decide` times out on seven of them and needs 150
+seconds for the other two.
+
+`evm_arith` proves each of the 30 rules in about a second, for every word; until
+it existed, each of the first 21 needed a script of up to 19 lines over the same
+lemmas. It also replaces three older scripts.
+`tests/ui/codegen/mir/egraph/division.mir` and
+`tests/ui/codegen/mir/word-sequence/divisibility.mir` cover each rewrite,
 `division_runtime.sol` executes the rules' boundaries under every codegen
 revision, and the `division-words` runtime benchmark measures their gas.
 

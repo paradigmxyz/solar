@@ -146,6 +146,24 @@
 ;; x < (x / y) * y => false.
 (rule 2 (simplify (Op.Lt x (mul (div x y) y))) (imm_bool false))
 
+;; x < x / y => false.
+;; A quotient never exceeds its dividend, also for a zero divisor.
+(rule 11 (simplify (Op.Lt x (div x _))) (imm_bool false))
+
+;; x < (x * c) / d => false.
+;; Requires: c, d are constants, c <= d. A share c / d <= 1 of x never exceeds x; when
+;; x * c wraps, x >= 2 ** 256 / c >= 2 ** 256 / d.
+(rule 12 (simplify (Op.Lt x (div (mul x (iconst c)) (iconst d))))
+      (if-let true (u256_le c d))
+      (imm_bool false))
+
+;; x % c < d => true.
+;; Requires: c, d are constants, 0 < c <= d.
+(rule 13 (simplify (Op.Lt (mod _ (iconst c)) (iconst d)))
+      (if-let false (u256_is_zero c))
+      (if-let true (u256_le c d))
+      (imm_bool true))
+
 ;; x / c > d => false.
 ;; Requires: c, d are constants, c != 0, c * d > MAX, so x / c <= MAX / c <= d.
 (rule 7 (simplify (Op.Gt (div _ (iconst c)) (iconst d)))
@@ -188,6 +206,22 @@
 
 ;; (x / y) * y > x => false.
 (rule 3 (simplify (Op.Gt (mul (div x y) y) x)) (imm_bool false))
+
+;; x / y > x => false.
+(rule 11 (simplify (Op.Gt (div x _) x)) (imm_bool false))
+
+;; (x * c) / d > x => false.
+;; Requires: c, d are constants, c <= d.
+(rule 12 (simplify (Op.Gt (div (mul x (iconst c)) (iconst d)) x))
+      (if-let true (u256_le c d))
+      (imm_bool false))
+
+;; x % c > d => false.
+;; Requires: c, d are constants, c != 0, c - 1 <= d.
+(rule 13 (simplify (Op.Gt (mod _ (iconst c)) (iconst d)))
+      (if-let false (u256_is_zero c))
+      (if-let true (u256_le (u256_sub c (u256 1)) d))
+      (imm_bool false))
 
 ;; signed(a) < signed(a) => false.
 (rule (simplify (Op.SLt a a)) (imm_bool false))

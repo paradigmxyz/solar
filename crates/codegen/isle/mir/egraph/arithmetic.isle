@@ -75,6 +75,13 @@
       (if-let true (in_current_block rhs))
       (Op.Sub z y))
 
+;; x - (x / c) * c => x % c.
+;; Requires: c is constant, c != 0. The rounded product never exceeds x.
+(rule (rewrite (Op.Sub x (mul (div x (iconst c)) (iconst d))))
+      (if-let false (u256_is_zero c))
+      (if-let true (u256_same c d))
+      (Op.Mod x (imm c)))
+
 ;; (x ^ y) + ((x & y) << 1) => x + y.
 (rule (rewrite (Op.Add (bxor x y) (shl (one) (band x y)))) (Op.Add x y))
 

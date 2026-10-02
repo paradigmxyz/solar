@@ -5,6 +5,7 @@
     struct0: {i1, i1}
     struct1: {i1, i1, i1}
     struct2: {i256, i256}
+    struct3: {i1, i1, i1, i1}
   
   fn @checked_product(arg0: i256) -> i1 {
     bb0:
@@ -130,6 +131,45 @@
 +     ret false, false, true
   }
   
+  fn @fractions(arg0: i256, arg1: i256) -> struct3 [return_abi=[i1, i1, i1, i1]] {
+    bb0:
+      v0 = div arg0, arg1
+-     v1 = lt arg0, v0
+      v2 = mul arg0, 30
+      v3 = div v2, 0x2710
+-     v4 = lt arg0, v3
+      v5 = mul arg0, 997
+      v6 = div v5, 0x3e8
+-     v7 = gt v6, arg0
+      v8 = mul arg0, 3
+-     v9 = div v8, 2
++     v9 = shr 1, v8
+      v10 = lt arg0, v9
+-     ret v1, v4, v7, v10
++     ret false, false, false, v10
+  }
+  
+  fn @remainder_bounds(arg0: i256) -> struct1 [return_abi=[i1, i1, i1]] {
+    bb0:
+      v0 = mod arg0, 0x3e8
+-     v1 = lt v0, 0x3e8
+      v2 = mod arg0, 7
+-     v3 = gt v2, 6
+      v4 = mod arg0, 9
+      v5 = lt v4, 5
+-     ret v1, v3, v5
++     ret true, false, v5
+  }
+  
+  fn @remainder_by_subtraction(arg0: i256) -> i256 {
+    bb0:
+      v0 = div arg0, 0x15180
+      v1 = mul v0, 0x15180
+-     v2 = sub arg0, v1
++     v2 = mod arg0, 0x15180
+      ret v2
+  }
+  
 - // === ROOT/tests/ui/codegen/mir/egraph/division.mir (before dce) ===
 + // === ROOT/tests/ui/codegen/mir/egraph/division.mir (after dce) ===
   @module Division
@@ -137,6 +177,7 @@
     struct0: {i1, i1}
     struct1: {i1, i1, i1}
     struct2: {i256, i256}
+    struct3: {i1, i1, i1, i1}
   
   fn @checked_product(arg0: i256) -> i1 {
     bb0:
@@ -240,5 +281,35 @@
 -     v4 = mul v3, arg1
 -     v6 = div v4, arg1
       ret false, false, true
+  }
+  
+  fn @fractions(arg0: i256, arg1: i256) -> struct3 [return_abi=[i1, i1, i1, i1]] {
+    bb0:
+-     v0 = div arg0, arg1
+-     v2 = mul arg0, 30
+-     v3 = div v2, 0x2710
+-     v5 = mul arg0, 997
+-     v6 = div v5, 0x3e8
+      v8 = mul arg0, 3
+      v9 = shr 1, v8
+      v10 = lt arg0, v9
+      ret false, false, false, v10
+  }
+  
+  fn @remainder_bounds(arg0: i256) -> struct1 [return_abi=[i1, i1, i1]] {
+    bb0:
+-     v0 = mod arg0, 0x3e8
+-     v2 = mod arg0, 7
+      v4 = mod arg0, 9
+      v5 = lt v4, 5
+      ret true, false, v5
+  }
+  
+  fn @remainder_by_subtraction(arg0: i256) -> i256 {
+    bb0:
+-     v0 = div arg0, 0x15180
+-     v1 = mul v0, 0x15180
+      v2 = mod arg0, 0x15180
+      ret v2
   }
   

@@ -106,3 +106,48 @@ fn @roundDown(arg0: i256, arg1: i256) -> i256 [selector=0x21996870, pure, abi_pa
     v1 = checked_mul u256, v0, arg1
     ret v1
 }
+
+fn @afterFee(arg0: i256) -> i256 [selector=0xe9498c35, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = checked_mul u256, arg0, 30
+    v1 = checked_div u256, v0, 0x2710
+    v2 = checked_sub u256, arg0, v1
+    ret v2
+}
+
+fn @cut(arg0: i256, arg1: i256) -> i256 [selector=0x117c985b, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = checked_div u256, arg0, arg1
+    v1 = checked_sub u256, arg0, v0
+    ret v1
+}
+
+fn @remainders(arg0: i256) -> struct1 [selector=0xb519d220, pure, abi_params=[u256], abi_returns=[word<bool>, word<bool>], abi_return_params=[bool, bool]] {
+  bb0:
+    v0 = checked_rem u256, arg0, 0x3e8
+    v1 = lt v0, 0x3e8
+    v2 = checked_rem u256, arg0, 7
+    v3 = gt v2, 6
+    v4 = zext i1 v1 to i256
+    v5 = zext i1 v3 to i256
+    v6 = insert_value struct1, undef struct1, 0, v4
+    v7 = insert_value struct1, v6, 1, v5
+    ret v7
+}
+
+fn @intoDay(arg0: i256) -> i256 [selector=0xda923bdd, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = checked_div u256, arg0, 0x15180
+    v1 = checked_mul u256, v0, 0x15180
+    v2 = checked_sub u256, arg0, v1
+    ret v2
+}
+
+fn @isMultiple(arg0: i256) -> i256 [selector=0x6ee78aea, pure, abi_params=[u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = checked_div u256, arg0, 0x3e8
+    v1 = checked_mul u256, v0, 0x3e8
+    v2 = eq v1, arg0
+    v3 = zext i1 v2 to i256
+    ret v3
+}
