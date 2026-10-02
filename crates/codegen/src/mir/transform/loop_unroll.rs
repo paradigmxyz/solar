@@ -49,6 +49,13 @@
 //! stays the loop's only one. Without those reads of words from before the
 //! loop, the loop may then unroll.
 //!
+//! A counter that only counts iterations, `for (i = 0; i < n; ++i)` with `i`
+//! read by nothing but its test and its increment, counts from `-n` up to zero
+//! instead: `r = i - n` modulo `2^256` starts at `0 - n`, steps by one as `i`
+//! did, and `i < n` holds exactly when `r != 0`, which a branch reads for free,
+//! so the loop no longer needs its bound. A loop that unrolls by four keeps its
+//! counter, as its main test already runs once per four iterations.
+//!
 //! Recognition: as for `loop-split`, a natural loop with a preheader and no
 //! inner loop, whose header branches into the body while `i < n`, `i <= n`,
 //! `i != n` or `i > 0` and otherwise leaves the loop, where `i` is a header
@@ -217,6 +224,16 @@ struct Shape {
     loop_insts: DenseBitSet<InstId>,
 }
 
+/// A loop `for (i = 0; i < n; ++i)` whose counter feeds only its own test and increment.
+struct Reverse {
+    preheader: BlockId,
+    /// The counter phi.
+    counter: ValueId,
+    /// `i < n`, which the header branches on.
+    condition: ValueId,
+    bound: ValueId,
+}
+
 /// A loop whose body aborts unless a word computed before the loop holds, such as a division's
 /// zero check on a divisor the loop never changes.
 struct Peel {
@@ -233,6 +250,20 @@ fn unroll_function(func: &mut Function, cold: &DenseBitSet<FunctionId>, target: 
     let mut changed = false;
     let mut done = FxHashSet::default();
     let mut peeled = FxHashSet::default();
+    // A counter that only counts iterations counts from `-n` up to zero instead, so the header
+    // tests it against zero, which a branch reads for free, and needs no bound in the loop. A
+    // loop that unrolls by four keeps its counter: its main test already runs once per four
+    // iterations.
+    let loops = LoopAnalyzer::new().analyze_structure(func);
+    let reversals: Vec<_> = loops
+        .all_loops()
+        .filter(|l| plan(func, &loops, l, cold, target).is_none_or(|unroll| unroll.factor != 4))
+        .filter_map(|l| plan_reverse(func, l))
+        .collect();
+    changed |= !reversals.is_empty();
+    for reversal in &reversals {
+        reverse(func, reversal);
+    }
     loop {
         let loops = LoopAnalyzer::new().analyze_structure(func);
         // A peeled loop no longer reads its invariant tests and may unroll next.
@@ -630,6 +661,69 @@ fn lifetime_saving(
         .sum();
     target.lifetime_gas(Cost::new(saving, 0)) as i128
         - target.lifetime_gas(Cost::new(0, growth.bytes)) as i128
+}
+
+/// Plans to count a loop's iterations from `-n` up to zero when its counter starts at zero,
+/// steps by one, and feeds nothing but its test `i < n` and its own increment.
+fn plan_reverse(func: &Function, l: &Loop) -> Option<Reverse> {
+    let preheader = l.preheader?;
+    let &[latch] = l.back_edges.as_slice() else { return None };
+    let Some(Terminator::Branch { condition, then_block, else_block }) =
+        func.blocks[l.header].terminator
+    else {
+        return None;
+    };
+    // The header enters the body while `i < n`.
+    if !l.blocks.contains(then_block) || l.blocks.contains(else_block) {
+        return None;
+    }
+    let (counter, bound) = match *inst_kind(func, condition)? {
+        InstKind::Lt(counter, bound) | InstKind::Gt(bound, counter) => (counter, bound),
+        _ => return None,
+    };
+    let Value::Inst(phi) = *func.value(counter) else { return None };
+    if !func.blocks[l.header].instructions.contains(&phi) {
+        return None;
+    }
+    if let Value::Inst(inst) = func.value(bound)
+        && l.blocks.iter().any(|block| func.blocks[block].instructions.contains(inst))
+    {
+        return None;
+    }
+    let InstKind::Phi(incoming) = &func.inst(phi).kind else { return None };
+    let [(first, first_value), (second, second_value)] = incoming.as_slice() else { return None };
+    let (start, next) = match (*first, *second) {
+        (from, to) if from == preheader && to == latch => (*first_value, *second_value),
+        (from, to) if from == latch && to == preheader => (*second_value, *first_value),
+        _ => return None,
+    };
+    if !func.value_u256(start).is_some_and(|start| start.is_zero()) {
+        return None;
+    }
+    match *inst_kind(func, next)? {
+        InstKind::Add(a, b) | InstKind::Add(b, a)
+            if a == counter && func.value_u256(b) == Some(U256::from(1)) => {}
+        _ => return None,
+    }
+    // The counter, its increment and its test have no other readers.
+    let mut readers = [0usize; 3];
+    let mut count = |value: ValueId| {
+        for (slot, watched) in [counter, next, condition].into_iter().enumerate() {
+            if value == watched {
+                readers[slot] += 1;
+            }
+        }
+    };
+    for block in &func.blocks {
+        for &inst in &block.instructions {
+            func.inst(inst).kind.visit_operands(&mut count);
+        }
+        if let Some(terminator) = &block.terminator {
+            terminator.operands().into_iter().for_each(&mut count);
+        }
+    }
+    // counter: the test and the increment; next: the phi; condition: the header's branch.
+    (readers == [2, 1, 1]).then_some(Reverse { preheader, counter, condition, bound })
 }
 
 /// Plans to run a loop's first iteration in a copy when its body aborts unless a word computed
@@ -1069,4 +1163,27 @@ fn peel(func: &mut Function, peel: &Peel) {
         func.blocks[block].set_terminator(Terminator::Jump(keep), metadata);
     }
     rebuild_predecessors(func);
+}
+
+/// Counts a loop's iterations from `-n` up to zero: `r = i - n` modulo `2^256` starts at `-n`,
+/// steps by one as `i` did, and `i < n` is `r != 0`.
+fn reverse(func: &mut Function, reversal: &Reverse) {
+    // preheader: r0 = sub 0, n
+    // header: r = phi [preheader: r0], [latch: r + 1]
+    //         jumpi (ne r, 0), body, exit
+    let zero = func.alloc_value(Value::Immediate(Immediate::I256(U256::ZERO)));
+    let (inst, start) = func.alloc_value_inst(
+        Instruction::new(InstKind::Sub(zero, reversal.bound), Some(MirType::I256))
+            .with_debug_info_dropped(),
+    );
+    func.blocks[reversal.preheader].instructions.push(inst);
+    edit_phi(func, reversal.counter, |incoming| {
+        for (from, value) in incoming.iter_mut() {
+            if *from == reversal.preheader {
+                *value = start;
+            }
+        }
+    });
+    let Value::Inst(inst) = *func.value(reversal.condition) else { return };
+    func.inst_mut(inst).kind = InstKind::Ne(reversal.counter, zero);
 }

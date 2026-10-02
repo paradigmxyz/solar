@@ -325,7 +325,10 @@ bb43:
   iszero
   push 128
   mstore
+  push 68
+  calldataload
   push 0
+  sub
   push 4
   calldataload
   jump bb45
@@ -369,10 +372,7 @@ bb47 [loop]:
   swap 1
   jump bb45
 bb45 [loop]:
-  push 68
-  calldataload
-  dup 3
-  lt
+  dup 2
   push bb47
   jumpi
   push 0
