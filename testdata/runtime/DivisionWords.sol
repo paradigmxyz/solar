@@ -57,4 +57,36 @@ contract DivisionWords {
             amount += step;
         }
     }
+
+    /// Deducts a 0.3% fee from each amount of a series.
+    function afterFees(uint256 amount, uint256 step, uint256 count) external pure returns (uint256 total) {
+        for (uint256 i = 0; i < count; ++i) {
+            total += amount - amount * 30 / 10_000;
+            amount += step;
+        }
+    }
+
+    /// Keeps all but one of a variable number of shares of each amount.
+    function keep(uint256 amount, uint256 shares, uint256 count) external pure returns (uint256 total) {
+        for (uint256 i = 0; i < count; ++i) {
+            total += amount - amount / shares;
+            amount += 1 ether;
+        }
+    }
+
+    /// Sums the seconds into the day of a series of timestamps.
+    function secondsIntoDay(uint256 time, uint256 step, uint256 count) external pure returns (uint256 total) {
+        for (uint256 i = 0; i < count; ++i) {
+            total += time - time / 1 days * 1 days;
+            time += step;
+        }
+    }
+
+    /// Counts the amounts of a series that are whole lots of 1,000.
+    function wholeLots(uint256 amount, uint256 step, uint256 count) external pure returns (uint256 whole) {
+        for (uint256 i = 0; i < count; ++i) {
+            if (amount / 1000 * 1000 == amount) ++whole;
+            amount += step;
+        }
+    }
 }

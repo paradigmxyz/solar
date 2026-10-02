@@ -551,6 +551,20 @@ TEST_CASES: Sequence[TestCase] = (
                 "units(uint256,uint256,uint256)",
                 (str(10**18), str(10**17), "64"),
             ),
+            GasCall(
+                "after-fees",
+                "afterFees(uint256,uint256,uint256)",
+                (str(10**18), "12345", "64"),
+            ),
+            GasCall("keep", "keep(uint256,uint256,uint256)", (str(10**18), "3", "64")),
+            GasCall(
+                "seconds-into-day",
+                "secondsIntoDay(uint256,uint256,uint256)",
+                ("1700000000", "3601", "64"),
+            ),
+            GasCall(
+                "whole-lots", "wholeLots(uint256,uint256,uint256)", ("0", "250", "64")
+            ),
         ),
         runtime_checks=(
             RuntimeCheck(
@@ -604,6 +618,46 @@ TEST_CASES: Sequence[TestCase] = (
             RuntimeCheck(
                 "units-max",
                 "units(uint256,uint256,uint256)(uint256)",
+                (MAX_UINT256, "0", "1"),
+            ),
+            RuntimeCheck(
+                "after-fees",
+                "afterFees(uint256,uint256,uint256)(uint256)",
+                (str(10**18), "12345", "64"),
+            ),
+            RuntimeCheck(
+                "after-fees-limit",
+                "afterFees(uint256,uint256,uint256)(uint256)",
+                (str(((1 << 256) - 1) // 30), "0", "1"),
+            ),
+            RuntimeCheck(
+                "keep",
+                "keep(uint256,uint256,uint256)(uint256)",
+                (str(10**18), "3", "64"),
+            ),
+            RuntimeCheck(
+                "keep-all-shares",
+                "keep(uint256,uint256,uint256)(uint256)",
+                (str(10**18), "1", "4"),
+            ),
+            RuntimeCheck(
+                "seconds-into-day",
+                "secondsIntoDay(uint256,uint256,uint256)(uint256)",
+                ("1700000000", "3601", "64"),
+            ),
+            RuntimeCheck(
+                "seconds-into-day-max",
+                "secondsIntoDay(uint256,uint256,uint256)(uint256)",
+                (MAX_UINT256, "0", "1"),
+            ),
+            RuntimeCheck(
+                "whole-lots",
+                "wholeLots(uint256,uint256,uint256)(uint256)",
+                ("0", "250", "64"),
+            ),
+            RuntimeCheck(
+                "whole-lots-max",
+                "wholeLots(uint256,uint256,uint256)(uint256)",
                 (MAX_UINT256, "0", "1"),
             ),
         ),
