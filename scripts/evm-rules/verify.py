@@ -210,8 +210,9 @@ def main():
             for rule in file["rules"]:
                 if rule["status"] != "proved":
                     reason = f": {rule['reason']}" if "reason" in rule else ""
+                    source = rule.get("source", file["source"])
                     print(
-                        f"{file['source']}:{rule['line']}: {rule['status']}{reason}",
+                        f"{source}:{rule['line']}: {rule['status']}{reason}",
                         file=sys.stderr,
                     )
         counts = Counter(rule["status"] for file in files for rule in file["rules"])

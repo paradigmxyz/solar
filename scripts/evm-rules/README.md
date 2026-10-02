@@ -159,7 +159,8 @@ stage 30 seconds so a five-second total budget does not prematurely discard
 these smaller queries. Replay still has a
 five-second limit per strategy per query for these rules and fails on every
 exhausted query. Word rules use 30 seconds for whole-query verification and
-replay so nested division proofs can finish on the CI runner.
+replay so nested division proofs can finish on the CI runner. Their index
+partitions get 120 seconds, including rules with two independent shift counts.
 
 Word verification has an optional, explicit cvc5 fallback:
 

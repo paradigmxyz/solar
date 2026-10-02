@@ -12,12 +12,13 @@ unset SOLAR_PROOF_CACHE
 uv run scripts/evm-rules/verify.py --help >/dev/null
 
 prove() {
-  local suite="$1" shard="$2" shards="$3" directory="$4" timeout=5000
+  local suite="$1" shard="$2" shards="$3" directory="$4" timeout=5000 index_timeout=30000
   if [[ "$suite" == word ]]; then
     timeout=30000
+    index_timeout=120000
   fi
   local files=("mir/$suite")
-  local options=(--timeout-ms "$timeout" --index-partition-timeout-ms 30000 --fallback-solver cvc5
+  local options=(--timeout-ms "$timeout" --index-partition-timeout-ms "$index_timeout" --fallback-solver cvc5
     --bit-partition-timeout-ms 120000 --bit-partition-jobs 2)
   if [[ "$audit" == true ]]; then
     options+=(--partition-shifts)
