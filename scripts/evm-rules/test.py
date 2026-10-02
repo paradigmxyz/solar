@@ -1633,5 +1633,47 @@ class LeanProofTests(unittest.TestCase):
         self.assertEqual(results["unproved"]["status"], "failed", results)
 
 
+class ArithTests(unittest.TestCase):
+    def verify(self, source):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "rules.isle"
+            path.write_text(source)
+            return verify_rules(path)["rules"]
+
+    def test_division_rules_prove_over_natural_numbers(self):
+        rules = self.verify("""
+            (rule (rewrite (Op.Eq (div (mul x (iconst c)) (iconst d)) x))
+              (if-let true (u256_same c d)) (if-let true (u256_ge c 2))
+              (Op.Lt x (imm (u256_add (u256_div (u256_max) c) (u256 1)))))
+            (rule (simplify (Op.Lt x (div (mul x (iconst c)) (iconst d))))
+              (if-let true (u256_le c d)) (imm_bool false))
+            (rule (rewrite (Op.Sub (bnot x) (bnot y))) (Op.Sub y x))""")
+        self.assertEqual(
+            [(rule["status"], rule["method"]) for rule in rules],
+            [
+                ("proved", "evm_arith"),
+                ("proved", "evm_arith"),
+                ("proved", "evm_decide"),
+            ],
+        )
+
+    def test_wrong_division_rules_replay_counterexamples(self):
+        cases = {
+            # A share above one exceeds x: x = 1, c = 2, d = 1.
+            "share": "(rule (simplify (Op.Lt x (div (mul x (iconst c)) (iconst d))))"
+            " (if-let true (u256_le d c)) (imm_bool false))",
+            # Without the guard, a zero divisor keeps x instead of the zero remainder.
+            "remainder": "(rule (rewrite (Op.Sub x (mul (div x (iconst c)) (iconst d))))"
+            " (if-let true (u256_same c d)) (Op.Mod x (imm c)))",
+        }
+        for name, source in cases.items():
+            with self.subTest(name):
+                lhs, rhs, assumptions = lean_rule(source)
+                # `evm_arith` fails, and bit-blasting still finds a counterexample.
+                result = shared_checker().check(lhs, rhs, assumptions, 5_000)
+                self.assertEqual(result["status"], "counterexample", result)
+                self.assertTrue(result["replayed"])
+
+
 if __name__ == "__main__":
     unittest.main()

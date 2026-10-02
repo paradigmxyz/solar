@@ -83,18 +83,30 @@ keep the readers' trusted extractor contracts; Boolean flags that a rule forces
 are substituted first. Physical stack rules are checked at every legal depth,
 and variants that differ only in variable names share one theorem.
 
-`evm_decide` unfolds the definitions, rewriting the shifts by proven lemmas to
-Lean's saturating shifts, and bit-blasts the goal with `bv_decide`, which
-checks the SAT solver's LRAT certificate in Lean through `Lean.ofReduceBool`.
-A script in `lean/proofs/` replaces that tactic for one rule, with the lemmas in
-`lean/EvmRules/Lemmas.lean` and `lean/EvmRules/Arith.lean`. Its file is named
-after the rule's source file and the first 16 hex digits of the rule's digest
-(`egraph_44d329ef52b3f648.lean`), plus `_<index>` for a rule with several
-theorems, so edits elsewhere in the file do not move it. Its statement is
-still generated from the current rule, so a changed rule leaves the script
-without a rule and fails the run, and `test.py` checks every script against
-its rule; a script for a selected file must name one of its rules. A proof
-that avoids `bv_decide` relies on Lean's kernel alone.
+Each theorem is proved by `evm_auto`, which tries `evm_arith` and then
+`evm_decide`, and reports which one succeeded. `evm_decide` unfolds the
+definitions, rewriting the shifts by proven lemmas to Lean's saturating shifts,
+and bit-blasts the goal with `bv_decide`, which checks the SAT solver's LRAT
+certificate in Lean through `Lean.ofReduceBool`. `evm_arith`
+(`lean/EvmRules/ArithTactic.lean`) proves rules over products, quotients and
+remainders, whose circuits are too large to bit-blast, over natural numbers. It
+states comparison words as decided propositions and every operation with its
+wrapping, adds the bounds of every quotient and remainder by a non-literal,
+removes the wrapping and quotients those bounds rule out, and closes the goal
+with `omega`, which treats the remaining products, quotients and remainders as
+opaque terms. Its lemmas live in `lean/EvmRules/Arith.lean`, and its proofs rely
+on Lean's kernel alone. When it fails, which takes about a second,
+`evm_decide` proves the rule or searches for a counterexample as before.
+
+A script in `lean/proofs/` replaces `evm_auto` for one rule, with the lemmas in
+`lean/EvmRules/Lemmas.lean`. Its file is named after the rule's source file and
+the first 16 hex digits of the rule's digest (`egraph_44d329ef52b3f648.lean`),
+plus `_<index>` for a rule with several theorems, so edits elsewhere in the
+file do not move it. Its statement is still generated from the current rule,
+so a changed rule leaves the script without a rule and fails the run, and
+`test.py` checks every script against its rule; a script for a selected file
+must name one of its rules. A proof that avoids `bv_decide` relies on Lean's
+kernel alone.
 
 The trusted base is the readers and their contracts, the Lean model, and the
 printer from terms to Lean. Regression tests evaluate every Lean operation
@@ -102,20 +114,19 @@ against the integer evaluator on boundary and random words, check printed
 preconditions the same way, require false rules to fail with replayed
 counterexamples, and require the tools to run without an SMT solver installed.
 
-On 2026-10-02 the lane proved all 465 selected rules in 125 seconds of wall time
-and 1,288 seconds of user CPU with 18 jobs and a 120-second SAT limit: 415 with
-`evm_decide` and 50 with hand-written scripts. Without the scripts,
-`evm_decide` proves 424 rules, nine of them only after 66 to 205 seconds. It
-cannot prove the five `EXP` rules, whose symbolic exponents it cannot
-bit-blast, or a balance rule whose reads at two addresses that a guard makes
-equal it treats as unrelated words. It times out on 14 more, mostly division,
-remainder and shifts by symbolic amounts, and on all 21 division rules below.
-All 182 rules with preconditions have a confirmed witness, and the 918
-physical stack variants reduce to seven theorems. Before the division rules,
-the Z3 and cvc5 lane this replaces proved the other 444 rules in 101 seconds of
-wall time and 583 seconds of user CPU as 13 workers, with index and output-bit
-partitions for the rules no solver finished whole; this lane took 156 seconds
-and 1,109 seconds with 10 jobs.
+On 2026-10-02 the lane proved all 465 selected rules: 89 with `evm_arith`, 350
+with `evm_decide` and 26 with hand-written scripts. `evm_decide` alone proves
+424 rules, nine of them only after 66 to 205 seconds. It cannot prove the five
+`EXP` rules, whose symbolic exponents it cannot bit-blast, or a balance rule
+whose reads at two addresses that a guard makes equal it treats as unrelated
+words. It times out on 14 more, mostly division, remainder and shifts by
+symbolic amounts, and on all 21 division rules below. All 182 rules with
+preconditions have a confirmed witness, and the 918 physical stack variants
+reduce to seven theorems. Before the division rules, the Z3 and cvc5 lane this
+replaces proved the other 444 rules in 101 seconds of wall time and 583 seconds
+of user CPU as 13 workers, with index and output-bit partitions for the rules
+no solver finished whole; this lane took 156 seconds and 1,109 seconds with 10
+jobs.
 
 ## Division rules
 
@@ -133,10 +144,9 @@ in Z3 and in cvc5's bit-vector strategies on all 21. cvc5's translation to
 integer arithmetic proved 15, and the other six stayed unknown, which would
 have failed CI.
 
-`lean/EvmRules/Arith.lean` restates comparison words, quotients, products, sums
-and the readers' overflow preconditions as statements about natural numbers,
-where the standard division lemmas apply. Each division rule has a script of
-fewer than 20 lines that Lean checks in about half a second, for every word.
+`evm_arith` proves each of them in about a second, for every word; until it
+existed, each needed a script of up to 19 lines over the same lemmas. It also
+replaces three older scripts.
 `tests/ui/codegen/mir/egraph/division.mir` covers each rewrite,
 `division_runtime.sol` executes the rules' boundaries under every codegen
 revision, and the `division-words` runtime benchmark measures their gas.
@@ -333,8 +343,9 @@ uv run scripts/evm-rules/verify.py discover \
 
 The search enumerates bounded expression trees over up to three variables.
 Boundary samples and deterministic random samples propose equalities. Every
-representative substitution requires a Lean proof; replayed counterexamples
-refine the sample buckets, and unknown results keep separate representatives.
+representative substitution requires a Lean proof by `evm_auto`, so arithmetic
+identities are in reach as well; replayed counterexamples refine the sample
+buckets, and unknown results keep separate representatives.
 Cheaper proved spellings replace expensive representatives so enumeration can
 build on them. One `evm_check` process (`lean/Checker.lean`) answers every
 query: it imports the model once, then takes milliseconds per small query.
@@ -489,7 +500,8 @@ The design draws on [Cranelift's acyclic e-graphs](https://bytecodealliance.org/
 and [Ruler](https://uwplse.org/ruler/). Word semantics follow the
 [Ethereum execution specifications](https://github.com/ethereum/execution-specs/tree/master/src/ethereum/forks/cancun/vm/instructions)
 and use Lean's `BitVec` library, proved with
-[`bv_decide`](https://lean-lang.org/doc/reference/latest/Tactic-Proofs/Tactic-Reference/#bv_decide).
+[`bv_decide`](https://lean-lang.org/doc/reference/latest/Tactic-Proofs/Tactic-Reference/#bv_decide)
+and, over natural numbers, `omega`.
 
 MIR rule directories contain modules grouped by root operation. Pass a directory
 to verify all its modules, or an individual `.isle` file for a focused check.
