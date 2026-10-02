@@ -1178,6 +1178,21 @@ impl fmt::Display for InstKind {
     }
 }
 
+/// One ordered input to byte concatenation, without allocating buffers for fixed literals.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub(crate) enum ConcatPart {
+    Bytes(ValueId),
+    Fixed { value: ValueId, size: super::TypeSize },
+}
+
+impl ConcatPart {
+    pub(crate) fn value(&self) -> ValueId {
+        match *self {
+            Self::Bytes(value) | Self::Fixed { value, .. } => value,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1270,20 +1285,5 @@ mod tests {
         assert_size::<InstKind>(str!["40"]);
         assert_size::<InstructionMetadata>(str!["40"]);
         assert_size::<Instruction>(str!["96"]);
-    }
-}
-
-/// One ordered input to byte concatenation, without allocating buffers for fixed literals.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub(crate) enum ConcatPart {
-    Bytes(ValueId),
-    Fixed { value: ValueId, size: super::TypeSize },
-}
-
-impl ConcatPart {
-    pub(crate) fn value(&self) -> ValueId {
-        match *self {
-            Self::Bytes(value) | Self::Fixed { value, .. } => value,
-        }
     }
 }
