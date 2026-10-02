@@ -16,6 +16,13 @@
 //! Merges repeat along a chain, so a run of checks, such as the overflow checks
 //! of an unrolled loop's copies, branches once.
 //!
+//! Two tests that an addition wrapped, `s1 < s0` for `s1 = s0 + a1` and then
+//! `s2 < s1` for `s2 = s1 + a2`, combine into `s2 < s0` instead when `a1 + a2`
+//! cannot reach `2^256`, as for loop counters the target's trip-count limit
+//! bounds: the sum then wraps at most once, and exactly when it falls below
+//! `s0`. The overflow checks of an unrolled accumulation of counters become a
+//! single comparison.
+//!
 //! Safety: when the first test fails, the original code aborts at once, and the
 //! merged code first runs the continuation's instructions, then aborts on the
 //! combined test. Those instructions are pure word operations or environment
@@ -46,7 +53,8 @@ use crate::{
     },
     target::Target,
 };
-use solar_data_structures::bit_set::DenseBitSet;
+use alloy_primitives::U256;
+use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 
 /// Function pass that merges tests into a shared aborting block.
 pub(crate) struct MergeAborts;
@@ -68,6 +76,15 @@ impl MirPass for MergeAborts {
     }
 }
 
+/// A test that adding words to `base` wrapped, `lt sum, base`, when the words add up to at most
+/// `bound`.
+#[derive(Clone, Copy)]
+struct Wrap {
+    sum: ValueId,
+    base: ValueId,
+    bound: U256,
+}
+
 /// A test on a block's way out: its condition, the aborting block, the continuation, and
 /// whether the condition holding means aborting.
 struct Test {
@@ -80,6 +97,7 @@ struct Test {
 fn merge_function(func: &mut Function, cold: &DenseBitSet<FunctionId>, target: Target) -> bool {
     rebuild_predecessors(func);
     let mut changed = false;
+    let mut wraps = FxHashMap::default();
     // Each sweep follows every chain of tests forward from its first block; a later sweep picks
     // up chains whose head a merge further down only now completed.
     loop {
@@ -88,7 +106,7 @@ fn merge_function(func: &mut Function, cold: &DenseBitSet<FunctionId>, target: T
             let mut block = BlockId::from_usize(index);
             while let Some((first, second)) = mergeable(func, block, cold, target) {
                 let next = first.next;
-                merge(func, block, first, second);
+                merge(func, block, first, second, &mut wraps);
                 merged = true;
                 block = next;
             }
@@ -205,9 +223,25 @@ fn append(func: &mut Function, block: BlockId, kind: InstKind) -> ValueId {
     value
 }
 
-fn merge(func: &mut Function, predecessor: BlockId, first: Test, second: Test) {
+fn merge(
+    func: &mut Function,
+    predecessor: BlockId,
+    first: Test,
+    second: Test,
+    wraps: &mut FxHashMap<ValueId, Wrap>,
+) {
     let block = first.next;
-    let combined = if second.aborts_when_true {
+    let combined = if second.aborts_when_true
+        && let Some(wrap) = fused_wrap(func, first.condition, second.condition, wraps)
+    {
+        // s1 = add s0, a1; c1 = lt s1, s0
+        // s2 = add s1, a2; c2 = lt s2, s1
+        // b2: c = lt s2, s0
+        //     jumpi c, abort, b3
+        let combined = append(func, block, InstKind::Lt(wrap.sum, wrap.base));
+        wraps.insert(combined, wrap);
+        combined
+    } else if second.aborts_when_true {
         // b2: c = or c1, c2
         //     jumpi c, abort, b3
         append(func, block, InstKind::Or(first.condition, second.condition))
@@ -229,4 +263,107 @@ fn merge(func: &mut Function, predecessor: BlockId, first: Test, second: Test) {
     let (_, metadata) = func.blocks[predecessor].take_terminator();
     func.blocks[predecessor].set_terminator(Terminator::Jump(block), metadata);
     func.blocks[first.abort].predecessors.retain(|from| *from != predecessor);
+}
+
+fn inst_kind(func: &Function, value: ValueId) -> Option<&InstKind> {
+    match func.value(value) {
+        Value::Inst(inst) => Some(&func.inst(*inst).kind),
+        _ => None,
+    }
+}
+
+/// The word `sum` adds to `base`, when it is `add base, addend`.
+fn addend(func: &Function, sum: ValueId, base: ValueId) -> Option<ValueId> {
+    match *inst_kind(func, sum)? {
+        InstKind::Add(a, b) if a == base => Some(b),
+        InstKind::Add(a, b) if b == base => Some(a),
+        _ => None,
+    }
+}
+
+/// The wrap test that stands for both a wrap test of `s1 = s0 + a1` and the following one of
+/// `s2 = s1 + a2`, when `a1 + a2` cannot reach `2^256`: then the sum wraps at most once, exactly
+/// when `s2 < s0`, as either test reports.
+fn fused_wrap(
+    func: &Function,
+    first: ValueId,
+    second: ValueId,
+    wraps: &FxHashMap<ValueId, Wrap>,
+) -> Option<Wrap> {
+    let wrap = match wraps.get(&first) {
+        Some(&wrap) => wrap,
+        None => {
+            let &InstKind::Lt(sum, base) = inst_kind(func, first)? else { return None };
+            Wrap { sum, base, bound: upper_bound(func, addend(func, sum, base)?, 8)? }
+        }
+    };
+    let &InstKind::Lt(next, sum) = inst_kind(func, second)? else { return None };
+    if sum != wrap.sum {
+        return None;
+    }
+    let bound = wrap.bound.checked_add(upper_bound(func, addend(func, next, sum)?, 8)?)?;
+    Some(Wrap { sum: next, base: wrap.base, bound })
+}
+
+/// The largest value a word can take: literals, sums of bounded words, comparisons, masks,
+/// right shifts, and loop counters that start at a literal and add a literal step, which the
+/// target's trip-count limit bounds.
+fn upper_bound(func: &Function, value: ValueId, depth: usize) -> Option<U256> {
+    if let Some(constant) = func.value_u256(value) {
+        return Some(constant);
+    }
+    let depth = depth.checked_sub(1)?;
+    match *inst_kind(func, value)? {
+        InstKind::Add(a, b) => {
+            upper_bound(func, a, depth)?.checked_add(upper_bound(func, b, depth)?)
+        }
+        InstKind::Lt(..)
+        | InstKind::Gt(..)
+        | InstKind::SLt(..)
+        | InstKind::SGt(..)
+        | InstKind::Eq(..)
+        | InstKind::Ne(..) => Some(U256::from(1)),
+        InstKind::Zext(source, ..) => upper_bound(func, source, depth),
+        InstKind::And(a, b) => match (upper_bound(func, a, depth), upper_bound(func, b, depth)) {
+            (Some(a), Some(b)) => Some(a.min(b)),
+            (bound, None) | (None, bound) => bound,
+        },
+        InstKind::Shr(shift, source) => {
+            let shift = usize::try_from(func.value_u256(shift)?).ok()?;
+            Some(upper_bound(func, source, depth)?.checked_shr(shift).unwrap_or(U256::ZERO))
+        }
+        InstKind::Phi(ref incoming) => {
+            // counter = phi [entry: start], [latch: counter + c1 + ... + ck]
+            let &[(_, first), (_, second)] = incoming.as_slice() else { return None };
+            let (start, next) = match (func.value_u256(first), func.value_u256(second)) {
+                (Some(start), None) => (start, second),
+                (None, Some(start)) => (start, first),
+                _ => return None,
+            };
+            let step = counter_step(func, value, next)?;
+            start.checked_add(step.checked_shl(Target::MAX_TRIP_COUNT_BITS)?)
+        }
+        _ => None,
+    }
+}
+
+/// The literal a loop's update adds to its counter phi per iteration, through a chain of
+/// additions of literals.
+fn counter_step(func: &Function, phi: ValueId, mut next: ValueId) -> Option<U256> {
+    const MAX_ADDS: usize = 16;
+    let mut step = U256::ZERO;
+    for _ in 0..MAX_ADDS {
+        if next == phi {
+            return (!step.is_zero()).then_some(step);
+        }
+        let &InstKind::Add(a, b) = inst_kind(func, next)? else { return None };
+        let (rest, literal) = match (func.value_u256(a), func.value_u256(b)) {
+            (None, Some(literal)) => (a, literal),
+            (Some(literal), None) => (b, literal),
+            _ => return None,
+        };
+        step = step.checked_add(literal)?;
+        next = rest;
+    }
+    None
 }
