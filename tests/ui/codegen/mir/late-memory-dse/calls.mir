@@ -1,0 +1,83 @@
+//@compile-flags: -Zmir-pipeline=late-memory-dse
+//@filecheck: --enable-var-scope
+// Heap reads ignore reserved memory only where every caller and callee keeps
+// the free memory pointer in the heap.
+@module LateMemoryDseCalls
+
+// CHECK-LABEL: @bump
+fn @bump() {
+  bb0:
+    v0 = mload 64
+    v1 = add v0, 32
+    mstore 64, v1
+    ret
+}
+
+// CHECK-LABEL: @lower
+fn @lower(arg0: i256) {
+  bb0:
+    mstore 64, arg0
+    ret
+}
+
+// A callee that only bumps the pointer keeps the wrapper's heap reads.
+// CHECK-LABEL: @calls_bump
+// CHECK: -     mstore 64, {{v[0-9]+}}
+fn @calls_bump() [abi_wrapper] {
+  bb0:
+    icall @bump
+    v0 = mload 64
+    v1 = add v0, 32
+    mstore 64, v1
+    revert v0, 32
+}
+
+// A callee that may move the pointer anywhere keeps every store.
+// CHECK-LABEL: @calls_lower
+// CHECK-NOT: {{^-}}
+fn @calls_lower(arg0: i256) [abi_wrapper] {
+  bb0:
+    icall @lower, arg0
+    mstore 0, 1
+    v0 = mload 64
+    revert v0, 32
+}
+
+// An internal function starts in the heap only when every caller does.
+// CHECK-LABEL: @shared
+// CHECK-NOT: {{^-}}
+fn @shared() {
+  bb0:
+    mstore 0, 1
+    v0 = mload 64
+    revert v0, 32
+}
+
+// CHECK-LABEL: @untrusted_caller
+fn @untrusted_caller(arg0: i256) [abi_wrapper] {
+  bb0:
+    mstore 64, arg0
+    tail_call @shared
+}
+
+// CHECK-LABEL: @trusted_caller
+fn @trusted_caller() [abi_wrapper] {
+  bb0:
+    tail_call @shared
+}
+
+// CHECK-LABEL: @trusted_only
+// CHECK: -     mstore 64, {{v[0-9]+}}
+fn @trusted_only() {
+  bb0:
+    v0 = mload 64
+    v1 = add v0, 32
+    mstore 64, v1
+    revert v0, 32
+}
+
+// CHECK-LABEL: @calls_trusted_only
+fn @calls_trusted_only() [abi_wrapper] {
+  bb0:
+    tail_call @trusted_only
+}

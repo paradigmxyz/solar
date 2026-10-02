@@ -313,7 +313,7 @@ impl LowerAbiCx {
 
         for id in constructors {
             let layout = module.function_mut(id).abi_params.take();
-            let views = DenseBitSet::new_empty(0);
+            let views = DenseBitSet::new_empty(module.function(id).params.len());
             self.inject_abi_prologue(module.function_mut(id), layout.as_ref(), true, false, &views);
             Self::clear_abi_inputs(module.function_mut(id));
         }
@@ -822,18 +822,7 @@ impl LowerAbiCx {
         }
         let views = targets
             .iter()
-            .map(|&id| {
-                let func = module.function(id);
-                let arg_types = func.params.iter().copied().collect::<Vec<_>>();
-                self.memory_view_args(
-                    func,
-                    func.abi_params.as_ref(),
-                    &arg_types,
-                    &func.arg_uses(),
-                    func.abi_param_locations.as_deref(),
-                )
-                .count()
-            })
+            .map(|&id| self.memory_view_args(module.function(id)).count())
             .sum::<usize>();
         if views >= 2 {
             self.memory_view_helper = Some(self.synthesize_memory_view_helper(module));
@@ -845,26 +834,23 @@ impl LowerAbiCx {
     /// The view skips the copy into memory, so the body must not write the
     /// argument, observe memory contents or the FMP, or pass it on; see
     /// [`Self::can_use_calldata_slice`].
-    fn memory_view_args(
-        &self,
-        func: &Function,
-        layout: Option<&crate::mir::AbiParamLayout>,
-        arg_types: &[MirType],
-        arg_uses: &IndexVec<ArgIdx, Vec<ValueId>>,
-        locations: Option<&[AbiParamLocation]>,
-    ) -> DenseBitSet<ArgIdx> {
-        let mut views = DenseBitSet::new_empty(arg_types.len());
-        let (Some(layout), Some(locations)) = (layout, locations) else { return views };
-        for (index, ty) in layout.types.iter().enumerate() {
-            let arg = ArgIdx::new(index);
-            let uses = arg_uses.get(arg).map_or(&[][..], Vec::as_slice);
-            if let (Some(&arg_type), Some(AbiParamLocation::Memory)) =
-                (arg_types.get(index), locations.get(index))
-                && matches!(ty, AbiParamType::Bytes)
-                && Self::only_reads_memory_view(func, uses)
-                && self.can_use_calldata_slice(func, uses, ty, arg_type)
-            {
-                views.insert(arg);
+    fn memory_view_args(&self, func: &Function) -> DenseBitSet<ArgIdx> {
+        let mut views = DenseBitSet::new_empty(func.params.len());
+        if let (Some(layout), Some(locations)) = (&func.abi_params, &func.abi_param_locations)
+            && !Self::may_reach_skipped_copy(func)
+        {
+            let arg_uses = func.arg_uses();
+            for (index, ty) in layout.types.iter().enumerate() {
+                let arg = ArgIdx::new(index);
+                let uses = arg_uses.get(arg).map_or(&[][..], Vec::as_slice);
+                if let (Some(&arg_type), Some(AbiParamLocation::Memory)) =
+                    (func.params.get(arg), locations.get(index))
+                    && matches!(ty, AbiParamType::Bytes)
+                    && Self::only_reads_memory_view(func, uses)
+                    && self.can_use_calldata_slice(func, uses, ty, arg_type)
+                {
+                    views.insert(arg);
+                }
             }
         }
         views
@@ -873,11 +859,27 @@ impl LowerAbiCx {
     /// Returns whether every use of a memory `bytes` argument also accepts its calldata slice.
     ///
     /// Byte reads stay in memory, where `byte-run-loads` fuses adjacent reads into one word.
-    /// A raw memory read or a pointer forged from an integer could find the skipped copy at a
-    /// guessed address, so any read outside scratch, an object the function allocates, or
-    /// just-copied return data keeps every argument in memory.
     fn only_reads_memory_view(func: &Function, uses: &[ValueId]) -> bool {
         let is_use = |value: &ValueId| uses.contains(value);
+        func.instructions().all(|inst_id| {
+            let kind = &func.inst(inst_id).kind;
+            !kind.operands().iter().any(is_use)
+                || match kind {
+                    InstKind::MappingSlotMemory(_, slot) => !is_use(slot),
+                    InstKind::MemoryObjectLen(_, MemoryObjectKind::Bytes) => true,
+                    InstKind::AbiEncode { selector, .. } => !selector.as_ref().is_some_and(is_use),
+                    _ => false,
+                }
+        })
+    }
+
+    /// Returns whether assembly in `func` may find a skipped memory copy.
+    ///
+    /// A raw memory read or a pointer forged from an integer could reach the copy at a guessed
+    /// address, so any read outside scratch, an object the function allocates, or just-copied
+    /// return data counts. So does a raw write that may move the free memory pointer, which
+    /// would place a later allocation over the copy.
+    fn may_reach_skipped_copy(func: &Function) -> bool {
         // Constant scratch ranges such as error payloads end below the heap, and
         // compiler-built objects never cover the skipped copy.
         let known = |offset, size| {
@@ -936,19 +938,7 @@ impl LowerAbiCx {
             }
             _ => false,
         });
-        !raw_read
-            && func.instructions().all(|inst_id| {
-                let kind = &func.inst(inst_id).kind;
-                !kind.operands().iter().any(is_use)
-                    || match kind {
-                        InstKind::MappingSlotMemory(_, slot) => !is_use(slot),
-                        InstKind::MemoryObjectLen(_, MemoryObjectKind::Bytes) => true,
-                        InstKind::AbiEncode { selector, .. } => {
-                            !selector.as_ref().is_some_and(is_use)
-                        }
-                        _ => false,
-                    }
-            })
+        raw_read || !super::memory_dse::fmp_grows_in_heap(func)
     }
 
     /// Returns whether a raw address points into an object this function allocates.
@@ -1040,23 +1030,26 @@ impl LowerAbiCx {
     }
 
     fn synthesize_memory_view_helper(&self, module: &mut Module) -> FunctionId {
-        let mut function = Function::new(Ident::with_dummy_span(sym::decode_calldata_slice));
+        let mut function = Function::new(Ident::with_dummy_span(sym::decode_memory_view));
         {
             let mut builder = self.builder(&mut function);
-            // fn @decode_calldata_slice(head) -> base { decode memory bytes at head without copying
-            // }
+            // fn @decode_memory_view(head) -> base { check memory bytes at head without copying }
             let head = builder.add_param(MirType::I256);
             let tuple_base = builder.imm(4);
             let input_end = builder.calldatasize();
             let mut current = builder.current_block();
-            let base = Self::decode_memory_view_base(
+            let offset = builder.calldataload(head);
+            let base = Self::guard_input_offset(
                 &mut builder,
-                head,
                 tuple_base,
+                offset,
                 input_end,
+                &AbiParamType::Bytes,
                 &mut current,
                 RevertReason::InvalidTupleOffset,
+                false,
             );
+            Self::check_memory_view(&mut builder, base, input_end, &mut current);
             builder.set_return_type(MirType::I256);
             builder.ret([base]);
         }
@@ -1149,15 +1142,6 @@ impl LowerAbiCx {
         canonical_return_calls: &FxHashSet<(FunctionId, AbiParamType)>,
     ) -> Option<FunctionId> {
         let original = module.function(wrapper_id).clone();
-        // Decide on the source body, before return encoding and helper calls.
-        let original_types = original.params.iter().copied().collect::<Vec<_>>();
-        let memory_views = self.memory_view_args(
-            &original,
-            original.abi_params.as_ref(),
-            &original_types,
-            &original.arg_uses(),
-            original.abi_param_locations.as_deref(),
-        );
         let static_bytes_return = static_bytes_return(&original);
         // Keep the external body in place only when several dynamic
         // aggregates can benefit from calldata aliases. A single aggregate
@@ -1171,6 +1155,13 @@ impl LowerAbiCx {
             && needs_body
             && Self::can_call_body(&original, original.abi_params.as_ref())
             && original_entry_inst.is_some();
+        // A called body keeps memory arguments. Otherwise decide on the source body, before
+        // return encoding and helper calls.
+        let memory_views = if call_body {
+            DenseBitSet::new_empty(original.params.len())
+        } else {
+            self.memory_view_args(&original)
+        };
         let abi_params = original.abi_params.clone();
         // The copy must precede wrapper mutation and callvalue injection so
         // internal callers keep the original function semantics.
@@ -1586,9 +1577,7 @@ impl LowerAbiCx {
                         .copied()
                         // Text MIR does not carry HIR data locations; default to calldata.
                         .unwrap_or(AbiParamLocation::Calldata);
-                    let memory_view = !constructor
-                        && !force_memory_aggregates
-                        && memory_views.contains(arg_index);
+                    let memory_view = memory_views.contains(arg_index);
                     let decode_type = if memory_view
                         || (!force_memory_aggregates
                             && !constructor
@@ -2797,35 +2786,6 @@ impl LowerAbiCx {
         }
     }
 
-    /// Checks that `len` bytes at `data` lie inside the input.
-    ///
-    /// `bytes` copied to memory report solc's byte array message; `bytes calldata` keeps the
-    /// calldata array checks, reporting an unencodable length separately in debug mode.
-    /// Decodes the head of a memory `bytes` view and returns its calldata base.
-    fn decode_memory_view_base(
-        builder: &mut FunctionBuilder<'_>,
-        head: ValueId,
-        tuple_base: ValueId,
-        input_end: ValueId,
-        current: &mut BlockId,
-        offset_reason: RevertReason,
-    ) -> ValueId {
-        builder.switch_to_block(*current);
-        let offset = builder.calldataload(head);
-        let base = Self::guard_input_offset(
-            builder,
-            tuple_base,
-            offset,
-            input_end,
-            &AbiParamType::Bytes,
-            current,
-            offset_reason,
-            false,
-        );
-        Self::check_memory_view(builder, base, input_end, current);
-        base
-    }
-
     /// Runs the checks of a memory `bytes` decode at `base` without its copy.
     ///
     /// The checked allocation stays: its size panic precedes the data range
@@ -2853,6 +2813,10 @@ impl LowerAbiCx {
         (data, len)
     }
 
+    /// Checks that `len` bytes at `data` lie inside the input.
+    ///
+    /// `bytes` copied to memory report solc's byte array message; `bytes calldata` keeps the
+    /// calldata array checks, reporting an unencodable length separately in debug mode.
     fn guard_bytes_data(
         builder: &mut FunctionBuilder<'_>,
         data: ValueId,

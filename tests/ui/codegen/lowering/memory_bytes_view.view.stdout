@@ -38,7 +38,7 @@ fn @owners() [selector=0x2b1fd995, abi_wrapper, view] {
 
 fn @register() [selector=0xf2c298be, abi_wrapper] {
   bb0:
-    v16 = icall @decode_calldata_slice
+    v16 = icall @decode_memory_view
     v17 = calldataload v16
     v18 = add v16, 32
     v21 = add v17, 32
@@ -65,7 +65,7 @@ fn @register() [selector=0xf2c298be, abi_wrapper] {
 
 fn @registerTwice() [selector=0xb65e01b1, abi_wrapper] {
   bb0:
-    v47 = icall @decode_calldata_slice
+    v47 = icall @decode_memory_view
     v48 = calldataload v47
     v49 = add v47, 32
     v0 = address
@@ -166,7 +166,7 @@ fn @registerTwice() [selector=0xb65e01b1, abi_wrapper] {
 
 fn @lookupLength() [selector=0x5e6d3fe5, abi_wrapper, view] {
   bb0:
-    v8 = icall @decode_calldata_slice
+    v8 = icall @decode_memory_view
     v9 = calldataload v8
     v10 = add v8, 32
     v16 = add v9, 32
@@ -184,7 +184,7 @@ fn @lookupLength() [selector=0x5e6d3fe5, abi_wrapper, view] {
 
 fn @echo() [selector=0xf15da729, abi_wrapper, pure] {
   bb0:
-    v2 = icall @decode_calldata_slice
+    v2 = icall @decode_memory_view
     v3 = calldataload v2
     v4 = add v2, 32
     v32 = mload 64 !metadata(memory=scratch)
@@ -232,7 +232,7 @@ fn @overwrite() [selector=0x27a2f3c0, abi_wrapper, pure] {
     returndata v34, v28
 }
 
-fn @decode_calldata_slice() -> i256 {
+fn @decode_memory_view() -> i256 {
   bb0:
     v0 = calldatasize
     v1 = calldataload 4

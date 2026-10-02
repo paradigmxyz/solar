@@ -21,8 +21,7 @@ contract MemoryBytesView {
     mapping(string => address) public owners;
 
     // VIEW-LABEL: fn @register()
-    // VIEW: icall @decode_calldata_slice
-    // VIEW-NOT: mcopy
+    // VIEW: icall @decode_memory_view
     // VIEW: calldatacopy
     // VIEW: keccak256
     function register(string memory name) external {
@@ -51,7 +50,7 @@ contract MemoryBytesView {
     // VIEW: icall @decode_calldata_type
     // VIEW: mstore8
     // The shared view decoder bumps the free memory pointer without copying.
-    // VIEW-LABEL: fn @decode_calldata_slice()
+    // VIEW-LABEL: fn @decode_memory_view()
     // VIEW: mload 64
     // VIEW: mstore 64
     // VIEW-NOT: calldatacopy

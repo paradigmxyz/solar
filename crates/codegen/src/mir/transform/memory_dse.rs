@@ -22,8 +22,8 @@ use crate::mir::{
     BlockId, Callee, Function, FunctionId, Immediate, InstId, InstKind, MemoryObjectKind,
     MemoryRegion, Module, Terminator, Value, ValueId,
     analysis::{
-        Access, AddressSpace, AliasAnalysis, CfgInfo, Location, LocationSize, MemoryAddress,
-        MemoryBase, MemoryLocation,
+        Access, AddressSpace, AliasAnalysis, CallGraphInfo, CfgInfo, Location, LocationSize,
+        MemoryAddress, MemoryBase, MemoryLocation,
     },
     memory::EvmMemoryLayout,
     pass::{MirPass, run_selected_function_pass_with_alias_and_cfg},
@@ -55,13 +55,7 @@ impl MirPass for MemoryDse {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        run_memory_dse(module, analyses, |func, analyses, heap_reads| {
-            let mut eliminator = MemoryStoreEliminator::new();
-            eliminator.alias = Some(Rc::clone(analyses.alias()));
-            eliminator.cfg = Some(Rc::clone(analyses.cfg()));
-            eliminator.heap_reads = heap_reads;
-            eliminator.run_to_fixpoint(func) != 0
-        })
+        run_memory_dse(module, analyses, false)
     }
 }
 
@@ -84,24 +78,21 @@ impl MirPass for LateMemoryDse {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        run_memory_dse(module, analyses, |func, analyses, heap_reads| {
-            let mut eliminator = MemoryStoreEliminator::new();
-            eliminator.alias = Some(Rc::clone(analyses.alias()));
-            eliminator.heap_reads = heap_reads;
-            eliminator.remove_dead_memory_stores(func);
-            eliminator.eliminated_count != 0
-        })
+        run_memory_dse(module, analyses, true)
     }
 }
 
-/// Runs `run` on every function with memory writes, telling it whether heap reads
-/// can only observe heap memory there; see [`heap_read_functions`].
+/// Runs memory DSE on every function with memory writes, or only its liveness
+/// analysis when `late`.
+///
+/// The functions where heap reads observe only heap memory run separately, since
+/// the function runner does not pass their IDs; see [`heap_read_functions`].
 fn run_memory_dse(
     module: &mut Module,
     analyses: &mut crate::mir::pass::ModuleAnalyses,
-    run: impl Fn(&mut Function, &crate::mir::pass::FunctionAnalyses, bool) -> bool + Sync,
+    late: bool,
 ) -> bool {
-    let heap_reads = heap_read_functions(module);
+    let heap_reads = heap_read_functions(module, &CallGraphInfo::new(module));
     let mut trusted = DenseBitSet::new_empty(module.functions.len());
     let mut untrusted = DenseBitSet::new_empty(module.functions.len());
     for (func_id, func) in module.functions.iter_enumerated() {
@@ -113,70 +104,45 @@ fn run_memory_dse(
             }
         }
     }
-    let changed = run_selected_function_pass_with_alias_and_cfg(
-        module,
-        analyses,
-        &trusted,
-        |func, analyses| run(func, analyses, true),
-    );
-    run_selected_function_pass_with_alias_and_cfg(module, analyses, &untrusted, |func, analyses| {
-        run(func, analyses, false)
-    }) || changed
+    let run = |heap_reads| {
+        move |func: &mut Function, analyses: &crate::mir::pass::FunctionAnalyses| {
+            let mut eliminator = MemoryStoreEliminator::new();
+            eliminator.alias = Some(Rc::clone(analyses.alias()));
+            eliminator.heap_reads = heap_reads;
+            if late {
+                eliminator.remove_dead_memory_stores(func);
+                eliminator.eliminated_count != 0
+            } else {
+                eliminator.cfg = Some(Rc::clone(analyses.cfg()));
+                eliminator.run_to_fixpoint(func) != 0
+            }
+        }
+    };
+    let changed =
+        run_selected_function_pass_with_alias_and_cfg(module, analyses, &trusted, run(true));
+    run_selected_function_pass_with_alias_and_cfg(module, analyses, &untrusted, run(false))
+        || changed
 }
 
 /// Returns the functions whose free memory pointer is always in the heap.
 ///
 /// ABI wrappers start from the entry's heap floor, since they run only from the
 /// dispatcher. Another function starts in the heap when every caller does and keeps
-/// it there. Every such function must also keep the pointer in the heap itself; see
-/// [`fmp_grows_in_heap`].
-fn heap_read_functions(module: &Module) -> DenseBitSet<FunctionId> {
+/// it there. Every such function must also keep the pointer in the heap, as must every
+/// function it calls; see [`fmp_grows_in_heap`]. A tail call never returns, so only its
+/// target depends on the caller.
+fn heap_read_functions(module: &Module, call_graph: &CallGraphInfo) -> DenseBitSet<FunctionId> {
     let mut callers = index_vec![Vec::new(); module.functions.len()];
-    for (caller, func) in module.functions.iter_enumerated() {
-        for inst in func.instructions() {
-            if let InstKind::ICall { function: Callee::Function(callee), .. } = func.inst(inst).kind
-            {
-                callers[callee].push(caller);
-            }
-        }
-        for block in &func.blocks {
-            if let Some(Terminator::TailCall { function, .. }) = block.terminator {
-                callers[function].push(caller);
-            }
-        }
-    }
-    let mut heap = heap_fmp_functions(module);
-    loop {
-        let mut changed = false;
-        for (func_id, func) in module.functions.iter_enumerated() {
-            let root = func.attributes.is_abi_wrapper && !func.attributes.is_constructor;
-            if heap.contains(func_id)
-                && !root
-                && (callers[func_id].is_empty()
-                    || !callers[func_id].iter().all(|&caller| heap.contains(caller)))
-            {
-                heap.remove(func_id);
-                changed = true;
-            }
-        }
-        if !changed {
-            return heap;
-        }
-    }
-}
-
-/// Returns the functions that only keep a heap free memory pointer in the heap.
-///
-/// This is the greatest fixpoint over internal calls of the functions that keep it
-/// there themselves; see [`fmp_grows_in_heap`].
-fn heap_fmp_functions(module: &Module) -> DenseBitSet<FunctionId> {
-    let mut heap_fmp = DenseBitSet::new_empty(module.functions.len());
-    let mut callees = IndexVec::with_capacity(module.functions.len());
+    let mut calls = IndexVec::with_capacity(module.functions.len());
+    let mut grows = DenseBitSet::new_empty(module.functions.len());
     for (func_id, func) in module.functions.iter_enumerated() {
         if fmp_grows_in_heap(func) {
-            heap_fmp.insert(func_id);
+            grows.insert(func_id);
         }
-        callees.push(
+        for callee in call_graph.callees(func_id) {
+            callers[callee].push(func_id);
+        }
+        calls.push(
             func.instructions()
                 .filter_map(|inst| match func.inst(inst).kind {
                     InstKind::ICall { function: Callee::Function(callee), .. } => Some(callee),
@@ -185,18 +151,31 @@ fn heap_fmp_functions(module: &Module) -> DenseBitSet<FunctionId> {
                 .collect::<Vec<_>>(),
         );
     }
+    remove_until_fixpoint(&mut grows, |grows, func_id| {
+        calls[func_id].iter().all(|&callee| grows.contains(callee))
+    });
+    let mut heap = grows;
+    remove_until_fixpoint(&mut heap, |heap, func_id| {
+        let func = module.function(func_id);
+        (func.attributes.is_abi_wrapper && !func.attributes.is_constructor)
+            || (!callers[func_id].is_empty()
+                && callers[func_id].iter().all(|&caller| heap.contains(caller)))
+    });
+    heap
+}
+
+/// Removes members of `set` that fail `keep` until every remaining member passes.
+fn remove_until_fixpoint(
+    set: &mut DenseBitSet<FunctionId>,
+    keep: impl Fn(&DenseBitSet<FunctionId>, FunctionId) -> bool,
+) {
     loop {
-        let mut changed = false;
-        for (func_id, callees) in callees.iter_enumerated() {
-            if heap_fmp.contains(func_id)
-                && !callees.iter().all(|&callee| heap_fmp.contains(callee))
-            {
-                heap_fmp.remove(func_id);
-                changed = true;
-            }
+        let removed = set.iter().filter(|&func_id| !keep(set, func_id)).collect::<Vec<_>>();
+        if removed.is_empty() {
+            return;
         }
-        if !changed {
-            return heap_fmp;
+        for func_id in removed {
+            set.remove(func_id);
         }
     }
 }
@@ -205,32 +184,47 @@ fn heap_fmp_functions(module: &Module) -> DenseBitSet<FunctionId> {
 ///
 /// Inline assembly can move the pointer into reserved memory, so every write that may
 /// replace it must store a heap pointer or grow one; see [`heap_values`]. Internal
-/// calls are left to [`heap_fmp_functions`].
-fn fmp_grows_in_heap(func: &Function) -> bool {
+/// calls are left to [`heap_read_functions`].
+pub(crate) fn fmp_grows_in_heap(func: &Function) -> bool {
     let heap = heap_values(func);
-    func.instructions().all(|inst_id| match func.inst(inst_id).kind {
-        InstKind::MStore(address, value)
-            if func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT) =>
-        {
-            heap.contains(value)
-        }
-        InstKind::SetFmp(value) => heap.contains(value),
-        // Writes from the heap up never reach the reserved slot.
-        InstKind::MStore(dest, _)
-        | InstKind::MStore8(dest, _)
-        | InstKind::MemoryZero(dest, _)
-        | InstKind::MCopy(dest, _, _)
-        | InstKind::CalldataCopy(dest, _, _)
-        | InstKind::CodeCopy(dest, _, _)
-        | InstKind::DataCopy(_, dest, _)
-        | InstKind::ReturnDataCopy(dest, _, _)
-        | InstKind::ExtCodeCopy(_, dest, _, _)
-            if heap.contains(dest) =>
-        {
-            true
-        }
-        InstKind::ICall { function: Callee::Function(_), .. } => true,
-        _ => !AliasAnalysis::instruction_may_reset_fmp_with_summaries(func, inst_id, None),
+    func.blocks.iter().all(|block| {
+        block.instructions.iter().enumerate().all(|(index, &inst_id)| {
+            match func.inst(inst_id).kind {
+                InstKind::MStore(address, value)
+                    if func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT) =>
+                {
+                    heap.contains(value)
+                }
+                InstKind::SetFmp(value) => heap.contains(value),
+                // Writes from the heap up never reach the reserved slot.
+                InstKind::MStore(dest, _)
+                | InstKind::MStore8(dest, _)
+                | InstKind::MemoryZero(dest, _)
+                | InstKind::MCopy(dest, _, _)
+                | InstKind::CalldataCopy(dest, _, _)
+                | InstKind::CodeCopy(dest, _, _)
+                | InstKind::DataCopy(_, dest, _)
+                | InstKind::ReturnDataCopy(dest, _, _)
+                | InstKind::ExtCodeCopy(_, dest, _, _)
+                    if heap.contains(dest) =>
+                {
+                    true
+                }
+                // Bubbled return data may overwrite the slot, but only the revert reads it.
+                InstKind::ReturnDataCopy(dest, _, _)
+                    if matches!(block.terminator, Some(Terminator::Revert { offset, .. }) if offset == dest)
+                        && block.instructions[index + 1..].iter().all(|&inst| {
+                            matches!(func.inst(inst).kind, InstKind::ReturnDataSize)
+                        }) =>
+                {
+                    true
+                }
+                // Mapping hashes write their key from the pointer up.
+                InstKind::ICall { function: Callee::Function(_), .. }
+                | InstKind::MappingSlotMemory(..) => true,
+                _ => !AliasAnalysis::instruction_may_reset_fmp_with_summaries(func, inst_id, None),
+            }
+        })
     })
 }
 
@@ -319,7 +313,7 @@ struct MemoryStoreEliminator {
     /// Number of memory instructions eliminated.
     eliminated_count: usize,
     alias: Option<Rc<AliasAnalysis>>,
-    /// Whether reads from heap pointers keep only heap memory live; see [`fmp_stays_in_heap`].
+    /// Whether reads from heap pointers keep only heap memory live; see [`heap_read_functions`].
     heap_reads: bool,
 }
 
@@ -710,8 +704,6 @@ impl MemoryStoreEliminator {
             return;
         }
 
-        let heap_reads = self.heap_reads;
-
         // Backward fixpoint: live_in[b] = transfer(b, ∪ live_in[succ(b)]).
         //
         // The transfer is monotone over a lattice of bounded height
@@ -730,7 +722,7 @@ impl MemoryStoreEliminator {
         while let Some(block_id) = worklist.pop_front() {
             queued.remove(block_id);
             let out = Self::live_out(func, block_id, &live_in);
-            let new_in = self.transfer_block(func, block_id, out, heap_reads, &mut None);
+            let new_in = self.transfer_block(func, block_id, out, &mut None);
             if live_in[block_id] != new_in {
                 live_in[block_id] = new_in;
                 for &pred in &predecessors[block_id] {
@@ -746,7 +738,7 @@ impl MemoryStoreEliminator {
         for block_id in func.blocks.indices() {
             let out = Self::live_out(func, block_id, &live_in);
             let mut collector = Some(&mut dead);
-            self.transfer_block(func, block_id, out, heap_reads, &mut collector);
+            self.transfer_block(func, block_id, out, &mut collector);
         }
 
         if dead.is_empty() {
@@ -824,14 +816,13 @@ impl MemoryStoreEliminator {
         func: &Function,
         block: BlockId,
         mut live: MemLive,
-        heap_reads: bool,
         dead: &mut Option<&mut DenseBitSet<InstId>>,
     ) -> MemLive {
         // Terminator first: it executes after every instruction in the block.
         match func.blocks[block].terminator.as_ref() {
             Some(Terminator::Revert { offset, size })
             | Some(Terminator::ReturnData { offset, size }) => {
-                Self::mark_read(func, &mut live, *offset, *size, heap_reads);
+                self.mark_read(func, &mut live, *offset, *size);
             }
             // A `return` value may be a memory pointer the caller dereferences
             // and a tail call forwards memory to its callee — keep all memory
@@ -874,19 +865,19 @@ impl MemoryStoreEliminator {
                 InstKind::Fmp | InstKind::Alloc { .. } => live.add_addr(EvmMemoryLayout::FMP_SLOT),
                 InstKind::SetFmp(_) => live.kill(EvmMemoryLayout::FMP_SLOT),
                 InstKind::Keccak256(offset, size) | InstKind::Log0(offset, size) => {
-                    Self::mark_read(func, &mut live, *offset, *size, heap_reads);
+                    self.mark_read(func, &mut live, *offset, *size);
                 }
                 InstKind::Log1(offset, size, _) => {
-                    Self::mark_read(func, &mut live, *offset, *size, heap_reads);
+                    self.mark_read(func, &mut live, *offset, *size);
                 }
                 InstKind::Log2(offset, size, _, _) => {
-                    Self::mark_read(func, &mut live, *offset, *size, heap_reads);
+                    self.mark_read(func, &mut live, *offset, *size);
                 }
                 InstKind::Log3(offset, size, _, _, _) => {
-                    Self::mark_read(func, &mut live, *offset, *size, heap_reads);
+                    self.mark_read(func, &mut live, *offset, *size);
                 }
                 InstKind::Log4(offset, size, _, _, _, _) => {
-                    Self::mark_read(func, &mut live, *offset, *size, heap_reads);
+                    self.mark_read(func, &mut live, *offset, *size);
                 }
                 // Byte stores never fully define a word (so cannot make an
                 // earlier store dead) and read nothing: leave the set as is.
@@ -904,20 +895,14 @@ impl MemoryStoreEliminator {
     /// Marks the word-aligned slots a constant memory read `[offset, offset +
     /// size)` may observe as live; a non-constant or oversized range widens to
     /// all-memory-live.
-    fn mark_read(
-        func: &Function,
-        live: &mut MemLive,
-        offset: ValueId,
-        size: ValueId,
-        heap_reads: bool,
-    ) {
+    fn mark_read(&self, func: &Function, live: &mut MemLive, offset: ValueId, size: ValueId) {
         if matches!(live, MemLive::All) {
             return;
         }
         let (Some(offset), Some(size)) = (func.value_u64(offset), func.value_u64(size)) else {
             // A read from a compiler-owned heap pointer never reaches the
             // reserved slots below the heap.
-            if heap_reads
+            if self.heap_reads
                 && AliasAnalysis::pointer_lower_bound(func, offset, 0)
                     .is_some_and(|bound| bound >= EvmMemoryLayout::HEAP_START)
             {
