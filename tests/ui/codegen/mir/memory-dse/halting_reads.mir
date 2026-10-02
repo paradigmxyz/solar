@@ -132,3 +132,16 @@ fn @arbitrary_loop_write(arg0: i256) [abi_wrapper] {
   bb3:
     revert v0, 64
 }
+
+// A wrapped constant addend moves the pointer below the heap.
+// CHECK-LABEL: @wrapped_fmp
+// CHECK: {{^ +}}mstore 0, 1
+fn @wrapped_fmp() [abi_wrapper] {
+  bb0:
+    v0 = mload 64
+    v1 = add v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff60
+    mstore 64, v1
+    mstore 0, 1
+    v2 = mload 64
+    returndata v2, 32
+}

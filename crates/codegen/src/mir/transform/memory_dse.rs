@@ -167,14 +167,30 @@ fn heap_read_functions(module: &Module) -> DenseBitSet<FunctionId> {
 
 /// Returns the functions that only keep a heap free memory pointer in the heap.
 ///
-/// This is the greatest fixpoint of [`fmp_grows_in_heap`] over internal calls.
+/// This is the greatest fixpoint over internal calls of the functions that keep it
+/// there themselves; see [`fmp_grows_in_heap`].
 fn heap_fmp_functions(module: &Module) -> DenseBitSet<FunctionId> {
     let mut heap_fmp = DenseBitSet::new_empty(module.functions.len());
-    heap_fmp.insert_all();
+    let mut callees = IndexVec::with_capacity(module.functions.len());
+    for (func_id, func) in module.functions.iter_enumerated() {
+        if fmp_grows_in_heap(func) {
+            heap_fmp.insert(func_id);
+        }
+        callees.push(
+            func.instructions()
+                .filter_map(|inst| match func.inst(inst).kind {
+                    InstKind::ICall { function: Callee::Function(callee), .. } => Some(callee),
+                    _ => None,
+                })
+                .collect::<Vec<_>>(),
+        );
+    }
     loop {
         let mut changed = false;
-        for (func_id, func) in module.functions.iter_enumerated() {
-            if heap_fmp.contains(func_id) && !fmp_grows_in_heap(func, &heap_fmp) {
+        for (func_id, callees) in callees.iter_enumerated() {
+            if heap_fmp.contains(func_id)
+                && !callees.iter().all(|&callee| heap_fmp.contains(callee))
+            {
                 heap_fmp.remove(func_id);
                 changed = true;
             }
@@ -185,23 +201,20 @@ fn heap_fmp_functions(module: &Module) -> DenseBitSet<FunctionId> {
     }
 }
 
-/// Returns whether `func` keeps a heap free memory pointer in the heap.
+/// Returns whether `func` itself keeps a heap free memory pointer in the heap.
 ///
 /// Inline assembly can move the pointer into reserved memory, so every write that may
-/// replace it must store a heap pointer or grow one, and every callee must do the same.
-///
-/// NOTE: a heap pointer plus any offset, as in an allocation bump `fmp + size` or a
-/// write into an allocation, counts as staying in the heap. Only assembly that is not
-/// memory-safe can wrap that sum below the heap.
-fn fmp_grows_in_heap(func: &Function, heap_fmp: &DenseBitSet<FunctionId>) -> bool {
-    let in_heap = |value| heap_derived(func, value, &mut FxHashSet::default());
+/// replace it must store a heap pointer or grow one; see [`heap_values`]. Internal
+/// calls are left to [`heap_fmp_functions`].
+fn fmp_grows_in_heap(func: &Function) -> bool {
+    let heap = heap_values(func);
     func.instructions().all(|inst_id| match func.inst(inst_id).kind {
         InstKind::MStore(address, value)
             if func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT) =>
         {
-            in_heap(value)
+            heap.contains(value)
         }
-        InstKind::SetFmp(value) => in_heap(value),
+        InstKind::SetFmp(value) => heap.contains(value),
         // Writes from the heap up never reach the reserved slot.
         InstKind::MStore(dest, _)
         | InstKind::MStore8(dest, _)
@@ -212,50 +225,67 @@ fn fmp_grows_in_heap(func: &Function, heap_fmp: &DenseBitSet<FunctionId>) -> boo
         | InstKind::DataCopy(_, dest, _)
         | InstKind::ReturnDataCopy(dest, _, _)
         | InstKind::ExtCodeCopy(_, dest, _, _)
-            if in_heap(dest) =>
+            if heap.contains(dest) =>
         {
             true
         }
-        InstKind::ICall { function: Callee::Function(callee), .. } => heap_fmp.contains(callee),
+        InstKind::ICall { function: Callee::Function(_), .. } => true,
         _ => !AliasAnalysis::instruction_may_reset_fmp_with_summaries(func, inst_id, None),
     })
 }
 
-/// Returns whether `value` is a heap pointer or grows one.
+/// Returns the values that are heap pointers or grow one.
 ///
-/// A value on a phi cycle counts while every other incoming value does, so a
-/// pointer stepped through a loop stays derived from its heap base.
-fn heap_derived(func: &Function, value: ValueId, visiting: &mut FxHashSet<ValueId>) -> bool {
-    if AliasAnalysis::pointer_lower_bound(func, value, 0)
-        .is_some_and(|bound| bound >= EvmMemoryLayout::HEAP_START)
-    {
-        return true;
+/// This is a greatest fixpoint, so a pointer stepped through a loop stays derived
+/// from its heap base while every other phi input is. A constant addend must fit in
+/// 64 bits: rewrites fold subtractions into additions of wrapped constants.
+///
+/// NOTE: a heap pointer plus a runtime offset, as in an allocation bump `fmp + size`
+/// or a write into an allocation, counts as staying in the heap. Only assembly that
+/// adds a wrapped runtime value can move it below the heap that way.
+fn heap_values(func: &Function) -> DenseBitSet<ValueId> {
+    let mut heap = DenseBitSet::new_empty(func.num_values());
+    let mut candidates = Vec::new();
+    for value in func.live_values() {
+        if AliasAnalysis::pointer_lower_bound(func, value, 0)
+            .is_some_and(|bound| bound >= EvmMemoryLayout::HEAP_START)
+        {
+            heap.insert(value);
+        } else if let Value::Inst(inst) = func.value(value)
+            && matches!(
+                func.inst(*inst).kind,
+                InstKind::Add(..)
+                    | InstKind::PtrToInt(..)
+                    | InstKind::IntToPtr(_)
+                    | InstKind::Phi(_)
+            )
+        {
+            heap.insert(value);
+            candidates.push((value, *inst));
+        }
     }
-    // A value already on the search path closes a phi cycle.
-    if !visiting.insert(value) {
-        return true;
+    let small = |value| func.value_u256(value).is_none_or(|value| value <= U256::from(u64::MAX));
+    loop {
+        let mut changed = false;
+        for &(value, inst) in &candidates {
+            let derived = match &func.inst(inst).kind {
+                &InstKind::Add(a, b) => {
+                    (heap.contains(a) && small(b)) || (heap.contains(b) && small(a))
+                }
+                &InstKind::PtrToInt(operand, _) | &InstKind::IntToPtr(operand) => {
+                    heap.contains(operand)
+                }
+                InstKind::Phi(incoming) => incoming.iter().all(|&(_, value)| heap.contains(value)),
+                _ => false,
+            };
+            if !derived && heap.remove(value) {
+                changed = true;
+            }
+        }
+        if !changed {
+            return heap;
+        }
     }
-    if visiting.len() > 16 {
-        visiting.remove(&value);
-        return false;
-    }
-    let derived = match func.value(value) {
-        Value::Inst(inst) => match &func.inst(*inst).kind {
-            &InstKind::Add(a, b) => {
-                heap_derived(func, a, visiting) || heap_derived(func, b, visiting)
-            }
-            &InstKind::PtrToInt(value, _) | &InstKind::IntToPtr(value) => {
-                heap_derived(func, value, visiting)
-            }
-            InstKind::Phi(incoming) => {
-                incoming.iter().all(|&(_, value)| heap_derived(func, value, visiting))
-            }
-            _ => false,
-        },
-        _ => false,
-    };
-    visiting.remove(&value);
-    derived
 }
 
 /// Returns whether the function contains a memory write this pass can remove

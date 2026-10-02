@@ -103,3 +103,14 @@
       jump bb1
   }
   
+  fn @wrapped_fmp() [abi_wrapper] {
+    bb0:
+      v0 = mload 64
+      v1 = add v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff60
+      mstore 64, v1
+      mstore 0, 1
+-     v2 = mload 64
+-     returndata v2, 32
++     returndata v1, 32
+  }
+  
