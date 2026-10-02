@@ -302,17 +302,11 @@ bb19 [loop]:
   dup 3
   mul
   dup 2
-  iszero
-  dup 3
-  dup 3
+  dup 2
   div
   swap 1
-  swap 4
-  eq
-  swap 1
   swap 3
-  or
-  iszero
+  sub
   push bb23
   jumpi
   swap 1

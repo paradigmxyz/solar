@@ -37,22 +37,20 @@ fn @squaresDown() [selector=0x45ce5caf, abi_wrapper, pure] {
     v19 = lt v18, 36
     jumpi v19, bb7, bb8
   bb8:
-    v44 = trunc i256 arg0 to i1
-    jumpi v44, bb9, bb1
+    v40 = trunc i256 arg0 to i1
+    jumpi v40, bb9, bb1
   bb9:
     v25 = mul arg0, arg0
-    v26 = eq arg0, 0
-    v27 = div v25, arg0
-    v28 = eq v27, arg0
-    v29 = or v26, v28
-    jumpi v29, bb10, bb4
+    v26 = div v25, arg0
+    v27 = eq v26, arg0
+    jumpi v27, bb10, bb4
   bb10:
-    v30 = add 0, v25
-    v32 = sub arg0, 1
+    v28 = add 0, v25
+    v30 = sub arg0, 1
     jump bb1
   bb1:
-    v1 = phi [bb8: arg0], [bb12: v43], [bb10: v32]
-    v2 = phi [bb8: 0], [bb12: v41], [bb10: v30]
+    v1 = phi [bb8: arg0], [bb12: v39], [bb10: v30]
+    v2 = phi [bb8: 0], [bb12: v37], [bb10: v28]
     v3 = gt v1, 0
     jumpi v3, bb3, bb2
   bb2:
@@ -60,29 +58,25 @@ fn @squaresDown() [selector=0x45ce5caf, abi_wrapper, pure] {
     returndata 128, 32
   bb3:
     v7 = mul v1, v1
-    v8 = eq v1, 0
     v9 = div v7, v1
     v10 = eq v9, v1
-    v11 = or v8, v10
-    jumpi v11, bb5, bb4
+    jumpi v10, bb5, bb4
   bb5:
     v14 = add v2, v7
     v15 = lt v14, v2
     jumpi v15, bb4, bb6
   bb6:
     v16 = sub v1, 1
-    v36 = mul v16, v16
-    v37 = eq v16, 0
-    v38 = div v36, v16
-    v39 = eq v38, v16
-    v40 = or v37, v39
-    jumpi v40, bb11, bb4
+    v34 = mul v16, v16
+    v35 = div v34, v16
+    v36 = eq v35, v16
+    jumpi v36, bb11, bb4
   bb11:
-    v41 = add v14, v36
-    v42 = lt v41, v14
-    jumpi v42, bb4, bb12
+    v37 = add v14, v34
+    v38 = lt v37, v14
+    jumpi v38, bb4, bb12
   bb12:
-    v43 = sub v16, 1
+    v39 = sub v16, 1
     jump bb1
   bb4:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
