@@ -95,7 +95,7 @@ fn @bump(arg0: i256) {
     ret
 }
 
-fn @pick(arg0: memoryarray) -> struct0 [pure] {
+fn @pick(arg0: memptr) -> struct0 [pure] {
   bb0:
     v0 = memory_object_len memoryarray, arg0
     v1 = lt 0, v0

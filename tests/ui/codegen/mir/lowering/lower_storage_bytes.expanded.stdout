@@ -22,7 +22,7 @@
 +     revert 28, 36 !metadata(span=10..20, modifier_depth=1)
   }
   
-  fn @load(arg0: i256) -> memorybytes {
+  fn @load(arg0: i256) -> memptr {
     bb0:
 -     v0 = load_storage_bytes arg0 !metadata(span=20..30, modifier_depth=2)
 -     ret v0
@@ -80,7 +80,7 @@
 +     revert 28, 36 !metadata(span=20..30, modifier_depth=2)
   }
   
-  fn @edge(arg0: i1, arg1: i256, arg2: memorybytes) -> memorybytes {
+  fn @edge(arg0: i1, arg1: i256, arg2: memptr) -> memptr {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:
@@ -173,7 +173,7 @@
 +     jump bb4 !metadata(span=30..40, modifier_depth=3)
   }
   
-  fn @store(arg0: i1, arg1: i256, arg2: memorybytes) -> i256 {
+  fn @store(arg0: i1, arg1: i256, arg2: memptr) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:

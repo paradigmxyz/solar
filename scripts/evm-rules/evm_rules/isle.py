@@ -194,13 +194,13 @@ class Context:
             if shapes.get(name) != MemoryAddresses.SHAPES[name]:
                 raise Unsupported(f"unmodeled or changed memory address schema: {name}")
             return self.memory.operation(name, tuple(args))
-        if name in ("Op.Ne", "Op.Zext", "Op.Bitcast", "Op.IntToPtr"):
+        if name in ("Op.Ne", "Op.Zext", "Op.IntToPtr"):
             self.contracts.add(
                 f"{name}: trusted MIR word inequality or bit-preserving scalar cast"
             )
             if name == "Op.Ne" and len(args) == 2:
                 return Expr("ne", tuple(args))
-            if name in ("Op.Zext", "Op.Bitcast", "Op.IntToPtr") and len(args) == 1:
+            if name in ("Op.Zext", "Op.IntToPtr") and len(args) == 1:
                 return args[0]
             raise Unsupported(f"invalid scalar operation arity: {name}")
         if name in ("Op.PtrToInt", "Op.Trunc"):

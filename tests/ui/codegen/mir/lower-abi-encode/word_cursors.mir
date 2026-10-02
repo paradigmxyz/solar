@@ -19,7 +19,7 @@
 // CHECK: jumpi [[CONTINUE]], [[BODY]], [[DONE]]
 // CHECK: [[DONE]]:
 // CHECK: {{v[0-9]+}} = phi {{.*}}[[NEXT_DEST]]
-fn @words(arg0: memoryarray) -> memoryslice {
+fn @words(arg0: memptr) -> memoryslice {
   bb0:
     v0 = abi_encode [memory_array<word<u8>>], args arg0
     ret v0

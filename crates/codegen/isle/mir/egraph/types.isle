@@ -1,9 +1,6 @@
 ;; Integer and pointer cast identities.
 
 ;; Identity casts require the result type to match before their values merge.
-;; bitcast(value) => value.
-(rule (simplify (Op.Bitcast value)) value)
-
 ;; trunc(zext(value), bits) => value.
 ;; Requires: value has width bits.
 (rule (simplify (Op.Trunc (zext (and value (integer_bits bits))) bits)) value)
@@ -76,16 +73,7 @@
                        (sext (and b (integer_bits from)) from to)))
       (if-let true (u32_lt from to)) (Op.Ne a b))
 
-;; Pointer casts preserve bits across changes of nominal pointer type.
-;; ptrtoint(bitcast(value), bits) => ptrtoint(value, bits).
-(rule (rewrite (Op.PtrToInt (bitcast value) bits)) (Op.PtrToInt value bits))
-
-;; bitcast(bitcast(value)) => bitcast(value).
-(rule (rewrite (Op.Bitcast (bitcast value))) (Op.Bitcast value))
-
-;; bitcast(inttoptr(value)) => inttoptr(value).
-(rule (rewrite (Op.Bitcast (inttoptr value))) (Op.IntToPtr value))
-
+;; Pointer casts see through integer extensions and truncations.
 ;; inttoptr(zext(value)) => inttoptr(value).
 (rule (rewrite (Op.IntToPtr (zext value))) (Op.IntToPtr value))
 
@@ -93,11 +81,6 @@
 ;; Requires: 256 <= bits.
 (rule (rewrite (Op.IntToPtr (trunc value bits)))
       (if-let true (u32_le 256 bits)) (Op.IntToPtr value))
-
-;; inttoptr(ptrtoint(value, bits)) => bitcast(value).
-;; Requires: 256 <= bits.
-(rule (rewrite (Op.IntToPtr (ptrtoint value bits)))
-      (if-let true (u32_le 256 bits)) (Op.Bitcast value))
 
 ;; trunc(ptrtoint(value, middle), bits) => ptrtoint(value, bits).
 ;; Requires: bits < middle.

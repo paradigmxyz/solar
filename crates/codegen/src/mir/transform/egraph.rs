@@ -69,8 +69,8 @@
 use crate::{
     mir::{
         AbiParamType, AbiType, ArgIdx, BlockId, Builtin, Callee, EffectKind, Function, Immediate,
-        InstId, InstKind, MemoryObjectKind, MirPhase, MirType, Module, Op, OpTraits, RequireKind,
-        Terminator, Value, ValueId,
+        InstId, InstKind, MirPhase, MirType, Module, Op, OpTraits, RequireKind, Terminator, Value,
+        ValueId,
         analysis::{CallGraphInfo, CfgInfo, Liveness},
         pass::{
             MirPass, run_selected_function_pass, run_selected_function_pass_cached,
@@ -214,7 +214,7 @@ fn has_fresh_mapping_arguments(func: &Function) -> bool {
             match &func.inst(inst).kind {
                 InstKind::MappingSlotMemory(key, _) => {
                     if !matches!(func.value(*key), Value::Arg(index)
-                        if func.params[*index] == MirType::MemoryObject(MemoryObjectKind::Bytes)
+                        if func.params[*index] == MirType::MemPtr
                             && abi_params.types.get(index.index()) == Some(&AbiParamType::Bytes))
                     {
                         return false;
@@ -791,7 +791,7 @@ impl<'a> Builder<'a> {
         self.changed += 1;
     }
 
-    /// Follows bounded insertion chains while preserving memory-object types.
+    /// Follows bounded insertion chains while preserving field types.
     fn aggregate_field(&mut self, inst_id: InstId) -> Option<ValueId> {
         let inst = self.func.inst(inst_id);
         let InstKind::ExtractValue { ty, aggregate, index } = inst.kind else { return None };

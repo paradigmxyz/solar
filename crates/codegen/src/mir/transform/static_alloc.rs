@@ -317,9 +317,9 @@ fn candidate_uses_are_safe(
             }
             let kind = func.inst(inst_id).kind.clone();
             let offset = match kind {
-                InstKind::PtrToInt(base, 256)
-                | InstKind::IntToPtr(base)
-                | InstKind::Bitcast(base) => derived.get(&base).copied(),
+                InstKind::PtrToInt(base, 256) | InstKind::IntToPtr(base) => {
+                    derived.get(&base).copied()
+                }
                 InstKind::Add(a, b) => {
                     let (base, offset) = if derived.contains_key(&a) { (a, b) } else { (b, a) };
                     let (Some(base_offset), Some(offset)) =
@@ -390,10 +390,7 @@ fn candidate_uses_are_safe(
                 }
                 // In-bounds derivations were collected above; anything
                 // else consuming an address is an escape.
-                InstKind::Add(_, _)
-                | InstKind::PtrToInt(_, 256)
-                | InstKind::IntToPtr(_)
-                | InstKind::Bitcast(_) => {
+                InstKind::Add(_, _) | InstKind::PtrToInt(_, 256) | InstKind::IntToPtr(_) => {
                     func.inst_result_value(inst_id).is_some_and(|r| derived.contains_key(&r))
                 }
                 InstKind::MemoryObjectData(_, _)

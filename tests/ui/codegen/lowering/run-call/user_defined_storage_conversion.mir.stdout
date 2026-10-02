@@ -92,7 +92,7 @@ fn @storeCalldata(arg0: calldataslice) -> i256 [selector=0xc35992d7, abi_params=
     ret v73
 }
 
-fn @storeMemory(arg0: memorystruct) -> i256 [selector=0xdb1ba0ba, abi_params=[tuple<u8, u16, bytes2, u8>], abi_returns=[word], abi_return_params=[u256]] {
+fn @storeMemory(arg0: memptr) -> i256 [selector=0xdb1ba0ba, abi_params=[tuple<u8, u16, bytes2, u8>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = memory_object_load_field memorystruct<4>, arg0, 0
     v1 = sload 0 !metadata(storage=slot(0))

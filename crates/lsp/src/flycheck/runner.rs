@@ -250,6 +250,20 @@ async fn collect_pipe(pipe: JoinHandle<io::Result<Vec<u8>>>) -> io::Result<Vec<u
     pipe.await.map_err(io::Error::other)?
 }
 
+#[derive(Debug, thiserror::Error)]
+pub(crate) enum FlycheckError {
+    #[error("flycheck command timed out")]
+    Timeout,
+    #[error("flycheck command cancelled")]
+    Cancelled,
+    #[error("failed to run flycheck command: {0}")]
+    Io(#[from] std::io::Error),
+    #[error(transparent)]
+    Parse(#[from] parser::ParseError),
+    #[error("flycheck command failed with status {status:?}: {stderr}")]
+    Failed { status: Option<i32>, stderr: String },
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -492,18 +506,4 @@ mod tests {
         }))
         .unwrap()
     }
-}
-
-#[derive(Debug, thiserror::Error)]
-pub(crate) enum FlycheckError {
-    #[error("flycheck command timed out")]
-    Timeout,
-    #[error("flycheck command cancelled")]
-    Cancelled,
-    #[error("failed to run flycheck command: {0}")]
-    Io(#[from] std::io::Error),
-    #[error(transparent)]
-    Parse(#[from] parser::ParseError),
-    #[error("flycheck command failed with status {status:?}: {stderr}")]
-    Failed { status: Option<i32>, stderr: String },
 }

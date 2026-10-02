@@ -24,24 +24,23 @@
 + fn @caller() [selector=0x0a0a0a02, abi_wrapper] {
     bb0:
 -     v0 = icall @pub, arg0
-+     v2 = calldatasize
-+     v3 = lt v2, 36
-+     jumpi v3, bb2, bb3
+-     ret v0
++     v1 = calldatasize
++     v2 = lt v1, 36
++     jumpi v2, bb2, bb3
 +   bb3:
 +     jump bb1
 +   bb1:
 +     v0 = icall @pub.body, arg0
-      v1 = bitcast i256 v0 to i256
--     ret v1
-+     mstore 128, v1
-+     v4 = add 128, 32
-+     v5 = sub v4, 128
-+     returndata 128, v5
++     mstore 128, v0
++     v3 = add 128, 32
++     v4 = sub v3, 128
++     returndata 128, v4
 +   bb2:
 +     revert 0, 0
   }
   
-- fn @literal() -> memorybytes [selector=0x0a0a0a03, abi_params=[], abi_returns=[memory_bytes]] {
+- fn @literal() -> memptr [selector=0x0a0a0a03, abi_params=[], abi_returns=[memory_bytes]] {
 + fn @literal() [selector=0x0a0a0a03, abi_wrapper] {
     bb0:
 -     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
@@ -54,7 +53,7 @@
 +     returndata 128, 96
   }
   
-- fn @literalCaller() -> memorybytes [selector=0x0a0a0a04, abi_params=[], abi_returns=[memory_bytes]] {
+- fn @literalCaller() -> memptr [selector=0x0a0a0a04, abi_params=[], abi_returns=[memory_bytes]] {
 + fn @literalCaller() [selector=0x0a0a0a04, abi_wrapper] {
     bb0:
 -     v0 = icall @literal
@@ -66,7 +65,7 @@
 +     returndata v2, v3
   }
   
-- fn @longLiteral() -> memorybytes [selector=0x0a0a0a05, abi_params=[], abi_returns=[memory_bytes]] {
+- fn @longLiteral() -> memptr [selector=0x0a0a0a05, abi_params=[], abi_returns=[memory_bytes]] {
 + fn @longLiteral() [selector=0x0a0a0a05, abi_wrapper] {
     bb0:
 -     v0 = alloc memorybytes, exact, uninitialized, infallible, 96
@@ -84,7 +83,7 @@
 +     returndata 128, 128
   }
   
-- fn @overlappingLiteral() -> memorybytes [selector=0x0a0a0a06, abi_params=[], abi_returns=[memory_bytes]] {
+- fn @overlappingLiteral() -> memptr [selector=0x0a0a0a06, abi_params=[], abi_returns=[memory_bytes]] {
 + fn @overlappingLiteral() [selector=0x0a0a0a06, abi_wrapper] {
     bb0:
       v0 = alloc memorybytes, exact, uninitialized, infallible, 96
@@ -101,7 +100,7 @@
 +     returndata v5, v6
   }
   
-- fn @constantEncoding() -> memorybytes [selector=0x0a0a0a07, abi_params=[], abi_returns=[memory_bytes]] {
+- fn @constantEncoding() -> memptr [selector=0x0a0a0a07, abi_params=[], abi_returns=[memory_bytes]] {
 + fn @constantEncoding() [selector=0x0a0a0a07, abi_wrapper] {
     bb0:
 -     v0 = abi_encode [word, word], object, args 1, 2
@@ -113,7 +112,7 @@
 +     returndata 128, 128
   }
   
-- fn @emptyEncoding() -> memorybytes [selector=0x0a0a0a08, abi_params=[], abi_returns=[memory_bytes]] {
+- fn @emptyEncoding() -> memptr [selector=0x0a0a0a08, abi_params=[], abi_returns=[memory_bytes]] {
 + fn @emptyEncoding() [selector=0x0a0a0a08, abi_wrapper] {
     bb0:
 -     v0 = abi_encode [], object
@@ -123,7 +122,7 @@
 +     returndata 128, 64
   }
   
-- fn @narrowEncoding() -> memorybytes [selector=0x0a0a0a09, abi_params=[], abi_returns=[memory_bytes]] {
+- fn @narrowEncoding() -> memptr [selector=0x0a0a0a09, abi_params=[], abi_returns=[memory_bytes]] {
 + fn @narrowEncoding() [selector=0x0a0a0a09, abi_wrapper] {
     bb0:
       v0 = abi_encode [word<u8>], object, args 0x1234
@@ -134,7 +133,7 @@
 +     returndata v2, v3
   }
   
-- fn @prefixedEncoding() -> memorybytes [selector=0x0a0a0a0a, abi_params=[], abi_returns=[memory_bytes]] {
+- fn @prefixedEncoding() -> memptr [selector=0x0a0a0a0a, abi_params=[], abi_returns=[memory_bytes]] {
 + fn @prefixedEncoding() [selector=0x0a0a0a0a, abi_wrapper] {
     bb0:
       v0 = abi_encode [word], object, selector 0x1234567800000000000000000000000000000000000000000000000000000000, args 1
@@ -169,7 +168,7 @@
   }
   
 - fn @sliceBody() -> i256 [selector=0x0a0a0a0b, abi_params=[], abi_returns=[word]] {
-+ fn @literal.body() -> memorybytes {
++ fn @literal.body() -> memptr {
     bb0:
 +     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
 +     set_memory_object_len memorybytes, v0, 1

@@ -202,14 +202,14 @@ fn @table_ladder(arg0: i256) -> i256 {
 // allocation provenance later passes rely on.
 // CHECK-LABEL: {{^[ +].*}}fn @pointer_arms{{[( ]}}
 // CHECK: {{^ +}}jumpi
-fn @pointer_arms(arg0: i1, arg1: memorystruct, arg2: memorystruct) -> i256 {
+fn @pointer_arms(arg0: i1, arg1: memptr, arg2: memptr) -> i256 {
   bb0:
     jumpi arg0, bb2, bb1
   bb1:
     jump bb2
   bb2:
     v0 = phi [bb0: arg1], [bb1: arg2]
-    v2 = ptrtoint memorystruct v0 to i256
+    v2 = ptrtoint memptr v0 to i256
     v1 = mload v2
     ret v1
 }

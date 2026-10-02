@@ -274,6 +274,10 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     // Getter inlining exposes runtime immutable widths after the general check passes.
     &check_elim::ImmutableCheckElim,
     &cfg_simplify::FunctionDce,
+    // ABI lowering adds shared decoders whose callers often all pass the same
+    // constant head; substitute it so dead-argument elimination can drop the
+    // parameter.
+    &specialize::Specialize,
     &function_compaction::DeadArgElim,
     &dce::Dce,
     &function_compaction::MergeEquivalentFunctions,
@@ -333,9 +337,12 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     // physical memory stores that conservatively alias heap pointers.
     &readonly_eval::ReadonlyEval,
     &lower_immutables::LowerImmutables,
+    // Expand copies before `lower-alloc`, while allocations are still symbolic,
+    // so provenance can prove more ranges disjoint and skip the runtime
+    // direction check.
+    &lower_mcopy::LowerMCopy,
     &lower_alloc::LowerAlloc,
     &lower_memory_zero::LowerMemoryZero,
-    &lower_mcopy::LowerMCopy,
     // Carry proved argument widths across calls before simplifying word masks.
     &call_cleanup::CallCleanup,
     // Shared scalar ABI words and wrapper bodies become one CFG before extraction.

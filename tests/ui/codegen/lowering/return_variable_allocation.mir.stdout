@@ -27,29 +27,29 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word,
     ret v12
 }
 
-fn @g() -> memoryfixedarray {
+fn @g() -> memptr {
   bb0:
     v0 = alloc memoryfixedarray<40, 1>, exact, uninitialized, infallible, 0x500 !metadata(preserves_fmp)
-    v1 = ptrtoint memoryfixedarray v0 to i256
+    v1 = ptrtoint memptr v0 to i256
     memory_zero v1, 0x500
     ret v0
 }
 
-fn @h() -> memoryfixedarray {
+fn @h() -> memptr {
   bb0:
     v0 = alloc memoryfixedarray<40, 1>, exact, uninitialized, infallible, 0x500 !metadata(preserves_fmp)
-    v1 = ptrtoint memoryfixedarray v0 to i256
+    v1 = ptrtoint memptr v0 to i256
     memory_zero v1, 0x500
     ret v0
 }
 
-fn @i() -> memoryfixedarray {
+fn @i() -> memptr {
   bb0:
     v0 = alloc memoryfixedarray<40, 1>, exact, uninitialized, infallible, 0x500 !metadata(preserves_fmp)
-    v1 = ptrtoint memoryfixedarray v0 to i256
+    v1 = ptrtoint memptr v0 to i256
     memory_zero v1, 0x500
     v2 = alloc memoryfixedarray<40, 1>, exact, uninitialized, infallible, 0x500 !metadata(preserves_fmp)
-    v3 = ptrtoint memoryfixedarray v2 to i256
+    v3 = ptrtoint memptr v2 to i256
     memory_zero v3, 0x500
     ret v0
 }

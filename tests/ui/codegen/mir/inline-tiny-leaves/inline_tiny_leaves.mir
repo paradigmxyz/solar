@@ -57,13 +57,13 @@ fn @storage_identity(arg0: i256) -> i256 [pure] {
 
 // ABI decode expands into validation branches and must stay out of tiny-leaf inlining.
 // CHECK-NOT: - {{.*}}icall @decode_dynamic
-fn @decode_caller(arg0: memorybytes) -> memoryarray {
+fn @decode_caller(arg0: memptr) -> memptr {
   bb0:
     v0 = icall @decode_dynamic, arg0
     ret v0
 }
 
-fn @decode_dynamic(arg0: memorybytes) -> memoryarray {
+fn @decode_dynamic(arg0: memptr) -> memptr {
   bb0:
     v0 = abi_decode [array<_, u256>], arg0
     ret v0

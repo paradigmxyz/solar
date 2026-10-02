@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/lowering/lower_packed.mir (before lower-builtins) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_packed.mir (after lower-builtins) ===
   @module PackedEncoding
-  fn @mixed(arg0: i256, arg1: memorybytes) -> memorybytes {
+  fn @mixed(arg0: i256, arg1: memptr) -> memptr {
     bb0:
 -     v0 = abi_encode_packed (data hex"000102", u16 arg0, bytes arg1)
 -     ret v0
@@ -49,7 +49,7 @@
 +     ret v4
   }
   
-  fn @arrays(arg0: memoryarray, arg1: calldataslice) -> memorybytes {
+  fn @arrays(arg0: memptr, arg1: calldataslice) -> memptr {
     bb0:
 -     v0 = abi_encode_packed (array<word<i16>> memoryarray<1> arg0, array<word<bool>> calldata arg1)
 -     ret v0
@@ -151,7 +151,7 @@
 +     revert 28, 36
   }
   
-  fn @nested(arg0: memoryfixedarray) -> memorybytes {
+  fn @nested(arg0: memptr) -> memptr {
     bb0:
 -     v0 = abi_encode_packed (array<array<2, word<enum 3>>> memoryfixedarray<2, 1> arg0)
 -     ret v0
@@ -183,7 +183,7 @@
 +   bb7:
 +     v11 = mul v9, 32
 +     v12 = add v5, v11
-+     v13 = inttoptr i256 v6 to memoryfixedarray
++     v13 = inttoptr i256 v6 to memptr
 +     v14 = memory_object_load_element memoryfixedarray<2, 1>, v13, v9
 +     v15 = lt v14, 3
 +     jumpi v15, bb10, bb9
@@ -201,7 +201,7 @@
 +     revert 28, 36
   }
   
-  fn @edge(arg0: i1, arg1: memoryarray, arg2: memorybytes) -> memorybytes {
+  fn @edge(arg0: i1, arg1: memptr, arg2: memptr) -> memptr {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:
@@ -265,7 +265,7 @@
 +     revert 28, 36
   }
   
-  fn @prefixed_array(arg0: memoryarray) -> memorybytes {
+  fn @prefixed_array(arg0: memptr) -> memptr {
     bb0:
 -     v0 = abi_encode_packed (data hex"ab", array<word<u8>> memoryarray<1> arg0)
 -     ret v0

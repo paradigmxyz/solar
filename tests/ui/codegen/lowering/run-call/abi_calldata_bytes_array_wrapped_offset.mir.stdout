@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_bytes_array_wrapped_offset.sol:AbiCalldataBytesArrayWrappedOffset ===
 @module AbiCalldataBytesArrayWrappedOffset
-fn @first(arg0: calldataslice) -> memorybytes [selector=0xcf452bd8, pure, abi_params=[array<_, bytes>], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @first(arg0: calldataslice) -> memptr [selector=0xcf452bd8, pure, abi_params=[array<_, bytes>], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = slice_len arg0
     v1 = lt 0, v0

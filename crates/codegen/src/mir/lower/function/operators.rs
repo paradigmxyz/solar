@@ -55,14 +55,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         };
         if let Some(op) = checked {
             // lhs/rhs = ptrtoint(object) when assembly supplied raw pointer bits
-            let lhs = if matches!(self.builder.func().value_ty(lhs), Some(MirType::MemoryObject(_)))
-            {
+            let lhs = if matches!(self.builder.func().value_ty(lhs), Some(MirType::MemPtr)) {
                 self.builder.cast_word(lhs)
             } else {
                 lhs
             };
-            let rhs = if matches!(self.builder.func().value_ty(rhs), Some(MirType::MemoryObject(_)))
-            {
+            let rhs = if matches!(self.builder.func().value_ty(rhs), Some(MirType::MemPtr)) {
                 self.builder.cast_word(rhs)
             } else {
                 rhs

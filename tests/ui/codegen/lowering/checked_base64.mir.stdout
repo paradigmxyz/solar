@@ -4,26 +4,26 @@
 
 // === ROOT/tests/ui/codegen/lowering/checked_base64.sol:CheckedBase64 ===
 @module CheckedBase64
-fn @decode.0(arg0: memorybytes) -> memorybytes [selector=0x49145c91, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @decode.0(arg0: memptr) -> memptr [selector=0x49145c91, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = icall @decode.8, arg0
     ret v0
 }
 
-fn @encode.1(arg0: memorybytes) -> memorybytes [selector=0x12496a1b, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @encode.1(arg0: memptr) -> memptr [selector=0x12496a1b, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = icall @encode.6, arg0
     ret v0
 }
 
-fn @encodeFileSafe(arg0: memorybytes) -> memorybytes [selector=0x2dba772b, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @encodeFileSafe(arg0: memptr) -> memptr [selector=0x2dba772b, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = zext i1 1 to i256
     v1 = icall @encode.7, arg0, v0
     ret v1
 }
 
-fn @encodeNoPadding(arg0: memorybytes) -> memorybytes [selector=0x3d92c956, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @encodeNoPadding(arg0: memptr) -> memptr [selector=0x3d92c956, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = zext i1 0 to i256
     v1 = zext i1 1 to i256
@@ -31,7 +31,7 @@ fn @encodeNoPadding(arg0: memorybytes) -> memorybytes [selector=0x3d92c956, pure
     ret v2
 }
 
-fn @encode.4(arg0: memorybytes, arg1: i256, arg2: i256) -> memorybytes [pure] {
+fn @encode.4(arg0: memptr, arg1: i256, arg2: i256) -> memptr [pure] {
   bb0:
     v0 = memory_object_len memorybytes, arg0
     v1 = checked_rem u256, v0, 3
@@ -74,7 +74,7 @@ fn @encode.4(arg0: memorybytes, arg1: i256, arg2: i256) -> memorybytes [pure] {
     v22 = phi [bb6: 0], [bb9: v99]
     v23 = phi [bb6: arg2], [bb9: v23]
     v24 = phi [bb6: v11], [bb9: v24]
-    v25 = phi [bb6: memorybytes 96], [bb9: v25]
+    v25 = phi [bb6: memptr 96], [bb9: v25]
     v26 = phi [bb6: v16], [bb9: v26]
     v27 = lt v22, v18
     jumpi v27, bb10, bb11
@@ -257,7 +257,7 @@ fn @_encode(arg0: i256, arg1: i256) -> i256 [pure] {
     ret v5
 }
 
-fn @encode.6(arg0: memorybytes) -> memorybytes [pure] {
+fn @encode.6(arg0: memptr) -> memptr [pure] {
   bb0:
     v0 = zext i1 0 to i256
     v1 = zext i1 0 to i256
@@ -265,14 +265,14 @@ fn @encode.6(arg0: memorybytes) -> memorybytes [pure] {
     ret v2
 }
 
-fn @encode.7(arg0: memorybytes, arg1: i256) -> memorybytes [pure] {
+fn @encode.7(arg0: memptr, arg1: i256) -> memptr [pure] {
   bb0:
     v0 = zext i1 0 to i256
     v1 = icall @encode.4, arg0, arg1, v0
     ret v1
 }
 
-fn @decode.8(arg0: memorybytes) -> memorybytes [pure] {
+fn @decode.8(arg0: memptr) -> memptr [pure] {
   bb0:
     v0 = memory_object_len memorybytes, arg0
     v1 = eq v0, 0

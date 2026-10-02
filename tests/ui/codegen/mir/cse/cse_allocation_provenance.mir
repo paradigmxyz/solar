@@ -107,7 +107,7 @@ fn @loop_allocation_after_fmp_reset(arg0: i1) -> i256 {
 // CHECK: {{^ +}}memory_object_store_byte
 // CHECK: {{^ +}}[[AFTER:v[0-9]+]] = memory_object_len memorybytes, arg0
 // CHECK: {{^ +}}{{v[0-9]+}} = add [[LEN]], [[AFTER]]
-fn @argument_header(arg0: memorybytes) -> i256 {
+fn @argument_header(arg0: memptr) -> i256 {
   bb0:
     v1 = alloc memorybytes, exact, uninitialized, infallible, 64
     v0 = memory_object_len memorybytes, arg0

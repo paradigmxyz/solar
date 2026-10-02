@@ -12,7 +12,7 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     memory_object_store_field memorystruct<3>, v2, 0, v3
     v4 = add 0, 1
     v5 = icall @load_storage_bytes, v4
-    v6 = ptrtoint memorybytes v5 to i256
+    v6 = ptrtoint memptr v5 to i256
     memory_object_store_field memorystruct<3>, v2, 1, v6
     v7 = add 0, 2
     v8 = sload v7 !metadata(storage=slot(2))
@@ -21,7 +21,7 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     sstore 3, v9 !metadata(storage=slot(3))
     v10 = add 3, 1
     v11 = memory_object_load_field memorystruct<3>, v2, 1
-    v12 = inttoptr i256 v11 to memorybytes
+    v12 = inttoptr i256 v11 to memptr
     icall @store_storage_bytes, v10, v12
     v13 = add 3, 2
     v14 = memory_object_load_field memorystruct<3>, v2, 2
@@ -199,7 +199,7 @@ fn @arrayCopy() -> i256 [selector=0xb192499e, abi_params=[], abi_returns=[word],
     memory_object_store_field memorystruct<3>, v41, 0, v42
     v43 = add v40, 1
     v44 = icall @load_storage_bytes, v43
-    v45 = ptrtoint memorybytes v44 to i256
+    v45 = ptrtoint memptr v44 to i256
     memory_object_store_field memorystruct<3>, v41, 1, v45
     v46 = add v40, 2
     v47 = sload v46 !metadata(storage=offset(v40, 2))
@@ -215,7 +215,7 @@ fn @arrayCopy() -> i256 [selector=0xb192499e, abi_params=[], abi_returns=[word],
     sstore v53, v54 !metadata(storage=symbolic(v53))
     v55 = add v53, 1
     v56 = memory_object_load_field memorystruct<3>, v41, 1
-    v57 = inttoptr i256 v56 to memorybytes
+    v57 = inttoptr i256 v56 to memptr
     icall @store_storage_bytes, v55, v57
     v58 = add v53, 2
     v59 = memory_object_load_field memorystruct<3>, v41, 2
@@ -319,13 +319,13 @@ fn @arrayCopy() -> i256 [selector=0xb192499e, abi_params=[], abi_returns=[word],
     ret v134
 }
 
-fn @load_storage_bytes(arg0: i256) -> memorybytes {
+fn @load_storage_bytes(arg0: i256) -> memptr {
   bb0:
     v0 = load_storage_bytes arg0
     ret v0
 }
 
-fn @store_storage_bytes(arg0: i256, arg1: memorybytes) {
+fn @store_storage_bytes(arg0: i256, arg1: memptr) {
   bb0:
     store_storage_bytes arg0, arg1
     ret

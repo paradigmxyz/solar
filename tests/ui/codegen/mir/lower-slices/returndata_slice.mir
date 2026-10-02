@@ -22,7 +22,7 @@ fn @copy_returndata() -> i256 {
     v8 = memory_object_data memorybytes, v5
     v6 = ptrtoint memptr v8 to i256
     returndatacopy v6, v2, v3
-    v7 = ptrtoint memorybytes v5 to i256
+    v7 = ptrtoint memptr v5 to i256
     ret v7
 }
 

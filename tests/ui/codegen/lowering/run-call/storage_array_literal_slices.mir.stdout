@@ -45,7 +45,7 @@ fn @copy(arg0: calldataslice) -> struct0 [selector=0x8d80fe50, abi_params=[array
     set_memory_object_len memoryarray, v31, v10
     v32 = make_calldata_slice v11, v22
     memory_object_copy_from_slice memoryarray, v31, v32
-    v33 = ptrtoint memoryarray v31 to i256
+    v33 = ptrtoint memptr v31 to i256
     memory_object_store_element memoryfixedarray<2, 1>, v0, 0, v33
     v34 = slice_ptr arg0
     v35 = slice_len arg0
@@ -86,7 +86,7 @@ fn @copy(arg0: calldataslice) -> struct0 [selector=0x8d80fe50, abi_params=[array
     set_memory_object_len memoryarray, v64, v43
     v65 = make_calldata_slice v44, v55
     memory_object_copy_from_slice memoryarray, v64, v65
-    v66 = ptrtoint memoryarray v64 to i256
+    v66 = ptrtoint memptr v64 to i256
     memory_object_store_element memoryfixedarray<2, 1>, v0, 1, v66
     jump bb1
   bb1:
@@ -174,7 +174,7 @@ fn @copy(arg0: calldataslice) -> struct0 [selector=0x8d80fe50, abi_params=[array
     jump bb17
   bb4:
     v71 = memory_object_load_element memoryfixedarray<2, 1>, v0, v67
-    v72 = inttoptr i256 v71 to memoryarray
+    v72 = inttoptr i256 v71 to memptr
     v73 = memory_object_len memoryarray, v72
     v74 = sload v69 !metadata(storage=symbolic(v67))
     v75 = gt v74, v73
@@ -200,7 +200,7 @@ fn @copy(arg0: calldataslice) -> struct0 [selector=0x8d80fe50, abi_params=[array
     v103 = add v67, 1
     jump bb1
   bb13:
-    v83 = inttoptr i256 v71 to memoryarray
+    v83 = inttoptr i256 v71 to memptr
     v84 = memory_object_load_element memoryarray<1>, v83, v81
     v85 = storage_array_data_slot v69
     v86 = add v85, v81

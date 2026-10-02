@@ -793,10 +793,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
 
         // output = icall concat, parts
-        Some(self.builder.emit_inst(
-            InstKind::concat(parts),
-            Some(MirType::MemoryObject(MemoryObjectKind::Bytes)),
-        ))
+        Some(self.builder.emit_inst(InstKind::concat(parts), Some(MirType::MemPtr)))
     }
 
     fn lower_yul_unit_builtin_call(

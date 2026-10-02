@@ -203,7 +203,7 @@
       ret
   }
   
-  fn @constant_require(arg0: memorybytes) {
+  fn @constant_require(arg0: memptr) {
     bb0:
 -     icall require<error_string>, true, arg0
       icall require<empty_string>, false

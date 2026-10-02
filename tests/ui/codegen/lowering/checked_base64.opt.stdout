@@ -12,7 +12,7 @@ fn @entry() [entry] {
 @phase lowered
 fn @decode.0() [selector=0x49145c91, abi_wrapper, pure] {
   bb0:
-    v3 = icall @decode_calldata_type, 4
+    v3 = icall @decode_calldata_type
     v0 = icall @decode.8, v3
     v28 = ptrtoint memptr v0 to i256
     v11 = ne v28, 0
@@ -34,7 +34,7 @@ fn @decode.0() [selector=0x49145c91, abi_wrapper, pure] {
 
 fn @encode.1() [selector=0x12496a1b, abi_wrapper, pure] {
   bb0:
-    v5 = icall @decode_calldata_type, 4
+    v5 = icall @decode_calldata_type
     v1 = icall @encode.4, v5, 0, 0
     v30 = ptrtoint memptr v1 to i256
     v13 = ne v30, 0
@@ -56,7 +56,7 @@ fn @encode.1() [selector=0x12496a1b, abi_wrapper, pure] {
 
 fn @encodeFileSafe() [selector=0x2dba772b, abi_wrapper, pure] {
   bb0:
-    v6 = icall @decode_calldata_type, 4
+    v6 = icall @decode_calldata_type
     v2 = icall @encode.4, v6, 1, 0
     v31 = ptrtoint memptr v2 to i256
     v14 = ne v31, 0
@@ -78,7 +78,7 @@ fn @encodeFileSafe() [selector=0x2dba772b, abi_wrapper, pure] {
 
 fn @encodeNoPadding() [selector=0x3d92c956, abi_wrapper, pure] {
   bb0:
-    v5 = icall @decode_calldata_type, 4
+    v5 = icall @decode_calldata_type
     v2 = icall @encode.4, v5, 0, 1
     v30 = ptrtoint memptr v2 to i256
     v13 = ne v30, 0
@@ -1040,10 +1040,10 @@ fn @revert_stub.9() {
     revert 28, 36
 }
 
-fn @decode_calldata_type(arg0: i256) -> memptr [may_return_memory] {
+fn @decode_calldata_type() -> memptr [may_return_memory] {
   bb0:
     v0 = calldatasize
-    v1 = calldataload arg0
+    v1 = calldataload 4
     v2 = add v1, 4
     v3 = add v2, 32
     v4 = gt v1, 0xffffffffffffffff

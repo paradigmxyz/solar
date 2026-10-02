@@ -144,7 +144,7 @@ pub(super) fn add_load_helper(module: &mut Module) -> FunctionId {
     let mut function = Function::new(Ident::with_dummy_span(sym::load_storage_bytes));
     let mut builder = FunctionBuilder::new_semantic(&mut function);
     let slot = builder.add_param(MirType::I256);
-    let ty = MirType::MemoryObject(MemoryObjectKind::Bytes);
+    let ty = MirType::MemPtr;
     builder.set_return_type(ty);
     let object = builder.emit_inst(InstKind::StorageBytesLoad(slot), Some(ty));
     builder.ret([object]);

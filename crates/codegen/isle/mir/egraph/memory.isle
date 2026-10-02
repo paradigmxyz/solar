@@ -54,21 +54,21 @@
 ;; Requires: the target supports SELFBALANCE.
 (rule (rewrite (Op.Balance (current_address))) (if-let true (has_self_balance)) (Op.SelfBalance))
 
-;; memoryobjectdata(object, kind) => bitcast(object).
+;; memoryobjectdata(object, kind) => object.
 ;; Requires: kind has zero data offset.
-(rule (rewrite (Op.MemoryObjectData object kind)) (if-let 0 (object_data_offset kind)) (Op.Bitcast object))
+(rule (simplify (Op.MemoryObjectData object kind)) (if-let 0 (object_data_offset kind)) object)
 
-;; memoryobjectfieldaddr(object, layout, field) => bitcast(object).
+;; memoryobjectfieldaddr(object, layout, field) => object.
 ;; Requires: field has zero offset in layout.
-(rule (rewrite (Op.MemoryObjectFieldAddr object layout field))
+(rule (simplify (Op.MemoryObjectFieldAddr object layout field))
       (if-let 0 (field_offset layout field))
-      (Op.Bitcast object))
+      object)
 
-;; memoryobjectelementaddr(object, layout, 0) => bitcast(object).
+;; memoryobjectelementaddr(object, layout, 0) => object.
 ;; Requires: layout has zero data offset.
-(rule (rewrite (Op.MemoryObjectElementAddr object layout (zero)))
+(rule (simplify (Op.MemoryObjectElementAddr object layout (zero)))
       (if-let 0 (object_data_offset (layout_kind layout)))
-      (Op.Bitcast object))
+      object)
 
 ;; call(gas, addr, value, offset, 0, out, size) => call(gas, addr, value, 0, 0, out, size).
 ;; Requires: offset != 0.

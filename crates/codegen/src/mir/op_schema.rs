@@ -99,6 +99,8 @@ pub(crate) enum ResultKind {
     None,
     /// A 256-bit integer.
     I256,
+    /// A 256-bit word read from memory: an integer, or a pointer when the loaded field holds one.
+    Word,
     /// A raw memory pointer.
     MemPtr,
     /// A 160-bit integer.
@@ -115,7 +117,7 @@ impl ResultKind {
     pub(crate) const fn default_type(self) -> Option<MirType> {
         match self {
             Self::None | Self::Custom => None,
-            Self::I256 => Some(MirType::I256),
+            Self::I256 | Self::Word => Some(MirType::I256),
             Self::MemPtr => Some(MirType::MemPtr),
             Self::I160 => Some(MirType::I160),
             Self::I1 => Some(MirType::I1),
@@ -130,7 +132,8 @@ impl ResultKind {
 
     /// Checks the exact result type; scalar conversions require explicit instructions.
     pub(crate) fn admits_type(self, ty: MirType) -> bool {
-        self.default_type().is_none_or(|expected| expected == ty)
+        (self == Self::Word && ty == MirType::MemPtr)
+            || self.default_type().is_none_or(|expected| expected == ty)
     }
 }
 
@@ -969,10 +972,6 @@ define_mir_ops! {
         effect = Pure, traits = OpTraits::EGRAPH_REWRITE, side_effects = false, category = None)]
     #[operand_types(func => None)]
     IntToPtr(operand0: ValueId),
-    #[mir_op(mnemonic = "bitcast", result = Custom, phases = PhaseSet::ALL,
-        effect = Pure, traits = OpTraits::EGRAPH_REWRITE, side_effects = false, category = None)]
-    #[operand_types(func => None)]
-    Bitcast(operand0: ValueId),
     #[mir_op(mnemonic = "checked_binary", result = I256, phases = PhaseSet::SEMANTIC,
         effect = Pure, traits = OpTraits::NONE, side_effects = true, category = Some("semantic operation"))]
     #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256]))]
@@ -996,7 +995,7 @@ define_mir_ops! {
     StorageArrayLoad { slot: ValueId, element: ValueLayout, enum_variants: Option<u64> },
     #[mir_op(mnemonic = "store_storage_bytes", result = None, phases = PhaseSet::SEMANTIC,
         effect = StorageWrite, traits = OpTraits::NONE, side_effects = true, category = Some("semantic operation"))]
-    #[operand_types(func => Some(smallvec![MirType::I256, MirType::MemoryObject(MemoryObjectKind::Bytes)]))]
+    #[operand_types(func => Some(smallvec![MirType::I256, MirType::MemPtr]))]
     StorageBytesStore(operand0: ValueId, operand1: ValueId),
     #[mir_op(mnemonic = "store_storage_bytes_literal", result = None, phases = PhaseSet::SEMANTIC,
         effect = StorageWrite, traits = OpTraits::NONE, side_effects = true, category = Some("semantic operation"))]
@@ -1485,7 +1484,7 @@ define_mir_ops! {
         side_effects = false,
         category = Some("memory-object")
     )]
-    #[operand_types(func => Some(smallvec![typing::read_object(func, *object, *kind)]))]
+    #[operand_types(func => Some(smallvec![typing::read_object(func, *object)]))]
     MemoryObjectLen(object: ValueId, kind: MemoryObjectKind),
     /// Set the logical length of a dynamic memory object.
     #[mir_op(
@@ -1497,7 +1496,7 @@ define_mir_ops! {
         side_effects = true,
         category = Some("memory-object")
     )]
-    #[operand_types(func => Some(smallvec![MirType::MemoryObject(*kind), MirType::I256]))]
+    #[operand_types(func => Some(smallvec![MirType::MemPtr, MirType::I256]))]
     SetMemoryObjectLen(object: ValueId, len: ValueId, kind: MemoryObjectKind),
     /// Project the address of the first payload byte from an object.
     #[mir_op(
@@ -1509,7 +1508,7 @@ define_mir_ops! {
         side_effects = false,
         category = Some("memory-object")
     )]
-    #[operand_types(func => Some(smallvec![typing::memory_object(func, *object, *kind)]))]
+    #[operand_types(func => Some(smallvec![typing::memory_object(func, *object)]))]
     MemoryObjectData(object: ValueId, kind: MemoryObjectKind),
     /// Address a direct field of a struct object.
     #[mir_op(
@@ -1521,7 +1520,7 @@ define_mir_ops! {
         side_effects = false,
         category = Some("memory-object")
     )]
-    #[operand_types(func => Some(smallvec![typing::memory_object(func, *object, layout.kind())]))]
+    #[operand_types(func => Some(smallvec![typing::memory_object(func, *object)]))]
     MemoryObjectFieldAddr {
         /// Struct object reference.
         object: ValueId,
@@ -1540,7 +1539,7 @@ define_mir_ops! {
         side_effects = false,
         category = Some("memory-object")
     )]
-    #[operand_types(func => Some(smallvec![typing::memory_object(func, *object, layout.kind()), MirType::I256]))]
+    #[operand_types(func => Some(smallvec![typing::memory_object(func, *object), MirType::I256]))]
     MemoryObjectElementAddr {
         /// Array object reference.
         object: ValueId,
@@ -1552,14 +1551,14 @@ define_mir_ops! {
     /// Load one direct struct field without exposing its physical address.
     #[mir_op(
         mnemonic = "memory_object_load_field",
-        result = I256,
+        result = Word,
         phases = PhaseSet::SEMANTIC,
         effect = MemoryRead,
         traits = OpTraits::MEMORY_OBJECT,
         side_effects = false,
         category = Some("memory-object")
     )]
-    #[operand_types(func => Some(smallvec![typing::read_object(func, *object, layout.kind())]))]
+    #[operand_types(func => Some(smallvec![typing::read_object(func, *object)]))]
     MemoryObjectLoadField {
         /// Struct object reference.
         object: ValueId,
@@ -1578,7 +1577,7 @@ define_mir_ops! {
         side_effects = true,
         category = Some("memory-object")
     )]
-    #[operand_types(func => Some(smallvec![MirType::MemoryObject(layout.kind()), MirType::I256]))]
+    #[operand_types(func => Some(smallvec![MirType::MemPtr, MirType::I256]))]
     MemoryObjectStoreField {
         /// Struct object reference.
         object: ValueId,
@@ -1592,14 +1591,14 @@ define_mir_ops! {
     /// Load one array element without exposing its physical address.
     #[mir_op(
         mnemonic = "memory_object_load_element",
-        result = I256,
+        result = Word,
         phases = PhaseSet::SEMANTIC,
         effect = MemoryRead,
         traits = OpTraits::MEMORY_OBJECT,
         side_effects = false,
         category = Some("memory-object")
     )]
-    #[operand_types(func => Some(smallvec![typing::read_object(func, *object, layout.kind()), MirType::I256]))]
+    #[operand_types(func => Some(smallvec![typing::read_object(func, *object), MirType::I256]))]
     MemoryObjectLoadElement {
         /// Array object reference.
         object: ValueId,
@@ -1618,7 +1617,7 @@ define_mir_ops! {
         side_effects = false,
         category = Some("memory-object")
     )]
-    #[operand_types(func => Some(smallvec![typing::read_object(func, *object, MemoryObjectKind::Bytes), MirType::I256]))]
+    #[operand_types(func => Some(smallvec![typing::read_object(func, *object), MirType::I256]))]
     MemoryObjectLoadByte {
         /// Bytes object reference.
         object: ValueId,
@@ -1635,7 +1634,7 @@ define_mir_ops! {
         side_effects = true,
         category = Some("memory-object")
     )]
-    #[operand_types(func => Some(smallvec![MirType::MemoryObject(layout.kind()), MirType::I256, MirType::I256]))]
+    #[operand_types(func => Some(smallvec![MirType::MemPtr, MirType::I256, MirType::I256]))]
     MemoryObjectStoreElement {
         /// Array object reference.
         object: ValueId,
@@ -1656,7 +1655,7 @@ define_mir_ops! {
         side_effects = true,
         category = Some("memory-object")
     )]
-    #[operand_types(func => Some(smallvec![MirType::MemoryObject(MemoryObjectKind::Bytes), MirType::I256, MirType::I256]))]
+    #[operand_types(func => Some(smallvec![MirType::MemPtr, MirType::I256, MirType::I256]))]
     MemoryObjectStoreByte {
         /// Bytes object reference.
         object: ValueId,
@@ -1676,7 +1675,7 @@ define_mir_ops! {
         side_effects = true,
         category = Some("memory-object")
     )]
-    #[operand_types(func => Some(smallvec![MirType::MemoryObject(MemoryObjectKind::Bytes), MirType::I256, MirType::I256]))]
+    #[operand_types(func => Some(smallvec![MirType::MemPtr, MirType::I256, MirType::I256]))]
     MemoryObjectStoreWord {
         /// Bytes object reference.
         object: ValueId,
@@ -1731,7 +1730,7 @@ define_mir_ops! {
         side_effects = true,
         category = Some("memory-object")
     )]
-    #[operand_types(func => Some(smallvec![MirType::MemoryObject(*kind), typing::slice_type(func, *source)]))]
+    #[operand_types(func => Some(smallvec![MirType::MemPtr, typing::slice_type(func, *source)]))]
     MemoryObjectCopyFromSlice {
         /// Destination memory object reference.
         object: ValueId,
@@ -1750,7 +1749,7 @@ define_mir_ops! {
         side_effects = true,
         category = Some("memory-object")
     )]
-    #[operand_types(func => Some(smallvec![MirType::MemoryObject(*kind), MirType::I256, typing::slice_type(func, *source)]))]
+    #[operand_types(func => Some(smallvec![MirType::MemPtr, MirType::I256, typing::slice_type(func, *source)]))]
     MemoryObjectCopyFromSliceAt {
         /// Destination memory object reference.
         object: ValueId,
@@ -1771,7 +1770,7 @@ define_mir_ops! {
         side_effects = true,
         category = Some("memory-object")
     )]
-    #[operand_types(func => Some(smallvec![MirType::MemoryObject(*destination_kind), MirType::MemoryObject(*source_kind), MirType::I256]))]
+    #[operand_types(func => Some(smallvec![MirType::MemPtr, MirType::MemPtr, MirType::I256]))]
     MemoryObjectCopy {
         /// Destination memory object reference.
         destination: ValueId,
@@ -1818,7 +1817,7 @@ define_mir_ops! {
         side_effects = true,
         category = Some("ABI decoding")
     )]
-    #[operand_types(func => Some(smallvec![MirType::MemoryObject(MemoryObjectKind::Bytes)]))]
+    #[operand_types(func => Some(smallvec![MirType::MemPtr]))]
     AbiDecode {
         /// ABI-encoded bytes object.
         data: ValueId,
@@ -1835,7 +1834,7 @@ define_mir_ops! {
         side_effects = true,
         category = Some("aggregate")
     )]
-    #[operand_types(func => Some(smallvec![MirType::I256, typing::storage_object_type(layout)]))]
+    #[operand_types(func => Some(smallvec![MirType::I256, MirType::MemPtr]))]
     StorageToMemory {
         /// Base storage slot.
         storage: ValueId,
@@ -1854,7 +1853,7 @@ define_mir_ops! {
         side_effects = true,
         category = Some("aggregate")
     )]
-    #[operand_types(func => Some(smallvec![typing::storage_object_type(layout), MirType::I256]))]
+    #[operand_types(func => Some(smallvec![MirType::MemPtr, MirType::I256]))]
     MemoryToStorage {
         /// Source memory pointer.
         memory: ValueId,
@@ -2564,7 +2563,7 @@ define_mir_ops! {
         category = Some("memory-object")
     )]
     #[builder(keccak256_bytes)]
-    #[operand_types(func => Some(smallvec![MirType::MemoryObject(MemoryObjectKind::Bytes)]))]
+    #[operand_types(func => Some(smallvec![MirType::MemPtr]))]
     Keccak256Bytes(object: ValueId),
     /// Hash a fixed-width mapping key and its parent slot.
     ///
@@ -2592,7 +2591,7 @@ define_mir_ops! {
         category = Some("storage slot")
     )]
     #[builder(mapping_slot_memory)]
-    #[operand_types(func => Some(smallvec![MirType::MemoryObject(MemoryObjectKind::Bytes), MirType::I256]))]
+    #[operand_types(func => Some(smallvec![MirType::MemPtr, MirType::I256]))]
     MappingSlotMemory(key: ValueId, slot: ValueId),
     /// Hash a dynamically-sized calldata value and its parent mapping slot.
     ///
@@ -2878,7 +2877,7 @@ mod tests {
     fn empty_signatures_reject_extra_operands() {
         let mut func = Function::new(Ident::DUMMY);
         let value = func.alloc_value(Value::Undef(MirType::I256));
-        let bytes = MirType::MemoryObject(MemoryObjectKind::Bytes);
+        let bytes = MirType::MemPtr;
         let extra = [value].into();
         let calls = [
             InstKind::ICall { function: Callee::Builtin(Builtin::ReturndataBytes), args: extra },

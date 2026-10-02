@@ -74,7 +74,7 @@
       ret
   }
   
-  fn @copy_observes_store(arg0: i256, arg1: i256) -> memorybytes {
+  fn @copy_observes_store(arg0: i256, arg1: i256) -> memptr {
     bb0:
 -     sstore arg0, 7
 +     sstore arg0, 7 !metadata(storage=symbolic(arg0))

@@ -175,11 +175,10 @@
       ret v0
   }
   
-- fn @pointer_arm(arg0: i1, arg1: memorybytes) -> memorybytes {
+- fn @pointer_arm(arg0: i1, arg1: memptr) -> memptr {
 + fn @pointer_arm(arg0: i1, arg1: memptr) -> memptr [may_return_memory] {
     bb0:
--     v0 = select arg0, arg1, memorybytes 0
-+     v0 = select arg0, arg1, memptr 0
+      v0 = select arg0, arg1, memptr 0
       ret v0
   }
   

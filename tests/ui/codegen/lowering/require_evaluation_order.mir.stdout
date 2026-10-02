@@ -60,12 +60,12 @@ fn @nestedFailure() [selector=0x3e70e061, pure, abi_params=[], abi_returns=[], a
     v9 = lt 0, v8
     v10 = eq v9, false
     icall panic_if<0x32>, v10
-    v11 = ptrtoint memorybytes v5 to i256
+    v11 = ptrtoint memptr v5 to i256
     memory_object_store_element memoryarray<1>, v0, 0, v11
     icall require<custom_error [memory_array<memory_bytes>]>, false, 0xae7687df00000000000000000000000000000000000000000000000000000000, v0
     ret
   bb2:
-    v3 = ptrtoint memorybytes 96 to i256
+    v3 = ptrtoint memptr 96 to i256
     memory_object_store_element memoryarray<1>, v0, v1, v3
     v4 = add v1, 1
     jump bb1
@@ -79,7 +79,7 @@ fn @increment() -> i256 {
     ret v1
 }
 
-fn @reason() -> memorybytes {
+fn @reason() -> memptr {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = checked_add u256, v0, 1
