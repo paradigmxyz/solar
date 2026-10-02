@@ -157,3 +157,77 @@ $6 <none>
 "#]],
     );
 }
+
+#[test]
+fn builtin_this_type_definition_uses_its_lexical_contract() {
+    let fixture = RequestFixture::new(
+        r#"
+        //- /Base.sol
+        contract Base {
+            function self() public view returns (Base) {
+                return $1this;
+            }
+        }
+
+        //- /Main.sol
+        import "./Base.sol";
+        contract Derived is Base {
+            function derived() external view returns (Derived) {
+                return $2this;
+            }
+        }
+        "#,
+        "/Main.sol",
+    );
+
+    fixture.check_queries(
+        &[Query::Definition, Query::Declaration, Query::TypeDefinition],
+        [1, 2],
+        str![[r#"
+$1 definition: <none>
+$1 declaration: <none>
+$1 type definition: /Base.sol:0:9 contract Base {
+$2 definition: <none>
+$2 declaration: <none>
+$2 type definition: /Main.sol:1:9 contract Derived is Base {
+
+"#]],
+    );
+}
+
+#[test]
+fn builtin_type_origins_do_not_become_type_definition_targets() {
+    let fixture = RequestFixture::new(
+        r#"
+        //- /Main.sol
+        type Price is uint256;
+        contract Base {
+            function value() public pure returns (uint256) { return 1; }
+        }
+        contract C is Base {
+            function use() external pure returns (Price, uint256, bytes4, string memory) {
+                return (
+                    Price.$1wrap(Price.$2unwrap(Price.wrap(1))),
+                    $3super.value(),
+                    this.use.$4selector,
+                    type(C).$5name
+                );
+            }
+        }
+        "#,
+        "/Main.sol",
+    );
+
+    fixture.check_queries(
+        &[Query::TypeDefinition],
+        1..=5,
+        str![[r#"
+$1 <none>
+$2 <none>
+$3 <none>
+$4 <none>
+$5 <none>
+
+"#]],
+    );
+}

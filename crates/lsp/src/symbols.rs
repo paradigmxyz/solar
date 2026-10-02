@@ -33,6 +33,7 @@ use std::{
 };
 
 use crate::{
+    builtin_symbols::{BuiltinIndex, BuiltinOccurrence},
     call_hierarchy::CallHierarchyIndex,
     code_lens::CodeLensIndex,
     config::CodeLensConfig,
@@ -91,6 +92,7 @@ pub(crate) struct SymbolTables {
     call_hierarchy: CallHierarchyIndex,
     type_hierarchy: TypeHierarchyIndex,
     code_lens: CodeLensIndex,
+    builtins: BuiltinIndex,
     has_merged_batches: bool,
 }
 
@@ -390,6 +392,7 @@ impl SymbolTables {
         self.inlay_hints.extend(other.inlay_hints);
         self.natspec_completion.extend(other.natspec_completion);
         self.signature_help.extend(other.signature_help);
+        self.builtins.extend(other.builtins);
 
         let symbol_offset = self.declarations.len();
         self.code_lens.extend(other.code_lens, symbol_offset);
@@ -755,7 +758,8 @@ impl SymbolTables {
     pub(crate) fn has_code_symbol_at_position(&self, uri: &Url, position: Position) -> bool {
         !self.rename.conflicting_contents().contains(uri)
             && (self.reference_at_position(uri, position).is_some()
-                || self.declaration_at_position(uri, position).is_some())
+                || self.declaration_at_position(uri, position).is_some()
+                || self.builtins.contains(uri, position))
     }
 
     pub(crate) fn goto_definition(
@@ -873,6 +877,10 @@ impl SymbolTables {
         uri: &Url,
         position: Position,
     ) -> Option<GotoTypeDefinitionResponse> {
+        if self.builtins.contains(uri, position) {
+            let location = self.builtin_at_position(uri, position)?.type_definition.clone()?;
+            return Some(GotoTypeDefinitionResponse::Array(vec![location]));
+        }
         let (locations, _) = self.query_at_position(uri, position, |symbol_ids| {
             // Overload sets have no batch-independent ID order. Visit their declarations in
             // source order while preserving each function's own return-type order.
@@ -1027,12 +1035,29 @@ impl SymbolTables {
     }
 
     pub(crate) fn hover(&self, uri: &Url, position: Position) -> Option<Hover> {
+        if self.builtins.contains(uri, position) {
+            let builtin = self.builtin_at_position(uri, position)?;
+            return Some(Hover {
+                contents: HoverContents::Markup(builtin.documentation.hover()),
+                range: Some(builtin.location.range),
+            });
+        }
         let (documentation, range) = self.query_at_position(uri, position, |targets| {
             let &[symbol_id] = targets else { return None };
             self.declarations[symbol_id].documentation.as_ref()
         })?;
         let contents = documentation.hover();
         Some(Hover { contents: HoverContents::Markup(contents), range: Some(range) })
+    }
+
+    fn builtin_at_position(&self, uri: &Url, position: Position) -> Option<&BuiltinOccurrence> {
+        // Different workspace contexts may bind one physical token to a builtin and user code.
+        if self.reference_at_position(uri, position).is_some()
+            || self.declaration_at_position(uri, position).is_some()
+        {
+            return None;
+        }
+        self.builtins.at_position(uri, position, self.rename.conflicting_contents())
     }
 
     pub(crate) fn rename_candidate(
@@ -1598,6 +1623,9 @@ impl SymbolTables {
         position: Position,
         query: impl Fn(&[SymbolId]) -> Option<T>,
     ) -> Option<(T, Range)> {
+        if self.builtins.contains(uri, position) {
+            return None;
+        }
         let reference = self.reference_at_position(uri, position);
         let declaration_target;
         let (targets, range) = if let Some(reference) = reference {
@@ -1942,6 +1970,7 @@ impl SymbolTables {
     }
 
     fn rebuild_indexes(&mut self) {
+        self.builtins.rebuild();
         for symbols in self.files.values_mut() {
             // Each group has one URI, so only source position and ID can affect its order.
             symbols.sort_by_key(|&id| {
@@ -2464,6 +2493,7 @@ impl<'gcx> ReferenceCollector<'_, 'gcx> {
         resolutions: &[Res],
         kind: DocumentHighlightKind,
     ) {
+        self.tables.builtins.record(self.gcx, self.locations, expr, expr.span);
         let resolved = self.gcx.resolved_expr(expr).filter(|res| !res.is_err());
         let targets = resolved.map_or_else(
             || self.symbol_ids_for_res(resolutions.iter().copied()),
@@ -2481,6 +2511,7 @@ impl<'gcx> ReferenceCollector<'_, 'gcx> {
         kind: DocumentHighlightKind,
     ) -> ControlFlow<Never> {
         self.visit_expr(receiver)?;
+        self.tables.builtins.record(self.gcx, self.locations, expr, ident.span);
         let targets = self.symbol_ids_for_expr(expr);
         self.push_reference_with_kind(ident.span, targets, kind);
         ControlFlow::Continue(())
