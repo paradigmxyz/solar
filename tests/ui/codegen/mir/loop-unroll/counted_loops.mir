@@ -297,3 +297,84 @@ fn @nested(arg0: i256, arg1: i256) -> i256 {
   bb6:
     ret v1
 }
+
+// A counter that runs until it reaches its bound, here a pointer, peels one
+// iteration when an odd number remain, and the original header then tests the
+// bound once per two iterations.
+// CHECK-LABEL: {{^[ +].*}}fn @pointer_counter{{[( ]}}
+// CHECK: + jump [[CHECK:bb[0-9]+]]
+// CHECK-NEXT: + [[CHECK]]:
+// CHECK: + [[WORD:v[0-9]+]] = ptrtoint memptr {{v[0-9]+}} to i256
+// CHECK: + [[LEFT:v[0-9]+]] = sub v1, [[WORD]]
+// CHECK-NEXT: + [[BIT:v[0-9]+]] = and [[LEFT]], 1
+// CHECK-NEXT: + [[ODD:v[0-9]+]] = ne [[BIT]], 0
+// CHECK-NEXT: + jumpi [[ODD]], [[PEEL:bb[0-9]+]], bb1
+// CHECK-NEXT: + [[PEEL]]:
+// CHECK: - v2 = phi [bb0: 0], [bb3: v8]
+// CHECK: + v2 = phi {{\[}}[[CHECK]]: {{v[0-9]+}}], {{\[}}[[SECOND:bb[0-9]+]]: {{v[0-9]+}}], {{\[}}[[PEEL]]: {{v[0-9]+}}]
+// CHECK: + jump [[SECOND_HEADER:bb[0-9]+]]
+// CHECK-NEXT: + [[SECOND_HEADER]]:
+// CHECK: + [[SECOND]]:
+fn @pointer_counter(arg0: memptr, arg1: i256) -> i256 {
+  bb0:
+    v0 = ptrtoint memptr arg0 to i256
+    v1 = add v0, arg1
+    jump bb1
+  bb1:
+    v2 = phi [bb0: 0], [bb3: v8]
+    v3 = phi [bb0: arg0], [bb3: v9]
+    v4 = ptrtoint memptr v3 to i256
+    v5 = ne v4, v1
+    jumpi v5, bb3, bb2
+  bb2:
+    ret v2
+  bb3:
+    v6 = add v4, 1
+    v7 = mload v6
+    v8 = add v2, v7
+    v9 = inttoptr i256 v6 to memptr
+    jump bb1
+}
+
+// A scan stepping by 32 reads the parity from bit 5 of the distance.
+// CHECK-LABEL: {{^[ +].*}}fn @word_scan{{[( ]}}
+// CHECK: + [[LEFT:v[0-9]+]] = sub arg1, {{v[0-9]+}}
+// CHECK-NEXT: + [[COUNT:v[0-9]+]] = shr 5, [[LEFT]]
+// CHECK-NEXT: + {{v[0-9]+}} = and [[COUNT]], 1
+fn @word_scan(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: arg0], [bb2: v4]
+    v1 = phi [bb0: 0], [bb2: v3]
+    v2 = ne arg1, v0
+    jumpi v2, bb2, bb3
+  bb2:
+    v5 = mload v0
+    v3 = add v1, v5
+    v4 = add v0, 32
+    jump bb1
+  bb3:
+    ret v1
+}
+
+// A `<` test needs a literal start to rule out `i + s` wrapping: the loop is
+// kept.
+// CHECK-LABEL: {{^[ +].*}}fn @variable_start_below{{[( ]}}
+// CHECK-NOT: {{^[-+]}}
+fn @variable_start_below(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: arg0], [bb2: v4]
+    v1 = phi [bb0: 0], [bb2: v3]
+    v2 = lt v0, arg1
+    jumpi v2, bb2, bb3
+  bb2:
+    v5 = mload v0
+    v3 = add v1, v5
+    v4 = add v0, 32
+    jump bb1
+  bb3:
+    ret v1
+}

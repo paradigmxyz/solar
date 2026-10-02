@@ -350,3 +350,109 @@
 +     jump bb7
   }
   
+  fn @pointer_counter(arg0: memptr, arg1: i256) -> i256 {
+    bb0:
+      v0 = ptrtoint memptr arg0 to i256
+      v1 = add v0, arg1
++     jump bb4
++   bb4:
++     v10 = phi [bb0: 0]
++     v11 = phi [bb0: arg0]
++     v12 = ptrtoint memptr v11 to i256
++     v13 = ne v12, v1
++     v26 = sub v1, v12
++     v27 = and v26, 1
++     v28 = ne v27, 0
++     jumpi v28, bb5, bb1
++   bb5:
++     v14 = add v12, 1
++     v15 = mload v14
++     v16 = add v10, v15
++     v17 = inttoptr i256 v14 to memptr
+      jump bb1
+    bb1:
+-     v2 = phi [bb0: 0], [bb3: v8]
+-     v3 = phi [bb0: arg0], [bb3: v9]
++     v2 = phi [bb4: v10], [bb7: v24], [bb5: v16]
++     v3 = phi [bb4: v11], [bb7: v25], [bb5: v17]
+      v4 = ptrtoint memptr v3 to i256
+      v5 = ne v4, v1
+      jumpi v5, bb3, bb2
+    bb2:
+      ret v2
+    bb3:
+      v6 = add v4, 1
+      v7 = mload v6
+      v8 = add v2, v7
+      v9 = inttoptr i256 v6 to memptr
++     jump bb6
++   bb6:
++     v20 = ptrtoint memptr v9 to i256
++     v21 = ne v20, v1
++     jump bb7
++   bb7:
++     v22 = add v20, 1
++     v23 = mload v22
++     v24 = add v8, v23
++     v25 = inttoptr i256 v22 to memptr
+      jump bb1
+  }
+  
+  fn @word_scan(arg0: i256, arg1: i256) -> i256 {
+    bb0:
++     jump bb4
++   bb4:
++     v6 = phi [bb0: arg0]
++     v7 = phi [bb0: 0]
++     v8 = ne arg1, v6
++     v18 = sub arg1, v6
++     v19 = shr 5, v18
++     v20 = and v19, 1
++     v21 = ne v20, 0
++     jumpi v21, bb5, bb1
++   bb5:
++     v9 = mload v6
++     v10 = add v7, v9
++     v11 = add v6, 32
+      jump bb1
+    bb1:
+-     v0 = phi [bb0: arg0], [bb2: v5]
+-     v1 = phi [bb0: 0], [bb2: v4]
++     v0 = phi [bb4: v6], [bb7: v17], [bb5: v11]
++     v1 = phi [bb4: v7], [bb7: v16], [bb5: v10]
+      v2 = ne arg1, v0
+      jumpi v2, bb2, bb3
+    bb3:
+      ret v1
+    bb2:
+      v3 = mload v0
+      v4 = add v1, v3
+      v5 = add v0, 32
++     jump bb6
++   bb6:
++     v14 = ne arg1, v5
++     jump bb7
++   bb7:
++     v15 = mload v5
++     v16 = add v4, v15
++     v17 = add v5, 32
+      jump bb1
+  }
+  
+  fn @variable_start_below(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      jump bb1
+    bb1:
+      v0 = phi [bb0: arg0], [bb2: v5]
+      v1 = phi [bb0: 0], [bb2: v4]
+      v2 = lt v0, arg1
+      jumpi v2, bb2, bb3
+    bb3:
+      ret v1
+    bb2:
+      v3 = mload v0
+      v4 = add v1, v3
+      v5 = add v0, 32
+      jump bb1
+  }
+  
