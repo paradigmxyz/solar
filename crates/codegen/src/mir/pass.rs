@@ -65,6 +65,7 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &loop_exit_remat::LoopExitRemat,
     &loop_idioms::LoopIdioms,
     &loop_split::LoopSplit,
+    &loop_unroll::LoopUnroll,
     &indvar_simplify::IndVarSimplify,
     &storage_promotion::StorageScalarPromotion,
     &loop_opt::Licm,
@@ -370,6 +371,9 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     // Collapse canonical read-only byte scans after bounds cleanup and word
     // simplification expose their final physical shape.
     &GasOnly::new(loop_idioms::LoopIdioms),
+    // Counted loops test their bound once per two iterations once their
+    // physical shape is final; the cleanup below drops the unread clones.
+    &GasOnly::new(loop_unroll::LoopUnroll),
     // ABI and memory lowering leave dead guards and empty trampoline blocks.
     // Clean them before EVM shaping isolates phi copies on critical edges.
     &cfg_simplify::CfgSimplify,

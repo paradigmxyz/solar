@@ -373,7 +373,7 @@ fn apply(func: &mut Function, split: &Split) {
 }
 
 /// Replaces every successor of a terminator through `map`.
-fn retarget(terminator: &mut Terminator, map: impl Fn(BlockId) -> BlockId) {
+pub(super) fn retarget(terminator: &mut Terminator, map: impl Fn(BlockId) -> BlockId) {
     match terminator {
         Terminator::Jump(target) => *target = map(*target),
         Terminator::Branch { then_block, else_block, .. } => {
@@ -391,7 +391,7 @@ fn retarget(terminator: &mut Terminator, map: impl Fn(BlockId) -> BlockId) {
 }
 
 /// Recomputes every block's predecessor list from the terminators.
-fn rebuild_predecessors(func: &mut Function) {
+pub(super) fn rebuild_predecessors(func: &mut Function) {
     let mut edges = Vec::new();
     for (block, body) in func.blocks.iter_enumerated() {
         if let Some(terminator) = &body.terminator {

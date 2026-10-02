@@ -13,10 +13,16 @@ fn @accumulate() [selector=0x4256913b, abi_wrapper, pure] {
     v0 = gt arg0, 0x3e8
     jumpi v0, bb4, bb5
   bb5:
-    jump bb1
+    jump bb8
+  bb8:
+    v20 = phi [bb5: arg1], [bb13: v29]
+    v21 = phi [bb5: 0], [bb13: v31]
+    v32 = add v21, 1
+    v33 = lt v32, arg0
+    jumpi v33, bb9, bb1
   bb1:
-    v4 = phi [bb5: arg1], [bb7: v10]
-    v6 = phi [bb5: 0], [bb7: v13]
+    v4 = phi [bb8: v20], [bb7: v10]
+    v6 = phi [bb8: v21], [bb7: v13]
     v7 = lt v6, arg0
     jumpi v7, bb3, bb2
   bb2:
@@ -30,6 +36,22 @@ fn @accumulate() [selector=0x4256913b, abi_wrapper, pure] {
     v13 = add v6, 1
     jump bb1
   bb6:
+    tail_call @panicArithmetic
+  bb9:
+    v23 = add v20, v21
+    v24 = lt v23, v20
+    jumpi v24, bb10, bb11
+  bb11:
+    v25 = add v21, 1
+    v29 = add v23, v25
+    v30 = lt v29, v23
+    jumpi v30, bb12, bb13
+  bb13:
+    v31 = add v25, 1
+    jump bb8
+  bb12:
+    tail_call @panicArithmetic
+  bb10:
     tail_call @panicArithmetic
   bb4:
     revert 0, 0
