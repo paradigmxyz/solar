@@ -12,9 +12,12 @@
 //! b2: x = ...; jumpi c2, abort, b3  => b2: x = ...; c = or c1, c2; jumpi c, abort, b3
 //! ```
 //!
-//! Two tests that continue on their true edges combine with `and` instead.
-//! Merges repeat along a chain, so a run of checks, such as the overflow checks
-//! of an unrolled loop's copies, branches once.
+//! Two tests that continue on their true edges combine with `and` instead. A
+//! test that aborts on its false edge while the other aborts on its true edge
+//! turns around when it compares a word with a literal: `x < k` fails exactly
+//! when `x > k - 1`, and that complement replaces it where it was. Merges repeat
+//! along a chain, so a run of checks, such as the overflow checks of an
+//! unrolled loop's copies, branches once.
 //!
 //! Two tests that an addition wrapped, `s1 < s0` for `s1 = s0 + a1` and then
 //! `s2 < s1` for `s2 = s1 + a2`, combine into `s2 < s0` instead when `a1 + a2`
@@ -35,20 +38,21 @@
 //! unrolled loop's copies clone do; the merged test enters the second one.
 //!
 //! Profitability: every merge saves a conditional jump and its pushed label for
-//! an `and` or `or`, priced by the target. Tests that abort on different edges
-//! stay apart, as would a zero test: a branch reads either for free, while the
-//! combined word would pay an `iszero`, and the stack scheduler answered the
-//! extra live condition with spills in measured loops. Runs late, after the
-//! final loop passes, check elimination and the CFG cleanup that joins each
-//! copy's blocks, so the tests it merges are the ones that remain.
+//! an `and` or `or`, priced by the target. Zero tests stay apart, as do tests
+//! that abort on different edges when neither compares a word with a literal: a
+//! branch reads either for free, while the combined word would pay an `iszero`,
+//! and the stack scheduler answered the extra live condition with spills in
+//! measured loops. Runs late, after the final loop passes, check elimination
+//! and the CFG cleanup that joins each copy's blocks, so the tests it merges
+//! are the ones that remain.
 
 use super::loop_split::rebuild_predecessors;
 use crate::{
     backend::evm::op,
     mir::{
-        BlockId, Callee, EffectKind, Function, FunctionId, InstKind, Instruction, MirType, Module,
-        Terminator, Value, ValueId,
-        analysis::{aborts, cold_functions},
+        BlockId, Callee, EffectKind, Function, FunctionId, Immediate, InstKind, Instruction,
+        MirType, Module, Terminator, Value, ValueId,
+        analysis::{CfgInfo, aborts, cold_functions},
         pass::{MirPass, run_function_pass},
     },
     target::Target,
@@ -85,6 +89,22 @@ struct Wrap {
     bound: U256,
 }
 
+/// An unsigned comparison of a word with a literal: `word < literal` when `below`, and
+/// `word > literal` otherwise.
+#[derive(Clone, Copy)]
+struct Compare {
+    word: ValueId,
+    below: bool,
+    literal: U256,
+}
+
+/// Which of two tests that abort on different edges compares a word with a literal and turns
+/// into its complement, so both abort when their conditions hold.
+enum Flip {
+    First(Compare),
+    Second(Compare),
+}
+
 /// A test on a block's way out: its condition, the aborting block, the continuation, and
 /// whether the condition holding means aborting.
 struct Test {
@@ -98,15 +118,17 @@ fn merge_function(func: &mut Function, cold: &DenseBitSet<FunctionId>, target: T
     rebuild_predecessors(func);
     let mut changed = false;
     let mut wraps = FxHashMap::default();
+    // Merges remove only edges into aborting blocks, which lie on no cycle.
+    let cyclic = CfgInfo::new(func).cyclic_blocks().clone();
     // Each sweep follows every chain of tests forward from its first block; a later sweep picks
     // up chains whose head a merge further down only now completed.
     loop {
         let mut merged = false;
         for index in 0..func.blocks.len() {
             let mut block = BlockId::from_usize(index);
-            while let Some((first, second)) = mergeable(func, block, cold, target) {
+            while let Some((first, second, flip)) = mergeable(func, block, cold, &cyclic, target) {
                 let next = first.next;
-                merge(func, block, first, second, &mut wraps);
+                merge(func, block, first, second, flip, &mut wraps);
                 merged = true;
                 block = next;
             }
@@ -183,13 +205,15 @@ fn speculatable(kind: &InstKind) -> bool {
         }
 }
 
-/// The two tests a block and its continuation end with, when the first can wait.
+/// The two tests a block and its continuation end with, when the first can wait, and the test to
+/// complement when they abort on different edges.
 fn mergeable(
     func: &Function,
     block: BlockId,
     cold: &DenseBitSet<FunctionId>,
+    cyclic: &DenseBitSet<BlockId>,
     target: Target,
-) -> Option<(Test, Test)> {
+) -> Option<(Test, Test, Option<Flip>)> {
     let first = test(func, block, cold)?;
     // Other edges into the continuation leave blocks that abort before taking them.
     let continuation = &func.blocks[first.next];
@@ -200,11 +224,20 @@ fn mergeable(
     }
     let second = test(func, first.next, cold)?;
     if !same_abort(func, first.abort, second.abort, cold)
-        || second.aborts_when_true != first.aborts_when_true
         || !continuation.instructions.iter().all(|&inst| speculatable(&func.inst(inst).kind))
     {
         return None;
     }
+    // A comparison with a literal turns around for free, unlike a test that would pay an
+    // `iszero`. Only loops repeat the saving; a flipped test that runs once, as an ABI word's
+    // range check next to the calldata size check, measured no gain and moved the stack
+    // scheduler to rebuild calldata words where it had kept them.
+    let flip = match (first.aborts_when_true, second.aborts_when_true) {
+        (true, true) | (false, false) => None,
+        _ if !cyclic.contains(block) => return None,
+        (false, true) => Some(Flip::First(complement(func, first.condition)?)),
+        (true, false) => Some(Flip::Second(complement(func, second.condition)?)),
+    };
     let added = target.opcode(op::OR);
     let saved = target.opcode(op::PUSH2) + target.opcode(op::JUMPI);
     target
@@ -212,7 +245,27 @@ fn mergeable(
             i128::from(saved.gas) - i128::from(added.gas),
             i128::from(saved.bytes) - i128::from(added.bytes),
         )
-        .then_some((first, second))
+        .then_some((first, second, flip))
+}
+
+/// The comparison that holds exactly when an unsigned comparison of a word with a literal fails:
+/// `x < k` fails when `x > k - 1`, and `x > k` when `x < k + 1`.
+fn complement(func: &Function, condition: ValueId) -> Option<Compare> {
+    let literal = |value| func.value_u256(value);
+    let (word, below, k) = match *inst_kind(func, condition)? {
+        InstKind::Lt(word, k) | InstKind::Gt(k, word) if literal(word).is_none() => {
+            (word, true, literal(k)?)
+        }
+        InstKind::Gt(word, k) | InstKind::Lt(k, word) if literal(word).is_none() => {
+            (word, false, literal(k)?)
+        }
+        _ => return None,
+    };
+    if below {
+        Some(Compare { word, below: false, literal: k.checked_sub(U256::from(1))? })
+    } else {
+        Some(Compare { word, below: true, literal: k.checked_add(U256::from(1))? })
+    }
 }
 
 /// Appends a compiler-generated instruction to a block and returns its result.
@@ -226,11 +279,26 @@ fn append(func: &mut Function, block: BlockId, kind: InstKind) -> ValueId {
 fn merge(
     func: &mut Function,
     predecessor: BlockId,
-    first: Test,
-    second: Test,
+    mut first: Test,
+    mut second: Test,
+    flip: Option<Flip>,
     wraps: &mut FxHashMap<ValueId, Wrap>,
 ) {
     let block = first.next;
+    // A complement replaces its test where the test was, as the original condition was:
+    // b1: c1' = gt x, k - 1 | lt x, k + 1
+    // b2: c2' = gt y, l - 1 | lt y, l + 1
+    match flip {
+        Some(Flip::First(compare)) => {
+            first.condition = append_compare(func, predecessor, compare);
+            first.aborts_when_true = true;
+        }
+        Some(Flip::Second(compare)) => {
+            second.condition = append_compare(func, block, compare);
+            second.aborts_when_true = true;
+        }
+        None => {}
+    }
     let combined = if second.aborts_when_true
         && let Some(wrap) = fused_wrap(func, first.condition, second.condition, wraps)
     {
@@ -251,8 +319,13 @@ fn merge(
         append(func, block, InstKind::And(first.condition, second.condition))
     };
     let (terminator, metadata) = func.blocks[block].take_terminator();
-    let Some(Terminator::Branch { then_block, else_block, .. }) = terminator else {
+    let Some(Terminator::Branch { .. }) = terminator else {
         unreachable!("the continuation ends with its test")
+    };
+    let (then_block, else_block) = if second.aborts_when_true {
+        (second.abort, second.next)
+    } else {
+        (second.next, second.abort)
     };
     func.blocks[block].set_terminator(
         Terminator::Branch { condition: combined, then_block, else_block },
@@ -263,6 +336,17 @@ fn merge(
     let (_, metadata) = func.blocks[predecessor].take_terminator();
     func.blocks[predecessor].set_terminator(Terminator::Jump(block), metadata);
     func.blocks[first.abort].predecessors.retain(|from| *from != predecessor);
+}
+
+/// Appends a comparison of a word with a literal and returns its result.
+fn append_compare(func: &mut Function, block: BlockId, compare: Compare) -> ValueId {
+    let literal = func.alloc_value(Value::Immediate(Immediate::I256(compare.literal)));
+    let kind = if compare.below {
+        InstKind::Lt(compare.word, literal)
+    } else {
+        InstKind::Gt(compare.word, literal)
+    };
+    append(func, block, kind)
 }
 
 fn inst_kind(func: &Function, value: ValueId) -> Option<&InstKind> {
