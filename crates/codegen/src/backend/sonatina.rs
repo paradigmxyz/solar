@@ -264,7 +264,8 @@ fn lower(module: &Module, runtime: Option<&[u8]>, base: u64) -> Result<String, S
         writeln!(out, "call %f{};", id.index()).unwrap();
     }
     if let Some(runtime) = runtime {
-        // deploy = evm_mload 64; codecopy deploy $runtime size; patch immutable words; return deploy size
+        // deploy = evm_mload 64; codecopy deploy $runtime size; patch immutable words; return
+        // deploy size
         out.push_str("v0.i256 = sym_addr $runtime;\n");
         if base == 0 {
             out.push_str("v1.i256 = evm_mload 64.i256;\n");
@@ -365,7 +366,8 @@ fn lower(module: &Module, runtime: Option<&[u8]>, base: u64) -> Result<String, S
                         )
                         .unwrap();
                     } else {
-                        // saved = mload 0; codecopy 0 (codesize - tail_offset) 32; result = mload 0; mstore 0 saved
+                        // saved = mload 0; codecopy 0 (codesize - tail_offset) 32; result = mload
+                        // 0; mstore 0 saved
                         let tmp = f.num_values()
                             + f.arg_indices().count()
                             + f.num_insts()
@@ -385,7 +387,8 @@ fn lower(module: &Module, runtime: Option<&[u8]>, base: u64) -> Result<String, S
                     continue;
                 }
                 if matches!(inst.kind, InstKind::Select(..)) {
-                    // zero = eq condition 0; flag = zext zero; mask = flag - 1; delta = yes xor no; result = no xor (delta and mask)
+                    // zero = eq condition 0; flag = zext zero; mask = flag - 1; delta = yes xor no;
+                    // result = no xor (delta and mask)
                     let tmp = f.num_values()
                         + f.arg_indices().count()
                         + f.num_insts()
@@ -411,7 +414,8 @@ fn lower(module: &Module, runtime: Option<&[u8]>, base: u64) -> Result<String, S
                     continue;
                 }
                 if let InstKind::DataCopy(data, ..) = &inst.kind {
-                    // address = sym_addr $dN; offset = add address data.offset; codecopy dest offset size
+                    // address = sym_addr $dN; offset = add address data.offset; codecopy dest
+                    // offset size
                     let tmp = f.num_values()
                         + f.arg_indices().count()
                         + f.num_insts()

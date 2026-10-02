@@ -58,7 +58,8 @@ fn compile_with_memory(
     }
     let immutable_references = super::alternative::append_immutable_data(module, &mut runtime);
     functions = self::functions(module, true, return_base, heap, base)?;
-    // init: constructor(); codecopy(deploy, runtime_data, runtime_length); return(deploy, runtime_length)
+    // init: constructor(); codecopy(deploy, runtime_data, runtime_length); return(deploy,
+    // runtime_length)
     let mut init = format!("fn init:\nentry {{\nmstore256 {fmp} {heap}\n");
     if let Some(id) = module.library_deploy_address() {
         // address = address; mstore staging[id] address
@@ -72,7 +73,8 @@ fn compile_with_memory(
     if let Some((id, _)) =
         module.functions.iter_enumerated().find(|(_, f)| f.attributes.is_constructor)
     {
-        // end = init_end_offset; size = codesize - end; codecopy ARGS_PHYSICAL end size; mstore 64 ceil32(ARGS_BASE + size)
+        // end = init_end_offset; size = codesize - end; codecopy ARGS_PHYSICAL end size; mstore 64
+        // ceil32(ARGS_BASE + size)
         init.push_str("end = init_end_offset\ntotal = codesize\nsize = sub total end\ncodecopy ARGS_PHYSICAL end size\nrounded = add size ARGS_ROUND\nfree = and rounded 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0\nmstore256 FMP_SLOT free\n");
         for i in 0..module.functions[id].params.len() {
             writeln!(init, "arg{i} = mload256 {}", base + heap + i as u64 * 32).unwrap();
@@ -295,13 +297,15 @@ fn function(
                     )
                     .unwrap();
                 } else {
-                    // saved = mload256 0; codecopy 0 (codesize - tail_offset) 32; result = mload256 0; mstore256 0 saved
+                    // saved = mload256 0; codecopy 0 (codesize - tail_offset) 32; result = mload256
+                    // 0; mstore256 0 saved
                     writeln!(out, "saved{result} = mload256 {base}\ntotal{result} = codesize\noffset{result} = sub total{result} {}\ncodecopy {base} offset{result} 32\nv{result} = mload256 {base}\nmstore256 {base} saved{result}", (module.immutable_count() - id.index()) * 33 - 1 + super::alternative::runtime_tail_size(module)).unwrap();
                 }
                 continue;
             }
             if matches!(inst.kind, InstKind::Select(..)) {
-                // zero = iszero condition; mask = sub zero 1; delta = xor yes no; result = xor no (and delta mask)
+                // zero = iszero condition; mask = sub zero 1; delta = xor yes no; result = xor no
+                // (and delta mask)
                 writeln!(out, "zero{} = iszero {}\nmask{} = sub zero{} 1\ndelta{} = xor {} {}\nmasked{} = and delta{} mask{}\nv{} = xor {} masked{}", iid.index(), args[0], iid.index(), iid.index(), iid.index(), args[1], args[2], iid.index(), iid.index(), iid.index(), f.inst_result_value(iid).ok_or("select without result")?.index(), args[2], iid.index()).unwrap();
                 continue;
             }

@@ -51,6 +51,3 @@ runs:
           -DLLVM_ENABLE_LIBEDIT=OFF -DLLVM_ENABLE_LIBPFM=OFF "${args[@]}"
         cmake --build "$RUNNER_TEMP/evm-llvm-build" --config Release --parallel 4
         cmake --install "$RUNNER_TEMP/evm-llvm-build" --config Release
-    - name: Export LLVM prefix
-      shell: bash
-      run: echo "LLVM_SYS_211_PREFIX=$RUNNER_TEMP/evm-llvm" >> "$GITHUB_ENV"

@@ -678,7 +678,8 @@ fn instruction(
             .unwrap();
         }
         InstKind::DataCopy(data, ..) => {
-            // offset = ptrtoint(getelementptr @dN, data.offset); memcpy(heap:dest, code:offset, size)
+            // offset = ptrtoint(getelementptr @dN, data.offset); memcpy(heap:dest, code:offset,
+            // size)
             let offset = format!("%data{}", out.len());
             writeln!(out, "{offset} = ptrtoint ptr addrspace(4) getelementptr (i8, ptr addrspace(4) @d{}, i256 {}) to i256", data.id.index(), data.offset).unwrap();
             copy_memory(
@@ -743,7 +744,8 @@ fn instruction(
         | InstKind::StaticCall { .. }
         | InstKind::DelegateCall { .. }
         | InstKind::ExtCodeCopy(..) => {
-            // Convert each memory/code offset to its intrinsic address space before calling the EVM operation.
+            // Convert each memory/code offset to its intrinsic address space before calling the EVM
+            // operation.
             let pointers: &[(usize, u32)] = match inst {
                 InstKind::Call { .. } | InstKind::CallCode { .. } => &[(3, 1), (5, 1)],
                 InstKind::StaticCall { .. } | InstKind::DelegateCall { .. } => &[(2, 1), (4, 1)],
