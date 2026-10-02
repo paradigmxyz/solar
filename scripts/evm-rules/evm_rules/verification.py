@@ -13,6 +13,7 @@ cached, and a changed rule, proof, lemma or toolchain misses.
 import concurrent.futures
 import hashlib
 import json
+import re
 import time
 
 from .expr import Expr, Unsupported
@@ -31,6 +32,15 @@ DEFAULT_FILES = [
     ISLE / "mir/egraph",
 ]
 FAILURES = (Unsupported, ValueError, TypeError, IndexError)
+# A hand-written proof is named after its rule's file and digest, which edits elsewhere
+# in the file leave unchanged; a rule with several theorems adds the theorem's index.
+PROOF_NAME = re.compile(r"(?P<stem>.+)_(?P<digest>[0-9a-f]{16})(?:_(?P<index>\d+))?")
+
+
+def proof_name(path, entry, index):
+    """The hand-written proof file name for one theorem of a rule."""
+    suffix = f"_{index}" if len(entry.get("theorems", [])) > 1 else ""
+    return f"{path.stem}_{entry['sha256'][:16]}{suffix}"
 
 
 def obligations(path):
@@ -41,7 +51,11 @@ def obligations(path):
     if path.name == "stack_peephole.isle":
         _, rules = stack_rules(path)
         for rule in rules:
-            entry = {"line": rule.line, "name": f"{path.stem}_L{rule.line}"}
+            entry = {
+                "line": rule.line,
+                "name": f"{path.stem}_L{rule.line}",
+                "sha256": rule.digest,
+            }
             try:
                 shapes = {}
                 for variant in stack_variants(rule):
@@ -59,7 +73,11 @@ def obligations(path):
     if path.name == "late_word.isle":
         _, rules = late_rules(path)
         for rule in rules:
-            entry = {"line": rule.line, "name": f"{path.stem}_L{rule.line}"}
+            entry = {
+                "line": rule.line,
+                "name": f"{path.stem}_L{rule.line}",
+                "sha256": rule.digest,
+            }
             try:
                 details, lhs, rhs = late_obligation(rule)
                 entry.update(details=details, theorems=[(entry["name"], lhs, rhs, [])])
@@ -117,7 +135,11 @@ def verify_files(
     files, tasks, proofs = [], [], {}
     # A proof for a selected file must name one of its current rules.
     stems = {path.stem for path in paths}
-    unused = {name for name in manual if name.rsplit("_L", 1)[0] in stems}
+    unused = {
+        name
+        for name in manual
+        if (match := PROOF_NAME.fullmatch(name)) and match["stem"] in stems
+    }
     for path in paths:
         source = "".join(text for _, text in rule_sources(path))
         rules = list(obligations(path))
@@ -131,19 +153,23 @@ def verify_files(
             }
         )
         for entry in rules:
-            for name, lhs, rhs, assumptions in entry.get("theorems", []):
-                unused.discard(name)
+            for index, (name, lhs, rhs, assumptions) in enumerate(
+                entry.get("theorems", [])
+            ):
+                key = proof_name(path, entry, index)
+                unused.discard(key)
+                proof = manual.get(key)
                 if checker is not None:
                     start = time.monotonic()
                     try:
                         result = checker.check(
-                            lhs, rhs, assumptions, timeout_s * 1000, manual.get(name)
+                            lhs, rhs, assumptions, timeout_s * 1000, proof
                         )
                     except Unsupported as error:
                         entry["error"] = str(error)
                         continue
                     result["seconds"] = round(time.monotonic() - start, 2)
-                    result["method"] = "manual" if name in manual else "evm_decide"
+                    result["method"] = "manual" if proof else "evm_decide"
                     proofs[name] = result
                     continue
                 try:
@@ -153,7 +179,7 @@ def verify_files(
                         lhs,
                         rhs,
                         assumptions,
-                        manual.get(name, tactic),
+                        proof or tactic,
                         timeout_s,
                         lean_path,
                     )
@@ -166,14 +192,14 @@ def verify_files(
                     if cached.exists():
                         proofs[name] = json.loads(cached.read_text()) | {"cached": True}
                         continue
-                tasks.append((task, cached))
+                tasks.append((task, cached, proof is not None))
     if unused:
         raise ValueError(f"hand-written proofs without a rule: {sorted(unused)}")
     with concurrent.futures.ThreadPoolExecutor(jobs) as pool:
-        for (_, cached), (name, result) in zip(
-            tasks, pool.map(prove, [task for task, _ in tasks])
+        for (_, cached, manual_proof), (name, result) in zip(
+            tasks, pool.map(prove, [task for task, *_ in tasks])
         ):
-            result["method"] = "manual" if name in manual else "evm_decide"
+            result["method"] = "manual" if manual_proof else "evm_decide"
             proofs[name] = result
             if cached is not None and result["status"] == "proved":
                 cached.parent.mkdir(parents=True, exist_ok=True)

@@ -48,7 +48,12 @@ from evm_rules.prover import (
     lean_environment,
     prove,
 )
-from evm_rules.verification import DEFAULT_FILES, obligations, verify_files
+from evm_rules.verification import (
+    DEFAULT_FILES,
+    obligations,
+    proof_name,
+    verify_files,
+)
 from verify import main
 
 # These tests check proof results, not prover performance. Leave headroom for
@@ -474,7 +479,7 @@ class EnvironmentTests(unittest.TestCase):
                 cx = Context()
                 lhs, rhs = cx.obligation(rule)
                 # Lean relates the two reads through the rule's hand-written proof.
-                proof = (MANUAL_PROOFS / f"egraph_L{rule.line}.lean").read_text()
+                proof = (MANUAL_PROOFS / f"egraph_{rule.digest[:16]}.lean").read_text()
                 result = shared_checker().check(lhs, rhs, cx.assumptions, 30_000, proof)
                 self.assertEqual(result["status"], "proved", result)
                 # Dropping the low-bit guard must expose a different account balance.
@@ -1579,15 +1584,16 @@ class LeanProofTests(unittest.TestCase):
         self.assertTrue(proofs)
         theorems = {}
         for path in DEFAULT_FILES:
-            if not any(name.startswith(f"{path.stem}_L") for name in proofs):
-                continue
             for entry in obligations(path):
-                for name, lhs, rhs, assumptions in entry.get("theorems", []):
-                    if name in proofs:
-                        theorems[name] = theorem(
-                            name, lhs, rhs, assumptions, proofs[name]
+                for index, (name, lhs, rhs, assumptions) in enumerate(
+                    entry.get("theorems", [])
+                ):
+                    key = proof_name(path, entry, index)
+                    if key in proofs:
+                        theorems[key] = theorem(
+                            name, lhs, rhs, assumptions, proofs[key]
                         )
-        # Every proof names a current rule; a moved or deleted rule fails here.
+        # Every proof names a current rule; an edited or deleted rule fails here.
         self.assertEqual(sorted(theorems), sorted(proofs))
         ok, output = self.check("\n".join(theorems.values()))
         self.assertTrue(ok, output[-3000:])

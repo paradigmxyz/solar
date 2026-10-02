@@ -86,12 +86,15 @@ and variants that differ only in variable names share one theorem.
 `evm_decide` unfolds the definitions, rewriting the shifts by proven lemmas to
 Lean's saturating shifts, and bit-blasts the goal with `bv_decide`, which
 checks the SAT solver's LRAT certificate in Lean through `Lean.ofReduceBool`.
-A theorem named in `lean/proofs/` (`egraph_L454.lean` for the rule on line 454
-of `egraph.isle`) uses that tactic script instead, with the lemmas in
-`lean/EvmRules/Lemmas.lean`. Its statement is still generated from the current
-rule, so a changed rule fails the run, and `test.py` checks every script
-against its rule; a script for a selected file must name one of its rules. A
-proof that avoids `bv_decide` relies on Lean's kernel alone.
+A script in `lean/proofs/` replaces that tactic for one rule, with the lemmas in
+`lean/EvmRules/Lemmas.lean`. Its file is named after the rule's source file and
+the first 16 hex digits of the rule's digest (`egraph_44d329ef52b3f648.lean`),
+plus `_<index>` for a rule with several theorems, so edits elsewhere in the
+file do not move it. Its statement is still generated from the current rule,
+so a changed rule leaves the script without a rule and fails the run, and
+`test.py` checks every script against its rule; a script for a selected file
+must name one of its rules. A proof that avoids `bv_decide` relies on Lean's
+kernel alone.
 
 The trusted base is the readers and their contracts, the Lean model, and the
 printer from terms to Lean. Regression tests evaluate every Lean operation
