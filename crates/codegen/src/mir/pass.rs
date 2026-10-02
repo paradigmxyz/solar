@@ -374,6 +374,9 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     // Counted loops test their bound once per two iterations once their
     // physical shape is final; the cleanup below drops the unread clones.
     &GasOnly::new(loop_unroll::LoopUnroll),
+    // The unrolled main loop's test bounds the first copy's counter, so its
+    // overflow checks fold.
+    &GasOnly::new(check_elim::CheckElim),
     // ABI and memory lowering leave dead guards and empty trampoline blocks.
     // Clean them before EVM shaping isolates phi copies on critical edges.
     &cfg_simplify::CfgSimplify,
