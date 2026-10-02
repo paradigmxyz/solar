@@ -25,8 +25,10 @@
 //! The pass performs dominator-tree CSE with path-local invalidation for
 //! alias-sensitive memory/storage reads, then runs a local cleanup pass. Slot hashes
 //! also write scratch memory; a repeated fixed-width hash can disappear only while
-//! its input and written ranges remain unchanged. Variable-width hashes can overwrite
-//! their source or the FMP itself, so they remain effectful until physical lowering. Check
+//! its input and written ranges remain unchanged. Memory-key hashes can overwrite
+//! their source or the FMP itself, so they remain effectful until physical lowering. A
+//! calldata-key hash writes above the FMP, which never points below the heap, and its
+//! key is immutable; it repeats only until the next memory write. Check
 //! availability before applying the retained instruction's clobbers so an identical write does not
 //! invalidate itself.
 //!
@@ -267,6 +269,7 @@ enum ExprKey {
     RestoringCall(FunctionId, Vec<OperandKey>),
     Keccak256(MemRangeKey),
     MappingSlot(OperandKey, OperandKey),
+    MappingSlotCalldata(OperandKey, OperandKey),
     StorageArrayDataSlot(OperandKey),
     StorageArrayElementSlot(OperandKey, OperandKey, u64),
     MakeSlice(OperandKey, OperandKey, SliceLocation),
@@ -941,6 +944,7 @@ impl CommonSubexprEliminator {
                 | InstKind::Keccak256(_, _)
                 | InstKind::Keccak256Bytes(_)
                 | InstKind::MappingSlot(..)
+                | InstKind::MappingSlotCalldata(..)
                 | InstKind::StorageArrayDataSlot(..)
                 | InstKind::StorageArrayElementSlot { .. }
                 | InstKind::SLoad(_)
@@ -1178,6 +1182,9 @@ impl CommonSubexprEliminator {
             InstKind::MappingSlot(key, slot) => {
                 Some(ExprKey::MappingSlot(operand(*key), operand(*slot)))
             }
+            InstKind::MappingSlotCalldata(key, slot) => {
+                Some(ExprKey::MappingSlotCalldata(operand(*key), operand(*slot)))
+            }
             InstKind::StorageArrayDataSlot(slot) => {
                 Some(ExprKey::StorageArrayDataSlot(operand(*slot)))
             }
@@ -1364,7 +1371,7 @@ impl CommonSubexprEliminator {
                     AliasAnalysis::memory_alias_locations(scratch, write).may_alias()
                 })
             }
-            ExprKey::RestoringCall(..) => false,
+            ExprKey::RestoringCall(..) | ExprKey::MappingSlotCalldata(..) => false,
             _ => true,
         });
     }
@@ -1375,6 +1382,7 @@ impl CommonSubexprEliminator {
             ExprKey::MLoad(_)
                 | ExprKey::Keccak256(_)
                 | ExprKey::MappingSlot(..)
+                | ExprKey::MappingSlotCalldata(..)
                 | ExprKey::StorageArrayDataSlot(..)
                 | ExprKey::StorageArrayElementSlot(..)
                 | ExprKey::RestoringCall(..)
@@ -1419,6 +1427,7 @@ impl CommonSubexprEliminator {
                 | ExprKey::RestoringCall(..)
                 | ExprKey::Keccak256(_)
                 | ExprKey::MappingSlot(..)
+                | ExprKey::MappingSlotCalldata(..)
                 | ExprKey::StorageArrayDataSlot(..)
                 | ExprKey::StorageArrayElementSlot(..)
                 | ExprKey::SLoad(_)

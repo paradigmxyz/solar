@@ -37,8 +37,9 @@
   fn @calldata(arg0: calldataslice) -> i256 {
     bb0:
       v0 = mapping_slot_calldata arg0, 11
-      v1 = mapping_slot_calldata arg0, 11
-      v2 = add v0, v1
+-     v1 = mapping_slot_calldata arg0, 11
+-     v2 = add v0, v1
++     v2 = add v0, v0
       ret v2
   }
   
@@ -129,8 +130,7 @@
   fn @calldata(arg0: calldataslice) -> i256 {
     bb0:
 -     v0 = mapping_slot_calldata arg0, 11
--     v1 = mapping_slot_calldata arg0, 11
--     v2 = add v0, v1
+-     v2 = add v0, v0
 +     v3 = slice_len arg0
 +     v4 = add v3, 32
 +     v5 = fmp
@@ -142,18 +142,7 @@
 +     mstore v9, 11
 +     v10 = ptrtoint memptr v5 to i256
 +     v11 = keccak256 v10, v4
-+     v12 = slice_len arg0
-+     v13 = add v12, 32
-+     v14 = fmp
-+     v15 = slice_ptr arg0
-+     v16 = ptrtoint memptr v14 to i256
-+     calldatacopy v16, v15, v12 !metadata(memory=heap)
-+     v17 = ptrtoint memptr v14 to i256
-+     v18 = add v17, v12
-+     mstore v18, 11
-+     v19 = ptrtoint memptr v14 to i256
-+     v20 = keccak256 v19, v13
-+     v2 = add v11, v20
++     v2 = add v11, v11
       ret v2
   }
   
@@ -259,21 +248,7 @@
       mstore v9, 11
       v10 = ptrtoint memptr v5 to i256
       v11 = keccak256 v10, v4
--     v12 = slice_len arg0
--     v13 = add v12, 32
-+     v13 = add arg1, 32
-      v14 = fmp
--     v15 = slice_ptr arg0
-      v16 = ptrtoint memptr v14 to i256
--     calldatacopy v16, v15, v12 !metadata(memory=heap)
-+     calldatacopy v16, arg0, arg1
-      v17 = ptrtoint memptr v14 to i256
--     v18 = add v17, v12
-+     v18 = add v17, arg1
-      mstore v18, 11
-      v19 = ptrtoint memptr v14 to i256
-      v20 = keccak256 v19, v13
-      v2 = add v11, v20
+      v2 = add v11, v11
       ret v2
   }
   

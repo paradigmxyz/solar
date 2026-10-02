@@ -1,0 +1,52 @@
+//@compile-flags: -Zmir-pipeline=cse
+//@filecheck:
+// Calldata is immutable, so hashing the same calldata key into the same slot
+// repeats the same scratch write and result until memory changes.
+@module CseMappingSlotCalldata
+// CHECK-LABEL: {{^[ +].*}}fn @repeated{{[( ]}}
+// CHECK: - {{v[0-9]+}} = mapping_slot_calldata arg0, 0
+// CHECK: + sstore [[SLOT:v[0-9]+]], [[SLOT]]
+fn @repeated(arg0: calldataslice) {
+  bb0:
+    v1 = mapping_slot_calldata arg0, 0
+    v2 = mapping_slot_calldata arg0, 0
+    sstore v1, v2
+    ret
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @dominated{{[( ]}}
+// CHECK: - {{v[0-9]+}} = mapping_slot_calldata arg0, 0
+// CHECK: + sstore [[SLOT:v[0-9]+]], 1
+fn @dominated(arg0: calldataslice, arg1: i1) {
+  bb0:
+    v1 = mapping_slot_calldata arg0, 0
+    v2 = sload v1
+    jumpi arg1, bb1, bb2
+  bb1:
+    v3 = mapping_slot_calldata arg0, 0
+    sstore v3, 1
+    ret
+  bb2:
+    ret
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @different_slot{{[( ]}}
+// CHECK-NOT: {{^-}}
+fn @different_slot(arg0: calldataslice) {
+  bb0:
+    v1 = mapping_slot_calldata arg0, 0
+    v2 = mapping_slot_calldata arg0, 1
+    sstore v1, v2
+    ret
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @after_memory_write{{[( ]}}
+// CHECK-NOT: {{^-}}
+fn @after_memory_write(arg0: calldataslice, arg1: i256) {
+  bb0:
+    v1 = mapping_slot_calldata arg0, 0
+    mstore arg1, 1
+    v2 = mapping_slot_calldata arg0, 0
+    sstore v1, v2
+    ret
+}
