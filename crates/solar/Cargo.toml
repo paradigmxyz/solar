@@ -49,9 +49,7 @@ solar-cli = { workspace = true, optional = true }
 alloy-primitives.workspace = true
 
 [dev-dependencies]
-lsp-types.workspace = true
 serde_json.workspace = true
-snapbox.workspace = true
 solar-tester.workspace = true
 tempfile.workspace = true
 

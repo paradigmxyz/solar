@@ -877,10 +877,6 @@ impl SymbolTables {
         uri: &Url,
         position: Position,
     ) -> Option<GotoTypeDefinitionResponse> {
-        if self.builtins.contains(uri, position) {
-            let location = self.builtin_at_position(uri, position)?.type_definition.clone()?;
-            return Some(GotoTypeDefinitionResponse::Array(vec![location]));
-        }
         let (locations, _) = self.query_at_position(uri, position, |symbol_ids| {
             // Overload sets have no batch-independent ID order. Visit their declarations in
             // source order while preserving each function's own return-type order.

@@ -1,10 +1,9 @@
 //! Retains typed builtin occurrences after the compiler's analysis arena is released.
 //!
 //! Builtins have no source declarations, so their hover documentation lives outside the user
-//! declaration index and cannot become a definition, rename, or workspace-symbol target. A
-//! builtin can retain an explicit source type-definition target when its semantics justify one.
+//! declaration index and cannot become a definition, rename, or workspace-symbol target.
 //! Merged analysis contexts must agree on the builtin, its signature, and the source identity
-//! of any user-defined types in that signature and any type-definition target.
+//! of any user-defined types in that signature.
 
 use crate::proto::{self, LocationConverter, PositionIndex};
 use lsp_types::{Location, Position, Url};
@@ -17,7 +16,6 @@ use solar_interface::{
 };
 use solar_sema::{
     Gcx,
-    builtins::Builtin,
     hir::{self, ItemId},
     ty::{Ty, TyKind},
 };
@@ -30,14 +28,12 @@ pub(crate) use documentation::BuiltinDocumentation;
 pub(crate) struct BuiltinIndex {
     occurrences: Vec<BuiltinOccurrence>,
     files: FxHashMap<Url, PositionIndex<usize>>,
-    documents: FxHashSet<Arc<BuiltinDocumentation>>,
 }
 
 #[derive(Clone, Debug)]
 pub(crate) struct BuiltinOccurrence {
     pub(crate) location: Location,
     pub(crate) documentation: Arc<BuiltinDocumentation>,
-    pub(crate) type_definition: Option<Location>,
     type_origins: Vec<Location>,
 }
 
@@ -54,13 +50,7 @@ impl BuiltinIndex {
         let Some(documentation) = BuiltinDocumentation::for_expr(gcx, expr, builtin) else {
             return;
         };
-        let documentation = if let Some(existing) = self.documents.get(&documentation) {
-            existing.clone()
-        } else {
-            let documentation = Arc::new(documentation);
-            self.documents.insert(documentation.clone());
-            documentation
-        };
+        let documentation = Arc::new(documentation);
         let mut type_origins = Vec::new();
         if let Some(ty) = gcx.type_of_expr(expr.id) {
             collect_type_origins(gcx, locations, ty, &mut type_origins);
@@ -76,27 +66,11 @@ impl BuiltinIndex {
                 .cmp(&(b.uri.as_str(), proto::range_key(b.range)))
         });
         type_origins.dedup();
-        // Only `this` has a source type target here. Type origins also include receiver types and
-        // function parameters, so they are provenance checks rather than navigation targets.
-        let type_definition = if builtin == Builtin::This
-            && let Some(ty) = gcx.type_of_expr(expr.id)
-            && let TyKind::Contract(id) = ty.kind
-        {
-            locations.location(gcx.hir.contract(id).name.span)
-        } else {
-            None
-        };
-        self.occurrences.push(BuiltinOccurrence {
-            location,
-            documentation,
-            type_definition,
-            type_origins,
-        });
+        self.occurrences.push(BuiltinOccurrence { location, documentation, type_origins });
     }
 
     pub(crate) fn extend(&mut self, other: Self) {
         self.occurrences.extend(other.occurrences);
-        self.documents.extend(other.documents);
     }
 
     pub(crate) fn rebuild(&mut self) {
@@ -126,15 +100,10 @@ impl BuiltinIndex {
             .candidates(uri, position)
             .min_by_key(|entry| proto::range_size_key(entry.location.range))?;
         if occurrence.type_origins.iter().any(|origin| conflicting_contents.contains(&origin.uri))
-            || occurrence
-                .type_definition
-                .as_ref()
-                .is_some_and(|location| conflicting_contents.contains(&location.uri))
             || self.candidates(uri, position).any(|other| {
                 other.location.range == occurrence.location.range
                     && (other.documentation != occurrence.documentation
-                        || other.type_origins != occurrence.type_origins
-                        || other.type_definition != occurrence.type_definition)
+                        || other.type_origins != occurrence.type_origins)
             })
         {
             return None;

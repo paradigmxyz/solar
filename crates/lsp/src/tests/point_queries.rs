@@ -424,7 +424,7 @@ fn compatible_builtin_queries_survive_both_batch_orders() {
         r#"
         //- /Shared.sol
         type Price is uint256;
-        contract $10Shared {
+        contract Shared {
             function use(Price price) external view returns (
                 bytes32, bytes memory, Price, address, bytes4
             ) {
@@ -453,8 +453,6 @@ fn compatible_builtin_queries_survive_both_batch_orders() {
     for paths in [["/left/Main.sol", "/right/Main.sol"], ["/right/Main.sol", "/left/Main.sol"]] {
         let (baseline, tables) =
             analyze_files(paths.map(|path| (project.path(path), project.read_file(path))), false);
-        let contract_type = baseline.goto_type_definition(&uri, marked.marker("$10").position());
-        assert!(contract_type.is_some());
         for marker in ["$1", "$2", "$3", "$4", "$5", "$6", "$7", "$8", "$9"] {
             let position = marked.marker(marker).position();
             let hover = baseline.hover(&uri, position);
@@ -462,9 +460,6 @@ fn compatible_builtin_queries_survive_both_batch_orders() {
             assert_eq!(tables.hover(&uri, position), hover, "{marker}");
             assert_eq!(tables.goto_definition(&uri, position), None, "{marker}");
             assert_eq!(tables.goto_declaration(&uri, position), None, "{marker}");
-            let type_definition = if marker == "$9" { contract_type.clone() } else { None };
-            assert_eq!(baseline.goto_type_definition(&uri, position), type_definition, "{marker}");
-            assert_eq!(tables.goto_type_definition(&uri, position), type_definition, "{marker}");
         }
     }
 }
@@ -613,11 +608,9 @@ fn builtin_queries_reject_conflicting_source_snapshots_in_both_batch_orders() {
         for marker in ["$1", "$2", "$3", "$4"] {
             let position = marked.marker(marker).position();
             assert!(baseline.hover(&uri, position).is_some());
-            assert_eq!(baseline.goto_type_definition(&uri, position).is_some(), marker == "$4");
             assert_eq!(tables.hover(&uri, position), None, "{marker}");
             assert_eq!(tables.goto_definition(&uri, position), None, "{marker}");
             assert_eq!(tables.goto_declaration(&uri, position), None, "{marker}");
-            assert_eq!(tables.goto_type_definition(&uri, position), None, "{marker}");
         }
     }
 }
