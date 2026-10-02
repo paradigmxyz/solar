@@ -55,25 +55,13 @@ impl MirPass for MemoryDse {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        let mut selected = DenseBitSet::new_empty(module.functions.len());
-        for (func_id, func) in module.functions.iter_enumerated() {
-            if has_memory_writes(func) {
-                selected.insert(func_id);
-            }
-        }
-        let heap_fmp = heap_fmp_functions(module);
-        run_selected_function_pass_with_alias_and_cfg(
-            module,
-            analyses,
-            &selected,
-            |func, analyses| {
-                let mut eliminator = MemoryStoreEliminator::new();
-                eliminator.alias = Some(Rc::clone(analyses.alias()));
-                eliminator.cfg = Some(Rc::clone(analyses.cfg()));
-                eliminator.heap_reads = fmp_stays_in_heap(func, &heap_fmp);
-                eliminator.run_to_fixpoint(func) != 0
-            },
-        )
+        run_memory_dse(module, analyses, |func, analyses, heap_reads| {
+            let mut eliminator = MemoryStoreEliminator::new();
+            eliminator.alias = Some(Rc::clone(analyses.alias()));
+            eliminator.cfg = Some(Rc::clone(analyses.cfg()));
+            eliminator.heap_reads = heap_reads;
+            eliminator.run_to_fixpoint(func) != 0
+        })
     }
 }
 
@@ -96,37 +84,85 @@ impl MirPass for LateMemoryDse {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        let mut selected = DenseBitSet::new_empty(module.functions.len());
-        for (func_id, func) in module.functions.iter_enumerated() {
-            if has_memory_writes(func) {
-                selected.insert(func_id);
-            }
-        }
-        let heap_fmp = heap_fmp_functions(module);
-        run_selected_function_pass_with_alias_and_cfg(
-            module,
-            analyses,
-            &selected,
-            |func, analyses| {
-                let mut eliminator = MemoryStoreEliminator::new();
-                eliminator.alias = Some(Rc::clone(analyses.alias()));
-                eliminator.heap_reads = fmp_stays_in_heap(func, &heap_fmp);
-                eliminator.remove_dead_memory_stores(func);
-                eliminator.eliminated_count != 0
-            },
-        )
+        run_memory_dse(module, analyses, |func, analyses, heap_reads| {
+            let mut eliminator = MemoryStoreEliminator::new();
+            eliminator.alias = Some(Rc::clone(analyses.alias()));
+            eliminator.heap_reads = heap_reads;
+            eliminator.remove_dead_memory_stores(func);
+            eliminator.eliminated_count != 0
+        })
     }
 }
 
-/// Returns whether reads from heap pointers in `func` can only observe heap memory.
+/// Runs `run` on every function with memory writes, telling it whether heap reads
+/// can only observe heap memory there; see [`heap_read_functions`].
+fn run_memory_dse(
+    module: &mut Module,
+    analyses: &mut crate::mir::pass::ModuleAnalyses,
+    run: impl Fn(&mut Function, &crate::mir::pass::FunctionAnalyses, bool) -> bool + Sync,
+) -> bool {
+    let heap_reads = heap_read_functions(module);
+    let mut trusted = DenseBitSet::new_empty(module.functions.len());
+    let mut untrusted = DenseBitSet::new_empty(module.functions.len());
+    for (func_id, func) in module.functions.iter_enumerated() {
+        if has_memory_writes(func) {
+            if heap_reads.contains(func_id) {
+                trusted.insert(func_id);
+            } else {
+                untrusted.insert(func_id);
+            }
+        }
+    }
+    let changed = run_selected_function_pass_with_alias_and_cfg(
+        module,
+        analyses,
+        &trusted,
+        |func, analyses| run(func, analyses, true),
+    );
+    run_selected_function_pass_with_alias_and_cfg(module, analyses, &untrusted, |func, analyses| {
+        run(func, analyses, false)
+    }) || changed
+}
+
+/// Returns the functions whose free memory pointer is always in the heap.
 ///
 /// ABI wrappers start from the entry's heap floor, since they run only from the
-/// dispatcher, and their free memory pointer must only grow from there; see
+/// dispatcher. Another function starts in the heap when every caller does and keeps
+/// it there. Every such function must also keep the pointer in the heap itself; see
 /// [`fmp_grows_in_heap`].
-fn fmp_stays_in_heap(func: &Function, heap_fmp: &DenseBitSet<FunctionId>) -> bool {
-    func.attributes.is_abi_wrapper
-        && !func.attributes.is_constructor
-        && fmp_grows_in_heap(func, heap_fmp)
+fn heap_read_functions(module: &Module) -> DenseBitSet<FunctionId> {
+    let mut callers = index_vec![Vec::new(); module.functions.len()];
+    for (caller, func) in module.functions.iter_enumerated() {
+        for inst in func.instructions() {
+            if let InstKind::ICall { function: Callee::Function(callee), .. } = func.inst(inst).kind
+            {
+                callers[callee].push(caller);
+            }
+        }
+        for block in &func.blocks {
+            if let Some(Terminator::TailCall { function, .. }) = block.terminator {
+                callers[function].push(caller);
+            }
+        }
+    }
+    let mut heap = heap_fmp_functions(module);
+    loop {
+        let mut changed = false;
+        for (func_id, func) in module.functions.iter_enumerated() {
+            let root = func.attributes.is_abi_wrapper && !func.attributes.is_constructor;
+            if heap.contains(func_id)
+                && !root
+                && (callers[func_id].is_empty()
+                    || !callers[func_id].iter().all(|&caller| heap.contains(caller)))
+            {
+                heap.remove(func_id);
+                changed = true;
+            }
+        }
+        if !changed {
+            return heap;
+        }
+    }
 }
 
 /// Returns the functions that only keep a heap free memory pointer in the heap.
@@ -158,15 +194,7 @@ fn heap_fmp_functions(module: &Module) -> DenseBitSet<FunctionId> {
 /// write into an allocation, counts as staying in the heap. Only assembly that is not
 /// memory-safe can wrap that sum below the heap.
 fn fmp_grows_in_heap(func: &Function, heap_fmp: &DenseBitSet<FunctionId>) -> bool {
-    let bounded = |value| {
-        AliasAnalysis::pointer_lower_bound(func, value, 0)
-            .is_some_and(|bound| bound >= EvmMemoryLayout::HEAP_START)
-    };
-    let in_heap = |value| {
-        bounded(value)
-            || matches!(func.value(value), Value::Inst(inst)
-                if matches!(func.inst(*inst).kind, InstKind::Add(a, b) if bounded(a) || bounded(b)))
-    };
+    let in_heap = |value| heap_derived(func, value, &mut FxHashSet::default());
     func.instructions().all(|inst_id| match func.inst(inst_id).kind {
         InstKind::MStore(address, value)
             if func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT) =>
@@ -191,6 +219,43 @@ fn fmp_grows_in_heap(func: &Function, heap_fmp: &DenseBitSet<FunctionId>) -> boo
         InstKind::ICall { function: Callee::Function(callee), .. } => heap_fmp.contains(callee),
         _ => !AliasAnalysis::instruction_may_reset_fmp_with_summaries(func, inst_id, None),
     })
+}
+
+/// Returns whether `value` is a heap pointer or grows one.
+///
+/// A value on a phi cycle counts while every other incoming value does, so a
+/// pointer stepped through a loop stays derived from its heap base.
+fn heap_derived(func: &Function, value: ValueId, visiting: &mut FxHashSet<ValueId>) -> bool {
+    if AliasAnalysis::pointer_lower_bound(func, value, 0)
+        .is_some_and(|bound| bound >= EvmMemoryLayout::HEAP_START)
+    {
+        return true;
+    }
+    // A value already on the search path closes a phi cycle.
+    if !visiting.insert(value) {
+        return true;
+    }
+    if visiting.len() > 16 {
+        visiting.remove(&value);
+        return false;
+    }
+    let derived = match func.value(value) {
+        Value::Inst(inst) => match &func.inst(*inst).kind {
+            &InstKind::Add(a, b) => {
+                heap_derived(func, a, visiting) || heap_derived(func, b, visiting)
+            }
+            &InstKind::PtrToInt(value, _) | &InstKind::IntToPtr(value) => {
+                heap_derived(func, value, visiting)
+            }
+            InstKind::Phi(incoming) => {
+                incoming.iter().all(|&(_, value)| heap_derived(func, value, visiting))
+            }
+            _ => false,
+        },
+        _ => false,
+    };
+    visiting.remove(&value);
+    derived
 }
 
 /// Returns whether the function contains a memory write this pass can remove

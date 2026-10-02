@@ -90,3 +90,45 @@ fn @internal_heap_return() {
     v0 = mload 64
     returndata v0, 32
 }
+
+// A pointer stepped through a loop stays derived from its heap base.
+// CHECK-LABEL: @heap_loop_write
+// CHECK: -     mstore 64, {{v[0-9]+}}
+fn @heap_loop_write(arg0: i256) [abi_wrapper] {
+  bb0:
+    v0 = mload 64
+    v1 = add v0, 64
+    mstore 64, v1
+    jump bb1
+  bb1:
+    v2 = phi [bb0: v0], [bb2: v3]
+    v4 = lt v2, v1
+    jumpi v4, bb2, bb3
+  bb2:
+    mstore v2, arg0
+    v3 = add v2, 32
+    jump bb1
+  bb3:
+    revert v0, 64
+}
+
+// A loop that starts from an arbitrary address may overwrite the pointer.
+// CHECK-LABEL: @arbitrary_loop_write
+// CHECK-NOT: {{^-}}
+fn @arbitrary_loop_write(arg0: i256) [abi_wrapper] {
+  bb0:
+    v0 = mload 64
+    v1 = add v0, 64
+    mstore 64, v1
+    jump bb1
+  bb1:
+    v2 = phi [bb0: arg0], [bb2: v3]
+    v4 = lt v2, v1
+    jumpi v4, bb2, bb3
+  bb2:
+    mstore v2, 0
+    v3 = add v2, 32
+    jump bb1
+  bb3:
+    revert v0, 64
+}
