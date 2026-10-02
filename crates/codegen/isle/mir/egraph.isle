@@ -107,6 +107,16 @@
 (extern constructor u256_neg u256_neg)
 (decl pure u256_and (U256 U256) U256)
 (extern constructor u256_and u256_and)
+;; Wrapping product, and EVM quotient: zero for a zero divisor.
+(decl pure u256_mul (U256 U256) U256)
+(extern constructor u256_mul u256_mul)
+(decl pure u256_div (U256 U256) U256)
+(extern constructor u256_div u256_div)
+;; The exact product or sum is at most MAX.
+(decl pure u256_mul_fits (U256 U256) bool)
+(extern constructor u256_mul_fits u256_mul_fits)
+(decl pure u256_add_fits (U256 U256) bool)
+(extern constructor u256_add_fits u256_add_fits)
 ;; Constant operations use EVM pop order and never truncate full-width indexes.
 (decl pure u256_shl (U256 U256) U256)
 (extern constructor u256_shl u256_shl)
@@ -259,6 +269,53 @@
 ;; a ** 2 => a * a
 (rule (rewrite (Op.Exp a (iconst c))) (if-let true (u256_eq c 2)) (Op.Mul a a))
 
+;; A checked product by a constant wraps exactly when its other factor exceeds MAX / c,
+;; so the division that tests the product becomes one comparison.
+;; (x * c) / c == x => x < MAX / c + 1, when c >= 2
+(rule (rewrite (Op.Eq (div (mul x (iconst c)) (iconst d)) x))
+      (if-let true (u256_same c d))
+      (if-let true (u256_ge c 2))
+      (Op.Lt x (imm (u256_add (u256_div (u256_max) c) (u256 1)))))
+(rule (rewrite (Op.Eq x (div (mul x (iconst c)) (iconst d))))
+      (if-let true (u256_same c d))
+      (if-let true (u256_ge c 2))
+      (Op.Lt x (imm (u256_add (u256_div (u256_max) c) (u256 1)))))
+;; The test divides by the variable factor when the constant is the left operand.
+;; x == 0 | (x * c) / x == c => x < MAX / c + 1, when c >= 2
+(rule (rewrite (Op.Or (eq x (zero)) (eq (div (mul x (iconst c)) x) (iconst d))))
+      (if-let true (u256_same c d))
+      (if-let true (u256_ge c 2))
+      (Op.Lt x (imm (u256_add (u256_div (u256_max) c) (u256 1)))))
+(rule (rewrite (Op.Or (eq (div (mul x (iconst c)) x) (iconst d)) (eq x (zero))))
+      (if-let true (u256_same c d))
+      (if-let true (u256_ge c 2))
+      (Op.Lt x (imm (u256_add (u256_div (u256_max) c) (u256 1)))))
+
+;; A quotient by a nonzero constant compares with a constant through the dividend.
+;; x / c < d => x < c * d, when c != 0 and c * d <= MAX
+(rule (rewrite (Op.Lt (div x (iconst c)) (iconst d)))
+      (if-let false (u256_is_zero c))
+      (if-let true (u256_mul_fits c d))
+      (Op.Lt x (imm (u256_mul c d))))
+;; x / c > d => x > c * d + (c - 1), when c != 0 and c * d + (c - 1) <= MAX
+(rule (rewrite (Op.Gt (div x (iconst c)) (iconst d)))
+      (if-let false (u256_is_zero c))
+      (if-let true (u256_mul_fits c d))
+      (if-let true (u256_add_fits (u256_mul c d) (u256_sub c (u256 1))))
+      (Op.Gt x (imm (u256_add (u256_mul c d) (u256_sub c (u256 1))))))
+;; x / c == 0 => x < c, when c != 0
+(rule (rewrite (Op.Eq (div x (iconst c)) (zero)))
+      (if-let false (u256_is_zero c))
+      (Op.Lt x (imm c)))
+;; x / c != 0 => x > c - 1, when c != 0
+(rule (rewrite (Op.Ne (div x (iconst c)) (zero)))
+      (if-let false (u256_is_zero c))
+      (Op.Gt x (imm (u256_sub c (u256 1)))))
+;; (x / a) / b => x / (a * b), when a * b <= MAX
+(rule (rewrite (Op.Div (div x (iconst a)) (iconst b)))
+      (if-let true (u256_mul_fits a b))
+      (Op.Div x (imm (u256_mul a b))))
+
 ;; (base & existing) & mask => base & (existing & mask), when mask is neither 0 nor MAX
 (rule (rewrite (Op.And (band base (iconst existing)) (iconst mask)))
         (if-let false (u256_is_zero mask))
@@ -388,6 +445,18 @@
 
 (decl partial simplify (Op) Value)
 
+;; (x / c) * c + x % c => x, when c != 0
+(rule 8 (simplify (Op.Add (mul (div x (iconst c)) (iconst d)) (mod x (iconst e))))
+      (if-let false (u256_is_zero c))
+      (if-let true (u256_same c d))
+      (if-let true (u256_same c e))
+      x)
+;; x % c + (x / c) * c => x, when c != 0
+(rule 7 (simplify (Op.Add (mod x (iconst e)) (mul (div x (iconst c)) (iconst d))))
+      (if-let false (u256_is_zero c))
+      (if-let true (u256_same c d))
+      (if-let true (u256_same c e))
+      x)
 ;; (a - b) + b => a
 (rule 6 (simplify (Op.Add (sub a b) b)) a)
 ;; b + (a - b) => a
@@ -425,6 +494,10 @@
 ;; _ * 0 => 0
 (rule 2 (simplify (Op.Mul _ (and b (zero)))) b)
 
+;; (x / a) / b => 0, when a * b > MAX: x / a <= MAX / a < b
+(rule 6 (simplify (Op.Div (div _ (iconst a)) (iconst b)))
+      (if-let false (u256_mul_fits a b))
+      (imm (u256 0)))
 ;; a / d => 0, when a is known to be less than constant d
 (rule 5 (simplify (Op.Div a (iconst d))) (if-let true (below_const a d)) (imm (u256 0)))
 ;; 0 / _ => 0
@@ -634,7 +707,18 @@
 (rule 4 (simplify (Op.Eq (clz _) (iconst c))) (if-let true (u256_gt c 256)) (imm_bool false))
 ;; a == 1 => a, when a is boolean
 (rule 2 (simplify (Op.Eq (and a (bool_value)) (one))) a)
+;; Rounding x down to a multiple of y never exceeds x, so the product cannot wrap and
+;; the checked product's division test always holds; a zero y gives zero throughout.
+;; ((x / y) * y) / y == x / y => 1
+(rule 8 (simplify (Op.Eq (div (mul (and q (div _ y)) y) y) q)) (imm_bool true))
+;; x / y == ((x / y) * y) / y => 1
+(rule 6 (simplify (Op.Eq q (div (mul (and q (div _ y)) y) y))) (imm_bool true))
 
+;; x / c < d => 1, when c != 0 and c * d > MAX: x / c <= MAX / c < d
+(rule 7 (simplify (Op.Lt (div _ (iconst c)) (iconst d)))
+      (if-let false (u256_is_zero c))
+      (if-let false (u256_mul_fits c d))
+      (imm_bool true))
 ;; a < c => 1, when a is known to be less than constant c
 (rule 10 (simplify (Op.Lt a (iconst c))) (if-let true (below_const a c)) (imm_bool true))
 ;; clz(_) < b => 1, when b > 256
@@ -649,7 +733,24 @@
 (rule 5 (simplify (Op.Lt _ (zero))) (imm_bool false))
 ;; b < c => 1, when b is boolean and constant c > 1
 (rule 3 (simplify (Op.Lt (bool_value) (iconst c))) (if-let true (u256_gt c 1)) (imm_bool true))
+;; x < (x / c) * c => 0: rounding down never exceeds x, and a zero c gives zero
+(rule 9 (simplify (Op.Lt x (mul (div x (iconst c)) (iconst d))))
+      (if-let true (u256_same c d))
+      (imm_bool false))
+;; x < (x / y) * y => 0
+(rule 2 (simplify (Op.Lt x (mul (div x y) y))) (imm_bool false))
 
+;; x / c > d => 0, when c != 0 and c * d > MAX: x / c <= MAX / c <= d
+(rule 7 (simplify (Op.Gt (div _ (iconst c)) (iconst d)))
+      (if-let false (u256_is_zero c))
+      (if-let false (u256_mul_fits c d))
+      (imm_bool false))
+;; x / c > d => 0, when c != 0 and c * d + (c - 1) > MAX: x / c <= d
+(rule 5 (simplify (Op.Gt (div _ (iconst c)) (iconst d)))
+      (if-let false (u256_is_zero c))
+      (if-let true (u256_mul_fits c d))
+      (if-let false (u256_add_fits (u256_mul c d) (u256_sub c (u256 1))))
+      (imm_bool false))
 ;; a > c => 0, when a is known to be at most constant c
 (rule 10 (simplify (Op.Gt a (iconst c))) (if-let true (at_most_const a c)) (imm_bool false))
 ;; clz(_) > b => 0, when constant b >= 256
@@ -660,6 +761,12 @@
 (rule 4 (simplify (Op.Gt (and a (bool_value)) (zero))) a)
 ;; b > c => 0, when b is boolean and constant c >= 1
 (rule 2 (simplify (Op.Gt (bool_value) (iconst c))) (if-let true (u256_ge c 1)) (imm_bool false))
+;; (x / c) * c > x => 0
+(rule 9 (simplify (Op.Gt (mul (div x (iconst c)) (iconst d)) x))
+      (if-let true (u256_same c d))
+      (imm_bool false))
+;; (x / y) * y > x => 0
+(rule 3 (simplify (Op.Gt (mul (div x y) y) x)) (imm_bool false))
 
 ;; signed(a) < signed(a) => 0
 (rule (simplify (Op.SLt a a)) (imm_bool false))

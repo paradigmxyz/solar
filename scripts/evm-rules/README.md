@@ -87,14 +87,14 @@ and variants that differ only in variable names share one theorem.
 Lean's saturating shifts, and bit-blasts the goal with `bv_decide`, which
 checks the SAT solver's LRAT certificate in Lean through `Lean.ofReduceBool`.
 A script in `lean/proofs/` replaces that tactic for one rule, with the lemmas in
-`lean/EvmRules/Lemmas.lean`. Its file is named after the rule's source file and
-the first 16 hex digits of the rule's digest (`egraph_44d329ef52b3f648.lean`),
-plus `_<index>` for a rule with several theorems, so edits elsewhere in the
-file do not move it. Its statement is still generated from the current rule,
-so a changed rule leaves the script without a rule and fails the run, and
-`test.py` checks every script against its rule; a script for a selected file
-must name one of its rules. A proof that avoids `bv_decide` relies on Lean's
-kernel alone.
+`lean/EvmRules/Lemmas.lean` and `lean/EvmRules/Arith.lean`. Its file is named
+after the rule's source file and the first 16 hex digits of the rule's digest
+(`egraph_44d329ef52b3f648.lean`), plus `_<index>` for a rule with several
+theorems, so edits elsewhere in the file do not move it. Its statement is
+still generated from the current rule, so a changed rule leaves the script
+without a rule and fails the run, and `test.py` checks every script against
+its rule; a script for a selected file must name one of its rules. A proof
+that avoids `bv_decide` relies on Lean's kernel alone.
 
 The trusted base is the readers and their contracts, the Lean model, and the
 printer from terms to Lean. Regression tests evaluate every Lean operation
@@ -102,19 +102,43 @@ against the integer evaluator on boundary and random words, check printed
 preconditions the same way, require false rules to fail with replayed
 counterexamples, and require the tools to run without an SMT solver installed.
 
-On 2026-10-02, with 10 jobs and a 120-second SAT limit, the lane proved all 444
-selected rules in 156 seconds of wall time and 1,109 seconds of user CPU: 415
-with `evm_decide` (median 0.55 seconds, slowest 39) and 29 with hand-written
-scripts (at most 0.62 seconds each). Without the scripts, `evm_decide` proves
-424 rules, nine of them only after 66 to 205 seconds. It cannot prove the five
-`EXP` rules, whose symbolic exponents it cannot bit-blast, or a balance rule
-whose reads at two addresses that a guard makes equal it treats as unrelated
-words, and it times out on 14 more, mostly division, remainder and shifts by
-symbolic amounts. All 161 rules with preconditions have a confirmed witness,
-and the 918 physical stack variants reduce to seven theorems. The Z3 and cvc5
-lane this replaces proved the same rules in 101 seconds of wall time and 583
-seconds of user CPU as 13 workers, with index and output-bit partitions for
-the rules no solver finished whole.
+On 2026-10-02 the lane proved all 465 selected rules in 125 seconds of wall time
+and 1,288 seconds of user CPU with 18 jobs and a 120-second SAT limit: 415 with
+`evm_decide` and 50 with hand-written scripts. Without the scripts,
+`evm_decide` proves 424 rules, nine of them only after 66 to 205 seconds. It
+cannot prove the five `EXP` rules, whose symbolic exponents it cannot
+bit-blast, or a balance rule whose reads at two addresses that a guard makes
+equal it treats as unrelated words. It times out on 14 more, mostly division,
+remainder and shifts by symbolic amounts, and on all 21 division rules below.
+All 182 rules with preconditions have a confirmed witness, and the 918
+physical stack variants reduce to seven theorems. Before the division rules,
+the Z3 and cvc5 lane this replaces proved the other 444 rules in 101 seconds of
+wall time and 583 seconds of user CPU as 13 workers, with index and output-bit
+partitions for the rules no solver finished whole; this lane took 156 seconds
+and 1,109 seconds with 10 jobs.
+
+## Division rules
+
+`egraph.isle` has 21 rules over products and quotients by constants or by a
+shared divisor. They turn the test of a checked product by a constant into one
+comparison (`(x * c) / c == x` becomes `x < MAX / c + 1`), compare quotients
+through their dividends (`x / c < d` becomes `x < c * d` when the product
+fits), merge nested quotients, rejoin a quotient and its remainder, and fold the
+overflow tests of rounding to a multiple, `(x / y) * y`, which never exceeds
+`x`. Their circuits contain 256-bit multipliers and dividers, so bit-blasting
+cannot prove them: `evm_decide` reaches a 60-second SAT limit on every one. The
+earlier Z3 and cvc5 lane, rerun on the same rules with CI's budgets, timed out
+in Z3 and in cvc5's bit-vector strategies on all 21. cvc5's translation to
+integer arithmetic proved 15, and the other six stayed unknown, which would
+have failed CI.
+
+`lean/EvmRules/Arith.lean` restates comparison words, quotients, products, sums
+and the readers' overflow preconditions as statements about natural numbers,
+where the standard division lemmas apply. Each division rule has a script of
+fewer than 20 lines that Lean checks in about half a second, for every word.
+`tests/ui/codegen/mir/egraph/division.mir` covers each rewrite,
+`division_runtime.sol` executes the rules' boundaries under every codegen
+revision, and the `division-words` runtime benchmark measures their gas.
 
 ## Semantics and trusted boundary
 
