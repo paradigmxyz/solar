@@ -13,9 +13,9 @@ slices. A `memptr` carries a 256-bit memory address without implying validity,
 heap provenance, or non-wrapping pointer arithmetic. Memory objects are `memptr`
 values too: an access such as `memory_object_load_field memorystruct<3>, v0, 2`
 names the object layout itself, as LLVM loads name their type.
-An `i256` carries 256 bits; source widths, signedness, and ABI encoding rules
-belong to operation and layout metadata. An `i256` argument does not imply
-heap provenance or non-wrapping address arithmetic. `void` denotes no function result.
+An `i256` carries 256 bits and does not imply heap provenance or non-wrapping
+address arithmetic. Signedness and ABI encoding rules belong to operation and
+layout metadata. `void` denotes no function result.
 
 Integer types are `i1` and byte widths `i8`, `i16`, …, `i256`. Solidity
 `uintN` and `intN` both become `iN`; signedness belongs to the operation.
