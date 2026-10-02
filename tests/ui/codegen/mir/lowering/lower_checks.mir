@@ -61,3 +61,13 @@ fn @constant_failure_without_writes() {
     icall panic_if<0x32>, true
     ret
 }
+
+// A custom error without arguments reverts from scratch memory.
+// CHECK-LABEL: fn @empty_custom_error(
+// CHECK: + mstore 0, 0x3a81d6fc
+// CHECK-NEXT: + revert 28, 4
+fn @empty_custom_error(arg0: i1) {
+  bb0:
+    icall require<custom_error []>, arg0, 0x3a81d6fc00000000000000000000000000000000000000000000000000000000
+    ret
+}

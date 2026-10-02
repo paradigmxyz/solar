@@ -98,6 +98,17 @@
 +     mstore 0, 0x4e487b71 !metadata(memory=scratch)
 +     mstore 32, 50 !metadata(memory=scratch)
 +     revert 28, 36
+  }
+  
+  fn @empty_custom_error(arg0: i1) {
+    bb0:
+-     icall require<custom_error []>, arg0, 0x3a81d6fc00000000000000000000000000000000000000000000000000000000
++     jumpi arg0, bb2, bb1
++   bb1:
++     mstore 0, 0x3a81d6fc !metadata(memory=scratch)
++     revert 28, 4
++   bb2:
+      ret
 + }
 + 
 + fn @revert_error(arg0: i256, arg1: i256) {
