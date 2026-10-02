@@ -758,8 +758,7 @@ impl SymbolTables {
     pub(crate) fn has_code_symbol_at_position(&self, uri: &Url, position: Position) -> bool {
         !self.rename.conflicting_contents().contains(uri)
             && (self.reference_at_position(uri, position).is_some()
-                || self.declaration_at_position(uri, position).is_some()
-                || self.builtins.contains(uri, position))
+                || self.declaration_at_position(uri, position).is_some())
     }
 
     pub(crate) fn goto_definition(
