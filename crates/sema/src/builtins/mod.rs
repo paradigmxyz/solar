@@ -501,9 +501,4 @@ impl Builtin {
         (range.start as Primitive..range.end as Primitive)
             .map(|idx| unsafe { Self::from_index(idx as usize).unwrap_unchecked() })
     }
-
-    /// Returns whether this builtin mutates its array receiver.
-    pub const fn is_array_mutator(self) -> bool {
-        matches!(self, Self::ArrayPush0 | Self::ArrayPush | Self::ArrayPop)
-    }
 }

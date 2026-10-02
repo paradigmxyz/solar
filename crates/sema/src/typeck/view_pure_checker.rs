@@ -180,7 +180,7 @@ impl<'gcx, 'a> ViewPureChecker<'gcx, 'a> {
             if builtin.is_yul() {
                 return;
             }
-            if builtin.is_array_mutator() {
+            if matches!(builtin, Builtin::ArrayPush0 | Builtin::ArrayPush | Builtin::ArrayPop) {
                 self.report(StateMutability::NonPayable, expr.span, None);
             } else if let Some(mutability) =
                 self.gcx.type_of_expr(callee.id).and_then(|ty| ty.state_mutability())
