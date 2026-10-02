@@ -320,6 +320,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
         if let Ok(value) = self.cx.gcx.try_eval_const_value(initializer) {
             return match value {
+                ConstValue::Rational(_) => self.cx.report_unsupported(span, "fractional constant"),
                 ConstValue::Bool(value) => Some(self.builder.imm_bool(*value)),
                 ConstValue::Integer(value) => {
                     let value = value.as_evm_word();
