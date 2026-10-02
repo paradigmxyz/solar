@@ -1,4 +1,5 @@
 use super::*;
+use crate::symbols::SymbolTablesAggregator;
 use lsp_types::GotoDefinitionResponse;
 use snapbox::{assert_data_eq, str};
 use std::fmt::Write as _;
@@ -521,9 +522,8 @@ fn builtin_and_user_member_conflicts_fail_closed_in_both_workspace_orders() {
     }
 }
 
-#[test]
-fn builtin_queries_reject_distinct_value_type_origins_in_both_workspace_orders() {
-    let marked = MarkedProject::from_fixture(
+fn remapped_price_project() -> MarkedProject {
+    MarkedProject::from_fixture(
         r#"
         //- /left/foundry.toml
         [profile.default]
@@ -555,18 +555,31 @@ fn builtin_queries_reject_distinct_value_type_origins_in_both_workspace_orders()
             }
         }
         "#,
-    );
+    )
+}
+
+#[test]
+fn builtin_queries_compare_signatures_in_both_workspace_orders() {
+    let marked = remapped_price_project();
     let project = marked.project();
     let uri = project.uri("/shared/Shared.sol");
 
-    // Identical displayed names and signatures must not hide distinct declarations.
+    // Builtin hovers can agree even when their signature types name different declarations.
     for underlying in ["uint256", "bytes32"] {
         project.write_file("/right/lib/dep/Price.sol", &format!("type Price is {underlying};\n"));
-        for root in ["/left", "/right"] {
-            let tables = analyze_roots(&marked, &[root]);
-            for marker in ["$1", "$2"] {
-                let position = marked.marker(marker).position();
-                assert!(tables.hover(&uri, position).is_some());
+        let [left, right] = ["/left", "/right"].map(|root| analyze_roots(&marked, &[root]));
+        for marker in ["$1", "$2"] {
+            let position = marked.marker(marker).position();
+            let left_hover = left.hover(&uri, position);
+            let right_hover = right.hover(&uri, position);
+            assert!(left_hover.is_some(), "{underlying} {marker}");
+            assert!(right_hover.is_some(), "{underlying} {marker}");
+            if underlying == "uint256" {
+                assert_eq!(left_hover, right_hover, "{underlying} {marker}");
+            } else {
+                assert_ne!(left_hover, right_hover, "{underlying} {marker}");
+            }
+            for tables in [&left, &right] {
                 assert_eq!(tables.goto_definition(&uri, position), None);
                 assert_eq!(tables.goto_declaration(&uri, position), None);
             }
@@ -575,9 +588,70 @@ fn builtin_queries_reject_distinct_value_type_origins_in_both_workspace_orders()
             let tables = analyze_roots(&marked, &roots);
             for marker in ["$1", "$2"] {
                 let position = marked.marker(marker).position();
-                assert_eq!(tables.hover(&uri, position), None, "{underlying} {marker}");
+                let expected =
+                    if underlying == "uint256" { left.hover(&uri, position) } else { None };
+                assert_eq!(tables.hover(&uri, position), expected, "{underlying} {marker}");
                 assert_eq!(tables.goto_definition(&uri, position), None, "{underlying} {marker}");
                 assert_eq!(tables.goto_declaration(&uri, position), None, "{underlying} {marker}");
+            }
+        }
+    }
+}
+
+#[test]
+fn builtin_queries_reject_conflicting_dependency_snapshots_in_all_batch_orders() {
+    let marked = remapped_price_project();
+    let project = marked.project();
+    let uri = project.uri("/shared/Shared.sol");
+    let [left, right] = ["/left", "/right"].map(|root| analyze_roots(&marked, &[root]));
+    for marker in ["$1", "$2"] {
+        let position = marked.marker(marker).position();
+        let baseline = left.hover(&uri, position);
+        assert!(baseline.is_some(), "{marker}");
+        assert_eq!(baseline, right.hover(&uri, position), "{marker}");
+    }
+
+    // Only the type file changes. Its own batch has no competing builtin occurrence in Shared.sol.
+    let type_path = "/left/lib/dep/Price.sol";
+    let changed_source = project.read_file(type_path).replace("uint256", "bytes32");
+    project.write_file(type_path, &changed_source);
+    let changed = analyze_source(project.path(type_path), changed_source);
+    assert!(changed.diagnostics.is_empty(), "{:#?}", changed.diagnostics);
+    let fresh = analyze_roots(&marked, &["/left"]);
+    for marker in ["$1", "$2"] {
+        let position = marked.marker(marker).position();
+        let current = fresh.hover(&uri, position);
+        assert!(current.is_some(), "{marker}");
+        assert_ne!(current, left.hover(&uri, position), "{marker}");
+    }
+
+    // A single stale candidate and either ordering of compatible candidates must all fail closed.
+    for (order, candidates) in [
+        ("left only", &[&left][..]),
+        ("left, right", &[&left, &right]),
+        ("right, left", &[&right, &left]),
+    ] {
+        for changed_position in 0..=candidates.len() {
+            let mut tables = SymbolTablesAggregator::default();
+            for (index, candidate) in candidates.iter().enumerate() {
+                if index == changed_position {
+                    tables.push(changed.symbol_tables.clone());
+                }
+                tables.push((*candidate).clone());
+            }
+            if changed_position == candidates.len() {
+                tables.push(changed.symbol_tables.clone());
+            }
+            let tables = tables.finish();
+            for marker in ["$1", "$2"] {
+                let position = marked.marker(marker).position();
+                assert_eq!(
+                    tables.hover(&uri, position),
+                    None,
+                    "{order} {changed_position} {marker}"
+                );
+                assert_eq!(tables.goto_definition(&uri, position), None);
+                assert_eq!(tables.goto_declaration(&uri, position), None);
             }
         }
     }

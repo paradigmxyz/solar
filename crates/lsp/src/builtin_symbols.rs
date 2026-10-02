@@ -2,8 +2,9 @@
 //!
 //! Builtins have no source declarations, so their hover documentation lives outside the user
 //! declaration index and cannot become a definition, rename, or workspace-symbol target.
-//! Merged analysis contexts must agree on the builtin, its signature, and the source identity
-//! of any user-defined types in that signature.
+//! Merged analysis contexts must agree on the builtin and its displayed signature. User-defined
+//! types may come from different declarations, but their source files must have consistent
+//! contents across all matching occurrences.
 
 use crate::proto::{self, LocationConverter, PositionIndex};
 use lsp_types::{Location, Position, Url};
@@ -34,7 +35,7 @@ pub(crate) struct BuiltinIndex {
 pub(crate) struct BuiltinOccurrence {
     pub(crate) location: Location,
     pub(crate) documentation: Arc<BuiltinDocumentation>,
-    type_origins: Vec<Location>,
+    type_sources: Vec<Url>,
 }
 
 impl BuiltinIndex {
@@ -51,22 +52,19 @@ impl BuiltinIndex {
             return;
         };
         let documentation = Arc::new(documentation);
-        let mut type_origins = Vec::new();
+        let mut type_sources = Vec::new();
         if let Some(ty) = gcx.type_of_expr(expr.id) {
-            collect_type_origins(gcx, locations, ty, &mut type_origins);
+            collect_type_sources(gcx, locations, ty, &mut type_sources);
         }
         // Properties such as `type(C).name` have an elementary result but a contextual receiver.
         if let hir::ExprKind::Member(receiver, _) = expr.kind
             && let Some(ty) = gcx.type_of_expr(receiver.id)
         {
-            collect_type_origins(gcx, locations, ty, &mut type_origins);
+            collect_type_sources(gcx, locations, ty, &mut type_sources);
         }
-        type_origins.sort_by(|a, b| {
-            (a.uri.as_str(), proto::range_key(a.range))
-                .cmp(&(b.uri.as_str(), proto::range_key(b.range)))
-        });
-        type_origins.dedup();
-        self.occurrences.push(BuiltinOccurrence { location, documentation, type_origins });
+        type_sources.sort_unstable();
+        type_sources.dedup();
+        self.occurrences.push(BuiltinOccurrence { location, documentation, type_sources });
     }
 
     pub(crate) fn extend(&mut self, other: Self) {
@@ -99,13 +97,15 @@ impl BuiltinIndex {
         let occurrence = self
             .candidates(uri, position)
             .min_by_key(|entry| proto::range_size_key(entry.location.range))?;
-        if occurrence.type_origins.iter().any(|origin| conflicting_contents.contains(&origin.uri))
-            || self.candidates(uri, position).any(|other| {
-                other.location.range == occurrence.location.range
-                    && (other.documentation != occurrence.documentation
-                        || other.type_origins != occurrence.type_origins)
-            })
-        {
+        // Equal signatures can depend on different files, so check every matching occurrence.
+        if self.candidates(uri, position).any(|other| {
+            other.location.range == occurrence.location.range
+                && (other.documentation != occurrence.documentation
+                    || other
+                        .type_sources
+                        .iter()
+                        .any(|source| conflicting_contents.contains(source)))
+        }) {
             return None;
         }
         Some(occurrence)
@@ -126,11 +126,11 @@ impl BuiltinIndex {
     }
 }
 
-fn collect_type_origins(
+fn collect_type_sources(
     gcx: Gcx<'_>,
     locations: &LocationConverter,
     ty: Ty<'_>,
-    origins: &mut Vec<Location>,
+    sources: &mut Vec<Url>,
 ) {
     let _: ControlFlow<Never> = ty.visit(&mut |ty| {
         let item = match ty.kind {
@@ -142,16 +142,16 @@ fn collect_type_origins(
             TyKind::Error(_, id) => Some(ItemId::Error(id)),
             TyKind::Fn(function) => {
                 for &ty in function.parameters.iter().chain(function.returns) {
-                    collect_type_origins(gcx, locations, ty, origins);
+                    collect_type_sources(gcx, locations, ty, sources);
                 }
                 None
             }
             _ => None,
         };
         if let Some(item) = item
-            && let Some(location) = locations.location(gcx.hir.item(item).span())
+            && let Some(uri) = locations.file_uri(&gcx.hir.source(gcx.hir.item(item).source()).file)
         {
-            origins.push(location);
+            sources.push(uri.clone());
         }
         ControlFlow::Continue(())
     });
