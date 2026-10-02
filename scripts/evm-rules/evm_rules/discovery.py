@@ -1,4 +1,4 @@
-"""Bounded expression enumeration, concrete fingerprints, SMT and ISLE emission.
+"""Bounded expression enumeration, concrete fingerprints, Lean and ISLE emission.
 
 Samples only propose equivalences. A representative can replace an expression
 in the enumeration frontier only after UNSAT. SAT witnesses refine the sample
@@ -13,8 +13,10 @@ import re
 from dataclasses import dataclass
 from itertools import product
 
-from .isle import ROOT, extractor_definitions, forms, verify_file
-from .semantics import MASK, Expr, Model, Unsupported, check, concrete
+from .isle import ROOT, extractor_definitions, forms
+from .lean import Lean
+from .proof import check, verify_file
+from .semantics import MASK, Expr, Unsupported, concrete
 
 COSTS = ROOT / "crates/codegen/src/word_rule_costs.snap"
 
@@ -83,7 +85,7 @@ def samples(variables):
 
 
 def read_seeds(path, prices, variables):
-    """Read bounded expression trees, never executable Python or SMT text."""
+    """Read bounded expression trees, never executable Python or Lean text."""
     rows = json.loads(path.read_text())
     if not isinstance(rows, list) or not 1 <= len(rows) <= 128:
         raise ValueError("seed file requires one to 128 expression trees")
@@ -112,7 +114,9 @@ def read_seeds(path, prices, variables):
     for expr in result:
         if expr.operators() == 0:
             raise ValueError("seed requires an operation root")
-        Model().eval(expr)  # Reject operations without supported word semantics.
+        Lean(expr.variables()).term(
+            expr
+        )  # Reject operations without supported word semantics.
     return result
 
 
@@ -148,10 +152,9 @@ def enumerate_rules(
     for op in ops:
         if op not in prices.ops or prices.ops[op][0] not in (1, 2):
             raise ValueError(f"unsupported search operation on selected fork: {op}")
-        Model.apply(
-            op,
-            tuple(Model().eval(Expr.var(v)) for v in variables[:1]) * prices.ops[op][0],
-        )
+        expression = Expr(op, (Expr.var(variables[0]),) * prices.ops[op][0])
+        Lean(expression.variables()).term(expression)
+
     inputs = (
         list(initial_samples) if initial_samples is not None else samples(variables)
     )
@@ -170,10 +173,9 @@ def enumerate_rules(
     ] + [[] for _ in range(max_ops)]
     representatives = list(leaves)
     buckets = {}
-    model = Model()
     statistics = {
         "expressions": 0,
-        "smt_queries": 0,
+        "proof_queries": 0,
         "proved": 0,
         "counterexamples": 0,
         "unknown": 0,
@@ -217,10 +219,8 @@ def enumerate_rules(
                         key=lambda e: (prices.key(prices.cost(e)), e.text()),
                     )
                     for candidate in candidates:
-                        statistics["smt_queries"] += 1
-                        result, _ = check(
-                            expr, candidate, timeout_ms=timeout_ms, model=model
-                        )
+                        statistics["proof_queries"] += 1
+                        result = check(expr, candidate, timeout_ms=timeout_ms)
                         statistics[
                             "counterexamples"
                             if result["status"] == "counterexample"
@@ -282,8 +282,8 @@ def enumerate_rules(
                 before
             ):
                 continue
-            statistics["smt_queries"] += 1
-            result, _ = check(seed, candidate, timeout_ms=timeout_ms, model=model)
+            statistics["proof_queries"] += 1
+            result = check(seed, candidate, timeout_ms=timeout_ms)
             statistics[
                 "counterexamples"
                 if result["status"] == "counterexample"
