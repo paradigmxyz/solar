@@ -68,8 +68,8 @@ bb11:
   push 4
   calldataload
   xor
-  jump bb34
-bb34:
+  jump bb36
+bb36:
   push 1
   dup 2
   add
@@ -96,7 +96,7 @@ bb14:
   push 36
   calldataload
   sub
-  jump bb34
+  jump bb36
 bb17:
   push 68
   calldatasize
@@ -108,7 +108,7 @@ bb17:
   push 4
   calldataload
   sub
-  jump bb34
+  jump bb36
 bb20:
   push 68
   calldatasize
@@ -186,16 +186,32 @@ bb29:
   jumpi
   push 0
   jump bb31
-bb33 [loop]:
+bb35 [loop]:
+  push 1
+  add
   push 1
   add
   jump bb31
 bb31 [loop]:
+  push 1
+  dup 2
+  add
+  push 4
+  calldataload
+  gt
+  push bb35
+  jumpi
+  jump bb32
+bb34 [loop]:
+  push 1
+  add
+  jump bb32
+bb32 [loop]:
   push 4
   calldataload
   dup 2
   lt
-  push bb33
+  push bb34
   jumpi
   push 128
   mstore

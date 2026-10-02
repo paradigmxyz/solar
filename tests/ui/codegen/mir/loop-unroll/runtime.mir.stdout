@@ -1,0 +1,74 @@
+// === ROOT/tests/ui/codegen/mir/loop-unroll/runtime.sol:LoopUnroll ===
+@module LoopUnroll
+fn @sum(arg0: i256) -> i256 [selector=0x188b85b4, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb3: v7]
+    v1 = phi [bb0: 0], [bb3: v6]
+    v2 = phi [bb0: arg0], [bb3: v2]
+    v3 = lt v0, v2
+    jumpi v3, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    ret v1
+  bb4:
+    v4 = checked_mul u256, v0, 3
+    v5 = checked_add u256, v4, 1
+    v6 = checked_add u256, v1, v5
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v7 = checked_add u256, v0, 1
+    jump bb1
+}
+
+fn @stepped(arg0: i256) -> i256 [selector=0x8129c875, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: arg0], [bb3: v0]
+    v1 = phi [bb0: 5], [bb3: v6]
+    v2 = phi [bb0: 0], [bb3: v5]
+    v3 = lt v1, v0
+    jumpi v3, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    ret v2
+  bb4:
+    v4 = mul v2, 7
+    v5 = add v4, v1
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v6 = checked_add u256, v1, 3
+    jump bb1
+}
+
+fn @guarded(arg0: i256, arg1: i256) -> i256 [selector=0x252fc58f, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: arg1], [bb3: v0]
+    v1 = phi [bb0: 0], [bb3: v6]
+    v2 = phi [bb0: arg0], [bb3: v2]
+    v3 = phi [bb0: 0], [bb3: v5]
+    v4 = lt v1, v2
+    jumpi v4, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    ret v3
+  bb4:
+    v5 = checked_add u256, v3, v0
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v6 = checked_add u256, v1, 1
+    jump bb1
+}

@@ -80,7 +80,18 @@ bb34:
   push 0
   push 0
   jump bb35
-bb37 [loop]:
+bb40 [loop]:
+  push 192
+  mload
+  dup 3
+  add
+  swap 2
+  dup 3
+  lt
+  push bb26
+  jumpi
+  push 1
+  add
   push 192
   mload
   dup 3
@@ -94,11 +105,34 @@ bb37 [loop]:
   add
   jump bb35
 bb35 [loop]:
+  push 1
+  dup 2
+  add
+  push 160
+  mload
+  gt
+  push bb40
+  jumpi
+  jump bb36
+bb38 [loop]:
+  push 192
+  mload
+  dup 3
+  add
+  swap 2
+  dup 3
+  lt
+  push bb26
+  jumpi
+  push 1
+  add
+  jump bb36
+bb36 [loop]:
   push 160
   mload
   dup 2
   lt
-  push bb37
+  push bb38
   jumpi
   pop
   swap 1

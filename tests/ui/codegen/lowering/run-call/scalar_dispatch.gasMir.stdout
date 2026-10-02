@@ -18,11 +18,18 @@ fn @entry() [entry] {
     v10 = calldataload 68
     switch v7, default bb1, [0xf92ced6 => bb3, 0x214636e1 => bb4, 0x82829e9f => bb5, 0xe6dd5714 => bb6]
   bb6:
-    jump bb16
+    jump bb25
+  bb25:
+    v90 = phi [bb6: v8], [bb26: v101]
+    v91 = phi [bb6: 0], [bb26: v103]
+    v92 = phi [bb6: v9], [bb26: v102]
+    v104 = add v91, 1
+    v105 = lt v104, v10
+    jumpi v105, bb26, bb16
   bb16:
-    v33 = phi [bb6: v8], [bb18: v37]
-    v34 = phi [bb6: 0], [bb18: v39]
-    v35 = phi [bb6: v9], [bb18: v38]
+    v33 = phi [bb25: v90], [bb18: v37]
+    v34 = phi [bb25: v91], [bb18: v39]
+    v35 = phi [bb25: v92], [bb18: v38]
     v36 = lt v34, v10
     jumpi v36, bb18, bb17
   bb17:
@@ -33,12 +40,27 @@ fn @entry() [entry] {
     v38 = add v35, v34
     v39 = add v34, 1
     jump bb16
+  bb26:
+    v94 = and v90, v92
+    v95 = add v92, v91
+    v96 = add v91, 1
+    v101 = and v94, v95
+    v102 = add v95, v96
+    v103 = add v96, 1
+    jump bb25
   bb5:
-    jump bb13
+    jump bb23
+  bb23:
+    v74 = phi [bb5: 0], [bb24: v87]
+    v75 = phi [bb5: v9], [bb24: v86]
+    v76 = phi [bb5: v8], [bb24: v85]
+    v88 = add v74, 1
+    v89 = lt v88, v10
+    jumpi v89, bb24, bb13
   bb13:
-    v26 = phi [bb5: 0], [bb15: v32]
-    v27 = phi [bb5: v9], [bb15: v31]
-    v28 = phi [bb5: v8], [bb15: v30]
+    v26 = phi [bb23: v74], [bb15: v32]
+    v27 = phi [bb23: v75], [bb15: v31]
+    v28 = phi [bb23: v76], [bb15: v30]
     v29 = lt v26, v10
     jumpi v29, bb15, bb14
   bb14:
@@ -49,12 +71,27 @@ fn @entry() [entry] {
     v31 = add v27, v26
     v32 = add v26, 1
     jump bb13
+  bb24:
+    v78 = sub v75, v76
+    v79 = add v75, v74
+    v80 = add v74, 1
+    v85 = sub v79, v78
+    v86 = add v79, v80
+    v87 = add v80, 1
+    jump bb23
   bb4:
-    jump bb10
+    jump bb21
+  bb21:
+    v58 = phi [bb4: v8], [bb22: v69]
+    v59 = phi [bb4: 0], [bb22: v71]
+    v60 = phi [bb4: v9], [bb22: v70]
+    v72 = add v59, 1
+    v73 = lt v72, v10
+    jumpi v73, bb22, bb10
   bb10:
-    v19 = phi [bb4: v8], [bb12: v23]
-    v20 = phi [bb4: 0], [bb12: v25]
-    v21 = phi [bb4: v9], [bb12: v24]
+    v19 = phi [bb21: v58], [bb12: v23]
+    v20 = phi [bb21: v59], [bb12: v25]
+    v21 = phi [bb21: v60], [bb12: v24]
     v22 = lt v20, v10
     jumpi v22, bb12, bb11
   bb11:
@@ -65,12 +102,27 @@ fn @entry() [entry] {
     v24 = add v21, v20
     v25 = add v20, 1
     jump bb10
+  bb22:
+    v62 = xor v58, v60
+    v63 = add v60, v59
+    v64 = add v59, 1
+    v69 = xor v62, v63
+    v70 = add v63, v64
+    v71 = add v64, 1
+    jump bb21
   bb3:
-    jump bb7
+    jump bb19
+  bb19:
+    v40 = phi [bb3: v9], [bb20: v54]
+    v41 = phi [bb3: v8], [bb20: v53]
+    v42 = phi [bb3: 0], [bb20: v55]
+    v56 = add v42, 1
+    v57 = lt v56, v10
+    jumpi v57, bb20, bb7
   bb7:
-    v11 = phi [bb3: v9], [bb9: v17]
-    v12 = phi [bb3: v8], [bb9: v16]
-    v13 = phi [bb3: 0], [bb9: v18]
+    v11 = phi [bb19: v40], [bb9: v17]
+    v12 = phi [bb19: v41], [bb9: v16]
+    v13 = phi [bb19: v42], [bb9: v18]
     v14 = lt v13, v10
     jumpi v14, bb9, bb8
   bb8:
@@ -82,6 +134,16 @@ fn @entry() [entry] {
     v17 = add v11, v13
     v18 = add v13, 1
     jump bb7
+  bb20:
+    v44 = not v40
+    v45 = and v44, v41
+    v46 = add v40, v42
+    v47 = add v42, 1
+    v52 = not v46
+    v53 = and v52, v45
+    v54 = add v46, v47
+    v55 = add v47, 1
+    jump bb19
   bb1:
     revert 0, 0
 }
