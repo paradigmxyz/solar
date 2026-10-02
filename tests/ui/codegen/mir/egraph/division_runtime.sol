@@ -21,6 +21,19 @@
 //@ run-call: roundWeek 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffff8d900
 //@ run-call: roundDown 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 7 => 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe
 //@ run-call-fail: roundDown 5, 0 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000012
+//@ run-call: afterFee 10000 => 9970
+//@ run-call: afterFee 0x888888888888888888888888888888888888888888888888888888888888888 => 0x881facfcdc177bd5f29ea6d7fee861363427de23c59050d3e654ec79c9a8e45
+//@ run-call-fail: afterFee 0x888888888888888888888888888888888888888888888888888888888888889 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
+//@ run-call: cut 10, 3 => 7
+//@ run-call: cut 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 1 => 0
+//@ run-call-fail: cut 5, 0 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000012
+//@ run-call: remainders 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => true, false
+//@ run-call: intoDay 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => 36735
+//@ run-call: intoDay 86400 => 0
+//@ run-call: isMultiple 5000 => true
+//@ run-call: isMultiple 5001 => false
+//@ run-call: isMultiple 0 => true
+//@ run-call: isMultiple 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => false
 
 // Boundaries of the division rules proved in Lean, through checked Solidity arithmetic.
 contract DivisionRuntime {
@@ -70,5 +83,25 @@ contract DivisionRuntime {
 
     function roundDown(uint256 x, uint256 y) external pure returns (uint256) {
         return x / y * y;
+    }
+
+    function afterFee(uint256 x) external pure returns (uint256) {
+        return x - x * 30 / 10_000;
+    }
+
+    function cut(uint256 x, uint256 y) external pure returns (uint256) {
+        return x - x / y;
+    }
+
+    function remainders(uint256 x) external pure returns (bool, bool) {
+        return (x % 1000 < 1000, x % 7 > 6);
+    }
+
+    function intoDay(uint256 t) external pure returns (uint256) {
+        return t - t / 1 days * 1 days;
+    }
+
+    function isMultiple(uint256 x) external pure returns (bool) {
+        return x / 1000 * 1000 == x;
     }
 }

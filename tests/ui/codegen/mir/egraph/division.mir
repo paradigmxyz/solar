@@ -4,6 +4,7 @@
   struct0: {i1, i1}
   struct1: {i1, i1, i1}
   struct2: {i256, i256}
+  struct3: {i1, i1, i1, i1}
 
 // Division rules whose proofs need integer reasoning; bit-blasting times out on them.
 // A checked product by a constant wraps exactly when its factor exceeds MAX / c.
@@ -128,4 +129,42 @@ fn @rounding(arg0: i256, arg1: i256) -> struct1 [return_abi=[i1, i1, i1]] {
     v6 = div v4, arg1
     v7 = eq v6, v3
     ret v2, v5, v7
+}
+
+// A fraction of x never exceeds x: checked subtraction of a quotient or of a share
+// c / d <= 1 cannot underflow, even when x * c wraps.
+fn @fractions(arg0: i256, arg1: i256) -> struct3 [return_abi=[i1, i1, i1, i1]] {
+  bb0:
+    v0 = div arg0, arg1
+    v1 = lt arg0, v0
+    v2 = mul arg0, 30
+    v3 = div v2, 10000
+    v4 = lt arg0, v3
+    v5 = mul arg0, 997
+    v6 = div v5, 1000
+    v7 = gt v6, arg0
+    v8 = mul arg0, 3
+    v9 = div v8, 2
+    v10 = lt arg0, v9
+    ret v1, v4, v7, v10
+}
+
+// A remainder by c stays below c; it may still reach a bound below c.
+fn @remainder_bounds(arg0: i256) -> struct1 [return_abi=[i1, i1, i1]] {
+  bb0:
+    v0 = mod arg0, 1000
+    v1 = lt v0, 1000
+    v2 = mod arg0, 7
+    v3 = gt v2, 6
+    v4 = mod arg0, 9
+    v5 = lt v4, 5
+    ret v1, v3, v5
+}
+
+fn @remainder_by_subtraction(arg0: i256) -> i256 {
+  bb0:
+    v0 = div arg0, 86400
+    v1 = mul v0, 86400
+    v2 = sub arg0, v1
+    ret v2
 }

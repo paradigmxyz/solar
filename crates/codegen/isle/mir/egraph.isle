@@ -315,6 +315,11 @@
 (rule (rewrite (Op.Div (div x (iconst a)) (iconst b)))
       (if-let true (u256_mul_fits a b))
       (Op.Div x (imm (u256_mul a b))))
+;; x - (x / c) * c => x % c, when c != 0: the rounded product never exceeds x
+(rule (rewrite (Op.Sub x (mul (div x (iconst c)) (iconst d))))
+      (if-let false (u256_is_zero c))
+      (if-let true (u256_same c d))
+      (Op.Mod x (imm c)))
 
 ;; (base & existing) & mask => base & (existing & mask), when mask is neither 0 nor MAX
 (rule (rewrite (Op.And (band base (iconst existing)) (iconst mask)))
@@ -739,6 +744,19 @@
       (imm_bool false))
 ;; x < (x / y) * y => 0
 (rule 2 (simplify (Op.Lt x (mul (div x y) y))) (imm_bool false))
+;; A quotient never exceeds its dividend, also for a zero divisor.
+;; x < x / y => 0
+(rule 11 (simplify (Op.Lt x (div x _))) (imm_bool false))
+;; A share c / d <= 1 of x never exceeds x; when x * c wraps, x >= 2^256 / c >= 2^256 / d.
+;; x < (x * c) / d => 0, when c <= d
+(rule 12 (simplify (Op.Lt x (div (mul x (iconst c)) (iconst d))))
+      (if-let true (u256_le c d))
+      (imm_bool false))
+;; x % c < d => 1, when 0 < c <= d
+(rule 13 (simplify (Op.Lt (mod _ (iconst c)) (iconst d)))
+      (if-let false (u256_is_zero c))
+      (if-let true (u256_le c d))
+      (imm_bool true))
 
 ;; x / c > d => 0, when c != 0 and c * d > MAX: x / c <= MAX / c <= d
 (rule 7 (simplify (Op.Gt (div _ (iconst c)) (iconst d)))
@@ -767,6 +785,17 @@
       (imm_bool false))
 ;; (x / y) * y > x => 0
 (rule 3 (simplify (Op.Gt (mul (div x y) y) x)) (imm_bool false))
+;; x / y > x => 0
+(rule 11 (simplify (Op.Gt (div x _) x)) (imm_bool false))
+;; (x * c) / d > x => 0, when c <= d
+(rule 12 (simplify (Op.Gt (div (mul x (iconst c)) (iconst d)) x))
+      (if-let true (u256_le c d))
+      (imm_bool false))
+;; x % c > d => 0, when c != 0 and c - 1 <= d
+(rule 13 (simplify (Op.Gt (mod _ (iconst c)) (iconst d)))
+      (if-let false (u256_is_zero c))
+      (if-let true (u256_le (u256_sub c (u256 1)) d))
+      (imm_bool false))
 
 ;; signed(a) < signed(a) => 0
 (rule (simplify (Op.SLt a a)) (imm_bool false))
