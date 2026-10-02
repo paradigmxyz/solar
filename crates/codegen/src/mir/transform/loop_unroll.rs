@@ -1,4 +1,5 @@
-//! Unrolling of counted loops by two or four.
+//! Unrolling of counted loops by two or four, and peeling of loops whose body
+//! tests words computed before the loop.
 //!
 //! A loop `for (i = a; i < n; i += s)` pays its header test, a compare and a
 //! conditional jump, once per iteration. This pass gives such a loop a main
@@ -40,6 +41,14 @@
 //! body_b: second copy; jump header
 //! ```
 //!
+//! A body that aborts unless a word computed before the loop holds, such as a
+//! division's zero check on a divisor the loop never changes, first runs one
+//! iteration in a copy that keeps those tests, and the loop after it jumps past
+//! them. When the copy's header declines the first iteration, it enters the
+//! original header, which declines it as well, so the original header's exit
+//! stays the loop's only one. Without those reads of words from before the
+//! loop, the loop may then unroll.
+//!
 //! Recognition: as for `loop-split`, a natural loop with a preheader and no
 //! inner loop, whose header branches into the body while `i < n`, `i <= n`,
 //! `i != n` or `i > 0` and otherwise leaves the loop, where `i` is a header
@@ -73,7 +82,10 @@
 //! no block reachable from such an edge uses a loop-defined value except as a
 //! phi input on that edge, so every definition still dominates its uses. The
 //! header's exit stays the only way to leave the original loop normally, so
-//! values read after the loop keep their definitions.
+//! values read after the loop keep their definitions. A peeled loop's body runs
+//! only after the copy's tests held, and they read the same words; the copy's
+//! declined first iteration reaches a header free of effects with the same
+//! state, which declines it too.
 //!
 //! For `!=`, counts are taken modulo `2^256`, as the counter wraps, and a step
 //! that subtracts `m` adds `2^256 - m`; `i > 0` is `i != 0`. When `n - i`
@@ -101,18 +113,19 @@
 //! code holds `k` more copies of the body and one of the header, and the pass
 //! takes the factor that saves the most. Literal bounds give the trip count,
 //! and other loops are assumed to run the target's estimate for uncounted
-//! loops. A `<=` loop stepping by one unrolls by four only from a literal
-//! start, as its main test then adds the offset. Runs after the late loop
-//! passes have fixed the loop's physical shape, and before the final CFG
-//! cleanup and dead-code elimination remove the cloned tests the copies no
-//! longer read.
+//! loops. A peeled copy of the header and the body pays when the conditional
+//! jumps that the iterations after the first skip save more. A `<=` loop
+//! stepping by one unrolls by four only from a literal start, as its main test
+//! then adds the offset. Runs after the late loop passes have fixed the loop's
+//! physical shape, and before the final CFG cleanup and dead-code elimination
+//! remove the cloned tests the copies no longer read.
 
 use super::loop_split::{rebuild_predecessors, retarget};
 use crate::{
     backend::evm::op,
     mir::{
-        BlockId, EffectKind, Function, FunctionId, Immediate, InstKind, Instruction, MirType,
-        Module, OpTraits, Terminator, Value, ValueId,
+        BlockId, EffectKind, Function, FunctionId, Immediate, InstId, InstKind, Instruction,
+        MirType, Module, OpTraits, Terminator, Value, ValueId,
         analysis::{Loop, LoopAnalyzer, LoopInfo, aborts, cold_functions},
         pass::{MirPass, run_function_pass},
     },
@@ -124,7 +137,7 @@ use solar_data_structures::{
     map::{FxHashMap, FxHashSet},
 };
 
-/// Function pass that unrolls counted loops by two.
+/// Function pass that unrolls counted loops and peels loops with invariant tests.
 pub(crate) struct LoopUnroll;
 
 impl MirPass for LoopUnroll {
@@ -188,11 +201,51 @@ struct Unroll {
     step: U256,
 }
 
+/// The shape both unrolling and peeling need: a natural loop with a preheader and a single
+/// latch, no inner loop, a header free of effects that branches into a straight-line body or
+/// out of the loop.
+struct Shape {
+    preheader: BlockId,
+    latch: BlockId,
+    /// The header's successor inside the loop.
+    body: BlockId,
+    /// The header's successor outside the loop.
+    exit: BlockId,
+    /// Whether the header enters the body when its condition holds.
+    enters_on_true: bool,
+    condition: ValueId,
+    loop_insts: DenseBitSet<InstId>,
+}
+
+/// A loop whose body aborts unless a word computed before the loop holds, such as a division's
+/// zero check on a divisor the loop never changes.
+struct Peel {
+    header: BlockId,
+    preheader: BlockId,
+    latch: BlockId,
+    exit: BlockId,
+    blocks: DenseBitSet<BlockId>,
+    /// Body blocks ending with such a test, with the block each continues to.
+    tests: Vec<(BlockId, BlockId)>,
+}
+
 fn unroll_function(func: &mut Function, cold: &DenseBitSet<FunctionId>, target: Target) -> bool {
     let mut changed = false;
     let mut done = FxHashSet::default();
+    let mut peeled = FxHashSet::default();
     loop {
         let loops = LoopAnalyzer::new().analyze_structure(func);
+        // A peeled loop no longer reads its invariant tests and may unroll next.
+        if let Some(plan) = loops
+            .all_loops()
+            .filter(|l| !peeled.contains(&l.header))
+            .find_map(|l| plan_peel(func, &loops, l, cold, target))
+        {
+            peeled.insert(plan.header);
+            peel(func, &plan);
+            changed = true;
+            continue;
+        }
         let Some(unroll) = loops
             .all_loops()
             .filter(|l| !done.contains(&l.header))
@@ -246,13 +299,12 @@ fn rebuilt_at_use(func: &Function, value: ValueId) -> bool {
     }
 }
 
-fn plan(
+fn shape(
     func: &Function,
     loops: &LoopInfo,
     l: &Loop,
     cold: &DenseBitSet<FunctionId>,
-    target: Target,
-) -> Option<Unroll> {
+) -> Option<Shape> {
     let preheader = l.preheader?;
     let &[latch] = l.back_edges.as_slice() else { return None };
     if latch == l.header
@@ -294,6 +346,78 @@ fn plan(
             return None;
         }
     }
+    // The original header repeats its instructions for the iteration the main loop declined,
+    // or for the one a peeled iteration's header declined.
+    if func.blocks[l.header].instructions.iter().any(|&inst| {
+        let kind = &func.inst(inst).kind;
+        !matches!(kind, InstKind::Phi(_)) && kind.has_side_effects()
+    }) {
+        return None;
+    }
+    Some(Shape { preheader, latch, body, exit, enters_on_true, condition, loop_insts })
+}
+
+/// Whether the blocks the loop's body can leave to, such as panics, read loop values only as
+/// the phi inputs of those edges, so the edges of every copy can reach them.
+fn exits_read_through_phis(
+    func: &Function,
+    l: &Loop,
+    exit: BlockId,
+    loop_insts: &DenseBitSet<InstId>,
+) -> bool {
+    let defined_in_loop = |value| match func.value(value) {
+        Value::Inst(inst) => loop_insts.contains(*inst),
+        _ => false,
+    };
+    let mut reachable = DenseBitSet::new_empty(func.blocks.len());
+    let mut worklist = Vec::new();
+    for block in l.blocks.iter() {
+        let Some(terminator) = &func.blocks[block].terminator else { return false };
+        for successor in terminator.successors() {
+            if !l.blocks.contains(successor)
+                && !(block == l.header && successor == exit)
+                && reachable.insert(successor)
+            {
+                worklist.push(successor);
+            }
+        }
+    }
+    while let Some(block) = worklist.pop() {
+        let body = &func.blocks[block];
+        for &inst in &body.instructions {
+            let kind = &func.inst(inst).kind;
+            let reads_loop_value = match kind {
+                InstKind::Phi(incoming) => incoming
+                    .iter()
+                    .any(|&(from, value)| !l.blocks.contains(from) && defined_in_loop(value)),
+                _ => kind.operands().into_iter().any(defined_in_loop),
+            };
+            if reads_loop_value {
+                return false;
+            }
+        }
+        let Some(terminator) = &body.terminator else { return false };
+        if terminator.operands().into_iter().any(defined_in_loop) {
+            return false;
+        }
+        for successor in terminator.successors() {
+            if !l.blocks.contains(successor) && reachable.insert(successor) {
+                worklist.push(successor);
+            }
+        }
+    }
+    true
+}
+
+fn plan(
+    func: &Function,
+    loops: &LoopInfo,
+    l: &Loop,
+    cold: &DenseBitSet<FunctionId>,
+    target: Target,
+) -> Option<Unroll> {
+    let Shape { preheader, latch, body, exit, enters_on_true, condition, loop_insts } =
+        shape(func, loops, l, cold)?;
     // The stack planner spills a word the body reads from before the loop, and the copies
     // measured slower than the original loop.
     for block in l.blocks.iter() {
@@ -314,13 +438,6 @@ fn plan(
         {
             return None;
         }
-    }
-    // The original header repeats its instructions for the iteration the main loop declined.
-    if func.blocks[l.header].instructions.iter().any(|&inst| {
-        let kind = &func.inst(inst).kind;
-        !matches!(kind, InstKind::Phi(_)) && kind.has_side_effects()
-    }) {
-        return None;
     }
     let defined_in_loop = |value| match func.value(value) {
         Value::Inst(inst) => loop_insts.contains(*inst),
@@ -440,49 +557,8 @@ fn plan(
     });
     let (_, factor, main_test) = candidates.max_by_key(|&(saving, ..)| saving)?;
 
-    // Blocks the copies can reach by leaving the loop from its body must not read a loop
-    // value except through the phi input of that edge.
-    let mut reachable = DenseBitSet::new_empty(func.blocks.len());
-    let mut worklist = Vec::new();
-    for block in l.blocks.iter() {
-        for successor in func.blocks[block].terminator.as_ref()?.successors() {
-            if !l.blocks.contains(successor)
-                && !(block == l.header && successor == exit)
-                && reachable.insert(successor)
-            {
-                worklist.push(successor);
-            }
-        }
-    }
-    while let Some(block) = worklist.pop() {
-        let body = &func.blocks[block];
-        for &inst in &body.instructions {
-            let kind = &func.inst(inst).kind;
-            match kind {
-                InstKind::Phi(incoming) => {
-                    if incoming
-                        .iter()
-                        .any(|&(from, value)| !l.blocks.contains(from) && defined_in_loop(value))
-                    {
-                        return None;
-                    }
-                }
-                _ => {
-                    if kind.operands().into_iter().any(defined_in_loop) {
-                        return None;
-                    }
-                }
-            }
-        }
-        let terminator = body.terminator.as_ref()?;
-        if terminator.operands().into_iter().any(defined_in_loop) {
-            return None;
-        }
-        for successor in terminator.successors() {
-            if !l.blocks.contains(successor) && reachable.insert(successor) {
-                worklist.push(successor);
-            }
-        }
+    if !exits_read_through_phis(func, l, exit, &loop_insts) {
+        return None;
     }
     Some(Unroll {
         header: l.header,
@@ -554,6 +630,62 @@ fn lifetime_saving(
         .sum();
     target.lifetime_gas(Cost::new(saving, 0)) as i128
         - target.lifetime_gas(Cost::new(0, growth.bytes)) as i128
+}
+
+/// Plans to run a loop's first iteration in a copy when its body aborts unless a word computed
+/// before the loop holds: the iterations after it then skip those tests.
+fn plan_peel(
+    func: &Function,
+    loops: &LoopInfo,
+    l: &Loop,
+    cold: &DenseBitSet<FunctionId>,
+    target: Target,
+) -> Option<Peel> {
+    let shape = shape(func, loops, l, cold)?;
+    let tests: Vec<_> = l
+        .blocks
+        .iter()
+        .filter(|&block| block != l.header)
+        .filter_map(|block| {
+            let Some(Terminator::Branch { condition, then_block, else_block }) =
+                func.blocks[block].terminator
+            else {
+                return None;
+            };
+            let invariant = match func.value(condition) {
+                Value::Inst(inst) => !shape.loop_insts.contains(*inst),
+                Value::Arg(_) => true,
+                _ => false,
+            };
+            if !invariant {
+                return None;
+            }
+            match (aborts(func, then_block, cold), aborts(func, else_block, cold)) {
+                (true, false) => Some((block, else_block)),
+                (false, true) => Some((block, then_block)),
+                _ => None,
+            }
+        })
+        .collect();
+    if tests.is_empty() || !exits_read_through_phis(func, l, shape.exit, &shape.loop_insts) {
+        return None;
+    }
+    // Every iteration after the first skips each test's conditional jump, and the copy holds
+    // one more header and body.
+    let test = target.opcode(op::JUMPI) + target.opcode(op::PUSH2) + target.dup();
+    let skipped = test.times(u32::try_from(tests.len()).unwrap_or(u32::MAX));
+    let iterations = u32::try_from(Target::UNCOUNTED_LOOP_ITERATIONS - 1).unwrap_or(u32::MAX);
+    let saving = skipped.times(iterations).gas;
+    let growth: Cost = l.blocks.iter().map(|block| target.block_code_estimate(func, block)).sum();
+    (target.lifetime_gas(Cost::new(saving, 0)) > target.lifetime_gas(Cost::new(0, growth.bytes)))
+        .then(|| Peel {
+            header: l.header,
+            preheader: shape.preheader,
+            latch: shape.latch,
+            exit: shape.exit,
+            blocks: l.blocks.clone(),
+            tests,
+        })
 }
 
 /// A copy of the loop: each original block's clone and each original value's clone.
@@ -858,4 +990,83 @@ fn apply(func: &mut Function, unroll: &Unroll) -> BlockId {
     func.replace_uses(&replacements);
     rebuild_predecessors(func);
     main_header
+}
+
+/// Runs the loop's first iteration in a copy, after which the loop's own invariant tests hold.
+fn peel(func: &mut Function, peel: &Peel) {
+    let blocks: Vec<BlockId> = peel.blocks.iter().collect();
+    // Edges that leave the loop from its body, before any terminator changes.
+    let side_exits: Vec<_> = blocks
+        .iter()
+        .filter(|&&block| block != peel.header)
+        .flat_map(|&block| {
+            let terminator = func.blocks[block].terminator.as_ref().expect("terminated");
+            terminator
+                .successors()
+                .into_iter()
+                .filter(|&successor| !peel.blocks.contains(successor))
+                .map(move |successor| (block, successor))
+        })
+        .collect();
+    let copy = clone_loop(func, &blocks);
+    let header_phis: Vec<_> = func.blocks[peel.header]
+        .instructions
+        .iter()
+        .filter_map(|&inst| {
+            let InstKind::Phi(incoming) = &func.inst(inst).kind else { return None };
+            let latch_value =
+                incoming.iter().find_map(|&(from, value)| (from == peel.latch).then_some(value))?;
+            Some((func.inst_result_value(inst)?, latch_value))
+        })
+        .collect();
+    let first_header = copy.blocks[&peel.header];
+    let first_latch = copy.blocks[&peel.latch];
+
+    // preheader: ... jump header'
+    // header': state' = phi [preheader: start]
+    //          jumpi test', body', header
+    // latch': ... jump header
+    redirect(func, peel.preheader, peel.header, first_header);
+    redirect(func, first_header, peel.exit, peel.header);
+    redirect(func, first_latch, first_header, peel.header);
+
+    // header: state = phi [header': state'], [latch': next'], [latch: next]
+    // When the copy's header declines the first iteration, the original one declines it too and
+    // leaves the loop, so its exit stays the only one.
+    for &(phi, latch_value) in &header_phis {
+        edit_phi(func, copy.value(phi), |incoming| {
+            incoming.retain(|&(from, _)| from != first_latch);
+        });
+        edit_phi(func, phi, |incoming| {
+            for (from, value) in incoming.iter_mut() {
+                if *from == peel.preheader {
+                    *from = first_header;
+                    *value = copy.value(phi);
+                }
+            }
+            incoming.push((first_latch, copy.value(latch_value)));
+        });
+    }
+
+    // exit: v = phi [block: x], [block': x']
+    for (block, successor) in side_exits {
+        for inst in func.blocks[successor].instructions.clone() {
+            if let InstKind::Phi(incoming) = &mut func.inst_mut(inst).kind {
+                let cloned: Vec<_> = incoming
+                    .iter()
+                    .filter(|&&(from, _)| from == block)
+                    .map(|&(_, value)| (copy.blocks[&block], copy.value(value)))
+                    .collect();
+                incoming.extend(cloned);
+            }
+        }
+    }
+
+    // The loop runs only after the copy's tests held, and they test the same words.
+    // block: jumpi condition, keep, abort => jump keep
+    for &(block, keep) in &peel.tests {
+        let (_, metadata) = func.blocks[block].take_terminator();
+        func.blocks[block].set_terminator(Terminator::Jump(keep), metadata);
+    }
+    rebuild_predecessors(func);
 }

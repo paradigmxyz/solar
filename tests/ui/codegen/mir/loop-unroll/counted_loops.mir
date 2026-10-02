@@ -568,3 +568,67 @@ fn @shrinking_below(arg0: i256) -> i256 {
   bb3:
     ret v1
 }
+
+// A body that aborts unless a word computed before the loop holds runs its
+// first iteration in a copy that keeps the test; the loop after it jumps past
+// the test, and a declined first iteration reaches the original header, which
+// declines it as well.
+// CHECK-LABEL: {{^[ +].*}}fn @invariant_test{{[( ]}}
+// CHECK: + jump [[FIRST:bb[0-9]+]]
+// CHECK-NEXT: + [[FIRST]]:
+// CHECK: + jumpi {{v[0-9]+}}, [[FIRST_BODY:bb[0-9]+]], bb1
+// CHECK-NEXT: + [[FIRST_BODY]]:
+// CHECK-NEXT: + jumpi [[NONZERO:v[0-9]+]], {{bb[0-9]+}}, bb4
+// CHECK: - jumpi [[NONZERO]], bb3, bb4
+// CHECK-NEXT: - bb4:
+// CHECK-NEXT: - revert 0, 0
+// CHECK-NEXT: + jump bb3
+fn @invariant_test(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v7 = ne arg1, 0
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb3: v5]
+    v1 = phi [bb0: 0], [bb3: v4]
+    v2 = lt v0, arg0
+    jumpi v2, bb2, bb5
+  bb2:
+    jumpi v7, bb3, bb4
+  bb3:
+    v3 = div v1, arg1
+    v4 = add v1, v3
+    v5 = add v0, 1
+    jump bb1
+  bb4:
+    revert 0, 0
+  bb5:
+    ret v1
+}
+
+// A test the loop computes in each iteration is not decided by the first, so
+// the loop is not peeled; reading a word computed before it, it is not
+// unrolled either.
+// CHECK-LABEL: {{^[ +].*}}fn @variant_test{{[( ]}}
+// CHECK-NOT: {{^[-+]}}
+fn @variant_test(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v8 = shl 3, arg1
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb3: v5]
+    v1 = phi [bb0: 0], [bb3: v4]
+    v2 = lt v0, arg0
+    jumpi v2, bb2, bb5
+  bb2:
+    v7 = ne v1, arg1
+    jumpi v7, bb3, bb4
+  bb3:
+    v3 = mload v1
+    v4 = add v3, v8
+    v5 = add v0, 1
+    jump bb1
+  bb4:
+    revert 0, 0
+  bb5:
+    ret v1
+}
