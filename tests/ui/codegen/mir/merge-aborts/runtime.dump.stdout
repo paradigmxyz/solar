@@ -22,8 +22,8 @@ fn @entry() [entry] {
     v33 = lt v32, v4
     v30 = add v32, v6
     v31 = lt v30, v32
-    v63 = or v33, v31
-    jumpi v63, bb9, bb17
+    v64 = or v33, v31
+    jumpi v64, bb9, bb17
   bb17:
     mstore 128, v30
     returndata 128, 32
@@ -34,14 +34,14 @@ fn @entry() [entry] {
   bb16:
     jump bb19
   bb19:
-    v34 = phi [bb16: 0], [bb21: v57]
-    v35 = phi [bb16: v4], [bb21: v55]
-    v58 = add v34, 3
-    v59 = lt v58, v5
-    jumpi v59, bb20, bb12
+    v35 = phi [bb16: 0], [bb21: v58]
+    v36 = phi [bb16: v4], [bb21: v56]
+    v59 = add v35, 3
+    v60 = lt v59, v5
+    jumpi v60, bb20, bb12
   bb12:
-    v22 = phi [bb19: v34], [bb15: v27]
-    v23 = phi [bb19: v35], [bb15: v25]
+    v22 = phi [bb19: v35], [bb15: v27]
+    v23 = phi [bb19: v36], [bb15: v25]
     v24 = lt v22, v5
     jumpi v24, bb14, bb13
   bb13:
@@ -55,43 +55,44 @@ fn @entry() [entry] {
     v27 = add v22, 1
     jump bb12
   bb20:
-    v37 = add v35, v34
-    v39 = add v34, 1
-    v43 = add v37, v39
-    v45 = add v39, 1
-    v49 = add v43, v45
-    v51 = add v45, 1
-    v55 = add v49, v51
-    v66 = lt v55, v35
-    jumpi v66, bb9, bb21
+    v38 = add v36, v35
+    v40 = add v35, 1
+    v44 = add v38, v40
+    v46 = add v40, 1
+    v50 = add v44, v46
+    v52 = add v46, 1
+    v56 = add v50, v52
+    v67 = lt v56, v36
+    jumpi v67, bb9, bb21
   bb21:
-    v57 = add v51, 1
+    v58 = add v52, 1
     jump bb19
   bb2:
     v7 = calldatasize
     v8 = lt v7, 100
     jumpi v8, bb5, bb11
   bb11:
+    v34 = sub 0, v6
     jump bb6
   bb6:
-    v9 = phi [bb11: 0], [bb10: v19]
+    v9 = phi [bb11: v34], [bb10: v19]
     v10 = phi [bb11: 0], [bb10: v15]
     v11 = phi [bb11: v4], [bb10: v17]
-    v12 = lt v9, v6
+    v12 = ne v9, 0
     jumpi v12, bb8, bb7
   bb7:
     mstore 128, v10
     returndata 128, 32
   bb8:
-    v60 = gt v11, 0x119799812dea11197f27f0f6e885c8ba7eb31f476caf7411a863387
+    v61 = gt v11, 0x119799812dea11197f27f0f6e885c8ba7eb31f476caf7411a863387
     v13 = mul v11, 0xe8d4a51000
     v15 = add v10, v13
     v16 = lt v15, v10
-    v61 = or v60, v16
+    v62 = or v61, v16
     v17 = add v11, v5
     v18 = lt v17, v11
-    v62 = or v61, v18
-    jumpi v62, bb9, bb10
+    v63 = or v62, v18
+    jumpi v63, bb9, bb10
   bb10:
     v19 = add v9, 1
     jump bb6
