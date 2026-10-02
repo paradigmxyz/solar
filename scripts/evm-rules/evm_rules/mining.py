@@ -4,7 +4,7 @@ This is a candidate reader, not a MIR parser or an optimizer. Only direct word
 operations from instruction selection are recognized. Everything else ends a
 region. Shared definitions and values outside the region become independent
 inputs; we never credit deletion of a shared producer. The resulting identities
-still require SMT proof and scheduled-code benchmarks before integration.
+still require Lean proof and scheduled-code benchmarks before integration.
 """
 
 import hashlib
@@ -13,7 +13,8 @@ from collections import Counter
 
 from .discovery import Prices, pseudocode
 from .isle import ISLE, opcode_bindings
-from .semantics import MASK, Expr, Model, Unsupported
+from .lean import Lean
+from .semantics import MASK, Expr, Unsupported
 
 VALUE = r"(?:v\d+|arg\d+)"
 INSTRUCTION = re.compile(r"\s*(v\d+) = ([a-z]+)(?: (.*))?")
@@ -94,7 +95,7 @@ def mine(
             and shape in ("OpcodeLowering.Unary", "OpcodeLowering.Binary")
         ):
             try:
-                Model().eval(Expr(opcode, (Expr.var("x"),) * arity))
+                Lean({"x"}).term(Expr(opcode, (Expr.var("x"),) * arity))
             except Unsupported:
                 continue
             supported[opcode] = arity
