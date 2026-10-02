@@ -20,7 +20,7 @@ contract AbiDecodeDynamicArrays {
     // A validation loop on decode (dirty words revert), then the return
     // encoder canonicalizes each element in place instead of bulk-copying.
     // ADDA: jumpi
-    // ADDA: iszero
+    // ADDA: = eq {{v[0-9]+}}, {{(0|false)}}
     // ADDA-NOT: mcopy
     // ADDA: returndata
     function bools(bytes memory b) public pure returns (bool[] memory) {

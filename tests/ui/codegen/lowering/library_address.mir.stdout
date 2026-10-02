@@ -1,0 +1,20 @@
+// === ROOT/tests/ui/codegen/lowering/library_address.sol:L ===
+@module L
+@library
+fn @f(arg0: i256) -> i256 [selector=0xb3de648b, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    ret arg0
+}
+
+// === ROOT/tests/ui/codegen/lowering/library_address.sol:C ===
+@module C
+fn @addr() -> i256 [selector=0x767800de, pure, abi_params=[], abi_returns=[word<u160>], abi_return_params=[address]] {
+  bb0:
+    v0 = zext i160 0x1111111111111111111111111111111111111111 to i256
+    ret v0
+}
+
+fn @sel() -> i256 [selector=0x41c910e1, pure, abi_params=[], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
+  bb0:
+    ret 0xb3de648b00000000000000000000000000000000000000000000000000000000
+}

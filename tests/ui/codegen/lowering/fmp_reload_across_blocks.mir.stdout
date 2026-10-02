@@ -1,12 +1,12 @@
 // === ROOT/tests/ui/codegen/lowering/fmp_reload_across_blocks.sol:ExcessReturnDataRecipient ===
 @module ExcessReturnDataRecipient
-fn @setRevertDataSize(arg0: u256) [selector=0xe998da54, abi_params=[u256], abi_returns=[]] {
+fn @setRevertDataSize(arg0: i256) [selector=0xe998da54, abi_params=[u256], abi_returns=[], abi_return_params=[]] {
   bb0:
     sstore 0, arg0 !metadata(storage=slot(0))
-    stop
+    ret
 }
 
-fn @ln(arg0: u256) -> u256 [pure] {
+fn @ln(arg0: i256) -> i256 [pure] {
   bb0:
     v0 = sub arg0, 1
     v1 = div v0, 2
@@ -51,49 +51,51 @@ fn @ln(arg0: u256) -> u256 [pure] {
     v31 = mload v30
     v32 = div v31, 0x100000000000000000000000000000000000000000000000000000000000000
     v33 = gt arg0, 0x8000000000000000000000000000000000000000000000000000000000000000
-    v34 = mul 256, v33
-    v35 = add v32, v34
-    v36 = mul v35, 0x2386f26fc10000
-    v37 = div v36, 0x33413c26506520
-    ret v37
+    v34 = zext i1 v33 to i256
+    v35 = mul 256, v34
+    v36 = add v32, v35
+    v37 = mul v36, 0x2386f26fc10000
+    v38 = div v37, 0x33413c26506520
+    ret v38
 }
 
-fn @sqrt(arg0: u256) -> u256 [pure] {
+fn @sqrt(arg0: i256) -> i256 [pure] {
   bb0:
     v0 = gt arg0, 3
-    switch v0, default bb1, [1 => bb2, 0 => bb3]
+    v1 = zext i1 v0 to i256
+    switch v1, default bb1, [1 => bb2, 0 => bb3]
   bb3:
     jump bb1
   bb2:
-    v1 = add arg0, 1
-    v2 = div v1, 2
+    v2 = add arg0, 1
+    v3 = div v2, 2
     jump bb4
   bb4:
-    v3 = phi [bb2: v2], [bb8: v11]
-    v4 = phi [bb2: arg0], [bb8: v4]
-    v5 = phi [bb2: arg0], [bb8: v3]
-    v6 = lt v3, v5
-    v7 = eq v6, 0
-    v8 = iszero v7
-    jumpi v8, bb6, bb7
+    v4 = phi [bb2: v3], [bb8: v12]
+    v5 = phi [bb2: arg0], [bb8: v5]
+    v6 = phi [bb2: arg0], [bb8: v4]
+    v7 = lt v4, v6
+    v8 = zext i1 v7 to i256
+    v9 = ne v8, 0
+    jumpi v9, bb6, bb7
   bb7:
     jump bb5
   bb5:
     jump bb1
   bb6:
-    v9 = div v4, v3
-    v10 = add v9, v3
-    v11 = div v10, 2
+    v10 = div v5, v4
+    v11 = add v10, v4
+    v12 = div v11, 2
     jump bb8
   bb8:
     jump bb4
   bb1:
-    v12 = phi [bb0: arg0], [bb5: v4], [bb3: arg0]
-    v13 = phi [bb0: 0], [bb5: v5], [bb3: 1]
-    ret v13
+    v13 = phi [bb0: arg0], [bb5: v5], [bb3: arg0]
+    v14 = phi [bb0: 0], [bb5: v6], [bb3: 1]
+    ret v14
 }
 
-fn @onERC1155Received(arg0: address, arg1: address, arg2: u256, arg3: u256, arg4: calldataslice) -> bytes4 [selector=0xf23a6e61, view, abi_params=[address, address, u256, u256, bytes], abi_returns=[word<bytes4>]] {
+fn @onERC1155Received(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: calldataslice) -> i256 [selector=0xf23a6e61, view, abi_params=[address, address, u256, u256, bytes], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = gt v0, 0
@@ -104,54 +106,18 @@ fn @onERC1155Received(arg0: address, arg1: address, arg2: u256, arg3: u256, arg4
     ret 0xf23a6e6100000000000000000000000000000000000000000000000000000000
   bb1:
     v2 = gas
-    v3 = icall @ln, 1, v2
-    v4 = mul 54, v3
-    v5 = iszero v3
-    v6 = div v4, v3
-    v7 = eq v6, 54
-    v8 = or v5, v7
-    v9 = iszero v8
-    jumpi v9, bb4, bb5
-  bb5:
-    v10 = add v4, 0x4b0
-    v11 = lt v10, v4
-    jumpi v11, bb4, bb6
-  bb6:
-    v12 = gas
-    v13 = sub v12, v10
-    v14 = lt v12, v10
-    jumpi v14, bb4, bb7
-  bb7:
-    v15 = mul 0x800, v13
-    v16 = iszero v13
-    v17 = div v15, v13
-    v18 = eq v17, 0x800
-    v19 = or v16, v18
-    v20 = iszero v19
-    jumpi v20, bb4, bb8
-  bb8:
-    v21 = add v15, 0x8fe800
-    v22 = lt v21, v15
-    jumpi v22, bb4, bb9
-  bb9:
-    v23 = icall @sqrt, 1, v21
-    v24 = sub v23, 0xc00
-    v25 = lt v23, 0xc00
-    jumpi v25, bb4, bb10
-  bb10:
-    jumpi 4, bb12, bb11
-  bb11:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 18 !metadata(memory=scratch)
-    revert 0, 36
-  bb12:
-    v26 = div v24, 4
-    v27 = mul v26, 32
-    v28 = mul v26, 32
-    calldatacopy 0, 0, v28 !metadata(memory=scratch)
-    revert 0, v27
-  bb4:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    v3 = icall @ln, v2
+    v4 = checked_mul u256, 54, v3
+    v5 = checked_add u256, v4, 0x4b0
+    v6 = gas
+    v7 = checked_sub u256, v6, v5
+    v8 = checked_mul u256, 0x800, v7
+    v9 = checked_add u256, v8, 0x8fe800
+    v10 = icall @sqrt, v9
+    v11 = checked_sub u256, v10, 0xc00
+    v12 = checked_div u256, v11, 4
+    v13 = mul v12, 32
+    v14 = mul v12, 32
+    calldatacopy 0, 0, v14 !metadata(memory=scratch)
+    revert 0, v13
 }

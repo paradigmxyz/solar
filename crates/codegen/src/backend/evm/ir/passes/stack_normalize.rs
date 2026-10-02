@@ -5,11 +5,15 @@
 //! into maximal canonical stack-op runs of at most 24 instructions, symbolically computes the run's
 //! input and output layouts, and asks the shared stack shuffler to synthesize an equivalent run.
 //! Results are cached by input sequence because generated code often repeats the same shuffle.
+//! A bounded per-thread cache also retains these pure results across modules and pass
+//! invocations. It stores only physical operations, never value identities or metadata,
+//! and clears on an EVM-version change. Each rewrite still transfers the current
+//! instructions' debug metadata at its original site.
 //!
 //! A replacement must be lowerable on the selected EVM version and must weakly improve encoded
 //! bytes, static gas, and instruction count while strictly improving at least one. The Pareto
 //! checks prevent target-specific deep stack ops from trading a regression in one objective for a
-//! win in another. Instructions with custom stack effects break a run, and metadata from retained
+//! win in another. Any instruction other than a stack op breaks a run, and metadata from retained
 //! positions is transferred to replacement ops.
 //!
 //! This is deliberately a small late machine-level normalizer, not a second MIR stack scheduler.
@@ -29,6 +33,7 @@ use smallvec::SmallVec;
 use solar_config::EvmVersion;
 use solar_data_structures::map::FxHashMap;
 use solar_sema::Gcx;
+use std::cell::RefCell;
 
 const MAX_STACK_RUN_LEN: usize = 24;
 
@@ -69,6 +74,37 @@ impl EvmPass for StackDedup {
 type StackRun = SmallVec<[StackOp; MAX_STACK_RUN_LEN]>;
 type NormalizationCache = FxHashMap<StackRun, Option<StackRun>>;
 
+/// Reuse the common physical shuffles without retaining unbounded compiler state.
+const MAX_SHARED_NORMALIZATIONS: usize = 4096;
+
+thread_local! {
+    static SHARED_NORMALIZATIONS: RefCell<SharedNormalizations> = RefCell::default();
+}
+
+#[derive(Default)]
+struct SharedNormalizations {
+    evm_version: Option<EvmVersion>,
+    entries: NormalizationCache,
+}
+
+impl SharedNormalizations {
+    fn get(&mut self, input: &StackRun, evm_version: EvmVersion) -> Option<StackRun> {
+        if self.evm_version != Some(evm_version) {
+            self.entries.clear();
+            self.evm_version = Some(evm_version);
+        }
+        if let Some(output) = self.entries.get(input) {
+            return output.clone();
+        }
+        let output = compute_normalization(input, evm_version);
+        if self.entries.len() == MAX_SHARED_NORMALIZATIONS {
+            self.entries.clear();
+        }
+        self.entries.insert(input.clone(), output.clone());
+        output
+    }
+}
+
 struct Normalization {
     start: usize,
     end: usize,
@@ -85,7 +121,9 @@ struct Normalizer {
 impl Normalizer {
     fn run(&mut self, instructions: &mut Vec<Instruction>, evm_version: EvmVersion) -> bool {
         self.normalizations.clear();
-        if !instructions.windows(2).any(|window| window.iter().all(|inst| stack_op(inst).is_some()))
+        if !instructions
+            .windows(2)
+            .any(|window| window.iter().all(|inst| inst.as_stack_op().is_some()))
         {
             return false;
         }
@@ -93,7 +131,7 @@ impl Normalizer {
         let mut cursor = 0;
         while cursor < instructions.len() {
             let run_start = cursor;
-            while cursor < instructions.len() && stack_op(&instructions[cursor]).is_some() {
+            while cursor < instructions.len() && instructions[cursor].as_stack_op().is_some() {
                 cursor += 1;
             }
             if cursor == run_start {
@@ -110,7 +148,7 @@ impl Normalizer {
                 };
                 let end = start + len;
                 input.clear();
-                input.extend(instructions[start..end].iter().filter_map(stack_op));
+                input.extend(instructions[start..end].iter().filter_map(Instruction::as_stack_op));
                 if input.len() >= 2
                     && let Some(output) = normalization(&input, evm_version, &mut self.cache)
                 {
@@ -140,7 +178,6 @@ impl Normalizer {
                 match original.next() {
                     Some((_, mut inst)) => {
                         replacement.metadata = std::mem::take(&mut inst.metadata);
-                        replacement.metadata.stack = None;
                     }
                     None => match instructions.last() {
                         Some(last) if instructions.len() > first => {
@@ -170,7 +207,7 @@ fn normalization(
     if let Some(output) = cache.get(input) {
         output.clone()
     } else {
-        let output = compute_normalization(input, evm_version);
+        let output = SHARED_NORMALIZATIONS.with_borrow_mut(|shared| shared.get(input, evm_version));
         cache.insert(input.clone(), output.clone());
         output
     }
@@ -187,11 +224,6 @@ fn compute_normalization(input: &StackRun, evm_version: EvmVersion) -> Option<St
         .then_some(output)
 }
 
-fn stack_op(inst: &Instruction) -> Option<StackOp> {
-    inst.has_canonical_stack_effect().then_some(())?;
-    inst.as_stack_op()
-}
-
 fn remove_redundant_permutations(
     instructions: &mut Vec<Instruction>,
     remove: &mut Vec<usize>,
@@ -203,7 +235,11 @@ fn remove_redundant_permutations(
         while end < instructions.len() && symbolic_stack_op(&instructions[end]).is_some() {
             end += 1;
         }
-        if end != start {
+        // Only a `DUP` makes two stack slots hold the same value.
+        if instructions[start..end]
+            .iter()
+            .any(|inst| matches!(inst.as_stack_op(), Some(StackOp::Dup(_))))
+        {
             find_redundant_permutations(&instructions[start..end], start, remove);
         }
         start = end + 1;
@@ -273,11 +309,35 @@ enum SymbolicStackOp {
 }
 
 fn symbolic_stack_op(inst: &Instruction) -> Option<SymbolicStackOp> {
-    if !inst.has_canonical_stack_effect() {
-        return None;
-    }
     if inst.is_encoded_push() {
         return Some(SymbolicStackOp::Push);
     }
     inst.as_stack_op().map(SymbolicStackOp::Physical)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cached_normalizations_respect_target_legality() {
+        let input = StackRun::from_slice(&[StackOp::Swap(17), StackOp::Swap(17)]);
+        let mut cache = SharedNormalizations::default();
+        assert_eq!(cache.get(&input, EvmVersion::Amsterdam), Some(StackRun::new()));
+        assert_eq!(cache.get(&input, EvmVersion::Osaka), None);
+        assert_eq!(cache.get(&input, EvmVersion::Amsterdam), Some(StackRun::new()));
+    }
+
+    #[test]
+    fn shared_normalizations_stay_bounded() {
+        let mut cache = SharedNormalizations::default();
+        for depth in 1..=16 {
+            for length in 2..=24 {
+                let input = StackRun::from_elem(StackOp::Dup(depth), length);
+                let expected = compute_normalization(&input, EvmVersion::Osaka);
+                assert_eq!(cache.get(&input, EvmVersion::Osaka), expected);
+                assert!(cache.entries.len() <= MAX_SHARED_NORMALIZATIONS);
+            }
+        }
+    }
 }

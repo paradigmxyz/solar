@@ -186,10 +186,6 @@ impl FoundryWorkspaceConfig {
         self.evm_version
     }
 
-    fn into_normalized(self) -> Self {
-        self.try_into_normalized().unwrap_or_else(|error| panic!("{error}"))
-    }
-
     fn try_into_normalized(mut self) -> Result<Self, String> {
         if !self.workspace_root.is_absolute() {
             return Err(format!(
@@ -237,7 +233,7 @@ impl LaunchConfig {
     ///
     /// Panics if the workspace root is not absolute.
     pub fn with_foundry_workspace_config(mut self, config: FoundryWorkspaceConfig) -> Self {
-        let config = config.into_normalized();
+        let config = config.try_into_normalized().unwrap_or_else(|error| panic!("{error}"));
         let FoundryWorkspaceConfigSource::Static(configs) =
             &mut self.foundry_workspace_config_source
         else {
@@ -312,6 +308,7 @@ fn resolve_foundry_workspace_paths(root: &Path, paths: Vec<PathBuf>) -> Vec<Path
     paths.into_iter().map(|path| root.join(path).normalize()).collect()
 }
 
+mod builtin_symbols;
 mod call_hierarchy;
 mod code_actions;
 mod code_lens;
@@ -333,8 +330,7 @@ mod lifecycle;
 mod natspec_completion;
 mod override_index;
 mod progress;
-#[cfg(any(test, feature = "bench"))]
-#[cfg_attr(all(feature = "bench", not(test)), allow(dead_code))]
+#[cfg(test)]
 mod project_fixture;
 mod proto;
 mod protocol_trace;
@@ -343,6 +339,7 @@ mod request_cancellation;
 mod selection_range;
 mod serde;
 mod signature_help;
+mod source_paths;
 mod symbols;
 mod type_hierarchy;
 mod utils;
@@ -355,10 +352,10 @@ mod workspace;
 pub use global_state::benchmark::{
     BenchmarkAnalysis, BenchmarkCallHierarchyRequests, BenchmarkCodeActionRequests,
     BenchmarkDocumentChange, BenchmarkDocumentUpdate, BenchmarkEdit, BenchmarkError,
-    BenchmarkFoldingRangeRequests, BenchmarkOpenDocuments, BenchmarkProject,
-    BenchmarkRenameRequests, BenchmarkRepeatedAnalysis, BenchmarkRequest, BenchmarkResponse,
-    BenchmarkSelectionRangeRequests, BenchmarkSignatureHelpRequests, BenchmarkWorkspaceDiscovery,
-    BenchmarkWorkspacePathQueries, BenchmarkWorkspaceReports,
+    BenchmarkFoldingRangeRequests, BenchmarkOpenDocuments, BenchmarkPendingRequests,
+    BenchmarkProject, BenchmarkRenameRequests, BenchmarkRepeatedAnalysis, BenchmarkRequest,
+    BenchmarkResponse, BenchmarkSelectionRangeRequests, BenchmarkSignatureHelpRequests,
+    BenchmarkWorkspaceDiscovery, BenchmarkWorkspacePathQueries, BenchmarkWorkspaceReports,
 };
 
 /// Checks whether a source position belongs to a parsed import path.

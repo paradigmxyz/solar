@@ -8,48 +8,60 @@
 // CHECK: + [[INNER:v[0-9]+]] = phi [bb2: 0], [bb4: [[NEXT_INNER:v[0-9]+]]]
 // CHECK: + [[NEXT_OUTER]] = add [[OUTER]], 1
 // CHECK: + [[NEXT_INNER]] = add [[INNER]], 1
-fn @nested(arg0: u256, arg1: u256) -> u256 {
+fn @nested(arg0: i256, arg1: i256) -> i256 {
   bb0:
-    v1 = internal_frame_addr 128
+    v24 = internal_frame_addr 128
+    v1 = ptrtoint memptr v24 to i256
     mstore v1, 0
-    v2 = internal_frame_addr 160
+    v25 = internal_frame_addr 160
+    v2 = ptrtoint memptr v25 to i256
     mstore v2, 0
     jump bb1
   bb1:
-    v3 = internal_frame_addr 160
+    v26 = internal_frame_addr 160
+    v3 = ptrtoint memptr v26 to i256
     v4 = mload v3
     v5 = lt v4, arg0
     jumpi v5, bb2, bb6
   bb2:
-    v6 = internal_frame_addr 192
+    v27 = internal_frame_addr 192
+    v6 = ptrtoint memptr v27 to i256
     mstore v6, 0
     jump bb3
   bb3:
-    v7 = internal_frame_addr 192
+    v28 = internal_frame_addr 192
+    v7 = ptrtoint memptr v28 to i256
     v8 = mload v7
     v9 = lt v8, arg1
     jumpi v9, bb4, bb5
   bb4:
-    v10 = internal_frame_addr 128
+    v29 = internal_frame_addr 128
+    v10 = ptrtoint memptr v29 to i256
     v11 = mload v10
     v12 = add v11, 1
-    v13 = internal_frame_addr 128
+    v30 = internal_frame_addr 128
+    v13 = ptrtoint memptr v30 to i256
     mstore v13, v12
-    v14 = internal_frame_addr 192
+    v31 = internal_frame_addr 192
+    v14 = ptrtoint memptr v31 to i256
     v15 = mload v14
     v16 = add v15, 1
-    v17 = internal_frame_addr 192
+    v32 = internal_frame_addr 192
+    v17 = ptrtoint memptr v32 to i256
     mstore v17, v16
     jump bb3
   bb5:
-    v18 = internal_frame_addr 160
+    v33 = internal_frame_addr 160
+    v18 = ptrtoint memptr v33 to i256
     v19 = mload v18
     v20 = add v19, 1
-    v21 = internal_frame_addr 160
+    v34 = internal_frame_addr 160
+    v21 = ptrtoint memptr v34 to i256
     mstore v21, v20
     jump bb1
   bb6:
-    v22 = internal_frame_addr 128
+    v35 = internal_frame_addr 128
+    v22 = ptrtoint memptr v35 to i256
     v23 = mload v22
     ret v23
 }

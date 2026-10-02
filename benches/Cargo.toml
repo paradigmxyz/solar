@@ -13,6 +13,9 @@ repository.workspace = true
 keywords.workspace = true
 categories.workspace = true
 
+[lints]
+workspace = true
+
 [dependencies]
 alloy-primitives.workspace = true
 solar = { workspace = true, default-features = false }

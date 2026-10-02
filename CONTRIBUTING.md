@@ -72,6 +72,11 @@ the issue, it becomes impossible for us to fix.
 In order to rule out the possibility of bugs introduced by userland code, test
 cases should be limited, as much as possible, to using only Solar APIs.
 
+For differences from solc, the [compiler-diff guide](tools/compiler-diff/README.md)
+shows how to save inputs, compare outputs, and replay failures. Include the
+compiler versions, comparison policy or execution bounds, and a reduced repro
+with your report.
+
 See [How to create a Minimal, Complete, and Verifiable example][mcve].
 
 [mcve]: https://stackoverflow.com/help/mcve

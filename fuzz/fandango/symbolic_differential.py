@@ -12,8 +12,15 @@ import pathlib
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 from typing import Any
+
+sys.path.insert(
+    0, str(pathlib.Path(__file__).resolve().parents[2] / "tools/compiler-diff")
+)
+from compiler_diff.artifacts import read_attempt
+from compiler_diff.compare import canonical_type as _canonical_type
 
 SCHEMA = "solar:solsymdiff@v1"
 TEST_NAME = "checkSymbolicDifferential"
@@ -32,7 +39,10 @@ def main(argv: list[str] | None = None) -> int:
         description="Symbolically compare one function compiled by Solc and Solar.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    parser.add_argument("--source", type=pathlib.Path, required=True)
+    parser.add_argument("--source", required=True)
+    parser.add_argument("--solc-attempt", type=pathlib.Path)
+    parser.add_argument("--solar-attempt", type=pathlib.Path)
+    parser.add_argument("--output-root", type=pathlib.Path)
     parser.add_argument("--contract", required=True)
     parser.add_argument("--signature", required=True)
     parser.add_argument(
@@ -119,7 +129,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     try:
-        result = run(args)
+        result = run(args, output_root=args.output_root)
     except (OSError, RuntimeError, ValueError, subprocess.SubprocessError) as err:
         result = {
             "schema": SCHEMA,
@@ -141,49 +151,98 @@ def main(argv: list[str] | None = None) -> int:
 def run(
     args: argparse.Namespace, output_root: pathlib.Path | None = None
 ) -> dict[str, Any]:
-    source = args.source.resolve()
-    if not source.is_file():
-        raise ValueError(f"source file does not exist: {source}")
+    source = args.source
+    saved_solc = getattr(args, "solc_attempt", None)
+    saved_solar = getattr(args, "solar_attempt", None)
+    if bool(saved_solc) != bool(saved_solar):
+        raise ValueError("--solc-attempt and --solar-attempt must be supplied together")
     prefix_calldata = tuple(args.prefix_calldata)
-
-    tools = {
-        name: _resolve_executable(getattr(args, name))
-        for name in ("solc", "solar", "forge", "solver")
-    }
-    standard_input = _standard_input(
-        tools["solc"],
-        source,
-        evm_version=args.evm_version,
-        optimize=args.optimize,
-        optimizer_runs=args.optimizer_runs,
-        via_ir=args.via_ir,
-        project_root=args.project_root,
-        include_paths=tuple(args.include_path),
-        remappings=tuple(args.remapping),
-        timeout=args.timeout,
+    tool_names = (
+        ("solc", "forge", "solver")
+        if saved_solc
+        else ("solc", "solar", "forge", "solver")
     )
-    serialized_input = json.dumps(
-        standard_input["input"],
-        ensure_ascii=False,
-        separators=(",", ":"),
-        sort_keys=True,
-    )
-    solc_artifact = _compile(
-        tools["solc"],
-        serialized_input,
-        standard_input["root_source"],
-        args.contract,
-        args.timeout,
-        "Solc",
-    )
-    solar_artifact = _compile(
-        tools["solar"],
-        serialized_input,
-        standard_input["root_source"],
-        args.contract,
-        args.timeout,
-        "Solar",
-    )
+    tools = {name: _resolve_executable(getattr(args, name)) for name in tool_names}
+    if saved_solc:
+        source = args.source
+        left_input, left_output = read_attempt(saved_solc)
+        right_input, right_output = read_attempt(saved_solar)
+        if json.dumps(left_input, sort_keys=True) != json.dumps(
+            right_input, sort_keys=True
+        ):
+            raise ValueError("saved compiler attempts used different inputs")
+        settings = left_input.get("settings", {})
+        if not settings.get("evmVersion"):
+            raise ValueError("saved symbolic inputs require an explicit evmVersion")
+        args.evm_version = settings["evmVersion"]
+        root_source = str(args.source)
+        if root_source not in left_input.get("sources", {}):
+            raise ValueError("--source must name a source unit in the saved input")
+        serialized_input = json.dumps(
+            left_input, ensure_ascii=False, separators=(",", ":"), sort_keys=True
+        )
+        standard_input = {
+            "input": left_input,
+            "root_source": root_source,
+            "settings": settings,
+            "sources": left_input["sources"],
+            "sha256": hashlib.sha256(serialized_input.encode()).hexdigest(),
+        }
+        for output in (left_output, right_output):
+            deployed = (
+                output.get("contracts", {})
+                .get(root_source, {})
+                .get(args.contract, {})
+                .get("evm", {})
+                .get("deployedBytecode", {})
+            )
+            if not all(
+                isinstance(deployed.get(key), dict)
+                for key in ("immutableReferences", "linkReferences")
+            ):
+                raise ValueError(
+                    "saved artifacts require immutableReferences and linkReferences outputs"
+                )
+        solc_artifact = _artifact(left_output, root_source, args.contract, "Solc")
+        solar_artifact = _artifact(right_output, root_source, args.contract, "Solar")
+    else:
+        source = pathlib.Path(args.source).resolve()
+        if not source.is_file():
+            raise ValueError(f"source file does not exist: {source}")
+        standard_input = _standard_input(
+            tools["solc"],
+            source,
+            evm_version=args.evm_version,
+            optimize=args.optimize,
+            optimizer_runs=args.optimizer_runs,
+            via_ir=args.via_ir,
+            project_root=args.project_root,
+            include_paths=tuple(args.include_path),
+            remappings=tuple(args.remapping),
+            timeout=args.timeout,
+        )
+        serialized_input = json.dumps(
+            standard_input["input"],
+            ensure_ascii=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        )
+        solc_artifact = _compile(
+            tools["solc"],
+            serialized_input,
+            standard_input["root_source"],
+            args.contract,
+            args.timeout,
+            "Solc",
+        )
+        solar_artifact = _compile(
+            tools["solar"],
+            serialized_input,
+            standard_input["root_source"],
+            args.contract,
+            args.timeout,
+            "Solar",
+        )
     function = _select_function(
         solc_artifact,
         solar_artifact,
@@ -226,7 +285,8 @@ def run(
             pathlib.Path(__file__).resolve().parents[2] / "target" / "solsymdiff"
         )
     output_root.mkdir(parents=True, exist_ok=True)
-    project = pathlib.Path(tempfile.mkdtemp(prefix=f"{source.stem}-", dir=output_root))
+    prefix = args.contract if saved_solc else source.stem
+    project = pathlib.Path(tempfile.mkdtemp(prefix=f"{prefix}-", dir=output_root))
     (project / "standard-input.json").write_text(
         serialized_input + "\n",
         encoding="utf-8",
@@ -271,6 +331,11 @@ def run(
             "project": str(project),
         }
     )
+    if saved_solc and saved_solar:
+        result["attempts"] = {
+            "solc": str(saved_solc.resolve()),
+            "solar": str(saved_solar.resolve()),
+        }
     if prefix_calldata:
         result["prefix"] = {"calldata": list(prefix_calldata), "value": 0}
     (project / "result.json").write_text(
@@ -490,8 +555,10 @@ def _compile(
             capture_output=True,
             timeout=timeout,
         )
-    output = _compiler_json(result, label)
+    return _artifact(_compiler_json(result, label), source_name, contract, label)
 
+
+def _artifact(output, source_name, contract, label):
     contracts = output.get("contracts")
     source_contracts = (
         contracts.get(source_name) if isinstance(contracts, dict) else None
@@ -626,21 +693,6 @@ def _abi_signature(entry: dict[str, Any]) -> str:
     if not isinstance(name, str) or not isinstance(inputs, list):
         raise ValueError("function ABI entry is malformed")
     return f"{name}({','.join(_canonical_type(item) for item in inputs)})"
-
-
-def _canonical_type(item: dict[str, Any]) -> str:
-    abi_type = item.get("type")
-    if not isinstance(abi_type, str):
-        raise ValueError("ABI value has no type")
-    if not abi_type.startswith("tuple"):
-        return abi_type
-    components = item.get("components")
-    if not isinstance(components, list):
-        raise ValueError("tuple ABI value has no components")
-    suffix = abi_type[len("tuple") :]
-    return (
-        f"({','.join(_canonical_type(component) for component in components)}){suffix}"
-    )
 
 
 def _function_shape(entry: dict[str, Any]) -> tuple[Any, ...]:
@@ -822,13 +874,17 @@ def _write_project(
     if function.get("mutability") == "nonpayable" or prefix_calldata:
         template = _STATEFUL_TEST_TEMPLATE
         suffix_comparison = (
-            _VIEW_SUFFIX_TEMPLATE
-            if function.get("mutability") == "view"
-            else _STATEFUL_SUFFIX_TEMPLATE
-        ).format(
-            max_returndata=max_returndata_bytes,
-            word_checks=word_checks,
-        ).rstrip()
+            (
+                _VIEW_SUFFIX_TEMPLATE
+                if function.get("mutability") == "view"
+                else _STATEFUL_SUFFIX_TEMPLATE
+            )
+            .format(
+                max_returndata=max_returndata_bytes,
+                word_checks=word_checks,
+            )
+            .rstrip()
+        )
     else:
         template = _STATELESS_TEST_TEMPLATE
         suffix_comparison = ""

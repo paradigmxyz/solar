@@ -5,10 +5,23 @@ use super::{calls::ExternalReturnMode, *};
 /// A `try` statement target resolved to the callee shape needed for lowering.
 #[derive(Clone, Copy)]
 enum TryCallee<'a> {
-    Creation { ty: &'a hir::Type<'a>, contract_id: hir::ContractId },
-    Member { receiver: &'a hir::Expr<'a>, selector: [u8; 4] },
-    LinkedLibrary { address: U256, function: hir::FunctionId, receiver: Option<&'a hir::Expr<'a>> },
-    FunctionPointer { address: ValueId, selector: ValueId },
+    Creation {
+        ty: &'a hir::Type<'a>,
+        contract_id: hir::ContractId,
+    },
+    Member {
+        receiver: &'a hir::Expr<'a>,
+        selector: [u8; 4],
+    },
+    LinkedLibrary {
+        address: ValueId,
+        function: hir::FunctionId,
+        receiver: Option<&'a hir::Expr<'a>>,
+    },
+    FunctionPointer {
+        address: ValueId,
+        selector: ValueId,
+    },
 }
 
 /// The failed call's return data, which the catch clauses match on and bind.
@@ -23,10 +36,8 @@ struct TryCatchData {
     data: ValueId,
     /// The data's length in bytes.
     len: ValueId,
-    /// Whether the data is an `Error(string)` payload a `catch Error` clause can decode.
-    error_matches: ValueId,
-    /// Whether the data is a `Panic(uint256)` payload a `catch Panic` clause can decode.
-    panic_matches: ValueId,
+    /// The leading selector word; each typed clause checks the required payload length.
+    selector: ValueId,
 }
 
 struct TryTarget<'a, 'gcx> {
@@ -191,7 +202,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // `try (c.f()) { ... }` because its target must be a call syntactically, but the
         // statement has only one meaning and we compile it.
         let try_expr = try_stmt.expr.peel_parens();
-        let ExprKind::Call(callee, args, call_opts) = &try_expr.kind else {
+        let Some((callee, args, call_opts)) = try_expr.as_call() else {
             return self.cx.report_unsupported(try_stmt.expr.span, "try expression");
         };
         let target = if let ExprKind::New(ty) = &callee.kind {
@@ -364,18 +375,18 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         {
             // address = create(...)
             // ok = address != 0
-            let created = self.lower_create_contract(ty, contract_id, *args, *call_opts)?;
+            let created = self.lower_create_contract(ty, contract_id, *args, call_opts)?;
             let zero = self.builder.imm(U256::ZERO);
             let failed = self.builder.eq(created, zero);
-            (self.builder.iszero(failed), Some(created), None)
+            (self.builder.eq_zero(failed), Some(created), None)
         } else {
             let address = match target.callee {
                 TryCallee::Member { receiver, .. } => self.lower_expr(receiver)?,
-                TryCallee::LinkedLibrary { address, .. } => self.builder.imm(address),
+                TryCallee::LinkedLibrary { address, .. } => address,
                 TryCallee::FunctionPointer { address, .. } => address,
                 TryCallee::Creation { .. } => unreachable!(),
             };
-            let options = self.lower_call_options(*call_opts, true, "try call option")?;
+            let options = self.lower_call_options(call_opts, true, "try call option")?;
             let (call_value, zero) = (options.value, options.zero);
             let (mut values, mut types) =
                 if let TryCallee::LinkedLibrary { function, receiver, .. } = target.callee {
@@ -516,42 +527,20 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.values = before.clone();
         self.storage_refs = before_storage_refs.clone();
         self.builder.switch_to_block(catch_block);
-        // Only from Byzantium on; before it the bare clause matches unconditionally and there is
-        // no data to bind or forward.
+        let needs_data =
+            catch_clauses.iter().any(|clause| clause.name.is_some() || !clause.args.is_empty());
         // data = returndata()
-        // selector = data.length >= 4 ? mload(data) >> 224 : 0
-        // error_matches = selector == Error(string) && valid_error_payload(data)
-        // panic_matches = selector == Panic(uint256) && data.length >= 36
-        let catch_data = supports_returndata.then(|| {
+        // selector = mload(data) >> 224
+        let catch_data = (supports_returndata && needs_data).then(|| {
             let object = self.materialize_returndata_bytes();
             let data = self.builder.memory_object_data(object, MemoryObjectKind::Bytes);
             let len = self.builder.memory_object_len(object, MemoryObjectKind::Bytes);
             let zero = self.builder.imm(U256::ZERO);
             let selector_slice = self.builder.make_slice(data, len, SliceLocation::Memory);
             let selector_word = self.builder.memory_slice_load_word(selector_slice, zero);
-            let four = self.builder.imm(4);
-            let selector_short = self.builder.lt(len, four);
-            let has_selector = self.builder.iszero(selector_short);
             let selector_shift = self.builder.imm(224);
             let selector = self.builder.shr(selector_shift, selector_word);
-            let error_selector =
-                self.builder.imm(U256::from_be_slice(&keccak256("Error(string)")[..4]));
-            let panic_selector = self.builder.imm(0x4e48_7b71_u64);
-            let error_selector_matches = self.builder.eq(selector, error_selector);
-            let error_matches = if catch_clauses
-                .iter()
-                .any(|clause| clause.name.is_some_and(|name| name.name == sym::Error))
-            {
-                self.lower_error_catch_match(data, len, error_selector_matches)
-            } else {
-                self.builder.and(has_selector, error_selector_matches)
-            };
-            let panic_size = self.builder.imm(36);
-            let panic_short = self.builder.lt(len, panic_size);
-            let panic_has_payload = self.builder.iszero(panic_short);
-            let panic_selector_matches = self.builder.eq(selector, panic_selector);
-            let panic_matches = self.builder.and(panic_has_payload, panic_selector_matches);
-            TryCatchData { object, data, len, error_matches, panic_matches }
+            TryCatchData { object, data, len, selector }
         });
         // Solidity matches the typed clauses before the low-level one, whichever order they are
         // written in: `catch Error(string)` first, then `catch Panic(uint256)`, and the bare or
@@ -569,18 +558,31 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         for catch_clause in ordered_clauses {
             // if catch_matches(clause, data) { lower(clause) } else { next_catch }
             self.builder.switch_to_block(next_catch);
-            let clause_block = self.builder.create_block();
-            let next_block = self.builder.create_block();
             let catch_error = catch_clause.name.is_some_and(|name| name.name == sym::Error);
             let catch_panic = catch_clause.name.is_some_and(|name| name.name == sym::Panic);
             // A typed clause is rejected before Byzantium, so its data is always there.
             let condition = if catch_error {
-                catch_data?.error_matches
+                // selector_matches = selector == Error(string)
+                // valid = selector_matches ? try_decode_error_message(data) : false
+                let data = catch_data?;
+                let expected =
+                    self.builder.imm(U256::from_be_slice(&keccak256("Error(string)")[..4]));
+                let matches = self.builder.eq(data.selector, expected);
+                self.lower_error_catch_match(data.data, data.len, matches)
             } else if catch_panic {
-                catch_data?.panic_matches
+                // valid = data.length >= 36 && selector == Panic(uint256)
+                let data = catch_data?;
+                let expected = self.builder.imm(0x4e48_7b71_u64);
+                let matches = self.builder.eq(data.selector, expected);
+                let size = self.builder.imm(36);
+                let short = self.builder.lt(data.len, size);
+                let has_payload = self.builder.eq_zero(short);
+                self.builder.and(matches, has_payload)
             } else {
                 self.builder.imm_bool(true)
             };
+            let clause_block = self.builder.create_block();
+            let next_block = self.builder.create_block();
             self.builder.branch(condition, clause_block, next_block);
 
             self.values = before.clone();
@@ -614,7 +616,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         match catch_data {
             // revert(data.data, data.length)
             Some(data) => self.builder.revert(data.data, data.len),
-            // Unreachable: a pre-Byzantium `try` only has a bare clause, which always matches.
+            // Unreachable: a bare catch matches unconditionally.
             // revert(0, 0)
             None => {
                 self.builder.revert_with(RevertReason::Empty);
@@ -1091,7 +1093,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     fn merge_value_phi(&mut self, incoming: Vec<(BlockId, ValueId)>) -> ValueId {
         let dirty = !self.dirty_values.is_empty()
             && incoming.iter().any(|(_, value)| self.dirty_values.contains(value));
-        let value = self.builder.phi(incoming);
+        // Source bindings may acquire raw bits through assembly on a backedge.
+        // Preserve those bits even when the initial incoming value is i1 or i160.
+        let ty = incoming
+            .first()
+            .and_then(|(_, value)| self.builder.func().value_ty(*value))
+            .map(|ty| if matches!(ty, MirType::I1 | MirType::I160) { MirType::I256 } else { ty })
+            .unwrap_or(MirType::I256);
+        // value = phi [predecessor: cast incoming to the source carrier type, ...]
+        let value = self.builder.emit_inst(InstKind::Phi(incoming), Some(ty));
         if dirty {
             self.dirty_values.insert(value);
         }

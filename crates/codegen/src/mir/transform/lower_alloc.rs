@@ -3,11 +3,13 @@
 //! Allocation stays atomic through the optimization pipeline so placement
 //! passes can reason about it without reconstructing a load/add/store idiom.
 //! This pass expands the abstraction before the EVM-shaped boundary. Deferred
-//! static-allocation placeholders remain for final backend layout.
+//! static-allocation placeholders remain for final backend layout. Raw loads and stores discard
+//! allocation-only effect and placement metadata: the emitted stores, initialization, and panic
+//! branches carry those effects. Source metadata stays on the original instruction.
 
 use crate::mir::{
     AllocationAlignment, AllocationFailure, AllocationInitialization, AllocationSemantics, BlockId,
-    Function, FunctionBuilder, InstId, InstKind, MemoryRegion, Module, PanicCode, ValueId,
+    Function, FunctionBuilder, InstId, InstKind, MemoryRegion, MirType, Module, PanicCode, ValueId,
     memory::EvmMemoryLayout, pass::MirPass, transform::utils::redirect_successor_predecessors,
 };
 use alloy_primitives::U256;
@@ -197,8 +199,26 @@ fn initialize(
 
 fn rewrite_as_fmp_load(builder: &mut FunctionBuilder<'_>, inst: crate::mir::InstId) {
     let slot = builder.imm(EvmMemoryLayout::FMP_SLOT);
+    // ptr = mload 64
+    // object = inttoptr ptr
+    let kind = if builder.func().inst(inst).result_ty.is_some_and(crate::mir::MirType::is_pointer) {
+        let block = builder.current_block();
+        let attached = builder.func().blocks[block].instructions.last() == Some(&inst);
+        if attached {
+            builder.func_mut().blocks[block].instructions.pop();
+        }
+        let ptr = builder.mload(slot);
+        if attached {
+            builder.func_mut().blocks[block].instructions.push(inst);
+        }
+        InstKind::IntToPtr(ptr)
+    } else {
+        InstKind::MLoad(slot)
+    };
     let instruction = builder.func_mut().inst_mut(inst);
-    instruction.kind = InstKind::MLoad(slot);
+    instruction.kind = kind;
+    instruction.metadata.set_effect(None);
+    instruction.metadata.set_preserves_fmp(false);
     instruction.metadata.set_memory_region(Some(MemoryRegion::Scratch));
 }
 
@@ -207,9 +227,14 @@ fn rewrite_as_fmp_store(
     inst: crate::mir::InstId,
     ptr: crate::mir::ValueId,
 ) {
+    // word = ptrtoint ptr to i256
+    // set_fmp ptr -> mstore 64, word
+    let ptr = builder.cast(ptr, MirType::I256);
     let slot = builder.imm(EvmMemoryLayout::FMP_SLOT);
     let instruction = builder.func_mut().inst_mut(inst);
     instruction.kind = InstKind::MStore(slot, ptr);
+    instruction.metadata.set_effect(None);
+    instruction.metadata.set_preserves_fmp(false);
     instruction.metadata.set_memory_region(Some(MemoryRegion::Scratch));
 }
 

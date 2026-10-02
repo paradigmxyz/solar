@@ -1,16 +1,8 @@
-use super::{GlobalState, support::RequestFixture};
-use crate::vfs::VfsPath;
-use crop::Rope;
-use lsp_types::{
-    CompletionParams, CompletionResponse, CompletionTextEdit, DidChangeWatchedFilesParams,
-    FileChangeType, FileEvent, PartialResultParams, Position, TextDocumentIdentifier,
-    TextDocumentPositionParams, Url, WorkDoneProgressParams,
-};
-use snapbox::{IntoData, str};
-use std::time::Duration;
+use super::{support::check_completions_at, *};
+use snapbox::str;
 
 #[tokio::test(flavor = "current_thread")]
-async fn remappings_change_refreshes_import_completion_context() {
+async fn remapping_and_overlay_changes_refresh_import_completions() {
     let fixture = RequestFixture::new_allowing_diagnostics(
         r#"
         //- /foundry.toml
@@ -22,6 +14,10 @@ async fn remappings_change_refreshes_import_completion_context() {
 
         //- /src/Main.sol open
         import "pkg/$1";
+        import "./$2";
+
+        //- /src/Existing.sol
+        contract Existing {}
 
         //- /lib/old/Old.sol
         contract Old {}
@@ -32,151 +28,192 @@ async fn remappings_change_refreshes_import_completion_context() {
         "/src/Main.sol",
     );
     let mut state = fixture.state();
-    let (uri, position) = fixture.marker_location("$1");
-
-    assert_eq!(import_completion_labels(&mut state, uri.clone(), position).await, ["pkg/Old.sol"]);
-
-    std::fs::write(fixture.project_path("/remappings.txt"), "pkg/=lib/new/\n").unwrap();
-    let remappings_uri = Url::from_file_path(fixture.project_path("/remappings.txt")).unwrap();
-    let _ = crate::handlers::did_change_watched_files(
+    fixture.check_completions_in(
         &mut state,
-        DidChangeWatchedFilesParams {
-            changes: vec![FileEvent { uri: remappings_uri, typ: FileChangeType::CHANGED }],
-        },
-    );
-    tokio::time::timeout(Duration::from_secs(5), state.latest_analysis())
-        .await
-        .expect("analysis after remappings change should finish")
-        .unwrap();
+        &["$1", "$2"],
+        str![[r#"
+$1:
+pkg/Old.sol File filter="pkg/Old.sol" edit=0:8-0:12
+| pkg/Old.sol
+$2:
+./Existing.sol File filter="./Existing.sol" edit=1:8-1:10
+| ./Existing.sol
+./Main.sol File filter="./Main.sol" edit=1:8-1:10
+| ./Main.sol
 
-    assert_eq!(import_completion_labels(&mut state, uri, position).await, ["pkg/New.sol"]);
+"#]],
+    );
+
+    let remappings = fixture.project_path("/remappings.txt");
+    std::fs::write(&remappings, "pkg/=lib/new/\n").unwrap();
+    watch_files(&mut state, [(&remappings, FileChangeType::CHANGED)]);
+    settle(&state).await;
+    fixture.check_completions_in(
+        &mut state,
+        &["$1", "$2"],
+        str![[r#"
+$1:
+pkg/New.sol File filter="pkg/New.sol" edit=0:8-0:12
+| pkg/New.sol
+$2:
+./Existing.sol File filter="./Existing.sol" edit=1:8-1:10
+| ./Existing.sol
+./Main.sol File filter="./Main.sol" edit=1:8-1:10
+| ./Main.sol
+
+"#]],
+    );
+
+    set_overlay(&state, &fixture.project_path("/src/Overlay.sol"), "contract Overlay {}", 1);
+    state.recompute_after_opening_source(Vec::new());
+    fixture.check_completions_in(
+        &mut state,
+        &["$2"],
+        str![[r#"
+./Existing.sol File filter="./Existing.sol" edit=1:8-1:10
+| ./Existing.sol
+./Main.sol File filter="./Main.sol" edit=1:8-1:10
+| ./Main.sol
+./Overlay.sol File filter="./Overlay.sol" edit=1:8-1:10
+| ./Overlay.sol
+
+"#]],
+    );
 }
 
-#[tokio::test(flavor = "current_thread")]
-async fn open_overlay_changes_invalidate_import_completion_cache() {
-    let fixture = RequestFixture::new_allowing_diagnostics(
+#[test]
+fn completes_relative_import_paths() {
+    let mut fixture = RequestFixture::new_allowing_diagnostics(
         r#"
         //- /foundry.toml
 
         //- /src/Main.sol open
         import "./$1";
+        import {
+            Target
+        } from './T$2';
+        import ".\x2fTar$3";
+        import "./Tar$4";
+        import "./nested/$6\
+        Tar$5get.sol";
+        import $7"./Target.sol";
+        import './Owner$8';
+        /* 😀 */ import "./Token$9";
+        import "./Dep$10";
+        import ".\x$11";
+        contract Main {}
 
-        //- /src/Existing.sol
-        contract Existing {}
+        //- /src/Target.sol
+        contract Target {}
+
+        //- /src/nested/Target.sol
+        contract Target {}
+
+        //- /src/Owner'sToken.sol
+        contract Token {}
+
+        //- /src/Token😀.sol
+        contract Token {}
+
+        //- /src/Dependency
+        contract Dependency {}
+
+        //- /src/Dependency.md
+        not Solidity
         "#,
         "/src/Main.sol",
     );
-    let mut state = fixture.state();
-    let (uri, position) = fixture.marker_location("$1");
+    fixture.set_open_file_contents("/src/Unsaved.sol", "contract Unsaved {}");
+    fixture.set_open_file_contents("/src/DependencyOverlay", "contract DependencyOverlay {}");
 
-    assert_eq!(
-        import_completion_labels(&mut state, uri.clone(), position).await,
-        ["./Existing.sol", "./Main.sol"]
+    fixture.check_completions(
+        &["$1", "$2", "$3", "$4", "$5", "$6", "$7", "$8", "$9", "$10", "$11"],
+        str![[r#"
+$1:
+./Dependency File filter="./Dependency" edit=0:8-0:10
+| ./Dependency
+./DependencyOverlay File filter="./DependencyOverlay" edit=0:8-0:10
+| ./DependencyOverlay
+./Main.sol File filter="./Main.sol" edit=0:8-0:10
+| ./Main.sol
+./Owner'sToken.sol File filter="./Owner'sToken.sol" edit=0:8-0:10
+| ./Owner'sToken.sol
+./Target.sol File filter="./Target.sol" edit=0:8-0:10
+| ./Target.sol
+./Token😀.sol File filter="./Token\\xF0\\x9F\\x98\\x80.sol" edit=0:8-0:10
+| ./Token\xF0\x9F\x98\x80.sol
+./Unsaved.sol File filter="./Unsaved.sol" edit=0:8-0:10
+| ./Unsaved.sol
+./nested/ Folder filter="./nested/" edit=0:8-0:10
+| ./nested/
+$2:
+./Target.sol File filter="./Target.sol" edit=3:8-3:11
+| ./Target.sol
+./Token😀.sol File filter="./Token\\xF0\\x9F\\x98\\x80.sol" edit=3:8-3:11
+| ./Token\xF0\x9F\x98\x80.sol
+$3:
+./Target.sol File filter=".\\x2fTarget.sol" edit=4:8-4:16
+| ./Target.sol
+$4:
+./Target.sol File filter="./Target.sol" edit=5:8-5:13
+| ./Target.sol
+$5:
+./nested/Target.sol File filter="./nested/Target.sol" additional=6:8-7:0="" edit=7:0-7:10
+| ./nested/Target.sol
+$6:
+./nested/Target.sol File filter="./nested/Target.sol" additional=6:18-7:10="" edit=6:8-6:18
+| ./nested/Target.sol
+$7 $11:
+$8:
+./Owner'sToken.sol File filter="./Owner\\'sToken.sol" edit=9:8-9:15
+| ./Owner\'sToken.sol
+$9:
+./Token😀.sol File filter="./Token\\xF0\\x9F\\x98\\x80.sol" edit=10:17-10:24
+| ./Token\xF0\x9F\x98\x80.sol
+$10:
+./Dependency File filter="./Dependency" edit=11:8-11:13
+| ./Dependency
+./DependencyOverlay File filter="./DependencyOverlay" edit=11:8-11:13
+| ./DependencyOverlay
+
+"#]],
     );
-
-    let overlay = fixture.project_path("/src/Overlay.sol");
-    state.vfs.write().set_file_contents_with_version(
-        VfsPath::from(overlay),
-        Some(Rope::from("contract Overlay {}")),
-        Some(1),
-    );
-    state.recompute_after_opening_source(Vec::new());
-
-    let labels = import_completion_labels(&mut state, uri, position).await;
-    assert_eq!(labels, ["./Existing.sol", "./Main.sol", "./Overlay.sol"]);
 }
 
-async fn import_completion_labels(
-    state: &mut GlobalState,
-    uri: Url,
-    position: Position,
-) -> Vec<String> {
-    import_completion_items(state, uri, position).await.into_iter().map(|item| item.label).collect()
-}
+#[test]
+fn completes_unterminated_imports_without_replacing_later_lines() {
+    for (source, expected) in [
+        (
+            "import \"./De$1p",
+            str![[r#"
+./Dependency.sol File filter="./Dependency.sol" edit=0:8-0:13
+| ./Dependency.sol
 
-async fn import_completion_items(
-    state: &mut GlobalState,
-    uri: Url,
-    position: Position,
-) -> Vec<lsp_types::CompletionItem> {
-    let response = crate::handlers::completion(
-        state,
-        CompletionParams {
-            text_document_position: TextDocumentPositionParams {
-                text_document: TextDocumentIdentifier::new(uri),
-                position,
-            },
-            work_done_progress_params: WorkDoneProgressParams::default(),
-            partial_result_params: PartialResultParams::default(),
-            context: None,
-        },
-    )
-    .await
-    .unwrap()
-    .unwrap();
-    match response {
-        CompletionResponse::Array(items) => items,
-        CompletionResponse::List(list) => list.items,
+"#]],
+        ),
+        ("import \"./Dep$1\ncontract Victim {}\n\";", str![]),
+        (
+            "import \"./Dep$1\ncontract Main { string value = \"ordinary\"; }",
+            str![[r#"
+./Dependency.sol File filter="./Dependency.sol" edit=0:8-0:13
+| ./Dependency.sol
+
+"#]],
+        ),
+    ] {
+        let fixture = RequestFixture::new_allowing_diagnostics(
+            &format!(
+                "//- /foundry.toml\n//- /src/Main.sol open\n{source}\n\
+                 //- /src/Dependency.sol\ncontract Dependency {{}}\n"
+            ),
+            "/src/Main.sol",
+        );
+        fixture.check_completions(&["$1"], expected);
     }
 }
 
-#[tokio::test(flavor = "current_thread")]
-async fn recovered_import_completion_replaces_the_cursor_suffix() {
-    let fixture = RequestFixture::new_allowing_diagnostics(
-        r#"
-        //- /foundry.toml
-
-        //- /src/Main.sol open
-        import "./De$1p
-
-        //- /src/Dependency.sol
-        contract Dependency {}
-        "#,
-        "/src/Main.sol",
-    );
-    let mut state = fixture.state();
-    let (uri, position) = fixture.marker_location("$1");
-
-    let item = import_completion_items(&mut state, uri, position)
-        .await
-        .into_iter()
-        .find(|item| item.label == "./Dependency.sol")
-        .unwrap();
-    let Some(CompletionTextEdit::Edit(edit)) = item.text_edit else {
-        panic!("expected a plain text edit")
-    };
-
-    assert_eq!(edit.range, lsp_types::Range::new(Position::new(0, 8), Position::new(0, 13)));
-    assert_eq!(edit.new_text, "./Dependency.sol");
-    assert!(item.additional_text_edits.is_none());
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn import_completion_does_not_delete_source_after_an_unescaped_newline() {
-    let fixture = RequestFixture::new_allowing_diagnostics(
-        r#"
-        //- /foundry.toml
-
-        //- /src/Main.sol open
-        import "./Dep$1
-        contract Victim {}
-        ";
-
-        //- /src/Dependency.sol
-        contract Dependency {}
-        "#,
-        "/src/Main.sol",
-    );
-    let mut state = fixture.state();
-    let (uri, position) = fixture.marker_location("$1");
-
-    let items = import_completion_items(&mut state, uri, position).await;
-
-    assert!(!items.iter().any(|item| item.label == "./Dependency.sol"));
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn import_completion_uses_lsp_lines_after_a_standalone_carriage_return() {
+#[test]
+fn import_completion_uses_lsp_lines_after_a_standalone_carriage_return() {
     let mut fixture = RequestFixture::new_allowing_diagnostics(
         r#"
         //- /foundry.toml
@@ -190,173 +227,36 @@ async fn import_completion_uses_lsp_lines_after_a_standalone_carriage_return() {
         "/src/Main.sol",
     );
     fixture.set_open_file_contents("/src/Main.sol", "\rcontract C {}\nimport \"./Dep");
-    let mut state = fixture.state();
-    let uri = Url::from_file_path(fixture.project_path("/src/Main.sol")).unwrap();
+    let uri = fixture.project().uri("/src/Main.sol");
 
-    let contract_items =
-        import_completion_items(&mut state, uri.clone(), Position::new(1, 13)).await;
-    assert!(!contract_items.iter().any(|item| item.label == "./Dependency.sol"));
-
-    let item = import_completion_items(&mut state, uri, Position::new(2, 13))
-        .await
-        .into_iter()
-        .find(|item| item.label == "./Dependency.sol")
-        .unwrap();
-    let Some(CompletionTextEdit::Edit(edit)) = item.text_edit else {
-        panic!("expected a plain text edit")
-    };
-    assert_eq!(edit.range, lsp_types::Range::new(Position::new(2, 8), Position::new(2, 13)));
-}
-
-#[test]
-fn completes_relative_import_files_and_directories() {
-    let mut fixture = RequestFixture::new_allowing_diagnostics(
-        r#"
-        //- /foundry.toml
-
-        //- /src/Main.sol open
-        import "./$1";
-
-        //- /src/Local.sol
-        contract Local {}
-
-        //- /src/nested/Dependency.sol
-        contract Dependency {}
-        "#,
-        "/src/Main.sol",
-    );
-    fixture.set_open_file_contents("/src/Unsaved.sol", "contract Unsaved {}");
-
-    fixture.check_completion_details(
-        "$1",
+    check_completions_at(
+        &mut fixture.state(),
+        [(1, 13), (2, 13)].map(|(line, character)| {
+            (format!("{line}:{character}"), uri.clone(), Position::new(line, character), None)
+        }),
         str![[r#"
-label=./Local.sol
-kind=File
-detail=<none>
-sort_text=<none>
-text_edit=edit 0:8-0:10
-insert_text_format=<none>
-new_text:
-./Local.sol
-
-label=./Main.sol
-kind=File
-detail=<none>
-sort_text=<none>
-text_edit=edit 0:8-0:10
-insert_text_format=<none>
-new_text:
-./Main.sol
-
-label=./Unsaved.sol
-kind=File
-detail=<none>
-sort_text=<none>
-text_edit=edit 0:8-0:10
-insert_text_format=<none>
-new_text:
-./Unsaved.sol
-
-label=./nested/
-kind=Folder
-detail=<none>
-sort_text=<none>
-text_edit=edit 0:8-0:10
-insert_text_format=<none>
-new_text:
-./nested/
+1:13:
+2:13:
+./Dependency.sol File filter="./Dependency.sol" edit=2:8-2:13
+| ./Dependency.sol
 
 "#]],
     );
 }
 
 #[test]
-fn completes_single_quoted_multiline_imports() {
-    let fixture = RequestFixture::new_allowing_diagnostics(
-        r#"
-        //- /foundry.toml
-
-        //- /src/Main.sol open
-        import {
-            Target
-        } from './T$1';
-
-        //- /src/Target.sol
-        contract Target {}
-        "#,
-        "/src/Main.sol",
-    );
-
-    fixture.check_completion_details(
-        "$1",
-        str![[r#"
-label=./Target.sol
-kind=File
-detail=<none>
-sort_text=<none>
-text_edit=edit 2:8-2:11
-insert_text_format=<none>
-new_text:
-./Target.sol
-
-"#]],
-    );
-}
-
-#[test]
-fn completes_remapped_imports_from_the_deepest_foundry_workspace() {
+fn completes_configured_package_and_remapped_imports() {
     let fixture = RequestFixture::new_allowing_diagnostics(
         r#"
         //- /foundry.toml
         [profile.default]
         auto_detect_remappings = false
-        remappings = ["pkg/=lib/outer/"]
-
-        //- /lib/outer/Outer.sol
-        contract Outer {}
-
-        //- /packages/app/foundry.toml
-        [profile.default]
-        auto_detect_remappings = false
-        remappings = ["pkg/=lib/inner/"]
-
-        //- /packages/app/src/Main.sol open
-        import "pkg/$1";
-
-        //- /packages/app/lib/inner/Inner.sol
-        contract Inner {}
-        "#,
-        "/packages/app/src/Main.sol",
-    );
-
-    fixture.check_completion_details_with_trigger(
-        "$1",
-        "/",
-        str![[r#"
-label=pkg/Inner.sol
-kind=File
-detail=<none>
-sort_text=<none>
-text_edit=edit 0:8-0:12
-insert_text_format=<none>
-new_text:
-pkg/Inner.sol
-
-"#]],
-    );
-}
-
-#[test]
-fn completes_partial_configured_remapping_prefixes() {
-    let fixture = RequestFixture::new_allowing_diagnostics(
-        r#"
-        //- /foundry.toml
-        [profile.default]
-        auto_detect_remappings = false
+        libs = ["lib", "node_modules"]
         remappings = [
             "foo/=lib/global/",
             "src:@openzeppelin/=lib/openzeppelin-contracts/contracts/",
             "src:Alias=lib/Alias.sol",
+            "src:Extensionless=lib/Extensionless",
             "test:@openzeppelin-test/=lib/openzeppelin-test/contracts/",
             "test:foo/bar/=lib/foo-bar/",
         ]
@@ -365,9 +265,14 @@ fn completes_partial_configured_remapping_prefixes() {
         import "@o$1";
         import "A$2";
         import "foo/b$3";
+        import "@scope/package/$4";
+        import "Ext$5";
 
         //- /lib/Alias.sol
         contract Alias {}
+
+        //- /lib/Extensionless
+        contract Extensionless {}
 
         //- /lib/global/Other.sol
         contract Other {}
@@ -377,61 +282,6 @@ fn completes_partial_configured_remapping_prefixes() {
 
         //- /lib/openzeppelin-test/contracts/TestToken.sol
         contract TestToken {}
-        "#,
-        "/src/Main.sol",
-    );
-
-    fixture.check_completion_details(
-        "$1",
-        str![[r#"
-label=@openzeppelin/
-kind=Folder
-detail=<none>
-sort_text=<none>
-text_edit=edit 0:8-0:10
-insert_text_format=<none>
-new_text:
-@openzeppelin/
-
-"#]],
-    );
-    fixture.check_completion_details(
-        "$2",
-        str![[r#"
-label=Alias
-kind=File
-detail=<none>
-sort_text=<none>
-text_edit=edit 1:8-1:9
-insert_text_format=<none>
-new_text:
-Alias
-
-label=Alias.sol
-kind=File
-detail=<none>
-sort_text=<none>
-text_edit=edit 1:8-1:9
-insert_text_format=<none>
-new_text:
-Alias.sol
-
-"#]],
-    );
-    fixture.check_completion_details("$3", str![""]);
-}
-
-#[test]
-fn completes_package_imports_from_configured_include_paths() {
-    let fixture = RequestFixture::new_allowing_diagnostics(
-        r#"
-        //- /foundry.toml
-        [profile.default]
-        auto_detect_remappings = false
-        libs = ["node_modules"]
-
-        //- /src/Main.sol open
-        import "@scope/package/$1";
 
         //- /node_modules/@scope/package/Token.sol
         contract Token {}
@@ -439,292 +289,69 @@ fn completes_package_imports_from_configured_include_paths() {
         "/src/Main.sol",
     );
 
-    fixture.check_completion_details(
-        "$1",
+    fixture.check_completions(
+        &["$1", "$2", "$3", "$4", "$5"],
         str![[r#"
-label=@scope/package/Token.sol
-kind=File
-detail=<none>
-sort_text=<none>
-text_edit=edit 0:8-0:23
-insert_text_format=<none>
-new_text:
-@scope/package/Token.sol
+$1:
+@openzeppelin/ Folder filter="@openzeppelin/" edit=0:8-0:10
+| @openzeppelin/
+$2:
+Alias File filter="Alias" edit=1:8-1:9
+| Alias
+Alias.sol File filter="Alias.sol" edit=1:8-1:9
+| Alias.sol
+$3:
+$4:
+@scope/package/Token.sol File filter="@scope/package/Token.sol" edit=3:8-3:23
+| @scope/package/Token.sol
+$5:
+Extensionless File filter="Extensionless" edit=4:8-4:11
+| Extensionless
 
 "#]],
     );
 }
 
 #[test]
-fn completes_valid_escaped_import_prefixes() {
-    let fixture = RequestFixture::new_allowing_diagnostics(
-        r#"
-        //- /foundry.toml
-
-        //- /src/Main.sol open
-        import ".\x2fTar$1";
-
-        //- /src/Target.sol
-        contract Target {}
-        "#,
-        "/src/Main.sol",
-    );
-
-    fixture.check_completion_details(
-        "$1",
-        str![[r#"
-label=./Target.sol
-kind=File
-detail=<none>
-sort_text=<none>
-text_edit=edit 0:8-0:16
-insert_text_format=<none>
-new_text:
-./Target.sol
-
-"#]],
-    );
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn escaped_import_prefixes_set_complete_client_filter_text() {
-    let fixture = RequestFixture::new_allowing_diagnostics(
-        r#"
-        //- /foundry.toml
-
-        //- /src/Main.sol open
-        import ".\x2fTar$1";
-
-        //- /src/Target.sol
-        contract Target {}
-        "#,
-        "/src/Main.sol",
-    );
-    let mut state = fixture.state();
-    let (uri, position) = fixture.marker_location("$1");
-
-    let items = import_completion_items(&mut state, uri, position).await;
-
-    assert_eq!(items.len(), 1);
-    assert_eq!(items[0].label, "./Target.sol");
-    assert_eq!(items[0].filter_text.as_deref(), Some(".\\x2fTarget.sol"));
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn import_filter_text_remains_matchable_as_the_prefix_grows() {
-    let fixture = RequestFixture::new_allowing_diagnostics(
-        r#"
-        //- /foundry.toml
-
-        //- /src/Main.sol open
-        import "./$1";
-        import "./Tar$2";
-
-        //- /src/Target.sol
-        contract Target {}
-        "#,
-        "/src/Main.sol",
-    );
-    let mut state = fixture.state();
-
-    for marker in ["$1", "$2"] {
-        let (uri, position) = fixture.marker_location(marker);
-        let items = import_completion_items(&mut state, uri, position).await;
-        let target = items.iter().find(|item| item.label == "./Target.sol").unwrap();
-        assert_eq!(target.filter_text.as_deref(), Some("./Target.sol"));
-    }
-}
-
-#[test]
-fn completes_imports_across_escaped_line_continuations() {
-    let fixture = RequestFixture::new_allowing_diagnostics(
-        r#"
-        //- /foundry.toml
-
-        //- /src/Main.sol open
-        import "./nested/$2\
-        Tar$1get.sol";
-
-        //- /src/nested/Target.sol
-        contract Target {}
-        "#,
-        "/src/Main.sol",
-    );
-
-    fixture.check_completion_details(
-        "$1",
-        str![[r#"
-label=./nested/Target.sol
-kind=File
-detail=<none>
-sort_text=<none>
-text_edit=edit 1:0-1:10
-additional_text_edit=0:8-1:0 new_text=""
-insert_text_format=<none>
-new_text:
-./nested/Target.sol
-
-"#]],
-    );
-    fixture.check_completion_details(
-        "$2",
-        str![[r#"
-label=./nested/Target.sol
-kind=File
-detail=<none>
-sort_text=<none>
-text_edit=edit 0:8-0:18
-additional_text_edit=0:18-1:10 new_text=""
-insert_text_format=<none>
-new_text:
-./nested/Target.sol
-
-"#]],
-    );
-}
-
-#[test]
-fn opening_quote_completion_does_not_return_an_out_of_range_edit() {
-    let fixture = RequestFixture::new_allowing_diagnostics(
-        r#"
-        //- /foundry.toml
-
-        //- /src/Main.sol open
-        import $1"./Target.sol";
-
-        //- /src/Target.sol
-        contract Target {}
-        "#,
-        "/src/Main.sol",
-    );
-
-    fixture.check_completion_details("$1", str![""]);
-}
-
-#[test]
-fn unterminated_import_completion_does_not_replace_the_next_line() {
-    let fixture = RequestFixture::new_allowing_diagnostics(
-        r#"
-        //- /foundry.toml
-
-        //- /src/Main.sol open
-        import "./Dep$1
-        contract Main { string value = "ordinary"; }
-
-        //- /src/Dependency.sol
-        contract Dependency {}
-        "#,
-        "/src/Main.sol",
-    );
-
-    fixture.check_completion_details(
-        "$1",
-        str![[r#"
-label=./Dependency.sol
-kind=File
-detail=<none>
-sort_text=<none>
-text_edit=edit 0:8-0:13
-insert_text_format=<none>
-new_text:
-./Dependency.sol
-
-"#]],
-    );
-}
-
-#[test]
-fn completes_extensionless_disk_and_overlay_import_candidates() {
-    let mut fixture = RequestFixture::new_allowing_diagnostics(
-        r#"
-        //- /foundry.toml
-
-        //- /src/Main.sol open
-        import "./Dep$1";
-
-        //- /src/Dependency
-        contract Dependency {}
-
-        //- /src/Dependency.md
-        not Solidity
-        "#,
-        "/src/Main.sol",
-    );
-    fixture.set_open_file_contents("/src/DependencyOverlay", "contract DependencyOverlay {}");
-
-    fixture.check_completion_details(
-        "$1",
-        str![[r#"
-label=./Dependency
-kind=File
-detail=<none>
-sort_text=<none>
-text_edit=edit 0:8-0:13
-insert_text_format=<none>
-new_text:
-./Dependency
-
-label=./DependencyOverlay
-kind=File
-detail=<none>
-sort_text=<none>
-text_edit=edit 0:8-0:13
-insert_text_format=<none>
-new_text:
-./DependencyOverlay
-
-"#]],
-    );
-}
-
-#[test]
-fn completes_an_extensionless_remapping_target_as_a_file() {
-    let fixture = RequestFixture::new_allowing_diagnostics(
-        r#"
-        //- /foundry.toml
+fn completes_imports_from_the_deepest_owning_workspace() {
+    let source = r#"
+        //- /owned/foundry.toml
         [profile.default]
         auto_detect_remappings = false
-        remappings = ["src:Alias=lib/Alias"]
+        remappings = ["pkg/=lib/outer/"]
 
-        //- /src/Main.sol open
-        import "A$1";
+        //- /owned/lib/outer/Outer.sol
+        contract Outer {}
 
-        //- /lib/Alias
-        contract Alias {}
-        "#,
-        "/src/Main.sol",
-    );
+        //- /owned/packages/app/foundry.toml
+        [profile.default]
+        auto_detect_remappings = false
+        remappings = ["pkg/=lib/inner/"]
 
-    fixture.check_completion_details(
-        "$1",
+        //- /owned/packages/app/src/Main.sol open
+        import "pkg/$1";
+
+        //- /owned/packages/app/lib/inner/Inner.sol
+        contract Inner {}
+
+        //- /unowned/Main.sol open
+        import "./$2";
+        contract Main {}
+        "#;
+    let fixture =
+        RequestFixture::new_allowing_diagnostics(source, "/owned/packages/app/src/Main.sol");
+
+    fixture.check_triggered_completions(
+        &[("$1", "/")],
         str![[r#"
-label=Alias
-kind=File
-detail=<none>
-sort_text=<none>
-text_edit=edit 0:8-0:9
-insert_text_format=<none>
-new_text:
-Alias
+pkg/Inner.sol File filter="pkg/Inner.sol" edit=0:8-0:12
+| pkg/Inner.sol
 
 "#]],
     );
-}
-
-#[test]
-fn incomplete_escape_in_an_import_does_not_fall_back_to_symbol_completion() {
-    let fixture = RequestFixture::new_allowing_diagnostics(
-        r#"
-        //- /foundry.toml
-
-        //- /src/Main.sol open
-        import ".\x$1";
-        contract Main {}
-        "#,
-        "/src/Main.sol",
-    );
-
-    fixture.check_completion_details("$1", str![""]);
+    // Unowned files do not fall back to symbol completion.
+    RequestFixture::new_allowing_diagnostics(source, "/unowned/Main.sol")
+        .check_completions(&["$2"], str![""]);
 }
 
 #[test]
@@ -747,134 +374,21 @@ fn quote_trigger_completes_imports_but_not_ordinary_strings() {
         "/Main.sol",
     );
 
-    fixture.check_completion_details_with_trigger(
-        "$1",
-        "\"",
+    fixture.check_triggered_completions(
+        &[("$1", "\""), ("$2", "\""), ("$3", "'"), ("$4", "'")],
         str![[r#"
-label=Main.sol
-kind=File
-detail=<none>
-sort_text=<none>
-text_edit=edit 0:8-0:8
-insert_text_format=<none>
-new_text:
-Main.sol
-
-label=Target.sol
-kind=File
-detail=<none>
-sort_text=<none>
-text_edit=edit 0:8-0:8
-insert_text_format=<none>
-new_text:
-Target.sol
+$1:
+Main.sol File filter="Main.sol" edit=0:8-0:8
+| Main.sol
+Target.sol File filter="Target.sol" edit=0:8-0:8
+| Target.sol
+$2 $4:
+$3:
+Main.sol File filter="Main.sol" edit=1:8-1:8
+| Main.sol
+Target.sol File filter="Target.sol" edit=1:8-1:8
+| Target.sol
 
 "#]],
-    );
-    fixture.check_completion_details_with_trigger("$2", "\"", str![""]);
-    fixture.check_completion_details_with_trigger(
-        "$3",
-        "'",
-        str![[r#"
-label=Main.sol
-kind=File
-detail=<none>
-sort_text=<none>
-text_edit=edit 1:8-1:8
-insert_text_format=<none>
-new_text:
-Main.sol
-
-label=Target.sol
-kind=File
-detail=<none>
-sort_text=<none>
-text_edit=edit 1:8-1:8
-insert_text_format=<none>
-new_text:
-Target.sol
-
-"#]],
-    );
-    fixture.check_completion_details_with_trigger("$4", "'", str![""]);
-}
-
-#[test]
-fn unowned_import_completion_does_not_fall_back_to_symbols() {
-    let fixture = RequestFixture::new_allowing_diagnostics(
-        r#"
-        //- /owned/foundry.toml
-
-        //- /unowned/Main.sol open
-        import "./$1";
-        contract Main {}
-        "#,
-        "/unowned/Main.sol",
-    );
-
-    fixture.check_completion_details("$1", str![""]);
-}
-
-#[test]
-fn import_completion_text_edits_use_utf16_ranges_and_escape_non_ascii_paths() {
-    let fixture = RequestFixture::new_allowing_diagnostics(
-        r#"
-        //- /foundry.toml
-
-        //- /src/Main.sol open
-        /* 😀 */ import "./Token$1";
-
-        //- /src/Token😀.sol
-        contract Token {}
-        "#,
-        "/src/Main.sol",
-    );
-
-    fixture.check_completion_details(
-        "$1",
-        str![[r#"
-label=./Token😀.sol
-kind=File
-detail=<none>
-sort_text=<none>
-text_edit=edit 0:17-0:24
-insert_text_format=<none>
-new_text:
-./Token\xF0\x9F\x98\x80.sol
-
-"#]]
-        .raw(),
-    );
-}
-
-#[test]
-fn import_completion_escapes_the_active_string_delimiter() {
-    let fixture = RequestFixture::new_allowing_diagnostics(
-        r#"
-        //- /foundry.toml
-
-        //- /src/Main.sol open
-        import './Owner$1';
-
-        //- /src/Owner'sToken.sol
-        contract Token {}
-        "#,
-        "/src/Main.sol",
-    );
-
-    fixture.check_completion_details(
-        "$1",
-        str![[r#"
-label=./Owner'sToken.sol
-kind=File
-detail=<none>
-sort_text=<none>
-text_edit=edit 0:8-0:15
-insert_text_format=<none>
-new_text:
-./Owner\'sToken.sol
-
-"#]]
-        .raw(),
     );
 }

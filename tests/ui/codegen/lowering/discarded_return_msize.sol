@@ -4,6 +4,8 @@
 //@[llvm] compile-flags: --codegen-backend llvm
 //@ compile-flags: -Osize
 //@ run-call: expandedMemory 1 => 65568, 253
+//@ run-call: conditionalMemory true => 4128
+//@ run-call: conditionalMemory false => 96
 
 contract DiscardedReturnMsize {
     function readFarMemory() internal pure returns (uint256 value) {
@@ -41,5 +43,12 @@ contract DiscardedReturnMsize {
             size := msize()
         }
         sum = a0 + a1 + a2 + a3 + a4 + a5 + a6 + a7 + a8 + a9 + a10 + a11 + a12 + a13 + a14 + a15 + a16 + a17 + a18 + a19 + a20 + a21;
+    }
+
+    function conditionalMemory(bool touch) external pure returns (uint256 size) {
+        assembly {
+            if touch { pop(mload(4096)) }
+            size := msize()
+        }
     }
 }

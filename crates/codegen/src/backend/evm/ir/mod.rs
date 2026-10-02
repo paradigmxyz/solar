@@ -17,16 +17,21 @@ use super::{
 };
 use crate::{
     backend::assembler::{self, assembly},
+    link::{EmbeddedBytecodes, LibraryId, LibraryTable, RelocatableBytecode},
     mir::{ImmutableId, TypeSize},
 };
-use alloy_primitives::{Bytes, U256};
-use solar_data_structures::{fmt, index::IndexVec, newtype_index};
+use alloy_primitives::U256;
+use solar_data_structures::{index::IndexVec, newtype_index};
 use solar_interface::{Span, Symbol};
+use std::fmt;
+
+pub(crate) use crate::link::{Data, DataBytes, DataId, DataRef, DataSize};
 
 pub(in crate::backend) mod builder;
 mod display;
 mod parse;
 mod passes;
+pub(crate) use passes::compact_pushes;
 pub(in crate::backend) mod verify;
 
 pub(crate) use passes::compact_pushes::immediate_materialization_cost;
@@ -38,6 +43,7 @@ pub(in crate::backend) use passes::{
     compact_pushes::{
         ImmediateMaterialization, ImmediateMaterializationOp, immediate_materialization_len,
     },
+    data::pack_linked_data,
     legalize_shifts,
 };
 
@@ -49,30 +55,6 @@ pub fn validate(gcx: solar_sema::Gcx<'_>, module: &Module) {
 newtype_index! {
     /// A unique identifier for a basic block in EVM IR.
     pub(crate) struct BlockId;
-
-    /// A constant byte string appended to the assembled program.
-    pub(crate) struct DataId;
-}
-
-/// A relocatable reference to a byte within an EVM IR data entry.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub(crate) struct DataRef {
-    pub(crate) id: DataId,
-    pub(crate) offset: u32,
-}
-
-/// One constant byte string and its optional display name.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct Data {
-    pub(crate) bytes: Bytes,
-    pub(crate) name: Option<Symbol>,
-    pub(crate) emit_in_runtime: bool,
-}
-
-impl DataRef {
-    pub(crate) const fn new(id: DataId, offset: u32) -> Self {
-        Self { id, offset }
-    }
 }
 
 impl BlockId {
@@ -83,25 +65,79 @@ impl BlockId {
 /// An EVM IR module.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Module {
+    pub(crate) libraries: LibraryTable,
     /// Program name used by tools and diagnostics.
     pub(crate) name: Symbol,
     /// Basic blocks in layout order.
     pub(crate) blocks: IndexVec<BlockId, Block>,
     /// Constant byte strings addressable by `push_data`.
     pub(crate) data: IndexVec<DataId, Data>,
-    /// Whether gas mode is rescuing a runtime that exceeds EIP-170.
-    pub(crate) enable_size_outlining: bool,
+    /// Whether bytes that execution must not fall into follow this code: the runtime
+    /// artifact after creation code. A final `STOP` is then kept instead of being
+    /// left implicit at the end of the bytecode.
+    pub(crate) code_follows: bool,
     /// Whether passes must account for every operation's source debug information.
     debug_info_tracked: bool,
+    /// Block contents in which an earlier peephole run found nothing to rewrite.
+    pub(super) peephole_clean: passes::CleanBlocks,
 }
 
 impl Module {
-    /// Lowers this EVM IR module to bytecode.
-    pub fn into_bytecode(self, gcx: solar_sema::Gcx<'_>) -> solar_interface::Result<Vec<u8>> {
+    /// Links embedded contract bytecode into deferred data, interning the bytecode's libraries
+    /// into `libraries`.
+    ///
+    /// Returns whether any data was linked.
+    pub(in crate::backend) fn link(
+        &mut self,
+        bytecodes: &EmbeddedBytecodes,
+        libraries: &mut LibraryTable,
+    ) -> bool {
+        let mut linked = false;
+        for data in &mut self.data {
+            let DataBytes::Deferred(code) = data.bytes else { continue };
+            // d: creation_code|runtime_code C
+            // => d: hex"<code(C)>" library_relocations [..]
+            let bytecode = code.bytecode(bytecodes);
+            assert!(
+                u32::try_from(bytecode.bytes.len()).is_ok(),
+                "embedded bytecode length exceeds `u32`"
+            );
+            data.bytes = DataBytes::Known(bytecode.bytes.clone());
+            data.library_relocations = bytecode.relocations_in(libraries);
+            linked = true;
+        }
+        if linked {
+            self.libraries = libraries.clone();
+        }
+        linked
+    }
+
+    /// Pushes each size derived from a data length as a literal. All data must be linked.
+    pub(in crate::backend) fn fold_data_sizes(&mut self) {
+        for block in &mut self.blocks {
+            for inst in &mut block.instructions {
+                // push_data_size d, addend[, aligned] => push (len(d) + addend) [& ~31]
+                if let Some(size) = inst.pushed_data_size() {
+                    let value = size.value(self.data[size.data].bytes.linked().len());
+                    inst.replace_preserving_metadata(Instruction::push_value(value));
+                }
+            }
+        }
+    }
+
+    /// Lowers this EVM IR module to bytecode, retaining unresolved library addresses.
+    pub fn into_bytecode(
+        self,
+        gcx: solar_sema::Gcx<'_>,
+    ) -> solar_interface::Result<RelocatableBytecode> {
         let mut assembler = assembler::Assembler::from_evm_ir(gcx, self)?;
         let result = assembler.assemble_with_evm_ir(true);
         gcx.dcx().has_errors()?;
-        Ok(result.bytecode)
+        Ok(RelocatableBytecode {
+            libraries: result.evm_ir.expect("EVM IR capture requested").libraries,
+            bytes: result.bytecode.into(),
+            relocations: result.library_relocations,
+        })
     }
 
     /// Parses textual EVM IR.
@@ -117,10 +153,12 @@ impl Module {
     pub(crate) fn new(name: Symbol) -> Self {
         Self {
             name,
+            libraries: LibraryTable::default(),
             blocks: IndexVec::new(),
             data: IndexVec::new(),
-            enable_size_outlining: false,
+            code_follows: false,
             debug_info_tracked: false,
+            peephole_clean: passes::CleanBlocks::default(),
         }
     }
 
@@ -128,8 +166,10 @@ impl Module {
     pub(in crate::backend) fn clear(&mut self) {
         self.blocks.clear();
         self.data.clear();
-        self.enable_size_outlining = false;
+        self.libraries.clear();
+        self.code_follows = false;
         self.debug_info_tracked = false;
+        self.peephole_clean.clear();
     }
 
     /// Enables source debug information auditing for optimization passes.
@@ -204,10 +244,21 @@ impl Block {
 pub(crate) struct BlockMetadata {
     /// Estimated block hotness for layout decisions.
     pub(crate) hotness: Hotness,
-    /// Whether the block belongs to a natural loop.
+    /// Whether the block contains code from a known natural loop.
     pub(crate) in_loop: bool,
+    /// This label's address is used only for control transfer, never as an observable word.
+    /// Hidden return targets and branches separated from their pushed labels by sharing carry
+    /// this property. References may be redirected to an
+    /// equivalent continuation, unlike ordinary address-taken labels whose identity is opaque.
+    /// This is an executable-code property, independent of optional debug information.
+    pub(crate) is_continuation: bool,
     /// Source function entered by this block's leading `JUMPDEST`.
     pub(crate) function_invoke: Option<DebugFunction>,
+    /// Stack depth at which verification enters this block, in addition to its modeled edges.
+    ///
+    /// Only textual EVM IR declares it, so that a test can start a block with a deep stack; the
+    /// entry block is otherwise entered at depth zero.
+    pub(crate) entry_depth: Option<u16>,
 }
 
 /// Block hotness metadata.
@@ -248,6 +299,7 @@ impl Instruction {
     const DEFERRED: u8 = 2;
     const IMMUTABLE: u8 = 4;
     const DATA: u8 = 8;
+    const DATA_SIZE: u8 = 16;
 
     /// Creates an instruction for an EVM opcode.
     #[must_use]
@@ -304,13 +356,19 @@ impl Instruction {
     /// Returns whether this instruction has a raw branch target outside its block.
     #[must_use]
     pub(crate) const fn has_raw_branch_target(&self) -> bool {
-        matches!(self.opcode, op::JUMPI | op::RJUMPI | op::RJUMPV)
+        self.opcode == op::JUMPI
     }
 
     /// Creates an encoded immediate push instruction.
     #[must_use]
     pub(crate) fn push_value(value: U256) -> Self {
         Self::encoded_push(PushValue::Immediate(value), Self::ENCODED_PUSH)
+    }
+
+    /// Creates an opaque library-address push instruction.
+    #[must_use]
+    pub(crate) fn push_library(value: LibraryId) -> Self {
+        Self::encoded_push(PushValue::Library(value), Self::ENCODED_PUSH)
     }
 
     /// Creates an encoded block-address push instruction.
@@ -325,6 +383,12 @@ impl Instruction {
         Self::encoded_push(PushValue::Data(data), Self::ENCODED_PUSH | Self::DATA)
     }
 
+    /// Creates an encoded push of a size derived from a program-data length.
+    #[must_use]
+    pub(crate) fn push_data_size(size: DataSize) -> Self {
+        Self::encoded_push(PushValue::DataSize(size), Self::ENCODED_PUSH | Self::DATA_SIZE)
+    }
+
     /// Creates an encoded push whose operand will be supplied by an assembler
     /// relocation before EVM IR validation.
     #[must_use]
@@ -334,7 +398,7 @@ impl Instruction {
             encoding: Self::ENCODED_PUSH,
             value: None,
             stack_op: None,
-            metadata: Metadata { stack: Some(StackEffect::new(0, 1)), ..Metadata::default() },
+            metadata: Metadata::default(),
         }
     }
 
@@ -368,7 +432,7 @@ impl Instruction {
             encoding,
             value: Some(value),
             stack_op: None,
-            metadata: Metadata { stack: Some(StackEffect::new(0, 1)), ..Metadata::default() },
+            metadata: Metadata::default(),
         }
     }
 
@@ -384,6 +448,14 @@ impl Instruction {
     pub(in crate::backend) const fn pushed_value(&self) -> Option<U256> {
         match self.value {
             Some(PushValue::Immediate(value)) => Some(value),
+            _ => None,
+        }
+    }
+
+    /// Returns the source-qualified library identity, if any.
+    pub(in crate::backend) const fn pushed_library(&self) -> Option<LibraryId> {
+        match self.value {
+            Some(PushValue::Library(value)) => Some(value),
             _ => None,
         }
     }
@@ -418,15 +490,43 @@ impl Instruction {
         }
     }
 
+    /// Returns whether a repeated push of this value may reuse an earlier copy through `DUP`:
+    /// a nonzero immediate, which `PUSH0` does not already encode in one byte, or a size
+    /// derived from a data length.
+    #[must_use]
+    pub(in crate::backend) fn is_duplicable_push(&self) -> bool {
+        self.deferred_push().is_none()
+            && match self.value {
+                Some(PushValue::Immediate(value)) => !value.is_zero(),
+                Some(PushValue::DataSize(_)) => true,
+                _ => false,
+            }
+    }
+
+    /// Returns the program-data size carried by this push instruction, if any.
+    #[must_use]
+    pub(in crate::backend) const fn pushed_data_size(&self) -> Option<DataSize> {
+        match self.value {
+            Some(PushValue::DataSize(size)) => Some(size),
+            _ => None,
+        }
+    }
+
+    /// Returns the generated opcode definition for this instruction.
+    #[must_use]
+    pub(crate) const fn definition(&self) -> Option<&'static op::OpDef> {
+        op::definition(self.opcode)
+    }
+
     /// Returns the instruction mnemonic as printed in EVM IR.
     #[must_use]
     pub(crate) fn mnemonic(&self) -> impl fmt::Display + '_ {
         fmt::from_fn(move |f| match self.stack_op {
-            Some(StackOp::Dup(_)) => f.write_str("dup"),
-            Some(StackOp::Swap(_)) => f.write_str("swap"),
-            Some(StackOp::Exchange(_, _)) => f.write_str("exchange"),
-            Some(StackOp::Pop) => f.write_str("pop"),
+            Some(stack_op) => f.write_str(stack_op.definition().mnemonic),
             None => match self.encoding {
+                Self::ENCODED_PUSH if self.pushed_library().is_some() => {
+                    f.write_str("push_library")
+                }
                 Self::ENCODED_PUSH => f.write_str("push"),
                 encoding if encoding == Self::ENCODED_PUSH | Self::DEFERRED => {
                     f.write_str("push_deferred")
@@ -435,15 +535,10 @@ impl Instruction {
                     f.write_str("push_immutable")
                 }
                 encoding if encoding == Self::ENCODED_PUSH | Self::DATA => f.write_str("push_data"),
-                _ => match self.opcode {
-                    opcode @ op::DUP1..=op::DUP16 => {
-                        write!(f, "dup {}", opcode - op::DUP1 + 1)
-                    }
-                    opcode @ op::SWAP1..=op::SWAP16 => {
-                        write!(f, "swap {}", opcode - op::SWAP1 + 1)
-                    }
-                    _ => op::fmt(self.opcode, f),
-                },
+                encoding if encoding == Self::ENCODED_PUSH | Self::DATA_SIZE => {
+                    f.write_str("push_data_size")
+                }
+                _ => op::fmt(self.opcode, f),
             },
         })
     }
@@ -460,18 +555,27 @@ impl Instruction {
         self.stack_op
     }
 
-    /// Returns metadata's stack effect override or the opcode's default effect.
+    /// Returns the words the instruction reads from the top of the stack and the words it leaves
+    /// there. A stack operation reads down to its deepest operand: `dup 2` is 2 -> 3.
+    ///
+    /// Verification rejects every instruction without one: an unknown opcode, a raw extended stack
+    /// opcode, or a stack operation deeper than the verifier allows.
     #[must_use]
-    pub(crate) fn effective_stack_effect(&self) -> Option<StackEffect> {
-        self.metadata.stack.or_else(|| default_instruction_stack_effect(self))
-    }
-
-    /// Returns whether metadata preserves the opcode's default stack effect.
-    #[must_use]
-    pub(crate) fn has_canonical_stack_effect(&self) -> bool {
-        self.metadata
-            .stack
-            .is_none_or(|effect| Some(effect) == default_instruction_stack_effect(self))
+    pub(crate) fn stack_effect(&self) -> StackEffect {
+        if let Some(stack_op) = self.stack_op {
+            let inputs = stack_op.required_depth();
+            let outputs = inputs.checked_add_signed(stack_op.net_growth()).unwrap();
+            let depth = |words| u8::try_from(words).expect("verified stack operation depth");
+            return StackEffect::new(depth(inputs), depth(outputs));
+        }
+        if self.is_encoded_push() {
+            return StackEffect::new(0, 1);
+        }
+        let (inputs, outputs) = self
+            .definition()
+            .and_then(|definition| definition.stack_io)
+            .expect("verified instruction stack effect");
+        StackEffect::new(inputs, outputs)
     }
 
     /// Returns the deferred constant referenced by this push instruction, if any.
@@ -597,6 +701,16 @@ impl TerminatorKind {
         }
     }
 
+    /// Returns the number of stack items consumed and produced, when fixed.
+    #[must_use]
+    pub(crate) const fn stack_io(&self) -> Option<(u8, u8)> {
+        match self {
+            Self::Jump(_) => Some((0, 0)),
+            Self::JumpI { .. } | Self::IndexedJump(_) => Some((1, 0)),
+            Self::Op(opcode) => op::stack_io(*opcode),
+        }
+    }
+
     /// Visits every basic block target.
     pub(crate) fn visit_targets(&self, mut visit: impl FnMut(BlockId)) {
         match self {
@@ -667,17 +781,19 @@ impl fmt::Display for TerminatorKind {
 enum PushValue {
     /// Immediate EVM word.
     Immediate(U256),
+    /// Opaque library address supplied by the linker.
+    Library(LibraryId),
     /// Basic block reference.
     Block(BlockId),
     /// Constant program-data reference.
     Data(DataRef),
+    /// Size derived from a program-data length, supplied during final assembly.
+    DataSize(DataSize),
 }
 
 /// Metadata carried by instructions and terminators.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(crate) struct Metadata {
-    /// Optional stack effect.
-    pub(crate) stack: Option<StackEffect>,
     /// Whether this instruction must stay immediately before the next instruction of its block.
     ///
     /// Only meaningful on instructions. It forbids every transform both from turning the boundary
@@ -702,6 +818,11 @@ pub(crate) struct Metadata {
     modifier_depth: u32,
     /// Whether the source location was preserved or intentionally dropped.
     debug_info_handled: bool,
+}
+
+fn common_debug_event<T: Eq>(mut events: impl Iterator<Item = T>) -> Option<T> {
+    let first = events.next()?;
+    events.all(|event| event == first).then_some(first)
 }
 
 impl Metadata {
@@ -756,7 +877,7 @@ impl Metadata {
         self.modifier_depth = other.modifier_depth;
     }
 
-    /// Copies debug information without copying machine properties such as stack effects.
+    /// Copies debug information without copying machine properties such as `keep_with_next`.
     pub(crate) fn copy_debug_info_from(&mut self, other: &Self) {
         self.copy_source_debug_from(other);
         self.function_invoke = other.function_invoke;
@@ -796,23 +917,24 @@ impl Metadata {
         self.debug_info_handled |= other.debug_info_handled;
     }
 
-    /// Merges all compatible debug information from an equivalent operation.
-    pub(crate) fn merge_equivalent_debug_info(&mut self, other: &Self) {
-        self.merge_source_spans(other);
-        debug_assert!(
-            self.function_invoke.is_none()
-                || other.function_invoke.is_none()
-                || self.function_invoke == other.function_invoke,
-            "cannot merge different function invocations"
+    /// Merges source origins and function events across equivalent operations.
+    pub(crate) fn merge_equivalent_debug_info<'a>(
+        &mut self,
+        others: impl Iterator<Item = &'a Self> + Clone,
+    ) {
+        // NOTE: Missing events do not conflict with known ones. Conflicting events become
+        // unknown across the whole group; a later known event must not resurrect them.
+        self.function_invoke = common_debug_event(
+            self.function_invoke
+                .into_iter()
+                .chain(others.clone().filter_map(Self::function_invoke)),
         );
-        debug_assert!(
-            self.function_exit.is_none()
-                || other.function_exit.is_none()
-                || self.function_exit == other.function_exit,
-            "cannot merge different function exits"
+        self.function_exit = common_debug_event(
+            self.function_exit.into_iter().chain(others.clone().filter_map(Self::function_exit)),
         );
-        self.function_invoke = self.function_invoke.or(other.function_invoke);
-        self.function_exit = self.function_exit.or(other.function_exit);
+        for other in others {
+            self.merge_source_spans(other);
+        }
     }
 
     /// Returns the function entered after this operation.
@@ -874,23 +996,34 @@ impl StackEffect {
     }
 }
 
-pub(super) fn default_instruction_stack_effect(inst: &Instruction) -> Option<StackEffect> {
-    if inst.is_encoded_push() {
-        Some(StackEffect::new(0, 1))
-    } else if let Some((inputs, outputs)) = op::stack_io(inst.opcode) {
-        Some(StackEffect::new(inputs, outputs))
-    } else {
-        None
-    }
+pub(super) fn default_terminator_stack_effect(kind: &TerminatorKind) -> Option<StackEffect> {
+    let (inputs, outputs) = kind.stack_io()?;
+    Some(StackEffect::new(inputs, outputs))
 }
 
-pub(super) fn default_terminator_stack_effect(kind: &TerminatorKind) -> Option<StackEffect> {
-    match kind {
-        TerminatorKind::JumpI { .. } => Some(StackEffect::new(1, 0)),
-        TerminatorKind::IndexedJump(_) => Some(StackEffect::new(1, 0)),
-        TerminatorKind::Jump(_) => Some(StackEffect::new(0, 0)),
-        TerminatorKind::Op(opcode) => {
-            op::stack_io(*opcode).map(|(inputs, outputs)| StackEffect::new(inputs, outputs))
-        }
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn terminators_describe_control_flow() {
+        let add = Instruction::opcode(op::ADD);
+        assert_eq!(add.definition().map(|def| def.mnemonic), Some("add"));
+        assert_eq!(add.stack_effect(), StackEffect::new(2, 1));
+        let effect = |op| Instruction::stack_op(op).stack_effect();
+        assert_eq!(effect(StackOp::Dup(2)), StackEffect::new(2, 3));
+        assert_eq!(effect(StackOp::Swap(1)), StackEffect::new(2, 2));
+        assert_eq!(effect(StackOp::Exchange(1, 3)), StackEffect::new(4, 4));
+        assert_eq!(effect(StackOp::Pop), StackEffect::new(1, 0));
+
+        let jump = TerminatorKind::Jump(BlockId::ENTRY);
+        assert_eq!(jump.stack_io(), Some((0, 0)));
+
+        let branch =
+            TerminatorKind::JumpI { then_block: BlockId::ENTRY, else_block: BlockId::ENTRY };
+        assert_eq!(default_terminator_stack_effect(&branch), Some(StackEffect::new(1, 0)));
+
+        let terminal = TerminatorKind::Op(op::RETURN);
+        assert_eq!(default_terminator_stack_effect(&terminal), Some(StackEffect::new(2, 0)));
     }
 }

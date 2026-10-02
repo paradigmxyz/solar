@@ -1,8 +1,10 @@
-use crate::file_operations::file_path_from_url;
-use lsp_types::{Diagnostic, PreviousResultId, Url};
+use crate::{file_operations::file_path_from_url, proto::normalize_file_uri};
+use lsp_types::{Diagnostic, PreviousResultId, PublishDiagnosticsParams, Range, Url};
 use normalize_path::NormalizePath;
 use solar_interface::data_structures::map::{FxHashMap, FxHashSet};
 use std::{borrow::Cow, path::PathBuf};
+
+pub(crate) mod presentation;
 
 pub(crate) type DiagnosticMap = FxHashMap<Url, Vec<Diagnostic>>;
 pub(crate) type AnalyzedDocuments = FxHashMap<Url, Option<i64>>;
@@ -51,7 +53,7 @@ pub(crate) struct DiagnosticStore {
 
 #[derive(Debug, Default)]
 pub(crate) struct DiagnosticUpdate {
-    pub(crate) batches: Vec<(Url, Vec<Diagnostic>)>,
+    pub(crate) batches: Vec<PublishDiagnosticsParams>,
     pub(crate) pull_reports_changed: bool,
     pub(crate) workspace_documents_changed: bool,
 }
@@ -134,11 +136,31 @@ impl DiagnosticStore {
                 affected_uris.extend(diagnostics.into_keys());
             }
         }
+        if affected_uris.is_empty() {
+            return DiagnosticUpdate::default();
+        }
         self.publish_batches(affected_uris)
     }
 
     pub(crate) fn pull_report(&self, uri: &Url, previous_result_id: Option<&str>) -> PullReport {
         Self::make_pull_report(self.reports.get(uri), previous_result_id.map(Cow::Borrowed))
+    }
+
+    /// Copies only diagnostics relevant to the requested quick-fix range.
+    ///
+    /// Cursor requests usually select a small part of the report. Filter before cloning the
+    /// diagnostics and their suggestion data; exact source positions and edits are still
+    /// validated against the current document when building actions.
+    pub(crate) fn code_action_diagnostics(&self, uri: &Url, range: Range) -> Vec<Diagnostic> {
+        let Some(report) = self.reports.get(uri) else { return Vec::new() };
+        report
+            .diagnostics
+            .iter()
+            .filter(|diagnostic| {
+                crate::code_actions::code_action_ranges_intersect(range, diagnostic.range)
+            })
+            .cloned()
+            .collect()
     }
 
     fn make_pull_report(
@@ -262,10 +284,7 @@ impl DiagnosticStore {
     }
 
     fn replace(&mut self, owner: DiagnosticOwner, diagnostics: DiagnosticMap) -> FxHashSet<Url> {
-        let mut affected_uris =
-            FxHashSet::with_capacity_and_hasher(diagnostics.len(), Default::default());
-        affected_uris.extend(diagnostics.keys().cloned());
-
+        let mut affected_uris = diagnostics.keys().cloned().collect::<FxHashSet<_>>();
         let previous = if diagnostics.is_empty() {
             self.diagnostics.remove(&owner)
         } else {
@@ -285,7 +304,9 @@ impl DiagnosticStore {
             return DiagnosticUpdate::default();
         }
 
-        let Self { diagnostics: all_diagnostics, reports, next_result_id, .. } = self;
+        let Self {
+            diagnostics: all_diagnostics, reports, analyzed_documents, next_result_id, ..
+        } = self;
         let mut owners = all_diagnostics.iter().collect::<Vec<_>>();
         owners.sort_by_key(|(owner, _)| *owner);
 
@@ -302,7 +323,7 @@ impl DiagnosticStore {
                 for (_, owner_diagnostics) in &owners {
                     if let Some(uri_diagnostics) = owner_diagnostics.get(&uri) {
                         has_entry = true;
-                        diagnostics.extend(uri_diagnostics.iter().cloned());
+                        diagnostics.extend_from_slice(uri_diagnostics);
                     }
                 }
 
@@ -323,7 +344,17 @@ impl DiagnosticStore {
                     );
                 }
 
-                (has_entry || was_published).then_some((uri, diagnostics))
+                // Carry the analyzed version with the report, even if the VFS changes before send.
+                let version = analyzed_documents
+                    .get(&uri)
+                    .copied()
+                    .flatten()
+                    .and_then(|version| i32::try_from(version).ok());
+                (has_entry || was_published).then_some(PublishDiagnosticsParams::new(
+                    uri,
+                    diagnostics,
+                    version,
+                ))
             })
             .collect();
         self.rebuild_workspace_uris();
@@ -346,433 +377,190 @@ impl DiagnosticStore {
     }
 }
 
-pub(crate) fn normalize_file_uri(uri: Url) -> Url {
-    if uri.scheme() != "file" {
-        return uri;
-    }
-
-    let path = uri.path();
-    let is_windows_drive_root = cfg!(windows)
-        && path.len() == 4
-        && path.as_bytes()[0] == b'/'
-        && path.as_bytes()[1].is_ascii_alphabetic()
-        && path.as_bytes()[2] == b':'
-        && path.as_bytes()[3] == b'/';
-    let has_lowercase_windows_drive = cfg!(windows)
-        && path.len() >= 3
-        && path.as_bytes()[0] == b'/'
-        && path.as_bytes()[1].is_ascii_lowercase()
-        && path.as_bytes()[2] == b':';
-    if uri.host_str().is_none()
-        && uri.query().is_none()
-        && uri.fragment().is_none()
-        && path.starts_with('/')
-        && !path.as_bytes().contains(&b'%')
-        && !path.as_bytes().windows(2).any(|bytes| bytes == b"//")
-        && (!path.ends_with('/') || path == "/" || is_windows_drive_root)
-        && !has_lowercase_windows_drive
-    {
-        return uri;
-    }
-    uri.to_file_path().ok().and_then(|path| Url::from_file_path(path).ok()).unwrap_or(uri)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use lsp_types::{Position, PreviousResultId, Range};
+    use lsp_types::Position;
 
     fn diagnostic(message: &str) -> Diagnostic {
-        Diagnostic::new_simple(
-            Range {
-                start: Position { line: 0, character: 0 },
-                end: Position { line: 0, character: 1 },
-            },
-            message.into(),
-        )
+        Diagnostic::new_simple(Range::new(Position::new(0, 0), Position::new(0, 1)), message.into())
     }
 
     fn uri(path: &str) -> Url {
         Url::from_file_path(std::env::temp_dir().join("solar-lsp-diagnostics").join(path)).unwrap()
     }
 
-    fn round_trip_file_uri(uri: Url) -> Url {
-        uri.to_file_path().ok().and_then(|path| Url::from_file_path(path).ok()).unwrap_or(uri)
-    }
-
-    #[test]
-    fn file_uri_fast_path_matches_round_trip_normalization() {
-        let mut uris = vec![
-            uri("src/Canonical.sol"),
-            Url::parse("file:///").unwrap(),
-            Url::parse("file:///tmp/Encoded%20Name.sol").unwrap(),
-            Url::parse("file:///tmp//Repeated.sol").unwrap(),
-            Url::parse("file:///tmp/directory/").unwrap(),
-            Url::parse("file://localhost/tmp/Hosted.sol").unwrap(),
-            Url::parse("file:///tmp/Query.sol?version=1").unwrap(),
-            Url::parse("file:///tmp/Fragment.sol#source").unwrap(),
-        ];
-        if cfg!(windows) {
-            uris.extend([
-                Url::parse("file:///C:/tmp/Canonical.sol").unwrap(),
-                Url::parse("file:///C:/").unwrap(),
-                Url::parse("file:///tmp/NoDrive.sol").unwrap(),
-                Url::parse("file:///C%3A/tmp/EncodedDrive.sol").unwrap(),
-                Url::parse("file://server/share/Hosted.sol").unwrap(),
-            ]);
-        }
-
-        for uri in uris {
-            assert_eq!(normalize_file_uri(uri.clone()), round_trip_file_uri(uri.clone()), "{uri}");
-        }
-    }
-
-    #[test]
-    fn normalize_file_uri_preserves_non_file_uris() {
-        let uri = Url::parse("untitled:/tmp/Virtual.sol").unwrap();
-
-        assert_eq!(normalize_file_uri(uri.clone()), uri);
-    }
-
-    #[cfg(windows)]
-    #[test]
-    fn normalize_file_uri_canonicalizes_lowercase_windows_drive() {
-        let lowercase = Url::parse("file:///c:/tmp/Contract.sol").unwrap();
-        let uppercase = Url::parse("file:///C:/tmp/Contract.sol").unwrap();
-
-        assert_eq!(normalize_file_uri(lowercase), uppercase);
-    }
-
-    #[test]
-    fn workspace_reports_include_clean_documents_and_reuse_result_ids() {
-        let clean = uri("src/Clean.sol");
-        let broken = uri("src/Broken.sol");
-        let mut store = DiagnosticStore::default();
-        store.replace_compiler_snapshot_and_publish_batches(
-            DiagnosticMap::from_iter([(broken.clone(), vec![diagnostic("broken")])]),
-            AnalyzedDocuments::from_iter([(clean.clone(), None), (broken.clone(), Some(7))]),
-        );
-
-        let reports = store.workspace_pull_reports(Vec::new());
-
-        assert_eq!(reports.iter().map(|report| &report.uri).collect::<Vec<_>>(), [&broken, &clean]);
-        assert_eq!(reports[0].version, Some(7));
-        assert_eq!(reports[1].version, None);
-        assert!(matches!(
-            &reports[0].report,
-            PullReport::Full { diagnostics, .. } if diagnostics.as_slice() == [diagnostic("broken")]
-        ));
-        assert!(matches!(
-            &reports[1].report,
-            PullReport::Full { diagnostics, .. } if diagnostics.is_empty()
-        ));
-
-        let previous = reports
+    fn map(entries: &[(&Url, &[&str])]) -> DiagnosticMap {
+        entries
             .iter()
-            .map(|report| PreviousResultId {
-                uri: report.uri.clone(),
-                value: match &report.report {
-                    PullReport::Full { result_id, .. } | PullReport::Unchanged { result_id } => {
-                        result_id.clone()
-                    }
-                },
+            .map(|(uri, messages)| {
+                ((*uri).clone(), messages.iter().map(|m| diagnostic(m)).collect())
             })
-            .collect::<Vec<_>>();
-        let reports = store.workspace_pull_reports(previous);
-
-        assert!(reports.iter().all(|report| matches!(report.report, PullReport::Unchanged { .. })));
+            .collect()
     }
 
-    #[test]
-    fn workspace_reports_clear_removed_diagnostics_once() {
-        let canonical_uri = uri("src/Stale.sol");
-        let encoded_uri =
-            Url::parse(&canonical_uri.as_str().replacen("Stale.sol", "%53tale.sol", 1)).unwrap();
-        let mut store = DiagnosticStore::default();
-        store.replace_compiler_snapshot_and_publish_batches(
-            DiagnosticMap::from_iter([(
-                canonical_uri.clone(),
-                vec![diagnostic("stale diagnostic")],
-            )]),
-            AnalyzedDocuments::from_iter([(canonical_uri.clone(), None)]),
-        );
-        let [initial] = store.workspace_pull_reports(Vec::new()).try_into().unwrap();
-        let PullReport::Full { result_id: stale_result_id, .. } = initial.report else {
-            panic!("initial report should be full");
+    fn batch(uri: &Url, messages: &[&str], version: Option<i32>) -> PublishDiagnosticsParams {
+        PublishDiagnosticsParams::new(
+            uri.clone(),
+            messages.iter().map(|message| diagnostic(message)).collect(),
+            version,
+        )
+    }
+
+    fn lint(id: &str) -> DiagnosticOwner {
+        DiagnosticOwner::Flycheck { id: id.into(), workspace: PathBuf::from("/workspace") }
+    }
+
+    fn full(report: PullReport) -> (String, Vec<Diagnostic>) {
+        let PullReport::Full { result_id, diagnostics } = report else {
+            panic!("expected a full report, got {report:?}")
         };
-        store.replace_compiler_snapshot_and_publish_batches(
-            DiagnosticMap::default(),
-            AnalyzedDocuments::default(),
-        );
+        (result_id, diagnostics)
+    }
 
-        let [cleared] = store
-            .workspace_pull_reports(vec![PreviousResultId {
-                uri: encoded_uri,
-                value: stale_result_id,
-            }])
-            .try_into()
-            .unwrap();
-
-        assert_eq!(cleared.uri, canonical_uri);
-        let PullReport::Full { result_id: empty_result_id, diagnostics } = cleared.report else {
-            panic!("removed diagnostics should be cleared with a full report");
-        };
-        assert!(diagnostics.is_empty());
-        assert_eq!(empty_result_id, EMPTY_RESULT_ID);
-        assert!(
-            store
-                .workspace_pull_reports(vec![PreviousResultId {
-                    uri: canonical_uri,
-                    value: empty_result_id,
-                }])
-                .is_empty()
-        );
+    #[track_caller]
+    fn assert_unchanged(store: &DiagnosticStore, uri: &Url, result_id: &str) {
+        let expected = PullReport::Unchanged { result_id: result_id.into() };
+        assert_eq!(store.pull_report(uri, Some(result_id)), expected);
     }
 
     #[test]
-    fn publish_batches_merges_owners_for_same_uri() {
-        let file = uri("src/Test.sol");
-        let mut store = DiagnosticStore::default();
-
-        let batches = store
-            .replace_and_publish_batches(
-                DiagnosticOwner::Compiler,
-                DiagnosticMap::from_iter([(file.clone(), vec![diagnostic("compiler")])]),
-            )
-            .batches;
-        assert_eq!(batches.len(), 1);
-
-        let batches = store
-            .replace_and_publish_batches(
-                DiagnosticOwner::Flycheck {
-                    id: "forge-lint".into(),
-                    workspace: PathBuf::from("/workspace"),
-                },
-                DiagnosticMap::from_iter([(file.clone(), vec![diagnostic("lint")])]),
-            )
-            .batches;
-
-        assert_eq!(batches.len(), 1);
-        assert_eq!(batches[0].0, file);
-        assert_eq!(
-            batches[0].1.iter().map(|diagnostic| diagnostic.message.as_str()).collect::<Vec<_>>(),
-            ["compiler", "lint"]
-        );
-    }
-
-    #[test]
-    fn owner_replacement_does_not_clear_other_owners() {
-        let file = uri("src/Test.sol");
-        let mut store = DiagnosticStore::default();
-
-        store.replace_and_publish_batches(
-            DiagnosticOwner::Compiler,
-            DiagnosticMap::from_iter([(file.clone(), vec![diagnostic("compiler")])]),
-        );
-        store.replace_and_publish_batches(
-            DiagnosticOwner::Flycheck {
-                id: "forge-lint".into(),
-                workspace: PathBuf::from("/workspace"),
-            },
-            DiagnosticMap::from_iter([(file, vec![diagnostic("lint")])]),
-        );
-        let batches = store
-            .replace_and_publish_batches(
-                DiagnosticOwner::Flycheck {
-                    id: "forge-lint".into(),
-                    workspace: PathBuf::from("/workspace"),
-                },
-                DiagnosticMap::default(),
-            )
-            .batches;
-
-        assert_eq!(batches.len(), 1);
-        assert_eq!(
-            batches[0].1.iter().map(|diagnostic| diagnostic.message.as_str()).collect::<Vec<_>>(),
-            ["compiler"]
-        );
-    }
-
-    #[test]
-    fn publish_batches_clears_stale_uris() {
+    fn owner_updates_merge_and_publish_only_affected_uris_with_analyzed_versions() {
         let first = uri("src/First.sol");
         let second = uri("src/Second.sol");
         let mut store = DiagnosticStore::default();
-
-        let initial = store
-            .replace_and_publish_batches(
-                DiagnosticOwner::Compiler,
-                DiagnosticMap::from_iter([(first.clone(), vec![diagnostic("first")])]),
-            )
-            .batches;
-        assert_eq!(initial, vec![(first.clone(), vec![diagnostic("first")])]);
-
-        let batches = store
-            .replace_and_publish_batches(
-                DiagnosticOwner::Compiler,
-                DiagnosticMap::from_iter([(second.clone(), vec![diagnostic("second")])]),
-            )
-            .batches;
-
-        assert_eq!(batches.len(), 2);
-        assert_eq!(batches[0], (first, Vec::new()));
-        assert_eq!(batches[1], (second, vec![diagnostic("second")]));
-    }
-
-    #[test]
-    fn owner_replacement_only_publishes_affected_uris() {
-        let first = uri("src/First.sol");
-        let second = uri("src/Second.sol");
-        let mut store = DiagnosticStore::default();
-
-        store.replace_and_publish_batches(
-            DiagnosticOwner::Compiler,
-            DiagnosticMap::from_iter([
-                (first.clone(), vec![diagnostic("first")]),
-                (second, vec![diagnostic("second")]),
-            ]),
+        let compiler = store.replace_compiler_snapshot_and_publish_batches(
+            map(&[(&first, &["first"]), (&second, &["second"])]),
+            AnalyzedDocuments::from_iter([(first.clone(), Some(7))]),
         );
-
-        let batches = store
-            .replace_and_publish_batches(
-                DiagnosticOwner::Flycheck {
-                    id: "forge-lint".into(),
-                    workspace: PathBuf::from("/workspace"),
-                },
-                DiagnosticMap::from_iter([(first.clone(), vec![diagnostic("lint")])]),
-            )
-            .batches;
-
-        assert_eq!(batches.len(), 1);
-        assert_eq!(batches[0].0, first);
         assert_eq!(
-            batches[0].1.iter().map(|diagnostic| diagnostic.message.as_str()).collect::<Vec<_>>(),
-            ["first", "lint"]
+            compiler.batches,
+            [batch(&first, &["first"], Some(7)), batch(&second, &["second"], None)]
         );
+
+        // Batches carry the analyzed version even when the document version changed later.
+        store.update_analyzed_document_version(first.clone(), 8);
+        let lint_update = store.replace_and_publish_batches(lint("a"), map(&[(&first, &["a"])]));
+        assert_eq!(lint_update.batches, [batch(&first, &["first", "a"], Some(8))]);
+
+        let lint_update = store.replace_and_publish_batches(lint("a"), DiagnosticMap::default());
+        assert_eq!(lint_update.batches, [batch(&first, &["first"], Some(8))]);
+
+        // Clearing several owners publishes one final merged batch per URI.
+        store.replace_and_publish_batches(lint("a"), map(&[(&first, &["a"])]));
+        store.replace_and_publish_batches(lint("b"), map(&[(&first, &["b"])]));
+        let cleared = store.clear_owners_and_publish_batches([lint("a"), lint("b")]);
+        assert_eq!(cleared.batches, [batch(&first, &["first"], Some(8))]);
+        assert!(cleared.pull_reports_changed);
+
+        let replaced = store
+            .replace_and_publish_batches(DiagnosticOwner::Compiler, map(&[(&second, &["new"])]));
+        assert_eq!(replaced.batches, [batch(&first, &[], Some(8)), batch(&second, &["new"], None)]);
     }
 
     #[test]
-    fn clearing_file_path_prefixes_removes_descendant_diagnostics_from_all_owners() {
+    fn clearing_file_path_prefixes_removes_normalized_descendant_diagnostics_from_all_owners() {
         let deleted = uri("pkg/Deleted.sol");
         let nested = uri("pkg/nested/Dependency.sol");
+        let prefix = uri("pkg").to_file_path().unwrap();
+        let dotted =
+            Url::from_file_path(prefix.parent().unwrap().join("src/../pkg/Dotted.sol")).unwrap();
         let sibling = uri("pkg2/Keep.sol");
         let unrelated = uri("other/Keep.sol");
         let non_file = Url::parse("untitled:Keep.sol").unwrap();
-        let file_uri = uri("pkg/Keep.sol");
         let hierarchical_non_file =
-            Url::parse(&file_uri.as_str().replacen("file:", "untitled:", 1)).unwrap();
+            Url::parse(&uri("pkg/Keep.sol").as_str().replacen("file:", "untitled:", 1)).unwrap();
         let mut store = DiagnosticStore::default();
-
         store.replace_and_publish_batches(
             DiagnosticOwner::Compiler,
-            DiagnosticMap::from_iter([
-                (deleted.clone(), vec![diagnostic("deleted compiler")]),
-                (nested.clone(), vec![diagnostic("nested compiler")]),
-                (sibling.clone(), vec![diagnostic("sibling")]),
-                (non_file.clone(), vec![diagnostic("non-file")]),
-                (hierarchical_non_file.clone(), vec![diagnostic("hierarchical non-file")]),
+            map(&[
+                (&deleted, &["deleted compiler"]),
+                (&nested, &["nested compiler"]),
+                (&dotted, &["dotted"]),
+                (&sibling, &["sibling"]),
+                (&non_file, &["non-file"]),
+                (&hierarchical_non_file, &["hierarchical non-file"]),
             ]),
         );
-        let flycheck = DiagnosticOwner::Flycheck {
-            id: "forge-lint".into(),
-            workspace: PathBuf::from("/workspace"),
+        store.replace_and_publish_batches(
+            lint("a"),
+            map(&[(&nested, &["nested lint"]), (&unrelated, &["unrelated"])]),
+        );
+
+        let batches =
+            store.clear_file_path_prefixes_retaining_and_publish_batches(&[prefix], &[]).batches;
+
+        let mut expected = [&deleted, &nested, &dotted].map(|uri| batch(uri, &[], None));
+        expected.sort_by(|lhs, rhs| lhs.uri.as_str().cmp(rhs.uri.as_str()));
+        assert_eq!(batches, expected);
+        let remaining = |owner: &DiagnosticOwner| {
+            let mut uris = store.diagnostics[owner].keys().cloned().collect::<Vec<_>>();
+            uris.sort_by(|lhs, rhs| lhs.as_str().cmp(rhs.as_str()));
+            uris
         };
-        store.replace_and_publish_batches(
-            flycheck.clone(),
-            DiagnosticMap::from_iter([
-                (nested.clone(), vec![diagnostic("nested lint")]),
-                (unrelated.clone(), vec![diagnostic("unrelated")]),
-            ]),
-        );
-
-        let prefix = uri("pkg").to_file_path().unwrap();
-        let batches =
-            store.clear_file_path_prefixes_retaining_and_publish_batches(&[prefix], &[]).batches;
-
-        assert_eq!(batches, vec![(deleted.clone(), Vec::new()), (nested.clone(), Vec::new())]);
-        assert!(store.diagnostics.values().all(|diagnostics| {
-            !diagnostics.contains_key(&deleted) && !diagnostics.contains_key(&nested)
-        }));
-        assert!(store.diagnostics[&DiagnosticOwner::Compiler].contains_key(&sibling));
-        assert!(store.diagnostics[&DiagnosticOwner::Compiler].contains_key(&non_file));
-        assert!(store.diagnostics[&DiagnosticOwner::Compiler].contains_key(&hierarchical_non_file));
-        assert!(store.diagnostics[&flycheck].contains_key(&unrelated));
+        let mut expected = vec![sibling, non_file, hierarchical_non_file];
+        expected.sort_by(|lhs, rhs| lhs.as_str().cmp(rhs.as_str()));
+        assert_eq!(remaining(&DiagnosticOwner::Compiler), expected);
+        assert_eq!(remaining(&lint("a")), [unrelated]);
     }
 
     #[test]
-    fn clearing_file_path_prefixes_normalizes_diagnostic_paths() {
-        let prefix = uri("lib").to_file_path().unwrap();
-        let path = prefix.parent().unwrap().join("src").join("..").join("lib/Dependency.sol");
-        let file = Url::from_file_path(path).unwrap();
-        let mut store = DiagnosticStore::default();
-        store.replace_and_publish_batches(
-            DiagnosticOwner::Compiler,
-            DiagnosticMap::from_iter([(file.clone(), vec![diagnostic("stale")])]),
-        );
-
-        let batches =
-            store.clear_file_path_prefixes_retaining_and_publish_batches(&[prefix], &[]).batches;
-
-        assert_eq!(batches, vec![(file, Vec::new())]);
-    }
-
-    #[test]
-    fn clearing_owners_publishes_only_final_merged_batches() {
+    fn clearing_empty_owner_keeps_workspace_uri_cache() {
         let file = uri("src/Test.sol");
         let mut store = DiagnosticStore::default();
-        let first = DiagnosticOwner::Flycheck {
-            id: "first".into(),
-            workspace: PathBuf::from("/workspace"),
-        };
-        let second = DiagnosticOwner::Flycheck {
-            id: "second".into(),
-            workspace: PathBuf::from("/workspace"),
-        };
-        store.replace_and_publish_batches(
-            DiagnosticOwner::Compiler,
-            DiagnosticMap::from_iter([(file.clone(), vec![diagnostic("compiler")])]),
+        store.replace_compiler_snapshot_and_publish_batches(
+            map(&[(&file, &["compiler"])]),
+            AnalyzedDocuments::from_iter([(file.clone(), Some(7))]),
         );
-        store.replace_and_publish_batches(
-            first.clone(),
-            DiagnosticMap::from_iter([(file.clone(), vec![diagnostic("first")])]),
-        );
-        store.replace_and_publish_batches(
-            second.clone(),
-            DiagnosticMap::from_iter([(file.clone(), vec![diagnostic("second")])]),
-        );
+        store.replace_and_publish_batches(lint("retained"), map(&[(&file, &["lint"])]));
+        let [initial] = store.workspace_pull_reports(Vec::new()).try_into().unwrap();
+        assert_eq!(initial.version, Some(7));
+        let (initial_result_id, diagnostics) = full(initial.report);
+        assert_eq!(diagnostics, [diagnostic("compiler"), diagnostic("lint")]);
 
-        let update = store.clear_owners_and_publish_batches([first, second]);
+        let previous =
+            vec![PreviousResultId { uri: file.clone(), value: initial_result_id.clone() }];
+        for _ in 0..2 {
+            let update = store.clear_owners_and_publish_batches([lint("absent")]);
+            assert!(update.batches.is_empty());
+            assert!(!update.pull_reports_changed);
+            let [unchanged] = store.workspace_pull_reports(previous.clone()).try_into().unwrap();
+            assert_eq!(unchanged.uri, file);
+            assert_eq!(unchanged.version, Some(7));
+            let expected = PullReport::Unchanged { result_id: initial_result_id.clone() };
+            assert_eq!(unchanged.report, expected);
+        }
 
-        assert_eq!(update.batches, vec![(file, vec![diagnostic("compiler")])]);
+        let update = store.clear_owners_and_publish_batches([lint("retained")]);
+        assert_eq!(update.batches, [batch(&file, &["compiler"], Some(7))]);
         assert!(update.pull_reports_changed);
+        let [cleared] = store.workspace_pull_reports(previous).try_into().unwrap();
+        assert_eq!(cleared.uri, file);
+        assert_eq!(cleared.version, Some(7));
+        let (result_id, diagnostics) = full(cleared.report);
+        assert_ne!(result_id, initial_result_id);
+        assert_eq!(diagnostics, [diagnostic("compiler")]);
     }
 
     #[test]
-    fn empty_entries_are_published_without_being_cached() {
+    fn empty_entries_are_published_without_being_cached_or_changing_pull_reports() {
         let file = uri("src/Empty.sol");
         let mut store = DiagnosticStore::default();
         let owner = DiagnosticOwner::Compiler;
 
-        assert!(
-            store
-                .replace_and_publish_batches(owner.clone(), DiagnosticMap::default())
-                .batches
-                .is_empty()
-        );
+        let update = store.replace_and_publish_batches(owner.clone(), DiagnosticMap::default());
+        assert!(update.batches.is_empty());
+        for _ in 0..2 {
+            let update = store.replace_and_publish_batches(owner.clone(), map(&[(&file, &[])]));
+            assert_eq!(update.batches, [batch(&file, &[], None)]);
+            assert!(!update.pull_reports_changed);
+            assert!(store.reports.is_empty());
+        }
 
-        let empty_diagnostics = || DiagnosticMap::from_iter([(file.clone(), Vec::new())]);
-        assert_eq!(
-            store.replace_and_publish_batches(owner.clone(), empty_diagnostics()).batches,
-            vec![(file.clone(), Vec::new())]
-        );
-        assert!(store.reports.is_empty());
-
-        assert_eq!(
-            store.replace_and_publish_batches(owner.clone(), empty_diagnostics()).batches,
-            vec![(file, Vec::new())]
-        );
-        assert!(store.reports.is_empty());
-
+        let path = file.to_file_path().unwrap();
+        let update = store.clear_file_path_prefixes_retaining_and_publish_batches(&[path], &[]);
+        assert!(!update.pull_reports_changed);
+        store.replace_and_publish_batches(owner.clone(), map(&[(&file, &[])]));
         assert!(
             store.replace_and_publish_batches(owner, DiagnosticMap::default()).batches.is_empty()
         );
@@ -780,202 +568,78 @@ mod tests {
     }
 
     #[test]
-    fn pull_report_returns_stable_empty_report() {
-        let file = uri("src/Empty.sol");
-        let store = DiagnosticStore::default();
-
-        let PullReport::Full { result_id, diagnostics } = store.pull_report(&file, None) else {
-            panic!("first pull should return a full report");
-        };
-        assert!(diagnostics.is_empty());
-
-        assert_eq!(
-            store.pull_report(&file, Some(&result_id)),
-            PullReport::Unchanged { result_id: result_id.clone() }
-        );
-
-        let PullReport::Full { result_id: next_id, diagnostics } =
-            store.pull_report(&file, Some("stale"))
-        else {
-            panic!("an unknown result ID should return a full report");
-        };
-        assert_eq!(next_id, result_id);
-        assert!(diagnostics.is_empty());
-    }
-
-    #[test]
-    fn empty_pull_reports_share_id_without_being_cached() {
+    fn empty_pull_reports_share_a_stable_id_without_being_cached() {
         let first = uri("src/First.sol");
-        let second = uri("src/Second.sol");
         let store = DiagnosticStore::default();
 
-        let PullReport::Full { result_id: first_id, diagnostics } = store.pull_report(&first, None)
-        else {
-            panic!("first pull should return a full report");
-        };
+        let (result_id, diagnostics) = full(store.pull_report(&first, None));
         assert!(diagnostics.is_empty());
-
-        let PullReport::Full { result_id: second_id, diagnostics } =
-            store.pull_report(&second, None)
-        else {
-            panic!("first pull should return a full report");
-        };
-        assert!(diagnostics.is_empty());
-        assert_eq!(second_id, first_id);
+        assert_eq!(
+            full(store.pull_report(&uri("src/Second.sol"), None)),
+            (result_id.clone(), Vec::new())
+        );
+        assert_eq!(full(store.pull_report(&first, Some("stale"))), (result_id.clone(), Vec::new()));
+        assert_unchanged(&store, &first, &result_id);
         assert!(store.reports.is_empty());
     }
 
     #[test]
-    fn pull_report_changes_id_only_when_diagnostics_change() {
-        let file = uri("src/Test.sol");
+    fn pull_report_ids_change_only_when_a_uri_changes() {
+        let first = uri("src/First.sol");
+        let second = uri("src/Second.sol");
         let mut store = DiagnosticStore::default();
         let owner = DiagnosticOwner::Compiler;
-
-        store.replace_and_publish_batches(
-            owner.clone(),
-            DiagnosticMap::from_iter([(file.clone(), vec![diagnostic("first")])]),
-        );
-        let PullReport::Full { result_id, diagnostics } = store.pull_report(&file, None) else {
-            panic!("first pull should return a full report");
+        let publish = |store: &mut DiagnosticStore, first_message| {
+            store.replace_and_publish_batches(
+                owner.clone(),
+                map(&[(&first, &[first_message]), (&second, &["second"])]),
+            )
         };
-        assert_eq!(diagnostics, vec![diagnostic("first")]);
 
-        store.replace_and_publish_batches(
-            owner.clone(),
-            DiagnosticMap::from_iter([(file.clone(), vec![diagnostic("first")])]),
-        );
-        assert_eq!(
-            store.pull_report(&file, Some(&result_id)),
-            PullReport::Unchanged { result_id: result_id.clone() }
-        );
+        assert!(publish(&mut store, "first").pull_reports_changed);
+        let (first_id, diagnostics) = full(store.pull_report(&first, None));
+        assert_eq!(diagnostics, [diagnostic("first")]);
+        let (second_id, _) = full(store.pull_report(&second, None));
 
-        store.replace_and_publish_batches(
-            owner,
-            DiagnosticMap::from_iter([(file.clone(), vec![diagnostic("second")])]),
-        );
-        let PullReport::Full { result_id: next_id, diagnostics } =
-            store.pull_report(&file, Some(&result_id))
-        else {
-            panic!("changed diagnostics should return a full report");
-        };
-        assert_ne!(next_id, result_id);
-        assert_eq!(diagnostics, vec![diagnostic("second")]);
-    }
-
-    #[test]
-    fn diagnostic_updates_report_actual_pull_report_changes() {
-        let file = uri("src/Test.sol");
-        let mut store = DiagnosticStore::default();
-        let owner = DiagnosticOwner::Compiler;
-
-        let update = store.replace_and_publish_batches(
-            owner.clone(),
-            DiagnosticMap::from_iter([(file.clone(), vec![diagnostic("same")])]),
-        );
-        assert!(update.pull_reports_changed);
-
-        let update = store.replace_and_publish_batches(
-            owner,
-            DiagnosticMap::from_iter([(file.clone(), vec![diagnostic("same")])]),
-        );
+        let update = publish(&mut store, "first");
         assert!(!update.batches.is_empty());
         assert!(!update.pull_reports_changed);
+        assert_unchanged(&store, &first, &first_id);
 
-        let path = file.to_file_path().unwrap();
-        let update = store.clear_file_path_prefixes_retaining_and_publish_batches(&[path], &[]);
-        assert!(update.pull_reports_changed);
-    }
-
-    #[test]
-    fn empty_diagnostic_updates_do_not_change_pull_reports() {
-        let file = uri("src/Empty.sol");
-        let mut store = DiagnosticStore::default();
-
-        let update = store.replace_and_publish_batches(
-            DiagnosticOwner::Compiler,
-            DiagnosticMap::from_iter([(file.clone(), Vec::new())]),
-        );
-        assert_eq!(update.batches, vec![(file.clone(), Vec::new())]);
-        assert!(!update.pull_reports_changed);
-
-        let path = file.to_file_path().unwrap();
-        let update = store.clear_file_path_prefixes_retaining_and_publish_batches(&[path], &[]);
-        assert!(!update.pull_reports_changed);
+        publish(&mut store, "changed");
+        assert_unchanged(&store, &second, &second_id);
+        let (next_id, diagnostics) = full(store.pull_report(&first, Some(&first_id)));
+        assert_ne!(next_id, first_id);
+        assert_eq!(diagnostics, [diagnostic("changed")]);
     }
 
     #[test]
     fn clearing_and_restoring_diagnostics_updates_pull_report() {
         let file = uri("src/Deleted.sol");
         let mut store = DiagnosticStore::default();
-
-        store.replace_and_publish_batches(
-            DiagnosticOwner::Compiler,
-            DiagnosticMap::from_iter([(file.clone(), vec![diagnostic("compiler")])]),
-        );
-        let PullReport::Full { result_id, .. } = store.pull_report(&file, None) else {
-            panic!("first pull should return a full report");
+        let publish = |store: &mut DiagnosticStore| {
+            store.replace_and_publish_batches(
+                DiagnosticOwner::Compiler,
+                map(&[(&file, &["compiler"])]),
+            )
         };
+
+        publish(&mut store);
+        let (result_id, _) = full(store.pull_report(&file, None));
 
         let path = file.to_file_path().unwrap();
-        store.clear_file_path_prefixes_retaining_and_publish_batches(&[path], &[]);
+        let update = store.clear_file_path_prefixes_retaining_and_publish_batches(&[path], &[]);
+        assert!(update.pull_reports_changed);
         assert!(store.reports.is_empty());
-        let PullReport::Full { result_id: empty_id, diagnostics } =
-            store.pull_report(&file, Some(&result_id))
-        else {
-            panic!("clearing diagnostics should return a full report");
-        };
+        let (empty_id, diagnostics) = full(store.pull_report(&file, Some(&result_id)));
         assert_ne!(empty_id, result_id);
         assert!(diagnostics.is_empty());
-        assert_eq!(
-            store.pull_report(&file, Some(&empty_id)),
-            PullReport::Unchanged { result_id: empty_id.clone() }
-        );
+        assert_unchanged(&store, &file, &empty_id);
 
-        store.replace_and_publish_batches(
-            DiagnosticOwner::Compiler,
-            DiagnosticMap::from_iter([(file.clone(), vec![diagnostic("compiler")])]),
-        );
-        let PullReport::Full { result_id: restored_id, diagnostics } =
-            store.pull_report(&file, Some(&empty_id))
-        else {
-            panic!("restored diagnostics should return a full report");
-        };
+        publish(&mut store);
+        let (restored_id, diagnostics) = full(store.pull_report(&file, Some(&empty_id)));
         assert_ne!(restored_id, result_id);
-        assert_eq!(diagnostics, vec![diagnostic("compiler")]);
+        assert_eq!(diagnostics, [diagnostic("compiler")]);
         assert_eq!(store.reports.len(), 1);
-    }
-
-    #[test]
-    fn pull_report_ids_are_independent_per_uri() {
-        let first = uri("src/First.sol");
-        let second = uri("src/Second.sol");
-        let mut store = DiagnosticStore::default();
-
-        store.replace_and_publish_batches(
-            DiagnosticOwner::Compiler,
-            DiagnosticMap::from_iter([
-                (first.clone(), vec![diagnostic("first")]),
-                (second.clone(), vec![diagnostic("second")]),
-            ]),
-        );
-        let PullReport::Full { result_id: first_id, .. } = store.pull_report(&first, None) else {
-            panic!("first pull should return a full report");
-        };
-        let PullReport::Full { result_id: second_id, .. } = store.pull_report(&second, None) else {
-            panic!("first pull should return a full report");
-        };
-
-        store.replace_and_publish_batches(
-            DiagnosticOwner::Compiler,
-            DiagnosticMap::from_iter([
-                (first.clone(), vec![diagnostic("changed")]),
-                (second.clone(), vec![diagnostic("second")]),
-            ]),
-        );
-        assert_eq!(
-            store.pull_report(&second, Some(&second_id)),
-            PullReport::Unchanged { result_id: second_id }
-        );
-        assert!(matches!(store.pull_report(&first, Some(&first_id)), PullReport::Full { .. }));
     }
 }

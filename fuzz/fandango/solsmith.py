@@ -15,7 +15,6 @@ import json
 import pathlib
 import random
 from dataclasses import dataclass
-from typing import Self
 
 U256_MASK = (1 << 256) - 1
 
@@ -40,7 +39,7 @@ class Expr:
     code: str
     features: tuple[str, ...] = ()
 
-    def with_feature(self, feature: str) -> Self:
+    def with_feature(self, feature: str) -> Expr:
         return Expr(self.code, (*self.features, feature))
 
 

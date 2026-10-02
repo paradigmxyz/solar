@@ -1,7 +1,10 @@
 //@ compile-flags: -Ogas -Zevm-ir-pipeline=default
 //@ filecheck:
 @module dead_blocks
+@data
+  literal_0: hex"112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00"
 
+// CHECK: literal_0: hex"112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00"
 // CHECK-LABEL: bb0:
 // CHECK: push_data literal_0
 // CHECK-NOT: bb1:
@@ -23,6 +26,3 @@ bb1:
   swap 1
   mstore
   stop
-
-// CHECK: @data literal_0 hex"112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00"
-@data literal_0 hex"112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00"

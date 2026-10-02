@@ -3,11 +3,12 @@
 
 @module SignatureFrameOffset
 
-// CHECK-LABEL: fn @signature_slot(arg0: memoryslice, arg1: u256)
+// CHECK-LABEL: fn @signature_slot(arg0: memoryslice, arg1: i256)
 // CHECK: v0 = internal_frame_addr 96
 // CHECK: stop
-fn @signature_slot(arg0: memoryslice, arg1: u256) {
+fn @signature_slot(arg0: memoryslice, arg1: i256) {
   bb0:
-    v0 = internal_frame_addr 96
+    v1 = internal_frame_addr 96
+    v0 = ptrtoint memptr v1 to i256
     stop
 }

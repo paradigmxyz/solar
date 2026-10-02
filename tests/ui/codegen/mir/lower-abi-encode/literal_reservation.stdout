@@ -1,0 +1,108 @@
+- // === ROOT/tests/ui/codegen/mir/lower-abi-encode/literal_reservation.mir (before lower-abi-encode) ===
++ // === ROOT/tests/ui/codegen/mir/lower-abi-encode/literal_reservation.mir (after lower-abi-encode) ===
+  @module LiteralReservation
+  fn @encode(arg0: i256) -> memoryslice {
+    bb0:
+-     v0 = alloc memorybytes, exact, uninitialized, infallible, 96
+-     set_memory_object_len memorybytes, v0, 33
+-     memory_object_store_word memorybytes, v0, 0, 0x6161616161616161616161616161616161616161616161616161616161616161
+-     memory_object_store_word memorybytes, v0, 32, 0x6200000000000000000000000000000000000000000000000000000000000000
+-     v1 = alloc memorybytes, exact, uninitialized, infallible, 32
+-     set_memory_object_len memorybytes, v1, 0
+-     v2 = abi_encode [memory_bytes, word, memory_bytes], selector 0x1234567800000000000000000000000000000000000000000000000000000000, args v0, arg0, v1
+-     ret v2
++     v3 = alloc raw, exact, uninitialized, infallible, 256
++     v4 = ptrtoint memptr v3 to i256
++     mstore v4, 0x1234567800000000000000000000000000000000000000000000000000000000
++     v5 = ptrtoint memptr v3 to i256
++     v6 = add v5, 4
++     v7 = add v6, 96
++     v8 = sub v7, v6
++     mstore v6, v8
++     mstore v7, 33
++     v9 = add v7, 32
++     v10 = add v9, 0
++     mstore v10, 0x6161616161616161616161616161616161616161616161616161616161616161
++     v11 = add v9, 32
++     mstore v11, 0x6200000000000000000000000000000000000000000000000000000000000000
++     v12 = add v9, 64
++     v13 = add v6, 32
++     mstore v13, arg0
++     v14 = add v6, 64
++     v15 = sub v12, v6
++     mstore v14, v15
++     mstore v12, 0
++     v16 = add v12, 32
++     v17 = add v16, 0
++     v18 = sub v17, v6
++     v19 = ptrtoint memptr v3 to i256
++     v20 = make_memory_slice v19, 228
++     ret v20
+  }
+  
+- // === ROOT/tests/ui/codegen/mir/lower-abi-encode/literal_reservation.mir (before egraph) ===
++ // === ROOT/tests/ui/codegen/mir/lower-abi-encode/literal_reservation.mir (after egraph) ===
+  @module LiteralReservation
+  fn @encode(arg0: i256) -> memoryslice {
+    bb0:
+      v3 = alloc raw, exact, uninitialized, infallible, 256
+      v4 = ptrtoint memptr v3 to i256
+      mstore v4, 0x1234567800000000000000000000000000000000000000000000000000000000
+-     v5 = ptrtoint memptr v3 to i256
+-     v6 = add v5, 4
++     v6 = add v4, 4
+      v7 = add v6, 96
+-     v8 = sub v7, v6
+-     mstore v6, v8
++     mstore v6, 96
+      mstore v7, 33
+      v9 = add v7, 32
+-     v10 = add v9, 0
+-     mstore v10, 0x6161616161616161616161616161616161616161616161616161616161616161
++     mstore v9, 0x6161616161616161616161616161616161616161616161616161616161616161
+      v11 = add v9, 32
+      mstore v11, 0x6200000000000000000000000000000000000000000000000000000000000000
+      v12 = add v9, 64
+      v13 = add v6, 32
+      mstore v13, arg0
+      v14 = add v6, 64
+-     v15 = sub v12, v6
+-     mstore v14, v15
++     mstore v14, 192
+      mstore v12, 0
+      v16 = add v12, 32
+-     v17 = add v16, 0
+-     v18 = sub v17, v6
+-     v19 = ptrtoint memptr v3 to i256
+-     v20 = make_memory_slice v19, 228
++     v20 = make_memory_slice v4, 228
+      ret v20
+  }
+  
+- // === ROOT/tests/ui/codegen/mir/lower-abi-encode/literal_reservation.mir (before dce) ===
++ // === ROOT/tests/ui/codegen/mir/lower-abi-encode/literal_reservation.mir (after dce) ===
+  @module LiteralReservation
+  fn @encode(arg0: i256) -> memoryslice {
+    bb0:
+      v3 = alloc raw, exact, uninitialized, infallible, 256
+      v4 = ptrtoint memptr v3 to i256
+      mstore v4, 0x1234567800000000000000000000000000000000000000000000000000000000
+      v6 = add v4, 4
+      v7 = add v6, 96
+      mstore v6, 96
+      mstore v7, 33
+      v9 = add v7, 32
+      mstore v9, 0x6161616161616161616161616161616161616161616161616161616161616161
+      v11 = add v9, 32
+      mstore v11, 0x6200000000000000000000000000000000000000000000000000000000000000
+      v12 = add v9, 64
+      v13 = add v6, 32
+      mstore v13, arg0
+      v14 = add v6, 64
+      mstore v14, 192
+      mstore v12, 0
+-     v16 = add v12, 32
+      v20 = make_memory_slice v4, 228
+      ret v20
+  }
+  

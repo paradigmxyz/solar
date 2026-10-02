@@ -103,7 +103,7 @@ pub struct CompileOpts {
     #[cfg_attr(feature = "clap", arg(short = 'O', long = "optimize", value_enum, default_value_t))]
     pub optimization: OptimizationMode,
     /// Expected executions per deployment used by lifetime-aware optimizer decisions.
-    #[cfg_attr(feature = "clap", arg(skip))]
+    #[cfg_attr(feature = "clap", arg(long = "optimize-runs", value_name = "RUNS"))]
     pub optimizer_runs: Option<u64>,
     /// Strip revert (and require) reason strings or add additional debugging information.
     ///
@@ -449,6 +449,11 @@ pub struct UnstableOpts {
     /// already-emitted block without a spill home.
     #[cfg_attr(feature = "clap", arg(long))]
     pub assert_planned_edge_spill_home: bool,
+
+    /// Drop the compiler context after compilation.
+    /// Library callers can enable this to reclaim memory between compilations.
+    #[cfg_attr(feature = "clap", arg(skip))]
+    pub drop_gcx: bool,
 
     // ----------------------------------------
     // Please add new options above this point!

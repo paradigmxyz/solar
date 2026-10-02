@@ -1,0 +1,52 @@
+- // === ROOT/tests/ui/codegen/evm-ir/cfg-simplify/loop_exit.evmir (before cfg-simplify) ===
++ // === ROOT/tests/ui/codegen/evm-ir/cfg-simplify/loop_exit.evmir (after cfg-simplify) ===
+  @module LoopExit
+  bb0:
+    push bb4
+    pop
+    push 10
+    jump bb1
+  bb1:
+    dup 1
+-   iszero
+-   push bb2
++   push bb7
+    jumpi
+-   push 0
+-   jump bb3
+- bb2:
+    push 1
+    sub
+    dup 1
+    push bb1
+    jumpi
+    push 1
+    jump bb3
+  bb3:
+    pop
+    pop
+    stop
+  bb4:
+    push bb4
+    pop
+    push bb5
+    pop
+    push 10
+    jump bb6
+  bb6:
+    dup 1
+    iszero
+    push bb5
+    jumpi
+    stop
+  bb5:
+    push 1
+    sub
+    dup 1
+    push bb6
+    jumpi
+    stop
++ bb7:
++   push 0
++   jump bb3
+  

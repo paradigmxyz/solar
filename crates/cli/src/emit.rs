@@ -141,6 +141,7 @@ fn emit_ir_input(gcx: Gcx<'_>) -> Result {
         if gcx.dcx().has_errors().is_ok() {
             let name = source.name.display().to_string();
             let _changed = pass::run_pipeline(gcx, &mut module, Some(&name));
+            gcx.dcx().has_errors()?;
             validate(&gcx.sess.dcx, &module);
             gcx.dcx().has_errors()?;
 
@@ -205,7 +206,7 @@ fn dump_evm_ir_input_disassembly(gcx: Gcx<'_>, module: ir::Module) -> Result {
             .and_then(|()| {
                 write_highlighted(
                     &mut writer,
-                    evm::disassemble(&bytecode, gcx.sess.opts.evm_version),
+                    evm::disassemble(&bytecode.bytes, gcx.sess.opts.evm_version),
                     Syntax::Disasm,
                 )
             })
@@ -216,7 +217,7 @@ fn dump_evm_ir_input_disassembly(gcx: Gcx<'_>, module: ir::Module) -> Result {
             .and_then(|()| {
                 write_highlighted(
                     &mut writer,
-                    evm::disassemble(&bytecode, gcx.sess.opts.evm_version),
+                    evm::disassemble(&bytecode.bytes, gcx.sess.opts.evm_version),
                     Syntax::Disasm,
                 )
             })
@@ -280,6 +281,7 @@ fn write_pipeline_output(
         .map_err(|e| gcx.dcx().err(format!("failed to write to output: {e}")).emit())
 }
 
+#[tracing::instrument(name = "combined_json", level = "debug", skip_all)]
 fn emit_combined_json(
     gcx: Gcx<'_>,
     artifacts: Option<&FxHashMap<ContractId, ContractArtifact>>,
@@ -384,6 +386,7 @@ fn emit_combined_json(
     write_output_json(gcx, &output, codegen_requested || output.ethdebug.is_some())
 }
 
+#[tracing::instrument(name = "write_output", level = "debug", skip_all)]
 fn write_output_json<T: serde::Serialize>(
     gcx: Gcx<'_>,
     output: &T,
@@ -650,13 +653,13 @@ fn write_disassembly_dump_contract(
     if dump.kinds.contains(&DumpKind::DisasmDeploy) {
         writeln!(writer, "// === {name} (deployment) ===")
             .map_err(|e| gcx.sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
-        let deployment_prefix = artifact
+        let deployment_code = artifact
             .deployment
             .strip_suffix(artifact.runtime.as_ref())
-            .expect("deployment bytecode should end with runtime bytecode");
+            .unwrap_or(&artifact.deployment);
         write_highlighted(
             writer,
-            evm::disassemble(deployment_prefix, gcx.sess.opts.evm_version),
+            evm::disassemble(deployment_code, gcx.sess.opts.evm_version),
             Syntax::Disasm,
         )
         .map_err(|e| gcx.sess.dcx.err(format!("failed to write to output: {e}")).emit())?;

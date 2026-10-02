@@ -1,0 +1,58 @@
+//@ compile-flags: -Zmir-pipeline=none
+@module InvalidStorageBytes
+
+//~? ERROR: [fn0] [bb0, inst0] `validate_storage_bytes` has incompatible scalar types; use an explicit cast
+fn @header(arg0: memptr) -> i256 {
+  bb0:
+    validate_storage_bytes arg0
+    ret 0
+}
+
+//~? ERROR: [fn1] [bb0, inst0] `load_storage_bytes` has incompatible scalar types; use an explicit cast
+fn @load(arg0: memptr) -> memptr {
+  bb0:
+    v0 = load_storage_bytes arg0
+    ret v0
+}
+
+//~? ERROR: [fn2] [bb0, inst0] `clear_storage_words` has incompatible scalar types; use an explicit cast
+fn @clear(arg0: memptr) {
+  bb0:
+    clear_storage_words 0, arg0, 1
+    ret
+}
+
+//~? ERROR: [fn3] [bb0, inst0] `store_storage_bytes` has incompatible scalar types; use an explicit cast
+fn @store_slot(arg0: memptr) {
+  bb0:
+    store_storage_bytes arg0, arg0
+    ret
+}
+
+//~? ERROR: [fn4] [bb0, inst0] instruction result or layout does not match its type contract
+fn @array_element(arg0: i256) -> memptr {
+  bb0:
+    v0 = load_storage_array memoryarray, arg0
+    ret v0
+}
+
+//~? ERROR: [fn5] [bb0, inst0] instruction result or layout does not match its type contract
+fn @array_enum(arg0: i256) -> memptr {
+  bb0:
+    v0 = load_storage_array enum<0>, arg0
+    ret v0
+}
+
+//~? ERROR: [fn6] [bb0, inst0] `load_storage_array` has incompatible scalar types; use an explicit cast
+fn @array_slot(arg0: memptr) -> memptr {
+  bb0:
+    v0 = load_storage_array u256, arg0
+    ret v0
+}
+
+//~? ERROR: [fn7] [bb0, inst0] `store_storage_bytes_literal` has incompatible scalar types; use an explicit cast
+fn @literal_slot(arg0: memptr) {
+  bb0:
+    store_storage_bytes_literal arg0, hex"61"
+    ret
+}

@@ -12,9 +12,11 @@ contract WhileEmptyBody {
     // CHECK-NEXT: lt
     // CHECK-NEXT: push {{bb[0-9]+}}
     // CHECK-NEXT: jumpi
+    // CHECK: calldataload
+    // CHECK-NEXT: gt
     // CHECK-NEXT: jump [[LOOP:bb[0-9]+]]
     // CHECK: [[LOOP]]{{.*}}
-    // CHECK: calldataload
+    // CHECK-NEXT: dup 1
     // CHECK-NEXT: push [[LOOP]]
     // CHECK-NEXT: jumpi
     // CHECK-NEXT: stop

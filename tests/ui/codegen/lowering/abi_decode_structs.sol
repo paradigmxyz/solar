@@ -30,9 +30,13 @@ contract AbiDecodeStructs {
         return (n.flat.a, n.dyn.name, n.tail.length);
     }
 
+    // The element loop steps a pointer through the fresh array and compares it
+    // with the array's end instead of counting to two.
     // ADS-LABEL: fn @dFixed
-    // ADS: [[INDEX:v[0-9]+]] = phi
-    // ADS: lt [[INDEX]], 2
+    // ADS: mstore 64, {{v[0-9]+}}
+    // ADS-NEXT: [[END:v[0-9]+]] = add [[BASE:v[0-9]+]], 64
+    // ADS: [[PTR:v[0-9]+]] = phi [bb{{[0-9]+}}: [[BASE]]]
+    // ADS: lt [[PTR]], [[END]]
     // ADS: icall @[[FIXED_HELPER:decode_memory_type]]
     function dFixed(bytes memory b) public pure returns (uint256) {
         Dyn[2] memory ds = abi.decode(b, (Dyn[2]));

@@ -1,0 +1,45 @@
+// === ROOT/tests/ui/codegen/lowering/loop_exit_updated_phi.sol:Test ===
+@module Test
+fn @decimal(arg0: i256) -> memptr [selector=0xf371efa4, pure, abi_params=[u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    v1 = add v0, 128
+    v2 = add v1, 32
+    mstore 64, v2 !metadata(memory=scratch)
+    mstore v1, 0
+    jump bb1
+  bb1:
+    v3 = phi [bb0: v1], [bb5: v3]
+    v4 = phi [bb0: v1], [bb5: v7]
+    v5 = phi [bb0: arg0], [bb5: v10]
+    v6 = ne 1, 0
+    jumpi v6, bb3, bb4
+  bb4:
+    jump bb2
+  bb3:
+    v7 = sub v4, 1
+    v8 = mod v5, 10
+    v9 = add 48, v8
+    mstore8 v7, v9
+    v10 = div v5, 10
+    v11 = eq v10, 0
+    v12 = zext i1 v11 to i256
+    v13 = ne v12, 0
+    jumpi v13, bb6, bb7
+  bb7:
+    jump bb8
+  bb8:
+    jump bb5
+  bb5:
+    jump bb1
+  bb6:
+    jump bb2
+  bb2:
+    v14 = phi [bb6: v7], [bb4: v4]
+    v15 = phi [bb6: v10], [bb4: v5]
+    v16 = sub v3, v14
+    v17 = sub v14, 32
+    mstore v17, v16
+    v18 = inttoptr i256 v17 to memptr
+    ret v18
+}

@@ -1,10 +1,10 @@
 //! EVM IR verifier.
 //!
 //! Two checks run over a module. The shape check is local: it validates labels, push encodings,
-//! terminators, and that every instruction declares a stack effect consistent with its opcode.
-//! The stack-operation check is global: it walks the direct control-flow edges and models the
-//! physical stack height so that per-block imbalances, operand underflows, and depth violations
-//! are caught before assembly.
+//! terminators, and that every instruction and terminator has a known stack effect. The
+//! stack-operation check is global: it walks the direct control-flow edges from the entry block,
+//! and from any block that declares an entry depth, and models the physical stack height so that
+//! per-block imbalances, operand underflows, and depth violations are caught before assembly.
 //!
 //! EVM IR is one flat CFG of blocks with no function boundaries: an internal call is a block
 //! that pushes a return address and jumps to the callee's first block, and a return is a dynamic
@@ -58,7 +58,7 @@ use super::*;
 use crate::backend::evm::{codegen::MAX_STACK_DEPTH, op};
 use solar_config::EvmVersion;
 use solar_data_structures::{
-    index::IndexVec,
+    index::index_vec,
     map::{FxHashMap, FxHashSet},
 };
 use solar_interface::diagnostics::{DiagCtxt, ErrorGuaranteed};
@@ -67,6 +67,16 @@ use std::{collections::hash_map::Entry, fmt};
 
 /// Stack-operation diagnostics already reported, keyed by block and message.
 type ReportedErrors = FxHashMap<(BlockId, String), ErrorGuaranteed>;
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+enum TargetRequirement {
+    StackOp(op::StackOp),
+    Opcode(u8),
+}
+
+/// Target requirements already present before an EVM IR pass runs.
+#[derive(Default)]
+pub(super) struct TargetSupportSnapshot(FxHashMap<TargetRequirement, usize>);
 
 /// EVM IR verifier.
 pub(in crate::backend) struct Verifier<'a> {
@@ -86,6 +96,34 @@ impl<'a> Verifier<'a> {
     /// Checks the target requirements EVM IR passes rely on.
     pub(super) fn verify_before_pipeline(&self, module: &Module) {
         self.verify_stack_ops_for_evm_version(module);
+    }
+
+    /// Checks structural invariants and target support after an EVM IR pass.
+    ///
+    /// Shifts and pre-Byzantium reverts remain temporarily legal because the
+    /// final legalization step expands them after the optimization pipeline.
+    pub(super) fn verify_between_passes(&self, module: &Module, before: &TargetSupportSnapshot) {
+        if self.verify_module_shape(module) {
+            self.verify_new_target_requirements(module, before);
+        }
+    }
+
+    /// Records target requirements that an input module already contains.
+    pub(super) fn target_support_snapshot(&self, module: &Module) -> TargetSupportSnapshot {
+        let mut requirements = FxHashMap::default();
+        for block in &module.blocks {
+            for inst in &block.instructions {
+                if let Some(requirement) = self.unsupported_instruction(inst) {
+                    *requirements.entry(requirement).or_default() += 1;
+                }
+            }
+            if let Some(Terminator { kind: TerminatorKind::Op(opcode), .. }) = &block.terminator
+                && let Some(requirement) = self.unsupported_opcode(*opcode)
+            {
+                *requirements.entry(requirement).or_default() += 1;
+            }
+        }
+        TargetSupportSnapshot(requirements)
     }
 
     /// Checks the module and its output target support after target legalization.
@@ -247,12 +285,45 @@ impl<'a> Verifier<'a> {
                 self.error_in_block(block_id, "encoded push must use the `PUSH32` opcode");
             }
             match inst.encoding {
-                Instruction::ENCODED_PUSH => {}
+                Instruction::ENCODED_PUSH => {
+                    if let PushValue::Library(id) = value
+                        && module.libraries.get(*id).is_none()
+                    {
+                        self.error_in_block(
+                            block_id,
+                            format_args!("library `{}` is out of range", id.index()),
+                        );
+                    }
+                }
                 encoding if encoding == Instruction::ENCODED_PUSH | Instruction::DEFERRED => {
                     self.verify_assembly_id(block_id, inst, value, "deferred constant");
                 }
                 encoding if encoding == Instruction::ENCODED_PUSH | Instruction::IMMUTABLE => {
                     self.verify_immutable_id(block_id, inst, value);
+                }
+                encoding if encoding == Instruction::ENCODED_PUSH | Instruction::DATA_SIZE => {
+                    let PushValue::DataSize(size) = value else {
+                        self.error_in_block(block_id, "`push_data_size` must carry a data size");
+                        return;
+                    };
+                    match module.data.get(size.data) {
+                        None => {
+                            self.error_in_block(
+                                block_id,
+                                format_args!(
+                                    "program data `{}` is out of range",
+                                    size.data.index()
+                                ),
+                            );
+                        }
+                        Some(data) if data.bytes.known().is_some() => {
+                            self.error_in_block(
+                                block_id,
+                                "`push_data_size` requires deferred data",
+                            );
+                        }
+                        Some(_) => {}
+                    }
                 }
                 encoding if encoding == Instruction::ENCODED_PUSH | Instruction::DATA => {
                     let PushValue::Data(data) = value else {
@@ -264,13 +335,15 @@ impl<'a> Verifier<'a> {
                             block_id,
                             format_args!("program data `{}` is out of range", data.id.index()),
                         );
-                    } else if data.offset as usize > module.data[data.id].bytes.len() {
+                    } else if let len =
+                        module.data[data.id].bytes.known().map_or(0, |bytes| bytes.len())
+                        && data.offset as usize > len
+                    {
                         self.error_in_block(
                             block_id,
                             format_args!(
-                                "program data offset `{}` exceeds data size `{}`",
-                                data.offset,
-                                module.data[data.id].bytes.len()
+                                "program data offset `{}` exceeds data size `{len}`",
+                                data.offset
                             ),
                         );
                     }
@@ -316,30 +389,15 @@ impl<'a> Verifier<'a> {
             }
         }
 
-        match (inst.metadata.stack, default_instruction_stack_effect(inst)) {
-            (Some(effect), Some(expected)) if effect != expected => {
-                self.error_in_block(
-                    block_id,
-                    format_args!(
-                        "`{}` has stack effect {}->{}, expected {}->{}",
-                        inst.mnemonic(),
-                        effect.inputs,
-                        effect.outputs,
-                        expected.inputs,
-                        expected.outputs
-                    ),
-                );
-            }
-            (None, None) => {
-                self.error_in_block(
-                    block_id,
-                    format_args!(
-                        "instruction `{}` must declare an explicit stack effect",
-                        inst.mnemonic()
-                    ),
-                );
-            }
-            _ => {}
+        // Stack operation depths are checked above.
+        if inst.as_stack_op().is_none()
+            && !inst.is_encoded_push()
+            && op::stack_io(inst.opcode).is_none()
+        {
+            self.error_in_block(
+                block_id,
+                format_args!("instruction `{}` has no known stack effect", inst.mnemonic()),
+            );
         }
     }
 
@@ -393,26 +451,11 @@ impl<'a> Verifier<'a> {
                 format_args!("terminator opcode `0x{opcode:02x}` is not terminal"),
             );
         }
-        match (term.metadata.stack, default_terminator_stack_effect(&term.kind)) {
-            (Some(effect), Some(expected)) if effect != expected => {
-                self.error_in_block(
-                    block_id,
-                    format_args!(
-                        "`{}` has stack effect {}->{}, expected {}->{}",
-                        term.kind, effect.inputs, effect.outputs, expected.inputs, expected.outputs
-                    ),
-                );
-            }
-            (None, None) => {
-                self.error_in_block(
-                    block_id,
-                    format_args!(
-                        "terminator `{}` must declare an explicit stack effect",
-                        term.kind
-                    ),
-                );
-            }
-            _ => {}
+        if default_terminator_stack_effect(&term.kind).is_none() {
+            self.error_in_block(
+                block_id,
+                format_args!("terminator `{}` has no known stack effect", term.kind),
+            );
         }
     }
 
@@ -422,11 +465,23 @@ impl<'a> Verifier<'a> {
     /// post-cycle maximum stops at a cycle-closing edge.
     fn verify_stack_ops(&self, module: &Module) {
         let mut reported = ReportedErrors::default();
-        let cycle_edges = cycle_edges(module);
-        let empty = EntryDepths::default();
-        let mut entry_depths = IndexVec::<BlockId, _>::from_vec(vec![empty; module.blocks.len()]);
-        entry_depths[BlockId::ENTRY] = EntryDepths::entry();
-        let mut pending = vec![(BlockId::ENTRY, 0, Bounds::ENTRY)];
+        // The entry block starts with an empty stack unless it declares a depth, and any other
+        // block that declares one is also entered at it.
+        let roots = module
+            .blocks
+            .iter_enumerated()
+            .filter_map(|(block_id, block)| {
+                let depth = block.metadata.entry_depth.map(usize::from);
+                depth.or((block_id == BlockId::ENTRY).then_some(0)).map(|depth| (block_id, depth))
+            })
+            .collect::<Vec<_>>();
+        let cycle_edges = cycle_edges(module, roots.iter().map(|&(block_id, _)| block_id));
+        let mut entry_depths = index_vec![EntryDepths::default(); module.blocks.len()];
+        let mut pending = Vec::with_capacity(roots.len());
+        for (block_id, depth) in roots {
+            entry_depths[block_id].merge(depth, Bounds::ENTRY);
+            pending.push((block_id, depth, Bounds::ENTRY));
+        }
         while let Some((block_id, mut stack, bounds)) = pending.pop() {
             let block = &module.blocks[block_id];
             let term =
@@ -443,9 +498,7 @@ impl<'a> Verifier<'a> {
                         break;
                     }
                 } else {
-                    let effect = inst
-                        .effective_stack_effect()
-                        .expect("instruction stack effect must be known after shape validation");
+                    let effect = inst.stack_effect();
                     if self
                         .apply_effect(&mut reported, block_id, inst.mnemonic(), effect, &mut stack)
                         .is_err()
@@ -477,7 +530,6 @@ impl<'a> Verifier<'a> {
                     valid = false;
                 } else {
                     let effect = default_terminator_stack_effect(&term.kind)
-                        .or(term.metadata.stack)
                         .expect("terminator stack effect must be known after shape validation");
                     valid = self
                         .apply_effect(&mut reported, block_id, &term.kind, effect, &mut stack)
@@ -616,6 +668,63 @@ impl<'a> Verifier<'a> {
         }
     }
 
+    fn opcode_awaits_legalization(&self, opcode: u8) -> bool {
+        (!self.evm_version.has_bitwise_shifting() && matches!(opcode, op::SHL | op::SHR | op::SAR))
+            || (!self.evm_version.supports_returndata() && opcode == op::REVERT)
+    }
+
+    fn unsupported_instruction(&self, inst: &Instruction) -> Option<TargetRequirement> {
+        if let Some(stack_op) = inst.as_stack_op() {
+            stack_op
+                .lowering(self.evm_version)
+                .is_none()
+                .then_some(TargetRequirement::StackOp(stack_op))
+        } else {
+            self.unsupported_opcode(inst.opcode)
+        }
+    }
+
+    fn unsupported_opcode(&self, opcode: u8) -> Option<TargetRequirement> {
+        (!self.opcode_awaits_legalization(opcode) && !op::is_available(opcode, self.evm_version))
+            .then_some(TargetRequirement::Opcode(opcode))
+    }
+
+    fn verify_new_target_requirements(&self, module: &Module, before: &TargetSupportSnapshot) {
+        let mut remaining = before.0.clone();
+        let mut consume = |requirement| {
+            let Some(count) = remaining.get_mut(&requirement) else { return false };
+            if *count == 0 {
+                false
+            } else {
+                *count -= 1;
+                true
+            }
+        };
+        for (block_id, block) in module.blocks.iter_enumerated() {
+            for inst in &block.instructions {
+                let Some(requirement) = self.unsupported_instruction(inst) else { continue };
+                if consume(requirement) {
+                    continue;
+                }
+                match requirement {
+                    TargetRequirement::StackOp(_) => {
+                        self.error_in_block(
+                            block_id,
+                            format_args!("`{}` requires Amsterdam-compatible EVM", inst.mnemonic()),
+                        );
+                    }
+                    TargetRequirement::Opcode(opcode) => self.verify_opcode(block_id, opcode),
+                }
+            }
+            if let Some(Terminator { kind: TerminatorKind::Op(opcode), .. }) = &block.terminator
+                && let Some(requirement) = self.unsupported_opcode(*opcode)
+                && !consume(requirement)
+            {
+                self.verify_opcode(block_id, *opcode);
+            }
+        }
+    }
+
     fn verify_stack_ops_for_evm_version(&self, module: &Module) {
         for (block_id, block) in module.blocks.iter_enumerated() {
             for inst in &block.instructions {
@@ -670,11 +779,6 @@ struct EntryDepths {
 }
 
 impl EntryDepths {
-    /// The depths of the entry block, which is always reached at depth zero.
-    const fn entry() -> Self {
-        Self { ingress_min: Some(0), cycle_min: None, ingress_max: Some(0), cycle_max: None }
-    }
-
     /// Merges `depth` into the bounds named by `bounds`, returning the ones it moved.
     fn merge(&mut self, depth: usize, bounds: Bounds) -> Bounds {
         let mut moved = Bounds::default();
@@ -711,7 +815,7 @@ struct Bounds {
 }
 
 impl Bounds {
-    /// The bounds the entry block starts with.
+    /// The bounds a block the walk starts at begins with.
     const ENTRY: Self =
         Self { ingress_min: true, cycle_min: false, ingress_max: true, cycle_max: false };
 
@@ -762,7 +866,10 @@ fn direct_successors(block: &Block, out: &mut Vec<BlockId>) {
 ///
 /// Removing them leaves an acyclic graph, which is what bounds the stack-depth walk. Only edges
 /// reachable from the entry are classified; the walk never leaves that region either.
-fn cycle_edges(module: &Module) -> FxHashSet<(BlockId, BlockId)> {
+fn cycle_edges(
+    module: &Module,
+    roots: impl IntoIterator<Item = BlockId>,
+) -> FxHashSet<(BlockId, BlockId)> {
     /// Depth-first states: not yet reached, on the current path, and fully walked.
     #[derive(Clone, Copy, PartialEq, Eq)]
     enum State {
@@ -772,33 +879,36 @@ fn cycle_edges(module: &Module) -> FxHashSet<(BlockId, BlockId)> {
     }
 
     let mut edges = FxHashSet::default();
-    if module.blocks.is_empty() {
-        return edges;
-    }
-    let mut states = IndexVec::<BlockId, _>::from_vec(vec![State::Unseen; module.blocks.len()]);
+    let mut states = index_vec![State::Unseen; module.blocks.len()];
     // Successors of every block on the current path, each frame owning the tail of the buffer
     // from its recorded start.
     let mut successors = Vec::new();
-    let mut path = vec![(BlockId::ENTRY, 0)];
-    states[BlockId::ENTRY] = State::OnPath;
-    direct_successors(&module.blocks[BlockId::ENTRY], &mut successors);
-    while let Some(&(block_id, start)) = path.last() {
-        if successors.len() == start {
-            states[block_id] = State::Done;
-            path.pop();
+    let mut path = Vec::new();
+    for root in roots {
+        if states[root] != State::Unseen {
             continue;
         }
-        let target = successors.pop().expect("frame owns the buffer tail");
-        match states[target] {
-            State::Unseen => {
-                states[target] = State::OnPath;
-                path.push((target, successors.len()));
-                direct_successors(&module.blocks[target], &mut successors);
+        path.push((root, 0));
+        states[root] = State::OnPath;
+        direct_successors(&module.blocks[root], &mut successors);
+        while let Some(&(block_id, start)) = path.last() {
+            if successors.len() == start {
+                states[block_id] = State::Done;
+                path.pop();
+                continue;
             }
-            State::OnPath => {
-                edges.insert((block_id, target));
+            let target = successors.pop().expect("frame owns the buffer tail");
+            match states[target] {
+                State::Unseen => {
+                    states[target] = State::OnPath;
+                    path.push((target, successors.len()));
+                    direct_successors(&module.blocks[target], &mut successors);
+                }
+                State::OnPath => {
+                    edges.insert((block_id, target));
+                }
+                State::Done => {}
             }
-            State::Done => {}
         }
     }
     edges
@@ -856,6 +966,37 @@ mod tests {
         Verifier::for_evm_version(&amsterdam, EvmVersion::Amsterdam)
             .verify_after_legalization(&module);
         assert_eq!(amsterdam.err_count(), 0);
+    }
+
+    #[test]
+    fn between_passes_uses_target_fork() {
+        let mut module = Module::new(sym::module);
+        let entry = module.add_block(Block::new(0));
+        module.blocks[entry].instructions.extend([
+            Instruction::push_value(U256::ZERO),
+            Instruction::push_value(U256::ZERO),
+            Instruction::opcode(op::SHL),
+            Instruction::opcode(op::POP),
+        ]);
+        module.blocks[entry].terminator = Some(Terminator::new(TerminatorKind::Op(op::STOP)));
+
+        let byzantium = DiagCtxt::with_silent_emitter(None);
+        let verifier = Verifier::for_evm_version(&byzantium, EvmVersion::Byzantium);
+        let before = verifier.target_support_snapshot(&module);
+        module.blocks[entry].instructions.extend([
+            Instruction::push_value(U256::ZERO),
+            Instruction::push_value(U256::ZERO),
+            Instruction::push_value(U256::ZERO),
+            Instruction::opcode(op::MCOPY),
+        ]);
+        verifier.verify_between_passes(&module, &before);
+        assert_eq!(byzantium.err_count(), 1);
+
+        let cancun = DiagCtxt::with_silent_emitter(None);
+        let verifier = Verifier::for_evm_version(&cancun, EvmVersion::Cancun);
+        let before = verifier.target_support_snapshot(&module);
+        verifier.verify_between_passes(&module, &before);
+        assert_eq!(cancun.err_count(), 0);
     }
 
     /// Which module the stack-operation check sees must not depend on the EVM version, since

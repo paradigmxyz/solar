@@ -1,0 +1,87 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/scalar_dispatch.sol:ScalarDispatch ===
+@module ScalarDispatch
+@phase lowered
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = calldatasize
+    v2 = lt v1, 100
+    v3 = zext i1 v2 to i256
+    v4 = or v0, v3
+    v5 = ne v4, 0
+    jumpi v5, bb1, bb2
+  bb2:
+    v6 = calldataload 0
+    v7 = shr 224, v6
+    v8 = calldataload 4
+    v9 = calldataload 36
+    v10 = calldataload 68
+    switch v7, default bb1, [0xf92ced6 => bb3, 0x214636e1 => bb4, 0x82829e9f => bb5, 0xe6dd5714 => bb6]
+  bb6:
+    jump bb16
+  bb16:
+    v33 = phi [bb6: v8], [bb18: v37]
+    v34 = phi [bb6: 0], [bb18: v39]
+    v35 = phi [bb6: v9], [bb18: v38]
+    v36 = lt v34, v10
+    jumpi v36, bb18, bb17
+  bb17:
+    mstore 128, v33
+    returndata 128, 32
+  bb18:
+    v37 = and v33, v35
+    v38 = add v35, v34
+    v39 = add v34, 1
+    jump bb16
+  bb5:
+    jump bb13
+  bb13:
+    v26 = phi [bb5: 0], [bb15: v32]
+    v27 = phi [bb5: v9], [bb15: v31]
+    v28 = phi [bb5: v8], [bb15: v30]
+    v29 = lt v26, v10
+    jumpi v29, bb15, bb14
+  bb14:
+    mstore 128, v28
+    returndata 128, 32
+  bb15:
+    v30 = sub v27, v28
+    v31 = add v27, v26
+    v32 = add v26, 1
+    jump bb13
+  bb4:
+    jump bb10
+  bb10:
+    v19 = phi [bb4: v8], [bb12: v23]
+    v20 = phi [bb4: 0], [bb12: v25]
+    v21 = phi [bb4: v9], [bb12: v24]
+    v22 = lt v20, v10
+    jumpi v22, bb12, bb11
+  bb11:
+    mstore 128, v19
+    returndata 128, 32
+  bb12:
+    v23 = xor v19, v21
+    v24 = add v21, v20
+    v25 = add v20, 1
+    jump bb10
+  bb3:
+    jump bb7
+  bb7:
+    v11 = phi [bb3: v9], [bb9: v17]
+    v12 = phi [bb3: v8], [bb9: v16]
+    v13 = phi [bb3: 0], [bb9: v18]
+    v14 = lt v13, v10
+    jumpi v14, bb9, bb8
+  bb8:
+    mstore 128, v12
+    returndata 128, 32
+  bb9:
+    v15 = not v11
+    v16 = and v15, v12
+    v17 = add v11, v13
+    v18 = add v13, 1
+    jump bb7
+  bb1:
+    revert 0, 0
+}

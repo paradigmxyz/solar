@@ -785,12 +785,16 @@ fn estimated_block_size(
         } else if let Some(type_size) = inst.immutable_type_size() {
             usize::from(type_size.bytes()) + 1
         } else if inst.is_encoded_push() {
-            if let Some(value) = inst.pushed_value() {
+            if inst.pushed_library().is_some() {
+                21
+            } else if let Some(value) = inst.pushed_value() {
                 push_len(evm_version, value)
             } else if inst.pushed_block().is_some() {
                 usize::from(block_target_width) + 1
             } else if inst.pushed_data().is_some() {
                 4
+            } else if let Some(size) = inst.pushed_data_size() {
+                push_len(evm_version, size.bound())
             } else {
                 unreachable!("push must carry a value")
             }
@@ -807,6 +811,7 @@ fn estimated_block_size(
         size = size.saturating_add(estimated_terminator_size(
             &term.kind,
             module.next_block(block_id),
+            module.code_follows,
             block_target_width,
             packed_table,
             evm_version,
@@ -818,6 +823,7 @@ fn estimated_block_size(
 fn estimated_terminator_size(
     kind: &ir::TerminatorKind,
     next: Option<BlockId>,
+    code_follows: bool,
     width: u8,
     packed_table: Option<PackedTableEstimate>,
     evm_version: EvmVersion,
@@ -837,7 +843,7 @@ fn estimated_terminator_size(
         ir::TerminatorKind::IndexedJump(_) => {
             packed_table.map_or(push + 5, |table| packed_indexed_jump_len(table, evm_version))
         }
-        ir::TerminatorKind::Op(op::STOP) => usize::from(next.is_some()),
+        ir::TerminatorKind::Op(op::STOP) => usize::from(next.is_some() || code_follows),
         ir::TerminatorKind::Op(_) => 1,
     }
 }

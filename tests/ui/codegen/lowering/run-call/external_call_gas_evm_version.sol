@@ -102,7 +102,8 @@ contract CallGasCalls {
     // expansion is not charged against what the call withholds.
     // HOMESTEAD-LABEL: fn @twoReturns
     // HOMESTEAD: create
-    // HOMESTEAD: [[AREA:v[0-9]+]] = fmp
+    // HOMESTEAD: [[AREA_PTR:v[0-9]+]] = fmp
+    // HOMESTEAD: [[AREA:v[0-9]+]] = ptrtoint memptr [[AREA_PTR]] to i256
     // HOMESTEAD: [[ABOVE:v[0-9]+]] = add [[AREA]], 64
     // HOMESTEAD: mstore [[ABOVE]], 0
     // HOMESTEAD: [[INPUT:v[0-9]+]] = slice_ptr
@@ -122,7 +123,8 @@ contract CallGasCalls {
     // A wider output area is touched one word above its own size, whatever the input encodes to.
     // HOMESTEAD-LABEL: fn @eightReturns
     // HOMESTEAD: create
-    // HOMESTEAD: [[AREA:v[0-9]+]] = fmp
+    // HOMESTEAD: [[AREA_PTR:v[0-9]+]] = fmp
+    // HOMESTEAD: [[AREA:v[0-9]+]] = ptrtoint memptr [[AREA_PTR]] to i256
     // HOMESTEAD: [[ABOVE:v[0-9]+]] = add [[AREA]], 256
     // HOMESTEAD: mstore [[ABOVE]], 0
     // HOMESTEAD: [[INPUT:v[0-9]+]] = slice_ptr
@@ -147,7 +149,8 @@ contract CallGasCalls {
     // the word above the area is touched too.
     // HOMESTEAD-LABEL: fn @aggregate
     // HOMESTEAD: create
-    // HOMESTEAD: [[AREA:v[0-9]+]] = fmp
+    // HOMESTEAD: [[AREA_PTR:v[0-9]+]] = fmp
+    // HOMESTEAD: [[AREA:v[0-9]+]] = ptrtoint memptr [[AREA_PTR]] to i256
     // HOMESTEAD: [[ABOVE:v[0-9]+]] = add [[AREA]], 64
     // HOMESTEAD: mstore [[ABOVE]], 0
     // HOMESTEAD: [[GAS:v[0-9]+]] = gas
@@ -161,12 +164,11 @@ contract CallGasCalls {
     // A bare call has no `extcodesize` guard, so it also withholds the account-creation cost,
     // 50 + 25000.
     // HOMESTEAD-LABEL: fn @bare
-    // HOMESTEAD: [[GAS:v[0-9]+]] = gas
-    // HOMESTEAD: [[FWD:v[0-9]+]] = sub [[GAS]], 0x61da
-    // HOMESTEAD: call [[FWD]],
+    // HOMESTEAD-NOT: = gas
+    // HOMESTEAD: address_call
     // TANGERINE-LABEL: fn @bare
     // TANGERINE: [[GAS:v[0-9]+]] = gas
-    // TANGERINE: call [[GAS]],
+    // TANGERINE: address_call {{.*}}, gas [[GAS]]
     function bare() external returns (uint256) {
         (bool ok,) = address(new CallGasCallee()).call(abi.encodeWithSignature("noop()"));
         return ok ? 1 : 0;
@@ -175,10 +177,10 @@ contract CallGasCalls {
     // `send` and `transfer` pass a fixed stipend at every version, so they need no reserve.
     // HOMESTEAD-LABEL: fn @sendZero
     // HOMESTEAD-NOT: = gas
-    // HOMESTEAD: select {{v[0-9]+}}, 0x8fc, 0
+    // HOMESTEAD: icall send<>, {{v[0-9]+}}, 0
     // TANGERINE-LABEL: fn @sendZero
     // TANGERINE-NOT: = gas
-    // TANGERINE: select {{v[0-9]+}}, 0x8fc, 0
+    // TANGERINE: icall send<>, {{v[0-9]+}}, 0
     function sendZero() external returns (uint256) {
         return payable(address(new CallGasCallee())).send(0) ? 1 : 0;
     }

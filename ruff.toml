@@ -1,3 +1,4 @@
+target-version = "py314"
 extend-exclude = ["testdata"]
 
 [lint]

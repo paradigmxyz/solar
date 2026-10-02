@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/check-elim/check_elim_phi_kept.mir (before check-elim) ===
 + // === ROOT/tests/ui/codegen/mir/check-elim/check_elim_phi_kept.mir (after check-elim) ===
   @module CheckElimPhiKept
-  fn @keep_check_on_loop_phi(arg0: u256, arg1: bool) -> u256 {
+  fn @keep_check_on_loop_phi(arg0: i256, arg1: i1) -> i256 {
     bb0:
       v0 = lt arg0, 100
       jumpi v0, bb1, bb5

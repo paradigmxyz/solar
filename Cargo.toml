@@ -1,12 +1,13 @@
 [workspace]
 members = ["benches/", "crates/*", "examples/", "tools/*"]
+exclude = ["tools/compiler-diff"]
 default-members = ["crates/*"]
 resolver = "2"
 
 [workspace.package]
 version = "0.2.0"
 edition = "2024"
-rust-version = "1.96" # MSRV
+rust-version = "1.98" # MSRV
 authors = ["DaniPopes <57450786+DaniPopes@users.noreply.github.com>"]
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/paradigmxyz/solar"
@@ -142,7 +143,7 @@ evm2 = { git = "https://github.com/alloy-rs/evm2", rev = "9b037449c846515624ff6a
 ruint = { version = "1.16", features = ["num-integer"] }
 
 num-bigint = "0.5"
-num-rational = "0.4"
+num-rational = { version = "0.4", default-features = false, features = ["std"] }
 num-traits = "0.2"
 
 # CLI
@@ -164,6 +165,9 @@ toml_edit = "0.25"
 # compression
 flate2 = "1.1"
 
+# codegen
+cranelift-isle = "=0.136.0"
+
 # macros
 proc-macro2 = "1.0"
 quote = "1.0"
@@ -179,7 +183,7 @@ parking_lot = "0.12"
 rayon = "1.8"
 
 # tracing
-tracing-subscriber = "0.3"
+tracing-subscriber = { version = "0.3", default-features = false }
 tracing = "0.1"
 
 # testing
@@ -207,13 +211,11 @@ tower = "0.5"
 arrayvec = "0.7"
 bitflags = "2.4"
 bumpalo = "3.14"
-cfg-if = "1.0"
 either = "1"
 glob = "0.3"
 oxc_index = { version = "5.0", features = ["nonmax"] }
 indexmap = "2.2"
 itertools = ">=0.10, <=0.14"
-itoa = "1.0"
 inturn = "0.2.0"
 libc = "0.2"
 memchr = "2.7"

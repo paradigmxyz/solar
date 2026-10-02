@@ -1,0 +1,27 @@
+- // === ROOT/tests/ui/codegen/evm-ir/terminal-layout/inline_edges.evmir (before terminal-layout) ===
++ // === ROOT/tests/ui/codegen/evm-ir/terminal-layout/inline_edges.evmir (after terminal-layout) ===
+  @module InlineEdges
+  bb0:
+    push 1
+    push bb3
+    jumpi
+    push 2
+    push bb3
+    jumpi
+    push 3
+    push bb3
+    jumpi
+    jump bb1
+  bb1:
+    push 0
+    push 0
+    jump bb2
+- bb2:
+-   return
+  bb3:
+    push 0
+    push 0
+    jump bb2
++ bb2:
++   return
+  

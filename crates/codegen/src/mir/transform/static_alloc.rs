@@ -20,7 +20,7 @@
 //! - allocations marked as source-visible FMP advances are never placed statically.
 
 use crate::mir::{
-    ArgIdx, BlockId, Function, FunctionId, Immediate, InstId, InstKind, MemoryObjectKind,
+    ArgIdx, BlockId, Callee, Function, FunctionId, Immediate, InstId, InstKind, MemoryObjectKind,
     MemoryObjectLayout, Module, Terminator, Value, ValueId,
     analysis::{AliasAnalysis, CallGraphInfo, CfgInfo, MemoryCallSummaries},
     memory::{EvmMemoryLayout, MemoryLayoutPolicy},
@@ -28,6 +28,7 @@ use crate::mir::{
 };
 use alloy_primitives::U256;
 use solar_data_structures::{
+    bit_set::DenseBitSet,
     index::{IndexVec, index_vec},
     map::FxHashMap,
 };
@@ -141,20 +142,23 @@ fn fmp_write_has_future_observer(func: &Function, cfg: &CfgInfo, inst_id: InstId
     {
         return true;
     }
-    if cfg.transitive_reachability().get(&block).into_iter().flat_map(|blocks| blocks.iter()).any(
-        |block| {
-            func.blocks[block]
-                .instructions
-                .iter()
-                .copied()
-                .any(|inst| instruction_observes_fmp(func, inst))
-                || func.blocks[block]
-                    .terminator
-                    .as_ref()
-                    .is_some_and(|term| matches!(term, Terminator::TailCall { .. }))
-        },
-    ) {
-        return true;
+    // Search the blocks reachable through at least one edge, without the
+    // quadratic all-pairs reachability table.
+    let mut seen = DenseBitSet::new_empty(cfg.num_blocks());
+    let mut stack = cfg.successors(block).to_vec();
+    while let Some(block) = stack.pop() {
+        if !seen.insert(block) {
+            continue;
+        }
+        if func.blocks[block].instructions.iter().any(|&inst| instruction_observes_fmp(func, inst))
+            || func.blocks[block]
+                .terminator
+                .as_ref()
+                .is_some_and(|term| matches!(term, Terminator::TailCall { .. }))
+        {
+            return true;
+        }
+        stack.extend_from_slice(cfg.successors(block));
     }
 
     false
@@ -162,9 +166,10 @@ fn fmp_write_has_future_observer(func: &Function, cfg: &CfgInfo, inst_id: InstId
 
 fn instruction_observes_fmp(func: &Function, inst_id: InstId) -> bool {
     match func.inst(inst_id).kind {
-        InstKind::Alloc { .. } | InstKind::Fmp | InstKind::SetFmp(_) | InstKind::ICall { .. } => {
-            true
-        }
+        InstKind::Alloc { .. }
+        | InstKind::Fmp
+        | InstKind::SetFmp(_)
+        | InstKind::ICall { function: Callee::Function(_), .. } => true,
         InstKind::MLoad(address) => func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT),
         _ => false,
     }
@@ -227,8 +232,8 @@ fn eligible_static_allocations(
     let aa = AliasAnalysis::new(func);
     if func.instructions().any(|inst_id| {
         let kind = &func.inst(inst_id).kind;
-        let bad =
-            !matches!(kind, InstKind::ICall { .. }) && aa.instruction_may_reset_fmp(func, inst_id);
+        let bad = !matches!(kind, InstKind::ICall { function: Callee::Function(_), .. })
+            && aa.instruction_may_reset_fmp(func, inst_id);
         bad && fmp_write_has_future_observer(func, &cfg, inst_id)
     }) {
         return Vec::new();
@@ -278,15 +283,15 @@ impl ValueUses {
         let mut instructions = index_vec![Vec::new(); func.num_values()];
         let mut terminators = index_vec![Vec::new(); func.num_values()];
         for inst_id in func.instructions() {
-            for operand in func.inst(inst_id).operands() {
+            func.inst(inst_id).visit_operands(|operand| {
                 instructions[operand].push(inst_id);
-            }
+            });
         }
         for (block_id, block) in func.blocks.iter_enumerated() {
             if let Some(terminator) = &block.terminator {
-                for operand in terminator.operands() {
+                terminator.visit_operands(|operand| {
                     terminators[operand].push(block_id);
-                }
+                });
             }
         }
         Self { instructions, terminators }
@@ -305,7 +310,8 @@ fn candidate_uses_are_safe(
     // definition order does not matter.
     let mut derived: FxHashMap<ValueId, u64> = FxHashMap::default();
     derived.insert(cand.ptr, 0);
-    let mut pending = vec![cand.ptr];
+    let mut pending = Vec::new();
+    pending.push(cand.ptr);
     while let Some(value) = pending.pop() {
         for &inst_id in &uses.instructions[value] {
             let Some(result) = func.inst_result_value(inst_id) else { continue };
@@ -314,6 +320,9 @@ fn candidate_uses_are_safe(
             }
             let kind = func.inst(inst_id).kind.clone();
             let offset = match kind {
+                InstKind::PtrToInt(base, 256) | InstKind::IntToPtr(base) => {
+                    derived.get(&base).copied()
+                }
                 InstKind::Add(a, b) => {
                     let (base, offset) = if derived.contains_key(&a) { (a, b) } else { (b, a) };
                     let (Some(base_offset), Some(offset)) =
@@ -384,7 +393,7 @@ fn candidate_uses_are_safe(
                 }
                 // In-bounds derivations were collected above; anything
                 // else consuming an address is an escape.
-                InstKind::Add(_, _) => {
+                InstKind::Add(_, _) | InstKind::PtrToInt(_, 256) | InstKind::IntToPtr(_) => {
                     func.inst_result_value(inst_id).is_some_and(|r| derived.contains_key(&r))
                 }
                 InstKind::MemoryObjectData(_, _)
@@ -449,7 +458,7 @@ fn candidate_uses_are_safe(
                                 .is_some_and(|offset| in_range_at(off, offset, 32))
                         })
                 }
-                InstKind::ICall { function, args, .. } => {
+                InstKind::ICall { function: Callee::Function(function), args, .. } => {
                     call_use_is_safe(function, &args, operand, calls, summaries)
                 }
                 _ => false,
@@ -527,7 +536,10 @@ fn apply_candidate(func: &mut Function, cand: &StaticAllocCandidate, shadow: u64
         return false;
     }
     func.internal_frame_size = (base - EvmMemoryLayout::HEAP_START) + cand.size;
-    let replacement = func.alloc_value(Value::Immediate(Immediate::uint256(U256::from(base))));
+    let replacement = func.alloc_value(Value::Immediate(Immediate::for_type(
+        func.value_ty(cand.ptr),
+        U256::from(base),
+    )));
     let mut replacements = FxHashMap::default();
     replacements.insert(cand.ptr, replacement);
     func.replace_uses_canonicalized(&replacements);

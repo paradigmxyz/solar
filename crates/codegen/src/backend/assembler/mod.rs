@@ -9,8 +9,10 @@
 
 use crate::{
     backend::evm::{
-        DebugFunction, DebugFunctionExit, DebugInstruction, DebugSpans, ir, op, op::WORD_BYTES,
+        DebugFunction, DebugFunctionExit, DebugInfo, DebugInfoBuilder, DebugSpans, ir, op,
+        op::WORD_BYTES,
     },
+    link::{EmbeddedBytecodes, LibraryRelocation, LibraryTable},
     mir::{ImmutableId, TypeSize},
 };
 use alloy_primitives::U256;
@@ -58,10 +60,12 @@ pub(crate) struct AssembledCode {
     pub bytecode: Vec<u8>,
     /// All immutable placeholders, in emission order.
     pub immutable_refs: Vec<ImmutableRef>,
+    /// Byte offsets of library addresses, including embedded program data.
+    pub library_relocations: Vec<LibraryRelocation>,
     /// Final EVM IR captured immediately before byte emission.
     pub evm_ir: Option<ir::Module>,
     /// Final instruction offsets and source spans.
-    pub debug_info: Option<Vec<DebugInstruction>>,
+    pub debug_info: Option<DebugInfo>,
 }
 
 /// The bytecode artifact currently being assembled.
@@ -120,10 +124,11 @@ pub(crate) struct Assembler<'gcx> {
     /// Labels whose blocks run once per loop iteration.
     pub(in crate::backend) loop_labels: GrowableBitSet<Label>,
     /// Unresolved block references emitted as push operands.
+    /// Ordered by (block, instruction); EVM IR construction uses binary search.
     pub(in crate::backend) label_relocations: Vec<(ir::BlockId, usize, Label)>,
     /// Unresolved deferred constants emitted as push operands.
     pub(in crate::backend) deferred_relocations: Vec<(ir::BlockId, usize, DeferredConst)>,
-    /// Indexed jumps whose possible targets are assembler labels.
+    /// Indexed jumps whose possible targets are assembler labels, ordered by source block.
     pub(in crate::backend) indexed_jump_relocations: Vec<(ir::BlockId, Vec<Label>, ir::Metadata)>,
     /// Interned push immediates too large for inline storage.
     pub(in crate::backend) push_values: LocalInterner<U256, PushValueId>,
@@ -141,6 +146,17 @@ pub(crate) struct Assembler<'gcx> {
     pub(in crate::backend) next_deferred_alloc: IdCounter<DeferredAlloc>,
     /// Final placement of deferred allocations.
     pub(in crate::backend) deferred_allocations: FxHashMap<DeferredAlloc, DeferredAllocResolution>,
+    /// EVM IR after its pipeline, waiting to be linked and lowered.
+    pub(in crate::backend) optimized: Option<OptimizedProgram>,
+}
+
+/// EVM IR after its pipeline and legalization, before lowering to primitive assembly.
+#[derive(Debug)]
+pub(in crate::backend) struct OptimizedProgram {
+    pub(in crate::backend) program: ir::Module,
+    pub(in crate::backend) labels: Vec<Option<Label>>,
+    /// Whether the pipeline reported an error.
+    pub(in crate::backend) failed: bool,
 }
 
 /// Final lowering selected for a deferred allocation.
@@ -177,6 +193,7 @@ impl<'gcx> Assembler<'gcx> {
             alloc_relocations: Vec::new(),
             next_deferred_alloc: IdCounter::new(),
             deferred_allocations: FxHashMap::default(),
+            optimized: None,
         }
     }
 
@@ -203,21 +220,19 @@ impl<'gcx> Assembler<'gcx> {
         self.alloc_relocations.clear();
         self.next_deferred_alloc.clear();
         self.deferred_allocations.clear();
+        self.optimized = None;
     }
 
     /// Sets the artifact context used by conservative layout estimates.
     pub(crate) fn set_artifact_kind(&mut self, kind: ArtifactKind) {
         self.artifact_kind = kind;
+        // Creation code is followed by the runtime artifact it deploys.
+        self.program.code_follows = matches!(kind, ArtifactKind::Constructor);
     }
 
     /// Sets the source module name carried by emitted EVM IR.
     pub(crate) fn set_evm_ir_name(&mut self, name: Symbol) {
         self.program.set_name(Symbol::intern(&format!("{name}_{}", self.artifact_kind.name())));
-    }
-
-    /// Enables size-oriented outlining for an oversized gas-mode runtime.
-    pub(crate) fn set_enable_size_outlining(&mut self, enable: bool) {
-        self.program.enable_size_outlining = enable;
     }
 
     /// Returns the conservative indexed-jump target width for this artifact.
@@ -272,8 +287,27 @@ impl<'gcx> Assembler<'gcx> {
         capture_evm_ir: bool,
         capture_debug_info: bool,
     ) -> AssembledCode {
-        let prepared = self.prepare(capture_evm_ir, capture_debug_info);
-        let result = self.assemble_prepared(&prepared, &[]);
+        self.optimize();
+        self.assemble_linked(
+            &EmbeddedBytecodes::default(),
+            &mut LibraryTable::default(),
+            capture_evm_ir,
+            capture_debug_info,
+        )
+    }
+
+    /// Links embedded contract bytecode into the optimized program, then lowers and
+    /// assembles it and clears the assembler.
+    pub(in crate::backend) fn assemble_linked(
+        &mut self,
+        bytecodes: &EmbeddedBytecodes,
+        libraries: &mut LibraryTable,
+        capture_evm_ir: bool,
+        capture_debug_info: bool,
+    ) -> AssembledCode {
+        let prepared =
+            self.prepare_linked(bytecodes, libraries, capture_evm_ir, capture_debug_info);
+        let result = self.assemble_owned(prepared, &[]);
         self.clear();
         result
     }
@@ -283,13 +317,29 @@ impl<'gcx> Assembler<'gcx> {
         prepared: &PreparedAssembly,
         deferred_values: &[(DeferredConst, U256)],
     ) -> AssembledCode {
-        self.push_values = prepared.push_values.clone();
-        self.immutable_pushes = prepared.immutable_pushes.clone();
-        self.next_label = prepared.next_label.clone();
-        self.deferred_values.clone_from(&prepared.deferred_values);
+        self.assemble_owned(prepared.clone(), deferred_values)
+    }
+
+    #[tracing::instrument(name = "assemble", level = "debug", skip_all)]
+    fn assemble_owned(
+        &mut self,
+        prepared: PreparedAssembly,
+        deferred_values: &[(DeferredConst, U256)],
+    ) -> AssembledCode {
+        let PreparedAssembly {
+            mut program,
+            evm_ir,
+            push_values,
+            immutable_pushes,
+            next_label,
+            deferred_values: prepared_deferred_values,
+        } = prepared;
+        self.push_values = push_values;
+        self.immutable_pushes = immutable_pushes;
+        self.next_label = next_label;
+        self.deferred_values = prepared_deferred_values;
         self.deferred_values.extend(deferred_values.iter().copied());
 
-        let mut program = prepared.program.clone();
         for inst in &mut program.instructions {
             if let AsmInstKind::PushDeferred(id) = inst.kind() {
                 let value = self
@@ -301,8 +351,7 @@ impl<'gcx> Assembler<'gcx> {
             }
         }
 
-        let evm_ir = prepared.evm_ir.as_ref().map(|module| {
-            let mut module = module.clone();
+        let evm_ir = evm_ir.map(|mut module| {
             for block in &mut module.blocks {
                 for inst in &mut block.instructions {
                     if let Some(id) = inst.deferred_push() {
@@ -433,6 +482,7 @@ impl<'gcx> Assembler<'gcx> {
                         .get(&id)
                         .map_or(33, |&value| out.encoded_push_len(value));
                 }
+                AsmInstKind::PushLibrary(_) => offset += 21,
                 AsmInstKind::PushImmutable(id) => {
                     offset += 1 + usize::from(self.immutable_push(id).type_size.bytes());
                 }
@@ -442,7 +492,7 @@ impl<'gcx> Assembler<'gcx> {
                 }
                 AsmInstKind::Data(data) => {
                     data_offsets.insert(data, offset);
-                    offset += program.data[data].bytes.len();
+                    offset += program.data[data].bytes.linked().len();
                 }
             }
         }
@@ -494,6 +544,11 @@ impl<'gcx> Assembler<'gcx> {
                 }
                 AsmInstKind::Push(index) => {
                     out.emit_push_value(self.push_value(index), source_spans);
+                }
+                AsmInstKind::PushLibrary(id) => {
+                    out.library_relocations
+                        .push(LibraryRelocation { offset: out.bytecode.len() + 1, library: id });
+                    out.emit_push_fixed_width(U256::ZERO, 20, source_spans);
                 }
                 AsmInstKind::PushLabel(label) => {
                     let target_offset = label_offsets
@@ -553,7 +608,16 @@ impl<'gcx> Assembler<'gcx> {
                     out.emit_op(op::JUMPDEST, source_spans);
                 }
                 AsmInstKind::Data(data) => {
-                    out.bytecode.extend_from_slice(&program.data[data].bytes);
+                    let base = out.bytecode.len();
+                    out.library_relocations.extend(
+                        program.data[data].library_relocations.iter().map(|reloc| {
+                            LibraryRelocation {
+                                offset: base + reloc.offset,
+                                library: reloc.library,
+                            }
+                        }),
+                    );
+                    out.bytecode.extend_from_slice(program.data[data].bytes.linked());
                 }
             }
         }
@@ -573,7 +637,7 @@ fn resolve_data_offset(
     data_ref: assembly::DataRefId,
 ) -> usize {
     let data = program.data_refs[data_ref];
-    let data_size = program.data[data.id].bytes.len();
+    let data_size = program.data[data.id].bytes.linked().len();
     assert!(
         data.offset as usize <= data_size,
         "program data offset {} exceeds data size {data_size}",
@@ -592,7 +656,8 @@ struct BytecodeAssembler<'gcx> {
     gcx: Gcx<'gcx>,
     bytecode: Vec<u8>,
     immutable_refs: Vec<ImmutableRef>,
-    debug_info: Option<Vec<DebugInstruction>>,
+    library_relocations: Vec<LibraryRelocation>,
+    debug_info: Option<DebugInfoBuilder>,
     function_invoke: Option<DebugFunction>,
     function_exit: Option<DebugFunctionExit>,
     modifier_depth: u32,
@@ -604,7 +669,8 @@ impl<'gcx> BytecodeAssembler<'gcx> {
             gcx,
             bytecode: Vec::new(),
             immutable_refs: Vec::new(),
-            debug_info: capture_debug_info.then(Vec::new),
+            library_relocations: Vec::new(),
+            debug_info: capture_debug_info.then(DebugInfoBuilder::default),
             function_invoke: None,
             function_exit: None,
             modifier_depth: 0,
@@ -704,21 +770,22 @@ impl<'gcx> BytecodeAssembler<'gcx> {
         AssembledCode {
             bytecode: self.bytecode,
             immutable_refs: self.immutable_refs,
+            library_relocations: self.library_relocations,
             evm_ir: None,
-            debug_info: self.debug_info,
+            debug_info: self.debug_info.map(DebugInfoBuilder::finish),
         }
     }
 
     fn record_instruction(&mut self, offset: usize, source_spans: &[Span]) {
         let Some(debug_info) = &mut self.debug_info else { return };
-        debug_info.push(DebugInstruction {
-            offset: offset.try_into().expect("EVM bytecode offset exceeds u32"),
-            opcode: self.bytecode[offset],
-            source_spans: source_spans.iter().copied().collect(),
-            function_invoke: self.function_invoke,
-            function_exit: self.function_exit,
-            modifier_depth: self.modifier_depth,
-        });
+        debug_info.record(
+            offset,
+            self.bytecode[offset],
+            source_spans,
+            self.function_invoke,
+            self.function_exit,
+            self.modifier_depth,
+        );
     }
 }
 
@@ -747,7 +814,7 @@ mod tests {
         assert_eq!(op::stack_io(op::ADD), Some((2, 1)));
         assert_eq!(op::stack_io(op::MSTORE), Some((2, 0)));
         assert_eq!(op::stack_io(op::CALLVALUE), Some((0, 1)));
-        assert_eq!(op::stack_io(op::CALLF), None);
+        assert_eq!(op::stack_io(0x0c), None);
         solar_interface::enter(|| {
             assert_eq!(op::from_ir_symbol(solar_interface::kw::Add), Some(op::ADD));
         });

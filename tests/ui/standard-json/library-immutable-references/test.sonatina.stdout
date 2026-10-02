@@ -24,7 +24,7 @@
             "immutableReferences": {
               "library_deploy_address": [
                 {
-                  "start": 201,
+                  "start": 199,
                   "length": 32
                 }
               ]

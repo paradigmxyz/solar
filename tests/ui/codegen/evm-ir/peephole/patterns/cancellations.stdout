@@ -32,10 +32,11 @@
 -   swap 2
     stop
   bb5:
-    push 1
-    iszero
+-   push 1
 -   iszero
 -   iszero
+-   iszero
++   push 0
     stop
   bb6:
     push 1

@@ -4,17 +4,20 @@
 //! later full-word `mstore` to the same exact address within the same basic
 //! block, before any operation can observe memory or gas. It also forwards
 //! same-block `mload` instructions from the latest exact-address `mstore` when
-//! no intervening operation can mutate memory.
+//! no intervening operation can mutate memory. Across a unique predecessor
+//! edge, equal constant stores can be removed only while no overlapping
+//! 32-byte write has invalidated the remembered word. Gas and memory-size
+//! observations act as barriers to memory elimination.
 
 use crate::mir::{
-    BlockId, Function, Immediate, InstId, InstKind, MemoryObjectKind, MemoryRegion, Module,
+    BlockId, Callee, Function, Immediate, InstId, InstKind, MemoryObjectKind, MemoryRegion, Module,
     Terminator, Value, ValueId,
     analysis::{
         Access, AddressSpace, AliasAnalysis, CfgInfo, Location, LocationSize, MemoryAddress,
         MemoryBase, MemoryLocation,
     },
     memory::EvmMemoryLayout,
-    pass::{MirPass, run_function_pass},
+    pass::{MirPass, run_selected_function_pass_with_alias_and_cfg},
     utils as mir_utils,
 };
 use alloy_primitives::{U256, keccak256};
@@ -43,13 +46,47 @@ impl MirPass for MemoryDse {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        run_function_pass(module, analyses, |func, analyses| {
-            let mut eliminator = MemoryStoreEliminator::new();
-            eliminator.alias = Some(Rc::clone(&analyses.alias));
-            eliminator.cfg = Some(Rc::clone(&analyses.cfg));
-            eliminator.run_to_fixpoint(func) != 0
-        })
+        let mut selected = DenseBitSet::new_empty(module.functions.len());
+        for (func_id, func) in module.functions.iter_enumerated() {
+            if has_memory_writes(func) {
+                selected.insert(func_id);
+            }
+        }
+        run_selected_function_pass_with_alias_and_cfg(
+            module,
+            analyses,
+            &selected,
+            |func, analyses| {
+                let mut eliminator = MemoryStoreEliminator::new();
+                eliminator.alias = Some(Rc::clone(analyses.alias()));
+                eliminator.cfg = Some(Rc::clone(analyses.cfg()));
+                eliminator.run_to_fixpoint(func) != 0
+            },
+        )
     }
+}
+
+/// Returns whether the function contains a memory write this pass can remove
+/// or forward from.
+fn has_memory_writes(func: &Function) -> bool {
+    func.instructions().any(|inst_id| {
+        matches!(
+            func.inst(inst_id).kind,
+            InstKind::MStore(_, _)
+                | InstKind::MStore8(_, _)
+                | InstKind::MemoryZero(_, _)
+                | InstKind::MCopy(_, _, _)
+                | InstKind::CalldataCopy(_, _, _)
+                | InstKind::DataCopy(_, _, _)
+                | InstKind::CodeCopy(_, _, _)
+                | InstKind::ReturnDataCopy(_, _, _)
+                | InstKind::ExtCodeCopy(_, _, _, _)
+                | InstKind::SetMemoryObjectLen(_, _, _)
+                | InstKind::StorageToMemory { .. }
+                | InstKind::AbiEncode { .. }
+                | InstKind::AbiDecode { .. }
+        )
+    })
 }
 
 /// Local dead memory optimization.
@@ -270,18 +307,10 @@ impl<T> SlotMap<T> {
 
     /// Applies a write to one group, returning whether the group survives.
     ///
-    /// The group shares a region and base, so the region and base rules of
+    /// The group shares a base, so the allocation rules of
     /// [`AliasAnalysis::memory_alias_locations`] settle the whole group at once;
     /// only a write onto that same base reaches the offset comparison.
     fn invalidate_bucket(bucket: &mut SlotBucket<T>, write: MemAddrKey, size: u64) -> bool {
-        // Distinct known regions never overlap.
-        if bucket.region != MemoryRegion::Unknown
-            && write.0.region != MemoryRegion::Unknown
-            && bucket.region != write.0.region
-        {
-            return true;
-        }
-
         let bucket_site = Self::alloc_site(bucket.base);
         let write_site = Self::alloc_site(write.0.base);
         if let (Some(bucket_site), Some(write_site)) = (bucket_site, write_site) {
@@ -373,25 +402,7 @@ impl MemoryStoreEliminator {
         // Both store elimination and store-to-load forwarding need at least
         // one memory write to act on; functions without any skip the whole
         // scan and never build the alias snapshot.
-        let has_memory_writes = func.instructions().any(|inst_id| {
-            matches!(
-                func.inst(inst_id).kind,
-                InstKind::MStore(_, _)
-                    | InstKind::MStore8(_, _)
-                    | InstKind::MemoryZero(_, _)
-                    | InstKind::MCopy(_, _, _)
-                    | InstKind::CalldataCopy(_, _, _)
-                    | InstKind::DataCopy(_, _, _)
-                    | InstKind::CodeCopy(_, _, _)
-                    | InstKind::ReturnDataCopy(_, _, _)
-                    | InstKind::ExtCodeCopy(_, _, _, _)
-                    | InstKind::SetMemoryObjectLen(_, _, _)
-                    | InstKind::StorageToMemory { .. }
-                    | InstKind::AbiEncode { .. }
-                    | InstKind::AbiDecode { .. }
-            )
-        });
-        if !has_memory_writes {
+        if !has_memory_writes(func) {
             return 0;
         }
 
@@ -410,16 +421,9 @@ impl MemoryStoreEliminator {
         let has_precise_reads = func
             .instructions()
             .any(|inst_id| Self::constant_range_read(&func.inst(inst_id).kind).is_some());
-        if has_precise_reads {
-            for block_id in block_ids {
-                self.process_block::<true>(func, block_id, scratch);
-                self.alias().clear_cached_addresses();
-            }
-        } else {
-            for block_id in block_ids {
-                self.process_block::<false>(func, block_id, scratch);
-                self.alias().clear_cached_addresses();
-            }
+        for block_id in block_ids {
+            self.process_block(func, block_id, has_precise_reads, scratch);
+            self.alias().clear_cached_addresses();
         }
         self.remove_cross_block_equal_const_stores(func);
         self.remove_cross_block_overwrites(func);
@@ -547,7 +551,8 @@ impl MemoryStoreEliminator {
             if !visited.insert(root) {
                 continue;
             }
-            let mut stack = vec![(root, 0usize)];
+            let mut stack = Vec::new();
+            stack.push((root, 0usize));
             while let Some((block, next)) = stack.last_mut() {
                 if let Some(&succ) = successors[*block].get(*next) {
                     *next += 1;
@@ -817,10 +822,11 @@ impl MemoryStoreEliminator {
         }
     }
 
-    fn process_block<const PRECISE_READS: bool>(
+    fn process_block(
         &mut self,
         func: &mut Function,
         block_id: BlockId,
+        precise_reads: bool,
         scratch: &mut BlockScratch,
     ) {
         let mut mstores = 0;
@@ -965,7 +971,7 @@ impl MemoryStoreEliminator {
                 // Modelling the range (instead of clearing) lets a return-value
                 // slot's dead default-init survive the mapping-hash keccaks and
                 // event logs that sit between it and its real store.
-                kind if PRECISE_READS
+                kind if precise_reads
                     && let Some((offset, size)) = Self::constant_range_read(kind) =>
                 {
                     self.retain_overwritten_disjoint_from_read(
@@ -1002,14 +1008,8 @@ impl MemoryStoreEliminator {
             return;
         }
 
-        for &access in effects.writes() {
-            if let Access::Location(Location::Memory(location)) = access
-                && !Self::insert_memory_location(overwritten, location)
-            {
-                overwritten.clear();
-                return;
-            }
-        }
+        // ModRef describes possible writes, not definite overwrites. Only
+        // the unconditional writes handled by process_block can kill stores.
         for &access in effects.reads() {
             if let Access::Location(Location::Memory(location)) = access {
                 overwritten.retain(|key| {
@@ -1020,21 +1020,6 @@ impl MemoryStoreEliminator {
                 });
             }
         }
-    }
-
-    fn insert_memory_location(
-        overwritten: &mut FxHashSet<MemAddrKey>,
-        location: MemoryLocation,
-    ) -> bool {
-        let LocationSize::Const(size) = location.size else { return false };
-        if !size.is_multiple_of(32) || size > 4096 || !location.address.offset.is_multiple_of(32) {
-            return false;
-        }
-        for offset in (0..size).step_by(32) {
-            let Some(address) = location.address.checked_add(offset) else { return false };
-            overwritten.insert(MemAddrKey(address));
-        }
-        true
     }
 
     fn constant_range_read(kind: &InstKind) -> Option<(ValueId, ValueId)> {
@@ -1112,6 +1097,11 @@ impl MemoryStoreEliminator {
             };
             Some((a.as_u256()?.try_into().ok()?, v.as_u256()?))
         };
+        let invalidate_overlapping_words = |known: &mut FxHashMap<u64, U256>, address: u64| {
+            known.retain(|known_address, _| {
+                known_address.abs_diff(address) >= EvmMemoryLayout::WORD_SIZE
+            });
+        };
 
         let mut exit: FxHashMap<BlockId, FxHashMap<u64, U256>> = FxHashMap::default();
         let mut dead = DenseBitSet::new_empty(func.num_insts());
@@ -1134,16 +1124,19 @@ impl MemoryStoreEliminator {
                                 dead.insert(inst_id);
                                 self.eliminated_count += 1;
                             } else {
+                                // mstore a, old; mstore b, value; mstore a, old
+                                // => retain the restore when the words at a and b overlap
+                                invalidate_overlapping_words(&mut known, a);
                                 known.insert(a, v);
                             }
                         }
                         None => {
                             match self.mem_addr_key(func, *addr).and_then(|key| key.0.as_absolute())
                             {
-                                // A non-constant value written to a constant scratch
-                                // slot makes its contents unknown.
+                                // A non-constant word written at a known address
+                                // invalidates every remembered overlapping word.
                                 Some(a) => {
-                                    known.remove(&a);
+                                    invalidate_overlapping_words(&mut known, a);
                                 }
                                 // An address we cannot pin could alias anything.
                                 _ => known.clear(),
@@ -1280,7 +1273,7 @@ impl MemoryStoreEliminator {
                         continue;
                     };
                     let hash = keccak256(&bytes);
-                    let replacement = func.alloc_value(Value::Immediate(Immediate::uint256(
+                    let replacement = func.alloc_value(Value::Immediate(Immediate::I256(
                         U256::from_be_bytes(hash.0),
                     )));
                     scratch.replacements.insert(result, replacement);
@@ -1629,7 +1622,10 @@ impl MemoryStoreEliminator {
             let effects = self.alias().instruction_mod_ref(func, inst_id);
             effects.observes_gas()
                 || effects.observes_memory_size()
-                || matches!(func.inst(inst_id).kind, InstKind::ICall { .. })
+                || matches!(
+                    func.inst(inst_id).kind,
+                    InstKind::ICall { function: Callee::Function(_), .. }
+                )
         })
     }
 

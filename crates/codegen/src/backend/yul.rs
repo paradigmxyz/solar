@@ -58,8 +58,9 @@ fn lower(module: &Module) -> Result<String, String> {
     }
     // datacopy(deploy + runtime_size + tail_offset, data, length)
     let mut tail_offset = 0;
-    for (id, bytes) in module.iter_data() {
-        if module.data_is_emitted_in_runtime(id) {
+    for (id, data) in module.data.iter_enumerated() {
+        let bytes = data.bytes.linked();
+        if module.data[id].emit_in_runtime {
             writeln!(out, "datacopy(add(deploy, add(datasize(\"Runtime\"), {tail_offset})), dataoffset(\"d{}\"), {})", id.index(), bytes.len()).unwrap();
             tail_offset += bytes.len();
         }
@@ -83,7 +84,8 @@ fn lower(module: &Module) -> Result<String, String> {
 
 fn data(module: &Module, out: &mut String) {
     // data dN hex"bytes"
-    for (id, bytes) in module.iter_data() {
+    for (id, data) in module.data.iter_enumerated() {
+        let bytes = data.bytes.linked();
         writeln!(out, "data \"d{}\" hex\"{}\"", id.index(), hex::encode(bytes)).unwrap();
     }
 }
@@ -124,11 +126,14 @@ fn functions(
             (0..f.params.len()).map(|i| format!("a{i}")).collect::<Vec<_>>().join(", ")
         )
         .unwrap();
-        if !f.returns.is_empty() {
+        if !f.return_components().is_empty() {
             write!(
                 out,
                 " -> {}",
-                (0..f.returns.len().min(1)).map(|i| format!("r{i}")).collect::<Vec<_>>().join(", ")
+                (0..f.return_components().len().min(1))
+                    .map(|i| format!("r{i}"))
+                    .collect::<Vec<_>>()
+                    .join(", ")
             )
             .unwrap();
         }
@@ -169,11 +174,15 @@ fn functions(
                 if matches!(inst.kind, InstKind::Phi(_)) {
                     continue;
                 }
-                let expression = expression(f, &inst.kind, constructor, staging, args_base)?;
+                let expression =
+                    expression(module, f, &inst.kind, constructor, staging, args_base)?;
                 if let Some(result) = f.inst_result_value(iid) {
                     writeln!(out, "v{} := {expression}", result.index()).unwrap();
-                } else if let InstKind::ICall { function, .. } = inst.kind
-                    && !module.functions[function].returns.is_empty()
+                } else if let InstKind::ICall {
+                    function: crate::mir::Callee::Function(function),
+                    ..
+                } = inst.kind
+                    && !module.functions[function].return_components().is_empty()
                 {
                     writeln!(out, "pop({expression})").unwrap();
                 } else {
@@ -230,7 +239,7 @@ fn functions(
                             .collect::<Result<Vec<_>, _>>()?
                             .join(", ")
                     );
-                    if module.functions[*function].returns.is_empty() {
+                    if module.functions[*function].return_components().is_empty() {
                         writeln!(out, "{call}").unwrap();
                     } else {
                         writeln!(out, "pop({call})").unwrap();
@@ -296,6 +305,7 @@ fn value(f: &Function, id: ValueId) -> Result<String, String> {
 }
 
 fn expression(
+    module: &Module,
     f: &Function,
     inst: &InstKind,
     constructor: bool,
@@ -329,6 +339,27 @@ fn expression(
         args[index] = format!("physical({})", args[index]);
     }
     let name = match inst {
+        InstKind::DataSize(size) => {
+            return Ok(size.value(module.data[size.data].bytes.linked().len()).to_string());
+        }
+        InstKind::Zext(_) | InstKind::IntToPtr(_) => return Ok(args[0].clone()),
+        InstKind::Trunc(_, bits) | InstKind::PtrToInt(_, bits) => {
+            return Ok(format!(
+                "and({}, {})",
+                args[0],
+                alloy_primitives::U256::MAX >> (256 - bits)
+            ));
+        }
+        InstKind::Sext(_, from, to) => {
+            return Ok(format!(
+                "and(sar({}, shl({}, {})), {})",
+                256 - from,
+                256 - from,
+                args[0],
+                alloy_primitives::U256::MAX >> (256 - to)
+            ));
+        }
+        InstKind::Ne(..) => return Ok(format!("iszero(eq({}, {}))", args[0], args[1])),
         InstKind::DataCopy(data, ..) => {
             return Ok(format!(
                 "datacopy({}, add(dataoffset(\"d{}\"), {}), {})",
@@ -362,7 +393,7 @@ fn expression(
         InstKind::Shl(..) | InstKind::Shr(..) | InstKind::Sar(..) => inst.mnemonic(),
         InstKind::Fmp => return Ok("mload(physical(64))".into()),
         InstKind::SetFmp(_) => return Ok(format!("mstore(physical(64), {})", args[0])),
-        InstKind::ICall { function, .. } => {
+        InstKind::ICall { function: crate::mir::Callee::Function(function), .. } => {
             return Ok(format!("f{}({})", function.index(), args.join(", ")));
         }
         InstKind::Add(..)
@@ -386,7 +417,6 @@ fn expression(
         | InstKind::SLt(..)
         | InstKind::SGt(..)
         | InstKind::Eq(..)
-        | InstKind::IsZero(..)
         | InstKind::MLoad(..)
         | InstKind::MStore(..)
         | InstKind::MStore8(..)

@@ -22,7 +22,7 @@ import time
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, TextIO
+from typing import Any, TextIO, TypeGuard
 
 DEFAULT_PIN = "01209d2b8ac81645b92e3ef801b5bcdfd61bfd69"
 DEFAULT_SOLC_VERSION = "0.8.37"
@@ -920,7 +920,7 @@ def expected_gas_schemas(
     return runner_schema, schema
 
 
-def valid_gas_schema(schema: Any) -> bool:
+def valid_gas_schema(schema: Any) -> TypeGuard[list[dict[str, Any]]]:
     if not isinstance(schema, list) or not schema:
         return False
     labels = []
@@ -1091,6 +1091,8 @@ def run_cases(
 
         print(f"[{index}/{len(cases)}] {case.test_id}", flush=True)
         if include_gas:
+            assert runner_schema is not None and schema is not None
+            assert reference_spec is not None
             compiled = compile_specs(
                 bench,
                 case,
@@ -1835,7 +1837,7 @@ def render_growth_sweep(
                         f"inconsistent gas for identical bytecode: {key}"
                     )
 
-    rows = []
+    rows: list[dict[str, Any]] = []
     fingerprints = {}
     ci_gas_by_budget = {}
     for budget in budgets:
@@ -2241,7 +2243,7 @@ def main() -> int:
     )
     if analysis_args[0] is not None:
         paths, sweep = analysis_args
-        compile_dir, gas_dir = map(Path.resolve, paths)
+        compile_dir, gas_dir = (Path(path).resolve() for path in paths)
         _analysis_locks = [
             lock_output_dir(path)
             for path in sorted({compile_dir, gas_dir}, key=lambda path: str(path))

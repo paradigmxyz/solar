@@ -302,7 +302,7 @@ fn lower(module: &Module, runtime: Option<&[u8]>, base: u64) -> Result<String, S
                 .join(", ")
         )
         .unwrap();
-        if !f.returns.is_empty() {
+        if !f.return_components().is_empty() {
             out.push_str(" -> i256");
         }
         out.push_str(" {\n");
@@ -420,7 +420,7 @@ fn lower(module: &Module, runtime: Option<&[u8]>, base: u64) -> Result<String, S
                     writeln!(out, "v{tmp}.i256 = sym_addr $d{};\nv{}.i256 = add v{tmp} {}.i256;\nevm_code_copy {} v{} {};", data.id.index(), tmp + 1, data.offset, args[0], tmp + 1, args[1]).unwrap();
                     continue;
                 }
-                let (name, args) = operation(&inst.kind, args, base)?;
+                let (name, args) = operation(module, &inst.kind, args, base)?;
                 if matches!(
                     inst.kind,
                     InstKind::Lt(..)
@@ -428,7 +428,7 @@ fn lower(module: &Module, runtime: Option<&[u8]>, base: u64) -> Result<String, S
                         | InstKind::SLt(..)
                         | InstKind::SGt(..)
                         | InstKind::Eq(..)
-                        | InstKind::IsZero(..)
+                        | InstKind::Ne(..)
                 ) {
                     // c.i1 = compare lhs rhs; v.i256 = zext c i256
                     let result = result.ok_or("comparison without result")?;
@@ -442,8 +442,11 @@ fn lower(module: &Module, runtime: Option<&[u8]>, base: u64) -> Result<String, S
                 } else {
                     if let Some(result) = result {
                         write!(out, "{result}.i256 = ").unwrap();
-                    } else if let InstKind::ICall { function, .. } = inst.kind
-                        && !module.functions[function].returns.is_empty()
+                    } else if let InstKind::ICall {
+                        function: crate::mir::Callee::Function(function),
+                        ..
+                    } = inst.kind
+                        && !module.functions[function].return_components().is_empty()
                     {
                         // discarded.i256 = call callee(args)
                         let discarded = f.num_values()
@@ -509,8 +512,8 @@ fn lower(module: &Module, runtime: Option<&[u8]>, base: u64) -> Result<String, S
                 }
                 Terminator::TailCall { function, args } => {
                     // discarded = call callee(args); evm_stop
-                    if !module.functions[*function].returns.is_empty() {
-                        writeln!(out, "v{}.i256 =", frame + 2 + bid.index()).unwrap();
+                    if !module.functions[*function].return_components().is_empty() {
+                        write!(out, "v{}.i256 = ", frame + 2 + bid.index()).unwrap();
                     }
                     writeln!(
                         out,
@@ -546,7 +549,8 @@ fn lower(module: &Module, runtime: Option<&[u8]>, base: u64) -> Result<String, S
     let mut data_sections = String::new();
     let mut globals = String::new();
     // global const [i8; N] $dN = [bytes]; section { data $dN; }
-    for (id, bytes) in module.iter_data() {
+    for (id, data) in module.data.iter_enumerated() {
+        let bytes = data.bytes.linked();
         writeln!(
             globals,
             "global private const [i8; {}] $d{} = [{}];",
@@ -586,11 +590,37 @@ fn value(f: &Function, id: ValueId) -> Result<String, String> {
 }
 
 fn operation(
+    module: &Module,
     inst: &InstKind,
     mut args: Vec<String>,
     base: u64,
 ) -> Result<(String, Vec<String>), String> {
     let name = match inst {
+        InstKind::DataSize(size) => {
+            return Ok((
+                "add".into(),
+                vec![
+                    format!("{}.i256", size.value(module.data[size.data].bytes.linked().len())),
+                    "0.i256".into(),
+                ],
+            ));
+        }
+        InstKind::Zext(_) | InstKind::IntToPtr(_) => {
+            args.push("0.i256".into());
+            "add"
+        }
+        InstKind::Trunc(_, bits) | InstKind::PtrToInt(_, bits) => {
+            args.push(format!("{}.i256", alloy_primitives::U256::MAX >> (256 - bits)));
+            "and"
+        }
+        InstKind::Sext(_, 1, to) => {
+            args.push(format!("{}.i256", alloy_primitives::U256::MAX >> (256 - to)));
+            "mul"
+        }
+        InstKind::Sext(_, 160, 256) => {
+            args.insert(0, "19.i256".into());
+            "evm_signextend"
+        }
         InstKind::Add(..)
         | InstKind::Sub(..)
         | InstKind::Mul(..)
@@ -603,13 +633,10 @@ fn operation(
         | InstKind::Sar(..)
         | InstKind::Lt(..)
         | InstKind::Gt(..)
-        | InstKind::Eq(..) => inst.mnemonic(),
+        | InstKind::Eq(..)
+        | InstKind::Ne(..) => inst.mnemonic(),
         InstKind::SLt(..) => "slt",
         InstKind::SGt(..) => "sgt",
-        InstKind::IsZero(..) => {
-            args.push("0.i256".into());
-            "eq"
-        }
         InstKind::Div(..) => "evm_udiv",
         InstKind::SDiv(..) => "evm_sdiv",
         InstKind::Mod(..) => "evm_umod",
@@ -677,7 +704,7 @@ fn operation(
         InstKind::Log2(..) => "evm_log2",
         InstKind::Log3(..) => "evm_log3",
         InstKind::Log4(..) => "evm_log4",
-        InstKind::ICall { function, .. } => {
+        InstKind::ICall { function: crate::mir::Callee::Function(function), .. } => {
             args.insert(0, format!("%f{}", function.index()));
             "call"
         }

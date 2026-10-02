@@ -1,49 +1,53 @@
 // === ROOT/tests/ui/codegen/lowering/yul_low_level_builtins.sol:YulLowLevelBuiltins ===
 @module YulLowLevelBuiltins
-fn @yulStringLiteral() -> u256 [selector=0x6756b569, pure, abi_params=[], abi_returns=[word]] {
+fn @yulStringLiteral() -> i256 [selector=0x6756b569, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     mstore 0, 0x736f6c6172000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     v0 = mload 0 !metadata(memory=scratch)
     ret v0
 }
 
-fn @leadingZeros(arg0: u256) -> u256 [selector=0x8d9d94e2, pure, abi_params=[u256], abi_returns=[word]] {
+fn @leadingZeros(arg0: i256) -> i256 [selector=0x8d9d94e2, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = clz arg0
     ret v0
 }
 
-fn @callCode(arg0: address) -> u256 [selector=0xc66764e1, abi_params=[address], abi_returns=[word]] {
+fn @callCode(arg0: i256) -> i256 [selector=0xc66764e1, abi_params=[address], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = gas
     v1 = callcode v0, arg0, 0, 0, 0, 0, 0
-    ret v1
+    v2 = zext i1 v1 to i256
+    ret v2
 }
 
-fn @safeCall(arg0: address, arg1: bytes4) -> bool [selector=0x1dee2645, abi_params=[address, bytes4], abi_returns=[word<bool>]] {
+fn @safeCall(arg0: i256, arg1: i256) -> i256 [selector=0x1dee2645, abi_params=[address, bytes4], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     mstore 0, arg1 !metadata(memory=scratch)
     v1 = gas
     v2 = call v1, arg0, 0, 0, 4, 0, 32
-    v3 = mload 0 !metadata(memory=scratch)
-    v4 = eq v3, 1
-    v5 = and v2, v4
-    v6 = iszero v5
-    v7 = eq v6, 0
-    v8 = iszero v7
-    jumpi v8, bb1, bb2
+    v3 = zext i1 v2 to i256
+    v4 = mload 0 !metadata(memory=scratch)
+    v5 = eq v4, 1
+    v6 = zext i1 v5 to i256
+    v7 = and v3, v6
+    v8 = eq v7, 0
+    v9 = zext i1 v8 to i256
+    v10 = ne v9, 0
+    jumpi v10, bb1, bb2
   bb2:
     jump bb3
   bb3:
-    v11 = extcodesize arg0
-    v12 = gt v11, 0
-    v13 = and v2, v12
+    v13 = extcodesize arg0
+    v14 = gt v13, 0
+    v15 = zext i1 v14 to i256
+    v16 = and v3, v15
     mstore 64, v0 !metadata(memory=scratch)
-    ret v13
+    ret v16
   bb1:
-    v9 = returndatasize
-    returndatacopy v0, 0, v9
-    v10 = returndatasize
-    revert v0, v10
+    v11 = returndatasize
+    returndatacopy v0, 0, v11
+    v12 = returndatasize
+    revert v0, v12
 }

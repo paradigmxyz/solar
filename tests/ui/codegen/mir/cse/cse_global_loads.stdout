@@ -1,25 +1,26 @@
 - // === ROOT/tests/ui/codegen/mir/cse/cse_global_loads.mir (before cse) ===
 + // === ROOT/tests/ui/codegen/mir/cse/cse_global_loads.mir (after cse) ===
   @module CseGlobalLoads
-  immutables:
+  @immutables
     value: u256
   
-  fn @dominating_mload(arg0: bool) -> u256 {
+  fn @dominating_mload(arg0: i1) -> i256 {
     bb0:
       mstore 0, 11
-      v0 = mload 0
+-     v0 = mload 0
       jumpi arg0, bb1, bb2
     bb2:
       mstore 0, 22
-      v2 = mload 0
-      ret v2
+-     v2 = mload 0
+-     ret v2
++     ret 22
     bb1:
 -     v1 = mload 0
 -     ret v1
-+     ret v0
++     ret 11
   }
   
-  fn @dominating_sload(arg0: bool) -> u256 {
+  fn @dominating_sload(arg0: i1) -> i256 {
     bb0:
       v0 = sload 0
       jumpi arg0, bb1, bb2
@@ -33,7 +34,7 @@
 +     ret v0
   }
   
-  fn @dominating_loadimmutable(arg0: bool) -> u256 {
+  fn @dominating_loadimmutable(arg0: i1) -> i256 {
     bb0:
       v0 = loadimmutable value
       jumpi arg0, bb1, bb2
@@ -47,7 +48,7 @@
 +     ret v0
   }
   
-  fn @keep_phi_immutable_loads_before_branch_stores(arg0: bool) -> u256 {
+  fn @keep_phi_immutable_loads_before_branch_stores(arg0: i1) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:

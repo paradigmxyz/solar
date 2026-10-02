@@ -1,6 +1,7 @@
 //! Literal, member, environment, and shared expression lowering.
 
 use super::*;
+use crate::mir::Immediate;
 
 impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn lower_string_literal_word(&mut self, bytes: &[u8]) -> ValueId {
@@ -38,9 +39,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             LitKind::Str(_, value, _) => self.lower_shared_bytes_literal(value),
             LitKind::Number(value) => Some(self.builder.imm(value)),
             LitKind::Bool(value) => Some(self.builder.imm_bool(value)),
-            LitKind::Address(value) => {
-                Some(self.builder.imm(U256::from_be_slice(value.as_slice())))
-            }
+            LitKind::Address(value) => Some(self.builder.alloc_value(Value::Immediate(
+                Immediate::for_type(Some(MirType::I160), U256::from_be_slice(value.as_slice())),
+            ))),
             LitKind::Rational(value) if *value.denom() == U256::from(1) => {
                 Some(self.builder.imm(*value.numer()))
             }
@@ -152,19 +153,20 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
         // value = normalize(mload_field(object, field))
         let layout = self.types.memory_layout(receiver_ty)?;
-        let value = self.builder.memory_object_load_field(object, layout, field as u64);
-        let field_ty = self.cx.gcx.type_of_item(id.into());
+        let field_ty =
+            self.cx.gcx.type_of_item(id.into()).with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
+        let value = self.builder.memory_object_load_field_as(
+            object,
+            layout,
+            field as u64,
+            types::TypeLowerer::mir_type(field_ty),
+        );
         if receiver_ty.is_ref_at(DataLocation::Calldata)
             && let TyKind::Fn(function) = field_ty.peel_refs().kind
             && function.is_external()
         {
-            let inst = match self.builder.func().value(value) {
-                Value::Inst(inst) => Some(*inst),
-                _ => None,
-            };
-            if let Some(inst) = inst {
-                self.builder.func_mut().inst_mut(inst).metadata.set_abi_validation(true);
-            }
+            // validate_abi field_value
+            self.builder.validate_abi(value);
         }
         Some(self.normalize_memory_scalar(field_ty, value))
     }
@@ -199,7 +201,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             let object = self.lower_expr(receiver)?;
             return match self.builder.func().value_ty(object) {
-                Some(MirType::MemoryObject(MemoryObjectKind::Bytes)) => {
+                Some(MirType::MemPtr) => {
                     // length = object.len
                     Some(self.builder.memory_object_len(object, MemoryObjectKind::Bytes))
                 }
@@ -288,7 +290,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let mut expr = expr;
         loop {
             expr = expr.peel_parens();
-            if let ExprKind::Call(callee, args, _) = &expr.kind
+            if let Some((callee, args, _)) = expr.as_call()
                 && let ExprKind::Type(ty) = &callee.kind
                 && matches!(
                     ty.kind,

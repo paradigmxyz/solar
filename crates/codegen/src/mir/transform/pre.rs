@@ -11,7 +11,8 @@
 //! Availability at a predecessor's end is checked in the predecessor itself and
 //! then up its dominator tree: a def of the translated expression in any
 //! dominator is available with no further checks, so it can feed the join phi
-//! without inserting a duplicate computation.
+//! without inserting a duplicate computation. Commutative operands share a key;
+//! swapped signed and unsigned comparisons retain their corresponding predicate.
 //!
 //! # Termination
 //!
@@ -34,7 +35,7 @@ use crate::mir::{
     MemoryObjectKind, MemoryObjectLayout, MirType, Module, Terminator, Value, ValueId,
     analysis::{CfgInfo, DominatorTree},
     pass::{MirPass, run_function_pass},
-    utils::{repair_reachability_phis, split_edge},
+    utils::split_edge,
 };
 use solar_data_structures::{
     bit_set::{DenseBitSet, GrowableBitSet},
@@ -71,16 +72,12 @@ struct PreStats {
     expressions_eliminated: usize,
     /// Number of predecessor computations inserted.
     expressions_inserted: usize,
-    /// Whether CFG backlinks or phi inputs were repaired.
-    reachability_repaired: bool,
 }
 
 impl PreStats {
     /// Returns the total number of MIR edits made by this pass.
     const fn total(self) -> usize {
-        self.expressions_eliminated
-            + self.expressions_inserted
-            + self.reachability_repaired as usize
+        self.expressions_eliminated + self.expressions_inserted
     }
 }
 
@@ -112,11 +109,9 @@ enum ExprKey {
     Sar(OperandKey, OperandKey),
     Byte(OperandKey, OperandKey),
     Lt(OperandKey, OperandKey),
-    Gt(OperandKey, OperandKey),
     SLt(OperandKey, OperandKey),
-    SGt(OperandKey, OperandKey),
     Eq(OperandKey, OperandKey),
-    IsZero(OperandKey),
+    Ne(OperandKey, OperandKey),
     Select(OperandKey, OperandKey, OperandKey),
     SignExtend(OperandKey, OperandKey),
     MemoryObjectData(OperandKey, MemoryObjectKind),
@@ -150,6 +145,20 @@ impl PartialRedundancyEliminator {
     fn run(&mut self, func: &mut Function) -> PreStats {
         self.stats = PreStats::default();
 
+        // Candidates are expressions in blocks with several distinct predecessors.
+        let has_candidate = func.blocks.iter().any(|block| {
+            block.predecessors.len() >= 2
+                && block.instructions.iter().any(|&inst| {
+                    let instruction = func.inst(inst);
+                    Self::is_pre_expression(&instruction.kind)
+                        && instruction.result_ty.is_some()
+                        && func.inst_result_value(inst).is_some()
+                })
+        });
+        if !has_candidate {
+            return self.stats;
+        }
+
         let mut inst_blocks = func.inst_blocks();
 
         let mut eliminated_keys = FxHashSet::default();
@@ -182,7 +191,6 @@ impl PartialRedundancyEliminator {
                     &mut inserted_insts,
                 );
             }
-            self.stats.reachability_repaired |= repair_reachability_phis(func);
         }
 
         self.stats
@@ -207,7 +215,7 @@ impl PartialRedundancyEliminator {
         let mut eliminated_values = DenseBitSet::new_empty(func.num_values());
 
         'targets: for target in func.blocks.indices() {
-            let predecessors = func.unique_predecessors(target);
+            let predecessors = &func.blocks[target].predecessors;
             if predecessors.len() < 2 {
                 continue;
             }
@@ -239,7 +247,7 @@ impl PartialRedundancyEliminator {
                     result,
                     result_ty,
                     instruction.metadata.clone(),
-                    &predecessors,
+                    predecessors,
                     inst_blocks,
                     dominators,
                     eliminated_keys,
@@ -529,7 +537,7 @@ impl PartialRedundancyEliminator {
                 | InstKind::SLt(_, _)
                 | InstKind::SGt(_, _)
                 | InstKind::Eq(_, _)
-                | InstKind::IsZero(_)
+                | InstKind::Ne(..)
                 | InstKind::Select(_, _, _)
                 | InstKind::SignExtend(_, _)
                 | InstKind::MemoryObjectData(_, _)
@@ -565,6 +573,10 @@ impl PartialRedundancyEliminator {
                 let (a, b) = Self::ordered_pair(operand(*a), operand(*b));
                 Some(ExprKey::Eq(a, b))
             }
+            InstKind::Ne(a, b) => {
+                let (a, b) = Self::ordered_pair(operand(*a), operand(*b));
+                Some(ExprKey::Ne(a, b))
+            }
             InstKind::AddMod(a, b, n) => {
                 let (a, b) = Self::ordered_pair(operand(*a), operand(*b));
                 Some(ExprKey::AddMod(a, b, operand(*n)))
@@ -586,10 +598,9 @@ impl PartialRedundancyEliminator {
             InstKind::Sar(a, b) => Some(ExprKey::Sar(operand(*a), operand(*b))),
             InstKind::Byte(a, b) => Some(ExprKey::Byte(operand(*a), operand(*b))),
             InstKind::Lt(a, b) => Some(ExprKey::Lt(operand(*a), operand(*b))),
-            InstKind::Gt(a, b) => Some(ExprKey::Gt(operand(*a), operand(*b))),
+            InstKind::Gt(a, b) => Some(ExprKey::Lt(operand(*b), operand(*a))),
             InstKind::SLt(a, b) => Some(ExprKey::SLt(operand(*a), operand(*b))),
-            InstKind::SGt(a, b) => Some(ExprKey::SGt(operand(*a), operand(*b))),
-            InstKind::IsZero(a) => Some(ExprKey::IsZero(operand(*a))),
+            InstKind::SGt(a, b) => Some(ExprKey::SLt(operand(*b), operand(*a))),
             InstKind::Select(a, b, c) => {
                 Some(ExprKey::Select(operand(*a), operand(*b), operand(*c)))
             }
@@ -628,18 +639,6 @@ impl PartialRedundancyEliminator {
     }
 
     fn compare_immediate(a: &Immediate, b: &Immediate) -> Ordering {
-        let rank = |imm: &Immediate| match imm {
-            Immediate::Bool(_) => 0,
-            Immediate::UInt(_, _) => 1,
-            Immediate::Int(_, _) => 2,
-        };
-        rank(a).cmp(&rank(b)).then_with(|| match (a, b) {
-            (Immediate::Bool(a), Immediate::Bool(b)) => a.cmp(b),
-            (Immediate::UInt(a_value, a_bits), Immediate::UInt(b_value, b_bits))
-            | (Immediate::Int(a_value, a_bits), Immediate::Int(b_value, b_bits)) => {
-                a_bits.cmp(b_bits).then_with(|| a_value.cmp(b_value))
-            }
-            _ => Ordering::Equal,
-        })
+        a.cmp(b)
     }
 }

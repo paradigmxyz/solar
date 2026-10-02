@@ -1,22 +1,57 @@
 //! Lower `mcopy` for EVM versions that predate Cancun.
+//!
+//! Each copy becomes word-copy loops, since the target has no `MCOPY` opcode.
+//! The identity precompile would be smaller, but calling it is observable:
+//! tooling that keys behavior on "the next call" — Foundry's `vm.prank` and
+//! `vm.expectRevert` — consumes the precompile call instead of the intended
+//! one, breaking every pre-Cancun test that pranks before an operation
+//! involving a memory copy.
+//!
+//! The loop is expanded at every site, or built once per loop shape (direction
+//! and whole-word length) as an internal function `mcopy_words(dest, src, len)`
+//! that eligible runtime sites of that shape call, like solc's shared
+//! `copy_memory_to_memory` routine. A helper is built when the objective ranks
+//! the calls above the expanded loops: bytes first in size mode, and in gas mode
+//! the lifetime cost of the call protocol's gas over the optimizer runs against
+//! the deposit of the repeated bytes. Constructor-reachable sites remain inline
+//! because their ABI output may occupy the free-memory pointer where an internal
+//! call would stage its frame. Copies through raw or symbolic memory bases also
+//! remain inline because the helper's argument frame could overlap either copied
+//! range, unless the copy is marked `disjoint`: ABI encoding copies from heap
+//! objects into heap output, clear of every frame.
+//!
+//! Copies marked `disjoint`, such as ABI encoding's copies of source data into
+//! its output, run forward. Otherwise pointer provenance picks the direction at
+//! compile time: backward when the destination starts above the source in the
+//! same base, forward for disjoint allocations. Unknown relationships keep a
+//! runtime direction check. A masked partial-word merge ensures that the
+//! lowering changes exactly `len` bytes; a length that is provably a multiple
+//! of 32, such as a word array's `len << 5`, copies whole words and needs no
+//! merge.
+//!
+//! The pass runs before `lower-alloc`, while allocations are still symbolic
+//! and provenance can tell them apart.
 
-use crate::mir::{
-    BlockId, Function, FunctionBuilder, InstKind, Module, pass::MirPass,
-    transform::utils::redirect_successor_predecessors,
+use crate::{
+    mir::{
+        BlockId, Function, FunctionBuilder, FunctionId, InstId, InstKind, MirType, Module, Value,
+        ValueId,
+        analysis::{
+            AliasAnalysis, AliasResult, CallGraphInfo, LocationSize, MemoryBase,
+            MemoryCallSummaries, MemoryLocation,
+        },
+        memory::EvmMemoryLayout,
+        pass::MirPass,
+        transform::utils::redirect_successor_predecessors,
+    },
+    target::{Cost, Target},
 };
+use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
+use solar_interface::{Ident, sym};
 use solar_sema::Gcx;
+use std::{collections::BTreeMap, sync::Arc};
 
-/// Lowers `mcopy` to an ascending word-copy loop when the target has no
-/// `MCOPY` opcode, like solc.
-///
-/// The identity precompile would be smaller, but calling it is observable:
-/// tooling that keys behavior on "the next call" — Foundry's `vm.prank` and
-/// `vm.expectRevert` — consumes the precompile call instead of the intended
-/// one, breaking every pre-Cancun test that pranks before an operation
-/// involving a memory copy.
-///
-/// The trailing partial word is copied whole. Memory objects are word-aligned
-/// and word-granular, so the overshoot lands in the padding.
+/// Lowers `mcopy` to overlap-safe word-copy loops without an `MCOPY` opcode.
 pub(crate) struct LowerMCopy;
 
 impl MirPass for LowerMCopy {
@@ -32,43 +67,300 @@ impl MirPass for LowerMCopy {
         &self,
         gcx: Gcx<'_>,
         module: &mut Module,
-        _analyses: &mut crate::mir::pass::ModuleAnalyses,
+        analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
         if gcx.sess.opts.evm_version.has_mcopy() {
             return false;
         }
-
-        let mut changed = false;
-        for func in module.functions.iter_mut() {
-            if !func.blocks.is_empty() {
-                changed |= lower_function(func);
+        let call_graph = CallGraphInfo::new(module);
+        let constructor_roots = module
+            .functions
+            .iter_enumerated()
+            .filter_map(|(id, func)| func.attributes.is_constructor.then_some(id));
+        let mut constructor_reachable = call_graph.reachable_callees_from(constructor_roots);
+        for (id, func) in module.functions.iter_enumerated() {
+            if func.attributes.is_constructor {
+                constructor_reachable.insert(id);
             }
         }
-        changed
+        if !module.functions.iter().any(|func| func.instructions().any(|inst| is_mcopy(func, inst)))
+        {
+            return false;
+        }
+
+        let target = Target::new(gcx);
+        let fresh_returns = super::lower_abi_encode::fresh_object_returning_functions(module);
+        let summaries = analyses.call_summaries(module);
+        let sites = module
+            .functions
+            .iter_enumerated()
+            .map(|(id, func)| {
+                copy_sites(func, !constructor_reachable.contains(id), &fresh_returns, &summaries)
+            })
+            .collect::<IndexVec<FunctionId, _>>();
+
+        // One helper per copy shape, when its sites are worth sharing.
+        let mut counts = BTreeMap::<CopyShape, u32>::new();
+        for site in sites.iter().flatten().filter(|site| site.shareable) {
+            *counts.entry(site.shape).or_default() += 1;
+        }
+        let mut helpers = FxHashMap::default();
+        for (shape, count) in counts {
+            if let Some(helper) = shared_copy_helper(target, shape, count) {
+                helpers.insert(shape, module.add_function(helper));
+            }
+        }
+
+        for (func_id, sites) in sites.into_iter_enumerated() {
+            lower_function(module.function_mut(func_id), &sites, &helpers);
+        }
+        CallGraphInfo::assert_runtime_helpers(module, helpers.into_values());
+        true
     }
 }
 
-fn lower_function(func: &mut Function) -> bool {
-    let mut changed = false;
+fn is_mcopy(func: &Function, inst: InstId) -> bool {
+    matches!(func.inst(inst).kind, InstKind::MCopy(_, _, _))
+}
+
+/// The loop an `mcopy` expands to.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+struct CopyShape {
+    direction: CopyDirection,
+    whole_words: bool,
+}
+
+/// One `mcopy` and the loop it expands to.
+struct CopySite {
+    inst: InstId,
+    shape: CopyShape,
+    /// Whether a runtime helper call can replace the expansion.
+    shareable: bool,
+}
+
+/// Finds the copies of a function, with the loop shape each expands to.
+fn copy_sites(
+    func: &Function,
+    runtime: bool,
+    fresh_returns: &DenseBitSet<FunctionId>,
+    summaries: &Arc<MemoryCallSummaries>,
+) -> Vec<CopySite> {
+    if func.blocks.is_empty() || !func.instructions().any(|inst| is_mcopy(func, inst)) {
+        return Vec::new();
+    }
+    let alias = AliasAnalysis::with_call_summaries(func, summaries.clone());
+    func.instructions()
+        .filter_map(|inst| {
+            let InstKind::MCopy(dest, src, len) = func.inst(inst).kind else { return None };
+            let disjoint = func.inst(inst).metadata.disjoint();
+            let direction = if disjoint {
+                CopyDirection::Forward
+            } else {
+                copy_direction(func, &alias, fresh_returns, dest, src, len)
+            };
+            let shape = CopyShape { direction, whole_words: is_whole_words(func, len, 0) };
+            // NOTE: a disjoint copy reads a Solidity memory object, which lies outside every
+            // static frame unless assembly placed it there; see CODEGEN-009 in
+            // `docs/SOLC_DIVERGENCE.md`.
+            let shareable = runtime && (disjoint || copy_helper_eligible(func, &alias, inst));
+            Some(CopySite { inst, shape, shareable })
+        })
+        .collect()
+}
+
+/// Builds the helper for `sites` copies of one shape when the objective ranks
+/// calling it above expanding the loop at every site.
+fn shared_copy_helper(target: Target, shape: CopyShape, sites: u32) -> Option<Function> {
+    if sites < 2 {
+        return None;
+    }
+    // fn @mcopy_words(dest, src, len) { copy_loop<shape>(dest, src, len); ret }
+    let mut function = Function::new(Ident::with_dummy_span(sym::mcopy_words));
+    {
+        let mut builder = FunctionBuilder::new(&mut function);
+        let dest = builder.add_param(MirType::I256);
+        let src = builder.add_param(MirType::I256);
+        let len = builder.add_param(MirType::I256);
+        let exit = builder.create_block();
+        emit_copy_loop(&mut builder, dest, src, len, exit, shape);
+        builder.switch_to_block(exit);
+        builder.ret([]);
+    }
+    let params = function.params.len();
+    let body = target.code_estimate(&function);
+    // The loop itself runs in both shapes. Sharing it costs a call and a return at every
+    // execution and a call at every site; expanding it repeats its bytes at every site.
+    let frame_words =
+        EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE / EvmMemoryLayout::WORD_SIZE + params as u64;
+    let call = target.icall(params, 0, frame_words);
+    let ret = target.internal_return(params, 0);
+    let shared = Cost::new(call.gas, 0)
+        .plus(Cost::new(ret.gas, 0))
+        .times(sites)
+        .plus(Cost::new(0, call.bytes).times(sites))
+        .plus(Cost::new(0, body.bytes))
+        .plus(Cost::new(0, ret.bytes));
+    let expanded = Cost::new(0, body.bytes).times(sites);
+    target.cmp_lifetime(shared, expanded).is_lt().then_some(function)
+}
+
+fn lower_function(
+    func: &mut Function,
+    sites: &[CopySite],
+    helpers: &FxHashMap<CopyShape, FunctionId>,
+) {
+    let mut expanded = FxHashMap::default();
+    for site in sites {
+        match helpers.get(&site.shape) {
+            Some(&helper) if site.shareable => call_copy_helper(func, site.inst, helper),
+            _ => {
+                expanded.insert(site.inst, site.shape);
+            }
+        }
+    }
+
+    if expanded.is_empty() {
+        return;
+    }
+
+    // Expanding a copy splits its block at the copy, so the rest of the block,
+    // with any later copy, is visited as the continuation.
     let mut block_index = 0;
     while block_index < func.blocks.len() {
         let block = BlockId::from_usize(block_index);
         let mcopy = func.blocks[block]
             .instructions
             .iter()
-            .copied()
             .enumerate()
-            .find(|(_, inst)| matches!(func.inst(*inst).kind, InstKind::MCopy(_, _, _)));
-        if let Some((position, inst)) = mcopy {
-            lower_mcopy(func, block, position, inst);
-            changed = true;
+            .find_map(|(position, &inst)| Some((position, inst, *expanded.get(&inst)?)));
+        if let Some((position, inst, shape)) = mcopy {
+            lower_mcopy(func, block, position, inst, shape);
         }
         block_index += 1;
     }
-    changed
 }
 
-fn lower_mcopy(func: &mut Function, block: BlockId, position: usize, inst: crate::mir::InstId) {
+/// Returns whether a helper call frame is provably disjoint from both copy ranges.
+fn copy_helper_eligible(func: &Function, alias: &AliasAnalysis, inst: InstId) -> bool {
+    let InstKind::MCopy(dest, src, _) = func.inst(inst).kind else { return false };
+    [dest, src].into_iter().all(|pointer| {
+        alias.memory_address(func, pointer).is_some_and(|address| helper_owned_base(address.base))
+    })
+}
+
+/// Returns whether a base belongs to compiler-managed memory outside a callee's frame.
+fn helper_owned_base(base: MemoryBase) -> bool {
+    matches!(
+        base,
+        MemoryBase::InternalFrame | MemoryBase::Allocation(_) | MemoryBase::DynamicAllocation(_)
+    )
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+enum CopyDirection {
+    Forward,
+    Reverse,
+    Dynamic,
+}
+
+/// Selects a copy direction from pointer provenance when possible.
+fn copy_direction(
+    func: &Function,
+    alias: &AliasAnalysis,
+    fresh_returns: &DenseBitSet<FunctionId>,
+    dest: ValueId,
+    src: ValueId,
+    len: ValueId,
+) -> CopyDirection {
+    let Some(dest) = alias.memory_address(func, dest) else { return CopyDirection::Dynamic };
+    let Some(src) = alias.memory_address(func, src) else { return CopyDirection::Dynamic };
+    let dest_location = MemoryLocation::new(dest, LocationSize::Dynamic(len));
+    let src_location = MemoryLocation::new(src, LocationSize::Dynamic(len));
+    if alias.memory_alias(dest_location, src_location) == AliasResult::NoAlias {
+        return CopyDirection::Forward;
+    }
+    let dest_fresh = fresh_base(func, alias, dest.base, fresh_returns);
+    let src_fresh = fresh_base(func, alias, src.base, fresh_returns);
+    if dest_fresh.is_some() && src_fresh.is_some() && dest_fresh != src_fresh {
+        return CopyDirection::Forward;
+    }
+    if dest.base == src.base {
+        if dest.offset > src.offset { CopyDirection::Reverse } else { CopyDirection::Forward }
+    } else {
+        CopyDirection::Dynamic
+    }
+}
+
+/// Returns the instruction that created a fresh memory base.
+fn fresh_base(
+    func: &Function,
+    alias: &AliasAnalysis,
+    base: MemoryBase,
+    fresh_returns: &DenseBitSet<FunctionId>,
+) -> Option<InstId> {
+    match base {
+        MemoryBase::Allocation(inst) | MemoryBase::DynamicAllocation(inst) => Some(inst),
+        MemoryBase::Value(value) => fresh_value_base(func, alias, value, fresh_returns, 0),
+        MemoryBase::Absolute | MemoryBase::InternalFrame => None,
+    }
+}
+
+/// Traces constant and dynamic offsets back to one fresh allocation.
+fn fresh_value_base(
+    func: &Function,
+    alias: &AliasAnalysis,
+    value: ValueId,
+    fresh_returns: &DenseBitSet<FunctionId>,
+    depth: usize,
+) -> Option<InstId> {
+    if depth > 8 {
+        return None;
+    }
+    let Value::Inst(inst) = func.value(value) else { return None };
+    match func.inst(*inst).kind {
+        // Assembly that may move the FMP back can place an allocation over live memory.
+        InstKind::Alloc { .. } if alias.allocation_is_unrecycled(func, *inst) => Some(*inst),
+        InstKind::ICall { function: crate::mir::Callee::Function(function), .. }
+            if fresh_returns.contains(function) =>
+        {
+            Some(*inst)
+        }
+        InstKind::Add(first, second) => {
+            let first = fresh_value_base(func, alias, first, fresh_returns, depth + 1);
+            let second = fresh_value_base(func, alias, second, fresh_returns, depth + 1);
+            match (first, second) {
+                (Some(first), None) | (None, Some(first)) => Some(first),
+                _ => None,
+            }
+        }
+        InstKind::Sub(base, offset)
+            if fresh_value_base(func, alias, offset, fresh_returns, depth + 1).is_none() =>
+        {
+            fresh_value_base(func, alias, base, fresh_returns, depth + 1)
+        }
+        _ => None,
+    }
+}
+
+/// Replaces an `mcopy` with a call of the shared helper.
+fn call_copy_helper(func: &mut Function, inst: InstId, helper: FunctionId) {
+    let InstKind::MCopy(dest, src, len) = func.inst(inst).kind else { unreachable!() };
+    // icall @mcopy_words, 0, dest, src, len
+    let instruction = func.inst_mut(inst);
+    instruction.kind = InstKind::ICall {
+        function: crate::mir::Callee::Function(helper),
+        args: vec![dest, src, len].into(),
+    };
+    instruction.metadata.set_disjoint(false);
+}
+
+fn lower_mcopy(
+    func: &mut Function,
+    block: BlockId,
+    position: usize,
+    inst: InstId,
+    shape: CopyShape,
+) {
     let InstKind::MCopy(dest, src, len) = func.inst(inst).kind else { unreachable!() };
 
     let mut instructions = std::mem::take(&mut func.blocks[block].instructions);
@@ -86,56 +378,218 @@ fn lower_mcopy(func: &mut Function, block: BlockId, position: usize, inst: crate
     }
     redirect_successor_predecessors(func, block, continuation);
 
-    let loop_head = func.alloc_block();
-    let loop_body = func.alloc_block();
-    let tail_check = func.alloc_block();
-    let tail_block = func.alloc_block();
     let mut builder = FunctionBuilder::new(func);
-
-    // Copy the full words in a loop, then merge the partial tail word with a
-    // byte mask so exactly `len` bytes change, like the identity precompile.
     builder.switch_to_block(block);
+    emit_copy_loop(&mut builder, dest, src, len, continuation, shape);
+}
+
+/// Emits the word-copy loop from the builder's current block, continuing at `continuation`.
+fn emit_copy_loop(
+    builder: &mut FunctionBuilder<'_>,
+    dest: ValueId,
+    src: ValueId,
+    len: ValueId,
+    continuation: BlockId,
+    shape: CopyShape,
+) {
+    let copy = builder.create_block();
+
+    // empty = len == 0
+    // branch empty, continuation, copy
+    let empty = builder.eq_zero(len);
+    builder.branch(empty, continuation, copy);
+    builder.switch_to_block(copy);
+
+    // full = len & ~31, or len when it is whole words
+    let full = if shape.whole_words { len } else { builder.mask_padded_size(len) };
+    let copy = WordCopy { dest, src, len, full };
+    match shape.direction {
+        CopyDirection::Forward => emit_forward_copy(builder, copy, continuation),
+        CopyDirection::Reverse => emit_reverse_copy(builder, copy, continuation),
+        CopyDirection::Dynamic => emit_dynamic_copy(builder, copy, continuation),
+    }
+}
+
+/// The operands of one expanded copy, with `full` the length of its whole words.
+#[derive(Clone, Copy)]
+struct WordCopy {
+    dest: ValueId,
+    src: ValueId,
+    len: ValueId,
+    full: ValueId,
+}
+
+impl WordCopy {
+    /// Returns whether a partial word follows the whole words.
+    fn has_partial_word(self) -> bool {
+        self.full != self.len
+    }
+}
+
+/// Returns whether `len` is provably a multiple of 32.
+fn is_whole_words(func: &Function, len: ValueId, depth: usize) -> bool {
+    /// How deep to look through the arithmetic that computes a length.
+    const MAX_DEPTH: usize = 4;
+    const WORD_BITS: u64 = EvmMemoryLayout::WORD_SIZE.trailing_zeros() as u64;
+    if let Some(len) = func.value_u256(len) {
+        return len.as_limbs()[0] % EvmMemoryLayout::WORD_SIZE == 0;
+    }
+    let Value::Inst(inst) = func.value(len) else { return false };
+    if depth >= MAX_DEPTH {
+        return false;
+    }
+    let whole = |value| is_whole_words(func, value, depth + 1);
+    match func.inst(*inst).kind {
+        InstKind::Shl(shift, _) => func.value_u64(shift).is_some_and(|shift| shift >= WORD_BITS),
+        InstKind::Mul(a, b) | InstKind::And(a, b) => whole(a) || whole(b),
+        InstKind::Add(a, b) | InstKind::Sub(a, b) => whole(a) && whole(b),
+        _ => false,
+    }
+}
+
+/// Emits an ascending copy after overlap analysis has proved it safe.
+fn emit_forward_copy(builder: &mut FunctionBuilder<'_>, copy: WordCopy, continuation: BlockId) {
+    let WordCopy { dest, src, len, full } = copy;
+    let entry = builder.current_block();
+    let forward_head = builder.create_block();
+    let forward_body = builder.create_block();
+
+    // jump forward_head
     let zero = builder.imm(0);
     let word_size = builder.imm(32);
-    let thirty_one = builder.imm(31);
-    let not_thirty_one = builder.not(thirty_one);
-    let full = builder.and(len, not_thirty_one);
-    let entry = builder.current_block();
-    builder.jump(loop_head);
+    builder.jump(forward_head);
 
-    builder.switch_to_block(loop_head);
-    let offset = builder.phi(vec![(entry, zero)]);
-    let remaining = builder.lt(offset, full);
-    builder.branch(remaining, loop_body, tail_check);
+    // forward_offset = phi(entry: 0, forward_body: forward_next)
+    // remaining = forward_offset < full
+    // branch remaining, forward_body, exit
+    builder.switch_to_block(forward_head);
+    let forward_offset = builder.phi(vec![(entry, zero)]);
+    let remaining = builder.lt(forward_offset, full);
+    let exit = if copy.has_partial_word() { builder.create_block() } else { continuation };
+    builder.branch(remaining, forward_body, exit);
 
-    builder.switch_to_block(loop_body);
-    let src_ptr = builder.add(src, offset);
+    // word = mload(src + forward_offset)
+    // mstore(dest + forward_offset, word)
+    // forward_next = forward_offset + 32
+    // jump forward_head
+    builder.switch_to_block(forward_body);
+    let src_ptr = builder.add(src, forward_offset);
     let word = builder.mload(src_ptr);
-    let dest_ptr = builder.add(dest, offset);
+    let dest_ptr = builder.add(dest, forward_offset);
     builder.mstore(dest_ptr, word);
-    let next = builder.add(offset, word_size);
-    builder.add_phi_incoming(offset, loop_body, next);
-    builder.jump(loop_head);
+    let forward_next = builder.add(forward_offset, word_size);
+    builder.add_phi_incoming(forward_offset, forward_body, forward_next);
+    builder.jump(forward_head);
+    if !copy.has_partial_word() {
+        return;
+    }
 
-    // A word-multiple length has no tail. Besides avoiding a redundant store,
-    // skipping it keeps the mask calculation away from its 256-bit shift
-    // boundary on pre-Cancun targets.
-    builder.switch_to_block(tail_check);
+    // exit: has_partial = full < len
+    // branch has_partial, partial_block, continuation
+    builder.switch_to_block(exit);
+    let partial_block = builder.create_block();
     let has_partial = builder.lt(full, len);
-    builder.branch(has_partial, tail_block, continuation);
+    builder.branch(has_partial, partial_block, continuation);
 
-    // Merge the partial source word with the bytes beyond `len` already at
-    // the destination.
-    builder.switch_to_block(tail_block);
+    builder.switch_to_block(partial_block);
+    emit_partial_copy(builder, dest, src, len, full, continuation);
+}
+
+/// Emits a descending copy for an upward-overlapping range.
+fn emit_reverse_copy(builder: &mut FunctionBuilder<'_>, copy: WordCopy, continuation: BlockId) {
+    let WordCopy { dest, src, len, full } = copy;
+    let reverse_head = builder.create_block();
+    let reverse_body = builder.create_block();
+    let word_size = builder.imm(32);
+
+    let incoming = if copy.has_partial_word() {
+        let partial_check = builder.create_block();
+        let partial_block = builder.create_block();
+
+        // has_partial = full < len
+        // branch has_partial, partial_block, partial_check
+        let has_partial = builder.lt(full, len);
+        builder.branch(has_partial, partial_block, partial_check);
+
+        // jump reverse_head
+        builder.switch_to_block(partial_check);
+        builder.jump(reverse_head);
+
+        builder.switch_to_block(partial_block);
+        emit_partial_copy(builder, dest, src, len, full, reverse_head);
+        vec![(partial_check, full), (partial_block, full)]
+    } else {
+        // jump reverse_head
+        let entry = builder.current_block();
+        builder.jump(reverse_head);
+        vec![(entry, full)]
+    };
+
+    // reverse_offset = phi(incoming..., reverse_body: reverse_next)
+    // done = reverse_offset == 0
+    // branch done, continuation, reverse_body
+    builder.switch_to_block(reverse_head);
+    let reverse_offset = builder.phi(incoming);
+    let done = builder.eq_zero(reverse_offset);
+    builder.branch(done, continuation, reverse_body);
+
+    // reverse_next = reverse_offset - 32
+    // word = mload(src + reverse_next)
+    // mstore(dest + reverse_next, word)
+    // jump reverse_head
+    builder.switch_to_block(reverse_body);
+    let reverse_next = builder.sub(reverse_offset, word_size);
+    let src_ptr = builder.add(src, reverse_next);
+    let word = builder.mload(src_ptr);
+    let dest_ptr = builder.add(dest, reverse_next);
+    builder.mstore(dest_ptr, word);
+    builder.add_phi_incoming(reverse_offset, reverse_body, reverse_next);
+    builder.jump(reverse_head);
+}
+
+/// Emits a runtime direction check when pointer provenance is inconclusive.
+fn emit_dynamic_copy(builder: &mut FunctionBuilder<'_>, copy: WordCopy, continuation: BlockId) {
+    let forward = builder.create_block();
+    let reverse = builder.create_block();
+
+    // copy_backward = src < dest
+    // branch copy_backward, reverse, forward
+    let copy_backward = builder.lt(copy.src, copy.dest);
+    builder.branch(copy_backward, reverse, forward);
+
+    builder.switch_to_block(forward);
+    emit_forward_copy(builder, copy, continuation);
+
+    builder.switch_to_block(reverse);
+    emit_reverse_copy(builder, copy, continuation);
+}
+
+/// Emits an exact masked copy of the final partial word.
+fn emit_partial_copy(
+    builder: &mut FunctionBuilder<'_>,
+    dest: ValueId,
+    src: ValueId,
+    len: ValueId,
+    partial_offset: ValueId,
+    continuation: BlockId,
+) {
+    // partial = len & 31
+    // shift = (32 - (len & 31)) << 3
+    // source_top = (mload(src + partial_offset) >> shift) << shift
+    // destination_low = mload(dest + partial_offset) & ((1 << shift) - 1)
+    // mstore(dest + partial_offset, source_top | destination_low)
+    // jump continuation
+    let word_size = builder.imm(32);
+    let thirty_one = builder.imm(31);
     let partial = builder.and(len, thirty_one);
     let gap = builder.sub(word_size, partial);
     let three = builder.imm(3);
     let shift = builder.shl(three, gap);
-    let src_tail_ptr = builder.add(src, full);
+    let src_tail_ptr = builder.add(src, partial_offset);
     let src_word = builder.mload(src_tail_ptr);
     let src_shifted = builder.shr(shift, src_word);
     let src_top = builder.shl(shift, src_shifted);
-    let dest_tail_ptr = builder.add(dest, full);
+    let dest_tail_ptr = builder.add(dest, partial_offset);
     let dest_word = builder.mload(dest_tail_ptr);
     let one = builder.imm(1);
     let low_bound = builder.shl(shift, one);

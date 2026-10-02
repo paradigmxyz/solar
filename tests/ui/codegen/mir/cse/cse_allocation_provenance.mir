@@ -4,14 +4,17 @@
 @module CseAllocationProvenance
 
 // CHECK-LABEL: @fresh
-// CHECK:       [[LOAD:v[0-9]+]] = mload {{v[0-9]+}}
-// CHECK: -     {{v[0-9]+}} = mload {{v[0-9]+}}
-// CHECK:       [[SUM:v[0-9]+]] = add [[LOAD]], [[LOAD]]
+// CHECK:       mstore [[ADDR:v[0-9]+]], arg0
+// CHECK: -     {{v[0-9]+}} = mload [[ADDR]]
+// CHECK: -     {{v[0-9]+}} = mload [[ADDR]]
+// CHECK: +     [[SUM:v[0-9]+]] = add arg0, arg0
 // CHECK:       ret [[SUM]]
-fn @fresh(arg0: u256, arg1: u256) -> u256 {
+fn @fresh(arg0: i256, arg1: i256) -> i256 {
   bb0:
-    v2 = alloc raw, exact, uninitialized, infallible, 32
-    v3 = alloc raw, exact, uninitialized, infallible, 32
+    v10 = alloc raw, exact, uninitialized, infallible, 32
+    v2 = ptrtoint memptr v10 to i256
+    v11 = alloc raw, exact, uninitialized, infallible, 32
+    v3 = ptrtoint memptr v11 to i256
     mstore v2, arg0
     v5 = mload v2
     mstore v3, arg1
@@ -21,19 +24,96 @@ fn @fresh(arg0: u256, arg1: u256) -> u256 {
 }
 
 // CHECK-LABEL: @reset
-// CHECK: {{^ +}}[[FIRST:v[0-9]+]] = mload [[ADDR:v[0-9]+]]
+// CHECK: {{^ +}}mstore [[ADDR:v[0-9]+]], arg0
+// CHECK: -     {{v[0-9]+}} = mload [[ADDR]]
+// CHECK: {{^ +}}set_fmp {{v[0-9]+}}
 // CHECK: {{^ +}}[[SECOND:v[0-9]+]] = mload [[ADDR]]
-// CHECK: {{^ +}}[[SUM:v[0-9]+]] = add [[FIRST]], [[SECOND]]
+// CHECK: +     [[SUM:v[0-9]+]] = add arg0, [[SECOND]]
 // CHECK: {{^ +}}ret [[SUM]]
-fn @reset(arg0: u256, arg1: u256) -> u256 {
+fn @reset(arg0: i256, arg1: i256) -> i256 {
   bb0:
-    v2 = alloc raw, exact, uninitialized, infallible, 32
+    v12 = alloc raw, exact, uninitialized, infallible, 32
+    v2 = ptrtoint memptr v12 to i256
     mstore v2, arg0
     v4 = mload v2
-    set_fmp v2
-    v6 = alloc raw, exact, uninitialized, infallible, 32
+    set_fmp v12
+    v13 = alloc raw, exact, uninitialized, infallible, 32
+    v6 = ptrtoint memptr v13 to i256
     mstore v6, arg1
     v8 = mload v2
     v9 = add v4, v8
     ret v9
+}
+
+// CHECK-LABEL: @unbounded_heap_copy_keeps_reserved_load
+// CHECK: {{^ +}}[[FIRST:v[0-9]+]] = mload 96
+// CHECK: {{^ +}}mcopy
+// CHECK: {{^ +}}[[SECOND:v[0-9]+]] = mload 96
+// CHECK: {{^ +}}{{v[0-9]+}} = add [[FIRST]], [[SECOND]]
+fn @unbounded_heap_copy_keeps_reserved_load(arg0: i256) -> i256 {
+  bb0:
+    v14 = alloc raw, exact, uninitialized, infallible, 32
+    v1 = ptrtoint memptr v14 to i256
+    v2 = mload 96
+    mcopy v1, 0, arg0
+    v3 = mload 96
+    v4 = add v2, v3
+    ret v4
+}
+
+// CHECK-LABEL: @unbounded_heap_copy_can_reach_other_allocation
+// CHECK: {{^ +}}[[FIRST:v[0-9]+]] = mload [[OTHER:v[0-9]+]]
+// CHECK: {{^ +}}mcopy
+// CHECK: {{^ +}}[[SECOND:v[0-9]+]] = mload [[OTHER]]
+// CHECK: {{^ +}}{{v[0-9]+}} = add [[FIRST]], [[SECOND]]
+fn @unbounded_heap_copy_can_reach_other_allocation(arg0: i256) -> i256 {
+  bb0:
+    v15 = alloc raw, exact, uninitialized, infallible, 32
+    v1 = ptrtoint memptr v15 to i256
+    v16 = alloc raw, exact, uninitialized, infallible, 32
+    v2 = ptrtoint memptr v16 to i256
+    v3 = mload v2
+    mcopy v1, 0, arg0
+    v4 = mload v2
+    v5 = add v3, v4
+    ret v5
+}
+
+// CHECK-LABEL: @loop_allocation_after_fmp_reset
+// CHECK: {{^ +}}[[BEFORE:v[0-9]+]] = mload 96
+// CHECK: {{^ +}}mcopy
+// CHECK: {{^ +}}[[AFTER:v[0-9]+]] = mload 96
+// CHECK: {{^ +}}{{v[0-9]+}} = add [[BEFORE]], [[AFTER]]
+fn @loop_allocation_after_fmp_reset(arg0: i1) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v18 = inttoptr i256 0 to memptr
+    set_fmp v18
+    v17 = alloc raw, exact, uninitialized, infallible, 32
+    v1 = ptrtoint memptr v17 to i256
+    v2 = mload 96
+    mcopy v1, 128, 128
+    v3 = mload 96
+    v4 = add v2, v3
+    jumpi arg0, bb1, bb2
+  bb2:
+    ret v4
+}
+
+// A nominal caller object may overlap the fresh allocation.
+// CHECK-LABEL: @argument_header
+// CHECK: {{^ +}}[[LEN:v[0-9]+]] = memory_object_len memorybytes, arg0
+// CHECK: {{^ +}}memory_object_store_byte
+// CHECK: {{^ +}}[[AFTER:v[0-9]+]] = memory_object_len memorybytes, arg0
+// CHECK: {{^ +}}{{v[0-9]+}} = add [[LEN]], [[AFTER]]
+fn @argument_header(arg0: memptr) -> i256 {
+  bb0:
+    v1 = alloc memorybytes, exact, uninitialized, infallible, 64
+    v0 = memory_object_len memorybytes, arg0
+    set_memory_object_len memorybytes, v1, 32
+    memory_object_store_byte memorybytes, v1, 0, 7
+    v2 = memory_object_len memorybytes, arg0
+    v3 = add v0, v2
+    ret v3
 }

@@ -16,9 +16,12 @@
 //! assembly-only lowering use the same recipe API for constants they inspect or introduce later.
 
 use super::EvmPass;
-use crate::backend::evm::{
-    ir::{Instruction, Metadata, Module},
-    op::{self, WORD_BYTES},
+use crate::{
+    backend::evm::{
+        ir::{Instruction, Metadata, Module},
+        op::{self, WORD_BYTES},
+    },
+    target::GasTier,
 };
 use alloy_primitives::U256;
 use solar_config::EvmVersion;
@@ -37,8 +40,8 @@ impl EvmPass for CompactPushes {
 }
 const EVM_WORD_BITS: usize = WORD_BYTES * 8;
 const MIN_COMPACT_MASK_WIDTH: u8 = 5;
-const BASE_GAS: usize = 2;
-const VERY_LOW_GAS: usize = 3;
+const BASE_GAS: usize = GasTier::Base.fixed_gas() as usize;
+const VERY_LOW_GAS: usize = GasTier::VeryLow.fixed_gas() as usize;
 
 fn compact_pushes(gcx: Gcx<'_>, module: &mut Module) -> bool {
     let evm_version = gcx.sess.opts.evm_version;
@@ -134,11 +137,16 @@ impl ImmediateMaterialization {
     }
 
     fn metrics(self) -> ImmediateMaterializationMetrics {
+        // A literal is one push, which the visitor below would measure the same way.
+        if matches!(self.recipe, CompactPush::Literal) {
+            let (encoded_len, static_gas) = literal_cost(self.evm_version, self.value);
+            return ImmediateMaterializationMetrics { encoded_len, static_gas, stack_peak: 1 };
+        }
         let mut metrics = ImmediateMaterializationMetrics::default();
         let mut depth = 0usize;
         self.for_each(|materialized| match materialized {
             ImmediateMaterializationOp::Push(value) => {
-                let (len, gas) = literal_materialization_cost(self.evm_version, value);
+                let (len, gas) = literal_cost(self.evm_version, value);
                 metrics.encoded_len += len;
                 metrics.static_gas += gas;
                 depth += 1;
@@ -213,6 +221,12 @@ pub(in crate::backend) fn immediate_materialization_len(
 fn select_with_len(evm_version: EvmVersion, value: U256) -> (usize, CompactPush) {
     let width = push_width(evm_version, value);
     let normal_len = fixed_push_len(evm_version, width);
+    // NOT recipes require a full-width input. A shifted nonzero literal needs
+    // at least two PUSH1s and SHL (five bytes), so PUSH4 and shorter already win
+    // or tie every recipe. Keep the literal on ties, as the full search does.
+    if width < MIN_COMPACT_MASK_WIDTH {
+        return (normal_len, CompactPush::Literal);
+    }
     let mut best = (normal_len, CompactPush::Literal);
     let mut consider = |len, compact| {
         if len < best.0 {
@@ -270,7 +284,8 @@ pub(crate) fn immediate_materialization_cost(
     (metrics.encoded_len, metrics.static_gas)
 }
 
-fn literal_materialization_cost(evm_version: EvmVersion, value: U256) -> (usize, usize) {
+/// Returns the byte length and gas cost of one literal `PUSHn` of `value`.
+pub(crate) fn literal_cost(evm_version: EvmVersion, value: U256) -> (usize, usize) {
     (
         fixed_push_len(evm_version, push_width(evm_version, value)),
         if value.is_zero() && evm_version.has_push0() { BASE_GAS } else { VERY_LOW_GAS },

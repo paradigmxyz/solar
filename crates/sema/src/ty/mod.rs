@@ -11,7 +11,7 @@ use solar_ast::{DataLocation, StateMutability, TypeSize, UserDefinableOperator, 
 use solar_data_structures::{
     BumpExt,
     bit_set::{DenseBitSet, GrowableBitSet},
-    fmt::{from_fn, or_list},
+    fmt::or_list,
     map::{FxBuildHasher, FxHashMap, FxHashSet},
     smallvec::SmallVec,
     trustme,
@@ -569,7 +569,7 @@ impl<'gcx> Gcx<'gcx> {
         call: &hir::Expr<'gcx>,
         parameter_index: usize,
     ) -> Option<&'gcx hir::Expr<'gcx>> {
-        let hir::ExprKind::Call(callee, args, _) = call.peel_parens().kind else { return None };
+        let (callee, args, _) = call.peel_parens().as_call()?;
         let callee_ty = self.type_of_expr(callee.id)?;
         let signature = self.callable_signature_of_ty(callee_ty);
 
@@ -605,7 +605,7 @@ impl<'gcx> Gcx<'gcx> {
     /// The selected callable type takes precedence. Syntax and builtin semantics only recover
     /// parameter names when the selected signature does not carry a declaration source.
     pub fn call_param_source(self, callee: &hir::Expr<'_>) -> Option<CallableParamSource> {
-        let callee = callee.peel_parens();
+        let callee = callee.split_call_options().0;
         if let Some(source) = self
             .type_of_expr(callee.id)
             .and_then(|ty| self.callable_signature_of_ty(ty))
@@ -646,7 +646,7 @@ impl<'gcx> Gcx<'gcx> {
     #[inline]
     pub fn resolved_call(self, expr: &hir::Expr<'gcx>) -> Option<ResolvedCallee> {
         let hir::ExprKind::Call(callee, ..) = expr.peel_parens().kind else { return None };
-        self.resolved_callee(callee.id)
+        self.resolved_callee(callee.split_call_options().0.id)
     }
 
     /// Resolves every segment of a source path in its source and contract scopes.
@@ -657,6 +657,16 @@ impl<'gcx> Gcx<'gcx> {
         contract: Option<hir::ContractId>,
     ) -> Option<Vec<Vec<hir::Res>>> {
         self.symbol_resolver.source_path_resolutions(segments, source, contract)
+    }
+
+    /// Iterates declarations in an existing contract scope.
+    pub fn contract_scope_declarations(
+        self,
+        contract: hir::ContractId,
+    ) -> impl Iterator<Item = hir::Res> + 'gcx {
+        self.symbol_resolver.contract_scopes[contract]
+            .iter()
+            .flat_map(|(_, declarations)| declarations.iter().map(|declaration| declaration.res))
     }
 
     /// Returns symbol references in validated local NatSpec tags.
@@ -811,7 +821,7 @@ impl<'gcx> Gcx<'gcx> {
     fn item_canonical_name_(self, id: hir::ItemId) -> impl fmt::Display {
         let name = self.item_name(id);
         let contract = self.hir.item(id).contract().map(|id| self.item_name(id));
-        from_fn(move |f| {
+        fmt::from_fn(move |f| {
             if let Some(contract) = contract {
                 write!(f, "{contract}.")?;
             }
@@ -824,7 +834,7 @@ impl<'gcx> Gcx<'gcx> {
         self,
         id: hir::ContractId,
     ) -> impl fmt::Display + use<'gcx> {
-        from_fn(move |f| {
+        fmt::from_fn(move |f| {
             let c = self.hir.contract(id);
             let source = self.hir.source(c.source);
             write!(f, "{}:{}", source.file.name.display(), c.name)
@@ -1647,8 +1657,7 @@ fn all_contract_reachable_functions(
 ///
 /// [ERC-165]: https://eips.ethereum.org/EIPS/eip-165
 pub fn interface_id(gcx: _, id: hir::ContractId) -> Selector {
-    let kind = gcx.hir.contract(id).kind;
-    assert!(kind.is_interface(), "{kind} {id:?} is not an interface");
+    assert!(!gcx.hir.contract(id).can_be_deployed(), "{id:?} is deployable");
     let selectors = gcx.interface_functions(id).own().iter().map(|f| f.selector);
     selectors.fold(Selector::ZERO, std::ops::BitXor::bitxor)
 }
@@ -1658,18 +1667,11 @@ pub fn interface_id(gcx: _, id: hir::ContractId) -> Selector {
 /// The contract doesn't have to be an interface.
 pub fn interface_functions(gcx: _, id: hir::ContractId) -> InterfaceFunctions<'gcx> {
     let c = gcx.hir.contract(id);
-    let mut inheritance_start = None;
     let mut signatures_seen = FxHashSet::default();
     let mut hash_collisions = FxHashMap::default();
     let functions = c.linearized_bases.iter().flat_map(|&base| {
         let b = gcx.hir.contract(base);
-        let functions =
-            b.functions().filter(|&f| gcx.hir.function(f).is_part_of_external_interface());
-        if base == id {
-            assert!(inheritance_start.is_none(), "duplicate self ID in linearized_bases");
-            inheritance_start = Some(functions.clone().count());
-        }
-        functions
+        b.functions().filter(|&f| gcx.hir.function(f).is_part_of_external_interface())
     }).filter_map(|f_id| {
         let f = gcx.hir.function(f_id);
         let TyKind::Fn(fn_ty) = gcx.type_of_item(f_id.into()).kind else { unreachable!() };
@@ -1691,30 +1693,22 @@ pub fn interface_functions(gcx: _, id: hir::ContractId) -> InterfaceFunctions<'g
                 continue;
             }
             if !ty.can_be_exported(gcx) {
-                // Libraries may expose mapping parameters (solc `interfaceType(true)`).
-                // Signature printing already handles them; keep the function in the
-                // interface instead of silently dropping it.
-                if c.kind.is_library()
-                    && ty.has_mapping(gcx)
-                    && !ty.is_recursive(gcx)
-                    && !ty.has_internal_function()
-                {
-                    continue;
-                }
-                // TODO: implement remaining `interfaceType` cases for libraries.
-                if c.kind.is_library() {
-                    result = Err(ErrorGuaranteed::new_unchecked());
+                // Library storage pointers cross the ABI as slots, so recursive
+                // structs and mappings are allowed. Their members must still have
+                // interface types: internal function pointers are never exported.
+                let library_storage = c.kind.is_library() && ty.data_stored_in(DataLocation::Storage);
+                if library_storage && !ty.has_internal_function(gcx) {
                     continue;
                 }
 
                 let kind = f.description();
                 // Recursiveness comes first, as in solc's `StructType::interfaceType`: a
                 // recursive struct is rejected before its members are inspected for mappings.
-                let msg = if ty.is_recursive(gcx) {
+                let msg = if !library_storage && ty.is_recursive(gcx) {
                     format!("recursive types cannot be parameter or return types of public {kind}s")
-                } else if ty.has_mapping(gcx) {
+                } else if !library_storage && ty.has_mapping(gcx) {
                     format!("types containing mappings cannot be parameter or return types of public {kind}s")
-                } else if ty.has_internal_function() {
+                } else if ty.has_internal_function(gcx) {
                     format!("types containing internal function pointers cannot be parameter or return types of public {kind}s")
                 } else {
                     format!("this type cannot be parameter or return type of a public {kind}")
@@ -1751,7 +1745,7 @@ pub fn interface_functions(gcx: _, id: hir::ContractId) -> InterfaceFunctions<'g
     });
     let functions = gcx.bump().alloc_from_iter(functions);
     trace!("{}.interfaceFunctions.len() = {}", gcx.contract_fully_qualified_name(id), functions.len());
-    let inheritance_start = inheritance_start.expect("linearized_bases did not contain self ID");
+    let inheritance_start = functions.partition_point(|f| gcx.hir.function(f.id).contract == Some(id));
     InterfaceFunctions { functions, inheritance_start }
 }
 
@@ -1813,8 +1807,9 @@ pub(crate) fn natspec_contract_in_source(
 pub fn item_signature(gcx: _, id: hir::ItemId) -> &'gcx str {
     let name = gcx.item_name(id);
     let tys = gcx.item_parameter_types(id);
-    let in_library =
-        gcx.hir.item(id).contract().is_some_and(|c| gcx.hir.contract(c).kind.is_library());
+    // Only library functions use canonical type names; events and errors use ABI types.
+    let in_library = matches!(id, hir::ItemId::Function(_))
+        && gcx.hir.item(id).contract().is_some_and(|c| gcx.hir.contract(c).kind.is_library());
     gcx.bump().alloc_str(&gcx.mk_abi_signature(name.as_str(), tys.iter().copied(), in_library))
 }
 

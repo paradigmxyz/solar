@@ -2,13 +2,14 @@
 
 use super::{
     BlockId, DenseBitSet, EffectKind, EvmCodegen, EvmMemoryLayout, Function, FunctionId, FxHashMap,
-    FxHashSet, ICallStackEdge, InstKind, Label, Liveness, MAX_STACK_ACCESS, ScheduleCost, SmallVec,
-    StackModel, StackOp, StackResultProjection, StackReturnPlan, StaticCallStackPlan, TargetSlot,
-    U256, Value, ValueId, WORD_BYTES, op,
+    FxHashSet, ICallStackEdge, InstKind, Label, Liveness, ScheduleCost, SmallVec, StackModel,
+    StackOp, StackResultProjection, StackReturnPlan, StaticCallStackPlan, TargetSlot, U256, Value,
+    ValueId, WORD_BYTES, op,
 };
 
 mod abi;
 mod arguments;
+mod tail;
 
 impl<'gcx> EvmCodegen<'gcx> {
     /// Returns the first internal-call result only when it is consumed. The call itself remains
@@ -96,7 +97,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.spill_live_stack_values(func_id, func, liveness, block, inst_idx);
 
         // The dynamic-frame base is an anonymous word kept on the physical stack while arguments
-        // are stored. Give any argument that this extra word would bury beyond `DUP16` a memory
+        // are stored. Give any argument that this extra word would bury beyond `DUP` a memory
         // route first. Deep-spill recovery can move named MIR values out of the way, but it cannot
         // save an anonymous frame-base word after that word has already been pushed.
         self.materialize_deep_dynamic_call_args(func, args);
@@ -170,7 +171,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.emit_push_label(callee_label);
         self.asm.emit_op(op::JUMP);
 
-        self.asm.define_label(return_label);
+        self.asm.define_continuation_label(return_label);
         if let Some(caller_stack) = caller_stack {
             self.scheduler.stack = caller_stack;
         } else {
@@ -251,32 +252,35 @@ impl<'gcx> EvmCodegen<'gcx> {
     ) -> Option<StaticCallStackPlan> {
         let depth = self.scheduler.stack.depth();
         if !self.preserve_caller_stack
-            || !(1..MAX_STACK_ACCESS).contains(&depth)
+            || !(1..self.stack_access_limit()).contains(&depth)
             || self.recursive_stack_functions.contains(func_id)
             || self.recursion_reaching_functions.contains(callee)
         {
             return None;
         }
 
-        // Stack arguments are inserted above the hidden return label. A value duplicated from the
-        // preserved caller prefix must remain addressable after the label and earlier arguments
-        // have been pushed.
-        if let Some(mask) = stack_mask {
+        let stack_args_fit = |stack: &StackModel| {
+            let Some(mask) = stack_mask else { return true };
             let mut words_above = 1;
             for (index, &arg) in args.iter().enumerate() {
                 if !mask.contains(index) {
                     continue;
                 }
-                if self
-                    .scheduler
-                    .stack
+                if stack
                     .find(arg)
-                    .is_some_and(|depth| depth + words_above + 1 > MAX_STACK_ACCESS)
+                    .is_some_and(|depth| depth + words_above + 1 > self.stack_access_limit())
                 {
-                    return None;
+                    return false;
                 }
                 words_above += 1;
             }
+            true
+        };
+        // Stack arguments are inserted above the hidden return label. A value duplicated from the
+        // preserved caller prefix must remain addressable after the label and earlier arguments
+        // have been pushed.
+        if !stack_args_fit(&self.scheduler.stack) {
+            return None;
         }
 
         // A call cannot observe words below its hidden return address. Keep an entirely live,
@@ -342,7 +346,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     Some(depth)
                 })
             } {
-                if depth > MAX_STACK_ACCESS {
+                if depth > self.stack_access_limit() {
                     break;
                 }
                 if depth != 0 {
@@ -367,7 +371,10 @@ impl<'gcx> EvmCodegen<'gcx> {
                     .filter(|&&value| !self.scheduler.spills.is_stored(value))
                     .count();
                 let spill_fallback_cost = depth + fresh * 3 + retained.len() * 2;
-                if stack_args_are_stable && prepare_ops.len() < spill_fallback_cost {
+                if stack_args_are_stable
+                    && stack_args_fit(&caller_stack)
+                    && prepare_ops.len() < spill_fallback_cost
+                {
                     return Some(StaticCallStackPlan { prepare_ops, caller_stack });
                 }
             }
@@ -636,7 +643,10 @@ impl<'gcx> EvmCodegen<'gcx> {
                             func.name, self.scheduler.stack
                         )
                     });
-                    assert!(depth < MAX_STACK_ACCESS, "resident argument exceeded DUP16 reach");
+                    assert!(
+                        depth < self.stack_access_limit(),
+                        "resident argument exceeded DUP reach"
+                    );
                     self.emit_stack_op(StackOp::Dup((depth + 1) as u8));
                 }
             }
@@ -785,6 +795,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                         raw_spill_slots[i],
                         caller_stack.as_ref(),
                         1 + pushed_args,
+                        carries_resident_stack,
                     );
                     pushed_args += 1;
                 }
@@ -799,7 +810,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.emit_push_label(callee_label);
         self.asm.emit_op(op::JUMP);
 
-        self.asm.define_label(return_label);
+        self.asm.define_continuation_label(return_label);
         if let Some(caller_stack) = caller_stack {
             self.scheduler.stack = caller_stack;
         } else {
@@ -815,7 +826,10 @@ impl<'gcx> EvmCodegen<'gcx> {
                 let depth = self.scheduler.stack.find(value).unwrap_or_else(|| {
                     panic!("recursive caller argument {value:?} was not preserved")
                 });
-                assert!(depth < MAX_STACK_ACCESS, "recursive caller argument exceeded DUP16 reach");
+                assert!(
+                    depth < self.stack_access_limit(),
+                    "recursive caller argument exceeded DUP reach"
+                );
                 self.emit_stack_op(StackOp::Dup((depth + 1) as u8));
                 let addr = self.static_frame_addr(
                     func_id,
@@ -950,6 +964,38 @@ impl<'gcx> EvmCodegen<'gcx> {
         call_idx: usize,
         arity: usize,
     ) -> Option<StackResultProjection> {
+        let (projection, tracked) =
+            Self::visit_call_result_projections(func, block, call_idx, arity, |_, _| {})?;
+        // The pointer and its offset addresses must have no consumers beyond
+        // the elided protocol; anything else still expects the buffer.
+        let elided_set = projection.elided.iter().copied().collect::<FxHashSet<_>>();
+        for check_block in func.blocks.iter() {
+            for &inst_id in &check_block.instructions {
+                if !elided_set.contains(&inst_id)
+                    && func.inst(inst_id).kind.operands().iter().any(|op| tracked.contains(op))
+                {
+                    return None;
+                }
+            }
+            if let Some(terminator) = &check_block.terminator
+                && terminator.operands().iter().any(|op| tracked.contains(op))
+            {
+                return None;
+            }
+        }
+
+        Some(projection)
+    }
+
+    /// Visits known extra-return loads before any clobber, including partial tuples.
+    /// Returns the complete protocol when every component can be bound to a stack word.
+    pub(in crate::backend::evm::codegen) fn visit_call_result_projections(
+        func: &Function,
+        block: BlockId,
+        call_idx: usize,
+        arity: usize,
+        mut visit: impl FnMut(usize, ValueId),
+    ) -> Option<(StackResultProjection, FxHashSet<ValueId>)> {
         let tail = func.blocks[block].instructions.get(call_idx + 1..)?;
 
         // The first effectful instruction after the call must be the buffer
@@ -970,7 +1016,8 @@ impl<'gcx> EvmCodegen<'gcx> {
         let (base_offset, base_inst) = base?;
         let base_value = func.inst_result_value(base_inst)?;
 
-        let mut elided = vec![base_inst];
+        let mut elided = Vec::new();
+        elided.push(base_inst);
         let mut addresses = FxHashMap::default();
         let mut extras = vec![None; arity - 1];
         for &inst_id in &tail[base_offset + 1..] {
@@ -990,6 +1037,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
                 InstKind::MLoad(addr) if addresses.contains_key(addr) => {
                     let result = func.inst_result_value(inst_id)?;
+                    visit(addresses[addr], result);
                     if extras[addresses[addr] - 1].replace(result).is_some() {
                         return None;
                     }
@@ -1004,26 +1052,8 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
         let extras = extras.into_iter().collect::<Option<Vec<_>>>()?;
 
-        // The pointer and its offset addresses must have no consumers beyond
-        // the elided protocol; anything else still expects the buffer.
-        let tracked = addresses.keys().copied().chain([base_value]).collect::<FxHashSet<_>>();
-        let elided_set = elided.iter().copied().collect::<FxHashSet<_>>();
-        for check_block in func.blocks.iter() {
-            for &inst_id in &check_block.instructions {
-                if !elided_set.contains(&inst_id)
-                    && func.inst(inst_id).kind.operands().iter().any(|op| tracked.contains(op))
-                {
-                    return None;
-                }
-            }
-            if let Some(terminator) = &check_block.terminator
-                && terminator.operands().iter().any(|op| tracked.contains(op))
-            {
-                return None;
-            }
-        }
-
-        Some(StackResultProjection { elided, extras })
+        let tracked = addresses.keys().copied().chain([base_value]).collect();
+        Some((StackResultProjection { elided, extras }, tracked))
     }
 
     /// Applies the eager-spill contract to a call result adopted mid-stack.

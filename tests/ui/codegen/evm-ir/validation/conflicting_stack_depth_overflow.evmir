@@ -1,11 +1,7 @@
 //~? ERROR: EVM IR verification failed: block 3: `push` grows the stack to 1025 words, exceeding the limit of 1024
 @module module
 
-bb0:
-  op_0c !metadata(stack=0->255)
-  op_0c !metadata(stack=0->255)
-  op_0c !metadata(stack=0->255)
-  op_0c !metadata(stack=0->255)
+bb0 [stack=1020]:
   jumpi bb2, bb1
 bb1:
   push 0

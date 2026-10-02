@@ -2,21 +2,27 @@
 //@ filecheck:
 @module MemoryReturn
 
+@types
+  struct0: {memoryslice, i256}
+  struct1: {struct0, i1}
+
 // Reading the free-memory pointer is an observable memory read, so retain the result protocol.
-// CHECK-LABEL: fn @escape() -> memptr
+// CHECK-LABEL: fn @escape() -> i256
 // CHECK: v0 = fmp
-// CHECK-NEXT: ret v0
-fn @escape() -> memptr {
+// CHECK-NEXT: [[WORD:v[0-9]+]] = ptrtoint memptr v0 to i256
+// CHECK-NEXT: ret [[WORD]]
+fn @escape() -> i256 {
   bb0:
-    v0 = fmp
+    v5 = fmp
+    v0 = ptrtoint memptr v5 to i256
     ret v0
 }
 
 // CHECK-LABEL: fn @entry()
-// CHECK: v0 = icall @escape, 1
+// CHECK: v0 = icall @escape
 fn @entry() [selector=0x01020304] {
   bb0:
-    v0 = icall fn0, 1
+    v0 = icall fn0
     ret
 }
 
@@ -32,9 +38,29 @@ fn @escape_slice() -> memoryslice {
 }
 
 // CHECK-LABEL: fn @slice_entry()
-// CHECK: icall @escape_slice, 0
+// CHECK: icall @escape_slice
 fn @slice_entry() [selector=0x05060708] {
   bb0:
-    v0 = icall fn2, 1
+    v0 = icall fn2
+    ret
+}
+
+// CHECK-LABEL: fn @escape_struct() [may_return_memory]
+// CHECK: ret
+fn @escape_struct() -> struct1 {
+  bb0:
+    v0 = make_memory_slice 128, 32
+    v1 = insert_value struct0, undef struct0, 0, v0
+    v2 = insert_value struct0, v1, 1, 42
+    v3 = insert_value struct1, undef struct1, 0, v2
+    v4 = insert_value struct1, v3, 1, true
+    ret v4
+}
+
+// CHECK-LABEL: fn @struct_entry()
+// CHECK: icall @escape_struct
+fn @struct_entry() [selector=0x090a0b0c] {
+  bb0:
+    v0 = icall @escape_struct
     ret
 }

@@ -1,7 +1,7 @@
 //! Signature help data collected from compiler analysis.
 
 use crate::{config::SignatureHelpClientOptions, proto};
-use crop::{Rope, RopeSlice};
+use crop::Rope;
 use lsp_types::{
     Documentation, Location, MarkupContent, MarkupKind, ParameterInformation, ParameterLabel,
     Position, Range, SignatureHelp, SignatureInformation, Url,
@@ -69,18 +69,16 @@ impl SignatureHelpIndex {
         let mut index = Self::default();
         let mut renderer = SignatureRenderer { gcx, signatures: FxHashMap::default() };
         index.build_callable_catalog(&mut renderer, locations);
-        let mut collector = CallCollector {
-            index: &mut index,
-            renderer: &mut renderer,
-            locations,
-            gcx,
-            source: None,
-            contract: None,
-        };
-        for source_id in gcx.hir.source_ids() {
-            collector.source = Some(source_id);
-            collector.contract = None;
-            let _ = collector.visit_nested_source(source_id);
+        for source in gcx.hir.source_ids() {
+            let mut collector = CallCollector {
+                index: &mut index,
+                renderer: &mut renderer,
+                locations,
+                gcx,
+                source,
+                contract: None,
+            };
+            let _ = collector.visit_nested_source(source);
         }
         for calls in index.calls.values_mut() {
             calls.sort_by_key(|call| proto::range_size_key(call.range));
@@ -122,14 +120,13 @@ impl SignatureHelpIndex {
     pub(crate) fn signature_help<'a>(
         &self,
         uri: &Url,
-        position: Position,
+        cursor: usize,
         positions: &proto::LspPositionIndex<Rope>,
         source: &str,
         statement_boundary: Option<usize>,
         visible_declarations: impl FnOnce(&str) -> Vec<&'a Location>,
         options: SignatureHelpClientOptions,
     ) -> Option<SignatureHelp> {
-        let cursor = positions.text_range(Range::new(position, position)).start;
         let context = call_context_with_boundary(&source[..cursor], statement_boundary)?;
         // Earlier-line edits can change byte offsets while preserving the cached LSP position.
         let open = positions.position_at_byte(context.open)?;
@@ -211,10 +208,8 @@ impl SignatureHelpIndex {
         for item_id in gcx.hir.item_ids() {
             if let Some(name) = gcx.hir.item(item_id).name()
                 && let Some(signature) = renderer.render_item(item_id)
+                && let Some(location) = locations.location(gcx.hir.item(item_id).span())
             {
-                let Some(location) = locations.location(gcx.hir.item(item_id).span()) else {
-                    continue;
-                };
                 let form = match item_id {
                     ItemId::Contract(_) => CallForm::New,
                     ItemId::Event(_) => CallForm::Event,
@@ -265,14 +260,12 @@ impl SignatureHelpIndex {
             return;
         }
         let Some(location) = locations.location(args.span) else { return };
-        let Some(callee_location) = locations.location(callee_span) else {
-            return;
-        };
+        let Some(callee_location) = locations.location(callee_span) else { return };
         if callee_location.uri != location.uri {
             return;
         }
         let Ok(callee_text) = gcx.sess.source_map().span_to_snippet(callee_span) else { return };
-        let callee_tokens = significant_tokens(&callee_text);
+        let callee_tokens = significant_token_slices(&callee_text).map(str::to_owned).collect();
         let signatures =
             signatures.into_iter().map(|signature| self.intern_signature(signature)).collect();
         self.calls.entry(location.uri).or_default().push(CallSite {
@@ -303,12 +296,10 @@ impl CallSite {
         positions: &proto::LspPositionIndex<Rope>,
         source: &str,
     ) -> bool {
-        let contents = positions.rope();
-        if !valid_text_range(contents, self.callee_range) {
-            return false;
-        }
-        let range = positions.text_range(self.callee_range);
-        if range.start > range.end {
+        let Some(range) = positions.checked_text_range(self.callee_range) else { return false };
+        if positions.position_at_byte(range.start) != Some(self.callee_range.start)
+            || positions.position_at_byte(range.end) != Some(self.callee_range.end)
+        {
             return false;
         }
         // The source and position index belong to the same immutable document snapshot.
@@ -316,34 +307,6 @@ impl CallSite {
             significant_token_slices(current).eq(self.callee_tokens.iter().map(String::as_str))
         })
     }
-}
-
-fn valid_text_range(rope: &Rope, range: Range) -> bool {
-    let start_line = range.start.line as usize;
-    let end_line = range.end.line as usize;
-    if start_line >= rope.line_len() || end_line >= rope.line_len() {
-        return false;
-    }
-    let line = rope.line(start_line);
-    valid_text_column(&line, range.start.character)
-        && if start_line == end_line {
-            valid_text_column(&line, range.end.character)
-        } else {
-            valid_text_column(&rope.line(end_line), range.end.character)
-        }
-}
-
-fn valid_text_column(line: &RopeSlice<'_>, character: u32) -> bool {
-    let character = character as usize;
-    if character > line.utf16_len() {
-        return false;
-    }
-    // Every byte on an ASCII line is a complete UTF-16 code unit.
-    if line.byte_len() == line.utf16_len() {
-        return true;
-    }
-    let byte = line.byte_of_utf16_code_unit(character);
-    line.utf16_code_unit_of_byte(byte) == character
 }
 
 impl CallSignature {
@@ -380,7 +343,7 @@ struct CallCollector<'a, 'gcx> {
     index: &'a mut SignatureHelpIndex,
     locations: &'a proto::LocationConverter,
     gcx: Gcx<'gcx>,
-    source: Option<hir::SourceId>,
+    source: hir::SourceId,
     contract: Option<hir::ContractId>,
 }
 
@@ -423,12 +386,10 @@ impl<'gcx> CallCollector<'_, 'gcx> {
                 }
             }
             hir::ExprKind::Member(receiver, name) => {
-                if let Some(source) = self.source
-                    && let Some(receiver_ty) = self.gcx.type_of_expr(receiver.id)
-                {
+                if let Some(receiver_ty) = self.gcx.type_of_expr(receiver.id) {
                     for member in self
                         .gcx
-                        .members_of(receiver_ty, source, self.contract)
+                        .members_of(receiver_ty, self.source, self.contract)
                         .filter(|member| member.name == name.name)
                     {
                         let Some(mut callable) = self
@@ -527,7 +488,7 @@ impl<'gcx> Visit<'gcx> for CallCollector<'_, 'gcx> {
     }
 
     fn visit_expr(&mut self, expr: &'gcx hir::Expr<'gcx>) -> ControlFlow<Self::BreakValue> {
-        if let hir::ExprKind::Call(callee, ref args, _) = expr.kind {
+        if let Some((callee, args, _)) = expr.as_call() {
             self.collect_call(callee, args);
         }
         hir::Visit::walk_expr(self, expr)
@@ -558,12 +519,7 @@ impl<'gcx> SignatureRenderer<'gcx> {
         let callable = gcx.callable_signature_of_ty(gcx.type_of_res(res))?;
         let fallback_name = match res {
             Res::Builtin(builtin) => Some(Cow::Borrowed(builtin.name().as_str_in(gcx.sess))),
-            Res::Item(item_id) => gcx
-                .hir
-                .item(item_id)
-                .name()
-                .map(|name| Cow::Borrowed(name.name.as_str_in(gcx.sess))),
-            Res::Namespace(_) | Res::Err(_) => None,
+            _ => None,
         };
         self.render_callable(callable, Some(res), fallback_name)
     }
@@ -800,22 +756,15 @@ fn documentation(
     ((!docs.is_empty()).then(|| docs.join("\n\n")), params)
 }
 
-fn markdown(value: String) -> Documentation {
-    Documentation::MarkupContent(MarkupContent { kind: MarkupKind::Markdown, value })
-}
-
 fn use_markdown_documentation(signature: &mut SignatureInformation) {
-    convert_documentation_to_markdown(&mut signature.documentation);
-    if let Some(parameters) = &mut signature.parameters {
-        for parameter in parameters {
-            convert_documentation_to_markdown(&mut parameter.documentation);
+    let parameters = signature.parameters.iter_mut().flatten();
+    let parameters = parameters.map(|parameter| &mut parameter.documentation);
+    for documentation in std::iter::once(&mut signature.documentation).chain(parameters) {
+        if let Some(Documentation::String(value)) = documentation.take() {
+            let kind = MarkupKind::Markdown;
+            *documentation = Some(Documentation::MarkupContent(MarkupContent { kind, value }));
         }
     }
-}
-
-fn convert_documentation_to_markdown(documentation: &mut Option<Documentation>) {
-    let Some(Documentation::String(value)) = documentation.take() else { return };
-    *documentation = Some(markdown(value));
 }
 
 fn deduplicate_signatures(signatures: &mut Vec<&CallSignature>) {
@@ -829,10 +778,6 @@ fn deduplicate_signatures(signatures: &mut Vec<&CallSignature>) {
         }
     }
     *signatures = unique;
-}
-
-fn significant_tokens(text: &str) -> Vec<String> {
-    significant_token_slices(text).map(str::to_owned).collect()
 }
 
 fn significant_token_slices(text: &str) -> impl Iterator<Item = &str> {
@@ -855,26 +800,15 @@ fn utf16_slice(value: &str, start: u32, end: u32) -> Option<&str> {
     if value.is_ascii() {
         return value.get(start as usize..end as usize);
     }
-    let mut utf16 = 0u32;
-    let mut start_byte = None;
-    let mut end_byte = None;
-    for (byte, ch) in value.char_indices() {
-        if utf16 == start {
-            start_byte = Some(byte);
-        }
-        if utf16 == end {
-            end_byte = Some(byte);
-            break;
-        }
-        utf16 += ch.len_utf16() as u32;
-    }
-    if start_byte.is_none() && utf16 == start {
-        start_byte = Some(value.len());
-    }
-    if end_byte.is_none() && utf16 == end {
-        end_byte = Some(value.len());
-    }
-    value.get(start_byte?..end_byte?)
+    let byte_offset = |offset: u32| {
+        let mut utf16 = 0;
+        value.char_indices().chain([(value.len(), '\0')]).find_map(|(byte, ch)| {
+            let current = utf16;
+            utf16 += ch.len_utf16() as u32;
+            (current == offset).then_some(byte)
+        })
+    };
+    value.get(byte_offset(start)?..byte_offset(end)?)
 }
 
 #[derive(Debug)]
@@ -948,11 +882,6 @@ pub(crate) fn last_statement_boundary(text: &str) -> usize {
     }
 }
 
-#[cfg(test)]
-fn call_context(text: &str) -> Option<CallContext<'_>> {
-    call_context_with_boundary(text, None)
-}
-
 /// Finds call context using a previously computed statement boundary when available.
 ///
 /// The boundary is only reused when supplied by the exact source snapshot that owns the request;
@@ -979,18 +908,14 @@ fn call_context_with_boundary(
                 frames.clear();
                 significant.clear();
             }
-            ")" | "]" | "}" => {
-                let expected = match lexeme {
-                    ")" => '(',
-                    "]" => '[',
-                    "}" => '{',
-                    _ => unreachable!(),
-                };
-                if let Some(index) = frames.iter().rposition(|frame| frame.delimiter == expected) {
+            _ => {
+                if let Some(expected) = opening_delimiter(lexeme)
+                    && let Some(index) =
+                        frames.iter().rposition(|frame| frame.delimiter == expected)
+                {
                     frames.truncate(index);
                 }
             }
-            _ => {}
         }
         significant.push((start, end));
     }
@@ -1039,26 +964,30 @@ fn scan_active_argument<'a>(text: &'a str, tokens: &[(usize, usize)]) -> ActiveA
         }
         match lexeme {
             "(" | "[" | "{" => frames.push(lexeme.chars().next().unwrap()),
-            ")" | "]" | "}" => {
-                let expected = match lexeme {
-                    ")" => '(',
-                    "]" => '[',
-                    "}" => '{',
-                    _ => unreachable!(),
-                };
-                if let Some(index) = frames.iter().rposition(|&frame| frame == expected) {
-                    frames.truncate(index);
-                }
-            }
             "," if frames.is_empty() || named && frames.as_slice() == ['{'] => {
                 commas += 1;
                 segment_start = index + 1;
             }
-            _ => {}
+            _ => {
+                if let Some(expected) = opening_delimiter(lexeme)
+                    && let Some(index) = frames.iter().rposition(|&frame| frame == expected)
+                {
+                    frames.truncate(index);
+                }
+            }
         }
     }
     let name = named.then(|| named_argument_name(text, &tokens[segment_start..])).flatten();
     ActiveArgument { ordinal: commas, name }
+}
+
+fn opening_delimiter(closing: &str) -> Option<char> {
+    match closing {
+        ")" => Some('('),
+        "]" => Some('['),
+        "}" => Some('{'),
+        _ => None,
+    }
 }
 
 fn named_argument_name<'a>(text: &'a str, tokens: &[(usize, usize)]) -> Option<&'a str> {
@@ -1225,7 +1154,7 @@ mod tests {
         }
     }
 
-    fn test_signature(label: &str, parameter_names: Vec<Option<&str>>) -> CallSignature {
+    fn test_signature(label: &str, parameter_names: &[Option<&str>]) -> CallSignature {
         CallSignature {
             information: SignatureInformation {
                 label: label.into(),
@@ -1233,22 +1162,18 @@ mod tests {
                 parameters: None,
                 active_parameter: None,
             },
-            parameter_names: parameter_names
-                .into_iter()
-                .map(|name| name.map(str::to_owned))
-                .collect(),
+            parameter_names: parameter_names.iter().map(|name| name.map(str::to_owned)).collect(),
             variadic: false,
         }
     }
 
     #[test]
     fn extend_reinterns_callsite_signatures() {
+        let signature = || Arc::new(test_signature("function f(uint256)", &[None]));
         let mut destination = SignatureHelpIndex::default();
-        let canonical = destination
-            .intern_signature(Arc::new(test_signature("function f(uint256)", vec![None])));
+        let canonical = destination.intern_signature(signature());
         let mut source = SignatureHelpIndex::default();
-        let duplicate =
-            source.intern_signature(Arc::new(test_signature("function f(uint256)", vec![None])));
+        let duplicate = source.intern_signature(signature());
         let uri = Url::parse("file:///Signature.sol").unwrap();
         source.calls.insert(
             uri.clone(),
@@ -1268,56 +1193,52 @@ mod tests {
 
     #[test]
     fn fallback_ranking_prefers_named_and_compatible_arity() {
-        let short = test_signature("short", vec![Some("first")]);
-        let long = test_signature("long", vec![Some("first"), Some("second")]);
-
-        assert!(
-            long.fallback_rank(&ActiveArgument { ordinal: 1, name: None })
-                < short.fallback_rank(&ActiveArgument { ordinal: 1, name: None })
-        );
-        assert!(
-            long.fallback_rank(&ActiveArgument { ordinal: 0, name: Some("second") })
-                < short.fallback_rank(&ActiveArgument { ordinal: 0, name: Some("second") })
-        );
+        let short = test_signature("short", &[Some("first")]);
+        let long = test_signature("long", &[Some("first"), Some("second")]);
+        for argument in [
+            ActiveArgument { ordinal: 1, name: None },
+            ActiveArgument { ordinal: 0, name: Some("second") },
+        ] {
+            assert!(long.fallback_rank(&argument) < short.fallback_rank(&argument));
+        }
     }
 
     #[test]
     fn lexical_call_form_distinguishes_event_and_error_invocations() {
-        let event = call_context("emit   E(").unwrap();
-        let error = call_context("revert E(").unwrap();
-        let builtin_revert = call_context("revert(").unwrap();
-
-        assert_eq!(event.form, CallForm::Event);
-        assert_eq!(error.form, CallForm::Error);
-        assert_eq!(builtin_revert.form, CallForm::Regular);
+        for (text, form) in [
+            ("emit   E(", CallForm::Event),
+            ("revert E(", CallForm::Error),
+            ("revert(", CallForm::Regular),
+        ] {
+            assert_eq!(call_context_with_boundary(text, None).unwrap().form, form);
+        }
     }
 
     #[test]
-    fn callee_positions_reject_invalid_utf16_columns() {
-        for source in ["", "abc", "abc\n", "abc\r\ndef", "abc\rdef", "é😀x\nabc"] {
-            let rope = Rope::from(source);
-            for line_index in 0..=rope.line_len() {
-                let valid_columns = if line_index < rope.line_len() {
-                    let mut columns = vec![0];
-                    let mut utf16 = 0;
-                    for ch in rope.line(line_index).chars() {
-                        utf16 += ch.len_utf16();
-                        columns.push(utf16 as u32);
-                    }
-                    columns
-                } else {
-                    Vec::new()
-                };
-                for column in 0..=source.len() as u32 + 1 {
-                    let position = Position::new(line_index as u32, column);
-                    assert_eq!(
-                        valid_text_range(&rope, Range::new(position, position)),
-                        valid_columns.contains(&column),
-                        "{source:?} at {position:?}"
-                    );
-                }
+    fn callee_ranges_require_exact_positions() {
+        let matches = |source: &str, start: (u32, u32), end: (u32, u32)| {
+            let call = CallSite {
+                range: Range::default(),
+                callee_range: Range::new(
+                    Position::new(start.0, start.1),
+                    Position::new(end.0, end.1),
+                ),
+                callee_tokens: vec!["f".into()],
+                form: CallForm::Regular,
+                signatures: Vec::new(),
+            };
+            let positions = proto::LspPositionIndex::from_rope(Rope::from(source));
+            call.matches_current_callee(&positions, source)
+        };
+        for ending in ["\n", "\r\n", "\r"] {
+            let source = format!("😀{ending}f{ending}");
+            for (end, expected) in [(1, true), (2, false), (u32::MAX, false)] {
+                assert_eq!(matches(&source, (1, 0), (1, end)), expected);
             }
         }
+        // Stale ranges may split a surrogate pair or lie beyond the current file.
+        assert!(!matches("😀f", (0, 1), (0, 3)));
+        assert!(!matches("f", (2, 0), (2, 1)));
     }
 
     #[test]
@@ -1336,38 +1257,5 @@ mod tests {
         ] {
             assert_eq!(utf16_slice(source, start, end), expected);
         }
-    }
-
-    #[test]
-    fn stale_callee_range_splitting_a_surrogate_pair_is_rejected() {
-        let call = CallSite {
-            range: Range::default(),
-            callee_range: Range::new(Position::new(0, 1), Position::new(0, 3)),
-            callee_tokens: vec!["f".into()],
-            form: CallForm::Regular,
-            signatures: Vec::new(),
-        };
-
-        assert!(
-            !call.matches_current_callee(
-                &proto::LspPositionIndex::from_rope(Rope::from("😀f")),
-                "😀f"
-            )
-        );
-    }
-
-    #[test]
-    fn stale_callee_range_beyond_the_current_file_is_rejected() {
-        let call = CallSite {
-            range: Range::default(),
-            callee_range: Range::new(Position::new(2, 0), Position::new(2, 1)),
-            callee_tokens: vec!["f".into()],
-            form: CallForm::Regular,
-            signatures: Vec::new(),
-        };
-
-        assert!(
-            !call.matches_current_callee(&proto::LspPositionIndex::from_rope(Rope::from("f")), "f")
-        );
     }
 }

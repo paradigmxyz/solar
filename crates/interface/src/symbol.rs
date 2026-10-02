@@ -323,7 +323,7 @@ impl Symbol {
     #[inline]
     pub fn is_yul_builtin(self) -> bool {
         (self >= kw::Add && self <= kw::Xor)
-            || (self >= kw::Auxdataloadn && self <= kw::Setimmutable)
+            || (self >= kw::Datacopy && self <= kw::Setimmutable)
             || matches!(self, kw::Address | kw::Byte | kw::Return | kw::Revert)
     }
 
@@ -331,7 +331,7 @@ impl Symbol {
     #[inline]
     pub fn is_reserved_yul_builtin(self) -> bool {
         (self >= kw::Add && self <= kw::Xor)
-            || matches!(self, kw::Address | kw::Byte | kw::Clz | kw::Return | kw::Revert)
+            || matches!(self, kw::Address | kw::Byte | kw::Return | kw::Revert)
     }
 
     /// Returns `true` if the symbol is a Yul EVM builtin keyword reserved by `evm_version`.
@@ -626,6 +626,7 @@ pub mod kw {
 /// For example `sym::rustfmt` or `sym::u8`.
 pub mod sym {
     use super::Symbol;
+    use core::fmt::NumBuffer;
 
     #[doc(inline)]
     pub use super::sym_generated::*;
@@ -633,11 +634,12 @@ pub mod sym {
     /// Get the symbol for an integer.
     ///
     /// The first few non-negative integers each have a static symbol and therefore are fast.
-    pub fn integer<N: TryInto<usize> + Copy + itoa::Integer>(n: N) -> Symbol {
-        if let Ok(idx @ 0..=9) = n.try_into() {
-            return Symbol::new(super::SYMBOL_DIGITS_BASE + idx as u32);
+    pub fn integer<N: Into<u128>>(n: N) -> Symbol {
+        let n = n.into();
+        if n <= 9 {
+            return Symbol::new(super::SYMBOL_DIGITS_BASE + n as u32);
         }
-        Symbol::intern(itoa::Buffer::new().format(n))
+        Symbol::intern(n.format_into(&mut NumBuffer::new()))
     }
 }
 
@@ -886,6 +888,7 @@ symbols! {
         Caller:         "caller",
         Callvalue:      "callvalue",
         Chainid:        "chainid",
+        Clz:            "clz",
         Codecopy:       "codecopy",
         Codesize:       "codesize",
         Coinbase:       "coinbase",
@@ -949,19 +952,13 @@ symbols! {
         Tstore:         "tstore",
         Xor:            "xor",
 
-        Auxdataloadn:   "auxdataloadn",
-        Clz:            "clz",
+        // Yul object and compiler builtins, which are not reserved names.
         Datacopy:       "datacopy",
         Dataoffset:     "dataoffset",
         Datasize:       "datasize",
-        Eofcreate:      "eofcreate",
-        Extcall:        "extcall",
-        Extdelegatecall: "extdelegatecall",
-        Extstaticcall:   "extstaticcall",
         Linkersymbol:   "linkersymbol",
         Loadimmutable:  "loadimmutable",
         Memoryguard:    "memoryguard",
-        Returncontract: "returncontract",
         Setimmutable:   "setimmutable",
 
         // Experimental Solidity specific keywords.
@@ -1005,11 +1002,17 @@ symbols! {
         abi,
         abi_decode,
         abi_encode,
+        abi_encode_packed,
         abi_params,
         abi_return,
         abi_return_params,
         abi_returns,
+        abi_wrapper,
         abicoder,
+        address_call,
+        address_delegatecall,
+        address_staticcall,
+        aligned,
         alloc,
         args,
         array,
@@ -1021,8 +1024,17 @@ symbols! {
         calldata_array,
         calldata_bytes,
         calldata_slice_load_word,
+        calldata_tail_too_short,
         calldataptr,
         calldataslice,
+        checked_add,
+        checked_addmod,
+        checked_div,
+        checked_mul,
+        checked_mulmod,
+        checked_pow,
+        checked_rem,
+        checked_sub,
         cleanup_return,
         clear_recursive_storage,
         clear_storage,
@@ -1033,9 +1045,11 @@ symbols! {
         concat,
         constructor_args_base,
         constructor_args_end,
+        continuation,
         creationCode,
+        creation_code,
+        custom_error,
         data,
-        data_copy,
         decode,
         decode_aggregate,
         decode_calldata_slice,
@@ -1044,25 +1058,32 @@ symbols! {
         decode_static,
         decode_static_alias,
         decode_static_ptr,
+        default_struct,
         deferred_alloc,
         deployment,
+        disjoint,
         dispatch,
         display_test,
         dup,
         dupn,
         ecrecover,
         effect,
+        empty,
+        empty_string,
         encode,
         encodeCall,
         encodePacked,
         encodeWithSelector,
         encodeWithSignature,
         encode_abi_array,
+        encode_abi_tuple,
         entry,
         environment_read,
         erc7201,
         err,
         error,
+        error_string,
+        ether_sent_to_non_payable,
         evm_dash_shaped: "evm-shaped",
         evmasm,
         exact,
@@ -1070,6 +1091,7 @@ symbols! {
         exit,
         experimental,
         external_call,
+        extract_value,
         fmp,
         fn_: "fn",
         frame_load,
@@ -1080,27 +1102,49 @@ symbols! {
         global,
         heap,
         hir,
+        i1,
+        i160,
+        i256,
         icall,
         immutable_read,
         immutable_write,
         immutables,
         indexed_jump,
         infallible,
+        insert_value,
         interfaceId,
         internal_dispatcher,
         internal_frame,
         internal_frame_addr,
+        inttoptr,
+        invalid_byte_array_length,
+        invalid_calldata_access_length,
+        invalid_calldata_access_offset,
+        invalid_calldata_access_stride,
+        invalid_calldata_array_length,
+        invalid_calldata_array_offset,
+        invalid_calldata_array_stride,
+        invalid_calldata_tail_length,
+        invalid_calldata_tail_offset,
+        invalid_struct_offset,
+        invalid_tuple_offset,
         invoke,
         jump,
         jumpi,
         keccak256_bytes,
+        keccak256_packed,
         keep_with_next,
         layout,
         length,
+        libraries,
+        library_address,
+        library_called_without_delegatecall,
         library_deploy_address,
+        library_relocations,
         literal,
         literal_bytes,
         literal_bytes_word,
+        load_storage_array,
         load_storage_bytes,
         load_storage_bytes_array,
         load_storage_packed_array,
@@ -1108,6 +1152,7 @@ symbols! {
         load_storage_word_array,
         log,
         loop_depth,
+        lowered,
         make_calldata_slice,
         make_memory_slice,
         make_returndata_slice,
@@ -1116,6 +1161,7 @@ symbols! {
         mapping_slot_memory,
         max,
         may_return_memory,
+        mcopy_words,
         memory_array,
         memory_bytes,
         memory_dash_lowered: "memory-lowered",
@@ -1154,42 +1200,58 @@ symbols! {
         msg,
         multi_return,
         name,
+        no_fallback_nor_receive,
         object,
         offset,
         optimized,
         panic,
+        panic_if,
+        panic_if_zero,
         phase,
         phi,
+        preserves_fmp,
+        ptrtoint,
         push,
         push_data,
+        push_data_size,
         push_deferred,
         push_immutable,
+        push_library,
         raw,
         require,
         result_ty,
         ret,
+        return_abi,
         returndata,
         returndata_array,
         returndata_bytes,
         returndataslice,
         revert_error,
+        revert_if,
+        revert_if_zero,
         revert_returndata,
         revert_stub,
         ripemd160,
         runtime,
         runtimeCode,
+        runtime_code,
         salt,
         scratch,
         select,
         selector,
+        semantic,
         send,
         sender,
         set_fmp,
         set_memory_object_len,
+        sext,
         sha256,
+        short_string,
         sig,
+        slice_greater_than_length,
         slice_len,
         slice_ptr,
+        slice_starts_after_end,
         slot,
         solidity,
         span,
@@ -1203,33 +1265,46 @@ symbols! {
         storageptr,
         store_recursive_storage,
         store_storage_bytes,
+        store_storage_bytes_literal,
         storeimmutable,
+        struct_calldata_too_short,
+        struct_data_too_short,
         super_: "super",
         swap,
         swapn,
         symbolic,
         tail_call,
+        target_contract_has_no_code,
         terminal,
         this,
+        to,
         transfer,
         transient,
         transient_read,
         transient_write,
+        trunc,
         try_decode_error_message,
         tuple,
+        tuple_data_too_short,
         tx,
         ty,
         types,
+        undef,
         underscore: "_",
         uninitialized,
         unknown,
+        unknown_selector,
         unwrap,
+        validate_abi,
+        validate_storage_bytes,
         value,
         void,
         word,
         wrap,
+        wrapping_div,
         x,
         zeroed,
+        zext,
     }
 }
 
@@ -1263,6 +1338,26 @@ mod tests {
             assert_eq!(Symbol::DUMMY.to_string(), "");
             assert_eq!(Ident::DUMMY.as_str(), "");
             assert_eq!(Ident::DUMMY.to_string(), "");
+        });
+    }
+
+    #[test]
+    fn integer_symbols() {
+        crate::enter(|| {
+            for n in 0_u8..=9 {
+                assert_eq!(sym::integer(n), Symbol::new(SYMBOL_DIGITS_BASE + n as u32));
+            }
+            snapbox::assert_data_eq!(sym::integer(0_u8).as_str(), snapbox::str!["0"]);
+            snapbox::assert_data_eq!(sym::integer(9_u16).as_str(), snapbox::str!["9"]);
+            snapbox::assert_data_eq!(sym::integer(10_u32).as_str(), snapbox::str!["10"]);
+            snapbox::assert_data_eq!(
+                sym::integer(u64::MAX).as_str(),
+                snapbox::str!["18446744073709551615"]
+            );
+            snapbox::assert_data_eq!(
+                sym::integer(u128::MAX).as_str(),
+                snapbox::str!["340282366920938463463374607431768211455"]
+            );
         });
     }
 }

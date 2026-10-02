@@ -1,26 +1,26 @@
 use crate::{
     document_links::import_path_from_bytes,
+    utils::{parse_recovering, span_range},
     workspace::{Workspace, WorkspacePathIndex},
 };
 use normalize_path::NormalizePath;
 use solar_config::CompileOpts;
-use solar_interface::{
-    Session,
-    source_map::{FileName, FileResolver, SourceMap},
-};
+use solar_interface::source_map::{FileResolver, SourceMap};
 use solar_parse::{
-    Cursor, Parser,
-    ast::{self, StrKind},
+    Cursor,
+    ast::StrKind,
     lexer::{
         token::{RawLiteralKind, RawTokenKind},
         unescape::try_parse_string_literal,
     },
 };
 use std::{
+    borrow::Cow,
     collections::BTreeMap,
     fs,
     ops::Range,
     path::{Path, PathBuf},
+    sync::Arc,
 };
 
 const MAX_IMPORT_CANDIDATES: usize = 256;
@@ -35,33 +35,15 @@ pub(crate) struct ImportPathAt {
 
 /// Finds the parser AST import path containing `cursor` in the current source.
 pub(crate) fn import_path_at(source: &str, cursor: usize) -> Option<ImportPathAt> {
-    if cursor > source.len() || !source.is_char_boundary(cursor) {
-        return None;
-    }
-
-    // Most navigation requests are issued from ordinary code. Avoid lexing the complete prefix
-    // when the cursor's line cannot contain a string (the lexer remains the source of truth when
-    // a quote or an escaped line continuation is present).
-    if !may_complete_string(source, cursor) {
-        return None;
-    }
-
     // Import paths are plain strings; code navigation does not need a full-file parse.
-    plain_string_at(source, cursor)?;
+    plain_string_at_cursor(source, cursor)?;
     parse_import_path(source, cursor)
 }
 
 /// Finds an import path for completion, recovering a plain string left open at `cursor`.
 pub(crate) fn import_path_at_for_completion(source: &str, cursor: usize) -> Option<ImportPathAt> {
-    if cursor > source.len() || !source.is_char_boundary(cursor) {
-        return None;
-    }
-    if !may_complete_string(source, cursor) {
-        return None;
-    }
-
     // Import paths are plain string tokens. Avoid parsing the whole file for code completions.
-    let string = plain_string_at(source, cursor)?;
+    let string = plain_string_at_cursor(source, cursor)?;
     if string.first_unescaped_line_break.is_some_and(|line_break| cursor > line_break) {
         return None;
     }
@@ -72,6 +54,20 @@ pub(crate) fn import_path_at_for_completion(source: &str, cursor: usize) -> Opti
         return None;
     }
     recover_unterminated_import_path(source, cursor, string)
+}
+
+fn plain_string_at_cursor(source: &str, cursor: usize) -> Option<PlainStringAt> {
+    if cursor > source.len() || !source.is_char_boundary(cursor) {
+        return None;
+    }
+
+    // Most navigation requests are issued from ordinary code. Avoid lexing the complete prefix
+    // when the cursor's line cannot contain a string (the lexer remains the source of truth when
+    // a quote or an escaped line continuation is present).
+    if !may_complete_string(source, cursor) {
+        return None;
+    }
+    plain_string_at(source, cursor)
 }
 
 /// Rejects code lines that cannot contain a completable import string.
@@ -94,36 +90,11 @@ fn may_complete_string(source: &str, cursor: usize) -> bool {
 }
 
 fn parse_import_path(source: &str, cursor: usize) -> Option<ImportPathAt> {
-    let mut opts = CompileOpts::default();
-    opts.unstable.recover_incomplete_input = true;
-    let sess = Session::builder().opts(opts).with_silent_emitter(None).single_threaded().build();
-
-    sess.enter_sequential(|| {
-        let arena = ast::Arena::new();
-        let mut parser = match Parser::from_source_code(
-            &sess,
-            &arena,
-            FileName::Custom("lsp-import-resolution.sol".into()),
-            source,
-        ) {
-            Ok(parser) => parser,
-            Err(_) => return None,
-        };
-        let source_unit = match parser.parse_file() {
-            Ok(source_unit) => source_unit,
-            Err(error) => {
-                error.emit();
-                return None;
-            }
-        };
-        drop(parser);
-
-        let files = sess.source_map().files();
-        let file = files.first()?;
-        let (start, end, raw_path) = source_unit.imports().find_map(|(_, import)| {
-            let start = file.relative_position(import.path.span.lo()).to_usize();
-            let end = file.relative_position(import.path.span.hi()).to_usize();
-            (start..end).contains(&cursor).then(|| (start, end, import.path.value.as_str()))
+    let parsed = Arc::new(source.to_owned());
+    parse_recovering("lsp-import-resolution.sol", parsed, |_, file, source_unit| {
+        let (start, end, raw_path) = source_unit?.imports().find_map(|(_, import)| {
+            let range = span_range(file, import.path.span);
+            range.contains(&cursor).then(|| (range.start, range.end, import.path.value.as_str()))
         })?;
         let delimiter = *source.as_bytes().get(start)?;
         let content_start = start.checked_add(1)?;
@@ -137,6 +108,7 @@ fn parse_import_path(source: &str, cursor: usize) -> Option<ImportPathAt> {
         source.get(content_range.clone())?;
         Some(ImportPathAt { raw_path: raw_path.to_owned(), content_range, delimiter })
     })
+    .flatten()
 }
 
 fn recover_unterminated_import_path(
@@ -222,14 +194,13 @@ fn first_unescaped_line_break(bytes: &[u8]) -> Option<usize> {
 }
 
 pub(crate) fn decode_import_path(path: &str) -> Option<String> {
+    String::from_utf8(unescape_import_path(path)?.into_owned()).ok()
+}
+
+fn unescape_import_path(path: &str) -> Option<Cow<'_, [u8]>> {
     let mut invalid_escape = false;
-    let bytes = try_parse_string_literal(path, StrKind::Str, |_, _| {
-        invalid_escape = true;
-    });
-    if invalid_escape {
-        return None;
-    }
-    String::from_utf8(bytes.into_owned()).ok()
+    let bytes = try_parse_string_literal(path, StrKind::Str, |_, _| invalid_escape = true);
+    (!invalid_escape).then_some(bytes)
 }
 
 /// The compiler import configuration owned by one workspace.
@@ -240,17 +211,6 @@ pub(crate) struct ImportResolutionContext<'a> {
 }
 
 impl<'a> ImportResolutionContext<'a> {
-    #[cfg(test)]
-    pub(crate) fn for_workspaces(
-        workspaces: &'a [Workspace],
-        importing_file: &Path,
-    ) -> Option<Self> {
-        let importing_file = importing_file.normalize();
-        let idx =
-            WorkspacePathIndex::new(workspaces).workspace_idx_for_import_path(&importing_file)?;
-        Self::from_workspace_index(workspaces, idx)
-    }
-
     pub(crate) fn for_workspaces_with_index(
         workspaces: &'a [Workspace],
         importing_file: &Path,
@@ -259,10 +219,6 @@ impl<'a> ImportResolutionContext<'a> {
         let importing_file = importing_file.normalize();
         let index = WorkspacePathIndex::with_import_entries(workspaces, entries);
         let idx = index.workspace_idx_for_import_path(&importing_file)?;
-        Self::from_workspace_index(workspaces, idx)
-    }
-
-    fn from_workspace_index(workspaces: &'a [Workspace], idx: usize) -> Option<Self> {
         let compile_opts = workspaces.get(idx)?.compile_opts();
         let workspace_root = compile_opts.base_path.as_deref()?.normalize();
         Some(Self { workspace_root, compile_opts })
@@ -290,11 +246,16 @@ impl<'config, 'overlay> ImportResolver<'config, 'overlay> {
         Self { context, overlay_paths }
     }
 
-    pub(crate) fn complete(&self, importer: &Path, prefix: &str) -> ImportCompletion {
-        let source_map = SourceMap::empty();
-        let mut resolver = FileResolver::new(&source_map);
+    fn file_resolver<'a>(&self, source_map: &'a SourceMap) -> FileResolver<'a> {
+        let mut resolver = FileResolver::new(source_map);
         resolver.configure_from_opts(self.context.compile_opts());
         resolver.set_current_dir(self.context.workspace_root());
+        resolver
+    }
+
+    pub(crate) fn complete(&self, importer: &Path, prefix: &str) -> ImportCompletion {
+        let source_map = SourceMap::empty();
+        let resolver = self.file_resolver(&source_map);
 
         let (logical_directory, name_prefix) = split_import_prefix(prefix);
         let directory_input = prefix.is_empty() || prefix.ends_with('/');
@@ -350,24 +311,18 @@ impl<'config, 'overlay> ImportResolver<'config, 'overlay> {
     }
 
     pub(crate) fn resolve(&self, importer: &Path, raw_path: &str) -> Option<PathBuf> {
-        let mut invalid_escape = false;
-        let path = try_parse_string_literal(raw_path, StrKind::Str, |_, _| {
-            invalid_escape = true;
-        });
-        if invalid_escape {
-            return None;
-        }
-        let path = import_path_from_bytes(path.as_ref())?;
+        let path = import_path_from_bytes(&unescape_import_path(raw_path)?)?;
 
         let source_map = SourceMap::empty();
         for overlay_path in self.overlay_paths {
             source_map.new_source_file(overlay_path.normalize(), String::new()).ok()?;
         }
-        let mut resolver = FileResolver::new(&source_map);
-        resolver.configure_from_opts(self.context.compile_opts());
-        resolver.set_current_dir(self.context.workspace_root());
-
-        resolver.resolve_file(&path, Some(importer)).ok()?.name.as_real().map(Path::to_path_buf)
+        self.file_resolver(&source_map)
+            .resolve_file(&path, Some(importer))
+            .ok()?
+            .name
+            .as_real()
+            .map(Path::to_path_buf)
     }
 }
 
@@ -464,10 +419,11 @@ fn collect_remapping_candidates(
         } else {
             ImportCandidateKind::Directory
         };
-        let mut candidate = name.to_owned();
-        if kind == ImportCandidateKind::Directory {
-            candidate.push('/');
-        }
+        let candidate = if kind == ImportCandidateKind::Directory {
+            directory_candidate.as_str()
+        } else {
+            name
+        };
         if candidate == path_prefix || !candidate.starts_with(path_prefix) {
             continue;
         }

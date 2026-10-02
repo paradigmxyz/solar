@@ -41,7 +41,7 @@ class CommandResult:
 def _read_peak_rss(path: Path) -> int | None:
     try:
         peak_rss_kib = int(path.read_text().strip())
-    except (OSError, ValueError):
+    except OSError, ValueError:
         return None
     return peak_rss_kib * 1024
 
@@ -68,9 +68,6 @@ def run(
             peak_rss_path = Path(raw_path)
             run_cmd = [str(time_binary), "-q", "-f", "%M", "-o", raw_path, "--", *cmd]
 
-    kwargs = {}
-    if os.name != "nt":
-        kwargs["start_new_session"] = True
     input_file = input_path.open() if input_path is not None else None
     stdin = input_file
     if stdin is None and input_text is not None:
@@ -84,7 +81,7 @@ def run(
                 stderr=subprocess.PIPE,
                 text=True,
                 cwd=cwd,
-                **kwargs,
+                start_new_session=os.name != "nt",
             )
         except OSError as exc:
             if peak_rss_path is not None:
@@ -128,7 +125,7 @@ def run(
     return result
 
 
-def parse_receipt_int(value: object) -> int | None:
+def parse_receipt_int(value: str | int | None) -> int | None:
     if isinstance(value, str):
         return int(value, 16) if value.startswith("0x") else int(value)
     if value is None:

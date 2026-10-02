@@ -32,7 +32,9 @@ contract StorageStructDynamicCopy {
         list.push();
         list.push();
         list[0].x = 7;
-        list[0].b = hex"010203";
+        uint256 index;
+        list[index++].b = hex"010203";
+        assert(index == 1);
         list[0].y = 13;
         list[1] = list[0];
         list[0].b[0] = bytes1(0xff);

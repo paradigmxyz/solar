@@ -1,6 +1,7 @@
 use crate::{
     override_index::OverrideFamilyIndex,
-    proto,
+    proto::{self, PositionIndex},
+    source_paths::{SourcePath, identifiers_in_span},
     symbols::{DeclarationSymbol, SymbolId},
 };
 use lsp_types::{Location, Position, Range, Url};
@@ -8,15 +9,12 @@ use solar_interface::{
     Ident, Span, Symbol,
     data_structures::{
         Never,
-        index::IndexVec,
+        index::{Idx, IndexVec},
         map::{FxHashMap, FxHashSet},
         newtype_index,
     },
 };
-use solar_parse::{
-    Lexer,
-    ast::{self, ItemKind, visit::Visit},
-};
+use solar_parse::ast::{self, ItemKind, visit::Visit};
 use solar_sema::{
     Gcx,
     hir::{self, ItemId, VariableId},
@@ -25,7 +23,7 @@ use std::{borrow::Cow, path::PathBuf, sync::Arc};
 
 newtype_index! {
     /// A file-local import alias in the rename index.
-    struct ImportAliasId;
+    pub(crate) struct ImportAliasId;
 
     /// A named mapping key or value in the rename index.
     struct MappingNameId;
@@ -38,14 +36,9 @@ enum RenameTarget {
     MappingName(MappingNameId),
 }
 
+/// A renamable name that is not a declaration symbol: an import alias or a mapping name.
 #[derive(Clone, Debug, PartialEq, Eq)]
-struct ImportAlias {
-    name: String,
-    location: Location,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-struct MappingName {
+struct NamedLocation {
     name: String,
     location: Location,
 }
@@ -64,50 +57,24 @@ pub(crate) struct RenameCandidate {
     pub(crate) analyzed_contents: FxHashMap<Url, Arc<String>>,
     pub(crate) conflicting_contents: bool,
     pub(crate) requires_yul_validation: bool,
+    /// Whether unknown callers could make this candidate's edits incomplete.
+    pub(crate) requires_complete_workspace: bool,
 }
 
 #[derive(Clone, Debug, Default)]
 pub(crate) struct RenameIndex {
-    aliases: IndexVec<ImportAliasId, ImportAlias>,
+    aliases: IndexVec<ImportAliasId, NamedLocation>,
     alias_symbols: FxHashMap<ImportAliasId, Vec<SymbolId>>,
-    mapping_names: IndexVec<MappingNameId, MappingName>,
+    mapping_names: IndexVec<MappingNameId, NamedLocation>,
     analyzed_contents: FxHashMap<Url, Arc<String>>,
     conflicting_contents: FxHashSet<Url>,
     symbol_targets: FxHashSet<SymbolId>,
     family_targets: FxHashMap<SymbolId, Vec<RenameTarget>>,
     yul_symbol_targets: FxHashSet<SymbolId>,
     occurrences: Vec<RenameOccurrence>,
-    file_occurrences: FxHashMap<Url, OccurrenceIndex>,
+    file_occurrences: FxHashMap<Url, PositionIndex<usize>>,
     target_occurrences: FxHashMap<RenameTarget, Vec<usize>>,
     ambiguous_targets: FxHashSet<RenameTarget>,
-}
-
-/// Start-sorted occurrence indexes with a prefix maximum end for point queries.
-#[derive(Clone, Debug, Default)]
-struct OccurrenceIndex {
-    entries: Vec<usize>,
-    prefix_max_end: Vec<Position>,
-}
-
-impl OccurrenceIndex {
-    fn rebuild(&mut self, occurrences: &[RenameOccurrence]) {
-        // `normalize_occurrences` orders the global list by URI and range before these
-        // per-file indexes are populated, so the entries are already start-sorted.
-        debug_assert!(self.entries.windows(2).all(|pair| {
-            let lhs = occurrences[pair[0]].location.range;
-            let rhs = occurrences[pair[1]].location.range;
-            (lhs.start, lhs.end, pair[0]) <= (rhs.start, rhs.end, pair[1])
-        }));
-
-        self.prefix_max_end.clear();
-        self.prefix_max_end.reserve(self.entries.len());
-        let mut max_end = None;
-        for &index in &self.entries {
-            let end = occurrences[index].location.range.end;
-            max_end = Some(max_end.map_or(end, |max_end: Position| max_end.max(end)));
-            self.prefix_max_end.push(max_end.unwrap());
-        }
-    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -128,6 +95,13 @@ pub(crate) struct ImportBindings {
     aliases: FxHashMap<ImportBindingKey, ImportAliasId>,
     symbol_sources: FxHashMap<SymbolId, hir::SourceId>,
     references: Vec<(Span, Vec<SymbolId>)>,
+    pub(crate) namespaces: Vec<NamespaceBinding>,
+}
+
+pub(crate) struct NamespaceBinding {
+    pub(crate) id: ImportAliasId,
+    pub(crate) alias: Ident,
+    pub(crate) span: Span,
 }
 
 #[derive(Default)]
@@ -138,6 +112,17 @@ pub(crate) struct MappingBindings {
 impl ImportBindings {
     pub(crate) fn references(&self) -> impl Iterator<Item = (Span, &[SymbolId])> {
         self.references.iter().map(|(span, symbols)| (*span, symbols.as_slice()))
+    }
+
+    pub(crate) fn namespace_aliases(
+        &self,
+    ) -> impl Iterator<Item = ((hir::SourceId, hir::SourceId, Symbol), ImportAliasId)> + '_ {
+        self.aliases.iter().filter_map(|(key, &alias)| match key.resolution {
+            ImportBindingResolution::Namespace(namespace) => {
+                Some(((key.source, namespace, key.name), alias))
+            }
+            ImportBindingResolution::Symbol(_) => None,
+        })
     }
 }
 
@@ -198,24 +183,16 @@ impl RenameIndex {
             for &(item_id, imported_source_id) in source.imports {
                 let ItemKind::Import(import) = &ast.items[item_id].kind else { continue };
                 match &import.items {
-                    ast::ImportItems::Plain(alias) => {
-                        if let Some(alias) = alias {
-                            self.add_namespace_alias(
-                                locations,
-                                &mut bindings,
-                                source_id,
-                                imported_source_id,
-                                *alias,
-                            );
-                        }
-                    }
-                    ast::ImportItems::Glob(alias) => self.add_namespace_alias(
-                        locations,
-                        &mut bindings,
-                        source_id,
-                        imported_source_id,
-                        *alias,
-                    ),
+                    ast::ImportItems::Plain(None) => {}
+                    ast::ImportItems::Plain(Some(alias)) | ast::ImportItems::Glob(alias) => self
+                        .add_namespace_alias(
+                            locations,
+                            &mut bindings,
+                            source_id,
+                            imported_source_id,
+                            *alias,
+                            ast.items[item_id].span,
+                        ),
                     ast::ImportItems::Aliases(aliases) => {
                         for &(imported, alias) in aliases.iter() {
                             let symbols = imported_symbols(
@@ -357,25 +334,20 @@ impl RenameIndex {
             }
             Self::add_override_edges(gcx, function_id.into(), item_symbols, override_families);
             let key = function.name.map_or_else(|| function.keyword_span(), |name| name.span);
-            let Some(function_paths) = paths.paths.get(&key) else { continue };
-            for (&path, &contract_id) in function_paths.iter().zip(function.overrides) {
-                let Some(&symbol_id) = item_symbols.get(&ItemId::Contract(contract_id)) else {
-                    continue;
-                };
-                self.push_path_occurrences(
-                    gcx,
-                    locations,
-                    RenameReferenceContext {
-                        bindings,
-                        source: function.source,
-                        contract: function.contract,
-                        item_symbols,
-                        declarations,
-                    },
-                    path,
-                    &[symbol_id],
-                );
-            }
+            let context = RenameReferenceContext {
+                bindings,
+                source: function.source,
+                contract: function.contract,
+                item_symbols,
+                declarations,
+            };
+            self.push_override_paths(
+                gcx,
+                locations,
+                context,
+                paths.paths.get(&key),
+                function.overrides,
+            );
         }
 
         for variable_id in gcx.hir.variable_ids() {
@@ -385,24 +357,34 @@ impl RenameIndex {
             }
             Self::add_override_edges(gcx, variable_id.into(), item_symbols, override_families);
             let Some(name) = variable.name else { continue };
-            let Some(variable_paths) = paths.paths.get(&name.span) else { continue };
-            for (&path, &contract_id) in variable_paths.iter().zip(variable.overrides) {
-                let Some(&symbol_id) = item_symbols.get(&ItemId::Contract(contract_id)) else {
-                    continue;
-                };
-                self.push_path_occurrences(
-                    gcx,
-                    locations,
-                    RenameReferenceContext {
-                        bindings,
-                        source: variable.source,
-                        contract: variable.contract,
-                        item_symbols,
-                        declarations,
-                    },
-                    path,
-                    &[symbol_id],
-                );
+            let context = RenameReferenceContext {
+                bindings,
+                source: variable.source,
+                contract: variable.contract,
+                item_symbols,
+                declarations,
+            };
+            self.push_override_paths(
+                gcx,
+                locations,
+                context,
+                paths.paths.get(&name.span),
+                variable.overrides,
+            );
+        }
+    }
+
+    fn push_override_paths(
+        &mut self,
+        gcx: Gcx<'_>,
+        locations: &proto::LocationConverter,
+        context: RenameReferenceContext<'_>,
+        paths: Option<&Vec<Span>>,
+        overrides: &[hir::ContractId],
+    ) {
+        for (&path, &contract_id) in paths.into_iter().flatten().zip(overrides) {
+            if let Some(&symbol_id) = context.item_symbols.get(&ItemId::Contract(contract_id)) {
+                self.push_path_occurrences(gcx, locations, context, path, &[symbol_id]);
             }
         }
     }
@@ -467,22 +449,12 @@ impl RenameIndex {
                         .unwrap_or_else(|| std::slice::from_ref(&target)),
                 )
             }
-            RenameTarget::ImportAlias(alias_id) => Cow::Owned(
-                self.aliases
-                    .indices()
-                    .filter(|&candidate| self.aliases[alias_id] == self.aliases[candidate])
-                    .map(RenameTarget::ImportAlias)
-                    .collect(),
-            ),
-            RenameTarget::MappingName(name_id) => Cow::Owned(
-                self.mapping_names
-                    .indices()
-                    .filter(|&candidate| {
-                        self.mapping_names[name_id] == self.mapping_names[candidate]
-                    })
-                    .map(RenameTarget::MappingName)
-                    .collect(),
-            ),
+            RenameTarget::ImportAlias(alias_id) => {
+                Cow::Owned(equal_names(&self.aliases, alias_id, RenameTarget::ImportAlias))
+            }
+            RenameTarget::MappingName(name_id) => {
+                Cow::Owned(equal_names(&self.mapping_names, name_id, RenameTarget::MappingName))
+            }
         };
         if !self.conflicting_contents.contains(uri)
             && targets.iter().any(|target| self.ambiguous_targets.contains(target))
@@ -533,6 +505,11 @@ impl RenameIndex {
                 RenameTarget::Symbol(symbol_id) => self.yul_symbol_targets.contains(&symbol_id),
                 RenameTarget::ImportAlias(_) | RenameTarget::MappingName(_) => false,
             }),
+            requires_complete_workspace: targets.iter().any(|target| match *target {
+                RenameTarget::Symbol(symbol_id) => !declarations[symbol_id].rename_is_local,
+                // Aliases can be re-exported, and mapping names can appear in getter calls.
+                RenameTarget::ImportAlias(_) | RenameTarget::MappingName(_) => true,
+            }),
         })
     }
 
@@ -540,30 +517,28 @@ impl RenameIndex {
         self.family_targets.clear();
         let alias_offset = self.aliases.len();
         let mapping_name_offset = self.mapping_names.len();
-        self.symbol_targets.extend(
-            other.symbol_targets.drain().map(|symbol_id| symbol_id.offset_by(symbol_offset)),
-        );
-        self.yul_symbol_targets.extend(
-            other.yul_symbol_targets.drain().map(|symbol_id| symbol_id.offset_by(symbol_offset)),
-        );
+        self.symbol_targets
+            .extend(other.symbol_targets.drain().map(|symbol_id| symbol_id + symbol_offset));
+        self.yul_symbol_targets
+            .extend(other.yul_symbol_targets.drain().map(|symbol_id| symbol_id + symbol_offset));
         for occurrence in &mut other.occurrences {
             for target in &mut occurrence.targets {
                 *target = match *target {
                     RenameTarget::Symbol(symbol_id) => {
-                        RenameTarget::Symbol(symbol_id.offset_by(symbol_offset))
+                        RenameTarget::Symbol(symbol_id + symbol_offset)
                     }
                     RenameTarget::ImportAlias(alias_id) => {
-                        RenameTarget::ImportAlias(remap_alias_id(alias_id, alias_offset))
+                        RenameTarget::ImportAlias(alias_id + alias_offset)
                     }
-                    RenameTarget::MappingName(name_id) => RenameTarget::MappingName(
-                        remap_mapping_name_id(name_id, mapping_name_offset),
-                    ),
+                    RenameTarget::MappingName(name_id) => {
+                        RenameTarget::MappingName(name_id + mapping_name_offset)
+                    }
                 };
             }
         }
         for symbols in other.alias_symbols.values_mut() {
             for symbol_id in symbols {
-                *symbol_id = symbol_id.offset_by(symbol_offset);
+                *symbol_id += symbol_offset;
             }
         }
         self.conflicting_contents.extend(other.conflicting_contents);
@@ -578,7 +553,7 @@ impl RenameIndex {
             other
                 .alias_symbols
                 .into_iter()
-                .map(|(alias_id, symbols)| (remap_alias_id(alias_id, alias_offset), symbols)),
+                .map(|(alias_id, symbols)| (alias_id + alias_offset, symbols)),
         );
         self.mapping_names.extend(other.mapping_names);
         self.occurrences.extend(other.occurrences);
@@ -630,8 +605,14 @@ impl RenameIndex {
                 self.target_occurrences.entry(target).or_default().push(index);
             }
         }
-        for occurrences in self.file_occurrences.values_mut() {
-            occurrences.rebuild(&self.occurrences);
+        for index in self.file_occurrences.values_mut() {
+            // `normalize_occurrences` orders the global list by URI and range before these
+            // per-file indexes are populated, so the entries are already start-sorted.
+            debug_assert!(index.entries.is_sorted_by_key(|&entry| {
+                let range = self.occurrences[entry].location.range;
+                (range.start, range.end, entry)
+            }));
+            index.index_sorted(|entry| self.occurrences[entry].location.range);
         }
     }
 
@@ -654,7 +635,7 @@ impl RenameIndex {
                 RenameTarget::Symbol(symbol_id) => symbols.push(symbol_id),
                 RenameTarget::ImportAlias(alias_id) => {
                     if let Some(targets) = self.alias_symbols.get(&alias_id) {
-                        symbols.extend(targets.iter().copied());
+                        symbols.extend_from_slice(targets);
                     }
                 }
                 RenameTarget::MappingName(_) => {}
@@ -672,8 +653,10 @@ impl RenameIndex {
         source: hir::SourceId,
         imported_source: hir::SourceId,
         alias: Ident,
+        import_span: Span,
     ) {
         let Some(alias_id) = self.add_alias(locations, alias) else { return };
+        bindings.namespaces.push(NamespaceBinding { id: alias_id, alias, span: import_span });
         bindings.aliases.insert(
             ImportBindingKey {
                 source,
@@ -690,8 +673,9 @@ impl RenameIndex {
         alias: Ident,
     ) -> Option<ImportAliasId> {
         let location = locations.location(alias.span)?;
-        let alias_id =
-            self.aliases.push(ImportAlias { name: alias.to_string(), location: location.clone() });
+        let alias_id = self
+            .aliases
+            .push(NamedLocation { name: alias.to_string(), location: location.clone() });
         self.push_occurrence(location, vec![RenameTarget::ImportAlias(alias_id)]);
         Some(alias_id)
     }
@@ -704,7 +688,7 @@ impl RenameIndex {
         let location = locations.location(name.span)?;
         let name_id = self
             .mapping_names
-            .push(MappingName { name: name.to_string(), location: location.clone() });
+            .push(NamedLocation { name: name.to_string(), location: location.clone() });
         self.push_occurrence(location, vec![RenameTarget::MappingName(name_id)]);
         Some(name_id)
     }
@@ -730,16 +714,17 @@ impl RenameIndex {
         span: Span,
         symbols: &[SymbolId],
     ) {
-        let identifiers = identifiers_in_span(gcx, span);
-        let Some((&final_ident, qualifiers)) = identifiers.split_last() else { return };
+        let Some(path) = SourcePath::resolve(gcx, span, context.source, context.contract) else {
+            return;
+        };
         let final_targets = symbols
             .iter()
             .filter_map(|&symbol_id| {
                 target_for_ident(
                     context.bindings,
-                    context.source,
+                    path.final_source,
                     symbol_id,
-                    final_ident,
+                    path.final_ident,
                     context.declarations,
                 )
             })
@@ -747,18 +732,10 @@ impl RenameIndex {
         if final_targets.is_empty() {
             return;
         }
-        self.push_span_occurrence(locations, final_ident.span, final_targets);
-        if qualifiers.is_empty() {
-            return;
-        }
-
-        let Some(resolutions) =
-            gcx.source_path_resolutions(&identifiers, context.source, context.contract)
-        else {
-            return;
-        };
-        for (&ident, resolutions) in qualifiers.iter().zip(resolutions) {
-            let targets = resolutions
+        self.push_span_occurrence(locations, path.final_ident.span, final_targets);
+        for qualifier in path.qualifiers {
+            let targets = qualifier
+                .resolutions
                 .into_iter()
                 .filter_map(|resolution| match resolution {
                     hir::Res::Item(item_id) => context
@@ -769,9 +746,9 @@ impl RenameIndex {
                         .and_then(|symbol_id| {
                             target_for_ident(
                                 context.bindings,
-                                context.source,
+                                qualifier.source,
                                 symbol_id,
-                                ident,
+                                qualifier.ident,
                                 context.declarations,
                             )
                         }),
@@ -779,16 +756,16 @@ impl RenameIndex {
                         .bindings
                         .aliases
                         .get(&ImportBindingKey {
-                            source: context.source,
+                            source: qualifier.source,
                             resolution: ImportBindingResolution::Namespace(namespace),
-                            name: ident.name,
+                            name: qualifier.ident.name,
                         })
                         .copied()
                         .map(RenameTarget::ImportAlias),
                     hir::Res::Builtin(_) | hir::Res::Err(_) => None,
                 })
                 .collect();
-            self.push_span_occurrence(locations, ident.span, targets);
+            self.push_span_occurrence(locations, qualifier.ident.span, targets);
         }
     }
 
@@ -812,31 +789,21 @@ impl RenameIndex {
     }
 
     fn occurrence_at(&self, uri: &Url, position: Position) -> Option<&RenameOccurrence> {
-        let index = self.file_occurrences.get(uri)?;
-        let end = index
-            .entries
-            .partition_point(|&entry| self.occurrences[entry].location.range.start <= position);
-        let mut best = None;
-        for (&entry, &prefix_max_end) in
-            index.entries[..end].iter().zip(&index.prefix_max_end[..end]).rev()
-        {
-            if prefix_max_end < position {
-                break;
-            }
-            let occurrence = &self.occurrences[entry];
-            if !proto::range_contains(occurrence.location.range, position) {
-                continue;
-            }
-            let key = (proto::range_size_key(occurrence.location.range), entry);
-            if best.as_ref().is_none_or(|(best_key, _)| key < *best_key) {
-                best = Some((key, occurrence));
-            }
-        }
-        best.map(|(_, occurrence)| occurrence)
+        let range = |entry: usize| self.occurrences[entry].location.range;
+        let entry = self
+            .file_occurrences
+            .get(uri)?
+            .candidates_at(position, range)
+            .min_by_key(|&entry| (proto::range_size_key(range(entry)), entry))?;
+        Some(&self.occurrences[entry])
     }
 
     fn normalize_occurrences(&mut self) {
-        self.occurrences.sort_by(|a, b| compare_locations(&a.location, &b.location));
+        self.occurrences.sort_by(|a, b| {
+            let (a, b) = (&a.location, &b.location);
+            (a.uri.as_str(), proto::range_key(a.range))
+                .cmp(&(b.uri.as_str(), proto::range_key(b.range)))
+        });
         let mut normalized = Vec::<RenameOccurrence>::with_capacity(self.occurrences.len());
         for occurrence in self.occurrences.drain(..) {
             if let Some(previous) = normalized.last_mut()
@@ -854,8 +821,8 @@ impl RenameIndex {
 }
 
 fn same_rename_targets(
-    aliases: &IndexVec<ImportAliasId, ImportAlias>,
-    mapping_names: &IndexVec<MappingNameId, MappingName>,
+    aliases: &IndexVec<ImportAliasId, NamedLocation>,
+    mapping_names: &IndexVec<MappingNameId, NamedLocation>,
     override_families: &OverrideFamilyIndex,
     targets: &[RenameTarget],
 ) -> bool {
@@ -952,23 +919,11 @@ fn target_for_ident(
     (declarations[symbol_id].name == ident.to_string()).then_some(RenameTarget::Symbol(symbol_id))
 }
 
-fn identifiers_in_span(gcx: Gcx<'_>, span: Span) -> Vec<Ident> {
-    let Ok(source) = gcx.sess.source_map().span_to_snippet(span) else { return Vec::new() };
-    Lexer::with_start_pos(gcx.sess, &source, span.lo()).filter_map(|token| token.ident()).collect()
-}
-
-fn remap_alias_id(alias_id: ImportAliasId, offset: usize) -> ImportAliasId {
-    ImportAliasId::from_usize(alias_id.index() + offset)
-}
-
-fn remap_mapping_name_id(name_id: MappingNameId, offset: usize) -> MappingNameId {
-    MappingNameId::from_usize(name_id.index() + offset)
-}
-
-fn compare_locations(a: &Location, b: &Location) -> std::cmp::Ordering {
-    a.uri.as_str().cmp(b.uri.as_str()).then_with(|| {
-        (a.range.start.line, a.range.start.character, a.range.end.line, a.range.end.character).cmp(
-            &(b.range.start.line, b.range.start.character, b.range.end.line, b.range.end.character),
-        )
-    })
+/// Returns every name equal to `id`'s name and location, which batch merging can duplicate.
+fn equal_names<I: Idx>(
+    names: &IndexVec<I, NamedLocation>,
+    id: I,
+    target: fn(I) -> RenameTarget,
+) -> Vec<RenameTarget> {
+    names.indices().filter(|&candidate| names[id] == names[candidate]).map(target).collect()
 }

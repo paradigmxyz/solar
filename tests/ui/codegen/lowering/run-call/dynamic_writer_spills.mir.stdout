@@ -1,11 +1,11 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/dynamic_writer_spills.sol:DynamicWriterSpills ===
 @module DynamicWriterSpills
-fn @payload() [selector=0xa878f858, pure, abi_params=[], abi_returns=[]] {
+fn @payload() [selector=0xa878f858, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     returndata 0, 0x600
 }
 
-fn @run() -> u256 [selector=0xc0406226, view, abi_params=[], abi_returns=[word]] {
+fn @run() -> i256 [selector=0xc0406226, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = gas
     v1 = gas
@@ -29,39 +29,43 @@ fn @run() -> u256 [selector=0xc0406226, view, abi_params=[], abi_returns=[word]]
     v19 = gas
     mstore 0, 0xa878f858 !metadata(memory=scratch)
     v20 = address
-    v21 = gas
-    v22 = staticcall v21, v20, 28, 4, 0, 0
-    v23 = iszero v22
-    v24 = eq v23, 0
-    v25 = iszero v24
-    jumpi v25, bb1, bb2
+    v21 = zext i160 v20 to i256
+    v22 = gas
+    v23 = staticcall v22, v21, 28, 4, 0, 0
+    v24 = zext i1 v23 to i256
+    v25 = eq v24, 0
+    v26 = zext i1 v25 to i256
+    v27 = ne v26, 0
+    jumpi v27, bb1, bb2
   bb2:
     jump bb3
   bb3:
-    v26 = returndatasize
-    returndatacopy 0, 0, v26 !metadata(memory=scratch)
-    v27 = and v18, v19
-    v28 = and v16, v17
-    v29 = and v28, v27
-    v30 = and v14, v15
-    v31 = and v12, v13
-    v32 = and v31, v30
-    v33 = and v10, v11
-    v34 = and v8, v9
-    v35 = and v34, v33
-    v36 = and v35, v32
-    v37 = and v36, v29
-    v38 = and v6, v7
-    v39 = and v4, v5
-    v40 = and v39, v38
-    v41 = and v2, v3
-    v42 = and v0, v1
-    v43 = and v42, v41
-    v44 = and v43, v40
-    v45 = and v44, v37
-    v46 = iszero v45
-    v47 = iszero v46
-    ret v47
+    v28 = returndatasize
+    returndatacopy 0, 0, v28 !metadata(memory=scratch)
+    v29 = and v18, v19
+    v30 = and v16, v17
+    v31 = and v30, v29
+    v32 = and v14, v15
+    v33 = and v12, v13
+    v34 = and v33, v32
+    v35 = and v10, v11
+    v36 = and v8, v9
+    v37 = and v36, v35
+    v38 = and v37, v34
+    v39 = and v38, v31
+    v40 = and v6, v7
+    v41 = and v4, v5
+    v42 = and v41, v40
+    v43 = and v2, v3
+    v44 = and v0, v1
+    v45 = and v44, v43
+    v46 = and v45, v42
+    v47 = and v46, v39
+    v48 = eq v47, 0
+    v49 = zext i1 v48 to i256
+    v50 = eq v49, 0
+    v51 = zext i1 v50 to i256
+    ret v51
   bb1:
     revert 0, 0
 }

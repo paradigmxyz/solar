@@ -17,7 +17,8 @@
 use crate::mir::{
     BlockId, Function, Immediate, InstId, InstKind, Module, Terminator, Value, ValueId,
     pass::{MirPass, run_function_pass},
-    utils::{self as mir_utils, eval, repair_reachability_phis},
+    utils as mir_utils,
+    utils::eval,
 };
 use alloy_primitives::U256;
 use solar_data_structures::{
@@ -102,14 +103,14 @@ impl ValueUsers {
         for (block_id, block) in func.blocks.iter_enumerated() {
             for &inst_id in &block.instructions {
                 inst_blocks[inst_id] = block_id;
-                for operand in func.inst(inst_id).kind.operands() {
+                func.inst(inst_id).kind.visit_operands(|operand| {
                     instructions[operand].push(inst_id);
-                }
+                });
             }
             if let Some(terminator) = &block.terminator {
-                for operand in terminator.operands() {
+                terminator.visit_operands(|operand| {
                     terminators[operand].push(block_id);
-                }
+                });
             }
         }
         for users in &mut instructions {
@@ -141,6 +142,10 @@ impl SccpCx {
     /// including unreachable-block cleanup and phi repairs.
     fn run(&mut self, func: &mut Function) -> usize {
         self.stats = SccpStats::default();
+
+        if !can_change(func) {
+            return 0;
+        }
 
         let num_values = func.num_values();
 
@@ -589,7 +594,7 @@ impl SccpCx {
             let all_insts: Vec<InstId> =
                 func.instructions().filter(|&id| !dead_insts.contains(id)).collect();
             for inst_id in all_insts {
-                mir_utils::replace_inst_uses(&mut func.inst_mut(inst_id).kind, &const_values);
+                mir_utils::replace_inst_uses(func.inst_mut(inst_id), &const_values);
             }
             for block_id in func.blocks.indices() {
                 if let Some(term) = &mut func.blocks[block_id].terminator {
@@ -605,20 +610,10 @@ impl SccpCx {
 
         // Phase 5: Apply branch/switch rewrites.
         for (block_id, target) in control_rewrites {
-            let old_successors = func.blocks[block_id]
-                .terminator
-                .as_ref()
-                .map(Terminator::successors)
-                .unwrap_or_default();
             let was_switch =
                 matches!(func.blocks[block_id].terminator, Some(Terminator::Switch { .. }));
-            for successor in old_successors {
-                func.blocks[successor].predecessors.retain(|pred| *pred != block_id);
-            }
-            if !func.blocks[target].predecessors.contains(&block_id) {
-                func.blocks[target].predecessors.push(block_id);
-            }
-            func.blocks[block_id].terminator = Some(Terminator::Jump(target));
+            // branch/switch ..., target, ... -> jump target
+            mir_utils::fold_terminator_to_jump(func, block_id, target);
             if was_switch {
                 self.stats.switches_folded += 1;
             } else {
@@ -631,69 +626,110 @@ impl SccpCx {
             if executable_blocks.contains(block_id) {
                 continue;
             }
-            let block = &mut func.blocks[block_id];
-            // Predecessor lists are rebuilt from terminators by
-            // `repair_reachability_phis` below, so a never-taken switch target
-            // keeps a predecessor entry; checking it here would re-count the
-            // block as invalidated on every run.
-            let already_invalid = block.instructions.is_empty()
-                && matches!(block.terminator, Some(Terminator::Invalid));
-            if already_invalid {
-                continue;
-            }
-            block.instructions.clear();
-            block.terminator = Some(Terminator::Invalid);
-            block.predecessors.clear();
-            self.stats.blocks_invalidated += 1;
+            // non-executable block -> invalid
+            self.stats.blocks_invalidated +=
+                usize::from(mir_utils::invalidate_unreachable_block(func, block_id));
         }
-
-        let reachability_repaired = repair_reachability_phis(func);
 
         self.stats.constants_folded
             + self.stats.branches_folded
             + self.stats.switches_folded
             + self.stats.blocks_invalidated
-            + usize::from(reachability_repaired)
     }
+}
+
+/// Returns whether SCCP can discover a constant or structurally unreachable
+/// block. Every derived constant starts at one of these local seeds, so a
+/// function without a seed can skip user lists, lattices, and worklists.
+fn can_change(func: &Function) -> bool {
+    for inst_id in func.instructions() {
+        let inst = func.inst(inst_id);
+        if inst.kind.has_side_effects() {
+            continue;
+        }
+        let directly_constant = match &inst.kind {
+            InstKind::Phi(incoming) => incoming
+                .first()
+                .and_then(|&(_, value)| func.value_u256(value))
+                .is_some_and(|first| {
+                    incoming.iter().all(|&(_, value)| func.value_u256(value) == Some(first))
+                }),
+            InstKind::Select(condition, then_value, else_value) => {
+                func.value_u256(*condition)
+                    .and_then(|condition| {
+                        func.value_u256(if condition.is_zero() { *else_value } else { *then_value })
+                    })
+                    .is_some()
+                    || func
+                        .value_u256(*then_value)
+                        .is_some_and(|then_value| func.value_u256(*else_value) == Some(then_value))
+            }
+            InstKind::Div(_, divisor)
+            | InstKind::SDiv(_, divisor)
+            | InstKind::Mod(_, divisor)
+            | InstKind::SMod(_, divisor) => {
+                func.value_u256(*divisor).is_some_and(|divisor| divisor.is_zero())
+                    || eval::eval_inst(&inst.kind, |value| func.value_u256(value).ok_or(()))
+                        .ok()
+                        .flatten()
+                        .is_some()
+            }
+            InstKind::AddMod(_, _, modulus) | InstKind::MulMod(_, _, modulus) => {
+                func.value_u256(*modulus).is_some_and(|modulus| modulus.is_zero())
+                    || eval::eval_inst(&inst.kind, |value| func.value_u256(value).ok_or(()))
+                        .ok()
+                        .flatten()
+                        .is_some()
+            }
+            _ => eval::eval_inst(&inst.kind, |value| func.value_u256(value).ok_or(()))
+                .ok()
+                .flatten()
+                .is_some(),
+        };
+        if directly_constant {
+            return true;
+        }
+    }
+
+    for block in &func.blocks {
+        match block.terminator.as_ref() {
+            Some(Terminator::Branch { condition, .. }) if func.value_u256(*condition).is_some() => {
+                return true;
+            }
+            Some(Terminator::Switch { value, .. }) if func.value_u256(*value).is_some() => {
+                return true;
+            }
+            _ => {}
+        }
+    }
+
+    let mut reachable = DenseBitSet::new_empty(func.blocks.len());
+    let mut pending = Vec::new();
+    pending.push(BlockId::ENTRY);
+    while let Some(block) = pending.pop() {
+        if reachable.insert(block)
+            && let Some(terminator) = &func.blocks[block].terminator
+        {
+            pending.extend(terminator.successors());
+        }
+    }
+    func.blocks.indices().any(|block| {
+        !reachable.contains(block)
+            && !matches!(func.blocks[block].terminator, Some(Terminator::Invalid))
+    })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mir::{MirType, TypeSize};
+    use crate::mir::MirType;
 
     #[test]
     fn immediate_for_type_preserves_result_types() {
-        let one = U256::from(1);
-        let i256 = TypeSize::new_int_bits(256);
-        let i64 = TypeSize::new_int_bits(64);
-        let i8 = TypeSize::new_int_bits(8);
-        assert_eq!(Immediate::for_type(Some(MirType::Bool), one), Immediate::Bool(true));
-        assert_eq!(Immediate::for_type(Some(MirType::Bool), U256::ZERO), Immediate::Bool(false));
-        assert_eq!(Immediate::for_type(Some(MirType::Int(i256)), one), Immediate::Int(one, i256));
-        assert_eq!(Immediate::for_type(Some(MirType::UInt(i64)), one), Immediate::UInt(one, i64));
-        // Non-integer payloads and missing types fall back to uint256.
-        assert_eq!(Immediate::for_type(Some(MirType::Address), one), Immediate::uint256(one));
-        assert_eq!(Immediate::for_type(None, one), Immediate::uint256(one));
-        // A bool-typed result that is not 0/1 keeps its numeric value.
-        let two = U256::from(2);
-        assert_eq!(Immediate::for_type(Some(MirType::Bool), two), Immediate::uint256(two));
-        // Out-of-range values fall back to uint256 instead of lying about the width.
-        let wide = U256::from(0x1ff);
-        assert_eq!(Immediate::for_type(Some(MirType::UInt(i8)), wide), Immediate::uint256(wide));
-        assert_eq!(Immediate::for_type(Some(MirType::Int(i8)), wide), Immediate::uint256(wide));
-        // Negative values are representable when the upper bits match the sign bit.
-        let minus_one = U256::MAX;
-        assert_eq!(
-            Immediate::for_type(Some(MirType::Int(i8)), minus_one),
-            Immediate::Int(minus_one, i8)
-        );
-        let i8_min = U256::MAX - U256::from(0x7f);
-        assert_eq!(Immediate::for_type(Some(MirType::Int(i8)), i8_min), Immediate::Int(i8_min, i8));
-        let i8_under = i8_min - U256::from(1);
-        assert_eq!(
-            Immediate::for_type(Some(MirType::Int(i8)), i8_under),
-            Immediate::uint256(i8_under)
-        );
+        let one = U256::ONE;
+        assert_eq!(Immediate::for_type(Some(MirType::I1), one), Immediate::I1(true));
+        assert_eq!(Immediate::for_type(Some(MirType::I1), U256::ZERO), Immediate::I1(false));
+        assert_eq!(Immediate::for_type(Some(MirType::I256), one), Immediate::I256(one));
+        assert_eq!(Immediate::for_type(None, U256::MAX), Immediate::I256(U256::MAX));
     }
 }

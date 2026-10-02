@@ -8,6 +8,7 @@
 // CHECK: stop
 fn @overflow(arg0: memoryslice) {
   bb0:
-    v0 = internal_frame_addr 18446744073709551615
+    v1 = internal_frame_addr 18446744073709551615
+    v0 = ptrtoint memptr v1 to i256
     stop
 }

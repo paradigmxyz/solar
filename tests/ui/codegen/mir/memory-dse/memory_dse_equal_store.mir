@@ -8,7 +8,7 @@
 // CHECK: {{^[ +].*}}mstore 128, arg0
 // CHECK: {{^[ +].*}}keccak256
 // CHECK: - mstore 128, arg0
-fn @remove_equal_store_after_keccak(arg0: u256) -> u256 {
+fn @remove_equal_store_after_keccak(arg0: i256) -> i256 {
   bb0:
     mstore 128, arg0
     v2 = keccak256 128, 32
@@ -22,11 +22,52 @@ fn @remove_equal_store_after_keccak(arg0: u256) -> u256 {
 // CHECK: {{^[ +].*}}calldatacopy
 // CHECK: {{^[ +].*}}mstore 128, arg0
 // CHECK: + ret arg0
-fn @keep_equal_store_after_copy(arg0: u256, arg1: u256) -> u256 {
+fn @keep_equal_store_after_copy(arg0: i256, arg1: i256) -> i256 {
   bb0:
     mstore 128, arg0
     calldatacopy 128, arg1, 32
     mstore 128, arg0
     v4 = mload 128
     ret v4
+}
+
+// An unaligned word store overlaps and partially clobbers the remembered word.
+// The later equal store is a required restore, including across unique edges.
+// CHECK-LABEL: {{^[ +].*}}fn @keep_restore_after_overlapping_store{{[( ]}}
+// CHECK: {{^[ +].*}}mstore 128, 0x1234
+// CHECK: {{^[ +].*}}mstore 129, 0
+// CHECK: {{^[ +].*}}mstore 128, 0x1234
+fn @keep_restore_after_overlapping_store() -> i256 {
+  bb0:
+    mstore 128, 4660
+    jump bb1
+  bb1:
+    mstore 129, 0
+    jump bb2
+  bb2:
+    mstore 128, 4660
+    jump bb3
+  bb3:
+    v3 = mload 128
+    ret v3
+}
+
+// An unknown value at a known overlapping address also invalidates the word.
+// CHECK-LABEL: {{^[ +].*}}fn @keep_restore_after_dynamic_overlapping_store{{[( ]}}
+// CHECK: {{^[ +].*}}mstore 128, 0x1234
+// CHECK: {{^[ +].*}}mstore 129, arg0
+// CHECK: {{^[ +].*}}mstore 128, 0x1234
+fn @keep_restore_after_dynamic_overlapping_store(arg0: i256) -> i256 {
+  bb0:
+    mstore 128, 0x1234
+    jump bb1
+  bb1:
+    mstore 129, arg0
+    jump bb2
+  bb2:
+    mstore 128, 0x1234
+    jump bb3
+  bb3:
+    v3 = mload 128
+    ret v3
 }

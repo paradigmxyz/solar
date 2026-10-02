@@ -11,6 +11,24 @@ Indexing exclusions still apply. Foundry settings supply import resolution, comp
 and build entry points for flycheck. Explicitly configured source directories remain included,
 including directories outside the project root.
 
+## Source change debounce
+
+The server waits 150 ms after the latest source change before starting analysis. Each new
+change restarts the wait. This applies to document edits, closes, and watched source-file
+changes; opening a document starts analysis without this delay.
+
+Set `initializationOptions.sourceChangeDebounce` to a non-negative integer in milliseconds
+when starting the server. Use `0` to disable the wait. Missing or invalid values use 150 ms.
+Restart the server to apply a new value.
+
+```json
+{
+  "initializationOptions": {
+    "sourceChangeDebounce": 150
+  }
+}
+```
+
 ## Embedding
 
 Use the public `solar_lsp::launch` entry point to run the same language server implementation
@@ -41,15 +59,15 @@ Run the LSP benchmarks locally with:
 cargo bench -p solar-lsp --bench lsp --bench lsp_diagnostic --features bench
 ```
 
-The current suite measures in-memory project analysis, edits, and queries. Loading manifests and
-corpora from disk, resolving anchors, constructing requests, and preflight correctness checks stay
-outside the timed closure. Use stable `lsp/<operation>/<case>` names and add new cases instead of
-renaming existing benchmark IDs.
+These Criterion/CodSpeed benchmarks measure in-memory project analysis, edits, and queries. Loading
+manifests and corpora from disk, resolving anchors, constructing requests, and preflight correctness
+checks stay outside the timed closure. Use stable `lsp/<operation>/<case>` names and add new cases
+instead of renaming existing benchmark IDs.
 
 To add a scenario, prepare the project outside the timed closure, resolve its request anchors, run
 the request once and assert the expected response, then register only the analysis, edit, or query
-as the measured operation. Full filesystem, JSON-RPC, and process latency belongs in a future
-walltime benchmark.
+as the measured operation. The pending-request benchmark below covers analysis scheduling and
+waiting; JSON-RPC transport and process latency remain outside these in-process benchmarks.
 
 The benchmark groups intentionally keep separate timing boundaries:
 
@@ -89,3 +107,45 @@ The benchmark groups intentionally keep separate timing boundaries:
 - `signature-help-first-request` and `signature-help-first-after-edit` measure an early or late
   request with fresh document caches. The edited case appends whitespace while retaining analysis,
   exercising signature help before reanalysis. Preparing and destroying snapshots is untimed.
+- `single-workspace-reverted-edit` measures applying and undoing an edit followed by a complete
+  production analysis epoch, including dependency validation and publication. `single-workspace-open-indexed`
+  opens a disk-identical root after initial indexing; setup and destruction are untimed.
+  Both cover 256 generated callers with a disk import and the tracked Unifap router's import
+  closure copied beneath an excluded `lib/` directory. `single-workspace-cold`,
+  `single-workspace-changed`, and `single-workspace-unchanged` provide first-analysis, changed-text,
+  and unchanged-epoch controls. These include synchronous filesystem validation and compiler work;
+  they exclude protocol transport, debounce, and blocking-pool scheduling.
+
+### Pending requests
+
+Run the standalone walltime benchmark with:
+
+```console
+cargo bench -p solar-lsp --bench lsp_pending --features bench
+```
+
+Each sample starts immediately before the production `didChange` handler and ends when a
+subsequent hover or definition request returns. It includes edit application, production analysis
+scheduling, blocking-pool dispatch, compiler and symbol-table work, publication, and response
+construction. The default 150 ms source-change debounce remains configured; the navigation request
+can interrupt that wait through the normal interactive-analysis path. The benchmark does not
+insert an artificial delay or subtract debounce from the result.
+
+The four cases cover hover and definition on 256 generated functions and the tracked Unifap
+router's import closure. Each edit alternately inserts or removes a leading newline in the queried
+source. Every request must return `Pending` on its first poll, then match the expected response for
+the edited source, including its shifted ranges. Initial analysis, temporary project setup,
+request preparation, response validation and destruction, and worker cleanup are outside timing.
+JSON-RPC encoding and transport are excluded. Compiler sessions use one thread and the runner
+uses a Tokio current-thread runtime with the production blocking pool.
+Each sample begins with an idle worker. Requests queued behind an already-running, superseded
+analysis are not covered by these cases.
+
+The runner prints JSON to stdout with raw `samples_ns` and nearest-rank `p50_ns`/`p95_ns` for each
+case, plus the sample count, warmup count, compiler thread count, and configured debounce. Set
+`SOLAR_LSP_BENCH_SAMPLES` to override the default 30 measured samples per case, or
+`SOLAR_LSP_BENCH_WARMUP` to override the default five warmups. The sample count must be positive; zero
+warmups are allowed. These percentiles describe the combined edit-to-response latency in one
+local run, without attributing time to individual phases or establishing a statistical regression.
+Run on an otherwise idle machine and retain the JSON when comparing revisions. This target is
+separate from CodSpeed simulation and is not a CI merge gate.

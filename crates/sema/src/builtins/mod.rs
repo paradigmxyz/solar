@@ -386,9 +386,6 @@ declare_builtins! {
     YulCallcode            => kw::Callcode         => gcx.mk_yul_builtin_fn(7, 1);
     YulDelegatecall        => kw::Delegatecall     => gcx.mk_yul_builtin_fn(6, 1);
     YulStaticcall          => kw::Staticcall       => gcx.mk_yul_builtin_fn(6, 1);
-    YulExtcall             => kw::Extcall          => gcx.mk_yul_builtin_fn(4, 1);
-    YulExtdelegatecall     => kw::Extdelegatecall  => gcx.mk_yul_builtin_fn(3, 1);
-    YulExtstaticcall       => kw::Extstaticcall    => gcx.mk_yul_builtin_fn(3, 1);
     YulReturn              => kw::Return           => gcx.mk_yul_builtin_fn(2, 0);
     YulRevert              => kw::Revert           => gcx.mk_yul_builtin_fn(2, 0);
     YulSelfdestruct        => kw::Selfdestruct     => gcx.mk_yul_builtin_fn(1, 0);
@@ -503,5 +500,10 @@ impl Builtin {
         debug_assert!(range.end <= Self::COUNT);
         (range.start as Primitive..range.end as Primitive)
             .map(|idx| unsafe { Self::from_index(idx as usize).unwrap_unchecked() })
+    }
+
+    /// Returns whether this builtin mutates its array receiver.
+    pub const fn is_array_mutator(self) -> bool {
+        matches!(self, Self::ArrayPush0 | Self::ArrayPush | Self::ArrayPop)
     }
 }

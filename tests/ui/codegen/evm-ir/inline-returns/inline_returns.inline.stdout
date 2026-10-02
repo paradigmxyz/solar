@@ -1,0 +1,55 @@
+- // === ROOT/tests/ui/codegen/evm-ir/inline-returns/inline_returns.evmir (before inline-returns) ===
++ // === ROOT/tests/ui/codegen/evm-ir/inline-returns/inline_returns.evmir (after inline-returns) ===
+  @module InlineReturns
+  bb0:
+    push 1
+    jumpi bb1, bb2
+  bb1:
+    push bb5
+-   jump bb4
++   jump
+  bb2:
+    push bb5
+-   jump bb4
++   jump
+  bb3:
+    jump bb4
+  bb4:
+    jump
+  bb5:
+    stop
+  bb6:
+    push bb5
+    push 7
+-   jump bb8
++   swap 1
++   jump
+  bb7:
+    push bb5
+    push 9
+    jump bb8
+  bb8:
+    swap 1
+    jump
+  bb9:
+    jump bb11
+  bb10:
+    stop
+  bb11:
+    pc
+    jump
+  bb12:
+    jump bb14
+  bb13:
+    stop
+  bb14:
+    gas
+    jump
+  bb15:
+    jump bb17
+  bb16:
+    stop
+  bb17:
+    push 0x10000
+    jump
+  

@@ -1,5 +1,10 @@
 //@ codegen-matrix: standard
 //@ run-call: Harness::run => 1
+//@ run-call: HeapPrefixTuple::check 1 => 9
+//@ run-call: HeapPrefixTuple::checkSecond 1 => 9
+//@ run-call: HeapPrefixConstructor::saved; constructor=[7] => 7
+//@ run-call: HeapPrefixConstructorHelper::saved; constructor=[7] => 7
+//@ run-call: HeapPrefixRecursive::check 7, 3 => 10
 
 // Hand-written creation-code builders may temporarily use memory immediately
 // before a heap object and restore it after `create2`. Static internal frames
@@ -68,5 +73,78 @@ contract Harness {
         assembly {
             start := sub(data, 0x4c)
         }
+    }
+}
+
+// A tuple-returned pointer must reserve the heap prefix even when it is a raw
+// integer. Keep a value live across the helper call and the backward write.
+contract HeapPrefixTuple {
+    function check(uint256 seed) external pure returns (uint256 result) {
+        assembly {
+            function pair() -> first, second {
+                first := sub(mload(0x40), 160)
+                second := 7
+            }
+            let live := add(seed, 1)
+            let first, second := pair()
+            mstore(first, 999)
+            result := add(live, second)
+        }
+    }
+
+    function checkSecond(uint256 seed) external pure returns (uint256 result) {
+        assembly {
+            function pair() -> first, second {
+                first := 7
+                second := sub(mload(0x40), 128)
+            }
+            let live := add(seed, 1)
+            let first, second := pair()
+            mstore(second, 999)
+            result := add(live, first)
+        }
+    }
+}
+
+contract HeapPrefixConstructor {
+    uint256 public saved;
+
+    constructor(uint256 seed) {
+        bytes memory data = new bytes(32);
+        assembly {
+            mstore(sub(data, 32), 0xdeadbeef)
+        }
+        saved = seed;
+    }
+}
+
+contract HeapPrefixConstructorHelper {
+    uint256 public saved;
+
+    constructor(uint256 seed) {
+        saved = build(seed);
+    }
+
+    function build(uint256 seed) internal pure returns (uint256) {
+        bytes memory data = new bytes(32);
+        assembly {
+            mstore(sub(data, 160), 0xdeadbeef)
+        }
+        return seed;
+    }
+}
+
+contract HeapPrefixRecursive {
+    function check(uint256 seed, uint256 depth) external pure returns (uint256) {
+        return build(seed, depth);
+    }
+
+    function build(uint256 seed, uint256 depth) internal pure returns (uint256) {
+        if (depth != 0) return build(seed, depth - 1) + 1;
+        bytes memory data = new bytes(32);
+        assembly {
+            mstore(sub(data, 288), 0xdeadbeef)
+        }
+        return seed;
     }
 }

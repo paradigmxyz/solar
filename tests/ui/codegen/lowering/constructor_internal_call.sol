@@ -11,23 +11,24 @@ contract ConstructorICall {
 
     // MIR-LABEL: fn @constructor{{[( ]}}
     // MIR: [[MASKED:v[0-9]+]] = and arg0, 7
-    // MIR: [[VALUE:v[0-9]+]] = icall @helper, 1, [[MASKED]]
+    // MIR: [[VALUE:v[0-9]+]] = icall @helper, [[MASKED]]
     // MIR: sstore 0, [[VALUE]]
     // EVMIR-LABEL: @module ConstructorICall_deployment
     // EVMIR: pop
     // EVMIR-NEXT: push [[CTOR_CONT:bb[0-9]+]]
     // EVMIR-NEXT: jump [[HELPER:bb[0-9]+]]
+    // The nonzero path falls through from the helper test into its recursive call.
     // EVMIR: [[HELPER]]:
-    // EVMIR: push [[RECURSE_BLOCK:bb[0-9]+]]
+    // EVMIR: iszero
+    // EVMIR-NEXT: push [[BASE:bb[0-9]+]]
     // EVMIR-NEXT: jumpi
-    // EVMIR: [[RECURSE_BLOCK]]:
     // EVMIR-NEXT: push 11
     // EVMIR: mul
     // EVMIR: jumpi
     // EVMIR-NEXT: push 1
     // EVMIR: push {{bb[0-9]+}}
     // EVMIR-NEXT: jump [[HELPER]]
-    // EVMIR: [[CTOR_CONT]]:
+    // EVMIR: [[CTOR_CONT]] [continuation]:
     // EVMIR: sstore
     // EVMIR: return
     // EVMIR-LABEL: @module ConstructorICall_runtime
@@ -39,8 +40,8 @@ contract ConstructorICall {
     }
 
     // MIR-LABEL: fn @helper{{[( ]}}
-    // MIR: [[NEXT:v[0-9]+]] = sub arg0, 1
-    // MIR: {{v[0-9]+}} = icall @helper, 1, [[NEXT]]
+    // MIR: [[NEXT:v[0-9]+]] = checked_sub {{[ui][0-9]+}}, arg0, 1
+    // MIR: {{v[0-9]+}} = icall @helper, [[NEXT]]
     // MIR: ret
     function helper(uint256 n) internal pure returns (uint256) {
         if (n == 0) {

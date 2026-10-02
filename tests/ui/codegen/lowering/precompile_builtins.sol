@@ -1,5 +1,6 @@
-//@ filecheck:
+//@[mir] filecheck:
 // CHECK: @module
+// CHECK: staticcall
 //@ revisions: homestead byzantium constantinople osaka mir
 //@[homestead] compile-flags: --evm-version homestead --emit=abi,bin
 //@[byzantium] compile-flags: --evm-version byzantium --emit=abi,bin

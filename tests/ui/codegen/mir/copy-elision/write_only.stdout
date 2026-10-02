@@ -1,75 +1,214 @@
 - // === ROOT/tests/ui/codegen/mir/copy-elision/write_only.mir (before copy-elision) ===
 + // === ROOT/tests/ui/codegen/mir/copy-elision/write_only.mir (after copy-elision) ===
   @module CopyElision
-  fn @unread(arg0: u256) -> u256 {
+  fn @unread(arg0: i256) -> i256 {
     bb0:
       v0 = alloc memorybytes, exact, zeroed, panic, 64
       v1 = memory_object_data memorybytes, v0
--     calldatacopy v1, 4, 32
+      v2 = ptrtoint memptr v1 to i256
+      calldatacopy v2, 4, 32
       ret arg0
   }
   
-  fn @read(arg0: u256) -> u256 {
+  fn @read(arg0: i256) -> i256 {
     bb0:
       v0 = alloc memorybytes, exact, uninitialized, infallible, 64
       v1 = memory_object_data memorybytes, v0
-      calldatacopy v1, 4, 32
-      v2 = mload v1
-      ret v2
+      v2 = ptrtoint memptr v1 to i256
+      calldatacopy v2, 4, 32
+      v3 = mload v2
+      ret v3
   }
   
-  fn @absolute_alias() -> u256 {
+  fn @absolute_alias() -> i256 {
     bb0:
       v0 = alloc memorybytes, exact, uninitialized, infallible, 64
       v1 = memory_object_data memorybytes, v0
+      v2 = ptrtoint memptr v1 to i256
+      mstore v2, 7
+      v3 = mload 128
+      ret v3
+  }
+  
+  fn @mstore8_escape() -> i256 {
+    bb0:
+      v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+      v1 = memory_object_data memorybytes, v0
+      v2 = ptrtoint memptr v1 to i256
+      mstore v2, 9
+      mstore8 0, v2
+      ret 0
+  }
+  
+  fn @zero_sized_write() -> i256 {
+    bb0:
+      v0 = alloc raw, exact, uninitialized, infallible, 0
+      v1 = ptrtoint memptr v0 to i256
       mstore v1, 7
-      v2 = mload 128
-      ret v2
+      v2 = fmp
+      v3 = ptrtoint memptr v2 to i256
+      v4 = mload v3
+      ret v4
   }
   
-  fn @mstore8_escape() -> u256 {
+  fn @write_past_allocation() -> i256 {
     bb0:
-      v0 = alloc memorybytes, exact, uninitialized, infallible, 64
-      v1 = memory_object_data memorybytes, v0
-      mstore v1, 9
-      mstore8 0, v1
+      v0 = alloc raw, exact, uninitialized, infallible, 32
+      v1 = ptrtoint memptr v0 to i256
+      v2 = alloc raw, exact, uninitialized, infallible, 32
+      v3 = ptrtoint memptr v2 to i256
+      v4 = add v1, 32
+      mstore v4, 7
+      v5 = mload v3
+      ret v5
+  }
+  
+  fn @guarded_loop() -> i256 {
+    bb0:
+      v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+      jump bb1
+    bb1:
+      v1 = phi [bb0: 0], [bb2: v3]
+      v2 = lt v1, 2
+      jumpi v2, bb2, bb3
+    bb3:
+      ret 0
+    bb2:
+      memory_object_store_element memoryfixedarray<2, 1>, v0, v1, 7
+      v3 = add v1, 1
+      jump bb1
+  }
+  
+  fn @guarded_overrun(arg0: i256) -> i256 {
+    bb0:
+      v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+      v1 = lt arg0, 3
+      jumpi v1, bb1, bb2
+    bb1:
+      memory_object_store_element memoryfixedarray<2, 1>, v0, arg0, 7
+      jump bb2
+    bb2:
+      ret 0
+  }
+  
+  fn @unguarded_join(arg0: i256) -> i256 {
+    bb0:
+      v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+      v1 = lt arg0, 2
+      jumpi v1, bb1, bb2
+    bb2:
+      jump bb3
+    bb1:
+      jump bb3
+    bb3:
+      memory_object_store_element memoryfixedarray<2, 1>, v0, arg0, 7
       ret 0
   }
   
 - // === ROOT/tests/ui/codegen/mir/copy-elision/write_only.mir (before dce) ===
 + // === ROOT/tests/ui/codegen/mir/copy-elision/write_only.mir (after dce) ===
   @module CopyElision
-  fn @unread(arg0: u256) -> u256 {
+  fn @unread(arg0: i256) -> i256 {
     bb0:
       v0 = alloc memorybytes, exact, zeroed, panic, 64
--     v1 = memory_object_data memorybytes, v0
+      v1 = memory_object_data memorybytes, v0
+      v2 = ptrtoint memptr v1 to i256
+      calldatacopy v2, 4, 32
       ret arg0
   }
   
-  fn @read(arg0: u256) -> u256 {
+  fn @read(arg0: i256) -> i256 {
     bb0:
       v0 = alloc memorybytes, exact, uninitialized, infallible, 64
       v1 = memory_object_data memorybytes, v0
-      calldatacopy v1, 4, 32
-      v2 = mload v1
-      ret v2
+      v2 = ptrtoint memptr v1 to i256
+      calldatacopy v2, 4, 32
+      v3 = mload v2
+      ret v3
   }
   
-  fn @absolute_alias() -> u256 {
+  fn @absolute_alias() -> i256 {
     bb0:
       v0 = alloc memorybytes, exact, uninitialized, infallible, 64
       v1 = memory_object_data memorybytes, v0
+      v2 = ptrtoint memptr v1 to i256
+      mstore v2, 7
+      v3 = mload 128
+      ret v3
+  }
+  
+  fn @mstore8_escape() -> i256 {
+    bb0:
+      v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+      v1 = memory_object_data memorybytes, v0
+      v2 = ptrtoint memptr v1 to i256
+      mstore v2, 9
+      mstore8 0, v2
+      ret 0
+  }
+  
+  fn @zero_sized_write() -> i256 {
+    bb0:
+      v0 = alloc raw, exact, uninitialized, infallible, 0
+      v1 = ptrtoint memptr v0 to i256
       mstore v1, 7
-      v2 = mload 128
-      ret v2
+      v2 = fmp
+      v3 = ptrtoint memptr v2 to i256
+      v4 = mload v3
+      ret v4
   }
   
-  fn @mstore8_escape() -> u256 {
+  fn @write_past_allocation() -> i256 {
     bb0:
-      v0 = alloc memorybytes, exact, uninitialized, infallible, 64
-      v1 = memory_object_data memorybytes, v0
-      mstore v1, 9
-      mstore8 0, v1
+      v0 = alloc raw, exact, uninitialized, infallible, 32
+      v1 = ptrtoint memptr v0 to i256
+      v2 = alloc raw, exact, uninitialized, infallible, 32
+      v3 = ptrtoint memptr v2 to i256
+      v4 = add v1, 32
+      mstore v4, 7
+      v5 = mload v3
+      ret v5
+  }
+  
+  fn @guarded_loop() -> i256 {
+    bb0:
+      v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+      jump bb1
+    bb1:
+      v1 = phi [bb0: 0], [bb2: v3]
+      v2 = lt v1, 2
+      jumpi v2, bb2, bb3
+    bb3:
+      ret 0
+    bb2:
+      memory_object_store_element memoryfixedarray<2, 1>, v0, v1, 7
+      v3 = add v1, 1
+      jump bb1
+  }
+  
+  fn @guarded_overrun(arg0: i256) -> i256 {
+    bb0:
+      v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+      v1 = lt arg0, 3
+      jumpi v1, bb1, bb2
+    bb1:
+      memory_object_store_element memoryfixedarray<2, 1>, v0, arg0, 7
+      jump bb2
+    bb2:
+      ret 0
+  }
+  
+  fn @unguarded_join(arg0: i256) -> i256 {
+    bb0:
+      v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+      v1 = lt arg0, 2
+      jumpi v1, bb1, bb2
+    bb2:
+      jump bb3
+    bb1:
+      jump bb3
+    bb3:
+      memory_object_store_element memoryfixedarray<2, 1>, v0, arg0, 7
       ret 0
   }
   

@@ -1,7 +1,6 @@
-// CHECK: "errors": [
-// CHECK: "severity": "error"
-// CHECK: "message": "JSON parse error: unknown field `verbose`, expected `revertStrings` or `debugInfo`
-// CHECK-NOT: "contracts"
+// CHECK-NOT: "severity": "error"
+// CHECK: "contracts": {
+// CHECK: "bytecode": {
 {
   "language": "Solidity",
   "sources": {

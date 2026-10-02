@@ -1,28 +1,30 @@
 - // === ROOT/tests/ui/codegen/mir/cse/cse_environment.mir (before cse) ===
 + // === ROOT/tests/ui/codegen/mir/cse/cse_environment.mir (after cse) ===
   @module CseEnvironment
-  fn @keep_cheap_nullary_environment_reads(arg0: u256) -> u256 {
+  fn @keep_cheap_nullary_environment_reads(arg0: i256) -> i256 {
     bb0:
       v0 = caller
-      v1 = caller
-      v2 = callvalue
-      v3 = callvalue
-      v4 = calldatasize
-      v5 = calldatasize
-      v6 = chainid
-      v7 = chainid
-      v8 = add v0, v1
-      v9 = add v2, v3
-      v10 = add v4, v5
-      v11 = add v6, v7
-      v12 = add v8, v9
-      v13 = add v10, v11
-      v14 = add v12, v13
-      v15 = add v14, arg0
-      ret v15
+      v1 = zext i160 v0 to i256
+      v2 = caller
+      v3 = zext i160 v2 to i256
+      v4 = callvalue
+      v5 = callvalue
+      v6 = calldatasize
+      v7 = calldatasize
+      v8 = chainid
+      v9 = chainid
+      v10 = add v1, v3
+      v11 = add v4, v5
+      v12 = add v6, v7
+      v13 = add v8, v9
+      v14 = add v10, v11
+      v15 = add v12, v13
+      v16 = add v14, v15
+      v17 = add v16, arg0
+      ret v17
   }
   
-  fn @reuse_expensive_environment_reads(arg0: address, arg1: u256) -> u256 {
+  fn @reuse_expensive_environment_reads(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = balance arg0
 -     v1 = balance arg0
@@ -51,7 +53,7 @@
       ret v18
   }
   
-  fn @invalidate_account_reads_after_call(arg0: address) -> u256 {
+  fn @invalidate_account_reads_after_call(arg0: i256) -> i256 {
     bb0:
       v0 = balance arg0
       v1 = extcodehash arg0
@@ -61,11 +63,12 @@
       v5 = add v0, v3
       v6 = add v1, v4
       v7 = add v5, v6
-      v8 = add v7, v2
-      ret v8
+      v8 = zext i1 v2 to i256
+      v9 = add v7, v8
+      ret v9
   }
   
-  fn @invalidate_account_reads_after_callcode(arg0: address) -> u256 {
+  fn @invalidate_account_reads_after_callcode(arg0: i256) -> i256 {
     bb0:
       v0 = balance arg0
       v1 = extcodehash arg0
@@ -75,11 +78,12 @@
       v5 = add v0, v3
       v6 = add v1, v4
       v7 = add v5, v6
-      v8 = add v7, v2
-      ret v8
+      v8 = zext i1 v2 to i256
+      v9 = add v7, v8
+      ret v9
   }
   
-  fn @keep_gas_uncached() -> u256 {
+  fn @keep_gas_uncached() -> i256 {
     bb0:
       v0 = gas
       v1 = gas

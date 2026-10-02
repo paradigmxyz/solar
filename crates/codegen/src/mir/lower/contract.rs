@@ -1,6 +1,6 @@
 //! Contract-level lowering and function discovery.
 
-use super::{ContractBytecodes, function, storage::StorageLayout, types::TypeLowerer};
+use super::{function, storage::StorageLayout, types::TypeLowerer};
 use solar_data_structures::{
     Never,
     map::{FxHashMap, FxHashSet, FxIndexSet},
@@ -13,19 +13,11 @@ use solar_sema::{
 };
 use std::ops::ControlFlow;
 
-use crate::mir::{Function, FunctionAttributes, FunctionBuilder, MirType, Module};
+use crate::mir::{Function, FunctionAttributes, FunctionBuilder, Module};
 
 /// Builds a typed MIR module from one HIR contract.
-///
-/// `sema_errored` records whether the compilation had already failed when the
-/// code generation phase started, which decides whether a lowering bail-out is
-/// worth reporting.
-pub(super) fn lower(
-    gcx: Gcx<'_>,
-    contract_id: ContractId,
-    child_bytecodes: &FxHashMap<ContractId, ContractBytecodes>,
-    sema_errored: bool,
-) -> Module {
+#[tracing::instrument(name = "mir_lowering", level = "debug", skip_all)]
+pub(super) fn lower(gcx: Gcx<'_>, contract_id: ContractId) -> Module {
     let contract = gcx.hir.contract(contract_id);
     let mut module = Module::new(contract.name);
     let storage = StorageLayout::for_contract(gcx, contract_id);
@@ -39,7 +31,7 @@ pub(super) fn lower(
             let Some(name) = variable.name else { continue };
             let mir_id = module.add_immutable(
                 name,
-                TypeLowerer::mir_type(gcx.type_of_item(id.into())),
+                TypeLowerer::immutable_layout(gcx.type_of_item(id.into())),
                 Some(id),
             );
             immutable_ids.insert(id, mir_id);
@@ -161,7 +153,7 @@ pub(super) fn lower(
     .then(|| {
         module.add_immutable(
             Ident::with_dummy_span(sym::library_deploy_address),
-            MirType::Address,
+            crate::mir::ValueLayout::Address,
             None,
         )
     });
@@ -205,11 +197,10 @@ pub(super) fn lower(
             module: &mut module,
             storage: &storage,
             contract_id,
+            bytecode_dependencies: gcx.contract_bytecode_dependencies(contract_id),
             function_ids: &mir_ids,
             immutable_ids: &immutable_ids,
-            child_bytecodes,
             state: &mut state,
-            sema_errored,
             shared_literals: &shared_literals,
             shared_word_literals: &shared_word_literals,
             share_storage_bytes,
@@ -232,12 +223,20 @@ pub(super) fn lower(
                 if gcx.dcx().err_count() == errors_before {
                     let _: Option<()> = context.report_unsupported(function.span, "function");
                 }
-                let mut builder = FunctionBuilder::new(context.module.function_mut(mir_id));
+                let return_types = function
+                    .returns
+                    .iter()
+                    .map(|&ret| TypeLowerer::mir_return_type(gcx.type_of_item(ret.into())))
+                    .collect();
+                let return_type = context.module.intern_return_type(return_types);
+                let mut builder =
+                    FunctionBuilder::new_semantic(context.module.function_mut(mir_id));
                 for &param in function.parameters {
-                    builder.add_param(TypeLowerer::mir_type(gcx.type_of_item(param.into())));
+                    builder
+                        .add_param(TypeLowerer::mir_signature_type(gcx.type_of_item(param.into())));
                 }
-                for &ret in function.returns {
-                    builder.add_return(TypeLowerer::mir_return_type(gcx.type_of_item(ret.into())));
+                if let Some(ty) = return_type {
+                    builder.set_return_type(ty);
                 }
                 builder.invalid();
                 continue;
@@ -257,7 +256,7 @@ pub(super) fn lower(
                 if gcx.dcx().err_count() == errors_before {
                     let _: Option<()> = context.report_unsupported(contract.name.span, "contract");
                 }
-                FunctionBuilder::new(context.module.function_mut(mir_id)).invalid();
+                FunctionBuilder::new_semantic(context.module.function_mut(mir_id)).invalid();
                 return false;
             };
             mir.name = context.module.function(mir_id).name;
@@ -278,7 +277,7 @@ pub(super) fn lower(
     if let Some(immutable_id) = library_deploy_address {
         let mut constructor = Function::new(Ident::with_dummy_span(kw::Constructor));
         constructor.attributes.is_constructor = true;
-        let mut builder = FunctionBuilder::new(&mut constructor);
+        let mut builder = FunctionBuilder::new_semantic(&mut constructor);
         let address = builder.address();
         builder.store_immutable(immutable_id, address);
         builder.ret(std::iter::empty());
@@ -360,6 +359,7 @@ pub(super) fn declaration(
     mir.attributes = FunctionAttributes {
         visibility: function.visibility,
         state_mutability: function.state_mutability,
+        is_abi_wrapper: false,
         is_constructor: function.kind == hir::FunctionKind::Constructor,
         is_fallback: function.kind == hir::FunctionKind::Fallback,
         is_receive: function.kind == hir::FunctionKind::Receive,
@@ -367,6 +367,8 @@ pub(super) fn declaration(
         may_return_memory: false,
         is_function_pointer_dispatcher: false,
         no_inline: false,
+        array_element_bits: Default::default(),
+        array_return_element_bits: None,
     };
 
     if function.kind == hir::FunctionKind::Function

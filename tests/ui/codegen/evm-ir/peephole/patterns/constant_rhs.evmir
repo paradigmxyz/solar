@@ -63,9 +63,9 @@ bb5:
   stop
 
 // CHECK-LABEL: {{^[ +].*}}bb6:
-// CHECK: {{^[ +].*}}push 2
-// CHECK: - push 0
-// CHECK: + iszero
+// CHECK: - push 2
+// CHECK: {{^[ +].*}}push 0
+// CHECK: - eq
 bb6:
   push 2
   push 0
@@ -167,18 +167,18 @@ bb15:
 // CHECK: -   add
 // CHECK: +   push 67
 bb16:
-  push 31 !metadata(stack=0->1)
-  push 36 !metadata(stack=0->1)
-  add !metadata(stack=2->1)
+  push 31
+  push 36
+  add
   stop
 
 // CHECK-LABEL: {{^[ +].*}}bb17:
 // CHECK: -   mul
 // CHECK: +   push 128
 bb17:
-  push 32 !metadata(stack=0->1)
-  push 4 !metadata(stack=0->1)
-  mul !metadata(stack=2->1)
+  push 32
+  push 4
+  mul
   stop
 
 // Emit the compact materialization priced by the fold.
@@ -199,4 +199,310 @@ bb19:
   push 5
   push 31
   sub
+  stop
+
+// CHECK-LABEL: {{^[ +].*}}bb20:
+// CHECK: +   push 32
+// CHECK: -   gt
+// CHECK: -   iszero
+// CHECK: +   lt
+bb20:
+  calldatasize
+  push 31
+  dup 2
+  gt
+  iszero
+  push 0
+  mstore
+  pop
+  stop
+
+// CHECK-LABEL: {{^[ +].*}}bb21:
+// CHECK: +   push 31
+// CHECK: -   lt
+// CHECK: -   iszero
+// CHECK: +   gt
+bb21:
+  calldatasize
+  push 32
+  dup 2
+  lt
+  iszero
+  push 0
+  mstore
+  pop
+  stop
+
+// CHECK-LABEL: {{^[ +].*}}bb22:
+// CHECK: -   gt
+// CHECK: -   iszero
+// CHECK: +   push 30
+// CHECK: +   lt
+bb22:
+  calldatasize
+  push 31
+  gt
+  iszero
+  push 0
+  mstore
+  stop
+
+// CHECK-LABEL: {{^[ +].*}}bb23:
+// CHECK: -   lt
+// CHECK: -   iszero
+// CHECK: +   push 32
+// CHECK: +   gt
+bb23:
+  calldatasize
+  push 31
+  lt
+  iszero
+  push 0
+  mstore
+  stop
+
+// CHECK-LABEL: {{^[ +].*}}bb24:
+// CHECK: +   push 256
+// CHECK: -   gt
+// CHECK: -   iszero
+// CHECK: +   lt
+bb24:
+  calldatasize
+  push 255
+  dup 2
+  gt
+  iszero
+  push 0
+  mstore
+  pop
+  stop
+
+// CHECK-LABEL: {{^[ +].*}}bb25:
+// CHECK: {{^[ +].*}}gt
+// CHECK-NEXT: {{^[ +].*}}iszero
+bb25:
+  calldatasize
+  push 31
+  dup 1
+  gt
+  iszero
+  push 0
+  mstore
+  pop
+  stop
+
+// CHECK-LABEL: {{^[ +].*}}bb26:
+// CHECK: {{^[ +].*}}gt
+// CHECK-NEXT: {{^[ +].*}}iszero
+bb26:
+  calldatasize
+  push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+  dup 2
+  gt
+  iszero
+  push 0
+  mstore
+  pop
+  stop
+
+// CHECK-LABEL: {{^[ +].*}}bb27:
+// CHECK: {{^[ +].*}}lt
+// CHECK-NEXT: {{^[ +].*}}iszero
+bb27:
+  calldatasize
+  push 0
+  dup 2
+  lt
+  iszero
+  push 0
+  mstore
+  pop
+  stop
+
+// CHECK-LABEL: {{^[ +].*}}bb28:
+// CHECK: {{^[ +].*}}gt
+// CHECK-NEXT: {{^[ +].*}}iszero
+bb28:
+  calldatasize
+  push 0x8000000000000000000000000000000000000000000000000000000000000000
+  dup 2
+  gt
+  iszero
+  push 0
+  mstore
+  pop
+  stop
+
+// CHECK-LABEL: {{^[ +].*}}bb29:
+// CHECK: +   push 32
+// CHECK: -   sgt
+// CHECK: -   iszero
+// CHECK: +   slt
+bb29:
+  calldatasize
+  push 31
+  dup 2
+  sgt
+  iszero
+  push 0
+  mstore
+  pop
+  stop
+
+// CHECK-LABEL: {{^[ +].*}}bb30:
+// CHECK: +   push 2
+// CHECK: -   gt
+// CHECK: -   iszero
+// CHECK: +   lt
+bb30:
+  push 1
+  push 288
+  mload
+  gt
+  iszero
+  push 0
+  mstore
+  stop
+
+// CHECK-LABEL: {{^[ +].*}}bb31:
+// CHECK: +   push 30
+// CHECK: -   lt
+// CHECK: -   iszero
+// CHECK: +   gt
+bb31:
+  push 31
+  push 4
+  calldataload
+  lt
+  iszero
+  push 0
+  mstore
+  stop
+
+// CHECK-LABEL: {{^[ +].*}}bb32:
+// CHECK: +   push 2
+// CHECK: -   gt
+// CHECK: -   iszero
+// CHECK: +   lt
+bb32:
+  push 1
+  push 4
+  calldataload
+  dup 1
+  add
+  gt
+  iszero
+  push 0
+  mstore
+  stop
+
+// CHECK-LABEL: {{^[ +].*}}bb33:
+// CHECK: {{^[ +].*}}gt
+// CHECK: {{^[ +].*}}iszero
+bb33:
+  push 1
+  calldatasize
+  dup 2
+  add
+  gt
+  iszero
+  push 0
+  mstore
+  stop
+
+// CHECK-LABEL: {{^[ +].*}}bb34:
+// CHECK: {{^[ +].*}}gt
+// CHECK: {{^[ +].*}}iszero
+bb34:
+  push 1
+  gas
+  gt
+  iszero
+  push 0
+  mstore
+  stop
+
+// CHECK-LABEL: {{^[ +].*}}bb35:
+// CHECK: {{^[ +].*}}gt
+// CHECK: {{^[ +].*}}iszero
+bb35:
+  push 1
+  pc
+  gt
+  iszero
+  push 0
+  mstore
+  stop
+
+// CHECK-LABEL: {{^[ +].*}}bb36:
+// CHECK: +   push 32
+// CHECK: -   sgt
+// CHECK: -   iszero
+// CHECK: +   slt
+bb36:
+  push 31
+  push 4
+  calldataload
+  sgt
+  iszero
+  push 0
+  mstore
+  stop
+
+// CHECK-LABEL: {{^[ +].*}}bb37:
+// CHECK: {{^[ +].*}}sgt
+// CHECK: {{^[ +].*}}iszero
+bb37:
+  push 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+  push 4
+  calldataload
+  sgt
+  iszero
+  push 0
+  mstore
+  stop
+
+// CHECK-LABEL: {{^[ +].*}}bb38:
+// CHECK: {{^[ +].*}}slt
+// CHECK: {{^[ +].*}}iszero
+bb38:
+  push 0x8000000000000000000000000000000000000000000000000000000000000000
+  push 4
+  calldataload
+  slt
+  iszero
+  push 0
+  mstore
+  stop
+
+// CHECK-LABEL: {{^[ +].*}}bb39:
+// CHECK: +   push 0
+// CHECK: -   sgt
+// CHECK: -   iszero
+// CHECK: +   slt
+bb39:
+  push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+  push 4
+  calldataload
+  sgt
+  iszero
+  push 0
+  mstore
+  stop
+
+// Adjusting the bound must not increase its materialization's stack peak.
+// The intervening POP may be the first instruction that frees a stack slot.
+// CHECK-LABEL: {{^[ +].*}}bb40:
+// CHECK: {{^[ +].*}}push 0x10000000001
+// CHECK: {{^[ +].*}}lt
+// CHECK-NEXT: {{^[ +].*}}iszero
+bb40:
+  calldatasize
+  push 0x10000000001
+  swap 1
+  pop
+  push 0
+  calldataload
+  lt
+  iszero
   stop

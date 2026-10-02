@@ -1,0 +1,57 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/loop_checked_helper.sol:LoopCheckedHelper ===
+@module LoopCheckedHelper
+fn @checkedAdd(arg0: i256, arg1: i256) -> i256 [pure] {
+  bb0:
+    v0 = add arg0, arg1
+    v1 = lt v0, arg0
+    jumpi v1, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    icall @panicArithmetic
+    jump bb3
+  bb3:
+    ret v0
+}
+
+fn @panicArithmetic() [pure] {
+  bb0:
+    v0 = shl 224, 0x4e487b71
+    mstore 0, v0 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @accumulate(arg0: i256, arg1: i256) -> i256 [selector=0x4256913b, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = gt arg0, 0x3e8
+    v1 = eq v0, false
+    v2 = eq v1, false
+    icall revert_if<empty>, v2
+    jump bb1
+  bb1:
+    v3 = phi [bb0: arg0], [bb3: v3]
+    v4 = phi [bb0: arg1], [bb3: v8]
+    v5 = phi [bb0: arg1], [bb3: v5]
+    v6 = phi [bb0: 0], [bb3: v9]
+    v7 = lt v6, v3
+    jumpi v7, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    ret v4
+  bb4:
+    v8 = icall @checkedAdd, v4, v6
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v9 = icall @checkedAdd, v6, 1
+    jump bb1
+}
+
+fn @add(arg0: i256, arg1: i256) -> i256 [selector=0x771602f7, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = icall @checkedAdd, arg0, arg1
+    ret v0
+}

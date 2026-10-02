@@ -1,107 +1,11 @@
-use super::support::RequestFixture;
+use super::support::{Query, RequestFixture};
 use snapbox::str;
 
 #[test]
-fn resolves_function_calls() {
+fn resolves_definitions_and_references() {
     let fixture = RequestFixture::new(
         r#"
-        //- /Symbols.sol
-        contract C {
-            uint256 stateValue;
-
-            function target(uint256 input) public view returns (uint256 output) {
-                uint256 localValue = input + stateValue;
-                output = localValue;
-            }
-
-            function caller() public view {
-                uint256 callerLocal = $1target(stateValue);
-            }
-        }
-        "#,
-        "/Symbols.sol",
-    );
-
-    fixture.check_goto_definition(
-        "$1",
-        str![[r#"
-/Symbols.sol:2:13 function target(uint256 input) public view returns (uint256 output) {
-
-"#]],
-    );
-}
-
-#[test]
-fn resolves_member_targets() {
-    let fixture = RequestFixture::new(
-        r#"
-        //- /Members.sol
-        contract C {
-            enum Choice { $3A, B }
-            struct Data { uint256 field; }
-
-            function read(Data memory data) public pure returns (uint256) {
-                Choice choice = Choice.$1A;
-                return data.$2field;
-            }
-        }
-        "#,
-        "/Members.sol",
-    );
-
-    fixture.check_goto_definition(
-        "$1",
-        str![[r#"
-/Members.sol:1:18 enum Choice { A, B }
-
-"#]],
-    );
-    fixture.check_goto_definition(
-        "$2",
-        str![[r#"
-/Members.sol:2:26 struct Data { uint256 field; }
-
-"#]],
-    );
-    fixture.check_goto_definition(
-        "$3",
-        str![[r#"
-/Members.sol:1:18 enum Choice { A, B }
-
-"#]],
-    );
-}
-
-#[test]
-fn resolves_overloaded_calls_to_selected_definition() {
-    let fixture = RequestFixture::new(
-        r#"
-        //- /Overload.sol
-        contract C {
-            function f(uint256) public {}
-            function f(string memory) public {}
-            function g() public {
-                $1f(uint256(1));
-            }
-        }
-        "#,
-        "/Overload.sol",
-    );
-
-    fixture.check_goto_definition(
-        "$1",
-        str![[r#"
-/Overload.sol:1:13 function f(uint256) public {}
-
-"#]],
-    );
-}
-
-#[test]
-fn resolves_using_directives_and_attached_functions() {
-    let fixture = RequestFixture::new(
-        r#"
-        //- /Using.sol
+        //- /Navigation.sol
         library L {
             function inc(uint256 value) internal pure returns (uint256) {
                 return value + 1;
@@ -110,54 +14,110 @@ fn resolves_using_directives_and_attached_functions() {
 
         using $1L for uint256;
 
-        contract C {
-            function f(uint256 value) public pure returns (uint256) {
-                return value.$2inc();
+        interface I {
+            function $2f() external returns (uint256);
+        }
+
+        contract Base {
+            /// @param $3amount The amount.
+            function g(uint amount) public virtual {}
+        }
+
+        contract C is Base {
+            enum $14Choice { $4A, B }
+            struct Data { uint256 field; }
+            uint256 public stateValue;
+
+            function g(uint $5value) public override {}
+
+            function target(uint256 input) public view returns (uint256 output) {
+                output = input + $6stateValue;
+            }
+
+            function pick(uint256) public {}
+            function $7pick(string memory) public {}
+
+            function caller(Data memory data) public returns ($8Choice) {
+                $9target(data.$10field);
+                $11pick(uint256(1));
+                data.field.$12inc();
+                return Choice.$13A;
             }
         }
-        "#,
-        "/Using.sol",
-    );
 
-    fixture.check_goto_definition(
-        "$1",
-        str![[r#"
-/Using.sol:0:8 library L {
+        contract InterfaceCaller {
+            function call(I target) external returns (uint256) {
+                return target.$15f();
+            }
+        }
 
-"#]],
-    );
-    fixture.check_goto_definition(
-        "$2",
-        str![[r#"
-/Using.sol:1:13 function inc(uint256 value) internal pure returns (uint256) {
-
-"#]],
-    );
-}
-
-#[test]
-fn distinguishes_function_declarations_from_definitions() {
-    let fixture = RequestFixture::new(
-        r#"
-        //- /Navigation.sol
-        interface I {
-            function $1f() external returns (uint256);
+        abstract contract AbstractCaller {
+            function hook() internal virtual;
+            function callHook() internal {
+                $16hook();
+            }
         }
         "#,
         "/Navigation.sol",
     );
 
-    fixture.check_goto_declaration(
-        "$1",
-        str![[r#"
-/Navigation.sol:1:13 function f() external returns (uint256);
+    fixture.check_queries(&[Query::Definition, Query::References(true)], 1..=16, str![[r#"
+$1 definition: /Navigation.sol:0:8 library L {
+$1 references: /Navigation.sol:0:8 library L {
+/Navigation.sol:5:6 using L for uint256;
+$2 definition: /Navigation.sol:7:13 function f() external returns (uint256);
+$2 references: /Navigation.sol:7:13 function f() external returns (uint256);
+/Navigation.sol:32:22 return target.f();
+$3 definition: /Navigation.sol:11:20 function g(uint amount) public virtual {}
+$3 references: /Navigation.sol:10:15 /// @param amount The amount.
+/Navigation.sol:11:20 function g(uint amount) public virtual {}
+$4 definition: /Navigation.sol:14:18 enum Choice { A, B }
+$4 references: /Navigation.sol:14:18 enum Choice { A, B }
+/Navigation.sol:27:22 return Choice.A;
+$5 definition: /Navigation.sol:17:20 function g(uint value) public override {}
+$5 references: /Navigation.sol:17:20 function g(uint value) public override {}
+$6 definition: /Navigation.sol:16:19 uint256 public stateValue;
+$6 references: /Navigation.sol:16:19 uint256 public stateValue;
+/Navigation.sol:19:25 output = input + stateValue;
+$7 definition: /Navigation.sol:22:13 function pick(string memory) public {}
+$7 references: /Navigation.sol:22:13 function pick(string memory) public {}
+$8 definition: /Navigation.sol:14:9 enum Choice { A, B }
+$8 references: /Navigation.sol:14:9 enum Choice { A, B }
+/Navigation.sol:23:54 function caller(Data memory data) public returns (Choice) {
+/Navigation.sol:27:15 return Choice.A;
+$9 definition: /Navigation.sol:18:13 function target(uint256 input) public view returns (uint256 output) {
+$9 references: /Navigation.sol:18:13 function target(uint256 input) public view returns (uint256 output) {
+/Navigation.sol:24:8 target(data.field);
+$10 definition: /Navigation.sol:15:26 struct Data { uint256 field; }
+$10 references: /Navigation.sol:15:26 struct Data { uint256 field; }
+/Navigation.sol:24:20 target(data.field);
+/Navigation.sol:26:13 data.field.inc();
+$11 definition: /Navigation.sol:21:13 function pick(uint256) public {}
+$11 references: /Navigation.sol:21:13 function pick(uint256) public {}
+/Navigation.sol:25:8 pick(uint256(1));
+$12 definition: /Navigation.sol:1:13 function inc(uint256 value) internal pure returns (uint256) {
+$12 references: /Navigation.sol:1:13 function inc(uint256 value) internal pure returns (uint256) {
+/Navigation.sol:26:19 data.field.inc();
+$13 definition: /Navigation.sol:14:18 enum Choice { A, B }
+$13 references: /Navigation.sol:14:18 enum Choice { A, B }
+/Navigation.sol:27:22 return Choice.A;
+$14 definition: /Navigation.sol:14:9 enum Choice { A, B }
+$14 references: /Navigation.sol:14:9 enum Choice { A, B }
+/Navigation.sol:23:54 function caller(Data memory data) public returns (Choice) {
+/Navigation.sol:27:15 return Choice.A;
+$15 definition: /Navigation.sol:7:13 function f() external returns (uint256);
+$15 references: /Navigation.sol:7:13 function f() external returns (uint256);
+/Navigation.sol:32:22 return target.f();
+$16 definition: /Navigation.sol:36:13 function hook() internal virtual;
+$16 references: /Navigation.sol:36:13 function hook() internal virtual;
+/Navigation.sol:38:8 hook();
 
-"#]],
-    );
-    fixture.check_goto_definition(
-        "$1",
+"#]]);
+    fixture.check_queries(
+        &[Query::Declaration],
+        [2],
         str![[r#"
-<none>
+$2 /Navigation.sol:7:13 function f() external returns (uint256);
 
 "#]],
     );

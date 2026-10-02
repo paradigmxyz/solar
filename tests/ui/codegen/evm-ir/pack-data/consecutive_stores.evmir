@@ -1,14 +1,17 @@
 //@ compile-flags: -Ogas -Zevm-ir-pipeline=pack-data
 //@ filecheck:
 @module module
+@libraries
+  L_0: "A.sol:L"
 
+// CHECK: literal_0: hex"112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100"
 // CHECK-LABEL: {{^[ +].*}}bb0:
 // CHECK: {{^[ +].*}}push 64
 // CHECK-NEXT: {{^[ +].*}}push_data literal_0
 // CHECK-NEXT: {{^[ +].*}}dup 3
 // CHECK-NEXT: {{^[ +].*}}codecopy
 // CHECK-NOT: {{^[ +].*}}mstore
-// CHECK: {{^[ +].*}}stop
+// CHECK: {{^[ +].*}}jump bb1
 bb0:
   push 128
   push 0x112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00
@@ -20,6 +23,22 @@ bb0:
   push 0xffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100
   swap 1
   mstore
-  stop
+  jump bb1
 
-// CHECK: @data literal_0 hex"112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100"
+// CHECK-LABEL: {{^[ +].*}}bb1:
+// CHECK: {{^[ +].*}}push_library L_0
+// CHECK: {{^[ +].*}}mstore
+// CHECK-NOT: {{^[ +].*}}codecopy
+// CHECK: {{^[ +].*}}stop
+bb1:
+  push 128
+  push_library L_0
+  dup 2
+  mstore
+  push 32
+  dup 2
+  add
+  push 0xffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100
+  swap 1
+  mstore
+  stop

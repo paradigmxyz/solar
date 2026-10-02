@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/adce/adce.mir (before adce) ===
 + // === ROOT/tests/ui/codegen/mir/adce/adce.mir (after adce) ===
   @module Adce
-  fn @removes_dead_branch_region(arg0: bool) -> u256 {
+  fn @removes_dead_branch_region(arg0: i1) -> i256 {
     bb0:
 -     jumpi arg0, bb1, bb2
 -   bb2:
@@ -18,7 +18,7 @@
 +     invalid
   }
   
-  fn @keeps_effectful_branch_region(arg0: bool) -> u256 {
+  fn @keeps_effectful_branch_region(arg0: i1) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:
@@ -30,7 +30,7 @@
       ret 7
   }
   
-  fn @keeps_phi_target(arg0: bool) -> u256 {
+  fn @keeps_phi_target(arg0: i1) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:

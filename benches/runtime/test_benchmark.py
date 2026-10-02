@@ -1,4 +1,5 @@
 import importlib.util
+import io
 import json
 import sys
 import tempfile
@@ -16,6 +17,26 @@ SPEC.loader.exec_module(benchmark)
 
 
 class CorpusTests(unittest.TestCase):
+    def test_brutalized_calls_keep_measurements_but_exclude_comparison(self):
+        case = next(
+            case for case in benchmark.TEST_CASES if case.test_id == "solady-lib-string"
+        )
+        calls = benchmark.gas_calls(case, "hot")
+        excluded = [call for call in calls if call.comparison_exclusion_reason]
+        self.assertEqual(len(excluded), 22)
+        self.assertEqual(
+            {call.signature for call in excluded},
+            {
+                "testBytesToHexStringNoPrefix(bytes)",
+                "testBytesToHexString(bytes)",
+                "testStringIs7BitASCIIDifferential(bytes)",
+            },
+        )
+        self.assertEqual(
+            {call.comparison_exclusion_reason for call in excluded},
+            {"Memory brutalizer workload depends on gas and contract bytecode."},
+        )
+
     def test_source_links_pin_checkout_and_upstream(self) -> None:
         case = next(
             case
@@ -71,7 +92,7 @@ class CorpusTests(unittest.TestCase):
             )
 
     def test_vendored_cases_and_projects_exist(self) -> None:
-        self.assertEqual(len(benchmark.TEST_CASES), 32)
+        self.assertEqual(len(benchmark.TEST_CASES), 33)
         repository_cases = [
             case for case in benchmark.TEST_CASES if case.suite == "repository"
         ]
@@ -179,6 +200,17 @@ class CorpusTests(unittest.TestCase):
         self.assertEqual(json.loads(original)["settings"]["evmVersion"], "paris")
         self.assertEqual(json.loads(overridden)["settings"]["evmVersion"], "amsterdam")
         self.assertEqual(benchmark.with_evm_version(original, None), original)
+
+    def test_optimizer_runs_override_replaces_project_setting(self) -> None:
+        original = benchmark.full_project_standard_json_input("solady-0.1.26.json.gz")
+        overridden = benchmark.with_optimizer_runs(original, 1)
+
+        self.assertEqual(json.loads(original)["settings"]["optimizer"]["runs"], 1000)
+        self.assertEqual(
+            json.loads(overridden)["settings"]["optimizer"],
+            {"enabled": True, "runs": 1},
+        )
+        self.assertEqual(benchmark.with_optimizer_runs(original, None), original)
 
     def test_compiler_output_fingerprint_ignores_diagnostic_order(self) -> None:
         first = json.dumps(
@@ -304,15 +336,237 @@ class FailureHandlingTests(unittest.TestCase):
     def test_unexpected_test_error_is_written_as_a_failure(self) -> None:
         for flags, compilers in (
             ([], {"solar"}),
-            (["--solar-only"], {"solar"}),
             (["--solc", "solc"], {"solar", "solc"}),
-            (["--solc", "solc", "--solar-only"], {"solar"}),
             (["--solx", "solx"], {"solar", "solx"}),
+            (["--oksolc", "oksolc"], {"solar", "oksolc"}),
             (["--solc", "solc", "--solx", "solx"], {"solar", "solc", "solx"}),
-            (["--solx", "solx", "--solar-only"], {"solar"}),
         ):
             with self.subTest(flags=flags):
                 self.check_unexpected_test_error(flags, compilers)
+
+    def test_saved_reference_results_do_not_discover_or_run_reference_compilers(
+        self,
+    ) -> None:
+        case = benchmark.TEST_CASES[0]
+        entry = {
+            "test_id": case.test_id,
+            "suite": case.suite,
+            "gas_profile": "smoke",
+            "compilers": {"solar": {"status": "ok", "input_fingerprint": "same"}},
+        }
+        reference = {
+            **entry,
+            "compilers": {
+                name: {"status": "ok", "input_fingerprint": "same"}
+                for name in ("solc", "solx", "oksolc")
+            },
+        }
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            mock.patch.object(
+                benchmark, "find_binary", return_value=Path("solar")
+            ) as find_binary,
+            mock.patch.object(
+                benchmark, "binary_version", return_value=("0.2.0", "")
+            ) as binary_version,
+            mock.patch.object(
+                benchmark, "run_test_case", return_value=entry
+            ) as run_case,
+        ):
+            reference_path = Path(directory) / "reference.json"
+            reference_path.write_text(json.dumps({"results": [reference]}))
+            output = Path(directory) / "results.json"
+            return_code = benchmark.main(
+                [
+                    "--solar",
+                    "solar",
+                    "--reference-results",
+                    str(reference_path),
+                    "--tests",
+                    case.test_id,
+                    "--output",
+                    str(output),
+                ]
+            )
+            document = json.loads(output.read_text())
+        self.assertEqual(return_code, 0)
+        self.assertEqual(
+            [call.args[0] for call in find_binary.call_args_list], ["solar"]
+        )
+        binary_version.assert_called_once_with(Path("solar"))
+        self.assertEqual(
+            [spec.compiler_id for spec in run_case.call_args.args[1]], ["solar"]
+        )
+        self.assertEqual(
+            set(document["results"][0]["compilers"]),
+            {"solar", "solc", "solx", "oksolc"},
+        )
+
+    def test_live_oksolc_with_saved_references(self) -> None:
+        case = benchmark.TEST_CASES[0]
+        for jobs in (1, 8):
+            with (
+                self.subTest(jobs=jobs),
+                tempfile.TemporaryDirectory() as directory,
+                mock.patch.object(
+                    benchmark, "find_binary", side_effect=lambda path, _: Path(path)
+                ),
+                mock.patch.object(
+                    benchmark, "binary_version", return_value=("test", "")
+                ),
+                mock.patch.object(
+                    benchmark,
+                    "run",
+                    return_value=mock.Mock(
+                        returncode=1,
+                        stdout="",
+                        stderr="InternalFailure",
+                        peak_rss_bytes=None,
+                    ),
+                ) as run,
+            ):
+                root = Path(directory)
+                references = root / "reference.json"
+                references.write_text(
+                    json.dumps(
+                        {
+                            "results": [
+                                {
+                                    "test_id": case.test_id,
+                                    "suite": case.suite,
+                                    "gas_profile": "smoke",
+                                    "compilers": {
+                                        "oksolc": {
+                                            "status": "ok",
+                                            "label": "cached",
+                                            "input_fingerprint": benchmark.compiler_input(
+                                                case, None
+                                            )[2],
+                                        }
+                                    },
+                                }
+                            ]
+                        }
+                    )
+                )
+                output = root / "results.json"
+                self.assertEqual(
+                    benchmark.main(
+                        [
+                            "--solar",
+                            "solar",
+                            "--oksolc",
+                            "oksolc",
+                            "--oksolc-jobs",
+                            str(jobs),
+                            "--reference-results",
+                            str(references),
+                            "--tests",
+                            case.test_id,
+                            "--allow-failures",
+                            "--artifacts",
+                            str(root / "artifacts"),
+                            "--output",
+                            str(output),
+                        ]
+                    ),
+                    0,
+                )
+                commands = [call.args[0] for call in run.call_args_list]
+                expected = [
+                    "oksolc",
+                    "standard-json",
+                    "--no-cache",
+                    "--parallel",
+                    "--jobs",
+                    str(jobs),
+                    "-",
+                ]
+                self.assertEqual(
+                    [cmd for cmd in commands if cmd[0] == "oksolc"],
+                    [expected, expected],
+                )
+                compiler = json.loads(output.read_text())["results"][0]["compilers"][
+                    "oksolc"
+                ]
+                self.assertEqual(compiler["status"], "failed")
+                self.assertEqual(compiler["error"], "InternalFailure")
+                self.assertEqual(compiler["label"], "oksolc test")
+
+    def test_saved_reference_results_preserve_solc_version_filter(self) -> None:
+        case = next(
+            case for case in benchmark.TEST_CASES if case.test_id == "uniswap-v2-pair"
+        )
+        for version, flags, expected_calls in (
+            ("0.8.37", [], 0),
+            ("0.5.16", [], 1),
+            ("0.8.37", ["--include-incompatible"], 1),
+        ):
+            with (
+                self.subTest(version=version, flags=flags),
+                tempfile.TemporaryDirectory() as directory,
+                mock.patch.object(benchmark, "select_tests", return_value=[case]),
+                mock.patch.object(benchmark, "find_binary", return_value=Path("solar")),
+                mock.patch.object(
+                    benchmark, "binary_version", return_value=("0.2.0", "")
+                ),
+                mock.patch.object(
+                    benchmark,
+                    "run_test_case",
+                    return_value={
+                        "test_id": case.test_id,
+                        "suite": case.suite,
+                        "compilers": {"solar": {"status": "ok"}},
+                    },
+                ) as run_case,
+            ):
+                reference_path = Path(directory) / "reference.json"
+                reference_path.write_text(
+                    json.dumps(
+                        {
+                            "results": [
+                                {
+                                    "test_id": "another-case",
+                                    "compilers": {"solc": {"label": f"solc {version}"}},
+                                }
+                            ]
+                        }
+                    )
+                )
+                self.assertEqual(
+                    benchmark.main(
+                        [
+                            "--solar",
+                            "solar",
+                            "--reference-results",
+                            str(reference_path),
+                            "--output",
+                            str(Path(directory) / "results.json"),
+                            *flags,
+                        ]
+                    ),
+                    0,
+                )
+                self.assertEqual(run_case.call_count, expected_calls)
+
+    def test_saved_results_reject_live_reference_options(self) -> None:
+        for flag in ("--solc", "--solx"):
+            with (
+                self.subTest(flag=flag),
+                mock.patch("sys.stderr", new_callable=io.StringIO) as stderr,
+                mock.patch.object(benchmark, "find_binary") as find_binary,
+                self.assertRaises(SystemExit) as error,
+            ):
+                benchmark.main(
+                    [flag, "compiler", "--reference-results", "results.json"]
+                )
+            self.assertEqual(error.exception.code, 2)
+            self.assertTrue(
+                stderr.getvalue().endswith(
+                    "error: --reference-results cannot be combined with --solc or --solx\n"
+                )
+            )
+            find_binary.assert_not_called()
 
     def check_unexpected_test_error(self, flags, compilers) -> None:
         test_id = benchmark.TEST_CASES[0].test_id
@@ -322,7 +576,7 @@ class FailureHandlingTests(unittest.TestCase):
                 benchmark,
                 "find_binary",
                 side_effect=lambda value, _fallbacks: Path(value) if value else None,
-            ),
+            ) as find_binary,
             mock.patch.object(
                 benchmark,
                 "binary_version",
@@ -349,6 +603,10 @@ class FailureHandlingTests(unittest.TestCase):
             )
             document = json.loads(output.read_text())
 
+        if compilers == {"solar"}:
+            self.assertEqual(
+                [call.args[0] for call in find_binary.call_args_list], ["solar"]
+            )
         self.assertEqual(return_code, 0)
         self.assertEqual(len(document["results"]), 1)
         failure = document["results"][0]
@@ -361,6 +619,85 @@ class FailureHandlingTests(unittest.TestCase):
 
 
 class RuntimeComparisonTests(unittest.TestCase):
+    def test_cold_paths_use_candidate_without_reference_and_preserve_failures(
+        self,
+    ) -> None:
+        spec = benchmark.CompilerSpec("solar", "solar", Path("candidate"), "solar")
+        for test_id in (
+            "openzeppelin-vesting-wallet",
+            "lilweb3-fractional",
+            "nitro-one-step-proof",
+        ):
+            case = next(
+                case for case in benchmark.TEST_CASES if case.test_id == test_id
+            )
+            for reference in (None, Path("reference")):
+                for status in ("ok", "failed"):
+                    with (
+                        self.subTest(
+                            test_id=test_id, reference=reference, status=status
+                        ),
+                        mock.patch.object(
+                            benchmark,
+                            "compiler_input",
+                            return_value=("{}", 120, "input"),
+                        ),
+                        mock.patch.object(
+                            benchmark,
+                            "compile_case",
+                            return_value={"status": "ok", "bytecode": "00"},
+                        ),
+                        mock.patch.object(
+                            benchmark,
+                            "deploy_contract",
+                            return_value=("address", 1, ""),
+                        ),
+                        mock.patch.object(benchmark, "gas_calls", return_value=[]),
+                        mock.patch.object(benchmark, "runtime_checks", return_value=[]),
+                        mock.patch.object(
+                            benchmark,
+                            "run_cold_path_checks",
+                            return_value=[
+                                {"label": "cold", "status": status, "value": "1"}
+                            ],
+                        ) as cold_checks,
+                    ):
+                        result = benchmark.run_test_case(
+                            case,
+                            [
+                                benchmark.CompilerSpec(
+                                    "solc", "solc", reference, "solc"
+                                ),
+                                spec,
+                            ]
+                            if reference
+                            else [spec],
+                            True,
+                            "hot",
+                            "rpc",
+                            "key",
+                        )
+                    self.assertEqual(
+                        cold_checks.call_args_list,
+                        [
+                            mock.call(
+                                case, "address", reference or spec.path, "rpc", "key"
+                            )
+                        ]
+                        * (2 if reference else 1),
+                    )
+                    self.assertEqual(
+                        result["compilers"]["solar"]["runtime_status"], status
+                    )
+                    self.assertEqual(
+                        result["runtime_status"],
+                        "failed"
+                        if status == "failed"
+                        else "ok"
+                        if reference
+                        else "skipped",
+                    )
+
     def test_single_compiler_is_not_a_semantic_oracle(self) -> None:
         specs = (benchmark.CompilerSpec("solar", "solar", Path("solar"), "solar"),)
         entry = {
@@ -489,9 +826,19 @@ class ArtifactTests(unittest.TestCase):
         test_case = benchmark.TEST_CASES[0]
         prepared = benchmark.compiler_input(test_case, None)
         for backend in ("evm", "yul", "sonatina", "sir", "llvm"):
-            with self.subTest(backend=backend), tempfile.TemporaryDirectory() as directory:
-                spec = benchmark.CompilerSpec("solar", "solar", Path("solar"), "solar", backend)
-                failed = mock.Mock(returncode=1, stdout="", stderr="compile failed", peak_rss_bytes=None)
+            with (
+                self.subTest(backend=backend),
+                tempfile.TemporaryDirectory() as directory,
+            ):
+                spec = benchmark.CompilerSpec(
+                    "solar", "solar", Path("solar"), "solar", backend=backend
+                )
+                failed = mock.Mock(
+                    returncode=1,
+                    stdout="",
+                    stderr="compile failed",
+                    peak_rss_bytes=None,
+                )
                 with mock.patch.object(benchmark, "run", return_value=failed) as run:
                     result = benchmark.compile_case(spec, test_case, prepared)
                     expected = ["solar", "--standard-json"]
@@ -499,13 +846,113 @@ class ArtifactTests(unittest.TestCase):
                         expected.extend(["--codegen-backend", backend])
                     self.assertEqual(run.call_args.args[0], expected)
                     self.assertEqual(result["codegen_backend"], backend)
-                    benchmark.write_artifacts(Path(directory), spec, test_case, prepared)
+                    benchmark.write_artifacts(
+                        Path(directory), spec, test_case, prepared
+                    )
                     command = run.call_args.args[0]
-                    self.assertEqual(command[:len(expected)], expected)
+                    self.assertEqual(command[: len(expected)], expected)
                     dump = command[-1]
                     self.assertEqual("evm-ir" in dump, backend == "evm")
                     self.assertIn("disasm-runtime", dump)
                     self.assertEqual("backend-ir" in dump, backend != "evm")
+
+    def test_artifacts_include_complete_source_tree(self) -> None:
+        sources = {
+            "src/Main.sol": {"content": 'import "../lib/Lib.sol";\ncontract Main {}\n'},
+            "lib/Lib.sol": {"content": "library Lib {}\n"},
+            "@scope/package/Source": {"content": "// π\r\ncontract Source {}\r\n"},
+            "@scope/package/Source.sol": {"content": ""},
+            "folder with spaces/你好.sol": {"content": "// UTF-8\n"},
+            "remote.sol": {"urls": ["https://example.com/remote.sol"]},
+        }
+        spec = benchmark.CompilerSpec("solc", "solc", Path("solc"), "solc")
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            mock.patch.object(
+                benchmark, "run", return_value=mock.Mock(returncode=0, stdout="{}")
+            ),
+        ):
+            root = Path(directory)
+            case = benchmark.TEST_CASES[0]
+            error = benchmark.write_artifacts(
+                root, spec, case, (json.dumps({"sources": sources}), 1, "")
+            )
+            self.assertEqual(error, "")
+            output = root / case.test_id / "solc" / "sources"
+            self.assertEqual(
+                {
+                    p.relative_to(output).as_posix(): p.read_bytes().decode("utf-8")
+                    for p in output.rglob("*")
+                    if p.is_file()
+                },
+                {
+                    name: source["content"]
+                    for name, source in sources.items()
+                    if "content" in source
+                },
+            )
+            for name in (
+                "../escape.sol",
+                "/absolute.sol",
+                "a/../../escape.sol",
+                "a\\b.sol",
+                "C:/escape.sol",
+                "C:escape.sol",
+                "//server/share.sol",
+                "a//b.sol",
+                "./a.sol",
+                "a/./b.sol",
+                "nul\0.sol",
+                "control\x7f.sol",
+                "",
+            ):
+                with self.subTest(name=name):
+                    error = benchmark.write_artifacts(
+                        root,
+                        spec,
+                        case,
+                        (json.dumps({"sources": {name: {"content": ""}}}), 1, ""),
+                    )
+                    self.assertEqual(error, f"invalid source artifact path: {name!r}")
+
+    def test_source_artifacts_reject_symlinks_and_report_collisions(self) -> None:
+        spec = benchmark.CompilerSpec("solc", "solc", Path("solc"), "solc")
+        case = benchmark.TEST_CASES[0]
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            output = root / case.test_id / "solc" / "sources"
+            output.mkdir(parents=True)
+            outside = root / "outside"
+            outside.mkdir()
+            (outside / "Keep.sol").write_text("keep")
+            (output / "linked").symlink_to(outside, target_is_directory=True)
+            error = benchmark.write_artifacts(
+                root,
+                spec,
+                case,
+                (
+                    json.dumps(
+                        {"sources": {"linked/Keep.sol": {"content": "changed"}}}
+                    ),
+                    1,
+                    "",
+                ),
+            )
+            self.assertEqual(
+                error, "source artifact path contains a symlink: 'linked/Keep.sol'"
+            )
+            self.assertEqual((outside / "Keep.sol").read_text(), "keep")
+            for sources in (
+                {"file": {"content": "keep"}, "file/Child.sol": {"content": "child"}},
+                {
+                    "directory/Child.sol": {"content": "child"},
+                    "directory": {"content": "keep"},
+                },
+            ):
+                error = benchmark.write_artifacts(
+                    root, spec, case, (json.dumps({"sources": sources}), 1, "")
+                )
+                self.assertTrue(error.startswith("cannot write source artifact"), error)
 
     def test_artifact_input_requests_portable_outputs(self) -> None:
         test_case = benchmark.TEST_CASES[0]
@@ -536,7 +983,65 @@ class ArtifactTests(unittest.TestCase):
         self.assertNotIn("ir", solar_outputs)
         self.assertIn("ir", solc_outputs)
         self.assertIn("irOptimized", solc_outputs)
-        self.assertEqual(solx_outputs, solc_outputs)
+        self.assertEqual(
+            solx_outputs,
+            solc_outputs
+            + [
+                "evm.bytecode.llvmIrUnoptimized",
+                "evm.bytecode.llvmIr",
+                "evm.deployedBytecode.llvmIrUnoptimized",
+                "evm.deployedBytecode.llvmIr",
+            ],
+        )
+
+    def test_solx_llvm_artifacts(self) -> None:
+        test_case = benchmark.TEST_CASES[0]
+        output = {
+            "contracts": {
+                "test.sol": {
+                    test_case.contract_name: {
+                        "evm": {
+                            "bytecode": {
+                                "llvmIrUnoptimized": "; creation before\n",
+                                "llvmIr": "; creation after\n",
+                            },
+                            "deployedBytecode": {
+                                "llvmIrUnoptimized": "; runtime before\n",
+                                "llvmIr": "; runtime after\n",
+                            },
+                        }
+                    }
+                }
+            }
+        }
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            mock.patch.object(
+                benchmark,
+                "run",
+                return_value=mock.Mock(returncode=0, stdout=json.dumps(output)),
+            ),
+        ):
+            root = Path(directory)
+            error = benchmark.write_artifacts(
+                root,
+                benchmark.CompilerSpec("solx", "solx", Path("solx"), "solx"),
+                test_case,
+                benchmark.compiler_input(test_case, None),
+            )
+            self.assertEqual(error, "")
+            self.assertEqual(
+                {
+                    path.name: path.read_text()
+                    for path in (root / test_case.test_id / "solx").glob("*.ll")
+                },
+                {
+                    "creation.unoptimized.ll": "; creation before\n",
+                    "creation.optimized.ll": "; creation after\n",
+                    "runtime.unoptimized.ll": "; runtime before\n",
+                    "runtime.optimized.ll": "; runtime after\n",
+                },
+            )
 
     def test_disassemble_evm_matches_solar_dump_style(self) -> None:
         self.assertEqual(
@@ -555,13 +1060,18 @@ STOP
 STOP
 {"contracts": {}}
 """
-        artifacts, output = benchmark.split_solar_artifact_output(stdout, "A.sol:A", "yul")
-        self.assertEqual(artifacts, {
-            "mir.mir": "@module A\n",
-            "backend.ir": 'object "Contract" {}\n',
-            "creation.disasm": "STOP\n",
-            "runtime.disasm": "STOP\n",
-        })
+        artifacts, output = benchmark.split_solar_artifact_output(
+            stdout, "A.sol:A", "yul"
+        )
+        self.assertEqual(
+            artifacts,
+            {
+                "mir.mir": "@module A\n",
+                "backend.ir": 'object "Contract" {}\n',
+                "creation.disasm": "STOP\n",
+                "runtime.disasm": "STOP\n",
+            },
+        )
         self.assertEqual(json.loads(output), {"contracts": {}})
 
     def test_solar_dump_is_split_from_standard_json(self) -> None:
@@ -613,6 +1123,47 @@ STOP
 
         self.assertFalse(merged)
         self.assertNotIn("solc", entry["compilers"])
+
+    def test_reference_reuse_copies_exclusions_without_changing_raw_gas(self):
+        current_call = {
+            "label": "stress",
+            "call": "stress()",
+            "args": [],
+            "gas": 90,
+            "comparison_exclusion_reason": "code-dependent workload",
+        }
+        entry = {
+            "test_id": "test",
+            "suite": "runtime",
+            "gas_profile": "hot",
+            "compilers": {
+                "solar": {"input_fingerprint": "input", "gas_results": [current_call]}
+            },
+        }
+        old_call = {"label": "stress", "call": "stress()", "args": [], "gas": 70}
+        reference = {
+            "gas_profile": "hot",
+            "compilers": {
+                "solc": {
+                    "input_fingerprint": "input",
+                    "gas_results": [old_call],
+                    "total_gas": 70,
+                }
+            },
+        }
+        self.assertTrue(
+            benchmark.merge_reference_compiler(
+                entry, {("runtime", "test"): reference}, "solc"
+            )
+        )
+        self.assertEqual(
+            entry["compilers"]["solc"]["gas_results"],
+            [{**old_call, "comparison_exclusion_reason": "code-dependent workload"}],
+        )
+        self.assertEqual(entry["compilers"]["solc"]["total_gas"], 70)
+        self.assertEqual(
+            old_call, {"label": "stress", "call": "stress()", "args": [], "gas": 70}
+        )
 
     def test_rejects_reference_results_for_different_workloads(self) -> None:
         entry = {

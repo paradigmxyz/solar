@@ -3,16 +3,18 @@
 //! Includes DOT format CFG generation for visualization.
 
 use super::{
-    BasicBlock, BlockId, EffectKind, FrameMode, FrameSlotKind, Function, FunctionId, InstId,
-    InstKind, InstructionMetadata, MemoryRegion, Module, StorageAlias, Terminator, Value, ValueId,
+    BasicBlock, BlockId, EffectKind, FrameMode, FrameSlotKind, Function, FunctionId, Immediate,
+    InstId, InstKind, InstructionMetadata, MemoryRegion, MirType, Module, StorageAlias, Terminator,
+    Value, ValueId,
 };
-use crate::mir::analysis::CfgInfo;
+use crate::mir::{Builtin, Callee, RequireKind, analysis::CfgInfo};
 use arrayvec::ArrayVec;
 use solar_data_structures::{
-    fmt::{self, FmtIteratorExt},
+    fmt::FmtIteratorExt,
     map::{FxHashMap, FxHashSet},
 };
 use solar_sema::hir;
+use std::fmt;
 
 /// Displays a DOT format CFG for a function.
 pub(crate) fn display_function_dot<'a>(
@@ -72,7 +74,7 @@ pub(crate) fn display_function_dot<'a>(
             if inst.result_ty.is_some() {
                 write!(f, "v{} = ", inst_result_index(func, inst_id))?;
             }
-            write!(f, "{}\\l", display_inst_kind(&inst.kind, func, module))
+            write!(f, "{}\\l", display_inst_kind(&inst.kind, inst.result_ty, func, module))
         })
     }
 
@@ -180,7 +182,7 @@ pub(crate) fn display_function_dot<'a>(
 ///
 /// The format is designed for diffing and FileCheck-style pattern matching:
 /// ```text
-/// fn @name(arg0: uint256, arg1: bool) -> uint256 {
+/// fn @name(arg0: uint256, arg1: i1) -> uint256 {
 ///   bb0:
 ///     v0 = add arg0, 1
 ///     jumpi arg1, bb1, bb2
@@ -241,7 +243,7 @@ pub(crate) fn display_function_text<'a>(
             writeln!(
                 f,
                 "{}{}",
-                display_inst_kind(&inst.kind, func, module),
+                display_inst_kind(&inst.kind, inst.result_ty, func, module),
                 display_metadata(&inst.metadata, Some(inst.kind.effect_kind()), func)
             )
         })
@@ -260,13 +262,8 @@ pub(crate) fn display_function_text<'a>(
             ))
         )?;
         write!(f, ")")?;
-        if function_prints_return_values(func) && !func.returns.is_empty() {
-            write!(f, " -> ")?;
-            if func.returns.len() == 1 {
-                write!(f, "{}", func.returns[0])?;
-            } else {
-                write!(f, "({})", func.returns.iter().format(", "))?;
-            }
+        if function_prints_return_values(func) && func.return_type() != super::MirType::Void {
+            write!(f, " -> {}", func.return_type())?;
         }
         write!(f, "{}", display_function_attributes(func, is_dispatch_entry))?;
         writeln!(f, " {{")?;
@@ -295,6 +292,9 @@ fn display_function_attributes(func: &Function, is_dispatch_entry: bool) -> impl
                 format_args!("selector=0x{:08x}", u32::from_be_bytes(selector)),
             )?;
         }
+        if func.attributes.is_abi_wrapper {
+            write_function_attribute(f, &mut first, "abi_wrapper")?;
+        }
         if func.attributes.is_constructor {
             write_function_attribute(f, &mut first, "constructor")?;
         }
@@ -318,6 +318,13 @@ fn display_function_attributes(func: &Function, is_dispatch_entry: bool) -> impl
             hir::StateMutability::View => write_function_attribute(f, &mut first, "view")?,
             hir::StateMutability::Payable => write_function_attribute(f, &mut first, "payable")?,
             hir::StateMutability::NonPayable => {}
+        }
+        if let Some(components) = func.return_abi() {
+            write_function_attribute(
+                f,
+                &mut first,
+                format_args!("return_abi=[{}]", components.iter().format(", ")),
+            )?;
         }
         if let Some(layout) = &func.abi_params {
             write_function_attribute(f, &mut first, format_args!("abi_params={layout}"))?;
@@ -350,7 +357,11 @@ fn write_function_attribute(
 }
 
 fn function_prints_return_values(func: &Function) -> bool {
-    func.blocks.iter().any(|block| matches!(block.terminator, Some(Terminator::Return { .. })))
+    func.selector.is_none()
+        || func
+            .blocks
+            .iter()
+            .any(|block| matches!(block.terminator, Some(Terminator::Return { .. })))
 }
 
 fn inst_result_index(func: &Function, inst_id: InstId) -> usize {
@@ -361,6 +372,7 @@ fn inst_result_index(func: &Function, inst_id: InstId) -> usize {
 /// Formats an instruction kind for display.
 fn display_inst_kind<'a>(
     kind: &'a InstKind,
+    result_ty: Option<MirType>,
     func: &'a Function,
     module: Option<&'a Module>,
 ) -> impl fmt::Display + 'a {
@@ -382,21 +394,78 @@ fn display_inst_kind<'a>(
     }
 
     fmt::from_fn(move |f| match kind {
+        InstKind::AddressCall { address, input, gas, value, .. } => {
+            write!(
+                f,
+                "{} {}, {}",
+                kind.mnemonic(),
+                display_val(*address, func),
+                display_val(*input, func)
+            )?;
+            if let Some(gas) = gas {
+                write!(f, ", gas {}", display_val(*gas, func))?;
+            }
+            if let Some(value) = value {
+                write!(f, ", value {}", display_val(*value, func))?;
+            }
+            Ok(())
+        }
+        InstKind::InsertValue { ty, aggregate, index, value } => write!(
+            f,
+            "insert_value struct{}, {}, {index}, {}",
+            ty.index(),
+            display_val(*aggregate, func),
+            display_val(*value, func)
+        ),
+        InstKind::ExtractValue { ty, aggregate, index } => write!(
+            f,
+            "extract_value struct{}, {}, {index}",
+            ty.index(),
+            display_val(*aggregate, func)
+        ),
+        InstKind::Trunc(value, _)
+        | InstKind::Zext(value)
+        | InstKind::Sext(value, _, _)
+        | InstKind::PtrToInt(value, _)
+        | InstKind::IntToPtr(value) => {
+            let from = func.value_ty(*value).unwrap_or(MirType::I256);
+            let to = result_ty.unwrap_or(MirType::I256);
+            write!(f, "{} {from} ", kind.mnemonic())?;
+            if let Value::Immediate(immediate) = func.value(*value) {
+                write!(f, "{}", display_u256(immediate.as_u256().unwrap()))?;
+            } else if matches!(func.value(*value), Value::Undef(_)) {
+                f.write_str("undef")?;
+            } else {
+                write!(f, "{}", display_val(*value, func))?;
+            }
+            write!(f, " to {to}")
+        }
         InstKind::StoreImmutable(id, value) => {
             write!(f, "storeimmutable {}", display_immutable_ref(*id, module))?;
             write!(f, ", {}", display_val(*value, func))
+        }
+        InstKind::LibraryAddress(id) => {
+            if let Some(module) = module {
+                write!(f, "library_address {}", module.libraries.display_ref(*id))
+            } else {
+                write!(f, "library_address {id:?}")
+            }
         }
         InstKind::LoadImmutable(id) => {
             write!(f, "loadimmutable {}", display_immutable_ref(*id, module))
         }
         InstKind::DataCopy(id, dest, size) => {
-            let name = module.and_then(|module| module.data_name(id.id));
+            let name = module.and_then(|module| module.data[id.id].name);
             write!(
                 f,
-                "data_copy {}",
+                "datacopy {}",
                 crate::utils::display_data_ref(name, id.id.index(), id.offset)
             )?;
             write!(f, ", {}, {}", display_val(*dest, func), display_val(*size, func))
+        }
+        InstKind::DataSize(size) => {
+            let name = module.and_then(|module| module.data[size.data].name);
+            write!(f, "datasize {}", crate::utils::display_data_size(name, *size))
         }
         InstKind::Alloc { size, kind, semantics } => {
             let kind = match kind {
@@ -431,7 +500,15 @@ fn display_inst_kind<'a>(
             display_val(*index, func)
         ),
         InstKind::MemoryObjectLoadField { object, layout, field } => {
-            write!(f, "memory_object_load_field {layout}, {}, {field}", display_val(*object, func))
+            write!(
+                f,
+                "memory_object_load_field {layout}, {}, {field}",
+                display_val(*object, func)
+            )?;
+            if result_ty == Some(MirType::MemPtr) {
+                write!(f, ", memptr")?;
+            }
+            Ok(())
         }
         InstKind::MemoryObjectStoreField { object, layout, field, value } => write!(
             f,
@@ -439,12 +516,18 @@ fn display_inst_kind<'a>(
             display_val(*object, func),
             display_val(*value, func)
         ),
-        InstKind::MemoryObjectLoadElement { object, layout, index } => write!(
-            f,
-            "memory_object_load_element {layout}, {}, {}",
-            display_val(*object, func),
-            display_val(*index, func)
-        ),
+        InstKind::MemoryObjectLoadElement { object, layout, index } => {
+            write!(
+                f,
+                "memory_object_load_element {layout}, {}, {}",
+                display_val(*object, func),
+                display_val(*index, func)
+            )?;
+            if result_ty == Some(MirType::MemPtr) {
+                write!(f, ", memptr")?;
+            }
+            Ok(())
+        }
         InstKind::MemoryObjectLoadByte { object, index } => write!(
             f,
             "memory_object_load_byte memorybytes, {}, {}",
@@ -510,6 +593,21 @@ fn display_inst_kind<'a>(
             display_val(*source, func),
             display_val(*length, func)
         ),
+        InstKind::StorageBytesStoreLiteral { slot, bytes } => write!(
+            f,
+            "store_storage_bytes_literal {}, hex\"{}\"",
+            display_val(*slot, func),
+            alloy_primitives::hex::display(bytes)
+        ),
+        InstKind::StorageArrayLoad { slot, element, enum_variants } => {
+            write!(f, "load_storage_array ")?;
+            if let Some(variants) = enum_variants {
+                write!(f, "enum<{variants}>")?;
+            } else {
+                write!(f, "{element}")?;
+            }
+            write!(f, ", {}", display_val(*slot, func))
+        }
         InstKind::StorageArrayElementSlot { slot, index, element_slots } => write!(
             f,
             "storage_array_element_slot {}, {}, {element_slots}",
@@ -527,6 +625,83 @@ fn display_inst_kind<'a>(
         ),
         InstKind::MemoryObjectData(object, kind) => {
             write!(f, "memory_object_data {kind}, {}", display_val(*object, func))
+        }
+        InstKind::CheckedBinary { op, arithmetic, lhs, rhs } => write!(
+            f,
+            "{} {}, {}, {}",
+            op.name(),
+            arithmetic.ty(),
+            display_val(*lhs, func),
+            display_val(*rhs, func)
+        ),
+        InstKind::AbiEncodePacked { parts, .. } => {
+            write!(f, "{} (", kind.mnemonic())?;
+            for (index, part) in parts.iter().enumerate() {
+                if index != 0 {
+                    write!(f, ", ")?;
+                }
+                match part {
+                    super::PackedPart::Literal(bytes) => {
+                        write!(f, "data hex\"{}\"", alloy_primitives::hex::display(bytes))?
+                    }
+                    super::PackedPart::Scalar { value, ty } => {
+                        write!(f, "{ty} {}", display_val(*value, func))?
+                    }
+                    super::PackedPart::Bytes(value) => {
+                        write!(f, "bytes {}", display_val(*value, func))?
+                    }
+                    super::PackedPart::Array { value, element, source } => {
+                        write!(f, "array<{element}> ")?;
+                        match source {
+                            super::PackedArraySource::Memory { layout } => write!(f, "{layout}")?,
+                            super::PackedArraySource::Slice(location) => write!(f, "{location}")?,
+                        }
+                        write!(f, " {}", display_val(*value, func))?;
+                    }
+                }
+            }
+            write!(f, ")")
+        }
+        InstKind::ICall { function: Callee::Builtin(builtin), args } => {
+            write!(f, "icall ")?;
+            match builtin {
+                Builtin::Sha256 => write!(f, "sha256<>")?,
+                Builtin::Ripemd160 => write!(f, "ripemd160<>")?,
+                Builtin::EcRecover => write!(f, "ecrecover<>")?,
+                Builtin::Erc7201 => write!(f, "erc7201<>")?,
+                Builtin::CheckedAddMod => write!(f, "checked_addmod<>")?,
+                Builtin::CheckedMulMod => write!(f, "checked_mulmod<>")?,
+                Builtin::Send => write!(f, "send<>")?,
+                Builtin::Transfer => write!(f, "transfer<>")?,
+                Builtin::ReturndataBytes => write!(f, "returndata_bytes<>")?,
+                Builtin::Concat(types) => write!(f, "concat<{}>", types.iter().format(", "))?,
+                Builtin::Check { is_zero, failure } => {
+                    let name = match failure {
+                        super::RevertKind::Panic(_) => "panic_if",
+                        super::RevertKind::Reason(_) => "revert_if",
+                    };
+                    write!(f, "{name}{}<", if *is_zero { "_zero" } else { "" })?;
+                    match failure {
+                        super::RevertKind::Panic(code) => write!(f, "0x{:x}", code.as_u64())?,
+                        super::RevertKind::Reason(reason) => write!(f, "{}", reason.name())?,
+                    }
+                    write!(f, ">")?;
+                }
+                Builtin::Require(kind) => {
+                    write!(f, "require<")?;
+                    match kind {
+                        RequireKind::ShortString => write!(f, "short_string")?,
+                        RequireKind::EmptyString => write!(f, "empty_string")?,
+                        RequireKind::ErrorString => write!(f, "error_string")?,
+                        RequireKind::CustomError(layout) => write!(f, "custom_error {layout}")?,
+                    }
+                    write!(f, ">")?;
+                }
+            }
+            for &arg in args {
+                write!(f, ", {}", display_val(arg, func))?;
+            }
+            Ok(())
         }
         InstKind::AbiEncode { mode, selector, args, layout } => {
             write!(f, "abi_encode {layout}")?;
@@ -562,8 +737,8 @@ fn display_inst_kind<'a>(
         InstKind::ClearStorage { storage, layout } => {
             write!(f, "clear_storage {layout}, {}", display_val(*storage, func))
         }
-        InstKind::ICall { function, args, returns } => {
-            write!(f, "icall {}, {returns}", display_function_ref(*function, module))?;
+        InstKind::ICall { function: Callee::Function(function), args } => {
+            write!(f, "icall {}", display_function_ref(*function, module))?;
             if !args.is_empty() {
                 write!(f, ", {}", args.iter().map(|arg| display_val(*arg, func)).format(", "))?;
             }
@@ -587,6 +762,11 @@ fn display_inst_kind<'a>(
         ),
         InstKind::Phi(args) => {
             write!(f, "phi")?;
+            if let Some(super::MirType::Struct(ty)) =
+                args.first().and_then(|(_, value)| func.value_ty(*value))
+            {
+                write!(f, " struct{},", ty.index())?;
+            }
             if !args.is_empty() {
                 write!(
                     f,
@@ -677,13 +857,16 @@ fn display_function_ref(function: FunctionId, module: Option<&Module>) -> impl f
 
 fn display_val(vid: ValueId, func: &Function) -> impl fmt::Display + '_ {
     fmt::from_fn(move |f| match func.value(vid) {
-        Value::Immediate(imm) if let Some(u256) = imm.as_u256() => {
-            write!(f, "{}", display_u256(u256))
-        }
+        Value::Immediate(imm) if let Some(u256) = imm.as_u256() => match imm {
+            Immediate::I1(value) => write!(f, "{value}"),
+            _ if imm.ty() != MirType::I256 => write!(f, "{} {}", imm.ty(), display_u256(u256)),
+            _ => write!(f, "{}", display_u256(u256)),
+        },
         Value::Arg(index) => write!(f, "arg{}", index.index()),
         Value::Inst(inst_id) => write!(f, "v{}", inst_result_index(func, *inst_id)),
         Value::Error(_) => write!(f, "err"),
-        _ => write!(f, "v{}", vid.index()),
+        Value::Undef(ty) => write!(f, "undef {ty}"),
+        Value::Immediate(_) => unreachable!("immediate has an integer payload"),
     })
 }
 
@@ -713,6 +896,8 @@ fn display_metadata<'a>(
         ModifierDepth(u32),
         Unchecked,
         DeferredAlloc,
+        PreservesFmp,
+        Disjoint,
         LoopDepth(u16),
         Effect(EffectKind),
     }
@@ -738,6 +923,8 @@ fn display_metadata<'a>(
             MetadataField::ModifierDepth(depth) => write!(f, "modifier_depth={depth}"),
             MetadataField::Unchecked => write!(f, "unchecked"),
             MetadataField::DeferredAlloc => write!(f, "deferred_alloc"),
+            MetadataField::PreservesFmp => write!(f, "preserves_fmp"),
+            MetadataField::Disjoint => write!(f, "disjoint"),
             MetadataField::LoopDepth(loop_depth) => write!(f, "loop_depth={loop_depth}"),
             MetadataField::Effect(effect) => write!(f, "effect={}", effect.name()),
         })
@@ -754,7 +941,7 @@ fn display_metadata<'a>(
     }
 
     fmt::from_fn(move |f| {
-        let mut fields = ArrayVec::<MetadataField<'_>, 9>::new();
+        let mut fields = ArrayVec::<MetadataField<'_>, 11>::new();
 
         if let Some(storage) = metadata.storage_alias() {
             fields.push(MetadataField::Storage(storage, func));
@@ -784,6 +971,12 @@ fn display_metadata<'a>(
         }
         if metadata.deferred_alloc() {
             fields.push(MetadataField::DeferredAlloc);
+        }
+        if metadata.preserves_fmp() {
+            fields.push(MetadataField::PreservesFmp);
+        }
+        if metadata.disjoint() {
+            fields.push(MetadataField::Disjoint);
         }
         if metadata.loop_depth != 0 {
             fields.push(MetadataField::LoopDepth(metadata.loop_depth));

@@ -3,11 +3,7 @@
 @module MixedJumpTarget
 
 // CHECK: + mcopy
-bb0:
-  op_0c !metadata(stack=0->255)
-  op_0c !metadata(stack=0->255)
-  op_0c !metadata(stack=0->255)
-  op_0c !metadata(stack=0->255)
+bb0 [stack=1020]:
   push 0
   push 0
   push 0

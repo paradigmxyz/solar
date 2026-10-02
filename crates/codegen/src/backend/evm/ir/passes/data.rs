@@ -4,19 +4,30 @@
 //! changing code. `pack-data` also finds literal memory-store runs that can become `CODECOPY`,
 //! scores the instruction and data-pool cost in the selected optimization mode, then interns the
 //! accepted bytes. Both passes leave a module alone when `CODESIZE` can observe the changed data
-//! layout. Pooling uses bounded substring search to avoid quadratic compile time on large data
-//! sets.
+//! layout, or when a data address may reach anything but a `CODECOPY` that stays inside its
+//! entry. The scan tracks each block's stack and follows addresses through a few unconditional
+//! jumps, since shared tails can move a copy into another block. Pooling uses bounded substring
+//! search to avoid quadratic compile time on large data sets. Library relocations must match
+//! within a shared range; literal stores never share relocatable bytes.
+//!
+//! Deferred contract bytecode stays opaque in the pipeline: each deferred entry keeps its own
+//! storage, and a `push_data_size` counts as a reference that bounds a copy of its entry's exact
+//! length. Final assembly links the bytes in, folds the sizes into literals, and runs
+//! `pack-existing-data` once more so linked bytecode can share storage, such as runtime code
+//! inside the creation code that contains it.
 
 use super::{EvmPass, utils::instruction_size_lower_bound};
 use crate::{
     backend::evm::{
+        data_copy_cost, data_copy_gas, data_copy_is_profitable,
         ir::{
-            BlockId, Data, DataId, DataRef, Instruction, Module, PushValue,
-            default_instruction_stack_effect, immediate_materialization_cost,
+            BlockId, Data, DataId, DataRef, DataSize, Instruction, Module, PushValue, Terminator,
+            TerminatorKind, immediate_materialization_cost,
         },
         op::{self, WORD_BYTES},
     },
-    mir::lower::{data_copy_cost, data_copy_gas, data_copy_is_profitable},
+    link::LibraryRelocation,
+    target::GasTier,
 };
 use alloy_primitives::{Bytes, U256};
 use memchr::memmem;
@@ -29,6 +40,9 @@ const MAX_DATA_SUBSTRING_ENTRIES: usize = 1024;
 
 /// Bounds rewrites whose local cost does not model lost global code sharing.
 const MAX_SHARED_DATA_COPY_SITES: usize = 4;
+
+/// Bounds the unconditional jumps followed from a block to find where its data addresses are used.
+const MAX_DATA_JUMP_HOPS: usize = 4;
 
 pub(super) struct PackExistingData;
 
@@ -123,15 +137,16 @@ impl Improvement {
 
 impl DataPool {
     fn new(data: &IndexVec<DataId, Data>) -> Self {
+        // Relocated and deferred bytes are not final, so constants never share them.
+        let literals = || {
+            data.iter_enumerated().filter_map(|(id, data)| {
+                data.library_relocations.is_empty().then_some(())?;
+                Some((id, data.bytes.known()?.clone()))
+            })
+        };
         Self {
-            entries: data
-                .iter_enumerated()
-                .map(|(id, data)| PoolEntry { id, bytes: data.bytes.clone() })
-                .collect(),
-            exact: data
-                .iter_enumerated()
-                .map(|(id, data)| (data.bytes.clone(), DataRef::new(id, 0)))
-                .collect(),
+            entries: literals().map(|(id, bytes)| PoolEntry { id, bytes }).collect(),
+            exact: literals().map(|(id, bytes)| (bytes, DataRef::new(id, 0))).collect(),
         }
     }
 
@@ -142,8 +157,9 @@ impl DataPool {
         if self.entries.len() >= MAX_DATA_SUBSTRING_ENTRIES {
             return Placement::New;
         }
+        let mut finder = NeedleFinder::new(data);
         for entry in &self.entries {
-            if let Some(offset) = memmem::find(&entry.bytes, data) {
+            if let Some(offset) = finder.find(&entry.bytes) {
                 return Placement::Existing(DataRef::new(entry.id, data_offset(offset)));
             }
         }
@@ -154,11 +170,7 @@ impl DataPool {
         if let Placement::Existing(data) = placement {
             return data;
         }
-        let id = module.data.push(Data {
-            bytes: bytes.clone(),
-            name: Some(sym::literal),
-            emit_in_runtime: false,
-        });
+        let id = module.data.push(Data::new(bytes.clone(), Some(sym::literal)));
         self.entries.push(PoolEntry { id, bytes: bytes.clone() });
         self.exact.insert(bytes, DataRef::new(id, 0));
         DataRef::new(id, 0)
@@ -261,24 +273,22 @@ fn find_run(
     instructions: &[Instruction],
     start: usize,
 ) -> Option<(Bytes, Rewrite)> {
-    let (data, end) = literal_store_run(instructions, start)?;
+    let (words, end) = literal_store_words(instructions, start)?;
+    let data = literal_store_bytes(instructions, start, end, words);
     let instructions = &instructions[start..end];
-    if !instructions.iter().all(Instruction::has_canonical_stack_effect) {
-        return None;
-    }
     let old_size = instructions.iter().map(|inst| instruction_size_lower_bound(gcx, inst)).sum();
     let old_gas = instructions.iter().map(|inst| static_gas(gcx, inst)).sum();
     Some((data, Rewrite { block, start, end, old_size, old_gas }))
 }
 
-/// Returns the bytes and exclusive end of a consecutive literal `MSTORE` run.
-pub(super) fn literal_store_run(
+/// Returns the word count and exclusive end of a consecutive literal `MSTORE` run.
+pub(super) fn literal_store_words(
     instructions: &[Instruction],
     start: usize,
-) -> Option<(Bytes, usize)> {
+) -> Option<(usize, usize)> {
     let [value, dup, store, ..] = instructions.get(start..)? else { return None };
-    let first = value.concrete_immediate()?;
-    if dup.as_evm_opcode() != Some(op::DUP2) || store.as_evm_opcode() != Some(op::MSTORE) {
+    value.concrete_immediate()?;
+    if dup.as_stack_op() != Some(op::StackOp::Dup(2)) || store.as_evm_opcode() != Some(op::MSTORE) {
         return None;
     }
 
@@ -287,9 +297,9 @@ pub(super) fn literal_store_run(
     while let Some(window) = instructions.get(end..end + 6) {
         let [offset, dup, add, value, swap, store] = window else { unreachable!() };
         if offset.concrete_immediate() != Some(U256::from(words * WORD_BYTES))
-            || dup.as_evm_opcode() != Some(op::DUP2)
+            || dup.as_stack_op() != Some(op::StackOp::Dup(2))
             || add.as_evm_opcode() != Some(op::ADD)
-            || swap.as_evm_opcode() != Some(op::SWAP1)
+            || swap.as_stack_op() != Some(op::StackOp::Swap(1))
             || store.as_evm_opcode() != Some(op::MSTORE)
         {
             break;
@@ -300,6 +310,17 @@ pub(super) fn literal_store_run(
         words += 1;
         end += 6;
     }
+    Some((words, end))
+}
+
+/// Returns the bytes of the `words` literal `MSTORE`s from `start` to `end`.
+pub(super) fn literal_store_bytes(
+    instructions: &[Instruction],
+    start: usize,
+    end: usize,
+    words: usize,
+) -> Bytes {
+    let first = instructions[start].concrete_immediate().unwrap();
     let mut data = Vec::with_capacity(words * WORD_BYTES);
     data.extend_from_slice(&first.to_be_bytes::<WORD_BYTES>());
     for window in instructions[start + 3..end].as_chunks::<6>().0 {
@@ -307,7 +328,7 @@ pub(super) fn literal_store_run(
             &window[3].concrete_immediate().unwrap().to_be_bytes::<WORD_BYTES>(),
         );
     }
-    Some((data.into(), end))
+    data.into()
 }
 
 fn rewrite_improvement(
@@ -319,7 +340,7 @@ fn rewrite_improvement(
     let old_bytes = rewrites.iter().map(|rewrite| rewrite.old_size).sum::<usize>() as i128;
     let new_bytes = (data_copy_size(gcx, size) * rewrites.len()) as i128 + additional_bytes as i128;
     let old_gas = rewrites.iter().map(|rewrite| rewrite.old_gas).sum::<usize>() as i128;
-    let new_gas = (data_copy_gas(size) * rewrites.len()) as i128;
+    let new_gas = (data_copy_gas(gcx.sess.opts.evm_version, size) * rewrites.len()) as i128;
     let bytes = old_bytes - new_bytes;
     let runtime_gas = old_gas - new_gas;
     Improvement { runtime_gas, bytes }
@@ -329,6 +350,11 @@ fn is_profitable(gcx: Gcx<'_>, improvement: Improvement) -> bool {
     // Static sites have no execution-frequency estimate, so never buy gas by
     // growing code for a copy that may stay cold.
     data_copy_is_profitable(gcx.sess.opts.optimization, improvement.runtime_gas, improvement.bytes)
+}
+
+/// Shares storage between data entries after deferred data is linked in.
+pub(in crate::backend) fn pack_linked_data(gcx: Gcx<'_>, module: &mut Module) -> bool {
+    PackExistingData.run_pass(gcx, module)
 }
 
 fn pack_existing_data(module: &mut Module, allow_subslices: bool) -> bool {
@@ -366,36 +392,38 @@ fn pack_data(module: &mut Module, references: &DataReferences, allow_subslices: 
         return false;
     }
     referenced.sort_unstable_by(|&a, &b| {
-        module.data[b].bytes.len().cmp(&module.data[a].bytes.len()).then_with(|| a.cmp(&b))
+        let len = |id: DataId| module.data[id].bytes.known().map_or(0, |bytes| bytes.len());
+        len(b).cmp(&len(a)).then_with(|| a.cmp(&b))
     });
 
     let mut packed = IndexVec::<DataId, Data>::new();
     let mut sources = IndexVec::<DataId, DataId>::new();
-    let mut exact = FxHashMap::<Bytes, DataId>::default();
+    let mut exact = FxHashMap::<(Bytes, Vec<LibraryRelocation>), DataId>::default();
     let mut remap = FxHashMap::default();
     for old_id in referenced {
         let data = &module.data[old_id];
-        let data_ref = if data.emit_in_runtime {
-            let id = packed.push(data.clone());
-            sources.push(old_id);
+        // Deferred bytes are not known yet, so they are never shared.
+        let key = (data.bytes.known())
+            .filter(|_| !data.emit_in_runtime)
+            .map(|bytes| (bytes.clone(), data.library_relocations.clone()));
+        let data_ref = if let Some(key) = &key
+            && let Some(&id) = exact.get(key)
+        {
             DataRef::new(id, 0)
-        } else if let Some(&id) = exact.get(&data.bytes) {
-            DataRef::new(id, 0)
-        } else if let Some(data_ref) = (allow_subslices
-            && references.subslice_safe[old_id]
-            && module.data.len() < MAX_DATA_SUBSTRING_ENTRIES)
-            .then(|| find_data(&packed, &sources, &data.bytes, old_id))
-            .flatten()
+        } else if key.is_some()
+            && let Some(data_ref) = (allow_subslices
+                && references.subslice_safe[old_id]
+                && module.data.len() < MAX_DATA_SUBSTRING_ENTRIES)
+                .then(|| find_data(&packed, &sources, data, old_id))
+                .flatten()
         {
             data_ref
         } else {
-            let id = packed.push(Data {
-                bytes: data.bytes.clone(),
-                name: data.name,
-                emit_in_runtime: false,
-            });
+            let id = packed.push(data.clone());
             sources.push(old_id);
-            exact.insert(data.bytes.clone(), id);
+            if let Some(key) = key {
+                exact.insert(key, id);
+            }
             DataRef::new(id, 0)
         };
         if packed[data_ref.id].name.is_none() {
@@ -422,10 +450,16 @@ fn pack_data(module: &mut Module, references: &DataReferences, allow_subslices: 
     module.data = ordered;
     for block in &mut module.blocks {
         for inst in &mut block.instructions {
-            if let Some(PushValue::Data(data)) = &mut inst.value {
-                let base = remap[&data.id];
-                data.id = base.id;
-                data.offset = data.offset.checked_add(base.offset).expect("data offset overflow");
+            match &mut inst.value {
+                Some(PushValue::Data(data)) => {
+                    let base = remap[&data.id];
+                    data.id = base.id;
+                    data.offset =
+                        data.offset.checked_add(base.offset).expect("data offset overflow");
+                }
+                // Deferred data keeps its own entry.
+                Some(PushValue::DataSize(size)) => size.data = remap[&size.data].id,
+                _ => {}
             }
         }
     }
@@ -435,15 +469,25 @@ fn pack_data(module: &mut Module, references: &DataReferences, allow_subslices: 
 fn find_data(
     data: &IndexVec<DataId, Data>,
     sources: &IndexVec<DataId, DataId>,
-    needle: &[u8],
+    needle: &Data,
     needle_id: DataId,
 ) -> Option<DataRef> {
+    let needle_bytes = needle.bytes.known()?;
+    let mut finder = NeedleFinder::new(needle_bytes);
     data.iter_enumerated().find_map(|(id, known)| {
-        if sources[id] < needle_id {
-            memmem::find(&known.bytes, needle).map(|offset| DataRef::new(id, data_offset(offset)))
-        } else {
-            None
+        if sources[id] >= needle_id {
+            return None;
         }
+        let offset = finder.find(known.bytes.known()?)?;
+        let end = offset + needle_bytes.len();
+        let compatible = known
+            .library_relocations
+            .iter()
+            .copied()
+            .filter(|reloc| reloc.offset < end && reloc.offset + 20 > offset)
+            .map(|reloc| (reloc.offset.checked_sub(offset), reloc.library))
+            .eq(needle.library_relocations.iter().map(|reloc| (Some(reloc.offset), reloc.library)));
+        compatible.then(|| DataRef::new(id, data_offset(offset)))
     })
 }
 
@@ -452,6 +496,7 @@ enum DataStackValue {
     Unknown,
     Immediate(usize),
     Data(DataRef),
+    Size(DataSize),
 }
 
 struct DataReferences {
@@ -514,12 +559,40 @@ fn scan_data_references(
     let mut references = DataReferences::new(module);
     let mut stack = Vec::new();
     for (block_id, block) in module.blocks.iter_enumerated() {
+        // The stack starts empty, so without a data push no slot can hold a data address
+        // or size.
+        let has_data = block
+            .instructions
+            .iter()
+            .any(|inst| inst.pushed_data().is_some() || inst.pushed_data_size().is_some());
         for (index, inst) in block.instructions.iter().enumerate() {
             visit(block_id, index, &block.instructions);
-            track_data_reference(module, inst, &mut stack, &mut references);
+            if has_data {
+                track_data_reference(module, inst, &mut stack, &mut references);
+            } else if inst.opcode == op::CODESIZE {
+                references.layout_observable = true;
+            }
         }
-        mark_stack_data_unsafe(&stack, &mut references.subslice_safe);
-        stack.clear();
+        if has_data {
+            // Shared tails can move a copy behind a jump, so follow data addresses that
+            // survive an unconditional jump into its target with this path's stack.
+            let mut terminator = &block.terminator;
+            for _ in 0..MAX_DATA_JUMP_HOPS {
+                let Some(Terminator { kind: TerminatorKind::Jump(target), .. }) = terminator else {
+                    break;
+                };
+                if !stack.iter().any(|value| matches!(value, DataStackValue::Data(_))) {
+                    break;
+                }
+                let target = &module.blocks[*target];
+                for inst in &target.instructions {
+                    track_data_reference(module, inst, &mut stack, &mut references);
+                }
+                terminator = &target.terminator;
+            }
+            mark_stack_data_unsafe(&stack, &mut references.subslice_safe);
+            stack.clear();
+        }
     }
     references
 }
@@ -536,6 +609,11 @@ fn track_data_reference(
     if let Some(data) = inst.pushed_data() {
         references.counts[data.id] += 1;
         stack.push(DataStackValue::Data(data));
+        return;
+    }
+    if let Some(size) = inst.pushed_data_size() {
+        references.counts[size.data] += 1;
+        stack.push(DataStackValue::Size(size));
         return;
     }
     if let Some(value) = inst.concrete_immediate() {
@@ -585,12 +663,7 @@ fn track_data_reference(
         mark_stack_data_unsafe(stack, &mut references.subslice_safe);
     }
 
-    let Some(effect) = inst.metadata.stack.or_else(|| default_instruction_stack_effect(inst))
-    else {
-        mark_stack_data_unsafe(stack, &mut references.subslice_safe);
-        stack.clear();
-        return;
-    };
+    let effect = inst.stack_effect();
     let inputs = usize::from(effect.inputs);
     ensure_stack_depth(stack, inputs);
     let first_input = stack.len() - inputs;
@@ -598,11 +671,11 @@ fn track_data_reference(
         let DataStackValue::Data(data) = value else { continue };
         let bounded = inst.opcode == op::CODECOPY
             && index == 1
-            && matches!(
-                stack.get(stack.len() - 3),
-                Some(DataStackValue::Immediate(size))
-                    if data_copy_is_bounded(module, *data, *size)
-            );
+            && match stack.get(stack.len() - 3) {
+                Some(DataStackValue::Immediate(size)) => data_copy_is_bounded(module, *data, *size),
+                Some(DataStackValue::Size(size)) => size.is_length_of(*data),
+                _ => false,
+            };
         if !bounded {
             references.subslice_safe[data.id] = false;
         }
@@ -627,8 +700,30 @@ fn ensure_stack_depth(stack: &mut Vec<DataStackValue>, depth: usize) {
 
 fn data_copy_is_bounded(module: &Module, data: DataRef, size: usize) -> bool {
     module.data.get(data.id).is_some_and(|entry| {
-        (data.offset as usize).checked_add(size).is_some_and(|end| end <= entry.bytes.len())
+        let end = (data.offset as usize).checked_add(size);
+        end.zip(entry.bytes.known()).is_some_and(|(end, bytes)| end <= bytes.len())
     })
+}
+
+/// Finds one needle in several haystacks, building the long-haystack searcher that
+/// [`memmem::find`] would build for each at most once.
+struct NeedleFinder<'n> {
+    needle: &'n [u8],
+    finder: Option<memmem::Finder<'n>>,
+}
+
+impl<'n> NeedleFinder<'n> {
+    fn new(needle: &'n [u8]) -> Self {
+        Self { needle, finder: None }
+    }
+
+    fn find(&mut self, haystack: &[u8]) -> Option<usize> {
+        // `memmem::find` uses Rabin-Karp below this haystack length.
+        if haystack.len() < 64 {
+            return memmem::find(haystack, self.needle);
+        }
+        self.finder.get_or_insert_with(|| memmem::Finder::new(self.needle)).find(haystack)
+    }
 }
 
 fn data_offset(offset: usize) -> u32 {
@@ -640,6 +735,7 @@ fn data_copy_size(gcx: Gcx<'_>, size: usize) -> usize {
 }
 
 fn static_gas(gcx: Gcx<'_>, inst: &Instruction) -> usize {
-    inst.concrete_immediate()
-        .map_or(3, |value| immediate_materialization_cost(gcx.sess.opts.evm_version, value).1)
+    inst.concrete_immediate().map_or(GasTier::VeryLow.fixed_gas() as usize, |value| {
+        immediate_materialization_cost(gcx.sess.opts.evm_version, value).1
+    })
 }

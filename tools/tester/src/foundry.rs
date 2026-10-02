@@ -274,6 +274,17 @@ fn forge_available() -> bool {
     Command::new("forge").arg("--version").output().is_ok()
 }
 
+/// Returns whether this forge accepts `--no-lint`, which older releases reject.
+fn forge_supports_no_lint() -> bool {
+    static SUPPORTED: OnceLock<bool> = OnceLock::new();
+    *SUPPORTED.get_or_init(|| {
+        Command::new("forge")
+            .args(["build", "--help"])
+            .output()
+            .is_ok_and(|output| String::from_utf8_lossy(&output.stdout).contains("--no-lint"))
+    })
+}
+
 /// Filters tests based on config.
 ///
 /// Skip patterns are also passed to forge as `--no-match-*`, but are re-applied
@@ -564,7 +575,10 @@ fn run_forge_test(
     let mut cmd = Command::new("forge");
     cmd.current_dir(project_dir);
     if config.build_only {
-        cmd.arg("build").arg("--force").arg("--no-lint");
+        cmd.arg("build").arg("--force");
+        if forge_supports_no_lint() {
+            cmd.arg("--no-lint");
+        }
     } else {
         cmd.arg("test").arg("--force").arg("--json");
         if config.traces {

@@ -1,31 +1,27 @@
 use super::*;
-use crate::test_support::{TestProject, assert_request_cancelled, spawn_lsp_pair, start_request};
+use crate::test_support::{
+    ClientEvent, ClientHarness, LspPair, MarkedProject, TestProject, assert_request_cancelled,
+    document_params, from_json, pause_blocking_pool, quiet_client, request_params,
+    single_blocking_worker_runtime, start_request, with_capabilities, with_relative_watchers,
+    within,
+};
 use async_lsp::{
-    AnyEvent, AnyNotification, AnyRequest, LanguageServer, LspService, ResponseError,
+    AnyEvent, AnyNotification, AnyRequest, ErrorCode, LspService, ResponseError, ServerSocket,
     router::Router,
 };
 use lsp_types::{
-    CallHierarchyIncomingCallsParams, CallHierarchyItem, CallHierarchyOutgoingCallsParams,
-    CallHierarchyPrepareParams, CancelParams, CodeActionContext, CodeActionParams,
-    CompletionParams, CompletionResponse, DeleteFilesParams,
-    DidChangeWatchedFilesClientCapabilities, DidChangeWatchedFilesParams,
-    DidChangeWorkspaceFoldersParams, DidSaveTextDocumentParams, DocumentFormattingParams,
-    DocumentHighlightParams, DocumentLinkParams, DocumentSymbolParams, ExecuteCommandParams,
-    FileChangeType, FileDelete, FileEvent, FileRename, FoldingRangeParams, FormattingOptions,
-    HoverParams, InitializeParams, InitializedParams, NumberOrString, PartialResultParams,
-    Position, ProgressParams, ProgressParamsValue, PublishDiagnosticsParams, Range,
-    RegistrationParams, RenameFilesParams, SelectionRangeParams, SignatureHelpParams, SymbolKind,
-    TextDocumentIdentifier, TextDocumentPositionParams, TextDocumentSaveReason,
-    UnregistrationParams, WillSaveTextDocumentParams, WindowClientCapabilities, WorkDoneProgress,
-    WorkDoneProgressCancelParams, WorkDoneProgressCreateParams, WorkDoneProgressParams,
-    WorkspaceClientCapabilities, WorkspaceFolder, WorkspaceFoldersChangeEvent,
-    WorkspaceSymbolParams, notification as notif, notification::Notification, request,
-    request::Request,
+    CancelParams, CompletionResponse, DidChangeWorkspaceFoldersParams, FileChangeType,
+    InitializeParams, NumberOrString, Position, Registration, RegistrationParams, SymbolKind,
+    TextDocumentSaveReason, UnregistrationParams, Url, WorkDoneProgress,
+    WorkDoneProgressCancelParams, WorkDoneProgressEnd, WorkDoneProgressReport, WorkspaceFolder,
+    WorkspaceFoldersChangeEvent, WorkspaceSymbolParams, notification as notif,
+    notification::Notification, request, request::Request,
 };
-use solar_interface::data_structures::sync::RwLock;
+use serde_json::{Value, json};
 use std::{
+    future::Future,
     ops::ControlFlow,
-    sync::Arc,
+    path::Path,
     task::{Context, Poll},
     time::Duration,
 };
@@ -42,7 +38,7 @@ struct ObservedRouter {
 }
 
 impl Service<AnyRequest> for ObservedRouter {
-    type Response = serde_json::Value;
+    type Response = Value;
     type Error = ResponseError;
     type Future = <Router<GlobalState> as Service<AnyRequest>>::Future;
 
@@ -67,1108 +63,59 @@ impl LspService for ObservedRouter {
 }
 
 #[derive(Debug)]
-enum AnalysisClientEvent {
-    Create(WorkDoneProgressCreateParams),
-    Progress(ProgressParams),
-    Diagnostics(PublishDiagnosticsParams),
-}
-
-#[derive(Debug)]
 enum WatchedRegistrationClientEvent {
     Register(RegistrationParams, oneshot::Sender<()>),
     Unregister(UnregistrationParams, oneshot::Sender<()>),
 }
 
+/// Forwards watched-file (un)registrations and holds each response until the test acknowledges it.
+fn watched_registration_client(
+    events: mpsc::UnboundedSender<WatchedRegistrationClientEvent>,
+) -> Router<mpsc::UnboundedSender<WatchedRegistrationClientEvent>> {
+    fn held<F: FnOnce(oneshot::Sender<()>) -> WatchedRegistrationClientEvent>(
+        events: &mpsc::UnboundedSender<WatchedRegistrationClientEvent>,
+        event: F,
+    ) -> impl Future<Output = Result<(), ResponseError>> + use<F> {
+        let (acknowledge, acknowledged) = oneshot::channel();
+        events.send(event(acknowledge)).unwrap();
+        async move {
+            acknowledged.await.unwrap();
+            Ok(())
+        }
+    }
+
+    let mut router = Router::new(events);
+    router.request::<request::RegisterCapability, _>(|events, params| {
+        held(events, |acknowledge| WatchedRegistrationClientEvent::Register(params, acknowledge))
+    });
+    router.request::<request::UnregisterCapability, _>(|events, params| {
+        held(events, |acknowledge| WatchedRegistrationClientEvent::Unregister(params, acknowledge))
+    });
+    router.notification::<notif::LogMessage>(|_, _| ControlFlow::Continue(()));
+    router
+}
+
+fn watched_initialize_params(project: &TestProject, root: &str) -> InitializeParams {
+    with_relative_watchers(project.initialize_params_with_roots(&[root]))
+}
+
 async fn next_watched_registration_event(
     events: &mut mpsc::UnboundedReceiver<WatchedRegistrationClientEvent>,
 ) -> WatchedRegistrationClientEvent {
-    tokio::time::timeout(Duration::from_secs(2), events.recv())
-        .await
-        .expect("watched-file registration request should arrive")
-        .expect("watched-file registration event channel should stay open")
+    within("watched-file registration", events.recv()).await.unwrap()
 }
 
-fn watched_registration_watchers(params: &RegistrationParams) -> &[serde_json::Value] {
-    let [registration] = params.registrations.as_slice() else {
-        panic!("expected one watched-file registration, got {params:?}")
-    };
-    assert_eq!(registration.method, notif::DidChangeWatchedFiles::METHOD);
-    let options = registration.register_options.as_ref().unwrap();
-    options["watchers"].as_array().unwrap()
-}
-
-fn watched_registration_pattern_count(
-    params: &RegistrationParams,
-    root: &std::path::Path,
-    pattern: &str,
-) -> usize {
-    let watchers = watched_registration_watchers(params);
-    let root_uri = lsp_types::Url::from_file_path(root).unwrap().to_string();
-    watchers
-        .iter()
-        .filter(|watcher| {
-            watcher["globPattern"]["baseUri"].as_str() == Some(&root_uri)
-                && watcher["globPattern"]["pattern"] == pattern
-        })
-        .count()
-}
-
-fn watched_registration_has_discovered_root(
-    params: &RegistrationParams,
-    root: &std::path::Path,
-) -> bool {
-    ["foundry.toml", "remappings.txt", "*", "*.sol"]
-        .into_iter()
-        .all(|pattern| watched_registration_pattern_count(params, root, pattern) == 1)
-}
-
-fn assert_watched_registration_root(params: &RegistrationParams, root: &std::path::Path) {
-    let root_uri = lsp_types::Url::from_file_path(root).unwrap().to_string();
-    for pattern in ["foundry.toml", "remappings.txt"] {
-        let matching_watchers = watched_registration_pattern_count(params, root, pattern);
-        assert_eq!(matching_watchers, 1, "expected one `{pattern}` watcher for `{root_uri}`");
-    }
-}
-
-fn assert_watched_registration_excludes_root(params: &RegistrationParams, root: &std::path::Path) {
-    let watchers = watched_registration_watchers(params);
-    let root_uri = lsp_types::Url::from_file_path(root).unwrap().to_string();
-    assert!(
-        watchers
-            .iter()
-            .all(|watcher| { watcher["globPattern"]["baseUri"].as_str() != Some(&root_uri) }),
-        "unexpected watchers for stale workspace root `{root_uri}`"
-    );
-}
-
-fn watched_registration_id(params: &RegistrationParams) -> &str {
-    let [registration] = params.registrations.as_slice() else {
-        panic!("expected one watched-file registration, got {params:?}")
-    };
-    assert!(registration.id.starts_with("solar-watched-files-"));
-    assert_eq!(registration.method, notif::DidChangeWatchedFiles::METHOD);
-    &registration.id
-}
-
-fn watched_unregistration_id(params: &UnregistrationParams) -> &str {
-    let [unregistration] = params.unregisterations.as_slice() else {
-        panic!("expected one watched-file unregistration, got {params:?}")
-    };
-    assert!(unregistration.id.starts_with("solar-watched-files-"));
-    assert_eq!(unregistration.method, notif::DidChangeWatchedFiles::METHOD);
-    &unregistration.id
-}
-
-async fn acknowledge_watched_events_until_registration(
+/// Acknowledges other watched-file traffic until a registration covers the discovered `root`.
+async fn next_registration_for_root(
     events: &mut mpsc::UnboundedReceiver<WatchedRegistrationClientEvent>,
-    mut accept: impl FnMut(&RegistrationParams) -> bool,
-) -> RegistrationParams {
+    root: &Path,
+) -> (RegistrationParams, oneshot::Sender<()>) {
     loop {
         match next_watched_registration_event(events).await {
-            WatchedRegistrationClientEvent::Register(params, acknowledge) => {
-                let accepted = accept(&params);
-                acknowledge.send(()).unwrap();
-                if accepted {
-                    return params;
-                }
-            }
-            WatchedRegistrationClientEvent::Unregister(params, acknowledge) => {
-                watched_unregistration_id(&params);
-                acknowledge.send(()).unwrap();
-            }
-        }
-    }
-}
-
-async fn next_analysis_event(
-    events: &mut mpsc::UnboundedReceiver<AnalysisClientEvent>,
-) -> AnalysisClientEvent {
-    tokio::time::timeout(Duration::from_secs(2), events.recv())
-        .await
-        .expect("analysis client event should arrive")
-        .expect("analysis client event channel should stay open")
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn router_handles_watched_file_changes() {
-    let mut router = new_router(ClientSocket::new_closed());
-    let params = DidChangeWatchedFilesParams {
-        changes: vec![FileEvent::new(
-            lsp_types::Url::parse("file:///workspace/src/Test.sol").unwrap(),
-            FileChangeType::CHANGED,
-        )],
-    };
-    let notification = serde_json::from_value::<AnyNotification>(serde_json::json!({
-        "method": notif::DidChangeWatchedFiles::METHOD,
-        "params": params,
-    }))
-    .unwrap();
-
-    assert!(matches!(router.notify(notification), ControlFlow::Continue(())));
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn router_handles_will_file_operation_requests() {
-    let mut router = new_router(ClientSocket::new_closed());
-
-    for method in [
-        request::WillCreateFiles::METHOD,
-        request::WillRenameFiles::METHOD,
-        request::WillDeleteFiles::METHOD,
-    ] {
-        let request = serde_json::from_value::<AnyRequest>(serde_json::json!({
-            "id": 1,
-            "method": method,
-            "params": { "files": [] },
-        }))
-        .unwrap();
-
-        assert_eq!(router.call(request).await.unwrap(), serde_json::Value::Null);
-    }
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn router_handles_did_file_operation_notifications() {
-    let mut router = new_router(ClientSocket::new_closed());
-
-    for method in [
-        notif::DidCreateFiles::METHOD,
-        notif::DidRenameFiles::METHOD,
-        notif::DidDeleteFiles::METHOD,
-    ] {
-        let notification = serde_json::from_value::<AnyNotification>(serde_json::json!({
-            "method": method,
-            "params": { "files": [] },
-        }))
-        .unwrap();
-
-        assert!(matches!(router.notify(notification), ControlFlow::Continue(())));
-    }
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn router_handles_document_saves() {
-    let mut router = new_router(ClientSocket::new_closed());
-    let params = DidSaveTextDocumentParams {
-        text_document: TextDocumentIdentifier {
-            uri: lsp_types::Url::parse("file:///workspace/src/Test.sol").unwrap(),
-        },
-        text: None,
-    };
-    let notification = serde_json::from_value::<AnyNotification>(serde_json::json!({
-        "method": notif::DidSaveTextDocument::METHOD,
-        "params": params,
-    }))
-    .unwrap();
-
-    assert!(matches!(router.notify(notification), ControlFlow::Continue(())));
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn router_handles_will_save_notifications() {
-    let mut router = new_router(ClientSocket::new_closed());
-    let params = WillSaveTextDocumentParams {
-        text_document: TextDocumentIdentifier {
-            uri: lsp_types::Url::parse("file:///workspace/src/Test.sol").unwrap(),
-        },
-        reason: TextDocumentSaveReason::MANUAL,
-    };
-    let notification = serde_json::from_value::<AnyNotification>(serde_json::json!({
-        "method": notif::WillSaveTextDocument::METHOD,
-        "params": params,
-    }))
-    .unwrap();
-
-    assert!(matches!(router.notify(notification), ControlFlow::Continue(())));
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn router_handles_work_done_progress_cancellation() {
-    let mut router = new_router(ClientSocket::new_closed());
-    let params = WorkDoneProgressCancelParams {
-        token: NumberOrString::String("solar/workspace-index/1".into()),
-    };
-    let notification = serde_json::from_value::<AnyNotification>(serde_json::json!({
-        "method": notif::WorkDoneProgressCancel::METHOD,
-        "params": params,
-    }))
-    .unwrap();
-
-    assert!(matches!(router.notify(notification), ControlFlow::Continue(())));
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn router_handles_cache_commands() {
-    let mut router = new_router(ClientSocket::new_closed());
-
-    for command in ["solar.clearCache", "solar.reindex"] {
-        let params = ExecuteCommandParams { command: command.into(), ..Default::default() };
-        let request = serde_json::from_value::<AnyRequest>(serde_json::json!({
-            "id": 1,
-            "method": request::ExecuteCommand::METHOD,
-            "params": params,
-        }))
-        .unwrap();
-
-        let response = router.call(request).await.unwrap();
-
-        assert_eq!(response, serde_json::json!({ "success": true }));
-    }
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn router_rejects_unknown_cache_command() {
-    let mut router = new_router(ClientSocket::new_closed());
-    let params = ExecuteCommandParams { command: "solar.unknown".into(), ..Default::default() };
-    let request = serde_json::from_value::<AnyRequest>(serde_json::json!({
-        "id": 1,
-        "method": request::ExecuteCommand::METHOD,
-        "params": params,
-    }))
-    .unwrap();
-
-    let error = router.call(request).await.unwrap_err();
-
-    assert_eq!(error.code, async_lsp::ErrorCode::INVALID_PARAMS);
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn router_handles_document_link_requests() {
-    let mut router = new_router(ClientSocket::new_closed());
-    let params = DocumentLinkParams {
-        text_document: TextDocumentIdentifier {
-            uri: lsp_types::Url::parse("file:///workspace/src/Test.sol").unwrap(),
-        },
-        work_done_progress_params: WorkDoneProgressParams::default(),
-        partial_result_params: PartialResultParams::default(),
-    };
-    let request = serde_json::from_value::<AnyRequest>(serde_json::json!({
-        "id": 1,
-        "method": request::DocumentLinkRequest::METHOD,
-        "params": params,
-    }))
-    .unwrap();
-
-    let response = router.call(request).await.unwrap();
-
-    assert_eq!(response, serde_json::json!([]));
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn router_handles_code_action_requests() {
-    let mut router = new_router(ClientSocket::new_closed());
-    let params = CodeActionParams {
-        text_document: TextDocumentIdentifier {
-            uri: lsp_types::Url::parse("file:///workspace/src/Test.sol").unwrap(),
-        },
-        range: Range::default(),
-        context: CodeActionContext { diagnostics: Vec::new(), ..Default::default() },
-        work_done_progress_params: WorkDoneProgressParams::default(),
-        partial_result_params: PartialResultParams::default(),
-    };
-    let request = serde_json::from_value::<AnyRequest>(serde_json::json!({
-        "id": 1,
-        "method": request::CodeActionRequest::METHOD,
-        "params": params,
-    }))
-    .unwrap();
-
-    let response = router.call(request).await.unwrap();
-
-    assert_eq!(response, serde_json::json!([]));
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn router_handles_code_lens_requests() {
-    let mut router = new_router(ClientSocket::new_closed());
-    let params = serde_json::json!({
-        "textDocument": { "uri": "file:///workspace/src/Test.sol" },
-    });
-    let request = serde_json::from_value::<AnyRequest>(serde_json::json!({
-        "id": 1,
-        "method": request::CodeLensRequest::METHOD,
-        "params": params,
-    }))
-    .unwrap();
-
-    let response = router.call(request).await.unwrap();
-
-    assert_eq!(response, serde_json::json!([]));
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn router_handles_folding_range_requests() {
-    let project = TestProject::from_fixture("//- /Test.sol open\n");
-    let state = GlobalState::new(ClientSocket::new_closed());
-    *state.vfs.write() = project.vfs();
-    let mut router = new_router_with_state(state);
-    let params = FoldingRangeParams {
-        text_document: TextDocumentIdentifier {
-            uri: lsp_types::Url::from_file_path(project.path("/Test.sol")).unwrap(),
-        },
-        work_done_progress_params: WorkDoneProgressParams::default(),
-        partial_result_params: PartialResultParams::default(),
-    };
-    let request = serde_json::from_value::<AnyRequest>(serde_json::json!({
-        "id": 1,
-        "method": request::FoldingRangeRequest::METHOD,
-        "params": params,
-    }))
-    .unwrap();
-
-    let response = router.call(request).await.unwrap();
-
-    assert_eq!(response, serde_json::json!([]));
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn router_handles_selection_range_requests() {
-    let project = TestProject::from_fixture("//- /Test.sol open\n");
-    let state = GlobalState::new(ClientSocket::new_closed());
-    *state.vfs.write() = project.vfs();
-    let mut router = new_router_with_state(state);
-    let params = SelectionRangeParams {
-        text_document: TextDocumentIdentifier {
-            uri: lsp_types::Url::from_file_path(project.path("/Test.sol")).unwrap(),
-        },
-        positions: Vec::new(),
-        work_done_progress_params: WorkDoneProgressParams::default(),
-        partial_result_params: PartialResultParams::default(),
-    };
-    let request = serde_json::from_value::<AnyRequest>(serde_json::json!({
-        "id": 1,
-        "method": request::SelectionRangeRequest::METHOD,
-        "params": params,
-    }))
-    .unwrap();
-
-    let response = router.call(request).await.unwrap();
-
-    assert_eq!(response, serde_json::json!([]));
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn router_handles_document_diagnostic_requests() {
-    let mut router = new_router(ClientSocket::new_closed());
-    let uri = lsp_types::Url::parse("untitled:Diagnostics.sol").unwrap();
-    let request = serde_json::from_value::<AnyRequest>(serde_json::json!({
-        "id": 1,
-        "method": request::DocumentDiagnosticRequest::METHOD,
-        "params": {
-            "textDocument": { "uri": uri },
-        },
-    }))
-    .unwrap();
-
-    let response = router.call(request).await.unwrap();
-
-    assert_eq!(response["kind"], "full");
-    assert_eq!(response["items"], serde_json::json!([]));
-    let result_id = response["resultId"].as_str().expect("full report should have a result ID");
-
-    let request = serde_json::from_value::<AnyRequest>(serde_json::json!({
-        "id": 2,
-        "method": request::DocumentDiagnosticRequest::METHOD,
-        "params": {
-            "textDocument": { "uri": uri },
-            "previousResultId": result_id,
-        },
-    }))
-    .unwrap();
-    let response = router.call(request).await.unwrap();
-
-    assert_eq!(
-        response,
-        serde_json::json!({
-            "kind": "unchanged",
-            "resultId": result_id,
-        })
-    );
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn router_handles_workspace_diagnostic_requests() {
-    let mut router = new_router(ClientSocket::new_closed());
-    let request = serde_json::from_value::<AnyRequest>(serde_json::json!({
-        "id": 1,
-        "method": request::WorkspaceDiagnosticRequest::METHOD,
-        "params": {
-            "previousResultIds": [],
-        },
-    }))
-    .unwrap();
-
-    let response = router.call(request).await.unwrap();
-
-    assert_eq!(response, serde_json::json!({ "items": [] }));
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn router_handles_document_highlight_requests() {
-    let mut router = new_router(ClientSocket::new_closed());
-    let params = DocumentHighlightParams {
-        text_document_position_params: TextDocumentPositionParams {
-            text_document: TextDocumentIdentifier {
-                uri: lsp_types::Url::parse("file:///workspace/src/Test.sol").unwrap(),
-            },
-            position: Position::new(0, 0),
-        },
-        work_done_progress_params: WorkDoneProgressParams::default(),
-        partial_result_params: PartialResultParams::default(),
-    };
-    let request = serde_json::from_value::<AnyRequest>(serde_json::json!({
-        "id": 1,
-        "method": request::DocumentHighlightRequest::METHOD,
-        "params": params,
-    }))
-    .unwrap();
-
-    let response = router.call(request).await.unwrap();
-
-    assert_eq!(response, serde_json::Value::Null);
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn router_handles_type_hierarchy_requests() {
-    let mut router = new_router(ClientSocket::new_closed());
-    let uri = lsp_types::Url::parse("untitled:Test.sol").unwrap();
-    let item = serde_json::json!({
-        "name": "C",
-        "kind": SymbolKind::CLASS,
-        "uri": uri,
-        "range": {
-            "start": { "line": 0, "character": 0 },
-            "end": { "line": 0, "character": 1 },
-        },
-        "selectionRange": {
-            "start": { "line": 0, "character": 0 },
-            "end": { "line": 0, "character": 1 },
-        },
-    });
-    let requests = [
-        (
-            request::TypeHierarchyPrepare::METHOD,
-            serde_json::json!({
-                "textDocument": { "uri": uri },
-                "position": { "line": 0, "character": 0 },
-            }),
-        ),
-        (request::TypeHierarchySupertypes::METHOD, serde_json::json!({ "item": item })),
-        (request::TypeHierarchySubtypes::METHOD, serde_json::json!({ "item": item })),
-    ];
-
-    for (id, (method, params)) in requests.into_iter().enumerate() {
-        let request = serde_json::from_value::<AnyRequest>(serde_json::json!({
-            "id": id,
-            "method": method,
-            "params": params,
-        }))
-        .unwrap();
-        let response = router.call(request).await.unwrap();
-        assert_eq!(response, serde_json::Value::Null, "request `{method}`");
-    }
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn router_handles_hover_requests() {
-    let mut router = new_router(ClientSocket::new_closed());
-    let params = HoverParams {
-        text_document_position_params: TextDocumentPositionParams {
-            text_document: TextDocumentIdentifier {
-                uri: lsp_types::Url::parse("file:///workspace/src/Test.sol").unwrap(),
-            },
-            position: Position::new(0, 0),
-        },
-        work_done_progress_params: WorkDoneProgressParams::default(),
-    };
-    let request = serde_json::from_value::<AnyRequest>(serde_json::json!({
-        "id": 1,
-        "method": request::HoverRequest::METHOD,
-        "params": params,
-    }))
-    .unwrap();
-
-    let response = router.call(request).await.unwrap();
-
-    assert_eq!(response, serde_json::Value::Null);
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn router_handles_call_hierarchy_requests() {
-    let mut router = new_router(ClientSocket::new_closed());
-    let uri = lsp_types::Url::parse("file:///workspace/src/Test.sol").unwrap();
-    let range = Range::new(Position::new(0, 0), Position::new(0, 1));
-    let item = CallHierarchyItem {
-        name: "f".into(),
-        kind: SymbolKind::FUNCTION,
-        tags: None,
-        detail: None,
-        uri: uri.clone(),
-        range,
-        selection_range: range,
-        data: None,
-    };
-    let requests = [
-        serde_json::json!({
-            "id": 1,
-            "method": request::CallHierarchyPrepare::METHOD,
-            "params": CallHierarchyPrepareParams {
-                text_document_position_params: TextDocumentPositionParams {
-                    text_document: TextDocumentIdentifier { uri },
-                    position: Position::new(0, 0),
-                },
-                work_done_progress_params: WorkDoneProgressParams::default(),
-            },
-        }),
-        serde_json::json!({
-            "id": 2,
-            "method": request::CallHierarchyIncomingCalls::METHOD,
-            "params": CallHierarchyIncomingCallsParams {
-                item: item.clone(),
-                work_done_progress_params: WorkDoneProgressParams::default(),
-                partial_result_params: PartialResultParams::default(),
-            },
-        }),
-        serde_json::json!({
-            "id": 3,
-            "method": request::CallHierarchyOutgoingCalls::METHOD,
-            "params": CallHierarchyOutgoingCallsParams {
-                item,
-                work_done_progress_params: WorkDoneProgressParams::default(),
-                partial_result_params: PartialResultParams::default(),
-            },
-        }),
-    ];
-
-    for request in requests {
-        let request = serde_json::from_value::<AnyRequest>(request).unwrap();
-        let response = router.call(request).await.unwrap();
-        assert_eq!(response, serde_json::Value::Null);
-    }
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn router_handles_signature_help_requests() {
-    let mut router = new_router(ClientSocket::new_closed());
-    let params = SignatureHelpParams {
-        context: None,
-        text_document_position_params: TextDocumentPositionParams {
-            text_document: TextDocumentIdentifier {
-                uri: lsp_types::Url::parse("file:///workspace/src/Test.sol").unwrap(),
-            },
-            position: Position::new(0, 0),
-        },
-        work_done_progress_params: WorkDoneProgressParams::default(),
-    };
-    let request = serde_json::from_value::<AnyRequest>(serde_json::json!({
-        "id": 1,
-        "method": request::SignatureHelpRequest::METHOD,
-        "params": params,
-    }))
-    .unwrap();
-
-    let response = router.call(request).await.unwrap();
-
-    assert_eq!(response, serde_json::Value::Null);
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn router_handles_goto_implementation_requests() {
-    let mut router = new_router(ClientSocket::new_closed());
-    let params = request::GotoImplementationParams {
-        text_document_position_params: TextDocumentPositionParams {
-            text_document: TextDocumentIdentifier {
-                uri: lsp_types::Url::parse("file:///workspace/src/Test.sol").unwrap(),
-            },
-            position: Position::new(0, 0),
-        },
-        work_done_progress_params: WorkDoneProgressParams::default(),
-        partial_result_params: lsp_types::PartialResultParams::default(),
-    };
-    let request = serde_json::from_value::<AnyRequest>(serde_json::json!({
-        "id": 1,
-        "method": request::GotoImplementation::METHOD,
-        "params": params,
-    }))
-    .unwrap();
-
-    let response = router.call(request).await.unwrap();
-
-    assert_eq!(response, serde_json::Value::Null);
-}
-#[tokio::test(flavor = "current_thread")]
-async fn router_handles_type_definition_requests() {
-    let mut router = new_router(ClientSocket::new_closed());
-    let params = TextDocumentPositionParams {
-        text_document: TextDocumentIdentifier {
-            uri: lsp_types::Url::parse("file:///workspace/src/Test.sol").unwrap(),
-        },
-        position: Position::new(0, 0),
-    };
-    let request = serde_json::from_value::<AnyRequest>(serde_json::json!({
-        "id": 1,
-        "method": request::GotoTypeDefinition::METHOD,
-        "params": params,
-    }))
-    .unwrap();
-
-    let response = router.call(request).await.unwrap();
-
-    assert_eq!(response, serde_json::Value::Null);
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn router_handles_document_formatting_requests() {
-    let mut router = new_router(ClientSocket::new_closed());
-    let params = DocumentFormattingParams {
-        text_document: TextDocumentIdentifier {
-            uri: lsp_types::Url::parse("file:///missing/Test.sol").unwrap(),
-        },
-        options: FormattingOptions::default(),
-        work_done_progress_params: WorkDoneProgressParams::default(),
-    };
-    let request = serde_json::from_value::<AnyRequest>(serde_json::json!({
-        "id": 1,
-        "method": request::Formatting::METHOD,
-        "params": params,
-    }))
-    .unwrap();
-
-    let error = router.call(request).await.unwrap_err();
-
-    assert_eq!(error.code, async_lsp::ErrorCode::REQUEST_FAILED);
-    assert!(!error.message.ends_with('.'));
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn pending_analysis_requests_do_not_block_completion_or_cancellation() {
-    const TIMEOUT: Duration = Duration::from_secs(1);
-
-    let project = TestProject::from_fixture(
-        r#"
-            //- /Completion.sol open
-            ///
-            contract C {}
-            "#,
-    );
-    let uri = lsp_types::Url::from_file_path(project.path("/Completion.sol")).unwrap();
-    let vfs = project.vfs();
-    let mut config = project.config();
-    config.enable_completion_snippets();
-    let (accepted_tx, mut accepted_rx) = mpsc::unbounded_channel();
-
-    let (server_main, _client) = async_lsp::MainLoop::new_server(move |client| {
-        let request_client = client.clone();
-        let mut state = GlobalState::new(client);
-        state.vfs = Arc::new(RwLock::new(vfs));
-        state.config = Arc::new(config);
-        state.mark_analysis_pending_for_test();
-        let router = ObservedRouter { inner: new_router_with_state(state), accepted: accepted_tx };
-        ServiceBuilder::new().layer(request_layer(request_client)).service(router)
-    });
-    let (client_main, mut server) = async_lsp::MainLoop::new_client(|_| Router::new(()));
-
-    let (server_main, client_main) = spawn_lsp_pair(server_main, client_main);
-
-    let document_symbols =
-        start_request(server.request::<request::DocumentSymbolRequest>(DocumentSymbolParams {
-            text_document: TextDocumentIdentifier::new(uri.clone()),
-            work_done_progress_params: WorkDoneProgressParams::default(),
-            partial_result_params: PartialResultParams::default(),
-        }));
-    assert_eq!(
-        tokio::time::timeout(TIMEOUT, accepted_rx.recv()).await.unwrap().unwrap(),
-        request::DocumentSymbolRequest::METHOD
-    );
-
-    let document_links =
-        start_request(server.request::<request::DocumentLinkRequest>(DocumentLinkParams {
-            text_document: TextDocumentIdentifier::new(uri.clone()),
-            work_done_progress_params: WorkDoneProgressParams::default(),
-            partial_result_params: PartialResultParams::default(),
-        }));
-    assert_eq!(
-        tokio::time::timeout(TIMEOUT, accepted_rx.recv()).await.unwrap().unwrap(),
-        request::DocumentLinkRequest::METHOD
-    );
-
-    let completion_params = CompletionParams {
-        text_document_position: TextDocumentPositionParams {
-            text_document: TextDocumentIdentifier::new(uri),
-            position: Position::new(0, 3),
-        },
-        work_done_progress_params: WorkDoneProgressParams::default(),
-        partial_result_params: PartialResultParams::default(),
-        context: None,
-    };
-    let completion = start_request(server.request::<request::Completion>(completion_params));
-    server.notify::<notif::Cancel>(CancelParams { id: NumberOrString::Number(0) }).unwrap();
-    server.notify::<notif::Cancel>(CancelParams { id: NumberOrString::Number(1) }).unwrap();
-
-    let response = tokio::time::timeout(TIMEOUT, completion)
-        .await
-        .expect("completion should not wait for analysis")
-        .unwrap();
-    let Some(CompletionResponse::Array(items)) = response else {
-        panic!("expected completion items, got {response:?}");
-    };
-    assert!(items.iter().any(|item| item.label == "NatSpec contract documentation"));
-
-    assert_request_cancelled(
-        tokio::time::timeout(TIMEOUT, document_symbols)
-            .await
-            .expect("document symbols should be cancelled"),
-    );
-    assert_request_cancelled(
-        tokio::time::timeout(TIMEOUT, document_links)
-            .await
-            .expect("document links should be cancelled"),
-    );
-
-    server.shutdown(()).await.unwrap();
-    server.exit(()).unwrap();
-    assert!(server_main.await.unwrap().is_ok());
-    assert!(matches!(client_main.await.unwrap(), Err(async_lsp::Error::Eof)));
-}
-
-#[test]
-fn reindex_progress_honors_client_cancellation() {
-    let runtime = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .max_blocking_threads(1)
-        .build()
-        .unwrap();
-    runtime.block_on(async {
-        let project = TestProject::from_fixture(
-            r#"
-                //- /Broken.sol open
-                contract Broken {
-                    function broken() external { uint value = ; }
-                }
-                "#,
-        );
-        let broken_uri = lsp_types::Url::from_file_path(project.path("/Broken.sol")).unwrap();
-        let vfs = project.vfs();
-        let mut initialize = project.initialize_params();
-        initialize.capabilities.window =
-            Some(WindowClientCapabilities { work_done_progress: Some(true), ..Default::default() });
-
-        let (server_main, _client) = async_lsp::MainLoop::new_server(move |client| {
-            let mut state = GlobalState::new(client);
-            state.vfs = Arc::new(RwLock::new(vfs));
-            new_router_with_state(state)
-        });
-        let (events_tx, mut events_rx) = mpsc::unbounded_channel();
-        let (client_main, mut server) = async_lsp::MainLoop::new_client(move |_| {
-            let mut router = Router::new(events_tx);
-            router.request::<request::WorkDoneProgressCreate, _>(|events, params| {
-                events.send(AnalysisClientEvent::Create(params)).unwrap();
-                async { Ok(()) }
-            });
-            router.notification::<notif::Progress>(|events, params| {
-                events.send(AnalysisClientEvent::Progress(params)).unwrap();
-                ControlFlow::Continue(())
-            });
-            router.notification::<notif::PublishDiagnostics>(|events, params| {
-                events.send(AnalysisClientEvent::Diagnostics(params)).unwrap();
-                ControlFlow::Continue(())
-            });
-            router.notification::<notif::LogMessage>(|_, _| ControlFlow::Continue(()));
-            router
-        });
-
-        let (server_task, client_task) = spawn_lsp_pair(server_main, client_main);
-
-        server.initialize(initialize).await.unwrap();
-        server.initialized(InitializedParams {}).unwrap();
-
-        // Process and drain the automatic initialization reindex before testing cancellation.
-        let _ = server
-            .request::<request::WorkspaceSymbolRequest>(WorkspaceSymbolParams {
-                query: "initialization barrier".into(),
-                ..Default::default()
-            })
-            .await
-            .unwrap();
-        while !matches!(
-            next_analysis_event(&mut events_rx).await,
-            AnalysisClientEvent::Diagnostics(params) if params.uri == broken_uri
-        ) {}
-
-        let (blocker_started_tx, blocker_started_rx) = std::sync::mpsc::channel();
-        let (release_blocker_tx, release_blocker_rx) = std::sync::mpsc::channel();
-        let blocker = tokio::task::spawn_blocking(move || {
-            blocker_started_tx.send(()).unwrap();
-            release_blocker_rx.recv().unwrap();
-        });
-        blocker_started_rx
-            .recv_timeout(Duration::from_secs(1))
-            .expect("blocking worker should be occupied");
-
-        let first_response = tokio::time::timeout(
-            Duration::from_secs(1),
-            server.request::<request::ExecuteCommand>(ExecuteCommandParams {
-                command: commands::REINDEX.into(),
-                ..Default::default()
-            }),
-        )
-        .await
-        .expect("reindex acknowledgement should not wait for analysis")
-        .unwrap();
-        assert_eq!(first_response, Some(serde_json::json!({ "success": true })));
-
-        let AnalysisClientEvent::Create(create) = next_analysis_event(&mut events_rx).await else {
-            panic!("expected progress creation")
-        };
-        let token = create.token;
-        match next_analysis_event(&mut events_rx).await {
-            AnalysisClientEvent::Progress(ProgressParams {
-                token: actual,
-                value: ProgressParamsValue::WorkDone(WorkDoneProgress::Begin(begin)),
-            }) => {
-                assert_eq!(actual, token);
-                assert_eq!(begin.title, "Indexing workspace");
-                assert_eq!(begin.cancellable, Some(false));
-            }
-            event => panic!("expected progress begin, got {event:?}"),
-        }
-
-        let second_response = tokio::time::timeout(
-            Duration::from_secs(1),
-            server.request::<request::ExecuteCommand>(ExecuteCommandParams {
-                command: commands::REINDEX.into(),
-                ..Default::default()
-            }),
-        )
-        .await
-        .expect("replacement reindex acknowledgement should not wait for analysis")
-        .unwrap();
-        assert_eq!(second_response, Some(serde_json::json!({ "success": true })));
-
-        match next_analysis_event(&mut events_rx).await {
-            AnalysisClientEvent::Progress(ProgressParams {
-                token: actual,
-                value: ProgressParamsValue::WorkDone(WorkDoneProgress::Report(report)),
-            }) => {
-                assert_eq!(actual, token);
-                assert_eq!(
-                    report.message.as_deref(),
-                    Some("Workspace changed, restarting analysis")
-                );
-            }
-            event => panic!("expected replacement report, got {event:?}"),
-        }
-
-        server
-            .notify::<notif::WorkDoneProgressCancel>(WorkDoneProgressCancelParams {
-                token: token.clone(),
-            })
-            .unwrap();
-        let _ = server
-            .request::<request::WorkspaceSymbolRequest>(WorkspaceSymbolParams {
-                query: "cancel barrier".into(),
-                ..Default::default()
-            })
-            .await
-            .unwrap();
-
-        match next_analysis_event(&mut events_rx).await {
-            AnalysisClientEvent::Progress(ProgressParams {
-                token: actual,
-                value: ProgressParamsValue::WorkDone(WorkDoneProgress::End(end)),
-            }) => {
-                assert_eq!(actual, token);
-                assert!(end.message.is_none());
-            }
-            event => panic!("expected cancellation end, got {event:?}"),
-        }
-
-        release_blocker_tx.send(()).unwrap();
-        blocker.await.unwrap();
-
-        let mut saw_latest_diagnostics = false;
-        while !saw_latest_diagnostics {
-            match next_analysis_event(&mut events_rx).await {
-                AnalysisClientEvent::Create(create) => {
-                    panic!("replacement created a second token: {create:?}")
-                }
-                AnalysisClientEvent::Diagnostics(params) => {
-                    if params.uri == broken_uri && !params.diagnostics.is_empty() {
-                        saw_latest_diagnostics = true;
-                    }
-                }
-                AnalysisClientEvent::Progress(progress) => {
-                    panic!("progress continued after cancellation: {progress:?}")
-                }
-            }
-        }
-
-        server.shutdown(()).await.unwrap();
-        server.exit(()).unwrap();
-        assert!(server_task.await.unwrap().is_ok());
-        assert!(matches!(client_task.await.unwrap(), Err(async_lsp::Error::Eof)));
-    });
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn initialize_advertises_type_hierarchy_statically() {
-    let mut router = new_router(ClientSocket::new_closed());
-    let request = serde_json::from_value::<AnyRequest>(serde_json::json!({
-        "id": 1,
-        "method": request::Initialize::METHOD,
-        "params": InitializeParams::default(),
-    }))
-    .unwrap();
-
-    let response = router.call(request).await.unwrap();
-
-    assert_eq!(response["capabilities"]["typeHierarchyProvider"], true);
-    assert_eq!(response["capabilities"]["completionProvider"]["resolveProvider"], true);
-    assert_eq!(response["capabilities"]["codeLensProvider"]["resolveProvider"], false);
-    assert_eq!(response["capabilities"]["hoverProvider"], true);
-    assert_eq!(response["serverInfo"]["name"], "solar");
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn initialized_registers_watched_files_when_client_supports_dynamic_registration() {
-    let (server_main, _client) = async_lsp::MainLoop::new_server(new_router);
-    let (registration_tx, registration_rx) = oneshot::channel();
-    let (client_main, mut server) = async_lsp::MainLoop::new_client(|_| {
-        let mut router = Router::new(Some(registration_tx));
-        router.request::<request::RegisterCapability, _>(|state, params| {
-            state.take().unwrap().send(params).unwrap();
-            async move { Ok(()) }
-        });
-        router.notification::<notif::LogMessage>(|_, _| ControlFlow::Continue(()));
-        router
-    });
-
-    let (server_main, client_main) = spawn_lsp_pair(server_main, client_main);
-
-    let mut params = InitializeParams::default();
-    params.capabilities.workspace = Some(WorkspaceClientCapabilities {
-        did_change_watched_files: Some(DidChangeWatchedFilesClientCapabilities {
-            dynamic_registration: Some(true),
-            ..Default::default()
-        }),
-        ..Default::default()
-    });
-    server.initialize(params).await.unwrap();
-    server.initialized(InitializedParams {}).unwrap();
-
-    let registrations = tokio::time::timeout(std::time::Duration::from_secs(1), registration_rx)
-        .await
-        .unwrap()
-        .unwrap();
-    let [registration] = registrations.registrations.try_into().unwrap();
-    assert_eq!(registration.method, notif::DidChangeWatchedFiles::METHOD);
-
-    server.shutdown(()).await.unwrap();
-    server.exit(()).unwrap();
-    assert!(server_main.await.unwrap().is_ok());
-    assert!(matches!(client_main.await.unwrap(), Err(async_lsp::Error::Eof)));
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn watched_file_reregistration_keeps_latest_workspace_folders() {
-    let project = TestProject::new();
-    let initial_path = project.path("/initial");
-    let stale_path = project.path("/stale");
-    let latest_path = project.path("/latest");
-    for path in [&initial_path, &stale_path, &latest_path] {
-        std::fs::create_dir(path).unwrap();
-    }
-    let workspace_folder = |path: &std::path::Path, name: &str| WorkspaceFolder {
-        uri: lsp_types::Url::from_file_path(path).unwrap(),
-        name: name.into(),
-    };
-    let initial = workspace_folder(&initial_path, "initial");
-    let stale = workspace_folder(&stale_path, "stale");
-    let latest = workspace_folder(&latest_path, "latest");
-
-    let (server_main, _client) = async_lsp::MainLoop::new_server(new_router);
-    let (events_tx, mut events_rx) = mpsc::unbounded_channel();
-    let (client_main, mut server) = async_lsp::MainLoop::new_client(move |_| {
-        let mut router = Router::new(events_tx);
-        router.request::<request::RegisterCapability, _>(|events, params| {
-            let (acknowledge, acknowledged) = oneshot::channel();
-            events.send(WatchedRegistrationClientEvent::Register(params, acknowledge)).unwrap();
-            async move {
-                acknowledged.await.unwrap();
-                Ok(())
-            }
-        });
-        router.request::<request::UnregisterCapability, _>(|events, params| {
-            let (acknowledge, acknowledged) = oneshot::channel();
-            events.send(WatchedRegistrationClientEvent::Unregister(params, acknowledge)).unwrap();
-            async move {
-                acknowledged.await.unwrap();
-                Ok(())
-            }
-        });
-        router.notification::<notif::LogMessage>(|_, _| ControlFlow::Continue(()));
-        router
-    });
-
-    let (server_main, client_main) = spawn_lsp_pair(server_main, client_main);
-
-    let mut params = project.initialize_params_with_roots(&["/initial"]);
-    params.capabilities.workspace = Some(WorkspaceClientCapabilities {
-        did_change_watched_files: Some(DidChangeWatchedFilesClientCapabilities {
-            dynamic_registration: Some(true),
-            relative_pattern_support: Some(true),
-        }),
-        ..Default::default()
-    });
-    server.initialize(params).await.unwrap();
-    server.initialized(InitializedParams {}).unwrap();
-
-    let params = acknowledge_watched_events_until_registration(&mut events_rx, |params| {
-        watched_registration_has_discovered_root(params, &initial_path)
-    })
-    .await;
-    assert_watched_registration_root(&params, &initial_path);
-    watched_registration_id(&params);
-
-    server
-        .notify::<notif::DidChangeWorkspaceFolders>(DidChangeWorkspaceFoldersParams {
-            event: WorkspaceFoldersChangeEvent {
-                added: vec![stale.clone()],
-                removed: vec![initial],
-            },
-        })
-        .unwrap();
-    let (stale_params, stale_register) = loop {
-        match next_watched_registration_event(&mut events_rx).await {
             WatchedRegistrationClientEvent::Register(params, acknowledge)
-                if watched_registration_has_discovered_root(&params, &stale_path) =>
+                if watched_registration_has_discovered_root(&params, root) =>
             {
-                break (params, acknowledge);
-            }
-            WatchedRegistrationClientEvent::Register(_, acknowledge) => {
-                acknowledge.send(()).unwrap();
-            }
-            WatchedRegistrationClientEvent::Unregister(params, acknowledge) => {
-                watched_unregistration_id(&params);
-                acknowledge.send(()).unwrap();
-            }
-        }
-    };
-    watched_registration_id(&stale_params);
-
-    server
-        .notify::<notif::DidChangeWorkspaceFolders>(DidChangeWorkspaceFoldersParams {
-            event: WorkspaceFoldersChangeEvent { added: vec![latest], removed: vec![stale] },
-        })
-        .unwrap();
-
-    stale_register.send(()).unwrap();
-    let (params, acknowledge) = loop {
-        match next_watched_registration_event(&mut events_rx).await {
-            WatchedRegistrationClientEvent::Register(params, acknowledge)
-                if watched_registration_has_discovered_root(&params, &latest_path) =>
-            {
-                break (params, acknowledge);
+                return (params, acknowledge);
             }
             WatchedRegistrationClientEvent::Register(params, acknowledge) => {
                 watched_registration_id(&params);
@@ -1179,8 +126,532 @@ async fn watched_file_reregistration_keeps_latest_workspace_folders() {
                 acknowledge.send(()).unwrap();
             }
         }
+    }
+}
+
+fn watched_id<'a>(id: &'a str, method: &str) -> &'a str {
+    assert!(id.starts_with("solar-watched-files-"));
+    assert_eq!(method, notif::DidChangeWatchedFiles::METHOD);
+    id
+}
+
+fn watched_registration(params: &RegistrationParams) -> &Registration {
+    let [registration] = params.registrations.as_slice() else {
+        panic!("expected one watched-file registration, got {params:?}")
     };
-    assert_watched_registration_root(&params, &latest_path);
+    watched_id(&registration.id, &registration.method);
+    registration
+}
+
+fn watched_registration_watchers(params: &RegistrationParams) -> &[Value] {
+    watched_registration(params).register_options.as_ref().unwrap()["watchers"].as_array().unwrap()
+}
+
+fn watched_registration_pattern_count(
+    params: &RegistrationParams,
+    root: &Path,
+    pattern: &str,
+) -> usize {
+    let root_uri = Url::from_file_path(root).unwrap().to_string();
+    watched_registration_watchers(params)
+        .iter()
+        .filter(|watcher| {
+            watcher["globPattern"]["baseUri"].as_str() == Some(&root_uri)
+                && watcher["globPattern"]["pattern"] == pattern
+        })
+        .count()
+}
+
+fn watched_registration_has_discovered_root(params: &RegistrationParams, root: &Path) -> bool {
+    ["foundry.toml", "remappings.txt", "*", "*.sol"]
+        .into_iter()
+        .all(|pattern| watched_registration_pattern_count(params, root, pattern) == 1)
+}
+
+fn assert_watched_registration_root(params: &RegistrationParams, root: &Path) {
+    for pattern in ["foundry.toml", "remappings.txt"] {
+        let matching_watchers = watched_registration_pattern_count(params, root, pattern);
+        assert_eq!(matching_watchers, 1, "expected one `{pattern}` watcher for `{root:?}`");
+    }
+}
+
+fn assert_watched_registration_excludes_root(params: &RegistrationParams, root: &Path) {
+    let root_uri = Url::from_file_path(root).unwrap().to_string();
+    assert!(
+        watched_registration_watchers(params)
+            .iter()
+            .all(|watcher| watcher["globPattern"]["baseUri"].as_str() != Some(&root_uri)),
+        "unexpected watchers for stale workspace root `{root_uri}`"
+    );
+}
+
+fn watched_registration_id(params: &RegistrationParams) -> &str {
+    &watched_registration(params).id
+}
+
+fn watched_unregistration_id(params: &UnregistrationParams) -> &str {
+    let [unregistration] = params.unregisterations.as_slice() else {
+        panic!("expected one watched-file unregistration, got {params:?}")
+    };
+    watched_id(&unregistration.id, &unregistration.method)
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn router_dispatches_requests_and_notifications() {
+    let project = TestProject::from_fixture("//- /Test.sol open\n");
+    let state = GlobalState::new(ClientSocket::new_closed());
+    *state.vfs.write() = project.vfs();
+    let mut router = new_router_with_state(state);
+    let uri = "file:///workspace/src/Test.sol";
+    let open_uri = project.uri("/Test.sol");
+    let text_document = json!({ "uri": uri });
+    let position = json!({ "line": 0, "character": 0 });
+    let range = json!({ "start": position, "end": { "line": 0, "character": 1 } });
+    let at_start = json!({ "textDocument": text_document, "position": position });
+    let item = |uri: &str, kind| {
+        let item = json!({
+            "name": "C",
+            "kind": kind,
+            "uri": uri,
+            "range": range,
+            "selectionRange": range,
+        });
+        json!({ "item": item })
+    };
+
+    for (method, params) in [
+        (
+            notif::DidChangeWatchedFiles::METHOD,
+            json!({ "changes": [{ "uri": uri, "type": FileChangeType::CHANGED }] }),
+        ),
+        (notif::DidCreateFiles::METHOD, json!({ "files": [] })),
+        (notif::DidRenameFiles::METHOD, json!({ "files": [] })),
+        (notif::DidDeleteFiles::METHOD, json!({ "files": [] })),
+        (notif::DidSaveTextDocument::METHOD, json!({ "textDocument": text_document })),
+        (
+            notif::WillSaveTextDocument::METHOD,
+            json!({ "textDocument": text_document, "reason": TextDocumentSaveReason::MANUAL }),
+        ),
+        (notif::WorkDoneProgressCancel::METHOD, json!({ "token": "solar/workspace-index/1" })),
+    ] {
+        let notification =
+            from_json::<AnyNotification>(json!({ "method": method, "params": params }));
+        assert!(router.notify(notification).is_continue(), "notification `{method}`");
+    }
+
+    let diagnostic_uri = json!({ "uri": "untitled:Diagnostics.sol" });
+    let method = request::DocumentDiagnosticRequest::METHOD;
+    let request =
+        json!({ "id": 0, "method": method, "params": { "textDocument": diagnostic_uri } });
+    let response = router.call(from_json(request)).await.unwrap();
+    assert_eq!(response["kind"], "full");
+    assert_eq!(response["items"], json!([]));
+    let result_id = response["resultId"].as_str().expect("full report should have a result ID");
+    let params_with_id = json!({ "textDocument": diagnostic_uri, "previousResultId": result_id });
+    let request = json!({ "id": 1, "method": method, "params": params_with_id });
+    let response = router.call(from_json(request)).await.unwrap();
+    assert_eq!(response, json!({ "kind": "unchanged", "resultId": result_id }));
+
+    let untitled = "untitled:Test.sol";
+    let formatting = json!({
+        "textDocument": { "uri": "file:///missing/Test.sol" },
+        "options": { "tabSize": 0, "insertSpaces": false },
+    });
+    let requests = [
+        (request::WillCreateFiles::METHOD, json!({ "files": [] }), Ok(Value::Null)),
+        (request::WillRenameFiles::METHOD, json!({ "files": [] }), Ok(Value::Null)),
+        (request::WillDeleteFiles::METHOD, json!({ "files": [] }), Ok(Value::Null)),
+        (
+            request::DocumentLinkRequest::METHOD,
+            json!({ "textDocument": text_document }),
+            Ok(json!([])),
+        ),
+        (
+            request::CodeActionRequest::METHOD,
+            json!({
+                "textDocument": text_document,
+                "range": range,
+                "context": { "diagnostics": [] },
+            }),
+            Ok(json!([])),
+        ),
+        (request::CodeLensRequest::METHOD, json!({ "textDocument": text_document }), Ok(json!([]))),
+        (
+            request::FoldingRangeRequest::METHOD,
+            json!({ "textDocument": { "uri": open_uri } }),
+            Ok(json!([])),
+        ),
+        (
+            request::SelectionRangeRequest::METHOD,
+            json!({ "textDocument": { "uri": open_uri }, "positions": [] }),
+            Ok(json!([])),
+        ),
+        (
+            request::WorkspaceDiagnosticRequest::METHOD,
+            json!({ "previousResultIds": [] }),
+            Ok(json!({ "items": [] })),
+        ),
+        (request::DocumentHighlightRequest::METHOD, at_start.clone(), Ok(Value::Null)),
+        (
+            request::TypeHierarchyPrepare::METHOD,
+            json!({ "textDocument": { "uri": untitled }, "position": position }),
+            Ok(Value::Null),
+        ),
+        (
+            request::TypeHierarchySupertypes::METHOD,
+            item(untitled, SymbolKind::CLASS),
+            Ok(Value::Null),
+        ),
+        (
+            request::TypeHierarchySubtypes::METHOD,
+            item(untitled, SymbolKind::CLASS),
+            Ok(Value::Null),
+        ),
+        (request::HoverRequest::METHOD, at_start.clone(), Ok(Value::Null)),
+        (request::CallHierarchyPrepare::METHOD, at_start.clone(), Ok(Value::Null)),
+        (
+            request::CallHierarchyIncomingCalls::METHOD,
+            item(uri, SymbolKind::FUNCTION),
+            Ok(Value::Null),
+        ),
+        (
+            request::CallHierarchyOutgoingCalls::METHOD,
+            item(uri, SymbolKind::FUNCTION),
+            Ok(Value::Null),
+        ),
+        (request::SignatureHelpRequest::METHOD, at_start.clone(), Ok(Value::Null)),
+        (request::GotoImplementation::METHOD, at_start.clone(), Ok(Value::Null)),
+        (request::GotoTypeDefinition::METHOD, at_start, Ok(Value::Null)),
+        (request::Formatting::METHOD, formatting, Err(ErrorCode::REQUEST_FAILED)),
+        (
+            request::ExecuteCommand::METHOD,
+            json!({ "command": "solar.unknown" }),
+            Err(ErrorCode::INVALID_PARAMS),
+        ),
+        (
+            request::ExecuteCommand::METHOD,
+            json!({ "command": "solar.clearCache" }),
+            Ok(json!({ "success": true })),
+        ),
+        (
+            request::ExecuteCommand::METHOD,
+            json!({ "command": "solar.reindex" }),
+            Ok(json!({ "success": true })),
+        ),
+    ];
+    for (id, (method, params, expected)) in requests.into_iter().enumerate() {
+        let request = json!({ "id": id, "method": method, "params": params });
+        let response = router.call(from_json(request)).await.map_err(|error| {
+            assert!(!error.message.ends_with('.'), "`{method}` error: {}", error.message);
+            error.code
+        });
+        assert_eq!(response, expected, "request `{method}`");
+    }
+
+    let initialize = json!({
+        "id": 0,
+        "method": request::Initialize::METHOD,
+        "params": InitializeParams::default(),
+    });
+    let response = router.call(from_json(initialize)).await.unwrap();
+    assert_eq!(response["capabilities"]["typeHierarchyProvider"], true);
+    assert_eq!(response["capabilities"]["completionProvider"]["resolveProvider"], true);
+    assert_eq!(response["capabilities"]["codeLensProvider"]["resolveProvider"], false);
+    assert_eq!(response["capabilities"]["hoverProvider"], true);
+    assert_eq!(response["serverInfo"]["name"], "solar");
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn requests_use_one_identity_for_equivalent_file_uris() {
+    async fn response<R: Request>(server: &ServerSocket, params: Value) -> Value {
+        let response = within(R::METHOD, server.request::<R>(from_json(params))).await.unwrap();
+        serde_json::to_value(response).unwrap()
+    }
+
+    let marked = MarkedProject::from_fixture(
+        r#"
+        //- /Token.sol
+        contract Base {}
+        contract $4Token is Base {
+            uint value;
+            function callee(uint input) internal pure returns (uint) { return input; }
+            function $1caller() public view returns (uint) { return $2callee($3value); }
+        }
+        "#,
+    );
+    let project = marked.project();
+    let text = project.read_file("/Token.sol");
+    // The opened alias is the only copy of the source, so results prove its identity.
+    project.remove_file("/Token.sol");
+    let canonical = project.uri("/Token.sol");
+    let prefix = canonical.as_str().strip_suffix("Token.sol").unwrap();
+    let spellings = ["%54oken.sol", "/Token.sol", "nested%2F..%2FToken.sol"];
+    for opened in spellings {
+        let session = LspPair::spawn(new_router, |_| quiet_client());
+        session.initialize(project.initialize_params()).await;
+        let opened = format!("{prefix}{opened}");
+        let text_document =
+            json!({ "uri": opened, "languageId": "solidity", "version": 1, "text": text });
+        session
+            .server
+            .notify::<notif::DidOpenTextDocument>(from_json(
+                json!({ "textDocument": text_document }),
+            ))
+            .unwrap();
+
+        let server = &session.server;
+        for spelling in spellings {
+            let alias = Url::parse(&format!("{prefix}{spelling}")).unwrap();
+            macro_rules! equivalent_response {
+                ($request:ty, $params:expr) => {{
+                    let mut params = $params;
+                    params["textDocument"] = json!({ "uri": canonical });
+                    let expected = response::<$request>(server, params.clone()).await;
+                    assert!(!expected.is_null(), "{} should return a result", <$request>::METHOD);
+                    if let Some(items) = expected.as_array() {
+                        assert!(!items.is_empty(), "{} should return items", <$request>::METHOD);
+                    }
+                    params["textDocument"] = json!({ "uri": alias });
+                    let actual = response::<$request>(server, params).await;
+                    assert_eq!(actual, expected, "{} for {alias}", <$request>::METHOD);
+                    actual
+                }};
+            }
+            let symbols = equivalent_response!(request::DocumentSymbolRequest, json!({}));
+            let names = symbols.as_array().unwrap().iter().map(|symbol| &symbol["name"]);
+            assert_eq!(
+                names.collect::<Vec<_>>(),
+                ["Base", "Token", "value", "callee", "input", "caller"]
+            );
+            let position = marked.marker("$2").position();
+            equivalent_response!(request::HoverRequest, json!({ "position": position }));
+            equivalent_response!(request::GotoDefinition, json!({ "position": position }));
+            equivalent_response!(
+                request::References,
+                json!({ "position": position, "context": { "includeDeclaration": true } })
+            );
+            let argument = marked.marker("$3").position();
+            let completions =
+                equivalent_response!(request::Completion, json!({ "position": argument }));
+            assert!(completions.as_array().unwrap().iter().any(|item| item["label"] == "value"));
+            let signature = equivalent_response!(
+                request::SignatureHelpRequest,
+                json!({ "position": argument })
+            );
+            assert!(!signature["signatures"].as_array().unwrap().is_empty());
+
+            let calls = equivalent_response!(
+                request::CallHierarchyPrepare,
+                json!({ "position": marked.marker("$1").position() })
+            );
+            let outgoing = response::<request::CallHierarchyOutgoingCalls>(
+                server,
+                json!({ "item": calls[0] }),
+            )
+            .await;
+            assert_eq!(outgoing[0]["to"]["name"], "callee");
+
+            let types = equivalent_response!(
+                request::TypeHierarchyPrepare,
+                json!({ "position": marked.marker("$4").position() })
+            );
+            let supertypes =
+                response::<request::TypeHierarchySupertypes>(server, json!({ "item": types[0] }))
+                    .await;
+            assert_eq!(supertypes[0]["name"], "Base");
+        }
+
+        session.shutdown().await;
+    }
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn pending_analysis_requests_do_not_block_completion_or_cancellation() {
+    let project = TestProject::from_fixture(
+        r#"
+            //- /Completion.sol open
+            ///
+            contract C {}
+            "#,
+    );
+    let uri = project.uri("/Completion.sol");
+    let vfs = project.vfs();
+    let mut config = project.config();
+    config.enable_completion_snippets();
+    let (accepted_tx, mut accepted_rx) = mpsc::unbounded_channel();
+
+    let session = LspPair::spawn(
+        move |client| {
+            let request_client = client.clone();
+            let mut state = GlobalState::new(client);
+            *state.vfs.write() = vfs;
+            state.config = Arc::new(config);
+            state.mark_analysis_pending_for_test();
+            let router =
+                ObservedRouter { inner: new_router_with_state(state), accepted: accepted_tx };
+            ServiceBuilder::new().layer(request_layer(request_client)).service(router)
+        },
+        |_| Router::new(()),
+    );
+    let server = &session.server;
+    let mut accepted = async || within("request", accepted_rx.recv()).await.unwrap();
+
+    let document_symbols =
+        start_request(server.request::<request::DocumentSymbolRequest>(document_params(&uri)));
+    assert_eq!(accepted().await, request::DocumentSymbolRequest::METHOD);
+    let document_links =
+        start_request(server.request::<request::DocumentLinkRequest>(document_params(&uri)));
+    assert_eq!(accepted().await, request::DocumentLinkRequest::METHOD);
+
+    let completion_params = request_params(&uri, Position::new(0, 3), json!({}));
+    let completion = start_request(server.request::<request::Completion>(completion_params));
+    server.notify::<notif::Cancel>(CancelParams { id: NumberOrString::Number(0) }).unwrap();
+    server.notify::<notif::Cancel>(CancelParams { id: NumberOrString::Number(1) }).unwrap();
+
+    let response = within("completion without analysis", completion).await.unwrap();
+    let Some(CompletionResponse::Array(items)) = response else {
+        panic!("expected completion items, got {response:?}");
+    };
+    assert!(items.iter().any(|item| item.label == "NatSpec contract documentation"));
+
+    assert_request_cancelled(within("cancellation", document_symbols).await);
+    assert_request_cancelled(within("cancellation", document_links).await);
+    session.shutdown().await;
+}
+
+#[test]
+fn reindex_progress_honors_client_cancellation() {
+    single_blocking_worker_runtime().block_on(async {
+        let project = TestProject::from_fixture(
+            r#"
+                //- /Broken.sol open
+                contract Broken {
+                    function broken() external { uint value = ; }
+                }
+                "#,
+        );
+        let broken_uri = project.uri("/Broken.sol");
+        let vfs = project.vfs();
+        let initialize = with_capabilities(
+            project.initialize_params(),
+            json!({ "window": { "workDoneProgress": true } }),
+        );
+
+        let mut harness = ClientHarness::with_server(move |client| {
+            let state = GlobalState::new(client);
+            *state.vfs.write() = vfs;
+            new_router_with_state(state)
+        });
+        harness.initialize(initialize).await;
+        let server = harness.server().clone();
+        let barrier = async |query: &str| {
+            let params = WorkspaceSymbolParams { query: query.into(), ..Default::default() };
+            server.request::<request::WorkspaceSymbolRequest>(params).await.unwrap();
+        };
+        let reindex = async || {
+            let params = from_json(json!({ "command": commands::REINDEX }));
+            let response = tokio::time::timeout(
+                Duration::from_secs(1),
+                server.request::<request::ExecuteCommand>(params),
+            )
+            .await
+            .expect("reindex acknowledgement should not wait for analysis")
+            .unwrap();
+            assert_eq!(response, Some(json!({ "success": true })));
+        };
+
+        // Process and drain the automatic initialization reindex before testing cancellation.
+        barrier("initialization barrier").await;
+        while !matches!(
+            harness.next_event().await,
+            ClientEvent::Diagnostics(params) if params.uri == broken_uri
+        ) {}
+
+        let (release_blocker, blocker) = pause_blocking_pool();
+
+        reindex().await;
+        let token = harness.expect_create().await;
+        harness.acknowledge_create();
+        let WorkDoneProgress::Begin(begin) = harness.expect_progress(&token).await else {
+            panic!("expected progress begin")
+        };
+        assert_eq!(begin.title, "Indexing workspace");
+        assert_eq!(begin.cancellable, Some(false));
+
+        reindex().await;
+        assert_eq!(
+            harness.expect_progress(&token).await,
+            WorkDoneProgress::Report(WorkDoneProgressReport {
+                cancellable: Some(false),
+                message: Some("Workspace changed, restarting analysis".into()),
+                percentage: None,
+            })
+        );
+
+        server
+            .notify::<notif::WorkDoneProgressCancel>(WorkDoneProgressCancelParams {
+                token: token.clone(),
+            })
+            .unwrap();
+        barrier("cancel barrier").await;
+        assert_eq!(
+            harness.expect_progress(&token).await,
+            WorkDoneProgress::End(WorkDoneProgressEnd { message: None })
+        );
+
+        release_blocker.send(()).unwrap();
+        blocker.await.unwrap();
+        loop {
+            match harness.next_event().await {
+                ClientEvent::Diagnostics(params)
+                    if params.uri == broken_uri && !params.diagnostics.is_empty() =>
+                {
+                    break;
+                }
+                ClientEvent::Diagnostics(_) => {}
+                event => panic!("progress continued after cancellation: {event:?}"),
+            }
+        }
+
+        harness.shutdown().await;
+    });
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn watched_file_reregistration_keeps_latest_workspace_folders() {
+    let project = TestProject::new();
+    let [initial_path, stale_path, latest_path] =
+        ["/initial", "/stale", "/latest"].map(|path| project.path(path));
+    for path in [&initial_path, &stale_path, &latest_path] {
+        std::fs::create_dir(path).unwrap();
+    }
+    let workspace_folder = |path: &Path, name: &str| WorkspaceFolder {
+        uri: Url::from_file_path(path).unwrap(),
+        name: name.into(),
+    };
+    let initial = workspace_folder(&initial_path, "initial");
+    let stale = workspace_folder(&stale_path, "stale");
+    let latest = workspace_folder(&latest_path, "latest");
+    let change_folders = |added, removed| DidChangeWorkspaceFoldersParams {
+        event: WorkspaceFoldersChangeEvent { added: vec![added], removed: vec![removed] },
+    };
+
+    let (events_tx, mut events_rx) = mpsc::unbounded_channel();
+    let session = LspPair::spawn(new_router, move |_| watched_registration_client(events_tx));
+    session.initialize(watched_initialize_params(&project, "/initial")).await;
+
+    let (_, acknowledge) = next_registration_for_root(&mut events_rx, &initial_path).await;
+    acknowledge.send(()).unwrap();
+
+    let server = &session.server;
+    server
+        .notify::<notif::DidChangeWorkspaceFolders>(change_folders(stale.clone(), initial))
+        .unwrap();
+    let (_, stale_register) = next_registration_for_root(&mut events_rx, &stale_path).await;
+
+    server.notify::<notif::DidChangeWorkspaceFolders>(change_folders(latest, stale)).unwrap();
+    stale_register.send(()).unwrap();
+    let (params, acknowledge) = next_registration_for_root(&mut events_rx, &latest_path).await;
     assert_watched_registration_excludes_root(&params, &initial_path);
     assert_watched_registration_excludes_root(&params, &stale_path);
     let latest_id = watched_registration_id(&params).to_owned();
@@ -1193,120 +664,60 @@ async fn watched_file_reregistration_keeps_latest_workspace_folders() {
     assert_ne!(watched_unregistration_id(&params), latest_id);
     acknowledge.send(()).unwrap();
 
-    server.shutdown(()).await.unwrap();
-    server.exit(()).unwrap();
-    assert!(server_main.await.unwrap().is_ok());
-    assert!(matches!(client_main.await.unwrap(), Err(async_lsp::Error::Eof)));
+    session.shutdown().await;
 }
 
 #[tokio::test(flavor = "current_thread")]
 async fn watched_file_reregistration_follows_workspace_root_file_operations() {
+    async fn reregistration(
+        events: &mut mpsc::UnboundedReceiver<WatchedRegistrationClientEvent>,
+        old_id: Option<&str>,
+    ) -> RegistrationParams {
+        let WatchedRegistrationClientEvent::Register(params, acknowledge) =
+            next_watched_registration_event(events).await
+        else {
+            panic!("expected watched-file registration")
+        };
+        acknowledge.send(()).unwrap();
+        if let Some(old_id) = old_id {
+            let WatchedRegistrationClientEvent::Unregister(unregister, acknowledge) =
+                next_watched_registration_event(events).await
+            else {
+                panic!("expected old watched-file unregistration")
+            };
+            assert_eq!(watched_unregistration_id(&unregister), old_id);
+            acknowledge.send(()).unwrap();
+        }
+        params
+    }
+
     let project = TestProject::new();
     let old_root = project.path("/old");
     let new_root = project.path("/new");
     std::fs::create_dir(&old_root).unwrap();
+    let file_uri = |path: &Path| Url::from_file_path(path).unwrap().to_string();
 
-    let (server_main, _client) = async_lsp::MainLoop::new_server(new_router);
     let (events_tx, mut events_rx) = mpsc::unbounded_channel();
-    let (client_main, mut server) = async_lsp::MainLoop::new_client(move |_| {
-        let mut router = Router::new(events_tx);
-        router.request::<request::RegisterCapability, _>(|events, params| {
-            let (acknowledge, acknowledged) = oneshot::channel();
-            events.send(WatchedRegistrationClientEvent::Register(params, acknowledge)).unwrap();
-            async move {
-                acknowledged.await.unwrap();
-                Ok(())
-            }
-        });
-        router.request::<request::UnregisterCapability, _>(|events, params| {
-            let (acknowledge, acknowledged) = oneshot::channel();
-            events.send(WatchedRegistrationClientEvent::Unregister(params, acknowledge)).unwrap();
-            async move {
-                acknowledged.await.unwrap();
-                Ok(())
-            }
-        });
-        router.notification::<notif::LogMessage>(|_, _| ControlFlow::Continue(()));
-        router
-    });
+    let session = LspPair::spawn(new_router, move |_| watched_registration_client(events_tx));
+    session.initialize(watched_initialize_params(&project, "/old")).await;
 
-    let (server_main, client_main) = spawn_lsp_pair(server_main, client_main);
-
-    let mut params = project.initialize_params_with_roots(&["/old"]);
-    params.capabilities.workspace = Some(WorkspaceClientCapabilities {
-        did_change_watched_files: Some(DidChangeWatchedFilesClientCapabilities {
-            dynamic_registration: Some(true),
-            relative_pattern_support: Some(true),
-        }),
-        ..Default::default()
-    });
-    server.initialize(params).await.unwrap();
-    server.initialized(InitializedParams {}).unwrap();
-
-    let WatchedRegistrationClientEvent::Register(params, acknowledge) =
-        next_watched_registration_event(&mut events_rx).await
-    else {
-        panic!("expected initial watched-file registration")
-    };
+    let params = reregistration(&mut events_rx, None).await;
     assert_watched_registration_root(&params, &old_root);
     let old_registration_id = watched_registration_id(&params).to_owned();
-    acknowledge.send(()).unwrap();
 
     std::fs::rename(&old_root, &new_root).unwrap();
-    server
-        .notify::<notif::DidRenameFiles>(RenameFilesParams {
-            files: vec![FileRename {
-                old_uri: lsp_types::Url::from_file_path(&old_root).unwrap().to_string(),
-                new_uri: lsp_types::Url::from_file_path(&new_root).unwrap().to_string(),
-            }],
-        })
-        .unwrap();
-    let WatchedRegistrationClientEvent::Register(params, acknowledge) =
-        next_watched_registration_event(&mut events_rx).await
-    else {
-        panic!("expected watched-file registration after root rename")
-    };
+    let rename =
+        json!({ "files": [{ "oldUri": file_uri(&old_root), "newUri": file_uri(&new_root) }] });
+    session.server.notify::<notif::DidRenameFiles>(from_json(rename)).unwrap();
+    let params = reregistration(&mut events_rx, Some(&old_registration_id)).await;
     assert_watched_registration_root(&params, &new_root);
     let new_registration_id = watched_registration_id(&params).to_owned();
-    acknowledge.send(()).unwrap();
-    let WatchedRegistrationClientEvent::Unregister(params, acknowledge) =
-        next_watched_registration_event(&mut events_rx).await
-    else {
-        panic!("expected old watched-file unregistration after root rename")
-    };
-    assert_eq!(watched_unregistration_id(&params), old_registration_id);
-    acknowledge.send(()).unwrap();
 
     std::fs::remove_dir(&new_root).unwrap();
-    server
-        .notify::<notif::DidDeleteFiles>(DeleteFilesParams {
-            files: vec![FileDelete {
-                uri: lsp_types::Url::from_file_path(&new_root).unwrap().to_string(),
-            }],
-        })
-        .unwrap();
-    let WatchedRegistrationClientEvent::Register(params, acknowledge) =
-        next_watched_registration_event(&mut events_rx).await
-    else {
-        panic!("expected empty watched-file registration after root deletion")
-    };
-    let [registration] = params.registrations.as_slice() else {
-        panic!("expected one watched-file registration, got {params:?}")
-    };
-    assert!(
-        registration.register_options.as_ref().unwrap()["watchers"].as_array().unwrap().is_empty()
-    );
-    acknowledge.send(()).unwrap();
-    let WatchedRegistrationClientEvent::Unregister(params, acknowledge) =
-        next_watched_registration_event(&mut events_rx).await
-    else {
-        panic!("expected old watched-file unregistration after root deletion")
-    };
-    assert_eq!(watched_unregistration_id(&params), new_registration_id);
-    acknowledge.send(()).unwrap();
+    let delete = json!({ "files": [{ "uri": file_uri(&new_root) }] });
+    session.server.notify::<notif::DidDeleteFiles>(from_json(delete)).unwrap();
+    let params = reregistration(&mut events_rx, Some(&new_registration_id)).await;
+    assert!(watched_registration_watchers(&params).is_empty());
 
-    server.shutdown(()).await.unwrap();
-    server.exit(()).unwrap();
-    assert!(server_main.await.unwrap().is_ok());
-    assert!(matches!(client_main.await.unwrap(), Err(async_lsp::Error::Eof)));
+    session.shutdown().await;
 }

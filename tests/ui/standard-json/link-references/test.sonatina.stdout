@@ -23,57 +23,32 @@
       "errorCode": "2264",
       "message": "code generation is experimental",
       "formattedMessage": "warning[2264]: code generation is experimental\n\n"
+    },
+    {
+      "sourceLocation": {
+        "file": "A.sol",
+        "start": 137,
+        "end": 142
+      },
+      "secondarySourceLocations": [
+        {
+          "file": "A.sol",
+          "start": 0,
+          "end": 0,
+          "message": "set Standard JSON settings.libraries to the deployed library addresses"
+        }
+      ],
+      "type": "Exception",
+      "component": "general",
+      "severity": "error",
+      "errorCode": null,
+      "message": "sonatina backend requires library addresses to be supplied before code generation",
+      "formattedMessage": "error: sonatina backend requires library addresses to be supplied before code generation\n   ╭▸ A.sol:LL:CC\n   │\nLL │ contract Links {\n   │          ━━━━━\n   │\n   ╰ help: set Standard JSON settings.libraries to the deployed library addresses\n\n"
     }
   ],
   "sources": {
     "A.sol": {
       "id": 0
-    }
-  },
-  "contracts": {
-    "A.sol": {
-      "Lib": {
-        "evm": {
-          "bytecode": {
-            "linkReferences": {}
-          },
-          "deployedBytecode": {
-            "linkReferences": {}
-          }
-        }
-      },
-      "Links": {
-        "evm": {
-          "bytecode": {
-            "linkReferences": {
-              "A.sol": {
-                "Lib": [
-                  {
-                    "start": 103,
-                    "length": 20
-                  },
-                  {
-                    "start": 428,
-                    "length": 20
-                  }
-                ]
-              }
-            }
-          },
-          "deployedBytecode": {
-            "linkReferences": {
-              "A.sol": {
-                "Lib": [
-                  {
-                    "start": 132,
-                    "length": 20
-                  }
-                ]
-              }
-            }
-          }
-        }
-      }
     }
   }
 }

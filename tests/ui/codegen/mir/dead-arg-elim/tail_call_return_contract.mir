@@ -6,9 +6,9 @@
 // still delivers a result: clearing only the caller side would leave its call
 // sites adopting a phantom value from the callee's intact return protocol.
 
-// CHECK-LABEL: fn @keep() -> u256
+// CHECK-LABEL: fn @keep() -> i256
 // CHECK: ret v0
-fn @keep() -> u256 {
+fn @keep() -> i256 {
   bb0:
     v0 = add 1, 2
     ret v0
@@ -18,28 +18,28 @@ fn @keep() -> u256 {
 // one-result call site in `@entry` is the contract assertion.
 // CHECK-LABEL: fn @forward()
 // CHECK: tail_call @keep
-fn @forward() -> u256 {
+fn @forward() -> i256 {
   bb0:
     tail_call fn0
 }
 
 // The stored result is a material use that keeps `@keep`'s return live.
 // CHECK-LABEL: fn @user()
-// CHECK: v0 = icall @keep, 1
+// CHECK: v0 = icall @keep
 // CHECK: mstore 0, v0
-fn @user() -> u256 {
+fn @user() -> i256 {
   bb0:
-    v0 = icall fn0, 1
+    v0 = icall fn0
     mstore 0, v0
     ret 7
 }
 
 // CHECK-LABEL: fn @entry()
-// CHECK: v0 = icall @forward, 1
-// CHECK: icall @user, 0
+// CHECK: v0 = icall @forward
+// CHECK: icall @user
 fn @entry() [selector=0x01020304] {
   bb0:
-    v0 = icall fn1, 1
-    v1 = icall fn2, 1
+    v0 = icall fn1
+    v1 = icall fn2
     ret
 }

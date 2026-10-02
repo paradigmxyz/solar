@@ -9,10 +9,11 @@
 // CHECK-LABEL: {{^[ +].*}}fn @keep_mload_descending_iv{{[( ]}}
 // CHECK: {{^[ +].*}}[[LOAD:v[0-9]+]] = mload 0
 // CHECK: {{^[ +].*}}mstore
-fn @keep_mload_descending_iv() -> u256 {
+fn @keep_mload_descending_iv() -> i256 {
   bb0:
     jump bb1
   bb1:
+    v10 = phi [bb0: 0], [bb2: v3]
     v1 = phi [bb0: 64], [bb2: v9]
     v2 = lt v1, 100
     jumpi v2, bb2, bb3
@@ -23,7 +24,7 @@ fn @keep_mload_descending_iv() -> u256 {
     v9 = sub v1, 1
     jump bb1
   bb3:
-    ret v3
+    ret v10
 }
 
 // Ascending control: i = 64..99, the mstore range [64, 131) really is disjoint
@@ -31,10 +32,11 @@ fn @keep_mload_descending_iv() -> u256 {
 // CHECK-LABEL: {{^[ +].*}}fn @hoist_mload_ascending_iv{{[( ]}}
 // CHECK: + [[LOAD:v[0-9]+]] = mload 0
 // CHECK: - [[LOAD]] = mload 0
-fn @hoist_mload_ascending_iv() -> u256 {
+fn @hoist_mload_ascending_iv() -> i256 {
   bb0:
     jump bb1
   bb1:
+    v10 = phi [bb0: 0], [bb2: v3]
     v1 = phi [bb0: 64], [bb2: v9]
     v2 = lt v1, 100
     jumpi v2, bb2, bb3
@@ -45,5 +47,5 @@ fn @hoist_mload_ascending_iv() -> u256 {
     v9 = add v1, 1
     jump bb1
   bb3:
-    ret v3
+    ret v10
 }

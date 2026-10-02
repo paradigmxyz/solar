@@ -15,13 +15,19 @@ contract StackPhiLoop {
     // CHECK: eq
     // CHECK: push [[CARRIED:bb[0-9]+]]
     // CHECK: jumpi
+    // The step select is arithmetic, `11 + flag * (7 - 11)`, so no join
+    // precedes the loop.
     // CHECK: [[CARRIED]]:
-    // CHECK: push 7
-    // CHECK: [[CARRIED_MERGE:bb[0-9]+]]:
+    // CHECK: mul
+    // CHECK-NEXT: push 11
+    // CHECK-NEXT: add
     // CHECK: jump [[CARRIED_HEADER:bb[0-9]+]]
-    // CHECK: [[CARRIED_HEADER]]:
+    // CHECK: {{bb[0-9]+}} [loop]:
     // CHECK: jumpi
     // CHECK: jump [[CARRIED_HEADER]]
+    // CHECK-NEXT: [[CARRIED_HEADER]] [loop]:
+    // CHECK: lt
+    // CHECK: jumpi
     function loopCarried(uint256 n, bool flag) public pure returns (uint256) {
         uint256 step = flag ? 7 : 11;
         uint256 acc = 0;

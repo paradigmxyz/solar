@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/dce/dce.mir (before dce) ===
 + // === ROOT/tests/ui/codegen/mir/dce/dce.mir (after dce) ===
   @module Dce
-  fn @with_dead_code(arg0: u256) -> u256 {
+  fn @with_dead_code(arg0: i256) -> i256 {
     bb0:
       v0 = add arg0, 1
 -     v1 = mul arg0, arg0

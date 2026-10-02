@@ -3,29 +3,36 @@
 @module LocalSlotPromotionCallBarrier
 // CHECK-LABEL: {{^[ +].*}}fn @promote_across_unrelated_staticcall{{[( ]}}
 // CHECK: {{^[ +].*}}[[CALL:v[0-9]+]] = staticcall
-// CHECK: + {{v[0-9]+}} = add 9, [[CALL]]
-fn @promote_across_unrelated_staticcall(arg0: address) -> u256 {
+// CHECK: [[WORD:v[0-9]+]] = {{(zext|ptrtoint)}} {{[^ ]+}} [[CALL]]
+// CHECK: + {{v[0-9]+}} = add 9, [[WORD]]
+fn @promote_across_unrelated_staticcall(arg0: i256) -> i256 {
   bb0:
-    v1 = internal_frame_addr 128
+    v8 = internal_frame_addr 128
+    v1 = ptrtoint memptr v8 to i256
     mstore v1, 9
     v2 = staticcall 100000, arg0, 0, 0, 0, 0
-    v3 = internal_frame_addr 128
+    v9 = internal_frame_addr 128
+    v3 = ptrtoint memptr v9 to i256
     v4 = mload v3
-    v5 = add v4, v2
+    v6 = zext i1 v2 to i256
+    v5 = add v4, v6
     ret v5
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @keep_msize_observation{{[( ]}}
-// CHECK: {{^[ +].*}}[[SLOT:v[0-9]+]] = internal_frame_addr 128
+// CHECK: {{^[ +].*}}[[SLOT_PTR:v[0-9]+]] = internal_frame_addr 128
+// CHECK: [[SLOT:v[0-9]+]] = ptrtoint memptr [[SLOT_PTR]] to i256
 // CHECK: {{^[ +].*}}mstore [[SLOT]], 9
 // CHECK: {{^[ +].*}}msize
 // CHECK: {{^[ +].*}}mload
-fn @keep_msize_observation() -> u256 {
+fn @keep_msize_observation() -> i256 {
   bb0:
-    v1 = internal_frame_addr 128
+    v10 = internal_frame_addr 128
+    v1 = ptrtoint memptr v10 to i256
     mstore v1, 9
     v2 = msize
-    v3 = internal_frame_addr 128
+    v11 = internal_frame_addr 128
+    v3 = ptrtoint memptr v11 to i256
     v4 = mload v3
     v5 = add v4, v2
     ret v5
@@ -34,15 +41,19 @@ fn @keep_msize_observation() -> u256 {
 // CHECK-LABEL: {{^[ +].*}}fn @promote_slot_with_unrelated_frame_hash{{[( ]}}
 // CHECK: {{^[ +].*}}[[HASH:v[0-9]+]] = keccak256
 // CHECK: + {{v[0-9]+}} = add 9, [[HASH]]
-fn @promote_slot_with_unrelated_frame_hash() -> u256 {
+fn @promote_slot_with_unrelated_frame_hash() -> i256 {
   bb0:
-    v1 = internal_frame_addr 128
+    v12 = internal_frame_addr 128
+    v1 = ptrtoint memptr v12 to i256
     mstore v1, 9
-    v2 = internal_frame_addr 192
+    v13 = internal_frame_addr 192
+    v2 = ptrtoint memptr v13 to i256
     mstore v2, 1
-    v3 = internal_frame_addr 192
+    v14 = internal_frame_addr 192
+    v3 = ptrtoint memptr v14 to i256
     v4 = keccak256 v3, 32
-    v5 = internal_frame_addr 128
+    v15 = internal_frame_addr 128
+    v5 = ptrtoint memptr v15 to i256
     v6 = mload v5
     v7 = add v6, v4
     ret v7

@@ -1,21 +1,11 @@
-use super::{
-    AnalysisBatch, AnalysisResultAccumulator, GlobalState, analyze, support::RequestFixture,
-};
-use crate::test_support::MarkedProject;
-use async_lsp::{AnyRequest, ClientSocket, router::Router};
+use super::*;
+use async_lsp::AnyRequest;
 use lsp_types::{
-    CompletionClientCapabilities, CompletionItem, CompletionItemCapability,
-    CompletionItemCapabilityResolveSupport, CompletionItemKind, CompletionParams,
-    CompletionResponse, Documentation, InitializeParams, MarkupKind, PartialResultParams,
-    TextDocumentClientCapabilities, TextDocumentIdentifier, TextDocumentPositionParams,
-    WorkDoneProgressParams, request, request::Request,
+    CompletionItem, CompletionItemKind, CompletionResponse, Documentation, MarkupContent,
+    MarkupKind,
+    request::{Completion, Initialize, Request, ResolveCompletionItem},
 };
-use solar_config::{CompileOpts, ImportRemapping};
-use std::{
-    future::Future,
-    sync::Arc,
-    task::{Context, Poll, Waker},
-};
+use solar_config::ImportRemapping;
 use tower::Service;
 
 const PLAIN_DOCUMENTATION: &str = r#"function documented(uint256 value) public pure returns (uint256 result)
@@ -31,33 +21,10 @@ value: The value to increment.
 result: The incremented value."#;
 
 #[tokio::test(flavor = "current_thread")]
-async fn source_completion_uses_compact_resolve_data() {
-    let fixture = completion_resolve_fixture();
-    let mut router = crate::new_router_with_state(fixture.state());
-    let item = request_completion_item(&mut router, &fixture, "$1", "documented").await;
-    let (uri, start) = fixture.marker_location("$2");
-    let (_, end) = fixture.marker_location("$3");
-
-    assert_eq!(
-        item.data,
-        Some(serde_json::json!([1, uri, start.line, start.character, end.line, end.character,])),
-    );
-}
-
-#[tokio::test(flavor = "current_thread")]
 async fn resolves_source_completion_documentation_without_changing_identity() {
-    for (formats, resolve_properties, expected) in [
-        (
-            vec![MarkupKind::PlainText, MarkupKind::Markdown],
-            Some(vec!["documentation".into()]),
-            Documentation::String(PLAIN_DOCUMENTATION.to_string()),
-        ),
-        (
-            vec![MarkupKind::Markdown, MarkupKind::PlainText],
-            None,
-            Documentation::MarkupContent(lsp_types::MarkupContent {
-                kind: MarkupKind::Markdown,
-                value: r#"```solidity
+    let markdown = MarkupContent {
+        kind: MarkupKind::Markdown,
+        value: r#"```solidity
 function documented(uint256 value) public pure returns (uint256 result)
 ```
 
@@ -70,55 +37,64 @@ Adds one to the provided value.
 **@return**
 
 - `result`: The incremented value."#
-                    .to_string(),
-            }),
+            .into(),
+    };
+    for (formats, resolve_properties, expected, eager) in [
+        (
+            vec![MarkupKind::PlainText, MarkupKind::Markdown],
+            Some(vec!["documentation"]),
+            Documentation::String(PLAIN_DOCUMENTATION.into()),
+            false,
+        ),
+        (
+            vec![MarkupKind::Markdown, MarkupKind::PlainText],
+            None,
+            Documentation::MarkupContent(markdown),
+            false,
+        ),
+        (
+            vec![MarkupKind::PlainText],
+            Some(vec!["additionalTextEdits"]),
+            Documentation::String(PLAIN_DOCUMENTATION.into()),
+            true,
         ),
     ] {
         let fixture = completion_resolve_fixture();
         let mut router = crate::new_router_with_state(fixture.state());
-        request_initialize_with_resolve_support(&mut router, formats, resolve_properties).await;
+        let resolve_support =
+            resolve_properties.map(|properties| json!({ "properties": properties }));
+        let completion_item =
+            json!({ "documentationFormat": formats, "resolveSupport": resolve_support });
+        let params = from_json(json!({ "capabilities": { "textDocument": {
+            "completion": { "completionItem": completion_item },
+        } } }));
+        request::<Initialize>(&mut router, params).await;
         let item = request_completion_item(&mut router, &fixture, "$1", "documented").await;
 
-        assert!(item.data.is_some(), "source completion should carry resolve data");
-        assert!(item.documentation.is_none(), "documentation should be deferred");
-
-        let original = item.clone();
-        let resolved = request_resolve_item(&mut router, item).await;
-        assert_eq!(resolved.documentation, Some(expected));
-
-        let mut unresolved = resolved;
-        unresolved.documentation = None;
-        assert_eq!(unresolved, original);
+        let (uri, start) = fixture.marker_location("$2");
+        let (_, end) = fixture.marker_location("$3");
+        let data = json!([1, uri, start.line, start.character, end.line, end.character]);
+        assert_eq!(item.data, Some(data));
+        if eager {
+            assert_eq!(item.documentation, Some(expected));
+            assert_eq!(request::<ResolveCompletionItem>(&mut router, item.clone()).await, item);
+        } else {
+            check_resolved_documentation(&mut router, item, expected).await;
+        }
     }
 }
 
 #[tokio::test(flavor = "current_thread")]
-async fn sends_documentation_eagerly_when_client_cannot_resolve_it() {
-    let fixture = completion_resolve_fixture();
-    let mut router = crate::new_router_with_state(fixture.state());
-    request_initialize_with_resolve_support(
-        &mut router,
-        vec![MarkupKind::PlainText],
-        Some(vec!["additionalTextEdits".into()]),
-    )
-    .await;
-
-    let item = request_completion_item(&mut router, &fixture, "$1", "documented").await;
-
-    assert!(item.data.is_some(), "source completion should carry resolve data");
-    assert_eq!(item.documentation, Some(Documentation::String(PLAIN_DOCUMENTATION.to_string())));
-    let resolved = request_resolve_item(&mut router, item.clone()).await;
-    assert_eq!(resolved, item);
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn resolves_imported_public_getter_member_completion_documentation() {
+async fn resolves_imported_getter_and_alias_documentation() {
     let fixture = RequestFixture::new_allowing_diagnostics(
         r#"
         //- /Main.sol open
         import {Token} from "./Token.sol";
+        import {Math as Numbers} from "./Math.sol";
 
         contract C {
+            using Num$2bers for uint256;
+
             function read(Token token) public view returns (uint256) {
                 return token.bal$1();
             }
@@ -129,51 +105,47 @@ async fn resolves_imported_public_getter_member_completion_documentation() {
             /// @notice Returns the current balance.
             uint256 public balance;
         }
+
+        //- /Math.sol
+        /// @notice Integer helpers.
+        library Math {}
         "#,
         "/Main.sol",
     );
     let mut router = crate::new_router_with_state(fixture.state());
     let item = request_completion_item(&mut router, &fixture, "$1", "balance").await;
-    let token_uri = lsp_types::Url::from_file_path(fixture.project_path("/Token.sol")).unwrap();
-
+    let token_uri = fixture.project().uri("/Token.sol");
     assert_eq!(item.kind, Some(CompletionItemKind::METHOD));
-    assert!(item.data.is_some(), "public getter completion should carry source resolve data");
-    assert_eq!(item.data.as_ref().unwrap()[1], serde_json::json!(token_uri));
-    assert!(item.documentation.is_none(), "documentation should be deferred");
+    assert_eq!(item.data.as_ref().unwrap()[1], json!(token_uri));
+    let documentation = "uint256 public balance\n\nReturns the current balance.";
+    check_resolved_documentation(&mut router, item, Documentation::String(documentation.into()))
+        .await;
 
-    let original = item.clone();
-    let resolved = request_resolve_item(&mut router, item).await;
-    assert_eq!(
-        resolved.documentation,
-        Some(Documentation::String(
-            "uint256 public balance\n\nReturns the current balance.".into(),
-        )),
-    );
-    let mut unresolved = resolved;
-    unresolved.documentation = None;
-    assert_eq!(unresolved, original);
+    let item = request_completion_item(&mut router, &fixture, "$2", "Numbers").await;
+    let documentation = Documentation::String("library Math\n\nInteger helpers.".into());
+    check_resolved_documentation(&mut router, item, documentation).await;
 }
 
 #[tokio::test(flavor = "current_thread")]
-async fn returns_stale_completion_item_unchanged_when_symbol_is_deleted() {
+async fn returns_items_unchanged_for_deleted_or_conflicting_symbols() {
     let fixture = completion_resolve_fixture();
     let state = fixture.state();
     let symbol_tables = state.symbol_tables.clone();
     let mut router = crate::new_router_with_state(state);
     let item = request_completion_item(&mut router, &fixture, "$1", "documented").await;
-    let replacement = analyze(AnalysisBatch::from_files(
-        CompileOpts::default(),
-        [(
-            fixture.project_path("/Completion.sol"),
-            "contract C { function use() public pure {} }".into(),
-        )],
-    ));
-    assert!(replacement.diagnostics.is_empty());
-    symbol_tables.store(Arc::new(replacement.symbol_tables));
+    let path = fixture.project_path("/Completion.sol");
+    let contents = fixture.project_contents("/Completion.sol");
 
-    let resolved = request_resolve_item(&mut router, item.clone()).await;
+    let deleted =
+        analyze_clean(path.clone(), "contract C { function use() public pure {} }".into());
+    symbol_tables.store(Arc::new(deleted.symbol_tables));
+    assert_eq!(request::<ResolveCompletionItem>(&mut router, item.clone()).await, item);
 
-    assert_eq!(resolved, item);
+    let mut results = AnalysisResultAccumulator::default();
+    results.push(analyze_clean(path.clone(), contents.clone()));
+    results.push(analyze_clean(path, format!("\n{contents}")));
+    symbol_tables.store(Arc::new(results.finish().symbol_tables));
+    assert_eq!(request::<ResolveCompletionItem>(&mut router, item.clone()).await, item);
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -181,75 +153,77 @@ async fn validates_completion_data_before_waiting_and_uses_latest_analysis() {
     let fixture = completion_resolve_fixture();
     let mut router = crate::new_router_with_state(fixture.state());
     let item = request_completion_item(&mut router, &fixture, "$1", "documented").await;
+    let replacement_documentation = "Uses documentation from the latest analysis.";
     let replacement_contents = fixture.project_contents("/Completion.sol").replacen(
         "Adds one to the provided value.",
-        "Uses documentation from the latest analysis.",
+        replacement_documentation,
         1,
     );
-    let replacement = analyze(AnalysisBatch::from_files(
-        CompileOpts::default(),
-        [(fixture.project_path("/Completion.sol"), replacement_contents)],
-    ));
-    assert!(replacement.diagnostics.is_empty());
+    let replacement = analyze_clean(fixture.project_path("/Completion.sol"), replacement_contents);
     let mut state = fixture.state();
     state.mark_analysis_pending_for_test();
 
+    let with_data = |edit: fn(&mut Value)| {
+        let mut item = item.clone();
+        edit(item.data.as_mut().unwrap());
+        item
+    };
+    let mut missing = item.clone();
+    missing.data = None;
     let mut malformed = item.clone();
-    malformed.data = Some(serde_json::json!({ "version": "invalid" }));
-    let mut malformed_request =
-        std::pin::pin!(crate::handlers::resolve_completion_item(&mut state, malformed.clone(),));
-    let waker = Waker::noop();
-    let mut context = Context::from_waker(waker);
-    let Poll::Ready(response) = malformed_request.as_mut().poll(&mut context) else {
-        panic!("malformed completion data should not wait for analysis");
-    };
-    assert_eq!(response.unwrap(), malformed);
+    malformed.data = Some(json!({ "version": "invalid" }));
+    malformed.documentation = Some(Documentation::String("client documentation".into()));
+    for invalid in [
+        missing,
+        malformed,
+        with_data(|data| data[0] = json!(2)),
+        with_data(|data| data.as_array_mut().unwrap().push(json!(true))),
+        with_data(|data| {
+            data.as_array_mut().unwrap().pop();
+        }),
+        with_data(|data| data[1] = json!("untitled:Completion.sol")),
+        with_data(|data| data[2] = json!("invalid")),
+    ] {
+        // Invalid completion data must not wait for analysis.
+        let response =
+            expect_ready(crate::handlers::resolve_completion_item(&mut state, invalid.clone()));
+        assert_eq!(response.unwrap(), invalid);
+    }
 
-    let mut wrong_coordinate_type = item.clone();
-    wrong_coordinate_type.data.as_mut().unwrap()[2] = serde_json::json!("invalid");
-    let mut wrong_coordinate_request = std::pin::pin!(crate::handlers::resolve_completion_item(
-        &mut state,
-        wrong_coordinate_type.clone(),
-    ));
-    let Poll::Ready(response) = wrong_coordinate_request.as_mut().poll(&mut context) else {
-        panic!("invalid completion data coordinates should not wait for analysis");
-    };
-    assert_eq!(response.unwrap(), wrong_coordinate_type);
-
-    let mut non_file = item.clone();
-    non_file.data.as_mut().unwrap()[1] = serde_json::json!("untitled:Completion.sol");
-    let mut non_file_request =
-        std::pin::pin!(crate::handlers::resolve_completion_item(&mut state, non_file.clone(),));
-    let Poll::Ready(response) = non_file_request.as_mut().poll(&mut context) else {
-        panic!("non-file completion data should not wait for analysis");
-    };
-    assert_eq!(response.unwrap(), non_file);
-
-    let mut request =
-        std::pin::pin!(crate::handlers::resolve_completion_item(&mut state, item.clone()));
-    assert!(request.as_mut().poll(&mut context).is_pending());
+    let mut wrong_kind = item.clone();
+    wrong_kind.kind = Some(CompletionItemKind::TEXT);
+    let mut wrong_label = item.clone();
+    wrong_label.label = "replacement".into();
+    let mut requests =
+        [item.clone(), wrong_kind, wrong_label, with_data(|data| data[2] = json!(999))].map(
+            |item| {
+                (item.clone(), Box::pin(crate::handlers::resolve_completion_item(&mut state, item)))
+            },
+        );
+    for (_, request) in &mut requests {
+        assert_polls(true, request.as_mut());
+    }
 
     let mut snapshot = state.snapshot();
     assert!(snapshot.publish_symbol_tables(1, Arc::new(replacement.symbol_tables)));
-    let Poll::Ready(response) = request.as_mut().poll(&mut context) else {
-        panic!("resolve should complete after analysis is published");
-    };
-    let mut resolved = response.unwrap();
-    assert_eq!(
-        resolved.documentation,
-        Some(Documentation::String(PLAIN_DOCUMENTATION.replacen(
-            "Adds one to the provided value.",
-            "Uses documentation from the latest analysis.",
-            1,
-        ))),
-    );
-    resolved.documentation = None;
-    assert_eq!(resolved, item);
+    for (index, (item, request)) in requests.iter_mut().enumerate() {
+        let mut resolved = expect_ready(request.as_mut()).unwrap();
+        if index == 0 {
+            let documentation = PLAIN_DOCUMENTATION.replacen(
+                "Adds one to the provided value.",
+                replacement_documentation,
+                1,
+            );
+            assert_eq!(resolved.documentation, Some(Documentation::String(documentation)));
+            resolved.documentation = None;
+        }
+        assert_eq!(&resolved, item);
+    }
 }
 
 #[tokio::test(flavor = "current_thread")]
 async fn resolves_only_compatible_completion_items_across_analysis_batches() {
-    let marked = MarkedProject::from_fixture(
+    let fixture = RequestFixture::new_allowing_diagnostics(
         r#"
         //- /Shared.sol open
         import {Base} from "@dep/Base.sol";
@@ -299,8 +273,9 @@ async fn resolves_only_compatible_completion_items_across_analysis_batches() {
         //- /right/Main.sol
         import "../Shared.sol";
         "#,
+        "/Shared.sol",
     );
-    let project = marked.project();
+    let project = fixture.project();
     project.write_file(
         "/left/Base.sol",
         concat!(
@@ -316,155 +291,60 @@ async fn resolves_only_compatible_completion_items_across_analysis_batches() {
             "}\n",
         ),
     );
-    let uri = lsp_types::Url::from_file_path(project.path("/Shared.sol")).unwrap();
-    let analyze_context = |entry_directory: &str, dependency_directory: &str| {
+    let (uri, hover_position) = fixture.marker_location("$2");
+    let analyze_context = |directory: &str| {
         let opts = CompileOpts {
             base_path: Some(project.root().to_path_buf()),
             import_remappings: vec![ImportRemapping {
                 context: String::new(),
                 prefix: "@dep/".into(),
-                path: project.path(dependency_directory).to_string_lossy().into_owned(),
+                path: format!("{}/", project.path(directory).display()),
             }],
             ..Default::default()
         };
-        let entry = format!("{entry_directory}/Main.sol");
-        analyze(AnalysisBatch::from_files(
+        let entry = format!("{directory}/Main.sol");
+        let result = analyze(AnalysisBatch::from_files(
             opts,
             [(project.path(&entry), project.read_file(&entry))],
-        ))
+        ));
+        assert!(result.diagnostics.is_empty(), "{:#?}", result.diagnostics);
+        result
     };
-    let left = analyze_context("/left", "/left");
-    let equivalent = analyze_context("/equivalent", "/equivalent");
-    assert!(left.diagnostics.is_empty(), "{:#?}", left.diagnostics);
-    assert!(equivalent.diagnostics.is_empty(), "{:#?}", equivalent.diagnostics);
+    let left = analyze_context("/left");
+    let equivalent = analyze_context("/equivalent");
     assert_eq!(
-        left.symbol_tables.hover(&uri, marked.marker("$2").position()),
-        equivalent.symbol_tables.hover(&uri, marked.marker("$2").position()),
+        left.symbol_tables.hover(&uri, hover_position),
+        equivalent.symbol_tables.hover(&uri, hover_position),
         "structurally different NatSpec should render identically",
     );
 
-    let state = GlobalState::new(ClientSocket::new_closed());
-    *state.vfs.write() = project.vfs();
+    let state = fixture.state();
     let symbol_tables = state.symbol_tables.clone();
     symbol_tables.store(Arc::new(left.symbol_tables.clone()));
     let mut router = crate::new_router_with_state(state);
-    let item = request_completion_item_at(
-        &mut router,
-        uri.clone(),
-        marked.marker("$1").position(),
-        "documented",
-    )
-    .await;
-    assert!(item.data.is_some(), "source completion should carry resolve data");
-    assert!(item.documentation.is_none(), "documentation should be deferred");
+    let item = request_completion_item(&mut router, &fixture, "$1", "documented").await;
 
     let mut results = AnalysisResultAccumulator::default();
     results.push(left);
     results.push(equivalent);
     symbol_tables.store(Arc::new(results.finish().symbol_tables));
+    let documentation = "function documented(uint256 value) public pure override returns (uint256 result)\n\n\
+                         Shared documentation.\n\nSecond paragraph.";
+    let documentation = Documentation::String(documentation.into());
+    check_resolved_documentation(&mut router, item.clone(), documentation).await;
 
-    let resolved = request_resolve_item(&mut router, item.clone()).await;
-    assert!(resolved.documentation.is_some());
-    let mut unresolved = resolved;
-    unresolved.documentation = None;
-    assert_eq!(unresolved, item);
-
-    let left = analyze_context("/left", "/left");
-    let right = analyze_context("/right", "/right");
-    assert!(left.diagnostics.is_empty(), "{:#?}", left.diagnostics);
-    assert!(right.diagnostics.is_empty(), "{:#?}", right.diagnostics);
+    let left = analyze_context("/left");
+    let right = analyze_context("/right");
     assert_ne!(
-        left.symbol_tables.hover(&uri, marked.marker("$2").position()),
-        right.symbol_tables.hover(&uri, marked.marker("$2").position()),
+        left.symbol_tables.hover(&uri, hover_position),
+        right.symbol_tables.hover(&uri, hover_position),
         "incompatible analysis contexts should resolve different inherited documentation",
     );
     let mut results = AnalysisResultAccumulator::default();
     results.push(left);
     results.push(right);
     symbol_tables.store(Arc::new(results.finish().symbol_tables));
-
-    let resolved = request_resolve_item(&mut router, item.clone()).await;
-
-    assert_eq!(resolved, item);
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn returns_completion_item_unchanged_for_conflicting_source_snapshots() {
-    let fixture = completion_resolve_fixture();
-    let state = fixture.state();
-    let symbol_tables = state.symbol_tables.clone();
-    let mut router = crate::new_router_with_state(state);
-    let item = request_completion_item(&mut router, &fixture, "$1", "documented").await;
-    let path = fixture.project_path("/Completion.sol");
-    let contents = fixture.project_contents("/Completion.sol");
-    let current = analyze(AnalysisBatch::from_files(
-        CompileOpts::default(),
-        [(path.clone(), contents.clone())],
-    ));
-    let shifted = analyze(AnalysisBatch::from_files(
-        CompileOpts::default(),
-        [(path, format!("\n{contents}"))],
-    ));
-    assert!(current.diagnostics.is_empty());
-    assert!(shifted.diagnostics.is_empty());
-    let mut results = AnalysisResultAccumulator::default();
-    results.push(current);
-    results.push(shifted);
-    symbol_tables.store(Arc::new(results.finish().symbol_tables));
-
-    let resolved = request_resolve_item(&mut router, item.clone()).await;
-
-    assert_eq!(resolved, item);
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn returns_untrusted_completion_items_unchanged() {
-    let fixture = completion_resolve_fixture();
-    let mut router = crate::new_router_with_state(fixture.state());
-    let item = request_completion_item(&mut router, &fixture, "$1", "documented").await;
-    let mut items = Vec::new();
-
-    let mut missing = item.clone();
-    missing.data = None;
-    items.push(missing);
-
-    let mut malformed = item.clone();
-    malformed.data = Some(serde_json::json!({ "version": "invalid" }));
-    malformed.documentation = Some(Documentation::String("client documentation".into()));
-    items.push(malformed);
-
-    let mut unknown_version = item.clone();
-    unknown_version.data.as_mut().unwrap()[0] = serde_json::json!(2);
-    items.push(unknown_version);
-
-    let mut extra_field = item.clone();
-    extra_field.data.as_mut().unwrap().as_array_mut().unwrap().push(serde_json::json!(true));
-    items.push(extra_field);
-
-    let mut missing_field = item.clone();
-    missing_field.data.as_mut().unwrap().as_array_mut().unwrap().pop();
-    items.push(missing_field);
-
-    let mut non_file_uri = item.clone();
-    non_file_uri.data.as_mut().unwrap()[1] = serde_json::json!("untitled:Completion.sol");
-    items.push(non_file_uri);
-
-    let mut wrong_kind = item.clone();
-    wrong_kind.kind = Some(CompletionItemKind::TEXT);
-    items.push(wrong_kind);
-
-    let mut wrong_range = item.clone();
-    wrong_range.data.as_mut().unwrap()[2] = serde_json::json!(999);
-    items.push(wrong_range);
-
-    let mut wrong_identity = item;
-    wrong_identity.label = "replacement".into();
-    items.push(wrong_identity);
-
-    for item in items {
-        let resolved = request_resolve_item(&mut router, item.clone()).await;
-        assert_eq!(resolved, item);
-    }
+    assert_eq!(request::<ResolveCompletionItem>(&mut router, item.clone()).await, item);
 }
 
 fn completion_resolve_fixture() -> RequestFixture {
@@ -488,31 +368,29 @@ fn completion_resolve_fixture() -> RequestFixture {
     )
 }
 
-async fn request_initialize_with_resolve_support(
+fn analyze_clean(path: PathBuf, contents: String) -> AnalysisResult {
+    let result = analyze_source(path, contents);
+    assert!(result.diagnostics.is_empty(), "{:#?}", result.diagnostics);
+    result
+}
+
+async fn request<R: Request>(router: &mut Router<GlobalState>, params: R::Params) -> R::Result {
+    let request = json!({ "id": 0, "method": R::METHOD, "params": params });
+    let response = router.call(from_json::<AnyRequest>(request)).await;
+    from_json(response.unwrap())
+}
+
+/// Resolves a deferred item and checks that only its documentation changes.
+async fn check_resolved_documentation(
     router: &mut Router<GlobalState>,
-    documentation_format: Vec<MarkupKind>,
-    resolve_properties: Option<Vec<String>>,
+    item: CompletionItem,
+    expected: Documentation,
 ) {
-    let mut params = InitializeParams::default();
-    params.capabilities.text_document = Some(TextDocumentClientCapabilities {
-        completion: Some(CompletionClientCapabilities {
-            completion_item: Some(CompletionItemCapability {
-                documentation_format: Some(documentation_format),
-                resolve_support: resolve_properties
-                    .map(|properties| CompletionItemCapabilityResolveSupport { properties }),
-                ..Default::default()
-            }),
-            ..Default::default()
-        }),
-        ..Default::default()
-    });
-    let initialize = serde_json::from_value::<AnyRequest>(serde_json::json!({
-        "id": 0,
-        "method": request::Initialize::METHOD,
-        "params": params,
-    }))
-    .unwrap();
-    router.call(initialize).await.unwrap();
+    assert!(item.data.is_some(), "source completion should carry resolve data");
+    assert!(item.documentation.is_none(), "documentation should be deferred");
+    let mut resolved = request::<ResolveCompletionItem>(router, item.clone()).await;
+    assert_eq!(resolved.documentation.take(), Some(expected));
+    assert_eq!(resolved, item);
 }
 
 async fn request_completion_item(
@@ -522,48 +400,9 @@ async fn request_completion_item(
     label: &str,
 ) -> CompletionItem {
     let (uri, position) = fixture.marker_location(marker);
-    request_completion_item_at(router, uri, position, label).await
-}
-
-async fn request_completion_item_at(
-    router: &mut Router<GlobalState>,
-    uri: lsp_types::Url,
-    position: lsp_types::Position,
-    label: &str,
-) -> CompletionItem {
-    let completion = serde_json::from_value::<AnyRequest>(serde_json::json!({
-        "id": 1,
-        "method": request::Completion::METHOD,
-        "params": CompletionParams {
-            text_document_position: TextDocumentPositionParams {
-                text_document: TextDocumentIdentifier::new(uri),
-                position,
-            },
-            work_done_progress_params: WorkDoneProgressParams::default(),
-            partial_result_params: PartialResultParams::default(),
-            context: None,
-        },
-    }))
-    .unwrap();
-    let response = router.call(completion).await.unwrap();
-    let Some(CompletionResponse::Array(items)) =
-        serde_json::from_value::<Option<CompletionResponse>>(response).unwrap()
-    else {
+    let params = request_params(&uri, position, json!({}));
+    let Some(CompletionResponse::Array(items)) = request::<Completion>(router, params).await else {
         panic!("expected completion items");
     };
     items.into_iter().find(|item| item.label == label).unwrap()
-}
-
-async fn request_resolve_item(
-    router: &mut Router<GlobalState>,
-    item: CompletionItem,
-) -> CompletionItem {
-    let resolve = serde_json::from_value::<AnyRequest>(serde_json::json!({
-        "id": 2,
-        "method": request::ResolveCompletionItem::METHOD,
-        "params": item,
-    }))
-    .unwrap();
-    let response = router.call(resolve).await.unwrap();
-    serde_json::from_value(response).unwrap()
 }

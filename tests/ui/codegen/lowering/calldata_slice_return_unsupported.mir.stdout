@@ -14,21 +14,19 @@ fn @peel(arg0: calldataslice) -> calldataslice [pure] {
     v5 = gt v4, v4
     v6 = lt v4, 1
     v7 = or v5, v6
-    jumpi v7, bb4, bb5
-  bb5:
-    v8 = sub v4, 1
-    v9 = add v3, 1
-    v10 = make_calldata_slice v9, v8
-    v11 = icall @peel, 1, v10
-    ret v11
-  bb4:
-    revert 0, 0
+    v8 = zext i1 v7 to i256
+    icall revert_if<empty>, v7
+    v9 = sub v4, 1
+    v10 = add v3, 1
+    v11 = make_calldata_slice v10, v9
+    v12 = icall @peel, v11
+    ret v12
   bb1:
     ret arg0
 }
 
-fn @use(arg0: calldataslice) [selector=0x01bd03f7, pure, abi_params=[bytes], abi_returns=[]] {
+fn @use(arg0: calldataslice) [selector=0x01bd03f7, pure, abi_params=[bytes], abi_returns=[], abi_return_params=[]] {
   bb0:
-    v0 = icall @peel, 1, arg0
-    stop
+    v0 = icall @peel, arg0
+    ret
 }

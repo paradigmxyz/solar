@@ -1,9 +1,21 @@
 - // === ROOT/tests/ui/codegen/mir/none/compact.mir (before none) ===
 + // === ROOT/tests/ui/codegen/mir/none/compact.mir (after none) ===
   @module Compact
-  fn @compact() -> u256 {
+  @libraries
+    L_0: "A.sol:L"
+  
+  @data
+    linked_0: hex"8000000000000000000000000000000000000000" library_relocations [0: L_0]
+  
+  fn @compact() -> i256 {
     bb0:
       v0 = add 1, 2
+      ret v0
+  }
+  
+  fn @library() -> i160 {
+    bb0:
+      v0 = library_address L_0
       ret v0
   }
   

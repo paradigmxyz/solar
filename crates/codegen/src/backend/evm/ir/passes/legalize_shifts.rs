@@ -79,7 +79,6 @@ pub(in crate::backend) fn legalize_shifts(gcx: Gcx<'_>, module: &mut Module) -> 
             && matches!(terminator.kind, TerminatorKind::Op(op::REVERT))
         {
             terminator.kind = TerminatorKind::Op(op::INVALID);
-            terminator.metadata.stack = None;
             changed = true;
         }
     }

@@ -13,7 +13,7 @@ contract C {
     // CHECK-LABEL: fn @constructor{{[( ]}}
     // CHECK: storeimmutable start, arg0
     // CHECK: [[START:v[0-9]+]] = loadimmutable start
-    // CHECK: [[DURATION:v[0-9]+]] = add [[START]], 1
+    // CHECK: [[DURATION:v[0-9]+]] = checked_add {{[ui][0-9]+}}, [[START]], 1
     // CHECK: storeimmutable duration, [[DURATION]]
     constructor(uint256 s) {
         start = s;
@@ -25,7 +25,7 @@ contract C {
     // CHECK-LABEL: fn @end{{[( ]}}
     // CHECK: [[START:v[0-9]+]] = loadimmutable start
     // CHECK: [[DURATION:v[0-9]+]] = loadimmutable duration
-    // CHECK: add [[START]], [[DURATION]]
+    // CHECK: checked_add {{[ui][0-9]+}}, [[START]], [[DURATION]]
     function end() public view returns (uint256) {
         return start + duration;
     }

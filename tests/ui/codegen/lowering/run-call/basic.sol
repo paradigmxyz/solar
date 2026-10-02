@@ -6,6 +6,9 @@
 //@ run-call: pair 41, true => 42, false
 //@ run-call: sum [1, 2, 3] => 6
 //@ run-call: sum [] => 0
+//@ run-call: fill 0 => [0, 0, 0, 0]
+//@ run-call: fill 4 => [7, 8, 9, 10]
+//@ run-call-fail: fill 5 => 0x
 //@ run-call: add 2 => 42
 //@ run-call-fail: 0x0194db8e0000000000000000000000000000000000000000000000000000000000000020
 //@ run-call-fail: 0x0194db8e0000000000000000000000000000000000000000000000000000000000000020ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
@@ -78,5 +81,14 @@ contract RunCall {
 
     function pairInternal(uint256 value) internal pure returns (uint256, uint256) {
         return (value + 1, value + 2);
+    }
+
+    function fill(uint256 length) external pure returns (uint256[4] memory values) {
+        require(length <= 4);
+        for (uint256 i; i < length; ++i) {
+            assembly ("memory-safe") {
+                mstore(add(values, shl(5, i)), add(i, 7))
+            }
+        }
     }
 }

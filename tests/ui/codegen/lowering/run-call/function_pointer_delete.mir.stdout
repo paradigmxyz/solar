@@ -1,11 +1,11 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/function_pointer_delete.sol:FunctionPointerDelete ===
 @module FunctionPointerDelete
-fn @value() -> u256 [pure] {
+fn @value() -> i256 [pure] {
   bb0:
     ret 7
 }
 
-fn @callAfterSet() -> u256 [selector=0xa9885fda, abi_params=[], abi_returns=[word]] {
+fn @callAfterSet() -> i256 [selector=0xa9885fda, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = not 0xffffffffffffffff
@@ -15,11 +15,11 @@ fn @callAfterSet() -> u256 [selector=0xa9885fda, abi_params=[], abi_returns=[wor
     sstore 0, v4 !metadata(storage=slot(0))
     v5 = sload 0 !metadata(storage=slot(0))
     v6 = and v5, 0xffffffffffffffff
-    v7 = icall @internal_dispatcher_p_none_r_u256, 1, v6
+    v7 = icall @internal_dispatcher_p_none_r_u256, v6
     ret v7
 }
 
-fn @callAfterDelete() -> u256 [selector=0x58819bde, abi_params=[], abi_returns=[word]] {
+fn @callAfterDelete() -> i256 [selector=0x58819bde, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = not 0xffffffffffffffff
@@ -35,19 +35,18 @@ fn @callAfterDelete() -> u256 [selector=0x58819bde, abi_params=[], abi_returns=[
     sstore 0, v9 !metadata(storage=slot(0))
     v10 = sload 0 !metadata(storage=slot(0))
     v11 = and v10, 0xffffffffffffffff
-    v12 = icall @internal_dispatcher_p_none_r_u256, 1, v11
+    v12 = icall @internal_dispatcher_p_none_r_u256, v11
     ret v12
 }
 
-fn @internal_dispatcher_p_none_r_u256(arg0: function) -> u256 [function_pointer_dispatcher] {
+fn @internal_dispatcher_p_none_r_u256(arg0: i256) -> i256 [function_pointer_dispatcher] {
   bb0:
     v0 = eq arg0, 1
     jumpi v0, bb1, bb2
   bb2:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 81 !metadata(memory=scratch)
-    revert 0, 36
+    icall panic_if<0x51>, true
+    invalid
   bb1:
-    v1 = icall @value, 1
+    v1 = icall @value
     ret v1
 }

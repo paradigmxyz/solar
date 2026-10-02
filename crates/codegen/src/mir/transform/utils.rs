@@ -1,6 +1,6 @@
 //! Shared utilities for MIR transforms.
 
-use crate::mir::{BlockId, Function, InstKind, Terminator};
+use crate::mir::{BlockId, Function, InstId, InstKind, Terminator, memory::EvmMemoryLayout};
 use solar_sema::hir::StateMutability;
 
 /// Whether an external entry must reject nonzero callvalue.
@@ -75,4 +75,27 @@ impl DispatchCallvalue {
     pub(super) const fn hoists(&self) -> bool {
         self.any && self.all_reject
     }
+}
+
+/// Preflights local frame offsets when a signature changes its scalar slot count.
+pub(super) fn rebase_frame_offsets(func: &Function, slots: usize) -> Option<Vec<(InstId, u64)>> {
+    let old_slots = func.params.len().checked_add(func.return_components().len())?;
+    if old_slots == slots {
+        return Some(Vec::new());
+    }
+    let base = |slots| {
+        u64::try_from(slots)
+            .ok()?
+            .checked_mul(EvmMemoryLayout::WORD_SIZE)?
+            .checked_add(EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE)
+    };
+    let old_base = base(old_slots)?;
+    let new_base = base(slots)?;
+    let mut offsets = Vec::new();
+    for inst in func.instructions() {
+        if let InstKind::InternalFrameAddr(offset) = func.inst(inst).kind {
+            offsets.push((inst, new_base.checked_add(offset.checked_sub(old_base)?)?));
+        }
+    }
+    Some(offsets)
 }

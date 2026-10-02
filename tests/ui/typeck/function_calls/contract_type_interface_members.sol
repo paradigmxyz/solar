@@ -16,4 +16,30 @@ contract C {
         Executor.check.address; //~ ERROR: member `address` not found
         Executor.check.selector;
     }
+
+    function ownSelector() external pure returns (bytes4) {
+        return OwnExecutor.execute.selector;
+    }
+
+    function encodeOwn() external pure returns (bytes memory) {
+        return abi.encodeCall(OwnExecutor.execute, (true));
+    }
+
+    function hiddenSelector() external pure returns (bytes4) {
+        return HiddenExecutor.execute.selector; //~ ERROR: member `execute` not found
+    }
+
+    function inheritedSelector() external pure returns (bytes4) {
+        return InheritedExecutor.execute.selector; //~ ERROR: member `execute` not found
+    }
 }
+
+interface OwnExecutor is Executor {
+    function execute(bool value) external;
+}
+
+abstract contract HiddenExecutor is Executor {
+    function execute(bool value) internal {}
+}
+
+interface InheritedExecutor is Executor {}

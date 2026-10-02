@@ -8,12 +8,39 @@ omits the heavy full-project cases. The `compile-time` mode measures those cases
 archived Standard JSON inputs to each compiler without deployment or runtime workloads. CI runs
 both modes with `--mode runtime compile-time`.
 
+The `counter-loop` microbenchmark exercises shared checked-arithmetic helpers
+inside a storage-backed accumulator loop. It measures 10, 100, and 1,000
+iterations as separate calls, after the same increment/subtract setup as the
+Solidity/Solcore comparison. It runs automatically in CI's `--suite all`,
+including the `hot` gas profile, alongside the existing `counter` workload.
+
+For one entry point shared with Sourcify, ABI/JSON, and symbolic comparisons,
+use the [compiler-diff CLI](../../tools/compiler-diff/README.md#execution-engines):
+
+```sh
+uv run --project tools/compiler-diff compiler-diff runtime -- \
+  --solar /absolute/path/to/solar \
+  --mode runtime --suite micro --tests counter --gas --start-anvil
+```
+
+The adapter stores logs, results, and artifacts under
+`/tmp/solar-sourcify/<version>/engines/runtime/<id>/`; put `--dir` before `runtime`
+to select another location. Pass engine options after `--` and use absolute paths.
+`--mode runtime` selects the corpus; `--gas` enables execution checks and
+`--start-anvil` starts a local node. The direct runner and benchmark comparison
+commands below remain the entry points used by CI and performance experiments.
+
 Keeping the inputs here makes the benchmark reproducible from this checkout and removes the CI
 dependency on a second repository and its recursive submodules.
 
 Pass `--evm-version VERSION` to replace every archived Standard JSON target and benchmark a whole
-corpus against one EVM version. Use `--solar-only` when the selected target is not supported by the
-installed solc. When available, solc still provides helper contracts for cold-path runtime checks.
+corpus against one EVM version. The default needs no solc and builds cold-path helper
+contracts with our compiler.
+
+Pass `--optimizer-runs N` to replace every case's `optimizer.runs`. We optimize for size below
+200 runs and for gas from 200 up, so `--optimizer-runs 1` turns the same corpus into a size
+benchmark. The override applies to every selected compiler, and runtime checks and gas calls
+still run against the size-optimized code when `--gas` is given.
 
 Select a compiler backend with `--codegen-backend evm|yul|sonatina|sir|llvm`.
 The selection applies to timed compilation and artifact capture, and results record
@@ -33,24 +60,50 @@ The default runs only our compiler. Pass `--solc PATH` to record a two-compiler 
 Pass `--solx PATH` to include [solx](https://github.com/NomicFoundation/solx) as a separate compiler,
 with its own compilation, gas, runtime checks, and artifacts. CI pins solx 0.1.8 and installs and
 runs it only on pushes to main. Its measurements appear alongside solc in the Markdown report.
+
+Pass `--oksolc PATH` to include [oksolc](https://github.com/okcontract/oksolc) with the same
+compilation, gas, runtime checks, and artifacts. CI builds revision
+`d5ff7399356b1ad238c839278a334e13e0e2dc81` with Zig 0.16.0 in ReleaseFast mode and runs it on
+main, PRs, and manual runs. CI caches the executable by revision, Zig version, OS, architecture,
+and build settings, skipping its shallow checkout and build on a cache hit. The build targets
+the baseline CPU for its architecture so the cached executable works across runners.
+The upstream build disables the browser UI by default, so no source patch, TypeScript,
+or Bun is needed.
+Oksolc uses `standard-json --no-cache --parallel --jobs 8 -`:
+eight workers match Solar's default, and disabling its persistent cache keeps repeated samples
+measuring compilation. Use `--oksolc-jobs N` to change its worker count locally. Inputs retain
+their settings; unsupported inputs remain failures. The website discovers compiler columns and
+artifact choices from the uploaded results, so oksolc appears in the overview and artifact
+permalinks posted in the PR comment, even when the base run has no oksolc data.
+
 Reference compiler failures remain in the raw results but do not produce report warnings or
 trigger PR comments. Failures from our compiler and result mismatches involving it still do.
 
-Use `--solar-only` to skip solc and solx benchmark compilation even when `--solc PATH` supplies a binary
-for reference validation or helper contracts. The default skips the
-reference solc compile for each case while retaining Solar compilation, gas measurements, and
-runtime failure checks. A one-compiler run cannot make differential runtime claims, so successful
-runtime comparisons are marked as skipped unless a matching reference result is supplied.
+The default does not discover or run reference compilers. A one-compiler run retains
+compilation, gas measurements, and runtime failure checks, but cannot make differential
+runtime claims, so successful runtime comparisons are marked as skipped unless a
+matching reference result is supplied. Runtime helpers use our compiler unless a live
+solc comparison is explicitly selected.
 
-Pass `--reference-results PATH` to reuse matching solc and solx results from a prior
-run. The benchmark copies reference compile, gas, and runtime data only when the input fingerprint
+Pass `--reference-results PATH` to reuse matching solc, solx, and oksolc results from a prior
+run without discovering or running those compilers. This option cannot be combined
+with `--solc` or `--solx`. Add `--oksolc PATH` to measure oksolc live alongside saved
+references; live results take precedence over saved oksolc data. CI uses this combination
+so PRs include oksolc before a main baseline with oksolc exists.
+The benchmark copies reference compile, gas, and runtime data only when the input fingerprint
 matches, then performs the normal cross-compiler runtime checks. PR CI uses the exact-base result
 as the reference, so solc runs on the base revision instead of repeating unchanged work on the PR.
 PR jobs never run solx, including when they must rebuild a missing baseline; solx columns appear
 when matching results are available in the downloaded main artifact.
 
 Pass `--artifacts PATH` to write a file tree for each runtime case and compiler. This extra compile
-runs outside the timed samples. Solar emits MIR, creation and runtime EVM IR, disassembly, bytecode,
+runs outside the timed samples. Each compiler directory includes a `sources/` tree containing every
+embedded source in its Standard JSON input, preserving source paths and contents, including
+extensionless names and line endings. Source URLs are not fetched. Paths must be relative and cannot
+contain empty, `.` or `..` components, Windows drive prefixes, backslashes, or control characters.
+Symlinks and file/directory collisions report artifact capture errors.
+
+The compiler emits MIR, creation and runtime EVM IR, disassembly, bytecode,
 and raw Standard JSON input and output. Solc emits unoptimized `ir.yul` and optimized
 `optimized-ir.yul` where available, disassembly,
 bytecode, and raw Standard JSON input and output. When `--reference-results` points to a result next
@@ -83,9 +136,11 @@ single-run reports.
 Inputs may be directories containing `results.json` or JSON paths. Artifacts default to
 `artifacts/` beside each JSON. Use `--baseline-artifacts` and `--artifacts` for other paths.
 Add `--tests factorial counter` to select cases, `--artifact mir` for MIR diffs, or
-`--artifact evm-ir disasm bytecode` for backend output. `--compiler solc` or `--compiler solx`
-inspects that reference compiler;
-the default compares our compiler between runs. `--results PATH` without a baseline produces
+`--artifact evm-ir disasm bytecode` for backend output. `--compiler solc`, `--compiler solx`, or `--compiler oksolc`
+inspects that reference compiler. Solx artifacts include creation and runtime LLVM IR
+before and after optimization (`*.unoptimized.ll` and `*.optimized.ll`); use
+`--compiler solx --artifact llvm-ir` to compare them.
+The default compares our compiler between runs. `--results PATH` without a baseline produces
 a single-run CI report. Numeric regressions do not cause a nonzero exit status;
 missing or invalid result inputs do. The shared CI schema (`--common-output`)
 requires a complete, unfiltered run. `--compiler solc` requires two runs and shows
@@ -95,12 +150,23 @@ The comparison reports missing/failed cases and excludes incompatible inputs or 
 workloads from deltas. The summary uses the geometric mean of candidate/baseline ratios,
 with equal weight per benchmark, separately for each metric. Zero-valued pairs stay in
 the per-case results and change counts but do not enter the mean. Runtime gas sums the
-measured transactions within each benchmark, not across benchmarks. It includes per-call gas changes,
+comparable transactions within each benchmark, not across benchmarks. It includes per-call gas changes,
 compile samples in JSON, artifact hashes, and file additions/removals, so equal bytecode sizes
 do not hide changed bytecode. Missing artifacts are reported as unavailable, including the
 whole-project cases that do not capture them. Compile time and RSS comparisons require matching
 compiler labels and known build profiles; machine differences and timing noise still need review.
+Use matching Cargo targets and dependency features too: building test targets can unify
+additional dependency features even when both binaries report the same debug profile.
+Record the build command and freeze the measured baseline binary before running builds
+with different targets. Compiler labels alone do not establish build comparability.
 Artifact capture errors and runtime observation changes appear in the comparison's issues.
+
+Calls with `comparison_exclusion_reason` still execute and retain their raw gas and
+failures in `results.json`. Reports sum only calls eligible on both sides and list
+excluded gas and reasons separately. This excludes the upstream LibString memory
+brutalizer, whose workload depends on gas and contract bytecode. Older baselines
+use exclusions recorded by the candidate; two old reports without this metadata
+retain their original totals.
 
 The workload definitions and helper fixtures were imported from
 [`walnuthq/solidity-compiler-benchmarks`](https://github.com/walnuthq/solidity-compiler-benchmarks)
@@ -219,4 +285,105 @@ by its constructor, using assembly only to forward revert data. Both gas profile
 measure storage writes, reads, and empty, short, and 1 KiB byte echoes through the
 proxy. Runtime checks compare the stored value and returned bytes across compilers.
 Runtime size measures the proxy alone;
-creation size and deployment gas include the helper implementation.
+creation gas and size include the helper implementation.
+
+## Reproducing oksolc via-IR failures
+
+These commands recheck the three full-project inputs reported in
+[oksolc issue #8](https://github.com/okcontract/oksolc/issues/8), using revision
+`d5ff7399356b1ad238c839278a334e13e0e2dc81` on Ubuntu 24.04 x86-64. Start from
+[Solar PR #1601](https://github.com/paradigmxyz/solar/pull/1601):
+
+```sh
+git clone --depth 1 --branch dani/bench-oksolc https://github.com/paradigmxyz/solar.git solar-oksolc-repro
+cd solar-oksolc-repro
+```
+
+Install Zig 0.16.0 and uv, and put them on `PATH`. GNU `/usr/bin/time` is needed
+for peak RSS measurements. No Solar build, Foundry, or JavaScript tools are needed.
+Build the same compiler-only executable as CI:
+
+```sh
+mkdir -p target/oksolc-repro/source
+git -C target/oksolc-repro/source init
+git -C target/oksolc-repro/source fetch --depth 1 https://github.com/okcontract/oksolc.git d5ff7399356b1ad238c839278a334e13e0e2dc81
+git -C target/oksolc-repro/source checkout --detach FETCH_HEAD
+zig build --build-file target/oksolc-repro/source/build.zig build-cli \
+  -Doptimize=ReleaseFast -Dcpu=baseline -j4 \
+  --prefix "$PWD/target/oksolc-repro/install"
+```
+
+Generate inputs from the branch's checked-in project archives, changing only
+`settings.viaIR` to `true`. Optimizer settings, EVM targets, source contents, and
+output selections stay unchanged:
+
+```sh
+uv run --no-project --python "$(cat .python-version)" python - <<'PY'
+import hashlib
+import json
+import sys
+from pathlib import Path
+sys.path.insert(0, "benches/runtime")
+import benchmark
+
+selected = {"seaport-1.6-project", "solady-0.1.26-project", "openzeppelin-5.6.1-project"}
+root = Path("target/oksolc-repro/inputs")
+root.mkdir(parents=True, exist_ok=True)
+for case in benchmark.TEST_CASES:
+    if case.test_id not in selected:
+        continue
+    text, _, _ = benchmark.compiler_input(case, None)
+    payload = json.loads(text)
+    payload["settings"]["viaIR"] = True
+    text = json.dumps(payload)
+    (root / f"{case.test_id}.json").write_text(text)
+    print(case.test_id, hashlib.sha256(text.encode()).hexdigest())
+PY
+```
+
+Run each compiler request directly, with the persistent compiler cache disabled
+and eight workers. Each input embeds its sources, so no import checkout is needed.
+
+```sh
+mkdir -p target/oksolc-repro/outputs
+for case in seaport-1.6-project solady-0.1.26-project openzeppelin-5.6.1-project; do
+  status=0
+  /usr/bin/time -v -o "target/oksolc-repro/outputs/$case.time.txt" \
+    target/oksolc-repro/install/bin/oksolc standard-json --no-cache --parallel --jobs 8 - \
+    < "target/oksolc-repro/inputs/$case.json" \
+    > "target/oksolc-repro/outputs/$case.json" \
+    2> "target/oksolc-repro/outputs/$case.stderr" || status=$?
+  printf '%s: exit status %s\n' "$case" "$status"
+done
+```
+
+Inspect both stderr and the output JSON's `errors` array: a zero process exit
+status does not mean compilation succeeded. Observed results:
+
+| Input | Sources | EVM target | Optimizer runs | Result |
+| --- | ---: | --- | ---: | --- |
+| `seaport-1.6-project` | 386 | london | 4294967295 | Yul stack-depth error for `var_parameters_offset` |
+| `solady-0.1.26-project` | 208 | paris | 1000 | Compiles successfully |
+| `openzeppelin-5.6.1-project` | 390 | osaka | 200 | `Yul optimizer failed: MissingReference` |
+
+Expected input SHA-256 hashes:
+
+```text
+seaport-1.6-project       a0ab0392e351b34cdcf06a9b981e556c41124119dc0333830ee317c23fa5c5c5
+solady-0.1.26-project     c6f7fda591cc00d880fcd21e18da99b4fab4bcd2fc9309cea78b853b62a2f53f
+openzeppelin-5.6.1-project 666aacb77d7fdf356de4fcabc93a230e6daccb642e1857b41c8c727ee2cf33d6
+```
+
+These are full-project reproducers, not reduced cases. On 2026-10-01, all 32
+CI-selected cases were retested with this revision. With the original settings,
+22 cases compiled; ten required via-IR, and two runtime helpers also required it.
+With `viaIR: true` on every input, including helpers, 30 cases compiled and all
+23 runtime cases completed their execution checks and hot gas calls. This run
+used oksolc alone and did not compare outputs against another compiler.
+CI retains each case's original settings.
+
+[Upstream PR #12](https://github.com/okcontract/oksolc/pull/12) fixes Solady's internal
+failure. OpenZeppelin now returns a Yul diagnostic instead of exiting 137; its
+measured peak RSS was 2,654,486,528 bytes in this run. The upstream maintainer
+reports that Seaport produces the same diagnostic with solc; see
+[issue #8](https://github.com/okcontract/oksolc/issues/8#issuecomment-5902965134).

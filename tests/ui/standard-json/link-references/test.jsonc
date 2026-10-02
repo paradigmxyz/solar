@@ -3,7 +3,14 @@
 //@[sonatina] compile-flags: --codegen-backend sonatina
 //@[sir] compile-flags: --codegen-backend sir
 //@[llvm] compile-flags: --codegen-backend llvm
-//@ filecheck:
+//@[default] filecheck:
+//@[yul] filecheck: --check-prefix=UNLINKED
+//@[sonatina] filecheck: --check-prefix=UNLINKED
+//@[sir] filecheck: --check-prefix=UNLINKED
+//@[llvm] filecheck: --check-prefix=UNLINKED
+// UNLINKED-NOT: "contracts":
+// UNLINKED: backend requires library addresses to be supplied before code generation
+// UNLINKED-NOT: "contracts":
 // CHECK-LABEL: "Links": {
 // CHECK-LABEL: "bytecode": {
 // CHECK-NEXT: "linkReferences": {

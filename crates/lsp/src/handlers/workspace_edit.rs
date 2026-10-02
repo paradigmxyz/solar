@@ -1,5 +1,6 @@
 use crate::{
-    code_actions::{CodeActionPlan, ranges_overlap, rope_source_fingerprint},
+    code_actions::{CodeActionPlan, exact_byte_range, ranges_overlap, rope_source_fingerprint},
+    config::Config,
     document_links::ImportEditPlan,
     proto,
     rename::RenameCandidate,
@@ -16,24 +17,11 @@ use solar_interface::{
 };
 use std::{collections::HashMap, sync::Arc};
 
-pub(super) fn validated_rename_workspace_edit(
-    candidate: RenameCandidate,
-    new_name: String,
-    vfs: Arc<RwLock<Vfs>>,
-    document_changes: bool,
-) -> Result<WorkspaceEdit, ResponseError> {
-    Ok(validate_rename(candidate, new_name, vfs)?.into_workspace_edit(document_changes))
-}
+mod scope;
 
-pub(super) fn validated_import_workspace_edit(
-    plan: ImportEditPlan,
-    vfs: Arc<RwLock<Vfs>>,
-    document_changes: bool,
-) -> Result<WorkspaceEdit, ResponseError> {
-    Ok(validate_import_edits(plan, vfs)?.into_workspace_edit(document_changes))
-}
+pub(super) use scope::check_edit_scope;
 
-pub(super) fn validated_code_actions(
+pub(crate) fn validated_code_actions(
     params: CodeActionParams,
     diagnostics: Vec<lsp_types::Diagnostic>,
     vfs: Arc<RwLock<Vfs>>,
@@ -84,22 +72,11 @@ fn validated_code_action(
         return None;
     }
     let edits = validate_code_action_edits(positions, plan.edits)?;
-    let edit = if document_changes {
-        WorkspaceEdit {
-            changes: None,
-            document_changes: Some(DocumentChanges::Edits(vec![TextDocumentEdit {
-                text_document: OptionalVersionedTextDocumentIdentifier { uri: plan.uri, version },
-                edits: edits.into_iter().map(OneOf::Left).collect(),
-            }])),
-            change_annotations: None,
-        }
-    } else {
-        WorkspaceEdit {
-            changes: Some(HashMap::from([(plan.uri, edits)])),
-            document_changes: None,
-            change_annotations: None,
-        }
-    };
+    let edit = ValidatedWorkspaceEdit {
+        versions: HashMap::from([(plan.uri.clone(), version)]),
+        changes: HashMap::from([(plan.uri, edits)]),
+    }
+    .into_workspace_edit(document_changes);
     let mut diagnostic = plan.diagnostic;
     if !supports_diagnostic_data {
         diagnostic.data = None;
@@ -125,16 +102,8 @@ fn validate_code_action_edits(
     if edits.is_empty() {
         return None;
     }
-    let mut byte_ranges = Vec::with_capacity(edits.len());
-    for edit in &edits {
-        let range = index.checked_text_range(edit.range)?;
-        if index.position_at_byte(range.start) != Some(edit.range.start)
-            || index.position_at_byte(range.end) != Some(edit.range.end)
-        {
-            return None;
-        }
-        byte_ranges.push(range);
-    }
+    let mut byte_ranges =
+        edits.iter().map(|edit| exact_byte_range(index, edit.range)).collect::<Option<Vec<_>>>()?;
     (!ranges_overlap(&mut byte_ranges)).then_some(edits)
 }
 
@@ -172,25 +141,23 @@ impl ValidatedWorkspaceEdit {
     }
 }
 
-fn validate_rename(
+pub(crate) fn validated_rename_workspace_edit(
     candidate: RenameCandidate,
     new_name: String,
     vfs: Arc<RwLock<Vfs>>,
-) -> Result<ValidatedWorkspaceEdit, ResponseError> {
+    document_changes: bool,
+) -> Result<WorkspaceEdit, ResponseError> {
     if candidate.conflicting_contents {
         return Err(content_modified());
     }
-    let mut contents = HashMap::<Url, (Rope, Option<i32>)>::new();
     let source_map = SourceMap::empty();
-    for (uri, analyzed_contents) in &candidate.analyzed_contents {
-        let Some((file_contents, version)) = current_file_contents(&vfs, &source_map, uri) else {
-            return Err(content_modified());
-        };
-        if file_contents.byte_slice(..) != analyzed_contents.as_str() {
-            return Err(content_modified());
-        }
-        contents.insert(uri.clone(), (file_contents, version));
-    }
+    let contents = candidate
+        .analyzed_contents
+        .iter()
+        .map(|(uri, analyzed)| {
+            Ok((uri.clone(), unchanged_file_contents(&vfs, &source_map, uri, analyzed)?))
+        })
+        .collect::<Result<HashMap<_, _>, ResponseError>>()?;
 
     // Rename candidates are URI-sorted. Reuse one position index per file and release it
     // before validating the next file so peak index memory stays bounded by one document.
@@ -213,28 +180,40 @@ fn validate_rename(
         changes.insert(locations[0].uri.clone(), edits);
     }
     let versions = contents.into_iter().map(|(uri, (_, version))| (uri, version)).collect();
-    Ok(ValidatedWorkspaceEdit { changes, versions })
+    Ok(ValidatedWorkspaceEdit { changes, versions }.into_workspace_edit(document_changes))
 }
 
-fn validate_import_edits(
+pub(super) fn validated_import_workspace_edit(
     plan: ImportEditPlan,
+    config: &Config,
     vfs: Arc<RwLock<Vfs>>,
-) -> Result<ValidatedWorkspaceEdit, ResponseError> {
+    document_changes: bool,
+) -> Result<Option<WorkspaceEdit>, ResponseError> {
+    if check_edit_scope(plan.files(), config).is_err() {
+        return Ok(None);
+    }
     let source_map = SourceMap::empty();
     let mut changes = HashMap::new();
     let mut versions = HashMap::new();
     for (uri, planned) in plan.into_entries() {
         let (analyzed_contents, edits) = planned.into_parts();
-        let Some((file_contents, version)) = current_file_contents(&vfs, &source_map, &uri) else {
-            return Err(content_modified());
-        };
-        if file_contents.byte_slice(..) != analyzed_contents.as_str() {
-            return Err(content_modified());
-        }
+        let (_, version) = unchanged_file_contents(&vfs, &source_map, &uri, &analyzed_contents)?;
         versions.insert(uri.clone(), version);
         changes.insert(uri, edits);
     }
-    Ok(ValidatedWorkspaceEdit { changes, versions })
+    Ok(Some(ValidatedWorkspaceEdit { changes, versions }.into_workspace_edit(document_changes)))
+}
+
+/// Loads a file's current contents, requiring them to match the analyzed snapshot.
+fn unchanged_file_contents(
+    vfs: &RwLock<Vfs>,
+    source_map: &SourceMap,
+    uri: &Url,
+    analyzed: &str,
+) -> Result<(Rope, Option<i32>), ResponseError> {
+    current_file_contents(vfs, source_map, uri)
+        .filter(|(contents, _)| contents.byte_slice(..) == analyzed)
+        .ok_or_else(content_modified)
 }
 
 fn current_file_contents(
@@ -248,7 +227,7 @@ fn current_file_contents(
         return Some((contents.clone(), vfs.get_file_version(&path)));
     }
     drop(vfs);
-    let contents = source_map.file_loader().load_file(path.as_path()?).ok()?;
+    let contents = source_map.file_loader().load_file(path.as_path()).ok()?;
     Some((Rope::from(contents), None))
 }
 
@@ -264,127 +243,70 @@ mod tests {
 
     #[test]
     fn rename_validation_checks_every_occurrence_in_each_file() {
-        let project = TestProject::from_fixture("//- /A.sol\n//- /B.sol\n");
-        let first = Url::from_file_path(project.path("/A.sol")).unwrap();
-        let second = Url::from_file_path(project.path("/B.sol")).unwrap();
-        let sources = [
-            (first.clone(), "😀 target\r\ntarget\rtarget\n"),
-            (second.clone(), "target\n😀 target\n"),
-        ];
-        let vfs = Arc::new(RwLock::new(Vfs::default()));
-        for (uri, source) in &sources {
-            vfs.write().set_file_contents_with_version(
-                proto::vfs_path(uri).unwrap(),
-                Some(Rope::from(*source)),
-                Some(7),
-            );
+        let mut project = TestProject::new();
+        let sources =
+            [("/A.sol", "😀 target\r\ntarget\rtarget\n"), ("/B.sol", "target\n😀 target\n")];
+        for (path, source) in sources {
+            project.open_file(path, source);
         }
+        let vfs = Arc::new(RwLock::new(project.vfs()));
+        let (first, second) = (project.uri("/A.sol"), project.uri("/B.sol"));
         let range =
             |line, start| Range::new(Position::new(line, start), Position::new(line, start + 6));
-        let locations = vec![
-            Location::new(first.clone(), range(0, 3)),
-            Location::new(first.clone(), range(1, 0)),
-            Location::new(first.clone(), range(2, 0)),
-            Location::new(second.clone(), range(0, 0)),
-            Location::new(second.clone(), range(1, 3)),
-        ];
+        let occurrences =
+            [(&first, 0, 3), (&first, 1, 0), (&first, 2, 0), (&second, 0, 0), (&second, 1, 3)];
+        let locations = occurrences
+            .map(|(uri, line, start)| Location::new(uri.clone(), range(line, start)))
+            .to_vec();
         let mut candidate = RenameCandidate {
             old_name: "target".into(),
             range: locations[0].range,
             locations,
             analyzed_contents: sources
                 .into_iter()
-                .map(|(uri, source)| (uri, Arc::new(source.into())))
+                .map(|(path, source)| (project.uri(path), Arc::new(source.into())))
                 .collect(),
             conflicting_contents: false,
             requires_yul_validation: false,
+            requires_complete_workspace: true,
         };
-        let expected = HashMap::from([
-            (
-                first,
-                vec![
-                    TextEdit::new(range(0, 3), "new".into()),
-                    TextEdit::new(range(1, 0), "new".into()),
-                    TextEdit::new(range(2, 0), "new".into()),
-                ],
-            ),
-            (
-                second,
-                vec![
-                    TextEdit::new(range(0, 0), "new".into()),
-                    TextEdit::new(range(1, 3), "new".into()),
-                ],
-            ),
-        ]);
-        let edit =
+        let validate = |candidate: &RenameCandidate| {
             validated_rename_workspace_edit(candidate.clone(), "new".into(), vfs.clone(), false)
-                .unwrap();
-        assert_eq!(edit.changes, Some(expected));
+        };
+        let edit = |line, start| TextEdit::new(range(line, start), "new".into());
+        let expected = HashMap::from([
+            (first, vec![edit(0, 3), edit(1, 0), edit(2, 0)]),
+            (second, vec![edit(0, 0), edit(1, 3)]),
+        ]);
+        assert_eq!(validate(&candidate).unwrap().changes, Some(expected));
 
         // A bad later occurrence must reject the whole edit, including a split surrogate.
         for invalid in [range(1, 1), range(1, 2), range(3, 0)] {
             candidate.locations.last_mut().unwrap().range = invalid;
-            let error = validated_rename_workspace_edit(
-                candidate.clone(),
-                "new".into(),
-                vfs.clone(),
-                false,
-            )
-            .unwrap_err();
-            assert_eq!(error.code, ErrorCode::CONTENT_MODIFIED);
+            assert_eq!(validate(&candidate).unwrap_err().code, ErrorCode::CONTENT_MODIFIED);
         }
     }
 
     #[test]
-    fn code_action_edit_validation_accepts_adjacent_utf16_ranges() {
+    fn code_action_edit_validation_accepts_only_exact_disjoint_utf16_ranges() {
         let contents = Rope::from("😀value");
-        let edits = vec![
-            TextEdit::new(Range::new(Position::new(0, 0), Position::new(0, 2)), "x".into()),
-            TextEdit::new(Range::new(Position::new(0, 2), Position::new(0, 7)), "y".into()),
-        ];
-
-        assert_eq!(
-            validate_code_action_edits(&proto::LspPositionIndex::new(&contents), edits.clone()),
-            Some(edits)
-        );
-    }
-
-    #[test]
-    fn code_action_edit_validation_rejects_untrusted_ranges() {
-        let contents = Rope::from("😀value");
-        let invalid = [
-            vec![TextEdit::new(
-                Range::new(Position::new(0, 1), Position::new(0, 2)),
-                "split surrogate".into(),
-            )],
-            vec![TextEdit::new(
-                Range::new(Position::new(0, 99), Position::new(0, 99)),
-                "past line end".into(),
-            )],
-            vec![
-                TextEdit::new(
-                    Range::new(Position::new(0, 2), Position::new(0, 5)),
-                    "overlap one".into(),
-                ),
-                TextEdit::new(
-                    Range::new(Position::new(0, 4), Position::new(0, 7)),
-                    "overlap two".into(),
-                ),
-            ],
-            vec![
-                TextEdit::new(Range::new(Position::new(0, 2), Position::new(0, 2)), "first".into()),
-                TextEdit::new(
-                    Range::new(Position::new(0, 2), Position::new(0, 2)),
-                    "second".into(),
-                ),
-            ],
-        ];
-
-        for edits in invalid {
-            assert_eq!(
-                validate_code_action_edits(&proto::LspPositionIndex::new(&contents), edits),
-                None
-            );
+        let index = proto::LspPositionIndex::new(&contents);
+        let edits = |ranges: &[(u32, u32)]| {
+            ranges
+                .iter()
+                .map(|&(start, end)| {
+                    TextEdit::new(
+                        Range::new(Position::new(0, start), Position::new(0, end)),
+                        "x".into(),
+                    )
+                })
+                .collect::<Vec<_>>()
+        };
+        let adjacent = edits(&[(0, 2), (2, 7)]);
+        assert_eq!(validate_code_action_edits(&index, adjacent.clone()), Some(adjacent));
+        // Split surrogates, positions past the line end, overlaps, and equal insertions.
+        for invalid in [&[(1, 2)][..], &[(99, 99)], &[(2, 5), (4, 7)], &[(2, 2), (2, 2)], &[]] {
+            assert_eq!(validate_code_action_edits(&index, edits(invalid)), None, "{invalid:?}");
         }
     }
 }

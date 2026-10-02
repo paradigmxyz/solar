@@ -3,7 +3,7 @@
 @module MemoryDseKeccakFold
 // CHECK-LABEL: {{^[ +].*}}fn @fold_constant_scratch_keccak{{[( ]}}
 // CHECK: + ret 0xeddb6698d7c569ff62ff64f1f1492bf14a54594835ba0faac91f84b4f5d81460
-fn @fold_constant_scratch_keccak() -> bytes32 {
+fn @fold_constant_scratch_keccak() -> i256 {
   bb0:
     mstore 0, 7
     mstore 32, 5
@@ -14,7 +14,7 @@ fn @fold_constant_scratch_keccak() -> bytes32 {
 // CHECK-LABEL: {{^[ +].*}}fn @keep_dynamic_word{{[( ]}}
 // CHECK: {{^[ +].*}}mstore 0, arg0
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = keccak256 0, 64
-fn @keep_dynamic_word(arg0: u256) -> bytes32 {
+fn @keep_dynamic_word(arg0: i256) -> i256 {
   bb0:
     mstore 0, arg0
     mstore 32, 5
@@ -25,7 +25,7 @@ fn @keep_dynamic_word(arg0: u256) -> bytes32 {
 // CHECK-LABEL: {{^[ +].*}}fn @keep_after_memory_clobber{{[( ]}}
 // CHECK: {{^[ +].*}}calldatacopy
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = keccak256 0, 64
-fn @keep_after_memory_clobber() -> bytes32 {
+fn @keep_after_memory_clobber() -> i256 {
   bb0:
     mstore 0, 7
     mstore 32, 5

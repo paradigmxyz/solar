@@ -1,9 +1,9 @@
 //! MIR values.
 
-use super::{ArgIdx, InstId, MirType, TypeSize};
-use alloy_primitives::U256;
+use super::{ArgIdx, InstId, MirType};
+use alloy_primitives::{U160, U256};
 use solar_interface::diagnostics::ErrorGuaranteed;
-use std::fmt;
+use std::{cmp::Ordering, fmt, num::NonZeroU32};
 
 /// An SSA value in the MIR.
 #[derive(Clone, Debug)]
@@ -39,26 +39,44 @@ impl Value {
 /// An immediate constant value.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub(crate) enum Immediate {
-    /// Boolean constant.
-    Bool(bool),
-    /// Unsigned integer constant.
-    UInt(U256, TypeSize),
-    /// Signed integer constant.
-    Int(U256, TypeSize),
+    /// A one-bit integer constant.
+    I1(bool),
+    /// A 160-bit integer constant.
+    I160(U160),
+    /// An integer constant with a syntax-only width.
+    Int(U256, NonZeroU32),
+    /// A 256-bit integer constant.
+    I256(U256),
+    /// A constant `memptr`, with no implied validity or aliasing guarantee.
+    Pointer(U256),
 }
 
 impl Immediate {
-    /// Creates an immediate carrying `value` with the given integer type.
+    /// Creates a scalar or pointer immediate carrying `value`.
     ///
-    /// Falls back to `uint256` when the type has no plain integer payload or
-    /// cannot represent the value.
+    /// Integer values must fit their declared width; booleans must be zero or one.
+    /// Types without a scalar or pointer payload use `i256`.
     #[must_use]
     pub(crate) fn for_type(ty: Option<MirType>, value: U256) -> Self {
         match ty {
-            Some(MirType::Bool) if value <= U256::from(1) => Self::Bool(!value.is_zero()),
-            Some(MirType::UInt(size)) if fits_unsigned(value, size) => Self::UInt(value, size),
-            Some(MirType::Int(size)) if fits_signed(value, size) => Self::Int(value, size),
-            _ => Self::uint256(value),
+            Some(MirType::I1) => {
+                assert!(value <= U256::ONE, "boolean immediate must be zero or one");
+                Self::I1(!value.is_zero())
+            }
+            Some(MirType::I160) => {
+                assert!(value.bit_len() <= 160, "i160 immediate must fit in 160 bits");
+                Self::I160(U160::from(value))
+            }
+            Some(MirType::I256) => Self::I256(value),
+            Some(MirType::Int(bits)) => {
+                assert!(
+                    value.bit_len() <= bits.get() as usize,
+                    "integer immediate must fit its width"
+                );
+                Self::Int(value, bits)
+            }
+            Some(MirType::MemPtr) => Self::Pointer(value),
+            _ => Self::I256(value),
         }
     }
 
@@ -66,53 +84,61 @@ impl Immediate {
     #[must_use]
     pub(crate) const fn ty(&self) -> MirType {
         match self {
-            Self::Bool(_) => MirType::Bool,
-            Self::UInt(_, bits) => MirType::UInt(*bits),
+            Self::I1(_) => MirType::I1,
+            Self::I160(_) => MirType::I160,
+            Self::I256(_) => MirType::I256,
             Self::Int(_, bits) => MirType::Int(*bits),
+            Self::Pointer(_) => MirType::MemPtr,
         }
-    }
-
-    /// Creates a new uint256 immediate from a U256 value.
-    #[must_use]
-    pub(crate) const fn uint256(value: U256) -> Self {
-        Self::UInt(value, TypeSize::new_int_bits(256))
-    }
-
-    /// Creates a new boolean immediate.
-    #[must_use]
-    pub(crate) const fn bool(value: bool) -> Self {
-        Self::Bool(value)
     }
 
     /// Returns the value as a U256, if applicable.
     #[must_use]
     pub(crate) fn as_u256(&self) -> Option<U256> {
         match self {
-            Self::Bool(b) => Some(U256::from(*b as u64)),
-            Self::UInt(v, _) | Self::Int(v, _) => Some(*v),
+            Self::I1(b) => Some(U256::from(*b as u64)),
+            Self::I160(v) => Some(U256::from(*v)),
+            Self::I256(v) | Self::Int(v, _) | Self::Pointer(v) => Some(*v),
         }
     }
-}
-
-fn fits_unsigned(value: U256, size: TypeSize) -> bool {
-    let bits = size.bits();
-    bits >= 256 || value.bit_len() <= usize::from(bits)
-}
-
-fn fits_signed(value: U256, size: TypeSize) -> bool {
-    let bits = size.bits();
-    if bits >= 256 || bits == 0 {
-        return bits >= 256;
-    }
-    let bits = usize::from(bits);
-    if value.bit(bits - 1) { (!value).bit_len() < bits } else { value.bit_len() < bits }
 }
 
 impl fmt::Display for Immediate {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Bool(b) => write!(f, "{b}"),
-            Self::UInt(v, _) | Self::Int(v, _) => write!(f, "{v}"),
+            Self::I1(b) => write!(f, "{b}"),
+            Self::I160(v) => write!(f, "{v}"),
+            Self::I256(v) | Self::Int(v, _) | Self::Pointer(v) => {
+                write!(f, "{v}")
+            }
         }
+    }
+}
+
+impl Ord for Immediate {
+    fn cmp(&self, other: &Self) -> Ordering {
+        let rank = |value: &Self| match value {
+            Self::I1(_) => 0,
+            Self::I256(_) => 1,
+            Self::I160(_) => 2,
+            Self::Pointer(_) => 3,
+            Self::Int(_, _) => 4,
+        };
+        rank(self).cmp(&rank(other)).then_with(|| match (self, other) {
+            (Self::I1(a), Self::I1(b)) => a.cmp(b),
+            (Self::I256(a), Self::I256(b)) => a.cmp(b),
+            (Self::I160(a), Self::I160(b)) => a.cmp(b),
+            (Self::Int(a, a_bits), Self::Int(b, b_bits)) => {
+                a_bits.cmp(b_bits).then_with(|| a.cmp(b))
+            }
+            (Self::Pointer(a), Self::Pointer(b)) => a.cmp(b),
+            _ => Ordering::Equal,
+        })
+    }
+}
+
+impl PartialOrd for Immediate {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
     }
 }

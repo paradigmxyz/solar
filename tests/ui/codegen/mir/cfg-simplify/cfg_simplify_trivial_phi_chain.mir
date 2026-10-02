@@ -5,20 +5,22 @@
 // through the chain to arg0, not to the deleted intermediate.
 @module CfgSimplifyTrivialPhiChain
 // CHECK-LABEL: {{^[ +].*}}fn @chained_trivial{{[( ]}}
-// CHECK: - {{v[0-9]+}} = phi [bb0: arg0], [bb3: {{v[0-9]+}}]
-// CHECK: - {{v[0-9]+}} = phi [bb1: {{v[0-9]+}}], [bb2: {{v[0-9]+}}]
-// CHECK: + ret arg0
+// CHECK-DAG: - {{v[0-9]+}} = phi [bb0: arg0], [bb3: {{v[0-9]+}}]
+// CHECK-DAG: - {{v[0-9]+}} = phi [bb1: {{v[0-9]+}}], [bb2: {{v[0-9]+}}]
+// CHECK-DAG: + ret arg0
 // CHECK: + {{v[0-9]+}} = add arg0, 1
-fn @chained_trivial(arg0: u256) -> u256 {
+fn @chained_trivial(arg0: i256) -> i256 {
   bb0:
     jump bb1
   bb1:
     v1 = phi [bb0: arg0], [bb3: v1]
-    jumpi arg0, bb2, bb4
+    v4 = ne arg0, 0
+    jumpi v4, bb2, bb4
   bb2:
     v2 = phi [bb1: v1], [bb2: v2]
     v3 = add v2, 1
-    jumpi v3, bb2, bb3
+    v5 = ne v3, 0
+    jumpi v5, bb2, bb3
   bb3:
     jump bb1
   bb4:

@@ -1,9 +1,16 @@
 //! Parallel copies, returns, and MIR terminator emission.
+//!
+//! Conditional jumps consume a word and a requested zero/nonzero sense. They do not require
+//! a normalized boolean. All branch layouts, including stack-carrying edges, use the same
+//! emitter. EVM IR cleanup selects the final condition after layout: double zero tests can
+//! disappear, inequality can use SUB, and constant comparisons can absorb an inversion by
+//! adjusting their bound. Keeping those selections after layout also covers polarity changes
+//! from revert sharing, without changing boolean values still used as data.
 
 use super::{
     BlockId, CopyDest, CopySource, DebugFunctionExit, EvmCodegen, EvmMemoryLayout, Function,
     FxHashMap, Label, ParallelCopy, StackEffect, StackOp, StackPush, TargetSlot, Terminator, U256,
-    ValueId, WORD_BYTES, op,
+    ValueId, WORD_BYTES, ir, op,
 };
 
 impl<'gcx> EvmCodegen<'gcx> {
@@ -65,7 +72,11 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
     }
 
-    fn emit_internal_return(&mut self, func: &Function, values: &[ValueId]) {
+    fn emit_internal_return(
+        &mut self,
+        func: &Function,
+        values: &[ValueId],
+    ) -> Option<(ir::BlockId, usize)> {
         if let Some(plan) =
             self.current_internal_function.and_then(|func_id| self.stack_return_plan(func_id))
         {
@@ -95,7 +106,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     .expect("stack-return plans only cover internal functions");
                 self.disabled_stack_only_functions.insert(func_id);
                 self.scheduler.clear_stack();
-                return;
+                return None;
             };
             for op in shuffle.ops {
                 self.asm.emit_stack_op(op);
@@ -107,10 +118,11 @@ impl<'gcx> EvmCodegen<'gcx> {
             for depth in 1..=plan.arity {
                 self.asm.emit_stack_op(StackOp::Swap(depth as u8));
             }
+            let position = self.asm.next_instruction_position();
             self.asm.emit_op(op::JUMP);
             self.mark_debug_function_exit(func, DebugFunctionExit::Return);
             self.scheduler.clear_stack();
-            return;
+            return Some(position);
         }
 
         let return_base = EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
@@ -125,15 +137,19 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.pop_all_stack_values();
         // The caller's return address is the untracked value at the bottom of
         // the stack; after popping every tracked value it is on top.
+        let position = self.asm.next_instruction_position();
         self.asm.emit_op(op::JUMP);
         self.mark_debug_function_exit(func, DebugFunctionExit::Return);
+        Some(position)
     }
 
-    fn emit_external_stop(&mut self, func: &Function) {
+    fn emit_external_return(&mut self, func: &Function) {
         if let Some(exit) = self.constructor_exit {
+            // return [] => push constructor_exit; jump
             self.emit_push_label(exit);
             self.asm.emit_op(op::JUMP);
         } else {
+            // return [] => stop
             self.asm.emit_op(op::STOP);
         }
         self.mark_debug_function_exit(func, DebugFunctionExit::Return);
@@ -189,13 +205,24 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.asm.emit_push_label(label);
     }
 
+    /// Consumes the top word as a zero/nonzero condition, preserving the stack below it.
+    pub(super) fn emit_conditional_jump(&mut self, target: Label, jump_if_zero: bool) {
+        // [condition]; [iszero]; push target; jumpi
+        if jump_if_zero {
+            self.asm.emit_op(op::ISZERO);
+        }
+        self.emit_push_label(target);
+        self.asm.emit_op(op::JUMPI);
+        self.scheduler.stack.pop();
+    }
+
     pub(super) fn generate_terminator(
         &mut self,
         func: &Function,
         term: &Terminator,
         fallthrough: Option<BlockId>,
         preserve_stack: bool,
-    ) {
+    ) -> Option<(ir::BlockId, usize)> {
         match term {
             Terminator::TailCall { function, args } => {
                 // Control transfers to the target and never returns. A stack ABI reuses the
@@ -266,7 +293,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                             // runtime with the callee on the frame convention;
                             // the partially emitted attempt is discarded.
                             self.disabled_stack_only_functions.insert(*function);
-                            return;
+                            return None;
                         };
                         for op in shuffle.ops {
                             self.asm.emit_stack_op(op);
@@ -287,7 +314,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     if !preserve_stack {
                         self.pop_all_stack_values();
                     }
-                    return;
+                    return None;
                 }
                 if !preserve_stack {
                     self.pop_all_stack_values();
@@ -306,46 +333,22 @@ impl<'gcx> EvmCodegen<'gcx> {
                     self.emit_value(func, *condition);
                 }
 
-                match fallthrough {
-                    Some(next) if *else_block == next => {
-                        // JUMPI consumes the condition; false falls through to `else_block`.
-                        self.emit_push_label(self.block_labels[then_block]);
-                        self.asm.emit_op(op::JUMPI);
-                        self.scheduler.stack.pop(); // condition consumed by JUMPI
-                    }
-                    Some(next) if *then_block == next => {
-                        // Invert the condition so true falls through to `then_block`.
-                        self.asm.emit_op(op::ISZERO);
-                        self.scheduler.instruction_executed_untracked(1);
-                        self.emit_push_label(self.block_labels[else_block]);
-                        self.asm.emit_op(op::JUMPI);
-                        self.scheduler.stack.pop(); // inverted condition consumed by JUMPI
-                    }
-                    _ => {
-                        // Neither target falls through. Route the likely-hot
-                        // edge through JUMPI (16 gas) and leave the cold
-                        // revert path on the trailing unconditional jump,
-                        // instead of paying JUMPI + JUMP (24 gas) on the hot
-                        // path.
-                        if self.block_is_cold(*then_block) && !self.block_is_cold(*else_block) {
-                            self.asm.emit_op(op::ISZERO);
-                            self.scheduler.instruction_executed_untracked(1);
-                            self.emit_push_label(self.block_labels[else_block]);
-                            self.asm.emit_op(op::JUMPI);
-                            self.scheduler.stack.pop(); // inverted condition consumed by JUMPI
-
-                            self.emit_push_label(self.block_labels[then_block]);
-                            self.asm.emit_op(op::JUMP);
-                        } else {
-                            // JUMPI consumes the condition
-                            self.emit_push_label(self.block_labels[then_block]);
-                            self.asm.emit_op(op::JUMPI);
-                            self.scheduler.stack.pop(); // condition consumed by JUMPI
-
-                            self.emit_push_label(self.block_labels[else_block]);
-                            self.asm.emit_op(op::JUMP);
-                        }
-                    }
+                // jumpi [iszero] condition, taken; [jump other]
+                let jump_if_zero = match fallthrough {
+                    Some(next) if *else_block == next => false,
+                    Some(next) if *then_block == next => true,
+                    // Neither arm falls through: let the hot edge avoid a second jump.
+                    _ => self.block_is_cold(*then_block) && !self.block_is_cold(*else_block),
+                };
+                let (taken, other) = if jump_if_zero {
+                    (*else_block, *then_block)
+                } else {
+                    (*then_block, *else_block)
+                };
+                self.emit_conditional_jump(self.block_labels[&taken], jump_if_zero);
+                if fallthrough != Some(other) {
+                    self.emit_push_label(self.block_labels[&other]);
+                    self.asm.emit_op(op::JUMP);
                 }
             }
 
@@ -362,12 +365,11 @@ impl<'gcx> EvmCodegen<'gcx> {
 
             Terminator::Return { values } => {
                 if self.in_internal_function {
-                    self.emit_internal_return(func, values);
-                    return;
+                    return self.emit_internal_return(func, values);
                 }
 
                 assert!(values.is_empty(), "external ABI returns with values must use ReturnData");
-                self.emit_external_stop(func);
+                self.emit_external_return(func);
             }
 
             Terminator::Revert { offset, size } => {
@@ -390,11 +392,12 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
 
             Terminator::Stop => {
-                if self.in_internal_function {
-                    self.emit_internal_return(func, &[]);
-                } else {
-                    self.emit_external_stop(func);
-                }
+                // stop => stop
+                //
+                // An initcode STOP completes creation with empty output. It must not reach the
+                // ordinary constructor-return epilogue that deploys the runtime artifact.
+                self.asm.emit_op(op::STOP);
+                self.mark_debug_function_exit(func, DebugFunctionExit::Return);
             }
 
             Terminator::SelfDestruct { recipient } => {
@@ -407,5 +410,6 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.asm.emit_op(op::INVALID);
             }
         }
+        None
     }
 }

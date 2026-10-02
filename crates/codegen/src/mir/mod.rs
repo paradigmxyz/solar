@@ -4,6 +4,8 @@
 
 use solar_data_structures::newtype_index;
 
+pub(crate) use crate::link::{Data, DataBytes, DataId, DataRef, DataSize};
+
 pub(crate) mod analysis;
 pub(crate) mod immutable;
 pub mod lower;
@@ -13,9 +15,10 @@ pub(crate) mod pass_manager;
 mod transform;
 
 mod types;
+mod typing;
 pub(crate) use types::{
     FrameMode, FrameSlotKind, ImmutableEncoding, MemoryObjectKind, MemoryObjectLayout, MirType,
-    SliceLocation, TypeSize,
+    SliceLocation, StructType, TypeSize, ValueLayout,
 };
 
 mod abi;
@@ -23,6 +26,9 @@ pub(crate) use abi::{
     AbiLayout, AbiLayoutRef, AbiParamLayout, AbiParamLayoutRef, AbiParamLocation, AbiParamType,
     AbiType, AbiWordValidator,
 };
+
+mod packed;
+pub(crate) use packed::{PackedArraySource, PackedPart, packed_element_bytes};
 
 mod storage;
 pub use storage::{StorageField, StorageLayout, StorageLayoutRef};
@@ -32,10 +38,21 @@ pub(crate) use value::{Immediate, Value};
 
 mod inst;
 pub(crate) use inst::{
-    AbiEncodeMode, AllocationAlignment, AllocationFailure, AllocationInitialization,
-    AllocationKind, AllocationSemantics, EffectKind, InstKind, Instruction, InstructionMetadata,
-    MemoryRegion, StorageAlias,
+    AbiEncodeMode, AddressCallKind, AllocationAlignment, AllocationFailure,
+    AllocationInitialization, AllocationKind, AllocationSemantics, ConcatPart, EffectKind,
+    Instruction, InstructionMetadata, MemoryRegion, StorageAlias,
 };
+
+mod arithmetic;
+pub(crate) use arithmetic::{ArithmeticKind, CheckedOp};
+
+mod checks;
+pub(crate) use checks::{PanicCode, RevertKind, RevertPayload, RevertReason};
+
+mod effects;
+pub(crate) use effects::ControlEffects;
+mod op_schema;
+pub(crate) use op_schema::{InstKind, Op, OpTraits, ResultKind};
 
 mod block;
 pub(crate) use block::{BasicBlock, Terminator};
@@ -47,11 +64,14 @@ mod function;
 pub(crate) use function::{Function, FunctionAttributes};
 
 mod module;
-pub(crate) use module::LibraryLink;
+pub(crate) use module::LoweredModule;
 pub use module::{MirPhase, Module};
 
+mod builtin;
+pub(crate) use builtin::{Builtin, Callee, RequireKind};
+
 mod builder;
-pub(crate) use builder::{ERROR_SELECTOR, FunctionBuilder, PanicCode, RevertReason, ToUint};
+pub(crate) use builder::{ERROR_SELECTOR, FunctionBuilder};
 
 mod display;
 
@@ -77,27 +97,14 @@ newtype_index! {
     /// A unique identifier for a basic block in the MIR.
     pub(crate) struct BlockId;
 
+    /// A fixed aggregate type declared in a MIR module.
+    pub(crate) struct StructId;
+
     /// A unique identifier for a function in the MIR.
     pub(crate) struct FunctionId;
 
     /// A unique identifier for an immutable in the MIR module.
     pub(crate) struct ImmutableId;
-
-    /// A unique identifier for constant data in the MIR module.
-    pub(crate) struct DataId;
-}
-
-/// A relocatable reference to a byte within a MIR data entry.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub(crate) struct DataRef {
-    pub(crate) id: DataId,
-    pub(crate) offset: u32,
-}
-
-impl DataRef {
-    pub(crate) const fn new(id: DataId, offset: u32) -> Self {
-        Self { id, offset }
-    }
 }
 
 impl BlockId {
@@ -123,7 +130,6 @@ impl BlockId {
 mod round_trip {
     use super::Module;
     use crate::mir::lower;
-    use solar_data_structures::map::FxHashMap;
     use solar_interface::{ColorChoice, Session};
     use solar_sema::Compiler;
     use std::{
@@ -133,6 +139,90 @@ mod round_trip {
 
     fn parse_module(sess: &Session, input: &str) -> solar_interface::Result<Module> {
         super::parser::parse_module(sess, input)
+    }
+
+    #[test]
+    fn i1_literals_are_canonical() {
+        for (literal, valid) in [("0", true), ("1", true), ("2", false), ("0xff", false)] {
+            let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
+            sess.enter(|| {
+                let input = format!(
+                    "@module BoolLiterals\nfn @f() -> i1 {{\n  bb0:\n    ret i1 {literal}\n}}\n"
+                );
+                assert_eq!(parse_module(&sess, &input).is_ok(), valid, "{literal}");
+            });
+        }
+    }
+
+    #[test]
+    fn cast_source_types() {
+        for (cast, valid) in [
+            ("zext i1 0 to i256", true),
+            ("zext i1 1 to i256", true),
+            ("zext i1 2 to i256", false),
+            ("zext i1 arg0 to i256", true),
+            ("zext i160 arg0 to i256", false),
+            ("zext i1 undef to i256", true),
+            ("ptrtoint memptr arg0 to i256", false),
+        ] {
+            let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
+            sess.enter(|| {
+                let input = format!(
+                    "@module Casts\nfn @f(arg0: i1) -> i256 {{\n  bb0:\n    v0 = {cast}\n    ret v0\n}}\n"
+                );
+                assert_eq!(parse_module(&sess, &input).is_ok(), valid, "{cast}");
+            });
+        }
+    }
+
+    #[test]
+    fn scalar_integer_types() {
+        for (ty, valid) in [
+            ("i1", true),
+            ("i256", true),
+            ("i8", true),
+            ("i128", true),
+            ("i160", true),
+            ("i7", true),
+            ("i512", true),
+            ("i4294967295", true),
+            ("i0", false),
+            ("i4294967296", false),
+            ("i", false),
+            ("iabc", false),
+            ("bool", false),
+            ("word", false),
+            ("u256", false),
+        ] {
+            let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
+            sess.enter(|| {
+                let input = format!(
+                    "@module IntegerTypes\nfn @f(arg0: {ty}) -> {ty} {{\n  bb0:\n    ret arg0\n}}\n"
+                );
+                assert_eq!(parse_module(&sess, &input).is_ok(), valid, "{ty}");
+            });
+        }
+    }
+
+    #[test]
+    fn integer_literals_fit_their_width() {
+        for (ty, literal, valid) in [
+            ("i7", "127", true),
+            ("i7", "128", false),
+            ("i8", "255", true),
+            ("i8", "256", false),
+            ("i160", "0xffffffffffffffffffffffffffffffffffffffff", true),
+            ("i160", "0x10000000000000000000000000000000000000000", false),
+            ("i512", "42", true),
+        ] {
+            let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
+            sess.enter(|| {
+                let input = format!(
+                    "@module IntegerLiterals\nfn @f() -> {ty} {{\n  bb0:\n    ret {ty} {literal}\n}}\n"
+                );
+                assert_eq!(parse_module(&sess, &input).is_ok(), valid, "{ty} {literal}");
+            });
+        }
     }
 
     /// Path to `tests/ui/codegen/` (the workspace's UI test directory).
@@ -157,7 +247,8 @@ mod round_trip {
     }
 
     fn fixture_paths(root: &Path, extension: &str) -> Vec<PathBuf> {
-        let mut dirs = vec![root.to_path_buf()];
+        let mut dirs = Vec::new();
+        dirs.push(root.to_path_buf());
         let mut paths = Vec::new();
         while let Some(dir) = dirs.pop() {
             for entry in std::fs::read_dir(dir).unwrap() {
@@ -238,14 +329,12 @@ mod round_trip {
             let ControlFlow::Continue(()) = c.lower_asts()? else { return Ok(()) };
             let ControlFlow::Continue(()) = c.analysis()? else { return Ok(()) };
             let gcx = c.gcx();
-            let empty = FxHashMap::default();
             for id in gcx.hir.contract_ids() {
                 let contract = gcx.hir.contract(id);
                 if contract.kind.is_interface() || contract.kind.is_abstract_contract() {
                     continue;
                 }
-                let module =
-                    lower::lower_contract(gcx, id, &empty, gcx.dcx().has_errors().is_err());
+                let module = lower::lower_contract(gcx, id);
                 let errors_before = gcx.dcx().err_count();
                 super::validate(gcx.dcx(), &module);
                 if gcx.dcx().err_count() != errors_before {
@@ -314,14 +403,12 @@ mod round_trip {
             };
 
             let gcx = c.gcx();
-            let empty = FxHashMap::default();
             for id in gcx.hir.contract_ids() {
                 let contract = gcx.hir.contract(id);
                 if contract.kind.is_interface() || contract.kind.is_abstract_contract() {
                     continue;
                 }
-                let module =
-                    lower::lower_contract(gcx, id, &empty, gcx.dcx().has_errors().is_err());
+                let module = lower::lower_contract(gcx, id);
                 if let Err(e) = check_round_trip_module(gcx.sess, &module) {
                     result = Err(format!("contract `{}`: {e}", contract.name));
                     return Ok(());
@@ -364,6 +451,10 @@ mod round_trip {
                     return;
                 }
             };
+            if let Err(error) = check_signatures(&parsed1, &parsed2) {
+                result = Err(error);
+                return;
+            }
             let print2 = parsed2.to_text().to_string();
             let parsed3 = match parse_module(&sess, &print2) {
                 Ok(m) => m,
@@ -384,6 +475,24 @@ mod round_trip {
         result
     }
 
+    fn check_signatures(original: &Module, parsed: &Module) -> Result<(), String> {
+        if original.struct_types != parsed.struct_types {
+            return Err("struct declarations changed during round-trip".into());
+        }
+        if original.functions.len() != parsed.functions.len() {
+            return Err("function count changed during round-trip".into());
+        }
+        for (before, after) in original.functions.iter().zip(&parsed.functions) {
+            if before.selector.is_none()
+                && (before.return_type() != after.return_type()
+                    || before.return_abi() != after.return_abi())
+            {
+                return Err(format!("return types of `{}` changed during round-trip", before.name));
+            }
+        }
+        Ok(())
+    }
+
     /// Common idempotency check: print → parse → print → parse → print, last two
     /// must match. Caller must already be inside an active `Session::enter`.
     fn check_round_trip_module(sess: &Session, module: &Module) -> Result<(), String> {
@@ -394,6 +503,7 @@ mod round_trip {
                 sess.emitted_diagnostics().unwrap()
             )
         })?;
+        check_signatures(module, &parsed1)?;
         let print2 = parsed1.to_text().to_string();
         let parsed2 = parse_module(sess, &print2).map_err(|_| {
             format!(

@@ -1,13 +1,22 @@
-//@ filecheck:
+//@ revisions: selected codegen_error
+//@[selected] filecheck:
+//@[codegen_error] compile-flags: -Zmir-pipeline=none
+//@[codegen_error] filecheck: --check-prefix=ERROR
 // CHECK: "errors": [
 // CHECK: "errorCode": "2264"
 // CHECK: "message": "code generation is experimental"
 // CHECK: "contracts": {
 // CHECK: "Selected": {
+// CHECK-NOT: "methodIdentifiers"
 // CHECK: "bytecode": {
 // CHECK: "deployedBytecode": {
 // CHECK-NOT: "Dependency"
 // CHECK-NOT: "Unselected"
+// ERROR: "message": "EVM codegen requires MIR in the `lowered` phase, stopped at `semantic`"
+// ERROR: "sources": {
+// ERROR-NEXT: "A.sol": {
+// ERROR-NEXT: "id": 0
+// ERROR-NOT: "contracts"
 {
   "language": "Solidity",
   "sources": {

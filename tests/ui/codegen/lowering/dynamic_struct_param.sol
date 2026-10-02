@@ -1,4 +1,4 @@
-//@compile-flags: -O none -Zdump=mir
+//@compile-flags: -O none -Zdump=mir -Zmir-pipeline=lower-arithmetic
 //@filecheck:
 
 struct InitInput {

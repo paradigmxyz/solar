@@ -1,0 +1,108 @@
+//@ codegen-matrix: standard instructions
+//@ compile-flags: --evm-version amsterdam
+//@[instructions] compile-flags: -O gas -Zdump=disasm-runtime
+//@[instructions] filecheck:
+//@ run-call: check => true
+
+// Keep distinct, non-rematerializable values live beyond the legacy stack
+// window, then consume them in two different orders. Execute the same bytecode
+// whose disassembly requires all three EIP-8024 instructions.
+// CHECK: DUPN
+// CHECK: SWAPN
+// CHECK: EXCHANGE
+
+contract ExtendedStack {
+    function check() external view returns (bool result) {
+        assembly {
+            let a0 := gas()
+            let a1 := gas()
+            let a2 := gas()
+            let a3 := gas()
+            let a4 := gas()
+            let a5 := gas()
+            let a6 := gas()
+            let a7 := gas()
+            let a8 := gas()
+            let a9 := gas()
+            let a10 := gas()
+            let a11 := gas()
+            let a12 := gas()
+            let a13 := gas()
+            let a14 := gas()
+            let a15 := gas()
+            let a16 := gas()
+            let a17 := gas()
+            let a18 := gas()
+            let a19 := gas()
+            let a20 := gas()
+            let a21 := gas()
+            let a22 := gas()
+            let a23 := gas()
+            let a24 := gas()
+            let a25 := gas()
+            let a26 := gas()
+            let a27 := gas()
+            let a28 := gas()
+            let a29 := gas()
+            result := 1
+            result := and(result, gt(a0, a1))
+            result := and(result, gt(a1, a2))
+            result := and(result, gt(a2, a3))
+            result := and(result, gt(a3, a4))
+            result := and(result, gt(a4, a5))
+            result := and(result, gt(a5, a6))
+            result := and(result, gt(a6, a7))
+            result := and(result, gt(a7, a8))
+            result := and(result, gt(a8, a9))
+            result := and(result, gt(a9, a10))
+            result := and(result, gt(a10, a11))
+            result := and(result, gt(a11, a12))
+            result := and(result, gt(a12, a13))
+            result := and(result, gt(a13, a14))
+            result := and(result, gt(a14, a15))
+            result := and(result, gt(a15, a16))
+            result := and(result, gt(a16, a17))
+            result := and(result, gt(a17, a18))
+            result := and(result, gt(a18, a19))
+            result := and(result, gt(a19, a20))
+            result := and(result, gt(a20, a21))
+            result := and(result, gt(a21, a22))
+            result := and(result, gt(a22, a23))
+            result := and(result, gt(a23, a24))
+            result := and(result, gt(a24, a25))
+            result := and(result, gt(a25, a26))
+            result := and(result, gt(a26, a27))
+            result := and(result, gt(a27, a28))
+            result := and(result, gt(a28, a29))
+            result := and(result, gt(a0, a29))
+            result := and(result, gt(a1, a29))
+            result := and(result, gt(a2, a29))
+            result := and(result, gt(a3, a29))
+            result := and(result, gt(a4, a29))
+            result := and(result, gt(a5, a29))
+            result := and(result, gt(a6, a29))
+            result := and(result, gt(a7, a29))
+            result := and(result, gt(a8, a29))
+            result := and(result, gt(a9, a29))
+            result := and(result, gt(a10, a29))
+            result := and(result, gt(a11, a29))
+            result := and(result, gt(a12, a29))
+            result := and(result, gt(a13, a29))
+            result := and(result, gt(a14, a29))
+            result := and(result, gt(a15, a29))
+            result := and(result, gt(a16, a29))
+            result := and(result, gt(a17, a29))
+            result := and(result, gt(a18, a29))
+            result := and(result, gt(a19, a29))
+            result := and(result, gt(a20, a29))
+            result := and(result, gt(a21, a29))
+            result := and(result, gt(a22, a29))
+            result := and(result, gt(a23, a29))
+            result := and(result, gt(a24, a29))
+            result := and(result, gt(a25, a29))
+            result := and(result, gt(a26, a29))
+            result := and(result, gt(a27, a29))
+            result := and(result, gt(a28, a29))
+        }
+    }
+}

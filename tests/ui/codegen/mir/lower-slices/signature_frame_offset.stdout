@@ -1,9 +1,10 @@
 - // === ROOT/tests/ui/codegen/mir/lower-slices/signature_frame_offset.mir (before lower-slices) ===
 + // === ROOT/tests/ui/codegen/mir/lower-slices/signature_frame_offset.mir (after lower-slices) ===
   @module SignatureFrameOffset
-  fn @signature_slot(arg0: memoryslice, arg1: u256) {
+  fn @signature_slot(arg0: memoryslice, arg1: i256) {
     bb0:
       v0 = internal_frame_addr 96
+      v1 = ptrtoint memptr v0 to i256
       stop
   }
   

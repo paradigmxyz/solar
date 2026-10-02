@@ -8,7 +8,7 @@ contract Storage {
 
     // CHECK-LABEL: fn @increment{{[( ]}}
     // CHECK: [[OLD:v[0-9]+]] = sload 0
-    // CHECK: [[NEW:v[0-9]+]] = add [[OLD]], 1
+    // CHECK: [[NEW:v[0-9]+]] = checked_add {{[ui][0-9]+}}, [[OLD]], 1
     // CHECK: sstore 0, [[NEW]]
     function increment() public {
         count = count + 1;

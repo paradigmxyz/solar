@@ -13,7 +13,7 @@ pub(crate) struct BasicBlock {
     pub(crate) terminator: Option<Terminator>,
     /// Source context of the control transfer, independent of the last value instruction.
     pub(crate) terminator_metadata: InstructionMetadata,
-    /// Predecessor blocks.
+    /// Predecessor blocks, each listed once.
     pub(crate) predecessors: SmallVec<[BlockId; 4]>,
 }
 
@@ -86,7 +86,7 @@ pub(crate) enum Terminator {
     },
     /// Return from function.
     Return {
-        /// The return values.
+        /// One logical value, or the components selected by the function's internal ABI.
         values: SmallVec<[ValueId; 2]>,
     },
     /// Revert execution.
@@ -109,7 +109,7 @@ pub(crate) enum Terminator {
         /// Size of the return data in bytes.
         size: ValueId,
     },
-    /// Stop execution.
+    /// Stop EVM execution, including from an internal function or constructor.
     Stop,
     /// Self-destruct the contract.
     SelfDestruct {
@@ -181,7 +181,7 @@ impl Terminator {
     }
 
     /// Visits the value operands of this terminator without allocating.
-    pub(crate) fn for_each_operand(&self, mut visit: impl FnMut(ValueId)) {
+    pub(crate) fn visit_operands(&self, mut visit: impl FnMut(ValueId)) {
         match self {
             Self::Jump(_) => {}
             Self::Branch { condition, .. } => visit(*condition),
@@ -208,6 +208,21 @@ impl Terminator {
                 }
             }
         }
+    }
+
+    /// Returns whether `value` is an operand of this terminator, without collecting them.
+    #[must_use]
+    pub(crate) fn reads(&self, value: ValueId) -> bool {
+        self.any_operand(|operand| operand == value)
+    }
+
+    /// Returns whether any operand of this terminator satisfies `predicate`, without collecting
+    /// them.
+    #[must_use]
+    pub(crate) fn any_operand(&self, mut predicate: impl FnMut(ValueId) -> bool) -> bool {
+        let mut found = false;
+        self.visit_operands(|operand| found = found || predicate(operand));
+        found
     }
 
     /// Returns the successor blocks of this terminator.
@@ -248,7 +263,7 @@ impl Terminator {
             Self::TailCall { args, .. } => SmallVec::with_capacity(args.len()),
             _ => SmallVec::new(),
         };
-        self.for_each_operand(|value| out.push(value));
+        self.visit_operands(|value| out.push(value));
         out
     }
 

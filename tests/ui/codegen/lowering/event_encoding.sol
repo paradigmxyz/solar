@@ -21,9 +21,10 @@ contract EventEncoding {
     }
 
     // CHECK-LABEL: fn @emitAnonymous
-    // CHECK: [[SENDER:v[0-9]+]] = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+    // CHECK: [[SENDER:v[0-9]+]] = trunc i256 arg0 to i160
     // CHECK: mstore 0, arg1
-    // CHECK: log1 0, 32, [[SENDER]]
+    // CHECK: [[WORD:v[0-9]+]] = zext {{i(1|160)}} [[SENDER]]
+    // CHECK: log1 0, 32, [[WORD]]
     function emitAnonymous(address sender, uint256 value) external {
         emit AnonymousEvent(sender, value);
     }

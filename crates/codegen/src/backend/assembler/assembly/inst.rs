@@ -1,6 +1,6 @@
 //! Compact instructions for finalized, layout-linear EVM IR.
 
-use crate::backend::evm::ir::DataId;
+use crate::{backend::evm::ir::DataId, link::LibraryId};
 use solar_data_structures::{index::Idx, newtype_index};
 
 newtype_index! {
@@ -61,6 +61,10 @@ impl AsmIndex for PushValueId {
     const NAME: &'static str = "assembler push value index";
 }
 
+impl AsmIndex for LibraryId {
+    const NAME: &'static str = "assembler library push index";
+}
+
 impl AsmIndex for ImmutablePushId {
     const NAME: &'static str = "assembler immutable push index";
 }
@@ -101,6 +105,7 @@ impl AsmInst {
     const EXTENDED_PUSH_PACKED_LABELS: u32 = 0;
     const EXTENDED_PUSH_DATA: u32 = 0x0400_0000;
     const EXTENDED_DATA: u32 = 0x0800_0000;
+    const EXTENDED_PUSH_LIBRARY: u32 = 0x0c00_0000;
 
     pub(in crate::backend) fn op(opcode: u8) -> Self {
         Self(Self::TAG_OP | u32::from(opcode))
@@ -121,6 +126,10 @@ impl AsmInst {
 
     pub(in crate::backend) fn push(index: PushValueId) -> Self {
         Self::tagged(Self::TAG_PUSH, index.inst_payload())
+    }
+
+    pub(in crate::backend) fn push_library(id: LibraryId) -> Self {
+        Self::extended(Self::EXTENDED_PUSH_LIBRARY, id.inst_payload())
     }
 
     pub(in crate::backend) fn push_label(label: Label) -> Self {
@@ -208,6 +217,9 @@ impl AsmInst {
                     Self::EXTENDED_PUSH_DATA => {
                         AsmInstKind::PushData(DataRefId::from_inst_payload(index))
                     }
+                    Self::EXTENDED_PUSH_LIBRARY => {
+                        AsmInstKind::PushLibrary(LibraryId::from_inst_payload(index))
+                    }
                     Self::EXTENDED_DATA => AsmInstKind::Data(DataId::from_inst_payload(index)),
                     _ => unreachable!("invalid extended assembler instruction tag"),
                 }
@@ -228,6 +240,7 @@ pub(in crate::backend) enum AsmInstKind {
     PushPackedLabels(PackedLabelsId),
     PushDeferred(DeferredConst),
     PushImmutable(ImmutablePushId),
+    PushLibrary(LibraryId),
     Label(Label),
     PushData(DataRefId),
     Data(DataId),

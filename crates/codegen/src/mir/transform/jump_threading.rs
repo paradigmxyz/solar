@@ -1,7 +1,7 @@
 //! Jump Threading optimization pass.
 //!
 //! This pass eliminates unnecessary jumps by threading through blocks that only contain
-//! an unconditional jump. Each eliminated JUMP instruction saves 8 gas.
+//! an unconditional jump. Each eliminated `JUMP` saves its static gas.
 //!
 //! ## Optimizations performed:
 //!
@@ -13,11 +13,21 @@
 //!
 //! 3. **Empty block elimination**: Blocks containing only a JUMPDEST and JUMP are eliminated by
 //!    updating all references to point to the final target.
+//!
+//! Threading can leave a phi-only branch block with one predecessor. When that predecessor
+//! jumps unconditionally and no phi result escapes, move the branch onto the predecessor and
+//! substitute the selected inputs. This exposes nested short-circuit checks within the same
+//! fixpoint, without waiting for another CFG cleanup pass. Targets with phis and cyclic phi
+//! inputs stay unchanged. Constant incoming edges also bypass a phi followed by
+//! an equality or inequality with zero, provided no result escapes the block.
 
-use crate::mir::{
-    BlockId, Function, InstKind, Module, Terminator, Value, ValueId,
-    pass::{MirPass, run_function_pass},
-    utils::repair_reachability_phis,
+use crate::{
+    mir::{
+        BlockId, Function, InstKind, Module, Terminator, Value, ValueId,
+        pass::{MirPass, run_function_pass},
+        utils::replace_terminator,
+    },
+    target::GasTier,
 };
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 
@@ -50,7 +60,7 @@ struct JumpThreadingStats {
     branches_threaded: usize,
     /// Number of switch case targets threaded.
     switches_threaded: usize,
-    /// Estimated gas saved (8 gas per eliminated jump).
+    /// Estimated gas saved (one `JUMP` per eliminated jump).
     gas_saved: usize,
 }
 
@@ -95,14 +105,11 @@ impl JumpThreader {
         }
 
         changed += self.thread_phi_constant_edges(func);
+        changed += self.fold_single_predecessor_phi_branches(func);
 
         if changed == 0 {
             return 0;
         }
-
-        // Update predecessor/successor information
-        self.update_cfg_edges(func);
-        changed += usize::from(repair_reachability_phis(func));
 
         changed
     }
@@ -196,7 +203,8 @@ impl JumpThreader {
                 continue;
             };
             self.thread_terminator(func, &mut term, final_targets);
-            func.blocks[block_id].terminator = Some(term);
+            // jump/branch/switch through forwarders -> their final targets
+            replace_terminator(func, block_id, term);
         }
     }
 
@@ -212,7 +220,7 @@ impl JumpThreader {
                 if let Some(final_target) = Self::threaded_target(func, *target, final_targets) {
                     *target = final_target;
                     self.stats.jumps_threaded += 1;
-                    self.stats.gas_saved += 8;
+                    self.stats.gas_saved += GasTier::Mid.fixed_gas() as usize;
                 }
             }
 
@@ -230,7 +238,7 @@ impl JumpThreader {
                 }
                 if changed {
                     self.stats.branches_threaded += 1;
-                    self.stats.gas_saved += 8;
+                    self.stats.gas_saved += GasTier::Mid.fixed_gas() as usize;
                 }
             }
 
@@ -249,7 +257,7 @@ impl JumpThreader {
                 }
                 if changed {
                     self.stats.switches_threaded += 1;
-                    self.stats.gas_saved += 8;
+                    self.stats.gas_saved += GasTier::Mid.fixed_gas() as usize;
                 }
             }
 
@@ -273,38 +281,26 @@ impl JumpThreader {
         (!func.block_has_phi(final_target)).then_some(final_target)
     }
 
-    fn block_phi_results_have_external_uses(func: &Function, block_id: BlockId) -> bool {
-        let phi_results = func.block_phi_results(block_id);
-        if phi_results.is_empty() {
+    fn block_results_have_external_uses(func: &Function, block_id: BlockId) -> bool {
+        let mut results = DenseBitSet::new_empty(func.num_values());
+        for &inst in &func.blocks[block_id].instructions {
+            if let Some(result) = func.inst_result_value(inst) {
+                results.insert(result);
+            }
+        }
+        if results.is_empty() {
             return false;
         }
 
-        for (other_block, block) in func.blocks.iter_enumerated() {
-            if other_block != block_id {
-                for &inst_id in &block.instructions {
-                    if func
-                        .inst(inst_id)
-                        .kind
-                        .operands()
-                        .iter()
-                        .any(|&operand| phi_results.contains(operand))
-                    {
-                        return true;
-                    }
-                }
-            }
-
-            if other_block == block_id {
-                continue;
-            }
-            if let Some(term) = &block.terminator
-                && term.operands().iter().any(|&operand| phi_results.contains(operand))
-            {
-                return true;
-            }
-        }
-
-        false
+        let external = |operand| results.contains(operand);
+        func.blocks.iter_enumerated().any(|(other_block, block)| {
+            other_block != block_id
+                && (block
+                    .instructions
+                    .iter()
+                    .any(|&inst_id| func.inst(inst_id).kind.any_operand(external))
+                    || block.terminator.as_ref().is_some_and(|term| term.any_operand(external)))
+        })
     }
 
     fn thread_phi_constant_edges(&mut self, func: &mut Function) -> usize {
@@ -313,12 +309,19 @@ impl JumpThreader {
 
         for block_id in block_ids {
             if !func.block_has_only_phis(block_id) {
-                continue;
+                let Some(Terminator::Branch { condition, .. }) = func.blocks[block_id].terminator
+                else {
+                    continue;
+                };
+                if Self::branch_zero_test(func, condition).is_none()
+                    || !func.blocks[block_id].instructions.iter().all(|&inst| {
+                        matches!(func.inst(inst).kind, InstKind::Phi(_))
+                            || func.inst_result_value(inst) == Some(condition)
+                    })
+                {
+                    continue;
+                }
             }
-            if Self::block_phi_results_have_external_uses(func, block_id) {
-                continue;
-            }
-
             let Some(term) = &func.blocks[block_id].terminator else {
                 continue;
             };
@@ -327,6 +330,7 @@ impl JumpThreader {
                 continue;
             }
 
+            let start = rewrites.len();
             for pred in predecessors {
                 if pred == block_id || Self::successor_count(func, pred, block_id) != 1 {
                     continue;
@@ -339,6 +343,10 @@ impl JumpThreader {
                     continue;
                 }
                 rewrites.push((pred, block_id, target));
+            }
+            // Only a block with a threadable edge needs the whole-function use scan.
+            if rewrites.len() != start && Self::block_results_have_external_uses(func, block_id) {
+                rewrites.truncate(start);
             }
         }
 
@@ -357,6 +365,61 @@ impl JumpThreader {
         threaded
     }
 
+    fn fold_single_predecessor_phi_branches(&mut self, func: &mut Function) -> usize {
+        let mut folded = 0;
+        for block in func.blocks.indices() {
+            if !func.block_has_phi(block) || !func.block_has_only_phis(block) {
+                continue;
+            }
+            let [pred] = func.blocks[block].predecessors.as_slice() else { continue };
+            let pred = *pred;
+            if pred == block
+                || !matches!(func.blocks[pred].terminator, Some(Terminator::Jump(target)) if target == block)
+            {
+                continue;
+            }
+            let Some(mut term @ Terminator::Branch { .. }) = func.blocks[block].terminator.clone()
+            else {
+                continue;
+            };
+            if term.successors().iter().any(|&target| func.block_has_phi(target)) {
+                continue;
+            }
+            let mut replacements = FxHashMap::default();
+            for &id in &func.blocks[block].instructions {
+                let InstKind::Phi(incoming) = &func.inst(id).kind else { unreachable!() };
+                if let [(incoming_pred, value)] = incoming.as_slice()
+                    && *incoming_pred == pred
+                    && let Some(result) = func.inst_result_value(id)
+                {
+                    replacements.insert(result, *value);
+                }
+            }
+            if replacements.len() != func.blocks[block].instructions.len()
+                || replacements.values().any(|value| replacements.contains_key(value))
+                || Self::block_results_have_external_uses(func, block)
+            {
+                continue;
+            }
+            // pred: jump block -> branch selected_phi_input, then, else
+            // block: phi inputs; branch -> invalid
+            let Terminator::Branch { condition, .. } = &mut term else { unreachable!() };
+            if let Some(&replacement) = replacements.get(condition) {
+                *condition = replacement;
+            }
+            let context = func.blocks[block].terminator_metadata.debug_context();
+            func.replace_uses(&replacements);
+            func.blocks[block].instructions.clear();
+            replace_terminator(func, block, Terminator::Invalid);
+            replace_terminator(func, pred, term);
+            func.blocks[pred].terminator_metadata.merge_debug_context(&context);
+            folded += 1;
+        }
+        self.stats.branches_threaded += folded;
+        self.stats.gas_saved += folded * 8;
+        folded
+    }
+
     fn phi_constant_target_for_pred(
         &self,
         func: &Function,
@@ -366,9 +429,11 @@ impl JumpThreader {
     ) -> Option<BlockId> {
         match term {
             Terminator::Branch { condition, then_block, else_block } => {
-                let incoming = Self::incoming_value_for_pred(func, block_id, *condition, pred)?;
-                let condition = func.value_u256(incoming)?;
-                Some(if condition.is_zero() { *else_block } else { *then_block })
+                let (value, invert) =
+                    Self::branch_zero_test(func, *condition).unwrap_or((*condition, false));
+                let incoming = Self::incoming_value_for_pred(func, block_id, value, pred)?;
+                let truth = !func.value_u256(incoming)?.is_zero() ^ invert;
+                Some(if truth { *then_block } else { *else_block })
             }
             Terminator::Switch { value, default, cases } => {
                 let incoming = Self::incoming_value_for_pred(func, block_id, *value, pred)?;
@@ -382,6 +447,27 @@ impl JumpThreader {
             }
             _ => None,
         }
+    }
+
+    fn branch_zero_test(func: &Function, condition: ValueId) -> Option<(ValueId, bool)> {
+        let Value::Inst(inst) = func.value(condition) else { return None };
+        let instruction = func.inst(*inst);
+        if instruction
+            .metadata
+            .effect()
+            .is_some_and(|effect| effect != instruction.kind.effect_kind())
+        {
+            return None;
+        }
+        let (InstKind::Eq(a, b) | InstKind::Ne(a, b)) = instruction.kind else { return None };
+        let value = if func.value_u64(a) == Some(0) {
+            b
+        } else if func.value_u64(b) == Some(0) {
+            a
+        } else {
+            return None;
+        };
+        Some((value, matches!(instruction.kind, InstKind::Eq(..))))
     }
 
     fn incoming_value_for_pred(
@@ -418,10 +504,10 @@ impl JumpThreader {
         old_target: BlockId,
         new_target: BlockId,
     ) -> bool {
-        let Some(term) = &mut func.blocks[pred].terminator else {
+        let Some(mut term) = func.blocks[pred].terminator.clone() else {
             return false;
         };
-        match term {
+        let changed = match &mut term {
             Terminator::Jump(target) => {
                 if *target == old_target {
                     *target = new_target;
@@ -464,25 +550,11 @@ impl JumpThreader {
             | Terminator::SelfDestruct { .. }
             | Terminator::TailCall { .. }
             | Terminator::Invalid => false,
+        };
+        if changed {
+            // pred -> old_target -> new_target => pred -> new_target
+            replace_terminator(func, pred, term);
         }
-    }
-
-    /// Updates CFG edges after threading.
-    fn update_cfg_edges(&self, func: &mut Function) {
-        for block_id in func.blocks.indices() {
-            func.blocks[block_id].predecessors.clear();
-        }
-
-        for block_id in func.blocks.indices() {
-            let successors = func.blocks[block_id]
-                .terminator
-                .as_ref()
-                .map(|t| t.successors())
-                .unwrap_or_default();
-
-            for succ in successors {
-                func.blocks[succ].predecessors.push(block_id);
-            }
-        }
+        changed
     }
 }

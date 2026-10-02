@@ -1,3 +1,6 @@
+//! Name every case `lsp/<operation>[<scenario>]` using parameter IDs so CodSpeed retains the
+//! operation. Include the corpus or workload size with units, plus any cache or cursor state.
+
 #![allow(unused_crate_dependencies)]
 
 use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
@@ -14,7 +17,7 @@ fn diagnostic_conversion(c: &mut Criterion) {
     for diagnostic_count in [1, 16, 64] {
         for cached in [false, true] {
             let name = format!(
-                "{diagnostic_count}-diagnostics-{}",
+                "optimism-{diagnostic_count}-diagnostics-{}",
                 if cached { "cached" } else { "uncached" }
             );
             assert_eq!(
@@ -61,10 +64,10 @@ fn code_actions(c: &mut Criterion) {
                 assert!(action.edit.is_some());
             }
             group.bench_function(
-                BenchmarkId::new(
-                    if whole_document { "document" } else { "cursor" },
-                    function_count,
-                ),
+                BenchmarkId::from_parameter(format!(
+                    "{function_count}-functions-{}-quick-fixes",
+                    if whole_document { "whole-document" } else { "cursor" },
+                )),
                 |b| {
                     b.iter(|| black_box(requests.run()));
                 },

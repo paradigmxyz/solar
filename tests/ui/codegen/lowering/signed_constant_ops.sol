@@ -11,7 +11,7 @@ contract SignedConstantOps {
 
     // CHECK-LABEL: fn @div{{[( ]}}
     // CHECK: [[NEG_SEVEN:v[0-9]+]] = sub 0, 7
-    // CHECK: sdiv [[NEG_SEVEN]], 2
+    // CHECK: checked_div {{[ui][0-9]+}}, [[NEG_SEVEN]], 2
     function div() public pure returns (int256) {
         return int256(-7) / int256(2);
     }

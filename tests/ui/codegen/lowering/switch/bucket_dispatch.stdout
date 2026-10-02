@@ -36,14 +36,18 @@ bb3:
   eq
   push bb59
   jumpi
-  jump bb58
+  push 0
+  push 0
+  revert
 bb4:
   dup 1
   push 0x41052a0d
   eq
   push bb59
   jumpi
-  jump bb58
+  push 0
+  push 0
+  revert
 bb5:
   dup 1
   push 0x7238232f
@@ -55,21 +59,27 @@ bb5:
   eq
   push bb59
   jumpi
-  jump bb58
+  push 0
+  push 0
+  revert
 bb6:
   dup 1
   push 0x3b88f6c2
   eq
   push bb59
   jumpi
-  jump bb58
+  push 0
+  push 0
+  revert
 bb7:
   dup 1
   push 0xaa66aa63
   eq
   push bb59
   jumpi
-  jump bb58
+  push 0
+  push 0
+  revert
 bb8:
   dup 1
   push 0x24a75cfd
@@ -81,14 +91,18 @@ bb8:
   eq
   push bb59
   jumpi
-  jump bb58
+  push 0
+  push 0
+  revert
 bb9:
   dup 1
   push 0xebd25c8f
   eq
   push bb59
   jumpi
-  jump bb58
+  push 0
+  push 0
+  revert
 bb10:
   dup 1
   push 0x8a67ee70
@@ -100,14 +114,18 @@ bb10:
   eq
   push bb59
   jumpi
-  jump bb58
+  push 0
+  push 0
+  revert
 bb11:
   dup 1
   push 0xebbd40a9
   eq
   push bb59
   jumpi
-  jump bb58
+  push 0
+  push 0
+  revert
 bb12:
   dup 1
   push 0x1eb6457a
@@ -119,28 +137,36 @@ bb12:
   eq
   push bb59
   jumpi
-  jump bb58
+  push 0
+  push 0
+  revert
 bb13:
   dup 1
   push 0x67e648b5
   eq
   push bb59
   jumpi
-  jump bb58
+  push 0
+  push 0
+  revert
 bb14:
   dup 1
   push 0xe6e0ae36
   eq
   push bb59
   jumpi
-  jump bb58
+  push 0
+  push 0
+  revert
 bb15:
   dup 1
   push 0xcba58af7
   eq
   push bb59
   jumpi
-  jump bb58
+  push 0
+  push 0
+  revert
 bb16:
   dup 1
   push 0x6d4975a2
@@ -152,14 +178,18 @@ bb16:
   eq
   push bb59
   jumpi
-  jump bb58
+  push 0
+  push 0
+  revert
 bb17:
   dup 1
   push 0x54eaadab
   eq
   push bb59
   jumpi
-  jump bb58
+  push 0
+  push 0
+  revert
 bb18:
   dup 1
   push 0x10c772cc
@@ -171,35 +201,45 @@ bb18:
   eq
   push bb59
   jumpi
-  jump bb58
+  push 0
+  push 0
+  revert
 bb19:
   dup 1
   push 0x965a68f5
   eq
   push bb59
   jumpi
-  jump bb58
+  push 0
+  push 0
+  revert
 bb20:
   dup 1
   push 0xd758c88e
   eq
   push bb59
   jumpi
-  jump bb58
+  push 0
+  push 0
+  revert
 bb21:
   dup 1
   push 0x6d738a50
   eq
   push bb59
   jumpi
-  jump bb58
+  push 0
+  push 0
+  revert
 bb22:
   dup 1
   push 0xf02a00c9
   eq
   push bb59
   jumpi
-  jump bb58
+  push 0
+  push 0
+  revert
 bb23:
   dup 1
   push 0x40bcff2a
@@ -211,21 +251,27 @@ bb23:
   eq
   push bb59
   jumpi
-  jump bb58
+  push 0
+  push 0
+  revert
 bb24:
   dup 1
   push 0x3d492ec4
   eq
   push bb59
   jumpi
-  jump bb58
+  push 0
+  push 0
+  revert
 bb25:
   dup 1
   push 0x1f49dbe7
   eq
   push bb59
   jumpi
-  jump bb58
+  push 0
+  push 0
+  revert
 bb60:
   jump bb2
 bb61:

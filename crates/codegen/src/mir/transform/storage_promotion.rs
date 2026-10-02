@@ -7,17 +7,21 @@
 //! Safety contract:
 //! - promote only exact storage aliases that are loop-invariant
 //! - promote multiple slots only when they are pairwise provably disjoint
-//! - reject loops with calls, unknown storage writes, or non-isolated exits
+//! - reject loops with calls, storage accesses the rewrite cannot update, or non-isolated exits
+//! - skip functions that observe memory size, including through callees, because temporaries can
+//!   expand memory even when the loop body never executes.
+//! - use shared read/write effects to detect storage traffic inside semantic operations
 //! - flush dirty promoted values before any clean observable exit
 //! - skip the flush on revert exits: `revert`/`invalid` roll back every storage write of the frame,
 //!   so the unflushed slot is unobservable there; reads of the promoted slot on those paths are
 //!   rewritten to the memory temp so revert data still sees the current value
+//! - reject opaque storage accesses on rollback exits because the rewrite cannot update them.
 //! - leave loop-variant mapping/array slots in storage
 
 use crate::mir::{
-    BlockId, Function, Immediate, InstId, InstKind, Instruction, MirType, Module, StorageAlias,
-    Terminator, Value, ValueId,
-    analysis::{AliasAnalysis, Loop, LoopAnalyzer},
+    BlockId, Callee, EffectKind, Function, Immediate, InstId, InstKind, Instruction, MirType,
+    Module, StorageAlias, Terminator, Value, ValueId,
+    analysis::{AddressSpace, AliasAnalysis, Loop, LoopAnalyzer, may_observe_msize},
     memory::EvmMemoryLayout,
     pass::{MirPass, run_function_pass},
     utils as mir_utils,
@@ -39,10 +43,18 @@ impl MirPass for StorageScalarPromotion {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        run_function_pass(module, analyses, |func, _| {
+        let summaries = analyses.call_summaries(module);
+        run_function_pass(module, analyses, |func, analyses| {
+            if may_observe_msize(func, Some(&summaries)) {
+                return false;
+            }
             let mut promoter = StorageScalarPromoter::new();
             let stats = promoter.run(func);
-            stats.loops_promoted + stats.loads_promoted + stats.stores_promoted != 0
+            let changed = stats.loops_promoted + stats.loads_promoted + stats.stores_promoted != 0;
+            if promoter.annotated_aliases {
+                analyses.note_unreported_edit();
+            }
+            changed
         })
     }
 }
@@ -62,6 +74,8 @@ struct StoragePromotionStats {
 #[derive(Debug, Default)]
 struct StorageScalarPromoter {
     stats: StoragePromotionStats,
+    /// Whether storage-alias annotation changed metadata, which is not reported as a change.
+    annotated_aliases: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -97,7 +111,8 @@ impl StorageScalarPromoter {
             return &self.stats;
         }
 
-        func.annotate_storage_aliases(mir_utils::StorageAliasScope::Storage);
+        self.annotated_aliases |=
+            func.annotate_storage_aliases(mir_utils::StorageAliasScope::Storage);
 
         // Promoting a loop can split its exit blocks and relocate the final
         // stores into new blocks, which invalidates the block sets of every
@@ -107,7 +122,7 @@ impl StorageScalarPromoter {
         // stores and only inserts new storage stores outside that loop.
         loop {
             let mut analyzer = LoopAnalyzer::new();
-            let loop_info = analyzer.analyze(func);
+            let loop_info = analyzer.analyze_structure(func);
             let loops: Vec<Loop> = loop_info.all_loops().cloned().collect();
 
             let mut promoted = false;
@@ -136,7 +151,7 @@ impl StorageScalarPromoter {
         {
             return None;
         }
-        if !self.loop_has_no_unpromotable_side_effects(func, loop_data) {
+        if !self.promotion_effects_are_safe(func, loop_data) {
             return None;
         }
 
@@ -208,7 +223,7 @@ impl StorageScalarPromoter {
         {
             return None;
         }
-        if !self.loop_has_no_unpromotable_side_effects(func, loop_data) {
+        if !self.promotion_effects_are_safe(func, loop_data) {
             return None;
         }
 
@@ -290,20 +305,11 @@ impl StorageScalarPromoter {
     /// other instructions whose results escape the rolled-back frame.
     fn rollback_exit_has_no_observable_effects(&self, func: &Function, exit: BlockId) -> bool {
         func.blocks[exit].instructions.iter().all(|&inst_id| {
+            let kind = &func.inst(inst_id).kind;
             !matches!(
-                &func.inst(inst_id).kind,
-                InstKind::Call { .. }
-                    | InstKind::CallCode { .. }
-                    | InstKind::StaticCall { .. }
-                    | InstKind::DelegateCall { .. }
-                    | InstKind::ExtCall { .. }
-                    | InstKind::ExtDelegateCall { .. }
-                    | InstKind::ExtStaticCall { .. }
-                    | InstKind::ICall { .. }
-                    | InstKind::Create(_, _, _)
-                    | InstKind::Create2(_, _, _, _)
-                    | InstKind::Gas
-            )
+                kind.effect_kind(),
+                EffectKind::ExternalCall | EffectKind::ICall | EffectKind::Create
+            ) && !kind.observes_gas()
         })
     }
 
@@ -318,25 +324,31 @@ impl StorageScalarPromoter {
         blocks
     }
 
-    fn loop_has_no_unpromotable_side_effects(&self, func: &Function, loop_data: &Loop) -> bool {
-        for block_id in &loop_data.blocks {
-            if matches!(
-                func.blocks[block_id].terminator,
-                Some(
-                    Terminator::Return { .. }
-                        | Terminator::Revert { .. }
-                        | Terminator::RevertReturndata
-                        | Terminator::ReturnData { .. }
-                        | Terminator::Stop
-                        | Terminator::SelfDestruct { .. }
-                        | Terminator::Invalid
+    fn promotion_effects_are_safe(&self, func: &Function, loop_data: &Loop) -> bool {
+        let alias = AliasAnalysis::new(func);
+        for block_id in self.promotion_block_ids(func, loop_data) {
+            if loop_data.blocks.contains(block_id)
+                && matches!(
+                    func.blocks[block_id].terminator,
+                    Some(
+                        Terminator::Return { .. }
+                            | Terminator::Revert { .. }
+                            | Terminator::RevertReturndata
+                            | Terminator::ReturnData { .. }
+                            | Terminator::Stop
+                            | Terminator::SelfDestruct { .. }
+                            | Terminator::Invalid
+                    )
                 )
-            ) {
+            {
                 return false;
             }
 
             for &inst_id in &func.blocks[block_id].instructions {
                 let inst = func.inst(inst_id);
+                if inst.kind.observes_gas() {
+                    return false;
+                }
                 match &inst.kind {
                     InstKind::SLoad(_) | InstKind::SStore(_, _) => {}
                     InstKind::TStore(_, _)
@@ -344,14 +356,17 @@ impl StorageScalarPromoter {
                     | InstKind::CallCode { .. }
                     | InstKind::StaticCall { .. }
                     | InstKind::DelegateCall { .. }
-                    | InstKind::ExtCall { .. }
-                    | InstKind::ExtDelegateCall { .. }
-                    | InstKind::ExtStaticCall { .. }
-                    | InstKind::ICall { .. }
+                    | InstKind::ICall { function: Callee::Function(_), .. }
                     | InstKind::Create(_, _, _)
-                    | InstKind::Create2(_, _, _, _)
-                    | InstKind::Gas => return false,
-                    _ => {}
+                    | InstKind::Create2(_, _, _, _) => return false,
+                    _ => {
+                        let effects = alias.instruction_mod_ref(func, inst_id);
+                        if effects.reads_space(AddressSpace::Storage)
+                            || effects.writes_space(AddressSpace::Storage)
+                        {
+                            return false;
+                        }
+                    }
                 }
             }
         }
@@ -465,8 +480,7 @@ impl StorageScalarPromoter {
                 | InstKind::MStore8(_, _)
                 | InstKind::MCopy(_, _, _)
                 | InstKind::DataCopy(_, _, _) => {}
-                kind if kind.has_side_effects() => return false,
-                InstKind::Gas => return false,
+                kind if kind.has_side_effects() || kind.observes_gas() => return false,
                 _ => {}
             }
         }
@@ -510,8 +524,7 @@ impl StorageScalarPromoter {
                 | InstKind::MStore8(_, _)
                 | InstKind::MCopy(_, _, _)
                 | InstKind::DataCopy(_, _, _) => {}
-                kind if kind.has_side_effects() => return false,
-                InstKind::Gas => return false,
+                kind if kind.has_side_effects() || kind.observes_gas() => return false,
                 _ => {}
             }
         }
@@ -742,7 +755,7 @@ impl StorageScalarPromoter {
                     let (load_inst, load_value) = self.alloc_inst_value(
                         func,
                         InstKind::SLoad(candidate.slot_value),
-                        MirType::uint256(),
+                        MirType::I256,
                     );
                     let store_inst = self
                         .alloc_void_inst(func, InstKind::MStore(promoted.temp_addr, load_value));
@@ -776,7 +789,7 @@ impl StorageScalarPromoter {
         temp_addr: ValueId,
     ) {
         let (load_inst, load_value) = func.alloc_value_inst(
-            Instruction::new(InstKind::MLoad(temp_addr), Some(MirType::uint256()))
+            Instruction::new(InstKind::MLoad(temp_addr), Some(MirType::I256))
                 .with_debug_info_dropped(),
         );
         let store_inst = func.alloc_inst(
@@ -818,10 +831,17 @@ impl StorageScalarPromoter {
         let continuation_instructions = old_instructions[split_pos..].to_vec();
 
         let (dirty_load_inst, dirty_value) = func.alloc_value_inst(
-            Instruction::new(InstKind::MLoad(dirty_addr), Some(MirType::Bool))
+            Instruction::new(InstKind::MLoad(dirty_addr), Some(MirType::I256))
                 .with_debug_info_dropped(),
         );
         exit_instructions.push(dirty_load_inst);
+        // dirty_bool = ne dirty_word, 0
+        let zero = func.alloc_value(Value::Immediate(Immediate::I256(U256::ZERO)));
+        let (normalize, dirty_value) = func.alloc_value_inst(
+            Instruction::new(InstKind::Ne(dirty_value, zero), Some(MirType::I1))
+                .with_debug_info_dropped(),
+        );
+        exit_instructions.push(normalize);
 
         // dirty = mload dirty_addr
         // jumpi dirty, store_block, continuation !metadata(intentionally dropped)
@@ -833,7 +853,7 @@ impl StorageScalarPromoter {
         });
 
         let (load_inst, load_value) = func.alloc_value_inst(
-            Instruction::new(InstKind::MLoad(temp_addr), Some(MirType::uint256()))
+            Instruction::new(InstKind::MLoad(temp_addr), Some(MirType::I256))
                 .with_debug_info_dropped(),
         );
         let store_inst = func.alloc_inst(
@@ -868,7 +888,7 @@ impl StorageScalarPromoter {
         let frame_offset = func.internal_frame_size.max(func.external_static_return_size);
         let temp_addr = EvmMemoryLayout::HEAP_START + frame_offset;
         func.internal_frame_size = func.internal_frame_size.max(frame_offset + 32);
-        func.alloc_value(Value::Immediate(Immediate::uint256(U256::from(temp_addr))))
+        func.alloc_value(Value::Immediate(Immediate::I256(U256::from(temp_addr))))
     }
 
     fn redirect_successor_phi_incoming(
@@ -897,7 +917,7 @@ impl StorageScalarPromoter {
     }
 
     fn bool_word(&self, func: &mut Function, value: bool) -> ValueId {
-        func.alloc_value(Value::Immediate(Immediate::bool(value)))
+        func.alloc_value(Value::Immediate(Immediate::I256(U256::from(value))))
     }
 
     fn alloc_inst_value(

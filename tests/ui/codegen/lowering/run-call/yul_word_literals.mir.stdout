@@ -1,27 +1,65 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/yul_word_literals.sol:C ===
 @module C
-fn @direct() -> bytes32 [selector=0x222b1407, pure, abi_params=[], abi_returns=[word]] {
+fn @direct() -> i256 [selector=0x222b1407, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     ret 0x102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f
 }
 
-fn @shortDirect() -> bytes32 [selector=0xca89fa65, pure, abi_params=[], abi_returns=[word]] {
+fn @shortDirect() -> i256 [selector=0xca89fa65, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     ret 0x1234000000000000000000000000000000000000000000000000000000000000
 }
 
-fn @local() -> bytes32 [selector=0x0f166ad4, pure, abi_params=[], abi_returns=[word]] {
+fn @local() -> i256 [selector=0x0f166ad4, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     ret 0x202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f
 }
 
-fn @stringDirect() -> bytes32 [selector=0x13f2673d, pure, abi_params=[], abi_returns=[word]] {
+fn @stringDirect() -> i256 [selector=0x13f2673d, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     ret 0x68656c6c6f000000000000000000000000000000000000000000000000000000
 }
 
-fn @builtin() -> bytes32 [selector=0x44d2c8a8, pure, abi_params=[], abi_returns=[word]] {
+fn @builtin() -> i256 [selector=0x44d2c8a8, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = or 0x1234000000000000000000000000000000000000000000000000000000000000, 0
     ret v0
+}
+
+fn @loop() -> i256 [selector=0xa92100cb, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = zext i1 0 to i256
+    v1 = ne v0, 0
+    jumpi v1, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    jump bb3
+  bb3:
+    v2 = phi [bb1: 99], [bb2: 0]
+    jump bb4
+  bb4:
+    v3 = phi [bb3: v2], [bb8: v6]
+    v4 = zext i1 1 to i256
+    v5 = ne v4, 0
+    jumpi v5, bb6, bb7
+  bb7:
+    jump bb5
+  bb6:
+    v6 = add v3, 1
+    v7 = eq v6, 3
+    v8 = zext i1 v7 to i256
+    v9 = ne v8, 0
+    jumpi v9, bb9, bb10
+  bb10:
+    jump bb11
+  bb11:
+    jump bb8
+  bb8:
+    jump bb4
+  bb9:
+    jump bb5
+  bb5:
+    v10 = phi [bb9: v6], [bb7: v3]
+    ret v10
 }

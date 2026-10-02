@@ -16,8 +16,9 @@ library DataTypes {
 contract E {
     // CHECK: push 0xbc477c04
     // CHECK: calldataload
-    // CHECK-NEXT: lt
-    // CHECK-NEXT: iszero
+    // CHECK-NEXT: gt
+    // CHECK-NEXT: push bb11
+    // CHECK-NEXT: jumpi
     // CHECK: return
     function isNone(uint256 x) external pure returns (bool) {
         return DataTypes.Mode(x) == DataTypes.Mode.NONE;

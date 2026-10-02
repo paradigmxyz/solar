@@ -3,15 +3,22 @@
 //! The pass finds repeated straight-line machine instruction runs, replaces each profitable site
 //! with a jump to one shared body, and returns from that body through a stack-held continuation.
 //! It also finds structurally equal runs whose concrete pushes differ, turning those pushes into
-//! stack parameters in size-oriented modes. A final specialized path shares repeated large pushes
+//! stack parameters in size mode. A final specialized path shares repeated large pushes
 //! when the call and return sequence is smaller than spelling out each literal.
 //!
-//! Candidates must be closed stack computations with known effects: they consume a fixed number
-//! of inputs, produce a fixed number of outputs, contain no control flow or observable operation,
-//! and contain no control flow or observable operation. Profitability includes the shared body,
-//! per-site call sequence, continuation labels, and target-dependent push widths. Sites are
-//! selected without overlap, and new blocks and labels are installed through the normal EVM IR CFG
-//! representation.
+//! Gas-mode candidates are closed stack computations: they leave the incoming stack untouched
+//! and produce up to sixteen outputs. The hidden return address remains below those outputs;
+//! `SWAP1` through `SWAPn` rotate it to the top for the return jump. Size mode also permits bounded
+//! input arguments. Candidates have known stack effects and contain no control flow or position
+//! or gas observations. Profitability includes the shared body,
+//! per-site call sequence, continuation labels, and target-dependent push widths. Constant
+//! recipes charge call/return gas against deposited bytes using the requested optimizer run count
+//! in gas mode. Gas mode never outlines a site inside a loop: static duplicate counts cannot
+//! justify adding two jumps to every dynamic iteration. Sites are selected without overlap, and
+//! new blocks and labels are installed through the normal EVM IR CFG representation.
+//!
+//! Gas mode keeps computations and immediate pushes in known loop blocks inline,
+//! since each outlined site adds call and return jumps on every iteration.
 //!
 //! Replacing a site splits its block around the run, so both ends of a candidate run must be
 //! boundaries `keep_with_next` allows to become block boundaries.
@@ -19,6 +26,11 @@
 //! Enumerating all substrings is potentially quadratic, so the implementation cuts runs at unique
 //! instructions, hashes slices from prefix tables, and applies a module-wide candidate budget.
 //! Large modules shorten the maximum considered run rather than allowing unbounded compile time.
+//! In gas mode, a module-wide screen first asks whether the widest push, or a closed whitelisted
+//! prefix that occurs at two starts, could repay its transfer gas over the expected executions.
+//! When neither could, the pass builds no run tables. Machine runs are skipped only when no push
+//! can be shared either, since a rejected store run keeps its literal from becoming a push share.
+//!
 //! Outlining runs before late CFG/CSE/DCE cleanup, which removes jump thunks and redundancies
 //! exposed by sharing; assembly remains responsible only for final label offsets and push widths.
 
@@ -27,16 +39,19 @@ use super::{
     compact_pushes::selected_len,
     utils::{FreshLabels, MachineInstKey, instruction_size_lower_bound, is_split_point},
 };
-use crate::backend::evm::{
-    ir::{Block, BlockId, Instruction, Module, PushValue, Terminator, TerminatorKind},
-    op,
+use crate::{
+    backend::evm::{
+        ir::{Block, BlockId, Instruction, Module, PushValue, Terminator, TerminatorKind},
+        op,
+    },
+    target::Target,
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
 use solar_data_structures::{
     bit_set::DenseBitSet,
     index::IndexVec,
-    map::{FxHashMap, FxHasher},
+    map::{FxHashMap, FxHashSet, FxHasher},
 };
 use solar_sema::Gcx;
 use std::hash::{Hash, Hasher};
@@ -53,7 +68,7 @@ impl EvmPass for Outline {
     }
 }
 
-const MIN_MACHINE_RUN: usize = 4;
+const MIN_MACHINE_RUN: usize = 3;
 const MAX_MACHINE_RUN_CANDIDATES: usize = 2_000_000;
 
 type BlockEdits = SmallVec<[(usize, usize, BlockId, u16); 1]>;
@@ -67,10 +82,136 @@ fn outline(gcx: Gcx<'_>, module: &mut Module) -> bool {
         "analyzing machine instruction outlines"
     );
     let mut state = RunState::default();
-    outline_machine_runs(gcx, module, &mut state)
-        | ((gcx.sess.opts.optimization.is_size() || module.enable_size_outlining)
+    // A rejected machine run can veto a push share, so skip runs only when no push can share.
+    let pushes = may_share_pushes(gcx);
+    let runs = pushes || may_share_machine_runs(gcx, module);
+    (runs && outline_machine_runs(gcx, module, &mut state))
+        | (gcx.sess.opts.optimization.is_size()
             && outline_parametric_machine_runs(gcx, module, &mut state))
-        | outline_repeated_pushes(gcx, module, &mut state)
+        | (pushes && outline_repeated_pushes(gcx, module, &mut state))
+}
+
+/// Byte length of the widest push, `PUSH32` and its immediate.
+const MAX_PUSH_LEN: usize = 33;
+
+/// Returns whether any repeated push could repay its call and return gas in gas mode.
+///
+/// A share of `n` pushes of at most [`MAX_PUSH_LEN`] bytes saves fewer than
+/// `n * (MAX_PUSH_LEN - site bytes)` bytes, while its transfers cost `n` times the transfer gas.
+fn may_share_pushes(gcx: Gcx<'_>) -> bool {
+    if !gcx.sess.opts.optimization.is_gas() {
+        return true;
+    }
+    let target = Target::new(gcx);
+    let (site_bytes, _, transfer_gas) = push_share_costs(target);
+    sharing_improves_lifetime(
+        MAX_PUSH_LEN.saturating_sub(site_bytes),
+        1,
+        transfer_gas,
+        target.expected_executions(),
+    )
+}
+
+/// Returns whether gas mode could share some closed machine run outside loops.
+///
+/// A share of `n` runs of `size` bytes saves fewer than `n * (size - transfer bytes)` bytes,
+/// while its transfers cost at least `n` times the gas of two pushes, two jumps, and two
+/// labels. Every candidate is a closed run of whitelisted instructions, and every site of a
+/// profitable share starts with the same shortest closed prefix that is large enough. Sharing
+/// is possible only if two starts have equal prefixes, which hashes can rule out. The screen
+/// shares the outliner's candidate budget and gives up, answering yes, once it is spent.
+fn may_share_machine_runs(gcx: Gcx<'_>, module: &Module) -> bool {
+    if !gcx.sess.opts.optimization.is_gas() {
+        return true;
+    }
+    let target = Target::new(gcx);
+    let transfer_size = transfer_size(target);
+    let transfer_gas = transfer_gas(target);
+    let profitable = |size: usize| {
+        sharing_improves_lifetime(
+            size.saturating_sub(transfer_size),
+            1,
+            transfer_gas,
+            target.expected_executions(),
+        )
+    };
+    let mut metrics = Vec::new();
+    let mut prefixes = FxHashSet::default();
+    let mut budget = MAX_MACHINE_RUN_CANDIDATES;
+    for block in &module.blocks {
+        if block.metadata.in_loop {
+            continue;
+        }
+        metrics.clear();
+        metrics.extend(block.instructions.iter().map(|inst| {
+            whitelisted_effect(inst).map(|effect| (effect, instruction_size_lower_bound(gcx, inst)))
+        }));
+        let mut remaining = metrics.iter().flatten().map(|&(_, size)| size).sum::<usize>();
+        for start in 0..metrics.len() {
+            // Neither this start nor any later one can reach a profitable size.
+            if !profitable(remaining) {
+                break;
+            }
+            remaining -= metrics[start].map_or(0, |(_, size)| size);
+            if !is_split_point(&block.instructions, start) {
+                continue;
+            }
+            let mut delta = 0i32;
+            let mut run_size = 0usize;
+            for (end, &metric) in metrics.iter().enumerate().skip(start) {
+                let Some(((reads, pops, pushes), size)) = metric else { break };
+                if i32::from(reads) > delta {
+                    break;
+                }
+                let Some(left) = budget.checked_sub(1) else { return true };
+                budget = left;
+                delta = delta - i32::from(pops) + i32::from(pushes);
+                run_size += size;
+                if profitable(run_size) {
+                    let mut hasher = FxHasher::default();
+                    for inst in &block.instructions[start..=end] {
+                        MachineInstKey::new(inst).hash(&mut hasher);
+                    }
+                    if !prefixes.insert(hasher.finish()) {
+                        return true;
+                    }
+                    break;
+                }
+            }
+        }
+    }
+    false
+}
+
+/// Returns the bytes of one call site:
+///
+/// push2 return
+/// push2 body
+/// jump
+/// jumpdest
+fn transfer_size(target: Target) -> usize {
+    (target.opcode(op::PUSH2).bytes * 2
+        + target.opcode(op::JUMP).bytes
+        + target.opcode(op::JUMPDEST).bytes) as usize
+}
+
+/// Returns the gas of one call and return, excluding the shared body's rotations.
+fn transfer_gas(target: Target) -> u32 {
+    target.opcode_gas(op::PUSH2) * 2
+        + target.opcode_gas(op::JUMP) * 2
+        + target.opcode_gas(op::JUMPDEST) * 2
+}
+
+/// Returns the per-site bytes, shared body bytes, and transfer gas of a push share.
+fn push_share_costs(target: Target) -> (usize, usize, u32) {
+    // The shared body around the push:
+    // jumpdest
+    // swap1
+    // jump
+    let body_bytes = (target.opcode(op::JUMPDEST).bytes
+        + target.opcode(op::SWAP1).bytes
+        + target.opcode(op::JUMP).bytes) as usize;
+    (transfer_size(target), body_bytes, transfer_gas(target) + target.opcode_gas(op::SWAP1))
 }
 
 fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState) -> bool {
@@ -82,58 +223,72 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
     //   at least twice module-wide. Runs are cut at any instruction that does not, which ends them
     //   at the unique pushes that separate most straight-line code.
     // - A run's hash comes from a per-block prefix table, so it costs the same whatever the run's
-    //   length. Equality still compares instructions, so the grouping is exactly as before.
+    //   length. Equality compares interned instruction IDs, preserving exact grouping.
     // - Large modules use shorter runs so candidate storage stays bounded. Longer repeated
     //   sequences can still be outlined in chunks.
-    let hashes = InstHashes::new(module);
+    let hashes = RunHashes::new(module, MachineInstKey::new);
     let repeated_instructions = hashes.repeated_count();
     if repeated_instructions == 0 || repeated_instructions > MAX_MACHINE_RUN_CANDIDATES {
         return false;
     }
     let max_run_length = max_machine_run_length(repeated_instructions);
+    let target = Target::new(gcx);
+    let transfer_size = transfer_size(target);
+    let shuffle_size = target.opcode(op::SWAP1).bytes as usize;
 
-    let mut candidates = FxHashMap::<MachineInstSlice<'_>, SmallVec<[Site; 2]>>::default();
+    let mut candidates = FxHashMap::<RunSlice<'_>, SmallVec<[Site; 2]>>::default();
+    let mut metrics = Vec::new();
     for (block_id, block) in module.blocks.iter_enumerated() {
+        if gcx.sess.opts.optimization.is_gas() && block.metadata.in_loop {
+            continue;
+        }
+        // Overlapping candidate windows revisit each instruction. Decode its stack
+        // effect and select its push size once, without changing window order or limits.
+        metrics.clear();
+        metrics.extend(block.instructions.iter().enumerate().map(|(index, inst)| {
+            hashes
+                .repeats(block_id, index)
+                .then(|| {
+                    whitelisted_effect(inst)
+                        .map(|effect| (effect, instruction_size_lower_bound(gcx, inst)))
+                })
+                .flatten()
+        }));
         for start in 0..block.instructions.len() {
             if !hashes.repeats(block_id, start) || !is_split_point(&block.instructions, start) {
                 continue;
             }
             let mut delta = 0i32;
             let mut inputs = 0i32;
-            let mut peak = 0i32;
             let mut run_size = 0usize;
             let limit = block.instructions.len().min(start + max_run_length);
-            for end in start..limit {
-                let inst = &block.instructions[end];
-                if !hashes.repeats(block_id, end) {
-                    break;
-                }
-                let Some((reads, pops, pushes)) = whitelisted_effect(inst) else { break };
-                run_size += instruction_size_lower_bound(gcx, inst);
+            for (end, &metric) in metrics.iter().enumerate().take(limit).skip(start) {
+                let Some(((reads, pops, pushes), size)) = metric else { break };
+                run_size += size;
                 inputs = inputs.max(i32::from(reads) - delta);
                 delta = delta - i32::from(pops) + i32::from(pushes);
-                peak = peak.max(delta);
                 let outputs = inputs + delta;
                 if inputs != 0 && !gcx.sess.opts.optimization.is_size() {
                     break;
                 }
                 let len = end + 1 - start;
-                let closed = inputs == 0 && matches!(outputs, 0 | 1);
+                let closed = inputs == 0 && (0..=16).contains(&outputs);
                 let open_size_run = gcx.sess.opts.optimization.is_size()
                     && (0..=16).contains(&inputs)
                     && (0..=16).contains(&outputs);
-                // An outlined site costs at least seven bytes plus one stack shuffle per input,
-                // before the shared stub's fixed overhead. A run no larger than that site can
-                // never save bytes regardless of its occurrence count, so do not intern it.
-                let can_amortize = run_size > 7 + inputs as usize;
+                // Price both address pushes at PUSH2, plus the jump, continuation label, and
+                // input shuffles. Runs no larger than this site cannot pass the shared stub's
+                // profitability check regardless of occurrence count, so do not intern them.
+                let can_amortize = run_size > transfer_size + inputs as usize * shuffle_size;
                 if len >= MIN_MACHINE_RUN
                     && can_amortize
                     && (closed || open_size_run)
                     && is_split_point(&block.instructions, end + 1)
                 {
-                    let key = MachineInstSlice {
+                    let key = RunSlice {
                         hash: hashes.range(block_id, start, end),
-                        insts: &block.instructions[start..=end],
+                        ids: &hashes.ids
+                            [hashes.starts[block_id] + start..=hashes.starts[block_id] + end],
                     };
                     candidates.entry(key).or_default().push(Site {
                         block: block_id,
@@ -153,7 +308,7 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
     }
     groups.sort_unstable_by_key(|(key, sites)| {
         let first = sites[0];
-        (std::cmp::Reverse(key.insts.len()), first.block.index(), first.start)
+        (std::cmp::Reverse(key.ids.len()), first.block.index(), first.start)
     });
     let mut claimed = FxHashMap::<BlockId, DenseBitSet<usize>>::default();
     let mut chosen = Vec::new();
@@ -188,16 +343,48 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
             continue;
         }
         let first = free[0];
-        let mut body =
-            module.blocks[first.block].instructions[first.start..first.start + first.len].to_vec();
-        merge_site_source_spans(module, &mut body, &free);
-        clear_function_invokes(&mut body);
-        let run_size = lower_bound(gcx, &body);
-        let stub_size = 1 + run_size + usize::from(first.outputs) + 1;
-        let site_size = (if free.len() >= 4 { 7 } else { 8 }) + usize::from(first.inputs);
-        if free.len() * run_size < free.len() * site_size + stub_size + 1 {
+        // Profitability reads only opcodes and values, so copy the body once it is chosen.
+        let run = &module.blocks[first.block].instructions[first.start..first.start + first.len];
+        let run_size = lower_bound(gcx, run);
+        let stub_size = run_size
+            + (target.opcode(op::JUMPDEST).bytes
+                + target.opcode(op::SWAP1).bytes * u32::from(first.outputs)
+                + target.opcode(op::JUMP).bytes) as usize;
+        let site_size = transfer_size + usize::from(first.inputs) * shuffle_size;
+        if free.len() * run_size <= free.len() * site_size + stub_size {
             continue;
         }
+        // repeated run at each site
+        // =>
+        // push continuation; jump shared; ...; swap outputs; jump continuation
+        //
+        // Charge the transfer gas at the requested execution count against
+        // the deposited bytes saved by sharing. Static occurrence counts do
+        // not make the calls cold, even when every site is outside a loop.
+        if gcx.sess.opts.optimization.is_gas() {
+            let saved_bytes = free.len() * (run_size - site_size) - stub_size;
+            let transfer_gas = transfer_gas(target)
+                + target.opcode_gas(op::SWAP1)
+                    * u32::from(first.outputs.saturating_add(first.inputs));
+            if !sharing_improves_lifetime(
+                saved_bytes,
+                free.len(),
+                transfer_gas,
+                target.expected_executions(),
+            ) {
+                if matches!(run.get(..3), Some([value, address, store])
+                    if value.is_encoded_push() && address.is_encoded_push()
+                        && matches!(store.opcode, op::MSTORE | op::MSTORE8))
+                    && let Some(PushValue::Immediate(value)) = run[0].value
+                {
+                    state.inline_store_literals.insert(value);
+                }
+                continue;
+            }
+        }
+        let mut body = run.to_vec();
+        merge_site_source_spans(module, &mut body, &free);
+        clear_function_invokes(&mut body);
         for site in &free {
             claimed
                 .get_mut(&site.block)
@@ -253,6 +440,17 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
     true
 }
 
+/// Whether deposited bytes repay a repeated dynamic transfer over a deployment.
+const fn sharing_improves_lifetime(
+    saved_bytes: usize,
+    occurrences: usize,
+    transfer_gas: u32,
+    expected_executions: u64,
+) -> bool {
+    saved_bytes as u128 * Target::CODE_DEPOSIT_GAS_PER_BYTE as u128
+        > occurrences as u128 * transfer_gas as u128 * expected_executions as u128
+}
+
 fn max_machine_run_length(repeated_instructions: usize) -> usize {
     debug_assert_ne!(repeated_instructions, 0);
     debug_assert!(repeated_instructions <= MAX_MACHINE_RUN_CANDIDATES);
@@ -270,10 +468,20 @@ fn outline_parametric_machine_runs(
     const MAX_RUN_LENGTH: usize = 64;
     const MAX_PARAMETERS: usize = 8;
 
-    let hashes = ParamInstHashes::new(module);
-    let mut candidates =
-        FxHashMap::<ParamMachineInstSlice<'_>, SmallVec<[ParamSite; 2]>>::default();
+    let hashes = RunHashes::new(module, ParamInstKey::new);
+    let mut candidates = FxHashMap::<RunSlice<'_>, SmallVec<[ParamSite; 2]>>::default();
+    let mut metrics = Vec::new();
     for (block_id, block) in module.blocks.iter_enumerated() {
+        // Overlapping candidate windows revisit each instruction, so classify it once.
+        metrics.clear();
+        metrics.extend(block.instructions.iter().enumerate().map(|(index, inst)| {
+            hashes
+                .repeats(block_id, index)
+                .then(|| {
+                    whitelisted_effect(inst).map(|effect| (effect, parameterizable_push(inst)))
+                })
+                .flatten()
+        }));
         for start in 0..block.instructions.len() {
             if !is_split_point(&block.instructions, start) {
                 continue;
@@ -282,13 +490,9 @@ fn outline_parametric_machine_runs(
             let mut inputs = 0i32;
             let mut immediate_pushes = 0usize;
             let limit = block.instructions.len().min(start + MAX_RUN_LENGTH);
-            for end in start..limit {
-                if !hashes.repeats(block_id, end) {
-                    break;
-                }
-                let inst = &block.instructions[end];
-                let Some((reads, pops, pushes)) = whitelisted_effect(inst) else { break };
-                if parameterizable_push(inst) {
+            for (end, &metric) in metrics.iter().enumerate().take(limit).skip(start) {
+                let Some(((reads, pops, pushes), parameter)) = metric else { break };
+                if parameter {
                     immediate_pushes += 1;
                 }
                 inputs = inputs.max(i32::from(reads) - delta);
@@ -304,10 +508,10 @@ fn outline_parametric_machine_runs(
                 {
                     continue;
                 }
-                let instructions = &block.instructions[start..=end];
-                let key = ParamMachineInstSlice {
+                let key = RunSlice {
                     hash: hashes.range(block_id, start, end),
-                    insts: instructions,
+                    ids: &hashes.ids
+                        [hashes.starts[block_id] + start..=hashes.starts[block_id] + end],
                 };
                 candidates.entry(key).or_default().push(ParamSite {
                     block: block_id,
@@ -325,7 +529,7 @@ fn outline_parametric_machine_runs(
     }
     groups.sort_unstable_by_key(|(key, sites)| {
         let first = sites[0];
-        (std::cmp::Reverse(key.insts.len()), first.block.index(), first.start)
+        (std::cmp::Reverse(key.ids.len()), first.block.index(), first.start)
     });
 
     let mut claimed = FxHashMap::<BlockId, DenseBitSet<usize>>::default();
@@ -543,13 +747,16 @@ fn split_parametric_outline_site(
     let function_invoke = range_function_invoke(
         &module.blocks[block].instructions[edit.start..edit.start + edit.len],
     );
+    // prefix; parameters; push continuation; rotate return below inputs; jump stub
+    // continuation: suffix; original terminator
     let mut continuation = Block::new(continuation_label);
     continuation.metadata = module.blocks[block].metadata;
+    continuation.metadata.is_continuation = true;
     continuation.instructions = module.blocks[block].instructions.split_off(edit.start + edit.len);
     module.blocks[block].instructions.truncate(edit.start);
     continuation.terminator = module.blocks[block].terminator.take();
     let continuation = module.add_block(continuation);
-    module.blocks[block].instructions.extend(edit.prefix.iter().cloned());
+    module.blocks[block].instructions.extend_from_slice(&edit.prefix);
     module.blocks[block]
         .instructions
         .push(Instruction::push_block(continuation).with_debug_info_dropped());
@@ -568,6 +775,9 @@ fn split_parametric_outline_site(
 fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState) -> bool {
     let mut sites = FxHashMap::<U256, SmallVec<[(BlockId, usize); 2]>>::default();
     for (block_id, block) in module.blocks.iter_enumerated() {
+        if gcx.sess.opts.optimization.is_gas() && block.metadata.in_loop {
+            continue;
+        }
         for (index, inst) in block.instructions.iter().enumerate() {
             if inst.is_encoded_push()
                 && inst.deferred_push().is_none()
@@ -581,16 +791,30 @@ fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunSta
         }
     }
 
-    const SITE_BYTES: usize = 8;
+    let target = Target::new(gcx);
+    let (site_bytes, body_bytes, transfer_gas) = push_share_costs(target);
     const MIN_SAVING: usize = 8;
     let mut values: Vec<_> = sites
         .iter()
         .filter_map(|(&value, occurrences)| {
+            // Do not recreate the rejected store outline as a literal-returning call.
+            if state.inline_store_literals.contains(&value) {
+                return None;
+            }
             let push_size = selected_len(gcx, value);
             let inline = occurrences.len() * push_size;
-            let outlined = occurrences.len() * SITE_BYTES + push_size + 3;
-            (occurrences.len() >= 2 && inline >= outlined + MIN_SAVING)
-                .then_some((value, push_size))
+            let outlined = occurrences.len() * site_bytes + push_size + body_bytes;
+            let saved_bytes = inline.saturating_sub(outlined);
+            (occurrences.len() >= 2
+                && inline >= outlined + MIN_SAVING
+                && (!gcx.sess.opts.optimization.is_gas()
+                    || sharing_improves_lifetime(
+                        saved_bytes,
+                        occurrences.len(),
+                        transfer_gas,
+                        target.expected_executions(),
+                    )))
+            .then_some((value, push_size))
         })
         .collect();
     if values.is_empty() {
@@ -599,8 +823,17 @@ fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunSta
     values.retain(|(value, push_size)| {
         let occurrences = &sites[value];
         let inline = occurrences.len() * push_size;
-        let outlined = occurrences.len() * SITE_BYTES + push_size + 3;
-        occurrences.len() >= 2 && inline >= outlined + MIN_SAVING
+        let outlined = occurrences.len() * site_bytes + push_size + body_bytes;
+        let saved_bytes = inline.saturating_sub(outlined);
+        occurrences.len() >= 2
+            && inline >= outlined + MIN_SAVING
+            && (!gcx.sess.opts.optimization.is_gas()
+                || sharing_improves_lifetime(
+                    saved_bytes,
+                    occurrences.len(),
+                    transfer_gas,
+                    target.expected_executions(),
+                ))
     });
     if values.is_empty() {
         return false;
@@ -664,9 +897,8 @@ fn range_function_invoke(
 ) -> Option<crate::backend::evm::DebugFunction> {
     let mut functions =
         instructions.iter().filter_map(|instruction| instruction.metadata.function_invoke());
-    let function = functions.next();
-    debug_assert!(functions.all(|other| Some(other) == function));
-    function
+    let function = functions.next()?;
+    functions.all(|other| other == function).then_some(function)
 }
 
 fn apply_outline_edits(
@@ -703,8 +935,11 @@ fn split_outline_site(
 ) {
     let function_invoke =
         range_function_invoke(&module.blocks[block].instructions[start..start + len]);
+    // prefix; push continuation; rotate return below inputs; jump stub
+    // continuation: suffix; original terminator
     let mut continuation = Block::new(continuation_label);
     continuation.metadata = module.blocks[block].metadata;
+    continuation.metadata.is_continuation = true;
     continuation.instructions = module.blocks[block].instructions.split_off(start + len);
     module.blocks[block].instructions.truncate(start);
     continuation.terminator = module.blocks[block].terminator.take();
@@ -800,50 +1035,66 @@ struct ParamEdit {
     prefix: Vec<Instruction>,
 }
 
-/// Per-block instruction tables: whether each instruction occurs more than
+/// Instruction tables over all blocks: whether each instruction occurs more than
 /// once module-wide, and prefix hashes so any run hashes in constant time.
 ///
 /// `prefix[i + 1] = prefix[i] * BASE + hash(inst[i])`, so the run `[start, end]`
 /// hashes to `prefix[end + 1] - prefix[start] * BASE^len`. Equal instruction
-/// sequences always produce equal hashes, which is all the map needs: equality
-/// still compares the instructions themselves.
-struct InstHashes {
-    prefixes: IndexVec<BlockId, Vec<u64>>,
-    repeats: IndexVec<BlockId, DenseBitSet<usize>>,
+/// sequences always produce equal hashes. Equality compares interned instruction IDs,
+/// retaining exact machine identity without decoding each instruction again.
+///
+/// The blocks share flat tables. Block `b`'s instructions start at `starts[b]`, and its
+/// prefixes, which hold one more entry, at `starts[b] + b`.
+struct RunHashes {
+    ids: Vec<usize>,
+    starts: IndexVec<BlockId, usize>,
+    prefixes: Vec<u64>,
+    repeats: DenseBitSet<usize>,
     powers: Vec<u64>,
 }
 
-impl InstHashes {
+impl RunHashes {
     const BASE: u64 = 0x100_0000_01b3;
 
-    fn new(module: &Module) -> Self {
-        let mut counts = FxHashMap::<MachineInstKey, u32>::default();
-        for block in module.blocks.iter() {
+    fn new<K: Copy + Eq + Hash>(module: &Module, key: impl Fn(&Instruction) -> K) -> Self {
+        // Number each distinct key once, with its occurrence count and hash.
+        let total = module.blocks.iter().map(|block| block.instructions.len()).sum();
+        let mut interned = FxHashMap::<K, u32>::default();
+        let mut counts = Vec::<u32>::new();
+        let mut hashes = Vec::new();
+        let mut ids = Vec::with_capacity(total);
+        let mut starts = IndexVec::with_capacity(module.blocks.len());
+        let mut longest = 0;
+        for block in &module.blocks {
+            starts.push(ids.len());
+            longest = longest.max(block.instructions.len());
             for inst in &block.instructions {
-                *counts.entry(MachineInstKey::new(inst)).or_default() += 1;
+                let key = key(inst);
+                let id = *interned.entry(key).or_insert_with(|| {
+                    let mut hasher = FxHasher::default();
+                    key.hash(&mut hasher);
+                    hashes.push(hasher.finish());
+                    counts.push(0);
+                    (counts.len() - 1) as u32
+                }) as usize;
+                counts[id] += 1;
+                ids.push(id);
             }
         }
 
-        let mut longest = 0;
-        let mut prefixes = IndexVec::with_capacity(module.blocks.len());
-        let mut repeats = IndexVec::with_capacity(module.blocks.len());
-        for block in module.blocks.iter() {
-            longest = longest.max(block.instructions.len());
-            let mut prefix = Vec::with_capacity(block.instructions.len() + 1);
-            let mut repeated = DenseBitSet::new_empty(block.instructions.len());
-            prefix.push(0u64);
-            for (index, inst) in block.instructions.iter().enumerate() {
-                let key = MachineInstKey::new(inst);
-                if counts.get(&key).copied().unwrap_or(0) >= 2 {
-                    repeated.insert(index);
+        let mut prefixes = Vec::with_capacity(total + module.blocks.len());
+        let mut repeats = DenseBitSet::new_empty(total);
+        let mut id_iter = ids.iter().enumerate();
+        for block in &module.blocks {
+            let mut last = 0u64;
+            prefixes.push(last);
+            for (index, &id) in id_iter.by_ref().take(block.instructions.len()) {
+                if counts[id] >= 2 {
+                    repeats.insert(index);
                 }
-                let mut hasher = FxHasher::default();
-                key.hash(&mut hasher);
-                let last = *prefix.last().expect("prefix starts with the empty run");
-                prefix.push(last.wrapping_mul(Self::BASE).wrapping_add(hasher.finish()));
+                last = last.wrapping_mul(Self::BASE).wrapping_add(hashes[id]);
+                prefixes.push(last);
             }
-            prefixes.push(prefix);
-            repeats.push(repeated);
         }
 
         let mut powers = Vec::with_capacity(longest + 1);
@@ -852,46 +1103,33 @@ impl InstHashes {
             powers.push(powers[index].wrapping_mul(Self::BASE));
         }
 
-        Self { prefixes, repeats, powers }
+        Self { ids, starts, prefixes, repeats, powers }
     }
 
     /// Whether this instruction occurs more than once in the module. A run that
     /// contains an instruction occurring exactly once can never occur twice, so
     /// it can never be outlined.
     fn repeats(&self, block: BlockId, index: usize) -> bool {
-        self.repeats[block].contains(index)
+        self.repeats.contains(self.starts[block] + index)
     }
 
     fn repeated_count(&self) -> usize {
-        self.repeats.iter().map(DenseBitSet::count).sum()
+        self.repeats.count()
     }
 
     fn range(&self, block: BlockId, start: usize, end: usize) -> u64 {
-        let prefix = &self.prefixes[block];
+        let prefix = &self.prefixes[self.starts[block] + block.index()..];
         prefix[end + 1].wrapping_sub(prefix[start].wrapping_mul(self.powers[end + 1 - start]))
     }
 }
 
-#[derive(Clone, Copy)]
-struct MachineInstSlice<'a> {
+#[derive(Clone, Copy, PartialEq, Eq)]
+struct RunSlice<'a> {
     hash: u64,
-    insts: &'a [Instruction],
+    ids: &'a [usize],
 }
 
-impl PartialEq for MachineInstSlice<'_> {
-    fn eq(&self, other: &Self) -> bool {
-        self.insts.len() == other.insts.len()
-            && self
-                .insts
-                .iter()
-                .zip(other.insts)
-                .all(|(a, b)| MachineInstKey::new(a) == MachineInstKey::new(b))
-    }
-}
-
-impl Eq for MachineInstSlice<'_> {}
-
-impl Hash for MachineInstSlice<'_> {
+impl Hash for RunSlice<'_> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         state.write_u64(self.hash);
     }
@@ -914,88 +1152,9 @@ impl ParamInstKey {
     }
 }
 
-struct ParamInstHashes {
-    prefixes: IndexVec<BlockId, Vec<u64>>,
-    repeats: IndexVec<BlockId, DenseBitSet<usize>>,
-    powers: Vec<u64>,
-}
-
-impl ParamInstHashes {
-    fn new(module: &Module) -> Self {
-        let mut counts = FxHashMap::<ParamInstKey, u32>::default();
-        for block in &module.blocks {
-            for inst in &block.instructions {
-                *counts.entry(ParamInstKey::new(inst)).or_default() += 1;
-            }
-        }
-
-        let mut longest = 0;
-        let mut prefixes = IndexVec::with_capacity(module.blocks.len());
-        let mut repeats = IndexVec::with_capacity(module.blocks.len());
-        for block in &module.blocks {
-            longest = longest.max(block.instructions.len());
-            let mut prefix = Vec::with_capacity(block.instructions.len() + 1);
-            let mut repeated = DenseBitSet::new_empty(block.instructions.len());
-            prefix.push(0u64);
-            for (index, inst) in block.instructions.iter().enumerate() {
-                let key = ParamInstKey::new(inst);
-                if counts.get(&key).copied().unwrap_or(0) >= 2 {
-                    repeated.insert(index);
-                }
-                let mut hasher = FxHasher::default();
-                key.hash(&mut hasher);
-                let last = *prefix.last().expect("prefix starts with the empty run");
-                prefix.push(last.wrapping_mul(InstHashes::BASE).wrapping_add(hasher.finish()));
-            }
-            prefixes.push(prefix);
-            repeats.push(repeated);
-        }
-
-        let mut powers = Vec::with_capacity(longest + 1);
-        powers.push(1u64);
-        for index in 0..longest {
-            powers.push(powers[index].wrapping_mul(InstHashes::BASE));
-        }
-        Self { prefixes, repeats, powers }
-    }
-
-    fn repeats(&self, block: BlockId, index: usize) -> bool {
-        self.repeats[block].contains(index)
-    }
-
-    fn range(&self, block: BlockId, start: usize, end: usize) -> u64 {
-        let prefix = &self.prefixes[block];
-        prefix[end + 1].wrapping_sub(prefix[start].wrapping_mul(self.powers[end + 1 - start]))
-    }
-}
-
-#[derive(Clone, Copy)]
-struct ParamMachineInstSlice<'a> {
-    hash: u64,
-    insts: &'a [Instruction],
-}
-
-impl PartialEq for ParamMachineInstSlice<'_> {
-    fn eq(&self, other: &Self) -> bool {
-        self.insts.len() == other.insts.len()
-            && self
-                .insts
-                .iter()
-                .zip(other.insts)
-                .all(|(a, b)| ParamInstKey::new(a) == ParamInstKey::new(b))
-    }
-}
-
-impl Eq for ParamMachineInstSlice<'_> {}
-
-impl Hash for ParamMachineInstSlice<'_> {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        state.write_u64(self.hash);
-    }
-}
-
 #[derive(Default)]
 struct RunState {
+    inline_store_literals: FxHashSet<U256>,
     labels: Option<FreshLabels>,
 }
 
@@ -1016,5 +1175,12 @@ mod tests {
             let lengths = max_machine_run_length(repeated) - MIN_MACHINE_RUN + 1;
             assert!(repeated * lengths <= MAX_MACHINE_RUN_CANDIDATES);
         }
+    }
+
+    #[test]
+    fn machine_run_lifetime_profitability() {
+        assert!(sharing_improves_lifetime(100, 2, 40, 200));
+        assert!(!sharing_improves_lifetime(80, 2, 40, 200));
+        assert!(!sharing_improves_lifetime(100, 2, 40, 1_000_000));
     }
 }

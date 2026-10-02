@@ -1,8 +1,167 @@
 use super::*;
-use crate::{handlers, vfs::VfsPath};
-use async_lsp::LanguageServer;
-use crop::Rope;
 use std::sync::atomic::AtomicBool;
+
+/// A project whose main source imports a dependency below `/generated`.
+pub(super) const GENERATED_DEPENDENCY: &str = r#"
+    //- /Main.sol
+    import "./generated/Dependency.sol";
+    contract Main is Dependency {}
+
+    //- /generated/Dependency.sol
+    contract Dependency {}
+    "#;
+
+async fn reanalyze(state: &mut GlobalState, changed_paths: Vec<PathBuf>) {
+    state.recompute_after_opening_source(changed_paths);
+    settle(state).await;
+}
+
+fn assert_workspace_diagnostics_clean(state: &GlobalState) {
+    for report in state.diagnostics.read().workspace_pull_reports(Vec::new()) {
+        let PullReport::Full { diagnostics, .. } = report.report else {
+            unreachable!("no previous result IDs")
+        };
+        assert!(diagnostics.is_empty());
+    }
+}
+
+fn report_version(state: &GlobalState, uri: &Url) -> Option<i64> {
+    let reports = state.diagnostics.read().workspace_pull_reports(Vec::new());
+    reports.into_iter().find(|report| report.uri == *uri).unwrap().version
+}
+
+pub(super) fn analysis_result(
+    documents: impl IntoIterator<Item = (Url, Option<i64>)>,
+    diagnostics: impl IntoIterator<Item = (Url, Vec<Diagnostic>)>,
+) -> AnalysisResult {
+    AnalysisResult {
+        analyzed_documents: documents.into_iter().collect(),
+        diagnostics: diagnostics.into_iter().collect(),
+        symbol_tables: Default::default(),
+    }
+}
+
+pub(super) fn path_output(analysis_paths: AnalysisPathIndex) -> AnalysisOutput {
+    AnalysisOutput { result: analysis_result([], []), analysis_paths }
+}
+
+pub(super) fn workspace_bases(config: &Config) -> Vec<PathBuf> {
+    let workspaces = config.workspaces().iter();
+    workspaces.filter_map(|workspace| workspace.compile_opts().base_path.clone()).collect()
+}
+
+pub(super) fn resolved_paths(paths: impl IntoIterator<Item = PathBuf>) -> AnalysisPathIndex {
+    AnalysisPathIndex { resolved_dependencies: paths.into_iter().collect(), ..Default::default() }
+}
+
+/// Builds a workspace folder change that adds the `added` folders and removes the `removed` ones.
+pub(super) fn workspace_folders_change(
+    added: &[Url],
+    removed: &[Url],
+) -> DidChangeWorkspaceFoldersParams {
+    let folders = |uris: &[Url]| {
+        uris.iter().map(|uri| WorkspaceFolder { uri: uri.clone(), name: "folder".into() }).collect()
+    };
+    let event = WorkspaceFoldersChangeEvent { added: folders(added), removed: folders(removed) };
+    DidChangeWorkspaceFoldersParams { event }
+}
+
+pub(super) fn change_workspace_folders(state: &mut GlobalState, added: &[Url], removed: &[Url]) {
+    let params = workspace_folders_change(added, removed);
+    assert!(crate::handlers::did_change_workspace_folders(state, params).is_continue());
+}
+
+/// Negotiates `params` with a host `launch_config` and discovers its workspaces.
+pub(super) fn host_config(params: InitializeParams, launch_config: &crate::LaunchConfig) -> Config {
+    let (_, mut config) = crate::config::negotiate_capabilities_with_pull_diagnostic_data(
+        params,
+        false,
+        launch_config,
+    );
+    config.rediscover_workspaces();
+    config
+}
+
+/// A config whose host Foundry loader uses `src` sources and fails for roots where `fails` holds.
+fn failing_loader_config(
+    params: InitializeParams,
+    fails: impl Fn(&Path) -> bool + Send + Sync + 'static,
+) -> Config {
+    let launch_config =
+        crate::LaunchConfig::default().with_foundry_workspace_config_loader(move |root| {
+            if fails(root) {
+                return Err("host config unavailable");
+            }
+            Ok(crate::FoundryWorkspaceConfig::new(root).with_source_roots(["src"]))
+        });
+    host_config(params, &launch_config)
+}
+
+/// Starts a rediscovery that fails in the host loader and waits for the recovery analysis.
+async fn fail_rediscovery(state: &mut GlobalState) {
+    let (version, progress) = begin_rediscovery(state);
+    assert!(state.analysis_commit.lock().discovery_pending);
+    let Err(error) = state.config.try_discover_workspaces(&IndexingCancellation::default()) else {
+        panic!("host loader should fail workspace discovery")
+    };
+    let failed = WorkspaceDiscoveryFailed { version, error: error.to_string(), progress };
+    assert!(state.on_workspace_discovery_failed(failed).is_continue());
+    settle(state).await;
+}
+
+/// Serves a state that uses `config` to a quiet client. `setup` runs on the state before `route`
+/// adds test handlers to its router.
+fn serve<T>(
+    config: Config,
+    setup: impl FnOnce(&mut GlobalState) -> T,
+    route: impl FnOnce(&mut Router<GlobalState>),
+) -> (LspPair, T) {
+    let mut output = None;
+    let server = |client| {
+        let mut state = GlobalState::new(client);
+        state.config = Arc::new(config);
+        output = Some(setup(&mut state));
+        let mut router = crate::new_router_with_state(state);
+        route(&mut router);
+        router
+    };
+    let pair = LspPair::spawn(server, |_| quiet_client());
+    (pair, output.unwrap())
+}
+
+/// Analyzes the only batch of a fixture as a previous analysis would have.
+pub(super) fn analyze_project(project: &TestProject, config: &Config) -> AnalysisOutput {
+    let mut batches =
+        snapshot_with_config(config.clone(), project.vfs()).analysis_batches(Vec::new());
+    analyze_cancellable(batches.pop().unwrap(), &IndexingCancellation::default()).unwrap()
+}
+
+pub(super) fn fail_analysis(state: &GlobalState, error: &str) {
+    cancel_analysis(state);
+    assert!(
+        handle_analysis_failure(
+            analysis_version(state),
+            error,
+            &state.analysis_version,
+            &state.published_analysis_version,
+            &state.analysis_commit,
+        )
+        .is_some()
+    );
+}
+
+pub(super) fn symbol_names(tables: &Arc<ArcSwap<SymbolTables>>, query: &str) -> Vec<String> {
+    tables.load().workspace_symbols(query).into_iter().map(|symbol| symbol.name).collect()
+}
+
+async fn wait_published(published: &mut watch::Receiver<usize>, done: impl Fn(usize) -> bool) {
+    within("publication", async {
+        while !done(*published.borrow()) {
+            published.changed().await.unwrap();
+        }
+    })
+    .await;
+}
 
 #[tokio::test(flavor = "current_thread")]
 async fn dependency_references_survive_closing_arbitrary_project_sources() {
@@ -32,172 +191,142 @@ async fn dependency_references_survive_closing_arbitrary_project_sources() {
             project.remove_file("/checks/Main.sol");
             std::fs::remove_dir(project.path("/checks")).unwrap();
         }
-        let uri = Url::from_file_path(project.path("/lib/forge-std/src/Base.sol")).unwrap();
-        let mut state = GlobalState::new(ClientSocket::new_closed());
-        state.config = Arc::new(project.config());
+        let uri = project.uri("/lib/forge-std/src/Base.sol");
+        let test_uri = project.uri("/checks/Main.sol");
+        let mut state = state_with(project.config());
         if created_later {
             // No watcher notification: the editor is how we discover this new file.
             project.write_file("/checks/Main.sol", &caller_source);
         }
-        let _ = handlers::did_open_text_document(
-            &mut state,
-            DidOpenTextDocumentParams {
-                text_document: TextDocumentItem::new(
-                    uri.clone(),
-                    "solidity".into(),
-                    1,
-                    project.read_file("/lib/forge-std/src/Base.sol"),
-                ),
-            },
-        );
-        tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap();
-        let references = state
-            .symbol_tables
-            .load()
-            .references(&uri, marked.marker("$1").position(), false)
-            .unwrap();
+        let references = |state: &GlobalState, uri: &Url, marker: &str| {
+            let position = marked.marker(marker).position();
+            state.symbol_tables.load().references(uri, position, false).unwrap()
+        };
         let expected = ["$2", "$3"].map(|name| {
             let marker = marked.marker(name);
             let position = marker.position();
             lsp_types::Location::new(
-                Url::from_file_path(project.path(marker.path())).unwrap(),
+                project.uri(marker.path()),
                 Range::new(position, Position::new(position.line, position.character + 2)),
             )
         });
-        assert_eq!(references, if created_later { &expected[1..] } else { &expected[..] });
 
-        let test_uri = Url::from_file_path(project.path("/checks/Main.sol")).unwrap();
-        let _ = handlers::did_open_text_document(
-            &mut state,
-            DidOpenTextDocumentParams {
-                text_document: TextDocumentItem::new(
-                    test_uri.clone(),
-                    "solidity".into(),
-                    1,
-                    project.read_file("/checks/Main.sol"),
-                ),
-            },
-        );
-        tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap();
-        {
-            let tables = state.symbol_tables.load();
-            assert_eq!(
-                tables.references(&uri, marked.marker("$1").position(), false).unwrap(),
-                expected
-            );
-            assert_eq!(
-                tables.references(&test_uri, marked.marker("$2").position(), false).unwrap(),
-                expected
-            );
-        }
-        let _ = handlers::did_change_text_document(
-            &mut state,
-            DidChangeTextDocumentParams {
-                text_document: VersionedTextDocumentIdentifier::new(test_uri.clone(), 2),
-                content_changes: vec![TextDocumentContentChangeEvent {
-                    range: None,
-                    range_length: None,
-                    text: project.read_file("/checks/Main.sol").replace("return vm", "return 0"),
-                }],
-            },
-        );
-        tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap();
+        open(&mut state, &uri, 1, project.read_file("/lib/forge-std/src/Base.sol"));
+        settle(&state).await;
         assert_eq!(
-            state
-                .symbol_tables
-                .load()
-                .references(&uri, marked.marker("$1").position(), false)
-                .unwrap(),
-            expected[1..]
+            references(&state, &uri, "$1"),
+            if created_later { &expected[1..] } else { &expected[..] }
         );
 
-        for closed_uri in [test_uri, uri.clone()] {
-            let _ = handlers::did_close_text_document(
-                &mut state,
-                DidCloseTextDocumentParams {
-                    text_document: TextDocumentIdentifier::new(closed_uri),
-                },
-            );
-            tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis())
-                .await
-                .unwrap()
-                .unwrap();
-            assert_eq!(
-                state
-                    .symbol_tables
-                    .load()
-                    .references(&uri, marked.marker("$1").position(), false)
-                    .unwrap(),
-                expected
-            );
+        open(&mut state, &test_uri, 1, project.read_file("/checks/Main.sol"));
+        settle(&state).await;
+        assert_eq!(references(&state, &uri, "$1"), expected);
+        assert_eq!(references(&state, &test_uri, "$2"), expected);
+
+        let edited = project.read_file("/checks/Main.sol").replace("return vm", "return 0");
+        change(&mut state, &test_uri, 2, edited);
+        settle(&state).await;
+        assert_eq!(references(&state, &uri, "$1"), expected[1..]);
+
+        for closed_uri in [&test_uri, &uri] {
+            close(&mut state, closed_uri);
+            settle(&state).await;
+            assert_eq!(references(&state, &uri, "$1"), expected);
         }
         assert!(
             state
                 .config
                 .watched_file_specs()
                 .iter()
-                .any(|spec| { spec.base == project.path("/checks") && spec.pattern == "**/*.sol" })
+                .any(|spec| spec.base == project.path("/checks") && spec.pattern == "**/*.sol")
         );
     }
 }
 
 #[tokio::test(flavor = "current_thread")]
-async fn opening_identical_source_and_reverted_edits_reuse_analysis() {
-    let project = TestProject::from_fixture("//- /Main.sol\ncontract Main {}\n");
-    let path = project.path("/Main.sol");
-    let uri = Url::from_file_path(&path).unwrap();
-    let source = project.read_file("/Main.sol");
-    let mut state = GlobalState::new(ClientSocket::new_closed());
-    state.config = Arc::new(project.config());
-    state.recompute_after_opening_source(Vec::new());
-    tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap();
-    let published = state.symbol_tables.load_full();
-
-    let _ = handlers::did_open_text_document(
-        &mut state,
-        DidOpenTextDocumentParams {
-            text_document: TextDocumentItem::new(uri.clone(), "solidity".into(), 7, source.clone()),
-        },
+async fn identical_sources_and_reverted_edits_reuse_analysis_and_initialized_queries() {
+    let caller = "{ function target() internal {} function $1caller() external { target(); } }";
+    let single = format!("//- /Main.sol\ncontract Main {caller}\n");
+    let with_dependency = format!(
+        "//- /Main.sol\nimport \"./lib/Dep.sol\";\ncontract Main is Dep {caller}\n\
+         //- /lib/Dep.sol\ncontract Dep {{}}\n"
     );
-    tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap();
-    assert!(Arc::ptr_eq(&published, &state.symbol_tables.load()));
-    let reports = state.diagnostics.read().workspace_pull_reports(Vec::new());
-    assert_eq!(reports.iter().find(|report| report.uri == uri).unwrap().version, Some(7));
+    let workspaces =
+        format!("//- /a/Main.sol\ncontract Main {caller}\n//- /b/Other.sol\ncontract Other {{}}\n");
+    for (fixture, main, roots) in [
+        (single, "/Main.sol", &["/"][..]),
+        (with_dependency, "/Main.sol", &["/"]),
+        (workspaces, "/a/Main.sol", &["/a", "/b"]),
+    ] {
+        let marked = MarkedProject::from_fixture(&fixture);
+        let project = marked.project();
+        let path = project.path(main);
+        let uri = Url::from_file_path(&path).unwrap();
+        let source = project.read_file(main);
+        let mut state = state_with(project.config_with_roots(roots));
+        reanalyze(&mut state, Vec::new()).await;
+        let published = state.symbol_tables.load_full();
+        let caller =
+            published.prepare_call_hierarchy(&uri, marked.marker("$1").position()).unwrap().pop();
+        let caller = caller.unwrap();
+        assert_eq!(published.call_hierarchy_outgoing(&caller).unwrap().len(), 1);
+        assert!(published.call_hierarchy_is_initialized());
+        let reused = |state: &GlobalState| {
+            let current = state.symbol_tables.load();
+            Arc::ptr_eq(&published, &current) && current.call_hierarchy_is_initialized()
+        };
 
-    {
-        let mut vfs = state.vfs.write();
-        vfs.set_file_contents_with_version(
-            VfsPath::from(path.clone()),
-            Some(Rope::from("contract Edited {}")),
-            Some(8),
-        );
-        vfs.set_file_contents_with_version(
-            VfsPath::from(path.clone()),
-            Some(Rope::from(source.as_str())),
-            Some(9),
-        );
+        reanalyze(&mut state, Vec::new()).await;
+        assert!(reused(&state));
+
+        open(&mut state, &uri, 7, source.clone());
+        settle(&state).await;
+        assert!(reused(&state));
+        assert_eq!(report_version(&state, &uri), Some(7));
+
+        set_overlay(&state, &path, "contract Edited {}", 8);
+        set_overlay(&state, &path, &source, 9);
+        reanalyze(&mut state, vec![path.clone()]).await;
+        assert!(reused(&state));
+        assert_eq!(report_version(&state, &uri), Some(9));
+
+        // Removing an identical overlay changes its version without changing compiler inputs.
+        // The didClose handler explicitly invalidates the cache before reaching this path.
+        remove_overlay(&state, &path);
+        reanalyze(&mut state, Vec::new()).await;
+        assert!(reused(&state));
+        assert_eq!(state.symbol_tables.load().call_hierarchy_outgoing(&caller).unwrap().len(), 1);
+        assert_eq!(report_version(&state, &uri), None);
+        // An unchanged epoch must retain the refreshed versions in the aggregate cache too.
+        reanalyze(&mut state, Vec::new()).await;
+        assert_eq!(report_version(&state, &uri), None);
+
+        set_overlay(&state, &path, "contract Edited {}", 10);
+        reanalyze(&mut state, vec![path]).await;
+        assert!(!Arc::ptr_eq(&published, &state.symbol_tables.load()));
+        assert_eq!(symbol_names(&state.symbol_tables, "Edited"), ["Edited"]);
+
+        let edited = state.symbol_tables.load_full();
+        state.config = Arc::new((*state.config).clone());
+        reanalyze(&mut state, Vec::new()).await;
+        assert!(!Arc::ptr_eq(&edited, &state.symbol_tables.load()));
     }
-    state.recompute_after_opening_source(vec![path.clone()]);
-    tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap();
-    assert!(Arc::ptr_eq(&published, &state.symbol_tables.load()));
-    let reports = state.diagnostics.read().workspace_pull_reports(Vec::new());
-    assert_eq!(reports.iter().find(|report| report.uri == uri).unwrap().version, Some(9));
+}
 
-    state.vfs.write().set_file_contents_with_version(
-        VfsPath::from(path.clone()),
-        Some(Rope::from("contract Edited {}")),
-        Some(10),
+/// Analyzes `/a/Main.sol` and `/b/Other.sol` as separate workspaces, returning both paths.
+async fn two_workspaces() -> (TestProject, GlobalState, PathBuf, PathBuf) {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /a/Main.sol
+        contract Main { uint public original; }
+        //- /b/Other.sol
+        contract Other { uint public stable; }
+        "#,
     );
-    state.recompute_after_opening_source(vec![path]);
-    tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap();
-    assert!(!Arc::ptr_eq(&published, &state.symbol_tables.load()));
-    assert_eq!(state.symbol_tables.load().workspace_symbols("Edited").len(), 1);
-
-    let edited = state.symbol_tables.load_full();
-    state.config = Arc::new((*state.config).clone());
-    state.recompute_after_opening_source(Vec::new());
-    tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap();
-    assert!(!Arc::ptr_eq(&edited, &state.symbol_tables.load()));
+    let mut state = state_with(project.config_with_roots(&["/a", "/b"]));
+    reanalyze(&mut state, Vec::new()).await;
+    let (main, other) = (project.path("/a/Main.sol"), project.path("/b/Other.sol"));
+    (project, state, main, other)
 }
 
 fn cached_batch_for_path(state: &GlobalState, path: &Path) -> Option<Arc<CachedAnalysisBatch>> {
@@ -211,239 +340,102 @@ fn cached_batch_for_path(state: &GlobalState, path: &Path) -> Option<Arc<CachedA
 }
 
 #[tokio::test(flavor = "current_thread")]
-async fn unchanged_workspace_batches_reuse_aggregate_and_initialized_queries() {
-    let marked = MarkedProject::from_fixture(
-        r#"
-        //- /a/Main.sol
-        contract Main {
-            function target() internal {}
-            function $1caller() external { target(); }
-        }
-        //- /b/Other.sol
-        contract Other {}
-        "#,
-    );
-    let project = marked.project();
-    let path = project.path("/a/Main.sol");
-    let uri = Url::from_file_path(&path).unwrap();
-    let source = project.read_file("/a/Main.sol");
-    let mut state = GlobalState::new(ClientSocket::new_closed());
-    state.config = Arc::new(project.config_with_roots(&["/a", "/b"]));
-    state.recompute_after_opening_source(Vec::new());
-    tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap();
-    let published = state.symbol_tables.load_full();
-    let caller = published
-        .prepare_call_hierarchy(&uri, marked.marker("$1").position())
-        .unwrap()
-        .pop()
-        .unwrap();
-    assert_eq!(published.call_hierarchy_outgoing(&caller).unwrap().len(), 1);
-    assert!(published.call_hierarchy_is_initialized());
-
-    state.recompute_after_opening_source(Vec::new());
-    tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap();
-    assert!(Arc::ptr_eq(&published, &state.symbol_tables.load()));
-    assert!(state.symbol_tables.load().call_hierarchy_is_initialized());
-
-    let _ = handlers::did_open_text_document(
-        &mut state,
-        DidOpenTextDocumentParams {
-            text_document: TextDocumentItem::new(uri.clone(), "solidity".into(), 7, source.clone()),
-        },
-    );
-    tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap();
-    assert!(Arc::ptr_eq(&published, &state.symbol_tables.load()));
-    let reports = state.diagnostics.read().workspace_pull_reports(Vec::new());
-    assert_eq!(reports.iter().find(|report| report.uri == uri).unwrap().version, Some(7));
-
-    {
-        let mut vfs = state.vfs.write();
-        vfs.set_file_contents_with_version(
-            VfsPath::from(path.clone()),
-            Some(Rope::from("contract Edited {}")),
-            Some(8),
-        );
-        vfs.set_file_contents_with_version(
-            VfsPath::from(path.clone()),
-            Some(Rope::from(source.as_str())),
-            Some(9),
-        );
-    }
-    state.recompute_after_opening_source(vec![path.clone()]);
-    tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap();
-    assert!(Arc::ptr_eq(&published, &state.symbol_tables.load()));
-    assert!(state.symbol_tables.load().call_hierarchy_is_initialized());
-    let reports = state.diagnostics.read().workspace_pull_reports(Vec::new());
-    assert_eq!(reports.iter().find(|report| report.uri == uri).unwrap().version, Some(9));
-
-    // Exercise cached analysis with disk-identical inputs after the overlay disappears.
-    // The didClose handler explicitly invalidates the cache before reaching this path.
-    state.vfs.write().set_file_contents(VfsPath::from(path), None);
-    state.recompute_after_opening_source(Vec::new());
-    tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap();
-    assert!(Arc::ptr_eq(&published, &state.symbol_tables.load()));
-    assert!(state.symbol_tables.load().call_hierarchy_is_initialized());
-    assert_eq!(state.symbol_tables.load().call_hierarchy_outgoing(&caller).unwrap().len(), 1);
-    let reports = state.diagnostics.read().workspace_pull_reports(Vec::new());
-    assert_eq!(reports.iter().find(|report| report.uri == uri).unwrap().version, None);
-}
-
-#[tokio::test(flavor = "current_thread")]
 async fn removing_workspace_batch_inputs_invalidates_the_aggregate() {
     let project = TestProject::new();
     let mut state = GlobalState::new(ClientSocket::new_closed());
     for (root, name) in [("/a", "First"), ("/b", "Second"), ("/c", "Removed")] {
         std::fs::create_dir_all(project.path(root)).unwrap();
-        state.vfs.write().set_file_contents_with_version(
-            VfsPath::from(project.path(&format!("{root}/Main.sol"))),
-            Some(Rope::from(format!("contract {name} {{}}").as_str())),
-            Some(1),
+        set_overlay(
+            &state,
+            &project.path(&format!("{root}/Main.sol")),
+            &format!("contract {name} {{}}"),
+            1,
         );
     }
     state.config = Arc::new(project.config_with_roots(&["/a", "/b", "/c"]));
-    state.recompute_after_opening_source(Vec::new());
-    tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap();
+    reanalyze(&mut state, Vec::new()).await;
     let published = state.symbol_tables.load_full();
     assert_eq!(published.workspace_symbols("").len(), 3);
 
     // The remaining batches are reusable, but the newly empty batch changes the aggregate.
-    state.vfs.write().set_file_contents(VfsPath::from(project.path("/c/Main.sol")), None);
-    state.recompute_after_opening_source(Vec::new());
-    tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap();
+    remove_overlay(&state, &project.path("/c/Main.sol"));
+    reanalyze(&mut state, Vec::new()).await;
     let current = state.symbol_tables.load_full();
     assert!(!Arc::ptr_eq(&published, &current));
     assert!(current.workspace_symbols("Removed").is_empty());
     assert_eq!(current.workspace_symbols("").len(), 2);
 
-    state.recompute_after_opening_source(Vec::new());
-    tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap();
+    reanalyze(&mut state, Vec::new()).await;
     assert!(Arc::ptr_eq(&current, &state.symbol_tables.load()));
 }
 
 #[tokio::test(flavor = "current_thread")]
 async fn editing_one_workspace_reuses_other_workspace_and_current_document_versions() {
-    let project = TestProject::from_fixture(
-        r#"
-        //- /a/Main.sol
-        contract Main { uint public original; }
-        //- /b/Other.sol
-        contract Other { uint public stable; }
-        "#,
-    );
-    let main = project.path("/a/Main.sol");
-    let other = project.path("/b/Other.sol");
+    let (project, mut state, main, other) = two_workspaces().await;
     let main_uri = Url::from_file_path(&main).unwrap();
     let other_uri = Url::from_file_path(&other).unwrap();
-    let mut state = GlobalState::new(ClientSocket::new_closed());
-    state.config = Arc::new(project.config_with_roots(&["/a", "/b"]));
-    state.recompute_after_opening_source(Vec::new());
-    tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap();
     let original_main = cached_batch_for_path(&state, &main).unwrap();
     let original_other = cached_batch_for_path(&state, &other).unwrap();
 
-    for (uri, source) in [
-        (main_uri.clone(), project.read_file("/a/Main.sol")),
-        (other_uri.clone(), project.read_file("/b/Other.sol")),
-    ] {
-        let _ = handlers::did_open_text_document(
-            &mut state,
-            DidOpenTextDocumentParams {
-                text_document: TextDocumentItem::new(uri, "solidity".into(), 7, source),
-            },
-        );
-        tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap();
+    for (uri, path) in [(&main_uri, "/a/Main.sol"), (&other_uri, "/b/Other.sol")] {
+        open(&mut state, uri, 7, project.read_file(path));
+        settle(&state).await;
     }
 
-    let _ = handlers::did_change_text_document(
-        &mut state,
-        DidChangeTextDocumentParams {
-            text_document: VersionedTextDocumentIdentifier::new(main_uri.clone(), 8),
-            content_changes: vec![TextDocumentContentChangeEvent {
-                range: None,
-                range_length: None,
-                text: "contract Main { uint public edited; }".into(),
-            }],
-        },
-    );
-    tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap();
+    change(&mut state, &main_uri, 8, "contract Main { uint public edited; }");
+    settle(&state).await;
     assert!(!Arc::ptr_eq(&original_main, &cached_batch_for_path(&state, &main).unwrap()));
     assert!(Arc::ptr_eq(&original_other, &cached_batch_for_path(&state, &other).unwrap()));
-    let tables = state.symbol_tables.load_full();
-    assert!(tables.workspace_symbols("original").is_empty());
-    assert_eq!(tables.workspace_symbols("edited").len(), 1);
-    assert_eq!(tables.workspace_symbols("stable").len(), 1);
-    let reports = state.diagnostics.read().workspace_pull_reports(Vec::new());
-    assert_eq!(reports.iter().find(|report| report.uri == main_uri).unwrap().version, Some(8));
-    assert_eq!(reports.iter().find(|report| report.uri == other_uri).unwrap().version, Some(7));
+    assert!(symbol_names(&state.symbol_tables, "original").is_empty());
+    assert_eq!(symbol_names(&state.symbol_tables, "edited"), ["edited"]);
+    assert_eq!(symbol_names(&state.symbol_tables, "stable"), ["stable"]);
+    assert_eq!(report_version(&state, &main_uri), Some(8));
+    assert_eq!(report_version(&state, &other_uri), Some(7));
 
-    let _ = handlers::did_close_text_document(
-        &mut state,
-        DidCloseTextDocumentParams { text_document: TextDocumentIdentifier::new(main_uri.clone()) },
-    );
-    tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap();
-    let tables = state.symbol_tables.load_full();
-    assert!(tables.workspace_symbols("edited").is_empty());
-    assert_eq!(tables.workspace_symbols("original").len(), 1);
-    assert_eq!(tables.workspace_symbols("stable").len(), 1);
-    let reports = state.diagnostics.read().workspace_pull_reports(Vec::new());
-    assert_eq!(reports.iter().find(|report| report.uri == main_uri).unwrap().version, None);
-    assert_eq!(reports.iter().find(|report| report.uri == other_uri).unwrap().version, Some(7));
+    close(&mut state, &main_uri);
+    settle(&state).await;
+    assert!(symbol_names(&state.symbol_tables, "edited").is_empty());
+    assert_eq!(symbol_names(&state.symbol_tables, "original"), ["original"]);
+    assert_eq!(symbol_names(&state.symbol_tables, "stable"), ["stable"]);
+    assert_eq!(report_version(&state, &main_uri), None);
+    assert_eq!(report_version(&state, &other_uri), Some(7));
 }
 
 #[tokio::test(flavor = "current_thread")]
 async fn workspace_batch_cache_revalidates_config_and_disk_sources() {
-    let project = TestProject::from_fixture(
-        r#"
-        //- /a/Main.sol
-        contract Main {}
-        //- /b/Other.sol
-        contract Other {}
-        "#,
-    );
-    let main = project.path("/a/Main.sol");
-    let other = project.path("/b/Other.sol");
-    let mut state = GlobalState::new(ClientSocket::new_closed());
-    state.config = Arc::new(project.config_with_roots(&["/a", "/b"]));
-    state.recompute_after_opening_source(Vec::new());
-    tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap();
+    let (project, mut state, main, other) = two_workspaces().await;
     let original = cached_batch_for_path(&state, &other).unwrap();
 
     state.config = Arc::new((*state.config).clone());
-    state.recompute_after_opening_source(Vec::new());
-    tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap();
+    reanalyze(&mut state, Vec::new()).await;
     let reconfigured = cached_batch_for_path(&state, &other).unwrap();
     assert!(!Arc::ptr_eq(&original, &reconfigured));
 
     // A source edit also observes changed disk roots without a watcher notification.
     project.write_file("/b/Other.sol", "contract Other { uint public diskChanged; }");
-    state.vfs.write().set_file_contents_with_version(
-        VfsPath::from(main.clone()),
-        Some(Rope::from("contract Main { uint public edited; }")),
-        Some(1),
-    );
-    state.recompute_after_opening_source(vec![main.clone()]);
-    tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap();
+    set_overlay(&state, &main, "contract Main { uint public edited; }", 1);
+    reanalyze(&mut state, vec![main.clone()]).await;
     assert!(!Arc::ptr_eq(&reconfigured, &cached_batch_for_path(&state, &other).unwrap()));
-    assert_eq!(state.symbol_tables.load().workspace_symbols("diskChanged").len(), 1);
+    assert_eq!(symbol_names(&state.symbol_tables, "diskChanged"), ["diskChanged"]);
 
     // Reanalysis without a VFS revision must still observe an unnotified disk root change.
     project.write_file("/b/Other.sol", "contract Other { uint public diskOnly; }");
-    state.recompute_after_opening_source(Vec::new());
-    tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap();
-    assert_eq!(state.symbol_tables.load().workspace_symbols("diskOnly").len(), 1);
+    reanalyze(&mut state, Vec::new()).await;
+    assert_eq!(symbol_names(&state.symbol_tables, "diskOnly"), ["diskOnly"]);
 
     project.write_file("/b/Other.sol", "contract Other { uint public notified; }");
     state.recompute_for_file_changes(vec![other], Vec::new(), false);
     // A new document request may cancel the pending disk worker; invalidation must survive it.
-    state.recompute_after_opening_source(vec![main]);
-    tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap();
-    assert!(state.symbol_tables.load().workspace_symbols("diskChanged").is_empty());
-    assert_eq!(state.symbol_tables.load().workspace_symbols("notified").len(), 1);
+    reanalyze(&mut state, vec![main]).await;
+    assert!(symbol_names(&state.symbol_tables, "diskChanged").is_empty());
+    assert_eq!(symbol_names(&state.symbol_tables, "notified"), ["notified"]);
 }
 
 #[tokio::test(flavor = "current_thread")]
-async fn workspace_batch_cache_rechecks_untracked_imports_and_resolver_probes() {
-    for initially_missing in [false, true] {
+async fn workspace_batch_cache_rechecks_disk_imports_and_resolver_probes() {
+    for (initially_missing, edit_main) in
+        [(false, false), (true, false), (false, true), (true, true)]
+    {
         let project = TestProject::from_fixture(
             r#"
             //- /a/Main.sol
@@ -460,106 +452,128 @@ async fn workspace_batch_cache_rechecks_untracked_imports_and_resolver_probes() 
         if initially_missing {
             project.remove_file("/b/lib/Dep.sol");
         }
-        let mut state = GlobalState::new(ClientSocket::new_closed());
-        state.config = Arc::new(project.config_with_roots(&["/a", "/b"]));
-        state.recompute_after_opening_source(Vec::new());
-        tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap();
-        assert!(cached_batch_for_path(&state, &main).is_some());
-        assert!(cached_batch_for_path(&state, &other).is_some());
-
-        project.write_file("/b/lib/Dep.sol", "contract Dep { uint public dependencyChanged; }");
-        state.vfs.write().set_file_contents_with_version(
-            VfsPath::from(main.clone()),
-            Some(Rope::from("contract Main { uint public edited; }")),
-            Some(1),
-        );
-        state.recompute_after_opening_source(vec![main]);
-        tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap();
-        assert_eq!(state.symbol_tables.load().workspace_symbols("dependencyChanged").len(), 1);
-        assert!(cached_batch_for_path(&state, &other).is_some());
-    }
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn unchanged_workspace_inputs_still_recheck_disk_dependencies() {
-    for initially_missing in [false, true] {
-        let project = TestProject::from_fixture(
-            r#"
-            //- /a/Main.sol
-            contract Main {}
-            //- /b/Other.sol
-            import "./lib/Dep.sol";
-            contract Other is Dep {}
-            //- /b/lib/Dep.sol
-            contract Dep {}
-            "#,
-        );
-        let main = project.path("/a/Main.sol");
-        let other = project.path("/b/Other.sol");
-        if initially_missing {
-            project.remove_file("/b/lib/Dep.sol");
-        }
-        let mut state = GlobalState::new(ClientSocket::new_closed());
-        state.config = Arc::new(project.config_with_roots(&["/a", "/b"]));
-        state.recompute_after_opening_source(Vec::new());
-        tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap();
+        let mut state = state_with(project.config_with_roots(&["/a", "/b"]));
+        reanalyze(&mut state, Vec::new()).await;
         let published = state.symbol_tables.load_full();
         let original_main = cached_batch_for_path(&state, &main).unwrap();
         let original_other = cached_batch_for_path(&state, &other).unwrap();
         let vfs_revision = state.vfs.read().content_revision();
 
-        // All batch inputs match, but the previously observed import must be checked again.
-        // Neither a document edit nor a watcher event signals this disk change.
+        // Neither path signals this disk change: the previously observed import must be checked
+        // again whether or not other batch inputs change.
         project.write_file("/b/lib/Dep.sol", "contract Dep { uint public dependencyChanged; }");
-        state.recompute_after_opening_source(Vec::new());
-        tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap();
-        assert_eq!(state.vfs.read().content_revision(), vfs_revision);
+        if edit_main {
+            set_overlay(&state, &main, "contract Main { uint public edited; }", 1);
+            state.recompute_after_opening_source(vec![main.clone()]);
+        } else {
+            state.recompute_after_opening_source(Vec::new());
+        }
+        settle(&state).await;
+        assert_eq!(state.vfs.read().content_revision() == vfs_revision, !edit_main);
         assert!(!Arc::ptr_eq(&published, &state.symbol_tables.load()));
-        assert!(Arc::ptr_eq(&original_main, &cached_batch_for_path(&state, &main).unwrap()));
+        let current_main = cached_batch_for_path(&state, &main).unwrap();
+        assert_eq!(Arc::ptr_eq(&original_main, &current_main), !edit_main);
         assert!(!Arc::ptr_eq(&original_other, &cached_batch_for_path(&state, &other).unwrap()));
-        assert_eq!(state.symbol_tables.load().workspace_symbols("dependencyChanged").len(), 1);
-        assert!(state.diagnostics.read().workspace_pull_reports(Vec::new()).into_iter().all(
-            |report| match report.report {
-                PullReport::Full { diagnostics, .. } => diagnostics.is_empty(),
-                PullReport::Unchanged { .. } => unreachable!("no previous result IDs"),
-            }
-        ));
+        assert_eq!(symbol_names(&state.symbol_tables, "dependencyChanged"), ["dependencyChanged"]);
+        assert_workspace_diagnostics_clean(&state);
     }
 }
 
 #[tokio::test(flavor = "current_thread")]
-async fn identical_inputs_do_not_hide_disk_dependency_changes() {
+async fn opening_identical_source_rechecks_single_workspace_disk_imports() {
+    for initially_missing in [false, true] {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /Main.sol
+            import "./lib/Dep.sol";
+            contract Main is Dep {}
+            //- /lib/Dep.sol
+            contract Dep { uint public original; }
+            "#,
+        );
+        let main = project.path("/Main.sol");
+        let main_uri = Url::from_file_path(&main).unwrap();
+        let dep_uri = project.uri("/lib/Dep.sol");
+        let dependency = project.read_file("/lib/Dep.sol");
+        if initially_missing {
+            project.remove_file("/lib/Dep.sol");
+        }
+        let mut state = state_with(project.config());
+        reanalyze(&mut state, Vec::new()).await;
+        let published = state.symbol_tables.load_full();
+        let vfs_revision = state.vfs.read().content_revision();
+        let previous_report = state.diagnostics.read().pull_report(&main_uri, None);
+
+        // A missing import that remains missing is a reusable observation too.
+        set_overlay(&state, &main, &project.read_file("/Main.sol"), 6);
+        reanalyze(&mut state, vec![main.clone()]).await;
+        assert!(Arc::ptr_eq(&published, &state.symbol_tables.load()));
+        assert_eq!(state.diagnostics.read().pull_report(&main_uri, None), previous_report);
+        // Remove the overlay so opening it again advances the content revision below.
+        remove_overlay(&state, &main);
+
+        // Root text still matches. The import changed without any watcher notification,
+        // and equal byte lengths must not substitute for comparing dependency contents.
+        let changed_dependency = dependency.replace("original", "modified");
+        assert_eq!(dependency.len(), changed_dependency.len());
+        project.write_file("/lib/Dep.sol", &changed_dependency);
+        open(&mut state, &main_uri, 7, project.read_file("/Main.sol"));
+        settle(&state).await;
+        assert_ne!(state.vfs.read().content_revision(), vfs_revision);
+        assert!(!Arc::ptr_eq(&published, &state.symbol_tables.load()));
+        assert!(symbol_names(&state.symbol_tables, "original").is_empty());
+        assert_eq!(symbol_names(&state.symbol_tables, "modified"), ["modified"]);
+        assert_eq!(report_version(&state, &main_uri), Some(7));
+        assert_eq!(report_version(&state, &dep_uri), None);
+        assert_workspace_diagnostics_clean(&state);
+    }
+}
+
+#[tokio::test(flavor = "current_thread")]
+#[cfg(unix)]
+async fn opening_identical_source_rechecks_retargeted_single_workspace_import() {
     let project = TestProject::from_fixture(
         r#"
         //- /Main.sol
         import "./lib/Dep.sol";
         contract Main is Dep {}
-        //- /lib/Dep.sol
+        //- /lib/First.sol
         contract Dep {}
-    "#,
+        //- /lib/Second.sol
+        contract Dep {}
+        "#,
     );
-    let main = project.path("/Main.sol");
-    let dep = project.path("/lib/Dep.sol");
-    let mut state = GlobalState::new(ClientSocket::new_closed());
-    state.config = Arc::new(project.config());
-    state.recompute_after_opening_source(Vec::new());
-    tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap();
+    let link = project.path("/lib/Dep.sol");
+    let import_uri = Url::from_file_path(&link).unwrap();
+    symlink(project.path("/lib/First.sol"), &link).unwrap();
+    let mut state = state_with(project.config());
+    reanalyze(&mut state, Vec::new()).await;
     let published = state.symbol_tables.load_full();
-    state.vfs.write().set_file_contents_with_version(
-        VfsPath::from(main.clone()),
-        Some(Rope::from(project.read_file("/Main.sol").as_str())),
-        Some(1),
-    );
-    std::fs::write(&dep, "contract Dep { uint public changed; }").unwrap();
-    state.recompute_with_disk_files(vec![dep]);
-    tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap();
-    assert!(!Arc::ptr_eq(&published, &state.symbol_tables.load()));
-    assert_eq!(state.symbol_tables.load().workspace_symbols("changed").len(), 1);
+    let declaration = published.declarations().iter().find(|symbol| symbol.name == "Dep").unwrap();
+    assert_eq!(declaration.location.uri, import_uri);
+
+    // Identical text at a retargeted symlink still invalidates recorded path resolution.
+    project.remove_file("/lib/Dep.sol");
+    symlink(project.path("/lib/Second.sol"), &link).unwrap();
+    let main_uri = project.uri("/Main.sol");
+    open(&mut state, &main_uri, 7, project.read_file("/Main.sol"));
+    settle(&state).await;
+    let current = state.symbol_tables.load_full();
+    assert!(!Arc::ptr_eq(&published, &current));
+    let declaration = current.declarations().iter().find(|symbol| symbol.name == "Dep").unwrap();
+    assert_eq!(declaration.location.uri, import_uri);
 }
 
 #[tokio::test(flavor = "current_thread")]
-async fn disk_dependency_changes_survive_cache_reuse_attempts() {
-    for notify_change in [false, true] {
+async fn disk_dependency_changes_survive_identical_inputs_and_cache_reuse_attempts() {
+    #[derive(Clone, Copy)]
+    enum Trigger {
+        DiskFiles,
+        Notification,
+        RevertedEdit,
+    }
+
+    for trigger in [Trigger::DiskFiles, Trigger::Notification, Trigger::RevertedEdit] {
         let project = TestProject::from_fixture(
             r#"
             //- /Main.sol
@@ -572,55 +586,37 @@ async fn disk_dependency_changes_survive_cache_reuse_attempts() {
         let main = project.path("/Main.sol");
         let dep = project.path("/lib/Dep.sol");
         let source = project.read_file("/Main.sol");
-        let mut state = GlobalState::new(ClientSocket::new_closed());
-        state.config = Arc::new(project.config());
-        state.vfs.write().set_file_contents_with_version(
-            VfsPath::from(main.clone()),
-            Some(Rope::from(source.as_str())),
-            Some(1),
-        );
-        state.recompute_after_opening_source(Vec::new());
-        tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap();
+        let mut state = state_with(project.config());
+        set_overlay(&state, &main, &source, 1);
+        reanalyze(&mut state, Vec::new()).await;
         let published = state.symbol_tables.load_full();
 
         std::fs::write(&dep, "contract Dep { uint public changed; }").unwrap();
-        if notify_change {
+        match trigger {
+            Trigger::DiskFiles => state.recompute_with_disk_files(vec![dep]),
             // Supersede the debounced disk request without changing the VFS revision.
-            state.recompute_for_file_changes(vec![dep], Vec::new(), false);
-        } else {
+            Trigger::Notification => {
+                state.recompute_for_file_changes(vec![dep], Vec::new(), false);
+                state.recompute_after_opening_source(vec![main]);
+            }
             // A reverted edit must reload disk imports even without a watcher notification.
-            let mut vfs = state.vfs.write();
-            vfs.set_file_contents_with_version(
-                VfsPath::from(main.clone()),
-                Some(Rope::from("contract Edited {}")),
-                Some(2),
-            );
-            vfs.set_file_contents_with_version(
-                VfsPath::from(main.clone()),
-                Some(Rope::from(source.as_str())),
-                Some(3),
-            );
+            Trigger::RevertedEdit => {
+                set_overlay(&state, &main, "contract Edited {}", 2);
+                set_overlay(&state, &main, &source, 3);
+                state.recompute_after_opening_source(vec![main]);
+            }
         }
-        state.recompute_after_opening_source(vec![main]);
-        tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap();
+        settle(&state).await;
         assert!(!Arc::ptr_eq(&published, &state.symbol_tables.load()));
-        assert_eq!(state.symbol_tables.load().workspace_symbols("changed").len(), 1);
+        assert_eq!(symbol_names(&state.symbol_tables, "changed"), ["changed"]);
     }
 }
 
 #[tokio::test(flavor = "current_thread")]
-async fn cached_and_published_symbol_tables_share_storage() {
-    let project = TestProject::from_fixture(
-        r#"
-        //- /Main.sol
-        contract Main {}
-        "#,
-    );
-    let mut state = GlobalState::new(ClientSocket::new_closed());
-    state.config = Arc::new(project.config());
-    *state.vfs.write() = project.vfs();
-    state.recompute_after_opening_source(vec![project.path("/Main.sol")]);
-    tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap();
+async fn cached_published_and_retained_symbol_tables_share_storage() {
+    let project = TestProject::from_fixture("//- /Main.sol\ncontract Main {}\n");
+    let mut state = project.state();
+    reanalyze(&mut state, vec![project.path("/Main.sol")]).await;
 
     let published = state.symbol_tables.load_full();
     {
@@ -628,63 +624,22 @@ async fn cached_and_published_symbol_tables_share_storage() {
         let cached = commit.cached_output.as_ref().unwrap();
         assert!(Arc::ptr_eq(&published, &cached.output.result.symbol_tables));
     }
-
-    state.recompute_after_opening_source(Vec::new());
-    tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap();
+    reanalyze(&mut state, Vec::new()).await;
     assert!(Arc::ptr_eq(&published, &state.symbol_tables.load()));
 
     // Publication precedes worker cleanup; wait until it releases its symbol references.
-    let _permit = tokio::time::timeout(
-        ASYNC_TEST_TIMEOUT,
-        state.analysis_scheduler.gate.clone().acquire_owned(),
-    )
-    .await
-    .unwrap()
-    .unwrap();
-    let old = Arc::downgrade(&published);
-    drop(published);
-    state.clear_analysis_cache();
-    // Publication wakes readers before the worker drops its previous snapshot.
-    tokio::time::timeout(ASYNC_TEST_TIMEOUT, async {
-        while old.upgrade().is_some() {
-            tokio::task::yield_now().await;
-        }
-    })
-    .await
-    .unwrap();
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn retained_symbol_snapshot_does_not_block_publication_or_clear() {
-    let project = TestProject::from_fixture(
-        r#"
-        //- /Main.sol
-        contract Main {}
-        "#,
-    );
-    let mut state = GlobalState::new(ClientSocket::new_closed());
-    state.config = Arc::new(project.config());
-    *state.vfs.write() = project.vfs();
-    state.recompute_after_opening_source(vec![project.path("/Main.sol")]);
-    tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap();
-
-    // Publication precedes worker cleanup; wait until it releases its symbol references.
-    let _permit = tokio::time::timeout(
-        ASYNC_TEST_TIMEOUT,
-        state.analysis_scheduler.gate.clone().acquire_owned(),
-    )
-    .await
-    .unwrap()
-    .unwrap();
+    let _permit =
+        within("the worker", state.analysis_scheduler.gate.clone().acquire_owned()).await.unwrap();
     let tables = state.symbol_tables.clone();
     let retained = tables.load();
-    let old = Arc::downgrade(&retained);
+    let old = Arc::downgrade(&published);
+    drop(published);
     let mut snapshot = state.snapshot();
-    let version = state.analysis_version.load(Ordering::Acquire);
-    assert!(snapshot.publish_symbol_tables(version, Arc::default()));
+    assert!(snapshot.publish_symbol_tables(analysis_version(&state), Arc::default()));
     assert!(tables.load().workspace_symbols("").is_empty());
     assert!(!retained.workspace_symbols("Main").is_empty());
 
+    // Neither publication nor clearing waits for a retained reader snapshot.
     state.clear_analysis_cache();
     assert!(old.upgrade().is_some());
     drop(retained);
@@ -728,38 +683,21 @@ fn analysis_tracks_excluded_transitive_dependencies_and_normalized_missing_candi
         FxHashSet::from_iter([project.path("/generated/Missing.sol")])
     );
     assert!(output.analysis_paths.existing_unresolved_candidates.is_empty());
-    assert!(
-        output.result.symbol_tables.workspace_symbols("B").iter().any(|symbol| symbol.name == "B")
-    );
-    assert!(
-        output.result.symbol_tables.workspace_symbols("C").iter().any(|symbol| symbol.name == "C")
-    );
-    assert!(output.result.symbol_tables.workspace_symbols("Unrelated").is_empty());
+    let tables = Arc::new(ArcSwap::from_pointee(output.result.symbol_tables));
+    assert_eq!(symbol_names(&tables, "B"), ["B"]);
+    assert_eq!(symbol_names(&tables, "C"), ["C"]);
+    assert!(symbol_names(&tables, "Unrelated").is_empty());
 }
 
 #[test]
 fn analysis_output_accumulator_resolved_path_wins_across_batches() {
     let path = PathBuf::from("Dependency.sol");
-    let result = || AnalysisResult {
-        analyzed_documents: AnalyzedDocuments::default(),
-        diagnostics: DiagnosticMap::default(),
-        symbol_tables: Default::default(),
-    };
     let mut accumulator = AnalysisOutputAccumulator::default();
-    accumulator.push(AnalysisOutput {
-        result: result(),
-        analysis_paths: AnalysisPathIndex {
-            missing_candidates: FxHashSet::from_iter([path.clone()]),
-            ..Default::default()
-        },
-    });
-    accumulator.push(AnalysisOutput {
-        result: result(),
-        analysis_paths: AnalysisPathIndex {
-            resolved_dependencies: FxHashSet::from_iter([path.clone()]),
-            ..Default::default()
-        },
-    });
+    accumulator.push(path_output(AnalysisPathIndex {
+        missing_candidates: FxHashSet::from_iter([path.clone()]),
+        ..Default::default()
+    }));
+    accumulator.push(path_output(resolved_paths([path.clone()])));
 
     let output = accumulator.finish();
 
@@ -770,63 +708,62 @@ fn analysis_output_accumulator_resolved_path_wins_across_batches() {
 
 #[test]
 fn stale_analysis_does_not_replace_published_path_index() {
-    let current_path = PathBuf::from("Current.sol");
-    let stale_path = PathBuf::from("Stale.sol");
-    let output = |path| AnalysisOutput {
-        result: AnalysisResult {
-            analyzed_documents: AnalyzedDocuments::default(),
-            diagnostics: DiagnosticMap::default(),
-            symbol_tables: Default::default(),
-        },
-        analysis_paths: AnalysisPathIndex {
-            resolved_dependencies: FxHashSet::from_iter([path]),
-            ..Default::default()
-        },
-    };
+    let output = |path: &str| path_output(resolved_paths([PathBuf::from(path)])).into_shared();
     let state = GlobalState::new(ClientSocket::new_closed());
-    assert!(state.snapshot().publish_analysis_output(0, output(current_path.clone())));
+    assert!(state.snapshot().publish_analysis_output(0, output("Current.sol")));
     let mut stale_snapshot = state.snapshot();
     state.mark_analysis_pending_for_test();
 
-    assert!(!stale_snapshot.publish_analysis_output(0, output(stale_path)));
+    assert!(!stale_snapshot.publish_analysis_output(0, output("Stale.sol")));
     assert_eq!(
         state.analysis_commit.lock().analysis_paths.resolved_dependencies,
-        FxHashSet::from_iter([current_path])
+        FxHashSet::from_iter([PathBuf::from("Current.sol")])
     );
 }
 
 #[test]
-fn deferred_dependency_change_prevents_stale_analysis_publish() {
-    let state = GlobalState::new(ClientSocket::new_closed());
-    state.mark_analysis_pending_for_test();
-    let version = state.analysis_version.load(Ordering::Acquire);
-    let path = PathBuf::from("Dependency.sol");
-    assert_eq!(
-        state.classify_source_file_event(&path, FileChangeType::CHANGED),
-        SourceFileEventDisposition::Deferred
-    );
-    let output = AnalysisOutput {
-        result: AnalysisResult {
-            analyzed_documents: AnalyzedDocuments::default(),
-            diagnostics: DiagnosticMap::default(),
-            symbol_tables: Default::default(),
-        },
-        analysis_paths: AnalysisPathIndex {
-            resolved_dependencies: FxHashSet::from_iter([path]),
-            ..Default::default()
-        },
-    };
+fn deferred_source_events_block_only_analysis_that_observed_the_path() {
+    let project = TestProject::new();
+    project.write_file("/Missing.sol", "contract Missing {}");
+    let dependency = PathBuf::from("Dependency.sol");
+    let missing = project.path("/Missing.sol");
+    let cases = [
+        (dependency.clone(), resolved_paths([dependency])),
+        (
+            missing.clone(),
+            AnalysisPathIndex {
+                missing_candidates: FxHashSet::from_iter([missing]),
+                ..Default::default()
+            },
+        ),
+        (PathBuf::from("Unrelated.sol"), AnalysisPathIndex::default()),
+    ];
+    for (path, analysis_paths) in cases {
+        let blocks = !analysis_paths.resolved_dependencies.is_empty()
+            || !analysis_paths.missing_candidates.is_empty();
+        let state = GlobalState::new(ClientSocket::new_closed());
+        state.mark_analysis_pending_for_test();
+        let version = analysis_version(&state);
+        assert_eq!(
+            state.classify_source_file_event(&path, FileChangeType::CHANGED),
+            SourceFileEventDisposition::Deferred
+        );
 
-    assert!(!state.snapshot().publish_analysis_output(version, output.into_shared()));
-    assert_eq!(*state.published_analysis_version.borrow(), 0);
-    assert!(state.analysis_commit.lock().deferred_source_file_events.is_empty());
+        let published = state
+            .snapshot()
+            .publish_analysis_output(version, path_output(analysis_paths).into_shared());
+
+        assert_eq!(published, !blocks);
+        assert_eq!(*state.published_analysis_version.borrow(), if blocks { 0 } else { version });
+        assert!(state.analysis_commit.lock().deferred_source_file_events.is_empty());
+    }
 }
 
 #[test]
 fn source_event_classification_observes_path_index_committed_before_its_lock() {
     let state = GlobalState::new(ClientSocket::new_closed());
     state.mark_analysis_pending_for_test();
-    let version = state.analysis_version.load(Ordering::Acquire);
+    let version = analysis_version(&state);
     let path = PathBuf::from("Dependency.sol");
     let mut commit = state.analysis_commit.lock();
 
@@ -841,73 +778,21 @@ fn source_event_classification_observes_path_index_committed_before_its_lock() {
                 .send(event_state.classify_source_file_event(&event_path, FileChangeType::CHANGED))
                 .unwrap();
         });
-        started_rx.recv_timeout(ASYNC_TEST_TIMEOUT).unwrap();
+        started_rx.recv_timeout(TIMEOUT).unwrap();
 
         commit.analysis_paths.resolved_dependencies.insert(path.clone());
         state.published_analysis_version.send_replace(version);
         drop(commit);
 
-        assert_eq!(
-            result_rx.recv_timeout(ASYNC_TEST_TIMEOUT).unwrap(),
-            SourceFileEventDisposition::Relevant
-        );
+        assert_eq!(result_rx.recv_timeout(TIMEOUT).unwrap(), SourceFileEventDisposition::Relevant);
     });
 }
 
-#[test]
-fn deferred_existing_missing_candidate_change_prevents_stale_analysis_publish() {
-    let project = TestProject::new();
-    let path = project.path("/Missing.sol");
-    project.write_file("/Missing.sol", "contract Missing {}");
-    let state = GlobalState::new(ClientSocket::new_closed());
-    state.mark_analysis_pending_for_test();
-    let version = state.analysis_version.load(Ordering::Acquire);
-    assert_eq!(
-        state.classify_source_file_event(&path, FileChangeType::CHANGED),
-        SourceFileEventDisposition::Deferred
-    );
-    let output = AnalysisOutput {
-        result: AnalysisResult {
-            analyzed_documents: AnalyzedDocuments::default(),
-            diagnostics: DiagnosticMap::default(),
-            symbol_tables: Default::default(),
-        },
-        analysis_paths: AnalysisPathIndex {
-            missing_candidates: FxHashSet::from_iter([path]),
-            ..Default::default()
-        },
-    };
-
-    assert!(!state.snapshot().publish_analysis_output(version, output.into_shared()));
-    assert_eq!(*state.published_analysis_version.borrow(), 0);
-}
-
-#[test]
-fn deferred_unrelated_change_does_not_block_analysis_publish() {
-    let state = GlobalState::new(ClientSocket::new_closed());
-    state.mark_analysis_pending_for_test();
-    let version = state.analysis_version.load(Ordering::Acquire);
-    assert_eq!(
-        state.classify_source_file_event(Path::new("Unrelated.sol"), FileChangeType::CHANGED),
-        SourceFileEventDisposition::Deferred
-    );
-    let output = AnalysisOutput {
-        result: AnalysisResult {
-            analyzed_documents: AnalyzedDocuments::default(),
-            diagnostics: DiagnosticMap::default(),
-            symbol_tables: Default::default(),
-        },
-        analysis_paths: AnalysisPathIndex::default(),
-    };
-
-    assert!(state.snapshot().publish_analysis_output(version, output.into_shared()));
-    assert_eq!(*state.published_analysis_version.borrow(), version);
-    assert!(state.analysis_commit.lock().deferred_source_file_events.is_empty());
-}
-
-#[test]
-fn clearing_analysis_cache_clears_published_path_index() {
+#[tokio::test(flavor = "current_thread")]
+async fn clearing_analysis_cache_clears_path_index_and_rejects_stale_deferred_replay() {
     let mut state = GlobalState::new(ClientSocket::new_closed());
+    state.mark_analysis_pending_for_test();
+    let stale_version = analysis_version(&state);
     {
         let mut commit = state.analysis_commit.lock();
         commit.discovery_pending = true;
@@ -922,7 +807,18 @@ fn clearing_analysis_cache_clears_published_path_index() {
     }
 
     state.clear_analysis_cache();
+    let cleared_version = analysis_version(&state);
+    assert!(
+        state
+            .on_deferred_source_file_events_ready(DeferredSourceFileEventsReady {
+                version: stale_version,
+                events: vec![(PathBuf::from("Dependency.sol"), FileChangeType::CHANGED)],
+            })
+            .is_continue()
+    );
 
+    assert_eq!(analysis_version(&state), cleared_version);
+    assert_eq!(*state.published_analysis_version.borrow(), cleared_version);
     let commit = state.analysis_commit.lock();
     assert!(commit.cache_invalidated);
     assert!(!commit.discovery_pending);
@@ -935,10 +831,8 @@ fn clearing_analysis_cache_clears_published_path_index() {
 #[tokio::test(flavor = "current_thread")]
 async fn latest_analysis_uses_the_config_published_with_the_analysis() {
     let project = TestProject::new();
-    let fallback_config = Arc::new(project.config_with_roots(&["/fallback"]));
     let published_config = Arc::new(project.config_with_roots(&["/published"]));
-    let mut state = GlobalState::new(ClientSocket::new_closed());
-    state.config = fallback_config;
+    let state = state_with(project.config_with_roots(&["/fallback"]));
     state.analysis_version.store(1, Ordering::Release);
 
     let latest = state.latest_analysis_with_config();
@@ -954,68 +848,22 @@ async fn latest_analysis_uses_the_config_published_with_the_analysis() {
 }
 
 #[tokio::test(flavor = "current_thread")]
-async fn clearing_analysis_cache_rejects_stale_deferred_event_replay() {
-    let mut state = GlobalState::new(ClientSocket::new_closed());
-    state.mark_analysis_pending_for_test();
-    let stale_version = state.analysis_version.load(Ordering::Acquire);
-    state.clear_analysis_cache();
-    let cleared_version = state.analysis_version.load(Ordering::Acquire);
-
-    assert!(matches!(
-        state.on_deferred_source_file_events_ready(DeferredSourceFileEventsReady {
-            version: stale_version,
-            events: vec![(PathBuf::from("Dependency.sol"), FileChangeType::CHANGED)],
-        }),
-        ControlFlow::Continue(())
-    ));
-
-    assert_eq!(state.analysis_version.load(Ordering::Acquire), cleared_version);
-    assert_eq!(*state.published_analysis_version.borrow(), cleared_version);
-    let commit = state.analysis_commit.lock();
-    assert!(commit.cache_invalidated);
-    assert!(!commit.discovery_pending);
-    assert!(commit.deferred_source_file_events.is_empty());
-}
-
-#[tokio::test(flavor = "current_thread")]
 async fn unknown_dependency_event_after_cache_clear_starts_recovery() {
-    let project = TestProject::from_fixture(
-        r#"
-        //- /Main.sol
-        import "./generated/Dependency.sol";
-        contract Main is Dependency {}
-
-        //- /generated/Dependency.sol
-        contract Dependency {}
-        "#,
-    );
-    let mut state = GlobalState::new(ClientSocket::new_closed());
-    state.config = Arc::new(config_with_indexing_excludes(&project, &["generated/**"]));
+    let project = TestProject::from_fixture(GENERATED_DEPENDENCY);
+    let mut state = state_with(config_with_indexing_excludes(&project, &["generated/**"]));
     state.clear_analysis_cache();
-    let cleared_version = state.analysis_version.load(Ordering::Acquire);
+    let cleared_version = analysis_version(&state);
     project.write_file("/generated/Dependency.sol", "contract Dependency {} contract Latest {}");
-    let path = project.path("/generated/Dependency.sol");
 
-    assert!(matches!(
-        crate::handlers::did_change_watched_files(
-            &mut state,
-            DidChangeWatchedFilesParams {
-                changes: vec![FileEvent {
-                    uri: Url::from_file_path(path).unwrap(),
-                    typ: FileChangeType::CHANGED,
-                }],
-            },
-        ),
-        ControlFlow::Continue(())
-    ));
+    watch_files(
+        &mut state,
+        [(&project.path("/generated/Dependency.sol"), FileChangeType::CHANGED)],
+    );
 
-    assert_eq!(state.analysis_version.load(Ordering::Acquire), cleared_version + 1);
-    let tables = tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis())
-        .await
-        .expect("cache recovery analysis should finish")
-        .unwrap();
+    assert_eq!(analysis_version(&state), cleared_version + 1);
+    let tables = settle(&state).await;
     assert!(!state.analysis_cache_invalidated());
-    assert!(tables.load().workspace_symbols("Latest").iter().any(|symbol| symbol.name == "Latest"));
+    assert_eq!(symbol_names(&tables, "Latest"), ["Latest"]);
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -1064,118 +912,48 @@ async fn workspace_discovery_router_rejects_stale_and_cancelled_ready_events() {
     let (_, latest_config) =
         negotiate_capabilities(project.initialize_params_with_roots(&["/latest"]));
 
-    let (setup_tx, setup_rx) = std_mpsc::sync_channel(1);
-    let (server_main, internal_client) = async_lsp::MainLoop::new_server(move |client| {
-        let mut state = GlobalState::new(client);
-        state.config = Arc::new(latest_config);
-        let (stale_version, stale_progress) = state
-            .begin_analysis(
-                AnalysisMode::Rediscover,
-                Vec::new(),
-                Vec::new(),
-                AnalysisTrigger::External,
-            )
-            .unwrap();
-        let (latest_version, latest_progress) = state
-            .begin_analysis(
-                AnalysisMode::Rediscover,
-                Vec::new(),
-                Vec::new(),
-                AnalysisTrigger::External,
-            )
-            .unwrap();
-        setup_tx
-            .send((
-                stale_version,
-                stale_progress,
-                latest_version,
-                latest_progress,
-                state.published_analysis_version.subscribe(),
-                state.symbol_tables.clone(),
-            ))
-            .unwrap();
-
-        let mut router = crate::new_router_with_state(state);
+    let setup = |state: &mut GlobalState| {
+        let stale = begin_rediscovery(state);
+        let latest = begin_rediscovery(state);
+        (stale, latest, state.published_analysis_version.subscribe(), state.symbol_tables.clone())
+    };
+    let route = |router: &mut Router<GlobalState>| {
         router.event::<DiscoveryStateProbe>(|state, probe| {
-            let roots = state
-                .config
-                .workspaces()
-                .iter()
-                .filter_map(|workspace| workspace.compile_opts().base_path.clone())
-                .collect();
             let pending = state.analysis_commit.lock().discovery_pending;
-            probe.0.send((roots, pending)).unwrap();
+            probe.0.send((workspace_bases(&state.config), pending)).unwrap();
             ControlFlow::Continue(())
         });
-        router
-    });
-    let (client_main, server) = async_lsp::MainLoop::new_client(|_| {
-        let mut router = Router::new(());
-        router.notification::<notification::PublishDiagnostics>(|_, _| ControlFlow::Continue(()));
-        router.notification::<notification::LogMessage>(|_, _| ControlFlow::Continue(()));
-        router
-    });
-    let (stale_version, stale_progress, latest_version, latest_progress, mut published, tables) =
-        setup_rx.recv().unwrap();
+    };
+    let (pair, setup) = serve(latest_config, setup, route);
+    let ((stale_version, stale_progress), (latest_version, latest_progress), mut published, tables) =
+        setup;
+    let ready = |version, result, progress, cancellation| WorkspaceDiscoveryReady {
+        cancellation,
+        ..discovery_ready(version, result, progress)
+    };
+    let probe = || async {
+        let (probe_tx, probe_rx) = oneshot::channel();
+        pair.client.emit(DiscoveryStateProbe(probe_tx)).unwrap();
+        probe_rx.await.unwrap()
+    };
 
-    let (server_task, client_task) = spawn_lsp_pair(server_main, client_main);
-
-    internal_client
-        .emit(WorkspaceDiscoveryReady {
-            version: stale_version,
-            result: stale_result,
-            disk_paths: Vec::new(),
-            progress: stale_progress,
-            cancellation: IndexingCancellation::default(),
-        })
-        .unwrap();
-    let (probe_tx, probe_rx) = oneshot::channel();
-    internal_client.emit(DiscoveryStateProbe(probe_tx)).unwrap();
-    let (roots, pending) = probe_rx.await.unwrap();
-    assert!(roots.is_empty());
-    assert!(pending);
+    let event = ready(stale_version, stale_result, stale_progress, Default::default());
+    pair.client.emit(event).unwrap();
+    assert_eq!(probe().await, (Vec::new(), true));
 
     let cancelled = IndexingCancellation::default();
     cancelled.cancel();
-    internal_client
-        .emit(WorkspaceDiscoveryReady {
-            version: latest_version,
-            result: cancelled_result,
-            disk_paths: Vec::new(),
-            progress: latest_progress.clone(),
-            cancellation: cancelled,
-        })
-        .unwrap();
-    let (probe_tx, probe_rx) = oneshot::channel();
-    internal_client.emit(DiscoveryStateProbe(probe_tx)).unwrap();
-    let (roots, pending) = probe_rx.await.unwrap();
-    assert!(roots.is_empty());
-    assert!(pending);
+    let event = ready(latest_version, cancelled_result, latest_progress.clone(), cancelled);
+    pair.client.emit(event).unwrap();
+    assert_eq!(probe().await, (Vec::new(), true));
 
-    internal_client
-        .emit(WorkspaceDiscoveryReady {
-            version: latest_version,
-            result: latest_result,
-            disk_paths: Vec::new(),
-            progress: latest_progress,
-            cancellation: IndexingCancellation::default(),
-        })
-        .unwrap();
-    tokio::time::timeout(ASYNC_TEST_TIMEOUT, async {
-        while *published.borrow() != latest_version {
-            published.changed().await.unwrap();
-        }
-    })
-    .await
-    .expect("latest workspace discovery should publish analysis");
+    let event = ready(latest_version, latest_result, latest_progress, Default::default());
+    pair.client.emit(event).unwrap();
+    wait_published(&mut published, |published| published == latest_version).await;
 
-    assert!(tables.load().workspace_symbols("Stale").is_empty());
-    assert!(tables.load().workspace_symbols("Latest").iter().any(|symbol| symbol.name == "Latest"));
-
-    server.request::<request::Shutdown>(()).await.unwrap();
-    server.notify::<notification::Exit>(()).unwrap();
-    assert!(server_task.await.unwrap().is_ok());
-    assert!(matches!(client_task.await.unwrap(), Err(async_lsp::Error::Eof)));
+    assert!(symbol_names(&tables, "Stale").is_empty());
+    assert_eq!(symbol_names(&tables, "Latest"), ["Latest"]);
+    pair.shutdown().await;
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -1185,105 +963,36 @@ async fn deferred_dependency_change_router_publishes_replacement_analysis() {
         output: AnalysisOutput,
     }
 
-    let project = TestProject::from_fixture(
-        r#"
-        //- /Main.sol
-        import "./generated/Dependency.sol";
-        contract Main is Dependency {}
-
-        //- /generated/Dependency.sol
-        contract Dependency {}
-        "#,
-    );
+    let project = TestProject::from_fixture(GENERATED_DEPENDENCY);
     let config = config_with_indexing_excludes(&project, &["generated/**"]);
-    let mut batches =
-        snapshot_with_config(config.clone(), project.vfs()).analysis_batches(Vec::new());
-    let old_output =
-        analyze_cancellable(batches.pop().unwrap(), &IndexingCancellation::default()).unwrap();
+    let old_output = analyze_project(&project, &config);
     let dependency = project.path("/generated/Dependency.sol");
     project.write_file("/generated/Dependency.sol", "contract Dependency {} contract Latest {}");
 
-    let (setup_tx, setup_rx) = std_mpsc::sync_channel(1);
-    let (server_main, internal_client) = async_lsp::MainLoop::new_server(move |client| {
-        let mut state = GlobalState::new(client);
-        state.config = Arc::new(config);
+    let setup = |state: &mut GlobalState| {
         state.mark_analysis_pending_for_test();
-        let version = state.analysis_version.load(Ordering::Acquire);
         assert_eq!(
             state.classify_source_file_event(&dependency, FileChangeType::CHANGED),
             SourceFileEventDisposition::Deferred
         );
-        setup_tx
-            .send((
-                version,
-                state.published_analysis_version.subscribe(),
-                state.symbol_tables.clone(),
-            ))
-            .unwrap();
-
-        let mut router = crate::new_router_with_state(state);
+        let published = state.published_analysis_version.subscribe();
+        (analysis_version(state), published, state.symbol_tables.clone())
+    };
+    let route = |router: &mut Router<GlobalState>| {
         router.event::<PublishAnalysis>(|state, event| {
-            assert!(
-                !state
-                    .snapshot()
-                    .publish_analysis_output(event.version, event.output.into_shared())
-            );
+            let output = event.output.into_shared();
+            assert!(!state.snapshot().publish_analysis_output(event.version, output));
             ControlFlow::Continue(())
         });
-        router
-    });
-    let (client_main, server) = async_lsp::MainLoop::new_client(|_| {
-        let mut router = Router::new(());
-        router.notification::<notification::PublishDiagnostics>(|_, _| ControlFlow::Continue(()));
-        router.notification::<notification::LogMessage>(|_, _| ControlFlow::Continue(()));
-        router
-    });
-    let (version, mut published, tables) = setup_rx.recv().unwrap();
+    };
+    let (pair, (version, mut published, tables)) = serve(config, setup, route);
 
-    let (server_task, client_task) = spawn_lsp_pair(server_main, client_main);
-
-    internal_client.emit(PublishAnalysis { version, output: old_output }).unwrap();
-    tokio::time::timeout(ASYNC_TEST_TIMEOUT, async {
-        while *published.borrow() <= version {
-            published.changed().await.unwrap();
-        }
-    })
-    .await
-    .expect("replacement dependency analysis should publish");
+    pair.client.emit(PublishAnalysis { version, output: old_output }).unwrap();
+    wait_published(&mut published, |published| published > version).await;
 
     assert_eq!(*published.borrow(), version + 1);
-    assert!(tables.load().workspace_symbols("Latest").iter().any(|symbol| symbol.name == "Latest"));
-
-    server.request::<request::Shutdown>(()).await.unwrap();
-    server.notify::<notification::Exit>(()).unwrap();
-    assert!(server_task.await.unwrap().is_ok());
-    assert!(matches!(client_task.await.unwrap(), Err(async_lsp::Error::Eof)));
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn failed_current_workspace_discovery_terminates_the_analysis_epoch() {
-    let mut state = GlobalState::new(ClientSocket::new_closed());
-    let (version, progress) = state
-        .begin_analysis(AnalysisMode::Rediscover, Vec::new(), Vec::new(), AnalysisTrigger::External)
-        .unwrap();
-    assert!(state.analysis_commit.lock().discovery_pending);
-    assert!(
-        state
-            .on_workspace_discovery_failed(WorkspaceDiscoveryFailed {
-                version,
-                error: "test workspace discovery failure".into(),
-                progress,
-            })
-            .is_continue()
-    );
-
-    tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis())
-        .await
-        .expect("failed discovery should publish its terminal version")
-        .unwrap();
-    let commit = state.analysis_commit.lock();
-    assert!(commit.cache_invalidated);
-    assert!(!commit.discovery_pending);
+    assert_eq!(symbol_names(&tables, "Latest"), ["Latest"]);
+    pair.shutdown().await;
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -1300,64 +1009,18 @@ async fn host_loader_failure_terminates_background_discovery_with_last_good_conf
     );
     let fail = Arc::new(AtomicBool::new(false));
     let loader_fail = fail.clone();
-    let launch_config =
-        crate::LaunchConfig::default().with_foundry_workspace_config_loader(move |root| {
-            if loader_fail.load(Ordering::Relaxed) {
-                return Err("host config unavailable");
-            }
-            Ok(crate::FoundryWorkspaceConfig::new(root).with_source_roots(["src"]))
-        });
-    let (_, mut config) = crate::config::negotiate_capabilities_with_pull_diagnostic_data(
-        project.initialize_params(),
-        false,
-        &launch_config,
-    );
-    config.rediscover_workspaces();
+    let config = failing_loader_config(project.initialize_params(), move |_| {
+        loader_fail.load(Ordering::Relaxed)
+    });
     assert_eq!(config.workspaces()[0].source_roots(), &[project.path("/src")]);
 
-    let mut state = GlobalState::new(ClientSocket::new_closed());
-    state.config = Arc::new(config);
+    let mut state = state_with(config);
     fail.store(true, Ordering::Relaxed);
-    let (version, progress) = state
-        .begin_analysis(AnalysisMode::Rediscover, Vec::new(), Vec::new(), AnalysisTrigger::External)
-        .unwrap();
-    let cancellation = IndexingCancellation::default();
-    let Err(error) = state.config.try_discover_workspaces(&cancellation) else {
-        panic!("host loader should fail workspace discovery")
-    };
-    assert!(
-        state
-            .on_workspace_discovery_failed(WorkspaceDiscoveryFailed {
-                version,
-                error: error.to_string(),
-                progress,
-            })
-            .is_continue()
-    );
-
-    tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis())
-        .await
-        .expect("host loader failure should publish its terminal version")
-        .unwrap();
+    fail_rediscovery(&mut state).await;
     assert_eq!(state.config.workspaces()[0].source_roots(), &[project.path("/src")]);
     let commit = state.analysis_commit.lock();
     assert!(commit.cache_invalidated);
     assert!(!commit.discovery_pending);
-}
-
-fn replace_workspace_folder(old_root: &Path, new_root: &Path) -> DidChangeWorkspaceFoldersParams {
-    DidChangeWorkspaceFoldersParams {
-        event: WorkspaceFoldersChangeEvent {
-            added: vec![WorkspaceFolder {
-                uri: Url::from_file_path(new_root).unwrap(),
-                name: "new".into(),
-            }],
-            removed: vec![WorkspaceFolder {
-                uri: Url::from_file_path(old_root).unwrap(),
-                name: "old".into(),
-            }],
-        },
-    }
 }
 
 fn workspace_folder_failure_fixture() -> (TestProject, Config) {
@@ -1379,88 +1042,39 @@ fn workspace_folder_failure_fixture() -> (TestProject, Config) {
         "#,
     );
     let rejected = project.path("/b");
-    let launch_config =
-        crate::LaunchConfig::default().with_foundry_workspace_config_loader(move |root| {
-            if root == rejected {
-                return Err("host config unavailable");
-            }
-            Ok(crate::FoundryWorkspaceConfig::new(root).with_source_roots(["src"]))
-        });
-    let (_, mut config) = crate::config::negotiate_capabilities_with_pull_diagnostic_data(
-        project.initialize_params_with_roots(&["/a"]),
-        false,
-        &launch_config,
-    );
-    config.rediscover_workspaces();
+    let params = project.initialize_params_with_roots(&["/a"]);
+    let config = failing_loader_config(params, move |root| root == rejected);
     (project, config)
 }
 
-#[derive(Debug)]
-struct WorkspaceFolderState {
-    roots: Vec<PathBuf>,
-    workspace_base_paths: Vec<PathBuf>,
-    tracks_old_source: bool,
-    tracks_new_source: bool,
-    discovery_pending: bool,
-}
-
-fn workspace_folder_state(
+fn assert_failed_workspace_folder_change_rolled_back(
     state: &GlobalState,
     old_root: &Path,
     new_root: &Path,
-) -> WorkspaceFolderState {
-    WorkspaceFolderState {
-        roots: state.config.workspace_roots().to_vec(),
-        workspace_base_paths: state
-            .config
-            .workspaces()
-            .iter()
-            .filter_map(|workspace| workspace.compile_opts().base_path.clone())
-            .collect(),
-        tracks_old_source: state.config.tracks_source_file(&old_root.join("src/A.sol")),
-        tracks_new_source: state.config.tracks_source_file(&new_root.join("src/B.sol")),
-        discovery_pending: state.analysis_commit.lock().discovery_pending,
-    }
-}
-
-fn assert_failed_workspace_folder_change_rolled_back(state: WorkspaceFolderState, old_root: &Path) {
-    assert_eq!(state.roots, [old_root.to_path_buf()]);
-    assert_eq!(state.workspace_base_paths, [old_root.to_path_buf()]);
-    assert!(state.tracks_old_source);
-    assert!(!state.tracks_new_source);
-    assert!(!state.discovery_pending);
+) {
+    assert_eq!(state.config.workspace_roots(), [old_root.to_path_buf()]);
+    assert_eq!(workspace_bases(&state.config), [old_root.to_path_buf()]);
+    assert!(state.config.tracks_source_file(&old_root.join("src/A.sol")));
+    assert!(!state.config.tracks_source_file(&new_root.join("src/B.sol")));
+    assert!(!state.analysis_commit.lock().discovery_pending);
 }
 
 #[tokio::test(flavor = "current_thread")]
 async fn synchronous_workspace_folder_loader_failure_rolls_back_roots() {
     let (project, config) = workspace_folder_failure_fixture();
-    let mut state = GlobalState::new(ClientSocket::new_closed());
-    state.config = Arc::new(config);
+    let mut state = state_with(config);
+    let (old_root, new_root) = (project.path("/a"), project.path("/b"));
 
-    assert!(
-        crate::handlers::did_change_workspace_folders(
-            &mut state,
-            replace_workspace_folder(&project.path("/a"), &project.path("/b")),
-        )
-        .is_continue()
-    );
+    change_workspace_folders(&mut state, &[project.uri("/b")], &[project.uri("/a")]);
 
-    tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis())
-        .await
-        .expect("failed synchronous discovery should publish its terminal version")
-        .unwrap();
-    assert_failed_workspace_folder_change_rolled_back(
-        workspace_folder_state(&state, &project.path("/a"), &project.path("/b")),
-        &project.path("/a"),
-    );
+    settle(&state).await;
+    assert_failed_workspace_folder_change_rolled_back(&state, &old_root, &new_root);
 }
 
 #[tokio::test(flavor = "current_thread")]
 async fn clearing_cache_discards_workspace_root_rollback_checkpoint() {
     let (project, config) = workspace_folder_failure_fixture();
-    let mut state = GlobalState::new(ClientSocket::new_closed());
-    state.config = Arc::new(config);
-
+    let mut state = state_with(config);
     let old_root = project.path("/a");
     let new_root = project.path("/b");
     let previous_roots = state.config.workspace_roots().to_vec();
@@ -1470,9 +1084,7 @@ async fn clearing_cache_discards_workspace_root_rollback_checkpoint() {
         config.add_workspaces([new_root.clone()]);
     }
     state.record_workspace_root_change(previous_roots);
-    let _ = state
-        .begin_analysis(AnalysisMode::Rediscover, Vec::new(), Vec::new(), AnalysisTrigger::External)
-        .unwrap();
+    begin_rediscovery(&mut state);
     assert_eq!(
         state.analysis_commit.lock().workspace_roots_before_change.as_deref(),
         Some(std::slice::from_ref(&old_root))
@@ -1482,118 +1094,47 @@ async fn clearing_cache_discards_workspace_root_rollback_checkpoint() {
     assert!(state.analysis_commit.lock().workspace_roots_before_change.is_none());
     assert_eq!(state.config.workspace_roots(), std::slice::from_ref(&new_root));
 
-    let (version, progress) = state
-        .begin_analysis(AnalysisMode::Rediscover, Vec::new(), Vec::new(), AnalysisTrigger::External)
-        .unwrap();
-    let cancellation = IndexingCancellation::default();
-    let Err(error) = state.config.try_discover_workspaces(&cancellation) else {
-        panic!("host loader should fail workspace discovery")
-    };
-    assert!(
-        state
-            .on_workspace_discovery_failed(WorkspaceDiscoveryFailed {
-                version,
-                error: error.to_string(),
-                progress,
-            })
-            .is_continue()
-    );
-
-    tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis())
-        .await
-        .expect("failed discovery should publish its terminal version")
-        .unwrap();
+    fail_rediscovery(&mut state).await;
     assert_eq!(state.config.workspace_roots(), [new_root]);
 }
 
 #[tokio::test(flavor = "current_thread")]
 async fn background_workspace_folder_loader_failure_rolls_back_roots() {
-    struct WorkspaceStateProbe {
-        old_root: PathBuf,
-        new_root: PathBuf,
-        response: oneshot::Sender<WorkspaceFolderState>,
-    }
+    struct WorkspaceStateProbe(PathBuf, PathBuf, oneshot::Sender<()>);
 
     let (project, config) = workspace_folder_failure_fixture();
-    let (setup_tx, setup_rx) = std_mpsc::sync_channel(1);
-    let (server_main, internal_client) = async_lsp::MainLoop::new_server(move |client| {
-        let mut state = GlobalState::new(client);
-        state.config = Arc::new(config);
-        state.background_discovery = true;
-        setup_tx.send(state.published_analysis_version.subscribe()).unwrap();
-        let mut router = crate::new_router_with_state(state);
-        router.event::<WorkspaceStateProbe>(|state, probe| {
-            let snapshot = workspace_folder_state(state, &probe.old_root, &probe.new_root);
-            assert!(probe.response.send(snapshot).is_ok());
+    let route = |router: &mut Router<GlobalState>| {
+        router.event::<WorkspaceStateProbe>(|state, WorkspaceStateProbe(old, new, done)| {
+            assert_failed_workspace_folder_change_rolled_back(state, &old, &new);
+            done.send(()).unwrap();
             ControlFlow::Continue(())
         });
-        router
-    });
-    let (client_main, mut server) = async_lsp::MainLoop::new_client(|_| {
-        let mut router = Router::new(());
-        router.notification::<notification::PublishDiagnostics>(|_, _| ControlFlow::Continue(()));
-        router.notification::<notification::LogMessage>(|_, _| ControlFlow::Continue(()));
-        router
-    });
-    let mut published = setup_rx.recv().unwrap();
-    let (server_task, client_task) = spawn_lsp_pair(server_main, client_main);
+    };
+    let (pair, mut published) =
+        serve(config, |state| state.published_analysis_version.subscribe(), route);
 
-    server
-        .did_change_workspace_folders(replace_workspace_folder(
-            &project.path("/a"),
-            &project.path("/b"),
-        ))
-        .unwrap();
-    tokio::time::timeout(ASYNC_TEST_TIMEOUT, async {
-        while *published.borrow() == 0 {
-            published.changed().await.unwrap();
-        }
-    })
-    .await
-    .expect("failed background discovery should publish its terminal version");
+    let params = workspace_folders_change(&[project.uri("/b")], &[project.uri("/a")]);
+    pair.server.notify::<notification::DidChangeWorkspaceFolders>(params).unwrap();
+    wait_published(&mut published, |published| published != 0).await;
 
-    let (probe_tx, probe_rx) = oneshot::channel();
-    internal_client
-        .emit(WorkspaceStateProbe {
-            old_root: project.path("/a"),
-            new_root: project.path("/b"),
-            response: probe_tx,
-        })
-        .unwrap();
-    assert_failed_workspace_folder_change_rolled_back(probe_rx.await.unwrap(), &project.path("/a"));
-    server.shutdown(()).await.unwrap();
-    server.exit(()).unwrap();
-    assert!(server_task.await.unwrap().is_ok());
-    assert!(matches!(client_task.await.unwrap(), Err(async_lsp::Error::Eof)));
+    let (done_tx, done_rx) = oneshot::channel();
+    let probe = WorkspaceStateProbe(project.path("/a"), project.path("/b"), done_tx);
+    pair.client.emit(probe).unwrap();
+    done_rx.await.unwrap();
+    pair.shutdown().await;
 }
 
 #[test]
-fn analysis_batches_index_closed_sources_when_source_root_overlaps_library() {
-    let project = TestProject::from_fixture(
-        r#"
+fn analysis_batches_index_sources_below_overlapping_library_and_manifest_corridors() {
+    let overlapping = r#"
         //- /foundry.toml
         [profile.default]
         src = "lib"
 
         //- /lib/Main.sol
         contract Main {}
-        "#,
-    );
-    let snapshot = snapshot_with_config(project.config(), Vfs::default());
-
-    let mut batches = snapshot.analysis_batches(Vec::new());
-    let batch = batches.pop().unwrap();
-
-    assert_eq!(
-        batch.files,
-        vec![(project.path("/lib/Main.sol"), Arc::new("contract Main {}".into()))]
-    );
-}
-
-#[test]
-fn analysis_batches_keep_sources_below_import_only_manifest_corridors() {
-    let project = TestProject::from_fixture(
-        r#"
+        "#;
+    let corridor = r#"
         //- /foundry.toml
         [profile.default]
         src = "lib/contracts"
@@ -1607,90 +1148,22 @@ fn analysis_batches_keep_sources_below_import_only_manifest_corridors() {
 
         //- /lib/dependency/Dependency.sol
         contract Dependency {}
-        "#,
-    );
-    let config = project.config();
-    assert!(!config.workspaces().iter().any(|workspace| {
-        workspace.compile_opts().base_path.as_deref() == Some(project.path("/lib").as_path())
-    }));
-    let snapshot = snapshot_with_config(config, Vfs::default());
+        "#;
+    for (fixture, main) in [(overlapping, "/lib/Main.sol"), (corridor, "/lib/contracts/Main.sol")] {
+        let project = TestProject::from_fixture(fixture);
+        let config = project.config();
+        let lib = project.path("/lib");
+        assert!(!workspace_bases(&config).contains(&lib));
 
-    let mut batches = snapshot.analysis_batches(Vec::new());
-    let batch = batches.pop().unwrap();
+        let mut batches = snapshot_with_config(config, Vfs::default()).analysis_batches(Vec::new());
 
-    assert_eq!(
-        batch.files,
-        vec![(project.path("/lib/contracts/Main.sol"), Arc::new("contract Main {}".into()),)]
-    );
+        let expected = vec![(project.path(main), Arc::new("contract Main {}".into()))];
+        assert_eq!(batches.pop().unwrap().files, expected);
+    }
 }
 
 #[test]
-fn workspace_discovery_rechecks_sources_against_the_owning_workspace_policy() {
-    let project = TestProject::from_fixture(
-        r#"
-        //- /foundry.toml
-        [profile.default]
-        src = "."
-
-        //- /nested/foundry.toml
-        [profile.default]
-        src = "src"
-        libs = ["src/vendor"]
-
-        //- /nested/src/Included.sol
-        contract Included {}
-
-        //- /nested/src/generated/Excluded.sol
-        contract Excluded {}
-
-        //- /nested/src/vendor/Dependency.sol
-        contract Dependency {}
-
-        //- /nested/Outside.sol
-        contract Outside {}
-        "#,
-    );
-    let config = config_with_indexing_excludes(&project, &["src/generated/**"]);
-    let nested_root = project.path("/nested");
-    let outer_workspace = config
-        .workspaces()
-        .iter()
-        .find(|workspace| workspace.compile_opts().base_path.as_deref() == Some(project.root()))
-        .unwrap();
-    let nested_workspace = config
-        .workspaces()
-        .iter()
-        .find(|workspace| workspace.compile_opts().base_path.as_deref() == Some(&nested_root))
-        .unwrap();
-    assert!(outer_workspace.source_files().is_empty());
-    assert_eq!(
-        nested_workspace.source_files(),
-        [project.path("/nested/Outside.sol"), project.path("/nested/src/Included.sol")]
-    );
-    assert_eq!(config.index_metrics().eager, 2);
-
-    let batches = snapshot_with_config(config, Vfs::default()).analysis_batches(Vec::new());
-    let outer_batch = batches
-        .iter()
-        .find(|batch| batch.opts.base_path.as_deref() == Some(project.root()))
-        .unwrap();
-    let nested_batch = batches
-        .iter()
-        .find(|batch| batch.opts.base_path.as_deref() == Some(nested_root.as_path()))
-        .unwrap();
-
-    assert!(outer_batch.files.iter().all(|(path, _)| !path.starts_with(&nested_root)));
-    assert_eq!(
-        nested_batch.files,
-        vec![
-            (project.path("/nested/Outside.sol"), Arc::new("contract Outside {}".into())),
-            (project.path("/nested/src/Included.sol"), Arc::new("contract Included {}".into()))
-        ]
-    );
-}
-
-#[test]
-fn nested_external_source_root_outranks_an_outer_workspace_base() {
+fn nested_external_source_and_flycheck_roots_outrank_an_outer_workspace_base() {
     let project = TestProject::from_fixture(
         r#"
         //- /foundry.toml
@@ -1698,70 +1171,37 @@ fn nested_external_source_root_outranks_an_outer_workspace_base() {
         src = "src"
 
         //- /src/Outer.sol
-        contract Outer {}
-
         //- /packages/app/foundry.toml
         [profile.default]
         src = "../../shared"
+        test = "../../checks"
 
         //- /shared/Shared.sol
-        contract Shared {}
+        //- /checks/Nested.t.sol
         "#,
     );
     let config = project.config();
     let shared = project.path("/shared/Shared.sol");
-    let nested_root = project.path("/packages/app");
-    let nested = config
-        .workspaces()
-        .iter()
-        .find(|workspace| workspace.compile_opts().base_path.as_deref() == Some(&nested_root))
-        .unwrap();
+    let check = project.path("/checks/Nested.t.sol");
+    let nested = workspace_at(&config, &project.path("/packages/app"));
 
     assert_eq!(
         nested.source_roots(),
         [
             project.path("/packages/app"),
             project.path("/shared"),
-            project.path("/packages/app/test"),
+            project.path("/checks"),
             project.path("/packages/app/script")
         ]
     );
     assert!(nested.source_files().contains(&shared));
     assert!(config.tracks_source_file(&shared));
+    assert!(nested.flycheck_source_files().contains(&check));
+    assert!(config.tracks_flycheck_file(&check));
 }
 
 #[test]
-fn nested_external_flycheck_root_outranks_an_outer_workspace_base() {
-    let project = TestProject::from_fixture(
-        r#"
-        //- /foundry.toml
-        [profile.default]
-        src = "src"
-
-        //- /packages/app/foundry.toml
-        [profile.default]
-        src = "src"
-        test = "../../checks"
-
-        //- /checks/Nested.t.sol
-        contract NestedTest {}
-        "#,
-    );
-    let config = project.config();
-    let nested_root = project.path("/packages/app");
-    let path = project.path("/checks/Nested.t.sol");
-    let nested = config
-        .workspaces()
-        .iter()
-        .find(|workspace| workspace.compile_opts().base_path.as_deref() == Some(&nested_root))
-        .unwrap();
-
-    assert!(nested.flycheck_source_files().contains(&path));
-    assert!(config.tracks_flycheck_file(&path));
-}
-
-#[test]
-fn discovery_finds_nested_projects_under_dedicated_flycheck_roots() {
+fn discovery_finds_nested_projects_under_flycheck_roots_and_nested_manifests() {
     let project = TestProject::from_fixture(
         r#"
         //- /foundry.toml
@@ -1774,23 +1214,14 @@ fn discovery_finds_nested_projects_under_dedicated_flycheck_roots() {
         src = "src"
 
         //- /out/checks/deep/app/src/Check.sol
-        contract Check {}
         "#,
     );
-    let config = project.config();
-    let root = project.path("/out/checks/deep/app");
-    let source = project.path("/out/checks/deep/app/src/Check.sol");
-    let workspace = config
-        .workspaces()
-        .iter()
-        .find(|workspace| workspace.compile_opts().base_path.as_deref() == Some(&root))
-        .unwrap();
+    assert_eq!(
+        workspace_at(&project.config(), &project.path("/out/checks/deep/app")).source_files(),
+        [project.path("/out/checks/deep/app/src/Check.sol")]
+    );
 
-    assert_eq!(workspace.source_files(), [source]);
-}
-
-#[test]
-fn discovery_reaches_nested_manifest_fixed_point() {
+    // Manifests found below a discovered source root are discovered again until a fixed point.
     let project = TestProject::from_fixture(
         r#"
         //- /workspace/foundry.toml
@@ -1802,32 +1233,19 @@ fn discovery_reaches_nested_manifest_fixed_point() {
         src = "src"
 
         //- /shared/contracts/first/src/First.sol
-        contract First {}
-
         //- /shared/contracts/first/src/second/foundry.toml
         [profile.default]
         src = "src"
 
         //- /shared/contracts/first/src/second/src/Second.sol
-        contract Second {}
         "#,
     );
     let config = project.config();
-    let first_root = project.path("/shared/contracts/first");
-    let second_root = project.path("/shared/contracts/first/src/second");
-    let second_source = project.path("/shared/contracts/first/src/second/src/Second.sol");
-
-    assert!(
-        config.workspaces().iter().any(|workspace| {
-            workspace.compile_opts().base_path.as_deref() == Some(&first_root)
-        })
+    workspace_at(&config, &project.path("/shared/contracts/first"));
+    assert_eq!(
+        workspace_at(&config, &project.path("/shared/contracts/first/src/second")).source_files(),
+        [project.path("/shared/contracts/first/src/second/src/Second.sol")]
     );
-    let second = config
-        .workspaces()
-        .iter()
-        .find(|workspace| workspace.compile_opts().base_path.as_deref() == Some(&second_root))
-        .unwrap();
-    assert_eq!(second.source_files(), [second_source]);
 }
 
 #[test]
@@ -1844,36 +1262,24 @@ fn discovery_and_updates_share_the_most_specific_flycheck_owner() {
         test = "../../src/shared"
 
         //- /src/shared/Shared.t.sol
-        contract SharedTest {}
         "#,
     );
     let mut config = project.config();
     let path = project.path("/src/shared/Shared.t.sol");
-    let outer_root = project.root();
     let nested_root = project.path("/packages/app");
-    fn workspace<'a>(root: &Path, config: &'a Config) -> &'a crate::workspace::Workspace {
-        config
-            .workspaces()
-            .iter()
-            .find(|workspace| workspace.compile_opts().base_path.as_deref() == Some(root))
-            .unwrap()
-    }
+    let owners = |config: &Config| {
+        let [outer, nested] = [project.root(), &nested_root].map(|root| workspace_at(config, root));
+        [
+            outer.source_files().contains(&path),
+            nested.source_files().contains(&path),
+            outer.flycheck_source_files().contains(&path),
+            nested.flycheck_source_files().contains(&path),
+        ]
+    };
 
-    let outer = workspace(outer_root, &config);
-    let nested = workspace(&nested_root, &config);
-    assert!(!outer.source_files().contains(&path));
-    assert!(nested.source_files().contains(&path));
-    assert!(!outer.flycheck_source_files().contains(&path));
-    assert!(nested.flycheck_source_files().contains(&path));
-
+    assert_eq!(owners(&config), [false, true, false, true]);
     config.remove_source_file(&path);
-    assert!(!workspace(outer_root, &config).source_files().contains(&path));
-    assert!(!workspace(outer_root, &config).flycheck_source_files().contains(&path));
-    assert!(!workspace(&nested_root, &config).flycheck_source_files().contains(&path));
-
+    assert_eq!(owners(&config), [false, false, false, false]);
     config.add_source_file(path.clone());
-    assert!(!workspace(outer_root, &config).source_files().contains(&path));
-    assert!(workspace(&nested_root, &config).source_files().contains(&path));
-    assert!(!workspace(outer_root, &config).flycheck_source_files().contains(&path));
-    assert!(workspace(&nested_root, &config).flycheck_source_files().contains(&path));
+    assert_eq!(owners(&config), [false, true, false, true]);
 }

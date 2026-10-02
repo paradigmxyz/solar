@@ -1,3 +1,6 @@
+//@ codegen-matrix: standard
+//@ run-call-fail: unused 0 => Panic(0x12)
+//@ run-call: unused 7
 //@ run-call: am 1, 2, 3 => 0
 //@ run-call: am 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 2, 3 => 2
 //@ run-call-fail: am 0, 0, 0 => Panic(0x12)
@@ -25,5 +28,10 @@ contract AddmodMulmod {
         assembly {
             result := mulmod(x, y, modulus)
         }
+    }
+
+    function unused(uint256 modulus) external pure {
+        addmod(0, 0, modulus);
+        mulmod(0, 0, modulus);
     }
 }

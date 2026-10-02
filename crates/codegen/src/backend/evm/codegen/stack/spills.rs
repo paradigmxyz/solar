@@ -2,11 +2,12 @@
 
 use super::super::{
     BlockId, CfgInfo, CopyDest, CopySource, DenseBitSet, EvmCodegen, EvmMemoryLayout, Function,
-    FunctionId, FxHashMap, FxHashSet, IndexVec, InstKind, Liveness, MAX_STACK_ACCESS, OnceCell,
-    OptimizationMode, ParallelCopy, ScheduledOp, SmallVec, SpillSlot, SpillStore, StackOp,
-    StdEntry, Terminator, U256, Value, ValueId, cross_block_values, index_vec, ir,
-    is_cross_block_recomputable_kind, is_rematerializable_leaf, op, rematerializable_nullary_value,
+    FunctionId, FxHashMap, FxHashSet, IndexVec, InstKind, Liveness, OnceCell, OptimizationMode,
+    ParallelCopy, ScheduledOp, SmallVec, SpillSlot, SpillStore, StackOp, Terminator, U256, Value,
+    ValueId, cross_block_values, index_vec, ir, is_cross_block_recomputable_kind,
+    is_rematerializable_leaf, op, rematerializable_nullary_value,
 };
+use solar_data_structures::bit_set::BitMatrix;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(in crate::backend::evm::codegen) struct SpillLiveRange {
@@ -21,6 +22,10 @@ pub(in crate::backend::evm::codegen) struct SpillColor {
 
 type SpillInterferences = FxHashMap<ValueId, SmallVec<[ValueId; 4]>>;
 
+/// One value's live range in each block where it needs its slot, sorted by block.
+pub(in crate::backend::evm::codegen) type SpillLiveRanges =
+    SmallVec<[(BlockId, SpillLiveRange); 2]>;
+
 impl SpillColor {
     pub(in crate::backend::evm::codegen) fn new(value_count: usize) -> Self {
         Self { values: DenseBitSet::new_empty(value_count), ranges: FxHashMap::default() }
@@ -29,7 +34,7 @@ impl SpillColor {
     pub(in crate::backend::evm::codegen) fn accepts(
         &self,
         value: ValueId,
-        ranges: &FxHashMap<BlockId, SpillLiveRange>,
+        ranges: &[(BlockId, SpillLiveRange)],
         interferences: &SpillInterferences,
     ) -> bool {
         interferences
@@ -47,10 +52,10 @@ impl SpillColor {
     pub(in crate::backend::evm::codegen) fn insert(
         &mut self,
         value: ValueId,
-        ranges: &FxHashMap<BlockId, SpillLiveRange>,
+        ranges: &[(BlockId, SpillLiveRange)],
     ) {
         self.values.insert(value);
-        for (&block, &range) in ranges {
+        for &(block, range) in ranges {
             self.ranges.entry(block).or_default().push(range);
         }
     }
@@ -72,14 +77,14 @@ impl<'gcx> EvmCodegen<'gcx> {
         let cross_block_live =
             cross_block_live.get_or_init(|| Self::cross_block_live_values(func, liveness));
         let values = Self::cross_block_spill_values(func, cross_block_live);
+        let recomputable =
+            cross_block_values(func, |value| !self.scheduler.is_stack_only_value(value));
 
         // Coloring minimizes the local frame, which reduces memory expansion in gas mode. It is
         // deliberately disabled in size mode because renumbering spill addresses disturbed
         // downstream block sharing and regressed aggregate CI bytecode despite smaller frames.
         if self.gcx.sess.opts.optimization.is_gas() {
             let colorable = cross_block_live;
-            let recomputable =
-                cross_block_values(func, |value| !self.scheduler.is_stack_only_value(value));
             let ranges = Self::spill_live_ranges(func, liveness, colorable, &recomputable);
             let interferences =
                 Self::parallel_phi_interferences(func, liveness, colorable, &self.block_copies);
@@ -109,7 +114,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
         }
 
-        self.preallocate_spill_metadata(func, &values);
+        self.preallocate_spill_metadata(&values, &recomputable);
 
         // A free-memory-pointer load cannot be recomputed after the pointer moves. Reserve stable
         // slots for cross-block values, including direct uses that liveness does not carry. Size
@@ -124,9 +129,11 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
     }
 
-    fn preallocate_spill_metadata(&mut self, func: &Function, values: &DenseBitSet<ValueId>) {
-        let recomputable =
-            cross_block_values(func, |value| !self.scheduler.is_stack_only_value(value));
+    fn preallocate_spill_metadata(
+        &mut self,
+        values: &DenseBitSet<ValueId>,
+        recomputable: &DenseBitSet<ValueId>,
+    ) {
         for val in values {
             if recomputable.contains(val) {
                 self.scheduler.spills.mark_recomputable(val);
@@ -161,8 +168,8 @@ impl<'gcx> EvmCodegen<'gcx> {
         liveness: &Liveness,
         colorable: &DenseBitSet<ValueId>,
         recomputable: &DenseBitSet<ValueId>,
-    ) -> IndexVec<ValueId, FxHashMap<BlockId, SpillLiveRange>> {
-        let mut ranges = index_vec![FxHashMap::default(); func.num_values()];
+    ) -> IndexVec<ValueId, SpillLiveRanges> {
+        let mut ranges = index_vec![SpillLiveRanges::new(); func.num_values()];
         let mut operands = SmallVec::<[ValueId; 8]>::new();
 
         for (block_id, block) in func.blocks.iter_enumerated() {
@@ -193,9 +200,9 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
             if let Some(terminator) = &block.terminator {
                 let point = block.instructions.len() * 2;
-                for value in terminator.operands() {
+                terminator.visit_operands(|value| {
                     Self::extend_spill_live_range(&mut ranges, colorable, value, block_id, point);
-                }
+                });
             }
             let point = block.instructions.len() * 2 + 1;
             for value in liveness.live_out(block_id) {
@@ -213,13 +220,13 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// range covers every point an operand can be read at. Rebuilding is transitive and passes
     /// through values that never own a slot themselves, so the requirement propagates over the
     /// whole recomputable operand graph and only lands on the colorable values at the end.
+    /// Values that are only recomputable collect ranges too, but no caller reads them.
     fn extend_recomputed_operand_ranges(
         func: &Function,
         colorable: &DenseBitSet<ValueId>,
         recomputable: &DenseBitSet<ValueId>,
-        ranges: &mut IndexVec<ValueId, FxHashMap<BlockId, SpillLiveRange>>,
+        required: &mut IndexVec<ValueId, SpillLiveRanges>,
     ) {
-        let mut required = ranges.clone();
         let mut operands = SmallVec::<[ValueId; 8]>::new();
         let mut worklist: Vec<ValueId> =
             recomputable.iter().filter(|&value| !required[value].is_empty()).collect();
@@ -233,7 +240,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     continue;
                 }
                 let mut grew = false;
-                for (&block, &range) in &value_required {
+                for &(block, range) in &value_required {
                     grew |= Self::merge_spill_live_range(&mut required[operand], block, range);
                 }
                 if grew && recomputable.contains(operand) {
@@ -241,32 +248,27 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
             }
         }
-
-        for value in colorable.iter() {
-            for (&block, &range) in &required[value] {
-                Self::merge_spill_live_range(&mut ranges[value], block, range);
-            }
-        }
     }
 
     /// Unions `range` into a value's interval for `block`, reporting whether it grew.
     fn merge_spill_live_range(
-        ranges: &mut FxHashMap<BlockId, SpillLiveRange>,
+        ranges: &mut SpillLiveRanges,
         block: BlockId,
         range: SpillLiveRange,
     ) -> bool {
-        match ranges.entry(block) {
-            StdEntry::Occupied(mut entry) => {
+        match ranges.binary_search_by_key(&block, |&(block, _)| block) {
+            Ok(index) => {
+                let current = &mut ranges[index].1;
                 let merged = SpillLiveRange {
-                    start: entry.get().start.min(range.start),
-                    end: entry.get().end.max(range.end),
+                    start: current.start.min(range.start),
+                    end: current.end.max(range.end),
                 };
-                let grew = merged != *entry.get();
-                entry.insert(merged);
+                let grew = merged != *current;
+                *current = merged;
                 grew
             }
-            StdEntry::Vacant(entry) => {
-                entry.insert(range);
+            Err(index) => {
+                ranges.insert(index, (block, range));
                 true
             }
         }
@@ -344,7 +346,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 if let Some(term) =
                     func.blocks.get(*block_id).and_then(|block| block.terminator.as_ref())
                 {
-                    for operand in term.operands() {
+                    term.visit_operands(|operand| {
                         if Some(operand) != own_source {
                             Self::add_spill_interference(
                                 &mut interferences,
@@ -353,7 +355,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                                 operand,
                             );
                         }
-                    }
+                    });
                 }
             }
         }
@@ -377,8 +379,9 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
     }
 
+    /// Widens a value's range in `block`, which is its last block: blocks are walked in order.
     fn extend_spill_live_range(
-        ranges: &mut IndexVec<ValueId, FxHashMap<BlockId, SpillLiveRange>>,
+        ranges: &mut IndexVec<ValueId, SpillLiveRanges>,
         colorable: &DenseBitSet<ValueId>,
         value: ValueId,
         block: BlockId,
@@ -387,13 +390,17 @@ impl<'gcx> EvmCodegen<'gcx> {
         if !colorable.contains(value) {
             return;
         }
-        ranges[value]
-            .entry(block)
-            .and_modify(|range| {
+        let ranges = &mut ranges[value];
+        match ranges.last_mut() {
+            Some((last, range)) if *last == block => {
                 range.start = range.start.min(point);
                 range.end = range.end.max(point);
-            })
-            .or_insert(SpillLiveRange { start: point, end: point });
+            }
+            last => {
+                debug_assert!(last.is_none_or(|(last, _)| *last < block));
+                ranges.push((block, SpillLiveRange { start: point, end: point }));
+            }
+        }
     }
 
     /// Returns values directly consumed outside their defining block. Phi inputs are edge uses:
@@ -418,18 +425,18 @@ impl<'gcx> EvmCodegen<'gcx> {
                 if matches!(func.inst(inst_id).kind, InstKind::Phi(_)) {
                     continue;
                 }
-                for operand in func.inst(inst_id).kind.operands() {
+                func.inst(inst_id).kind.visit_operands(|operand| {
                     if definitions[operand].is_some_and(|definition| definition != block_id) {
                         reloaded.insert(operand);
                     }
-                }
+                });
             }
             if let Some(terminator) = &func.blocks[block_id].terminator {
-                for operand in terminator.operands() {
+                terminator.visit_operands(|operand| {
                     if definitions[operand].is_some_and(|definition| definition != block_id) {
                         reloaded.insert(operand);
                     }
-                }
+                });
             }
         }
         reloaded
@@ -890,7 +897,8 @@ impl<'gcx> EvmCodegen<'gcx> {
         let mut removals = Vec::new();
         self.spill_stores.retain(|store| {
             let remove = store.block == current_block
-                && store.value != *condition
+                && (store.value != *condition
+                    || self.scheduler.stack.iter().skip(1).any(|value| value == Some(*condition)))
                 && self.scheduler.stack.contains(store.value)
                 && !reloaded_here.contains(&store.slot)
                 && matches!(func.value(store.value), Value::Inst(inst)
@@ -919,7 +927,10 @@ impl<'gcx> EvmCodegen<'gcx> {
             .extend(removals.into_iter().map(|store| (store.block, store.range)));
     }
 
-    pub(in crate::backend::evm::codegen) fn remove_dead_spill_stores(&mut self) {
+    pub(in crate::backend::evm::codegen) fn remove_dead_spill_stores(
+        &mut self,
+        function_returns: &FxHashSet<(ir::BlockId, usize)>,
+    ) {
         enum Event {
             Store(usize),
             Load(SpillSlot),
@@ -935,52 +946,72 @@ impl<'gcx> EvmCodegen<'gcx> {
         let stores = std::mem::take(&mut self.spill_stores);
         let loads = std::mem::take(&mut self.spill_loads);
         if stores.is_empty() {
+            // A carried branch may have removed the last tracked store. Its deferred edits still
+            // have to reach EVM IR even when there is nothing left for the backward analysis.
+            // store carried_value; branch -> branch
+            self.asm.remove_instructions(&mut self.early_spill_removals);
             return;
         }
 
-        let mut events = FxHashMap::<ir::BlockId, Vec<(usize, Event)>>::default();
+        // Blocks and slot offsets are dense within the function, so the dataflow indexes both.
+        let range = self.function_ir_block_start..self.asm.block_count();
+        let local = |block: ir::BlockId| {
+            block.index().checked_sub(range.start).filter(|&index| index < range.len())
+        };
+        let slots = stores
+            .iter()
+            .map(|store| store.slot.offset)
+            .chain(loads.iter().map(|(slot, ..)| slot.offset))
+            .max()
+            .map_or(0, |offset| offset as usize + 1);
+        let mut events = (0..range.len()).map(|_| Vec::new()).collect::<Vec<_>>();
         for (index, store) in stores.iter().enumerate() {
-            events.entry(store.block).or_default().push((store.range.start, Event::Store(index)));
+            if let Some(block) = local(store.block) {
+                events[block].push((store.range.start, Event::Store(index)));
+            }
         }
         for (slot, block, index) in loads {
-            events.entry(block).or_default().push((index, Event::Load(slot)));
+            if let Some(block) = local(block) {
+                events[block].push((index, Event::Load(slot)));
+            }
         }
-        for events in events.values_mut() {
+        for events in &mut events {
             events.sort_unstable_by_key(|&(index, _)| index);
         }
 
-        let range = self.function_ir_block_start..self.asm.block_count();
-        let mut successors = FxHashMap::<ir::BlockId, Vec<ir::BlockId>>::default();
-        for (source, target) in self.asm.dataflow_edges(range.clone()) {
-            successors.entry(source).or_default().push(target);
+        let mut successors = (0..range.len()).map(|_| Vec::new()).collect::<Vec<_>>();
+        for (source, target) in self.asm.dataflow_edges(range.clone(), function_returns) {
+            if let Some(source) = local(source)
+                && let Some(target) = local(target)
+            {
+                successors[source].push(target);
+            }
         }
-        let blocks = range.map(ir::BlockId::from_usize).collect::<Vec<_>>();
-        let mut live_in = FxHashMap::<ir::BlockId, FxHashSet<SpillSlot>>::default();
+        // The slots live into a block, before its own events, with the values leaving it.
+        let block_live =
+            |live: &mut DenseBitSet<usize>, live_in: &BitMatrix<usize, usize>, block: usize| {
+                live.clear();
+                for &successor in &successors[block] {
+                    live.union(&live_in.row(successor));
+                }
+            };
+        let mut live_in = BitMatrix::<usize, usize>::new(range.len(), slots);
+        let mut live = DenseBitSet::new_empty(slots);
         loop {
             let mut changed = false;
-            for &block in blocks.iter().rev() {
-                let mut live = successors
-                    .get(&block)
-                    .into_iter()
-                    .flatten()
-                    .filter_map(|successor| live_in.get(successor))
-                    .flatten()
-                    .copied()
-                    .collect::<FxHashSet<_>>();
-                for (_, event) in events.get(&block).into_iter().flatten().rev() {
+            for (block, events) in events.iter().enumerate().rev() {
+                block_live(&mut live, &live_in, block);
+                for (_, event) in events.iter().rev() {
                     match event {
                         Event::Store(index) => {
-                            live.remove(&stores[*index].slot);
+                            live.remove(stores[*index].slot.offset as usize);
                         }
                         Event::Load(slot) => {
-                            live.insert(*slot);
+                            live.insert(slot.offset as usize);
                         }
                     }
                 }
-                if live_in.get(&block) != Some(&live) {
-                    live_in.insert(block, live);
-                    changed = true;
-                }
+                changed |= live_in.replace_row(block, &live);
             }
             if !changed {
                 break;
@@ -988,23 +1019,16 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
 
         let mut dead = FxHashSet::default();
-        for &block in &blocks {
-            let mut live = successors
-                .get(&block)
-                .into_iter()
-                .flatten()
-                .filter_map(|successor| live_in.get(successor))
-                .flatten()
-                .copied()
-                .collect::<FxHashSet<_>>();
-            for (_, event) in events.get(&block).into_iter().flatten().rev() {
+        for (block, events) in events.iter().enumerate() {
+            block_live(&mut live, &live_in, block);
+            for (_, event) in events.iter().rev() {
                 match event {
-                    Event::Store(index) if !live.remove(&stores[*index].slot) => {
+                    Event::Store(index) if !live.remove(stores[*index].slot.offset as usize) => {
                         dead.insert(*index);
                     }
                     Event::Store(_) => {}
                     Event::Load(slot) => {
-                        live.insert(*slot);
+                        live.insert(slot.offset as usize);
                     }
                 }
             }
@@ -1259,13 +1283,17 @@ impl<'gcx> EvmCodegen<'gcx> {
                     }
                     panic!("resident stack argument {operand:?} was lost before its final use")
                 });
-                assert!(depth < MAX_STACK_ACCESS, "resident stack argument exceeded DUP16 reach");
+                assert!(
+                    depth < self.stack_access_limit(),
+                    "resident stack argument exceeded DUP reach"
+                );
                 self.emit_stack_op(StackOp::Dup((depth + 1) as u8));
             }
         }
     }
 
-    /// Abandons a speculative internal stack ABI after one of its values was lost.
+    /// Abandons a speculative internal stack ABI after one of its values was lost or became
+    /// inaccessible.
     ///
     /// The emitted placeholder belongs to an attempt that the outer codegen loop discards. The
     /// next attempt excludes this function from stack-only argument and return plans, so every

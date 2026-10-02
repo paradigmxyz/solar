@@ -17,9 +17,8 @@ fn @constructor() [constructor] {
     v11 = or v8, v10
     sstore 0, v11 !metadata(storage=slot(0))
     v12 = lt 0, 4
-    v13 = iszero v12
-    jumpi v13, bb1, bb2
-  bb2:
+    v13 = eq v12, false
+    icall panic_if<0x32>, v13
     v14 = div 0, 4
     v15 = add 1, v14
     v16 = mod 0, 4
@@ -34,9 +33,8 @@ fn @constructor() [constructor] {
     v25 = or v22, v24
     sstore v15, v25 !metadata(storage=offset(v14, 1))
     v26 = lt 1, 4
-    v27 = iszero v26
-    jumpi v27, bb1, bb3
-  bb3:
+    v27 = eq v26, false
+    icall panic_if<0x32>, v27
     v28 = div 1, 4
     v29 = add 1, v28
     v30 = mod 1, 4
@@ -51,9 +49,8 @@ fn @constructor() [constructor] {
     v39 = or v36, v38
     sstore v29, v39 !metadata(storage=offset(v28, 1))
     v40 = lt 2, 4
-    v41 = iszero v40
-    jumpi v41, bb1, bb4
-  bb4:
+    v41 = eq v40, false
+    icall panic_if<0x32>, v41
     v42 = div 2, 4
     v43 = add 1, v42
     v44 = mod 2, 4
@@ -68,9 +65,8 @@ fn @constructor() [constructor] {
     v53 = or v50, v52
     sstore v43, v53 !metadata(storage=offset(v42, 1))
     v54 = lt 3, 4
-    v55 = iszero v54
-    jumpi v55, bb1, bb5
-  bb5:
+    v55 = eq v54, false
+    icall panic_if<0x32>, v55
     v56 = div 3, 4
     v57 = add 1, v56
     v58 = mod 3, 4
@@ -84,47 +80,44 @@ fn @constructor() [constructor] {
     v66 = shl v60, v65
     v67 = or v64, v66
     sstore v57, v67 !metadata(storage=offset(v56, 1))
-    stop
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
+    ret
 }
 
 fn @a() {
   bb0:
-    stop
+    ret
 }
 
 fn @b() {
   bb0:
-    stop
+    ret
 }
 
 fn @c() {
   bb0:
-    stop
+    ret
 }
 
 fn @d() {
   bb0:
-    stop
+    ret
 }
 
-fn @high() -> u64 [selector=0x713658f3, view, abi_params=[], abi_returns=[word<u64>]] {
+fn @high() -> i256 [selector=0x713658f3, view, abi_params=[], abi_returns=[word<u64>], abi_return_params=[u64]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = shr 64, v0
     ret v1
 }
 
-fn @arrayMatches() [selector=0xa9b873e8, view, abi_params=[], abi_returns=[word<bool>]] {
+fn @arrayMatches() [selector=0xa9b873e8, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffffffffffffff
     v2 = sload 1 !metadata(storage=slot(1))
     v3 = and v2, 0xffffffffffffffff
     v4 = eq v1, v3
-    mstore 0, v4 !metadata(memory=scratch)
+    v5 = zext i1 v4 to i256
+    mstore 0, v5 !metadata(memory=scratch)
     returndata 0, 32
 }

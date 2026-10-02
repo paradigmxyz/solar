@@ -60,7 +60,7 @@ contract TryBareCatch {
     // OSAKA-LABEL: fn @live
     // OSAKA: [[OK:v[0-9]+]] = call {{v[0-9]+}}, {{v[0-9]+}}, 0, {{v[0-9]+}}, {{v[0-9]+}}, 0, 0
     // OSAKA: jumpi [[OK]]
-    // OSAKA: returndatasize
+    // OSAKA: icall returndata_bytes<>
     function live() external returns (uint256 r) {
         try TryTarget(address(new TryCallee())).value() returns (uint256 v) {
             r = v;
@@ -73,7 +73,8 @@ contract TryBareCatch {
     // the gas is read.
     // HOMESTEAD-LABEL: fn @liveTwo
     // HOMESTEAD: create
-    // HOMESTEAD: [[AREA:v[0-9]+]] = fmp
+    // HOMESTEAD: [[AREA_PTR:v[0-9]+]] = fmp
+    // HOMESTEAD: [[AREA:v[0-9]+]] = ptrtoint memptr [[AREA_PTR]] to i256
     // HOMESTEAD: [[ABOVE:v[0-9]+]] = add [[AREA]], 64
     // HOMESTEAD: mstore [[ABOVE]], 0
     // HOMESTEAD: [[INPUT:v[0-9]+]] = slice_ptr
@@ -158,8 +159,12 @@ contract TryBareCatch {
     }
 
     // HOMESTEAD-LABEL: fn @noCodeNoReturn
+    // HOMESTEAD-NOT: extcodesize
+    // HOMESTEAD: abi_encode
     // HOMESTEAD: extcodesize
     // OSAKA-LABEL: fn @noCodeNoReturn
+    // OSAKA-NOT: extcodesize
+    // OSAKA: abi_encode
     // OSAKA: extcodesize
     function noCodeNoReturn() external returns (uint256 r) {
         try TryTarget(address(0)).noop() {

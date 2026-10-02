@@ -8,10 +8,11 @@
 // CHECK: + [[LOAD:v[0-9]+]] = sload 5
 // CHECK: - [[LOAD]] = sload 5
 // CHECK: {{^[ +].*}}staticcall
-fn @hoist_sload_with_staticcall() -> u256 {
+fn @hoist_sload_with_staticcall() -> i256 {
   bb0:
     jump bb1
   bb1:
+    v10 = phi [bb0: 0], [bb2: v3]
     v1 = phi [bb0: 0], [bb2: v9]
     v2 = lt v1, 10
     jumpi v2, bb2, bb3
@@ -21,7 +22,7 @@ fn @hoist_sload_with_staticcall() -> u256 {
     v9 = add v1, 1
     jump bb1
   bb3:
-    ret v3
+    ret v10
 }
 
 // Transient storage is equally unwritable from a static context.
@@ -29,10 +30,11 @@ fn @hoist_sload_with_staticcall() -> u256 {
 // CHECK: + [[LOAD:v[0-9]+]] = tload 5
 // CHECK: - [[LOAD]] = tload 5
 // CHECK: {{^[ +].*}}staticcall
-fn @hoist_tload_with_staticcall() -> u256 {
+fn @hoist_tload_with_staticcall() -> i256 {
   bb0:
     jump bb1
   bb1:
+    v10 = phi [bb0: 0], [bb2: v3]
     v1 = phi [bb0: 0], [bb2: v9]
     v2 = lt v1, 10
     jumpi v2, bb2, bb3
@@ -42,17 +44,18 @@ fn @hoist_tload_with_staticcall() -> u256 {
     v9 = add v1, 1
     jump bb1
   bb3:
-    ret v3
+    ret v10
 }
 
 // A plain call may write any slot; the sload must stay in the loop.
 // CHECK-LABEL: {{^[ +].*}}fn @keep_sload_with_call{{[( ]}}
 // CHECK: + [[LOAD:v[0-9]+]] = sload 5
 // CHECK: {{^[ +].*[ =]call[[:space:]]}}
-fn @keep_sload_with_call() -> u256 {
+fn @keep_sload_with_call() -> i256 {
   bb0:
     jump bb1
   bb1:
+    v10 = phi [bb0: 0], [bb2: v3]
     v1 = phi [bb0: 0], [bb2: v9]
     v2 = lt v1, 10
     jumpi v2, bb2, bb3
@@ -62,5 +65,5 @@ fn @keep_sload_with_call() -> u256 {
     v9 = add v1, 1
     jump bb1
   bb3:
-    ret v3
+    ret v10
 }

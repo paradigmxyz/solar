@@ -1,0 +1,33 @@
+{
+  "errors": [
+    {
+      "sourceLocation": null,
+      "secondarySourceLocations": [],
+      "type": "Warning",
+      "component": "general",
+      "severity": "warning",
+      "errorCode": "2264",
+      "message": "code generation is experimental",
+      "formattedMessage": "warning[2264]: code generation is experimental\n\n"
+    },
+    {
+      "sourceLocation": {
+        "file": "A.sol",
+        "start": 9,
+        "end": 19
+      },
+      "secondarySourceLocations": [],
+      "type": "Exception",
+      "component": "general",
+      "severity": "error",
+      "errorCode": null,
+      "message": "EVM codegen requires MIR in the `lowered` phase, stopped at `semantic`",
+      "formattedMessage": "error: EVM codegen requires MIR in the `lowered` phase, stopped at `semantic`\n   ╭▸ A.sol:LL:CC\n   │\nLL │ contract Dependency { function ping() external {} } contract UnusedDependency {} function createDependency() returns (Dependency) { re…\n   ╰╴         ━━━━━━━━━━\n\n"
+    }
+  ],
+  "sources": {
+    "A.sol": {
+      "id": 0
+    }
+  }
+}

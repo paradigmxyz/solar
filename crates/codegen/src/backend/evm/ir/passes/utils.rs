@@ -14,17 +14,74 @@ use solar_data_structures::{
     map::FxHashSet,
 };
 use solar_sema::Gcx;
+use std::hash::{Hash, Hasher};
 
 /// The machine-level identity shared by transforms that compare instructions.
 ///
 /// `keep_with_next` is part of the identity: sharing one copy of two otherwise equal instructions
-/// must not drop one copy's constraint on the boundary that follows it.
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
-pub(super) struct MachineInstKey(u8, u8, Option<PushValue>, Option<op::StackOp>, bool);
+/// must not drop one copy's constraint on the boundary that follows it. The small fields share
+/// one word so the suffix and outlining tables hash them together.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) struct MachineInstKey(u64, Option<PushValue>);
 
 impl MachineInstKey {
     pub(super) fn new(inst: &Instruction) -> Self {
-        Self(inst.opcode, inst.encoding, inst.value, inst.as_stack_op(), inst.keeps_with_next())
+        let (stack_kind, first, second) = match inst.as_stack_op() {
+            None => (0, 0, 0),
+            Some(op::StackOp::Dup(depth)) => (1, depth, 0),
+            Some(op::StackOp::Swap(depth)) => (2, depth, 0),
+            Some(op::StackOp::Exchange(first, second)) => (3, first, second),
+            Some(op::StackOp::Pop) => (4, 0, 0),
+        };
+        let operation = u64::from_le_bytes([
+            inst.opcode,
+            inst.encoding,
+            u8::from(inst.keeps_with_next()),
+            stack_kind,
+            first,
+            second,
+            0,
+            0,
+        ]);
+        Self(operation, inst.value)
+    }
+
+    /// Feeds this key to `hasher` as whole words. Equal keys feed equal words, and the value's
+    /// kind in the free top bytes of the first word keeps different keys' words distinct.
+    fn hash_words(self, hasher: &mut impl Hasher) {
+        match self.1 {
+            None => hasher.write_u64(self.0),
+            Some(PushValue::Immediate(value)) => {
+                hasher.write_u64(self.0 | 1 << 48);
+                for &limb in value.as_limbs() {
+                    hasher.write_u64(limb);
+                }
+            }
+            Some(PushValue::Library(library)) => {
+                hasher.write_u64(self.0 | 2 << 48);
+                hasher.write_u64(library.index() as u64);
+            }
+            Some(PushValue::Block(block)) => {
+                hasher.write_u64(self.0 | 3 << 48);
+                hasher.write_u64(block.index() as u64);
+            }
+            Some(PushValue::Data(data)) => {
+                hasher.write_u64(self.0 | 4 << 48);
+                hasher.write_u64(data.id.index() as u64 | u64::from(data.offset) << 32);
+            }
+            Some(PushValue::DataSize(size)) => {
+                hasher.write_u64(self.0 | 5 << 48);
+                hasher.write_u64(size.data.index() as u64);
+                hasher.write_u64(size.addend);
+                hasher.write_u64(u64::from(size.aligned));
+            }
+        }
+    }
+}
+
+impl Hash for MachineInstKey {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.hash_words(state);
     }
 }
 
@@ -79,6 +136,9 @@ pub(super) fn instruction_size_lower_bound(gcx: Gcx<'_>, inst: &Instruction) -> 
                 .assembled_len(gcx.sess.opts.evm_version)
                 .expect("EVM IR passes only run on target-compatible stack operations")
         });
+    }
+    if inst.pushed_library().is_some() {
+        return 21;
     }
     if let Some(type_size) = inst.immutable_type_size() {
         return usize::from(type_size.bytes()) + 1;
@@ -137,4 +197,27 @@ fn remap_terminator_blocks(kind: &mut TerminatorKind, remap: &IndexVec<BlockId, 
     kind.visit_targets_mut(|target| {
         *target = remap[*target].expect("terminator target must be retained");
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn machine_keys_preserve_stack_depths_and_boundaries() {
+        let mut keys = FxHashSet::default();
+        let mut operations = vec![op::StackOp::Pop];
+        for first in [1, 16, 17, 255] {
+            operations.extend([op::StackOp::Dup(first), op::StackOp::Swap(first)]);
+            for second in [1, 16, 17, 255] {
+                operations.push(op::StackOp::Exchange(first, second));
+            }
+        }
+        for operation in operations {
+            let mut instruction = Instruction::stack_op(operation);
+            assert!(keys.insert(MachineInstKey::new(&instruction)));
+            instruction.metadata.keep_with_next = true;
+            assert!(keys.insert(MachineInstKey::new(&instruction)));
+        }
+    }
 }

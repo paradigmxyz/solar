@@ -1,0 +1,149 @@
+// === ROOT/tests/ui/codegen/mir/storage-dse/control_flow_runtime.sol:StorageControlFlow ===
+@module StorageControlFlow
+fn @changingSlot() -> i256 [selector=0xf8e62371, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb3: v8]
+    v1 = phi [bb0: 0], [bb3: v1]
+    v2 = ne 1, 0
+    jumpi v2, bb4, bb5
+  bb5:
+    jump bb2
+  bb4:
+    sstore v0, 1 !metadata(storage=symbolic(v0))
+    v3 = lt v0, 2
+    v4 = zext i1 v3 to i256
+    v5 = eq v4, 0
+    v6 = zext i1 v5 to i256
+    v7 = ne v6, 0
+    jumpi v7, bb7, bb8
+  bb8:
+    jump bb9
+  bb9:
+    sstore v0, 2 !metadata(storage=symbolic(v0))
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v8 = add v0, 1
+    jump bb1
+  bb7:
+    jump bb2
+  bb2:
+    v9 = sload 0 !metadata(storage=slot(0))
+    ret v9
+}
+
+fn @observer() -> i256 [selector=0xeb70e498, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    sstore 0, 1 !metadata(storage=slot(0))
+    v0 = address
+    v1 = gas
+    v2 = abi_encode [], selector 0x5cd82f400000000000000000000000000000000000000000000000000000000
+    v3 = slice_ptr v2
+    v4 = slice_len v2
+    v5 = zext i160 v0 to i256
+    v6 = staticcall v1, v5, v3, v4, 0, 32
+    jumpi v6, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v7 = returndatasize
+    v8 = lt v7, 32
+    icall revert_if<tuple_data_too_short>, v8
+    v9 = add 0, 0
+    v10 = mload v9
+    v11 = add 0, 0
+    v12 = mload v11
+    sstore 0, 2 !metadata(storage=slot(0))
+    ret v12
+}
+
+fn @readWord() -> i256 [selector=0x05cd82f4, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @write(arg0: i256) -> i256 [selector=0x6ebfc750, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    sstore 0, 1 !metadata(storage=slot(0))
+    v0 = ne arg0, 0
+    jumpi v0, bb1, bb2
+  bb2:
+    sstore 0, 3 !metadata(storage=slot(0))
+    jump bb3
+  bb1:
+    sstore 0, 2 !metadata(storage=slot(0))
+    jump bb3
+  bb3:
+    v1 = sload 0 !metadata(storage=slot(0))
+    ret v1
+}
+
+fn @observed(arg0: i256) -> i256 [selector=0xc61230fa, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    sstore 0, 1 !metadata(storage=slot(0))
+    v0 = ne arg0, 0
+    jumpi v0, bb1, bb2
+  bb2:
+    sstore 0, 3 !metadata(storage=slot(0))
+    jump bb3
+  bb1:
+    v1 = sload 0 !metadata(storage=slot(0))
+    sstore 0, 2 !metadata(storage=slot(0))
+    jump bb3
+  bb3:
+    v2 = phi [bb1: v1], [bb2: 0]
+    ret v2
+}
+
+fn @pack(arg0: i256, arg1: i256) -> i256 [selector=0x5a5ffdde, abi_params=[u8, u8], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = and arg0, 255
+    v1 = sload 1 !metadata(storage=slot(1))
+    v2 = not 255
+    v3 = and v1, v2
+    v4 = and v0, 255
+    v5 = or v3, v4
+    sstore 1, v5 !metadata(storage=slot(1))
+    v6 = and arg1, 255
+    v7 = shl 8, 255
+    v8 = sload 1 !metadata(storage=slot(1))
+    v9 = not v7
+    v10 = and v8, v9
+    v11 = and v6, 255
+    v12 = shl 8, v11
+    v13 = or v10, v12
+    sstore 1, v13 !metadata(storage=slot(1))
+    v14 = sload 1 !metadata(storage=slot(1))
+    v15 = and v14, 255
+    v16 = sload 1 !metadata(storage=slot(1))
+    v17 = shr 8, v16
+    v18 = and v17, 255
+    v19 = shl 8, v18
+    v20 = or v15, v19
+    ret v20
+}
+
+fn @preserve(arg0: i256, arg1: i256) -> i256 [selector=0xced1063a, abi_params=[u8, u8], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    sstore 0, 0xffffffffffffffff !metadata(storage=slot(0))
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = not 255
+    v2 = and v0, v1
+    v3 = and arg0, 255
+    v4 = or v2, v3
+    sstore 0, v4 !metadata(storage=slot(0))
+    v5 = sload 0 !metadata(storage=slot(0))
+    v6 = shl 8, 255
+    v7 = not v6
+    v8 = and v5, v7
+    v9 = and arg1, 255
+    v10 = shl 8, v9
+    v11 = or v8, v10
+    sstore 0, v11 !metadata(storage=slot(0))
+    v12 = sload 0 !metadata(storage=slot(0))
+    ret v12
+}

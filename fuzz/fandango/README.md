@@ -30,7 +30,8 @@ diffs.
   calls, then compares returndata, logs, and normalized state diffs with
   cheatcodes.
 
-Generated artifacts belong under `fuzz/fandango/out/`, which is ignored.
+Generated artifacts from the direct runners belong under `fuzz/fandango/out/`,
+which is ignored. The unified `compiler-diff fuzz` command uses its chosen `--dir`.
 Promote only minimized, stable failures into `corpus.jsonl` or `tests/ui/`.
 
 ## CI
@@ -71,7 +72,7 @@ is the main path for broader valid-by-construction program generation.
 Use `uv tool run` with the pinned Fandango version:
 
 ```bash
-uv tool run --quiet --from 'fandango-fuzzer==1.1.1' fandango --help
+uv tool run --quiet --python "$(cat .python-version)" --from 'fandango-fuzzer==1.1.1' fandango --help
 ```
 
 Run ABI runtime differentials against a local anvil:
@@ -79,7 +80,7 @@ Run ABI runtime differentials against a local anvil:
 ```bash
 anvil --silent --port 8545
 
-PYTHONHASHSEED=1 uv tool run --quiet --from 'fandango-fuzzer==1.1.1' fandango fuzz \
+PYTHONHASHSEED=1 uv tool run --quiet --python "$(cat .python-version)" --from 'fandango-fuzzer==1.1.1' fandango fuzz \
   -f fuzz/fandango/abi-values.fan \
   --random-seed 1 \
   -n 32 \
@@ -92,25 +93,25 @@ PYTHONHASHSEED=1 uv tool run --quiet --from 'fandango-fuzzer==1.1.1' fandango fu
       --timeout 20
 ```
 
-Generate Solidity sources and compile-check each file:
+Generate Solidity sources and compare their ABI and selectors through the shared
+[compiler-diff campaign runner](../../tools/compiler-diff/README.md#fandango-campaigns):
 
 ```bash
-mkdir -p fuzz/fandango/out/sources
-
-PYTHONHASHSEED=1 uv tool run --quiet --from 'fandango-fuzzer==1.1.1' fandango fuzz \
-  -f fuzz/fandango/solidity-source.fan \
-  --random-seed 1 \
-  -n 32 \
-  --directory fuzz/fandango/out/sources \
-  --filename-extension .sol \
-  --progress-bar off
-
-python3 fuzz/fandango/run_solidity_sources.py \
-  --source-dir fuzz/fandango/out/sources \
-  --max-sources 256 \
-  --timeout 20 \
-  --verbose
+uv run --project tools/compiler-diff compiler-diff --dir /tmp/compiler-fuzz fuzz \
+  --seed 1 --count 32 \
+  --compiler 'solc=/absolute/path/to/solc --standard-json' \
+  --compiler 'solar=/absolute/path/to/solar --standard-json'
 ```
+
+The runner records the grammar, seed and generated sources, then compiles and
+compares each case. Repeat the command to reuse generation and cached attempts;
+add `--continue-on-failure` to process later cases or `--symbolic-signature` to
+check a selected function. Campaign artifacts stay under
+`/tmp/compiler-fuzz/<version>/fuzz/<id>/`. Custom source grammars and arbitrary
+named standard-JSON compilers use the same database and replay bundles.
+
+The direct `run_solidity_sources.py` runner remains available for compile-acceptance
+checks and the bounded CI lane; it does not compare ABI or documentation outputs.
 
 Failures are saved under `fuzz/fandango/out/failures/` or
 `fuzz/fandango/out/source-failures/`.
@@ -128,12 +129,18 @@ They are committed thin wrappers around the implementation scripts in this
 directory. That gives us command-like UX without breaking direct script usage
 in existing automation.
 
+For saved compiler artifacts and bounded mutation batches, use the unified
+[population campaign command](/tools/compiler-diff/README.md#fandango-campaigns).
+It snapshots the grammar and seed directory, records compiler attempts, compares
+ABI/JSON artifacts, and can run bounded symbolic checks. Use the direct runtime
+runner below to compare harness side effects in anvil.
+
 Generate Solidity runtime harnesses and compare side effects:
 
 ```bash
 mkdir -p fuzz/fandango/out/runtime-sources
 
-PYTHONHASHSEED=1 uv tool run --quiet --from 'fandango-fuzzer==1.1.1' fandango fuzz \
+PYTHONHASHSEED=1 uv tool run --quiet --python "$(cat .python-version)" --from 'fandango-fuzzer==1.1.1' fandango fuzz \
   -f fuzz/fandango/solidity-runtime-source.fan \
   --initial-population fuzz/fandango/runtime-corpus \
   --random-seed 1 \
@@ -284,8 +291,9 @@ test compares return bytes, revert behavior, logs, and normalized state diffs.
 
 ### Symbolic Solc-vs-Solar differential
 
-`solsymdiff` uses Foundry's symbolic executor to compare one explicitly chosen
-function over bounded symbolic inputs:
+The [compiler-diff CLI](../../tools/compiler-diff/README.md#execution-engines)
+exposes Foundry's symbolic executor to compare one explicitly chosen function
+over bounded symbolic inputs. `fuzz/bin/solsymdiff` remains a direct entry point.
 
 Agents using this workflow should also follow the repository's
 [agent guidance](../../AGENTS.md).
@@ -293,8 +301,9 @@ Agents using this workflow should also follow the repository's
 ```bash
 cargo build -p solar-compiler --bin solar
 
-fuzz/bin/solsymdiff \
-  --source path/to/Target.sol \
+uv run --project tools/compiler-diff compiler-diff symbolic -- \
+  --source /absolute/path/to/Target.sol \
+  --solar "$PWD/target/debug/solar" \
   --contract Target \
   --signature 'probe(uint256,bytes)'
 ```
@@ -311,7 +320,16 @@ blobs and is recorded in `result.json`.
 A symbolic suffix mismatch is reported only after Foundry concretely replays
 the counterexample. A prefix mismatch already comes from executing the supplied
 concrete calls. The generated project, compiler input, and `result.json` are
-kept under `target/solsymdiff/`.
+kept under `/tmp/solar-sourcify/<version>/engines/symbolic/<id>/` through the
+unified CLI; select another base directory with `--dir` before `symbolic`.
+The direct `fuzz/bin/solsymdiff` entry point defaults to `target/solsymdiff/`
+and accepts `--output-root`.
+
+To reuse recorded compilations, pass `--solc-attempt` and `--solar-attempt` with
+absolute attempt-directory paths. In this mode, `--source` names a source unit
+in the saved input, such as `src/Target.sol`. Both attempts must contain identical
+inputs, an explicit `evmVersion`, and runtime immutable/link reference outputs.
+Solc still compiles the harness. See the [saved-artifact example](../../tools/compiler-diff/README.md#execution-engines).
 
 Pure functions are enabled by default. `--include-view` allows a selected view
 function with zero-initialized storage. `--include-stateful` allows a selected

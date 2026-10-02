@@ -106,7 +106,7 @@ pub(super) struct Settings<'a> {
 
 /// The solc Standard JSON `settings.debug` object.
 #[derive(Debug, Default, Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub(super) struct DebugSettings {
     /// Revert reason string handling.
     #[serde(default, deserialize_with = "deserialize_present")]
@@ -160,7 +160,7 @@ impl DebugInfoComponent {
 
 /// The solc Standard JSON `settings.metadata` object.
 #[derive(Clone, Copy, Debug, Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub(super) struct MetadataSettings {
     #[serde(default = "default_true")]
     #[serde(rename = "appendCBOR")]
@@ -219,7 +219,7 @@ where
 
 /// The supported subset of solc's Standard JSON `settings.optimizer` object.
 #[derive(Debug, Default, Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub(super) struct Optimizer {
     /// Whether the optimizer is enabled.
     #[serde(default)]
@@ -252,8 +252,8 @@ impl Libraries<'_> {
 pub(super) struct CompilerOutput<'gcx> {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub(super) errors: Vec<SolcDiagnostic<'gcx>>,
-    #[serde(default, skip_serializing_if = "FxIndexMap::is_empty")]
-    pub(super) sources: FxIndexMap<String, SourceOutput>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) sources: Option<FxIndexMap<String, SourceOutput>>,
     #[serde(default, skip_serializing_if = "FxIndexMap::is_empty")]
     pub(super) contracts: FxIndexMap<String, FxIndexMap<String, ContractOutput<'gcx>>>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -303,8 +303,8 @@ pub(super) struct ContractOutput<'gcx> {
 #[derive(Debug, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(super) struct EvmOutput {
-    #[serde(default, skip_serializing_if = "FxIndexMap::is_empty")]
-    pub(super) method_identifiers: FxIndexMap<String, String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) method_identifiers: Option<FxIndexMap<String, String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(super) bytecode: Option<BytecodeOutput>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -860,7 +860,7 @@ impl ContractOutput<'_> {
 
 impl EvmOutput {
     pub(super) fn is_empty(&self) -> bool {
-        self.method_identifiers.is_empty()
+        self.method_identifiers.is_none()
             && self.bytecode.is_none()
             && self.deployed_bytecode.is_none()
     }
@@ -942,7 +942,6 @@ mod tests {
 
     #[test]
     fn debug_settings_parse_solc_names() {
-        assert!(serde_json::from_str::<DebugSettings>(r#"{"verbose":true}"#).is_err());
         assert!(serde_json::from_str::<DebugSettings>(r#"{"revertStrings":null}"#).is_err());
         assert!(serde_json::from_str::<DebugSettings>(r#"{"debugInfo":null}"#).is_err());
         assert!(serde_json::from_str::<Settings<'_>>(r#"{"debug":null}"#).is_err());
@@ -968,11 +967,6 @@ mod tests {
             serde_json::from_str::<DebugSettings>(r#"{"debugInfo":["ethdebug"]}"#).unwrap();
         assert!(explicit.selects_debug_info(DebugInfoComponent::Ethdebug));
         assert!(!explicit.selects_debug_info(DebugInfoComponent::Location));
-    }
-
-    #[test]
-    fn optimizer_rejects_unsupported_details() {
-        assert!(serde_json::from_str::<Optimizer>(r#"{"details":{"peephole":false}}"#).is_err());
     }
 
     fn selection_flags(input: &str) -> OutputSelectionFlags {

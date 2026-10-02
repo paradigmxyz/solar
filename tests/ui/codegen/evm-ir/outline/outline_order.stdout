@@ -86,10 +86,10 @@
 -   push 12
 -   pop
 +   jump
-+ bb4:
++ bb4 [continuation]:
     push 13
     pop
 +   stop
-+ bb5:
++ bb5 [continuation]:
     stop
   

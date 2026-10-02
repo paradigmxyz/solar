@@ -1,6 +1,7 @@
 //@ filecheck:
 // CHECK: @module AbiEncodePackedSigned
 //@ codegen-matrix: standard
+//@ run-call: mutatedInput => 0x0109
 //@ run-call: firstByteInt8 0, -1 => 0x00
 //@ run-call: firstByteInt16 0, -1 => 0x00
 //@ run-call: firstByteInt32 0, -1 => 0x00
@@ -77,4 +78,15 @@ contract AbiEncodePackedSigned {
         bytes memory encoded = abi.encodePacked(prefix, value);
         return keccak256(encoded);
     }
+
+    function shorten(bytes memory value) private pure returns (uint8) {
+        assembly { mstore(value, 1) }
+        return 9;
+    }
+
+    function mutatedInput() external pure returns (bytes memory) {
+        bytes memory value = hex"010203";
+        return abi.encodePacked(value, shorten(value));
+    }
+
 }

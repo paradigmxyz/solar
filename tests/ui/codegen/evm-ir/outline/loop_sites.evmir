@@ -1,0 +1,34 @@
+//@ revisions: gas size
+//@[gas] compile-flags: -Ogas -Zevm-ir-pipeline=outline
+//@[size] compile-flags: -Osize -Zevm-ir-pipeline=outline
+//@[gas] filecheck: --check-prefix=GAS
+//@[size] filecheck: --check-prefix=SIZE
+@module LoopOutline
+
+// Gas mode keeps repeated loop computations inline because every dynamic call
+// would pay two jumps. Size mode may still share the static copies.
+// GAS-LABEL: {{^[ +].*}}bb0 [loop]:
+// GAS-NEXT: {{^[ +].*}}push 0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+// SIZE-LABEL: {{^[ +].*}}bb0 [loop]:
+// SIZE: + push [[RETURN0:bb[0-9]+]]
+// SIZE-NEXT: + jump [[STUB:bb[0-9]+]]
+bb0 [loop]:
+  push 0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+  not
+  not
+  not
+  pop
+  jump bb1
+
+// GAS-LABEL: {{^[ +].*}}bb1 [loop]:
+// GAS-NEXT: {{^[ +].*}}push 0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+// SIZE-LABEL: {{^[ +].*}}bb1 [loop]:
+// SIZE: + push [[RETURN1:bb[0-9]+]]
+// SIZE-NEXT: + jump [[STUB]]
+bb1 [loop]:
+  push 0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+  not
+  not
+  not
+  pop
+  stop

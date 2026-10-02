@@ -139,7 +139,8 @@ fn compile_with_memory(
     }
     let mut globals = String::new();
     // @dN = private addrspace(4) constant [N x i8] c"bytes"
-    for (id, bytes) in module.iter_data() {
+    for (id, data) in module.data.iter_enumerated() {
+        let bytes = data.bytes.linked();
         writeln!(
             globals,
             "@d{} = private addrspace(4) constant [{} x i8] c\"{}\"",
@@ -375,6 +376,16 @@ fn assemble_native(
             "Contract",
         ))
         .map_err(|e| e.to_string())?;
+    module.add_basic_value_flag(
+        "evm-memory-guard",
+        inkwell::module::FlagBehavior::Override,
+        llvm.i64_type().const_zero(),
+    );
+    module.add_basic_value_flag(
+        "evm-stack-region-size",
+        inkwell::module::FlagBehavior::Override,
+        llvm.i64_type().const_int(base, false),
+    );
     module.verify().map_err(|e| e.to_string())?;
     let level = if matches!(optimization, OptimizationMode::None) {
         OptimizationLevel::None
@@ -427,7 +438,7 @@ fn function(
     let fmp = base + 64;
     let return_slot = base + 32;
     let (return_base, args_base) = super::alternative::memory_layout(module);
-    let ret = if f.returns.is_empty() { "void" } else { "i256" };
+    let ret = if f.return_components().is_empty() { "void" } else { "i256" };
     // define fN(i256 a0, ...) { block0: instructions; terminator }
     writeln!(
         out,
@@ -546,7 +557,11 @@ fn function(
             Terminator::TailCall { function, args } => writeln!(
                 out,
                 "call {} @f{}({})\ncall void @llvm.evm.stop()\nunreachable",
-                if module.functions[*function].returns.is_empty() { "void" } else { "i256" },
+                if module.functions[*function].return_components().is_empty() {
+                    "void"
+                } else {
+                    "i256"
+                },
                 function.index(),
                 args.iter()
                     .map(|&v| Ok(format!("i256 {}", value(f, v)?)))
@@ -631,6 +646,29 @@ fn instruction(
 ) -> Result<(), String> {
     // result = arithmetic lhs rhs, or call an EVM intrinsic with typed operands.
     match inst {
+        InstKind::DataSize(size) => writeln!(
+            out,
+            "{} = add i256 {}, 0",
+            result.ok_or("data size without result")?,
+            size.value(module.data[size.data].bytes.linked().len())
+        )
+        .unwrap(),
+        InstKind::Zext(_) | InstKind::IntToPtr(_) => {
+            writeln!(out, "{} = add i256 {}, 0", result.ok_or("cast without result")?, args[0])
+                .unwrap()
+        }
+        InstKind::Trunc(_, bits) | InstKind::PtrToInt(_, bits) => writeln!(
+            out,
+            "{} = and i256 {}, {}",
+            result.ok_or("cast without result")?,
+            args[0],
+            alloy_primitives::U256::MAX >> (256 - bits)
+        )
+        .unwrap(),
+        InstKind::Sext(_, from, to) => {
+            let result = result.ok_or("cast without result")?;
+            writeln!(out, "{result}left = shl i256 {}, {}\n{result}signed = ashr i256 {result}left, {}\n{result} = and i256 {result}signed, {}", args[0], 256 - from, 256 - from, alloy_primitives::U256::MAX >> (256 - to)).unwrap();
+        }
         InstKind::InternalFrameAddr(offset) => {
             writeln!(
                 out,
@@ -749,18 +787,16 @@ fn instruction(
         | InstKind::SLt(..)
         | InstKind::SGt(..)
         | InstKind::Eq(..)
-        | InstKind::IsZero(..) => {
+        | InstKind::Ne(..) => {
             let result = result.ok_or("comparison without result")?;
             let predicate = match inst {
+                InstKind::Ne(..) => "ne",
                 InstKind::Lt(..) => "ult",
                 InstKind::Gt(..) => "ugt",
                 InstKind::SLt(..) => "slt",
                 InstKind::SGt(..) => "sgt",
                 _ => "eq",
             };
-            if matches!(inst, InstKind::IsZero(..)) {
-                args.push("0".into());
-            }
             writeln!(out,"{result}cmp = icmp {predicate} i256 {}, {}\n{result} = zext i1 {result}cmp to i256",args[0],args[1]).unwrap();
         }
         InstKind::MLoad(..)
@@ -814,14 +850,18 @@ fn instruction(
                 declarations,
             );
         }
-        InstKind::ICall { function, .. } => {
+        InstKind::ICall { function: crate::mir::Callee::Function(function), .. } => {
             if let Some(result) = &result {
                 write!(out, "{result} = ").unwrap();
             }
             writeln!(
                 out,
                 "call {} @f{}({})",
-                if module.functions[*function].returns.is_empty() { "void" } else { "i256" },
+                if module.functions[*function].return_components().is_empty() {
+                    "void"
+                } else {
+                    "i256"
+                },
                 function.index(),
                 args.iter().map(|v| format!("i256 {v}")).collect::<Vec<_>>().join(", ")
             )

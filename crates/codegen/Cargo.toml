@@ -55,6 +55,9 @@ inkwell = { git = "https://github.com/NomicFoundation/inkwell", rev = "0081bb29a
 snapbox.workspace = true
 tempfile.workspace = true
 
+[build-dependencies]
+cranelift-isle.workspace = true
+
 [features]
 codegen-yul = ["dep:serde_json"]
 codegen-sonatina = ["dep:sonatina-codegen", "dep:sonatina-parser", "dep:sonatina-ir"]

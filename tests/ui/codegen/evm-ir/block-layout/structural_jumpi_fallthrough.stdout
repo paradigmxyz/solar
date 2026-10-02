@@ -24,4 +24,16 @@
     invalid
 + bb2:
 +   stop
+  bb4:
+    calldatasize
+    jumpi bb6, bb5
+- bb5:
+-   stop
+  bb6:
+    push 0
+    push 0
+    mstore
+    jump bb5
++ bb5:
++   stop
   

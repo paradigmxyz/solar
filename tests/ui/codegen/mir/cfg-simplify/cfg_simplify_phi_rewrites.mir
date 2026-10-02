@@ -4,11 +4,11 @@
 
 // CHECK-LABEL: @empty_forwarder
 // CHECK:       [[ENTRY:bb[0-9]+]]:
-// CHECK: -     jumpi arg0, [[OTHER_BLOCK:bb[0-9]+]], [[REMOVED_BLOCK:bb[0-9]+]]
+// CHECK: -     jumpi {{(arg[0-9]+|v[0-9]+)}}, [[OTHER_BLOCK:bb[0-9]+]], [[REMOVED_BLOCK:bb[0-9]+]]
 // CHECK: -     [[REMOVED_BLOCK]]:
 // CHECK: -     [[OTHER:v[0-9]+]] = add 7, 42
 // CHECK: -     jump [[OLD_MERGE:bb[0-9]+]]
-// CHECK: +     jumpi arg0, [[MERGE:bb[0-9]+]], [[OTHER_BLOCK]]
+// CHECK: +     jumpi {{(arg[0-9]+|v[0-9]+)}}, [[MERGE:bb[0-9]+]], [[OTHER_BLOCK]]
 // CHECK:       [[OTHER_BLOCK]]:
 // CHECK: -     jump [[OLD_MERGE]]
 // CHECK: -     [[OLD_MERGE]]:
@@ -17,7 +17,7 @@
 // CHECK: +     [[MERGE]]:
 // CHECK:       [[PHI:v[0-9]+]] = phi [[[ENTRY]]: 42], [[[OTHER_BLOCK]]: [[OTHER]]]
 // CHECK:       ret [[PHI]]
-fn @empty_forwarder(arg0: bool) -> u256 {
+fn @empty_forwarder(arg0: i1) -> i256 {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:
@@ -32,9 +32,9 @@ fn @empty_forwarder(arg0: bool) -> u256 {
 
 // CHECK-LABEL: @block_merge
 // CHECK:       {{bb[0-9]+}}:
-// CHECK: -     jumpi arg0, [[LEFT_BLOCK:bb[0-9]+]], [[OLD_RIGHT:bb[0-9]+]]
+// CHECK: -     jumpi {{(arg[0-9]+|v[0-9]+)}}, [[LEFT_BLOCK:bb[0-9]+]], [[OLD_RIGHT:bb[0-9]+]]
 // CHECK: -     [[OLD_RIGHT]]:
-// CHECK: +     jumpi arg0, [[LEFT_BLOCK]], [[RIGHT_BLOCK:bb[0-9]+]]
+// CHECK: +     jumpi {{(arg[0-9]+|v[0-9]+)}}, [[LEFT_BLOCK]], [[RIGHT_BLOCK:bb[0-9]+]]
 // CHECK: +     [[RIGHT_BLOCK]]:
 // CHECK:       [[RIGHT:v[0-9]+]] = add 3, 4
 // CHECK: -     jump [[OLD_MERGE:bb[0-9]+]]
@@ -49,7 +49,7 @@ fn @empty_forwarder(arg0: bool) -> u256 {
 // CHECK: +     [[MERGE]]:
 // CHECK:       [[PHI:v[0-9]+]] = phi [[[LEFT_BLOCK]]: [[LEFT]]], [[[RIGHT_BLOCK]]: [[RIGHT]]]
 // CHECK:       ret [[PHI]]
-fn @block_merge(arg0: bool) -> u256 {
+fn @block_merge(arg0: i1) -> i256 {
   bb0:
     jumpi arg0, bb1, bb3
   bb1:

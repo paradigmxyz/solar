@@ -35,6 +35,9 @@
 //@ run-call: frame 5 => 11
 //@ run-call: terminalCall 42 => 42
 //@ run-call: usedCall 42 => 44
+//@ run-call: castSigned 0 => 0
+//@ run-call: castSigned 1461501637330902918203684832716283019655932542976 => 0
+//@ run-call: castSigned 115792089237316195423570985008687907853269984665640564039457584007913129639935 => -1
 //@ run-call-fail: fail
 
 //@ run-call: Data::literal => 42
@@ -141,6 +144,10 @@ contract Scalars {
     }
 
     function fail() external pure { revert(); }
+
+    function castSigned(uint256 value) external pure returns (int256) {
+        return int256(int160(uint160(value)));
+    }
 }
 
 contract Child {

@@ -1,16 +1,15 @@
 """Read native release settings from dist-workspace.toml."""
 
 # /// script
-# requires-python = ">=3.11"
+# requires-python = ">=3.14"
 # dependencies = []
 # ///
 
 from __future__ import annotations
 
 import argparse
-from pathlib import Path
-
 import tomllib
+from pathlib import Path
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 DIST_WORKSPACE = REPOSITORY_ROOT / "dist-workspace.toml"

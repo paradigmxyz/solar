@@ -7,13 +7,16 @@
 //! - Loop bound analysis
 
 use crate::mir::{
-    BlockId, Function, InstId, InstKind, Terminator, Value, ValueId, analysis::CfgInfo,
+    ArithmeticKind, BlockId, CheckedOp, Function, InstId, InstKind, Terminator, Value, ValueId,
+    analysis::CfgInfo,
 };
 use smallvec::SmallVec;
 use solar_data_structures::{
     bit_set::DenseBitSet,
+    index::index_vec,
     map::{FxHashMap, FxIndexMap},
 };
+use std::rc::Rc;
 
 /// A natural loop in the control flow graph.
 #[derive(Clone, Debug)]
@@ -54,8 +57,8 @@ pub(crate) struct InductionVariable {
     pub step: ValueId,
     /// Whether the variable decreases by `step` each iteration (`i = i - step`).
     pub descending: bool,
-    /// The instruction that computes the next value.
-    pub update_inst: Option<InstId>,
+    /// The recognized instruction that computes the next value.
+    pub update_inst: InstId,
 }
 
 /// Result of loop analysis for a function.
@@ -77,7 +80,7 @@ impl LoopInfo {
 /// Loop analyzer that detects and analyzes loops in MIR functions.
 #[derive(Debug, Default)]
 pub(crate) struct LoopAnalyzer {
-    cfg: Option<CfgInfo>,
+    cfg: Option<Rc<CfgInfo>>,
 }
 
 impl LoopAnalyzer {
@@ -93,33 +96,72 @@ impl LoopAnalyzer {
     }
 
     /// Analyzes loops in a function.
+    #[cfg(test)]
     pub(crate) fn analyze(&mut self, func: &Function) -> LoopInfo {
+        self.analyze_with_cfg(func, Rc::new(CfgInfo::new(func)))
+    }
+
+    /// Analyzes loops using a CFG snapshot of the current function.
+    pub(crate) fn analyze_with_cfg(&mut self, func: &Function, cfg: Rc<CfgInfo>) -> LoopInfo {
+        self.analyze_facts(func, cfg, true)
+    }
+
+    /// Analyzes loops without their invariant instructions.
+    pub(crate) fn analyze_trip_counts(&mut self, func: &Function) -> LoopInfo {
+        self.analyze_facts(func, Rc::new(CfgInfo::new(func)), false)
+    }
+
+    fn analyze_facts(&mut self, func: &Function, cfg: Rc<CfgInfo>, invariants: bool) -> LoopInfo {
+        let mut info = self.analyze_structure_with_cfg(func, cfg);
+        for loop_info in info.loops.values_mut() {
+            self.analyze_induction_vars(func, loop_info);
+            if invariants {
+                self.find_invariant_instructions(func, loop_info);
+            }
+            self.analyze_trip_count(func, loop_info);
+        }
+        info
+    }
+
+    /// Finds loop membership, exits, and preheaders.
+    /// Leaves induction variables, invariants, and trip counts unset.
+    pub(crate) fn analyze_structure(&mut self, func: &Function) -> LoopInfo {
+        self.analyze_structure_with_cfg(func, Rc::new(CfgInfo::new(func)))
+    }
+
+    fn analyze_structure_with_cfg(&mut self, func: &Function, cfg: Rc<CfgInfo>) -> LoopInfo {
         let mut info = LoopInfo::default();
-
-        self.cfg = Some(CfgInfo::new(func));
+        self.cfg = Some(cfg);
         let mut loops = self.find_natural_loops(func);
-
         loops.sort_unstable_by_key(|loop_info| loop_info.header.index());
-
         for mut loop_info in loops {
             self.find_exit_blocks(func, &mut loop_info);
             self.find_preheader(func, &mut loop_info);
-            self.analyze_induction_vars(func, &mut loop_info);
-            self.find_invariant_instructions(func, &mut loop_info);
-            self.analyze_trip_count(func, &mut loop_info);
-
             for block in &loop_info.blocks {
                 info.block_to_loop.insert(block, loop_info.header);
             }
             info.loops.insert(loop_info.header, loop_info);
         }
-
         info
     }
 
     fn find_natural_loops(&self, func: &Function) -> Vec<Loop> {
         let mut loops: FxHashMap<BlockId, Loop> = FxHashMap::default();
         let Some(cfg) = &self.cfg else { return Vec::new() };
+
+        // A back edge targets a dominator of its source, and a dominator precedes
+        // every block it dominates in reverse postorder. Without an edge to the
+        // same or an earlier position there are no loops, and no dominator tree to build.
+        let mut positions = index_vec![usize::MAX; cfg.num_blocks()];
+        for (position, &block_id) in cfg.rpo().iter().enumerate() {
+            positions[block_id] = position;
+        }
+        let has_retreating_edge = cfg.rpo().iter().any(|&block_id| {
+            cfg.successors(block_id).iter().any(|&succ| positions[succ] <= positions[block_id])
+        });
+        if !has_retreating_edge {
+            return Vec::new();
+        }
 
         for &block_id in cfg.rpo() {
             let block = &func.blocks[block_id];
@@ -233,17 +275,15 @@ impl LoopAnalyzer {
                 if let (Some(init), Some(step_val)) = (init_value, step_value) {
                     let phi_value = func.inst_result_value(inst_id);
                     if let Some(phi_val) = phi_value
-                        && let Some(update_inst) =
-                            self.find_update_instruction(func, phi_val, step_val)
-                        && let Some((step_amount, descending)) =
-                            self.get_step_amount(func, update_inst, phi_val)
+                        && let Some((update_inst, step_amount, descending)) =
+                            self.induction_step(func, phi_val, step_val)
                     {
                         loop_info.induction_vars.push(InductionVariable {
                             value: phi_val,
                             init,
                             step: step_amount,
                             descending,
-                            update_inst: Some(update_inst),
+                            update_inst,
                         });
                     }
                 }
@@ -251,34 +291,25 @@ impl LoopAnalyzer {
         }
     }
 
-    fn find_update_instruction(
+    /// Recognizes full-word recurrences on paths where the update succeeds. Checked updates
+    /// keep their failure effects; this does not prove that an update can move or disappear.
+    /// Narrow and signed arithmetic require separate cleanup and range reasoning.
+    fn induction_step(
         &self,
         func: &Function,
         phi_val: ValueId,
         step_val: ValueId,
-    ) -> Option<InstId> {
-        if let Value::Inst(inst_id) = func.value(step_val) {
-            let inst = func.inst(*inst_id);
-            match &inst.kind {
-                InstKind::Add(a, b) if *a == phi_val || *b == phi_val => return Some(*inst_id),
-                InstKind::Sub(a, _) if *a == phi_val => return Some(*inst_id),
-                _ => {}
-            }
-        }
-        None
-    }
-
-    /// Returns the step magnitude and whether the induction variable is descending.
-    fn get_step_amount(
-        &self,
-        func: &Function,
-        inst_id: InstId,
-        phi_val: ValueId,
-    ) -> Option<(ValueId, bool)> {
-        let inst = func.inst(inst_id);
-        match &inst.kind {
-            InstKind::Add(a, b) => {
-                let step = if *a == phi_val { *b } else { *a };
+    ) -> Option<(InstId, ValueId, bool)> {
+        let Value::Inst(inst_id) = *func.value(step_val) else { return None };
+        match func.inst(inst_id).kind {
+            InstKind::Add(a, b)
+            | InstKind::CheckedBinary {
+                op: CheckedOp::Add,
+                arithmetic: ArithmeticKind::Unsigned(256),
+                lhs: a,
+                rhs: b,
+            } if a == phi_val || b == phi_val => {
+                let step = if a == phi_val { b } else { a };
                 // A wrapping decrement can be encoded as an addition of a huge
                 // constant (two's-complement negative); classify it as
                 // descending so trip-count and range reasoning bail out.
@@ -286,9 +317,15 @@ impl LoopAnalyzer {
                     func.value(step),
                     Value::Immediate(imm) if imm.as_u256().is_some_and(|v| v.bit(255))
                 );
-                Some((step, descending))
+                Some((inst_id, step, descending))
             }
-            InstKind::Sub(_, b) => Some((*b, true)),
+            InstKind::Sub(a, b)
+            | InstKind::CheckedBinary {
+                op: CheckedOp::Sub,
+                arithmetic: ArithmeticKind::Unsigned(256),
+                lhs: a,
+                rhs: b,
+            } if a == phi_val => Some((inst_id, b, true)),
             _ => None,
         }
     }
@@ -303,7 +340,7 @@ impl LoopAnalyzer {
         }
         for block in &loop_info.blocks {
             for &inst_id in &func.blocks[block].instructions {
-                for operand in func.inst(inst_id).kind.operands() {
+                func.inst(inst_id).kind.visit_operands(|operand| {
                     if matches!(func.value(operand), Value::Immediate(_) | Value::Arg(_))
                         || matches!(
                             func.value(operand),
@@ -312,7 +349,7 @@ impl LoopAnalyzer {
                     {
                         invariant_values.insert(operand);
                     }
-                }
+                });
             }
         }
 
@@ -333,8 +370,9 @@ impl LoopAnalyzer {
                         continue;
                     }
 
-                    let operands = inst.kind.operands();
-                    if operands.iter().all(|&op| invariant_values.contains(op)) {
+                    let mut invariant = true;
+                    inst.kind.visit_operands(|op| invariant &= invariant_values.contains(op));
+                    if invariant {
                         loop_info.invariant_insts.insert(inst_id);
                         if let Some(result) = func.inst_result_value(inst_id) {
                             invariant_values.insert(result);
@@ -464,7 +502,7 @@ mod tests {
         func.blocks[entry].terminator = Some(Terminator::Jump(header));
         func.blocks[header].predecessors.push(entry);
 
-        let cond = func.alloc_value(Value::Immediate(Immediate::bool(true)));
+        let cond = func.alloc_value(Value::Immediate(Immediate::I1(true)));
         func.blocks[header].terminator =
             Some(Terminator::Branch { condition: cond, then_block: body, else_block: exit });
         func.blocks[body].predecessors.push(header);
@@ -496,8 +534,8 @@ mod tests {
         let second_body = func.alloc_block();
         let exit = func.alloc_block();
 
-        let first_condition = func.alloc_value(Value::Immediate(Immediate::bool(true)));
-        let second_condition = func.alloc_value(Value::Immediate(Immediate::bool(true)));
+        let first_condition = func.alloc_value(Value::Immediate(Immediate::I1(true)));
+        let second_condition = func.alloc_value(Value::Immediate(Immediate::I1(true)));
 
         func.blocks[entry].terminator = Some(Terminator::Jump(first_header));
         func.blocks[first_header].predecessors.push(entry);

@@ -1,9 +1,9 @@
 //! Runtime emission, retry policies, and whole-program stack limits.
 
 use super::{
-    ArtifactKind, BlockId, CallGraphInfo, DenseBitSet, EvmCodegen, FunctionId, GeneratedCode,
-    IndexVec, MAX_STACK_DEPTH, MirPhase, Module, OptimizationMode, Terminator, index_vec,
-    run_pipeline,
+    ArtifactKind, BlockId, CallGraphInfo, DenseBitSet, EmbeddedBytecodes, EvmCodegen, FunctionId,
+    GeneratedCode, IndexVec, LibraryTable, Liveness, MAX_STACK_DEPTH, MirPhase, Module,
+    OptimizationMode, Terminator, index_vec, run_pipeline,
 };
 
 impl<'gcx> EvmCodegen<'gcx> {
@@ -12,94 +12,88 @@ impl<'gcx> EvmCodegen<'gcx> {
         let _changed = run_pipeline(self.gcx, module, None);
     }
 
-    /// Generates runtime bytecode for a module.
-    pub(super) fn generate_runtime_code(
+    /// Schedules the runtime code of a module into the assembler's EVM IR.
+    #[tracing::instrument(
+        name = "stack_scheduling",
+        level = "debug",
+        skip_all,
+        fields(artifact = "runtime")
+    )]
+    pub(super) fn schedule_runtime_code(
         &mut self,
-        module: &Module,
+        module: &crate::mir::LoweredModule<'_>,
         call_graph: &CallGraphInfo,
-    ) -> GeneratedCode {
+    ) {
         assert_eq!(
-            module.phase,
-            MirPhase::EvmShaped,
+            module.phase(),
+            MirPhase::Lowered,
             "EVM codegen requires MIR in the final phase"
         );
-        let runtime_code_size_limit = self.gcx.sess.opts.evm_version.runtime_code_size_limit();
-        let may_need_code_size_rescue = self.gcx.sess.opts.optimization.is_gas();
-        let mut code_size_rescue = false;
-        let mut gas_first_result = None;
+        let mut preserve_caller_stack =
+            !matches!(self.gcx.sess.opts.optimization, OptimizationMode::None);
+        let mut runtime_stack_args = true;
+        let mut stack_returns_enabled = true;
+        self.disabled_stack_only_functions.clear_to(module.functions.len());
         loop {
-            let mut preserve_caller_stack =
-                !matches!(self.gcx.sess.opts.optimization, OptimizationMode::None);
-            let mut runtime_stack_args = true;
-            let mut stack_returns_enabled = true;
-            self.disabled_stack_only_functions.clear_to(module.functions.len());
-            loop {
-                let disabled_stack_only_functions = self.disabled_stack_only_functions.count();
-                self.reset_runtime_codegen(module);
-                self.preserve_caller_stack = preserve_caller_stack;
-                self.runtime_stack_args = runtime_stack_args;
-                self.stack_returns_enabled = stack_returns_enabled;
+            let disabled_stack_only_functions = self.disabled_stack_only_functions.count();
+            self.reset_runtime_codegen(module);
+            self.preserve_caller_stack = preserve_caller_stack;
+            self.runtime_stack_args = runtime_stack_args;
+            self.stack_returns_enabled = stack_returns_enabled;
 
-                if !module.functions.is_empty() {
-                    self.emit_runtime(module, call_graph);
-                }
-
-                if self.disabled_stack_only_functions.count() > disabled_stack_only_functions {
-                    continue;
-                }
-                let stack_fits = self.caller_stack_prefixes_fit(module, MAX_STACK_DEPTH);
-                if !stack_fits && !self.icall_stack_edges.is_empty() {
-                    if preserve_caller_stack {
-                        preserve_caller_stack = false;
-                        continue;
-                    }
-                    if runtime_stack_args {
-                        runtime_stack_args = false;
-                        continue;
-                    }
-                    if stack_returns_enabled {
-                        stack_returns_enabled = false;
-                        continue;
-                    }
-                }
-                if !stack_fits {
-                    self.report_stack_limit_error();
-                }
-                break;
+            if !module.functions.is_empty() {
+                self.emit_runtime(module, call_graph);
             }
 
-            self.asm.set_enable_size_outlining(code_size_rescue);
-
-            let result =
-                self.asm.assemble_with_captures(self.capture_evm_ir, self.capture_debug_info);
-            if may_need_code_size_rescue
-                && !code_size_rescue
-                && let Some(limit) = runtime_code_size_limit
-                && result.bytecode.len() > limit
-                && result.bytecode.len() <= limit * 2
-            {
-                gas_first_result = Some(result);
-                code_size_rescue = true;
+            if self.disabled_stack_only_functions.count() > disabled_stack_only_functions {
                 continue;
             }
-            let result = if code_size_rescue
-                && result.bytecode.len()
-                    > runtime_code_size_limit.expect("code-size rescue requires a size limit")
-            {
-                gas_first_result.take().expect("code-size rescue must retain the gas-first runtime")
-            } else {
-                result
-            };
-            self.runtime_immutable_refs = result.immutable_refs;
-            return GeneratedCode {
-                bytecode: result.bytecode,
-                evm_ir: result.evm_ir,
-                debug_info: result.debug_info,
-            };
+            let stack_fits = self.caller_stack_prefixes_fit(module, MAX_STACK_DEPTH);
+            if !stack_fits && !self.icall_stack_edges.is_empty() {
+                if preserve_caller_stack {
+                    preserve_caller_stack = false;
+                    continue;
+                }
+                if runtime_stack_args {
+                    runtime_stack_args = false;
+                    continue;
+                }
+                if stack_returns_enabled {
+                    stack_returns_enabled = false;
+                    continue;
+                }
+            }
+            if !stack_fits {
+                self.report_stack_limit_error();
+            }
+            break;
+        }
+    }
+
+    /// Links embedded bytecode into the optimized runtime code and assembles it.
+    pub(super) fn assemble_runtime_code(
+        &mut self,
+        bytecodes: &EmbeddedBytecodes,
+        libraries: &mut LibraryTable,
+    ) -> GeneratedCode {
+        let result = self.asm.assemble_linked(
+            bytecodes,
+            libraries,
+            self.capture_evm_ir,
+            self.capture_debug_info,
+        );
+        self.runtime_immutable_refs = result.immutable_refs;
+        GeneratedCode {
+            bytecode: result.bytecode,
+            library_relocations: result.library_relocations,
+            evm_ir: result.evm_ir,
+            debug_info: result.debug_info,
         }
     }
 
     fn reset_runtime_codegen(&mut self, module: &Module) {
+        self.function_return_counts =
+            module.functions.iter().map(|func| func.return_components().len()).collect();
         self.asm.clear();
         self.asm.set_artifact_kind(ArtifactKind::Runtime);
         self.asm.set_evm_ir_name(module.name.name);
@@ -112,6 +106,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.restorable_internal_frames.clear_to(module.functions.len());
         self.static_frame_functions.clear_to(module.functions.len());
         self.static_frame_addr_consts.clear();
+        self.packed_static_frame_sizes.clear();
         self.external_spill_addr_consts.clear();
         self.pending_static_allocs.clear();
         self.runtime_free_memory_consts.clear();
@@ -252,7 +247,8 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// Emits a runtime from final-phase MIR.
     ///
     /// Selector matching, receive/fallback routing, and callvalue checks all
-    /// live in the MIR `entry`, whose `tail_call`s jump to the ABI wrappers.
+    /// live in the MIR `entry`. Its routes jump to ABI wrappers or contain
+    /// eligible bodies inlined by `inline-dispatch`.
     fn emit_runtime(&mut self, module: &Module, call_graph: &CallGraphInfo) {
         let Some(entry_id) = module.dispatch_entry() else {
             assert!(
@@ -280,7 +276,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 component.iter().all(|func_id| {
                     let func = &module.functions[func_id];
                     func.attributes.is_yul
-                        && func.returns.len() == 2
+                        && func.return_components().len() == 2
                         && Self::static_frame_offsets_are_local(func)
                         && !Self::has_direct_self_call(func_id, func)
                 })
@@ -323,7 +319,11 @@ impl<'gcx> EvmCodegen<'gcx> {
 
         for (func_id, func) in module.functions.iter_enumerated() {
             if !func.attributes.may_return_memory
-                && !func.params.iter().chain(&func.returns).any(|ty| ty.is_memory_reference())
+                && !func
+                    .params
+                    .iter()
+                    .chain(func.return_components())
+                    .any(|ty| ty.is_memory_reference())
             {
                 self.restorable_internal_frames.insert(func_id);
             }
@@ -362,10 +362,12 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
         }
 
-        // The MIR entry only dispatches. External wrappers initialize the free-memory pointer on
-        // demand with a floor sized for their own reachable static frames.
+        // Compact dispatch can leave its selector below a separately scheduled wrapper.
+        // An entry with inlined bodies uses ordinary intra-function switch cleanup instead.
+        self.record_runtime_entry_reachability(call_graph, entry_id);
         self.in_internal_function = false;
-        self.emitting_entry = true;
+        self.emitting_entry =
+            Liveness::compute_block_local_for_codegen(&module.functions[entry_id]).is_some();
         self.generate_function_body(entry_id, &module.functions[entry_id]);
         self.emitting_entry = false;
         self.record_function_spill_size(entry_id);
@@ -406,7 +408,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.record_function_spill_size(func_id);
         }
 
-        self.resolve_pending_frame_size_consts(module);
+        self.pack_scalar_static_frames(module);
         self.resolve_static_frames(module);
     }
 }

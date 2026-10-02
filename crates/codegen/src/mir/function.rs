@@ -6,14 +6,16 @@ use super::{
     utils,
 };
 use alloy_primitives::U256;
+use smallvec::SmallVec;
 use solar_data_structures::{
     bit_set::DenseBitSet,
-    fmt::{self, FmtIteratorExt},
+    fmt::FmtIteratorExt,
     index::IndexVec,
     map::{FxHashMap, StdEntry},
 };
 use solar_interface::{Ident, Span, Symbol};
 use solar_sema::hir::{StateMutability, Visibility};
+use std::fmt;
 
 /// A function in the MIR.
 #[derive(Clone, Debug)]
@@ -32,8 +34,10 @@ pub(crate) struct Function {
     pub(crate) attributes: FunctionAttributes,
     /// Parameter types.
     pub(crate) params: IndexVec<ArgIdx, MirType>,
-    /// Return types.
-    pub(crate) returns: Vec<MirType>,
+    /// The function's single logical result, or `void`.
+    return_type: MirType,
+    /// Components selected by internal ABI lowering. The logical result stays intact.
+    return_abi: Option<Box<[MirType]>>,
     /// ABI layout of values returned by an external entry before `lower-abi`
     /// materializes returndata encoding.
     pub(crate) abi_returns: Option<AbiLayoutRef>,
@@ -86,7 +90,8 @@ impl Function {
             selector: None,
             attributes: FunctionAttributes::default(),
             params: IndexVec::new(),
-            returns: Vec::new(),
+            return_type: MirType::Void,
+            return_abi: None,
             abi_returns: None,
             abi_return_params: None,
             abi_params: None,
@@ -98,6 +103,53 @@ impl Function {
             instructions: IndexVec::new(),
             blocks,
         }
+    }
+
+    /// Returns the function's single logical result type.
+    pub(crate) fn return_type(&self) -> MirType {
+        self.return_type
+    }
+
+    /// Sets the single logical result before selecting its internal ABI.
+    pub(crate) fn set_return_type(&mut self, ty: MirType) {
+        self.return_type = ty;
+        self.return_abi = None;
+    }
+
+    /// Selects the components delivered by the internal calling convention.
+    pub(crate) fn set_return_abi(&mut self, components: impl Into<Box<[MirType]>>) {
+        let components = components.into();
+        self.return_abi = if (self.return_type == MirType::Void && components.is_empty())
+            || (self.return_type != MirType::Void && components.as_ref() == [self.return_type])
+        {
+            None
+        } else {
+            Some(components)
+        };
+    }
+
+    /// Returns the selected internal ABI, if lowering has materialized it.
+    pub(crate) fn return_abi(&self) -> Option<&[MirType]> {
+        self.return_abi.as_deref()
+    }
+
+    /// Returns the logical value before ABI lowering, then its physical components.
+    pub(crate) fn return_components(&self) -> &[MirType] {
+        self.return_abi.as_deref().unwrap_or_else(|| {
+            if self.return_type == MirType::Void {
+                &[]
+            } else {
+                std::slice::from_ref(&self.return_type)
+            }
+        })
+    }
+
+    /// Returns whether this function is an external ABI entry.
+    pub(crate) fn is_external_entry(&self) -> bool {
+        self.selector.is_some()
+            || self.attributes.is_constructor
+            || self.attributes.is_receive
+            || self.attributes.is_fallback
     }
 
     /// Returns the value for the given ID.
@@ -225,14 +277,7 @@ impl Function {
     /// Each instruction yields its operands followed by its result, if any. Terminator operands
     /// follow the instructions in their block. A value is yielded once for every occurrence.
     pub(crate) fn live_values(&self) -> impl Iterator<Item = ValueId> + '_ {
-        self.blocks.iter().flat_map(|block| {
-            let instructions = block.instructions.iter().flat_map(|&inst_id| {
-                let inst = self.inst(inst_id);
-                inst.operands().into_iter().chain(inst.result())
-            });
-            let terminator = block.terminator.iter().flat_map(|term| term.operands());
-            instructions.chain(terminator)
-        })
+        LiveValues { func: self, block: BlockId::ENTRY, inst: 0, values: SmallVec::new(), next: 0 }
     }
 
     /// Reuses one value identity for active uses of each exactly equal immediate.
@@ -263,7 +308,7 @@ impl Function {
 
         let mut replaced = 0;
         self.for_each_instruction_mut(|_, inst| {
-            replaced += utils::replace_inst_uses(&mut inst.kind, &replacements);
+            replaced += utils::replace_inst_uses(inst, &replacements);
         });
         for block in &mut self.blocks {
             if let Some(term) = &mut block.terminator {
@@ -307,7 +352,7 @@ impl Function {
         };
         for block in &mut self.blocks {
             for &inst_id in &block.instructions {
-                instructions[inst_id].kind.visit_operands_mut(&mut canonicalize);
+                instructions[inst_id].rewrite_operands(&mut canonicalize);
             }
             if let Some(term) = &mut block.terminator {
                 term.visit_operands_mut(&mut canonicalize);
@@ -368,16 +413,16 @@ impl Function {
         inst_blocks
     }
 
-    /// Returns predecessors with duplicate CFG edges collapsed.
+    /// Returns the block containing each placed instruction, indexed by instruction.
     #[must_use]
-    pub(crate) fn unique_predecessors(&self, block: BlockId) -> Vec<BlockId> {
-        let mut predecessors = Vec::new();
-        for &pred in &self.blocks[block].predecessors {
-            if !predecessors.contains(&pred) {
-                predecessors.push(pred);
+    pub(crate) fn inst_block_table(&self) -> IndexVec<InstId, Option<BlockId>> {
+        let mut inst_blocks = IndexVec::from_vec(vec![None; self.instructions.len()]);
+        for (block_id, block) in self.blocks.iter_enumerated() {
+            for &inst_id in &block.instructions {
+                inst_blocks[inst_id] = Some(block_id);
             }
         }
-        predecessors
+        inst_blocks
     }
 
     /// Returns true if the block contains any phi instruction.
@@ -511,7 +556,7 @@ impl Function {
         }
 
         self.for_each_instruction_mut(|_, inst| {
-            super::utils::replace_inst_uses(&mut inst.kind, replacements);
+            super::utils::replace_inst_uses(inst, replacements);
         });
         for block in self.blocks.iter_mut() {
             if let Some(term) = &mut block.terminator {
@@ -530,7 +575,7 @@ impl Function {
         }
 
         self.for_each_instruction_mut(|_, inst| {
-            super::utils::replace_inst_uses_canonicalized(&mut inst.kind, replacements);
+            super::utils::replace_inst_uses_canonicalized(inst, replacements);
         });
         for block in self.blocks.iter_mut() {
             if let Some(term) = &mut block.terminator {
@@ -539,9 +584,14 @@ impl Function {
         }
     }
 
-    /// Annotates storage-alias metadata for state-access instructions.
-    pub(crate) fn annotate_storage_aliases(&mut self, scope: super::utils::StorageAliasScope) {
+    /// Annotates storage-alias metadata for state-access instructions and returns whether any
+    /// metadata changed.
+    pub(crate) fn annotate_storage_aliases(
+        &mut self,
+        scope: super::utils::StorageAliasScope,
+    ) -> bool {
         let inst_ids: Vec<_> = self.instructions().collect();
+        let mut changed = false;
         for inst_id in inst_ids {
             let slot = match self.inst(inst_id).kind {
                 InstKind::SLoad(slot) | InstKind::SStore(slot, _) => Some(slot),
@@ -553,8 +603,11 @@ impl Function {
                 _ => None,
             };
             let alias = slot.map(|slot| StorageAlias::for_value(self, slot));
-            self.inst_mut(inst_id).metadata.set_storage_alias(alias);
+            let metadata = &mut self.inst_mut(inst_id).metadata;
+            changed |= metadata.storage_alias() != alias;
+            metadata.set_storage_alias(alias);
         }
+        changed
     }
 
     /// Returns stored storage-alias metadata, or computes a conservative alias key.
@@ -590,6 +643,43 @@ impl Function {
     }
 }
 
+/// Iterator for [`Function::live_values`], refilling one buffer per instruction or terminator.
+struct LiveValues<'a> {
+    func: &'a Function,
+    block: BlockId,
+    inst: usize,
+    values: SmallVec<[ValueId; 8]>,
+    next: usize,
+}
+
+impl Iterator for LiveValues<'_> {
+    type Item = ValueId;
+
+    fn next(&mut self) -> Option<ValueId> {
+        loop {
+            if let Some(&value) = self.values.get(self.next) {
+                self.next += 1;
+                return Some(value);
+            }
+            let block = self.func.blocks.get(self.block)?;
+            self.values.clear();
+            self.next = 0;
+            if let Some(&inst_id) = block.instructions.get(self.inst) {
+                let inst = self.func.inst(inst_id);
+                inst.kind.collect_operands(&mut self.values);
+                self.values.extend(inst.result());
+                self.inst += 1;
+            } else {
+                if let Some(term) = &block.terminator {
+                    term.visit_operands(|value| self.values.push(value));
+                }
+                self.block += 1;
+                self.inst = 0;
+            }
+        }
+    }
+}
+
 /// Function attributes.
 #[derive(Clone, Debug)]
 pub(crate) struct FunctionAttributes {
@@ -597,6 +687,8 @@ pub(crate) struct FunctionAttributes {
     pub(crate) visibility: Visibility,
     /// State mutability.
     pub(crate) state_mutability: StateMutability,
+    /// Whether the external entry decodes its own ABI inputs and encodes its outputs.
+    pub(crate) is_abi_wrapper: bool,
     /// Whether this is a constructor.
     pub(crate) is_constructor: bool,
     /// Whether this is a fallback function.
@@ -605,16 +697,23 @@ pub(crate) struct FunctionAttributes {
     pub(crate) is_receive: bool,
     /// Whether this function originated from a Yul function definition.
     pub(crate) is_yul: bool,
-    /// Whether a removed return value may still reference caller-visible memory.
+    /// Whether the original signature may reference caller-visible memory.
     ///
-    /// Dead-result elimination can erase the callable return signature, but it must not erase the
-    /// original signature's frame-lifetime constraint. The backend uses this sticky bit to avoid
-    /// reclaiming memory that may have escaped through inline assembly.
+    /// Dead-result elimination and memory lowering can erase reference types, but must preserve
+    /// the original signature's frame-lifetime constraint. The backend uses this sticky bit to
+    /// avoid reclaiming memory that may have escaped through inline assembly.
     pub(crate) may_return_memory: bool,
     /// Whether this function dispatches an internal function-pointer shape.
     pub(crate) is_function_pointer_dispatcher: bool,
     /// Never clone this function into multiple callers.
     pub(crate) no_inline: bool,
+    /// Proved upper bound, in bits, on the words each array parameter can
+    /// hold while this function reads it, recorded by element cleanup for
+    /// the ABI return proofs that run after the element masks are gone.
+    pub(crate) array_element_bits: FxHashMap<ArgIdx, u32>,
+    /// The widest word the single array this function returns can hold, when element
+    /// cleanup proved one. Its caller can re-encode the array without cleaning it.
+    pub(crate) array_return_element_bits: Option<u32>,
 }
 
 impl Default for FunctionAttributes {
@@ -622,6 +721,7 @@ impl Default for FunctionAttributes {
         Self {
             visibility: Visibility::Internal,
             state_mutability: StateMutability::NonPayable,
+            is_abi_wrapper: false,
             is_constructor: false,
             is_fallback: false,
             is_receive: false,
@@ -629,6 +729,8 @@ impl Default for FunctionAttributes {
             may_return_memory: false,
             is_function_pointer_dispatcher: false,
             no_inline: false,
+            array_element_bits: FxHashMap::default(),
+            array_return_element_bits: None,
         }
     }
 }
@@ -637,8 +739,8 @@ impl fmt::Display for Function {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "fn {}({})", self.name, self.params.iter().format(", "))?;
 
-        if !self.returns.is_empty() {
-            write!(f, " -> ({})", self.returns.iter().format(", "))?;
+        if self.return_type != MirType::Void {
+            write!(f, " -> {}", self.return_type)?;
         }
 
         Ok(())
@@ -648,16 +750,16 @@ impl fmt::Display for Function {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mir::{FunctionBuilder, Terminator};
+    use crate::mir::{EffectKind, FunctionBuilder, MemoryRegion, Terminator};
 
     #[test]
     fn live_values_include_terminator_operands() {
         let mut func = Function::new(Ident::DUMMY);
         let (instruction_arg, terminator_arg, unused_arg, immediate, result) = {
             let mut builder = FunctionBuilder::new(&mut func);
-            let instruction_arg = builder.add_param(MirType::uint256());
-            let terminator_arg = builder.add_param(MirType::uint256());
-            let unused_arg = builder.add_param(MirType::uint256());
+            let instruction_arg = builder.add_param(MirType::I256);
+            let terminator_arg = builder.add_param(MirType::I256);
+            let unused_arg = builder.add_param(MirType::I256);
             let immediate = builder.imm(1);
             let result = builder.add(instruction_arg, immediate);
             builder.ret([terminator_arg, result]);
@@ -699,7 +801,7 @@ mod tests {
         let mut func = Function::new(Ident::DUMMY);
         let (first, second, result) = {
             let mut builder = FunctionBuilder::new(&mut func);
-            let first = builder.add_param(MirType::uint256());
+            let first = builder.add_param(MirType::I256);
             let second = builder.alloc_value(Value::Arg(ArgIdx::new(0)));
             let result = builder.add(first, second);
             builder.ret([second, result]);
@@ -714,5 +816,33 @@ mod tests {
         };
         assert_eq!(values.as_slice(), [first, result]);
         assert_ne!(first, second);
+    }
+
+    #[test]
+    fn replace_uses_invalidates_operand_metadata() {
+        let mut func = Function::new(Ident::DUMMY);
+        let (old, new, load) = {
+            let mut builder = FunctionBuilder::new(&mut func);
+            let old = builder.add_param(MirType::I256);
+            let new = builder.add_param(MirType::I256);
+            let value = builder.mload(old);
+            builder.ret([value]);
+            let Value::Inst(load) = builder.func().value(value) else {
+                panic!("expected instruction result")
+            };
+            (old, new, *load)
+        };
+        let inst = func.inst_mut(load);
+        inst.metadata.set_memory_region(Some(MemoryRegion::Heap));
+        inst.metadata.set_storage_alias(Some(StorageAlias::Slot(U256::from(7))));
+        inst.metadata.set_effect(Some(EffectKind::MemoryRead));
+
+        func.replace_uses(&FxHashMap::from_iter([(old, new)]));
+
+        let inst = func.inst(load);
+        assert_eq!(inst.kind, InstKind::MLoad(new));
+        assert_eq!(inst.metadata.memory_region(), None);
+        assert_eq!(inst.metadata.storage_alias(), None);
+        assert_eq!(inst.metadata.effect(), None);
     }
 }

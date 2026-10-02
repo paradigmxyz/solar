@@ -90,11 +90,23 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             LValuePlace::Variable { id, span } => self.load_variable(id, span),
             LValuePlace::Storage { ty, access, span } => self.load_storage_value(ty, access, span),
             LValuePlace::MemoryField { object, layout, field, ty } => {
-                let value = self.builder.memory_object_load_field(object, layout, field);
+                // value = memory_object_load_field layout, object, field
+                let value = self.builder.memory_object_load_field_as(
+                    object,
+                    layout,
+                    field,
+                    types::TypeLowerer::mir_type(ty),
+                );
                 Some(self.normalize_memory_scalar(ty, value))
             }
             LValuePlace::MemoryElement { object, layout, index, ty } => {
-                let value = self.builder.memory_object_load_element(object, layout, index);
+                // value = memory_object_load_element layout, object, index
+                let value = self.builder.memory_object_load_element_as(
+                    object,
+                    layout,
+                    index,
+                    types::TypeLowerer::mir_type(ty),
+                );
                 Some(self.normalize_memory_scalar(ty, value))
             }
             LValuePlace::MemoryByte { object, index, ty } => {
@@ -154,7 +166,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         expr: &hir::Expr<'_>,
     ) -> Option<LValuePlace<'gcx>> {
         let expr = expr.peel_parens();
-        if let ExprKind::Call(callee, arguments, _) = &expr.kind
+        if let Some((callee, arguments, _)) = expr.as_call()
             && arguments.is_empty()
             && self.cx.gcx.resolved_builtin(callee) == Some(Builtin::ArrayPush0)
             && let ExprKind::Member(receiver, _) = &callee.kind
@@ -202,10 +214,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return Some(value);
         }
         if let Some(&immutable_id) = self.cx.immutable_ids.get(&id) {
-            let ty = self.cx.gcx.type_of_item(id.into());
-            return Some(
-                self.builder.load_immutable(immutable_id, types::TypeLowerer::mir_type(ty)),
-            );
+            let ty = self.cx.module.immutable_type(immutable_id).mir_type();
+            let value = self.builder.load_immutable(immutable_id, ty);
+            let source_ty = self.cx.gcx.type_of_item(id.into());
+            if ty != types::TypeLowerer::mir_type(source_ty) {
+                self.dirty_values.insert(value);
+            }
+            return Some(value);
         }
         if let Some(access) = self.storage_refs.get(&id).copied() {
             let ty = self.cx.gcx.type_of_item(id.into());
@@ -274,6 +289,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return Some(());
         }
         if let Some(&immutable_id) = self.cx.immutable_ids.get(&id) {
+            // value = cast to the immutable value type
+            let ty = self.cx.module.immutable_type(immutable_id).mir_type();
+            let value = self.builder.cast(value, ty);
             self.builder.store_immutable(immutable_id, value);
             return Some(());
         }

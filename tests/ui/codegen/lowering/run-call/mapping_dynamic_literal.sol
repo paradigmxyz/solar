@@ -8,6 +8,7 @@
 //@ run-call: readStorage => 7
 //@ run-call: readLongLiteral => 11
 //@ run-call: overwriteShort => 13
+//@ run-call: register "new-name" => true
 
 contract MappingDynamicLiteral {
     string private key;
@@ -49,6 +50,12 @@ contract MappingDynamicLiteral {
 
     function readLongLiteral() external view returns (uint256) {
         return values["a literal key longer than thirty-two bytes, hashed in full"];
+    }
+
+    function register(string memory query) external returns (bool) {
+        require(values[query] == 0);
+        values[query] = uint256(uint160(msg.sender));
+        return values[query] == uint256(uint160(msg.sender));
     }
 
     function overwriteShort() external returns (uint256) {

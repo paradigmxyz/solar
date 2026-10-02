@@ -1,0 +1,57 @@
+//@ revisions: gas size amsterdam
+//@[gas] compile-flags: -Ogas --evm-version osaka -Zevm-ir-pipeline=reorder-expressions
+//@[size] compile-flags: -Osize --evm-version osaka -Zevm-ir-pipeline=reorder-expressions
+//@[amsterdam] compile-flags: -Osize --evm-version amsterdam -Zevm-ir-pipeline=reorder-expressions
+@module ClosedCalldata
+
+// (132 < calldatasize); calldataload(100); swap1
+// -> calldataload(100); (132 < calldatasize)
+bb0:
+  push 132
+  calldatasize
+  lt
+  push 100
+  calldataload
+  swap 1
+  sub
+  stop
+
+// calldataload(4); (calldataload(36) + 1); swap1
+// -> (calldataload(36) + 1); calldataload(4)
+bb1:
+  push 4
+  calldataload
+  push 36
+  calldataload
+  push 1
+  add
+  swap 1
+  div
+  stop
+
+// A moved memory read could change the preceding MSIZE result.
+bb2:
+  msize
+  push 1024
+  mload
+  swap 1
+  sub
+  stop
+
+// A calldata load must not move before an observation of remaining gas.
+bb3:
+  gas
+  push 4
+  calldataload
+  swap 1
+  sub
+  stop
+
+// The closed-expression sweep cannot move a range that reads the input stack.
+bb4:
+  dup 1
+  push 4
+  calldataload
+  swap 1
+  sub
+  stop

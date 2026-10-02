@@ -26,6 +26,7 @@ use crate::{
         },
     },
     mir::{BlockId, Function, Terminator, ValueId},
+    target::{GasTier, Target},
 };
 use alloy_primitives::U256;
 use solar_config::{EvmVersion, OptimizationMode, SwitchLowering};
@@ -38,15 +39,15 @@ const MIN_LABEL_PUSH_LEN: usize = 2;
 const JUMPDEST_LEN: usize = 1;
 const MIN_DEFAULT_JUMP_LEN: usize = MIN_LABEL_PUSH_LEN + 1;
 
-const VERY_LOW_GAS: usize = 3;
-const JUMP_GAS: usize = 8;
-const JUMPI_GAS: usize = 10;
+const VERY_LOW_GAS: usize = GasTier::VeryLow.fixed_gas() as usize;
+const JUMP_GAS: usize = GasTier::Mid.fixed_gas() as usize;
+const JUMPI_GAS: usize = GasTier::High.fixed_gas() as usize;
 const DEFAULT_JUMP_GAS: usize = VERY_LOW_GAS + JUMP_GAS;
-const BASE_GAS: usize = 2;
+const BASE_GAS: usize = GasTier::Base.fixed_gas() as usize;
 const POP_GAS: usize = BASE_GAS;
-const MOD_GAS: usize = 5;
-const MUL_GAS: usize = 5;
-const JUMPDEST_GAS: usize = 1;
+const MOD_GAS: usize = GasTier::Low.fixed_gas() as usize;
+const MUL_GAS: usize = GasTier::Low.fixed_gas() as usize;
+const JUMPDEST_GAS: usize = GasTier::Jumpdest.fixed_gas() as usize;
 
 const PACKED_TERMINAL_TARGET_MAX_SIZE: usize = 2;
 const MIN_BUCKET_CASES: usize = 2;
@@ -112,6 +113,9 @@ pub(super) enum SwitchDefaultLayout {
 pub(super) struct SwitchPlanOptions {
     pub(super) optimization: OptimizationMode,
     pub(super) evm_version: EvmVersion,
+    /// Expected external calls per deployment. Internal switches omit this
+    /// because their execution frequency is not implied by optimizer runs.
+    pub(super) expected_executions: Option<u64>,
     pub(super) default: SwitchDefault,
     /// Conservative bound from the assembler's artifact context. Final EVM
     /// IR lowering chooses the exact width for each table.
@@ -244,6 +248,7 @@ pub(super) fn select_switch_plan_with_budget(
         SwitchPlanOptions {
             optimization,
             evm_version,
+            expected_executions: None,
             default,
             table_target_width,
             max_gas_code_growth,
@@ -263,6 +268,7 @@ pub(super) fn select_switch_plan_with_linear_values_and_budget(
     let SwitchPlanOptions {
         optimization,
         evm_version,
+        expected_executions,
         default,
         table_target_width,
         max_gas_code_growth,
@@ -270,7 +276,7 @@ pub(super) fn select_switch_plan_with_linear_values_and_budget(
         forced,
         layout,
     } = options;
-    debug_assert!(values.windows(2).all(|values| values[0] < values[1]));
+    debug_assert!(values.is_sorted());
     debug_assert_eq!(values.len(), linear_values.len());
     if values.len() <= 1
         || (optimization == OptimizationMode::None && forced == SwitchLowering::Auto)
@@ -421,7 +427,13 @@ pub(super) fn select_switch_plan_with_linear_values_and_budget(
                 table_target_width,
             );
             let better = match optimization {
-                OptimizationMode::Gas => cost.is_better_for_gas_than(best.0, max_gas_code_size),
+                OptimizationMode::Gas => gas_candidate_is_better(
+                    cost,
+                    best.0,
+                    max_gas_code_size,
+                    values.len(),
+                    expected_executions,
+                ),
                 OptimizationMode::Size => {
                     let key = binary_size.key(cost, linear_cost, leaf_size);
                     if key < best_size_key {
@@ -450,7 +462,13 @@ pub(super) fn select_switch_plan_with_linear_values_and_budget(
                 explicit_default,
                 table_target_width,
             );
-            if cost.is_better_for_gas_than(best.0, max_gas_code_size) {
+            if gas_candidate_is_better(
+                cost,
+                best.0,
+                max_gas_code_size,
+                values.len(),
+                expected_executions,
+            ) {
                 best = (cost, SwitchPlan::Buckets { bucket_count });
             }
         }
@@ -463,7 +481,13 @@ pub(super) fn select_switch_plan_with_linear_values_and_budget(
         layout.shared_case_continuation,
     ) {
         let better = match optimization {
-            OptimizationMode::Gas => cost.is_better_for_gas_than(best.0, max_gas_code_size),
+            OptimizationMode::Gas => gas_candidate_is_better(
+                cost,
+                best.0,
+                max_gas_code_size,
+                values.len(),
+                expected_executions,
+            ),
             OptimizationMode::Size => {
                 let key = cost.size_key();
                 if key < best_size_key {
@@ -496,7 +520,13 @@ pub(super) fn select_switch_plan_with_linear_values_and_budget(
                     } else {
                         max_gas_code_size
                     };
-                cost.is_better_for_gas_than(best.0, max_code_size)
+                gas_candidate_is_better(
+                    cost,
+                    best.0,
+                    max_code_size,
+                    values.len(),
+                    expected_executions,
+                )
             }
             OptimizationMode::Size => {
                 let key = cost.size_key();
@@ -753,6 +783,31 @@ impl LoweringCost {
     }
 }
 
+/// Compares runtime gas first for internal switches. An external selector
+/// switch also accounts for the deposited bytes over its expected calls,
+/// assuming each public route is equally likely when no profile is available.
+fn gas_candidate_is_better(
+    candidate: LoweringCost,
+    current: LoweringCost,
+    max_code_size: usize,
+    cases: usize,
+    expected_executions: Option<u64>,
+) -> bool {
+    if candidate.max_code_size > max_code_size {
+        return false;
+    }
+    let Some(expected_executions) = expected_executions else {
+        return candidate.is_better_for_gas_than(current, max_code_size);
+    };
+    let lifetime_key = |cost: LoweringCost| {
+        let runtime = cost.hit_gas_sum as u128 * u128::from(expected_executions);
+        let deposit =
+            cost.code_size as u128 * u128::from(Target::CODE_DEPOSIT_GAS_PER_BYTE) * cases as u128;
+        (runtime + deposit, cost.gas_key())
+    };
+    lifetime_key(candidate) < lifetime_key(current)
+}
+
 #[cfg(test)]
 fn lowering_cost(
     values: &[U256],
@@ -844,7 +899,8 @@ fn lowering_cost_with_tests(
 }
 
 fn binary_leaf_sizes(len: usize) -> Vec<usize> {
-    let mut pending = vec![len];
+    let mut pending = Vec::new();
+    pending.push(len);
     let mut sizes = Vec::new();
     while let Some(len) = pending.pop() {
         if len <= 1 {
@@ -1144,6 +1200,7 @@ fn perfect_hash_candidates_with_tests(
                     let hash = PerfectHash::BitSlice { shift, mask };
                     candidates.push((
                         bit_slice_lowering_cost_with_tests(
+                            values,
                             equality_costs,
                             hash,
                             evm_version,
@@ -1179,6 +1236,7 @@ fn bit_slice_lowering_cost(
         coalesce_case_targets,
     );
     bit_slice_lowering_cost_with_tests(
+        values,
         &equality_costs,
         hash,
         evm_version,
@@ -1188,6 +1246,7 @@ fn bit_slice_lowering_cost(
 }
 
 fn bit_slice_lowering_cost_with_tests(
+    values: &[U256],
     equality_costs: &[TestCost],
     hash: PerfectHash,
     evm_version: EvmVersion,
@@ -1212,22 +1271,39 @@ fn bit_slice_lowering_cost_with_tests(
         table_target_width,
     );
 
+    debug_assert_eq!(values.len(), equality_costs.len());
     let shared_miss = default.needs_value_cleanup();
     for &test in equality_costs {
         cost.code_size += JUMPDEST_LEN + test.code_size - usize::from(shared_miss) * JUMPDEST_LEN;
         cost.max_code_size +=
             JUMPDEST_LEN + test.max_code_size - usize::from(shared_miss) * JUMPDEST_LEN;
-        if !shared_miss {
-            cost.code_size += default.code_size(evm_version);
-            cost.max_code_size += default.max_code_size(evm_version, table_target_width);
-        }
         cost.hit_gas_sum += test.hit_gas;
-        cost.miss_gas = cost.miss_gas.max(dispatch_gas + test.miss_gas + default.gas(evm_version));
     }
     if shared_miss {
         cost.code_size += JUMPDEST_LEN + default.code_size(evm_version);
         cost.max_code_size += JUMPDEST_LEN + default.max_code_size(evm_version, table_target_width);
         cost.miss_gas = cost.miss_gas.max(dispatch_gas + default.gas(evm_version));
+    } else {
+        // slot_i: if value == key_i, jump target_i
+        //         else fall through slot_{i + 1}
+        // slot_n: if value == key_n, jump target_n
+        //         else default
+        //
+        // Valid values enter their collision-free slot directly. An invalid
+        // value can traverse the occupied suffix, which shares one default
+        // tail across all verifier blocks.
+        cost.code_size += default.code_size(evm_version);
+        cost.max_code_size += default.max_code_size(evm_version, table_target_width);
+        let mut slots = vec![None; table_size];
+        for (&value, &test) in values.iter().zip(equality_costs) {
+            slots[bit_slice_index(value, shift, mask)] = Some(test);
+        }
+        let mut suffix_miss_gas = 0;
+        for test in slots.into_iter().rev().flatten() {
+            suffix_miss_gas += test.miss_gas;
+            cost.miss_gas =
+                cost.miss_gas.max(dispatch_gas + suffix_miss_gas + default.gas(evm_version));
+        }
     }
     cost
 }
@@ -1393,7 +1469,7 @@ fn case_test_costs(
             let mut cost =
                 equality_test_cost_with_ordered(value, ordered, table_target_width, cleanup_on_hit);
             if coalesce_case_targets && cleanup_on_hit {
-                refine_coalesced_equality_test(&mut cost, value, table_target_width);
+                refine_coalesced_equality_test(&mut cost, table_target_width);
             }
             cost
         })
@@ -1419,25 +1495,28 @@ fn equality_test_cost_with_ordered(
         ordered
     };
     if cleanup_on_hit {
-        // Invert the comparison and branch over POP, PUSH<label>, JUMP, JUMPDEST.
-        cost.code_size += 1 + 1 + MIN_LABEL_PUSH_LEN + 1 + JUMPDEST_LEN;
-        cost.max_code_size += 1 + 1 + max_label_push_len(table_target_width) + 1 + JUMPDEST_LEN;
-        cost.hit_gas += VERY_LOW_GAS + POP_GAS + VERY_LOW_GAS + JUMP_GAS;
-        cost.miss_gas += VERY_LOW_GAS + JUMPDEST_GAS;
+        // SUB branches on a miss at the same cost as EQ. Zero needs no ISZERO.
+        if value.is_zero() {
+            cost.code_size -= 1;
+            cost.max_code_size -= 1;
+            cost.hit_gas -= VERY_LOW_GAS;
+            cost.miss_gas -= VERY_LOW_GAS;
+        }
+        // Branch over POP, PUSH<label>, JUMP, JUMPDEST.
+        cost.code_size += 1 + MIN_LABEL_PUSH_LEN + 1 + JUMPDEST_LEN;
+        cost.max_code_size += 1 + max_label_push_len(table_target_width) + 1 + JUMPDEST_LEN;
+        cost.hit_gas += POP_GAS + VERY_LOW_GAS + JUMP_GAS;
+        cost.miss_gas += JUMPDEST_GAS;
     }
     cost
 }
 
-fn refine_coalesced_equality_test(cost: &mut TestCost, value: U256, table_target_width: usize) {
-    // Peephole folds `EQ; ISZERO` to `SUB`, then CFG simplification coalesces
-    // the single-predecessor case target into the equality guard.
-    let folded_comparison = usize::from(!value.is_zero());
-    cost.code_size = cost.code_size.saturating_sub(MIN_DEFAULT_JUMP_LEN + folded_comparison);
-    cost.max_code_size = cost
-        .max_code_size
-        .saturating_sub(max_default_jump_len(table_target_width) + folded_comparison);
-    cost.hit_gas = cost.hit_gas.saturating_sub(DEFAULT_JUMP_GAS + folded_comparison * VERY_LOW_GAS);
-    cost.miss_gas = cost.miss_gas.saturating_sub(folded_comparison * VERY_LOW_GAS);
+fn refine_coalesced_equality_test(cost: &mut TestCost, table_target_width: usize) {
+    // CFG simplification coalesces the single-predecessor case target into the guard.
+    cost.code_size = cost.code_size.saturating_sub(MIN_DEFAULT_JUMP_LEN);
+    cost.max_code_size =
+        cost.max_code_size.saturating_sub(max_default_jump_len(table_target_width));
+    cost.hit_gas = cost.hit_gas.saturating_sub(DEFAULT_JUMP_GAS);
 }
 
 fn ordered_test_cost(value: U256, evm_version: EvmVersion, table_target_width: usize) -> TestCost {
@@ -1580,9 +1659,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.emit_operand(func, entries[mid].value_id);
         self.asm.emit_op(op::GT);
         self.scheduler.instruction_executed_untracked(2);
-        self.emit_push_label(left_label);
-        self.asm.emit_op(op::JUMPI);
-        self.scheduler.instruction_executed(1, None);
+        self.emit_conditional_jump(left_label, false);
 
         self.emit_binary_mir_switch(func, &entries[mid..], default, false, leaf_size);
 
@@ -1742,7 +1819,16 @@ impl<'gcx> EvmCodegen<'gcx> {
                 entry.target,
                 miss_label,
             );
-            if miss_label.is_none() {
+            if miss_label.is_none() && (!self.emitting_entry || index == last_slot) {
+                // hash_slot_i: if selector == key_i, jump target_i
+                //                else fall through hash_slot_{i + 1}
+                // last_slot:     if selector == key_n, jump target_n
+                //                else default
+                //
+                // A collision-free hash sends every valid key directly to
+                // its own slot. A mismatch can therefore test later slots
+                // without capturing a valid key, sharing one default tail
+                // while preserving every successful dispatch path.
                 self.emit_mir_switch_default(default, can_fallthrough && index == last_slot);
             }
         }
@@ -1805,9 +1891,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.scheduler.stack.push_unknown();
         self.asm.emit_op(op::GT);
         self.scheduler.instruction_executed_untracked(2);
-        self.emit_push_label(in_range);
-        self.asm.emit_op(op::JUMPI);
-        self.scheduler.instruction_executed(1, None);
+        self.emit_conditional_jump(in_range, false);
 
         let indexed_stack = self.scheduler.stack.clone();
         self.emit_stack_op(StackOp::Pop);
@@ -1838,28 +1922,21 @@ impl<'gcx> EvmCodegen<'gcx> {
         target: BlockId,
         miss: Option<Label>,
     ) {
+        // dup selector; [push value; eq/sub]; jumpi [iszero] condition, target/next
         self.emit_stack_op(StackOp::Dup(1));
-        if value.is_some_and(|value| value.is_zero())
-            && self.gcx.sess.opts.optimization != OptimizationMode::None
-        {
-            self.asm.emit_op(op::ISZERO);
-            self.scheduler.instruction_executed_untracked(1);
-        } else {
+        let compare_zero = value.is_some_and(|value| value.is_zero())
+            && self.gcx.sess.opts.optimization != OptimizationMode::None;
+        if !compare_zero {
             self.emit_operand(func, value_id);
-            self.asm.emit_op(op::EQ);
+            // A miss needs only nonzero, so subtraction avoids EQ followed by ISZERO.
+            self.asm.emit_op(if self.emitting_entry { op::EQ } else { op::SUB });
             self.scheduler.instruction_executed_untracked(2);
         }
         if self.emitting_entry {
-            self.emit_push_label(self.block_labels[&target]);
-            self.asm.emit_op(op::JUMPI);
-            self.scheduler.instruction_executed(1, None);
+            self.emit_conditional_jump(self.block_labels[&target], compare_zero);
         } else {
-            self.asm.emit_op(op::ISZERO);
-            self.scheduler.instruction_executed_untracked(1);
             let next = miss.unwrap_or_else(|| self.asm.new_label());
-            self.emit_push_label(next);
-            self.asm.emit_op(op::JUMPI);
-            self.scheduler.instruction_executed(1, None);
+            self.emit_conditional_jump(next, false);
 
             let next_stack = self.scheduler.stack.clone();
             self.emit_stack_op(StackOp::Pop);
@@ -1910,6 +1987,9 @@ impl<'gcx> EvmCodegen<'gcx> {
                     SwitchPlanOptions {
                         optimization: self.gcx.sess.opts.optimization,
                         evm_version: self.gcx.sess.opts.evm_version,
+                        expected_executions: self
+                            .emitting_entry
+                            .then(|| Target::new(self.gcx).expected_executions()),
                         default,
                         table_target_width: self.asm.indexed_jump_target_width_bound(),
                         max_gas_code_growth: self.switch_gas_code_growth_remaining,
@@ -2076,6 +2156,7 @@ mod tests {
                 SwitchPlanOptions {
                     optimization: OptimizationMode::Gas,
                     evm_version: EvmVersion::Cancun,
+                    expected_executions: None,
                     default: SwitchDefault::CleanupJump,
                     table_target_width: 2,
                     max_gas_code_growth: MAX_GAS_CODE_GROWTH,
@@ -2110,6 +2191,7 @@ mod tests {
                 SwitchPlanOptions {
                     optimization: OptimizationMode::Size,
                     evm_version: EvmVersion::Cancun,
+                    expected_executions: None,
                     default: SwitchDefault::Jump,
                     table_target_width: 2,
                     max_gas_code_growth: MAX_GAS_CODE_GROWTH,
@@ -2150,6 +2232,7 @@ mod tests {
                 SwitchPlanOptions {
                     optimization: OptimizationMode::Size,
                     evm_version: EvmVersion::Osaka,
+                    expected_executions: None,
                     default: SwitchDefault::Jump,
                     table_target_width: 2,
                     max_gas_code_growth: MAX_GAS_CODE_GROWTH,
@@ -2185,6 +2268,7 @@ mod tests {
             SwitchPlanOptions {
                 optimization: OptimizationMode::Size,
                 evm_version: EvmVersion::Cancun,
+                expected_executions: None,
                 default: SwitchDefault::Jump,
                 table_target_width: 2,
                 max_gas_code_growth: MAX_GAS_CODE_GROWTH,
@@ -2260,6 +2344,7 @@ mod tests {
             SwitchPlanOptions {
                 optimization: OptimizationMode::Gas,
                 evm_version: EvmVersion::Cancun,
+                expected_executions: None,
                 default: SwitchDefault::CleanupJump,
                 table_target_width: 2,
                 max_gas_code_growth: usize::MAX,
@@ -2275,7 +2360,7 @@ mod tests {
     }
 
     #[test]
-    fn shares_internal_bit_slice_misses() {
+    fn models_shared_bit_slice_miss_tails() {
         let values =
             (0..16).map(|value| U256::from(value * value * 256 + value)).collect::<Vec<_>>();
         let hash = PerfectHash::BitSlice { shift: 0, mask: 15 };
@@ -2295,10 +2380,36 @@ mod tests {
             2,
             false,
         );
-        assert_eq!(cleanup.code_size, entry.code_size + values.len() * 2 + 5);
-        assert_eq!(cleanup.max_code_size, entry.max_code_size + values.len() * 2 + 6);
-        assert_eq!(cleanup.hit_gas_sum, entry.hit_gas_sum + values.len() * 16);
-        assert_eq!(cleanup.miss_gas, entry.miss_gas + 6);
+        assert!(entry.code_size < cleanup.code_size);
+        assert!(entry.max_code_size < cleanup.max_code_size);
+        assert!(entry.hit_gas_sum < cleanup.hit_gas_sum);
+        assert!(entry.miss_gas > cleanup.miss_gas);
+    }
+
+    #[test]
+    fn prices_small_external_dispatch_over_lifetime() {
+        let values =
+            [0x0f5c83a5u64, 0x49145c91, 0x9ec8b026, 0xe7a8afa0, 0xf371efa4].map(U256::from);
+        let select = |expected_executions| {
+            select_switch_plan_with_linear_values_and_budget(
+                &values,
+                &values,
+                SwitchPlanOptions {
+                    optimization: OptimizationMode::Gas,
+                    evm_version: EvmVersion::Cancun,
+                    expected_executions: Some(expected_executions),
+                    default: SwitchDefault::Jump,
+                    table_target_width: 2,
+                    max_gas_code_growth: MAX_GAS_CODE_GROWTH,
+                    max_bit_slice_gas_code_growth: MAX_BIT_SLICE_GAS_CODE_GROWTH,
+                    forced: SwitchLowering::Auto,
+                    layout: SwitchLayout::default(),
+                },
+            )
+            .plan
+        };
+        assert_eq!(select(Target::DEFAULT_EXPECTED_EXECUTIONS), SwitchPlan::Linear);
+        assert!(matches!(select(10_000), SwitchPlan::Perfect { .. }));
     }
 
     #[test]
@@ -2343,6 +2454,7 @@ mod tests {
             SwitchPlanOptions {
                 optimization: OptimizationMode::Gas,
                 evm_version: EvmVersion::Cancun,
+                expected_executions: None,
                 default: SwitchDefault::CleanupJump,
                 table_target_width: 2,
                 max_gas_code_growth: usize::MAX,
@@ -2359,6 +2471,7 @@ mod tests {
                 SwitchPlanOptions {
                     optimization: OptimizationMode::Gas,
                     evm_version: EvmVersion::Cancun,
+                    expected_executions: None,
                     default: SwitchDefault::CleanupJump,
                     table_target_width: 2,
                     max_gas_code_growth: MAX_GAS_CODE_GROWTH,
@@ -2386,6 +2499,7 @@ mod tests {
                 SwitchPlanOptions {
                     optimization: OptimizationMode::Gas,
                     evm_version: EvmVersion::Cancun,
+                    expected_executions: None,
                     default: SwitchDefault::CleanupJump,
                     table_target_width: 2,
                     max_gas_code_growth: MAX_GAS_CODE_GROWTH,
@@ -2419,6 +2533,7 @@ mod tests {
                 SwitchPlanOptions {
                     optimization: OptimizationMode::Gas,
                     evm_version: EvmVersion::Cancun,
+                    expected_executions: None,
                     default: SwitchDefault::CleanupJump,
                     table_target_width: 2,
                     max_gas_code_growth: MAX_GAS_CODE_GROWTH,
@@ -2553,6 +2668,7 @@ mod tests {
             SwitchPlanOptions {
                 optimization: OptimizationMode::Gas,
                 evm_version: EvmVersion::Cancun,
+                expected_executions: None,
                 default: SwitchDefault::CleanupJump,
                 table_target_width: 2,
                 max_gas_code_growth: MAX_GAS_CODE_GROWTH,
@@ -2609,13 +2725,10 @@ mod tests {
         );
         let without_cleanup =
             lowering_cost(&values, values.len(), EvmVersion::Cancun, SwitchDefault::Jump, 2, false);
-        assert_eq!(with_cleanup.code_size, without_cleanup.code_size + values.len() * 6 + 1);
-        assert_eq!(
-            with_cleanup.max_code_size,
-            without_cleanup.max_code_size + values.len() * 7 + 1
-        );
-        assert_eq!(with_cleanup.hit_gas_sum, without_cleanup.hit_gas_sum + 88);
-        assert_eq!(with_cleanup.miss_gas, without_cleanup.miss_gas + 18);
+        assert_eq!(with_cleanup.code_size, without_cleanup.code_size + values.len() * 5);
+        assert_eq!(with_cleanup.max_code_size, without_cleanup.max_code_size + values.len() * 6);
+        assert_eq!(with_cleanup.hit_gas_sum, without_cleanup.hit_gas_sum + 46);
+        assert_eq!(with_cleanup.miss_gas, without_cleanup.miss_gas + 3);
     }
 
     #[test]
@@ -2633,10 +2746,10 @@ mod tests {
         };
         let separate = cost(false);
         let coalesced = cost(true);
-        assert_eq!(separate.code_size, coalesced.code_size + 8);
-        assert_eq!(separate.max_code_size, coalesced.max_code_size + 10);
-        assert_eq!(separate.hit_gas_sum, coalesced.hit_gas_sum + 31);
-        assert_eq!(separate.miss_gas, coalesced.miss_gas + 6);
+        assert_eq!(separate.code_size, coalesced.code_size + 6);
+        assert_eq!(separate.max_code_size, coalesced.max_code_size + 8);
+        assert_eq!(separate.hit_gas_sum, coalesced.hit_gas_sum + 22);
+        assert_eq!(separate.miss_gas, coalesced.miss_gas);
     }
 
     #[test]
@@ -2660,7 +2773,7 @@ mod tests {
             false,
         );
         assert_eq!(source_order.code_size, sorted.code_size);
-        assert_eq!(source_order.hit_gas_sum, sorted.hit_gas_sum + 6);
+        assert_eq!(source_order.hit_gas_sum, sorted.hit_gas_sum + 12);
     }
 
     #[test]
@@ -2702,9 +2815,9 @@ mod tests {
             bucket_lowering_cost(&values, 4, EvmVersion::Cancun, SwitchDefault::Jump, 2, false);
         assert_eq!(
             with_cleanup.code_size,
-            without_cleanup.code_size + 12 + 2 + JUMPDEST_LEN + 1 + MIN_DEFAULT_JUMP_LEN
+            without_cleanup.code_size + 9 + 2 + JUMPDEST_LEN + 1 + MIN_DEFAULT_JUMP_LEN
         );
-        assert_eq!(with_cleanup.hit_gas_sum, without_cleanup.hit_gas_sum + 32);
+        assert_eq!(with_cleanup.hit_gas_sum, without_cleanup.hit_gas_sum + 23);
     }
 
     #[test]

@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/load-pre/memory_object_load_pre.mir (before load-pre) ===
 + // === ROOT/tests/ui/codegen/mir/load-pre/memory_object_load_pre.mir (after load-pre) ===
   @module MemoryObjectLoadPre
-  fn @forward_length_across_join(arg0: memorybytes, arg1: bool, arg2: u256) -> u256 {
+  fn @forward_length_across_join(arg0: memptr, arg1: i1, arg2: i256) -> i256 {
     bb0:
       jumpi arg1, bb1, bb2
     bb2:
@@ -14,5 +14,88 @@
 -     v0 = memory_object_len memorybytes, arg0
 -     ret v0
 +     ret arg2
+  }
+  
+  fn @allocation_fmp_update_keeps_length_load(arg0: i1) -> i256 {
+    bb0:
+      v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+      set_memory_object_len memorybytes, v0, 7
+      v1 = memory_object_data memorybytes, v0
+      v2 = ptrtoint memptr v1 to i256
+      mstore v2, 99
+      v3 = memory_object_len memorybytes, v0
+      jumpi arg0, bb1, bb2
+    bb1:
+      v4 = alloc memorybytes, exact, uninitialized, infallible, 32
+      set_memory_object_len memorybytes, v4, 0
+      jump bb2
+    bb2:
+      v5 = memory_object_len memorybytes, v0
+      ret v5
+  }
+  
+  fn @unknown_data_write_can_reset_fmp(arg0: i1, arg1: i256) -> i256 {
+    bb0:
+      v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+      set_memory_object_len memorybytes, v0, 7
+      v1 = inttoptr i256 arg1 to memptr
+      v2 = memory_object_data memorybytes, v1
+      v3 = ptrtoint memptr v2 to i256
+      v4 = ptrtoint memptr v0 to i256
+      mstore v3, v4
+      v5 = memory_object_len memorybytes, v0
+      jumpi arg0, bb1, bb2
+    bb1:
+      v6 = alloc memorybytes, exact, uninitialized, infallible, 32
+      set_memory_object_len memorybytes, v6, 0
+      jump bb2
+    bb2:
+      v7 = memory_object_len memorybytes, v0
+      ret v7
+  }
+  
+  fn @keep_local_length() -> i256 {
+    bb0:
+      v0 = alloc memorybytes, exact, uninitialized, infallible, 32
+      v1 = memory_object_len memorybytes, v0
+      v2 = ne v1, 0
+      jumpi v2, bb1, bb2
+    bb1:
+      jump bb2
+    bb2:
+      v3 = memory_object_len memorybytes, v0
+      ret v3
+  }
+  
+  fn @reuse_live_length() -> i256 {
+    bb0:
+      v0 = alloc memorybytes, exact, uninitialized, infallible, 32
+      v1 = memory_object_len memorybytes, v0
+      v2 = ne v1, 0
+      jumpi v2, bb1, bb2
+    bb1:
+      jump bb2
+    bb2:
+-     v3 = memory_object_len memorybytes, v0
+-     v4 = add v1, v3
++     v4 = add v1, v1
+      ret v4
+  }
+  
+  fn @forward_latest_store() -> i256 {
+    bb0:
+      v0 = alloc memorybytes, exact, uninitialized, infallible, 32
+      set_memory_object_len memorybytes, v0, 7
+      v1 = memory_object_len memorybytes, v0
+      set_memory_object_len memorybytes, v0, 9
+      v2 = memory_object_len memorybytes, v0
+      v3 = ne v2, 0
+      jumpi v3, bb1, bb2
+    bb1:
+      jump bb2
+    bb2:
+-     v4 = memory_object_len memorybytes, v0
+-     ret v4
++     ret 9
   }
   

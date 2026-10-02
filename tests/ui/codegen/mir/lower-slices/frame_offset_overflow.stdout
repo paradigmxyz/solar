@@ -4,6 +4,7 @@
   fn @overflow(arg0: memoryslice) {
     bb0:
       v0 = internal_frame_addr 18446744073709551615
+      v1 = ptrtoint memptr v0 to i256
       stop
   }
   

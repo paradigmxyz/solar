@@ -243,7 +243,8 @@ fn break_cycles(
     };
 
     // Trace the cycle to find all participants
-    let mut cycle_indices = vec![start_idx];
+    let mut cycle_indices = Vec::new();
+    cycle_indices.push(start_idx);
     let mut current = start_idx;
 
     while let Some(src) = src_value(&pending[current].src) {
@@ -325,7 +326,7 @@ mod tests {
         ParallelCopy {
             src: CopySource::Value(ValueId::from_usize(src)),
             dst: CopyDest::Value(ValueId::from_usize(dst)),
-            ty: MirType::uint256(),
+            ty: MirType::I256,
         }
     }
 

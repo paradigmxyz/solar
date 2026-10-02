@@ -1,0 +1,461 @@
+//! Removal of element masks on arrays that only hold narrow words.
+//!
+//! A word loaded from a typed memory array is masked to its element type,
+//! because inline assembly may have stored a dirty word there and solc masks
+//! such reads the same way. When every word an array can hold fits the mask,
+//! the mask is an identity. This pass bounds the width of the words each
+//! array can hold and drops the masks that cover the bound, which removes a
+//! mask and its constant from every element read of the address and
+//! narrow-integer kernels.
+//!
+//! The bound is a least fixed point over the call graph. A function's store
+//! bound is the widest word it stores into any array element, by the proved
+//! width of the stored value, provided the array has a known word-aligned origin.
+//! Other object stores, unknown array pointers, raw writes outside scratch memory,
+//! external calls, and explicit frame addresses widen the bound to the full word,
+//! since the address written is not tracked. A function's
+//! transitive bound also covers the functions it calls. An array's origin
+//! bound is zero for a zeroed allocation, the element width of an
+//! externally callable function's array parameter whose ABI decoding
+//! validates every element, the widest argument any call site passes for an
+//! internal parameter (each argument bounded by its own origin and the
+//! caller's transitive bound), the widest incoming array for a phi, the width
+//! of a storage-array load's validated unsigned elements, and the full word
+//! for anything else. Storage-array loads initialize fresh private arrays.
+//! A mask on an element load is dropped when its width covers both the array's
+//! origin bound and the transitive bound
+//! of the function reading it. Widths are tracked per function rather than
+//! per array, so a store into any array of a function widens every array
+//! that function reads. Provisional width summaries establish array origins first;
+//! a second summary includes stores through unknown origins before any masks are removed.
+//!
+//! Only word-element arrays, contiguous low-bit masks, and `zext i160 (trunc i256 x to i160) to
+//! i256` round trips are rewritten. A narrowing result with other typed uses stays in place.
+//! Runs early in the optimized phase, while element accesses are still
+//! semantic and the call graph is explicit; removed masks lose their debug
+//! checkpoints rather than lending them to the loads.
+
+use super::egraph::max_bits_with_args;
+use crate::mir::{
+    AbiParamType, AbiWordValidator, AllocationInitialization, AllocationKind, ArgIdx, EffectKind,
+    Function, FunctionId, InstId, InstKind, MemoryObjectLayout, MemoryRegion, MirType, Module,
+    Terminator, Value, ValueId,
+    memory::EvmMemoryLayout,
+    pass::{MirPass, ModuleAnalyses},
+    utils,
+};
+use alloy_primitives::U256;
+use solar_data_structures::{
+    bit_set::DenseBitSet,
+    index::{IndexVec, index_vec},
+    map::FxHashMap,
+};
+
+/// Removes element masks that cover the width bound of their array.
+pub(crate) struct ElementCleanup;
+
+/// SSA definitions followed when bounding a stored word's width.
+const MAX_VALUE_DEPTH: u32 = 8;
+/// The width of a word nothing bounds.
+const FULL_WIDTH: u32 = 256;
+/// Fixed-point rounds after which every bound is given up as full.
+const MAX_ROUNDS: usize = 16;
+
+impl MirPass for ElementCleanup {
+    fn name(&self) -> &'static str {
+        "element-cleanup"
+    }
+
+    fn run_pass(
+        &self,
+        _gcx: solar_sema::Gcx<'_>,
+        module: &mut Module,
+        _analyses: &mut ModuleAnalyses,
+    ) -> bool {
+        let initial = transitive_bounds(module, None);
+        let mut params = param_bounds(module, &initial);
+        // Narrow origins also prove that array stores use ordinary word boundaries.
+        // Cast-derived objects can instead write across another array's elements.
+        let transitive = transitive_bounds(module, Some(&params));
+        if transitive != initial {
+            params = param_bounds(module, &transitive);
+        }
+        if tracing::enabled!(tracing::Level::TRACE) {
+            for (id, func) in module.functions.iter_enumerated() {
+                tracing::trace!(
+                    function = %func.name,
+                    store = store_bound(func, Some(&object_bounds(func, id, &params))),
+                    transitive = transitive[id],
+                    params = ?func
+                        .params
+                        .indices()
+                        .filter_map(|index| params.get(&(id, index)).map(|bound| (index, *bound)))
+                        .collect::<Vec<_>>(),
+                    "element bounds"
+                );
+            }
+        }
+        let mut changed = false;
+        for (id, func) in module.functions.iter_mut_enumerated() {
+            let reading = transitive[id];
+            if reading >= FULL_WIDTH {
+                continue;
+            }
+            // The ABI return proofs run after the masks are gone: leave them
+            // the bound of every array parameter this function reads.
+            for (index, _) in func.params.iter_enumerated() {
+                if let Some(&origin) = params.get(&(id, index))
+                    && origin.max(reading) < FULL_WIDTH
+                {
+                    func.attributes.array_element_bits.insert(index, origin.max(reading));
+                }
+            }
+            let objects = object_bounds(func, id, &params);
+            // Publish the width of an array this function returns, so its caller can
+            // re-encode the payload in one copy. A fresh array holds what this function
+            // and its callees store; a returned parameter holds that and what it arrived
+            // with. Several return blocks must all stay within the bound.
+            if func.return_components().len() == 1 {
+                let returned = func
+                    .blocks
+                    .iter()
+                    .filter_map(|block| match &block.terminator {
+                        Some(Terminator::Return { values }) => Some(values.first().copied()),
+                        _ => None,
+                    })
+                    .map(|value| {
+                        value
+                            .and_then(|value| objects.get(&value).copied())
+                            .unwrap_or(FULL_WIDTH)
+                            .max(reading)
+                    })
+                    .max();
+                tracing::trace!(function = %func.name, ?returned, reading, "array return bits");
+                if let Some(bound) = returned.filter(|bound| *bound < FULL_WIDTH) {
+                    func.attributes.array_return_element_bits = Some(bound);
+                }
+            }
+            let uses = super::egraph::use_counts(func);
+            let mut replacements = FxHashMap::default();
+            let mut dead = DenseBitSet::new_empty(func.num_insts());
+            for inst in func.instructions() {
+                if let Some((element, bits)) = masked_element(func, inst)
+                    && let Value::Inst(load) = func.value(element)
+                    && let InstKind::MemoryObjectLoadElement { object, layout, .. } =
+                        func.inst(*load).kind
+                    && is_word_array(layout)
+                    && objects.get(&object).is_some_and(|&origin| origin.max(reading) <= bits)
+                    && let Some(result) = func.inst_result_value(inst)
+                {
+                    // zext i160 (trunc i256 element to i160) to i256 -> element
+                    if let InstKind::Zext(narrow) = func.inst(inst).kind
+                        && uses[narrow] == 1
+                        && let Value::Inst(trunc) = func.value(narrow)
+                    {
+                        dead.insert(*trunc);
+                    }
+                    // and element, mask -> element
+                    replacements.insert(result, element);
+                    dead.insert(inst);
+                }
+            }
+            if replacements.is_empty() {
+                continue;
+            }
+            // result = and element, mask; use result -> use element
+            // NOTE: Removed cleanup instructions lose their debug checkpoints;
+            // their source locations must not be assigned to the load.
+            func.for_each_instruction_mut(|_, inst| {
+                inst.rewrite_operands(|value| {
+                    *value = utils::resolve_replacement(*value, &replacements);
+                });
+            });
+            for block in &mut func.blocks {
+                block.instructions.retain(|&inst| !dead.contains(inst));
+                if let Some(term) = &mut block.terminator {
+                    utils::replace_terminator_uses_canonicalized(term, &replacements);
+                }
+            }
+            changed = true;
+        }
+        changed
+    }
+}
+
+fn is_word_array(layout: MemoryObjectLayout) -> bool {
+    matches!(
+        layout,
+        MemoryObjectLayout::DynamicArray { element_words: 1 }
+            | MemoryObjectLayout::FixedArray { element_words: 1, .. }
+    )
+}
+
+/// The value a contiguous low-bit mask keeps, and the mask's width in bits.
+fn masked_element(func: &Function, inst: InstId) -> Option<(ValueId, u32)> {
+    if let InstKind::Zext(narrow) = func.inst(inst).kind
+        && let Value::Inst(trunc) = func.value(narrow)
+        && let InstKind::Trunc(element, 160) = func.inst(*trunc).kind
+    {
+        return Some((element, 160));
+    }
+    let InstKind::And(a, b) = func.inst(inst).kind else { return None };
+    let (element, mask) = match (func.value_u256(a), func.value_u256(b)) {
+        (None, Some(mask)) => (a, mask),
+        (Some(mask), None) => (b, mask),
+        _ => return None,
+    };
+    (mask.wrapping_add(U256::ONE) & mask == U256::ZERO).then(|| (element, mask.bit_len() as u32))
+}
+
+/// The widest word the function's own instructions may store into an array.
+fn store_bound(func: &Function, objects: Option<&FxHashMap<ValueId, u32>>) -> u32 {
+    let mut bound = 0;
+    for inst in func.instructions() {
+        let instruction = func.inst(inst);
+        let width = match &instruction.kind {
+            InstKind::MemoryObjectStoreElement { object, value, .. }
+                if objects.is_none_or(|objects| {
+                    objects.get(object).is_some_and(|&bound| bound < FULL_WIDTH)
+                }) =>
+            {
+                max_bits_with_args(func, *value, MAX_VALUE_DEPTH, &|_| FULL_WIDTH)
+            }
+            // A direct allocation's header is separate from existing array elements.
+            InstKind::SetMemoryObjectLen(object, ..)
+                if matches!(func.value(*object), Value::Inst(alloc)
+                    if matches!(func.inst(*alloc).kind, InstKind::Alloc { .. })) =>
+            {
+                0
+            }
+            // Only compiler-owned words and zeroing are harmless without an alias proof.
+            InstKind::Alloc { .. }
+            | InstKind::FrameStore { .. }
+            | InstKind::MemoryZero(..)
+            | InstKind::StorageArrayLoad { .. } => 0,
+            InstKind::MStore(..) | InstKind::MStore8(..) => {
+                if instruction.metadata.memory_region() == Some(MemoryRegion::Scratch) {
+                    0
+                } else {
+                    FULL_WIDTH
+                }
+            }
+            InstKind::InternalFrameAddr(_)
+            | InstKind::Call { .. }
+            | InstKind::CallCode { .. }
+            | InstKind::StaticCall { .. }
+            | InstKind::DelegateCall { .. } => FULL_WIDTH,
+            kind if kind.effect_kind() == EffectKind::MemoryWrite => FULL_WIDTH,
+            _ => 0,
+        };
+        bound = bound.max(width);
+        if bound >= FULL_WIDTH {
+            break;
+        }
+    }
+    bound
+}
+
+fn callees(func: &Function) -> impl Iterator<Item = FunctionId> + '_ {
+    let calls = func.instructions().filter_map(|inst| match func.inst(inst).kind {
+        InstKind::ICall { function: crate::mir::Callee::Function(function), .. } => Some(function),
+        _ => None,
+    });
+    let tail_calls = func.blocks.iter().filter_map(|block| match block.terminator {
+        Some(Terminator::TailCall { function, .. }) => Some(function),
+        _ => None,
+    });
+    calls.chain(tail_calls)
+}
+
+/// Each function's store bound including the functions it calls.
+fn transitive_bounds(
+    module: &Module,
+    params: Option<&FxHashMap<(FunctionId, ArgIdx), u32>>,
+) -> IndexVec<FunctionId, u32> {
+    let mut bounds: IndexVec<FunctionId, u32> = module
+        .functions
+        .iter_enumerated()
+        .map(|(id, func)| {
+            let objects = params.map(|params| object_bounds(func, id, params));
+            store_bound(func, objects.as_ref())
+        })
+        .collect();
+    for _ in 0..MAX_ROUNDS {
+        let mut changed = false;
+        for (id, func) in module.functions.iter_enumerated() {
+            let widened = callees(func).map(|callee| bounds[callee]).fold(bounds[id], u32::max);
+            if widened != bounds[id] {
+                bounds[id] = widened;
+                changed = true;
+            }
+        }
+        if !changed {
+            return bounds;
+        }
+    }
+    index_vec![FULL_WIDTH; module.functions.len()]
+}
+
+/// The element width an externally callable function's ABI decoding
+/// validates for an array parameter, or the full word.
+fn validated_width(func: &Function, index: ArgIdx) -> u32 {
+    let element = match func.abi_params.as_ref().and_then(|layout| layout.types.get(index.index()))
+    {
+        Some(AbiParamType::DynamicArray(element)) => element,
+        Some(AbiParamType::FixedArray { element, .. }) => element,
+        _ => return FULL_WIDTH,
+    };
+    match **element {
+        AbiParamType::Scalar(ty) => match AbiWordValidator::from_layout(ty) {
+            Some(AbiWordValidator::Unsigned(bits)) => u32::from(bits),
+            // A full-width element has no mask to remove.
+            None => FULL_WIDTH,
+            _ => FULL_WIDTH,
+        },
+        _ => FULL_WIDTH,
+    }
+}
+
+fn externally_callable(func: &Function) -> bool {
+    func.selector.is_some()
+        || func.is_public()
+        || func.attributes.is_constructor
+        || func.attributes.is_receive
+        || func.attributes.is_fallback
+}
+
+/// The widest word each pointer parameter's array elements may hold on entry:
+/// what ABI decoding admits, or the widest argument any call site passes.
+fn param_bounds(
+    module: &Module,
+    transitive: &IndexVec<FunctionId, u32>,
+) -> FxHashMap<(FunctionId, ArgIdx), u32> {
+    let mut bounds = FxHashMap::default();
+    for (id, func) in module.functions.iter_enumerated() {
+        for (index, &ty) in func.params.iter_enumerated() {
+            if ty != MirType::MemPtr {
+                continue;
+            }
+            let entry = if !externally_callable(func) {
+                0
+            } else if func.selector.is_some() {
+                validated_width(func, index)
+            } else {
+                FULL_WIDTH
+            };
+            bounds.insert((id, index), entry);
+        }
+    }
+    for _ in 0..MAX_ROUNDS {
+        let mut changed = false;
+        for (caller, func) in module.functions.iter_enumerated() {
+            let objects = object_bounds(func, caller, &bounds);
+            let reading = transitive[caller];
+            let mut visit = |callee: FunctionId, args: &[ValueId]| {
+                for (index, &arg) in args.iter().enumerate() {
+                    let key = (callee, ArgIdx::new(index));
+                    let Some(bound) = bounds.get(&key).copied() else { continue };
+                    let passed = objects.get(&arg).copied().unwrap_or(FULL_WIDTH).max(reading);
+                    if passed > bound {
+                        bounds.insert(key, passed);
+                        changed = true;
+                    }
+                }
+            };
+            for inst in func.instructions() {
+                if let InstKind::ICall {
+                    function: crate::mir::Callee::Function(function),
+                    args,
+                    ..
+                } = &func.inst(inst).kind
+                {
+                    visit(*function, args);
+                }
+            }
+            for block in &func.blocks {
+                if let Some(Terminator::TailCall { function, args }) = &block.terminator {
+                    visit(*function, args);
+                }
+            }
+        }
+        if !changed {
+            return bounds;
+        }
+    }
+    bounds.values_mut().for_each(|bound| *bound = FULL_WIDTH);
+    bounds
+}
+
+/// The origin bound of every array value in a function: parameters,
+/// zeroed allocations, and phis over those.
+fn object_bounds(
+    func: &Function,
+    id: FunctionId,
+    params: &FxHashMap<(FunctionId, ArgIdx), u32>,
+) -> FxHashMap<ValueId, u32> {
+    let mut bounds = FxHashMap::default();
+    for index in 0..func.num_values() {
+        let value = ValueId::new(index);
+        if let Value::Arg(arg) = func.value(value)
+            && let Some(&bound) = params.get(&(id, *arg))
+        {
+            bounds.insert(value, bound);
+        }
+    }
+    let mut phis = Vec::new();
+    for inst in func.instructions() {
+        let Some(result) = func.inst_result_value(inst) else { continue };
+        match &func.inst(inst).kind {
+            InstKind::Alloc { kind: AllocationKind::Object(layout), semantics, .. }
+                if is_word_array(*layout)
+                    && semantics.initialization == AllocationInitialization::Zeroed =>
+            {
+                bounds.insert(result, 0);
+            }
+            InstKind::StorageArrayLoad { element, .. } => {
+                if let Some(AbiWordValidator::Unsigned(bits)) =
+                    AbiWordValidator::from_layout(*element)
+                {
+                    bounds.insert(result, u32::from(bits));
+                }
+            }
+            // Every phi joins, not only the array-typed ones: lowering types a returned
+            // array as the raw pointer it is, and an object reaches its uses through
+            // those. A phi whose incoming values are not tracked still joins to the full
+            // width, so this only adds entries the join can prove.
+            InstKind::Phi(incoming) => {
+                bounds.insert(result, 0);
+                phis.push((result, incoming.iter().map(|&(_, value)| value).collect::<Vec<_>>()));
+            }
+            _ => {}
+        }
+    }
+    // The canonical empty array lives at the zero slot and holds no elements.
+    for index in 0..func.num_values() {
+        let value = ValueId::new(index);
+        if func.value_u64(value) == Some(EvmMemoryLayout::ZERO_SLOT) {
+            bounds.insert(value, 0);
+        }
+    }
+    // A phi holds whatever its widest incoming array holds.
+    for _ in 0..MAX_ROUNDS {
+        let mut changed = false;
+        for (result, incoming) in &phis {
+            let widest = incoming
+                .iter()
+                .map(|value| bounds.get(value).copied().unwrap_or(FULL_WIDTH))
+                .fold(0, u32::max);
+            if widest > bounds[result] {
+                bounds.insert(*result, widest);
+                changed = true;
+            }
+        }
+        if !changed {
+            return bounds;
+        }
+    }
+    for (result, _) in &phis {
+        bounds.insert(*result, FULL_WIDTH);
+    }
+    bounds
+}

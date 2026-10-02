@@ -1,238 +1,208 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_struct_copy.sol:ExternalFunctionPointerStructCopyTarget ===
 @module ExternalFunctionPointerStructCopyTarget
-fn @copy(arg0: calldataslice) -> memorystruct [selector=0x0bf8d45f, pure, abi_params=[array<_, function>], abi_returns=[tuple<memory_array<function>>], abi_return_params=[tuple<array<_, function>>]] {
+fn @copy(arg0: calldataslice) -> memptr [selector=0x0bf8d45f, pure, abi_params=[array<_, function>], abi_returns=[tuple<memory_array<function>>], abi_return_params=[tuple<array<_, function>>]] {
   bb0:
-    v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
-    memory_object_store_field memorystruct<1>, v0, 0, 96
-    v1 = slice_len arg0
-    v2 = slice_ptr arg0
-    v3 = mul v1, 32
-    v4 = iszero 32
-    v5 = div v3, 32
-    v6 = eq v5, v1
-    v7 = or v4, v6
-    v8 = iszero v7
-    jumpi v8, bb1, bb2
-  bb2:
-    v9 = calldatasize
-    v10 = sub v9, v2
-    v11 = slt v10, v3
-    jumpi v11, bb3, bb4
-  bb4:
-    v12 = mul v1, 32
-    v13 = iszero 32
-    v14 = div v12, 32
-    v15 = eq v14, v1
-    v16 = or v13, v15
-    v17 = iszero v16
-    jumpi v17, bb1, bb5
-  bb5:
-    v18 = add 32, v12
-    v19 = lt v18, 32
-    jumpi v19, bb1, bb6
-  bb6:
-    v20 = alloc memoryarray<1>, exact, uninitialized, infallible, v18
-    set_memory_object_len memoryarray, v20, v1
-    jump bb7
-  bb7:
-    v21 = phi [bb6: 0], [bb11: v36]
-    v22 = lt v21, v1
-    jumpi v22, bb8, bb9
-  bb9:
-    memory_object_store_field memorystruct<1>, v0, 0, v20
-    v37 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
-    memory_object_store_field memorystruct<1>, v37, 0, 96
-    ret v0
-  bb8:
-    v23 = mul v21, 32
-    v24 = iszero 32
-    v25 = div v23, 32
-    v26 = eq v25, v21
-    v27 = or v24, v26
-    v28 = iszero v27
-    jumpi v28, bb1, bb10
-  bb10:
-    v29 = add v2, v23
-    v30 = calldataload v29
-    v31 = and v30, 0xffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000
-    v32 = eq v30, v31
-    v33 = iszero v32
-    jumpi v33, bb3, bb11
-  bb11:
-    v34 = shr 64, v30
-    v35 = shl 64, v34
-    memory_object_store_element memoryarray<1>, v20, v21, v35
-    v36 = add v21, 1
-    jump bb7
-  bb3:
-    revert 0, 0
+    v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
+    v1 = ptrtoint memptr 96 to i256
+    memory_object_store_field memorystruct<1>, v0, 0, v1
+    v2 = slice_len arg0
+    v3 = slice_ptr arg0
+    v4 = mul v2, 32
+    v5 = eq 32, 0
+    v6 = div v4, 32
+    v7 = eq v6, v2
+    v8 = or v5, v7
+    v9 = zext i1 v8 to i256
+    v10 = eq v9, 0
+    icall panic_if<0x41>, v10
+    v11 = calldatasize
+    v12 = sub v11, v3
+    v13 = slt v12, v4
+    icall revert_if<calldata_tail_too_short>, v13
+    v14 = mul v2, 32
+    v15 = eq 32, 0
+    v16 = div v14, 32
+    v17 = eq v16, v2
+    v18 = or v15, v17
+    v19 = zext i1 v18 to i256
+    v20 = eq v19, 0
+    icall panic_if<0x41>, v20
+    v21 = add 32, v14
+    v22 = lt v21, 32
+    icall panic_if<0x41>, v22
+    v23 = alloc memoryarray<1>, exact, uninitialized, infallible, v21
+    set_memory_object_len memoryarray, v23, v2
+    jump bb1
   bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    v24 = phi [bb0: 0], [bb2: v34]
+    v25 = lt v24, v2
+    jumpi v25, bb2, bb3
+  bb3:
+    v35 = ptrtoint memptr v23 to i256
+    memory_object_store_field memorystruct<1>, v0, 0, v35
+    v36 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
+    v37 = ptrtoint memptr 96 to i256
+    memory_object_store_field memorystruct<1>, v36, 0, v37
+    ret v0
+  bb2:
+    v26 = mul v24, 32
+    v27 = add v3, v26
+    v28 = calldataload v27
+    v29 = and v28, 0xffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000
+    v30 = eq v28, v29
+    v31 = eq v30, false
+    icall revert_if<empty>, v31
+    v32 = shr 64, v28
+    v33 = shl 64, v32
+    memory_object_store_element memoryarray<1>, v23, v24, v33
+    v34 = add v24, 1
+    jump bb1
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_struct_copy.sol:ExternalFunctionPointerStructCopy ===
 @module ExternalFunctionPointerStructCopy
-data:
-  ExternalFunctionPointerStructCopyTarget_initcode_0: hex"34600e5761054f8060125f395ff35b5f5ffd34601a575f3560e01c80630bf8d45f14601657601a565b601e565b5f5ffd5b61046060405260243610156102815761027d565b6040518061022052806102205260208101604052606081526020600460043501358060805202806103005280610300526020156020820460805180608052901481179050151560a9575b7f4e487b71000000000000000000000000000000000000000000000000000000005f52604160045260245ffd5b6004600435016020018060e0523603818061030052901290501560cb575b5f5ffd5b60206080510280610320528061032052602015602082046080518060805290148117905015607c5780610320526020018061034052806103405260208110607c57604051806101a052806101a052818061034052810191508160405290506080518060805281525f60e051608051919092909193915b806101c052848060805281101561018257806101c05260208102806103605280610360526020156020820483806101c052901481179050151561021a57607c565b81806101a0528380610220525250509150506040518060a052602081016040526060815250604051806101e052806101e05260208101604052818061022052518061026052915081610260528180610260525182806102605215158061010052806101005280610100528102806101205290508061012052600181018061028052806102805281806101205281101561031d576102f0565b8061036052840135806103805280610380527fffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000811681141560c757806103805260401c60401b60208301602083806101c052028101905052600181019050610141565b5f5ffd5b6004358060a052600401806102405280610240526020810167ffffffffffffffff60a0511136806103a0528211915017156102bb575b5f5ffd5b8061024052358060805280608052602061024051018060e0528060e0528060e052360360051c81116102b75780608052506032565b7f4e487b71000000000000000000000000000000000000000000000000000000005f52604160045260245ffd5b602081806102805202806101405280610140526020156020820483806102805290149250829017915081159150836101e05284610260528261012052509050905090506102f05760405180610200528061020052610140518061014052810160405261012051806101205281525f6101205161010051610260516101e051939094909192919394935b806103c05282806101205281101561040d5760208501602082806103c05202810190505184806101005290027fffffffffffffffffffffffffffffffffffffffffffffffff00000000000000009016602083016020830281019050526001810190506103a6565b818061020052865250505050506040518061016052806101605260208101806101805280610180528180610160528103825282806101e0525192506020810181806101805281038252835184151581028060c05290508060c0528060c0528152602060c0510260208201806102a0529150816102a05260208501806102c0529450846102c0528101806102e052806102e0525f60c051909091909195919395939495945b806103e052848060c05281101561050f57602081806103e052028060a052830160a0518060a0528501815191507fffffffffffffffffffffffffffffffffffffffffffffffff000000000000000082169150526001810190506104b1565b858061018052820394505050505081019050818061016052900390505f9001601f8101601f19811690506040518060a05281810191508160405290508181f3"
+@data
+  ExternalFunctionPointerStructCopyTarget_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_struct_copy.sol:ExternalFunctionPointerStructCopyTarget"
 
 fn @constructor() [constructor] {
   bb0:
     v0 = abi_encode []
-    v1 = not 31
-    v2 = and 0x580, v1
+    v1 = datasize ExternalFunctionPointerStructCopyTarget_creation_code_0
+    v2 = datasize ExternalFunctionPointerStructCopyTarget_creation_code_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy ExternalFunctionPointerStructCopyTarget_initcode_0, v3, 0x561
-    v4 = slice_ptr v0
-    v5 = add v3, 0x561
-    mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 0x561
-    jumpi v6, bb2, bb1
+    v4 = ptrtoint memptr v3 to i256
+    datacopy ExternalFunctionPointerStructCopyTarget_creation_code_0, v4, v1
+    v5 = slice_ptr v0
+    v6 = ptrtoint memptr v3 to i256
+    v7 = add v6, v1
+    mcopy v7, v5, 0 !metadata(memory=heap)
+    v8 = ptrtoint memptr v3 to i256
+    v9 = create 0, v8, v1
+    v10 = zext i160 v9 to i256
+    v11 = ne v10, 0
+    jumpi v11, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v7 = sload 0 !metadata(storage=slot(0))
-    v8 = not 0xffffffffffffffffffffffffffffffffffffffff
-    v9 = and v7, v8
-    v10 = and v6, 0xffffffffffffffffffffffffffffffffffffffff
-    v11 = or v9, v10
-    sstore 0, v11 !metadata(storage=slot(0))
-    stop
+    v12 = sload 0 !metadata(storage=slot(0))
+    v13 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v14 = and v12, v13
+    v15 = zext i160 v9 to i256
+    v16 = and v15, 0xffffffffffffffffffffffffffffffffffffffff
+    v17 = or v14, v16
+    sstore 0, v17 !metadata(storage=slot(0))
+    ret
 }
 
-fn @test() -> bool [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<bool>]] {
+fn @test() -> i256 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 128
     set_memory_object_len memoryarray, v0, 3
     v1 = address
-    v2 = shl 32, v1
-    v3 = or v2, 0xd24c5a36
-    v4 = memory_object_len memoryarray, v0
-    v5 = lt 0, v4
-    v6 = iszero v5
-    jumpi v6, bb1, bb2
-  bb2:
-    v7 = shl 64, v3
-    memory_object_store_element memoryarray<1>, v0, 0, v7
-    v8 = address
-    v9 = shl 32, v8
-    v10 = or v9, 0xc5337ed4
-    v11 = memory_object_len memoryarray, v0
-    v12 = lt 1, v11
-    v13 = iszero v12
-    jumpi v13, bb1, bb3
-  bb3:
-    v14 = shl 64, v10
-    memory_object_store_element memoryarray<1>, v0, 1, v14
-    v15 = address
-    v16 = shl 32, v15
-    v17 = or v16, 0xafb0db5f
-    v18 = memory_object_len memoryarray, v0
-    v19 = lt 2, v18
-    v20 = iszero v19
-    jumpi v20, bb1, bb4
-  bb4:
-    v21 = shl 64, v17
-    memory_object_store_element memoryarray<1>, v0, 2, v21
-    v22 = sload 0 !metadata(storage=slot(0))
-    v23 = and v22, 0xffffffffffffffffffffffffffffffffffffffff
-    v24 = gas
-    v25 = abi_encode [memory_array<function>], selector 0xbf8d45f00000000000000000000000000000000000000000000000000000000, args v0
-    v26 = slice_ptr v25
-    v27 = slice_len v25
-    v28 = staticcall v24, v23, v26, v27, 0, 0
-    jumpi v28, bb6, bb5
-  bb5:
+    v2 = zext i160 v1 to i256
+    v3 = shl 32, v2
+    v4 = or v3, 0xd24c5a36
+    v5 = memory_object_len memoryarray, v0
+    v6 = lt 0, v5
+    v7 = eq v6, false
+    icall panic_if<0x32>, v7
+    v8 = shl 64, v4
+    memory_object_store_element memoryarray<1>, v0, 0, v8
+    v9 = address
+    v10 = zext i160 v9 to i256
+    v11 = shl 32, v10
+    v12 = or v11, 0xc5337ed4
+    v13 = memory_object_len memoryarray, v0
+    v14 = lt 1, v13
+    v15 = eq v14, false
+    icall panic_if<0x32>, v15
+    v16 = shl 64, v12
+    memory_object_store_element memoryarray<1>, v0, 1, v16
+    v17 = address
+    v18 = zext i160 v17 to i256
+    v19 = shl 32, v18
+    v20 = or v19, 0xafb0db5f
+    v21 = memory_object_len memoryarray, v0
+    v22 = lt 2, v21
+    v23 = eq v22, false
+    icall panic_if<0x32>, v23
+    v24 = shl 64, v20
+    memory_object_store_element memoryarray<1>, v0, 2, v24
+    v25 = sload 0 !metadata(storage=slot(0))
+    v26 = and v25, 0xffffffffffffffffffffffffffffffffffffffff
+    v27 = gas
+    v28 = abi_encode [memory_array<function>], selector 0xbf8d45f00000000000000000000000000000000000000000000000000000000, args v0
+    v29 = slice_ptr v28
+    v30 = slice_len v28
+    v31 = staticcall v27, v26, v29, v30, 0, 0
+    jumpi v31, bb2, bb1
+  bb1:
     revert_returndata
-  bb6:
-    v29 = returndatasize
-    v30 = add v29, 63
-    v31 = lt v30, v29
-    jumpi v31, bb7, bb8
-  bb8:
-    v32 = not 31
-    v33 = and v30, v32
-    v34 = alloc memorybytes, exact, uninitialized, infallible, v33
-    set_memory_object_len memorybytes, v34, v29
-    v35 = make_returndata_slice 0, v29
-    memory_object_copy_from_slice memorybytes, v34, v35
-    v36 = abi_decode [tuple<array<_, function>>], v34
-    v37 = memory_object_load_field memorystruct<1>, v36, 0
-    v38 = memory_object_len memoryarray, v37
-    v39 = eq v38, 3
-    v40 = iszero v39
-    jumpi v40, bb9, bb10
-  bb10:
-    v41 = memory_object_load_field memorystruct<1>, v36, 0
-    v42 = memory_object_len memoryarray, v41
-    v43 = lt 0, v42
-    v44 = iszero v43
-    jumpi v44, bb1, bb11
-  bb11:
-    v45 = memory_object_load_element memoryarray<1>, v41, 0
-    v46 = shr 64, v45
-    v47 = address
-    v48 = shl 32, v47
-    v49 = or v48, 0xd24c5a36
-    v50 = eq v46, v49
-    v51 = iszero v50
-    jumpi v51, bb9, bb12
-  bb12:
-    v52 = memory_object_load_field memorystruct<1>, v36, 0
-    v53 = memory_object_len memoryarray, v52
-    v54 = lt 1, v53
-    v55 = iszero v54
-    jumpi v55, bb1, bb13
-  bb13:
-    v56 = memory_object_load_element memoryarray<1>, v52, 1
-    v57 = shr 64, v56
-    v58 = address
-    v59 = shl 32, v58
-    v60 = or v59, 0xc5337ed4
-    v61 = eq v57, v60
-    v62 = iszero v61
-    jumpi v62, bb9, bb14
-  bb14:
-    v63 = memory_object_load_field memorystruct<1>, v36, 0
-    v64 = memory_object_len memoryarray, v63
-    v65 = lt 2, v64
-    v66 = iszero v65
-    jumpi v66, bb1, bb15
-  bb15:
-    v67 = memory_object_load_element memoryarray<1>, v63, 2
-    v68 = shr 64, v67
-    v69 = address
+  bb2:
+    v32 = icall returndata_bytes<>
+    v33 = abi_decode [tuple<array<_, function>>], v32
+    v34 = memory_object_load_field memorystruct<1>, v33, 0, memptr
+    v35 = memory_object_len memoryarray, v34
+    v36 = eq v35, 3
+    v37 = eq v36, false
+    icall revert_if<empty>, v37
+    v38 = memory_object_load_field memorystruct<1>, v33, 0, memptr
+    v39 = memory_object_len memoryarray, v38
+    v40 = lt 0, v39
+    v41 = eq v40, false
+    icall panic_if<0x32>, v41
+    v42 = memory_object_load_element memoryarray<1>, v38, 0
+    v43 = shr 64, v42
+    v44 = address
+    v45 = zext i160 v44 to i256
+    v46 = shl 32, v45
+    v47 = or v46, 0xd24c5a36
+    v48 = eq v43, v47
+    v49 = eq v48, false
+    icall revert_if<empty>, v49
+    v50 = memory_object_load_field memorystruct<1>, v33, 0, memptr
+    v51 = memory_object_len memoryarray, v50
+    v52 = lt 1, v51
+    v53 = eq v52, false
+    icall panic_if<0x32>, v53
+    v54 = memory_object_load_element memoryarray<1>, v50, 1
+    v55 = shr 64, v54
+    v56 = address
+    v57 = zext i160 v56 to i256
+    v58 = shl 32, v57
+    v59 = or v58, 0xc5337ed4
+    v60 = eq v55, v59
+    v61 = eq v60, false
+    icall revert_if<empty>, v61
+    v62 = memory_object_load_field memorystruct<1>, v33, 0, memptr
+    v63 = memory_object_len memoryarray, v62
+    v64 = lt 2, v63
+    v65 = eq v64, false
+    icall panic_if<0x32>, v65
+    v66 = memory_object_load_element memoryarray<1>, v62, 2
+    v67 = shr 64, v66
+    v68 = address
+    v69 = zext i160 v68 to i256
     v70 = shl 32, v69
     v71 = or v70, 0xafb0db5f
-    v72 = eq v68, v71
-    v73 = iszero v72
-    jumpi v73, bb9, bb16
-  bb16:
-    ret 1
-  bb9:
-    revert 0, 0
-  bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
+    v72 = eq v67, v71
+    v73 = eq v72, false
+    icall revert_if<empty>, v73
+    v74 = zext i1 1 to i256
+    ret v74
 }
 
-fn @random1() [selector=0xd24c5a36, pure, abi_params=[], abi_returns=[]] {
+fn @random1() [selector=0xd24c5a36, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
-    stop
+    ret
 }
 
-fn @random2() [selector=0xc5337ed4, pure, abi_params=[], abi_returns=[]] {
+fn @random2() [selector=0xc5337ed4, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
-    stop
+    ret
 }
 
-fn @random3() [selector=0xafb0db5f, pure, abi_params=[], abi_returns=[]] {
+fn @random3() [selector=0xafb0db5f, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
-    stop
+    ret
 }

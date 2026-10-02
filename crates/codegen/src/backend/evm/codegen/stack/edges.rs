@@ -1,9 +1,13 @@
 //! Emission of stack-resident CFG edges and phi transitions.
+//!
+//! Gas mode materializes an edge-exclusive immediate on that edge when it is
+//! absent from the incoming stack. A loop can then carry its changing words
+//! without repeatedly constructing a result needed only on an exit. Shared
+//! constants and existing stack words retain the ordinary union layout.
 
 use super::super::{
-    BlockId, EvmCodegen, Function, FxHashMap, GLOBAL_STACK_LAYOUT_LIMIT, GlobalStackPlan,
-    MAX_STACK_ACCESS, StackModel, StackPhiBranch, StackPhiEdge, TargetSlot, Terminator, ValueId,
-    op,
+    BlockId, EvmCodegen, Function, FxHashMap, GlobalStackPlan, StackModel, StackPhiBranch,
+    StackPhiEdge, TargetSlot, Terminator, ValueId, op,
 };
 
 impl<'gcx> EvmCodegen<'gcx> {
@@ -20,7 +24,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         term: &Terminator,
         layout: &[ValueId],
     ) -> bool {
-        if layout.is_empty() || layout.len() > GLOBAL_STACK_LAYOUT_LIMIT {
+        if layout.is_empty() || layout.len() >= self.stack_access_limit() {
             return false;
         }
 
@@ -75,7 +79,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         else_layout: &[ValueId],
     ) -> Option<Vec<ValueId>> {
         let union = Self::global_branch_union(then_layout, else_layout);
-        if union.is_empty() || union.len() > GLOBAL_STACK_LAYOUT_LIMIT {
+        if union.is_empty() || union.len() >= self.stack_access_limit() {
             return None;
         }
         let mut needed = Vec::with_capacity(union.len() + 1);
@@ -146,7 +150,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 && then_layout == union
                 && GlobalStackPlan::is_terminal_block(func, else_block));
         if terminal_cleanup {
-            self.generate_terminator(
+            let _ = self.generate_terminator(
                 func,
                 &Terminator::Branch { condition, then_block, else_block },
                 fallthrough,
@@ -164,13 +168,8 @@ impl<'gcx> EvmCodegen<'gcx> {
             } else {
                 (else_block, then_block, then_layout, true)
             };
-            if invert {
-                self.asm.emit_op(op::ISZERO);
-                self.scheduler.instruction_executed_untracked(1);
-            }
-            self.emit_push_label(self.block_labels[&direct]);
-            self.asm.emit_op(op::JUMPI);
-            self.scheduler.stack.pop();
+            // jumpi [iszero] condition, direct
+            self.emit_conditional_jump(self.block_labels[&direct], invert);
             self.emit_global_branch_cleanup(cleanup_layout);
             if Some(cleanup) != fallthrough {
                 self.emit_push_label(self.block_labels[&cleanup]);
@@ -182,9 +181,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         // Neither target wants the complete incoming union. Route one edge through a local
         // cleanup label and clean the fallthrough edge inline.
         let then_cleanup = self.asm.new_label();
-        self.emit_push_label(then_cleanup);
-        self.asm.emit_op(op::JUMPI);
-        self.scheduler.stack.pop();
+        self.emit_conditional_jump(then_cleanup, false);
         let union_stack = self.scheduler.stack.clone();
 
         self.emit_global_branch_cleanup(else_layout);
@@ -248,7 +245,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     ) -> bool {
         if edge.sources.len() != edge.results.len()
             || edge.sources.is_empty()
-            || edge.sources.len() > MAX_STACK_ACCESS
+            || edge.sources.len() > self.stack_access_limit()
         {
             return false;
         }
@@ -290,14 +287,14 @@ impl<'gcx> EvmCodegen<'gcx> {
     ) -> bool {
         if edge.sources.len() != edge.results.len()
             || edge.sources.is_empty()
-            || edge.sources.len() > MAX_STACK_ACCESS
+            || edge.sources.len() > self.stack_access_limit()
         {
             return false;
         }
 
         let present =
             Self::stack_phi_source_counts_after_trim(&self.scheduler.stack, &edge.sources);
-        if present.len() > MAX_STACK_ACCESS {
+        if present.len() > self.stack_access_limit() {
             return false;
         }
 
@@ -329,7 +326,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         branch: &StackPhiBranch,
     ) -> bool {
         !branch.union.is_empty()
-            && branch.union.len() <= MAX_STACK_ACCESS
+            && branch.union.len() <= self.stack_access_limit()
             && self.can_emit_stack_phi_value(func, condition)
             && self.can_prepare_stack_phi_branch_edge(func, &branch.then_edge)
             && self.can_prepare_stack_phi_branch_edge(func, &branch.else_edge)
@@ -340,8 +337,16 @@ impl<'gcx> EvmCodegen<'gcx> {
             || self.can_prepare_stack_phi_edge(func, edge)
     }
 
-    fn emit_stack_phi_edge_layout(&mut self, edge: &StackPhiEdge) {
+    fn emit_stack_phi_edge_layout(&mut self, func: &Function, edge: &StackPhiEdge) {
         self.pop_stack_values_not_needed_by(&edge.sources);
+        // edge: push deferred_immediates; shuffle sources; rename to results
+        for value in Self::missing_stack_phi_sources(&self.scheduler.stack, &edge.sources) {
+            // Repeated sources already on the stack are duplicated by the shuffle.
+            if self.scheduler.stack.find(value).is_none() {
+                debug_assert!(func.value(value).as_immediate().is_some());
+                self.emit_operand(func, value);
+            }
+        }
         let target: Vec<_> = edge.sources.iter().copied().map(TargetSlot::Value).collect();
         let shuffle = self
             .scheduler
@@ -362,9 +367,35 @@ impl<'gcx> EvmCodegen<'gcx> {
         branch: &StackPhiBranch,
         fallthrough: Option<BlockId>,
     ) {
-        let mut needed = Vec::with_capacity(branch.union.len() + 1);
+        let mut union = branch
+            .union
+            .iter()
+            .copied()
+            .filter(|&value| {
+                !self.gcx.sess.opts.optimization.is_gas()
+                    || func.value(value).as_immediate().is_none()
+                    || self.scheduler.stack.find(value).is_some()
+                    || (branch.then_edge.sources.contains(&value)
+                        && branch.else_edge.sources.contains(&value))
+            })
+            .collect::<Vec<_>>();
+        if union.len() != branch.union.len() {
+            let counts = Self::value_counts(union.iter().copied());
+            for edge in [&branch.else_edge, &branch.then_edge] {
+                if edge.sources.len() == union.len()
+                    && Self::value_counts(edge.sources.iter().copied()) == counts
+                {
+                    // carry the direct edge in its own order; materialize the sibling's constants
+                    union.clone_from(&edge.sources);
+                    break;
+                }
+            }
+        }
+        // common: prepare condition and carried words
+        // then/else: materialize only that edge's exclusive constants
+        let mut needed = Vec::with_capacity(union.len() + 1);
         needed.push(condition);
-        needed.extend_from_slice(&branch.union);
+        needed.extend_from_slice(&union);
         self.pop_stack_values_not_needed_by(&needed);
         for value in Self::missing_stack_phi_sources(&self.scheduler.stack, &needed) {
             debug_assert!(self.can_emit_stack_phi_value(func, value));
@@ -379,37 +410,39 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.asm.emit_stack_op(op);
         }
 
-        let identity =
-            |edge: &StackPhiEdge| edge.sources == branch.union && edge.results == edge.sources;
-        let (laid_out, direct_block, laid_out_block, invert) = if identity(&branch.then_edge) {
-            (&branch.else_edge, then_block, else_block, false)
-        } else if identity(&branch.else_edge) {
-            (&branch.then_edge, else_block, then_block, true)
-        } else {
-            let then_cleanup = self.asm.new_label();
-            self.asm.emit_push_label(then_cleanup);
-            self.asm.emit_op(op::JUMPI);
-            self.scheduler.stack.pop();
-            let union_stack = self.scheduler.stack.clone();
+        // jumpi condition, successor(phi_results := union)
+        // Phi renaming changes the successor's value identities, not the physical stack.
+        // Its entry reconstructs those identities from the plan, so an edge whose sources
+        // already match the union needs no cleanup block even when its results differ.
+        let needs_no_shuffle = |edge: &StackPhiEdge| edge.sources == union;
+        // When both arms already have their physical layout, keep the scheduled fallthrough
+        // arm in place instead of introducing an unconditional jump around it.
+        let (laid_out, direct_block, laid_out_block, invert) =
+            if needs_no_shuffle(&branch.then_edge)
+                && (fallthrough != Some(then_block) || !needs_no_shuffle(&branch.else_edge))
+            {
+                (&branch.else_edge, then_block, else_block, false)
+            } else if needs_no_shuffle(&branch.else_edge) {
+                (&branch.then_edge, else_block, then_block, true)
+            } else {
+                let then_cleanup = self.asm.new_label();
+                self.emit_conditional_jump(then_cleanup, false);
+                let union_stack = self.scheduler.stack.clone();
 
-            self.emit_stack_phi_edge_layout(&branch.else_edge);
-            self.emit_push_label(self.block_labels[&else_block]);
-            self.asm.emit_op(op::JUMP);
+                self.emit_stack_phi_edge_layout(func, &branch.else_edge);
+                self.emit_push_label(self.block_labels[&else_block]);
+                self.asm.emit_op(op::JUMP);
 
-            self.asm.define_label(then_cleanup);
-            self.scheduler.stack = union_stack;
-            self.emit_stack_phi_edge_layout(&branch.then_edge);
-            self.emit_push_label(self.block_labels[&then_block]);
-            self.asm.emit_op(op::JUMP);
-            return;
-        };
-        if invert {
-            self.asm.emit_op(op::ISZERO);
-        }
-        self.emit_push_label(self.block_labels[&direct_block]);
-        self.asm.emit_op(op::JUMPI);
-        self.scheduler.stack.pop();
-        self.emit_stack_phi_edge_layout(laid_out);
+                self.asm.define_label(then_cleanup);
+                self.scheduler.stack = union_stack;
+                self.emit_stack_phi_edge_layout(func, &branch.then_edge);
+                self.emit_push_label(self.block_labels[&then_block]);
+                self.asm.emit_op(op::JUMP);
+                return;
+            };
+        // jumpi [iszero] condition, direct_block
+        self.emit_conditional_jump(self.block_labels[&direct_block], invert);
+        self.emit_stack_phi_edge_layout(func, laid_out);
         if fallthrough != Some(laid_out_block) {
             self.emit_push_label(self.block_labels[&laid_out_block]);
             self.asm.emit_op(op::JUMP);

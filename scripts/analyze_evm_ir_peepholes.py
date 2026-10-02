@@ -1,6 +1,6 @@
 #!/usr/bin/env -S uv run
 # /// script
-# requires-python = ">=3.11"
+# requires-python = ">=3.14"
 # dependencies = ["tabulate>=0.9"]
 # ///
 """Capture and analyze EVM IR peephole tracing output.
@@ -23,11 +23,7 @@ from pathlib import Path
 
 from tabulate import tabulate
 
-DEFAULT_RUST_LOG = (
-    "solar::codegen::evm_ir::peephole=trace,"
-    "solar::codegen::mir::inst_simplify=trace,"
-    "solar_codegen=debug"
-)
+DEFAULT_RUST_LOG = "solar::codegen::evm_ir::peephole=trace,solar_codegen=debug"
 ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
 STACK_OP_RE = re.compile(r"^(?:DUP|SWAP)\d+$|^POP$", re.IGNORECASE)
 EXACT_PUSH_RE = re.compile(r"^PUSH (0x[0-9a-f]+|[0-9]+)$", re.IGNORECASE)
@@ -97,16 +93,15 @@ def analyze(args: argparse.Namespace) -> int:
     rewrites: Counter[tuple[str, str]] = Counter()
     rewrite_modules: dict[tuple[str, str], Counter[str]] = {}
     ngrams: Counter[tuple[str, ...]] = Counter()
-    mir_round_runs: Counter[int] = Counter()
-    mir_round_changed: Counter[int] = Counter()
-    mir_round_simplified: Counter[int] = Counter()
     blocks = 0
 
     with open(args.log) as log:
         for raw_line in log:
             line = ANSI_RE.sub("", raw_line)
             if "solar::codegen::evm_ir::peephole: rewrite" in line:
-                module_match = re.search(r"evm_codegen\{module=([^}]+)\}", line)
+                module_match = re.search(
+                    r"(?:schedule|finish)_contract\{contract=([^}]+)\}", line
+                )
                 if module_match is None:
                     module_match = re.search(
                         r"evm_ir_pipeline\{program=([^}]+)\}", line
@@ -127,12 +122,6 @@ def analyze(args: argparse.Namespace) -> int:
                     ngrams.update(
                         zip(*(instructions[offset:] for offset in range(size)))
                     )
-            elif "mir_inst_simplify_round" in line:
-                round_number = int(field(line, "round") or 0)
-                simplified = int(field(line, "simplified") or 0)
-                mir_round_runs[round_number] += 1
-                mir_round_changed[round_number] += simplified != 0
-                mir_round_simplified[round_number] += simplified
 
     if not rewrites and blocks == 0:
         print("No EVM IR peephole trace events found", file=sys.stderr)
@@ -162,21 +151,6 @@ def analyze(args: argparse.Namespace) -> int:
             )
         ],
     )
-
-    if mir_round_runs:
-        print("MIR instruction simplifier fixpoint rounds:\n")
-        markdown_table(
-            ["Round", "Runs", "Changed runs", "Simplifications"],
-            [
-                [
-                    round_number,
-                    runs,
-                    mir_round_changed[round_number],
-                    mir_round_simplified[round_number],
-                ]
-                for round_number, runs in sorted(mir_round_runs.items())
-            ],
-        )
 
     rewritten_inputs = {
         tuple(

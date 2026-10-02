@@ -13,7 +13,7 @@
 // CHECK-NEXT: "immutableReferences": {
 // EVM: "length": 1
 // NATIVE: "length": 32
-// EVM: "length": 20
+// EVM: "length": 32
 // NATIVE: "length": 32
 // CHECK-NOT: "object":
 // CHECK-LABEL: "A": {

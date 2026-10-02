@@ -1,20 +1,23 @@
 //! Function-level HIR to MIR lowering.
 
 use super::{
-    ContractBytecodes, contract,
+    contract,
     storage::{StorageEncoding, StorageLayout, StorageLocation},
     types,
 };
 use crate::mir::{
     AbiLayout, AbiParamLayout, AbiParamLocation, AbiParamType, AbiType, AbiWordValidator,
-    AllocationSemantics, BlockId, ERROR_SELECTOR, FrameMode, FrameSlotKind, Function,
-    FunctionBuilder, FunctionId, ImmutableId, InstKind, LibraryLink, MemoryObjectKind,
-    MemoryObjectLayout, MirType, Module, PanicCode, RevertReason, SliceLocation, Value, ValueId,
-    memory::EvmMemoryLayout,
+    AddressCallKind, AllocationSemantics, ArithmeticKind, BlockId, CheckedOp, ConcatPart, DataId,
+    DataRef, Function, FunctionBuilder, FunctionId, ImmutableId, InstKind, MemoryObjectKind,
+    MemoryObjectLayout, MirType, Module, PackedArraySource, PackedPart, PanicCode, RevertPayload,
+    RevertReason, SliceLocation, Value, ValueId, memory::EvmMemoryLayout,
 };
 use alloy_primitives::{U256, keccak256};
 use solar_ast::{BinOpKind, DataLocation, LitKind, StateMutability, StrKind, TypeSize, UnOpKind};
-use solar_data_structures::map::{FxHashMap, FxHashSet, FxIndexSet, StdEntry};
+use solar_data_structures::{
+    bit_set::DenseBitSet,
+    map::{FxHashMap, FxHashSet, FxIndexSet, StdEntry},
+};
 use solar_interface::{ByteSymbol, Ident, Span, Symbol, kw, sym};
 use solar_sema::{
     Gcx,
@@ -47,16 +50,14 @@ pub(super) struct LoweringContext<'gcx, 'ctx> {
     pub(super) module: &'ctx mut Module,
     pub(super) storage: &'ctx StorageLayout<'gcx>,
     pub(super) contract_id: hir::ContractId,
+    /// Contracts whose bytecode this contract embeds.
+    pub(super) bytecode_dependencies: &'gcx DenseBitSet<hir::ContractId>,
     pub(super) function_ids: &'ctx FxHashMap<hir::FunctionId, FunctionId>,
     pub(super) immutable_ids: &'ctx FxHashMap<VariableId, ImmutableId>,
-    pub(super) child_bytecodes: &'ctx FxHashMap<hir::ContractId, ContractBytecodes>,
     pub(super) state: &'ctx mut LoweringState,
     pub(super) shared_literals: &'ctx FxIndexSet<ByteSymbol>,
     pub(super) shared_word_literals: &'ctx FxHashSet<ByteSymbol>,
     pub(super) share_storage_bytes: bool,
-    /// Whether the compilation had already failed when the code generation
-    /// phase started.
-    pub(super) sema_errored: bool,
 }
 
 impl<'gcx, 'ctx> LoweringContext<'gcx, 'ctx> {
@@ -66,27 +67,18 @@ impl<'gcx, 'ctx> LoweringContext<'gcx, 'ctx> {
             module: &mut *self.module,
             storage: self.storage,
             contract_id: self.contract_id,
+            bytecode_dependencies: self.bytecode_dependencies,
             function_ids: self.function_ids,
             immutable_ids: self.immutable_ids,
-            child_bytecodes: self.child_bytecodes,
             state: &mut *self.state,
             shared_literals: self.shared_literals,
             shared_word_literals: self.shared_word_literals,
             share_storage_bytes: self.share_storage_bytes,
-            sema_errored: self.sema_errored,
         }
     }
 
     /// Reports a lowering bail-out and returns `None`.
-    ///
-    /// A bail-out is only worth reporting when the compilation would otherwise
-    /// succeed. After a sema error the bytecode is withheld anyway, and the
-    /// construct that lowering cannot handle is usually the rejected one, so
-    /// reporting it adds a second, misleading error.
     pub(super) fn report_unsupported<T>(&self, span: Span, what: &str) -> Option<T> {
-        if self.sema_errored {
-            return None;
-        }
         self.gcx
             .dcx()
             .err(format!("codegen rewrite does not support this {what} yet"))
@@ -107,6 +99,7 @@ pub(super) enum RecursiveStorageHelper {
 pub(super) struct LoweringState {
     pub(super) invalid_event_topics: FxHashSet<hir::EventId>,
     pub(super) pointer_registry: InternalFunctionPointerRegistry,
+    /// DO NOT ADD OTHER HELPER MAPS. USE THIS ONE ONLY.
     pub(super) helpers: FxHashMap<Symbol, FunctionId>,
 }
 
@@ -164,16 +157,8 @@ pub(super) fn lower(
             mir.abi_returns = Some(
                 context.module.intern_abi_layout(AbiLayout::new(output_shapes.into_boxed_slice())),
             );
-            let has_calldata_aggregate_return = hir_function.returns.iter().any(|&ret| {
-                types::TypeLowerer::mir_return_type(gcx.type_of_item(ret.into()))
-                    == MirType::Slice(SliceLocation::Calldata)
-            });
-            if has_calldata_aggregate_return
-                || output_param_shapes.iter().any(AbiParamType::needs_nested_return_cleanup)
-            {
-                mir.abi_return_params =
-                    Some(AbiParamLayout::new(output_param_shapes.into_boxed_slice()));
-            }
+            mir.abi_return_params =
+                Some(AbiParamLayout::new(output_param_shapes.into_boxed_slice()));
         }
     }
 
@@ -212,7 +197,7 @@ pub(super) fn lower_synthetic_constructor(
     lowerer.lower_implicit_base_constructors(contract_id)?;
     lowerer.lower_state_initializers(contract_id)?;
     if !lowerer.is_terminated() {
-        // stop !metadata(contract definition)
+        // ret !metadata(contract definition)
         lowerer.builder.replace_source_span(span);
         lowerer.finish(&[])?;
     }
@@ -328,13 +313,6 @@ struct ReturnTarget {
     states: Vec<LoopState>,
 }
 
-enum PreparedRevertPayload {
-    ShortString { length: ValueId, data: ValueId },
-    EmptyString,
-    ErrorString(ValueId),
-    CustomError { selector: ValueId, layout: Arc<AbiLayout>, values: Box<[ValueId]> },
-}
-
 #[derive(Clone, Copy, PartialEq, Eq)]
 struct StorageAccess {
     slot: ValueId,
@@ -348,12 +326,6 @@ enum LValuePlace<'gcx> {
     MemoryField { object: ValueId, layout: MemoryObjectLayout, field: u64, ty: Ty<'gcx> },
     MemoryElement { object: ValueId, layout: MemoryObjectLayout, index: ValueId, ty: Ty<'gcx> },
     MemoryByte { object: ValueId, index: ValueId, ty: Ty<'gcx> },
-}
-
-#[derive(Clone, Copy)]
-enum ArithmeticKind {
-    Unsigned(u16),
-    Signed(u16),
 }
 
 #[derive(Clone, Copy)]
@@ -375,8 +347,8 @@ impl BuiltinArgCount {
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub(super) struct InternalFunctionPointerShape {
-    params: Vec<MirType>,
-    returns: Vec<MirType>,
+    params: Vec<crate::mir::ValueLayout>,
+    returns: Vec<crate::mir::ValueLayout>,
 }
 
 impl InternalFunctionPointerShape {
@@ -385,28 +357,25 @@ impl InternalFunctionPointerShape {
             params: function
                 .parameters
                 .iter()
-                .map(|&ty| types::TypeLowerer::mir_type(ty))
+                .map(|&ty| types::TypeLowerer::value_layout(ty))
                 .collect(),
             returns: function
                 .returns
                 .iter()
-                .map(|&ty| types::TypeLowerer::mir_return_type(ty))
+                .map(|&ty| types::TypeLowerer::value_layout(ty))
                 .collect(),
-        }
-    }
-
-    fn from_function(function: &Function) -> Self {
-        Self {
-            params: function.params.iter().copied().skip(1).collect(),
-            returns: function.returns.clone(),
         }
     }
 
     fn is_assembly_cast_compatible_with(&self, target: &Self) -> bool {
         // Assembly casts preserve these full-word argument representations. Keep return shapes
         // exact because internal calls can expose dirty return words.
-        let canonicalize = |ty: MirType| {
-            if ty == MirType::Address || ty.is_full_abi_word() { MirType::uint256() } else { ty }
+        let canonicalize = |ty: crate::mir::ValueLayout| {
+            if ty == crate::mir::ValueLayout::Address || ty.is_full_abi_word() {
+                crate::mir::ValueLayout::uint256()
+            } else {
+                ty
+            }
         };
         self.params.iter().copied().map(canonicalize).eq(target
             .params
@@ -437,6 +406,7 @@ fn helper_name(prefix: Symbol, suffix: impl Display) -> Symbol {
 #[derive(Default)]
 pub(super) struct InternalFunctionPointerRegistry {
     targets: FxHashSet<hir::FunctionId>,
+    dispatchers: FxHashMap<FunctionId, InternalFunctionPointerShape>,
 }
 
 fn internal_function_pointer_id(function_id: hir::FunctionId) -> u64 {
@@ -448,7 +418,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let gcx = cx.gcx;
         Self {
             cx,
-            builder: FunctionBuilder::new(function)
+            builder: FunctionBuilder::new_semantic(function)
                 .with_revert_strings(gcx.sess.opts.revert_strings),
             types: types::TypeLowerer::new(gcx),
             values: FxHashMap::default(),
@@ -492,7 +462,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
         let mut function = Function::new(ident);
         if build(self, &mut function).is_none() {
-            FunctionBuilder::new(&mut function).invalid();
+            FunctionBuilder::new_semantic(&mut function).invalid();
             *self.cx.module.function_mut(id) = function;
             self.cx.state.helpers.remove(&name);
             return None;
@@ -680,36 +650,59 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     return self.report_unsupported_udvt_operator(expr.span);
                 }
                 let lhs_ty = self.cx.gcx.type_of_expr(lhs.id);
-                let mut lhs = self.lower_expr(lhs)?;
+                let rhs_ty = self.cx.gcx.type_of_expr(rhs.id);
+                let fixed_bytes = |ty: Option<Ty<'gcx>>| {
+                    ty.is_some_and(|ty| {
+                        matches!(
+                            ty.peel_refs().kind,
+                            TyKind::Elementary(solar_sema::hir::ElementaryType::FixedBytes(_))
+                        )
+                    })
+                };
+                let rhs_literal =
+                    rhs_ty.is_some_and(|ty| {
+                        matches!(
+                            ty.peel_refs().kind,
+                            TyKind::IntLiteral(..) | TyKind::StringLiteral(..)
+                        )
+                    }) && !matches!(op.kind, BinOpKind::Shl | BinOpKind::Shr | BinOpKind::Sar);
+                let lhs_literal = lhs_ty
+                    .is_some_and(|ty| matches!(ty.peel_refs().kind, TyKind::StringLiteral(..)));
+                // A literal operand of a fixed-bytes operation is that word.
+                // Build it directly instead of allocating a memory literal and
+                // reading its first word back through a helper call.
+                let rhs_word = if fixed_bytes(lhs_ty) && rhs_literal {
+                    lhs_ty.and_then(|ty| self.lower_fixed_bytes_literal(ty, rhs))
+                } else {
+                    None
+                };
+                let lhs_word = if fixed_bytes(rhs_ty) && lhs_literal {
+                    rhs_ty.and_then(|ty| self.lower_fixed_bytes_literal(ty, lhs))
+                } else {
+                    None
+                };
+                let mut lhs = match lhs_word {
+                    Some(word) => word,
+                    None => self.lower_expr(lhs)?,
+                };
                 if let Some(ty) = lhs_ty {
                     lhs = self.normalize_dirty_scalar(lhs, ty);
                 }
-                let rhs_ty = self.cx.gcx.type_of_expr(rhs.id);
-                let mut rhs = self.lower_expr(rhs)?;
+                let mut rhs = match rhs_word {
+                    Some(word) => word,
+                    None => self.lower_expr(rhs)?,
+                };
                 if let Some(ty) = rhs_ty {
                     rhs = self.normalize_dirty_scalar(rhs, ty);
                 }
                 let (lhs, rhs) = match (lhs_ty, rhs_ty) {
                     (Some(lhs_ty), Some(rhs_ty))
-                        if matches!(
-                            lhs_ty.peel_refs().kind,
-                            TyKind::Elementary(solar_sema::hir::ElementaryType::FixedBytes(_))
-                        ) && matches!(
-                            rhs_ty.peel_refs().kind,
-                            TyKind::IntLiteral(..) | TyKind::StringLiteral(..)
-                        ) && !matches!(
-                            op.kind,
-                            BinOpKind::Shl | BinOpKind::Shr | BinOpKind::Sar
-                        ) =>
+                        if rhs_word.is_none() && fixed_bytes(Some(lhs_ty)) && rhs_literal =>
                     {
                         (lhs, self.coerce_value(rhs, rhs_ty, lhs_ty))
                     }
                     (Some(lhs_ty), Some(rhs_ty))
-                        if matches!(lhs_ty.peel_refs().kind, TyKind::StringLiteral(..))
-                            && matches!(
-                                rhs_ty.peel_refs().kind,
-                                TyKind::Elementary(solar_sema::hir::ElementaryType::FixedBytes(_))
-                            ) =>
+                        if lhs_word.is_none() && lhs_literal && fixed_bytes(Some(rhs_ty)) =>
                     {
                         (self.coerce_value(lhs, lhs_ty, rhs_ty), rhs)
                     }
@@ -749,8 +742,24 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     result
                 })
             }
-            ExprKind::Call(callee, args, call_opts) => {
-                self.lower_call(expr, callee, *args, *call_opts)
+            ExprKind::Call(callee, args) => {
+                let (callee, call_opts) = callee.split_call_options();
+                self.lower_call(expr, callee, *args, call_opts)
+            }
+            ExprKind::CallOptions(callee, options) => {
+                let value = if self.discarded_exprs.contains(&expr.id) {
+                    match callee.peel_parens().kind {
+                        ExprKind::Member(receiver, _) => self.lower_discarded_expr(receiver)?,
+                        ExprKind::New(_) => self.builder.imm(0),
+                        _ => self.lower_discarded_expr(callee)?,
+                    }
+                } else {
+                    self.lower_expr(callee)?
+                };
+                for option in options.args {
+                    self.lower_discarded_expr(&option.value)?;
+                }
+                Some(value)
             }
             ExprKind::Delete(value) => {
                 self.delete_lvalue(value)?;
@@ -817,7 +826,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let fixed_bytes = operators::fixed_bytes_width(lhs_ty);
                 let rhs_ty = self.cx.gcx.type_of_expr(rhs.id).unwrap_or(lhs_ty);
                 let memory_rhs_ty = rhs_ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
-                let rhs_value = if self.in_inline_assembly {
+                // A literal assigned to a fixed-bytes place is that word.
+                // Building it directly avoids allocating a memory literal whose
+                // only use is the first word read back out of it; the
+                // allocation writes memory, so nothing later removes it.
+                let fixed_bytes_literal = (fixed_bytes.is_some() && compound_op.is_none())
+                    .then(|| self.lower_fixed_bytes_literal(lhs_ty, rhs))
+                    .flatten();
+                let rhs_value = if let Some(word) = fixed_bytes_literal {
+                    word
+                } else if self.in_inline_assembly {
                     self.lower_yul_word_expr(rhs)?
                 } else if self.types.memory_layout(memory_rhs_ty).is_some()
                     && rhs_ty.is_ref_at(DataLocation::Storage)
@@ -832,6 +850,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 } else {
                     self.lower_expr(rhs)?
                 };
+                // The literal word above is already the place's type, so the
+                // conversion below must not widen or shift it a second time.
+                let rhs_ty = if fixed_bytes_literal.is_some() { lhs_ty } else { rhs_ty };
                 if let Some(kind) = compound_op {
                     let place = self.resolve_lvalue_place(lhs)?;
                     let lhs_value = self.load_lvalue_place(&place)?;
@@ -922,7 +943,7 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
     let dispatchers = module
         .iter_functions()
         .filter(|(_, function)| function.attributes.is_function_pointer_dispatcher)
-        .map(|(id, function)| (InternalFunctionPointerShape::from_function(function), id))
+        .map(|(id, _)| (state.pointer_registry.dispatchers[&id].clone(), id))
         .collect::<Vec<_>>();
     for (shape, dispatcher) in dispatchers {
         let mut candidates = state
@@ -952,12 +973,42 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
         function.name = reserved.name;
         function.attributes.is_function_pointer_dispatcher = true;
         {
-            let mut builder = FunctionBuilder::new(&mut function);
-            let function_value = builder.add_param(MirType::Function);
-            let arguments =
-                shape.params.iter().copied().map(|ty| builder.add_param(ty)).collect::<Vec<_>>();
-            for ty in shape.returns.iter().copied() {
-                builder.add_return(ty);
+            let mut builder = FunctionBuilder::new_semantic(&mut function);
+            let function_value = builder.add_param(MirType::I256);
+            let arguments = shape
+                .params
+                .iter()
+                .copied()
+                .map(|ty| {
+                    builder.add_param(
+                        if matches!(
+                            ty,
+                            crate::mir::ValueLayout::Bool | crate::mir::ValueLayout::Address
+                        ) {
+                            MirType::I256
+                        } else {
+                            ty.mir_type()
+                        },
+                    )
+                })
+                .collect::<Vec<_>>();
+            if let Some(ty) = module.intern_return_type(
+                shape
+                    .returns
+                    .iter()
+                    .map(|ty| {
+                        if matches!(
+                            ty,
+                            crate::mir::ValueLayout::Bool | crate::mir::ValueLayout::Address
+                        ) {
+                            MirType::I256
+                        } else {
+                            ty.mir_type()
+                        }
+                    })
+                    .collect(),
+            ) {
+                builder.set_return_type(ty);
             }
 
             // for target {
@@ -984,49 +1035,21 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
                         if source == target {
                             argument
                         } else {
-                            AbiWordValidator::from_mir_type(target).map_or(argument, |validator| {
+                            AbiWordValidator::from_layout(target).map_or(argument, |validator| {
                                 validator.cleanup(&mut builder, argument)
                             })
                         }
                     })
                     .collect::<Vec<_>>();
                 if shape.returns.is_empty() {
-                    builder.icall_void(mir_id, call_arguments, 0);
+                    builder.icall_void(mir_id, call_arguments);
                     builder.ret([]);
                 } else {
-                    let result = builder.icall(
-                        mir_id,
-                        call_arguments,
-                        shape.returns[0],
-                        shape.returns.len(),
-                    );
-                    let mut values = Vec::with_capacity(shape.returns.len());
-                    values.push(result);
-                    if shape.returns.len() > 1 {
-                        let base =
-                            builder.frame_load(0, FrameMode::MultiReturn, FrameSlotKind::Word);
-                        let mut word_index =
-                            if matches!(shape.returns[0], MirType::Slice(_)) { 2 } else { 1 };
-                        for &ty in &shape.returns[1..] {
-                            let offset = u64::try_from(word_index)
-                                .unwrap_or(u64::MAX)
-                                .saturating_mul(EvmMemoryLayout::WORD_SIZE);
-                            let position = builder.add_u64_offset(base, offset);
-                            let first_word = builder.mload(position);
-                            let value = if let MirType::Slice(location) = ty {
-                                let length_position =
-                                    builder.add_u64_offset(position, EvmMemoryLayout::WORD_SIZE);
-                                let length = builder.mload(length_position);
-                                word_index += 2;
-                                builder.make_slice(first_word, length, location)
-                            } else {
-                                word_index += 1;
-                                first_word
-                            };
-                            values.push(value);
-                        }
-                    }
-                    builder.ret(values);
+                    // result = icall target(arguments)
+                    // ret result
+                    let result_ty = builder.func().return_components()[0];
+                    let result = builder.icall(mir_id, call_arguments, result_ty);
+                    builder.ret([result]);
                 }
                 builder.replace_source_span(previous_span);
                 builder.switch_to_block(next_block);
@@ -1063,13 +1086,6 @@ fn is_signed_packed_scalar(ty: Ty<'_>) -> bool {
         TyKind::Elementary(solar_sema::hir::ElementaryType::Int(_)) => true,
         _ => false,
     }
-}
-
-fn signed_bounds(bits: u16, builder: &mut FunctionBuilder<'_>) -> (ValueId, ValueId) {
-    let magnitude = U256::from(1) << (bits - 1);
-    let min = builder.imm(U256::MAX - magnitude + U256::ONE);
-    let max = builder.imm(magnitude - U256::ONE);
-    (min, max)
 }
 
 fn report_error<T>(gcx: Gcx<'_>, span: Span, message: &'static str) -> Option<T> {

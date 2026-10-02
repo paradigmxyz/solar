@@ -3,20 +3,24 @@
   @module module
   bb0:
     push 1
-    iszero
-    push bb2
+-   iszero
+-   push bb2
++   push bb1
     jumpi
-    jump bb1
+-   jump bb1
++   jump bb2
   bb1 [cold]:
     push_deferred 0
     dup 1
     revert
   bb2:
     push 1
-    iszero
-    push bb4
+-   iszero
+-   push bb4
++   push bb3
     jumpi
-    jump bb3
+-   jump bb3
++   jump bb4
   bb3 [cold]:
     push_immutable 0, 32
     dup 1

@@ -1,0 +1,630 @@
+- // === ROOT/tests/ui/codegen/mir/egraph/scalar_simplification.mir (before egraph) ===
++ // === ROOT/tests/ui/codegen/mir/egraph/scalar_simplification.mir (after egraph) ===
+  @module ScalarSimplification
+  @types
+    struct0: {i256, i256, i256, i256, i256}
+    struct1: {i256, i256, i256, i256, i256, i256, i256, i256, i256, i1, i1, i256, i256, i256, i256, i256, i256, i256, i256, i256, i256}
+    struct2: {i256, i256}
+    struct3: {i256, i256, i256, i256, i1, i1, i1, i1, i256, i256}
+    struct4: {i256, i256, i1, i1, i1, i256, i256, i256, i256}
+    struct5: {i1, i1, i256, i1, i1}
+  
+  fn @strength_reduce_arithmetic(arg0: i256) -> i256 {
+    bb0:
+-     v0 = mul arg0, 32
+-     v1 = div v0, 8
+-     v2 = mod arg0, 16
+-     v3 = exp arg0, 2
++     v0 = shl 5, arg0
++     v1 = shr 3, v0
++     v2 = and arg0, 15
++     v3 = mul arg0, arg0
+      v4 = add arg0, 4
+-     v5 = add v4, 28
++     v5 = add arg0, 32
+      v6 = and arg0, 255
+-     v7 = and v6, 15
+      v8 = add v1, v2
+      v9 = add v3, v5
+      v10 = add v8, v9
+-     v11 = add v10, v7
++     v11 = add v10, v2
+      ret v11
+  }
+  
+  fn @simplify_booleans(arg0: i1, arg1: i256, arg2: i256) -> struct5 [return_abi=[i1, i1, i256, i1, i1]] {
+    bb0:
+-     v0 = eq arg0, true
+      v1 = eq arg0, false
+-     v2 = select true, arg1, arg2
+-     v3 = select arg0, true, false
+      v4 = select arg0, false, true
+-     ret v0, v1, v2, v3, v4
++     ret arg0, v1, arg1, arg0, v4
+  }
+  
+  fn @remove_zero_length_copies(arg0: i256) -> i256 {
+    bb0:
+-     mcopy 64, 96, 0
+-     calldatacopy 128, 0, 0
+-     codecopy 160, 0, 0
+-     returndatacopy 192, 0, 0
+      ret arg0
+  }
+  
+  fn @stop_zero_length_external_return(arg0: i256) [selector=0x01020304] {
+    bb0:
+-     v0 = xor arg0, arg0
+-     returndata arg0, v0
++     stop
+  }
+  
+  fn @preserve_zero_length_internal_return(arg0: i256) {
+    bb0:
+      returndata arg0, 0
+  }
+  
+  fn @fold_modular_helpers(arg0: i256) -> i256 {
+    bb0:
+-     v0 = addmod arg0, 0, 0
+-     v1 = mulmod arg0, 0, 97
+-     v2 = add v0, v1
+-     ret v2
++     ret 0
+  }
+  
+  fn @complete_word_identities(arg0: i256, arg1: i1) -> struct4 [return_abi=[i256, i256, i1, i1, i1, i256, i256, i256, i256]] {
+    bb0:
+-     v0 = or arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-     v1 = xor arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
++     v1 = not arg0
+      v2 = eq arg1, false
+-     v3 = eq v2, false
+      v4 = zext i1 arg1 to i256
+-     v5 = lt 0, v4
+-     v6 = zext i1 arg1 to i256
+-     v7 = gt v6, 0
+-     v8 = shl 256, arg0
+-     v9 = shr 300, arg0
+-     v10 = byte 32, arg0
+-     v11 = signextend 32, arg0
+-     ret v0, v1, v3, v5, v7, v8, v9, v10, v11
++     ret 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, v1, arg1, arg1, arg1, 0, 0, 0, arg0
+  }
+  
+  fn @complete_exact_identities(arg0: i256, arg1: i1) -> struct3 [return_abi=[i256, i256, i256, i256, i1, i1, i1, i1, i256, i256]] {
+    bb0:
+      v0 = not arg0
+-     v1 = and arg0, v0
+-     v2 = or arg0, v0
+-     v3 = xor arg0, v0
+      v4 = zext i1 arg1 to i256
+-     v5 = lt v4, 2
+-     v6 = zext i1 arg1 to i256
+-     v7 = lt 1, v6
+-     v8 = zext i1 arg1 to i256
+-     v9 = gt 2, v8
+-     v10 = zext i1 arg1 to i256
+-     v11 = gt v10, 1
+-     v12 = byte 0, 0
+-     v13 = signextend 3, 0
+-     ret v0, v1, v2, v3, v5, v7, v9, v11, v12, v13
++     ret v0, 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, true, false, true, false, 0, 0
+  }
+  
+  fn @fold_modular_mod_one(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+-     v0 = addmod arg0, arg1, 1
+-     v1 = mulmod arg0, arg1, 1
+-     v2 = add v0, v1
+-     ret v2
++     ret 0
+  }
+  
+  fn @keep_exp_zero_base_with_unknown_exponent(arg0: i256) -> i256 {
+    bb0:
+      v0 = exp 0, arg0
+      ret v0
+  }
+  
+  fn @fold_wide_modular_constants() -> struct2 [return_abi=[i256, i256]] {
+    bb0:
+-     v0 = addmod 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 2, 3
+-     v1 = mulmod 0x100000000000000000000000000000000, 0x100000000000000000000000000000000, 7
+-     ret v0, v1
++     ret 2, 2
+  }
+  
+  fn @fold_constant_ops() -> struct1 [return_abi=[i256, i256, i256, i256, i256, i256, i256, i256, i256, i1, i1, i256, i256, i256, i256, i256, i256, i256, i256, i256, i256]] {
+    bb0:
+-     v0 = add 7, 5
+-     v1 = sub 7, 9
+-     v2 = mul 6, 7
+-     v3 = div 42, 5
+-     v4 = div 42, 0
+-     v5 = mod 42, 5
+-     v6 = exp 2, 8
+-     v7 = not 6
+-     v8 = not 2
+-     v9 = sdiv v7, v8
+-     v10 = smod v7, 5
+-     v11 = slt v7, 1
+-     v12 = sgt 1, v7
+-     v13 = and 255, 15
+-     v14 = or 16, 1
+-     v15 = xor 15, 3
+-     v16 = shl 8, 1
+-     v17 = shr 4, 256
+-     v18 = sar 1, v7
+-     v19 = byte 31, 255
+-     v20 = signextend 0, 255
+-     v21 = addmod 5, 7, 10
+-     v22 = mulmod 5, 7, 10
+-     ret v0, v1, v2, v3, v4, v5, v6, v9, v10, v11, v12, v13, v14, v15, v16, v17, v18, v19, v20, v21, v22
++     ret 12, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe, 42, 8, 0, 2, 256, 2, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe, true, true, 15, 17, 12, 256, 16, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffc, 255, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 2, 5
+  }
+  
+  fn @fold_clz_constants() -> struct0 [return_abi=[i256, i256, i256, i256, i256]] {
+    bb0:
+-     v0 = clz 0
+-     v1 = clz 1
+-     v2 = clz 255
+-     v3 = clz 0x4000000000000000000000000000000000000000000000000000000000000000
+-     v4 = clz 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-     ret v0, v1, v2, v3, v4
++     ret 256, 255, 248, 1, 0
+  }
+  
+  fn @checked_constants() -> i256 {
+    bb0:
+      v0 = checked_add u8, 255, 1
+      v1 = checked_div i8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      v2 = checked_div u256, 1, 0
+-     v3 = checked_pow u8, 3, 5
+-     ret v3
++     ret 243
+  }
+  
+  fn @wrapping_signed_division() -> i256 {
+    bb0:
+-     v0 = wrapping_div i8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-     ret v0
++     ret 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80
+  }
+  
+  fn @constant_checks(arg0: i1) {
+    bb0:
+-     icall panic_if<0x1>, false
+-     icall panic_if_zero<0x12>, true
+-     icall revert_if<empty>, false
+-     icall revert_if_zero<tuple_data_too_short>, true
+      icall panic_if<0x11>, true
+      icall revert_if_zero<empty>, arg0
+      ret
+  }
+  
+  fn @constant_require(arg0: memptr) {
+    bb0:
+-     icall require<error_string>, true, arg0
+      icall require<empty_string>, false
+      ret
+  }
+  
+  fn @checked_modular() -> i256 {
+    bb0:
+-     v0 = icall checked_addmod<>, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 2, 3
+-     v1 = icall checked_mulmod<>, 5, 5, 7
+-     v2 = add v0, v1
+-     ret v2
++     ret 6
+  }
+  
+  fn @checked_modular_zero(arg0: i256) {
+    bb0:
+      v0 = icall checked_addmod<>, arg0, 0, 0
+      v1 = icall checked_mulmod<>, 0, arg0, 0
+      ret
+  }
+  
+  fn @check_polarity(arg0: i1) {
+    bb0:
+      v0 = eq arg0, false
+-     icall panic_if<0x1>, v0
+-     icall panic_if_zero<0x11>, v0
+-     icall revert_if<tuple_data_too_short>, v0
++     icall panic_if_zero<0x1>, arg0
++     icall panic_if<0x11>, arg0
++     icall revert_if_zero<tuple_data_too_short>, arg0
+      ret
+  }
+  
+  fn @word_check_polarity(arg0: i256) {
+    bb0:
+      v0 = eq arg0, 0
+      icall panic_if<0x1>, v0
+      ret
+  }
+  
+  fn @sext_chain(arg0: i1) -> i256 {
+    bb0:
+      v0 = sext i1 arg0 to i160
+-     v1 = sext i160 v0 to i256
++     v1 = sext i1 arg0 to i256
+      ret v1
+  }
+  
+  fn @zext_chain(arg0: i1) -> i256 {
+    bb0:
+      v0 = zext i1 arg0 to i160
+-     v1 = zext i160 v0 to i256
++     v1 = zext i1 arg0 to i256
+      ret v1
+  }
+  
+  fn @sext_zext(arg0: i1) -> i256 {
+    bb0:
+      v0 = zext i1 arg0 to i160
+-     v1 = sext i160 v0 to i256
++     v1 = zext i1 arg0 to i256
+      ret v1
+  }
+  
+  fn @trunc_chain(arg0: i256) -> i1 {
+    bb0:
+      v0 = trunc i256 arg0 to i160
+-     v1 = trunc i160 v0 to i1
++     v1 = trunc i256 arg0 to i1
+      ret v1
+  }
+  
+  fn @trunc_zext_identity(arg0: i160) -> i160 {
+    bb0:
+      v0 = zext i160 arg0 to i256
+-     v1 = trunc i256 v0 to i160
+-     ret v1
++     ret arg0
+  }
+  
+  fn @trunc_sext_identity(arg0: i160) -> i160 {
+    bb0:
+      v0 = sext i160 arg0 to i256
+-     v1 = trunc i256 v0 to i160
+-     ret v1
++     ret arg0
+  }
+  
+  fn @trunc_zext_shorter(arg0: i1) -> i160 {
+    bb0:
+      v0 = zext i1 arg0 to i256
+-     v1 = trunc i256 v0 to i160
++     v1 = zext i1 arg0 to i160
+      ret v1
+  }
+  
+  fn @trunc_sext_shorter(arg0: i1) -> i160 {
+    bb0:
+      v0 = sext i1 arg0 to i256
+-     v1 = trunc i256 v0 to i160
++     v1 = sext i1 arg0 to i160
+      ret v1
+  }
+  
+  fn @trunc_zext_narrower(arg0: i160) -> i1 {
+    bb0:
+      v0 = zext i160 arg0 to i256
+-     v1 = trunc i256 v0 to i1
++     v1 = trunc i160 arg0 to i1
+      ret v1
+  }
+  
+  fn @trunc_sext_narrower(arg0: i160) -> i1 {
+    bb0:
+      v0 = sext i160 arg0 to i256
+-     v1 = trunc i256 v0 to i1
++     v1 = trunc i160 arg0 to i1
+      ret v1
+  }
+  
+  fn @ptr_roundtrip(arg0: memptr) -> memptr {
+    bb0:
+      v0 = ptrtoint memptr arg0 to i256
+-     v1 = inttoptr i256 v0 to memptr
+-     ret v1
++     ret arg0
+  }
+  
+  fn @int_ptr_roundtrip(arg0: i160) -> i160 {
+    bb0:
+      v0 = inttoptr i160 arg0 to memptr
+-     v1 = ptrtoint memptr v0 to i160
+-     ret v1
++     ret arg0
+  }
+  
+  fn @int_ptr_widen(arg0: i160) -> i256 {
+    bb0:
+      v0 = inttoptr i160 arg0 to memptr
+-     v1 = ptrtoint memptr v0 to i256
++     v1 = zext i160 arg0 to i256
+      ret v1
+  }
+  
+  fn @int_ptr_narrow(arg0: i160) -> i1 {
+    bb0:
+      v0 = inttoptr i160 arg0 to memptr
+-     v1 = ptrtoint memptr v0 to i1
++     v1 = trunc i160 arg0 to i1
+      ret v1
+  }
+  
+  fn @ptr_trunc(arg0: memptr) -> i1 {
+    bb0:
+      v0 = ptrtoint memptr arg0 to i160
+-     v1 = trunc i160 v0 to i1
++     v1 = ptrtoint memptr arg0 to i1
+      ret v1
+  }
+  
+  fn @ptr_narrow_preserved(arg0: memptr) -> memptr {
+    bb0:
+      v0 = ptrtoint memptr arg0 to i160
+      v1 = inttoptr i160 v0 to memptr
+      ret v1
+  }
+  
+  fn @wide_ptr_roundtrip_preserved(arg0: i512) -> i512 {
+    bb0:
+      v0 = inttoptr i512 arg0 to memptr
+      v1 = ptrtoint memptr v0 to i512
+      ret v1
+  }
+  
+  fn @sext_then_zext_preserved(arg0: i1) -> i256 {
+    bb0:
+      v0 = sext i1 arg0 to i160
+      v1 = zext i160 v0 to i256
+      ret v1
+  }
+  
+  fn @call_address_cast(arg0: i256) -> i1 {
+    bb0:
+      v0 = trunc i256 arg0 to i160
+      v1 = zext i160 v0 to i256
+-     v2 = call 100, v1, 0, 0, 0, 0, 0
++     v2 = call 100, arg0, 0, 0, 0, 0, 0
+      ret v2
+  }
+  
+  fn @callcode_address_cast(arg0: i256) -> i1 {
+    bb0:
+      v0 = trunc i256 arg0 to i160
+      v1 = zext i160 v0 to i256
+-     v2 = callcode 100, v1, 0, 0, 0, 0, 0
++     v2 = callcode 100, arg0, 0, 0, 0, 0, 0
+      ret v2
+  }
+  
+  fn @staticcall_address_cast(arg0: i256) -> i1 {
+    bb0:
+      v0 = trunc i256 arg0 to i160
+      v1 = zext i160 v0 to i256
+-     v2 = staticcall 100, v1, 0, 0, 0, 0
++     v2 = staticcall 100, arg0, 0, 0, 0, 0
+      ret v2
+  }
+  
+  fn @delegatecall_address_cast(arg0: i256) -> i1 {
+    bb0:
+      v0 = trunc i256 arg0 to i160
+      v1 = zext i160 v0 to i256
+-     v2 = delegatecall 100, v1, 0, 0, 0, 0
++     v2 = delegatecall 100, arg0, 0, 0, 0, 0
+      ret v2
+  }
+  
+  fn @shared_address_cast(arg0: i256) -> i160 {
+    bb0:
+      v0 = trunc i256 arg0 to i160
+      v1 = zext i160 v0 to i256
+      v2 = call 100, v1, 0, 0, 0, 0, 0
+      ret v0
+  }
+  
+  fn @cross_block_address_cast(arg0: i256) -> i1 {
+    bb0:
+      v0 = trunc i256 arg0 to i160
+      v1 = zext i160 v0 to i256
+      jump bb1
+    bb1:
+      v2 = call 100, v1, 0, 0, 0, 0, 0
+      ret v2
+  }
+  
+  fn @nested_select_false(arg0: i1, arg1: i256, arg2: i256, arg3: i256) -> i256 {
+    bb0:
+      v0 = select arg0, arg2, arg3
+-     v1 = select arg0, arg1, v0
++     v1 = select arg0, arg1, arg3
+      ret v1
+  }
+  
+  fn @nested_select_true(arg0: i1, arg1: i256, arg2: i256, arg3: i256) -> i256 {
+    bb0:
+      v0 = select arg0, arg1, arg2
+-     v1 = select arg0, v0, arg3
++     v1 = select arg0, arg1, arg3
+      ret v1
+  }
+  
+  fn @equal_select_0(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      v0 = eq arg0, arg1
+-     v1 = select v0, arg0, arg1
+-     ret v1
++     ret arg1
+  }
+  
+  fn @equal_select_1(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      v0 = eq arg1, arg0
+-     v1 = select v0, arg0, arg1
+-     ret v1
++     ret arg1
+  }
+  
+  fn @bit_test_select_0(arg0: i256) -> i256 {
+    bb0:
+      v0 = and arg0, 255
+      v1 = eq v0, 0
+      v2 = and arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+-     v3 = select v1, v2, arg0
+-     ret v3
++     ret arg0
+  }
+  
+  fn @bit_test_select_1(arg0: i256) -> i256 {
+    bb0:
+      v0 = and arg0, 255
+      v1 = eq v0, 0
+      v2 = and arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+-     v3 = select v1, arg0, v2
+-     ret v3
++     ret v2
+  }
+  
+  fn @bit_test_select_2(arg0: i256) -> i256 {
+    bb0:
+      v0 = and arg0, 255
+      v1 = eq v0, 0
+      v2 = and arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+      v3 = ne v0, 0
+-     v4 = select v3, v2, arg0
+-     ret v4
++     ret v2
+  }
+  
+  fn @bit_test_select_3(arg0: i256) -> i256 {
+    bb0:
+      v0 = and arg0, 255
+      v1 = eq v0, 0
+      v2 = and arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+      v3 = ne v0, 0
+-     v4 = select v3, arg0, v2
+-     ret v4
++     ret arg0
+  }
+  
+  fn @bit_test_select_distinct_mask(arg0: i256) -> i256 {
+    bb0:
+      v0 = and arg0, 255
+      v1 = eq v0, 0
+      v2 = and arg0, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffeff00
+      v3 = select v1, v2, arg0
+      ret v3
+  }
+  
+  fn @ne_sub(arg0: i256, arg1: i256) -> i1 {
+    bb0:
+      v0 = sub arg0, arg1
+-     v1 = ne v0, 0
++     v1 = ne arg0, arg1
+      ret v1
+  }
+  
+  fn @ne_xor(arg0: i256, arg1: i256) -> i1 {
+    bb0:
+      v0 = xor arg0, arg1
+-     v1 = ne v0, 0
++     v1 = ne arg0, arg1
+      ret v1
+  }
+  
+  fn @ne_not(arg0: i256, arg1: i256) -> i1 {
+    bb0:
+      v0 = not arg0
+      v1 = not arg1
+-     v2 = ne v0, v1
++     v2 = ne arg0, arg1
+      ret v2
+  }
+  
+  fn @ne_bool_true(arg0: i1) -> i1 {
+    bb0:
+-     v0 = ne arg0, true
++     v0 = eq arg0, false
+      ret v0
+  }
+  
+  fn @ne_bool_true_swapped(arg0: i1) -> i1 {
+    bb0:
+-     v0 = ne true, arg0
++     v0 = eq arg0, false
+      ret v0
+  }
+  
+  fn @ne_clz_one(arg0: i256) -> i1 {
+    bb0:
+      v0 = clz arg0
+-     v1 = ne v0, 255
++     v1 = ne arg0, 1
+      ret v1
+  }
+  
+  fn @ne_clz_zero(arg0: i256) -> i1 {
+    bb0:
+      v0 = clz arg0
+-     v1 = ne 256, v0
++     v1 = ne arg0, 0
+      ret v1
+  }
+  
+  fn @ne_byte_bound(arg0: i256) -> i1 {
+    bb0:
+      v0 = byte 31, arg0
+-     v1 = ne v0, 256
+-     ret v1
++     ret true
+  }
+  
+  fn @ne_byte_bound_swapped(arg0: i256) -> i1 {
+    bb0:
+      v0 = byte 31, arg0
+-     v1 = ne 256, v0
+-     ret v1
++     ret true
+  }
+  
+  fn @ne_clz_bound(arg0: i256) -> i1 {
+    bb0:
+      v0 = clz arg0
+-     v1 = ne v0, 257
+-     ret v1
++     ret true
+  }
+  
+  fn @ne_clz_bound_swapped(arg0: i256) -> i1 {
+    bb0:
+      v0 = clz arg0
+-     v1 = ne 257, v0
+-     ret v1
++     ret true
+  }
+  
+  fn @eq_sign_extensions(arg0: i160, arg1: i160) -> i1 {
+    bb0:
+      v0 = sext i160 arg0 to i256
+      v1 = sext i160 arg1 to i256
+-     v2 = eq v0, v1
++     v2 = eq arg0, arg1
+      ret v2
+  }
+  
+  fn @ne_sign_extensions(arg0: i160, arg1: i160) -> i1 {
+    bb0:
+      v0 = sext i160 arg0 to i256
+      v1 = sext i160 arg1 to i256
+-     v2 = ne v0, v1
++     v2 = ne arg0, arg1
+      ret v2
+  }
+  

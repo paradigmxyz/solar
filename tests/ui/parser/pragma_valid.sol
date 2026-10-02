@@ -19,3 +19,6 @@ pragma "experimental" ABIEncoderV2;
 pragma "experimental" "ABIEncoderV2";
 pragma "experimental" SMTChecker;
 pragma "experimental" "SMTChecker";
+
+pragma solidity ^0.8.27.0;
+pragma solidity ^0.8.30.1;

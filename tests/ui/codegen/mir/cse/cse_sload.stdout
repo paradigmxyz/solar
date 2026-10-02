@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/cse/cse_sload.mir (before cse) ===
 + // === ROOT/tests/ui/codegen/mir/cse/cse_sload.mir (after cse) ===
   @module CseSload
-  fn @sload_cse(arg0: u256) -> u256 {
+  fn @sload_cse(arg0: i256) -> i256 {
     bb0:
       v0 = sload arg0
 -     v1 = sload arg0
@@ -10,12 +10,24 @@
       ret v2
   }
   
-  fn @sload_after_sstore(arg0: u256, arg1: u256) -> u256 {
+  fn @sload_after_sstore(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = sload arg0
       sstore arg0, arg1
       v1 = sload arg0
       v2 = add v0, v1
       ret v2
+  }
+  
+  fn @sload_inside_gas_interval(arg0: i256) -> i256 {
+    bb0:
+      v0 = gas
+      v1 = sload arg0
+      v2 = sload arg0
+      v3 = gas
+      v4 = add v0, v1
+      v5 = add v2, v3
+      v6 = add v4, v5
+      ret v6
   }
   

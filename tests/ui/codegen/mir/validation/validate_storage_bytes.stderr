@@ -1,0 +1,18 @@
+error: [fn0] [bb0, inst0] `validate_storage_bytes` has incompatible scalar types; use an explicit cast
+
+error: [fn1] [bb0, inst0] `load_storage_bytes` has incompatible scalar types; use an explicit cast
+
+error: [fn2] [bb0, inst0] `clear_storage_words` has incompatible scalar types; use an explicit cast
+
+error: [fn3] [bb0, inst0] `store_storage_bytes` has incompatible scalar types; use an explicit cast
+
+error: [fn4] [bb0, inst0] instruction result or layout does not match its type contract
+
+error: [fn5] [bb0, inst0] instruction result or layout does not match its type contract
+
+error: [fn6] [bb0, inst0] `load_storage_array` has incompatible scalar types; use an explicit cast
+
+error: [fn7] [bb0, inst0] `store_storage_bytes_literal` has incompatible scalar types; use an explicit cast
+
+error: aborting due to 8 previous errors
+

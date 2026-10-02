@@ -1,0 +1,717 @@
+//@compile-flags: -Zmir-pipeline=egraph
+//@filecheck:
+@module ScalarSimplification
+// CHECK-LABEL: {{^[ +].*}}fn @strength_reduce_arithmetic{{[( ]}}
+// CHECK: {{^[ +].*}}[[SHIFTED:v[0-9]+]] = shl 5, arg0
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = shr 3, [[SHIFTED]]
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = and arg0, 15
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = mul arg0, arg0
+@types
+  struct0: {i256, i256, i256, i256, i256}
+  struct1: {i256, i256, i256, i256, i256, i256, i256, i256, i256, i1, i1, i256, i256, i256, i256, i256, i256, i256, i256, i256, i256}
+  struct2: {i256, i256}
+  struct3: {i256, i256, i256, i256, i1, i1, i1, i1, i256, i256}
+  struct4: {i256, i256, i1, i1, i1, i256, i256, i256, i256}
+  struct5: {i1, i1, i256, i1, i1}
+
+fn @strength_reduce_arithmetic(arg0: i256) -> i256 {
+  bb0:
+    v1 = mul arg0, 32
+    v2 = div v1, 8
+    v3 = mod arg0, 16
+    v4 = exp arg0, 2
+    v5 = add arg0, 4
+    v6 = add v5, 28
+    v7 = and arg0, 255
+    v8 = and v7, 15
+    v9 = add v2, v3
+    v10 = add v4, v6
+    v11 = add v9, v10
+    v12 = add v11, v8
+    ret v12
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @simplify_booleans{{[( ]}}
+// CHECK: {{^[ +].*}}[[IS_FALSE:v[0-9]+]] = eq arg0, false
+// CHECK: {{^[ +].*}}[[SELECT_FALSE:v[0-9]+]] = select arg0, false, true
+// CHECK: {{^[ +].*}}ret arg0, [[IS_FALSE]], arg1, arg0, [[SELECT_FALSE]]
+fn @simplify_booleans(arg0: i1, arg1: i256, arg2: i256) -> struct5 [return_abi=[i1, i1, i256, i1, i1]] {
+  bb0:
+    v3 = eq arg0, true
+    v4 = eq arg0, false
+    v5 = select true, arg1, arg2
+    v6 = select arg0, true, false
+    v7 = select arg0, false, true
+    ret v3, v4, v5, v6, v7
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @remove_zero_length_copies{{[( ]}}
+// CHECK: - mcopy
+// CHECK: - calldatacopy
+// CHECK: - codecopy
+// CHECK: - returndatacopy
+// CHECK: {{^[ +].*}}ret arg0
+fn @remove_zero_length_copies(arg0: i256) -> i256 {
+  bb0:
+    mcopy 64, 96, 0
+    calldatacopy 128, 0, 0
+    codecopy 160, 0, 0
+    returndatacopy 192, 0, 0
+    ret arg0
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @stop_zero_length_external_return{{[( ]}}
+// CHECK: + stop
+fn @stop_zero_length_external_return(arg0: i256) [selector=0x01020304] {
+  bb0:
+    v1 = xor arg0, arg0
+    returndata arg0, v1
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @preserve_zero_length_internal_return{{[( ]}}
+// CHECK: {{^[ +].*}}returndata arg0, 0
+fn @preserve_zero_length_internal_return(arg0: i256) {
+  bb0:
+    returndata arg0, 0
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @fold_modular_helpers{{[( ]}}
+// CHECK: + ret 0
+fn @fold_modular_helpers(arg0: i256) -> i256 {
+  bb0:
+    v1 = addmod arg0, 0, 0
+    v2 = mulmod arg0, 0, 97
+    v3 = add v1, v2
+    ret v3
+}
+
+// Flipped comparisons share the constant-right definition.
+// CHECK-LABEL: {{^[ +].*}}fn @complete_word_identities{{[( ]}}
+// CHECK: {{^[ +].*}}[[NOT:v[0-9]+]] = not arg0
+// CHECK-NOT: {{^[ +].*}}= gt
+// CHECK: {{^[ +].*}}ret 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, [[NOT]], arg1, arg1, arg1, 0, 0, 0, arg0
+fn @complete_word_identities(arg0: i256, arg1: i1) -> struct4 [return_abi=[i256, i256, i1, i1, i1, i256, i256, i256, i256]] {
+  bb0:
+    v2 = or arg0, 115792089237316195423570985008687907853269984665640564039457584007913129639935
+    v3 = xor arg0, 115792089237316195423570985008687907853269984665640564039457584007913129639935
+    v4 = eq arg1, false
+    v5 = eq v4, false
+    v12 = zext i1 arg1 to i256
+    v6 = lt 0, v12
+    v13 = zext i1 arg1 to i256
+    v7 = gt v13, 0
+    v8 = shl 256, arg0
+    v9 = shr 300, arg0
+    v10 = byte 32, arg0
+    v11 = signextend 32, arg0
+    ret v2, v3, v5, v6, v7, v8, v9, v10, v11
+}
+
+// Comparisons against constants fold using the boolean operand's range.
+// CHECK-LABEL: {{^[ +].*}}fn @complete_exact_identities{{[( ]}}
+// CHECK-NOT: {{^[ +].*}}= gt
+// CHECK: {{^[ +].*}}ret [[NOT:v[0-9]+]], 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, true, false, true, false, 0, 0
+fn @complete_exact_identities(arg0: i256, arg1: i1) -> struct3 [return_abi=[i256, i256, i256, i256, i1, i1, i1, i1, i256, i256]] {
+  bb0:
+    v2 = not arg0
+    v3 = and arg0, v2
+    v4 = or arg0, v2
+    v5 = xor arg0, v2
+    v12 = zext i1 arg1 to i256
+    v6 = lt v12, 2
+    v13 = zext i1 arg1 to i256
+    v7 = lt 1, v13
+    v14 = zext i1 arg1 to i256
+    v8 = gt 2, v14
+    v15 = zext i1 arg1 to i256
+    v9 = gt v15, 1
+    v10 = byte 0, 0
+    v11 = signextend 3, 0
+    ret v2, v3, v4, v5, v6, v7, v8, v9, v10, v11
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @fold_modular_mod_one{{[( ]}}
+// CHECK: + ret 0
+fn @fold_modular_mod_one(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v2 = addmod arg0, arg1, 1
+    v3 = mulmod arg0, arg1, 1
+    v4 = add v2, v3
+    ret v4
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @keep_exp_zero_base_with_unknown_exponent{{[( ]}}
+// CHECK: {{^[ +].*}}[[RESULT:v[0-9]+]] = exp 0, arg0
+// CHECK: {{^[ +].*}}ret [[RESULT]]
+fn @keep_exp_zero_base_with_unknown_exponent(arg0: i256) -> i256 {
+  bb0:
+    v1 = exp 0, arg0
+    ret v1
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @fold_wide_modular_constants{{[( ]}}
+// CHECK: + ret 2, 2
+fn @fold_wide_modular_constants() -> struct2 [return_abi=[i256, i256]] {
+  bb0:
+    v0 = addmod 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 2, 3
+    v1 = mulmod 0x100000000000000000000000000000000, 0x100000000000000000000000000000000, 7
+    ret v0, v1
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @fold_constant_ops{{[( ]}}
+// CHECK: + ret 12, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe, 42, 8, 0, 2, 256, 2, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe, true, true, 15, 17, 12, 256, 16, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffc, 255, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 2, 5
+fn @fold_constant_ops() -> struct1 [return_abi=[i256, i256, i256, i256, i256, i256, i256, i256, i256, i1, i1, i256, i256, i256, i256, i256, i256, i256, i256, i256, i256]] {
+  bb0:
+    v1 = add 7, 5
+    v2 = sub 7, 9
+    v3 = mul 6, 7
+    v4 = div 42, 5
+    v5 = div 42, 0
+    v6 = mod 42, 5
+    v7 = exp 2, 8
+    v8 = not 6
+    v9 = not 2
+    v10 = sdiv v8, v9
+    v11 = smod v8, 5
+    v12 = slt v8, 1
+    v13 = sgt 1, v8
+    v14 = and 255, 15
+    v15 = or 16, 1
+    v16 = xor 15, 3
+    v17 = shl 8, 1
+    v18 = shr 4, 256
+    v19 = sar 1, v8
+    v20 = byte 31, 255
+    v21 = signextend 0, 255
+    v22 = addmod 5, 7, 10
+    v23 = mulmod 5, 7, 10
+    ret v1, v2, v3, v4, v5, v6, v7, v10, v11, v12, v13, v14, v15, v16, v17, v18, v19, v20, v21, v22, v23
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @fold_clz_constants{{[( ]}}
+// CHECK: + ret 256, 255, 248, 1, 0
+fn @fold_clz_constants() -> struct0 [return_abi=[i256, i256, i256, i256, i256]] {
+  bb0:
+    v0 = clz 0
+    v1 = clz 1
+    v2 = clz 255
+    v3 = clz 0x4000000000000000000000000000000000000000000000000000000000000000
+    v4 = clz 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    ret v0, v1, v2, v3, v4
+}
+
+// CHECK-LABEL: fn @checked_constants
+// CHECK: {{^[ +].*}}checked_add u8, 255, 1
+// CHECK: {{^[ +].*}}checked_div i8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+// CHECK: {{^[ +].*}}checked_div u256, 1, 0
+// CHECK: {{^[ +].*}}ret 243
+fn @checked_constants() -> i256 {
+  bb0:
+    v0 = checked_add u8, 255, 1
+    v1 = checked_div i8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v2 = checked_div u256, 1, 0
+    v3 = checked_pow u8, 3, 5
+    ret v3
+}
+
+// CHECK-LABEL: fn @wrapping_signed_division
+// CHECK: {{^[ +].*}}ret 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80
+fn @wrapping_signed_division() -> i256 {
+  bb0:
+    v0 = wrapping_div i8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    ret v0
+}
+
+// CHECK-LABEL: fn @constant_checks
+// CHECK: - icall panic_if<0x1>, false
+// CHECK: - icall panic_if_zero<0x12>, true
+// CHECK: - icall revert_if<empty>, false
+// CHECK: - icall revert_if_zero<tuple_data_too_short>, true
+// CHECK: icall panic_if<0x11>, true
+// CHECK: icall revert_if_zero<empty>, arg0
+fn @constant_checks(arg0: i1) {
+  bb0:
+    icall panic_if<0x1>, false
+    icall panic_if_zero<0x12>, true
+    icall revert_if<empty>, false
+    icall revert_if_zero<tuple_data_too_short>, true
+    icall panic_if<0x11>, true
+    icall revert_if_zero<empty>, arg0
+    ret
+}
+
+// CHECK-LABEL: fn @constant_require
+// CHECK: - icall require<error_string>, true, arg0
+// CHECK: icall require<empty_string>, false
+fn @constant_require(arg0: memptr) {
+  bb0:
+    icall require<error_string>, true, arg0
+    icall require<empty_string>, false
+    ret
+}
+
+fn @checked_modular() -> i256 {
+  bb0:
+    v0 = icall checked_addmod<>, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 2, 3
+    v1 = icall checked_mulmod<>, 5, 5, 7
+    v2 = add v0, v1
+    ret v2
+}
+
+fn @checked_modular_zero(arg0: i256) {
+  bb0:
+    v0 = icall checked_addmod<>, arg0, 0, 0
+    v1 = icall checked_mulmod<>, 0, arg0, 0
+    ret
+}
+
+// CHECK-LABEL: fn @check_polarity
+// CHECK: + icall panic_if_zero<0x1>, arg0
+// CHECK: + icall panic_if<0x11>, arg0
+// CHECK: + icall revert_if_zero<tuple_data_too_short>, arg0
+fn @check_polarity(arg0: i1) {
+  bb0:
+    v0 = eq arg0, false
+    icall panic_if<0x1>, v0
+    icall panic_if_zero<0x11>, v0
+    icall revert_if<tuple_data_too_short>, v0
+    ret
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @word_check_polarity
+// CHECK: {{^[ +].*}}[[ZERO:v[0-9]+]] = eq arg0, 0
+// CHECK: {{^[ +].*}}icall panic_if<0x1>, [[ZERO]]
+fn @word_check_polarity(arg0: i256) {
+  bb0:
+    v0 = eq arg0, 0
+    icall panic_if<0x1>, v0
+    ret
+}
+
+// CHECK-LABEL: fn @sext_chain
+// CHECK: {{^[ +].*}}sext i1 arg0 to i256
+fn @sext_chain(arg0: i1) -> i256 {
+  bb0:
+    v0 = sext i1 arg0 to i160
+    v1 = sext i160 v0 to i256
+    ret v1
+}
+
+// CHECK-LABEL: fn @zext_chain
+// CHECK: {{^[ +].*}}zext i1 arg0 to i256
+fn @zext_chain(arg0: i1) -> i256 {
+  bb0:
+    v0 = zext i1 arg0 to i160
+    v1 = zext i160 v0 to i256
+    ret v1
+}
+
+// CHECK-LABEL: fn @sext_zext
+// CHECK: {{^[ +].*}}zext i1 arg0 to i256
+fn @sext_zext(arg0: i1) -> i256 {
+  bb0:
+    v0 = zext i1 arg0 to i160
+    v1 = sext i160 v0 to i256
+    ret v1
+}
+
+// CHECK-LABEL: fn @trunc_chain
+// CHECK: {{^[ +].*}}trunc i256 arg0 to i1
+fn @trunc_chain(arg0: i256) -> i1 {
+  bb0:
+    v0 = trunc i256 arg0 to i160
+    v1 = trunc i160 v0 to i1
+    ret v1
+}
+
+// CHECK-LABEL: fn @trunc_zext_identity
+// CHECK: {{^[ +].*}}ret arg0
+fn @trunc_zext_identity(arg0: i160) -> i160 {
+  bb0:
+    v0 = zext i160 arg0 to i256
+    v1 = trunc i256 v0 to i160
+    ret v1
+}
+
+// CHECK-LABEL: fn @trunc_sext_identity
+// CHECK: {{^[ +].*}}ret arg0
+fn @trunc_sext_identity(arg0: i160) -> i160 {
+  bb0:
+    v0 = sext i160 arg0 to i256
+    v1 = trunc i256 v0 to i160
+    ret v1
+}
+
+// CHECK-LABEL: fn @trunc_zext_shorter
+// CHECK: {{^[ +].*}}zext i1 arg0 to i160
+fn @trunc_zext_shorter(arg0: i1) -> i160 {
+  bb0:
+    v0 = zext i1 arg0 to i256
+    v1 = trunc i256 v0 to i160
+    ret v1
+}
+
+// CHECK-LABEL: fn @trunc_sext_shorter
+// CHECK: {{^[ +].*}}sext i1 arg0 to i160
+fn @trunc_sext_shorter(arg0: i1) -> i160 {
+  bb0:
+    v0 = sext i1 arg0 to i256
+    v1 = trunc i256 v0 to i160
+    ret v1
+}
+
+// CHECK-LABEL: fn @trunc_zext_narrower
+// CHECK: {{^[ +].*}}trunc i160 arg0 to i1
+fn @trunc_zext_narrower(arg0: i160) -> i1 {
+  bb0:
+    v0 = zext i160 arg0 to i256
+    v1 = trunc i256 v0 to i1
+    ret v1
+}
+
+// CHECK-LABEL: fn @trunc_sext_narrower
+// CHECK: {{^[ +].*}}trunc i160 arg0 to i1
+fn @trunc_sext_narrower(arg0: i160) -> i1 {
+  bb0:
+    v0 = sext i160 arg0 to i256
+    v1 = trunc i256 v0 to i1
+    ret v1
+}
+
+// CHECK-LABEL: fn @ptr_roundtrip
+// CHECK: {{^[ +].*}}ret arg0
+fn @ptr_roundtrip(arg0: memptr) -> memptr {
+  bb0:
+    v0 = ptrtoint memptr arg0 to i256
+    v1 = inttoptr i256 v0 to memptr
+    ret v1
+}
+
+// CHECK-LABEL: fn @int_ptr_roundtrip
+// CHECK: {{^[ +].*}}ret arg0
+fn @int_ptr_roundtrip(arg0: i160) -> i160 {
+  bb0:
+    v0 = inttoptr i160 arg0 to memptr
+    v1 = ptrtoint memptr v0 to i160
+    ret v1
+}
+
+// CHECK-LABEL: fn @int_ptr_widen
+// CHECK: {{^[ +].*}}zext i160 arg0 to i256
+fn @int_ptr_widen(arg0: i160) -> i256 {
+  bb0:
+    v0 = inttoptr i160 arg0 to memptr
+    v1 = ptrtoint memptr v0 to i256
+    ret v1
+}
+
+// CHECK-LABEL: fn @int_ptr_narrow
+// CHECK: {{^[ +].*}}trunc i160 arg0 to i1
+fn @int_ptr_narrow(arg0: i160) -> i1 {
+  bb0:
+    v0 = inttoptr i160 arg0 to memptr
+    v1 = ptrtoint memptr v0 to i1
+    ret v1
+}
+
+// CHECK-LABEL: fn @ptr_trunc
+// CHECK: {{^[ +].*}}ptrtoint memptr arg0 to i1
+fn @ptr_trunc(arg0: memptr) -> i1 {
+  bb0:
+    v0 = ptrtoint memptr arg0 to i160
+    v1 = trunc i160 v0 to i1
+    ret v1
+}
+
+// CHECK-LABEL: fn @ptr_narrow_preserved
+// CHECK: {{^[ +].*}}ptrtoint memptr arg0 to i160
+fn @ptr_narrow_preserved(arg0: memptr) -> memptr {
+  bb0:
+    v0 = ptrtoint memptr arg0 to i160
+    v1 = inttoptr i160 v0 to memptr
+    ret v1
+}
+
+// CHECK-LABEL: fn @wide_ptr_roundtrip_preserved
+// CHECK: {{^[ +].*}}inttoptr i512 arg0 to memptr
+fn @wide_ptr_roundtrip_preserved(arg0: i512) -> i512 {
+  bb0:
+    v0 = inttoptr i512 arg0 to memptr
+    v1 = ptrtoint memptr v0 to i512
+    ret v1
+}
+
+// CHECK-LABEL: fn @sext_then_zext_preserved
+// CHECK: {{^[ +].*}}sext i1 arg0 to i160
+fn @sext_then_zext_preserved(arg0: i1) -> i256 {
+  bb0:
+    v0 = sext i1 arg0 to i160
+    v1 = zext i160 v0 to i256
+    ret v1
+}
+
+// CHECK-LABEL: fn @call_address_cast
+// CHECK: + {{v[0-9]+}} = call 100, arg0, 0, 0, 0, 0, 0
+fn @call_address_cast(arg0: i256) -> i1 {
+  bb0:
+    v0 = trunc i256 arg0 to i160
+    v1 = zext i160 v0 to i256
+    v2 = call 100, v1, 0, 0, 0, 0, 0
+    ret v2
+}
+
+// CHECK-LABEL: fn @callcode_address_cast
+// CHECK: + {{v[0-9]+}} = callcode 100, arg0, 0, 0, 0, 0, 0
+fn @callcode_address_cast(arg0: i256) -> i1 {
+  bb0:
+    v0 = trunc i256 arg0 to i160
+    v1 = zext i160 v0 to i256
+    v2 = callcode 100, v1, 0, 0, 0, 0, 0
+    ret v2
+}
+
+// CHECK-LABEL: fn @staticcall_address_cast
+// CHECK: + {{v[0-9]+}} = staticcall 100, arg0, 0, 0, 0, 0
+fn @staticcall_address_cast(arg0: i256) -> i1 {
+  bb0:
+    v0 = trunc i256 arg0 to i160
+    v1 = zext i160 v0 to i256
+    v2 = staticcall 100, v1, 0, 0, 0, 0
+    ret v2
+}
+
+// CHECK-LABEL: fn @delegatecall_address_cast
+// CHECK: + {{v[0-9]+}} = delegatecall 100, arg0, 0, 0, 0, 0
+fn @delegatecall_address_cast(arg0: i256) -> i1 {
+  bb0:
+    v0 = trunc i256 arg0 to i160
+    v1 = zext i160 v0 to i256
+    v2 = delegatecall 100, v1, 0, 0, 0, 0
+    ret v2
+}
+
+// CHECK-LABEL: fn @shared_address_cast
+// CHECK: {{^[ +].*}}[[CLEAN:v[0-9]+]] = zext i160
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = call 100, [[CLEAN]], 0, 0, 0, 0, 0
+fn @shared_address_cast(arg0: i256) -> i160 {
+  bb0:
+    v0 = trunc i256 arg0 to i160
+    v1 = zext i160 v0 to i256
+    v2 = call 100, v1, 0, 0, 0, 0, 0
+    ret v0
+}
+
+// CHECK-LABEL: fn @cross_block_address_cast
+// CHECK: {{^[ +].*}}[[CLEAN:v[0-9]+]] = zext i160
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = call 100, [[CLEAN]], 0, 0, 0, 0, 0
+fn @cross_block_address_cast(arg0: i256) -> i1 {
+  bb0:
+    v0 = trunc i256 arg0 to i160
+    v1 = zext i160 v0 to i256
+    jump bb1
+  bb1:
+    v2 = call 100, v1, 0, 0, 0, 0, 0
+    ret v2
+}
+
+fn @nested_select_false(arg0: i1, arg1: i256, arg2: i256, arg3: i256) -> i256 {
+  bb0:
+    v4 = select arg0, arg2, arg3
+    v5 = select arg0, arg1, v4
+    ret v5
+}
+
+fn @nested_select_true(arg0: i1, arg1: i256, arg2: i256, arg3: i256) -> i256 {
+  bb0:
+    v4 = select arg0, arg1, arg2
+    v5 = select arg0, v4, arg3
+    ret v5
+}
+
+fn @equal_select_0(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v2 = eq arg0, arg1
+    v3 = select v2, arg0, arg1
+    ret v3
+}
+
+fn @equal_select_1(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v2 = eq arg1, arg0
+    v3 = select v2, arg0, arg1
+    ret v3
+}
+
+fn @bit_test_select_0(arg0: i256) -> i256 {
+  bb0:
+    v1 = and arg0, 255
+    v2 = eq v1, 0
+    v3 = and arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    v4 = select v2, v3, arg0
+    ret v4
+}
+
+fn @bit_test_select_1(arg0: i256) -> i256 {
+  bb0:
+    v1 = and arg0, 255
+    v2 = eq v1, 0
+    v3 = and arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    v4 = select v2, arg0, v3
+    ret v4
+}
+
+fn @bit_test_select_2(arg0: i256) -> i256 {
+  bb0:
+    v1 = and arg0, 255
+    v2 = eq v1, 0
+    v3 = and arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    v5 = ne v1, 0
+    v4 = select v5, v3, arg0
+    ret v4
+}
+
+fn @bit_test_select_3(arg0: i256) -> i256 {
+  bb0:
+    v1 = and arg0, 255
+    v2 = eq v1, 0
+    v3 = and arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    v5 = ne v1, 0
+    v4 = select v5, arg0, v3
+    ret v4
+}
+
+fn @bit_test_select_distinct_mask(arg0: i256) -> i256 {
+  bb0:
+    v1 = and arg0, 255
+    v2 = eq v1, 0
+    v3 = and arg0, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffeff00
+    v4 = select v2, v3, arg0
+    ret v4
+}
+
+// CHECK-LABEL: fn @ne_sub
+// CHECK: {{^[ +].*}}[[R:v[0-9]+]] = ne arg0, arg1
+// CHECK: {{^[ +].*}}ret [[R]]
+fn @ne_sub(arg0: i256, arg1: i256) -> i1 {
+  bb0:
+    v0 = sub arg0, arg1
+    v1 = ne v0, 0
+    ret v1
+}
+
+// CHECK-LABEL: fn @ne_xor
+// CHECK: {{^[ +].*}}[[R:v[0-9]+]] = ne arg0, arg1
+// CHECK: {{^[ +].*}}ret [[R]]
+fn @ne_xor(arg0: i256, arg1: i256) -> i1 {
+  bb0:
+    v0 = xor arg0, arg1
+    v1 = ne v0, 0
+    ret v1
+}
+
+// CHECK-LABEL: fn @ne_not
+// CHECK: {{^[ +].*}}[[R:v[0-9]+]] = ne arg0, arg1
+// CHECK: {{^[ +].*}}ret [[R]]
+fn @ne_not(arg0: i256, arg1: i256) -> i1 {
+  bb0:
+    v0 = not arg0
+    v1 = not arg1
+    v2 = ne v0, v1
+    ret v2
+}
+
+// CHECK-LABEL: fn @ne_bool_true
+// CHECK: {{^[ +].*}}[[R:v[0-9]+]] = eq arg0, false
+// CHECK: {{^[ +].*}}ret [[R]]
+fn @ne_bool_true(arg0: i1) -> i1 {
+  bb0:
+    v0 = ne arg0, true
+    ret v0
+}
+
+// CHECK-LABEL: fn @ne_bool_true_swapped
+// CHECK: {{^[ +].*}}[[R:v[0-9]+]] = eq arg0, false
+// CHECK: {{^[ +].*}}ret [[R]]
+fn @ne_bool_true_swapped(arg0: i1) -> i1 {
+  bb0:
+    v0 = ne true, arg0
+    ret v0
+}
+
+// CHECK-LABEL: fn @ne_clz_one
+// CHECK: {{^[ +].*}}[[R:v[0-9]+]] = ne arg0, 1
+// CHECK: {{^[ +].*}}ret [[R]]
+fn @ne_clz_one(arg0: i256) -> i1 {
+  bb0:
+    v0 = clz arg0
+    v1 = ne v0, 255
+    ret v1
+}
+
+// CHECK-LABEL: fn @ne_clz_zero
+// CHECK: {{^[ +].*}}[[R:v[0-9]+]] = ne arg0, 0
+// CHECK: {{^[ +].*}}ret [[R]]
+fn @ne_clz_zero(arg0: i256) -> i1 {
+  bb0:
+    v0 = clz arg0
+    v1 = ne 256, v0
+    ret v1
+}
+
+// CHECK-LABEL: fn @ne_byte_bound
+// CHECK: {{^[ +].*}}ret true
+fn @ne_byte_bound(arg0: i256) -> i1 {
+  bb0:
+    v0 = byte 31, arg0
+    v1 = ne v0, 256
+    ret v1
+}
+
+// CHECK-LABEL: fn @ne_byte_bound_swapped
+// CHECK: {{^[ +].*}}ret true
+fn @ne_byte_bound_swapped(arg0: i256) -> i1 {
+  bb0:
+    v0 = byte 31, arg0
+    v1 = ne 256, v0
+    ret v1
+}
+
+// CHECK-LABEL: fn @ne_clz_bound
+// CHECK: {{^[ +].*}}ret true
+fn @ne_clz_bound(arg0: i256) -> i1 {
+  bb0:
+    v0 = clz arg0
+    v1 = ne v0, 257
+    ret v1
+}
+
+// CHECK-LABEL: fn @ne_clz_bound_swapped
+// CHECK: {{^[ +].*}}ret true
+fn @ne_clz_bound_swapped(arg0: i256) -> i1 {
+  bb0:
+    v0 = clz arg0
+    v1 = ne 257, v0
+    ret v1
+}
+
+// CHECK-LABEL: fn @eq_sign_extensions
+// CHECK: {{^[ +].*}}[[R:v[0-9]+]] = eq arg0, arg1
+// CHECK: {{^[ +].*}}ret [[R]]
+fn @eq_sign_extensions(arg0: i160, arg1: i160) -> i1 {
+  bb0:
+    v0 = sext i160 arg0 to i256
+    v1 = sext i160 arg1 to i256
+    v2 = eq v0, v1
+    ret v2
+}
+
+// CHECK-LABEL: fn @ne_sign_extensions
+// CHECK: {{^[ +].*}}[[R:v[0-9]+]] = ne arg0, arg1
+// CHECK: {{^[ +].*}}ret [[R]]
+fn @ne_sign_extensions(arg0: i160, arg1: i160) -> i1 {
+  bb0:
+    v0 = sext i160 arg0 to i256
+    v1 = sext i160 arg1 to i256
+    v2 = ne v0, v1
+    ret v2
+}

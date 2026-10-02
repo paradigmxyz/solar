@@ -9,7 +9,8 @@
 //! zeroing at their original program points. Only instructions that could
 //! observe or move the free-memory pointer between two member allocations
 //! invalidate the grouping; those end the current group instead of being
-//! crossed.
+//! crossed. Checked allocations also remain separate: fusing their panic checks
+//! could move a later failure ahead of an earlier check or memory expansion.
 //!
 //! Intervening accesses may legitimately target a later member's future
 //! range: because every member keeps its pointer value and its initialization
@@ -19,14 +20,12 @@
 
 use crate::mir::{
     AllocationAlignment, AllocationFailure, AllocationInitialization, AllocationKind,
-    AllocationSemantics, BlockId, EffectKind, Function, FunctionBuilder, InstId, InstKind, MirType,
-    Module, ValueId, memory::EvmMemoryLayout, pass::MirPass,
+    AllocationSemantics, BlockId, EffectKind, Function, FunctionBuilder, InstId, InstKind, Module,
+    ValueId, analysis::AliasAnalysis, memory::EvmMemoryLayout, pass::MirPass,
 };
 use solar_sema::Gcx;
 
-/// Fused groups keep their prefix sums far below the allocation panic bound so
-/// the single overflow check on the summed size stays equivalent to the
-/// member-by-member checks it replaces.
+/// Bounds each member and the fused size so offsets fit within four bytes.
 const MAX_MEMBER_SIZE: u64 = 1 << 32;
 
 /// Module pass fusing consecutive constant-size allocations.
@@ -45,8 +44,9 @@ impl MirPass for CoalesceAllocs {
     ) -> bool {
         let mut changed = false;
         for func in module.functions.iter_mut() {
-            if !func.blocks.is_empty() {
-                changed |= coalesce_function(func);
+            if !func.blocks.is_empty() && coalesce_function(func) {
+                super::lower_memory_objects::normalize_pointer_operands(func);
+                changed = true;
             }
         }
         changed
@@ -101,7 +101,7 @@ fn fusable_alloc(func: &Function, inst_id: InstId) -> Option<Member> {
         return None;
     };
     let semantics = *semantics;
-    if inst.metadata.deferred_alloc() {
+    if inst.metadata.deferred_alloc() || semantics.failure != AllocationFailure::Infallible {
         return None;
     }
     let result = func.inst_result_value(inst_id)?;
@@ -115,18 +115,25 @@ fn fusable_alloc(func: &Function, inst_id: InstId) -> Option<Member> {
 
 /// Returns whether an instruction can sit between two fused allocations.
 ///
-/// True exactly when the instruction can neither observe nor modify the
-/// free-memory pointer: every memory access it performs must provably avoid
-/// the FMP word at `[0x40, 0x60)`.
+/// The instruction must have no control effects and cannot observe or modify
+/// the free-memory pointer: every memory access must provably avoid the FMP
+/// word at `[0x40, 0x60)`.
 fn preserves_group(func: &Function, inst_id: InstId) -> bool {
     let inst = func.inst(inst_id);
+    if inst.kind.effects().control.any() {
+        return false;
+    }
     match inst.kind.effect_kind() {
         EffectKind::Pure
         | EffectKind::StorageRead
         | EffectKind::StorageWrite
         | EffectKind::TransientRead
         | EffectKind::TransientWrite
-        | EffectKind::EnvironmentRead => true,
+        | EffectKind::EnvironmentRead
+        // Immutable access does not observe or move the allocation frontier.
+        // Lowering places constructor homes outside the FMP word.
+        | EffectKind::ImmutableRead
+        | EffectKind::ImmutableWrite => true,
         EffectKind::MemoryRead => match &inst.kind {
             InstKind::MLoad(addr) => {
                 range_avoids_fmp(func, *addr, Some(EvmMemoryLayout::WORD_SIZE))
@@ -160,9 +167,7 @@ fn preserves_group(func: &Function, inst_id: InstId) -> bool {
         EffectKind::ExternalCall
         | EffectKind::ICall
         | EffectKind::Create
-        | EffectKind::Log
-        | EffectKind::ImmutableRead
-        | EffectKind::ImmutableWrite => false,
+        | EffectKind::Log => false,
     }
 }
 
@@ -170,24 +175,7 @@ fn preserves_group(func: &Function, inst_id: InstId) -> bool {
 ///
 /// `len` is `None` when the access length is not a compile-time constant.
 fn range_avoids_fmp(func: &Function, addr: ValueId, len: Option<u64>) -> bool {
-    if let Some(base) = func.value_u64(addr) {
-        if base >= EvmMemoryLayout::ZERO_SLOT {
-            return true;
-        }
-        return len
-            .and_then(|len| base.checked_add(len))
-            .is_some_and(|end| end <= EvmMemoryLayout::FMP_SLOT);
-    }
-    is_proven_heap_address(func, addr)
-}
-
-/// Returns whether a runtime address is itself a typed heap pointer.
-///
-/// Arbitrary integer arithmetic is not sufficient: EVM addition wraps and can turn an expression
-/// containing a heap pointer into the FMP address. Derived raw addresses therefore remain barriers
-/// unless a separate range analysis proves them safe.
-fn is_proven_heap_address(func: &Function, value: ValueId) -> bool {
-    matches!(func.value_ty(value), Some(MirType::MemPtr | MirType::MemoryObject(_)))
+    !AliasAnalysis::range_may_overlap_fmp(func, addr, len)
 }
 
 /// Rewrites a collected group into one fused allocation plus constant offsets.
@@ -204,17 +192,11 @@ fn flush_group(func: &mut Function, block: BlockId, group: &mut Vec<Member>) -> 
 
     let initialization = members[0].semantics.initialization;
     let zeroed = initialization == AllocationInitialization::Zeroed;
-    let failure = if members.iter().any(|m| m.semantics.failure == AllocationFailure::Panic) {
-        AllocationFailure::Panic
-    } else {
-        AllocationFailure::Infallible
-    };
     let preserves_fmp =
         members.iter().any(|member| func.inst(member.inst).metadata.preserves_fmp());
 
     let base = members[0].result;
-    let appended_start = func.blocks[block].instructions.len();
-    let (total_size, offsets) = {
+    let (total_size, offsets, zero_insts) = {
         let mut builder = FunctionBuilder::new(func);
         builder.switch_to_block(block);
         let total_size = builder.imm(total);
@@ -224,18 +206,25 @@ fn flush_group(func: &mut Function, block: BlockId, group: &mut Vec<Member>) -> 
             offsets.push(builder.imm(offset));
             offset += member.size;
         }
+        let mut zero_insts = Vec::new();
         if zeroed {
             for member in &members {
+                let start = builder.func().blocks[block].instructions.len();
+                let metadata = builder.func().inst(member.inst).metadata.clone();
+                builder.set_debug_context(&metadata);
+                // word = ptrtoint member to i256
+                // memory_zero word, size
                 let size = builder.imm(member.size);
                 builder.memory_zero(member.result, size);
+                zero_insts.push(builder.func_mut().blocks[block].instructions.split_off(start));
             }
         }
-        (total_size, offsets)
+        (total_size, offsets, zero_insts)
     };
-    let zero_insts = func.blocks[block].instructions.split_off(appended_start);
 
     // Member sizes are already component-aligned, so the fused reservation is
     // exact and the final frontier matches the member-by-member bumps.
+    // base = alloc raw, exact, initialization, infallible, total_size
     let instruction = func.inst_mut(members[0].inst);
     instruction.kind = InstKind::Alloc {
         size: total_size,
@@ -247,24 +236,28 @@ fn flush_group(func: &mut Function, block: BlockId, group: &mut Vec<Member>) -> 
             } else {
                 initialization
             },
-            failure,
+            failure: AllocationFailure::Infallible,
         },
     };
     instruction.metadata.set_preserves_fmp(preserves_fmp);
 
+    // member = add base, offset
     for (member, offset) in members[1..].iter().zip(offsets) {
         let instruction = func.inst_mut(member.inst);
         instruction.kind = InstKind::Add(base, offset);
         instruction.metadata.set_effect(None);
         instruction.metadata.set_memory_region(None);
     }
-    for (member, zero_inst) in members.iter().zip(zero_insts) {
+    // member = alloc/add ...
+    // word = ptrtoint member to i256
+    // memory_zero word, size
+    for (member, zero_insts) in members.iter().zip(zero_insts) {
         let position = func.blocks[block]
             .instructions
             .iter()
             .position(|&inst| inst == member.inst)
             .expect("coalesced allocation disappeared from its block");
-        func.blocks[block].instructions.insert(position + 1, zero_inst);
+        func.blocks[block].instructions.splice(position + 1..position + 1, zero_insts);
     }
     true
 }

@@ -94,7 +94,8 @@ impl<'gcx, 'a> ViewPureChecker<'gcx, 'a> {
 
     fn function_mutability(&self, id: hir::FunctionId) -> MutabilityAndLocation {
         let mut visited = DenseBitSet::new_empty(self.gcx.hir.function_ids().len());
-        let mut stack = vec![id];
+        let mut stack = Vec::new();
+        stack.push(id);
         let mut best = MutabilityAndLocation {
             mutability: StateMutability::Pure,
             location: self.gcx.hir.function(id).span,
@@ -179,7 +180,7 @@ impl<'gcx, 'a> ViewPureChecker<'gcx, 'a> {
             if builtin.is_yul() {
                 return;
             }
-            if matches!(builtin, Builtin::ArrayPush0 | Builtin::ArrayPush | Builtin::ArrayPop) {
+            if builtin.is_array_mutator() {
                 self.report(StateMutability::NonPayable, expr.span, None);
             } else if let Some(mutability) =
                 self.gcx.type_of_expr(callee.id).and_then(|ty| ty.state_mutability())
@@ -272,15 +273,14 @@ impl<'gcx, 'a> ViewPureChecker<'gcx, 'a> {
     fn report_yul_builtin(&mut self, builtin: Builtin, span: Span) {
         let mutability = match builtin {
             YulSstore | YulTstore | YulLog0 | YulLog1 | YulLog2 | YulLog3 | YulLog4 | YulCreate
-            | YulCreate2 | YulCall | YulCallcode | YulDelegatecall | YulSelfdestruct
-            | YulExtcall | YulExtdelegatecall => StateMutability::NonPayable,
-            YulSload | YulTload | YulGas | YulAddress | YulBalance | YulSelfbalance | YulCaller
-            | YulExtcodesize | YulExtcodecopy | YulExtcodehash | YulStaticcall
-            | YulExtstaticcall | YulChainid | YulBasefee | YulBlobbasefee | YulBlobhash
-            | YulCoinbase | YulDifficulty | YulPrevrandao | YulGaslimit | YulNumber
-            | YulSlotnum | YulTimestamp | YulGasprice | YulOrigin | YulBlockhash => {
-                StateMutability::View
+            | YulCreate2 | YulCall | YulCallcode | YulDelegatecall | YulSelfdestruct => {
+                StateMutability::NonPayable
             }
+            YulSload | YulTload | YulGas | YulAddress | YulBalance | YulSelfbalance | YulCaller
+            | YulExtcodesize | YulExtcodecopy | YulExtcodehash | YulStaticcall | YulChainid
+            | YulBasefee | YulBlobbasefee | YulBlobhash | YulCoinbase | YulDifficulty
+            | YulPrevrandao | YulGaslimit | YulNumber | YulSlotnum | YulTimestamp | YulGasprice
+            | YulOrigin | YulBlockhash => StateMutability::View,
             YulCallvalue => StateMutability::View,
             _ => StateMutability::Pure,
         };
@@ -415,7 +415,7 @@ impl<'gcx, 'a> Visit<'gcx> for ViewPureChecker<'gcx, 'a> {
     fn visit_stmt(&mut self, stmt: &'gcx hir::Stmt<'gcx>) -> ControlFlow<Self::BreakValue> {
         self.walk_stmt(stmt)?;
         if let StmtKind::Emit(expr) = stmt.kind {
-            let ExprKind::Call(callee, ref args, _) = expr.kind else { unreachable!() };
+            let Some((callee, args, _)) = expr.as_call() else { unreachable!() };
             self.report(StateMutability::NonPayable, callee.span.to(args.span), None);
         }
         ControlFlow::Continue(())
@@ -423,7 +423,7 @@ impl<'gcx, 'a> Visit<'gcx> for ViewPureChecker<'gcx, 'a> {
 
     fn visit_expr(&mut self, expr: &'gcx hir::Expr<'gcx>) -> ControlFlow<Self::BreakValue> {
         let writing = std::mem::replace(&mut self.writing, false);
-        let yul_builtin = if let ExprKind::Call(callee, _, _) = expr.kind {
+        let yul_builtin = if let Some((callee, _, _)) = expr.as_call() {
             self.gcx.resolved_builtin(callee).filter(|builtin| builtin.is_yul())
         } else {
             None
@@ -464,7 +464,7 @@ impl<'gcx, 'a> Visit<'gcx> for ViewPureChecker<'gcx, 'a> {
 
         match expr.kind {
             ExprKind::Binary(_, _, _) | ExprKind::Unary(_, _) => self.report_operator_call(expr),
-            ExprKind::Call(callee, _, _) => self.report_call_expr(expr, callee),
+            ExprKind::Call(callee, _) => self.report_call_expr(expr, callee.split_call_options().0),
             ExprKind::Ident(_) => {
                 if let Some(res) = self.gcx.resolved_expr(expr) {
                     self.report_res(res, expr.span, writing);

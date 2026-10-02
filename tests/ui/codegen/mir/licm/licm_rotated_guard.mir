@@ -9,7 +9,7 @@
 // CHECK-LABEL: {{^[ +].*}}fn @rotated_guard_overlap{{[( ]}}
 // CHECK: {{^[ +].*}}mstore
 // CHECK: {{^[ +].*}}mload 320
-fn @rotated_guard_overlap() -> u256 {
+fn @rotated_guard_overlap() -> i256 {
   bb0:
     jump bb1
   bb1:
@@ -31,7 +31,7 @@ fn @rotated_guard_overlap() -> u256 {
 // CHECK-LABEL: {{^[ +].*}}fn @dowhile_latch_guard_overlap{{[( ]}}
 // CHECK: {{^[ +].*}}mstore
 // CHECK: {{^[ +].*}}mload 320
-fn @dowhile_latch_guard_overlap() -> u256 {
+fn @dowhile_latch_guard_overlap() -> i256 {
   bb0:
     jump bb1
   bb1:
@@ -52,10 +52,11 @@ fn @dowhile_latch_guard_overlap() -> u256 {
 // CHECK-LABEL: {{^[ +].*}}fn @top_tested_control{{[( ]}}
 // CHECK: + [[LOAD:v[0-9]+]] = mload 320
 // CHECK: - [[LOAD]] = mload 320
-fn @top_tested_control() -> u256 {
+fn @top_tested_control() -> i256 {
   bb0:
     jump bb1
   bb1:
+    v10 = phi [bb0: 0], [bb2: v3]
     v1 = phi [bb0: 0], [bb2: v9]
     v2 = lt v1, 10
     jumpi v2, bb2, bb3
@@ -66,7 +67,7 @@ fn @top_tested_control() -> u256 {
     v9 = add v1, 1
     jump bb1
   bb3:
-    ret v3
+    ret v10
 }
 
 // Stores in the header observe the post-increment value of the exiting
@@ -75,7 +76,7 @@ fn @top_tested_control() -> u256 {
 // CHECK-LABEL: {{^[ +].*}}fn @disjoint_past_widened_range{{[( ]}}
 // CHECK: + [[LOAD:v[0-9]+]] = mload 384
 // CHECK: - [[LOAD]] = mload 384
-fn @disjoint_past_widened_range() -> u256 {
+fn @disjoint_past_widened_range() -> i256 {
   bb0:
     jump bb1
   bb1:

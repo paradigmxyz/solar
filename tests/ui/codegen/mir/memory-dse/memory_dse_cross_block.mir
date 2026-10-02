@@ -5,7 +5,7 @@
 // CHECK-LABEL: {{^[ +].*}}fn @remove_store_overwritten_on_unique_edge{{[( ]}}
 // CHECK: - mstore 128, 1
 // CHECK: + ret 2
-fn @remove_store_overwritten_on_unique_edge() -> u256 {
+fn @remove_store_overwritten_on_unique_edge() -> i256 {
   bb0:
     mstore 128, 1
     jump bb1
@@ -18,7 +18,7 @@ fn @remove_store_overwritten_on_unique_edge() -> u256 {
 // CHECK-LABEL: {{^[ +].*}}fn @keep_store_read_before_successor_overwrite{{[( ]}}
 // CHECK: {{^[ +].*}}mstore 128, 1
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = mload 128
-fn @keep_store_read_before_successor_overwrite() -> u256 {
+fn @keep_store_read_before_successor_overwrite() -> i256 {
   bb0:
     mstore 128, 1
     jump bb1
@@ -31,7 +31,7 @@ fn @keep_store_read_before_successor_overwrite() -> u256 {
 // CHECK-LABEL: {{^[ +].*}}fn @keep_store_into_multi_pred_successor{{[( ]}}
 // CHECK: {{^[ +].*}}mstore 128, 1
 // CHECK: + ret 2
-fn @keep_store_into_multi_pred_successor(arg0: bool) -> u256 {
+fn @keep_store_into_multi_pred_successor(arg0: i1) -> i256 {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:

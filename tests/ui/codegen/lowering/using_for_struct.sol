@@ -24,7 +24,9 @@ contract C {
 
     // CHECK-LABEL: fn @viaMethod{{[( ]}}
     // CHECK-NOT: {{^[[:space:]]*v[0-9]+ = call }}
-    // CHECK: [[HASH:v[0-9]+]] = keccak256 {{v[0-9]+}}, 101
+    // CHECK: icall @hashLib
+    // CHECK-LABEL: fn @hashLib{{[( ]}}
+    // CHECK: keccak256_packed (data hex"78"
     function viaMethod(bytes32 a, bytes32 b) public pure returns (bytes32) {
         S memory s = S({a: a, i: 0, j: 0, b: b});
         return s.hashLib();

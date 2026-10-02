@@ -7,10 +7,11 @@
 // CHECK-LABEL: {{^[ +].*}}fn @keep_balance_with_call{{[( ]}}
 // CHECK: {{^[ +].*}}[[BALANCE:v[0-9]+]] = balance 0xbeef
 // CHECK: {{^[ +].*[ =]call[[:space:]]}}
-fn @keep_balance_with_call() -> u256 {
+fn @keep_balance_with_call() -> i256 {
   bb0:
     jump bb1
   bb1:
+    v3 = phi [bb0: 0], [bb2: v1]
     jumpi true, bb2, bb3
   bb2:
     v0 = balance 0xbeef
@@ -18,7 +19,7 @@ fn @keep_balance_with_call() -> u256 {
     v2 = call 1000, 0xbeef, 1, 0, 0, 0, 0
     jump bb1
   bb3:
-    ret v1
+    ret v3
 }
 
 // CALLCODE executes arbitrary code in the current account context, so it can
@@ -26,10 +27,11 @@ fn @keep_balance_with_call() -> u256 {
 // CHECK-LABEL: {{^[ +].*}}fn @keep_balance_with_callcode{{[( ]}}
 // CHECK: {{^[ +].*}}[[BALANCE:v[0-9]+]] = balance 0xbeef
 // CHECK: {{^[ +].*[ =]callcode[[:space:]]}}
-fn @keep_balance_with_callcode() -> u256 {
+fn @keep_balance_with_callcode() -> i256 {
   bb0:
     jump bb1
   bb1:
+    v3 = phi [bb0: 0], [bb2: v1]
     jumpi true, bb2, bb3
   bb2:
     v0 = balance 0xbeef
@@ -37,7 +39,7 @@ fn @keep_balance_with_callcode() -> u256 {
     v2 = callcode 1000, 0xbeef, 1, 0, 0, 0, 0
     jump bb1
   bb3:
-    ret v1
+    ret v3
 }
 
 // Without any call or create in the loop the balance is loop-invariant for real.
@@ -45,27 +47,29 @@ fn @keep_balance_with_callcode() -> u256 {
 // CHECK: + [[BALANCE:v[0-9]+]] = balance 0xbeef
 // CHECK: + {{v[0-9]+}} = mul [[BALANCE]], 3
 // CHECK: - [[BALANCE]] = balance 0xbeef
-fn @hoist_balance_without_calls() -> u256 {
+fn @hoist_balance_without_calls() -> i256 {
   bb0:
     jump bb1
   bb1:
+    v2 = phi [bb0: 0], [bb2: v1]
     jumpi true, bb2, bb3
   bb2:
     v0 = balance 0xbeef
     v1 = mul v0, 3
     jump bb1
   bb3:
-    ret v1
+    ret v2
 }
 
 // The created contract's constructor can run arbitrary code.
 // CHECK-LABEL: {{^[ +].*}}fn @keep_extcodesize_with_create{{[( ]}}
 // CHECK: {{^[ +].*}}extcodesize
 // CHECK: {{^[ +].*}}create
-fn @keep_extcodesize_with_create() -> u256 {
+fn @keep_extcodesize_with_create() -> i256 {
   bb0:
     jump bb1
   bb1:
+    v3 = phi [bb0: 0], [bb2: v1]
     jumpi true, bb2, bb3
   bb2:
     v0 = extcodesize 0xbeef
@@ -73,17 +77,18 @@ fn @keep_extcodesize_with_create() -> u256 {
     v2 = create 0, 0, 32
     jump bb1
   bb3:
-    ret v1
+    ret v3
 }
 
 // Every external call, including staticcall, rewrites the return-data buffer.
 // CHECK-LABEL: {{^[ +].*}}fn @keep_returndatasize_with_staticcall{{[( ]}}
 // CHECK: {{^[ +].*}}returndatasize
 // CHECK: {{^[ +].*}}staticcall
-fn @keep_returndatasize_with_staticcall() -> u256 {
+fn @keep_returndatasize_with_staticcall() -> i256 {
   bb0:
     jump bb1
   bb1:
+    v3 = phi [bb0: 0], [bb2: v1]
     jumpi true, bb2, bb3
   bb2:
     v0 = returndatasize
@@ -91,21 +96,134 @@ fn @keep_returndatasize_with_staticcall() -> u256 {
     v2 = staticcall 1000, 0xbeef, 0, 0, 0, 0
     jump bb1
   bb3:
-    ret v1
+    ret v3
 }
 
 // msize observes memory expansion and must never move.
 // CHECK-LABEL: {{^[ +].*}}fn @keep_msize{{[( ]}}
 // CHECK: {{^[ +].*}}msize
-fn @keep_msize() -> u256 {
+fn @keep_msize() -> i256 {
   bb0:
     jump bb1
   bb1:
+    v2 = phi [bb0: 0], [bb2: v1]
     jumpi true, bb2, bb3
   bb2:
     v0 = msize
     v1 = mul v0, 3
     jump bb1
   bb3:
-    ret v1
+    ret v2
+}
+
+// The opaque precompile call replaces returndata before builtin expansion.
+// CHECK-LABEL: {{^[ +].*}}fn @keep_returndatasize_with_sha256{{[( ]}}
+// CHECK: {{^[ +] *}}bb2:
+// CHECK-NEXT: {{^[ +].*}}v{{[0-9]+}} = returndatasize
+fn @keep_returndatasize_with_sha256(arg0: memptr) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v3 = phi [bb0: 0], [bb2: v1]
+    jumpi true, bb2, bb3
+  bb2:
+    v0 = returndatasize
+    v1 = mul v0, 3
+    v2 = icall sha256<>, arg0
+    jump bb1
+  bb3:
+    ret v3
+}
+
+// The opaque precompile call replaces returndata before builtin expansion.
+// CHECK-LABEL: {{^[ +].*}}fn @keep_returndatasize_with_ripemd160{{[( ]}}
+// CHECK: {{^[ +] *}}bb2:
+// CHECK-NEXT: {{^[ +].*}}v{{[0-9]+}} = returndatasize
+fn @keep_returndatasize_with_ripemd160(arg0: memptr) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v3 = phi [bb0: 0], [bb2: v1]
+    jumpi true, bb2, bb3
+  bb2:
+    v0 = returndatasize
+    v1 = mul v0, 3
+    v2 = icall ripemd160<>, arg0
+    jump bb1
+  bb3:
+    ret v3
+}
+
+// The opaque precompile call replaces returndata before builtin expansion.
+// CHECK-LABEL: {{^[ +].*}}fn @keep_returndatasize_with_ecrecover{{[( ]}}
+// CHECK: {{^[ +] *}}bb2:
+// CHECK-NEXT: {{^[ +].*}}v{{[0-9]+}} = returndatasize
+fn @keep_returndatasize_with_ecrecover() -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v3 = phi [bb0: 0], [bb2: v1]
+    jumpi true, bb2, bb3
+  bb2:
+    v0 = returndatasize
+    v1 = mul v0, 3
+    v2 = icall ecrecover<>, 1, 28, 2, 3
+    jump bb1
+  bb3:
+    ret v3
+}
+
+// Gas reads introduced by builtin expansion must already constrain motion.
+// CHECK-LABEL: {{^[ +].*}}fn @gas_precompile{{[( ]}}
+// CHECK: {{^[ +] *}}bb2:
+// CHECK-NEXT: {{^[ +].*}}v{{[0-9]+}} = mul arg0, 3
+fn @gas_precompile(arg0: i256, arg1: memptr) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v3 = phi [bb0: 0], [bb2: v1]
+    jumpi true, bb2, bb3
+  bb2:
+    v1 = mul arg0, 3
+    v2 = icall ecrecover<>, 1, 28, 2, 3
+    jump bb1
+  bb3:
+    ret v3
+}
+
+// Gas reads introduced by builtin expansion must already constrain motion.
+// CHECK-LABEL: {{^[ +].*}}fn @gas_default_call{{[( ]}}
+// CHECK: {{^[ +] *}}bb2:
+// CHECK-NEXT: {{^[ +].*}}v{{[0-9]+}} = mul arg0, 3
+fn @gas_default_call(arg0: i256, arg1: memptr) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v3 = phi [bb0: 0], [bb2: v1]
+    jumpi true, bb2, bb3
+  bb2:
+    v1 = mul arg0, 3
+    v100 = trunc i256 0xbeef to i160
+    v2 = address_call v100, arg1
+    jump bb1
+  bb3:
+    ret v3
+}
+
+// Gas reads introduced by builtin expansion must already constrain motion.
+// CHECK-LABEL: {{^[ +].*}}fn @gas_explicit_call{{[( ]}}
+// CHECK: + {{v[0-9]+}} = mul arg0, 3
+fn @gas_explicit_call(arg0: i256, arg1: memptr) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v3 = phi [bb0: 0], [bb2: v1]
+    jumpi true, bb2, bb3
+  bb2:
+    v1 = mul arg0, 3
+    v100 = trunc i256 0xbeef to i160
+    v2 = address_call v100, arg1, gas 1000
+    jump bb1
+  bb3:
+    ret v3
 }

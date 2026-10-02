@@ -1,0 +1,4 @@
+error: [fn0] [bb0] return values do not match the signature
+
+error: aborting due to 1 previous error
+

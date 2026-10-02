@@ -7,14 +7,14 @@ contract InternalVoidCall {
     uint256 public value;
 
     // CHECK-LABEL: fn @set{{[( ]}}
-    // CHECK: icall @writeIfNonZero, 0, arg0
+    // CHECK: icall @writeIfNonZero, arg0
     function set(uint256 newValue) public {
         writeIfNonZero(newValue);
     }
 
     // CHECK-LABEL: fn @writeIfNonZero{{[( ]}}
-    // CHECK: [[ZERO:v[0-9]+]] = eq arg0, 0
-    // CHECK: {{v[0-9]+}} = iszero [[ZERO]]
+    // CHECK: [[NONZERO:v[0-9]+]] = ne arg0, 0
+    // CHECK: jumpi [[NONZERO]],
     // CHECK: sstore 0, arg0
     function writeIfNonZero(uint256 newValue) internal {
         if (newValue != 0) {
@@ -34,22 +34,22 @@ contract InternalVoidCall {
     }
 
     // CHECK-LABEL: fn @returnVoidCall{{[( ]}}
-    // CHECK: icall @writeIfNonZero, 0, arg0
-    // CHECK: stop
+    // CHECK: icall @writeIfNonZero, arg0
+    // CHECK: ret
     function returnVoidCall(uint256 newValue) public {
         return writeIfNonZero(newValue);
     }
 
     // CHECK-LABEL: fn @returnRevert{{[( ]}}
-    // CHECK: revert 0, 0
+    // CHECK: icall revert_if<empty>, true
     function returnRevert() public pure {
         return revert();
     }
 
     // CHECK-LABEL: fn @unitTernary{{[( ]}}
-    // CHECK: jumpi arg0,
-    // CHECK: icall @clear, 0
-    // CHECK: icall @writeIfNonZero, 0, arg1
+    // CHECK: jumpi {{(arg[0-9]+|v[0-9]+)}},
+    // CHECK: icall @clear
+    // CHECK: icall @writeIfNonZero, arg1
     function unitTernary(bool writeValue, uint256 newValue) public {
         writeValue ? writeIfNonZero(newValue) : clear();
     }

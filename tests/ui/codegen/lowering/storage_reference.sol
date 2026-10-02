@@ -36,7 +36,7 @@ contract C {
     // CHECK: [[BASE:v[0-9]+]] = mapping_slot arg0, 0
     // CHECK: [[FIELD:v[0-9]+]] = add [[BASE]], 1
     // CHECK: [[OLD:v[0-9]+]] = sload [[FIELD]]
-    // CHECK: [[NEW:v[0-9]+]] = add [[OLD]], 1
+    // CHECK: [[NEW:v[0-9]+]] = checked_add {{[ui][0-9]+}}, [[OLD]], 1
     // CHECK: sstore {{v[0-9]+}}, [[NEW]] !metadata(storage=offset([[BASE]], 1))
     function bump(uint256 k) public {
         Item storage r = items[k];

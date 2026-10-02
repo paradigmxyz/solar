@@ -1,0 +1,154 @@
+//@ codegen-matrix: standard
+//@ run-call: once 2, 5 => 522
+//@ run-call: twice 2, 5 => 522255
+//@ run-call: once 5, 2 => 255
+//@ run-call-fail: once 0, 5
+//@ run-call: zero 7 => 23
+//@ run-call-fail: zero 0
+//@ run-call: recurse 4 => 10
+//@ run-call: recursePair 2, 5, 3 => 6, 4
+//@ run-call: recurseYul 4 => 10
+//@ run-call: tuple 2, 5 => 2, 5, 5
+//@ run-call-fail: tuple 0, 5
+//@ run-call-fail: tuple 2, 0
+//@ run-call: quietTwice 4 => 48
+//@ run-call: callQuiet 4 => 48
+//@ run-call: toggleLoud 7 => true
+
+contract VoidTailReturn {
+    uint256 private total;
+    uint256 private second;
+    uint256 private third;
+    mapping(uint256 => uint256) private words;
+
+    function tuple(uint256 a, uint256 b) external returns (uint256, uint256, uint256) {
+        forwardTuple(a, b);
+        forwardTuple(b, a);
+        return (total, second, third);
+    }
+
+    // Keep an arithmetic-free path for symbolic comparison over full words.
+    function forwardTuple(uint256 a, uint256 b) internal {
+        require(a != 0);
+        tupleSink(b, a, a);
+    }
+
+    function tupleSink(uint256 a, uint256 b, uint256 c) internal {
+        require(a != 0);
+        total = a;
+        second = b;
+        third = c;
+    }
+
+    function once(uint256 a, uint256 b) external returns (uint256) {
+        forward(a, b);
+        return total;
+    }
+
+    function twice(uint256 a, uint256 b) external returns (uint256) {
+        forward(a, b);
+        forward(b, a);
+        return total;
+    }
+
+    // The terminal call permutes arguments and repeats one actual. Its return
+    // must resume the original caller, including the second call in `twice`.
+    function forward(uint256 a, uint256 b) internal {
+        require(a != 0);
+        sink(b, a, a);
+    }
+
+    function sink(uint256 a, uint256 b, uint256 c) internal {
+        require(a < 10 && b < 10 && c < 10);
+        total = total * 1000 + a * 100 + b * 10 + c;
+    }
+
+    function zero(uint256 a) external returns (uint256) {
+        zeroForward(a);
+        return total;
+    }
+
+    // A zero-argument transfer must drop any caller words above the inherited
+    // return address. A loop keeps the callee available as a shared function.
+    function zeroForward(uint256 a) internal {
+        require(a != 0);
+        total = a;
+        finish();
+    }
+
+    function finish() internal {
+        for (uint256 i; i < 4; ++i) total += i + 1;
+        total += 6;
+    }
+
+    function toggleBit(uint256 key, uint256 index) internal returns (bool) {
+        uint256 slot = key ^ (index >> 8);
+        uint256 word = words[slot] ^ (1 << (index & 255));
+        words[slot] = word;
+        return (word >> (index & 255)) & 1 == 1;
+    }
+
+    // The terminal call returns a word this void function discards, so the
+    // callee cannot return straight to this function's continuation.
+    function toggleQuiet(uint256 index) internal {
+        toggleBit(0, index);
+    }
+
+    function toggleLoud(uint256 index) external returns (bool) {
+        return toggleBit(0, index);
+    }
+
+    // An internal caller returns through the address below the discarded word.
+    function callQuiet(uint256 index) external returns (uint256) {
+        return quietTwice(index);
+    }
+
+    function quietTwice(uint256 index) public returns (uint256) {
+        toggleQuiet(index);
+        toggleQuiet(index + 1);
+        return words[index >> 8];
+    }
+
+    function recurse(uint256 depth) external returns (uint256) {
+        recursive(depth);
+        return total;
+    }
+
+    // Recursive frames retain their existing call protocol.
+    function recursive(uint256 depth) internal {
+        total += depth;
+        if (depth != 0) recursive(depth - 1);
+    }
+
+    function recursePair(uint256 a, uint256 b, uint256 depth)
+        external
+        returns (uint256, uint256)
+    {
+        recursivePair(a, b, depth);
+        return (total, second);
+    }
+
+    // The terminal re-entry must snapshot the complete argument tuple before
+    // overwriting the current frame because the first two values permute.
+    function recursivePair(uint256 a, uint256 b, uint256 depth) internal {
+        if (depth == 0) {
+            total = a;
+            second = b;
+        } else {
+            recursivePair(b, a + 1, depth - 1);
+        }
+    }
+
+    function recurseYul(uint256 depth) external returns (uint256 result) {
+        assembly {
+            function recursiveYul(n) {
+                if n {
+                    sstore(0, add(sload(0), n))
+                    recursiveYul(sub(n, 1))
+                }
+            }
+            recursiveYul(depth)
+            result := sload(0)
+        }
+    }
+}

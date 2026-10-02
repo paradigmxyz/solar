@@ -12,6 +12,9 @@
 //! improve bytes or static gas without making the other metric worse; size mode also disables
 //! optional duplicate retargeting that can trade bytes for gas.
 //!
+//! Non-expanding edits compact instructions in place; edits that add stack operations use a
+//! reusable scratch buffer.
+//!
 //! This is a post-scheduling cleanup. It removes duplicated stack values within one block, then
 //! removes a trailing pure stack computation before a halting terminal, including across an
 //! unconditional edge to a block that never reads its incoming stack.
@@ -21,6 +24,7 @@ use crate::backend::evm::{
     ir::{Block, BlockId, Instruction, Module, Terminator, TerminatorKind},
     op::{self, StackOp},
 };
+use smallvec::{SmallVec, smallvec};
 use solar_config::EvmVersion;
 use solar_data_structures::index::IndexVec;
 use solar_sema::Gcx;
@@ -75,20 +79,11 @@ fn block_ignores_entry_stack(block: &Block) -> bool {
     let Some((inputs, _)) = halting_stack_io(kind) else { return false };
     let mut depth = 0usize;
     for inst in &block.instructions {
-        if !inst.has_canonical_stack_effect()
-            || inst.as_evm_opcode().is_some_and(is_analysis_boundary)
-        {
+        if inst.as_evm_opcode().is_some_and(is_analysis_boundary) {
             return false;
         }
-        let (inputs, outputs) = if let Some(stack_op) = inst.as_stack_op() {
-            let inputs = stack_op.required_depth();
-            let outputs = inputs.checked_add_signed(stack_op.net_growth()).unwrap();
-            (inputs, outputs)
-        } else if let Some(effect) = inst.effective_stack_effect() {
-            (usize::from(effect.inputs), usize::from(effect.outputs))
-        } else {
-            return false;
-        };
+        let effect = inst.stack_effect();
+        let (inputs, outputs) = (usize::from(effect.inputs), usize::from(effect.outputs));
         if depth < inputs {
             return false;
         }
@@ -106,10 +101,7 @@ fn halting_terminal_tail_range(
     }
     let (inputs, _) = halting_stack_io(&terminator.kind)?;
     let operands = instructions.len().checked_sub(usize::from(inputs))?;
-    if !instructions[operands..]
-        .iter()
-        .all(|inst| inst.is_encoded_push() && inst.has_canonical_stack_effect())
-    {
+    if !instructions[operands..].iter().all(Instruction::is_encoded_push) {
         return None;
     }
     let start = discardable_tail_start(&instructions[..operands])?;
@@ -135,10 +127,9 @@ fn discardable_tail_start(instructions: &[Instruction]) -> Option<usize> {
 }
 
 fn is_discardable_tail_instruction(inst: &Instruction) -> bool {
-    inst.has_canonical_stack_effect()
-        && (inst.is_encoded_push()
-            || inst.as_stack_op().is_some()
-            || inst.as_evm_opcode().is_some_and(op::is_pure))
+    inst.is_encoded_push()
+        || inst.as_stack_op().is_some()
+        || inst.as_evm_opcode().is_some_and(op::is_pure)
 }
 
 /// Removes stack copies that are eventually discarded without being consumed.
@@ -180,8 +171,16 @@ fn eliminate_in_block(
     let mut rewrites = 0;
     loop {
         edits.clear();
+        // A candidate ends at a `POP`, so no candidate starts at or after the last one, and
+        // the walk never needs to look past it.
+        let Some(last_pop) =
+            instructions.iter().rposition(|inst| inst.as_stack_op() == Some(StackOp::Pop))
+        else {
+            return rewrites;
+        };
+        let walked = &instructions[..=last_pop];
         let mut start = 0;
-        while start < instructions.len() {
+        while start < last_pop {
             let Some(StackOp::Dup(depth)) = instructions[start].as_stack_op() else {
                 start += 1;
                 continue;
@@ -195,7 +194,7 @@ fn eliminate_in_block(
             let candidate = if depth == 1 {
                 better_candidate(
                     find_candidate(
-                        instructions,
+                        walked,
                         start,
                         depth,
                         Ghost::Original,
@@ -203,7 +202,7 @@ fn eliminate_in_block(
                         evm_version,
                     ),
                     find_candidate(
-                        instructions,
+                        walked,
                         start,
                         depth,
                         Ghost::Duplicate,
@@ -213,7 +212,7 @@ fn eliminate_in_block(
                 )
             } else {
                 find_candidate(
-                    instructions,
+                    walked,
                     start,
                     depth,
                     Ghost::Duplicate,
@@ -246,6 +245,9 @@ enum Ghost {
     Original,
 }
 
+/// The symbolic stack of a candidate, bottom first.
+type Slots = SmallVec<[Slot; 64]>;
+
 #[derive(Clone, Copy)]
 struct Slot {
     aliases_copy: bool,
@@ -260,7 +262,7 @@ impl Slot {
 
 struct Candidate {
     end: usize,
-    edits: Vec<Edit>,
+    edits: SmallVec<[Edit; 4]>,
     old_cost: Cost,
     new_cost: Cost,
 }
@@ -269,11 +271,11 @@ impl Candidate {
     fn new(start: usize, stack_op: StackOp, evm_version: EvmVersion) -> Self {
         let mut candidate = Self {
             end: start + 1,
-            edits: Vec::new(),
+            edits: SmallVec::new(),
             old_cost: Cost::default(),
             new_cost: Cost::default(),
         };
-        candidate.replace(start, stack_op, Vec::new(), evm_version);
+        candidate.replace(start, stack_op, Replacement::new(), evm_version);
         candidate
     }
 
@@ -281,7 +283,7 @@ impl Candidate {
         &mut self,
         index: usize,
         old: StackOp,
-        replacement: Vec<StackOp>,
+        replacement: Replacement,
         evm_version: EvmVersion,
     ) {
         if replacement.as_slice() == [old] {
@@ -329,9 +331,12 @@ impl std::ops::AddAssign for Cost {
     }
 }
 
+/// The stack operations replacing one instruction, usually at most one.
+type Replacement = SmallVec<[StackOp; 4]>;
+
 struct Edit {
     index: usize,
-    replacement: Vec<StackOp>,
+    replacement: Replacement,
 }
 
 fn find_candidate(
@@ -343,7 +348,7 @@ fn find_candidate(
     evm_version: EvmVersion,
 ) -> Option<Candidate> {
     let max_stack_access = evm_version.reachable_stack_depth();
-    let mut slots = vec![Slot::OTHER; duplicate_depth];
+    let mut slots = Slots::from_elem(Slot::OTHER, duplicate_depth);
     slots[0] = Slot::COPY;
     slots.push(Slot::GHOST);
     if matches!(ghost, Ghost::Original) {
@@ -358,7 +363,7 @@ fn find_candidate(
         let stack_op = inst.as_stack_op();
         match stack_op {
             Some(StackOp::Pop) if slots.last().is_some_and(|slot| slot.is_ghost) => {
-                candidate.replace(index, StackOp::Pop, Vec::new(), evm_version);
+                candidate.replace(index, StackOp::Pop, Replacement::new(), evm_version);
                 candidate.end = index + 1;
                 return candidate.is_profitable().then_some(candidate);
             }
@@ -381,28 +386,31 @@ fn find_candidate(
                     return None;
                 }
                 let replacement = StackOp::Dup(u8::try_from(physical_depth).ok()?);
-                candidate.replace(index, StackOp::Dup(depth as u8), vec![replacement], evm_version);
+                candidate.replace(
+                    index,
+                    StackOp::Dup(depth as u8),
+                    smallvec![replacement],
+                    evm_version,
+                );
                 slots.push(Slot { aliases_copy: selected.aliases_copy, is_ghost: false });
             }
             Some(StackOp::Swap(depth)) => {
-                let mut replacement = Vec::new();
+                let mut replacement = Replacement::new();
                 retarget_swap(&mut slots, depth, max_stack_access, &mut replacement)?;
                 candidate.replace(index, StackOp::Swap(depth), replacement, evm_version);
             }
             Some(StackOp::Exchange(n, m)) => {
-                let mut replacement = Vec::new();
+                let mut replacement = Replacement::new();
                 for depth in [n, m, n] {
                     retarget_swap(&mut slots, depth, max_stack_access, &mut replacement)?;
                 }
                 candidate.replace(index, StackOp::Exchange(n, m), replacement, evm_version);
             }
             None => {
-                if !inst.has_canonical_stack_effect()
-                    || inst.as_evm_opcode().is_some_and(is_analysis_boundary)
-                {
+                if inst.as_evm_opcode().is_some_and(is_analysis_boundary) {
                     return None;
                 }
-                let effect = inst.effective_stack_effect()?;
+                let effect = inst.stack_effect();
                 let inputs = usize::from(effect.inputs);
                 if inputs > slots.len()
                     || slots[slots.len() - inputs..].iter().any(|slot| slot.is_ghost)
@@ -418,9 +426,9 @@ fn find_candidate(
     None
 }
 
-fn ensure_depth(slots: &mut Vec<Slot>, depth: usize) {
+fn ensure_depth(slots: &mut Slots, depth: usize) {
     if depth > slots.len() {
-        slots.splice(..0, std::iter::repeat_n(Slot::OTHER, depth - slots.len()));
+        slots.insert_many(0, std::iter::repeat_n(Slot::OTHER, depth - slots.len()));
     }
 }
 
@@ -443,10 +451,10 @@ fn nearest_alias_depth(slots: &[Slot], max_stack_access: usize) -> Option<usize>
 }
 
 fn retarget_swap(
-    slots: &mut Vec<Slot>,
+    slots: &mut Slots,
     depth: u8,
     max_stack_access: usize,
-    replacement: &mut Vec<StackOp>,
+    replacement: &mut Replacement,
 ) -> Option<()> {
     let stack_depth = usize::from(depth) + 1;
     ensure_depth(slots, stack_depth);
@@ -480,7 +488,7 @@ fn retarget_swap(
     Some(())
 }
 
-fn push_simplified_stack_op(ops: &mut Vec<StackOp>, stack_op: StackOp) {
+fn push_simplified_stack_op(ops: &mut Replacement, stack_op: StackOp) {
     if ops.last() == Some(&stack_op) && matches!(stack_op, StackOp::Swap(_)) {
         ops.pop();
         return;
@@ -511,6 +519,30 @@ fn apply_edits(
     edits: &[Edit],
     scratch: &mut Vec<Instruction>,
 ) {
+    if edits.iter().all(|edit| edit.replacement.len() <= 1) {
+        let mut edits = edits.iter().peekable();
+        let mut index = 0;
+        // dupN; ...; pop -> ...
+        // stack_op -> replacement_op
+        instructions.retain_mut(|inst| {
+            let at = index;
+            index += 1;
+            if edits.peek().is_some_and(|edit| edit.index == at) {
+                let edit = edits.next().unwrap();
+                if let Some(&stack_op) = edit.replacement.first() {
+                    let mut replacement = Instruction::stack_op(stack_op);
+                    replacement.metadata.copy_source_debug_from(&inst.metadata);
+                    *inst = replacement;
+                    true
+                } else {
+                    false
+                }
+            } else {
+                true
+            }
+        });
+        return;
+    }
     scratch.clear();
     std::mem::swap(instructions, scratch);
     let new_len = scratch.len() + edits.iter().map(|edit| edit.replacement.len()).sum::<usize>()
@@ -533,20 +565,5 @@ fn apply_edits(
 }
 
 const fn is_analysis_boundary(opcode: u8) -> bool {
-    op::is_terminal(opcode)
-        || matches!(
-            opcode,
-            op::JUMPI
-                | op::RJUMP
-                | op::RJUMPI
-                | op::RJUMPV
-                | op::CALLF
-                | op::RETF
-                | op::JUMPF
-                // Reject malformed raw extended operations. Logical operations are handled above.
-                | op::DUPN
-                | op::SWAPN
-                | op::EXCHANGE
-                | op::RETURNCONTRACT
-        )
+    op::is_terminal(opcode) || opcode == op::JUMPI
 }

@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/none/phi.mir (before none) ===
 + // === ROOT/tests/ui/codegen/mir/none/phi.mir (after none) ===
   @module PhiTest
-  fn @diamond(arg0: bool) -> u256 {
+  fn @diamond(arg0: i1) -> i256 {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:

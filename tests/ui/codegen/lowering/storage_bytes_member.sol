@@ -46,10 +46,10 @@ contract StorageBytesMember {
     // CHECK: [[PUSH_RANGE]]:
     // CHECK: keccak256
     // CHECK: jump [[LOOP:bb[0-9]+]]
-    // CHECK: [[LOOP]]:
+    // CHECK: [[LOOP]]{{( \[[a-z]+\])?}}:
     // CHECK: push [[LOOP_BODY:bb[0-9]+]]
     // CHECK-NEXT: jumpi
-    // CHECK: [[LOOP_BODY]]:
+    // CHECK: [[LOOP_BODY]]{{( \[[a-z]+\])?}}:
     // CHECK: sload
     // CHECK-NOT: mcopy
     // CHECK: sstore
@@ -72,8 +72,6 @@ contract StorageBytesMember {
     // CHECK: keccak256
     // CHECK: sload
     // CHECK-NOT: mload
-    // CHECK: jump [[RETURN:bb[0-9]+]]
-    // CHECK: [[RETURN]]:
     // CHECK: return
     function len() external view returns (uint256) {
         KeccakState storage state = states[msg.sender];

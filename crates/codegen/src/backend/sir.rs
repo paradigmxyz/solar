@@ -164,7 +164,8 @@ fn functions(
         )?;
     }
     // data dN 0xbytes
-    for (id, bytes) in module.iter_data() {
+    for (id, data) in module.data.iter_enumerated() {
+        let bytes = data.bytes.linked();
         writeln!(text, "data d{} 0x{}", id.index(), hex::encode(bytes)).unwrap();
     }
     Ok(text.replace("ARGS_BASE", &heap.to_string()))
@@ -326,7 +327,40 @@ fn function(
                 .unwrap();
                 continue;
             }
+            if matches!(inst.kind, InstKind::Ne(..)) {
+                let result = f.inst_result_value(iid).ok_or("comparison without result")?.index();
+                writeln!(
+                    out,
+                    "equal{result} = eq {} {}\nv{result} = iszero equal{result}",
+                    args[0], args[1]
+                )
+                .unwrap();
+                continue;
+            }
             let name = match &inst.kind {
+                InstKind::DataSize(size) => {
+                    args.extend([
+                        size.value(module.data[size.data].bytes.linked().len()).to_string(),
+                        "0".into(),
+                    ]);
+                    "add".into()
+                }
+                InstKind::Zext(_) | InstKind::IntToPtr(_) => {
+                    args.push("0".into());
+                    "add".into()
+                }
+                InstKind::Trunc(_, bits) | InstKind::PtrToInt(_, bits) => {
+                    args.push((alloy_primitives::U256::MAX >> (256 - bits)).to_string());
+                    "and".into()
+                }
+                InstKind::Sext(_, 1, to) => {
+                    args.push((alloy_primitives::U256::MAX >> (256 - to)).to_string());
+                    "mul".into()
+                }
+                InstKind::Sext(_, 160, 256) => {
+                    args.insert(0, "19".into());
+                    "signextend".into()
+                }
                 InstKind::Shl(..) | InstKind::Shr(..) | InstKind::Sar(..) => {
                     inst.kind.mnemonic().to_owned()
                 }
@@ -350,7 +384,7 @@ fn function(
                     args.insert(0, fmp.to_string());
                     "mstore256".into()
                 }
-                InstKind::ICall { function, .. } => {
+                InstKind::ICall { function: crate::mir::Callee::Function(function), .. } => {
                     args.insert(0, format!("@f{}", function.index()));
                     "icall".into()
                 }
@@ -370,7 +404,6 @@ fn function(
                 | InstKind::SLt(..)
                 | InstKind::SGt(..)
                 | InstKind::Eq(..)
-                | InstKind::IsZero(..)
                 | InstKind::Exp(..)
                 | InstKind::AddMod(..)
                 | InstKind::MulMod(..)
@@ -424,7 +457,8 @@ fn function(
                 other => return Err(format!("unsupported SIR instruction `{}`", other.mnemonic())),
             };
             if let Some(result) = f.inst_result_value(iid) {
-                if let InstKind::ICall { function, .. } = inst.kind
+                if let InstKind::ICall { function: crate::mir::Callee::Function(function), .. } =
+                    inst.kind
                     && !has_return_value(&module.functions[function])
                 {
                     // dead_result = 0; icall nonreturning_callee
@@ -433,7 +467,9 @@ fn function(
                 } else {
                     write!(out, "v{} = ", result.index()).unwrap();
                 }
-            } else if let InstKind::ICall { function, .. } = inst.kind
+            } else if let InstKind::ICall {
+                function: crate::mir::Callee::Function(function), ..
+            } = inst.kind
                 && has_return_value(&module.functions[function])
             {
                 // discarded = icall callee(args)
@@ -446,8 +482,10 @@ fn function(
             Terminator::Jump(to) => writeln!(out, "=> @e{}_{}", bid.index(), to.index()).unwrap(),
             Terminator::Branch { condition, then_block, else_block } => writeln!(
                 out,
-                "=> {} ? @e{}_{} : @e{}_{}",
+                "branch_condition{} = copy {}\n=> branch_condition{} ? @e{}_{} : @e{}_{}",
+                bid.index(),
                 value(f, *condition)?,
+                bid.index(),
                 bid.index(),
                 then_block.index(),
                 bid.index(),

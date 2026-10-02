@@ -1,18 +1,22 @@
 //! MIR module (top-level container).
 
 use super::{
-    AbiLayout, AbiLayoutRef, AbiParamLayout, AbiParamLayoutRef, DataId, DataRef, Disambiguator,
-    Function, FunctionId, ImmutableId, MangledSymbol, MirType,
+    AbiLayout, AbiLayoutRef, AbiParamLayout, AbiParamLayoutRef, Data, DataBytes, DataId, DataRef,
+    Disambiguator, Function, FunctionId, ImmutableId, MangledSymbol, MirType, StructId, StructType,
+    Terminator, ValueId,
 };
+use crate::link::{ContractCode, LibraryTable};
 use alloy_primitives::Bytes;
+use smallvec::SmallVec;
 use solar_data_structures::{
-    fmt::{self, FmtIteratorExt},
-    index::IndexVec,
+    bit_set::DenseBitSet,
+    fmt::FmtIteratorExt,
+    index::{IndexVec, index_vec},
     map::FxHashMap,
 };
 use solar_interface::{Ident, Symbol, sym};
 use solar_sema::hir::VariableId;
-use std::{borrow::Cow, sync::Arc};
+use std::{borrow::Cow, fmt, sync::Arc};
 
 /// A named immutable declared by a MIR module.
 #[derive(Clone, Copy, Debug)]
@@ -20,66 +24,24 @@ pub(crate) struct Immutable {
     /// The source-level name used by textual MIR.
     pub(crate) name: Ident,
     /// The immutable's MIR type.
-    pub(crate) ty: MirType,
+    pub(crate) ty: super::ValueLayout,
     /// The source variable, when this module was lowered from Solidity.
     pub(crate) variable_id: Option<VariableId>,
 }
 
-/// An unresolved external library address referenced by a MIR module.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct LibraryLink {
-    /// Source unit containing the library.
-    pub(crate) source: String,
-    /// Library contract name.
-    pub(crate) name: String,
-    /// Fixed-width address placeholder emitted into bytecode.
-    pub(crate) placeholder: [u8; 20],
-}
-/// One constant byte string and its optional display name.
-#[derive(Clone, Debug)]
-struct Data {
-    bytes: Bytes,
-    name: Option<Symbol>,
-    emit_in_runtime: bool,
-}
-
-/// The lowering phase a [`Module`] is in.
+/// The representation contract of a MIR module.
 ///
-/// MIR is a phased IR, like rustc's MIR: the same data structures pass through
-/// well-defined phases, and passes declare what phase they expect and produce.
-/// Phases only move forward. The enum order is the lowering order, so
-/// [`MirPhase`] derives `Ord` and `Module::advance_phase` can assert monotonicity.
-///
-/// Optimization runs on the compact high-level form first; the progressive
-/// lowering phases then rewrite high-level constructs into MIR itself instead
-/// of leaving them as backend special cases. The codegen pipeline runs ABI,
-/// dispatch, memory-object, allocation, and EVM-shape lowering by default. The
-/// backend only consumes an `evm-shaped` module; a lowering pass that cannot
-/// complete leaves the module at an earlier phase and codegen reports it.
+/// Semantic MIR retains typed operations through optimization. Lowered MIR contains only
+/// backend-supported word operations, with ABI routing and memory layouts made explicit.
+/// Individual conversion passes may mix representations; only checked completion advances
+/// the phase. Optimization history is not part of the representation.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum MirPhase {
-    /// Fresh from HIR lowering: typed values, internal calls by function id,
-    /// dispatch and ABI handling not yet materialized as MIR.
+    /// Typed SSA with semantic operations and layouts.
     #[default]
-    Built,
-    /// The canonical optimization pipeline has run.
-    Optimized,
-    /// Every external function has been rewritten into a self-decoding wrapper:
-    /// it decodes calldata into typed arguments and calls the original body as
-    /// an internal function; the body keeps its fused external termination.
-    /// The wrapper keeps its selector but takes no MIR arguments.
-    Abi,
-    /// The selector switch has been materialized as an ordinary MIR `entry`
-    /// function that routes to the ABI wrappers.
-    Dispatch,
-    /// Semantic memory objects have been lowered to physical pointer and word
-    /// operations. Produced by the `lower-memory-objects` pass.
-    MemoryLowered,
-    /// Functions take the shape the backend expects: every call edge either
-    /// returns or is an explicit `tail_call` (a call to a callee that cannot
-    /// return is rewritten into one, arguments included). Produced by the
-    /// `lower-evm-shaped` pass after all required representation lowering.
-    EvmShaped,
+    Semantic,
+    /// Word SSA with explicit ABI, memory, and backend calling conventions.
+    Lowered,
 }
 
 impl MirPhase {
@@ -87,12 +49,8 @@ impl MirPhase {
     #[must_use]
     pub const fn name(self) -> &'static str {
         match self {
-            Self::Built => "built",
-            Self::Optimized => "optimized",
-            Self::Abi => "abi",
-            Self::Dispatch => "dispatch",
-            Self::MemoryLowered => "memory-lowered",
-            Self::EvmShaped => "evm-shaped",
+            Self::Semantic => "semantic",
+            Self::Lowered => "lowered",
         }
     }
 
@@ -100,22 +58,32 @@ impl MirPhase {
     #[must_use]
     pub(crate) fn by_name(name: Symbol) -> Option<Self> {
         Some(match name {
-            sym::built => Self::Built,
-            sym::optimized => Self::Optimized,
-            sym::abi => Self::Abi,
-            sym::dispatch => Self::Dispatch,
-            sym::memory_dash_lowered => Self::MemoryLowered,
-            sym::evm_dash_shaped => Self::EvmShaped,
+            sym::semantic => Self::Semantic,
+            sym::lowered => Self::Lowered,
             _ => return None,
         })
+    }
+}
+
+/// An immutable MIR view whose backend representation has been checked.
+pub(crate) struct LoweredModule<'a>(&'a Module);
+
+impl std::ops::Deref for LoweredModule<'_> {
+    type Target = Module;
+
+    fn deref(&self) -> &Module {
+        self.0
     }
 }
 
 /// A MIR module representing a compiled contract.
 #[derive(Clone, Debug)]
 pub struct Module {
+    pub(crate) libraries: LibraryTable,
     /// Module/contract name.
     pub(crate) name: Ident,
+    /// Fixed aggregate types, with nested types declared before their users.
+    pub(crate) struct_types: IndexVec<StructId, StructType>,
     /// All functions in this module.
     pub(crate) functions: IndexVec<FunctionId, Function>,
     /// The synthesized runtime dispatch entry, if this module has one.
@@ -129,11 +97,9 @@ pub struct Module {
     /// Named immutable declarations indexed by their stable MIR identifiers.
     immutables: IndexVec<ImmutableId, Immutable>,
     /// Constant byte strings embedded in generated code.
-    data: IndexVec<DataId, Data>,
+    pub(crate) data: IndexVec<DataId, Data>,
     /// Exact data lookup used before the final subslice-packing pass.
     data_index: FxHashMap<Bytes, DataId>,
-    /// Unresolved external library addresses used by this module.
-    library_links: Vec<LibraryLink>,
     /// Whether this is an interface (no bytecode generation).
     pub(crate) is_interface: bool,
     /// Whether this module was lowered from a library.
@@ -143,12 +109,43 @@ pub struct Module {
     /// [`Self::library_deploy_address`].
     pub(crate) is_library: bool,
     /// The lowering phase this module is in.
-    pub(crate) phase: MirPhase,
+    pub(super) phase: MirPhase,
     /// Whether passes must account for every instruction's source debug information.
     debug_info_tracked: bool,
 }
 
 impl Module {
+    /// Interns a structural value type within this module.
+    pub(crate) fn intern_struct(&mut self, fields: impl Into<Box<[MirType]>>) -> MirType {
+        let fields = fields.into();
+        if let Some((id, _)) =
+            self.struct_types.iter_enumerated().find(|(_, ty)| ty.fields == fields)
+        {
+            return MirType::Struct(id);
+        }
+        MirType::Struct(self.struct_types.push(StructType { fields }))
+    }
+
+    /// Represents a function's logical outputs as zero, one, or one struct value.
+    pub(crate) fn intern_return_type(&mut self, fields: Vec<MirType>) -> Option<MirType> {
+        match fields.as_slice() {
+            [] => None,
+            [ty] => Some(*ty),
+            _ => Some(self.intern_struct(fields)),
+        }
+    }
+
+    /// Returns whether a value can contain a reference to caller-visible memory.
+    pub(crate) fn type_may_reference_memory(&self, ty: MirType) -> bool {
+        match ty {
+            MirType::Struct(id) => self.struct_types[id]
+                .fields
+                .iter()
+                .any(|&field| self.type_may_reference_memory(field)),
+            _ => ty.is_memory_reference(),
+        }
+    }
+
     /// Parses textual MIR.
     pub fn parse(
         sess: &solar_interface::Session,
@@ -163,6 +160,7 @@ impl Module {
         Self {
             name,
             functions: IndexVec::new(),
+            struct_types: IndexVec::new(),
             dispatch_entry: None,
             function_name_index: FxHashMap::default(),
             abi_layouts: Vec::new(),
@@ -170,10 +168,10 @@ impl Module {
             immutables: IndexVec::new(),
             data: IndexVec::new(),
             data_index: FxHashMap::default(),
-            library_links: Vec::new(),
+            libraries: LibraryTable::default(),
             is_interface: false,
             is_library: false,
-            phase: MirPhase::Built,
+            phase: MirPhase::Semantic,
             debug_info_tracked: false,
         }
     }
@@ -189,18 +187,120 @@ impl Module {
         self.debug_info_tracked
     }
 
-    /// Advances this module to a later phase.
-    ///
-    /// Phases only move forward; a pipeline that would regress the phase is a
-    /// bug in pass scheduling.
-    pub(crate) fn advance_phase(&mut self, phase: MirPhase) {
-        debug_assert!(
-            phase >= self.phase,
-            "MIR phase cannot regress: {} -> {}",
-            self.phase.name(),
-            phase.name()
-        );
+    /// Returns the verified representation phase.
+    #[must_use]
+    pub const fn phase(&self) -> MirPhase {
+        self.phase
+    }
+
+    /// Checks the destination representation before advancing the phase.
+    pub(crate) fn advance_phase(
+        &mut self,
+        dcx: &solar_interface::diagnostics::DiagCtxt,
+        phase: MirPhase,
+    ) -> solar_interface::Result<()> {
+        assert!(phase >= self.phase, "MIR phase cannot regress");
+        crate::mir::analysis::validate_phase(dcx, self, phase)?;
         self.phase = phase;
+        Ok(())
+    }
+
+    /// Checks backend legality and borrows the module without permitting further rewrites.
+    pub(crate) fn as_lowered(
+        &self,
+        dcx: &solar_interface::diagnostics::DiagCtxt,
+    ) -> solar_interface::Result<LoweredModule<'_>> {
+        if self.phase != MirPhase::Lowered {
+            return Err(dcx
+                .err(format!(
+                    "EVM codegen requires MIR in the `lowered` phase, stopped at `{}`",
+                    self.phase.name(),
+                ))
+                .span(self.name.span)
+                .emit());
+        }
+        crate::mir::analysis::validate_phase(dcx, self, MirPhase::Lowered)?;
+        Ok(LoweredModule(self))
+    }
+
+    /// Returns whether all external entries have an explicit ABI implementation.
+    pub(crate) fn has_explicit_abi(&self) -> bool {
+        self.functions
+            .iter()
+            .all(|func| !func.is_external_entry() || func.attributes.is_abi_wrapper)
+    }
+
+    /// Returns whether a live value or function signature still uses an SSA struct.
+    pub(crate) fn has_struct_values(&self) -> bool {
+        self.has_value_type(|ty| matches!(ty, MirType::Struct(_)))
+    }
+
+    fn has_value_type(&self, predicate: impl Fn(MirType) -> bool) -> bool {
+        let mut operands = SmallVec::<[ValueId; 8]>::new();
+        self.functions.iter().any(|func| {
+            let matches = |value| func.value_ty(value).is_some_and(&predicate);
+            if func.arg_indices().any(|index| predicate(func.arg_ty(index)))
+                || func.return_components().iter().any(|&ty| predicate(ty))
+            {
+                return true;
+            }
+            for block in &func.blocks {
+                for &inst_id in &block.instructions {
+                    let inst = func.inst(inst_id);
+                    operands.clear();
+                    inst.kind.collect_operands(&mut operands);
+                    if operands.iter().copied().chain(inst.result()).any(matches) {
+                        return true;
+                    }
+                }
+                let mut found = false;
+                if let Some(term) = &block.terminator {
+                    term.visit_operands(|value| found |= matches(value));
+                }
+                if found {
+                    return true;
+                }
+            }
+            false
+        })
+    }
+
+    /// Finds functions that may return to their caller, directly or through tail calls.
+    ///
+    /// Propagate direct returns backwards over tail-call edges. Cycles without a return stay
+    /// nonreturning. Unreachable returns and invalid tail targets count conservatively; this
+    /// query does not prove reachability or replace validation of call targets.
+    pub(crate) fn returning_functions(&self) -> DenseBitSet<FunctionId> {
+        let mut callers = index_vec![Vec::new(); self.functions.len()];
+        let mut returning = DenseBitSet::new_empty(self.functions.len());
+        let mut worklist = Vec::new();
+        for (id, func) in self.iter_functions() {
+            for block in &func.blocks {
+                let may_return = match &block.terminator {
+                    Some(Terminator::Return { .. }) => true,
+                    Some(Terminator::TailCall { function, .. }) => {
+                        if let Some(callers) = callers.get_mut(*function) {
+                            callers.push(id);
+                            false
+                        } else {
+                            true
+                        }
+                    }
+                    _ => false,
+                };
+                if may_return && returning.insert(id) {
+                    worklist.push(id);
+                }
+            }
+        }
+        while let Some(callee) = worklist.pop() {
+            for &caller in &callers[callee] {
+                if returning.insert(caller) {
+                    worklist.push(caller);
+                }
+            }
+        }
+        returning
     }
 
     /// Adds a function to the module.
@@ -279,7 +379,7 @@ impl Module {
     pub(crate) fn add_immutable(
         &mut self,
         name: Ident,
-        ty: MirType,
+        ty: super::ValueLayout,
         variable_id: Option<VariableId>,
     ) -> ImmutableId {
         self.immutables.push(Immutable { name, ty, variable_id })
@@ -291,16 +391,9 @@ impl Module {
         &self.immutables[id]
     }
 
-    /// Registers an unresolved external library address.
-    pub(crate) fn add_library_link(&mut self, link: LibraryLink) {
-        if !self.library_links.contains(&link) {
-            self.library_links.push(link);
-        }
-    }
-
-    /// Returns unresolved external library addresses used by this module.
-    pub(crate) fn library_links(&self) -> &[LibraryLink] {
-        &self.library_links
+    /// Returns a mutable immutable declaration.
+    pub(crate) fn immutable_mut(&mut self, id: ImmutableId) -> &mut Immutable {
+        &mut self.immutables[id]
     }
 
     /// Returns an immutable declaration if the identifier is allocated.
@@ -311,13 +404,13 @@ impl Module {
 
     /// Returns an immutable's MIR type.
     #[must_use]
-    pub(crate) fn immutable_type(&self, id: ImmutableId) -> MirType {
+    pub(crate) fn immutable_type(&self, id: ImmutableId) -> super::ValueLayout {
         self.immutable(id).ty
     }
 
     /// Returns an immutable's MIR type if the identifier is allocated.
     #[must_use]
-    pub(crate) fn get_immutable_type(&self, id: ImmutableId) -> Option<MirType> {
+    pub(crate) fn get_immutable_type(&self, id: ImmutableId) -> Option<super::ValueLayout> {
         self.get_immutable(id).map(|immutable| immutable.ty)
     }
 
@@ -352,6 +445,26 @@ impl Module {
         self.immutables.iter_enumerated()
     }
 
+    /// Adds a data entry, interning its bytes when they are plain literal data.
+    pub(crate) fn add_data_entry(&mut self, data: Data) -> DataId {
+        let bytes = data.bytes.known().filter(|_| data.library_relocations.is_empty()).cloned();
+        let id = self.data.push(data);
+        if let Some(bytes) = bytes {
+            self.data_index.entry(bytes).or_insert(id);
+        }
+        id
+    }
+
+    /// Interns another contract's bytecode, which final assembly links in.
+    pub(crate) fn intern_contract_code(&mut self, code: ContractCode, name: Symbol) -> DataId {
+        let existing =
+            self.data.iter_enumerated().find(|(_, data)| data.bytes == DataBytes::Deferred(code));
+        match existing {
+            Some((id, _)) => id,
+            None => self.data.push(Data::contract_code(code, Some(name))),
+        }
+    }
+
     /// Interns constant data and returns its stable identifier.
     pub(crate) fn intern_data(&mut self, data: Cow<'_, [u8]>, name: Option<Symbol>) -> DataRef {
         let name = name.unwrap_or(sym::literal);
@@ -375,34 +488,7 @@ impl Module {
     }
 
     fn push_data(&mut self, data: Bytes, name: Option<Symbol>, emit_in_runtime: bool) -> DataId {
-        let id = self.data.push(Data { bytes: data.clone(), name, emit_in_runtime });
-        self.data_index.entry(data).or_insert(id);
-        id
-    }
-
-    pub(crate) fn data_name(&self, id: DataId) -> Option<Symbol> {
-        self.data[id].name
-    }
-
-    pub(crate) fn data_is_emitted_in_runtime(&self, id: DataId) -> bool {
-        self.data[id].emit_in_runtime
-    }
-
-    /// Returns constant data if the identifier is allocated.
-    #[must_use]
-    pub(crate) fn get_data(&self, id: DataId) -> Option<&Bytes> {
-        self.data.get(id).map(|data| &data.bytes)
-    }
-
-    /// Returns the number of constant data entries.
-    #[must_use]
-    pub(crate) fn data_count(&self) -> usize {
-        self.data.len()
-    }
-
-    /// Returns all constant data entries.
-    pub(crate) fn iter_data(&self) -> impl Iterator<Item = (DataId, &Bytes)> {
-        self.data.iter_enumerated().map(|(id, data)| (id, &data.bytes))
+        self.add_data_entry(Data { emit_in_runtime, ..Data::new(data, name) })
     }
 
     /// Returns an iterator over all functions.
@@ -420,24 +506,16 @@ impl Module {
             if self.is_library {
                 writeln!(f, "@library")?;
             }
-            if !self.data.is_empty() {
-                writeln!(f, "data:")?;
-                for (id, data) in self.iter_data() {
-                    if let Some(name) = self.data_name(id) {
-                        write!(f, "  {}", crate::utils::display_data_name(name, id.index()))?;
-                    } else {
-                        write!(f, "  {}", id.index())?;
-                    }
-                    write!(f, ": hex\"")?;
-                    for byte in data {
-                        write!(f, "{byte:02x}")?;
-                    }
-                    writeln!(f, "\"")?;
+            if !self.struct_types.is_empty() {
+                writeln!(f, "@types")?;
+                for (id, ty) in self.struct_types.iter_enumerated() {
+                    writeln!(f, "  struct{}: {{{}}}", id.index(), ty.fields.iter().format(", "))?;
                 }
                 writeln!(f)?;
             }
+            write!(f, "{}", crate::link::display_declarations(&self.libraries, &self.data))?;
             if !self.immutables.is_empty() {
-                writeln!(f, "immutables:")?;
+                writeln!(f, "@immutables")?;
                 for (id, immutable) in self.iter_immutables() {
                     writeln!(
                         f,

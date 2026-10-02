@@ -10,49 +10,40 @@ bb0:
   eq
   push bb1
   jumpi
+  jump bb3
+bb3 [cold]:
   push 0
   push 0
   revert
-bb11 [cold]:
-  push 0
-  push 0
-  revert
-bb10 [cold]:
+bb9 [cold]:
   push 0x4e487b71
-  push 224
-  shl
   push 0
   mstore
   push 17
-  push 4
+  push 32
   mstore
   push 36
-  push 0
+  push 28
   revert
 bb1:
   push_immutable 0, 20
   address
   eq
-  push bb11
+  push bb3
   jumpi
   push 100
   calldatasize
   lt
-  push bb11
+  push bb3
   jumpi
   push 36
   calldataload
   push 160
   shr
-  push bb11
+  push bb3
   jumpi
-  push 0
-  not
-  push 96
-  shr
   push 36
   calldataload
-  and
   push 0
   mstore
   push 4
@@ -71,11 +62,11 @@ bb1:
   swap 1
   dup 2
   lt
-  push bb10
+  push bb9
   jumpi
-  dup 2
+  dup 1
+  swap 2
   sstore
-  sload
   push 255
   caller
   and
@@ -84,7 +75,7 @@ bb1:
   swap 1
   dup 2
   lt
-  push bb10
+  push bb9
   jumpi
   push 128
   mstore
@@ -106,7 +97,7 @@ bb0:
   sub
   push bb3
   jumpi
-  push 256
+  push 160
   push 64
   mstore
   push 68
@@ -120,13 +111,6 @@ bb0:
   shr
   push bb3
   jumpi
-  push 0
-  not
-  push 96
-  shr
-  push 4
-  calldataload
-  and
   push 64
   mload
   push 128
@@ -143,18 +127,16 @@ bb0:
   dup 2
   add
   push 0
-  swap 1
+  dup 2
   mstore
-  push 36
+  push 32
   dup 2
   add
-  dup 3
+  push 4
+  calldataload
   swap 1
   mstore
-  swap 1
-  pop
-  push 68
-  dup 2
+  push 64
   add
   push 36
   calldataload
@@ -195,23 +177,21 @@ bb0:
   dup 2
   mstore
   push 32
-  dup 2
   add
-  dup 3
+  dup 2
   push 0
   dup 3
   returndatacopy
-  swap 2
-  pop
-  mload
-  dup 1
-  dup 3
+  dup 2
+  dup 2
   add
-  dup 3
+  dup 2
   gt
-  swap 1
+  swap 2
   push 32
   gt
+  swap 1
+  swap 2
   or
   push bb3
   jumpi
@@ -235,13 +215,11 @@ bb10 [cold]:
   revert
 bb11 [cold]:
   push 0x4e487b71
-  push 224
-  shl
   push 0
   mstore
   push 65
-  push 4
+  push 32
   mstore
   push 36
-  push 0
+  push 28
   revert

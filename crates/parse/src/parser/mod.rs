@@ -716,6 +716,13 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
                 Ok(value) => v.push(value),
                 Err(err) if self.can_recover_sequence(ket) => {
                     err.emit();
+                    if ket == TokenKind::CloseDelim(Delimiter::Brace)
+                        && sep.sep.is_none()
+                        && self.token.kind == TokenKind::Semi
+                    {
+                        self.bump();
+                        continue;
+                    }
                     if self.token.kind == ket {
                         self.bump();
                     }

@@ -14,18 +14,17 @@
 
 use self::{
     stack::{
-        MAX_STACK_ACCESS, OperandCostModel, OperandPlan, ScheduleCost, ScheduledOp, SpillSlot,
-        StackScheduler, TargetSlot, cross_block_values, is_cross_block_recomputable_kind,
-        is_rematerializable_leaf,
+        OperandCostModel, OperandPlan, ScheduleCost, ScheduledOp, SpillSlot, StackScheduler,
+        TargetSlot, cross_block_values, is_cross_block_recomputable_kind, is_rematerializable_leaf,
         layout::{
             GlobalStackPlan, StackPhiBranch, StackPhiEdge, StackPhiPlan, planned_entry_carries,
         },
-        rematerializable_nullary_opcode, rematerializable_nullary_value,
+        rematerializable_nullary_value,
     },
     switch::MAX_GAS_CODE_GROWTH,
 };
 use super::{
-    DebugFunction, DebugFunctionExit, DebugInstruction, ir,
+    DebugFunction, DebugFunctionExit, DebugInfo, ir,
     layout::{RelayoutAddress, preserves_push_width},
     op::{self, WORD_BYTES},
 };
@@ -33,6 +32,7 @@ use crate::{
     backend::assembler::{
         ArtifactKind, Assembler, DeferredAlloc, DeferredConst, ImmutableRef, Label,
     },
+    link::{EmbeddedBytecodes, LibraryRelocation, LibraryTable},
     mir::{
         ArgIdx, BlockId, EffectKind, Function, FunctionId, ImmutableEncoding, ImmutableId, InstId,
         InstKind, MemoryRegion, MirPhase, MirType, Module, Terminator, Value, ValueId,
@@ -57,7 +57,7 @@ use solar_data_structures::{
     map::{FxHashMap, FxHashSet},
 };
 use solar_sema::Gcx;
-use std::{cell::OnceCell, collections::hash_map::Entry as StdEntry, rc::Rc};
+use std::{cell::OnceCell, sync::Arc};
 
 mod stack;
 pub(super) use stack::{
@@ -71,7 +71,9 @@ mod deployment;
 mod frames;
 mod function;
 mod instructions;
+mod planning;
 mod runtime;
+pub(crate) mod select;
 mod terminator;
 mod values;
 
@@ -81,8 +83,9 @@ const GLOBAL_STACK_LAYOUT_LIMIT: usize = 8;
 #[derive(Default)]
 struct GeneratedCode {
     bytecode: Vec<u8>,
+    library_relocations: Vec<LibraryRelocation>,
     evm_ir: Option<ir::Module>,
-    debug_info: Option<Vec<DebugInstruction>>,
+    debug_info: Option<DebugInfo>,
 }
 
 /// Describes the stack effect of an EVM instruction.
@@ -190,7 +193,7 @@ struct StackResultProjection {
 /// Subset-invariant analyses shared by one resident-layout subset search.
 struct ResidentSearchContext {
     /// Planned stack-phi edges, present when the function has phis.
-    phi_plan: Option<Rc<StackPhiPlan>>,
+    phi_plan: Option<Arc<StackPhiPlan>>,
     /// CFG facts whose memoized dominators persist across candidates.
     cfg: CfgInfo,
     /// Operand occurrences per candidate value across the whole function.
@@ -252,6 +255,8 @@ pub struct EvmCodegen<'gcx> {
     block_labels: FxHashMap<BlockId, Label>,
     /// Function labels for direct internal calls.
     function_labels: FxHashMap<FunctionId, Label>,
+    /// Return arities inferred from the final lowered function signatures.
+    function_return_counts: IndexVec<FunctionId, usize>,
     /// Functions whose reachable exits all abort. Calls to these functions
     /// make their containing block cold as well.
     cold_functions: DenseBitSet<FunctionId>,
@@ -321,6 +326,8 @@ pub struct EvmCodegen<'gcx> {
     /// by (function, byte offset within its frame). Resolved at the end of
     /// the pass, once every body's exact spill size is known.
     static_frame_addr_consts: FxHashMap<(FunctionId, u64), (DeferredConst, usize)>,
+    /// Final packed sizes of scalar static frames after unused references are deleted.
+    packed_static_frame_sizes: FxHashMap<FunctionId, u64>,
     /// Deferred allocations emitted by each external entry.
     pending_static_allocs: FxHashMap<FunctionId, Vec<(DeferredAlloc, u64)>>,
     /// Per-external-entry free-memory-pointer constants, resolved after static-frame placement.
@@ -351,7 +358,9 @@ pub struct EvmCodegen<'gcx> {
     /// Stack-phi plans by function, shared by the resident-argument search and body emission.
     /// A plan depends only on the function, its whole-function liveness, and the module's cold
     /// functions, so one analysis per function serves both.
-    stack_phi_plans: FxHashMap<FunctionId, Rc<StackPhiPlan>>,
+    stack_phi_plans: FxHashMap<FunctionId, Arc<StackPhiPlan>>,
+    /// Whole-function liveness by function, shared the same way as `stack_phi_plans`.
+    function_liveness: FxHashMap<FunctionId, Arc<Liveness>>,
     function_ir_block_start: usize,
     /// Whole-calldata-forwarding clobbers (`calldatacopy(0, 0, calldatasize())`
     /// in a proxy) whose write reaches the compiler spill area. Values live
@@ -361,6 +370,8 @@ pub struct EvmCodegen<'gcx> {
     /// Leaf helpers whose sole returned word is derived from the free-memory pointer.
     /// Their callers may safely use the result as a dynamic forwarding-buffer base.
     heap_pointer_return_functions: DenseBitSet<FunctionId>,
+    /// Runtime code of a scheduled module, waiting for embedded bytecode to be linked in.
+    pending_runtime: Option<PendingRuntime>,
     /// Whether the current function has canonical cross-block argument layouts.
     global_stack_active: bool,
     /// Calldata words physically identical to arguments in the active global
@@ -379,7 +390,7 @@ pub struct EvmCodegen<'gcx> {
     /// Whether we're currently generating constructor code.
     /// When true, arguments load from the copied deployment ABI blob.
     in_constructor: bool,
-    /// Shared constructor completion reached by ordinary `stop` terminators.
+    /// Shared constructor completion reached by ordinary empty returns.
     constructor_exit: Option<Label>,
     /// Number of constructor parameters (used for CODECOPY offset calculation).
     constructor_param_count: u32,
@@ -406,9 +417,11 @@ impl<'gcx> EvmCodegen<'gcx> {
         Self {
             gcx,
             asm: Assembler::new(gcx),
-            scheduler: StackScheduler::for_evm_version(gcx.sess.opts.evm_version),
+            scheduler: StackScheduler::for_evm_version(gcx.sess.opts.evm_version)
+                .with_wide_permutation_search(gcx.sess.opts.optimization.is_gas()),
             block_labels: FxHashMap::default(),
             function_labels: FxHashMap::default(),
+            function_return_counts: IndexVec::new(),
             cold_functions: DenseBitSet::new_empty(0),
             empty_stop_functions: DenseBitSet::new_empty(0),
             cold_blocks: DenseBitSet::new_empty(0),
@@ -430,6 +443,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             restorable_internal_frames: DenseBitSet::new_empty(0),
             static_frame_functions: DenseBitSet::new_empty(0),
             static_frame_addr_consts: FxHashMap::default(),
+            packed_static_frame_sizes: FxHashMap::default(),
             pending_static_allocs: FxHashMap::default(),
             runtime_free_memory_consts: FxHashMap::default(),
             runtime_entry_reachability: FxHashMap::default(),
@@ -444,9 +458,11 @@ impl<'gcx> EvmCodegen<'gcx> {
             spill_loads: Vec::new(),
             early_spill_removals: Vec::new(),
             stack_phi_plans: FxHashMap::default(),
+            function_liveness: FxHashMap::default(),
             function_ir_block_start: 0,
             spill_hazard_insts: FxHashSet::default(),
             heap_pointer_return_functions: DenseBitSet::new_empty(0),
+            pending_runtime: None,
             global_stack_active: false,
             global_stack_aliases: FxHashMap::default(),
             runtime_immutable_refs: Vec::new(),
@@ -494,6 +510,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.restorable_internal_frames.clear_to(module.functions.len());
         self.static_frame_functions.clear_to(module.functions.len());
         self.static_frame_addr_consts.clear();
+        self.packed_static_frame_sizes.clear();
         self.pending_static_allocs.clear();
         self.runtime_free_memory_consts.clear();
         self.runtime_entry_reachability.clear();
@@ -505,6 +522,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.elided_insts.clear();
         self.late_gas_operands.clear();
         self.stack_phi_plans.clear();
+        self.function_liveness.clear();
         self.spill_hazard_insts.clear();
         self.heap_pointer_return_functions.clear_to(module.functions.len());
         self.global_stack_active = false;
@@ -597,13 +615,24 @@ impl<'gcx> EvmCodegen<'gcx> {
     }
 }
 
+/// Runtime code whose EVM IR pipeline has run in the assembler, waiting for embedded bytecode.
+struct PendingRuntime {
+    call_graph: CallGraphInfo,
+}
+
 /// The artifact produced by the EVM backend.
 #[derive(Clone, Debug, Default)]
 pub struct EvmArtifact {
+    /// Library identities referenced by this artifact.
+    pub libraries: crate::link::LibraryTable,
     /// Deployment (init) bytecode that, when run, returns the runtime code.
     pub deployment: Vec<u8>,
     /// Runtime bytecode, i.e. the code stored on-chain.
     pub runtime: Vec<u8>,
+    /// Library address offsets in the deployment bytecode.
+    pub deployment_library_relocations: Vec<LibraryRelocation>,
+    /// Library address offsets in the runtime bytecode.
+    pub runtime_library_relocations: Vec<LibraryRelocation>,
     /// Immutable placeholders in the runtime bytecode.
     pub(crate) immutable_references: Vec<ImmutableRef>,
     /// Textual input to an optional code generation backend.
@@ -613,16 +642,19 @@ pub struct EvmArtifact {
     /// Final runtime EVM IR immediately before byte emission.
     pub runtime_evm_ir: Option<ir::Module>,
     /// Final deployment-prefix instruction locations.
-    pub deployment_debug_info: Option<Vec<DebugInstruction>>,
+    pub deployment_debug_info: Option<DebugInfo>,
     /// Final runtime instruction locations.
-    pub runtime_debug_info: Option<Vec<DebugInstruction>>,
+    pub runtime_debug_info: Option<DebugInfo>,
 }
 
 impl crate::backend::Backend for EvmCodegen<'_> {
     type Output = EvmArtifact;
 
-    fn lower_module(&mut self, module: &mut Module) -> EvmArtifact {
-        self.generate_deployment_artifact(module)
+    fn lower_module(&mut self, module: &mut Module, bytecodes: &EmbeddedBytecodes) -> EvmArtifact {
+        if !self.schedule_module(module) {
+            return EvmArtifact::default();
+        }
+        self.finish_module(module, bytecodes)
     }
 }
 
@@ -632,9 +664,12 @@ mod tests {
         stack::spills::{SpillColor, SpillLiveRange},
         *,
     };
-    use crate::mir::{
-        DataRef, FunctionBuilder, Immediate, Instruction, MirType, TypeSize, Value,
-        utils as mir_utils,
+    use crate::{
+        backend::{Backend, evm::disasm::disassemble},
+        mir::{
+            Callee, DataRef, FunctionBuilder, Immediate, Instruction, MirType, TypeSize, Value,
+            utils as mir_utils,
+        },
     };
     use solar_config::{CompileOpts, EvmVersion};
     use solar_interface::{Ident, Session, sym};
@@ -649,7 +684,7 @@ mod tests {
         module.add_function(constructor);
         let id = module.add_immutable(
             Ident::with_dummy_span(sym::x),
-            MirType::UInt(TypeSize::new_int_bits(8)),
+            crate::mir::ValueLayout::UInt(TypeSize::new_int_bits(8)),
             None,
         );
         let staging_base = immutable_staging_base(&module);
@@ -698,6 +733,299 @@ mod tests {
     }
 
     #[test]
+    fn llvm_cast_opcodes() {
+        let mut output = String::new();
+        for evm_version in [EvmVersion::Byzantium, EvmVersion::Osaka] {
+            output.push_str(&format!("{evm_version:?}\n"));
+            for (name, source, destination, cast) in [
+                (
+                    "sext_i1_i256",
+                    MirType::I1,
+                    MirType::I256,
+                    InstKind::Sext(ValueId::from_usize(0), 1, 256),
+                ),
+                (
+                    "sext_i1_i160",
+                    MirType::I1,
+                    MirType::I160,
+                    InstKind::Sext(ValueId::from_usize(0), 1, 160),
+                ),
+                (
+                    "sext_i160_i256",
+                    MirType::I160,
+                    MirType::I256,
+                    InstKind::Sext(ValueId::from_usize(0), 160, 256),
+                ),
+                (
+                    "trunc_i256_i1",
+                    MirType::I256,
+                    MirType::I1,
+                    InstKind::Trunc(ValueId::from_usize(0), 1),
+                ),
+                (
+                    "trunc_i256_i160",
+                    MirType::I256,
+                    MirType::I160,
+                    InstKind::Trunc(ValueId::from_usize(0), 160),
+                ),
+                (
+                    "zext_i160_i256",
+                    MirType::I160,
+                    MirType::I256,
+                    InstKind::Zext(ValueId::from_usize(0)),
+                ),
+                (
+                    "ptrtoint_i1",
+                    MirType::MemPtr,
+                    MirType::I1,
+                    InstKind::PtrToInt(ValueId::from_usize(0), 1),
+                ),
+                (
+                    "ptrtoint_i160",
+                    MirType::MemPtr,
+                    MirType::I160,
+                    InstKind::PtrToInt(ValueId::from_usize(0), 160),
+                ),
+                (
+                    "ptrtoint_i256",
+                    MirType::MemPtr,
+                    MirType::I256,
+                    InstKind::PtrToInt(ValueId::from_usize(0), 256),
+                ),
+                (
+                    "inttoptr",
+                    MirType::I256,
+                    MirType::MemPtr,
+                    InstKind::IntToPtr(ValueId::from_usize(0)),
+                ),
+            ] {
+                output.push_str(name);
+                output.push('\n');
+                output.push_str(&with_codegen(
+                    CompileOpts { evm_version, ..Default::default() },
+                    |mut codegen| {
+                        let mut function = Function::new(Ident::DUMMY);
+                        let mut builder = FunctionBuilder::new(&mut function);
+                        let argument = builder.add_param(source);
+                        let result = builder.emit_inst(cast.clone(), Some(destination));
+                        builder.set_return_type(destination);
+                        builder.ret([result]);
+                        let index = function.blocks[BlockId::ENTRY].instructions.len() - 1;
+                        let instruction = function.blocks[BlockId::ENTRY].instructions[index];
+                        let liveness = Liveness::compute(&function);
+                        // CALLVALUE; cast argument
+                        codegen.asm.emit_op(op::CALLVALUE);
+                        codegen.scheduler.stack.push(argument);
+                        codegen.generate_inst(
+                            FunctionId::from_usize(0),
+                            instruction,
+                            &function,
+                            &cast,
+                            &liveness,
+                            BlockId::ENTRY,
+                            index,
+                            Some(result),
+                        );
+                        // MSTORE 0, result; RETURN 0, 32
+                        codegen.asm.emit_push(U256::ZERO);
+                        codegen.asm.emit_op(op::MSTORE);
+                        codegen.asm.emit_push(U256::from(32));
+                        codegen.asm.emit_push(U256::ZERO);
+                        codegen.asm.emit_op(op::RETURN);
+                        let bytecode = codegen.asm.assemble().bytecode;
+                        assert_eq!(codegen.gcx.dcx().err_count(), 0);
+                        disassemble(&bytecode, evm_version)
+                    },
+                ));
+            }
+        }
+        snapbox::assert_data_eq!(
+            output,
+            snapbox::str![[r#"
+Byzantium
+sext_i1_i256
+CALLVALUE
+PUSH1 0x00
+SUB
+PUSH1 0x00
+MSTORE
+PUSH1 0x20
+PUSH1 0x00
+RETURN
+sext_i1_i160
+CALLVALUE
+PUSH20 0xffffffffffffffffffffffffffffffffffffffff
+MUL
+PUSH1 0x00
+MSTORE
+PUSH1 0x20
+PUSH1 0x00
+RETURN
+sext_i160_i256
+CALLVALUE
+PUSH1 0x13
+SIGNEXTEND
+PUSH1 0x00
+MSTORE
+PUSH1 0x20
+PUSH1 0x00
+RETURN
+trunc_i256_i1
+CALLVALUE
+PUSH1 0x01
+AND
+PUSH1 0x00
+MSTORE
+PUSH1 0x20
+PUSH1 0x00
+RETURN
+trunc_i256_i160
+CALLVALUE
+PUSH20 0xffffffffffffffffffffffffffffffffffffffff
+AND
+PUSH1 0x00
+MSTORE
+PUSH1 0x20
+PUSH1 0x00
+RETURN
+zext_i160_i256
+CALLVALUE
+PUSH1 0x00
+MSTORE
+PUSH1 0x20
+PUSH1 0x00
+RETURN
+ptrtoint_i1
+CALLVALUE
+PUSH1 0x01
+AND
+PUSH1 0x00
+MSTORE
+PUSH1 0x20
+PUSH1 0x00
+RETURN
+ptrtoint_i160
+CALLVALUE
+PUSH20 0xffffffffffffffffffffffffffffffffffffffff
+AND
+PUSH1 0x00
+MSTORE
+PUSH1 0x20
+PUSH1 0x00
+RETURN
+ptrtoint_i256
+CALLVALUE
+PUSH1 0x00
+MSTORE
+PUSH1 0x20
+PUSH1 0x00
+RETURN
+inttoptr
+CALLVALUE
+PUSH1 0x00
+MSTORE
+PUSH1 0x20
+PUSH1 0x00
+RETURN
+Osaka
+sext_i1_i256
+CALLVALUE
+PUSH0
+SUB
+PUSH0
+MSTORE
+PUSH1 0x20
+PUSH0
+RETURN
+sext_i1_i160
+CALLVALUE
+PUSH0
+SUB
+PUSH1 0x60
+SHR
+PUSH0
+MSTORE
+PUSH1 0x20
+PUSH0
+RETURN
+sext_i160_i256
+CALLVALUE
+PUSH1 0x13
+SIGNEXTEND
+PUSH0
+MSTORE
+PUSH1 0x20
+PUSH0
+RETURN
+trunc_i256_i1
+CALLVALUE
+PUSH1 0x01
+AND
+PUSH0
+MSTORE
+PUSH1 0x20
+PUSH0
+RETURN
+trunc_i256_i160
+CALLVALUE
+PUSH0
+NOT
+PUSH1 0x60
+SHR
+AND
+PUSH0
+MSTORE
+PUSH1 0x20
+PUSH0
+RETURN
+zext_i160_i256
+CALLVALUE
+PUSH0
+MSTORE
+PUSH1 0x20
+PUSH0
+RETURN
+ptrtoint_i1
+CALLVALUE
+PUSH1 0x01
+AND
+PUSH0
+MSTORE
+PUSH1 0x20
+PUSH0
+RETURN
+ptrtoint_i160
+CALLVALUE
+PUSH0
+NOT
+PUSH1 0x60
+SHR
+AND
+PUSH0
+MSTORE
+PUSH1 0x20
+PUSH0
+RETURN
+ptrtoint_i256
+CALLVALUE
+PUSH0
+MSTORE
+PUSH1 0x20
+PUSH0
+RETURN
+inttoptr
+CALLVALUE
+PUSH0
+MSTORE
+PUSH1 0x20
+PUSH0
+RETURN
+
+"#]]
+        );
+    }
+
+    #[test]
     fn codegen_reuses_module_state() {
         with_codegen(CompileOpts::default(), |mut codegen| {
             let mut module = Module::new(Ident::DUMMY);
@@ -705,14 +1033,18 @@ mod tests {
             FunctionBuilder::new(&mut entry).stop();
             let entry = module.add_function(entry);
             module.set_dispatch_entry(entry);
-            module.advance_phase(MirPhase::EvmShaped);
+            module.advance_phase(codegen.gcx.dcx(), MirPhase::Lowered).unwrap();
 
             let mut first_module = module.clone();
-            let first = codegen.generate_deployment_bytecode(&mut first_module);
+            let first = codegen.lower_module(&mut first_module, &Default::default());
             let mut second_module = module.clone();
-            let second = codegen.generate_deployment_bytecode(&mut second_module);
+            let second = codegen.lower_module(&mut second_module, &Default::default());
 
-            assert_eq!(second, first);
+            assert_eq!(second.deployment, first.deployment);
+            assert_eq!(second.runtime, first.runtime);
+            assert_eq!(second.libraries, first.libraries);
+            assert_eq!(second.deployment_library_relocations, first.deployment_library_relocations);
+            assert_eq!(second.runtime_library_relocations, first.runtime_library_relocations);
         });
     }
 
@@ -720,11 +1052,11 @@ mod tests {
     fn static_frames_reject_explicit_signature_addresses() {
         let make_function = |offset| {
             let mut function = Function::new(Ident::DUMMY);
-            function.alloc_param(MirType::uint256());
+            function.alloc_param(MirType::I256);
             function.internal_frame_size = EvmMemoryLayout::WORD_SIZE;
             let (inst, _) = function.alloc_value_inst(Instruction::new(
                 InstKind::InternalFrameAddr(offset),
-                Some(MirType::MemPtr),
+                Some(MirType::I256),
             ));
             function.blocks[BlockId::ENTRY].instructions.push(inst);
             function
@@ -744,7 +1076,7 @@ mod tests {
     fn data_copy_reaches_destination_before_relocation_push() {
         with_codegen(CompileOpts::default(), |mut codegen| {
             let mut module = Module::new(Ident::DUMMY);
-            module.phase = MirPhase::EvmShaped;
+            module.advance_phase(codegen.gcx.dcx(), MirPhase::Lowered).unwrap();
             let data = module.add_data(vec![0; WORD_BYTES].into(), None);
 
             let mut function = Function::new(Ident::DUMMY);
@@ -760,10 +1092,10 @@ mod tests {
             let function = &module.functions[function];
             let liveness = Liveness::compute(function);
             codegen.scheduler.stack.push(dest);
-            for _ in 0..MAX_STACK_ACCESS - 2 {
+            for _ in 0..16 - 2 {
                 codegen.scheduler.stack.push_unknown();
             }
-            assert_eq!(codegen.scheduler.stack.find(dest), Some(MAX_STACK_ACCESS - 2));
+            assert_eq!(codegen.scheduler.stack.find(dest), Some(16 - 2));
 
             codegen.emit_data_copy(
                 function,
@@ -775,7 +1107,7 @@ mod tests {
                 1,
             );
 
-            assert_eq!(codegen.scheduler.stack.find(dest), Some(MAX_STACK_ACCESS - 2));
+            assert_eq!(codegen.scheduler.stack.find(dest), Some(16 - 2));
         });
     }
 
@@ -784,8 +1116,8 @@ mod tests {
         let data = DataRef::new(crate::mir::DataId::from_usize(0), 0);
 
         let mut constant = Function::new(Ident::DUMMY);
-        let dest = constant.alloc_value(Value::Immediate(Immediate::uint256(U256::from(0x40))));
-        let size = constant.alloc_value(Value::Immediate(Immediate::uint256(U256::from(0x20))));
+        let dest = constant.alloc_value(Value::Immediate(Immediate::I256(U256::from(0x40))));
+        let size = constant.alloc_value(Value::Immediate(Immediate::I256(U256::from(0x20))));
         let inst =
             constant.alloc_inst(Instruction::new(InstKind::DataCopy(data, dest, size), None));
         constant.blocks[BlockId::ENTRY].instructions.push(inst);
@@ -794,8 +1126,8 @@ mod tests {
         assert!(mir_utils::is_memory_inst(&constant.inst(inst).kind));
 
         let mut dynamic = Function::new(Ident::DUMMY);
-        let dest = dynamic.alloc_param(MirType::MemPtr);
-        let size = dynamic.alloc_param(MirType::uint256());
+        let dest = dynamic.alloc_param(MirType::I256);
+        let size = dynamic.alloc_param(MirType::I256);
         let inst = dynamic.alloc_inst(Instruction::new(InstKind::DataCopy(data, dest, size), None));
         dynamic.blocks[BlockId::ENTRY].instructions.push(inst);
         assert_eq!(EvmCodegen::dynamic_spill_write_dest(&dynamic, inst), Some(dest));
@@ -851,16 +1183,26 @@ mod tests {
 
     #[test]
     fn label_push_extends_the_scheduler_peak() {
-        with_codegen(CompileOpts::default(), |mut codegen| {
-            for _ in 0..MAX_STACK_DEPTH {
-                codegen.scheduler.stack.push_unknown();
-            }
+        for conditional in [None, Some(false), Some(true)] {
+            with_codegen(CompileOpts::default(), |mut codegen| {
+                for _ in 0..MAX_STACK_DEPTH {
+                    codegen.scheduler.stack.push_unknown();
+                }
 
-            let label = codegen.asm.new_label();
-            codegen.emit_push_label(label);
+                let label = codegen.asm.new_label();
+                if let Some(invert) = conditional {
+                    codegen.emit_conditional_jump(label, invert);
+                } else {
+                    codegen.emit_push_label(label);
+                }
 
-            assert_eq!(codegen.scheduler.stack.max_depth(), MAX_STACK_DEPTH + 1);
-        });
+                assert_eq!(codegen.scheduler.stack.max_depth(), MAX_STACK_DEPTH + 1);
+                assert_eq!(
+                    codegen.scheduler.stack.depth(),
+                    MAX_STACK_DEPTH - usize::from(conditional.is_some())
+                );
+            });
+        }
     }
 
     #[test]
@@ -889,7 +1231,7 @@ mod tests {
                 let mut function = Function::new(Ident::DUMMY);
                 let mut builder = FunctionBuilder::new(&mut function);
                 if index < MAX_STACK_DEPTH {
-                    builder.icall_void(FunctionId::from_usize(index + 1), Vec::new(), 0);
+                    builder.icall_void(FunctionId::from_usize(index + 1), Vec::new());
                 }
                 builder.stop();
                 let function = module.add_function(function);
@@ -897,11 +1239,12 @@ mod tests {
                     module.set_dispatch_entry(function);
                 }
             }
-            module.advance_phase(MirPhase::EvmShaped);
+            module.advance_phase(codegen.gcx.dcx(), MirPhase::Lowered).unwrap();
             let call_graph = CallGraphInfo::new(&module);
             codegen.cold_functions = DenseBitSet::new_empty(module.functions.len());
 
-            let _ = codegen.generate_runtime_code(&module, &call_graph);
+            codegen
+                .schedule_runtime_code(&module.as_lowered(codegen.gcx.dcx()).unwrap(), &call_graph);
 
             assert!(!codegen.stack_returns_enabled);
             assert!(codegen.gcx.dcx().has_errors().is_err());
@@ -911,14 +1254,14 @@ mod tests {
     #[test]
     fn dynamic_frame_stack_args_allow_raw_values() {
         let mut function = Function::new(Ident::DUMMY);
-        let argument = function.alloc_param(MirType::uint256());
-        let immediate = function.alloc_value(Value::Immediate(Immediate::uint256(U256::from(1))));
+        let argument = function.alloc_param(MirType::I256);
+        let immediate = function.alloc_value(Value::Immediate(Immediate::I256(U256::from(1))));
         let (_, computed) = function.alloc_value_inst(Instruction::new(
             InstKind::Add(argument, immediate),
-            Some(MirType::uint256()),
+            Some(MirType::I256),
         ));
         let (_, calldata_size) = function
-            .alloc_value_inst(Instruction::new(InstKind::CalldataSize, Some(MirType::uint256())));
+            .alloc_value_inst(Instruction::new(InstKind::CalldataSize, Some(MirType::I256)));
 
         assert!(EvmCodegen::stack_arg_site_eligible(&function, false, immediate));
         assert!(!EvmCodegen::stack_arg_site_eligible(&function, false, argument));
@@ -928,7 +1271,7 @@ mod tests {
         assert!(EvmCodegen::stack_arg_site_eligible(&function, true, computed));
 
         with_codegen(CompileOpts::default(), |mut codegen| {
-            codegen.emit_raw_stack_arg(&function, calldata_size, None, None, 0);
+            codegen.emit_raw_stack_arg(&function, calldata_size, None, None, 0, false);
             assert_eq!(codegen.asm.assemble().bytecode, [op::CALLDATASIZE]);
         });
     }
@@ -936,9 +1279,9 @@ mod tests {
     #[test]
     fn spill_elision_requires_uniform_successor_residency() {
         let mut function = Function::new(Ident::DUMMY);
-        let condition = function.alloc_value(Value::Immediate(Immediate::bool(true)));
-        let first = function.alloc_value(Value::Immediate(Immediate::uint256(U256::from(1))));
-        let second = function.alloc_value(Value::Immediate(Immediate::uint256(U256::from(2))));
+        let condition = function.alloc_value(Value::Immediate(Immediate::I1(true)));
+        let first = function.alloc_value(Value::Immediate(Immediate::I256(U256::from(1))));
+        let second = function.alloc_value(Value::Immediate(Immediate::I256(U256::from(2))));
         let then_block = function.alloc_block();
         let else_block = function.alloc_block();
         let term = Terminator::Branch { condition, then_block, else_block };
@@ -972,14 +1315,10 @@ mod tests {
     fn icall_headroom_includes_return_label() {
         let value = ValueId::from_usize(0);
         let call = InstKind::ICall {
-            function: FunctionId::from_usize(0),
-            args: vec![value; MAX_STACK_ACCESS].into(),
-            returns: 0,
+            function: Callee::Function(FunctionId::from_usize(0)),
+            args: vec![value; 16].into(),
         };
-        assert_eq!(
-            EvmCodegen::instruction_transient_growth(&call, MAX_STACK_ACCESS),
-            MAX_STACK_ACCESS
-        );
+        assert_eq!(EvmCodegen::instruction_transient_growth(&call, 16), 16);
 
         let add = InstKind::Add(value, value);
         assert_eq!(EvmCodegen::instruction_transient_growth(&add, 2), 1);
@@ -1005,15 +1344,19 @@ mod tests {
         let mut function = Function::new(Ident::DUMMY);
         let join = function.alloc_block();
         let mut phi = StackPhiPlan::default();
-        phi.entries.insert(join, (0..MAX_STACK_ACCESS).map(ValueId::from_usize).collect());
+        phi.entries.insert(join, (0..16).map(ValueId::from_usize).collect());
         let resident = GlobalStackPlan {
-            entries: FxHashMap::from_iter([(join, vec![ValueId::from_usize(MAX_STACK_ACCESS)])]),
+            entries: FxHashMap::from_iter([(join, vec![ValueId::from_usize(16)])]),
             aliases: FxHashMap::default(),
             terminal_sensitive: true,
         };
 
-        assert!(!phi.merge_resident(&function, &resident));
-        assert_eq!(phi.entries[&join].len(), MAX_STACK_ACCESS);
+        assert!(!phi.merge_resident(
+            &function,
+            &resident,
+            EvmVersion::Osaka.reachable_stack_depth()
+        ));
+        assert_eq!(phi.entries[&join].len(), 16);
     }
 
     #[test]
@@ -1022,7 +1365,7 @@ mod tests {
         with_codegen(opts, |mut codegen| {
             let mut module = Module::new(Ident::DUMMY);
             let mut function = Function::new(Ident::DUMMY);
-            let argument = function.alloc_param(MirType::uint256());
+            let argument = function.alloc_param(MirType::I256);
             let function = module.add_function(function);
 
             codegen.static_call_abi_mut(function, 1).stack_args.insert(0);
@@ -1061,8 +1404,8 @@ mod tests {
             let mut function = Function::new(Ident::with_dummy_span(sym::Test));
             function.internal_frame_size = EvmMemoryLayout::WORD_SIZE;
             let mut builder = FunctionBuilder::new(&mut function);
-            let argument = builder.add_param(MirType::uint256());
-            builder.add_return(MirType::uint256());
+            let argument = builder.add_param(MirType::I256);
+            builder.set_return_type(MirType::I256);
             builder.ret([argument]);
             let function = module.add_function(function);
 
@@ -1092,7 +1435,7 @@ mod tests {
             let mut module = Module::new(Ident::DUMMY);
             let mut function = Function::new(Ident::with_dummy_span(sym::Test));
             let mut builder = FunctionBuilder::new(&mut function);
-            let argument = builder.add_param(MirType::uint256());
+            let argument = builder.add_param(MirType::I256);
             let one = builder.imm(1);
             let _unrelated = builder.add(one, one);
             let _use = builder.add(argument, one);
@@ -1131,7 +1474,7 @@ mod tests {
             };
             with_codegen(opts, |codegen| {
                 let mut function = Function::new(Ident::DUMMY);
-                let argument = function.alloc_param(MirType::uint256());
+                let argument = function.alloc_param(MirType::I256);
                 let mut builder = FunctionBuilder::new(&mut function);
                 let one = builder.imm(1);
                 let blocks: Vec<_> = (0..5).map(|_| builder.create_block()).collect();
@@ -1208,8 +1551,7 @@ mod tests {
             (InstKind::BaseFee, op::BASEFEE),
             (InstKind::BlobBaseFee, op::BLOBBASEFEE),
         ] {
-            let (_, value) =
-                function.alloc_value_inst(Instruction::new(kind, Some(MirType::uint256())));
+            let (_, value) = function.alloc_value_inst(Instruction::new(kind, Some(MirType::I256)));
             assert_eq!(EvmCodegen::always_rematerializable_op(&function, value), Some(expected_op));
             assert!(!EvmCodegen::can_own_spill_slot(&function, value));
         }
@@ -1217,8 +1559,7 @@ mod tests {
         for kind in
             [InstKind::MSize, InstKind::ReturnDataSize, InstKind::SelfBalance, InstKind::Gas]
         {
-            let (_, value) =
-                function.alloc_value_inst(Instruction::new(kind, Some(MirType::uint256())));
+            let (_, value) = function.alloc_value_inst(Instruction::new(kind, Some(MirType::I256)));
             assert_eq!(EvmCodegen::always_rematerializable_op(&function, value), None);
             assert!(EvmCodegen::can_own_spill_slot(&function, value));
         }
@@ -1230,17 +1571,17 @@ mod tests {
             let opts = CompileOpts { evm_version, ..Default::default() };
             with_codegen(opts, |mut codegen| {
                 let mut function = Function::new(Ident::with_dummy_span(sym::Test));
-                let lhs = function.alloc_value(Value::Immediate(Immediate::uint256(U256::ZERO)));
-                let rhs = function.alloc_value(Value::Immediate(Immediate::uint256(U256::ONE)));
+                let lhs = function.alloc_value(Value::Immediate(Immediate::I256(U256::ZERO)));
+                let rhs = function.alloc_value(Value::Immediate(Immediate::I256(U256::ONE)));
                 let (_, target) = function.alloc_value_inst(Instruction::new(
                     InstKind::Add(lhs, rhs),
-                    Some(MirType::uint256()),
+                    Some(MirType::I256),
                 ));
                 codegen.scheduler.stack.push(target);
                 for _ in 0..evm_version.reachable_stack_depth() {
                     let (_, filler) = function.alloc_value_inst(Instruction::new(
                         InstKind::Add(lhs, rhs),
-                        Some(MirType::uint256()),
+                        Some(MirType::I256),
                     ));
                     codegen.scheduler.stack.push(filler);
                 }
@@ -1284,28 +1625,28 @@ mod tests {
     #[test]
     fn cross_block_reload_excludes_phi_edge_uses() {
         let mut function = Function::new(Ident::DUMMY);
-        let immediate = function.alloc_value(Value::Immediate(Immediate::uint256(U256::from(1))));
+        let immediate = function.alloc_value(Value::Immediate(Immediate::I256(U256::from(1))));
         let (edge_inst, edge_value) = function.alloc_value_inst(Instruction::new(
             InstKind::Add(immediate, immediate),
-            Some(MirType::uint256()),
+            Some(MirType::I256),
         ));
         let (direct_inst, direct_value) = function.alloc_value_inst(Instruction::new(
             InstKind::Mul(immediate, immediate),
-            Some(MirType::uint256()),
+            Some(MirType::I256),
         ));
         function.blocks[BlockId::ENTRY].instructions.extend([edge_inst, direct_inst]);
 
         let phi_block = function.alloc_block();
         let (phi_inst, _) = function.alloc_value_inst(Instruction::new(
             InstKind::Phi(vec![(BlockId::ENTRY, edge_value)]),
-            Some(MirType::uint256()),
+            Some(MirType::I256),
         ));
         function.blocks[phi_block].instructions.push(phi_inst);
 
         let direct_block = function.alloc_block();
         let (use_inst, _) = function.alloc_value_inst(Instruction::new(
             InstKind::Add(direct_value, immediate),
-            Some(MirType::uint256()),
+            Some(MirType::I256),
         ));
         function.blocks[direct_block].instructions.push(use_inst);
 
@@ -1322,22 +1663,21 @@ mod tests {
         let value1 = ValueId::from_usize(1);
         let interferences = FxHashMap::default();
         let mut color = SpillColor::new(2);
-        color
-            .insert(value0, &FxHashMap::from_iter([(block0, SpillLiveRange { start: 2, end: 4 })]));
+        color.insert(value0, &[(block0, SpillLiveRange { start: 2, end: 4 })]);
 
         assert!(color.accepts(
             value1,
-            &FxHashMap::from_iter([(block0, SpillLiveRange { start: 5, end: 7 })]),
+            &[(block0, SpillLiveRange { start: 5, end: 7 })],
             &interferences,
         ));
         assert!(!color.accepts(
             value1,
-            &FxHashMap::from_iter([(block0, SpillLiveRange { start: 4, end: 7 })]),
+            &[(block0, SpillLiveRange { start: 4, end: 7 })],
             &interferences,
         ));
         assert!(color.accepts(
             value1,
-            &FxHashMap::from_iter([(block1, SpillLiveRange { start: 2, end: 4 })]),
+            &[(block1, SpillLiveRange { start: 2, end: 4 })],
             &interferences,
         ));
     }
@@ -1356,12 +1696,12 @@ mod tests {
                 ParallelCopy {
                     src: CopySource::Value(source0),
                     dst: CopyDest::Value(destination0),
-                    ty: MirType::uint256(),
+                    ty: MirType::I256,
                 },
                 ParallelCopy {
                     src: CopySource::Value(source1),
                     dst: CopyDest::Value(destination1),
-                    ty: MirType::uint256(),
+                    ty: MirType::I256,
                 },
             ],
         )]);

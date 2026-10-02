@@ -41,20 +41,20 @@ contract HigherOrderFunctionPointer {
     }
 
     // CHECK-LABEL: fn @callReturned(
-    // CHECK: icall @[[DISPATCHER:internal_dispatcher_[A-Za-z0-9_]+]], 1, [[HIGHER3:[0-9]+]]
-    // CHECK: icall @[[DISPATCHER]], 1, {{v[0-9]+}}
-    // CHECK: icall @[[DISPATCHER]], 1, {{v[0-9]+}}
-    // CHECK: icall @[[DISPATCHER_1:internal_dispatcher_[A-Za-z0-9_]+]], 1, {{v[0-9]+}}
+    // CHECK: icall @[[DISPATCHER:internal_dispatcher_[A-Za-z0-9_]+]], [[HIGHER3:[0-9]+]]
+    // CHECK: icall @[[DISPATCHER]], {{v[0-9]+}}
+    // CHECK: icall @[[DISPATCHER]], {{v[0-9]+}}
+    // CHECK: icall @[[DISPATCHER_1:internal_dispatcher_[A-Za-z0-9_]+]], {{v[0-9]+}}
     // CHECK: fn @[[DISPATCHER]](
     // CHECK: eq arg0, [[HIGHER1]]
     // CHECK: eq arg0, [[HIGHER2]]
     // CHECK: eq arg0, [[HIGHER3]]
-    // CHECK: icall @higher3, 1
-    // CHECK: icall @higher2, 1
-    // CHECK: icall @higher1, 1
+    // CHECK: icall @higher3
+    // CHECK: icall @higher2
+    // CHECK: icall @higher1
     // CHECK: fn @[[DISPATCHER_1]](
     // CHECK: eq arg0, [[HIGHER0]]
-    // CHECK: icall @higher0, 1
+    // CHECK: icall @higher0
     function callReturned() public returns (uint256) {
         function()
             internal

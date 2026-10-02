@@ -3,7 +3,7 @@
 use super::{
     BlockId, EvmCodegen, EvmMemoryLayout, Function, InstKind, LateGasOperand, Liveness,
     OperandCostModel, OperandPlan, ScheduledOp, SmallVec, StackOp, StackScheduler, U256, Value,
-    ValueId, WORD_BYTES, index_vec, op, rematerializable_nullary_opcode,
+    ValueId, WORD_BYTES, index_vec, op, rematerializable_nullary_value,
 };
 
 impl<'gcx> EvmCodegen<'gcx> {
@@ -33,8 +33,9 @@ impl<'gcx> EvmCodegen<'gcx> {
     }
 
     /// Plans operand preparation for operations whose inputs remain valid while
-    /// they are rearranged. Memory-mutating stores/copies and calls keep their
-    /// freshness-aware emitters until the stack model represents value epochs.
+    /// they are rearranged. Stores prepare both inputs before performing the write;
+    /// the instruction's hazard handling has already protected any clobbered spill slots.
+    /// Copies and calls retain their specialized freshness-aware emitters.
     pub(super) fn plan_operands(
         &self,
         func: &Function,
@@ -212,14 +213,14 @@ impl<'gcx> EvmCodegen<'gcx> {
         let mut use_counts = index_vec![0u32; func.num_values()];
         for block in &func.blocks {
             for &inst_id in &block.instructions {
-                for operand in func.inst(inst_id).kind.operands() {
+                func.inst(inst_id).kind.visit_operands(|operand| {
                     use_counts[operand] += 1;
-                }
+                });
             }
             if let Some(terminator) = &block.terminator {
-                for operand in terminator.operands() {
+                terminator.visit_operands(|operand| {
                     use_counts[operand] += 1;
-                }
+                });
             }
         }
 
@@ -358,7 +359,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     // This handles GAS (which is always fresh) and MLOAD (which re-reads from
                     // memory)
                     let inst_kind = &func.inst(*inst_id).kind;
-                    if let Some(opcode) = rematerializable_nullary_opcode(inst_kind).or_else(|| {
+                    if let Some(opcode) = rematerializable_nullary_value(func, val).or_else(|| {
                         inst_kind.evm_opcode().filter(|_| matches!(inst_kind, InstKind::Gas))
                     }) {
                         self.emit_fresh_scheduled_value(

@@ -23,7 +23,10 @@ contract C {
     // CHECK: sload {{v[0-9]+}} !metadata(storage=offset([[BASE]], 1))
     // CHECK: [[C:v[0-9]+]] = sload {{v[0-9]+}} !metadata(storage=offset([[BASE]], 2))
     // CHECK: and {{v[0-9]+}}, 0xffffffffffffffffffffffffffffffffffffffff
-    // CHECK: ret {{v[0-9]+}}, {{v[0-9]+}}, {{v[0-9]+}}
+    // CHECK: [[RET_0:v[0-9]+]] = insert_value [[RET_TY:struct[0-9]+]], undef [[RET_TY]], 0, {{v[0-9]+}}
+    // CHECK: [[RET_1:v[0-9]+]] = insert_value [[RET_TY]], [[RET_0]], 1, {{v[0-9]+}}
+    // CHECK: [[RET_2:v[0-9]+]] = insert_value [[RET_TY]], [[RET_1]], 2, {{v[0-9]+}}
+    // CHECK: ret [[RET_2]]
     mapping(uint256 => Item) public items; // slot 1
 
     // CHECK-LABEL: fn @constructor{{[( ]}}

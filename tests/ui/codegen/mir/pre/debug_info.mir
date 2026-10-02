@@ -5,7 +5,7 @@
 // CHECK-LABEL: {{^[ +].*}}fn @insert_missing_predecessor{{[( ]}}
 // CHECK: + [[INSERTED:v[0-9]+]] = add arg0, 7 !metadata(span=30..40)
 // CHECK: + {{v[0-9]+}} = phi [bb1: {{v[0-9]+}}], [bb2: {{v[0-9]+}}], [bb3: [[INSERTED]]]
-fn @insert_missing_predecessor(arg0: u256, arg1: u256) -> u256 {
+fn @insert_missing_predecessor(arg0: i256, arg1: i256) -> i256 {
   bb0:
     switch arg1, default bb3, [1 => bb1, 2 => bb2]
   bb1:

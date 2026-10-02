@@ -32,31 +32,78 @@ def result(test_id="test", suite="repository", **compiler):
     return {"test_id": test_id, "suite": suite, "compilers": {"solar": compiler}}
 
 
+class BenchmarkBaseTests(unittest.TestCase):
+    def test_stack_parent_requires_identical_source_tree(self):
+        spec = importlib.util.spec_from_file_location(
+            "benchmark_base",
+            Path(__file__).resolve().parents[2] / ".github/scripts/benchmark_base.py",
+        )
+        assert spec is not None and spec.loader is not None
+        base = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(base)
+        synthetic = "a" * 40
+        parent = "b" * 40
+        main = "c" * 40
+        for same_tree in (True, False):
+            for moved in (True, False):
+                with (
+                    self.subTest(same_tree=same_tree, moved=moved),
+                    patch.object(
+                        base,
+                        "command",
+                        side_effect=[
+                            json.dumps(
+                                {
+                                    "base": {
+                                        "sha": "d" * 40 if moved else parent,
+                                        "ref": "dani/parent",
+                                    }
+                                }
+                            ),
+                            f"Merge {parent} into {main}",
+                            f"{main} {parent}",
+                            "source-tree",
+                            "source-tree" if same_tree else "new-tree",
+                        ],
+                    ),
+                ):
+                    expected = parent if same_tree else synthetic
+                    self.assertEqual(
+                        base.resolve_base(synthetic, "paradigmxyz/solar", "1514"),
+                        {
+                            "sha": expected,
+                            "ref": "dani/parent"
+                            if same_tree and not moved
+                            else expected[:8],
+                        },
+                    )
+
+
 class ReportFormattingTests(unittest.TestCase):
     def test_perf_link_uses_default_site(self):
         with patch.dict(
             os.environ,
             {
-                "BENCHMARK_BASE_SHA": "0123456789abcdef",
-                "BENCHMARK_PR_HEAD_SHA": "fedcba9876543210",
+                "BENCHMARK_BASE_SHA": "0123456789abcdef0123456789abcdef01234567",
+                "BENCHMARK_PR_HEAD_SHA": "fedcba9876543210fedcba9876543210fedcba98",
             },
             clear=True,
         ):
             self.assertEqual(
                 benchmark.perf_link("Results"),
-                "[Results](https://getfoundry.sh/perf/solar/?base=01234567&head=fedcba98#benchmarks)",
+                "[Results](https://www.getfoundry.sh/perf/solar/?base=0123456789abcdef0123456789abcdef01234567&head=fedcba9876543210fedcba9876543210fedcba98#benchmarks)",
             )
             self.assertEqual(
                 benchmark.perf_link("factorial", "factorial"),
-                "[factorial](https://getfoundry.sh/perf/solar/?base=01234567&head=fedcba98&benchmark=factorial#artifacts)",
+                "[factorial](https://www.getfoundry.sh/perf/solar/?base=0123456789abcdef0123456789abcdef01234567&head=fedcba9876543210fedcba9876543210fedcba98&benchmark=factorial#artifacts)",
             )
 
     def test_perf_link_targets_artifact(self):
         with patch.dict(
             os.environ,
             {
-                "BENCHMARK_BASE_SHA": "0123456789abcdef",
-                "BENCHMARK_PR_HEAD_SHA": "fedcba9876543210",
+                "BENCHMARK_BASE_SHA": "0123456789abcdef0123456789abcdef01234567",
+                "BENCHMARK_PR_HEAD_SHA": "fedcba9876543210fedcba9876543210fedcba98",
                 "BENCHMARK_SITE_URL": "https://example.test/",
             },
         ):
@@ -64,7 +111,7 @@ class ReportFormattingTests(unittest.TestCase):
 
         self.assertEqual(
             link,
-            "[factorial](https://example.test/?base=01234567&head=fedcba98&benchmark=factorial#artifacts)",
+            "[factorial](https://example.test/?base=0123456789abcdef0123456789abcdef01234567&head=fedcba9876543210fedcba9876543210fedcba98&benchmark=factorial#artifacts)",
         )
 
     def test_unchanged_report_has_note(self):
@@ -80,12 +127,12 @@ class ReportFormattingTests(unittest.TestCase):
         )
 
     def test_pr_comment_without_comparison_links_to_overview(self):
-        button = "[![View benchmark overview](https://img.shields.io/badge/View_benchmark_overview-2563eb?style=for-the-badge)](https://example.test/?base=01234567&head=fedcba98#benchmarks)\n"
+        button = "[![View benchmark overview](https://img.shields.io/badge/View_benchmark_overview-2563eb?style=for-the-badge)](https://example.test/?base=0123456789abcdef0123456789abcdef01234567&head=fedcba9876543210fedcba9876543210fedcba98#benchmarks)\n"
         with patch.dict(
             os.environ,
             {
-                "BENCHMARK_BASE_SHA": "0123456789abcdef",
-                "BENCHMARK_PR_HEAD_SHA": "fedcba9876543210",
+                "BENCHMARK_BASE_SHA": "0123456789abcdef0123456789abcdef01234567",
+                "BENCHMARK_PR_HEAD_SHA": "fedcba9876543210fedcba9876543210fedcba98",
                 "BENCHMARK_SITE_URL": "https://example.test/",
             },
             clear=True,
@@ -268,7 +315,7 @@ class ReportFormattingTests(unittest.TestCase):
 
     def test_codegen_report_adds_reference_compiler_columns(self):
         current = result()
-        current["compilers"]["extra"] = {
+        current["compilers"]["oksolc"] = {
             "status": "ok",
             "total_gas": 10,
             "runtime_size": 20,
@@ -279,13 +326,13 @@ class ReportFormattingTests(unittest.TestCase):
             benchmark.codegen_report([current], [current]),
             "## Codegen benchmark\n"
             "\n"
-            "| bench | gas (vs main) | solc | extra | size (vs main) | solc | extra |\n"
+            "| bench | gas (vs main) | solc | oksolc | size (vs main) | solc | oksolc |\n"
             "| ----- | ------------- | ---- | ---- | -------------- | ---- | ---- |\n"
             "| test | n/a (n/a) | n/a (n/a) | 10 (n/a) | n/a (n/a) | n/a (n/a) | 20B (n/a) |\n"
             "\n"
             "### Deployment\n"
             "\n"
-            "| bench | gas (vs main) | solc | extra | size (vs main) | solc | extra |\n"
+            "| bench | gas (vs main) | solc | oksolc | size (vs main) | solc | oksolc |\n"
             "| ----- | ------------- | ---- | ---- | -------------- | ---- | ---- |\n"
             "| test | n/a (n/a) | n/a (n/a) | 30 (n/a) | n/a (n/a) | n/a (n/a) | 40B (n/a) |\n",
         )
@@ -391,17 +438,17 @@ class CommonBenchmarkResultTests(unittest.TestCase):
             result(
                 status="ok",
                 total_gas=10,
+                runtime_size=40,
                 deploy_gas=20,
                 bytecode_size=30,
-                runtime_size=40,
                 peak_rss_bytes=100,
             ),
             result(
                 status="ok",
                 total_gas=1,
+                runtime_size=4,
                 deploy_gas=2,
                 bytecode_size=3,
-                runtime_size=4,
                 peak_rss_bytes=200,
             ),
         ]
@@ -478,9 +525,9 @@ class CommonBenchmarkResultTests(unittest.TestCase):
             result(
                 status="ok",
                 total_gas=10,
+                runtime_size=40,
                 deploy_gas=20,
                 bytecode_size=30,
-                runtime_size=40,
             ),
             result(status="failed"),
         ]
@@ -498,15 +545,15 @@ class CommonBenchmarkResultTests(unittest.TestCase):
         complete = {
             "status": "ok",
             "total_gas": 10,
+            "runtime_size": 40,
             "deploy_gas": 20,
             "bytecode_size": 30,
-            "runtime_size": 40,
         }
         cases = [
             ("total_gas", "gas", "runtime"),
+            ("runtime_size", "compiler", "runtime_bytecode_size"),
             ("deploy_gas", "gas", "deployment"),
             ("bytecode_size", "compiler", "creation_bytecode_size"),
-            ("runtime_size", "compiler", "runtime_bytecode_size"),
         ]
         for missing, group, metric_name in cases:
             with self.subTest(missing=missing):
@@ -537,9 +584,9 @@ class CommonBenchmarkResultTests(unittest.TestCase):
                 suite="large",
                 status="ok",
                 total_gas=10,
+                runtime_size=40,
                 deploy_gas=20,
                 bytecode_size=30,
-                runtime_size=40,
             )
         ]
         document = self.write_result(
@@ -838,42 +885,43 @@ class RunComparisonTests(unittest.TestCase):
                 "## Codegen benchmark\n\nNo benchmark results were produced.\n",
             )
 
-    def test_solc_report_uses_selected_compiler(self):
-        before = self.fixture()
-        before["compilers"]["solc"] = copy.deepcopy(before["compilers"]["solar"])
-        after = copy.deepcopy(before)
-        after["compilers"]["solc"]["runtime_size"] = 90
-        with (
-            tempfile.TemporaryDirectory() as directory,
-            patch.dict(os.environ, {}, clear=True),
-            patch("sys.stdout", new_callable=io.StringIO),
-            patch("sys.stderr", new_callable=io.StringIO),
-        ):
-            root = Path(directory)
-            paths = [root / "before.json", root / "after.json"]
-            for path, row in zip(paths, [before, after], strict=True):
-                path.write_text(json.dumps({"results": [row]}))
-            output = root / "report.md"
-            self.assertEqual(
-                benchmark.main(
+    def test_reference_report_uses_selected_compiler(self):
+        for compiler in ("solc", "solx", "oksolc"):
+            before = self.fixture()
+            before["compilers"][compiler] = copy.deepcopy(before["compilers"]["solar"])
+            after = copy.deepcopy(before)
+            after["compilers"][compiler]["runtime_size"] = 90
+            with (
+                tempfile.TemporaryDirectory() as directory,
+                patch.dict(os.environ, {}, clear=True),
+                patch("sys.stdout", new_callable=io.StringIO),
+                patch("sys.stderr", new_callable=io.StringIO),
+            ):
+                root = Path(directory)
+                paths = [root / "before.json", root / "after.json"]
+                for path, row in zip(paths, [before, after], strict=True):
+                    path.write_text(json.dumps({"results": [row]}))
+                output = root / "report.md"
+                self.assertEqual(
+                    benchmark.main(
+                        [
+                            *(str(path) for path in paths),
+                            "--compiler",
+                            compiler,
+                            "--report-output",
+                            str(output),
+                        ]
+                    ),
+                    0,
+                )
+                self.assertEqual(
+                    output.read_text().splitlines()[:3],
                     [
-                        *(str(path) for path in paths),
-                        "--compiler",
-                        "solc",
-                        "--report-output",
-                        str(output),
-                    ]
-                ),
-                0,
-            )
-            self.assertEqual(
-                output.read_text().splitlines()[:3],
-                [
-                    "### Run comparison",
-                    "",
-                    "Compiler: `solc`. Deltas are candidate minus baseline; lower is better.",
-                ],
-            )
+                        "### Run comparison",
+                        "",
+                        f"Compiler: `{compiler}`. Deltas are candidate minus baseline; lower is better.",
+                    ],
+                )
 
     def fixture(self, test_id="test", **values):
         row = result(
@@ -883,10 +931,10 @@ class RunComparisonTests(unittest.TestCase):
             output_fingerprint="output",
             label="solar test",
             command="target/debug/solar --standard-json",
-            runtime_size=100,
-            bytecode_size=120,
             total_gas=30,
+            runtime_size=100,
             deploy_gas=50,
+            bytecode_size=120,
             compile_time_seconds=0.1,
             compile_time_samples=[0.09, 0.1, 0.11],
             peak_rss_bytes=1000,
@@ -910,8 +958,78 @@ class RunComparisonTests(unittest.TestCase):
         row["compilers"]["solar"].update(values)
         return row
 
+    def test_gas_exclusions_use_common_calls_with_legacy_results(self):
+        before = self.fixture()
+        after = copy.deepcopy(before)
+        data = after["compilers"]["solar"]
+        data["gas_results"][0]["gas"] = 12
+        data["gas_results"][1].update(
+            gas=2000, comparison_exclusion_reason="code-dependent workload"
+        )
+        data["total_gas"] = 2012
+        for current, baseline in ((after, before), (before, after)):
+            comparison = benchmark.compare_runs([current], [baseline])
+            row = comparison["rows"][0]
+            expected = (10, 12) if current is after else (12, 10)
+            self.assertEqual(
+                (
+                    row["metrics"]["total_gas"]["before"],
+                    row["metrics"]["total_gas"]["after"],
+                ),
+                expected,
+            )
+            self.assertEqual(row["gas_calls"][1]["reason"], "code-dependent workload")
+            self.assertIsNone(row["gas_calls"][1]["delta"])
+        self.assertEqual(data["total_gas"], 2012)
+        self.assertEqual(benchmark.total_gas(after, "solar"), 12)
+        self.assertEqual(
+            benchmark.common_benchmark("test", [after], 1)["gas"]["runtime"]["value"],
+            12,
+        )
+        self.assertEqual(
+            benchmark.gas_exclusion_report([after], [before]),
+            [
+                "",
+                "### Gas excluded from comparison",
+                "",
+                "Calls still execute; raw gas and failures remain in the results. Totals below contain measured gas only.",
+                "",
+                "| Case | Calls | Baseline raw gas | Candidate raw gas | Reason |",
+                "| --- | ---: | ---: | ---: | --- |",
+                "| test | 1 | 20 | 2,000 | code-dependent workload |",
+                "",
+            ],
+        )
+        self.assertEqual(
+            benchmark.benchmark_rows([after], benchmark.by_test_id([before])),
+            ["| test | 12 (❌ +20.00%) | n/a (n/a) | 100B (~0%) | n/a (n/a) |"],
+        )
+
+    def test_all_gas_excluded_and_excluded_failures(self):
+        before = self.fixture()
+        after = copy.deepcopy(before)
+        data = after["compilers"]["solar"]
+        for call in data["gas_results"]:
+            call["comparison_exclusion_reason"] = "code-dependent workload"
+        row = benchmark.compare_runs([after], [before])["rows"][0]
+        self.assertEqual(
+            row["metrics"]["total_gas"]["reason"], "no comparable gas calls"
+        )
+        self.assertIsNone(benchmark.total_gas(after, "solar"))
+        self.assertNotIn(
+            "runtime", benchmark.common_benchmark("test", [after], 1)["gas"]
+        )
+        data["gas_status"] = "failed"
+        data["total_gas"] = None
+        data["gas_results"][0]["gas"] = None
+        row = benchmark.compare_runs([after], [before])["rows"][0]
+        self.assertEqual(
+            row["metrics"]["total_gas"]["reason"], "gas run failed or was not measured"
+        )
+        self.assertIn("candidate gas run failed", row["issues"])
+
     def test_reference_failures_do_not_trigger_comments_or_warnings(self):
-        for compiler in ("solc", "solx"):
+        for compiler in ("solc", "solx", "oksolc"):
             for stage in ("status", "runtime_status", "gas_status"):
                 with self.subTest(compiler=compiler, stage=stage):
                     before = self.fixture()
@@ -1059,7 +1177,7 @@ class RunComparisonTests(unittest.TestCase):
     def test_pr_comment_lists_only_changed_benchmarks_against_baseline(self):
         before = [self.fixture("changed"), self.fixture("unchanged")]
         after = [
-            self.fixture("changed", runtime_size=110, bytecode_size=60),
+            self.fixture("changed", runtime_size=110, bytecode_size=60, deploy_gas=75),
             self.fixture("unchanged"),
         ]
         for row in after:
@@ -1072,9 +1190,9 @@ class RunComparisonTests(unittest.TestCase):
         self.assertEqual(
             comment.split("### Changed benchmarks", 1)[1].split("[![", 1)[0],
             " vs `main`\n\n"
-            "| Benchmark | Runtime gas | Runtime bytes | Creation bytes |\n"
-            "| --- | ---: | ---: | ---: |\n"
-            "| changed | ~0% | ❌ +10.00% | ✅ -50.00% |\n\n",
+            "| Benchmark | Runtime gas | Runtime bytes | Creation gas | Creation bytes |\n"
+            "| --- | ---: | ---: | ---: | ---: |\n"
+            "| changed | ~0% | ❌ +10.00% | ❌ +50.00% | ✅ -50.00% |\n\n",
         )
 
     def test_detailed_overview_omits_counts(self):
@@ -1086,8 +1204,8 @@ class RunComparisonTests(unittest.TestCase):
                 "| --- | ---: |",
                 "| runtime gas | ~0% |",
                 "| runtime bytes | ~0% |",
+                "| creation gas | ~0% |",
                 "| creation bytes | ~0% |",
-                "| deployment gas | ~0% |",
                 "| compile seconds | ~0% |",
                 "| peak RSS bytes | ~0% |",
             ],
@@ -1284,9 +1402,10 @@ class RunComparisonTests(unittest.TestCase):
                 "| Metric | Change |\n| --- | ---: |\n"
                 "| runtime gas | ~0% |\n"
                 "| runtime bytes | ~0% |\n"
+                "| creation gas | ~0% |\n"
                 "| creation bytes | ~0% |\n\n"
                 "Equal-weight geometric means; lower is better.\n\n"
-                "[![View benchmark overview](https://img.shields.io/badge/View_benchmark_overview-2563eb?style=for-the-badge)](https://getfoundry.sh/perf/solar/)\n",
+                "[![View benchmark overview](https://img.shields.io/badge/View_benchmark_overview-2563eb?style=for-the-badge)](https://www.getfoundry.sh/perf/solar/)\n",
             )
             self.assertEqual(
                 json.loads(outputs["comparison.json"].read_text())["totals"][

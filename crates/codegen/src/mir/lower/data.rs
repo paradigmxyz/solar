@@ -7,10 +7,10 @@ use crate::{
     },
     mir::{FunctionBuilder, Module, ValueId, memory::EvmMemoryLayout},
 };
-use alloy_primitives::{Bytes, U256};
+use alloy_primitives::U256;
 use solar_config::{EvmVersion, OptimizationMode};
 use solar_interface::Symbol;
-use solar_sema::{Gcx, hir::ContractId};
+use solar_sema::Gcx;
 use std::borrow::Cow;
 
 /// Returns the encoded size and runtime gas of one program-data copy site.
@@ -30,34 +30,6 @@ pub(crate) fn data_copy_is_profitable(
     byte_saving: i128,
 ) -> bool {
     if optimization.is_gas() { runtime_gas_saving > 0 && byte_saving >= 0 } else { byte_saving > 0 }
-}
-
-#[derive(Clone, Debug, Default)]
-pub struct ContractBytecodes {
-    /// Deployment bytecode, including the initcode prefix.
-    deployment: Option<Bytes>,
-    /// Deployed runtime bytecode.
-    runtime: Option<Bytes>,
-}
-
-impl ContractBytecodes {
-    /// Creates bytecode metadata from a generated artifact.
-    pub fn new(deployment: Bytes, runtime: Bytes) -> Self {
-        Self {
-            deployment: (!deployment.is_empty()).then_some(deployment),
-            runtime: (!runtime.is_empty()).then_some(runtime),
-        }
-    }
-
-    /// Returns the deployment bytecode, when codegen produced it.
-    pub fn deployment(&self) -> Option<&Bytes> {
-        self.deployment.as_ref()
-    }
-
-    /// Returns the runtime bytecode, when codegen produced it.
-    pub fn runtime(&self) -> Option<&Bytes> {
-        self.runtime.as_ref()
-    }
 }
 
 /// Copies constant data and clears its padding through `padded_size`.
@@ -201,15 +173,6 @@ fn copy_splat_to_memory(
         filled += chunk;
     }
     true
-}
-
-pub(super) fn contract_bytecode_data_name(
-    gcx: Gcx<'_>,
-    contract_id: ContractId,
-    creation: bool,
-) -> Symbol {
-    let kind = if creation { "initcode" } else { "runtime_code" };
-    Symbol::intern(&format!("{}_{kind}", gcx.hir.contract(contract_id).name))
 }
 
 fn padded_data_word(data: &[u8]) -> [u8; EvmMemoryLayout::WORD_SIZE as usize] {

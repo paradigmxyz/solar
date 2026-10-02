@@ -1,0 +1,34 @@
+//@ compile-flags: -Ogas -Zevm-ir-pipeline=terminal-layout
+
+@module AddressWidth
+
+// Padding prevents a one-byte address bound; retain the existing layout.
+bb0:
+  push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+  pop
+  push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+  pop
+  push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+  pop
+  push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+  pop
+  push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+  pop
+  push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+  pop
+  push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+  pop
+  push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+  pop
+  push 1
+  indexed_jump bb1, bb3, bb3, bb3
+bb1:
+  push 0
+  push 0
+  jump bb2
+bb2:
+  return
+bb3:
+  push 0
+  push 0
+  jump bb2
