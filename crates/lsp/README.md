@@ -2,13 +2,6 @@
 
 Solar LSP definitions and implementation.
 
-## Builtin hover
-
-Hover shows the types and signatures of builtin symbols, including `msg.sender`,
-`keccak256`, `abi.encode`, `.selector`, and user-defined value type `wrap`/`unwrap` members.
-Member signatures use the types resolved at the cursor. Builtins have no Solidity source
-declaration, so Go to Definition and Go to Declaration return no target for them.
-
 ## Workspace indexing
 
 Workspace indexing discovers Solidity files throughout the project, independently of build
