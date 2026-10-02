@@ -1,4 +1,5 @@
 use super::support::RequestFixture;
+use crate::symbols::CompletionContext;
 use snapbox::{IntoData, str};
 
 #[test]
@@ -846,6 +847,98 @@ fn completes_members_with_incomplete_syntax() {
             fixture.check_completions(&["$1"], expected);
         }
     }
+}
+
+#[test]
+fn completes_members_before_a_following_statement() {
+    for expression in [
+        "tokens[i].$1\n                next();",
+        "tokens[i].$1\n                tokens[i].balance;",
+        "tokens[i].\n                $1balance;",
+        "tokens[i] .$1\n                next();",
+        "tokens[i] /* . 😀 */ .$1\n                next();",
+        "getToken().$1\n                next();",
+    ] {
+        let fixture = RequestFixture::new_allowing_diagnostics(
+            &format!(
+                r#"
+                //- /Completion.sol open
+                contract Token {{
+                    uint256 public balance;
+                }}
+                contract C {{
+                    Token[] tokens;
+                    function getToken() internal view returns (Token) {{ return tokens[0]; }}
+                    function f(uint256 i) public view {{
+                        {expression}
+                    }}
+                }}
+                "#,
+            ),
+            "/Completion.sol",
+        );
+        fixture.check_completions(
+            &["$1"],
+            str![[r#"
+balance Method
+
+"#]],
+        );
+    }
+}
+
+#[test]
+fn keeps_lexical_completion_before_member_dot() {
+    for expression in ["tokens[i] $1 .balance;", "tokens[i] /* . 😀 */ $1 .balance;"] {
+        let fixture = RequestFixture::new(
+            &format!(
+                r#"
+                //- /Completion.sol open
+                contract Token {{
+                    uint256 public balance;
+                }}
+                contract C {{
+                    Token[] tokens;
+                    function f(uint256 i) public view {{
+                        {expression}
+                    }}
+                }}
+                "#,
+            ),
+            "/Completion.sol",
+        );
+        let state = fixture.completion_state();
+        let (uri, position) = fixture.marker_location("$1");
+        let items = state.symbol_tables.load().completion_items(
+            &uri,
+            position,
+            CompletionContext::new("tokens", None),
+        );
+        assert_eq!(items.iter().map(|item| item.label.as_str()).collect::<Vec<_>>(), ["tokens"]);
+    }
+}
+
+#[test]
+fn getter_member_completion_does_not_extend_past_declaration() {
+    let fixture = RequestFixture::new(
+        r#"
+        //- /Completion.sol open
+        contract C {
+            struct Record { uint256 value; }
+            Record[] public records; $1
+            uint256 lexicalNeedle;
+        }
+        "#,
+        "/Completion.sol",
+    );
+    let state = fixture.completion_state();
+    let (uri, position) = fixture.marker_location("$1");
+    let items = state.symbol_tables.load().completion_items(
+        &uri,
+        position,
+        CompletionContext::new("lexicalNeedle", None),
+    );
+    assert_eq!(items.iter().map(|item| item.label.as_str()).collect::<Vec<_>>(), ["lexicalNeedle"]);
 }
 
 #[test]

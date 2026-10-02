@@ -15,6 +15,7 @@ use solar_interface::{
         smallvec::SmallVec,
     },
 };
+use solar_parse::{Cursor, lexer::token::RawTokenKind};
 use solar_sema::{
     Gcx,
     builtins::{Builtin, Member},
@@ -2366,8 +2367,36 @@ impl<'gcx> MemberCompletionCollector<'_, 'gcx> {
         self.tables.member_completions.push(MemberCompletionScope {
             uri: location.uri,
             range: location.range,
-            items,
+            items: items.clone(),
         });
+
+        // Keep a separate scope over the position after the dot and the whitespace before the
+        // member. The parser may consume a following identifier as an incomplete member, but the
+        // cursor still sits after the dot; this scope keeps completion useful there without
+        // extending into the next statement after the member.
+        // Find the actual dot after any trivia; generated getters have overlapping source spans
+        // and must not introduce a gap scope around their declarations.
+        if !matches!(receiver.kind, hir::ExprKind::Ident(_))
+            && receiver.span.hi() < member.span.lo()
+            && let Ok(source) = self
+                .gcx
+                .sess
+                .source_map()
+                .span_to_snippet(Span::new(receiver.span.hi(), member.span.lo()))
+            && let Some((offset, token)) =
+                Cursor::new(&source).with_position().find(|(_, token)| !token.kind.is_trivial())
+            && token.kind == RawTokenKind::Dot
+            && let Some(location) = self.locations.location(Span::new(
+                receiver.span.hi() + offset as u32 + token.len,
+                member.span.lo(),
+            ))
+        {
+            self.tables.member_completions.push(MemberCompletionScope {
+                uri: location.uri,
+                range: location.range,
+                items,
+            });
+        }
     }
 }
 
