@@ -97,3 +97,28 @@ fn @squares(arg0: i256) -> i256 [selector=0x1d1d15d4, pure, abi_params=[u256], a
     v7 = checked_add u256, v2, 1
     jump bb1
 }
+
+fn @range(arg0: i256, arg1: i256) -> i256 [selector=0x55680991, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: arg1], [bb3: v0]
+    v1 = phi [bb0: arg0], [bb3: v7]
+    v2 = phi [bb0: arg0], [bb3: v2]
+    v3 = phi [bb0: 0], [bb3: v6]
+    v4 = gt v1, v0
+    v5 = eq v4, false
+    jumpi v5, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    ret v3
+  bb4:
+    v6 = add v3, v1
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v7 = checked_add u256, v1, 1
+    jump bb1
+}

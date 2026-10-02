@@ -378,11 +378,11 @@ fn @variable_start_below(arg0: i256, arg1: i256) -> i256 {
     ret v1
 }
 
-// A loop that leaves once its counter passes the bound, `i <= n`, tests
-// `i + 1 > n` to leave the main loop.
+// A loop that leaves once its counter passes the bound, `i <= n`, and steps
+// by two tests `i + 2 > n` to leave the main loop.
 // CHECK-LABEL: {{^[ +].*}}fn @at_most{{[( ]}}
 // CHECK: + [[I:v[0-9]+]] = phi [bb0: 2], {{\[}}{{bb[0-9]+}}: {{v[0-9]+}}]
-// CHECK: + [[AHEAD:v[0-9]+]] = add [[I]], 1
+// CHECK: + [[AHEAD:v[0-9]+]] = add [[I]], 2
 // CHECK-NEXT: + [[BEYOND:v[0-9]+]] = gt [[AHEAD]], arg0
 // CHECK-NEXT: + jumpi [[BEYOND]], bb1, {{bb[0-9]+}}
 fn @at_most(arg0: i256) -> i256 {
@@ -395,7 +395,7 @@ fn @at_most(arg0: i256) -> i256 {
     jumpi v2, bb3, bb2
   bb2:
     v3 = mul v1, v0
-    v4 = add v0, 1
+    v4 = add v0, 2
     jump bb1
   bb3:
     ret v1
@@ -422,4 +422,33 @@ fn @eq_exit(arg0: i256, arg1: i256) -> i256 {
     jump bb1
   bb3:
     ret v1
+}
+
+// A `<=` loop stepping by one tests `i < n` in its main loop, from any start:
+// `i + 1` cannot wrap below `n`, and the copies keep the increment's overflow
+// check.
+// CHECK-LABEL: {{^[ +].*}}fn @up_to{{[( ]}}
+// CHECK: + [[I:v[0-9]+]] = phi [bb0: arg0], {{\[}}{{bb[0-9]+}}: {{v[0-9]+}}]
+// CHECK: + [[BELOW:v[0-9]+]] = lt [[I]], arg1
+// CHECK-NEXT: + jumpi [[BELOW]], [[FIRST:bb[0-9]+]], bb1
+// CHECK: + [[FIRST]]:
+// CHECK: + jumpi {{v[0-9]+}}, bb4, {{bb[0-9]+}}
+// CHECK: + jumpi {{v[0-9]+}}, bb4, {{bb[0-9]+}}
+fn @up_to(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: arg0], [bb3: v5]
+    v1 = phi [bb0: 0], [bb3: v4]
+    v2 = gt v0, arg1
+    jumpi v2, bb2, bb3
+  bb2:
+    ret v1
+  bb3:
+    v4 = add v1, v0
+    v5 = add v0, 1
+    v6 = eq v5, 0
+    jumpi v6, bb4, bb1
+  bb4:
+    revert 0, 0
 }
