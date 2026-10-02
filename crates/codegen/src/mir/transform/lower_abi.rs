@@ -872,18 +872,54 @@ impl LowerAbiCx {
     /// Returns whether every use of a memory `bytes` argument also accepts its calldata slice.
     ///
     /// Byte reads stay in memory, where `byte-run-loads` fuses adjacent reads into one word.
+    /// Raw memory reads, which only inline assembly emits here, could find the skipped copy
+    /// at a guessed address, so any of them keeps every argument in memory.
     fn only_reads_memory_view(func: &Function, uses: &[ValueId]) -> bool {
         let is_use = |value: &ValueId| uses.contains(value);
-        func.instructions().all(|inst_id| {
-            let kind = &func.inst(inst_id).kind;
-            !kind.operands().iter().any(is_use)
-                || match kind {
-                    InstKind::MappingSlotMemory(_, slot) => !is_use(slot),
-                    InstKind::MemoryObjectLen(_, MemoryObjectKind::Bytes) => true,
-                    InstKind::AbiEncode { selector, .. } => !selector.as_ref().is_some_and(is_use),
-                    _ => false,
-                }
-        })
+        // Constant scratch ranges such as error payloads end below the heap.
+        let scratch = |offset, size| {
+            func.value_u64(offset)
+                .zip(func.value_u64(size))
+                .and_then(|(offset, size)| offset.checked_add(size))
+                .is_some_and(|end| end <= EvmMemoryLayout::HEAP_START)
+        };
+        let raw_read = func.blocks.iter().any(|block| match block.terminator {
+            Some(Terminator::Revert { offset, size } | Terminator::ReturnData { offset, size }) => {
+                !scratch(offset, size)
+            }
+            _ => false,
+        }) || func.instructions().any(|inst_id| {
+            matches!(
+                func.inst(inst_id).kind,
+                InstKind::MLoad(_)
+                    | InstKind::Keccak256(..)
+                    | InstKind::Log0(..)
+                    | InstKind::Log1(..)
+                    | InstKind::Log2(..)
+                    | InstKind::Log3(..)
+                    | InstKind::Log4(..)
+                    | InstKind::Call { .. }
+                    | InstKind::CallCode { .. }
+                    | InstKind::StaticCall { .. }
+                    | InstKind::DelegateCall { .. }
+                    | InstKind::Create(..)
+                    | InstKind::Create2(..)
+                    | InstKind::MCopy(..)
+            )
+        });
+        !raw_read
+            && func.instructions().all(|inst_id| {
+                let kind = &func.inst(inst_id).kind;
+                !kind.operands().iter().any(is_use)
+                    || match kind {
+                        InstKind::MappingSlotMemory(_, slot) => !is_use(slot),
+                        InstKind::MemoryObjectLen(_, MemoryObjectKind::Bytes) => true,
+                        InstKind::AbiEncode { selector, .. } => {
+                            !selector.as_ref().is_some_and(is_use)
+                        }
+                        _ => false,
+                    }
+            })
     }
 
     fn synthesize_shared_return_cleanup_helpers(
