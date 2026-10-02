@@ -123,45 +123,27 @@ bb39 [loop]:
   dup 1
   dup 3
   add
+  swap 1
+  push 1
+  add
+  dup 1
+  swap 2
+  add
+  swap 1
+  push 1
+  add
+  dup 1
+  swap 2
+  add
+  swap 1
+  push 1
+  add
+  dup 1
+  swap 2
+  add
   swap 2
   dup 3
   lt
-  swap 1
-  push 1
-  add
-  dup 1
-  dup 4
-  add
-  swap 3
-  dup 4
-  lt
-  swap 1
-  swap 2
-  or
-  swap 1
-  push 1
-  add
-  dup 1
-  dup 4
-  add
-  swap 3
-  dup 4
-  lt
-  swap 1
-  swap 2
-  or
-  swap 1
-  push 1
-  add
-  dup 1
-  dup 4
-  add
-  swap 3
-  dup 4
-  lt
-  swap 1
-  swap 2
-  or
   push bb41
   jumpi
   push 1

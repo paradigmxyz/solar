@@ -56,19 +56,13 @@ fn @entry() [entry] {
     jump bb5
   bb14:
     v24 = add v22, v21
-    v25 = lt v24, v22
     v26 = add v21, 1
     v30 = add v24, v26
-    v31 = lt v30, v24
-    v48 = or v25, v31
     v32 = add v26, 1
     v36 = add v30, v32
-    v37 = lt v36, v30
-    v49 = or v48, v37
     v38 = add v32, 1
     v42 = add v36, v38
-    v43 = lt v42, v36
-    v50 = or v49, v43
+    v50 = lt v42, v22
     jumpi v50, bb8, bb15
   bb15:
     v44 = add v38, 1
