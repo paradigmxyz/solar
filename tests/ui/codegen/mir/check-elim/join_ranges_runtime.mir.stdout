@@ -1,5 +1,27 @@
 // === ROOT/tests/ui/codegen/mir/check-elim/join_ranges_runtime.sol:JoinedRanges ===
 @module JoinedRanges
+fn @narrowSignedJoin(arg0: i8) -> i8 [selector=0xbf7ff459, pure, abi_params=[u8], abi_returns=[word<u8>], abi_return_params=[u8]] {
+  bb0:
+    v0 = lt arg0, i8 128
+    v1 = eq v0, false
+    v2 = eq v1, false
+    icall revert_if<empty>, v2
+    v3 = sub arg0, i8 128
+    v4 = gt v3, i8 0
+    jumpi v4, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    jump bb3
+  bb3:
+    v5 = phi [bb1: v3], [bb2: i8 128]
+    v6 = slt v5, i8 0
+    v7 = eq v6, false
+    v8 = eq v7, false
+    icall revert_if<empty>, v8
+    ret v5
+}
+
 fn @guardedDifference(arg0: i8, arg1: i8) -> i8 [selector=0xa113f032, pure, abi_params=[u8, u8], abi_returns=[word<u8>], abi_return_params=[u8]] {
   bb0:
     v0 = lt arg0, arg1
@@ -190,32 +212,6 @@ fn @wrapLoop(arg0: i256) -> i8 [selector=0xe58d2ef9, pure, abi_params=[u256], ab
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: arg0], [bb3: v0]
-    v1 = phi [bb0: 0], [bb3: v6]
-    v2 = phi [bb0: 0], [bb3: v7]
-    v3 = lt v1, v0
-    jumpi v3, bb4, bb5
-  bb5:
-    jump bb2
-  bb2:
-    v8 = trunc i256 v2 to i8
-    ret v8
-  bb4:
-    v4 = trunc i256 v2 to i8
-    v5 = add v4, i8 1
-    jump bb6
-  bb6:
-    jump bb3
-  bb3:
-    v6 = checked_add u256, v1, 1
-    v7 = zext i8 v5 to i256
-    jump bb1
-}
-
-fn @checked(arg0: i256) -> i8 [selector=0x2e53fee2, pure, abi_params=[u256], abi_returns=[word<u8>], abi_return_params=[u8]] {
-  bb0:
-    jump bb1
-  bb1:
     v0 = phi [bb0: 0], [bb3: v7]
     v1 = phi [bb0: arg0], [bb3: v1]
     v2 = phi [bb0: 0], [bb3: v6]
@@ -228,12 +224,38 @@ fn @checked(arg0: i256) -> i8 [selector=0x2e53fee2, pure, abi_params=[u256], abi
     ret v8
   bb4:
     v4 = trunc i256 v0 to i8
-    v5 = checked_add u8, v4, i8 1
+    v5 = add v4, i8 1
     jump bb6
   bb6:
     jump bb3
   bb3:
     v6 = checked_add u256, v2, 1
+    v7 = zext i8 v5 to i256
+    jump bb1
+}
+
+fn @checked(arg0: i256) -> i8 [selector=0x2e53fee2, pure, abi_params=[u256], abi_returns=[word<u8>], abi_return_params=[u8]] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb3: v6]
+    v1 = phi [bb0: 0], [bb3: v7]
+    v2 = phi [bb0: arg0], [bb3: v2]
+    v3 = lt v0, v2
+    jumpi v3, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    v8 = trunc i256 v1 to i8
+    ret v8
+  bb4:
+    v4 = trunc i256 v1 to i8
+    v5 = checked_add u8, v4, i8 1
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v6 = checked_add u256, v0, 1
     v7 = zext i8 v5 to i256
     jump bb1
 }

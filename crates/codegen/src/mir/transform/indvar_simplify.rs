@@ -629,6 +629,7 @@ impl IndVarSimplifier {
     ) -> ValueId {
         match acc {
             Some(acc) => {
+                let acc = self.word_value(func, block, acc);
                 self.append_inst_value(func, block, InstKind::Add(acc, value), Some(MirType::I256))
             }
             None => value,

@@ -1447,7 +1447,8 @@ impl<'a> CheckEliminator<'a> {
         }
         let bits = integer_bits(func, value).min(256);
         let full = Range::new(U256::ZERO, integer_mask(bits));
-        let mut range = self.ranges.get(&value).copied().unwrap_or(full);
+        let mut range =
+            self.ranges.get(&value).and_then(|range| range.intersect(full)).unwrap_or(full);
         if let Some(bound) = self.trip_bounds.get(&value) {
             range = range.intersect(*bound).unwrap_or(range);
         }

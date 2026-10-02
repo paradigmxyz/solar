@@ -38,7 +38,19 @@
 //@ run-call: guardedDifference 0, 0 => 0
 //@ run-call: truncatedNonzero 257 => 256
 //@ run-call-fail: truncatedNonzero 256
+//@ run-call-fail: narrowSignedJoin 128
+//@ run-call: narrowSignedJoin 129 => 1
+//@ run-call: narrowSignedJoin 255 => 127
 contract JoinedRanges {
+    function narrowSignedJoin(uint8 input) external pure returns (uint8) {
+        require(input >= 128);
+        uint8 value;
+        unchecked { value = input - 128; }
+        if (value > 0) {} else { value = 128; }
+        require(int8(value) >= 0);
+        return value;
+    }
+
     function guardedDifference(uint8 a, uint8 b) external pure returns (uint8) {
         if (a >= b) return a - b;
         unchecked { return a - b; }

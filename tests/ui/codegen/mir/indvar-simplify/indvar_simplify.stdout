@@ -227,3 +227,35 @@
       jump bb1
   }
   
+  fn @native_base(arg0: i8, arg1: i256) -> i256 {
+    bb0:
++     v13 = shl 1, arg1
++     v14 = zext i8 arg0 to i256
++     v15 = add v14, v13
+      jump bb1
+    bb1:
+      v0 = phi [bb0: 0], [bb2: v12]
++     v16 = phi [bb0: v15], [bb2: v17]
+      v1 = lt v0, 4
+      jumpi v1, bb2, bb3
+    bb3:
+      ret 0
+    bb2:
+-     v2 = zext i8 arg0 to i256
+-     v3 = shl 5, v0
+-     v4 = add v2, v3
+-     v5 = shl 1, arg1
+-     v6 = add v4, v5
+-     v7 = mload v6
+-     v8 = shl 5, v0
+-     v9 = add v2, v8
+-     v10 = add v9, v5
++     v7 = mload v16
+      v11 = add v7, 1
+-     mstore v10, v11
++     mstore v16, v11
+      v12 = add v0, 1
++     v17 = add v16, 32
+      jump bb1
+  }
+  
