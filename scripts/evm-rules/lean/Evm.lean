@@ -182,8 +182,10 @@ theorem sign_bits (n : Nat) (x : Word) (hn : n < 256) (i : Nat) (hi : i < 256) :
     ((x <<< n).sshiftRight n).getLsbD i = x.getLsbD (min i (255 - n)) := by
   simp only [BitVec.getLsbD_sshiftRight, BitVec.getLsbD_shiftLeft, BitVec.msb_eq_getLsbD_last]
   by_cases h : n + i < 256
-  · simp [h, show ¬ 256 ≤ i by omega, Nat.min_eq_left (show i ≤ 255 - n by omega), show ¬ n + i < n by omega]
-  · simp [h, show ¬ 256 ≤ i by omega, Nat.min_eq_right (show 255 - n ≤ i by omega), show ¬ 255 < n by omega]
+  · simp [h, show ¬ 256 ≤ i by omega,
+      Nat.min_eq_left (show i ≤ 255 - n by omega), show ¬ n + i < n by omega]
+  · simp [h, show ¬ 256 ≤ i by omega,
+      Nat.min_eq_right (show 255 - n ≤ i by omega), show ¬ 255 < n by omega]
 
 theorem signextend_bits (n x : Word) (i : Nat) (hi : i < 256) :
     (signextend n x).getLsbD i = x.getLsbD (min i (n.toNat * 8 + 7)) := by
@@ -218,7 +220,6 @@ theorem signextend_bits (n x : Word) (i : Nat) (hi : i < 256) :
     simp only [ite_eq_right h]
     rw [Nat.min_assoc, Nat.min_eq_right (show b.toNat * 8 + 7 ≤ a.toNat * 8 + 7 by omega)]
 
-
 def signedMask (n m x : Word) :=
   sar (256#256 - (if n < 256#256 then n else 256#256))
       (shl (256#256 - (if n < 256#256 then n else 256#256)) x) &&& (shl m 1#256 - 1#256)
@@ -251,10 +252,63 @@ theorem signedMask_recover (n m x : Word) (hn : 1#256 ≤ n) (hn' : n ≤ 256#25
   · simp only [h, decide_false, Bool.and_false] at hx' ⊢
     exact hx'
 
+theorem sext_bits (n x : Word) (i : Nat) (hi : i < 256) :
+    (sar (256#256 - (if n < 256#256 then n else 256#256))
+      (shl (256#256 - (if n < 256#256 then n else 256#256)) x)).getLsbD i =
+      if n = 0#256 then false else x.getLsbD (min i (n.toNat - 1)) := by
+  by_cases hz : n = 0#256
+  · simp [hz, sar, shl]
+  · have hn0 : 0 < n.toNat := by bv_omega
+    by_cases hn : n < 256#256
+    · have hn256 : n.toNat < 256 := hn
+      have hs : (256#256 - n).toNat = 256 - n.toNat := by bv_omega
+      simp only [ite_eq_left hn, ite_eq_right hz, sar_eq, shl_eq]
+      rw [sign_bits _ _ (by omega) i hi, hs]
+      congr 1
+      omega
+    · have hn256 : 256 ≤ n.toNat := by
+        simp only [BitVec.lt_def, BitVec.toNat_ofNat] at hn
+        omega
+      simp [hn, hz, sar, shl, Nat.min_eq_left (show i ≤ n.toNat - 1 by omega)]
+
+theorem signedMask_bits (n m x : Word) (i : Nat) (hi : i < 256) :
+    (signedMask n m x).getLsbD i =
+      ((if n = 0#256 then false else x.getLsbD (min i (n.toNat - 1))) && decide (i < m.toNat)) := by
+  unfold signedMask
+  rw [BitVec.getLsbD_and, mask_bits m i hi, sext_bits n x i hi]
+
+@[simp] theorem signed_mask_compose (a b c x : Word) (hab : a < b) :
+    (sar (256#256 - (if b < 256#256 then b else 256#256))
+      (shl (256#256 - (if b < 256#256 then b else 256#256))
+        (sar (256#256 - (if a < 256#256 then a else 256#256))
+          (shl (256#256 - (if a < 256#256 then a else 256#256)) x) &&&
+          (shl b 1#256 - 1#256))) &&& (shl c 1#256 - 1#256)) =
+    (sar (256#256 - (if a < 256#256 then a else 256#256))
+      (shl (256#256 - (if a < 256#256 then a else 256#256)) x) &&&
+      (shl c 1#256 - 1#256)) := by
+  change signedMask b c (signedMask a b x) = signedMask a c x
+  have hab' : a.toNat < b.toNat := hab
+  have hb : b ≠ 0#256 := by bv_omega
+  apply BitVec.eq_of_getLsbD_eq
+  intro i hi
+  rw [signedMask_bits b c _ i hi, signedMask_bits a c x i hi]
+  simp only [ite_eq_right hb]
+  rw [signedMask_bits a b x _ (by omega)]
+  have hi' : min i (b.toNat - 1) < b.toNat := by omega
+  by_cases ha : a = 0#256
+  · simp [ha]
+  · simp only [ite_eq_right ha, hi', decide_true, Bool.and_true]
+    rw [Nat.min_assoc, Nat.min_eq_right (show a.toNat - 1 ≤ b.toNat - 1 by omega)]
+
 @[simp] theorem signed_mask_eq (n m x y : Word) (hn : 1#256 ≤ n) (hn' : n ≤ 256#256)
     (hm : n < m) (hx : x &&& (shl n 1#256 - 1#256) = x)
     (hy : y &&& (shl n 1#256 - 1#256) = y) :
-    ((sar (256#256 - (if n < 256#256 then n else 256#256)) (shl (256#256 - (if n < 256#256 then n else 256#256)) x) &&& (shl m 1#256 - 1#256)) = (sar (256#256 - (if n < 256#256 then n else 256#256)) (shl (256#256 - (if n < 256#256 then n else 256#256)) y) &&& (shl m 1#256 - 1#256))) ↔ x = y := by
+    ((sar (256#256 - (if n < 256#256 then n else 256#256))
+      (shl (256#256 - (if n < 256#256 then n else 256#256)) x) &&&
+      (shl m 1#256 - 1#256)) =
+    (sar (256#256 - (if n < 256#256 then n else 256#256))
+      (shl (256#256 - (if n < 256#256 then n else 256#256)) y) &&&
+      (shl m 1#256 - 1#256))) ↔ x = y := by
   constructor
   · intro h
     have h' := congrArg (fun v => v &&& (shl n 1#256 - 1#256)) h
