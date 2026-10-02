@@ -1994,9 +1994,9 @@ impl AliasAnalysis {
         call_summaries: Option<&MemoryCallSummaries>,
     ) -> bool {
         match func.inst(inst).kind {
-            InstKind::SetFmp(_)
-            | InstKind::MappingSlotMemory(..)
-            | InstKind::MappingSlotCalldata(..) => true,
+            // A calldata-key hash writes its key and slot from the FMP up, never
+            // below the heap.
+            InstKind::SetFmp(_) | InstKind::MappingSlotMemory(..) => true,
             InstKind::ICall { function: Callee::Function(function), .. } => call_summaries
                 .and_then(|summaries| summaries.get(function))
                 .is_none_or(|summary| summary.may_reset_fmp()),
@@ -2060,7 +2060,11 @@ impl AliasAnalysis {
     /// subtract from a pointer, and a typed argument may still originate in
     /// opaque code. Only monotonic derivations from compiler-owned bases prove
     /// that a write cannot reach reserved low memory.
-    fn pointer_lower_bound(func: &Function, value: ValueId, depth: usize) -> Option<u64> {
+    pub(crate) fn pointer_lower_bound(
+        func: &Function,
+        value: ValueId,
+        depth: usize,
+    ) -> Option<u64> {
         if depth > 8 {
             return None;
         }
@@ -2232,12 +2236,13 @@ mod tests {
             let behavior = func.inst(inst).kind.effects();
             assert!(behavior.must_execute(false));
             assert!(behavior.expands_memory);
+            let calldata_key = matches!(func.inst(inst).kind, InstKind::MappingSlotCalldata(..));
             assert_eq!(
                 behavior.can_common(),
-                size.is_some() && func.inst(inst).result_ty.is_some()
+                (size.is_some() || calldata_key) && func.inst(inst).result_ty.is_some()
             );
             assert!(!behavior.can_speculate());
-            assert_eq!(aa.instruction_may_reset_fmp(&func, inst), size.is_none());
+            assert_eq!(aa.instruction_may_reset_fmp(&func, inst), size.is_none() && !calldata_key);
         }
     }
 
