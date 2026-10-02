@@ -57,7 +57,11 @@
 //! query for the phi, so `i + 2` and `i + 4` never wrap for a counter that
 //! starts at zero even when the loop bound is an arbitrary word. The revert
 //! path such a check guards is unreachable by any transaction, not merely
-//! unlikely, so removing it preserves the checked semantics.
+//! unlikely, so removing it preserves the checked semantics. A counter that
+//! only some iterations advance, `if (c) ++count`, carries the same bound with
+//! its largest step when every value its update can take, through phis and
+//! selects, is the phi itself or the phi plus a constant; a phi met twice on
+//! that walk, as an inner loop's header, gives no bound.
 //!
 //! Transitive relational queries lazily index candidate edges once per function,
 //! when a query needs to combine facts. An edge is followed only
@@ -571,6 +575,9 @@ impl<'a> CheckEliminator<'a> {
             if let Some(bound) = trip_count_bound(func, phi) {
                 self.trip_bounds.insert(phi.value, bound);
             }
+        }
+        for (value, bound) in counter_bounds(func, &cfg, &preds, &relevant) {
+            self.trip_bounds.entry(value).or_insert(bound);
         }
         let mut proven = Vec::new();
         let (mut folds, mut checks) =
@@ -2060,6 +2067,82 @@ fn trip_count_bound(func: &Function, phi: &MonotonePhi) -> Option<Range> {
     } else {
         Some(Range::new(initial, initial.checked_add(travel)?))
     }
+}
+
+/// The values a header phi `p = phi [pre: initial], [latch: next]` can take when every value
+/// `next` can be, through phis and selects inside the loop, is `p` itself or `p + c` for a
+/// constant `c`, as a counter that only some iterations advance is: within the target's trip
+/// bound, `p` moves at most `2^MAX_TRIP_COUNT_BITS` times the largest step from a constant
+/// start.
+fn counter_bounds(
+    func: &Function,
+    cfg: &CfgInfo,
+    preds: &IndexVec<BlockId, Vec<BlockId>>,
+    relevant: &DenseBitSet<ValueId>,
+) -> Vec<(ValueId, Range)> {
+    let mut bounds = Vec::new();
+    let cyclic = cfg.cyclic_blocks();
+    if cyclic.is_empty() {
+        return bounds;
+    }
+    let dominators = cfg.dominators();
+    for header in cyclic.iter() {
+        for &inst in &func.blocks[header].instructions {
+            let InstKind::Phi(incoming) = &func.inst(inst).kind else { continue };
+            let Some(value) = func.inst_result_value(inst) else { continue };
+            if !relevant.contains(value) {
+                continue;
+            }
+            let [(first_block, first), (second_block, second)] = incoming.as_slice() else {
+                continue;
+            };
+            let (pre, initial, latch, next) = match (
+                dominators.dominates(header, *first_block),
+                dominators.dominates(header, *second_block),
+            ) {
+                (false, true) => (*first_block, *first, *second_block, *second),
+                (true, false) => (*second_block, *second, *first_block, *first),
+                _ => continue,
+            };
+            if !preds[header].contains(&pre) || !preds[header].contains(&latch) {
+                continue;
+            }
+            if let Some(initial) = const_of(func, initial)
+                && let Some(step) = largest_step(func, value, next)
+                && let Some(travel) = step.checked_shl(Target::MAX_TRIP_COUNT_BITS)
+                && let Some(far) = initial.checked_add(travel)
+            {
+                bounds.push((value, Range::new(initial, far)));
+            }
+        }
+    }
+    bounds
+}
+
+/// The largest constant `next` adds to the header phi `phi`, when every value `next` can be,
+/// through phis and selects, is `phi` itself or `phi + c` for a constant `c`, and some adds. A
+/// phi seen twice, as an inner loop's header, fails the walk.
+fn largest_step(func: &Function, phi: ValueId, next: ValueId) -> Option<U256> {
+    const MAX_VALUES: usize = 32;
+    let mut largest = U256::ZERO;
+    let mut pending = vec![next];
+    let mut seen = FxHashSet::default();
+    while let Some(value) = pending.pop() {
+        if value == phi {
+            continue;
+        }
+        if !seen.insert(value) || seen.len() > MAX_VALUES {
+            return None;
+        }
+        match *inst_kind(func, value)? {
+            InstKind::Add(a, b) if a == phi => largest = largest.max(const_of(func, b)?),
+            InstKind::Add(a, b) if b == phi => largest = largest.max(const_of(func, a)?),
+            InstKind::Phi(ref incoming) => pending.extend(incoming.iter().map(|&(_, value)| value)),
+            InstKind::Select(_, a, b) => pending.extend([a, b]),
+            _ => return None,
+        }
+    }
+    (!largest.is_zero()).then_some(largest)
 }
 
 fn const_of(func: &Function, value: ValueId) -> Option<U256> {
