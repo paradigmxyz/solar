@@ -1,0 +1,93 @@
+- // === ROOT/tests/ui/codegen/mir/late-memory-dse/calls.mir (before late-memory-dse) ===
++ // === ROOT/tests/ui/codegen/mir/late-memory-dse/calls.mir (after late-memory-dse) ===
+  @module LateMemoryDseCalls
+  fn @bump() {
+    bb0:
+      v0 = mload 64
+      v1 = add v0, 32
+      mstore 64, v1
+      ret
+  }
+  
+  fn @lower(arg0: i256) {
+    bb0:
+      mstore 64, arg0
+      ret
+  }
+  
+  fn @calls_bump() [abi_wrapper] {
+    bb0:
+      icall @bump
+      v0 = mload 64
+      v1 = add v0, 32
+-     mstore 64, v1
+      revert v0, 32
+  }
+  
+  fn @calls_lower(arg0: i256) [abi_wrapper] {
+    bb0:
+      icall @lower, arg0
+      mstore 0, 1
+      v0 = mload 64
+      revert v0, 32
+  }
+  
+  fn @shared() {
+    bb0:
+      mstore 0, 1
+      v0 = mload 64
+      revert v0, 32
+  }
+  
+  fn @untrusted_caller(arg0: i256) [abi_wrapper] {
+    bb0:
+      mstore 64, arg0
+      tail_call @shared
+  }
+  
+  fn @trusted_caller() [abi_wrapper] {
+    bb0:
+      tail_call @shared
+  }
+  
+  fn @trusted_only() {
+    bb0:
+      v0 = mload 64
+      v1 = add v0, 32
+-     mstore 64, v1
+      revert v0, 32
+  }
+  
+  fn @calls_trusted_only() [abi_wrapper] {
+    bb0:
+      tail_call @trusted_only
+  }
+  
+  fn @forward(arg0: i256) {
+    bb0:
+      tail_call @lower, arg0
+  }
+  
+  fn @calls_forward(arg0: i256) [abi_wrapper] {
+    bb0:
+      icall @forward, arg0
+      mstore 0, 1
+      v0 = mload 64
+      revert v0, 32
+  }
+  
+  fn @bubbles(arg0: i1) [abi_wrapper] {
+    bb0:
+      jumpi arg0, bb1, bb2
+    bb2:
+      v2 = mload 64
+      v3 = add v2, 32
+-     mstore 64, v3
+      revert v2, 32
+    bb1:
+      v0 = returndatasize
+      returndatacopy 0, 0, v0
+      v1 = returndatasize
+      revert 0, v1
+  }
+  

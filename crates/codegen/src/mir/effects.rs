@@ -285,6 +285,7 @@ impl InstKind {
             idempotent_write: matches!(
                 self,
                 Self::MappingSlot(..)
+                    | Self::MappingSlotCalldata(..)
                     | Self::StorageArrayDataSlot(..)
                     | Self::StorageArrayElementSlot { .. }
             ),

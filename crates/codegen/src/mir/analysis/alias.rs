@@ -1988,7 +1988,7 @@ impl AliasAnalysis {
         Self::instruction_may_reset_fmp_with_summaries(func, inst, self.call_summaries.as_deref())
     }
 
-    fn instruction_may_reset_fmp_with_summaries(
+    pub(crate) fn instruction_may_reset_fmp_with_summaries(
         func: &Function,
         inst: InstId,
         call_summaries: Option<&MemoryCallSummaries>,
@@ -2060,7 +2060,11 @@ impl AliasAnalysis {
     /// subtract from a pointer, and a typed argument may still originate in
     /// opaque code. Only monotonic derivations from compiler-owned bases prove
     /// that a write cannot reach reserved low memory.
-    fn pointer_lower_bound(func: &Function, value: ValueId, depth: usize) -> Option<u64> {
+    pub(crate) fn pointer_lower_bound(
+        func: &Function,
+        value: ValueId,
+        depth: usize,
+    ) -> Option<u64> {
         if depth > 8 {
             return None;
         }
@@ -2106,12 +2110,12 @@ impl AliasAnalysis {
                     _ => None,
                 }
             }
-            InstKind::Phi(incoming) => incoming
-                .iter()
-                .map(|(_, value)| Self::pointer_lower_bound(func, *value, depth + 1))
-                .collect::<Option<Vec<_>>>()?
-                .into_iter()
-                .min(),
+            InstKind::Phi(incoming) => {
+                incoming.iter().try_fold(None, |bound: Option<u64>, (_, value)| {
+                    let value = Self::pointer_lower_bound(func, *value, depth + 1)?;
+                    Some(Some(bound.map_or(value, |bound| bound.min(value))))
+                })?
+            }
             InstKind::Select(_, first, second) => {
                 Some(
                     Self::pointer_lower_bound(func, *first, depth + 1)?
@@ -2232,9 +2236,10 @@ mod tests {
             let behavior = func.inst(inst).kind.effects();
             assert!(behavior.must_execute(false));
             assert!(behavior.expands_memory);
+            let calldata_key = matches!(func.inst(inst).kind, InstKind::MappingSlotCalldata(..));
             assert_eq!(
                 behavior.can_common(),
-                size.is_some() && func.inst(inst).result_ty.is_some()
+                (size.is_some() || calldata_key) && func.inst(inst).result_ty.is_some()
             );
             assert!(!behavior.can_speculate());
             assert_eq!(aa.instruction_may_reset_fmp(&func, inst), size.is_none());

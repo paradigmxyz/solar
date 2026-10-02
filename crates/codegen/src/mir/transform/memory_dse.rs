@@ -8,13 +8,22 @@
 //! edge, equal constant stores can be removed only while no overlapping
 //! 32-byte write has invalidated the remembered word. Gas and memory-size
 //! observations act as barriers to memory elimination.
+//!
+//! A backward liveness analysis over constant word-aligned slots removes
+//! stores no later read can observe. Halts discard memory. In an ABI wrapper
+//! whose free-memory pointer, and that of every callee, only grows from the heap
+//! floor, a read from a pointer derived from it or another compiler-owned heap
+//! base keeps only heap addresses live, so reserved slots such as the
+//! free-memory pointer stay dead before it. `late-memory-dse` reruns only this
+//! analysis on lowered word MIR, after allocation lowering has materialized the
+//! pointer bumps.
 
 use crate::mir::{
     BlockId, Callee, Function, Immediate, InstId, InstKind, MemoryObjectKind, MemoryRegion, Module,
     Terminator, Value, ValueId,
     analysis::{
         Access, AddressSpace, AliasAnalysis, CfgInfo, Location, LocationSize, MemoryAddress,
-        MemoryBase, MemoryLocation,
+        MemoryBase, MemoryLocation, heap_fmp_functions,
     },
     memory::EvmMemoryLayout,
     pass::{MirPass, run_selected_function_pass_with_alias_and_cfg},
@@ -46,24 +55,73 @@ impl MirPass for MemoryDse {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        let mut selected = DenseBitSet::new_empty(module.functions.len());
-        for (func_id, func) in module.functions.iter_enumerated() {
-            if has_memory_writes(func) {
-                selected.insert(func_id);
+        run_memory_dse(module, analyses, false)
+    }
+}
+
+/// Late liveness-only dead-store pass over lowered word MIR.
+///
+/// Allocation lowering materializes free-memory-pointer bumps after the last
+/// full `memory-dse` run. This pass runs only the backward liveness analysis, so
+/// a bump on a path that halts or reads only heap memory disappears without
+/// reopening the earlier forwarding and folding decisions.
+pub(crate) struct LateMemoryDse;
+
+impl MirPass for LateMemoryDse {
+    fn name(&self) -> &'static str {
+        "late-memory-dse"
+    }
+
+    fn run_pass(
+        &self,
+        _gcx: solar_sema::Gcx<'_>,
+        module: &mut Module,
+        analyses: &mut crate::mir::pass::ModuleAnalyses,
+    ) -> bool {
+        run_memory_dse(module, analyses, true)
+    }
+}
+
+/// Runs memory DSE on every function with memory writes, or only its liveness
+/// analysis when `late`.
+///
+/// The functions where heap reads observe only heap memory run separately, since
+/// the function runner does not pass their IDs; see [`heap_fmp_functions`].
+fn run_memory_dse(
+    module: &mut Module,
+    analyses: &mut crate::mir::pass::ModuleAnalyses,
+    late: bool,
+) -> bool {
+    let heap_reads = heap_fmp_functions(module);
+    let mut trusted = DenseBitSet::new_empty(module.functions.len());
+    let mut untrusted = DenseBitSet::new_empty(module.functions.len());
+    for (func_id, func) in module.functions.iter_enumerated() {
+        if has_memory_writes(func) {
+            if heap_reads.contains(func_id) {
+                trusted.insert(func_id);
+            } else {
+                untrusted.insert(func_id);
             }
         }
-        run_selected_function_pass_with_alias_and_cfg(
-            module,
-            analyses,
-            &selected,
-            |func, analyses| {
-                let mut eliminator = MemoryStoreEliminator::new();
-                eliminator.alias = Some(Rc::clone(analyses.alias()));
+    }
+    let run = |heap_reads| {
+        move |func: &mut Function, analyses: &crate::mir::pass::FunctionAnalyses| {
+            let mut eliminator = MemoryStoreEliminator::new();
+            eliminator.alias = Some(Rc::clone(analyses.alias()));
+            eliminator.heap_reads = heap_reads;
+            if late {
+                eliminator.remove_dead_memory_stores(func);
+                eliminator.eliminated_count != 0
+            } else {
                 eliminator.cfg = Some(Rc::clone(analyses.cfg()));
                 eliminator.run_to_fixpoint(func) != 0
-            },
-        )
-    }
+            }
+        }
+    };
+    let changed =
+        run_selected_function_pass_with_alias_and_cfg(module, analyses, &trusted, run(true));
+    run_selected_function_pass_with_alias_and_cfg(module, analyses, &untrusted, run(false))
+        || changed
 }
 
 /// Returns whether the function contains a memory write this pass can remove
@@ -97,6 +155,8 @@ struct MemoryStoreEliminator {
     /// Number of memory instructions eliminated.
     eliminated_count: usize,
     alias: Option<Rc<AliasAnalysis>>,
+    /// Whether reads from heap pointers keep only heap memory live; see [`heap_fmp_functions`].
+    heap_reads: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -115,28 +175,33 @@ type LiveSlots = SmallVec<[u64; 16]>;
 /// Backward memory-liveness lattice over constant word-aligned slots.
 ///
 /// `All` is the conservative top: any address may be observed. `Only` names the
-/// exact slots that may be read before the next full-word overwrite; every
-/// other slot is provably dead if overwritten.
+/// exact slots that may be read before the next full-word overwrite and, with
+/// `heap`, every address from [`EvmMemoryLayout::HEAP_START`] up; every other
+/// slot is provably dead if overwritten. A heap-live set keeps only the reserved
+/// slots below the heap in `slots`, so each lattice value has one representation.
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum MemLive {
     All,
-    Only(LiveSlots),
+    Only { slots: LiveSlots, heap: bool },
 }
 
 impl MemLive {
     fn empty() -> Self {
-        Self::Only(LiveSlots::new())
+        Self::Only { slots: LiveSlots::new(), heap: false }
     }
 
     fn contains(&self, addr: u64) -> bool {
         match self {
             Self::All => true,
-            Self::Only(slots) => slots.binary_search(&addr).is_ok(),
+            Self::Only { slots, heap } => {
+                (*heap && addr >= EvmMemoryLayout::HEAP_START) || slots.binary_search(&addr).is_ok()
+            }
         }
     }
 
     fn add_addr(&mut self, addr: u64) {
-        if let Self::Only(slots) = self
+        if let Self::Only { slots, heap } = self
+            && !(*heap && addr >= EvmMemoryLayout::HEAP_START)
             && let Err(index) = slots.binary_search(&addr)
         {
             if slots.len() >= MEM_LIVE_CAP {
@@ -147,8 +212,16 @@ impl MemLive {
         }
     }
 
+    /// Marks every address from the heap start up as live.
+    fn add_heap(&mut self) {
+        if let Self::Only { slots, heap } = self {
+            *heap = true;
+            slots.retain(|slot| *slot < EvmMemoryLayout::HEAP_START);
+        }
+    }
+
     fn kill(&mut self, addr: u64) {
-        if let Self::Only(slots) = self
+        if let Self::Only { slots, .. } = self
             && let Ok(index) = slots.binary_search(&addr)
         {
             slots.remove(index);
@@ -156,10 +229,19 @@ impl MemLive {
     }
 
     fn join(&mut self, other: &Self) {
+        let heap = matches!(self, Self::Only { heap: true, .. })
+            || matches!(other, Self::Only { heap: true, .. });
+        self.join_slots(other);
+        if heap {
+            self.add_heap();
+        }
+    }
+
+    fn join_slots(&mut self, other: &Self) {
         match (&mut *self, other) {
             (Self::All, _) => {}
             (this, Self::All) => *this = Self::All,
-            (Self::Only(a), Self::Only(b)) => {
+            (Self::Only { slots: a, .. }, Self::Only { slots: b, .. }) => {
                 if b.is_empty() {
                     return;
                 }
@@ -582,20 +664,21 @@ impl MemoryStoreEliminator {
         match func.blocks[block].terminator.as_ref() {
             Some(Terminator::Revert { offset, size })
             | Some(Terminator::ReturnData { offset, size }) => {
-                Self::mark_read(func, &mut live, *offset, *size);
+                self.mark_read(func, &mut live, *offset, *size);
             }
-            // A `return` value may be a memory pointer the caller dereferences,
-            // a tail call forwards memory to its callee, and a halt observes
-            // nothing but is rare — keep all memory live rather than reason
-            // about escape. `jump`/`branch`/`switch` read no memory; their
+            // A `return` value may be a memory pointer the caller dereferences
+            // and a tail call forwards memory to its callee — keep all memory
+            // live rather than reason about escape.
+            Some(Terminator::Return { .. }) | Some(Terminator::TailCall { .. }) => {
+                live = MemLive::All
+            }
+            // Halts discard memory and `jump`/`branch`/`switch` read none;
             // successors already contribute liveness via `live_out`.
-            Some(Terminator::Return { .. })
-            | Some(Terminator::TailCall { .. })
-            | Some(Terminator::RevertReturndata)
+            Some(Terminator::RevertReturndata)
             | Some(Terminator::Stop)
             | Some(Terminator::Invalid)
-            | Some(Terminator::SelfDestruct { .. }) => live = MemLive::All,
-            Some(Terminator::Jump(_))
+            | Some(Terminator::SelfDestruct { .. })
+            | Some(Terminator::Jump(_))
             | Some(Terminator::Branch { .. })
             | Some(Terminator::Switch { .. })
             | None => {}
@@ -624,19 +707,19 @@ impl MemoryStoreEliminator {
                 InstKind::Fmp | InstKind::Alloc { .. } => live.add_addr(EvmMemoryLayout::FMP_SLOT),
                 InstKind::SetFmp(_) => live.kill(EvmMemoryLayout::FMP_SLOT),
                 InstKind::Keccak256(offset, size) | InstKind::Log0(offset, size) => {
-                    Self::mark_read(func, &mut live, *offset, *size);
+                    self.mark_read(func, &mut live, *offset, *size);
                 }
                 InstKind::Log1(offset, size, _) => {
-                    Self::mark_read(func, &mut live, *offset, *size);
+                    self.mark_read(func, &mut live, *offset, *size);
                 }
                 InstKind::Log2(offset, size, _, _) => {
-                    Self::mark_read(func, &mut live, *offset, *size);
+                    self.mark_read(func, &mut live, *offset, *size);
                 }
                 InstKind::Log3(offset, size, _, _, _) => {
-                    Self::mark_read(func, &mut live, *offset, *size);
+                    self.mark_read(func, &mut live, *offset, *size);
                 }
                 InstKind::Log4(offset, size, _, _, _, _) => {
-                    Self::mark_read(func, &mut live, *offset, *size);
+                    self.mark_read(func, &mut live, *offset, *size);
                 }
                 // Byte stores never fully define a word (so cannot make an
                 // earlier store dead) and read nothing: leave the set as is.
@@ -654,12 +737,21 @@ impl MemoryStoreEliminator {
     /// Marks the word-aligned slots a constant memory read `[offset, offset +
     /// size)` may observe as live; a non-constant or oversized range widens to
     /// all-memory-live.
-    fn mark_read(func: &Function, live: &mut MemLive, offset: ValueId, size: ValueId) {
+    fn mark_read(&self, func: &Function, live: &mut MemLive, offset: ValueId, size: ValueId) {
         if matches!(live, MemLive::All) {
             return;
         }
         let (Some(offset), Some(size)) = (func.value_u64(offset), func.value_u64(size)) else {
-            *live = MemLive::All;
+            // A read from a compiler-owned heap pointer never reaches the
+            // reserved slots below the heap.
+            if self.heap_reads
+                && AliasAnalysis::pointer_lower_bound(func, offset, 0)
+                    .is_some_and(|bound| bound >= EvmMemoryLayout::HEAP_START)
+            {
+                live.add_heap();
+            } else {
+                *live = MemLive::All;
+            }
             return;
         };
         if size == 0 {

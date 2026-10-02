@@ -13,6 +13,11 @@
 //!    `lower-slices` projects their pointer and length. Value-carrying returns are ABI-encoded
 //!    according to the function's return layout and terminate with `returndata`.
 //!
+//! A read-only `memory` bytes argument that only feeds mapping keys, its length, or ABI
+//! encoding decodes as a calldata slice as well. Its decoder keeps the checked allocation the
+//! copy would have used, so the size panic stays ahead of the data range check and every later
+//! free-memory-pointer value is unchanged; only the length store and data copy disappear.
+//!
 //! The wrapper keeps argument materialization lazy so values used after a
 //! branch can still be rematerialized instead of spilled. Dynamic return
 //! encoding becomes a semantic `abi_encode` operation here and lowers later;
@@ -45,7 +50,7 @@ use crate::mir::{
     EffectKind, FrameMode, FrameSlotKind, Function, FunctionBuilder, FunctionId, InstId, InstKind,
     MangledSymbol, MemoryObjectKind, MemoryObjectLayout, MirPhase, MirType, Module, PanicCode,
     RevertReason, SliceLocation, Terminator, Value, ValueId,
-    analysis::{AliasAnalysis, MemoryBase},
+    analysis::{AliasAnalysis, MemoryBase, bubbled_return_data_copy, fmp_grows_in_heap},
     memory::EvmMemoryLayout,
     pass::MirPass,
     transform::cfg_simplify::remove_unreachable_blocks,
@@ -123,6 +128,7 @@ fn mark_abi_wrappers(module: &mut Module) -> bool {
 struct LowerAbiCx {
     aggregate_type_helpers: FxHashMap<AbiParamType, FunctionId>,
     calldata_slice_helper: Option<FunctionId>,
+    memory_view_helper: Option<FunctionId>,
     return_cleanup_helpers: FxHashMap<AbiParamType, FunctionId>,
     function_params: IndexVec<FunctionId, Vec<MirType>>,
     validated_abi_arguments: super::call_cleanup::ArgumentBits,
@@ -143,6 +149,8 @@ struct DecodeOptions<'a> {
     /// The debug message for an out-of-range head offset, which depends on whether the value is
     /// a tuple element, a struct member, or an array element.
     offset_reason: RevertReason,
+    /// Decodes a read-only memory `bytes` parameter as a calldata slice.
+    memory_view: bool,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -174,6 +182,7 @@ impl DecodeOptions<'_> {
             helpers: None,
             has_bitwise_shifting,
             offset_reason: RevertReason::InvalidTupleOffset,
+            memory_view: false,
         }
     }
 
@@ -258,7 +267,20 @@ impl LowerAbiCx {
             return mark_abi_wrappers(module);
         }
 
-        self.synthesize_shared_calldata_slice_helpers(module, &targets);
+        // A called body keeps memory arguments. Otherwise decide on the source body, before
+        // return encoding and helper calls.
+        let memory_views = targets
+            .iter()
+            .map(|&id| {
+                let func = module.function(id);
+                if Self::calls_body(func, internally_called.contains(id), gas_mode) {
+                    DenseBitSet::new_empty(func.params.len())
+                } else {
+                    self.memory_view_args(func)
+                }
+            })
+            .collect::<Vec<_>>();
+        self.synthesize_shared_calldata_slice_helpers(module, &targets, &memory_views);
         self.synthesize_shared_aggregate_type_helpers(module, &targets);
         if gas_mode {
             self.synthesize_shared_return_cleanup_helpers(module, &targets);
@@ -303,7 +325,8 @@ impl LowerAbiCx {
 
         for id in constructors {
             let layout = module.function_mut(id).abi_params.take();
-            self.inject_abi_prologue(module.function_mut(id), layout.as_ref(), true, false);
+            let views = DenseBitSet::new_empty(module.function(id).params.len());
+            self.inject_abi_prologue(module.function_mut(id), layout.as_ref(), true, false, &views);
             Self::clear_abi_inputs(module.function_mut(id));
         }
         if let Some(id) = rejecting_constructor {
@@ -311,13 +334,14 @@ impl LowerAbiCx {
         }
 
         let mut body_of_wrapper = FxHashMap::default();
-        for id in targets {
+        for (id, memory_views) in targets.into_iter().zip(memory_views) {
             if let Some(body_id) = self.wrap_function(
                 module,
                 id,
                 internally_called.contains(id),
                 gas_mode,
                 &canonical_return_calls,
+                &memory_views,
             ) {
                 body_of_wrapper.insert(id, body_id);
             }
@@ -788,6 +812,7 @@ impl LowerAbiCx {
         &mut self,
         module: &mut Module,
         targets: &[FunctionId],
+        memory_views: &[DenseBitSet<ArgIdx>],
     ) {
         let count = targets
             .iter()
@@ -809,6 +834,170 @@ impl LowerAbiCx {
         if count >= 2 {
             self.calldata_slice_helper = Some(self.synthesize_calldata_slice_helper(module));
         }
+        let views = memory_views.iter().map(DenseBitSet::count).sum::<usize>();
+        if views >= 2 {
+            self.memory_view_helper = Some(self.synthesize_memory_view_helper(module));
+        }
+    }
+
+    /// Returns the memory `bytes` arguments that can decode as calldata views.
+    ///
+    /// The view skips the copy into memory, so the body must not write the
+    /// argument, observe memory contents or the FMP, or pass it on; see
+    /// [`Self::can_use_calldata_slice`].
+    fn memory_view_args(&self, func: &Function) -> DenseBitSet<ArgIdx> {
+        let mut views = DenseBitSet::new_empty(func.params.len());
+        if let (Some(layout), Some(locations)) = (&func.abi_params, &func.abi_param_locations)
+            && layout.types.iter().zip(locations.iter()).any(|(ty, &location)| {
+                matches!(ty, AbiParamType::Bytes) && location == AbiParamLocation::Memory
+            })
+            && !Self::may_reach_skipped_copy(func)
+        {
+            let arg_uses = func.arg_uses();
+            for (index, ty) in layout.types.iter().enumerate() {
+                let arg = ArgIdx::new(index);
+                let uses = arg_uses.get(arg).map_or(&[][..], Vec::as_slice);
+                if let (Some(&arg_type), Some(AbiParamLocation::Memory)) =
+                    (func.params.get(arg), locations.get(index))
+                    && matches!(ty, AbiParamType::Bytes)
+                    && Self::only_reads_memory_view(func, uses)
+                    && self.can_use_calldata_slice(func, uses, ty, arg_type)
+                {
+                    views.insert(arg);
+                }
+            }
+        }
+        views
+    }
+
+    /// Returns whether every use of a memory `bytes` argument also accepts its calldata slice.
+    ///
+    /// Byte reads stay in memory, where `byte-run-loads` fuses adjacent reads into one word.
+    fn only_reads_memory_view(func: &Function, uses: &[ValueId]) -> bool {
+        let is_use = |value: &ValueId| uses.contains(value);
+        func.instructions().all(|inst_id| {
+            let kind = &func.inst(inst_id).kind;
+            !kind.operands().iter().any(is_use)
+                || match kind {
+                    InstKind::MappingSlotMemory(_, slot) => !is_use(slot),
+                    InstKind::MemoryObjectLen(_, MemoryObjectKind::Bytes) => true,
+                    InstKind::AbiEncode { selector, .. } => !selector.as_ref().is_some_and(is_use),
+                    _ => false,
+                }
+        })
+    }
+
+    /// Returns whether assembly in `func` may find a skipped memory copy.
+    ///
+    /// A raw memory access or a pointer forged from an integer could reach the copy at a
+    /// guessed address, so any read or write outside scratch, an object the function
+    /// allocates, or just-copied return data counts. So does a write that may move the free
+    /// memory pointer, which would place a later allocation over the copy.
+    fn may_reach_skipped_copy(func: &Function) -> bool {
+        // Constant scratch ranges such as error payloads end below the heap, and
+        // compiler-built objects never cover the skipped copy.
+        let known_range = |offset, size: Option<u64>, write: bool| {
+            func.value_u64(offset)
+                .zip(size)
+                .and_then(|(offset, size)| offset.checked_add(size))
+                .is_some_and(|end| end <= EvmMemoryLayout::HEAP_START)
+                || Self::points_into_new_object(func, offset, write, 0)
+        };
+        let known = |offset, size| known_range(offset, func.value_u64(size), false);
+        let written = |offset, size| known_range(offset, func.value_u64(size), true);
+        let raw_read = func.blocks.iter().any(|block| match block.terminator {
+            Some(Terminator::ReturnData { offset, size }) => !known(offset, size),
+            // Bubbled return data overwrites the range it then returns.
+            Some(Terminator::Revert { offset, size }) => {
+                !known(offset, size) && bubbled_return_data_copy(func, block).is_none()
+            }
+            _ => false,
+        }) || func.instructions().any(|inst_id| match func.inst(inst_id).kind {
+            // A pointer forged from an integer may reach the copy through any memory-object read.
+            InstKind::MLoad(offset) | InstKind::IntToPtr(offset) => {
+                !Self::points_into_new_object(func, offset, false, 0)
+            }
+            InstKind::Keccak256(offset, size)
+            | InstKind::Log0(offset, size)
+            | InstKind::Log1(offset, size, _)
+            | InstKind::Log2(offset, size, _, _)
+            | InstKind::Log3(offset, size, _, _, _)
+            | InstKind::Log4(offset, size, _, _, _, _)
+            | InstKind::Create(_, offset, size)
+            | InstKind::Create2(_, offset, size, _)
+            | InstKind::MCopy(_, offset, size)
+            | InstKind::Call { args_offset: offset, args_size: size, .. }
+            | InstKind::CallCode { args_offset: offset, args_size: size, .. }
+            | InstKind::StaticCall { args_offset: offset, args_size: size, .. }
+            | InstKind::DelegateCall { args_offset: offset, args_size: size, .. } => {
+                !known(offset, size)
+            }
+            _ => false,
+        });
+        // A raw write outside scratch or a new object may land on the copy.
+        let raw_write = func.blocks.iter().any(|block| {
+            block.instructions.iter().any(|&inst_id| match func.inst(inst_id).kind {
+                InstKind::MStore(dest, _) => !known_range(dest, Some(32), true),
+                InstKind::MStore8(dest, _) => !known_range(dest, Some(1), true),
+                InstKind::ReturnDataCopy(..)
+                    if bubbled_return_data_copy(func, block) == Some(inst_id) =>
+                {
+                    false
+                }
+                InstKind::MemoryZero(dest, size)
+                | InstKind::MCopy(dest, _, size)
+                | InstKind::CalldataCopy(dest, _, size)
+                | InstKind::CodeCopy(dest, _, size)
+                | InstKind::DataCopy(_, dest, size)
+                | InstKind::ReturnDataCopy(dest, _, size)
+                | InstKind::ExtCodeCopy(_, dest, _, size)
+                | InstKind::Call { ret_offset: dest, ret_size: size, .. }
+                | InstKind::CallCode { ret_offset: dest, ret_size: size, .. }
+                | InstKind::StaticCall { ret_offset: dest, ret_size: size, .. }
+                | InstKind::DelegateCall { ret_offset: dest, ret_size: size, .. } => {
+                    !written(dest, size)
+                }
+                _ => false,
+            })
+        });
+        raw_read || raw_write || !fmp_grows_in_heap(func)
+    }
+
+    /// Returns whether a raw address points into an object this function allocates.
+    ///
+    /// A 64-bit constant offset stays above the object's base. With `runtime_offsets`, so does
+    /// an offset computed at runtime, as when a copy fills an allocation past its prefix.
+    ///
+    /// NOTE: only assembly that adds a wrapped runtime value reaches below the object that way;
+    /// see CODEGEN-010.
+    fn points_into_new_object(
+        func: &Function,
+        value: ValueId,
+        runtime_offsets: bool,
+        depth: usize,
+    ) -> bool {
+        let Value::Inst(inst) = func.value(value) else { return false };
+        let offset = |value| {
+            func.value_u64(value).is_some() || (runtime_offsets && func.value_u256(value).is_none())
+        };
+        depth <= 8
+            && match func.inst(*inst).kind {
+                InstKind::Alloc { .. }
+                | InstKind::AbiEncode { .. }
+                | InstKind::AbiEncodePacked { .. } => true,
+                InstKind::PtrToInt(value, _)
+                | InstKind::IntToPtr(value)
+                | InstKind::SlicePtr(value)
+                | InstKind::MemoryObjectData(value, _) => {
+                    Self::points_into_new_object(func, value, runtime_offsets, depth + 1)
+                }
+                InstKind::Add(a, b) => {
+                    (offset(b) && Self::points_into_new_object(func, a, runtime_offsets, depth + 1))
+                        || (offset(a)
+                            && Self::points_into_new_object(func, b, runtime_offsets, depth + 1))
+                }
+                _ => false,
+            }
     }
 
     fn synthesize_shared_return_cleanup_helpers(
@@ -868,6 +1057,33 @@ impl LowerAbiCx {
                 true,
                 RevertReason::InvalidTupleOffset,
             );
+            builder.set_return_type(MirType::I256);
+            builder.ret([base]);
+        }
+        module.add_function(function)
+    }
+
+    fn synthesize_memory_view_helper(&self, module: &mut Module) -> FunctionId {
+        let mut function = Function::new(Ident::with_dummy_span(sym::decode_memory_view));
+        {
+            let mut builder = self.builder(&mut function);
+            // fn @decode_memory_view(head) -> base { check memory bytes at head without copying }
+            let head = builder.add_param(MirType::I256);
+            let tuple_base = builder.imm(4);
+            let input_end = builder.calldatasize();
+            let mut current = builder.current_block();
+            let offset = builder.calldataload(head);
+            let base = Self::guard_input_offset(
+                &mut builder,
+                tuple_base,
+                offset,
+                input_end,
+                &AbiParamType::Bytes,
+                &mut current,
+                RevertReason::InvalidTupleOffset,
+                false,
+            );
+            Self::check_memory_view(&mut builder, base, input_end, &mut current);
             builder.set_return_type(MirType::I256);
             builder.ret([base]);
         }
@@ -958,21 +1174,12 @@ impl LowerAbiCx {
         needs_body: bool,
         gas_mode: bool,
         canonical_return_calls: &FxHashSet<(FunctionId, AbiParamType)>,
+        memory_views: &DenseBitSet<ArgIdx>,
     ) -> Option<FunctionId> {
         let original = module.function(wrapper_id).clone();
         let static_bytes_return = static_bytes_return(&original);
-        // Keep the external body in place only when several dynamic
-        // aggregates can benefit from calldata aliases. A single aggregate
-        // does not repay the duplicate body in the gas/size trade-off.
-        let keep_external_body = gas_mode
-            && original.abi_params.as_ref().is_some_and(|layout| {
-                layout.types.iter().filter(|ty| ty.is_dynamic()).count() >= 3
-            });
         let original_entry_inst = original.blocks[BlockId::ENTRY].instructions.first().copied();
-        let call_body = !keep_external_body
-            && needs_body
-            && Self::can_call_body(&original, original.abi_params.as_ref())
-            && original_entry_inst.is_some();
+        let call_body = Self::calls_body(&original, needs_body, gas_mode);
         let abi_params = original.abi_params.clone();
         // The copy must precede wrapper mutation and callvalue injection so
         // internal callers keep the original function semantics.
@@ -983,6 +1190,7 @@ impl LowerAbiCx {
             abi_params.as_ref(),
             false,
             call_body,
+            memory_views,
         );
         self.validated_abi_arguments.extend(
             abi_params
@@ -1075,6 +1283,21 @@ impl LowerAbiCx {
         wrapper.set_return_type(MirType::Void);
         Self::clear_abi_metadata(wrapper);
         body_id
+    }
+
+    /// Returns whether the wrapper of `func` decodes its arguments and calls an extracted body.
+    fn calls_body(func: &Function, needs_body: bool, gas_mode: bool) -> bool {
+        // Keep the external body in place only when several dynamic
+        // aggregates can benefit from calldata aliases. A single aggregate
+        // does not repay the duplicate body in the gas/size trade-off.
+        let keep_external_body = gas_mode
+            && func.abi_params.as_ref().is_some_and(|layout| {
+                layout.types.iter().filter(|ty| ty.is_dynamic()).count() >= 3
+            });
+        !keep_external_body
+            && needs_body
+            && Self::can_call_body(func, func.abi_params.as_ref())
+            && !func.blocks[BlockId::ENTRY].instructions.is_empty()
     }
 
     fn can_call_body(func: &Function, abi_params: Option<&AbiParamLayout>) -> bool {
@@ -1247,6 +1470,7 @@ impl LowerAbiCx {
         abi_params: Option<&crate::mir::AbiParamLayout>,
         constructor: bool,
         force_memory_aggregates: bool,
+        memory_views: &DenseBitSet<ArgIdx>,
     ) -> Vec<Option<ValueId>> {
         let arg_types: Vec<_> = func.params.iter().copied().collect();
         if !constructor
@@ -1386,10 +1610,12 @@ impl LowerAbiCx {
                         .copied()
                         // Text MIR does not carry HIR data locations; default to calldata.
                         .unwrap_or(AbiParamLocation::Calldata);
-                    let decode_type = if !force_memory_aggregates
-                        && !constructor
-                        && location == AbiParamLocation::Calldata
-                        && self.can_use_calldata_slice(builder.func(), uses, ty, arg_type)
+                    let memory_view = memory_views.contains(arg_index);
+                    let decode_type = if memory_view
+                        || (!force_memory_aggregates
+                            && !constructor
+                            && location == AbiParamLocation::Calldata
+                            && self.can_use_calldata_slice(builder.func(), uses, ty, arg_type))
                     {
                         MirType::Slice(SliceLocation::Calldata)
                     } else {
@@ -1404,6 +1630,7 @@ impl LowerAbiCx {
                     let decode_options = DecodeOptions {
                         validate_array_elements,
                         helpers: (!constructor && !helpers.is_empty()).then_some(helpers),
+                        memory_view,
                         ..DecodeOptions::new(constructor, input_end, self.has_bitwise_shifting)
                     };
                     if uses.is_empty() {
@@ -1419,7 +1646,11 @@ impl LowerAbiCx {
                                 &mut current,
                             );
                         } else if location == AbiParamLocation::Memory {
-                            if !constructor
+                            if memory_view && let Some(helper) = self.memory_view_helper {
+                                // icall @decode_memory_view, head
+                                builder.icall(helper, vec![head], MirType::I256);
+                            } else if !constructor
+                                && !memory_view
                                 && arg_type == MirType::MemPtr
                                 && let Some(&helper) = self.aggregate_type_helpers.get(ty)
                             {
@@ -1441,6 +1672,17 @@ impl LowerAbiCx {
                             }
                         }
                     } else {
+                        let slice_helper = if memory_view {
+                            self.memory_view_helper
+                        } else if !constructor
+                            && decode_type == arg_type
+                            && matches!(arg_type, MirType::Slice(SliceLocation::Calldata))
+                            && matches!(ty, AbiParamType::Bytes)
+                        {
+                            self.calldata_slice_helper
+                        } else {
+                            None
+                        };
                         let value = if !constructor
                             && decode_type == arg_type
                             && arg_type == MirType::MemPtr
@@ -1449,12 +1691,9 @@ impl LowerAbiCx {
                             // value = icall @decode_calldata_type, head[, tuple_base]
                             let args = calldata_type_helper_args(ty, head, tuple_base);
                             builder.icall(helper, args, arg_type)
-                        } else if !constructor
-                            && decode_type == arg_type
-                            && matches!(arg_type, MirType::Slice(SliceLocation::Calldata))
-                            && matches!(ty, AbiParamType::Bytes)
-                            && let Some(helper) = self.calldata_slice_helper
-                        {
+                        } else if let Some(helper) = slice_helper {
+                            // base = icall @decode_calldata_slice | @decode_memory_view, head
+                            // slice = make_calldata_slice base + 32, calldataload base
                             let base = builder.icall(helper, vec![head], MirType::I256);
                             let len = builder.calldataload(base);
                             let data = builder.add_u64_offset(base, 32);
@@ -1532,6 +1771,7 @@ impl LowerAbiCx {
         for value in slice_values_to_retag {
             Self::retag_calldata_slice_values(func, value);
         }
+        Self::rewrite_calldata_mapping_keys(func);
         Self::rewrite_calldata_canonicalization(func);
         Self::discharge_abi_validations(func);
         let order = std::iter::once(guard)
@@ -1539,6 +1779,25 @@ impl LowerAbiCx {
             .collect::<Vec<_>>();
         crate::mir::utils::remap_block_order(func, &order);
         logical_values
+    }
+
+    /// Hashes memory-view keys that now alias calldata from their calldata bytes.
+    fn rewrite_calldata_mapping_keys(func: &mut Function) {
+        let rewrites = func
+            .instructions()
+            .filter_map(|inst_id| match func.inst(inst_id).kind {
+                InstKind::MappingSlotMemory(key, slot)
+                    if func.value_ty(key) == Some(MirType::Slice(SliceLocation::Calldata)) =>
+                {
+                    Some((inst_id, key, slot))
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        for (inst_id, key, slot) in rewrites {
+            // mapping_slot_memory key, slot => mapping_slot_calldata key, slot
+            func.inst_mut(inst_id).kind = InstKind::MappingSlotCalldata(key, slot);
+        }
     }
 
     /// Reuses a validated calldata slice when ABI lowering created only a
@@ -1720,6 +1979,7 @@ impl LowerAbiCx {
             helpers,
             has_bitwise_shifting,
             offset_reason,
+            memory_view,
         } = options;
         builder.switch_to_block(*current);
         let is_dynamic = ty.is_dynamic();
@@ -1751,6 +2011,7 @@ impl LowerAbiCx {
             return builder.icall(helper, args, ty.mir_type());
         }
         if !constructor
+            && !memory_view
             && matches!(ty, crate::mir::AbiParamType::Bytes)
             && matches!(arg_type, MirType::Slice(SliceLocation::Calldata))
         {
@@ -2047,6 +2308,11 @@ impl LowerAbiCx {
                 builder.switch_to_block(done);
                 *current = done;
                 ptr
+            }
+            crate::mir::AbiParamType::Bytes if memory_view => {
+                // slice = make_calldata_slice data, len
+                let (data, len) = Self::check_memory_view(builder, base, input_end, current);
+                builder.make_slice(data, len, SliceLocation::Calldata)
             }
             crate::mir::AbiParamType::Bytes if matches!(arg_type, MirType::Slice(_)) => {
                 let len = Self::load_input_word(builder, base, constructor);
@@ -2551,6 +2817,33 @@ impl LowerAbiCx {
             crate::mir::AbiParamType::FixedArray { .. } => RevertReason::InvalidCalldataArrayStride,
             _ => RevertReason::TupleDataTooShort,
         }
+    }
+
+    /// Runs the checks of a memory `bytes` decode at `base` without its copy.
+    ///
+    /// The checked allocation stays: its size panic precedes the data range
+    /// check, and every later allocation sees the same FMP.
+    fn check_memory_view(
+        builder: &mut FunctionBuilder<'_>,
+        base: ValueId,
+        input_end: ValueId,
+        current: &mut BlockId,
+    ) -> (ValueId, ValueId) {
+        // len = calldataload base
+        // total = checked_padded_size(len)
+        // alloc memorybytes, total
+        // guard base + 32 + len <= input_end
+        builder.switch_to_block(*current);
+        let len = builder.calldataload(base);
+        let data = builder.add_u64_offset(base, 32);
+        let total = Self::checked_padded_size(builder, len, current);
+        builder.alloc_object(
+            total,
+            crate::mir::MemoryObjectLayout::Bytes,
+            crate::mir::AllocationSemantics::SOLIDITY_UNINITIALIZED,
+        );
+        Self::guard_bytes_data(builder, data, len, input_end, current, true);
+        (data, len)
     }
 
     /// Checks that `len` bytes at `data` lie inside the input.

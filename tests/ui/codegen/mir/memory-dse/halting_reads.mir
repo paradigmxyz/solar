@@ -1,0 +1,147 @@
+//@compile-flags: -Zmir-pipeline=memory-dse
+//@filecheck: --enable-var-scope
+// Halts discard memory. In an ABI wrapper whose free memory pointer only stays
+// in the heap, reads from heap pointers cannot observe the reserved slots.
+@module MemoryDseHaltingReads
+
+// CHECK-LABEL: @store_before_stop
+// CHECK: -     mstore 128, 1
+fn @store_before_stop() {
+  bb0:
+    mstore 128, 1
+    stop
+}
+
+// CHECK-LABEL: @store_before_invalid
+// CHECK: -     mstore 128, 1
+fn @store_before_invalid() {
+  bb0:
+    mstore 128, 1
+    invalid
+}
+
+// mstore 64, fmp + 32 is dead before revert(fmp, 4)
+// CHECK-LABEL: @fmp_store_before_heap_revert
+// CHECK: -     mstore 64, {{v[0-9]+}}
+// CHECK: {{^ +}}mstore 128, 1
+// CHECK: {{^ +}}revert
+fn @fmp_store_before_heap_revert() [abi_wrapper] {
+  bb0:
+    v0 = mload 64
+    v1 = add v0, 32
+    mstore 64, v1
+    mstore 128, 1
+    mstore v0, 0
+    revert v0, 4
+}
+
+// CHECK-LABEL: @fmp_store_before_heap_return
+// CHECK: -     mstore 64, {{v[0-9]+}}
+fn @fmp_store_before_heap_return() [abi_wrapper] {
+  bb0:
+    v0 = mload 64
+    v1 = add v0, 32
+    mstore 64, v1
+    mstore v0, 1
+    returndata v0, 32
+}
+
+// CHECK-LABEL: @fmp_store_before_unknown_revert
+// CHECK-NOT: {{^-}}
+fn @fmp_store_before_unknown_revert(arg0: i256) [abi_wrapper] {
+  bb0:
+    mstore 64, 160
+    revert arg0, 4
+}
+
+// CHECK-LABEL: @heap_read_after_branch
+// CHECK: -     mstore 64, {{v[0-9]+}}
+// CHECK: {{^ +}}mstore 0, 1
+fn @heap_read_after_branch(arg0: i1) [abi_wrapper] {
+  bb0:
+    v0 = mload 64
+    v1 = add v0, 32
+    mstore 64, v1
+    mstore 0, 1
+    jumpi arg0, bb1, bb2
+  bb1:
+    revert v0, 32
+  bb2:
+    returndata 0, 32
+}
+
+// The pointer may move into reserved memory, so the read may observe scratch.
+// CHECK-LABEL: @arbitrary_fmp
+// CHECK: {{^ +}}mstore 0, 1
+fn @arbitrary_fmp(arg0: i256) [abi_wrapper] {
+  bb0:
+    mstore 64, arg0
+    mstore 0, 1
+    v0 = mload 64
+    returndata v0, 32
+}
+
+// Outside an ABI wrapper the incoming pointer is unknown.
+// CHECK-LABEL: @internal_heap_return
+// CHECK-NOT: {{^-}}
+fn @internal_heap_return() {
+  bb0:
+    mstore 0, 1
+    v0 = mload 64
+    returndata v0, 32
+}
+
+// A pointer stepped through a loop stays derived from its heap base.
+// CHECK-LABEL: @heap_loop_write
+// CHECK: -     mstore 64, {{v[0-9]+}}
+fn @heap_loop_write(arg0: i256) [abi_wrapper] {
+  bb0:
+    v0 = mload 64
+    v1 = add v0, 64
+    mstore 64, v1
+    jump bb1
+  bb1:
+    v2 = phi [bb0: v0], [bb2: v3]
+    v4 = lt v2, v1
+    jumpi v4, bb2, bb3
+  bb2:
+    mstore v2, arg0
+    v3 = add v2, 32
+    jump bb1
+  bb3:
+    revert v0, 64
+}
+
+// A loop that starts from an arbitrary address may overwrite the pointer.
+// CHECK-LABEL: @arbitrary_loop_write
+// CHECK-NOT: {{^-}}
+fn @arbitrary_loop_write(arg0: i256) [abi_wrapper] {
+  bb0:
+    v0 = mload 64
+    v1 = add v0, 64
+    mstore 64, v1
+    jump bb1
+  bb1:
+    v2 = phi [bb0: arg0], [bb2: v3]
+    v4 = lt v2, v1
+    jumpi v4, bb2, bb3
+  bb2:
+    mstore v2, 0
+    v3 = add v2, 32
+    jump bb1
+  bb3:
+    revert v0, 64
+}
+
+// A wrapped constant addend moves the pointer below the heap.
+// CHECK-LABEL: @wrapped_fmp
+// CHECK: {{^ +}}mstore 0, 1
+fn @wrapped_fmp() [abi_wrapper] {
+  bb0:
+    v0 = mload 64
+    v1 = add v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff60
+    mstore 64, v1
+    mstore 0, 1
+    v2 = mload 64
+    returndata v2, 32
+}

@@ -1055,6 +1055,7 @@ symbols! {
         decode_calldata_slice,
         decode_calldata_type,
         decode_memory_type,
+        decode_memory_view,
         decode_static,
         decode_static_alias,
         decode_static_ptr,

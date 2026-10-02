@@ -25,8 +25,10 @@
 //! The pass performs dominator-tree CSE with path-local invalidation for
 //! alias-sensitive memory/storage reads, then runs a local cleanup pass. Slot hashes
 //! also write scratch memory; a repeated fixed-width hash can disappear only while
-//! its input and written ranges remain unchanged. Variable-width hashes can overwrite
-//! their source or the FMP itself, so they remain effectful until physical lowering. Check
+//! its input and written ranges remain unchanged. Memory-key hashes can overwrite
+//! their source or the FMP itself, so they remain effectful until physical lowering. A
+//! calldata-key hash has an immutable key and writes above the FMP, so where the FMP
+//! stays in the heap it repeats only until the next memory write. Check
 //! availability before applying the retained instruction's clobbers so an identical write does not
 //! invalidate itself.
 //!
@@ -78,7 +80,7 @@ use crate::mir::{
     analysis::{
         Access, AddressSpace, AliasAnalysis, CfgInfo, DominatorTree, GasObservations, Liveness,
         Location, LocationSize, LoopAnalyzer, LoopInfo, MemoryAddress, MemoryCallSummaries,
-        MemoryLocation,
+        MemoryLocation, heap_fmp_functions,
     },
     memory::EvmMemoryLayout,
     pass::{
@@ -121,32 +123,56 @@ impl MirPass for Cse {
             }
         }
         let summaries = (!callers.is_empty()).then(|| analyses.call_summaries(module));
-        let run = |func: &mut Function, analyses: &crate::mir::pass::FunctionAnalyses| {
-            if func
-                .instructions()
-                .filter(|&inst_id| func.inst(inst_id).result_ty.is_some())
-                .nth(1)
-                .is_none()
-                && !func.instructions().any(|inst| {
-                    matches!(
-                        func.inst(inst).kind,
-                        InstKind::MStore(..) | InstKind::SetMemoryObjectLen(..)
-                    )
-                })
-            {
-                return false;
+        let heap_fmp = heap_fmp_functions(module);
+        let run = |heap_fmp| {
+            let summaries = &summaries;
+            move |func: &mut Function, analyses: &crate::mir::pass::FunctionAnalyses| {
+                if func
+                    .instructions()
+                    .filter(|&inst_id| func.inst(inst_id).result_ty.is_some())
+                    .nth(1)
+                    .is_none()
+                    && !func.instructions().any(|inst| {
+                        matches!(
+                            func.inst(inst).kind,
+                            InstKind::MStore(..) | InstKind::SetMemoryObjectLen(..)
+                        )
+                    })
+                {
+                    return false;
+                }
+                let mut eliminator = CommonSubexprEliminator {
+                    call_summaries: summaries.as_ref().map(Arc::clone),
+                    heap_fmp,
+                    ..Default::default()
+                };
+                eliminator.cfg = Some(Rc::clone(analyses.cfg()));
+                eliminator.run_to_fixpoint(func) != 0
             }
-            let mut eliminator = CommonSubexprEliminator {
-                call_summaries: summaries.as_ref().map(Arc::clone),
-                ..Default::default()
-            };
-            eliminator.cfg = Some(Rc::clone(analyses.cfg()));
-            eliminator.run_to_fixpoint(func) != 0
         };
         // A callee's new summary can expose CSE in an unchanged caller. Only cache
-        // functions whose result depends entirely on their own body.
-        let mut changed = run_selected_function_pass_cached::<Self>(module, analyses, &leaves, run);
-        changed |= run_selected_function_pass(module, analyses, &callers, run);
+        // functions whose result depends entirely on their own body. The function runner
+        // passes no IDs, so functions whose pointer stays in the heap run separately.
+        let mut changed = false;
+        for trusted in [true, false] {
+            let select = |set: &DenseBitSet<FunctionId>| {
+                let mut set = set.clone();
+                if trusted {
+                    set.intersect(&heap_fmp)
+                } else {
+                    set.subtract(&heap_fmp)
+                };
+                set
+            };
+            changed |= run_selected_function_pass_cached::<Self>(
+                module,
+                analyses,
+                &select(&leaves),
+                run(trusted),
+            );
+            changed |=
+                run_selected_function_pass(module, analyses, &select(&callers), run(trusted));
+        }
         // CSE replaces equivalent values without changing control flow. Its old call
         // summaries remain conservative after redundant reads and computations disappear.
         analyses.preserve_call_summaries();
@@ -229,6 +255,9 @@ struct CommonSubexprEliminator {
     gas: Option<GasObservations>,
     alias: Option<AliasAnalysis>,
     call_summaries: Option<Arc<MemoryCallSummaries>>,
+    /// Whether the free memory pointer stays in the heap, so a calldata-key hash written
+    /// from it never reaches the pointer's slot; see [`heap_fmp_functions`].
+    heap_fmp: bool,
 }
 
 /// A normalized expression key for CSE lookup.
@@ -267,6 +296,7 @@ enum ExprKey {
     RestoringCall(FunctionId, Vec<OperandKey>),
     Keccak256(MemRangeKey),
     MappingSlot(OperandKey, OperandKey),
+    MappingSlotCalldata(OperandKey, OperandKey),
     StorageArrayDataSlot(OperandKey),
     StorageArrayElementSlot(OperandKey, OperandKey, u64),
     MakeSlice(OperandKey, OperandKey, SliceLocation),
@@ -941,6 +971,7 @@ impl CommonSubexprEliminator {
                 | InstKind::Keccak256(_, _)
                 | InstKind::Keccak256Bytes(_)
                 | InstKind::MappingSlot(..)
+                | InstKind::MappingSlotCalldata(..)
                 | InstKind::StorageArrayDataSlot(..)
                 | InstKind::StorageArrayElementSlot { .. }
                 | InstKind::SLoad(_)
@@ -1178,6 +1209,9 @@ impl CommonSubexprEliminator {
             InstKind::MappingSlot(key, slot) => {
                 Some(ExprKey::MappingSlot(operand(*key), operand(*slot)))
             }
+            InstKind::MappingSlotCalldata(key, slot) if self.heap_fmp => {
+                Some(ExprKey::MappingSlotCalldata(operand(*key), operand(*slot)))
+            }
             InstKind::StorageArrayDataSlot(slot) => {
                 Some(ExprKey::StorageArrayDataSlot(operand(*slot)))
             }
@@ -1364,7 +1398,7 @@ impl CommonSubexprEliminator {
                     AliasAnalysis::memory_alias_locations(scratch, write).may_alias()
                 })
             }
-            ExprKey::RestoringCall(..) => false,
+            ExprKey::RestoringCall(..) | ExprKey::MappingSlotCalldata(..) => false,
             _ => true,
         });
     }
@@ -1375,6 +1409,7 @@ impl CommonSubexprEliminator {
             ExprKey::MLoad(_)
                 | ExprKey::Keccak256(_)
                 | ExprKey::MappingSlot(..)
+                | ExprKey::MappingSlotCalldata(..)
                 | ExprKey::StorageArrayDataSlot(..)
                 | ExprKey::StorageArrayElementSlot(..)
                 | ExprKey::RestoringCall(..)
@@ -1419,6 +1454,7 @@ impl CommonSubexprEliminator {
                 | ExprKey::RestoringCall(..)
                 | ExprKey::Keccak256(_)
                 | ExprKey::MappingSlot(..)
+                | ExprKey::MappingSlotCalldata(..)
                 | ExprKey::StorageArrayDataSlot(..)
                 | ExprKey::StorageArrayElementSlot(..)
                 | ExprKey::SLoad(_)

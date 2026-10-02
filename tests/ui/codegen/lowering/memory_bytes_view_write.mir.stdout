@@ -1,0 +1,27 @@
+// === ROOT/tests/ui/codegen/lowering/memory_bytes_view_write.sol:MemoryBytesViewWrite ===
+@module MemoryBytesViewWrite
+fn @w(arg0: memptr) -> memptr [selector=0x126d82c0, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 128], [bb3: v6]
+    v1 = phi [bb0: memptr 96], [bb3: v1]
+    v2 = phi [bb0: arg0], [bb3: v2]
+    v3 = lt v0, 0x400
+    v4 = zext i1 v3 to i256
+    v5 = ne v4, 0
+    jumpi v5, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    v7 = abi_encode [memory_bytes], object, args v2
+    ret v7
+  bb4:
+    mstore8 v0, 65
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v6 = add v0, 1
+    jump bb1
+}

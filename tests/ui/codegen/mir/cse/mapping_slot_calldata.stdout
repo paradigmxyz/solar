@@ -1,0 +1,51 @@
+- // === ROOT/tests/ui/codegen/mir/cse/mapping_slot_calldata.mir (before cse) ===
++ // === ROOT/tests/ui/codegen/mir/cse/mapping_slot_calldata.mir (after cse) ===
+  @module CseMappingSlotCalldata
+  fn @repeated(arg0: calldataslice) [abi_wrapper] {
+    bb0:
+      v0 = mapping_slot_calldata arg0, 0
+-     v1 = mapping_slot_calldata arg0, 0
+-     sstore v0, v1
++     sstore v0, v0
+      ret
+  }
+  
+  fn @dominated(arg0: calldataslice, arg1: i1) [abi_wrapper] {
+    bb0:
+      v0 = mapping_slot_calldata arg0, 0
+      v1 = sload v0
+      jumpi arg1, bb1, bb2
+    bb2:
+      ret
+    bb1:
+-     v2 = mapping_slot_calldata arg0, 0
+-     sstore v2, 1
++     sstore v0, 1
+      ret
+  }
+  
+  fn @different_slot(arg0: calldataslice) [abi_wrapper] {
+    bb0:
+      v0 = mapping_slot_calldata arg0, 0
+      v1 = mapping_slot_calldata arg0, 1
+      sstore v0, v1
+      ret
+  }
+  
+  fn @after_memory_write(arg0: calldataslice, arg1: i256) [abi_wrapper] {
+    bb0:
+      v0 = mapping_slot_calldata arg0, 0
+      mstore arg1, 1
+      v1 = mapping_slot_calldata arg0, 0
+      sstore v0, v1
+      ret
+  }
+  
+  fn @internal(arg0: calldataslice) {
+    bb0:
+      v0 = mapping_slot_calldata arg0, 0
+      v1 = mapping_slot_calldata arg0, 0
+      sstore v0, v1
+      ret
+  }
+  

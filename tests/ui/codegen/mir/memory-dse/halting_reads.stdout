@@ -1,0 +1,116 @@
+- // === ROOT/tests/ui/codegen/mir/memory-dse/halting_reads.mir (before memory-dse) ===
++ // === ROOT/tests/ui/codegen/mir/memory-dse/halting_reads.mir (after memory-dse) ===
+  @module MemoryDseHaltingReads
+  fn @store_before_stop() {
+    bb0:
+-     mstore 128, 1
+      stop
+  }
+  
+  fn @store_before_invalid() {
+    bb0:
+-     mstore 128, 1
+      invalid
+  }
+  
+  fn @fmp_store_before_heap_revert() [abi_wrapper] {
+    bb0:
+      v0 = mload 64
+      v1 = add v0, 32
+-     mstore 64, v1
+      mstore 128, 1
+      mstore v0, 0
+      revert v0, 4
+  }
+  
+  fn @fmp_store_before_heap_return() [abi_wrapper] {
+    bb0:
+      v0 = mload 64
+      v1 = add v0, 32
+-     mstore 64, v1
+      mstore v0, 1
+      returndata v0, 32
+  }
+  
+  fn @fmp_store_before_unknown_revert(arg0: i256) [abi_wrapper] {
+    bb0:
+      mstore 64, 160
+      revert arg0, 4
+  }
+  
+  fn @heap_read_after_branch(arg0: i1) [abi_wrapper] {
+    bb0:
+      v0 = mload 64
+      v1 = add v0, 32
+-     mstore 64, v1
+      mstore 0, 1
+      jumpi arg0, bb1, bb2
+    bb2:
+      returndata 0, 32
+    bb1:
+      revert v0, 32
+  }
+  
+  fn @arbitrary_fmp(arg0: i256) [abi_wrapper] {
+    bb0:
+      mstore 64, arg0
+      mstore 0, 1
+-     v0 = mload 64
+-     returndata v0, 32
++     returndata arg0, 32
+  }
+  
+  fn @internal_heap_return() {
+    bb0:
+      mstore 0, 1
+      v0 = mload 64
+      returndata v0, 32
+  }
+  
+  fn @heap_loop_write(arg0: i256) [abi_wrapper] {
+    bb0:
+      v0 = mload 64
+      v1 = add v0, 64
+-     mstore 64, v1
+      jump bb1
+    bb1:
+      v2 = phi [bb0: v0], [bb2: v4]
+      v3 = lt v2, v1
+      jumpi v3, bb2, bb3
+    bb3:
+      revert v0, 64
+    bb2:
+      mstore v2, arg0
+      v4 = add v2, 32
+      jump bb1
+  }
+  
+  fn @arbitrary_loop_write(arg0: i256) [abi_wrapper] {
+    bb0:
+      v0 = mload 64
+      v1 = add v0, 64
+      mstore 64, v1
+      jump bb1
+    bb1:
+      v2 = phi [bb0: arg0], [bb2: v4]
+      v3 = lt v2, v1
+      jumpi v3, bb2, bb3
+    bb3:
+      revert v0, 64
+    bb2:
+      mstore v2, 0
+      v4 = add v2, 32
+      jump bb1
+  }
+  
+  fn @wrapped_fmp() [abi_wrapper] {
+    bb0:
+      v0 = mload 64
+      v1 = add v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff60
+      mstore 64, v1
+      mstore 0, 1
+-     v2 = mload 64
+-     returndata v2, 32
++     returndata v1, 32
+  }
+  

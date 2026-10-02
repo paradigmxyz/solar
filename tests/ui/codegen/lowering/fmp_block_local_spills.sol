@@ -11,6 +11,7 @@
 
 // Unoptimized lowering reserves block-local free-memory-pointer spill slots.
 // Optimized lowering removes those stores and reduces the reachable frame floor.
+// Nothing reads the bumped free-memory pointer, so optimized code drops the bumps.
 // NONE-LABEL: @module FmpBlockLocalSpills_runtime
 // NONE: push 288
 // NONE-NEXT: push 64
@@ -33,18 +34,34 @@
 // GAS-NEXT: push 64
 // GAS-NEXT: mstore
 // GAS: mload
+// GAS-NEXT: push 36
+// GAS-NEXT: calldataload
+// GAS-NEXT: dup 2
+// GAS-NEXT: mstore
 // GAS-NEXT: push 32
 // GAS: mload
-// GAS-NEXT: push 64
+// GAS-NEXT: push 36
+// GAS-NEXT: calldataload
+// GAS-NEXT: dup 2
+// GAS-NEXT: mstore
+// GAS-NEXT: push 32
 //
 // SIZE-LABEL: @module FmpBlockLocalSpills_runtime
 // SIZE: push 160
 // SIZE-NEXT: push 64
 // SIZE-NEXT: mstore
 // SIZE: mload
+// SIZE-NEXT: push 36
+// SIZE-NEXT: calldataload
+// SIZE-NEXT: dup 2
+// SIZE-NEXT: mstore
 // SIZE-NEXT: push 32
 // SIZE: mload
-// SIZE-NEXT: push 64
+// SIZE-NEXT: push 36
+// SIZE-NEXT: calldataload
+// SIZE-NEXT: dup 2
+// SIZE-NEXT: mstore
+// SIZE-NEXT: push 32
 contract FmpBlockLocalSpills {
     function hashBranch(
         bool pair,

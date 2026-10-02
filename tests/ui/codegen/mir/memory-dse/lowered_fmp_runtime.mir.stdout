@@ -1,0 +1,23 @@
+// === ROOT/tests/ui/codegen/mir/memory-dse/lowered_fmp_runtime.sol:LoweredFmp ===
+@module LoweredFmp
+fn @setFmp(arg0: i256) [pure] {
+  bb0:
+    mstore 64, arg0 !metadata(memory=scratch)
+    ret
+}
+
+fn @f(arg0: i256) [selector=0xb3de648b, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    icall @setFmp, arg0
+    mstore 0, 0x1234 !metadata(memory=scratch)
+    v0 = mload 64 !metadata(memory=scratch)
+    returndata v0, 32
+}
+
+fn @g(arg0: i256) [selector=0xe420264a, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    icall @setFmp, arg0
+    mstore 32, 0x5678 !metadata(memory=scratch)
+    v0 = mload 64 !metadata(memory=scratch)
+    revert v0, 32
+}

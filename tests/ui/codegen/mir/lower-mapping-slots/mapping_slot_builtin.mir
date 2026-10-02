@@ -50,10 +50,10 @@ fn @memory(arg0: i256) -> i256 {
 }
 
 // CHECK: {{^[ +].*}}fn @calldata{{[( ]}}
-// CHECK: + [[FIRST:v[0-9]+]] = keccak256
-// CHECK: + [[SECOND:v[0-9]+]] = keccak256
-// CHECK: + {{v[0-9]+}} = add [[FIRST]], [[SECOND]]
-fn @calldata(arg0: calldataslice) -> i256 {
+// CHECK: + [[HASH:v[0-9]+]] = keccak256
+// CHECK-NOT: keccak256
+// CHECK: + {{v[0-9]+}} = add [[HASH]], [[HASH]]
+fn @calldata(arg0: calldataslice) -> i256 [abi_wrapper] {
   bb0:
     v1 = mapping_slot_calldata arg0, 11
     v2 = mapping_slot_calldata arg0, 11
