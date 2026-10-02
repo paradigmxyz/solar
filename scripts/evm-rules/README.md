@@ -64,6 +64,41 @@ replayed in the concrete model. This checks the exported formulas with another
 solver, not the semantics that generated them or an independent proof
 certificate.
 
+## Lean proof migration
+
+CI also checks every rule in `mir/word.isle` with Lean 4.34.1. Install the
+version pinned in `lean/lean-toolchain`, put `lean` on PATH, then run:
+
+```sh
+uv run scripts/evm-rules/test.py LeanTests
+uv run scripts/evm-rules/lean.py
+```
+
+The driver regenerates `target/evm-rules/lean/Word.lean` from the actual ISLE
+source on every run and checks it with Lean. Each theorem records its rule's
+source line and hash. Every rule must translate and prove; empty inputs,
+unsupported terms, missing tools, version mismatches and timeouts fail the check.
+The generated source remains available on failure and CI uploads it with the
+other proof diagnostics. This first migration step leaves all existing SMT
+checks enabled, including coverage of the other five rule files.
+
+The generator reuses the current ISLE reader and Z3 expression model. Z3 finds
+an applicability witness, which Lean checks by evaluating the translated guards.
+Z3 does not decide equivalence for this check. Lean's `bv_decide` proves each
+conditional equality using CaDiCaL and its verified LRAT checker; a solver's
+UNSAT answer alone is insufficient. No cached SMT verdict can bypass Lean.
+Full-width shift counts explicitly saturate before concrete evaluation, avoiding
+huge intermediate natural numbers.
+
+This proves the existing model's formulas, not an independently specified EVM
+or the Rust compiler. The reader, model, translation and extractor contracts
+remain trusted. Lean's compiled proof reflection also trusts its compiler and
+runtime; this is not kernel-only checking. The integration tests check concrete
+EVM boundaries against the independent integer evaluator, reject a rewrite with
+a required guard removed, and reject an incorrect applicability witness.
+Moving guards to a solver-independent representation and proving reusable
+semantic lemmas are later migration steps. The compiler gains no Lean dependency.
+
 ## CI and local cache
 
 CI runs one proof job on a larger Depot runner. On pull requests it runs the

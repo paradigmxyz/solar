@@ -30,6 +30,8 @@ from evm_rules.discovery import (
 from evm_rules.isle import ISLE, Context, Rule, forms, verify_file
 from evm_rules.late import execute as execute_late
 from evm_rules.late import verify_late_file
+from evm_rules.lean import Lean
+from evm_rules.lean import generate as generate_lean
 from evm_rules.memory import MemoryAddresses
 from evm_rules.mining import abstract_patterns, mine
 from evm_rules.semantics import (
@@ -2189,6 +2191,112 @@ class DiscoveryTests(unittest.TestCase):
         self.assertTrue(
             any(lhs.variables() and rhs == Expr.const(0) for lhs, rhs, _, _ in rules)
         )
+
+
+class LeanTests(unittest.TestCase):
+    def generate(self, source):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "rules.isle"
+            path.write_text(source)
+            return generate_lean(path)
+
+    def compile(self, source):
+        if shutil.which("lean") is None:
+            self.skipTest("Lean is not installed; the proof CI job requires it")
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "Proof.lean"
+            path.write_text(source)
+            return subprocess.run(
+                ["lean", "-DwarningAsError=true", str(path)],
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
+
+    def test_empty_unsupported_and_vacuous_rules(self):
+        for source in (
+            "",
+            "(rule (rewrite (Op.Keccak256 x y)) x)",
+            """(rule (rewrite (Op.Add x (zero)))
+                (if-let true (u256_is_zero x))
+                (if-let true (u256_is_one x)) x)""",
+        ):
+            with self.subTest(source=source), self.assertRaises(Unsupported):
+                self.generate(source)
+
+    def test_unsupported_sorts_and_functions(self):
+        x = z3.BitVec("x", 256)
+        for value in (
+            z3.Int("x"),
+            z3.Array("state", z3.BitVecSort(160), z3.BitVecSort(256)),
+            z3.Function("unknown", x.sort(), x.sort())(x),
+            z3.ForAll([x], x == 0),
+        ):
+            with (
+                self.subTest(value=value),
+                self.assertRaises(Unsupported),
+            ):
+                Lean().term(value)
+
+    def test_guarded_rule_and_removed_guard(self):
+        source = """(rule (rewrite (Op.And x (iconst mask)))
+            (if-let true (mask_covers mask x)) (Op.Add x (imm (u256 0))))"""
+        valid, count = self.generate(source)
+        self.assertEqual(count, 1)
+        result = self.compile(valid)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        invalid, _ = self.generate(
+            source.replace("(if-let true (mask_covers mask x))", "")
+        )
+        result = self.compile(invalid)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertRegex(result.stdout, "counterexample")
+
+    def test_wrong_solver_witness_is_rejected_by_lean(self):
+        with patch.object(z3.ModelRef, "eval", return_value=z3.BitVecVal(1, 256)):
+            source, _ = self.generate("""(rule (rewrite (Op.Add x (zero)))
+                (if-let true (u256_is_zero x)) x)""")
+        result = self.compile(source)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertRegex(result.stdout, "false")
+
+    def test_concrete_semantics_boundaries(self):
+        cases = []
+        for op in (
+            "add",
+            "sub",
+            "mul",
+            "div",
+            "mod",
+            "sdiv",
+            "smod",
+            "and",
+            "or",
+            "xor",
+            "lt",
+            "gt",
+            "eq",
+            "ne",
+        ):
+            for a, b in ((0, 0), (SIGN, MASK), (MASK, 1), (3, 2)):
+                cases.append(expression(op, a, b))
+        for op in ("shl", "shr", "sar", "byte", "signextend"):
+            for index in (0, 30, 31, 32, 255, 256, MASK):
+                cases.append(expression(op, index, SIGN | 255))
+        for op in ("not", "iszero"):
+            for value in (0, MASK):
+                cases.append(expression(op, value))
+        for op in ("addmod", "mulmod"):
+            for modulus in (0, 1, MASK):
+                cases.append(expression(op, MASK, MASK, modulus))
+        source = "import Std.Tactic.BVDecide\nset_option maxRecDepth 4096\nset_option exponentiation.threshold 512\n"
+        for expr in cases:
+            actual = Lean().term(Model().eval(expr))
+            expected = concrete(expr, {})
+            source += f"example : {actual} = ({expected} : BitVec 256) := by decide\n"
+        result = self.compile(source)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
 
 if __name__ == "__main__":

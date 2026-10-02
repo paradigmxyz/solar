@@ -25,7 +25,7 @@ jobs:
   evm-rules:
     name: EVM word and stack proofs
     runs-on: depot-ubuntu-24.04-arm-32
-    timeout-minutes: 15
+    timeout-minutes: 20
     permissions:
       id-token: write
       contents: read
@@ -44,7 +44,7 @@ jobs:
           if [[ "$EVENT_NAME" != pull_request ]]; then
             echo 'run=true' >> "$GITHUB_OUTPUT"
           else
-            changed=$(git diff --name-only HEAD^1 HEAD -- crates/codegen scripts/evm-rules .github/scripts/run_evm_proofs.sh .github/workflows/ci.yml .python-version pyproject.toml uv.lock)
+            changed=$(git diff --name-only HEAD^1 HEAD -- crates/codegen scripts/evm-rules .github/scripts/run_evm_proofs.sh .github/scripts/install_lean.sh .github/workflows/ci.yml .python-version pyproject.toml uv.lock)
             if [[ -n "$changed" ]]; then
               echo 'run=true' >> "$GITHUB_OUTPUT"
             else
@@ -69,6 +69,14 @@ jobs:
           echo "142ac177af1ce37922308f69fe519d06e6cb4d0a62a312f28c25001e94c2fb56  $RUNNER_TEMP/cvc5.zip" | sha256sum --check
           unzip -q "$RUNNER_TEMP/cvc5.zip" -d "$RUNNER_TEMP/cvc5"
           echo "$RUNNER_TEMP/cvc5/cvc5-Linux-arm64-static/bin" >> "$GITHUB_PATH"
+      - name: Install Lean
+        if: steps.select.outputs.run == 'true'
+        run: bash .github/scripts/install_lean.sh
+      - name: Verify Lean word proofs
+        if: steps.select.outputs.run == 'true'
+        run: |
+          uv run scripts/evm-rules/test.py LeanTests
+          uv run scripts/evm-rules/lean.py
       - name: Verify rules
         if: steps.select.outputs.run == 'true'
         env:
