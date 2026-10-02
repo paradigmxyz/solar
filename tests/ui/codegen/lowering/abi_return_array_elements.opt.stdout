@@ -32,11 +32,7 @@ fn @dirty() [selector=0x74016a59, abi_wrapper, pure] {
     v16 = inttoptr i256 v12 to memptr
     v17 = icall @encode_abi_array, v6, v16
     v19 = sub v17, v27
-    v21 = add v19, 31
-    v23 = and v21, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v28 = mload 64 !metadata(memory=scratch)
-    v29 = add v28, v23
-    mstore 64, v29 !metadata(memory=scratch)
     returndata v28, v19
 }
 
@@ -53,11 +49,7 @@ fn @viaHelper() [selector=0x43a4968c, abi_wrapper, pure] {
     v15 = inttoptr i256 v11 to memptr
     v16 = icall @encode_abi_array, v5, v15
     v18 = sub v16, v26
-    v20 = add v18, 31
-    v22 = and v20, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v27 = mload 64 !metadata(memory=scratch)
-    v28 = add v27, v22
-    mstore 64, v28 !metadata(memory=scratch)
     returndata v27, v18
 }
 

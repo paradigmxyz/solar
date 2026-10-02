@@ -33,11 +33,7 @@ fn @encodeFirst() [selector=0xe9a7b169, abi_wrapper, pure] {
     v42 = add v40, 32
     mcopy v24, v42, v20 !metadata(disjoint)
     v32 = sub v29, v43
-    v34 = add v32, 31
-    v36 = and v34, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v44 = mload 64
-    v45 = add v44, v36
-    mstore 64, v45
     returndata v44, v32
   bb1:
     revert 0, 0
@@ -97,11 +93,7 @@ fn @encodeSecond() [selector=0x108c1ec5, abi_wrapper, pure] {
     v66 = add v68, 32
     mcopy v44, v66, v40 !metadata(disjoint)
     v52 = sub v49, v70
-    v54 = add v52, 31
-    v56 = and v54, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v71 = mload 64
-    v72 = add v71, v56
-    mstore 64, v72
     returndata v71, v52
   bb3:
     mstore 0, 0x4e487b71

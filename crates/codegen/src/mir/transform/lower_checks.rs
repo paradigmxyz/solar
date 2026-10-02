@@ -202,6 +202,18 @@ fn emit_payload(
             let length = builder.slice_len(encoded);
             builder.revert(pointer, length);
         }
+        RevertPayload::CustomError { selector, layout, .. }
+            if layout.types.is_empty()
+                && let Some(word) = builder.func().value_u256(selector) =>
+        {
+            // mstore(0, selector >> 224); revert(28, 4)
+            let selector = builder.imm(word >> 224);
+            let zero = builder.imm(0);
+            builder.mstore(zero, selector);
+            let offset = builder.imm(28);
+            let size = builder.imm(4);
+            builder.revert(offset, size);
+        }
         RevertPayload::CustomError { selector, layout, values } => {
             // payload = abi_encode(selector, values)
             // revert(payload.ptr, payload.len)

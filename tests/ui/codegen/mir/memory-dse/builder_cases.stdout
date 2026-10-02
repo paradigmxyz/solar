@@ -5,7 +5,7 @@
     bb0:
 -     mstore 128, 0
       mstore 128, 42
-      stop
+      returndata 128, 32
   }
   
   fn @store_observed_only_by_load() -> i256 {
@@ -22,7 +22,7 @@
 -     mstore 128, 0
       v0 = keccak256 0, 64
       mstore 128, 1
-      stop
+      returndata 128, 32
   }
   
   fn @overlapping_keccak() {
@@ -30,7 +30,7 @@
       mstore 128, 0
       v0 = keccak256 96, 64
       mstore 128, 1
-      stop
+      returndata 128, 32
   }
   
   fn @cross_block_dead_store(arg0: i256) {
@@ -68,14 +68,14 @@
       mstore 128, 0
       v0 = gas
       mstore 128, 42
-      stop
+      returndata 128, 32
   }
   
   fn @distinct_immediate_addresses() {
     bb0:
 -     mstore 128, 0
       mstore 128, 42
-      stop
+      returndata 128, 32
   }
   
   fn @equivalent_base_load(arg0: i256) -> i256 {
@@ -94,7 +94,7 @@
 -     mstore v0, 0
       v1 = add arg0, 32
       mstore v1, 42
-      stop
+      returndata 128, 32
   }
   
   fn @unused_frame_store() -> i256 {
@@ -128,7 +128,7 @@
       mstore 128, 0
       v0 = mload 129
       mstore 128, 42
-      stop
+      returndata 128, 32
   }
   
   fn @forward_load() -> i256 {

@@ -277,10 +277,7 @@ fn @assembled() [selector=0xd1381062, abi_wrapper, pure] {
     v44 = lt v43, v41
     jumpi v44, bb3, bb4
   bb4:
-    v46 = and v43, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v51 = mload 64
-    v52 = add v51, v46
-    mstore 64, v52
     mstore v51, v41
     v10 = add v51, 128
     v11 = keccak256 v10, 70
@@ -467,7 +464,6 @@ fn @freshEmpty() [selector=0x2f9cb906, abi_wrapper, pure] {
     v35 = or v33, v34
     jumpi v35, bb2, bb1
   bb1:
-    mstore 64, v32
     mstore v31, 0
     mstore v31, 0
     mstore v31, 32

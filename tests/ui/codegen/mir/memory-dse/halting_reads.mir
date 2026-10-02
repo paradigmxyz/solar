@@ -1,0 +1,71 @@
+//@compile-flags: -Zmir-pipeline=memory-dse
+//@filecheck: --enable-var-scope
+// Halts discard memory, and reads from heap pointers cannot observe the
+// reserved slots below the heap.
+@module MemoryDseHaltingReads
+
+// CHECK-LABEL: @store_before_stop
+// CHECK: -     mstore 128, 1
+fn @store_before_stop() {
+  bb0:
+    mstore 128, 1
+    stop
+}
+
+// CHECK-LABEL: @store_before_invalid
+// CHECK: -     mstore 128, 1
+fn @store_before_invalid() {
+  bb0:
+    mstore 128, 1
+    invalid
+}
+
+// mstore 64, fmp + 32 is dead before revert(fmp, 4)
+// CHECK-LABEL: @fmp_store_before_heap_revert
+// CHECK: -     mstore 64, {{v[0-9]+}}
+// CHECK: {{^ +}}mstore 128, 1
+// CHECK: {{^ +}}revert
+fn @fmp_store_before_heap_revert() {
+  bb0:
+    v0 = mload 64
+    v1 = add v0, 32
+    mstore 64, v1
+    mstore 128, 1
+    mstore v0, 0
+    revert v0, 4
+}
+
+// CHECK-LABEL: @fmp_store_before_heap_return
+// CHECK: -     mstore 64, {{v[0-9]+}}
+fn @fmp_store_before_heap_return() {
+  bb0:
+    v0 = mload 64
+    v1 = add v0, 32
+    mstore 64, v1
+    mstore v0, 1
+    returndata v0, 32
+}
+
+// CHECK-LABEL: @fmp_store_before_unknown_revert
+// CHECK-NOT: {{^-}}
+fn @fmp_store_before_unknown_revert(arg0: i256) {
+  bb0:
+    mstore 64, 160
+    revert arg0, 4
+}
+
+// CHECK-LABEL: @heap_read_after_branch
+// CHECK: -     mstore 64, {{v[0-9]+}}
+// CHECK: {{^ +}}mstore 0, 1
+fn @heap_read_after_branch(arg0: i1) {
+  bb0:
+    v0 = mload 64
+    v1 = add v0, 32
+    mstore 64, v1
+    mstore 0, 1
+    jumpi arg0, bb1, bb2
+  bb1:
+    revert v0, 32
+  bb2:
+    returndata 0, 32
+}

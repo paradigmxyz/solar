@@ -78,6 +78,7 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &function_compaction::DeadArgElim,
     &function_compaction::MergeEquivalentFunctions,
     &memory_dse::MemoryDse,
+    &memory_dse::LateMemoryDse,
     &coalesce_allocs::CoalesceAllocs,
     &static_alloc::StaticAlloc,
     &static_alloc::DeferAlloc,
@@ -385,6 +386,9 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
 static LOWERED_PIPELINE: &[&dyn MirPass] = &[
     &GasOnly::new(cse::FmpCse),
     &const_fold::ConstFold,
+    // Allocation lowering stores the bumped free-memory pointer even on paths
+    // that halt before reading it again.
+    &memory_dse::LateMemoryDse,
     &cfg_simplify::BranchSimplify,
     // Reconstruct old induction values on exits before selecting physical stack order.
     &loop_exit_remat::LoopExitRemat,

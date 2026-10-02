@@ -42,11 +42,7 @@ fn @endPastLength() [selector=0x8063d43b, abi_wrapper, pure] {
     v43 = add v40, v39
     calldatacopy v40, v7, v6
     v45 = sub v43, v56
-    v47 = add v45, 31
-    v49 = and v47, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v57 = mload 64 !metadata(memory=scratch)
-    v58 = add v57, v49
-    mstore 64, v58 !metadata(memory=scratch)
     returndata v57, v45
   bb1:
     revert 0, 0
@@ -94,11 +90,7 @@ fn @startAfterEnd() [selector=0x598bfb30, abi_wrapper, pure] {
     v43 = add v40, v39
     calldatacopy v40, v7, v6
     v45 = sub v43, v56
-    v47 = add v45, 31
-    v49 = and v47, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v57 = mload 64 !metadata(memory=scratch)
-    v58 = add v57, v49
-    mstore 64, v58 !metadata(memory=scratch)
     returndata v57, v45
   bb1:
     revert 0, 0

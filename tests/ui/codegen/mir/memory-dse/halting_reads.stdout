@@ -1,0 +1,53 @@
+- // === ROOT/tests/ui/codegen/mir/memory-dse/halting_reads.mir (before memory-dse) ===
++ // === ROOT/tests/ui/codegen/mir/memory-dse/halting_reads.mir (after memory-dse) ===
+  @module MemoryDseHaltingReads
+  fn @store_before_stop() {
+    bb0:
+-     mstore 128, 1
+      stop
+  }
+  
+  fn @store_before_invalid() {
+    bb0:
+-     mstore 128, 1
+      invalid
+  }
+  
+  fn @fmp_store_before_heap_revert() {
+    bb0:
+      v0 = mload 64
+      v1 = add v0, 32
+-     mstore 64, v1
+      mstore 128, 1
+      mstore v0, 0
+      revert v0, 4
+  }
+  
+  fn @fmp_store_before_heap_return() {
+    bb0:
+      v0 = mload 64
+      v1 = add v0, 32
+-     mstore 64, v1
+      mstore v0, 1
+      returndata v0, 32
+  }
+  
+  fn @fmp_store_before_unknown_revert(arg0: i256) {
+    bb0:
+      mstore 64, 160
+      revert arg0, 4
+  }
+  
+  fn @heap_read_after_branch(arg0: i1) {
+    bb0:
+      v0 = mload 64
+      v1 = add v0, 32
+-     mstore 64, v1
+      mstore 0, 1
+      jumpi arg0, bb1, bb2
+    bb2:
+      returndata 0, 32
+    bb1:
+      revert v0, 32
+  }
+  
