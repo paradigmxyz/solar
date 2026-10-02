@@ -12,8 +12,9 @@ import re
 from collections import Counter
 
 from .discovery import Prices, pseudocode
+from .expr import MASK, Expr, Unsupported
 from .isle import ISLE, opcode_bindings
-from .semantics import MASK, Expr, Model, Unsupported
+from .semantics import Model
 
 VALUE = r"(?:v\d+|arg\d+)"
 INSTRUCTION = re.compile(r"\s*(v\d+) = ([a-z]+)(?: (.*))?")

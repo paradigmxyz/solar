@@ -27,30 +27,24 @@ from evm_rules.discovery import (
     enumerate_rules,
     read_seeds,
 )
-from evm_rules.isle import ISLE, Context, Rule, forms, rule_sources, verify_file
+from evm_rules.expr import MASK, MODULUS, SIGN, Cond, Expr, Unsupported, concrete
+from evm_rules.isle import ISLE, Context, Rule, forms, rule_sources
 from evm_rules.late import execute as execute_late
-from evm_rules.late import verify_late_file
 from evm_rules.lean import THEOREM_PRELUDE, UnsupportedQuery, theorem
 from evm_rules.memory import MemoryAddresses
 from evm_rules.mining import abstract_patterns, mine
 from evm_rules.semantics import (
-    MASK,
-    MODULUS,
-    SIGN,
-    Expr,
     Model,
-    Unsupported,
     check,
     check_z3,
-    concrete,
     partition_bits,
     partition_odd_factor,
     partition_select,
     partition_shift,
     portable_query,
 )
+from evm_rules.smt import verify_file, verify_late_file, verify_stack_file
 from evm_rules.solver import Cvc5, QueryCache, solve_query
-from evm_rules.stack import verify_stack_file
 from lean_verify import DEFAULT_FILES, HELPERS, LEAN_PROJECT, MANUAL_PROOFS, obligations
 from replay import main as replay_main
 from replay import replay_query, replay_report
@@ -735,11 +729,11 @@ class OutputBitPartitionTests(unittest.TestCase):
             path.write_text("(rule (simplify (Op.Add a (zero))) a)")
             with (
                 patch(
-                    "evm_rules.isle.check",
+                    "evm_rules.smt.check",
                     return_value=({"status": "unknown"}, "original-query"),
                 ),
                 patch(
-                    "evm_rules.isle.partition_shift",
+                    "evm_rules.smt.partition_shift",
                     return_value=({"status": "unknown"}, [("case-0", "partial-query")]),
                 ),
             ):
@@ -766,9 +760,9 @@ class OutputBitPartitionTests(unittest.TestCase):
                 with (
                     self.subTest(status=status),
                     patch(
-                        "evm_rules.isle.check", return_value=({"status": status}, query)
+                        "evm_rules.smt.check", return_value=({"status": status}, query)
                     ),
-                    patch("evm_rules.isle.partition_bits") as bits,
+                    patch("evm_rules.smt.partition_bits") as bits,
                 ):
                     rule = verify_file(path, 100, bit_partition_timeout_ms=5000)[
                         "rules"
@@ -779,10 +773,10 @@ class OutputBitPartitionTests(unittest.TestCase):
                 with (
                     self.subTest(fallback=status),
                     patch(
-                        "evm_rules.isle.check",
+                        "evm_rules.smt.check",
                         return_value=({"status": "unknown"}, "q"),
                     ),
-                    patch("evm_rules.isle.partition_bits") as bits,
+                    patch("evm_rules.smt.partition_bits") as bits,
                 ):
                     fallback = SimpleNamespace(
                         solve=lambda _, status=status: {"status": status}
@@ -800,11 +794,11 @@ class OutputBitPartitionTests(unittest.TestCase):
             fallback = SimpleNamespace(solve=lambda _: {"status": "timeout"})
             with (
                 patch(
-                    "evm_rules.isle.check",
+                    "evm_rules.smt.check",
                     return_value=({"status": "unknown"}, "whole-query"),
                 ),
                 patch(
-                    "evm_rules.isle.partition_bits",
+                    "evm_rules.smt.partition_bits",
                     return_value=(
                         {"status": "unknown"},
                         [("bit-0", "partial-bit-query")],
@@ -859,7 +853,7 @@ class EnvironmentTests(unittest.TestCase):
                 cx = Context()
                 lhs, rhs = cx.obligation(rule)
                 self.assertEqual(
-                    check(lhs, rhs, cx.assumptions, 5000, cx.model)[0]["status"],
+                    check(lhs, rhs, cx.assumptions, 5000)[0]["status"],
                     "proved",
                 )
                 # Dropping the low-bit guard must expose a different account balance.
@@ -872,7 +866,7 @@ class EnvironmentTests(unittest.TestCase):
                 )
                 cx = Context()
                 lhs, rhs = cx.obligation(broken)
-                result, _ = check(lhs, rhs, cx.assumptions, 5000, cx.model)
+                result, _ = check(lhs, rhs, cx.assumptions, 5000)
                 self.assertEqual(result["status"], "counterexample")
                 self.assertTrue(result["replayed"])
 
@@ -886,7 +880,7 @@ class EnvironmentTests(unittest.TestCase):
         self.assertEqual(len(rules), 1)
         cx = Context()
         lhs, rhs = cx.obligation(rules[0])
-        result, query = check(lhs, rhs, cx.assumptions, 5000, cx.model)
+        result, query = check(lhs, rhs, cx.assumptions, 5000)
         self.assertEqual(result["status"], "proved")
         self.assertIn("(set-logic QF_ABV)", query)
         self.assertIn("(Array (_ BitVec 160) (_ BitVec 256))", query)
@@ -1000,7 +994,7 @@ class CallEffectTests(unittest.TestCase):
         for rule in rules:
             context = Context()
             lhs, rhs = context.obligation(rule)
-            result, _ = check(lhs, rhs, context.assumptions, 5000, context.model)
+            result, _ = check(lhs, rhs, context.assumptions, 5000)
             self.assertEqual(result["status"], "proved")
 
     def test_changed_call_operands_are_counterexamples(self):
@@ -1013,7 +1007,7 @@ class CallEffectTests(unittest.TestCase):
                 )
                 context = Context()
                 lhs, rhs = context.obligation(changed)
-                result, _ = check(lhs, rhs, context.assumptions, 5000, context.model)
+                result, _ = check(lhs, rhs, context.assumptions, 5000)
                 self.assertEqual(result["status"], "counterexample")
 
     def test_empty_memory_regions_preserve_effects(self):
@@ -1074,7 +1068,7 @@ class MemoryAddressTests(unittest.TestCase):
         for rule in rules:
             cx = Context()
             lhs, rhs = cx.obligation(rule)
-            result, _ = check(lhs, rhs, cx.assumptions, 5000, cx.model)
+            result, _ = check(lhs, rhs, cx.assumptions, 5000)
             self.assertEqual(result["status"], "proved", rule.line)
             # Removing the actual source guard must expose a nonzero header
             # or field offset, rather than implicitly assuming the rewrite.
@@ -1083,7 +1077,7 @@ class MemoryAddressTests(unittest.TestCase):
             )
             cx = Context()
             lhs, rhs = cx.obligation(unguarded)
-            result, _ = check(lhs, rhs, cx.assumptions, 5000, cx.model)
+            result, _ = check(lhs, rhs, cx.assumptions, 5000)
             self.assertEqual(result["status"], "counterexample", rule.line)
             self.assertTrue(result["replayed"])
 
@@ -1113,7 +1107,7 @@ class MemoryAddressTests(unittest.TestCase):
                     )
         # Adding a header to a slice pointer is wrong, even for dynamic data.
         wrong = expression("add", object, cx.memory.data_offset(kind))
-        result, _ = check(value, wrong, cx.assumptions, 5000, cx.model)
+        result, _ = check(value, wrong, cx.assumptions, 5000)
         self.assertEqual(result["status"], "counterexample")
         self.assertEqual(int(result["inputs"][flag], 16), 1)
 
@@ -1131,7 +1125,7 @@ class MemoryAddressTests(unittest.TestCase):
         result, _ = check(
             value,
             value,
-            [*cx.assumptions, cx.model.eval(field) == cx.model.eval(shape.fields)],
+            [*cx.assumptions, Cond("eq", (field, shape.fields))],
         )
         self.assertEqual(result["status"], "inapplicable")
 
@@ -1153,7 +1147,7 @@ class MemoryAddressTests(unittest.TestCase):
                     expected = (MASK + (32 if tag < 2 else 0) + i * stride) & MASK
                     self.assert_concrete_and_symbolic(value, values, expected)
         result, _ = check(
-            value, value, [*cx.assumptions, cx.model.eval(shape.kind) == 3]
+            value, value, [*cx.assumptions, Cond("eq", (shape.kind, Expr.const(3)))]
         )
         self.assertEqual(result["status"], "inapplicable")
 
@@ -1323,9 +1317,9 @@ class RuleTests(unittest.TestCase):
             multiply = Expr("mul", (value, Expr.const((1 << bits) - 1)))
             # Split the complete i1 domain to avoid bit-blasting a 256-bit multiplication.
             for bit in (0, 1):
-                assumptions = [cx.model.eval(value) == z3.BitVecVal(bit, 256)]
+                assumptions = [Cond("eq", (value, Expr.const(bit)))]
                 for lowered in (shifted, multiply):
-                    result, _ = check(expected, lowered, assumptions, 5000, cx.model)
+                    result, _ = check(expected, lowered, assumptions, 5000)
                     self.assertEqual(
                         result["status"], "proved", (bits, bit, lowered, result)
                     )
@@ -1364,12 +1358,12 @@ class RuleTests(unittest.TestCase):
             with self.subTest(rule=rule.form):
                 cx = Context()
                 lhs, rhs = cx.obligation(rule)
-                result, query = check(
-                    lhs, rhs, cx.assumptions, PROOF_TIMEOUT_MS, cx.model
-                )
+                model = Model()
+                assumptions = [model.condition(c) for c in cx.assumptions]
+                result, query = check(lhs, rhs, assumptions, PROOF_TIMEOUT_MS, model)
                 if result["status"] == "unknown" and query:
                     result, _ = partition_shift(
-                        lhs, rhs, cx.assumptions, PARTITION_TIMEOUT_MS, cx.model
+                        lhs, rhs, assumptions, PARTITION_TIMEOUT_MS, model
                     )
                 self.assertEqual(result["status"], "proved", result)
 
@@ -1391,7 +1385,7 @@ class RuleTests(unittest.TestCase):
         for rule in rules:
             context = Context()
             lhs, rhs = context.obligation(rule)
-            result, _ = check(lhs, rhs, context.assumptions, model=context.model)
+            result, _ = check(lhs, rhs, context.assumptions)
             self.assertEqual(result["status"], "proved", (rule.line, result))
 
     def test_actual_power_of_two_remainder_rule(self):
@@ -1413,13 +1407,13 @@ class RuleTests(unittest.TestCase):
         self.assertEqual(len(rules), 1)
         context = Context()
         lhs, rhs = context.obligation(rules[0])
+        model = Model()
+        assumptions = [model.condition(c) for c in context.assumptions]
         applicability = z3.SolverFor("QF_BV")
         applicability.set(timeout=5000)
-        applicability.add(*context.assumptions)
+        applicability.add(*assumptions)
         self.assertEqual(applicability.check(), z3.sat)
-        result, queries = partition_shift(
-            lhs, rhs, context.assumptions, 5000, context.model
-        )
+        result, queries = partition_shift(lhs, rhs, assumptions, 5000, model)
         self.assertEqual(result["status"], "proved", (rules[0].line, result))
         self.assertEqual((result["cases"], len(queries)), (257, 258))
 
@@ -1443,7 +1437,7 @@ class RuleTests(unittest.TestCase):
         self.assertEqual(len(rules), 1)
         cx = Context()
         lhs, rhs = cx.obligation(rules[0])
-        result, _ = check(lhs, rhs, cx.assumptions, PROOF_TIMEOUT_MS, cx.model)
+        result, _ = check(lhs, rhs, cx.assumptions, PROOF_TIMEOUT_MS)
         self.assertEqual(result["status"], "proved", result)
 
     def test_shift_cancellation_requires_a_lossless_input(self):
@@ -1904,11 +1898,11 @@ class SolverFallbackTests(unittest.TestCase):
 
                 with (
                     patch(
-                        "evm_rules.isle.check",
+                        "evm_rules.smt.check",
                         return_value=({"status": "unknown"}, original),
                     ),
                     patch(
-                        "evm_rules.isle.partition_shift",
+                        "evm_rules.smt.partition_shift",
                         return_value=(
                             {"status": "unknown"},
                             [("case-0", "partial-query")],
@@ -1950,7 +1944,7 @@ class SolverFallbackTests(unittest.TestCase):
                     self.fail("fallback must not override a definitive failure")
 
                 with patch(
-                    "evm_rules.isle.check", return_value=({"status": status}, "query")
+                    "evm_rules.smt.check", return_value=({"status": status}, "query")
                 ):
                     rule = verify_file(
                         path, 100, fallback=SimpleNamespace(solve=forbidden)
@@ -1965,9 +1959,7 @@ class SolverFallbackTests(unittest.TestCase):
             def forbidden(query):
                 self.fail("no equality query exists until applicability is established")
 
-            with patch(
-                "evm_rules.isle.check", return_value=({"status": "unknown"}, "")
-            ):
+            with patch("evm_rules.smt.check", return_value=({"status": "unknown"}, "")):
                 rule = verify_file(
                     path, 100, fallback=SimpleNamespace(solve=forbidden)
                 )["rules"][0]
@@ -2030,7 +2022,7 @@ class SolverFallbackTests(unittest.TestCase):
             with self.subTest(line=rule.line):
                 cx = Context()
                 lhs, rhs = cx.obligation(rule)
-                result, query = check(lhs, rhs, cx.assumptions, 1000, cx.model)
+                result, query = check(lhs, rhs, cx.assumptions, 1000)
                 self.assertIn(result["status"], ("proved", "unknown"), result)
                 self.assertTrue(query)
                 replay = fallback.solve(query)
@@ -2061,7 +2053,7 @@ class SolverFallbackTests(unittest.TestCase):
         for rule in rules:
             cx = Context()
             lhs, rhs = cx.obligation(rule)
-            result, query = check(lhs, rhs, cx.assumptions, 1000, cx.model)
+            result, query = check(lhs, rhs, cx.assumptions, 1000)
             if result["status"] == "unknown" and query:
                 result = fallback.solve(query)
                 self.assertEqual(result["status"], "unsat", (rule.line, result))
@@ -2299,9 +2291,7 @@ class DiscoveryTests(unittest.TestCase):
         form, line = forms(emit_rule(lhs, rhs))[0]
         context = Context()
         actual_lhs, actual_rhs = context.obligation(Rule(form, line, "generated"))
-        result, _ = check(
-            actual_lhs, actual_rhs, context.assumptions, model=context.model
-        )
+        result, _ = check(actual_lhs, actual_rhs, context.assumptions)
         self.assertEqual(result["status"], "proved")
 
     def test_multi_operation_discovery_and_emission(self):
@@ -2322,9 +2312,7 @@ class DiscoveryTests(unittest.TestCase):
             context = Context()
             left, right = context.obligation(Rule(form, line, "generated"))
             self.assertEqual(
-                check(left, right, context.assumptions, model=context.model)[0][
-                    "status"
-                ],
+                check(left, right, context.assumptions)[0]["status"],
                 "proved",
             )
 
@@ -2341,9 +2329,7 @@ class DiscoveryTests(unittest.TestCase):
             context = Context()
             left, right = context.obligation(Rule(form, line, "generated"))
             self.assertEqual(
-                check(left, right, context.assumptions, model=context.model)[0][
-                    "status"
-                ],
+                check(left, right, context.assumptions)[0]["status"],
                 expected,
             )
         self.assertIn((1 << 160) - 1, Prices("osaka").constants)

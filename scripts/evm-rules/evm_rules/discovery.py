@@ -13,8 +13,10 @@ import re
 from dataclasses import dataclass
 from itertools import product
 
-from .isle import ROOT, extractor_definitions, forms, verify_file
-from .semantics import MASK, Expr, Model, Unsupported, check, concrete
+from .expr import MASK, Expr, Unsupported, concrete
+from .isle import ROOT, extractor_definitions, forms
+from .semantics import Model, check
+from .smt import verify_file
 
 COSTS = ROOT / "crates/codegen/src/word_rule_costs.snap"
 
