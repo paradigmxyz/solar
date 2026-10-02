@@ -1,25 +1,28 @@
 # /// script
 # requires-python = ">=3.14"
-# dependencies = []
+# dependencies = ["z3-solver==4.16.0.0"]
 # ///
 """Verify actual ISLE rules or discover candidates offline; see README.md."""
 
 import argparse
 import hashlib
 import json
+import os
 import sys
 from collections import Counter
 from pathlib import Path
 
+import z3
+from evm_rules.artifacts import query_manifest
 from evm_rules.discovery import discover_rules
-from evm_rules.isle import ISLE, ROOT
-from evm_rules.lean import LIBRARY
+from evm_rules.isle import ISLE, ROOT, verify_file
+from evm_rules.late import verify_late_file
 from evm_rules.mining import mine
-from evm_rules.proof import FILES, library, verify_file
+from evm_rules.solver import Cvc5
+from evm_rules.stack import verify_stack_file
 
 
 def main():
-    report: dict = {}
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
     verify = subparsers.add_parser(
@@ -29,14 +32,52 @@ def main():
         "files",
         nargs="*",
         type=Path,
-        default=list(FILES),
+        default=[
+            ISLE / "mir/word.isle",
+            ISLE / "mir/word_sequence.isle",
+            ISLE / "mir-to-evm/stack_select.isle",
+            ISLE / "evm-ir/stack_peephole.isle",
+            ISLE / "evm-ir/late_word.isle",
+        ],
     )
-    verify.add_argument("--timeout-ms", type=int, default=60000)
-    verify.add_argument("--jobs", type=int, choices=(1, 2), default=2)
+    verify.add_argument("--timeout-ms", type=int, default=5000)
+    verify.add_argument("--shard-index", type=int, default=0)
+    verify.add_argument("--shard-count", type=int, default=1)
     verify.add_argument("--output", type=Path, required=True)
     verify.add_argument("--artifacts", type=Path)
+    verify.add_argument(
+        "--cache-dir",
+        type=Path,
+        help="reuse UNSAT queries in this directory (also set by SOLAR_PROOF_CACHE)",
+    )
+    verify.add_argument(
+        "--fallback-solver", help="explicit cvc5 executable for incomplete word proofs"
+    )
+    verify.add_argument(
+        "--bit-partition-timeout-ms",
+        type=int,
+        default=0,
+        help="optional total budget per incomplete word rule to prove all output bits separately",
+    )
+    verify.add_argument(
+        "--bit-partition-jobs",
+        type=int,
+        default=1,
+        help="parallel solver processes for output-bit partitions",
+    )
+    verify.add_argument(
+        "--index-partition-timeout-ms",
+        type=int,
+        default=0,
+        help="total budget per word rule for exhaustive index partitions (default: --timeout-ms)",
+    )
+    verify.add_argument(
+        "--partition-shifts",
+        action="store_true",
+        help="exhaust symbolic shift counts and SIGNEXTEND indices for cross-solver replay",
+    )
     discover = subparsers.add_parser(
-        "discover", help="bounded enumerative search with Lean proofs"
+        "discover", help="bounded enumerative search with SMT validation"
     )
     discover.add_argument("--max-ops", type=int, default=3)
     discover.add_argument(
@@ -101,6 +142,12 @@ def main():
     args = parser.parse_args()
     if getattr(args, "timeout_ms", 1) <= 0:
         parser.error("--timeout-ms must be positive")
+    if getattr(args, "bit_partition_timeout_ms", 0) < 0:
+        parser.error("--bit-partition-timeout-ms must be nonnegative")
+    if not 1 <= getattr(args, "bit_partition_jobs", 1) <= 32:
+        parser.error("--bit-partition-jobs must be between 1 and 32")
+    if getattr(args, "index_partition_timeout_ms", 0) < 0:
+        parser.error("--index-partition-timeout-ms must be nonnegative")
     if args.command == "mine":
         if args.runs < 0:
             parser.error("--runs must be nonnegative")
@@ -122,9 +169,42 @@ def main():
         report = discover_rules(args)
         exit_code = 0 if report.get("accepted", True) else 1
     else:
+        if args.cache_dir is not None:
+            os.environ["SOLAR_PROOF_CACHE"] = str(args.cache_dir.resolve())
+        try:
+            fallback = (
+                Cvc5(args.fallback_solver, args.timeout_ms)
+                if args.fallback_solver
+                else None
+            )
+        except (OSError, ValueError) as error:
+            parser.error(str(error))
+        if not 0 <= args.shard_index < args.shard_count:
+            parser.error("shards must satisfy 0 <= index < count")
+        if args.shard_count > 1 and any(
+            path.name in ("stack_peephole.isle", "late_word.isle")
+            for path in args.files
+        ):
+            parser.error("physical-stack and late-word files must run without sharding")
         files = []
         for path in args.files:
-            file = verify_file(path, args.timeout_ms, args.artifacts, args.jobs)
+            if path.name == "stack_peephole.isle":
+                file = verify_stack_file(path, args.timeout_ms, args.artifacts)
+            elif path.name == "late_word.isle":
+                file = verify_late_file(path, args.timeout_ms, args.artifacts)
+            else:
+                file = verify_file(
+                    path,
+                    args.timeout_ms,
+                    args.artifacts,
+                    args.partition_shifts,
+                    fallback,
+                    args.bit_partition_timeout_ms,
+                    args.index_partition_timeout_ms,
+                    args.bit_partition_jobs,
+                    args.shard_index,
+                    args.shard_count,
+                )
             files.append(file)
         for file in files:
             for rule in file["rules"]:
@@ -136,18 +216,22 @@ def main():
                     )
         counts = Counter(rule["status"] for file in files for rule in file["rules"])
         report = {"files": files, "counts": dict(counts)}
+        if cache_dir := os.environ.get("SOLAR_PROOF_CACHE"):
+            report["query_cache"] = {
+                "directory": str(Path(cache_dir).resolve()),
+                "policy": "unsat-only",
+            }
+        if fallback is not None:
+            report["fallback_solver"] = fallback.metadata
+        report["query_sha256"] = query_manifest(report)
         exit_code = 0 if counts.get("proved", 0) and set(counts) == {"proved"} else 1
-    if args.command != "mine":
-        report["prover"] = library()
     implementation = sorted((Path(__file__).parent / "evm_rules").glob("*.py")) + [
         Path(__file__)
     ]
     report.update(
-        schema="solar:evm-word-rules@3",
+        schema="solar:evm-word-rules@1",
         word_bits=256,
-        semantics_sha256=hashlib.sha256(
-            (LIBRARY / "Evm.lean").read_bytes()
-        ).hexdigest(),
+        solver=z3.get_version_string(),
         implementation_sha256=hashlib.sha256(
             b"".join(p.read_bytes() for p in implementation)
         ).hexdigest(),

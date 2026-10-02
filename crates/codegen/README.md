@@ -148,9 +148,9 @@ of a protected shift base through stack permutations. Pricing the physical
 replacement avoids changes to earlier sharing decisions that can turn a local
 MIR size reduction into larger final bytecode.
 
-CI checks all six compiled rule sets with Lean proofs on a two-worker x86
-runner, including every supported physical-stack depth. Generated obligations
-and reusable EVM lemmas replace solver verdicts and cross-solver replay.
+CI checks the compiled word rules and a separate pure physical-stack subset.
+Z3 verifies the rules and cvc5 replays every exported proof query, including
+exhaustive index partitions and their coverage checks.
 These proofs cover the modeled rules and explicit trusted contracts, not global
 memory transformations, the complete backend, or whole-program correctness.
 

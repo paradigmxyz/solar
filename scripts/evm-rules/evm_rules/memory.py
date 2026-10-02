@@ -9,7 +9,15 @@ preconditions; the Rust policy and lowering remain fingerprinted trusted code.
 from dataclasses import dataclass
 from typing import ClassVar
 
-from .semantics import Expr, Unsupported, expr
+import z3
+
+from .semantics import Expr, Unsupported
+
+
+def expr(op, *args):
+    return Expr(
+        op, tuple(Expr.const(arg) if isinstance(arg, int) else arg for arg in args)
+    )
 
 
 @dataclass(frozen=True)
@@ -43,7 +51,7 @@ class MemoryAddresses:
         self.slices = {}
 
     def bounded(self, value, maximum):
-        self.context.assumptions.append(expr("le", value, maximum))
+        self.context.assumptions.append(z3.ULE(self.context.model.eval(value), maximum))
         return value
 
     def kind(self, value):
@@ -76,8 +84,8 @@ class MemoryAddresses:
         self.bounded(field, (1 << 64) - 1)
         cx.assumptions.extend(
             (
-                expr("eq", layout.kind, 3),
-                expr("lt", field, layout.fields),
+                cx.model.eval(layout.kind) == 3,
+                z3.ULT(cx.model.eval(field), cx.model.eval(layout.fields)),
             )
         )
         # Rust field_offset uses u64::saturating_mul, not wrapping arithmetic.
@@ -106,7 +114,7 @@ class MemoryAddresses:
                 return expr("add", object, self.field_offset(layout, field))
             case "Op.MemoryObjectElementAddr", (object, layout, index):
                 layout = self.layout(layout)
-                cx.assumptions.append(expr("ne", layout.kind, 3))
+                cx.assumptions.append(cx.model.eval(layout.kind) != 3)
                 words = expr(
                     "select", expr("eq", layout.kind, 0), 1, layout.element_words
                 )

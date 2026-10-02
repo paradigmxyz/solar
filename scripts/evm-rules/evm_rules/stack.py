@@ -7,19 +7,12 @@ arbitrary deeper prefix is untouched by either sequence. Rust extraction, edit
 application and opcode lowering remain explicit trusted contracts.
 """
 
+import hashlib
 from itertools import product
+from typing import Any
 
 from .isle import Rule, forms
-from .semantics import Expr, Unsupported
-
-CONTRACTS = [
-    "canonical physical stack facets and legal depth encodings",
-    "unprotected_last5 rejects protected boundaries",
-    "Edit.Keep truncates; Edit.OverwriteOne replaces the matched window",
-    "Edit.RemoveFirstKeepTwo retains window instructions one and two",
-    "sufficient input stack and gas; untouched deeper stack prefix",
-    "target lowering preserves physical stack operation semantics",
-]
+from .semantics import Expr, Unsupported, check
 
 
 def instruction(pattern, bindings):
@@ -99,94 +92,122 @@ def tail_class_root(pattern):
     return "peep_op"
 
 
-def obligations(path):
-    results = []
-    for form, line in forms(path.read_text()):
+def verify_stack_file(path, timeout_ms=5000, artifacts=None):
+    source = path.read_text()
+    rules = []
+    for form, line in forms(source):
         if form[0] != "rule":
             raise Unsupported("stack proof files may only contain rules")
         rule = Rule(form, line, str(path))
-        variants = []
-        equalities = set()
-        body = (
-            form[2:] if isinstance(form[1], str) and form[1].isdecimal() else form[1:]
-        )
-        if len(body) != 2:
-            raise Unsupported("unmodeled guard or stack rule shape")
-        (root, window), (rewrite, skip, edit) = body
-        name, *patterns = window
-        patterns = [
-            tuple(
-                f"wildcard_{i}_{j}" if arg == "_" else arg
-                for j, arg in enumerate(pattern)
+        result: dict[str, Any] = {
+            "line": line,
+            "sha256": rule.digest,
+            "status": "unsupported",
+            "variants": [],
+        }
+        rules.append(result)
+        try:
+            body = (
+                form[2:]
+                if isinstance(form[1], str) and form[1].isdecimal()
+                else form[1:]
             )
-            for i, pattern in enumerate(patterns)
-        ]
-        if (
-            root != tail_class_root(patterns[-1])
-            or name not in (f"last{len(patterns)}", "unprotected_last5")
-            or (name == "unprotected_last5" and len(patterns) != 5)
-            or rewrite != "rewrite"
-            or int(skip) != len(patterns)
-        ):
-            raise Unsupported("unmodeled window or rewrite extent")
-        variables = sorted(
-            {
-                arg
-                for pattern in patterns
-                if pattern[0] in ("dup", "swap", "exchange")
-                for arg in pattern[1:]
-                if not arg.isdecimal()
-            }
-        )
-        if len(variables) > 2:
-            raise Unsupported("stack rule has more than two depth bindings")
-        # DUPN/SWAPN encode depths 1..235. EXCHANGE admits n < m,
-        # n + m <= 30; classic forks lower its subset to three swaps.
-        for values in product(range(1, 236), repeat=len(variables)):
-            bindings = dict(zip(variables, values))
-            before = [instruction(pattern, bindings) for pattern in patterns]
-            if any(
-                name == "exchange" and not (1 <= args[0] < args[1] and sum(args) <= 30)
-                for name, args in before
-            ):
-                continue
-            if edit[0] == "Edit.Keep" and len(edit) == 2 and edit[1].isdecimal():
-                keep = int(edit[1])
-                if keep > len(before):
-                    raise Unsupported("edit retains instructions outside the window")
-                after = before[:keep]
-            elif edit == ("Edit.RemoveFirstKeepTwo",) and len(before) >= 3:
-                after = before[1:3]
-            elif edit[0] == "Edit.OverwriteOne" and len(edit) == 2:
-                after = [instruction(("opcode", edit[1]), bindings)]
-            else:
-                raise Unsupported(f"unmodeled stack edit: {edit}")
-            needed, peak, delta = requirements(before)
-            new_needed, new_peak, new_delta = requirements(after)
-            if new_needed > needed or new_peak > peak or new_delta != delta:
-                raise Unsupported(
-                    "replacement increases stack requirements or changes height"
+            if len(body) != 2:
+                raise Unsupported("unmodeled guard or stack rule shape")
+            (root, window), (rewrite, skip, edit) = body
+            name, *patterns = window
+            patterns = [
+                tuple(
+                    f"wildcard_{i}_{j}" if arg == "_" else arg
+                    for j, arg in enumerate(pattern)
                 )
-            inputs = [Expr.var(f"s{i}") for i in range(needed)]
-            lhs, rhs = execute(before, inputs), execute(after, inputs)
-            difference = Expr.const(0)
-            for a, b in zip(lhs, rhs, strict=True):
-                if a != b:
-                    difference = Expr("or", (difference, Expr("xor", (a, b))))
-            equalities.add((difference, Expr.const(0)))
-            variants.append(
-                {"bindings": bindings, "minimum_stack": needed, "peak_growth": peak}
+                for i, pattern in enumerate(patterns)
+            ]
+            if (
+                root != tail_class_root(patterns[-1])
+                or name not in (f"last{len(patterns)}", "unprotected_last5")
+                or (name == "unprotected_last5" and len(patterns) != 5)
+                or rewrite != "rewrite"
+                or int(skip) != len(patterns)
+            ):
+                raise Unsupported("unmodeled window or rewrite extent")
+            variables = sorted(
+                {
+                    arg
+                    for pattern in patterns
+                    if pattern[0] in ("dup", "swap", "exchange")
+                    for arg in pattern[1:]
+                    if not arg.isdecimal()
+                }
             )
-        if not variants:
-            raise Unsupported("no applicable physical stack bindings")
-        results.append(
-            (
-                rule,
-                sorted(equalities, key=lambda pair: pair[0].text()),
-                [],
-                {"variants": variants, "contracts": CONTRACTS},
+            if len(variables) > 2:
+                raise Unsupported("stack rule has more than two depth bindings")
+            # DUPN/SWAPN encode depths 1..235. EXCHANGE admits n < m,
+            # n + m <= 30; classic forks lower its subset to three swaps.
+            for values in product(range(1, 236), repeat=len(variables)):
+                bindings = dict(zip(variables, values))
+                before = [instruction(pattern, bindings) for pattern in patterns]
+                if any(
+                    name == "exchange"
+                    and not (1 <= args[0] < args[1] and sum(args) <= 30)
+                    for name, args in before
+                ):
+                    continue
+                if edit[0] == "Edit.Keep" and len(edit) == 2 and edit[1].isdecimal():
+                    keep = int(edit[1])
+                    if keep > len(before):
+                        raise Unsupported(
+                            "edit retains instructions outside the window"
+                        )
+                    after = before[:keep]
+                elif edit == ("Edit.RemoveFirstKeepTwo",) and len(before) >= 3:
+                    after = before[1:3]
+                elif edit[0] == "Edit.OverwriteOne" and len(edit) == 2:
+                    after = [instruction(("opcode", edit[1]), bindings)]
+                else:
+                    raise Unsupported(f"unmodeled stack edit: {edit}")
+                needed, peak, delta = requirements(before)
+                new_needed, new_peak, new_delta = requirements(after)
+                if new_needed > needed or new_peak > peak or new_delta != delta:
+                    raise Unsupported(
+                        "replacement increases stack requirements or changes height"
+                    )
+                inputs = [Expr.var(f"s{i}") for i in range(needed)]
+                lhs, rhs = execute(before, inputs), execute(after, inputs)
+                difference = Expr.const(0)
+                for a, b in zip(lhs, rhs):
+                    if a != b:
+                        difference = Expr("or", (difference, Expr("xor", (a, b))))
+                proof, query = check(difference, Expr.const(0), timeout_ms=timeout_ms)
+                proof.update(bindings=bindings, minimum_stack=needed, peak_growth=peak)
+                if artifacts is not None and query:
+                    artifacts.mkdir(parents=True, exist_ok=True)
+                    output = (
+                        artifacts / f"{path.stem}-{line}-{len(result['variants'])}.smt2"
+                    )
+                    output.write_text(query)
+                    proof["query"] = str(output)
+                result["variants"].append(proof)
+            if not result["variants"]:
+                raise Unsupported("no applicable physical stack bindings")
+            result["status"] = next(
+                (p["status"] for p in result["variants"] if p["status"] != "proved"),
+                "proved",
             )
-        )
-    if not results:
-        raise Unsupported("stack proof file contains no rules")
-    return results
+        except (Unsupported, ValueError, TypeError, IndexError) as error:
+            result.update(status="unsupported", reason=str(error))
+    if not rules:
+        raise ValueError("stack proof file contains no rules")
+    return {
+        "source": str(path),
+        "sha256": hashlib.sha256(source.encode()).hexdigest(),
+        "rules": rules,
+        "contracts": [
+            "canonical physical stack facets and legal depth encodings",
+            "unprotected_last5 rejects protected boundaries",
+            "Edit.Keep truncates; Edit.OverwriteOne replaces the matched window",
+            "Edit.RemoveFirstKeepTwo retains window instructions one and two",
+            "sufficient input stack and gas; untouched deeper stack prefix",
+            "target lowering preserves physical stack operation semantics",
+        ],
+    }

@@ -9,9 +9,21 @@ import hashlib
 import re
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
+
+import z3
 
 from .memory import MemoryAddresses
-from .semantics import MASK, Expr, Unsupported, expr
+from .semantics import (
+    MASK,
+    Expr,
+    Model,
+    Unsupported,
+    check,
+    partition_bits,
+    partition_shift,
+    word,
+)
 
 ROOT = Path(__file__).resolve().parents[3]
 ISLE = ROOT / "crates/codegen/isle"
@@ -128,6 +140,7 @@ class Context:
         self.values = {}
         self.assumptions = []
         self.contracts = set()
+        self.model = Model()
         self.extractors = extractor_definitions()
         self.bindings = opcode_bindings(
             selection_source
@@ -230,12 +243,12 @@ class Context:
 
     def pattern(self, node):
         if isinstance(node, str):
-            if node.startswith(("@fresh:", "@environment:", "@flag:")):
+            if node.startswith(("@fresh:", "@environment:")):
                 raise Unsupported("reserved proof-variable prefix")
             if node == "_":
                 return self.fresh()
             if node in ("true", "false"):
-                return Expr.const(int(node == "true"))
+                return z3.BoolVal(node == "true")
             if re.fullmatch(r"-?(?:[0-9]+|0x[0-9a-fA-F]+)", node):
                 return Expr.const(int(node, 0))
             return self.values.setdefault(node, Expr.var(node))
@@ -245,7 +258,9 @@ class Context:
                 raise Unsupported("and-pattern requires multiple patterns")
             value = self.pattern(args[0])
             for other in args[1:]:
-                self.assumptions.append(expr("eq", value, self.pattern(other)))
+                self.assumptions.append(
+                    self.model.eval(value) == self.model.eval(self.pattern(other))
+                )
             return value
         if name.startswith("Op."):
             return self.operation(name, [self.pattern(a) for a in args])
@@ -259,7 +274,7 @@ class Context:
         if name in ("iconst", "nonzero_const") and len(args) == 1:
             value = self.pattern(args[0])
             if name == "nonzero_const":
-                self.assumptions.append(expr("ne", value, 0))
+                self.assumptions.append(self.model.eval(value) != 0)
             return value
         if not args and name in ("zero", "one", "all_ones"):
             return Expr.const({"zero": 0, "one": 1, "all_ones": MASK}[name])
@@ -269,15 +284,12 @@ class Context:
             )
             return self.operation("Op.Address", [])
         if name == "integer_bits" and len(args) == 1:
-            bits = self.pattern(args[0])
+            bits = self.model.eval(self.pattern(args[0]))
             value = self.fresh()
-            self.assumptions.extend((expr("ge", bits, 1), expr("le", bits, 256)))
+            self.assumptions.extend((z3.UGE(bits, word(1)), z3.ULE(bits, word(256))))
             self.assumptions.append(
-                expr(
-                    "eq",
-                    expr("and", value, expr("sub", expr("shl", bits, 1), 1)),
-                    value,
-                )
+                self.model.eval(value) & ((word(1) << bits) - 1)
+                == self.model.eval(value)
             )
             self.contracts.add(
                 "integer_bits: the Rust extractor returns a canonical integer width in 1..=256"
@@ -285,7 +297,7 @@ class Context:
             return value
         if name == "bool_value" and not args:
             value = self.fresh()
-            self.assumptions.append(expr("le", value, 1))
+            self.assumptions.append(z3.ULE(self.model.eval(value), word(1)))
             self.contracts.add(
                 "bool_value: the Rust extractor establishes a canonical 0/1 word"
             )
@@ -314,7 +326,13 @@ class Context:
                 )
             return values[0]
         if name == "imm_bool" and len(values) == 1:
-            return values[0]
+            value = values[0]
+            # Boolean results become word expressions so concrete replay stays independent.
+            symbol = self.fresh()
+            self.assumptions.append(
+                self.model.eval(symbol) == z3.If(value, word(1), word(0))
+            )
+            return symbol
         if name == "zero_value" and not values:
             return Expr.const(0)
         if name == "u256_max" and not values:
@@ -339,37 +357,40 @@ class Context:
         }
         if name in binary and len(values) == 2:
             return Expr(binary[name], tuple(values))
+        smt = [self.model.eval(v) for v in values]
         if (
             name in ("u256_is_zero", "u256_is_one", "u256_is_all_ones")
-            and len(values) == 1
+            and len(smt) == 1
         ):
-            return expr(
-                "eq",
-                values[0],
-                {"u256_is_zero": 0, "u256_is_one": 1, "u256_is_all_ones": MASK}[name],
+            return (
+                smt[0]
+                == {"u256_is_zero": 0, "u256_is_one": 1, "u256_is_all_ones": MASK}[name]
             )
         predicates = {
-            "u32_lt": "lt",
-            "u32_le": "le",
-            "u256_gt": "gt",
-            "u256_ge": "ge",
-            "u256_lt": "lt",
-            "u256_same": "eq",
-            "u256_le": "le",
-            "u256_eq": "eq",
+            "u32_lt": z3.ULT,
+            "u32_le": z3.ULE,
+            "u256_gt": z3.UGT,
+            "u256_ge": z3.UGE,
+            "u256_lt": z3.ULT,
+            "u256_same": lambda a, b: a == b,
+            "u256_le": z3.ULE,
+            "u256_eq": lambda a, b: a == b,
         }
-        if name in predicates and len(values) == 2:
-            return expr(predicates[name], *values)
-        if name == "u256_has_bits" and len(values) == 2:
-            return expr("eq", expr("and", *values), values[1])
+        if name in predicates and len(smt) == 2:
+            return predicates[name](*smt)
+        if name == "u256_has_bits" and len(smt) == 2:
+            return smt[0] & smt[1] == smt[1]
         if name == "u256_min" and len(values) == 2:
             return Expr("select", (Expr("lt", tuple(values)), *values))
         if name == "shift_sum" and len(values) == 2:
-            return expr("shiftSum", *values)
-        if name == "sign_byte" and len(values) == 1:
-            self.assumptions.extend(
-                [expr("lt", values[0], 256), expr("eq", expr("and", values[0], 7), 0)]
+            limit = Expr.const(256)
+            capped = tuple(
+                Expr("select", (Expr("lt", (v, limit)), v, limit)) for v in values
             )
+            total = Expr("add", capped)
+            return Expr("select", (Expr("lt", (total, limit)), total, limit))
+        if name == "sign_byte" and len(values) == 1:
+            self.assumptions.extend([z3.ULT(smt[0], word(256)), smt[0] & 7 == 0])
             return Expr(
                 "sub", (Expr.const(31), Expr("shr", (Expr.const(3), values[0])))
             )
@@ -377,9 +398,9 @@ class Context:
             shift = self.fresh()
             self.assumptions.extend(
                 [
-                    expr("gt", shift, 0),
-                    expr("lt", shift, 256),
-                    expr("eq", values[0], expr("shl", shift, 1)),
+                    z3.UGT(self.model.eval(shift), word(0)),
+                    z3.ULT(self.model.eval(shift), word(256)),
+                    smt[0] == word(1) << self.model.eval(shift),
                 ]
             )
             return shift
@@ -393,24 +414,24 @@ class Context:
         ):
             # In particular, different ValueIds must NOT imply different word values.
             self.contracts.add(f"{name}: structural/fork condition is overapproximated")
-            return self.flag(f"structural_{name}_{node!r}")
+            return z3.Bool(f"structural_{name}_{node!r}")
         guarantees = {
-            "is_zero_or_one": lambda: expr("le", values[0], 1),
-            "has_known_sign_bit": lambda: expr("ge", values[0], 1 << 255),
-            "below_const": lambda: expr("lt", *values),
-            "at_most_const": lambda: expr("le", *values),
-            "mask_covers": lambda: expr("eq", expr("and", *values), values[1]),
-            "masks_clean_address": lambda: expr("eq", expr("and", *values), values[1]),
-            "shifted_out": lambda: expr("eq", expr("shr", *values), 0),
-            "sign_clear": lambda: expr("eq", expr("signextend", *values), values[1]),
-            "same_value": lambda: expr("eq", *values),
+            "is_zero_or_one": lambda: z3.ULE(smt[0], word(1)),
+            "has_known_sign_bit": lambda: z3.Extract(255, 255, smt[0]) == 1,
+            "below_const": lambda: z3.ULT(smt[0], smt[1]),
+            "at_most_const": lambda: z3.ULE(smt[0], smt[1]),
+            "mask_covers": lambda: smt[0] & smt[1] == smt[1],
+            "masks_clean_address": lambda: smt[0] & smt[1] == smt[1],
+            "shifted_out": lambda: z3.LShR(smt[1], smt[0]) == 0,
+            "sign_clear": lambda: Model.apply("signextend", tuple(smt)) == smt[1],
+            "same_value": lambda: smt[0] == smt[1],
         }
         if name in guarantees:
             arity = 1 if name in ("is_zero_or_one", "has_known_sign_bit") else 2
-            if len(values) != arity:
+            if len(smt) != arity:
                 raise Unsupported(f"extractor contract arity: {name}")
-            flag = self.flag(f"contract_{name}_{node!r}")
-            self.assumptions.append(expr("implies", flag, guarantees[name]()))
+            flag = z3.Bool(f"contract_{name}_{node!r}")
+            self.assumptions.append(z3.Implies(flag, guarantees[name]()))
             self.contracts.add(
                 f"{name}: trusted Rust extractor contract (true implies word property)"
             )
@@ -446,7 +467,11 @@ class Context:
                 self.values[pattern] = value
             elif pattern != "_":
                 other = self.pattern(pattern)
-                self.assumptions.append(expr("eq", other, value))
+                self.assumptions.append(
+                    self.model.eval(other) == self.model.eval(value)
+                    if isinstance(value, Expr)
+                    else other == value
+                )
         rhs = self.constructor(parts[-1])
 
         def validate_snapshot_root(expr):
@@ -485,7 +510,134 @@ class Context:
             return difference, Expr.const(0)
         return lhs, rhs
 
-    def flag(self, name):
-        value = Expr.var("@flag:" + name)
-        self.assumptions.append(expr("le", value, 1))
-        return value
+
+def verify_file(
+    path,
+    timeout_ms,
+    artifacts=None,
+    partition_shifts=False,
+    fallback=None,
+    bit_partition_timeout_ms=0,
+    index_partition_timeout_ms=0,
+    bit_partition_jobs=1,
+    shard_index=0,
+    shard_count=1,
+):
+    source = path.read_text()
+    rules = [
+        Rule(form, line, str(path)) for form, line in forms(source) if form[0] == "rule"
+    ]
+    if not rules:
+        raise ValueError(f"no rules in {path}")
+    if not 0 <= shard_index < shard_count <= len(rules):
+        raise ValueError(
+            "shards must be nonempty and satisfy 0 <= index < count <= rules"
+        )
+    results = []
+    for rule in rules[shard_index::shard_count]:
+        context = Context()
+        result: dict[str, Any]
+        query = ""
+        partitions = []
+        try:
+            lhs, rhs = context.obligation(rule)
+            result, query = check(
+                lhs, rhs, context.assumptions, timeout_ms, context.model
+            )
+            if constants := result.get("constant_specializations"):
+                context.model = Model(
+                    {name: int(value, 16) for name, value in constants.items()}
+                )
+            if query and (
+                result["status"] == "unknown"
+                or partition_shifts
+                and result["status"] == "proved"
+            ):
+                partitioned, partitions = partition_shift(
+                    lhs,
+                    rhs,
+                    context.assumptions,
+                    index_partition_timeout_ms or timeout_ms,
+                    context.model,
+                )
+                if partitions:
+                    if constants:
+                        partitioned["constant_specializations"] = constants
+                    result = partitioned
+            if query and result["status"] == "unknown" and fallback is not None:
+                # Prove the complete original obligation. A successful fallback
+                # replaces partial partitions, never promotes their proved prefix.
+                attempt = fallback.solve(query)
+                if attempt["status"] == "unsat":
+                    result = {
+                        "status": "proved",
+                        "proof_method": "solver-fallback",
+                        "fallback": attempt,
+                    }
+                    if constants:
+                        result["constant_specializations"] = constants
+                    partitions = []
+                else:
+                    result["fallback"] = attempt
+                    if attempt["status"] == "sat":
+                        result["reason"] = (
+                            "cvc5 reported SAT; no independently replayed counterexample"
+                        )
+                    else:
+                        reason = result.get("reason", "Z3 verification incomplete")
+                        result["reason"] = (
+                            f"{reason}; cvc5 fallback returned {attempt['status']}"
+                        )
+                    if partitions:
+                        partitions.append(("word", query))
+            if (
+                query
+                and result["status"] == "unknown"
+                and bit_partition_timeout_ms > 0
+                and result.get("fallback", {}).get("status", "unknown")
+                in ("unknown", "timeout")
+            ):
+                # All output bits must agree under the complete original guards.
+                # Do not hide a fallback solver's SAT result or process failure.
+                previous_fallback = result.get("fallback")
+                result, partitions = partition_bits(
+                    lhs,
+                    rhs,
+                    context.assumptions,
+                    bit_partition_timeout_ms,
+                    context.model,
+                    bit_partition_jobs,
+                )
+                if constants:
+                    result["constant_specializations"] = constants
+                if previous_fallback is not None:
+                    result["fallback"] = previous_fallback
+                if result["status"] != "proved":
+                    partitions.append(("word", query))
+        except Unsupported as error:
+            result = {"status": "unsupported", "reason": str(error)}
+        result.update(
+            line=rule.line, rule_sha256=rule.digest, contracts=sorted(context.contracts)
+        )
+        if query and artifacts is not None:
+            artifacts.mkdir(parents=True, exist_ok=True)
+            paths = []
+            for suffix, text in partitions or [("word", query)]:
+                query_path = (
+                    artifacts
+                    / f"{path.stem}-{rule.line}-{rule.digest[:12]}-{suffix}.smt2"
+                )
+                query_path.write_text(text)
+                paths.append(str(query_path))
+            result["smt2"] = paths
+        results.append(result)
+    return {
+        "source": str(path),
+        "source_sha256": hashlib.sha256(source.encode()).hexdigest(),
+        "shard": {
+            "index": shard_index,
+            "count": shard_count,
+            "total_rules": len(rules),
+        },
+        "rules": results,
+    }

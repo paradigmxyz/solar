@@ -2,7 +2,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 node --version
-lean --version
+cvc5 --version
 uv sync --locked --all-packages
 uv run --locked --all-packages ruff format --check .
 uv run --locked --all-packages ruff check .
