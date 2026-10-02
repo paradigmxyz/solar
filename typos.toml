@@ -15,6 +15,10 @@ extend-exclude = [
     "dist-workspace.toml",
 ]
 
+[default]
+# Hand-written Lean proofs are named after a hex digest of their rule.
+extend-ignore-identifiers-re = ["[a-z_]+_[0-9a-f]{16}(_[0-9]+)?"]
+
 [default.extend-words]
 ket = "ket"
 Mke = "Mke"
