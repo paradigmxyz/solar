@@ -145,6 +145,22 @@
 ;; Requires: c is constant, c == 2.
 (rule (rewrite (Op.Exp a (iconst c))) (if-let true (u256_eq c 2)) (Op.Mul a a))
 
+;; (x / c) * c + x % c => x.
+;; Requires: c is constant, c != 0.
+(rule 8 (simplify (Op.Add (mul (div x (iconst c)) (iconst d)) (mod x (iconst e))))
+      (if-let false (u256_is_zero c))
+      (if-let true (u256_same c d))
+      (if-let true (u256_same c e))
+      x)
+
+;; x % c + (x / c) * c => x.
+;; Requires: c is constant, c != 0.
+(rule 7 (simplify (Op.Add (mod x (iconst e)) (mul (div x (iconst c)) (iconst d))))
+      (if-let false (u256_is_zero c))
+      (if-let true (u256_same c d))
+      (if-let true (u256_same c e))
+      x)
+
 ;; (a - b) + b => a.
 (rule 6 (simplify (Op.Add (sub a b) b)) a)
 

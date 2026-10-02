@@ -377,6 +377,20 @@ class Context:
             return Cond(predicates[name], tuple(values))
         if name == "u256_has_bits" and len(values) == 2:
             return Cond("eq", (Expr("and", tuple(values)), values[1]))
+        if name == "u256_mul_fits" and len(values) == 2:
+            # a * b <= MAX: b == 0, or a <= MAX / b
+            a, b = values
+            return Cond(
+                "implies",
+                (
+                    Cond("ne", (b, Expr.const(0))),
+                    Cond("ule", (a, Expr("div", (Expr.const(MASK), b)))),
+                ),
+            )
+        if name == "u256_add_fits" and len(values) == 2:
+            # a + b <= MAX: a <= MAX - b
+            a, b = values
+            return Cond("ule", (a, Expr("sub", (Expr.const(MASK), b))))
         if name == "u256_min" and len(values) == 2:
             return Expr("select", (Expr("lt", tuple(values)), *values))
         if name == "shift_sum" and len(values) == 2:
