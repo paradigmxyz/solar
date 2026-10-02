@@ -1172,14 +1172,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     fn merge_value_phi(&mut self, incoming: Vec<(BlockId, ValueId)>) -> ValueId {
         let dirty = !self.dirty_values.is_empty()
             && incoming.iter().any(|(_, value)| self.dirty_values.contains(value));
-        // Preserve raw assembly bits when either arm carries them.
-        let ty = incoming
-            .first()
-            .and_then(|(_, value)| self.builder.func().value_ty(*value))
-            .map(|ty| if dirty && ty.integer_bits().is_some() { MirType::I256 } else { ty })
-            .unwrap_or(MirType::I256);
-        // value = phi [predecessor: cast incoming to the source carrier type, ...]
-        let value = self.builder.emit_inst(InstKind::Phi(incoming), Some(ty));
+        let value = if dirty {
+            // Preserve native widths; raw assembly carriers already use i256.
+            self.builder.phi(incoming)
+        } else {
+            let ty = incoming
+                .first()
+                .and_then(|(_, value)| self.builder.func().value_ty(*value))
+                .unwrap_or(MirType::I256);
+            self.builder.emit_inst(InstKind::Phi(incoming), Some(ty))
+        };
         if dirty {
             self.dirty_values.insert(value);
         }

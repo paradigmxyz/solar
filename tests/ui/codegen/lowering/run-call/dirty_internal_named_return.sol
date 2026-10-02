@@ -1,3 +1,9 @@
+//@ run-call: DirtyCarrierPaths::signedJoin true, -1 => true
+//@ run-call: DirtyCarrierPaths::signedJoin false, -1 => true
+//@ run-call: DirtyCarrierPaths::signedJoin false, 1 => false
+//@ run-call: DirtyCarrierPaths::signedLoop 0, -1 => true
+//@ run-call: DirtyCarrierPaths::signedLoop 1, -1 => true
+//@ run-call: DirtyCarrierPaths::signedLoop 2, 1 => true
 //@ run-call: DirtyCarrierPaths::signedPointer => -1
 //@ run-call: DirtyCarrierPaths::signedOperator => 1
 //@ run-call: DirtyCarrierPaths::throughPointer => 257
@@ -170,6 +176,25 @@ contract DirtyCarrierPaths {
     }
 
     function modifierLoop() external pure rawLoop {}
+
+    function negative8() internal pure returns (int8) { return -2; }
+
+    function signedJoin(bool choose, int8 input) external pure returns (bool negative) {
+        int8 value = input;
+        if (choose) value = negative8();
+        int8 exposed = int8(value);
+        assembly { negative := slt(exposed, 0) }
+    }
+
+    function signedLoop(uint256 count, int8 input) external pure returns (bool negative) {
+        int8 value = input;
+        for (uint256 i; i < count; ++i) {
+            if (i == 1) break;
+            value = negative8();
+        }
+        int8 exposed = int8(value);
+        assembly { negative := slt(exposed, 0) }
+    }
 
     function signedLocal() external pure returns (int256 raw) {
         int8 value = -1;
