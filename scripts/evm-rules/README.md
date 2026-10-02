@@ -157,7 +157,9 @@ the exported coverage query must still prove that every input is covered.
 all cases of one rule; zero uses `--timeout-ms`. CI gives the e-graph index
 stage 30 seconds so a five-second total budget does not prematurely discard
 these smaller queries. Replay still has a
-five-second limit per strategy per query and fails on every exhausted query.
+five-second limit per strategy per query for these rules and fails on every
+exhausted query. Word rules use 30 seconds for whole-query verification and
+replay so nested division proofs can finish on the CI runner.
 
 Word verification has an optional, explicit cvc5 fallback:
 
