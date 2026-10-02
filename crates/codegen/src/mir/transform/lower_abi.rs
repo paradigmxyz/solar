@@ -887,20 +887,22 @@ impl LowerAbiCx {
 
     /// Returns whether assembly in `func` may find a skipped memory copy.
     ///
-    /// A raw memory read or a pointer forged from an integer could reach the copy at a guessed
-    /// address, so any read outside scratch, an object the function allocates, or just-copied
-    /// return data counts. So does a raw write that may move the free memory pointer, which
-    /// would place a later allocation over the copy.
+    /// A raw memory access or a pointer forged from an integer could reach the copy at a
+    /// guessed address, so any read or write outside scratch, an object the function
+    /// allocates, or just-copied return data counts. So does a write that may move the free
+    /// memory pointer, which would place a later allocation over the copy.
     fn may_reach_skipped_copy(func: &Function) -> bool {
         // Constant scratch ranges such as error payloads end below the heap, and
         // compiler-built objects never cover the skipped copy.
-        let known = |offset, size| {
+        let known_range = |offset, size: Option<u64>| {
             func.value_u64(offset)
-                .zip(func.value_u64(size))
+                .zip(size)
                 .and_then(|(offset, size)| offset.checked_add(size))
                 .is_some_and(|end| end <= EvmMemoryLayout::HEAP_START)
                 || Self::points_into_new_object(func, offset, 0)
         };
+        let known = |offset, size| known_range(offset, func.value_u64(size));
+        let known_word = |offset, width| known_range(offset, Some(width));
         let raw_read = func.blocks.iter().any(|block| match block.terminator {
             Some(Terminator::ReturnData { offset, size }) => !known(offset, size),
             // Bubbled return data overwrites the range it then returns.
@@ -930,7 +932,27 @@ impl LowerAbiCx {
             }
             _ => false,
         });
-        raw_read || !fmp_grows_in_heap(func)
+        // A raw write outside scratch or a new object may land on the copy.
+        let raw_write = func.blocks.iter().any(|block| {
+            block.instructions.iter().any(|&inst_id| match func.inst(inst_id).kind {
+                InstKind::MStore(dest, _) => !known_word(dest, 32),
+                InstKind::MStore8(dest, _) => !known_word(dest, 1),
+                InstKind::ReturnDataCopy(..)
+                    if bubbled_return_data_copy(func, block) == Some(inst_id) =>
+                {
+                    false
+                }
+                InstKind::MemoryZero(dest, size)
+                | InstKind::MCopy(dest, _, size)
+                | InstKind::CalldataCopy(dest, _, size)
+                | InstKind::CodeCopy(dest, _, size)
+                | InstKind::DataCopy(_, dest, size)
+                | InstKind::ReturnDataCopy(dest, _, size)
+                | InstKind::ExtCodeCopy(_, dest, _, size) => !known(dest, size),
+                _ => false,
+            })
+        });
+        raw_read || raw_write || !fmp_grows_in_heap(func)
     }
 
     /// Returns whether a raw address points into an object this function allocates.
@@ -1614,7 +1636,7 @@ impl LowerAbiCx {
                                 let value = builder.icall(helper, args, arg_type);
                                 logical_values[index] = Some(value);
                             } else if memory_view && let Some(helper) = self.memory_view_helper {
-                                // icall @decode_calldata_slice, head
+                                // icall @decode_memory_view, head
                                 builder.icall(helper, vec![head], MirType::I256);
                             } else {
                                 let value = Self::decode_aggregate_argument(
@@ -1650,7 +1672,7 @@ impl LowerAbiCx {
                             let args = calldata_type_helper_args(ty, head, tuple_base);
                             builder.icall(helper, args, arg_type)
                         } else if let Some(helper) = slice_helper {
-                            // base = icall @decode_calldata_slice, head
+                            // base = icall @decode_calldata_slice | @decode_memory_view, head
                             // slice = make_calldata_slice base + 32, calldataload base
                             let base = builder.icall(helper, vec![head], MirType::I256);
                             let len = builder.calldataload(base);
