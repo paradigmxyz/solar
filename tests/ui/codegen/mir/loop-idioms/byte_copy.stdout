@@ -204,11 +204,11 @@ fn @zeroTripHeader() [selector=0xe0b1133b, abi_wrapper, pure] {
   bb5:
     jump bb6
   bb6:
-    v15 = phi [bb5: 0], [bb7: v24]
-    v16 = phi [bb5: 0], [bb7: v23]
-    v25 = add v15, 1
-    v26 = lt v25, arg0
-    jumpi v26, bb7, bb2
+    v15 = phi [bb5: 0], [bb7: v34]
+    v16 = phi [bb5: 0], [bb7: v33]
+    v35 = add v15, 3
+    v36 = lt v35, arg0
+    jumpi v36, bb7, bb2
   bb2:
     v3 = phi [bb6: v15], [bb3: v9]
     v4 = phi [bb6: v16], [bb3: v6]
@@ -222,9 +222,11 @@ fn @zeroTripHeader() [selector=0xe0b1133b, abi_wrapper, pure] {
     v9 = add v3, 1
     jump bb2
   bb7:
-    v23 = mload 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v33 = mload 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     v19 = add v15, 1
     v24 = add v19, 1
+    v29 = add v24, 1
+    v34 = add v29, 1
     jump bb6
   bb4:
     revert 0, 0
@@ -238,11 +240,11 @@ fn @headerExpansion() [selector=0xfb7c0847, abi_wrapper, pure] {
   bb5:
     jump bb6
   bb6:
-    v33 = phi [bb5: 0], [bb7: v55]
-    v34 = phi [bb5: 0], [bb7: v56]
-    v57 = add v34, 1
-    v58 = lt v57, arg0
-    jumpi v58, bb7, bb1
+    v33 = phi [bb5: 0], [bb7: v79]
+    v34 = phi [bb5: 0], [bb7: v80]
+    v81 = add v34, 3
+    v82 = lt v81, arg0
+    jumpi v82, bb7, bb1
   bb1:
     v0 = phi [bb6: v33], [bb3: v23]
     v1 = phi [bb6: v34], [bb3: v19]
@@ -264,16 +266,20 @@ fn @headerExpansion() [selector=0xfb7c0847, abi_wrapper, pure] {
     jump bb1
   bb7:
     v37 = mload 0x10000
-    v44 = add v34, 1
-    v48 = msize
     v49 = mload 0x10000
-    v50 = msize
-    v51 = gt v50, v48
-    v52 = eq v49, 0
-    v53 = zext i1 v51 to i256
-    v54 = zext i1 v52 to i256
-    v55 = mul v53, v54
+    v61 = mload 0x10000
+    v44 = add v34, 1
     v56 = add v44, 1
+    v68 = add v56, 1
+    v72 = msize
+    v73 = mload 0x10000
+    v74 = msize
+    v75 = gt v74, v72
+    v76 = eq v73, 0
+    v77 = zext i1 v75 to i256
+    v78 = zext i1 v76 to i256
+    v79 = mul v77, v78
+    v80 = add v68, 1
     jump bb6
   bb4:
     revert 0, 0

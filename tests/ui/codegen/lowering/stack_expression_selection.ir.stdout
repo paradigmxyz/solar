@@ -191,9 +191,13 @@ bb35 [loop]:
   add
   push 1
   add
+  push 1
+  add
+  push 1
+  add
   jump bb31
 bb31 [loop]:
-  push 1
+  push 3
   dup 2
   add
   push 4

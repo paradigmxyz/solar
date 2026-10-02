@@ -276,11 +276,11 @@ fn @pop() [selector=0xa4ece52c, abi_wrapper] {
     v22 = keccak256 0, 32 !metadata(memory=scratch)
     jump bb6
   bb6:
-    v23 = phi [bb2: 0], [bb7: v31]
-    v24 = phi [bb2: v22], [bb7: v32]
-    v33 = add v23, 1
-    v34 = lt v33, v13
-    jumpi v34, bb7, bb3
+    v23 = phi [bb2: 0], [bb7: v41]
+    v24 = phi [bb2: v22], [bb7: v42]
+    v43 = add v23, 3
+    v44 = lt v43, v13
+    jumpi v44, bb7, bb3
   bb3:
     v16 = phi [bb6: v23], [bb4: v19]
     v17 = phi [bb6: v24], [bb4: v20]
@@ -300,6 +300,12 @@ fn @pop() [selector=0xa4ece52c, abi_wrapper] {
     sstore v27, 0
     v31 = add v26, 1
     v32 = add v27, 1
+    sstore v32, 0
+    v36 = add v31, 1
+    v37 = add v32, 1
+    sstore v37, 0
+    v41 = add v36, 1
+    v42 = add v37, 1
     jump bb6
   bb1:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)

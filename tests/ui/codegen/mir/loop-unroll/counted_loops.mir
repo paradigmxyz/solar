@@ -2,27 +2,28 @@
 //@filecheck:
 @module CountedLoops
 
-// A counted loop runs its body twice per test of `i + 1 < n` in a main loop,
-// which leaves the last iteration to the original loop with its state.
+// A counted loop runs its body four times per test of `i + 3 < n` in a main
+// loop, which leaves the last iterations to the original loop with its state.
 // CHECK-LABEL: {{^[ +].*}}fn @counted{{[( ]}}
 // CHECK: - jump bb1
 // CHECK-NEXT: + jump [[MAIN:bb[0-9]+]]
 // CHECK-NEXT: + [[MAIN]]:
 // CHECK-NEXT: + [[I:v[0-9]+]] = phi [bb0: 0], {{\[}}[[LATCH:bb[0-9]+]]: [[NEXT:v[0-9]+]]]
 // CHECK-NEXT: + [[S:v[0-9]+]] = phi [bb0: 0], {{\[}}[[LATCH]]: [[SUM:v[0-9]+]]]
-// CHECK: + [[AHEAD:v[0-9]+]] = add [[I]], 1
+// CHECK: + [[AHEAD:v[0-9]+]] = add [[I]], 3
 // CHECK-NEXT: + [[C:v[0-9]+]] = lt [[AHEAD]], arg0
 // CHECK-NEXT: + jumpi [[C]], [[FIRST:bb[0-9]+]], bb1
 // CHECK: + {{v[0-9]+}} = phi {{\[}}[[MAIN]]: [[I]]], [bb2: {{v[0-9]+}}]
 // CHECK-NEXT: + {{v[0-9]+}} = phi {{\[}}[[MAIN]]: [[S]]], [bb2: {{v[0-9]+}}]
 // CHECK: + [[FIRST]]:
 // CHECK-NEXT: + [[P:v[0-9]+]] = mul [[I]], 3
-// CHECK-NEXT: + [[S1:v[0-9]+]] = add [[S]], [[P]]
-// CHECK-NEXT: + [[I1:v[0-9]+]] = add [[I]], 1
+// CHECK-NEXT: + {{v[0-9]+}} = add [[S]], [[P]]
+// CHECK-NEXT: + {{v[0-9]+}} = add [[I]], 1
+// CHECK-COUNT-2: = mul
 // CHECK: + [[LATCH]]:
-// CHECK-NEXT: + [[Q:v[0-9]+]] = mul [[I1]], 3
-// CHECK-NEXT: + [[SUM]] = add [[S1]], [[Q]]
-// CHECK-NEXT: + [[NEXT]] = add [[I1]], 1
+// CHECK-NEXT: + {{v[0-9]+}} = mul [[LAST:v[0-9]+]], 3
+// CHECK-NEXT: + [[SUM]] = add {{v[0-9]+}}, {{v[0-9]+}}
+// CHECK-NEXT: + [[NEXT]] = add [[LAST]], 1
 // CHECK-NEXT: + jump [[MAIN]]
 fn @counted(arg0: i256) -> i256 {
   bb0:
@@ -52,10 +53,9 @@ fn @panic() {
 // each copy keeps its own call.
 // CHECK-LABEL: {{^[ +].*}}fn @checked{{[( ]}}
 // CHECK: + [[I:v[0-9]+]] = phi [bb0: 5], {{\[}}[[LATCH:bb[0-9]+]]: {{v[0-9]+}}]
-// CHECK: + [[AHEAD:v[0-9]+]] = add [[I]], 3
+// CHECK: + [[AHEAD:v[0-9]+]] = add [[I]], 9
 // CHECK-NEXT: + {{v[0-9]+}} = lt [[AHEAD]], arg0
-// CHECK: + icall @panic
-// CHECK: + icall @panic
+// CHECK-COUNT-4: + icall @panic
 // CHECK: + [[LATCH]]:
 // CHECK-NEXT: + {{v[0-9]+}} = add {{v[0-9]+}}, 3
 // CHECK-NEXT: + jump
@@ -84,10 +84,9 @@ fn @checked(arg0: i256, arg1: i256) -> i256 {
 // A reverting block that receives a body value through a phi gains an input
 // from each copy.
 // CHECK-LABEL: {{^[ +].*}}fn @revert_payload{{[( ]}}
-// CHECK: + jumpi {{v[0-9]+}}, bb4, {{bb[0-9]+}}
-// CHECK: + jumpi {{v[0-9]+}}, bb4, {{bb[0-9]+}}
+// CHECK-COUNT-4: + jumpi {{v[0-9]+}}, bb4, {{bb[0-9]+}}
 // CHECK: - v6 = phi [bb2: v3]
-// CHECK-NEXT: + v6 = phi [bb2: v3], [{{bb[0-9]+}}: {{v[0-9]+}}], [{{bb[0-9]+}}: {{v[0-9]+}}]
+// CHECK-NEXT: + v6 = phi [bb2: v3], [{{bb[0-9]+}}: {{v[0-9]+}}], [{{bb[0-9]+}}: {{v[0-9]+}}], [{{bb[0-9]+}}: {{v[0-9]+}}], [{{bb[0-9]+}}: {{v[0-9]+}}]
 fn @revert_payload(arg0: i256) -> i256 {
   bb0:
     jump bb1
@@ -113,7 +112,7 @@ fn @revert_payload(arg0: i256) -> i256 {
 
 // A literal bound with many iterations left pays for the copies.
 // CHECK-LABEL: {{^[ +].*}}fn @long_literal{{[( ]}}
-// CHECK: + [[AHEAD:v[0-9]+]] = add {{v[0-9]+}}, 1
+// CHECK: + [[AHEAD:v[0-9]+]] = add {{v[0-9]+}}, 3
 // CHECK-NEXT: + {{v[0-9]+}} = lt [[AHEAD]], 100
 fn @long_literal() -> i256 {
   bb0:
@@ -380,10 +379,10 @@ fn @variable_start_below(arg0: i256, arg1: i256) -> i256 {
 }
 
 // A loop that leaves once its counter passes the bound, `i <= n`, and steps
-// by two tests `i + 2 > n` to leave the main loop.
+// by two tests `i + 6 > n` to leave the main loop.
 // CHECK-LABEL: {{^[ +].*}}fn @at_most{{[( ]}}
 // CHECK: + [[I:v[0-9]+]] = phi [bb0: 2], {{\[}}{{bb[0-9]+}}: {{v[0-9]+}}]
-// CHECK: + [[AHEAD:v[0-9]+]] = add [[I]], 2
+// CHECK: + [[AHEAD:v[0-9]+]] = add [[I]], 6
 // CHECK-NEXT: + [[BEYOND:v[0-9]+]] = gt [[AHEAD]], arg0
 // CHECK-NEXT: + jumpi [[BEYOND]], bb1, {{bb[0-9]+}}
 fn @at_most(arg0: i256) -> i256 {
@@ -452,4 +451,31 @@ fn @up_to(arg0: i256, arg1: i256) -> i256 {
     jumpi v6, bb4, bb1
   bb4:
     revert 0, 0
+}
+
+// A larger body pays for two copies but not for four.
+// CHECK-LABEL: {{^[ +].*}}fn @two_copies{{[( ]}}
+// CHECK: + [[I:v[0-9]+]] = phi [bb0: 0], {{\[}}{{bb[0-9]+}}: {{v[0-9]+}}]
+// CHECK: + [[AHEAD:v[0-9]+]] = add [[I]], 1
+// CHECK-NEXT: + {{v[0-9]+}} = lt [[AHEAD]], arg0
+// CHECK-COUNT-2: + {{v[0-9]+}} = xor
+// CHECK-NOT: + {{v[0-9]+}} = xor
+fn @two_copies(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb2: v8]
+    v1 = phi [bb0: 0], [bb2: v7]
+    v2 = lt v0, arg0
+    jumpi v2, bb2, bb3
+  bb2:
+    v3 = mul v1, 0x123456789abcdef
+    v4 = xor v3, 0xfedcba987654321
+    v5 = add v4, arg1
+    v6 = and v5, 0x7fffffffffffffffffff
+    v7 = add v6, v0
+    v8 = add v0, 1
+    jump bb1
+  bb3:
+    ret v1
 }
