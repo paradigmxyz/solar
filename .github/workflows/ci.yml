@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
     inputs:
       proof-audit:
-        description: Bypass the proof cache and replay every query with cvc5
+        description: Bypass the proof cache and prove every rule afresh
         type: boolean
         default: true
   schedule:
@@ -48,33 +48,46 @@ jobs:
             if [[ -n "$changed" ]]; then
               echo 'run=true' >> "$GITHUB_OUTPUT"
             else
-              echo 'Proof inputs unchanged; skipping solver checks.'
+              echo 'Proof inputs unchanged; skipping Lean proofs.'
             fi
           fi
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         if: steps.select.outputs.run == 'true' && github.event_name != 'schedule' && !inputs.proof-audit
         with:
           path: target/evm-proof-cache
-          key: proof-queries-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/evm-rules/evm_rules/solver.py', '.python-version', 'uv.lock') }}-${{ github.sha }}
+          key: proof-lean-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/evm-rules/lean/lean-toolchain') }}-${{ github.sha }}
           restore-keys: |
-            proof-queries-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/evm-rules/evm_rules/solver.py', '.python-version', 'uv.lock') }}-
+            proof-lean-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/evm-rules/lean/lean-toolchain') }}-
       - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         if: steps.select.outputs.run == 'true'
-      - name: Install cvc5 1.2.0
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        if: steps.select.outputs.run == 'true'
+        with:
+          path: |
+            ${{ runner.temp }}/lean.tar.zst
+            scripts/evm-rules/lean/.lake
+          key: lean-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/evm-rules/lean/**/*.lean', 'scripts/evm-rules/lean/lakefile.toml', 'scripts/evm-rules/lean/lake-manifest.json', 'scripts/evm-rules/lean/lean-toolchain') }}
+          restore-keys: |
+            lean-v1-${{ runner.os }}-${{ runner.arch }}-
+      - name: Install Lean 4.34.1
         if: steps.select.outputs.run == 'true'
         run: |
-          curl --fail --location --retry 3 --silent --show-error \
-            https://github.com/cvc5/cvc5/releases/download/cvc5-1.2.0/cvc5-Linux-arm64-static.zip \
-            --output "$RUNNER_TEMP/cvc5.zip"
-          echo "142ac177af1ce37922308f69fe519d06e6cb4d0a62a312f28c25001e94c2fb56  $RUNNER_TEMP/cvc5.zip" | sha256sum --check
-          unzip -q "$RUNNER_TEMP/cvc5.zip" -d "$RUNNER_TEMP/cvc5"
-          echo "$RUNNER_TEMP/cvc5/cvc5-Linux-arm64-static/bin" >> "$GITHUB_PATH"
+          if [[ ! -f "$RUNNER_TEMP/lean.tar.zst" ]]; then
+            curl --fail --location --retry 3 --silent --show-error \
+              https://github.com/leanprover/lean4/releases/download/v4.34.1/lean-4.34.1-linux_aarch64.tar.zst \
+              --output "$RUNNER_TEMP/lean.tar.zst"
+          fi
+          echo "fdb974c2cdb4627e090d5d4007b913e09d13c4868720fb5594e22808b3de9e37  $RUNNER_TEMP/lean.tar.zst" | sha256sum --check
+          mkdir -p "$RUNNER_TEMP/lean"
+          tar --zstd -xf "$RUNNER_TEMP/lean.tar.zst" -C "$RUNNER_TEMP/lean" --strip-components=1
+          echo "$RUNNER_TEMP/lean/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/lean/bin/lean" --version
       - name: Verify rules
         if: steps.select.outputs.run == 'true'
         env:
           PROOF_AUDIT: ${{ (github.event_name == 'schedule' || inputs.proof-audit) && 'true' || 'false' }}
         run: bash .github/scripts/run_evm_proofs.sh
-      - name: Share successful query cache
+      - name: Share proved theorem cache
         if: steps.select.outputs.run == 'true' && github.event_name != 'schedule' && !inputs.proof-audit
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -195,15 +208,26 @@ jobs:
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: '24'
-      - name: Install cvc5 1.2.0
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ${{ runner.temp }}/lean.tar.zst
+            scripts/evm-rules/lean/.lake
+          key: lean-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/evm-rules/lean/**/*.lean', 'scripts/evm-rules/lean/lakefile.toml', 'scripts/evm-rules/lean/lake-manifest.json', 'scripts/evm-rules/lean/lean-toolchain') }}
+          restore-keys: |
+            lean-v1-${{ runner.os }}-${{ runner.arch }}-
+      - name: Install Lean 4.34.1
         run: |
-          curl --fail --location --retry 3 --silent --show-error \
-            https://github.com/cvc5/cvc5/releases/download/cvc5-1.2.0/cvc5-Linux-arm64-static.zip \
-            --output "$RUNNER_TEMP/cvc5.zip"
-          echo "142ac177af1ce37922308f69fe519d06e6cb4d0a62a312f28c25001e94c2fb56  $RUNNER_TEMP/cvc5.zip" | sha256sum --check
-          unzip -q "$RUNNER_TEMP/cvc5.zip" -d "$RUNNER_TEMP/cvc5"
-          echo "$RUNNER_TEMP/cvc5/cvc5-Linux-arm64-static/bin" >> "$GITHUB_PATH"
-          "$RUNNER_TEMP/cvc5/cvc5-Linux-arm64-static/bin/cvc5" --version
+          if [[ ! -f "$RUNNER_TEMP/lean.tar.zst" ]]; then
+            curl --fail --location --retry 3 --silent --show-error \
+              https://github.com/leanprover/lean4/releases/download/v4.34.1/lean-4.34.1-linux_aarch64.tar.zst \
+              --output "$RUNNER_TEMP/lean.tar.zst"
+          fi
+          echo "fdb974c2cdb4627e090d5d4007b913e09d13c4868720fb5594e22808b3de9e37  $RUNNER_TEMP/lean.tar.zst" | sha256sum --check
+          mkdir -p "$RUNNER_TEMP/lean"
+          tar --zstd -xf "$RUNNER_TEMP/lean.tar.zst" -C "$RUNNER_TEMP/lean" --strip-components=1
+          echo "$RUNNER_TEMP/lean/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/lean/bin/lean" --version
       - name: Python checks and tests
         run: bash scripts/check-python.sh
 

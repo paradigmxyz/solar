@@ -237,7 +237,7 @@ suite. The Aave harness is embedded in `../../testdata/projects/aave-l2-encoder.
 used by the cold-path workloads. Embedded Solidity sources retain their SPDX identifiers.
 
 `verified-words` is a synthetic workload in `../../testdata/runtime/VerifiedWords.sol`
-for the SMT-checked word rules. It measures mixed bitwise expressions and signed
+for the Lean-proved word rules. It measures mixed bitwise expressions and signed
 negation in hot loops, with edge-value return checks. Report its results
 separately from the pinned project corpus; it demonstrates targeted reductions,
 not a general advantage over solc.

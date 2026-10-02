@@ -1,10 +1,6 @@
-# /// script
-# requires-python = ">=3.14"
-# dependencies = ["z3-solver==4.16.0.0"]
-# ///
-"""Regression tests for the trusted word model, ISLE reader and discovery gate."""
+"""Regression tests for the Lean word model, ISLE reader and discovery gate."""
 
-import hashlib
+import functools
 import io
 import itertools
 import json
@@ -20,8 +16,6 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-import z3
-from evm_rules.artifacts import query_manifest, query_paths
 from evm_rules.discovery import (
     Cost,
     Prices,
@@ -34,6 +28,7 @@ from evm_rules.expr import MASK, MODULUS, SIGN, Cond, Expr, Unsupported, concret
 from evm_rules.isle import ISLE, Context, Rule, forms
 from evm_rules.late import execute as execute_late
 from evm_rules.lean import (
+    COMMANDS,
     OPERATIONS,
     PRELUDE,
     canonical,
@@ -45,37 +40,96 @@ from evm_rules.lean import (
 )
 from evm_rules.memory import MemoryAddresses
 from evm_rules.mining import abstract_patterns, mine
-from evm_rules.semantics import (
-    Model,
-    check,
-    check_z3,
-    partition_bits,
-    partition_shift,
-    portable_query,
-)
-from evm_rules.smt import verify_file, verify_late_file, verify_stack_file
-from evm_rules.solver import Cvc5, QueryCache, solve_query
-from lean_verify import (
-    DEFAULT_FILES,
+from evm_rules.prover import (
     LEAN_PROJECT,
     MANUAL_PROOFS,
+    Checker,
     job,
     lean_environment,
-    obligations,
     prove,
 )
-from replay import main as replay_main
-from replay import replay_query, replay_report
+from evm_rules.verification import DEFAULT_FILES, obligations, verify_files
 from verify import main
 
-# These tests check proof results, not solver performance. Leave headroom for
-# slower CI runners; timeout behavior is tested separately with controlled clocks.
+# These tests check proof results, not prover performance. Leave headroom for
+# slower CI runners.
 PROOF_TIMEOUT_MS = 30_000
-PARTITION_TIMEOUT_MS = 120_000
 
 
 def expression(op, *args):
     return Expr(op, tuple(Expr.const(a) if isinstance(a, int) else a for a in args))
+
+
+@functools.cache
+def lean_path():
+    """Build the Lean model once per run."""
+    return lean_environment()
+
+
+@functools.cache
+def shared_checker():
+    """One Lean checker for the whole run: it imports the model once."""
+    return Checker(lean_path())
+
+
+def tearDownModule():
+    if shared_checker.cache_info().currsize:
+        shared_checker().close()
+
+
+def check(lhs, rhs, assumptions=(), timeout_ms=PROOF_TIMEOUT_MS):
+    """Decide `assumptions → lhs = rhs` with the Lean model."""
+    return shared_checker().check(lhs, rhs, assumptions, timeout_ms)
+
+
+def verify_rules(path, *, processes=False, timeout_s=PROOF_TIMEOUT_MS // 1000):
+    """Verify one rule file; each rule's single proof result is merged into it.
+
+    By default the shared checker answers every theorem; `processes` checks each in
+    its own `lean` process, as the command line does.
+    """
+    with tempfile.TemporaryDirectory() as directory:
+        report = verify_files(
+            [path],
+            Path(directory),
+            lean_path(),
+            jobs=os.cpu_count() or 4,
+            timeout_s=timeout_s,
+            progress=None,
+            checker=None if processes else shared_checker(),
+        )["files"][0]
+    for rule in report["rules"]:
+        proofs = rule.get("proofs", [])
+        if len(proofs) == 1:
+            rule.update({k: v for k, v in proofs[0].items() if k != "status"})
+        if "error" in rule:
+            rule["reason"] = rule["error"]
+    return report
+
+
+def repr_rule(form):
+    """Print a read rule form back as ISLE source."""
+    if isinstance(form, str):
+        return form
+    return "(" + " ".join(repr_rule(part) for part in form) + ")"
+
+
+def bind(expr, values):
+    """Replace variables by constant words."""
+    if expr.op == "var":
+        return Expr.const(values[expr.args[0]]) if expr.args[0] in values else expr
+    if expr.op == "const":
+        return expr
+    return Expr(expr.op, tuple(bind(arg, values) for arg in expr.args))
+
+
+def lean_evaluates(expr, values, expected):
+    """Whether the Lean model evaluates `expr` at `values` to `expected`."""
+    closed = term(bind(expr, values))
+    reply = shared_checker().ask(
+        f"{COMMANDS}\n#guard {closed} == {hex(expected)}\n", 300
+    )
+    return reply is not None and reply[0]
 
 
 class MiningTests(unittest.TestCase):
@@ -144,7 +198,14 @@ fn @second(arg0: u256, arg1: u256) {
             prices = Prices("osaka")
             seeds = read_seeds(path, prices, ["x", "y", "z"])
             rules, stats = enumerate_rules(
-                prices, ["x"], ["not"], 1, 10, 5000, seeds=seeds
+                prices,
+                ["x"],
+                ["not"],
+                1,
+                10,
+                5000,
+                seeds=seeds,
+                checker=shared_checker(),
             )
         self.assertEqual(stats["seeds_proved"], 1)
         self.assertEqual(rules[0][1], Expr.var("x"))
@@ -202,13 +263,13 @@ class StackProofTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "stack_peephole.isle"
             path.write_text(source)
-            return verify_stack_file(path)
+            return verify_rules(path)
 
     def test_actual_compiled_stack_rules(self):
-        report = verify_stack_file(ISLE / "evm-ir/stack_peephole.isle")
+        report = verify_rules(ISLE / "evm-ir/stack_peephole.isle")
         self.assertEqual(len(report["rules"]), 7)
         self.assertTrue(all(r["status"] == "proved" for r in report["rules"]))
-        self.assertGreater(sum(len(r["variants"]) for r in report["rules"]), 900)
+        self.assertGreater(sum(r["variants"] for r in report["rules"]), 900)
 
     def test_wrong_depth_and_opcode_have_replayed_counterexamples(self):
         for source in (
@@ -217,7 +278,7 @@ class StackProofTests(unittest.TestCase):
         ):
             result = self.verify(source)["rules"][0]
             self.assertEqual(result["status"], "counterexample")
-            self.assertTrue(result["variants"][0]["replayed"])
+            self.assertTrue(result["proofs"][0]["replayed"])
 
     def test_equality_shuffle_requires_symmetric_operands(self):
         correct = "(rule (peep_pop (unprotected_last5 (opcode $DUP2) (opcode $EQ) (opcode $ISZERO) (opcode $SWAP1) (opcode $POP))) (rewrite 5 (Edit.RemoveFirstKeepTwo)))"
@@ -225,7 +286,7 @@ class StackProofTests(unittest.TestCase):
         wrong = correct.replace("$DUP2", "$DUP1")
         result = self.verify(wrong)["rules"][0]
         self.assertEqual(result["status"], "counterexample")
-        self.assertTrue(result["variants"][0]["replayed"])
+        self.assertTrue(result["proofs"][0]["replayed"])
 
     def test_unknown_effect_and_changed_extent_fail_closed(self):
         for source in (
@@ -242,17 +303,18 @@ class LateWordProofTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "late_word.isle"
             path.write_text(source)
-            return verify_late_file(path)
+            return verify_rules(path, processes=True)
 
     def test_compiled_mask_window_and_boundaries(self):
         report = self.verify((ISLE / "evm-ir/late_word.isle").read_text())
         result = report["rules"][0]
         self.assertTrue(all(r["status"] == "proved" for r in report["rules"]))
+        details = result["details"]
         self.assertEqual(
             (
-                result["minimum_stack"],
-                result["summary_before_peak"],
-                result["summary_after_peak"],
+                details["minimum_stack"],
+                details["summary_before_peak"],
+                details["summary_after_peak"],
             ),
             (0, 3, 2),
         )
@@ -297,7 +359,7 @@ class SemanticsTests(unittest.TestCase):
     def assert_evaluation(self, op, args, expected):
         expr = expression(op, *args)
         self.assertEqual(concrete(expr, {}), expected & MASK)
-        self.assertEqual(z3.simplify(Model().eval(expr)).as_long(), expected & MASK)
+        self.assertTrue(lean_evaluates(expr, {}, expected & MASK))
 
     def test_evm_boundaries(self):
         cases = [
@@ -346,431 +408,52 @@ class SemanticsTests(unittest.TestCase):
     def test_symbolic_zero_division(self):
         x = Expr.var("x")
         for op in ("div", "sdiv", "mod", "smod"):
-            result, _ = check(expression(op, x, 0), Expr.const(0))
+            result = check(expression(op, x, 0), Expr.const(0))
             self.assertEqual(result["status"], "proved", op)
-
-    def test_clz_model_matches_full_bit_scan(self):
-        value = z3.BitVec("value", 256)
-        scan = z3.BitVecVal(256, 256)
-        for bit in range(256):
-            scan = z3.If(
-                z3.Extract(bit, bit, value) != 0, z3.BitVecVal(255 - bit, 256), scan
-            )
-        compact = Model().eval(expression("clz", Expr.var("value")))
-        solver = z3.SolverFor("QF_BV")
-        solver.set(timeout=5000)
-        solver.add(compact != scan)
-        self.assertEqual(solver.check(), z3.unsat)
 
     def test_counterexample_replay(self):
         x = Expr.var("x")
-        result, _ = check(expression("shr", 1, expression("shl", 1, x)), x)
+        result = check(expression("shr", 1, expression("shl", 1, x)), x)
         self.assertEqual(result["status"], "counterexample")
         self.assertTrue(result["replayed"])
         self.assertNotEqual(result["lhs_value"], result["rhs_value"])
 
-    def test_unknown_never_proves(self):
-        x = Expr.var("x")
-        with patch.object(type(z3.Solver()), "check", side_effect=[z3.sat, z3.unknown]):
-            result, _ = check(x, x)
-        self.assertEqual(result["status"], "unknown")
-
-    def test_equality_query_preserves_preconditions(self):
-        x, y = Expr.var("x"), Expr.var("y")
-        model = Model()
-        lhs = expression("add", x, y)
-        # The identity is conditional on y == 0. Replay the exported query too.
-        result, query = check(lhs, x, [model.eval(y) == 0], model=model)
-        self.assertEqual(result["status"], "proved")
-        solver = z3.SolverFor("QF_BV")
-        solver.from_string(query)
-        self.assertEqual(solver.check(), z3.unsat)
-        # The counterexample must satisfy the guard after the solver reset.
-        result, _ = check(lhs, x, [model.eval(y) == 1], model=model)
-        self.assertEqual(result["status"], "counterexample")
-        self.assertEqual(int(result["inputs"]["y"], 16), 1)
-        self.assertTrue(result["replayed"])
-        # Contradictory guards cannot prove an identity vacuously.
-        result, query = check(
-            lhs, lhs, [model.eval(y) == 0, model.eval(y) == 1], model=model
-        )
-        self.assertEqual(result["status"], "inapplicable")
-        self.assertEqual(query, "")
-
     def test_unsupported_operations_fail(self):
         for op in ("sload", "mload", "call", "keccak256", "mystery"):
             with self.assertRaises(Unsupported):
-                Model().eval(expression(op, 0))
+                term(expression(op, 0))
         with self.assertRaises(Unsupported):
-            Model().eval(expression("add", 0))
+            term(expression("add", 0))
 
-    def test_symbolic_exponents_with_literal_bases_match_integer_pow(self):
-        exponent = Expr.var("exponent")
-        for base in (0, 1, 2, 3, SIGN, MASK):
-            expr = expression("exp", base, exponent)
-            term = Model().eval(expr)
-            for value in (0, 1, 2, 255, 256, SIGN, MASK):
-                result = z3.simplify(
-                    z3.substitute(
-                        term, (z3.BitVec("exponent", 256), z3.BitVecVal(value, 256))
-                    )
-                )
-                self.assertEqual(result.as_long(), concrete(expr, {"exponent": value}))
-
-    def test_specialization_requires_the_original_guards(self):
-        x = Expr.var("x")
-        result, query = check(x, x, model=Model({"x": 0}))
-        self.assertEqual(result["status"], "unsupported")
-        self.assertIn("not implied", result["reason"])
-        replay = z3.SolverFor("QF_BV")
-        replay.add(*z3.parse_smt2_string(query))
-        self.assertEqual(replay.check(), z3.sat)
-        result, _ = check(x, x, [z3.BitVec("x", 256) == 0], model=Model({"x": 0}))
-        self.assertEqual(result["status"], "proved")
-
-    def test_partition_preserves_specialization_obligations(self):
-        x, n = Expr.var("x"), Expr.var("n")
-        lhs = expression("shl", n, x)
-        result, _ = partition_shift(lhs, lhs, [], 5000, Model({"x": 0}))
-        self.assertEqual(result["status"], "unsupported")
-
-    def test_shift_partition_covers_large_counts(self):
-        x, y, n = map(Expr.var, ("x", "y", "n"))
-        lhs = expression("shl", n, expression("or", x, y))
-        rhs = expression("or", expression("shl", n, x), expression("shl", n, y))
-        result, queries = partition_shift(lhs, rhs, [], 5000, Model())
-        self.assertEqual(result["status"], "proved")
-        self.assertEqual(result["cases"], 257)
-        self.assertEqual(len(queries), 258)
-        # Masking the count is wrong precisely in the last, saturating partition.
-        lhs = expression("shr", n, x)
-        rhs = expression("shr", expression("and", n, 255), x)
-        result, _ = partition_shift(lhs, rhs, [], 5000, Model())
-        self.assertEqual(result["status"], "counterexample")
-        self.assertGreaterEqual(int(result["inputs"]["n"], 16), 256)
-        self.assertTrue(result["replayed"])
-
-    def test_incomplete_partition_never_proves(self):
-        x, n = Expr.var("x"), Expr.var("n")
-        lhs = expression("shl", n, x)
-        # Exhaust the budget before any query, or after coverage and one case.
-        for ticks, completed in (([0, 1], 0), ([0, 0, 0, 1], 2)):
-            with self.subTest(completed=completed):
-                with patch("evm_rules.semantics.time.monotonic", side_effect=ticks):
-                    result, queries = partition_shift(lhs, lhs, [], 500, Model())
-                self.assertEqual(result["status"], "unknown")
-                self.assertEqual(
-                    result["reason"], "word index partition budget exhausted"
-                )
-                self.assertEqual(len(queries), completed)
-
-    def test_guard_shift_partition_covers_power_of_two_divisors(self):
-        x, divisor, n = map(Expr.var, ("x", "divisor", "n"))
-        model = Model()
-        count = model.eval(n)
-        guards = [
-            z3.UGT(count, 0),
-            z3.ULT(count, 256),
-            model.eval(divisor) == model.eval(expression("shl", n, 1)),
-        ]
-        lhs = expression("mod", x, divisor)
-        rhs = expression("and", x, expression("sub", divisor, 1))
-        result, queries = partition_shift(lhs, rhs, guards, 5000, model)
-        self.assertEqual(result["status"], "proved")
-        self.assertEqual((result["cases"], len(queries)), (257, 258))
-        # The exponent is absent from both expressions and lives only in guards.
-        self.assertNotIn("n", lhs.variables() | rhs.variables())
-        # Keep the guard and original modulo in the independently replayable query.
-        self.assertIn("bvurem", queries[2][1])
-        self.assertIn("bvshl", queries[2][1])
-        # Without the upper bound, MAX is a counterexample in the final range.
-        result, _ = partition_shift(lhs, rhs, [guards[-1], count == MASK], 5000, model)
-        self.assertEqual(result["status"], "counterexample")
-        self.assertEqual(int(result["inputs"]["divisor"], 16), 0)
-        self.assertTrue(result["replayed"])
-
-    def test_multiple_indices_remain_independent(self):
-        x, a, b = map(Expr.var, ("x", "a", "b"))
-        lhs = expression("signextend", a, expression("shl", b, x))
-        result, queries = partition_shift(lhs, lhs, [], PARTITION_TIMEOUT_MS, Model())
-        self.assertEqual(result["status"], "proved", result)
-        # The 31 concrete byte indices leave b symbolic. Only the identity
-        # tail splits b into 256 concrete counts and its full saturating range.
-        self.assertEqual((result["cases"], len(queries)), (288, 289))
-        self.assertIn('"b"', queries[1][1])
-        self.assertIn('"a"', queries[32][1])
-        self.assertIn('"a"', queries[-1][1])
-        self.assertIn('"b"', queries[-1][1])
-        wrong = expression("signextend", a, expression("shl", a, x))
-        result, _ = partition_shift(lhs, wrong, [], PARTITION_TIMEOUT_MS, Model())
-        self.assertEqual(result["status"], "counterexample")
-        self.assertNotEqual(result["inputs"]["a"], result["inputs"]["b"])
-        self.assertTrue(result["replayed"])
-
-    def test_nested_index_tails_keep_large_inputs_and_guards(self):
-        x, a, b = map(Expr.var, ("x", "a", "b"))
-        lhs = expression("signextend", a, expression("shl", b, x))
-        both_max = expression(
-            "and", expression("eq", a, MASK), expression("eq", b, MASK)
+    def test_signextend_matches_the_shift_definition_at_every_index(self):
+        value = Expr.var("value")
+        for index in range(32):
+            # signextend(i, v) == sar(248 - 8i, shl(248 - 8i, v)) below 31
+            shift = Expr.const(248 - 8 * index) if index < 31 else None
+            expected = (
+                expression("sar", shift, expression("shl", shift, value))
+                if shift is not None
+                else value
+            )
+            with self.subTest(index=index):
+                result = check(expression("signextend", index, value), expected)
+                self.assertEqual(result["status"], "proved", result)
+        # Indices beyond the word, however large, are the identity.
+        index = Expr.var("index")
+        result = check(
+            expression("signextend", index, value),
+            value,
+            [Cond("uge", (index, Expr.const(31)))],
         )
-        wrong = expression("select", both_max, expression("xor", lhs, 1), lhs)
-        # Test all 289 queries independently of runner speed. Freeze only the
-        # aggregate deadline; each real Z3 check still has a five-second limit.
-        # test_incomplete_partition_never_proves covers budget exhaustion.
-        with patch("evm_rules.semantics.time.monotonic", return_value=0):
-            result, queries = partition_shift(lhs, wrong, [], 5000, Model())
-        self.assertEqual(result["status"], "counterexample", result)
-        self.assertEqual(len(queries), 289)
-        self.assertEqual(int(result["inputs"]["a"], 16), MASK)
-        self.assertEqual(int(result["inputs"]["b"], 16), MASK)
-        self.assertTrue(result["replayed"])
-        guard = z3.BitVec("a", 256) != z3.BitVecVal(MASK, 256)
-        with patch("evm_rules.semantics.time.monotonic", return_value=0):
-            result, queries = partition_shift(lhs, wrong, [guard], 5000, Model())
         self.assertEqual(result["status"], "proved", result)
-        self.assertEqual((result["cases"], len(queries)), (288, 289))
-        for _, query in queries:
-            solver = z3.SolverFor("QF_BV")
-            solver.set(timeout=5000)
-            solver.from_string(query)
-            self.assertEqual(solver.check(), z3.unsat)
-
-    def test_signextend_partition_keeps_the_whole_identity_range(self):
-        x, n = Expr.var("x"), Expr.var("n")
-        rhs = expression("signextend", n, x)
-        lhs = expression("signextend", n, rhs)
-        result, queries = partition_shift(lhs, rhs, [], PARTITION_TIMEOUT_MS, Model())
-        self.assertEqual(result["status"], "proved", result)
-        self.assertEqual(result["proof_method"], "exhaustive-word-index-partition")
-        self.assertEqual((result["cases"], len(queries)), (32, 33))
-        # The error exists only at MAX, not at the range's first index, 31.
-        wrong = expression(
-            "select", expression("eq", n, MASK), expression("not", rhs), rhs
-        )
-        result, _ = partition_shift(lhs, wrong, [], PARTITION_TIMEOUT_MS, Model())
-        self.assertEqual(result["status"], "counterexample", result)
-        self.assertEqual(int(result["inputs"]["n"], 16), MASK)
-        self.assertTrue(result["replayed"])
-
-    def test_shared_shift_and_signextend_index_uses_the_larger_boundary(self):
-        x, n = Expr.var("x"), Expr.var("n")
-        lhs = expression("shl", n, expression("signextend", n, x))
-        result, queries = partition_shift(lhs, lhs, [], 5000, Model())
-        self.assertEqual(result["status"], "proved")
-        self.assertEqual((result["cases"], len(queries)), (257, 258))
-
-    def test_signextend_encoding_matches_shift_definition_exhaustively(self):
-        index, value = z3.BitVecs("index value", 256)
-        shift = 248 - index * 8
-        old = z3.If(
-            z3.ULT(index, z3.BitVecVal(31, 256)), (value << shift) >> shift, value
-        )
-        new = Model.apply("signextend", (index, value))
-        cases = [index == n for n in range(31)] + [z3.UGE(index, 31)]
-        for condition in cases:
-            solver = z3.SolverFor("QF_BV")
-            solver.set(timeout=5000)
-            solver.add(condition, old != new)
-            self.assertEqual(solver.check(), z3.unsat, condition)
-        # Coverage itself must hold, independently of equality of the models.
-        solver = z3.SolverFor("QF_BV")
-        solver.add(z3.Not(z3.Or(cases)))
-        self.assertEqual(solver.check(), z3.unsat)
 
     def test_signextend_wrong_zero_extension_replays(self):
         value = Expr.var("value")
-        result, _ = check(
+        result = check(
             expression("signextend", 0, value), expression("and", value, 255)
         )
         self.assertEqual(result["status"], "counterexample")
         self.assertTrue(result["replayed"])
-
-
-class OutputBitPartitionTests(unittest.TestCase):
-    def test_parallel_partition_proves_every_bit(self):
-        x = Expr.var("x")
-        result, queries = partition_bits(x, x, [], 30000, Model(), jobs=2)
-        self.assertEqual(
-            result,
-            {
-                "status": "proved",
-                "proof_method": "exhaustive-output-bit-partition",
-                "bits": 256,
-            },
-        )
-        self.assertEqual(
-            [name for name, _ in queries], [f"bit-{i}" for i in range(256)]
-        )
-
-    def test_every_bit_keeps_the_original_guards_and_inputs(self):
-        x, y = map(Expr.var, ("x", "y"))
-        guards = [z3.BitVec("x", 256) == z3.BitVec("y", 256)]
-        result, queries = partition_bits(x, y, guards, 5000, Model())
-        self.assertEqual(
-            result,
-            {
-                "status": "proved",
-                "proof_method": "exhaustive-output-bit-partition",
-                "bits": 256,
-            },
-        )
-        self.assertEqual(
-            [name for name, _ in queries], [f"bit-{i}" for i in range(256)]
-        )
-        for _, query in queries:
-            self.assertIn('"x"', query)
-            self.assertIn('"y"', query)
-            solver = z3.SolverFor("QF_BV")
-            solver.add(*z3.parse_smt2_string(query))
-            self.assertEqual(solver.check(), z3.unsat)
-        # Removing the guard exposes a full-word, independently replayed witness.
-        result, _ = partition_bits(x, y, [], 5000, Model())
-        self.assertEqual(result["status"], "counterexample")
-        self.assertTrue(result["replayed"])
-
-    def test_last_bit_and_large_shift_counts_are_not_omitted(self):
-        x, n = map(Expr.var, ("x", "n"))
-        lhs = expression("shr", n, x)
-        wrong = expression(
-            "select", expression("eq", n, MASK), expression("xor", lhs, SIGN), lhs
-        )
-        result, queries = partition_bits(lhs, wrong, [], 30000, Model(), jobs=2)
-        self.assertEqual(len(queries), 256)
-        self.assertEqual(result["status"], "counterexample")
-        self.assertEqual(int(result["inputs"]["n"], 16), MASK)
-        self.assertTrue(result["replayed"])
-
-    def test_specialization_still_requires_guards(self):
-        x = Expr.var("x")
-        result, _ = partition_bits(x, x, [], 5000, Model({"x": 0}))
-        self.assertEqual(result["status"], "unsupported")
-        result, queries = partition_bits(
-            x, x, [z3.BitVec("x", 256) == 0], 5000, Model({"x": 0})
-        )
-        self.assertEqual(result["status"], "proved")
-        self.assertEqual(len(queries), 256)
-
-    def test_budget_exhaustion_keeps_a_partial_prefix_unproved(self):
-        x = Expr.var("x")
-        with patch("evm_rules.semantics.time.monotonic", side_effect=[0, 0, 1]):
-            result, queries = partition_bits(x, x, [], 500, Model())
-        self.assertEqual(result["status"], "unknown")
-        self.assertEqual(len(queries), 1)
-
-    def test_verifier_replaces_incomplete_index_partitions_with_all_bits(self):
-        with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "rules.isle"
-            path.write_text("(rule (simplify (Op.Add a (zero))) a)")
-            with (
-                patch(
-                    "evm_rules.smt.check",
-                    return_value=({"status": "unknown"}, "original-query"),
-                ),
-                patch(
-                    "evm_rules.smt.partition_shift",
-                    return_value=({"status": "unknown"}, [("case-0", "partial-query")]),
-                ),
-            ):
-                report = verify_file(
-                    path, 100, Path(directory) / "smt", bit_partition_timeout_ms=5000
-                )
-            rule = report["rules"][0]
-            self.assertEqual(rule["status"], "proved")
-            self.assertEqual(
-                len(query_paths({"files": [report]}, require_proved=True)), 256
-            )
-            self.assertTrue(all("-bit-" in name for name in rule["smt2"]))
-
-    def test_bits_never_hide_definitive_failures_or_unknown_applicability(self):
-        with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "rules.isle"
-            path.write_text("(rule (simplify (Op.Add a (zero))) a)")
-            for status, query in (
-                ("counterexample", "q"),
-                ("unsupported", "q"),
-                ("inapplicable", ""),
-                ("unknown", ""),
-            ):
-                with (
-                    self.subTest(status=status),
-                    patch(
-                        "evm_rules.smt.check", return_value=({"status": status}, query)
-                    ),
-                    patch("evm_rules.smt.partition_bits") as bits,
-                ):
-                    rule = verify_file(path, 100, bit_partition_timeout_ms=5000)[
-                        "rules"
-                    ][0]
-                    self.assertEqual(rule["status"], status)
-                    bits.assert_not_called()
-            for status in ("sat", "error"):
-                with (
-                    self.subTest(fallback=status),
-                    patch(
-                        "evm_rules.smt.check",
-                        return_value=({"status": "unknown"}, "q"),
-                    ),
-                    patch("evm_rules.smt.partition_bits") as bits,
-                ):
-                    fallback = SimpleNamespace(
-                        solve=lambda _, status=status: {"status": status}
-                    )
-                    rule = verify_file(
-                        path, 100, fallback=fallback, bit_partition_timeout_ms=5000
-                    )["rules"][0]
-                    self.assertEqual(rule["status"], "unknown")
-                    bits.assert_not_called()
-
-    def test_failed_bit_attempt_preserves_the_whole_query_and_fallback(self):
-        with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "rules.isle"
-            path.write_text("(rule (simplify (Op.Add a (zero))) a)")
-            fallback = SimpleNamespace(solve=lambda _: {"status": "timeout"})
-            with (
-                patch(
-                    "evm_rules.smt.check",
-                    return_value=({"status": "unknown"}, "whole-query"),
-                ),
-                patch(
-                    "evm_rules.smt.partition_bits",
-                    return_value=(
-                        {"status": "unknown"},
-                        [("bit-0", "partial-bit-query")],
-                    ),
-                ),
-            ):
-                rule = verify_file(
-                    path,
-                    100,
-                    Path(directory) / "smt",
-                    fallback=fallback,
-                    bit_partition_timeout_ms=5000,
-                )["rules"][0]
-            self.assertEqual(rule["status"], "unknown")
-            self.assertEqual(rule["fallback"]["status"], "timeout")
-            self.assertEqual(
-                [Path(name).read_text() for name in rule["smt2"]],
-                ["partial-bit-query", "whole-query"],
-            )
-
-    def test_manifest_rejects_missing_bits_and_shorter_word_widths(self):
-        queries = [f"bit-{i}.smt2" for i in range(256)]
-        rule = {
-            "status": "proved",
-            "proof_method": "exhaustive-output-bit-partition",
-            "bits": 256,
-            "smt2": queries,
-        }
-        self.assertEqual(
-            query_paths({"files": [{"rules": [rule]}]}, require_proved=True), queries
-        )
-        for bits, count in ((255, 255), (256, 255), (255, 256), (257, 256)):
-            rule.update(bits=bits, smt2=queries[:count])
-            with (
-                self.subTest(bits=bits, count=count),
-                self.assertRaisesRegex(ValueError, "256 output bits"),
-            ):
-                query_paths({"files": [{"rules": [rule]}]}, require_proved=True)
 
 
 class EnvironmentTests(unittest.TestCase):
@@ -786,10 +469,10 @@ class EnvironmentTests(unittest.TestCase):
             with self.subTest(line=rule.line):
                 cx = Context()
                 lhs, rhs = cx.obligation(rule)
-                self.assertEqual(
-                    check(lhs, rhs, cx.assumptions, 5000)[0]["status"],
-                    "proved",
-                )
+                # Lean relates the two reads through the rule's hand-written proof.
+                proof = (MANUAL_PROOFS / f"egraph_L{rule.line}.lean").read_text()
+                result = shared_checker().check(lhs, rhs, cx.assumptions, 30_000, proof)
+                self.assertEqual(result["status"], "proved", result)
                 # Dropping the low-bit guard must expose a different account balance.
                 broken = Rule(
                     tuple(
@@ -800,7 +483,7 @@ class EnvironmentTests(unittest.TestCase):
                 )
                 cx = Context()
                 lhs, rhs = cx.obligation(broken)
-                result, _ = check(lhs, rhs, cx.assumptions, 5000)
+                result = check(lhs, rhs, cx.assumptions, 5000)
                 self.assertEqual(result["status"], "counterexample")
                 self.assertTrue(result["replayed"])
 
@@ -814,18 +497,16 @@ class EnvironmentTests(unittest.TestCase):
         self.assertEqual(len(rules), 1)
         cx = Context()
         lhs, rhs = cx.obligation(rules[0])
-        result, query = check(lhs, rhs, cx.assumptions, 5000)
-        self.assertEqual(result["status"], "proved")
-        self.assertIn("(set-logic QF_ABV)", query)
-        self.assertIn("(Array (_ BitVec 160) (_ BitVec 256))", query)
-        solver = z3.SolverFor("QF_ABV")
-        solver.add(*z3.parse_smt2_string(query))
-        self.assertEqual(solver.check(), z3.unsat)
+        self.assertEqual(check(lhs, rhs, cx.assumptions)["status"], "proved")
+        self.assertIn(
+            "(«@environment:balances» : BitVec 160 → Word)",
+            theorem("t", lhs, rhs, simplify(cx.assumptions), "rfl"),
+        )
 
     def test_wrong_account_replays_the_snapshot(self):
         lhs = expression("balance", Expr.var("other"))
         rhs = expression("selfbalance")
-        result, _ = check(lhs, rhs)
+        result = check(lhs, rhs)
         self.assertEqual(result["status"], "counterexample")
         self.assertTrue(result["replayed"])
         state = result["environment"]
@@ -846,7 +527,7 @@ class EnvironmentTests(unittest.TestCase):
         address = Expr.var("account")
         lhs = expression("balance", address)
         rhs = expression("balance", expression("and", address, (1 << 160) - 1))
-        self.assertEqual(check(lhs, rhs)[0]["status"], "proved")
+        self.assertEqual(check(lhs, rhs)["status"], "proved")
         environment = {"address": 7, "balances": {7: MASK, (1 << 160) - 1: 19}}
         self.assertEqual(
             concrete(expression("balance", (1 << 160) + 7), {}, environment), MASK
@@ -858,25 +539,15 @@ class EnvironmentTests(unittest.TestCase):
 
     def test_nested_reads_collect_every_observed_account(self):
         lhs = expression("balance", expression("balance", Expr.var("account")))
-        result, _ = check(lhs, expression("not", lhs))
+        result = check(lhs, expression("not", lhs))
         self.assertEqual(result["status"], "counterexample")
         self.assertTrue(result["replayed"])
         self.assertIn("environment", result)
 
-    def test_array_queries_work_in_bit_and_shift_partitions(self):
-        lhs = expression(
-            "shl", Expr.var("n"), expression("balance", expression("address"))
-        )
-        rhs = expression("shl", Expr.var("n"), expression("selfbalance"))
-        for partition in (partition_bits, partition_shift):
-            result, queries = partition(lhs, rhs, [], 5000, Model())
-            self.assertEqual(result["status"], "proved")
-            self.assertTrue(any("QF_ABV" in query for _, query in queries))
-
     def test_state_changes_and_unknown_environment_operations_stay_unsupported(self):
         for op in ("call", "sstore", "selfdestruct", "origin"):
             with self.assertRaises(Unsupported):
-                Model().eval(expression(op))
+                term(expression(op))
         with self.assertRaises(Unsupported):
             concrete(expression("selfbalance"), {})
         with self.assertRaises(Unsupported):
@@ -897,18 +568,6 @@ class EnvironmentTests(unittest.TestCase):
         with self.assertRaisesRegex(Unsupported, "instruction roots"):
             Context().obligation(Rule(form, line, "nested.isle"))
 
-    def test_non_balance_array_sorts_and_uninterpreted_functions_are_rejected(self):
-        array = z3.Array("unsupported", z3.IntSort(), z3.BitVecSort(256))
-        solver = z3.Solver()
-        solver.add(z3.Select(array, 0) == 1)
-        with self.assertRaises(Unsupported):
-            portable_query(solver)
-        function = z3.Function("unknown", z3.BitVecSort(256), z3.BitVecSort(256))
-        solver = z3.Solver()
-        solver.add(function(z3.BitVecVal(0, 256)) == 1)
-        with self.assertRaises(Unsupported):
-            portable_query(solver)
-
 
 class CallEffectTests(unittest.TestCase):
     def call_rules(self):
@@ -927,7 +586,7 @@ class CallEffectTests(unittest.TestCase):
         for rule in rules:
             context = Context()
             lhs, rhs = context.obligation(rule)
-            result, _ = check(lhs, rhs, context.assumptions, 5000)
+            result = check(lhs, rhs, context.assumptions, 5000)
             self.assertEqual(result["status"], "proved")
 
     def test_changed_call_operands_are_counterexamples(self):
@@ -940,7 +599,7 @@ class CallEffectTests(unittest.TestCase):
                 )
                 context = Context()
                 lhs, rhs = context.obligation(changed)
-                result, _ = check(lhs, rhs, context.assumptions, 5000)
+                result = check(lhs, rhs, context.assumptions, 5000)
                 self.assertEqual(result["status"], "counterexample")
 
     def test_calls_cannot_be_removed_changed_or_nested(self):
@@ -973,7 +632,7 @@ class MemoryAddressTests(unittest.TestCase):
         for rule in rules:
             cx = Context()
             lhs, rhs = cx.obligation(rule)
-            result, _ = check(lhs, rhs, cx.assumptions, 5000)
+            result = check(lhs, rhs, cx.assumptions, 5000)
             self.assertEqual(result["status"], "proved", rule.line)
             # Removing the actual source guard must expose a nonzero header
             # or field offset, rather than implicitly assuming the rewrite.
@@ -982,19 +641,12 @@ class MemoryAddressTests(unittest.TestCase):
             )
             cx = Context()
             lhs, rhs = cx.obligation(unguarded)
-            result, _ = check(lhs, rhs, cx.assumptions, 5000)
+            result = check(lhs, rhs, cx.assumptions, 5000)
             self.assertEqual(result["status"], "counterexample", rule.line)
             self.assertTrue(result["replayed"])
 
     def assert_concrete_and_symbolic(self, value, values, expected):
-        term = Model().eval(value)
-        bindings = [
-            (z3.BitVec(name, 256), z3.BitVecVal(number, 256))
-            for name, number in values.items()
-        ]
-        self.assertEqual(
-            z3.simplify(z3.substitute(term, *bindings)).as_long(), expected
-        )
+        self.assertTrue(lean_evaluates(value, values, expected))
         self.assertEqual(concrete(value, values), expected)
 
     def test_data_headers_and_slice_payload_pointers(self):
@@ -1012,7 +664,7 @@ class MemoryAddressTests(unittest.TestCase):
                     )
         # Adding a header to a slice pointer is wrong, even for dynamic data.
         wrong = expression("add", object, cx.memory.data_offset(kind))
-        result, _ = check(value, wrong, cx.assumptions, 5000)
+        result = check(value, wrong, cx.assumptions, 5000)
         self.assertEqual(result["status"], "counterexample")
         self.assertEqual(int(result["inputs"][flag], 16), 1)
 
@@ -1027,7 +679,7 @@ class MemoryAddressTests(unittest.TestCase):
             )
         # Fields outside a struct's declared range have no valid projection.
         shape = cx.memory.layouts[layout]
-        result, _ = check(
+        result = check(
             value,
             value,
             [*cx.assumptions, Cond("eq", (field, shape.fields))],
@@ -1051,7 +703,7 @@ class MemoryAddressTests(unittest.TestCase):
                     stride = 32 if tag == 0 else words * 32
                     expected = (MASK + (32 if tag < 2 else 0) + i * stride) & MASK
                     self.assert_concrete_and_symbolic(value, values, expected)
-        result, _ = check(
+        result = check(
             value, value, [*cx.assumptions, Cond("eq", (shape.kind, Expr.const(3)))]
         )
         self.assertEqual(result["status"], "inapplicable")
@@ -1096,38 +748,7 @@ class RuleTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "rules.isle"
             path.write_text(source)
-            return verify_file(path, 5000)
-
-    def test_shards_cover_every_rule_once_and_keep_failures(self):
-        source = """(rule (rewrite (Op.Sub (bnot x) (bnot y))) (Op.Sub y x))
-(rule (rewrite (Op.Sub (bnot x) (bnot y))) (Op.Sub x y))
-(rule (rewrite (Op.And x x)) (Op.Add x (imm (u256 0))))"""
-        with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "rules.isle"
-            path.write_text(source)
-            whole = verify_file(path, 5000)
-            shards = [
-                verify_file(path, 5000, shard_index=i, shard_count=2) for i in range(2)
-            ]
-            identify = lambda rows: sorted(
-                (r["line"], r["rule_sha256"], r["status"]) for r in rows
-            )
-            self.assertEqual(
-                identify(whole["rules"]),
-                identify([r for s in shards for r in s["rules"]]),
-            )
-            self.assertEqual(shards[1]["rules"][0]["status"], "counterexample")
-            for i, shard in enumerate(shards):
-                self.assertEqual(
-                    shard["shard"], {"index": i, "count": 2, "total_rules": 3}
-                )
-                self.assertEqual(shard["source_sha256"], whole["source_sha256"])
-            for index, count in [(-1, 2), (2, 2), (0, 0), (0, 4)]:
-                with (
-                    self.subTest(index=index, count=count),
-                    self.assertRaises(ValueError),
-                ):
-                    verify_file(path, 5000, shard_index=index, shard_count=count)
+            return verify_rules(path)
 
     def test_actual_source_is_checked_after_edit(self):
         before = self.verify("(rule (rewrite (Op.Sub (bnot x) (bnot y))) (Op.Sub y x))")
@@ -1154,28 +775,20 @@ class RuleTests(unittest.TestCase):
           (if-let true (u256_eq c 2)) (Op.Add x (imm (u256 0))))""")
         self.assertEqual(report["rules"][0]["status"], "counterexample")
 
-    def test_exp_specializes_only_proved_guard_constants(self):
+    def test_exp_rules_state_any_exponent_and_wrong_ones_replay(self):
         source = """(rule (rewrite (Op.Exp a (iconst c)))
-          (if-let true (u256_eq c 2)) (Op.Mul a a))"""
+          (if-let true (u256_eq c 3)) (Op.Mul a a))"""
         rule = self.verify(source)["rules"][0]
-        self.assertEqual(rule["status"], "proved")
-        self.assertEqual(rule["constant_specializations"], {"c": "0x2"})
-        wrong = source.replace("u256_eq c 2", "u256_eq c 3").replace(
-            "(Op.Mul a a)", "(if-let true (u256_eq a 2)) (Op.Mul a a)"
-        )
-        rule = self.verify(wrong)["rules"][0]
         self.assertEqual(rule["status"], "counterexample")
         self.assertEqual(rule["inputs"]["c"], "0x3")
         self.assertTrue(rule["replayed"])
-        for changed in (
-            source.replace("(if-let true (u256_eq c 2))", ""),
-            source.replace("if-let true", "if-let false"),
-        ):
-            self.assertEqual(self.verify(changed)["rules"][0]["status"], "unsupported")
-        source = "(rule (simplify (Op.Exp (and a (one)) _)) a)"
-        rule = self.verify(source)["rules"][0]
-        self.assertEqual(rule["status"], "proved")
-        self.assertEqual(rule["constant_specializations"], {"a": "0x1"})
+        # Symbolic exponents are stated exactly; only their proofs need lemmas.
+        lhs, rhs, assumptions = lean_rule(
+            "(rule (simplify (Op.Exp (and a (one)) _)) a)"
+        )
+        self.assertIn(
+            "Evm.exp a «@fresh:1»", theorem("t", lhs, rhs, assumptions, "rfl")
+        )
 
     def test_i1_sign_extension_lowering(self):
         for bits in (160, 256):
@@ -1189,7 +802,7 @@ class RuleTests(unittest.TestCase):
             for bit in (0, 1):
                 assumptions = [Cond("eq", (value, Expr.const(bit)))]
                 for lowered in (shifted, multiply):
-                    result, _ = check(expected, lowered, assumptions, 5000)
+                    result = check(expected, lowered, assumptions, 5000)
                     self.assertEqual(
                         result["status"], "proved", (bits, bit, lowered, result)
                     )
@@ -1204,68 +817,14 @@ class RuleTests(unittest.TestCase):
             if form[0] == "rule"
         ]
         self.assertEqual(len(rules), 21)
-        for rule in rules:
-            with self.subTest(rule=rule.form):
-                cx = Context()
-                lhs, rhs = cx.obligation(rule)
-                model = Model()
-                assumptions = [model.condition(c) for c in cx.assumptions]
-                result, query = check(lhs, rhs, assumptions, PROOF_TIMEOUT_MS, model)
-                if result["status"] == "unknown" and query:
-                    result, _ = partition_shift(
-                        lhs, rhs, assumptions, PARTITION_TIMEOUT_MS, model
-                    )
-                self.assertEqual(result["status"], "proved", result)
-
-    def test_actual_compiled_exp_rules(self):
-        def uses_exp(node):
-            return (
-                node == "Op.Exp"
-                or isinstance(node, tuple)
-                and any(uses_exp(child) for child in node)
-            )
-
-        path = ISLE / "mir/egraph.isle"
-        rules = [
-            Rule(form, line, str(path))
-            for form, line in forms(path.read_text())
-            if form[0] == "rule" and uses_exp(form)
-        ]
-        self.assertEqual(len(rules), 5)
-        for rule in rules:
-            context = Context()
-            lhs, rhs = context.obligation(rule)
-            result, _ = check(lhs, rhs, context.assumptions)
-            self.assertEqual(result["status"], "proved", (rule.line, result))
-
-    def test_actual_power_of_two_remainder_rule(self):
-        def contains(node, atom):
-            return (
-                node == atom
-                or isinstance(node, tuple)
-                and any(contains(child, atom) for child in node)
-            )
-
-        path = ISLE / "mir/egraph.isle"
-        rules = [
-            Rule(form, line, str(path))
-            for form, line in forms(path.read_text())
-            if form[0] == "rule"
-            and contains(form, "Op.Mod")
-            and contains(form, "power_of_two_shift")
-        ]
-        self.assertEqual(len(rules), 1)
-        context = Context()
-        lhs, rhs = context.obligation(rules[0])
-        model = Model()
-        assumptions = [model.condition(c) for c in context.assumptions]
-        applicability = z3.SolverFor("QF_BV")
-        applicability.set(timeout=5000)
-        applicability.add(*assumptions)
-        self.assertEqual(applicability.check(), z3.sat)
-        result, queries = partition_shift(lhs, rhs, assumptions, 5000, model)
-        self.assertEqual(result["status"], "proved", (rules[0].line, result))
-        self.assertEqual((result["cases"], len(queries)), (257, 258))
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "casts.isle"
+            path.write_text("\n".join(repr_rule(rule.form) for rule in rules))
+            # One process per rule proves the slowest casts in parallel, with the
+            # SAT limit the command line uses.
+            report = verify_rules(path, processes=True, timeout_s=120)
+        for rule in report["rules"]:
+            self.assertEqual(rule["status"], "proved", rule)
 
     def test_actual_nested_signextend_rule(self):
         path = ISLE / "mir/egraph.isle"
@@ -1287,7 +846,7 @@ class RuleTests(unittest.TestCase):
         self.assertEqual(len(rules), 1)
         cx = Context()
         lhs, rhs = cx.obligation(rules[0])
-        result, _ = check(lhs, rhs, cx.assumptions, PROOF_TIMEOUT_MS)
+        result = check(lhs, rhs, cx.assumptions, PROOF_TIMEOUT_MS)
         self.assertEqual(result["status"], "proved", result)
 
     def test_shift_cancellation_requires_a_lossless_input(self):
@@ -1397,523 +956,14 @@ class RuleTests(unittest.TestCase):
         self.assertGreaterEqual(int(rule["inputs"]["index"], 16), 32)
 
 
-class ProofArtifactTests(unittest.TestCase):
-    def test_portable_names_preserve_sorts_and_avoid_collisions(self):
-        a = z3.BitVec("@fresh:1", 256)
-        b = z3.BitVec("solar_query_0", 256)
-        flag = z3.Bool("@fresh:1")
-        solver = z3.SolverFor("QF_BV")
-        solver.add(a == 1, b == 2, flag)
-        source = portable_query(solver)
-        self.assertTrue(source.startswith("(set-logic QF_BV)\n"))
-        self.assertNotIn("(declare-fun |@", source)
-        replay = z3.SolverFor("QF_BV")
-        replay.add(*z3.parse_smt2_string(source))
-        self.assertEqual(replay.check(), z3.sat)
-        # The live solver still uses the original witness names.
-        self.assertEqual(solver.check(), z3.sat)
-        self.assertEqual(solver.model().eval(a).as_long(), 1)
-        self.assertEqual(solver.model().eval(b).as_long(), 2)
-        solver.add(a == b)
-        replay.reset()
-        replay.add(*z3.parse_smt2_string(portable_query(solver)))
-        self.assertEqual(replay.check(), z3.unsat)
-
-    def test_forced_partition_records_coverage_and_all_counts(self):
-        with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "shift.isle"
-            path.write_text("(rule (rewrite (Op.Shl n x)) (Op.Shl n x))")
-            report = verify_file(
-                path, 5000, Path(directory) / "smt", partition_shifts=True
-            )
-            rule = report["rules"][0]
-            self.assertEqual(rule["status"], "proved")
-            self.assertEqual(rule["proof_method"], "exhaustive-shift-partition")
-            self.assertEqual(rule["cases"], 257)
-            self.assertEqual(len(rule["smt2"]), 258)
-            coverage = z3.SolverFor("QF_BV")
-            coverage.add(*z3.parse_smt2_file(rule["smt2"][0]))
-            self.assertEqual(coverage.check(), z3.unsat)
-            # Export the raw substituted obligation, not a pre-simplified false.
-            self.assertIn("bvshl", Path(rule["smt2"][2]).read_text())
-
-    def test_portable_comments_cannot_inject_commands(self):
-        solver = z3.SolverFor("QF_BV")
-        solver.add(z3.BitVec(".name\n(check-sat)", 256) == 1)
-        source = portable_query(solver)
-        self.assertEqual(source.count("\n(check-sat)"), 1)
-        replay = z3.SolverFor("QF_BV")
-        replay.add(*z3.parse_smt2_string(source))
-        self.assertEqual(replay.check(), z3.sat)
-
-    def test_manifest_includes_words_partitions_and_stack_variants(self):
-        report = {
-            "files": [
-                {
-                    "rules": [
-                        {"status": "proved", "smt2": ["word.smt2"]},
-                        {
-                            "status": "proved",
-                            "smt2": ["coverage.smt2", "case.smt2"],
-                            "proof_method": "exhaustive-shift-partition",
-                            "cases": 1,
-                        },
-                        {
-                            "status": "proved",
-                            "variants": [{"status": "proved", "query": "stack.smt2"}],
-                        },
-                    ]
-                }
-            ]
-        }
-        self.assertEqual(
-            query_paths(report, require_proved=True),
-            ["word.smt2", "coverage.smt2", "case.smt2", "stack.smt2"],
-        )
-        report["files"][0]["rules"][1]["smt2"].pop()
-        for method in ("exhaustive-shift-partition", "exhaustive-word-index-partition"):
-            report["files"][0]["rules"][1]["proof_method"] = method
-            with self.assertRaisesRegex(ValueError, "partition"):
-                query_paths(report, require_proved=True)
-
-    def test_incomplete_reports_never_replay_as_proved(self):
-        for rule in (
-            {"status": "unknown"},
-            {"status": "proved"},
-            {"status": "proved", "variants": []},
-            {"status": "proved", "variants": [{"status": "proved"}]},
-            {"status": "proved", "variants": [{"status": "unknown", "query": "x"}]},
-            {"status": "proved", "smt2": ["x", "x"]},
-            {
-                "status": "proved",
-                "smt2": ["x"],
-                "proof_method": "solver-fallback",
-                "fallback": {"status": "sat"},
-            },
-            {
-                "status": "proved",
-                "smt2": ["x", "y"],
-                "proof_method": "solver-fallback",
-                "fallback": {"status": "unsat"},
-            },
-        ):
-            with self.subTest(rule=rule), self.assertRaises(ValueError):
-                query_paths({"files": [{"rules": [rule]}]}, require_proved=True)
-        with self.assertRaises(ValueError):
-            query_paths({"files": []}, require_proved=True)
-        with self.assertRaises(ValueError):
-            query_paths({"files": [{"rules": []}]}, require_proved=True)
-
-    def test_replay_requires_unsat_and_successful_exit(self):
-        with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "query.smt2"
-            path.write_text("(set-logic QF_BV)\n(assert false)\n(check-sat)\n")
-            digest = hashlib.sha256(path.read_bytes()).hexdigest()
-            for output, code, expected in (
-                (b"unsat\n", 0, "unsat"),
-                (b"sat\n", 0, "sat"),
-                (b"unknown\n", 0, "unknown"),
-                (b"", 0, "error"),
-                (b"unsat\nunsat\n", 0, "error"),
-                (b"unsat\n", 1, "error"),
-                (b"unknown\n", 1, "error"),
-            ):
-                with patch(
-                    "replay.subprocess.run",
-                    return_value=subprocess.CompletedProcess([], code, output, b""),
-                ) as run:
-                    result = replay_query(str(path), digest, "cvc5", 100)
-                    self.assertEqual(run.call_count, 3 if expected == "unknown" else 1)
-                self.assertEqual(result["status"], expected)
-            with patch(
-                "replay.subprocess.run", side_effect=subprocess.TimeoutExpired([], 1)
-            ):
-                self.assertEqual(
-                    replay_query(str(path), digest, "cvc5", 100)["status"], "timeout"
-                )
-            with patch(
-                "replay.subprocess.run",
-                side_effect=[
-                    subprocess.TimeoutExpired([], 1),
-                    subprocess.CompletedProcess([], 0, b"unknown\n", b""),
-                    subprocess.CompletedProcess([], 0, b"unsat\n", b""),
-                ],
-            ):
-                result = replay_query(str(path), digest, "cvc5", 100)
-                self.assertEqual(
-                    [attempt["status"] for attempt in result["attempts"]],
-                    ["timeout", "unknown", "unsat"],
-                )
-                self.assertEqual(
-                    [attempt["flags"] for attempt in result["attempts"]],
-                    [["--bv-solver=bitblast-internal"], [], ["--solve-bv-as-int=sum"]],
-                )
-            path.write_text("(assert false)\n")
-            with patch("replay.subprocess.run") as run:
-                self.assertEqual(
-                    replay_query(str(path), digest, "cvc5", 100)["status"], "error"
-                )
-                run.assert_not_called()
-
-    def test_report_replay_checks_exact_manifest_and_hashes(self):
-        with tempfile.TemporaryDirectory() as directory:
-            query = Path(directory) / "query.smt2"
-            query.write_text("(set-logic QF_BV)\n(assert false)\n(check-sat)\n")
-            report = {
-                "schema": "solar:evm-word-rules@1",
-                "word_bits": 256,
-                "files": [{"rules": [{"status": "proved", "smt2": [str(query)]}]}],
-            }
-            report["query_sha256"] = query_manifest(report)
-            path = Path(directory) / "proofs.json"
-            path.write_text(json.dumps(report))
-
-            def run(command, **kwargs):
-                if command[-1] == "--version":
-                    return subprocess.CompletedProcess(
-                        command, 0, "cvc5 test version", ""
-                    )
-                self.assertEqual(kwargs["input"], query.read_bytes())
-                return subprocess.CompletedProcess(command, 0, b"unsat\n", b"")
-
-            with (
-                patch("replay.shutil.which", return_value="/test/cvc5"),
-                patch("replay.subprocess.run", side_effect=run),
-            ):
-                result = replay_report(path, jobs=1)
-            self.assertEqual(result["counts"], {"unsat": 1})
-            self.assertEqual(result["rule_count"], 1)
-            self.assertEqual(result["query_count"], 1)
-            self.assertEqual(
-                result["proof_report_sha256"],
-                hashlib.sha256(path.read_bytes()).hexdigest(),
-            )
-            report["query_sha256"]["extra.smt2"] = "0" * 64
-            path.write_text(json.dumps(report))
-            with self.assertRaisesRegex(ValueError, "exactly every"):
-                replay_report(path)
-
-    def test_replay_cli_fails_for_every_non_unsat_status(self):
-        for status in ("unsat", "sat", "unknown", "timeout", "error"):
-            with (
-                self.subTest(status=status),
-                tempfile.TemporaryDirectory() as directory,
-            ):
-                output = Path(directory) / "replay.json"
-                with (
-                    patch(
-                        "sys.argv",
-                        ["replay.py", "proofs.json", "--output", str(output)],
-                    ),
-                    patch(
-                        "replay.replay_report",
-                        return_value={"counts": {status: 1}, "queries": []},
-                    ),
-                    redirect_stdout(io.StringIO()),
-                ):
-                    code = replay_main()
-                self.assertEqual(code, 0 if status == "unsat" else 1)
-                self.assertEqual(json.loads(output.read_text())["counts"], {status: 1})
-
-
-class QueryCacheTests(unittest.TestCase):
-    def test_exported_queries_ignore_solver_allocation_history(self):
-        x, y = z3.BitVecs("cache_x cache_y", 256)
-        solver = z3.SolverFor("QF_BV")
-        solver.add(z3.If(y == 0, z3.BitVecVal(0, 256), z3.URem(x, y)) != x & (y - 1))
-        first = portable_query(solver)
-        # Keep unrelated ASTs alive so the second export allocates different IDs.
-        noise = [z3.BitVec(f"unrelated_{i}", 256) + i for i in range(100)]
-        self.assertEqual(portable_query(solver), first)
-        self.assertEqual(len(noise), 100)
-
-    def test_reuse_invalidates_query_solver_and_corruption(self):
-        with (
-            tempfile.TemporaryDirectory() as directory,
-            patch.dict(os.environ, SOLAR_PROOF_CACHE=directory),
-        ):
-            cache = QueryCache("query", {"name": "solver", "version": "one"})
-            self.assertFalse(cache.hit())
-            cache.save()
-            self.assertTrue(cache.hit())
-            self.assertFalse(
-                QueryCache("changed", {"name": "solver", "version": "one"}).hit()
-            )
-            self.assertFalse(
-                QueryCache("query", {"name": "solver", "version": "two"}).hit()
-            )
-            assert cache.path is not None
-            for content in ("{", "null", "{}", '{"status":"sat"}'):
-                cache.path.write_text(content)
-                self.assertFalse(cache.hit())
-            cache.save()
-            self.assertTrue(cache.hit())
-
-    def test_z3_reuses_unsat_but_keeps_live_counterexamples(self):
-        with (
-            tempfile.TemporaryDirectory() as directory,
-            patch.dict(os.environ, SOLAR_PROOF_CACHE=directory),
-        ):
-            x = z3.BitVec("cache_x", 256)
-            solver = z3.SolverFor("QF_BV")
-            solver.add(x + 1 != 1 + x)
-            self.assertEqual(check_z3(solver), z3.unsat)
-            with patch.object(
-                solver, "check", side_effect=AssertionError("cached query reached Z3")
-            ):
-                self.assertEqual(check_z3(solver), z3.unsat)
-            solver.reset()
-            solver.add(x == 1)
-            for _ in range(2):
-                self.assertEqual(check_z3(solver), z3.sat)
-                self.assertEqual(solver.model().eval(x).as_long(), 1)
-            self.assertEqual(len(list(Path(directory).rglob("*.json"))), 1)
-
-    def test_unknown_and_process_failures_are_never_cached(self):
-        with (
-            tempfile.TemporaryDirectory() as directory,
-            patch.dict(os.environ, SOLAR_PROOF_CACHE=directory),
-        ):
-            solver = z3.SolverFor("QF_BV")
-            solver.add(z3.Bool("unknown_query"))
-            with patch.object(solver, "check", return_value=z3.unknown) as run:
-                for _ in range(2):
-                    self.assertEqual(check_z3(solver), z3.unknown)
-                self.assertEqual(run.call_count, 2)
-            # Exercise the cvc5 adapter without requiring a local executable.
-            fallback = Cvc5.__new__(Cvc5)
-            fallback.metadata = {
-                "name": "cvc5",
-                "version": "test",
-                "executable": "unused",
-                "executable_sha256": "test",
-                "timeout_ms_per_strategy": 1,
-            }
-            for status in ("sat", "unknown", "timeout", "error"):
-                with patch(
-                    "evm_rules.solver.solve_query", return_value={"status": status}
-                ) as run:
-                    for _ in range(2):
-                        self.assertEqual(fallback.solve("query")["status"], status)
-                    self.assertEqual(run.call_count, 2)
-            with patch(
-                "evm_rules.solver.solve_query", return_value={"status": "unsat"}
-            ) as run:
-                self.assertEqual(fallback.solve("query")["status"], "unsat")
-                self.assertTrue(fallback.solve("query")["cache_hit"])
-                run.assert_called_once()
-            self.assertEqual(len(list(Path(directory).rglob("*.json"))), 1)
-
-    def test_cached_rule_edit_still_finds_counterexample(self):
-        with (
-            tempfile.TemporaryDirectory() as directory,
-            patch.dict(os.environ, SOLAR_PROOF_CACHE=str(Path(directory) / "cache")),
-        ):
-            path = Path(directory) / "rules.isle"
-            source = "(rule (simplify (Op.Add a (zero))) a)"
-            path.write_text(source)
-            first = verify_file(path, 1000)["rules"][0]
-            self.assertEqual(first["status"], "proved")
-            self.assertEqual(verify_file(path, 1000)["rules"][0], first)
-            path.write_text("(rule (simplify (Op.Add a (one))) a)")
-            result = verify_file(path, 1000)["rules"][0]
-            self.assertEqual(result["status"], "counterexample")
-            self.assertTrue(result["replayed"])
-
-
-class SolverFallbackTests(unittest.TestCase):
-    def test_only_complete_unsat_query_can_replace_partial_partitions(self):
-        source = "(rule (simplify (Op.Add a (zero))) a)"
-        original = "(set-logic QF_BV)\n(assert false)\n(check-sat)\n"
-        for status in ("unsat", "sat", "unknown", "timeout", "error"):
-            with (
-                self.subTest(status=status),
-                tempfile.TemporaryDirectory() as directory,
-            ):
-                path = Path(directory) / "rules.isle"
-                path.write_text(source)
-
-                def solve(query, status=status):
-                    self.assertEqual(query, original)
-                    return {
-                        "status": status,
-                        "solver": {"name": "cvc5"},
-                        "query_sha256": hashlib.sha256(query.encode()).hexdigest(),
-                    }
-
-                with (
-                    patch(
-                        "evm_rules.smt.check",
-                        return_value=({"status": "unknown"}, original),
-                    ),
-                    patch(
-                        "evm_rules.smt.partition_shift",
-                        return_value=(
-                            {"status": "unknown"},
-                            [("case-0", "partial-query")],
-                        ),
-                    ),
-                ):
-                    report = verify_file(
-                        path,
-                        100,
-                        Path(directory) / "smt",
-                        fallback=SimpleNamespace(solve=solve),
-                    )
-                rule = report["rules"][0]
-                self.assertEqual(
-                    rule["status"], "proved" if status == "unsat" else "unknown"
-                )
-                queries = [Path(p).read_text() for p in rule["smt2"]]
-                self.assertEqual(
-                    queries,
-                    [original] if status == "unsat" else ["partial-query", original],
-                )
-                if status == "unsat":
-                    self.assertEqual(rule["proof_method"], "solver-fallback")
-                    self.assertEqual(
-                        query_paths({"files": [report]}, require_proved=True),
-                        rule["smt2"],
-                    )
-
-    def test_fallback_never_overrides_a_counterexample_or_inapplicability(self):
-        for status in ("counterexample", "inapplicable", "unsupported"):
-            with (
-                self.subTest(status=status),
-                tempfile.TemporaryDirectory() as directory,
-            ):
-                path = Path(directory) / "rules.isle"
-                path.write_text("(rule (simplify (Op.Add a (zero))) a)")
-
-                def forbidden(query):
-                    self.fail("fallback must not override a definitive failure")
-
-                with patch(
-                    "evm_rules.smt.check", return_value=({"status": status}, "query")
-                ):
-                    rule = verify_file(
-                        path, 100, fallback=SimpleNamespace(solve=forbidden)
-                    )["rules"][0]
-                self.assertEqual(rule["status"], status)
-
-    def test_fallback_does_not_prove_unknown_applicability(self):
-        with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "rules.isle"
-            path.write_text("(rule (simplify (Op.Add a (zero))) a)")
-
-            def forbidden(query):
-                self.fail("no equality query exists until applicability is established")
-
-            with patch("evm_rules.smt.check", return_value=({"status": "unknown"}, "")):
-                rule = verify_file(
-                    path, 100, fallback=SimpleNamespace(solve=forbidden)
-                )["rules"][0]
-            self.assertEqual(rule["status"], "unknown")
-
-    def test_nonzero_result_exit_cannot_be_retried_as_timeout(self):
-        for stdout in (b"sat\n", b"unsat\n", b"unknown\nunsat\n"):
-            with (
-                self.subTest(stdout=stdout),
-                patch(
-                    "evm_rules.solver.subprocess.run",
-                    return_value=subprocess.CompletedProcess(
-                        [], 1, stdout, b"cvc5 interrupted by timeout."
-                    ),
-                ) as run,
-            ):
-                self.assertEqual(solve_query(b"query", "cvc5", 100)["status"], "error")
-                run.assert_called_once()
-
-    def test_unknown_with_timeout_diagnostic_can_retry(self):
-        with patch(
-            "evm_rules.solver.subprocess.run",
-            side_effect=[
-                subprocess.CompletedProcess(
-                    [], -6, b"unknown\n", b"cvc5 interrupted by timeout."
-                ),
-                subprocess.CompletedProcess([], 0, b"unsat\n", b""),
-            ],
-        ) as run:
-            result = solve_query(b"original query", "cvc5", 100)
-        self.assertEqual(
-            [attempt["status"] for attempt in result["attempts"]], ["timeout", "unsat"]
-        )
-        self.assertTrue(
-            all(
-                call.kwargs["input"] == b"original query" for call in run.call_args_list
-            )
-        )
-
-    @unittest.skipUnless(
-        shutil.which("cvc5"), "cvc5 is optional for local verifier tests"
-    )
-    def test_actual_clz_rules_replay_with_cvc5(self):
-        def uses_clz(node):
-            return (
-                node == "clz"
-                or isinstance(node, tuple)
-                and any(uses_clz(child) for child in node)
-            )
-
-        path = ISLE / "mir/egraph.isle"
-        rules = [
-            Rule(form, line, str(path))
-            for form, line in forms(path.read_text())
-            if form[0] == "rule" and uses_clz(form)
-        ]
-        self.assertGreaterEqual(len(rules), 10)
-        fallback = Cvc5(timeout_ms=PROOF_TIMEOUT_MS)
-        for rule in rules:
-            with self.subTest(line=rule.line):
-                cx = Context()
-                lhs, rhs = cx.obligation(rule)
-                result, query = check(lhs, rhs, cx.assumptions, 1000)
-                self.assertIn(result["status"], ("proved", "unknown"), result)
-                self.assertTrue(query)
-                replay = fallback.solve(query)
-                self.assertEqual(replay["status"], "unsat", (rule.line, replay))
-
-    @unittest.skipUnless(
-        shutil.which("cvc5"), "cvc5 is optional for local verifier tests"
-    )
-    def test_actual_arithmetic_rules_with_cvc5_fallback(self):
-        def selected(node):
-            if not isinstance(node, tuple):
-                return node == "below_const"
-            return (
-                len(node) == 3
-                and node[0] in ("Op.Mod", "Op.SMod")
-                and node[1] == node[2]
-                or any(selected(child) for child in node)
-            )
-
-        path = ISLE / "mir/egraph.isle"
-        rules = [
-            Rule(form, line, str(path))
-            for form, line in forms(path.read_text())
-            if form[0] == "rule" and selected(form)
-        ]
-        self.assertEqual(len(rules), 8)
-        fallback = Cvc5(timeout_ms=PROOF_TIMEOUT_MS)
-        for rule in rules:
-            cx = Context()
-            lhs, rhs = cx.obligation(rule)
-            result, query = check(lhs, rhs, cx.assumptions, 1000)
-            if result["status"] == "unknown" and query:
-                result = fallback.solve(query)
-                self.assertEqual(result["status"], "unsat", (rule.line, result))
-            else:
-                self.assertEqual(result["status"], "proved", (rule.line, result))
-
-
 class CliTests(unittest.TestCase):
-    def test_negative_partition_budgets_are_rejected(self):
-        for option in ("--bit-partition-timeout-ms", "--index-partition-timeout-ms"):
+    def test_nonpositive_limits_are_rejected(self):
+        for option in ("--timeout-s", "--jobs"):
             with (
                 self.subTest(option=option),
                 patch(
                     "sys.argv",
-                    ["verify.py", "verify", "--output", "unused.json", option, "-1"],
+                    ["verify.py", "verify", "--output", "unused.json", option, "0"],
                 ),
                 redirect_stderr(io.StringIO()),
                 self.assertRaises(SystemExit) as error,
@@ -1922,50 +972,63 @@ class CliTests(unittest.TestCase):
             self.assertEqual(error.exception.code, 2)
 
     def test_verification_status_and_failure_diagnostics(self):
-        for status in (
-            "proved",
-            "unknown",
-            "counterexample",
-            "unsupported",
-            "inapplicable",
-        ):
+        sources = {
+            "proved": "(rule (rewrite (Op.Sub (bnot x) (bnot y))) (Op.Sub y x))",
+            "counterexample": "(rule (rewrite (Op.Sub (bnot x) (bnot y))) (Op.Sub x y))",
+            "unsupported": "(rule (rewrite (Op.Unknown x)) (Op.Add x x))",
+            "inapplicable": """(rule (rewrite (Op.Sub x x)) (if-let false (u256_eq (u256 1) 1))
+             (Op.Add x (imm (u256 0))))""",
+        }
+        for status, source in sources.items():
             with (
                 self.subTest(status=status),
                 tempfile.TemporaryDirectory() as directory,
             ):
+                path = Path(directory) / "rules.isle"
+                path.write_text(source)
                 output = Path(directory) / "proofs.json"
-                rule = {"line": 84, "status": status}
-                if status == "unknown":
-                    rule["reason"] = "timeout"
-                files = {"source": "rules.isle", "rules": [rule]}
+                cache = Path(directory) / "cache"
                 stdout, stderr = io.StringIO(), io.StringIO()
+                argv = [
+                    "verify.py",
+                    "verify",
+                    str(path),
+                    "--output",
+                    str(output),
+                    "--work-dir",
+                    str(Path(directory) / "work"),
+                    "--cache-dir",
+                    str(cache),
+                    "--timeout-s",
+                    "30",
+                ]
                 with (
-                    patch(
-                        "sys.argv",
-                        [
-                            "verify.py",
-                            "verify",
-                            "rules.isle",
-                            "--output",
-                            str(output),
-                            "--index-partition-timeout-ms",
-                            "30000",
-                        ],
-                    ),
-                    patch("verify.verify_file", return_value=files) as verify,
+                    patch("sys.argv", argv),
                     redirect_stdout(stdout),
                     redirect_stderr(stderr),
                 ):
                     code = main()
-                self.assertEqual(verify.call_args.args[1], 5000)
-                self.assertEqual(verify.call_args.args[6], 30000)
                 self.assertEqual(code, 0 if status == "proved" else 1)
-                reason = ": timeout" if status == "unknown" else ""
-                expected = (
-                    "" if status == "proved" else f"rules.isle:84: {status}{reason}\n"
+                if status == "proved":
+                    self.assertEqual(stderr.getvalue(), "")
+                    # A second run reuses the proved theorem.
+                    with (
+                        patch("sys.argv", argv),
+                        redirect_stdout(io.StringIO()),
+                        redirect_stderr(io.StringIO()),
+                    ):
+                        self.assertEqual(main(), 0)
+                    report = json.loads(output.read_text())
+                    proof = report["files"][0]["rules"][0]["proofs"][0]
+                    self.assertTrue(proof["cached"])
+                else:
+                    self.assertTrue(
+                        stderr.getvalue().startswith(f"{path}:1: {status}"),
+                        stderr.getvalue(),
+                    )
+                self.assertEqual(
+                    json.loads(stdout.getvalue().splitlines()[-1]), {status: 1}
                 )
-                self.assertEqual(stderr.getvalue(), expected)
-                self.assertEqual(json.loads(stdout.getvalue()), {status: 1})
                 self.assertEqual(json.loads(output.read_text())["counts"], {status: 1})
 
 
@@ -1974,7 +1037,14 @@ class DiscoveryTests(unittest.TestCase):
         x, y = Expr.var("x"), Expr.var("y")
         seed = expression("sub", expression("or", x, y), expression("and", x, y))
         rules, summary = enumerate_rules(
-            Prices("osaka"), ["x", "y"], ["xor"], 1, 20, 5000, seeds=[seed]
+            Prices("osaka"),
+            ["x", "y"],
+            ["xor"],
+            1,
+            20,
+            5000,
+            seeds=[seed],
+            checker=shared_checker(),
         )
         self.assertIn(
             (seed, expression("xor", x, y)), [(lhs, rhs) for lhs, rhs, _, _ in rules]
@@ -1995,23 +1065,24 @@ class DiscoveryTests(unittest.TestCase):
             5000,
             initial_samples=initial,
             seeds=[seed],
+            checker=shared_checker(),
         )
         self.assertFalse(any(lhs == seed for lhs, _, _, _ in rules))
         self.assertGreater(summary["counterexamples"], 0)
         self.assertGreater(summary["samples"], 1)
         self.assertEqual(initial, [{"x": 0}])
-        with patch(
-            "evm_rules.discovery.check", return_value=({"status": "unknown"}, "")
-        ):
-            rules, summary = enumerate_rules(
-                Prices("osaka"),
-                ["x"],
-                ["not"],
-                1,
-                20,
-                5000,
-                seeds=[expression("not", expression("not", x))],
-            )
+        # A checker that never decides leaves the seed unresolved.
+        unknown = SimpleNamespace(check=lambda *_, **__: {"status": "unknown"})
+        rules, summary = enumerate_rules(
+            Prices("osaka"),
+            ["x"],
+            ["not"],
+            1,
+            20,
+            5000,
+            seeds=[expression("not", expression("not", x))],
+            checker=unknown,
+        )
         self.assertFalse(rules)
         self.assertGreater(summary["unknown"], 0)
 
@@ -2093,7 +1164,15 @@ class DiscoveryTests(unittest.TestCase):
     def test_search_bounds_and_variable_validation(self):
         for variables in (["x", "x"], ["_"], ["true"], ["x)"]):
             with self.assertRaises(ValueError):
-                enumerate_rules(Prices("osaka"), variables, ["not"], 1, 20, 5000)
+                enumerate_rules(
+                    Prices("osaka"),
+                    variables,
+                    ["not"],
+                    1,
+                    20,
+                    5000,
+                    checker=shared_checker(),
+                )
 
     def test_cheaper_proved_representative_survives(self):
         rules, _ = enumerate_rules(
@@ -2104,6 +1183,7 @@ class DiscoveryTests(unittest.TestCase):
             1000,
             5000,
             include_constants=True,
+            checker=shared_checker(),
         )
         self.assertTrue(any(rhs.op == "not" for _, rhs, _, _ in rules))
 
@@ -2124,7 +1204,14 @@ class DiscoveryTests(unittest.TestCase):
 
     def test_sampling_collision_requires_smt_and_refines(self):
         _, summary = enumerate_rules(
-            Prices("osaka"), ["x"], ["not"], 1, 20, 5000, initial_samples=[{"x": 0}]
+            Prices("osaka"),
+            ["x"],
+            ["not"],
+            1,
+            20,
+            5000,
+            initial_samples=[{"x": 0}],
+            checker=shared_checker(),
         )
         self.assertGreater(summary["counterexamples"], 0)
         self.assertGreater(summary["samples"], 1)
@@ -2136,7 +1223,7 @@ class DiscoveryTests(unittest.TestCase):
         form, line = forms(emit_rule(lhs, rhs))[0]
         context = Context()
         actual_lhs, actual_rhs = context.obligation(Rule(form, line, "generated"))
-        result, _ = check(actual_lhs, actual_rhs, context.assumptions)
+        result = check(actual_lhs, actual_rhs, context.assumptions)
         self.assertEqual(result["status"], "proved")
 
     def test_multi_operation_discovery_and_emission(self):
@@ -2148,6 +1235,7 @@ class DiscoveryTests(unittest.TestCase):
             500,
             5000,
             max_rhs_ops=2,
+            checker=shared_checker(),
         )
         recipes = [(lhs, rhs) for lhs, rhs, _, _ in rules if rhs.operators() == 2]
         self.assertTrue(recipes)
@@ -2157,7 +1245,7 @@ class DiscoveryTests(unittest.TestCase):
             context = Context()
             left, right = context.obligation(Rule(form, line, "generated"))
             self.assertEqual(
-                check(left, right, context.assumptions)[0]["status"],
+                check(left, right, context.assumptions)["status"],
                 "proved",
             )
 
@@ -2174,13 +1262,20 @@ class DiscoveryTests(unittest.TestCase):
             context = Context()
             left, right = context.obligation(Rule(form, line, "generated"))
             self.assertEqual(
-                check(left, right, context.assumptions)[0]["status"],
+                check(left, right, context.assumptions)["status"],
                 expected,
             )
         self.assertIn((1 << 160) - 1, Prices("osaka").constants)
         with self.assertRaises(ValueError):
             enumerate_rules(
-                Prices("osaka"), ["x"], ["and"], 2, 20, 5000, constants=[123456789]
+                Prices("osaka"),
+                ["x"],
+                ["and"],
+                2,
+                20,
+                5000,
+                constants=[123456789],
+                checker=shared_checker(),
             )
 
     def test_specialized_inputs_keep_canonical_constant_results(self):
@@ -2193,6 +1288,7 @@ class DiscoveryTests(unittest.TestCase):
             5000,
             include_constants=True,
             constants=[255],
+            checker=shared_checker(),
         )
         self.assertTrue(
             any(lhs.variables() and rhs == Expr.const(0) for lhs, rhs, _, _ in rules)
@@ -2274,11 +1370,12 @@ class LeanStatementTests(unittest.TestCase):
         self.assertEqual(canonical(double_not("s3")), canonical(double_not("s7")))
         self.assertEqual(canonical(double_not("s7")).variables(), {"s0"})
 
-    def test_the_lean_lane_imports_no_solver(self):
+    def test_the_tools_import_no_smt_solver(self):
         script = (
-            "import sys; sys.modules['z3'] = None; import lean_verify; "
-            "print(sum(len(e.get('theorems', [])) for path in lean_verify.DEFAULT_FILES "
-            "for e in lean_verify.obligations(path)))"
+            "import sys; sys.modules['z3'] = None; import verify; "
+            "from evm_rules.verification import DEFAULT_FILES, obligations; "
+            "print(sum(len(e.get('theorems', [])) for path in DEFAULT_FILES "
+            "for e in obligations(path)))"
         )
         process = subprocess.run(
             [sys.executable, "-c", script],
