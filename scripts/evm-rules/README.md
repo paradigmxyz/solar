@@ -218,6 +218,81 @@ all rule preconditions, and unsatisfiable preconditions still fail verification.
 CI uploads the report and SMT queries only when this job fails, retaining them
 for seven days to diagnose failures and replay the exact solver queries.
 
+## Lean proofs
+
+An experimental lane proves the same word obligations in Lean 4 instead of Z3
+and cvc5. It is not part of CI. `lean_verify.py` builds each rule's complete
+query exactly as `verify.py` does, before any index or output-bit
+partitioning, translates the portable SMT-LIB text into a Lean theorem, and
+checks it with the toolchain pinned in `lean/lean-toolchain`. Z3 only
+constructs the formulas; no SMT answer is used. Install
+[elan](https://github.com/leanprover/elan), which selects the pinned toolchain,
+then run from the repository root:
+
+```sh
+uv run scripts/evm-rules/lean_verify.py --jobs 10 --timeout-s 120 \
+  --work-dir target/evm-rules/lean --output target/evm-rules/lean.json
+```
+
+The default selection is every file CI verifies except `stack_peephole.isle`;
+pass ISLE paths to select others. The generated theorem states that the
+conjunction of a query's assertions is `false` for every value of its free
+constants, which holds exactly when the query is UNSAT. Operations keep
+SMT-LIB semantics: `bvudiv` maps to `BitVec.smtUDiv`, because Lean's `/`
+returns zero for a zero divisor; `bvurem` maps to `%`, and the signed forms to
+`smtSDiv`, `srem` and `smod`. Shared subterms stay `let`-bound. The balance
+array of a `QF_ABV` query becomes a universally quantified function from
+addresses to words. The translator rejects every other theory, uninterpreted
+functions and quantifiers; such a rule is reported unsupported, never proved.
+Regression tests pin the translation, prove SMT corner cases such as zero
+divisors and saturating shifts, and require false obligations to fail.
+
+Every theorem is proved by `bv_decide` unless `lean/proofs/` has a proof
+script named after it (`egraph_L454.lean` for the rule on line 454 of
+`egraph.isle`). The script is only the tactic block: its statement is still
+generated from the current rule, so a rule change that invalidates the proof
+fails the run. Hand-written proofs may use the lemmas in `lean/Helpers.lean`.
+Most rewrite the goal with Lean's `BitVec` library; a few first split a
+division or remainder on whether the dividend is below the divisor, hiding the
+other case behind a definition, so `bv_decide` checks a bound without
+bit-blasting a 256-bit divider. An abstracted term can only cause a spurious
+counterexample, never a false proof. Free constants keep their portable names
+(`solar_query_0` and so on); the statement of any rule is in
+`<work-dir>/<name>/Proof.lean` after a run. `--tactic` replaces the default
+`bv_decide` script for every other rule, and `--timeout-s` sets its SAT limit;
+each rule may run 30 seconds longer in total. `test.py` checks each
+hand-written proof against the current rule whenever `lean` is installed.
+
+`bv_decide` bit-blasts the goal, solves it with CaDiCaL and checks the
+solver's LRAT certificate with a verified checker evaluated through
+`Lean.ofReduceBool`, so it trusts Lean's compiler as well as its kernel, but
+not the SAT solver. A proof that avoids `bv_decide` is checked by the kernel
+alone. Both lanes still trust the Python model that turns ISLE rules into
+word formulas and Z3's construction and printing of those formulas; this lane
+adds its own SMT-LIB-to-Lean translation. The physical-stack rules in
+`stack_peephole.isle` have no word queries and are not covered.
+
+On 2026-10-02, with 10 jobs, a 120-second limit for Z3, cvc5 and the SAT
+solver, and 150 seconds in total per Lean rule, `bv_decide` alone proved 420
+of the 437 word rules; one of them takes 142 to 150 seconds and missed the
+limit in one of three runs. It cannot prove one balance rule, where it treats
+reads at two addresses that a guard makes equal as unrelated words, and it
+timed out on 16, among them `a % a => 0`. Hand-written proofs cover those 17
+and seven more that `bv_decide` needs 80 to 150 seconds for. With them, all
+437 rules proved in 184 seconds of wall time; no hand-written proof took more
+than 0.7 seconds, and the slowest remaining `bv_decide` proof took 47. CI's Z3
+and cvc5 configuration, run locally as its 13 workers, proved the same rules
+and the seven stack rules in 102 seconds.
+
+The Z3 4.16 and cvc5 1.2.0 executables, given the same whole queries, proved
+428 and 427 rules; `bv_decide` proved no rule that both missed. No automatic
+prover finished four e-graph rules as whole queries: `a / 2 ** k`,
+`a % 2 ** k`, and nested logical and arithmetic right shifts; CI proves them
+with Z3 index partitions or cvc5 output-bit queries. On the 416 rules all
+three proved, median times per rule were 0.01 seconds for Z3, 0.02 for cvc5
+and 0.63 for `bv_decide`, which includes starting Lean; the totals were 227,
+1,346 and 2,453 seconds.
+
 ## Semantics and trusted boundary
 
 Three semantic memory-object address projections are modeled under the selected
