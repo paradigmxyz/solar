@@ -196,9 +196,9 @@ applying the result.
 Build with `cargo check -p solar-codegen` to check rule types and overlaps,
 and add pass UI tests under the directories described below. Rules affecting
 execution also need runtime or differential coverage. The offline
-word-rule checker, replay tool, and their tests live together under
-`scripts/evm-rules/`; see its [guide](scripts/evm-rules/README.md) for commands
-and coverage limits. The checker must reject unsupported semantics rather
+word-rule checker, its Lean model and proofs, and their tests live together
+under `scripts/evm-rules/`; see its [guide](scripts/evm-rules/README.md) for
+commands and coverage limits. The checker must reject unsupported semantics rather
 than silently treating them as proved.
 
 ISLE expresses local matching and replacement, not whole optimization
@@ -294,14 +294,16 @@ Use uv from the repository root; the workspace shares `uv.lock` across
 `tools/compiler-diff` and `benches/analyze`.
 Run `bash scripts/check-python.sh` for formatting, lint, type checks, and all
 Python unit tests. The required `Python` CI job runs the same command.
-Node.js and cvc5 must be on PATH for the workflow and proof unit tests;
-use the versions configured in `.github/workflows/ci.yml`.
+Node.js and Lean must be on PATH for the workflow and proof unit tests;
+install Lean through elan, which selects the toolchain pinned in
+`scripts/evm-rules/lean/lean-toolchain`, and use the Node.js version configured in
+`.github/workflows/ci.yml`.
 These checks do not build the compilers or run live Fandango/Foundry differentials.
 Use `uv run --all-packages ruff format .` to format Python files.
 
 The proof CI job runs for changes to codegen or proof inputs, and on main.
-It checks all selected rules with parallel workers and reuses cached UNSAT
-queries. Scheduled and manual audits bypass the cache and replay with cvc5.
+It proves all selected rules in Lean with parallel workers and reuses cached
+proofs. Scheduled and manual audits bypass the cache.
 See the [proof guide](scripts/evm-rules/README.md) for local commands, cache
 sharing, audit controls, and failure artifacts.
 

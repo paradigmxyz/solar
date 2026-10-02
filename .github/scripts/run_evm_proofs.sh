@@ -9,68 +9,12 @@ if [[ "$audit" != true && "$audit" != false ]]; then
   exit 1
 fi
 unset SOLAR_PROOF_CACHE
-uv run scripts/evm-rules/verify.py --help >/dev/null
-
-prove() {
-  local suite="$1" shard="$2" shards="$3" directory="$4" timeout=5000 index_timeout=30000
-  if [[ "$suite" == word ]]; then
-    timeout=30000
-    index_timeout=120000
-  fi
-  local files=("mir/$suite")
-  local options=(--timeout-ms "$timeout" --index-partition-timeout-ms "$index_timeout" --fallback-solver cvc5
-    --bit-partition-timeout-ms 120000 --bit-partition-jobs 2)
-  if [[ "$audit" == true ]]; then
-    options+=(--partition-shifts)
-  else
-    options+=(--cache-dir "${PROOF_CACHE_DIR:-target/evm-proof-cache}")
-  fi
-  if [[ "$suite" == other ]]; then
-    files=(mir/word_sequence mir-to-evm/stack_select evm-ir/stack_peephole evm-ir/late_word)
-  fi
-  local inputs=()
-  for file in "${files[@]}"; do
-    if [[ -d "crates/codegen/isle/$file" ]]; then
-      inputs+=("crates/codegen/isle/$file")
-    else
-      inputs+=("crates/codegen/isle/$file.isle")
-    fi
-  done
-  uv run scripts/evm-rules/verify.py verify "${inputs[@]}" \
-    --shard-index "$shard" --shard-count "$shards" "${options[@]}" \
-    --output "$directory/proofs.json" --artifacts "$directory/smt"
-  if [[ "$audit" == true ]]; then
-    uv run scripts/evm-rules/replay.py "$directory/proofs.json" \
-      --jobs 2 --timeout-ms "$timeout" --output "$directory/cvc5.json"
-  fi
-}
-
-pids=()
-names=()
-for suite in word egraph other; do
-  case "$suite" in
-    word) shards=4 ;;
-    egraph) shards=8 ;;
-    other) shards=1 ;;
-  esac
-  for ((shard=0; shard<shards; shard++)); do
-    name="$suite-$shard"
-    mkdir -p "$output/$name"
-    printf 'Starting %s\n' "$name"
-    prove "$suite" "$shard" "$shards" "$output/$name" >"$output/$name/run.log" 2>&1 &
-    pids+=("$!")
-    names+=("$name")
-  done
-done
-
-status=0
-for i in "${!pids[@]}"; do
-  if wait "${pids[$i]}"; then
-    printf 'PASS %s\n' "${names[$i]}"
-  else
-    printf 'FAIL %s\n' "${names[$i]}"
-    status=1
-  fi
-  cat "$output/${names[$i]}/run.log"
-done
-exit "$status"
+options=()
+if [[ "$audit" != true ]]; then
+  options+=(--cache-dir "${PROOF_CACHE_DIR:-target/evm-proof-cache}")
+fi
+mkdir -p "$output"
+lean --version
+# Every selected rule is one Lean theorem, checked in its own process on every core.
+uv run scripts/evm-rules/verify.py verify ${options[@]+"${options[@]}"} \
+  --work-dir "$output/theorems" --output "$output/proofs.json"

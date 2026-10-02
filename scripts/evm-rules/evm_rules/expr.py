@@ -1,10 +1,9 @@
 """Solver-independent words, conditions and their integer semantics.
 
-Rules are read into these terms once. The SMT backend (`semantics.py`) and
-the Lean backend (`lean.py`) each give them a meaning: Z3 terms, or Lean
-terms over the definitions in `lean/EvmRules/Word.lean`. The integer
-evaluator here is a third, independent meaning that replays counterexamples
-and cross-checks both.
+Rules are read into these terms once. The Lean printer (`lean.py`) gives them
+a meaning as Lean terms over the definitions in `lean/EvmRules/Word.lean`.
+The integer evaluator here is a second, independent meaning that replays
+counterexamples and cross-checks the Lean model.
 
 Operand order is MIR / EVM pop order, including (amount, value) for shifts.
 Memory, storage, calls, exceptions, gas and CFG motion are outside this model.

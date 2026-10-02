@@ -1,24 +1,25 @@
 """State rule obligations as Lean theorems over the EVM semantics in `lean/EvmRules`.
 
 Words become `EvmRules.Word` terms built from the `Evm` definitions, and preconditions
-become hypotheses. A rule holds when its theorem `hypotheses → lhs = rhs` does. Z3
-plays no part: this reads the solver-independent terms of `expr.py` directly. Free
-Boolean flags that a rule forces to one value are substituted before the statement is
-printed, so hypotheses state only word properties.
+become hypotheses. A rule holds when its theorem `hypotheses → lhs = rhs` does. This
+reads the solver-independent terms of `expr.py` directly. Free Boolean flags that a rule
+forces to one value are substituted before the statement is printed, so hypotheses state
+only word properties.
 """
 
 import re
 
 from .expr import Cond, Expr, Unsupported
 
-PRELUDE = """import EvmRules
-
-open EvmRules
+# Commands every theorem needs once `EvmRules` is imported; the checker process has
+# already imported it.
+COMMANDS = """open EvmRules
 
 set_option maxHeartbeats 0
 set_option maxRecDepth 100000
 set_option linter.unusedVariables false
 """
+PRELUDE = "import EvmRules\n\n" + COMMANDS
 
 # Every word operation the semantics define, with its arity.
 OPERATIONS = {
@@ -275,7 +276,11 @@ def witness(output, variables):
     names = {lean_name(name): name for name in variables}
     values = {}
     for line in output.splitlines():
-        # Quoted names may contain spaces, so match the value at the end.
+        # An abstracted term continues on indented lines; only unindented lines
+        # assign variables. Quoted names may contain spaces, so match the value
+        # at the end.
+        if line[:1].isspace():
+            continue
         match = re.fullmatch(r"(.+?) = (?:(\d+)#\d+|(true|false))", line.strip())
         if match and match[1] in names:
             word, flag = match[2], match[3]
