@@ -20,10 +20,11 @@ import tempfile
 import time
 from pathlib import Path
 
+from evm_rules.expr import Unsupported
 from evm_rules.isle import ISLE, Context, Rule, forms
-from evm_rules.late import verify_late_file
 from evm_rules.lean import THEOREM_PRELUDE, UnsupportedQuery, theorem
-from evm_rules.semantics import Model, Unsupported, guarded_constants, portable_query
+from evm_rules.semantics import Model, guarded_constants, portable_query
+from evm_rules.smt import verify_late_file
 
 LEAN_PROJECT = Path(__file__).resolve().parent / "lean"
 # Hand-written proof scripts, by theorem name, for obligations `bv_decide` cannot finish,
@@ -43,17 +44,18 @@ def whole_query(rule):
     """Build the rule's complete UNSAT query as `semantics.check` does, without solving it."""
     context = Context()
     lhs, rhs = context.obligation(rule)
-    model = context.model
+    model = Model()
+    assumptions = [model.condition(c) for c in context.assumptions]
     try:
         left, right = model.eval(lhs), model.eval(rhs)
     except Unsupported:
-        constants = guarded_constants(context.assumptions)
+        constants = guarded_constants(assumptions)
         if not constants:
             raise
         model = Model(constants)
         left, right = model.eval(lhs), model.eval(rhs)
     solver = model.solver()
-    solver.add(*context.assumptions, model.difference(left, right))
+    solver.add(*assumptions, model.difference(left, right))
     return portable_query(solver)
 
 

@@ -15,11 +15,10 @@ from pathlib import Path
 import z3
 from evm_rules.artifacts import query_manifest
 from evm_rules.discovery import discover_rules
-from evm_rules.isle import ISLE, ROOT, verify_file
-from evm_rules.late import verify_late_file
+from evm_rules.isle import ISLE, ROOT
 from evm_rules.mining import mine
+from evm_rules.smt import verify_file, verify_late_file, verify_stack_file
 from evm_rules.solver import Cvc5
-from evm_rules.stack import verify_stack_file
 
 
 def main():
