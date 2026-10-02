@@ -261,6 +261,12 @@ offline seed trees. It checks zero iterations and
 wrapping inputs as well as hot loops. These targeted results are separate from
 the pinned project corpus and do not establish general superiority over solc.
 
+`division-words` uses `../../testdata/runtime/DivisionWords.sol` to measure
+checked products and quotients in hot loops: fixed-point scaling, fee routing,
+lot thresholds, week and period rounding and nested unit conversion. Return
+checks include the overflow limits of the scaled products and maximal
+timestamps. Report it separately from the pinned project corpus.
+
 The local `minimal-proxy` micro benchmark uses `../../testdata/MinimalProxy.sol`.
 Its payable high-level fallback delegates to an immutable implementation deployed
 by its constructor, using assembly only to forward revert data. Both gas profiles

@@ -524,6 +524,91 @@ TEST_CASES: Sequence[TestCase] = (
         ),
     ),
     TestCase(
+        test_id="division-words",
+        description="Synthetic fixed-point, lot and calendar division in hot loops",
+        source_code=(TESTDATA_ROOT / "runtime/DivisionWords.sol").read_text(),
+        source_path="testdata/runtime/DivisionWords.sol",
+        source_name="DivisionWords.sol",
+        contract_name="DivisionWords",
+        gas_calls=(
+            GasCall("route", "route(uint256,uint256)", (str(10**30), "64")),
+            GasCall(
+                "to-wad", "toWad(uint256,uint256,uint256)", (str(10**9), "12345", "64")
+            ),
+            GasCall("lots", "lots(uint256,uint256,uint256)", ("0", "100003", "64")),
+            GasCall(
+                "week-starts",
+                "weekStarts(uint256,uint256,uint256)",
+                ("1700000000", "86400", "64"),
+            ),
+            GasCall(
+                "period-starts",
+                "periodStarts(uint256,uint256,uint256)",
+                ("1700000000", "86400", "64"),
+            ),
+            GasCall(
+                "units",
+                "units(uint256,uint256,uint256)",
+                (str(10**18), str(10**17), "64"),
+            ),
+        ),
+        runtime_checks=(
+            RuntimeCheck(
+                "route", "route(uint256,uint256)(uint256)", (str(10**30), "64")
+            ),
+            RuntimeCheck(
+                "route-limit",
+                "route(uint256,uint256)(uint256)",
+                (str(((1 << 256) - 1) // 997), "1"),
+            ),
+            RuntimeCheck(
+                "to-wad-limit",
+                "toWad(uint256,uint256,uint256)(uint256)",
+                (str(((1 << 256) - 1) // 10**12), "0", "1"),
+            ),
+            RuntimeCheck(
+                "lots",
+                "lots(uint256,uint256,uint256)(uint256,uint256)",
+                ("0", "100003", "64"),
+            ),
+            RuntimeCheck(
+                "lots-edges",
+                "lots(uint256,uint256,uint256)(uint256,uint256)",
+                ("999999", "4001001", "2"),
+            ),
+            RuntimeCheck(
+                "week-starts",
+                "weekStarts(uint256,uint256,uint256)(uint256)",
+                ("1700000000", "86400", "64"),
+            ),
+            RuntimeCheck(
+                "week-starts-max",
+                "weekStarts(uint256,uint256,uint256)(uint256)",
+                (MAX_UINT256, "0", "1"),
+            ),
+            RuntimeCheck(
+                "period-starts",
+                "periodStarts(uint256,uint256,uint256)(uint256)",
+                ("1700000000", "86400", "64"),
+            ),
+            RuntimeCheck(
+                "period-starts-max",
+                "periodStarts(uint256,uint256,uint256)(uint256)",
+                (str((1 << 256) - 1 - 3600), "7", "1"),
+            ),
+            RuntimeCheck(
+                "units",
+                "units(uint256,uint256,uint256)(uint256)",
+                (str(10**18), str(10**17), "64"),
+            ),
+            RuntimeCheck(
+                "units-max",
+                "units(uint256,uint256,uint256)(uint256)",
+                (MAX_UINT256, "0", "1"),
+            ),
+        ),
+    ),
+    TestCase(
         test_id="compiler-optimizations",
         description="CFG scalars, range proofs, shared constants, and storage writes",
         source_code=(TESTDATA_ROOT / "runtime/CompilerOptimizations.sol").read_text(),
