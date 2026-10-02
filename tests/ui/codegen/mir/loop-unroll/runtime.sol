@@ -16,6 +16,13 @@
 //@ run-call: stepped 15 => 2198
 //@ run-call: stepped 100 => 1012392034723593925779857584
 //@ run-call: guarded 2, 0x5555555555555555555555555555555555555555555555555555555555555556 => 0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaac
+//@ run-call: squares 0 => 0
+//@ run-call: squares 1 => 1
+//@ run-call: squares 2 => 5
+//@ run-call: squares 3 => 14
+//@ run-call: squares 4 => 30
+//@ run-call: squares 5 => 55
+//@ run-call: squares 100 => 338350
 //@ run-call-fail: guarded 3, 0x8000000000000000000000000000000000000000000000000000000000000000 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
 //@ run-call-fail: guarded 4, 0x5555555555555555555555555555555555555555555555555555555555555556 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
 //@ run-call-fail: guarded 3, 0x5555555555555555555555555555555555555555555555555555555555555556 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
@@ -24,8 +31,8 @@
 // overflows that `guarded` reports happen in the second copy, the first copy,
 // and the original loop.
 // CHECK-LABEL: fn @entry()
-// `stepped` starts at five and steps by three; its body comes first in the
-// dispatcher, then `guarded` and `sum`, which count from zero.
+// The dispatcher orders the bodies `stepped`, `guarded`, `squares` and `sum`.
+// `stepped` starts at five and steps by three.
 // CHECK: [[I:v[0-9]+]] = phi [{{bb[0-9]+}}: 5], {{\[}}{{bb[0-9]+}}: {{v[0-9]+}}]
 // CHECK: [[I_AHEAD:v[0-9]+]] = add [[I]], 3
 // CHECK-NEXT: {{v[0-9]+}} = lt [[I_AHEAD]], {{v[0-9]+}}
@@ -34,10 +41,15 @@
 // CHECK: [[J_AHEAD:v[0-9]+]] = add [[J]], 1
 // CHECK-NEXT: {{v[0-9]+}} = lt [[J_AHEAD]], {{v[0-9]+}}
 // CHECK: phi [{{bb[0-9]+}}: [[J]]]
-// CHECK: [[K:v[0-9]+]] = phi [{{bb[0-9]+}}: 0], {{\[}}{{bb[0-9]+}}: {{v[0-9]+}}]
+// `squares` counts from one while `i <= n`.
+// CHECK: [[K:v[0-9]+]] = phi [{{bb[0-9]+}}: 1], {{\[}}{{bb[0-9]+}}: {{v[0-9]+}}]
 // CHECK: [[K_AHEAD:v[0-9]+]] = add [[K]], 1
-// CHECK-NEXT: {{v[0-9]+}} = lt [[K_AHEAD]], {{v[0-9]+}}
+// CHECK-NEXT: {{v[0-9]+}} = gt [[K_AHEAD]], {{v[0-9]+}}
 // CHECK: phi [{{bb[0-9]+}}: [[K]]]
+// CHECK: [[L:v[0-9]+]] = phi [{{bb[0-9]+}}: 0], {{\[}}{{bb[0-9]+}}: {{v[0-9]+}}]
+// CHECK: [[L_AHEAD:v[0-9]+]] = add [[L]], 1
+// CHECK-NEXT: {{v[0-9]+}} = lt [[L_AHEAD]], {{v[0-9]+}}
+// CHECK: phi [{{bb[0-9]+}}: [[L]]]
 contract LoopUnroll {
     function sum(uint256 n) external pure returns (uint256 s) {
         for (uint256 i; i < n; ++i) s += i * 3 + 1;
@@ -51,5 +63,9 @@ contract LoopUnroll {
 
     function guarded(uint256 n, uint256 x) external pure returns (uint256 s) {
         for (uint256 i; i < n; ++i) s += x;
+    }
+
+    function squares(uint256 n) external pure returns (uint256 s) {
+        for (uint256 i = 1; i <= n; ++i) s += i * i;
     }
 }

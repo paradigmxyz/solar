@@ -378,3 +378,49 @@ fn @variable_start_below(arg0: i256, arg1: i256) -> i256 {
   bb3:
     ret v1
 }
+
+// A loop that leaves once its counter passes the bound, `i <= n`, tests
+// `i + 1 > n` to leave the main loop.
+// CHECK-LABEL: {{^[ +].*}}fn @at_most{{[( ]}}
+// CHECK: + [[I:v[0-9]+]] = phi [bb0: 2], {{\[}}{{bb[0-9]+}}: {{v[0-9]+}}]
+// CHECK: + [[AHEAD:v[0-9]+]] = add [[I]], 1
+// CHECK-NEXT: + [[BEYOND:v[0-9]+]] = gt [[AHEAD]], arg0
+// CHECK-NEXT: + jumpi [[BEYOND]], bb1, {{bb[0-9]+}}
+fn @at_most(arg0: i256) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 2], [bb2: v4]
+    v1 = phi [bb0: 1], [bb2: v3]
+    v2 = gt v0, arg0
+    jumpi v2, bb3, bb2
+  bb2:
+    v3 = mul v1, v0
+    v4 = add v0, 1
+    jump bb1
+  bb3:
+    ret v1
+}
+
+// Leaving when the counter equals the bound is the `!=` loop with its branch
+// reversed.
+// CHECK-LABEL: {{^[ +].*}}fn @eq_exit{{[( ]}}
+// CHECK: + [[LEFT:v[0-9]+]] = sub arg1, {{v[0-9]+}}
+// CHECK-NEXT: + [[COUNT:v[0-9]+]] = shr 5, [[LEFT]]
+// CHECK-NEXT: + {{v[0-9]+}} = and [[COUNT]], 1
+fn @eq_exit(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: arg0], [bb2: v4]
+    v1 = phi [bb0: 0], [bb2: v3]
+    v2 = eq v0, arg1
+    jumpi v2, bb3, bb2
+  bb2:
+    v5 = mload v0
+    v3 = add v1, v5
+    v4 = add v0, 32
+    jump bb1
+  bb3:
+    ret v1
+}
