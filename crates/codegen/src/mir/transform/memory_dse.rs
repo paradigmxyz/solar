@@ -533,6 +533,8 @@ impl MemoryStoreEliminator {
             return;
         }
 
+        let heap_reads = self.fmp_stays_in_heap(func);
+
         // Backward fixpoint: live_in[b] = transfer(b, ∪ live_in[succ(b)]).
         //
         // The transfer is monotone over a lattice of bounded height
@@ -551,7 +553,7 @@ impl MemoryStoreEliminator {
         while let Some(block_id) = worklist.pop_front() {
             queued.remove(block_id);
             let out = Self::live_out(func, block_id, &live_in);
-            let new_in = self.transfer_block(func, block_id, out, &mut None);
+            let new_in = self.transfer_block(func, block_id, out, heap_reads, &mut None);
             if live_in[block_id] != new_in {
                 live_in[block_id] = new_in;
                 for &pred in &predecessors[block_id] {
@@ -567,7 +569,7 @@ impl MemoryStoreEliminator {
         for block_id in func.blocks.indices() {
             let out = Self::live_out(func, block_id, &live_in);
             let mut collector = Some(&mut dead);
-            self.transfer_block(func, block_id, out, &mut collector);
+            self.transfer_block(func, block_id, out, heap_reads, &mut collector);
         }
 
         if dead.is_empty() {
@@ -645,13 +647,14 @@ impl MemoryStoreEliminator {
         func: &Function,
         block: BlockId,
         mut live: MemLive,
+        heap_reads: bool,
         dead: &mut Option<&mut DenseBitSet<InstId>>,
     ) -> MemLive {
         // Terminator first: it executes after every instruction in the block.
         match func.blocks[block].terminator.as_ref() {
             Some(Terminator::Revert { offset, size })
             | Some(Terminator::ReturnData { offset, size }) => {
-                Self::mark_read(func, &mut live, *offset, *size);
+                Self::mark_read(func, &mut live, *offset, *size, heap_reads);
             }
             // A `return` value may be a memory pointer the caller dereferences
             // and a tail call forwards memory to its callee — keep all memory
@@ -694,19 +697,19 @@ impl MemoryStoreEliminator {
                 InstKind::Fmp | InstKind::Alloc { .. } => live.add_addr(EvmMemoryLayout::FMP_SLOT),
                 InstKind::SetFmp(_) => live.kill(EvmMemoryLayout::FMP_SLOT),
                 InstKind::Keccak256(offset, size) | InstKind::Log0(offset, size) => {
-                    Self::mark_read(func, &mut live, *offset, *size);
+                    Self::mark_read(func, &mut live, *offset, *size, heap_reads);
                 }
                 InstKind::Log1(offset, size, _) => {
-                    Self::mark_read(func, &mut live, *offset, *size);
+                    Self::mark_read(func, &mut live, *offset, *size, heap_reads);
                 }
                 InstKind::Log2(offset, size, _, _) => {
-                    Self::mark_read(func, &mut live, *offset, *size);
+                    Self::mark_read(func, &mut live, *offset, *size, heap_reads);
                 }
                 InstKind::Log3(offset, size, _, _, _) => {
-                    Self::mark_read(func, &mut live, *offset, *size);
+                    Self::mark_read(func, &mut live, *offset, *size, heap_reads);
                 }
                 InstKind::Log4(offset, size, _, _, _, _) => {
-                    Self::mark_read(func, &mut live, *offset, *size);
+                    Self::mark_read(func, &mut live, *offset, *size, heap_reads);
                 }
                 // Byte stores never fully define a word (so cannot make an
                 // earlier store dead) and read nothing: leave the set as is.
@@ -724,15 +727,22 @@ impl MemoryStoreEliminator {
     /// Marks the word-aligned slots a constant memory read `[offset, offset +
     /// size)` may observe as live; a non-constant or oversized range widens to
     /// all-memory-live.
-    fn mark_read(func: &Function, live: &mut MemLive, offset: ValueId, size: ValueId) {
+    fn mark_read(
+        func: &Function,
+        live: &mut MemLive,
+        offset: ValueId,
+        size: ValueId,
+        heap_reads: bool,
+    ) {
         if matches!(live, MemLive::All) {
             return;
         }
         let (Some(offset), Some(size)) = (func.value_u64(offset), func.value_u64(size)) else {
             // A read from a compiler-owned heap pointer never reaches the
             // reserved slots below the heap.
-            if AliasAnalysis::pointer_lower_bound(func, offset, 0)
-                .is_some_and(|bound| bound >= EvmMemoryLayout::HEAP_START)
+            if heap_reads
+                && AliasAnalysis::pointer_lower_bound(func, offset, 0)
+                    .is_some_and(|bound| bound >= EvmMemoryLayout::HEAP_START)
             {
                 live.add_heap();
             } else {
@@ -758,6 +768,52 @@ impl MemoryStoreEliminator {
             live.add_addr(word);
             word += 32;
         }
+    }
+
+    /// Returns whether every free-memory-pointer value in the function stays in the heap.
+    ///
+    /// ABI wrappers start from the entry's heap floor, since they run only from the
+    /// dispatcher. Inline assembly can still move the pointer into reserved memory, so
+    /// every write that may replace it must store a heap pointer or grow one.
+    ///
+    /// NOTE: a heap pointer plus any offset, as in an allocation bump `fmp + size` or a
+    /// write into an allocation, counts as staying in the heap. Only assembly that is not
+    /// memory-safe can wrap that sum below the heap.
+    fn fmp_stays_in_heap(&self, func: &Function) -> bool {
+        let bounded = |value| {
+            AliasAnalysis::pointer_lower_bound(func, value, 0)
+                .is_some_and(|bound| bound >= EvmMemoryLayout::HEAP_START)
+        };
+        let in_heap = |value| {
+            bounded(value)
+                || matches!(func.value(value), Value::Inst(inst)
+                    if matches!(func.inst(*inst).kind, InstKind::Add(a, b) if bounded(a) || bounded(b)))
+        };
+        func.attributes.is_abi_wrapper
+            && !func.attributes.is_constructor
+            && func.instructions().all(|inst_id| match func.inst(inst_id).kind {
+                InstKind::MStore(address, value)
+                    if func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT) =>
+                {
+                    in_heap(value)
+                }
+                InstKind::SetFmp(value) => in_heap(value),
+                // Writes from the heap up never reach the reserved slot.
+                InstKind::MStore(dest, _)
+                | InstKind::MStore8(dest, _)
+                | InstKind::MemoryZero(dest, _)
+                | InstKind::MCopy(dest, _, _)
+                | InstKind::CalldataCopy(dest, _, _)
+                | InstKind::CodeCopy(dest, _, _)
+                | InstKind::DataCopy(_, dest, _)
+                | InstKind::ReturnDataCopy(dest, _, _)
+                | InstKind::ExtCodeCopy(_, dest, _, _)
+                    if in_heap(dest) =>
+                {
+                    true
+                }
+                _ => !self.alias().instruction_may_reset_fmp(func, inst_id),
+            })
     }
 
     /// Returns a constant, 32-byte-aligned memory address, or `None` otherwise.

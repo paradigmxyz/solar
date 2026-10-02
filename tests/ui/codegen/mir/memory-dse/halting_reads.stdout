@@ -13,7 +13,7 @@
       invalid
   }
   
-  fn @fmp_store_before_heap_revert() {
+  fn @fmp_store_before_heap_revert() [abi_wrapper] {
     bb0:
       v0 = mload 64
       v1 = add v0, 32
@@ -23,7 +23,7 @@
       revert v0, 4
   }
   
-  fn @fmp_store_before_heap_return() {
+  fn @fmp_store_before_heap_return() [abi_wrapper] {
     bb0:
       v0 = mload 64
       v1 = add v0, 32
@@ -32,13 +32,13 @@
       returndata v0, 32
   }
   
-  fn @fmp_store_before_unknown_revert(arg0: i256) {
+  fn @fmp_store_before_unknown_revert(arg0: i256) [abi_wrapper] {
     bb0:
       mstore 64, 160
       revert arg0, 4
   }
   
-  fn @heap_read_after_branch(arg0: i1) {
+  fn @heap_read_after_branch(arg0: i1) [abi_wrapper] {
     bb0:
       v0 = mload 64
       v1 = add v0, 32
@@ -49,5 +49,21 @@
       returndata 0, 32
     bb1:
       revert v0, 32
+  }
+  
+  fn @arbitrary_fmp(arg0: i256) [abi_wrapper] {
+    bb0:
+      mstore 64, arg0
+      mstore 0, 1
+-     v0 = mload 64
+-     returndata v0, 32
++     returndata arg0, 32
+  }
+  
+  fn @internal_heap_return() {
+    bb0:
+      mstore 0, 1
+      v0 = mload 64
+      returndata v0, 32
   }
   

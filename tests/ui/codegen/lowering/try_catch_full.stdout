@@ -62,7 +62,11 @@ fn @full() [selector=0xd17b272f, abi_wrapper, view] {
     v149 = add v146, v145
     mcopy v146, v240, v142 !metadata(disjoint)
     v152 = sub v149, v266
+    v154 = add v152, 31
+    v156 = and v154, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v267 = mload 64 !metadata(memory=scratch)
+    v268 = add v267, v156
+    mstore 64, v268 !metadata(memory=scratch)
     returndata v267, v152
   bb6:
     v46 = add v240, 4
@@ -91,7 +95,11 @@ fn @full() [selector=0xd17b272f, abi_wrapper, view] {
     v117 = add v114, v113
     mcopy v114, v246, v110 !metadata(disjoint)
     v120 = sub v117, v263
+    v122 = add v120, 31
+    v124 = and v122, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v264 = mload 64 !metadata(memory=scratch)
+    v265 = add v264, v124
+    mstore 64, v265 !metadata(memory=scratch)
     returndata v264, v120
   bb4:
     v27 = add v240, 4
@@ -129,7 +137,11 @@ fn @full() [selector=0xd17b272f, abi_wrapper, view] {
     v252 = add v250, 32
     mcopy v178, v252, v174 !metadata(disjoint)
     v184 = sub v181, v271
+    v186 = add v184, 31
+    v188 = and v186, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v272 = mload 64 !metadata(memory=scratch)
+    v273 = add v272, v188
+    mstore 64, v273 !metadata(memory=scratch)
     returndata v272, v184
   bb1:
     v57 = returndatasize
@@ -168,7 +180,11 @@ fn @full() [selector=0xd17b272f, abi_wrapper, view] {
     v254 = add v227, 32
     mcopy v210, v254, v206 !metadata(disjoint)
     v216 = sub v213, v276
+    v218 = add v216, 31
+    v220 = and v218, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v277 = mload 64 !metadata(memory=scratch)
+    v278 = add v277, v220
+    mstore 64, v278 !metadata(memory=scratch)
     returndata v277, v216
   bb8:
     tail_call @revert_stub

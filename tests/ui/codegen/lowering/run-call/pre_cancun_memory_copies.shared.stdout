@@ -277,7 +277,10 @@ fn @assembled() [selector=0xd1381062, abi_wrapper, pure] {
     v44 = lt v43, v41
     jumpi v44, bb3, bb4
   bb4:
+    v46 = and v43, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v51 = mload 64
+    v52 = add v51, v46
+    mstore 64, v52
     mstore v51, v41
     v10 = add v51, 128
     v11 = keccak256 v10, 70

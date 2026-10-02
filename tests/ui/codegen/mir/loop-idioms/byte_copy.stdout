@@ -53,7 +53,11 @@ fn @rawOverlap() [selector=0x3facacff, abi_wrapper, pure] {
     v38 = add v36, 32
     mcopy v22, v38, v18 !metadata(disjoint)
     v28 = sub v25, v39
+    v30 = add v28, 31
+    v32 = and v30, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v40 = mload 64 !metadata(memory=scratch)
+    v41 = add v40, v32
+    mstore 64, v41 !metadata(memory=scratch)
     returndata v40, v28
 }
 
@@ -83,7 +87,11 @@ fn @objectOverlap() [selector=0xb7a73332, abi_wrapper, pure] {
     v40 = add v38, 32
     mcopy v24, v40, v20 !metadata(disjoint)
     v30 = sub v27, v41
+    v32 = add v30, 31
+    v34 = and v32, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v42 = mload 64 !metadata(memory=scratch)
+    v43 = add v42, v34
+    mstore 64, v43 !metadata(memory=scratch)
     returndata v42, v30
 }
 

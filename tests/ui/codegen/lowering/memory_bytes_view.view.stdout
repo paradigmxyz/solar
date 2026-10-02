@@ -65,37 +65,41 @@ fn @register() [selector=0xf2c298be, abi_wrapper] {
 
 fn @registerTwice() [selector=0xb65e01b1, abi_wrapper] {
   bb0:
-    v47 = icall @decode_calldata_slice
-    v48 = calldataload v47
-    v49 = add v47, 32
+    v47 = icall @decode_calldata_type
     v0 = address
     v1 = gas
-    v107 = mload 64 !metadata(memory=scratch)
-    mstore v107, 0xf2c298be00000000000000000000000000000000000000000000000000000000
-    v59 = add v107, 4
-    v60 = add v59, 32
-    mstore v59, 32
-    v64 = add v48, 31
-    v65 = and v64, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v66 = add v60, 32
-    v67 = add v60, v65
-    mstore v67, 0
-    mstore v60, v48
-    v69 = add v66, v65
-    calldatacopy v66, v49, v48
-    v70 = sub v69, v59
-    v71 = add v70, 4
-    v72 = add v71, 31
-    v74 = and v72, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v108 = mload 64 !metadata(memory=scratch)
-    v109 = add v108, v74
-    mstore 64, v109 !metadata(memory=scratch)
+    v122 = mload 64 !metadata(memory=scratch)
+    mstore v122, 0xf2c298be00000000000000000000000000000000000000000000000000000000
+    v56 = add v122, 4
+    v57 = add v56, 32
+    mstore v56, 32
+    v117 = ptrtoint memptr v47 to i256
+    v59 = mload v117
+    v63 = ne v117, 0
+    v64 = zext i1 v63 to i256
+    v65 = mul v59, v64
+    v67 = add v65, 31
+    v68 = and v67, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v69 = add v57, 32
+    v70 = add v57, v68
+    mstore v70, 0
+    mstore v57, v65
+    v119 = add v117, 32
+    v72 = add v69, v68
+    mcopy v69, v119, v65 !metadata(disjoint)
+    v74 = sub v72, v56
+    v75 = add v74, 4
+    v76 = add v75, 31
+    v78 = and v76, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v123 = mload 64 !metadata(memory=scratch)
+    v124 = add v123, v78
+    mstore 64, v124 !metadata(memory=scratch)
     v5 = zext i160 v0 to i256
     v6 = extcodesize v5
     v7 = eq v6, 0
     jumpi v7, bb5, bb6
   bb6:
-    v9 = call v1, v5, 0, v108, v71, 0, 0
+    v9 = call v1, v5, 0, v123, v75, 0, 0
     jumpi v9, bb2, bb1
   bb1:
     v43 = returndatasize
@@ -105,30 +109,34 @@ fn @registerTwice() [selector=0xb65e01b1, abi_wrapper] {
   bb2:
     v10 = address
     v11 = gas
-    v110 = mload 64 !metadata(memory=scratch)
-    mstore v110, 0xf2c298be00000000000000000000000000000000000000000000000000000000
-    v81 = add v110, 4
-    v82 = add v81, 32
-    mstore v81, 32
-    v88 = add v82, 32
-    v89 = add v82, v65
-    mstore v89, 0
-    mstore v82, v48
-    v91 = add v88, v65
-    calldatacopy v88, v49, v48
-    v92 = sub v91, v81
-    v93 = add v92, 4
-    v94 = add v93, 31
-    v96 = and v94, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v111 = mload 64 !metadata(memory=scratch)
-    v112 = add v111, v96
-    mstore 64, v112 !metadata(memory=scratch)
+    v125 = mload 64 !metadata(memory=scratch)
+    mstore v125, 0xf2c298be00000000000000000000000000000000000000000000000000000000
+    v85 = add v125, 4
+    v86 = add v85, 32
+    mstore v85, 32
+    v88 = mload v117
+    v94 = mul v88, v64
+    v96 = add v94, 31
+    v97 = and v96, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v98 = add v86, 32
+    v99 = add v86, v97
+    mstore v99, 0
+    mstore v86, v94
+    v101 = add v98, v97
+    mcopy v98, v119, v94 !metadata(disjoint)
+    v103 = sub v101, v85
+    v104 = add v103, 4
+    v105 = add v104, 31
+    v107 = and v105, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v126 = mload 64 !metadata(memory=scratch)
+    v127 = add v126, v107
+    mstore 64, v127 !metadata(memory=scratch)
     v15 = zext i160 v10 to i256
     v16 = extcodesize v15
     v17 = eq v16, 0
     jumpi v17, bb5, bb7
   bb7:
-    v19 = call v11, v15, 0, v111, v93, 0, 0
+    v19 = call v11, v15, 0, v126, v104, 0, 0
     jumpi v19, bb4, bb3
   bb3:
     v36 = returndatasize
@@ -137,21 +145,21 @@ fn @registerTwice() [selector=0xb65e01b1, abi_wrapper] {
     jumpi v38, bb8, bb9
   bb9:
     v40 = and v37, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v113 = mload 64 !metadata(memory=scratch)
-    v114 = add v113, v40
-    mstore 64, v114 !metadata(memory=scratch)
-    mstore v113, v36
-    v101 = add v113, 32
-    returndatacopy v101, 0, v36
-    v27 = mload v101
+    v128 = mload 64 !metadata(memory=scratch)
+    v129 = add v128, v40
+    mstore 64, v129 !metadata(memory=scratch)
+    mstore v128, v36
+    v112 = add v128, 32
+    returndatacopy v112, 0, v36
+    v27 = mload v112
     v29 = lt v36, 4
     v30 = sub 4, v36
     v31 = shl 3, v30
     v32 = shl v31, 0xffffffff00000000000000000000000000000000000000000000000000000000
     v33 = select v29, v32, 0xffffffff00000000000000000000000000000000000000000000000000000000
     v34 = and v27, v33
-    v53 = and v34, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    mstore 128, v53
+    v50 = and v34, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    mstore 128, v50
     returndata 128, 32
   bb8:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
@@ -199,7 +207,11 @@ fn @echo() [selector=0xf15da729, abi_wrapper, pure] {
     v22 = add v19, v18
     calldatacopy v19, v4, v3
     v24 = sub v22, v32
+    v26 = add v24, 31
+    v28 = and v26, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v33 = mload 64 !metadata(memory=scratch)
+    v34 = add v33, v28
+    mstore 64, v34 !metadata(memory=scratch)
     returndata v33, v24
 }
 
