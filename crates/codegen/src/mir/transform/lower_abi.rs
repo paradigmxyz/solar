@@ -873,9 +873,9 @@ impl LowerAbiCx {
     /// Returns whether every use of a memory `bytes` argument also accepts its calldata slice.
     ///
     /// Byte reads stay in memory, where `byte-run-loads` fuses adjacent reads into one word.
-    /// A raw memory read could find the skipped copy at a guessed address, so any read outside
-    /// scratch, an object the function allocates, or just-copied return data keeps every
-    /// argument in memory.
+    /// A raw memory read or a pointer forged from an integer could find the skipped copy at a
+    /// guessed address, so any read outside scratch, an object the function allocates, or
+    /// just-copied return data keeps every argument in memory.
     fn only_reads_memory_view(func: &Function, uses: &[ValueId]) -> bool {
         let is_use = |value: &ValueId| uses.contains(value);
         // Constant scratch ranges such as error payloads end below the heap, and
@@ -915,7 +915,10 @@ impl LowerAbiCx {
             }
             _ => false,
         }) || func.instructions().any(|inst_id| match func.inst(inst_id).kind {
-            InstKind::MLoad(offset) => !Self::points_into_new_object(func, offset, 0),
+            // A pointer forged from an integer may reach the copy through any memory-object read.
+            InstKind::MLoad(offset) | InstKind::IntToPtr(offset) => {
+                !Self::points_into_new_object(func, offset, 0)
+            }
             InstKind::Keccak256(offset, size)
             | InstKind::Log0(offset, size)
             | InstKind::Log1(offset, size, _)
@@ -962,9 +965,12 @@ impl LowerAbiCx {
                 | InstKind::MemoryObjectData(value, _) => {
                     Self::points_into_new_object(func, value, depth + 1)
                 }
+                // Only a 64-bit constant offset stays above the object's base.
                 InstKind::Add(a, b) => {
-                    Self::points_into_new_object(func, a, depth + 1)
-                        || Self::points_into_new_object(func, b, depth + 1)
+                    (func.value_u64(b).is_some()
+                        && Self::points_into_new_object(func, a, depth + 1))
+                        || (func.value_u64(a).is_some()
+                            && Self::points_into_new_object(func, b, depth + 1))
                 }
                 _ => false,
             }
