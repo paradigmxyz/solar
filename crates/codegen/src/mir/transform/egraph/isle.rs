@@ -407,6 +407,22 @@ impl generated::Context for RuleContext<'_> {
         a & b
     }
 
+    fn u256_mul(&mut self, a: U256, b: U256) -> U256 {
+        a.wrapping_mul(b)
+    }
+
+    fn u256_div(&mut self, a: U256, b: U256) -> U256 {
+        eval_opcode(op::DIV, &[a, b]).expect("DIV has word semantics")
+    }
+
+    fn u256_mul_fits(&mut self, a: U256, b: U256) -> bool {
+        a.checked_mul(b).is_some()
+    }
+
+    fn u256_add_fits(&mut self, a: U256, b: U256) -> bool {
+        a.checked_add(b).is_some()
+    }
+
     fn u256_shl(&mut self, shift: U256, value: U256) -> U256 {
         eval_opcode(op::SHL, &[shift, value]).expect("SHL has word semantics")
     }

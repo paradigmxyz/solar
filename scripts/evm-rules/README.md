@@ -1,222 +1,165 @@
 # Verified EVM word rewrites
 
-This is an offline search and SMT verification lane for the **actual ISLE source
+This is an offline search and verification lane for the **actual ISLE source
 compiled into the optimizer**. Under `crates/codegen/isle/`, it checks MIR
-rewrites in `mir/word.isle` and `mir/word_sequence.isle`, lowering rules in
-`mir-to-evm/stack_select.isle`, and physical EVM IR rules in
-`evm-ir/stack_peephole.isle` and `evm-ir/late_word.isle`. CI also verifies
-`mir/egraph.isle` with the larger budgets described below. The compiler itself
-has no solver dependency.
+rewrites in `mir/word.isle`, `mir/word_sequence.isle` and `mir/egraph.isle`,
+lowering rules in `mir-to-evm/stack_select.isle`, and physical EVM IR rules in
+`evm-ir/stack_peephole.isle` and `evm-ir/late_word.isle`. Each rule becomes a
+theorem about EVM semantics written in Lean 4, and Lean proves it; no SMT
+solver takes part. The compiler itself has no prover dependency.
 
 ```sh
 uv run scripts/evm-rules/test.py
-uv run scripts/evm-rules/verify.py verify \
-  --output target/evm-rules/proofs.json --artifacts target/evm-rules/smt
+uv run scripts/evm-rules/verify.py verify --output target/evm-rules/proofs.json
 ```
 
-The script pins Z3 through its inline dependency metadata. Each result records
-the source and rule hashes, solver version, instruction-selection and extractor
-hashes, verifier implementation hash, trusted Rust source hashes, and any
-trusted extractor contracts. The optional artifacts are standalone SMT-LIB counterexample queries. An equivalent
-rule produces `unsat`. Difficult shift queries can be split into
-257 exhaustive cases: each count from 0 through 255 and the entire saturating
-range. The checker also verifies partition coverage. Every case must finish
-with UNSAT within the partition budget; partial coverage never proves a rule.
-`SIGNEXTEND` indices use 32 exhaustive cases: 0 through 30, then the entire
-identity range from 31 upward. If one index also serves as a shift count, the
-partition uses the larger boundary. The final case always retains a symbolic
-index, so it includes arbitrarily large values rather than one representative.
-Counts introduced only by guards are included, such as the exponent that
-constrains a divisor to a power of two. With several indices, the checker
-partitions the smallest domain, breaking ties by name, and leaves every other
-input symbolic in every case. It does not assume that distinct indices are
-equal or restrict them to sampled values. These cases can still time out;
-partitioning more source shapes does not make the legacy audit complete.
-The report lists every saved query; replay one with `z3 path/to/rule.smt2` or
-`cvc5 --lang smt2 path/to/rule.smt2`.
+Install [elan](https://github.com/leanprover/elan), which selects the toolchain
+pinned in `lean/lean-toolchain`; `verify` builds the Lean project with `lake`
+before checking anything. The rule readers in `evm_rules/isle.py`, `late.py`
+and `stack.py` produce solver-independent words and preconditions
+(`evm_rules/expr.py`). `evm_rules/lean.py` states each rule as a theorem over
+the definitions in `lean/EvmRules/Word.lean`, and every theorem is checked in
+its own `lean` process with its own time limit. `--timeout-s` sets the SAT
+limit, and each rule may run twice that, plus 30 seconds; `--jobs` sets the
+parallelism and `--work-dir` keeps the checked theorem files. The report
+records each rule's status, proof method, time and witness, the source and rule
+hashes, the Lean version, and hashes of the Python and Lean implementation and
+of the trusted Rust sources.
 
-For complete replay with cvc5, export exhaustive index partitions even when Z3
-can prove the original query directly:
-
-```sh
-uv run scripts/evm-rules/verify.py verify --partition-shifts \
-  --output target/evm-rules/proofs.json --artifacts target/evm-rules/smt
-uv run scripts/evm-rules/replay.py target/evm-rules/proofs.json \
-  --solver cvc5 --output target/evm-rules/cvc5.json
-```
-
-Install cvc5 separately and run both commands from the repository root; saved
-query paths are relative to the verifier's working directory. Queries declare
-`QF_BV` (or `QF_ABV` for balance snapshots) and rename free constants to portable SMT-LIB identifiers, retaining
-their original names in comments. The report fingerprints every query with
-SHA-256. Replay checks the exact manifest and bytes, including partition
-coverage and every physical-stack variant. Missing or changed queries fail.
-
-Replay requires UNSAT from every query. It first uses cvc5's internal
-bitblaster (`--bv-solver=bitblast-internal`), which handles the nested-shift
-output-bit obligations more reliably than the default backend. It retries
-only timeouts or unknown results with the default bitvector strategy, then
-`--solve-bv-as-int=sum`. The default limit is five seconds per strategy and four
-concurrent queries, configurable with `--timeout-ms` and `--jobs`. All attempts
-and the solver version are recorded. SAT, exhausted time limits, parse errors,
-and process failures exit nonzero; SAT is a solver disagreement until separately
-replayed in the concrete model. This checks the exported formulas with another
-solver, not the semantics that generated them or an independent proof
-certificate.
+A rule with preconditions must also be applicable: its file states that the
+preconditions contradict each other, and that theorem must fail with an
+assignment that the independent integer evaluator in `expr.py` confirms. Only a
+proof establishes equivalence. A failed proof whose counterexample replays in
+the integer evaluator is reported as that counterexample; timeouts, unsupported
+terms and contradictory preconditions are distinct failures, never proofs.
+Verification exits nonzero unless every selected rule is proved, and empty rule
+files fail too. Failures print the source file, rule line, status and reason.
 
 ## CI and local cache
 
-CI runs one proof job on a larger Depot runner. On pull requests it runs the
-solvers only when codegen, proof tooling, or their CI/dependency inputs change;
-main pushes always run it. The exact paths and schedule live in
-[ci.yml](../../.github/workflows/ci.yml). Unrelated pull requests keep the cheap
-Python checks without solving the full rule set.
-
-The [proof runner](../../.github/scripts/run_evm_proofs.sh) launches independent
-workers within that machine. Normal runs verify every selected rule using Z3,
-with cvc5 as an explicit fallback for incomplete e-graph proofs. They split
-queries only when needed and do not replay successful proofs with another solver.
-Reports, logs, and SMT artifacts live under
-`target/evm-rules/<suite>-<shard>/`. Every worker must succeed.
+CI runs one proof job on a larger Depot runner. On pull requests it runs only
+when codegen, proof tooling, or their CI and dependency inputs change; main
+pushes always run it. The exact paths and schedule live in
+[ci.yml](../../.github/workflows/ci.yml). The [proof
+runner](../../.github/scripts/run_evm_proofs.sh) checks every selected rule with
+one `lean` process per theorem on every core. Reports and theorem files live
+under `target/evm-rules/`.
 
 ```sh
-# Verify all selected rules, reusing successful queries.
+# Verify all selected rules, reusing proved theorems.
 bash .github/scripts/run_evm_proofs.sh
 
-# Fresh proofs, exhaustive replay partitions, then complete cvc5 replay.
+# Check every rule afresh.
 PROOF_AUDIT=true bash .github/scripts/run_evm_proofs.sh target/evm-audit
 
-# Reuse the same cache for a selected file or shard.
+# Reuse the same cache for a selected file.
 uv run scripts/evm-rules/verify.py verify crates/codegen/isle/mir/word.isle \
-  --cache-dir target/evm-proof-cache --shard-index 0 --shard-count 4 \
-  --output target/evm-rules/selected.json --artifacts target/evm-rules/selected
+  --cache-dir target/evm-proof-cache --output target/evm-rules/selected.json
 ```
 
-The scheduled run performs only the fresh audit. Manual workflow dispatch has a
-`proof-audit` option, enabled by default; disable it to exercise normal cached
-verification. Audits bypass the query cache for both verification and replay.
+The cache stores only proved theorems, keyed by the exact theorem file,
+including any hand-written proof, and a digest of the Lean library and
+toolchain. A changed rule, proof, lemma or toolchain misses, and failures,
+timeouts and unknown results are never reused. Normal CI restores the latest
+cache and saves successful runs; scheduled runs and the `proof-audit` dispatch
+option, enabled by default, check every rule afresh. `--cache-dir` or
+`SOLAR_PROOF_CACHE` selects the directory; omit both for a fresh run.
 
-The cache stores only UNSAT results, keyed by the complete solver query and
-solver identity. Applicability checks, counterexamples, timeouts, and errors are
-never reused. Changed rules regenerate queries and retain fresh source hashes
-and artifacts; unchanged queries can reuse their previous answers. Malformed
-cache entries are misses. Cached answers remain trusted solver results, not
-proof certificates. The full audit checks without that trust in cached answers.
+The shared `Python` CI job installs the same toolchain and runs this project's
+unit tests alongside all other Python suites. Run `bash scripts/check-python.sh`
+from the repository root for the same formatting, lint, type checks, and tests.
+See [Python tooling](../../AGENTS.md#python-tooling) for prerequisites.
 
-Normal CI restores the latest compatible query cache and saves successful runs
-under immutable keys. Successful runs also publish an `evm-proof-cache` artifact.
-Download it with
-`gh run download RUN_ID --name evm-proof-cache --dir target/evm-proof-cache`.
-The runner uses that directory by default; set `PROOF_CACHE_DIR` to share another
-location. `verify --cache-dir` passes its location to spawned workers through
-`SOLAR_PROOF_CACHE`. For a standalone fresh verification, omit `--cache-dir`
-and unset that environment variable. Use `PROOF_AUDIT=true` for the complete
-fresh audit; it clears the variable itself.
+## Lean model and proofs
 
-Use `verify --shard-index N --shard-count M` (zero-based) to reproduce one
-worker. Reports retain the full source hash, total rule count, and selection.
+`lean/EvmRules/Word.lean` defines every operation the readers model on
+`BitVec 256`, following the execution specifications: EVM division by zero,
+shifts with the specification's word-width case, `SIGNEXTEND` one byte at a
+time, `CLZ`, `ADDMOD` and `MULMOD` at 512 bits, and one executing account whose
+balances are a function from addresses to words. Each rule becomes a theorem
+over these definitions, named after its file and line, whose hypotheses are
+the rule's preconditions and whose conclusion is `lhs = rhs`. Preconditions
+keep the readers' trusted extractor contracts; Boolean flags that a rule forces
+are substituted first. Physical stack rules are checked at every legal depth,
+and variants that differ only in variable names share one theorem.
 
-The shared `Python` CI job runs this project's unit tests alongside all other
-Python suites, with cvc5 installed. Run `bash scripts/check-python.sh` from the
-repository root for the same formatting, lint, type checks, and tests. See
-[Python tooling](../../AGENTS.md#python-tooling) for prerequisites.
+Each theorem is proved by `evm_auto`, which tries `evm_arith` and then
+`evm_decide`, and reports which one succeeded. `evm_decide` unfolds the
+definitions, rewriting the shifts by proven lemmas to Lean's saturating shifts,
+and bit-blasts the goal with `bv_decide`, which checks the SAT solver's LRAT
+certificate in Lean through `Lean.ofReduceBool`. `evm_arith`
+(`lean/EvmRules/ArithTactic.lean`) proves rules over products, quotients and
+remainders, whose circuits are too large to bit-blast, over natural numbers. It
+states comparison words as decided propositions and every operation with its
+wrapping, adds the bounds of every quotient and remainder by a non-literal,
+removes the wrapping and quotients those bounds rule out, and closes the goal
+with `omega`, which treats the remaining products, quotients and remainders as
+opaque terms. Its lemmas live in `lean/EvmRules/Arith.lean`, and its proofs rely
+on Lean's kernel alone. When it fails, which takes about a second,
+`evm_decide` proves the rule or searches for a counterexample as before.
 
-The CLZ model selects the half containing the highest set bit in eight steps
-and constructs a nine-bit count before extending it to an EVM word. Zero
-explicitly produces 256. This avoids the previous 256-deep conditional chain
-without assuming anything about the input. A regression proves this encoding
-equal to the full bit scan for every 256-bit word, and cvc5 integration tests
-replay the actual CLZ rules. Neither the compiler's rules nor the proof
-obligations' guards change.
+A script in `lean/proofs/` replaces `evm_auto` for one rule, with the lemmas in
+`lean/EvmRules/Lemmas.lean`. Its file is named after the rule's source file and
+the first 16 hex digits of the rule's digest (`egraph_44d329ef52b3f648.lean`),
+plus `_<index>` for a rule with several theorems, so edits elsewhere in the
+file do not move it. Its statement is still generated from the current rule,
+so a changed rule leaves the script without a rule and fails the run, and
+`test.py` checks every script against its rule; a script for a selected file
+must name one of its rules. A proof that avoids `bv_decide` relies on Lean's
+kernel alone.
 
-When a rule contains several shift or SIGNEXTEND indices, index partitioning
-refines only the remaining tail with the next index. For two SIGNEXTEND
-indices, this covers 31 concrete values of the first, then 31 concrete values
-of the second while the first is at least 31, then both indices at least 31.
-All other inputs remain symbolic, including both indices in the final case.
-The 63 cases replace one difficult symbolic tail without a Cartesian product;
-the exported coverage query must still prove that every input is covered.
-`--index-partition-timeout-ms` sets a shared budget for building and proving
-all cases of one rule; zero uses `--timeout-ms`. CI gives the e-graph index
-stage 30 seconds so a five-second total budget does not prematurely discard
-these smaller queries. Replay still has a
-five-second limit per strategy per query and fails on every exhausted query.
+The trusted base is the readers and their contracts, the Lean model, and the
+printer from terms to Lean. Regression tests evaluate every Lean operation
+against the integer evaluator on boundary and random words, check printed
+preconditions the same way, require false rules to fail with replayed
+counterexamples, and require the tools to run without an SMT solver installed.
 
-Word verification has an optional, explicit cvc5 fallback:
+On 2026-10-02 the lane proved all 474 selected rules: 98 with `evm_arith`, 350
+with `evm_decide` and 26 with hand-written scripts. With 18 jobs and a
+120-second SAT limit it took 146 seconds of wall time and 1,254 seconds of user
+CPU; back to back on the same machine, the lane before `evm_arith` took 139 and
+1,315 seconds for 465 rules and 50 scripts. `evm_decide` alone proves 426
+rules, eleven of them only after 66 to 205 seconds. It cannot prove the five
+`EXP` rules, whose symbolic exponents it cannot bit-blast, or a balance rule
+whose reads at two addresses that a guard makes equal it treats as unrelated
+words. It times out on 14 more, mostly division, remainder and shifts by
+symbolic amounts, and on 28 of the 30 division rules below. All 191 rules with
+preconditions have a confirmed witness, and the 918 physical stack variants
+reduce to seven theorems. Before the division rules, the Z3 and cvc5 lane this
+replaces proved the other 444 rules in 101 seconds of wall time and 583 seconds
+of user CPU as 13 workers, with index and output-bit partitions for the rules
+no solver finished whole; this lane took 156 seconds and 1,109 seconds with 10
+jobs.
 
-```sh
-uv run scripts/evm-rules/verify.py verify crates/codegen/isle/mir/egraph.isle \
-  --fallback-solver cvc5 --output target/evm-rules/legacy.json \
-  --artifacts target/evm-rules/legacy-smt
-```
+## Division rules
 
-It runs only after Z3 established satisfiable preconditions and left equality
-incomplete. It checks the **complete original query**, including specialization
-obligations. Only UNSAT replaces an incomplete result; no proved prefix of a
-partition is accepted. A successful whole-query proof replaces partial partition
-artifacts even with `--partition-shifts`, because cvc5 can replay that complete
-query directly. Failed attempts preserve the original query alongside any
-partial partitions. The rule records the executable, version, query hash,
-strategies and process results; the top-level `solver` remains the primary Z3
-version and `fallback_solver` identifies the optional backend.
+`egraph.isle` has 21 rules over products and quotients by constants or by a
+shared divisor. They turn the test of a checked product by a constant into one
+comparison (`(x * c) / c == x` becomes `x < MAX / c + 1`), compare quotients
+through their dividends (`x / c < d` becomes `x < c * d` when the product
+fits), merge nested quotients, rejoin a quotient and its remainder, and fold the
+overflow tests of rounding to a multiple, `(x / y) * y`, which never exceeds
+`x`. Their circuits contain 256-bit multipliers and dividers, so bit-blasting
+cannot prove them: `evm_decide` reaches a 60-second SAT limit on every one. The
+earlier Z3 and cvc5 lane, rerun on the same rules with CI's budgets, timed out
+in Z3 and in cvc5's bit-vector strategies on all 21. cvc5's translation to
+integer arithmetic proved 15, and the other six stayed unknown, which would
+have failed CI.
 
-SAT from the fallback remains an unproved failure with an explicit reason until
-it has an independent concrete replay; it is never reported as a proved rule or
-a replay-confirmed counterexample. Neither an inapplicable rule nor a Z3
-counterexample is retried. Missing executables, parse errors and exhausted
-limits fail closed. The legacy audit can have incomplete shift proofs, so this command can exit
-nonzero. It does not waive them or add them to the default five-file CI gate.
-CI also exercises selected legacy division, remainder and comparison rules
-from the actual source in regression tests using the installed cvc5; local runs skip only that optional integration
-test when cvc5 is absent. Normal verification uses the explicit fallback and
-bit budget for e-graph rules. Scheduled and manual audits additionally require
-complete cvc5 replay for every selected file.
+Nine more fold the checked subtraction of a share of `x` (`x - x / y`, and
+`x - x * c / d` for `c <= d`, also when `x * c` wraps), bound remainders
+(`x % c < d` for `0 < c <= d`), turn `x - (x / c) * c` into `x % c`, and test
+divisibility with one remainder: `(x / c) * c == x` becomes `x % c == 0` in
+`word_sequence.isle`. `evm_decide` times out on seven of them and needs 150
+seconds for the other two.
 
-For word queries that remain incomplete, opt into an additional budget for
-proving every output bit separately:
-
-```sh
-uv run scripts/evm-rules/verify.py verify crates/codegen/isle/mir/egraph.isle \
-  --fallback-solver cvc5 --bit-partition-timeout-ms 120000 \
-  --bit-partition-jobs 4 \
-  --output target/evm-rules/legacy-bits.json \
-  --artifacts target/evm-rules/legacy-bits-smt
-```
-
-All input words remain fully symbolic in every bit query, including independent
-256-bit shift counts and their saturating ranges. Each query retains the
-original guards and any constant-specialization obligation. Word equality is
-the conjunction of equality at all 256 output bits, so no input sampling or
-extra range assumptions are involved. The budget is shared across all bits of
-one rule, rather than renewed per bit. All 256 queries must finish with UNSAT;
-a timeout leaves the rule unproved and preserves the original whole-word query
-alongside the attempted bit queries. SAT witnesses replay as complete words in
-the independent integer evaluator. Replay rejects a proof missing any bit or
-claiming a shorter word width. A separate coverage query is unnecessary here:
-the fixed list of output positions is exactly 0 through 255.
-
-`--bit-partition-jobs` checks independent output bits in isolated solver
-processes. They share the same wall-clock budget and produce the same ordered
-queries as the single-process path. The proof runner configures worker counts
-and budgets for the selected CI machine.
-
-This option runs only after satisfiable applicability and incomplete earlier
-proof attempts. It cannot override an inapplicable rule, a counterexample, or
-cvc5's SAT or process-error result. Failed cvc5 timeout attempts remain recorded
-when bit proofs subsequently succeed. The runner verifies e-graph rules
-alongside the other selected files in the same CI job.
-
-Only UNSAT establishes equivalence. SAT must replay as different outputs in a
-separate Python integer evaluator. Timeouts, unsupported terms and unsatisfiable
-preconditions are distinct failures, never proofs. Verification exits nonzero
-unless every selected rule is proved. Empty rule files fail too. CI runs the
-checker's regression tests and verifies every rule in all selected files.
-Failures also print the source file, rule line, status and reason in the job log.
-Applicability and equality use separate solver queries so the satisfiability
-check does not disable Z3's one-shot bitvector preprocessing. Both queries retain
-all rule preconditions, and unsatisfiable preconditions still fail verification.
-CI uploads the report and SMT queries only when this job fails, retaining them
-for seven days to diagnose failures and replay the exact solver queries.
+`evm_arith` proves each of the 30 rules in about a second, for every word; until
+it existed, each of the first 21 needed a script of up to 19 lines over the same
+lemmas. It also replaces three older scripts.
+`tests/ui/codegen/mir/egraph/division.mir` and
+`tests/ui/codegen/mir/word-sequence/divisibility.mir` cover each rewrite,
+`division_runtime.sol` executes the rules' boundaries under every codegen
+revision, and the `division-words` runtime benchmark measures their gas.
 
 ## Semantics and trusted boundary
 
@@ -242,7 +185,7 @@ e-graph pass for memory and calldata slices.
 
 `ADDRESS`, `BALANCE`, and `SELFBALANCE` use one executing-account address and
 one explicit account-balance snapshot. The address is a 160-bit symbolic input;
-balances are an unconstrained array from 160-bit keys to 256-bit words.
+balances are an arbitrary function from 160-bit addresses to 256-bit words.
 `BALANCE` selects the low 160 bits of its operand, and `SELFBALANCE` selects
 the executing account. `ADDRESS` zero-extends the address to one word. This
 matches the operation definitions in [EIP-1884](https://eips.ethereum.org/EIPS/eip-1884)
@@ -250,13 +193,16 @@ and the [execution client's BALANCE implementation](https://github.com/ethereum/
 The reader still checks opcode selection and records the trusted
 `current_address` extractor and fork-availability contracts.
 
-Balance queries use quantifier-free bitvectors and arrays (`QF_ABV`); pure-word
-queries retain `QF_BV`. Export accepts only balance arrays with a 160-bit domain
-and 256-bit range, and still rejects arbitrary uninterpreted functions. On SAT,
-the checker records the current address and every observed account balance,
-then independently replays the complete expressions with integer addresses
-and a concrete dictionary, including nested balance reads. Tests reject an
-incorrect replacement for another account and check upper-bit truncation.
+Theorems quantify over the executing address and the balance function, and the
+printer rejects every other uninterpreted operation. `bv_decide` treats each
+balance read as an unrelated word, so it proves a balance rule only when both
+sides read the same account term; the balance-mask rule has a hand-written
+proof. To find a counterexample, the checker replaces each read by a fresh word
+with `account_i = account_j → balance_i = balance_j`, which describes exactly
+the snapshots, then records the current address and every observed account
+balance and replays the complete expressions with integer addresses and a
+concrete dictionary, including nested balance reads. Tests reject an incorrect
+replacement for another account and check upper-bit truncation.
 
 This proves returned-word equality within one state snapshot. It does not
 model calls, balance mutations, gas, access-list warming, out-of-gas behavior,
@@ -286,24 +232,18 @@ instruction and the runtime tests cover dirty upper bits and funded accounts.
 The model uses 256-bit bitvectors, wrapping arithmetic, full-width saturating
 shift counts, unsigned comparisons and two's-complement signed comparisons.
 SIGNEXTEND selects one of 31 constant signed byte widths, retaining the input
-for every index at or above 31. This avoids nested variable shifts in SMT. A
-regression proves equality with the shift-based definition over all words and
-all indices using 32 exhaustive cases and a separate coverage obligation.
+for every index at or above 31; this avoids variable shifts when bit-blasting.
+A regression proves it equal to the shift-based definition at every index
+below 31, and the identity at every larger index.
 DIV, SDIV, MOD and SMOD return zero for a zero divisor. SDIV rounds toward zero
 and wraps the minimum signed word divided by minus one; SMOD takes the dividend's
 sign. ADDMOD and MULMOD use a 512-bit intermediate. BYTE and SIGNEXTEND check the
-full index before shifting. EXP uses square-and-multiply for literal exponents,
-or all 256 exponent bits when the base is literal. When both are symbolic,
-literal equalities from the guards can specialize the word model. The exported
-query requires both the substitution and the resulting equality to hold:
-`guards && (!substitution_equalities || specialized_lhs != specialized_rhs)`
-must be UNSAT. A substitution not implied by the guards fails verification,
-including in partitioned queries. No input is chosen from a satisfying model
-to make an unsupported operation appear proved. Unconstrained EXP with both
-operands symbolic remains outside the current model.
-The tests cross-check the symbolic and independent concrete models at these
-boundaries; `tests/ui/codegen/mir/egraph/word_rules_runtime.sol` also checks actual
-compiled execution, including cases where ordinary integer identities are wrong.
+full index before shifting. EXP is the power modulo 2^256 for every base and
+exponent; `bv_decide` cannot bit-blast a symbolic exponent, so the `EXP` rules
+have hand-written proofs. The tests evaluate the Lean model and the independent
+integer evaluator at these boundaries;
+`tests/ui/codegen/mir/egraph/word_rules_runtime.sol` also checks actual compiled
+execution, including cases where ordinary integer identities are wrong.
 
 The reader expands the schema-generated `extractors.isle`, reads each rule and
 its `if-let` guards, and checks scalar operation/operand-shape bindings against
@@ -311,10 +251,12 @@ its `if-let` guards, and checks scalar operation/operand-shape bindings against
 maintain a second list of optimization identities for verification. Structural
 inequality of ValueIds never implies inequality of their runtime words.
 
-This is a proof of **word equality under the model and stated contracts**. The
-solver, semantics, reader, generated bindings, Rust extractors/constructors and
-backend implementation are trusted. Range predicates are conditional contracts,
-not proofs of the Rust analyses that implement them. Resident-value selection
+This is a proof of **word equality under the model and stated contracts**.
+Lean's kernel checks every proof, and `bv_decide` proofs also trust Lean's
+compiled LRAT checker. The Lean model, reader, printer, generated bindings,
+Rust extractors/constructors and backend implementation are trusted. Range
+predicates are conditional contracts, not proofs of the Rust analyses that
+implement them. Resident-value selection
 assumes the original expression has already executed and remains available.
 The new `word.isle` rules need no range-analysis predicates.
 The older `has_known_sign_bit` contract means bit 255 is set; its false result
@@ -325,8 +267,7 @@ Memory contents, storage, calls, exceptions, gas observability, stack bounds, co
 and whole-program correctness are outside this proof. ISLE priorities affect
 matching but not an individual rule's equality obligation. We overapproximate
 structural/fork guards; actual opcode availability and profitability remain the
-compiler's responsibility. There is no claim of a verified compiler or an
-independently checked proof certificate.
+compiler's responsibility. There is no claim of a verified compiler.
 
 The physical stack lane checks the seven compiled rules in `stack_peephole.isle`
 directly, including every supported DUP/SWAP depth from 1 through 235 and every
@@ -362,22 +303,6 @@ one gas on PUSH0 targets. The protected-base form also removes a trailing
 three gas on earlier shift-capable targets. The closed form stays unchanged on
 pre-PUSH0 targets because neither target cost improves. Earlier sharing
 decisions remain unchanged in both cases.
-
-An audit of the older rules is available explicitly:
-
-```sh
-uv run scripts/evm-rules/verify.py verify crates/codegen/isle/mir/egraph.isle \
-  --timeout-ms 1000 --output target/evm-rules/audit.json
-```
-
-This short-budget audit can time out on division/remainder and variable-index
-queries. For a complete audit, use the explicit cvc5 fallback and output-bit
-budget described above; use `--partition-shifts` to export exhaustive input
-partitions for cross-solver replay. The three address projections and the local
-balance rule now have explicit models with the trusted boundaries documented
-above. Every selected rule must prove, and every exported query must replay;
-do not ignore unknown or unsupported results. The CI runner includes this file
-alongside the default five-file selection.
 
 ## Discovering candidates
 
@@ -428,11 +353,15 @@ uv run scripts/evm-rules/verify.py discover \
 
 The search enumerates bounded expression trees over up to three variables.
 Boundary samples and deterministic random samples propose equalities. Every
-representative substitution requires SMT proof; counterexamples refine the
-sample buckets, and unknown results keep separate representatives. Cheaper
-proved spellings replace expensive representatives so enumeration can build on
-them. This is bounded enumerative search inspired by cvec-based discovery, not
-a port of Ruler or unrestricted equality saturation.
+representative substitution requires a Lean proof by `evm_auto`, so arithmetic
+identities are in reach as well; replayed counterexamples refine the sample
+buckets, and unknown results keep separate representatives.
+Cheaper proved spellings replace expensive representatives so enumeration can
+build on them. One `evm_check` process (`lean/Checker.lean`) answers every
+query: it imports the model once, then takes milliseconds per small query.
+`--timeout-ms` sets the SAT limit per query, rounded up to whole seconds. This
+is bounded enumerative search inspired by cvec-based discovery, not a port of
+Ruler or unrestricted equality saturation.
 
 Use `--seed-expressions` to search replacements for deeper input trees without
 enumerating every tree of their size. For example, the checked-in seeds include
@@ -459,10 +388,10 @@ hash, input trees and how many obtained a proved cheaper replacement.
 
 Seeds do not enlarge the enumeration budget or enter the frontier. They are
 compared against the final representatives, including a partial frontier when
-the expression budget is exhausted. Samples only select solver queries; every
+the expression budget is exhausted. Samples only select proof queries; every
 seed replacement and its emitted ISLE must still be proved. Counterexample
 refinement extends cached sample vectors before reusing bucket keys. A seed
-with no proved cheaper match is left unresolved, including solver timeouts.
+with no proved cheaper match is left unresolved, including timeouts.
 This is a bounded local search, not a guarantee of finding the cheapest program.
 
 The default frontier uses variables. Zero, one and MAX remain possible results;
@@ -580,4 +509,6 @@ The design draws on [Cranelift's acyclic e-graphs](https://bytecodealliance.org/
 [VeriISLE](https://github.com/bytecodealliance/wasmtime/blob/main/cranelift/isle/veri/README.md)
 and [Ruler](https://uwplse.org/ruler/). Word semantics follow the
 [Ethereum execution specifications](https://github.com/ethereum/execution-specs/tree/master/src/ethereum/forks/cancun/vm/instructions)
-and use [Z3 bitvectors](https://microsoft.github.io/z3guide/docs/theories/Bitvectors/).
+and use Lean's `BitVec` library, proved with
+[`bv_decide`](https://lean-lang.org/doc/reference/latest/Tactic-Proofs/Tactic-Reference/#bv_decide)
+and, over natural numbers, `omega`.
