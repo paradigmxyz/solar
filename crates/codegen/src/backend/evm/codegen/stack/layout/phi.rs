@@ -1268,12 +1268,15 @@ impl<'a> StackPhiPlanner<'a> {
     }
 
     /// Whether a block may be entered with arbitrary words beneath the stack it expects: it
-    /// reads no live-in value and aborts, directly or through a cold tail call.
+    /// reads no live-in value and aborts, directly or through a cold tail call. A phi reads its
+    /// incoming value on the edge rather than as a live-in, and a branch planned around a junk
+    /// arm drops its predecessor's phi copies, so a block with phis never qualifies.
     fn junk_tolerant_terminal(&self, liveness: &Liveness, block: BlockId) -> bool {
-        liveness
-            .live_in(block)
-            .iter()
-            .all(|value| matches!(self.func.value(value), crate::mir::Value::Immediate(_)))
+        self.phi_insts(&self.func.blocks[block]).is_empty()
+            && liveness
+                .live_in(block)
+                .iter()
+                .all(|value| matches!(self.func.value(value), crate::mir::Value::Immediate(_)))
             && match &self.func.blocks[block].terminator {
                 Some(
                     Terminator::Revert { .. } | Terminator::RevertReturndata | Terminator::Invalid,
