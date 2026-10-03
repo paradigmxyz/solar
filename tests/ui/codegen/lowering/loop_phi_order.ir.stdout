@@ -46,19 +46,16 @@ bb0:
   jump bb20
 bb22 [loop]:
   dup 2
-  xor
-  swap 1
-  dup 3
-  add
-  swap 2
-  dup 4
-  add
-  swap 3
+  dup 5
   push 1
   add
-  swap 3
+  swap 5
+  dup 5
+  add
+  swap 4
+  add
   swap 2
-  swap 1
+  xor
   jump bb20
 bb20 [loop]:
   dup 5
@@ -68,10 +65,6 @@ bb20 [loop]:
   jumpi
   push 128
   mstore
-  swap 2
-  pop
-  swap 2
-  pop
   push 160
   mstore
   push 192
@@ -105,15 +98,13 @@ bb2:
   jump bb15
 bb17 [loop]:
   dup 2
-  sub
-  swap 1
-  dup 3
-  add
-  swap 2
+  dup 4
   push 1
   add
+  swap 4
+  add
   swap 2
-  swap 1
+  sub
   jump bb15
 bb15 [loop]:
   push 288
@@ -148,19 +139,17 @@ bb3:
   jump bb10
 bb12 [loop]:
   dup 2
+  dup 1
+  add
+  dup 4
+  push 1
+  add
+  swap 4
+  add
+  swap 2
   push 11
   byte
   add
-  swap 1
-  dup 1
-  add
-  dup 3
-  add
-  swap 2
-  push 1
-  add
-  swap 2
-  swap 1
   jump bb10
 bb10 [loop]:
   push 256

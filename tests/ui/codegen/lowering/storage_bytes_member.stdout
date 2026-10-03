@@ -195,20 +195,16 @@ bb28 [loop]:
   push 0
   mstore
   pop
-  push 32
-  push 0
-  keccak256
-  swap 1
   push 255
   not
   and
-  swap 2
+  swap 1
   push 0
   byte
-  swap 1
-  swap 2
   or
-  swap 1
+  push 32
+  push 0
+  keccak256
   sstore
   push 65
   dup 3

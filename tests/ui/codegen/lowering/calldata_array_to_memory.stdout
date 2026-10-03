@@ -158,9 +158,6 @@ bb10 [loop]:
   dup 1
   push 0
   sstore
-  swap 2
-  pop
-  pop
   push 128
   mstore
   push 32

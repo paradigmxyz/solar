@@ -1,0 +1,51 @@
+//@ compile-flags: -Zevm-ir-pipeline=stack-reschedule
+//@ filecheck:
+@module module
+
+// Four unrolled copies of `t += i; i += 1` with one merged overflow check. Each copy computes
+// the step from a copy of `i` first and lets the sum consume `i` itself, and one pushed `1`
+// serves every step, so the copies need fewer swaps: the run's shuffles and pushes drop from 17
+// operations to 13.
+// CHECK-LABEL: {{^[ +].*}}bb0 [loop] [stack=3]:
+// The merged check `t4 < t0` becomes its mirror where the operands land swapped.
+// CHECK: +   push 1
+// CHECK-NEXT: +   dup 3
+// CHECK: +   gt
+// CHECK-NEXT: push bb1
+// CHECK-NEXT: jumpi
+bb0 [loop, stack=3]:
+  dup 2
+  dup 2
+  add
+  swap 2
+  push 1
+  add
+  dup 1
+  swap 3
+  add
+  swap 2
+  push 1
+  add
+  dup 1
+  swap 3
+  add
+  swap 2
+  push 1
+  add
+  dup 1
+  swap 3
+  add
+  swap 1
+  dup 2
+  lt
+  push bb1
+  jumpi
+  swap 1
+  push 1
+  add
+  swap 1
+  jump bb0
+bb1 [cold]:
+  push 0
+  push 0
+  revert

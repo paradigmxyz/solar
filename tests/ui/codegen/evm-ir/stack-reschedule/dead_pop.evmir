@@ -1,0 +1,35 @@
+//@ compile-flags: -Zevm-ir-pipeline=stack-reschedule
+//@ filecheck:
+@module module
+
+// A dead word below an operand is popped before the operation instead of being swapped
+// around it and popped afterwards.
+// CHECK-LABEL: {{^[ +].*}}bb0 [loop] [stack=2]:
+// CHECK: +   pop
+// CHECK-NEXT: push 2
+// CHECK-NEXT: add
+// CHECK-NOT: {{^[ +].*}}swap
+// CHECK: stop
+bb0 [loop, stack=2]:
+  swap 1
+  push 2
+  add
+  swap 1
+  pop
+  push 0
+  mstore
+  stop
+
+// The same code outside a loop keeps its schedule.
+// CHECK-LABEL: {{^[ +].*}}bb1 [stack=2]:
+// CHECK-NOT: {{^[-+]}}
+// CHECK: stop
+bb1 [stack=2]:
+  swap 1
+  push 2
+  add
+  swap 1
+  pop
+  push 0
+  mstore
+  stop

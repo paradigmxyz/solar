@@ -245,11 +245,8 @@ bb10 [loop]:
   lt
   push bb12
   jumpi
-  swap 1
+  pop
   mload
-  swap 2
-  pop
-  pop
   push 128
   mstore
   push 4

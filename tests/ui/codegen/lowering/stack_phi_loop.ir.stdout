@@ -261,13 +261,13 @@ bb42 [loop]:
   jumpi
   push 1
   shr
+  push 1
   push 0xf4240
-  swap 1
+  dup 2
+  swap 3
   mod
-  push 1
   add
-  swap 1
-  push 1
+  swap 2
   add
   swap 1
   jump bb40

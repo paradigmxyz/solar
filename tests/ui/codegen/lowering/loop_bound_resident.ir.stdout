@@ -29,15 +29,13 @@ bb0:
   jump bb6
 bb8 [loop]:
   dup 2
-  add
-  swap 1
-  dup 3
-  add
-  swap 2
+  dup 4
   push 1
   add
+  swap 4
+  add
   swap 2
-  swap 1
+  add
   jump bb6
 bb6 [loop]:
   dup 4
@@ -205,16 +203,14 @@ bb11:
   push 128
   return
 bb10 [loop]:
-  dup 1
-  mload
   push 32
-  dup 3
+  dup 2
   sub
-  dup 1
+  dup 2
   mload
-  swap 1
-  swap 2
-  lt
+  dup 2
+  mload
+  gt
   iszero
   push bb12
   jumpi
