@@ -54,6 +54,16 @@
 //! other bound is first lowered to `2^65`, which the counter reaches only after
 //! more iterations than a loop can run.
 //!
+//! The counter may still be read after the loop, as a search returns where it
+//! stopped. Once the pointer takes over the exit test, each such read is rebuilt
+//! from the pointer as `init + (ptr - start) / scale`, a shift for a power-of-two
+//! scale, at the top of the reading block, or at the end of the block a phi reads
+//! it from. A phi reading it over a critical exit edge, from a loop block into a
+//! join, needs a block of its own on that edge: the pass splits those edges after
+//! visiting every loop of the function and then visits those loops again. Only
+//! the counter itself may be read after the loop; a value the loop derives from
+//! it keeps the counter.
+//!
 //! Safety contract:
 //! - require canonical loops with a preheader and a single latch
 //! - rewrite only affine address expressions derived from the recognized induction variable
@@ -129,13 +139,15 @@ struct IndVarSimplifyStats {
     pointer_phis_inserted: usize,
     /// Number of loop-local address uses replaced.
     address_uses_replaced: usize,
+    /// Number of loop exit edges split to rebuild the counter there.
+    exit_edges_split: usize,
 }
 
 impl IndVarSimplifyStats {
     /// Returns the total number of MIR changes performed.
     #[must_use]
     const fn total(&self) -> usize {
-        self.pointer_phis_inserted + self.address_uses_replaced
+        self.pointer_phis_inserted + self.address_uses_replaced + self.exit_edges_split
     }
 }
 
@@ -144,6 +156,21 @@ impl IndVarSimplifyStats {
 struct IndVarSimplifier {
     stats: IndVarSimplifyStats,
     alias: Rc<AliasAnalysis>,
+    /// Exit edges, from a loop block to a join outside it, whose phis read a counter that
+    /// could otherwise die, by the loop header.
+    exit_splits: Vec<(BlockId, BlockId, BlockId)>,
+}
+
+/// Reads of a counter phi after its loop, which the counter's pointer rebuilds once the
+/// pointer takes over the exit test.
+#[derive(Default)]
+struct ExitReads {
+    /// Blocks outside the loop whose instructions or terminator read the counter.
+    blocks: Vec<BlockId>,
+    /// Phis outside the loop with the counter incoming from a block outside the loop.
+    phis: Vec<(InstId, BlockId)>,
+    /// Exit edges, from a loop block to a join outside it, whose phis read the counter.
+    edges: Vec<(BlockId, BlockId)>,
 }
 
 /// The header's exit test, `lt counter, bound` or `lt bound, counter`.
@@ -205,7 +232,7 @@ impl IndVarSimplifier {
     /// Creates a new induction-variable simplifier.
     #[must_use]
     fn new(alias: Rc<AliasAnalysis>) -> Self {
-        Self { stats: IndVarSimplifyStats::default(), alias }
+        Self { stats: IndVarSimplifyStats::default(), alias, exit_splits: Vec::new() }
     }
 
     /// Runs induction-variable simplification once over `func`.
@@ -218,6 +245,39 @@ impl IndVarSimplifier {
 
         for loop_data in loops {
             self.run_loop(func, &cfg, &loop_data);
+        }
+
+        // A counter read after its loop through a phi on a critical exit edge can die only
+        // once the edge has a block of its own to rebuild it in: split those edges, then run
+        // the loops that asked for it again over the new control flow.
+        if !self.exit_splits.is_empty() {
+            let splits = std::mem::take(&mut self.exit_splits);
+            let mut headers = FxHashSet::default();
+            for &(header, from, to) in &splits {
+                // from -> to  =>  from -> split -> to
+                if func.blocks[from]
+                    .terminator
+                    .as_ref()
+                    .is_some_and(|term| term.successors().contains(&to))
+                {
+                    mir_utils::split_edge(func, from, to);
+                    self.stats.exit_edges_split += 1;
+                }
+                headers.insert(header);
+            }
+            let cfg = Rc::new(CfgInfo::new(func));
+            let loop_info = LoopAnalyzer::new().analyze_with_cfg(func, Rc::clone(&cfg));
+            let loops: Vec<_> = loop_info
+                .loops
+                .values()
+                .filter(|loop_data| headers.contains(&loop_data.header))
+                .cloned()
+                .collect();
+            for loop_data in loops {
+                self.run_loop(func, &cfg, &loop_data);
+            }
+            // NOTE: A second request for the same loop is dropped: its edges were split once.
+            self.exit_splits.clear();
         }
 
         &self.stats
@@ -319,17 +379,17 @@ impl IndVarSimplifier {
         // that cannot wrap takes over the exit test and the counter dies; that credit
         // is weighed across all families at once.
         let exit_test = self.counter_exit_test(func, loop_data, iv.value);
-        let counter_free = !must_keep_update
-            && exit_test.is_some_and(|test| {
-                Self::counter_only_feeds(
-                    func,
-                    loop_data,
-                    iv.value,
-                    test.condition,
-                    Some(iv.update_inst),
-                    &addresses,
-                )
-            });
+        let exit_reads = exit_test.filter(|_| !must_keep_update).and_then(|test| {
+            Self::counter_only_feeds(
+                func,
+                loop_data,
+                iv.value,
+                test.condition,
+                Some(iv.update_inst),
+                &addresses,
+            )
+        });
+        let counter_free = exit_reads.is_some();
         // A counter that starts at a literal and steps by one leaves the loop exactly when an
         // ascending pointer reaches its value at the bound, clamped where that value could
         // wrap onto an earlier one, whatever the base: unlike `ptr < end`, equality needs no
@@ -371,6 +431,16 @@ impl IndVarSimplifier {
                 .sum::<usize>();
             before + Self::COUNTER_COST > after
         };
+
+        // The counter's reads on critical exit edges need blocks of their own first.
+        if reduce_all
+            && let Some(reads) = &exit_reads
+            && !reads.edges.is_empty()
+        {
+            self.exit_splits
+                .extend(reads.edges.iter().map(|&(from, to)| (loop_data.header, from, to)));
+            return;
+        }
 
         let mut replacements = FxHashMap::default();
         let mut siblings = Vec::new();
@@ -477,6 +547,12 @@ impl IndVarSimplifier {
         // The replaced addresses and the index arithmetic only they read are dead now;
         // remove them here so the counter's remaining reads are visible below.
         self.remove_dead_address_arithmetic(func, loop_data);
+        if test_rewritten
+            && let Some(reads) = &exit_reads
+            && let Some((pointer, key, _)) = &test_pointer
+        {
+            self.rebuild_exit_reads(func, preheader, &iv, *pointer, key.scale, reads);
+        }
         if test_rewritten {
             self.remove_dead_counter(func, loop_data, iv.value, Some(iv.update_inst));
         }
@@ -567,8 +643,9 @@ impl IndVarSimplifier {
         }
     }
 
-    /// Whether the counter is read only by its exit test, its update, and the
-    /// address arithmetic in `addresses` that the pointers replace.
+    /// The counter's reads after the loop when, inside it, only its exit test, its update,
+    /// and the address arithmetic in `addresses` that the pointers replace read it. After
+    /// the loop, only the counter itself may be read.
     fn counter_only_feeds(
         func: &Function,
         loop_data: &Loop,
@@ -576,7 +653,7 @@ impl IndVarSimplifier {
         condition: InstId,
         update: Option<InstId>,
         addresses: &FxHashSet<ValueId>,
-    ) -> bool {
+    ) -> Option<ExitReads> {
         let mut pending = Vec::new();
         pending.push(iv);
         let mut visited = DenseBitSet::new_empty(func.num_values());
@@ -587,7 +664,7 @@ impl IndVarSimplifier {
             for block_id in loop_data.blocks.iter() {
                 let block = &func.blocks[block_id];
                 if block.terminator.as_ref().is_some_and(|term| term.reads(value)) {
-                    return false;
+                    return None;
                 }
                 for &inst_id in &block.instructions {
                     let inst = func.inst(inst_id);
@@ -597,33 +674,166 @@ impl IndVarSimplifier {
                     if inst_id == condition || Some(inst_id) == update {
                         continue;
                     }
-                    let Some(result) = func.inst_result_value(inst_id) else { return false };
+                    let result = func.inst_result_value(inst_id)?;
                     if matches!(inst.kind, InstKind::Phi(_)) {
-                        return false;
+                        return None;
                     }
                     if addresses.contains(&result) {
                         continue;
                     }
                     if !Self::is_address_builder(&inst.kind) {
-                        return false;
+                        return None;
                     }
                     pending.push(result);
                 }
             }
         }
-        // Outside the loop, only the exit test and the update may read any of them.
-        func.blocks
-            .iter_enumerated()
-            .filter(|&(block_id, _)| !loop_data.blocks.contains(block_id))
-            .all(|(_, block)| {
-                let read = |operand| visited.contains(operand);
-                !block.terminator.as_ref().is_some_and(|term| term.any_operand(read))
-                    && !block.instructions.iter().any(|&inst_id| {
-                        inst_id != condition
-                            && Some(inst_id) != update
-                            && func.inst(inst_id).kind.any_operand(read)
-                    })
-            })
+        // Outside the loop, besides the exit test and the update, only the counter itself may
+        // be read, which its pointer can rebuild there.
+        let mut reads = ExitReads::default();
+        let derived = |operand: ValueId| operand != iv && visited.contains(operand);
+        for (block_id, block) in func.blocks.iter_enumerated() {
+            if loop_data.blocks.contains(block_id) {
+                continue;
+            }
+            let mut reads_counter = false;
+            if let Some(term) = &block.terminator {
+                if term.any_operand(derived) {
+                    return None;
+                }
+                reads_counter |= term.reads(iv);
+            }
+            for &inst_id in &block.instructions {
+                if inst_id == condition || Some(inst_id) == update {
+                    continue;
+                }
+                let kind = &func.inst(inst_id).kind;
+                if kind.any_operand(derived) {
+                    return None;
+                }
+                if let InstKind::Phi(incoming) = kind {
+                    for &(from, value) in incoming {
+                        if value != iv {
+                            continue;
+                        }
+                        if loop_data.blocks.contains(from) {
+                            reads.edges.push((from, block_id));
+                        } else {
+                            reads.phis.push((inst_id, from));
+                        }
+                    }
+                } else {
+                    reads_counter |= kind.reads(iv);
+                }
+            }
+            if reads_counter {
+                reads.blocks.push(block_id);
+            }
+        }
+        Some(reads)
+    }
+
+    /// Rebuilds the counter's reads after the loop from the pointer that took over its exit
+    /// test: `init + (ptr - start) / scale`, with `start` the pointer's value on entry. The
+    /// pointer moves `scale` bytes for every step of the counter, and the counter travels
+    /// below `2^64` steps, so the difference never wraps past the word.
+    fn rebuild_exit_reads(
+        &self,
+        func: &mut Function,
+        preheader: BlockId,
+        iv: &InductionVariable,
+        pointer: ValueId,
+        scale: i128,
+        reads: &ExitReads,
+    ) {
+        let Value::Inst(phi) = *func.value(pointer) else { return };
+        let InstKind::Phi(incoming) = &func.inst(phi).kind else { return };
+        let Some(start) =
+            incoming.iter().find_map(|&(from, value)| (from == preheader).then_some(value))
+        else {
+            return;
+        };
+        let Ok(magnitude) = u128::try_from(scale) else { return };
+        // counter = init + (ptr - start) >> log2(scale)   or   / scale
+        let rebuild = |this: &Self, func: &mut Function, block: BlockId| -> ValueId {
+            let delta = this.append_inst_value(
+                func,
+                block,
+                InstKind::Sub(pointer, start),
+                Some(MirType::I256),
+            );
+            let steps = if magnitude == 1 {
+                delta
+            } else if magnitude.is_power_of_two() {
+                let shift = func.alloc_value(Value::Immediate(Immediate::I256(U256::from(
+                    magnitude.trailing_zeros(),
+                ))));
+                this.append_inst_value(
+                    func,
+                    block,
+                    InstKind::Shr(shift, delta),
+                    Some(MirType::I256),
+                )
+            } else {
+                let divisor =
+                    func.alloc_value(Value::Immediate(Immediate::I256(U256::from(magnitude))));
+                this.append_inst_value(
+                    func,
+                    block,
+                    InstKind::Div(delta, divisor),
+                    Some(MirType::I256),
+                )
+            };
+            if func.value_u256(iv.init).is_some_and(|init| init.is_zero()) {
+                steps
+            } else {
+                this.append_inst_value(
+                    func,
+                    block,
+                    InstKind::Add(iv.init, steps),
+                    Some(MirType::I256),
+                )
+            }
+        };
+        for &(phi, from) in &reads.phis {
+            // from: ...; counter = rebuild; jump  ->  phi [from: counter]
+            let counter = rebuild(self, func, from);
+            if let InstKind::Phi(incoming) = &mut func.inst_mut(phi).kind {
+                for (block, value) in incoming.iter_mut() {
+                    if *block == from && *value == iv.value {
+                        *value = counter;
+                    }
+                }
+            }
+        }
+        for &block in &reads.blocks {
+            // block: phis; counter = rebuild; ...reads of counter
+            let phis = func.blocks[block]
+                .instructions
+                .iter()
+                .take_while(|&&inst_id| matches!(func.inst(inst_id).kind, InstKind::Phi(_)))
+                .count();
+            let body = func.blocks[block].instructions.split_off(phis);
+            let counter = rebuild(self, func, block);
+            let rebuilt = func.blocks[block].instructions.split_off(phis);
+            func.blocks[block]
+                .instructions
+                .extend(rebuilt.iter().copied().chain(body.iter().copied()));
+            for &inst_id in &body {
+                func.inst_mut(inst_id).kind.visit_operands_mut(|operand| {
+                    if *operand == iv.value {
+                        *operand = counter;
+                    }
+                });
+            }
+            if let Some(term) = func.blocks[block].terminator.as_mut() {
+                term.visit_operands_mut(|operand| {
+                    if *operand == iv.value {
+                        *operand = counter;
+                    }
+                });
+            }
+        }
     }
 
     /// Removes the counter phi and its update once nothing else reads either: the plain

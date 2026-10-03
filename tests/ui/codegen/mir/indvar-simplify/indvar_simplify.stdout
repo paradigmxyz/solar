@@ -442,3 +442,111 @@
       jump bb1
   }
   
+  fn @rebuild_counter_on_exit_edge(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = calldatasize
+      v1 = sub v0, arg0
+      v2 = shr 5, v1
+      v3 = gt arg1, v2
+      jumpi v3, bb6, bb1
+    bb1:
++     v14 = shl 5, arg1
++     v15 = add arg0, v14
+      jump bb2
+    bb2:
+-     v4 = phi [bb1: 0], [bb4: v10]
+-     v5 = lt v4, arg1
++     v12 = phi [bb1: arg0], [bb4: v13]
++     v5 = ne v12, v15
+      jumpi v5, bb3, bb5
+    bb3:
+-     v6 = shl 5, v4
+-     v7 = add arg0, v6
+-     v8 = calldataload v7
++     v8 = calldataload v12
+      v9 = eq v8, arg2
+-     jumpi v9, bb5, bb4
++     jumpi v9, bb7, bb4
+    bb4:
+-     v10 = add v4, 1
++     v13 = add v12, 32
+      jump bb2
++   bb7:
++     v16 = sub v12, arg0
++     v17 = shr 5, v16
++     jump bb5
+    bb5:
+-     v11 = phi [bb3: v4], [bb2: arg1]
++     v11 = phi [bb7: v17], [bb2: arg1]
+      ret v11
+    bb6:
+      revert 0, 0
+  }
+  
+  fn @rebuild_counter_after_loop(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = calldatasize
+      v1 = sub v0, arg0
+      v2 = shr 5, v1
+      v3 = gt arg1, v2
+      jumpi v3, bb6, bb1
+    bb1:
++     v13 = shl 5, arg1
++     v14 = add arg0, v13
+      jump bb2
+    bb2:
+-     v4 = phi [bb1: 0], [bb4: v10]
+-     v5 = lt v4, arg1
++     v11 = phi [bb1: arg0], [bb4: v12]
++     v5 = ne v11, v14
+      jumpi v5, bb3, bb5
+    bb3:
+-     v6 = shl 5, v4
+-     v7 = add arg0, v6
+-     v8 = calldataload v7
++     v8 = calldataload v11
+      v9 = eq v8, arg2
+      jumpi v9, bb5, bb4
+    bb4:
+-     v10 = add v4, 1
++     v12 = add v11, 32
+      jump bb2
+    bb5:
+-     ret v4
++     v15 = sub v11, arg0
++     v16 = shr 5, v15
++     ret v16
+    bb6:
+      revert 0, 0
+  }
+  
+  fn @keep_counter_read_derived(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = calldatasize
+      v1 = sub v0, arg0
+      v2 = shr 5, v1
+      v3 = gt arg1, v2
+      jumpi v3, bb7, bb1
+    bb1:
+      jump bb2
+    bb2:
+      v4 = phi [bb1: 0], [bb4: v10]
+      v5 = lt v4, arg1
+      jumpi v5, bb3, bb6
+    bb6:
+      ret 0
+    bb3:
+      v6 = shl 5, v4
+      v7 = add arg0, v6
+      v8 = calldataload v7
+      v9 = eq v8, arg2
+      jumpi v9, bb5, bb4
+    bb4:
+      v10 = add v4, 1
+      jump bb2
+    bb5:
+      ret v6
+    bb7:
+      revert 0, 0
+  }
+  

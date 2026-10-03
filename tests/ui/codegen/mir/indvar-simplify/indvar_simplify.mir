@@ -490,3 +490,112 @@ fn @keep_counter_stepping_by_two(arg0: i256, arg1: i256) -> i256 {
   bb3:
     ret v1
 }
+
+// A search returns the counter where it stops, which the exit edge rebuilds from the
+// pointer, `(ptr - start) >> 5`, after splitting the edge, so the counter dies and the
+// pointer tests the exit.
+// CHECK-LABEL: {{^[ +].*}}fn @rebuild_counter_on_exit_edge{{[( ]}}
+// CHECK: + [[END:v[0-9]+]] = add arg0, {{v[0-9]+}}
+// CHECK: - {{v[0-9]+}} = phi [bb1: 0]
+// CHECK: + [[POINTER:v[0-9]+]] = phi [bb1: arg0], [{{bb[0-9]+}}: {{v[0-9]+}}]
+// CHECK: + {{v[0-9]+}} = ne [[POINTER]], [[END]]
+// CHECK: + [[SPLIT:bb[0-9]+]]:
+// CHECK-NEXT: + [[DELTA:v[0-9]+]] = sub [[POINTER]], arg0
+// CHECK-NEXT: + [[INDEX:v[0-9]+]] = shr 5, [[DELTA]]
+// CHECK: = phi {{\[}}[[SPLIT]]: [[INDEX]]], [bb2: arg1]
+fn @rebuild_counter_on_exit_edge(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+  bb0:
+    v0 = calldatasize
+    v1 = sub v0, arg0
+    v2 = shr 5, v1
+    v3 = gt arg1, v2
+    jumpi v3, bb6, bb1
+  bb1:
+    jump bb2
+  bb2:
+    v4 = phi [bb1: 0], [bb5: v9]
+    v5 = lt v4, arg1
+    jumpi v5, bb3, bb4
+  bb3:
+    v6 = shl 5, v4
+    v7 = add arg0, v6
+    v8 = calldataload v7
+    v10 = eq v8, arg2
+    jumpi v10, bb4, bb5
+  bb5:
+    v9 = add v4, 1
+    jump bb2
+  bb4:
+    v11 = phi [bb3: v4], [bb2: arg1]
+    ret v11
+  bb6:
+    revert 0, 0
+}
+
+// A counter read directly after the loop is rebuilt at the top of the reading block.
+// CHECK-LABEL: {{^[ +].*}}fn @rebuild_counter_after_loop{{[( ]}}
+// CHECK: + {{v[0-9]+}} = ne
+// CHECK: + [[DELTA:v[0-9]+]] = sub {{v[0-9]+}}, arg0
+// CHECK-NEXT: + [[INDEX:v[0-9]+]] = shr 5, [[DELTA]]
+// CHECK: ret [[INDEX]]
+fn @rebuild_counter_after_loop(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+  bb0:
+    v0 = calldatasize
+    v1 = sub v0, arg0
+    v2 = shr 5, v1
+    v3 = gt arg1, v2
+    jumpi v3, bb5, bb1
+  bb1:
+    jump bb2
+  bb2:
+    v4 = phi [bb1: 0], [bb4: v9]
+    v5 = lt v4, arg1
+    jumpi v5, bb3, bb6
+  bb3:
+    v6 = shl 5, v4
+    v7 = add arg0, v6
+    v8 = calldataload v7
+    v10 = eq v8, arg2
+    jumpi v10, bb6, bb4
+  bb4:
+    v9 = add v4, 1
+    jump bb2
+  bb6:
+    ret v4
+  bb5:
+    revert 0, 0
+}
+
+// A value the loop derives from the counter, read after the loop, keeps the counter.
+// CHECK-LABEL: {{^[ +].*}}fn @keep_counter_read_derived{{[( ]}}
+// CHECK-NOT: = ne
+// CHECK: {{^ +}}{{v[0-9]+}} = lt
+fn @keep_counter_read_derived(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+  bb0:
+    v0 = calldatasize
+    v1 = sub v0, arg0
+    v2 = shr 5, v1
+    v3 = gt arg1, v2
+    jumpi v3, bb5, bb1
+  bb1:
+    jump bb2
+  bb2:
+    v4 = phi [bb1: 0], [bb4: v9]
+    v5 = lt v4, arg1
+    jumpi v5, bb3, bb7
+  bb3:
+    v6 = shl 5, v4
+    v7 = add arg0, v6
+    v8 = calldataload v7
+    v10 = eq v8, arg2
+    jumpi v10, bb6, bb4
+  bb4:
+    v9 = add v4, 1
+    jump bb2
+  bb6:
+    ret v6
+  bb7:
+    ret 0
+  bb5:
+    revert 0, 0
+}
