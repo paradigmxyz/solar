@@ -63,21 +63,22 @@
 //!
 //! Recognition: as for `loop-split`, a natural loop with a preheader and no
 //! inner loop, whose header branches into the body while `i < n`, `i <= n`,
-//! `i != n` or `i > 0` and otherwise leaves the loop, where `i` is a header
-//! phi, or a pointer phi the header converts to an integer, that the loop's
-//! single back edge advances by adding a literal step, or for `!=` and `> 0`
-//! also by subtracting one, and `n` is defined outside the loop. The latch may
-//! also branch to a block that aborts, such as the increment's overflow check.
-//! A `<` or `<=` test also needs a literal start, except for `<=` stepping by
-//! one. The header's other instructions must be free of effects, because the
-//! original header repeats them for the iteration the main loop declined. The
-//! body must be straight-line: every branch inside it continues the loop on one
-//! arm and aborts on the other, such as an arithmetic panic, where a block
-//! aborts when it reverts or calls a function that never returns. The body may
-//! read words computed before the loop only when the backend rebuilds them
-//! where they are read, as calldata words at fixed offsets and environment
-//! reads: the stack scheduler spills other such words, and their copies
-//! measured slower than the original loop.
+//! `i != n` or `i > 0` and otherwise leaves the loop, where `i` is a header phi,
+//! or a pointer phi the header converts to an integer, that the loop's single
+//! back edge advances by adding a literal step, or for `!=` and `> 0` also by
+//! subtracting one, and `n` is defined outside the loop. The latch may also
+//! branch to a block that aborts, such as the increment's overflow check. A `<`
+//! or `<=` test also needs a literal start, except for `<=` stepping by one.
+//! The header's other instructions must be free of effects, because the
+//! original header repeats them for the iteration the main loop declined. Every
+//! branch inside the body continues the loop on one arm and leaves it on the
+//! other: to a block that aborts, such as an arithmetic panic, where a block
+//! aborts when it reverts or calls a function that never returns, or to a side
+//! exit, such as the block a search reaches at its match. The body may read
+//! words computed before the loop only when the backend rebuilds them where
+//! they are read, as calldata words at fixed offsets and environment reads: the
+//! stack scheduler spills other such words, and their copies measured slower
+//! than the original loop.
 //!
 //! Safety: for `<` and `<=`, `i` starts at a literal and grows by a literal
 //! step, so within the target's trip-count bound `i + (k - 1) * s` cannot wrap,
@@ -92,8 +93,14 @@
 //! leave the loop from its body, such as panics, reach the same blocks from
 //! every copy; their phis gain the cloned edges, and a loop qualifies only when
 //! no block reachable from such an edge uses a loop-defined value except as a
-//! phi input on that edge, so every definition still dominates its uses. The
-//! header's exit stays the only way to leave the original loop normally, so
+//! phi input on that edge, so every definition still dominates its uses. A side
+//! exit entered from a single loop block that reads loop values directly, as a
+//! search's match reads the pointer it stopped at, first takes each of them
+//! through a phi on that edge, so every copy brings its own. An aborting block
+//! gets no such phis: the backend never carries its phis on the stack, but
+//! copies them through memory ahead of every branch to it, in every iteration,
+//! so a direct read in an aborting block keeps the loop rolled. The header's
+//! exit stays the only way to leave the original loop through its test, so
 //! values read after the loop keep their definitions. A peeled loop's body runs
 //! only after the copy's tests held, and they read the same words; the copy's
 //! declined first iteration reaches a header free of effects with the same
@@ -231,6 +238,9 @@ struct Unroll {
     /// The loop-invariant bound the header compares the counter against.
     bound: ValueId,
     step: U256,
+    /// Side exits that read loop values directly, with the values a phi on their edge
+    /// carries instead before the loop is copied.
+    exit_phis: Vec<(BlockId, Vec<ValueId>)>,
 }
 
 /// The shape both unrolling and peeling need: a natural loop with a preheader and a single
@@ -420,15 +430,18 @@ fn shape(
         }
     }
     // Only a straight-line body gains: every branch inside it continues the loop on one arm
-    // and aborts on the other, such as an arithmetic panic.
+    // and leaves it on the other, to an abort such as an arithmetic panic or to a side exit
+    // such as a search's match.
     for block in l.blocks.iter() {
         if block == l.header || aborts(func, block, cold) {
             continue;
         }
         let successors = func.blocks[block].terminator.as_ref()?.successors();
-        let continuing: Vec<_> =
-            successors.iter().filter(|&&successor| !aborts(func, successor, cold)).collect();
-        if continuing.len() != 1 || !l.blocks.contains(*continuing[0]) {
+        let continuing: Vec<_> = successors
+            .iter()
+            .filter(|&&successor| l.blocks.contains(successor) && !aborts(func, successor, cold))
+            .collect();
+        if continuing.len() != 1 {
             return None;
         }
     }
@@ -453,15 +466,30 @@ fn exits_read_through_phis(
     l: &Loop,
     exit: BlockId,
     loop_insts: &DenseBitSet<InstId>,
+    cold: &DenseBitSet<FunctionId>,
 ) -> bool {
+    exit_reads(func, l, exit, loop_insts, cold).is_some_and(|reads| reads.is_empty())
+}
+
+/// The loop values that side exits entered only from the loop read directly, by exit, which a
+/// phi on the exit edge can carry instead; `None` when a block further from the loop reads a
+/// loop value other than as the phi input of an edge from the loop.
+fn exit_reads(
+    func: &Function,
+    l: &Loop,
+    exit: BlockId,
+    loop_insts: &DenseBitSet<InstId>,
+    cold: &DenseBitSet<FunctionId>,
+) -> Option<Vec<(BlockId, Vec<ValueId>)>> {
     let defined_in_loop = |value| match func.value(value) {
         Value::Inst(inst) => loop_insts.contains(*inst),
         _ => false,
     };
+    let mut reads = Vec::new();
     let mut reachable = DenseBitSet::new_empty(func.blocks.len());
     let mut worklist = Vec::new();
     for block in l.blocks.iter() {
-        let Some(terminator) = &func.blocks[block].terminator else { return false };
+        let terminator = func.blocks[block].terminator.as_ref()?;
         for successor in terminator.successors() {
             if !l.blocks.contains(successor)
                 && !(block == l.header && successor == exit)
@@ -473,21 +501,43 @@ fn exits_read_through_phis(
     }
     while let Some(block) = worklist.pop() {
         let body = &func.blocks[block];
+        let terminator = body.terminator.as_ref()?;
+        // A side exit entered only from one loop block can take its reads through phis. The
+        // backend never carries the phis of an aborting block on the stack: it copies them
+        // through memory ahead of the branch, so such a block keeps the loop rolled when it
+        // reads a loop value directly.
+        let fixable = matches!(body.predecessors.as_slice(), &[pred] if l.blocks.contains(pred))
+            && !aborts(func, block, cold);
+        let mut direct = Vec::new();
+        let mut read = |value: ValueId| {
+            if !defined_in_loop(value) {
+                return true;
+            }
+            if fixable && func.value_ty(value).is_some() {
+                if !direct.contains(&value) {
+                    direct.push(value);
+                }
+                return true;
+            }
+            false
+        };
         for &inst in &body.instructions {
             let kind = &func.inst(inst).kind;
-            let reads_loop_value = match kind {
+            let reads_through_phis = match kind {
                 InstKind::Phi(incoming) => incoming
                     .iter()
-                    .any(|&(from, value)| !l.blocks.contains(from) && defined_in_loop(value)),
-                _ => kind.operands().into_iter().any(defined_in_loop),
+                    .all(|&(from, value)| l.blocks.contains(from) || !defined_in_loop(value)),
+                _ => kind.operands().into_iter().all(&mut read),
             };
-            if reads_loop_value {
-                return false;
+            if !reads_through_phis {
+                return None;
             }
         }
-        let Some(terminator) = &body.terminator else { return false };
-        if terminator.operands().into_iter().any(defined_in_loop) {
-            return false;
+        if !terminator.operands().into_iter().all(&mut read) {
+            return None;
+        }
+        if !direct.is_empty() {
+            reads.push((block, direct));
         }
         for successor in terminator.successors() {
             if !l.blocks.contains(successor) && reachable.insert(successor) {
@@ -495,7 +545,39 @@ fn exits_read_through_phis(
             }
         }
     }
-    true
+    Some(reads)
+}
+
+/// Gives each side exit a phi for every loop value it reads directly, so that every copy of
+/// the loop can bring its own value along its own edge.
+fn add_exit_phis(func: &mut Function, exit_phis: &[(BlockId, Vec<ValueId>)]) {
+    for (block, values) in exit_phis {
+        let &[pred] = func.blocks[*block].predecessors.as_slice() else { continue };
+        let mut replacements = FxHashMap::default();
+        let mut phis = Vec::with_capacity(values.len());
+        for &value in values {
+            // block: value' = phi [pred: value]
+            let (phi, result) = func.alloc_value_inst(
+                Instruction::new(InstKind::Phi(vec![(pred, value)]), func.value_ty(value))
+                    .with_debug_info_dropped(),
+            );
+            phis.push(phi);
+            replacements.insert(value, result);
+        }
+        let mut instructions = phis;
+        for inst in std::mem::take(&mut func.blocks[*block].instructions) {
+            func.inst_mut(inst).kind.visit_operands_mut(|operand| {
+                *operand = replacements.get(operand).copied().unwrap_or(*operand);
+            });
+            instructions.push(inst);
+        }
+        func.blocks[*block].instructions = instructions;
+        if let Some(terminator) = func.blocks[*block].terminator.as_mut() {
+            terminator.visit_operands_mut(|operand| {
+                *operand = replacements.get(operand).copied().unwrap_or(*operand);
+            });
+        }
+    }
 }
 
 fn plan(
@@ -557,9 +639,7 @@ fn plan(
     });
     let (_, factor, main_test) = candidates.max_by_key(|&(saving, ..)| saving)?;
 
-    if !exits_read_through_phis(func, l, exit, loop_insts) {
-        return None;
-    }
+    let exit_phis = exit_reads(func, l, exit, loop_insts, cold)?;
     Some(Unroll {
         header: l.header,
         preheader,
@@ -571,6 +651,7 @@ fn plan(
         word,
         bound,
         step,
+        exit_phis,
     })
 }
 
@@ -846,7 +927,7 @@ fn plan_peel(
             }
         })
         .collect();
-    if tests.is_empty() || !exits_read_through_phis(func, l, shape.exit, &shape.loop_insts) {
+    if tests.is_empty() || !exits_read_through_phis(func, l, shape.exit, &shape.loop_insts, cold) {
         return None;
     }
     // Every iteration after the first skips each test's conditional jump, and the copy holds
@@ -882,7 +963,7 @@ fn plan_full(
     let shape = shape(func, loops, l, cold)?;
     let counter = counter(func, l, &shape)?;
     let trips = counter.trips.filter(|trips| (1..=MAX_COMPLETE_TRIPS).contains(trips))?;
-    if !exits_read_through_phis(func, l, shape.exit, &shape.loop_insts) {
+    if !exits_read_through_phis(func, l, shape.exit, &shape.loop_insts, cold) {
         return None;
     }
     // Every iteration and the final test skip the header's test, and every iteration skips its
@@ -1101,6 +1182,7 @@ fn fold_steps(func: &mut Function, blocks: &[BlockId]) {
 
 /// Unrolls the loop and returns the main loop's header.
 fn apply(func: &mut Function, unroll: &Unroll) -> BlockId {
+    add_exit_phis(func, &unroll.exit_phis);
     let blocks: Vec<BlockId> = unroll.blocks.iter().collect();
     // Edges that leave the loop from its body, before any terminator changes.
     let side_exits: Vec<_> = blocks

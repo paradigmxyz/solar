@@ -179,8 +179,9 @@ fn @wrapping_start(arg0: i256) -> i256 {
     ret v1
 }
 
-// A reverting block that reads a body value outside a phi would lose its
-// dominating definition once both copies reach it: the loop is kept.
+// A reverting block that reads a body value would need a phi for the value
+// of each copy, and the backend copies the phis of an aborting block through
+// memory ahead of every branch to it: the loop is kept.
 // CHECK-LABEL: {{^[ +].*}}fn @exit_use{{[( ]}}
 // CHECK-NOT: {{^[-+]}}
 fn @exit_use(arg0: i256) -> i256 {
@@ -718,4 +719,60 @@ fn @reversed(arg0: i256, arg1: i256) -> i256 {
     jump bb1
   bb3:
     ret v1
+}
+
+// A search that leaves at a match unrolls as well: its match exit reads the pointer through a
+// phi, so the match edge of every copy brings that copy's pointer.
+// CHECK-LABEL: {{^[ +].*}}fn @search_exit{{[( ]}}
+// CHECK: - [[OLD:v[0-9]+]] = sub v0, arg0
+// CHECK: + [[FOUND:v[0-9]+]] = phi [bb2: v0], {{\[}}{{bb[0-9]+}}: {{v[0-9]+}}], {{\[}}{{bb[0-9]+}}: {{v[0-9]+}}]
+// CHECK-NEXT: + [[OLD]] = sub [[FOUND]], arg0
+fn @search_exit(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: arg0], [bb4: v5]
+    v1 = ne v0, arg1
+    jumpi v1, bb2, bb5
+  bb2:
+    v2 = calldataload v0
+    v3 = eq v2, arg2
+    jumpi v3, bb3, bb4
+  bb4:
+    v5 = add v0, 32
+    jump bb1
+  bb3:
+    v6 = sub v0, arg0
+    jump bb6
+  bb5:
+    jump bb6
+  bb6:
+    v7 = phi [bb3: v6], [bb5: arg1]
+    ret v7
+}
+
+// The same search returning at its match unrolls too: the returning block
+// takes the pointer through a phi as well.
+// CHECK-LABEL: {{^[ +].*}}fn @search_return{{[( ]}}
+// CHECK: + [[FOUND:v[0-9]+]] = phi [bb2: v0], {{\[}}{{bb[0-9]+}}: {{v[0-9]+}}], {{\[}}{{bb[0-9]+}}: {{v[0-9]+}}]
+// CHECK-NEXT: + {{v[0-9]+}} = sub [[FOUND]], arg0
+fn @search_return(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: arg0], [bb4: v5]
+    v1 = ne v0, arg1
+    jumpi v1, bb2, bb5
+  bb2:
+    v2 = calldataload v0
+    v3 = eq v2, arg2
+    jumpi v3, bb3, bb4
+  bb4:
+    v5 = add v0, 32
+    jump bb1
+  bb3:
+    v6 = sub v0, arg0
+    ret v6
+  bb5:
+    ret arg1
 }

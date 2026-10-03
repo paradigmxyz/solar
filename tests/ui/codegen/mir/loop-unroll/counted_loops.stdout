@@ -1011,3 +1011,100 @@
       jump bb1
   }
   
+  fn @search_exit(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
++     jump bb7
++   bb7:
++     v8 = phi [bb0: arg0]
++     v18 = sub arg1, v8
++     v19 = shr 5, v18
++     v20 = and v19, 1
++     v21 = ne v20, 0
++     jumpi v21, bb8, bb1
++   bb8:
++     v10 = calldataload v8
++     v11 = eq v10, arg2
++     jumpi v11, bb4, bb9
++   bb9:
++     v12 = add v8, 32
+      jump bb1
+    bb1:
+-     v0 = phi [bb0: arg0], [bb3: v4]
++     v0 = phi [bb7: v8], [bb12: v17], [bb9: v12]
+      v1 = ne v0, arg1
+      jumpi v1, bb2, bb5
+    bb5:
+      jump bb6
+    bb2:
+      v2 = calldataload v0
+      v3 = eq v2, arg2
+      jumpi v3, bb4, bb3
+    bb3:
+      v4 = add v0, 32
++     jump bb10
++   bb10:
++     jump bb11
++   bb11:
++     v15 = calldataload v4
++     v16 = eq v15, arg2
++     jumpi v16, bb4, bb12
++   bb12:
++     v17 = add v4, 32
+      jump bb1
+    bb4:
+-     v5 = sub v0, arg0
++     v7 = phi [bb2: v0], [bb8: v8], [bb11: v4]
++     v5 = sub v7, arg0
+      jump bb6
+    bb6:
+      v6 = phi [bb4: v5], [bb5: arg1]
+      ret v6
+  }
+  
+  fn @search_return(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
++     jump bb6
++   bb6:
++     v7 = phi [bb0: arg0]
++     v17 = sub arg1, v7
++     v18 = shr 5, v17
++     v19 = and v18, 1
++     v20 = ne v19, 0
++     jumpi v20, bb7, bb1
++   bb7:
++     v9 = calldataload v7
++     v10 = eq v9, arg2
++     jumpi v10, bb4, bb8
++   bb8:
++     v11 = add v7, 32
+      jump bb1
+    bb1:
+-     v0 = phi [bb0: arg0], [bb3: v4]
++     v0 = phi [bb6: v7], [bb11: v16], [bb8: v11]
+      v1 = ne v0, arg1
+      jumpi v1, bb2, bb5
+    bb5:
+      ret arg1
+    bb2:
+      v2 = calldataload v0
+      v3 = eq v2, arg2
+      jumpi v3, bb4, bb3
+    bb3:
+      v4 = add v0, 32
++     jump bb9
++   bb9:
++     jump bb10
++   bb10:
++     v14 = calldataload v4
++     v15 = eq v14, arg2
++     jumpi v15, bb4, bb11
++   bb11:
++     v16 = add v4, 32
+      jump bb1
+    bb4:
+-     v5 = sub v0, arg0
++     v6 = phi [bb2: v0], [bb7: v7], [bb10: v4]
++     v5 = sub v6, arg0
+      ret v5
+  }
+  
