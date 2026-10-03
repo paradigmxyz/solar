@@ -50,14 +50,15 @@ fn @panic() {
 }
 
 // An overflow check that calls a panic helper leaves the body straight-line:
-// each copy keeps its own call.
+// each copy keeps its own call. No copy reads the counter, so the group
+// advances it once.
 // CHECK-LABEL: {{^[ +].*}}fn @checked{{[( ]}}
 // CHECK: + [[I:v[0-9]+]] = phi [bb0: 5], {{\[}}[[LATCH:bb[0-9]+]]: {{v[0-9]+}}]
 // CHECK: + [[AHEAD:v[0-9]+]] = add [[I]], 9
 // CHECK-NEXT: + {{v[0-9]+}} = lt [[AHEAD]], arg0
 // CHECK-COUNT-4: + icall @panic
 // CHECK: + [[LATCH]]:
-// CHECK-NEXT: + {{v[0-9]+}} = add {{v[0-9]+}}, 3
+// CHECK-NEXT: + {{v[0-9]+}} = add [[I]], 12
 // CHECK-NEXT: + jump
 fn @checked(arg0: i256, arg1: i256) -> i256 {
   bb0:

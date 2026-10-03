@@ -8,7 +8,6 @@
 +   bb4:
 +     v6 = phi [bb0: 0], [bb11: v29]
 +     v7 = phi [bb0: 0], [bb11: v28]
-+     v8 = lt v6, arg0
 +     v30 = add v6, 3
 +     v31 = lt v30, arg0
 +     jumpi v31, bb5, bb1
@@ -32,7 +31,6 @@
 +     v11 = add v6, 1
 +     jump bb6
 +   bb6:
-+     v14 = lt v11, arg0
 +     jump bb7
 +   bb7:
 +     v15 = mul v11, 3
@@ -40,7 +38,6 @@
 +     v17 = add v11, 1
 +     jump bb8
 +   bb8:
-+     v20 = lt v17, arg0
 +     jump bb9
 +   bb9:
 +     v21 = mul v17, 3
@@ -48,7 +45,6 @@
 +     v23 = add v17, 1
 +     jump bb10
 +   bb10:
-+     v26 = lt v23, arg0
 +     jump bb11
 +   bb11:
 +     v27 = mul v23, 3
@@ -71,7 +67,6 @@
 +   bb6:
 +     v6 = phi [bb0: 5], [bb20: v29]
 +     v7 = phi [bb0: 0], [bb20: v27]
-+     v8 = lt v6, arg0
 +     v30 = add v6, 9
 +     v31 = lt v30, arg0
 +     jumpi v31, bb7, bb1
@@ -105,7 +100,6 @@
 +     v11 = add v6, 3
 +     jump bb10
 +   bb10:
-+     v14 = lt v11, arg0
 +     jump bb11
 +   bb11:
 +     v15 = add v9, arg1
@@ -115,10 +109,9 @@
 +     icall @panic
 +     jump bb12
 +   bb12:
-+     v17 = add v11, 3
++     v17 = add v6, 6
 +     jump bb14
 +   bb14:
-+     v20 = lt v17, arg0
 +     jump bb15
 +   bb15:
 +     v21 = add v15, arg1
@@ -128,10 +121,9 @@
 +     icall @panic
 +     jump bb16
 +   bb16:
-+     v23 = add v17, 3
++     v23 = add v6, 9
 +     jump bb18
 +   bb18:
-+     v26 = lt v23, arg0
 +     jump bb19
 +   bb19:
 +     v27 = add v21, arg1
@@ -141,7 +133,7 @@
 +     icall @panic
 +     jump bb20
 +   bb20:
-+     v29 = add v23, 3
++     v29 = add v6, 12
 +     jump bb6
   }
   
@@ -152,7 +144,6 @@
 +   bb6:
 +     v7 = phi [bb0: 0], [bb17: v30]
 +     v8 = phi [bb0: 1], [bb17: v28]
-+     v9 = lt v7, arg0
 +     v31 = add v7, 3
 +     v32 = lt v31, arg0
 +     jumpi v32, bb7, bb1
@@ -180,34 +171,31 @@
 +     v12 = add v7, 1
 +     jump bb9
 +   bb9:
-+     v15 = lt v12, arg0
 +     jump bb10
 +   bb10:
 +     v16 = mul v10, 3
 +     v17 = gt v16, 0x3e8
 +     jumpi v17, bb4, bb11
 +   bb11:
-+     v18 = add v12, 1
++     v18 = add v7, 2
 +     jump bb12
 +   bb12:
-+     v21 = lt v18, arg0
 +     jump bb13
 +   bb13:
 +     v22 = mul v16, 3
 +     v23 = gt v22, 0x3e8
 +     jumpi v23, bb4, bb14
 +   bb14:
-+     v24 = add v18, 1
++     v24 = add v7, 3
 +     jump bb15
 +   bb15:
-+     v27 = lt v24, arg0
 +     jump bb16
 +   bb16:
 +     v28 = mul v22, 3
 +     v29 = gt v28, 0x3e8
 +     jumpi v29, bb4, bb17
 +   bb17:
-+     v30 = add v24, 1
++     v30 = add v7, 4
 +     jump bb6
     bb4:
 -     v6 = phi [bb2: v3]
@@ -223,7 +211,6 @@
 +   bb4:
 +     v5 = phi [bb0: 0], [bb11: v24]
 +     v6 = phi [bb0: 0], [bb11: v23]
-+     v7 = lt v5, 100
 +     v25 = add v5, 3
 +     v26 = lt v25, 100
 +     jumpi v26, bb5, bb1
@@ -245,21 +232,18 @@
 +     v9 = add v5, 1
 +     jump bb6
 +   bb6:
-+     v12 = lt v9, 100
 +     jump bb7
 +   bb7:
 +     v13 = add v8, v9
 +     v14 = add v9, 1
 +     jump bb8
 +   bb8:
-+     v17 = lt v14, 100
 +     jump bb9
 +   bb9:
 +     v18 = add v13, v14
 +     v19 = add v14, 1
 +     jump bb10
 +   bb10:
-+     v22 = lt v19, 100
 +     jump bb11
 +   bb11:
 +     v23 = add v18, v19
@@ -395,7 +379,6 @@
 +   bb7:
 +     v10 = phi [bb2: 0], [bb14: v29]
 +     v11 = phi [bb2: v1], [bb14: v28]
-+     v12 = lt v10, arg1
 +     v30 = add v10, 3
 +     v31 = lt v30, arg1
 +     jumpi v31, bb8, bb3
@@ -419,21 +402,18 @@
 +     v14 = add v10, 1
 +     jump bb9
 +   bb9:
-+     v17 = lt v14, arg1
 +     jump bb10
 +   bb10:
 +     v18 = add v13, v14
 +     v19 = add v14, 1
 +     jump bb11
 +   bb11:
-+     v22 = lt v19, arg1
 +     jump bb12
 +   bb12:
 +     v23 = add v18, v19
 +     v24 = add v19, 1
 +     jump bb13
 +   bb13:
-+     v27 = lt v24, arg1
 +     jump bb14
 +   bb14:
 +     v28 = add v23, v24
@@ -450,7 +430,6 @@
 +     v10 = phi [bb0: 0]
 +     v11 = phi [bb0: arg0]
 +     v12 = ptrtoint memptr v11 to i256
-+     v13 = ne v12, v1
 +     v26 = sub v1, v12
 +     v27 = and v26, 1
 +     v28 = ne v27, 0
@@ -479,7 +458,6 @@
 +     jump bb6
 +   bb6:
 +     v20 = ptrtoint memptr v9 to i256
-+     v21 = ne v20, v1
 +     jump bb7
 +   bb7:
 +     v22 = add v20, 1
@@ -495,7 +473,6 @@
 +   bb4:
 +     v6 = phi [bb0: arg0]
 +     v7 = phi [bb0: 0]
-+     v8 = ne arg1, v6
 +     v18 = sub arg1, v6
 +     v19 = shr 5, v18
 +     v20 = and v19, 1
@@ -521,7 +498,6 @@
       v5 = add v0, 32
 +     jump bb6
 +   bb6:
-+     v14 = ne arg1, v5
 +     jump bb7
 +   bb7:
 +     v15 = mload v5
@@ -554,7 +530,6 @@
 +   bb4:
 +     v5 = phi [bb0: 2], [bb11: v24]
 +     v6 = phi [bb0: 1], [bb11: v23]
-+     v7 = gt v5, arg0
 +     v25 = add v5, 6
 +     v26 = gt v25, arg0
 +     jumpi v26, bb1, bb5
@@ -563,21 +538,18 @@
 +     v9 = add v5, 2
 +     jump bb6
 +   bb6:
-+     v12 = gt v9, arg0
 +     jump bb7
 +   bb7:
 +     v13 = mul v8, v9
 +     v14 = add v9, 2
 +     jump bb8
 +   bb8:
-+     v17 = gt v14, arg0
 +     jump bb9
 +   bb9:
 +     v18 = mul v13, v14
 +     v19 = add v14, 2
 +     jump bb10
 +   bb10:
-+     v22 = gt v19, arg0
 +     jump bb11
 +   bb11:
 +     v23 = mul v18, v19
@@ -604,7 +576,6 @@
 +   bb4:
 +     v6 = phi [bb0: arg0]
 +     v7 = phi [bb0: 0]
-+     v8 = eq v6, arg1
 +     v18 = sub arg1, v6
 +     v19 = shr 5, v18
 +     v20 = and v19, 1
@@ -628,7 +599,6 @@
       v5 = add v0, 32
 +     jump bb6
 +   bb6:
-+     v14 = eq v5, arg1
 +     jump bb7
 +   bb7:
 +     v15 = mload v5
@@ -646,7 +616,6 @@
 +   bb5:
 +     v6 = phi [bb0: arg0], [bb8: v16]
 +     v7 = phi [bb0: 0], [bb8: v15]
-+     v8 = gt v6, arg1
 +     v18 = lt v6, arg1
 +     jumpi v18, bb6, bb1
     bb1:
@@ -671,7 +640,6 @@
 +     v11 = eq v10, 0
 +     jumpi v11, bb4, bb7
 +   bb7:
-+     v14 = gt v10, arg1
 +     jump bb8
 +   bb8:
 +     v15 = add v9, v10
@@ -689,7 +657,6 @@
 +   bb4:
 +     v9 = phi [bb0: 0], [bb11: v44]
 +     v10 = phi [bb0: 0], [bb11: v43]
-+     v11 = lt v9, arg0
 +     v45 = add v9, 3
 +     v46 = lt v45, arg0
 +     jumpi v46, bb5, bb1
@@ -719,7 +686,6 @@
 +     v17 = add v9, 1
 +     jump bb6
 +   bb6:
-+     v20 = lt v17, arg0
 +     jump bb7
 +   bb7:
 +     v21 = mul v16, 0x123456789abcdef
@@ -730,7 +696,6 @@
 +     v26 = add v17, 1
 +     jump bb8
 +   bb8:
-+     v29 = lt v26, arg0
 +     jump bb9
 +   bb9:
 +     v30 = mul v25, 0x123456789abcdef
@@ -741,7 +706,6 @@
 +     v35 = add v26, 1
 +     jump bb10
 +   bb10:
-+     v38 = lt v35, arg0
 +     jump bb11
 +   bb11:
 +     v39 = mul v34, 0x123456789abcdef
@@ -759,7 +723,6 @@
 +   bb4:
 +     v5 = phi [bb0: arg0]
 +     v6 = phi [bb0: 0]
-+     v7 = ne v5, 0
 +     v15 = and v5, 1
 +     v16 = ne v15, 0
 +     jumpi v16, bb5, bb1
@@ -781,7 +744,6 @@
       v4 = sub v0, 1
 +     jump bb6
 +   bb6:
-+     v12 = ne v4, 0
 +     jump bb7
 +   bb7:
 +     v13 = add v3, v4
@@ -795,7 +757,6 @@
 +   bb4:
 +     v5 = phi [bb0: arg0]
 +     v6 = phi [bb0: 0]
-+     v7 = gt v5, 0
 +     v15 = shr 1, v5
 +     v16 = and v15, 1
 +     v17 = ne v16, 0
@@ -818,7 +779,6 @@
       v4 = sub v0, 2
 +     jump bb6
 +   bb6:
-+     v12 = gt v4, 0
 +     jump bb7
 +   bb7:
 +     v13 = add v3, v4
@@ -832,7 +792,6 @@
 +   bb4:
 +     v5 = phi [bb0: arg0]
 +     v6 = phi [bb0: 0]
-+     v7 = ne v5, arg1
 +     v15 = sub arg1, v5
 +     v16 = and v15, 1
 +     v17 = ne v16, 0
@@ -855,7 +814,6 @@
       v4 = sub v0, 1
 +     jump bb6
 +   bb6:
-+     v12 = ne v4, arg1
 +     jump bb7
 +   bb7:
 +     v13 = add v3, v4

@@ -26,10 +26,7 @@ fn @swaps() [selector=0xdb9a27fa, abi_wrapper, pure] {
     v7 = add v3, 1
     jump bb1
   bb7:
-    v17 = add v14, 1
-    v22 = add v17, 1
-    v27 = add v22, 1
-    v32 = add v27, 1
+    v32 = add v14, 4
     jump bb6
   bb4:
     revert 0, 0

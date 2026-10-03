@@ -112,21 +112,18 @@ fn @entry() [entry] {
   bb39:
     v116 = add v114, v5
     v117 = lt v116, v114
-    v118 = add v113, 1
     v122 = add v116, v5
     v123 = lt v122, v116
     v184 = or v117, v123
-    v124 = add v118, 1
     v128 = add v122, v5
     v129 = lt v128, v122
     v185 = or v184, v129
-    v130 = add v124, 1
     v134 = add v128, v5
     v135 = lt v134, v128
     v186 = or v185, v135
     jumpi v186, bb11, bb40
   bb40:
-    v136 = add v130, 1
+    v136 = add v113, 4
     jump bb38
   bb3:
     v16 = calldatasize

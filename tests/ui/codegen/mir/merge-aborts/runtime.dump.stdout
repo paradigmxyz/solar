@@ -111,7 +111,6 @@ fn @entry() [entry] {
     v42 = add v36, v5
     v43 = lt v42, v36
     v112 = or v111, v43
-    v44 = add v34, 1
     v49 = mul v42, 0xe8d4a51000
     v113 = gt v42, 0x119799812dea11197f27f0f6e885c8ba7eb31f476caf7411a863387
     v114 = or v112, v113
@@ -121,7 +120,6 @@ fn @entry() [entry] {
     v53 = add v42, v5
     v54 = lt v53, v42
     v116 = or v115, v54
-    v55 = add v44, 1
     v60 = mul v53, 0xe8d4a51000
     v117 = gt v53, 0x119799812dea11197f27f0f6e885c8ba7eb31f476caf7411a863387
     v118 = or v116, v117
@@ -131,7 +129,6 @@ fn @entry() [entry] {
     v64 = add v53, v5
     v65 = lt v64, v53
     v120 = or v119, v65
-    v66 = add v55, 1
     v71 = mul v64, 0xe8d4a51000
     v121 = gt v64, 0x119799812dea11197f27f0f6e885c8ba7eb31f476caf7411a863387
     v122 = or v120, v121
@@ -143,7 +140,7 @@ fn @entry() [entry] {
     v124 = or v123, v76
     jumpi v124, bb9, bb21
   bb21:
-    v77 = add v66, 1
+    v77 = add v34, 4
     jump bb19
   bb9:
     mstore 0, 0x4e487b71

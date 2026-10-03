@@ -109,7 +109,10 @@
 //! counter saves that addition, but leaves `i` live only on the exit edge and
 //! `ahead` only on the body edge, which the stack scheduler pays for with swaps
 //! and pops in the copies; recomputing keeps every copy's stack shape the
-//! original body's.
+//! original body's. When no copy reads the counter between its steps, the
+//! copies' steps chain as `add (add i, s), s`, which the pass sums into
+//! `add i, 2s`. Addition wraps modulo `2^256`, so the sum is exact, and the
+//! group advances the counter once.
 //!
 //! Profitability: gas mode only, and only when the optimizer runs reach the
 //! target's threshold for copying loops: unrolling and peeling trade code size
@@ -893,6 +896,62 @@ fn edit_phi(func: &mut Function, phi: ValueId, edit: impl FnOnce(&mut Vec<(Block
     }
 }
 
+/// Returns the operand of an addition other than its literal, and the literal.
+fn literal_step(func: &Function, lhs: ValueId, rhs: ValueId) -> Option<(ValueId, U256)> {
+    match (func.value_u256(lhs), func.value_u256(rhs)) {
+        (None, Some(step)) => Some((lhs, step)),
+        (Some(step), None) => Some((rhs, step)),
+        _ => None,
+    }
+}
+
+/// Sums each literal step in `blocks` with the literal step before it when nothing else reads
+/// the earlier sum, as the copies' counter steps chain when no body reads the counter.
+fn fold_steps(func: &mut Function, blocks: &[BlockId]) {
+    let mut uses = super::egraph::use_counts(func);
+    // The copies' header tests no branch reads any more still read the counter; drop them
+    // first, as dead-code elimination would.
+    let mut dropped = true;
+    while dropped {
+        dropped = false;
+        for &block in blocks {
+            let mut kept = Vec::with_capacity(func.blocks[block].instructions.len());
+            for inst in func.blocks[block].instructions.clone() {
+                if func.inst_result_value(inst).is_some_and(|result| uses[result] == 0)
+                    && func.inst(inst).kind.effect_kind() == EffectKind::Pure
+                {
+                    func.inst(inst).kind.visit_operands(|operand| uses[operand] -= 1);
+                    dropped = true;
+                } else {
+                    kept.push(inst);
+                }
+            }
+            func.blocks[block].instructions = kept;
+        }
+    }
+    for &block in blocks {
+        for inst in func.blocks[block].instructions.clone() {
+            let InstKind::Add(lhs, rhs) = func.inst(inst).kind else { continue };
+            if func.inst(inst).result_ty == Some(MirType::I256)
+                && let Some((inner, outer)) = literal_step(func, lhs, rhs)
+                && uses[inner] == 1
+                && let Value::Inst(inner_inst) = *func.value(inner)
+                && func.inst(inner_inst).result_ty == Some(MirType::I256)
+                && let InstKind::Add(a, b) = func.inst(inner_inst).kind
+                && let Some((base, step)) = literal_step(func, a, b)
+            {
+                // inner = add base, step; next = add inner, outer
+                // next = add base, step + outer
+                let sum = Value::Immediate(Immediate::I256(step.wrapping_add(outer)));
+                let sum = func.alloc_value(sum);
+                func.inst_mut(inst).kind = InstKind::Add(base, sum);
+                uses[inner] -= 1;
+                uses[base] += 1;
+            }
+        }
+    }
+}
+
 /// Unrolls the loop and returns the main loop's header.
 fn apply(func: &mut Function, unroll: &Unroll) -> BlockId {
     let blocks: Vec<BlockId> = unroll.blocks.iter().collect();
@@ -1100,6 +1159,11 @@ fn apply(func: &mut Function, unroll: &Unroll) -> BlockId {
     // survives.
     func.replace_uses_canonicalized(&replacements);
     rebuild_predecessors(func);
+
+    // i_2 = add (add i, s), s -> i_2 = add i, 2s, when no copy reads i_1
+    let cloned: Vec<_> =
+        copies.iter().flat_map(|copy| blocks.iter().map(|block| copy.blocks[block])).collect();
+    fold_steps(func, &cloned);
     main_header
 }
 
