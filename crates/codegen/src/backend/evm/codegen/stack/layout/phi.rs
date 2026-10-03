@@ -996,15 +996,21 @@ impl<'a> StackPhiPlanner<'a> {
                 })
                 .collect::<Vec<_>>();
             let live_in = liveness.live_in(arm);
-            // branch; arm-local uses; join-only immediates on the join edge
-            if self.target.optimization().is_gas() {
-                sources.retain(|&value| {
-                    !matches!(self.func.value(value), crate::mir::Value::Immediate(_))
-                        || live_in.contains(value)
-                });
-            }
             let resident = state.resident_out.get(&pred).map(Vec::as_slice).unwrap_or_default();
             let wanted = state.wanted.row(arm);
+            // branch; arm-local uses; join-only immediates and reloads on the join edge
+            // A computed word the branch does not hold and the arm does not want would be
+            // reloaded ahead of the branch on every execution, rotated under the condition and
+            // popped again in the arm. The join edge reloads it after the branch instead, only
+            // when it is taken. Residency does not track arguments, which may still be on the
+            // stack, so they stay.
+            if self.target.optimization().is_gas() {
+                sources.retain(|&value| {
+                    resident.contains(&value)
+                        || wanted.contains(value)
+                        || !matches!(self.func.value(value), crate::mir::Value::Inst(_))
+                });
+            }
             let mut carried = resident
                 .iter()
                 .copied()
