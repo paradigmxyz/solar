@@ -359,6 +359,32 @@ fn @word_scan(arg0: i256, arg1: i256) -> i256 {
     ret v1
 }
 
+// An end built as the start plus a count shifted by five leaves that count to
+// go on entry, so the parity is the count's lowest bit.
+// CHECK-LABEL: {{^[ +].*}}fn @word_scan_to_end{{[( ]}}
+// CHECK-NOT: = sub
+// CHECK: + [[BIT:v[0-9]+]] = and arg1, 1
+// CHECK-NEXT: + [[ODD:v[0-9]+]] = ne [[BIT]], 0
+// CHECK-NEXT: + jumpi [[ODD]],
+fn @word_scan_to_end(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v6 = shl 5, arg1
+    v7 = add arg0, v6
+    jump bb1
+  bb1:
+    v0 = phi [bb0: arg0], [bb2: v4]
+    v1 = phi [bb0: 0], [bb2: v3]
+    v2 = ne v0, v7
+    jumpi v2, bb2, bb3
+  bb2:
+    v5 = mload v0
+    v3 = add v1, v5
+    v4 = add v0, 32
+    jump bb1
+  bb3:
+    ret v1
+}
+
 // A `<` test needs a literal start to rule out `i + s` wrapping: the loop is
 // kept.
 // CHECK-LABEL: {{^[ +].*}}fn @variable_start_below{{[( ]}}

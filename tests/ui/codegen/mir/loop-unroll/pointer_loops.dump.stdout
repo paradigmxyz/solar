@@ -141,8 +141,8 @@ fn @sumWords() [selector=0x5a761098, abi_wrapper, pure] {
     v23 = gt v20, 0xffffffffffffffff
     v24 = gt v22, v18
     v25 = or v23, v24
-    v72 = or v19, v25
-    jumpi v72, bb4, bb5
+    v70 = or v19, v25
+    jumpi v70, bb4, bb5
   bb5:
     v27 = calldataload v21
     v29 = shl 5, v27
@@ -150,8 +150,8 @@ fn @sumWords() [selector=0x5a761098, abi_wrapper, pure] {
     v35 = ne v31, v27
     v36 = add v29, 32
     v37 = lt v36, v29
-    v73 = or v35, v37
-    jumpi v73, bb6, bb7
+    v71 = or v35, v37
+    jumpi v71, bb6, bb7
   bb7:
     v50 = mload 64 !metadata(memory=scratch)
     v51 = add v50, v36
@@ -170,11 +170,9 @@ fn @sumWords() [selector=0x5a761098, abi_wrapper, pure] {
     v46 = add v50, 32
     calldatacopy v46, v22, v29
     v5 = add v46, v29
-    v68 = sub v5, v46
-    v69 = shr 5, v68
-    v70 = and v69, 1
-    v71 = ne v70, 0
-    jumpi v71, bb10, bb1
+    v68 = and v27, 1
+    v69 = ne v68, 0
+    jumpi v69, bb10, bb1
   bb10:
     v59 = mload v46
     v60 = add 0, v59

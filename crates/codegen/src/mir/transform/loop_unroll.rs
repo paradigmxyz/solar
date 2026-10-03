@@ -41,6 +41,10 @@
 //! body_b: second copy; jump header
 //! ```
 //!
+//! A bound built as `start + (m << t)`, as a pointer's end usually is, leaves
+//! `m << t` to go on entry, whose bit `t` is bit zero of `m`, so the check
+//! tests the low bit of `m` without the subtraction and the shift.
+//!
 //! A body that aborts unless a word computed before the loop holds, such as a
 //! division's zero check on a divisor the loop never changes, first runs one
 //! iteration in a copy that keeps those tests, and the loop after it jumps past
@@ -896,6 +900,27 @@ fn edit_phi(func: &mut Function, phi: ValueId, edit: impl FnOnce(&mut Vec<(Block
     }
 }
 
+/// The value a header phi takes on entry from `preheader`.
+fn entry_value(func: &Function, phi: ValueId, preheader: BlockId) -> Option<ValueId> {
+    let InstKind::Phi(incoming) = inst_kind(func, phi)? else { return None };
+    incoming.iter().find_map(|&(from, value)| (from == preheader).then_some(value))
+}
+
+/// The operand of `sum = add a, b` other than `start`.
+fn addend(func: &Function, sum: ValueId, start: ValueId) -> Option<ValueId> {
+    match *inst_kind(func, sum)? {
+        InstKind::Add(a, b) if a == start => Some(b),
+        InstKind::Add(a, b) if b == start => Some(a),
+        _ => None,
+    }
+}
+
+/// `m` when `value` is `shl bits, m`.
+fn shifted_left(func: &Function, value: ValueId, bits: usize) -> Option<ValueId> {
+    let &InstKind::Shl(count, shifted) = inst_kind(func, value)? else { return None };
+    (func.value_u256(count) == Some(U256::from(bits))).then_some(shifted)
+}
+
 /// Returns the operand of an addition other than its literal, and the literal.
 fn literal_step(func: &Function, lhs: ValueId, rhs: ValueId) -> Option<(ValueId, U256)> {
     match (func.value_u256(lhs), func.value_u256(rhs)) {
@@ -988,21 +1013,34 @@ fn apply(func: &mut Function, unroll: &Unroll) -> BlockId {
     let mut replacements = FxHashMap::default();
     let (entry, main_header) = if let MainTest::Parity = unroll.main_test {
         // check: state' = phi [preheader: start]
-        //        left = sub bound, word' | word' when bound = 0
+        //        left = sub bound, word' | word' when bound = 0 | d when bound = add start, d
         //        jumpi (ne (and (shr zeros(step), left), 1), 0), body', header
+        //        jumpi (ne (and m, 1), 0), body', header   when left = shl zeros(step), m
         let check = first.blocks[&unroll.header];
         let word = first.value(unroll.word);
         // Against a zero bound, `0 - i` and `i` agree at bit `t` whenever `i` is a multiple of
-        // `2^t`, and otherwise neither loop ends.
+        // `2^t`, and otherwise neither loop ends. A bound built as `start + d`, as a pointer's
+        // end is, leaves `d` to go on entry.
         let mut left = if func.value_u256(unroll.bound).is_some_and(|bound| bound.is_zero()) {
             word
+        } else if let Some(distance) = entry_value(func, unroll.word, unroll.preheader)
+            .and_then(|start| addend(func, unroll.bound, start))
+        {
+            distance
         } else {
             append(func, check, InstKind::Sub(unroll.bound, word), MirType::I256)
         };
         let zeros = unroll.step.trailing_zeros();
         if zeros != 0 {
-            let shift = func.alloc_value(Value::Immediate(Immediate::I256(U256::from(zeros))));
-            left = append(func, check, InstKind::Shr(shift, left), MirType::I256);
+            // Bit `t` of `m << t` is bit zero of `m`.
+            left = match shifted_left(func, left, zeros) {
+                Some(count) => count,
+                None => {
+                    let shift =
+                        func.alloc_value(Value::Immediate(Immediate::I256(U256::from(zeros))));
+                    append(func, check, InstKind::Shr(shift, left), MirType::I256)
+                }
+            };
         }
         // Integer conversions are already lowered here, so mask the low bit.
         let one = func.alloc_value(Value::Immediate(Immediate::I256(U256::from(1))));

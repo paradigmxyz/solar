@@ -12,6 +12,7 @@
 //@ run-call: sumWords [] => 0
 //@ run-call: sumWords [7] => 7
 //@ run-call: sumWords [1, 2, 3] => 6
+//@ run-call: sumWords [1, 2, 3, 4] => 10
 //@ run-call: sumWords [1, 2, 3, 4, 5, 6, 7] => 28
 //@ run-call: stepThree 5, 5 => 0
 //@ run-call: stepThree 0, 9 => 9
@@ -53,12 +54,15 @@ contract PointerLoops {
         }
     }
 
-    // Words step by 32, so the parity of the remaining count is bit 5 of the distance.
+    // Words step by 32, so the parity of the remaining count is bit 5 of the distance. The
+    // end adds the length shifted by five to the start, so that bit is the length's lowest.
     // CHECK-LABEL: fn @sumWords()
+    // CHECK: [[SHIFTED:v[0-9]+]] = shl 5, [[LENGTH:v[0-9]+]]
     // CHECK: calldatacopy
-    // CHECK: [[LEFT:v[0-9]+]] = sub {{v[0-9]+}}, {{v[0-9]+}}
-    // CHECK-NEXT: [[COUNT:v[0-9]+]] = shr 5, [[LEFT]]
-    // CHECK-NEXT: and [[COUNT]], 1
+    // CHECK: = add {{v[0-9]+}}, [[SHIFTED]]
+    // CHECK-NEXT: [[BIT:v[0-9]+]] = and [[LENGTH]], 1
+    // CHECK-NEXT: [[ODD:v[0-9]+]] = ne [[BIT]], 0
+    // CHECK-NEXT: jumpi [[ODD]],
     function sumWords(uint256[] memory values) external pure returns (uint256 s) {
         assembly {
             let p := add(values, 0x20)
