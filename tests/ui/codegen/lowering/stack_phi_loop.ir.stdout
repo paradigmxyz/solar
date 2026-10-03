@@ -238,22 +238,23 @@ bb38:
   calldataload
   jump bb40
 bb42 [loop]:
-  dup 1
+  push 36
+  calldataload
+  dup 2
+  mul
+  swap 1
   push 128
   mload
   lt
   push bb45
   jumpi
-  push 36
-  calldataload
-  mul
-  dup 1
   push 4
   calldataload
+  dup 2
   add
-  dup 1
-  swap 2
-  gt
+  swap 1
+  dup 2
+  lt
   push bb45
   jumpi
   push 1

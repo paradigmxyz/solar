@@ -38,14 +38,14 @@
 //! every operation ran and the exit order is all that is left; the bound changes with a single
 //! word's count, so it is updated per move rather than recomputed.
 //!
-//! The search is exponential in the run's operations and stack height. Runs with more than
-//! [`MAX_RUN_OPERATIONS`] operations are skipped, the stack may grow at most [`STACK_SLACK`]
-//! words above the run's entry and exit heights, and a run that yields no cheaper schedule
-//! within the first part of its [`Budget`] keeps its code, while one that does keeps refining
-//! for the rest. Runs in hot loop blocks get [`LOOP_BUDGET`] when optimizing for gas, as their
-//! code runs many times per call; all others get the far smaller [`BLOCK_BUDGET`], which mostly
-//! saves bytes. Equal runs share their result, as unrolled copies and repeated checks repeat
-//! them.
+//! The search is exponential in the run's operations and stack height. A run longer than its
+//! budget's operations is searched in windows cut after its checks, or skipped, the stack may
+//! grow at most [`STACK_SLACK`] words above the run's entry and exit heights, and a run that
+//! yields no cheaper schedule within the first part of its [`Budget`] keeps its code, while one
+//! that does keeps refining for the rest. Runs in hot loop blocks get [`LOOP_BUDGET`] when
+//! optimizing for gas, as their code runs many times per call; all others get the far smaller
+//! [`BLOCK_BUDGET`], which mostly saves bytes. Equal runs share their result, as unrolled copies
+//! and repeated checks repeat them.
 //!
 //! Safety: the replacement performs exactly the original operations on the same operand words,
 //! keeps memory and storage accesses in order, and leaves the same words in the same stack
@@ -75,13 +75,13 @@ use solar_data_structures::map::FxHashMap;
 use solar_sema::Gcx;
 use std::{cmp::Reverse, collections::BinaryHeap};
 
-/// Operations one searched run may perform.
-const MAX_RUN_OPERATIONS: usize = 12;
 /// Words the search may grow the stack by above the run's entry and exit heights.
 const STACK_SLACK: usize = 3;
-/// How many states the search may expand for one run.
+/// How large a run the search takes and how many states it may expand for it.
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 struct Budget {
+    /// Operations a searched run may perform.
+    operations: usize,
     /// States to expand before some cheaper schedule turns up, after which the run keeps its
     /// code.
     first: usize,
@@ -90,10 +90,10 @@ struct Budget {
 }
 
 /// The budget of a run in a hot loop block, when optimizing for gas.
-const LOOP_BUDGET: Budget = Budget { first: 3_000, refine: 20_000 };
+const LOOP_BUDGET: Budget = Budget { operations: 16, first: 3_000, refine: 20_000 };
 /// The budget of any other run: its code runs at most a few times per call, so a short search
 /// mostly saves bytes.
-const BLOCK_BUDGET: Budget = Budget { first: 300, refine: 1_000 };
+const BLOCK_BUDGET: Budget = Budget { operations: 12, first: 300, refine: 1_000 };
 /// Deepest stack word a `DUP` or `SWAP` reaches.
 const REACH: usize = 16;
 /// Bits of a word's index in a packed stack.
@@ -111,7 +111,7 @@ impl EvmPass for StackReschedule {
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
         let target = Target::new(gcx);
         let halts = module.blocks.iter().map(aborts_without_stack).collect::<Vec<_>>();
-        let mut cache = FxHashMap::default();
+        let mut scratch = Scratch::default();
         let mut changed = false;
         for block in &mut module.blocks {
             let hot_loop = target.optimization().is_gas()
@@ -119,7 +119,7 @@ impl EvmPass for StackReschedule {
                 && !block.metadata.hotness.is_cold();
             let budget = if hot_loop { LOOP_BUDGET } else { BLOCK_BUDGET };
             changed |=
-                reschedule_block(&mut block.instructions, target, budget, &halts, &mut cache);
+                reschedule_block(&mut block.instructions, target, budget, &halts, &mut scratch);
         }
         changed
     }
@@ -216,7 +216,7 @@ fn reschedule_block(
     target: Target,
     budget: Budget,
     halts: &[bool],
-    cache: &mut Schedules,
+    scratch: &mut Scratch,
 ) -> bool {
     let mut replacements = Vec::new();
     let mut start = 0;
@@ -242,11 +242,11 @@ fn reschedule_block(
             start += 1;
             continue;
         }
-        // Search windows of at most `MAX_RUN_OPERATIONS` operations, cut after the checks.
+        // Search windows of at most the budget's operations, cut after the checks.
         let mut window_start = start;
         while window_start < end {
             let mut window_end = end;
-            if operation_count(&instructions[window_start..end]) > MAX_RUN_OPERATIONS {
+            if operation_count(&instructions[window_start..end]) > budget.operations {
                 window_end = cuts
                     .iter()
                     .copied()
@@ -254,7 +254,7 @@ fn reschedule_block(
                     .find(|&cut| {
                         cut > window_start
                             && operation_count(&instructions[window_start..cut])
-                                <= MAX_RUN_OPERATIONS
+                                <= budget.operations
                     })
                     .unwrap_or_else(|| {
                         cuts.iter().copied().find(|&cut| cut > window_start).unwrap_or(end)
@@ -266,8 +266,8 @@ fn reschedule_block(
             let mut best = None;
             let mut best_price = price(window, target);
             let candidates = [
-                schedule(window, target, budget, halts, cache),
-                split_schedule(window, target, budget, halts, cache),
+                schedule(window, target, budget, halts, scratch),
+                split_schedule(window, target, budget, halts, scratch),
             ];
             for candidate in candidates.into_iter().flatten() {
                 let candidate_price = price(&candidate, target);
@@ -302,6 +302,24 @@ fn reschedule_block(
 
 /// The schedules found for runs, by their instructions and search budget.
 type Schedules = FxHashMap<(SmallVec<[RunKey; 24]>, Budget), Option<Vec<Move>>>;
+
+/// What the pass keeps across runs: the schedules found and the search's buffers.
+#[derive(Default)]
+struct Scratch {
+    schedules: Schedules,
+    buffers: Buffers,
+}
+
+/// The search's state storage, cleared and reused for every run.
+#[derive(Default)]
+struct Buffers {
+    /// Visited states: the state, its parent, the move into it, its cost and its bound.
+    arena: Vec<(State, u32, Option<Move>, u64, u64)>,
+    /// The cheapest arena entry of each state.
+    best: FxHashMap<State, u32>,
+    /// Arena entries ordered by priority, then by cost.
+    open: BinaryHeap<(Reverse<u64>, u64, u32)>,
+}
 
 /// What a run's schedule depends on in one of its instructions.
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
@@ -391,7 +409,12 @@ fn scalar(cost: Cost, target: Target) -> u64 {
 }
 
 /// Executes a run symbolically.
-fn summarize(run: &[Instruction], target: Target, halts: &[bool]) -> Option<Run> {
+fn summarize(
+    run: &[Instruction],
+    target: Target,
+    max_operations: usize,
+    halts: &[bool],
+) -> Option<Run> {
     let mut stack = SmallVec::<[Word; 24]>::new();
     let mut entry = 0usize;
     let mut operations = Vec::new();
@@ -486,7 +509,7 @@ fn summarize(run: &[Instruction], target: Target, halts: &[bool]) -> Option<Run>
         position += 1;
     }
     (operations.len() >= 2
-        && operations.len() <= MAX_RUN_OPERATIONS
+        && operations.len() <= max_operations
         && entry <= REACH
         && keys.len() <= 8)
         .then_some(Run { operations, constants, constant_costs, entry, exit: stack, cost, peak })
@@ -510,7 +533,7 @@ impl Words {
 
 /// Searches for the cheapest schedule of a run's operations that leaves its stack, when one
 /// beats the run's own stack operations.
-fn search(run: &Run, target: Target, limits: Budget) -> Option<Vec<Move>> {
+fn search(run: &Run, target: Target, limits: Budget, buffers: &mut Buffers) -> Option<Vec<Move>> {
     let operation_count = run.operations.len();
     let words = Words { entry: run.entry, operations: operation_count };
     let word_count = run.entry + operation_count + run.constants.len();
@@ -544,12 +567,19 @@ fn search(run: &Run, target: Target, limits: Budget) -> Option<Vec<Move>> {
             mask
         })
         .collect::<Vec<_>>();
-    let mut uses = vec![SmallVec::<[(u16, u8); 4]>::new(); word_count];
+    // The operations reading each word at least once, twice and three times, so the uses left
+    // after a set of performed operations are three population counts.
+    let mut readers = vec![[0u16; 3]; word_count];
     for (index, operation_operands) in operands.iter().enumerate() {
         for &operand in operation_operands {
-            match uses[operand].iter_mut().find(|(user, _)| *user == 1 << index) {
-                Some((_, count)) => *count += 1,
-                None => uses[operand].push((1 << index, 1)),
+            let masks = &mut readers[operand];
+            let bit = 1u16 << index;
+            if masks[0] & bit == 0 {
+                masks[0] |= bit;
+            } else if masks[1] & bit == 0 {
+                masks[1] |= bit;
+            } else {
+                masks[2] |= bit;
             }
         }
     }
@@ -562,12 +592,11 @@ fn search(run: &Run, target: Target, limits: Budget) -> Option<Vec<Move>> {
             state.push(words.index(word))
         });
     let demand = |word: usize, done: u16| -> u8 {
+        let [once, twice, thrice] = readers[word];
         exit_uses[word]
-            + uses[word]
-                .iter()
-                .filter(|(user, _)| done & user == 0)
-                .map(|&(_, count)| count)
-                .sum::<u8>()
+            + (once & !done).count_ones() as u8
+            + (twice & !done).count_ones() as u8
+            + (thrice & !done).count_ones() as u8
     };
     let result_of = |word: usize| -> Option<usize> {
         (run.entry..run.entry + operation_count).contains(&word).then(|| word - run.entry)
@@ -613,10 +642,12 @@ fn search(run: &Run, target: Target, limits: Budget) -> Option<Vec<Move>> {
     }
 
     // state, parent, move, cost, bound on the remaining cost
-    let mut arena = vec![(start, u32::MAX, None::<Move>, 0u64, estimate(start))];
-    let mut best = FxHashMap::<State, u32>::default();
+    let Buffers { arena, best, open } = buffers;
+    arena.clear();
+    best.clear();
+    open.clear();
+    arena.push((start, u32::MAX, None, 0, estimate(start)));
     best.insert(start, 0);
-    let mut open = BinaryHeap::new();
     open.push((Reverse(2 * estimate(start)), 0u64, 0u32));
     let mut expansions = 0;
     let mut found = None;
@@ -930,12 +961,13 @@ fn schedule(
     target: Target,
     budget: Budget,
     halts: &[bool],
-    cache: &mut Schedules,
+    scratch: &mut Scratch,
 ) -> Option<Vec<Instruction>> {
-    let summary = summarize(run, target, halts)?;
+    let summary = summarize(run, target, budget.operations, halts)?;
     // Unrolled copies and repeated checks produce the same runs over and over.
     let key = (run.iter().map(run_key).collect::<SmallVec<[RunKey; 24]>>(), budget);
-    let moves = cache.entry(key).or_insert_with(|| search(&summary, target, budget));
+    let Scratch { schedules, buffers } = scratch;
+    let moves = schedules.entry(key).or_insert_with(|| search(&summary, target, budget, buffers));
     emit(run, &summary, moves.as_ref()?)
 }
 
@@ -946,7 +978,7 @@ fn split_schedule(
     target: Target,
     budget: Budget,
     halts: &[bool],
-    cache: &mut Schedules,
+    scratch: &mut Scratch,
 ) -> Option<Vec<Instruction>> {
     let mut rebuilt = Vec::with_capacity(window.len());
     let mut improved = false;
@@ -959,7 +991,7 @@ fn split_schedule(
         }
         // The pushed target closes the run before the `JUMPI`, which stays where it is.
         let run = &window[start..index + 1];
-        match schedule(run, target, budget, halts, cache) {
+        match schedule(run, target, budget, halts, scratch) {
             Some(replacement) => {
                 improved = true;
                 rebuilt.extend(replacement);
@@ -974,7 +1006,7 @@ fn split_schedule(
         return None;
     }
     let run = &window[start..];
-    match schedule(run, target, budget, halts, cache) {
+    match schedule(run, target, budget, halts, scratch) {
         Some(replacement) => {
             improved = true;
             rebuilt.extend(replacement);
