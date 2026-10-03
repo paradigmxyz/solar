@@ -278,6 +278,10 @@ from the pinned project corpus; they show targeted gains, not general superiorit
   for fixed-point scaling, fee routing and deduction, kept shares, lot thresholds and whole lots,
   week, period, and day rounding, and nested unit conversion. Return checks include the scaled
   products' overflow limits and maximal timestamps.
+- `calldata-loops` (`CalldataLoops.sol`): loops over calldata arrays as batch entry points read
+  them: totals, products by a fixed price, maxima, address searches, and dot products. Each call
+  repeats its pass so execution, not the EIP-7623 calldata floor, sets the gas used. Return checks
+  include empty arrays, zero rounds, and the exact product limit.
 
 ## Reproducing oksolc via-IR failures
 
