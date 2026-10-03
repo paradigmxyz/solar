@@ -183,20 +183,6 @@ bb31 [loop]:
   push 0
   swap 1
   jump bb32
-bb32 [loop]:
-  push 36
-  calldataload
-  dup 3
-  lt
-  push bb34
-  jumpi
-  swap 2
-  push 1
-  add
-  swap 1
-  pop
-  swap 1
-  jump bb29
 bb34 [loop]:
   dup 2
   dup 4
@@ -215,6 +201,20 @@ bb34 [loop]:
   add
   swap 1
   jump bb32
+bb32 [loop]:
+  push 36
+  calldataload
+  dup 3
+  lt
+  push bb34
+  jumpi
+  swap 2
+  push 1
+  add
+  swap 1
+  pop
+  swap 1
+  jump bb29
 bb38:
   push 100
   calldatasize
