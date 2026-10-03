@@ -9,7 +9,10 @@
 //! - `require(b <= a)` proves the following `a - b` cannot underflow, so its `lt a, b` check is
 //!   constant false;
 //! - a constant bound `x < C` proves `x * K` or `x + K` cannot wrap whenever `(C-1) * K` (resp.
-//!   `(C-1) + K`) fits in 256 bits, so the `div`-based mul check or the add check folds.
+//!   `(C-1) + K`) fits in 256 bits, so the `div`-based mul check or the add check folds;
+//! - a product by `2^k` that keeps its shift, tested as `(x << k) >> k == x`, cannot wrap while `x`
+//!   stays below `2^(256 - k)`, as the offset `i * 32` of a calldata array element does for a loop
+//!   counter.
 //!
 //! The pass walks the dominator tree. On entry to a block with a unique
 //! predecessor ending in a two-way branch, it records what the branch
@@ -1867,6 +1870,21 @@ impl<'a> CheckEliminator<'a> {
                 && const_of(func, count) == Some(U256::from(1))
                 && doubled(func, sum) == Some((expected, false))
                 && self.range_of(func, expected, depth).hi <= integer_max(func, expected) >> 1
+            {
+                return Some(true);
+            }
+        }
+        // A product by `2^k` tests `eq (shr k, (shl k, x)), x`, which holds iff the left
+        // shift kept every bit of `x`, as a calldata element offset `i * 32` does for
+        // `i < length` once decoding bounded the length.
+        for (shifted, expected) in [(a, b), (b, a)] {
+            if let Some(&InstKind::Shr(count, inner)) = inst_kind(func, shifted)
+                && let Some(&InstKind::Shl(inner_count, value)) = inst_kind(func, inner)
+                && value == expected
+                && let Some(bits) = const_of(func, count)
+                && const_of(func, inner_count) == Some(bits)
+                && bits < U256::from(256)
+                && U256::from(self.range_of(func, expected, depth).hi.leading_zeros()) >= bits
             {
                 return Some(true);
             }

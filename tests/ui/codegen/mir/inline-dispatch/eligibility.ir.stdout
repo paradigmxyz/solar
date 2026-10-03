@@ -137,18 +137,13 @@ fn @a() [selector=0x1e3badd9, abi_wrapper, pure] {
     v35 = shr 5, v34
     v36 = gt v32, v35
     v67 = or v30, v36
-    jumpi v67, bb3, bb5
-  bb5:
     v2 = shl 5, v32
-    v4 = shr 5, v2
-    v8 = ne v4, v32
-    jumpi v8, bb1, bb2
-  bb2:
     v9 = calldatasize
     v10 = sub v9, v27
     v11 = slt v10, v2
-    jumpi v11, bb3, bb4
-  bb4:
+    v68 = or v67, v11
+    jumpi v68, bb1, bb2
+  bb2:
     v19 = add v2, 32
     v65 = mload 64 !metadata(memory=scratch)
     v66 = add v65, v19
@@ -167,10 +162,6 @@ fn @a() [selector=0x1e3badd9, abi_wrapper, pure] {
     v54 = add v48, 64
     returndata v65, v54
   bb1:
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    mstore 32, 65 !metadata(memory=scratch)
-    revert 28, 36
-  bb3:
     revert 0, 0
 }
 
