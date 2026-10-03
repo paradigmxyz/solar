@@ -8,7 +8,33 @@
 //@ run-call: preserve 255, 128 => 18446744073709519103
 //@ run-call: observer => 1
 //@ run-call: changingSlot => 2
+//@ run-call: halted 0, true => 1
+//@ run-call: halted 1, true => 1
+//@ run-call: halted 2, true => 1
+//@ run-call: halted 0, false => 2
+//@ run-call: halted 1, false => 2
+//@ run-call: halted 2, false => 2
 contract StorageControlFlow {
+    function halted(uint256 kind, bool condition) external returns (uint256) {
+        this.writeAcrossHalt(kind, condition);
+        return word;
+    }
+    function writeAcrossHalt(uint256 kind, bool condition) external {
+        word = 1;
+        haltIndirect(kind, condition);
+        word = 2;
+    }
+    function haltIndirect(uint256 kind, bool condition) internal {
+        halt(kind, condition);
+    }
+    function halt(uint256 kind, bool condition) internal {
+        if (condition) assembly {
+            switch kind
+            case 0 { stop() }
+            case 1 { return(0, 0) }
+            default { selfdestruct(caller()) }
+        }
+    }
     function changingSlot() external returns (uint256 result) {
         assembly {
             for { let i := 0 } 1 { i := add(i, 1) } {
