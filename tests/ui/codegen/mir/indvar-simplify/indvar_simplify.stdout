@@ -3,11 +3,13 @@
   @module IndVarSimplify
   fn @strength_reduce_shifted_address(arg0: i256) -> i256 {
     bb0:
++     v11 = add arg0, 128
       jump bb1
     bb1:
-      v0 = phi [bb0: 0], [bb2: v8]
+-     v0 = phi [bb0: 0], [bb2: v8]
+-     v1 = lt v0, 4
 +     v9 = phi [bb0: arg0], [bb2: v10]
-      v1 = lt v0, 4
++     v1 = ne v9, v11
       jumpi v1, bb2, bb3
     bb3:
       ret 0
@@ -20,8 +22,8 @@
 +     v4 = mload v9
       v7 = add v4, 1
 -     mstore v6, v7
+-     v8 = add v0, 1
 +     mstore v9, v7
-      v8 = add v0, 1
 +     v10 = add v9, 32
       jump bb1
   }
@@ -181,11 +183,13 @@
   
   fn @native_counter(arg0: i256) -> i256 {
     bb0:
++     v12 = add arg0, 128
       jump bb1
     bb1:
-      v0 = phi [bb0: i8 0], [bb2: v9]
+-     v0 = phi [bb0: i8 0], [bb2: v9]
+-     v1 = lt v0, i8 4
 +     v10 = phi [bb0: arg0], [bb2: v11]
-      v1 = lt v0, i8 4
++     v1 = ne v10, v12
       jumpi v1, bb2, bb3
     bb3:
       ret 0
@@ -199,8 +203,8 @@
 +     v5 = mload v10
       v8 = add v5, 1
 -     mstore v7, v8
+-     v9 = add v0, i8 1
 +     mstore v10, v8
-      v9 = add v0, i8 1
 +     v11 = add v10, 32
       jump bb1
   }
@@ -256,6 +260,185 @@
 +     mstore v16, v11
       v12 = add v0, 1
 +     v17 = add v16, 32
+      jump bb1
+  }
+  
+  fn @reach_checked_bound(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      v0 = calldatasize
+      v1 = sub v0, arg0
+      v2 = shr 5, v1
+      v3 = gt arg1, v2
+      jumpi v3, bb5, bb1
+    bb1:
++     v14 = shl 5, arg1
++     v15 = add arg0, v14
+      jump bb2
+    bb2:
+-     v4 = phi [bb1: 0], [bb3: v11]
+      v5 = phi [bb1: 0], [bb3: v10]
+-     v6 = lt v4, arg1
++     v12 = phi [bb1: arg0], [bb3: v13]
++     v6 = ne v12, v15
+      jumpi v6, bb3, bb4
+    bb4:
+      ret v5
+    bb3:
+-     v7 = shl 5, v4
+-     v8 = add arg0, v7
+-     v9 = calldataload v8
++     v9 = calldataload v12
+      v10 = add v5, v9
+-     v11 = add v4, 1
++     v13 = add v12, 32
+      jump bb2
+    bb5:
+      revert 0, 0
+  }
+  
+  fn @clamp_unchecked_bound(arg0: i256, arg1: i256) -> i256 {
+    bb0:
++     v10 = gt arg1, 0x20000000000000000
++     v11 = select v10, 0x20000000000000000, arg1
++     v12 = shl 5, v11
++     v13 = add arg0, v12
+      jump bb1
+    bb1:
+-     v0 = phi [bb0: 0], [bb2: v7]
+      v1 = phi [bb0: 0], [bb2: v6]
+-     v2 = lt v0, arg1
++     v8 = phi [bb0: arg0], [bb2: v9]
++     v2 = ne v8, v13
+      jumpi v2, bb2, bb3
+    bb3:
+      ret v1
+    bb2:
+-     v3 = shl 5, v0
+-     v4 = add arg0, v3
+-     v5 = calldataload v4
++     v5 = calldataload v8
+      v6 = add v1, v5
+-     v7 = add v0, 1
++     v9 = add v8, 32
+      jump bb1
+  }
+  
+  fn @clamp_bound_checked_on_one_path(arg0: i256, arg1: i256, arg2: i1) -> i256 {
+    bb0:
+      jumpi arg2, bb1, bb2
+    bb1:
+      v0 = calldatasize
+      v1 = sub v0, arg0
+      v2 = shr 5, v1
+      v3 = gt arg1, v2
+      jumpi v3, bb6, bb2
+    bb2:
++     v14 = gt arg1, 0x20000000000000000
++     v15 = select v14, 0x20000000000000000, arg1
++     v16 = shl 5, v15
++     v17 = add arg0, v16
+      jump bb3
+    bb3:
+-     v4 = phi [bb2: 0], [bb4: v11]
+      v5 = phi [bb2: 0], [bb4: v10]
+-     v6 = lt v4, arg1
++     v12 = phi [bb2: arg0], [bb4: v13]
++     v6 = ne v12, v17
+      jumpi v6, bb4, bb5
+    bb5:
+      ret v5
+    bb4:
+-     v7 = shl 5, v4
+-     v8 = add arg0, v7
+-     v9 = calldataload v8
++     v9 = calldataload v12
+      v10 = add v5, v9
+-     v11 = add v4, 1
++     v13 = add v12, 32
+      jump bb3
+    bb6:
+      revert 0, 0
+  }
+  
+  fn @clamp_bound_below_start(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      v0 = calldatasize
+      v1 = sub v0, arg0
+      v2 = shr 5, v1
+      v3 = gt arg1, v2
+      jumpi v3, bb5, bb1
+    bb1:
++     v12 = add arg0, 32
++     v15 = lt arg1, 1
++     v16 = select v15, 1, arg1
++     v17 = shl 5, v16
++     v18 = add arg0, v17
+      jump bb2
+    bb2:
+-     v4 = phi [bb1: 1], [bb3: v11]
+      v5 = phi [bb1: 0], [bb3: v10]
+-     v6 = lt v4, arg1
++     v13 = phi [bb1: v12], [bb3: v14]
++     v6 = ne v13, v18
+      jumpi v6, bb3, bb4
+    bb4:
+      ret v5
+    bb3:
+-     v7 = shl 5, v4
+-     v8 = add arg0, v7
+-     v9 = calldataload v8
++     v9 = calldataload v13
+      v10 = add v5, v9
+-     v11 = add v4, 1
++     v14 = add v13, 32
+      jump bb2
+    bb5:
+      revert 0, 0
+  }
+  
+  fn @reach_odd_scale(arg0: i256, arg1: i256) -> i256 {
+    bb0:
++     v12 = add arg0, arg1
+      jump bb1
+    bb1:
+-     v0 = phi [bb0: 0], [bb2: v9]
+      v1 = phi [bb0: 0], [bb2: v8]
+-     v2 = lt v0, arg1
++     v10 = phi [bb0: arg0], [bb2: v11]
++     v2 = ne v10, v12
+      jumpi v2, bb2, bb3
+    bb3:
+      ret v1
+    bb2:
+-     v3 = add arg0, v0
+-     v4 = sload v3
+-     v5 = add v3, 1
++     v4 = sload v10
++     v5 = add v10, 1
+      v6 = sload v5
+      v7 = add v4, v6
+      v8 = add v1, v7
+-     v9 = add v0, 1
++     v11 = add v10, 1
+      jump bb1
+  }
+  
+  fn @keep_counter_stepping_by_two(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      jump bb1
+    bb1:
+      v0 = phi [bb0: 0], [bb2: v7]
+      v1 = phi [bb0: 0], [bb2: v6]
+      v2 = lt v0, arg1
+      jumpi v2, bb2, bb3
+    bb3:
+      ret v1
+    bb2:
+      v3 = shl 5, v0
+      v4 = add arg0, v3
+      v5 = calldataload v4
+      v6 = add v1, v5
+      v7 = add v0, 2
       jump bb1
   }
   

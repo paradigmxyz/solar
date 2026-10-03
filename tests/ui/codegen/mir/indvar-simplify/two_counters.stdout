@@ -193,24 +193,23 @@ fn @pack() [selector=0x62b0ae87, abi_wrapper, pure] {
 
 fn @rawBase() [selector=0xcc1fc46b, abi_wrapper, pure] {
   bb0:
-    v10 = calldatasize
-    v11 = lt v10, 36
-    jumpi v11, bb4, bb5
+    v13 = calldatasize
+    v14 = lt v13, 36
+    jumpi v14, bb4, bb5
   bb5:
+    v12 = add arg0, 64
     jump bb1
   bb1:
-    v0 = phi [bb5: 0], [bb3: v8]
-    v3 = lt v0, 2
+    v10 = phi [bb5: arg0], [bb3: v11]
+    v3 = ne v10, v12
     jumpi v3, bb3, bb2
   bb2:
     v9 = mload 0 !metadata(memory=scratch)
     mstore 128, v9
     returndata 128, 32
   bb3:
-    v6 = shl 5, v0
-    v7 = add arg0, v6
-    mstore v7, 7
-    v8 = add v0, 1
+    mstore v10, 7
+    v11 = add v10, 32
     jump bb1
   bb4:
     revert 0, 0

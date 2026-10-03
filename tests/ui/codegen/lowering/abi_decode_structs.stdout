@@ -186,18 +186,18 @@ fn @dFixed() [selector=0xc298c02b, abi_wrapper, pure] {
     v26 = gt v21, v12
     v27 = sub v14, v23
     v28 = lt v27, 64
-    v63 = or v26, v28
-    jumpi v63, bb3, bb5
+    v62 = or v26, v28
+    jumpi v62, bb3, bb5
   bb5:
     v55 = mload 64 !metadata(memory=scratch)
     v56 = add v55, 64
     mstore 64, v56 !metadata(memory=scratch)
-    v62 = add v55, 64
+    v61 = add v55, 64
     jump bb6
   bb6:
     v57 = phi [bb5: v23], [bb7: v58]
     v59 = phi [bb5: v55], [bb7: v60]
-    v31 = lt v59, v62
+    v31 = lt v59, v61
     jumpi v31, bb7, bb8
   bb8:
     v50 = add v55, 32
@@ -206,24 +206,24 @@ fn @dFixed() [selector=0xc298c02b, abi_wrapper, pure] {
     v5 = eq v3, 0
     jumpi v5, bb1, bb2
   bb1:
-    v64 = mload 64
-    v65 = inttoptr i256 v64 to memptr
-    v66 = add v64, 160
-    mstore 64, v66
-    mstore v64, 0
-    v67 = add v64, 96
-    mstore v67, 0
-    v68 = add v64, 32
-    mstore v68, v67
-    v69 = add v64, 128
-    mstore v69, 0
-    v70 = add v64, 64
-    mstore v70, v69
-    v7 = ptrtoint memptr v65 to i256
+    v63 = mload 64
+    v64 = inttoptr i256 v63 to memptr
+    v65 = add v63, 160
+    mstore 64, v65
+    mstore v63, 0
+    v66 = add v63, 96
+    mstore v66, 0
+    v67 = add v63, 32
+    mstore v67, v66
+    v68 = add v63, 128
+    mstore v68, 0
+    v69 = add v63, 64
+    mstore v69, v68
+    v7 = ptrtoint memptr v64 to i256
     mstore v50, v7
     jump bb2
   bb2:
-    v8 = phi [bb8: v4], [bb1: v65]
+    v8 = phi [bb8: v4], [bb1: v64]
     v44 = ptrtoint memptr v8 to i256
     v45 = add v44, 64
     v54 = mload v45
