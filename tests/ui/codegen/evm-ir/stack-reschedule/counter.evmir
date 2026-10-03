@@ -3,16 +3,16 @@
 @module module
 
 // Four unrolled copies of `t += i; i += 1` with one merged overflow check. Each copy computes
-// the step from a copy of `i` first and lets the sum consume `i` itself, and one pushed `1`
-// serves every step, so the copies need fewer swaps: the run's shuffles and pushes drop from 17
-// operations to 13.
+// the step from a copy of `i` first and lets the sum consume `i` itself, and the check reads only
+// its condition, as its revert reads nothing from the stack, so the run continues through it
+// and the last step joins the schedule. The block's shuffles and pushes drop from 20 operations
+// to 14, the overflow test becomes its mirror, and the back edge follows the check directly.
 // CHECK-LABEL: {{^[ +].*}}bb0 [loop] [stack=3]:
-// The merged check `t4 < t0` becomes its mirror where the operands land swapped.
-// CHECK: +   push 1
-// CHECK-NEXT: +   dup 3
 // CHECK: +   gt
 // CHECK-NEXT: push bb1
 // CHECK-NEXT: jumpi
+// CHECK-NOT: {{^[ +] .*(swap|add|push)}}
+// CHECK: jump bb0
 bb0 [loop, stack=3]:
   dup 2
   dup 2

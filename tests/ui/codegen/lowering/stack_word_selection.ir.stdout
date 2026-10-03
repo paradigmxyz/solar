@@ -64,12 +64,10 @@ bb11 [cold]:
   push 0
   revert
 bb2:
-  dup 1
   push 0xcad0899b
   sub
   push bb11
   jumpi
-  pop
   push 256
   mload
   push 224
@@ -108,12 +106,10 @@ bb4:
   push 128
   return
 bb5:
-  dup 1
   push 0x9ed41ba1
   sub
   push bb11
   jumpi
-  pop
   push 256
   mload
   push 224

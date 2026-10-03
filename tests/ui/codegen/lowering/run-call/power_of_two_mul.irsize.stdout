@@ -56,16 +56,15 @@ bb40 [cold]:
   push 28
   revert
 bb15:
-  push 36
-  calldatasize
-  lt
-  push bb8
-  jumpi
-  push 1
-  push 2
   push 4
   calldataload
-  swap 2
+  calldatasize
+  push 36
+  gt
+  push bb8
+  jumpi
+  push 2
+  push 1
   jump bb17
 bb17 [loop]:
   dup 3

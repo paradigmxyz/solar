@@ -111,17 +111,16 @@ bb0:
 bb10 [loop]:
   dup 2
   dup 2
-  mul
-  dup 3
   dup 2
+  mul
+  swap 3
+  dup 4
   div
-  swap 1
-  swap 2
+  push 1
+  swap 3
   sub
   push bb12
   jumpi
-  swap 1
-  push 1
   add
   swap 1
   jump bb8
@@ -143,13 +142,13 @@ bb5 [cold]:
   push 0
   revert
 bb14:
-  push 68
-  calldatasize
-  lt
-  push bb5
-  jumpi
   push 4
   calldataload
+  calldatasize
+  push 68
+  gt
+  push bb5
+  jumpi
   push 0
   jump bb16
 bb16 [loop]:

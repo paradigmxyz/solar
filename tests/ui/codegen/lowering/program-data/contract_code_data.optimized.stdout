@@ -163,12 +163,11 @@ bb0:
   dup 6
   gas
   staticcall
-  swap 2
-  pop
-  pop
   iszero
   push bb8
   jumpi
+  pop
+  pop
   returndatasize
   push 32
   gt

@@ -119,23 +119,20 @@ bb15 [loop]:
   push 128
   return
 bb3:
-  dup 1
   push 0xaf080e88
   sub
   push bb23
   jumpi
   pop
-  pop
-  push 68
   calldatasize
-  lt
+  push 68
+  gt
   push bb23
   jumpi
   push 0
   push 224
   mload
   push 0
-  swap 2
   jump bb10
 bb12 [loop]:
   dup 2

@@ -41,18 +41,18 @@ bb7:
   push 128
   return
 bb9:
-  push 36
-  calldatasize
-  lt
-  push bb6
-  jumpi
   push 4
+  dup 1
   calldataload
   push 1
   lt
+  calldatasize
+  push 36
+  gt
   push bb6
   jumpi
-  push 4
+  push bb6
+  jumpi
   calldataload
   push bb6
   jumpi

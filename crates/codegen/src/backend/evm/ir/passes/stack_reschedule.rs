@@ -21,6 +21,15 @@
 //! schedule is taken when it saves gas, or the same gas in fewer bytes, and when optimizing for
 //! size when it saves bytes, or the same bytes in less gas.
 //!
+//! A run continues through a branch to a block that aborts without reading the stack, the
+//! `PUSH target; JUMPI` of an overflow check or a guard: the pair takes only its condition, so it
+//! joins the run as one more ordered operation, and work may move across it, as only the path
+//! that continues matters. A block that returns or stops is a normal exit and ends the run.
+//! Spanning the checks gives the search more freedom, but a longer run can exhaust its budget
+//! where the runs between its checks would not, so those are scheduled separately as well and
+//! the cheaper result is kept. A run with more operations than one search takes is cut into
+//! windows after its checks.
+//!
 //! The remaining cost of a state is bounded below by one copy for every missing use of a word
 //! and one pop for every surplus copy. The search orders states by their cost plus twice that
 //! bound, which reaches a cheaper schedule after far fewer states than an exact search, and then
@@ -41,8 +50,9 @@
 //! Safety: the replacement performs exactly the original operations on the same operand words,
 //! keeps memory and storage accesses in order, and leaves the same words in the same stack
 //! slots, so the code after the run observes no difference; a schedule whose replay does not
-//! reproduce the run is discarded. Runs end at every other instruction, including `GAS`, calls,
-//! branches and an instruction glued to the next one. Performed operations and the original
+//! reproduce the run is discarded. A check keeps its order with every access and its pushed
+//! target right before its `JUMPI`. Runs end at every other instruction, including `GAS`, calls,
+//! other branches and an instruction glued to the next one. Performed operations and the original
 //! pushes keep their debug metadata, function events included, while the new stack operations
 //! carry none, which is marked as intentionally dropped, and the origins and events of the
 //! replaced stack operations move to the run's last instruction. Debug metadata decides nothing,
@@ -54,7 +64,7 @@
 use super::{EvmPass, utils::is_split_point};
 use crate::{
     backend::evm::{
-        ir::{Instruction, Module},
+        ir::{Block, Instruction, Module, TerminatorKind},
         op::{self, OpcodeTraits, StackOp},
     },
     target::{Cost, Target},
@@ -100,6 +110,7 @@ impl EvmPass for StackReschedule {
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
         let target = Target::new(gcx);
+        let halts = module.blocks.iter().map(aborts_without_stack).collect::<Vec<_>>();
         let mut cache = FxHashMap::default();
         let mut changed = false;
         for block in &mut module.blocks {
@@ -107,7 +118,8 @@ impl EvmPass for StackReschedule {
                 && block.metadata.in_loop
                 && !block.metadata.hotness.is_cold();
             let budget = if hot_loop { LOOP_BUDGET } else { BLOCK_BUDGET };
-            changed |= reschedule_block(&mut block.instructions, target, budget, &mut cache);
+            changed |=
+                reschedule_block(&mut block.instructions, target, budget, &halts, &mut cache);
         }
         changed
     }
@@ -134,6 +146,9 @@ struct Operation {
     mirror: Option<u8>,
     /// The memory or storage access that has to run before this one.
     after: Option<u8>,
+    /// Whether this is a `PUSH target; JUMPI` pair into a block that aborts without reading the
+    /// stack, which only takes the condition.
+    branch: bool,
 }
 
 /// The symbolic summary of a run.
@@ -200,35 +215,73 @@ fn reschedule_block(
     instructions: &mut Vec<Instruction>,
     target: Target,
     budget: Budget,
+    halts: &[bool],
     cache: &mut Schedules,
 ) -> bool {
     let mut replacements = Vec::new();
     let mut start = 0;
     while start < instructions.len() {
+        // A run continues through checks that branch to a block aborting without the stack.
         let mut end = start;
-        while end < instructions.len()
-            && schedulable(&instructions[end])
-            && is_split_point(instructions, end)
-            && !instructions[end].keeps_with_next()
-        {
-            end += 1;
+        let mut cuts = SmallVec::<[usize; 8]>::new();
+        loop {
+            if is_branch_pair(instructions, end, halts) {
+                end += 2;
+                cuts.push(end);
+            } else if end < instructions.len()
+                && schedulable(&instructions[end])
+                && is_split_point(instructions, end)
+                && !instructions[end].keeps_with_next()
+            {
+                end += 1;
+            } else {
+                break;
+            }
         }
-        if end > start {
-            let run = &instructions[start..end];
-            if let Some(summary) = summarize(run, target) {
-                // Unrolled copies and repeated checks produce the same runs over and over.
-                let key = (run.iter().map(run_key).collect::<SmallVec<[RunKey; 24]>>(), budget);
-                let moves = cache.entry(key).or_insert_with(|| search(&summary, target, budget));
-                if let Some(moves) = moves
-                    && let Some(replacement) = emit(run, &summary, moves)
-                {
-                    replacements.push((start, end, replacement));
+        if end == start {
+            start += 1;
+            continue;
+        }
+        // Search windows of at most `MAX_RUN_OPERATIONS` operations, cut after the checks.
+        let mut window_start = start;
+        while window_start < end {
+            let mut window_end = end;
+            if operation_count(&instructions[window_start..end]) > MAX_RUN_OPERATIONS {
+                window_end = cuts
+                    .iter()
+                    .copied()
+                    .rev()
+                    .find(|&cut| {
+                        cut > window_start
+                            && operation_count(&instructions[window_start..cut])
+                                <= MAX_RUN_OPERATIONS
+                    })
+                    .unwrap_or_else(|| {
+                        cuts.iter().copied().find(|&cut| cut > window_start).unwrap_or(end)
+                    });
+            }
+            let window = &instructions[window_start..window_end];
+            // Spanning the checks gives the search more freedom, but a longer run can exhaust
+            // its budget where the runs between the checks would not: keep the cheaper one.
+            let mut best = None;
+            let mut best_price = price(window, target);
+            let candidates = [
+                schedule(window, target, budget, halts, cache),
+                split_schedule(window, target, budget, halts, cache),
+            ];
+            for candidate in candidates.into_iter().flatten() {
+                let candidate_price = price(&candidate, target);
+                if candidate_price < best_price {
+                    best_price = candidate_price;
+                    best = Some(candidate);
                 }
             }
-            start = end;
-        } else {
-            start += 1;
+            if let Some(replacement) = best {
+                replacements.push((window_start, window_end, replacement));
+            }
+            window_start = window_end;
         }
+        start = end;
     }
     if replacements.is_empty() {
         return false;
@@ -338,7 +391,7 @@ fn scalar(cost: Cost, target: Target) -> u64 {
 }
 
 /// Executes a run symbolically.
-fn summarize(run: &[Instruction], target: Target) -> Option<Run> {
+fn summarize(run: &[Instruction], target: Target, halts: &[bool]) -> Option<Run> {
     let mut stack = SmallVec::<[Word; 24]>::new();
     let mut entry = 0usize;
     let mut operations = Vec::new();
@@ -355,7 +408,27 @@ fn summarize(run: &[Instruction], target: Target) -> Option<Run> {
         }
         Some(())
     };
-    for (position, inst) in run.iter().enumerate() {
+    let mut position = 0;
+    while position < run.len() {
+        let inst = &run[position];
+        if is_branch_pair(run, position, halts) {
+            // push target; jumpi -> branch(condition)
+            deepen(&mut stack, &mut entry, 1)?;
+            let condition = stack.remove(0);
+            let index = u8::try_from(operations.len()).ok()?;
+            operations.push(Operation {
+                position,
+                operands: SmallVec::from_slice(&[condition]),
+                produces: false,
+                commutative: false,
+                mirror: None,
+                after: last_ordered,
+                branch: true,
+            });
+            last_ordered = Some(index);
+            position += 2;
+            continue;
+        }
         if let Some(stack_op) = inst.as_stack_op() {
             deepen(&mut stack, &mut entry, stack_op.required_depth())?;
             match stack_op {
@@ -400,6 +473,7 @@ fn summarize(run: &[Instruction], target: Target) -> Option<Run> {
                     _ => None,
                 },
                 after: if is_ordered { last_ordered } else { None },
+                branch: false,
             });
             if is_ordered {
                 last_ordered = Some(index);
@@ -409,6 +483,7 @@ fn summarize(run: &[Instruction], target: Target) -> Option<Run> {
             }
         }
         peak = peak.max(stack.len());
+        position += 1;
     }
     (operations.len() >= 2
         && operations.len() <= MAX_RUN_OPERATIONS
@@ -741,6 +816,12 @@ fn emit(run: &[Instruction], summary: &Run, moves: &[Move]) -> Option<Vec<Instru
                 performed |= 1 << operation;
                 let original = &run[operation_info.position];
                 placed[operation_info.position] = true;
+                if operation_info.branch {
+                    placed[operation_info.position + 1] = true;
+                    instructions.push(original.clone());
+                    instructions.push(run[operation_info.position + 1].clone());
+                    continue;
+                }
                 instructions.push(match (mirrored, operation_info.mirror) {
                     (true, Some(mirror)) => {
                         Instruction::opcode(mirror).with_metadata(original.metadata.clone())
@@ -798,4 +879,121 @@ fn emit(run: &[Instruction], summary: &Run, moves: &[Move]) -> Option<Vec<Instru
         }
     }
     Some(instructions)
+}
+
+/// Whether the instructions at `index` push a label and branch to it, where the target aborts
+/// without reading the stack: the branch then depends on its condition alone.
+fn is_branch_pair(instructions: &[Instruction], index: usize, halts: &[bool]) -> bool {
+    let (Some(push), Some(jumpi)) = (instructions.get(index), instructions.get(index + 1)) else {
+        return false;
+    };
+    push.pushed_block().is_some_and(|block| halts.get(block.index()).copied().unwrap_or(false))
+        && jumpi.as_stack_op().is_none()
+        && !jumpi.is_encoded_push()
+        && jumpi.opcode == op::JUMPI
+        && is_split_point(instructions, index)
+        && is_split_point(instructions, index + 1)
+        && !jumpi.keeps_with_next()
+}
+
+/// Whether a block aborts without reading a word that was on the stack when it was entered.
+///
+/// A run may move work across a branch to such a block: the work after the branch runs on the
+/// path that continues, which is the one that matters. A block that returns or stops is a
+/// normal exit, which a hoisted operation would make pay for work it does not need.
+fn aborts_without_stack(block: &Block) -> bool {
+    let mut depth = 0usize;
+    for inst in &block.instructions {
+        let effect = inst.stack_effect();
+        let Some(rest) = depth.checked_sub(usize::from(effect.inputs)) else { return false };
+        depth = rest + usize::from(effect.outputs);
+    }
+    match block.terminator.as_ref().map(|terminator| &terminator.kind) {
+        Some(TerminatorKind::Op(opcode)) if matches!(*opcode, op::REVERT | op::INVALID) => {
+            op::stack_io(*opcode).is_some_and(|(inputs, _)| usize::from(inputs) <= depth)
+        }
+        _ => false,
+    }
+}
+
+/// The operations a slice of a run performs: a branch pair's push is part of its `JUMPI`.
+fn operation_count(instructions: &[Instruction]) -> usize {
+    instructions
+        .iter()
+        .filter(|inst| inst.as_stack_op().is_none() && !inst.is_encoded_push())
+        .count()
+}
+
+/// The cheapest schedule the search finds for a run, if it beats the run's own.
+fn schedule(
+    run: &[Instruction],
+    target: Target,
+    budget: Budget,
+    halts: &[bool],
+    cache: &mut Schedules,
+) -> Option<Vec<Instruction>> {
+    let summary = summarize(run, target, halts)?;
+    // Unrolled copies and repeated checks produce the same runs over and over.
+    let key = (run.iter().map(run_key).collect::<SmallVec<[RunKey; 24]>>(), budget);
+    let moves = cache.entry(key).or_insert_with(|| search(&summary, target, budget));
+    emit(run, &summary, moves.as_ref()?)
+}
+
+/// Schedules the runs between a window's checks separately, keeping each check in place; `None`
+/// when the window has no check or no run improves.
+fn split_schedule(
+    window: &[Instruction],
+    target: Target,
+    budget: Budget,
+    halts: &[bool],
+    cache: &mut Schedules,
+) -> Option<Vec<Instruction>> {
+    let mut rebuilt = Vec::with_capacity(window.len());
+    let mut improved = false;
+    let mut start = 0;
+    let mut index = 0;
+    while index < window.len() {
+        if !is_branch_pair(window, index, halts) {
+            index += 1;
+            continue;
+        }
+        // The pushed target closes the run before the `JUMPI`, which stays where it is.
+        let run = &window[start..index + 1];
+        match schedule(run, target, budget, halts, cache) {
+            Some(replacement) => {
+                improved = true;
+                rebuilt.extend(replacement);
+            }
+            None => rebuilt.extend_from_slice(run),
+        }
+        rebuilt.push(window[index + 1].clone());
+        index += 2;
+        start = index;
+    }
+    if start == 0 {
+        return None;
+    }
+    let run = &window[start..];
+    match schedule(run, target, budget, halts, cache) {
+        Some(replacement) => {
+            improved = true;
+            rebuilt.extend(replacement);
+        }
+        None => rebuilt.extend_from_slice(run),
+    }
+    improved.then_some(rebuilt)
+}
+
+/// The price of a sequence's stack operations and pushes, which is all a schedule changes.
+fn price(instructions: &[Instruction], target: Target) -> u64 {
+    let cost = instructions.iter().fold(Cost::ZERO, |cost, inst| {
+        if let Some(stack_op) = inst.as_stack_op() {
+            cost.plus(stack_op_cost(stack_op, target))
+        } else if inst.is_encoded_push() {
+            cost.plus(push_cost(inst, target))
+        } else {
+            cost
+        }
+    });
+    scalar(cost, target)
 }
