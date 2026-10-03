@@ -267,17 +267,23 @@ fn @pop() [selector=0xa4ece52c, abi_wrapper] {
     v6 = add v5, 1
     v7 = sload v6 !metadata(storage=offset(v5, 1))
     sstore v6, 0 !metadata(storage=offset(v5, 1))
-    v8 = shr 3, v7
     v9 = and v7, 7
     v11 = ne v9, 0
     v12 = zext i1 v11 to i256
+    v8 = shr 3, v7
     v13 = add v8, v12
     mstore 0, v6 !metadata(memory=scratch)
     v22 = keccak256 0, 32 !metadata(memory=scratch)
-    jump bb3
+    jump bb6
+  bb6:
+    v23 = phi [bb2: 0], [bb7: v41]
+    v24 = phi [bb2: v22], [bb7: v42]
+    v43 = add v23, 3
+    v44 = lt v43, v13
+    jumpi v44, bb7, bb3
   bb3:
-    v16 = phi [bb2: 0], [bb4: v19]
-    v17 = phi [bb2: v22], [bb4: v20]
+    v16 = phi [bb6: v23], [bb4: v19]
+    v17 = phi [bb6: v24], [bb4: v20]
     v18 = lt v16, v13
     jumpi v18, bb4, bb5
   bb5:
@@ -287,6 +293,20 @@ fn @pop() [selector=0xa4ece52c, abi_wrapper] {
     v19 = add v16, 1
     v20 = add v17, 1
     jump bb3
+  bb7:
+    sstore v24, 0
+    v26 = add v23, 1
+    v27 = add v24, 1
+    sstore v27, 0
+    v31 = add v26, 1
+    v32 = add v27, 1
+    sstore v32, 0
+    v36 = add v31, 1
+    v37 = add v32, 1
+    sstore v37, 0
+    v41 = add v36, 1
+    v42 = add v37, 1
+    jump bb6
   bb1:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 49 !metadata(memory=scratch)

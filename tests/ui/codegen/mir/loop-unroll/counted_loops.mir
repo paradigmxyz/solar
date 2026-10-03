@@ -1,0 +1,480 @@
+//@compile-flags: -Zmir-pipeline=loop-unroll
+//@filecheck:
+@module CountedLoops
+
+// A counted loop runs its body four times per test of `i + 3 < n` in a main
+// loop, which leaves the last iterations to the original loop with its state.
+// CHECK-LABEL: {{^[ +].*}}fn @counted{{[( ]}}
+// CHECK: - jump bb1
+// CHECK-NEXT: + jump [[MAIN:bb[0-9]+]]
+// CHECK-NEXT: + [[MAIN]]:
+// CHECK-NEXT: + [[I:v[0-9]+]] = phi [bb0: 0], {{\[}}[[LATCH:bb[0-9]+]]: [[NEXT:v[0-9]+]]]
+// CHECK-NEXT: + [[S:v[0-9]+]] = phi [bb0: 0], {{\[}}[[LATCH]]: [[SUM:v[0-9]+]]]
+// CHECK: + [[AHEAD:v[0-9]+]] = add [[I]], 3
+// CHECK-NEXT: + [[C:v[0-9]+]] = lt [[AHEAD]], arg0
+// CHECK-NEXT: + jumpi [[C]], [[FIRST:bb[0-9]+]], bb1
+// CHECK: + {{v[0-9]+}} = phi {{\[}}[[MAIN]]: [[I]]], [bb2: {{v[0-9]+}}]
+// CHECK-NEXT: + {{v[0-9]+}} = phi {{\[}}[[MAIN]]: [[S]]], [bb2: {{v[0-9]+}}]
+// CHECK: + [[FIRST]]:
+// CHECK-NEXT: + [[P:v[0-9]+]] = mul [[I]], 3
+// CHECK-NEXT: + {{v[0-9]+}} = add [[S]], [[P]]
+// CHECK-NEXT: + {{v[0-9]+}} = add [[I]], 1
+// CHECK-COUNT-2: = mul
+// CHECK: + [[LATCH]]:
+// CHECK-NEXT: + {{v[0-9]+}} = mul [[LAST:v[0-9]+]], 3
+// CHECK-NEXT: + [[SUM]] = add {{v[0-9]+}}, {{v[0-9]+}}
+// CHECK-NEXT: + [[NEXT]] = add [[LAST]], 1
+// CHECK-NEXT: + jump [[MAIN]]
+fn @counted(arg0: i256) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb2: v4]
+    v1 = phi [bb0: 0], [bb2: v3]
+    v2 = lt v0, arg0
+    jumpi v2, bb2, bb3
+  bb2:
+    v5 = mul v0, 3
+    v3 = add v1, v5
+    v4 = add v0, 1
+    jump bb1
+  bb3:
+    ret v1
+}
+
+fn @panic() {
+  bb0:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
+    mstore 4, 17
+    revert 0, 36
+}
+
+// An overflow check that calls a panic helper leaves the body straight-line:
+// each copy keeps its own call.
+// CHECK-LABEL: {{^[ +].*}}fn @checked{{[( ]}}
+// CHECK: + [[I:v[0-9]+]] = phi [bb0: 5], {{\[}}[[LATCH:bb[0-9]+]]: {{v[0-9]+}}]
+// CHECK: + [[AHEAD:v[0-9]+]] = add [[I]], 9
+// CHECK-NEXT: + {{v[0-9]+}} = lt [[AHEAD]], arg0
+// CHECK-COUNT-4: + icall @panic
+// CHECK: + [[LATCH]]:
+// CHECK-NEXT: + {{v[0-9]+}} = add {{v[0-9]+}}, 3
+// CHECK-NEXT: + jump
+fn @checked(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 5], [bb3: v6]
+    v1 = phi [bb0: 0], [bb3: v4]
+    v2 = lt v0, arg0
+    jumpi v2, bb2, bb5
+  bb2:
+    v4 = add v1, arg1
+    v5 = lt v4, v1
+    jumpi v5, bb4, bb3
+  bb3:
+    v6 = add v0, 3
+    jump bb1
+  bb4:
+    icall @panic
+    jump bb3
+  bb5:
+    ret v1
+}
+
+// A reverting block that receives a body value through a phi gains an input
+// from each copy.
+// CHECK-LABEL: {{^[ +].*}}fn @revert_payload{{[( ]}}
+// CHECK-COUNT-4: + jumpi {{v[0-9]+}}, bb4, {{bb[0-9]+}}
+// CHECK: - v6 = phi [bb2: v3]
+// CHECK-NEXT: + v6 = phi [bb2: v3], [{{bb[0-9]+}}: {{v[0-9]+}}], [{{bb[0-9]+}}: {{v[0-9]+}}], [{{bb[0-9]+}}: {{v[0-9]+}}], [{{bb[0-9]+}}: {{v[0-9]+}}]
+fn @revert_payload(arg0: i256) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb3: v5]
+    v1 = phi [bb0: 1], [bb3: v3]
+    v2 = lt v0, arg0
+    jumpi v2, bb2, bb5
+  bb2:
+    v3 = mul v1, 3
+    v4 = gt v3, 1000
+    jumpi v4, bb4, bb3
+  bb3:
+    v5 = add v0, 1
+    jump bb1
+  bb4:
+    v6 = phi [bb2: v3]
+    mstore 0, v6
+    revert 0, 32
+  bb5:
+    ret v1
+}
+
+// A literal bound with many iterations left pays for the copies.
+// CHECK-LABEL: {{^[ +].*}}fn @long_literal{{[( ]}}
+// CHECK: + [[AHEAD:v[0-9]+]] = add {{v[0-9]+}}, 3
+// CHECK-NEXT: + {{v[0-9]+}} = lt [[AHEAD]], 100
+fn @long_literal() -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb2: v4]
+    v1 = phi [bb0: 0], [bb2: v3]
+    v2 = lt v0, 100
+    jumpi v2, bb2, bb3
+  bb2:
+    v3 = add v1, v0
+    v4 = add v0, 1
+    jump bb1
+  bb3:
+    ret v1
+}
+
+// Three iterations form one pair, which skips no test: the loop is kept.
+// CHECK-LABEL: {{^[ +].*}}fn @short_literal{{[( ]}}
+// CHECK-NOT: {{^[-+]}}
+fn @short_literal() -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb2: v4]
+    v1 = phi [bb0: 0], [bb2: v3]
+    v2 = lt v0, 3
+    jumpi v2, bb2, bb3
+  bb2:
+    v3 = add v1, v0
+    v4 = add v0, 1
+    jump bb1
+  bb3:
+    ret v1
+}
+
+// A counter that starts within `2^64` steps of wrapping could wrap
+// `i + 1`: the loop is kept.
+// CHECK-LABEL: {{^[ +].*}}fn @wrapping_start{{[( ]}}
+// CHECK-NOT: {{^[-+]}}
+fn @wrapping_start(arg0: i256) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00], [bb2: v4]
+    v1 = phi [bb0: 0], [bb2: v3]
+    v2 = lt v0, arg0
+    jumpi v2, bb2, bb3
+  bb2:
+    v3 = add v1, v0
+    v4 = add v0, 1
+    jump bb1
+  bb3:
+    ret v1
+}
+
+// A reverting block that reads a body value outside a phi would lose its
+// dominating definition once both copies reach it: the loop is kept.
+// CHECK-LABEL: {{^[ +].*}}fn @exit_use{{[( ]}}
+// CHECK-NOT: {{^[-+]}}
+fn @exit_use(arg0: i256) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb3: v5]
+    v1 = phi [bb0: 1], [bb3: v3]
+    v2 = lt v0, arg0
+    jumpi v2, bb2, bb5
+  bb2:
+    v3 = mul v1, 3
+    v4 = gt v3, 1000
+    jumpi v4, bb4, bb3
+  bb3:
+    v5 = add v0, 1
+    jump bb1
+  bb4:
+    mstore 0, v3
+    revert 0, 32
+  bb5:
+    ret v1
+}
+
+// The stack scheduler reloads a word computed before the loop in every
+// iteration, and the copies would double that traffic: the loop is kept.
+// CHECK-LABEL: {{^[ +].*}}fn @hoisted{{[( ]}}
+// CHECK-NOT: {{^[-+]}}
+fn @hoisted(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v6 = shl 3, arg1
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb2: v4]
+    v1 = phi [bb0: 0], [bb2: v3]
+    v2 = lt v0, arg0
+    jumpi v2, bb2, bb3
+  bb2:
+    v3 = add v1, v6
+    v4 = add v0, 1
+    jump bb1
+  bb3:
+    ret v1
+}
+
+// A body that branches on the counter is not straight-line: the loop is kept.
+// CHECK-LABEL: {{^[ +].*}}fn @branchy{{[( ]}}
+// CHECK-NOT: {{^[-+]}}
+fn @branchy(arg0: i256) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb4: v6]
+    v1 = phi [bb0: 0], [bb4: v5]
+    v2 = lt v0, arg0
+    jumpi v2, bb2, bb5
+  bb2:
+    v3 = and v0, 1
+    v7 = ne v3, 0
+    jumpi v7, bb3, bb4
+  bb3:
+    v4 = add v1, v0
+    jump bb4
+  bb4:
+    v5 = phi [bb2: v1], [bb3: v4]
+    v6 = add v0, 1
+    jump bb1
+  bb5:
+    ret v1
+}
+
+// The original loop repeats its header for the iteration the main loop
+// declined, so a header with effects keeps the loop.
+// CHECK-LABEL: {{^[ +].*}}fn @effectful_header{{[( ]}}
+// CHECK-NOT: {{^[-+]}}
+fn @effectful_header(arg0: i256) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb2: v4]
+    v1 = phi [bb0: 0], [bb2: v3]
+    mstore 128, v1
+    v2 = lt v0, arg0
+    jumpi v2, bb2, bb3
+  bb2:
+    v3 = add v1, v0
+    v4 = add v0, 1
+    jump bb1
+  bb3:
+    ret v1
+}
+
+// Only the inner loop is unrolled; the outer loop contains it.
+// CHECK-LABEL: {{^[ +].*}}fn @nested{{[( ]}}
+// CHECK: {{^ +}}jump bb1
+// CHECK: - jump bb3
+// CHECK-NEXT: + jump [[MAIN:bb[0-9]+]]
+// CHECK-NEXT: + [[MAIN]]:
+// CHECK-NEXT: + {{v[0-9]+}} = phi [bb2: 0], {{\[}}{{bb[0-9]+}}: {{v[0-9]+}}]
+fn @nested(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb5: v8]
+    v1 = phi [bb0: 0], [bb5: v7]
+    v2 = lt v0, arg0
+    jumpi v2, bb2, bb6
+  bb2:
+    jump bb3
+  bb3:
+    v3 = phi [bb2: 0], [bb4: v6]
+    v4 = phi [bb2: v1], [bb4: v5]
+    v9 = lt v3, arg1
+    jumpi v9, bb4, bb5
+  bb4:
+    v5 = add v4, v3
+    v6 = add v3, 1
+    jump bb3
+  bb5:
+    v7 = add v4, v0
+    v8 = add v0, 1
+    jump bb1
+  bb6:
+    ret v1
+}
+
+// A counter that runs until it reaches its bound, here a pointer, peels one
+// iteration when an odd number remain, and the original header then tests the
+// bound once per two iterations.
+// CHECK-LABEL: {{^[ +].*}}fn @pointer_counter{{[( ]}}
+// CHECK: + jump [[CHECK:bb[0-9]+]]
+// CHECK-NEXT: + [[CHECK]]:
+// CHECK: + [[WORD:v[0-9]+]] = ptrtoint memptr {{v[0-9]+}} to i256
+// CHECK: + [[LEFT:v[0-9]+]] = sub v1, [[WORD]]
+// CHECK-NEXT: + [[ODD:v[0-9]+]] = trunc i256 [[LEFT]] to i1
+// CHECK-NEXT: + jumpi [[ODD]], [[PEEL:bb[0-9]+]], bb1
+// CHECK-NEXT: + [[PEEL]]:
+// CHECK: - v2 = phi [bb0: 0], [bb3: v8]
+// CHECK: + v2 = phi {{\[}}[[CHECK]]: {{v[0-9]+}}], {{\[}}[[SECOND:bb[0-9]+]]: {{v[0-9]+}}], {{\[}}[[PEEL]]: {{v[0-9]+}}]
+// CHECK: + jump [[SECOND_HEADER:bb[0-9]+]]
+// CHECK-NEXT: + [[SECOND_HEADER]]:
+// CHECK: + [[SECOND]]:
+fn @pointer_counter(arg0: memptr, arg1: i256) -> i256 {
+  bb0:
+    v0 = ptrtoint memptr arg0 to i256
+    v1 = add v0, arg1
+    jump bb1
+  bb1:
+    v2 = phi [bb0: 0], [bb3: v8]
+    v3 = phi [bb0: arg0], [bb3: v9]
+    v4 = ptrtoint memptr v3 to i256
+    v5 = ne v4, v1
+    jumpi v5, bb3, bb2
+  bb2:
+    ret v2
+  bb3:
+    v6 = add v4, 1
+    v7 = mload v6
+    v8 = add v2, v7
+    v9 = inttoptr i256 v6 to memptr
+    jump bb1
+}
+
+// A scan stepping by 32 reads the parity from bit 5 of the distance.
+// CHECK-LABEL: {{^[ +].*}}fn @word_scan{{[( ]}}
+// CHECK: + [[LEFT:v[0-9]+]] = sub arg1, {{v[0-9]+}}
+// CHECK-NEXT: + [[COUNT:v[0-9]+]] = shr 5, [[LEFT]]
+// CHECK-NEXT: + {{v[0-9]+}} = trunc i256 [[COUNT]] to i1
+fn @word_scan(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: arg0], [bb2: v4]
+    v1 = phi [bb0: 0], [bb2: v3]
+    v2 = ne arg1, v0
+    jumpi v2, bb2, bb3
+  bb2:
+    v5 = mload v0
+    v3 = add v1, v5
+    v4 = add v0, 32
+    jump bb1
+  bb3:
+    ret v1
+}
+
+// A `<` test needs a literal start to rule out `i + s` wrapping: the loop is
+// kept.
+// CHECK-LABEL: {{^[ +].*}}fn @variable_start_below{{[( ]}}
+// CHECK-NOT: {{^[-+]}}
+fn @variable_start_below(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: arg0], [bb2: v4]
+    v1 = phi [bb0: 0], [bb2: v3]
+    v2 = lt v0, arg1
+    jumpi v2, bb2, bb3
+  bb2:
+    v5 = mload v0
+    v3 = add v1, v5
+    v4 = add v0, 32
+    jump bb1
+  bb3:
+    ret v1
+}
+
+// A loop that leaves once its counter passes the bound, `i <= n`, and steps
+// by two tests `i + 6 > n` to leave the main loop.
+// CHECK-LABEL: {{^[ +].*}}fn @at_most{{[( ]}}
+// CHECK: + [[I:v[0-9]+]] = phi [bb0: 2], {{\[}}{{bb[0-9]+}}: {{v[0-9]+}}]
+// CHECK: + [[AHEAD:v[0-9]+]] = add [[I]], 6
+// CHECK-NEXT: + [[BEYOND:v[0-9]+]] = gt [[AHEAD]], arg0
+// CHECK-NEXT: + jumpi [[BEYOND]], bb1, {{bb[0-9]+}}
+fn @at_most(arg0: i256) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 2], [bb2: v4]
+    v1 = phi [bb0: 1], [bb2: v3]
+    v2 = gt v0, arg0
+    jumpi v2, bb3, bb2
+  bb2:
+    v3 = mul v1, v0
+    v4 = add v0, 2
+    jump bb1
+  bb3:
+    ret v1
+}
+
+// Leaving when the counter equals the bound is the `!=` loop with its branch
+// reversed.
+// CHECK-LABEL: {{^[ +].*}}fn @eq_exit{{[( ]}}
+// CHECK: + [[LEFT:v[0-9]+]] = sub arg1, {{v[0-9]+}}
+// CHECK-NEXT: + [[COUNT:v[0-9]+]] = shr 5, [[LEFT]]
+// CHECK-NEXT: + {{v[0-9]+}} = trunc i256 [[COUNT]] to i1
+fn @eq_exit(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: arg0], [bb2: v4]
+    v1 = phi [bb0: 0], [bb2: v3]
+    v2 = eq v0, arg1
+    jumpi v2, bb3, bb2
+  bb2:
+    v5 = mload v0
+    v3 = add v1, v5
+    v4 = add v0, 32
+    jump bb1
+  bb3:
+    ret v1
+}
+
+// A `<=` loop stepping by one tests `i < n` in its main loop, from any start:
+// `i + 1` cannot wrap below `n`, and the copies keep the increment's overflow
+// check.
+// CHECK-LABEL: {{^[ +].*}}fn @up_to{{[( ]}}
+// CHECK: + [[I:v[0-9]+]] = phi [bb0: arg0], {{\[}}{{bb[0-9]+}}: {{v[0-9]+}}]
+// CHECK: + [[BELOW:v[0-9]+]] = lt [[I]], arg1
+// CHECK-NEXT: + jumpi [[BELOW]], [[FIRST:bb[0-9]+]], bb1
+// CHECK: + [[FIRST]]:
+// CHECK: + jumpi {{v[0-9]+}}, bb4, {{bb[0-9]+}}
+// CHECK: + jumpi {{v[0-9]+}}, bb4, {{bb[0-9]+}}
+fn @up_to(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: arg0], [bb3: v5]
+    v1 = phi [bb0: 0], [bb3: v4]
+    v2 = gt v0, arg1
+    jumpi v2, bb2, bb3
+  bb2:
+    ret v1
+  bb3:
+    v4 = add v1, v0
+    v5 = add v0, 1
+    v6 = eq v5, 0
+    jumpi v6, bb4, bb1
+  bb4:
+    revert 0, 0
+}
+
+// A larger body pays for two copies but not for four.
+// CHECK-LABEL: {{^[ +].*}}fn @two_copies{{[( ]}}
+// CHECK: + [[I:v[0-9]+]] = phi [bb0: 0], {{\[}}{{bb[0-9]+}}: {{v[0-9]+}}]
+// CHECK: + [[AHEAD:v[0-9]+]] = add [[I]], 1
+// CHECK-NEXT: + {{v[0-9]+}} = lt [[AHEAD]], arg0
+// CHECK-COUNT-2: + {{v[0-9]+}} = xor
+// CHECK-NOT: + {{v[0-9]+}} = xor
+fn @two_copies(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb2: v8]
+    v1 = phi [bb0: 0], [bb2: v7]
+    v2 = lt v0, arg0
+    jumpi v2, bb2, bb3
+  bb2:
+    v3 = mul v1, 0x123456789abcdef
+    v4 = xor v3, 0xfedcba987654321
+    v5 = add v4, arg1
+    v6 = and v5, 0x7fffffffffffffffffff
+    v7 = add v6, v0
+    v8 = add v0, 1
+    jump bb1
+  bb3:
+    ret v1
+}

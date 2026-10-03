@@ -21,7 +21,12 @@ contract CheckedLoopStorage {
     // A checked loop keeps its counter and accumulator on the operand stack.
     // The counter starts at two and steps by one, so its increment cannot
     // wrap within any affordable number of iterations: the latch is a plain
-    // jump back to the header.
+    // jump back to the header, after the second of the unrolled bodies.
+    // CHECK: mul
+    // CHECK-NOT: mstore
+    // CHECK: div
+    // CHECK-NOT: mstore
+    // CHECK: jumpi
     // CHECK: mul
     // CHECK-NOT: mstore
     // CHECK: div

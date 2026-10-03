@@ -2,14 +2,21 @@
 //@filecheck: --implicit-check-not=internal_frame_addr --implicit-check-not=mload
 @module PipelineFrameIndVar
 // The promoted frame counter feeds a scaled and offset address, which the
-// strength reduction turns into a pointer phi.
+// strength reduction turns into a pointer phi. Unrolling then stores four words
+// per test of the counter.
 // CHECK-LABEL: fn @frame_counter_feeds_affine_address{{[( ]}}
 // CHECK: [[START:v[0-9]+]] = add arg1, 32
-// CHECK: [[INDEX:v[0-9]+]] = phi [bb0: 0], [bb2: [[NEXT_INDEX:v[0-9]+]]]
-// CHECK: [[ADDRESS:v[0-9]+]] = phi [bb0: [[START]]], [bb2: [[NEXT_ADDRESS:v[0-9]+]]]
-// CHECK: mstore [[ADDRESS]], [[INDEX]]
-// CHECK: [[NEXT_INDEX]] = add [[INDEX]], 1
-// CHECK: [[NEXT_ADDRESS]] = add [[ADDRESS]], 32
+// CHECK: [[INDEX:v[0-9]+]] = phi [bb0: 0], [[[BODY:bb[0-9]+]]: [[NEXT_INDEX:v[0-9]+]]]
+// CHECK: [[ADDRESS:v[0-9]+]] = phi [bb0: [[START]]], [[[BODY]]: [[NEXT_ADDRESS:v[0-9]+]]]
+// CHECK: [[BODY]]:
+// CHECK-NEXT: mstore [[ADDRESS]], [[INDEX]]
+// CHECK-NEXT: [[SECOND_INDEX:v[0-9]+]] = add [[INDEX]], 1
+// CHECK-NEXT: [[SECOND_ADDRESS:v[0-9]+]] = add [[ADDRESS]], 32
+// CHECK-NEXT: mstore [[SECOND_ADDRESS]], [[SECOND_INDEX]]
+// CHECK-COUNT-2: mstore
+// CHECK: [[NEXT_INDEX]] = add {{v[0-9]+}}, 1
+// CHECK-NEXT: [[NEXT_ADDRESS]] = add {{v[0-9]+}}, 32
+// CHECK-NEXT: jump
 fn @frame_counter_feeds_affine_address(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v10 = internal_frame_addr 128

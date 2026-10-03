@@ -18,11 +18,18 @@ fn @entry() [entry] {
     v10 = calldataload 68
     switch v7, default bb1, [0xf92ced6 => bb3, 0x214636e1 => bb4, 0x82829e9f => bb5, 0xe6dd5714 => bb6]
   bb6:
-    jump bb16
+    jump bb25
+  bb25:
+    v134 = phi [bb6: v8], [bb26: v159]
+    v135 = phi [bb6: 0], [bb26: v161]
+    v136 = phi [bb6: v9], [bb26: v160]
+    v162 = add v135, 3
+    v163 = lt v162, v10
+    jumpi v163, bb26, bb16
   bb16:
-    v33 = phi [bb6: v8], [bb18: v37]
-    v34 = phi [bb6: 0], [bb18: v39]
-    v35 = phi [bb6: v9], [bb18: v38]
+    v33 = phi [bb25: v134], [bb18: v37]
+    v34 = phi [bb25: v135], [bb18: v39]
+    v35 = phi [bb25: v136], [bb18: v38]
     v36 = lt v34, v10
     jumpi v36, bb18, bb17
   bb17:
@@ -33,12 +40,33 @@ fn @entry() [entry] {
     v38 = add v35, v34
     v39 = add v34, 1
     jump bb16
+  bb26:
+    v138 = and v134, v136
+    v139 = add v136, v135
+    v140 = add v135, 1
+    v145 = and v138, v139
+    v146 = add v139, v140
+    v147 = add v140, 1
+    v152 = and v145, v146
+    v153 = add v146, v147
+    v154 = add v147, 1
+    v159 = and v152, v153
+    v160 = add v153, v154
+    v161 = add v154, 1
+    jump bb25
   bb5:
-    jump bb13
+    jump bb23
+  bb23:
+    v104 = phi [bb5: 0], [bb24: v131]
+    v105 = phi [bb5: v9], [bb24: v130]
+    v106 = phi [bb5: v8], [bb24: v129]
+    v132 = add v104, 3
+    v133 = lt v132, v10
+    jumpi v133, bb24, bb13
   bb13:
-    v26 = phi [bb5: 0], [bb15: v32]
-    v27 = phi [bb5: v9], [bb15: v31]
-    v28 = phi [bb5: v8], [bb15: v30]
+    v26 = phi [bb23: v104], [bb15: v32]
+    v27 = phi [bb23: v105], [bb15: v31]
+    v28 = phi [bb23: v106], [bb15: v30]
     v29 = lt v26, v10
     jumpi v29, bb15, bb14
   bb14:
@@ -49,12 +77,33 @@ fn @entry() [entry] {
     v31 = add v27, v26
     v32 = add v26, 1
     jump bb13
+  bb24:
+    v108 = sub v105, v106
+    v109 = add v105, v104
+    v110 = add v104, 1
+    v115 = sub v109, v108
+    v116 = add v109, v110
+    v117 = add v110, 1
+    v122 = sub v116, v115
+    v123 = add v116, v117
+    v124 = add v117, 1
+    v129 = sub v123, v122
+    v130 = add v123, v124
+    v131 = add v124, 1
+    jump bb23
   bb4:
-    jump bb10
+    jump bb21
+  bb21:
+    v74 = phi [bb4: v8], [bb22: v99]
+    v75 = phi [bb4: 0], [bb22: v101]
+    v76 = phi [bb4: v9], [bb22: v100]
+    v102 = add v75, 3
+    v103 = lt v102, v10
+    jumpi v103, bb22, bb10
   bb10:
-    v19 = phi [bb4: v8], [bb12: v23]
-    v20 = phi [bb4: 0], [bb12: v25]
-    v21 = phi [bb4: v9], [bb12: v24]
+    v19 = phi [bb21: v74], [bb12: v23]
+    v20 = phi [bb21: v75], [bb12: v25]
+    v21 = phi [bb21: v76], [bb12: v24]
     v22 = lt v20, v10
     jumpi v22, bb12, bb11
   bb11:
@@ -65,12 +114,33 @@ fn @entry() [entry] {
     v24 = add v21, v20
     v25 = add v20, 1
     jump bb10
+  bb22:
+    v78 = xor v74, v76
+    v79 = add v76, v75
+    v80 = add v75, 1
+    v85 = xor v78, v79
+    v86 = add v79, v80
+    v87 = add v80, 1
+    v92 = xor v85, v86
+    v93 = add v86, v87
+    v94 = add v87, 1
+    v99 = xor v92, v93
+    v100 = add v93, v94
+    v101 = add v94, 1
+    jump bb21
   bb3:
-    jump bb7
+    jump bb19
+  bb19:
+    v40 = phi [bb3: v9], [bb20: v70]
+    v41 = phi [bb3: v8], [bb20: v69]
+    v42 = phi [bb3: 0], [bb20: v71]
+    v72 = add v42, 3
+    v73 = lt v72, v10
+    jumpi v73, bb20, bb7
   bb7:
-    v11 = phi [bb3: v9], [bb9: v17]
-    v12 = phi [bb3: v8], [bb9: v16]
-    v13 = phi [bb3: 0], [bb9: v18]
+    v11 = phi [bb19: v40], [bb9: v17]
+    v12 = phi [bb19: v41], [bb9: v16]
+    v13 = phi [bb19: v42], [bb9: v18]
     v14 = lt v13, v10
     jumpi v14, bb9, bb8
   bb8:
@@ -82,6 +152,24 @@ fn @entry() [entry] {
     v17 = add v11, v13
     v18 = add v13, 1
     jump bb7
+  bb20:
+    v44 = not v40
+    v45 = and v44, v41
+    v46 = add v40, v42
+    v47 = add v42, 1
+    v52 = not v46
+    v53 = and v52, v45
+    v54 = add v46, v47
+    v55 = add v47, 1
+    v60 = not v54
+    v61 = and v60, v53
+    v62 = add v54, v55
+    v63 = add v55, 1
+    v68 = not v62
+    v69 = and v68, v61
+    v70 = add v62, v63
+    v71 = add v63, 1
+    jump bb19
   bb1:
     revert 0, 0
 }
