@@ -132,8 +132,8 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     icall revert_if<tuple_data_too_short>, v78
     v79 = add 0, 0
     v80 = mload v79
-    v81 = and v80, 0xff00000000000000000000000000000000000000000000000000000000000000
-    v82 = eq v80, v81
+    v81 = shl 8, v80
+    v82 = eq v81, 0
     v83 = eq v82, false
     icall revert_if<empty>, v83
     v84 = sload 1 !metadata(storage=slot(1))

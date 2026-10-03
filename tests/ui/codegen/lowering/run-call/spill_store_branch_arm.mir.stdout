@@ -71,8 +71,8 @@ fn @advance(arg0: calldataslice, arg1: calldataslice, arg2: calldataslice) -> i2
     v5 = slice_ptr arg0
     v6 = add v5, 64
     v7 = calldataload v6
-    v8 = and v7, 0xffffff
-    v9 = eq v7, v8
+    v8 = shr 24, v7
+    v9 = eq v8, 0
     v10 = eq v9, false
     icall revert_if<empty>, v10
     v11 = trunc i256 v7 to i24
@@ -80,8 +80,8 @@ fn @advance(arg0: calldataslice, arg1: calldataslice, arg2: calldataslice) -> i2
     v13 = slice_ptr arg1
     v14 = add v13, 64
     v15 = calldataload v14
-    v16 = and v15, 0xffffffffffffffffffffffffffffffffffffffff
-    v17 = eq v15, v16
+    v16 = shr 160, v15
+    v17 = eq v16, 0
     v18 = eq v17, false
     icall revert_if<empty>, v18
     v19 = trunc i256 v15 to i160
