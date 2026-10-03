@@ -73,8 +73,8 @@ jobs:
           set -euo pipefail
           baseline="$RUNNER_TEMP/solar-base"
           git worktree add --detach "$baseline" "$(git rev-parse HEAD^1)"
-          CARGO_TARGET_DIR="$RUNNER_TEMP/solar-base-target" cargo build --locked --release \
-            --manifest-path "$baseline/Cargo.toml" -p solar-compiler --bin solar
+          CARGO_TARGET_DIR="$GITHUB_WORKSPACE/target" cargo build --locked --release \
+            --manifest-path "$baseline/Cargo.toml" -p solar-compiler --bin solar --no-default-features --features cli,mimalloc,tracing
           mkdir -p target/lsp-bench
           cp "$RUNNER_TEMP/solar-base-target/release/solar" target/lsp-bench/solar-base
           git worktree remove "$baseline"
@@ -84,7 +84,7 @@ jobs:
           SOLAR_LSP_BENCH_BUILD_REVISION: ${{ github.sha }}
         run: |
           cargo build --locked --release -p solar-lsp-bench
-          cargo build --locked --release -p solar-compiler --bin solar
+          cargo build --locked --release -p solar-compiler --bin solar --no-default-features --features cli,mimalloc,tracing
 
       - name: Prepare servers and synthetic fixture
         run: >-
@@ -263,7 +263,7 @@ jobs:
       - name: Build main and harness
         run: |
           cargo build --locked --release -p solar-lsp-bench
-          cargo build --locked --release -p solar-compiler --bin solar
+          cargo build --locked --release -p solar-compiler --bin solar --no-default-features --features cli,mimalloc,tracing
 
       - name: Prepare servers and all fixtures
         run: >-

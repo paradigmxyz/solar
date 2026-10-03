@@ -22,7 +22,7 @@ jobs:
   build:
     name: ${{ matrix.target }}
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 45
+    timeout-minutes: 120
     permissions:
       id-token: write
       contents: read
@@ -48,6 +48,8 @@ jobs:
           - target: x86_64-unknown-linux-musl
             runner: ubuntu-22.04
             pgo: false
+    env:
+      LLVM_SYS_211_PREFIX: ${{ runner.temp }}/evm-llvm
     steps:
       - name: Secure runner
         uses: tempoxyz/gh-actions/actions/secure-runner@d5402286a7abdfb7232173b3228d56473feb8a66 # 2026-09-29T02-04-45Z-d5402286
@@ -78,6 +80,10 @@ jobs:
       - name: Install musl tools
         if: matrix.target == 'x86_64-unknown-linux-musl'
         run: sudo apt-get update && sudo apt-get install --yes musl-tools
+      - uses: ./.github/actions/setup-evm-llvm
+        if: matrix.target != 'x86_64-unknown-linux-musl'
+        with:
+          static-crt: 'true'
       - name: Build release binary
         shell: bash
         env:

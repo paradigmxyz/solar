@@ -352,6 +352,9 @@ def find_llvm_profdata(host: str, override: Path | None) -> Path:
 
 def cargo_command(target: str, profile: str) -> list[str]:
     cargo = shlex.split(os.environ.get("CARGO", "cargo"))
+    features = release_features()
+    if target.endswith("-linux-musl"):
+        features += ["tracing", "codegen-yul", "codegen-sonatina", "codegen-sir"]
     return [
         *cargo,
         "build",
@@ -364,8 +367,9 @@ def cargo_command(target: str, profile: str) -> list[str]:
         "solar-compiler",
         "--bin",
         "solar",
+        *(["--no-default-features"] if target.endswith("-linux-musl") else []),
         "--features",
-        ",".join(release_features()),
+        ",".join(features),
     ]
 
 

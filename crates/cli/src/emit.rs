@@ -422,7 +422,9 @@ fn has_mir_dump(gcx: Gcx<'_>) -> bool {
 
 fn has_evm_ir_dump(gcx: Gcx<'_>) -> bool {
     gcx.sess.opts.unstable.dump.as_ref().is_some_and(|dump| {
-        dump.kinds.iter().any(|kind| matches!(kind, DumpKind::EvmIr | DumpKind::EvmIrRuntime))
+        dump.kinds.iter().any(|kind| {
+            matches!(kind, DumpKind::EvmIr | DumpKind::EvmIrRuntime | DumpKind::BackendIr)
+        })
     })
 }
 
@@ -587,6 +589,14 @@ fn write_evm_ir_dump_contract(
 ) -> Result {
     let Some(artifact) = artifacts.get(&id) else { return Ok(()) };
     let name = gcx.contract_fully_qualified_name(id);
+    if dump.kinds.contains(&DumpKind::BackendIr) {
+        writeln!(writer, "// === {name} (backend) ===")
+            .map_err(|e| gcx.sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
+        if let Some(text) = &artifact.backend_ir {
+            write_highlighted(writer, text.clone(), Syntax::Ir)
+                .map_err(|e| gcx.sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
+        }
+    }
     if dump.kinds.contains(&DumpKind::EvmIr) {
         writeln!(writer, "// === {name} (creation) ===")
             .map_err(|e| gcx.sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
@@ -643,13 +653,13 @@ fn write_disassembly_dump_contract(
     if dump.kinds.contains(&DumpKind::DisasmDeploy) {
         writeln!(writer, "// === {name} (deployment) ===")
             .map_err(|e| gcx.sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
-        let deployment_prefix = artifact
+        let deployment_code = artifact
             .deployment
             .strip_suffix(artifact.runtime.as_ref())
-            .expect("deployment bytecode should end with runtime bytecode");
+            .unwrap_or(&artifact.deployment);
         write_highlighted(
             writer,
-            evm::disassemble(deployment_prefix, gcx.sess.opts.evm_version),
+            evm::disassemble(deployment_code, gcx.sess.opts.evm_version),
             Syntax::Disasm,
         )
         .map_err(|e| gcx.sess.dcx.err(format!("failed to write to output: {e}")).emit())?;

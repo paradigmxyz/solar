@@ -635,6 +635,8 @@ pub struct EvmArtifact {
     pub runtime_library_relocations: Vec<LibraryRelocation>,
     /// Immutable placeholders in the runtime bytecode.
     pub(crate) immutable_references: Vec<ImmutableRef>,
+    /// Textual input to an optional code generation backend.
+    pub backend_ir: Option<String>,
     /// Final deployment-prefix EVM IR immediately before byte emission.
     pub deployment_evm_ir: Option<ir::Module>,
     /// Final runtime EVM IR immediately before byte emission.

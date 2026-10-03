@@ -42,6 +42,20 @@ Pass `--optimizer-runs N` to replace every case's `optimizer.runs`. We optimize 
 benchmark. The override applies to every selected compiler, and runtime checks and gas calls
 still run against the size-optimized code when `--gas` is given.
 
+Select a compiler backend with `--codegen-backend evm|yul|sonatina|sir|llvm`.
+The selection applies to timed compilation and artifact capture, and results record
+its name. Sonatina, SIR, and LLVM currently require `--evm-version osaka`.
+Alternative backends save `backend.ir` from `-Zdump=backend-ir` in place of the
+built-in backend's EVM IR artifacts. Compare these with `--artifact backend-ir`.
+
+Run `scripts/bench_codegen_backends.sh target/codegen-bench/backends --solc /path/to/solc`
+to compare all backends against the built-in backend using fresh output directories.
+Set `SOLAR_SOLC` to the same solc executable when testing Yul.
+The script keeps failures in each result and exits unsuccessfully if a backend run
+fails. Pass benchmark filters such as `--tests counter` after the output directory.
+Builds with the LLVM feature require the EVM-enabled LLVM toolchain described in
+[`crates/codegen/README.md`](../../crates/codegen/README.md).
+
 The default runs only our compiler. Pass `--solc PATH` to record a two-compiler baseline.
 Pass `--solx PATH` to include [solx](https://github.com/NomicFoundation/solx) as a separate compiler,
 with its own compilation, gas, runtime checks, and artifacts. CI pins solx 0.1.8 and installs and
@@ -260,6 +274,10 @@ subtraction, complemented arithmetic and mask absorption discovered from the
 offline seed trees. It checks zero iterations and
 wrapping inputs as well as hot loops. These targeted results are separate from
 the pinned project corpus and do not establish general superiority over solc.
+
+The Benchmark workflow also accepts a `codegen_backend` input for the candidate.
+LSP benchmark builds disable the optional backends because they only exercise
+the frontend.
 
 The local `minimal-proxy` micro benchmark uses `../../testdata/MinimalProxy.sol`.
 Its payable high-level fallback delegates to an immutable implementation deployed

@@ -176,6 +176,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         // The returned runtime artifact keeps the zero placeholders, like
         // solc's `deployedBytecode` for contracts with immutables.
         EvmArtifact {
+            backend_ir: None,
             libraries,
             deployment: deploy_bytecode,
             runtime: runtime_code.bytecode,

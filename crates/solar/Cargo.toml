@@ -58,6 +58,10 @@ tempfile.workspace = true
 idna_adapter.workspace = true
 
 [features]
+codegen-yul = ["solar-codegen/codegen-yul", "solar-cli?/codegen-yul"]
+codegen-sonatina = ["solar-codegen/codegen-sonatina", "solar-cli?/codegen-sonatina"]
+codegen-sir = ["solar-codegen/codegen-sir", "solar-cli?/codegen-sir"]
+codegen-llvm = ["solar-codegen/codegen-llvm", "solar-cli?/codegen-llvm"]
 default = ["cli", "solar-cli?/default"]
 # Enable the CLI and binary.
 cli = ["dep:solar-cli", "solar-cli/lsp", "clap"]

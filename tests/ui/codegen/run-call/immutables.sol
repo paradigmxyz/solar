@@ -1,4 +1,8 @@
-//@ revisions: default size byzantium
+//@ revisions: default size byzantium yul sonatina sir llvm
+//@[yul] compile-flags: --codegen-backend yul --evm-version osaka -Ogas
+//@[sonatina] compile-flags: --codegen-backend sonatina --evm-version osaka -Ogas
+//@[sir] compile-flags: --codegen-backend sir --evm-version osaka -Ogas
+//@[llvm] compile-flags: --codegen-backend llvm --evm-version osaka -Ogas
 //@[size] compile-flags: -O size
 //@[byzantium] compile-flags: --evm-version byzantium
 //@ run-call: tiny; constructor=[171, -1234, 0x000000000000000000000000000000000000beef, 48879, true] => 171

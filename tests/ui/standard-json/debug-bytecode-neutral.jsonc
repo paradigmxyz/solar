@@ -1,20 +1,30 @@
+//@ revisions: evm yul sonatina sir llvm
+//@[evm] compile-flags: --codegen-backend evm
+//@[yul] compile-flags: --codegen-backend yul
+//@[sonatina] compile-flags: --codegen-backend sonatina
+//@[sir] compile-flags: --codegen-backend sir
+//@[llvm] compile-flags: --codegen-backend llvm
 //@ normalize-stdout-test: "solar-[0-9a-f]{64}" -> "solar-COMPILATION_ID"
-//@ filecheck:
+//@[evm] filecheck: --check-prefixes=CHECK,EVM
+//@[yul] filecheck:
+//@[sonatina] filecheck:
+//@[sir] filecheck:
+//@[llvm] filecheck:
 // Include a dynamic low mask so late physical rewrites also remain bytecode-neutral.
 // CHECK-LABEL: "A": {
 // CHECK-LABEL: "bytecode": {
 // CHECK: "object": "[[CREATE:[0-9a-f]+]]"
-// CHECK: "sourceMap":
+// EVM: "sourceMap":
 // CHECK-LABEL: "deployedBytecode": {
 // CHECK: "object": "[[RUNTIME:[0-9a-f]+]]"
-// CHECK: "sourceMap":
+// EVM: "sourceMap":
 // CHECK-LABEL: "B": {
 // CHECK-LABEL: "bytecode": {
 // CHECK: "object": "[[CREATE]]"
-// CHECK: "ethdebug": {
+// EVM: "ethdebug": {
 // CHECK-LABEL: "deployedBytecode": {
 // CHECK: "object": "[[RUNTIME]]"
-// CHECK: "ethdebug": {
+// EVM: "ethdebug": {
 // CHECK-LABEL: "C": {
 // CHECK-LABEL: "bytecode": {
 // CHECK: "object": "[[CREATE]]"
@@ -28,6 +38,7 @@
     }
   },
   "settings": {
+    "evmVersion": "osaka",
     "metadata": {
       "appendCBOR": false,
       "bytecodeHash": "none"
