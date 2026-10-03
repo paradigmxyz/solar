@@ -1,5 +1,6 @@
-//! Unrolling of counted loops by two or four, and peeling of loops whose body
-//! tests words computed before the loop.
+//! Unrolling of counted loops by two or four, complete unrolling of loops that
+//! run a literal number of times, and peeling of loops whose body tests words
+//! computed before the loop.
 //!
 //! A loop `for (i = a; i < n; i += s)` pays its header test, a compare and a
 //! conditional jump, once per iteration. This pass gives such a loop a main
@@ -118,25 +119,38 @@
 //! `add i, 2s`. Addition wraps modulo `2^256`, so the sum is exact, and the
 //! group advances the counter once.
 //!
+//! A loop whose literal start, step and bound give it at most 16 iterations
+//! becomes that many copies of its header and body, chained in order: each
+//! copy's header jumps into its body, as its test holds, and takes the previous
+//! copy's latch values for its phis. The original header follows the last copy
+//! and jumps to the exit, as its test fails there, so the values read after the
+//! loop keep their definitions, and the original body becomes unreachable.
+//! Side exits gain a phi input from every copy. This runs before any other
+//! unrolling, saves every test and back edge, and lets later folding treat the
+//! counter as a constant in each copy. It pays when that saving outweighs the
+//! body's code once more per iteration but one, less the header's test, and
+//! the copies of the body may take at most 256 bytes, so that a contract near
+//! the code size limit cannot grow past it.
+//!
 //! Profitability: gas mode only, and only when the optimizer runs reach the
-//! target's threshold for copying loops: unrolling and peeling trade code size
-//! for runtime gas, and at fewer runs, as at the default 200, a build still
-//! values its size. Counting a counter up to zero copies nothing and runs at any
-//! runs. Copies are priced by the target over the deployment's expected
-//! executions. Each group of `k` iterations skips `k - 1` header tests
-//! and back-edge jumps. For `<` and `<=`, the first group pays for the original
-//! loop's last test and every test of the main loop, including the declined
-//! one, adds the offset first, except for `<=` stepping by one; for `!=`, which
-//! unrolls by two, the parity check costs about one test per entry. The new
-//! code holds `k` more copies of the body and one of the header, and the pass
-//! takes the factor that saves the most. Literal bounds give the trip count,
-//! and other loops are assumed to run the target's estimate for uncounted
-//! loops. A peeled copy of the header and the body pays when the conditional
-//! jumps that the iterations after the first skip save more. A `<=` loop
-//! stepping by one unrolls by four only from a literal start, as its main test
-//! then adds the offset. Runs after the late loop passes have fixed the loop's
-//! physical shape, and before the final CFG cleanup and dead-code elimination
-//! remove the cloned tests the copies no longer read.
+//! target's threshold for copying loops: unrolling, complete unrolling and
+//! peeling trade code size for runtime gas, and at fewer runs, as at the
+//! default 200, a build still values its size. Counting a counter up to zero
+//! copies nothing and runs at any runs. Copies are priced by the target over
+//! the deployment's expected executions. Each group of `k` iterations skips
+//! `k - 1` header tests and back-edge jumps. For `<` and `<=`, the first group
+//! pays for the original loop's last test and every test of the main loop,
+//! including the declined one, adds the offset first, except for `<=` stepping
+//! by one; for `!=`, which unrolls by two, the parity check costs about one
+//! test per entry. The new code holds `k` more copies of the body and one of
+//! the header, and the pass takes the factor that saves the most. Literal
+//! bounds give the trip count, and other loops are assumed to run the target's
+//! estimate for uncounted loops. A peeled copy of the header and the body pays
+//! when the conditional jumps that the iterations after the first skip save
+//! more. A `<=` loop stepping by one unrolls by four only from a literal start,
+//! as its main test then adds the offset. Runs after the late loop passes have
+//! fixed the loop's physical shape, and before the final CFG cleanup and
+//! dead-code elimination remove the cloned tests the copies no longer read.
 
 use super::loop_split::{rebuild_predecessors, retarget};
 use crate::{
@@ -257,10 +271,40 @@ struct Peel {
     tests: Vec<(BlockId, BlockId)>,
 }
 
+/// A loop that runs a literal number of times, few enough to repeat its body that many times in
+/// place of the loop.
+struct Full {
+    header: BlockId,
+    preheader: BlockId,
+    latch: BlockId,
+    body: BlockId,
+    exit: BlockId,
+    blocks: DenseBitSet<BlockId>,
+    trips: u32,
+}
+
+/// The most iterations a loop may run to be unrolled completely, whatever its pricing.
+const MAX_COMPLETE_TRIPS: u64 = 16;
+
+/// The most bytes the copies of a completely unrolled loop's body may take, whatever its
+/// pricing, so that a contract near the code size limit cannot grow past it.
+const MAX_COMPLETE_BYTES: u32 = 256;
+
 fn unroll_function(func: &mut Function, cold: &DenseBitSet<FunctionId>, target: Target) -> bool {
     let mut changed = false;
     let mut done = FxHashSet::default();
     let mut peeled = FxHashSet::default();
+    // A loop that runs a literal number of times becomes that many copies of its body, with
+    // no test or jump left between them.
+    loop {
+        let loops = LoopAnalyzer::new().analyze_structure(func);
+        let Some(full) = loops.all_loops().find_map(|l| plan_full(func, &loops, l, cold, target))
+        else {
+            break;
+        };
+        unroll_fully(func, &full);
+        changed = true;
+    }
     // A counter that only counts iterations counts from `-n` up to zero instead, so the header
     // tests it against zero, which a branch reads for free, and needs no bound in the loop. A
     // loop that unrolls by four keeps its counter: its main test already runs once per four
@@ -464,8 +508,8 @@ fn plan(
     if !target.copies_loops() {
         return None;
     }
-    let Shape { preheader, latch, body, exit, enters_on_true, condition, loop_insts } =
-        shape(func, loops, l, cold)?;
+    let shape = shape(func, loops, l, cold)?;
+    let Shape { preheader, latch, body, exit, ref loop_insts, .. } = shape;
     // The stack planner spills a word the body reads from before the loop, and the copies
     // measured slower than the original loop.
     for block in l.blocks.iter() {
@@ -487,6 +531,66 @@ fn plan(
             return None;
         }
     }
+    let Counter { test, word, bound, start, step, trips } = counter(func, l, &shape)?;
+    let literal_start = func.value_u256(start);
+    let trips = trips.unwrap_or(Target::UNCOUNTED_LOOP_ITERATIONS);
+    // The counter travels at most `step << MAX_TRIP_COUNT_BITS` from a literal start, so
+    // `word + (factor - 1) * step` never wraps.
+    let ahead = |factor: u32| {
+        let offset = step.checked_mul(U256::from(factor - 1))?;
+        let travel = step.checked_shl(Target::MAX_TRIP_COUNT_BITS)?;
+        literal_start?.checked_add(travel)?.checked_add(offset)?;
+        Some(offset)
+    };
+    let candidates = [2, 4].into_iter().filter_map(|factor| {
+        let main_test = match test {
+            Test::Below => MainTest::AheadBelow(ahead(factor)?),
+            Test::AtMost => MainTest::AheadBeyond(ahead(factor)?),
+            // `i + 1 <= n` follows from `i < n` without wrapping, whatever the start.
+            Test::UpTo if factor == 2 => MainTest::Below,
+            Test::UpTo => MainTest::AheadBeyond(ahead(factor)?),
+            Test::Reaches if factor == 2 => MainTest::Parity,
+            Test::Reaches => return None,
+        };
+        let saving = lifetime_saving(func, l, main_test, factor, trips, step, target);
+        (saving > 0).then_some((saving, factor, main_test))
+    });
+    let (_, factor, main_test) = candidates.max_by_key(|&(saving, ..)| saving)?;
+
+    if !exits_read_through_phis(func, l, exit, loop_insts) {
+        return None;
+    }
+    Some(Unroll {
+        header: l.header,
+        preheader,
+        latch,
+        body,
+        blocks: l.blocks.clone(),
+        factor,
+        main_test,
+        word,
+        bound,
+        step,
+    })
+}
+
+/// A loop's counter as its header tests it.
+struct Counter {
+    test: Test,
+    /// The counter as the header tests it: the counting phi, or its integer value.
+    word: ValueId,
+    /// The loop-invariant bound the header compares the counter against.
+    bound: ValueId,
+    /// The counter's value on entry.
+    start: ValueId,
+    step: U256,
+    /// How many iterations the loop runs, when its start and bound are literals.
+    trips: Option<u64>,
+}
+
+/// Recognizes the counter that a loop of `shape` steps and its header tests.
+fn counter(func: &Function, l: &Loop, shape: &Shape) -> Option<Counter> {
+    let Shape { preheader, latch, enters_on_true, condition, ref loop_insts, .. } = *shape;
     let defined_in_loop = |value| match func.value(value) {
         Value::Inst(inst) => loop_insts.contains(*inst),
         _ => false,
@@ -563,12 +667,10 @@ fn plan(
         Test::AtMost if step == U256::from(1) => Test::UpTo,
         test => test,
     };
-    let literal_start = func.value_u256(start);
-    let uncounted = U256::from(Target::UNCOUNTED_LOOP_ITERATIONS);
-    let trips = match (test, literal_start, func.value_u256(bound)) {
-        (Test::Below, Some(start), Some(limit)) => limit.saturating_sub(start).div_ceil(step),
+    let trips = match (test, func.value_u256(start), func.value_u256(bound)) {
+        (Test::Below, Some(start), Some(limit)) => Some(limit.saturating_sub(start).div_ceil(step)),
         (Test::AtMost | Test::UpTo, Some(start), Some(limit)) => {
-            limit.checked_sub(start).map_or(U256::ZERO, |left| left / step + U256::from(1))
+            Some(limit.checked_sub(start).map_or(U256::ZERO, |left| left / step + U256::from(1)))
         }
         // A step of `2^256 - m` counts down by `m`.
         (Test::Reaches, Some(start), Some(limit)) => {
@@ -577,49 +679,12 @@ fn plan(
             } else {
                 (limit.wrapping_sub(start), step)
             };
-            if (distance % magnitude).is_zero() { distance / magnitude } else { uncounted }
+            (distance % magnitude).is_zero().then(|| distance / magnitude)
         }
-        _ => uncounted,
+        _ => None,
     };
-    let trips = u64::try_from(trips).unwrap_or(u64::MAX);
-    // The counter travels at most `step << MAX_TRIP_COUNT_BITS` from a literal start, so
-    // `word + (factor - 1) * step` never wraps.
-    let ahead = |factor: u32| {
-        let offset = step.checked_mul(U256::from(factor - 1))?;
-        let travel = step.checked_shl(Target::MAX_TRIP_COUNT_BITS)?;
-        literal_start?.checked_add(travel)?.checked_add(offset)?;
-        Some(offset)
-    };
-    let candidates = [2, 4].into_iter().filter_map(|factor| {
-        let main_test = match test {
-            Test::Below => MainTest::AheadBelow(ahead(factor)?),
-            Test::AtMost => MainTest::AheadBeyond(ahead(factor)?),
-            // `i + 1 <= n` follows from `i < n` without wrapping, whatever the start.
-            Test::UpTo if factor == 2 => MainTest::Below,
-            Test::UpTo => MainTest::AheadBeyond(ahead(factor)?),
-            Test::Reaches if factor == 2 => MainTest::Parity,
-            Test::Reaches => return None,
-        };
-        let saving = lifetime_saving(func, l, main_test, factor, trips, step, target);
-        (saving > 0).then_some((saving, factor, main_test))
-    });
-    let (_, factor, main_test) = candidates.max_by_key(|&(saving, ..)| saving)?;
-
-    if !exits_read_through_phis(func, l, exit, &loop_insts) {
-        return None;
-    }
-    Some(Unroll {
-        header: l.header,
-        preheader,
-        latch,
-        body,
-        blocks: l.blocks.clone(),
-        factor,
-        main_test,
-        word,
-        bound,
-        step,
-    })
+    let trips = trips.map(|trips| u64::try_from(trips).unwrap_or(u64::MAX));
+    Some(Counter { test, word, bound, start, step, trips })
 }
 
 /// How much lifetime gas the tests and jumps the main loop skips save over the deposit of its
@@ -799,6 +864,63 @@ fn plan_peel(
             exit: shape.exit,
             blocks: l.blocks.clone(),
             tests,
+        })
+}
+
+/// Plans to unroll a loop completely when it runs a literal number of times and removing every
+/// test and back edge saves more lifetime gas than the copies' deposit costs.
+fn plan_full(
+    func: &Function,
+    loops: &LoopInfo,
+    l: &Loop,
+    cold: &DenseBitSet<FunctionId>,
+    target: Target,
+) -> Option<Full> {
+    if !target.copies_loops() {
+        return None;
+    }
+    let shape = shape(func, loops, l, cold)?;
+    let counter = counter(func, l, &shape)?;
+    let trips = counter.trips.filter(|trips| (1..=MAX_COMPLETE_TRIPS).contains(trips))?;
+    if !exits_read_through_phis(func, l, shape.exit, &shape.loop_insts) {
+        return None;
+    }
+    // Every iteration and the final test skip the header's test, and every iteration skips its
+    // back edge; the copies hold the body once more for every iteration but one, and the
+    // header's test goes away.
+    let compare = match counter.test {
+        Test::Below => op::LT,
+        Test::AtMost | Test::UpTo => op::GT,
+        Test::Reaches => op::SUB,
+    };
+    let tested = target.opcode(compare)
+        + target.dup().times(2)
+        + target.opcode(op::PUSH2)
+        + target.opcode(op::JUMPI);
+    let back_edge =
+        target.opcode(op::PUSH2) + target.opcode(op::JUMP) + target.opcode(op::JUMPDEST);
+    let trips = u32::try_from(trips).ok()?;
+    let saving = (tested + back_edge).times(trips) + tested;
+    let body: Cost = l
+        .blocks
+        .iter()
+        .filter(|&block| block != l.header)
+        .map(|block| target.block_code_estimate(func, block))
+        .sum();
+    if body.times(trips).bytes > MAX_COMPLETE_BYTES {
+        return None;
+    }
+    let header = target.block_code_estimate(func, l.header);
+    let growth = body.times(trips - 1).bytes.saturating_sub(header.bytes);
+    (target.lifetime_gas(Cost::new(saving.gas, 0)) > target.lifetime_gas(Cost::new(0, growth)))
+        .then(|| Full {
+            header: l.header,
+            preheader: shape.preheader,
+            latch: shape.latch,
+            body: shape.body,
+            exit: shape.exit,
+            blocks: l.blocks.clone(),
+            trips,
         })
 }
 
@@ -1280,6 +1402,96 @@ fn peel(func: &mut Function, peel: &Peel) {
     for &(block, keep) in &peel.tests {
         let (_, metadata) = func.blocks[block].take_terminator();
         func.blocks[block].set_terminator(Terminator::Jump(keep), metadata);
+    }
+    rebuild_predecessors(func);
+}
+
+/// Replaces a loop that runs `trips` times with that many copies of its header and body.
+fn unroll_fully(func: &mut Function, full: &Full) {
+    let blocks: Vec<BlockId> = full.blocks.iter().collect();
+    // Edges that leave the loop from its body, before any terminator changes.
+    let side_exits: Vec<_> = blocks
+        .iter()
+        .filter(|&&block| block != full.header)
+        .flat_map(|&block| {
+            let terminator = func.blocks[block].terminator.as_ref().expect("terminated");
+            terminator
+                .successors()
+                .into_iter()
+                .filter(|&successor| !full.blocks.contains(successor))
+                .map(move |successor| (block, successor))
+        })
+        .collect();
+    let header_phis: Vec<_> = func.blocks[full.header]
+        .instructions
+        .iter()
+        .filter_map(|&inst| {
+            let InstKind::Phi(incoming) = &func.inst(inst).kind else { return None };
+            let latch_value =
+                incoming.iter().find_map(|&(from, value)| (from == full.latch).then_some(value))?;
+            Some((func.inst_result_value(inst)?, latch_value))
+        })
+        .collect();
+    let copies: Vec<Copy> = (0..full.trips).map(|_| clone_loop(func, &blocks)).collect();
+
+    // preheader: ... jump header_1
+    redirect(func, full.preheader, full.header, copies[0].blocks[&full.header]);
+    for (index, copy) in copies.iter().enumerate() {
+        let header = copy.blocks[&full.header];
+        let latch = copy.blocks[&full.latch];
+        let next = copies.get(index + 1).map_or(full.header, |next| next.blocks[&full.header]);
+        // header_k: state_k = phi [preheader: start] | [latch_(k-1): next_(k-1)]
+        //           jump body_k
+        // latch_k: ... jump header_(k+1)
+        for &(phi, latch_value) in &header_phis {
+            let previous = index.checked_sub(1).map(|previous| &copies[previous]);
+            edit_phi(func, copy.value(phi), |incoming| match previous {
+                Some(previous) => {
+                    *incoming = vec![(previous.blocks[&full.latch], previous.value(latch_value))];
+                }
+                None => incoming.retain(|&(from, _)| from == full.preheader),
+            });
+        }
+        let (_, metadata) = func.blocks[header].take_terminator();
+        func.blocks[header].set_terminator(Terminator::Jump(copy.blocks[&full.body]), metadata);
+        redirect(func, latch, header, next);
+    }
+
+    // header: state = phi [latch_n: next_n], [latch: next]
+    //         jump exit
+    // After the last copy the header's test fails, so the original body becomes unreachable and
+    // its latch's phi inputs only keep the phis consistent until cleanup removes it.
+    let last = &copies[copies.len() - 1];
+    for &(phi, latch_value) in &header_phis {
+        edit_phi(func, phi, |incoming| {
+            for (from, value) in incoming.iter_mut() {
+                if *from == full.preheader {
+                    *from = last.blocks[&full.latch];
+                    *value = last.value(latch_value);
+                }
+            }
+        });
+    }
+    let (_, metadata) = func.blocks[full.header].take_terminator();
+    func.blocks[full.header].set_terminator(Terminator::Jump(full.exit), metadata);
+
+    // exit: v = phi [block: x], [block_1: x_1], ..., [block_n: x_n]
+    for (block, successor) in side_exits {
+        for inst in func.blocks[successor].instructions.clone() {
+            if let InstKind::Phi(incoming) = &mut func.inst_mut(inst).kind {
+                let cloned: Vec<_> = copies
+                    .iter()
+                    .flat_map(|copy| {
+                        incoming
+                            .iter()
+                            .filter(|&&(from, _)| from == block)
+                            .map(|&(_, value)| (copy.blocks[&block], copy.value(value)))
+                            .collect::<Vec<_>>()
+                    })
+                    .collect();
+                incoming.extend(cloned);
+            }
+        }
     }
     rebuild_predecessors(func);
 }

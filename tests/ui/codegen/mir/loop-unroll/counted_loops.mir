@@ -131,9 +131,18 @@ fn @long_literal() -> i256 {
     ret v1
 }
 
-// Three iterations form one pair, which skips no test: the loop is kept.
+// A loop that runs three times becomes three copies of its body, each entered by a jump, and
+// the header after the last copy leaves without testing.
 // CHECK-LABEL: {{^[ +].*}}fn @short_literal{{[( ]}}
-// CHECK-NOT: {{^[-+]}}
+// CHECK: + {{v[0-9]+}} = phi [bb0: 0]
+// CHECK: + [[FIRST:v[0-9]+]] = add {{v[0-9]+}}, 1
+// CHECK: + {{v[0-9]+}} = phi {{\[}}{{bb[0-9]+}}: [[FIRST]]]
+// CHECK: + [[SECOND:v[0-9]+]] = add {{v[0-9]+}}, 1
+// CHECK: + {{v[0-9]+}} = phi {{\[}}{{bb[0-9]+}}: [[SECOND]]]
+// CHECK: + [[THIRD:v[0-9]+]] = add {{v[0-9]+}}, 1
+// CHECK: + v0 = phi {{\[}}{{bb[0-9]+}}: [[THIRD]]], [bb2: v4]
+// CHECK: - jumpi v2, bb2, bb3
+// CHECK-NEXT: + jump bb3
 fn @short_literal() -> i256 {
   bb0:
     jump bb1

@@ -1,0 +1,153 @@
+// === ROOT/tests/ui/codegen/mir/loop-unroll/complete_loops.sol:CompleteLoops ===
+@module CompleteLoops
+@phase lowered
+@types
+  struct0: {i256, i256}
+  struct1: {i256, i256}
+  struct2: {i256, i256}
+
+fn @u32(arg0: i256, arg1: i256) -> struct0 [pure, return_abi=[i256, i256]] {
+  bb0:
+    v43 = lt 0, arg1
+    v44 = add arg0, 0
+    v45 = calldataload v44
+    v46 = byte 0, v45
+    v47 = or 0, v46
+    v52 = shl 8, v47
+    v53 = and v52, 0xffffffff
+    v54 = lt 1, arg1
+    v82 = and v43, v54
+    v55 = add arg0, 1
+    v56 = calldataload v55
+    v57 = byte 0, v56
+    v58 = or v53, v57
+    v63 = shl 8, v58
+    v64 = and v63, 0xffffffff
+    v65 = lt 2, arg1
+    v83 = and v82, v65
+    v66 = add arg0, 2
+    v67 = calldataload v66
+    v68 = byte 0, v67
+    v69 = or v64, v68
+    v74 = shl 8, v69
+    v75 = and v74, 0xffffffff
+    v76 = lt 3, arg1
+    v84 = and v83, v76
+    jumpi v84, bb2, bb1
+  bb1:
+    tail_call @revert_stub
+  bb2:
+    v77 = add arg0, 3
+    v78 = calldataload v77
+    v79 = byte 0, v78
+    v80 = or v75, v79
+    ret v80, 4
+}
+
+fn @u16(arg0: i256, arg1: i256, arg2: i256) -> struct1 [pure, return_abi=[i256, i256]] {
+  bb0:
+    v44 = lt arg2, arg1
+    v45 = add arg0, arg2
+    v46 = calldataload v45
+    v47 = byte 0, v46
+    v48 = or 0, v47
+    v49 = add arg2, 1
+    v55 = shl 8, v48
+    v56 = and v55, 0xffff
+    v57 = lt v49, arg1
+    v64 = and v44, v57
+    jumpi v64, bb2, bb1
+  bb1:
+    tail_call @revert_stub
+  bb2:
+    v62 = add v49, 1
+    v58 = add arg0, v49
+    v59 = calldataload v58
+    v60 = byte 0, v59
+    v61 = or v56, v60
+    ret v61, v62
+}
+
+fn @decode() [selector=0xe5c5e9a3, abi_wrapper, pure] {
+  bb0:
+    v8 = calldatasize
+    v9 = lt v8, 36
+    v10 = calldataload 4
+    v11 = add v10, 4
+    v12 = add v11, 32
+    v13 = gt v10, 0xffffffffffffffff
+    v14 = gt v12, v8
+    v15 = or v13, v14
+    v17 = calldataload v11
+    v19 = sub v8, v12
+    v20 = gt v17, v19
+    v23 = or v15, v20
+    v43 = or v9, v23
+    jumpi v43, bb1, bb2
+  bb2:
+    v30 = icall @u32, v12, v17
+    v38 = mload 32 !metadata(memory=scratch)
+    v32 = add v38, 32
+    v33 = mload v32
+    v34 = icall @u16, v12, v17, v33
+    mstore 128, v30
+    mstore 160, v34
+    returndata 128, 64
+  bb1:
+    revert 0, 0
+}
+
+fn @sum4() [selector=0x0540a714, abi_wrapper, pure] {
+  bb0:
+    v23 = calldatasize
+    v24 = lt v23, 132
+    jumpi v24, bb2, bb3
+  bb3:
+    v33 = calldataload 4
+    v34 = add 0, v33
+    v42 = calldataload 36
+    v43 = add v34, v42
+    v44 = lt v43, v34
+    v51 = calldataload 68
+    v52 = add v43, v51
+    v53 = lt v52, v43
+    v64 = or v44, v53
+    v60 = calldataload 100
+    v61 = add v52, v60
+    v62 = lt v61, v52
+    v65 = or v64, v62
+    jumpi v65, bb1, bb4
+  bb4:
+    mstore 128, v61
+    returndata 128, 32
+  bb1:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 17 !metadata(memory=scratch)
+    revert 28, 36
+  bb2:
+    revert 0, 0
+}
+
+fn @revert_stub() {
+  bb0:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 50 !metadata(memory=scratch)
+    revert 28, 36
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb4, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr 224, v2
+    switch v3, default bb4, [0x540a714 => bb2, 0xe5c5e9a3 => bb3]
+  bb3:
+    tail_call @decode
+  bb2:
+    tail_call @sum4
+  bb4:
+    revert 0, 0
+}
