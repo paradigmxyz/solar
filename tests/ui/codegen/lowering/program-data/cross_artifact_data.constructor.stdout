@@ -12,18 +12,18 @@ bb0:
   jumpi
   push 64
   mload
+  dup 1
+  dup 1
   push 256
-  dup 2
   add
   push 64
   mstore
-  push 224
-  dup 2
-  mstore
   push 32
-  dup 2
   add
   push 224
+  dup 1
+  dup 4
+  mstore
   push_data literal_0
   dup 3
   codecopy
@@ -93,7 +93,7 @@ bb0:
   log1
   push 250
   dup 1
-  push 379
+  push 378
   push 0
   codecopy
   push 0

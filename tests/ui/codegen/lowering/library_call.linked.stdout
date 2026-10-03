@@ -185,13 +185,12 @@ bb0:
   dup 2
   dup 2
   add
-  dup 2
-  gt
-  swap 2
   push 32
-  gt
-  swap 1
+  dup 3
+  swap 4
+  lt
   swap 2
+  gt
   or
   push bb3
   jumpi

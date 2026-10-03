@@ -253,14 +253,13 @@ bb1:
   shr
   push bb3
   jumpi
-  push 96
-  dup 5
-  add
+  dup 4
   dup 2
-  swap 1
+  dup 2
+  push 96
+  add
   mstore
   push 128
-  dup 5
   add
   exchange 1, 5
   mstore
@@ -269,16 +268,13 @@ bb1:
   swap 1
   mload
   dup 1
-  mload
   push 32
-  dup 3
   add
-  push 0
-  swap 1
+  dup 2
+  mload
   swap 2
   swap 3
-  swap 4
-  swap 1
+  push 0
   exchange 5, 6
   jump bb15
 bb19 [loop]:
@@ -413,8 +409,9 @@ bb5:
   calldataload
   push 0
   mstore
-  push 0
   push 32
+  push 0
+  dup 2
   mstore
   push 64
   push 0
@@ -422,7 +419,6 @@ bb5:
   sload
   push 128
   mstore
-  push 32
   push 128
   return
 bb9:
@@ -796,13 +792,12 @@ bb9:
   dup 2
   dup 2
   add
-  dup 2
-  gt
-  swap 2
   push 32
-  gt
-  swap 1
+  dup 3
+  swap 4
+  lt
   swap 2
+  gt
   or
   push bb4
   jumpi

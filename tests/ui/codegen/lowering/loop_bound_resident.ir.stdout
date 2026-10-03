@@ -15,9 +15,9 @@ bb0:
   jumpi
   push 68
   calldataload
-  push 100
   calldatasize
-  lt
+  push 100
+  gt
   push bb3
   jumpi
   push 4

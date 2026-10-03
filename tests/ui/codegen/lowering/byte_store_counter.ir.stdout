@@ -445,11 +445,10 @@ bb29 [continuation]:
   dup 2
   jump bb67
 bb30 [continuation]:
-  swap 1
-  pop
-  swap 1
+  swap 2
   push 128
   mstore
+  pop
   push 160
   mstore
   push 64
@@ -678,12 +677,12 @@ bb77:
   push 64
   jump bb90
 bb79:
-  swap 1
   push 32
+  dup 1
+  swap 3
   add
   mload
-  swap 1
-  push 32
+  swap 2
   sub
   push 8
   mul

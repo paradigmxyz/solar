@@ -264,15 +264,11 @@ bb25 [loop]:
   dup 3
   push 192
   mstore
-  dup 1
-  dup 4
-  lt
-  swap 4
+  swap 3
   push 224
   mstore
   pop
-  pop
-  pop
+  lt
   push bb27
   jumpi
   jump bb26
@@ -613,20 +609,18 @@ bb65 [loop]:
   lt
   push bb68
   jumpi
-  swap 3
   pop
-  push 31
+  pop
+  pop
+  pop
   push 288
   mload
+  push 31
   and
   dup 1
   push 448
   mstore
   iszero
-  swap 3
-  pop
-  pop
-  pop
   push bb70
   jumpi
   push 416
@@ -714,13 +708,12 @@ bb88 [cold]:
 bb76 [loop]:
   push 0
   dup 3
+  push 1
+  add
+  swap 3
   sstore
   push 1
   add
-  swap 1
-  push 1
-  add
-  swap 1
   jump bb74
 bb74 [loop]:
   push 544
@@ -924,31 +917,29 @@ bb93 [continuation]:
   mload
   push 544
   mstore
-  push bb63
-  push 0
   push 384
   mload
-  swap 1
+  dup 1
+  push 0
   push 0
   mstore
   push 32
   push 0
   keccak256
-  dup 2
   add
-  swap 1
+  push bb63
+  swap 2
   jump bb74
 bb94 [continuation]:
-  dup 2
-  calldataload
-  swap 3
+  swap 1
   calldatasize
+  dup 2
+  swap 4
+  swap 1
   sub
   swap 1
-  swap 3
+  calldataload
   gt
-  swap 1
-  swap 2
   or
   push bb11
   jumpi

@@ -75,19 +75,19 @@ bb6:
   calldatasize
   dup 3
   calldatacopy
+  dup 1
+  dup 1
   push 3
-  dup 2
-  mstore
   push 96
-  dup 2
+  swap 4
+  mstore
+  dup 3
   add
   push 7
-  swap 1
-  mstore
   push 32
+  swap 2
+  mstore
   add
-  push 96
-  swap 1
   keccak256
   push 128
   mstore

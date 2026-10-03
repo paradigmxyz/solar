@@ -8,7 +8,7 @@
 //! counter in the old one's slot. A dead word is cheaper to pop before an operation on the word
 //! above it than to swap around that operation and pop it afterwards.
 //!
-//! This pass takes each maximal run of a hot loop block's instructions that only computes: stack
+//! This pass takes each maximal run of a block's instructions that only computes: stack
 //! operations, immediate and label pushes, pure word operations, calldata reads, and memory and
 //! storage accesses. It executes the run symbolically from the deepest stack word the run reads,
 //! which yields the operations it performs, their operand words, and the stack it leaves. A
@@ -17,8 +17,9 @@
 //! same stack. Operations run in any order their operands allow, except that memory and storage
 //! accesses keep their original relative order; a commutative operation takes its operands in
 //! either order, and a comparison may become its mirror, `gt` for `lt` with swapped operands.
-//! Moves are priced by the target cost model, gas first and then bytes, so a schedule is taken
-//! when it saves gas, or the same gas in fewer bytes.
+//! Moves are priced by the target cost model under the objective, so when optimizing for gas a
+//! schedule is taken when it saves gas, or the same gas in fewer bytes, and when optimizing for
+//! size when it saves bytes, or the same bytes in less gas.
 //!
 //! The remaining cost of a state is bounded below by one copy for every missing use of a word
 //! and one pop for every surplus copy. The search orders states by their cost plus twice that
@@ -30,11 +31,12 @@
 //!
 //! The search is exponential in the run's operations and stack height. Runs with more than
 //! [`MAX_RUN_OPERATIONS`] operations are skipped, the stack may grow at most [`STACK_SLACK`]
-//! words above the run's entry and exit heights, a run that yields no cheaper schedule within
-//! [`MAX_FIRST_EXPANSIONS`] states keeps its code, and one that does stops refining after
-//! [`MAX_EXPANSIONS`]. Equal runs share their result, as unrolled copies and repeated checks
-//! repeat them. Only blocks of natural loops are searched, as their code runs many times per
-//! call.
+//! words above the run's entry and exit heights, and a run that yields no cheaper schedule
+//! within the first part of its [`Budget`] keeps its code, while one that does keeps refining
+//! for the rest. Runs in hot loop blocks get [`LOOP_BUDGET`] when optimizing for gas, as their
+//! code runs many times per call; all others get the far smaller [`BLOCK_BUDGET`], which mostly
+//! saves bytes. Equal runs share their result, as unrolled copies and repeated checks repeat
+//! them.
 //!
 //! Safety: the replacement performs exactly the original operations on the same operand words,
 //! keeps memory and storage accesses in order, and leaves the same words in the same stack
@@ -46,8 +48,8 @@
 //! replaced stack operations move to the run's last instruction. Debug metadata decides nothing,
 //! so requesting it leaves the code unchanged.
 //!
-//! The pass runs in gas mode after the late push compaction, so it sees the final pushes, and
-//! before the last stack cleanup and loop layout.
+//! The pass runs after the late push compaction, so it sees the final pushes, and before the
+//! last stack cleanup and loop layout.
 
 use super::{EvmPass, utils::is_split_point};
 use crate::{
@@ -67,11 +69,21 @@ use std::{cmp::Reverse, collections::BinaryHeap};
 const MAX_RUN_OPERATIONS: usize = 12;
 /// Words the search may grow the stack by above the run's entry and exit heights.
 const STACK_SLACK: usize = 3;
-/// States the search may expand for one run.
-const MAX_EXPANSIONS: usize = 20_000;
-/// States the search may expand before it finds any cheaper schedule, after which the run keeps
-/// its code.
-const MAX_FIRST_EXPANSIONS: usize = 3_000;
+/// How many states the search may expand for one run.
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+struct Budget {
+    /// States to expand before some cheaper schedule turns up, after which the run keeps its
+    /// code.
+    first: usize,
+    /// States to expand in all.
+    refine: usize,
+}
+
+/// The budget of a run in a hot loop block, when optimizing for gas.
+const LOOP_BUDGET: Budget = Budget { first: 3_000, refine: 20_000 };
+/// The budget of any other run: its code runs at most a few times per call, so a short search
+/// mostly saves bytes.
+const BLOCK_BUDGET: Budget = Budget { first: 300, refine: 1_000 };
 /// Deepest stack word a `DUP` or `SWAP` reaches.
 const REACH: usize = 16;
 /// Bits of a word's index in a packed stack.
@@ -87,16 +99,15 @@ impl EvmPass for StackReschedule {
     }
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
-        if !gcx.sess.opts.optimization.is_gas() {
-            return false;
-        }
         let target = Target::new(gcx);
         let mut cache = FxHashMap::default();
         let mut changed = false;
         for block in &mut module.blocks {
-            if block.metadata.in_loop && !block.metadata.hotness.is_cold() {
-                changed |= reschedule_block(&mut block.instructions, target, &mut cache);
-            }
+            let hot_loop = target.optimization().is_gas()
+                && block.metadata.in_loop
+                && !block.metadata.hotness.is_cold();
+            let budget = if hot_loop { LOOP_BUDGET } else { BLOCK_BUDGET };
+            changed |= reschedule_block(&mut block.instructions, target, budget, &mut cache);
         }
         changed
     }
@@ -188,7 +199,8 @@ impl State {
 fn reschedule_block(
     instructions: &mut Vec<Instruction>,
     target: Target,
-    cache: &mut FxHashMap<SmallVec<[RunKey; 24]>, Option<Vec<Move>>>,
+    budget: Budget,
+    cache: &mut Schedules,
 ) -> bool {
     let mut replacements = Vec::new();
     let mut start = 0;
@@ -205,8 +217,8 @@ fn reschedule_block(
             let run = &instructions[start..end];
             if let Some(summary) = summarize(run, target) {
                 // Unrolled copies and repeated checks produce the same runs over and over.
-                let key = run.iter().map(run_key).collect::<SmallVec<[RunKey; 24]>>();
-                let moves = cache.entry(key).or_insert_with(|| search(&summary, target));
+                let key = (run.iter().map(run_key).collect::<SmallVec<[RunKey; 24]>>(), budget);
+                let moves = cache.entry(key).or_insert_with(|| search(&summary, target, budget));
                 if let Some(moves) = moves
                     && let Some(replacement) = emit(run, &summary, moves)
                 {
@@ -234,6 +246,9 @@ fn reschedule_block(
     *instructions = rebuilt;
     true
 }
+
+/// The schedules found for runs, by their instructions and search budget.
+type Schedules = FxHashMap<(SmallVec<[RunKey; 24]>, Budget), Option<Vec<Move>>>;
 
 /// What a run's schedule depends on in one of its instructions.
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
@@ -420,7 +435,7 @@ impl Words {
 
 /// Searches for the cheapest schedule of a run's operations that leaves its stack, when one
 /// beats the run's own stack operations.
-fn search(run: &Run, target: Target) -> Option<Vec<Move>> {
+fn search(run: &Run, target: Target, limits: Budget) -> Option<Vec<Move>> {
     let operation_count = run.operations.len();
     let words = Words { entry: run.entry, operations: operation_count };
     let word_count = run.entry + operation_count + run.constants.len();
@@ -546,7 +561,7 @@ fn search(run: &Run, target: Target) -> Option<Vec<Move>> {
             continue;
         }
         expansions += 1;
-        if expansions > MAX_EXPANSIONS || (found.is_none() && expansions > MAX_FIRST_EXPANSIONS) {
+        if expansions > limits.refine || (found.is_none() && expansions > limits.first) {
             break;
         }
         let counts = counts_of(state);

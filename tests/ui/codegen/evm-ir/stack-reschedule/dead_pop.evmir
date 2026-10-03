@@ -20,9 +20,12 @@ bb0 [loop, stack=2]:
   mstore
   stop
 
-// The same code outside a loop keeps its schedule.
+// Code outside loops gets a shorter search, which still finds this one.
 // CHECK-LABEL: {{^[ +].*}}bb1 [stack=2]:
-// CHECK-NOT: {{^[-+]}}
+// CHECK: +   pop
+// CHECK-NEXT: push 2
+// CHECK-NEXT: add
+// CHECK-NOT: {{^[ +].*}}swap
 // CHECK: stop
 bb1 [stack=2]:
   swap 1

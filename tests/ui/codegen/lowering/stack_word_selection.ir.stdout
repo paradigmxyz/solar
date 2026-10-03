@@ -87,25 +87,21 @@ bb4:
   sub
   push bb5
   jumpi
-  pop
   push 256
   mload
   push 224
   mload
   dup 2
   dup 2
-  xor
-  dup 3
-  dup 3
-  and
-  swap 3
-  swap 1
-  swap 2
   or
   push 128
   mstore
+  dup 2
+  dup 2
+  xor
   push 160
   mstore
+  and
   push 192
   mstore
   push 96

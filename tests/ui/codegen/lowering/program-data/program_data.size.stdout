@@ -466,9 +466,9 @@ bb18 [continuation]:
   jump bb31
 bb19:
   push 32
+  dup 1
   push 128
   mstore
-  push 32
   push 160
   mstore
   push 0
@@ -519,29 +519,28 @@ bb23 [continuation]:
   keccak256
   jump bb33
 bb24:
+  push 64
+  dup 1
+  dup 1
   push 160
-  push 64
+  dup 2
   mstore
-  push bb23
-  push 64
   mload
   dup 1
-  push 64
-  dup 3
+  dup 1
+  swap 4
   add
-  push 64
-  mstore
   push 32
-  dup 3
+  swap 3
   mstore
-  swap 1
-  push 32
+  dup 2
+  dup 2
+  mstore
   add
   push 0
   swap 1
   mstore
-  swap 1
-  jump
+  jump bb23
 bb26:
   push 160
   push 64
