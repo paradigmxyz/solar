@@ -1,4 +1,5 @@
-//! Unrolling of counted loops by two or four.
+//! Unrolling of counted loops by two or four, and peeling of loops whose body
+//! tests words computed before the loop.
 //!
 //! A loop `for (i = a; i < n; i += s)` pays its header test, a compare and a
 //! conditional jump, once per iteration. This pass gives such a loop a main
@@ -23,8 +24,10 @@
 //! A loop that runs until its counter reaches the bound, `for (; i != n; i += s)`
 //! as assembly loops over pointers are written, knows its remaining count
 //! exactly: `n - i` is `s` times the count, so with `s = 2^t * u` for an odd
-//! `u`, bit `t` of `n - i` is the count's parity. One peeled iteration evens
-//! the count out, and the original header's test then admits two iterations:
+//! `u`, bit `t` of `n - i` is the count's parity. A counter that counts down,
+//! `for (; i != 0; i -= m)` or `i > 0`, steps by `s = 2^256 - m`. One peeled
+//! iteration evens the count out, and the original header's test then admits
+//! two iterations:
 //!
 //! ```text
 //! check:
@@ -38,22 +41,38 @@
 //! body_b: second copy; jump header
 //! ```
 //!
+//! A body that aborts unless a word computed before the loop holds, such as a
+//! division's zero check on a divisor the loop never changes, first runs one
+//! iteration in a copy that keeps those tests, and the loop after it jumps past
+//! them. When the copy's header declines the first iteration, it enters the
+//! original header, which declines it as well, so the original header's exit
+//! stays the loop's only one. Without those reads of words from before the
+//! loop, the loop may then unroll.
+//!
+//! A counter that only counts iterations, `for (i = 0; i < n; ++i)` with `i`
+//! read by nothing but its test and its increment, counts from `-n` up to zero
+//! instead: `r = i - n` modulo `2^256` starts at `0 - n`, steps by one as `i`
+//! did, and `i < n` holds exactly when `r != 0`, which a branch reads for free,
+//! so the loop no longer needs its bound. A loop that unrolls by four keeps its
+//! counter, as its main test already runs once per four iterations.
+//!
 //! Recognition: as for `loop-split`, a natural loop with a preheader and no
-//! inner loop, whose header branches into the body while `i < n`, `i <= n` or
-//! `i != n` and otherwise leaves the loop, where `i` is a header phi, or a
-//! pointer phi the header converts to an integer, that the loop's single back
-//! edge advances by a literal positive step, and `n` is defined outside the
-//! loop. The latch may also branch to a block that aborts, such as the
-//! increment's overflow check. A `<` or `<=` test also needs a literal start,
-//! except for `<=` stepping by one. The header's other instructions must be
-//! free of effects, because the original header repeats them for the iteration
-//! the main loop declined. The body must be straight-line: every branch inside
-//! it continues the loop on one arm and aborts on the other, such as an
-//! arithmetic panic, where a block aborts when it reverts or calls a function
-//! that never returns. The body may read words computed before the loop only
-//! when the backend rebuilds them where they are read, as calldata words at
-//! fixed offsets and environment reads: the stack scheduler spills other such
-//! words, and their copies measured slower than the original loop.
+//! inner loop, whose header branches into the body while `i < n`, `i <= n`,
+//! `i != n` or `i > 0` and otherwise leaves the loop, where `i` is a header
+//! phi, or a pointer phi the header converts to an integer, that the loop's
+//! single back edge advances by adding a literal step, or for `!=` and `> 0`
+//! also by subtracting one, and `n` is defined outside the loop. The latch may
+//! also branch to a block that aborts, such as the increment's overflow check.
+//! A `<` or `<=` test also needs a literal start, except for `<=` stepping by
+//! one. The header's other instructions must be free of effects, because the
+//! original header repeats them for the iteration the main loop declined. The
+//! body must be straight-line: every branch inside it continues the loop on one
+//! arm and aborts on the other, such as an arithmetic panic, where a block
+//! aborts when it reverts or calls a function that never returns. The body may
+//! read words computed before the loop only when the backend rebuilds them
+//! where they are read, as calldata words at fixed offsets and environment
+//! reads: the stack scheduler spills other such words, and their copies
+//! measured slower than the original loop.
 //!
 //! Safety: for `<` and `<=`, `i` starts at a literal and grows by a literal
 //! step, so within the target's trip-count bound `i + (k - 1) * s` cannot wrap,
@@ -70,9 +89,13 @@
 //! no block reachable from such an edge uses a loop-defined value except as a
 //! phi input on that edge, so every definition still dominates its uses. The
 //! header's exit stays the only way to leave the original loop normally, so
-//! values read after the loop keep their definitions.
+//! values read after the loop keep their definitions. A peeled loop's body runs
+//! only after the copy's tests held, and they read the same words; the copy's
+//! declined first iteration reaches a header free of effects with the same
+//! state, which declines it too.
 //!
-//! For `!=`, counts are taken modulo `2^256`, as the counter wraps. When `n - i`
+//! For `!=`, counts are taken modulo `2^256`, as the counter wraps, and a step
+//! that subtracts `m` adds `2^256 - m`; `i > 0` is `i != 0`. When `n - i`
 //! is `s` times some count `k`, the loop runs exactly `k` more iterations, and
 //! bit `t` of `n - i` is `k`'s parity. A set bit means `i != n`, so the peeled
 //! iteration is one the original loop runs; an even count remains after it, so
@@ -97,18 +120,19 @@
 //! code holds `k` more copies of the body and one of the header, and the pass
 //! takes the factor that saves the most. Literal bounds give the trip count,
 //! and other loops are assumed to run the target's estimate for uncounted
-//! loops. A `<=` loop stepping by one unrolls by four only from a literal
-//! start, as its main test then adds the offset. Runs after the late loop
-//! passes have fixed the loop's physical shape, and before the final CFG
-//! cleanup and dead-code elimination remove the cloned tests the copies no
-//! longer read.
+//! loops. A peeled copy of the header and the body pays when the conditional
+//! jumps that the iterations after the first skip save more. A `<=` loop
+//! stepping by one unrolls by four only from a literal start, as its main test
+//! then adds the offset. Runs after the late loop passes have fixed the loop's
+//! physical shape, and before the final CFG cleanup and dead-code elimination
+//! remove the cloned tests the copies no longer read.
 
 use super::loop_split::{rebuild_predecessors, retarget};
 use crate::{
     backend::evm::op,
     mir::{
-        BlockId, EffectKind, Function, FunctionId, Immediate, InstKind, Instruction, MirType,
-        Module, OpTraits, Terminator, Value, ValueId,
+        BlockId, EffectKind, Function, FunctionId, Immediate, InstId, InstKind, Instruction,
+        MirType, Module, OpTraits, Terminator, Value, ValueId,
         analysis::{Loop, LoopAnalyzer, LoopInfo, aborts, cold_functions},
         pass::{MirPass, run_function_pass},
     },
@@ -120,7 +144,7 @@ use solar_data_structures::{
     map::{FxHashMap, FxHashSet},
 };
 
-/// Function pass that unrolls counted loops by two.
+/// Function pass that unrolls counted loops and peels loops with invariant tests.
 pub(crate) struct LoopUnroll;
 
 impl MirPass for LoopUnroll {
@@ -184,11 +208,75 @@ struct Unroll {
     step: U256,
 }
 
+/// The shape both unrolling and peeling need: a natural loop with a preheader and a single
+/// latch, no inner loop, a header free of effects that branches into a straight-line body or
+/// out of the loop.
+struct Shape {
+    preheader: BlockId,
+    latch: BlockId,
+    /// The header's successor inside the loop.
+    body: BlockId,
+    /// The header's successor outside the loop.
+    exit: BlockId,
+    /// Whether the header enters the body when its condition holds.
+    enters_on_true: bool,
+    condition: ValueId,
+    loop_insts: DenseBitSet<InstId>,
+}
+
+/// A loop `for (i = 0; i < n; ++i)` whose counter feeds only its own test and increment.
+struct Reverse {
+    preheader: BlockId,
+    /// The counter phi.
+    counter: ValueId,
+    /// `i < n`, which the header branches on.
+    condition: ValueId,
+    bound: ValueId,
+}
+
+/// A loop whose body aborts unless a word computed before the loop holds, such as a division's
+/// zero check on a divisor the loop never changes.
+struct Peel {
+    header: BlockId,
+    preheader: BlockId,
+    latch: BlockId,
+    exit: BlockId,
+    blocks: DenseBitSet<BlockId>,
+    /// Body blocks ending with such a test, with the block each continues to.
+    tests: Vec<(BlockId, BlockId)>,
+}
+
 fn unroll_function(func: &mut Function, cold: &DenseBitSet<FunctionId>, target: Target) -> bool {
     let mut changed = false;
     let mut done = FxHashSet::default();
+    let mut peeled = FxHashSet::default();
+    // A counter that only counts iterations counts from `-n` up to zero instead, so the header
+    // tests it against zero, which a branch reads for free, and needs no bound in the loop. A
+    // loop that unrolls by four keeps its counter: its main test already runs once per four
+    // iterations.
+    let loops = LoopAnalyzer::new().analyze_structure(func);
+    let reversals: Vec<_> = loops
+        .all_loops()
+        .filter(|l| plan(func, &loops, l, cold, target).is_none_or(|unroll| unroll.factor != 4))
+        .filter_map(|l| plan_reverse(func, l))
+        .collect();
+    changed |= !reversals.is_empty();
+    for reversal in &reversals {
+        reverse(func, reversal);
+    }
     loop {
         let loops = LoopAnalyzer::new().analyze_structure(func);
+        // A peeled loop no longer reads its invariant tests and may unroll next.
+        if let Some(plan) = loops
+            .all_loops()
+            .filter(|l| !peeled.contains(&l.header))
+            .find_map(|l| plan_peel(func, &loops, l, cold, target))
+        {
+            peeled.insert(plan.header);
+            peel(func, &plan);
+            changed = true;
+            continue;
+        }
         let Some(unroll) = loops
             .all_loops()
             .filter(|l| !done.contains(&l.header))
@@ -242,13 +330,12 @@ fn rebuilt_at_use(func: &Function, value: ValueId) -> bool {
     }
 }
 
-fn plan(
+fn shape(
     func: &Function,
     loops: &LoopInfo,
     l: &Loop,
     cold: &DenseBitSet<FunctionId>,
-    target: Target,
-) -> Option<Unroll> {
+) -> Option<Shape> {
     let preheader = l.preheader?;
     let &[latch] = l.back_edges.as_slice() else { return None };
     if latch == l.header
@@ -290,6 +377,78 @@ fn plan(
             return None;
         }
     }
+    // The original header repeats its instructions for the iteration the main loop declined,
+    // or for the one a peeled iteration's header declined.
+    if func.blocks[l.header].instructions.iter().any(|&inst| {
+        let kind = &func.inst(inst).kind;
+        !matches!(kind, InstKind::Phi(_)) && kind.has_side_effects()
+    }) {
+        return None;
+    }
+    Some(Shape { preheader, latch, body, exit, enters_on_true, condition, loop_insts })
+}
+
+/// Whether the blocks the loop's body can leave to, such as panics, read loop values only as
+/// the phi inputs of those edges, so the edges of every copy can reach them.
+fn exits_read_through_phis(
+    func: &Function,
+    l: &Loop,
+    exit: BlockId,
+    loop_insts: &DenseBitSet<InstId>,
+) -> bool {
+    let defined_in_loop = |value| match func.value(value) {
+        Value::Inst(inst) => loop_insts.contains(*inst),
+        _ => false,
+    };
+    let mut reachable = DenseBitSet::new_empty(func.blocks.len());
+    let mut worklist = Vec::new();
+    for block in l.blocks.iter() {
+        let Some(terminator) = &func.blocks[block].terminator else { return false };
+        for successor in terminator.successors() {
+            if !l.blocks.contains(successor)
+                && !(block == l.header && successor == exit)
+                && reachable.insert(successor)
+            {
+                worklist.push(successor);
+            }
+        }
+    }
+    while let Some(block) = worklist.pop() {
+        let body = &func.blocks[block];
+        for &inst in &body.instructions {
+            let kind = &func.inst(inst).kind;
+            let reads_loop_value = match kind {
+                InstKind::Phi(incoming) => incoming
+                    .iter()
+                    .any(|&(from, value)| !l.blocks.contains(from) && defined_in_loop(value)),
+                _ => kind.operands().into_iter().any(defined_in_loop),
+            };
+            if reads_loop_value {
+                return false;
+            }
+        }
+        let Some(terminator) = &body.terminator else { return false };
+        if terminator.operands().into_iter().any(defined_in_loop) {
+            return false;
+        }
+        for successor in terminator.successors() {
+            if !l.blocks.contains(successor) && reachable.insert(successor) {
+                worklist.push(successor);
+            }
+        }
+    }
+    true
+}
+
+fn plan(
+    func: &Function,
+    loops: &LoopInfo,
+    l: &Loop,
+    cold: &DenseBitSet<FunctionId>,
+    target: Target,
+) -> Option<Unroll> {
+    let Shape { preheader, latch, body, exit, enters_on_true, condition, loop_insts } =
+        shape(func, loops, l, cold)?;
     // The stack planner spills a word the body reads from before the loop, and the copies
     // measured slower than the original loop.
     for block in l.blocks.iter() {
@@ -311,13 +470,6 @@ fn plan(
             return None;
         }
     }
-    // The original header repeats its instructions for the iteration the main loop declined.
-    if func.blocks[l.header].instructions.iter().any(|&inst| {
-        let kind = &func.inst(inst).kind;
-        !matches!(kind, InstKind::Phi(_)) && kind.has_side_effects()
-    }) {
-        return None;
-    }
     let defined_in_loop = |value| match func.value(value) {
         Value::Inst(inst) => loop_insts.contains(*inst),
         _ => false,
@@ -325,12 +477,17 @@ fn plan(
 
     // header: counter = phi [preheader: start], [latch: next]
     //         word = counter | ptrtoint counter
-    //         jumpi (lt word, bound) | (ne word, bound), body, exit
+    //         jumpi (lt word, bound) | (ne word, bound) | (gt word, 0), body, exit
     //         jumpi (gt word, bound) | (eq word, bound), exit, body
-    // latch:  next = add word, step | inttoptr (add word, step)
+    // latch:  next = add word, step | sub word, step | inttoptr (add|sub word, step)
     let reaches =
         |a, b| if defined_in_loop(a) { (Test::Reaches, a, b) } else { (Test::Reaches, b, a) };
+    let is_zero = |value| func.value_u256(value).is_some_and(|value| value.is_zero());
     let (test, word, bound) = match (inst_kind(func, condition)?, enters_on_true) {
+        // A word above zero has not reached it.
+        (&InstKind::Gt(word, zero), true) | (&InstKind::Lt(zero, word), true) if is_zero(zero) => {
+            (Test::Reaches, word, zero)
+        }
         (&InstKind::Lt(word, bound), true) | (&InstKind::Gt(bound, word), true) => {
             (Test::Below, word, bound)
         }
@@ -369,10 +526,17 @@ fn plan(
         _ if counter == word => next,
         _ => return None,
     };
-    let &InstKind::Add(a, b) = inst_kind(func, advance)? else { return None };
-    let step = match (func.value_u256(a), func.value_u256(b)) {
-        (_, Some(step)) if a == word => step,
-        (Some(step), _) if b == word => step,
+    let step = match *inst_kind(func, advance)? {
+        InstKind::Add(a, b) => match (func.value_u256(a), func.value_u256(b)) {
+            (_, Some(step)) if a == word => step,
+            (Some(step), _) if b == word => step,
+            _ => return None,
+        },
+        // Counting down by `m` steps by `-m`, modulo 2^256, which only a loop that runs until
+        // its counter reaches the bound can do.
+        InstKind::Sub(a, b) if a == word && matches!(test, Test::Reaches) => {
+            func.value_u256(b)?.wrapping_neg()
+        }
         _ => return None,
     };
     if step.is_zero() {
@@ -383,17 +547,22 @@ fn plan(
         test => test,
     };
     let literal_start = func.value_u256(start);
+    let uncounted = U256::from(Target::UNCOUNTED_LOOP_ITERATIONS);
     let trips = match (test, literal_start, func.value_u256(bound)) {
         (Test::Below, Some(start), Some(limit)) => limit.saturating_sub(start).div_ceil(step),
         (Test::AtMost | Test::UpTo, Some(start), Some(limit)) => {
             limit.checked_sub(start).map_or(U256::ZERO, |left| left / step + U256::from(1))
         }
-        (Test::Reaches, Some(start), Some(limit))
-            if (limit.wrapping_sub(start) % step).is_zero() =>
-        {
-            limit.wrapping_sub(start) / step
+        // A step of `2^256 - m` counts down by `m`.
+        (Test::Reaches, Some(start), Some(limit)) => {
+            let (distance, magnitude) = if step.bit(255) {
+                (start.wrapping_sub(limit), step.wrapping_neg())
+            } else {
+                (limit.wrapping_sub(start), step)
+            };
+            if (distance % magnitude).is_zero() { distance / magnitude } else { uncounted }
         }
-        _ => U256::from(Target::UNCOUNTED_LOOP_ITERATIONS),
+        _ => uncounted,
     };
     let trips = u64::try_from(trips).unwrap_or(u64::MAX);
     // The counter travels at most `step << MAX_TRIP_COUNT_BITS` from a literal start, so
@@ -419,49 +588,8 @@ fn plan(
     });
     let (_, factor, main_test) = candidates.max_by_key(|&(saving, ..)| saving)?;
 
-    // Blocks the copies can reach by leaving the loop from its body must not read a loop
-    // value except through the phi input of that edge.
-    let mut reachable = DenseBitSet::new_empty(func.blocks.len());
-    let mut worklist = Vec::new();
-    for block in l.blocks.iter() {
-        for successor in func.blocks[block].terminator.as_ref()?.successors() {
-            if !l.blocks.contains(successor)
-                && !(block == l.header && successor == exit)
-                && reachable.insert(successor)
-            {
-                worklist.push(successor);
-            }
-        }
-    }
-    while let Some(block) = worklist.pop() {
-        let body = &func.blocks[block];
-        for &inst in &body.instructions {
-            let kind = &func.inst(inst).kind;
-            match kind {
-                InstKind::Phi(incoming) => {
-                    if incoming
-                        .iter()
-                        .any(|&(from, value)| !l.blocks.contains(from) && defined_in_loop(value))
-                    {
-                        return None;
-                    }
-                }
-                _ => {
-                    if kind.operands().into_iter().any(defined_in_loop) {
-                        return None;
-                    }
-                }
-            }
-        }
-        let terminator = body.terminator.as_ref()?;
-        if terminator.operands().into_iter().any(defined_in_loop) {
-            return None;
-        }
-        for successor in terminator.successors() {
-            if !l.blocks.contains(successor) && reachable.insert(successor) {
-                worklist.push(successor);
-            }
-        }
+    if !exits_read_through_phis(func, l, exit, &loop_insts) {
+        return None;
     }
     Some(Unroll {
         header: l.header,
@@ -533,6 +661,125 @@ fn lifetime_saving(
         .sum();
     target.lifetime_gas(Cost::new(saving, 0)) as i128
         - target.lifetime_gas(Cost::new(0, growth.bytes)) as i128
+}
+
+/// Plans to count a loop's iterations from `-n` up to zero when its counter starts at zero,
+/// steps by one, and feeds nothing but its test `i < n` and its own increment.
+fn plan_reverse(func: &Function, l: &Loop) -> Option<Reverse> {
+    let preheader = l.preheader?;
+    let &[latch] = l.back_edges.as_slice() else { return None };
+    let Some(Terminator::Branch { condition, then_block, else_block }) =
+        func.blocks[l.header].terminator
+    else {
+        return None;
+    };
+    // The header enters the body while `i < n`.
+    if !l.blocks.contains(then_block) || l.blocks.contains(else_block) {
+        return None;
+    }
+    let (counter, bound) = match *inst_kind(func, condition)? {
+        InstKind::Lt(counter, bound) | InstKind::Gt(bound, counter) => (counter, bound),
+        _ => return None,
+    };
+    let Value::Inst(phi) = *func.value(counter) else { return None };
+    if !func.blocks[l.header].instructions.contains(&phi) {
+        return None;
+    }
+    if let Value::Inst(inst) = func.value(bound)
+        && l.blocks.iter().any(|block| func.blocks[block].instructions.contains(inst))
+    {
+        return None;
+    }
+    let InstKind::Phi(incoming) = &func.inst(phi).kind else { return None };
+    let [(first, first_value), (second, second_value)] = incoming.as_slice() else { return None };
+    let (start, next) = match (*first, *second) {
+        (from, to) if from == preheader && to == latch => (*first_value, *second_value),
+        (from, to) if from == latch && to == preheader => (*second_value, *first_value),
+        _ => return None,
+    };
+    if !func.value_u256(start).is_some_and(|start| start.is_zero()) {
+        return None;
+    }
+    match *inst_kind(func, next)? {
+        InstKind::Add(a, b) | InstKind::Add(b, a)
+            if a == counter && func.value_u256(b) == Some(U256::from(1)) => {}
+        _ => return None,
+    }
+    // The counter, its increment and its test have no other readers.
+    let mut readers = [0usize; 3];
+    let mut count = |value: ValueId| {
+        for (slot, watched) in [counter, next, condition].into_iter().enumerate() {
+            if value == watched {
+                readers[slot] += 1;
+            }
+        }
+    };
+    for block in &func.blocks {
+        for &inst in &block.instructions {
+            func.inst(inst).kind.visit_operands(&mut count);
+        }
+        if let Some(terminator) = &block.terminator {
+            terminator.operands().into_iter().for_each(&mut count);
+        }
+    }
+    // counter: the test and the increment; next: the phi; condition: the header's branch.
+    (readers == [2, 1, 1]).then_some(Reverse { preheader, counter, condition, bound })
+}
+
+/// Plans to run a loop's first iteration in a copy when its body aborts unless a word computed
+/// before the loop holds: the iterations after it then skip those tests.
+fn plan_peel(
+    func: &Function,
+    loops: &LoopInfo,
+    l: &Loop,
+    cold: &DenseBitSet<FunctionId>,
+    target: Target,
+) -> Option<Peel> {
+    let shape = shape(func, loops, l, cold)?;
+    let tests: Vec<_> = l
+        .blocks
+        .iter()
+        .filter(|&block| block != l.header)
+        .filter_map(|block| {
+            let Some(Terminator::Branch { condition, then_block, else_block }) =
+                func.blocks[block].terminator
+            else {
+                return None;
+            };
+            let invariant = match func.value(condition) {
+                Value::Inst(inst) => !shape.loop_insts.contains(*inst),
+                Value::Arg(_) => true,
+                _ => false,
+            };
+            if !invariant {
+                return None;
+            }
+            match (aborts(func, then_block, cold), aborts(func, else_block, cold)) {
+                (true, false) => Some((block, else_block)),
+                (false, true) => Some((block, then_block)),
+                _ => None,
+            }
+        })
+        .collect();
+    if tests.is_empty() || !exits_read_through_phis(func, l, shape.exit, &shape.loop_insts) {
+        return None;
+    }
+    // Every iteration after the first skips each test's conditional jump, and the copy holds
+    // one more header and body.
+    let test = target.opcode(op::JUMPI) + target.opcode(op::PUSH2) + target.dup();
+    let skipped = test.times(u32::try_from(tests.len()).unwrap_or(u32::MAX));
+    let iterations = u32::try_from(Target::UNCOUNTED_LOOP_ITERATIONS - 1).unwrap_or(u32::MAX);
+    let saving = skipped.times(iterations).gas;
+    let growth: Cost = l.blocks.iter().map(|block| target.block_code_estimate(func, block)).sum();
+    (target.lifetime_gas(Cost::new(saving, 0)) > target.lifetime_gas(Cost::new(0, growth.bytes)))
+        .then(|| Peel {
+            header: l.header,
+            preheader: shape.preheader,
+            latch: shape.latch,
+            exit: shape.exit,
+            blocks: l.blocks.clone(),
+            tests,
+        })
 }
 
 /// A copy of the loop: each original block's clone and each original value's clone.
@@ -669,11 +916,17 @@ fn apply(func: &mut Function, unroll: &Unroll) -> BlockId {
     let mut replacements = FxHashMap::default();
     let (entry, main_header) = if let MainTest::Parity = unroll.main_test {
         // check: state' = phi [preheader: start]
-        //        left = sub bound, word'
+        //        left = sub bound, word' | word' when bound = 0
         //        jumpi (trunc (shr zeros(step), left) to i1), body', header
         let check = first.blocks[&unroll.header];
         let word = first.value(unroll.word);
-        let mut left = append(func, check, InstKind::Sub(unroll.bound, word), MirType::I256);
+        // Against a zero bound, `0 - i` and `i` agree at bit `t` whenever `i` is a multiple of
+        // `2^t`, and otherwise neither loop ends.
+        let mut left = if func.value_u256(unroll.bound).is_some_and(|bound| bound.is_zero()) {
+            word
+        } else {
+            append(func, check, InstKind::Sub(unroll.bound, word), MirType::I256)
+        };
         let zeros = unroll.step.trailing_zeros();
         if zeros != 0 {
             let shift = func.alloc_value(Value::Immediate(Immediate::I256(U256::from(zeros))));
@@ -827,4 +1080,106 @@ fn apply(func: &mut Function, unroll: &Unroll) -> BlockId {
     func.replace_uses(&replacements);
     rebuild_predecessors(func);
     main_header
+}
+
+/// Runs the loop's first iteration in a copy, after which the loop's own invariant tests hold.
+fn peel(func: &mut Function, peel: &Peel) {
+    let blocks: Vec<BlockId> = peel.blocks.iter().collect();
+    // Edges that leave the loop from its body, before any terminator changes.
+    let side_exits: Vec<_> = blocks
+        .iter()
+        .filter(|&&block| block != peel.header)
+        .flat_map(|&block| {
+            let terminator = func.blocks[block].terminator.as_ref().expect("terminated");
+            terminator
+                .successors()
+                .into_iter()
+                .filter(|&successor| !peel.blocks.contains(successor))
+                .map(move |successor| (block, successor))
+        })
+        .collect();
+    let copy = clone_loop(func, &blocks);
+    let header_phis: Vec<_> = func.blocks[peel.header]
+        .instructions
+        .iter()
+        .filter_map(|&inst| {
+            let InstKind::Phi(incoming) = &func.inst(inst).kind else { return None };
+            let latch_value =
+                incoming.iter().find_map(|&(from, value)| (from == peel.latch).then_some(value))?;
+            Some((func.inst_result_value(inst)?, latch_value))
+        })
+        .collect();
+    let first_header = copy.blocks[&peel.header];
+    let first_latch = copy.blocks[&peel.latch];
+
+    // preheader: ... jump header'
+    // header': state' = phi [preheader: start]
+    //          jumpi test', body', header
+    // latch': ... jump header
+    redirect(func, peel.preheader, peel.header, first_header);
+    redirect(func, first_header, peel.exit, peel.header);
+    redirect(func, first_latch, first_header, peel.header);
+
+    // header: state = phi [header': state'], [latch': next'], [latch: next]
+    // When the copy's header declines the first iteration, the original one declines it too and
+    // leaves the loop, so its exit stays the only one.
+    for &(phi, latch_value) in &header_phis {
+        edit_phi(func, copy.value(phi), |incoming| {
+            incoming.retain(|&(from, _)| from != first_latch);
+        });
+        edit_phi(func, phi, |incoming| {
+            for (from, value) in incoming.iter_mut() {
+                if *from == peel.preheader {
+                    *from = first_header;
+                    *value = copy.value(phi);
+                }
+            }
+            incoming.push((first_latch, copy.value(latch_value)));
+        });
+    }
+
+    // exit: v = phi [block: x], [block': x']
+    for (block, successor) in side_exits {
+        for inst in func.blocks[successor].instructions.clone() {
+            if let InstKind::Phi(incoming) = &mut func.inst_mut(inst).kind {
+                let cloned: Vec<_> = incoming
+                    .iter()
+                    .filter(|&&(from, _)| from == block)
+                    .map(|&(_, value)| (copy.blocks[&block], copy.value(value)))
+                    .collect();
+                incoming.extend(cloned);
+            }
+        }
+    }
+
+    // The loop runs only after the copy's tests held, and they test the same words.
+    // block: jumpi condition, keep, abort => jump keep
+    for &(block, keep) in &peel.tests {
+        let (_, metadata) = func.blocks[block].take_terminator();
+        func.blocks[block].set_terminator(Terminator::Jump(keep), metadata);
+    }
+    rebuild_predecessors(func);
+}
+
+/// Counts a loop's iterations from `-n` up to zero: `r = i - n` modulo `2^256` starts at `-n`,
+/// steps by one as `i` did, and `i < n` is `r != 0`.
+fn reverse(func: &mut Function, reversal: &Reverse) {
+    // preheader: r0 = sub 0, n
+    // header: r = phi [preheader: r0], [latch: r + 1]
+    //         jumpi (ne r, 0), body, exit
+    let zero = func.alloc_value(Value::Immediate(Immediate::I256(U256::ZERO)));
+    let (inst, start) = func.alloc_value_inst(
+        Instruction::new(InstKind::Sub(zero, reversal.bound), Some(MirType::I256))
+            .with_debug_info_dropped(),
+    );
+    func.blocks[reversal.preheader].instructions.push(inst);
+    edit_phi(func, reversal.counter, |incoming| {
+        for (from, value) in incoming.iter_mut() {
+            if *from == reversal.preheader {
+                *value = start;
+            }
+        }
+    });
+    let Value::Inst(inst) = *func.value(reversal.condition) else { return };
+    func.inst_mut(inst).kind = InstKind::Ne(reversal.counter, zero);
 }

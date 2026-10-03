@@ -5,78 +5,101 @@ fn @entry() [entry] {
   bb0:
     v0 = callvalue
     v1 = ne v0, 0
-    jumpi v1, bb4, bb1
+    jumpi v1, bb5, bb1
   bb1:
     v2 = calldataload 0
     v3 = shr 224, v2
     v4 = calldataload 4
     v5 = calldataload 36
     v6 = calldataload 68
-    switch v3, default bb4, [0x4256913b => bb2, 0xd412532e => bb3]
-  bb3:
-    v15 = calldatasize
-    v16 = lt v15, 100
-    jumpi v16, bb4, bb12
-  bb12:
-    v19 = add v4, v5
-    v20 = lt v19, v4
-    v17 = add v19, v6
-    v18 = lt v17, v19
-    v47 = or v20, v18
-    jumpi v47, bb8, bb11
-  bb11:
-    mstore 128, v17
+    switch v3, default bb5, [0x41cb7983 => bb2, 0x4256913b => bb3, 0xd412532e => bb4]
+  bb4:
+    v28 = calldatasize
+    v29 = lt v28, 100
+    jumpi v29, bb5, bb18
+  bb18:
+    v32 = add v4, v5
+    v33 = lt v32, v4
+    v30 = add v32, v6
+    v31 = lt v30, v32
+    v64 = or v33, v31
+    jumpi v64, bb9, bb17
+  bb17:
+    mstore 128, v30
     returndata 128, 32
+  bb3:
+    v20 = calldatasize
+    v21 = lt v20, 68
+    jumpi v21, bb5, bb16
+  bb16:
+    jump bb19
+  bb19:
+    v35 = phi [bb16: 0], [bb21: v58]
+    v36 = phi [bb16: v4], [bb21: v56]
+    v59 = add v35, 3
+    v60 = lt v59, v5
+    jumpi v60, bb20, bb12
+  bb12:
+    v22 = phi [bb19: v35], [bb15: v27]
+    v23 = phi [bb19: v36], [bb15: v25]
+    v24 = lt v22, v5
+    jumpi v24, bb14, bb13
+  bb13:
+    mstore 128, v23
+    returndata 128, 32
+  bb14:
+    v25 = add v23, v22
+    v26 = lt v25, v23
+    jumpi v26, bb9, bb15
+  bb15:
+    v27 = add v22, 1
+    jump bb12
+  bb20:
+    v38 = add v36, v35
+    v40 = add v35, 1
+    v44 = add v38, v40
+    v46 = add v40, 1
+    v50 = add v44, v46
+    v52 = add v46, 1
+    v56 = add v50, v52
+    v67 = lt v56, v36
+    jumpi v67, bb9, bb21
+  bb21:
+    v58 = add v52, 1
+    jump bb19
   bb2:
     v7 = calldatasize
-    v8 = lt v7, 68
-    jumpi v8, bb4, bb10
-  bb10:
-    jump bb13
-  bb13:
-    v21 = phi [bb10: 0], [bb15: v44]
-    v22 = phi [bb10: v4], [bb15: v42]
-    v45 = add v21, 3
-    v46 = lt v45, v5
-    jumpi v46, bb14, bb5
-  bb5:
-    v9 = phi [bb13: v21], [bb9: v14]
-    v10 = phi [bb13: v22], [bb9: v12]
-    v11 = lt v9, v5
-    jumpi v11, bb7, bb6
+    v8 = lt v7, 100
+    jumpi v8, bb5, bb11
+  bb11:
+    v34 = sub 0, v6
+    jump bb6
   bb6:
+    v9 = phi [bb11: v34], [bb10: v19]
+    v10 = phi [bb11: 0], [bb10: v15]
+    v11 = phi [bb11: v4], [bb10: v17]
+    v12 = ne v9, 0
+    jumpi v12, bb8, bb7
+  bb7:
     mstore 128, v10
     returndata 128, 32
-  bb7:
-    v12 = add v10, v9
-    v13 = lt v12, v10
-    jumpi v13, bb8, bb9
-  bb9:
-    v14 = add v9, 1
-    jump bb5
-  bb14:
-    v24 = add v22, v21
-    v25 = lt v24, v22
-    v26 = add v21, 1
-    v30 = add v24, v26
-    v31 = lt v30, v24
-    v48 = or v25, v31
-    v32 = add v26, 1
-    v36 = add v30, v32
-    v37 = lt v36, v30
-    v49 = or v48, v37
-    v38 = add v32, 1
-    v42 = add v36, v38
-    v43 = lt v42, v36
-    v50 = or v49, v43
-    jumpi v50, bb8, bb15
-  bb15:
-    v44 = add v38, 1
-    jump bb13
   bb8:
+    v61 = gt v11, 0x119799812dea11197f27f0f6e885c8ba7eb31f476caf7411a863387
+    v13 = mul v11, 0xe8d4a51000
+    v15 = add v10, v13
+    v16 = lt v15, v10
+    v62 = or v61, v16
+    v17 = add v11, v5
+    v18 = lt v17, v11
+    v63 = or v62, v18
+    jumpi v63, bb9, bb10
+  bb10:
+    v19 = add v9, 1
+    jump bb6
+  bb9:
     mstore 0, 0x4e487b71
     mstore 32, 17
     revert 28, 36
-  bb4:
+  bb5:
     revert 0, 0
 }

@@ -50,17 +50,69 @@ fn @both_hold(arg0: i256, arg1: i256) -> i256 {
     revert 0, 0
 }
 
-// Tests that abort on different edges stay apart: combining them would pay an
-// `iszero`.
-// CHECK-LABEL: {{^[ +].*}}fn @mixed{{[( ]}}
+// In a loop, a test that aborts on its false edge and compares a word with a
+// literal turns into its complement, `x > 99` for `x < 100`, where it was, and
+// merges with a test that aborts on its true edge.
+// CHECK-LABEL: {{^[ +].*}}fn @flipped{{[( ]}}
+// CHECK: - jumpi {{v[0-9]+}}, bb3, bb5
+// CHECK-NEXT: + [[COMPLEMENT:v[0-9]+]] = gt {{v[0-9]+}}, 99
+// CHECK-NEXT: + jump bb3
+// CHECK: + [[EITHER:v[0-9]+]] = or [[COMPLEMENT]], {{v[0-9]+}}
+// CHECK-NEXT: + jumpi [[EITHER]], bb5, bb4
+fn @flipped(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb4: v5]
+    v1 = phi [bb0: 0], [bb4: v4]
+    v2 = lt v0, arg0
+    jumpi v2, bb2, bb6
+  bb2:
+    v6 = lt v1, 100
+    jumpi v6, bb3, bb5
+  bb3:
+    v4 = add v1, arg1
+    v7 = lt v4, v1
+    jumpi v7, bb5, bb4
+  bb4:
+    v5 = add v0, 1
+    jump bb1
+  bb5:
+    revert 0, 0
+  bb6:
+    ret v1
+}
+
+// Outside loops the same pair stays apart: the merge would save one jump per
+// call, and a flipped range check next to a calldata size check moved the stack
+// scheduler to rebuild calldata words.
+// CHECK-LABEL: {{^[ +].*}}fn @flipped_once{{[( ]}}
 // CHECK-NOT: {{^[-+]}}
-fn @mixed(arg0: i256, arg1: i256) -> i256 {
+fn @flipped_once(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v0 = lt arg0, 100
     jumpi v0, bb1, bb3
   bb1:
     v1 = mul arg0, arg1
     v2 = gt v1, 1000
+    jumpi v2, bb3, bb2
+  bb2:
+    ret v1
+  bb3:
+    revert 0, 0
+}
+
+// Tests that abort on different edges and compare two words stay apart:
+// combining them would pay an `iszero`.
+// CHECK-LABEL: {{^[ +].*}}fn @mixed{{[( ]}}
+// CHECK-NOT: {{^[-+]}}
+fn @mixed(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = lt arg0, arg1
+    jumpi v0, bb1, bb3
+  bb1:
+    v1 = mul arg0, arg1
+    v2 = gt v1, arg0
     jumpi v2, bb3, bb2
   bb2:
     ret v1
@@ -160,4 +212,29 @@ fn @payload(arg0: i256, arg1: i256) -> i256 {
     v4 = phi [bb0: 1], [bb1: 2]
     mstore 0, v4
     revert 0, 32
+}
+
+// Additions of words whose total cannot reach `2^256` wrap at most once, so one
+// test that the last sum fell below the first word stands for both tests.
+// CHECK-LABEL: {{^[ +].*}}fn @bounded_sum{{[( ]}}
+// CHECK: - jumpi {{v[0-9]+}}, bb3, bb1
+// CHECK-NEXT: + jump bb1
+// CHECK: + [[WRAPPED:v[0-9]+]] = lt {{v[0-9]+}}, arg0
+// CHECK-NEXT: + jumpi [[WRAPPED]], bb3, bb2
+fn @bounded_sum(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = and arg1, 0xff
+    v1 = add arg0, v0
+    v2 = lt v1, arg0
+    jumpi v2, bb3, bb1
+  bb1:
+    v3 = shr 8, arg1
+    v4 = and v3, 0xffff
+    v5 = add v1, v4
+    v6 = lt v5, v1
+    jumpi v6, bb3, bb2
+  bb2:
+    ret v5
+  bb3:
+    revert 0, 0
 }

@@ -134,57 +134,42 @@ bb26 [loop]:
   add
   dup 3
   add
+  swap 1
+  push 1
+  add
+  dup 1
+  dup 1
+  add
+  push 3
+  add
+  swap 1
+  swap 2
+  add
+  swap 1
+  push 1
+  add
+  dup 1
+  dup 1
+  add
+  push 3
+  add
+  swap 1
+  swap 2
+  add
+  swap 1
+  push 1
+  add
+  dup 1
+  dup 1
+  add
+  push 3
+  add
+  swap 1
+  swap 2
+  add
   swap 2
   dup 3
   lt
-  swap 1
-  push 1
-  add
-  dup 1
-  dup 1
-  add
-  push 3
-  add
-  dup 4
-  add
-  swap 3
-  dup 4
-  lt
-  swap 1
-  swap 2
-  or
-  swap 1
-  push 1
-  add
-  dup 1
-  dup 1
-  add
-  push 3
-  add
-  dup 4
-  add
-  swap 3
-  dup 4
-  lt
-  swap 1
-  swap 2
-  or
-  swap 1
-  push 1
-  add
-  dup 1
-  dup 1
-  add
-  push 3
-  add
-  dup 4
-  add
-  swap 3
-  dup 4
-  lt
-  swap 1
-  swap 2
-  or
   push bb50
   jumpi
   push 1
@@ -235,45 +220,27 @@ bb29 [loop]:
   dup 1
   dup 3
   add
+  swap 1
+  push 1
+  add
+  dup 1
+  swap 2
+  add
+  swap 1
+  push 1
+  add
+  dup 1
+  swap 2
+  add
+  swap 1
+  push 1
+  add
+  dup 1
+  swap 2
+  add
   swap 2
   dup 3
   lt
-  swap 1
-  push 1
-  add
-  dup 1
-  dup 4
-  add
-  swap 3
-  dup 4
-  lt
-  swap 1
-  swap 2
-  or
-  swap 1
-  push 1
-  add
-  dup 1
-  dup 4
-  add
-  swap 3
-  dup 4
-  lt
-  swap 1
-  swap 2
-  or
-  swap 1
-  push 1
-  add
-  dup 1
-  dup 4
-  add
-  swap 3
-  dup 4
-  lt
-  swap 1
-  swap 2
-  or
   iszero
   push bb18
   jumpi
@@ -356,7 +323,10 @@ bb43:
   iszero
   push 128
   mstore
+  push 68
+  calldataload
   push 0
+  sub
   push 4
   calldataload
   jump bb45
@@ -400,10 +370,7 @@ bb47 [loop]:
   swap 1
   jump bb45
 bb45 [loop]:
-  push 68
-  calldataload
-  dup 3
-  lt
+  dup 2
   push bb47
   jumpi
   push 0
