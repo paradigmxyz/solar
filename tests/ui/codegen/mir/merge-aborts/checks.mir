@@ -102,8 +102,8 @@ fn @flipped_once(arg0: i256, arg1: i256) -> i256 {
     revert 0, 0
 }
 
-// Tests that abort on different edges and compare two words stay apart:
-// combining them would pay an `iszero`.
+// Outside loops, tests that abort on different edges and compare two words
+// stay apart: combining them would pay an `iszero` once.
 // CHECK-LABEL: {{^[ +].*}}fn @mixed{{[( ]}}
 // CHECK-NOT: {{^[-+]}}
 fn @mixed(arg0: i256, arg1: i256) -> i256 {
@@ -137,6 +137,68 @@ fn @zero_test(arg0: i256, arg1: i256) -> i256 {
     ret v2
   bb3:
     revert 0, 0
+}
+
+// In a loop of a gas build, a test that aborts on its false edge and compares
+// two words turns into its negation, `eq c, false`, and merges.
+// CHECK-LABEL: {{^[ +].*}}fn @mixed_loop{{[( ]}}
+// CHECK: - jumpi [[BELOW:v[0-9]+]], bb3, bb5
+// CHECK-NEXT: + [[NOT_BELOW:v[0-9]+]] = eq [[BELOW]], false
+// CHECK-NEXT: + jump bb3
+// CHECK: + [[EITHER:v[0-9]+]] = or [[NOT_BELOW]], {{v[0-9]+}}
+// CHECK-NEXT: + jumpi [[EITHER]], bb5, bb4
+fn @mixed_loop(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb4: v5]
+    v1 = phi [bb0: 0], [bb4: v4]
+    v2 = lt v0, arg0
+    jumpi v2, bb2, bb6
+  bb2:
+    v6 = lt v1, arg1
+    jumpi v6, bb3, bb5
+  bb3:
+    v4 = add v1, arg1
+    v7 = lt v4, v1
+    jumpi v7, bb5, bb4
+  bb4:
+    v5 = add v0, 1
+    jump bb1
+  bb5:
+    revert 0, 0
+  bb6:
+    ret v1
+}
+
+// In loops too, an increment's overflow check, a zero test, stays apart: its
+// `iszero` and the shuffles that keep the other condition beside it would cost
+// more than the saved jump.
+// CHECK-LABEL: {{^[ +].*}}fn @zero_test_loop{{[( ]}}
+// CHECK-NOT: {{^[-+]}}
+fn @zero_test_loop(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb4: v5]
+    v1 = phi [bb0: 0], [bb4: v4]
+    v2 = lt v0, arg0
+    jumpi v2, bb2, bb6
+  bb2:
+    v3 = add v1, 1
+    v6 = eq v3, 0
+    jumpi v6, bb5, bb3
+  bb3:
+    v4 = add v3, arg1
+    v7 = lt v4, v3
+    jumpi v7, bb5, bb4
+  bb4:
+    v5 = add v0, 1
+    jump bb1
+  bb5:
+    revert 0, 0
+  bb6:
+    ret v1
 }
 
 // A write between the tests would run before the first test's abort: the
