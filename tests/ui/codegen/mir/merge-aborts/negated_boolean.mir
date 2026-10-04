@@ -1,0 +1,33 @@
+//@ revisions: base copies
+//@[base] compile-flags: -Zmir-pipeline=merge-aborts
+//@[copies] compile-flags: -Zmir-pipeline=merge-aborts --optimize-runs 10000
+//@[base] filecheck: --check-prefix=BASE
+//@[copies] filecheck: --check-prefix=COPIES
+@module NegatedBoolean
+
+// A test on `eq c, false` for a boolean `c` tests `c` with its edges swapped. In
+// builds that copy loops, `c` merges as it is, without an `iszero`; below their
+// runs the tests stay apart.
+// BASE-LABEL: {{^[ +].*}}fn @negated{{[( ]}}
+// BASE-NOT: {{^[-+]}}
+// COPIES-LABEL: {{^[ +].*}}fn @negated{{[( ]}}
+// COPIES: [[ABOVE:v[0-9]+]] = gt arg0, arg1
+// COPIES: - jumpi {{v[0-9]+}}, bb1, bb3
+// COPIES-NEXT: + jump bb1
+// COPIES: [[WRAPPED:v[0-9]+]] = lt {{v[0-9]+}}, arg0
+// COPIES: + [[EITHER:v[0-9]+]] = or [[ABOVE]], [[WRAPPED]]
+// COPIES: + jumpi [[EITHER]], bb3, bb2
+fn @negated(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = gt arg0, arg1
+    v1 = eq v0, false
+    jumpi v1, bb1, bb3
+  bb1:
+    v2 = add arg0, arg1
+    v3 = lt v2, arg0
+    jumpi v3, bb3, bb2
+  bb2:
+    ret v2
+  bb3:
+    revert 0, 0
+}

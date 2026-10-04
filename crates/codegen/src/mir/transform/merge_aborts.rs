@@ -16,9 +16,13 @@
 //! Two tests that continue on their true edges combine with `and` instead. A
 //! test that aborts on its false edge while the other aborts on its true edge
 //! turns around when it compares a word with a literal: `x < k` fails exactly
-//! when `x > k - 1`, and that complement replaces it where it was. Merges repeat
-//! along a chain, so a run of checks, such as the overflow checks of an
-//! unrolled loop's copies, branches once.
+//! when `x > k - 1`, and that complement replaces it where it was. In builds that
+//! copy loops, a branch on `eq c, false` for a boolean `c` is a test of `c` with
+//! its edges swapped and merges as `c`, as a checked product by a word does: it
+//! aborts unless the factor's comparison with the hoisted limit, `gt x, limit`,
+//! fails, and that comparison joins the additions' checks with no `iszero`.
+//! Merges repeat along a chain, so a run of checks, such as the overflow checks
+//! of an unrolled loop's copies, branches once.
 //!
 //! Two tests that an addition wrapped, `s1 < s0` for `s1 = s0 + a1` and then
 //! `s2 < s1` for `s2 = s1 + a2`, combine into `s2 < s0` instead when `a1 + a2`
@@ -39,13 +43,16 @@
 //! unrolled loop's copies clone do; the merged test enters the second one.
 //!
 //! Profitability: every merge saves a conditional jump and its pushed label for
-//! an `and` or `or`, priced by the target. Zero tests stay apart, as do tests
-//! that abort on different edges when neither compares a word with a literal: a
-//! branch reads either for free, while the combined word would pay an `iszero`,
-//! and the stack scheduler answered the extra live condition with spills in
-//! measured loops. Runs late, after the final loop passes, check elimination
-//! and the CFG cleanup that joins each copy's blocks, so the tests it merges
-//! are the ones that remain.
+//! an `and` or `or`, priced by the target. Zero tests of words stay apart, as do
+//! tests that abort on different edges when neither compares a word with a
+//! literal: a branch reads either for free, while the combined word would pay an
+//! `iszero`, and the stack scheduler answered the extra live condition with
+//! spills in measured loops. A boolean's negation merges as the boolean only in
+//! builds that copy loops, where every copy of a body repeats the saving: in a
+//! single body the condition stays live across the next check, and the
+//! scheduler answered with more shuffles than the saved jump. Runs late, after
+//! the final loop passes, check elimination and the CFG cleanup that joins each
+//! copy's blocks, so the tests it merges are the ones that remain.
 
 use super::loop_split::rebuild_predecessors;
 use crate::{
@@ -142,11 +149,23 @@ fn merge_function(func: &mut Function, cold: &DenseBitSet<FunctionId>, target: T
 }
 
 /// The test a block ends with, when exactly one of its edges enters a shared aborting block.
-fn test(func: &Function, block: BlockId, cold: &DenseBitSet<FunctionId>) -> Option<Test> {
+/// Builds that copy loops read a branch on a boolean's negation as a branch on the boolean.
+fn test(
+    func: &Function,
+    block: BlockId,
+    cold: &DenseBitSet<FunctionId>,
+    copies: bool,
+) -> Option<Test> {
     let Some(Terminator::Branch { condition, then_block, else_block }) =
         func.blocks[block].terminator
     else {
         return None;
+    };
+    // A branch on `eq c, false` tests the boolean `c` with its edges swapped, so `c` merges as it
+    // is, as a checked product's `gt x, limit` does.
+    let (condition, then_block, else_block) = match negated_boolean(func, condition) {
+        Some(inner) if copies => (inner, else_block, then_block),
+        _ => (condition, then_block, else_block),
     };
     // A branch tests a word against zero for free.
     if let Value::Inst(inst) = func.value(condition)
@@ -171,6 +190,20 @@ fn test(func: &Function, block: BlockId, cold: &DenseBitSet<FunctionId>) -> Opti
         }
         _ => None,
     }
+}
+
+/// The boolean that `condition` negates, when it is `eq c, false` for an `i1` word `c`.
+fn negated_boolean(func: &Function, condition: ValueId) -> Option<ValueId> {
+    let &InstKind::Eq(a, b) = inst_kind(func, condition)? else { return None };
+    let zero = |value| func.value_u256(value).is_some_and(|v| v.is_zero());
+    let inner = if zero(b) {
+        a
+    } else if zero(a) {
+        b
+    } else {
+        return None;
+    };
+    (func.value_ty(inner) == Some(MirType::I1)).then_some(inner)
 }
 
 /// Whether two aborting blocks do the same, such as the panic calls of an unrolled loop's
@@ -215,7 +248,7 @@ fn mergeable(
     cyclic: &DenseBitSet<BlockId>,
     target: Target,
 ) -> Option<(Test, Test, Option<Flip>)> {
-    let first = test(func, block, cold)?;
+    let first = test(func, block, cold, target.copies_loops())?;
     // Another edge into the continuation may leave only the first test's own aborting block,
     // when that block calls a function that never returns and this test alone enters it. The
     // merge removes that entrance, so the first test's condition still dominates the merged
@@ -228,7 +261,7 @@ fn mergeable(
     }) {
         return None;
     }
-    let second = test(func, first.next, cold)?;
+    let second = test(func, first.next, cold, target.copies_loops())?;
     if !same_abort(func, first.abort, second.abort, cold)
         || !continuation.instructions.iter().all(|&inst| speculatable(&func.inst(inst).kind))
     {

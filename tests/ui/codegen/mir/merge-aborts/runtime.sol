@@ -27,6 +27,16 @@
 //@ run-call-fail: toWad 5, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 1 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
 //@ run-call: toWad 0, 0x232f33025bd42232fe4fe1edd10b9174fd663e8ed95ee82350c670, 4 => 0xbffffffffffffffffffffffffffffffffffffffffffffffffffffa9a2f8a0000
 //@ run-call-fail: toWad 0, 0x232f33025bd42232fe4fe1edd10b9174fd663e8ed95ee82350c670, 5 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
+//@ run-call: scale 1, 3, 3 => 18
+//@ run-call: scale 5, 0, 4 => 0
+//@ run-call: scale 7, 9, 0 => 0
+//@ run-call: scale 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 2, 1 => 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe
+//@ run-call-fail: scale 0x8000000000000000000000000000000000000000000000000000000000000000, 2, 1 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
+//@ run-call: scale 0, 0x8000000000000000000000000000000000000000000000000000000000000000, 2 => 0x8000000000000000000000000000000000000000000000000000000000000000
+//@ run-call-fail: scale 0, 0x8000000000000000000000000000000000000000000000000000000000000000, 3 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
+//@ run-call-fail: scale 0, 0x8000000000000000000000000000000000000000000000000000000000000000, 4 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
+//@ run-call-fail: scale 0x4000000000000000000000000000000000000000000000000000000000000000, 2, 2 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
+//@ run-call-fail: scale 0x4000000000000000000000000000000000000000000000000000000000000000, 2, 3 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
 
 // Overflow checks that branch to the same panic merge into one test; whichever
 // addition overflows, the call still reverts with `Panic(0x11)`, from either
@@ -37,6 +47,15 @@
 // CHECK: [[SECOND:v[0-9]+]] = lt {{v[0-9]+}}, {{v[0-9]+}}
 // CHECK-NEXT: [[EITHER:v[0-9]+]] = or [[FIRST]], [[SECOND]]
 // CHECK-NEXT: jumpi [[EITHER]], [[PANIC:bb[0-9]+]], {{bb[0-9]+}}
+// `scale` compares each factor with the hoisted limit, a test that aborts unless
+// the comparison fails, and merges the comparison with the sum's wrap test.
+// CHECK: [[LIMIT:v[0-9]+]] = sub {{v[0-9]+}}, {{v[0-9]+}}
+// CHECK: jump [[HEADER:bb[0-9]+]]
+// CHECK-NEXT: [[HEADER]]:
+// CHECK: [[ABOVE:v[0-9]+]] = gt {{v[0-9]+}}, [[LIMIT]]
+// CHECK: [[SUM_WRAPPED:v[0-9]+]] = lt {{v[0-9]+}}, {{v[0-9]+}}
+// CHECK-NEXT: [[OVERFLOW:v[0-9]+]] = or [[ABOVE]], [[SUM_WRAPPED]]
+// CHECK-NEXT: jumpi [[OVERFLOW]], [[PANIC]], {{bb[0-9]+}}
 // The unrolled loop adds four counters that cannot reach `2^256` together, so
 // one test that the last sum fell below the first replaces the four tests.
 // CHECK: {{v[0-9]+}} = phi [{{bb[0-9]+}}: 0], {{\[}}{{bb[0-9]+}}: {{v[0-9]+}}]
@@ -63,6 +82,20 @@ contract MergeAborts {
         for (uint256 i = 0; i < count; ++i) {
             total += amount * 1e12;
             amount += step;
+        }
+    }
+
+    // A product by a word the loop never changes compares the other factor with
+    // the hoisted `type(uint256).max / price` and aborts unless that comparison
+    // fails; the comparison merges as it is with the additions' checks.
+    function scale(uint256 amount, uint256 price, uint256 count)
+        external
+        pure
+        returns (uint256 total)
+    {
+        for (uint256 i = 0; i < count; ++i) {
+            total += amount * price;
+            amount += 1;
         }
     }
 }
