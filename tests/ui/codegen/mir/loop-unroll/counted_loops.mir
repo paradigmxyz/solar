@@ -380,11 +380,16 @@ fn @pointer_counter(arg0: memptr, arg1: i256) -> i256 {
     jump bb1
 }
 
-// A scan stepping by 32 reads the parity from bit 5 of the distance.
+// A scan stepping by 32 reads the parity from bit 5 of the distance. The second
+// copy reads the pointer only as its load's address, so the pair advances the
+// pointer by 64 from where it started instead of by 32 twice.
 // CHECK-LABEL: {{^[ +].*}}fn @word_scan{{[( ]}}
 // CHECK: + [[LEFT:v[0-9]+]] = sub arg1, {{v[0-9]+}}
 // CHECK-NEXT: + [[COUNT:v[0-9]+]] = shr 5, [[LEFT]]
 // CHECK-NEXT: + {{v[0-9]+}} = and [[COUNT]], 1
+// CHECK: [[SECOND:v[0-9]+]] = add v0, 32
+// CHECK: + {{v[0-9]+}} = mload [[SECOND]]
+// CHECK: + {{v[0-9]+}} = add v0, 64
 fn @word_scan(arg0: i256, arg1: i256) -> i256 {
   bb0:
     jump bb1

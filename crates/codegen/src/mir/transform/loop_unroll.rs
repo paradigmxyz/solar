@@ -135,7 +135,13 @@
 //! original body's. When no copy reads the counter between its steps, the
 //! copies' steps chain as `add (add i, s), s`, which the pass sums into
 //! `add i, 2s`. Addition wraps modulo `2^256`, so the sum is exact, and the
-//! group advances the counter once.
+//! group advances the counter once. A copy that reads its step only as the
+//! address of one memory or calldata access, as a pointer's copies read their
+//! elements, sums too: its other offsets read the group's first pointer as
+//! `add p, s + c`, `evm-inst-schedule` moves the one remaining step next to its
+//! access, and the copies stop rewriting the pointer's stack slot between them.
+//! A step read as a value, such as a counter added to an accumulator, keeps its
+//! chain: pinning the base on the stack measured slower there.
 //!
 //! A loop whose literal start, step and bound give it at most 16 iterations
 //! becomes that many copies of its header and body, chained in order: each
@@ -1152,8 +1158,9 @@ fn literal_step(func: &Function, lhs: ValueId, rhs: ValueId) -> Option<(ValueId,
     }
 }
 
-/// Sums each literal step in `blocks` with the literal step before it when nothing else reads
-/// the earlier sum, as the copies' counter steps chain when no body reads the counter.
+/// Sums each literal step in `blocks` with the literal step before it when nothing else reads the
+/// earlier sum, or one access only as its address, as the copies' counter steps chain when no
+/// body reads the counter, and a pointer's when each copy reads it at constant offsets.
 fn fold_steps(func: &mut Function, blocks: &[BlockId]) {
     let mut uses = super::egraph::use_counts(func);
     // The copies' header tests no branch reads any more still read the counter; drop them
@@ -1176,16 +1183,42 @@ fn fold_steps(func: &mut Function, blocks: &[BlockId]) {
             func.blocks[block].instructions = kept;
         }
     }
+    // The literal sums each step's result feeds, `add i_1, c` for `i_1 = add i, s`.
+    let literal_sum = |func: &Function, inst: InstId| {
+        let InstKind::Add(lhs, rhs) = func.inst(inst).kind else { return None };
+        (func.inst(inst).result_ty == Some(MirType::I256)).then_some(())?;
+        literal_step(func, lhs, rhs)
+    };
+    // The steps each memory or calldata access reads as its address.
+    let is_step = |func: &Function, value: ValueId| matches!(*func.value(value), Value::Inst(inst) if literal_sum(func, inst).is_some());
+    let mut sums = FxHashMap::<ValueId, u32>::default();
+    let mut addresses = FxHashMap::<ValueId, u32>::default();
+    for &block in blocks {
+        for &inst in &func.blocks[block].instructions {
+            if let Some((inner, _)) = literal_sum(func, inst)
+                && is_step(func, inner)
+            {
+                *sums.entry(inner).or_default() += 1;
+            } else if func.inst(inst).kind.effect_kind() != EffectKind::Pure
+                && let Some(&address) = func.inst(inst).kind.operands().first()
+                && is_step(func, address)
+            {
+                *addresses.entry(address).or_default() += 1;
+            }
+        }
+    }
     for &block in blocks {
         for inst in func.blocks[block].instructions.clone() {
-            let InstKind::Add(lhs, rhs) = func.inst(inst).kind else { continue };
-            if func.inst(inst).result_ty == Some(MirType::I256)
-                && let Some((inner, outer)) = literal_step(func, lhs, rhs)
-                && uses[inner] == 1
+            // A sum reads the earlier step's base instead when nothing else reads the step, or
+            // only one access as its address: the step then lives only up to that access, which
+            // `evm-inst-schedule` moves next to it, and the copies stop rewriting the pointer's
+            // slot between them. A step read as a value, such as a counter added to an
+            // accumulator, keeps its chain: pinning the base on the stack measured slower there.
+            if let Some((inner, outer)) = literal_sum(func, inst)
+                && let others = uses[inner] - sums.get(&inner).copied().unwrap_or_default()
+                && (others == 0 || (others == 1 && addresses.get(&inner) == Some(&1)))
                 && let Value::Inst(inner_inst) = *func.value(inner)
-                && func.inst(inner_inst).result_ty == Some(MirType::I256)
-                && let InstKind::Add(a, b) = func.inst(inner_inst).kind
-                && let Some((base, step)) = literal_step(func, a, b)
+                && let Some((base, step)) = literal_sum(func, inner_inst)
             {
                 // inner = add base, step; next = add inner, outer
                 // next = add base, step + outer
@@ -1194,6 +1227,9 @@ fn fold_steps(func: &mut Function, blocks: &[BlockId]) {
                 func.inst_mut(inst).kind = InstKind::Add(base, sum);
                 uses[inner] -= 1;
                 uses[base] += 1;
+                if let Some(count) = sums.get_mut(&inner) {
+                    *count -= 1;
+                }
             }
         }
     }

@@ -37,7 +37,13 @@ contract PointerLoops {
     // CHECK-NEXT: [[OUT:v[0-9]+]] = phi [{{bb[0-9]+}}: {{v[0-9]+}}], [{{bb[0-9]+}}: {{v[0-9]+}}]
     // CHECK: jump [[HEADER:bb[0-9]+]]
     // CHECK-NEXT: [[HEADER]]:
-    // CHECK-NEXT: phi {{\[}}[[ENTER]]: [[OUT]]], [{{bb[0-9]+}}: {{v[0-9]+}}]{{$}}
+    // CHECK-NEXT: [[O:v[0-9]+]] = phi {{\[}}[[ENTER]]: [[OUT]]], [{{bb[0-9]+}}: {{v[0-9]+}}]{{$}}
+    // The second copy writes at constant offsets from the pair's first output
+    // pointer, and the pair advances it by four once.
+    // CHECK: {{v[0-9]+}} = add [[O]], 3
+    // CHECK: [[TWO:v[0-9]+]] = add [[O]], 2
+    // CHECK-NEXT: mstore8 [[TWO]],
+    // CHECK-NEXT: {{v[0-9]+}} = add [[O]], 4
     function toHex(bytes memory raw) external pure returns (bytes memory result) {
         assembly {
             let n := mload(raw)

@@ -605,7 +605,7 @@
 +   bb7:
 +     v15 = mload v5
 +     v16 = add v4, v15
-+     v17 = add v5, 32
++     v17 = add v0, 64
       jump bb1
   }
   
@@ -648,7 +648,7 @@
 +   bb7:
 +     v17 = mload v7
 +     v18 = add v6, v17
-+     v19 = add v7, 32
++     v19 = add v2, 64
       jump bb1
   }
   
@@ -753,7 +753,7 @@
 +   bb7:
 +     v15 = mload v5
 +     v16 = add v4, v15
-+     v17 = add v5, 32
++     v17 = add v0, 64
       jump bb1
     bb3:
       ret v1

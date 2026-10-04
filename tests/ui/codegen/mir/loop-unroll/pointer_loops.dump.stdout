@@ -110,21 +110,21 @@ fn @toHex() [selector=0xc5bec6fc, abi_wrapper, pure] {
     v27 = and v26, 15
     v28 = mload v27
     mstore8 v8, v28
-    v29 = add v8, 2
     v30 = inttoptr i256 v20 to memptr
     v115 = ptrtoint memptr v30 to i256
     v117 = add v115, 1
     v118 = mload v117
     v119 = and v118, 15
     v120 = mload v119
-    v121 = add v29, 1
+    v121 = add v8, 3
     mstore8 v121, v120
     v122 = mload v117
     v123 = shr 4, v122
     v124 = and v123, 15
     v125 = mload v124
+    v29 = add v8, 2
     mstore8 v29, v125
-    v126 = add v29, 2
+    v126 = add v8, 4
     v127 = inttoptr i256 v117 to memptr
     jump bb1
   bb6:
@@ -200,7 +200,7 @@ fn @sumWords() [selector=0x5a761098, abi_wrapper, pure] {
     v17 = add v7, 32
     v65 = mload v17
     v66 = add v16, v65
-    v67 = add v17, 32
+    v67 = add v7, 64
     jump bb1
   bb6:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
