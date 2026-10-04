@@ -155,3 +155,56 @@ fn resolver_caps_candidates_and_marks_the_result_incomplete() {
         assert!(completion.is_incomplete());
     });
 }
+
+#[test]
+fn foundry_resolver_shares_import_lookup_with_completion_and_overlays() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /foundry.toml
+        [profile.default]
+        auto_detect_remappings = false
+        remappings = ["pkg/=lib/pkg/src"]
+
+        //- /src/Main.sol
+        import "pkg/Entry.sol";
+        import "@scope/npm/Token.sol";
+
+        //- /src/Local.sol
+        contract ProjectLocal {}
+
+        //- /lib/pkg/src/Entry.sol
+        import "src/Local.sol";
+
+        //- /lib/pkg/src/Local.sol
+        contract DependencyLocal {}
+
+        //- /node_modules/@scope/npm/Token.sol
+        contract Token {}
+        "#,
+    );
+    let overlay =
+        [project.path("/src/LocalOverlay.sol"), project.path("/lib/pkg/src/LocalOverlay.sol")];
+    with_resolver(&project, &overlay, |resolver, importer| {
+        for (prefix, import, target) in [
+            ("pkg/En", "pkg/Entry.sol", "/lib/pkg/src/Entry.sol"),
+            ("@scope/npm/To", "@scope/npm/Token.sol", "/node_modules/@scope/npm/Token.sol"),
+        ] {
+            assert_eq!(candidates(&resolver.complete(importer, prefix)), [import]);
+            assert_eq!(resolver.resolve(importer, import), Some(project.path(target)));
+        }
+    });
+
+    let dependency = project.path("/lib/pkg/src/Entry.sol");
+    let config = project.config();
+    let context = config.import_resolution_context(&dependency).unwrap();
+    let resolver = ImportResolver::new(context, &overlay);
+    assert_eq!(
+        candidates(&resolver.complete(&dependency, "src/Lo")),
+        ["src/Local.sol", "src/LocalOverlay.sol"]
+    );
+    assert_eq!(
+        resolver.resolve(&dependency, "src/Local.sol"),
+        Some(project.path("/lib/pkg/src/Local.sol"))
+    );
+    assert_eq!(resolver.resolve(&dependency, "src/LocalOverlay.sol"), Some(overlay[1].clone()));
+}

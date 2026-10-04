@@ -69,6 +69,12 @@ pub struct CompileOpts {
         )
     )]
     pub include_paths: Vec<PathBuf>,
+    /// Resolve non-relative imports inside libraries against their enclosing directories.
+    ///
+    /// Foundry workspaces enable this to treat include paths as library roots. Explicit remappings
+    /// still take precedence. Disabled for ordinary compiler and Standard JSON inputs.
+    #[cfg_attr(feature = "clap", arg(skip))]
+    pub resolve_library_imports: bool,
     /// Allow a given path for imports.
     #[cfg_attr(
         feature = "clap",

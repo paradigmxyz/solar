@@ -35,6 +35,7 @@ enum ResolutionCandidateKind {
     RelativeFile,
     DirectFile,
     SearchFile,
+    LibraryFile,
 }
 
 /// Performs file resolution by applying import paths and mappings.
@@ -45,6 +46,8 @@ pub struct FileResolver<'a> {
 
     /// Include paths.
     include_paths: Vec<PathBuf>,
+    /// Whether include paths also delimit dependency-local import lookup.
+    resolve_library_imports: bool,
     /// Import remappings.
     remappings: Vec<ImportRemapping>,
     /// Base path for source unit names.
@@ -63,6 +66,7 @@ impl<'a> FileResolver<'a> {
         Self {
             source_map,
             include_paths: Vec::new(),
+            resolve_library_imports: false,
             remappings: Vec::new(),
             base_path: base_path.clone(),
             custom_current_dir: base_path,
@@ -78,6 +82,7 @@ impl<'a> FileResolver<'a> {
     /// Configures the file resolver from compiler options.
     pub fn configure_from_opts(&mut self, opts: &CompileOpts) {
         self.add_include_paths(opts.include_paths.iter().cloned());
+        self.resolve_library_imports = opts.resolve_library_imports;
         self.add_import_remappings(opts.import_remappings.iter().cloned());
         if let Ok(current_dir) = std::env::current_dir() {
             self.set_current_dir(&current_dir);
@@ -103,6 +108,7 @@ impl<'a> FileResolver<'a> {
     /// Clears the internal state.
     pub fn clear(&mut self) {
         self.include_paths.clear();
+        self.resolve_library_imports = false;
         self.remappings.clear();
         self.base_path = None;
         self.custom_current_dir = None;
@@ -285,13 +291,34 @@ impl<'a> FileResolver<'a> {
             visit(path, ResolutionCandidateKind::DirectFile)?;
         }
 
-        let path = &*self.remap_path(path, parent);
+        let remapped = self.remap_path(path, parent);
+        // A matched identity remapping is still explicit and must suppress library-local lookup.
+        let is_remapped = matches!(remapped, Cow::Owned(_));
+        let path = remapped.as_ref();
         if path.is_absolute() {
             // An absolute remapping target inside the base path names the same source unit as its
             // base-relative path, matching how importing files are treated in `import_parent`.
             visit(path, ResolutionCandidateKind::SourceUnit)?;
             visit(path, ResolutionCandidateKind::SearchFile)?;
             return ControlFlow::Continue(());
+        }
+
+        if !is_remapped && let Some((directory, library)) = self.library_import_context(parent) {
+            // Foundry resolves installed libraries first, then searches the importing dependency's
+            // ancestors before the project root. Never leak another package's local imports into
+            // the global include paths, or let a preloaded project source shadow a dependency.
+            // All matching library roots still participate in ambiguity detection.
+            for include in &self.include_paths {
+                visit(&include.join(path), ResolutionCandidateKind::LibraryFile)?;
+            }
+            for ancestor in directory.ancestors().skip(1) {
+                if !ancestor.starts_with(&library) || ancestor == library {
+                    break;
+                }
+                let candidate = ancestor.join(path);
+                visit(&candidate, ResolutionCandidateKind::SourceUnit)?;
+                visit(&candidate, ResolutionCandidateKind::RelativeFile)?;
+            }
         }
 
         visit(path, ResolutionCandidateKind::SourceUnit)?;
@@ -338,45 +365,59 @@ impl<'a> FileResolver<'a> {
     ) -> Result<Arc<SourceFile>, ResolveError> {
         let original_path = path;
         let mut candidates = SmallVec::<[_; 1]>::new();
-        let result = self.visit_resolution_candidates(path, parent, |path, kind| match kind {
-            ResolutionCandidateKind::SourceUnit => {
-                if let Some(file) = self.get_source_unit_file(path) {
-                    ControlFlow::Break(Ok(file))
-                } else {
+        let mut library_matches = false;
+        let finish = |mut candidates: SmallVec<[Arc<SourceFile>; 1]>| match candidates.len() {
+            0 => Err(ResolveError::NotFound(original_path.into())),
+            1 => Ok(candidates.pop().unwrap()),
+            _ => Err(ResolveError::MultipleMatches(original_path.into(), candidates.into_vec())),
+        };
+        let result = self.visit_resolution_candidates(path, parent, |path, kind| {
+            if library_matches && !matches!(kind, ResolutionCandidateKind::LibraryFile) {
+                return ControlFlow::Break(finish(std::mem::take(&mut candidates)));
+            }
+            match kind {
+                ResolutionCandidateKind::SourceUnit => {
+                    if let Some(file) = self.get_source_unit_file(path) {
+                        ControlFlow::Break(Ok(file))
+                    } else {
+                        ControlFlow::Continue(())
+                    }
+                }
+                ResolutionCandidateKind::RelativeFile
+                | ResolutionCandidateKind::DirectFile
+                | ResolutionCandidateKind::SearchFile
+                | ResolutionCandidateKind::LibraryFile => {
+                    let preloaded = matches!(kind, ResolutionCandidateKind::LibraryFile)
+                        .then(|| self.get_source_unit_file(path))
+                        .flatten();
+                    let file = match preloaded
+                        .map_or_else(|| self.try_file(path), |file| Ok(Some(file)))
+                    {
+                        Ok(file) => file,
+                        Err(err) => return ControlFlow::Break(Err(err)),
+                    };
+                    let Some(file) = file else { return ControlFlow::Continue(()) };
+                    library_matches |= matches!(kind, ResolutionCandidateKind::LibraryFile);
+                    if matches!(
+                        kind,
+                        ResolutionCandidateKind::RelativeFile | ResolutionCandidateKind::DirectFile
+                    ) {
+                        return ControlFlow::Break(Ok(file));
+                    }
+
+                    // Quick deduplication when include paths are duplicated.
+                    if !candidates.iter().any(|candidate| Arc::ptr_eq(candidate, &file)) {
+                        candidates.push(file);
+                    }
                     ControlFlow::Continue(())
                 }
-            }
-            ResolutionCandidateKind::RelativeFile
-            | ResolutionCandidateKind::DirectFile
-            | ResolutionCandidateKind::SearchFile => {
-                let file = match self.try_file(path) {
-                    Ok(file) => file,
-                    Err(err) => return ControlFlow::Break(Err(err)),
-                };
-                let Some(file) = file else { return ControlFlow::Continue(()) };
-                if matches!(
-                    kind,
-                    ResolutionCandidateKind::RelativeFile | ResolutionCandidateKind::DirectFile
-                ) {
-                    return ControlFlow::Break(Ok(file));
-                }
-
-                // Quick deduplication when include paths are duplicated.
-                if !candidates.iter().any(|candidate| Arc::ptr_eq(candidate, &file)) {
-                    candidates.push(file);
-                }
-                ControlFlow::Continue(())
             }
         });
         if let ControlFlow::Break(result) = result {
             return result;
         }
 
-        match candidates.len() {
-            0 => Err(ResolveError::NotFound(original_path.into())),
-            1 => Ok(candidates.pop().unwrap()),
-            _ => Err(ResolveError::MultipleMatches(original_path.into(), candidates.into_vec())),
-        }
+        finish(candidates)
     }
 
     /// Applies the import path mappings to `path`.
@@ -455,6 +496,20 @@ impl<'a> FileResolver<'a> {
 
         trace!("not found");
         Ok(None)
+    }
+
+    fn library_import_context(&self, parent: Option<&Path>) -> Option<(PathBuf, PathBuf)> {
+        if !self.resolve_library_imports {
+            return None;
+        }
+        let parent = self.make_absolute(parent?).normalize();
+        let directory = parent.parent()?;
+        let library = self
+            .include_paths
+            .iter()
+            .map(|path| self.make_absolute(path).normalize())
+            .find(|path| directory.starts_with(path))?;
+        Some((directory.to_path_buf(), library))
     }
 }
 
@@ -889,6 +944,136 @@ mod tests {
             ),
             vec![base_path.join("lib/test/Dependency.sol")]
         );
+    }
+
+    #[test]
+    fn library_imports_prefer_local_sources_unless_explicitly_remapped() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+        let source = root.join("lib/dep/src/Use.sol");
+        let local = root.join("lib/dep/src/Nested.sol");
+        let replacement = root.join("replacement/Nested.sol");
+        for path in [&local, &replacement] {
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(path, "").unwrap();
+        }
+
+        for (enabled, remapping, expected) in [
+            (false, None, Path::new("src/Nested.sol")),
+            (true, None, local.as_path()),
+            (true, Some("src/=src/"), Path::new("src/Nested.sol")),
+            (true, Some("lib/dep/:src/=src/"), Path::new("src/Nested.sol")),
+            (true, Some("src/=replacement/"), replacement.as_path()),
+            (true, Some("test/:src/=replacement/"), local.as_path()),
+        ] {
+            let sm = SourceMap::empty();
+            sm.new_source_file(PathBuf::from("src/Nested.sol"), "").unwrap();
+            let mut resolver = FileResolver::new(&sm);
+            resolver.configure_from_opts(&CompileOpts {
+                base_path: Some(root.to_path_buf()),
+                include_paths: vec![root.join("lib")],
+                import_remappings: remapping
+                    .into_iter()
+                    .map(|mapping| mapping.parse().unwrap())
+                    .collect(),
+                resolve_library_imports: enabled,
+                ..Default::default()
+            });
+
+            let resolved =
+                resolver.resolve_file(Path::new("src/Nested.sol"), Some(&source)).unwrap();
+            assert_eq!(
+                resolved.name.as_real(),
+                Some(expected),
+                "enabled={enabled}, remapping={remapping:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn library_imports_resolve_unsaved_overlay_sources() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+        let source = root.join("lib/dep/src/Use.sol");
+        let local = root.join("lib/dep/src/Nested.sol");
+        let sm = SourceMap::empty();
+        let overlay = sm.new_source_file(local, "contract Overlay {}").unwrap();
+        let mut resolver = FileResolver::new(&sm);
+        resolver.configure_from_opts(&CompileOpts {
+            base_path: Some(root.to_path_buf()),
+            include_paths: vec![root.join("lib")],
+            resolve_library_imports: true,
+            ..Default::default()
+        });
+
+        let resolved = resolver.resolve_file(Path::new("src/Nested.sol"), Some(&source)).unwrap();
+        assert!(Arc::ptr_eq(&resolved, &overlay));
+    }
+
+    #[test]
+    fn library_imports_do_not_search_outside_the_library_root() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path().join("project");
+        let library = tmp.path().join("external/lib");
+        let source = library.join("dep/src/Use.sol");
+        let outside = tmp.path().join("external/src/Nested.sol");
+        std::fs::create_dir_all(outside.parent().unwrap()).unwrap();
+        std::fs::write(outside, "").unwrap();
+
+        let sm = SourceMap::empty();
+        let mut resolver = FileResolver::new(&sm);
+        resolver.configure_from_opts(&CompileOpts {
+            base_path: Some(root),
+            include_paths: vec![library],
+            resolve_library_imports: true,
+            ..Default::default()
+        });
+
+        let result = resolver.resolve_file(Path::new("src/Nested.sol"), Some(&source));
+        assert!(matches!(result, Err(ResolveError::NotFound(_))));
+    }
+
+    #[test]
+    fn library_imports_preserve_include_root_priority_and_ambiguity() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+        let source = root.join("lib/dep/src/Use.sol");
+        for (local_exists, first_exists, second_exists) in [
+            (true, false, false),
+            (false, false, false),
+            (true, true, false),
+            (true, false, true),
+            (true, true, true),
+        ] {
+            let sm = SourceMap::empty();
+            let project = sm.new_source_file(PathBuf::from("src/Nested.sol"), "").unwrap();
+            let local = local_exists
+                .then(|| sm.new_source_file(root.join("lib/dep/src/Nested.sol"), "").unwrap());
+            let first = first_exists
+                .then(|| sm.new_source_file(root.join("lib/src/Nested.sol"), "").unwrap());
+            let second = second_exists
+                .then(|| sm.new_source_file(root.join("vendor/src/Nested.sol"), "").unwrap());
+            let mut resolver = FileResolver::new(&sm);
+            resolver.configure_from_opts(&CompileOpts {
+                base_path: Some(root.to_path_buf()),
+                include_paths: vec![root.join("lib"), root.join("vendor")],
+                resolve_library_imports: true,
+                ..Default::default()
+            });
+
+            let result = resolver.resolve_file(Path::new("src/Nested.sol"), Some(&source));
+            if let (Some(first), Some(second)) = (&first, &second) {
+                let Err(ResolveError::MultipleMatches(_, matches)) = result else {
+                    panic!("expected ambiguous library imports");
+                };
+                assert_eq!(matches.len(), 2);
+                assert!(Arc::ptr_eq(&matches[0], first));
+                assert!(Arc::ptr_eq(&matches[1], second));
+            } else {
+                let expected = first.or(second).or(local).unwrap_or(project);
+                assert!(Arc::ptr_eq(&result.unwrap(), &expected));
+            }
+        }
     }
 }
 
