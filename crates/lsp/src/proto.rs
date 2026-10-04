@@ -699,6 +699,12 @@ fn span_to_location(source_map: &SourceMap, span: Span) -> Option<lsp_types::Loc
 
 fn lsp_position(file: &SourceFile, pos: BytePos) -> Option<lsp_types::Position> {
     let offset = file.relative_position(pos);
+    // SourceFile's line table only records LF, while LSP also treats standalone CR as a line
+    // terminator. Keep the common LF/CRLF path unchanged and rebuild the LSP line starts only for
+    // sources that need the additional handling.
+    if contains_standalone_cr(&file.src) {
+        return lsp_position_with_standalone_cr(file, offset.to_usize());
+    }
     let line_index = file.lookup_line(offset)?;
     let start = file.lines()[line_index].to_usize();
     let column = offset.to_usize().checked_sub(start)?;
@@ -720,6 +726,37 @@ fn lsp_position(file: &SourceFile, pos: BytePos) -> Option<lsp_types::Position> 
         let prefix = line.get(..column.min(line.len()))?;
         u32::try_from(prefix.encode_utf16().count()).ok()?
     };
+    Some(lsp_types::Position::new(u32::try_from(line_index).ok()?, character))
+}
+
+fn contains_standalone_cr(source: &str) -> bool {
+    let bytes = source.as_bytes();
+    memchr::memchr_iter(b'\r', bytes).any(|offset| bytes.get(offset + 1) != Some(&b'\n'))
+}
+
+fn lsp_position_with_standalone_cr(
+    file: &SourceFile,
+    offset: usize,
+) -> Option<lsp_types::Position> {
+    let starts = line_starts(std::iter::once(file.src.as_str()), file.count_lines() + 1);
+    let line_index = starts.partition_point(|&start| start <= offset).checked_sub(1)?;
+    let start = starts[line_index];
+    let mut end = starts.get(line_index + 1).copied().unwrap_or(file.src.len());
+    let bytes = file.src.as_bytes();
+    if end > start {
+        let terminator_len =
+            if bytes.get(end - 1) == Some(&b'\n') && end >= 2 && bytes[end - 2] == b'\r' {
+                2
+            } else if matches!(bytes.get(end - 1), Some(&b'\n') | Some(&b'\r')) {
+                1
+            } else {
+                0
+            };
+        end -= terminator_len;
+    }
+    let prefix_end = offset.min(end).min(file.src.len());
+    let prefix = file.src.get(start..prefix_end)?;
+    let character = u32::try_from(prefix.encode_utf16().count()).ok()?;
     Some(lsp_types::Position::new(u32::try_from(line_index).ok()?, character))
 }
 
@@ -945,6 +982,26 @@ mod tests {
             assert_eq!(
                 location.range,
                 Range::new(Position::new(0, 0), Position::new(0, end_character))
+            );
+        }
+    }
+
+    #[test]
+    fn span_to_location_treats_standalone_cr_as_line_ending() {
+        let source = "first\r😀second\r\nthird\nfourth";
+        let source_map = SourceMap::empty();
+        let file = source_file(&source_map, "StandaloneCr.sol", source);
+
+        for (name, expected_line) in [("first", 0), ("😀second", 1), ("third", 2), ("fourth", 3)]
+        {
+            let start = source.find(name).unwrap();
+            let location =
+                span_to_location(&source_map, span(&file, start..start + name.len())).unwrap();
+            let end = u32::try_from(name.encode_utf16().count()).unwrap();
+            assert_eq!(
+                location.range,
+                Range::new(Position::new(expected_line, 0), Position::new(expected_line, end)),
+                "{name}"
             );
         }
     }
