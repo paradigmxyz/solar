@@ -58,7 +58,7 @@ struct CallSignature {
     variadic: bool,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 struct ActiveArgument<'a> {
     ordinal: usize,
     name: Option<&'a str>,
@@ -124,48 +124,37 @@ impl SignatureHelpIndex {
         positions: &proto::LspPositionIndex<Rope>,
         source: &str,
         statement_boundary: Option<usize>,
-        visible_declarations: impl Fn(&str) -> Vec<&'a Location>,
+        visible_declarations: impl FnOnce(&str) -> Vec<&'a Location>,
         options: SignatureHelpClientOptions,
     ) -> Option<SignatureHelp> {
-        let contexts = call_contexts_with_boundary(&source[..cursor], statement_boundary);
-        let mut selected = None;
-
-        // Prefer an indexed callsite, checking nested calls from the innermost outward. This
-        // lets type conversions such as `address(x)` fall through to their enclosing call.
-        for context in &contexts {
-            let Some(open) = positions.position_at_byte(context.open) else { continue };
-            let Some(call) = self.calls.get(uri).and_then(|calls| {
-                let indices = self.calls_by_open.get(uri)?.get(&open)?;
-                indices.iter().map(|&index| &calls[index]).find(|call| {
-                    // Reject unrelated callables before validating their current source text.
-                    call.form == context.form
-                        && call
-                            .callee_tokens
-                            .last()
-                            .map(String::as_str)
-                            .filter(|token| is_identifier(token))
-                            == context.callee_name
-                        && call.matches_current_callee(positions, source)
-                })
-            }) else {
-                continue;
-            };
-            let signatures = call.signatures.iter().map(Arc::as_ref).collect();
-            selected = Some((*context, signatures, false));
-            break;
-        }
-
-        // If no indexed callsite matched, resolve unqualified calls from visible declarations,
-        // again allowing a non-callable nested conversion to fall through to its parent.
-        if selected.is_none() {
-            for context in contexts {
-                if context.member_call {
-                    continue;
-                }
-                let Some(name) = context.callee_name else { continue };
-                let Some(entries) = self.callables_by_name.get(name) else { continue };
-                let visible_declarations = visible_declarations(name);
-                let signatures = entries
+        let context = call_context_with_boundary(&source[..cursor], statement_boundary)?;
+        // Earlier-line edits can change byte offsets while preserving the cached LSP position.
+        let open = positions.position_at_byte(context.open)?;
+        let call = self.calls.get(uri).and_then(|calls| {
+            let indices = self.calls_by_open.get(uri)?.get(&open)?;
+            indices.iter().map(|&index| &calls[index]).find(|call| {
+                // Reject unrelated callables before validating their current source text.
+                call.form == context.form
+                    && call
+                        .callee_tokens
+                        .last()
+                        .map(String::as_str)
+                        .filter(|token| is_identifier(token))
+                        == context.callee_name
+                    && call.matches_current_callee(positions, source)
+            })
+        });
+        let (mut signatures, fallback): (Vec<&CallSignature>, _) = if let Some(call) = call {
+            (call.signatures.iter().map(Arc::as_ref).collect(), false)
+        } else {
+            if context.member_call {
+                return None;
+            }
+            let name = context.callee_name?;
+            let visible_declarations = visible_declarations(name);
+            (
+                self.callables_by_name
+                    .get(name)?
                     .iter()
                     .filter(|entry| {
                         entry.form == context.form
@@ -175,16 +164,10 @@ impl SignatureHelpIndex {
                                 .is_none_or(|location| visible_declarations.contains(&location))
                     })
                     .map(|entry| entry.signature.as_ref())
-                    .collect::<Vec<_>>();
-                if signatures.is_empty() {
-                    continue;
-                }
-                selected = Some((context, signatures, true));
-                break;
-            }
-        }
-
-        let (context, mut signatures, fallback) = selected?;
+                    .collect(),
+                true,
+            )
+        };
         deduplicate_signatures(&mut signatures);
         if signatures.is_empty() {
             return None;
@@ -828,7 +811,7 @@ fn utf16_slice(value: &str, start: u32, end: u32) -> Option<&str> {
     value.get(byte_offset(start)?..byte_offset(end)?)
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Debug)]
 struct CallContext<'a> {
     open: usize,
     callee_name: Option<&'a str>,
@@ -899,15 +882,14 @@ pub(crate) fn last_statement_boundary(text: &str) -> usize {
     }
 }
 
-/// Finds nested call contexts from the innermost outward using a previously computed statement
-/// boundary when available.
+/// Finds call context using a previously computed statement boundary when available.
 ///
 /// The boundary is only reused when supplied by the exact source snapshot that owns the request;
 /// callers must compute it for the current cursor and leave it as `None` without that snapshot.
-fn call_contexts_with_boundary(
+fn call_context_with_boundary(
     text: &str,
     statement_boundary: Option<usize>,
-) -> Vec<CallContext<'_>> {
+) -> Option<CallContext<'_>> {
     let mut frames = Vec::<DelimiterFrame>::new();
     let mut significant = Vec::<(usize, usize)>::new();
     let boundary = statement_boundary.unwrap_or_else(|| last_statement_boundary(text));
@@ -938,11 +920,8 @@ fn call_contexts_with_boundary(
         significant.push((start, end));
     }
 
-    let mut contexts = Vec::new();
     for frame in frames.iter().rev().filter(|frame| frame.delimiter == '(') {
-        let Some(head_index) = significant.iter().rposition(|(_, end)| *end <= frame.open) else {
-            continue;
-        };
+        let head_index = significant.iter().rposition(|(_, end)| *end <= frame.open)?;
         let (start, end) = significant[head_index];
         let candidate = &text[start..end];
         let callee_name = is_identifier(candidate).then_some(candidate);
@@ -955,12 +934,19 @@ fn call_contexts_with_boundary(
         if callee_name.is_some() && is_declaration_head(text, &significant, head_index) {
             continue;
         }
+        let form = lexical_call_form(text, &significant, head_index);
+        // `address(x)` converts its argument, so signature help belongs to the enclosing call.
+        // Deciding this lexically also covers conversions typed before reanalysis. `new bytes(n)`
+        // is an allocation with its own signature.
+        if form != CallForm::New && callee_name.is_some_and(is_type_conversion_head) {
+            continue;
+        }
         // The opening parenthesis follows the callee head in the significant token stream.
         let arguments = &significant[head_index + 2..];
-        contexts.push(CallContext {
+        return Some(CallContext {
             open: frame.open,
             callee_name,
-            form: lexical_call_form(text, &significant, head_index),
+            form,
             member_call: head_index
                 .checked_sub(1)
                 .and_then(|index| significant.get(index))
@@ -968,15 +954,7 @@ fn call_contexts_with_boundary(
             active_argument: scan_active_argument(text, arguments),
         });
     }
-    contexts
-}
-
-#[cfg(test)]
-fn call_context_with_boundary(
-    text: &str,
-    statement_boundary: Option<usize>,
-) -> Option<CallContext<'_>> {
-    call_contexts_with_boundary(text, statement_boundary).into_iter().next()
+    None
 }
 
 fn scan_active_argument<'a>(text: &'a str, tokens: &[(usize, usize)]) -> ActiveArgument<'a> {
@@ -1111,6 +1089,22 @@ fn is_non_call_head(value: &str) -> bool {
     )
 }
 
+/// Returns whether `value` is a keyword whose call syntax converts a value: an elementary type
+/// name such as `uint256`, or `payable`.
+fn is_type_conversion_head(value: &str) -> bool {
+    let sized = |prefix: &str, step, max| {
+        value.strip_prefix(prefix).is_some_and(|size| {
+            !size.starts_with('0')
+                && size.bytes().all(|byte| byte.is_ascii_digit())
+                && size.parse::<u16>().is_ok_and(|size| size % step == 0 && size <= max)
+        })
+    };
+    matches!(value, "address" | "bool" | "bytes" | "int" | "payable" | "string" | "uint")
+        || sized("int", 8, 256)
+        || sized("uint", 8, 256)
+        || sized("bytes", 1, 32)
+}
+
 fn is_identifier(value: &str) -> bool {
     let mut chars = value.chars();
     chars.next().is_some_and(|ch| ch == '_' || ch == '$' || ch.is_ascii_alphabetic())
@@ -1240,6 +1234,22 @@ mod tests {
             ("revert(", CallForm::Regular),
         ] {
             assert_eq!(call_context_with_boundary(text, None).unwrap().form, form);
+        }
+    }
+
+    #[test]
+    fn call_contexts_skip_type_conversions() {
+        for (text, callee, form) in [
+            ("f(address(", "f", CallForm::Regular),
+            ("f(payable(", "f", CallForm::Regular),
+            ("f(uint256(bytes32(", "f", CallForm::Regular),
+            ("f(new bytes(", "bytes", CallForm::New),
+            ("f(uint7(", "uint7", CallForm::Regular),
+            ("f(uint08(", "uint08", CallForm::Regular),
+            ("f(bytes33(", "bytes33", CallForm::Regular),
+        ] {
+            let context = call_context_with_boundary(text, None).unwrap();
+            assert_eq!((context.callee_name, context.form), (Some(callee), form), "{text}");
         }
     }
 

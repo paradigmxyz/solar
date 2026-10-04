@@ -890,23 +890,112 @@ fn keeps_enclosing_signature_help_inside_type_conversions() {
 
             function use(address x) public pure {
                 f(address($1 x), uint256($2 1));
+                f(payable($3 x), uint256(bytes32($4 0)));
+                f(x, new bytes($5 1).length);
             }
         }
         "#,
     );
     fixture.check_signature_help(
-        &["$1", "$2"],
+        &["$1", "$2", "$3", "$4", "$5"],
         snapbox::str![[r#"
-$1:
+$1 $3:
 active signature=Some(0) parameter=Some(0)
 function f(address account, uint256 value) public pure
   11..26
   28..41
-$2:
+$2 $4:
 active signature=Some(0) parameter=Some(1)
 function f(address account, uint256 value) public pure
   11..26
   28..41
+$5:
+active signature=Some(0) parameter=Some(0)
+new bytes(uint256) returns (bytes memory)
+  10..17
+
+"#]],
+    );
+}
+
+#[test]
+fn warmed_requests_resolve_the_innermost_call_before_reanalysis() {
+    let fixture = signature_fixture(
+        r#"
+        contract T {
+            function inner(uint256 a) external pure returns (uint256) {}
+        }
+
+        contract C {
+            function outer(uint256 x, uint256 y) public pure {}
+            function inner(uint256 a) public pure returns (uint256) {}
+            function other(uint256 b, uint256 c) public pure returns (uint256) {}
+
+            function use(T t, uint256 v, uint256 w) public pure {
+                outer(inner($1 1), 2);
+                outer(t.inner($2 1), 2);
+                outer(        $3 v, 2);
+                outer(      $4 w, 2);
+            }
+        }
+        "#,
+    );
+    let markers = ["$1", "$2", "$3", "$4"];
+    let mut state = fixture.state();
+    fixture.check_signature_help_in(
+        &mut state,
+        &markers,
+        snapbox::str![[r#"
+$1:
+active signature=Some(0) parameter=Some(0)
+function inner(uint256 a) public pure returns (uint256)
+  15..24
+$2:
+active signature=Some(0) parameter=Some(0)
+function inner(uint256 a) external pure returns (uint256)
+  15..24
+$3 $4:
+active signature=Some(0) parameter=Some(0)
+function outer(uint256 x, uint256 y) public pure
+  15..24
+  26..35
+
+"#]],
+    );
+
+    // Keep the original analysis while edits preserve every marker position. The edited inner
+    // calls are no longer indexed, so they must not borrow the enclosing signature, while a new
+    // conversion still defers to it.
+    let contents = fixture.project_contents("/Signature.sol");
+    let changed = [
+        ("outer(inner(", "outer(other("),
+        ("t.inner(", "t.other("),
+        ("outer(         v", "outer(uint256( v"),
+        ("outer(       w", "outer(other( w"),
+    ]
+    .into_iter()
+    .fold(contents, |changed, (from, to)| {
+        assert_eq!(from.len(), to.len());
+        assert_eq!(changed.matches(from).count(), 1, "{from}");
+        changed.replace(from, to)
+    });
+    set_source(&state, &fixture, &changed);
+    fixture.check_signature_help_in(
+        &mut state,
+        &markers,
+        snapbox::str![[r#"
+$1 $4:
+active signature=Some(0) parameter=Some(0)
+function other(uint256 b, uint256 c) public pure returns (uint256)
+  15..24
+  26..35
+$2:
+<none>
+$3:
+active signature=Some(0) parameter=Some(0)
+function outer(uint256 x, uint256 y) public pure
+  15..24
+  26..35
 
 "#]],
     );
