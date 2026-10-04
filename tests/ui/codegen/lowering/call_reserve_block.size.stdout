@@ -75,9 +75,6 @@ bb9:
   mstore
   push 0
   sload
-  push 0xffffffffffffffffffffffffffffffffffffffff
-  dup 2
-  and
   push 0
   push 64
   mload
@@ -120,7 +117,9 @@ bb10:
   push 128
   return
 bb13 [continuation]:
-  swap 1
+  push 0xffffffffffffffffffffffffffffffffffffffff
+  dup 3
+  and
   extcodesize
   iszero
   push bb4

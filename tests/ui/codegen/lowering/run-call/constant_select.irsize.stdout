@@ -169,7 +169,7 @@ bb20 [continuation]:
   dup 3
   gt
   or
-  push bb90
+  push bb89
   jumpi
   push 64
   mstore
@@ -410,23 +410,6 @@ bb39:
   lt
   push bb11
   jumpi
-  push 0xe2179b8e
-  push 224
-  shl
-  push 4
-  calldataload
-  jump bb88
-bb88:
-  push 0x26121ff0
-  jump bb87
-bb87:
-  push 224
-  shl
-  dup 3
-  swap 1
-  sub
-  mul
-  add
   push 64
   mload
   dup 1
@@ -438,7 +421,22 @@ bb87:
   push 4
   dup 3
   mstore
+  push 0xe2179b8e
+  push 224
+  shl
+  push 4
+  calldataload
+  push 0x26121ff0
+  push 224
+  shl
+  dup 3
   swap 1
+  sub
+  mul
+  add
+  swap 2
+  jump bb87
+bb87:
   push 32
   add
   exchange 1, 2
@@ -533,7 +531,29 @@ bb44:
   calldataload
   iszero
   iszero
-  jump bb88
+  push 0x26121ff0
+  jump bb90
+bb90:
+  push 224
+  shl
+  dup 3
+  swap 1
+  sub
+  mul
+  add
+  push 64
+  mload
+  dup 1
+  push 64
+  dup 3
+  add
+  push 64
+  mstore
+  push 4
+  dup 3
+  mstore
+  swap 1
+  jump bb87
 bb48:
   push 128
   push 64
@@ -551,7 +571,7 @@ bb48:
   iszero
   iszero
   push 0xe2179b8e
-  jump bb87
+  jump bb90
 bb63 [continuation]:
   push 352
   mload
@@ -684,8 +704,8 @@ bb77 [cold]:
   push 0
   mstore
   push 34
-  jump bb89
-bb89 [cold]:
+  jump bb88
+bb88 [cold]:
   push 32
   mstore
   push 36
@@ -730,13 +750,13 @@ bb71 [cold]:
   pop
   pop
   pop
-  jump bb90
-bb90 [cold]:
+  jump bb89
+bb89 [cold]:
   push 0x4e487b71
   push 0
   mstore
   push 65
-  jump bb89
+  jump bb88
 bb91:
   push 68
   calldatasize
@@ -768,7 +788,7 @@ bb93 [continuation]:
   dup 2
   dup 2
   lt
-  push bb90
+  push bb89
   jumpi
   push 31
   not
@@ -789,7 +809,7 @@ bb93 [continuation]:
   dup 3
   gt
   or
-  push bb90
+  push bb89
   jumpi
   push 64
   mstore
