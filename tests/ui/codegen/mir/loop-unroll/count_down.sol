@@ -34,9 +34,12 @@ contract CountDown {
     // CHECK-LABEL: fn @countDown()
     // CHECK: [[BIT:v[0-9]+]] = and arg0, 1
     // CHECK-NEXT: [[ODD:v[0-9]+]] = ne [[BIT]], 0
-    // CHECK-NEXT: jumpi [[ODD]], {{bb[0-9]+}}, [[HEADER:bb[0-9]+]]
-    // CHECK: [[HEADER]]:
-    // CHECK-NEXT: phi [{{bb[0-9]+}}: arg0], [{{bb[0-9]+}}: {{v[0-9]+}}], [{{bb[0-9]+}}: {{v[0-9]+}}]
+    // CHECK-NEXT: jumpi [[ODD]], {{bb[0-9]+}}, [[ENTER:bb[0-9]+]]
+    // CHECK: [[ENTER]]:
+    // CHECK-NEXT: [[COUNTER:v[0-9]+]] = phi [{{bb[0-9]+}}: arg0], [{{bb[0-9]+}}: {{v[0-9]+}}]
+    // CHECK: jump [[HEADER:bb[0-9]+]]
+    // CHECK-NEXT: [[HEADER]]:
+    // CHECK-NEXT: phi {{\[}}[[ENTER]]: [[COUNTER]]], [{{bb[0-9]+}}: {{v[0-9]+}}]{{$}}
     function countDown(uint256 n) external pure returns (uint256 s) {
         assembly {
             for { let i := n } i { i := sub(i, 1) } { s := add(s, i) }

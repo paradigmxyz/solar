@@ -32,9 +32,12 @@ contract PointerLoops {
     // CHECK: [[LEFT:v[0-9]+]] = sub {{v[0-9]+}}, {{v[0-9]+}}
     // CHECK-NEXT: [[BIT:v[0-9]+]] = and [[LEFT]], 1
     // CHECK-NEXT: [[ODD:v[0-9]+]] = ne [[BIT]], 0
-    // CHECK-NEXT: jumpi [[ODD]], {{bb[0-9]+}}, [[HEADER:bb[0-9]+]]
-    // CHECK: [[HEADER]]:
-    // CHECK-NEXT: phi [{{bb[0-9]+}}: {{v[0-9]+}}], [{{bb[0-9]+}}: {{v[0-9]+}}], [{{bb[0-9]+}}: {{v[0-9]+}}]
+    // CHECK-NEXT: jumpi [[ODD]], {{bb[0-9]+}}, [[ENTER:bb[0-9]+]]
+    // CHECK: [[ENTER]]:
+    // CHECK-NEXT: [[OUT:v[0-9]+]] = phi [{{bb[0-9]+}}: {{v[0-9]+}}], [{{bb[0-9]+}}: {{v[0-9]+}}]
+    // CHECK: jump [[HEADER:bb[0-9]+]]
+    // CHECK-NEXT: [[HEADER]]:
+    // CHECK-NEXT: phi {{\[}}[[ENTER]]: [[OUT]]], [{{bb[0-9]+}}: {{v[0-9]+}}]{{$}}
     function toHex(bytes memory raw) external pure returns (bytes memory result) {
         assembly {
             let n := mload(raw)
@@ -74,7 +77,8 @@ contract PointerLoops {
     // CHECK-LABEL: fn @stepThree()
     // CHECK: [[LEFT:v[0-9]+]] = sub arg1, arg0
     // CHECK-NEXT: and [[LEFT]], 1
-    // CHECK: [[I:v[0-9]+]] = phi [{{bb[0-9]+}}: arg0], [{{bb[0-9]+}}: [[NEXT:v[0-9]+]]], [{{bb[0-9]+}}: {{v[0-9]+}}]
+    // CHECK: [[ENTERED:v[0-9]+]] = phi [{{bb[0-9]+}}: arg0], [{{bb[0-9]+}}: {{v[0-9]+}}]
+    // CHECK: [[I:v[0-9]+]] = phi {{\[}}{{bb[0-9]+}}: [[ENTERED]]], [{{bb[0-9]+}}: [[NEXT:v[0-9]+]]]{{$}}
     // CHECK: [[SECOND:v[0-9]+]] = add [[I]], 3
     // CHECK: [[NEXT]] = add [[SECOND]], 3
     function stepThree(uint256 start, uint256 end) external pure returns (uint256 sum) {

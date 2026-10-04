@@ -18,8 +18,8 @@
 
 // Dividing by a word the loop never changes tests it for zero in every
 // iteration. Gas builds run the first iteration in a copy that keeps the test;
-// the loop after it skips the test, and a loop that runs no iteration never
-// tests the divisor.
+// the loop after it skips the test and unrolls by two, and a loop that runs no
+// iteration never tests the divisor.
 contract InvariantTests {
     // CHECK-LABEL: fn @periodStarts()
     // CHECK: [[NONZERO:v[0-9]+]] = ne arg1, 0
@@ -27,7 +27,11 @@ contract InvariantTests {
     // CHECK: [[FIRST]]:
     // CHECK-NEXT: div arg0, arg1
     // CHECK-NOT: jumpi [[NONZERO]]
-    // CHECK: div {{v[0-9]+}}, arg1
+    // CHECK: [[BIT:v[0-9]+]] = and {{v[0-9]+}}, 1
+    // CHECK-NEXT: [[ODD:v[0-9]+]] = ne [[BIT]], 0
+    // CHECK-NEXT: jumpi [[ODD]],
+    // CHECK-NOT: jumpi [[NONZERO]]
+    // CHECK-COUNT-3: div {{v[0-9]+}}, arg1
     // CHECK-LABEL: fn @keep()
     function periodStarts(uint256 time, uint256 period, uint256 count)
         external

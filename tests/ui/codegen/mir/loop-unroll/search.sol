@@ -27,7 +27,8 @@ pragma solidity ^0.8.0;
 // tests for a match, and the block after a match takes the pointer each copy reached through
 // a phi, so the index it rebuilds is that copy's.
 contract Search {
-    // CHECK: [[POINTER:v[0-9]+]] = phi [{{bb[0-9]+}}: [[START:v[0-9]+]]], [{{bb[0-9]+}}: {{v[0-9]+}}], [{{bb[0-9]+}}: {{v[0-9]+}}]
+    // CHECK: [[ENTERED:v[0-9]+]] = phi [{{bb[0-9]+}}: [[START:v[0-9]+]]], [{{bb[0-9]+}}: {{v[0-9]+}}]
+    // CHECK: [[POINTER:v[0-9]+]] = phi [{{bb[0-9]+}}: [[ENTERED]]], [{{bb[0-9]+}}: {{v[0-9]+}}]{{$}}
     // CHECK-NEXT: {{v[0-9]+}} = ne [[POINTER]],
     // CHECK: [[MATCHED:v[0-9]+]] = phi [{{bb[0-9]+}}: [[POINTER]]], [{{bb[0-9]+}}: [[START]]], [{{bb[0-9]+}}: {{v[0-9]+}}]
     // CHECK-NEXT: [[DELTA:v[0-9]+]] = sub [[MATCHED]], [[START]]

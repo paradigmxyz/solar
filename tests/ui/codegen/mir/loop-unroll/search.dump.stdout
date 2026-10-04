@@ -27,23 +27,26 @@ fn @entry() [entry] {
     v63 = sub v48, v51
     v64 = shr 5, v63
     v65 = gt v62, v64
-    v106 = or v54, v65
-    jumpi v106, bb1, bb22
+    v108 = or v54, v65
+    jumpi v108, bb1, bb22
   bb22:
     v68 = shl 5, v62
     v69 = add v51, v68
-    v102 = and v62, 1
-    v103 = ne v102, 0
-    jumpi v103, bb28, bb17
+    v103 = and v62, 1
+    v104 = ne v103, 0
+    jumpi v104, bb29, bb31
+  bb29:
+    v96 = calldataload v51
+    v97 = eq v96, v9
+    jumpi v97, bb21, bb28
   bb28:
-    v95 = calldataload v51
-    v96 = eq v95, v9
-    jumpi v96, bb21, bb27
-  bb27:
-    v94 = add v51, 32
+    v95 = add v51, 32
+    jump bb31
+  bb31:
+    v105 = phi [bb22: v51], [bb28: v95]
     jump bb17
   bb17:
-    v66 = phi [bb22: v51], [bb29: v99], [bb27: v94]
+    v66 = phi [bb31: v105], [bb30: v100]
     v56 = ne v66, v69
     jumpi v56, bb20, bb18
   bb18:
@@ -55,15 +58,15 @@ fn @entry() [entry] {
     jumpi v61, bb21, bb19
   bb19:
     v67 = add v66, 32
-    v100 = calldataload v67
-    v101 = eq v100, v9
-    jumpi v101, bb21, bb29
-  bb29:
-    v99 = add v67, 32
+    v101 = calldataload v67
+    v102 = eq v101, v9
+    jumpi v102, bb21, bb30
+  bb30:
+    v100 = add v67, 32
     jump bb17
   bb21:
-    v91 = phi [bb20: v66], [bb28: v51], [bb19: v67]
-    v70 = sub v91, v51
+    v92 = phi [bb20: v66], [bb29: v51], [bb19: v67]
+    v70 = sub v92, v51
     v71 = shr 5, v70
     mstore 128, v71
     returndata 128, 32
@@ -78,8 +81,8 @@ fn @entry() [entry] {
     v45 = sub v29, v32
     v46 = shr 5, v45
     v47 = gt v44, v46
-    v105 = or v35, v47
-    jumpi v105, bb1, bb16
+    v107 = or v35, v47
+    jumpi v107, bb1, bb16
   bb16:
     jump bb11
   bb11:
@@ -112,23 +115,26 @@ fn @entry() [entry] {
     v26 = sub v10, v13
     v27 = shr 5, v26
     v28 = gt v25, v27
-    v104 = or v16, v28
-    jumpi v104, bb1, bb10
+    v106 = or v16, v28
+    jumpi v106, bb1, bb10
   bb10:
     v74 = shl 5, v25
     v75 = add v13, v74
     v89 = and v25, 1
     v90 = ne v89, 0
-    jumpi v90, bb25, bb6
+    jumpi v90, bb25, bb27
   bb25:
     v82 = calldataload v13
     v83 = eq v82, v9
     jumpi v83, bb23, bb24
   bb24:
     v81 = add v13, 32
+    jump bb27
+  bb27:
+    v91 = phi [bb10: v13], [bb24: v81]
     jump bb6
   bb6:
-    v72 = phi [bb10: v13], [bb26: v86], [bb24: v81]
+    v72 = phi [bb27: v91], [bb26: v86]
     v18 = ne v72, v75
     jumpi v18, bb9, bb7
   bb9:

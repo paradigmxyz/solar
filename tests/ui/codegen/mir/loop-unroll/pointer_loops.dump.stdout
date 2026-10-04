@@ -11,8 +11,8 @@ fn @toHex() [selector=0xc5bec6fc, abi_wrapper, pure] {
     v38 = gt v35, 0xffffffffffffffff
     v39 = gt v37, v33
     v40 = or v38, v39
-    v131 = or v34, v40
-    jumpi v131, bb4, bb5
+    v133 = or v34, v40
+    jumpi v133, bb4, bb5
   bb5:
     v42 = calldataload v36
     v44 = add v42, 63
@@ -47,7 +47,7 @@ fn @toHex() [selector=0xc5bec6fc, abi_wrapper, pure] {
     v128 = sub v7, v100
     v129 = and v128, 1
     v130 = ne v129, 0
-    jumpi v130, bb10, bb1
+    jumpi v130, bb10, bb11
   bb10:
     v102 = add v100, 1
     v103 = mload v102
@@ -62,10 +62,14 @@ fn @toHex() [selector=0xc5bec6fc, abi_wrapper, pure] {
     mstore8 v5, v110
     v111 = add v5, 2
     v112 = inttoptr i256 v102 to memptr
+    jump bb11
+  bb11:
+    v131 = phi [bb8: v5], [bb10: v111]
+    v132 = phi [bb8: v48], [bb10: v112]
     jump bb1
   bb1:
-    v8 = phi [bb8: v5], [bb3: v126], [bb10: v111]
-    v9 = phi [bb8: v48], [bb3: v127], [bb10: v112]
+    v8 = phi [bb11: v131], [bb3: v126]
+    v9 = phi [bb11: v132], [bb3: v127]
     v13 = ptrtoint memptr v9 to i256
     v16 = ne v13, v7
     jumpi v16, bb3, bb2
@@ -141,8 +145,8 @@ fn @sumWords() [selector=0x5a761098, abi_wrapper, pure] {
     v23 = gt v20, 0xffffffffffffffff
     v24 = gt v22, v18
     v25 = or v23, v24
-    v70 = or v19, v25
-    jumpi v70, bb4, bb5
+    v72 = or v19, v25
+    jumpi v72, bb4, bb5
   bb5:
     v27 = calldataload v21
     v29 = shl 5, v27
@@ -150,8 +154,8 @@ fn @sumWords() [selector=0x5a761098, abi_wrapper, pure] {
     v35 = ne v31, v27
     v36 = add v29, 32
     v37 = lt v36, v29
-    v71 = or v35, v37
-    jumpi v71, bb6, bb7
+    v73 = or v35, v37
+    jumpi v73, bb6, bb7
   bb7:
     v50 = mload 64 !metadata(memory=scratch)
     v51 = add v50, v36
@@ -172,15 +176,19 @@ fn @sumWords() [selector=0x5a761098, abi_wrapper, pure] {
     v5 = add v46, v29
     v68 = and v27, 1
     v69 = ne v68, 0
-    jumpi v69, bb10, bb1
+    jumpi v69, bb10, bb11
   bb10:
     v59 = mload v46
     v60 = add 0, v59
     v61 = add v46, 32
+    jump bb11
+  bb11:
+    v70 = phi [bb8: v46], [bb10: v61]
+    v71 = phi [bb8: 0], [bb10: v60]
     jump bb1
   bb1:
-    v7 = phi [bb8: v46], [bb3: v67], [bb10: v61]
-    v8 = phi [bb8: 0], [bb3: v66], [bb10: v60]
+    v7 = phi [bb11: v70], [bb3: v67]
+    v8 = phi [bb11: v71], [bb3: v66]
     v12 = ne v7, v5
     jumpi v12, bb3, bb2
   bb2:
@@ -211,14 +219,18 @@ fn @stepThree() [selector=0xbf2eba92, abi_wrapper, pure] {
     v25 = sub arg1, arg0
     v26 = and v25, 1
     v27 = ne v26, 0
-    jumpi v27, bb6, bb1
+    jumpi v27, bb6, bb7
   bb6:
     v18 = add 0, arg0
     v19 = add arg0, 3
+    jump bb7
+  bb7:
+    v28 = phi [bb5: 0], [bb6: v18]
+    v29 = phi [bb5: arg0], [bb6: v19]
     jump bb1
   bb1:
-    v1 = phi [bb5: 0], [bb3: v23], [bb6: v18]
-    v3 = phi [bb5: arg0], [bb3: v24], [bb6: v19]
+    v1 = phi [bb7: v28], [bb3: v23]
+    v3 = phi [bb7: v29], [bb3: v24]
     v6 = ne v3, arg1
     jumpi v6, bb3, bb2
   bb2:

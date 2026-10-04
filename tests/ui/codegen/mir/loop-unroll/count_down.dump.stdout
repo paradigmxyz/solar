@@ -9,14 +9,18 @@ fn @countDown() [selector=0x3b396421, abi_wrapper, pure] {
   bb5:
     v20 = and arg0, 1
     v21 = ne v20, 0
-    jumpi v21, bb6, bb1
+    jumpi v21, bb6, bb7
   bb6:
     v13 = add 0, arg0
     v14 = sub arg0, 1
+    jump bb7
+  bb7:
+    v22 = phi [bb5: arg0], [bb6: v14]
+    v23 = phi [bb5: 0], [bb6: v13]
     jump bb1
   bb1:
-    v0 = phi [bb5: arg0], [bb3: v19], [bb6: v14]
-    v1 = phi [bb5: 0], [bb3: v18], [bb6: v13]
+    v0 = phi [bb7: v22], [bb3: v19]
+    v1 = phi [bb7: v23], [bb3: v18]
     v3 = ne v0, 0
     jumpi v3, bb3, bb2
   bb2:
@@ -40,7 +44,7 @@ fn @squaresDown() [selector=0x45ce5caf, abi_wrapper, pure] {
   bb8:
     v40 = and arg0, 1
     v41 = ne v40, 0
-    jumpi v41, bb9, bb1
+    jumpi v41, bb9, bb13
   bb9:
     v25 = mul arg0, arg0
     v26 = div v25, arg0
@@ -49,10 +53,14 @@ fn @squaresDown() [selector=0x45ce5caf, abi_wrapper, pure] {
   bb10:
     v28 = add 0, v25
     v30 = sub arg0, 1
+    jump bb13
+  bb13:
+    v42 = phi [bb8: arg0], [bb10: v30]
+    v43 = phi [bb8: 0], [bb10: v28]
     jump bb1
   bb1:
-    v1 = phi [bb8: arg0], [bb12: v39], [bb10: v30]
-    v2 = phi [bb8: 0], [bb12: v37], [bb10: v28]
+    v1 = phi [bb13: v42], [bb12: v39]
+    v2 = phi [bb13: v43], [bb12: v37]
     v3 = gt v1, 0
     jumpi v3, bb3, bb2
   bb2:
@@ -97,14 +105,18 @@ fn @stepDown() [selector=0x4e0372c8, abi_wrapper, pure] {
     v22 = shr 1, arg0
     v23 = and v22, 1
     v24 = ne v23, 0
-    jumpi v24, bb6, bb1
+    jumpi v24, bb6, bb7
   bb6:
     v15 = add 0, arg0
     v16 = sub arg0, 2
+    jump bb7
+  bb7:
+    v25 = phi [bb5: arg0], [bb6: v16]
+    v26 = phi [bb5: 0], [bb6: v15]
     jump bb1
   bb1:
-    v1 = phi [bb5: arg0], [bb3: v21], [bb6: v16]
-    v2 = phi [bb5: 0], [bb3: v20], [bb6: v15]
+    v1 = phi [bb7: v25], [bb3: v21]
+    v2 = phi [bb7: v26], [bb3: v20]
     v3 = gt v1, 0
     jumpi v3, bb3, bb2
   bb2:
@@ -129,14 +141,18 @@ fn @downTo() [selector=0x4930868e, abi_wrapper, pure] {
     v25 = sub arg1, arg0
     v26 = and v25, 1
     v27 = ne v26, 0
-    jumpi v27, bb6, bb1
+    jumpi v27, bb6, bb7
   bb6:
     v18 = add 0, arg0
     v19 = sub arg0, 1
+    jump bb7
+  bb7:
+    v28 = phi [bb5: 0], [bb6: v18]
+    v29 = phi [bb5: arg0], [bb6: v19]
     jump bb1
   bb1:
-    v1 = phi [bb5: 0], [bb3: v23], [bb6: v18]
-    v3 = phi [bb5: arg0], [bb3: v24], [bb6: v19]
+    v1 = phi [bb7: v28], [bb3: v23]
+    v3 = phi [bb7: v29], [bb3: v24]
     v6 = ne v3, arg1
     jumpi v6, bb3, bb2
   bb2:

@@ -311,7 +311,8 @@ fn @nested(arg0: i256, arg1: i256) -> i256 {
 
 // A counter that runs until it reaches its bound, here a pointer, peels one
 // iteration when an odd number remain, and the original header then tests the
-// bound once per two iterations.
+// bound once per two iterations. The check and the peeled copy both enter the
+// loop through one block, so the header keeps one entry edge.
 // CHECK-LABEL: {{^[ +].*}}fn @pointer_counter{{[( ]}}
 // CHECK: + jump [[CHECK:bb[0-9]+]]
 // CHECK-NEXT: + [[CHECK]]:
@@ -319,10 +320,13 @@ fn @nested(arg0: i256, arg1: i256) -> i256 {
 // CHECK: + [[LEFT:v[0-9]+]] = sub v1, [[WORD]]
 // CHECK-NEXT: + [[BIT:v[0-9]+]] = and [[LEFT]], 1
 // CHECK-NEXT: + [[ODD:v[0-9]+]] = ne [[BIT]], 0
-// CHECK-NEXT: + jumpi [[ODD]], [[PEEL:bb[0-9]+]], bb1
+// CHECK-NEXT: + jumpi [[ODD]], [[PEEL:bb[0-9]+]], [[ENTER:bb[0-9]+]]
 // CHECK-NEXT: + [[PEEL]]:
+// CHECK: + jump [[ENTER]]
+// CHECK-NEXT: + [[ENTER]]:
+// CHECK-NEXT: + [[SUM:v[0-9]+]] = phi {{\[}}[[CHECK]]: {{v[0-9]+}}], {{\[}}[[PEEL]]: {{v[0-9]+}}]
 // CHECK: - v2 = phi [bb0: 0], [bb3: v8]
-// CHECK: + v2 = phi {{\[}}[[CHECK]]: {{v[0-9]+}}], {{\[}}[[SECOND:bb[0-9]+]]: {{v[0-9]+}}], {{\[}}[[PEEL]]: {{v[0-9]+}}]
+// CHECK: + v2 = phi {{\[}}[[ENTER]]: [[SUM]]], {{\[}}[[SECOND:bb[0-9]+]]: {{v[0-9]+}}]{{$}}
 // CHECK: + jump [[SECOND_HEADER:bb[0-9]+]]
 // CHECK-NEXT: + [[SECOND_HEADER]]:
 // CHECK: + [[SECOND]]:
@@ -527,7 +531,7 @@ fn @larger_body(arg0: i256, arg1: i256) -> i256 {
 // CHECK-NEXT: + {{v[0-9]+}} = phi [bb0: 0]
 // CHECK: + [[BIT:v[0-9]+]] = and [[I]], 1
 // CHECK-NEXT: + [[ODD:v[0-9]+]] = ne [[BIT]], 0
-// CHECK-NEXT: + jumpi [[ODD]], {{bb[0-9]+}}, bb1
+// CHECK-NEXT: + jumpi [[ODD]], {{bb[0-9]+}}, {{bb[0-9]+}}
 // CHECK: = sub {{v[0-9]+}}, 1
 fn @count_down(arg0: i256) -> i256 {
   bb0:
@@ -610,13 +614,18 @@ fn @shrinking_below(arg0: i256) -> i256 {
 // A body that aborts unless a word computed before the loop holds runs its
 // first iteration in a copy that keeps the test; the loop after it jumps past
 // the test, and a declined first iteration reaches the original header, which
-// declines it as well.
+// declines it as well. Both ways from the copy enter the loop through one
+// block, so the loop keeps a preheader and unrolls next.
 // CHECK-LABEL: {{^[ +].*}}fn @invariant_test{{[( ]}}
 // CHECK: + jump [[FIRST:bb[0-9]+]]
 // CHECK-NEXT: + [[FIRST]]:
-// CHECK: + jumpi {{v[0-9]+}}, [[FIRST_BODY:bb[0-9]+]], bb1
+// CHECK: + jumpi {{v[0-9]+}}, [[FIRST_BODY:bb[0-9]+]], [[ENTER:bb[0-9]+]]
 // CHECK-NEXT: + [[FIRST_BODY]]:
 // CHECK-NEXT: + jumpi [[NONZERO:v[0-9]+]], {{bb[0-9]+}}, bb4
+// CHECK: + jump [[ENTER]]
+// CHECK-NEXT: + [[ENTER]]:
+// CHECK-NEXT: + {{v[0-9]+}} = phi {{\[}}[[FIRST]]: {{v[0-9]+}}], [{{bb[0-9]+}}: {{v[0-9]+}}]
+// CHECK: + {{v[0-9]+}} = and {{v[0-9]+}}, 1
 // CHECK: - jumpi [[NONZERO]], bb3, bb4
 // CHECK-NEXT: - bb4:
 // CHECK-NEXT: - revert 0, 0

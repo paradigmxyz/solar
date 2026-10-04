@@ -6,27 +6,51 @@ fn @periodStarts() [selector=0x2e930b8e, abi_wrapper, pure] {
     v11 = ne arg1, 0
     v30 = sub 0, arg2
     v34 = ne v30, 0
-    jumpi v34, bb7, bb1
-  bb7:
-    jumpi v11, bb8, bb4
+    jumpi v34, bb6, bb9
+  bb6:
+    jumpi v11, bb7, bb4
   bb4:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 18 !metadata(memory=scratch)
     revert 28, 36
-  bb8:
+  bb7:
     v35 = div arg0, arg1
     v36 = mul v35, arg1
     v37 = add 0, v36
     v39 = add arg0, 0xe10
     v40 = lt v39, arg0
-    jumpi v40, bb5, bb9
-  bb9:
+    jumpi v40, bb5, bb8
+  bb8:
     v41 = add v30, 1
+    jump bb9
+  bb9:
+    v42 = phi [bb0: 0], [bb8: v37]
+    v43 = phi [bb0: arg0], [bb8: v39]
+    v44 = phi [bb0: v30], [bb8: v41]
+    v67 = and v44, 1
+    v68 = ne v67, 0
+    jumpi v68, bb10, bb13
+  bb10:
+    v49 = div v43, arg1
+    v50 = mul v49, arg1
+    v51 = add v42, v50
+    v52 = lt v51, v42
+    v53 = add v43, 0xe10
+    v54 = lt v53, v43
+    v75 = or v52, v54
+    jumpi v75, bb5, bb11
+  bb11:
+    v55 = add v44, 1
+    jump bb13
+  bb13:
+    v69 = phi [bb9: v42], [bb11: v51]
+    v70 = phi [bb9: v43], [bb11: v53]
+    v71 = phi [bb9: v44], [bb11: v55]
     jump bb1
   bb1:
-    v0 = phi [bb0: 0], [bb6: v20], [bb9: v37]
-    v1 = phi [bb0: arg0], [bb6: v22], [bb9: v39]
-    v3 = phi [bb0: v30], [bb6: v24], [bb9: v41]
+    v0 = phi [bb13: v69], [bb12: v62]
+    v1 = phi [bb13: v70], [bb12: v64]
+    v3 = phi [bb13: v71], [bb12: v66]
     v5 = ne v3, 0
     jumpi v5, bb3, bb2
   bb2:
@@ -39,10 +63,18 @@ fn @periodStarts() [selector=0x2e930b8e, abi_wrapper, pure] {
     v21 = lt v20, v0
     v22 = add v1, 0xe10
     v23 = lt v22, v1
-    v42 = or v21, v23
-    jumpi v42, bb5, bb6
-  bb6:
-    v24 = add v3, 1
+    v72 = or v21, v23
+    v60 = div v22, arg1
+    v61 = mul v60, arg1
+    v62 = add v20, v61
+    v63 = lt v62, v20
+    v73 = or v72, v63
+    v64 = add v22, 0xe10
+    v65 = lt v64, v22
+    v74 = or v73, v65
+    jumpi v74, bb5, bb12
+  bb12:
+    v66 = add v3, 2
     jump bb1
   bb5:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
@@ -55,27 +87,51 @@ fn @keep() [selector=0xdaef3dc2, abi_wrapper, pure] {
     v11 = ne arg1, 0
     v25 = sub 0, arg2
     v29 = ne v25, 0
-    jumpi v29, bb7, bb1
-  bb7:
-    jumpi v11, bb8, bb4
+    jumpi v29, bb6, bb9
+  bb6:
+    jumpi v11, bb7, bb4
   bb4:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 18 !metadata(memory=scratch)
     revert 28, 36
-  bb8:
+  bb7:
     v30 = div arg0, arg1
     v31 = sub arg0, v30
     v32 = add 0, v31
     v34 = add arg0, 0xde0b6b3a7640000
     v35 = lt v34, arg0
-    jumpi v35, bb5, bb9
-  bb9:
+    jumpi v35, bb5, bb8
+  bb8:
     v36 = add v25, 1
+    jump bb9
+  bb9:
+    v37 = phi [bb0: arg0], [bb8: v34]
+    v38 = phi [bb0: v25], [bb8: v36]
+    v39 = phi [bb0: 0], [bb8: v32]
+    v62 = and v38, 1
+    v63 = ne v62, 0
+    jumpi v63, bb10, bb13
+  bb10:
+    v44 = div v37, arg1
+    v45 = sub v37, v44
+    v46 = add v39, v45
+    v47 = lt v46, v39
+    v48 = add v37, 0xde0b6b3a7640000
+    v49 = lt v48, v37
+    v70 = or v47, v49
+    jumpi v70, bb5, bb11
+  bb11:
+    v50 = add v38, 1
+    jump bb13
+  bb13:
+    v64 = phi [bb9: v37], [bb11: v48]
+    v65 = phi [bb9: v38], [bb11: v50]
+    v66 = phi [bb9: v39], [bb11: v46]
     jump bb1
   bb1:
-    v0 = phi [bb0: arg0], [bb6: v17], [bb9: v34]
-    v2 = phi [bb0: v25], [bb6: v19], [bb9: v36]
-    v4 = phi [bb0: 0], [bb6: v15], [bb9: v32]
+    v0 = phi [bb13: v64], [bb12: v59]
+    v2 = phi [bb13: v65], [bb12: v61]
+    v4 = phi [bb13: v66], [bb12: v57]
     v5 = ne v2, 0
     jumpi v5, bb3, bb2
   bb2:
@@ -88,10 +144,18 @@ fn @keep() [selector=0xdaef3dc2, abi_wrapper, pure] {
     v16 = lt v15, v4
     v17 = add v0, 0xde0b6b3a7640000
     v18 = lt v17, v0
-    v37 = or v16, v18
-    jumpi v37, bb5, bb6
-  bb6:
-    v19 = add v2, 1
+    v67 = or v16, v18
+    v55 = div v17, arg1
+    v56 = sub v17, v55
+    v57 = add v15, v56
+    v58 = lt v57, v15
+    v68 = or v67, v58
+    v59 = add v17, 0xde0b6b3a7640000
+    v60 = lt v59, v17
+    v69 = or v68, v60
+    jumpi v69, bb5, bb12
+  bb12:
+    v61 = add v2, 2
     jump bb1
   bb5:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)

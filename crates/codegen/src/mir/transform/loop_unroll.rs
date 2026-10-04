@@ -33,14 +33,20 @@
 //! ```text
 //! check:
 //!   state = phi [preheader: start]
-//!   jumpi (ne (and (shr t, (sub n, i)), 1), 0), body_a, header
-//! body_a: peeled copy; jump header
-//! header: state = phi [check: state], [latch_a: next_a], [latch_b: next_b]
+//!   jumpi (ne (and (shr t, (sub n, i)), 1), 0), body_a, enter
+//! body_a: peeled copy; jump enter
+//! enter: state_0 = phi [check: state], [latch_a: next_a]; jump header
+//! header: state = phi [enter: state_0], [latch_b: next_b]
 //!   jumpi (ne i, n), body, exit
 //! body: the original body; jump header_b
 //! header_b: the header's other instructions for `i + s`; jump body_b
 //! body_b: second copy; jump header
 //! ```
+//!
+//! Both ways into the loop meet in `enter`, so the loop keeps a single
+//! preheader: the backend carries a loop's words on the stack only through a
+//! loop it enters by one edge, and otherwise copies the header's phis through
+//! memory in every iteration.
 //!
 //! A bound built as `start + (m << t)`, as a pointer's end usually is, leaves
 //! `m << t` to go on entry, whose bit `t` is bit zero of `m`, so the check
@@ -51,8 +57,10 @@
 //! iteration in a copy that keeps those tests, and the loop after it jumps past
 //! them. When the copy's header declines the first iteration, it enters the
 //! original header, which declines it as well, so the original header's exit
-//! stays the loop's only one. Without those reads of words from before the
-//! loop, the loop may then unroll.
+//! stays the loop's only one. That edge and the copy's latch meet in a block
+//! before the header, as the parity check's two edges do, so the loop keeps a
+//! single preheader and, without those reads of words from before the loop,
+//! may then unroll.
 //!
 //! A counter that only counts iterations, `for (i = 0; i < n; ++i)` with `i`
 //! read by nothing but its test and its increment, counts from `-n` up to zero
@@ -1251,34 +1259,49 @@ fn apply(func: &mut Function, unroll: &Unroll) -> BlockId {
         let bit = append(func, check, InstKind::And(left, one), MirType::I256);
         let zero = func.alloc_value(Value::Immediate(Immediate::I256(U256::ZERO)));
         let odd = append(func, check, InstKind::Ne(bit, zero), MirType::I1);
-        branch(func, check, odd, first.blocks[&unroll.body], unroll.header);
+        // Both ways into the loop meet in a block of their own, so the loop keeps a single
+        // preheader, which the stack planner needs to keep its words on the stack.
+        let enter = func.alloc_block();
+        func.blocks[enter].set_generated_terminator(Terminator::Jump(unroll.header));
+        branch(func, check, odd, first.blocks[&unroll.body], enter);
 
-        // latch': ... header
+        // latch': ... enter
         // latch: ... header''
         // latch'': ... header
         let last_header = last.blocks[&unroll.header];
-        redirect(func, first_latch, check, unroll.header);
+        redirect(func, first_latch, check, enter);
         redirect(func, unroll.latch, unroll.header, last_header);
         redirect(func, last_latch, last_header, unroll.header);
 
         // check: state' = phi [preheader: start]
-        // header: state = phi [check: state'], [latch': next'], [latch'': next'']
+        // enter: state_0 = phi [check: state'], [latch': next']
+        // header: state = phi [enter: state_0], [latch'': next'']
         for &(phi, latch_value) in &header_phis {
             replacements.insert(last.value(phi), latch_value);
             edit_phi(func, first.value(phi), |incoming| {
                 incoming.retain(|&(from, _)| from != first_latch);
             });
+            let (merge, merged) = func.alloc_value_inst(
+                Instruction::new(
+                    InstKind::Phi(vec![
+                        (check, first.value(phi)),
+                        (first_latch, first.value(latch_value)),
+                    ]),
+                    func.value_ty(phi),
+                )
+                .with_debug_info_dropped(),
+            );
+            func.blocks[enter].instructions.push(merge);
             edit_phi(func, phi, |incoming| {
                 for (from, value) in incoming.iter_mut() {
                     if *from == unroll.preheader {
-                        *from = check;
-                        *value = first.value(phi);
+                        *from = enter;
+                        *value = merged;
                     } else if *from == unroll.latch {
                         *from = last_latch;
                         *value = last.value(latch_value);
                     }
                 }
-                incoming.push((first_latch, first.value(latch_value)));
             });
         }
         (check, unroll.header)
@@ -1439,29 +1462,46 @@ fn peel(func: &mut Function, peel: &Peel) {
     let first_header = copy.blocks[&peel.header];
     let first_latch = copy.blocks[&peel.latch];
 
+    // Both ways from the copy into the loop meet in a block of their own, so the loop keeps a
+    // single preheader, which the stack planner needs to keep its words on the stack and which
+    // lets the loop unroll next.
+    let enter = func.alloc_block();
+    func.blocks[enter].set_generated_terminator(Terminator::Jump(peel.header));
+
     // preheader: ... jump header'
     // header': state' = phi [preheader: start]
-    //          jumpi test', body', header
-    // latch': ... jump header
+    //          jumpi test', body', enter
+    // latch': ... jump enter
     redirect(func, peel.preheader, peel.header, first_header);
-    redirect(func, first_header, peel.exit, peel.header);
-    redirect(func, first_latch, first_header, peel.header);
+    redirect(func, first_header, peel.exit, enter);
+    redirect(func, first_latch, first_header, enter);
 
-    // header: state = phi [header': state'], [latch': next'], [latch: next]
+    // enter: state_0 = phi [header': state'], [latch': next']
+    // header: state = phi [enter: state_0], [latch: next]
     // When the copy's header declines the first iteration, the original one declines it too and
     // leaves the loop, so its exit stays the only one.
     for &(phi, latch_value) in &header_phis {
         edit_phi(func, copy.value(phi), |incoming| {
             incoming.retain(|&(from, _)| from != first_latch);
         });
+        let (merge, merged) = func.alloc_value_inst(
+            Instruction::new(
+                InstKind::Phi(vec![
+                    (first_header, copy.value(phi)),
+                    (first_latch, copy.value(latch_value)),
+                ]),
+                func.value_ty(phi),
+            )
+            .with_debug_info_dropped(),
+        );
+        func.blocks[enter].instructions.push(merge);
         edit_phi(func, phi, |incoming| {
             for (from, value) in incoming.iter_mut() {
                 if *from == peel.preheader {
-                    *from = first_header;
-                    *value = copy.value(phi);
+                    *from = enter;
+                    *value = merged;
                 }
             }
-            incoming.push((first_latch, copy.value(latch_value)));
         });
     }
 
