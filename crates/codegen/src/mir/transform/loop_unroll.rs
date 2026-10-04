@@ -84,9 +84,12 @@
 //! aborts when it reverts or calls a function that never returns, or to a side
 //! exit, such as the block a search reaches at its match. The body may read
 //! words computed before the loop only when the backend rebuilds them where
-//! they are read, as calldata words at fixed offsets and environment reads: the
-//! stack scheduler spills other such words, and their copies measured slower
-//! than the original loop.
+//! they are read, as calldata words at fixed offsets and environment reads, or
+//! when it only compares against them, as a checked multiplication by a word
+//! the loop never changes compares against its hoisted product limit. The
+//! stack scheduler spills such words, and copies that compute with them
+//! measured slower than the original loop, while copies that only compare
+//! against them measured faster.
 //!
 //! Safety: for `<` and `<=`, `i` starts at a literal and grows by a literal
 //! step, so within the target's trip-count bound `i + (k - 1) * s` cannot wrap,
@@ -601,18 +604,26 @@ fn plan(
     let shape = shape(func, loops, l, cold)?;
     let Shape { preheader, latch, body, exit, ref loop_insts, .. } = shape;
     // The stack planner spills a word the body reads from before the loop, and the copies
-    // measured slower than the original loop.
+    // measured slower than the original loop, unless the body only compares against it, as the
+    // header compares the counter with its bound: a hoisted product limit is such a word.
+    let reads_hoisted = |value: ValueId| {
+        matches!(func.value(value), Value::Inst(inst) if !loop_insts.contains(*inst))
+            && !rebuilt_at_use(func, value)
+    };
     for block in l.blocks.iter() {
         if block == l.header {
             continue;
         }
-        let reads_hoisted = |value: ValueId| {
-            matches!(func.value(value), Value::Inst(inst) if !loop_insts.contains(*inst))
-                && !rebuilt_at_use(func, value)
-        };
         if func.blocks[block].instructions.iter().any(|&inst| {
             let kind = &func.inst(inst).kind;
-            !matches!(kind, InstKind::Phi(_)) && kind.operands().into_iter().any(reads_hoisted)
+            !matches!(
+                kind,
+                InstKind::Phi(_)
+                    | InstKind::Lt(..)
+                    | InstKind::Gt(..)
+                    | InstKind::SLt(..)
+                    | InstKind::SGt(..)
+            ) && kind.operands().into_iter().any(reads_hoisted)
         }) || func.blocks[block]
             .terminator
             .as_ref()

@@ -228,6 +228,35 @@ fn @hoisted(arg0: i256, arg1: i256) -> i256 {
     ret v1
 }
 
+// A body that only compares against a word computed before the loop, as the
+// header compares the counter with its bound, unrolls: the stack scheduler keeps
+// such a word beside the bound instead of reloading it.
+// CHECK-LABEL: {{^[ +].*}}fn @hoisted_limit{{[( ]}}
+// CHECK: + [[AHEAD:v[0-9]+]] = add {{v[0-9]+}}, 3
+// CHECK-NEXT: + {{v[0-9]+}} = lt [[AHEAD]], arg0
+// CHECK-COUNT-4: + {{v[0-9]+}} = gt {{v[0-9]+}}, v0
+fn @hoisted_limit(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v6 = shl 3, arg1
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb3: v4]
+    v1 = phi [bb0: 0], [bb3: v3]
+    v2 = lt v0, arg0
+    jumpi v2, bb2, bb4
+  bb2:
+    v3 = add v1, v0
+    v7 = gt v3, v6
+    jumpi v7, bb5, bb3
+  bb3:
+    v4 = add v0, 1
+    jump bb1
+  bb4:
+    ret v1
+  bb5:
+    revert 0, 0
+}
+
 // A body that branches on the counter is not straight-line: the loop is kept.
 // CHECK-LABEL: {{^[ +].*}}fn @branchy{{[( ]}}
 // CHECK-NOT: {{^[-+]}}
