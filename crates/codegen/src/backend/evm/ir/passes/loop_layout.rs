@@ -3,6 +3,12 @@
 //! Ordinary block layout establishes traces, then gas mode moves a latch before its header when
 //! doing so transfers a jump from an acyclic preheader into a fallthrough on every iteration.
 //! Zero iterations can pay one extra jump, one breaks even, and further iterations save one.
+//! A latch whose last test guards a cold block, such as a merged overflow check, jumps back on
+//! the test's `iszero` instead, `iszero c; push header; jumpi; jump panic`. It moves the same
+//! way, and its test turns around to `push panic; jumpi; jump header`: the jump to the header
+//! becomes the fallthrough, and every iteration also saves the `iszero`. Only a latch that moves
+//! turns around, since a turned test that keeps its jump to the header would pay that jump on
+//! every iteration.
 //!
 //! When the current fallthrough also comes from the loop, a bounded flow estimate distinguishes
 //! the common iteration from rarer paths. A branch into a cold block, such as an overflow panic,
@@ -27,7 +33,7 @@ use super::{
 };
 use crate::{
     backend::evm::{
-        ir::{BlockId, Module, TerminatorKind},
+        ir::{BlockId, Instruction, Module, TerminatorKind},
         op,
     },
     target::Target,
@@ -150,18 +156,17 @@ fn place_loop_latches(gcx: Gcx<'_>, module: &mut Module) -> bool {
     let mut branches = BranchTargets::new(module);
     let mut predecessors = None;
     for latch in module.blocks.indices() {
-        if let Some(TerminatorKind::Jump(header)) =
-            module.blocks[latch].terminator.as_ref().map(|term| &term.kind)
-            && *header != BlockId::ENTRY
-            && !moved.contains(*header)
+        if let Some((header, inverted)) = latch_header(module, latch)
+            && header != BlockId::ENTRY
+            && !moved.contains(header)
             && !module.blocks[latch].metadata.hotness.is_cold()
         {
-            let (h, l) = (positions[*header], positions[latch]);
+            let (h, l) = (positions[header], positions[latch]);
             if h == 0 || l <= h {
                 continue;
             }
             let preheader = order[h - 1];
-            if layout_successor(module, preheader) != Some(*header)
+            if layout_successor(module, preheader) != Some(header)
                 || !matches!(
                     module.blocks[preheader].terminator.as_ref().map(|term| &term.kind),
                     Some(TerminatorKind::Jump(_))
@@ -172,7 +177,7 @@ fn place_loop_latches(gcx: Gcx<'_>, module: &mut Module) -> bool {
             }
             reachable.clear();
             pending.clear();
-            pending.push(*header);
+            pending.push(header);
             let mut visited = 0;
             while let Some(block) = pending.pop() {
                 if !reachable.insert(block) {
@@ -204,9 +209,9 @@ fn place_loop_latches(gcx: Gcx<'_>, module: &mut Module) -> bool {
                     lists
                 });
                 // Without a natural loop, no branch counts as an exit.
-                let body = natural_loop(predecessors, *header, latch)
+                let body = natural_loop(predecessors, header, latch)
                     .unwrap_or_else(|| DenseBitSet::new_empty(module.blocks.len()));
-                let weights = backedge_weights(module, &mut branches, *header, &body);
+                let weights = backedge_weights(module, &mut branches, header, &body);
                 let before = weights.get(&preheader).copied().unwrap_or(0);
                 let after = weights.get(&latch).copied().unwrap_or(0);
                 let price = u128::from(Target::new(gcx).opcode(op::JUMP).gas);
@@ -215,13 +220,17 @@ fn place_loop_latches(gcx: Gcx<'_>, module: &mut Module) -> bool {
                 true
             };
             if visited <= 256 && reachable.contains(latch) && hotter {
+                if inverted {
+                    invert_latch(module, latch, header);
+                    branches.0[latch] = None;
+                }
                 // preheader; header ... latch; jump header
                 // -> preheader; jump header; latch; header ...
                 order[h..=l].rotate_right(1);
                 for (offset, &block) in order[h..=l].iter().enumerate() {
                     positions[block] = h + offset;
                 }
-                moved.insert(*header);
+                moved.insert(header);
             }
         }
     }
@@ -230,6 +239,42 @@ fn place_loop_latches(gcx: Gcx<'_>, module: &mut Module) -> bool {
     }
     remap_block_order(module, &order);
     true
+}
+
+/// The header a block jumps back to, and whether it does so with a conditional jump to inverted:
+/// the target of its terminator's jump, or, when that jump enters a cold block, the target of the
+/// `iszero c; push header; jumpi` it ends with, as a loop body whose last test guards a panic
+/// does.
+fn latch_header(module: &Module, block: BlockId) -> Option<(BlockId, bool)> {
+    let TerminatorKind::Jump(target) = module.blocks[block].terminator.as_ref()?.kind else {
+        return None;
+    };
+    if module.blocks[target].metadata.hotness.is_cold()
+        && let [.., test, push, jump] = module.blocks[block].instructions.as_slice()
+        && test.as_evm_opcode() == Some(op::ISZERO)
+        && jump.as_evm_opcode() == Some(op::JUMPI)
+        && let Some(header) = push.pushed_block()
+        && !module.blocks[header].metadata.hotness.is_cold()
+    {
+        return Some((header, true));
+    }
+    Some((target, false))
+}
+
+/// Turns a latch's conditional jump back to its header around, so the header can follow it.
+fn invert_latch(module: &mut Module, latch: BlockId, header: BlockId) {
+    let block = &mut module.blocks[latch];
+    let terminator = block.terminator.as_mut().expect("latch has a terminator");
+    let TerminatorKind::Jump(cold) = terminator.kind else { unreachable!("latch jumps") };
+    // iszero c; push header; jumpi; jump cold
+    // -> push cold; jumpi; jump header
+    terminator.kind = TerminatorKind::Jump(header);
+    let len = block.instructions.len();
+    let test = block.instructions.remove(len - 3);
+    let mut push = Instruction::push_block(cold);
+    push.metadata = std::mem::take(&mut block.instructions[len - 3].metadata);
+    block.instructions[len - 3] = push;
+    block.instructions[len - 2].metadata.merge_source_spans(&test.metadata);
 }
 
 /// The natural loop of the back edge `latch -> header`: the header and every block that reaches

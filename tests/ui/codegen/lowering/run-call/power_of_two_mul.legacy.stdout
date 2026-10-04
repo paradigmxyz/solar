@@ -81,15 +81,6 @@ bb15:
   push 2
   push 1
   jump bb17
-bb17 [loop]:
-  dup 3
-  push bb19
-  jumpi
-  push 128
-  mstore
-  push 32
-  push 128
-  return
 bb19 [loop]:
   push 1
   dup 4
@@ -145,10 +136,18 @@ bb19 [loop]:
   iszero
   and
   exchange 1, 3
-  iszero
-  push bb17
+  push bb21
   jumpi
-  jump bb21
+  jump bb17
+bb17 [loop]:
+  dup 3
+  push bb19
+  jumpi
+  push 128
+  mstore
+  push 32
+  push 128
+  return
 bb21 [cold]:
   push 0x4e487b71
   push 0
