@@ -880,3 +880,34 @@ fn warmed_member_signature_help_survives_an_earlier_line_edit() {
         }
     }
 }
+
+#[test]
+fn keeps_enclosing_signature_help_inside_type_conversions() {
+    let fixture = signature_fixture(
+        r#"
+        contract C {
+            function f(address account, uint256 value) public pure {}
+
+            function use(address x) public pure {
+                f(address($1 x), uint256($2 1));
+            }
+        }
+        "#,
+    );
+    fixture.check_signature_help(
+        &["$1", "$2"],
+        snapbox::str![[r#"
+$1:
+active signature=Some(0) parameter=Some(0)
+function f(address account, uint256 value) public pure
+  11..26
+  28..41
+$2:
+active signature=Some(0) parameter=Some(1)
+function f(address account, uint256 value) public pure
+  11..26
+  28..41
+
+"#]],
+    );
+}
