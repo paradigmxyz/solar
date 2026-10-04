@@ -625,6 +625,35 @@ tx Module
 }
 
 #[test]
+fn does_not_complete_inside_comments_or_strings() {
+    let fixture = RequestFixture::new(
+        r#"
+        //- /Completion.sol open
+        contract C {
+            function f() public pure {
+                // sentence $1
+                /* sentence
+                 * $2 */
+                string memory value = "sentence // $3";
+                value$4;
+            }
+        }
+        "#,
+        "/Completion.sol",
+    );
+
+    fixture.check_completions(
+        &["$1", "$2", "$3", "$4"],
+        str![[r#"
+$1 $2 $3:
+$4:
+value Variable detail="f"
+
+"#]],
+    );
+}
+
+#[test]
 fn completes_members_and_filters_prefixes() {
     let fixture = RequestFixture::new_allowing_diagnostics(
         r#"
