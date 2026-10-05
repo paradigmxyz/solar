@@ -6,7 +6,9 @@
 
 use super::{Recipe, Temporary};
 use crate::{
-    mir::{Function, InstId, MirType, Op, Value as MirValue, ValueId},
+    mir::{
+        Function, InstId, MirType, Op, Value as MirValue, ValueId, analysis::integers::integer_mask,
+    },
     target::Target,
 };
 use alloy_primitives::U256;
@@ -26,6 +28,7 @@ const MAX_TEMPORARIES: usize = 64;
     rust_2018_idioms,
     unnameable_types,
     unreachable_code,
+    unreachable_patterns,
     unreachable_pub,
     unused_imports,
     unused_mut,
@@ -80,15 +83,55 @@ impl Context<'_> {
 }
 
 impl generated::Context for Context<'_> {
+    fn integer_sign_bit(&mut self) -> u64 {
+        u64::from(self.scalar_ty.integer_bits().unwrap()) - 1
+    }
+
+    fn u256_mul(&mut self, a: U256, b: U256) -> U256 {
+        a.wrapping_mul(b) & integer_mask(self.scalar_ty.integer_bits().unwrap())
+    }
+    fn u256_or(&mut self, a: U256, b: U256) -> U256 {
+        a | b
+    }
+    fn u256_xor(&mut self, a: U256, b: U256) -> U256 {
+        a ^ b
+    }
+    fn u256_and(&mut self, a: U256, b: U256) -> U256 {
+        a & b
+    }
+    fn u256_add(&mut self, a: U256, b: U256) -> U256 {
+        a.wrapping_add(b) & integer_mask(self.scalar_ty.integer_bits().unwrap())
+    }
+    fn u256_shl(&mut self, a: U256, b: U256) -> U256 {
+        if a >= U256::from(256) {
+            U256::ZERO
+        } else {
+            (b << a.to::<usize>()) & integer_mask(self.scalar_ty.integer_bits().unwrap())
+        }
+    }
+    fn power_of_two_shift(&mut self, value: U256) -> Option<U256> {
+        (value > U256::ONE && value.is_power_of_two()).then(|| U256::from(value.trailing_zeros()))
+    }
+
+    fn u256_shr(&mut self, a: U256, b: U256) -> U256 {
+        if a >= U256::from(256) { U256::ZERO } else { b >> a.to::<usize>() }
+    }
+
+    fn integer_bits(&mut self, value: Value) -> Option<u32> {
+        let MirType::Int(bits) = self.func.value_ty(value)? else { return None };
+        (bits.get() <= 256).then_some(bits.get())
+    }
+
     fn inst_data(&mut self, value: Value) -> Option<Op> {
         let MirValue::Inst(inst) = self.func.value(value) else { return None };
         let kind = &self.func.inst(*inst).kind;
         (self.seen.contains(inst)
-            && kind.operands().iter().all(|&operand| {
-                self.func
-                    .value_ty(operand)
-                    .is_none_or(|ty| ty == MirType::I1 || ty == self.scalar_ty)
-            }))
+            && (kind.op_def().result == crate::mir::ResultKind::I1
+                || kind.operands().iter().all(|&operand| {
+                    self.func
+                        .value_ty(operand)
+                        .is_none_or(|ty| ty == MirType::I1 || ty == self.scalar_ty)
+                })))
         .then(|| kind.op())
     }
 

@@ -149,7 +149,7 @@ The repository-specific conventions are:
 - `evm-ir/prelude.isle` is generated from the EVM opcode table the same way
   (`cargo nextest run -p solar-codegen evm_isle_prelude`) and declares one
   `$OPCODE` constant per opcode byte for EVM IR rules.
-- One rule file per pass (`mir/egraph.isle`, `evm-ir/peephole.isle`), compiled by
+- Rule files grouped by pass (`mir/egraph/`, `evm-ir/peephole.isle`), compiled by
   `crates/codegen/build.rs` and included from a sibling `isle.rs` module that
   implements the extractors and constructors the rules call. Register new
   rule sets in the build script's `RULE_SETS`.
@@ -184,8 +184,9 @@ extractor on the left and construct the replacement on the right:
 ```
 
 Use the operand order from the schema, not Solidity infix order; EVM shifts
-take the count before the value. Rules operate on full 256-bit words with
-wrapping arithmetic, saturating shifts, and EVM division-by-zero behavior.
+take the count before the value. MIR integer rules use the operand width;
+EVM IR rules use 256-bit words. Both use wrapping arithmetic, saturating
+shifts, and EVM division-by-zero behavior.
 Put readable `before => after` pseudocode and any preconditions immediately
 above every pattern. Declare Rust-backed predicates and projections in the
 pass's rule file and implement them in its sibling `isle.rs` context.
@@ -227,7 +228,7 @@ reaches while a displaced operand stays live elsewhere. Without that term,
 rewrites after memory lowering extend live ranges the stack scheduler
 spills and measure as a loss. The pass also merges phis, deletes zero-byte
 copies, and rewrites branches on boolean zero tests, and runs once more after memory
-lowering. Extend it by adding rules to `egraph.isle`, bounds to `max_bits`,
+lowering. Extend it by adding rules to `isle/mir/egraph/`, bounds to `max_bits`,
 and stack-traffic terms to `Costs::node`; opcode prices belong in the gas
 schedule, never in the pass, and never match instructions in the pass
 itself.

@@ -1,4 +1,8 @@
 //@ codegen-matrix: standard
+//@ run-call: signedLimits8 -128 => false, true, 1, -64, 0, -1
+//@ run-call: signedLimits8 -1 => false, false, 0, 0, -1, -1
+//@ run-call: signedLimits8 0 => false, false, 0, 0, 0, 0
+//@ run-call: signedLimits8 127 => false, false, 0, 63, 1, 0
 //@ run-call: compareComputedLiteral 0 => true
 //@ run-call: compareComputedLiteral 4294967295 => true
 //@ run-call: compareUnsignedLiterals 0 => true
@@ -2800,6 +2804,13 @@ contract NativeInteger256 {
                 && x >> shift == int256(a >> shift)
                 && -x == int256(-a)
                 && (x < y) == (a < b) && (x >= y) == (a >= b);
+        }
+    }
+
+    function signedLimits8(int8 x) external pure returns (bool, bool, int8, int8, int8, int8) {
+        unchecked {
+            return (x < type(int8).min, x < type(int8).min + 1, x / type(int8).min,
+                x / 2, x % 2, x >> 8);
         }
     }
 

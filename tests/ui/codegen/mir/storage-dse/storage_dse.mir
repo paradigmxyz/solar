@@ -155,3 +155,56 @@ fn @observe_gas() -> i256 {
     v0 = gas
     ret v0
 }
+
+// CHECK-LABEL: fn @keep_before_halt
+// CHECK: + sstore 0, 1
+// CHECK: icall @halt_indirect
+// CHECK: + sstore 0, 2
+fn @keep_before_halt(arg0: i1, arg1: i256) {
+  bb0:
+    sstore 0, 1
+    icall @halt_indirect, arg0, arg1
+    jump bb1
+  bb1:
+    sstore 0, 2
+    ret
+}
+
+fn @halt_indirect(arg0: i1, arg1: i256) {
+  bb0:
+    icall @halt, arg0, arg1
+    ret
+}
+
+fn @halt(arg0: i1, arg1: i256) {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    switch arg1, default bb5, [0 => bb3, 1 => bb4]
+  bb2:
+    ret
+  bb3:
+    stop
+  bb4:
+    returndata 0, 0
+  bb5:
+    selfdestruct 0
+}
+
+// A returning, storage-free call still allows elimination.
+// CHECK-LABEL: fn @remove_before_returning_call
+// CHECK: - sstore 0, 1
+// CHECK: icall @returning
+// CHECK: + sstore 0, 2
+fn @remove_before_returning_call() {
+  bb0:
+    sstore 0, 1
+    icall @returning
+    sstore 0, 2
+    ret
+}
+
+fn @returning() {
+  bb0:
+    ret
+}

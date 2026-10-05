@@ -27,7 +27,7 @@ from evm_rules.discovery import (
     enumerate_rules,
     read_seeds,
 )
-from evm_rules.isle import ISLE, Context, Rule, forms, verify_file
+from evm_rules.isle import ISLE, Context, Rule, forms, rule_sources, verify_file
 from evm_rules.late import execute as execute_late
 from evm_rules.late import verify_late_file
 from evm_rules.memory import MemoryAddresses
@@ -43,6 +43,8 @@ from evm_rules.semantics import (
     check_z3,
     concrete,
     partition_bits,
+    partition_odd_factor,
+    partition_select,
     partition_shift,
     portable_query,
 )
@@ -60,6 +62,10 @@ PARTITION_TIMEOUT_MS = 120_000
 
 def expression(op, *args):
     return Expr(op, tuple(Expr.const(a) if isinstance(a, int) else a for a in args))
+
+
+def read_egraph_source():
+    return "\n".join(text for _, text in rule_sources(ISLE / "mir/egraph"))
 
 
 class MiningTests(unittest.TestCase):
@@ -523,16 +529,16 @@ class SemanticsTests(unittest.TestCase):
         x, n = Expr.var("x"), Expr.var("n")
         rhs = expression("signextend", n, x)
         lhs = expression("signextend", n, rhs)
-        result, queries = partition_shift(lhs, rhs, [], 5000, Model())
-        self.assertEqual(result["status"], "proved")
+        result, queries = partition_shift(lhs, rhs, [], PARTITION_TIMEOUT_MS, Model())
+        self.assertEqual(result["status"], "proved", result)
         self.assertEqual(result["proof_method"], "exhaustive-word-index-partition")
         self.assertEqual((result["cases"], len(queries)), (32, 33))
         # The error exists only at MAX, not at the range's first index, 31.
         wrong = expression(
             "select", expression("eq", n, MASK), expression("not", rhs), rhs
         )
-        result, _ = partition_shift(lhs, wrong, [], 5000, Model())
-        self.assertEqual(result["status"], "counterexample")
+        result, _ = partition_shift(lhs, wrong, [], PARTITION_TIMEOUT_MS, Model())
+        self.assertEqual(result["status"], "counterexample", result)
         self.assertEqual(int(result["inputs"]["n"], 16), MASK)
         self.assertTrue(result["replayed"])
 
@@ -568,6 +574,86 @@ class SemanticsTests(unittest.TestCase):
         )
         self.assertEqual(result["status"], "counterexample")
         self.assertTrue(result["replayed"])
+
+
+class AlgebraicPartitionTests(unittest.TestCase):
+    def test_applicability_witness_never_specializes_equivalence(self):
+        x = Expr.var("x")
+        model = Model()
+        token = z3.Bool("extractor_contract")
+        guards = [token, model.eval(x) != 0]
+        original_check = z3.Solver.check
+        calls = 0
+
+        def first_unknown(solver, *args):
+            nonlocal calls
+            calls += 1
+            return z3.unknown if calls == 1 else original_check(solver, *args)
+
+        with patch.object(z3.Solver, "check", first_unknown):
+            result, query = check(expression("add", x, 1), x, guards, model=model)
+        self.assertEqual(result["status"], "counterexample")
+        self.assertTrue(result["replayed"])
+        self.assertTrue(query)
+        calls = 0
+        with patch.object(z3.Solver, "check", first_unknown):
+            result, query = check(x, x, [token, z3.Not(token)], model=model)
+        self.assertEqual(result["status"], "unknown")
+        self.assertFalse(query)
+
+    def test_select_partition_keeps_noncanonical_conditions_and_guards(self):
+        c, x, y = map(Expr.var, ("c", "x", "y"))
+        lhs = expression("select", c, x, y)
+        rhs = expression("select", expression("iszero", c), y, x)
+        result, queries = partition_select(lhs, rhs, [], 5000, Model())
+        self.assertEqual(result["status"], "proved")
+        self.assertEqual(len(queries), 3)
+        for _, query in queries:
+            replay = z3.SolverFor("QF_BV")
+            replay.add(*z3.parse_smt2_string(query))
+            self.assertEqual(replay.check(), z3.unsat)
+        model = Model()
+        wrong = expression("select", expression("eq", c, 1), x, y)
+        result, _ = partition_select(lhs, wrong, [], 5000, model)
+        self.assertNotEqual(result["status"], "proved")
+        result, _ = partition_select(lhs, x, [model.eval(c) != 0], 5000, model)
+        self.assertEqual(result["status"], "proved")
+        result, _ = partition_select(lhs, x, [], 5000, model)
+        self.assertNotEqual(result["status"], "proved")
+        result, _ = partition_select(lhs, x, [], 5000, Model({"c": 1}))
+        self.assertNotEqual(result["status"], "proved")
+
+    def test_odd_factor_partition_covers_all_differences(self):
+        x, y, c = map(Expr.var, ("x", "y", "c"))
+        model = Model()
+        for op in ("eq", "ne"):
+            with self.subTest(op=op):
+                lhs = expression(op, expression("mul", x, c), expression("mul", y, c))
+                rhs = expression(op, x, y)
+                result, queries = partition_odd_factor(
+                    lhs, rhs, [model.eval(c) & 1 == 1], 120000, model
+                )
+                self.assertEqual(result["status"], "proved", result)
+                self.assertEqual(result["cases"], 256)
+                self.assertEqual(len(queries), 4 + 3 * 256)
+                result, _ = partition_odd_factor(lhs, rhs, [], 5000, model)
+                self.assertNotEqual(result["status"], "proved")
+                result, _ = partition_odd_factor(lhs, rhs, [], 5000, Model({"x": 1}))
+                self.assertEqual(result["status"], "unsupported")
+        dependent = expression("eq", expression("mul", x, x), expression("mul", y, x))
+        result, _ = partition_odd_factor(
+            dependent, expression("eq", x, y), [], 5000, model
+        )
+        self.assertNotEqual(result["status"], "proved")
+
+    def test_partition_timeouts_never_prove(self):
+        x, y, c = map(Expr.var, ("x", "y", "c"))
+        select = expression("select", c, x, y)
+        result, _ = partition_select(select, select, [], 0, Model())
+        self.assertEqual(result["status"], "unknown")
+        product = expression("eq", expression("mul", x, c), expression("mul", y, c))
+        result, _ = partition_odd_factor(product, product, [], 0, Model())
+        self.assertEqual(result["status"], "unknown")
 
 
 class OutputBitPartitionTests(unittest.TestCase):
@@ -759,10 +845,10 @@ class OutputBitPartitionTests(unittest.TestCase):
 
 class EnvironmentTests(unittest.TestCase):
     def test_actual_balance_mask_rules_require_all_address_bits(self):
-        path = ISLE / "mir/egraph.isle"
+        path = ISLE / "mir/egraph"
         rules = [
             Rule(form, line, str(path))
-            for form, line in forms(path.read_text())
+            for form, line in forms(read_egraph_source())
             if form[0] == "rule" and "Op.Balance" in repr(form) and "band" in repr(form)
         ]
         self.assertEqual(len(rules), 1)
@@ -789,10 +875,10 @@ class EnvironmentTests(unittest.TestCase):
                 self.assertTrue(result["replayed"])
 
     def test_actual_self_balance_rule_uses_a_shared_state_array(self):
-        path = ISLE / "mir/egraph.isle"
+        path = ISLE / "mir/egraph"
         rules = [
             Rule(form, line, str(path))
-            for form, line in forms(path.read_text())
+            for form, line in forms(read_egraph_source())
             if form[0] == "rule" and "current_address" in repr(form)
         ]
         self.assertEqual(len(rules), 1)
@@ -897,12 +983,13 @@ class EnvironmentTests(unittest.TestCase):
 class CallEffectTests(unittest.TestCase):
     def call_rules(self):
         return [
-            Rule(form, line, "mir/egraph.isle")
-            for form, line in forms((ISLE / "mir/egraph.isle").read_text())
+            Rule(form, line, "mir/egraph")
+            for form, line in forms(read_egraph_source())
             if form[0] == "rule"
             and form[1][0] == "rewrite"
             and form[1][1][0]
             in ("Op.Call", "Op.CallCode", "Op.StaticCall", "Op.DelegateCall")
+            and "trunc" in repr(form)
         ]
 
     def test_actual_rules_preserve_call_effects(self):
@@ -927,6 +1014,34 @@ class CallEffectTests(unittest.TestCase):
                 result, _ = check(lhs, rhs, context.assumptions, 5000, context.model)
                 self.assertEqual(result["status"], "counterexample")
 
+    def test_empty_memory_regions_preserve_effects(self):
+        source = read_egraph_source()
+        rules = [
+            Rule(form, line, "mir/egraph")
+            for form, line in forms(source)
+            if form[0] == "rule"
+            and "same_value" in repr(form)
+            and any(
+                name in repr(form)
+                for name in ("Op.Call", "Op.StaticCall", "Op.DelegateCall", "Op.Log")
+            )
+        ]
+        self.assertEqual(len(rules), 13)
+        for rule in rules:
+            cx = Context()
+            lhs, rhs = cx.obligation(rule)
+            result, _ = check(lhs, rhs, cx.assumptions, 5000, cx.model)
+            self.assertEqual(result["status"], "proved", rule.line)
+        for source in (
+            "(rule (rewrite (Op.Log0 offset size)) (Op.Log0 (imm (u256 0)) size))",
+            "(rule (rewrite (Op.StaticCall gas addr offset size out count)) (Op.StaticCall gas addr (imm (u256 0)) size out count))",
+        ):
+            form, line = forms(source)[0]
+            cx = Context()
+            lhs, rhs = cx.obligation(Rule(form, line, "missing-size-guard"))
+            result, _ = check(lhs, rhs, cx.assumptions, 5000, cx.model)
+            self.assertEqual(result["status"], "counterexample")
+
     def test_calls_cannot_be_removed_changed_or_nested(self):
         rule = self.call_rules()[0]
         for replacement in (
@@ -946,10 +1061,10 @@ class CallEffectTests(unittest.TestCase):
 
 class MemoryAddressTests(unittest.TestCase):
     def test_actual_projection_rules_and_missing_guards(self):
-        path = ISLE / "mir/egraph.isle"
+        path = ISLE / "mir/egraph"
         rules = [
             Rule(form, line, str(path))
-            for form, line in forms(path.read_text())
+            for form, line in forms(read_egraph_source())
             if form[0] == "rule"
             and any(name in repr(form) for name in MemoryAddresses.SHAPES)
         ]
@@ -1084,8 +1199,16 @@ class RuleTests(unittest.TestCase):
                 self.assertEqual(result["status"], "proved", result)
 
     def test_narrow_integer_rules(self):
-        path = ISLE / "mir/word.isle"
-        source = path.read_text().split(";; Extract one byte")[0]
+        path = ISLE / "mir/word"
+        source = "\n".join(
+            (path / name).read_text().split(boundary)[0]
+            for name, boundary in (
+                ("arithmetic.isle", ";; (x * a) * b"),
+                ("bitwise.isle", ";; Extract one byte"),
+                ("comparisons.isle", ";; (x << s) =="),
+                ("shifts.isle", ";; (x << s) >>"),
+            )
+        )
         rules = [
             Rule(form, line, str(path))
             for form, line in forms(source)
@@ -1099,6 +1222,35 @@ class RuleTests(unittest.TestCase):
                     lhs, rhs = cx.obligation(rule)
                     result, _ = check(lhs, rhs, cx.assumptions, 5000, cx.model)
                     self.assertEqual(result["status"], "proved", result)
+
+    def test_native_signed_limits(self):
+        rules = [
+            Rule(form, line, str(path))
+            for directory in ("word", "word_sequence", "egraph")
+            for path, source in rule_sources(ISLE / "mir" / directory)
+            for form, line in forms(source)
+            if form[0] == "rule"
+            and "integer_sign_bit" in repr(form)
+            and "power_of_two_shift" not in repr(form)
+        ]
+        self.assertGreater(len(rules), 10)
+        for bits in (1, 8, 16, 160, 248, 256):
+            for rule in rules:
+                with self.subTest(bits=bits, rule=rule.form):
+                    cx = Context(integer_bits=bits)
+                    lhs, rhs = cx.obligation(rule)
+                    result, _ = check(lhs, rhs, cx.assumptions, 5000, cx.model)
+                    if result["status"] == "unknown":
+                        result, _ = partition_shift(
+                            lhs, rhs, cx.assumptions, PARTITION_TIMEOUT_MS, cx.model
+                        )
+                    if result["status"] == "inapplicable":
+                        solver = z3.Solver()
+                        solver.set(timeout=PROOF_TIMEOUT_MS)
+                        solver.add(*cx.assumptions)
+                        self.assertEqual(solver.check(), z3.unsat)
+                    else:
+                        self.assertEqual(result["status"], "proved", result)
 
     def test_narrow_integer_wrap_is_not_word_wrap(self):
         form, line = forms("(rule (simplify (Op.Add x (one))) x)")[0]
@@ -1144,6 +1296,41 @@ class RuleTests(unittest.TestCase):
                     self.assertRaises(ValueError),
                 ):
                     verify_file(path, 5000, shard_index=index, shard_count=count)
+
+    def test_rule_directory_preserves_sources_shards_and_artifacts(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            rules = root / "rules"
+            rules.mkdir()
+            (rules / "prelude.isle").write_text("(decl multi rewrite (Op) Op)\n")
+            identity = "(rule (rewrite (Op.Add x (zero))) (Op.Add x (imm (u256 0))))\n"
+            for name in ("a", "b"):
+                (rules / f"{name}.isle").write_text(identity)
+            whole = verify_file(rules, 5000, artifacts=root / "smt")
+            self.assertEqual(
+                [r["status"] for r in whole["rules"]], ["proved", "proved"]
+            )
+            self.assertEqual(
+                [r["source"] for r in whole["rules"]],
+                [str(rules / "a.isle"), str(rules / "b.isle")],
+            )
+            self.assertEqual([r["line"] for r in whole["rules"]], [1, 1])
+            self.assertEqual(
+                len(query_paths({"files": [whole]}, require_proved=True)), 2
+            )
+            shards = [
+                verify_file(rules, 5000, shard_index=i, shard_count=2) for i in range(2)
+            ]
+            self.assertEqual(
+                [r["source"] for shard in shards for r in shard["rules"]],
+                [r["source"] for r in whole["rules"]],
+            )
+            (rules / "b.isle").write_text(
+                "(rule (rewrite (Op.Add x (zero))) (Op.Not x))\n"
+            )
+            edited = verify_file(rules, 5000)
+            self.assertEqual(edited["rules"][1]["status"], "counterexample")
+            self.assertNotEqual(whole["source_sha256"], edited["source_sha256"])
 
     def test_actual_source_is_checked_after_edit(self):
         before = self.verify("(rule (rewrite (Op.Sub (bnot x) (bnot y))) (Op.Sub y x))")
@@ -1210,9 +1397,24 @@ class RuleTests(unittest.TestCase):
                         result["status"], "proved", (bits, bit, lowered, result)
                     )
 
+    def test_actual_typed_extension_zero_rules(self):
+        path = ISLE / "mir/egraph"
+        rules = [
+            Rule(form, line, str(path))
+            for form, line in forms(read_egraph_source())
+            if form[0] == "rule" and "imm_zero_like" in repr(form)
+        ]
+        self.assertEqual(len(rules), 4)
+        for rule in rules:
+            with self.subTest(rule=rule.form):
+                cx = Context()
+                lhs, rhs = cx.obligation(rule)
+                result, _ = check(lhs, rhs, cx.assumptions, 10000, cx.model)
+                self.assertEqual(result["status"], "proved", result)
+
     def test_actual_integer_and_pointer_cast_rules(self):
-        path = ISLE / "mir/egraph.isle"
-        source = path.read_text()
+        path = ISLE / "mir/egraph"
+        source = read_egraph_source()
         start = source.index(";; Identity casts")
         rules = [
             Rule(form, line, str(path))
@@ -1246,10 +1448,10 @@ class RuleTests(unittest.TestCase):
                 and any(uses_exp(child) for child in node)
             )
 
-        path = ISLE / "mir/egraph.isle"
+        path = ISLE / "mir/egraph"
         rules = [
             Rule(form, line, str(path))
-            for form, line in forms(path.read_text())
+            for form, line in forms(read_egraph_source())
             if form[0] == "rule" and uses_exp(form)
         ]
         self.assertEqual(len(rules), 5)
@@ -1267,10 +1469,10 @@ class RuleTests(unittest.TestCase):
                 and any(contains(child, atom) for child in node)
             )
 
-        path = ISLE / "mir/egraph.isle"
+        path = ISLE / "mir/egraph"
         rules = [
             Rule(form, line, str(path))
-            for form, line in forms(path.read_text())
+            for form, line in forms(read_egraph_source())
             if form[0] == "rule"
             and contains(form, "Op.Mod")
             and contains(form, "power_of_two_shift")
@@ -1290,7 +1492,7 @@ class RuleTests(unittest.TestCase):
         self.assertEqual((result["cases"], len(queries)), (257, 258))
 
     def test_actual_nested_signextend_rule(self):
-        path = ISLE / "mir/egraph.isle"
+        path = ISLE / "mir/egraph"
 
         def has_nested_signextend(node):
             return isinstance(node, tuple) and (
@@ -1303,7 +1505,7 @@ class RuleTests(unittest.TestCase):
 
         rules = [
             Rule(form, line, str(path))
-            for form, line in forms(path.read_text())
+            for form, line in forms(read_egraph_source())
             if form[0] == "rule" and has_nested_signextend(form)
         ]
         self.assertEqual(len(rules), 1)
@@ -1493,7 +1695,12 @@ class ProofArtifactTests(unittest.TestCase):
             ["word.smt2", "coverage.smt2", "case.smt2", "stack.smt2"],
         )
         report["files"][0]["rules"][1]["smt2"].pop()
-        for method in ("exhaustive-shift-partition", "exhaustive-word-index-partition"):
+        for method in (
+            "exhaustive-shift-partition",
+            "exhaustive-word-index-partition",
+            "exhaustive-select-partition",
+            "exhaustive-factor-partition",
+        ):
             report["files"][0]["rules"][1]["proof_method"] = method
             with self.assertRaisesRegex(ValueError, "partition"):
                 query_paths(report, require_proved=True)
@@ -1879,10 +2086,10 @@ class SolverFallbackTests(unittest.TestCase):
                 and any(uses_clz(child) for child in node)
             )
 
-        path = ISLE / "mir/egraph.isle"
+        path = ISLE / "mir/egraph"
         rules = [
             Rule(form, line, str(path))
-            for form, line in forms(path.read_text())
+            for form, line in forms(read_egraph_source())
             if form[0] == "rule" and uses_clz(form)
         ]
         self.assertGreaterEqual(len(rules), 10)
@@ -1911,10 +2118,10 @@ class SolverFallbackTests(unittest.TestCase):
                 or any(selected(child) for child in node)
             )
 
-        path = ISLE / "mir/egraph.isle"
+        path = ISLE / "mir/egraph"
         rules = [
             Rule(form, line, str(path))
-            for form, line in forms(path.read_text())
+            for form, line in forms(read_egraph_source())
             if form[0] == "rule" and selected(form)
         ]
         self.assertEqual(len(rules), 8)

@@ -20,10 +20,13 @@ use std::{borrow::Borrow, sync::Arc};
 #[derive(Debug)]
 pub(crate) enum Initialize {}
 
-/// Reuses source fingerprints while converting compiler diagnostics from one analysis snapshot.
+/// Reuses source fingerprints and line metadata while converting compiler diagnostics from one
+/// analysis snapshot.
 #[derive(Default)]
 pub(crate) struct DiagnosticDataCache {
     fingerprints: FxHashMap<BytePos, String>,
+    // `None` reuses SourceFile's LF-only index; `Some` stores the LSP index for standalone CR.
+    lsp_line_starts: FxHashMap<BytePos, Option<Vec<usize>>>,
 }
 
 impl DiagnosticDataCache {
@@ -32,6 +35,13 @@ impl DiagnosticDataCache {
             .entry(file.start_pos)
             .or_insert_with(|| crate::code_actions::source_fingerprint(&file.src))
             .clone()
+    }
+
+    fn lsp_line_starts(&mut self, file: &SourceFile) -> Option<&[usize]> {
+        self.lsp_line_starts
+            .entry(file.start_pos)
+            .or_insert_with(|| lsp_line_starts(file))
+            .as_deref()
     }
 }
 
@@ -504,7 +514,8 @@ pub(crate) fn diagnostic_with_cache(
     cache: &mut DiagnosticDataCache,
 ) -> Option<(lsp_types::Url, lsp_types::Diagnostic)> {
     let primary_span = diag.span.primary_span()?;
-    let lsp_types::Location { uri, range } = span_to_location(source_map, primary_span)?;
+    let lsp_types::Location { uri, range } =
+        span_to_location_with_cache(source_map, primary_span, cache)?;
     let data = diagnostic_data(source_map, &uri, primary_span, diag, cache)?;
     let mut message = DiagnosticMessage::new(
         lsp_types::Location::new(uri.clone(), range),
@@ -512,9 +523,9 @@ pub(crate) fn diagnostic_with_cache(
     );
     for label in diag.span.span_labels() {
         if let Some(text) = label.label {
-            message.push(span_to_location(source_map, label.span), text.as_str());
+            message.push(span_to_location_with_cache(source_map, label.span, cache), text.as_str());
         } else if label.span != primary_span {
-            message.push(span_to_location(source_map, label.span), &diag.label());
+            message.push(span_to_location_with_cache(source_map, label.span, cache), &diag.label());
         }
     }
     for child in &diag.children {
@@ -524,7 +535,7 @@ pub(crate) fn diagnostic_with_cache(
             message.push(None, &format!("{}: {text}", child.level.to_str()));
         }
         for label in spans {
-            let location = span_to_location(source_map, label.span);
+            let location = span_to_location_with_cache(source_map, label.span, cache);
             if label.is_primary {
                 if location.is_none() || label.span == primary_span {
                     message.push(None, &format!("{}: {text}", child.level.to_str()));
@@ -575,7 +586,8 @@ fn diagnostic_data(
                         .parts
                         .iter()
                         .map(|part| {
-                            let location = span_to_location(source_map, part.span)?;
+                            let location =
+                                span_to_location_with_cache(source_map, part.span, cache)?;
                             (location.uri == *uri).then(|| {
                                 lsp_types::TextEdit::new(location.range, part.snippet.to_string())
                             })
@@ -637,6 +649,8 @@ pub(crate) fn benchmark_diagnostic_conversion(
 pub(crate) struct LocationConverter {
     files: Vec<Arc<SourceFile>>,
     uris: FxHashMap<BytePos, lsp_types::Url>,
+    // Aligned with `files`; only sources containing standalone CR need an LSP-specific index.
+    lsp_line_starts: Vec<Option<Vec<usize>>>,
 }
 
 impl LocationConverter {
@@ -650,7 +664,8 @@ impl LocationConverter {
                 uris.insert(file.start_pos, uri);
             }
         }
-        Self { files, uris }
+        let lsp_line_starts = files.iter().map(|file| lsp_line_starts(file)).collect();
+        Self { files, uris, lsp_line_starts }
     }
 
     pub(crate) fn file_uri(&self, file: &SourceFile) -> Option<&lsp_types::Url> {
@@ -662,23 +677,34 @@ impl LocationConverter {
             return None;
         }
         let next = self.files.partition_point(|file| file.start_pos <= span.lo());
-        let file = self.files.get(next.checked_sub(1)?)?;
+        let file_index = next.checked_sub(1)?;
+        let file = self.files.get(file_index)?;
         // Source files are ordered by start position. The next file alone determines whether
         // the span crosses files, so neither endpoint needs a locked source-map lookup.
         if self.files.get(next).is_some_and(|next| span.hi() >= next.start_pos) {
             return None;
         }
+        let lsp_line_starts = self.lsp_line_starts.get(file_index)?.as_deref();
         Some(lsp_types::Location {
             uri: self.file_uri(file)?.clone(),
             range: lsp_types::Range {
-                start: lsp_position(file, span.lo())?,
-                end: lsp_position(file, span.hi())?,
+                start: lsp_position(file, span.lo(), lsp_line_starts)?,
+                end: lsp_position(file, span.hi(), lsp_line_starts)?,
             },
         })
     }
 }
 
+#[cfg(test)]
 fn span_to_location(source_map: &SourceMap, span: Span) -> Option<lsp_types::Location> {
+    span_to_location_with_cache(source_map, span, &mut DiagnosticDataCache::default())
+}
+
+fn span_to_location_with_cache(
+    source_map: &SourceMap,
+    span: Span,
+    cache: &mut DiagnosticDataCache,
+) -> Option<lsp_types::Location> {
     if source_map.is_empty() || span.is_dummy() {
         return None;
     }
@@ -688,17 +714,25 @@ fn span_to_location(source_map: &SourceMap, span: Span) -> Option<lsp_types::Loc
     if file.start_pos != hi_file.start_pos {
         return None;
     }
+    let lsp_line_starts = cache.lsp_line_starts(&file);
     Some(lsp_types::Location {
         uri: lsp_types::Url::from_file_path(file.name.as_real().unwrap()).ok()?,
         range: lsp_types::Range {
-            start: lsp_position(&file, span.lo())?,
-            end: lsp_position(&file, span.hi())?,
+            start: lsp_position(&file, span.lo(), lsp_line_starts)?,
+            end: lsp_position(&file, span.hi(), lsp_line_starts)?,
         },
     })
 }
 
-fn lsp_position(file: &SourceFile, pos: BytePos) -> Option<lsp_types::Position> {
+fn lsp_position(
+    file: &SourceFile,
+    pos: BytePos,
+    lsp_line_starts: Option<&[usize]>,
+) -> Option<lsp_types::Position> {
     let offset = file.relative_position(pos);
+    if let Some(starts) = lsp_line_starts {
+        return lsp_position_with_standalone_cr(file, offset.to_usize(), starts);
+    }
     let line_index = file.lookup_line(offset)?;
     let start = file.lines()[line_index].to_usize();
     let column = offset.to_usize().checked_sub(start)?;
@@ -720,6 +754,42 @@ fn lsp_position(file: &SourceFile, pos: BytePos) -> Option<lsp_types::Position> 
         let prefix = line.get(..column.min(line.len()))?;
         u32::try_from(prefix.encode_utf16().count()).ok()?
     };
+    Some(lsp_types::Position::new(u32::try_from(line_index).ok()?, character))
+}
+
+fn contains_standalone_cr(source: &str) -> bool {
+    let bytes = source.as_bytes();
+    memchr::memchr_iter(b'\r', bytes).any(|offset| bytes.get(offset + 1) != Some(&b'\n'))
+}
+
+fn lsp_line_starts(file: &SourceFile) -> Option<Vec<usize>> {
+    contains_standalone_cr(&file.src)
+        .then(|| line_starts(std::iter::once(file.src.as_str()), file.count_lines() + 1))
+}
+
+fn lsp_position_with_standalone_cr(
+    file: &SourceFile,
+    offset: usize,
+    starts: &[usize],
+) -> Option<lsp_types::Position> {
+    let line_index = starts.partition_point(|&start| start <= offset).checked_sub(1)?;
+    let start = starts[line_index];
+    let mut end = starts.get(line_index + 1).copied().unwrap_or(file.src.len());
+    let bytes = file.src.as_bytes();
+    if end > start {
+        let terminator_len =
+            if bytes.get(end - 1) == Some(&b'\n') && end >= 2 && bytes[end - 2] == b'\r' {
+                2
+            } else if matches!(bytes.get(end - 1), Some(&b'\n') | Some(&b'\r')) {
+                1
+            } else {
+                0
+            };
+        end -= terminator_len;
+    }
+    let prefix_end = offset.min(end).min(file.src.len());
+    let prefix = file.src.get(start..prefix_end)?;
+    let character = u32::try_from(prefix.encode_utf16().count()).ok()?;
     Some(lsp_types::Position::new(u32::try_from(line_index).ok()?, character))
 }
 
@@ -945,6 +1015,26 @@ mod tests {
             assert_eq!(
                 location.range,
                 Range::new(Position::new(0, 0), Position::new(0, end_character))
+            );
+        }
+    }
+
+    #[test]
+    fn span_to_location_treats_standalone_cr_as_line_ending() {
+        let source = "first\r😀second\r\nthird\nfourth";
+        let source_map = SourceMap::empty();
+        let file = source_file(&source_map, "StandaloneCr.sol", source);
+
+        for (name, expected_line) in [("first", 0), ("😀second", 1), ("third", 2), ("fourth", 3)]
+        {
+            let start = source.find(name).unwrap();
+            let location =
+                span_to_location(&source_map, span(&file, start..start + name.len())).unwrap();
+            let end = u32::try_from(name.encode_utf16().count()).unwrap();
+            assert_eq!(
+                location.range,
+                Range::new(Position::new(expected_line, 0), Position::new(expected_line, end)),
+                "{name}"
             );
         }
     }

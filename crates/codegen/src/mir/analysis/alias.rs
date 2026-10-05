@@ -2001,6 +2001,19 @@ impl AliasAnalysis {
         Self::instruction_may_reset_fmp_with_summaries(func, inst, self.call_summaries.as_deref())
     }
 
+    /// Returns whether an instruction may terminate the current EVM call successfully.
+    #[must_use]
+    pub(crate) fn instruction_may_terminate(&self, func: &Function, inst: InstId) -> bool {
+        match &func.inst(inst).kind {
+            InstKind::ICall { function: Callee::Function(function), .. } => self
+                .call_summaries
+                .as_deref()
+                .and_then(|summaries| summaries.get(*function))
+                .is_none_or(|summary| summary.may_terminate()),
+            kind => kind.effects().control.may_terminate,
+        }
+    }
+
     fn instruction_may_reset_fmp_with_summaries(
         func: &Function,
         inst: InstId,

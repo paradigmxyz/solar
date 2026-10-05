@@ -496,6 +496,34 @@ def check(lhs, rhs, assumptions=(), timeout_ms=5000, model=None):
     solver.set(timeout=timeout_ms)
     solver.add(*assumptions)
     applicability = solver.check()
+    if applicability == z3.unknown:
+        # A concrete satisfying assignment establishes non-vacuity only. The
+        # equivalence query below still keeps every input and guard symbolic.
+        pending, variables = list(assumptions), {}
+        while pending:
+            term = pending.pop()
+            if (
+                z3.is_const(term)
+                and (z3.is_bv(term) or z3.is_bool(term))
+                and term.decl().kind() == z3.Z3_OP_UNINTERPRETED
+            ):
+                variables[term.get_id()] = term
+            pending.extend(term.children())
+        for value, flag in ((v, b) for v in (0, 1, 2, MASK) for b in (False, True)):
+            substitutions = [
+                (
+                    variable,
+                    z3.BoolVal(flag)
+                    if z3.is_bool(variable)
+                    else z3.BitVecVal(value, variable.size()),
+                )
+                for variable in variables.values()
+            ]
+            if z3.is_true(
+                z3.simplify(z3.substitute(z3.And(*assumptions), *substitutions))
+            ):
+                applicability = z3.sat
+                break
     if applicability != z3.sat:
         return {
             "status": "inapplicable" if applicability == z3.unsat else "unknown",
@@ -781,4 +809,166 @@ def partition_shift(lhs, rhs, assumptions, timeout_ms, model):
         "status": "proved",
         "proof_method": method,
         "cases": len(conditions),
+    }, queries
+
+
+def partition_select(lhs, rhs, assumptions, timeout_ms, model):
+    """Exhaust one select's zero/nonzero condition without restricting its word."""
+    pending = [lhs, rhs]
+    condition = None
+    while pending:
+        expr = pending.pop()
+        if expr.op == "select":
+            condition = model.eval(expr.args[0]) != 0
+            break
+        if expr.op not in ("var", "const"):
+            pending.extend(expr.args)
+    if condition is None:
+        return {"status": "unknown", "reason": "no select condition"}, []
+    obligation = z3.And(
+        *assumptions, model.difference(model.eval(lhs), model.eval(rhs))
+    )
+    cases = [z3.Not(condition), condition]
+    clauses = [("coverage", z3.Not(z3.Or(*cases)))]
+    for value, case in zip((False, True), cases, strict=True):
+        # Under each case, substitution only replaces this Boolean predicate.
+        specialized = z3.substitute(obligation, (condition, z3.BoolVal(value)))
+        clauses.append((str(value).lower(), z3.And(case, z3.simplify(specialized))))
+    queries = []
+    deadline = time.monotonic() + timeout_ms / 1000
+    for name, clause in clauses:
+        remaining = int((deadline - time.monotonic()) * 1000)
+        if remaining <= 0:
+            return {
+                "status": "unknown",
+                "reason": "select partition budget exhausted",
+            }, queries
+        solver = model.solver()
+        solver.set(timeout=remaining)
+        solver.add(clause)
+        query = portable_query(solver)
+        queries.append((f"condition-{name}", query))
+        if check_z3(solver, query) != z3.unsat:
+            return {
+                "status": "unknown",
+                "reason": "select partition incomplete",
+            }, queries
+    return {
+        "status": "proved",
+        "proof_method": "exhaustive-select-partition",
+        "cases": 2,
+    }, queries
+
+
+def partition_odd_factor(lhs, rhs, assumptions, timeout_ms, model):
+    """Prove cancellation through every possible least differing input bit.
+
+    Parameterize x=y+delta, normalize BV equalities as zero differences, and
+    prove the original counterexample impossible for delta=0. For nonzero delta,
+    prove that the counterexample requires c*delta=0. Exhaust all 256 least-set-bit
+    cases, proving both each case's parameterization and the contradictory product
+    bit. The original guards remain in the case queries; no inverse lemma or
+    assumption that c is odd is supplied by this procedure.
+    """
+    if model.constants:
+        return {"status": "unsupported", "reason": "specialized factor inputs"}, []
+    if lhs.op not in ("eq", "ne") or any(a.op != "mul" for a in lhs.args):
+        return {"status": "unknown", "reason": "no common-factor comparison"}, []
+    left, right = lhs.args
+    if (
+        left.args[1] != right.args[1]
+        or any(a.op != "var" for a in (*left.args, right.args[0]))
+        or len({*left.args, right.args[0]}) != 3
+    ):
+        return {"status": "unknown", "reason": "no common-factor comparison"}, []
+    x, y, factor = (
+        model.eval(left.args[0]),
+        model.eval(right.args[0]),
+        model.eval(left.args[1]),
+    )
+    if z3.eq(x, y):
+        return {"status": "unknown", "reason": "identical comparison inputs"}, []
+    delta = z3.FreshConst(x.sort(), "word_delta")
+    width = x.size()
+
+    def normalize(expr):
+        if not expr.num_args():
+            return expr
+        children = [normalize(child) for child in expr.children()]
+        if (
+            expr.decl().kind() in (z3.Z3_OP_EQ, z3.Z3_OP_DISTINCT)
+            and len(children) == 2
+            and z3.is_bv(children[0])
+        ):
+            equality = z3.simplify(children[0] - children[1], som=True) == 0
+            return equality if expr.decl().kind() == z3.Z3_OP_EQ else z3.Not(equality)
+        return expr.decl()(*children)
+
+    original = [*assumptions, model.difference(model.eval(lhs), model.eval(rhs))]
+    normalized = [
+        z3.simplify(normalize(z3.substitute(clause, (x, y + delta))), som=True)
+        for clause in original
+    ]
+    product = factor * delta
+    cases = [delta & ((1 << (bit + 1)) - 1) == (1 << bit) for bit in range(width)]
+    queries = []
+    deadline = time.monotonic() + timeout_ms / 1000
+
+    def prove(name, *clauses):
+        remaining = int((deadline - time.monotonic()) * 1000)
+        if remaining <= 0:
+            return False
+        solver = model.solver()
+        solver.set(timeout=remaining)
+        solver.add(*clauses)
+        query = portable_query(solver)
+        queries.append((name, query))
+        return check_z3(solver, query) == z3.unsat
+
+    initial = (
+        ("reconstruction", (x != y + (x - y),)),
+        ("zero", (*normalized, delta == 0)),
+        ("product", (*normalized, delta != 0, product != 0)),
+        ("coverage", (delta != 0, z3.Not(z3.Or(*cases)))),
+    )
+    if not all(prove(name, *clauses) for name, clauses in initial):
+        return {
+            "status": "unknown",
+            "reason": "factor partition prerequisites incomplete",
+        }, queries
+    for bit, case in enumerate(cases):
+        low = z3.BitVecVal(1 << bit, bit + 1)
+        high = (
+            z3.FreshConst(z3.BitVecSort(width - bit - 1), "word_high")
+            if bit + 1 < width
+            else None
+        )
+        parameterized = z3.Concat(high, low) if high is not None else low
+        reconstruction = (
+            z3.Concat(z3.Extract(width - 1, bit + 1, delta), low)
+            if high is not None
+            else low
+        )
+        guards = [
+            z3.substitute(guard, (delta, parameterized)) for guard in normalized[:-1]
+        ]
+        if not (
+            prove(f"parameter-{bit}", case, delta != reconstruction)
+            and prove(
+                f"projection-{bit}", product == 0, z3.Extract(bit, bit, product) != 0
+            )
+            and prove(
+                f"factor-{bit}",
+                *guards,
+                z3.Extract(bit, bit, factor * parameterized) == 0,
+            )
+        ):
+            return {
+                "status": "unknown",
+                "reason": "factor partition incomplete",
+            }, queries
+    return {
+        "status": "proved",
+        "proof_method": "exhaustive-factor-partition",
+        "cases": width,
     }, queries

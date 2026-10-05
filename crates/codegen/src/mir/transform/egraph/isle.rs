@@ -1,6 +1,6 @@
 //! ISLE rewrite rules for the e-graph pass.
 //!
-//! The rules live in `isle/mir/egraph.isle` and `isle/mir/word.isle`. The instruction vocabulary
+//! The rules live in `isle/mir/egraph` and `isle/mir/word`. The instruction vocabulary
 //! they match on is generated from the MIR operation schema into `isle/mir/prelude.isle`, and
 //! `build.rs` compiles both into Rust. This module implements the extractors
 //! and constructors the rules call. Root operations and nested definitions expose
@@ -16,6 +16,7 @@ use crate::{
         memory::{EvmMemoryLayout, MemoryLayoutPolicy},
         utils::eval::eval_opcode,
     },
+    target::Target,
 };
 use alloy_primitives::U256;
 use solar_config::EvmVersion;
@@ -51,6 +52,7 @@ mod generated {
 pub(super) struct RuleContext<'a> {
     func: &'a mut Function,
     evm_version: EvmVersion,
+    target: Option<Target>,
     /// Original block of the root, for rules that must not extend cross-block dependencies.
     block: Option<BlockId>,
     /// Pre-pass use counts for profitability guards, when available.
@@ -66,11 +68,18 @@ impl<'a> RuleContext<'a> {
         Self {
             func,
             evm_version,
+            target: None,
             block: None,
             uses: None,
             views: [None; 2],
             integer_ty: MirType::I256,
         }
+    }
+
+    /// Supplies the session cost model for conservative materialization guards.
+    pub(super) fn with_target(mut self, target: Target) -> Self {
+        self.target = Some(target);
+        self
     }
 
     /// Restricts placement-sensitive matching to producers in this block.
@@ -111,6 +120,16 @@ impl<'a> RuleContext<'a> {
 
     fn operation_type(&self, op: &Op) -> Option<MirType> {
         let value = match *op {
+            // Inverting a comparison folds its bound at the input width.
+            Op::Eq { a, .. } | Op::Ne { a, .. }
+                if let Some(kind) = defining_kind(self.func, a)
+                    && matches!(
+                        kind,
+                        InstKind::Lt(..) | InstKind::Gt(..) | InstKind::SLt(..) | InstKind::SGt(..)
+                    ) =>
+            {
+                kind.op().first_operand()?
+            }
             Op::Select { true_val, .. } => true_val,
             Op::Eq { a, .. }
             | Op::Ne { a, .. }
@@ -272,6 +291,27 @@ impl generated::Context for RuleContext<'_> {
         self.uses.and_then(|uses| uses.get(value)) == Some(&1)
     }
 
+    fn u256_mul(&mut self, a: U256, b: U256) -> U256 {
+        a.wrapping_mul(b) & self.integer_mask()
+    }
+    fn u256_or(&mut self, a: U256, b: U256) -> U256 {
+        a | b
+    }
+    fn u256_xor(&mut self, a: U256, b: U256) -> U256 {
+        a ^ b
+    }
+    fn u256_div(&mut self, a: U256, b: U256) -> U256 {
+        if b.is_zero() { U256::ZERO } else { a / b }
+    }
+
+    fn push_not_larger(&mut self, replacement: U256, original: U256) -> bool {
+        self.target.is_some_and(|target| {
+            let after = target.push(replacement);
+            let before = target.push(original);
+            after.gas <= before.gas && after.bytes <= before.bytes
+        })
+    }
+
     fn inst_data(&mut self, value: Value) -> Option<Op> {
         self.views
             .iter()
@@ -284,6 +324,10 @@ impl generated::Context for RuleContext<'_> {
                     op,
                     Op::Eq { .. }
                         | Op::Ne { .. }
+                        | Op::Lt { .. }
+                        | Op::Gt { .. }
+                        | Op::SLt { .. }
+                        | Op::SGt { .. }
                         | Op::Zext { .. }
                         | Op::Trunc { .. }
                         | Op::Sext { .. }
@@ -397,6 +441,13 @@ impl generated::Context for RuleContext<'_> {
     fn imm(&mut self, value: U256) -> Value {
         self.func
             .alloc_value(MirValue::Immediate(Immediate::for_type(Some(self.integer_ty), value)))
+    }
+
+    fn imm_zero_like(&mut self, value: Value) -> Value {
+        self.func.alloc_value(MirValue::Immediate(Immediate::for_type(
+            self.func.value_ty(value),
+            U256::ZERO,
+        )))
     }
 
     fn imm_bool(&mut self, value: bool) -> Value {

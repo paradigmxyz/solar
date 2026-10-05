@@ -502,8 +502,8 @@
       v9 = signextend 2, v8
       v10 = and v9, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 -     v11 = and v10, 0xffffff
-+     v11 = and v9, 0xffffff
-      ret v11
+-     ret v11
++     ret v8
   }
   
   fn @sign_compare(arg0: i256, arg1: i256) -> i1 {
@@ -707,8 +707,7 @@
       v8 = and v7, 0xffffff
       v9 = signextend 2, v8
       v10 = and v9, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-      v11 = and v9, 0xffffff
-      ret v11
+      ret v8
   }
   
   fn @sign_compare(arg0: i256, arg1: i256) -> i1 {

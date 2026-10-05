@@ -310,6 +310,12 @@ impl FunctionMemorySummary {
         self.may_observe_gas
     }
 
+    /// Returns whether the function may terminate the current EVM call successfully.
+    #[must_use]
+    pub(crate) const fn may_terminate(&self) -> bool {
+        self.control.may_terminate
+    }
+
     /// Returns whether the function may relate a parameter's pointer value to the heap.
     ///
     /// Dereferencing the pointer, or comparing it with values derived from itself, is

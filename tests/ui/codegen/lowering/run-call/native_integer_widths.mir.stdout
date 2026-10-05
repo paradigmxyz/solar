@@ -11569,6 +11569,7 @@ fn @identity(arg0: i248, arg1: i248) -> struct0 [pure] {
 @module NativeInteger256
 @types
   struct0: {i256, i256}
+  struct1: {i1, i1, i8, i8, i8, i8}
 
 fn @compoundUnchecked256(arg0: i256, arg1: i8) -> i1 [selector=0x27316e92, pure, abi_params=[i256, i8], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
@@ -12041,6 +12042,24 @@ fn @signed256(arg0: i256, arg1: i256, arg2: i256) -> i1 [selector=0xdf68d24b, pu
   bb24:
     v36 = phi [bb22: v35], [bb23: false]
     ret v36
+}
+
+fn @signedLimits8(arg0: i8) -> struct1 [selector=0x04c1b664, pure, abi_params=[i8], abi_returns=[word<bool>, word<bool>, word<i8>, word<i8>, word<i8>, word<i8>], abi_return_params=[bool, bool, i8, i8, i8, i8]] {
+  bb0:
+    v0 = slt arg0, i8 128
+    v1 = add i8 128, i8 1
+    v2 = slt arg0, v1
+    v3 = wrapping_div i8, arg0, i8 128
+    v4 = wrapping_div i8, arg0, i8 2
+    v5 = checked_rem i8, arg0, i8 2
+    v6 = sar i8 8, arg0
+    v7 = insert_value struct1, undef struct1, 0, v0
+    v8 = insert_value struct1, v7, 1, v2
+    v9 = insert_value struct1, v8, 2, v3
+    v10 = insert_value struct1, v9, 3, v4
+    v11 = insert_value struct1, v10, 4, v5
+    v12 = insert_value struct1, v11, 5, v6
+    ret v12
 }
 
 fn @identity(arg0: i256, arg1: i256) -> struct0 [pure] {

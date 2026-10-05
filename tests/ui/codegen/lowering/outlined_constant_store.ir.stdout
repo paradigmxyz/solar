@@ -128,8 +128,10 @@ bb6:
   push 64
   mstore
   push 255
+  push 4
+  calldataload
+  gt
   push bb22
-  swap 1
   jump bb21
 bb7:
   push 4
@@ -153,8 +155,10 @@ bb10:
   push 64
   mstore
   push 0xffffffff
+  push 4
+  calldataload
+  gt
   push bb23
-  swap 1
   jump bb21
 bb11:
   push 4
@@ -177,13 +181,18 @@ bb14:
   push 192
   push 64
   mstore
-  push 0xffffffffffffffffffffffffffffffff
-  push bb24
-  swap 1
-  jump bb21
-bb15:
   push 4
   calldataload
+  push 128
+  shr
+  iszero
+  push bb24
+  jump bb21
+bb15:
+  push 0xffffffffffffffffffffffffffffffff
+  push 4
+  calldataload
+  and
   push 128
   mstore
   push 32
@@ -282,9 +291,6 @@ bb20:
   swap 2
   jump
 bb21:
-  push 4
-  calldataload
-  gt
   push 64
   mload
   dup 1
@@ -298,7 +304,6 @@ bb21:
   mstore
   swap 1
   swap 2
-  swap 3
   jump
 bb22 [continuation]:
   push 37
@@ -357,6 +362,7 @@ bb24 [continuation]:
   swap 1
   mstore
   pop
+  iszero
   push bb16
   jumpi
   jump bb15
