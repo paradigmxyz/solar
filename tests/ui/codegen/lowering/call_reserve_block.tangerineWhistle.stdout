@@ -81,6 +81,8 @@ bb10:
   iszero
   push bb4
   jumpi
+  pop
+  pop
   push 160
   mload
   mload

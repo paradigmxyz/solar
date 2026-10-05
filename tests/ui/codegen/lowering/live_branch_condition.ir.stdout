@@ -247,6 +247,7 @@ bb10 [loop]:
   mload
   push 128
   mstore
+  pop
   push 4
   calldataload
   push 160

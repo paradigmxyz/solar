@@ -83,19 +83,20 @@ bb0:
   sub
   jump bb6
 bb8 [loop]:
-  swap 1
-  pop
   push 64
-  dup 1
   mload
-  dup 1
+  swap 2
+  pop
   push 32
-  add
   dup 3
+  add
+  push 64
   mstore
   push 0
   swap 1
+  swap 2
   mstore
+  push 64
   mload
   dup 3
   dup 2

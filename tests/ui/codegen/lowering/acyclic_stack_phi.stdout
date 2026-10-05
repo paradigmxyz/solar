@@ -87,10 +87,10 @@ bb6 [continuation]:
   return
 bb10:
   push 4
-  dup 1
-  swap 2
+  swap 1
   sub
-  swap 2
+  swap 1
+  push 4
   add
   swap 2
   jump

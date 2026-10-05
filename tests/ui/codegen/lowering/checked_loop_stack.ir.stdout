@@ -111,16 +111,17 @@ bb0:
 bb10 [loop]:
   dup 2
   dup 2
-  dup 2
   mul
-  swap 3
-  dup 4
+  dup 3
+  dup 2
   div
-  push 1
-  swap 3
+  swap 1
+  swap 2
   sub
   push bb12
   jumpi
+  swap 1
+  push 1
   add
   swap 1
   jump bb8

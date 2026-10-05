@@ -18,25 +18,26 @@ bb0:
   lt
   push bb3
   jumpi
+  push 36
+  calldataload
   push 4
-  dup 1
-  calldataload
-  push 36
-  calldataload
-  and
-  dup 1
-  swap 2
-  calldataload
-  push 36
   calldataload
   xor
-  dup 1
-  dup 1
-  add
-  swap 2
+  push 36
+  calldataload
+  push 4
+  calldataload
+  and
+  dup 2
+  dup 2
   add
   push 2
   shl
+  swap 2
+  dup 1
+  add
+  swap 1
+  swap 2
   xor
   xor
   push 128

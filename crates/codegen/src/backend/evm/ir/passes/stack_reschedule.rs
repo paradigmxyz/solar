@@ -34,28 +34,35 @@
 //! and one pop for every surplus copy, and by one swap more when those counted moves cannot bring
 //! the operands of any ready operation to the top, or, once every operation ran, the stack into
 //! its exit order: every path then pays a swap, or a copy or pop the bound does not count, which
-//! costs at least as much. The search checks that only for the states it takes from its queue,
-//! and puts a state that needs the swap back in its raised order. It orders states by their cost
-//! plus twice the bound, which reaches a cheaper schedule after far fewer states than an exact
-//! search, and then keeps going below each schedule's cost with the exact bound, so given the
-//! room it returns a cheapest one. Swaps only bring up a word that a ready operation reads or a
-//! surplus copy, until every operation ran and the exit order is all that is left. The bound
-//! changes with the few words a move touches, so it is updated per move rather than recomputed,
-//! and the queue keeps one small heap per value of a priority's first part, popping in the order
-//! a single heap would.
+//! costs at least as much. So does a state whose lowest word that differs from the exit's at its
+//! level can only change through a swap, because no word at or below that level can be built
+//! again from the words below it, constants and results still to come. The search checks that
+//! only for the states it takes from its queue, and puts a state that needs the swap back in its
+//! raised order. It orders states by their cost plus three times the bound, which reaches a
+//! cheaper schedule after far fewer states than an exact search, and then keeps going below each
+//! schedule's cost with the exact bound. Swaps only bring up a word that a ready operation reads
+//! or a surplus copy, until every operation ran and the exit order is all that is left, and only
+//! right after an operation or a pop, while a surplus copy on top is popped or consumed before
+//! anything else. These rules leave out some schedules, rarely a cheaper one, and stop the search
+//! from trying the many orders of the same words its bound cannot tell apart, which took most of
+//! its states and kept it from the cheap schedules for thousands of states in small loops. The
+//! bound changes with the few words a move touches, so it is updated per move rather than
+//! recomputed, and the queue keeps one small heap per value of a priority's first part, popping
+//! in the order a single heap would.
 //!
-//! The search is exponential in the run's operations and stack height, and dominated the
-//! compile time of small contracts with a hot loop, so its budgets are tight. A run longer than
-//! its budget's operations is searched in windows cut after its checks, or skipped, the stack
-//! may grow at most [`STACK_SLACK`] words above the run's entry and exit heights, and a run that
-//! yields no cheaper schedule within the first part of its [`Budget`] keeps its code, while one
-//! that does keeps refining for the rest. Runs in hot loop blocks get [`LOOP_BUDGET`] when
-//! optimizing for gas, as their code runs many times per call; all others get the far smaller
-//! [`BLOCK_BUDGET`], which mostly saves bytes. A run whose bound already reaches its cost in the
-//! objective's first part is not searched, as only the second part could improve, and one at
-//! most a swap above it gets no more than [`NEAR_BUDGET`]. Equal runs share their result, as
-//! unrolled copies and repeated checks repeat them, and so do runs that push other immediates of
-//! the same widths: a schedule depends only on which pushes repeat a value and how wide each is.
+//! The search is exponential in the run's operations and stack height, and dominated the compile
+//! time of small contracts with a hot loop, so its budgets are tight. A run longer than its
+//! budget's operations is searched in windows cut after its checks, or skipped, the stack may grow
+//! at most [`STACK_SLACK`] words above the run's entry and exit heights, and a run that yields no
+//! cheaper schedule within the first part of its [`Limits`] keeps its code, while one that does
+//! keeps refining for the rest, or until no cheaper schedule turned up for its stall part, as later
+//! improvements are rare and small. Runs in hot loop blocks get [`LOOP_BUDGET`] when optimizing for
+//! gas, which takes longer runs and looks longer near the bound, as their code runs many times per
+//! call; all others get [`BLOCK_BUDGET`]. A run whose bound already reaches its cost in the
+//! objective's first part is not searched, as only the second part could improve, and one at most a
+//! swap above it gets its budget's smaller near limits. Equal runs share their result, as unrolled
+//! copies and repeated checks repeat them, and so do runs that push other immediates of the same
+//! widths: a schedule depends only on which pushes repeat a value and how wide each is.
 //!
 //! Safety: the replacement performs exactly the original operations on the same operand words,
 //! keeps memory and storage accesses in order, and leaves the same words in the same stack
@@ -92,21 +99,41 @@ const STACK_SLACK: usize = 3;
 struct Budget {
     /// Operations a searched run may perform.
     operations: usize,
+    /// The states a run may expand.
+    states: Limits,
+    /// The states a run whose first objective is at most one swap above its bound may expand:
+    /// the search can save little there, and keeps going long when it saves nothing.
+    near: Limits,
+}
+
+/// How many states one search may expand.
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+struct Limits {
     /// States to expand before some cheaper schedule turns up, after which the run keeps its
     /// code.
     first: usize,
     /// States to expand in all.
     refine: usize,
+    /// States to expand after the last cheaper schedule before giving up on finding another.
+    stall: usize,
 }
 
-/// The budget of a run in a hot loop block, when optimizing for gas.
-const LOOP_BUDGET: Budget = Budget { operations: 16, first: 2_000, refine: 4_000 };
-/// The budget of any other run: its code runs at most a few times per call, so a short search
-/// mostly saves bytes.
-const BLOCK_BUDGET: Budget = Budget { operations: 12, first: 200, refine: 600 };
-/// The most expansions of a run whose first objective is at most one swap above the bound: the
-/// search can save little, and keeps going long when it saves nothing.
-const NEAR_BUDGET: Budget = Budget { operations: 16, first: 200, refine: 400 };
+/// The budget of a run in a hot loop block, when optimizing for gas: longer runs, and a closer
+/// look near the bound, as every swap saved there is saved on every iteration.
+const LOOP_BUDGET: Budget = Budget {
+    operations: 16,
+    states: Limits { first: 200, refine: 600, stall: 100 },
+    near: Limits { first: 100, refine: 200, stall: 50 },
+};
+/// The budget of any other run, whose code runs at most a few times per call.
+const BLOCK_BUDGET: Budget = Budget {
+    operations: 12,
+    states: Limits { first: 200, refine: 600, stall: 100 },
+    near: Limits { first: 50, refine: 100, stall: 25 },
+};
+/// How many times its bound the search adds to a state's cost to order it: greedier than an
+/// exact search, it reaches cheaper schedules after far fewer states.
+const BOUND_WEIGHT: u64 = 3;
 /// An arena entry whose next operation was not yet checked for a swap.
 const UNKNOWN: u8 = 0;
 /// An arena entry whose next operation needs no swap the bound leaves out.
@@ -722,15 +749,7 @@ fn search(run: &Run, target: Target, limits: Budget, buffers: &mut Buffers) -> O
     if gap == 0 {
         return None;
     }
-    let limits = if gap <= swap >> 32 {
-        Budget {
-            first: limits.first.min(NEAR_BUDGET.first),
-            refine: limits.refine.min(NEAR_BUDGET.refine),
-            ..limits
-        }
-    } else {
-        limits
-    };
+    let limits = if gap <= swap >> 32 { limits.near } else { limits.states };
 
     // Whether the moves the bound counts, popping surplus words and copying or pushing missing
     // ones, cannot bring the operands of a ready operation to the top, or, once every operation
@@ -747,6 +766,25 @@ fn search(run: &Run, target: Target, limits: Budget, buffers: &mut Buffers) -> O
                 (constant_of(word).is_some() || counts[word] > 0)
                     && need[word] >= counts[word] + u8::from(pending) + copies
             };
+            // The lowest word that differs from the exit's word at its level changes only through
+            // a swap that reaches it, or by emptying the stack down to it and building it again
+            // from the words below, constants and results still to come. When no word at or
+            // below that level can be built again that way, a swap is unavoidable.
+            let matching = (0..len.min(exit_len))
+                .take_while(|&level| stack[len - 1 - level] == exit_words[exit_len - 1 - level])
+                .count();
+            if matching < len.min(exit_len) {
+                let rebuilt = |level: usize| {
+                    let word = exit_words[exit_len - 1 - level];
+                    constant_of(usize::from(word)).is_some()
+                        || result_of(usize::from(word))
+                            .is_some_and(|operation| state.done & (1 << operation) == 0)
+                        || exit_words[exit_len - level..exit_len].contains(&word)
+                };
+                if !(0..=matching).any(rebuilt) {
+                    return true;
+                }
+            }
             for depth in 0..=len {
                 let top = |offset: usize| stack.get(depth + offset).map(|&word| usize::from(word));
                 if state.done == all_done {
@@ -811,9 +849,10 @@ fn search(run: &Run, target: Target, limits: Budget, buffers: &mut Buffers) -> O
     arena.push((start, u32::MAX, None, 0, estimate(start)));
     refined.push(UNKNOWN);
     best.insert(start, 0);
-    open.push(2 * estimate(start), 0, 0);
+    open.push(BOUND_WEIGHT * estimate(start), 0, 0);
     let mut expansions = 0;
     let mut found = None;
+    let mut found_at = 0;
     let mut successors = SmallVec::<[(State, Move, u64, u64); 48]>::new();
     while let Some((cost, node)) = open.pop() {
         let (state, _, _, _, remaining) = arena[node as usize];
@@ -829,6 +868,7 @@ fn search(run: &Run, target: Target, limits: Budget, buffers: &mut Buffers) -> O
             // A cheaper complete schedule: keep searching below its cost.
             budget = cost;
             found = Some(node);
+            found_at = expansions;
             continue;
         }
         let len = usize::from(state.len);
@@ -847,14 +887,15 @@ fn search(run: &Run, target: Target, limits: Budget, buffers: &mut Buffers) -> O
             if needs_swap(state, stack, ready, &counts, &need) {
                 refined[node as usize] = SWAP;
                 if cost + remaining + swap < budget {
-                    open.push(cost + 2 * (remaining + swap), cost, node);
+                    open.push(cost + BOUND_WEIGHT * (remaining + swap), cost, node);
                 }
                 continue;
             }
             refined[node as usize] = NO_SWAP;
         }
         expansions += 1;
-        if expansions > limits.refine || (found.is_none() && expansions > limits.first) {
+        let stalled = found.is_some() && expansions > found_at + limits.stall;
+        if expansions > limits.refine || (found.is_none() && expansions > limits.first) || stalled {
             break;
         }
         // The bound stored with the state.
@@ -876,11 +917,24 @@ fn search(run: &Run, target: Target, limits: Budget, buffers: &mut Buffers) -> O
             }
         }
         let at = |depth: usize| usize::from(stack[depth]);
+        // A surplus copy on top is popped or consumed before anything else, and until every
+        // operation ran a swap follows only an operation or a pop: swapping again, or right after
+        // a copy or push, mostly reorders words the bound cannot tell apart.
+        let surplus_top = len > 0 && counts[at(0)] > need[at(0)];
+        let swaps = !surplus_top
+            && (finishing
+                || !matches!(
+                    arena[node as usize].2,
+                    Some(Move::Push(_) | Move::Stack(StackOp::Dup(_) | StackOp::Swap(_)))
+                ));
         successors.clear();
         // perform a ready operation
         for (index, operation) in run.operations.iter().enumerate() {
             let arity = operands[index].len();
-            if ready & (1 << index) == 0 || len < arity {
+            if ready & (1 << index) == 0
+                || len < arity
+                || (surplus_top && !operands[index].contains(&at(0)))
+            {
                 continue;
             }
             let in_order = (0..arity).all(|depth| at(depth) == operands[index][depth]);
@@ -915,7 +969,7 @@ fn search(run: &Run, target: Target, limits: Budget, buffers: &mut Buffers) -> O
             }
             successors.push((next, Move::Perform { operation: index as u8, mirrored }, 0, bound));
         }
-        if len < height {
+        if len < height && !surplus_top {
             // push a constant a ready operation, or the finished run, still needs
             for (constant, &constant_cost) in run.constant_costs.iter().enumerate() {
                 let word = run.entry + operation_count + constant;
@@ -948,23 +1002,25 @@ fn search(run: &Run, target: Target, limits: Budget, buffers: &mut Buffers) -> O
                 }
             }
         }
-        // swap up a word a ready operation reads, a surplus copy, or any word once all
-        // operations ran
-        for depth in 1..len.min(REACH + 1) {
-            let word = at(depth);
-            if word == at(0)
-                || !(finishing || wanted & (1 << word) != 0 || counts[word] > need[word])
-            {
-                continue;
+        if swaps {
+            // swap up a word a ready operation reads, a surplus copy, or any word once all
+            // operations ran
+            for depth in 1..len.min(REACH + 1) {
+                let word = at(depth);
+                if word == at(0)
+                    || !(finishing || wanted & (1 << word) != 0 || counts[word] > need[word])
+                {
+                    continue;
+                }
+                successors.push((
+                    state.swap(depth),
+                    Move::Stack(StackOp::Swap(depth as u8)),
+                    swap,
+                    here,
+                ));
             }
-            successors.push((
-                state.swap(depth),
-                Move::Stack(StackOp::Swap(depth as u8)),
-                swap,
-                here,
-            ));
         }
-        if len > 0 && counts[at(0)] > need[at(0)] {
+        if surplus_top {
             successors.push((state.drop(1), Move::Stack(StackOp::Pop), pop, shifted(at(0), -1)));
         }
         for &(successor, step, step_cost, remaining) in &successors {
@@ -988,7 +1044,7 @@ fn search(run: &Run, target: Target, limits: Budget, buffers: &mut Buffers) -> O
             }
             arena.push((successor, node, Some(step), next_cost, remaining));
             refined.push(UNKNOWN);
-            open.push(next_cost + 2 * remaining, next_cost, id);
+            open.push(next_cost + BOUND_WEIGHT * remaining, next_cost, id);
         }
     }
     let mut cursor = found?;

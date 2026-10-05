@@ -46,19 +46,16 @@ bb0:
   jump bb20
 bb22 [loop]:
   dup 2
-  xor
-  swap 1
-  dup 3
-  add
-  swap 2
-  dup 4
-  add
-  swap 3
+  dup 5
   push 1
   add
-  swap 3
+  swap 5
+  dup 5
+  add
+  swap 4
+  add
   swap 2
-  swap 1
+  xor
   jump bb20
 bb20 [loop]:
   dup 5

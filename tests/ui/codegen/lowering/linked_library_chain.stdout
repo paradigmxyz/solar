@@ -155,14 +155,14 @@ bb0:
   push 0
   dup 3
   returndatacopy
+  swap 1
+  dup 2
   dup 2
   dup 2
   add
-  dup 2
-  gt
+  lt
+  swap 1
   push 32
-  swap 3
-  dup 4
   gt
   or
   push bb3
@@ -170,6 +170,7 @@ bb0:
   mload
   push 128
   mstore
+  push 32
   push 128
   return
 bb3 [cold]:
@@ -287,14 +288,14 @@ bb0:
   push 0
   dup 3
   returndatacopy
+  swap 1
+  dup 2
   dup 2
   dup 2
   add
-  dup 2
-  gt
+  lt
+  swap 1
   push 32
-  swap 3
-  dup 4
   gt
   or
   push bb3
@@ -302,6 +303,7 @@ bb0:
   mload
   push 128
   mstore
+  push 32
   push 128
   return
 bb3 [cold]:

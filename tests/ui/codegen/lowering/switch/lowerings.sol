@@ -77,13 +77,11 @@ contract SwitchLowerings {
 
     // PERFECTSIZE-LABEL: @module SwitchLowerings_runtime
     // PERFECTSIZE: push 8
-    // PERFECTSIZE-NEXT: swap 1
-    // PERFECTSIZE-NEXT: sub
+    // PERFECTSIZE: sub
+    // PERFECTSIZE: push 253
     // PERFECTSIZE: push 3
     // PERFECTSIZE-NEXT: shr
-    // PERFECTSIZE-NEXT: swap 1
-    // PERFECTSIZE: push 253
-    // PERFECTSIZE-NEXT: shl
+    // PERFECTSIZE: shl
     // PERFECTSIZE-NEXT: or
     // PERFECTSIZE: indexed_jump
 
