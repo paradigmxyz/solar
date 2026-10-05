@@ -1,0 +1,78 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/attached_this_call.sol:ThisMethods ===
+@module ThisMethods
+@library
+
+// === ROOT/tests/ui/codegen/lowering/run-call/attached_this_call.sol:AttachedThisCall ===
+@module AttachedThisCall
+fn @constructor() [constructor] {
+  bb0:
+    v0 = address
+    v1 = icall @selfAddress, v0
+    v2 = address
+    v3 = eq v1, v2
+    v4 = sload 0 !metadata(storage=slot(0))
+    v5 = not 255
+    v6 = and v4, v5
+    v7 = zext i1 v3 to i256
+    v8 = and v7, 255
+    v9 = or v6, v8
+    sstore 0, v9 !metadata(storage=slot(0))
+    ret
+}
+
+fn @attachedThis() -> i1 [selector=0x9c4e0a78, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = trunc i256 v0 to i8
+    v2 = ne v1, i8 0
+    jumpi v2, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    v3 = address
+    v4 = icall @selfAddress, v3
+    v5 = address
+    v6 = eq v4, v5
+    jump bb3
+  bb3:
+    v7 = phi [bb1: v6], [bb2: false]
+    ret v7
+}
+
+fn @attachedValue() -> i256 [selector=0xe18b1132, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = address
+    v1 = icall @addValue, v0, 7
+    ret v1
+}
+
+fn @value() -> i256 [selector=0x3fa4f245, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    ret 12
+}
+
+fn @selfAddress(arg0: i160) -> i160 [pure] {
+  bb0:
+    ret arg0
+}
+
+fn @addValue(arg0: i160, arg1: i256) -> i256 [pure] {
+  bb0:
+    v0 = gas
+    v1 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
+    v2 = slice_ptr v1
+    v3 = slice_len v1
+    v4 = zext i160 arg0 to i256
+    v5 = staticcall v0, v4, v2, v3, 0, 32
+    jumpi v5, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v6 = returndatasize
+    v7 = lt v6, 32
+    icall revert_if<tuple_data_too_short>, v7
+    v8 = add 0, 0
+    v9 = mload v8
+    v10 = checked_add u256, v9, arg1
+    ret v10
+}

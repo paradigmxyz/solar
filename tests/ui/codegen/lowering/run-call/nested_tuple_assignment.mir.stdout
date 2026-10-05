@@ -8,7 +8,6 @@
   struct4: {i8, i8}
   struct5: {i256, i256, i256}
   struct6: {i256, i256, i256, i256}
-  struct7: {i256, i256}
 
 fn @signedChoice(arg0: i1) -> struct0 [selector=0x5f671a76, pure, abi_params=[bool], abi_returns=[word<i16>, word], abi_return_params=[i16, u256]] {
   bb0:
@@ -305,20 +304,5 @@ fn @swap() -> struct6 [selector=0x8119c065, pure, abi_params=[], abi_returns=[wo
     v1 = insert_value struct6, v0, 1, 1
     v2 = insert_value struct6, v1, 2, 4
     v3 = insert_value struct6, v2, 3, 3
-    ret v3
-}
-
-fn @choose(arg0: i1, arg1: i256, arg2: i256) -> struct7 [selector=0x28eac35d, pure, abi_params=[bool, u256, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
-  bb0:
-    jumpi arg0, bb1, bb2
-  bb2:
-    jump bb3
-  bb1:
-    jump bb3
-  bb3:
-    v0 = phi [bb1: arg1], [bb2: arg2]
-    v1 = phi [bb1: arg2], [bb2: arg1]
-    v2 = insert_value struct7, undef struct7, 0, v0
-    v3 = insert_value struct7, v2, 1, v1
     ret v3
 }
