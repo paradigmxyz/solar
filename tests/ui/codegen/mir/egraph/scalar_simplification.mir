@@ -33,8 +33,7 @@ fn @strength_reduce_arithmetic(arg0: i256) -> i256 {
 
 // CHECK-LABEL: {{^[ +].*}}fn @simplify_booleans{{[( ]}}
 // CHECK: {{^[ +].*}}[[IS_FALSE:v[0-9]+]] = eq arg0, false
-// CHECK: {{^[ +].*}}[[SELECT_FALSE:v[0-9]+]] = select arg0, false, true
-// CHECK: {{^[ +].*}}ret arg0, [[IS_FALSE]], arg1, arg0, [[SELECT_FALSE]]
+// CHECK: {{^[ +].*}}ret arg0, [[IS_FALSE]], arg1, arg0, [[IS_FALSE]]
 fn @simplify_booleans(arg0: i1, arg1: i256, arg2: i256) -> struct5 [return_abi=[i1, i1, i256, i1, i1]] {
   bb0:
     v3 = eq arg0, true

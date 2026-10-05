@@ -33,8 +33,8 @@ def main():
         nargs="*",
         type=Path,
         default=[
-            ISLE / "mir/word.isle",
-            ISLE / "mir/word_sequence.isle",
+            ISLE / "mir/word",
+            ISLE / "mir/word_sequence",
             ISLE / "mir-to-evm/stack_select.isle",
             ISLE / "evm-ir/stack_peephole.isle",
             ISLE / "evm-ir/late_word.isle",
@@ -210,8 +210,9 @@ def main():
             for rule in file["rules"]:
                 if rule["status"] != "proved":
                     reason = f": {rule['reason']}" if "reason" in rule else ""
+                    source = rule.get("source", file["source"])
                     print(
-                        f"{file['source']}:{rule['line']}: {rule['status']}{reason}",
+                        f"{source}:{rule['line']}: {rule['status']}{reason}",
                         file=sys.stderr,
                     )
         counts = Counter(rule["status"] for file in files for rule in file["rules"])

@@ -38,6 +38,7 @@ def query_paths(report, *, require_proved=False):
                     and rule.get("proof_method")
                     in (
                         "exhaustive-shift-partition",
+                        "exhaustive-select-partition",
                         "exhaustive-word-index-partition",
                     )
                     and len(queries) != rule.get("cases", 0) + 1
@@ -62,6 +63,14 @@ def query_paths(report, *, require_proved=False):
                 ) and (rule.get("bits") != 256 or len(queries) != 256):
                     raise ValueError(
                         "proof must include every one of the 256 output bits"
+                    )
+                if (
+                    require_proved
+                    and rule.get("proof_method") == "exhaustive-factor-partition"
+                    and (rule.get("cases") != 256 or len(queries) != 4 + 3 * 256)
+                ):
+                    raise ValueError(
+                        "factor partition must cover every differing bit and prerequisite"
                     )
                 paths.extend(queries)
     if require_proved and not rule_count:
