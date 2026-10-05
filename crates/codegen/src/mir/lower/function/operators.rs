@@ -137,18 +137,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
         }
         match op {
-            BinOpKind::Add | BinOpKind::Sub | BinOpKind::Mul => {
-                let result = match op {
-                    BinOpKind::Add => self.builder.add(lhs, rhs),
-                    BinOpKind::Sub => self.builder.sub(lhs, rhs),
-                    _ => self.builder.mul(lhs, rhs),
-                };
-                if self.unchecked {
-                    self.truncate_wrapping_result(result, arithmetic)
-                } else {
-                    result
-                }
-            }
+            BinOpKind::Add => self.builder.add(lhs, rhs),
+            BinOpKind::Sub => self.builder.sub(lhs, rhs),
+            BinOpKind::Mul => self.builder.mul(lhs, rhs),
             BinOpKind::Div | BinOpKind::Rem => unreachable!("division is a semantic operation"),
             BinOpKind::Lt => match arithmetic {
                 Some(ArithmeticKind::Signed(_)) => self.builder.slt(lhs, rhs),
@@ -177,14 +168,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             BinOpKind::And | BinOpKind::BitAnd => self.builder.and(lhs, rhs),
             BinOpKind::Or | BinOpKind::BitOr => self.builder.or(lhs, rhs),
             BinOpKind::BitXor => self.builder.xor(lhs, rhs),
-            BinOpKind::Shl => {
-                let result = self.builder.shl(rhs, lhs);
-                self.truncate_wrapping_result(result, arithmetic)
-            }
-            BinOpKind::Shr => match arithmetic {
-                Some(ArithmeticKind::Signed(_)) => self.builder.sar(rhs, lhs),
-                _ => self.builder.shr(rhs, lhs),
-            },
+            BinOpKind::Shl => self.builder.shl(rhs, lhs),
+            BinOpKind::Shr => self.builder.shr(rhs, lhs),
             BinOpKind::Sar => self.builder.sar(rhs, lhs),
             BinOpKind::Pow => {
                 if self.unchecked {
@@ -229,12 +214,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     );
                 }
                 let zero = self.builder.imm(U256::ZERO);
-                let result = self.builder.sub(zero, value);
-                if self.unchecked {
-                    self.truncate_wrapping_result(result, ty.and_then(arithmetic_kind))
-                } else {
-                    result
-                }
+                self.builder.sub(zero, value)
             }
             UnOpKind::BitNot => {
                 let result = self.builder.not(value);

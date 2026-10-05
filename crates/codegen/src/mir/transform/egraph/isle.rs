@@ -176,7 +176,20 @@ pub(in crate::mir::transform) fn max_bits_with_args(
     depth: u32,
     argument_bits: &impl Fn(ArgIdx) -> u32,
 ) -> u32 {
+    max_bits_with_budget(func, value, depth, &mut 64, argument_bits)
+}
+
+fn max_bits_with_budget(
+    func: &Function,
+    value: ValueId,
+    depth: u32,
+    budget: &mut u32,
+    argument_bits: &impl Fn(ArgIdx) -> u32,
+) -> u32 {
     let width = func.value_ty(value).and_then(MirType::integer_bits).unwrap_or(256).min(256);
+    // Shared producers and wide phis must not multiply the work at each depth.
+    let Some(remaining) = budget.checked_sub(1) else { return width };
+    *budget = remaining;
     if let Some(constant) = func.value_u256(value) {
         return constant.bit_len() as u32;
     }
@@ -192,7 +205,7 @@ pub(in crate::mir::transform) fn max_bits_with_args(
     {
         return u32::from(definition.result_bits).min(width);
     }
-    let bits = |value| max_bits_with_args(func, value, depth - 1, argument_bits);
+    let mut bits = |value| max_bits_with_budget(func, value, depth - 1, budget, argument_bits);
     let shift = |shift| func.value_u256(shift).map(|shift| shift.min(U256::from(256)).to::<u32>());
     match *kind {
         InstKind::Zext(value) | InstKind::Trunc(value, _) => bits(value),
@@ -604,5 +617,39 @@ impl generated::Context for RuleContext<'_> {
 
     fn layout_kind(&mut self, layout: MemoryObjectLayout) -> MemoryObjectKind {
         layout.kind()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::mir::Instruction;
+    use solar_interface::Ident;
+    use std::{cell::Cell, num::NonZeroU32};
+
+    #[test]
+    fn significant_bits_bounds_shared_producer_work() {
+        for ty in [MirType::Int(NonZeroU32::new(8).unwrap()), MirType::I256] {
+            let mut func = Function::new(Ident::DUMMY);
+            let condition = func.alloc_param(MirType::I1);
+            let argument = func.alloc_param(ty);
+            let mut value = argument;
+            for _ in 0..7 {
+                value = func
+                    .alloc_value_inst(Instruction::new(
+                        InstKind::Select(condition, value, value),
+                        Some(ty),
+                    ))
+                    .1;
+            }
+            let visits = Cell::new(0);
+            let result = max_bits_with_args(&func, value, MAX_BITS_DEPTH, &|_| {
+                visits.set(visits.get() + 1);
+                1
+            });
+            assert_eq!(result, ty.integer_bits().unwrap());
+            assert!(visits.get() < 64);
+            assert_eq!(max_bits_with_args(&func, argument, MAX_BITS_DEPTH, &|_| 1), 1);
+        }
     }
 }

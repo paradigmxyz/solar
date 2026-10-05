@@ -19,7 +19,10 @@ use crate::mir::{
     pass::{MirPass, ModuleAnalyses},
 };
 use alloy_primitives::U256;
-use solar_data_structures::map::{FxHashMap, FxHashSet};
+use solar_data_structures::{
+    index::IndexVec,
+    map::{FxHashMap, FxHashSet},
+};
 
 pub(crate) struct LowerIntegers;
 
@@ -110,7 +113,7 @@ fn lower_function(func: &mut Function, signed_immutables: &FxHashSet<ImmutableId
     }
     let types = (0..func.num_values())
         .map(|index| func.value_ty(ValueId::from_usize(index)))
-        .collect::<Vec<_>>();
+        .collect::<IndexVec<ValueId, _>>();
     let mut changed = false;
     let returns = func.return_components().iter().copied().map(lower_type).collect::<Vec<_>>();
     let result = lower_type(func.return_type());
@@ -122,12 +125,12 @@ fn lower_function(func: &mut Function, signed_immutables: &FxHashSet<ImmutableId
         changed |= ty != func.arg_ty(index);
         func.set_arg_ty(index, ty);
     }
-    for (index, ty) in types.iter().enumerate() {
+    for (value, ty) in types.iter_enumerated() {
         if let Some(ty) = *ty
             && lower_type(ty) != ty
         {
             changed = true;
-            let value = func.value_mut(ValueId::from_usize(index));
+            let value = func.value_mut(value);
             match value {
                 Value::Immediate(immediate) => {
                     *immediate =
@@ -148,9 +151,7 @@ fn lower_function(func: &mut Function, signed_immutables: &FxHashSet<ImmutableId
         let mut builder = FunctionBuilder::new(func);
         builder.switch_to_block(block);
         for id in instructions {
-            let bits = |value: ValueId| {
-                types[value.index()].and_then(MirType::integer_bits).unwrap_or(256)
-            };
+            let bits = |value: ValueId| types[value].and_then(MirType::integer_bits).unwrap_or(256);
             let inst = builder.func().inst(id);
             let conversion = matches!(
                 inst.kind,
