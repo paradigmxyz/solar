@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_bytes_push_pop_in_place.sol:StorageBytesPushPop ===
 @module StorageBytesPushPop
-types:
-  struct0: {memorybytes, i256}
+@types
+  struct0: {memptr, i256}
   struct1: {i256, i256, i256}
   struct2: {i256, i256, i256, i256}
   struct3: {i256, i256}
@@ -217,7 +217,7 @@ fn @popOne() [selector=0x53b8a6c6, abi_params=[], abi_returns=[], abi_return_par
     ret
 }
 
-fn @pushRange(arg0: i256) -> memorybytes [selector=0xcac9de04, abi_params=[u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @pushRange(arg0: i256) -> memptr [selector=0xcac9de04, abi_params=[u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     icall @_push, arg0
     v0 = icall @load_storage_bytes, 0
@@ -231,7 +231,7 @@ fn @pushZero(arg0: i256) -> struct0 [selector=0xb0e28d5e, abi_params=[u256], abi
     v0 = phi [bb0: 0], [bb3: v42]
     v1 = phi [bb0: 0], [bb3: v1]
     v2 = phi [bb0: arg0], [bb3: v2]
-    v3 = phi [bb0: memorybytes 96], [bb3: v3]
+    v3 = phi [bb0: memptr 96], [bb3: v3]
     v4 = lt v0, v2
     jumpi v4, bb4, bb5
   bb5:
@@ -311,13 +311,13 @@ fn @pushZero(arg0: i256) -> struct0 [selector=0xb0e28d5e, abi_params=[u256], abi
     jump bb1
 }
 
-fn @pushAssign(arg0: i256) -> memorybytes [selector=0xbcb447d8, abi_params=[u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @pushAssign(arg0: i256) -> memptr [selector=0xbcb447d8, abi_params=[u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     jump bb1
   bb1:
     v0 = phi [bb0: arg0], [bb3: v0]
     v1 = phi [bb0: 0], [bb3: v48]
-    v2 = phi [bb0: memorybytes 96], [bb3: v2]
+    v2 = phi [bb0: memptr 96], [bb3: v2]
     v3 = lt v1, v0
     jumpi v3, bb4, bb5
   bb5:
@@ -402,7 +402,7 @@ fn @popTo(arg0: i256, arg1: i256) -> struct0 [selector=0x6203376f, abi_params=[u
   bb1:
     v0 = phi [bb0: arg0], [bb3: v0]
     v1 = phi [bb0: 0], [bb3: v50]
-    v2 = phi [bb0: memorybytes 96], [bb3: v2]
+    v2 = phi [bb0: memptr 96], [bb3: v2]
     v3 = phi [bb0: arg1], [bb3: v3]
     v4 = phi [bb0: 0], [bb3: v4]
     v5 = lt v1, v3
@@ -1046,7 +1046,7 @@ fn @structPushPop(arg0: i256) -> struct0 [selector=0x9c0e8d6f, abi_params=[u256]
     jump bb1
   bb1:
     v0 = phi [bb0: 0], [bb3: v49]
-    v1 = phi [bb0: memorybytes 96], [bb3: v1]
+    v1 = phi [bb0: memptr 96], [bb3: v1]
     v2 = phi [bb0: arg0], [bb3: v2]
     v3 = phi [bb0: 0], [bb3: v3]
     v4 = lt v0, v2
@@ -1192,11 +1192,11 @@ fn @structPushPop(arg0: i256) -> struct0 [selector=0x9c0e8d6f, abi_params=[u256]
     jump bb1
 }
 
-fn @mappingPushPop(arg0: i256) -> memorybytes [selector=0x9881887b, abi_params=[u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @mappingPushPop(arg0: i256) -> memptr [selector=0x9881887b, abi_params=[u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: memorybytes 96], [bb3: v0]
+    v0 = phi [bb0: memptr 96], [bb3: v0]
     v1 = phi [bb0: arg0], [bb3: v1]
     v2 = phi [bb0: 0], [bb3: v48]
     v3 = lt v2, v1
@@ -1339,19 +1339,19 @@ fn @mappingPushPop(arg0: i256) -> memorybytes [selector=0x9881887b, abi_params=[
     jump bb1
 }
 
-fn @pointerPushPop(arg0: i256) -> memorybytes [selector=0x3a6f6ba7, abi_params=[u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @pointerPushPop(arg0: i256) -> memptr [selector=0x3a6f6ba7, abi_params=[u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = icall @_pushPop, 0, arg0
     ret v0
 }
 
-fn @_pushPop(arg0: i256, arg1: i256) -> memorybytes {
+fn @_pushPop(arg0: i256, arg1: i256) -> memptr {
   bb0:
     jump bb1
   bb1:
     v0 = phi [bb0: arg1], [bb3: v0]
     v1 = phi [bb0: 0], [bb3: v48]
-    v2 = phi [bb0: memorybytes 96], [bb3: v2]
+    v2 = phi [bb0: memptr 96], [bb3: v2]
     v3 = phi [bb0: arg0], [bb3: v3]
     v4 = lt v1, v0
     jumpi v4, bb4, bb5
@@ -1718,7 +1718,7 @@ fn @pushPopWords(arg0: i256) -> struct3 [selector=0x068eaf65, abi_params=[u256],
     jump bb1
 }
 
-fn @load_storage_bytes(arg0: i256) -> memorybytes {
+fn @load_storage_bytes(arg0: i256) -> memptr {
   bb0:
     v0 = load_storage_bytes arg0
     ret v0

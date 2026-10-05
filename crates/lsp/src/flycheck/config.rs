@@ -128,8 +128,7 @@ fn resolve_workspace_path(workspace_root: &Path, path: &Path) -> PathBuf {
 }
 
 fn forge_lint_args(selected_profile: Option<&str>) -> Vec<String> {
-    let mut args = Vec::new();
-    args.extend(["lint".into(), "--json".into()]);
+    let mut args = vec!["lint".into(), "--json".into()];
     if let Some(profile) = selected_profile {
         args.extend(["--profile".into(), profile.into()]);
     }
@@ -153,7 +152,7 @@ mod tests {
     use crate::test_support::TestProject;
 
     #[test]
-    fn configured_flychecks_expand_per_workspace() {
+    fn configured_flychecks_expand_per_workspace_and_replace_default_detection() {
         let project = TestProject::from_fixture(
             r#"
             //- /foundry.toml
@@ -161,44 +160,29 @@ mod tests {
             src = "src"
             "#,
         );
-        let options = FlycheckInitializationOptions {
-            flychecks: Some(vec![FlycheckTemplate {
-                id: "custom".into(),
-                command: "custom-lint".into(),
-                args: vec!["--json".into()],
-                cwd: Some("tools".into()),
-                output: FlycheckOutput::SolcJson,
-            }]),
+        let config = project.config();
+        let template = FlycheckTemplate {
+            id: "custom".into(),
+            command: "custom-lint".into(),
+            args: vec!["--json".into()],
+            cwd: Some("tools".into()),
+            output: FlycheckOutput::SolcJson,
+        };
+        let configs = |flychecks| {
+            FlycheckInitializationOptions { flychecks }.configs(
+                config.workspaces(),
+                Path::new("forge"),
+                None,
+            )
         };
 
-        let configs = options.configs(project.config().workspaces(), Path::new("forge"), None);
-
-        assert_eq!(configs.len(), 1);
-        assert_eq!(configs[0].id, "custom");
-        assert_eq!(configs[0].command, PathBuf::from("custom-lint"));
-        assert_eq!(configs[0].args, ["--json"]);
-        assert_eq!(configs[0].cwd, project.path("/tools"));
-        assert_eq!(configs[0].workspace_root, project.root());
-    }
-
-    #[test]
-    fn explicit_empty_flychecks_disable_default_detection() {
-        let project = TestProject::from_fixture(
-            r#"
-            //- /foundry.toml
-            [profile.default]
-            src = "src"
-            "#,
-        );
-        let options = FlycheckInitializationOptions { flychecks: Some(Vec::new()) };
-
-        assert!(
-            options.configs(project.config().workspaces(), Path::new("forge"), None).is_empty()
-        );
-    }
-
-    #[test]
-    fn default_forge_lint_args_omit_unselected_profile() {
+        let [config] = configs(Some(vec![template])).try_into().unwrap();
+        assert_eq!(config.id, "custom");
+        assert_eq!(config.command, PathBuf::from("custom-lint"));
+        assert_eq!(config.args, ["--json"]);
+        assert_eq!(config.cwd, project.path("/tools"));
+        assert_eq!(config.workspace_root, project.root());
+        assert!(configs(Some(Vec::new())).is_empty());
         assert_eq!(forge_lint_args(None), ["lint", "--json"]);
     }
 }

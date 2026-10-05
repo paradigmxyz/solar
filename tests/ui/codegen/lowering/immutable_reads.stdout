@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/immutable_reads.sol:C ===
 @module C
-immutables:
+@immutables
   start: u256
   duration: u256
 

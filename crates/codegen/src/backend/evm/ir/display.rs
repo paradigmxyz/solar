@@ -9,39 +9,14 @@ impl Module {
     pub fn to_text(&self) -> impl fmt::Display + '_ {
         fmt::from_fn(move |f| {
             writeln!(f, "@module {}", self.name)?;
+            write!(f, "{}", crate::link::display_declarations(&self.libraries, &self.data))?;
             write!(
                 f,
                 "{}",
                 self.blocks
                     .iter()
                     .format_with("", |f, block| { write!(f, "{}", display_block(self, block)) })
-            )?;
-            if !self.data.is_empty() {
-                writeln!(f)?;
-            }
-            for (id, data) in self.data.iter_enumerated() {
-                if let Some(name) = data.name {
-                    write!(f, "@data {} hex\"", crate::utils::display_data_name(name, id.index()))?;
-                } else {
-                    write!(f, "@data {} hex\"", id.index())?;
-                }
-                for byte in &data.bytes {
-                    write!(f, "{byte:02x}")?;
-                }
-                write!(f, "\"")?;
-                if !data.library_relocations.is_empty() {
-                    write!(
-                        f,
-                        " library_relocations [{}]",
-                        data.library_relocations
-                            .iter()
-                            .map(|reloc| reloc.display(&self.libraries))
-                            .format(", ")
-                    )?;
-                }
-                writeln!(f)?;
-            }
-            Ok(())
+            )
         })
     }
 }
@@ -199,7 +174,7 @@ fn display_push_value<'a>(module: &'a Module, value: &'a PushValue) -> impl fmt:
             write!(f, "{}", display_u256(*value))
         }
         PushValue::Library(library) => {
-            write!(f, "{}", module.libraries.get(*library).expect("valid library ID"))
+            write!(f, "{}", module.libraries.display_ref(*library))
         }
         PushValue::Block(block) => write!(f, "{}", display_block_id(module, *block)),
         PushValue::Data(data) => write!(
@@ -207,6 +182,10 @@ fn display_push_value<'a>(module: &'a Module, value: &'a PushValue) -> impl fmt:
             "{}",
             crate::utils::display_data_ref(module.data[data.id].name, data.id.index(), data.offset,)
         ),
+        PushValue::DataSize(size) => {
+            let name = module.data[size.data].name;
+            write!(f, "{}", crate::utils::display_data_size(name, *size))
+        }
     })
 }
 

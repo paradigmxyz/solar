@@ -469,7 +469,8 @@ impl<'a> FunctionBuilder<'a> {
         self.mask_padded_size(rounded)
     }
 
-    fn mask_padded_size(&mut self, rounded: ValueId) -> ValueId {
+    /// Rounds `rounded` down to a multiple of 32.
+    pub(crate) fn mask_padded_size(&mut self, rounded: ValueId) -> ValueId {
         let mask = self.imm(31);
         let mask = self.not(mask);
         self.and(rounded, mask)
@@ -575,10 +576,13 @@ impl<'a> FunctionBuilder<'a> {
             // operand = zext integer or ptrtoint pointer to i256
             kind.visit_operands_mut(|value| *value = self.cast(*value, MirType::I256));
         }
+        let result = kind.op_def().result;
         let produced = if boolean_bitwise {
             MirType::I1
+        } else if result.admits_type(requested) {
+            requested
         } else {
-            kind.op_def().result.default_type().unwrap_or(requested)
+            result.default_type().expect("result kinds without a default type admit every type")
         };
         // result = op operands
         // requested = cast result
@@ -601,7 +605,7 @@ impl<'a> FunctionBuilder<'a> {
         };
         if let Value::Inst(id) = self.func.value(value) {
             let original = match self.func.inst(*id).kind {
-                InstKind::Zext(inner) | InstKind::Bitcast(inner) => Some(inner),
+                InstKind::Zext(inner) => Some(inner),
                 InstKind::PtrToInt(inner, 256) if ty.is_pointer() => Some(inner),
                 InstKind::IntToPtr(inner) if ty == MirType::I256 => Some(inner),
                 _ => None,
@@ -627,8 +631,6 @@ impl<'a> FunctionBuilder<'a> {
             (from, MirType::Int(to)) if from.is_pointer() => InstKind::PtrToInt(value, to.get()),
             // pointer = inttoptr integer to destination
             (MirType::Int(_), to) if to.is_pointer() => InstKind::IntToPtr(value),
-            // pointer = bitcast pointer to destination
-            (from, to) if from.is_pointer() && to.is_pointer() => InstKind::Bitcast(value),
             _ => panic!("cannot cast MIR value from `{from}` to `{ty}`"),
         };
         let inst = self.make_inst(kind, Some(ty));
@@ -646,11 +648,11 @@ impl<'a> FunctionBuilder<'a> {
     }
 
     /// Emits a void memory instruction with a proven destination region.
-    fn emit_void_inst_in_region(&mut self, mut kind: InstKind, region: MemoryRegion) {
+    fn emit_void_inst_in_region(&mut self, mut kind: InstKind, region: MemoryRegion) -> InstId {
         self.cast_operands(&mut kind);
         let mut inst = self.make_inst(kind, None);
         inst.metadata.set_memory_region(Some(region));
-        self.append_instruction(inst);
+        self.append_instruction(inst).0
     }
 
     fn memory_region_for_inst(&self, kind: &InstKind) -> Option<MemoryRegion> {
@@ -845,25 +847,20 @@ impl<'a> FunctionBuilder<'a> {
         layout: crate::mir::MemoryObjectLayout,
         field: u64,
     ) -> ValueId {
-        self.emit_inst(
-            InstKind::MemoryObjectLoadField { object, layout, field },
-            Some(MirType::I256),
-        )
+        self.memory_object_load_field_as(object, layout, field, MirType::I256)
     }
 
-    /// Loads a memory-object reference stored in a struct field.
-    pub(crate) fn memory_object_load_object_field(
+    /// Loads a struct field as a `memptr` when `ty` is one, and as a word otherwise.
+    pub(crate) fn memory_object_load_field_as(
         &mut self,
         object: ValueId,
         layout: MemoryObjectLayout,
         field: u64,
-        kind: MemoryObjectKind,
+        ty: MirType,
     ) -> ValueId {
+        let result = if ty == MirType::MemPtr { ty } else { MirType::I256 };
         // result = memory_object_load_field layout, object, field
-        self.emit_inst(
-            InstKind::MemoryObjectLoadField { object, layout, field },
-            Some(MirType::MemoryObject(kind)),
-        )
+        self.emit_inst(InstKind::MemoryObjectLoadField { object, layout, field }, Some(result))
     }
 
     /// Stores a direct struct field through the semantic object layout.
@@ -884,24 +881,20 @@ impl<'a> FunctionBuilder<'a> {
         layout: crate::mir::MemoryObjectLayout,
         index: ValueId,
     ) -> ValueId {
-        self.emit_inst(
-            InstKind::MemoryObjectLoadElement { object, layout, index },
-            Some(MirType::I256),
-        )
+        self.memory_object_load_element_as(object, layout, index, MirType::I256)
     }
 
-    /// Loads a memory-object pointer stored in a one-word array.
-    pub(crate) fn memory_object_load_object(
+    /// Loads an array element as a `memptr` when `ty` is one, and as a word otherwise.
+    pub(crate) fn memory_object_load_element_as(
         &mut self,
         object: ValueId,
         layout: MemoryObjectLayout,
         index: ValueId,
-        kind: MemoryObjectKind,
+        ty: MirType,
     ) -> ValueId {
-        self.emit_inst(
-            InstKind::MemoryObjectLoadElement { object, layout, index },
-            Some(MirType::MemoryObject(kind)),
-        )
+        let result = if ty == MirType::MemPtr { ty } else { MirType::I256 };
+        // result = memory_object_load_element layout, object, index
+        self.emit_inst(InstKind::MemoryObjectLoadElement { object, layout, index }, Some(result))
     }
 
     /// Loads one byte from a bytes object through its semantic layout.
@@ -1160,16 +1153,6 @@ impl<'a> FunctionBuilder<'a> {
         self.or(shifted, one)
     }
 
-    /// Gives raw pointer bits an object type without checking the object.
-    pub(crate) fn memory_object_from_ptr(
-        &mut self,
-        ptr: ValueId,
-        kind: MemoryObjectKind,
-    ) -> ValueId {
-        // object = inttoptr word to object, or bitcast pointer to object
-        self.cast(ptr, MirType::MemoryObject(kind))
-    }
-
     /// Builds a struct from its ordered field values.
     pub(crate) fn make_struct(
         &mut self,
@@ -1186,13 +1169,15 @@ impl<'a> FunctionBuilder<'a> {
     }
 
     /// Decodes a memory-backed ABI tuple into semantic values.
+    ///
+    /// `data` is a bytes object, or a raw word addressing a static head.
     pub(crate) fn abi_decode(
         &mut self,
         layout: crate::mir::AbiParamLayoutRef,
         data: ValueId,
         result_ty: MirType,
     ) -> ValueId {
-        let data = if matches!(self.func.value_ty(data), Some(MirType::I256 | MirType::MemPtr)) {
+        let data = if self.func.value_ty(data) == Some(MirType::I256) {
             // object = alloc_bytes static_head_size
             // memory_object_copy_from_slice object, make_memory_slice(data, static_head_size)
             let size = self.imm(layout.checked_head_size().expect("static ABI layout"));
@@ -1208,7 +1193,7 @@ impl<'a> FunctionBuilder<'a> {
     }
 
     /// Emits an mcopy whose destination is proven to be in the heap.
-    pub(crate) fn mcopy_heap(&mut self, dest: ValueId, src: ValueId, len: ValueId) {
+    pub(crate) fn mcopy_heap(&mut self, dest: ValueId, src: ValueId, len: ValueId) -> InstId {
         self.emit_void_inst_in_region(InstKind::MCopy(dest, src, len), MemoryRegion::Heap)
     }
 
@@ -1229,12 +1214,26 @@ impl<'a> FunctionBuilder<'a> {
     pub(crate) fn data_copy(&mut self, data: crate::mir::DataRef, dest: ValueId, size: ValueId) {
         self.emit_void_inst(InstKind::DataCopy(data, dest, size))
     }
+
+    /// Emits the byte length of deferred module data plus `addend`, rounded down to a
+    /// multiple of 32 when `aligned` is set.
+    pub(crate) fn data_size(
+        &mut self,
+        data: crate::mir::DataId,
+        addend: u64,
+        aligned: bool,
+    ) -> ValueId {
+        // result = datasize data, addend[, aligned]
+        let size = crate::mir::DataSize { data, addend, aligned };
+        self.emit_inst(InstKind::DataSize(size), Some(MirType::I256))
+    }
+
     /// Emits a calldatacopy whose destination is proven to be in the heap.
     pub(crate) fn calldatacopy_heap(&mut self, dest: ValueId, offset: ValueId, size: ValueId) {
         self.emit_void_inst_in_region(
             InstKind::CalldataCopy(dest, offset, size),
             MemoryRegion::Heap,
-        )
+        );
     }
 
     /// Emits an opaque library address supplied by the linker.
@@ -1275,7 +1274,7 @@ impl<'a> FunctionBuilder<'a> {
         self.emit_void_inst_in_region(
             InstKind::ExtCodeCopy(addr, dest, offset, size),
             MemoryRegion::Heap,
-        )
+        );
     }
 
     /// Emits a returndatasize instruction.
@@ -1289,7 +1288,9 @@ impl<'a> FunctionBuilder<'a> {
         size: ValueId,
     ) {
         match location {
-            SliceLocation::Memory => self.mcopy_heap(dest, source, size),
+            SliceLocation::Memory => {
+                self.mcopy_heap(dest, source, size);
+            }
             SliceLocation::Calldata => self.calldatacopy_heap(dest, source, size),
             SliceLocation::Returndata => self.returndatacopy_heap(dest, source, size),
         }
@@ -1300,7 +1301,7 @@ impl<'a> FunctionBuilder<'a> {
         self.emit_void_inst_in_region(
             InstKind::ReturnDataCopy(dest, offset, size),
             MemoryRegion::Heap,
-        )
+        );
     }
 
     /// Emits a returndata copy that feeds an external return or revert.
@@ -1313,7 +1314,7 @@ impl<'a> FunctionBuilder<'a> {
         self.emit_void_inst_in_region(
             InstKind::ReturnDataCopy(dest, offset, size),
             MemoryRegion::AbiReturn,
-        )
+        );
     }
 
     /// Emits an internal function call.
@@ -1388,7 +1389,7 @@ impl<'a> FunctionBuilder<'a> {
         // object = returndata_bytes
         self.emit_inst(
             InstKind::builtin(crate::mir::Builtin::ReturndataBytes, []),
-            Some(MirType::MemoryObject(MemoryObjectKind::Bytes)),
+            Some(MirType::MemPtr),
         )
     }
 

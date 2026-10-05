@@ -2,10 +2,11 @@
 //@filecheck: --enable-var-scope
 
 @module Parser
-data:
+@data
   payload_0: hex"11223344"
+  child_1: creation_code "child.sol:Child"
 
-immutables:
+@immutables
   fn: u8
 
 // CHECK-LABEL: @call
@@ -53,11 +54,26 @@ fn @hash() -> i256 {
 }
 
 // CHECK-LABEL: @copy_data
-// CHECK: {{^ +}}data_copy payload_0+1, 0, 3
+// CHECK: {{^ +}}datacopy payload_0+1, 0, 3
 fn @copy_data() {
   bb0:
-    data_copy payload_0+1, 0, 3
+    datacopy payload_0+1, 0, 3
     stop
+}
+
+// CHECK-LABEL: @deferred_data
+// CHECK: {{^ +}}[[LEN:v[0-9]+]] = datasize child_1{{$}}
+// CHECK: {{^ +}}{{v[0-9]+}} = datasize child_1, 32{{$}}
+// CHECK: {{^ +}}{{v[0-9]+}} = datasize child_1, 63, aligned
+// CHECK: {{^ +}}datacopy child_1, 0, [[LEN]]
+fn @deferred_data() -> i256 {
+  bb0:
+    v0 = datasize child_1
+    v1 = datasize child_1, 32
+    v2 = datasize child_1, 63, aligned
+    datacopy child_1, 0, v0
+    v3 = add v1, v2
+    ret v3
 }
 
 // CHECK-LABEL: @environment
@@ -143,7 +159,7 @@ fn @view() [view] {
 // CHECK: = icall sha256<>, arg0
 // CHECK: = icall ripemd160<>, arg0
 // CHECK: icall ecrecover<>, 0, 0, 0, 0
-fn @precompiles(arg0: memorybytes) -> i256 {
+fn @precompiles(arg0: memptr) -> i256 {
   bb0:
     icall sha256<>, arg0
     icall ripemd160<>, arg0
@@ -153,7 +169,7 @@ fn @precompiles(arg0: memorybytes) -> i256 {
 
 // CHECK-LABEL: fn @concatenate
 // CHECK: icall concat<memorybytes, bytes2>, arg0,
-fn @concatenate(arg0: memorybytes) -> memorybytes {
+fn @concatenate(arg0: memptr) -> memptr {
   bb0:
     v0 = icall concat<memorybytes, bytes2>, arg0, 0x1234000000000000000000000000000000000000000000000000000000000000
     ret v0
@@ -225,7 +241,6 @@ fn @integer_undef() -> i24 {
 // CHECK: sext i1 arg1 to i256
 // CHECK: ptrtoint memptr arg2 to i160
 // CHECK: inttoptr i256 arg0 to memptr
-// CHECK: bitcast memptr arg2 to memorybytes
 fn @llvm_casts(arg0: i256, arg1: i1, arg2: memptr) -> memptr {
   bb0:
     v0 = trunc i256 arg0 to i1
@@ -233,15 +248,14 @@ fn @llvm_casts(arg0: i256, arg1: i1, arg2: memptr) -> memptr {
     v2 = sext i1 arg1 to i256
     v3 = ptrtoint memptr arg2 to i160
     v4 = inttoptr i256 arg0 to memptr
-    v5 = bitcast memptr arg2 to memorybytes
     ret v4
 }
 
 // CHECK-LABEL: fn @cast_undef
-// CHECK: bitcast memptr undef to memorybytes
-fn @cast_undef() -> memorybytes {
+// CHECK: inttoptr i256 undef to memptr
+fn @cast_undef() -> memptr {
   bb0:
-    v0 = bitcast memptr undef to memorybytes
+    v0 = inttoptr i256 undef to memptr
     ret v0
 }
 

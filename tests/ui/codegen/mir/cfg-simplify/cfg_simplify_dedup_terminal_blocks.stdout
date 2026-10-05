@@ -1,6 +1,10 @@
 - // === ROOT/tests/ui/codegen/mir/cfg-simplify/cfg_simplify_dedup_terminal_blocks.mir (before cfg-simplify) ===
 + // === ROOT/tests/ui/codegen/mir/cfg-simplify/cfg_simplify_dedup_terminal_blocks.mir (after cfg-simplify) ===
   @module CfgDedupTerminalBlocks
+  @libraries
+    L_0: "A.sol:L"
+    L_1: "B.sol:L"
+  
   fn @dedup_identical_panics(arg0: i256, arg1: i256) {
     bb0:
       v0 = ne arg0, 0
@@ -98,7 +102,7 @@
       revert 0, 32
   }
   
-  fn @keep_distinct_memory_fields(arg0: i256, arg1: i256, arg2: memorystruct) {
+  fn @keep_distinct_memory_fields(arg0: i256, arg1: i256, arg2: memptr) {
     bb0:
       v0 = ne arg0, 0
       jumpi v0, bb1, bb2
@@ -128,7 +132,7 @@
       ret v0
   }
   
-  fn @keep_distinct_enum_bounds(arg0: i1, arg1: i256) -> memoryarray {
+  fn @keep_distinct_enum_bounds(arg0: i1, arg1: i256) -> memptr {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:
@@ -165,10 +169,10 @@
     bb0:
       jumpi arg0, bb1, bb2
     bb2:
-      v1 = library_address "B.sol":"L"
+      v1 = library_address L_1
       ret v1
     bb1:
-      v0 = library_address "A.sol":"L"
+      v0 = library_address L_0
       ret v0
   }
   

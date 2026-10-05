@@ -10,10 +10,10 @@ fn @mutate() -> i256 [selector=0x7795b5fc, abi_params=[], abi_returns=[word], ab
 
 // === ROOT/tests/ui/codegen/lowering/run-call/external_call_evaluation_order.sol:ExternalCallEvaluationOrder ===
 @module ExternalCallEvaluationOrder
-data:
-  MutatingBase_initcode_0: hex"34600d5760698060115f395ff35b5f5ffd341515601c575f3560e01c80637795b5fc14601857601c565b6020565b5f5ffd5b5f54600181018060a0528060a05281811091505060575760a0518060a0525f5560a0518060a0526080526020608001608090036080f35b634e487b715f5260116020526024601cfd"
+@data
+  MutatingBase_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/external_call_evaluation_order.sol:MutatingBase"
 
-immutables:
+@immutables
   target: u256
 
 fn @receiver() -> i256 {
@@ -133,7 +133,7 @@ fn @dirtySend() -> i256 [selector=0x82ec93de, payable, abi_params=[], abi_return
 fn @dirtyIndex() -> i256 [selector=0xe98f4d7c, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memoryfixedarray<257, 1>, exact, uninitialized, infallible, 0x2020 !metadata(preserves_fmp)
-    v1 = ptrtoint memoryfixedarray v0 to i256
+    v1 = ptrtoint memptr v0 to i256
     memory_zero v1, 0x2020
     v2 = lt 0, 257
     v3 = eq v2, false
@@ -184,17 +184,17 @@ fn @staticReceiverMutability() -> i256 [selector=0xde2015ae, abi_params=[], abi_
 fn @constructor() [constructor] {
   bb0:
     v0 = abi_encode []
-    v1 = not 31
-    v2 = and 153, v1
+    v1 = datasize MutatingBase_creation_code_0
+    v2 = datasize MutatingBase_creation_code_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    data_copy MutatingBase_initcode_0, v4, 122
+    datacopy MutatingBase_creation_code_0, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
-    v7 = add v6, 122
+    v7 = add v6, v1
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
-    v9 = create 0, v8, 122
+    v9 = create 0, v8, v1
     v10 = zext i160 v9 to i256
     v11 = ne v10, 0
     jumpi v11, bb2, bb1

@@ -18,7 +18,7 @@ use super::super::super::{
     ResidentSearchContext, ScheduleCost, StackOp, StackPhiPlan, Terminator, Value, ValueId,
 };
 use crate::target::Target;
-use std::rc::Rc;
+use std::sync::Arc;
 
 impl<'gcx> EvmCodegen<'gcx> {
     /// Carries a calldata loop bound beneath a small pure loop's changing words.
@@ -57,7 +57,13 @@ impl<'gcx> EvmCodegen<'gcx> {
                 // header: compare(index, bound)
                 // latch: carry(bound, next phis...)
                 let values = vec![bound];
-                let plan = GlobalStackPlan::analyze_resident_args(func, liveness, &values, false)?;
+                let plan = GlobalStackPlan::analyze_resident_args(
+                    func,
+                    liveness,
+                    &values,
+                    false,
+                    self.stack_access_limit(),
+                )?;
                 return Some((values, plan));
             }
         }
@@ -69,11 +75,11 @@ impl<'gcx> EvmCodegen<'gcx> {
         &mut self,
         func_id: FunctionId,
         func: &Function,
-    ) -> Rc<Liveness> {
-        Rc::clone(
+    ) -> Arc<Liveness> {
+        Arc::clone(
             self.function_liveness
                 .entry(func_id)
-                .or_insert_with(|| Rc::new(Liveness::compute(func))),
+                .or_insert_with(|| Arc::new(Liveness::compute(func))),
         )
     }
 
@@ -83,10 +89,10 @@ impl<'gcx> EvmCodegen<'gcx> {
         func_id: FunctionId,
         func: &Function,
         liveness: &Liveness,
-    ) -> Rc<StackPhiPlan> {
+    ) -> Arc<StackPhiPlan> {
         let cold_functions = &self.cold_functions;
-        Rc::clone(self.stack_phi_plans.entry(func_id).or_insert_with(|| {
-            Rc::new(StackPhiPlan::analyze(func, liveness, cold_functions, Target::new(self.gcx)))
+        Arc::clone(self.stack_phi_plans.entry(func_id).or_insert_with(|| {
+            Arc::new(StackPhiPlan::analyze(func, liveness, cold_functions, Target::new(self.gcx)))
         }))
     }
 
@@ -129,7 +135,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         &self,
         func: &Function,
         values: &[ValueId],
-        phi_plan: Option<Rc<StackPhiPlan>>,
+        phi_plan: Option<Arc<StackPhiPlan>>,
     ) -> ResidentSearchContext {
         let mut value_uses = FxHashMap::default();
         for block in &func.blocks {
@@ -155,8 +161,13 @@ impl<'gcx> EvmCodegen<'gcx> {
         preserve_across_calls: bool,
         context: &ResidentSearchContext,
     ) -> Option<(GlobalStackPlan, ScheduleCost)> {
-        let plan =
-            GlobalStackPlan::analyze_resident_args(func, liveness, values, preserve_across_calls)?;
+        let plan = GlobalStackPlan::analyze_resident_args(
+            func,
+            liveness,
+            values,
+            preserve_across_calls,
+            self.stack_access_limit(),
+        )?;
         if let Some(phi_plan) = &context.phi_plan {
             // One physical word cannot be both a phi input and an invariant resident prefix word.
             // `merge_resident` would otherwise extend only the result side of that edge, leaving a
@@ -277,7 +288,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         liveness: &Liveness,
         values: &[ValueId],
         preserve_across_calls: bool,
-        phi_plan: Option<Rc<StackPhiPlan>>,
+        phi_plan: Option<Arc<StackPhiPlan>>,
     ) -> Option<(Vec<ValueId>, GlobalStackPlan)> {
         debug_assert!(values.len() <= GLOBAL_STACK_LAYOUT_LIMIT);
         let mut use_counts = FxHashMap::default();
@@ -368,7 +379,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         func: &Function,
         liveness: &Liveness,
         cross_block_live: &OnceCell<DenseBitSet<ValueId>>,
-        phi_plan: Option<Rc<StackPhiPlan>>,
+        phi_plan: Option<Arc<StackPhiPlan>>,
     ) -> Option<(Vec<ValueId>, GlobalStackPlan)> {
         if matches!(self.gcx.sess.opts.optimization, OptimizationMode::None)
             || !Self::is_external_entry(func)
@@ -466,12 +477,12 @@ impl<'gcx> EvmCodegen<'gcx> {
             return None;
         }
 
-        let plan = GlobalStackPlan::analyze_resident_args_with_limit(
+        let plan = GlobalStackPlan::analyze_resident_args(
             func,
             liveness,
             values,
             self.preserve_caller_stack || self.can_preserve_hazard_caller_stack(func_id),
-            self.global_stack_layout_limit(),
+            self.stack_access_limit(),
         )?;
         Some((values.to_vec(), plan))
     }
@@ -567,7 +578,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         func: &Function,
         liveness: &Liveness,
         values: &[ValueId],
-        phi_plan: Option<Rc<StackPhiPlan>>,
+        phi_plan: Option<Arc<StackPhiPlan>>,
     ) -> Option<(Vec<ValueId>, GlobalStackPlan)> {
         if values.is_empty() {
             return None;

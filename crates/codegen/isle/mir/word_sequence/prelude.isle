@@ -1,3 +1,5 @@
+;; Shared terms and Rust-backed helpers for word recipes.
+;; See ../README.md for matching, costs, and rule-comment notation.
 ;; Temporary values belong to a recipe, never to the function during matching.
 (type Recipe (primitive Recipe))
 (decl pure partial make (Op) Value)
@@ -32,3 +34,30 @@
 (extern constructor u256_sub u256_sub)
 (decl pure optimize_for_size () bool)
 (extern constructor optimize_for_size optimize_for_size)
+
+(decl pure u256_mul (U256 U256) U256)
+(extern constructor u256_mul u256_mul)
+
+(decl pure u256_or (U256 U256) U256)
+(extern constructor u256_or u256_or)
+
+(decl pure u256_xor (U256 U256) U256)
+(extern constructor u256_xor u256_xor)
+
+(decl pure u256_and (U256 U256) U256)
+(extern constructor u256_and u256_and)
+
+(decl pure u256_add (U256 U256) U256)
+(extern constructor u256_add u256_add)
+
+(decl pure u256_shl (U256 U256) U256)
+(extern constructor u256_shl u256_shl)
+
+(decl pure partial power_of_two_shift (U256) U256)
+(extern constructor power_of_two_shift power_of_two_shift)
+
+(decl pure u256_shr (U256 U256) U256)
+(extern constructor u256_shr u256_shr)
+
+(decl integer_bits (u32) Value)
+(extern extractor integer_bits integer_bits)

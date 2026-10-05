@@ -9,12 +9,13 @@ use alloy_primitives::U256;
 use smallvec::SmallVec;
 use solar_data_structures::{
     bit_set::DenseBitSet,
-    fmt::{self, FmtIteratorExt},
+    fmt::FmtIteratorExt,
     index::IndexVec,
     map::{FxHashMap, StdEntry},
 };
 use solar_interface::{Ident, Span, Symbol};
 use solar_sema::hir::{StateMutability, Visibility};
+use std::fmt;
 
 /// A function in the MIR.
 #[derive(Clone, Debug)]
@@ -141,17 +142,6 @@ impl Function {
                 std::slice::from_ref(&self.return_type)
             }
         })
-    }
-
-    /// Returns mutable component types for representation lowering.
-    pub(crate) fn return_components_mut(&mut self) -> &mut [MirType] {
-        if let Some(components) = &mut self.return_abi {
-            components
-        } else if self.return_type == MirType::Void {
-            &mut []
-        } else {
-            std::slice::from_mut(&mut self.return_type)
-        }
     }
 
     /// Returns whether this function is an external ABI entry.

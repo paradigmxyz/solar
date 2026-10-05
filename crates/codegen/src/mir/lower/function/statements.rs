@@ -154,23 +154,25 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             StmtKind::Expr(expr) => {
                 let expr = expr.peel_parens();
-                let is_item_reference =
-                    matches!(
-                        self.cx.gcx.type_of_expr(expr.id).map(|ty| ty.kind),
-                        Some(TyKind::Type(_))
-                    ) || self.cx.gcx.resolved_function(expr).is_some_and(|function| {
-                        self.cx.gcx.hir.function(function).contract.is_some_and(|contract| {
-                            self.cx.gcx.hir.contract(contract).kind.is_library()
-                        })
-                    }) || matches!(
-                        expr.kind,
-                        ExprKind::Member(receiver, _)
-                            if matches!(
-                                self.cx.gcx.type_of_expr(receiver.id).map(|ty| ty.kind),
-                                Some(TyKind::Type(_))
-                            )
-                    );
-                if is_item_reference {
+                let is_item_reference = matches!(
+                    self.cx.gcx.type_of_expr(expr.id).map(|ty| ty.kind),
+                    Some(TyKind::Type(_))
+                ) || matches!(
+                    expr.kind,
+                    ExprKind::Member(receiver, _)
+                        if matches!(
+                            self.cx.gcx.type_of_expr(receiver.id).map(|ty| ty.kind),
+                            Some(TyKind::Type(_))
+                        )
+                );
+                if is_item_reference
+                    || (matches!(expr.kind, ExprKind::Ident(_))
+                        && self.cx.gcx.resolved_builtin(expr).is_some()
+                        && matches!(
+                            self.cx.gcx.type_of_expr(expr.id).map(|ty| ty.kind),
+                            Some(TyKind::Fn(_))
+                        ))
+                {
                     return Some(());
                 }
                 if let ExprKind::Assign(lhs, None, rhs) = &expr.kind
@@ -691,10 +693,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if let Some(value) = self.lower_fixed_bytes_literal(ty, expr) {
             return value;
         }
-        if matches!(
-            self.builder.func().value_ty(value),
-            Some(MirType::MemoryObject(MemoryObjectKind::Bytes))
-        ) {
+        if matches!(self.builder.func().value_ty(value), Some(MirType::MemPtr)) {
             let zero = self.builder.imm(0);
             return self.builder.memory_object_load_element(value, MemoryObjectLayout::Bytes, zero);
         }

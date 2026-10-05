@@ -4,12 +4,12 @@
 
 // === ROOT/tests/ui/codegen/lowering/run-call/calldata_struct_return.sol:CalldataStructReturn ===
 @module CalldataStructReturn
-types:
+@types
   struct0: {i256, i256}
   struct1: {i256, calldataslice}
   struct2: {i256, i256, i256, i256, i256, i256, i256}
-  struct3: {i1, memorystruct}
-  struct4: {i256, memorystruct}
+  struct3: {i1, memptr}
+  struct4: {i256, memptr}
 
 fn @direct(arg0: calldataslice) -> struct0 [selector=0x18f2e0cb, pure, abi_params=[bytes], abi_returns=[word<bool>, word], abi_return_params=[bool, u256]] {
   bb0:
@@ -73,20 +73,18 @@ fn @roundTrip() -> struct2 [selector=0x6643a628, view, abi_params=[], abi_return
     v26 = memory_object_load_field memorystruct<6>, v24, 1
     v27 = memory_object_load_field memorystruct<6>, v24, 2
     v28 = memory_object_load_field memorystruct<6>, v24, 3
-    v29 = memory_object_load_field memorystruct<6>, v24, 4
-    v30 = inttoptr i256 v29 to memorybytes
-    v31 = memory_object_len memorybytes, v30
-    v32 = memory_object_load_field memorystruct<6>, v24, 5
-    v33 = inttoptr i256 v32 to memorybytes
-    v34 = memory_object_len memorybytes, v33
-    v35 = insert_value struct2, undef struct2, 0, v23
-    v36 = insert_value struct2, v35, 1, v25
-    v37 = insert_value struct2, v36, 2, v26
-    v38 = insert_value struct2, v37, 3, v27
-    v39 = insert_value struct2, v38, 4, v28
-    v40 = insert_value struct2, v39, 5, v31
-    v41 = insert_value struct2, v40, 6, v34
-    ret v41
+    v29 = memory_object_load_field memorystruct<6>, v24, 4, memptr
+    v30 = memory_object_len memorybytes, v29
+    v31 = memory_object_load_field memorystruct<6>, v24, 5, memptr
+    v32 = memory_object_len memorybytes, v31
+    v33 = insert_value struct2, undef struct2, 0, v23
+    v34 = insert_value struct2, v33, 1, v25
+    v35 = insert_value struct2, v34, 2, v26
+    v36 = insert_value struct2, v35, 3, v27
+    v37 = insert_value struct2, v36, 4, v28
+    v38 = insert_value struct2, v37, 5, v30
+    v39 = insert_value struct2, v38, 6, v32
+    ret v39
 }
 
 fn @decode.3(arg0: calldataslice) -> struct1 [pure] {

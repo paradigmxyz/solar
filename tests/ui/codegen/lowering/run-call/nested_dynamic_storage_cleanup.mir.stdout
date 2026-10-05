@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/nested_dynamic_storage_cleanup.sol:NestedDynamicStorageCleanup ===
 @module NestedDynamicStorageCleanup
-types:
+@types
   struct0: {i256, i256}
 
 fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
@@ -75,20 +75,20 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word]
     v47 = lt 0, v46
     v48 = eq v47, false
     icall panic_if<0x32>, v48
-    v49 = ptrtoint memoryarray v45 to i256
+    v49 = ptrtoint memptr v45 to i256
     memory_object_store_element memoryarray<1>, v40, 0, v49
     v50 = memory_object_len memoryarray, v40
     v51 = lt 0, v50
     v52 = eq v51, false
     icall panic_if<0x32>, v52
     v53 = memory_object_load_element memoryarray<1>, v40, 0
-    v54 = inttoptr i256 v53 to memoryarray
+    v54 = inttoptr i256 v53 to memptr
     v55 = eq v53, 0
     jumpi v55, bb4, bb5
   bb4:
     v56 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
     set_memory_object_len memoryarray, v56, 0
-    v57 = ptrtoint memoryarray v56 to i256
+    v57 = ptrtoint memptr v56 to i256
     memory_object_store_element memoryarray<1>, v40, 0, v57
     jump bb5
   bb5:
@@ -132,13 +132,13 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word]
     ret v108
   bb15:
     v78 = memory_object_load_element memoryarray<1>, v40, v76
-    v79 = inttoptr i256 v78 to memoryarray
+    v79 = inttoptr i256 v78 to memptr
     v80 = eq v78, 0
     jumpi v80, bb17, bb18
   bb17:
     v81 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
     set_memory_object_len memoryarray, v81, 0
-    v82 = ptrtoint memoryarray v81 to i256
+    v82 = ptrtoint memptr v81 to i256
     memory_object_store_element memoryarray<1>, v40, v76, v82
     jump bb18
   bb18:
@@ -200,7 +200,7 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word]
     v74 = add v70, 1
     jump bb11
   bb2:
-    v43 = ptrtoint memoryarray 96 to i256
+    v43 = ptrtoint memptr 96 to i256
     memory_object_store_element memoryarray<1>, v40, v41, v43
     v44 = add v41, 1
     jump bb1

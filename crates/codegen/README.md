@@ -70,7 +70,7 @@ single EVM opcodes and scheduling shapes, without access to value definitions.
 The emitter and target cost model call that same selector.
 
 `build.rs` compiles the rule sets to Rust with `cranelift-isle`. Local identities
-in `isle/mir/egraph.isle` run inside the existing Rust e-graph algorithm; EVM IR window
+in `isle/mir/egraph` run inside the existing Rust e-graph algorithm; EVM IR window
 patterns live in `isle/evm-ir/peephole.isle`. Global analysis, profitability, stack
 scheduling, complex lowering, and assembly remain in Rust. The schema snapshot
 tests check the generated vocabularies, and the selector snapshot checks its
@@ -103,8 +103,20 @@ placeholder bytes carry no identity. Embedded creation and runtime bytecode carr
 their library tables and relocations; lowering remaps their IDs into the parent
 module's table.
 Data pooling shares bytes only when the library identities and offsets also match.
-The textual IR prints library identities as `"source.sol":"Library"` and data
-relocations as `library_relocations [offset: "source.sol":"Library"]`.
+MIR and EVM IR text declare libraries and data in `@libraries` and `@data` sections after the
+module header, and refer to both by declared name:
+
+```text
+@libraries
+  Library_0: "source.sol:Library"
+
+@data
+  Child_creation_code_0: creation_code "child.sol:Child"
+  literal_1: hex"..." library_relocations [2: Library_0]
+```
+
+Instructions refer to a library as `library_address Library_0` in MIR and
+`push_library Library_0` in EVM IR.
 
 ### Optimization search and costs
 

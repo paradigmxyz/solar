@@ -1823,7 +1823,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--tests", nargs="+", help="Select test IDs from either run")
     parser.add_argument(
-        "--compiler", choices=("solar", "solc", "solx"), default="solar"
+        "--compiler", choices=("solar", "solc", "solx", "oksolc"), default="solar"
     )
     parser.add_argument(
         "--comment-output", type=Path, help="Write CI should-comment metadata"

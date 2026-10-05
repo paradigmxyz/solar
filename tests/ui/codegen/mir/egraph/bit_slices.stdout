@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/egraph/bit_slices.mir (before egraph) ===
 + // === ROOT/tests/ui/codegen/mir/egraph/bit_slices.mir (after egraph) ===
   @module BitSlices
-  types:
+  @types
     struct0: {i256, i256, i256}
     struct1: {i256, i256}
     struct2: {i256, i256, i256, i256}
@@ -30,14 +30,15 @@
       v4 = sar 1, arg0
 -     v5 = sar 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, v4
 -     ret v1, v3, v5
-+     v5 = sar 256, arg0
++     v5 = sar 255, arg0
 +     ret 0, 0, v5
   }
   
   fn @low_byte(arg0: i256) -> i256 {
     bb0:
       v0 = shl 248, arg0
-      v1 = shr 248, v0
+-     v1 = shr 248, v0
++     v1 = and arg0, 255
       ret v1
   }
   
@@ -147,7 +148,7 @@
 - // === ROOT/tests/ui/codegen/mir/egraph/bit_slices.mir (before dce) ===
 + // === ROOT/tests/ui/codegen/mir/egraph/bit_slices.mir (after dce) ===
   @module BitSlices
-  types:
+  @types
     struct0: {i256, i256, i256}
     struct1: {i256, i256}
     struct2: {i256, i256, i256, i256}
@@ -168,14 +169,14 @@
 -     v0 = add arg0, arg0
 -     v2 = shr 255, arg0
 -     v4 = sar 1, arg0
-      v5 = sar 256, arg0
+      v5 = sar 255, arg0
       ret 0, 0, v5
   }
   
   fn @low_byte(arg0: i256) -> i256 {
     bb0:
-      v0 = shl 248, arg0
-      v1 = shr 248, v0
+-     v0 = shl 248, arg0
+      v1 = and arg0, 255
       ret v1
   }
   

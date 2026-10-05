@@ -1,6 +1,6 @@
 //@compile-flags: -Zmir-pipeline=dce
 @module TailCallValidate
-types:
+@types
   struct0: {i256, i256}
 
 

@@ -118,9 +118,7 @@ impl SroaCx {
         loop {
             let mut changed = false;
             for id in func.instructions() {
-                if let InstKind::PtrToInt(base, 256)
-                | InstKind::IntToPtr(base)
-                | InstKind::Bitcast(base) = func.inst(id).kind
+                if let InstKind::PtrToInt(base, 256) | InstKind::IntToPtr(base) = func.inst(id).kind
                     && object_aliases.contains(&base)
                     && let Some(result) = func.inst_result_value(id)
                     && object_aliases.insert(result)
@@ -191,13 +189,11 @@ impl SroaCx {
         }
 
         // field_word = ptrtoint field_pointer to i256
-        // field_pointer = inttoptr field_word, or bitcast field_pointer
+        // field_pointer = inttoptr field_word
         loop {
             let mut changed = false;
             for id in func.instructions() {
-                if let InstKind::PtrToInt(base, 256)
-                | InstKind::IntToPtr(base)
-                | InstKind::Bitcast(base) = func.inst(id).kind
+                if let InstKind::PtrToInt(base, 256) | InstKind::IntToPtr(base) = func.inst(id).kind
                     && let Some(&slot) = slot_of.get(&base)
                     && let Some(result) = func.inst_result_value(id)
                     && !slot_of.contains_key(&result)

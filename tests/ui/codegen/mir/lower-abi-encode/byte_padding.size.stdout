@@ -21,23 +21,22 @@
 +     v12 = eq v10, 0
 +     jumpi v12, bb2, bb1
 +   bb1:
-+     v13 = sub v10, 32
-+     v14 = add v11, v13
-+     mstore v14, 0
++     v13 = add v3, v10
++     mstore v13, 0
 +     jump bb2
 +   bb2:
-+     v15 = slice_ptr arg0
-+     v16 = add v11, v10
-+     calldatacopy v11, v15, v7 !metadata(memory=heap)
-+     v17 = ptrtoint memptr v1 to i256
-+     v18 = sub v16, v17
-+     v19 = add v18, 0
-+     v20 = add v19, 31
-+     v21 = not 31
-+     v22 = and v20, v21
-+     v23 = alloc raw, exact, uninitialized, infallible, v22 !metadata(preserves_fmp)
-+     v24 = ptrtoint memptr v23 to i256
-+     v25 = make_memory_slice v24, v19
-+     ret v25
++     v14 = slice_ptr arg0
++     v15 = add v11, v10
++     calldatacopy v11, v14, v7 !metadata(memory=heap)
++     v16 = ptrtoint memptr v1 to i256
++     v17 = sub v15, v16
++     v18 = add v17, 0
++     v19 = add v18, 31
++     v20 = not 31
++     v21 = and v19, v20
++     v22 = alloc raw, exact, uninitialized, infallible, v21 !metadata(preserves_fmp)
++     v23 = ptrtoint memptr v22 to i256
++     v24 = make_memory_slice v23, v18
++     ret v24
   }
   

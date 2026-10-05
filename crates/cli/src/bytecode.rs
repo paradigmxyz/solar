@@ -57,9 +57,7 @@ struct Placeholder {
 impl Placeholder {
     fn new(reference: &LibraryReference) -> Self {
         let mut hasher = Keccak256::new();
-        hasher.update(reference.source.as_bytes());
-        hasher.update(b":");
-        hasher.update(reference.name.as_bytes());
+        hasher.update(reference.library.as_str().as_bytes());
         let hash = hasher.finalize();
 
         let mut text = [0; 40];

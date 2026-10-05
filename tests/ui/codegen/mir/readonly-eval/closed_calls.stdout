@@ -93,14 +93,14 @@
       ret v0
   }
   
-  fn @reference_caller() -> memorybytes {
+  fn @reference_caller() -> memptr {
     bb0:
       v0 = icall @reference
       ret v0
   }
   
-  fn @reference() -> memorybytes {
+  fn @reference() -> memptr {
     bb0:
-      ret memorybytes 5
+      ret memptr 5
   }
   

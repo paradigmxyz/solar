@@ -10,7 +10,7 @@ contract Base {
 }
 
 // CHECK-LABEL: @module Derived
-// CHECK-NEXT: immutables:
+// CHECK-NEXT: @immutables
 // CHECK-NEXT: value0_: u256
 // CHECK-NEXT: value1: u256
 // CHECK-NEXT: value0: u256

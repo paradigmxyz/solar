@@ -14,7 +14,7 @@
 // CHECK: {{^[ +].*}}[[ADDR:v[0-9]+]] = {{(zext|ptrtoint)}} {{[^ ]+}} [[NARROW_ADDR]]
 // CHECK-NOT: {{^[ +].*}}= and
 // CHECK: {{^[ +].*}}ret [[LT_WORD]], [[BYTE]], [[SHR]], [[ADDR]]
-types:
+@types
   struct0: {i256, i256, i256, i256}
   struct1: {i256, i256}
   struct2: {i1, i1}
@@ -37,7 +37,7 @@ fn @masks_covering_known_bits(arg0: i256, arg1: i256) -> struct0 [return_abi=[i2
 
 // A mask narrower than the operand stays.
 // CHECK-LABEL: {{^[ +].*}}fn @masks_narrowing_words{{[( ]}}
-// CHECK: {{^[ +].*}}{{v[0-9]+}} = and {{v[0-9]+}}, 127
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = and arg0, 127
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = and arg0, 255
 fn @masks_narrowing_words(arg0: i256) -> struct1 [return_abi=[i256, i256]] {
   bb0:

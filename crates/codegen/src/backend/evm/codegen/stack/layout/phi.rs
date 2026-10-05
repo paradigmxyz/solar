@@ -1859,7 +1859,6 @@ impl<'a> StackPhiPlanner<'a> {
                         | InstKind::Sext(..)
                         | InstKind::PtrToInt(..)
                         | InstKind::IntToPtr(..)
-                        | InstKind::Bitcast(..)
                         | InstKind::MLoad(_)
                         | InstKind::MStore(_, _)
                         | InstKind::MStore8(_, _)

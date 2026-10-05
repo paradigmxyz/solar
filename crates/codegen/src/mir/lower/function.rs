@@ -1,20 +1,23 @@
 //! Function-level HIR to MIR lowering.
 
 use super::{
-    ContractBytecodes, contract,
+    contract,
     storage::{StorageEncoding, StorageLayout, StorageLocation},
     types,
 };
 use crate::mir::{
     AbiLayout, AbiParamLayout, AbiParamLocation, AbiParamType, AbiType, AbiWordValidator,
-    AddressCallKind, AllocationSemantics, ArithmeticKind, BlockId, CheckedOp, ConcatPart, Function,
-    FunctionBuilder, FunctionId, ImmutableId, InstKind, MemoryObjectKind, MemoryObjectLayout,
-    MirType, Module, PackedArraySource, PackedPart, PanicCode, RevertPayload, RevertReason,
-    SliceLocation, Value, ValueId, memory::EvmMemoryLayout,
+    AddressCallKind, AllocationSemantics, ArithmeticKind, BlockId, CheckedOp, ConcatPart, DataId,
+    DataRef, Function, FunctionBuilder, FunctionId, ImmutableId, InstKind, MemoryObjectKind,
+    MemoryObjectLayout, MirType, Module, PackedArraySource, PackedPart, PanicCode, RevertPayload,
+    RevertReason, SliceLocation, Value, ValueId, memory::EvmMemoryLayout,
 };
 use alloy_primitives::{U256, keccak256};
 use solar_ast::{BinOpKind, DataLocation, LitKind, StateMutability, StrKind, TypeSize, UnOpKind};
-use solar_data_structures::map::{FxHashMap, FxHashSet, FxIndexSet, StdEntry};
+use solar_data_structures::{
+    bit_set::DenseBitSet,
+    map::{FxHashMap, FxHashSet, FxIndexSet, StdEntry},
+};
 use solar_interface::{ByteSymbol, Ident, Span, Symbol, kw, sym};
 use solar_sema::{
     Gcx,
@@ -47,16 +50,14 @@ pub(super) struct LoweringContext<'gcx, 'ctx> {
     pub(super) module: &'ctx mut Module,
     pub(super) storage: &'ctx StorageLayout<'gcx>,
     pub(super) contract_id: hir::ContractId,
+    /// Contracts whose bytecode this contract embeds.
+    pub(super) bytecode_dependencies: &'gcx DenseBitSet<hir::ContractId>,
     pub(super) function_ids: &'ctx FxHashMap<hir::FunctionId, FunctionId>,
     pub(super) immutable_ids: &'ctx FxHashMap<VariableId, ImmutableId>,
-    pub(super) child_bytecodes: &'ctx FxHashMap<hir::ContractId, ContractBytecodes>,
     pub(super) state: &'ctx mut LoweringState,
     pub(super) shared_literals: &'ctx FxIndexSet<ByteSymbol>,
     pub(super) shared_word_literals: &'ctx FxHashSet<ByteSymbol>,
     pub(super) share_storage_bytes: bool,
-    /// Whether the compilation had already failed when the code generation
-    /// phase started.
-    pub(super) sema_errored: bool,
 }
 
 impl<'gcx, 'ctx> LoweringContext<'gcx, 'ctx> {
@@ -66,27 +67,18 @@ impl<'gcx, 'ctx> LoweringContext<'gcx, 'ctx> {
             module: &mut *self.module,
             storage: self.storage,
             contract_id: self.contract_id,
+            bytecode_dependencies: self.bytecode_dependencies,
             function_ids: self.function_ids,
             immutable_ids: self.immutable_ids,
-            child_bytecodes: self.child_bytecodes,
             state: &mut *self.state,
             shared_literals: self.shared_literals,
             shared_word_literals: self.shared_word_literals,
             share_storage_bytes: self.share_storage_bytes,
-            sema_errored: self.sema_errored,
         }
     }
 
     /// Reports a lowering bail-out and returns `None`.
-    ///
-    /// A bail-out is only worth reporting when the compilation would otherwise
-    /// succeed. After a sema error the bytecode is withheld anyway, and the
-    /// construct that lowering cannot handle is usually the rejected one, so
-    /// reporting it adds a second, misleading error.
     pub(super) fn report_unsupported<T>(&self, span: Span, what: &str) -> Option<T> {
-        if self.sema_errored {
-            return None;
-        }
         self.gcx
             .dcx()
             .err(format!("codegen rewrite does not support this {what} yet"))
@@ -107,6 +99,7 @@ pub(super) enum RecursiveStorageHelper {
 pub(super) struct LoweringState {
     pub(super) invalid_event_topics: FxHashSet<hir::EventId>,
     pub(super) pointer_registry: InternalFunctionPointerRegistry,
+    /// DO NOT ADD OTHER HELPER MAPS. USE THIS ONE ONLY.
     pub(super) helpers: FxHashMap<Symbol, FunctionId>,
 }
 

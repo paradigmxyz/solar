@@ -1,0 +1,8 @@
+error: object load annotation must be `memptr`
+   ╭▸ ROOT/tests/ui/codegen/mir/validation/parse_object_load_annotation.mir:LL:CC
+   │
+LL │     ret v0
+   ╰╴    ━━━
+
+error: aborting due to 1 previous error
+

@@ -169,6 +169,7 @@ impl MirPass for InlineMemoryWrappers {
         }
         MirInliner {
             memory_wrappers_only: true,
+            objects_lowered: true,
             max_instructions: 6,
             max_single_call_sanity_instructions: 6,
             ..MirInliner::for_tiny_leaves()
@@ -232,6 +233,7 @@ impl MirPass for InlineSingleUse {
             max_single_call_sanity_instructions: 256,
             frame_staging_allowed: matches!(self, Self::Semantic)
                 && module.phase < MirPhase::Lowered,
+            objects_lowered: matches!(self, Self::Physical),
             ..MirInliner::default()
         }
         .run(gcx, module);
@@ -321,6 +323,9 @@ struct MirInliner {
     /// frame slots are lowered to physical memory, a late run must leave such
     /// callees alone: the staging instructions would survive the phase boundary.
     frame_staging_allowed: bool,
+    /// Whether memory objects are already lowered to raw memory. Returned pointers then carry
+    /// no object identity, so only slice returns count as reference returns.
+    objects_lowered: bool,
     mode: InlineMode,
 }
 
@@ -363,6 +368,7 @@ impl Default for MirInliner {
             immutable_leaves_only: false,
             memory_wrappers_only: false,
             frame_staging_allowed: true,
+            objects_lowered: false,
             mode: InlineMode::Normal,
         }
     }
@@ -643,6 +649,7 @@ impl MirInliner {
                         module,
                         module.function(caller_id),
                         self.peak_analysis(),
+                        self.objects_lowered,
                     );
                     module_code_size = module_code_size
                         .saturating_sub(old_size)
@@ -682,7 +689,18 @@ impl MirInliner {
         module
             .functions
             .iter_enumerated()
-            .map(|(id, func)| (id, summarize_function(gcx, module, func, self.peak_analysis())))
+            .map(|(id, func)| {
+                (
+                    id,
+                    summarize_function(
+                        gcx,
+                        module,
+                        func,
+                        self.peak_analysis(),
+                        self.objects_lowered,
+                    ),
+                )
+            })
             .collect()
     }
 
@@ -1087,7 +1105,7 @@ fn is_small_literal_return(func: &Function) -> bool {
     if func.attributes.no_inline
         || func.internal_frame_size != 0
         || func.blocks.len() != 1
-        || func.return_components() != [MirType::MemoryObject(MemoryObjectKind::Bytes)]
+        || func.return_components() != [MirType::MemPtr]
     {
         return false;
     }
@@ -1160,6 +1178,7 @@ fn summarize_function(
     module: &Module,
     func: &Function,
     peak: PeakAnalysis,
+    objects_lowered: bool,
 ) -> MirInlineSummary {
     let target = Target::new(gcx);
     let mut summary = MirInlineSummary {
@@ -1171,10 +1190,11 @@ fn summarize_function(
             || func.attributes.is_receive
             || func.selector.is_some(),
         is_constructor: func.attributes.is_constructor,
-        has_reference_return: func
-            .return_components()
-            .iter()
-            .any(|ty| matches!(ty, MirType::MemoryObject(_) | MirType::Slice(_))),
+        has_reference_return: func.return_components().iter().any(|&ty| match ty {
+            MirType::MemPtr => !objects_lowered,
+            MirType::Slice(_) => true,
+            _ => false,
+        }),
         is_transparent_forwarder: is_transparent_forwarder(module, func),
         is_small_literal_return: is_small_literal_return(func),
         is_check_wrapper: is_check_wrapper(func),
@@ -1606,8 +1626,7 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> (Cost, 
         InstKind::InsertValue { .. }
         | InstKind::ExtractValue { .. }
         | InstKind::IntToPtr(..)
-        | InstKind::Zext(_)
-        | InstKind::Bitcast(_) => Cost::ZERO,
+        | InstKind::Zext(_) => Cost::ZERO,
         InstKind::MakeSlice { .. } | InstKind::SlicePtr(_) | InstKind::SliceLen(_) => Cost::ZERO,
         InstKind::MemoryObjectData(_, kind) => {
             if EvmMemoryLayout::object_data_offset(*kind) == 0 {
@@ -1708,6 +1727,7 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> (Cost, 
         // A pushed offset into the immutables area and the store.
         InstKind::StoreImmutable(..) => seq(&[op::PUSH2, op::MSTORE]),
         InstKind::DataCopy(..) => seq(&[op::CODECOPY]),
+        InstKind::DataSize(..) => seq(&[op::PUSH2]),
         // Zero by copying from beyond the end of calldata.
         InstKind::MemoryZero(..) => seq(&[op::CALLDATASIZE, op::CALLDATACOPY]),
         InstKind::ConstructorArgsBase => seq(&[op::PUSH2]),
@@ -2152,13 +2172,11 @@ fn inline_call_impl(
     // object_arg = inttoptr raw_arg
     // jump cloned_entry(object_arg)
     // Calls can carry raw pointer words; cloned semantic operations still require
-    // the callee's object types. Materialize the zero-cost view at the cloned entry.
+    // the callee's pointer parameters. Materialize the zero-cost view at the cloned entry.
     let mut args = args;
     let mut argument_views = Vec::new();
     for (arg, &ty) in args.iter_mut().zip(&callee.params) {
-        if let MirType::MemoryObject(_) = ty
-            && caller.value_ty(*arg) != Some(ty)
-        {
+        if ty == MirType::MemPtr && caller.value_ty(*arg) != Some(ty) {
             if !caller.value_ty(*arg).is_some_and(MirType::is_word) {
                 return None;
             }
@@ -2597,7 +2615,7 @@ fn insert_return_buffer_stores(
     };
     let consumer_start = phi_count + instructions.len();
     caller.blocks[continuation].instructions.splice(phi_count..phi_count, instructions);
-    if return_tys.iter().all(|ty| !matches!(ty, MirType::Slice(_) | MirType::MemoryObject(_))) {
+    if return_tys.iter().all(|ty| !matches!(ty, MirType::Slice(_) | MirType::MemPtr)) {
         forward_inline_return_loads(caller, continuation, consumer_start, values);
     }
     Some(())

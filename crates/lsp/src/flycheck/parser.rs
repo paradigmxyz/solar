@@ -1,11 +1,14 @@
 use crate::{
     code_actions::{DiagnosticData, DiagnosticSuggestion, ranges_overlap},
-    diagnostics::DiagnosticMap,
+    diagnostics::{
+        DiagnosticMap,
+        presentation::{DiagnosticMessage, forge_diagnostic_tags, solidity_diagnostic_tags},
+    },
     flycheck::config::FlycheckOutput,
 };
 use crop::Rope;
 use lsp_types::{
-    Diagnostic as LspDiagnostic, DiagnosticSeverity, NumberOrString, Position, Range, Url,
+    Diagnostic as LspDiagnostic, DiagnosticSeverity, Location, NumberOrString, Position, Range, Url,
 };
 use normalize_path::NormalizePath;
 use serde::Deserialize;
@@ -27,26 +30,14 @@ pub(super) fn parse(
     output: &[u8],
     cwd: &Path,
     format: FlycheckOutput,
-) -> Result<DiagnosticMap, ParseError> {
-    parse_with_snapshot(output, cwd, format, None)
-}
-
-pub(super) fn parse_from_snapshot(
-    output: &[u8],
-    cwd: &Path,
-    format: FlycheckOutput,
-    source_snapshot: &SourceSnapshot,
-) -> Result<DiagnosticMap, ParseError> {
-    parse_with_snapshot(output, cwd, format, Some(source_snapshot))
-}
-
-fn parse_with_snapshot(
-    output: &[u8],
-    cwd: &Path,
-    format: FlycheckOutput,
     source_snapshot: Option<&SourceSnapshot>,
 ) -> Result<DiagnosticMap, ParseError> {
     let mut diagnostics = DiagnosticMap::default();
+    let mut push = |diagnostic: Option<(Url, LspDiagnostic)>| {
+        if let Some((uri, diagnostic)) = diagnostic {
+            diagnostics.entry(uri).or_default().push(diagnostic);
+        }
+    };
     let mut range_cache = ByteRangeCache::new(source_snapshot);
     let source = source(format);
 
@@ -55,7 +46,17 @@ fn parse_with_snapshot(
             let stream =
                 serde_json::Deserializer::from_slice(output).into_iter::<SolcJsonRecord<'_>>();
             for record in stream {
-                collect_solc_json(record?, cwd, source, &mut diagnostics, &mut range_cache);
+                match record? {
+                    SolcJsonRecord::Diagnostic(diagnostic) => {
+                        push(solc_diagnostic(diagnostic, cwd, source, &mut range_cache));
+                    }
+                    SolcJsonRecord::Diagnostics(records)
+                    | SolcJsonRecord::Errors(SolcJsonErrors { errors: records }) => {
+                        for diagnostic in records {
+                            push(solc_diagnostic(diagnostic, cwd, source, &mut range_cache));
+                        }
+                    }
+                }
             }
         }
         FlycheckOutput::ForgeLintJson => {
@@ -63,16 +64,13 @@ fn parse_with_snapshot(
                 .into_iter::<&serde_json::value::RawValue>();
             for raw in stream {
                 let raw = raw?;
-                let record = serde_json::from_str(raw.get());
-
-                match record {
-                    Ok(record) => collect_json_emitter(
-                        record,
-                        cwd,
-                        source,
-                        &mut diagnostics,
-                        &mut range_cache,
-                    ),
+                match serde_json::from_str(raw.get()) {
+                    Ok(JsonEmitterRecord::Rustc(JsonDiagnosticMessage::Diagnostic(diagnostic))) => {
+                        push(json_diagnostic(diagnostic, cwd, source, &mut range_cache));
+                    }
+                    Ok(JsonEmitterRecord::Solc(diagnostic)) => {
+                        push(solc_diagnostic(diagnostic, cwd, source, &mut range_cache));
+                    }
                     Err(error) => {
                         let value = serde_json::from_str(raw.get())?;
                         if is_json_emitter_diagnostic(&value) {
@@ -112,6 +110,8 @@ struct SolcJsonErrors<'a> {
 struct SolcInputDiagnostic<'a> {
     #[serde(borrow)]
     source_location: Option<SolcInputSourceLocation<'a>>,
+    #[serde(default, borrow)]
+    secondary_source_locations: Vec<SolcInputSourceLocation<'a>>,
     #[serde(rename = "type", borrow)]
     _type: Cow<'a, str>,
     #[serde(rename = "component", borrow)]
@@ -129,6 +129,8 @@ struct SolcInputSourceLocation<'a> {
     file: Cow<'a, str>,
     start: i64,
     end: i64,
+    #[serde(borrow)]
+    message: Option<Cow<'a, str>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -141,49 +143,6 @@ enum JsonEmitterRecord<'a> {
 fn is_json_emitter_diagnostic(value: &serde_json::Value) -> bool {
     value.get("$message_type").and_then(serde_json::Value::as_str) == Some("diagnostic")
         || value.get("severity").is_some() && value.get("message").is_some()
-}
-
-fn collect_solc_json(
-    record: SolcJsonRecord<'_>,
-    cwd: &Path,
-    source: &'static str,
-    diagnostics: &mut DiagnosticMap,
-    range_cache: &mut ByteRangeCache<'_>,
-) {
-    match record {
-        SolcJsonRecord::Diagnostic(diagnostic) => {
-            push_diagnostic(diagnostics, solc_diagnostic(diagnostic, cwd, source, range_cache));
-        }
-        SolcJsonRecord::Diagnostics(diagnostics_)
-        | SolcJsonRecord::Errors(SolcJsonErrors { errors: diagnostics_ }) => {
-            for diagnostic in diagnostics_ {
-                push_diagnostic(diagnostics, solc_diagnostic(diagnostic, cwd, source, range_cache));
-            }
-        }
-    }
-}
-
-fn collect_json_emitter(
-    record: JsonEmitterRecord<'_>,
-    cwd: &Path,
-    source: &'static str,
-    diagnostics: &mut DiagnosticMap,
-    range_cache: &mut ByteRangeCache<'_>,
-) {
-    match record {
-        JsonEmitterRecord::Rustc(JsonDiagnosticMessage::Diagnostic(diagnostic)) => {
-            push_diagnostic(diagnostics, json_diagnostic(diagnostic, cwd, source, range_cache));
-        }
-        JsonEmitterRecord::Solc(diagnostic) => {
-            push_diagnostic(diagnostics, solc_diagnostic(diagnostic, cwd, source, range_cache));
-        }
-    }
-}
-
-fn push_diagnostic(diagnostics: &mut DiagnosticMap, diagnostic: Option<(Url, LspDiagnostic)>) {
-    if let Some((uri, diagnostic)) = diagnostic {
-        diagnostics.entry(uri).or_default().push(diagnostic);
-    }
 }
 
 fn solc_diagnostic(
@@ -202,6 +161,26 @@ fn solc_diagnostic(
     };
     let range = range_cache.checked_range(&path, start, end)?;
     let data = diagnostic_data(range_cache, &path, uri.clone(), Vec::new());
+    let tags = if source == "forge-lint" {
+        forge_diagnostic_tags(diagnostic.error_code.as_deref())
+    } else {
+        solidity_diagnostic_tags(diagnostic.error_code.as_deref())
+    };
+    let mut message =
+        DiagnosticMessage::new(Location::new(uri.clone(), range), diagnostic.message.into_owned());
+    if let Some(label) = &location.message {
+        message.push(None, label);
+    }
+    for location in diagnostic.secondary_source_locations {
+        if let Some(label) = &location.message {
+            let path = resolve_path(range_cache.source_map.file_loader(), cwd, &location.file);
+            let location = usize::try_from(location.start)
+                .ok()
+                .zip(usize::try_from(location.end).ok())
+                .and_then(|(start, end)| range_cache.location(&path, start, end));
+            message.push(location, label);
+        }
+    }
 
     Some((
         uri,
@@ -211,9 +190,9 @@ fn solc_diagnostic(
             code: diagnostic.error_code.map(|code| NumberOrString::String(code.into_owned())),
             code_description: None,
             source: Some(source.into()),
-            message: diagnostic.message.into_owned(),
-            related_information: None,
-            tags: None,
+            message: message.message,
+            related_information: Some(message.related_information),
+            tags,
             data,
         },
     ))
@@ -225,19 +204,17 @@ fn json_diagnostic(
     source: &'static str,
     range_cache: &mut ByteRangeCache<'_>,
 ) -> Option<(Url, LspDiagnostic)> {
-    let (path, byte_start, byte_end) = {
-        let span = primary_span(&diagnostic)?;
-        (
-            resolve_path(range_cache.source_map.file_loader(), cwd, span.file_name.as_ref()),
-            span.byte_start as usize,
-            span.byte_end as usize,
-        )
-    };
-
+    let span = primary_span(&diagnostic)?;
+    let path = resolve_path(range_cache.source_map.file_loader(), cwd, span.file_name.as_ref());
     let uri = Url::from_file_path(&path).ok()?;
-    let range = range_cache.checked_range(&path, byte_start, byte_end)?;
+    let range =
+        range_cache.checked_range(&path, span.byte_start as usize, span.byte_end as usize)?;
     let suggestions = json_suggestions(&diagnostic, cwd, &uri, range_cache);
     let data = diagnostic_data(range_cache, &path, uri.clone(), suggestions);
+    let primary = Location::new(uri.clone(), range);
+    let mut message = DiagnosticMessage::new(primary.clone(), diagnostic.message.to_string());
+    json_diagnostic_details(&diagnostic, &primary, &mut message, cwd, range_cache);
+    let tags = forge_diagnostic_tags(diagnostic.code.as_ref().map(|code| code.code.as_ref()));
 
     Some((
         uri,
@@ -247,9 +224,9 @@ fn json_diagnostic(
             code: diagnostic.code.map(|code| NumberOrString::String(code.code.into_owned())),
             code_description: None,
             source: Some(source.into()),
-            message: diagnostic.message.into_owned(),
-            related_information: None,
-            tags: None,
+            message: message.message,
+            related_information: Some(message.related_information),
+            tags,
             data,
         },
     ))
@@ -328,6 +305,45 @@ fn diagnostic_data(
 
 fn primary_span<'a, 'b>(diagnostic: &'a JsonDiagnostic<'b>) -> Option<&'a JsonDiagnosticSpan<'b>> {
     diagnostic.spans.iter().find(|span| span.is_primary).or_else(|| diagnostic.spans.first())
+}
+
+fn json_diagnostic_details(
+    diagnostic: &JsonDiagnostic<'_>,
+    primary: &Location,
+    message: &mut DiagnosticMessage,
+    cwd: &Path,
+    range_cache: &mut ByteRangeCache<'_>,
+) {
+    for span in &diagnostic.spans {
+        let location = json_span_location(span, cwd, range_cache);
+        if let Some(label) = &span.label {
+            message.push(location, label);
+        } else if location.as_ref().is_some_and(|location| location != primary) {
+            message.push(location, &diagnostic.message);
+        }
+    }
+    for child in &diagnostic.children {
+        let location = child
+            .spans
+            .iter()
+            .find(|span| span.is_primary)
+            .and_then(|span| json_span_location(span, cwd, range_cache));
+        if location.as_ref().is_none_or(|location| location == primary) {
+            message.push(None, &format!("{}: {}", child.level, child.message));
+        } else {
+            message.push(location, &child.message);
+        }
+        json_diagnostic_details(child, primary, message, cwd, range_cache);
+    }
+}
+
+fn json_span_location(
+    span: &JsonDiagnosticSpan<'_>,
+    cwd: &Path,
+    range_cache: &mut ByteRangeCache<'_>,
+) -> Option<Location> {
+    let path = resolve_path(range_cache.source_map.file_loader(), cwd, &span.file_name);
+    range_cache.location(&path, span.byte_start as usize, span.byte_end as usize)
 }
 
 fn solc_severity(severity: Severity) -> DiagnosticSeverity {
@@ -421,6 +437,12 @@ impl<'a> ByteRangeCache<'a> {
         }
         Some(Range { start: position_at_byte(file, start), end: position_at_byte(file, end) })
     }
+
+    fn location(&mut self, path: &Path, start: usize, end: usize) -> Option<Location> {
+        let uri = Url::from_file_path(path).ok()?;
+        let range = self.checked_range(path, start, end)?;
+        Some(Location::new(uri, range))
+    }
 }
 
 fn position_at_byte(file: &Rope, byte: usize) -> Position {
@@ -436,187 +458,140 @@ fn position_at_byte(file: &Rope, byte: usize) -> Position {
 mod tests {
     use super::*;
     use crate::test_support::TestProject;
-    use lsp_types::DiagnosticSeverity;
+    use lsp_types::{DiagnosticRelatedInformation, DiagnosticTag};
+    use snapbox::{assert_data_eq, str};
     use solar_interface::diagnostics::{
-        Applicability, JsonDiagnosticCode, JsonDiagnosticSpanLine, SolcDiagnostic, SourceLocation,
+        JsonDiagnosticCode, JsonDiagnosticSpanLine, SolcDiagnostic, SourceLocation,
     };
     #[cfg(unix)]
     use std::os::unix::fs::symlink;
 
-    #[test]
-    fn parses_solc_like_diagnostics() {
-        let project = TestProject::from_fixture(
-            r#"
-            //- /src/Test.sol
-            contract Test {
-                function bad_name() public {}
-            }
-            "#,
-        );
-        let file = project.path("/src/Test.sol");
-        let json = serde_json::to_string(&[solc_diagnostic_fixture(
-            Cow::Owned(file.to_string_lossy().into_owned()),
-            20,
-            24,
-            Severity::Warning,
-            Some("2018"),
-            "function name should use mixedCase",
-        )])
-        .unwrap();
+    const SOURCE: &str = "contract Test {\n    uint256 bad_name;\n    string value = \"🚀\";\n}\n";
 
-        let diagnostics = parse(json.as_bytes(), project.root(), FlycheckOutput::SolcJson).unwrap();
+    fn project() -> (TestProject, Url) {
+        let project = TestProject::new();
+        project.write_file("/src/Test.sol", SOURCE);
+        project.write_file("/src/Base.sol", "contract Base {}");
+        let uri = project.uri("/src/Test.sol");
+        (project, uri)
+    }
 
-        let uri = Url::from_file_path(project.path("/src/Test.sol")).unwrap();
-        let diagnostic = &diagnostics[&uri][0];
-        assert_eq!(diagnostic.source.as_deref(), Some("flycheck"));
-        assert_eq!(diagnostic.severity, Some(DiagnosticSeverity::WARNING));
-        assert_eq!(diagnostic.message, "function name should use mixedCase");
-        assert_eq!(diagnostic.code, Some(NumberOrString::String("2018".into())));
+    fn parse_all(
+        project: &TestProject,
+        output: impl AsRef<[u8]>,
+        format: FlycheckOutput,
+    ) -> DiagnosticMap {
+        parse(output.as_ref(), project.root(), format, None).unwrap()
+    }
+
+    fn range(line: u32, start: u32, end: u32) -> Range {
+        Range::new(Position::new(line, start), Position::new(line, end))
+    }
+
+    fn code(code: &str) -> Option<NumberOrString> {
+        Some(NumberOrString::String(code.into()))
+    }
+
+    fn bad_name() -> (usize, usize) {
+        let start = SOURCE.find("bad_name").unwrap();
+        (start, start + "bad_name".len())
     }
 
     #[test]
-    fn parses_standard_json_error_envelope() {
-        let project = TestProject::from_fixture(
-            r#"
-            //- /src/Test.sol
-            contract Test {
-                uint256 bad_name;
-            }
-            "#,
-        );
-        let json = serde_json::json!({
-            "errors": [solc_diagnostic_fixture(
-                Cow::Borrowed("src/Test.sol"),
-                20,
-                24,
+    fn parses_solc_json_records() {
+        let (project, uri) = project();
+        let (start, end) = bad_name();
+        let rocket = SOURCE.find('🚀').unwrap();
+        let file = project.path("/src/Test.sol").to_string_lossy().into_owned();
+        let output = [
+            serde_json::to_string(&[solc(
+                file,
+                start,
+                end,
                 Severity::Warning,
                 Some("2018"),
-                "mutable variables should use mixedCase",
-            )]
-        });
+                "array",
+            )]),
+            serde_json::to_string(&serde_json::json!({
+                "errors": [solc("src/Test.sol", 0, 8, Severity::Error, Some("1234"), "envelope")]
+            })),
+            serde_json::to_string(&serde_json::json!({
+                "sourceLocation": { "file": "src/Test.sol", "start": -1, "end": -1 },
+                "type": "Warning",
+                "component": "general",
+                "severity": "info",
+                "errorCode": "1878",
+                "message": "file level"
+            })),
+            serde_json::to_string(&solc(
+                "src/Test.sol",
+                rocket,
+                rocket + "🚀".len(),
+                Severity::Warning,
+                None,
+                "rocket",
+            )),
+        ]
+        .map(Result::unwrap)
+        .join("\n");
 
-        let diagnostics =
-            parse(json.to_string().as_bytes(), project.root(), FlycheckOutput::SolcJson).unwrap();
+        let diagnostics = parse_all(&project, output, FlycheckOutput::SolcJson);
 
-        let uri = Url::from_file_path(project.path("/src/Test.sol")).unwrap();
-        let diagnostic = &diagnostics[&uri][0];
-        assert_eq!(diagnostic.source.as_deref(), Some("flycheck"));
-        assert_eq!(diagnostic.severity, Some(DiagnosticSeverity::WARNING));
-        assert_eq!(diagnostic.code, Some(NumberOrString::String("2018".into())));
-    }
-
-    #[test]
-    fn maps_solc_file_level_diagnostics_to_document_start() {
-        let project = TestProject::from_fixture(
-            r#"
-            //- /src/Test.sol
-            contract Test {}
-            "#,
-        );
-        let json = serde_json::json!([{
-            "sourceLocation": {
-                "file": "src/Test.sol",
-                "start": -1,
-                "end": -1
-            },
-            "type": "Warning",
-            "component": "general",
-            "severity": "warning",
-            "errorCode": "1878",
-            "message": "SPDX license identifier not provided in source file."
-        }]);
-
-        let diagnostics =
-            parse(json.to_string().as_bytes(), project.root(), FlycheckOutput::SolcJson).unwrap();
-
-        let uri = Url::from_file_path(project.path("/src/Test.sol")).unwrap();
-        let diagnostic = &diagnostics[&uri][0];
-        assert_eq!(diagnostic.range, Range::default());
-        assert!(diagnostic.data.is_some());
-    }
-
-    #[test]
-    fn quick_fix_metadata_uses_the_flycheck_start_snapshot() {
-        let project = TestProject::from_fixture(
-            r#"
-            //- /src/Test.sol
-            contract Test { uint256 old_name; }
-            "#,
-        );
-        let file = project.path("/src/Test.sol");
-        let source_at_start = project.read_file("/src/Test.sol");
-        let start = source_at_start.find("old_name").unwrap();
-        let json = serde_json::to_string(&[solc_diagnostic_fixture(
-            Cow::Owned(file.to_string_lossy().into_owned()),
-            start,
-            start + "old_name".len(),
-            Severity::Warning,
-            Some("2018"),
-            "mutable variables should use mixedCase",
-        )])
-        .unwrap();
-        let mut snapshot = SourceSnapshot::default();
-        snapshot.insert(file.clone(), Rope::from(source_at_start.as_str()));
-        project.write_file("/src/Test.sol", "contract Test { uint256 new_name; }\n");
-
-        let diagnostics = parse_from_snapshot(
-            json.as_bytes(),
-            project.root(),
-            FlycheckOutput::SolcJson,
-            &snapshot,
-        )
-        .unwrap();
-        let uri = Url::from_file_path(file).unwrap();
-        let data = diagnostics[&uri][0].data.as_ref().expect("snapshot should carry metadata");
+        let diagnostics = &diagnostics[&uri];
         assert_eq!(
-            data["sourceFingerprint"],
-            crate::code_actions::source_fingerprint(&source_at_start)
+            diagnostics
+                .iter()
+                .map(|diagnostic| (
+                    diagnostic.message.as_str(),
+                    diagnostic.range,
+                    diagnostic.severity.unwrap(),
+                    diagnostic.code.clone()
+                ))
+                .collect::<Vec<_>>(),
+            [
+                ("array", range(1, 12, 20), DiagnosticSeverity::WARNING, code("2018")),
+                ("envelope", range(0, 0, 8), DiagnosticSeverity::ERROR, code("1234")),
+                ("file level", Range::default(), DiagnosticSeverity::INFORMATION, code("1878")),
+                ("rocket", range(2, 20, 22), DiagnosticSeverity::WARNING, None),
+            ]
         );
-
-        let diagnostics = parse_from_snapshot(
-            json.as_bytes(),
-            project.root(),
-            FlycheckOutput::SolcJson,
-            &SourceSnapshot::default(),
-        )
-        .unwrap();
-        assert!(diagnostics[&uri][0].data.is_none());
+        for diagnostic in diagnostics {
+            assert_eq!(diagnostic.source.as_deref(), Some("flycheck"));
+            assert!(diagnostic.data.is_some());
+        }
     }
 
     #[test]
-    fn quick_fix_metadata_normalizes_equivalent_diagnostic_paths() {
-        let project = TestProject::from_fixture(
-            r#"
-            //- /src/Test.sol
-            contract Test { uint256 value; }
-            //- /tools/config
-            config
-            "#,
-        );
-        let file = project.path("/src/Test.sol");
-        let contents = project.read_file("/src/Test.sol");
-        let start = contents.find("value").unwrap();
-        let json = serde_json::to_string(&[solc_diagnostic_fixture(
-            Cow::Borrowed("../src/Test.sol"),
+    fn quick_fix_metadata_uses_the_flycheck_start_snapshot_for_equivalent_paths() {
+        let (project, uri) = project();
+        project.write_file("/tools/config", "config");
+        let (start, end) = bad_name();
+        let json = serde_json::to_string(&[solc(
+            "../src/Test.sol",
             start,
-            start + "value".len(),
+            end,
             Severity::Warning,
             Some("2018"),
             "diagnostic",
         )])
         .unwrap();
-        let snapshot = SourceSnapshot::from_iter([(file.clone(), Rope::from(contents))]);
+        let snapshot =
+            SourceSnapshot::from_iter([(project.path("/src/Test.sol"), Rope::from(SOURCE))]);
+        project.write_file("/src/Test.sol", &SOURCE.replace("bad_name", "new_name"));
+        let parse = |snapshot| {
+            parse(
+                json.as_bytes(),
+                &project.path("/tools"),
+                FlycheckOutput::SolcJson,
+                Some(snapshot),
+            )
+            .unwrap()
+        };
 
-        let diagnostics = parse_from_snapshot(
-            json.as_bytes(),
-            &project.path("/tools"),
-            FlycheckOutput::SolcJson,
-            &snapshot,
-        )
-        .unwrap();
-
-        let uri = Url::from_file_path(file).unwrap();
-        assert!(diagnostics[&uri][0].data.is_some());
+        let diagnostics = parse(&snapshot);
+        let data = diagnostics[&uri][0].data.as_ref().expect("snapshot should carry metadata");
+        assert_eq!(data["sourceFingerprint"], crate::code_actions::source_fingerprint(SOURCE));
+        assert!(parse(&SourceSnapshot::default())[&uri][0].data.is_none());
     }
 
     #[cfg(unix)]
@@ -635,8 +610,8 @@ mod tests {
         symlink(project.path("/actual/nested"), project.path("/link")).unwrap();
         let contents = project.read_file("/actual/Target.sol");
         let start = contents.find("value").unwrap();
-        let json = serde_json::to_string(&[solc_diagnostic_fixture(
-            Cow::Borrowed("link/../Target.sol"),
+        let json = serde_json::to_string(&[solc(
+            "link/../Target.sol",
             start,
             start + "value".len(),
             Severity::Warning,
@@ -646,120 +621,87 @@ mod tests {
         .unwrap();
 
         let path = project.path("/actual/Target.sol");
-        let snapshot = SourceSnapshot::from_iter([(path.clone(), Rope::from(contents))]);
-        let diagnostics = parse_from_snapshot(
-            json.as_bytes(),
-            project.root(),
-            FlycheckOutput::SolcJson,
-            &snapshot,
-        )
-        .unwrap();
+        let snapshot = SourceSnapshot::from_iter([(path, Rope::from(contents))]);
+        let diagnostics =
+            parse(json.as_bytes(), project.root(), FlycheckOutput::SolcJson, Some(&snapshot))
+                .unwrap();
 
-        let uri = Url::from_file_path(path).unwrap();
+        let uri = project.uri("/actual/Target.sol");
         assert_eq!(diagnostics.keys().collect::<Vec<_>>(), [&uri]);
         assert!(diagnostics[&uri][0].data.is_some());
     }
 
     #[test]
-    fn parses_rustc_style_forge_lint_diagnostics() {
-        let project = TestProject::from_fixture(
-            r#"
-            //- /src/Test.sol
-            contract Test {
-                uint256 bad_name;
+    fn parses_forge_lint_records_and_levels() {
+        let (project, uri) = project();
+        let (start, end) = bad_name();
+        let levels = [
+            ("note", DiagnosticSeverity::INFORMATION),
+            ("gas", DiagnosticSeverity::INFORMATION),
+            ("code-size", DiagnosticSeverity::INFORMATION),
+            ("help", DiagnosticSeverity::HINT),
+            ("error", DiagnosticSeverity::ERROR),
+            ("unknown", DiagnosticSeverity::WARNING),
+        ];
+        let mut output = String::from("{\"$message_type\":\"build_finished\",\"success\":true}\n");
+        for (level, _) in levels {
+            output += &serde_json::to_string(&forge(start, end, level, level, level)).unwrap();
+            output.push('\n');
+        }
 
-                function bad_function() public {}
-            }
-            "#,
-        );
-        let contents = project.read_file("/src/Test.sol");
-        let variable_start = contents.find("bad_name").unwrap();
-        let variable_end = variable_start + "bad_name".len();
-        let function_start = contents.find("bad_function").unwrap();
-        let function_end = function_start + "bad_function".len();
-        let variable = serde_json::to_string(&json_diagnostic_fixture(
-            variable_start,
-            variable_end,
-            "mixed-case-variable",
-            "mutable variables should use mixedCase",
-        ))
-        .unwrap();
-        let function = serde_json::to_string(&json_diagnostic_fixture(
-            function_start,
-            function_end,
-            "mixed-case-function",
-            "function names should use mixedCase",
-        ))
-        .unwrap();
-        let output = format!("{variable}\n{function}\n");
+        let diagnostics = parse_all(&project, output, FlycheckOutput::ForgeLintJson);
 
-        let diagnostics =
-            parse(output.as_bytes(), project.root(), FlycheckOutput::ForgeLintJson).unwrap();
-
-        let uri = Url::from_file_path(project.path("/src/Test.sol")).unwrap();
         let diagnostics = &diagnostics[&uri];
-        assert_eq!(diagnostics.len(), 2);
-        assert_eq!(diagnostics[0].source.as_deref(), Some("forge-lint"));
-        assert_eq!(diagnostics[0].severity, Some(DiagnosticSeverity::INFORMATION));
-        assert_eq!(diagnostics[0].message, "mutable variables should use mixedCase");
-        assert_eq!(diagnostics[0].code, Some(NumberOrString::String("mixed-case-variable".into())));
-        assert_eq!(diagnostics[1].message, "function names should use mixedCase");
-        assert_eq!(diagnostics[1].code, Some(NumberOrString::String("mixed-case-function".into())));
+        assert_eq!(diagnostics.len(), levels.len());
+        for (diagnostic, (level, severity)) in diagnostics.iter().zip(levels) {
+            assert_eq!(diagnostic.source.as_deref(), Some("forge-lint"));
+            assert_eq!(diagnostic.severity, Some(severity));
+            assert_eq!(diagnostic.message, level);
+            assert_eq!(diagnostic.code, code(level));
+            assert_eq!(diagnostic.range, range(1, 12, 20));
+        }
     }
 
     #[test]
     fn preserves_forge_lint_suggestion_alternatives_in_diagnostic_data() {
-        let project = TestProject::from_fixture(
-            r#"
-            //- /src/Test.sol
-            contract Test {
-                uint256 bad_name;
-            }
-            "#,
-        );
-        let contents = project.read_file("/src/Test.sol");
-        let start = contents.find("bad_name").unwrap();
-        let end = start + "bad_name".len();
-        let mut diagnostic = json_diagnostic_fixture(
+        let (project, uri) = project();
+        let (start, end) = bad_name();
+        let mut diagnostic = forge(
             start,
             end,
+            "note",
             "mixed-case-variable",
             "mutable variables should use mixedCase",
         );
         let JsonDiagnosticMessage::Diagnostic(record) = &mut diagnostic;
-        let suggestion = |replacement| JsonDiagnostic {
-            message: Cow::Borrowed("convert the name to mixedCase"),
-            code: None,
-            level: Cow::Borrowed("help"),
-            spans: vec![JsonDiagnosticSpan {
-                file_name: Cow::Borrowed("src/Test.sol"),
-                byte_start: start as u32,
-                byte_end: end as u32,
-                line_start: 1,
-                line_end: 1,
-                column_start: 1,
-                column_end: 1,
-                is_primary: true,
-                text: Vec::new(),
-                label: None,
-                suggested_replacement: Some(Cow::Borrowed(replacement)),
-                suggestion_applicability: Some(Applicability::MachineApplicable),
-                expansion: None,
-            }],
-            children: Vec::new(),
-            rendered: None,
+        let suggestion = |replacement| {
+            let JsonDiagnosticMessage::Diagnostic(mut suggestion) =
+                forge(start, end, "help", "", "convert the name to mixedCase");
+            suggestion.code = None;
+            suggestion.spans[0].text = Vec::new();
+            suggestion.spans[0].suggested_replacement = Some(Cow::Borrowed(replacement));
+            suggestion.spans[0].suggestion_applicability = Some(Applicability::MachineApplicable);
+            suggestion
         };
         record.children.extend([suggestion("badName"), suggestion("goodName")]);
-        let json = serde_json::to_string(&diagnostic).unwrap();
 
-        let diagnostics =
-            parse(json.as_bytes(), project.root(), FlycheckOutput::ForgeLintJson).unwrap();
+        let diagnostics = parse_all(
+            &project,
+            serde_json::to_string(&diagnostic).unwrap(),
+            FlycheckOutput::ForgeLintJson,
+        );
 
-        let uri = Url::from_file_path(project.path("/src/Test.sol")).unwrap();
+        assert_data_eq!(
+            diagnostics[&uri][0].message.as_str(),
+            str![[r#"
+mutable variables should use mixedCase
+help: convert the name to mixedCase
+"#]]
+        );
         let data =
             diagnostics[&uri][0].data.as_ref().expect("Forge suggestions should be preserved");
         assert_eq!(data["version"], serde_json::json!(1));
-        assert_eq!(data["sourceFingerprint"], crate::code_actions::source_fingerprint(&contents));
+        assert_eq!(data["sourceFingerprint"], crate::code_actions::source_fingerprint(SOURCE));
         assert_eq!(
             data["suggestions"],
             serde_json::json!([{
@@ -786,130 +728,18 @@ mod tests {
     }
 
     #[test]
-    fn ignores_non_diagnostic_forge_json_records() {
-        let project = TestProject::from_fixture(
-            r#"
-            //- /src/Test.sol
-            contract Test {
-                uint256 bad_name;
-            }
-            "#,
-        );
-        let contents = project.read_file("/src/Test.sol");
-        let start = contents.find("bad_name").unwrap();
-        let end = start + "bad_name".len();
-        let diagnostic = serde_json::to_string(&json_diagnostic_fixture(
-            start,
-            end,
-            "mixed-case-variable",
-            "mutable variables should use mixedCase",
-        ))
-        .unwrap();
-        let output =
-            format!("{{\"$message_type\":\"build_finished\",\"success\":true}}\n{diagnostic}\n");
-
-        let diagnostics =
-            parse(output.as_bytes(), project.root(), FlycheckOutput::ForgeLintJson).unwrap();
-
-        let uri = Url::from_file_path(project.path("/src/Test.sol")).unwrap();
-        assert_eq!(diagnostics[&uri].len(), 1);
-        assert_eq!(diagnostics[&uri][0].message, "mutable variables should use mixedCase");
-    }
-
-    #[test]
-    fn preserves_foundry_information_lint_severities() {
-        let project = TestProject::from_fixture(
-            r#"
-            //- /src/Test.sol
-            contract Test {
-                uint256 bad_name;
-            }
-            "#,
-        );
-        let contents = project.read_file("/src/Test.sol");
-        let start = contents.find("bad_name").unwrap();
-        let end = start + "bad_name".len();
-        let levels = ["note", "gas", "code-size"];
-        let output = levels
-            .map(|level| {
-                serde_json::to_string(&json_diagnostic_fixture_with_level(
-                    start,
-                    end,
-                    level,
-                    level,
-                    "foundry lint",
-                ))
-                .unwrap()
-            })
-            .join("\n");
-
-        let diagnostics =
-            parse(output.as_bytes(), project.root(), FlycheckOutput::ForgeLintJson).unwrap();
-
-        let uri = Url::from_file_path(project.path("/src/Test.sol")).unwrap();
-        let diagnostics = &diagnostics[&uri];
-        assert_eq!(diagnostics.len(), levels.len());
-        for diagnostic in diagnostics {
-            assert_eq!(diagnostic.severity, Some(DiagnosticSeverity::INFORMATION));
-        }
-    }
-
-    #[test]
-    fn byte_offsets_are_converted_to_utf16_positions() {
-        let project = TestProject::from_fixture(
-            r#"
-            //- /src/Test.sol
-            contract Test {
-                string value = "🚀";
-            }
-            "#,
-        );
-        let contents = project.read_file("/src/Test.sol");
-        let start = contents.find('🚀').unwrap();
-        let end = start + "🚀".len();
-        let json = serde_json::to_string(&[solc_diagnostic_fixture(
-            Cow::Borrowed("src/Test.sol"),
-            start,
-            end,
-            Severity::Warning,
-            None,
-            "rocket",
-        )])
-        .unwrap();
-
-        let diagnostics = parse(json.as_bytes(), project.root(), FlycheckOutput::SolcJson).unwrap();
-
-        let uri = Url::from_file_path(project.path("/src/Test.sol")).unwrap();
-        let range = diagnostics[&uri][0].range;
-        assert_eq!(range.end.character - range.start.character, 2);
-    }
-
-    #[test]
     fn rejects_invalid_forge_primary_byte_ranges() {
-        let project = TestProject::from_fixture(
-            r#"
-            //- /src/Test.sol
-            contract Test { string value = "🚀"; }
-            "#,
-        );
-        let contents = project.read_file("/src/Test.sol");
-        let rocket = contents.find('🚀').unwrap();
+        let (project, _) = project();
+        let rocket = SOURCE.find('🚀').unwrap();
         let invalid_ranges = [
-            (contents.len() + 1, contents.len() + 2),
+            (SOURCE.len() + 1, SOURCE.len() + 2),
             (rocket + "🚀".len(), rocket),
             (rocket + 1, rocket + 2),
         ];
 
         for (start, end) in invalid_ranges {
-            let json = serde_json::to_string(&json_diagnostic_fixture(
-                start,
-                end,
-                "invalid-range",
-                "invalid range",
-            ))
-            .unwrap();
-            let diagnostics =
-                parse(json.as_bytes(), project.root(), FlycheckOutput::ForgeLintJson).unwrap();
+            let json = serde_json::to_string(&forge(start, end, "note", "invalid", "invalid"));
+            let diagnostics = parse_all(&project, json.unwrap(), FlycheckOutput::ForgeLintJson);
             assert!(diagnostics.is_empty(), "accepted invalid range {start}..{end}");
         }
     }
@@ -929,17 +759,187 @@ mod tests {
         }
     }
 
-    fn solc_diagnostic_fixture(
-        file: Cow<'static, str>,
+    #[test]
+    fn preserves_solc_secondary_locations_and_unavailable_location_messages() {
+        let (project, uri) = project();
+        let json = serde_json::json!({
+            "errors": [{
+                "sourceLocation": { "file": "src/Test.sol", "start": 9, "end": 13 },
+                "secondarySourceLocations": [
+                    { "file": "src/Base.sol", "start": 9, "end": 13,
+                      "message": "base declaration is here" },
+                    { "file": "src/Missing.sol", "start": 0, "end": 1,
+                      "message": "unavailable declaration" },
+                    { "file": "src/Base.sol", "start": 99, "end": 100,
+                      "message": "invalid declaration range" },
+                    { "file": "src/Base.sol", "start": -1, "end": -1,
+                      "message": "no source position is available" }
+                ],
+                "type": "TypeError",
+                "component": "general",
+                "severity": "error",
+                "errorCode": "4334",
+                "message": "cannot override non-virtual function"
+            }]
+        });
+
+        let diagnostics = parse_all(&project, json.to_string(), FlycheckOutput::SolcJson);
+
+        let diagnostic = &diagnostics[&uri][0];
+        assert_data_eq!(
+            diagnostic.message.as_str(),
+            str![[r#"
+cannot override non-virtual function
+unavailable declaration
+invalid declaration range
+no source position is available
+"#]]
+        );
+        assert_eq!(
+            diagnostic.related_information.as_deref(),
+            Some(
+                [DiagnosticRelatedInformation {
+                    location: Location::new(project.uri("/src/Base.sol"), range(0, 9, 13),),
+                    message: "base declaration is here".into(),
+                }]
+                .as_slice()
+            ),
+        );
+    }
+
+    #[test]
+    fn preserves_forge_span_labels_and_nested_child_diagnostics() {
+        let (project, uri) = project();
+        let mut json =
+            serde_json::to_value(forge(9, 13, "note", "example-lint", "primary message")).unwrap();
+        json["spans"][0]["label"] = "primary detail".into();
+        let mut secondary = json["spans"][0].clone();
+        secondary["file_name"] = "src/Base.sol".into();
+        secondary["is_primary"] = false.into();
+        secondary["label"] = "base declaration".into();
+        json["spans"].as_array_mut().unwrap().push(secondary.clone());
+        let mut unavailable = secondary.clone();
+        unavailable["file_name"] = "src/Missing.sol".into();
+        unavailable["label"] = "unavailable definition".into();
+        json["spans"].as_array_mut().unwrap().push(unavailable.clone());
+        let mut unlabeled = secondary.clone();
+        unlabeled["byte_start"] = 0.into();
+        unlabeled["byte_end"] = 8.into();
+        unlabeled["label"] = serde_json::Value::Null;
+        json["spans"].as_array_mut().unwrap().push(unlabeled);
+        unavailable["label"] = serde_json::Value::Null;
+        unavailable["is_primary"] = true.into();
+        let mut context = secondary.clone();
+        context["label"] = "related context".into();
+        secondary["is_primary"] = true.into();
+        secondary["label"] = serde_json::Value::Null;
+        json["children"] = serde_json::json!([
+            {
+                "message": "use another name", "level": "help", "spans": [],
+                "children": [{
+                    "message": "names must be distinct", "level": "note",
+                    "spans": [], "children": []
+                }]
+            },
+            {
+                "message": "related declaration", "level": "note",
+                "spans": [secondary], "children": []
+            },
+            {
+                "message": "source is unavailable", "level": "note",
+                "spans": [unavailable], "children": []
+            },
+            {
+                "message": "context without a primary span", "level": "note",
+                "spans": [context], "children": []
+            }
+        ]);
+
+        let diagnostics = parse_all(&project, json.to_string(), FlycheckOutput::ForgeLintJson);
+
+        let diagnostic = &diagnostics[&uri][0];
+        assert_data_eq!(
+            diagnostic.message.as_str(),
+            str![[r#"
+primary message
+primary detail
+unavailable definition
+help: use another name
+note: names must be distinct
+note: source is unavailable
+note: context without a primary span
+"#]]
+        );
+        let base = project.uri("/src/Base.sol");
+        let related = |range, message: &str| DiagnosticRelatedInformation {
+            location: Location::new(base.clone(), range),
+            message: message.into(),
+        };
+        assert_eq!(
+            diagnostic.related_information,
+            Some(vec![
+                related(range(0, 9, 13), "base declaration"),
+                related(range(0, 0, 8), "primary message"),
+                related(range(0, 9, 13), "related declaration"),
+                related(range(0, 9, 13), "related context"),
+            ]),
+        );
+    }
+
+    #[test]
+    fn classifies_diagnostic_tags_by_emitter_and_code() {
+        let (project, uri) = project();
+        for (format, rustc_style) in [
+            (FlycheckOutput::SolcJson, false),
+            (FlycheckOutput::ForgeLintJson, false),
+            (FlycheckOutput::ForgeLintJson, true),
+        ] {
+            for (code, tag) in [
+                ("8417", Some(DiagnosticTag::DEPRECATED)),
+                ("2072", Some(DiagnosticTag::UNNECESSARY)),
+                ("5667", Some(DiagnosticTag::UNNECESSARY)),
+                (
+                    "unused-import",
+                    matches!(format, FlycheckOutput::ForgeLintJson)
+                        .then_some(DiagnosticTag::UNNECESSARY),
+                ),
+                ("2018", None),
+                ("unknown", None),
+            ] {
+                let message = "deprecated unused warning text is not a classifier";
+                let json = if rustc_style {
+                    serde_json::to_string(&forge(9, 13, "note", code, message))
+                } else {
+                    serde_json::to_string(&solc(
+                        "src/Test.sol",
+                        9,
+                        13,
+                        Severity::Warning,
+                        Some(code),
+                        message,
+                    ))
+                };
+                let diagnostics = parse_all(&project, json.unwrap(), format);
+                assert_eq!(
+                    diagnostics[&uri][0].tags,
+                    tag.map(|tag| vec![tag]),
+                    "format={format:?}, rustc_style={rustc_style}, code={code}"
+                );
+            }
+        }
+    }
+
+    fn solc<'a>(
+        file: impl Into<Cow<'a, str>>,
         start: usize,
         end: usize,
         severity: Severity,
-        code: Option<&'static str>,
-        message: &'static str,
-    ) -> SolcDiagnostic<'static> {
+        code: Option<&'a str>,
+        message: &'a str,
+    ) -> SolcDiagnostic<'a> {
         SolcDiagnostic {
             source_location: Some(SourceLocation {
-                file,
+                file: file.into(),
                 start: start as u32,
                 end: end as u32,
                 message: None,
@@ -954,22 +954,13 @@ mod tests {
         }
     }
 
-    fn json_diagnostic_fixture(
+    fn forge<'a>(
         start: usize,
         end: usize,
-        code: &'static str,
-        message: &'static str,
-    ) -> JsonDiagnosticMessage<'static> {
-        json_diagnostic_fixture_with_level(start, end, "note", code, message)
-    }
-
-    fn json_diagnostic_fixture_with_level(
-        start: usize,
-        end: usize,
-        level: &'static str,
-        code: &'static str,
-        message: &'static str,
-    ) -> JsonDiagnosticMessage<'static> {
+        level: &'a str,
+        code: &'a str,
+        message: &'a str,
+    ) -> JsonDiagnosticMessage<'a> {
         JsonDiagnosticMessage::Diagnostic(JsonDiagnostic {
             message: Cow::Borrowed(message),
             code: Some(JsonDiagnosticCode { code: Cow::Borrowed(code), explanation: None }),

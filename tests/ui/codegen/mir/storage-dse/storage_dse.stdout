@@ -74,7 +74,7 @@
       ret
   }
   
-  fn @copy_observes_store(arg0: i256, arg1: i256) -> memorybytes {
+  fn @copy_observes_store(arg0: i256, arg1: i256) -> memptr {
     bb0:
 -     sstore arg0, 7
 +     sstore arg0, 7 !metadata(storage=symbolic(arg0))
@@ -130,5 +130,52 @@
     bb0:
       v0 = gas
       ret v0
+  }
+  
+  fn @keep_before_halt(arg0: i1, arg1: i256) {
+    bb0:
+-     sstore 0, 1
++     sstore 0, 1 !metadata(storage=slot(0))
+      icall @halt_indirect, arg0, arg1
+      jump bb1
+    bb1:
+-     sstore 0, 2
++     sstore 0, 2 !metadata(storage=slot(0))
+      ret
+  }
+  
+  fn @halt_indirect(arg0: i1, arg1: i256) {
+    bb0:
+      icall @halt, arg0, arg1
+      ret
+  }
+  
+  fn @halt(arg0: i1, arg1: i256) {
+    bb0:
+      jumpi arg0, bb1, bb2
+    bb2:
+      ret
+    bb1:
+      switch arg1, default bb5, [0 => bb3, 1 => bb4]
+    bb4:
+      returndata 0, 0
+    bb3:
+      stop
+    bb5:
+      selfdestruct 0
+  }
+  
+  fn @remove_before_returning_call() {
+    bb0:
+-     sstore 0, 1
+      icall @returning
+-     sstore 0, 2
++     sstore 0, 2 !metadata(storage=slot(0))
+      ret
+  }
+  
+  fn @returning() {
+    bb0:
+      ret
   }
   

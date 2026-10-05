@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/inline-tiny-leaves/literal_artifacts_runtime.sol:LiteralArtifacts ===
 @module LiteralArtifacts
-immutables:
+@immutables
   initial: bytes32
 
 fn @constructor() [constructor] {
@@ -11,7 +11,7 @@ fn @constructor() [constructor] {
     ret
 }
 
-fn @version() -> memorybytes [selector=0x54fd4d50, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @version() -> memptr [selector=0x54fd4d50, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 1

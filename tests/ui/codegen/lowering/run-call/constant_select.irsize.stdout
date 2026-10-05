@@ -95,6 +95,9 @@ bb15:
   lt
   push bb11
   jumpi
+  push bb94
+  jump bb93
+bb93:
   push 4
   calldataload
   push 4
@@ -113,175 +116,9 @@ bb15:
   dup 4
   gt
   or
-  push bb11
-  jumpi
-  calldataload
-  push 63
-  dup 2
-  add
-  dup 2
-  dup 2
-  lt
-  push bb91
-  jumpi
-  push 31
-  not
-  and
-  push 64
-  mload
-  dup 1
-  swap 2
-  dup 2
-  add
-  dup 2
-  dup 2
-  lt
-  push 0
-  not
-  push 192
-  shr
-  dup 3
-  gt
-  or
-  push bb91
-  jumpi
-  push 64
-  mstore
-  dup 3
-  dup 2
-  mstore
-  dup 4
-  calldatasize
-  sub
-  dup 4
-  gt
-  push bb11
-  jumpi
-  push 32
-  add
-  dup 3
-  dup 5
-  dup 3
-  calldatacopy
-  pop
-  swap 2
-  pop
-  pop
-  push 0
-  push bb21
-  swap 2
-  push 0
-  sload
-  push 1
-  dup 2
-  and
-  push 1
-  dup 2
-  eq
-  swap 1
-  push 0
-  sub
-  push 127
-  or
-  swap 2
-  push 1
-  shr
   swap 1
   swap 2
-  and
-  push 32
-  dup 2
-  lt
-  dup 3
-  eq
-  push bb73
-  jumpi
-  swap 2
-  dup 1
-  mload
-  swap 1
-  push 32
-  add
-  push 31
-  dup 5
-  add
-  push 5
-  shr
-  push 31
-  dup 4
-  add
-  dup 4
-  dup 2
-  lt
-  push bb72
-  jumpi
-  push 5
-  shr
-  dup 4
-  push 288
-  mstore
-  push 32
-  dup 5
-  lt
-  dup 1
-  push 352
-  mstore
-  dup 1
-  iszero
-  swap 1
-  swap 2
-  mul
-  dup 1
-  push 384
-  mstore
-  swap 6
-  dup 5
-  lt
-  swap 1
-  swap 5
-  and
-  dup 2
-  push 320
-  mstore
-  dup 3
-  push 512
-  mstore
-  swap 5
-  pop
-  pop
-  pop
-  pop
-  pop
-  iszero
-  push bb64
-  jumpi
-  push 320
-  mload
-  push 544
-  mstore
-  push bb64
-  dup 2
-  push 384
-  mload
-  swap 1
-  push 0
-  mstore
-  push 32
-  push 0
-  keccak256
-  dup 2
-  add
-  swap 1
-  jump bb75
-bb75 [loop]:
-  push 544
-  mload
-  dup 2
-  lt
-  push bb77
-  jumpi
-  pop
-  pop
+  swap 3
   jump
 bb21 [continuation]:
   push 0
@@ -477,43 +314,10 @@ bb32:
   push bb11
   jumpi
   push bb34
-  push 4
   jump bb80
 bb80:
-  calldatasize
-  swap 1
-  calldataload
-  push 4
-  dup 2
-  add
-  push 32
-  dup 2
-  add
-  swap 2
-  push 0
-  not
-  push 192
-  shr
-  lt
-  swap 3
-  dup 3
-  gt
-  swap 1
-  swap 3
-  or
-  dup 3
-  calldataload
-  swap 2
-  calldatasize
-  sub
-  swap 1
-  swap 2
-  gt
-  or
-  push bb11
-  jumpi
-  swap 1
-  jump
+  push bb95
+  jump bb93
 bb34 [continuation]:
   dup 1
   calldataload
@@ -549,7 +353,6 @@ bb36:
   push bb11
   jumpi
   push bb38
-  push 4
   jump bb80
 bb38 [continuation]:
   dup 1
@@ -670,26 +473,20 @@ bb88:
   push 31
   not
   and
-  swap 4
   push 32
+  dup 6
   add
-  dup 5
+  dup 2
   iszero
+  exchange 5, 6
+  iszero
+  push bb84
+  jumpi
+  swap 4
+  pop
+  swap 1
   swap 2
   swap 3
-  swap 4
-  swap 5
-  swap 2
-  push bb85
-  jumpi
-  push 32
-  dup 3
-  sub
-  dup 2
-  add
-  push 0
-  swap 1
-  mstore
   jump bb85
 bb85:
   swap 1
@@ -760,9 +557,9 @@ bb64 [continuation]:
   not
   dup 2
   sub
-  dup 3
+  push 0
   sstore
-  swap 1
+  push 0
   push 0
   mstore
   push 32
@@ -868,11 +665,10 @@ bb70:
   dup 1
   add
   or
-  swap 1
+  push 0
   sstore
   jump
 bb73 [cold]:
-  pop
   pop
   pop
   pop
@@ -900,8 +696,28 @@ bb77 [loop]:
   add
   swap 1
   jump bb75
-bb72 [cold]:
+bb75 [loop]:
+  push 544
+  mload
+  dup 2
+  lt
+  push bb77
+  jumpi
   pop
+  pop
+  jump
+bb84:
+  swap 4
+  dup 2
+  add
+  push 0
+  swap 1
+  mstore
+  swap 1
+  swap 2
+  swap 3
+  jump bb85
+bb72 [cold]:
   pop
   pop
   pop
@@ -932,3 +748,179 @@ bb92:
   mul
   push 7
   jump bb87
+bb94 [continuation]:
+  push bb11
+  jumpi
+  calldataload
+  push 63
+  dup 2
+  add
+  dup 2
+  dup 2
+  lt
+  push bb91
+  jumpi
+  push 31
+  not
+  and
+  push 64
+  mload
+  dup 1
+  swap 2
+  dup 2
+  add
+  dup 2
+  dup 2
+  lt
+  push 0
+  not
+  push 192
+  shr
+  dup 3
+  gt
+  or
+  push bb91
+  jumpi
+  push 64
+  mstore
+  dup 3
+  dup 2
+  mstore
+  dup 4
+  calldatasize
+  sub
+  dup 4
+  gt
+  push bb11
+  jumpi
+  push 32
+  add
+  dup 3
+  dup 5
+  dup 3
+  calldatacopy
+  pop
+  swap 2
+  pop
+  pop
+  push bb21
+  swap 1
+  push 0
+  sload
+  push 1
+  dup 2
+  and
+  push 1
+  dup 2
+  eq
+  swap 1
+  push 0
+  sub
+  push 127
+  or
+  swap 2
+  push 1
+  shr
+  swap 1
+  swap 2
+  and
+  push 32
+  dup 2
+  lt
+  dup 3
+  eq
+  push bb73
+  jumpi
+  swap 2
+  dup 1
+  mload
+  swap 1
+  push 32
+  add
+  push 31
+  dup 5
+  add
+  push 5
+  shr
+  push 31
+  dup 4
+  add
+  dup 4
+  dup 2
+  lt
+  push bb72
+  jumpi
+  push 5
+  shr
+  dup 4
+  push 288
+  mstore
+  push 32
+  dup 5
+  lt
+  dup 1
+  push 352
+  mstore
+  dup 1
+  iszero
+  swap 1
+  swap 2
+  mul
+  dup 1
+  push 384
+  mstore
+  swap 6
+  dup 5
+  lt
+  swap 1
+  swap 5
+  and
+  dup 2
+  push 320
+  mstore
+  dup 3
+  push 512
+  mstore
+  swap 5
+  pop
+  pop
+  pop
+  pop
+  pop
+  iszero
+  push bb64
+  jumpi
+  push 320
+  mload
+  push 544
+  mstore
+  push bb64
+  push 0
+  push 384
+  mload
+  swap 1
+  push 0
+  mstore
+  push 32
+  push 0
+  keccak256
+  dup 2
+  add
+  swap 1
+  jump bb75
+bb95 [continuation]:
+  dup 2
+  calldataload
+  swap 3
+  calldatasize
+  sub
+  swap 1
+  swap 3
+  gt
+  swap 1
+  swap 2
+  or
+  push bb11
+  jumpi
+  swap 1
+  jump

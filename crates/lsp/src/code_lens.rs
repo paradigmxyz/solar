@@ -6,7 +6,10 @@
 //! for each requested file, including counts rejected due to conflicting source snapshots.
 //! Rebuilding entries after analysis batches are merged discards those cached counts.
 
-use crate::symbols::{DeclarationSymbol, SymbolId};
+use crate::{
+    proto,
+    symbols::{DeclarationSymbol, SymbolId},
+};
 use lsp_types::{Range, Url};
 use solar_interface::data_structures::{
     index::IndexVec,
@@ -17,7 +20,7 @@ use solar_sema::{
     Gcx,
     hir::{ItemId, VarKind},
 };
-use std::{cmp::Ordering, sync::OnceLock};
+use std::sync::OnceLock;
 
 #[derive(Clone, Debug, Default)]
 pub(crate) struct CodeLensIndex {
@@ -74,7 +77,7 @@ impl CodeLensIndex {
 
     pub(crate) fn extend(&mut self, other: Self, symbol_offset: usize) {
         self.candidates.extend(other.candidates.into_iter().map(|mut candidate| {
-            candidate.symbol_id = candidate.symbol_id.offset_by(symbol_offset);
+            candidate.symbol_id += symbol_offset;
             candidate
         }));
         self.entries_by_uri.clear();
@@ -132,7 +135,7 @@ impl CodeLensIndex {
                 }
             }
             if !entries.is_empty() {
-                entries.sort_unstable_by(|lhs, rhs| range_cmp(lhs.range, rhs.range));
+                entries.sort_unstable_by_key(|entry| proto::range_key(entry.range));
                 self.entries_by_uri.insert(
                     uri.clone(),
                     CodeLensFile { entries, reference_counts: OnceLock::new() },
@@ -204,13 +207,4 @@ fn selector(gcx: Gcx<'_>, item_id: ItemId) -> Option<[u8; 4]> {
 
 fn selector_is_valid(gcx: Gcx<'_>, id: solar_sema::hir::FunctionId) -> bool {
     gcx.item_parameter_types(id).iter().copied().all(|ty| ty.can_be_exported(gcx))
-}
-
-fn range_cmp(lhs: Range, rhs: Range) -> Ordering {
-    (lhs.start.line, lhs.start.character, lhs.end.line, lhs.end.character).cmp(&(
-        rhs.start.line,
-        rhs.start.character,
-        rhs.end.line,
-        rhs.end.character,
-    ))
 }

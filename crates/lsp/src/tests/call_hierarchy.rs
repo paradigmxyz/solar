@@ -1,131 +1,14 @@
-use super::{AnalysisBatch, analyze};
-use crate::{
-    symbols::{SymbolTables, SymbolTablesAggregator},
-    test_support::MarkedProject,
+use super::*;
+use crate::symbols::SymbolTablesAggregator;
+use lsp_types::{
+    CallHierarchyIncomingCall, CallHierarchyItem, CallHierarchyOutgoingCall, SymbolKind,
 };
-use lsp_types::{CallHierarchyIncomingCall, CallHierarchyOutgoingCall, Position, Range, Url};
-use solar_config::CompileOpts;
 
 #[test]
-fn basic_direct_call_hierarchy() {
-    let marked = MarkedProject::from_fixture(
+fn groups_direct_calls_and_selects_call_site_endpoints() {
+    let calls = Calls::new(
         r#"
         //- /Calls.sol
-        contract C {
-            function $1callee() internal {}
-            function $2caller() external {
-                $3callee();
-            }
-        }
-        "#,
-    );
-    let project = marked.project();
-    let path = project.path("/Calls.sol");
-    let tables = analyze(AnalysisBatch::from_files(
-        CompileOpts::default(),
-        [(path.clone(), project.read_file("/Calls.sol"))],
-    ))
-    .symbol_tables;
-    let uri = Url::from_file_path(path).unwrap();
-
-    let callee =
-        tables.prepare_call_hierarchy(&uri, marked.marker("$1").position()).unwrap().pop().unwrap();
-    let caller =
-        tables.prepare_call_hierarchy(&uri, marked.marker("$2").position()).unwrap().pop().unwrap();
-    assert_eq!(
-        tables.prepare_call_hierarchy(&uri, marked.marker("$3").position()),
-        Some(vec![callee.clone()])
-    );
-
-    let outgoing = tables.call_hierarchy_outgoing(&caller).unwrap();
-    assert_eq!(outgoing.len(), 1);
-    assert_eq!(outgoing[0].to, callee);
-    assert_eq!(outgoing[0].from_ranges, [marker_range(&marked, "$3", 6)]);
-
-    let incoming = tables.call_hierarchy_incoming(&outgoing[0].to).unwrap();
-    assert_eq!(incoming.len(), 1);
-    assert_eq!(incoming[0].from, caller);
-    assert_eq!(incoming[0].from_ranges, outgoing[0].from_ranges);
-}
-
-#[test]
-fn call_site_endpoint_selects_enclosing_body() {
-    let marked = MarkedProject::from_fixture(
-        r#"
-        //- /Endpoint.sol
-        contract C {
-            function $1callee() internal {}
-            function $2caller() external {
-                $3callee();
-            }
-        }
-        "#,
-    );
-    let project = marked.project();
-    let path = project.path("/Endpoint.sol");
-    let tables = analyze(AnalysisBatch::from_files(
-        CompileOpts::default(),
-        [(path.clone(), project.read_file("/Endpoint.sol"))],
-    ))
-    .symbol_tables;
-    let uri = Url::from_file_path(path).unwrap();
-    let caller =
-        tables.prepare_call_hierarchy(&uri, marked.marker("$2").position()).unwrap().pop().unwrap();
-    let call_start = marked.marker("$3").position();
-    let call_end = Position::new(call_start.line, call_start.character + "callee".len() as u32);
-
-    // Call ranges are end-exclusive, so the first position after the callee belongs to the body.
-    assert_eq!(tables.prepare_call_hierarchy(&uri, call_end), Some(vec![caller]));
-}
-
-#[test]
-fn prepares_enclosing_callable_bodies_only() {
-    let marked = MarkedProject::from_fixture(
-        r#"
-        //- /Prepare.sol
-        $5contract C {
-            modifier $1guarded() {
-                $2_;
-            }
-
-            function $3f() external {
-                uint256 $4value = 1;
-            }
-        }
-        "#,
-    );
-    let project = marked.project();
-    let path = project.path("/Prepare.sol");
-    let tables = analyze(AnalysisBatch::from_files(
-        CompileOpts::default(),
-        [(path.clone(), project.read_file("/Prepare.sol"))],
-    ))
-    .symbol_tables;
-    let uri = Url::from_file_path(path).unwrap();
-
-    let modifier =
-        tables.prepare_call_hierarchy(&uri, marked.marker("$1").position()).unwrap().pop().unwrap();
-    let function =
-        tables.prepare_call_hierarchy(&uri, marked.marker("$3").position()).unwrap().pop().unwrap();
-
-    assert_eq!(modifier.name, "guarded");
-    assert_eq!(
-        tables.prepare_call_hierarchy(&uri, marked.marker("$2").position()),
-        Some(vec![modifier])
-    );
-    assert_eq!(function.name, "f");
-    assert_eq!(
-        tables.prepare_call_hierarchy(&uri, marked.marker("$4").position()),
-        Some(vec![function])
-    );
-    assert_eq!(tables.prepare_call_hierarchy(&uri, marked.marker("$5").position()), None);
-}
-
-#[test]
-fn groups_repeated_calls_and_preserves_recursion() {
-    let marked = MarkedProject::from_fixture(
-        r#"
-        //- /Repeated.sol
         contract C {
             function $1callee() internal {}
             function $2caller() public {
@@ -136,113 +19,84 @@ fn groups_repeated_calls_and_preserves_recursion() {
         }
         "#,
     );
-    let project = marked.project();
-    let path = project.path("/Repeated.sol");
-    let tables = analyze(AnalysisBatch::from_files(
-        CompileOpts::default(),
-        [(path.clone(), project.read_file("/Repeated.sol"))],
-    ))
-    .symbol_tables;
-    let uri = Url::from_file_path(path).unwrap();
-    let callee =
-        tables.prepare_call_hierarchy(&uri, marked.marker("$1").position()).unwrap().pop().unwrap();
-    let caller =
-        tables.prepare_call_hierarchy(&uri, marked.marker("$2").position()).unwrap().pop().unwrap();
+    let tables = calls.analyze(&["/Calls.sol"]);
+    assert!(!tables.call_hierarchy_is_initialized());
+    let callee = calls.item(&tables, "$1");
+    assert!(tables.call_hierarchy_is_initialized());
+    let cloned_tables = tables.clone();
+    assert!(!cloned_tables.call_hierarchy_is_initialized());
+    let caller = calls.item(&tables, "$2");
 
-    let outgoing = tables.call_hierarchy_outgoing(&caller).unwrap();
-    let repeated = outgoing.iter().find(|call| call.to == callee).unwrap();
-    assert_eq!(
-        repeated.from_ranges,
-        [marker_range(&marked, "$3", 6), marker_range(&marked, "$4", 6)]
-    );
-    let recursive = outgoing.iter().find(|call| call.to == caller).unwrap();
-    assert_eq!(recursive.from_ranges, [marker_range(&marked, "$5", 6)]);
+    assert_eq!(calls.prepare_at(&tables, "$3", 0), Some(vec![callee.clone()]));
+    // Call ranges are end-exclusive, so the first position after the callee belongs to the body.
+    assert_eq!(calls.prepare_at(&tables, "$3", 6), Some(vec![caller.clone()]));
+    let repeated = vec![calls.range("$3", 6), calls.range("$4", 6)];
+    let expected_outgoing = Some(vec![
+        outgoing(&callee, repeated.clone()),
+        outgoing(&caller, vec![calls.range("$5", 6)]),
+    ]);
+    let expected_incoming = Some(vec![incoming(&caller, repeated)]);
+    assert_eq!(tables.call_hierarchy_outgoing(&caller), expected_outgoing);
+    assert_eq!(tables.call_hierarchy_incoming(&callee), expected_incoming);
 
-    let incoming = tables.call_hierarchy_incoming(&callee).unwrap();
-    assert_eq!(incoming.len(), 1);
-    assert_eq!(incoming[0].from, caller);
-    assert_eq!(incoming[0].from_ranges, repeated.from_ranges);
+    // Merging identical analysis contexts neither initializes the index nor duplicates edges.
+    let duplicate = calls.analyze(&["/Calls.sol"]);
+    assert!(!duplicate.call_hierarchy_is_initialized());
+    let tables = merge_symbol_tables(tables, duplicate);
+    assert!(!tables.call_hierarchy_is_initialized());
+    assert_eq!(calls.prepare_at(&tables, "$2", 0), Some(vec![caller.clone()]));
+    assert!(tables.call_hierarchy_is_initialized());
+    assert_eq!(calls.item(&tables, "$1"), callee);
+    assert_eq!(tables.call_hierarchy_outgoing(&caller), expected_outgoing);
+    assert_eq!(tables.call_hierarchy_incoming(&callee), expected_incoming);
 }
 
 #[test]
 fn indexes_modifier_applications_and_arguments() {
-    let marked = MarkedProject::from_fixture(
+    let calls = Calls::new(
         r#"
         //- /Modifiers.sol
-        contract C {
-            function $1argument() internal pure returns (uint256) { return 1; }
-            modifier $2guarded(uint256) { _; }
-
-            function $3caller() external $4guarded($5argument()) {}
-        }
-        "#,
-    );
-    let project = marked.project();
-    let path = project.path("/Modifiers.sol");
-    let tables = analyze(AnalysisBatch::from_files(
-        CompileOpts::default(),
-        [(path.clone(), project.read_file("/Modifiers.sol"))],
-    ))
-    .symbol_tables;
-    let uri = Url::from_file_path(path).unwrap();
-    let argument =
-        tables.prepare_call_hierarchy(&uri, marked.marker("$1").position()).unwrap().pop().unwrap();
-    let modifier =
-        tables.prepare_call_hierarchy(&uri, marked.marker("$2").position()).unwrap().pop().unwrap();
-    let caller =
-        tables.prepare_call_hierarchy(&uri, marked.marker("$3").position()).unwrap().pop().unwrap();
-
-    assert_eq!(
-        tables.prepare_call_hierarchy(&uri, marked.marker("$4").position()),
-        Some(vec![modifier.clone()])
-    );
-    let outgoing = tables.call_hierarchy_outgoing(&caller).unwrap();
-    let modifier_call = outgoing.iter().find(|call| call.to == modifier).unwrap();
-    assert_eq!(modifier_call.from_ranges, [marker_range(&marked, "$4", 7)]);
-    let argument_call = outgoing.iter().find(|call| call.to == argument).unwrap();
-    assert_eq!(argument_call.from_ranges, [marker_range(&marked, "$5", 8)]);
-}
-
-#[test]
-fn uses_exact_qualified_modifier_name_range() {
-    let marked = MarkedProject::from_fixture(
-        r#"
-        //- /QualifiedModifier.sol
-        contract Base {
-            modifier $1guarded() { _; }
+        $8contract Base {
+            modifier $6baseGuard() { _; }
         }
 
         contract C is Base {
-            function $2caller() external Base.$3guarded /* gap */ () {}
+            function $1argument() internal pure returns (uint256) { return 1; }
+            modifier $2guarded(uint256) { $9_; }
+
+            function $3caller() external $4guarded($5argument()) Base.$7baseGuard /* gap */ () {
+                uint256 $10value = 1;
+            }
         }
         "#,
     );
-    let project = marked.project();
-    let path = project.path("/QualifiedModifier.sol");
-    let tables = analyze(AnalysisBatch::from_files(
-        CompileOpts::default(),
-        [(path.clone(), project.read_file("/QualifiedModifier.sol"))],
-    ))
-    .symbol_tables;
-    let uri = Url::from_file_path(path).unwrap();
-    let modifier =
-        tables.prepare_call_hierarchy(&uri, marked.marker("$1").position()).unwrap().pop().unwrap();
-    let caller =
-        tables.prepare_call_hierarchy(&uri, marked.marker("$2").position()).unwrap().pop().unwrap();
+    let tables = calls.analyze(&["/Modifiers.sol"]);
+    let argument = calls.item(&tables, "$1");
+    let modifier = calls.item(&tables, "$2");
+    let base_modifier = calls.item(&tables, "$6");
+    let caller = calls.item(&tables, "$3");
 
+    // Only enclosing callable bodies prepare an item.
+    assert_eq!((modifier.name.as_str(), caller.name.as_str()), ("guarded", "caller"));
+    assert_eq!(calls.prepare_at(&tables, "$9", 0), Some(vec![modifier.clone()]));
+    assert_eq!(calls.prepare_at(&tables, "$10", 0), Some(vec![caller.clone()]));
+    assert_eq!(calls.prepare_at(&tables, "$8", 0), None);
+
+    assert_eq!(calls.prepare_at(&tables, "$4", 0), Some(vec![modifier.clone()]));
+    assert_eq!(calls.prepare_at(&tables, "$7", 0), Some(vec![base_modifier.clone()]));
     assert_eq!(
-        tables.prepare_call_hierarchy(&uri, marked.marker("$3").position()),
-        Some(vec![modifier.clone()])
+        tables.call_hierarchy_outgoing(&caller),
+        Some(vec![
+            outgoing(&base_modifier, vec![calls.range("$7", 9)]),
+            outgoing(&argument, vec![calls.range("$5", 8)]),
+            outgoing(&modifier, vec![calls.range("$4", 7)]),
+        ])
     );
-    let outgoing = tables.call_hierarchy_outgoing(&caller).unwrap();
-    assert_eq!(outgoing.len(), 1);
-    assert_eq!(outgoing[0].to, modifier);
-    assert_eq!(outgoing[0].from_ranges, [marker_range(&marked, "$3", 7)]);
 }
 
 #[test]
 fn preserves_cross_file_call_identity() {
-    let marked = MarkedProject::from_fixture(
+    let calls = Calls::new(
         r#"
         //- /Lib.sol
         library Lib {
@@ -258,44 +112,23 @@ fn preserves_cross_file_call_identity() {
         }
         "#,
     );
-    let project = marked.project();
-    let lib_path = project.path("/Lib.sol");
-    let caller_path = project.path("/Caller.sol");
-    let tables = analyze(AnalysisBatch::from_files(
-        CompileOpts::default(),
-        [
-            (lib_path.clone(), project.read_file("/Lib.sol")),
-            (caller_path.clone(), project.read_file("/Caller.sol")),
-        ],
-    ))
-    .symbol_tables;
-    let lib_uri = Url::from_file_path(lib_path).unwrap();
-    let caller_uri = Url::from_file_path(caller_path).unwrap();
-    let target = tables
-        .prepare_call_hierarchy(&lib_uri, marked.marker("$1").position())
-        .unwrap()
-        .pop()
-        .unwrap();
-    let caller = tables
-        .prepare_call_hierarchy(&caller_uri, marked.marker("$2").position())
-        .unwrap()
-        .pop()
-        .unwrap();
+    let tables = calls.analyze(&["/Lib.sol", "/Caller.sol"]);
+    let target = calls.item(&tables, "$1");
+    let caller = calls.item(&tables, "$2");
 
-    let outgoing = tables.call_hierarchy_outgoing(&caller).unwrap();
-    assert_eq!(outgoing.len(), 1);
-    assert_eq!(outgoing[0].to, target);
-    assert_eq!(outgoing[0].to.uri, lib_uri);
-    assert_eq!(outgoing[0].from_ranges, [marker_range(&marked, "$3", 6)]);
-    let incoming = tables.call_hierarchy_incoming(&outgoing[0].to).unwrap();
-    assert_eq!(incoming.len(), 1);
-    assert_eq!(incoming[0].from, caller);
-    assert_eq!(incoming[0].from.uri, caller_uri);
+    assert_eq!(target.uri, calls.uri("$1"));
+    assert_eq!(caller.uri, calls.uri("$2"));
+    let ranges = vec![calls.range("$3", 6)];
+    assert_eq!(
+        tables.call_hierarchy_outgoing(&caller),
+        Some(vec![outgoing(&target, ranges.clone())])
+    );
+    assert_eq!(tables.call_hierarchy_incoming(&target), Some(vec![incoming(&caller, ranges)]));
 }
 
 #[test]
 fn uses_typed_targets_for_call_sites() {
-    let marked = MarkedProject::from_fixture(
+    let calls = Calls::new(
         r#"
         //- /Typed.sol
         library Lib {
@@ -313,6 +146,7 @@ fn uses_typed_targets_for_call_sites() {
             function $4overloaded(address) internal {}
             function $5inherited(uint256) internal override {}
             function $6externalCall() external {}
+            function $15direct() internal {}
 
             function $7caller(uint256 value) external {
                 $8overloaded(value);
@@ -320,236 +154,101 @@ fn uses_typed_targets_for_call_sites() {
                 value.$10attached();
                 this.$11externalCall();
                 super.$12inherited(value);
+                ($13direct)();
+                ((super).$14inherited)(value);
             }
         }
         "#,
     );
-    let project = marked.project();
-    let path = project.path("/Typed.sol");
-    let tables = analyze(AnalysisBatch::from_files(
-        CompileOpts::default(),
-        [(path.clone(), project.read_file("/Typed.sol"))],
-    ))
-    .symbol_tables;
-    let uri = Url::from_file_path(path).unwrap();
-    let item = |marker: &str| {
-        tables
-            .prepare_call_hierarchy(&uri, marked.marker(marker).position())
-            .unwrap()
-            .into_iter()
-            .next()
-            .unwrap()
-    };
-    let attached = item("$1");
-    let base_inherited = item("$2");
-    let integer_overload = item("$3");
-    let address_overload = item("$4");
-    let override_inherited = item("$5");
-    let external_call = item("$6");
-    let caller = item("$7");
+    let tables = calls.analyze(&["/Typed.sol"]);
+    let item = |marker| calls.item(&tables, marker);
 
-    assert_eq!(item("$8"), integer_overload);
-    assert_eq!(item("$9"), address_overload);
-    assert_eq!(item("$10"), attached);
-    assert_eq!(item("$11"), external_call);
-    assert_eq!(item("$12"), base_inherited);
-    assert_ne!(item("$12"), override_inherited);
-
-    let outgoing = tables.call_hierarchy_outgoing(&caller).unwrap();
-    assert_eq!(outgoing.len(), 5);
-    assert!(outgoing.iter().any(|call| call.to == integer_overload));
-    assert!(outgoing.iter().any(|call| call.to == address_overload));
-    assert!(outgoing.iter().any(|call| call.to == attached));
-    assert!(outgoing.iter().any(|call| call.to == external_call));
-    assert!(outgoing.iter().any(|call| call.to == base_inherited));
-    assert!(!outgoing.iter().any(|call| call.to == override_inherited));
+    assert_eq!(item("$8"), item("$3"));
+    assert_eq!(item("$9"), item("$4"));
+    assert_eq!(item("$10"), item("$1"));
+    assert_eq!(item("$11"), item("$6"));
+    assert_eq!(item("$12"), item("$2"));
+    assert_ne!(item("$12"), item("$5"));
+    assert_eq!(item("$13"), item("$15"));
+    assert_eq!(item("$14"), item("$2"));
+    let targets = tables
+        .call_hierarchy_outgoing(&item("$7"))
+        .unwrap()
+        .into_iter()
+        .map(|call| call.to)
+        .collect::<Vec<_>>();
+    assert_eq!(targets, ["$1", "$2", "$3", "$4", "$6", "$15"].map(item));
 }
 
 #[test]
-fn resolves_parenthesized_direct_calls() {
-    let marked = MarkedProject::from_fixture(
+fn indexes_constructor_invocations_and_arguments() {
+    let calls = Calls::new(
         r#"
-        //- /Parenthesized.sol
-        contract Base {
-            function $1inherited() internal virtual {}
-        }
-
-        contract C is Base {
-            function $2direct() internal {}
-            function inherited() internal override {}
-
-            function $3caller() external {
-                ($4direct)();
-                ((super).$5inherited)();
-            }
-        }
-        "#,
-    );
-    let project = marked.project();
-    let path = project.path("/Parenthesized.sol");
-    let tables = analyze(AnalysisBatch::from_files(
-        CompileOpts::default(),
-        [(path.clone(), project.read_file("/Parenthesized.sol"))],
-    ))
-    .symbol_tables;
-    let uri = Url::from_file_path(path).unwrap();
-    let item = |marker: &str| {
-        tables
-            .prepare_call_hierarchy(&uri, marked.marker(marker).position())
-            .unwrap()
-            .into_iter()
-            .next()
-            .unwrap()
-    };
-    let inherited = item("$1");
-    let direct = item("$2");
-    let caller = item("$3");
-
-    assert_eq!(item("$4"), direct);
-    assert_eq!(item("$5"), inherited);
-    let outgoing = tables.call_hierarchy_outgoing(&caller).unwrap();
-    assert_eq!(outgoing.len(), 2);
-    assert!(outgoing.iter().any(|call| call.to == direct));
-    assert!(outgoing.iter().any(|call| call.to == inherited));
-}
-
-#[test]
-fn indexes_contract_creation_calls() {
-    let marked = MarkedProject::from_fixture(
-        r#"
-        //- /Creation.sol
-        contract Target {
-            $1constructor(uint256 value) {}
-        }
-
-        contract C {
-            function $2deploy() external {
-                new $3Target(1);
-            }
-        }
-        "#,
-    );
-    let project = marked.project();
-    let path = project.path("/Creation.sol");
-    let tables = analyze(AnalysisBatch::from_files(
-        CompileOpts::default(),
-        [(path.clone(), project.read_file("/Creation.sol"))],
-    ))
-    .symbol_tables;
-    let uri = Url::from_file_path(path).unwrap();
-    let constructor =
-        tables.prepare_call_hierarchy(&uri, marked.marker("$1").position()).unwrap().pop().unwrap();
-    let deploy =
-        tables.prepare_call_hierarchy(&uri, marked.marker("$2").position()).unwrap().pop().unwrap();
-
-    assert_eq!(
-        tables.prepare_call_hierarchy(&uri, marked.marker("$3").position()),
-        Some(vec![constructor.clone()])
-    );
-    let outgoing = tables.call_hierarchy_outgoing(&deploy).unwrap();
-    assert_eq!(outgoing.len(), 1);
-    assert_eq!(outgoing[0].to, constructor);
-    assert_eq!(outgoing[0].from_ranges, [marker_range(&marked, "$3", 6)]);
-    let incoming = tables.call_hierarchy_incoming(&outgoing[0].to).unwrap();
-    assert_eq!(incoming.len(), 1);
-    assert_eq!(incoming[0].from, deploy);
-    assert_eq!(incoming[0].from_ranges, outgoing[0].from_ranges);
-}
-
-#[test]
-fn indexes_base_constructor_invocations() {
-    let marked = MarkedProject::from_fixture(
-        r#"
-        //- /Inheritance.sol
-        contract Base {
-            $1constructor(uint256 value) {}
-        }
-
-        contract Derived is Base {
-            $2constructor() $3Base(1) {}
-        }
-        "#,
-    );
-    let project = marked.project();
-    let path = project.path("/Inheritance.sol");
-    let tables = analyze(AnalysisBatch::from_files(
-        CompileOpts::default(),
-        [(path.clone(), project.read_file("/Inheritance.sol"))],
-    ))
-    .symbol_tables;
-    let uri = Url::from_file_path(path).unwrap();
-    let base =
-        tables.prepare_call_hierarchy(&uri, marked.marker("$1").position()).unwrap().pop().unwrap();
-    let derived =
-        tables.prepare_call_hierarchy(&uri, marked.marker("$2").position()).unwrap().pop().unwrap();
-
-    assert_eq!(
-        tables.prepare_call_hierarchy(&uri, marked.marker("$3").position()),
-        Some(vec![base.clone()])
-    );
-    let outgoing = tables.call_hierarchy_outgoing(&derived).unwrap();
-    assert_eq!(outgoing.len(), 1);
-    assert_eq!(outgoing[0].to, base);
-    assert_eq!(outgoing[0].from_ranges, [marker_range(&marked, "$3", 4)]);
-    let incoming = tables.call_hierarchy_incoming(&outgoing[0].to).unwrap();
-    assert_eq!(incoming.len(), 1);
-    assert_eq!(incoming[0].from, derived);
-    assert_eq!(incoming[0].from_ranges, outgoing[0].from_ranges);
-}
-
-#[test]
-fn indexes_inheritance_list_constructor_invocations_and_arguments() {
-    let marked = MarkedProject::from_fixture(
-        r#"
-        //- /InheritanceList.sol
+        //- /Constructors.sol
         function $1argument() pure returns (uint256) { return 1; }
 
-        contract Base {
+        contract Target {
             $2constructor(uint256 value) {}
         }
 
-        contract Derived is $4Base($5argument()) {
-            $3constructor() {}
+        contract Base {
+            $3constructor(uint256 value) {}
+        }
+
+        contract Derived is Base {
+            $4constructor() $5Base(1) {}
+        }
+
+        contract Listed is $6Base($7argument()) {
+            $8constructor() {}
+        }
+
+        contract C {
+            function $9deploy() external {
+                new $10Target(1);
+            }
         }
         "#,
     );
-    let project = marked.project();
-    let path = project.path("/InheritanceList.sol");
-    let tables = analyze(AnalysisBatch::from_files(
-        CompileOpts::default(),
-        [(path.clone(), project.read_file("/InheritanceList.sol"))],
-    ))
-    .symbol_tables;
-    let uri = Url::from_file_path(path).unwrap();
-    let item = |marker: &str| {
-        tables
-            .prepare_call_hierarchy(&uri, marked.marker(marker).position())
-            .unwrap()
-            .into_iter()
-            .next()
-            .unwrap()
-    };
-    let argument = item("$1");
-    let base = item("$2");
-    let derived = item("$3");
+    let tables = calls.analyze(&["/Constructors.sol"]);
+    let [argument, target, base, derived, listed, deploy] =
+        ["$1", "$2", "$3", "$4", "$8", "$9"].map(|marker| calls.item(&tables, marker));
 
-    assert_eq!(item("$4"), base);
-    assert_eq!(item("$5"), argument);
-    let outgoing = tables.call_hierarchy_outgoing(&derived).unwrap();
-    assert_eq!(outgoing.len(), 2);
-    let base_call = outgoing.iter().find(|call| call.to == base).unwrap();
-    assert_eq!(base_call.from_ranges, [marker_range(&marked, "$4", 4)]);
-    let argument_call = outgoing.iter().find(|call| call.to == argument).unwrap();
-    assert_eq!(argument_call.from_ranges, [marker_range(&marked, "$5", 8)]);
+    assert_eq!(calls.prepare_at(&tables, "$10", 0), Some(vec![target.clone()]));
+    assert_eq!(calls.prepare_at(&tables, "$5", 0), Some(vec![base.clone()]));
+    assert_eq!(calls.prepare_at(&tables, "$6", 0), Some(vec![base.clone()]));
+    assert_eq!(calls.prepare_at(&tables, "$7", 0), Some(vec![argument.clone()]));
+    let creation = vec![calls.range("$10", 6)];
+    assert_eq!(
+        tables.call_hierarchy_outgoing(&deploy),
+        Some(vec![outgoing(&target, creation.clone())])
+    );
+    assert_eq!(tables.call_hierarchy_incoming(&target), Some(vec![incoming(&deploy, creation)]));
+    assert_eq!(
+        tables.call_hierarchy_outgoing(&derived),
+        Some(vec![outgoing(&base, vec![calls.range("$5", 4)])])
+    );
+    assert_eq!(
+        tables.call_hierarchy_outgoing(&listed),
+        Some(vec![
+            outgoing(&argument, vec![calls.range("$7", 8)]),
+            outgoing(&base, vec![calls.range("$6", 4)]),
+        ])
+    );
+    assert_eq!(
+        tables.call_hierarchy_incoming(&base),
+        Some(vec![
+            incoming(&derived, vec![calls.range("$5", 4)]),
+            incoming(&listed, vec![calls.range("$6", 4)]),
+        ])
+    );
 }
 
 #[test]
 fn excludes_non_direct_and_non_source_calls() {
-    let marked = MarkedProject::from_fixture(
+    let calls = Calls::new(
         r#"
         //- /Excluded.sol
-        contract Created {}
-
         abstract contract AbstractCreated {
             constructor() {}
         }
@@ -559,15 +258,14 @@ fn excludes_non_direct_and_non_source_calls() {
             event Called();
             error Failed();
 
-            function $1target() internal {}
+            function $1target() internal pure returns (uint256) { return 1; }
 
             function $2caller() external {
-                function() internal pointer = target;
+                function() internal pure returns (uint256) pointer = target;
                 pointer();
                 require(true);
                 address(this).call("");
                 this.value();
-                new Created();
                 new AbstractCreated();
                 emit Called();
                 $3target();
@@ -577,107 +275,26 @@ fn excludes_non_direct_and_non_source_calls() {
                 }
                 revert Failed();
             }
-        }
-        "#,
-    );
-    let project = marked.project();
-    let path = project.path("/Excluded.sol");
-    let tables = analyze(AnalysisBatch::from_files(
-        CompileOpts::default(),
-        [(path.clone(), project.read_file("/Excluded.sol"))],
-    ))
-    .symbol_tables;
-    let uri = Url::from_file_path(path).unwrap();
-    let target =
-        tables.prepare_call_hierarchy(&uri, marked.marker("$1").position()).unwrap().pop().unwrap();
-    let caller =
-        tables.prepare_call_hierarchy(&uri, marked.marker("$2").position()).unwrap().pop().unwrap();
 
-    let outgoing = tables.call_hierarchy_outgoing(&caller).unwrap();
-    assert_eq!(outgoing.len(), 1);
-    assert_eq!(outgoing[0].to, target);
-    assert_eq!(outgoing[0].from_ranges, [marker_range(&marked, "$3", 6)]);
-}
-
-#[test]
-fn excludes_calls_without_typed_resolution() {
-    let marked = MarkedProject::from_fixture(
-        r#"
-        //- /Unresolved.sol
-        contract C {
-            function target() internal pure returns (uint256) { return 1; }
-
-            function $1caller() external {
+            // Calls without a typed resolution are excluded too.
+            function $4unresolved() external pure {
                 require(true, target(), "extra");
             }
         }
         "#,
     );
-    let project = marked.project();
-    let path = project.path("/Unresolved.sol");
-    let tables = analyze(AnalysisBatch::from_files(
-        CompileOpts::default(),
-        [(path.clone(), project.read_file("/Unresolved.sol"))],
-    ))
-    .symbol_tables;
-    let uri = Url::from_file_path(path).unwrap();
-    let caller =
-        tables.prepare_call_hierarchy(&uri, marked.marker("$1").position()).unwrap().pop().unwrap();
-
-    assert_eq!(tables.call_hierarchy_outgoing(&caller), Some(Vec::new()));
-}
-
-#[test]
-fn merges_identical_analysis_contexts_without_duplicate_edges() {
-    let marked = MarkedProject::from_fixture(
-        r#"
-        //- /Merged.sol
-        contract C {
-            function $1callee() internal {}
-            function $2caller() external {
-                $3callee();
-            }
-        }
-        "#,
-    );
-    let project = marked.project();
-    let path = project.path("/Merged.sol");
-    let contents = project.read_file("/Merged.sol");
-    let mut tables = analyze(AnalysisBatch::from_files(
-        CompileOpts::default(),
-        [(path.clone(), contents.clone())],
-    ))
-    .symbol_tables;
-    assert!(!tables.call_hierarchy_is_initialized());
-    let uri = Url::from_file_path(&path).unwrap();
-    let caller =
-        tables.prepare_call_hierarchy(&uri, marked.marker("$2").position()).unwrap().pop().unwrap();
-    assert!(tables.call_hierarchy_is_initialized());
-    let cloned_tables = tables.clone();
-    assert!(!cloned_tables.call_hierarchy_is_initialized());
-    let duplicate = analyze(AnalysisBatch::from_files(CompileOpts::default(), [(path, contents)]))
-        .symbol_tables;
-    assert!(!duplicate.call_hierarchy_is_initialized());
-
-    tables = merge_symbol_tables(tables, duplicate);
-    assert!(!tables.call_hierarchy_is_initialized());
+    let tables = calls.analyze(&["/Excluded.sol"]);
 
     assert_eq!(
-        tables.prepare_call_hierarchy(&uri, marked.marker("$2").position()),
-        Some(vec![caller.clone()])
+        tables.call_hierarchy_outgoing(&calls.item(&tables, "$2")),
+        Some(vec![outgoing(&calls.item(&tables, "$1"), vec![calls.range("$3", 6)])])
     );
-    assert!(tables.call_hierarchy_is_initialized());
-    let outgoing = tables.call_hierarchy_outgoing(&caller).unwrap();
-    assert_eq!(outgoing.len(), 1);
-    assert_eq!(outgoing[0].from_ranges, [marker_range(&marked, "$3", 6)]);
-    let incoming = tables.call_hierarchy_incoming(&outgoing[0].to).unwrap();
-    assert_eq!(incoming.len(), 1);
-    assert_eq!(incoming[0].from, caller);
+    assert_eq!(tables.call_hierarchy_outgoing(&calls.item(&tables, "$4")), Some(vec![]));
 }
 
 #[test]
 fn orders_call_neighbors_by_uri_and_range_after_merging() {
-    let marked = MarkedProject::from_fixture(
+    let calls = Calls::new(
         r#"
         //- /Z.sol
         import {Target} from "./Target.sol";
@@ -713,57 +330,28 @@ fn orders_call_neighbors_by_uri_and_range_after_merging() {
         import "./Caller.sol";
         "#,
     );
-    let project = marked.project();
-    let mut tables = analyze(AnalysisBatch::from_files(
-        CompileOpts::default(),
-        [(project.path("/RootA.sol"), project.read_file("/RootA.sol"))],
-    ))
-    .symbol_tables;
-    let item = |file: &str, marker: &str| {
-        let uri = Url::from_file_path(project.path(file)).unwrap();
-        tables
-            .prepare_call_hierarchy(&uri, marked.marker(marker).position())
-            .unwrap()
-            .pop()
-            .unwrap()
-    };
-    let caller = item("/Caller.sol", "$11");
-    let target = item("/Target.sol", "$10");
+    let tables = calls.analyze(&["/RootA.sol"]);
+    let caller = calls.item(&tables, "$11");
+    let target = calls.item(&tables, "$10");
     // URI order takes precedence over analysis order; source position takes precedence over name.
-    let neighbors =
-        [item("/A.sol", "$5"), item("/A.sol", "$8"), item("/Z.sol", "$1"), item("/Z.sol", "$3")];
-    let outgoing_ranges = [
-        vec![marker_range(&marked, "$15", 1), marker_range(&marked, "$16", 1)],
-        vec![marker_range(&marked, "$13", 1)],
-        vec![marker_range(&marked, "$14", 1)],
-        vec![marker_range(&marked, "$12", 1)],
-    ];
+    let neighbors = ["$5", "$8", "$1", "$3"].map(|marker| calls.item(&tables, marker));
+    let ranges = |markers: &[(&str, u32)]| {
+        markers.iter().map(|&(marker, len)| calls.range(marker, len)).collect::<Vec<_>>()
+    };
     let expected_outgoing = neighbors
         .iter()
-        .cloned()
-        .zip(outgoing_ranges)
-        .map(|(to, from_ranges)| CallHierarchyOutgoingCall { to, from_ranges })
+        .zip([&[("$15", 1), ("$16", 1)][..], &[("$13", 1)], &[("$14", 1)], &[("$12", 1)]])
+        .map(|(to, markers)| outgoing(to, ranges(markers)))
         .collect::<Vec<_>>();
-    let incoming_ranges = [
-        vec![marker_range(&marked, "$6", 6), marker_range(&marked, "$7", 6)],
-        vec![marker_range(&marked, "$9", 6)],
-        vec![marker_range(&marked, "$2", 6)],
-        vec![marker_range(&marked, "$4", 6)],
-    ];
     let expected_incoming = neighbors
-        .into_iter()
-        .zip(incoming_ranges)
-        .map(|(from, from_ranges)| CallHierarchyIncomingCall { from, from_ranges })
+        .iter()
+        .zip([&[("$6", 6), ("$7", 6)][..], &[("$9", 6)], &[("$2", 6)], &[("$4", 6)]])
+        .map(|(from, markers)| incoming(from, ranges(markers)))
         .collect::<Vec<_>>();
     assert_eq!(tables.call_hierarchy_outgoing(&caller), Some(expected_outgoing.clone()));
     assert_eq!(tables.call_hierarchy_incoming(&target), Some(expected_incoming.clone()));
 
-    let overlapping = analyze(AnalysisBatch::from_files(
-        CompileOpts::default(),
-        [(project.path("/RootB.sol"), project.read_file("/RootB.sol"))],
-    ))
-    .symbol_tables;
-    tables = merge_symbol_tables(tables, overlapping);
+    let tables = merge_symbol_tables(tables, calls.analyze(&["/RootB.sol"]));
 
     // Reusing items from before the merge must retain the complete, deduplicated response.
     assert_eq!(tables.call_hierarchy_outgoing(&caller), Some(expected_outgoing));
@@ -771,8 +359,8 @@ fn orders_call_neighbors_by_uri_and_range_after_merging() {
 }
 
 #[test]
-fn stable_items_follow_body_and_detail_reanalysis() {
-    let marked = MarkedProject::from_fixture(
+fn echoed_items_resolve_by_identity_across_reanalysis() {
+    let calls = Calls::new(
         r#"
         //- /Fresh.sol
         contract C {
@@ -784,185 +372,49 @@ fn stable_items_follow_body_and_detail_reanalysis() {
         }
         "#,
     );
-    let project = marked.project();
-    let path = project.path("/Fresh.sol");
-    let old_contents = project.read_file("/Fresh.sol");
-    let old_tables = analyze(AnalysisBatch::from_files(
-        CompileOpts::default(),
-        [(path.clone(), old_contents.clone())],
-    ))
-    .symbol_tables;
-    let uri = Url::from_file_path(&path).unwrap();
-    let old_caller = old_tables
-        .prepare_call_hierarchy(&uri, marked.marker("$3").position())
-        .unwrap()
-        .pop()
-        .unwrap();
-    let old_callee = old_tables
-        .prepare_call_hierarchy(&uri, marked.marker("$2").position())
-        .unwrap()
-        .pop()
-        .unwrap();
+    let old_tables = calls.analyze(&["/Fresh.sol"]);
+    let old_caller = calls.item(&old_tables, "$3");
+    let old_callee = calls.item(&old_tables, "$2");
 
-    let new_contents = old_contents
-        .replace("contract C", "contract D")
-        .replace("        calleeA();", "        uint256 value = 1;\n        calleeB();");
-    let new_tables =
-        analyze(AnalysisBatch::from_files(CompileOpts::default(), [(path, new_contents)]))
-            .symbol_tables;
-    let new_caller = new_tables
-        .prepare_call_hierarchy(&uri, marked.marker("$3").position())
-        .unwrap()
-        .pop()
-        .unwrap();
-    let new_callee = new_tables
-        .prepare_call_hierarchy(&uri, marked.marker("$2").position())
-        .unwrap()
-        .pop()
-        .unwrap();
+    let mut missing_data = old_caller.clone();
+    missing_data.data = None;
+    let mut malformed_data = old_caller.clone();
+    malformed_data.data = Some(serde_json::json!({ "version": "invalid" }));
+    let mut renamed = old_caller.clone();
+    renamed.name = "other".into();
+    for item in [missing_data, malformed_data, renamed] {
+        assert_eq!(old_tables.call_hierarchy_outgoing(&item), None);
+    }
+
+    let contents = calls.0.project().read_file("/Fresh.sol");
+    let new_tables = calls.analyze_contents(
+        "/Fresh.sol",
+        contents
+            .replace("contract C", "contract D")
+            .replace("        calleeA();", "        uint256 value = 1;\n        calleeB();"),
+    );
+    let new_caller = calls.item(&new_tables, "$3");
+    let new_callee = calls.item(&new_tables, "$2");
 
     assert_eq!(old_caller.selection_range, new_caller.selection_range);
     assert_ne!(old_caller.range, new_caller.range);
     assert_eq!(old_caller.detail.as_deref(), Some("C"));
     assert_eq!(new_caller.detail.as_deref(), Some("D"));
     let outgoing = new_tables.call_hierarchy_outgoing(&old_caller).unwrap();
-    assert_eq!(outgoing.len(), 1);
-    assert_eq!(outgoing[0].to, new_callee);
+    assert_eq!(outgoing.into_iter().map(|call| call.to).collect::<Vec<_>>(), [new_callee]);
     let incoming = new_tables.call_hierarchy_incoming(&old_callee).unwrap();
-    assert_eq!(incoming.len(), 1);
-    assert_eq!(incoming[0].from, new_caller);
-}
+    assert_eq!(incoming.into_iter().map(|call| call.from).collect::<Vec<_>>(), [new_caller]);
 
-#[test]
-fn rejects_invalid_or_moved_items() {
-    let marked = MarkedProject::from_fixture(
-        r#"
-        //- /Stale.sol
-        contract C {
-            function callee() internal {}
-            function $1caller() external {
-                callee();
-            }
-        }
-        "#,
+    let moved = calls.analyze_contents(
+        "/Fresh.sol",
+        contents.replace("    function caller", "\n    function caller"),
     );
-    let project = marked.project();
-    let path = project.path("/Stale.sol");
-    let contents = project.read_file("/Stale.sol");
-    let tables = analyze(AnalysisBatch::from_files(
-        CompileOpts::default(),
-        [(path.clone(), contents.clone())],
-    ))
-    .symbol_tables;
-    let uri = Url::from_file_path(&path).unwrap();
-    let item =
-        tables.prepare_call_hierarchy(&uri, marked.marker("$1").position()).unwrap().pop().unwrap();
-
-    let mut missing_data = item.clone();
-    missing_data.data = None;
-    assert_eq!(tables.call_hierarchy_outgoing(&missing_data), None);
-    let mut malformed_data = item.clone();
-    malformed_data.data = Some(serde_json::json!({ "version": "invalid" }));
-    assert_eq!(tables.call_hierarchy_outgoing(&malformed_data), None);
-    let mut renamed = item.clone();
-    renamed.name = "other".into();
-    assert_eq!(tables.call_hierarchy_outgoing(&renamed), None);
-
-    let moved_contents = contents.replace("    function caller", "\n    function caller");
-    let moved_tables =
-        analyze(AnalysisBatch::from_files(CompileOpts::default(), [(path, moved_contents)]))
-            .symbol_tables;
-    assert_eq!(moved_tables.call_hierarchy_outgoing(&item), None);
+    assert_eq!(moved.call_hierarchy_outgoing(&old_caller), None);
 }
 
 #[test]
-fn isolates_conflicting_source_snapshots() {
-    let marked = MarkedProject::from_fixture(
-        r#"
-        //- /Conflict.sol
-        contract C {
-            function callee() internal {}
-            function $1caller() external {
-                callee();
-            }
-        }
-        "#,
-    );
-    let project = marked.project();
-    let path = project.path("/Conflict.sol");
-    let contents = project.read_file("/Conflict.sol");
-    let mut tables = analyze(AnalysisBatch::from_files(
-        CompileOpts::default(),
-        [(path.clone(), contents.clone())],
-    ))
-    .symbol_tables;
-    let uri = Url::from_file_path(&path).unwrap();
-    let caller =
-        tables.prepare_call_hierarchy(&uri, marked.marker("$1").position()).unwrap().pop().unwrap();
-    let conflicting_contents = contents.replace("        callee();", "        uint256 value = 1;");
-    let conflicting =
-        analyze(AnalysisBatch::from_files(CompileOpts::default(), [(path, conflicting_contents)]))
-            .symbol_tables;
-
-    tables = merge_symbol_tables(tables, conflicting);
-
-    assert_eq!(tables.prepare_call_hierarchy(&uri, marked.marker("$1").position()), None);
-    assert_eq!(tables.call_hierarchy_outgoing(&caller), None);
-}
-
-#[test]
-fn isolates_identical_callers_with_conflicting_outgoing_facts() {
-    let marked = MarkedProject::from_fixture(
-        r#"
-        //- /Target.sol
-        library Target {
-            function target() internal pure {}
-        }
-        //- /Caller.sol
-        import {Target} from "./Target.sol";
-
-        contract C {
-            function $1caller() external {
-                Target.target();
-            }
-        }
-        //- /RootA.sol
-        import "./Caller.sol";
-        //- /RootB.sol
-        import "./Caller.sol";
-        "#,
-    );
-    let project = marked.project();
-    let target_contents = project.read_file("/Target.sol");
-    let mut tables = analyze(AnalysisBatch::from_files(
-        CompileOpts::default(),
-        [(project.path("/RootA.sol"), project.read_file("/RootA.sol"))],
-    ))
-    .symbol_tables;
-    let caller_uri = Url::from_file_path(project.path("/Caller.sol")).unwrap();
-    let caller = tables
-        .prepare_call_hierarchy(&caller_uri, marked.marker("$1").position())
-        .unwrap()
-        .pop()
-        .unwrap();
-    let moved_target = target_contents.replace("    function target()", "\n    function target()");
-    project.write_file("/Target.sol", &moved_target);
-    let conflicting = analyze(AnalysisBatch::from_files(
-        CompileOpts::default(),
-        [(project.path("/RootB.sol"), project.read_file("/RootB.sol"))],
-    ))
-    .symbol_tables;
-
-    tables = merge_symbol_tables(tables, conflicting);
-
-    assert_eq!(tables.prepare_call_hierarchy(&caller_uri, marked.marker("$1").position()), None);
-    assert_eq!(tables.call_hierarchy_outgoing(&caller), None);
-}
-
-#[test]
-fn rejects_partial_incoming_results_for_conflicting_callers() {
-    let marked = MarkedProject::from_fixture(
-        r#"
+fn conflicting_batches_reject_partial_relations() {
+    const FIXTURE: &str = r#"
         //- /Target.sol
         library Target {
             function $1target() internal pure {}
@@ -972,121 +424,294 @@ fn rejects_partial_incoming_results_for_conflicting_callers() {
 
         contract C {
             function $2caller() external {
-                Target.target();
+                $3uint256 value = 1;
+                Target.$4target();
             }
         }
         //- /RootA.sol
         import "./Caller.sol";
         //- /RootB.sol
         import "./Caller.sol";
-        "#,
-    );
-    let project = marked.project();
-    let caller_contents = project.read_file("/Caller.sol");
-    let mut tables = analyze(AnalysisBatch::from_files(
-        CompileOpts::default(),
-        [(project.path("/RootA.sol"), project.read_file("/RootA.sol"))],
-    ))
-    .symbol_tables;
-    let target_uri = Url::from_file_path(project.path("/Target.sol")).unwrap();
-    let target = tables
-        .prepare_call_hierarchy(&target_uri, marked.marker("$1").position())
-        .unwrap()
-        .pop()
-        .unwrap();
-    let caller_uri = Url::from_file_path(project.path("/Caller.sol")).unwrap();
-    let caller = tables
-        .prepare_call_hierarchy(&caller_uri, marked.marker("$2").position())
-        .unwrap()
-        .pop()
-        .unwrap();
-    let changed_caller = caller_contents.replace(
-        "        Target.target();",
-        "        uint256 value = 1;\n        Target.target();",
-    );
-    project.write_file("/Caller.sol", &changed_caller);
-    let conflicting = analyze(AnalysisBatch::from_files(
-        CompileOpts::default(),
-        [(project.path("/RootB.sol"), project.read_file("/RootB.sol"))],
-    ))
-    .symbol_tables;
+        "#;
+    let merge_after_edit = |path, from, to| {
+        let calls = Calls::new(FIXTURE);
+        let first = calls.analyze(&["/RootA.sol"]);
+        let (target, caller) = (calls.item(&first, "$1"), calls.item(&first, "$2"));
+        let contents = calls.0.project().read_file(path).replace(from, to);
+        calls.0.project().write_file(path, &contents);
+        let merged = merge_symbol_tables(first, calls.analyze(&["/RootB.sol"]));
+        (calls, merged, target, caller)
+    };
 
-    tables = merge_symbol_tables(tables, conflicting);
+    // A caller whose only callee moved has identical source but conflicting outgoing facts.
+    let (calls, tables, _, caller) =
+        merge_after_edit("/Target.sol", "    function target()", "\n    function target()");
+    assert_eq!(calls.prepare_at(&tables, "$2", 0), None);
+    assert_eq!(tables.call_hierarchy_outgoing(&caller), None);
 
-    assert_eq!(tables.prepare_call_hierarchy(&caller_uri, marked.marker("$2").position()), None);
+    // A conflicting caller must not leave a partial incoming list for its callee.
+    let (calls, tables, target, caller) =
+        merge_after_edit("/Caller.sol", "        Target.target();", "\n        Target.target();");
+    assert_eq!(calls.prepare_at(&tables, "$2", 0), None);
     assert_eq!(tables.call_hierarchy_outgoing(&caller), None);
     assert_eq!(tables.call_hierarchy_incoming(&target), None);
+
+    // A conflicting callee must not leave a partial outgoing list for its caller.
+    let (calls, tables, _, caller) =
+        merge_after_edit("/Target.sol", "pure {}", "pure { uint256 value = 1; }");
+    assert_eq!(calls.prepare_at(&tables, "$2", 0), Some(vec![caller.clone()]));
+    assert_eq!(calls.prepare_at(&tables, "$3", 0), Some(vec![caller.clone()]));
+    assert_eq!(calls.prepare_at(&tables, "$4", 0), None);
+    assert_eq!(tables.call_hierarchy_outgoing(&caller), None);
 }
 
 #[test]
-fn rejects_partial_outgoing_results_for_conflicting_callees() {
-    let marked = MarkedProject::from_fixture(
+fn indexes_calls_to_implicit_constructors() {
+    let calls = Calls::new(
         r#"
-        //- /Target.sol
-        library Target {
-            function target() internal pure {}
+        //- /Implicit.sol
+        contract $1Empty {}
+        contract $2Derived is $3Empty() {}
+        contract Explicit is $10Empty {
+            $4constructor() $5Empty() {}
+        }
+        contract Factory {
+            function $6deploy() external returns (Derived) {
+                return new $7Derived();
+            }
+        }
+        interface $8I {}
+        library $9Lib {}
+        "#,
+    );
+    let tables = calls.analyze_clean(&["/Implicit.sol"]);
+    let [empty, derived, explicit, deploy] =
+        ["$1", "$2", "$4", "$6"].map(|m| calls.item(&tables, m));
+    for (site, callee) in [("$3", &empty), ("$5", &empty), ("$7", &derived)] {
+        assert_eq!(calls.prepare_at(&tables, site, 0), Some(vec![callee.clone()]));
+    }
+    let [to_empty, from_explicit, creation] =
+        [("$3", 5), ("$5", 5), ("$7", 7)].map(|(marker, len)| vec![calls.range(marker, len)]);
+    assert_eq!(
+        tables.call_hierarchy_outgoing(&derived),
+        Some(vec![outgoing(&empty, to_empty.clone())])
+    );
+    assert_eq!(
+        tables.call_hierarchy_outgoing(&explicit),
+        Some(vec![outgoing(&empty, from_explicit.clone())])
+    );
+    assert_eq!(
+        tables.call_hierarchy_outgoing(&deploy),
+        Some(vec![outgoing(&derived, creation.clone())])
+    );
+    assert_eq!(
+        tables.call_hierarchy_incoming(&empty),
+        Some(vec![incoming(&derived, to_empty), incoming(&explicit, from_explicit)])
+    );
+    assert_eq!(tables.call_hierarchy_incoming(&derived), Some(vec![incoming(&deploy, creation)]));
+    // Interfaces, libraries, and bare inheritance have no constructor call.
+    for marker in ["$8", "$9", "$10"] {
+        assert_eq!(calls.prepare_at(&tables, marker, 0), None);
+    }
+}
+
+#[test]
+fn indexes_implicit_constructor_inheritance_calls() {
+    let calls = Calls::new(
+        r#"
+        //- /Token.sol
+        contract ERC20 {
+            $1constructor(string memory name_, string memory symbol_) {}
+        }
+        contract $2T is $3ERC20("N", "S") {
+            $4uint256 value;
+        }
+        "#,
+    );
+    let tables = calls.analyze_clean(&["/Token.sol"]);
+    let [base, derived] = ["$1", "$2"].map(|marker| calls.item(&tables, marker));
+    assert_eq!(calls.prepare_at(&tables, "$3", 0), Some(vec![base.clone()]));
+    assert_eq!(
+        (derived.name.as_str(), derived.kind, derived.detail.as_deref()),
+        ("T", SymbolKind::CONSTRUCTOR, Some("implicit constructor"))
+    );
+    let call = vec![calls.range("$3", 5)];
+    assert_eq!(derived.selection_range, calls.range("$2", 1));
+    assert!(derived.range.start <= derived.selection_range.start);
+    assert!(derived.range.end >= call[0].end);
+    assert_eq!(tables.call_hierarchy_outgoing(&derived), Some(vec![outgoing(&base, call.clone())]));
+    assert_eq!(tables.call_hierarchy_incoming(&base), Some(vec![incoming(&derived, call)]));
+    // The whole contract must not become an enclosing constructor body.
+    assert_eq!(calls.prepare_at(&tables, "$4", 0), None);
+}
+
+#[test]
+fn merges_implicit_constructors_and_isolates_conflicting_base_calls() {
+    let calls = Calls::new(
+        r#"
+        //- /Base.sol
+        contract Base {
+            $1constructor(uint256) {}
         }
         //- /Caller.sol
-        import {Target} from "./Target.sol";
-
-        contract C {
-            function $1caller() external {
-                $2uint256 value = 1;
-                Target.$3target();
-            }
+        import {Base} from "./Base.sol";
+        function $2argument() pure returns (uint256) { return 1; }
+        contract $3T is $4Base($5argument()) {}
+        contract Factory {
+            function $6deploy() external { new $7T(); }
         }
         //- /RootA.sol
         import "./Caller.sol";
         //- /RootB.sol
         import "./Caller.sol";
+        //- /RootC.sol
+        import "./Caller.sol";
         "#,
     );
-    let project = marked.project();
-    let target_contents = project.read_file("/Target.sol");
-    let mut tables = analyze(AnalysisBatch::from_files(
-        CompileOpts::default(),
-        [(project.path("/RootA.sol"), project.read_file("/RootA.sol"))],
-    ))
-    .symbol_tables;
-    let caller_uri = Url::from_file_path(project.path("/Caller.sol")).unwrap();
-    let caller = tables
-        .prepare_call_hierarchy(&caller_uri, marked.marker("$1").position())
-        .unwrap()
-        .pop()
-        .unwrap();
-    let changed_target = target_contents.replace(
-        "function target() internal pure {}",
-        "function target() internal pure { uint256 value = 1; }",
-    );
-    project.write_file("/Target.sol", &changed_target);
-    let conflicting = analyze(AnalysisBatch::from_files(
-        CompileOpts::default(),
-        [(project.path("/RootB.sol"), project.read_file("/RootB.sol"))],
-    ))
-    .symbol_tables;
+    let tables = calls.analyze_clean(&["/RootA.sol"]);
+    let [base, argument, constructor, deploy] =
+        ["$1", "$2", "$3", "$6"].map(|marker| calls.item(&tables, marker));
+    let [base_call, argument_call, creation] =
+        [("$4", 4), ("$5", 8), ("$7", 1)].map(|(marker, len)| vec![calls.range(marker, len)]);
 
-    tables = merge_symbol_tables(tables, conflicting);
-
+    // Items prepared before the merge retain one edge per source call after deduplication.
+    let tables = merge_symbol_tables(tables, calls.analyze_clean(&["/RootB.sol"]));
+    assert_eq!(calls.prepare_at(&tables, "$3", 0), Some(vec![constructor.clone()]));
     assert_eq!(
-        tables.prepare_call_hierarchy(&caller_uri, marked.marker("$1").position()),
-        Some(vec![caller.clone()])
+        tables.call_hierarchy_outgoing(&constructor),
+        Some(vec![outgoing(&base, base_call.clone()), outgoing(&argument, argument_call.clone())])
     );
     assert_eq!(
-        tables.prepare_call_hierarchy(&caller_uri, marked.marker("$2").position()),
-        Some(vec![caller.clone()])
+        tables.call_hierarchy_incoming(&base),
+        Some(vec![incoming(&constructor, base_call)])
     );
-    assert_eq!(tables.prepare_call_hierarchy(&caller_uri, marked.marker("$3").position()), None);
-    assert_eq!(tables.call_hierarchy_outgoing(&caller), None);
+    assert_eq!(
+        tables.call_hierarchy_incoming(&argument),
+        Some(vec![incoming(&constructor, argument_call)])
+    );
+    assert_eq!(
+        tables.call_hierarchy_incoming(&constructor),
+        Some(vec![incoming(&deploy, creation.clone())])
+    );
+    assert_eq!(
+        tables.call_hierarchy_outgoing(&deploy),
+        Some(vec![outgoing(&constructor, creation)])
+    );
+
+    // The caller's text stays identical, but a moved imported constructor changes its call facts.
+    let project = calls.0.project();
+    project.write_file(
+        "/Base.sol",
+        &project.read_file("/Base.sol").replace("constructor(", "\nconstructor("),
+    );
+    let tables = merge_symbol_tables(tables, calls.analyze_clean(&["/RootC.sol"]));
+    assert_eq!(calls.prepare_at(&tables, "$3", 0), None);
+    assert_eq!(tables.call_hierarchy_outgoing(&constructor), None);
+    assert_eq!(tables.call_hierarchy_incoming(&argument), None);
+    assert_eq!(tables.call_hierarchy_outgoing(&deploy), None);
 }
 
-fn merge_symbol_tables(first: SymbolTables, second: SymbolTables) -> SymbolTables {
+#[test]
+fn rejects_renamed_or_explicitly_replaced_implicit_constructors() {
+    let calls = Calls::new(
+        r#"
+        //- /Replaced.sol
+        contract Base { $1constructor(uint256) {} }
+        contract $2T is $3Base(1) {}
+        "#,
+    );
+    let contents = calls.0.project().read_file("/Replaced.sol");
+    let analyze = |contents: String| {
+        let result = analyze_source(calls.0.project().path("/Replaced.sol"), contents);
+        assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
+        result.symbol_tables
+    };
+    let tables = analyze(contents.clone());
+    let [base, constructor] = ["$1", "$2"].map(|marker| calls.item(&tables, marker));
+
+    let renamed = analyze(contents.replace("contract T", "contract U"));
+    let renamed_constructor = calls.item(&renamed, "$2");
+    assert_eq!(constructor.selection_range, renamed_constructor.selection_range);
+    assert_eq!(renamed_constructor.name, "U");
+    assert_eq!(
+        renamed.call_hierarchy_outgoing(&renamed_constructor),
+        Some(vec![outgoing(&base, vec![calls.range("$3", 4)])])
+    );
+    let explicit = analyze(
+        contents.replace("contract T is Base(1) {}", "contract T is Base(1) { constructor() {} }"),
+    );
+    assert_eq!(calls.prepare_at(&explicit, "$2", 0), None);
+    for tables in [&renamed, &explicit] {
+        assert_eq!(tables.call_hierarchy_outgoing(&constructor), None);
+        assert_eq!(tables.call_hierarchy_incoming(&constructor), None);
+    }
+}
+
+struct Calls(MarkedProject);
+
+impl Calls {
+    fn new(fixture: &str) -> Self {
+        Self(MarkedProject::from_fixture(fixture))
+    }
+
+    fn analysis(&self, paths: &[&str]) -> AnalysisResult {
+        let project = self.0.project();
+        analyze(AnalysisBatch::from_files(
+            CompileOpts::default(),
+            paths.iter().map(|path| (project.path(path), project.read_file(path))),
+        ))
+    }
+
+    fn analyze(&self, paths: &[&str]) -> SymbolTables {
+        self.analysis(paths).symbol_tables
+    }
+
+    fn analyze_clean(&self, paths: &[&str]) -> SymbolTables {
+        let result = self.analysis(paths);
+        assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
+        result.symbol_tables
+    }
+
+    fn analyze_contents(&self, path: &str, contents: String) -> SymbolTables {
+        analyze_source(self.0.project().path(path), contents).symbol_tables
+    }
+
+    fn uri(&self, marker: &str) -> Url {
+        self.0.project().uri(self.0.marker(marker).path())
+    }
+
+    fn prepare_at(
+        &self,
+        tables: &SymbolTables,
+        marker: &str,
+        offset: u32,
+    ) -> Option<Vec<CallHierarchyItem>> {
+        let range = self.range(marker, offset);
+        tables.prepare_call_hierarchy(&self.uri(marker), range.end)
+    }
+
+    fn item(&self, tables: &SymbolTables, marker: &str) -> CallHierarchyItem {
+        let [item] = self.prepare_at(tables, marker, 0).unwrap().try_into().unwrap();
+        item
+    }
+
+    fn range(&self, marker: &str, utf16_len: u32) -> Range {
+        let start = self.0.marker(marker).position();
+        Range::new(start, Position::new(start.line, start.character + utf16_len))
+    }
+}
+
+fn outgoing(to: &CallHierarchyItem, from_ranges: Vec<Range>) -> CallHierarchyOutgoingCall {
+    CallHierarchyOutgoingCall { to: to.clone(), from_ranges }
+}
+
+fn incoming(from: &CallHierarchyItem, from_ranges: Vec<Range>) -> CallHierarchyIncomingCall {
+    CallHierarchyIncomingCall { from: from.clone(), from_ranges }
+}
+
+pub(super) fn merge_symbol_tables(first: SymbolTables, second: SymbolTables) -> SymbolTables {
     let mut aggregator = SymbolTablesAggregator::default();
     aggregator.push(first);
     aggregator.push(second);
     aggregator.finish()
-}
-
-fn marker_range(marked: &MarkedProject, marker: &str, utf16_len: u32) -> Range {
-    let start = marked.marker(marker).position();
-    Range::new(start, Position::new(start.line, start.character + utf16_len))
 }

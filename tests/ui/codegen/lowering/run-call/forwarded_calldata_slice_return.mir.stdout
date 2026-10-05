@@ -1,13 +1,13 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/forwarded_calldata_slice_return.sol:ForwardedCalldataSliceReturn ===
 @module ForwardedCalldataSliceReturn
-types:
-  struct0: {i256, memorybytes}
+@types
+  struct0: {i256, memptr}
   struct1: {i256, calldataslice}
-  struct2: {i256, i256, memorybytes}
+  struct2: {i256, i256, memptr}
   struct3: {i256, i256, calldataslice}
   struct4: {i256, i256}
   struct5: {i256, i256, i256}
-  struct6: {i256, i256, memorybytes, memorybytes}
+  struct6: {i256, i256, memptr, memptr}
 
 fn @singleSliceLength(arg0: calldataslice) -> i256 [selector=0xee1d4083, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
@@ -177,7 +177,7 @@ fn @_tryParseSlices(arg0: calldataslice) -> struct5 [pure] {
     v8 = memory_object_load_byte memorybytes, v3, 0
     v9 = shl 248, v8
     v10 = shr 248, v9
-    v11 = ptrtoint memorybytes v4 to i256
+    v11 = ptrtoint memptr v4 to i256
     v12 = add v11, 32
     v13 = mload v12
     v14 = shr 96, v13

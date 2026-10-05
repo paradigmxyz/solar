@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/storage_reference_reassignment.sol:StorageReferenceReassignment ===
 @module StorageReferenceReassignment
-types:
+@types
   struct0: {i256, i256}
   struct1: {i256, i256, i256}
   struct2: {i256, i256, i256, i256}
@@ -384,7 +384,7 @@ fn @tryBind(arg0: i256, arg1: i256) -> i256 [selector=0x9a0c8f93, abi_params=[bo
 
 // === ROOT/tests/ui/codegen/lowering/storage_reference_reassignment.sol:QualifiedStorage ===
 @module QualifiedStorage
-fn @signers(arg0: i256) -> memoryarray [selector=0x736c0d5b, abi_params=[address], abi_returns=[memory_array<word<u160>>], abi_return_params=[array<_, address>]] {
+fn @signers(arg0: i256) -> memptr [selector=0x736c0d5b, abi_params=[address], abi_returns=[memory_array<word<u160>>], abi_return_params=[array<_, address>]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = gt v0, 0xffffffffffffffff
@@ -411,7 +411,7 @@ fn @signers(arg0: i256) -> memoryarray [selector=0x736c0d5b, abi_params=[address
     ret v18
 }
 
-fn @load_storage_packed_array_20_0(arg0: i256) -> memoryarray {
+fn @load_storage_packed_array_20_0(arg0: i256) -> memptr {
   bb0:
     v0 = load_storage_array u160, arg0
     ret v0

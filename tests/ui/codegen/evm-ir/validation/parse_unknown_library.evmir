@@ -1,0 +1,7 @@
+@module UnknownLibrary
+@libraries
+  L_0: "a.sol:L"
+
+bb0:
+  push_library L_1 //~ ERROR: unknown library `L_1`
+  stop

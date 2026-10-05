@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/logical_short_circuit.sol:LogicalShortCircuit ===
 @module LogicalShortCircuit
-types:
+@types
   struct0: {i256, i256}
 
 fn @bump() -> i256 [selector=0x68110b2f, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
@@ -174,9 +174,9 @@ fn @orRunsRhs() -> struct0 [selector=0x6baa9b2a, abi_params=[], abi_returns=[wor
 
 // === ROOT/tests/ui/codegen/lowering/run-call/logical_short_circuit.sol:SharedRevert ===
 @module SharedRevert
-types:
-  struct0: {i256, i256, i256, memorybytes, i256, i256, i256, i256, i256, i256, i256}
-  struct1: {memorybytes, i256, i256, i256, i256, i256}
+@types
+  struct0: {i256, i256, i256, memptr, i256, i256, i256, i256, i256, i256, i256}
+  struct1: {memptr, i256, i256, i256, i256, i256}
 
 fn @agreements(arg0: i256) -> struct0 [selector=0xbd14de96, view, abi_params=[u256], abi_returns=[word, word<u160>, word<u160>, memory_bytes, word, word, word, word, word<enum 6>, word, word], abi_return_params=[u256, address, address, bytes, u256, u256, u256, u256, enum<6, u8>, u256, u256]] {
   bb0:
@@ -457,7 +457,7 @@ fn @check(arg0: i256, arg1: i256) -> i256 [selector=0x8fefd8ea, abi_params=[u256
     ret v47
 }
 
-fn @load_storage_bytes(arg0: i256) -> memorybytes {
+fn @load_storage_bytes(arg0: i256) -> memptr {
   bb0:
     v0 = load_storage_bytes arg0
     ret v0

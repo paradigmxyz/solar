@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/cse/restored_calls.sol:RestoredCalls ===
 @module RestoredCalls
-types:
+@types
   struct0: {i256, i256}
   struct1: {i256, i256, i256}
 
@@ -14,16 +14,16 @@ fn @same(arg0: i256, arg1: i256) -> struct0 [selector=0xc32c70b1, pure, abi_para
     v4 = and 127, v3
     v5 = alloc memorybytes, exact, zeroed, panic, v4
     set_memory_object_len memorybytes, v5, 64
-    v6 = ptrtoint memorybytes v5 to i256
+    v6 = ptrtoint memptr v5 to i256
     v7 = add v6, 32
     mstore v7, arg0
-    v8 = ptrtoint memorybytes v5 to i256
+    v8 = ptrtoint memptr v5 to i256
     v9 = add v8, 64
     mstore v9, 1
     v10 = icall @scan, v5, arg1
     v11 = icall @scan, v5, arg1
     v12 = checked_add u256, v10, v11
-    v13 = ptrtoint memorybytes v5 to i256
+    v13 = ptrtoint memptr v5 to i256
     v14 = add v13, 32
     v15 = mload v14
     v16 = insert_value struct0, undef struct0, 0, v12
@@ -41,10 +41,10 @@ fn @repeated(arg0: i256, arg1: i256, arg2: i256) -> struct1 [selector=0xd6d01539
     v4 = and 127, v3
     v5 = alloc memorybytes, exact, zeroed, panic, v4
     set_memory_object_len memorybytes, v5, 64
-    v6 = ptrtoint memorybytes v5 to i256
+    v6 = ptrtoint memptr v5 to i256
     v7 = add v6, 32
     mstore v7, arg0
-    v8 = ptrtoint memorybytes v5 to i256
+    v8 = ptrtoint memptr v5 to i256
     v9 = add v8, 64
     mstore v9, 1
     v10 = icall @scan, v5, arg1
@@ -53,13 +53,13 @@ fn @repeated(arg0: i256, arg1: i256, arg2: i256) -> struct1 [selector=0xd6d01539
   bb2:
     jump bb3
   bb1:
-    v12 = ptrtoint memorybytes v5 to i256
+    v12 = ptrtoint memptr v5 to i256
     v13 = add v12, 95
     mstore8 v13, 0
     jump bb3
   bb3:
     v14 = icall @scan, v5, arg1
-    v15 = ptrtoint memorybytes v5 to i256
+    v15 = ptrtoint memptr v5 to i256
     v16 = add v15, 32
     v17 = mload v16
     v18 = insert_value struct1, undef struct1, 0, v10
@@ -68,9 +68,9 @@ fn @repeated(arg0: i256, arg1: i256, arg2: i256) -> struct1 [selector=0xd6d01539
     ret v20
 }
 
-fn @scan(arg0: memorybytes, arg1: i256) -> i256 [pure] {
+fn @scan(arg0: memptr, arg1: i256) -> i256 [pure] {
   bb0:
-    v0 = ptrtoint memorybytes arg0 to i256
+    v0 = ptrtoint memptr arg0 to i256
     v1 = add v0, 32
     v2 = mload v1
     mstore v1, 0
@@ -113,11 +113,11 @@ fn @restored(arg0: i256, arg1: i256) -> struct0 [selector=0x70ef4778, pure, abi_
     v4 = and 95, v3
     v5 = alloc memorybytes, exact, zeroed, panic, v4
     set_memory_object_len memorybytes, v5, 32
-    v6 = ptrtoint memorybytes v5 to i256
+    v6 = ptrtoint memptr v5 to i256
     v7 = add v6, 32
     mstore v7, arg0
     v8 = icall @temporary, v5, arg1
-    v9 = ptrtoint memorybytes v5 to i256
+    v9 = ptrtoint memptr v5 to i256
     v10 = add v9, 32
     v11 = mload v10
     v12 = insert_value struct0, undef struct0, 0, v8
@@ -125,9 +125,9 @@ fn @restored(arg0: i256, arg1: i256) -> struct0 [selector=0x70ef4778, pure, abi_
     ret v13
 }
 
-fn @temporary(arg0: memorybytes, arg1: i256) -> i256 [pure] {
+fn @temporary(arg0: memptr, arg1: i256) -> i256 [pure] {
   bb0:
-    v0 = ptrtoint memorybytes arg0 to i256
+    v0 = ptrtoint memptr arg0 to i256
     v1 = add v0, 32
     v2 = mload v1
     mstore v1, 17
@@ -165,19 +165,19 @@ fn @dirty(arg0: i256, arg1: i256) -> i256 [selector=0xd5f2e1b7, pure, abi_params
     v1 = and 95, v0
     v2 = alloc memorybytes, exact, zeroed, panic, v1
     set_memory_object_len memorybytes, v2, 32
-    v3 = ptrtoint memorybytes v2 to i256
+    v3 = ptrtoint memptr v2 to i256
     v4 = add v3, 32
     mstore v4, arg0
     icall @conditional, v2, arg1
-    v5 = ptrtoint memorybytes v2 to i256
+    v5 = ptrtoint memptr v2 to i256
     v6 = add v5, 32
     v7 = mload v6
     ret v7
 }
 
-fn @conditional(arg0: memorybytes, arg1: i256) [pure] {
+fn @conditional(arg0: memptr, arg1: i256) [pure] {
   bb0:
-    v0 = ptrtoint memorybytes arg0 to i256
+    v0 = ptrtoint memptr arg0 to i256
     v1 = add v0, 32
     v2 = mload v1
     mstore v1, 17

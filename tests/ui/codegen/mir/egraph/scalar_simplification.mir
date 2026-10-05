@@ -6,7 +6,7 @@
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = shr 3, [[SHIFTED]]
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = and arg0, 15
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = mul arg0, arg0
-types:
+@types
   struct0: {i256, i256, i256, i256, i256}
   struct1: {i256, i256, i256, i256, i256, i256, i256, i256, i256, i1, i1, i256, i256, i256, i256, i256, i256, i256, i256, i256, i256}
   struct2: {i256, i256}
@@ -33,8 +33,7 @@ fn @strength_reduce_arithmetic(arg0: i256) -> i256 {
 
 // CHECK-LABEL: {{^[ +].*}}fn @simplify_booleans{{[( ]}}
 // CHECK: {{^[ +].*}}[[IS_FALSE:v[0-9]+]] = eq arg0, false
-// CHECK: {{^[ +].*}}[[SELECT_FALSE:v[0-9]+]] = select arg0, false, true
-// CHECK: {{^[ +].*}}ret arg0, [[IS_FALSE]], arg1, arg0, [[SELECT_FALSE]]
+// CHECK: {{^[ +].*}}ret arg0, [[IS_FALSE]], arg1, arg0, [[IS_FALSE]]
 fn @simplify_booleans(arg0: i1, arg1: i256, arg2: i256) -> struct5 [return_abi=[i1, i1, i256, i1, i1]] {
   bb0:
     v3 = eq arg0, true
@@ -243,7 +242,7 @@ fn @constant_checks(arg0: i1) {
 // CHECK-LABEL: fn @constant_require
 // CHECK: - icall require<error_string>, true, arg0
 // CHECK: icall require<empty_string>, false
-fn @constant_require(arg0: memorybytes) {
+fn @constant_require(arg0: memptr) {
   bb0:
     icall require<error_string>, true, arg0
     icall require<empty_string>, false

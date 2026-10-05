@@ -28,7 +28,6 @@ pub(in crate::backend::evm::codegen) struct GlobalStackPlan {
     /// External arguments can reload in revert blocks; resident internal
     /// arguments have no memory fallback and therefore cannot ignore them.
     pub(in crate::backend::evm::codegen) terminal_sensitive: bool,
-    pub(in crate::backend::evm::codegen) layout_limit: Option<usize>,
 }
 
 impl GlobalStackPlan {
@@ -190,38 +189,25 @@ impl GlobalStackPlan {
             entries.clear();
         }
         aliases.retain(|_, arg| entries.values().any(|entry| entry.contains(arg)));
-        Self { entries, aliases, terminal_sensitive: false, layout_limit: None }
+        Self { entries, aliases, terminal_sensitive: false }
     }
 
     /// Plans a single physical layout for stack-passed arguments that never
     /// receive a static-frame home. Unlike the calldata layout above, this is
     /// an ABI invariant: every live edge must carry the value because there is
-    /// no legal reload fallback.
+    /// no legal reload fallback. Only `stack_access_limit` bounds the width: every layout and
+    /// the branch condition or switch selector above it must stay within `DUP` reach.
     pub(in crate::backend::evm::codegen) fn analyze_resident_args(
         func: &Function,
         liveness: &Liveness,
         values: &[ValueId],
         preserve_across_calls: bool,
-    ) -> Option<Self> {
-        Self::analyze_resident_args_with_limit(
-            func,
-            liveness,
-            values,
-            preserve_across_calls,
-            GLOBAL_STACK_LAYOUT_LIMIT,
-        )
-    }
-
-    pub(in crate::backend::evm::codegen) fn analyze_resident_args_with_limit(
-        func: &Function,
-        liveness: &Liveness,
-        values: &[ValueId],
-        preserve_across_calls: bool,
-        layout_limit: usize,
+        stack_access_limit: usize,
     ) -> Option<Self> {
         if values.is_empty() {
             return None;
         }
+        let reachable = |layout: &[ValueId]| layout.len() < stack_access_limit;
         // Values live across calls need runtime emission to retain the resident prefix below
         // the return address. A call's own result needs no such protection. Stack-phi edges compose
         // their changing values above this invariant prefix. The analysis remains all-or-nothing
@@ -244,7 +230,7 @@ impl GlobalStackPlan {
                 .copied()
                 .filter(|&value| liveness.live_in(block_id).contains(value))
                 .collect();
-            if entry.len() > layout_limit {
+            if !reachable(&entry) {
                 return None;
             }
             if !entry.is_empty() {
@@ -278,6 +264,9 @@ impl GlobalStackPlan {
                                     .is_some_and(|entry| entry.contains(value))
                         })
                         .collect();
+                    if !reachable(&union) {
+                        return None;
+                    }
                     entries.insert(*then_block, union.clone());
                     entries.insert(*else_block, union);
                     continue;
@@ -288,7 +277,7 @@ impl GlobalStackPlan {
                         union.push(value);
                     }
                 }
-                if union.len() > layout_limit {
+                if !reachable(&union) {
                     return None;
                 }
             }
@@ -296,7 +285,7 @@ impl GlobalStackPlan {
 
         // A switch initially carries one physical stack through its dispatch, but codegen can
         // route each target through a cleanup trampoline. Keep the exact target layouts here and
-        // only require their union to remain within the globally schedulable prefix.
+        // only require their union to remain reachable.
         for block in &func.blocks {
             let Some(Terminator::Switch { default, cases, .. }) = &block.terminator else {
                 continue;
@@ -316,17 +305,12 @@ impl GlobalStackPlan {
                     }
                 }
             }
-            if union.len() > layout_limit {
+            if !reachable(&union) {
                 return None;
             }
         }
 
-        let plan = Self {
-            entries,
-            aliases: FxHashMap::default(),
-            terminal_sensitive: true,
-            layout_limit: Some(layout_limit),
-        };
+        let plan = Self { entries, aliases: FxHashMap::default(), terminal_sensitive: true };
         // Prove that every live-in is represented and every predecessor can
         // establish precisely the target layout. This is what makes omitting
         // the argument's frame store sound rather than merely profitable.
@@ -435,6 +419,7 @@ impl GlobalStackPlan {
         }
     }
 
+    /// Returns both successor layouts of a branch. Plan construction bounds their union.
     pub(in crate::backend::evm::codegen) fn branch_layouts(
         &self,
         term: &Terminator,
@@ -442,15 +427,10 @@ impl GlobalStackPlan {
         let Terminator::Branch { then_block, else_block, .. } = term else { return None };
         let then_layout = self.entry(*then_block).unwrap_or(&[]);
         let else_layout = self.entry(*else_block).unwrap_or(&[]);
-        if then_layout.is_empty() && else_layout.is_empty() {
-            return None;
-        }
-        let union_len = then_layout.len()
-            + else_layout.iter().filter(|value| !then_layout.contains(value)).count();
-        (union_len <= self.layout_limit.unwrap_or(GLOBAL_STACK_LAYOUT_LIMIT))
-            .then_some((then_layout, else_layout))
+        (!then_layout.is_empty() || !else_layout.is_empty()).then_some((then_layout, else_layout))
     }
 
+    /// Returns every distinct successor layout of a switch. Plan construction bounds their union.
     pub(in crate::backend::evm::codegen) fn switch_layouts(
         &self,
         term: &Terminator,
@@ -462,16 +442,7 @@ impl GlobalStackPlan {
                 layouts.push((*target, self.entry(*target).unwrap_or(&[])));
             }
         }
-        let mut union = Vec::new();
-        for &(_, layout) in &layouts {
-            for &value in layout {
-                if !union.contains(&value) {
-                    union.push(value);
-                }
-            }
-        }
-        (!union.is_empty() && union.len() <= self.layout_limit.unwrap_or(GLOBAL_STACK_LAYOUT_LIMIT))
-            .then_some(layouts)
+        layouts.iter().any(|(_, layout)| !layout.is_empty()).then_some(layouts)
     }
 
     /// Returns values present in every physical successor layout of `term`.

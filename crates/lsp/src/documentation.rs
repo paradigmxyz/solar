@@ -65,95 +65,40 @@ struct NatSpecDocumentation {
 }
 
 fn documentation(gcx: Gcx<'_>, item_id: hir::ItemId) -> NatSpecDocumentation {
-    match item_id {
-        hir::ItemId::Contract(id) => {
-            let contract = gcx.hir.contract(id);
-            if contract.doc.is_empty() {
-                NatSpecDocumentation::default()
-            } else {
-                item_documentation(gcx.natspec_view(item_id).items())
-            }
-        }
-        hir::ItemId::Function(id) => {
-            let function = gcx.hir.function(id);
-            callable_documentation(
-                gcx,
-                hir::ItemId::Function(id),
-                function.doc,
-                function.parameters,
-                function.returns,
-            )
-        }
-        hir::ItemId::Variable(id) => variable_documentation(gcx, id),
-        hir::ItemId::Event(id) => {
-            let event = gcx.hir.event(id);
-            callable_documentation(gcx, hir::ItemId::Event(id), event.doc, event.parameters, &[])
-        }
-        hir::ItemId::Error(id) => {
-            let error = gcx.hir.error(id);
-            callable_documentation(gcx, hir::ItemId::Error(id), error.doc, error.parameters, &[])
-        }
-        hir::ItemId::Struct(_) | hir::ItemId::Enum(_) | hir::ItemId::Udvt(_) => {
-            let doc = gcx.hir.item(item_id).doc();
-            if doc.is_empty() {
-                NatSpecDocumentation::default()
-            } else {
-                item_documentation(gcx.natspec_view(item_id).items())
-            }
-        }
+    if let hir::ItemId::Variable(id) = item_id {
+        return variable_documentation(gcx, id);
     }
-}
-
-fn callable_documentation(
-    gcx: Gcx<'_>,
-    item_id: hir::ItemId,
-    doc_id: hir::DocId,
-    parameters: &[hir::VariableId],
-    returns: &[hir::VariableId],
-) -> NatSpecDocumentation {
-    if doc_id.is_empty() {
+    let item = gcx.hir.item(item_id);
+    if item.doc().is_empty() {
         return NatSpecDocumentation::default();
     }
     let view = gcx.natspec_view(item_id);
     let mut documentation = item_documentation(view.items());
-    let params = parameters
-        .iter()
-        .enumerate()
-        .filter_map(|(index, &id)| parameter_doc_at(gcx, id, index, view))
-        .collect();
-    let returns = returns
-        .iter()
-        .enumerate()
-        .filter_map(|(index, &id)| return_doc_at(gcx, id, index, view))
-        .collect();
-    documentation.params = params;
-    documentation.returns = returns;
+    if matches!(item_id, hir::ItemId::Function(_) | hir::ItemId::Event(_) | hir::ItemId::Error(_)) {
+        documentation.params = item
+            .parameters()
+            .unwrap_or_default()
+            .iter()
+            .enumerate()
+            .filter_map(|(index, &id)| parameter_doc_at(gcx, id, index, view))
+            .collect();
+        let returns = item_id.as_function().map_or(&[][..], |id| gcx.hir.function(id).returns);
+        documentation.returns = return_docs(gcx, returns, view);
+    }
     documentation
 }
 
 fn variable_documentation(gcx: Gcx<'_>, id: hir::VariableId) -> NatSpecDocumentation {
     let variable = gcx.hir.variable(id);
     match (variable.kind, variable.parent) {
-        (hir::VarKind::FunctionParam, Some(hir::ItemId::Function(parent))) => {
-            let function = gcx.hir.function(parent);
-            selected_parameter_documentation(
-                gcx,
-                id,
-                hir::ItemId::Function(parent),
-                function.parameters,
-            )
+        (hir::VarKind::FunctionParam, Some(parent @ hir::ItemId::Function(_)))
+        | (hir::VarKind::Event, Some(parent @ hir::ItemId::Event(_)))
+        | (hir::VarKind::Error, Some(parent @ hir::ItemId::Error(_))) => {
+            let parameters = gcx.hir.item(parent).parameters().unwrap_or_default();
+            selected_documentation(gcx, id, parent, parameters, false)
         }
-        (hir::VarKind::FunctionReturn, Some(hir::ItemId::Function(parent))) => {
-            let function = gcx.hir.function(parent);
-            selected_return_documentation(gcx, id, hir::ItemId::Function(parent), function.returns)
-        }
-        (hir::VarKind::Event, Some(hir::ItemId::Event(parent))) => {
-            let event = gcx.hir.event(parent);
-            selected_parameter_documentation(gcx, id, hir::ItemId::Event(parent), event.parameters)
-        }
-        (hir::VarKind::Error, Some(hir::ItemId::Error(parent))) => {
-            let error = gcx.hir.error(parent);
-            selected_parameter_documentation(gcx, id, hir::ItemId::Error(parent), error.parameters)
+        (hir::VarKind::FunctionReturn, Some(parent @ hir::ItemId::Function(function))) => {
+            selected_documentation(gcx, id, parent, gcx.hir.function(function).returns, true)
         }
         (hir::VarKind::FunctionTyParam | hir::VarKind::FunctionTyReturn, _) => {
             NatSpecDocumentation::default()
@@ -163,53 +108,37 @@ fn variable_documentation(gcx: Gcx<'_>, id: hir::VariableId) -> NatSpecDocumenta
             let view = gcx.natspec_view(hir::ItemId::Variable(id));
             let items = view.items();
             let mut documentation = item_documentation(items);
-            if let Some(getter) = variable.getter {
-                let returns = gcx.hir.function(getter).returns;
-                documentation.returns = returns
-                    .iter()
-                    .enumerate()
-                    .filter_map(|(index, &id)| return_doc_at(gcx, id, index, view))
-                    .collect();
-            } else {
-                documentation.returns = return_documentation(items);
-            }
+            documentation.returns = match variable.getter {
+                Some(getter) => return_docs(gcx, gcx.hir.function(getter).returns, view),
+                None => return_documentation(items),
+            };
             documentation
         }
     }
 }
 
-fn selected_parameter_documentation(
+/// Documents the parameter or return variable `id` of `item_id` at its position in `variables`.
+fn selected_documentation(
     gcx: Gcx<'_>,
     id: hir::VariableId,
     item_id: hir::ItemId,
-    parameters: &[hir::VariableId],
+    variables: &[hir::VariableId],
+    returns: bool,
 ) -> NatSpecDocumentation {
-    let Some(index) = parameters.iter().position(|&parameter| parameter == id) else {
+    let Some(index) = variables.iter().position(|&variable| variable == id) else {
         return NatSpecDocumentation::default();
     };
     if gcx.hir.item(item_id).doc().is_empty() {
         return NatSpecDocumentation::default();
     }
     let view = gcx.natspec_view(item_id);
-    let params = parameter_doc_at(gcx, id, index, view).into_iter().collect();
-    NatSpecDocumentation { params, ..NatSpecDocumentation::default() }
-}
-
-fn selected_return_documentation(
-    gcx: Gcx<'_>,
-    id: hir::VariableId,
-    item_id: hir::ItemId,
-    returns: &[hir::VariableId],
-) -> NatSpecDocumentation {
-    let Some(index) = returns.iter().position(|&return_id| return_id == id) else {
-        return NatSpecDocumentation::default();
-    };
-    if gcx.hir.item(item_id).doc().is_empty() {
-        return NatSpecDocumentation::default();
+    if returns {
+        let returns = return_doc_at(gcx, id, index, view).into_iter().collect();
+        NatSpecDocumentation { returns, ..NatSpecDocumentation::default() }
+    } else {
+        let params = parameter_doc_at(gcx, id, index, view).into_iter().collect();
+        NatSpecDocumentation { params, ..NatSpecDocumentation::default() }
     }
-    let view = gcx.natspec_view(item_id);
-    let returns = return_doc_at(gcx, id, index, view).into_iter().collect();
-    NatSpecDocumentation { returns, ..NatSpecDocumentation::default() }
 }
 
 fn item_documentation(items: &[hir::NatSpecItem]) -> NatSpecDocumentation {
@@ -219,8 +148,8 @@ fn item_documentation(items: &[hir::NatSpecItem]) -> NatSpecDocumentation {
         match item.kind {
             hir::NatSpecKind::Notice => documentation.notice.push(content.to_string()),
             hir::NatSpecKind::Dev => documentation.dev.push(content.to_string()),
-            hir::NatSpecKind::Return { .. } => {}
-            hir::NatSpecKind::Title
+            hir::NatSpecKind::Return { .. }
+            | hir::NatSpecKind::Title
             | hir::NatSpecKind::Author
             | hir::NatSpecKind::Param { .. }
             | hir::NatSpecKind::Inheritdoc { .. }
@@ -253,6 +182,18 @@ fn parameter_doc_at(
     Some((name, content))
 }
 
+fn return_docs(
+    gcx: Gcx<'_>,
+    returns: &[hir::VariableId],
+    documentation: NatSpecView<'_>,
+) -> Vec<(Option<Symbol>, String)> {
+    returns
+        .iter()
+        .enumerate()
+        .filter_map(|(index, &id)| return_doc_at(gcx, id, index, documentation))
+        .collect()
+}
+
 fn return_doc_at(
     gcx: Gcx<'_>,
     id: hir::VariableId,
@@ -269,14 +210,9 @@ fn item_content(item: &hir::NatSpecItem) -> Option<&str> {
     (!content.is_empty()).then_some(content)
 }
 
-fn join_docs<'a>(mut docs: impl Iterator<Item = &'a str>) -> Option<String> {
-    let first = docs.next()?;
-    let mut joined = first.to_string();
-    for doc in docs {
-        joined.push_str("\n\n");
-        joined.push_str(doc);
-    }
-    Some(joined)
+fn join_docs<'a>(docs: impl Iterator<Item = &'a str>) -> Option<String> {
+    let docs = docs.collect::<Vec<_>>();
+    (!docs.is_empty()).then(|| docs.join("\n\n"))
 }
 
 fn append_documentation(output: &mut String, documentation: &NatSpecDocumentation, markdown: bool) {

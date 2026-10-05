@@ -34,8 +34,7 @@
       v3 = mload v2
 -     v4 = fmp
 -     v5 = ptrtoint memptr v4 to i256
-+     v5 = ptrtoint memptr v0 to i256
-      v6 = add 64, v5
+-     v6 = add 64, v5
 -     v7 = mload v6
 -     v8 = add v3, v7
 +     v8 = add v3, v3

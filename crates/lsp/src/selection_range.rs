@@ -1,20 +1,14 @@
 //! Syntax-based selection-range construction.
 
-use crate::proto;
+use crate::{
+    proto,
+    utils::{checked_span_range, parse_recovering},
+};
 use crop::Rope;
 use lsp_types::{Position, Range, SelectionRange};
-use solar_config::CompileOpts;
-use solar_interface::{
-    Session, Span,
-    data_structures::Never,
-    source_map::{FileName, SourceFile},
-};
-use solar_parse::{
-    Parser,
-    ast::{self, visit::Visit},
-};
+use solar_interface::{Span, data_structures::Never, source_map::SourceFile};
+use solar_parse::ast::{self, visit::Visit};
 use std::{
-    borrow::Borrow,
     cmp::Reverse,
     ops::{ControlFlow, Range as ByteRange},
     sync::{Arc, OnceLock},
@@ -28,13 +22,7 @@ pub(crate) fn selection_ranges(
     positions: &[Position],
 ) -> Option<Vec<SelectionRange>> {
     let rope = Rope::from(source.as_str());
-    let index = proto::LspPositionIndex::new(&rope);
-    let cursors = checked_cursors(&index, positions)?;
-    if cursors.is_empty() {
-        return Some(Vec::new());
-    }
-    let candidates = collect_ranges(SourceCode::Owned(source));
-    selection_ranges_for_cursors(&index, &candidates, cursors)
+    SelectionRangeIndex::new(Arc::new(source), rope).selection_ranges(positions)
 }
 
 pub(crate) struct SelectionRangeIndex {
@@ -56,9 +44,8 @@ impl SelectionRangeIndex {
             return Some(Vec::new());
         }
 
-        let candidates = self.candidates.get_or_init(|| {
-            CandidateRanges::new(collect_ranges(SourceCode::Shared(self.source.clone())))
-        });
+        let candidates =
+            self.candidates.get_or_init(|| CandidateRanges::new(collect_ranges(&self.source)));
         cursors
             .into_iter()
             .map(|cursor| selection_range_for_cursor(index, candidates.at(cursor), cursor))
@@ -158,46 +145,19 @@ impl CandidateRanges {
     }
 }
 
-enum SourceCode {
-    Owned(String),
-    Shared(Arc<String>),
-}
-
-fn collect_ranges(source: SourceCode) -> Vec<ByteRange<usize>> {
-    let mut opts = CompileOpts::default();
-    opts.unstable.recover_incomplete_input = true;
-    let sess = Session::builder().opts(opts).with_silent_emitter(None).single_threaded().build();
-
-    sess.enter_sequential(|| {
-        let arena = ast::Arena::new();
-        let filename = FileName::Custom("lsp-selection-range.sol".into());
-        let source_file = match source {
-            SourceCode::Owned(source) => sess.source_map().new_source_file(filename, source),
-            SourceCode::Shared(source) => {
-                sess.source_map().new_source_file_shared(filename, source)
-            }
-        };
-        let Ok(source_file) = source_file else {
-            return Vec::new();
-        };
-        let mut parser = Parser::from_source_file(&sess, &arena, &source_file);
-        let source_unit = match parser.parse_file() {
-            Ok(source_unit) => source_unit,
-            Err(error) => {
-                error.emit();
-                return Vec::new();
-            }
-        };
-        drop(parser);
-
-        let mut collector = RangeCollector::new(&source_file);
-        let _ = collector.visit_source_unit(&source_unit);
+fn collect_ranges(source: &Arc<String>) -> Vec<ByteRange<usize>> {
+    parse_recovering("lsp-selection-range.sol", source.clone(), |_, file, source_unit| {
+        let mut collector = RangeCollector { file, ranges: Vec::new() };
+        if let Some(source_unit) = source_unit {
+            let _ = collector.visit_source_unit(source_unit);
+        }
         collector.ranges
     })
+    .unwrap_or_default()
 }
 
-fn checked_cursors<R: Borrow<Rope>>(
-    index: &proto::LspPositionIndex<R>,
+fn checked_cursors(
+    index: &proto::LspPositionIndex<Rope>,
     positions: &[Position],
 ) -> Option<Vec<usize>> {
     positions
@@ -208,23 +168,8 @@ fn checked_cursors<R: Borrow<Rope>>(
         .collect()
 }
 
-fn selection_ranges_for_cursors<R: Borrow<Rope>>(
-    index: &proto::LspPositionIndex<R>,
-    candidates: &[ByteRange<usize>],
-    cursors: Vec<usize>,
-) -> Option<Vec<SelectionRange>> {
-    cursors
-        .into_iter()
-        .map(|cursor| {
-            let candidates =
-                candidates.iter().filter(|range| range.contains(&cursor)).cloned().collect();
-            selection_range_for_cursor(index, candidates, cursor)
-        })
-        .collect()
-}
-
-fn selection_range_for_cursor<R: Borrow<Rope>>(
-    index: &proto::LspPositionIndex<R>,
+fn selection_range_for_cursor(
+    index: &proto::LspPositionIndex<Rope>,
     mut candidates: Vec<ByteRange<usize>>,
     cursor: usize,
 ) -> Option<SelectionRange> {
@@ -249,22 +194,17 @@ fn selection_range_for_cursor<R: Borrow<Rope>>(
         chain.push(document);
     }
 
-    let mut chain = chain.into_iter().rev();
-    let outer = chain.next()?;
-    let mut selection = SelectionRange {
-        range: Range::new(index.position_at_byte(outer.start)?, index.position_at_byte(outer.end)?),
-        parent: None,
-    };
-    for range in chain {
-        selection = SelectionRange {
+    let mut selection = None;
+    for range in chain.into_iter().rev() {
+        selection = Some(SelectionRange {
             range: Range::new(
                 index.position_at_byte(range.start)?,
                 index.position_at_byte(range.end)?,
             ),
-            parent: Some(Box::new(selection)),
-        };
+            parent: selection.map(Box::new),
+        });
     }
-    Some(selection)
+    selection
 }
 
 fn strictly_contains(outer: &ByteRange<usize>, inner: &ByteRange<usize>) -> bool {
@@ -276,27 +216,11 @@ struct RangeCollector<'a> {
     ranges: Vec<ByteRange<usize>>,
 }
 
-impl<'a> RangeCollector<'a> {
-    fn new(file: &'a SourceFile) -> Self {
-        Self { file, ranges: Vec::new() }
-    }
-
+impl RangeCollector<'_> {
     fn push(&mut self, span: Span) {
         // All syntax comes from this parsed file. Validate directly against its source to avoid
         // source-map lookups and rope traversals for every AST node, including duplicate spans.
-        if span.is_dummy()
-            || span.lo() >= span.hi()
-            || !self.file.contains(span.lo())
-            || !self.file.contains(span.hi())
-        {
-            return;
-        }
-        let range = self.file.relative_position(span.lo()).to_usize()
-            ..self.file.relative_position(span.hi()).to_usize();
-        if self.file.src.is_char_boundary(range.start) && self.file.src.is_char_boundary(range.end)
-        {
-            self.ranges.push(range);
-        }
+        self.ranges.extend(checked_span_range(self.file, span));
     }
 }
 

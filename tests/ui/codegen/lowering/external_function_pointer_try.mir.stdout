@@ -1,9 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/external_function_pointer_try.sol:ExternalFunctionPointerTry ===
 @module ExternalFunctionPointerTry
-types:
-  struct0: {i256, memorybytes}
+@types
+  struct0: {i256, memptr}
 
-fn @invoke(arg0: i256, arg1: memorystruct) {
+fn @invoke(arg0: i256, arg1: memptr) {
   bb0:
     v0 = and arg0, 0xffffffff
     v1 = shl 224, v0
@@ -39,20 +39,20 @@ fn @invoke(arg0: i256, arg1: memorystruct) {
     ret
 }
 
-fn @succeed(arg0: memorystruct) [selector=0x93edcd0d, abi_params=[tuple<u256>], abi_returns=[], abi_return_params=[]] {
+fn @succeed(arg0: memptr) [selector=0x93edcd0d, abi_params=[tuple<u256>], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = memory_object_load_field memorystruct<1>, arg0, 0
     sstore 0, v0 !metadata(storage=slot(0))
     ret
 }
 
-fn @fail(arg0: memorystruct) [selector=0xe8be0a6f, pure, abi_params=[tuple<u256>], abi_returns=[], abi_return_params=[]] {
+fn @fail(arg0: memptr) [selector=0xe8be0a6f, pure, abi_params=[tuple<u256>], abi_returns=[], abi_return_params=[]] {
   bb0:
     icall require<short_string>, false, 2, 0x6e6f000000000000000000000000000000000000000000000000000000000000
     invalid
 }
 
-fn @pair(arg0: memorystruct) -> struct0 [selector=0x76ea4d37, pure, abi_params=[tuple<u256>], abi_returns=[word, memory_bytes], abi_return_params=[u256, bytes]] {
+fn @pair(arg0: memptr) -> struct0 [selector=0x76ea4d37, pure, abi_params=[tuple<u256>], abi_returns=[word, memory_bytes], abi_return_params=[u256, bytes]] {
   bb0:
     v0 = memory_object_load_field memorystruct<1>, arg0, 0
     v1 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
@@ -65,7 +65,7 @@ fn @pair(arg0: memorystruct) -> struct0 [selector=0x76ea4d37, pure, abi_params=[
     ret v5
 }
 
-fn @invokePair(arg0: i256, arg1: memorystruct) -> struct0 {
+fn @invokePair(arg0: i256, arg1: memptr) -> struct0 {
   bb0:
     v0 = and arg0, 0xffffffff
     v1 = shl 224, v0
@@ -100,7 +100,7 @@ fn @invokePair(arg0: i256, arg1: memorystruct) -> struct0 {
     ret v13
   bb3:
     v19 = insert_value struct0, undef struct0, 0, 0
-    v20 = insert_value struct0, v19, 1, memorybytes 96
+    v20 = insert_value struct0, v19, 1, memptr 96
     ret v20
 }
 

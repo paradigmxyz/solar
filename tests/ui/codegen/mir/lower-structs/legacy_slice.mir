@@ -6,16 +6,16 @@
 @module LegacySlice
 @phase semantic
 
-types:
+@types
   struct0: {memoryslice, i256}
-  struct1: {memorybytes}
+  struct1: {memptr}
 
-fn @legacy(arg0: memorybytes) -> memoryslice {
+fn @legacy(arg0: memptr) -> memoryslice {
   bb0:
     ret arg0
 }
 
-fn @wrap(arg0: memorybytes) -> struct0 {
+fn @wrap(arg0: memptr) -> struct0 {
   bb0:
     v0 = icall @legacy, arg0
     v1 = insert_value struct0, undef struct0, 0, v0
@@ -23,7 +23,7 @@ fn @wrap(arg0: memorybytes) -> struct0 {
     ret v2
 }
 
-fn @object(arg0: memorybytes) -> struct1 {
+fn @object(arg0: memptr) -> struct1 {
   bb0:
     v0 = insert_value struct1, undef struct1, 0, arg0
     ret v0

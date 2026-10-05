@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/memory_storage_tuple.sol:MixedMemoryTuple ===
 @module MixedMemoryTuple
-types:
-  struct0: {memorybytes, memorybytes}
+@types
+  struct0: {memptr, memptr}
   struct1: {i256, i256}
 
 fn @calldataTuple(arg0: calldataslice, arg1: calldataslice) -> struct0 [selector=0xcc2ff9fc, abi_params=[bytes, bytes], abi_returns=[memory_bytes, memory_bytes], abi_return_params=[bytes, bytes]] {
@@ -110,13 +110,13 @@ fn @assigned() -> i256 [selector=0xadb4d990, abi_params=[], abi_returns=[word], 
     ret v16
 }
 
-fn @store_storage_bytes(arg0: i256, arg1: memorybytes) {
+fn @store_storage_bytes(arg0: i256, arg1: memptr) {
   bb0:
     store_storage_bytes arg0, arg1
     ret
 }
 
-fn @load_storage_bytes(arg0: i256) -> memorybytes {
+fn @load_storage_bytes(arg0: i256) -> memptr {
   bb0:
     v0 = load_storage_bytes arg0
     ret v0

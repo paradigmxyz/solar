@@ -179,7 +179,6 @@ impl<'gcx> EvmCodegen<'gcx> {
         match address.base {
             MemoryBase::Allocation(_)
             | MemoryBase::DynamicAllocation(_)
-            | MemoryBase::Param(_)
             | MemoryBase::InternalFrame => false,
             MemoryBase::Absolute => {
                 address.offset < EvmMemoryLayout::HEAP_START.saturating_add(SPILL_HAZARD_BOUND)
@@ -544,9 +543,9 @@ impl<'gcx> EvmCodegen<'gcx> {
                     InstKind::Add(first, second) if func.value_u64(*first).is_some() => {
                         derive(*second, visiting, memo)
                     }
-                    InstKind::PtrToInt(base, 256)
-                    | InstKind::IntToPtr(base)
-                    | InstKind::Bitcast(base) => derive(*base, visiting, memo),
+                    InstKind::PtrToInt(base, 256) | InstKind::IntToPtr(base) => {
+                        derive(*base, visiting, memo)
+                    }
                     InstKind::And(first, second) if aligned_mask(*second) => {
                         derive(*first, visiting, memo)
                     }
@@ -752,9 +751,9 @@ impl<'a> HeapWriteProof<'a> {
                 (Some(a), Some(b)) => Some(a.min(b)),
                 (a, b) => a.or(b),
             },
-            InstKind::Bitcast(value)
-            | InstKind::IntToPtr(value)
-            | InstKind::PtrToInt(value, 256) => self.upper_bound(before, value, depth + 1),
+            InstKind::IntToPtr(value) | InstKind::PtrToInt(value, 256) => {
+                self.upper_bound(before, value, depth + 1)
+            }
             _ => None,
         }
     }

@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/calldata_nested_element_slices.sol:CalldataNestedElementSlices ===
 @module CalldataNestedElementSlices
-types:
+@types
   struct0: {i256, i256}
   struct1: {i256, i256, calldataslice}
 
@@ -23,7 +23,7 @@ fn @nestedBytes() -> i256 [selector=0x126aa804, view, abi_params=[], abi_returns
     v9 = lt 0, v8
     v10 = eq v9, false
     icall panic_if<0x32>, v10
-    v11 = ptrtoint memorybytes v5 to i256
+    v11 = ptrtoint memptr v5 to i256
     memory_object_store_element memoryarray<1>, v0, 0, v11
     v12 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v12, 3
@@ -34,7 +34,7 @@ fn @nestedBytes() -> i256 [selector=0x126aa804, view, abi_params=[], abi_returns
     v16 = lt 1, v15
     v17 = eq v16, false
     icall panic_if<0x32>, v17
-    v18 = ptrtoint memorybytes v12 to i256
+    v18 = ptrtoint memptr v12 to i256
     memory_object_store_element memoryarray<1>, v0, 1, v18
     v19 = address
     v20 = gas
@@ -56,7 +56,7 @@ fn @nestedBytes() -> i256 [selector=0x126aa804, view, abi_params=[], abi_returns
     v31 = mload v30
     ret v31
   bb2:
-    v3 = ptrtoint memorybytes 96 to i256
+    v3 = ptrtoint memptr 96 to i256
     memory_object_store_element memoryarray<1>, v0, v1, v3
     v4 = add v1, 1
     jump bb1
@@ -144,13 +144,13 @@ fn @structMember() -> struct0 [selector=0x9f2d7231, view, abi_params=[], abi_ret
     v12 = zext i160 v8 to i256
     memory_object_store_field memorystruct<3>, v7, 0, v12
     memory_object_store_field memorystruct<3>, v7, 1, 2
-    v13 = ptrtoint memorybytes v9 to i256
+    v13 = ptrtoint memptr v9 to i256
     memory_object_store_field memorystruct<3>, v7, 2, v13
     v14 = memory_object_len memoryarray, v0
     v15 = lt 0, v14
     v16 = eq v15, false
     icall panic_if<0x32>, v16
-    v17 = ptrtoint memorystruct v7 to i256
+    v17 = ptrtoint memptr v7 to i256
     memory_object_store_element memoryarray<1>, v0, 0, v17
     v18 = address
     v19 = gas
@@ -191,9 +191,9 @@ fn @structMember() -> struct0 [selector=0x9f2d7231, view, abi_params=[], abi_ret
     v3 = alloc memorystruct<3>, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<3>, v3, 0, 0
     memory_object_store_field memorystruct<3>, v3, 1, 0
-    v4 = ptrtoint memorybytes 96 to i256
+    v4 = ptrtoint memptr 96 to i256
     memory_object_store_field memorystruct<3>, v3, 2, v4
-    v5 = ptrtoint memorystruct v3 to i256
+    v5 = ptrtoint memptr v3 to i256
     memory_object_store_element memoryarray<1>, v0, v1, v5
     v6 = add v1, 1
     jump bb1

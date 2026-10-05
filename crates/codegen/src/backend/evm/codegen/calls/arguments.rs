@@ -186,7 +186,6 @@ impl<'gcx> EvmCodegen<'gcx> {
                     entries: FxHashMap::default(),
                     aliases: FxHashMap::default(),
                     terminal_sensitive: true,
-                    layout_limit: None,
                 }
             };
             let abi = self.static_call_abi_mut(func_id, func.params.len());
@@ -695,7 +694,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
         // Protected values cannot use a speculative memory home. They may sit below temporary
         // operands until the instruction consumes those operands; exact operand staging still
-        // checks every access. Reserve room for the persistent result instead.
+        // checks every access. Reject protected values only once they are already out of reach.
         let materialize_depth = self.stack_access_limit().saturating_sub(transient_growth);
         let mut disabled_residency = false;
         loop {
@@ -705,7 +704,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                         depth >= materialize_depth
                             && self.scheduler.is_stack_only_value(value)
                             && (!self.scheduler.is_hazard_protected(value)
-                                || depth >= self.stack_access_limit().saturating_sub(1))
+                                || depth >= self.stack_access_limit())
                     })
                     .map(|value| (depth, value))
             });

@@ -1,7 +1,7 @@
 //@compile-flags: -Zmir-pipeline=dce
 @module ValidateImmutables
 @phase lowered
-immutables:
+@immutables
   invalid: void //~? ERROR: immutable `invalid` cannot use type `void`
   narrow: u8
 

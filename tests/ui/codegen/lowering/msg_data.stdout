@@ -8,7 +8,7 @@ fn @len() -> i256 [selector=0x56d88e27, pure, abi_params=[], abi_returns=[word],
     ret v2
 }
 
-fn @copy() -> memorybytes [selector=0x60726abb, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @copy() -> memptr [selector=0x60726abb, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = calldatasize
     v1 = make_calldata_slice 0, v0
@@ -65,7 +65,7 @@ fn @environment() -> i256 [selector=0x74e2b63c, view, abi_params=[], abi_returns
     ret v27
 }
 
-fn @tail(arg0: i256, arg1: i256) -> memorybytes [selector=0xb62868c3, pure, abi_params=[u256, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @tail(arg0: i256, arg1: i256) -> memptr [selector=0xb62868c3, pure, abi_params=[u256, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = calldatasize
     v1 = make_calldata_slice 0, v0

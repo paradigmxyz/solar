@@ -15,7 +15,7 @@ fn @viaMethod(arg0: i256, arg1: i256) -> i256 [selector=0x36245213, pure, abi_pa
     ret v1
 }
 
-fn @hashLib(arg0: memorystruct) -> i256 [pure] {
+fn @hashLib(arg0: memptr) -> i256 [pure] {
   bb0:
     v0 = memory_object_load_field memorystruct<4>, arg0, 0
     v1 = memory_object_load_field memorystruct<4>, arg0, 1

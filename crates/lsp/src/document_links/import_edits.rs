@@ -2,10 +2,7 @@ use lsp_types::{TextEdit, Url};
 use normalize_path::NormalizePath;
 use solar_config::ImportRemapping;
 use solar_interface::source_map::apply_import_remappings;
-use std::{
-    fmt::Write,
-    path::{Component, Path, PathBuf},
-};
+use std::path::{Component, Path, PathBuf};
 
 use super::{
     DocumentLinkIndex, ImportEditPlan, ImportPathStyle, StoredDocumentLink,
@@ -64,11 +61,7 @@ impl DocumentLinkIndex {
 }
 
 fn solidity_string_literal(bytes: &[u8]) -> String {
-    let mut literal = String::with_capacity(bytes.len() + 2);
-    literal.push('"');
-    write!(literal, "{}", solidity_string_contents(bytes, b'"')).unwrap();
-    literal.push('"');
-    literal
+    format!("\"{}\"", solidity_string_contents(bytes, b'"'))
 }
 
 impl StoredDocumentLink {
@@ -79,36 +72,46 @@ impl StoredDocumentLink {
         moved_target: &Path,
         moves: &FileMoveBatch,
     ) -> Option<PathBuf> {
-        if moved_target == self.target {
-            match &self.import_style {
-                ImportPathStyle::Relative { .. } if moved_source == source => {
-                    return Some(self.import_path.clone());
+        let (resolver_root, remappings) = self.import_style.resolution_context();
+        let resolver_root_is_unchanged =
+            resolver_root.is_none_or(|root| moved_path(root, moves) == root);
+        if moved_source == source
+            && moved_target == self.target
+            && (resolver_root_is_unchanged
+                || matches!(self.import_style, ImportPathStyle::Relative { .. }))
+        {
+            return Some(self.import_path.clone());
+        }
+        // A moved importer can keep an opaque or anchored path that still resolves to the target.
+        if moved_source != source
+            && moved_target == self.target
+            && match &self.import_style {
+                ImportPathStyle::Relative { .. } => false,
+                ImportPathStyle::Opaque { .. } => import_resolves_to_target(
+                    &self.import_path,
+                    moved_source,
+                    moved_target,
+                    resolver_root,
+                    remappings,
+                    moves,
+                ),
+                ImportPathStyle::Anchored { configuration_root, .. } => {
+                    anchored_import_resolves_to_target(
+                        &self.import_path,
+                        moved_source,
+                        moved_target,
+                        configuration_root.as_deref(),
+                        remappings,
+                        moves,
+                    )
                 }
-                ImportPathStyle::Relative { .. } => {
-                    return self.rewritten_import_path(moved_source, moved_target, moves);
-                }
-                ImportPathStyle::Opaque { resolver_root, .. }
-                    if moved_source == source
-                        && resolver_root
-                            .as_deref()
-                            .is_none_or(|root| moved_path(root, moves) == root) =>
-                {
-                    return Some(self.import_path.clone());
-                }
-                ImportPathStyle::Opaque { .. } => {
-                    return self.rewritten_import_path(moved_source, moved_target, moves);
-                }
-                ImportPathStyle::Anchored { .. } => {}
             }
+        {
+            return Some(self.import_path.clone());
         }
 
-        if let ImportPathStyle::Anchored {
-            prefix,
-            target_root,
-            resolver_root,
-            configuration_root,
-            remappings,
-        } = &self.import_style
+        if let ImportPathStyle::Anchored { prefix, target_root, configuration_root, .. } =
+            &self.import_style
         {
             let moved_target_root = moved_path(target_root, moves);
             let source_move = moves.map_path(source).map(|(id, _)| id);
@@ -117,11 +120,6 @@ impl StoredDocumentLink {
                 .as_deref()
                 .and_then(|root| moves.map_path(root))
                 .map(|(id, _)| id);
-            let resolver_root_is_unchanged =
-                resolver_root.as_deref().is_none_or(|root| moved_path(root, moves) == root);
-            if moved_source == source && moved_target == self.target && resolver_root_is_unchanged {
-                return Some(self.import_path.clone());
-            }
             let anchor_is_stable = (moved_source == source
                 && moved_target_root == *target_root
                 && resolver_root_is_unchanged)
@@ -212,6 +210,27 @@ fn absolute_import_resolves_to_target(
         resolver_root.as_deref().and_then(|root| source.strip_prefix(root).ok()).unwrap_or(source);
     let remapped = apply_import_remappings(remappings, import_path, Some(parent));
     remapped.is_absolute() && remapped.as_ref().normalize() == target.normalize()
+}
+
+fn import_resolves_to_target(
+    import_path: &Path,
+    source: &Path,
+    target: &Path,
+    resolver_root: Option<&Path>,
+    remappings: &[ImportRemapping],
+    moves: &FileMoveBatch,
+) -> bool {
+    let resolver_root = resolver_root.map(|root| moved_path(root, moves));
+    let parent =
+        resolver_root.as_deref().and_then(|root| source.strip_prefix(root).ok()).unwrap_or(source);
+    let remapped = apply_import_remappings(remappings, import_path, Some(parent));
+    let resolved = if remapped.is_absolute() {
+        remapped.as_ref().normalize()
+    } else {
+        let Some(root) = resolver_root else { return false };
+        root.join(remapped.as_ref()).normalize()
+    };
+    resolved == target.normalize()
 }
 
 fn relative_import_path(source: &Path, target: &Path) -> Option<PathBuf> {
