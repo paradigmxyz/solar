@@ -74,6 +74,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn lower_return_values(&mut self, expr: &hir::Expr<'_>) -> Option<Vec<ValueId>> {
+        if self.cx.gcx.type_of_expr(expr.id)?.is_unit() {
+            self.lower_discarded_expr(expr)?;
+            return Some(Vec::new());
+        }
         if self.returns.len() == 1 {
             let ty = self.cx.gcx.type_of_item(self.returns[0].into());
             if ty.is_ref_at(DataLocation::Storage) {
