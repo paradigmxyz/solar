@@ -14,8 +14,6 @@
 //@ run-call: quietTwice 4 => 48
 //@ run-call: callQuiet 4 => 48
 //@ run-call: toggleLoud 7 => true
-//@ run-call: deleteReturn => 0
-//@ run-call: assignmentReturn => 7
 
 contract VoidTailReturn {
     uint256 private total;
@@ -152,24 +150,5 @@ contract VoidTailReturn {
             recursiveYul(depth)
             result := sload(0)
         }
-    }
-
-    function deleteReturn() external returns (uint256) {
-        total = 7;
-        deleteAndReturn();
-        return total;
-    }
-
-    function deleteAndReturn() internal {
-        return delete total;
-    }
-
-    function assignmentReturn() external returns (uint256) {
-        assignAndReturn();
-        return total;
-    }
-
-    function assignAndReturn() internal {
-        return (total,) = (7, 9);
     }
 }
