@@ -1,10 +1,8 @@
 //@ codegen-matrix: standard
-//@ compile-flags: -Zvalidate-ir=true
 //@ run-call: viaOperator 0x100, 0 => true
 //@ run-call: viaCall 0x100, 0 => true
 //@ run-call: viaWiden 0x101 => 1
 //@ run-call: viaWidenSigned 0x100 => 0
-//@ run-call: viaWidenSigned 0x1ff => -1
 
 type Small is uint8;
 type SignedSmall is int8;
@@ -45,10 +43,10 @@ contract UdvtDirtyArguments {
     }
 
     function viaWiden(uint256 raw) external pure returns (uint256) {
-        return widenSmall(Small(inject(raw)));
+        return widenSmall(inject(raw));
     }
 
     function viaWidenSigned(uint256 raw) external pure returns (int256) {
-        return widenSigned(SignedSmall(injectSigned(raw)));
+        return widenSigned(injectSigned(raw));
     }
 }

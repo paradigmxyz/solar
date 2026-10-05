@@ -129,12 +129,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
         let is_type_conversion = matches!(callee.kind, ExprKind::TypeCall(_) | ExprKind::Type(_))
             || self.cx.gcx.resolved_expr(callee).is_some_and(|res| {
-                matches!(
-                    res,
-                    hir::Res::Item(
-                        hir::ItemId::Contract(_) | hir::ItemId::Enum(_) | hir::ItemId::Udvt(_)
-                    )
-                )
+                matches!(res, hir::Res::Item(hir::ItemId::Contract(_) | hir::ItemId::Enum(_)))
             });
         if is_type_conversion {
             // result = convert(callee, args)
@@ -154,11 +149,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let source_ty = self.cx.gcx.type_of_expr(arg.id)?;
             let target_ty = self.cx.gcx.type_of_expr(expr.id).or_else(|| {
                 self.cx.gcx.resolved_expr(callee).and_then(|res| match res {
-                    hir::Res::Item(
-                        id @ (hir::ItemId::Contract(_)
-                        | hir::ItemId::Enum(_)
-                        | hir::ItemId::Udvt(_)),
-                    ) => Some(self.cx.gcx.type_of_item(id)),
+                    hir::Res::Item(id @ (hir::ItemId::Contract(_) | hir::ItemId::Enum(_))) => {
+                        Some(self.cx.gcx.type_of_item(id))
+                    }
                     _ => None,
                 })
             })?;
@@ -813,8 +806,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         } else {
             None
         };
-        if !attached
-            && let ExprKind::Member(receiver, _) = callee.kind
+        if let ExprKind::Member(receiver, _) = callee.kind
             && self.cx.gcx.resolved_builtin(receiver) == Some(Builtin::This)
         {
             // result = external_abi_call(this, function, args, opts)
