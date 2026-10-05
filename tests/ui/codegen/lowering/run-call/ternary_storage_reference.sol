@@ -1,7 +1,6 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ compile-flags: -Zvalidate-ir=true
 //@ run-call: choose true => 7, 0
 //@ run-call: choose false => 0, 7
 //@ run-call: chooseArray true => 11

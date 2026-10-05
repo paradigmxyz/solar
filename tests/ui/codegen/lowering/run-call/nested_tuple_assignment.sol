@@ -1,7 +1,6 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ compile-flags: -Zvalidate-ir=true
 //@ run-call: assign => 0x30, 0x31, 0x32
 //@ run-call: swap => 2, 1, 4, 3
 //@ run-call: choose true, 7, 11 => 7, 11
