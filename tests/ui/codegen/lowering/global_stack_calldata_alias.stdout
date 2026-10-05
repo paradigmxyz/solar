@@ -87,45 +87,45 @@ bb12:
   push 128
   return
 bb14:
-  dup 2
+  pop
+  dup 1
   push 4
   add
-  dup 1
-  swap 3
-  gt
+  swap 1
+  dup 2
+  lt
   push bb22
   jumpi
-  pop
   push 128
   mstore
   push 32
   push 128
   return
 bb16:
-  dup 2
+  pop
+  dup 1
   push 3
   add
-  dup 1
-  swap 3
-  gt
+  swap 1
+  dup 2
+  lt
   push bb22
   jumpi
-  pop
   push 128
   mstore
   push 32
   push 128
   return
 bb18:
-  dup 2
+  pop
+  dup 1
   push 2
   add
-  dup 1
-  swap 3
-  gt
+  swap 1
+  dup 2
+  lt
   push bb22
   jumpi
-  pop
   push 128
   mstore
   push 32

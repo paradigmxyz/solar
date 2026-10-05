@@ -161,9 +161,9 @@ bb0:
   dup 2
   gt
   push 32
-  dup 1
-  swap 4
-  lt
+  swap 3
+  dup 4
+  gt
   or
   push bb3
   jumpi
@@ -293,9 +293,9 @@ bb0:
   dup 2
   gt
   push 32
-  dup 1
-  swap 4
-  lt
+  swap 3
+  dup 4
+  gt
   or
   push bb3
   jumpi

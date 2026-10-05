@@ -170,12 +170,12 @@ bb8 [continuation]:
   mstore
   push 224
   mload
-  dup 1
-  swap 2
+  swap 1
+  dup 2
   add
-  dup 1
-  swap 2
-  gt
+  swap 1
+  dup 2
+  lt
   push bb10
   jumpi
   push 0

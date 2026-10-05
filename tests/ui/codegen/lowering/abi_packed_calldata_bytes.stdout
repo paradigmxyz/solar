@@ -101,12 +101,12 @@ bb6 [continuation]:
   push 128
   return
 bb7:
+  push 160
+  push 64
+  mstore
   push 36
   calldataload
   push 160
-  dup 1
-  push 64
-  mstore
   shr
   push bb4
   jumpi

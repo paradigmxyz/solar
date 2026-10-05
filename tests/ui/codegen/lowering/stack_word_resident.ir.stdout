@@ -24,10 +24,10 @@ bb0:
   push 36
   calldataload
   and
-  push 36
+  dup 1
+  swap 2
   calldataload
-  dup 2
-  swap 3
+  push 36
   calldataload
   xor
   dup 1

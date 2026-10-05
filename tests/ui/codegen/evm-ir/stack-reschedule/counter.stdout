@@ -29,12 +29,9 @@
 -   dup 1
     swap 3
     add
--   swap 1
--   dup 2
--   lt
-+   dup 1
-+   swap 2
-+   gt
+    swap 1
+    dup 2
+    lt
     push bb1
     jumpi
 -   swap 1

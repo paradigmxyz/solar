@@ -41,17 +41,17 @@ bb0:
   push 64
   push 0
   keccak256
-  dup 1
-  sload
   push 1
   dup 2
-  swap 3
+  sload
+  swap 2
   add
   sload
+  dup 2
   add
-  dup 1
-  swap 2
-  gt
+  swap 1
+  dup 2
+  lt
   push bb8
   jumpi
   push 128

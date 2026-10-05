@@ -34,22 +34,22 @@ bb4:
   push 128
   return
 bb5:
-  push 128
-  dup 1
-  push 33
   push 32
-  dup 3
+  push 128
   mstore
-  dup 1
+  push 33
   push 160
   mstore
-  push 248
-  shl
   push 0x746869732d69732d612d33332d627974652d6c6f6e672d6d6573736167652121
   push 192
   mstore
+  push 33
+  push 248
+  shl
   push 224
   mstore
+  push 128
+  dup 1
   return
 // === ROOT/tests/ui/codegen/lowering/revert_error_helper.sol:R (runtime) ===
 @module R_runtime

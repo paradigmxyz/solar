@@ -31,21 +31,31 @@
 //! windows after its checks.
 //!
 //! The remaining cost of a state is bounded below by one copy for every missing use of a word
-//! and one pop for every surplus copy. The search orders states by their cost plus twice that
-//! bound, which reaches a cheaper schedule after far fewer states than an exact search, and then
-//! keeps going below each schedule's cost with the exact bound, so given the room it returns a
-//! cheapest one. Swaps only bring up a word that a ready operation reads or a surplus copy, until
-//! every operation ran and the exit order is all that is left; the bound changes with a single
-//! word's count, so it is updated per move rather than recomputed.
+//! and one pop for every surplus copy, and by one swap more when those counted moves cannot bring
+//! the operands of any ready operation to the top, or, once every operation ran, the stack into
+//! its exit order: every path then pays a swap, or a copy or pop the bound does not count, which
+//! costs at least as much. The search checks that only for the states it takes from its queue,
+//! and puts a state that needs the swap back in its raised order. It orders states by their cost
+//! plus twice the bound, which reaches a cheaper schedule after far fewer states than an exact
+//! search, and then keeps going below each schedule's cost with the exact bound, so given the
+//! room it returns a cheapest one. Swaps only bring up a word that a ready operation reads or a
+//! surplus copy, until every operation ran and the exit order is all that is left. The bound
+//! changes with the few words a move touches, so it is updated per move rather than recomputed,
+//! and the queue keeps one small heap per value of a priority's first part, popping in the order
+//! a single heap would.
 //!
-//! The search is exponential in the run's operations and stack height. A run longer than its
-//! budget's operations is searched in windows cut after its checks, or skipped, the stack may
-//! grow at most [`STACK_SLACK`] words above the run's entry and exit heights, and a run that
+//! The search is exponential in the run's operations and stack height, and dominated the
+//! compile time of small contracts with a hot loop, so its budgets are tight. A run longer than
+//! its budget's operations is searched in windows cut after its checks, or skipped, the stack
+//! may grow at most [`STACK_SLACK`] words above the run's entry and exit heights, and a run that
 //! yields no cheaper schedule within the first part of its [`Budget`] keeps its code, while one
 //! that does keeps refining for the rest. Runs in hot loop blocks get [`LOOP_BUDGET`] when
 //! optimizing for gas, as their code runs many times per call; all others get the far smaller
-//! [`BLOCK_BUDGET`], which mostly saves bytes. Equal runs share their result, as unrolled copies
-//! and repeated checks repeat them.
+//! [`BLOCK_BUDGET`], which mostly saves bytes. A run whose bound already reaches its cost in the
+//! objective's first part is not searched, as only the second part could improve, and one at
+//! most a swap above it gets no more than [`NEAR_BUDGET`]. Equal runs share their result, as
+//! unrolled copies and repeated checks repeat them, and so do runs that push other immediates of
+//! the same widths: a schedule depends only on which pushes repeat a value and how wide each is.
 //!
 //! Safety: the replacement performs exactly the original operations on the same operand words,
 //! keeps memory and storage accesses in order, and leaves the same words in the same stack
@@ -73,7 +83,7 @@ use alloy_primitives::U256;
 use smallvec::SmallVec;
 use solar_data_structures::map::FxHashMap;
 use solar_sema::Gcx;
-use std::{cmp::Reverse, collections::BinaryHeap};
+use std::collections::{BinaryHeap, hash_map::Entry};
 
 /// Words the search may grow the stack by above the run's entry and exit heights.
 const STACK_SLACK: usize = 3;
@@ -90,10 +100,21 @@ struct Budget {
 }
 
 /// The budget of a run in a hot loop block, when optimizing for gas.
-const LOOP_BUDGET: Budget = Budget { operations: 16, first: 3_000, refine: 20_000 };
+const LOOP_BUDGET: Budget = Budget { operations: 16, first: 2_000, refine: 4_000 };
 /// The budget of any other run: its code runs at most a few times per call, so a short search
 /// mostly saves bytes.
-const BLOCK_BUDGET: Budget = Budget { operations: 12, first: 300, refine: 1_000 };
+const BLOCK_BUDGET: Budget = Budget { operations: 12, first: 200, refine: 600 };
+/// The most expansions of a run whose first objective is at most one swap above the bound: the
+/// search can save little, and keeps going long when it saves nothing.
+const NEAR_BUDGET: Budget = Budget { operations: 16, first: 200, refine: 400 };
+/// An arena entry whose next operation was not yet checked for a swap.
+const UNKNOWN: u8 = 0;
+/// An arena entry whose next operation needs no swap the bound leaves out.
+const NO_SWAP: u8 = 1;
+/// An arena entry whose next operation needs a swap the bound leaves out.
+const SWAP: u8 = 2;
+/// An arena entry that a cheaper entry of its state replaced.
+const SUPERSEDED: u8 = 3;
 /// Deepest stack word a `DUP` or `SWAP` reaches.
 const REACH: usize = 16;
 /// Bits of a word's index in a packed stack.
@@ -177,8 +198,10 @@ enum Move {
 }
 
 /// A search state: the stack's dense word indices packed six bits each, top lowest, and the
-/// performed operations.
+/// performed operations. Eight-byte alignment shrinks the search's arena entries from 64 to 48
+/// bytes and its table entries from 48 to 32.
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[repr(Rust, packed(8))]
 struct State {
     stack: u128,
     len: u8,
@@ -188,6 +211,17 @@ struct State {
 impl State {
     fn word(self, depth: usize) -> usize {
         ((self.stack >> (WORD_BITS as usize * depth)) & 63) as usize
+    }
+
+    /// The stack's words, top first.
+    fn words(self) -> [u8; MAX_HEIGHT] {
+        let mut words = [0; MAX_HEIGHT];
+        let mut stack = self.stack;
+        for word in &mut words[..usize::from(self.len)] {
+            *word = (stack & 63) as u8;
+            stack >>= WORD_BITS;
+        }
+        words
     }
 
     fn push(self, word: usize) -> Self {
@@ -317,25 +351,79 @@ struct Buffers {
     arena: Vec<(State, u32, Option<Move>, u64, u64)>,
     /// The cheapest arena entry of each state.
     best: FxHashMap<State, u32>,
-    /// Arena entries ordered by priority, then by cost.
-    open: BinaryHeap<(Reverse<u64>, u64, u32)>,
+    /// Arena entries by priority.
+    open: Queue,
+    /// For each arena entry, whether its next operation needs a swap the bound leaves out:
+    /// [`UNKNOWN`], [`NO_SWAP`] or [`SWAP`], or [`SUPERSEDED`].
+    refined: Vec<u8>,
+}
+
+/// Arena entries ordered by priority, then by larger cost, then by later entry. The first part
+/// of a priority spans a few hundred values, so each gets a heap of its own, whose keys pack the
+/// second part, the cost and the entry into one number: the order is one heap's, and every heap
+/// stays small.
+#[derive(Default)]
+struct Queue {
+    buckets: Vec<BinaryHeap<u128>>,
+    lowest: usize,
+}
+
+impl Queue {
+    fn clear(&mut self) {
+        self.buckets.iter_mut().for_each(BinaryHeap::clear);
+        self.lowest = usize::MAX;
+    }
+
+    fn push(&mut self, priority: u64, cost: u64, node: u32) {
+        let bucket = (priority >> 32) as usize;
+        if bucket >= self.buckets.len() {
+            self.buckets.resize_with(bucket + 1, BinaryHeap::new);
+        }
+        // The largest first: the lowest second part, then the largest cost and entry.
+        let key =
+            (u128::from(!(priority as u32)) << 96) | (u128::from(cost) << 32) | u128::from(node);
+        self.buckets[bucket].push(key);
+        self.lowest = self.lowest.min(bucket);
+    }
+
+    fn pop(&mut self) -> Option<(u64, u32)> {
+        while let Some(bucket) = self.buckets.get_mut(self.lowest) {
+            if let Some(key) = bucket.pop() {
+                return Some(((key >> 32) as u64, key as u32));
+            }
+            self.lowest += 1;
+        }
+        None
+    }
 }
 
 /// What a run's schedule depends on in one of its instructions.
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 enum RunKey {
     Stack(StackOp),
-    Push(u8, U256),
+    Block(u32),
+    /// An immediate by its first position among the run's immediates and its width.
+    Immediate(u8, u8),
     Operation(u8),
 }
 
-fn run_key(inst: &Instruction) -> RunKey {
+/// The key of an instruction, given the distinct immediates the run pushed before it, which
+/// collects the one it pushes. A schedule depends only on which pushes repeat a value and how
+/// wide each is.
+fn run_key(inst: &Instruction, immediates: &mut SmallVec<[U256; 8]>) -> RunKey {
     if let Some(stack_op) = inst.as_stack_op() {
-        RunKey::Stack(stack_op)
-    } else if let Some((kind, value)) = constant_key(inst) {
-        RunKey::Push(kind, value)
-    } else {
-        RunKey::Operation(inst.opcode)
+        return RunKey::Stack(stack_op);
+    }
+    match constant_key(inst) {
+        Some((0, value)) => {
+            let index = immediates.iter().position(|&known| known == value).unwrap_or_else(|| {
+                immediates.push(value);
+                immediates.len() - 1
+            });
+            RunKey::Immediate(index as u8, value.byte_len() as u8)
+        }
+        Some((_, block)) => RunKey::Block(block.to()),
+        None => RunKey::Operation(inst.opcode),
     }
 }
 
@@ -542,7 +630,7 @@ fn search(run: &Run, target: Target, limits: Budget, buffers: &mut Buffers) -> O
         return None;
     }
     let all_done = ((1u32 << operation_count) - 1) as u16;
-    let operands = run
+    let operand_words = run
         .operations
         .iter()
         .map(|operation| {
@@ -553,6 +641,7 @@ fn search(run: &Run, target: Target, limits: Budget, buffers: &mut Buffers) -> O
                 .collect::<SmallVec<[usize; 3]>>()
         })
         .collect::<Vec<_>>();
+    let operands = operand_words.iter().map(SmallVec::as_slice).collect::<Vec<_>>();
     // The operations each one waits for: the producers of its operands and its ordered access.
     let needs = run
         .operations
@@ -567,22 +656,6 @@ fn search(run: &Run, target: Target, limits: Budget, buffers: &mut Buffers) -> O
             mask
         })
         .collect::<Vec<_>>();
-    // The operations reading each word at least once, twice and three times, so the uses left
-    // after a set of performed operations are three population counts.
-    let mut readers = vec![[0u16; 3]; word_count];
-    for (index, operation_operands) in operands.iter().enumerate() {
-        for &operand in operation_operands {
-            let masks = &mut readers[operand];
-            let bit = 1u16 << index;
-            if masks[0] & bit == 0 {
-                masks[0] |= bit;
-            } else if masks[1] & bit == 0 {
-                masks[1] |= bit;
-            } else {
-                masks[2] |= bit;
-            }
-        }
-    }
     let mut exit_uses = [0u8; 64];
     for &word in &run.exit {
         exit_uses[words.index(word)] += 1;
@@ -591,12 +664,19 @@ fn search(run: &Run, target: Target, limits: Budget, buffers: &mut Buffers) -> O
         run.exit.iter().rev().fold(State { stack: 0, len: 0, done: all_done }, |state, &word| {
             state.push(words.index(word))
         });
-    let demand = |word: usize, done: u16| -> u8 {
-        let [once, twice, thrice] = readers[word];
-        exit_uses[word]
-            + (once & !done).count_ones() as u8
-            + (twice & !done).count_ones() as u8
-            + (thrice & !done).count_ones() as u8
+    let exit_len = usize::from(exit.len);
+    let exit_words = exit.words();
+    // The uses left of each word: by the exit and by the operations not yet performed.
+    let demand = |done: u16| -> [u8; 64] {
+        let mut need = exit_uses;
+        for (index, &operation_operands) in operands.iter().enumerate() {
+            if done & (1 << index) == 0 {
+                for &operand in operation_operands {
+                    need[operand] += 1;
+                }
+            }
+        }
+        need
     };
     let result_of = |word: usize| -> Option<usize> {
         (run.entry..run.entry + operation_count).contains(&word).then(|| word - run.entry)
@@ -607,10 +687,10 @@ fn search(run: &Run, target: Target, limits: Budget, buffers: &mut Buffers) -> O
     let dup = scalar(target.dup(), target);
     let swap = scalar(target.opcode(op::SWAP1), target);
     let pop = scalar(target.opcode(op::POP), target);
-    let counts_of = |state: State| -> [u8; 64] {
+    let counts_of = |stack: &[u8]| -> [u8; 64] {
         let mut counts = [0u8; 64];
-        for depth in 0..usize::from(state.len) {
-            counts[state.word(depth)] += 1;
+        for &word in stack {
+            counts[usize::from(word)] += 1;
         }
         counts
     };
@@ -628,36 +708,121 @@ fn search(run: &Run, target: Target, limits: Budget, buffers: &mut Buffers) -> O
         u64::from(need - have) * copy
     };
     let estimate = |state: State| -> u64 {
-        let counts = counts_of(state);
-        (0..word_count)
-            .map(|word| term(word, counts[word], demand(word, state.done), state.done))
-            .sum()
+        let counts = counts_of(&state.words()[..usize::from(state.len)]);
+        let need = demand(state.done);
+        (0..word_count).map(|word| term(word, counts[word], need[word], state.done)).sum()
     };
     let mut budget = scalar(run.cost, target);
     let start = (0..run.entry)
         .rev()
         .fold(State { stack: 0, len: 0, done: 0 }, |state, depth| state.push(depth));
-    if estimate(start) >= budget {
+    // When the bound reaches the run's cost in the objective's first part, only the second part
+    // could improve, which measured not worth a search; one swap above it, little can improve.
+    let gap = (budget >> 32).saturating_sub(estimate(start) >> 32);
+    if gap == 0 {
         return None;
     }
+    let limits = if gap <= swap >> 32 {
+        Budget {
+            first: limits.first.min(NEAR_BUDGET.first),
+            refine: limits.refine.min(NEAR_BUDGET.refine),
+            ..limits
+        }
+    } else {
+        limits
+    };
+
+    // Whether the moves the bound counts, popping surplus words and copying or pushing missing
+    // ones, cannot bring the operands of a ready operation to the top, or, once every operation
+    // ran, the stack into its exit order. Every path then pays a swap the bound leaves out, or
+    // a copy or pop it does not count, which costs at least as much.
+    let needs_swap =
+        |state: State, stack: &[u8], ready: u16, counts: &[u8; 64], need: &[u8; 64]| {
+            let len = stack.len();
+            let mut counts = *counts;
+            // The bound counts `copies` more copies of the word, which it can copy or push now.
+            let owed = |counts: &[u8; 64], word: usize, copies: u8| {
+                let pending =
+                    result_of(word).is_some_and(|operation| state.done & (1 << operation) == 0);
+                (constant_of(word).is_some() || counts[word] > 0)
+                    && need[word] >= counts[word] + u8::from(pending) + copies
+            };
+            for depth in 0..=len {
+                let top = |offset: usize| stack.get(depth + offset).map(|&word| usize::from(word));
+                if state.done == all_done {
+                    // exit = copies ++ the stack below the popped words
+                    let rest = len - depth;
+                    if rest <= exit_len && stack[depth..] == exit_words[exit_len - rest..exit_len] {
+                        let mut fresh = [0u8; 64];
+                        for &word in &exit_words[..exit_len - rest] {
+                            fresh[usize::from(word)] += 1;
+                        }
+                        if (0..word_count)
+                            .all(|word| fresh[word] == 0 || owed(&counts, word, fresh[word]))
+                        {
+                            return false;
+                        }
+                    }
+                } else {
+                    for (index, operation) in run.operations.iter().enumerate() {
+                        if ready & (1 << index) == 0 {
+                            continue;
+                        }
+                        // `a` on top and `b` below it, by the counted moves alone.
+                        let reaches = |a: usize, b: usize| {
+                            (top(0) == Some(a) && top(1) == Some(b))
+                                || (top(0) == Some(b) && owed(&counts, a, 1))
+                                || if a == b {
+                                    owed(&counts, a, 2)
+                                } else {
+                                    owed(&counts, a, 1) && owed(&counts, b, 1)
+                                }
+                        };
+                        let reachable = match operands[index] {
+                            [] => true,
+                            &[a] => top(0) == Some(a) || owed(&counts, a, 1),
+                            &[a, b] => {
+                                reaches(a, b)
+                                    || ((operation.commutative || operation.mirror.is_some())
+                                        && reaches(b, a))
+                            }
+                            _ => true,
+                        };
+                        if reachable {
+                            return false;
+                        }
+                    }
+                }
+                // Pop the top word when it is a surplus copy.
+                match top(0) {
+                    Some(word) if counts[word] > need[word] => counts[word] -= 1,
+                    _ => break,
+                }
+            }
+            true
+        };
 
     // state, parent, move, cost, bound on the remaining cost
-    let Buffers { arena, best, open } = buffers;
+    let Buffers { arena, best, open, refined } = buffers;
     arena.clear();
     best.clear();
     open.clear();
+    refined.clear();
     arena.push((start, u32::MAX, None, 0, estimate(start)));
+    refined.push(UNKNOWN);
     best.insert(start, 0);
-    open.push((Reverse(2 * estimate(start)), 0u64, 0u32));
+    open.push(2 * estimate(start), 0, 0);
     let mut expansions = 0;
     let mut found = None;
     let mut successors = SmallVec::<[(State, Move, u64, u64); 48]>::new();
-    while let Some((_, cost, node)) = open.pop() {
+    while let Some((cost, node)) = open.pop() {
         let (state, _, _, _, remaining) = arena[node as usize];
-        if arena[node as usize].3 != cost
-            || best.get(&state) != Some(&node)
-            || cost + remaining >= budget
-        {
+        let raised = match refined[node as usize] {
+            SUPERSEDED => continue,
+            SWAP => swap,
+            _ => 0,
+        };
+        if cost + remaining + raised >= budget {
             continue;
         }
         if state == exit {
@@ -666,49 +831,60 @@ fn search(run: &Run, target: Target, limits: Budget, buffers: &mut Buffers) -> O
             found = Some(node);
             continue;
         }
+        let len = usize::from(state.len);
+        let words = state.words();
+        let stack = &words[..len];
+        let counts = counts_of(stack);
+        let need = demand(state.done);
+        let ready = (0..operation_count).fold(0u16, |ready, index| {
+            let ready_now =
+                state.done & (1 << index) == 0 && state.done & needs[index] == needs[index];
+            ready | (u16::from(ready_now) << index)
+        });
+        // Raise the bound of a state that needs a swap before its next operation, and order
+        // it again, before expanding it.
+        if refined[node as usize] == UNKNOWN {
+            if needs_swap(state, stack, ready, &counts, &need) {
+                refined[node as usize] = SWAP;
+                if cost + remaining + swap < budget {
+                    open.push(cost + 2 * (remaining + swap), cost, node);
+                }
+                continue;
+            }
+            refined[node as usize] = NO_SWAP;
+        }
         expansions += 1;
         if expansions > limits.refine || (found.is_none() && expansions > limits.first) {
             break;
         }
-        let counts = counts_of(state);
-        let mut need = [0u8; 64];
-        for (word, slot) in need.iter_mut().enumerate().take(word_count) {
-            *slot = demand(word, state.done);
-        }
-        let here = (0..word_count)
-            .map(|word| term(word, counts[word], need[word], state.done))
-            .sum::<u64>();
+        // The bound stored with the state.
+        let here = remaining;
         // The bound after one word's count moves by `delta`; swaps keep every count.
         let shifted = |word: usize, delta: i8| -> u64 {
             let count = counts[word].wrapping_add_signed(delta);
             here - term(word, counts[word], need[word], state.done)
                 + term(word, count, need[word], state.done)
         };
-        let len = usize::from(state.len);
         let finishing = state.done == all_done;
-        let ready = |index: usize| {
-            state.done & (1 << index) == 0 && state.done & needs[index] == needs[index]
-        };
         // Words some ready operation reads.
         let mut wanted = 0u64;
-        for (index, operation_operands) in operands.iter().enumerate() {
-            if ready(index) {
+        for (index, &operation_operands) in operands.iter().enumerate() {
+            if ready & (1 << index) != 0 {
                 for &operand in operation_operands {
                     wanted |= 1 << operand;
                 }
             }
         }
+        let at = |depth: usize| usize::from(stack[depth]);
         successors.clear();
         // perform a ready operation
         for (index, operation) in run.operations.iter().enumerate() {
             let arity = operands[index].len();
-            if !ready(index) || len < arity {
+            if ready & (1 << index) == 0 || len < arity {
                 continue;
             }
-            let in_order = (0..arity).all(|depth| state.word(depth) == operands[index][depth]);
-            let swapped = arity == 2
-                && state.word(0) == operands[index][1]
-                && state.word(1) == operands[index][0];
+            let in_order = (0..arity).all(|depth| at(depth) == operands[index][depth]);
+            let swapped = arity == 2 && at(0) == operands[index][1] && at(1) == operands[index][0];
             let mirrored = !in_order && swapped && !operation.commutative;
             if !(in_order || (swapped && (operation.commutative || operation.mirror.is_some()))) {
                 continue;
@@ -718,12 +894,26 @@ fn search(run: &Run, target: Target, limits: Budget, buffers: &mut Buffers) -> O
                 next = next.push(run.entry + index);
             }
             next.done |= 1 << index;
-            successors.push((
-                next,
-                Move::Perform { operation: index as u8, mirrored },
-                0,
-                estimate(next),
-            ));
+            // Performing it changes only the terms of the words it reads, each read `uses`
+            // times less, and of its result.
+            let mut touched = SmallVec::<[(usize, u8); 4]>::new();
+            for &operand in operands[index] {
+                match touched.iter_mut().find(|(word, _)| *word == operand) {
+                    Some((_, uses)) => *uses += 1,
+                    None => touched.push((operand, 1)),
+                }
+            }
+            let mut bound = here;
+            for &(word, uses) in &touched {
+                bound = bound - term(word, counts[word], need[word], state.done)
+                    + term(word, counts[word] - uses, need[word] - uses, next.done);
+            }
+            if operation.produces {
+                let result = run.entry + index;
+                bound = bound - term(result, counts[result], need[result], state.done)
+                    + term(result, counts[result] + 1, need[result], next.done);
+            }
+            successors.push((next, Move::Perform { operation: index as u8, mirrored }, 0, bound));
         }
         if len < height {
             // push a constant a ready operation, or the finished run, still needs
@@ -743,7 +933,7 @@ fn search(run: &Run, target: Target, limits: Budget, buffers: &mut Buffers) -> O
             // copy a word that has more uses than copies
             let mut seen = 0u64;
             for depth in 1..=len.min(REACH) {
-                let word = state.word(depth - 1);
+                let word = at(depth - 1);
                 if seen & (1 << word) != 0 {
                     continue;
                 }
@@ -761,8 +951,8 @@ fn search(run: &Run, target: Target, limits: Budget, buffers: &mut Buffers) -> O
         // swap up a word a ready operation reads, a surplus copy, or any word once all
         // operations ran
         for depth in 1..len.min(REACH + 1) {
-            let word = state.word(depth);
-            if word == state.word(0)
+            let word = at(depth);
+            if word == at(0)
                 || !(finishing || wanted & (1 << word) != 0 || counts[word] > need[word])
             {
                 continue;
@@ -774,26 +964,31 @@ fn search(run: &Run, target: Target, limits: Budget, buffers: &mut Buffers) -> O
                 here,
             ));
         }
-        if len > 0 && counts[state.word(0)] > need[state.word(0)] {
-            successors.push((
-                state.drop(1),
-                Move::Stack(StackOp::Pop),
-                pop,
-                shifted(state.word(0), -1),
-            ));
+        if len > 0 && counts[at(0)] > need[at(0)] {
+            successors.push((state.drop(1), Move::Stack(StackOp::Pop), pop, shifted(at(0), -1)));
         }
         for &(successor, step, step_cost, remaining) in &successors {
             let next_cost = cost + step_cost;
             if next_cost + remaining >= budget {
                 continue;
             }
-            if best.get(&successor).is_some_and(|&known| arena[known as usize].3 <= next_cost) {
-                continue;
-            }
             let id = arena.len() as u32;
+            match best.entry(successor) {
+                Entry::Occupied(mut entry) => {
+                    let known = *entry.get();
+                    if arena[known as usize].3 <= next_cost {
+                        continue;
+                    }
+                    refined[known as usize] = SUPERSEDED;
+                    entry.insert(id);
+                }
+                Entry::Vacant(entry) => {
+                    entry.insert(id);
+                }
+            }
             arena.push((successor, node, Some(step), next_cost, remaining));
-            best.insert(successor, id);
-            open.push((Reverse(next_cost + 2 * remaining), next_cost, id));
+            refined.push(UNKNOWN);
+            open.push(next_cost + 2 * remaining, next_cost, id);
         }
     }
     let mut cursor = found?;
@@ -964,8 +1159,13 @@ fn schedule(
     scratch: &mut Scratch,
 ) -> Option<Vec<Instruction>> {
     let summary = summarize(run, target, budget.operations, halts)?;
-    // Unrolled copies and repeated checks produce the same runs over and over.
-    let key = (run.iter().map(run_key).collect::<SmallVec<[RunKey; 24]>>(), budget);
+    // Unrolled copies and repeated checks produce the same runs over and over, and runs that
+    // only push other immediates of the same widths take the same schedule.
+    let mut immediates = SmallVec::<[U256; 8]>::new();
+    let key = (
+        run.iter().map(|inst| run_key(inst, &mut immediates)).collect::<SmallVec<[RunKey; 24]>>(),
+        budget,
+    );
     let Scratch { schedules, buffers } = scratch;
     let moves = schedules.entry(key).or_insert_with(|| search(&summary, target, budget, buffers));
     emit(run, &summary, moves.as_ref()?)

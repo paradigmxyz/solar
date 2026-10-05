@@ -42,24 +42,24 @@ bb5:
   push 128
   return
 bb6:
-  push 4
-  dup 1
   push 352
   push 64
   mstore
-  calldataload
-  push 0x5555555555555555555555555555555555555555555555555555555555555555
-  lt
-  calldatasize
   push 36
-  gt
+  calldatasize
+  lt
   push bb4
   jumpi
+  push 3
+  push 4
+  calldataload
+  mul
+  push 0x5555555555555555555555555555555555555555555555555555555555555555
+  push 4
+  calldataload
+  gt
   push bb17
   jumpi
-  calldataload
-  push 3
-  mul
   push 1
   push 4
   calldataload
@@ -640,18 +640,18 @@ bb38 [continuation]:
   add
   mload
   push 160
-  dup 1
   mload
   push 64
   mstore
+  push 160
   mload
   push 32
   add
   mload
+  dup 1
   push 160
-  dup 2
-  dup 2
   mstore
+  push 160
   jump bb52
 bb40:
   push 160
@@ -684,19 +684,19 @@ bb47 [continuation]:
   push 128
   add
   mload
-  push 1
-  add
   push 160
-  dup 1
   mload
   push 64
   mstore
+  push 160
   mload
   push 32
   add
   mload
   push 160
   mstore
+  push 1
+  add
   dup 1
   iszero
   push bb17

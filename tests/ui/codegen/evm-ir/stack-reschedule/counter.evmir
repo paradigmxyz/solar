@@ -6,9 +6,9 @@
 // the step from a copy of `i` first and lets the sum consume `i` itself, and the check reads only
 // its condition, as its revert reads nothing from the stack, so the run continues through it
 // and the last step joins the schedule. The block's shuffles and pushes drop from 20 operations
-// to 14, the overflow test becomes its mirror, and the back edge follows the check directly.
+// to 14, and the back edge follows the check directly.
 // CHECK-LABEL: {{^[ +].*}}bb0 [loop] [stack=3]:
-// CHECK: +   gt
+// CHECK: {{^[ +] *(lt|gt)$}}
 // CHECK-NEXT: push bb1
 // CHECK-NEXT: jumpi
 // CHECK-NOT: {{^[ +] .*(swap|add|push)}}

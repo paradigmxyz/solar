@@ -706,14 +706,14 @@ bb88 [cold]:
   push 28
   revert
 bb76 [loop]:
+  push 1
+  add
   push 0
   dup 3
   push 1
   add
   swap 3
   sstore
-  push 1
-  add
   jump bb74
 bb74 [loop]:
   push 544
@@ -933,13 +933,13 @@ bb93 [continuation]:
 bb94 [continuation]:
   swap 1
   calldatasize
-  dup 2
-  swap 4
   swap 1
-  sub
-  swap 1
+  swap 3
+  dup 4
   calldataload
-  gt
+  swap 2
+  sub
+  lt
   or
   push bb11
   jumpi

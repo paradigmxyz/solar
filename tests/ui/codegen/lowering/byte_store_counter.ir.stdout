@@ -259,11 +259,11 @@ bb60 [loop]:
   iszero
   push bb63
   jumpi
-  dup 3
+  push 1
+  dup 4
   push 2
   add
-  swap 3
-  push 1
+  swap 4
   add
   mstore8
   push 1
@@ -630,12 +630,12 @@ bb73 [loop]:
   dup 1
   push 32
   add
-  dup 1
+  swap 1
+  mload
+  dup 2
   push 32
   add
   swap 2
-  mload
-  swap 1
   mload
   or
   push 0x8080808080808080808080808080808080808080808080808080808080808080
@@ -678,8 +678,8 @@ bb77:
   jump bb90
 bb79:
   push 32
-  dup 1
-  swap 3
+  swap 2
+  dup 3
   add
   mload
   swap 2
