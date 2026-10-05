@@ -1,0 +1,37 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/udvt_identity_conversion.sol:UdvtIdentityConversion ===
+@module UdvtIdentityConversion
+fn @inject(arg0: i256) -> i256 [pure] {
+  bb0:
+    ret arg0
+}
+
+fn @injectSigned(arg0: i256) -> i256 [pure] {
+  bb0:
+    ret arg0
+}
+
+fn @widenSmall(arg0: i256) -> i256 [pure] {
+  bb0:
+    v0 = and arg0, 255
+    ret v0
+}
+
+fn @widenSigned(arg0: i256) -> i256 [pure] {
+  bb0:
+    v0 = signextend 0, arg0
+    ret v0
+}
+
+fn @viaWiden(arg0: i256) -> i256 [selector=0xb878f209, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = icall @inject, arg0
+    v1 = icall @widenSmall, v0
+    ret v1
+}
+
+fn @viaWidenSigned(arg0: i256) -> i256 [selector=0xe025fca0, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[i256]] {
+  bb0:
+    v0 = icall @injectSigned, arg0
+    v1 = icall @widenSigned, v0
+    ret v1
+}
