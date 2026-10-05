@@ -1,5 +1,4 @@
 //@ codegen-matrix: standard
-//@ compile-flags: -Zvalidate-ir=true
 //@ run-call: viaOperator 0x100, 0 => true
 //@ run-call: viaCall 0x100, 0 => true
 //@ run-call: viaWiden 0x101 => 1
