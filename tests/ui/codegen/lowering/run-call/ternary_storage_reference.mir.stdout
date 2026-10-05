@@ -2,6 +2,7 @@
 @module TernaryStorageReference
 @types
   struct0: {i256, i256}
+  struct1: {i256, i256, i256}
 
 fn @constructor() [constructor] {
   bb0:
@@ -61,4 +62,51 @@ fn @chooseArray(arg0: i256) -> i256 [selector=0x08ef7a67, view, abi_params=[bool
     v6 = add v5, 0
     v7 = sload v6 !metadata(storage=symbolic(v5))
     ret v7
+}
+
+fn @memoryChoice(arg0: i256, arg1: i256) -> struct1 [selector=0xe6b97384, pure, abi_params=[bool, u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+  bb0:
+    v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
+    set_memory_object_len memoryarray, v0, 1
+    v1 = alloc memoryarray<1>, exact, zeroed, panic, 64
+    set_memory_object_len memoryarray, v1, 1
+    v2 = checked_add u256, 0, 1
+    v3 = eq v2, 1
+    jumpi v3, bb1, bb2
+  bb2:
+    v4 = zext i1 0 to i256
+    jump bb3
+  bb1:
+    jump bb3
+  bb3:
+    v5 = phi [bb1: arg0], [bb2: v4]
+    v6 = ne v5, 0
+    jumpi v6, bb4, bb5
+  bb5:
+    jump bb6
+  bb4:
+    jump bb6
+  bb6:
+    v7 = phi [bb4: v0], [bb5: v1]
+    v8 = memory_object_len memoryarray, v7
+    v9 = lt arg1, v8
+    v10 = eq v9, false
+    icall panic_if<0x32>, v10
+    v11 = memory_object_load_element memoryarray<1>, v7, arg1
+    v12 = checked_add u256, v11, 7
+    memory_object_store_element memoryarray<1>, v7, arg1, v12
+    v13 = memory_object_len memoryarray, v0
+    v14 = lt 0, v13
+    v15 = eq v14, false
+    icall panic_if<0x32>, v15
+    v16 = memory_object_load_element memoryarray<1>, v0, 0
+    v17 = memory_object_len memoryarray, v1
+    v18 = lt 0, v17
+    v19 = eq v18, false
+    icall panic_if<0x32>, v19
+    v20 = memory_object_load_element memoryarray<1>, v1, 0
+    v21 = insert_value struct1, undef struct1, 0, v16
+    v22 = insert_value struct1, v21, 1, v20
+    v23 = insert_value struct1, v22, 2, v2
+    ret v23
 }
