@@ -7,7 +7,8 @@
 use super::{Recipe, Temporary};
 use crate::{
     mir::{
-        Function, InstId, MirType, Op, Value as MirValue, ValueId, analysis::integers::integer_mask,
+        Function, InstId, InstKind, MirType, Op, Value as MirValue, ValueId,
+        analysis::integers::integer_mask,
     },
     target::Target,
 };
@@ -127,6 +128,7 @@ impl generated::Context for Context<'_> {
         let kind = &self.func.inst(*inst).kind;
         (self.seen.contains(inst)
             && (kind.op_def().result == crate::mir::ResultKind::I1
+                || matches!(kind, InstKind::Zext(_) | InstKind::Sext(..) | InstKind::Trunc(..))
                 || kind.operands().iter().all(|&operand| {
                     self.func
                         .value_ty(operand)

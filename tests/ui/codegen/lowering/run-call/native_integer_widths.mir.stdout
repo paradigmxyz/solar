@@ -11570,6 +11570,7 @@ fn @identity(arg0: i248, arg1: i248) -> struct0 [pure] {
 @types
   struct0: {i256, i256}
   struct1: {i1, i1, i8, i8, i8, i8}
+  struct2: {i256, i160, i8}
 
 fn @compoundUnchecked256(arg0: i256, arg1: i8) -> i1 [selector=0x27316e92, pure, abi_params=[i256, i8], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
@@ -12060,6 +12061,45 @@ fn @signedLimits8(arg0: i8) -> struct1 [selector=0x04c1b664, pure, abi_params=[i
     v11 = insert_value struct1, v10, 4, v5
     v12 = insert_value struct1, v11, 5, v6
     ret v12
+}
+
+fn @selectNativeCasts(arg0: i1, arg1: i160, arg2: i160) -> struct2 [selector=0x4f3d7b07, pure, abi_params=[bool, u160, u160], abi_returns=[word, word<i160>, word<u8>], abi_return_params=[u256, i160, u8]] {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb2:
+    v2 = trunc i160 arg2 to i8
+    v3 = zext i8 v2 to i256
+    jump bb3
+  bb1:
+    v0 = trunc i160 arg1 to i8
+    v1 = zext i8 v0 to i256
+    jump bb3
+  bb3:
+    v4 = phi [bb1: v1], [bb2: v3]
+    jumpi arg0, bb4, bb5
+  bb5:
+    v7 = trunc i160 arg2 to i8
+    v8 = sext i8 v7 to i160
+    jump bb6
+  bb4:
+    v5 = trunc i160 arg1 to i8
+    v6 = sext i8 v5 to i160
+    jump bb6
+  bb6:
+    v9 = phi [bb4: v6], [bb5: v8]
+    jumpi arg0, bb7, bb8
+  bb8:
+    v11 = trunc i160 arg2 to i8
+    jump bb9
+  bb7:
+    v10 = trunc i160 arg1 to i8
+    jump bb9
+  bb9:
+    v12 = phi [bb7: v10], [bb8: v11]
+    v13 = insert_value struct2, undef struct2, 0, v4
+    v14 = insert_value struct2, v13, 1, v9
+    v15 = insert_value struct2, v14, 2, v12
+    ret v15
 }
 
 fn @identity(arg0: i256, arg1: i256) -> struct0 [pure] {

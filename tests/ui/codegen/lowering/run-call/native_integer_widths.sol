@@ -1,4 +1,6 @@
 //@ codegen-matrix: standard
+//@ run-call: selectNativeCasts true, 511, 384 => 255, -1, 255
+//@ run-call: selectNativeCasts false, 511, 384 => 128, -128, 128
 //@ run-call: signedLimits8 -128 => false, true, 1, -64, 0, -1
 //@ run-call: signedLimits8 -1 => false, false, 0, 0, -1, -1
 //@ run-call: signedLimits8 0 => false, false, 0, 0, 0, 0
@@ -2812,6 +2814,16 @@ contract NativeInteger256 {
             return (x < type(int8).min, x < type(int8).min + 1, x / type(int8).min,
                 x / 2, x % 2, x >> 8);
         }
+    }
+
+    function selectNativeCasts(bool choose, uint160 a, uint160 b)
+        external pure returns (uint256, int160, uint8)
+    {
+        return (
+            choose ? uint256(uint8(a)) : uint256(uint8(b)),
+            choose ? int160(int8(uint8(a))) : int160(int8(uint8(b))),
+            choose ? uint8(a) : uint8(b)
+        );
     }
 
 }

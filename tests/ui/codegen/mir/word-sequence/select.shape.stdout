@@ -244,6 +244,38 @@
       ret v2
   }
   
+  fn @factor_zext_native(arg0: i1, arg1: i8, arg2: i8) -> i256 {
+    bb0:
+      v0 = zext i8 arg1 to i256
+      v1 = zext i8 arg2 to i256
+      v2 = select arg0, v0, v1
+      ret v2
+  }
+  
+  fn @factor_sext_native(arg0: i1, arg1: i8, arg2: i8) -> i160 {
+    bb0:
+      v0 = sext i8 arg1 to i160
+      v1 = sext i8 arg2 to i160
+      v2 = select arg0, v0, v1
+      ret v2
+  }
+  
+  fn @factor_trunc_native(arg0: i1, arg1: i160, arg2: i160) -> i8 {
+    bb0:
+      v0 = trunc i160 arg1 to i8
+      v1 = trunc i160 arg2 to i8
+      v2 = select arg0, v0, v1
+      ret v2
+  }
+  
+  fn @keep_mixed_source_widths(arg0: i1, arg1: i8, arg2: i16) -> i256 {
+    bb0:
+      v0 = zext i8 arg1 to i256
+      v1 = zext i16 arg2 to i256
+      v2 = select arg0, v0, v1
+      ret v2
+  }
+  
 - // === ROOT/tests/ui/codegen/mir/word-sequence/select.mir (before lower-integers) ===
 + // === ROOT/tests/ui/codegen/mir/word-sequence/select.mir (after lower-integers) ===
   @module ConstantSelectRecipes
@@ -492,6 +524,52 @@
       ret v2
   }
   
+- fn @factor_zext_native(arg0: i1, arg1: i8, arg2: i8) -> i256 {
++ fn @factor_zext_native(arg0: i1, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+-     v0 = zext i8 arg1 to i256
+-     v1 = zext i8 arg2 to i256
+-     v2 = select arg0, v0, v1
++     v2 = select arg0, arg1, arg2
+      ret v2
+  }
+  
+- fn @factor_sext_native(arg0: i1, arg1: i8, arg2: i8) -> i160 {
++ fn @factor_sext_native(arg0: i1, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+-     v0 = sext i8 arg1 to i160
+-     v1 = sext i8 arg2 to i160
+-     v2 = select arg0, v0, v1
++     v3 = signextend 0, arg1
++     v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
++     v5 = signextend 0, arg2
++     v6 = and v5, 0xffffffffffffffffffffffffffffffffffffffff
++     v2 = select arg0, v4, v6
+      ret v2
+  }
+  
+- fn @factor_trunc_native(arg0: i1, arg1: i160, arg2: i160) -> i8 {
++ fn @factor_trunc_native(arg0: i1, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+-     v0 = trunc i160 arg1 to i8
+-     v1 = trunc i160 arg2 to i8
+-     v2 = select arg0, v0, v1
++     v3 = and arg1, 255
++     v4 = and arg2, 255
++     v2 = select arg0, v3, v4
+      ret v2
+  }
+  
+- fn @keep_mixed_source_widths(arg0: i1, arg1: i8, arg2: i16) -> i256 {
++ fn @keep_mixed_source_widths(arg0: i1, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+-     v0 = zext i8 arg1 to i256
+-     v1 = zext i16 arg2 to i256
+-     v2 = select arg0, v0, v1
++     v2 = select arg0, arg1, arg2
+      ret v2
+  }
+  
 - // === ROOT/tests/ui/codegen/mir/word-sequence/select.mir (before lower-evm-shaped) ===
 + // === ROOT/tests/ui/codegen/mir/word-sequence/select.mir (after lower-evm-shaped) ===
   @module ConstantSelectRecipes
@@ -736,6 +814,36 @@
       v3 = and arg0, 1
       v4 = ne v3, 0
       v2 = select v4, v0, arg2
+      ret v2
+  }
+  
+  fn @factor_zext_native(arg0: i1, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v2 = select arg0, arg1, arg2
+      ret v2
+  }
+  
+  fn @factor_sext_native(arg0: i1, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v3 = signextend 0, arg1
+      v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
+      v5 = signextend 0, arg2
+      v6 = and v5, 0xffffffffffffffffffffffffffffffffffffffff
+      v2 = select arg0, v4, v6
+      ret v2
+  }
+  
+  fn @factor_trunc_native(arg0: i1, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v3 = and arg1, 255
+      v4 = and arg2, 255
+      v2 = select arg0, v3, v4
+      ret v2
+  }
+  
+  fn @keep_mixed_source_widths(arg0: i1, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v2 = select arg0, arg1, arg2
       ret v2
   }
   

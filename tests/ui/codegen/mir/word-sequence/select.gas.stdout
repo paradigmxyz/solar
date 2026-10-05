@@ -308,3 +308,41 @@
       ret v2
   }
   
+  fn @factor_zext_native(arg0: i1, arg1: i8, arg2: i8) -> i256 {
+    bb0:
+-     v0 = zext i8 arg1 to i256
+-     v1 = zext i8 arg2 to i256
+-     v2 = select arg0, v0, v1
++     v3 = select arg0, arg1, arg2
++     v2 = zext i8 v3 to i256
+      ret v2
+  }
+  
+  fn @factor_sext_native(arg0: i1, arg1: i8, arg2: i8) -> i160 {
+    bb0:
+-     v0 = sext i8 arg1 to i160
+-     v1 = sext i8 arg2 to i160
+-     v2 = select arg0, v0, v1
++     v3 = select arg0, arg1, arg2
++     v2 = sext i8 v3 to i160
+      ret v2
+  }
+  
+  fn @factor_trunc_native(arg0: i1, arg1: i160, arg2: i160) -> i8 {
+    bb0:
+-     v0 = trunc i160 arg1 to i8
+-     v1 = trunc i160 arg2 to i8
+-     v2 = select arg0, v0, v1
++     v3 = select arg0, arg1, arg2
++     v2 = trunc i160 v3 to i8
+      ret v2
+  }
+  
+  fn @keep_mixed_source_widths(arg0: i1, arg1: i8, arg2: i16) -> i256 {
+    bb0:
+      v0 = zext i8 arg1 to i256
+      v1 = zext i16 arg2 to i256
+      v2 = select arg0, v0, v1
+      ret v2
+  }
+  
