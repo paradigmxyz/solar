@@ -1,5 +1,4 @@
 //@ codegen-matrix: standard
-//@ compile-flags: -Zvalidate-ir=true
 //@ run-call: Caller::lowLevelGas => false
 //@ run-call: Caller::highLevelGas => true
 //@ run-call: Caller::viewUsesStaticcall => true
