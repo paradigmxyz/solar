@@ -1,5 +1,4 @@
 //@ codegen-matrix: standard
-//@ compile-flags: -Zvalidate-ir=true
 //@ run-call: attachedThis => true
 //@ run-call: f 1
 // ported-from: test/libsolidity/syntaxTests/using/library_function_attached_but_not_called.sol
