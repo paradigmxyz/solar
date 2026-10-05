@@ -118,7 +118,6 @@ jobs:
     timeout-minutes: 120
     continue-on-error: true
     permissions:
-      id-token: write
       contents: read
     outputs:
       artifact_id: ${{ steps.upload.outputs.artifact-id }}
@@ -128,8 +127,10 @@ jobs:
           needs.resolve.outputs.repository) }}-${{ needs.resolve.outputs.pr_number }}
       cancel-in-progress: true
     steps:
-      - name: Secure runner
-        uses: tempoxyz/gh-actions/actions/secure-runner@d5402286a7abdfb7232173b3228d56473feb8a66 # 2026-09-29T02-04-45Z-d5402286
+      - name: Harden runner without OIDC
+        uses: tempoxyz/gh-actions/vendor/step-security/harden-runner@d5402286a7abdfb7232173b3228d56473feb8a66 # 2026-09-29T02-04-45Z-d5402286
+        with:
+          egress-policy: audit
       - name: Checkout exact test merge
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
