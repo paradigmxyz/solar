@@ -46,7 +46,13 @@ use lsp_types::{
 };
 use serde::{Deserialize, Serialize};
 use solar_interface::data_structures::sync::RwLock;
-use solar_parse::lexer::is_ident;
+use solar_parse::{
+    Cursor,
+    lexer::{
+        is_ident,
+        token::{RawLiteralKind, RawTokenKind},
+    },
+};
 use std::{
     future::ready,
     io,
@@ -976,6 +982,11 @@ pub(crate) fn completion(
         {
             return ready(Ok(Some(response)));
         }
+        if let Some(cursor) = cursor
+            && completion_is_in_comment_or_string(&source.source(), cursor)
+        {
+            return ready(Ok(Some(CompletionResponse::Array(Vec::new()))));
+        }
     }
     if matches!(trigger_character, Some("/" | "*" | "\"" | "'")) {
         return ready(Ok(Some(CompletionResponse::Array(Vec::new()))));
@@ -1177,6 +1188,17 @@ fn start_of_trailing_ident(s: &str) -> usize {
         .rev()
         .find(|&(_, ch)| ch != '_' && ch != '$' && !ch.is_ascii_alphanumeric())
         .map_or(0, |(idx, ch)| idx + ch.len_utf8())
+}
+
+fn completion_is_in_comment_or_string(source: &str, cursor: usize) -> bool {
+    let Some(prefix) = source.get(..cursor) else { return false };
+    let Some((_, token)) = Cursor::new(prefix).with_position().last() else { return false };
+    matches!(
+        token.kind,
+        RawTokenKind::LineComment { .. }
+            | RawTokenKind::BlockComment { terminated: false, .. }
+            | RawTokenKind::Literal { kind: RawLiteralKind::Str { terminated: false, .. } }
+    )
 }
 
 #[cfg(test)]
