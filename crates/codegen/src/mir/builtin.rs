@@ -60,7 +60,8 @@ impl InstKind {
 
     /// Builds an opaque require call with evaluated values in argument order.
     pub(crate) fn require(condition: ValueId, payload: RevertPayload) -> Self {
-        let mut args = vec![condition];
+        let mut args = Vec::new();
+        args.push(condition);
         let kind = match payload {
             RevertPayload::ShortString { length, data } => {
                 args.extend([length, data]);

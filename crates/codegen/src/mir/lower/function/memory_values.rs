@@ -1,9 +1,13 @@
 //! Memory-backed value construction and default aggregate values.
 
 use super::*;
-use crate::link::RelocatableBytecode;
+use crate::link::{CodeKind, ContractCode, QualifiedName};
 
 const MIN_BULK_ZERO_STRUCT_FIELDS: usize = 4;
+
+/// Default structs with fewer value fields than this are built inline. A heuristic: one allocation
+/// and a few stores usually cost less than calling a shared constructor.
+const MIN_SHARED_DEFAULT_STRUCT_FIELDS: usize = 4;
 
 impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn lower_array(
@@ -58,19 +62,18 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         element: Ty<'gcx>,
         value: ValueId,
     ) -> Option<ValueId> {
-        // value = memory_object_from_ptr<element>(value)
-        let kind = self.types.memory_layout(element)?.kind();
-        let value = self.builder.memory_object_from_ptr(value, kind);
+        // value = inttoptr value to memptr
+        let value = self.builder.cast(value, MirType::MemPtr);
         let zero = self.builder.imm(U256::ZERO);
         let is_null = self.builder.eq(value, zero);
         let preheader = self.builder.current_block();
         let allocate = self.builder.create_block();
         let merge = self.builder.create_block();
-        // if value == 0 { allocated = default_object(element) }
+        // if value == 0 { allocated = default_object(element) or icall @default_struct_N }
         self.builder.branch(is_null, allocate, merge);
 
         self.builder.switch_to_block(allocate);
-        let allocated = self.default_object(element)?;
+        let allocated = self.default_element_object(element)?;
         self.builder.memory_object_store_element(object, layout, index, allocated);
         let allocation_block = self.builder.current_block();
         self.builder.jump(merge);
@@ -78,6 +81,35 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // value = phi(value, allocated)
         self.builder.switch_to_block(merge);
         Some(self.builder.phi(vec![(preheader, value), (allocation_block, allocated)]))
+    }
+
+    /// Allocates the default object of an array element that was never assigned.
+    ///
+    /// Every read of a struct element can reach this path, so structs share one constructor
+    /// instead of repeating it at each read.
+    fn default_element_object(&mut self, element: Ty<'gcx>) -> Option<ValueId> {
+        let TyKind::Struct(id) = element.peel_refs().kind else {
+            return self.default_object(element);
+        };
+        let fields = self.cx.gcx.hir.strukt(id).fields;
+        let small = fields.len() < MIN_SHARED_DEFAULT_STRUCT_FIELDS
+            && fields
+                .iter()
+                .all(|&field| self.cx.gcx.type_of_item(field.into()).peel_refs().is_value_type());
+        if small {
+            return self.default_object(element);
+        }
+        // fn @default_struct_N() -> memptr { object = default(Struct); ret object }
+        let helper =
+            self.lazy_helper(helper_name(sym::default_struct, id.index()), |this, function| {
+                let mut lowerer = FunctionLowerer::new(this.cx.reborrow(), function);
+                let object = lowerer.default_object(element)?;
+                lowerer.builder.set_return_type(MirType::MemPtr);
+                lowerer.builder.ret([object]);
+                Some(())
+            })?;
+        // object = icall @default_struct_N
+        Some(self.builder.icall(helper, Vec::new(), MirType::MemPtr))
     }
 
     pub(super) fn lower_struct_constructor(
@@ -171,14 +203,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let helper = self.ensure_bytes_word_helper();
             let word = self.lower_string_literal_word(bytes);
             let length = self.builder.imm(bytes.len() as u64);
-            self.builder.icall(
-                helper,
-                vec![word, length],
-                MirType::MemoryObject(MemoryObjectKind::Bytes),
-            )
+            self.builder.icall(helper, vec![word, length], MirType::MemPtr)
         } else if let Some(index) = self.cx.shared_literals.get_index_of(&symbol) {
             let helper = self.ensure_bytes_literal_helper(symbol, index);
-            self.builder.icall(helper, Vec::new(), MirType::MemoryObject(MemoryObjectKind::Bytes))
+            self.builder.icall(helper, Vec::new(), MirType::MemPtr)
         } else {
             self.lower_bytes_literal(bytes)?
         };
@@ -193,7 +221,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let mut builder = FunctionBuilder::new_semantic(function);
             let word = builder.add_param(MirType::I256);
             let length = builder.add_param(MirType::I256);
-            builder.set_return_type(MirType::MemoryObject(MemoryObjectKind::Bytes));
+            builder.set_return_type(MirType::MemPtr);
             let size = builder.imm(64);
             let object = builder.alloc_object(
                 size,
@@ -233,25 +261,48 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some(object)
     }
 
-    pub(super) fn build_bytecode(
-        gcx: Gcx<'_>,
-        module: &mut Module,
-        builder: &mut FunctionBuilder<'_>,
-        bytecode: &RelocatableBytecode,
-        name: Symbol,
-    ) -> Option<ValueId> {
-        let (object, data, padded_size) =
-            Self::alloc_const_bytes(builder, bytecode.bytes.len(), AllocationSemantics::INTERNAL)?;
-        super::super::data::copy_bytecode_to_memory(
-            gcx,
-            module,
-            builder,
-            data,
-            bytecode,
-            padded_size,
-            name,
-        );
-        Some(object)
+    /// Returns the deferred data for the creation or runtime bytecode of a contract that
+    /// this contract embeds, reporting an error when it is not a bytecode dependency.
+    pub(super) fn contract_code(
+        &mut self,
+        span: Span,
+        contract_id: hir::ContractId,
+        kind: CodeKind,
+    ) -> Option<DataId> {
+        let gcx = self.cx.gcx;
+        let name = gcx.hir.contract(contract_id).name;
+        if !self.cx.bytecode_dependencies.contains(contract_id) {
+            gcx.dcx()
+                .err(format!("codegen is missing {} for `{name}`", kind.keyword()))
+                .span(span)
+                .note("the contract is not a bytecode dependency of the contract being compiled")
+                .emit();
+            return None;
+        }
+        let data_name = Symbol::intern(&format!("{name}_{}", kind.keyword()));
+        let code = ContractCode { contract: QualifiedName::of_contract(gcx, contract_id), kind };
+        Some(self.cx.module.intern_contract_code(code, data_name))
+    }
+
+    pub(super) fn build_bytecode(builder: &mut FunctionBuilder<'_>, code: DataId) -> ValueId {
+        let word = EvmMemoryLayout::WORD_SIZE;
+        // len = datasize code(C)
+        // size = datasize code(C), 63, aligned
+        // object = bytes(size, len) !preserves_fmp
+        let len = builder.data_size(code, 0, false);
+        let size = builder.data_size(code, 2 * word - 1, true);
+        let (object, data) =
+            Self::alloc_bytes_object(builder, size, len, AllocationSemantics::INTERNAL);
+        // The last data word starts one length word before the padded length. Empty code
+        // has no data words, and this clears the length word, which is also zero.
+        // mstore object + data_size(code(C), 31, aligned), 0
+        // datacopy code(C), data, len
+        let tail_offset = builder.data_size(code, word - 1, true);
+        let tail = builder.add(object, tail_offset);
+        let zero = builder.imm(0);
+        builder.mstore(tail, zero);
+        builder.data_copy(DataRef::new(code, 0), data, len);
+        object
     }
 
     fn alloc_const_bytes(
@@ -259,25 +310,38 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         len: usize,
         semantics: AllocationSemantics,
     ) -> Option<(ValueId, ValueId, usize)> {
-        // object = bytes(len) !preserves_fmp
         let words = u64::try_from(len.div_ceil(32)).ok()?;
         let size = builder.imm(words.checked_add(1)?.checked_mul(32)?);
+        let length = builder.imm(u64::try_from(len).ok()?);
+        let (object, data) = Self::alloc_bytes_object(builder, size, length, semantics);
+        Some((object, data, usize::try_from(words.checked_mul(32)?).ok()?))
+    }
+
+    /// Allocates a bytes object of `size` bytes, including its length word, holding `len` bytes.
+    fn alloc_bytes_object(
+        builder: &mut FunctionBuilder<'_>,
+        size: ValueId,
+        len: ValueId,
+        semantics: AllocationSemantics,
+    ) -> (ValueId, ValueId) {
+        // object = bytes(size) !preserves_fmp
+        // set_memory_object_len object, len
+        // data = memory_object_data object
         let object = builder.alloc_object(size, MemoryObjectLayout::Bytes, semantics);
         let Value::Inst(alloc) = *builder.func().value(object) else {
             unreachable!("allocation result must reference its instruction")
         };
         builder.func_mut().inst_mut(alloc).metadata.set_preserves_fmp(true);
-        let length = builder.imm(u64::try_from(len).ok()?);
-        builder.set_memory_object_len(object, length, MemoryObjectKind::Bytes);
+        builder.set_memory_object_len(object, len, MemoryObjectKind::Bytes);
         let data = builder.memory_object_data(object, MemoryObjectKind::Bytes);
-        Some((object, data, usize::try_from(words.checked_mul(32)?).ok()?))
+        (object, data)
     }
 
     fn ensure_bytes_literal_helper(&mut self, symbol: ByteSymbol, index: usize) -> FunctionId {
         // literal_bytes() -> bytes
         self.lazy_helper(helper_name(sym::literal_bytes, index), |this, function| {
             let mut builder = FunctionBuilder::new_semantic(function);
-            builder.set_return_type(MirType::MemoryObject(MemoryObjectKind::Bytes));
+            builder.set_return_type(MirType::MemPtr);
             let object = Self::build_bytes_literal(
                 this.cx.gcx,
                 this.cx.module,
@@ -315,7 +379,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         {
             // object = ZERO_SLOT
             let value = crate::mir::Immediate::for_type(
-                Some(MirType::MemoryObject(layout.kind())),
+                Some(MirType::MemPtr),
                 U256::from(EvmMemoryLayout::ZERO_SLOT),
             );
             return Some(self.builder.func_mut().alloc_value(Value::Immediate(value)));

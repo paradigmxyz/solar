@@ -89,7 +89,7 @@ fn split_function(func: &mut Function) -> bool {
     let mut changed = false;
     let mut split_headers = FxHashSet::default();
     loop {
-        let loops = LoopAnalyzer::new().analyze(func);
+        let loops = LoopAnalyzer::new().analyze_structure(func);
         let Some(split) = loops
             .all_loops()
             .filter(|l| !split_headers.contains(&l.header))

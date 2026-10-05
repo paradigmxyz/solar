@@ -1,8 +1,8 @@
 // === ROOT/tests/ui/codegen/lowering/library_storage_pointer_return.sol:Lib ===
 @module Lib
 @library
-types:
-  struct0: {i256, memoryfixedarray}
+@types
+  struct0: {i256, memptr}
   struct1: {i256, i256}
 
 fn @arrRef(arg0: i256) -> i256 [selector=0x1fbd3e50, pure, abi_params=[storageptr], abi_returns=[word], abi_return_params=[storageptr]] {
@@ -33,7 +33,7 @@ fn @mapRef(arg0: i256) -> i256 [selector=0xca34aaa5, pure, abi_params=[storagept
 fn @aggRef(arg0: i256) -> struct0 [selector=0xed18bf21, pure, abi_params=[storageptr], abi_returns=[word, array<2, word>], abi_return_params=[storageptr, array<2, u256>]] {
   bb0:
     v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    v1 = ptrtoint memoryfixedarray v0 to i256
+    v1 = ptrtoint memptr v0 to i256
     memory_zero v1, 64
     v2 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
     memory_object_store_element memoryfixedarray<2, 1>, v2, 0, 1
@@ -53,9 +53,9 @@ fn @pairRef(arg0: i256) -> struct1 [selector=0x4a3c24da, view, abi_params=[stora
 
 // === ROOT/tests/ui/codegen/lowering/library_storage_pointer_return.sol:C ===
 @module C
-types:
+@types
   struct0: {i256, i256}
-  struct1: {i256, memoryfixedarray}
+  struct1: {i256, memptr}
 
 fn @len() -> i256 [selector=0x56d88e27, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:

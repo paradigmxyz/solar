@@ -30,8 +30,8 @@
 //! 13. **Program data consistency**: data references name allocated entries at valid offsets.
 //! 14. **Return contracts**: return counts match signatures, including through tail-call chains;
 //!     signatures cannot contain void values.
-//! 15. **Representation boundaries**: SSA aggregates and semantic memory types/operations cannot
-//!     survive their lowering boundaries. Object operations agree with nominal reference kinds.
+//! 15. **Representation boundaries**: SSA aggregates and semantic memory operations cannot survive
+//!     their lowering boundaries.
 //!
 //! # Usage
 //!
@@ -157,12 +157,15 @@ impl<'a> Validator<'a> {
                     self.emit_at_inst("instruction appears more than once", block, id);
                 }
                 let inst = func.inst(id);
-                for value in inst.kind.operands().into_iter().chain(inst.result()) {
+                inst.kind.visit_operands(|value| {
+                    self.validate_value_reference(func, value, num_args, block);
+                });
+                if let Some(value) = inst.result() {
                     self.validate_value_reference(func, value, num_args, block);
                 }
             }
             if let Some(term) = &body.terminator {
-                term.for_each_operand(|value| {
+                term.visit_operands(|value| {
                     self.validate_value_reference(func, value, num_args, block);
                 });
             }
@@ -241,8 +244,14 @@ impl<'a> Validator<'a> {
                 }
             });
 
-            // Check stored predecessor blocks exist and branch to this block.
-            for &pred in &block.predecessors {
+            // Check stored predecessor blocks exist, are listed once, and branch to this block.
+            for (index, &pred) in block.predecessors.iter().enumerate() {
+                if block.predecessors[..index].contains(&pred) {
+                    self.emit_at_block(
+                        format_args!("predecessor bb{} is listed more than once", pred.index()),
+                        block_id,
+                    );
+                }
                 if pred.index() >= num_blocks {
                     self.emit_at_block(
                         format_args!(
@@ -330,41 +339,23 @@ impl<'a> Validator<'a> {
         let errors_before = self.error_count;
         let num_values = func.num_values();
         let num_blocks = func.blocks.len();
-        let num_insts = func.num_insts();
 
         if num_blocks == 0 {
             self.emit("function has no entry block");
             return;
         }
 
+        // `validate_references` already checked that every instruction, operand,
+        // and result reference is in range.
         self.validate_cfg(func);
         for (block_id, block) in func.blocks.iter_enumerated() {
-            let Some(term) = &block.terminator else { continue };
-
-            // Check terminator operands are in range.
-            term.for_each_operand(|op| {
-                if op.index() >= num_values {
-                    self.emit_at_block(
-                        format_args!(
-                            "terminator references undefined value v{} (only {} values exist)",
-                            op.index(),
-                            num_values
-                        ),
-                        block_id,
-                    );
-                }
-            });
+            if block.terminator.is_none() {
+                continue;
+            }
 
             // ----- Walk instructions in this block -----
             let block_preds = &block.predecessors;
             for &inst_id in &block.instructions {
-                if inst_id.index() >= num_insts {
-                    self.emit_at_block(
-                        format_args!("block contains nonexistent inst{}", inst_id.index()),
-                        block_id,
-                    );
-                    continue;
-                }
                 let inst = func.inst(inst_id);
 
                 if !inst.kind.scalar_types_match(func, inst.result_ty) {
@@ -413,17 +404,6 @@ impl<'a> Validator<'a> {
                 }
 
                 match (inst.result_ty, func.inst_result_value(inst_id)) {
-                    (Some(_), Some(result)) if result.index() >= num_values => {
-                        self.emit_at_inst(
-                            format_args!(
-                                "instruction result references undefined value v{} \
-                                 (only {num_values} values exist)",
-                                result.index()
-                            ),
-                            block_id,
-                            inst_id,
-                        );
-                    }
                     (Some(_), Some(result)) => {
                         if !matches!(func.value(result), Value::Inst(def) if *def == inst_id) {
                             self.emit_at_inst(
@@ -455,21 +435,6 @@ impl<'a> Validator<'a> {
                         );
                     }
                     (None, None) => {}
-                }
-
-                // Operand range check.
-                for op in inst.kind.operands() {
-                    if op.index() >= num_values {
-                        self.emit_at_inst(
-                            format_args!(
-                                "instruction references undefined value v{} (only {} values exist)",
-                                op.index(),
-                                num_values
-                            ),
-                            block_id,
-                            inst_id,
-                        );
-                    }
                 }
 
                 if let Some(module) = module {
@@ -588,7 +553,7 @@ impl<'a> Validator<'a> {
                         }
                     }
                     kind => {
-                        for &operand in kind.operands().iter() {
+                        kind.visit_operands(|operand| {
                             if let Some((def, def_index)) =
                                 self.live_definition(func, &def_location_of, operand, block_id)
                             {
@@ -615,12 +580,12 @@ impl<'a> Validator<'a> {
                                     );
                                 }
                             }
-                        }
+                        });
                     }
                 }
             }
             if let Some(term) = &block.terminator {
-                term.for_each_operand(|operand| {
+                term.visit_operands(|operand| {
                     if let Some((def, _)) =
                         self.live_definition(func, &def_location_of, operand, block_id)
                         && def != block_id
@@ -793,24 +758,16 @@ impl<'a> Validator<'a> {
     /// Checks constant widths and aggregate operands against their declared types.
     fn validate_value_types(&mut self, module: &Module, func: &Function) {
         self.validate_return_abi(module, func);
-        for value in func.live_values() {
-            if func.value_ty(value).is_none_or(|ty| ty == MirType::Void) {
-                self.emit(format_args!("live value v{} has no value type", value.index()));
+        for block in &func.blocks {
+            for &inst_id in &block.instructions {
+                let inst = func.inst(inst_id);
+                inst.kind.visit_operands(|value| self.validate_live_value_type(func, value));
+                if let Some(value) = inst.result() {
+                    self.validate_live_value_type(func, value);
+                }
             }
-            if let Value::Immediate(crate::mir::Immediate::Pointer(_, ty)) = func.value(value)
-                && !ty.is_pointer()
-            {
-                self.emit("pointer constant must have a pointer type");
-            }
-            if let Value::Immediate(immediate) = func.value(value)
-                && let MirType::Int(bits) = immediate.ty()
-                && immediate.as_u256().is_some_and(|word| word.bit_len() > bits.get() as usize)
-            {
-                self.emit(format_args!(
-                    "constant v{} does not fit its type `{}`",
-                    value.index(),
-                    immediate.ty()
-                ));
+            if let Some(term) = &block.terminator {
+                term.visit_operands(|value| self.validate_live_value_type(func, value));
             }
         }
         for ty in func
@@ -828,18 +785,17 @@ impl<'a> Validator<'a> {
         for (block, body) in func.blocks.iter_enumerated() {
             for &id in &body.instructions {
                 let inst = func.inst(id);
-                let operands = inst.kind.operands();
                 let mut has_struct_value = false;
-                for ty in
-                    operands.iter().filter_map(|&value| func.value_ty(value)).chain(inst.result_ty)
-                {
-                    if let MirType::Struct(ty) = ty {
+                let mut check_struct = |ty| {
+                    if let Some(MirType::Struct(ty)) = ty {
                         has_struct_value = true;
                         if module.struct_types.get(ty).is_none() {
                             self.emit(format_args!("undefined struct type `struct{}`", ty.index()));
                         }
                     }
-                }
+                };
+                inst.kind.visit_operands(|value| check_struct(func.value_ty(value)));
+                check_struct(inst.result_ty);
                 match &inst.kind {
                     InstKind::Phi(incoming) => {
                         for &(_, value) in incoming {
@@ -896,7 +852,7 @@ impl<'a> Validator<'a> {
                     InstKind::AbiDecode { data, layout } => {
                         self.check_value_type(
                             func.value_ty(*data),
-                            Some(MirType::MemoryObject(MemoryObjectKind::Bytes)),
+                            Some(MirType::MemPtr),
                             block,
                             id,
                         );
@@ -931,7 +887,7 @@ impl<'a> Validator<'a> {
                                 id,
                             );
                         }
-                        for &value in &operands {
+                        for value in inst.kind.operands() {
                             if matches!(func.value_ty(value), Some(MirType::Struct(_))) {
                                 self.emit_at_inst(
                                     "instruction cannot consume a struct value",
@@ -990,7 +946,7 @@ impl<'a> Validator<'a> {
                 }
             }
             if let Some(term) = &body.terminator {
-                term.for_each_operand(|value| {
+                term.visit_operands(|value| {
                     if let Some(MirType::Struct(ty)) = func.value_ty(value)
                         && module.struct_types.get(ty).is_none()
                     {
@@ -1055,6 +1011,23 @@ impl<'a> Validator<'a> {
         }
     }
 
+    /// Checks that a live value has a value type and that a constant fits it.
+    fn validate_live_value_type(&mut self, func: &Function, value: ValueId) {
+        if func.value_ty(value).is_none_or(|ty| ty == MirType::Void) {
+            self.emit(format_args!("live value v{} has no value type", value.index()));
+        }
+        if let Value::Immediate(immediate) = func.value(value)
+            && let MirType::Int(bits) = immediate.ty()
+            && immediate.as_u256().is_some_and(|word| word.bit_len() > bits.get() as usize)
+        {
+            self.emit(format_args!(
+                "constant v{} does not fit its type `{}`",
+                value.index(),
+                immediate.ty()
+            ));
+        }
+    }
+
     /// Checks semantic result types and layout metadata after operand contracts have passed.
     fn validate_memory_object_types(&mut self, func: &Function) {
         for (block, body) in func.blocks.iter_enumerated() {
@@ -1064,9 +1037,7 @@ impl<'a> Validator<'a> {
                     InstKind::ICall { function: Callee::Builtin(builtin), args } => {
                         let result = match builtin {
                             Builtin::Require(_) | Builtin::Check { .. } | Builtin::Transfer => None,
-                            Builtin::ReturndataBytes | Builtin::Concat(_) => {
-                                Some(MirType::MemoryObject(MemoryObjectKind::Bytes))
-                            }
+                            Builtin::ReturndataBytes | Builtin::Concat(_) => Some(MirType::MemPtr),
                             Builtin::CheckedAddMod
                             | Builtin::CheckedMulMod
                             | Builtin::Sha256
@@ -1128,11 +1099,7 @@ impl<'a> Validator<'a> {
                         });
                         valid_parts
                             && inst.result_ty
-                                == Some(if *hash {
-                                    MirType::I256
-                                } else {
-                                    MirType::MemoryObject(MemoryObjectKind::Bytes)
-                                })
+                                == Some(if *hash { MirType::I256 } else { MirType::MemPtr })
                     }
                     InstKind::CheckedBinary { arithmetic, .. } => {
                         let (crate::mir::ArithmeticKind::Unsigned(bits)
@@ -1150,12 +1117,9 @@ impl<'a> Validator<'a> {
                             (1..=256).contains(&variants)
                                 && *element
                                     == crate::mir::ValueLayout::UInt(TypeSize::new_int_bits(8))
-                        }) && inst.result_ty
-                            == Some(MirType::MemoryObject(MemoryObjectKind::DynamicArray))
+                        }) && inst.result_ty == Some(MirType::MemPtr)
                     }
-                    InstKind::StorageBytesLoad(_) => {
-                        inst.result_ty == Some(MirType::MemoryObject(MemoryObjectKind::Bytes))
-                    }
+                    InstKind::StorageBytesLoad(_) => inst.result_ty == Some(MirType::MemPtr),
                     InstKind::AddressCall { kind, value, .. } => {
                         *kind == AddressCallKind::Call || value.is_none()
                     }
@@ -1203,24 +1167,55 @@ impl<'a> Validator<'a> {
         block_id: BlockId,
         inst_id: InstId,
     ) {
-        let InstKind::DataCopy(data, _, size) = &func.inst(inst_id).kind else { return };
-        let Some(bytes) = module.get_data(data.id) else {
+        let (data, size) = match &func.inst(inst_id).kind {
+            InstKind::DataCopy(data, _, size) => (data, size),
+            InstKind::DataSize(size) => {
+                match module.data.get(size.data) {
+                    None => self.emit_at_inst(
+                        format_args!("datasize references nonexistent data{}", size.data.index()),
+                        block_id,
+                        inst_id,
+                    ),
+                    Some(data) if data.bytes.known().is_some() => {
+                        self.emit_at_inst("datasize requires deferred data", block_id, inst_id)
+                    }
+                    Some(_) => {}
+                }
+                return;
+            }
+            _ => return,
+        };
+        let Some(entry) = module.data.get(data.id) else {
             self.emit_at_inst(
-                format_args!("data_copy references nonexistent data{}", data.id.index()),
+                format_args!("datacopy references nonexistent data{}", data.id.index()),
+                block_id,
+                inst_id,
+            );
+            return;
+        };
+        // The length of deferred data is only known through its own `datasize`.
+        if let Value::Inst(size) = func.value(*size)
+            && matches!(func.inst(*size).kind, InstKind::DataSize(size) if size.is_length_of(*data))
+        {
+            return;
+        }
+        let Some(bytes) = entry.bytes.known() else {
+            self.emit_at_inst(
+                "datacopy size of deferred data must be its `datasize`",
                 block_id,
                 inst_id,
             );
             return;
         };
         let Some(size) = func.value_u256(*size) else {
-            self.emit_at_inst("data_copy size must be an immediate", block_id, inst_id);
+            self.emit_at_inst("datacopy size must be an immediate", block_id, inst_id);
             return;
         };
         let end = U256::from(data.offset).checked_add(size);
         if end.is_none_or(|end| end > U256::from(bytes.len())) {
             self.emit_at_inst(
                 format_args!(
-                    "data_copy range {}..{} exceeds data size {}",
+                    "datacopy range {}..{} exceeds data size {}",
                     data.offset,
                     end.map_or_else(|| "overflow".into(), |end| end.to_string()),
                     bytes.len()
@@ -1363,15 +1358,7 @@ impl<'a> Validator<'a> {
             ));
         }
         if phase == MirPhase::Lowered {
-            let types = func
-                .arg_indices()
-                .map(|index| func.arg_ty(index))
-                .chain(func.return_components().iter().copied())
-                .chain(func.live_values().filter_map(|value| func.value_ty(value)))
-                .chain(func.instructions().filter_map(|id| func.inst(id).result_ty));
-            if let Some(ty) =
-                types.into_iter().find(|ty| !ty.is_word() || matches!(ty, MirType::MemoryObject(_)))
-            {
+            if let Some(ty) = first_non_word_type(func) {
                 self.emit(format_args!(
                     "non-word type `{ty}` survives the `lowered` phase boundary"
                 ));
@@ -1463,7 +1450,7 @@ fn return_abi_matches(
                     continue;
                 }
                 match ty {
-                    MirType::MemoryObject(_) if actual == MirType::I256 => {}
+                    MirType::MemPtr if actual == MirType::I256 => {}
                     MirType::Slice(location) => {
                         let pointer = match location {
                             SliceLocation::Memory => MirType::I256,
@@ -1488,6 +1475,42 @@ fn return_abi_matches(
         }
     }
     components.is_empty()
+}
+
+/// Returns the first type, in signature and then block order, that is not a scalar word.
+fn first_non_word_type(func: &Function) -> Option<MirType> {
+    let signature = func.arg_indices().map(|index| func.arg_ty(index));
+    if let Some(ty) =
+        signature.chain(func.return_components().iter().copied()).find(|&ty| !ty.is_word())
+    {
+        return Some(ty);
+    }
+    let value_type = |value| func.value_ty(value).filter(|&ty| !ty.is_word());
+    let find = |found: &mut Option<MirType>, value| {
+        if found.is_none() {
+            *found = value_type(value);
+        }
+    };
+    let mut found = None;
+    for block in &func.blocks {
+        for &inst_id in &block.instructions {
+            let inst = func.inst(inst_id);
+            inst.kind.visit_operands(|value| find(&mut found, value));
+            if let Some(value) = inst.result() {
+                find(&mut found, value);
+            }
+            if found.is_some() {
+                return found;
+            }
+        }
+        if let Some(term) = &block.terminator {
+            term.visit_operands(|value| find(&mut found, value));
+        }
+        if found.is_some() {
+            return found;
+        }
+    }
+    func.instructions().filter_map(|id| func.inst(id).result_ty).find(|&ty| !ty.is_word())
 }
 
 // =============================================================================
@@ -1863,7 +1886,7 @@ error: module is in the `lowered` phase but has no `entry` routing function
             assert_data_eq!(
                 sess.emitted_diagnostics().unwrap().to_string(),
                 str![[r#"
-error: [fn0] [bb0, inst0] data_copy references nonexistent data7
+error: [fn0] [bb0, inst0] datacopy references nonexistent data7
 
 
 "#]]
@@ -1889,7 +1912,7 @@ error: [fn0] [bb0, inst0] data_copy references nonexistent data7
             assert_data_eq!(
                 sess.emitted_diagnostics().unwrap().to_string(),
                 str![[r#"
-error: [fn0] [bb0, inst0] data_copy range 5..6 exceeds data size 4
+error: [fn0] [bb0, inst0] datacopy range 5..6 exceeds data size 4
 
 
 "#]]
@@ -1993,6 +2016,35 @@ error: [bb0] successor bb1 does not list bb0 as a predecessor
                 sess.emitted_diagnostics().unwrap().to_string(),
                 str![[r#"
 error: [bb1] stored predecessor bb0 does not branch to bb1
+
+
+"#]]
+            );
+        });
+    }
+
+    #[test]
+    fn duplicate_predecessor_is_caught() {
+        with_session(|sess| {
+            let mut func = make_func();
+            let target;
+            {
+                let mut builder = FunctionBuilder::new(&mut func);
+                target = builder.create_block();
+                let condition = builder.imm_bool(true);
+                builder.branch(condition, target, target);
+                builder.switch_to_block(target);
+                builder.stop();
+            }
+            // A branch with equal arms still lists its block once.
+            assert_eq!(func.blocks[target].predecessors.as_slice(), [BlockId::ENTRY]);
+            func.blocks[target].predecessors.push(BlockId::ENTRY);
+            Validator::new(&sess.dcx).validate_standalone_function(&func);
+            assert!(sess.dcx.has_errors().is_err());
+            assert_data_eq!(
+                sess.emitted_diagnostics().unwrap().to_string(),
+                str![[r#"
+error: [bb1] predecessor bb0 is listed more than once
 
 
 "#]]

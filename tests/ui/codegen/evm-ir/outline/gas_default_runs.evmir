@@ -1,0 +1,40 @@
+//@ compile-flags: -Ogas -Zevm-ir-pipeline=outline
+@module GasDefaultRunsOutline
+
+// At the default run count, repeated immediates are too cheap to share on their own, so only
+// the closed machine-run screen admits this long computation, and it is outlined.
+bb0:
+  push 0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+  push 0xfedcba9876543210fedcba9876543210fedcba9876543210fedcba987654321
+  add
+  push 0x0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2e1f
+  mul
+  pop
+  jump bb1
+
+bb1:
+  push 0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+  push 0xfedcba9876543210fedcba9876543210fedcba9876543210fedcba987654321
+  add
+  push 0x0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2e1f
+  mul
+  pop
+  jump bb2
+
+bb2:
+  push 0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+  push 0xfedcba9876543210fedcba9876543210fedcba9876543210fedcba987654321
+  add
+  push 0x0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2e1f
+  mul
+  pop
+  jump bb3
+
+bb3:
+  push 0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+  push 0xfedcba9876543210fedcba9876543210fedcba9876543210fedcba987654321
+  add
+  push 0x0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2e1f
+  mul
+  pop
+  stop

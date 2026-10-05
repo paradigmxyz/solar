@@ -32,6 +32,7 @@ mod terminal_layout;
 pub(super) mod utils;
 
 pub(in crate::backend) use legalize_shifts::legalize_shifts;
+pub(super) use peephole::CleanBlocks;
 
 use super::Module;
 use crate::{
@@ -285,7 +286,9 @@ fn run_passes_inner(
             debug_assert!(unchanged.iter().filter(|entry| **entry == cache_key).count() <= 1);
             let target_support_before = (!cached && validate_each && should_validate_ir(gcx))
                 .then(|| super::verify::Verifier::new(gcx).target_support_snapshot(module));
-            let pass_changed = !cached && pass.run_pass(gcx, module);
+            let pass_changed = !cached
+                && tracing::trace_span!("evm_ir_pass", pass = pass_name)
+                    .in_scope(|| pass.run_pass(gcx, module));
             if pass_changed {
                 unchanged.clear();
             } else if !cached {

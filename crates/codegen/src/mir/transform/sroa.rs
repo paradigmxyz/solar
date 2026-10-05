@@ -118,9 +118,7 @@ impl SroaCx {
         loop {
             let mut changed = false;
             for id in func.instructions() {
-                if let InstKind::PtrToInt(base, 256)
-                | InstKind::IntToPtr(base)
-                | InstKind::Bitcast(base) = func.inst(id).kind
+                if let InstKind::PtrToInt(base, 256) | InstKind::IntToPtr(base) = func.inst(id).kind
                     && object_aliases.contains(&base)
                     && let Some(result) = func.inst_result_value(id)
                     && object_aliases.insert(result)
@@ -175,7 +173,7 @@ impl SroaCx {
                     // Any other use of the object (data pointer, length,
                     // dynamic-index address, a store of the pointer) blocks
                     // scalarization.
-                    if kind.operands().iter().any(|value| object_aliases.contains(value)) {
+                    if kind.any_operand(|value| object_aliases.contains(&value)) {
                         return None;
                     }
                     continue;
@@ -191,13 +189,11 @@ impl SroaCx {
         }
 
         // field_word = ptrtoint field_pointer to i256
-        // field_pointer = inttoptr field_word, or bitcast field_pointer
+        // field_pointer = inttoptr field_word
         loop {
             let mut changed = false;
             for id in func.instructions() {
-                if let InstKind::PtrToInt(base, 256)
-                | InstKind::IntToPtr(base)
-                | InstKind::Bitcast(base) = func.inst(id).kind
+                if let InstKind::PtrToInt(base, 256) | InstKind::IntToPtr(base) = func.inst(id).kind
                     && let Some(&slot) = slot_of.get(&base)
                     && let Some(result) = func.inst_result_value(id)
                     && !slot_of.contains_key(&result)
@@ -215,10 +211,9 @@ impl SroaCx {
         // Non-capturing terminators can still read the object's memory.
         if func.blocks.iter().any(|block| {
             block.terminator.as_ref().is_some_and(|terminator| {
-                terminator
-                    .operands()
-                    .iter()
-                    .any(|value| object_aliases.contains(value) || slot_of.contains_key(value))
+                terminator.any_operand(|value| {
+                    object_aliases.contains(&value) || slot_of.contains_key(&value)
+                })
             })
         }) {
             return None;
@@ -243,15 +238,13 @@ impl SroaCx {
                 }
                 InstKind::MLoad(addr) => addr,
                 _ => {
-                    if kind.operands().iter().any(|op| slot_of.contains_key(op)) {
+                    if kind.any_operand(|op| slot_of.contains_key(&op)) {
                         return None;
                     }
                     continue;
                 }
             };
-            if !slot_of.contains_key(&addr)
-                && kind.operands().iter().any(|op| slot_of.contains_key(op))
-            {
+            if !slot_of.contains_key(&addr) && kind.any_operand(|op| slot_of.contains_key(&op)) {
                 return None;
             }
         }

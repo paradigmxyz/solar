@@ -81,11 +81,7 @@ use crate::{
 };
 use smallvec::SmallVec;
 use solar_ast::StateMutability;
-use solar_data_structures::{
-    bit_set::{DenseBitSet, GrowableBitSet},
-    index::IndexVec,
-    map::FxHashMap,
-};
+use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
 use solar_sema::Gcx;
 
 /// Module pass for metadata-backed MIR inlining.
@@ -173,6 +169,7 @@ impl MirPass for InlineMemoryWrappers {
         }
         MirInliner {
             memory_wrappers_only: true,
+            objects_lowered: true,
             max_instructions: 6,
             max_single_call_sanity_instructions: 6,
             ..MirInliner::for_tiny_leaves()
@@ -236,6 +233,7 @@ impl MirPass for InlineSingleUse {
             max_single_call_sanity_instructions: 256,
             frame_staging_allowed: matches!(self, Self::Semantic)
                 && module.phase < MirPhase::Lowered,
+            objects_lowered: matches!(self, Self::Physical),
             ..MirInliner::default()
         }
         .run(gcx, module);
@@ -325,6 +323,9 @@ struct MirInliner {
     /// frame slots are lowered to physical memory, a late run must leave such
     /// callees alone: the staging instructions would survive the phase boundary.
     frame_staging_allowed: bool,
+    /// Whether memory objects are already lowered to raw memory. Returned pointers then carry
+    /// no object identity, so only slice returns count as reference returns.
+    objects_lowered: bool,
     mode: InlineMode,
 }
 
@@ -367,6 +368,7 @@ impl Default for MirInliner {
             immutable_leaves_only: false,
             memory_wrappers_only: false,
             frame_staging_allowed: true,
+            objects_lowered: false,
             mode: InlineMode::Normal,
         }
     }
@@ -472,7 +474,7 @@ struct MirInlineSummary {
     has_control_flow: bool,
     is_check_wrapper: bool,
     /// Whether the body contains a back edge; a loop cloned into a loop nests
-    /// its carried words inside the caller's.
+    /// its carried words inside the caller's. Only hot-leaf summaries compute it.
     has_loop: bool,
     has_unsupported_terminator: bool,
     has_reference_return: bool,
@@ -551,7 +553,13 @@ impl MirInliner {
             if !summaries.get(&caller_id).is_some_and(|summary| summary.has_icall) {
                 continue;
             }
-            let mut loop_costs = block_loop_costs(module.function(caller_id));
+            // Single-use and constant-leaf candidates are decided without loop weights.
+            let mut loop_costs =
+                if matches!(self.mode, InlineMode::SingleUse | InlineMode::ConstantLeaves) {
+                    FxHashMap::default()
+                } else {
+                    block_loop_costs(module.function(caller_id))
+                };
             // Bound how much each caller may grow from inlining so a function
             // calling many internal helpers (e.g. a large verifier) cannot
             // balloon past the deployable code-size limit.
@@ -610,7 +618,8 @@ impl MirInliner {
                     summary.phi_stack_peak.or_else(|| memory_wrappers.get(&site.callee).copied())
                 {
                     let caller = module.function(caller_id);
-                    let liveness = caller_liveness.get_or_insert_with(|| Liveness::compute(caller));
+                    let liveness =
+                        caller_liveness.get_or_insert_with(|| Liveness::compute_live_sets(caller));
                     if surviving_call_words(caller, liveness, site).saturating_add(peak)
                         > self.stack_budget()
                     {
@@ -640,30 +649,27 @@ impl MirInliner {
                         module,
                         module.function(caller_id),
                         self.peak_analysis(),
+                        self.objects_lowered,
                     );
                     module_code_size = module_code_size
                         .saturating_sub(old_size)
                         .saturating_add(new_summary.estimated_code_size);
                     summaries.insert(caller_id, new_summary);
-                    if self.mode == InlineMode::TinyLeaves {
-                        // Remove this call site and count the forwarded calls cloned into its
-                        // caller. The original callee remains until function DCE runs.
-                        if let Some(count) = call_counts.get_mut(&site.callee) {
-                            *count = count.saturating_sub(1);
+                    // Remove this call site and count the calls cloned into its caller.
+                    // The original callee remains until function DCE runs, and a callee
+                    // with a tail call is never inlined.
+                    if let Some(count) = call_counts.get_mut(&site.callee) {
+                        *count = count.saturating_sub(1);
+                    }
+                    for inst in callee.instructions() {
+                        if let InstKind::ICall { function: Callee::Function(function), .. } =
+                            callee.inst(inst).kind
+                        {
+                            *call_counts.entry(function).or_default() += 1;
                         }
-                        for inst in callee.instructions() {
-                            if let InstKind::ICall {
-                                function: Callee::Function(function), ..
-                            } = callee.inst(inst).kind
-                            {
-                                *call_counts.entry(function).or_default() += 1;
-                            }
-                        }
-                        if let Some(calls) = &mut artifact_calls {
-                            calls.inline(caller_id, site.callee, &callee);
-                        }
-                    } else {
-                        call_counts = self.call_counts(module);
+                    }
+                    if let Some(calls) = &mut artifact_calls {
+                        calls.inline(caller_id, site.callee, &callee);
                     }
                     cursor = (site.block.index(), 0);
                 } else {
@@ -683,7 +689,18 @@ impl MirInliner {
         module
             .functions
             .iter_enumerated()
-            .map(|(id, func)| (id, summarize_function(gcx, module, func, self.peak_analysis())))
+            .map(|(id, func)| {
+                (
+                    id,
+                    summarize_function(
+                        gcx,
+                        module,
+                        func,
+                        self.peak_analysis(),
+                        self.objects_lowered,
+                    ),
+                )
+            })
             .collect()
     }
 
@@ -1088,7 +1105,7 @@ fn is_small_literal_return(func: &Function) -> bool {
     if func.attributes.no_inline
         || func.internal_frame_size != 0
         || func.blocks.len() != 1
-        || func.return_components() != [MirType::MemoryObject(MemoryObjectKind::Bytes)]
+        || func.return_components() != [MirType::MemPtr]
     {
         return false;
     }
@@ -1161,6 +1178,7 @@ fn summarize_function(
     module: &Module,
     func: &Function,
     peak: PeakAnalysis,
+    objects_lowered: bool,
 ) -> MirInlineSummary {
     let target = Target::new(gcx);
     let mut summary = MirInlineSummary {
@@ -1172,17 +1190,18 @@ fn summarize_function(
             || func.attributes.is_receive
             || func.selector.is_some(),
         is_constructor: func.attributes.is_constructor,
-        has_reference_return: func
-            .return_components()
-            .iter()
-            .any(|ty| matches!(ty, MirType::MemoryObject(_) | MirType::Slice(_))),
+        has_reference_return: func.return_components().iter().any(|&ty| match ty {
+            MirType::MemPtr => !objects_lowered,
+            MirType::Slice(_) => true,
+            _ => false,
+        }),
         is_transparent_forwarder: is_transparent_forwarder(module, func),
         is_small_literal_return: is_small_literal_return(func),
         is_check_wrapper: is_check_wrapper(func),
         is_function_pointer_dispatcher: func.attributes.is_function_pointer_dispatcher,
         has_function_selector: func.attributes.is_function_pointer_dispatcher,
         is_pure: func.attributes.state_mutability == StateMutability::Pure,
-        has_loop: has_back_edge(func),
+        has_loop: peak == PeakAnalysis::Scalars && has_back_edge(func),
         ..MirInlineSummary::default()
     };
 
@@ -1245,9 +1264,6 @@ fn summarize_function(
                 | InstKind::CallCode { .. }
                 | InstKind::StaticCall { .. }
                 | InstKind::DelegateCall { .. }
-                | InstKind::ExtCall { .. }
-                | InstKind::ExtDelegateCall { .. }
-                | InstKind::ExtStaticCall { .. }
                 | InstKind::Create(..)
                 | InstKind::Create2(..) => {
                     summary.has_external_call = true;
@@ -1325,7 +1341,8 @@ fn summarize_function(
 fn has_back_edge(func: &Function) -> bool {
     let mut on_path = DenseBitSet::new_empty(func.blocks.len());
     let mut finished = DenseBitSet::new_empty(func.blocks.len());
-    let mut stack = vec![(BlockId::ENTRY, 0)];
+    let mut stack = Vec::new();
+    stack.push((BlockId::ENTRY, 0));
     on_path.insert(BlockId::ENTRY);
     while let Some(top) = stack.last_mut() {
         let (block, next) = *top;
@@ -1353,12 +1370,12 @@ fn has_back_edge(func: &Function) -> bool {
 
 /// Peak SSA live words in a small scalar helper; immediates are rematerialized.
 fn scalar_stack_peak(func: &Function) -> usize {
-    let liveness = Liveness::compute(func);
+    let liveness = Liveness::compute_live_sets(func);
     let mut peak = 0;
     for (block, body) in func.blocks.iter_enumerated() {
-        let mut live = liveness.live_out(block).clone();
+        let mut live = DenseBitSet::from(liveness.live_out(block));
         if let Some(term) = &body.terminator {
-            term.for_each_operand(|value| {
+            term.visit_operands(|value| {
                 live.insert(value);
             });
         }
@@ -1368,9 +1385,9 @@ fn scalar_stack_peak(func: &Function) -> usize {
                 live.remove(result);
             }
             if !matches!(func.inst(inst).kind, InstKind::Phi(_)) {
-                for value in func.inst(inst).operands() {
+                func.inst(inst).visit_operands(|value| {
                     live.insert(value);
-                }
+                });
             }
             peak = peak.max(live_word_count(func, &live));
         }
@@ -1381,9 +1398,9 @@ fn scalar_stack_peak(func: &Function) -> usize {
 /// Caller words that survive the internal call and overlap an inline expansion.
 fn surviving_call_words(func: &Function, liveness: &Liveness, site: CallSite) -> usize {
     let body = &func.blocks[site.block];
-    let mut live = liveness.live_out(site.block).clone();
+    let mut live = DenseBitSet::from(liveness.live_out(site.block));
     if let Some(term) = &body.terminator {
-        term.for_each_operand(|value| {
+        term.visit_operands(|value| {
             live.insert(value);
         });
     }
@@ -1391,9 +1408,9 @@ fn surviving_call_words(func: &Function, liveness: &Liveness, site: CallSite) ->
         if let Some(result) = func.inst_result_value(inst) {
             live.remove(result);
         }
-        for value in func.inst(inst).operands() {
+        func.inst(inst).visit_operands(|value| {
             live.insert(value);
-        }
+        });
     }
     if let Some(result) = func.inst_result_value(site.inst) {
         live.remove(result);
@@ -1401,7 +1418,7 @@ fn surviving_call_words(func: &Function, liveness: &Liveness, site: CallSite) ->
     live_word_count(func, &live)
 }
 
-fn live_word_count(func: &Function, live: &GrowableBitSet<ValueId>) -> usize {
+fn live_word_count(func: &Function, live: &DenseBitSet<ValueId>) -> usize {
     live.iter().filter(|&value| matches!(func.value(value), Value::Arg(_) | Value::Inst(_))).count()
 }
 
@@ -1595,10 +1612,11 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> (Cost, 
     let target = Target::new(gcx);
     let seq =
         |codes: &[u8]| codes.iter().map(|&code| target.opcode(code)).fold(Cost::ZERO, Cost::plus);
-    if select::opcode_lowering(&kind.op()).is_some()
-        && !matches!(kind, InstKind::ICall { .. } | InstKind::LoadImmutable(_))
-    {
-        return (target.op(&kind.op(), |_| None), 1);
+    if !matches!(kind, InstKind::ICall { .. } | InstKind::LoadImmutable(_)) {
+        let op = kind.op();
+        if select::opcode_lowering(&op).is_some() {
+            return (target.op(&op, |_| None), 1);
+        }
     }
     let code = match kind {
         InstKind::Ne(..) => seq(&[op::EQ, op::ISZERO]),
@@ -1608,8 +1626,7 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> (Cost, 
         InstKind::InsertValue { .. }
         | InstKind::ExtractValue { .. }
         | InstKind::IntToPtr(..)
-        | InstKind::Zext(_)
-        | InstKind::Bitcast(_) => Cost::ZERO,
+        | InstKind::Zext(_) => Cost::ZERO,
         InstKind::MakeSlice { .. } | InstKind::SlicePtr(_) | InstKind::SliceLen(_) => Cost::ZERO,
         InstKind::MemoryObjectData(_, kind) => {
             if EvmMemoryLayout::object_data_offset(*kind) == 0 {
@@ -1710,6 +1727,7 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> (Cost, 
         // A pushed offset into the immutables area and the store.
         InstKind::StoreImmutable(..) => seq(&[op::PUSH2, op::MSTORE]),
         InstKind::DataCopy(..) => seq(&[op::CODECOPY]),
+        InstKind::DataSize(..) => seq(&[op::PUSH2]),
         // Zero by copying from beyond the end of calldata.
         InstKind::MemoryZero(..) => seq(&[op::CALLDATASIZE, op::CALLDATACOPY]),
         InstKind::ConstructorArgsBase => seq(&[op::PUSH2]),
@@ -1812,10 +1830,7 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> (Cost, 
         InstKind::Call { .. }
         | InstKind::CallCode { .. }
         | InstKind::StaticCall { .. }
-        | InstKind::DelegateCall { .. }
-        | InstKind::ExtCall { .. }
-        | InstKind::ExtDelegateCall { .. }
-        | InstKind::ExtStaticCall { .. } => seq(&[op::CALL]),
+        | InstKind::DelegateCall { .. } => seq(&[op::CALL]),
         InstKind::ICall { function: Callee::Function(function), args } => {
             target.icall(args.len(), module.function(*function).return_components().len(), 0)
         }
@@ -1895,7 +1910,7 @@ struct LoopCost {
 
 fn block_loop_costs(func: &Function) -> FxHashMap<BlockId, LoopCost> {
     let mut analyzer = LoopAnalyzer::new();
-    let loop_info = analyzer.analyze(func);
+    let loop_info = analyzer.analyze_trip_counts(func);
     let mut costs = FxHashMap::default();
     for loop_data in loop_info.all_loops() {
         let counted = loop_data.trip_count.filter(|_| {
@@ -2157,13 +2172,11 @@ fn inline_call_impl(
     // object_arg = inttoptr raw_arg
     // jump cloned_entry(object_arg)
     // Calls can carry raw pointer words; cloned semantic operations still require
-    // the callee's object types. Materialize the zero-cost view at the cloned entry.
+    // the callee's pointer parameters. Materialize the zero-cost view at the cloned entry.
     let mut args = args;
     let mut argument_views = Vec::new();
     for (arg, &ty) in args.iter_mut().zip(&callee.params) {
-        if let MirType::MemoryObject(_) = ty
-            && caller.value_ty(*arg) != Some(ty)
-        {
+        if ty == MirType::MemPtr && caller.value_ty(*arg) != Some(ty) {
             if !caller.value_ty(*arg).is_some_and(MirType::is_word) {
                 return None;
             }
@@ -2599,7 +2612,7 @@ fn insert_return_buffer_stores(
     };
     let consumer_start = phi_count + instructions.len();
     caller.blocks[continuation].instructions.splice(phi_count..phi_count, instructions);
-    if return_tys.iter().all(|ty| !matches!(ty, MirType::Slice(_) | MirType::MemoryObject(_))) {
+    if return_tys.iter().all(|ty| !matches!(ty, MirType::Slice(_) | MirType::MemPtr)) {
         forward_inline_return_loads(caller, continuation, consumer_start, values);
     }
     Some(())
@@ -2719,7 +2732,10 @@ fn recompute_cfg(func: &mut Function) {
 
     for (block, successors) in edges {
         for succ in successors {
-            func.blocks[succ].predecessors.push(block);
+            let predecessors = &mut func.blocks[succ].predecessors;
+            if !predecessors.contains(&block) {
+                predecessors.push(block);
+            }
         }
     }
 }

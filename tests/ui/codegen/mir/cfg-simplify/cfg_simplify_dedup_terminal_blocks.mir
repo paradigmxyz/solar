@@ -1,6 +1,9 @@
 //@compile-flags: -Zmir-pipeline=cfg-simplify
 //@filecheck:
 @module CfgDedupTerminalBlocks
+@libraries
+  L_0: "A.sol:L"
+  L_1: "B.sol:L"
 
 // Two structurally identical panic blocks collapse into one shared block.
 // CHECK-LABEL: {{^[ +].*}}fn @dedup_identical_panics{{[( ]}}
@@ -119,7 +122,7 @@ fn @keep_distinct_outside_operands(arg0: i256, arg1: i256) {
 // fields must stay separate.
 // CHECK-LABEL: {{^[ +].*}}fn @keep_distinct_memory_fields{{[( ]}}
 // CHECK: {{^[ +].*}}jumpi {{(arg[0-9]+|v[0-9]+)}}, bb3, bb4
-fn @keep_distinct_memory_fields(arg0: i256, arg1: i256, arg2: memorystruct) {
+fn @keep_distinct_memory_fields(arg0: i256, arg1: i256, arg2: memptr) {
   bb0:
     v2 = ne arg0, 0
     jumpi v2, bb1, bb2
@@ -159,7 +162,7 @@ fn @keep_distinct_packed_literals(arg0: i1) -> i256 {
 // CHECK: {{^[ +].*}}jumpi {{(arg[0-9]+|v[0-9]+)}}, bb1, bb2
 // CHECK: {{^[ +].*}}load_storage_array enum<3>, arg1
 // CHECK: {{^[ +].*}}load_storage_array enum<2>, arg1
-fn @keep_distinct_enum_bounds(arg0: i1, arg1: i256) -> memoryarray {
+fn @keep_distinct_enum_bounds(arg0: i1, arg1: i256) -> memptr {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:
@@ -203,15 +206,15 @@ fn @keep_distinct_storage_literals(arg0: i1, arg1: i256) {
 // Library addresses carry distinct relocation identities.
 // CHECK-LABEL: {{^[ +].*}}fn @keep_distinct_libraries{{[( ]}}
 // CHECK: {{^[ +].*}}jumpi arg0, bb1, bb2
-// CHECK: library_address "B.sol":"L"
-// CHECK: library_address "A.sol":"L"
+// CHECK: library_address L_1
+// CHECK: library_address L_0
 fn @keep_distinct_libraries(arg0: i1) -> i160 {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:
-    v0 = library_address "A.sol":"L"
+    v0 = library_address L_0
     ret v0
   bb2:
-    v1 = library_address "B.sol":"L"
+    v1 = library_address L_1
     ret v1
 }

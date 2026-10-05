@@ -1,34 +1,13 @@
-use super::super::{
-    AnalysisBatch, AnalysisOutputAccumulator, AnalysisResult, AnalysisResultAccumulator,
-    GlobalState, analyze, analyze_cancellable,
-};
-use crate::test_support::{
-    MarkedProject, type_hierarchy_prepare_params, type_hierarchy_subtypes_params,
-    type_hierarchy_supertypes_params,
-};
-use async_lsp::{ClientSocket, ErrorCode};
+use super::*;
 use lsp_types::{
-    CodeLens, CodeLensParams, CompletionContext, CompletionItem, CompletionParams,
-    CompletionResponse, CompletionTextEdit, CompletionTriggerKind, DocumentHighlight,
-    DocumentHighlightKind, DocumentHighlightParams, DocumentLink, DocumentLinkParams,
-    Documentation, FoldingRange, FoldingRangeKind, FoldingRangeParams, GotoDefinitionParams,
-    GotoDefinitionResponse, Hover, HoverContents, HoverParams, InlayHint, InlayHintKind,
-    InlayHintLabel, InlayHintParams, Location, MarkupKind, ParameterLabel, PartialResultParams,
-    Position, PrepareRenameResponse, Range, ReferenceContext, ReferenceParams, RenameParams,
-    SelectionRange, SelectionRangeParams, SignatureHelp, SignatureHelpParams,
-    TextDocumentIdentifier, TextDocumentPositionParams, TypeHierarchyItem, Url,
-    WorkDoneProgressParams, WorkspaceEdit,
+    CodeLens, CompletionResponse, CompletionTextEdit, DocumentHighlight, DocumentHighlightKind,
+    DocumentLink, Documentation, FoldingRange, FoldingRangeKind, GotoDefinitionResponse, Hover,
+    HoverContents, InlayHint, InlayHintKind, InlayHintLabel, Location, MarkupKind, ParameterLabel,
+    PrepareRenameResponse, RenameParams, SelectionRange, SelectionRangeParams, SignatureHelp,
+    TypeHierarchyItem, WorkspaceEdit,
 };
 use snapbox::{IntoData, assert_data_eq};
-use solar_config::CompileOpts;
-use std::{
-    fmt::Write as _,
-    future::Future,
-    io::Read as _,
-    path::Path,
-    sync::Arc,
-    task::{Context, Poll, Waker},
-};
+use std::{fmt::Write as _, io::Read as _, pin::Pin};
 
 pub(super) struct RequestFixture {
     marked: MarkedProject,
@@ -46,7 +25,7 @@ impl RequestFixture {
         let marked = MarkedProject::from_fixture(fixture);
         let contents = marked.project().read_file(path);
         let path = marked.project().path(path);
-        let result = analyze(AnalysisBatch::from_files(CompileOpts::default(), [(path, contents)]));
+        let result = analyze_source(path, contents);
         Self { marked, result }
     }
 
@@ -79,14 +58,15 @@ impl RequestFixture {
                 .filter(|(open_path, _)| open_path == path)
                 .map_or_else(|| marked.project().read_file(path), |(_, contents)| contents.clone());
             let path = marked.project().path(path);
-            results.push(analyze(AnalysisBatch::from_files(
-                CompileOpts::default(),
-                [(path, contents)],
-            )));
+            results.push(analyze_source(path, contents));
         }
         let result = results.finish();
         assert!(result.diagnostics.is_empty(), "{:#?}", result.diagnostics);
         Self { marked, result }
+    }
+
+    pub(super) fn project(&self) -> &TestProject {
+        self.marked.project()
     }
 
     pub(super) fn project_contents(&self, path: &str) -> String {
@@ -103,207 +83,116 @@ impl RequestFixture {
         new_name: &str,
     ) -> (GlobalState, RenameParams) {
         let (uri, position) = self.marker_location(marker);
-        (self.state(), rename_params(uri, position, new_name))
+        (self.state(), rename_params(&uri, position, new_name))
     }
 
-    pub(super) fn check_completion(&self, marker: &str, expected: impl IntoData) {
-        let mut state = self.state();
-        let (uri, position) = self.marker_location(marker);
-        let response =
-            expect_ready(crate::handlers::completion(&mut state, completion_params(uri, position)))
-                .unwrap()
-                .unwrap();
-        let CompletionResponse::Array(items) = response else {
-            panic!("expected completion array");
-        };
-        assert_data_eq!(completion_output(&items), expected);
-    }
-
-    pub(super) fn check_completion_details(&self, marker: &str, expected: impl IntoData) {
-        self.check_completion_details_with_snippets(marker, true, expected);
-    }
-
-    pub(super) fn check_completion_details_with_snippets(
+    pub(super) fn rename_state_with_roots(
         &self,
         marker: &str,
-        snippet_support: bool,
+        new_name: &str,
+        roots: &[&str],
+    ) -> (GlobalState, RenameParams) {
+        let (mut state, params) = self.rename_state_and_params(marker, new_name);
+        state.config = Arc::new(self.marked.project().config_with_roots(roots));
+        (state, params)
+    }
+
+    pub(super) fn check_completions(&self, markers: &[&str], expected: impl IntoData) {
+        self.check_completions_in(&mut self.completion_state(), markers, expected);
+    }
+
+    pub(super) fn check_completions_in(
+        &self,
+        state: &mut GlobalState,
+        markers: &[&str],
         expected: impl IntoData,
     ) {
-        let mut state = self.state_with_completion_snippets(snippet_support);
-        let (uri, position) = self.marker_location(marker);
-        let response =
-            expect_ready(crate::handlers::completion(&mut state, completion_params(uri, position)))
-                .unwrap()
-                .unwrap();
-        let CompletionResponse::Array(items) = response else {
-            panic!("expected completion array");
-        };
-        assert_data_eq!(completion_details_output(&items), expected);
+        let requests = markers.iter().map(|&marker| (marker, None)).collect::<Vec<_>>();
+        self.check_completion_requests(state, &requests, expected);
     }
 
-    pub(super) fn check_completion_details_with_trigger(
+    pub(super) fn check_triggered_completions(
         &self,
-        marker: &str,
-        trigger_character: &str,
+        requests: &[(&str, &str)],
         expected: impl IntoData,
     ) {
-        let mut state = self.state_with_completion_snippets(true);
-        let (uri, position) = self.marker_location(marker);
-        let response = expect_ready(crate::handlers::completion(
-            &mut state,
-            completion_params_with_trigger(uri, position, trigger_character),
-        ))
-        .unwrap()
-        .unwrap();
-        let CompletionResponse::Array(items) = response else {
-            panic!("expected completion array");
-        };
-        assert_data_eq!(completion_details_output(&items), expected);
+        let requests =
+            requests.iter().map(|&(marker, trigger)| (marker, Some(trigger))).collect::<Vec<_>>();
+        self.check_completion_requests(&mut self.completion_state(), &requests, expected);
     }
 
-    pub(super) fn check_completion_details_after_change(
+    fn check_completion_requests(
         &self,
-        marker: &str,
-        path: &str,
-        changed_contents: &str,
+        state: &mut GlobalState,
+        requests: &[(&str, Option<&str>)],
         expected: impl IntoData,
     ) {
-        self.check_completion_details_after_changes(
-            marker,
-            path,
-            &[(path, changed_contents)],
-            expected,
-        );
+        let requests = requests.iter().map(|&(marker, trigger)| {
+            let (uri, position) = self.marker_location(marker);
+            (marker.to_string(), uri, position, trigger)
+        });
+        check_completions_at(state, requests, expected);
     }
 
-    pub(super) fn check_completion_after_change(
-        &self,
-        marker: &str,
-        path: &str,
-        contents: &str,
-        expected: impl IntoData,
-    ) {
-        let items = self.completion_after_changes(marker, path, &[(path, contents)]);
-        assert_data_eq!(completion_output(&items), expected);
-    }
-
-    pub(super) fn check_completion_details_after_changes(
-        &self,
-        marker: &str,
-        request_path: &str,
-        changes: &[(&str, &str)],
-        expected: impl IntoData,
-    ) {
-        let items = self.completion_after_changes(marker, request_path, changes);
-        assert_data_eq!(completion_details_output(&items), expected);
-    }
-
-    fn completion_after_changes(
-        &self,
-        marker: &str,
-        request_path: &str,
-        changes: &[(&str, &str)],
-    ) -> Vec<CompletionItem> {
-        let mut state = self.state_with_completion_snippets(true);
+    /// Returns a snippet-capable state whose open files changed after the stored analysis.
+    pub(super) fn completion_state_after_changes(&self, changes: &[(&str, &str)]) -> GlobalState {
+        let state = self.completion_state();
         for &(path, contents) in changes {
             let path = self.marked.project().path(path);
             state.mark_source_analysis_pending_for_test(path.clone());
-            state.vfs.write().set_file_contents(
-                crate::vfs::VfsPath::from(path),
-                Some(crop::Rope::from(contents)),
-            );
+            set_overlay(&state, &path, contents, None);
         }
-        let uri = Url::from_file_path(self.marked.project().path(request_path)).unwrap();
-        let position = self.marked.marker(marker).position();
-        let response =
-            expect_ready(crate::handlers::completion(&mut state, completion_params(uri, position)))
-                .unwrap()
-                .unwrap();
-        let CompletionResponse::Array(items) = response else {
-            panic!("expected completion array");
-        };
-        items
-    }
-
-    pub(super) fn check_completion_details_after_deleted_source(
-        &self,
-        marker: &str,
-        request_path: &str,
-        deleted_path: &str,
-        expected: impl IntoData,
-    ) {
-        let mut state = self.state_with_completion_snippets(true);
-        let deleted_path = self.marked.project().path(deleted_path);
-        state.mark_source_analysis_pending_for_test(deleted_path.clone());
-        std::fs::remove_file(deleted_path).unwrap();
-        let uri = Url::from_file_path(self.marked.project().path(request_path)).unwrap();
-        let position = self.marked.marker(marker).position();
-        let response =
-            expect_ready(crate::handlers::completion(&mut state, completion_params(uri, position)))
-                .unwrap()
-                .unwrap();
-        let CompletionResponse::Array(items) = response else {
-            panic!("expected completion array");
-        };
-        assert_data_eq!(completion_details_output(&items), expected);
-    }
-
-    pub(super) fn check_completion_details_after_context_change(
-        &self,
-        marker: &str,
-        expected: impl IntoData,
-    ) {
-        let mut state = self.state_with_completion_snippets(true);
-        state.mark_context_analysis_pending_for_test();
-        let (uri, position) = self.marker_location(marker);
-        let response =
-            expect_ready(crate::handlers::completion(&mut state, completion_params(uri, position)))
-                .unwrap()
-                .unwrap();
-        let CompletionResponse::Array(items) = response else {
-            panic!("expected completion array");
-        };
-        assert_data_eq!(completion_details_output(&items), expected);
+        state
     }
 
     pub(super) fn check_goto_definition(&self, marker: &str, expected: impl IntoData) {
-        let mut state = self.state();
-        let (uri, position) = self.marker_location(marker);
-        let response =
-            expect_ready(crate::handlers::goto_definition(&mut state, goto_params(uri, position)))
-                .unwrap();
-        assert_data_eq!(self.goto_output(response), expected);
+        assert_data_eq!(self.query_output(Query::Definition, marker), expected);
     }
 
-    pub(super) fn check_goto_declaration(&self, marker: &str, expected: impl IntoData) {
-        let mut state = self.state();
-        let (uri, position) = self.marker_location(marker);
-        let response =
-            expect_ready(crate::handlers::goto_declaration(&mut state, goto_params(uri, position)))
-                .unwrap();
-        assert_data_eq!(self.goto_output(response), expected);
+    /// Checks every query at every numbered marker. Each answer starts with its marker and, when
+    /// several queries are checked, the query label.
+    pub(super) fn check_queries(
+        &self,
+        queries: &[Query],
+        markers: impl IntoIterator<Item = usize>,
+        expected: impl IntoData,
+    ) {
+        let mut output = String::new();
+        for marker in markers {
+            let marker = format!("${marker}");
+            for &query in queries {
+                let label =
+                    if queries.len() == 1 { String::new() } else { format!(" {}:", query.label()) };
+                write!(output, "{marker}{label} {}", self.query_output(query, &marker)).unwrap();
+            }
+        }
+        assert_data_eq!(output, expected);
     }
 
-    pub(super) fn check_goto_implementation(&self, marker: &str, expected: impl IntoData) {
+    fn query_output(&self, query: Query, marker: &str) -> String {
         let mut state = self.state();
         let (uri, position) = self.marker_location(marker);
-        let response = expect_ready(crate::handlers::goto_implementation(
-            &mut state,
-            goto_params(uri, position),
-        ))
-        .unwrap();
-        assert_data_eq!(self.goto_output(response), expected);
+        self.response_output(expect_ready(query.request(&mut state, uri, position)).unwrap())
     }
 
-    pub(super) fn check_goto_type_definition(&self, marker: &str, expected: impl IntoData) {
-        let mut state = self.state();
+    /// Sends a query at a marker to `state` and formats its answer like [`Self::check_queries`].
+    pub(super) async fn query_in(
+        &self,
+        state: &mut GlobalState,
+        query: Query,
+        marker: &str,
+    ) -> String {
         let (uri, position) = self.marker_location(marker);
-        let response = expect_ready(crate::handlers::goto_type_definition(
-            &mut state,
-            goto_params(uri, position),
-        ))
-        .unwrap();
-        assert_data_eq!(self.goto_output(response), expected);
+        self.response_output(query.request(state, uri, position).await.unwrap())
+    }
+
+    pub(super) fn response_output(&self, response: QueryResponse) -> String {
+        match response {
+            QueryResponse::Goto(response) => self.goto_output(response),
+            QueryResponse::Locations(response) => self.locations_output(response),
+            QueryResponse::Highlights(response) => document_highlight_output(response),
+            QueryResponse::Hover(response) => hover_output(response),
+        }
     }
 
     pub(super) fn prepare_type_hierarchy(&self, marker: &str) -> Option<Vec<TypeHierarchyItem>> {
@@ -311,7 +200,7 @@ impl RequestFixture {
         let (uri, position) = self.marker_location(marker);
         expect_ready(crate::handlers::prepare_type_hierarchy(
             &mut state,
-            type_hierarchy_prepare_params(uri, position),
+            request_params(&uri, position, json!({})),
         ))
         .unwrap()
     }
@@ -323,7 +212,7 @@ impl RequestFixture {
         let mut state = self.state();
         expect_ready(crate::handlers::type_hierarchy_supertypes(
             &mut state,
-            type_hierarchy_supertypes_params(item),
+            from_json(json!({ "item": item })),
         ))
         .unwrap()
     }
@@ -335,7 +224,7 @@ impl RequestFixture {
         let mut state = self.state();
         expect_ready(crate::handlers::type_hierarchy_subtypes(
             &mut state,
-            type_hierarchy_subtypes_params(item),
+            from_json(json!({ "item": item })),
         ))
         .unwrap()
     }
@@ -346,99 +235,86 @@ impl RequestFixture {
         include_declaration: bool,
         expected: impl IntoData,
     ) {
-        let mut state = self.state();
-        let (uri, position) = self.marker_location(marker);
-        let response = expect_ready(crate::handlers::references(
-            &mut state,
-            reference_params(uri, position, include_declaration),
-        ))
-        .unwrap();
-        assert_data_eq!(self.locations_output(response), expected);
+        assert_data_eq!(
+            self.query_output(Query::References(include_declaration), marker),
+            expected
+        );
     }
 
     pub(super) fn check_code_lenses(&self, path: &str, expected: impl IntoData) {
-        self.check_code_lenses_with_commands(path, true, expected);
+        assert_data_eq!(code_lens_output(&self.code_lenses(path, true)), expected);
     }
 
     pub(super) fn check_code_lenses_without_commands(&self, path: &str, expected: impl IntoData) {
-        self.check_code_lenses_with_commands(path, false, expected);
+        assert_data_eq!(code_lens_output(&self.code_lenses(path, false)), expected);
     }
 
+    /// Checks the exact serialized protocol form, one compact JSON lens per line.
     pub(super) fn check_code_lenses_json(&self, path: &str, expected: impl IntoData) {
-        let mut state = self.state();
-        Arc::make_mut(&mut state.config).enable_code_lens_client_commands();
-        let uri = Url::from_file_path(self.marked.project().path(path)).unwrap();
-        let response =
-            expect_ready(crate::handlers::code_lens(&mut state, code_lens_params(uri.clone())))
-                .unwrap()
-                .unwrap_or_default();
-        let output = serde_json::to_string_pretty(&response)
-            .unwrap()
-            .replace(uri.as_str(), &format!("file://{path}"));
+        let mut output = String::new();
+        for lens in self.code_lenses(path, true) {
+            writeln!(output, "{}", serde_json::to_string(&lens).unwrap()).unwrap();
+        }
+        let output = output.replace(self.path_uri(path).as_str(), &format!("file://{path}"));
         assert_data_eq!(output, expected);
     }
 
-    fn check_code_lenses_with_commands(
-        &self,
-        path: &str,
-        client_commands: bool,
-        expected: impl IntoData,
-    ) {
+    fn code_lenses(&self, path: &str, client_commands: bool) -> Vec<CodeLens> {
         let mut state = self.state();
         if client_commands {
             Arc::make_mut(&mut state.config).enable_code_lens_client_commands();
         }
-        let uri = Url::from_file_path(self.marked.project().path(path)).unwrap();
-        let response = expect_ready(crate::handlers::code_lens(&mut state, code_lens_params(uri)))
-            .unwrap()
-            .unwrap_or_default();
-        assert_data_eq!(code_lens_output(&response), expected);
+        let params = document_params(&self.path_uri(path));
+        expect_ready(crate::handlers::code_lens(&mut state, params)).unwrap().unwrap_or_default()
     }
 
     pub(super) fn check_document_highlights(&self, marker: &str, expected: impl IntoData) {
-        let mut state = self.state();
-        let (uri, position) = self.marker_location(marker);
-        let response = expect_ready(crate::handlers::document_highlight(
-            &mut state,
-            document_highlight_params(uri, position),
-        ))
-        .unwrap();
-        assert_data_eq!(document_highlight_output(response), expected);
-    }
-
-    pub(super) fn check_hover(&self, marker: &str, expected: impl IntoData) {
-        let mut state = self.state();
-        let (uri, position) = self.marker_location(marker);
-        let response =
-            expect_ready(crate::handlers::hover(&mut state, hover_params(uri, position))).unwrap();
-        assert_data_eq!(hover_output(response), expected);
+        assert_data_eq!(self.query_output(Query::Highlights, marker), expected);
     }
 
     pub(super) fn check_prepare_rename(&self, marker: &str, expected: impl IntoData) {
         let mut state = self.state();
         let (uri, position) = self.marker_location(marker);
-        let response = expect_ready(crate::handlers::prepare_rename(
+        let response = block_on(crate::handlers::prepare_rename(
             &mut state,
-            text_document_position(uri, position),
+            request_params(&uri, position, json!({})),
         ))
         .unwrap();
         assert_data_eq!(prepare_rename_output(response), expected);
     }
 
     pub(super) fn check_rename(&self, marker: &str, new_name: &str, expected: impl IntoData) {
+        assert_data_eq!(self.rename_edits(marker, new_name), expected);
+    }
+
+    /// Checks renames from groups of space-separated markers that must produce equal edits.
+    pub(super) fn check_renames(&self, renames: &[(&str, &str)], expected: impl IntoData) {
+        let mut output = String::new();
+        for &(markers, new_name) in renames {
+            let mut group = markers.split_whitespace();
+            let edits = self.rename_edits(group.next().unwrap(), new_name);
+            for marker in group {
+                assert_eq!(self.rename_edits(marker, new_name), edits, "{marker}");
+            }
+            write!(output, "{markers}:\n{edits}").unwrap();
+        }
+        assert_data_eq!(output, expected);
+    }
+
+    fn rename_edits(&self, marker: &str, new_name: &str) -> String {
         let mut state = self.state();
         let (uri, position) = self.marker_location(marker);
         let response =
-            block_on(crate::handlers::rename(&mut state, rename_params(uri, position, new_name)))
+            block_on(crate::handlers::rename(&mut state, rename_params(&uri, position, new_name)))
                 .unwrap();
-        assert_data_eq!(self.rename_output(response), expected);
+        self.rename_output(response)
     }
 
     pub(super) fn check_rename_error(&self, marker: &str, new_name: &str, expected: ErrorCode) {
         let mut state = self.state();
         let (uri, position) = self.marker_location(marker);
         let error =
-            block_on(crate::handlers::rename(&mut state, rename_params(uri, position, new_name)))
+            block_on(crate::handlers::rename(&mut state, rename_params(&uri, position, new_name)))
                 .expect_err("rename should fail");
         assert_eq!(error.code, expected);
     }
@@ -452,43 +328,36 @@ impl RequestFixture {
     }
 
     pub(super) fn check_inlay_hints(&self, path: &str, expected: impl IntoData) {
-        let uri = Url::from_file_path(self.marked.project().path(path)).unwrap();
-        assert_data_eq!(inlay_hint_output(&self.inlay_hints(uri, full_range())), expected);
+        assert_data_eq!(
+            inlay_hint_output(&self.inlay_hints(self.path_uri(path), full_range())),
+            expected
+        );
     }
 
     pub(super) fn check_document_links(&self, path: &str, expected: impl IntoData) {
+        self.check_document_links_at(self.path_uri(path), expected);
+    }
+
+    pub(super) fn check_document_links_at(&self, uri: Url, expected: impl IntoData) {
         let mut state = self.state();
-        let uri = Url::from_file_path(self.marked.project().path(path)).unwrap();
         let links =
-            expect_ready(crate::handlers::document_links(&mut state, document_link_params(uri)))
+            expect_ready(crate::handlers::document_links(&mut state, document_params(&uri)))
                 .unwrap()
                 .unwrap_or_default();
         assert_data_eq!(self.document_links_output(links), expected);
     }
 
     pub(super) fn check_folding_ranges(&self, path: &str, expected: impl IntoData) {
-        let mut state = self.state();
-        let uri = Url::from_file_path(self.marked.project().path(path)).unwrap();
-        let response =
-            block_on(crate::handlers::folding_range(&mut state, folding_range_params(uri)))
-                .unwrap()
-                .expect("folding-range request should return ranges");
-        assert_data_eq!(folding_range_output(&response), expected);
+        let ranges = self.folding_ranges(self.path_uri(path));
+        let ranges = ranges.expect("folding-range request should return ranges");
+        assert_data_eq!(folding_range_output(&ranges), expected);
     }
 
-    pub(super) fn check_folding_ranges_while_analysis_pending(
-        &self,
-        path: &str,
-        expected: impl IntoData,
-    ) {
+    pub(super) fn folding_ranges(&self, uri: Url) -> Option<Vec<FoldingRange>> {
         let mut state = self.state();
+        // Folding ranges are syntactic and must not wait for analysis.
         state.mark_analysis_pending_for_test();
-        let uri = Url::from_file_path(self.marked.project().path(path)).unwrap();
-        let response =
-            block_on(crate::handlers::folding_range(&mut state, folding_range_params(uri)))
-                .unwrap()
-                .expect("folding-range request should return ranges");
-        assert_data_eq!(folding_range_output(&response), expected);
+        block_on(crate::handlers::folding_range(&mut state, document_params(&uri))).unwrap()
     }
 
     pub(super) fn check_folding_range_uses_blocking_pool(
@@ -496,52 +365,16 @@ impl RequestFixture {
         path: &str,
         expected: impl IntoData,
     ) {
-        let runtime = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .max_blocking_threads(1)
-            .build()
-            .unwrap();
-        runtime.block_on(async {
-            let (release_worker, worker) = super::pause_blocking_pool();
-            let mut state = self.state();
-            let uri = Url::from_file_path(self.marked.project().path(path)).unwrap();
-            let mut request = std::pin::pin!(crate::handlers::folding_range(
-                &mut state,
-                folding_range_params(uri),
-            ));
-            let waker = Waker::noop();
-            let mut cx = Context::from_waker(waker);
-
-            let is_pending = request.as_mut().poll(&mut cx).is_pending();
-            release_worker.send(()).unwrap();
-            assert!(is_pending);
-            let response =
-                request.await.unwrap().expect("folding-range request should return ranges");
-            worker.await.unwrap();
-            assert_data_eq!(folding_range_output(&response), expected);
-        });
-    }
-
-    pub(super) fn check_folding_range_returns_none(&self, uri: Url) {
-        let mut state = self.state();
-        state.mark_analysis_pending_for_test();
+        let params = document_params(&self.path_uri(path));
         let response =
-            block_on(crate::handlers::folding_range(&mut state, folding_range_params(uri)))
-                .unwrap();
-        assert_eq!(response, None);
-    }
-
-    pub(super) fn check_missing_folding_range_returns_none(&self, path: &str) {
-        let uri = Url::from_file_path(self.marked.project().path(path)).unwrap();
-        self.check_folding_range_returns_none(uri);
+            self.on_paused_blocking_pool(|state| crate::handlers::folding_range(state, params));
+        let ranges = response.unwrap().expect("folding-range request should return ranges");
+        assert_data_eq!(folding_range_output(&ranges), expected);
     }
 
     pub(super) fn check_selection_ranges(&self, markers: &[&str], expected: impl IntoData) {
-        let mut state = self.state();
         let (params, positions) = self.selection_range_request(markers);
-        let response =
-            block_on(crate::handlers::selection_range(&mut state, params)).unwrap().unwrap();
-        check_selection_range_response(response, &positions, expected);
+        self.check_selection_range_params(params, &positions, expected);
     }
 
     pub(super) fn selection_range_response_in_state(
@@ -561,33 +394,22 @@ impl RequestFixture {
         expected: impl IntoData,
     ) {
         assert_eq!(positions.len(), normalized_positions.len());
-        let mut state = self.state();
-        let uri = Url::from_file_path(self.marked.project().path(path)).unwrap();
-        let params = selection_range_params(uri, positions);
-        let response =
-            block_on(crate::handlers::selection_range(&mut state, params)).unwrap().unwrap();
-        check_selection_range_response(response, normalized_positions, expected);
+        let params = selection_range_params(&self.path_uri(path), positions);
+        self.check_selection_range_params(params, normalized_positions, expected);
     }
 
-    pub(super) fn check_selection_ranges_from_disk(
+    fn check_selection_range_params(
         &self,
-        markers: &[&str],
-        expected: impl IntoData,
-    ) {
-        self.check_selection_ranges(markers, expected);
-    }
-
-    pub(super) fn check_selection_ranges_while_analysis_pending(
-        &self,
-        markers: &[&str],
+        params: SelectionRangeParams,
+        positions: &[Position],
         expected: impl IntoData,
     ) {
         let mut state = self.state();
+        // Selection ranges are syntactic and must not wait for analysis.
         state.mark_analysis_pending_for_test();
-        let (params, positions) = self.selection_range_request(markers);
         let response =
             block_on(crate::handlers::selection_range(&mut state, params)).unwrap().unwrap();
-        check_selection_range_response(response, &positions, expected);
+        assert_data_eq!(selection_range_output(&response, positions), expected);
     }
 
     pub(super) fn check_selection_range_uses_blocking_pool(
@@ -595,26 +417,10 @@ impl RequestFixture {
         markers: &[&str],
         expected: impl IntoData,
     ) {
-        let runtime = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .max_blocking_threads(1)
-            .build()
-            .unwrap();
-        runtime.block_on(async {
-            let (release_worker, worker) = super::pause_blocking_pool();
-            let mut state = self.state();
-            let (params, positions) = self.selection_range_request(markers);
-            let mut request = std::pin::pin!(crate::handlers::selection_range(&mut state, params));
-            let waker = Waker::noop();
-            let mut cx = Context::from_waker(waker);
-
-            let is_pending = request.as_mut().poll(&mut cx).is_pending();
-            release_worker.send(()).unwrap();
-            assert!(is_pending);
-            let response = request.await.unwrap().unwrap();
-            worker.await.unwrap();
-            check_selection_range_response(response, &positions, expected);
-        });
+        let (params, positions) = self.selection_range_request(markers);
+        let response =
+            self.on_paused_blocking_pool(|state| crate::handlers::selection_range(state, params));
+        assert_data_eq!(selection_range_output(&response.unwrap().unwrap(), &positions), expected);
     }
 
     pub(super) fn check_selection_range_error(
@@ -624,78 +430,60 @@ impl RequestFixture {
         expected: ErrorCode,
     ) {
         let mut state = self.state();
-        let uri = Url::from_file_path(self.marked.project().path(path)).unwrap();
-        let params = selection_range_params(uri, positions);
+        let params = selection_range_params(&self.path_uri(path), positions);
         let error = block_on(crate::handlers::selection_range(&mut state, params))
             .expect_err("selection-range request should fail");
         assert_eq!(error.code, expected);
         assert!(!error.message.ends_with('.'));
     }
 
-    pub(super) fn check_signature_help(&self, marker: &str, expected: impl IntoData) {
-        let mut state = self.state();
-        let (uri, position) = self.marker_location(marker);
-        self.check_signature_help_in_state(&mut state, uri, position, expected);
-    }
-
-    pub(super) fn check_signature_help_without_label_offsets(
+    /// Runs a request with one paused blocking worker, requiring it to wait for the pool.
+    fn on_paused_blocking_pool<F: Future>(
         &self,
-        marker: &str,
-        expected: impl IntoData,
-    ) {
-        let mut state = self.state_with_label_offsets(false);
-        let (uri, position) = self.marker_location(marker);
-        self.check_signature_help_in_state(&mut state, uri, position, expected);
+        request: impl FnOnce(&mut GlobalState) -> F,
+    ) -> F::Output {
+        with_paused_blocking_pool(|release_worker| async move {
+            let mut state = self.state();
+            let mut request = std::pin::pin!(request(&mut state));
+            let is_pending =
+                request.as_mut().poll(&mut Context::from_waker(Waker::noop())).is_pending();
+            release_worker.send(()).unwrap();
+            assert!(is_pending);
+            request.await
+        })
     }
 
-    pub(super) fn signature_help_response(&self, marker: &str) -> Option<SignatureHelp> {
-        let mut state = self.state();
-        let (uri, position) = self.marker_location(marker);
-        expect_ready(crate::handlers::signature_help(
-            &mut state,
-            signature_help_params(uri, position),
-        ))
-        .unwrap()
+    pub(super) fn check_signature_help(&self, markers: &[&str], expected: impl IntoData) {
+        self.check_signature_help_in(&mut self.state(), markers, expected);
     }
 
-    pub(super) fn check_signature_help_after_change(
-        &self,
-        marker: &str,
-        path: &str,
-        changed_contents: &str,
-        expected: impl IntoData,
-    ) {
-        let path = self.marked.project().path(path);
-        let uri = Url::from_file_path(&path).unwrap();
-        let result = analyze(AnalysisBatch::from_files(
-            CompileOpts::default(),
-            [(path.clone(), changed_contents.to_string())],
-        ));
-        assert!(!result.diagnostics.is_empty(), "changed source should fail analysis");
-
-        let mut state = self.state();
-        state.vfs.write().set_file_contents(
-            crate::vfs::VfsPath::from(path),
-            Some(crop::Rope::from(changed_contents)),
-        );
-        state.symbol_tables.store(Arc::new(result.symbol_tables));
-        let position = self.marked.marker(marker).position();
-        self.check_signature_help_in_state(&mut state, uri, position, expected);
-    }
-
-    fn check_signature_help_in_state(
+    pub(super) fn check_signature_help_in(
         &self,
         state: &mut GlobalState,
-        uri: Url,
-        position: Position,
+        markers: &[&str],
         expected: impl IntoData,
     ) {
-        let response = expect_ready(crate::handlers::signature_help(
-            state,
-            signature_help_params(uri, position),
-        ))
-        .unwrap();
-        assert_data_eq!(signature_help_output(response), expected);
+        let outputs = markers.iter().map(|&marker| {
+            let (uri, position) = self.marker_location(marker);
+            (marker.to_string(), signature_help_output(signature_help_at(state, uri, position)))
+        });
+        assert_data_eq!(marker_outputs(outputs), expected);
+    }
+
+    /// Returns a state that keeps analyzing `path` as `changed_contents`, which must fail analysis.
+    pub(super) fn signature_help_state_after_change(
+        &self,
+        path: &str,
+        changed_contents: &str,
+    ) -> GlobalState {
+        let path = self.marked.project().path(path);
+        let result = analyze_source(path.clone(), changed_contents);
+        assert!(!result.diagnostics.is_empty(), "changed source should fail analysis");
+
+        let state = self.state();
+        set_overlay(&state, &path, changed_contents, None);
+        state.symbol_tables.store(Arc::new(result.symbol_tables));
+        state
     }
 
     pub(super) fn check_inlay_hints_between(
@@ -715,58 +503,44 @@ impl RequestFixture {
 
     fn inlay_hints(&self, uri: Url, range: Range) -> Vec<InlayHint> {
         let mut state = self.state();
-        let response =
-            expect_ready(crate::handlers::inlay_hints(&mut state, inlay_hint_params(uri, range)))
-                .unwrap();
+        let response = expect_ready(crate::handlers::inlay_hints(
+            &mut state,
+            request_params(&uri, Position::default(), json!({ "range": range })),
+        ))
+        .unwrap();
         response.unwrap_or_default()
     }
 
     pub(super) fn state(&self) -> GlobalState {
-        self.state_with_label_offsets(true)
-    }
-
-    pub(super) fn state_with_workspace_analysis(&self) -> GlobalState {
-        let mut outputs = AnalysisOutputAccumulator::default();
-        for batch in super::snapshot(self.marked.project()).analysis_batches(Vec::new()) {
-            if !batch.files.is_empty() {
-                outputs.push(
-                    analyze_cancellable(batch, &Default::default())
-                        .expect("fresh analysis cancellation cannot be cancelled"),
-                );
-            }
-        }
-        let output = outputs.finish();
-        let state = self.state_with_label_offsets(true);
-        state.symbol_tables.store(Arc::new(output.result.symbol_tables));
-        state.analysis_commit.lock().analysis_paths = output.analysis_paths;
-        state
-    }
-
-    fn state_with_completion_snippets(&self, completion_snippets: bool) -> GlobalState {
-        let mut state = self.state_with_label_offsets(true);
-        if completion_snippets {
-            Arc::make_mut(&mut state.config).enable_completion_snippets();
-        }
-        state
-    }
-
-    fn state_with_label_offsets(&self, label_offsets: bool) -> GlobalState {
-        let mut state = GlobalState::new(ClientSocket::new_closed());
         let mut config = self.marked.project().config();
-        if label_offsets {
-            config.enable_signature_help_label_offsets();
-        }
-        state.config = Arc::new(config);
+        config.enable_signature_help_label_offsets();
+        let state = state_with(config);
         *state.vfs.write() = self.marked.project().vfs();
         state.symbol_tables.store(Arc::new(self.result.symbol_tables.clone()));
         state.analysis_commit.lock().vfs_content_revision = state.vfs.read().content_revision();
         state
     }
 
+    pub(super) fn state_with_workspace_analysis(&self) -> GlobalState {
+        let output = analyze_workspace(&snapshot(self.marked.project()));
+        let state = self.state();
+        state.symbol_tables.store(Arc::new(output.result.symbol_tables));
+        state.analysis_commit.lock().analysis_paths = output.analysis_paths;
+        state
+    }
+
+    pub(super) fn completion_state(&self) -> GlobalState {
+        let mut state = self.state();
+        Arc::make_mut(&mut state.config).enable_completion_snippets();
+        state
+    }
+
+    fn path_uri(&self, path: &str) -> Url {
+        self.marked.project().uri(path)
+    }
+
     pub(super) fn marker_location(&self, marker: &str) -> (Url, Position) {
-        let marker = self.marked.marker(marker);
-        let path = self.marked.project().path(marker.path());
-        (Url::from_file_path(path).unwrap(), marker.position())
+        self.marked.location(marker)
     }
 
     fn selection_range_request(&self, markers: &[&str]) -> (SelectionRangeParams, Vec<Position>) {
@@ -784,7 +558,7 @@ impl RequestFixture {
             })
             .collect::<Vec<_>>();
         let params = selection_range_params(
-            uri.expect("at least one marker is required"),
+            &uri.expect("at least one marker is required"),
             positions.clone(),
         );
         (params, positions)
@@ -852,65 +626,137 @@ impl RequestFixture {
         )
     }
 
-    fn rename_output(&self, response: Option<WorkspaceEdit>) -> String {
-        let Some(edit) = response else { return "<none>\n".to_string() };
-        assert!(edit.document_changes.is_none());
-        assert!(edit.change_annotations.is_none());
+    pub(super) fn rename_output(&self, response: Option<WorkspaceEdit>) -> String {
+        rename_output(self.marked.project().root(), response)
+    }
+}
 
-        let mut changes = edit.changes.unwrap_or_default().into_iter().collect::<Vec<_>>();
-        changes.sort_by(|(a, _), (b, _)| a.as_str().cmp(b.as_str()));
+pub(super) fn rename_output(root: &Path, response: Option<WorkspaceEdit>) -> String {
+    let Some(edit) = response else { return "<none>\n".to_string() };
+    assert!(edit.document_changes.is_none());
+    assert!(edit.change_annotations.is_none());
 
-        let mut output = String::new();
-        for (uri, mut edits) in changes {
-            edits.sort_by_key(|edit| {
-                (edit.range.start.line, edit.range.start.character, edit.range.end)
-            });
-            let path = uri.to_file_path().unwrap();
-            let display_path = display_path(self.marked.project().root(), &path);
-            for edit in edits {
-                writeln!(
-                    output,
-                    "{display_path}:{}:{}-{}:{} -> {}",
-                    edit.range.start.line,
-                    edit.range.start.character,
-                    edit.range.end.line,
-                    edit.range.end.character,
-                    edit.new_text,
-                )
+    let mut changes = edit.changes.unwrap_or_default().into_iter().collect::<Vec<_>>();
+    changes.sort_by(|(a, _), (b, _)| a.as_str().cmp(b.as_str()));
+
+    let mut output = String::new();
+    for (uri, mut edits) in changes {
+        edits.sort_by_key(|edit| {
+            (edit.range.start.line, edit.range.start.character, edit.range.end)
+        });
+        let path = uri.to_file_path().unwrap();
+        let display_path = display_path(root, &path);
+        for edit in edits {
+            writeln!(output, "{display_path}:{} -> {}", range_output(edit.range), edit.new_text)
                 .unwrap();
-            }
         }
-        output
     }
+    output
 }
 
-fn expect_ready<F: Future>(future: F) -> F::Output {
-    let waker = Waker::noop();
-    let mut cx = Context::from_waker(waker);
-    let mut future = std::pin::pin!(future);
-    match future.as_mut().poll(&mut cx) {
-        Poll::Ready(output) => output,
-        Poll::Pending => panic!("request handler future should complete immediately"),
-    }
+/// A point query request checked by [`RequestFixture::check_queries`].
+#[derive(Clone, Copy, Debug)]
+pub(super) enum Query {
+    Definition,
+    Declaration,
+    Implementation,
+    TypeDefinition,
+    /// References, including the declaration when set.
+    References(bool),
+    Highlights,
+    Hover,
 }
 
-fn block_on<F: Future>(future: F) -> F::Output {
-    tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap().block_on(future)
+pub(super) enum QueryResponse {
+    Goto(Option<GotoDefinitionResponse>),
+    Locations(Option<Vec<Location>>),
+    Highlights(Option<Vec<DocumentHighlight>>),
+    Hover(Option<Hover>),
+}
+
+type QueryFuture = Pin<Box<dyn Future<Output = Result<QueryResponse, ResponseError>>>>;
+
+impl Query {
+    pub(super) const ALL: [Self; 7] = [
+        Self::Definition,
+        Self::Declaration,
+        Self::Implementation,
+        Self::TypeDefinition,
+        Self::References(true),
+        Self::Highlights,
+        Self::Hover,
+    ];
+
+    pub(super) fn label(self) -> &'static str {
+        match self {
+            Self::Definition => "definition",
+            Self::Declaration => "declaration",
+            Self::Implementation => "implementation",
+            Self::TypeDefinition => "type definition",
+            Self::References(true) => "references",
+            Self::References(false) => "references without declaration",
+            Self::Highlights => "highlights",
+            Self::Hover => "hover",
+        }
+    }
+
+    pub(super) fn request(
+        self,
+        state: &mut GlobalState,
+        uri: Url,
+        position: Position,
+    ) -> QueryFuture {
+        fn boxed<T: 'static>(
+            request: impl Future<Output = Result<T, ResponseError>> + 'static,
+            response: fn(T) -> QueryResponse,
+        ) -> QueryFuture {
+            Box::pin(async move { request.await.map(response) })
+        }
+
+        let goto = request_params(&uri, position, json!({}));
+        match self {
+            Self::Definition => {
+                boxed(crate::handlers::goto_definition(state, goto), QueryResponse::Goto)
+            }
+            Self::Declaration => {
+                boxed(crate::handlers::goto_declaration(state, goto), QueryResponse::Goto)
+            }
+            Self::Implementation => {
+                boxed(crate::handlers::goto_implementation(state, goto), QueryResponse::Goto)
+            }
+            Self::TypeDefinition => {
+                boxed(crate::handlers::goto_type_definition(state, goto), QueryResponse::Goto)
+            }
+            Self::References(include_declaration) => boxed(
+                crate::handlers::references(
+                    state,
+                    request_params(
+                        &uri,
+                        position,
+                        json!({ "context": { "includeDeclaration": include_declaration } }),
+                    ),
+                ),
+                QueryResponse::Locations,
+            ),
+            Self::Highlights => boxed(
+                crate::handlers::document_highlight(
+                    state,
+                    request_params(&uri, position, json!({})),
+                ),
+                QueryResponse::Highlights,
+            ),
+            Self::Hover => boxed(
+                crate::handlers::hover(state, request_params(&uri, position, json!({}))),
+                QueryResponse::Hover,
+            ),
+        }
+    }
 }
 
 fn read_file(path: &Path) -> Option<String> {
     let mut contents = String::new();
     std::fs::File::open(path).ok()?.read_to_string(&mut contents).ok()?;
     Some(contents)
-}
-
-fn completion_output(items: &[CompletionItem]) -> String {
-    let mut output = String::new();
-    for item in items {
-        let kind = item.kind.map(|kind| format!("{kind:?}")).unwrap_or_else(|| "UNKNOWN".into());
-        writeln!(output, "{} {kind}", item.label).unwrap();
-    }
-    output
 }
 
 fn code_lens_output(lenses: &[CodeLens]) -> String {
@@ -936,53 +782,78 @@ fn code_lens_output(lenses: &[CodeLens]) -> String {
     output
 }
 
-fn completion_details_output(items: &[CompletionItem]) -> String {
-    let mut output = String::new();
-    for (index, item) in items.iter().enumerate() {
-        let kind = item.kind.map(|kind| format!("{kind:?}")).unwrap_or_else(|| "<none>".into());
-        let insert_text_format = item
-            .insert_text_format
-            .map(|format| format!("{format:?}"))
-            .unwrap_or_else(|| "<none>".into());
-        let (text_edit, new_text) = match &item.text_edit {
-            Some(CompletionTextEdit::Edit(edit)) => {
-                (format!("edit {}", range_output(edit.range)), edit.new_text.as_str())
-            }
-            Some(CompletionTextEdit::InsertAndReplace(edit)) => (
-                format!(
-                    "insert-and-replace insert={} replace={}",
-                    range_output(edit.insert),
-                    range_output(edit.replace)
-                ),
-                edit.new_text.as_str(),
-            ),
-            None => ("<none>".into(), "<none>"),
-        };
-
-        writeln!(output, "label={}", item.label).unwrap();
-        writeln!(output, "kind={kind}").unwrap();
-        writeln!(output, "detail={}", item.detail.as_deref().unwrap_or("<none>")).unwrap();
-        writeln!(output, "sort_text={}", item.sort_text.as_deref().unwrap_or("<none>")).unwrap();
-        writeln!(output, "text_edit={text_edit}").unwrap();
-        if let Some(edits) = &item.additional_text_edits {
-            for edit in edits {
-                writeln!(
-                    output,
-                    "additional_text_edit={} new_text={:?}",
-                    range_output(edit.range),
-                    edit.new_text
-                )
-                .unwrap();
+fn completion_output(response: CompletionResponse) -> String {
+    let (incomplete, items) = match response {
+        CompletionResponse::Array(items) => (false, items),
+        CompletionResponse::List(list) => (list.is_incomplete, list.items),
+    };
+    let mut output = if incomplete { "incomplete\n".to_string() } else { String::new() };
+    for item in items {
+        let kind = item.kind.map_or_else(|| "<none>".into(), |kind| format!("{kind:?}"));
+        write!(output, "{} {kind}", item.label).unwrap();
+        for (name, value) in
+            [("detail", &item.detail), ("sort", &item.sort_text), ("filter", &item.filter_text)]
+        {
+            if let Some(value) = value {
+                write!(output, " {name}={value:?}").unwrap();
             }
         }
-        writeln!(output, "insert_text_format={insert_text_format}").unwrap();
-        writeln!(output, "new_text:").unwrap();
-        writeln!(output, "{new_text}").unwrap();
-        if index + 1 < items.len() {
+        if let Some(format) = item.insert_text_format {
+            write!(output, " format={format:?}").unwrap();
+        }
+        for edit in item.additional_text_edits.iter().flatten() {
+            write!(output, " additional={}={:?}", range_output(edit.range), edit.new_text).unwrap();
+        }
+        let Some(text_edit) = item.text_edit else {
             writeln!(output).unwrap();
+            continue;
+        };
+        let CompletionTextEdit::Edit(edit) = text_edit else {
+            panic!("unexpected insert-and-replace completion edit");
+        };
+        writeln!(output, " edit={}", range_output(edit.range)).unwrap();
+        for line in edit.new_text.split('\n') {
+            writeln!(output, "|{}{line}", if line.is_empty() { "" } else { " " }).unwrap();
         }
     }
     output
+}
+
+/// Checks completions for `(name, uri, position, trigger)` requests.
+pub(super) fn check_completions_at<'a>(
+    state: &mut GlobalState,
+    requests: impl IntoIterator<Item = (String, Url, Position, Option<&'a str>)>,
+    expected: impl IntoData,
+) {
+    let outputs = requests.into_iter().map(|(name, uri, position, trigger)| {
+        let context =
+            trigger.map(|trigger| json!({ "triggerKind": 2, "triggerCharacter": trigger }));
+        let params = request_params(&uri, position, json!({ "context": context }));
+        let response = expect_ready(crate::handlers::completion(state, params)).unwrap();
+        (name, completion_output(response.unwrap()))
+    });
+    // Keep backslashes from snippet and string escapes out of path normalization.
+    assert_data_eq!(marker_outputs(outputs), expected.raw());
+}
+
+/// Joins per-marker outputs, listing markers with identical output under one header.
+fn marker_outputs(outputs: impl Iterator<Item = (String, String)>) -> String {
+    let mut groups = Vec::<(Vec<String>, String)>::new();
+    for (marker, output) in outputs {
+        match groups.iter_mut().find(|(_, existing)| *existing == output) {
+            Some((markers, _)) => markers.push(marker),
+            None => groups.push((vec![marker], output)),
+        }
+    }
+    if let [(_, output)] = groups.as_slice() {
+        return output.clone();
+    }
+    let mut result = String::new();
+    for (markers, output) in groups {
+        writeln!(result, "{}:", markers.join(" ")).unwrap();
+        result.push_str(&output);
+    }
+    result
 }
 
 fn range_output(range: Range) -> String {
@@ -1011,7 +882,7 @@ fn selection_range_output(ranges: &[SelectionRange], positions: &[Position]) -> 
     output
 }
 
-fn folding_range_output(ranges: &[FoldingRange]) -> String {
+pub(super) fn folding_range_output(ranges: &[FoldingRange]) -> String {
     let mut output = String::new();
     for range in ranges {
         let kind = match range.kind {
@@ -1022,25 +893,16 @@ fn folding_range_output(ranges: &[FoldingRange]) -> String {
         };
         writeln!(
             output,
-            "{}:{}-{}:{} kind={kind} collapsed_text={:?}",
+            "{}:{}-{}:{} {kind}",
             range.start_line,
             range.start_character.expect("start character should be present"),
             range.end_line,
             range.end_character.expect("end character should be present"),
-            range.collapsed_text,
         )
         .unwrap();
+        assert_eq!(range.collapsed_text, None);
     }
     output
-}
-
-fn check_selection_range_response(
-    response: Vec<SelectionRange>,
-    positions: &[Position],
-    expected: impl IntoData,
-) {
-    assert_eq!(response.len(), positions.len());
-    assert_data_eq!(selection_range_output(&response, positions), expected);
 }
 
 fn range_contains_position(range: Range, position: Position) -> bool {
@@ -1055,8 +917,15 @@ fn range_contains_range(outer: Range, inner: Range) -> bool {
 fn inlay_hint_output(hints: &[InlayHint]) -> String {
     let mut output = String::new();
     for hint in hints {
-        writeln!(output, "{} {}", inlay_hint_kind(hint.kind), inlay_hint_label(&hint.label))
-            .unwrap();
+        writeln!(
+            output,
+            "{}:{} {} {}",
+            hint.position.line,
+            hint.position.character,
+            inlay_hint_kind(hint.kind),
+            inlay_hint_label(&hint.label)
+        )
+        .unwrap();
     }
     output
 }
@@ -1068,26 +937,15 @@ fn prepare_rename_output(response: Option<PrepareRenameResponse>) -> String {
         PrepareRenameResponse::RangeWithPlaceholder { range, .. } => range,
         PrepareRenameResponse::DefaultBehavior { .. } => return "<default>\n".to_string(),
     };
-    format!(
-        "{}:{}-{}:{}\n",
-        range.start.line, range.start.character, range.end.line, range.end.character
-    )
+    format!("{}\n", range_output(range))
 }
 
 fn document_highlight_output(response: Option<Vec<DocumentHighlight>>) -> String {
     let Some(highlights) = response else { return "<none>\n".to_string() };
     let mut output = String::new();
     for highlight in highlights {
-        writeln!(
-            output,
-            "{}:{}-{}:{} {}",
-            highlight.range.start.line,
-            highlight.range.start.character,
-            highlight.range.end.line,
-            highlight.range.end.character,
-            document_highlight_kind(highlight.kind),
-        )
-        .unwrap();
+        let kind = document_highlight_kind(highlight.kind);
+        writeln!(output, "{} {kind}", range_output(highlight.range)).unwrap();
     }
     output
 }
@@ -1099,14 +957,13 @@ fn hover_output(response: Option<Hover>) -> String {
         panic!("hover response should contain markup");
     };
     assert_eq!(contents.kind, MarkupKind::Markdown);
-    format!(
-        "{}:{}-{}:{}\n{}\n",
-        range.start.line,
-        range.start.character,
-        range.end.line,
-        range.end.character,
-        contents.value,
-    )
+    // Print the leading Solidity code block as a plain signature line.
+    let (signature, documentation) = contents
+        .value
+        .strip_prefix("```solidity\n")
+        .and_then(|value| value.split_once("\n```"))
+        .expect("hover should start with a Solidity code block");
+    format!("{} {signature}{documentation}\n", range_output(range))
 }
 
 fn document_highlight_kind(kind: Option<DocumentHighlightKind>) -> &'static str {
@@ -1128,39 +985,36 @@ fn signature_help_output(help: Option<SignatureHelp>) -> String {
     )
     .unwrap();
     for signature in help.signatures {
-        writeln!(output, "{}", signature.label).unwrap();
-        if let Some(documentation) = signature.documentation {
-            writeln!(output, "  docs={}", documentation_text(&documentation).replace('\n', " | "))
-                .unwrap();
+        write!(output, "{}", signature.label).unwrap();
+        if let Some(active_parameter) = signature.active_parameter {
+            write!(output, " active={active_parameter}").unwrap();
         }
-        if let Some(parameters) = signature.parameters {
-            for parameter in parameters {
-                match parameter.label {
-                    ParameterLabel::Simple(label) => write!(output, "  {label}").unwrap(),
-                    ParameterLabel::LabelOffsets([start, end]) => {
-                        write!(output, "  {start}..{end}").unwrap()
-                    }
+        writeln!(output).unwrap();
+        if let Some(documentation) = signature.documentation {
+            writeln!(output, "  {}", documentation_output(&documentation)).unwrap();
+        }
+        for parameter in signature.parameters.into_iter().flatten() {
+            match parameter.label {
+                ParameterLabel::Simple(label) => write!(output, "  {label}").unwrap(),
+                ParameterLabel::LabelOffsets([start, end]) => {
+                    write!(output, "  {start}..{end}").unwrap()
                 }
-                if let Some(documentation) = parameter.documentation {
-                    write!(
-                        output,
-                        " docs={}",
-                        documentation_text(&documentation).replace('\n', " | ")
-                    )
-                    .unwrap();
-                }
-                writeln!(output).unwrap();
             }
+            if let Some(documentation) = parameter.documentation {
+                write!(output, " {}", documentation_output(&documentation)).unwrap();
+            }
+            writeln!(output).unwrap();
         }
     }
     output
 }
 
-fn documentation_text(documentation: &Documentation) -> &str {
-    match documentation {
-        Documentation::String(value) => value,
-        Documentation::MarkupContent(content) => &content.value,
-    }
+fn documentation_output(documentation: &Documentation) -> String {
+    let (kind, value) = match documentation {
+        Documentation::String(value) => ("docs", value),
+        Documentation::MarkupContent(content) => ("markdown", &content.value),
+    };
+    format!("{kind}={}", value.replace('\n', " | "))
 }
 
 fn inlay_hint_kind(kind: Option<InlayHintKind>) -> &'static str {
@@ -1183,122 +1037,19 @@ fn display_path(root: &Path, path: &Path) -> String {
     format!("/{}", path.display())
 }
 
-fn completion_params(uri: Url, position: Position) -> CompletionParams {
-    CompletionParams {
-        text_document_position: text_document_position(uri, position),
-        work_done_progress_params: WorkDoneProgressParams::default(),
-        partial_result_params: PartialResultParams::default(),
-        context: None,
-    }
-}
-
-fn completion_params_with_trigger(
+pub(super) fn signature_help_at(
+    state: &mut GlobalState,
     uri: Url,
     position: Position,
-    trigger_character: &str,
-) -> CompletionParams {
-    CompletionParams {
-        context: Some(CompletionContext {
-            trigger_kind: CompletionTriggerKind::TRIGGER_CHARACTER,
-            trigger_character: Some(trigger_character.into()),
-        }),
-        ..completion_params(uri, position)
-    }
-}
-
-fn goto_params(uri: Url, position: Position) -> GotoDefinitionParams {
-    GotoDefinitionParams {
-        text_document_position_params: text_document_position(uri, position),
-        work_done_progress_params: WorkDoneProgressParams::default(),
-        partial_result_params: PartialResultParams::default(),
-    }
-}
-
-fn reference_params(uri: Url, position: Position, include_declaration: bool) -> ReferenceParams {
-    ReferenceParams {
-        text_document_position: text_document_position(uri, position),
-        work_done_progress_params: WorkDoneProgressParams::default(),
-        partial_result_params: PartialResultParams::default(),
-        context: ReferenceContext { include_declaration },
-    }
-}
-
-fn code_lens_params(uri: Url) -> CodeLensParams {
-    CodeLensParams {
-        text_document: TextDocumentIdentifier { uri },
-        work_done_progress_params: WorkDoneProgressParams::default(),
-        partial_result_params: PartialResultParams::default(),
-    }
-}
-
-fn document_highlight_params(uri: Url, position: Position) -> DocumentHighlightParams {
-    DocumentHighlightParams {
-        text_document_position_params: text_document_position(uri, position),
-        work_done_progress_params: WorkDoneProgressParams::default(),
-        partial_result_params: PartialResultParams::default(),
-    }
-}
-
-fn hover_params(uri: Url, position: Position) -> HoverParams {
-    HoverParams {
-        text_document_position_params: text_document_position(uri, position),
-        work_done_progress_params: WorkDoneProgressParams::default(),
-    }
-}
-
-fn rename_params(uri: Url, position: Position, new_name: &str) -> RenameParams {
-    RenameParams {
-        text_document_position: text_document_position(uri, position),
-        new_name: new_name.into(),
-        work_done_progress_params: WorkDoneProgressParams::default(),
-    }
-}
-
-fn inlay_hint_params(uri: Url, range: Range) -> InlayHintParams {
-    InlayHintParams {
-        text_document: TextDocumentIdentifier { uri },
-        range,
-        work_done_progress_params: WorkDoneProgressParams::default(),
-    }
-}
-
-fn document_link_params(uri: Url) -> DocumentLinkParams {
-    DocumentLinkParams {
-        text_document: TextDocumentIdentifier { uri },
-        work_done_progress_params: WorkDoneProgressParams::default(),
-        partial_result_params: PartialResultParams::default(),
-    }
-}
-
-fn signature_help_params(uri: Url, position: Position) -> SignatureHelpParams {
-    SignatureHelpParams {
-        context: None,
-        text_document_position_params: text_document_position(uri, position),
-        work_done_progress_params: WorkDoneProgressParams::default(),
-    }
-}
-
-fn selection_range_params(uri: Url, positions: Vec<Position>) -> SelectionRangeParams {
-    SelectionRangeParams {
-        text_document: TextDocumentIdentifier { uri },
-        positions,
-        work_done_progress_params: WorkDoneProgressParams::default(),
-        partial_result_params: PartialResultParams::default(),
-    }
-}
-
-fn folding_range_params(uri: Url) -> FoldingRangeParams {
-    FoldingRangeParams {
-        text_document: TextDocumentIdentifier { uri },
-        work_done_progress_params: WorkDoneProgressParams::default(),
-        partial_result_params: PartialResultParams::default(),
-    }
+) -> Option<SignatureHelp> {
+    expect_ready(crate::handlers::signature_help(state, request_params(&uri, position, json!({}))))
+        .unwrap()
 }
 
 fn full_range() -> Range {
     Range { start: Position::new(0, 0), end: Position::new(u32::MAX, u32::MAX) }
 }
 
-fn text_document_position(uri: Url, position: Position) -> TextDocumentPositionParams {
-    TextDocumentPositionParams { text_document: TextDocumentIdentifier { uri }, position }
+fn selection_range_params(uri: &Url, positions: Vec<Position>) -> SelectionRangeParams {
+    request_params(uri, Position::default(), json!({ "positions": positions }))
 }

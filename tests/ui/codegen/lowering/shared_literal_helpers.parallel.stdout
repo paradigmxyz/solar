@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/shared_literal_helpers.sol:SharedLiteralHelpers ===
 @module SharedLiteralHelpers
-fn @b(arg0: i256) -> memorybytes [selector=0xcd580ff3, pure, abi_params=[u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @b(arg0: i256) -> memptr [selector=0xcd580ff3, pure, abi_params=[u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = eq arg0, 0
     jumpi v0, bb1, bb2
@@ -30,7 +30,7 @@ fn @b(arg0: i256) -> memorybytes [selector=0xcd580ff3, pure, abi_params=[u256], 
     ret v1
 }
 
-fn @a(arg0: i256) -> memorybytes [selector=0xf0fdf834, pure, abi_params=[u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @a(arg0: i256) -> memptr [selector=0xf0fdf834, pure, abi_params=[u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = eq arg0, 0
     jumpi v0, bb1, bb2
@@ -60,7 +60,7 @@ fn @a(arg0: i256) -> memorybytes [selector=0xf0fdf834, pure, abi_params=[u256], 
     ret v1
 }
 
-fn @literal_bytes_1() -> memorybytes {
+fn @literal_bytes_1() -> memptr {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 40
@@ -73,7 +73,7 @@ fn @literal_bytes_1() -> memorybytes {
     ret v0
 }
 
-fn @literal_bytes_0() -> memorybytes {
+fn @literal_bytes_0() -> memptr {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 40

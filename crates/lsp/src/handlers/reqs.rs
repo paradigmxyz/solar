@@ -1,18 +1,23 @@
-use super::workspace_edit::{validated_code_actions, validated_rename_workspace_edit};
+use super::workspace_edit::{
+    check_edit_scope, validated_code_actions, validated_rename_workspace_edit,
+};
 use crate::{
+    config::Config,
     diagnostics::PullReport,
     document_links::solidity_string_contents,
     formatter::{self, FormatterError},
     global_state::{AnalysisRevision, GlobalState},
     import_resolution::{
-        ImportCandidateKind, ImportResolver, decode_import_path, import_path_at,
-        import_path_at_for_completion,
+        ImportCandidateKind, ImportResolutionContext, ImportResolver, decode_import_path,
+        import_path_at, import_path_at_for_completion,
     },
     natspec_completion::{self, NatSpecCompletionResult},
     progress::send_progress,
     proto::normalize_file_uri,
+    rename::RenameCandidate,
     symbols::{CompletionContext, CompletionItemData, SymbolTables},
     vfs::{Vfs, VfsPath},
+    workspace::WorkspaceEditError,
 };
 use arc_swap::ArcSwap;
 use async_lsp::{ClientSocket, ErrorCode, ResponseError};
@@ -41,18 +46,26 @@ use lsp_types::{
 };
 use serde::{Deserialize, Serialize};
 use solar_interface::data_structures::sync::RwLock;
-use solar_parse::lexer::is_ident;
+use solar_parse::{
+    Cursor,
+    lexer::{
+        is_ident,
+        token::{RawLiteralKind, RawTokenKind},
+    },
+};
 use std::{
-    fmt::Write,
     future::ready,
     io,
     path::{Path, PathBuf},
     sync::Arc,
+    time::Duration,
 };
+use tokio::task::JoinError;
 use tracing::warn;
 
 const WORKSPACE_DIAGNOSTIC_PARTIAL_BATCH_SIZE: usize = 64;
 const WORKSPACE_DIAGNOSTIC_PROGRESS_TITLE: &str = "Workspace diagnostics";
+const FORMATTER_TIMEOUT: Duration = Duration::from_secs(30);
 
 #[derive(Debug)]
 enum WorkspaceDiagnosticProgress {}
@@ -117,7 +130,7 @@ pub(crate) fn folding_range(
         let ranges = if let Some(source) = cached_source {
             tokio::task::spawn_blocking(move || source.folding_ranges())
                 .await
-                .map_err(folding_range_task_failed)?
+                .map_err(task_failed("folding-range"))?
         } else {
             let contents = { vfs.read().get_file_contents(&vfs_path).cloned() };
             let task = if let Some(rope) = contents {
@@ -134,7 +147,7 @@ pub(crate) fn folding_range(
                 };
                 tokio::task::spawn_blocking(move || crate::folding_range::folding_ranges(source))
             };
-            task.await.map_err(folding_range_task_failed)?
+            task.await.map_err(task_failed("folding-range"))?
         };
         Ok(Some(ranges))
     }
@@ -159,14 +172,14 @@ pub(crate) fn selection_range(
         let ranges = if let Some(source) = open_source {
             tokio::task::spawn_blocking(move || source.selection_ranges(&positions))
                 .await
-                .map_err(selection_range_task_failed)?
+                .map_err(task_failed("selection-range"))?
         } else {
             let source = tokio::fs::read_to_string(path).await.map_err(document_read_failed)?;
             tokio::task::spawn_blocking(move || {
                 crate::selection_range::selection_ranges(source, &positions)
             })
             .await
-            .map_err(selection_range_task_failed)?
+            .map_err(task_failed("selection-range"))?
         }
         .ok_or_else(|| {
             ResponseError::new(ErrorCode::INVALID_PARAMS, "invalid selection range position")
@@ -187,31 +200,29 @@ pub(crate) fn formatting(
         .to_file_path()
         .map_err(|_| request_failed("document URI is not a file"))
         .and_then(|path| {
-            let Some(root) = state.config.formatter_root_for_path(&path) else {
-                return Err(request_failed("document has no parent directory"));
-            };
-            Ok((
-                VfsPath::from(path.clone()),
-                path,
-                root,
-                state.config.forge_path(),
-                state.config.formatter_timeout(),
-            ))
+            let root = state
+                .config
+                .formatter_root_for_path(&path)
+                .ok_or_else(|| request_failed("document has no parent directory"))?;
+            Ok((VfsPath::from(path.clone()), path, root, state.config.forge_path()))
         });
 
     async move {
-        let (vfs_path, path, root, forge, timeout) = request?;
-        if formatter::is_ignored(&forge, &path, &root, timeout).await.map_err(formatter_failed)? {
+        let (vfs_path, path, root, forge) = request?;
+        if formatter::is_ignored(&forge, &path, &root, FORMATTER_TIMEOUT)
+            .await
+            .map_err(formatter_failed)?
+        {
             return Ok(None);
         }
         let source =
             document_contents(&vfs, &vfs_path, &path).await.map_err(document_read_failed)?;
-        let formatted =
-            formatter::run(&forge, &root, &source, timeout).await.map_err(formatter_failed)?;
-        let is_current = document_is_current(&vfs, &vfs_path, &path, &source)
+        let formatted = formatter::run(&forge, &root, &source, FORMATTER_TIMEOUT)
             .await
-            .map_err(document_read_failed)?;
-        if !is_current {
+            .map_err(formatter_failed)?;
+        let current =
+            document_contents(&vfs, &vfs_path, &path).await.map_err(document_read_failed)?;
+        if current != source {
             return Err(ResponseError::new(
                 ErrorCode::CONTENT_MODIFIED,
                 "document changed during formatting",
@@ -235,33 +246,22 @@ async fn document_contents(
     tokio::fs::read_to_string(path).await
 }
 
-async fn document_is_current(
-    vfs: &Arc<RwLock<Vfs>>,
-    vfs_path: &VfsPath,
-    path: &Path,
-    source: &str,
-) -> io::Result<bool> {
-    let contents = { vfs.read().get_file_contents(vfs_path).cloned() };
-    if let Some(contents) = contents {
-        return Ok(contents == source);
-    }
-
-    Ok(tokio::fs::read_to_string(path).await? == source)
-}
-
 fn document_read_failed(error: io::Error) -> ResponseError {
     warn!(%error, "failed to read document");
     request_failed("failed to read document")
 }
 
-fn folding_range_task_failed(error: tokio::task::JoinError) -> ResponseError {
-    warn!(%error, "folding-range task failed");
-    ResponseError::new(ErrorCode::INTERNAL_ERROR, "folding-range task failed")
+fn task_failed(task: &'static str) -> impl FnOnce(JoinError) -> ResponseError {
+    move |error| {
+        warn!(%error, "{task} task failed");
+        ResponseError::new(ErrorCode::INTERNAL_ERROR, format!("{task} task failed"))
+    }
 }
 
-fn selection_range_task_failed(error: tokio::task::JoinError) -> ResponseError {
-    warn!(%error, "selection-range task failed");
-    ResponseError::new(ErrorCode::INTERNAL_ERROR, "selection-range task failed")
+pub(super) fn task_error(task: &'static str) -> impl FnOnce(JoinError) -> ResponseError {
+    move |error| {
+        ResponseError::new(ErrorCode::INTERNAL_ERROR, format!("{task} task failed: {error}"))
+    }
 }
 
 fn formatter_failed(error: FormatterError) -> ResponseError {
@@ -299,6 +299,32 @@ fn latest_navigation_analysis_for_uri(
     uri: &Url,
 ) -> Option<impl Future<Output = Result<Arc<ArcSwap<SymbolTables>>, ResponseError>> + use<>> {
     let analysis = latest_analysis_for_uri(state, uri)?;
+    state.prioritize_pending_analysis();
+    Some(analysis)
+}
+
+/// Runs `query` on the latest analysis, or returns `default` when the request needs none.
+async fn query_analysis<T>(
+    analysis: Option<impl Future<Output = Result<Arc<ArcSwap<SymbolTables>>, ResponseError>>>,
+    default: T,
+    query: impl FnOnce(&SymbolTables) -> T,
+) -> Result<T, ResponseError> {
+    let Some(analysis) = analysis else { return Ok(default) };
+    Ok(query(&analysis.await?.load()))
+}
+
+fn position_params(params: TextDocumentPositionParams) -> (Url, Position) {
+    (normalize_file_uri(params.text_document.uri), params.position)
+}
+
+type ConfiguredAnalysis = (Arc<ArcSwap<SymbolTables>>, Arc<Config>);
+
+fn latest_navigation_analysis_with_config_for_uri(
+    state: &GlobalState,
+    uri: &Url,
+) -> Option<impl Future<Output = Result<ConfiguredAnalysis, ResponseError>> + use<>> {
+    crate::proto::vfs_path(uri)?;
+    let analysis = state.latest_analysis_with_config();
     state.prioritize_pending_analysis();
     Some(analysis)
 }
@@ -341,26 +367,21 @@ pub(crate) fn document_symbol(
     state: &mut GlobalState,
     params: DocumentSymbolParams,
 ) -> impl Future<Output = Result<Option<DocumentSymbolResponse>, ResponseError>> + use<> {
-    let hierarchical = state.config.supports_hierarchical_document_symbols();
+    let hierarchical = state.config.client.hierarchical_document_symbols;
     let uri = normalize_file_uri(params.text_document.uri);
-    let latest_analysis = latest_analysis_for_uri(state, &uri);
-    async move {
-        let Some(latest_analysis) = latest_analysis else {
-            let response = if hierarchical {
-                DocumentSymbolResponse::Nested(Vec::new())
-            } else {
-                DocumentSymbolResponse::Flat(Vec::new())
-            };
-            return Ok(Some(response));
-        };
-        let symbol_tables = latest_analysis.await?;
-        let response = if hierarchical {
-            DocumentSymbolResponse::Nested(symbol_tables.load().document_symbols(&uri))
+    let analysis = latest_analysis_for_uri(state, &uri);
+    let empty = if hierarchical {
+        DocumentSymbolResponse::Nested(Vec::new())
+    } else {
+        DocumentSymbolResponse::Flat(Vec::new())
+    };
+    query_analysis(analysis, Some(empty), move |tables| {
+        Some(if hierarchical {
+            DocumentSymbolResponse::Nested(tables.document_symbols(&uri))
         } else {
-            DocumentSymbolResponse::Flat(symbol_tables.load().flat_document_symbols(&uri))
-        };
-        Ok(Some(response))
-    }
+            DocumentSymbolResponse::Flat(tables.flat_document_symbols(&uri))
+        })
+    })
 }
 
 pub(crate) fn document_links(
@@ -368,14 +389,16 @@ pub(crate) fn document_links(
     mut params: DocumentLinkParams,
 ) -> impl Future<Output = Result<Option<Vec<DocumentLink>>, ResponseError>> + use<> {
     params.text_document.uri = normalize_file_uri(params.text_document.uri);
-    let request =
-        params.text_document.uri.to_file_path().ok().map(|path| (path, state.latest_analysis()));
-    async move {
-        let Some((path, latest_analysis)) = request else { return Ok(Some(Vec::new())) };
-        let symbol_tables = latest_analysis.await?;
-        let links = symbol_tables.load().document_links(&path);
-        Ok(Some(links))
-    }
+    let (path, analysis) = params
+        .text_document
+        .uri
+        .to_file_path()
+        .ok()
+        .map(|path| (path, state.latest_analysis()))
+        .unzip();
+    query_analysis(analysis, Some(Vec::new()), move |tables| {
+        path.map(|path| tables.document_links(&path))
+    })
 }
 
 pub(crate) fn code_actions(
@@ -384,9 +407,9 @@ pub(crate) fn code_actions(
 ) -> impl Future<Output = Result<Option<CodeActionResponse>, ResponseError>> + use<> {
     params.text_document.uri = normalize_file_uri(params.text_document.uri);
     let vfs = state.vfs.clone();
-    let document_changes = state.config.supports_workspace_edit_document_changes();
-    let literals = state.config.supports_code_action_literals();
-    let is_preferred = state.config.supports_code_action_is_preferred();
+    let document_changes = state.config.client.workspace_edit_document_changes;
+    let literals = state.config.client.code_action_literals;
+    let is_preferred = state.config.client.code_action_is_preferred;
     let diagnostic_data = state.config.supports_code_action_diagnostic_data();
     let diagnostics = state.code_action_diagnostics(params.text_document.uri.clone(), params.range);
     async move {
@@ -405,12 +428,7 @@ pub(crate) fn code_actions(
             )
         })
         .await
-        .map_err(|error| {
-            ResponseError::new(
-                ErrorCode::INTERNAL_ERROR,
-                format!("code-action task failed: {error}"),
-            )
-        })?;
+        .map_err(task_error("code-action"))?;
         Ok(Some(actions))
     }
 }
@@ -536,104 +554,64 @@ pub(crate) fn prepare_type_hierarchy(
     state: &mut GlobalState,
     params: TypeHierarchyPrepareParams,
 ) -> impl Future<Output = Result<Option<Vec<TypeHierarchyItem>>, ResponseError>> + use<> {
-    let mut params = params.text_document_position_params;
-    params.text_document.uri = normalize_file_uri(params.text_document.uri);
-    let uri = params.text_document.uri;
-    let latest_analysis = latest_analysis_for_uri(state, &uri);
-    async move {
-        let Some(latest_analysis) = latest_analysis else { return Ok(None) };
-        let symbol_tables = latest_analysis.await?;
-        let response = symbol_tables.load().prepare_type_hierarchy(&uri, params.position);
-        Ok(response)
-    }
+    let (uri, position) = position_params(params.text_document_position_params);
+    let analysis = latest_analysis_for_uri(state, &uri);
+    query_analysis(analysis, None, move |tables| tables.prepare_type_hierarchy(&uri, position))
 }
 
 pub(crate) fn type_hierarchy_supertypes(
     state: &mut GlobalState,
     params: TypeHierarchySupertypesParams,
 ) -> impl Future<Output = Result<Option<Vec<TypeHierarchyItem>>, ResponseError>> + use<> {
-    let latest_analysis = latest_analysis_for_uri(state, &params.item.uri);
-    async move {
-        let Some(latest_analysis) = latest_analysis else { return Ok(None) };
-        let symbol_tables = latest_analysis.await?;
-        let response = symbol_tables.load().type_hierarchy_supertypes(&params.item);
-        Ok(response)
-    }
+    let analysis = latest_analysis_for_uri(state, &params.item.uri);
+    query_analysis(analysis, None, move |tables| tables.type_hierarchy_supertypes(&params.item))
 }
 
 pub(crate) fn type_hierarchy_subtypes(
     state: &mut GlobalState,
     params: TypeHierarchySubtypesParams,
 ) -> impl Future<Output = Result<Option<Vec<TypeHierarchyItem>>, ResponseError>> + use<> {
-    let latest_analysis = latest_analysis_for_uri(state, &params.item.uri);
-    async move {
-        let Some(latest_analysis) = latest_analysis else { return Ok(None) };
-        let symbol_tables = latest_analysis.await?;
-        let response = symbol_tables.load().type_hierarchy_subtypes(&params.item);
-        Ok(response)
-    }
+    let analysis = latest_analysis_for_uri(state, &params.item.uri);
+    query_analysis(analysis, None, move |tables| tables.type_hierarchy_subtypes(&params.item))
 }
 
 pub(crate) fn goto_definition(
     state: &mut GlobalState,
     params: GotoDefinitionParams,
 ) -> impl Future<Output = Result<Option<GotoDefinitionResponse>, ResponseError>> + use<> {
-    let mut params = params.text_document_position_params;
-    params.text_document.uri = normalize_file_uri(params.text_document.uri);
-    let latest_analysis = latest_navigation_analysis_for_uri(state, &params.text_document.uri);
+    let (uri, position) = position_params(params.text_document_position_params);
+    let latest_analysis = latest_navigation_analysis_for_uri(state, &uri);
     let analysis_revision = state.analysis_revision();
-    let import_request = import_definition_request(
-        state,
-        &params.text_document.uri,
-        params.position,
-        &analysis_revision,
-    );
+    let import_request = import_definition_request(state, &uri, position, &analysis_revision);
     let config = state.config.clone();
     let vfs = state.vfs.clone();
     async move {
         let Some(latest_analysis) = latest_analysis else { return Ok(None) };
         let symbol_tables = latest_analysis.await?;
         let symbol_tables = symbol_tables.load();
+        let symbol_definition = || symbol_tables.goto_definition(&uri, position);
         let response = match import_request {
-            None => symbol_tables.goto_definition(&params.text_document.uri, params.position),
+            None => symbol_definition(),
             Some(ImportDefinitionRequest::Current { importer, contents, vfs_content_revision }) => {
                 if !analysis_revision.is_current(vfs_content_revision) {
                     return Ok(None);
                 }
                 let Some(context) = config.import_resolution_context(&importer) else {
-                    return Ok(
-                        symbol_tables.goto_definition(&params.text_document.uri, params.position)
-                    );
+                    return Ok(symbol_definition());
                 };
-                if let Some(response) =
-                    symbol_tables.import_definition(&params.text_document.uri, params.position)
-                {
-                    return Ok(Some(response));
-                }
-                let overlay_paths = vfs
-                    .read()
-                    .iter()
-                    .filter_map(|(path, _)| path.as_path().map(Path::to_path_buf))
-                    .collect();
-                let Some(import_request) = parse_import_definition_request(
-                    importer,
-                    contents,
-                    params.position,
-                    overlay_paths,
-                    vfs_content_revision,
-                ) else {
-                    return Ok(
-                        symbol_tables.goto_definition(&params.text_document.uri, params.position)
-                    );
-                };
-                if let Some(target) = ImportResolver::new(context, &import_request.overlay_paths)
-                    .resolve(&import_request.importer, &import_request.raw_path)
-                    && let Ok(uri) = Url::from_file_path(target)
-                {
-                    let location = lsp_types::Location::new(uri, lsp_types::Range::default());
-                    return Ok(Some(GotoDefinitionResponse::Array(vec![location])));
-                }
-                None
+                symbol_tables.import_definition(&uri, position).or_else(|| {
+                    let overlay_paths = overlay_paths(&vfs.read());
+                    match parse_import_definition_request(
+                        importer,
+                        contents,
+                        position,
+                        overlay_paths,
+                        vfs_content_revision,
+                    ) {
+                        Some(import_request) => import_request.resolve(context),
+                        None => symbol_definition(),
+                    }
+                })
             }
             Some(ImportDefinitionRequest::Parsed(import_request)) => {
                 if !analysis_revision.is_current(import_request.vfs_content_revision) {
@@ -643,19 +621,9 @@ pub(crate) fn goto_definition(
                 else {
                     return Ok(None);
                 };
-                if let Some(response) =
-                    symbol_tables.import_definition(&params.text_document.uri, params.position)
-                {
-                    return Ok(Some(response));
-                }
-                if let Some(target) = ImportResolver::new(context, &import_request.overlay_paths)
-                    .resolve(&import_request.importer, &import_request.raw_path)
-                    && let Ok(uri) = Url::from_file_path(target)
-                {
-                    let location = lsp_types::Location::new(uri, lsp_types::Range::default());
-                    return Ok(Some(GotoDefinitionResponse::Array(vec![location])));
-                }
-                return Ok(None);
+                symbol_tables
+                    .import_definition(&uri, position)
+                    .or_else(|| import_request.resolve(context))
             }
         };
         Ok(response)
@@ -672,6 +640,20 @@ struct ParsedImportDefinitionRequest {
     raw_path: String,
     overlay_paths: Vec<PathBuf>,
     vfs_content_revision: u64,
+}
+
+impl ParsedImportDefinitionRequest {
+    fn resolve(&self, context: ImportResolutionContext<'_>) -> Option<GotoDefinitionResponse> {
+        let target = ImportResolver::new(context, &self.overlay_paths)
+            .resolve(&self.importer, &self.raw_path)?;
+        let location =
+            lsp_types::Location::new(Url::from_file_path(target).ok()?, Default::default());
+        Some(GotoDefinitionResponse::Array(vec![location]))
+    }
+}
+
+fn overlay_paths(vfs: &Vfs) -> Vec<PathBuf> {
+    vfs.iter().map(|(path, _)| path.as_path().to_path_buf()).collect()
 }
 
 fn import_definition_request(
@@ -713,12 +695,7 @@ fn import_definition_request(
             .ok()
             .map(|contents| Rope::from(contents.as_str()))
     })?;
-    let overlay_paths = state
-        .vfs
-        .read()
-        .iter()
-        .filter_map(|(path, _)| path.as_path().map(Path::to_path_buf))
-        .collect();
+    let overlay_paths = overlay_paths(&state.vfs.read());
     Some(ImportDefinitionRequest::Parsed(parse_import_definition_request(
         importer,
         contents,
@@ -752,92 +729,52 @@ pub(crate) fn goto_type_definition(
     state: &mut GlobalState,
     params: GotoDefinitionParams,
 ) -> impl Future<Output = Result<Option<GotoDefinitionResponse>, ResponseError>> + use<> {
-    let mut params = params.text_document_position_params;
-    params.text_document.uri = normalize_file_uri(params.text_document.uri);
-    let latest_analysis = latest_navigation_analysis_for_uri(state, &params.text_document.uri);
-    async move {
-        let Some(latest_analysis) = latest_analysis else { return Ok(None) };
-        let symbol_tables = latest_analysis.await?;
-        let response =
-            symbol_tables.load().goto_type_definition(&params.text_document.uri, params.position);
-        Ok(response)
-    }
+    let (uri, position) = position_params(params.text_document_position_params);
+    let analysis = latest_navigation_analysis_for_uri(state, &uri);
+    query_analysis(analysis, None, move |tables| tables.goto_type_definition(&uri, position))
 }
 
 pub(crate) fn goto_declaration(
     state: &mut GlobalState,
     params: GotoDefinitionParams,
 ) -> impl Future<Output = Result<Option<GotoDefinitionResponse>, ResponseError>> + use<> {
-    let mut params = params.text_document_position_params;
-    params.text_document.uri = normalize_file_uri(params.text_document.uri);
-    let latest_analysis = latest_navigation_analysis_for_uri(state, &params.text_document.uri);
-    async move {
-        let Some(latest_analysis) = latest_analysis else { return Ok(None) };
-        let symbol_tables = latest_analysis.await?;
-        let response =
-            symbol_tables.load().goto_declaration(&params.text_document.uri, params.position);
-        Ok(response)
-    }
+    let (uri, position) = position_params(params.text_document_position_params);
+    let analysis = latest_navigation_analysis_for_uri(state, &uri);
+    query_analysis(analysis, None, move |tables| tables.goto_declaration(&uri, position))
 }
 
 pub(crate) fn goto_implementation(
     state: &mut GlobalState,
     params: GotoImplementationParams,
 ) -> impl Future<Output = Result<Option<GotoDefinitionResponse>, ResponseError>> + use<> {
-    let mut params = params.text_document_position_params;
-    params.text_document.uri = normalize_file_uri(params.text_document.uri);
-    let latest_analysis = latest_navigation_analysis_for_uri(state, &params.text_document.uri);
-    async move {
-        let Some(latest_analysis) = latest_analysis else { return Ok(None) };
-        let symbol_tables = latest_analysis.await?;
-        let response =
-            symbol_tables.load().goto_implementation(&params.text_document.uri, params.position);
-        Ok(response)
-    }
+    let (uri, position) = position_params(params.text_document_position_params);
+    let analysis = latest_navigation_analysis_for_uri(state, &uri);
+    query_analysis(analysis, None, move |tables| tables.goto_implementation(&uri, position))
 }
 
 pub(crate) fn prepare_call_hierarchy(
     state: &mut GlobalState,
     params: CallHierarchyPrepareParams,
 ) -> impl Future<Output = Result<Option<Vec<CallHierarchyItem>>, ResponseError>> + use<> {
-    let mut params = params.text_document_position_params;
-    params.text_document.uri = normalize_file_uri(params.text_document.uri);
-    let latest_analysis = latest_analysis_for_uri(state, &params.text_document.uri);
-    async move {
-        let Some(latest_analysis) = latest_analysis else { return Ok(None) };
-        let symbol_tables = latest_analysis.await?;
-        let response =
-            symbol_tables.load().prepare_call_hierarchy(&params.text_document.uri, params.position);
-        Ok(response)
-    }
+    let (uri, position) = position_params(params.text_document_position_params);
+    let analysis = latest_analysis_for_uri(state, &uri);
+    query_analysis(analysis, None, move |tables| tables.prepare_call_hierarchy(&uri, position))
 }
 
 pub(crate) fn call_hierarchy_incoming(
     state: &mut GlobalState,
     params: CallHierarchyIncomingCallsParams,
 ) -> impl Future<Output = Result<Option<Vec<CallHierarchyIncomingCall>>, ResponseError>> + use<> {
-    let item = params.item;
-    let latest_analysis = latest_analysis_for_uri(state, &item.uri);
-    async move {
-        let Some(latest_analysis) = latest_analysis else { return Ok(None) };
-        let symbol_tables = latest_analysis.await?;
-        let response = symbol_tables.load().call_hierarchy_incoming(&item);
-        Ok(response)
-    }
+    let analysis = latest_analysis_for_uri(state, &params.item.uri);
+    query_analysis(analysis, None, move |tables| tables.call_hierarchy_incoming(&params.item))
 }
 
 pub(crate) fn call_hierarchy_outgoing(
     state: &mut GlobalState,
     params: CallHierarchyOutgoingCallsParams,
 ) -> impl Future<Output = Result<Option<Vec<CallHierarchyOutgoingCall>>, ResponseError>> + use<> {
-    let item = params.item;
-    let latest_analysis = latest_analysis_for_uri(state, &item.uri);
-    async move {
-        let Some(latest_analysis) = latest_analysis else { return Ok(None) };
-        let symbol_tables = latest_analysis.await?;
-        let response = symbol_tables.load().call_hierarchy_outgoing(&item);
-        Ok(response)
-    }
+    let analysis = latest_analysis_for_uri(state, &params.item.uri);
+    query_analysis(analysis, None, move |tables| tables.call_hierarchy_outgoing(&params.item))
 }
 
 pub(crate) fn references(
@@ -845,19 +782,11 @@ pub(crate) fn references(
     params: ReferenceParams,
 ) -> impl Future<Output = Result<Option<Vec<lsp_types::Location>>, ResponseError>> + use<> {
     let include_declaration = params.context.include_declaration;
-    let mut params = params.text_document_position;
-    params.text_document.uri = normalize_file_uri(params.text_document.uri);
-    let latest_analysis = latest_navigation_analysis_for_uri(state, &params.text_document.uri);
-    async move {
-        let Some(latest_analysis) = latest_analysis else { return Ok(None) };
-        let symbol_tables = latest_analysis.await?;
-        let response = symbol_tables.load().references(
-            &params.text_document.uri,
-            params.position,
-            include_declaration,
-        );
-        Ok(response)
-    }
+    let (uri, position) = position_params(params.text_document_position);
+    let analysis = latest_navigation_analysis_for_uri(state, &uri);
+    query_analysis(analysis, None, move |tables| {
+        tables.references(&uri, position, include_declaration)
+    })
 }
 
 pub(crate) fn code_lens(
@@ -865,62 +794,49 @@ pub(crate) fn code_lens(
     params: CodeLensParams,
 ) -> impl Future<Output = Result<Option<Vec<CodeLens>>, ResponseError>> + use<> {
     let uri = normalize_file_uri(params.text_document.uri);
-    let options = state.config.code_lens_options();
-    let latest_analysis =
-        if options.is_active() { latest_analysis_for_uri(state, &uri) } else { None };
-    async move {
-        let Some(latest_analysis) = latest_analysis else { return Ok(Some(Vec::new())) };
-        let symbol_tables = latest_analysis.await?;
-        let response = symbol_tables.load().code_lenses(&uri, options);
-        Ok(Some(response))
-    }
+    let options = state.config.code_lens;
+    let analysis = if options.is_active() { latest_analysis_for_uri(state, &uri) } else { None };
+    query_analysis(analysis, Some(Vec::new()), move |tables| {
+        Some(tables.code_lenses(&uri, options))
+    })
 }
 
 pub(crate) fn document_highlight(
     state: &mut GlobalState,
     params: DocumentHighlightParams,
 ) -> impl Future<Output = Result<Option<Vec<DocumentHighlight>>, ResponseError>> + use<> {
-    let mut params = params.text_document_position_params;
-    params.text_document.uri = normalize_file_uri(params.text_document.uri);
-    let latest_analysis = latest_analysis_for_uri(state, &params.text_document.uri);
-    async move {
-        let Some(latest_analysis) = latest_analysis else { return Ok(None) };
-        let symbol_tables = latest_analysis.await?;
-        let response =
-            symbol_tables.load().document_highlights(&params.text_document.uri, params.position);
-        Ok(response)
-    }
+    let (uri, position) = position_params(params.text_document_position_params);
+    let analysis = latest_analysis_for_uri(state, &uri);
+    query_analysis(analysis, None, move |tables| tables.document_highlights(&uri, position))
 }
 
 pub(crate) fn hover(
     state: &mut GlobalState,
     params: HoverParams,
 ) -> impl Future<Output = Result<Option<Hover>, ResponseError>> + use<> {
-    let mut params = params.text_document_position_params;
-    params.text_document.uri = normalize_file_uri(params.text_document.uri);
-    let latest_analysis = latest_navigation_analysis_for_uri(state, &params.text_document.uri);
-    async move {
-        let Some(latest_analysis) = latest_analysis else { return Ok(None) };
-        let symbol_tables = latest_analysis.await?;
-        let response = symbol_tables.load().hover(&params.text_document.uri, params.position);
-        Ok(response)
-    }
+    let (uri, position) = position_params(params.text_document_position_params);
+    let analysis = latest_navigation_analysis_for_uri(state, &uri);
+    query_analysis(analysis, None, move |tables| tables.hover(&uri, position))
 }
 
 pub(crate) fn prepare_rename(
     state: &mut GlobalState,
-    mut params: TextDocumentPositionParams,
+    params: TextDocumentPositionParams,
 ) -> impl Future<Output = Result<Option<PrepareRenameResponse>, ResponseError>> + use<> {
-    params.text_document.uri = normalize_file_uri(params.text_document.uri);
-    let latest_analysis = latest_navigation_analysis_for_uri(state, &params.text_document.uri);
+    let (uri, position) = position_params(params);
+    let latest_analysis = latest_navigation_analysis_with_config_for_uri(state, &uri);
     async move {
         let Some(latest_analysis) = latest_analysis else { return Ok(None) };
-        let symbol_tables = latest_analysis.await?;
-        let response = symbol_tables
-            .load()
-            .rename_candidate(&params.text_document.uri, params.position)
-            .map(|candidate| PrepareRenameResponse::Range(candidate.range));
-        Ok(response)
+        let (symbol_tables, config) = latest_analysis.await?;
+        let Some(candidate) = symbol_tables.load().rename_candidate(&uri, position) else {
+            return Ok(None);
+        };
+        tokio::task::spawn_blocking(move || {
+            validate_rename(&candidate, &config)?;
+            Ok(Some(PrepareRenameResponse::Range(candidate.range)))
+        })
+        .await
+        .map_err(task_error("rename"))?
     }
 }
 
@@ -928,8 +844,8 @@ pub(crate) fn rename(
     state: &mut GlobalState,
     params: RenameParams,
 ) -> impl Future<Output = Result<Option<WorkspaceEdit>, ResponseError>> + use<> {
-    let RenameParams { text_document_position: mut params_position, new_name, .. } = params;
-    params_position.text_document.uri = normalize_file_uri(params_position.text_document.uri);
+    let RenameParams { text_document_position, new_name, .. } = params;
+    let (uri, position) = position_params(text_document_position);
     let (invalid_name, invalid_yul_name) = if is_ident(&new_name) {
         let name = state.sess.intern(&new_name);
         (name.is_reserved(false), name.is_reserved(true))
@@ -939,21 +855,20 @@ pub(crate) fn rename(
     let latest_analysis = if invalid_name {
         None
     } else {
-        latest_navigation_analysis_for_uri(state, &params_position.text_document.uri)
+        latest_navigation_analysis_with_config_for_uri(state, &uri)
     };
     let vfs = state.vfs.clone();
-    let document_changes = state.config.supports_workspace_edit_document_changes();
+    let document_changes = state.config.client.workspace_edit_document_changes;
     async move {
         if invalid_name {
             return Err(ResponseError::new(ErrorCode::INVALID_PARAMS, "invalid rename name"));
         }
 
         let Some(latest_analysis) = latest_analysis else { return Ok(None) };
-        let symbol_tables = latest_analysis.await?;
-        let candidate = symbol_tables
-            .load()
-            .rename_candidate(&params_position.text_document.uri, params_position.position);
-        let Some(candidate) = candidate else { return Ok(None) };
+        let (symbol_tables, config) = latest_analysis.await?;
+        let Some(candidate) = symbol_tables.load().rename_candidate(&uri, position) else {
+            return Ok(None);
+        };
         if candidate.requires_yul_validation && invalid_yul_name {
             return Err(ResponseError::new(ErrorCode::INVALID_PARAMS, "invalid rename name"));
         }
@@ -962,50 +877,68 @@ pub(crate) fn rename(
         }
 
         tokio::task::spawn_blocking(move || {
+            validate_rename(&candidate, &config)?;
             validated_rename_workspace_edit(candidate, new_name, vfs, document_changes)
         })
         .await
-        .map_err(|error| {
-            ResponseError::new(ErrorCode::INTERNAL_ERROR, format!("rename task failed: {error}"))
-        })?
+        .map_err(task_error("rename"))?
         .map(Some)
     }
 }
 
+/// Validates that a rename may edit every candidate location and knows all of its references.
+fn validate_rename(candidate: &RenameCandidate, config: &Config) -> Result<(), ResponseError> {
+    let uris =
+        candidate.locations.chunk_by(|a, b| a.uri == b.uri).map(|locations| &locations[0].uri);
+    check_edit_scope(uris, config).map_err(|error| {
+        request_failed(match error {
+            WorkspaceEditError::Dependency => {
+                "cannot rename this symbol because it would modify dependency files"
+            }
+            WorkspaceEditError::OutsideWorkspace => {
+                "cannot rename this symbol because it would modify files outside the workspace"
+            }
+            WorkspaceEditError::UnresolvedPath => {
+                "cannot rename this symbol because its file paths could not be verified"
+            }
+        })
+    })?;
+    if candidate.requires_complete_workspace && config.may_omit_source_files() {
+        return Err(request_failed(
+            "cannot rename this symbol because workspace indexing may omit source files",
+        ));
+    }
+    Ok(())
+}
+
 pub(crate) fn inlay_hints(
     state: &mut GlobalState,
-    mut params: InlayHintParams,
+    params: InlayHintParams,
 ) -> impl Future<Output = Result<Option<Vec<InlayHint>>, ResponseError>> + use<> {
-    params.text_document.uri = normalize_file_uri(params.text_document.uri);
-    let latest_analysis = latest_analysis_for_uri(state, &params.text_document.uri);
-    async move {
-        let Some(latest_analysis) = latest_analysis else { return Ok(Some(Vec::new())) };
-        let symbol_tables = latest_analysis.await?;
-        let response = symbol_tables.load().inlay_hints(&params.text_document.uri, params.range);
-        Ok(Some(response))
-    }
+    let uri = normalize_file_uri(params.text_document.uri);
+    let analysis = latest_analysis_for_uri(state, &uri);
+    query_analysis(analysis, Some(Vec::new()), move |tables| {
+        Some(tables.inlay_hints(&uri, params.range))
+    })
 }
 
 pub(crate) fn signature_help(
     state: &mut GlobalState,
     params: SignatureHelpParams,
 ) -> impl Future<Output = Result<Option<SignatureHelp>, ResponseError>> + use<> {
-    let mut params = params.text_document_position_params;
-    params.text_document.uri = normalize_file_uri(params.text_document.uri);
-    let response = state.cached_vfs_path(&params.text_document.uri).and_then(|path| {
+    let (uri, position) = position_params(params.text_document_position_params);
+    let response = state.cached_vfs_path(&uri).and_then(|path| {
         let source = state.vfs.read().get_file_source(&path)?;
-        let cursor = source
-            .positions()
-            .text_range(lsp_types::Range::new(params.position, params.position))?
-            .start;
+        let cursor =
+            source.positions().text_range(lsp_types::Range::new(position, position))?.start;
         let statement_boundary = Some(source.statement_boundary(cursor));
         state.symbol_tables.load().signature_help(
-            &params.text_document.uri,
+            &uri,
             cursor,
             source.positions(),
             &source.source(),
             statement_boundary,
-            state.config.signature_help_options(),
+            state.config.signature_help,
         )
     });
     ready(Ok(response))
@@ -1017,61 +950,52 @@ pub(crate) fn completion(
 ) -> impl Future<Output = Result<Option<CompletionResponse>, ResponseError>> + use<> {
     let trigger_character =
         params.context.as_ref().and_then(|context| context.trigger_character.as_deref());
-    let mut params = params.text_document_position;
-    params.text_document.uri = normalize_file_uri(params.text_document.uri);
-    let source = state
-        .cached_vfs_path(&params.text_document.uri)
-        .and_then(|path| state.vfs.read().get_file_source(&path));
+    let (uri, position) = position_params(params.text_document_position);
+    let source =
+        state.cached_vfs_path(&uri).and_then(|path| state.vfs.read().get_file_source(&path));
     if let Some(source) = source {
         let contents = source.contents();
         let cursor = source
             .positions()
-            .checked_text_range(lsp_types::Range::new(params.position, params.position))
+            .checked_text_range(lsp_types::Range::new(position, position))
             .map(|range| range.start);
-        match natspec_completion::target(contents, cursor) {
-            NatSpecCompletionResult::Claimed(target) => {
-                let items = target.map_or_else(Vec::new, |target| {
-                    let semantics = state
-                        .natspec_semantics_are_usable(&params.text_document.uri)
-                        .then(|| {
-                            state
-                                .symbol_tables
-                                .load()
-                                .natspec_semantics(
-                                    &params.text_document.uri,
-                                    target.source_fingerprint(),
-                                    target.key(),
-                                )
-                                .cloned()
-                        })
-                        .flatten();
-                    target.completion_items(state.config.completion_options(), semantics.as_ref())
-                });
-                return ready(Ok(Some(CompletionResponse::Array(items))));
-            }
-            NatSpecCompletionResult::NotApplicable => {}
+        if let NatSpecCompletionResult::Claimed(target) =
+            natspec_completion::target(contents, cursor)
+        {
+            let items = target.map_or_else(Vec::new, |target| {
+                let semantics = state
+                    .natspec_semantics_are_usable(&uri)
+                    .then(|| {
+                        let symbol_tables = state.symbol_tables.load();
+                        symbol_tables
+                            .natspec_semantics(&uri, target.source_fingerprint(), target.key())
+                            .cloned()
+                    })
+                    .flatten();
+                target.completion_items(state.config.completion, semantics.as_ref())
+            });
+            return ready(Ok(Some(CompletionResponse::Array(items))));
         }
         if let Some(cursor) = cursor
-            && let Some(response) = import_completion(
-                state,
-                &params.text_document.uri,
-                cursor,
-                contents,
-                &source.source(),
-            )
+            && let Some(response) =
+                import_completion(state, &uri, cursor, contents, &source.source())
         {
             return ready(Ok(Some(response)));
+        }
+        if let Some(cursor) = cursor
+            && completion_is_in_comment_or_string(&source.source(), cursor)
+        {
+            return ready(Ok(Some(CompletionResponse::Array(Vec::new()))));
         }
     }
     if matches!(trigger_character, Some("/" | "*" | "\"" | "'")) {
         return ready(Ok(Some(CompletionResponse::Array(Vec::new()))));
     }
-    let input = completion_input(state, &params.text_document.uri, params.position);
+    let input = completion_input(state, &uri, position);
     let context = input.as_ref().map(CompletionInput::context).unwrap_or_default();
-    let options = state.config.completion_options();
+    let options = state.config.completion;
     let symbol_tables = state.symbol_tables.load();
-    let mut items =
-        symbol_tables.completion_items(&params.text_document.uri, params.position, context);
+    let mut items = symbol_tables.completion_items(&uri, position, context);
     if !options.resolve_documentation {
         symbol_tables.resolve_completion_items(&mut items, options.markdown_documentation);
     }
@@ -1088,10 +1012,10 @@ fn import_completion(
     let importer = uri.to_file_path().ok()?;
     let import = import_path_at_for_completion(source, cursor_offset)?;
     let prefix_end = cursor_offset.max(import.content_range.start);
-    let raw_path_prefix = source.get(import.content_range.start..prefix_end).map(str::to_owned)?;
+    let raw_path_prefix = source.get(import.content_range.start..prefix_end)?;
     let replacement = import.content_range;
     let delimiter = import.delimiter;
-    let Some(path_prefix) = decode_import_path(&raw_path_prefix) else {
+    let Some(path_prefix) = decode_import_path(raw_path_prefix) else {
         return Some(CompletionResponse::Array(Vec::new()));
     };
     if !(replacement.start..=replacement.end).contains(&cursor_offset) {
@@ -1110,19 +1034,13 @@ fn import_completion(
         .iter()
         .map(|candidate| {
             let import_path = candidate.import_path().to_string();
-            let mut new_text = String::with_capacity(import_path.len());
-            write!(new_text, "{}", solidity_string_contents(import_path.as_bytes(), delimiter))
-                .unwrap();
-            let filter_text = if raw_path_prefix.bytes().any(|byte| matches!(byte, b'\r' | b'\n')) {
-                new_text.clone()
-            } else if let Some(suffix) = import_path.strip_prefix(&path_prefix) {
-                let mut filter_text = String::with_capacity(raw_path_prefix.len() + suffix.len());
-                filter_text.push_str(&raw_path_prefix);
-                write!(filter_text, "{}", solidity_string_contents(suffix.as_bytes(), delimiter))
-                    .unwrap();
-                filter_text
-            } else {
-                new_text.clone()
+            let new_text = solidity_string_contents(import_path.as_bytes(), delimiter).to_string();
+            let filter_text = match import_path.strip_prefix(&path_prefix) {
+                Some(suffix) if !raw_path_prefix.contains(['\r', '\n']) => {
+                    let suffix = solidity_string_contents(suffix.as_bytes(), delimiter);
+                    format!("{raw_path_prefix}{suffix}")
+                }
+                _ => new_text.clone(),
             };
             CompletionItem {
                 label: import_path,
@@ -1141,11 +1059,11 @@ fn import_completion(
         })
         .collect();
 
-    if completion.is_incomplete() {
-        Some(CompletionResponse::List(CompletionList { is_incomplete: true, items }))
+    Some(if completion.is_incomplete() {
+        CompletionResponse::List(CompletionList { is_incomplete: true, items })
     } else {
-        Some(CompletionResponse::Array(items))
-    }
+        CompletionResponse::Array(items)
+    })
 }
 
 fn import_completion_edit_ranges(
@@ -1192,9 +1110,9 @@ fn line_content_end(contents: &Rope, line: usize) -> usize {
 
 pub(crate) fn resolve_completion_item(
     state: &mut GlobalState,
-    item: CompletionItem,
+    mut item: CompletionItem,
 ) -> impl Future<Output = Result<CompletionItem, ResponseError>> + use<> {
-    let options = state.config.completion_options();
+    let options = state.config.completion;
     let request = if options.resolve_documentation {
         CompletionItemData::from_item(&item).and_then(|data| {
             let latest_analysis = latest_analysis_for_uri(state, data.uri())?;
@@ -1204,14 +1122,15 @@ pub(crate) fn resolve_completion_item(
         None
     };
     async move {
-        let Some((data, latest_analysis)) = request else { return Ok(item) };
-        let symbol_tables = latest_analysis.await?;
-        let resolved = symbol_tables.load().resolve_completion_item(
-            item,
-            data,
-            options.markdown_documentation,
-        );
-        Ok(resolved)
+        if let Some((data, latest_analysis)) = request {
+            let symbol_tables = latest_analysis.await?;
+            symbol_tables.load().resolve_completion_item(
+                &mut item,
+                &data,
+                options.markdown_documentation,
+            );
+        }
+        Ok(item)
     }
 }
 
@@ -1229,26 +1148,23 @@ impl CompletionInput {
 fn completion_input(state: &GlobalState, uri: &Url, position: Position) -> Option<CompletionInput> {
     let path = crate::proto::vfs_path(uri)?;
     let vfs = state.vfs.read();
-    let line = line_at(vfs.get_file_contents(&path)?, position.line as usize)?;
-    let line_prefix = line_prefix_at(&line, position)?;
-    Some(completion_input_from_line_prefix(line_prefix))
+    let contents = vfs.get_file_contents(&path)?;
+    let line = position.line as usize;
+    let line = (line < contents.line_len()).then(|| contents.line(line).to_string())?;
+    Some(completion_input_from_line_prefix(line_prefix_at(&line, position)))
 }
 
-fn line_at(contents: &Rope, line: usize) -> Option<String> {
-    (line < contents.line_len()).then(|| contents.line(line).to_string())
-}
-
-fn line_prefix_at(contents: &str, position: Position) -> Option<&str> {
+fn line_prefix_at(contents: &str, position: Position) -> &str {
     let line = contents.strip_suffix('\r').unwrap_or(contents);
     let target = position.character as usize;
     let mut utf16 = 0;
     for (idx, ch) in line.char_indices() {
         if utf16 >= target {
-            return Some(&line[..idx]);
+            return &line[..idx];
         }
         utf16 += ch.len_utf16();
     }
-    Some(line)
+    line
 }
 
 fn completion_input_from_line_prefix(line_prefix: &str) -> CompletionInput {
@@ -1270,12 +1186,19 @@ fn completion_input_from_line_prefix(line_prefix: &str) -> CompletionInput {
 fn start_of_trailing_ident(s: &str) -> usize {
     s.char_indices()
         .rev()
-        .find(|(_, ch)| !is_completion_ident_char(*ch))
+        .find(|&(_, ch)| ch != '_' && ch != '$' && !ch.is_ascii_alphanumeric())
         .map_or(0, |(idx, ch)| idx + ch.len_utf8())
 }
 
-fn is_completion_ident_char(ch: char) -> bool {
-    ch == '_' || ch == '$' || ch.is_ascii_alphanumeric()
+fn completion_is_in_comment_or_string(source: &str, cursor: usize) -> bool {
+    let Some(prefix) = source.get(..cursor) else { return false };
+    let Some((_, token)) = Cursor::new(prefix).with_position().last() else { return false };
+    matches!(
+        token.kind,
+        RawTokenKind::LineComment { .. }
+            | RawTokenKind::BlockComment { terminated: false, .. }
+            | RawTokenKind::Literal { kind: RawLiteralKind::Str { terminated: false, .. } }
+    )
 }
 
 #[cfg(test)]

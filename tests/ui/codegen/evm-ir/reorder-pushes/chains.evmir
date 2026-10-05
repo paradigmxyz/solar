@@ -33,15 +33,10 @@ bb1:
   stop
 
 // Reorder a deep producer like every other closed expression.
-// CHECK-LABEL: {{^[ +].*}}bb2:
+// CHECK-LABEL: {{^[ +].*}}bb2 [stack=1021]:
 // CHECK: +   push 1
 // CHECK: -   swap 1
-bb2:
-  callf !metadata(stack=0->255)
-  callf !metadata(stack=0->255)
-  callf !metadata(stack=0->255)
-  callf !metadata(stack=0->255)
-  callf !metadata(stack=0->2)
+bb2 [stack=1021]:
   calldatasize
   calldatasize
   add
@@ -51,15 +46,11 @@ bb2:
   stop
 
 // Chained rewrites move every immediate before the shared producer.
-// CHECK-LABEL: {{^[ +].*}}bb3:
+// CHECK-LABEL: {{^[ +].*}}bb3 [stack=1019]:
 // CHECK: +   push 1
 // CHECK: +   push 2
 // CHECK: -   swap 1
-bb3:
-  callf !metadata(stack=0->255)
-  callf !metadata(stack=0->255)
-  callf !metadata(stack=0->255)
-  callf !metadata(stack=0->255)
+bb3 [stack=1019]:
   push 0
   calldatasize
   calldatasize

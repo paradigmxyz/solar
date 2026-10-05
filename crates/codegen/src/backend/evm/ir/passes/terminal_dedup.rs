@@ -1,8 +1,7 @@
 //! Duplicate terminal block elimination.
 //!
-//! Do not schedule sharing in modules containing `PC`: distinct instruction sites must remain
-//! distinct observations, even when their surrounding bodies become identical. Blocks with custom
-//! instruction stack effects are not candidates: sharing must preserve their stack contracts.
+//! Do not schedule sharing in modules containing `PC`: a shared body would collapse distinct
+//! instruction-position observations into one site.
 //!
 //! Terminal blocks with identical machine instruction bodies can share one
 //! implementation because execution never returns to their callers. This pass
@@ -30,16 +29,16 @@
 use super::{
     EvmPass,
     cfg_simplify::is_direct_jump_label,
-    utils::{is_terminal_boundary, observes_instruction_position},
+    utils::{MachineInstKey, is_terminal_boundary, observes_instruction_position},
 };
-use crate::backend::evm::ir::{
-    Block, BlockId, Hotness, Module, PushValue, Terminator, TerminatorKind,
-};
+use crate::backend::evm::ir::{Block, BlockId, Hotness, Module, Terminator, TerminatorKind};
+use smallvec::SmallVec;
 use solar_data_structures::{
     bit_set::DenseBitSet,
-    map::{FxHashMap, StdEntry},
+    map::{FxHashMap, FxHasher},
 };
 use solar_sema::Gcx;
+use std::hash::{Hash, Hasher};
 
 pub(super) struct TerminalDedup;
 
@@ -55,7 +54,8 @@ impl EvmPass for TerminalDedup {
 
 #[derive(Default)]
 struct RunState {
-    canonical: FxHashMap<TerminalBlockKey, BlockId>,
+    /// First body of each shape, bucketed by the hash of its instruction keys and terminator.
+    canonical: FxHashMap<u64, SmallVec<[BlockId; 1]>>,
     redirects: Vec<(BlockId, BlockId)>,
 }
 
@@ -89,12 +89,14 @@ fn deduplicate_terminals(_gcx: Gcx<'_>, module: &mut Module) -> bool {
     for block_id in module.blocks.indices() {
         let block = &module.blocks[block_id];
         let redirectable = !unshareable.contains(block_id);
-        let Some(key) = terminal_block_key(block, redirectable) else { continue };
-        match state.canonical.entry(key) {
-            StdEntry::Occupied(entry) => state.redirects.push((block_id, *entry.get())),
-            StdEntry::Vacant(entry) => {
-                entry.insert(block_id);
-            }
+        let Some(hash) = terminal_block_hash(block, redirectable) else { continue };
+        let bodies = state.canonical.entry(hash).or_default();
+        if let Some(&canonical) =
+            bodies.iter().find(|&&other| same_terminal_body(&module.blocks[other], block))
+        {
+            state.redirects.push((block_id, canonical));
+        } else {
+            bodies.push(block_id);
         }
     }
 
@@ -135,38 +137,29 @@ fn merge_debug_origins(module: &mut Module, redirects: &[(BlockId, BlockId)]) {
     module.blocks[target].terminator.as_mut().unwrap().metadata = metadata;
 }
 
-fn terminal_block_key(block: &Block, redirectable: bool) -> Option<TerminalBlockKey> {
+/// Hashes a candidate body's machine instructions and terminator; `None` when the block cannot
+/// share its body.
+fn terminal_block_hash(block: &Block, redirectable: bool) -> Option<u64> {
     let terminator = &block.terminator.as_ref()?.kind;
-    if (!is_terminal_boundary(terminator) && !redirectable)
-        || block.instructions.iter().any(|inst| !inst.has_canonical_stack_effect())
-    {
+    if !is_terminal_boundary(terminator) && !redirectable {
         return None;
     }
-    let instructions = block
-        .instructions
-        .iter()
-        .map(|inst| TerminalInstructionKey {
-            opcode: inst.opcode,
-            encoding: inst.encoding,
-            value: inst.value,
-            stack_op: inst.as_stack_op(),
-            keep_with_next: inst.keeps_with_next(),
-        })
-        .collect();
-    Some(TerminalBlockKey { instructions, terminator: terminator.clone() })
+    let mut hasher = FxHasher::default();
+    block.instructions.len().hash(&mut hasher);
+    for inst in &block.instructions {
+        MachineInstKey::new(inst).hash(&mut hasher);
+    }
+    terminator.hash(&mut hasher);
+    Some(hasher.finish())
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-struct TerminalBlockKey {
-    instructions: Vec<TerminalInstructionKey>,
-    terminator: TerminatorKind,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-struct TerminalInstructionKey {
-    opcode: u8,
-    encoding: u8,
-    value: Option<PushValue>,
-    stack_op: Option<crate::backend::evm::op::StackOp>,
-    keep_with_next: bool,
+/// Whether two candidate bodies have the same machine instructions and terminator.
+fn same_terminal_body(a: &Block, b: &Block) -> bool {
+    a.instructions.len() == b.instructions.len()
+        && a.instructions
+            .iter()
+            .zip(&b.instructions)
+            .all(|(a, b)| MachineInstKey::new(a) == MachineInstKey::new(b))
+        && a.terminator.as_ref().map(|term| &term.kind)
+            == b.terminator.as_ref().map(|term| &term.kind)
 }

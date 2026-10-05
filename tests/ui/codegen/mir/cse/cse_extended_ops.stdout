@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/cse/cse_extended_ops.mir (before cse) ===
 + // === ROOT/tests/ui/codegen/mir/cse/cse_extended_ops.mir (after cse) ===
   @module CseExtendedOps
-  types:
+  @types
     struct0: {i256, i256, i256, i256, i256, i1}
   
   fn @extended_pure_ops(arg0: i256, arg1: i256, arg2: i1) -> struct0 [return_abi=[i256, i256, i256, i256, i256, i1]] {

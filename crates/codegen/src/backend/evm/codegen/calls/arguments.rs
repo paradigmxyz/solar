@@ -3,9 +3,9 @@
 use super::super::{
     ArgIdx, BlockId, CanonicalArgValues, DenseBitSet, EvmCodegen, EvmMemoryLayout, Function,
     FunctionId, FxHashMap, GLOBAL_STACK_LAYOUT_LIMIT, GlobalStackPlan, InstKind, LazyStackArgPlan,
-    Liveness, Module, OptimizationMode, SpillSlot, StackArgRetentionPlan, StackArgUseInfo,
-    StackModel, StackOp, StackScheduler, StaticCallEntry, StaticCallStackWord, TargetSlot,
-    Terminator, U256, ValueId, WORD_BYTES, op, rematerializable_nullary_value,
+    Module, OptimizationMode, SpillSlot, StackArgRetentionPlan, StackArgUseInfo, StackModel,
+    StackOp, StackScheduler, StaticCallEntry, StaticCallStackWord, TargetSlot, Terminator, U256,
+    ValueId, WORD_BYTES, op, rematerializable_nullary_value,
 };
 use crate::mir::Callee;
 
@@ -141,7 +141,8 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
             let has_phis =
                 func.instructions().any(|inst| matches!(func.inst(inst).kind, InstKind::Phi(_)));
-            let liveness = (func.blocks.len() != 1 || has_phis).then(|| Liveness::compute(func));
+            let liveness =
+                (func.blocks.len() != 1 || has_phis).then(|| self.function_liveness(func_id, func));
             let plan = if let Some(liveness) = &liveness {
                 let phi_plan = func
                     .blocks
@@ -228,7 +229,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     if block_id == BlockId::ENTRY && info.first_entry_call.is_none() && is_call {
                         info.first_entry_call = Some(inst_idx);
                     }
-                    for operand in kind.operands() {
+                    kind.visit_operands(|operand| {
                         *info.use_counts.entry(operand).or_insert(0) += 1;
                         if block_id == BlockId::ENTRY {
                             info.entry_first_uses.entry(operand).or_insert(inst_idx);
@@ -238,11 +239,11 @@ impl<'gcx> EvmCodegen<'gcx> {
                         if is_call {
                             info.call_uses.insert(operand);
                         }
-                    }
+                    });
                 }
                 if let Some(term) = &block.terminator {
                     let is_call = matches!(term, Terminator::TailCall { .. });
-                    for operand in term.operands() {
+                    term.visit_operands(|operand| {
                         *info.use_counts.entry(operand).or_insert(0) += 1;
                         if block_id != BlockId::ENTRY {
                             info.non_entry_uses.insert(operand);
@@ -250,7 +251,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                         if is_call {
                             info.call_uses.insert(operand);
                         }
-                    }
+                    });
                 }
             }
             all_uses.insert(func_id, info);

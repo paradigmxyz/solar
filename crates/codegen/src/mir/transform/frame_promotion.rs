@@ -423,7 +423,7 @@ impl FrameSlotPromoter {
         slot_offset: u64,
     ) -> bool {
         match *kind {
-            InstKind::PtrToInt(_, 256) | InstKind::IntToPtr(_) | InstKind::Bitcast(_) => false,
+            InstKind::PtrToInt(_, 256) | InstKind::IntToPtr(_) => false,
             InstKind::MLoad(addr) => {
                 !Self::is_exact_internal_slot_access(func, aa, addr, slot_offset)
                     && Self::internal_frame_range_may_overlap(func, aa, addr, Some(32), slot_offset)
@@ -492,17 +492,6 @@ impl FrameSlotPromoter {
                     aa,
                     ret_offset,
                     func.value_u64(ret_size),
-                    slot_offset,
-                )
-            }
-            InstKind::ExtCall { args_offset, args_size, .. }
-            | InstKind::ExtDelegateCall { args_offset, args_size, .. }
-            | InstKind::ExtStaticCall { args_offset, args_size, .. } => {
-                Self::internal_frame_range_may_overlap(
-                    func,
-                    aa,
-                    args_offset,
-                    func.value_u64(args_size),
                     slot_offset,
                 )
             }
@@ -597,17 +586,6 @@ impl FrameSlotPromoter {
                     aa,
                     ret_offset,
                     func.value_u64(ret_size),
-                    slot_addr,
-                )
-            }
-            InstKind::ExtCall { args_offset, args_size, .. }
-            | InstKind::ExtDelegateCall { args_offset, args_size, .. }
-            | InstKind::ExtStaticCall { args_offset, args_size, .. } => {
-                Self::external_range_reaches_slot(
-                    func,
-                    aa,
-                    args_offset,
-                    func.value_u64(args_size),
                     slot_addr,
                 )
             }

@@ -151,7 +151,8 @@ fn if_convert_function(func: &mut Function, target: Target) -> bool {
 fn predecessors(func: &Function) -> IndexVec<BlockId, Vec<BlockId>> {
     let mut preds = index_vec![Vec::new(); func.blocks.len()];
     let mut reachable = DenseBitSet::new_empty(func.blocks.len());
-    let mut worklist = vec![BlockId::ENTRY];
+    let mut worklist = Vec::new();
+    worklist.push(BlockId::ENTRY);
     reachable.insert(BlockId::ENTRY);
     while let Some(block) = worklist.pop() {
         let Some(terminator) = &func.blocks[block].terminator else { continue };
@@ -261,7 +262,7 @@ fn join_selects(func: &Function, site: &Site) -> Option<Vec<Select>> {
 /// Whether a value carries memory, storage, or calldata provenance that the
 /// arithmetic forms would erase.
 fn is_pointer(func: &Function, value: ValueId) -> bool {
-    matches!(func.value_ty(value), Some(MirType::MemoryObject(_) | MirType::Slice(_)))
+    matches!(func.value_ty(value), Some(MirType::MemPtr | MirType::Slice(_)))
 }
 
 fn select_form(
@@ -406,11 +407,11 @@ fn transfer_cost(target: Target) -> Cost {
 fn inst_cost(func: &Function, target: Target, inst: InstId) -> Cost {
     let kind = &func.inst(inst).kind;
     let mut cost = target.op(&kind.op(), |value| func.value_u256(value));
-    for operand in kind.operands() {
+    kind.visit_operands(|operand| {
         if let Some(literal) = func.value_u256(operand) {
             cost = cost.plus(target.push(literal));
         }
-    }
+    });
     cost
 }
 

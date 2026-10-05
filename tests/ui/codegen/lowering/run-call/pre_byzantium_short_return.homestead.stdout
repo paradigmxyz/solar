@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/pre_byzantium_short_return.sol:ShortReturns ===
 @module ShortReturns
-types:
+@types
   struct0: {i256, i256}
   struct1: {i256, i256, i256, i256}
 
@@ -186,10 +186,10 @@ fn @emptyFour() -> struct1 [selector=0x7bcee116, abi_params=[], abi_returns=[wor
     ret v41
 }
 
-fn @emptyAgg() -> memoryfixedarray [selector=0x06df237b, abi_params=[], abi_returns=[array<2, word>], abi_return_params=[array<2, u256>]] {
+fn @emptyAgg() -> memptr [selector=0x06df237b, abi_params=[], abi_returns=[array<2, word>], abi_return_params=[array<2, u256>]] {
   bb0:
     v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    v1 = ptrtoint memoryfixedarray v0 to i256
+    v1 = ptrtoint memptr v0 to i256
     memory_zero v1, 64
     v2 = address
     v3 = alloc memorybytes, exact, uninitialized, infallible, 96
@@ -220,10 +220,10 @@ fn @emptyAgg() -> memoryfixedarray [selector=0x06df237b, abi_params=[], abi_retu
     ret v19
 }
 
-fn @emptyAggArg() -> memoryfixedarray [selector=0x3dd9064d, abi_params=[], abi_returns=[array<2, word>], abi_return_params=[array<2, u256>]] {
+fn @emptyAggArg() -> memptr [selector=0x3dd9064d, abi_params=[], abi_returns=[array<2, word>], abi_return_params=[array<2, u256>]] {
   bb0:
     v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    v1 = ptrtoint memoryfixedarray v0 to i256
+    v1 = ptrtoint memptr v0 to i256
     memory_zero v1, 64
     v2 = address
     v3 = alloc memorybytes, exact, uninitialized, infallible, 96
@@ -322,10 +322,10 @@ fn @partialPair() -> struct0 [selector=0x94ae8541, abi_params=[], abi_returns=[w
     ret v27
 }
 
-fn @partialAgg() -> memoryfixedarray [selector=0xbf0809fa, abi_params=[], abi_returns=[array<2, word>], abi_return_params=[array<2, u256>]] {
+fn @partialAgg() -> memptr [selector=0xbf0809fa, abi_params=[], abi_returns=[array<2, word>], abi_return_params=[array<2, u256>]] {
   bb0:
     v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    v1 = ptrtoint memoryfixedarray v0 to i256
+    v1 = ptrtoint memptr v0 to i256
     memory_zero v1, 64
     v2 = address
     v3 = alloc memorybytes, exact, uninitialized, infallible, 96

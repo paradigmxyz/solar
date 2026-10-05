@@ -70,13 +70,13 @@
       ret arg0
   }
   
-  fn @decode_caller(arg0: memorybytes) -> memoryarray {
+  fn @decode_caller(arg0: memptr) -> memptr {
     bb0:
       v0 = icall @decode_dynamic, arg0
       ret v0
   }
   
-  fn @decode_dynamic(arg0: memorybytes) -> memoryarray {
+  fn @decode_dynamic(arg0: memptr) -> memptr {
     bb0:
       v0 = abi_decode [array<_, u256>], arg0
       ret v0

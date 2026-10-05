@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_boundary_struct_array_mixed.sol:StorageBoundaryStructArrayMixed ===
 @module StorageBoundaryStructArrayMixed
-types:
+@types
   struct0: {i256, i256}
 
 fn @getBoundaryArray() -> i256 [pure] {
@@ -253,11 +253,11 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     jump bb15
   bb13:
     v91 = memory_object_load_element memoryfixedarray<10, 1>, v61, v86
-    v92 = inttoptr i256 v91 to memorystruct
+    v92 = inttoptr i256 v91 to memptr
     v93 = memory_object_load_field memorystruct<5>, v92, 0
     sstore v89, v93 !metadata(storage=symbolic(v89))
     v94 = add v89, 1
-    v95 = inttoptr i256 v91 to memorystruct
+    v95 = inttoptr i256 v91 to memptr
     v96 = memory_object_load_field memorystruct<5>, v95, 1
     v97 = sload v94 !metadata(storage=offset(v89, 1))
     v98 = not 0xffffffffffffffffffffffffffffffff
@@ -266,7 +266,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v101 = or v99, v100
     sstore v94, v101 !metadata(storage=offset(v89, 1))
     v102 = add v89, 1
-    v103 = inttoptr i256 v91 to memorystruct
+    v103 = inttoptr i256 v91 to memptr
     v104 = memory_object_load_field memorystruct<5>, v103, 2
     v105 = shl 128, 0xffffffffffffffff
     v106 = sload v102 !metadata(storage=offset(v89, 1))
@@ -277,11 +277,11 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v111 = or v108, v110
     sstore v102, v111 !metadata(storage=offset(v89, 1))
     v112 = add v89, 2
-    v113 = inttoptr i256 v91 to memorystruct
+    v113 = inttoptr i256 v91 to memptr
     v114 = memory_object_load_field memorystruct<5>, v113, 3
     sstore v112, v114 !metadata(storage=offset(v89, 2))
     v115 = add v89, 3
-    v116 = inttoptr i256 v91 to memorystruct
+    v116 = inttoptr i256 v91 to memptr
     v117 = memory_object_load_field memorystruct<5>, v116, 4
     v118 = sload v115 !metadata(storage=offset(v89, 3))
     v119 = not 255
@@ -315,7 +315,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v78 = sload v77 !metadata(storage=offset(v65, 3))
     v79 = and v78, 255
     memory_object_store_field memorystruct<5>, v66, 4, v79
-    v80 = ptrtoint memorystruct v66 to i256
+    v80 = ptrtoint memptr v66 to i256
     memory_object_store_element memoryfixedarray<10, 1>, v61, v62, v80
     v81 = add v62, 1
     jump bb7

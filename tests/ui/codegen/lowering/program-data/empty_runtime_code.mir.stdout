@@ -1,0 +1,72 @@
+// === ROOT/tests/ui/codegen/lowering/program-data/empty_runtime_code.sol:EmptyRuntime ===
+@module EmptyRuntime
+fn @fallback() [fallback, payable] {
+  bb0:
+    ret
+}
+
+// === ROOT/tests/ui/codegen/lowering/program-data/empty_runtime_code.sol:EmptyFactory ===
+@module EmptyFactory
+@data
+  EmptyRuntime_runtime_code_0: runtime_code "ROOT/tests/ui/codegen/lowering/program-data/empty_runtime_code.sol:EmptyRuntime"
+  EmptyRuntime_creation_code_1: creation_code "ROOT/tests/ui/codegen/lowering/program-data/empty_runtime_code.sol:EmptyRuntime"
+
+fn @runtimeLength() -> i256 [selector=0xb379b2a0, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = datasize EmptyRuntime_runtime_code_0
+    v1 = datasize EmptyRuntime_runtime_code_0, 63, aligned
+    v2 = alloc memorybytes, exact, uninitialized, infallible, v1 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v2, v0
+    v3 = memory_object_data memorybytes, v2
+    v4 = datasize EmptyRuntime_runtime_code_0, 31, aligned
+    v5 = ptrtoint memptr v2 to i256
+    v6 = add v5, v4
+    mstore v6, 0
+    v7 = ptrtoint memptr v3 to i256
+    datacopy EmptyRuntime_runtime_code_0, v7, v0
+    v8 = memory_object_len memorybytes, v2
+    ret v8
+}
+
+fn @runtimeCode() -> memptr [selector=0x40e70806, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = datasize EmptyRuntime_runtime_code_0
+    v1 = datasize EmptyRuntime_runtime_code_0, 63, aligned
+    v2 = alloc memorybytes, exact, uninitialized, infallible, v1 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v2, v0
+    v3 = memory_object_data memorybytes, v2
+    v4 = datasize EmptyRuntime_runtime_code_0, 31, aligned
+    v5 = ptrtoint memptr v2 to i256
+    v6 = add v5, v4
+    mstore v6, 0
+    v7 = ptrtoint memptr v3 to i256
+    datacopy EmptyRuntime_runtime_code_0, v7, v0
+    ret v2
+}
+
+fn @deploy() -> i256 [selector=0x775c300c, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = abi_encode []
+    v1 = datasize EmptyRuntime_creation_code_1
+    v2 = datasize EmptyRuntime_creation_code_1, 31, aligned
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    v4 = ptrtoint memptr v3 to i256
+    datacopy EmptyRuntime_creation_code_1, v4, v1
+    v5 = slice_ptr v0
+    v6 = ptrtoint memptr v3 to i256
+    v7 = add v6, v1
+    mcopy v7, v5, 0 !metadata(memory=heap)
+    v8 = ptrtoint memptr v3 to i256
+    v9 = create 0, v8, v1
+    v10 = zext i160 v9 to i256
+    v11 = ne v10, 0
+    jumpi v11, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v12 = zext i160 v9 to i256
+    v13 = extcodesize v12
+    v14 = eq v13, 0
+    v15 = zext i1 v14 to i256
+    ret v15
+}

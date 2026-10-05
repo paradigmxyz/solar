@@ -19,35 +19,6 @@ pub fn line_diff<'a>(before: &'a str, after: &'a str) -> impl fmt::Display + 'a 
     })
 }
 
-/// Creates a formatter from a function.
-pub fn from_fn<F>(f: F) -> FromFn<F>
-where
-    F: Fn(&mut fmt::Formatter<'_>) -> fmt::Result,
-{
-    FromFn(f)
-}
-
-/// Display adapter returned by [`from_fn`].
-pub struct FromFn<F>(F);
-
-impl<F> fmt::Display for FromFn<F>
-where
-    F: Fn(&mut fmt::Formatter<'_>) -> fmt::Result,
-{
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        (self.0)(f)
-    }
-}
-
-impl<F> fmt::Debug for FromFn<F>
-where
-    F: Fn(&mut fmt::Formatter<'_>) -> fmt::Result,
-{
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        (self.0)(f)
-    }
-}
-
 /// Iterator formatting helpers.
 pub trait FmtIteratorExt: Iterator + Sized {
     /// Formats each item separated by `separator`.

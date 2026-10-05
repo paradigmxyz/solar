@@ -130,7 +130,6 @@ impl InstKind {
             | Self::Sext(..)
             | Self::PtrToInt(..)
             | Self::IntToPtr(..)
-            | Self::Bitcast(..)
             | Self::Add(..)
             | Self::Sub(..)
             | Self::Mul(..)
@@ -207,6 +206,7 @@ impl InstKind {
             | Self::ExtCodeHash(..)
             | Self::StoreImmutable(..)
             | Self::LibraryAddress(..)
+            | Self::DataSize(..)
             | Self::LoadImmutable(..)
             | Self::ReturnDataSize
             | Self::Caller
@@ -242,9 +242,6 @@ impl InstKind {
             | Self::CallCode { .. }
             | Self::StaticCall { .. }
             | Self::DelegateCall { .. }
-            | Self::ExtCall { .. }
-            | Self::ExtDelegateCall { .. }
-            | Self::ExtStaticCall { .. }
             | Self::Create(..)
             | Self::Create2(..)
             | Self::Log0(..)

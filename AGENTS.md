@@ -149,7 +149,7 @@ The repository-specific conventions are:
 - `evm-ir/prelude.isle` is generated from the EVM opcode table the same way
   (`cargo nextest run -p solar-codegen evm_isle_prelude`) and declares one
   `$OPCODE` constant per opcode byte for EVM IR rules.
-- One rule file per pass (`mir/egraph.isle`, `evm-ir/peephole.isle`), compiled by
+- Rule files grouped by pass (`mir/egraph/`, `evm-ir/peephole.isle`), compiled by
   `crates/codegen/build.rs` and included from a sibling `isle.rs` module that
   implements the extractors and constructors the rules call. Register new
   rule sets in the build script's `RULE_SETS`.
@@ -227,7 +227,7 @@ reaches while a displaced operand stays live elsewhere. Without that term,
 rewrites after memory lowering extend live ranges the stack scheduler
 spills and measure as a loss. The pass also merges phis, deletes zero-byte
 copies, and rewrites branches on boolean zero tests, and runs once more after memory
-lowering. Extend it by adding rules to `egraph.isle`, bounds to `max_bits`,
+lowering. Extend it by adding rules to `isle/mir/egraph/`, bounds to `max_bits`,
 and stack-traffic terms to `Costs::node`; opcode prices belong in the gas
 schedule, never in the pass, and never match instructions in the pass
 itself.
@@ -613,9 +613,10 @@ Default format (conventional commits): `type: description` (feat, fix, perf, cho
 
 ### IR construction and rewrites
 
-- Generated MIR scalar SSA values use `i1`, `i160`, `i256`, or `memptr`; structs, slices, and memory-object
-  references retain their own types. Keep source widths, signedness, and ABI
-  encodings in operation or layout metadata.
+- Generated MIR scalar SSA values use `i1`, `i160`, `i256`, or `memptr`; structs and slices
+  retain their own types. Memory objects are opaque `memptr` values, like LLVM's `ptr`:
+  the operations that access them carry the object layout. Keep source widths,
+  signedness, and ABI encodings in operation or layout metadata.
 - Name MIR integer types `iN` by bit width. Accept any positive 32-bit width in
   MIR syntax, but emit only `i1`, `i160`, and `i256` from source lowering for now.
   Other widths have no codegen support yet; lower them at the EVM IR boundary
@@ -635,7 +636,7 @@ Default format (conventional commits): `type: description` (feat, fix, perf, cho
   belongs in EVM IR, not MIR. Rewrites must preserve both value and type;
   boolean-to-word conversions require `zext i1 value to i256`.
 - Use LLVM cast names and semantics: `trunc`, `zext`, `sext`, `ptrtoint`,
-  `inttoptr`, and `bitcast`, with `source-type value to destination-type` syntax.
+  and `inttoptr`, with `source-type value to destination-type` syntax.
   `trunc` to `i1` keeps the low bit; it does not test for nonzero.
 - Keep `memptr` distinct from integers. Pointer casts do not establish validity,
   heap provenance, ownership, or non-wrapping arithmetic.

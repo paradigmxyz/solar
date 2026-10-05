@@ -65,7 +65,7 @@
       ret v4
   }
   
-  fn @fresh_mapping_entry(arg0: memorybytes) -> i256 [selector=0x10000001, abi_params=[bytes], abi_returns=[word]] {
+  fn @fresh_mapping_entry(arg0: memptr) -> i256 [selector=0x10000001, abi_params=[bytes], abi_returns=[word]] {
     bb0:
       v0 = mapping_slot_memory arg0, 0
       v1 = sload v0
@@ -88,7 +88,7 @@
       ret v9
   }
   
-  fn @mapping_internal_target(arg0: memorybytes) -> i256 [selector=0x10000002, abi_params=[bytes], abi_returns=[word]] {
+  fn @mapping_internal_target(arg0: memptr) -> i256 [selector=0x10000002, abi_params=[bytes], abi_returns=[word]] {
     bb0:
       v0 = mapping_slot_memory arg0, 0
       v1 = mapping_slot_memory arg0, 0
@@ -96,7 +96,7 @@
       ret v2
   }
   
-  fn @mapping_tail_target(arg0: memorybytes) -> i256 [selector=0x10000003, abi_params=[bytes], abi_returns=[word]] {
+  fn @mapping_tail_target(arg0: memptr) -> i256 [selector=0x10000003, abi_params=[bytes], abi_returns=[word]] {
     bb0:
       v0 = mapping_slot_memory arg0, 0
       v1 = mapping_slot_memory arg0, 0
@@ -104,7 +104,7 @@
       ret v2
   }
   
-  fn @mapping_fmp_reset(arg0: memorybytes) -> i256 [selector=0x10000004, abi_params=[bytes], abi_returns=[word]] {
+  fn @mapping_fmp_reset(arg0: memptr) -> i256 [selector=0x10000004, abi_params=[bytes], abi_returns=[word]] {
     bb0:
       v0 = mapping_slot_memory arg0, 0
 -     v1 = inttoptr i256 0 to memptr
@@ -115,7 +115,7 @@
       ret v3
   }
   
-  fn @mapping_raw_read(arg0: memorybytes) -> i256 [selector=0x10000005, abi_params=[bytes], abi_returns=[word]] {
+  fn @mapping_raw_read(arg0: memptr) -> i256 [selector=0x10000005, abi_params=[bytes], abi_returns=[word]] {
     bb0:
       v0 = mapping_slot_memory arg0, 0
       v1 = mload 128
@@ -124,7 +124,7 @@
       ret v3
   }
   
-  fn @mapping_size_observer(arg0: memorybytes) -> i256 [selector=0x10000006, abi_params=[bytes], abi_returns=[word]] {
+  fn @mapping_size_observer(arg0: memptr) -> i256 [selector=0x10000006, abi_params=[bytes], abi_returns=[word]] {
     bb0:
       v0 = mapping_slot_memory arg0, 0
       v1 = msize
@@ -133,25 +133,25 @@
       ret v3
   }
   
-  fn @call_mapping_entry(arg0: memorybytes) -> i256 {
+  fn @call_mapping_entry(arg0: memptr) -> i256 {
     bb0:
       v0 = icall @mapping_internal_target, arg0
       ret v0
   }
   
-  fn @tailcall_mapping_entry(arg0: memorybytes) -> i256 {
+  fn @tailcall_mapping_entry(arg0: memptr) -> i256 {
     bb0:
       tail_call @mapping_tail_target, arg0
   }
   
-  fn @mapping_dynamic_return(arg0: memorybytes) -> memorybytes [selector=0x10000007, abi_params=[bytes], abi_returns=[memory_bytes]] {
+  fn @mapping_dynamic_return(arg0: memptr) -> memptr [selector=0x10000007, abi_params=[bytes], abi_returns=[memory_bytes]] {
     bb0:
       v0 = mapping_slot_memory arg0, 0
       v1 = mapping_slot_memory arg0, 0
       ret arg0
   }
   
-  fn @mapping_payload_require(arg0: memorybytes) [selector=0x10000008, abi_params=[bytes], abi_returns=[]] {
+  fn @mapping_payload_require(arg0: memptr) [selector=0x10000008, abi_params=[bytes], abi_returns=[]] {
     bb0:
       v0 = mapping_slot_memory arg0, 0
       v1 = mapping_slot_memory arg0, 0
@@ -159,10 +159,10 @@
       invalid
   }
   
-  fn @mapping_pointer_cast(arg0: memorybytes) -> i256 [selector=0x10000010, abi_params=[bytes], abi_returns=[word]] {
+  fn @mapping_pointer_cast(arg0: memptr) -> i256 [selector=0x10000010, abi_params=[bytes], abi_returns=[word]] {
     bb0:
       v0 = mapping_slot_memory arg0, 0
-      v1 = ptrtoint memorybytes arg0 to i256
+      v1 = ptrtoint memptr arg0 to i256
       sstore 0, v1
       v2 = mapping_slot_memory arg0, 0
       v3 = add v0, v2

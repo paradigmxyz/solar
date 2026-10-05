@@ -30,6 +30,23 @@ Use the next ID in the relevant phase.
 | Rationale | Why the behavior exists or is accepted. |
 | Coverage | Tests, fixtures, or issues that keep the behavior visible. |
 
+## Standard JSON
+
+### JSON-001: Unknown input fields
+
+Status: intentional.
+
+Difference: `solar` ignores unknown fields in standard-JSON input objects,
+including unknown debug and metadata settings that solc rejects. It also
+ignores `settings.optimizer.details`; only `enabled` and `runs` configure
+the optimizer. Supported fields still require their expected JSON types.
+
+Rationale: Solar accepts inputs containing options it does not implement.
+Solc-specific pass controls have no equivalent meaning in Solar's pipeline.
+
+Coverage: `tests/ui/standard-json/metadata/options/test.jsonc` and
+`tests/ui/standard-json/debug/unknown-key/test.jsonc`.
+
 ## Parsing
 
 ### PARSE-001: Validation stage differences
@@ -51,23 +68,6 @@ phase boundaries.
 Coverage: `tests/ui/typeck/unchecked_as_single_statement.sol`; the upstream
 `unchecked_while_body` parse-only fixture remains excluded from solc parity
 testing.
-
-### PARSE-002: Versioned Yul builtin names remain reserved
-
-Status: intentional.
-
-Difference: `solar` reserves target-dependent Yul builtin names independently
-of the selected EVM version. This includes `basefee`, `prevrandao`, `mcopy`,
-`blobhash`, `blobbasefee`, `tload`, `tstore`, and `clz`. `solc` allows these
-names to be declared as identifiers on targets where the corresponding builtin
-is unavailable.
-
-Rationale: `solar` keeps the Yul grammar independent of the target EVM version.
-Builtin calls are parsed uniformly and their availability is validated during
-name resolution, where the selected EVM version is available.
-
-Coverage: `tests/ui/parser/yul/cancun_builtin_identifiers.sol` and the
-`tests/ui/assembly/yul_builtins_*_evm_version.sol` fixtures.
 
 ## AST Validation
 
@@ -97,20 +97,6 @@ not preserved.
 
 Coverage: `tests/ui/typeck/view_pure_checker/yul_functions.sol` and
 `tests/ui/typeck/view_pure_checker/yul_parity.sol`.
-
-### TYPECK-002: Standalone call-option function values
-
-Status: intentional.
-
-Difference: `solc` permits call options such as `{gas: ...}` and `{value: ...}`
-to form a function value, including when accessing its `.address` or `.selector`
-member. `solar` requires call options to be part of a call expression.
-
-Rationale: `solar` models call options on HIR call expressions and intentionally
-does not represent an option-bearing function value as a separate HIR node.
-
-Coverage: `tests/ui/typeck/function_calls/call_options_standalone.sol` and
-[#1269](https://github.com/paradigmxyz/solar/pull/1269#discussion_r3846737698).
 
 ### TYPECK-003: Inline array literals adopt the expected element type
 
@@ -340,3 +326,22 @@ No intentional divergences documented yet.
   cases under both compilers. The external runner applies this test-only
   correction to both compiler legs and keeps the test enabled. It checks the
   expected source text before applying the correction.
+
+### CODEGEN-009: Static frames sit below the initial free memory pointer
+
+- ID: CODEGEN-009
+- Status: intentional
+- Difference: `solc` starts the free memory pointer at `0x80`. `solar` keeps
+  internal-call frames and spill slots in static memory from `0x80` up to the
+  initial free memory pointer, so a contract's heap starts above every frame it
+  can reach. Inline assembly that stores data at constant addresses in that
+  range, instead of allocating through the free memory pointer, can have it
+  overwritten by any internal call, including the helpers the compiler
+  generates for ABI encoding and pre-Cancun memory copies.
+- Rationale: The Solidity documentation counts only scratch space, memory
+  allocated through the free memory pointer, and memory past the free memory
+  pointer within one assembly block as memory-safe. Static frames make internal
+  calls cheaper than a memory stack, and memory-safe assembly never reaches
+  them.
+- Coverage: `tests/ui/codegen/lowering/run-call/pre_cancun_memory_copies.sol`
+  encodes an object that assembly allocates through the shared copy helper.

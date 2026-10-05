@@ -20,6 +20,10 @@
 //! call sites that targeted a wrapped function are retargeted to its extracted
 //! raw-return body, so internal calls to public functions keep their convention.
 //!
+//! Calldata aggregates that repeat across parameters, or dynamic tuples that repeat anywhere
+//! inside them, decode through shared helpers; tuple helpers take the base of their enclosing
+//! tuple so enclosing decoders can call them for nested values.
+//!
 //! Unsupported return layouts fail the preflight checks. The pass reports an error if
 //! any external entry still has an implicit ABI or any `abi_decode` remains afterward.
 //! Argument-free functions that only return a short literal use direct fixed-buffer stores;
@@ -605,14 +609,8 @@ impl LowerAbiCx {
             }
         }
 
-        let mut memory_types = memory_type_counts
-            .into_iter()
-            .filter_map(|(ty, (count, first))| (count >= 2).then_some((first, ty)))
-            .collect::<Vec<_>>();
-        memory_types.sort_by_key(|(first, ty)| (abi_param_type_depth(ty), *first));
-
         let mut memory_type_helpers = FxHashMap::default();
-        for (_, ty) in memory_types {
+        for ty in repeated_types(memory_type_counts) {
             let helper = synthesize_memory_decode_helper(
                 self.revert_strings,
                 module,
@@ -725,20 +723,28 @@ impl LowerAbiCx {
         module: &mut Module,
         targets: &[FunctionId],
     ) {
-        let mut counts = FxHashMap::<AbiParamType, usize>::default();
+        // Parameters share a helper per type, and so do the dynamic tuples repeated
+        // anywhere inside them, which the helpers of enclosing types then call.
+        // Debug revert strings give nested sites their own offset reasons, which only inline
+        // decoding reports, so only parameters count there.
+        let nested = !self.revert_strings.is_debug();
+        let mut counts = FxHashMap::<AbiParamType, (usize, usize)>::default();
         for &id in targets {
             let func = module.function(id);
             let Some(layout) = func.abi_params.as_ref() else { continue };
             for (ty, &arg_type) in layout.types.iter().zip(&func.params) {
-                if !ty.is_scalar_word() && matches!(arg_type, MirType::MemoryObject(_)) {
-                    *counts.entry(ty.clone()).or_default() += 1;
+                if !ty.is_scalar_word() && arg_type == MirType::MemPtr {
+                    // `count_dynamic_tuple_types` counts a dynamic tuple itself.
+                    if !nested || !decodes_nested(ty) {
+                        count_type(&mut counts, ty, 1);
+                    }
+                    if nested {
+                        count_dynamic_tuple_types(ty, 1, &mut counts);
+                    }
                 }
             }
         }
-        for (ty, count) in counts {
-            if count < 2 {
-                continue;
-            }
+        for ty in repeated_types(counts) {
             let helper = self.synthesize_calldata_aggregate_type_helper(module, ty.clone());
             self.aggregate_type_helpers.insert(ty, helper);
         }
@@ -752,10 +758,14 @@ impl LowerAbiCx {
         let mut function = Function::new(Ident::with_dummy_span(sym::decode_calldata_type));
         {
             let mut builder = self.builder(&mut function);
+            // fn @decode_calldata_type(head, tuple_base) -> T { ret decode T at head }
+            // fn @decode_calldata_type(head) -> T { ret decode T at head, tuple_base = 4 }
             let head = builder.add_param(MirType::I256);
-            let tuple_base = builder.imm(4);
+            let tuple_base =
+                if decodes_nested(&ty) { builder.add_param(MirType::I256) } else { builder.imm(4) };
             let input_end = builder.calldatasize();
             let mut current = builder.current_block();
+            let helpers = &self.aggregate_type_helpers;
             let value = Self::decode_aggregate_argument(
                 &mut builder,
                 &ty,
@@ -763,7 +773,10 @@ impl LowerAbiCx {
                 head,
                 tuple_base,
                 &mut current,
-                DecodeOptions::new(false, input_end, self.has_bitwise_shifting).checked(),
+                DecodeOptions {
+                    helpers: (!helpers.is_empty()).then_some(helpers),
+                    ..DecodeOptions::new(false, input_end, self.has_bitwise_shifting).checked()
+                },
             );
             builder.set_return_type(ty.mir_type());
             builder.ret([value]);
@@ -871,7 +884,7 @@ impl LowerAbiCx {
         let mut function = Function::new(Ident::with_dummy_span(name));
         {
             let mut builder = self.builder(&mut function);
-            let data = builder.add_param(MirType::MemoryObject(MemoryObjectKind::Bytes));
+            let data = builder.add_param(MirType::MemPtr);
             let fields = layout.types.iter().map(AbiParamType::mir_type).collect();
             builder.set_return_type(module.intern_return_type(fields).expect("decode has outputs"));
             let base = builder.memory_object_data(data, MemoryObjectKind::Bytes);
@@ -1070,9 +1083,9 @@ impl LowerAbiCx {
             && layout.types.iter().zip(&func.params).all(|(abi_ty, &param_ty)| {
                 (abi_ty.is_scalar_word()
                     && !matches!(abi_ty, AbiParamType::Scalar(crate::mir::ValueLayout::Function))
-                    && !matches!(param_ty, MirType::MemoryObject(_)))
+                    && param_ty != MirType::MemPtr)
                     || (!abi_ty.is_scalar_word()
-                        && matches!(param_ty, MirType::MemoryObject(_) | MirType::Slice(_)))
+                        && matches!(param_ty, MirType::MemPtr | MirType::Slice(_)))
             })
             && !func.return_components()
                 .iter()
@@ -1150,11 +1163,11 @@ impl LowerAbiCx {
             for index in 1..return_types.len() {
                 let index_value = builder.imm(index as u64);
                 let value = match return_types[index] {
-                    MirType::MemoryObject(kind) => builder.memory_object_load_object(
+                    MirType::MemPtr => builder.memory_object_load_element_as(
                         base,
                         MemoryObjectLayout::word_fixed_array(return_types.len() as u64),
                         index_value,
-                        kind,
+                        MirType::MemPtr,
                     ),
                     _ => {
                         let position = builder.add_u64_offset(
@@ -1214,9 +1227,7 @@ impl LowerAbiCx {
                 continue;
             };
             let Some(&value) = values.first() else { return false };
-            if values.len() != 1
-                || func.value_ty(value) != Some(MirType::MemoryObject(MemoryObjectKind::Bytes))
-            {
+            if values.len() != 1 || func.value_ty(value) != Some(MirType::MemPtr) {
                 return false;
             }
             let mut builder = FunctionBuilder::new(func);
@@ -1354,9 +1365,9 @@ impl LowerAbiCx {
                     let head_size =
                         ty.checked_head_size().expect("ABI head size exceeds u64 range");
                     if ty.is_scalar_word()
-                        || !arg_types.get(index).is_some_and(|ty| {
-                            matches!(ty, MirType::MemoryObject(_) | MirType::Slice(_))
-                        })
+                        || !arg_types
+                            .get(index)
+                            .is_some_and(|ty| matches!(ty, MirType::MemPtr | MirType::Slice(_)))
                     {
                         head_offset += head_size;
                         continue;
@@ -1389,8 +1400,10 @@ impl LowerAbiCx {
                             && Self::requires_calldata_element_validation(ty))
                         || !matches!(decode_type, MirType::Slice(SliceLocation::Calldata))
                         || self.needs_full_calldata_array_validation(builder.func(), uses, ty);
+                    let helpers = &self.aggregate_type_helpers;
                     let decode_options = DecodeOptions {
                         validate_array_elements,
+                        helpers: (!constructor && !helpers.is_empty()).then_some(helpers),
                         ..DecodeOptions::new(constructor, input_end, self.has_bitwise_shifting)
                     };
                     if uses.is_empty() {
@@ -1407,10 +1420,12 @@ impl LowerAbiCx {
                             );
                         } else if location == AbiParamLocation::Memory {
                             if !constructor
-                                && matches!(arg_type, MirType::MemoryObject(_))
+                                && arg_type == MirType::MemPtr
                                 && let Some(&helper) = self.aggregate_type_helpers.get(ty)
                             {
-                                let value = builder.icall(helper, vec![head], arg_type);
+                                // value = icall @decode_calldata_type, head[, tuple_base]
+                                let args = calldata_type_helper_args(ty, head, tuple_base);
+                                let value = builder.icall(helper, args, arg_type);
                                 logical_values[index] = Some(value);
                             } else {
                                 let value = Self::decode_aggregate_argument(
@@ -1428,10 +1443,12 @@ impl LowerAbiCx {
                     } else {
                         let value = if !constructor
                             && decode_type == arg_type
-                            && matches!(arg_type, MirType::MemoryObject(_))
+                            && arg_type == MirType::MemPtr
                             && let Some(&helper) = self.aggregate_type_helpers.get(ty)
                         {
-                            builder.icall(helper, vec![head], arg_type)
+                            // value = icall @decode_calldata_type, head[, tuple_base]
+                            let args = calldata_type_helper_args(ty, head, tuple_base);
+                            builder.icall(helper, args, arg_type)
                         } else if !constructor
                             && decode_type == arg_type
                             && matches!(arg_type, MirType::Slice(SliceLocation::Calldata))
@@ -1710,19 +1727,27 @@ impl LowerAbiCx {
         let to_calldata =
             !constructor && matches!(arg_type, MirType::Slice(SliceLocation::Calldata));
         // The shared helper checks the value's head offset with the tuple reason, so a struct
-        // member decodes inline when reasons are encoded.
-        if constructor
+        // member decodes inline when reasons are encoded. A calldata helper decodes a fresh,
+        // fully validated memory struct.
+        if (constructor
+            || (decodes_nested(ty)
+                && !allow_alias
+                && validate_array_elements
+                && arg_type == ty.mir_type()))
             && head_checked
             && (!builder.encodes_revert_reasons()
                 || offset_reason == RevertReason::InvalidTupleOffset)
             && let Some(&helper) = helpers.and_then(|helpers| helpers.get(ty))
         {
+            // A calldata helper reads its input end from `calldatasize` itself.
+            let args = if constructor {
+                vec![head, tuple_base, input_end]
+            } else {
+                calldata_type_helper_args(ty, head, tuple_base)
+            };
             // word_arguments = ptrtoint pointer_arguments to i256
             // decoded = icall helper, word_arguments
-            let args = [head, tuple_base, input_end]
-                .into_iter()
-                .map(|value| builder.cast(value, MirType::I256))
-                .collect();
+            let args = args.into_iter().map(|value| builder.cast(value, MirType::I256)).collect();
             return builder.icall(helper, args, ty.mir_type());
         }
         if !constructor
@@ -1766,7 +1791,7 @@ impl LowerAbiCx {
             head
         };
         if !is_dynamic
-            && matches!(arg_type, MirType::MemoryObject(_))
+            && arg_type == MirType::MemPtr
             && !constructor
             && !allow_alias
             && matches!(
@@ -1923,9 +1948,7 @@ impl LowerAbiCx {
                 Self::validate_scalar_array(builder, data, element, len, current, options);
                 base
             }
-            crate::mir::AbiParamType::DynamicArray(element)
-                if matches!(arg_type, MirType::MemoryObject(_)) =>
-            {
+            crate::mir::AbiParamType::DynamicArray(element) if arg_type == MirType::MemPtr => {
                 let checked_decode = constructor && !allow_alias;
                 let len = Self::load_input_word(builder, base, constructor);
                 let data_base = builder.add_u64_offset(base, 32);
@@ -2098,7 +2121,7 @@ impl LowerAbiCx {
                 }
                 if constructor
                     && allow_alias
-                    && matches!(arg_type, MirType::MemoryObject(MemoryObjectKind::Struct))
+                    && arg_type == MirType::MemPtr
                     && fields.iter().all(Self::is_scalar_or_enum)
                 {
                     let mut offset = 0;
@@ -2640,7 +2663,7 @@ impl LowerAbiCx {
         ty: &crate::mir::AbiParamType,
         arg_type: MirType,
     ) -> bool {
-        if !matches!(arg_type, MirType::MemoryObject(_)) || !Self::can_encode_calldata_slice(ty) {
+        if arg_type != MirType::MemPtr || !Self::can_encode_calldata_slice(ty) {
             return false;
         }
         if func.instructions().any(|inst_id| match &func.inst(inst_id).kind {
@@ -2727,7 +2750,7 @@ impl LowerAbiCx {
                         && (uses.contains(value)
                             || matches!(
                                 func.value_ty(*value),
-                                Some(MirType::MemoryObject(_) | MirType::Slice(_))
+                                Some(MirType::MemPtr | MirType::Slice(_))
                             )) =>
                 {
                     (true, false)
@@ -2749,9 +2772,6 @@ impl LowerAbiCx {
                 | InstKind::CallCode { .. }
                 | InstKind::StaticCall { .. }
                 | InstKind::DelegateCall { .. }
-                | InstKind::ExtCall { .. }
-                | InstKind::ExtDelegateCall { .. }
-                | InstKind::ExtStaticCall { .. }
                 | InstKind::FrameStore { .. } => (true, false),
                 InstKind::MappingSlotMemory(key, _)
                     if tainted.contains(*key) && Self::can_encode_calldata_slice(ty) =>
@@ -2927,10 +2947,7 @@ impl LowerAbiCx {
                 | InstKind::Call { .. }
                 | InstKind::CallCode { .. }
                 | InstKind::StaticCall { .. }
-                | InstKind::DelegateCall { .. }
-                | InstKind::ExtCall { .. }
-                | InstKind::ExtDelegateCall { .. }
-                | InstKind::ExtStaticCall { .. } => return true,
+                | InstKind::DelegateCall { .. } => return true,
                 InstKind::ICall { function: Callee::Function(function), args, .. } => {
                     let callee_params = self.function_params.get(*function);
                     let preserves_calldata = args.iter().enumerate().all(|(index, value)| {
@@ -2948,9 +2965,8 @@ impl LowerAbiCx {
                 | InstKind::MemoryObjectLoadByte { .. } => false,
                 InstKind::MemoryObjectLoadField { .. }
                 | InstKind::MemoryObjectLoadElement { .. } => result.is_some_and(|value| {
-                    func.value_ty(value).is_some_and(|ty| {
-                        matches!(ty, MirType::MemoryObject(_) | MirType::Slice(_))
-                    })
+                    func.value_ty(value)
+                        .is_some_and(|ty| matches!(ty, MirType::MemPtr | MirType::Slice(_)))
                 }),
                 InstKind::MemoryObjectFieldAddr { .. }
                 | InstKind::MemoryObjectElementAddr { .. } => false,
@@ -3121,6 +3137,45 @@ fn decode_memory_tuple(
     Some(values)
 }
 
+/// Returns whether shared calldata decoders also decode `ty` nested in other values, which makes
+/// its decoder take the base of the enclosing tuple.
+fn decodes_nested(ty: &AbiParamType) -> bool {
+    matches!(ty, AbiParamType::Tuple(_)) && ty.is_dynamic()
+}
+
+/// Returns the arguments of the shared calldata decoder of `ty`.
+fn calldata_type_helper_args(
+    ty: &AbiParamType,
+    head: ValueId,
+    tuple_base: ValueId,
+) -> Vec<ValueId> {
+    if decodes_nested(ty) { vec![head, tuple_base] } else { vec![head] }
+}
+
+/// Adds `occurrences` to the use count of `ty`, saturating at two.
+fn count_type(
+    counts: &mut FxHashMap<AbiParamType, (usize, usize)>,
+    ty: &AbiParamType,
+    occurrences: usize,
+) {
+    let first = counts.len();
+    let count = match counts.get_mut(ty) {
+        Some(count) => count,
+        None => counts.entry(ty.clone()).or_insert((0, first)),
+    };
+    count.0 = count.0.saturating_add(occurrences).min(2);
+}
+
+/// Returns the types counted at least twice, inner types before the types that contain them.
+fn repeated_types(counts: FxHashMap<AbiParamType, (usize, usize)>) -> Vec<AbiParamType> {
+    let mut types = counts
+        .into_iter()
+        .filter_map(|(ty, (count, first))| (count >= 2).then_some((first, ty)))
+        .collect::<Vec<_>>();
+    types.sort_by_key(|(first, ty)| (abi_param_type_depth(ty), *first));
+    types.into_iter().map(|(_, ty)| ty).collect()
+}
+
 fn count_dynamic_tuple_types(
     ty: &AbiParamType,
     occurrences: usize,
@@ -3137,9 +3192,7 @@ fn count_dynamic_tuple_types(
         }
         AbiParamType::Tuple(fields) => {
             if ty.has_dynamic_child() {
-                let first = counts.len();
-                let count = counts.entry(ty.clone()).or_insert((0, first));
-                count.0 = count.0.saturating_add(occurrences).min(2);
+                count_type(counts, ty, occurrences);
             }
             for field in fields {
                 count_dynamic_tuple_types(field, occurrences, counts);
@@ -3206,15 +3259,14 @@ fn is_wrappable_external(func: &Function) -> bool {
 fn is_bytes_fallback(func: &Function) -> bool {
     func.params.len() == 1
         && matches!(func.params[ArgIdx::new(0)], MirType::Slice(SliceLocation::Calldata))
-        && matches!(func.return_components(), [MirType::MemoryObject(MemoryObjectKind::Bytes)])
+        && matches!(func.return_components(), [MirType::MemPtr])
 }
 
 /// Whether every value-carrying fallback return can use raw bytes returndata.
 fn can_lower_bytes_fallback_returns(func: &Function) -> bool {
     func.blocks.iter().all(|block| {
         let Some(Terminator::Return { values }) = &block.terminator else { return true };
-        values.len() == 1
-            && func.value_ty(values[0]) == Some(MirType::MemoryObject(MemoryObjectKind::Bytes))
+        values.len() == 1 && func.value_ty(values[0]) == Some(MirType::MemPtr)
     })
 }
 
@@ -3495,11 +3547,6 @@ fn lossless_pointer_cast(func: &Function, inst: InstId) -> Option<ValueId> {
         {
             Some(value)
         }
-        InstKind::Bitcast(value)
-            if result.is_pointer() && func.value_ty(value).is_some_and(MirType::is_pointer) =>
-        {
-            Some(value)
-        }
         _ => None,
     }
 }
@@ -3565,7 +3612,8 @@ fn memory_writes_stay_private(
 
 /// A stored pointer cannot be reloaded or exposed through its containing object.
 fn container_keeps_pointer_private(func: &Function, object: ValueId) -> bool {
-    let mut pending = vec![pointer_alias_root(func, object)];
+    let mut pending = Vec::new();
+    pending.push(pointer_alias_root(func, object));
     let mut seen = FxHashSet::default();
     while let Some(object) = pending.pop() {
         if !seen.insert(object) {
@@ -4141,7 +4189,7 @@ fn direct_calldata_copy_source(
     return_block: BlockId,
     object: ValueId,
 ) -> Option<ValueId> {
-    if func.value_ty(object) != Some(MirType::MemoryObject(MemoryObjectKind::Bytes)) {
+    if func.value_ty(object) != Some(MirType::MemPtr) {
         return None;
     }
     let crate::mir::Value::Inst(defining_inst) = func.value(object) else { return None };
@@ -4226,7 +4274,7 @@ fn reuse_direct_calldata_returns(
 
 fn static_bytes_return(func: &Function) -> Option<StaticBytesReturn> {
     if !func.params.is_empty()
-        || func.return_components() != [MirType::MemoryObject(MemoryObjectKind::Bytes)]
+        || func.return_components() != [MirType::MemPtr]
         || func.abi_params.as_ref().is_none_or(|layout| !layout.types.is_empty())
         || func
             .abi_returns

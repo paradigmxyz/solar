@@ -5,10 +5,10 @@ fn @value() -> i256 [selector=0x3fa4f245, pure, abi_params=[], abi_returns=[word
     ret 42
 }
 
-fn @pair() -> memoryfixedarray [selector=0xa8aa1b31, pure, abi_params=[], abi_returns=[array<2, word>], abi_return_params=[array<2, u256>]] {
+fn @pair() -> memptr [selector=0xa8aa1b31, pure, abi_params=[], abi_returns=[array<2, word>], abi_return_params=[array<2, u256>]] {
   bb0:
     v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    v1 = ptrtoint memoryfixedarray v0 to i256
+    v1 = ptrtoint memptr v0 to i256
     memory_zero v1, 64
     v2 = lt 0, 2
     v3 = eq v2, false
@@ -23,11 +23,11 @@ fn @pair() -> memoryfixedarray [selector=0xa8aa1b31, pure, abi_params=[], abi_re
 
 // === ROOT/tests/ui/codegen/lowering/run-call/no_code_call_returns_evm_version.sol:NoCodeReturnCalls ===
 @module NoCodeReturnCalls
-types:
+@types
   struct0: {i256, i256}
 
-data:
-  NoCodeCallee_initcode_0: hex"34600d5760ef8060115f395ff35b5f5ffd341515602a575f3560e01c80633fa4f245146026578063a8aa1b3114602257602a565b6040565b602e565b5f5ffd5b602a6080526020608001608090036080f35b6101406040526040518060e0528060e0528060c0528060c052604060e051016040528060c05260403682375060025f101560dd5760c0518060c052600181525060026001101560dd5760c0518060c0526020900160028152505f60c051905b80610100526002811060bb576040608001915050608090036080f35b602081806101005202828060c05201516020820260800152600181019050609f565b634e487b715f5260326020526024601cfd"
+@data
+  NoCodeCallee_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/no_code_call_returns_evm_version.sol:NoCodeCallee"
 
 fn @direct() -> i256 [selector=0x222b1407, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
@@ -117,19 +117,23 @@ fn @aggregate() -> i256 [selector=0xaf36778b, abi_params=[], abi_returns=[word],
     v9 = returndatasize
     v10 = lt v9, 64
     icall revert_if<tuple_data_too_short>, v10
-    v11 = not 31
-    v12 = and 127, v11
-    v13 = alloc memorybytes, exact, uninitialized, infallible, v12
-    set_memory_object_len memorybytes, v13, 64
-    v14 = ptrtoint memptr v5 to i256
-    v15 = make_memory_slice v14, 64
-    memory_object_copy_from_slice memorybytes, v13, v15
-    v16 = abi_decode [array<2, u256>], v13
-    v17 = lt 0, 2
-    v18 = eq v17, false
-    icall panic_if<0x32>, v18
-    v19 = memory_object_load_element memoryfixedarray<2, 1>, v16, 0
-    ret v19
+    v11 = ptrtoint memptr v5 to i256
+    v12 = make_memory_slice v11, 64
+    v13 = slice_len v12
+    v14 = add v13, 63
+    v15 = lt v14, v13
+    icall panic_if<0x41>, v15
+    v16 = not 31
+    v17 = and v14, v16
+    v18 = alloc memorybytes, exact, uninitialized, infallible, v17
+    set_memory_object_len memorybytes, v18, v13
+    memory_object_copy_from_slice memorybytes, v18, v12
+    v19 = abi_decode [array<2, u256>], v18
+    v20 = lt 0, 2
+    v21 = eq v20, false
+    icall panic_if<0x32>, v21
+    v22 = memory_object_load_element memoryfixedarray<2, 1>, v19, 0
+    ret v22
 }
 
 fn @directNoReturn() [selector=0xda4f8e3a, abi_params=[], abi_returns=[], abi_return_params=[]] {
@@ -175,17 +179,17 @@ fn @pointerNoReturn() [selector=0xcf820bfc, abi_params=[], abi_returns=[], abi_r
 fn @live() -> i256 [selector=0x957aa58c, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
-    v1 = not 31
-    v2 = and 287, v1
+    v1 = datasize NoCodeCallee_creation_code_0
+    v2 = datasize NoCodeCallee_creation_code_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    data_copy NoCodeCallee_initcode_0, v4, 256
+    datacopy NoCodeCallee_creation_code_0, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
-    v7 = add v6, 256
+    v7 = add v6, v1
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
-    v9 = create 0, v8, 256
+    v9 = create 0, v8, v1
     v10 = zext i160 v9 to i256
     v11 = ne v10, 0
     jumpi v11, bb2, bb1
@@ -215,17 +219,17 @@ fn @live() -> i256 [selector=0x957aa58c, abi_params=[], abi_returns=[word], abi_
 fn @liveAggregate() -> struct0 [selector=0xc64a4ee9, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = abi_encode []
-    v1 = not 31
-    v2 = and 287, v1
+    v1 = datasize NoCodeCallee_creation_code_0
+    v2 = datasize NoCodeCallee_creation_code_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    data_copy NoCodeCallee_initcode_0, v4, 256
+    datacopy NoCodeCallee_creation_code_0, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
-    v7 = add v6, 256
+    v7 = add v6, v1
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
-    v9 = create 0, v8, 256
+    v9 = create 0, v8, v1
     v10 = zext i160 v9 to i256
     v11 = ne v10, 0
     jumpi v11, bb2, bb1
@@ -247,23 +251,27 @@ fn @liveAggregate() -> struct0 [selector=0xc64a4ee9, abi_params=[], abi_returns=
     v20 = returndatasize
     v21 = lt v20, 64
     icall revert_if<tuple_data_too_short>, v21
-    v22 = not 31
-    v23 = and 127, v22
-    v24 = alloc memorybytes, exact, uninitialized, infallible, v23
-    set_memory_object_len memorybytes, v24, 64
-    v25 = ptrtoint memptr v16 to i256
-    v26 = make_memory_slice v25, 64
-    memory_object_copy_from_slice memorybytes, v24, v26
-    v27 = abi_decode [array<2, u256>], v24
-    v28 = lt 0, 2
-    v29 = eq v28, false
-    icall panic_if<0x32>, v29
-    v30 = memory_object_load_element memoryfixedarray<2, 1>, v27, 0
-    v31 = lt 1, 2
+    v22 = ptrtoint memptr v16 to i256
+    v23 = make_memory_slice v22, 64
+    v24 = slice_len v23
+    v25 = add v24, 63
+    v26 = lt v25, v24
+    icall panic_if<0x41>, v26
+    v27 = not 31
+    v28 = and v25, v27
+    v29 = alloc memorybytes, exact, uninitialized, infallible, v28
+    set_memory_object_len memorybytes, v29, v24
+    memory_object_copy_from_slice memorybytes, v29, v23
+    v30 = abi_decode [array<2, u256>], v29
+    v31 = lt 0, 2
     v32 = eq v31, false
     icall panic_if<0x32>, v32
-    v33 = memory_object_load_element memoryfixedarray<2, 1>, v27, 1
-    v34 = insert_value struct0, undef struct0, 0, v30
-    v35 = insert_value struct0, v34, 1, v33
-    ret v35
+    v33 = memory_object_load_element memoryfixedarray<2, 1>, v30, 0
+    v34 = lt 1, 2
+    v35 = eq v34, false
+    icall panic_if<0x32>, v35
+    v36 = memory_object_load_element memoryfixedarray<2, 1>, v30, 1
+    v37 = insert_value struct0, undef struct0, 0, v33
+    v38 = insert_value struct0, v37, 1, v36
+    ret v38
 }

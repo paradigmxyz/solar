@@ -1,9 +1,6 @@
 //! MIR instructions.
 
-use super::{
-    Function, InstKind, MemoryObjectKind, MemoryObjectLayout, MirType, SliceLocation, Value,
-    ValueId,
-};
+use super::{Function, InstKind, MemoryObjectLayout, MirType, SliceLocation, Value, ValueId};
 use crate::mir::{Builtin, Callee};
 use alloy_primitives::U256;
 use smallvec::SmallVec;
@@ -233,6 +230,17 @@ impl InstructionMetadata {
     pub(crate) fn set_preserves_fmp(&mut self, value: bool) {
         self.flags.set_preserves_fmp(value);
     }
+
+    /// Returns whether this copy's source and destination ranges never overlap.
+    #[must_use]
+    pub(crate) fn disjoint(&self) -> bool {
+        self.flags.disjoint()
+    }
+
+    /// Marks a copy whose source and destination ranges never overlap.
+    pub(crate) fn set_disjoint(&mut self, value: bool) {
+        self.flags.set_disjoint(value);
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -245,6 +253,7 @@ impl MetadataFlags {
     const EFFECT_SHIFT: u16 = 3;
     const UNCHECKED: u16 = 0b1000_0000;
     const DEFERRED_ALLOC: u16 = 0b1_0000_0000;
+    const DISJOINT: u16 = 0b10_0000_0000;
     const PRESERVES_FMP: u16 = 0b100_0000_0000;
     const DISPLAY_SOURCE_SPAN: u16 = 0b1000_0000_0000;
     const DEBUG_INFO_HANDLED: u16 = 0b1_0000_0000_0000;
@@ -295,6 +304,18 @@ impl MetadataFlags {
 
     fn clear_deferred_alloc(&mut self) {
         self.0 &= !Self::DEFERRED_ALLOC;
+    }
+
+    fn disjoint(self) -> bool {
+        self.0 & Self::DISJOINT != 0
+    }
+
+    fn set_disjoint(&mut self, value: bool) {
+        if value {
+            self.0 |= Self::DISJOINT;
+        } else {
+            self.0 &= !Self::DISJOINT;
+        }
     }
 
     fn preserves_fmp(self) -> bool {
@@ -610,7 +631,7 @@ impl AbiEncodeMode {
     pub(crate) const fn result_type(self) -> MirType {
         match self {
             Self::Slice | Self::Scratch => MirType::Slice(SliceLocation::Memory),
-            Self::Bytes => MirType::MemoryObject(MemoryObjectKind::Bytes),
+            Self::Bytes => MirType::MemPtr,
         }
     }
 }
@@ -620,8 +641,7 @@ impl AllocationKind {
     #[must_use]
     pub(crate) const fn result_type(self) -> MirType {
         match self {
-            Self::Raw => MirType::MemPtr,
-            Self::Object(layout) => MirType::MemoryObject(layout.kind()),
+            Self::Raw | Self::Object(_) => MirType::MemPtr,
         }
     }
 }
@@ -754,7 +774,6 @@ impl Instruction {
             | InstKind::Sext(..)
             | InstKind::PtrToInt(..)
             | InstKind::IntToPtr(..)
-            | InstKind::Bitcast(..)
             | InstKind::Add(..)
             | InstKind::Sub(..)
             | InstKind::Mul(..)
@@ -802,6 +821,7 @@ impl Instruction {
             | InstKind::ExtCodeCopy(..)
             | InstKind::ExtCodeHash(..)
             | InstKind::LibraryAddress(..)
+            | InstKind::DataSize(..)
             | InstKind::LoadImmutable(..)
             | InstKind::ReturnDataSize
             | InstKind::ReturnDataCopy(..)
@@ -829,9 +849,6 @@ impl Instruction {
             | InstKind::CallCode { .. }
             | InstKind::StaticCall { .. }
             | InstKind::DelegateCall { .. }
-            | InstKind::ExtCall { .. }
-            | InstKind::ExtDelegateCall { .. }
-            | InstKind::ExtStaticCall { .. }
             | InstKind::ICall { function: Callee::Function(_), .. }
             | InstKind::Create(..)
             | InstKind::Create2(..)
@@ -874,6 +891,11 @@ impl Instruction {
     #[must_use]
     pub(crate) fn operands(&self) -> SmallVec<[ValueId; 8]> {
         self.kind.operands()
+    }
+
+    /// Visits the operands of this instruction in canonical order, without collecting them.
+    pub(crate) fn visit_operands(&self, f: impl FnMut(ValueId)) {
+        self.kind.visit_operands(f);
     }
 
     /// Replaces an operation with an equivalent one, preserving its result and provenance.
@@ -941,16 +963,15 @@ impl InstKind {
     /// Checks scalar operation contracts without applying implicit conversions.
     pub(crate) fn scalar_types_match(&self, func: &Function, result: Option<MirType>) -> bool {
         let ty = |value| func.value_ty(value);
-        let expected = self.operand_types(func);
-        if let Some(expected) = expected
-            && (expected.len() != self.operands().len()
-                || self
-                    .operands()
-                    .iter()
-                    .zip(expected)
-                    .any(|(&value, expected)| ty(value) != Some(expected)))
-        {
-            return false;
+        if let Some(expected) = self.operand_types(func) {
+            let mut expected = expected.into_iter();
+            let mut matches = true;
+            self.visit_operands(|value| {
+                matches &= expected.next().is_some_and(|expected| ty(value) == Some(expected));
+            });
+            if !matches || expected.next().is_some() {
+                return false;
+            }
         }
         match *self {
             Self::Eq(a, b) | Self::Ne(a, b) => {
@@ -978,11 +999,6 @@ impl InstKind {
                 matches!(ty(value), Some(MirType::Int(_)))
                     && result.is_some_and(MirType::is_pointer)
             }
-            Self::Bitcast(value) => {
-                (ty(value).is_some_and(MirType::is_pointer)
-                    && result.is_some_and(MirType::is_pointer))
-                    || (matches!(ty(value), Some(MirType::Int(_))) && ty(value) == result)
-            }
             Self::Alloc { kind, .. } => result == Some(kind.result_type()),
             Self::MakeSlice { location, .. } => result == Some(MirType::Slice(location)),
             Self::FrameLoad { kind, .. } => result == Some(kind.result_type()),
@@ -1007,8 +1023,11 @@ impl InstKind {
             // Module and builtin signatures are checked by the validator.
             Self::ICall { .. } => true,
             _ => {
-                self.op_def().result != super::ResultKind::Custom
-                    && self.op_def().result.default_type() == result
+                let kind = self.op_def().result;
+                kind != super::ResultKind::Custom
+                    && result.map_or(!kind.produces_value(), |ty| {
+                        kind.produces_value() && kind.admits_type(ty)
+                    })
             }
         }
     }
@@ -1060,6 +1079,21 @@ impl InstKind {
         let mut out = SmallVec::new();
         self.collect_operands(&mut out);
         out
+    }
+
+    /// Returns whether `value` is an operand of this instruction, without collecting them.
+    #[must_use]
+    pub(crate) fn reads(&self, value: ValueId) -> bool {
+        self.any_operand(|operand| operand == value)
+    }
+
+    /// Returns whether any operand of this instruction satisfies `predicate`, without collecting
+    /// them.
+    #[must_use]
+    pub(crate) fn any_operand(&self, mut predicate: impl FnMut(ValueId) -> bool) -> bool {
+        let mut found = false;
+        self.visit_operands(|operand| found = found || predicate(operand));
+        found
     }
 
     /// Returns the mnemonic for this instruction.
@@ -1141,6 +1175,21 @@ impl InstKind {
 impl fmt::Display for InstKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.mnemonic())
+    }
+}
+
+/// One ordered input to byte concatenation, without allocating buffers for fixed literals.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub(crate) enum ConcatPart {
+    Bytes(ValueId),
+    Fixed { value: ValueId, size: super::TypeSize },
+}
+
+impl ConcatPart {
+    pub(crate) fn value(&self) -> ValueId {
+        match *self {
+            Self::Bytes(value) | Self::Fixed { value, .. } => value,
+        }
     }
 }
 
@@ -1236,20 +1285,5 @@ mod tests {
         assert_size::<InstKind>(str!["40"]);
         assert_size::<InstructionMetadata>(str!["40"]);
         assert_size::<Instruction>(str!["96"]);
-    }
-}
-
-/// One ordered input to byte concatenation, without allocating buffers for fixed literals.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub(crate) enum ConcatPart {
-    Bytes(ValueId),
-    Fixed { value: ValueId, size: super::TypeSize },
-}
-
-impl ConcatPart {
-    pub(crate) fn value(&self) -> ValueId {
-        match *self {
-            Self::Bytes(value) | Self::Fixed { value, .. } => value,
-        }
     }
 }

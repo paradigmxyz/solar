@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/inline-immutable-leaves/runtime.sol:ImmutableLeaves ===
 @module ImmutableLeaves
-immutables:
+@immutables
   start: u64
   duration: u64
   initial: u256

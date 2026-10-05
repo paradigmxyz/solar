@@ -47,4 +47,8 @@ contract Test {
         uint256 x = state;
         (((x,),)) = ((true, 1), 2); //~ ERROR: mismatched types
     }
+
+    function assign(bool condition) external pure returns (uint a, uint b) {
+        condition ? (a, b,) = (1, 2, 3) : (a, b) = (4, 5);
+    }
 }

@@ -120,9 +120,9 @@ fn @forwardStructs(arg0: calldataslice, arg1: i256) [selector=0x87c604a5, abi_pa
     v67 = alloc memorybytes, exact, uninitialized, infallible, v66
     set_memory_object_len memorybytes, v67, v62
     memory_object_copy_from_slice memorybytes, v67, v61
-    v68 = ptrtoint memorybytes v67 to i256
+    v68 = ptrtoint memptr v67 to i256
     memory_object_store_field memorystruct<2>, v37, 1, v68
-    v69 = ptrtoint memorystruct v37 to i256
+    v69 = ptrtoint memptr v37 to i256
     memory_object_store_element memoryarray<1>, v22, v23, v69
     v70 = add v23, 1
     jump bb1

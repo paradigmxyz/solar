@@ -44,13 +44,17 @@ impl MirPass for StorageScalarPromotion {
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
         let summaries = analyses.call_summaries(module);
-        run_function_pass(module, analyses, |func, _| {
+        run_function_pass(module, analyses, |func, analyses| {
             if may_observe_msize(func, Some(&summaries)) {
                 return false;
             }
             let mut promoter = StorageScalarPromoter::new();
             let stats = promoter.run(func);
-            stats.loops_promoted + stats.loads_promoted + stats.stores_promoted != 0
+            let changed = stats.loops_promoted + stats.loads_promoted + stats.stores_promoted != 0;
+            if promoter.annotated_aliases {
+                analyses.note_unreported_edit();
+            }
+            changed
         })
     }
 }
@@ -70,6 +74,8 @@ struct StoragePromotionStats {
 #[derive(Debug, Default)]
 struct StorageScalarPromoter {
     stats: StoragePromotionStats,
+    /// Whether storage-alias annotation changed metadata, which is not reported as a change.
+    annotated_aliases: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -105,7 +111,8 @@ impl StorageScalarPromoter {
             return &self.stats;
         }
 
-        func.annotate_storage_aliases(mir_utils::StorageAliasScope::Storage);
+        self.annotated_aliases |=
+            func.annotate_storage_aliases(mir_utils::StorageAliasScope::Storage);
 
         // Promoting a loop can split its exit blocks and relocate the final
         // stores into new blocks, which invalidates the block sets of every
@@ -115,7 +122,7 @@ impl StorageScalarPromoter {
         // stores and only inserts new storage stores outside that loop.
         loop {
             let mut analyzer = LoopAnalyzer::new();
-            let loop_info = analyzer.analyze(func);
+            let loop_info = analyzer.analyze_structure(func);
             let loops: Vec<Loop> = loop_info.all_loops().cloned().collect();
 
             let mut promoted = false;
@@ -349,9 +356,6 @@ impl StorageScalarPromoter {
                     | InstKind::CallCode { .. }
                     | InstKind::StaticCall { .. }
                     | InstKind::DelegateCall { .. }
-                    | InstKind::ExtCall { .. }
-                    | InstKind::ExtDelegateCall { .. }
-                    | InstKind::ExtStaticCall { .. }
                     | InstKind::ICall { function: Callee::Function(_), .. }
                     | InstKind::Create(_, _, _)
                     | InstKind::Create2(_, _, _, _) => return false,

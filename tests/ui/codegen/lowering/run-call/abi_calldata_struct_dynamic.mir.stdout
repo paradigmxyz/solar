@@ -93,9 +93,9 @@ fn @hash(arg0: calldataslice) -> i256 [selector=0x43298469, pure, abi_params=[ar
     set_memory_object_len memoryarray, v64, v47
     v65 = make_calldata_slice v54, v55
     memory_object_copy_from_slice memoryarray, v64, v65
-    v66 = ptrtoint memoryarray v64 to i256
+    v66 = ptrtoint memptr v64 to i256
     memory_object_store_field memorystruct<1>, v36, 0, v66
-    v67 = ptrtoint memorystruct v36 to i256
+    v67 = ptrtoint memptr v36 to i256
     memory_object_store_element memoryarray<1>, v21, v22, v67
     v68 = add v22, 1
     jump bb1

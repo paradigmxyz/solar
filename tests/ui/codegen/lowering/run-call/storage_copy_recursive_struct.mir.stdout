@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_copy_recursive_struct.sol:StorageCopyRecursiveStruct ===
 @module StorageCopyRecursiveStruct
-types:
+@types
   struct0: {i256, i256, i256, i256, i256, i256, i256, i256, i256, i256}
 
 fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word, word<u128>, word, word<u128>, word, word<u128>, word, word<u128>, word, word], abi_return_params=[u256, u128, u256, u128, u256, u128, u256, u128, u256, u256]] {
@@ -104,11 +104,11 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     memory_object_store_field memorystruct<3>, v77, 0, v79
     v80 = add 0, 1
     v81 = icall @load_storage_bytes, v80
-    v82 = ptrtoint memorybytes v81 to i256
+    v82 = ptrtoint memptr v81 to i256
     memory_object_store_field memorystruct<3>, v77, 1, v82
     v83 = add 0, 2
     v84 = icall @load_storage_struct_array_0, v83
-    v85 = ptrtoint memoryarray v84 to i256
+    v85 = ptrtoint memptr v84 to i256
     memory_object_store_field memorystruct<3>, v77, 2, v85
     v86 = sload 6 !metadata(storage=slot(6))
     v87 = gt v86, 0xffffffffffffffff
@@ -155,11 +155,11 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     memory_object_store_field memorystruct<3>, v116, 0, v118
     v119 = add 0, 1
     v120 = icall @load_storage_bytes, v119
-    v121 = ptrtoint memorybytes v120 to i256
+    v121 = ptrtoint memptr v120 to i256
     memory_object_store_field memorystruct<3>, v116, 1, v121
     v122 = add 0, 2
     v123 = icall @load_storage_struct_array_0, v122
-    v124 = ptrtoint memoryarray v123 to i256
+    v124 = ptrtoint memptr v123 to i256
     memory_object_store_field memorystruct<3>, v116, 2, v124
     v125 = sload 6 !metadata(storage=slot(6))
     v126 = gt v125, 0xffffffffffffffff
@@ -190,11 +190,11 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     memory_object_store_field memorystruct<3>, v143, 0, v145
     v146 = add 0, 1
     v147 = icall @load_storage_bytes, v146
-    v148 = ptrtoint memorybytes v147 to i256
+    v148 = ptrtoint memptr v147 to i256
     memory_object_store_field memorystruct<3>, v143, 1, v148
     v149 = add 0, 2
     v150 = icall @load_storage_struct_array_0, v149
-    v151 = ptrtoint memoryarray v150 to i256
+    v151 = ptrtoint memptr v150 to i256
     memory_object_store_field memorystruct<3>, v143, 2, v151
     v152 = sload 6 !metadata(storage=slot(6))
     v153 = lt 0, v152
@@ -210,11 +210,11 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     memory_object_store_field memorystruct<3>, v158, 0, v160
     v161 = add 3, 1
     v162 = icall @load_storage_bytes, v161
-    v163 = ptrtoint memorybytes v162 to i256
+    v163 = ptrtoint memptr v162 to i256
     memory_object_store_field memorystruct<3>, v158, 1, v163
     v164 = add 3, 2
     v165 = icall @load_storage_struct_array_0, v164
-    v166 = ptrtoint memoryarray v165 to i256
+    v166 = ptrtoint memptr v165 to i256
     memory_object_store_field memorystruct<3>, v158, 2, v166
     v167 = sload 6 !metadata(storage=slot(6))
     v168 = gt v167, 0xffffffffffffffff
@@ -374,13 +374,13 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     ret v302
 }
 
-fn @load_storage_bytes(arg0: i256) -> memorybytes {
+fn @load_storage_bytes(arg0: i256) -> memptr {
   bb0:
     v0 = load_storage_bytes arg0
     ret v0
 }
 
-fn @load_storage_struct_array_0(arg0: i256) -> memoryarray {
+fn @load_storage_struct_array_0(arg0: i256) -> memptr {
   bb0:
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
     v1 = add v0, 1
@@ -412,20 +412,20 @@ fn @load_storage_struct_array_0(arg0: i256) -> memoryarray {
     memory_object_store_field memorystruct<3>, v15, 0, v17
     v18 = add v13, 1
     v19 = icall @load_storage_bytes, v18
-    v20 = ptrtoint memorybytes v19 to i256
+    v20 = ptrtoint memptr v19 to i256
     memory_object_store_field memorystruct<3>, v15, 1, v20
     v21 = add v13, 2
     v22 = icall @load_storage_struct_array_0, v21
-    v23 = ptrtoint memoryarray v22 to i256
+    v23 = ptrtoint memptr v22 to i256
     memory_object_store_field memorystruct<3>, v15, 2, v23
-    v24 = ptrtoint memorystruct v15 to i256
+    v24 = ptrtoint memptr v15 to i256
     memory_object_store_element memoryarray<1>, v10, v12, v24
     v25 = add v12, 1
     v26 = add v13, 3
     jump bb1
 }
 
-fn @store_recursive_storage_0_0(arg0: i256, arg1: memorystruct) {
+fn @store_recursive_storage_0_0(arg0: i256, arg1: memptr) {
   bb0:
     v0 = memory_object_load_field memorystruct<3>, arg1, 0
     v1 = sload arg0 !metadata(storage=symbolic(arg0))
@@ -436,11 +436,11 @@ fn @store_recursive_storage_0_0(arg0: i256, arg1: memorystruct) {
     sstore arg0, v5 !metadata(storage=symbolic(arg0))
     v6 = add arg0, 1
     v7 = memory_object_load_field memorystruct<3>, arg1, 1
-    v8 = inttoptr i256 v7 to memorybytes
+    v8 = inttoptr i256 v7 to memptr
     icall @store_storage_bytes, v6, v8
     v9 = add arg0, 2
     v10 = memory_object_load_field memorystruct<3>, arg1, 2
-    v11 = inttoptr i256 v10 to memoryarray
+    v11 = inttoptr i256 v10 to memptr
     v12 = memory_object_len memoryarray, v11
     v13 = sload v9 !metadata(storage=offset(arg0, 2))
     v14 = gt v13, v12
@@ -457,39 +457,30 @@ fn @store_recursive_storage_0_0(arg0: i256, arg1: memorystruct) {
     sstore v9, v12 !metadata(storage=offset(arg0, 2))
     jump bb6
   bb6:
-    v21 = phi [bb2: 0], [bb10: v38]
+    v21 = phi [bb2: 0], [bb10: v34]
     v22 = lt v21, v12
     jumpi v22, bb7, bb8
   bb8:
     ret
   bb7:
-    v23 = inttoptr i256 v10 to memoryarray
+    v23 = inttoptr i256 v10 to memptr
     v24 = memory_object_load_element memoryarray<1>, v23, v21
-    v25 = inttoptr i256 v24 to memorystruct
+    v25 = inttoptr i256 v24 to memptr
     v26 = eq v24, 0
     jumpi v26, bb9, bb10
   bb9:
-    v27 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
-    memory_object_store_field memorystruct<3>, v27, 0, 0
-    v28 = alloc memorybytes, exact, uninitialized, infallible, 32
-    set_memory_object_len memorybytes, v28, 0
-    v29 = ptrtoint memorybytes v28 to i256
-    memory_object_store_field memorystruct<3>, v27, 1, v29
-    v30 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    set_memory_object_len memoryarray, v30, 0
-    v31 = ptrtoint memoryarray v30 to i256
-    memory_object_store_field memorystruct<3>, v27, 2, v31
-    v32 = inttoptr i256 v10 to memoryarray
-    v33 = ptrtoint memorystruct v27 to i256
-    memory_object_store_element memoryarray<1>, v32, v21, v33
+    v27 = icall @default_struct_0
+    v28 = inttoptr i256 v10 to memptr
+    v29 = ptrtoint memptr v27 to i256
+    memory_object_store_element memoryarray<1>, v28, v21, v29
     jump bb10
   bb10:
-    v34 = phi [bb7: v25], [bb9: v27]
-    v35 = storage_array_data_slot v9
-    v36 = mul v21, 3
-    v37 = add v35, v36
-    icall @store_recursive_storage_0_0, v37, v34
-    v38 = add v21, 1
+    v30 = phi [bb7: v25], [bb9: v27]
+    v31 = storage_array_data_slot v9
+    v32 = mul v21, 3
+    v33 = add v31, v32
+    icall @store_recursive_storage_0_0, v33, v30
+    v34 = add v21, 1
     jump bb6
   bb4:
     v17 = storage_array_data_slot v9
@@ -500,7 +491,7 @@ fn @store_recursive_storage_0_0(arg0: i256, arg1: memorystruct) {
     jump bb3
 }
 
-fn @store_storage_bytes(arg0: i256, arg1: memorybytes) {
+fn @store_storage_bytes(arg0: i256, arg1: memptr) {
   bb0:
     store_storage_bytes arg0, arg1
     ret
@@ -543,4 +534,19 @@ fn @clear_recursive_storage_0(arg0: i256) {
     icall @clear_recursive_storage_0, v16
     v17 = add v12, 1
     jump bb3
+}
+
+fn @default_struct_0() -> memptr {
+  bb0:
+    v0 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
+    memory_object_store_field memorystruct<3>, v0, 0, 0
+    v1 = alloc memorybytes, exact, uninitialized, infallible, 32
+    set_memory_object_len memorybytes, v1, 0
+    v2 = ptrtoint memptr v1 to i256
+    memory_object_store_field memorystruct<3>, v0, 1, v2
+    v3 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    set_memory_object_len memoryarray, v3, 0
+    v4 = ptrtoint memptr v3 to i256
+    memory_object_store_field memorystruct<3>, v0, 2, v4
+    ret v0
 }

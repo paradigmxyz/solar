@@ -91,20 +91,22 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             LValuePlace::Storage { ty, access, span } => self.load_storage_value(ty, access, span),
             LValuePlace::MemoryField { object, layout, field, ty } => {
                 // value = memory_object_load_field layout, object, field
-                let value = if let MirType::MemoryObject(kind) = types::TypeLowerer::mir_type(ty) {
-                    self.builder.memory_object_load_object_field(object, layout, field, kind)
-                } else {
-                    self.builder.memory_object_load_field(object, layout, field)
-                };
+                let value = self.builder.memory_object_load_field_as(
+                    object,
+                    layout,
+                    field,
+                    types::TypeLowerer::mir_type(ty),
+                );
                 Some(self.normalize_memory_scalar(ty, value))
             }
             LValuePlace::MemoryElement { object, layout, index, ty } => {
                 // value = memory_object_load_element layout, object, index
-                let value = if let MirType::MemoryObject(kind) = types::TypeLowerer::mir_type(ty) {
-                    self.builder.memory_object_load_object(object, layout, index, kind)
-                } else {
-                    self.builder.memory_object_load_element(object, layout, index)
-                };
+                let value = self.builder.memory_object_load_element_as(
+                    object,
+                    layout,
+                    index,
+                    types::TypeLowerer::mir_type(ty),
+                );
                 Some(self.normalize_memory_scalar(ty, value))
             }
             LValuePlace::MemoryByte { object, index, ty } => {
@@ -164,7 +166,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         expr: &hir::Expr<'_>,
     ) -> Option<LValuePlace<'gcx>> {
         let expr = expr.peel_parens();
-        if let ExprKind::Call(callee, arguments, _) = &expr.kind
+        if let Some((callee, arguments, _)) = expr.as_call()
             && arguments.is_empty()
             && self.cx.gcx.resolved_builtin(callee) == Some(Builtin::ArrayPush0)
             && let ExprKind::Member(receiver, _) = &callee.kind

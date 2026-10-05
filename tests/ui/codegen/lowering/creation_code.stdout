@@ -7,21 +7,21 @@ fn @constructor(arg0: i256) [constructor, abi_params=[u256]] {
 
 // === ROOT/tests/ui/codegen/lowering/creation_code.sol:CreationCodeFactory ===
 @module CreationCodeFactory
-fn @creationCode() -> memorybytes [selector=0x7213edad, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+@data
+  CreationCodeChild_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/creation_code.sol:CreationCodeChild"
+
+fn @creationCode() -> memptr [selector=0x7213edad, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 160 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v0, 105
-    v1 = memory_object_data memorybytes, v0
-    v2 = ptrtoint memptr v1 to i256
-    mstore v2, 0x6069380380606960c03960c001601f017fffffffffffffffffffffffffffffff
-    v3 = ptrtoint memptr v1 to i256
-    v4 = add v3, 32
-    mstore v4, 0xffffffffffffffffffffffffffffffffe01660405234151560585760c060c060
-    v5 = ptrtoint memptr v1 to i256
-    v6 = add v5, 64
-    mstore v6, 0x6938030160208201915081119050605457605c565b5f5ffd5b5f5ffd5b600380
-    v7 = ptrtoint memptr v1 to i256
-    v8 = add v7, 96
-    mstore v8, 0x60665f395ff35f5ffd0000000000000000000000000000000000000000000000
-    ret v0
+    v0 = datasize CreationCodeChild_creation_code_0
+    v1 = datasize CreationCodeChild_creation_code_0, 63, aligned
+    v2 = alloc memorybytes, exact, uninitialized, infallible, v1 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v2, v0
+    v3 = memory_object_data memorybytes, v2
+    v4 = datasize CreationCodeChild_creation_code_0, 31, aligned
+    v5 = ptrtoint memptr v2 to i256
+    v6 = add v5, v4
+    mstore v6, 0
+    v7 = ptrtoint memptr v3 to i256
+    datacopy CreationCodeChild_creation_code_0, v7, v0
+    ret v2
 }

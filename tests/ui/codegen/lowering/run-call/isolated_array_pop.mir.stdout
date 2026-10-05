@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/isolated_array_pop.sol:IsolatedArrayPop ===
 @module IsolatedArrayPop
-types:
+@types
   struct0: {i256, i256, i256}
 
 fn @access() -> struct0 [selector=0x71907f17, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {

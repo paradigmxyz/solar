@@ -136,8 +136,9 @@ rewrites. All transforms already exist. The size-only adapter shares the underly
 pass's unchanged-result cache entry; adapters that add rewrites stay distinct.
 Final CFG cleanup runs after all sharing, including conditional late sharing; earlier sweeps
 use early CFG cleanup. The size-layout gate also requires gas loop layout to be
-disabled. Terminal deduplication rejects custom instruction stack effects, and
-tail matching stops at them while allowing canonical suffixes to share.
+disabled. Both sharing passes skip modules that observe instruction positions
+with `PC`. The measured revision also guarded custom instruction stack effects;
+main has since removed that metadata from EVM IR.
 
 | Runtime corpus metric | Gas objective | Size objective |
 | --- | ---: | ---: |

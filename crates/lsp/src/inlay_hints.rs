@@ -1,4 +1,4 @@
-use crate::proto;
+use crate::{proto, utils::item_param_source};
 use lsp_types::{InlayHint, InlayHintKind, InlayHintLabel, Position, Range, Url};
 use solar_interface::{
     Symbol,
@@ -7,7 +7,7 @@ use solar_interface::{
 use solar_sema::{
     Gcx,
     builtins::Builtin,
-    hir::{self, CallArgsKind, ExprKind, ItemId, StmtKind, Visit},
+    hir::{self, CallArgsKind, ExprKind, StmtKind, Visit},
     ty::{CallableParamSource, Ty, TyKind},
 };
 use std::ops::ControlFlow;
@@ -17,13 +17,14 @@ pub(crate) struct InlayHintIndex {
     by_file: FxHashMap<Url, Vec<StoredInlayHint>>,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+/// Field order is the deterministic response order.
+#[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
 struct StoredInlayHint {
     position: Position,
+    kind: StoredInlayHintKind,
     // Labels are built once during analysis and only copied into LSP responses,
     // so store the fixed text without String's unused capacity.
     label: Box<str>,
-    kind: StoredInlayHintKind,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -80,7 +81,7 @@ impl InlayHintIndex {
     /// Orders each file's hints for deterministic LSP responses and range filtering.
     fn sort(&mut self) {
         for hints in self.by_file.values_mut() {
-            hints.sort_by(|a, b| hint_sort_key(a).cmp(&hint_sort_key(b)));
+            hints.sort();
         }
     }
 }
@@ -139,14 +140,6 @@ impl<'gcx> InlayHintCollector<'_, 'gcx> {
         let (CallArgsKind::Unnamed(exprs), Some(param_source)) = (args.kind, param_source) else {
             return;
         };
-        self.push_parameter_hints_for_exprs(exprs, param_source);
-    }
-
-    fn push_parameter_hints_for_exprs(
-        &mut self,
-        exprs: impl IntoIterator<Item = &'gcx hir::Expr<'gcx>>,
-        param_source: CallableParamSource,
-    ) {
         let param_names = self.gcx.callable_param_names(param_source);
         self.push_parameter_hints_for_exprs_and_names(exprs, param_names);
     }
@@ -249,19 +242,6 @@ impl<'gcx> InlayHintCollector<'_, 'gcx> {
         }
         format!(": {}", ty.display(self.gcx))
     }
-
-    /// Finds the function or constructor declaration that supplies parameter names for a modifier.
-    fn modifier_param_source(
-        &self,
-        modifier: &'gcx hir::Modifier<'gcx>,
-    ) -> Option<CallableParamSource> {
-        let id = match modifier.id {
-            ItemId::Contract(id) => self.gcx.hir.contract(id).ctor?,
-            ItemId::Function(id) => id,
-            _ => return None,
-        };
-        Some(CallableParamSource::Function { id, skips_receiver: false })
-    }
 }
 
 impl<'gcx> Visit<'gcx> for InlayHintCollector<'_, 'gcx> {
@@ -272,7 +252,7 @@ impl<'gcx> Visit<'gcx> for InlayHintCollector<'_, 'gcx> {
     }
 
     fn visit_expr(&mut self, expr: &'gcx hir::Expr<'gcx>) -> ControlFlow<Self::BreakValue> {
-        if let ExprKind::Call(callee, ref args, _) = expr.kind {
+        if let Some((callee, args, _)) = expr.as_call() {
             let callee_ty = self.gcx.type_of_expr(callee.id);
             if self.gcx.resolved_builtin(callee) == Some(Builtin::AbiEncodeCall) {
                 self.push_abi_encode_call_parameter_hints(args);
@@ -294,62 +274,31 @@ impl<'gcx> Visit<'gcx> for InlayHintCollector<'_, 'gcx> {
         &mut self,
         modifier: &'gcx hir::Modifier<'gcx>,
     ) -> ControlFlow<Self::BreakValue> {
-        self.push_parameter_hints(&modifier.args, self.modifier_param_source(modifier));
+        self.push_parameter_hints(&modifier.args, item_param_source(self.gcx, modifier.id));
         hir::Visit::walk_modifier(self, modifier)
     }
-}
-
-fn hint_sort_key(hint: &StoredInlayHint) -> (Position, StoredInlayHintKind, &str) {
-    (hint.position, hint.kind, hint.label.as_ref())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn index(hints: impl IntoIterator<Item = (&'static str, StoredInlayHint)>) -> InlayHintIndex {
-        let mut index = InlayHintIndex::default();
-        for (uri, hint) in hints {
-            index.push(Url::parse(uri).unwrap(), hint);
-        }
-        index.sort();
-        index
-    }
-
     #[test]
     fn complete_indexes_compare_stored_hint_contents() {
-        let first = index([
-            (
-                "file:///workspace/First.sol",
-                StoredInlayHint::parameter(Position::new(1, 2), "amount:"),
-            ),
-            (
-                "file:///workspace/Second.sol",
-                StoredInlayHint::call_type(Position::new(3, 4), ": uint256"),
-            ),
-        ]);
-        let same = index([
-            (
-                "file:///workspace/Second.sol",
-                StoredInlayHint::call_type(Position::new(3, 4), ": uint256"),
-            ),
-            (
-                "file:///workspace/First.sol",
-                StoredInlayHint::parameter(Position::new(1, 2), "amount:"),
-            ),
-        ]);
-        let changed = index([
-            (
-                "file:///workspace/First.sol",
-                StoredInlayHint::parameter(Position::new(1, 2), "recipient:"),
-            ),
-            (
-                "file:///workspace/Second.sol",
-                StoredInlayHint::call_type(Position::new(3, 4), ": uint256"),
-            ),
-        ]);
+        let index = |hints: [(&str, StoredInlayHint); 2]| {
+            let mut index = InlayHintIndex::default();
+            for (uri, hint) in hints {
+                index.push(Url::parse(uri).unwrap(), hint);
+            }
+            index.sort();
+            index
+        };
+        // Hints sort within each file, so insertion order does not affect equality.
+        let first = ("file:///A.sol", StoredInlayHint::parameter(Position::new(1, 2), "a:"));
+        let second = ("file:///A.sol", StoredInlayHint::call_type(Position::new(3, 4), ": u"));
+        let changed = ("file:///A.sol", StoredInlayHint::parameter(Position::new(1, 2), "b:"));
 
-        assert_eq!(first, same);
-        assert_ne!(first, changed);
+        assert_eq!(index([first.clone(), second.clone()]), index([second.clone(), first.clone()]));
+        assert_ne!(index([first, second.clone()]), index([changed, second]));
     }
 }

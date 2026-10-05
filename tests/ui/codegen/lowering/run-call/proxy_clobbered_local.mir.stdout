@@ -7,8 +7,8 @@ fn @echo(arg0: i256) -> i256 [selector=0x6279e43c, pure, abi_params=[u256], abi_
 
 // === ROOT/tests/ui/codegen/lowering/run-call/proxy_clobbered_local.sol:C ===
 @module C
-data:
-  Impl_initcode_0: hex"34600d57603e8060115f395ff35b5f5ffd341515601c575f3560e01c80636279e43c14601857601c565b6020565b5f5ffd5b60243610603a576004356080526020608001608090036080f35b5f5ffd"
+@data
+  Impl_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/proxy_clobbered_local.sol:Impl"
 
 fn @keepsLocal(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) -> i256 [selector=0x0ea6bb92, pure, abi_params=[u256, u256, u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
@@ -36,17 +36,17 @@ fn @keepsLocal(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256) -> i2
 fn @forwards() -> i256 [selector=0xa38e2a32, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
-    v1 = not 31
-    v2 = and 110, v1
+    v1 = datasize Impl_creation_code_0
+    v2 = datasize Impl_creation_code_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    data_copy Impl_initcode_0, v4, 79
+    datacopy Impl_creation_code_0, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
-    v7 = add v6, 79
+    v7 = add v6, v1
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
-    v9 = create 0, v8, 79
+    v9 = create 0, v8, v1
     v10 = zext i160 v9 to i256
     v11 = ne v10, 0
     jumpi v11, bb2, bb1
@@ -59,9 +59,9 @@ fn @forwards() -> i256 [selector=0xa38e2a32, abi_params=[], abi_returns=[word], 
     v15 = mload 64 !metadata(memory=scratch)
     v16 = calldatasize
     calldatacopy 0, 0, v16 !metadata(memory=scratch)
-    v17 = ptrtoint memorybytes v14 to i256
+    v17 = ptrtoint memptr v14 to i256
     v18 = mload v17
-    v19 = ptrtoint memorybytes v14 to i256
+    v19 = ptrtoint memptr v14 to i256
     v20 = add v19, 32
     v21 = gas
     v22 = delegatecall v21, v13, v20, v18, 0, 32

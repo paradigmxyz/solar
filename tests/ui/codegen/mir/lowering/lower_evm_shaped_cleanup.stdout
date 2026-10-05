@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/lowering/lower_evm_shaped_cleanup.mir (before lower-structs) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_evm_shaped_cleanup.mir (after lower-structs) ===
   @module LowerEvmShapedCleanup
-  types:
+  @types
     struct0: {i256, i256}
   
   fn @entry() {
@@ -51,7 +51,7 @@
 - // === ROOT/tests/ui/codegen/mir/lowering/lower_evm_shaped_cleanup.mir (before lower-frame-slots) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_evm_shaped_cleanup.mir (after lower-frame-slots) ===
   @module LowerEvmShapedCleanup
-  types:
+  @types
     struct0: {i256, i256}
   
   fn @entry() {
@@ -98,7 +98,7 @@
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_evm_shaped_cleanup.mir (after lower-evm-shaped) ===
   @module LowerEvmShapedCleanup
 + @phase lowered
-  types:
+  @types
     struct0: {i256, i256}
   
   fn @entry() {

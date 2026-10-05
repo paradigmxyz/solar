@@ -56,10 +56,6 @@ pub(crate) struct Lifecycle<S> {
 }
 
 impl<S> Lifecycle<S> {
-    fn new(service: S) -> Self {
-        Self { service, state: Arc::new(Mutex::new(State::Uninitialized)) }
-    }
-
     fn state(&self) -> State {
         *self.state.lock().unwrap()
     }
@@ -85,34 +81,36 @@ where
     }
 
     fn call(&mut self, request: AnyRequest) -> Self::Future {
-        match (self.state(), request.method.as_str()) {
+        let (code, message) = match (self.state(), request.method.as_str()) {
             (State::Uninitialized, request::Initialize::METHOD) => {
                 self.set_state(State::Initializing);
-                Either::Right(track_initialize(self.service.call(request), Arc::clone(&self.state)))
+                let response = self.service.call(request);
+                let guard = InitializeStateGuard { state: Arc::clone(&self.state) };
+                return Either::Right(Box::pin(async move {
+                    let result = response.await;
+                    guard.transition(if result.is_ok() {
+                        State::AwaitingInitialized
+                    } else {
+                        State::Uninitialized
+                    });
+                    result
+                }));
             }
             (State::Uninitialized | State::Initializing | State::AwaitingInitialized, _) => {
-                Either::Right(Box::pin(ready(Err(ResponseError::new(
-                    ErrorCode::SERVER_NOT_INITIALIZED,
-                    "Server is not initialized yet",
-                )
-                .into()))))
+                (ErrorCode::SERVER_NOT_INITIALIZED, "Server is not initialized yet")
             }
-            (_, request::Initialize::METHOD) => Either::Right(Box::pin(ready(Err(
-                ResponseError::new(ErrorCode::INVALID_REQUEST, "Server is already initialized")
-                    .into(),
-            )))),
+            (_, request::Initialize::METHOD) => {
+                (ErrorCode::INVALID_REQUEST, "Server is already initialized")
+            }
             (State::Ready, _) => {
                 if request.method == request::Shutdown::METHOD {
                     self.set_state(State::ShuttingDown);
                 }
-                Either::Left(self.service.call(request))
+                return Either::Left(self.service.call(request));
             }
-            (State::ShuttingDown, _) => Either::Right(Box::pin(ready(Err(ResponseError::new(
-                ErrorCode::INVALID_REQUEST,
-                "Server is shutting down",
-            )
-            .into())))),
-        }
+            (State::ShuttingDown, _) => (ErrorCode::INVALID_REQUEST, "Server is shutting down"),
+        };
+        Either::Right(Box::pin(ready(Err(ResponseError::new(code, message).into()))))
     }
 }
 
@@ -125,8 +123,8 @@ where
 {
     fn notify(&mut self, notification: AnyNotification) -> ControlFlow<Result<()>> {
         match (self.state(), notification.method.as_str()) {
-            (_, notification::Exit::METHOD) => {
-                let graceful = self.state() == State::ShuttingDown;
+            (state, notification::Exit::METHOD) => {
+                let graceful = state == State::ShuttingDown;
                 if let ControlFlow::Break(Err(error)) = self.service.notify(notification) {
                     return ControlFlow::Break(Err(error));
                 }
@@ -150,8 +148,8 @@ where
             (State::Uninitialized | State::Initializing | State::AwaitingInitialized, _) => {
                 ControlFlow::Continue(())
             }
-            (_, notification::Initialized::METHOD) => ControlFlow::Break(Err(Error::Protocol(
-                format!("Unexpected initialized notification on state {:?}", self.state()),
+            (state, notification::Initialized::METHOD) => ControlFlow::Break(Err(Error::Protocol(
+                format!("Unexpected initialized notification on state {state:?}"),
             ))),
             _ => self.service.notify(notification),
         }
@@ -162,21 +160,6 @@ where
     }
 }
 
-fn track_initialize<F, R, E>(future: F, state: Arc<Mutex<State>>) -> BoxFuture<Result<R, E>>
-where
-    F: Future<Output = Result<R, E>> + Send + 'static,
-    R: Send + 'static,
-    E: Send + 'static,
-{
-    let guard = InitializeStateGuard { state };
-    Box::pin(async move {
-        let result = future.await;
-        let next = if result.is_ok() { State::AwaitingInitialized } else { State::Uninitialized };
-        guard.transition(next);
-        result
-    })
-}
-
 /// Builds lifecycle middleware around an LSP service.
 #[derive(Clone, Copy, Debug, Default)]
 pub(crate) struct LifecycleLayer;
@@ -185,7 +168,7 @@ impl<S> Layer<S> for LifecycleLayer {
     type Service = Lifecycle<S>;
 
     fn layer(&self, service: S) -> Self::Service {
-        Lifecycle::new(service)
+        Lifecycle { service, state: Arc::default() }
     }
 }
 

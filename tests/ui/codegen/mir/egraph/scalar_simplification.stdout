@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/egraph/scalar_simplification.mir (before egraph) ===
 + // === ROOT/tests/ui/codegen/mir/egraph/scalar_simplification.mir (after egraph) ===
   @module ScalarSimplification
-  types:
+  @types
     struct0: {i256, i256, i256, i256, i256}
     struct1: {i256, i256, i256, i256, i256, i256, i256, i256, i256, i1, i1, i256, i256, i256, i256, i256, i256, i256, i256, i256, i256}
     struct2: {i256, i256}
@@ -38,9 +38,9 @@
       v1 = eq arg0, false
 -     v2 = select true, arg1, arg2
 -     v3 = select arg0, true, false
-      v4 = select arg0, false, true
+-     v4 = select arg0, false, true
 -     ret v0, v1, v2, v3, v4
-+     ret arg0, v1, arg1, arg0, v4
++     ret arg0, v1, arg1, arg0, v1
   }
   
   fn @remove_zero_length_copies(arg0: i256) -> i256 {
@@ -203,7 +203,7 @@
       ret
   }
   
-  fn @constant_require(arg0: memorybytes) {
+  fn @constant_require(arg0: memptr) {
     bb0:
 -     icall require<error_string>, true, arg0
       icall require<empty_string>, false
@@ -437,14 +437,6 @@
       jump bb1
     bb1:
       v2 = call 100, v1, 0, 0, 0, 0, 0
-      ret v2
-  }
-  
-  fn @eof_address_cast(arg0: i256) -> i256 {
-    bb0:
-      v0 = trunc i256 arg0 to i160
-      v1 = zext i160 v0 to i256
-      v2 = extcall v1, 0, 0, 0
       ret v2
   }
   

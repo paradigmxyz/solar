@@ -4,11 +4,23 @@ error: types containing internal function pointers cannot be parameter or return
 LL │     function(uint) internal public myInternalFunc;
    ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━
 
+error: types containing internal function pointers cannot be parameter or return types of public functions
+   ╭▸ ROOT/tests/ui/typeck/internal_fn_public_interface.sol:LL:CC
+   │
+LL │     function invalid(function() internal callback) external {}
+   ╰╴                     ━━━━━━━━━━━━━━━━━━━
+
 error: types containing internal function pointers cannot be parameter or return types of public getter functions
    ╭▸ ROOT/tests/ui/typeck/internal_fn_public_interface.sol:LL:CC
    │
 LL │     S public myVar;
    ╰╴    ━
 
-error: aborting due to 2 previous errors
+error: member `invalid` not found on type `type(contract C)`
+   ╭▸ ROOT/tests/ui/typeck/internal_fn_public_interface.sol:LL:CC
+   │
+LL │         C.invalid;
+   ╰╴          ━━━━━━━
+
+error: aborting due to 4 previous errors
 

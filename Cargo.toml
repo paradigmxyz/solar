@@ -143,7 +143,7 @@ evm2 = { git = "https://github.com/alloy-rs/evm2", rev = "9b037449c846515624ff6a
 ruint = { version = "1.16", features = ["num-integer"] }
 
 num-bigint = "0.5"
-num-rational = "0.4"
+num-rational = { version = "0.4", default-features = false, features = ["std"] }
 num-traits = "0.2"
 
 # CLI
@@ -166,7 +166,7 @@ toml_edit = "0.25"
 flate2 = "1.1"
 
 # codegen
-cranelift-isle = "=0.135.2"
+cranelift-isle = "=0.136.1"
 
 # macros
 proc-macro2 = "1.0"
@@ -183,7 +183,7 @@ parking_lot = "0.12"
 rayon = "1.8"
 
 # tracing
-tracing-subscriber = "0.3"
+tracing-subscriber = { version = "0.3", default-features = false }
 tracing = "0.1"
 
 # testing
@@ -211,7 +211,6 @@ tower = "0.5"
 arrayvec = "0.7"
 bitflags = "2.4"
 bumpalo = "3.14"
-cfg-if = "1.0"
 either = "1"
 glob = "0.3"
 oxc_index = { version = "5.0", features = ["nonmax"] }

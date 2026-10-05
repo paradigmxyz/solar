@@ -5,7 +5,7 @@
 // A terminal ABI encoder may reuse a fresh full-word array. The payload moves
 // forward once, then the old length and data words become the tuple header.
 // CHECK-LABEL: {{^[ +].*}}fn @fresh_array{{[( ]}}
-fn @fresh_array() -> memoryarray {
+fn @fresh_array() -> memptr {
   bb0:
     v0 = alloc memoryarray<1>, exact, uninitialized, infallible, 96
     set_memory_object_len memoryarray, v0, 2
@@ -27,7 +27,7 @@ fn @fresh_array() -> memoryarray {
 // CHECK: + [[LENGTH_POINTER:v[0-9]+]] = ptrtoint memptr [[SOURCE_PTR]] to i256
 // CHECK: + mstore [[LENGTH_POINTER]], [[ENCODE_LENGTH]]
 // CHECK: + [[TOTAL:v[0-9]+]] = add [[BYTES]], 64
-// CHECK: + [[SLICE_POINTER:v[0-9]+]] = ptrtoint memoryarray [[OBJECT]] to i256
+// CHECK: + [[SLICE_POINTER:v[0-9]+]] = ptrtoint memptr [[OBJECT]] to i256
 // CHECK: + [[ENCODED:v[0-9]+]] = make_memory_slice [[SLICE_POINTER]], [[TOTAL]]
 fn @terminal() {
   bb0:
@@ -43,7 +43,7 @@ fn @terminal() {
 // CHECK: + mcopy
 // CHECK: + [[BUFFER_PTR:v[0-9]+]] = alloc raw
 // CHECK: [[BUFFER:v[0-9]+]] = ptrtoint memptr [[BUFFER_PTR]] to i256
-fn @borrowed(arg0: memoryarray) {
+fn @borrowed(arg0: memptr) {
   bb0:
     v0 = abi_encode [memory_array<word>], args arg0
     v1 = slice_ptr v0
@@ -51,14 +51,14 @@ fn @borrowed(arg0: memoryarray) {
     returndata v1, v2
 }
 
-fn @fresh_bytes(arg0: i256) -> memorybytes {
+fn @fresh_bytes(arg0: i256) -> memptr {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 96
     set_memory_object_len memorybytes, v0, arg0
     ret v0
 }
 
-fn @fresh_bytes_wrapper(arg0: i256) -> memorybytes {
+fn @fresh_bytes_wrapper(arg0: i256) -> memptr {
   bb0:
     v0 = icall @fresh_bytes, arg0
     ret v0

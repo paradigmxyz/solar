@@ -3,7 +3,7 @@
 @phase lowered
 fn @three() [selector=0x1158e167, abi_wrapper, pure] {
   bb0:
-    v26 = icall @decode_calldata_type, 4
+    v26 = icall @decode_calldata_type
     v46 = ptrtoint memptr v26 to i256
     v0 = mload v46
     v1 = lt v0, 3
@@ -21,7 +21,7 @@ fn @three() [selector=0x1158e167, abi_wrapper, pure] {
 
 fn @two() [selector=0x65313149, abi_wrapper, pure] {
   bb0:
-    v18 = icall @decode_calldata_type, 4
+    v18 = icall @decode_calldata_type
     v33 = ptrtoint memptr v18 to i256
     v0 = mload v33
     v1 = lt v0, 2
@@ -39,7 +39,7 @@ fn @two() [selector=0x65313149, abi_wrapper, pure] {
 
 fn @gapped() [selector=0x63cfbce4, abi_wrapper, pure] {
   bb0:
-    v18 = icall @decode_calldata_type, 4
+    v18 = icall @decode_calldata_type
     v33 = ptrtoint memptr v18 to i256
     v0 = mload v33
     v1 = lt v0, 3
@@ -60,7 +60,7 @@ fn @gapped() [selector=0x63cfbce4, abi_wrapper, pure] {
 
 fn @stored() [selector=0xab0edd4e, abi_wrapper, pure] {
   bb0:
-    v30 = icall @decode_calldata_type, 4
+    v30 = icall @decode_calldata_type
     v53 = ptrtoint memptr v30 to i256
     v0 = mload v53
     v1 = lt v0, 3
@@ -70,7 +70,7 @@ fn @stored() [selector=0xab0edd4e, abi_wrapper, pure] {
     v38 = mload v36
     v39 = byte 0, v38
     v8 = shl 16, v39
-    v42 = add v53, 33
+    v42 = add v36, 1
     mstore8 v42, 74
     v46 = mload v42
     v47 = byte 0, v46
@@ -85,10 +85,10 @@ fn @stored() [selector=0xab0edd4e, abi_wrapper, pure] {
     returndata 128, 32
 }
 
-fn @decode_calldata_type(arg0: i256) -> memptr [may_return_memory] {
+fn @decode_calldata_type() -> memptr [may_return_memory] {
   bb0:
     v0 = calldatasize
-    v1 = calldataload arg0
+    v1 = calldataload 4
     v2 = add v1, 4
     v3 = add v2, 32
     v4 = gt v1, 0xffffffffffffffff
