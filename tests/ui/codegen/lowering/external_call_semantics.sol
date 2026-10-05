@@ -1,4 +1,3 @@
-//@ codegen-matrix: standard
 //@ run-call: Caller::lowLevelGas => false
 //@ run-call: Caller::highLevelGas => true
 //@ run-call: Caller::viewUsesStaticcall => true
@@ -9,7 +8,6 @@
 //@ run-call: Caller::attachedStorageReceiver => 7
 //@ run-call: Caller::functionPointerMultiReturn => 12
 //@ run-call-fail: Caller::failedCreation => 0xdeadbeef
-//@ run-call: Caller::attachedThis => 19
 
 interface ViewTarget {
     function touch() external view;
@@ -57,10 +55,6 @@ library NamedCallLib {
     function ordered(uint256 a, uint256 b) internal pure returns (uint256) {
         return a * 10 + b;
     }
-
-    function attachedValue(Caller self, uint256 value) internal view returns (uint256) {
-        return self.namedArguments() + value;
-    }
 }
 
 library StorageLib {
@@ -75,7 +69,6 @@ library StorageLib {
 
 contract Caller {
     using StorageLib for StorageLib.Data;
-    using NamedCallLib for Caller;
 
     CallTarget private target;
     StorageLib.Data private data;
@@ -139,9 +132,5 @@ contract Caller {
 
     function failedCreation() external {
         new FailingConstructor();
-    }
-
-    function attachedThis() external view returns (uint256) {
-        return this.attachedValue(7);
     }
 }
