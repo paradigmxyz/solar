@@ -20,15 +20,12 @@ library D {
     }
 }
 
-function identity(uint256 self) pure returns (uint256) {
-    return self;
-}
-
 contract UnusedBoundLibraryFunction {
     using D for uint256;
     using {identity} for uint256;
 
     uint256 private count;
+
     function f(uint256 a) external pure {
         a.double;
     }
@@ -97,4 +94,8 @@ contract UnusedBoundLibraryFunction {
         uint256[] memory values = new uint256[](1);
         values[1].identity;
     }
+}
+
+function identity(uint256 self) pure returns (uint256) {
+    return self;
 }
