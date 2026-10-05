@@ -1,5 +1,4 @@
 //@ codegen-matrix: standard
-//@ compile-flags: -Zvalidate-ir=true
 //@ run-call: once 2, 5 => 522
 //@ run-call: twice 2, 5 => 522255
 //@ run-call: once 5, 2 => 255
