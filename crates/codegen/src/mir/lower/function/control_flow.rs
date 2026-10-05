@@ -145,6 +145,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn lower_switch(&mut self, switch: &hir::StmtSwitch<'_>) -> Option<()> {
         let selector = self.lower_yul_word_expr(switch.selector)?;
+        let selector = self.builder.cast_word(selector);
         self.materialize_default_bindings();
         let switch_block = self.builder.current_block();
         let merge_block = self.builder.create_block();

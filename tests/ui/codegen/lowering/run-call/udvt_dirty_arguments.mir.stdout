@@ -10,18 +10,16 @@ fn @injectSigned(arg0: i256) -> i256 [pure] {
     ret arg0
 }
 
-fn @widenSmall(arg0: i256) -> i256 [pure] {
+fn @widenSmall(arg0: i8) -> i256 [pure] {
   bb0:
-    v0 = trunc i256 arg0 to i8
-    v1 = zext i8 v0 to i256
-    ret v1
+    v0 = zext i8 arg0 to i256
+    ret v0
 }
 
-fn @widenSigned(arg0: i256) -> i256 [pure] {
+fn @widenSigned(arg0: i8) -> i256 [pure] {
   bb0:
-    v0 = trunc i256 arg0 to i8
-    v1 = sext i8 v0 to i256
-    ret v1
+    v0 = sext i8 arg0 to i256
+    ret v0
 }
 
 fn @viaOperator(arg0: i256, arg1: i256) -> i1 [selector=0x8c012361, pure, abi_params=[u256, u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
@@ -43,15 +41,17 @@ fn @viaCall(arg0: i256, arg1: i256) -> i1 [selector=0xb447a4d9, pure, abi_params
 fn @viaWiden(arg0: i256) -> i256 [selector=0xb878f209, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @inject, arg0
-    v1 = icall @widenSmall, v0
-    ret v1
+    v1 = trunc i256 v0 to i8
+    v2 = icall @widenSmall, v1
+    ret v2
 }
 
 fn @viaWidenSigned(arg0: i256) -> i256 [selector=0xe025fca0, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[i256]] {
   bb0:
     v0 = icall @injectSigned, arg0
-    v1 = icall @widenSigned, v0
-    ret v1
+    v1 = trunc i256 v0 to i8
+    v2 = icall @widenSigned, v1
+    ret v2
 }
 
 fn @eqSmall(arg0: i256, arg1: i256) -> i1 [pure] {

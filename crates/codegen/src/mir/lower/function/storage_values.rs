@@ -291,7 +291,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.storage_refs.insert(id, access);
                 Some(access)
             }
-            ExprKind::Ternary(condition, then_expr, else_expr) => {
+            ExprKind::Ternary(condition, then_expr, else_expr)
+                if self.cx.gcx.type_of_expr(expr.id)?.is_ref_at(DataLocation::Storage) =>
+            {
                 self.storage_access_ternary(condition, then_expr, else_expr)
             }
             ExprKind::Call(callee, arguments)

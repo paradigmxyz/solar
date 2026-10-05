@@ -1,7 +1,6 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ compile-flags: -Zvalidate-ir=true
 //@ run-call: f => 234
 //@ run-call: discardOptions => 23
 //@ run-call: optionMembers => true

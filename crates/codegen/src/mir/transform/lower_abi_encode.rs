@@ -1608,14 +1608,13 @@ fn encode_bytes(
         builder.mstore(last, zero);
         builder.mstore(dest, len);
     } else {
-        // if padded != 0: mstore data_dest + padded - 32, 0
+        // if padded != 0: mstore dest + padded, 0
         let zero_block = builder.create_block();
         let copy_block = builder.create_block();
         let empty = builder.eq_zero(padded);
         builder.branch(empty, copy_block, zero_block);
         builder.switch_to_block(zero_block);
-        let last_offset = builder.sub(padded, word);
-        let last = builder.add(data_dest, last_offset);
+        let last = builder.add(dest, padded);
         let zero = builder.imm(0);
         builder.mstore(last, zero);
         builder.jump(copy_block);
