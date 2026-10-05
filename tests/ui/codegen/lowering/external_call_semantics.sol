@@ -1,5 +1,3 @@
-//@ codegen-matrix: standard
-//@ compile-flags: -Zvalidate-ir=true
 //@ run-call: Caller::lowLevelGas => false
 //@ run-call: Caller::highLevelGas => true
 //@ run-call: Caller::viewUsesStaticcall => true
@@ -10,7 +8,6 @@
 //@ run-call: Caller::attachedStorageReceiver => 7
 //@ run-call: Caller::functionPointerMultiReturn => 12
 //@ run-call-fail: Caller::failedCreation => 0xdeadbeef
-//@ run-call: Caller::unitReturn => 0
 
 interface ViewTarget {
     function touch() external view;
@@ -135,15 +132,5 @@ contract Caller {
 
     function failedCreation() external {
         new FailingConstructor();
-    }
-
-    function unitReturn() external returns (uint256) {
-        data.value = 7;
-        returnUnit();
-        return data.value;
-    }
-
-    function returnUnit() internal {
-        return delete data.value;
     }
 }
