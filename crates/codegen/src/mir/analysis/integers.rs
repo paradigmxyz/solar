@@ -23,18 +23,7 @@ pub(crate) fn integer_max(func: &Function, value: ValueId) -> U256 {
 /// The low `bits` set in an EVM word.
 #[inline]
 pub(crate) fn integer_mask(bits: u32) -> U256 {
-    const MASKS: [U256; 257] = {
-        let mut masks = [U256::ZERO; 257];
-        let mut limbs = [0; 4];
-        let mut width = 1;
-        while width <= 256 {
-            limbs[(width - 1) / 64] |= 1 << ((width - 1) % 64);
-            masks[width] = U256::from_limbs(limbs);
-            width += 1;
-        }
-        masks
-    };
-    if bits == 256 { U256::MAX } else { MASKS[bits as usize] }
+    U256::MAX >> (256 - bits)
 }
 
 pub(crate) fn unsigned_bounds(func: &Function, value: ValueId) -> (U256, U256) {
