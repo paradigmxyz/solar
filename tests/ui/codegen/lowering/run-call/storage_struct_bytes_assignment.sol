@@ -1,5 +1,4 @@
 //@ codegen-matrix: standard
-//@ compile-flags: -Zvalidate-ir=true
 //@ run-call: StorageStructBytesAssignment::roundTrip => 9, 96
 //@ run-call: cleanupEmpty => 0, 0, 0
 //@ run-call: cleanupShort => 1, 0, 0

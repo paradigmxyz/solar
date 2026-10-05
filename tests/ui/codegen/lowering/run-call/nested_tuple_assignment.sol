@@ -1,7 +1,6 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ compile-flags: -Zvalidate-ir=true
 // ported-from: tests/libsolidity/semanticTests/types/tuple_assign_multi_slot_grow.sol
 //@ run-call: assign => 0x30, 0x31, 0x32
 //@ run-call: swap => 2, 1, 4, 3

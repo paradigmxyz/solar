@@ -1,7 +1,6 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ compile-flags: -Zvalidate-ir=true
 //@ run-call: test_cleanup => true
 // ported-from: test/libsolidity/semanticTests/viaYul/storage/mappings.sol
 

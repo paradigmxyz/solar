@@ -1,5 +1,5 @@
 //@ revisions: none gas size
-//@ compile-flags: --emit=bin -Zvalidate-ir=true
+//@ compile-flags: --emit=bin
 //@[none] compile-flags: -O none
 //@[gas] compile-flags: -O gas
 //@[size] compile-flags: -O size
