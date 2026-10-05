@@ -1,10 +1,10 @@
 //@ revisions: gas size
 //@[gas] compile-flags: -Ogas
 //@[size] compile-flags: -Osize
-//@ run-call: BoundedHelperCopy::check 0x112233, 7, 3 => 293
-//@ run-call: BoundedHelperCopy::check 0x, 7, 3 => 261
 //@ run-call: createPair => 17, 100, 200, 4660
 //@ run-call: createSingle => 5, 1, 2, 153
+//@ run-call: check 0x112233, 7, 3 => 293
+//@ run-call: check 0x, 7, 3 => 261
 
 // A variable-length copy into low memory requires spilled values live
 // across it to remain on the stack. The creation payload's free-memory-pointer load
@@ -56,10 +56,8 @@ contract ForwardingBufferLaterFmp {
         Child token = new Child(one(address(0x99)), batches, 5);
         return (token.start(), token.b0(), token.b1(), uint160(token.r0()));
     }
-}
 
-// Keep enough values live across the final copy to require the heap proof.
-contract BoundedHelperCopy {
+    // Keep enough values live across the final copy to require the heap proof.
     function check(bytes calldata data, uint256 seed, uint256 count) external pure returns (uint256) {
         uint256 ptr = allocate(count * 32);
         bytes32 hash;
