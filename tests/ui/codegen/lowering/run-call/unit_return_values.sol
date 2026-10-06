@@ -1,6 +1,8 @@
 //@ codegen-matrix: standard
 //@ run-call: deleteReturn => 0
 //@ run-call: assignmentReturn => 7
+//@ run-call: conditionalReturn true => 0
+//@ run-call: conditionalReturn false => 7
 
 contract UnitReturnValues {
     uint256 private total;
@@ -22,5 +24,15 @@ contract UnitReturnValues {
 
     function assignAndReturn() internal {
         return (total,) = (7, 9);
+    }
+
+    function conditionalReturn(bool clear) external returns (uint256) {
+        total = 9;
+        selectAndReturn(clear);
+        return total;
+    }
+
+    function selectAndReturn(bool clear) internal {
+        return clear ? deleteAndReturn() : assignAndReturn();
     }
 }

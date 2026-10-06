@@ -18,6 +18,10 @@ enum TupleAssignmentRhs<'gcx> {
 impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn lower_values(&mut self, expr: &hir::Expr<'_>) -> Option<Vec<ValueId>> {
         let expr = expr.peel_parens();
+        if self.cx.gcx.type_of_expr(expr.id).is_some_and(|ty| ty.is_unit()) {
+            self.lower_discarded_expr(expr)?;
+            return Some(Vec::new());
+        }
         if let ExprKind::Ternary(condition, then_expr, else_expr) = &expr.kind {
             return self.lower_ternary_values(condition, then_expr, else_expr);
         }
@@ -55,14 +59,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             {
                 let value = self.lower_expr(expr)?;
                 return Some(self.unpack_return_value(value));
-            }
-            let returns_empty = returns.is_some_and(|returns| returns == 0)
-                || resolved_builtin.is_some_and(|builtin| {
-                    matches!(builtin, Builtin::Assert | Builtin::Revert | Builtin::RevertMsg)
-                });
-            if returns_empty {
-                self.lower_expr(expr)?;
-                return Some(Vec::new());
             }
         }
         match &expr.kind {
