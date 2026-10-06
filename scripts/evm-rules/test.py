@@ -1,6 +1,5 @@
 """Regression tests for the Lean word model, ISLE reader and discovery gate."""
 
-import concurrent.futures
 import functools
 import io
 import itertools
@@ -809,50 +808,43 @@ class RuleTests(unittest.TestCase):
                 self.assertEqual(result["status"], "proved", result)
 
     def test_narrow_integer_rules(self):
-        path = ISLE / "mir/word"
-        source = "\n".join(
-            (path / name).read_text().split(boundary)[0]
-            for name, boundary in (
-                ("arithmetic.isle", ";; (x * a) * b"),
-                ("bitwise.isle", ";; Extract one byte"),
-                ("comparisons.isle", ";; (x << s) =="),
-                ("shifts.isle", ";; (x << s) >>"),
-            )
-        )
-        rules = [
-            Rule(form, line, str(path))
-            for form, line in forms(source)
-            if form[0] == "rule"
-        ]
-        self.assertGreater(len(rules), 40)
-        environment = lean_path()
+        entries = list(obligations(ISLE / "mir/word"))
+        native = [entry for entry in entries if "integer_bits" in entry]
+        self.assertEqual(len(native), 93 * 33)
+        for bits in (1, *range(8, 257, 8)):
+            selected = [entry for entry in native if entry["integer_bits"] == bits]
+            with self.subTest(bits=bits):
+                self.assertEqual(len(selected), 93)
+                self.assertTrue(all(entry.get("theorems") for entry in selected))
+                self.assertEqual([e["error"] for e in selected if "error" in e], [])
+        self.assertEqual(len({entry["name"] for entry in entries}), len(entries))
 
-        def verify_width(bits):
-            results = []
-            tactic = (
-                "first | (evm_unfold; (try simp only [BitVec.zero_and, BitVec.zero_sub]); "
-                f"exact mul_low_mask (lo := {bits}) (hi := {256 - bits}) _) "
-                "| evm_auto 30"
-            )
-            with Checker(environment) as checker:
-                for rule in rules:
-                    cx = Context(integer_bits=bits)
-                    lhs, rhs = cx.obligation(rule)
-                    results.append(
-                        checker.check(
-                            lhs, rhs, cx.assumptions, PROOF_TIMEOUT_MS, tactic
-                        )
-                    )
-            return results
-
-        widths = (1, *range(8, 257, 8))
-        with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
-            for bits, results in zip(
-                widths, pool.map(verify_width, widths), strict=True
+    def test_native_width_failure_reaches_the_report(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "rules.isle"
+            path.write_text("(rule (simplify (Op.Add x (one))) x)\n;; end\n")
+            with (
+                patch("evm_rules.verification.NATIVE_PREFIXES", {path: ";; end"}),
+                patch("evm_rules.verification.INTEGER_WIDTHS", (1, 8)),
             ):
-                for rule, result in zip(rules, results, strict=True):
-                    with self.subTest(bits=bits, line=rule.line):
-                        self.assertEqual(result["status"], "proved", result)
+                report = verify_rules(path, processes=True)
+            self.assertEqual(len(report["rules"]), 3)
+            self.assertEqual(
+                [rule.get("integer_bits") for rule in report["rules"]], [None, 1, 8]
+            )
+            for rule in report["rules"]:
+                self.assertEqual(rule["status"], "counterexample", rule)
+                self.assertTrue(rule["replayed"], rule)
+
+    def test_native_rule_boundary_must_exist(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "rules.isle"
+            path.write_text("(rule (simplify (Op.Add x (zero))) x)\n")
+            with (
+                patch("evm_rules.verification.NATIVE_PREFIXES", {path: ";; end"}),
+                self.assertRaisesRegex(ValueError, "missing native rule boundary"),
+            ):
+                list(obligations(path))
 
     def test_native_signed_limits(self):
         rules = [
@@ -919,7 +911,8 @@ class RuleTests(unittest.TestCase):
                     form for _, text in rule_sources(path) for form, _ in forms(text)
                 ]
                 self.assertEqual(
-                    len(entries), sum(form[0] == "rule" for form in rule_forms)
+                    sum("integer_bits" not in entry for entry in entries),
+                    sum(form[0] == "rule" for form in rule_forms),
                 )
                 skipped = [entry["name"] for entry in entries if "error" in entry]
                 self.assertEqual(skipped, [])
