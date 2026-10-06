@@ -1,5 +1,6 @@
 """Regression tests for the Lean word model, ISLE reader and discovery gate."""
 
+import concurrent.futures
 import functools
 import io
 import itertools
@@ -824,23 +825,34 @@ class RuleTests(unittest.TestCase):
             if form[0] == "rule"
         ]
         self.assertGreater(len(rules), 40)
-        for bits in (1, *range(8, 257, 8)):
-            for rule in rules:
-                with self.subTest(bits=bits, line=rule.line):
+        environment = lean_path()
+
+        def verify_width(bits):
+            results = []
+            tactic = (
+                "first | (evm_unfold; (try simp only [BitVec.zero_and, BitVec.zero_sub]); "
+                f"exact mul_low_mask (lo := {bits}) (hi := {256 - bits}) _) "
+                "| evm_auto 30"
+            )
+            with Checker(environment) as checker:
+                for rule in rules:
                     cx = Context(integer_bits=bits)
                     lhs, rhs = cx.obligation(rule)
-                    result = shared_checker().check(
-                        lhs,
-                        rhs,
-                        cx.assumptions,
-                        PROOF_TIMEOUT_MS,
-                        tactic=(
-                            "first | (evm_unfold; (try simp only [BitVec.zero_and, BitVec.zero_sub]); "
-                            f"exact mul_low_mask (lo := {bits}) (hi := {256 - bits}) _) "
-                            "| evm_auto 30"
-                        ),
+                    results.append(
+                        checker.check(
+                            lhs, rhs, cx.assumptions, PROOF_TIMEOUT_MS, tactic
+                        )
                     )
-                    self.assertEqual(result["status"], "proved", result)
+            return results
+
+        widths = (1, *range(8, 257, 8))
+        with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
+            for bits, results in zip(
+                widths, pool.map(verify_width, widths), strict=True
+            ):
+                for rule, result in zip(rules, results, strict=True):
+                    with self.subTest(bits=bits, line=rule.line):
+                        self.assertEqual(result["status"], "proved", result)
 
     def test_native_signed_limits(self):
         rules = [
