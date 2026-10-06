@@ -106,3 +106,21 @@
       (if-let combined (make (Op.Or a b)))
       (if-let zero (imm (u256 0)))
       (sequence (Op.Eq combined zero)))
+
+;; (x / c) * c == x => x % c == 0.
+;; Requires: c is constant, c != 0. x is a multiple of c.
+(rule (sequence_rewrite (Op.Eq (mul (div x (iconst c)) (iconst d)) x))
+      (if-let true (u256_ge c (u256 1)))
+      (if-let true (u256_same c d))
+      (if-let divisor (imm c))
+      (if-let remainder (make (Op.Mod x divisor)))
+      (if-let zero (imm (u256 0))) (sequence (Op.Eq remainder zero)))
+
+;; x == (x / c) * c => x % c == 0.
+;; Requires: c is constant, c != 0.
+(rule (sequence_rewrite (Op.Eq x (mul (div x (iconst c)) (iconst d))))
+      (if-let true (u256_ge c (u256 1)))
+      (if-let true (u256_same c d))
+      (if-let divisor (imm c))
+      (if-let remainder (make (Op.Mod x divisor)))
+      (if-let zero (imm (u256 0))) (sequence (Op.Eq remainder zero)))
