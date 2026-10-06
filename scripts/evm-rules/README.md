@@ -37,15 +37,15 @@ files fail too. Failures print the source file, rule line, status and reason.
 
 ## CI
 
-CI runs one proof job on the standard GitHub-hosted x86 runner. On pull
+CI runs one proof job on a four-core Depot x86 runner. On pull
 requests it runs only when codegen, proof tooling, or their CI and dependency
 inputs change; main pushes always run it. The exact paths and schedule live in
 [ci.yml](../../.github/workflows/ci.yml). The [proof
 runner](../../.github/scripts/run_evm_proofs.sh) checks every selected rule with
-two single-threaded reusable Lean workers, as on that runner; `verify.py`
-alone uses every core. Each worker imports the model once and checks every
-theorem against that initial environment, without retaining declarations from
-previous queries. A timeout stops the worker and its SAT solver; the next
+one single-threaded reusable Lean worker per available core, both in CI and
+locally, without a hard-coded job limit. Each worker imports the model once and
+checks every theorem against that initial environment, without retaining
+declarations from previous queries. A timeout stops the worker and its SAT solver; the next
 theorem starts a new worker. Reports and theorem files live under
 `target/evm-rules/`. [install_lean.sh](../../.github/scripts/install_lean.sh)
 installs the pinned toolchain for x86 and Arm runners in the proof and Python

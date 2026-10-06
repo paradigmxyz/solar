@@ -19,7 +19,7 @@ env:
 jobs:
   evm-rules:
     name: EVM word and stack proofs
-    runs-on: ubuntu-latest
+    runs-on: depot-ubuntu-latest-4
     timeout-minutes: 45
     permissions:
       id-token: write
