@@ -48,6 +48,7 @@ from evm_rules.prover import (
     job,
     lean_environment,
     prove,
+    simple_witness,
     stop,
 )
 from evm_rules.stack import requirements, stack_rules, stack_variants
@@ -1273,7 +1274,8 @@ class CliTests(unittest.TestCase):
                 )
                 self.assertEqual(json.loads(output.read_text())["counts"], {status: 1})
 
-    def test_changed_checker_rechecks_an_unchanged_theorem(self):
+    @patch("evm_rules.prover.simple_witness", return_value=None)
+    def test_changed_checker_rechecks_an_unchanged_theorem(self, _witness):
         # The theorem text stays the same while the result validation or the
         # applicability check changes: every run must apply the current checker, so
         # an earlier success cannot bypass it.
@@ -1319,6 +1321,28 @@ class CliTests(unittest.TestCase):
             ):
                 self.assertEqual(prove(task)[1]["status"], "timeout")
             stopped.assert_called_once_with(hung)
+
+    def test_simple_witness_checks_every_guard(self):
+        x = Expr.var("x")
+        zero, one = Expr.const(0), Expr.const(1)
+        self.assertEqual(simple_witness([Cond("eq", (x, zero))]), {"x": "0x0"})
+        self.assertEqual(simple_witness([Cond("eq", (zero, zero))]), {})
+        self.assertEqual(simple_witness([Cond("eq", (x, one))]), {"x": "0x1"})
+        self.assertIsNone(simple_witness([Cond("eq", (x, zero)), Cond("eq", (x, one))]))
+        self.assertIsNone(simple_witness([Cond("unsupported", (x,))]))
+        self.assertIsNone(simple_witness([Cond("eq", (Expr("address", ()), zero))]))
+
+    def test_simple_witness_still_requires_a_lean_proof(self):
+        x = Expr.var("x")
+        guards = [Cond("eq", (x, Expr.const(0)))]
+        with Checker(lean_path()) as checker:
+            result = checker.check(x, x, guards, PROOF_TIMEOUT_MS)
+            self.assertEqual(result["status"], "proved", result)
+            self.assertEqual(result["witness"], {"x": "0x0"})
+            self.assertEqual(checker.queries, 1)
+            result = checker.check(x, Expr.const(1), guards, PROOF_TIMEOUT_MS)
+            self.assertEqual(result["status"], "counterexample", result)
+            self.assertTrue(result["replayed"])
 
     def test_worker_reuses_process_without_retaining_declarations(self):
         with Checker(lean_path()) as checker:

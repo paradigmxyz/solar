@@ -8,10 +8,10 @@ process remains available for diagnostics and comparison. Search also reuses
 `Checker` for thousands of small queries.
 
 A precondition set must also be satisfiable, as a rule that never applies proves
-nothing. Its theorem `preconditions → False` must fail with an assignment, and the
-integer evaluator in `expr.py` must confirm that the assignment satisfies every
-precondition. Counterexamples to an equality are replayed the same way, so a reported
-counterexample always differs on concrete words.
+nothing. Try a simple concrete assignment in the integer evaluator first. Otherwise,
+the theorem `preconditions → False` must fail with an assignment that the evaluator
+confirms satisfies every precondition. Counterexamples to an equality are replayed
+the same way, so a reported counterexample always differs on concrete words.
 """
 
 import json
@@ -144,6 +144,28 @@ def applicable(message, variables, assumptions):
     return None
 
 
+def simple_witness(assumptions):
+    """Try zero/false inputs, with literal equalities filled in, before Lean search."""
+    variables = {}
+    for condition in assumptions:
+        word_variables(condition, variables)
+    if ADDRESS in variables or BALANCES in variables:
+        return None
+    _, words, flags = assignment("", variables)
+    try:
+        for condition in assumptions:
+            if condition.op == "eq":
+                lhs, rhs = condition.args
+                for variable, value in ((lhs, rhs), (rhs, lhs)):
+                    if variable.op == "var" and not value.variables():
+                        words[variable.args[0]] = concrete(value, {})
+        if all(holds(condition, words, flags) for condition in assumptions):
+            return {name: hex(value) for name, value in words.items()} | flags
+    except Unsupported:
+        pass
+    return None
+
+
 def observed(environment, exprs, words):
     """The executing account and every balance a replay reads, for the report."""
     balances = {}
@@ -243,13 +265,15 @@ class Task:
     assumptions: list
     timeout: int
     lean_path: str
+    witness: dict | None
 
 
 def job(work_dir, name, lhs, rhs, assumptions, tactic, timeout, lean_path):
     """The task that checks one theorem and, with preconditions, its applicability."""
     text = PRELUDE + "\n" + lean_theorem(name, lhs, rhs, assumptions, tactic)
     search_line, variables = None, {}
-    if assumptions:
+    witness = simple_witness(assumptions) if assumptions else None
+    if assumptions and witness is None:
         search, variables = applicability(f"{name}_applicable", assumptions, timeout)
         search_line = text.count("\n") + 2
         text += "\n" + search
@@ -265,11 +289,12 @@ def job(work_dir, name, lhs, rhs, assumptions, tactic, timeout, lean_path):
         list(assumptions),
         limit,
         lean_path,
+        witness,
     )
 
 
 def prove(task, checker=None):
-    """Check one theorem file; the applicability search, if any, must fail with a witness.
+    """Check one theorem file and require a concrete witness for its preconditions.
 
     A failed proof whose counterexample replays in the integer semantics is reported as
     that counterexample.
@@ -336,6 +361,8 @@ def prove(task, checker=None):
     if tactic := PROVED_BY.search(output):
         result["tactic"] = tactic[1]
     if search_line is None:
+        if task.witness is not None:
+            result["witness"] = task.witness
         return name, result
     search = [
         message
@@ -436,11 +463,11 @@ class Checker:
         `tactic` replaces `evm_auto` for the equality, as a hand-written proof does.
         """
         assumptions = simplify(assumptions)
-        witness = None
+        witness = simple_witness(assumptions) if assumptions else None
         seconds = max(1, ceil(timeout_ms / 1000))
         # The checker's own limit covers preprocessing as well as the SAT solver.
         limit = 2 * seconds + 30
-        if assumptions:
+        if assumptions and witness is None:
             search, variables = applicability("query_applicable", assumptions, seconds)
             reply = self.ask(COMMANDS + "\n" + search, limit)
             if reply is None:
@@ -466,7 +493,9 @@ class Checker:
             return {"status": "unknown", "reason": "the proof timed out"}
         ok, text = reply
         if ok:
-            result = {"status": "proved"} | ({"witness": witness} if witness else {})
+            result = {"status": "proved"} | (
+                {"witness": witness} if witness is not None else {}
+            )
             if proved_by := PROVED_BY.search(text):
                 result["tactic"] = proved_by[1]
             return result

@@ -25,9 +25,12 @@ records each rule's status, proof method, time and witness, the source and rule
 hashes, the Lean version, and hashes of the Python and Lean implementation and
 of the trusted Rust sources.
 
-A rule with preconditions must also be applicable: its file states that the
-preconditions contradict each other, and that theorem must fail with an
-assignment that the independent integer evaluator in `expr.py` confirms. Only a
+A rule with preconditions must also be applicable. The independent integer
+evaluator in `expr.py` first tries zero words and false flags, filling in word
+values fixed by constant equalities.
+If that fails any precondition, Lean searches for an assignment by attempting to
+prove that the preconditions contradict each other. That theorem must fail with
+an assignment that the integer evaluator confirms. Only a
 proof establishes equivalence. A failed proof whose counterexample replays in
 the integer evaluator is reported as that counterexample; timeouts, unsupported
 terms and contradictory preconditions are distinct failures, never proofs.
@@ -92,7 +95,8 @@ short limit, and finally `evm_decide` with the full limit, and reports which
 one succeeded. `evm_decide` first
 rewrites with the structural identities of `lean/EvmRules/Casts.lean`: nested
 `SIGNEXTEND`s keep the narrower extension, nested `sext` casts compose and
-compare through their inputs, and a division by a power of two is a right
+compare through their inputs (including comparisons with zero), and a division
+by a power of two is a right
 shift. It then unfolds the definitions, rewriting the shifts by proven lemmas to
 Lean's saturating shifts, and bit-blasts the goal with `bv_decide`, which checks
 the SAT solver's LRAT certificate in Lean through `Lean.ofReduceBool`.
