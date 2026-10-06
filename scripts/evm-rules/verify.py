@@ -39,11 +39,6 @@ def main():
         help="directory for the checked theorem files",
     )
     verify.add_argument("--output", type=Path, required=True)
-    verify.add_argument(
-        "--cache-dir",
-        type=Path,
-        help="reuse proved theorems in this directory (also set by SOLAR_PROOF_CACHE)",
-    )
     discover = subparsers.add_parser(
         "discover", help="bounded enumerative search with Lean validation"
     )
@@ -140,11 +135,6 @@ def main():
         report = discover_rules(args)
         exit_code = 0 if report.get("accepted", True) else 1
     else:
-        cache_dir = args.cache_dir or (
-            Path(os.environ["SOLAR_PROOF_CACHE"])
-            if os.environ.get("SOLAR_PROOF_CACHE")
-            else None
-        )
         try:
             lean_path = lean_environment()
         except subprocess.CalledProcessError as error:
@@ -156,7 +146,6 @@ def main():
             lean_path,
             jobs=args.jobs,
             timeout_s=args.timeout_s,
-            cache_dir=cache_dir.resolve() if cache_dir is not None else None,
         )
         for file in report["files"]:
             for rule in file["rules"]:
@@ -174,11 +163,6 @@ def main():
                         f"{source}:{rule['line']}: {rule['status']}: {reason}",
                         file=sys.stderr,
                     )
-        if cache_dir is not None:
-            report["proof_cache"] = {
-                "directory": str(cache_dir.resolve()),
-                "policy": "proved-only",
-            }
         counts = report["counts"]
         exit_code = 0 if counts.get("proved", 0) and set(counts) == {"proved"} else 1
     implementation = sorted((Path(__file__).parent / "evm_rules").glob("*.py")) + [

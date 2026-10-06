@@ -7,11 +7,6 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
-    inputs:
-      proof-audit:
-        description: Bypass the proof cache and prove every rule afresh
-        type: boolean
-        default: true
   schedule:
     - cron: '0 4 * * 0'
 
@@ -51,13 +46,6 @@ jobs:
               echo 'Proof inputs unchanged; skipping Lean proofs.'
             fi
           fi
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        if: steps.select.outputs.run == 'true' && github.event_name != 'schedule' && !inputs.proof-audit
-        with:
-          path: target/evm-proof-cache
-          key: proof-lean-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/evm-rules/lean/lean-toolchain') }}-${{ github.sha }}
-          restore-keys: |
-            proof-lean-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/evm-rules/lean/lean-toolchain') }}-
       - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         if: steps.select.outputs.run == 'true'
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -84,17 +72,7 @@ jobs:
           "$RUNNER_TEMP/lean/bin/lean" --version
       - name: Verify rules
         if: steps.select.outputs.run == 'true'
-        env:
-          PROOF_AUDIT: ${{ (github.event_name == 'schedule' || inputs.proof-audit) && 'true' || 'false' }}
         run: bash .github/scripts/run_evm_proofs.sh
-      - name: Share proved theorem cache
-        if: steps.select.outputs.run == 'true' && github.event_name != 'schedule' && !inputs.proof-audit
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: evm-proof-cache
-          path: target/evm-proof-cache
-          if-no-files-found: error
-          retention-days: 7
       - name: Upload failed proof diagnostics
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

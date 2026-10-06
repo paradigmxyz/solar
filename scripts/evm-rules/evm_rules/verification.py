@@ -7,14 +7,13 @@ bit-blasting with `evm_decide`; a hand-written proof replaces both. A physical s
 rule has one theorem per distinct shape of its per-depth variants: each variant is
 that theorem with its variables renamed.
 
-An optional cache keeps proved results, keyed by the exact theorem file and a digest
-of the Lean library and toolchain. Failures, timeouts and unknown results are never
-cached, and a changed rule, proof, lemma or toolchain misses.
+Every run proves every selected theorem and checks its applicability again: no
+earlier verdict is reused, so a change to the readers, the result validation or the
+applicability check applies to every rule at once.
 """
 
 import concurrent.futures
 import hashlib
-import json
 import re
 import time
 
@@ -22,7 +21,7 @@ from .expr import Expr, Unsupported
 from .isle import ISLE, Context, Rule, forms, rule_sources
 from .late import late_obligation, late_rules
 from .lean import canonical, simplify
-from .prover import MANUAL_PROOFS, job, library_digest, prove
+from .prover import MANUAL_PROOFS, job, prove
 from .stack import stack_rules, stack_variants
 
 DEFAULT_FILES = [
@@ -111,10 +110,6 @@ def obligations(path):
             yield entry
 
 
-def cache_key(digest, text):
-    return hashlib.sha256(f"{digest}\0{text}".encode()).hexdigest()
-
-
 def verify_files(
     paths,
     work_dir,
@@ -122,7 +117,6 @@ def verify_files(
     *,
     jobs,
     timeout_s,
-    cache_dir=None,
     progress=print,
     checker=None,
 ):
@@ -133,7 +127,6 @@ def verify_files(
     """
     tactic = f"evm_auto {timeout_s}"
     manual = {path.stem: path.read_text() for path in MANUAL_PROOFS.glob("*.lean")}
-    digest = library_digest() if cache_dir is not None else None
     files, tasks, proofs = [], [], {}
     # A proof for a selected file must name one of its current rules.
     stems = {path.stem for path in paths}
@@ -188,24 +181,15 @@ def verify_files(
                 except Unsupported as error:
                     entry["error"] = str(error)
                     continue
-                cached = None
-                if cache_dir is not None:
-                    cached = cache_dir / f"{cache_key(digest, task.text)}.json"
-                    if cached.exists():
-                        proofs[name] = json.loads(cached.read_text()) | {"cached": True}
-                        continue
-                tasks.append((task, cached, proof is not None))
+                tasks.append((task, proof is not None))
     if unused:
         raise ValueError(f"hand-written proofs without a rule: {sorted(unused)}")
     with concurrent.futures.ThreadPoolExecutor(jobs) as pool:
-        for (_, cached, manual_proof), (name, result) in zip(
-            tasks, pool.map(prove, [task for task, *_ in tasks])
+        for (_, manual_proof), (name, result) in zip(
+            tasks, pool.map(prove, [task for task, _ in tasks])
         ):
             result["method"] = "manual" if manual_proof else result.pop("tactic", "")
             proofs[name] = result
-            if cached is not None and result["status"] == "proved":
-                cached.parent.mkdir(parents=True, exist_ok=True)
-                cached.write_text(json.dumps(result))
             if progress is not None:
                 progress(f"{result['status']:12s} {result['seconds']:7.2f}s {name}")
     counts, methods = {}, {}

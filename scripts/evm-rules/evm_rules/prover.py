@@ -14,7 +14,6 @@ precondition. Counterexamples to an equality are replayed the same way, so a rep
 counterexample always differs on concrete words.
 """
 
-import hashlib
 import json
 import os
 import re
@@ -60,18 +59,6 @@ def lean_environment():
         text=True,
         check=True,
     ).stdout.strip()
-
-
-def library_digest():
-    """Hash every input of a proof except the theorem itself, for proof caching."""
-    digest = hashlib.sha256()
-    for path in sorted(LEAN_PROJECT.glob("EvmRules/**/*.lean")) + [
-        LEAN_PROJECT / "EvmRules.lean",
-        LEAN_PROJECT / "lean-toolchain",
-    ]:
-        digest.update(path.relative_to(LEAN_PROJECT).as_posix().encode() + b"\0")
-        digest.update(path.read_bytes() + b"\0")
-    return digest.hexdigest()
 
 
 def errors(output, path):

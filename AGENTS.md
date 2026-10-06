@@ -302,10 +302,10 @@ These checks do not build the compilers or run live Fandango/Foundry differentia
 Use `uv run --all-packages ruff format .` to format Python files.
 
 The proof CI job runs for changes to codegen or proof inputs, and on main.
-It proves all selected rules in Lean with parallel workers and reuses cached
-proofs. Scheduled and manual audits bypass the cache.
-See the [proof guide](scripts/evm-rules/README.md) for local commands, cache
-sharing, audit controls, and failure artifacts.
+It proves every selected rule in Lean afresh on each run; only the Lean
+toolchain and the built model library are cached.
+See the [proof guide](scripts/evm-rules/README.md) for local commands and
+failure artifacts.
 
 ### Compiler comparisons
 

@@ -1069,7 +1069,6 @@ class CliTests(unittest.TestCase):
                 path = Path(directory) / "rules.isle"
                 path.write_text(source)
                 output = Path(directory) / "proofs.json"
-                cache = Path(directory) / "cache"
                 stdout, stderr = io.StringIO(), io.StringIO()
                 argv = [
                     "verify.py",
@@ -1079,8 +1078,6 @@ class CliTests(unittest.TestCase):
                     str(output),
                     "--work-dir",
                     str(Path(directory) / "work"),
-                    "--cache-dir",
-                    str(cache),
                     "--timeout-s",
                     "30",
                 ]
@@ -1093,16 +1090,6 @@ class CliTests(unittest.TestCase):
                 self.assertEqual(code, 0 if status == "proved" else 1)
                 if status == "proved":
                     self.assertEqual(stderr.getvalue(), "")
-                    # A second run reuses the proved theorem.
-                    with (
-                        patch("sys.argv", argv),
-                        redirect_stdout(io.StringIO()),
-                        redirect_stderr(io.StringIO()),
-                    ):
-                        self.assertEqual(main(), 0)
-                    report = json.loads(output.read_text())
-                    proof = report["files"][0]["rules"][0]["proofs"][0]
-                    self.assertTrue(proof["cached"])
                 else:
                     self.assertTrue(
                         stderr.getvalue().startswith(f"{path}:1: {status}"),
@@ -1112,6 +1099,34 @@ class CliTests(unittest.TestCase):
                     json.loads(stdout.getvalue().splitlines()[-1]), {status: 1}
                 )
                 self.assertEqual(json.loads(output.read_text())["counts"], {status: 1})
+
+    def test_changed_checker_rechecks_an_unchanged_theorem(self):
+        # The theorem text stays the same while the result validation or the
+        # applicability check changes: every run must apply the current checker, so
+        # an earlier success cannot bypass it.
+        source = """(rule (rewrite (Op.Div x (iconst c))) (if-let true (u256_eq c 1))
+          (Op.Add x (imm (u256 0))))"""
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "rules.isle"
+            path.write_text(source)
+            work = Path(directory) / "work"
+
+            def run():
+                report = verify_files(
+                    [path], work, lean_path(), jobs=1, timeout_s=30, progress=None
+                )
+                rule = report["files"][0]["rules"][0]
+                return rule["status"], (work / rule["name"] / "Proof.lean").read_text()
+
+            status, text = run()
+            self.assertEqual(status, "proved")
+            with patch("evm_rules.prover.applicable", return_value=None):
+                self.assertEqual(run(), ("unknown", text))
+            with patch(
+                "evm_rules.prover.errors", return_value=[(1, "error", "rejected")]
+            ):
+                self.assertEqual(run(), ("failed", text))
+            self.assertEqual(run(), ("proved", text))
 
 
 class DiscoveryTests(unittest.TestCase):

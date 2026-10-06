@@ -35,7 +35,7 @@ terms and contradictory preconditions are distinct failures, never proofs.
 Verification exits nonzero unless every selected rule is proved, and empty rule
 files fail too. Failures print the source file, rule line, status and reason.
 
-## CI and local cache
+## CI
 
 CI runs one proof job on a larger Depot runner. On pull requests it runs only
 when codegen, proof tooling, or their CI and dependency inputs change; main
@@ -46,24 +46,18 @@ one `lean` process per theorem on every core. Reports and theorem files live
 under `target/evm-rules/`.
 
 ```sh
-# Verify all selected rules, reusing proved theorems.
+# Verify all selected rules.
 bash .github/scripts/run_evm_proofs.sh
 
-# Check every rule afresh.
-PROOF_AUDIT=true bash .github/scripts/run_evm_proofs.sh target/evm-audit
-
-# Reuse the same cache for a selected file.
+# Verify one rule set.
 uv run scripts/evm-rules/verify.py verify crates/codegen/isle/mir/word \
-  --cache-dir target/evm-proof-cache --output target/evm-rules/selected.json
+  --output target/evm-rules/selected.json
 ```
 
-The cache stores only proved theorems, keyed by the exact theorem file,
-including any hand-written proof, and a digest of the Lean library and
-toolchain. A changed rule, proof, lemma or toolchain misses, and failures,
-timeouts and unknown results are never reused. Normal CI restores the latest
-cache and saves successful runs; scheduled runs and the `proof-audit` dispatch
-option, enabled by default, check every rule afresh. `--cache-dir` or
-`SOLAR_PROOF_CACHE` selects the directory; omit both for a fresh run.
+Every run proves each selected rule and checks its applicability again. No
+earlier verdict is reused, so a change to a rule, a proof, the Lean model, the
+readers or the result validation always takes effect. CI caches only the Lean
+toolchain archive and the built model library.
 
 The shared `Python` CI job installs the same toolchain and runs this project's
 unit tests alongside all other Python suites. Run `bash scripts/check-python.sh`
