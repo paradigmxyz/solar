@@ -76,7 +76,7 @@ jobs:
           CARGO_TARGET_DIR="$GITHUB_WORKSPACE/target" cargo build --locked --release \
             --manifest-path "$baseline/Cargo.toml" -p solar-compiler --bin solar --no-default-features --features cli,mimalloc,tracing
           mkdir -p target/lsp-bench
-          cp "$RUNNER_TEMP/solar-base-target/release/solar" target/lsp-bench/solar-base
+          cp "$GITHUB_WORKSPACE/target/release/solar" target/lsp-bench/solar-base
           git worktree remove "$baseline"
 
       - name: Build candidate and harness
