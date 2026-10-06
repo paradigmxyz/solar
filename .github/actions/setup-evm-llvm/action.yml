@@ -21,7 +21,7 @@ runs:
       id: cache
       uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
       with:
-        path: ${{ runner.temp }}/evm-llvm
+        path: ${{ github.workspace }}/target/evm-llvm
         key: evm-llvm-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.platform.outputs.image }}-${{ inputs.static-crt }}-9cf8cfdbfcdc3e74dd81f7cc0e7258ef81e8810a
     - name: Checkout EVM LLVM
       if: steps.cache.outputs.cache-hit != 'true'
@@ -42,7 +42,7 @@ runs:
           args+=('-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded' '-DLLVM_USE_CRT_RELEASE=MT')
         fi
         cmake -S target/evm-llvm-source/llvm -B "$RUNNER_TEMP/evm-llvm-build" \
-          -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$RUNNER_TEMP/evm-llvm" \
+          -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$GITHUB_WORKSPACE/target/evm-llvm" \
           -DBUILD_SHARED_LIBS=OFF -DLLVM_TARGETS_TO_BUILD= \
           -DLLVM_EXPERIMENTAL_TARGETS_TO_BUILD=EVM -DLLVM_DEFAULT_TARGET_TRIPLE=evm \
           -DLLVM_ENABLE_PROJECTS=lld -DLLVM_ENABLE_RTTI=ON \

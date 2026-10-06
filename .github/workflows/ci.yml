@@ -119,7 +119,7 @@ jobs:
           - os: "windows-latest"
             rust: ${{ github.event_name == 'push' && 'none' || 'stable' }}
     env:
-      LLVM_SYS_211_PREFIX: ${{ runner.temp }}/evm-llvm
+      LLVM_SYS_211_PREFIX: ${{ github.workspace }}/target/evm-llvm
     steps:
       - name: Secure runner
         uses: tempoxyz/gh-actions/actions/secure-runner@d5402286a7abdfb7232173b3228d56473feb8a66 # 2026-09-29T02-04-45Z-d5402286
@@ -234,7 +234,7 @@ jobs:
       id-token: write
       contents: read
     env:
-      LLVM_SYS_211_PREFIX: ${{ runner.temp }}/evm-llvm
+      LLVM_SYS_211_PREFIX: ${{ github.workspace }}/target/evm-llvm
       UV_HTTP_TIMEOUT: "120"
       FANDANGO_ABI_SEED_COUNT: ${{ github.event_name == 'schedule' && '8' || '3' }}
       FANDANGO_ABI_VALUES_PER_SEED: ${{ github.event_name == 'schedule' && '64' || '32' }}
@@ -291,7 +291,7 @@ jobs:
       id-token: write
       contents: read
     env:
-      LLVM_SYS_211_PREFIX: ${{ runner.temp }}/evm-llvm
+      LLVM_SYS_211_PREFIX: ${{ github.workspace }}/target/evm-llvm
     steps:
       - name: Secure runner
         uses: tempoxyz/gh-actions/actions/secure-runner@d5402286a7abdfb7232173b3228d56473feb8a66 # 2026-09-29T02-04-45Z-d5402286
@@ -366,7 +366,7 @@ jobs:
       id-token: write
       contents: read
     env:
-      LLVM_SYS_211_PREFIX: ${{ runner.temp }}/evm-llvm
+      LLVM_SYS_211_PREFIX: ${{ github.workspace }}/target/evm-llvm
     steps:
       - name: Secure runner
         uses: tempoxyz/gh-actions/actions/secure-runner@d5402286a7abdfb7232173b3228d56473feb8a66 # 2026-09-29T02-04-45Z-d5402286
@@ -395,7 +395,7 @@ jobs:
       id-token: write
       contents: read
     env:
-      LLVM_SYS_211_PREFIX: ${{ runner.temp }}/evm-llvm
+      LLVM_SYS_211_PREFIX: ${{ github.workspace }}/target/evm-llvm
     steps:
       - name: Secure runner
         uses: tempoxyz/gh-actions/actions/secure-runner@d5402286a7abdfb7232173b3228d56473feb8a66 # 2026-09-29T02-04-45Z-d5402286

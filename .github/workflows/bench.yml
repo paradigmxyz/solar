@@ -52,7 +52,7 @@ jobs:
       issues: write
       pull-requests: write
     env:
-      LLVM_SYS_211_PREFIX: ${{ runner.temp }}/evm-llvm
+      LLVM_SYS_211_PREFIX: ${{ github.workspace }}/target/evm-llvm
       BASE_BRANCH: ${{ github.base_ref || 'main' }}
     steps:
       - name: Secure runner
