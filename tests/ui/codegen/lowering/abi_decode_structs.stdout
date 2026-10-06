@@ -283,10 +283,8 @@ fn @dDynArr() [selector=0xaca542ca, abi_wrapper, pure] {
   bb12:
     mstore 64, v66 !metadata(memory=scratch, preserves_valid_fmp)
     mstore v65, v20
-    v32 = shl 5, v20
-    v34 = shr 5, v32
-    v38 = ne v34, v20
-    jumpi v38, bb4, bb7
+    v35 = lt v20, 0x800000000000000000000000000000000000000000000000000000000000000
+    jumpi v35, bb7, bb4
   bb7:
     v39 = sub v5, v15
     v40 = shr 5, v39

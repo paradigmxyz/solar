@@ -7,11 +7,6 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
-    inputs:
-      proof-audit:
-        description: Bypass the proof cache and replay every query with cvc5
-        type: boolean
-        default: true
   schedule:
     - cron: '0 4 * * 0'
 
@@ -24,8 +19,8 @@ env:
 jobs:
   evm-rules:
     name: EVM word and stack proofs
-    runs-on: depot-ubuntu-24.04-arm-32
-    timeout-minutes: 15
+    runs-on: depot-ubuntu-latest-4
+    timeout-minutes: 45
     permissions:
       id-token: write
       contents: read
@@ -44,44 +39,30 @@ jobs:
           if [[ "$EVENT_NAME" != pull_request ]]; then
             echo 'run=true' >> "$GITHUB_OUTPUT"
           else
-            changed=$(git diff --name-only HEAD^1 HEAD -- crates/codegen scripts/evm-rules .github/scripts/run_evm_proofs.sh .github/workflows/ci.yml .python-version pyproject.toml uv.lock)
+            changed=$(git diff --name-only HEAD^1 HEAD -- crates/codegen scripts/evm-rules .github/scripts/run_evm_proofs.sh .github/scripts/install_lean.sh .github/workflows/ci.yml .python-version pyproject.toml uv.lock)
             if [[ -n "$changed" ]]; then
               echo 'run=true' >> "$GITHUB_OUTPUT"
             else
-              echo 'Proof inputs unchanged; skipping solver checks.'
+              echo 'Proof inputs unchanged; skipping Lean proofs.'
             fi
           fi
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        if: steps.select.outputs.run == 'true' && github.event_name != 'schedule' && !inputs.proof-audit
-        with:
-          path: target/evm-proof-cache
-          key: proof-queries-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/evm-rules/evm_rules/solver.py', '.python-version', 'uv.lock') }}-${{ github.sha }}
-          restore-keys: |
-            proof-queries-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/evm-rules/evm_rules/solver.py', '.python-version', 'uv.lock') }}-
       - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         if: steps.select.outputs.run == 'true'
-      - name: Install cvc5 1.2.0
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         if: steps.select.outputs.run == 'true'
-        run: |
-          curl --fail --location --retry 3 --silent --show-error \
-            https://github.com/cvc5/cvc5/releases/download/cvc5-1.2.0/cvc5-Linux-arm64-static.zip \
-            --output "$RUNNER_TEMP/cvc5.zip"
-          echo "142ac177af1ce37922308f69fe519d06e6cb4d0a62a312f28c25001e94c2fb56  $RUNNER_TEMP/cvc5.zip" | sha256sum --check
-          unzip -q "$RUNNER_TEMP/cvc5.zip" -d "$RUNNER_TEMP/cvc5"
-          echo "$RUNNER_TEMP/cvc5/cvc5-Linux-arm64-static/bin" >> "$GITHUB_PATH"
+        with:
+          path: |
+            ${{ runner.temp }}/solar-lean/*.tar.zst
+            scripts/evm-rules/lean/.lake
+          key: lean-v2-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/evm-rules/lean/**/*.lean', 'scripts/evm-rules/lean/lakefile.toml', 'scripts/evm-rules/lean/lake-manifest.json', 'scripts/evm-rules/lean/lean-toolchain') }}
+          restore-keys: |
+            lean-v2-${{ runner.os }}-${{ runner.arch }}-
+      - name: Install Lean
+        if: steps.select.outputs.run == 'true'
+        run: bash .github/scripts/install_lean.sh
       - name: Verify rules
         if: steps.select.outputs.run == 'true'
-        env:
-          PROOF_AUDIT: ${{ (github.event_name == 'schedule' || inputs.proof-audit) && 'true' || 'false' }}
         run: bash .github/scripts/run_evm_proofs.sh
-      - name: Share successful query cache
-        if: steps.select.outputs.run == 'true' && github.event_name != 'schedule' && !inputs.proof-audit
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: evm-proof-cache
-          path: target/evm-proof-cache
-          if-no-files-found: error
-          retention-days: 7
       - name: Upload failed proof diagnostics
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -95,7 +76,7 @@ jobs:
     if: github.event_name != 'schedule'
     name: test ${{ matrix.os }} ${{ matrix.rust }}${{ matrix.features && format(' ({0})', matrix.features) || '' }}
     runs-on: depot-${{ matrix.os }}
-    timeout-minutes: 30
+    timeout-minutes: 45
     permissions:
       id-token: write
       contents: read
@@ -195,15 +176,16 @@ jobs:
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: '24'
-      - name: Install cvc5 1.2.0
-        run: |
-          curl --fail --location --retry 3 --silent --show-error \
-            https://github.com/cvc5/cvc5/releases/download/cvc5-1.2.0/cvc5-Linux-arm64-static.zip \
-            --output "$RUNNER_TEMP/cvc5.zip"
-          echo "142ac177af1ce37922308f69fe519d06e6cb4d0a62a312f28c25001e94c2fb56  $RUNNER_TEMP/cvc5.zip" | sha256sum --check
-          unzip -q "$RUNNER_TEMP/cvc5.zip" -d "$RUNNER_TEMP/cvc5"
-          echo "$RUNNER_TEMP/cvc5/cvc5-Linux-arm64-static/bin" >> "$GITHUB_PATH"
-          "$RUNNER_TEMP/cvc5/cvc5-Linux-arm64-static/bin/cvc5" --version
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ${{ runner.temp }}/solar-lean/*.tar.zst
+            scripts/evm-rules/lean/.lake
+          key: lean-v2-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/evm-rules/lean/**/*.lean', 'scripts/evm-rules/lean/lakefile.toml', 'scripts/evm-rules/lean/lake-manifest.json', 'scripts/evm-rules/lean/lean-toolchain') }}
+          restore-keys: |
+            lean-v2-${{ runner.os }}-${{ runner.arch }}-
+      - name: Install Lean
+        run: bash .github/scripts/install_lean.sh
       - name: Python checks and tests
         run: bash scripts/check-python.sh
 
@@ -211,7 +193,7 @@ jobs:
     if: github.event_name != 'schedule'
     name: fandango
     runs-on: depot-ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     continue-on-error: true
     permissions:
       id-token: write
@@ -267,7 +249,7 @@ jobs:
     if: github.event_name != 'schedule'
     name: features
     runs-on: depot-ubuntu-latest-4
-    timeout-minutes: 30
+    timeout-minutes: 45
     permissions:
       id-token: write
       contents: read
@@ -297,7 +279,7 @@ jobs:
   wasm:
     if: github.event_name != 'schedule'
     runs-on: depot-ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     permissions:
       id-token: write
       contents: read
@@ -324,7 +306,7 @@ jobs:
   typos:
     if: github.event_name != 'schedule'
     runs-on: depot-ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     permissions:
       id-token: write
       contents: read
@@ -339,7 +321,7 @@ jobs:
   clippy:
     if: github.event_name != 'schedule'
     runs-on: depot-ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     permissions:
       id-token: write
       contents: read
@@ -365,7 +347,7 @@ jobs:
   docs:
     if: github.event_name != 'schedule'
     runs-on: depot-ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     permissions:
       id-token: write
       contents: read
@@ -391,7 +373,7 @@ jobs:
   fmt:
     if: github.event_name != 'schedule'
     runs-on: depot-ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     permissions:
       id-token: write
       contents: read

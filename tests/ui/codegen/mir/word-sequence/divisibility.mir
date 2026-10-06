@@ -1,0 +1,31 @@
+//@ revisions: gas size
+//@[gas] compile-flags: -Ogas -Zmir-pipeline=word-sequence,dce
+//@[size] compile-flags: -Osize -Zmir-pipeline=word-sequence,dce
+@module Divisibility
+
+// x is a multiple of c when rounding down to one keeps it: (x / c) * c == x tests the
+// remainder instead.
+fn @multiple(arg0: i256) -> i1 {
+  bb0:
+    v0 = div arg0, 1000
+    v1 = mul v0, 1000
+    v2 = eq v1, arg0
+    ret v2
+}
+
+fn @multiple_mirrored(arg0: i256) -> i1 {
+  bb0:
+    v0 = div arg0, 1000
+    v1 = mul v0, 1000
+    v2 = eq arg0, v1
+    ret v2
+}
+
+// A zero divisor rounds every x to zero, which is not a remainder test.
+fn @zero_divisor(arg0: i256) -> i1 {
+  bb0:
+    v0 = div arg0, 0
+    v1 = mul v0, 0
+    v2 = eq v1, arg0
+    ret v2
+}
