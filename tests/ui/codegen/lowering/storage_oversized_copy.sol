@@ -12,6 +12,11 @@ contract OversizedStorageCopy {
         (target, target) = (source, source);
         //~^ ERROR: codegen rewrite does not support this oversized fixed-array materialization yet
     }
+
+    function memoryCopy() external view returns (bytes memory) {
+        return abi.encode(source);
+        //~^ ERROR: codegen rewrite does not support this oversized fixed-array materialization yet
+    }
 }
 
 contract OversizedStructCopy {
