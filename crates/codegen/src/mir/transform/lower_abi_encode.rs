@@ -248,7 +248,7 @@ fn synthesize_tuple_helpers(
     }
 }
 
-/// Builds `encode_abi_array(value, dest) -> tail` for every memory array layout whose
+/// Builds `encode_abi_array(value, dest) -> length` for every memory array layout whose
 /// element-wise loop at least two sites would otherwise expand inline. Inner layouts are built
 /// first so an outer helper's element encoding calls the inner helper.
 fn synthesize_array_helpers(
