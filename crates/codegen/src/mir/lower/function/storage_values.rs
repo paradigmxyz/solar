@@ -290,6 +290,27 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.storage_refs.insert(id, access);
                 Some(access)
             }
+            ExprKind::Assign(lhs, None, rhs)
+                if self.cx.gcx.type_of_expr(expr.id)?.is_ref_at(DataLocation::Storage) =>
+            {
+                let lhs_ty = self.type_of_expr_or_variable(lhs)?;
+                let rhs_ty = self.cx.gcx.type_of_expr(rhs.id)?;
+                let memory_ty = rhs_ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
+                let (access, value) = if rhs_ty.is_ref_at(DataLocation::Storage) {
+                    let source = self.storage_access(rhs)?;
+                    let access = self.storage_access(lhs)?;
+                    // The destination expression may mutate the source's storage.
+                    let value = self.load_storage_object(memory_ty, source.slot, rhs.span)?;
+                    (access, value)
+                } else {
+                    let value = self.lower_typed_expr(rhs, memory_ty)?;
+                    (self.storage_access(lhs)?, value)
+                };
+                let value = self.materialize_memory_argument(memory_ty, value, rhs.span)?;
+                let value = self.coerce_value(value, rhs_ty, lhs_ty);
+                self.store_storage_value_with_source(lhs_ty, rhs_ty, access, value, expr.span)?;
+                Some(access)
+            }
             ExprKind::Ternary(condition, then_expr, else_expr)
                 if self.cx.gcx.type_of_expr(expr.id)?.is_ref_at(DataLocation::Storage) =>
             {
@@ -472,7 +493,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         expr: &hir::Expr<'_>,
         callee: &hir::Expr<'_>,
         argument: Option<&hir::Expr<'_>>,
-    ) -> Option<ValueId> {
+        capture_value: bool,
+    ) -> Option<CallResult> {
         let ExprKind::Member(receiver, _) = &callee.kind else {
             return self.cx.report_unsupported(expr.span, "storage array push target");
         };
@@ -481,7 +503,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             receiver_ty.kind,
             TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
         ) {
-            return self.lower_storage_bytes_push(receiver, argument);
+            return self.lower_storage_bytes_push(receiver, argument, capture_value);
         }
         let Some((base, element)) = self.storage_array_base(receiver) else {
             return self.cx.report_unsupported(expr.span, "storage array push target");
@@ -561,13 +583,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // value is observed: a bare `a.push();` would just read the slot it grew into.
         //
         // r = load(element_slot)
-        if argument.is_none()
-            && !self.discarded_exprs.contains(&expr.id)
-            && self.types.memory_layout(element).is_none()
-        {
-            return self.load_storage_value(element, element_access, expr.span);
+        if argument.is_none() && capture_value && self.types.memory_layout(element).is_none() {
+            return self
+                .load_storage_value(element, element_access, expr.span)
+                .map(CallResult::Value);
         }
-        Some(self.builder.imm(U256::ZERO))
+        Some(CallResult::Void)
     }
 
     /// Appends one byte to a storage `bytes`/`string` value in place, like
@@ -576,7 +597,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         &mut self,
         receiver: &hir::Expr<'_>,
         argument: Option<&hir::Expr<'_>>,
-    ) -> Option<ValueId> {
+        capture_value: bool,
+    ) -> Option<CallResult> {
         let Some(access) = self.storage_access(receiver) else {
             return self.cx.report_unsupported(receiver.span, "storage access");
         };
@@ -586,7 +608,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             // The zero byte a plain `push()` appends is written by the growth itself, so the
             // appended element only has to be read back to produce the call's value.
             let element = self.grow_storage_bytes(slot);
-            return self.load_storage_value(byte_ty, element, receiver.span);
+            return if capture_value {
+                self.load_storage_value(byte_ty, element, receiver.span).map(CallResult::Value)
+            } else {
+                Some(CallResult::Void)
+            };
         };
         let value = self.lower_typed_expr(argument, byte_ty)?;
 
@@ -666,14 +692,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.jump(merge_block);
 
         self.builder.switch_to_block(merge_block);
-        Some(self.builder.imm(U256::ZERO))
+        Some(CallResult::Void)
     }
 
     pub(super) fn lower_storage_array_pop(
         &mut self,
         expr: &hir::Expr<'_>,
         callee: &hir::Expr<'_>,
-    ) -> Option<ValueId> {
+    ) -> Option<()> {
         let ExprKind::Member(receiver, _) = &callee.kind else {
             return self.cx.report_unsupported(expr.span, "storage array pop target");
         };
@@ -705,7 +731,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let access =
             self.storage_array_element_access(base.slot, last, element, true, expr.span)?;
         self.clear_storage_access(element, access, expr.span)?;
-        Some(zero)
+        Some(())
     }
 
     /// Removes the last byte of a storage `bytes`/`string` value in place, like
@@ -715,7 +741,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     /// word holding the removed byte when it is long; the long-to-short
     /// transition at 32 bytes moves the remaining 31 bytes back into the header
     /// and clears the data word.
-    fn lower_storage_bytes_pop(&mut self, slot: ValueId, span: Span) -> Option<ValueId> {
+    fn lower_storage_bytes_pop(&mut self, slot: ValueId, span: Span) -> Option<()> {
         // data = sload(slot)
         // old_length = extract_length(data)
         // if old_length == 0 { panic(EmptyArrayPop) }
@@ -775,7 +801,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.jump(merge_block);
 
         self.builder.switch_to_block(merge_block);
-        Some(zero)
+        Some(())
     }
 
     fn storage_array_base(

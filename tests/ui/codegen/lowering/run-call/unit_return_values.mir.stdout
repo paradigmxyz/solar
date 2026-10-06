@@ -26,3 +26,24 @@ fn @assignAndReturn() {
     sstore 0, 7 !metadata(storage=slot(0))
     ret
 }
+
+fn @conditionalReturn(arg0: i1) -> i256 [selector=0xb8c11060, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    sstore 0, 9 !metadata(storage=slot(0))
+    icall @selectAndReturn, arg0
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @selectAndReturn(arg0: i1) {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb2:
+    icall @assignAndReturn
+    jump bb3
+  bb1:
+    icall @deleteAndReturn
+    jump bb3
+  bb3:
+    ret
+}

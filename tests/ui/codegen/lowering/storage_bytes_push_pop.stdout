@@ -232,10 +232,6 @@ fn @pushZero() [selector=0xe83b401e, abi_params=[], abi_returns=[], abi_return_p
     v29 = phi [bb2: v14], [bb3: v16], [bb4: 0]
     v30 = and v6, 31
     v31 = sub 31, v30
-    v32 = sload v29 !metadata(storage=symbolic(v29))
-    v33 = mul v31, 8
-    v34 = shr v33, v32
-    v35 = shl 248, v34
     ret
 }
 

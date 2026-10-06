@@ -186,28 +186,28 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     v143 = and 8, 0xffffffffffffffffffffffffffffffff
     v144 = or v142, v143
     sstore v139, v144 !metadata(storage=symbolic(v139))
-    v145 = alloc memorystruct<3>, exact, uninitialized, panic, 96
-    v146 = sload 0 !metadata(storage=slot(0))
-    v147 = trunc i256 v146 to i128
-    v148 = zext i128 v147 to i256
-    memory_object_store_field memorystruct<3>, v145, 0, v148
-    v149 = add 0, 1
-    v150 = icall @load_storage_bytes, v149
-    v151 = ptrtoint memptr v150 to i256
-    memory_object_store_field memorystruct<3>, v145, 1, v151
-    v152 = add 0, 2
-    v153 = icall @load_storage_struct_array_0, v152
-    v154 = ptrtoint memptr v153 to i256
-    memory_object_store_field memorystruct<3>, v145, 2, v154
-    v155 = ptrtoint memptr v145 to i256
-    v156 = sload 6 !metadata(storage=slot(6))
-    v157 = lt 0, v156
-    v158 = eq v157, false
-    icall panic_if<0x32>, v158
-    v159 = storage_array_data_slot 6
-    v160 = mul 0, 3
-    v161 = add v159, v160
-    icall @store_recursive_storage_0_0, v161, v145
+    v145 = sload 6 !metadata(storage=slot(6))
+    v146 = lt 0, v145
+    v147 = eq v146, false
+    icall panic_if<0x32>, v147
+    v148 = storage_array_data_slot 6
+    v149 = mul 0, 3
+    v150 = add v148, v149
+    v151 = alloc memorystruct<3>, exact, uninitialized, panic, 96
+    v152 = sload 0 !metadata(storage=slot(0))
+    v153 = trunc i256 v152 to i128
+    v154 = zext i128 v153 to i256
+    memory_object_store_field memorystruct<3>, v151, 0, v154
+    v155 = add 0, 1
+    v156 = icall @load_storage_bytes, v155
+    v157 = ptrtoint memptr v156 to i256
+    memory_object_store_field memorystruct<3>, v151, 1, v157
+    v158 = add 0, 2
+    v159 = icall @load_storage_struct_array_0, v158
+    v160 = ptrtoint memptr v159 to i256
+    memory_object_store_field memorystruct<3>, v151, 2, v160
+    v161 = ptrtoint memptr v151 to i256
+    icall @store_recursive_storage_0_0, v150, v151
     v162 = alloc memorystruct<3>, exact, uninitialized, panic, 96
     v163 = sload 3 !metadata(storage=slot(3))
     v164 = trunc i256 v163 to i128

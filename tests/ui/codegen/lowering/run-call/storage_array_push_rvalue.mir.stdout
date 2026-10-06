@@ -467,19 +467,16 @@ fn @enumTernaryBare(arg0: i256, arg1: i1) -> struct0 [selector=0x2209d499, abi_p
     sstore v0, arg0 !metadata(storage=symbolic(v0))
     jumpi arg1, bb1, bb2
   bb2:
-    v11 = sload 4 !metadata(storage=slot(4))
-    v12 = gt v11, 0xffffffffffffffff
-    icall panic_if<0x41>, v12
-    v13 = add v11, 1
-    v14 = storage_array_data_slot 4
-    v15 = div v11, 32
-    v16 = add v14, v15
-    v17 = mod v11, 32
-    v18 = mul v17, 1
-    sstore 4, v13 !metadata(storage=slot(4))
-    v19 = lt i8 0, i8 4
-    v20 = eq v19, false
-    icall panic_if<0x21>, v20
+    v9 = sload 4 !metadata(storage=slot(4))
+    v10 = gt v9, 0xffffffffffffffff
+    icall panic_if<0x41>, v10
+    v11 = add v9, 1
+    v12 = storage_array_data_slot 4
+    v13 = div v9, 32
+    v14 = add v12, v13
+    v15 = mod v9, 32
+    v16 = mul v15, 1
+    sstore 4, v11 !metadata(storage=slot(4))
     jump bb3
   bb1:
     v1 = sload 4 !metadata(storage=slot(4))
@@ -492,20 +489,16 @@ fn @enumTernaryBare(arg0: i256, arg1: i1) -> struct0 [selector=0x2209d499, abi_p
     v7 = mod v1, 32
     v8 = mul v7, 1
     sstore 4, v3 !metadata(storage=slot(4))
-    v9 = lt i8 0, i8 4
-    v10 = eq v9, false
-    icall panic_if<0x21>, v10
     jump bb3
   bb3:
-    v21 = phi [bb1: i8 0], [bb2: i8 0]
     mstore 0, 4 !metadata(memory=scratch)
-    v22 = keccak256 0, 32 !metadata(memory=scratch)
-    v23 = sload v22 !metadata(storage=symbolic(v22))
-    v24 = and v23, 255
-    v25 = sload 4 !metadata(storage=slot(4))
-    v26 = insert_value struct0, undef struct0, 0, v24
-    v27 = insert_value struct0, v26, 1, v25
-    ret v27
+    v17 = keccak256 0, 32 !metadata(memory=scratch)
+    v18 = sload v17 !metadata(storage=symbolic(v17))
+    v19 = and v18, 255
+    v20 = sload 4 !metadata(storage=slot(4))
+    v21 = insert_value struct0, undef struct0, 0, v19
+    v22 = insert_value struct0, v21, 1, v20
+    ret v22
 }
 
 fn @enumDeclHole(arg0: i256) -> struct3 [selector=0xfcfa4d59, abi_params=[u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {

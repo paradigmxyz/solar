@@ -141,10 +141,9 @@ fn @sendRevertData() -> i256 [selector=0x2acce81c, abi_params=[], abi_returns=[w
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = trunc i256 v0 to i160
     v2 = icall send<>, v1, 0
-    v3 = ne v2, 0
     returndatacopy 0, 0, 4 !metadata(memory=scratch)
-    v4 = mload 0 !metadata(memory=scratch)
-    ret v4
+    v3 = mload 0 !metadata(memory=scratch)
+    ret v3
 }
 
 fn @transferOutOfGas() [selector=0xb3a4387c, payable, abi_params=[], abi_returns=[], abi_return_params=[]] {

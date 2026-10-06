@@ -177,48 +177,44 @@ fn @bytesPush() -> struct1 [selector=0x52808f21, abi_params=[], abi_returns=[wor
     v77 = phi [bb13: v62], [bb14: v64], [bb15: 2]
     v78 = and v54, 31
     v79 = sub 31, v78
-    v80 = sload v77 !metadata(storage=symbolic(v77))
-    v81 = mul v79, 8
-    v82 = shr v81, v80
-    v83 = shl 248, v82
-    v84 = sload 2 !metadata(storage=slot(2))
-    validate_storage_bytes v84
-    v85 = and v84, 1
-    v86 = eq v85, 1
-    v87 = sub 0, v85
-    v88 = or 127, v87
-    v89 = shr 1, v84
-    v90 = and v89, v88
-    v91 = sload 2 !metadata(storage=slot(2))
-    validate_storage_bytes v91
-    v92 = and v91, 1
-    v93 = eq v92, 1
-    v94 = sub 0, v92
-    v95 = or 127, v94
-    v96 = shr 1, v91
-    v97 = and v96, v95
-    v98 = lt 70, v97
-    v99 = eq v98, false
-    icall panic_if<0x32>, v99
-    jumpi v93, bb17, bb18
+    v80 = sload 2 !metadata(storage=slot(2))
+    validate_storage_bytes v80
+    v81 = and v80, 1
+    v82 = eq v81, 1
+    v83 = sub 0, v81
+    v84 = or 127, v83
+    v85 = shr 1, v80
+    v86 = and v85, v84
+    v87 = sload 2 !metadata(storage=slot(2))
+    validate_storage_bytes v87
+    v88 = and v87, 1
+    v89 = eq v88, 1
+    v90 = sub 0, v88
+    v91 = or 127, v90
+    v92 = shr 1, v87
+    v93 = and v92, v91
+    v94 = lt 70, v93
+    v95 = eq v94, false
+    icall panic_if<0x32>, v95
+    jumpi v89, bb17, bb18
   bb18:
     jump bb19
   bb17:
-    v100 = storage_array_data_slot 2
-    v101 = shr 5, 70
-    v102 = add v100, v101
+    v96 = storage_array_data_slot 2
+    v97 = shr 5, 70
+    v98 = add v96, v97
     jump bb19
   bb19:
-    v103 = phi [bb17: v102], [bb18: 2]
-    v104 = and 70, 31
-    v105 = sub 31, v104
-    v106 = sload v103 !metadata(storage=symbolic(v103))
-    v107 = mul v105, 8
-    v108 = shr v107, v106
-    v109 = shl 248, v108
-    v110 = insert_value struct1, undef struct1, 0, v90
-    v111 = insert_value struct1, v110, 1, v109
-    ret v111
+    v99 = phi [bb17: v98], [bb18: 2]
+    v100 = and 70, 31
+    v101 = sub 31, v100
+    v102 = sload v99 !metadata(storage=symbolic(v99))
+    v103 = mul v101, 8
+    v104 = shr v103, v102
+    v105 = shl 248, v104
+    v106 = insert_value struct1, undef struct1, 0, v86
+    v107 = insert_value struct1, v106, 1, v105
+    ret v107
   bb4:
     v4 = trunc i256 v0 to i8
     v5 = zext i8 v4 to i256

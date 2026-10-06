@@ -42,19 +42,19 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     icall panic_if<0x32>, v59
     v60 = mul 0, 40
     v61 = add v5, v60
-    v62 = alloc memoryfixedarray<10, 1>, exact, uninitialized, panic, 320
+    v62 = lt 0, 1
+    v63 = eq v62, false
+    icall panic_if<0x32>, v63
+    v64 = mul 0, 40
+    v65 = add v57, v64
+    v66 = alloc memoryfixedarray<10, 1>, exact, uninitialized, panic, 320
     jump bb7
   bb7:
-    v63 = phi [bb2: 0], [bb8: v85]
-    v64 = lt v63, 10
-    jumpi v64, bb8, bb9
+    v67 = phi [bb2: 0], [bb8: v89]
+    v68 = lt v67, 10
+    jumpi v68, bb8, bb9
   bb9:
-    v86 = ptrtoint memptr v62 to i256
-    v87 = lt 0, 1
-    v88 = eq v87, false
-    icall panic_if<0x32>, v88
-    v89 = mul 0, 40
-    v90 = add v57, v89
+    v90 = ptrtoint memptr v66 to i256
     jump bb10
   bb10:
     v91 = phi [bb9: 0], [bb15: v155]
@@ -210,7 +210,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     jump bb16
   bb11:
     v93 = mul v91, 4
-    v94 = add v90, v93
+    v94 = add v65, v93
     v95 = lt v91, 10
     jumpi v95, bb13, bb14
   bb14:
@@ -253,7 +253,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     sstore v148, v154 !metadata(storage=offset(v94, 3))
     jump bb15
   bb13:
-    v96 = memory_object_load_element memoryfixedarray<10, 1>, v62, v91
+    v96 = memory_object_load_element memoryfixedarray<10, 1>, v66, v91
     v97 = inttoptr i256 v96 to memptr
     v98 = memory_object_load_field memorystruct<5>, v97, 0
     sstore v94, v98 !metadata(storage=symbolic(v94))
@@ -295,33 +295,33 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v155 = add v91, 1
     jump bb10
   bb8:
-    v65 = mul v63, 4
-    v66 = add v61, v65
-    v67 = alloc memorystruct<5>, exact, uninitialized, panic, 160
-    v68 = sload v66 !metadata(storage=symbolic(v66))
-    memory_object_store_field memorystruct<5>, v67, 0, v68
-    v69 = add v66, 1
-    v70 = sload v69 !metadata(storage=offset(v66, 1))
-    v71 = trunc i256 v70 to i128
-    v72 = zext i128 v71 to i256
-    memory_object_store_field memorystruct<5>, v67, 1, v72
-    v73 = add v66, 1
-    v74 = sload v73 !metadata(storage=offset(v66, 1))
-    v75 = shr 128, v74
-    v76 = trunc i256 v75 to i64
-    v77 = zext i64 v76 to i256
-    memory_object_store_field memorystruct<5>, v67, 2, v77
-    v78 = add v66, 2
-    v79 = sload v78 !metadata(storage=offset(v66, 2))
-    memory_object_store_field memorystruct<5>, v67, 3, v79
-    v80 = add v66, 3
-    v81 = sload v80 !metadata(storage=offset(v66, 3))
-    v82 = trunc i256 v81 to i8
-    v83 = zext i8 v82 to i256
-    memory_object_store_field memorystruct<5>, v67, 4, v83
-    v84 = ptrtoint memptr v67 to i256
-    memory_object_store_element memoryfixedarray<10, 1>, v62, v63, v84
-    v85 = add v63, 1
+    v69 = mul v67, 4
+    v70 = add v61, v69
+    v71 = alloc memorystruct<5>, exact, uninitialized, panic, 160
+    v72 = sload v70 !metadata(storage=symbolic(v70))
+    memory_object_store_field memorystruct<5>, v71, 0, v72
+    v73 = add v70, 1
+    v74 = sload v73 !metadata(storage=offset(v70, 1))
+    v75 = trunc i256 v74 to i128
+    v76 = zext i128 v75 to i256
+    memory_object_store_field memorystruct<5>, v71, 1, v76
+    v77 = add v70, 1
+    v78 = sload v77 !metadata(storage=offset(v70, 1))
+    v79 = shr 128, v78
+    v80 = trunc i256 v79 to i64
+    v81 = zext i64 v80 to i256
+    memory_object_store_field memorystruct<5>, v71, 2, v81
+    v82 = add v70, 2
+    v83 = sload v82 !metadata(storage=offset(v70, 2))
+    memory_object_store_field memorystruct<5>, v71, 3, v83
+    v84 = add v70, 3
+    v85 = sload v84 !metadata(storage=offset(v70, 3))
+    v86 = trunc i256 v85 to i8
+    v87 = zext i8 v86 to i256
+    memory_object_store_field memorystruct<5>, v71, 4, v87
+    v88 = ptrtoint memptr v71 to i256
+    memory_object_store_element memoryfixedarray<10, 1>, v66, v67, v88
+    v89 = add v67, 1
     jump bb7
   bb4:
     v8 = alloc memorystruct<5>, exact, uninitialized, infallible, 160

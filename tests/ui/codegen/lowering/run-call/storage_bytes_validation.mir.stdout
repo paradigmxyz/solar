@@ -578,10 +578,6 @@ fn @invalidShortPushZero() [selector=0xcba0ded0, abi_params=[], abi_returns=[], 
     v29 = phi [bb2: v14], [bb3: v16], [bb4: 0]
     v30 = and v6, 31
     v31 = sub 31, v30
-    v32 = sload v29 !metadata(storage=symbolic(v29))
-    v33 = mul v31, 8
-    v34 = shr v33, v32
-    v35 = shl 248, v34
     ret
 }
 
@@ -636,10 +632,6 @@ fn @invalidLongPushZero() [selector=0xe8ec99d3, abi_params=[], abi_returns=[], a
     v29 = phi [bb2: v14], [bb3: v16], [bb4: 0]
     v30 = and v6, 31
     v31 = sub 31, v30
-    v32 = sload v29 !metadata(storage=symbolic(v29))
-    v33 = mul v31, 8
-    v34 = shr v33, v32
-    v35 = shl 248, v34
     ret
 }
 
@@ -1093,9 +1085,5 @@ fn @pushZeroPastMaxLength() [selector=0x65c6159f, abi_params=[], abi_returns=[],
     v32 = phi [bb2: v17], [bb3: v19], [bb4: 0]
     v33 = and v9, 31
     v34 = sub 31, v33
-    v35 = sload v32 !metadata(storage=symbolic(v32))
-    v36 = mul v34, 8
-    v37 = shr v36, v35
-    v38 = shl 248, v37
     ret
 }

@@ -117,13 +117,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         callee: &hir::Expr<'_>,
         args: hir::CallArgs<'_>,
         call_opts: Option<&hir::CallOptions<'_>>,
-    ) -> Option<ValueId> {
+        capture_value: bool,
+    ) -> Option<CallResult> {
         if let Some(struct_id) = self.cx.gcx.resolved_expr(callee).and_then(|res| match res {
             hir::Res::Item(item) => item.as_struct(),
             _ => None,
         }) {
             // result = lower_struct_ctor(callee, args)
-            return self.lower_struct_constructor(expr, struct_id, args);
+            return self.lower_struct_constructor(expr, struct_id, args).map(CallResult::Value);
         }
         let is_type_conversion = matches!(callee.kind, ExprKind::TypeCall(_) | ExprKind::Type(_))
             || self.cx.gcx.resolved_expr(callee).is_some_and(|res| {
@@ -147,7 +148,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             {
                 // address(L) => library_address(L)
                 let address = self.library_contract_address(id);
-                return Some(address);
+                return Some(CallResult::Value(address));
             }
             let source_ty = self.cx.gcx.type_of_expr(arg.id)?;
             let target_ty = self.cx.gcx.type_of_expr(expr.id).or_else(|| {
@@ -161,7 +162,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 })
             })?;
             if let Some(value) = self.lower_fixed_bytes_literal(target_ty, arg) {
-                return Some(value);
+                return Some(CallResult::Value(value));
             }
             let value = if source_ty.is_ref_at(DataLocation::Storage)
                 && matches!(
@@ -179,12 +180,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             } else {
                 self.lower_expr(arg)?
             };
-            return Some(self.coerce_value(value, source_ty, target_ty));
+            return Some(CallResult::Value(self.coerce_value(value, source_ty, target_ty)));
         }
         if let ExprKind::New(ty) = &callee.kind {
             if let TyKind::Contract(contract_id) = self.cx.gcx.type_of_hir_ty(ty).kind {
                 // result = create_contract(callee, args, opts)
-                return self.lower_new_contract(expr, ty, contract_id, args, call_opts);
+                return self
+                    .lower_new_contract(expr, ty, contract_id, args, call_opts)
+                    .map(CallResult::Value);
             }
             if args.len() != 1 {
                 return self.cx.report_unsupported(expr.span, "dynamic allocation");
@@ -222,11 +225,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     Some(())
                 })?;
             }
-            return Some(object);
+            return Some(CallResult::Value(object));
         }
         if let Some(builtin) = self.cx.gcx.resolved_builtin(callee) {
             // result = builtin(callee, args, opts)
-            return self.lower_builtin_call(expr, callee, builtin, args, call_opts);
+            return self.lower_builtin_call(expr, callee, builtin, args, call_opts, capture_value);
         }
         if let Some(TyKind::Fn(function)) = self.cx.gcx.type_of_expr(callee.id).map(|ty| ty.kind)
             && function.function_id.is_none()
@@ -246,7 +249,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return self.lower_function_call(expr, callee, function_id, args, call_opts);
         }
         if self.cx.gcx.dcx().has_errors().is_err() {
-            return Some(self.builder.imm(U256::ZERO));
+            return None;
         }
         self.cx.report_unsupported(expr.span, "function call")
     }
@@ -387,10 +390,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         function: &TyFn<'gcx>,
         args: hir::CallArgs<'_>,
         call_opts: Option<&hir::CallOptions<'_>>,
-    ) -> Option<ValueId> {
+    ) -> Option<CallResult> {
         let values =
             self.lower_external_function_pointer_call_values(callee, function, args, call_opts)?;
-        Some(values.into_iter().next().unwrap_or_else(|| self.builder.imm(U256::ZERO)))
+        Some(values.into_iter().next().map_or(CallResult::Void, CallResult::Value))
     }
 
     pub(super) fn lower_external_function_pointer_call_values(
@@ -490,7 +493,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         callee: &hir::Expr<'_>,
         function: &TyFn<'gcx>,
         args: hir::CallArgs<'_>,
-    ) -> Option<ValueId> {
+    ) -> Option<CallResult> {
         if args.len() != function.parameters.len() {
             return self.cx.report_unsupported(expr.span, "internal function argument list");
         }
@@ -530,9 +533,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let dispatcher = self.ensure_internal_function_pointer_dispatcher(function);
         if function.returns.is_empty() {
             // icall_void(dispatcher, function, args)
-            // result = 0
             self.builder.icall_void(dispatcher, values);
-            return Some(self.builder.imm(U256::ZERO));
+            return Some(CallResult::Void);
         }
         let return_types = function
             .returns
@@ -543,7 +545,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // result = icall(dispatcher, function, args)
         let result = self.builder.icall(dispatcher, values, result_ty);
         self.dirty_values.insert(result);
-        Some(result)
+        Some(CallResult::Value(result))
     }
 
     pub(super) fn lower_internal_function_value(
@@ -806,7 +808,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         function_id: hir::FunctionId,
         args: hir::CallArgs<'_>,
         call_opts: Option<&hir::CallOptions<'_>>,
-    ) -> Option<ValueId> {
+    ) -> Option<CallResult> {
         let function = self.cx.gcx.hir.function(function_id);
         let attached = self.cx.gcx.resolved_callee(callee.id).is_some_and(|callee| callee.attached);
         let delegate_call = self.cx.gcx.type_of_expr(callee.id).is_some_and(
@@ -905,13 +907,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return self.lower_external_function_call(expr, callee, function_id, args, call_opts);
         };
         if let Some(value) = self.lower_pure_struct_constructor(function, &values) {
-            return Some(value);
+            return Some(CallResult::Value(value));
         }
         if function.returns.is_empty() {
             // icall_void(function, call_args)
-            // result = 0
             self.builder.icall_void(mir_id, values);
-            return Some(self.builder.imm(U256::ZERO));
+            return Some(CallResult::Void);
         }
         let return_types = function
             .returns
@@ -922,7 +923,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // result = icall(function, call_args)
         let result = self.builder.icall(mir_id, values, result_ty);
         self.dirty_values.insert(result);
-        Some(result)
+        Some(CallResult::Value(result))
     }
 
     fn lower_pure_struct_constructor(
@@ -972,7 +973,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         function_id: hir::FunctionId,
         args: hir::CallArgs<'_>,
         call_opts: Option<&hir::CallOptions<'_>>,
-    ) -> Option<ValueId> {
+    ) -> Option<CallResult> {
         let ExprKind::Member(receiver, _) = callee.kind else {
             return self.cx.report_unsupported(expr.span, "external function target");
         };
@@ -1055,7 +1056,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             ExternalReturnMode::First,
             "codegen cannot decode external function returndata before Byzantium",
         )?;
-        Some(values.into_iter().next().unwrap_or(options.zero))
+        Some(values.into_iter().next().map_or(CallResult::Void, CallResult::Value))
     }
 
     pub(super) fn lower_abi_call_arguments(
@@ -1138,7 +1139,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         receiver: Option<&hir::Expr<'_>>,
         args: hir::CallArgs<'_>,
         address: ValueId,
-    ) -> Option<ValueId> {
+    ) -> Option<CallResult> {
         let function = self.cx.gcx.hir.function(function_id);
         let receiver_count = usize::from(receiver.is_some());
         if args.len() + receiver_count != function.parameters.len() {
@@ -1221,7 +1222,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // if !ok { revert(0, returndatasize()) }
         self.revert_external_call(success);
         if return_types.is_empty() {
-            return Some(zero);
+            return Some(CallResult::Void);
         }
         // result = load_words(ret_offset) | abi_decode(buffer) | abi_decode(returndata)
         let values = self.finish_external_call(
@@ -1231,7 +1232,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             ExternalReturnMode::First,
             "codegen cannot decode linked library returndata before Byzantium",
         )?;
-        Some(values.into_iter().next().unwrap_or(zero))
+        Some(values.into_iter().next().map_or(CallResult::Void, CallResult::Value))
     }
 
     pub(super) fn lower_abi_receiver(

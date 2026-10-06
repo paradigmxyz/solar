@@ -60,7 +60,6 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
   bb1:
     revert_returndata
   bb2:
-    v15 = trunc i256 v13 to i160
-    v16 = sload 0 !metadata(storage=slot(0))
-    ret v16
+    v15 = sload 0 !metadata(storage=slot(0))
+    ret v15
 }
