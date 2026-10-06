@@ -323,6 +323,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             ExprKind::Assign(lhs, None, rhs) => {
                 if let ExprKind::Tuple(elements) = &lhs.peel_parens().kind {
                     self.lower_tuple_assignment(elements, rhs)
+                } else if !self.is_storage_reference_binding(lhs)
+                    && self.type_of_expr_or_variable(lhs)?.is_ref_at(DataLocation::Storage)
+                    && self.cx.gcx.type_of_expr(rhs.id)?.is_ref_at(DataLocation::Storage)
+                {
+                    self.storage_access(expr).map(drop)
                 } else {
                     self.lower_expr(expr).map(drop)
                 }
