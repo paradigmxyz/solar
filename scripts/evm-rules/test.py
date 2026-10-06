@@ -15,7 +15,7 @@ import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from evm_rules.discovery import (
     Cost,
@@ -50,6 +50,7 @@ from evm_rules.prover import (
     prove,
     stop,
 )
+from evm_rules.stack import requirements, stack_rules, stack_variants
 from evm_rules.verification import (
     DEFAULT_FILES,
     obligations,
@@ -281,6 +282,21 @@ class StackProofTests(unittest.TestCase):
         self.assertEqual(len(report["rules"]), 7)
         self.assertTrue(all(r["status"] == "proved" for r in report["rules"]))
         self.assertGreater(sum(r["variants"] for r in report["rules"]), 900)
+
+    def test_every_legal_depth_is_checked(self):
+        # DUP and SWAP encode depths 1 to 235; EXCHANGE n m needs n < m and n + m <= 30.
+        exchanges = sum(
+            1 <= n < m and n + m <= 30 for n in range(1, 236) for m in range(1, 236)
+        )
+        _, rules = stack_rules(ISLE / "evm-ir/stack_peephole.isle")
+        for rule in rules:
+            variants = stack_variants(rule)
+            with self.subTest(line=rule.line):
+                if len(variants[0]["bindings"]) == 1:
+                    self.assertEqual(len(variants), 235)
+                if len(variants[0]["bindings"]) == 2:
+                    self.assertEqual(len(variants), exchanges)
+        self.assertEqual(requirements([("dup", (235,)), ("pop", ())]), (235, 1, 0))
 
     def test_wrong_depth_and_opcode_have_replayed_counterexamples(self):
         for source in (
@@ -789,6 +805,21 @@ class RuleTests(unittest.TestCase):
             path.write_text(source)
             return verify_rules(path)
 
+    def test_every_selected_rule_has_a_theorem(self):
+        # No rule of a selected file is skipped: each becomes at least one theorem.
+        for path in DEFAULT_FILES:
+            with self.subTest(path=path.name):
+                entries = list(obligations(path))
+                rule_forms = [
+                    form for _, text in rule_sources(path) for form, _ in forms(text)
+                ]
+                self.assertEqual(
+                    len(entries), sum(form[0] == "rule" for form in rule_forms)
+                )
+                skipped = [entry["name"] for entry in entries if "error" in entry]
+                self.assertEqual(skipped, [])
+                self.assertTrue(all(entry.get("theorems") for entry in entries))
+
     def test_reserved_variable_names_fail_closed(self):
         # Names starting with `@` belong to the checker; a rule cannot bind one.
         for source in (
@@ -1040,6 +1071,18 @@ class RuleTests(unittest.TestCase):
             self.assertEqual(rule["status"], "counterexample")
             self.assertTrue(rule["replayed"])
 
+    def test_constant_folds_keep_evm_operand_order(self):
+        # Shifts and BYTE take the count or index before the value.
+        for op in ("Shl", "Shr", "Byte"):
+            source = f"""(rule (rewrite (Op.{op} (iconst index) (iconst value)))
+              (imm (u256_{op.lower()} index value)))"""
+            with self.subTest(op=op):
+                self.assertEqual(self.verify(source)["rules"][0]["status"], "proved")
+                swapped = source.replace("index value)", "value index)")
+                result = self.verify(swapped)["rules"][0]
+                self.assertEqual(result["status"], "counterexample", result)
+                self.assertTrue(result["replayed"])
+
     def test_byte_index_guard_prevents_wrapping_into_word(self):
         guard = "(if-let true (u256_lt index 32))"
         source = f"""(rule (rewrite (Op.Byte (iconst index) (shl (iconst shift) x)))
@@ -1141,6 +1184,25 @@ class CliTests(unittest.TestCase):
             ):
                 self.assertEqual(run(), ("failed", text))
             self.assertEqual(run(), ("proved", text))
+
+    def test_failed_or_timed_out_lean_never_proves(self):
+        x = Expr.var("x")
+        with tempfile.TemporaryDirectory() as directory:
+            task = job(Path(directory), "t", x, x, [], "rfl", 30, lean_path())
+            # A Lean process that fails without a diagnostic is not a proof.
+            crashed = MagicMock(returncode=1)
+            crashed.communicate.return_value = ("", "crashed")
+            with patch("evm_rules.prover.subprocess.Popen", return_value=crashed):
+                self.assertEqual(prove(task)[1]["status"], "failed")
+            # A process that outlives its limit is stopped and reported as a timeout.
+            hung = MagicMock(returncode=None)
+            hung.communicate.side_effect = subprocess.TimeoutExpired("lean", 30)
+            with (
+                patch("evm_rules.prover.subprocess.Popen", return_value=hung),
+                patch("evm_rules.prover.stop") as stopped,
+            ):
+                self.assertEqual(prove(task)[1]["status"], "timeout")
+            stopped.assert_called_once_with(hung)
 
     def test_stopping_a_proof_stops_its_solver(self):
         # `bv_decide` runs the SAT solver as a child of `lean`; a timeout must stop it
