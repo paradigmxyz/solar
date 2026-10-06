@@ -92,6 +92,53 @@ theorem toNat_sub_wrap (a b : Word) :
     (Evm.sub a b).toNat = (2 ^ 256 - b.toNat + a.toNat) % 2 ^ 256 :=
   BitVec.toNat_sub ..
 
+/-- `ADDMOD` as a number: the exact sum, reduced by a nonzero modulus. -/
+theorem toNat_addmod (a b n : Word) :
+    (Evm.addmod a b n).toNat = if n.toNat = 0 then 0 else (a.toNat + b.toNat) % n.toNat := by
+  have ha := a.isLt
+  have hb := b.isLt
+  have hn := n.isLt
+  by_cases h : n.toNat = 0
+  · have : n = 0 := BitVec.eq_of_toNat_eq h
+    subst this
+    rfl
+  · have hz : (n == 0) = false := beq_eq_false_iff_ne.mpr fun e => h (by rw [e]; rfl)
+    rw [Evm.addmod, hz, Bool.cond_false]
+    simp only [h, ↓reduceIte]
+    rw [BitVec.toNat_setWidth, BitVec.toNat_umod, BitVec.toNat_add, BitVec.toNat_setWidth,
+      BitVec.toNat_setWidth, BitVec.toNat_setWidth]
+    have hr := Nat.mod_lt (a.toNat + b.toNat) (Nat.pos_of_ne_zero h)
+    rw [Nat.mod_eq_of_lt (by omega : a.toNat < 2 ^ 512),
+      Nat.mod_eq_of_lt (by omega : b.toNat < 2 ^ 512),
+      Nat.mod_eq_of_lt (by omega : n.toNat < 2 ^ 512),
+      Nat.mod_eq_of_lt (by omega : a.toNat + b.toNat < 2 ^ 512),
+      Nat.mod_eq_of_lt (by omega : (a.toNat + b.toNat) % n.toNat < 2 ^ 256)]
+
+set_option exponentiation.threshold 512 in
+/-- `MULMOD` as a number: the exact product, reduced by a nonzero modulus. -/
+theorem toNat_mulmod (a b n : Word) :
+    (Evm.mulmod a b n).toNat = if n.toNat = 0 then 0 else a.toNat * b.toNat % n.toNat := by
+  have ha := a.isLt
+  have hb := b.isLt
+  have hn := n.isLt
+  have hab : a.toNat * b.toNat < 2 ^ 512 :=
+    calc a.toNat * b.toNat < 2 ^ 256 * 2 ^ 256 := Nat.mul_lt_mul'' ha hb
+      _ = 2 ^ 512 := by rw [← Nat.pow_add]
+  by_cases h : n.toNat = 0
+  · have : n = 0 := BitVec.eq_of_toNat_eq h
+    subst this
+    rfl
+  · have hz : (n == 0) = false := beq_eq_false_iff_ne.mpr fun e => h (by rw [e]; rfl)
+    rw [Evm.mulmod, hz, Bool.cond_false]
+    simp only [h, ↓reduceIte]
+    rw [BitVec.toNat_setWidth, BitVec.toNat_umod, BitVec.toNat_mul, BitVec.toNat_setWidth,
+      BitVec.toNat_setWidth, BitVec.toNat_setWidth]
+    have hr := Nat.mod_lt (a.toNat * b.toNat) (Nat.pos_of_ne_zero h)
+    rw [Nat.mod_eq_of_lt (by omega : a.toNat < 2 ^ 512),
+      Nat.mod_eq_of_lt (by omega : b.toNat < 2 ^ 512),
+      Nat.mod_eq_of_lt (by omega : n.toNat < 2 ^ 512), Nat.mod_eq_of_lt hab,
+      Nat.mod_eq_of_lt (by omega : a.toNat * b.toNat % n.toNat < 2 ^ 256)]
+
 /-! The readers' overflow preconditions as bounds on the exact product or sum. -/
 
 /-- `u256_mul_fits a b`: the exact product is a word. -/
@@ -114,6 +161,16 @@ theorem add_fits_iff (a b : Word) : a ≤ Evm.sub MAX b ↔ a.toNat + b.toNat < 
   rw [BitVec.le_def, Evm.sub, BitVec.toNat_sub, toNat_max]
   have : (2 ^ 256 - b.toNat + (2 ^ 256 - 1)) % 2 ^ 256 = 2 ^ 256 - 1 - b.toNat := by omega
   omega
+
+/-- `a ≤ MAX / b`, as the readers state that the exact product is a word when `b ≠ 0` is a
+separate precondition. -/
+theorem le_div_max_iff (a b : Word) :
+    a ≤ Evm.div MAX b ↔ a.toNat * b.toNat < 2 ^ 256 ∧ (b.toNat = 0 → a.toNat = 0) := by
+  rw [BitVec.le_def, toNat_div, toNat_max]
+  by_cases hb : b.toNat = 0
+  · simp [hb]
+  · rw [Nat.le_div_iff_mul_le (Nat.pos_of_ne_zero hb)]
+    omega
 
 /-! Bounds that `evm_arith` adds for every quotient and remainder by a non-literal. -/
 

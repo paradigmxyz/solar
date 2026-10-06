@@ -70,21 +70,23 @@ end EvmRules
 /-- Proves a rule over products, quotients and remainders; see `EvmRules/ArithTactic.lean`. -/
 macro "evm_arith" : tactic => `(tactic| (
   subst_vars
-  try simp only [↓ EvmRules.mul_fits_iff, ↓ EvmRules.add_fits_iff, EvmRules.lt_bits,
-    EvmRules.gt_bits, EvmRules.eq_bits, EvmRules.ne_bits, EvmRules.iszero_bits,
+  try simp only [↓ EvmRules.mul_fits_iff, ↓ EvmRules.add_fits_iff, ↓ EvmRules.le_div_max_iff,
+    EvmRules.lt_bits, EvmRules.gt_bits, EvmRules.eq_bits, EvmRules.ne_bits, EvmRules.iszero_bits,
     EvmRules.or_bits, ← Bool.decide_or, ite_true, ite_false, EvmRules.bits_eq_bits,
     EvmRules.bits_eq_one, EvmRules.bits_eq_zero] at *
   try simp only [BitVec.toNat_eq, BitVec.le_def, BitVec.lt_def, ne_eq, EvmRules.toNat_div,
     EvmRules.toNat_mul, EvmRules.toNat_add_wrap, EvmRules.toNat_sub_wrap,
-    EvmRules.toNat_mod_ite, BitVec.ofNat_eq_ofNat, BitVec.toNat_ofNat, Nat.reducePow,
-    Nat.reduceMod] at *
-  evm_div_facts
+    EvmRules.toNat_mod_ite, EvmRules.toNat_addmod, EvmRules.toNat_mulmod, Nat.add_zero,
+    Nat.zero_add, Nat.mul_one, Nat.one_mul, BitVec.ofNat_eq_ofNat, BitVec.toNat_ofNat,
+    Nat.reducePow, Nat.reduceMod] at *
+  all_goals evm_div_facts
   try simp (disch := omega) only [Nat.mod_eq_of_lt, EvmRules.sub_wrap_of_le, ite_eq_left,
     ite_eq_right, Nat.div_div_eq_div_mul, EvmRules.div_mul_div_cancel, Nat.div_lt_iff_lt_mul,
     Nat.le_div_iff_mul_le, Nat.div_eq_zero_iff_lt, Nat.lt_div_iff_mul_lt,
     Nat.div_le_iff_le_mul_add_pred, EvmRules.lt_div_succ_iff, EvmRules.wrapped_div_eq_iff,
     EvmRules.eq_wrapped_div_iff, EvmRules.checked_product_left,
-    EvmRules.checked_product_left', EvmRules.not_lt_share, Nat.div_eq_of_lt, not_false_eq_true,
+    EvmRules.checked_product_left', EvmRules.not_lt_share, Nat.div_eq_of_lt,
+    Nat.mul_div_cancel, Nat.mul_div_cancel_left, not_false_eq_true,
     not_true_eq_false, iff_self, false_iff, iff_false, true_iff, iff_true] at *
   try simp only [Nat.mul_comm, Nat.mul_left_comm] at *
   all_goals omega))

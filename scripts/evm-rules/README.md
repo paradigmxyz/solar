@@ -126,22 +126,25 @@ against the integer evaluator on boundary and random words, check printed
 preconditions the same way, require false rules to fail with replayed
 counterexamples, and require the tools to run without an SMT solver installed.
 
-On 2026-10-02 the lane proved all 474 selected rules: 98 with `evm_arith`, 350
-with `evm_decide` and 26 with hand-written scripts. With 18 jobs and a
-120-second SAT limit it took 146 seconds of wall time and 1,254 seconds of user
-CPU; back to back on the same machine, the lane before `evm_arith` took 139 and
-1,315 seconds for 465 rules and 50 scripts. `evm_decide` alone proves 426
-rules, eleven of them only after 66 to 205 seconds. It cannot prove the five
-`EXP` rules, whose symbolic exponents it cannot bit-blast, or a balance rule
-whose reads at two addresses that a guard makes equal it treats as unrelated
-words. It times out on 14 more, mostly division, remainder and shifts by
-symbolic amounts, and on 28 of the 30 division rules below. All 191 rules with
+On 2026-10-06 the lane proved all 845 selected rules: 166 with `evm_arith`,
+580 with `evm_decide`, 29 with `evm_bits`, 23 with `evm_ring` and 47 with
+hand-written scripts. Run as CI runs it, two single-threaded `lean` processes at
+a time with the 120-second SAT limit, it took 12 minutes of wall time and 865
+seconds of user CPU on an Apple M-series machine, and no theorem took 30
+seconds. Rebased onto the split rule sets, `evm_arith` and bit-blasting alone
+left 81 of these rules unproved with a 20-second SAT limit: shifts by variable
+counts, nested extensions, products of variables, `EXP`, signed division and
+remainders. The structural rewrites prove the nested `sext` composition and
+comparisons and the nested `SIGNEXTEND` in about a second each, where
+bit-blasting alone takes 40 to 60 seconds for each of them. All 388 rules with
 preconditions have a confirmed witness, and the 918 physical stack variants
-reduce to seven theorems. Before the division rules, the Z3 and cvc5 lane this
-replaces proved the other 444 rules in 101 seconds of wall time and 583 seconds
-of user CPU as 13 workers, with index and output-bit partitions for the rules
-no solver finished whole; this lane took 156 seconds and 1,109 seconds with 10
-jobs.
+reduce to seven theorems.
+
+Before the rebase, on 2026-10-02, the lane proved the 474 rules then selected in
+146 seconds of wall time with 18 jobs. The Z3 and cvc5 lane it replaces proved
+the 444 rules before the division rules in 101 seconds of wall time as 13
+workers, with index and output-bit partitions for the rules no solver finished
+whole.
 
 ## Division rules
 
@@ -163,12 +166,11 @@ Nine more fold the checked subtraction of a share of `x` (`x - x / y`, and
 `x - x * c / d` for `c <= d`, also when `x * c` wraps), bound remainders
 (`x % c < d` for `0 < c <= d`), turn `x - (x / c) * c` into `x % c`, and test
 divisibility with one remainder: `(x / c) * c == x` becomes `x % c == 0` in
-`word_sequence.isle`. `evm_decide` times out on seven of them and needs 150
+`mir/word_sequence`. `evm_decide` times out on seven of them and needs 150
 seconds for the other two.
 
-`evm_arith` proves each of the 30 rules in about a second, for every word; until
-it existed, each of the first 21 needed a script of up to 19 lines over the same
-lemmas. It also replaces three older scripts.
+`evm_arith` proves each of these rules in about a second, for every word; until
+it existed, each needed a script of up to 19 lines over the same lemmas.
 `tests/ui/codegen/mir/egraph/division.mir` and
 `tests/ui/codegen/mir/word-sequence/divisibility.mir` cover each rewrite,
 `division_runtime.sol` executes the rules' boundaries under every codegen
