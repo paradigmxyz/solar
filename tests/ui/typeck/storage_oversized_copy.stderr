@@ -1,0 +1,74 @@
+error: array is too large to copy or encode
+   ╭▸ ROOT/tests/ui/typeck/storage_oversized_copy.sol:LL:CC
+   │
+LL │         target = source;
+   │         ━━━━━━
+   │
+   ╰ note: copying or encoding arrays with more than 2^64 - 1 elements is not supported
+
+error: array is too large to copy or encode
+   ╭▸ ROOT/tests/ui/typeck/storage_oversized_copy.sol:LL:CC
+   │
+LL │         (target, target) = (source, source);
+   │          ━━━━━━
+   │
+   ╰ note: copying or encoding arrays with more than 2^64 - 1 elements is not supported
+
+error: array is too large to copy or encode
+   ╭▸ ROOT/tests/ui/typeck/storage_oversized_copy.sol:LL:CC
+   │
+LL │         (target, target) = (source, source);
+   │                  ━━━━━━
+   │
+   ╰ note: copying or encoding arrays with more than 2^64 - 1 elements is not supported
+
+error: array is too large to copy or encode
+   ╭▸ ROOT/tests/ui/typeck/storage_oversized_copy.sol:LL:CC
+   │
+LL │         return abi.encode(source);
+   │                           ━━━━━━
+   │
+   ╰ note: copying or encoding arrays with more than 2^64 - 1 elements is not supported
+
+error: array is too large to copy or encode
+   ╭▸ ROOT/tests/ui/typeck/storage_oversized_copy.sol:LL:CC
+   │
+LL │         target = source;
+   │         ━━━━━━
+   │
+   ╰ note: copying or encoding arrays with more than 2^64 - 1 elements is not supported
+
+error: array is too large to copy or encode
+   ╭▸ ROOT/tests/ui/typeck/storage_oversized_copy.sol:LL:CC
+   │
+LL │         target = source;
+   │         ━━━━━━
+   │
+   ╰ note: copying or encoding arrays with more than 2^64 - 1 elements is not supported
+
+error: array is too large to copy or encode
+   ╭▸ ROOT/tests/ui/typeck/storage_oversized_copy.sol:LL:CC
+   │
+LL │         return (source, 1);
+   │                ━━━━━━━━━━━
+   │
+   ╰ note: copying or encoding arrays with more than 2^64 - 1 elements is not supported
+
+error: array is too large to copy or encode
+   ╭▸ ROOT/tests/ui/typeck/storage_oversized_copy.sol:LL:CC
+   │
+LL │         target.push(source[0]);
+   │                     ━━━━━━━━━
+   │
+   ╰ note: copying or encoding arrays with more than 2^64 - 1 elements is not supported
+
+error: array is too large to copy or encode
+   ╭▸ ROOT/tests/ui/typeck/storage_oversized_copy.sol:LL:CC
+   │
+LL │         target = source;
+   │         ━━━━━━
+   │
+   ╰ note: copying or encoding arrays with more than 2^64 - 1 elements is not supported
+
+error: aborting due to 9 previous errors
+

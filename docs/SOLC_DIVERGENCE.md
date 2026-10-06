@@ -164,6 +164,27 @@ accepted statement always compiles.
 
 Coverage: `tests/ui/codegen/lowering/run-call/try_parenthesized_target.sol`.
 
+### TYPECK-006: Oversized fixed-array copies
+
+Status: intentional.
+
+Difference: Solar rejects copying or ABI-encoding fixed arrays with more than
+`2^64 - 1` elements during type checking, including arrays nested in structs.
+It still accepts their storage declarations, indexed accesses, and storage
+reference bindings. Solc 0.8.37 compiles the storage-to-storage array, tuple,
+and struct copies covered by the fixture, but those copies panic with code
+`0x41` at runtime. ABI-encoding the same array causes an internal compiler
+error in solc 0.8.37. These results hold with both code generators and with
+optimization enabled or disabled.
+
+Rationale: report unsupported copies at their source during type checking,
+rather than fail during lowering or emit a runtime panic for a known oversized
+copy. The restriction applies to copying the values, not to addressing their
+storage.
+
+Coverage: `tests/ui/typeck/storage_oversized_copy.sol` and
+`tests/ui/codegen/lowering/run-call/full_width_storage_layout.sol`.
+
 ## Contract-Level Checks
 
 No intentional divergences documented yet.

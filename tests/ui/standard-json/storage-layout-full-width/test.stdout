@@ -1,0 +1,88 @@
+{
+  "sources": {
+    "wide.sol": {
+      "id": 0
+    }
+  },
+  "contracts": {
+    "wide.sol": {
+      "WideLayout": {
+        "storageLayout": {
+          "storage": [
+            {
+              "astId": 1,
+              "contract": "wide.sol:WideLayout",
+              "label": "wide",
+              "offset": 0,
+              "slot": "0",
+              "type": "t_struct(Wide)6_storage"
+            },
+            {
+              "astId": 2,
+              "contract": "wide.sol:WideLayout",
+              "label": "packed",
+              "offset": 0,
+              "slot": "3618502788666131106986593281521497120414687020801267626233049500247285301249",
+              "type": "t_array(t_uint8)3618502788666131106986593281521497120414687020801267626233049500247285301249_storage"
+            },
+            {
+              "astId": 3,
+              "contract": "wide.sol:WideLayout",
+              "label": "afterPacked",
+              "offset": 0,
+              "slot": "3731581000811947704079924321569043905427645990201307239552832297130012966914",
+              "type": "t_uint256"
+            }
+          ],
+          "types": {
+            "t_struct(Wide)6_storage": {
+              "encoding": "inplace",
+              "label": "struct WideLayout.Wide",
+              "numberOfBytes": "32",
+              "members": [
+                {
+                  "astId": 4,
+                  "contract": "wide.sol:WideLayout",
+                  "label": "values",
+                  "offset": 0,
+                  "slot": "0",
+                  "type": "t_array(t_uint256)3618502788666131106986593281521497120414687020801267626233049500247285301248_storage"
+                },
+                {
+                  "astId": 5,
+                  "contract": "wide.sol:WideLayout",
+                  "label": "tail",
+                  "offset": 0,
+                  "slot": "3618502788666131106986593281521497120414687020801267626233049500247285301248",
+                  "type": "t_uint8"
+                }
+              ]
+            },
+            "t_array(t_uint256)3618502788666131106986593281521497120414687020801267626233049500247285301248_storage": {
+              "encoding": "inplace",
+              "label": "uint256[3618502788666131106986593281521497120414687020801267626233049500247285301248]",
+              "numberOfBytes": "0",
+              "base": "t_uint256"
+            },
+            "t_uint256": {
+              "encoding": "inplace",
+              "label": "uint256",
+              "numberOfBytes": "32"
+            },
+            "t_uint8": {
+              "encoding": "inplace",
+              "label": "uint8",
+              "numberOfBytes": "1"
+            },
+            "t_array(t_uint8)3618502788666131106986593281521497120414687020801267626233049500247285301249_storage": {
+              "encoding": "inplace",
+              "label": "uint8[3618502788666131106986593281521497120414687020801267626233049500247285301249]",
+              "numberOfBytes": "3618502788666131106986593281521497120414687020801267626233049500247285301280",
+              "base": "t_uint8"
+            }
+          }
+        }
+      }
+    }
+  }
+}
