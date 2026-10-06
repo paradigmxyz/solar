@@ -11,9 +11,10 @@
 
 use super::evm::EvmArtifact;
 use crate::mir::{
-    Function, InstKind, Module, Terminator, Value, ValueId, analysis::CallGraphInfo,
+    InstKind, Module, Terminator, Value, ValueId, analysis::CallGraphInfo,
     immutable::immutable_staging_base,
 };
+use alloy_primitives::{U256, ruint::UintTryFrom};
 use solar_config::OptimizationMode;
 use sonatina_codegen::{
     isa::evm::{EvmBackend, ImmediateMaterializationMode, LateCleanupProfile},
@@ -21,16 +22,22 @@ use sonatina_codegen::{
     stackalloc::StackifySearchProfile,
 };
 use sonatina_ir::{
-    AccessLoc, Type,
+    AccessLoc, GlobalVariableData, GlobalVariableRef, Linkage, Signature, Type,
+    builder::{FunctionBuilder, ModuleBuilder, ObjectBuilder},
+    func_cursor::InstInserter,
+    global_variable::GvInitializer,
     inst::{
         Inst,
-        arith::Add,
-        data::{SymAddr, SymbolRef},
+        arith::{self, Add},
+        cast, cmp, control_flow,
+        data::{SymAddr, SymSize, SymbolRef},
+        evm, logic,
     },
     ir_writer::ModuleWriter,
-    isa::evm::space::MEMORY,
+    isa::evm::{Evm, space::MEMORY},
+    module::{FuncRef, ModuleCtx},
 };
-use std::fmt::Write;
+use sonatina_triple::{Architecture, EvmVersion, OperatingSystem, TargetTriple, Vendor};
 
 pub(super) fn compile(
     module: &Module,
@@ -39,16 +46,19 @@ pub(super) fn compile(
     let mut base = 0;
     for _ in 0..16 {
         let translated = super::memory::translate(module, base);
-        let mut runtime_text = lower(&translated, None, base)?;
+        let runtime_module = lower(&translated, None, base)?;
+        let mut runtime_text = String::new();
         let mut required = base;
-        let mut runtime = assemble(&mut runtime_text, optimization, base, &mut required)?;
+        let mut runtime =
+            assemble(runtime_module, &mut runtime_text, optimization, base, &mut required)?;
         if required > base {
             base = required;
             continue;
         }
         let immutable_references = super::alternative::append_immutable_data(module, &mut runtime);
-        let mut text = lower(&translated, Some(&runtime), base)?;
-        let deployment = assemble(&mut text, optimization, base, &mut required)?;
+        let deployment_module = lower(&translated, Some(&runtime), base)?;
+        let mut text = String::new();
+        let deployment = assemble(deployment_module, &mut text, optimization, base, &mut required)?;
         if required > base {
             base = required;
             continue;
@@ -65,26 +75,25 @@ pub(super) fn compile(
 }
 
 fn assemble(
+    module: sonatina_ir::Module,
     text: &mut String,
     optimization: OptimizationMode,
     base: u64,
     required: &mut u64,
 ) -> Result<Vec<u8>, String> {
-    let parsed = sonatina_parser::parse_module(text)
-        .map_err(|e| format!("invalid generated Sonatina IR: {e:?}"))?;
     let level = match optimization {
         OptimizationMode::None => sonatina_codegen::OptLevel::O0,
         OptimizationMode::Size => sonatina_codegen::OptLevel::Os,
         _ => sonatina_codegen::OptLevel::O2,
     };
-    let mut compiler = sonatina_codegen::EvmCompile::new(parsed.module).with_opt_level(level);
+    let mut compiler = sonatina_codegen::EvmCompile::new(module).with_opt_level(level);
     let module = compiler.optimize();
     if base != 0 {
         defer_memory_addresses(module);
-        let mut bytes = Vec::new();
-        ModuleWriter::new(module).write(&mut bytes).map_err(|e| e.to_string())?;
-        *text = String::from_utf8(bytes).map_err(|e| e.to_string())?;
     }
+    let mut bytes = Vec::new();
+    ModuleWriter::new(module).write(&mut bytes).map_err(|e| e.to_string())?;
+    *text = String::from_utf8(bytes).map_err(|e| e.to_string())?;
     let backend = EvmBackend::new(sonatina_ir::isa::evm::Evm::new(module.ctx.triple))
         .with_late_cleanup_profile(match level {
             sonatina_codegen::OptLevel::O0 => LateCleanupProfile::Off,
@@ -108,32 +117,9 @@ fn assemble(
         .ok_or("missing Sonatina entry")?;
     let prepared =
         backend.prepare_section(SectionWorkModule::from_roots(module, entry, &[], &[]))?;
-    // The pinned public snapshot exposes the exact static bound; dynamic
-    // recursive frames have no finite prefix and need a separate heap protocol.
-    let plan = backend.snapshot_mem_plan_detail(&prepared);
-    let bound = plan
-        .strip_prefix("evm mem plan: global_dyn_base=0x")
-        .and_then(|s| s.split_whitespace().next())
-        .and_then(|s| u64::from_str_radix(s, 16).ok())
-        .ok_or("unrecognized Sonatina memory plan")?;
-    let arena = plan
-        .lines()
-        .next()
-        .and_then(|line| {
-            line.split_whitespace().find_map(|word| word.strip_prefix("arena_base=0x"))
-        })
-        .and_then(|s| u64::from_str_radix(s, 16).ok())
-        .ok_or("unrecognized Sonatina arena bound")?;
-    let spills = plan
-        .lines()
-        .map(str::trim_start)
-        .any(|line| line.starts_with("spill ") || line.starts_with("scratch_spill "));
-    if spills || bound > arena {
-        if plan.lines().any(|line| line.contains("stable_mode=DynamicFrame")) {
-            return Err("Sonatina recursive spills require dynamic native frames".into());
-        }
-        *required = (*required).max(bound);
-    }
+    // NOTE: The pinned dependency keeps structured memory-plan getters private.
+    // Reject changes to its snapshot format rather than underestimate native memory.
+    *required = (*required).max(memory_bound(&backend.snapshot_mem_plan_detail(&prepared))?);
     if *required > base {
         return Ok(Vec::new());
     }
@@ -210,12 +196,45 @@ fn insert_native_value(
     value
 }
 
-fn lower(module: &Module, runtime: Option<&[u8]>, base: u64) -> Result<String, String> {
+macro_rules! word {
+    ($builder:expr, $inst:path $(, $arg:expr)* $(,)?) => {{
+        let is = $builder.inst_set();
+        let inst = <$inst>::new_unchecked(is $(, $arg)*);
+        $builder.insert_inst(inst, Type::I256)
+    }};
+}
+
+macro_rules! effect {
+    ($builder:expr, $inst:path $(, $arg:expr)* $(,)?) => {{
+        let is = $builder.inst_set();
+        let inst = <$inst>::new_unchecked(is $(, $arg)*);
+        $builder.insert_inst_no_result(inst);
+    }};
+}
+
+macro_rules! predicate {
+    ($builder:expr, $inst:path $(, $arg:expr)* $(,)?) => {{
+        let is = $builder.inst_set();
+        let inst = <$inst>::new_unchecked(is $(, $arg)*);
+        $builder.insert_inst(inst, Type::I1)
+    }};
+}
+
+fn lower(
+    module: &Module,
+    runtime: Option<&[u8]>,
+    base: u64,
+) -> Result<sonatina_ir::Module, String> {
     let constructor = runtime.is_some();
-    let preserve_expansion = super::memory::observes_size(module);
-    let fmp = base + 64;
-    let return_slot = base + 32;
-    let (return_base, heap) = super::alternative::memory_layout(module);
+    let isa = Evm::new(TargetTriple::new(
+        Architecture::Evm,
+        Vendor::Ethereum,
+        OperatingSystem::Evm(EvmVersion::Osaka),
+    ));
+    let mut native = ModuleBuilder::new(ModuleCtx::new(&isa));
+    let entry = native
+        .declare_function(Signature::new_unit("entry", Linkage::Public, &[]))
+        .map_err(|e| e.to_string())?;
     let root = if constructor {
         module
             .functions
@@ -225,494 +244,670 @@ fn lower(module: &Module, runtime: Option<&[u8]>, base: u64) -> Result<String, S
     } else {
         Some(module.dispatch_entry().ok_or("missing runtime entry")?)
     };
-    // entry: initialize heap; call constructor/dispatch; deploy runtime or stop
-    let mut out = format!(
-        "target = \"evm-ethereum-osaka\"\nfunc public %entry() {{\nblock0:\nevm_mstore {fmp}.i256 {heap}.i256;\n"
-    );
-    if constructor {
-        if let Some(id) = module.library_deploy_address() {
-            // address = evm_address; evm_mstore staging[id] address
-            writeln!(
-                out,
-                "v25.i256 = evm_address;\nevm_mstore {}.i256 v25;",
-                base + immutable_staging_base(module) + id.index() as u64 * 32
-            )
-            .unwrap();
-        }
-        if let Some(id) = root {
-            // size = codesize - sym_size .; codecopy heap end size; mstore 64 ceil32(heap + size)
-            writeln!(out, "v20.i256 = sym_size .;\nv21.i256 = evm_code_size;\nv22.i256 = sub v21 v20;\nevm_code_copy {}.i256 v20 v22;\nv23.i256 = add v22 {}.i256;\nv24.i256 = and v23 -32.i256;\nevm_mstore {fmp}.i256 v24;", base + heap, heap + 31).unwrap();
-            for i in 0..module.functions[id].params.len() {
-                writeln!(out, "v{}.i256 = evm_mload {}.i256;", 30 + i, base + heap + i as u64 * 32)
-                    .unwrap();
-            }
-            writeln!(
-                out,
-                "call %f{} {};",
-                id.index(),
-                (0..module.functions[id].params.len())
-                    .map(|i| format!("v{}", 30 + i))
-                    .collect::<Vec<_>>()
-                    .join(" ")
-            )
-            .unwrap();
-        } else if !module.is_library {
-            // callvalue != 0 -> revert; otherwise continue deployment.
-            out.push_str("v10.i256 = evm_call_value;\nv11.i1 = eq v10 0.i256;\nbr v11 block1 block2;\nblock2:\nevm_revert 0.i256 0.i256;\nblock1:\n");
-        }
-    } else if let Some(id) = root {
-        writeln!(out, "call %f{};", id.index()).unwrap();
-    }
-    if let Some(runtime) = runtime {
-        // deploy = evm_mload 64; codecopy deploy $runtime size; patch immutable words; return
-        // deploy size
-        out.push_str("v0.i256 = sym_addr $runtime;\n");
-        if base == 0 {
-            out.push_str("v1.i256 = evm_mload 64.i256;\n");
-        } else {
-            // deploy = logical + base; overflow -> invalid; otherwise copy runtime
-            writeln!(out, "v2.i256 = evm_mload {fmp}.i256;\nv1.i256 = add v2 {base}.i256;\nv3.i1 = lt v1 v2;\nbr v3 block3 block4;\nblock3:\nevm_invalid;\nblock4:").unwrap();
-        }
-        writeln!(out, "evm_code_copy v1 v0 {}.i256;", runtime.len()).unwrap();
-        for (id, _) in module.iter_immutables() {
-            let tmp = 30
-                + module.functions.iter().map(|f| f.params.len()).max().unwrap_or(0)
-                + id.index() * 2;
-            writeln!(out, "v{tmp}.i256 = evm_mload {}.i256;\nv{}.i256 = add v1 {}.i256;\nevm_mstore v{} v{tmp};", base + immutable_staging_base(module) + id.index() as u64 * 32, tmp + 1, runtime.len() - super::alternative::runtime_tail_size(module) - (module.immutable_count() - id.index()) * 33 + 1, tmp + 1).unwrap();
-        }
-        writeln!(out, "evm_return v1 {}.i256;\n}}", runtime.len()).unwrap();
-    } else {
-        out.push_str("evm_stop;\n}\n");
-    }
     let mut reachable = CallGraphInfo::new(module).reachable_callees_from(root);
     if let Some(id) = root {
         reachable.insert(id);
     }
+    let mut functions = vec![None; module.functions.len()];
     for fid in reachable.iter() {
         let f = &module.functions[fid];
-        let frame =
-            f.num_values() + f.arg_indices().count() + 6 * f.num_insts() + f.blocks.len() + 4;
-        // func fN(a0.i256, ...) -> i256 { block0: ... }
-        write!(
-            out,
-            "func private %f{}({})",
-            fid.index(),
-            (0..f.params.len())
-                .map(|i| format!("v{}.i256", f.num_values() + i))
-                .collect::<Vec<_>>()
-                .join(", ")
-        )
-        .unwrap();
-        if !f.return_components().is_empty() {
-            out.push_str(" -> i256");
-        }
-        out.push_str(" {\n");
-        for (bid, block) in f.blocks.iter_enumerated() {
-            writeln!(out, "block{}:", bid.index()).unwrap();
-            if bid.index() == 0 && super::alternative::frame_size(f) != 0 {
-                // frame = evm_mload 64; end = add frame activation_size; evm_mstore 64 end
-                writeln!(out, "v{frame}.i256 = evm_mload {fmp}.i256;\nv{}.i256 = add v{frame} {}.i256;\nevm_mstore {fmp}.i256 v{};", frame + 1, super::alternative::frame_size(f), frame + 1).unwrap();
-            }
-            if bid.index() == 0 && f.params.is_empty() {
-                // vN = evm_calldata_load (4 + 32 * argument_index)
-                for arg in f.arg_indices() {
-                    if f.selector.is_none() {
-                        return Err("unsupported lazy Sonatina argument".into());
-                    }
-                    writeln!(
-                        out,
-                        "v{}.i256 = evm_calldata_load {}.i256;",
-                        f.num_values() + arg.index(),
-                        4 + arg.index() * 32
-                    )
-                    .unwrap();
-                }
-            }
-            for &iid in &block.instructions {
-                let inst = f.inst(iid);
-                let result = f.inst_result_value(iid).map(|v| format!("v{}", v.index()));
-                let args =
-                    inst.operands().iter().map(|&v| value(f, v)).collect::<Result<Vec<_>, _>>()?;
-                if preserve_expansion
-                    && matches!(inst.kind, InstKind::MLoad(..) | InstKind::Keccak256(..))
-                {
-                    // mcopy address address length: preserve expansion if the read becomes dead.
-                    let length =
-                        if matches!(inst.kind, InstKind::MLoad(..)) { "32.i256" } else { &args[1] };
-                    writeln!(out, "evm_mcopy {} {} {length};", args[0], args[0]).unwrap();
-                }
-                if let InstKind::Phi(inputs) = &inst.kind {
-                    writeln!(
-                        out,
-                        "{}.i256 = phi {};",
-                        result.as_ref().ok_or("phi without result")?,
-                        inputs
-                            .iter()
-                            .map(|&(b, v)| Ok(format!("({} block{})", value(f, v)?, b.index())))
-                            .collect::<Result<Vec<_>, String>>()?
-                            .join(" ")
-                    )
-                    .unwrap();
-                    continue;
-                }
-                if let InstKind::LoadImmutable(id) = inst.kind {
-                    let result = result.ok_or("immutable without result")?;
-                    if constructor {
-                        // result = evm_mload staging[id]
-                        writeln!(
-                            out,
-                            "{result}.i256 = evm_mload {}.i256;",
-                            base + immutable_staging_base(module) + id.index() as u64 * 32
-                        )
-                        .unwrap();
-                    } else {
-                        // saved = mload 0; codecopy 0 (codesize - tail_offset) 32; result = mload
-                        // 0; mstore 0 saved
-                        let tmp = f.num_values()
-                            + f.arg_indices().count()
-                            + f.num_insts()
-                            + f.blocks.len()
-                            + iid.index() * 5;
-                        writeln!(out, "v{tmp}.i256 = evm_mload {base}.i256;\nv{}.i256 = evm_code_size;\nv{}.i256 = sub v{} {}.i256;\nevm_code_copy {base}.i256 v{} 32.i256;\n{result}.i256 = evm_mload {base}.i256;\nevm_mstore {base}.i256 v{tmp};", tmp+1, tmp+2, tmp+1, (module.immutable_count()-id.index())*33-1 + super::alternative::runtime_tail_size(module), tmp+2).unwrap();
-                    }
-                    continue;
-                }
-                if let InstKind::InternalFrameAddr(offset) = inst.kind {
-                    writeln!(
-                        out,
-                        "{}.i256 = add v{frame} {offset}.i256;",
-                        result.ok_or("frame without result")?
-                    )
-                    .unwrap();
-                    continue;
-                }
-                if matches!(inst.kind, InstKind::Select(..)) {
-                    // zero = eq condition 0; flag = zext zero; mask = flag - 1; delta = yes xor no;
-                    // result = no xor (delta and mask)
-                    let tmp = f.num_values()
-                        + f.arg_indices().count()
-                        + f.num_insts()
-                        + f.blocks.len()
-                        + iid.index() * 5;
-                    writeln!(out, "v{tmp}.i1 = eq {} 0.i256;\nv{}.i256 = zext v{tmp} i256;\nv{}.i256 = sub v{} 1.i256;\nv{}.i256 = xor {} {};\nv{}.i256 = and v{} v{};\n{}.i256 = xor {} v{};", args[0], tmp+1, tmp+2, tmp+1, tmp+3, args[1], args[2], tmp+4, tmp+3, tmp+2, result.ok_or("select without result")?, args[2], tmp+4).unwrap();
-                    continue;
-                }
-                if matches!(inst.kind, InstKind::ConstructorArgsBase | InstKind::ConstructorArgsEnd)
-                {
-                    // base = 128; end = 128 + codesize - sym_size .
-                    let result = result.ok_or("constructor boundary without result")?;
-                    if matches!(inst.kind, InstKind::ConstructorArgsBase) {
-                        writeln!(out, "{result}.i256 = add {heap}.i256 0.i256;").unwrap();
-                    } else {
-                        let tmp = f.num_values()
-                            + f.arg_indices().count()
-                            + f.num_insts()
-                            + f.blocks.len()
-                            + iid.index() * 5;
-                        writeln!(out, "v{tmp}.i256 = sym_size .;\nv{}.i256 = evm_code_size;\nv{}.i256 = sub v{} v{tmp};\n{result}.i256 = add {heap}.i256 v{};", tmp+1, tmp+2, tmp+1, tmp+2).unwrap();
-                    }
-                    continue;
-                }
-                if let InstKind::DataCopy(data, ..) = &inst.kind {
-                    // address = sym_addr $dN; offset = add address data.offset; codecopy dest
-                    // offset size
-                    let tmp = f.num_values()
-                        + f.arg_indices().count()
-                        + f.num_insts()
-                        + f.blocks.len()
-                        + iid.index() * 5;
-                    writeln!(out, "v{tmp}.i256 = sym_addr $d{};\nv{}.i256 = add v{tmp} {}.i256;\nevm_code_copy {} v{} {};", data.id.index(), tmp + 1, data.offset, args[0], tmp + 1, args[1]).unwrap();
-                    continue;
-                }
-                let (name, args) = operation(module, &inst.kind, args, base)?;
-                if matches!(
-                    inst.kind,
-                    InstKind::Lt(..)
-                        | InstKind::Gt(..)
-                        | InstKind::SLt(..)
-                        | InstKind::SGt(..)
-                        | InstKind::Eq(..)
-                        | InstKind::Ne(..)
-                ) {
-                    // c.i1 = compare lhs rhs; v.i256 = zext c i256
-                    let result = result.ok_or("comparison without result")?;
-                    let predicate = f.num_values() + f.arg_indices().count() + iid.index();
-                    writeln!(
-                        out,
-                        "v{predicate}.i1 = {name} {};\n{result}.i256 = zext v{predicate} i256;",
-                        args.join(" ")
-                    )
-                    .unwrap();
-                } else {
-                    if let Some(result) = result {
-                        write!(out, "{result}.i256 = ").unwrap();
-                    } else if let InstKind::ICall {
-                        function: crate::mir::Callee::Function(function),
-                        ..
-                    } = inst.kind
-                        && !module.functions[function].return_components().is_empty()
-                    {
-                        // discarded.i256 = call callee(args)
-                        let discarded = f.num_values()
-                            + f.arg_indices().count()
-                            + f.num_insts()
-                            + f.blocks.len()
-                            + iid.index() * 5;
-                        write!(out, "v{discarded}.i256 = ").unwrap();
-                    }
-                    writeln!(out, "{name} {};", args.join(" ")).unwrap();
-                }
-            }
-            // Branches preserve MIR CFG edges; external exits remain EVM terminators.
-            match block.terminator.as_ref().ok_or("missing terminator")? {
-                Terminator::Jump(b) => writeln!(out, "jump block{};", b.index()).unwrap(),
-                Terminator::Branch { condition, then_block, else_block } => writeln!(
-                    out,
-                    "v{}.i1 = ne {} 0.i256;\nbr v{} block{} block{};",
-                    f.num_values() + f.arg_indices().count() + f.num_insts() + bid.index(),
-                    value(f, *condition)?,
-                    f.num_values() + f.arg_indices().count() + f.num_insts() + bid.index(),
-                    then_block.index(),
-                    else_block.index()
-                )
-                .unwrap(),
-                Terminator::Switch { value: v, default, cases } => writeln!(
-                    out,
-                    "br_table {} block{} {};",
-                    value(f, *v)?,
-                    default.index(),
-                    cases
-                        .iter()
-                        .map(|&(v, b)| Ok(format!("({} block{})", value(f, v)?, b.index())))
-                        .collect::<Result<Vec<_>, String>>()?
-                        .join(" ")
-                )
-                .unwrap(),
-                Terminator::Return { values } => {
-                    if values.len() > 1 {
-                        // mstore(return_base + 32 * i, result_i); mstore(32, return_base)
-                        for (i, &v) in values.iter().enumerate() {
-                            writeln!(
-                                out,
-                                "evm_mstore {}.i256 {};",
-                                base + return_base + i as u64 * 32,
-                                value(f, v)?
-                            )
-                            .unwrap();
-                        }
-                        writeln!(out, "evm_mstore {return_slot}.i256 {return_base}.i256;").unwrap();
-                    }
-                    writeln!(
-                        out,
-                        "return {};",
-                        values
-                            .iter()
-                            .take(1)
-                            .map(|&v| value(f, v))
-                            .collect::<Result<Vec<_>, _>>()?
-                            .join(" ")
-                    )
-                    .unwrap();
-                }
-                Terminator::TailCall { function, args } => {
-                    // discarded = call callee(args); evm_stop
-                    if !module.functions[*function].return_components().is_empty() {
-                        write!(out, "v{}.i256 = ", frame + 2 + bid.index()).unwrap();
-                    }
-                    writeln!(
-                        out,
-                        "call %f{} {};\nevm_stop;",
-                        function.index(),
-                        args.iter().map(|&v| value(f, v)).collect::<Result<Vec<_>, _>>()?.join(" ")
-                    )
-                    .unwrap();
-                }
-                Terminator::ReturnData { offset, size } => {
-                    writeln!(out, "evm_return {} {};", value(f, *offset)?, value(f, *size)?)
-                        .unwrap()
-                }
-                Terminator::Revert { offset, size } => {
-                    writeln!(out, "evm_revert {} {};", value(f, *offset)?, value(f, *size)?)
-                        .unwrap()
-                }
-                Terminator::Stop => out.push_str("return;\n"),
-                Terminator::Invalid => out.push_str("evm_invalid;\n"),
-                Terminator::SelfDestruct { recipient } => {
-                    writeln!(out, "evm_self_destruct {};", value(f, *recipient)?).unwrap()
-                }
-                Terminator::RevertReturndata => {
-                    // size = returndatasize; returndatacopy 0 0 size; revert 0 size
-                    let tmp =
-                        f.num_values() + f.arg_indices().count() + f.num_insts() + bid.index();
-                    writeln!(out, "v{tmp}.i256 = evm_return_data_size;\nevm_return_data_copy {base}.i256 0.i256 v{tmp};\nevm_revert {base}.i256 v{tmp};").unwrap();
-                }
-            }
-        }
-        out.push_str("}\n");
+        let returns = if f.return_components().is_empty() { &[][..] } else { &[Type::I256][..] };
+        functions[fid.index()] = Some(
+            native
+                .declare_function(Signature::new(
+                    &format!("f{}", fid.index()),
+                    Linkage::Private,
+                    &vec![Type::I256; f.params.len()],
+                    returns,
+                ))
+                .map_err(|e| e.to_string())?,
+        );
     }
-    let mut data_sections = String::new();
-    let mut globals = String::new();
-    // global const [i8; N] $dN = [bytes]; section { data $dN; }
-    for (id, data) in module.data.iter_enumerated() {
-        let bytes = data.bytes.linked();
-        writeln!(
-            globals,
-            "global private const [i8; {}] $d{} = [{}];",
-            bytes.len(),
-            id.index(),
-            bytes.iter().map(|b| (*b as i8).to_string()).collect::<Vec<_>>().join(", ")
-        )
-        .unwrap();
-        writeln!(data_sections, "data $d{};", id.index()).unwrap();
+    let mut object = ObjectBuilder::new("Contract");
+    let section = object.section("code").entry(entry);
+    let mut data = Vec::with_capacity(module.data.len());
+    for (id, bytes) in module.data.iter_enumerated() {
+        let global = declare_data(&native, format!("d{}", id.index()), bytes.bytes.linked());
+        section.data(global);
+        data.push(global);
+    }
+    let runtime_data = runtime.map(|bytes| {
+        let global = declare_data(&native, "runtime".into(), bytes);
+        section.data(global);
+        global
+    });
+    object.declare(&mut native).map_err(|e| e.to_string())?;
+
+    let fmp = base + 64;
+    let (_, heap) = super::alternative::memory_layout(module);
+    let mut b = native.func_builder::<InstInserter>(entry);
+    let block = b.append_block();
+    b.switch_to_block(block);
+    effect!(b, evm::EvmMstore, imm(&mut b, fmp), imm(&mut b, heap));
+    if constructor {
+        if let Some(id) = module.library_deploy_address() {
+            let address = word!(b, evm::EvmAddress);
+            effect!(
+                b,
+                evm::EvmMstore,
+                imm(&mut b, base + immutable_staging_base(module) + id.index() as u64 * 32),
+                address
+            );
+        }
+        if let Some(id) = root {
+            let end = word!(b, SymSize, SymbolRef::CurrentSection);
+            let size = word!(b, evm::EvmCodeSize);
+            let size = word!(b, arith::Sub, size, end);
+            effect!(b, evm::EvmCodeCopy, imm(&mut b, base + heap), end, size);
+            let end = word!(b, arith::Add, size, imm(&mut b, heap + 31));
+            let end = word!(b, logic::And, end, imm(&mut b, U256::MAX - U256::from(31)));
+            effect!(b, evm::EvmMstore, imm(&mut b, fmp), end);
+            let args = (0..module.functions[id].params.len())
+                .map(|i| word!(b, evm::EvmMload, imm(&mut b, base + heap + i as u64 * 32)))
+                .collect();
+            b.insert_call(functions[id.index()].unwrap(), args);
+        } else if !module.is_library {
+            let value = word!(b, evm::EvmCallValue);
+            let zero = predicate!(b, cmp::Eq, value, imm(&mut b, 0u64));
+            let deploy = b.append_block();
+            let revert = b.append_block();
+            effect!(b, control_flow::Br, zero, deploy, revert);
+            b.switch_to_block(revert);
+            effect!(b, evm::EvmRevert, imm(&mut b, 0u64), imm(&mut b, 0u64));
+            b.switch_to_block(deploy);
+        }
+    } else if let Some(id) = root {
+        b.insert_call(functions[id.index()].unwrap(), Default::default());
     }
     if let Some(runtime) = runtime {
-        // global const $runtime = [compiled runtime bytes]
-        writeln!(
-            globals,
-            "global private const [i8; {}] $runtime = [{}];",
-            runtime.len(),
-            runtime.iter().map(|b| (*b as i8).to_string()).collect::<Vec<_>>().join(", ")
-        )
-        .unwrap();
-        data_sections.push_str("data $runtime;\n");
+        let source = word!(b, SymAddr, SymbolRef::Global(runtime_data.unwrap()));
+        let logical = word!(b, evm::EvmMload, imm(&mut b, fmp));
+        let deploy = if base == 0 {
+            logical
+        } else {
+            let physical = word!(b, arith::Add, logical, imm(&mut b, base));
+            let overflow = predicate!(b, cmp::Lt, physical, logical);
+            let invalid = b.append_block();
+            let copy = b.append_block();
+            effect!(b, control_flow::Br, overflow, invalid, copy);
+            b.switch_to_block(invalid);
+            effect!(b, evm::EvmInvalid);
+            b.switch_to_block(copy);
+            physical
+        };
+        effect!(b, evm::EvmCodeCopy, deploy, source, imm(&mut b, runtime.len()));
+        for (id, _) in module.iter_immutables() {
+            let value = word!(
+                b,
+                evm::EvmMload,
+                imm(&mut b, base + immutable_staging_base(module) + id.index() as u64 * 32)
+            );
+            let offset = runtime.len()
+                - super::alternative::runtime_tail_size(module)
+                - (module.immutable_count() - id.index()) * 33
+                + 1;
+            let address = word!(b, arith::Add, deploy, imm(&mut b, offset));
+            effect!(b, evm::EvmMstore, address, value);
+        }
+        effect!(b, evm::EvmReturn, deploy, imm(&mut b, runtime.len()));
+    } else {
+        effect!(b, evm::EvmStop);
     }
-    out.insert_str(out.find('\n').unwrap() + 1, &globals);
-    writeln!(out, "object @Contract {{ section code {{ entry %entry; {data_sections} }} }}")
-        .unwrap();
-    Ok(out)
+    b.seal_all();
+    b.finish();
+    for fid in reachable.iter() {
+        lower_function(module, &native, fid, &functions, &data, base, constructor)?;
+    }
+    Ok(native.build())
 }
 
-fn value(f: &Function, id: ValueId) -> Result<String, String> {
-    Ok(match f.value(id) {
-        Value::Immediate(imm) => format!("{}.i256", imm.as_u256().ok_or("non-word immediate")?),
-        Value::Arg(arg) => format!("v{}", f.num_values() + arg.index()),
-        Value::Inst(inst) => {
-            format!("v{}", f.inst_result_value(*inst).ok_or("instruction without result")?.index())
+fn lower_function(
+    module: &Module,
+    native: &ModuleBuilder,
+    fid: crate::mir::FunctionId,
+    functions: &[Option<FuncRef>],
+    data: &[GlobalVariableRef],
+    base: u64,
+    constructor: bool,
+) -> Result<(), String> {
+    let f = &module.functions[fid];
+    let mut b = native.func_builder::<InstInserter>(functions[fid.index()].unwrap());
+    let blocks = f.blocks.iter().map(|_| b.append_block()).collect::<Vec<_>>();
+    let mut values = vec![None; f.num_values()];
+    // Forward references, including loop phi inputs, are patched after every definition exists.
+    for id in f.live_values() {
+        if values[id.index()].is_some() {
+            continue;
         }
-        _ => return Err("undefined value in Sonatina lowering".into()),
-    })
+        values[id.index()] = Some(match f.value(id) {
+            Value::Immediate(value) => imm(&mut b, value.as_u256().ok_or("non-word immediate")?),
+            Value::Arg(arg) if !f.params.is_empty() => b.args()[arg.index()],
+            Value::Arg(_) | Value::Inst(_) => b.make_undef_value(Type::I256),
+            _ => return Err("undefined value in Sonatina lowering".into()),
+        });
+    }
+    let mut definitions = Vec::new();
+    let preserve_expansion = super::memory::observes_size(module);
+    let (return_base, heap) = super::alternative::memory_layout(module);
+    let fmp = base + 64;
+    let mut frame = None;
+    for (bid, block) in f.blocks.iter_enumerated() {
+        b.switch_to_block(blocks[bid.index()]);
+        if bid.index() == 0 {
+            if super::alternative::frame_size(f) != 0 {
+                let start = word!(b, evm::EvmMload, imm(&mut b, fmp));
+                frame = Some(start);
+                let end =
+                    word!(b, arith::Add, start, imm(&mut b, super::alternative::frame_size(f)));
+                effect!(b, evm::EvmMstore, imm(&mut b, fmp), end);
+            }
+            if f.params.is_empty() && f.arg_indices().count() != 0 {
+                if f.selector.is_none() {
+                    return Err("unsupported lazy Sonatina argument".into());
+                }
+                let args = f
+                    .arg_indices()
+                    .map(|arg| word!(b, evm::EvmCalldataLoad, imm(&mut b, 4 + arg.index() * 32)))
+                    .collect::<Vec<_>>();
+                for id in f.live_values() {
+                    if let Value::Arg(arg) = f.value(id) {
+                        values[id.index()] = Some(args[arg.index()]);
+                    }
+                }
+            }
+        }
+        for &iid in &block.instructions {
+            let inst = f.inst(iid);
+            let args = inst
+                .operands()
+                .iter()
+                .map(|v| values[v.index()].ok_or("missing Sonatina operand"))
+                .collect::<Result<Vec<_>, _>>()?;
+            if preserve_expansion
+                && matches!(inst.kind, InstKind::MLoad(..) | InstKind::Keccak256(..))
+            {
+                let length = if matches!(inst.kind, InstKind::MLoad(..)) {
+                    imm(&mut b, 32u64)
+                } else {
+                    args[1]
+                };
+                effect!(b, evm::EvmMcopy, args[0], args[0], length);
+            }
+            let result = match &inst.kind {
+                InstKind::Phi(inputs) => Some(word!(
+                    b,
+                    control_flow::Phi,
+                    inputs
+                        .iter()
+                        .map(|(block, v)| (values[v.index()].unwrap(), blocks[block.index()]))
+                        .collect()
+                )),
+                InstKind::LoadImmutable(id) => Some(if constructor {
+                    word!(
+                        b,
+                        evm::EvmMload,
+                        imm(&mut b, base + immutable_staging_base(module) + id.index() as u64 * 32)
+                    )
+                } else {
+                    let saved = word!(b, evm::EvmMload, imm(&mut b, base));
+                    let size = word!(b, evm::EvmCodeSize);
+                    let offset = (module.immutable_count() - id.index()) * 33 - 1
+                        + super::alternative::runtime_tail_size(module);
+                    let source = word!(b, arith::Sub, size, imm(&mut b, offset));
+                    effect!(b, evm::EvmCodeCopy, imm(&mut b, base), source, imm(&mut b, 32u64));
+                    let value = word!(b, evm::EvmMload, imm(&mut b, base));
+                    effect!(b, evm::EvmMstore, imm(&mut b, base), saved);
+                    value
+                }),
+                InstKind::InternalFrameAddr(offset) => Some(word!(
+                    b,
+                    arith::Add,
+                    frame.ok_or("frame address without activation frame")?,
+                    imm(&mut b, *offset)
+                )),
+                InstKind::Select(..) => {
+                    let zero = predicate!(b, cmp::Eq, args[0], imm(&mut b, 0u64));
+                    let flag = word!(b, cast::Zext, zero, Type::I256);
+                    let mask = word!(b, arith::Sub, flag, imm(&mut b, 1u64));
+                    let delta = word!(b, logic::Xor, args[1], args[2]);
+                    let delta = word!(b, logic::And, delta, mask);
+                    Some(word!(b, logic::Xor, args[2], delta))
+                }
+                InstKind::ConstructorArgsBase => Some(imm(&mut b, heap)),
+                InstKind::ConstructorArgsEnd => {
+                    let end = word!(b, SymSize, SymbolRef::CurrentSection);
+                    let size = word!(b, evm::EvmCodeSize);
+                    let size = word!(b, arith::Sub, size, end);
+                    Some(word!(b, arith::Add, imm(&mut b, heap), size))
+                }
+                InstKind::DataCopy(source, ..) => {
+                    let address = word!(b, SymAddr, SymbolRef::Global(data[source.id.index()]));
+                    let offset = word!(b, arith::Add, address, imm(&mut b, source.offset));
+                    effect!(b, evm::EvmCodeCopy, args[0], offset, args[1]);
+                    None
+                }
+                _ => operation(&mut b, module, &inst.kind, &args, functions, base)?,
+            };
+            if let Some(id) = f.inst_result_value(iid) {
+                definitions.push((
+                    values[id.index()].ok_or("missing Sonatina result")?,
+                    result.ok_or("instruction without result")?,
+                ));
+            }
+        }
+        let value = |id: ValueId| values[id.index()].ok_or("missing Sonatina value");
+        match block.terminator.as_ref().ok_or("missing terminator")? {
+            Terminator::Jump(block) => effect!(b, control_flow::Jump, blocks[block.index()]),
+            Terminator::Branch { condition, then_block, else_block } => {
+                let condition = predicate!(b, cmp::Ne, value(*condition)?, imm(&mut b, 0u64));
+                effect!(
+                    b,
+                    control_flow::Br,
+                    condition,
+                    blocks[then_block.index()],
+                    blocks[else_block.index()]
+                );
+            }
+            Terminator::Switch { value: v, default, cases } => {
+                let cases = cases
+                    .iter()
+                    .map(|(v, block)| Ok((value(*v)?, blocks[block.index()])))
+                    .collect::<Result<Vec<_>, String>>()?;
+                effect!(b, control_flow::BrTable, value(*v)?, Some(blocks[default.index()]), cases);
+            }
+            Terminator::Return { values } => {
+                if values.len() > 1 {
+                    for (i, v) in values.iter().enumerate() {
+                        effect!(
+                            b,
+                            evm::EvmMstore,
+                            imm(&mut b, base + return_base + i as u64 * 32),
+                            value(*v)?
+                        );
+                    }
+                    effect!(b, evm::EvmMstore, imm(&mut b, base + 32), imm(&mut b, return_base));
+                }
+                b.insert_return_values(
+                    &values.iter().take(1).map(|v| value(*v)).collect::<Result<Vec<_>, _>>()?,
+                );
+            }
+            Terminator::TailCall { function, args } => {
+                b.insert_call(
+                    functions[function.index()].unwrap(),
+                    args.iter().map(|v| value(*v)).collect::<Result<_, _>>()?,
+                );
+                effect!(b, evm::EvmStop);
+            }
+            Terminator::ReturnData { offset, size } => {
+                effect!(b, evm::EvmReturn, value(*offset)?, value(*size)?)
+            }
+            Terminator::Revert { offset, size } => {
+                effect!(b, evm::EvmRevert, value(*offset)?, value(*size)?)
+            }
+            Terminator::Stop => effect!(b, evm::EvmStop),
+            Terminator::Invalid => effect!(b, evm::EvmInvalid),
+            Terminator::SelfDestruct { recipient } => {
+                effect!(b, evm::EvmSelfDestruct, value(*recipient)?)
+            }
+            Terminator::RevertReturndata => {
+                let size = word!(b, evm::EvmReturnDataSize);
+                effect!(b, evm::EvmReturnDataCopy, imm(&mut b, base), imm(&mut b, 0u64), size);
+                effect!(b, evm::EvmRevert, imm(&mut b, base), size);
+            }
+        }
+    }
+    for (placeholder, value) in definitions {
+        b.func.dfg.change_to_alias(placeholder, value);
+    }
+    b.seal_all();
+    b.finish();
+    Ok(())
+}
+
+fn declare_data(native: &ModuleBuilder, name: String, bytes: &[u8]) -> GlobalVariableRef {
+    native.declare_gv(GlobalVariableData::constant(
+        name,
+        native.declare_array_type(Type::I8, bytes.len()),
+        Linkage::Private,
+        GvInitializer::make_array(
+            bytes.iter().map(|b| GvInitializer::make_imm(*b as i8)).collect(),
+        ),
+    ))
+}
+
+fn imm<T>(b: &mut FunctionBuilder<InstInserter>, value: T) -> sonatina_ir::ValueId
+where
+    U256: UintTryFrom<T>,
+{
+    b.make_imm_value(sonatina_ir::Immediate::I256(sonatina_ir::I256::from_le_bytes(
+        &U256::from(value).to_le_bytes::<32>(),
+    )))
 }
 
 fn operation(
+    b: &mut FunctionBuilder<InstInserter>,
     module: &Module,
     inst: &InstKind,
-    mut args: Vec<String>,
+    args: &[sonatina_ir::ValueId],
+    functions: &[Option<FuncRef>],
     base: u64,
-) -> Result<(String, Vec<String>), String> {
-    let name = match inst {
-        InstKind::DataSize(size) => {
-            return Ok((
-                "add".into(),
-                vec![
-                    format!("{}.i256", size.value(module.data[size.data].bytes.linked().len())),
-                    "0.i256".into(),
-                ],
+) -> Result<Option<sonatina_ir::ValueId>, String> {
+    Ok(Some(match inst {
+        InstKind::DataSize(size) => imm(b, size.value(module.data[size.data].bytes.linked().len())),
+        InstKind::Zext(_) | InstKind::IntToPtr(_) => word!(b, arith::Add, args[0], imm(b, 0u64)),
+        InstKind::Trunc(_, bits) | InstKind::PtrToInt(_, bits) => {
+            word!(b, logic::And, args[0], imm(b, U256::MAX >> (256 - bits)))
+        }
+        InstKind::Sext(_, 1, to) => word!(b, arith::Mul, args[0], imm(b, U256::MAX >> (256 - to))),
+        InstKind::Sext(_, 160, 256) => word!(b, evm::EvmSignExtend, imm(b, 19u64), args[0]),
+        InstKind::SLt(..) => {
+            let flag = predicate!(b, cmp::Slt, args[0], args[1]);
+            word!(b, cast::Zext, flag, Type::I256)
+        }
+        InstKind::SGt(..) => {
+            let flag = predicate!(b, cmp::Sgt, args[0], args[1]);
+            word!(b, cast::Zext, flag, Type::I256)
+        }
+        InstKind::Div(..) => word!(b, evm::EvmUdiv, args[0], args[1]),
+        InstKind::SDiv(..) => word!(b, evm::EvmSdiv, args[0], args[1]),
+        InstKind::Mod(..) => word!(b, evm::EvmUmod, args[0], args[1]),
+        InstKind::SMod(..) => word!(b, evm::EvmSmod, args[0], args[1]),
+        InstKind::Exp(..) => word!(b, evm::EvmExp, args[0], args[1]),
+        InstKind::AddMod(..) => word!(b, evm::EvmAddMod, args[0], args[1], args[2]),
+        InstKind::MulMod(..) => word!(b, evm::EvmMulMod, args[0], args[1], args[2]),
+        InstKind::Byte(..) => word!(b, evm::EvmByte, args[0], args[1]),
+        InstKind::SignExtend(..) => word!(b, evm::EvmSignExtend, args[0], args[1]),
+        InstKind::Clz(..) => word!(b, evm::EvmClz, args[0]),
+        InstKind::MLoad(..) => word!(b, evm::EvmMload, args[0]),
+        InstKind::MStore(..) => {
+            effect!(b, evm::EvmMstore, args[0], args[1]);
+            return Ok(None);
+        }
+        InstKind::MStore8(..) => {
+            effect!(b, evm::EvmMstore8, args[0], args[1]);
+            return Ok(None);
+        }
+        InstKind::SLoad(..) => word!(b, evm::EvmSload, args[0]),
+        InstKind::SStore(..) => {
+            effect!(b, evm::EvmSstore, args[0], args[1]);
+            return Ok(None);
+        }
+        InstKind::TLoad(..) => word!(b, evm::EvmTload, args[0]),
+        InstKind::TStore(..) => {
+            effect!(b, evm::EvmTstore, args[0], args[1]);
+            return Ok(None);
+        }
+        InstKind::CalldataLoad(..) => word!(b, evm::EvmCalldataLoad, args[0]),
+        InstKind::CalldataSize => word!(b, evm::EvmCalldataSize),
+        InstKind::CalldataCopy(..) => {
+            effect!(b, evm::EvmCalldataCopy, args[0], args[1], args[2]);
+            return Ok(None);
+        }
+        InstKind::Caller => word!(b, evm::EvmCaller),
+        InstKind::CallValue => word!(b, evm::EvmCallValue),
+        InstKind::Address => word!(b, evm::EvmAddress),
+        InstKind::Keccak256(..) => word!(b, evm::EvmKeccak256, args[0], args[1]),
+        InstKind::CodeSize => word!(b, evm::EvmCodeSize),
+        InstKind::CodeCopy(..) => {
+            effect!(b, evm::EvmCodeCopy, args[0], args[1], args[2]);
+            return Ok(None);
+        }
+        InstKind::ExtCodeSize(..) => word!(b, evm::EvmExtCodeSize, args[0]),
+        InstKind::ExtCodeCopy(..) => {
+            effect!(b, evm::EvmExtCodeCopy, args[0], args[1], args[2], args[3]);
+            return Ok(None);
+        }
+        InstKind::ExtCodeHash(..) => word!(b, evm::EvmExtCodeHash, args[0]),
+        InstKind::ReturnDataSize => word!(b, evm::EvmReturnDataSize),
+        InstKind::ReturnDataCopy(..) => {
+            effect!(b, evm::EvmReturnDataCopy, args[0], args[1], args[2]);
+            return Ok(None);
+        }
+        InstKind::Origin => word!(b, evm::EvmOrigin),
+        InstKind::GasPrice => word!(b, evm::EvmGasPrice),
+        InstKind::BlockHash(..) => word!(b, evm::EvmBlockHash, args[0]),
+        InstKind::Coinbase => word!(b, evm::EvmCoinBase),
+        InstKind::Timestamp => word!(b, evm::EvmTimestamp),
+        InstKind::BlockNumber => word!(b, evm::EvmNumber),
+        InstKind::PrevRandao => word!(b, evm::EvmPrevRandao),
+        InstKind::GasLimit => word!(b, evm::EvmGasLimit),
+        InstKind::ChainId => word!(b, evm::EvmChainId),
+        InstKind::Balance(..) => word!(b, evm::EvmBalance, args[0]),
+        InstKind::SelfBalance => word!(b, evm::EvmSelfBalance),
+        InstKind::Gas => word!(b, evm::EvmGas),
+        InstKind::BaseFee => word!(b, evm::EvmBaseFee),
+        InstKind::BlobBaseFee => word!(b, evm::EvmBlobBaseFee),
+        InstKind::BlobHash(..) => word!(b, evm::EvmBlobHash, args[0]),
+        InstKind::MSize => word!(b, evm::EvmMsize),
+        InstKind::MCopy(..) => {
+            effect!(b, evm::EvmMcopy, args[0], args[1], args[2]);
+            return Ok(None);
+        }
+        InstKind::Create(..) => word!(b, evm::EvmCreate, args[0], args[1], args[2]),
+        InstKind::Create2(..) => word!(b, evm::EvmCreate2, args[0], args[1], args[2], args[3]),
+        InstKind::Call { .. } => {
+            word!(b, evm::EvmCall, args[0], args[1], args[2], args[3], args[4], args[5], args[6])
+        }
+        InstKind::CallCode { .. } => word!(
+            b,
+            evm::EvmCallCode,
+            args[0],
+            args[1],
+            args[2],
+            args[3],
+            args[4],
+            args[5],
+            args[6]
+        ),
+        InstKind::DelegateCall { .. } => {
+            word!(b, evm::EvmDelegateCall, args[0], args[1], args[2], args[3], args[4], args[5])
+        }
+        InstKind::StaticCall { .. } => {
+            word!(b, evm::EvmStaticCall, args[0], args[1], args[2], args[3], args[4], args[5])
+        }
+        InstKind::Log0(..) => {
+            effect!(b, evm::EvmLog0, args[0], args[1]);
+            return Ok(None);
+        }
+        InstKind::Log1(..) => {
+            effect!(b, evm::EvmLog1, args[0], args[1], args[2]);
+            return Ok(None);
+        }
+        InstKind::Log2(..) => {
+            effect!(b, evm::EvmLog2, args[0], args[1], args[2], args[3]);
+            return Ok(None);
+        }
+        InstKind::Log3(..) => {
+            effect!(b, evm::EvmLog3, args[0], args[1], args[2], args[3], args[4]);
+            return Ok(None);
+        }
+        InstKind::Log4(..) => {
+            effect!(b, evm::EvmLog4, args[0], args[1], args[2], args[3], args[4], args[5]);
+            return Ok(None);
+        }
+        InstKind::Add(..) => word!(b, arith::Add, args[0], args[1]),
+        InstKind::Sub(..) => word!(b, arith::Sub, args[0], args[1]),
+        InstKind::Mul(..) => word!(b, arith::Mul, args[0], args[1]),
+        InstKind::And(..) => word!(b, logic::And, args[0], args[1]),
+        InstKind::Or(..) => word!(b, logic::Or, args[0], args[1]),
+        InstKind::Xor(..) => word!(b, logic::Xor, args[0], args[1]),
+        InstKind::Not(..) => word!(b, logic::Not, args[0]),
+        InstKind::Shl(..) => word!(b, arith::Shl, args[0], args[1]),
+        InstKind::Shr(..) => word!(b, arith::Shr, args[0], args[1]),
+        InstKind::Sar(..) => word!(b, arith::Sar, args[0], args[1]),
+        InstKind::Lt(..) => {
+            let flag = predicate!(b, cmp::Lt, args[0], args[1]);
+            word!(b, cast::Zext, flag, Type::I256)
+        }
+        InstKind::Gt(..) => {
+            let flag = predicate!(b, cmp::Gt, args[0], args[1]);
+            word!(b, cast::Zext, flag, Type::I256)
+        }
+        InstKind::Eq(..) => {
+            let flag = predicate!(b, cmp::Eq, args[0], args[1]);
+            word!(b, cast::Zext, flag, Type::I256)
+        }
+        InstKind::Ne(..) => {
+            let flag = predicate!(b, cmp::Ne, args[0], args[1]);
+            word!(b, cast::Zext, flag, Type::I256)
+        }
+        InstKind::Fmp => word!(b, evm::EvmMload, imm(b, base + 64)),
+        InstKind::SetFmp(..) => {
+            effect!(b, evm::EvmMstore, imm(b, base + 64), args[0]);
+            return Ok(None);
+        }
+        InstKind::ICall { function: crate::mir::Callee::Function(function), .. } => {
+            return Ok(b.insert_call(
+                functions[function.index()].unwrap(),
+                args.iter().copied().collect(),
             ));
         }
-        InstKind::Zext(_) | InstKind::IntToPtr(_) => {
-            args.push("0.i256".into());
-            "add"
-        }
-        InstKind::Trunc(_, bits) | InstKind::PtrToInt(_, bits) => {
-            args.push(format!("{}.i256", alloy_primitives::U256::MAX >> (256 - bits)));
-            "and"
-        }
-        InstKind::Sext(_, 1, to) => {
-            args.push(format!("{}.i256", alloy_primitives::U256::MAX >> (256 - to)));
-            "mul"
-        }
-        InstKind::Sext(_, 160, 256) => {
-            args.insert(0, "19.i256".into());
-            "evm_signextend"
-        }
-        InstKind::Add(..)
-        | InstKind::Sub(..)
-        | InstKind::Mul(..)
-        | InstKind::And(..)
-        | InstKind::Or(..)
-        | InstKind::Xor(..)
-        | InstKind::Not(..)
-        | InstKind::Shl(..)
-        | InstKind::Shr(..)
-        | InstKind::Sar(..)
-        | InstKind::Lt(..)
-        | InstKind::Gt(..)
-        | InstKind::Eq(..)
-        | InstKind::Ne(..) => inst.mnemonic(),
-        InstKind::SLt(..) => "slt",
-        InstKind::SGt(..) => "sgt",
-        InstKind::Div(..) => "evm_udiv",
-        InstKind::SDiv(..) => "evm_sdiv",
-        InstKind::Mod(..) => "evm_umod",
-        InstKind::SMod(..) => "evm_smod",
-        InstKind::Exp(..) => "evm_exp",
-        InstKind::AddMod(..) => "evm_add_mod",
-        InstKind::MulMod(..) => "evm_mul_mod",
-        InstKind::Byte(..) => "evm_byte",
-        InstKind::SignExtend(..) => "evm_signextend",
-        InstKind::Clz(..) => "evm_clz",
-        InstKind::MLoad(..) => "evm_mload",
-        InstKind::MStore(..) => "evm_mstore",
-        InstKind::MStore8(..) => "evm_mstore8",
-        InstKind::Fmp => {
-            args.push(format!("{}.i256", base + 64));
-            "evm_mload"
-        }
-        InstKind::SetFmp(..) => {
-            args.insert(0, format!("{}.i256", base + 64));
-            "evm_mstore"
-        }
-        InstKind::SLoad(..) => "evm_sload",
-        InstKind::SStore(..) => "evm_sstore",
-        InstKind::TLoad(..) => "evm_tload",
-        InstKind::TStore(..) => "evm_tstore",
-        InstKind::CalldataLoad(..) => "evm_calldata_load",
-        InstKind::CalldataSize => "evm_calldata_size",
-        InstKind::CalldataCopy(..) => "evm_calldata_copy",
-        InstKind::Caller => "evm_caller",
-        InstKind::CallValue => "evm_call_value",
-        InstKind::Address => "evm_address",
-        InstKind::Keccak256(..) => "evm_keccak256",
-        InstKind::CodeSize => "evm_code_size",
-        InstKind::CodeCopy(..) => "evm_code_copy",
-        InstKind::ExtCodeSize(..) => "evm_ext_code_size",
-        InstKind::ExtCodeCopy(..) => "evm_ext_code_copy",
-        InstKind::ExtCodeHash(..) => "evm_ext_code_hash",
-        InstKind::ReturnDataSize => "evm_return_data_size",
-        InstKind::ReturnDataCopy(..) => "evm_return_data_copy",
-        InstKind::Origin => "evm_origin",
-        InstKind::GasPrice => "evm_gas_price",
-        InstKind::BlockHash(..) => "evm_block_hash",
-        InstKind::Coinbase => "evm_coin_base",
-        InstKind::Timestamp => "evm_timestamp",
-        InstKind::BlockNumber => "evm_number",
-        InstKind::PrevRandao => "evm_prev_randao",
-        InstKind::GasLimit => "evm_gas_limit",
-        InstKind::ChainId => "evm_chain_id",
-        InstKind::Balance(..) => "evm_balance",
-        InstKind::SelfBalance => "evm_self_balance",
-        InstKind::Gas => "evm_gas",
-        InstKind::BaseFee => "evm_base_fee",
-        InstKind::BlobBaseFee => "evm_blob_base_fee",
-        InstKind::BlobHash(..) => "evm_blob_hash",
-        InstKind::MSize => "evm_msize",
-        InstKind::MCopy(..) => "evm_mcopy",
-        InstKind::Create(..) => "evm_create",
-        InstKind::Create2(..) => "evm_create2",
-        InstKind::Call { .. } => "evm_call",
-        InstKind::CallCode { .. } => "evm_call_code",
-        InstKind::DelegateCall { .. } => "evm_delegate_call",
-        InstKind::StaticCall { .. } => "evm_static_call",
-        InstKind::Log0(..) => "evm_log0",
-        InstKind::Log1(..) => "evm_log1",
-        InstKind::Log2(..) => "evm_log2",
-        InstKind::Log3(..) => "evm_log3",
-        InstKind::Log4(..) => "evm_log4",
-        InstKind::ICall { function: crate::mir::Callee::Function(function), .. } => {
-            args.insert(0, format!("%f{}", function.index()));
-            "call"
-        }
         _ => return Err(format!("unsupported Sonatina instruction `{}`", inst.mnemonic())),
+    }))
+}
+
+fn memory_bound(snapshot: &str) -> Result<u64, String> {
+    let invalid = || "unrecognized Sonatina memory plan snapshot".to_string();
+    let mut lines = snapshot.lines();
+    let header = lines.next().ok_or_else(invalid)?.split_whitespace().collect::<Vec<_>>();
+    let ["evm", "mem", "plan:", bound, arena, scratch, stable] = header.as_slice() else {
+        return Err(invalid());
     };
-    Ok((name.into(), args))
+    let bound = snapshot_number(bound, "global_dyn_base=0x", 16)?;
+    let arena = snapshot_number(arena, "arena_base=0x", 16)?;
+    let scratch = snapshot_number(scratch, "scratch_peak_words=", 10)?;
+    let stable = snapshot_number(stable, "stable_chain_peak_words=", 10)?;
+    if scratch
+        .checked_add(stable)
+        .and_then(|words| words.checked_mul(32))
+        .and_then(|bytes| arena.checked_add(bytes))
+        != Some(bound)
+    {
+        return Err(invalid());
+    }
+    let mut functions = 0;
+    let mut spills = false;
+    let mut dynamic = false;
+    for line in lines {
+        let fields = line.split_whitespace().collect::<Vec<_>>();
+        match fields.as_slice() {
+            ["evm", "mem", "plan:", _, scratch, stable, mode, entry, end] => {
+                snapshot_number(scratch, "scratch_words=", 10)?;
+                snapshot_number(stable, "stable_words=", 10)?;
+                snapshot_number(entry, "entry_abs_words=", 10)?;
+                snapshot_number(end, "abs_words_end=", 10)?;
+                match *mode {
+                    "stable_mode=None" => {}
+                    "stable_mode=DynamicFrame" => dynamic = true,
+                    mode => {
+                        snapshot_number(
+                            mode.strip_suffix(')').ok_or_else(invalid)?,
+                            "stable_mode=StableAbs(base=0x",
+                            16,
+                        )?;
+                    }
+                }
+                functions += 1;
+            }
+            ["scratch_spill", value, slot, address] if functions != 0 => {
+                snapshot_number(value, "v", 10)?;
+                snapshot_number(slot, "slot=", 10)?;
+                snapshot_number(address, "addr=0x", 16)?;
+                spills = true;
+            }
+            ["spill", value, offset, location, address] if functions != 0 => {
+                snapshot_number(value, "v", 10)?;
+                snapshot_number(offset, "offset_words=", 10)?;
+                let location = location
+                    .strip_prefix("loc=")
+                    .and_then(|s| s.strip_suffix(')'))
+                    .ok_or_else(invalid)?;
+                let (kind, offset) = location.split_once('(').ok_or_else(invalid)?;
+                if !matches!(kind, "ScratchAbs" | "StableAbs" | "StableFrame") {
+                    return Err(invalid());
+                }
+                snapshot_number(offset, "", 10)?;
+                snapshot_number(
+                    address,
+                    if kind == "StableFrame" { "addr=sp-0x" } else { "addr=0x" },
+                    16,
+                )?;
+                spills = true;
+            }
+            ["call", inst, callee, "preserve=ShadowRuns", shadow, results, saved, runs @ ..]
+                if functions != 0 =>
+            {
+                snapshot_number(inst, "inst", 10)?;
+                if callee.strip_prefix("callee=%").is_none_or(str::is_empty)
+                    || runs.first().is_none_or(|s| !s.starts_with("runs=["))
+                    || runs.last().is_none_or(|s| !s.ends_with(']'))
+                {
+                    return Err(invalid());
+                }
+                snapshot_number(shadow, "shadow_obj=", 10)?;
+                snapshot_number(results, "result_count=", 10)?;
+                snapshot_number(saved, "save_words=", 10)?;
+            }
+            _ => return Err(invalid()),
+        }
+    }
+    if functions == 0 {
+        return Err(invalid());
+    }
+    if dynamic {
+        return Err("Sonatina recursive spills require dynamic native frames".into());
+    }
+    Ok(if spills || bound > arena { bound } else { 0 })
+}
+
+fn snapshot_number(text: &str, prefix: &str, radix: u32) -> Result<u64, String> {
+    text.strip_prefix(prefix)
+        .filter(|text| !text.is_empty() && text.chars().all(|c| c.is_digit(radix)))
+        .and_then(|text| u64::from_str_radix(text, radix).ok())
+        .ok_or_else(|| "unrecognized Sonatina memory plan snapshot".into())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const EMPTY_PLAN: &str = "evm mem plan: global_dyn_base=0x80 arena_base=0x80 scratch_peak_words=0 stable_chain_peak_words=0\nevm mem plan: entry scratch_words=0 stable_words=0 stable_mode=None entry_abs_words=0 abs_words_end=0\n";
+
+    #[test]
+    fn native_memory_bound() {
+        assert_eq!(memory_bound(EMPTY_PLAN), Ok(0));
+        assert_eq!(
+            memory_bound(&format!("{EMPTY_PLAN}  scratch_spill v7 slot=0 addr=0x0\n")),
+            Ok(128)
+        );
+        assert_eq!(
+            memory_bound(
+                "evm mem plan: global_dyn_base=0xc0 arena_base=0x80 scratch_peak_words=1 stable_chain_peak_words=1\nevm mem plan: entry scratch_words=1 stable_words=1 stable_mode=StableAbs(base=0xa0) entry_abs_words=1 abs_words_end=2\n  spill v7 offset_words=0 loc=StableAbs(0) addr=0xa0\n"
+            ),
+            Ok(192)
+        );
+        snapbox::assert_data_eq!(
+            memory_bound(&EMPTY_PLAN.replace("stable_mode=None", "stable_mode=DynamicFrame"))
+                .unwrap_err(),
+            snapbox::str!["Sonatina recursive spills require dynamic native frames"]
+        );
+    }
+
+    #[test]
+    fn reject_changed_memory_snapshot() {
+        for snapshot in [
+            EMPTY_PLAN.replace("global_dyn_base", "dynamic_base"),
+            EMPTY_PLAN.replace("arena_base=0x80", "arena_base=unknown"),
+            EMPTY_PLAN.replace("stable_mode=None", "stable_mode=NewMode"),
+            EMPTY_PLAN.replace("global_dyn_base=0x80", "global_dyn_base=0xa0"),
+            EMPTY_PLAN.replace("global_dyn_base=0x80", "global_dyn_base=0x10000000000000000"),
+            EMPTY_PLAN.lines().next().unwrap().to_string(),
+            format!("{EMPTY_PLAN}  new_spill v7 offset=0\n"),
+        ] {
+            snapbox::assert_data_eq!(
+                memory_bound(&snapshot).unwrap_err(),
+                snapbox::str!["unrecognized Sonatina memory plan snapshot"]
+            );
+        }
+    }
 }

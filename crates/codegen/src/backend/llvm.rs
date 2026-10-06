@@ -3,7 +3,10 @@
 //! Word arithmetic uses i256, with EVM intrinsics for operations whose behavior
 //! differs from LLVM on zero divisors or oversized shifts. Address spaces keep
 //! heap, calldata, code, and persistent storage separate. LLVM keeps SSA phis
-//! and CFG edges until its own optimizer and EVM stack scheduler run.
+//! and CFG edges until its own optimizer and EVM stack scheduler run. Typed
+//! builders emit reachable blocks in reverse postorder and attach phi inputs
+//! after all definitions exist. Text serialization is only a worker transport
+//! and diagnostic output format.
 //! Native emission runs in a child of the statically linked CLI so fatal LLVM
 //! failures become diagnostics. Native object relocations resolve constructor
 //! sizes and immutable offsets. Activation frames use the heap; the worker reports
@@ -12,18 +15,25 @@
 use super::{assembler::ImmutableRef, evm::EvmArtifact};
 use crate::mir::{
     Function, ImmutableId, InstKind, Module, Terminator, TypeSize, Value, ValueId,
-    analysis::CallGraphInfo, immutable::immutable_staging_base,
+    analysis::{CallGraphInfo, CfgInfo},
+    immutable::immutable_staging_base,
 };
 use inkwell::{
-    OptimizationLevel,
+    AddressSpace, IntPredicate, OptimizationLevel,
+    attributes::{Attribute, AttributeLoc},
+    builder::Builder,
+    context::Context,
+    intrinsics::Intrinsic,
     memory_buffer::{CodeSegment, MemoryBuffer},
+    module::{Linkage, Module as LlvmModule},
     passes::PassBuilderOptions,
     targets::{CodeModel, FileType, InitializationConfig, RelocMode, Target, TargetTriple},
+    types::IntType,
+    values::{BasicMetadataValueEnum, BasicValue, FunctionValue, IntValue, PointerValue},
 };
 use solar_config::OptimizationMode;
 use std::{
     collections::{BTreeMap, BTreeSet},
-    fmt::Write,
     io::{Read, Write as IoWrite},
     path::PathBuf,
     process::{Command, ExitCode, Stdio},
@@ -116,55 +126,43 @@ fn compile_with_memory(
     base: u64,
     required: &mut u64,
 ) -> Result<EvmArtifact, String> {
+    lower_contract(module, optimization, base, required).map_err(|e| e.to_string())
+}
+
+type LowerResult<T> = Result<T, Box<dyn std::error::Error>>;
+
+fn lower_contract(
+    module: &Module,
+    optimization: OptimizationMode,
+    base: u64,
+    required: &mut u64,
+) -> LowerResult<EvmArtifact> {
+    let context = Context::create();
     let memory = MemoryLayout { base, preserve_expansion: super::memory::observes_size(module) };
     let fmp = base + 64;
     let entry = module.dispatch_entry().ok_or("missing runtime entry")?;
     let staging = immutable_staging_base(module);
     let (_, args_base) = super::alternative::memory_layout(module);
     let graph = CallGraphInfo::new(module);
-    let mut declarations = BTreeSet::from(["declare void @llvm.evm.stop()".into()]);
-    let mut functions = String::new();
+    let mut runtime_ir = Lowering::new(&context, module, memory);
     let mut reachable = graph.reachable_callees_from([entry]);
     reachable.insert(entry);
     for id in reachable.iter() {
-        function(
-            module,
-            &module.functions[id],
-            id.index(),
-            false,
-            memory,
-            &mut functions,
-            &mut declarations,
-        )?;
+        runtime_ir.function(&module.functions[id], id.index(), false)?;
     }
-    let mut globals = String::new();
-    // @dN = private addrspace(4) constant [N x i8] c"bytes"
-    for (id, data) in module.data.iter_enumerated() {
-        let bytes = data.bytes.linked();
-        writeln!(
-            globals,
-            "@d{} = private addrspace(4) constant [{} x i8] c\"{}\"",
-            id.index(),
-            bytes.len(),
-            bytes.iter().map(|b| format!("\\{b:02X}")).collect::<String>()
-        )
-        .unwrap();
-    }
-    // __entry: initialize heap; call dispatch; stop
-    let runtime_text = format!(
-        "{}\n{globals}\ndefine void @__entry() noreturn \"evm-entry-function\" #0 {{\nentry:\nstore i256 {args_base}, ptr addrspace(1) inttoptr (i256 {fmp} to ptr addrspace(1)), align 1\ncall void @f{}()\ncall void @llvm.evm.stop()\nunreachable\n}}\n{functions}\n{}\n{}",
-        header(),
-        entry.index(),
-        declarations.iter().cloned().collect::<Vec<_>>().join("\n"),
-        attributes()
-    );
+    runtime_ir.entry();
+    runtime_ir.store(runtime_ir.word(fmp), runtime_ir.word(args_base), 1)?;
+    runtime_ir.builder.build_call(runtime_ir.functions[entry.index()], &[], "")?;
+    runtime_ir.exit("stop", &[])?;
+    runtime_ir.module.verify().map_err(|e| e.to_string())?;
+    let runtime_text = runtime_ir.module.print_to_string().to_string();
     let mut runtime = assemble(&runtime_text, optimization, false, base, required)?;
     if *required > base {
         return Ok(EvmArtifact::default());
     }
     super::alternative::append_runtime_tail(module, &mut runtime.bytes);
-    declarations.clear();
-    functions.clear();
+
+    let mut init = Lowering::new(&context, module, memory);
     let constructor = module
         .functions
         .iter_enumerated()
@@ -175,82 +173,63 @@ fn compile_with_memory(
         reachable.insert(id);
     }
     for id in reachable.iter() {
-        function(
-            module,
-            &module.functions[id],
-            id.index(),
-            true,
-            memory,
-            &mut functions,
-            &mut declarations,
-        )?;
+        init.function(&module.functions[id], id.index(), true)?;
     }
-    let mut init = format!(
-        "{}\n{globals}\n@runtime = private addrspace(4) constant [{} x i8] c\"{}\"\ndefine void @__entry() noreturn \"evm-entry-function\" #0 {{\nentry:\nstore i256 {args_base}, ptr addrspace(1) inttoptr (i256 {fmp} to ptr addrspace(1)), align 1\n",
-        header(),
-        runtime.bytes.len(),
-        runtime.bytes.iter().map(|b| format!("\\{b:02X}")).collect::<String>()
-    );
+    let runtime_data = init.data("runtime", &runtime.bytes);
+    let entry = init.entry();
+    init.store(init.word(fmp), init.word(args_base), 1)?;
     if let Some(id) = module.library_deploy_address() {
-        // deploy_address = address; mstore(staging[id], deploy_address)
-        call("address", Some("%address".into()), vec![], &mut init, &mut declarations);
-        writeln!(
-            init,
-            "store i256 %address, ptr addrspace(1) inttoptr (i256 {} to ptr addrspace(1)), align 1",
-            base + staging + id.index() as u64 * 32
-        )
-        .unwrap();
+        let address = init.evm_word("address", &[], "address")?;
+        init.store(init.word(base + staging + id.index() as u64 * 32), address, 1)?;
     }
     if let Some(id) = constructor {
-        // end = datasize(Contract); size = codesize - end; codecopy(args_base, end, size)
-        call(
-            "datasize",
-            Some("%end".into()),
-            vec![("metadata".into(), "!0".into())],
-            &mut init,
-            &mut declarations,
-        );
-        call("codesize", Some("%total".into()), vec![], &mut init, &mut declarations);
-        writeln!(init, "%size = sub i256 %total, %end").unwrap();
-        copy_memory(
-            4,
-            false,
-            &(base + args_base).to_string(),
-            "%end",
-            "%size",
-            &mut init,
-            &mut declarations,
-        );
-        writeln!(init, "%rounded = add i256 %size, {}\n%free = and i256 %rounded, -32\nstore i256 %free, ptr addrspace(1) inttoptr (i256 {fmp} to ptr addrspace(1)), align 1", args_base + 31).unwrap();
-        for i in 0..module.functions[id].params.len() {
-            writeln!(init, "%arg{i} = load i256, ptr addrspace(1) inttoptr (i256 {} to ptr addrspace(1)), align 1", base + args_base + i as u64 * 32).unwrap();
-        }
-        writeln!(
-            init,
-            "call void @f{}({})",
-            id.index(),
-            (0..module.functions[id].params.len())
-                .map(|i| format!("i256 %arg{i}"))
-                .collect::<Vec<_>>()
-                .join(", ")
-        )
-        .unwrap();
+        let size = init.constructor_args_size()?;
+        init.copy_memory(4, false, init.word(base + args_base), size.0, size.1)?;
+        let rounded = init.builder.build_int_add(size.1, init.word(args_base + 31), "rounded")?;
+        let free = init.builder.build_and(rounded, init.word(31).const_not(), "free")?;
+        init.store(init.word(fmp), free, 1)?;
+        let args = (0..module.functions[id].params.len())
+            .map(|i| {
+                init.load(init.word(base + args_base + i as u64 * 32), 1, false, &format!("arg{i}"))
+                    .map(Into::into)
+            })
+            .collect::<LowerResult<Vec<_>>>()?;
+        init.builder.build_call(init.functions[id.index()], &args, "")?;
     } else if !module.is_library {
-        // callvalue != 0 -> revert; otherwise continue deployment.
-        declarations.insert("declare i256 @llvm.evm.callvalue()".into());
-        declarations.insert("declare void @llvm.evm.revert(ptr addrspace(1), i256)".into());
-        init.push_str("%value = call i256 @llvm.evm.callvalue()\n%payable = icmp eq i256 %value, 0\nbr i1 %payable, label %postlude, label %reject\nreject:\ncall void @llvm.evm.revert(ptr addrspace(1) null, i256 0)\nunreachable\npostlude:\n");
+        let value = init.evm_word("callvalue", &[], "value")?;
+        let payable =
+            init.builder.build_int_compare(IntPredicate::EQ, value, init.word(0), "payable")?;
+        let reject = context.append_basic_block(entry, "reject");
+        let postlude = context.append_basic_block(entry, "postlude");
+        init.builder.build_conditional_branch(payable, postlude, reject)?;
+        init.builder.position_at_end(reject);
+        init.exit(
+            "revert",
+            &[context.ptr_type(AddressSpace::from(1)).const_null().into(), init.word(0).into()],
+        )?;
+        init.builder.position_at_end(postlude);
     }
-    // deploy = mload(64); codecopy(deploy, runtime, size); patch immutables; return(deploy, size)
-    if base == 0 {
-        init.push_str("%deploy = load i256, ptr addrspace(1) inttoptr (i256 64 to ptr addrspace(1)), align 1\n");
+    let logical_deploy = init.load(init.word(fmp), 1, false, "logical_deploy")?;
+    let deploy = if base == 0 {
+        logical_deploy
     } else {
-        // deploy = logical + base; overflow -> invalid; otherwise copy runtime
-        declarations.insert("declare void @llvm.evm.invalid()".into());
-        writeln!(init, "%logical_deploy = load i256, ptr addrspace(1) inttoptr (i256 {fmp} to ptr addrspace(1)), align 1\n%deploy = add i256 %logical_deploy, {base}\n%overflowed = icmp ult i256 %deploy, %logical_deploy\nbr i1 %overflowed, label %overflow, label %copy_runtime\noverflow:\ncall void @llvm.evm.invalid()\nunreachable\ncopy_runtime:").unwrap();
-    }
-    init.push_str("%deployptr = inttoptr i256 %deploy to ptr addrspace(1)\n");
-    writeln!(init, "call void @llvm.memcpy.p1.p4.i256(ptr addrspace(1) %deployptr, ptr addrspace(4) @runtime, i256 {}, i1 false)", runtime.bytes.len()).unwrap();
+        let deploy = init.builder.build_int_add(logical_deploy, init.word(base), "deploy")?;
+        let overflowed = init.builder.build_int_compare(
+            IntPredicate::ULT,
+            deploy,
+            logical_deploy,
+            "overflowed",
+        )?;
+        let overflow = context.append_basic_block(entry, "overflow");
+        let copy = context.append_basic_block(entry, "copy_runtime");
+        init.builder.build_conditional_branch(overflowed, overflow, copy)?;
+        init.builder.position_at_end(overflow);
+        init.exit("invalid", &[])?;
+        init.builder.position_at_end(copy);
+        deploy
+    };
+    let deploy_ptr = init.pointer(deploy, 1)?;
+    init.copy_pointers(deploy_ptr, runtime_data, init.word(runtime.bytes.len() as u64), false)?;
     let mut immutable_references = Vec::new();
     for (name, offsets) in &runtime.immutables {
         let id = name
@@ -260,7 +239,8 @@ fn compile_with_memory(
         if id >= module.immutable_count() {
             return Err("invalid LLVM immutable identifier".into());
         }
-        writeln!(init, "%imm{id} = load i256, ptr addrspace(1) inttoptr (i256 {} to ptr addrspace(1)), align 1", base + staging + id as u64 * 32).unwrap();
+        let value =
+            init.load(init.word(base + staging + id as u64 * 32), 1, false, &format!("imm{id}"))?;
         for &offset in offsets {
             if offset == 0
                 || offset.checked_add(32).is_none_or(|end| end > runtime.bytes.len() as u64)
@@ -268,7 +248,8 @@ fn compile_with_memory(
             {
                 return Err("invalid LLVM immutable offset".into());
             }
-            writeln!(init, "%patch{offset} = add i256 %deploy, {offset}\n%patchptr{offset} = inttoptr i256 %patch{offset} to ptr addrspace(1)\nstore i256 %imm{id}, ptr addrspace(1) %patchptr{offset}, align 1").unwrap();
+            let patch = init.builder.build_int_add(deploy, init.word(offset), "patch")?;
+            init.store(patch, value, 1)?;
             immutable_references.push(ImmutableRef {
                 id: ImmutableId::from_usize(id),
                 code_offset: offset as usize - 1,
@@ -276,34 +257,16 @@ fn compile_with_memory(
             });
         }
     }
-    writeln!(init, "call void @llvm.evm.return(ptr addrspace(1) %deployptr, i256 {})\nunreachable\n}}\n{functions}", runtime.bytes.len()).unwrap();
-    declarations.insert(
-        "declare void @llvm.memcpy.p1.p4.i256(ptr addrspace(1), ptr addrspace(4), i256, i1 immarg)"
-            .into(),
-    );
-    declarations.insert("declare void @llvm.evm.return(ptr addrspace(1), i256)".into());
-    writeln!(
-        init,
-        "{}\n{}",
-        declarations.iter().cloned().collect::<Vec<_>>().join("\n"),
-        attributes()
-    )
-    .unwrap();
+    init.exit("return", &[deploy_ptr.into(), init.word(runtime.bytes.len() as u64).into()])?;
+    init.module.verify().map_err(|e| e.to_string())?;
+    let init_text = init.module.print_to_string().to_string();
     Ok(EvmArtifact {
-        deployment: assemble(&init, optimization, true, base, required)?.bytes,
+        deployment: assemble(&init_text, optimization, true, base, required)?.bytes,
         runtime: runtime.bytes,
         immutable_references,
-        backend_ir: Some(format!("; Runtime\n{runtime_text}\n; Deployment\n{init}")),
+        backend_ir: Some(format!("; Runtime\n{runtime_text}\n; Deployment\n{init_text}")),
         ..Default::default()
     })
-}
-
-fn attributes() -> &'static str {
-    "attributes #0 = { null_pointer_is_valid \"target-features\"=\"+osaka\" }\n!0 = !{!\"Contract\"}\n"
-}
-
-fn header() -> &'static str {
-    "target datalayout = \"E-p:256:256-i256:256:256-S256-a:256:256\"\ntarget triple = \"evm-unknown-unknown\""
 }
 
 fn assemble(
@@ -425,546 +388,655 @@ fn assemble_native(
     Ok(NativeArtifact { bytes: bytecode.as_slice().to_vec(), immutables })
 }
 
-fn function(
-    module: &Module,
-    f: &Function,
-    id: usize,
-    constructor: bool,
+struct Lowering<'ctx, 'mir> {
+    context: &'ctx Context,
+    module: LlvmModule<'ctx>,
+    builder: Builder<'ctx>,
+    word_type: IntType<'ctx>,
+    mir: &'mir Module,
     memory: MemoryLayout,
-    out: &mut String,
-    declarations: &mut BTreeSet<String>,
-) -> Result<(), String> {
-    let base = memory.base;
-    let fmp = base + 64;
-    let return_slot = base + 32;
-    let (return_base, args_base) = super::alternative::memory_layout(module);
-    let ret = if f.return_components().is_empty() { "void" } else { "i256" };
-    // define fN(i256 a0, ...) { block0: instructions; terminator }
-    writeln!(
-        out,
-        "define internal {ret} @f{id}({}) #0 {{",
-        (0..f.params.len()).map(|i| format!("i256 %a{i}")).collect::<Vec<_>>().join(", ")
-    )
-    .unwrap();
-    for (bid, block) in f.blocks.iter_enumerated() {
-        writeln!(out, "b{}:", bid.index()).unwrap();
-        if bid.index() == 0 && super::alternative::frame_size(f) != 0 {
-            // frame = mload(64); mstore(64, frame + activation_size)
-            writeln!(out, "%frame = load i256, ptr addrspace(1) inttoptr (i256 {fmp} to ptr addrspace(1)), align 1\n%frame_end = add i256 %frame, {}\nstore i256 %frame_end, ptr addrspace(1) inttoptr (i256 {fmp} to ptr addrspace(1)), align 1", super::alternative::frame_size(f)).unwrap();
-        }
-        if bid.index() == 0 && f.params.is_empty() {
-            // aN = call llvm.evm.calldataload (4 + 32 * argument_index)
-            for arg in f.arg_indices() {
-                if f.selector.is_none() {
-                    return Err("unsupported lazy LLVM argument".into());
-                }
-                declarations.insert("declare i256 @llvm.evm.calldataload(ptr addrspace(2))".into());
-                writeln!(out, "%a{} = call i256 @llvm.evm.calldataload(ptr addrspace(2) inttoptr (i256 {} to ptr addrspace(2)))", arg.index(), 4 + arg.index() * 32).unwrap();
-            }
-        }
-        for &iid in &block.instructions {
-            let inst = f.inst(iid);
-            let result = f.inst_result_value(iid).map(|v| format!("%v{}", v.index()));
-            if let InstKind::Phi(inputs) = &inst.kind {
-                writeln!(
-                    out,
-                    "{} = phi i256 {}",
-                    result.ok_or("phi without result")?,
-                    inputs
-                        .iter()
-                        .map(|&(b, v)| Ok(format!("[ {}, %b{} ]", value(f, v)?, b.index())))
-                        .collect::<Result<Vec<_>, String>>()?
-                        .join(", ")
-                )
-                .unwrap();
-                continue;
-            }
-            let args =
-                inst.operands().iter().map(|&v| value(f, v)).collect::<Result<Vec<_>, _>>()?;
-            match &inst.kind {
-                InstKind::ConstructorArgsBase if constructor => {
-                    writeln!(
-                        out,
-                        "{} = add i256 {args_base}, 0",
-                        result.ok_or("boundary without result")?
-                    )
-                    .unwrap();
-                }
-                InstKind::ConstructorArgsEnd if constructor => {
-                    // end = args_base + codesize - datasize(Contract)
-                    let result = result.ok_or("boundary without result")?;
-                    call(
-                        "datasize",
-                        Some(format!("{result}end")),
-                        vec![("metadata".into(), "!0".into())],
-                        out,
-                        declarations,
-                    );
-                    call("codesize", Some(format!("{result}total")), vec![], out, declarations);
-                    writeln!(out, "{result}size = sub i256 {result}total, {result}end\n{result} = add i256 {args_base}, {result}size").unwrap();
-                }
-                InstKind::LoadImmutable(id) if constructor => {
-                    // result = mload(staging[id])
-                    writeln!(out, "{} = load i256, ptr addrspace(1) inttoptr (i256 {} to ptr addrspace(1)), align 1", result.ok_or("immutable without result")?, base + immutable_staging_base(module) + id.index() as u64 * 32).unwrap();
-                }
-                InstKind::LoadImmutable(id) => {
-                    call(
-                        "loadimmutable",
-                        result,
-                        vec![("metadata".into(), format!("!{{!\"i{}\"}}", id.index()))],
-                        out,
-                        declarations,
-                    );
-                }
-                _ => instruction(module, &inst.kind, result, args, memory, out, declarations)?,
-            }
-        }
-        // LLVM branches retain MIR edges; external exits use noreturn EVM intrinsics.
-        match block.terminator.as_ref().ok_or("missing terminator")? {
-            Terminator::Jump(b) => writeln!(out, "br label %b{}", b.index()).unwrap(),
-            Terminator::Branch { condition, then_block, else_block } => writeln!(
-                out,
-                "%branch{} = icmp ne i256 {}, 0\nbr i1 %branch{}, label %b{}, label %b{}",
-                bid.index(),
-                value(f, *condition)?,
-                bid.index(),
-                then_block.index(),
-                else_block.index()
-            )
-            .unwrap(),
-            Terminator::Switch { value: v, default, cases } => {
-                writeln!(out, "switch i256 {}, label %b{} [", value(f, *v)?, default.index())
-                    .unwrap();
-                for &(v, b) in cases {
-                    writeln!(out, "i256 {}, label %b{}", value(f, v)?, b.index()).unwrap();
-                }
-                out.push_str("]\n");
-            }
-            Terminator::Return { values } => {
-                if values.len() > 1 {
-                    // mstore(return_base + 32 * i, result_i); mstore(32, return_base)
-                    for (i, &v) in values.iter().enumerate() {
-                        writeln!(out, "store i256 {}, ptr addrspace(1) inttoptr (i256 {} to ptr addrspace(1)), align 1", value(f, v)?, base + return_base + i as u64 * 32).unwrap();
-                    }
-                    writeln!(out, "store i256 {return_base}, ptr addrspace(1) inttoptr (i256 {return_slot} to ptr addrspace(1)), align 1").unwrap();
-                }
-                if let Some(&v) = values.first() {
-                    writeln!(out, "ret i256 {}", value(f, v)?).unwrap();
+    entry_function: FunctionValue<'ctx>,
+    functions: Vec<FunctionValue<'ctx>>,
+    globals: Vec<PointerValue<'ctx>>,
+}
+
+impl<'ctx, 'mir> Lowering<'ctx, 'mir> {
+    fn new(context: &'ctx Context, mir: &'mir Module, memory: MemoryLayout) -> Self {
+        let module = context.create_module("Contract");
+        module.set_triple(&TargetTriple::create("evm-unknown-unknown"));
+        module.set_data_layout(
+            &inkwell::targets::TargetData::create("E-p:256:256-i256:256:256-S256-a:256:256")
+                .get_data_layout(),
+        );
+        // The EVM target requires the entry function to precede every other function.
+        let entry_function =
+            module.add_function("__entry", context.void_type().fn_type(&[], false), None);
+        let word_type = context.custom_width_int_type(256);
+        let functions = mir
+            .functions
+            .iter_enumerated()
+            .map(|(id, f)| {
+                let params = vec![word_type.into(); f.params.len()];
+                let ty = if f.return_components().is_empty() {
+                    context.void_type().fn_type(&params, false)
                 } else {
-                    out.push_str("ret void\n");
-                }
-            }
-            Terminator::TailCall { function, args } => writeln!(
-                out,
-                "call {} @f{}({})\ncall void @llvm.evm.stop()\nunreachable",
-                if module.functions[*function].return_components().is_empty() {
-                    "void"
-                } else {
-                    "i256"
-                },
-                function.index(),
-                args.iter()
-                    .map(|&v| Ok(format!("i256 {}", value(f, v)?)))
-                    .collect::<Result<Vec<_>, String>>()?
-                    .join(", ")
-            )
-            .unwrap(),
-            Terminator::ReturnData { offset, size } | Terminator::Revert { offset, size } => {
-                let name = if matches!(block.terminator, Some(Terminator::ReturnData { .. })) {
-                    "return"
-                } else {
-                    "revert"
+                    word_type.fn_type(&params, false)
                 };
-                writeln!(
-                    out,
-                    "%exit{} = inttoptr i256 {} to ptr addrspace(1)",
-                    bid.index(),
-                    value(f, *offset)?
-                )
-                .unwrap();
-                call(
+                module.add_function(&format!("f{}", id.index()), ty, None)
+            })
+            .collect();
+        let mut this = Self {
+            context,
+            module,
+            builder: context.create_builder(),
+            word_type,
+            mir,
+            memory,
+            entry_function,
+            functions,
+            globals: Vec::new(),
+        };
+        this.globals = mir
+            .data
+            .iter_enumerated()
+            .map(|(id, data)| this.data(&format!("d{}", id.index()), data.bytes.linked()))
+            .collect();
+        this
+    }
+
+    fn attributes(&self, function: FunctionValue<'ctx>) {
+        function.add_attribute(
+            AttributeLoc::Function,
+            self.context.create_enum_attribute(
+                Attribute::get_named_enum_kind_id("null_pointer_is_valid"),
+                0,
+            ),
+        );
+        function.add_attribute(
+            AttributeLoc::Function,
+            self.context.create_string_attribute("target-features", "+osaka"),
+        );
+    }
+
+    fn entry(&self) -> FunctionValue<'ctx> {
+        let entry = self.entry_function;
+        self.attributes(entry);
+        entry.add_attribute(
+            AttributeLoc::Function,
+            self.context.create_enum_attribute(Attribute::get_named_enum_kind_id("noreturn"), 0),
+        );
+        entry.add_attribute(
+            AttributeLoc::Function,
+            self.context.create_string_attribute("evm-entry-function", ""),
+        );
+        self.builder.position_at_end(self.context.append_basic_block(entry, "entry"));
+        entry
+    }
+
+    fn data(&self, name: &str, bytes: &[u8]) -> PointerValue<'ctx> {
+        let value = self.context.const_string(bytes, false);
+        let global = self.module.add_global(value.get_type(), Some(AddressSpace::from(4)), name);
+        global.set_linkage(Linkage::Private);
+        global.set_constant(true);
+        global.set_initializer(&value);
+        global.as_pointer_value()
+    }
+
+    fn word(&self, value: u64) -> IntValue<'ctx> {
+        self.word_type.const_int(value, false)
+    }
+
+    fn intrinsic(
+        &self,
+        name: &str,
+        overloads: &[inkwell::types::BasicTypeEnum<'ctx>],
+        args: &[BasicMetadataValueEnum<'ctx>],
+        result: &str,
+    ) -> LowerResult<Option<IntValue<'ctx>>> {
+        let intrinsic =
+            Intrinsic::find(name).ok_or_else(|| format!("unknown LLVM intrinsic `{name}`"))?;
+        let function = intrinsic
+            .get_declaration(&self.module, overloads)
+            .ok_or_else(|| format!("invalid LLVM intrinsic overload `{name}`"))?;
+        let call = self.builder.build_call(function, args, result)?;
+        Ok(call.try_as_basic_value().basic().map(|value| value.into_int_value()))
+    }
+
+    fn evm(
+        &self,
+        name: &str,
+        args: &[BasicMetadataValueEnum<'ctx>],
+        result: &str,
+    ) -> LowerResult<Option<IntValue<'ctx>>> {
+        self.intrinsic(&format!("llvm.evm.{name}"), &[], args, result)
+    }
+
+    fn evm_word(
+        &self,
+        name: &str,
+        args: &[BasicMetadataValueEnum<'ctx>],
+        result: &str,
+    ) -> LowerResult<IntValue<'ctx>> {
+        self.evm(name, args, result)?
+            .ok_or_else(|| format!("LLVM intrinsic `{name}` has no result").into())
+    }
+
+    fn exit(&self, name: &str, args: &[BasicMetadataValueEnum<'ctx>]) -> LowerResult<()> {
+        self.evm(name, args, "")?;
+        self.builder.build_unreachable()?;
+        Ok(())
+    }
+
+    fn pointer(&self, value: IntValue<'ctx>, space: u16) -> LowerResult<PointerValue<'ctx>> {
+        Ok(self.builder.build_int_to_ptr(
+            value,
+            self.context.ptr_type(AddressSpace::from(space)),
+            "ptr",
+        )?)
+    }
+
+    fn load(
+        &self,
+        offset: IntValue<'ctx>,
+        space: u16,
+        volatile: bool,
+        name: &str,
+    ) -> LowerResult<IntValue<'ctx>> {
+        let value = self.builder.build_load(self.word_type, self.pointer(offset, space)?, name)?;
+        let instruction = value.as_instruction_value().ok_or("load without instruction")?;
+        instruction.set_alignment(1)?;
+        instruction.set_volatile(volatile)?;
+        Ok(value.into_int_value())
+    }
+
+    fn store(&self, offset: IntValue<'ctx>, value: IntValue<'ctx>, space: u16) -> LowerResult<()> {
+        self.builder.build_store(self.pointer(offset, space)?, value)?.set_alignment(1)?;
+        Ok(())
+    }
+
+    fn copy_memory(
+        &self,
+        space: u16,
+        volatile: bool,
+        dest: IntValue<'ctx>,
+        source: IntValue<'ctx>,
+        size: IntValue<'ctx>,
+    ) -> LowerResult<()> {
+        self.copy_pointers(self.pointer(dest, 1)?, self.pointer(source, space)?, size, volatile)
+    }
+
+    fn copy_pointers(
+        &self,
+        dest: PointerValue<'ctx>,
+        source: PointerValue<'ctx>,
+        size: IntValue<'ctx>,
+        volatile: bool,
+    ) -> LowerResult<()> {
+        let name = if source.get_type().get_address_space() == AddressSpace::from(1) {
+            "llvm.memmove"
+        } else {
+            "llvm.memcpy"
+        };
+        self.intrinsic(
+            name,
+            &[dest.get_type().into(), source.get_type().into(), self.word_type.into()],
+            &[
+                dest.into(),
+                source.into(),
+                size.into(),
+                self.context.bool_type().const_int(volatile.into(), false).into(),
+            ],
+            "",
+        )?;
+        Ok(())
+    }
+
+    fn constructor_args_size(&self) -> LowerResult<(IntValue<'ctx>, IntValue<'ctx>)> {
+        let metadata =
+            self.context.metadata_node(&[self.context.metadata_string("Contract").into()]);
+        let end = self.evm_word("datasize", &[metadata.into()], "end")?;
+        let total = self.evm_word("codesize", &[], "total")?;
+        Ok((end, self.builder.build_int_sub(total, end, "size")?))
+    }
+
+    fn function(&mut self, f: &Function, id: usize, constructor: bool) -> LowerResult<()> {
+        let function = self.functions[id];
+        function.set_linkage(Linkage::Internal);
+        self.attributes(function);
+        let cfg = CfgInfo::new(f);
+        let blocks = f
+            .blocks
+            .iter_enumerated()
+            .map(|(id, _)| {
+                cfg.is_reachable(id)
+                    .then(|| self.context.append_basic_block(function, &format!("b{}", id.index())))
+            })
+            .collect::<Vec<_>>();
+        let mut values = BTreeMap::new();
+        let mut args = function
+            .get_param_iter()
+            .enumerate()
+            .map(|(i, value)| {
+                value.set_name(&format!("a{i}"));
+                (i, value.into_int_value())
+            })
+            .collect::<BTreeMap<_, _>>();
+        let mut phis = Vec::new();
+        for &bid in cfg.rpo() {
+            self.builder.position_at_end(blocks[bid.index()].unwrap());
+            for &iid in &f.blocks[bid].instructions {
+                if let InstKind::Phi(inputs) = &f.inst(iid).kind {
+                    let id = f.inst_result_value(iid).ok_or("phi without result")?;
+                    let phi =
+                        self.builder.build_phi(self.word_type, &format!("v{}", id.index()))?;
+                    values.insert(id.index(), phi.as_basic_value().into_int_value());
+                    phis.push((phi, inputs));
+                }
+            }
+        }
+        let base = self.memory.base;
+        let (return_base, args_base) = super::alternative::memory_layout(self.mir);
+        let mut frame = None;
+        for &bid in cfg.rpo() {
+            let block = &f.blocks[bid];
+            self.builder.position_at_end(blocks[bid.index()].unwrap());
+            if bid.index() == 0 {
+                if super::alternative::frame_size(f) != 0 {
+                    let start = self.load(self.word(base + 64), 1, false, "frame")?;
+                    let end = self.builder.build_int_add(
+                        start,
+                        self.word(super::alternative::frame_size(f)),
+                        "frame_end",
+                    )?;
+                    self.store(self.word(base + 64), end, 1)?;
+                    frame = Some(start);
+                }
+                if f.params.is_empty() {
+                    for arg in f.arg_indices() {
+                        if f.selector.is_none() {
+                            return Err("unsupported lazy LLVM argument".into());
+                        }
+                        let pointer = self.pointer(self.word(4 + arg.index() as u64 * 32), 2)?;
+                        args.insert(
+                            arg.index(),
+                            self.evm_word(
+                                "calldataload",
+                                &[pointer.into()],
+                                &format!("a{}", arg.index()),
+                            )?,
+                        );
+                    }
+                }
+            }
+            for &iid in &block.instructions {
+                let inst = f.inst(iid);
+                if matches!(inst.kind, InstKind::Phi(_)) {
+                    continue;
+                }
+                let result = f.inst_result_value(iid);
+                let name = result.map(|v| format!("v{}", v.index())).unwrap_or_default();
+                let operands = inst
+                    .operands()
+                    .iter()
+                    .map(|&id| self.value(f, id, &values, &args))
+                    .collect::<LowerResult<Vec<_>>>()?;
+                let value = match &inst.kind {
+                    InstKind::ConstructorArgsBase if constructor => Some(self.word(args_base)),
+                    InstKind::ConstructorArgsEnd if constructor => {
+                        let (_, size) = self.constructor_args_size()?;
+                        Some(self.builder.build_int_add(self.word(args_base), size, &name)?)
+                    }
+                    InstKind::LoadImmutable(id) if constructor => Some(self.load(
+                        self.word(base + immutable_staging_base(self.mir) + id.index() as u64 * 32),
+                        1,
+                        false,
+                        &name,
+                    )?),
+                    InstKind::LoadImmutable(id) => {
+                        let metadata = self.context.metadata_node(&[self
+                            .context
+                            .metadata_string(&format!("i{}", id.index()))
+                            .into()]);
+                        Some(self.evm_word("loadimmutable", &[metadata.into()], &name)?)
+                    }
+                    _ => self.instruction(&inst.kind, operands, frame, &name)?,
+                };
+                if let Some(id) = result {
+                    values.insert(id.index(), value.ok_or("LLVM instruction without result")?);
+                }
+            }
+            let value = |id| self.value(f, id, &values, &args);
+            match block.terminator.as_ref().ok_or("missing terminator")? {
+                Terminator::Jump(b) => {
+                    self.builder.build_unconditional_branch(blocks[b.index()].unwrap())?;
+                }
+                Terminator::Branch { condition, then_block, else_block } => {
+                    let condition = self.builder.build_int_compare(
+                        IntPredicate::NE,
+                        value(*condition)?,
+                        self.word(0),
+                        "branch",
+                    )?;
+                    self.builder.build_conditional_branch(
+                        condition,
+                        blocks[then_block.index()].unwrap(),
+                        blocks[else_block.index()].unwrap(),
+                    )?;
+                }
+                Terminator::Switch { value: v, default, cases } => {
+                    let cases = cases
+                        .iter()
+                        .map(|&(v, b)| Ok((value(v)?, blocks[b.index()].unwrap())))
+                        .collect::<LowerResult<Vec<_>>>()?;
+                    self.builder.build_switch(
+                        value(*v)?,
+                        blocks[default.index()].unwrap(),
+                        &cases,
+                    )?;
+                }
+                Terminator::Return { values: returns } => {
+                    if returns.len() > 1 {
+                        for (i, &v) in returns.iter().enumerate() {
+                            self.store(
+                                self.word(base + return_base + i as u64 * 32),
+                                value(v)?,
+                                1,
+                            )?;
+                        }
+                        self.store(self.word(base + 32), self.word(return_base), 1)?;
+                    }
+                    let result = returns.first().map(|&v| value(v)).transpose()?;
+                    self.builder.build_return(result.as_ref().map(|v| v as &dyn BasicValue<'_>))?;
+                }
+                Terminator::TailCall { function, args } => {
+                    let args = args
+                        .iter()
+                        .map(|&v| value(v).map(Into::into))
+                        .collect::<LowerResult<Vec<_>>>()?;
+                    self.builder.build_call(self.functions[function.index()], &args, "")?;
+                    self.exit("stop", &[])?;
+                }
+                Terminator::ReturnData { offset, size } | Terminator::Revert { offset, size } => {
+                    let name = if matches!(block.terminator, Some(Terminator::ReturnData { .. })) {
+                        "return"
+                    } else {
+                        "revert"
+                    };
+                    self.exit(
+                        name,
+                        &[self.pointer(value(*offset)?, 1)?.into(), value(*size)?.into()],
+                    )?;
+                }
+                Terminator::Stop => self.exit("stop", &[])?,
+                Terminator::Invalid => self.exit("invalid", &[])?,
+                Terminator::SelfDestruct { recipient } => {
+                    self.exit("selfdestruct", &[value(*recipient)?.into()])?
+                }
+                Terminator::RevertReturndata => {
+                    let size = self.evm_word("returndatasize", &[], "returndata")?;
+                    self.copy_memory(3, false, self.word(base), self.word(0), size)?;
+                    self.exit("revert", &[self.pointer(self.word(base), 1)?.into(), size.into()])?;
+                }
+            }
+        }
+        for (phi, inputs) in phis {
+            for &(block, value) in inputs {
+                if let Some(block) = blocks[block.index()] {
+                    phi.add_incoming(&[(&self.value(f, value, &values, &args)?, block)]);
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn value(
+        &self,
+        f: &Function,
+        id: ValueId,
+        values: &BTreeMap<usize, IntValue<'ctx>>,
+        args: &BTreeMap<usize, IntValue<'ctx>>,
+    ) -> LowerResult<IntValue<'ctx>> {
+        match f.value(id) {
+            Value::Immediate(imm) => Ok(self.word_type.const_int_arbitrary_precision(
+                imm.as_u256().ok_or("non-word immediate")?.as_limbs(),
+            )),
+            Value::Arg(arg) => {
+                args.get(&arg.index()).copied().ok_or_else(|| "undefined LLVM argument".into())
+            }
+            Value::Inst(inst) => {
+                let id = f.inst_result_value(*inst).ok_or("instruction without result")?;
+                values
+                    .get(&id.index())
+                    .copied()
+                    .ok_or_else(|| "undefined SSA value in LLVM lowering".into())
+            }
+            _ => Err("undefined value in LLVM lowering".into()),
+        }
+    }
+
+    fn instruction(
+        &self,
+        inst: &InstKind,
+        mut args: Vec<IntValue<'ctx>>,
+        frame: Option<IntValue<'ctx>>,
+        name: &str,
+    ) -> LowerResult<Option<IntValue<'ctx>>> {
+        let value = match inst {
+            InstKind::DataSize(size) => self.word_type.const_int_arbitrary_precision(
+                size.value(self.mir.data[size.data].bytes.linked().len()).as_limbs(),
+            ),
+            InstKind::Zext(_) | InstKind::IntToPtr(_) => args[0],
+            InstKind::Trunc(_, bits) | InstKind::PtrToInt(_, bits) => {
+                let mask = self.word_type.const_int_arbitrary_precision(
+                    (alloy_primitives::U256::MAX >> (256 - bits)).as_limbs(),
+                );
+                self.builder.build_and(args[0], mask, name)?
+            }
+            InstKind::Sext(_, from, to) => {
+                let shift = self.word((256 - from) as u64);
+                let left = self.builder.build_left_shift(args[0], shift, "left")?;
+                let signed = self.builder.build_right_shift(left, shift, true, "signed")?;
+                let mask = self.word_type.const_int_arbitrary_precision(
+                    (alloy_primitives::U256::MAX >> (256 - to)).as_limbs(),
+                );
+                self.builder.build_and(signed, mask, name)?
+            }
+            InstKind::InternalFrameAddr(offset) => self.builder.build_int_add(
+                frame.ok_or("missing LLVM activation frame")?,
+                self.word(*offset),
+                name,
+            )?,
+            InstKind::DataCopy(data, ..) => {
+                // SAFETY: A single integer index addresses bytes in the constant data array.
+                let source = unsafe {
+                    self.globals[data.id.index()]
+                        .const_gep(self.context.i8_type(), &[self.word(u64::from(data.offset))])
+                };
+                self.copy_pointers(
+                    self.pointer(args[0], 1)?,
+                    source,
+                    args[1],
+                    self.memory.preserve_expansion,
+                )?;
+                return Ok(None);
+            }
+            InstKind::CalldataCopy(..)
+            | InstKind::CodeCopy(..)
+            | InstKind::ReturnDataCopy(..)
+            | InstKind::MCopy(..) => {
+                let space = match inst {
+                    InstKind::CalldataCopy(..) => 2,
+                    InstKind::CodeCopy(..) => 4,
+                    InstKind::ReturnDataCopy(..) => 3,
+                    _ => 1,
+                };
+                self.copy_memory(space, self.memory.preserve_expansion, args[0], args[1], args[2])?;
+                return Ok(None);
+            }
+            InstKind::Select(..) => {
+                let condition = self.builder.build_int_compare(
+                    IntPredicate::NE,
+                    args[0],
+                    self.word(0),
+                    "condition",
+                )?;
+                self.builder.build_select(condition, args[1], args[2], name)?.into_int_value()
+            }
+            InstKind::Clz(..) => {
+                return self.intrinsic(
+                    "llvm.ctlz",
+                    &[self.word_type.into()],
+                    &[args[0].into(), self.context.bool_type().const_zero().into()],
                     name,
-                    None,
-                    vec![
-                        ("ptr addrspace(1)".into(), format!("%exit{}", bid.index())),
-                        ("i256".into(), value(f, *size)?),
-                    ],
-                    out,
-                    declarations,
                 );
-                out.push_str("unreachable\n");
             }
-            Terminator::Stop => out.push_str("ret void\n"),
-            Terminator::Invalid => {
-                call("invalid", None, vec![], out, declarations);
-                out.push_str("unreachable\n");
+            InstKind::Log0(..)
+            | InstKind::Log1(..)
+            | InstKind::Log2(..)
+            | InstKind::Log3(..)
+            | InstKind::Log4(..)
+            | InstKind::Create(..)
+            | InstKind::Create2(..)
+            | InstKind::Call { .. }
+            | InstKind::CallCode { .. }
+            | InstKind::StaticCall { .. }
+            | InstKind::DelegateCall { .. }
+            | InstKind::ExtCodeCopy(..) => {
+                let pointers: &[(usize, u16)] = match inst {
+                    InstKind::Call { .. } | InstKind::CallCode { .. } => &[(3, 1), (5, 1)],
+                    InstKind::StaticCall { .. } | InstKind::DelegateCall { .. } => {
+                        &[(2, 1), (4, 1)]
+                    }
+                    InstKind::Create(..) | InstKind::Create2(..) => &[(1, 1)],
+                    InstKind::ExtCodeCopy(..) => &[(1, 1), (2, 4)],
+                    _ => &[(0, 1)],
+                };
+                let mut typed = args.iter().copied().map(Into::into).collect::<Vec<_>>();
+                for &(index, space) in pointers {
+                    typed[index] = self.pointer(args[index], space)?.into();
+                }
+                return self.evm(inst.mnemonic(), &typed, name);
             }
-            Terminator::SelfDestruct { recipient } => {
-                call(
-                    "selfdestruct",
-                    None,
-                    vec![("i256".into(), value(f, *recipient)?)],
-                    out,
-                    declarations,
+            InstKind::Add(..) => self.builder.build_int_add(args[0], args[1], name)?,
+            InstKind::Sub(..) => self.builder.build_int_sub(args[0], args[1], name)?,
+            InstKind::Mul(..) => self.builder.build_int_mul(args[0], args[1], name)?,
+            InstKind::And(..) => self.builder.build_and(args[0], args[1], name)?,
+            InstKind::Or(..) => self.builder.build_or(args[0], args[1], name)?,
+            InstKind::Xor(..) => self.builder.build_xor(args[0], args[1], name)?,
+            InstKind::Not(..) => self.builder.build_not(args[0], name)?,
+            InstKind::Lt(..)
+            | InstKind::Gt(..)
+            | InstKind::SLt(..)
+            | InstKind::SGt(..)
+            | InstKind::Eq(..)
+            | InstKind::Ne(..) => {
+                let predicate = match inst {
+                    InstKind::Ne(..) => IntPredicate::NE,
+                    InstKind::Lt(..) => IntPredicate::ULT,
+                    InstKind::Gt(..) => IntPredicate::UGT,
+                    InstKind::SLt(..) => IntPredicate::SLT,
+                    InstKind::SGt(..) => IntPredicate::SGT,
+                    _ => IntPredicate::EQ,
+                };
+                let cmp = self.builder.build_int_compare(predicate, args[0], args[1], "cmp")?;
+                self.builder.build_int_z_extend(cmp, self.word_type, name)?
+            }
+            InstKind::MLoad(..)
+            | InstKind::MStore(..)
+            | InstKind::SLoad(..)
+            | InstKind::SStore(..)
+            | InstKind::TLoad(..)
+            | InstKind::TStore(..)
+            | InstKind::Fmp
+            | InstKind::SetFmp(..) => {
+                let space = match inst {
+                    InstKind::SLoad(..) | InstKind::SStore(..) => 5,
+                    InstKind::TLoad(..) | InstKind::TStore(..) => 6,
+                    _ => 1,
+                };
+                if matches!(inst, InstKind::Fmp | InstKind::SetFmp(..)) {
+                    args.insert(0, self.word(self.memory.base + 64));
+                }
+                if matches!(
+                    inst,
+                    InstKind::MStore(..)
+                        | InstKind::SStore(..)
+                        | InstKind::TStore(..)
+                        | InstKind::SetFmp(..)
+                ) {
+                    self.store(args[0], args[1], space)?;
+                    return Ok(None);
+                }
+                self.load(args[0], space, space == 1 && self.memory.preserve_expansion, name)?
+            }
+            InstKind::CalldataLoad(..) | InstKind::Keccak256(..) | InstKind::MStore8(..) => {
+                if self.memory.preserve_expansion && matches!(inst, InstKind::Keccak256(..)) {
+                    self.copy_memory(1, true, args[0], args[0], args[1])?;
+                }
+                let space = if matches!(inst, InstKind::CalldataLoad(..)) { 2 } else { 1 };
+                let mut typed = vec![self.pointer(args[0], space)?.into()];
+                typed.extend(args.into_iter().skip(1).map(BasicMetadataValueEnum::from));
+                return self.evm(
+                    if matches!(inst, InstKind::Keccak256(..)) { "sha3" } else { inst.mnemonic() },
+                    &typed,
+                    name,
                 );
-                out.push_str("unreachable\n");
             }
-            Terminator::RevertReturndata => {
-                // size = returndatasize; memcpy(heap:0, returndata:0, size); revert(heap:0, size)
-                let size = format!("%returndata{}", bid.index());
-                call("returndatasize", Some(size.clone()), vec![], out, declarations);
-                copy_memory(3, false, &base.to_string(), "0", &size, out, declarations);
-                call(
-                    "revert",
-                    None,
-                    vec![
-                        (
-                            "ptr addrspace(1)".into(),
-                            format!("inttoptr (i256 {base} to ptr addrspace(1))"),
-                        ),
-                        ("i256".into(), size),
-                    ],
-                    out,
-                    declarations,
+            InstKind::ICall { function: crate::mir::Callee::Function(function), .. } => {
+                let args = args.into_iter().map(Into::into).collect::<Vec<_>>();
+                return Ok(self
+                    .builder
+                    .build_call(self.functions[function.index()], &args, name)?
+                    .try_as_basic_value()
+                    .basic()
+                    .map(|v| v.into_int_value()));
+            }
+            InstKind::Div(..)
+            | InstKind::SDiv(..)
+            | InstKind::Mod(..)
+            | InstKind::SMod(..)
+            | InstKind::Shl(..)
+            | InstKind::Shr(..)
+            | InstKind::Sar(..)
+            | InstKind::Exp(..)
+            | InstKind::AddMod(..)
+            | InstKind::MulMod(..)
+            | InstKind::Byte(..)
+            | InstKind::SignExtend(..)
+            | InstKind::CalldataSize
+            | InstKind::Caller
+            | InstKind::CallValue
+            | InstKind::CodeSize
+            | InstKind::ExtCodeSize(..)
+            | InstKind::ExtCodeHash(..)
+            | InstKind::ReturnDataSize
+            | InstKind::Origin
+            | InstKind::GasPrice
+            | InstKind::BlockHash(..)
+            | InstKind::Coinbase
+            | InstKind::Timestamp
+            | InstKind::BlockNumber
+            | InstKind::GasLimit
+            | InstKind::ChainId
+            | InstKind::Balance(..)
+            | InstKind::SelfBalance
+            | InstKind::Gas
+            | InstKind::BaseFee
+            | InstKind::BlobBaseFee
+            | InstKind::BlobHash(..)
+            | InstKind::MSize
+            | InstKind::Address => {
+                return self.evm(
+                    inst.mnemonic(),
+                    &args.into_iter().map(Into::into).collect::<Vec<_>>(),
+                    name,
                 );
-                out.push_str("unreachable\n");
             }
-        }
+            InstKind::PrevRandao => return self.evm("difficulty", &[], name),
+            other => {
+                return Err(format!("unsupported LLVM instruction `{}`", other.mnemonic()).into());
+            }
+        };
+        Ok(Some(value))
     }
-    out.push_str("}\n");
-    Ok(())
-}
-
-fn instruction(
-    module: &Module,
-    inst: &InstKind,
-    result: Option<String>,
-    mut args: Vec<String>,
-    memory: MemoryLayout,
-    out: &mut String,
-    declarations: &mut BTreeSet<String>,
-) -> Result<(), String> {
-    // result = arithmetic lhs rhs, or call an EVM intrinsic with typed operands.
-    match inst {
-        InstKind::DataSize(size) => writeln!(
-            out,
-            "{} = add i256 {}, 0",
-            result.ok_or("data size without result")?,
-            size.value(module.data[size.data].bytes.linked().len())
-        )
-        .unwrap(),
-        InstKind::Zext(_) | InstKind::IntToPtr(_) => {
-            writeln!(out, "{} = add i256 {}, 0", result.ok_or("cast without result")?, args[0])
-                .unwrap()
-        }
-        InstKind::Trunc(_, bits) | InstKind::PtrToInt(_, bits) => writeln!(
-            out,
-            "{} = and i256 {}, {}",
-            result.ok_or("cast without result")?,
-            args[0],
-            alloy_primitives::U256::MAX >> (256 - bits)
-        )
-        .unwrap(),
-        InstKind::Sext(_, from, to) => {
-            let result = result.ok_or("cast without result")?;
-            writeln!(out, "{result}left = shl i256 {}, {}\n{result}signed = ashr i256 {result}left, {}\n{result} = and i256 {result}signed, {}", args[0], 256 - from, 256 - from, alloy_primitives::U256::MAX >> (256 - to)).unwrap();
-        }
-        InstKind::InternalFrameAddr(offset) => {
-            writeln!(
-                out,
-                "{} = add i256 %frame, {offset}",
-                result.ok_or("frame address without result")?
-            )
-            .unwrap();
-        }
-        InstKind::DataCopy(data, ..) => {
-            // offset = ptrtoint(getelementptr @dN, data.offset); memcpy(heap:dest, code:offset,
-            // size)
-            let offset = format!("%data{}", out.len());
-            writeln!(out, "{offset} = ptrtoint ptr addrspace(4) getelementptr (i8, ptr addrspace(4) @d{}, i256 {}) to i256", data.id.index(), data.offset).unwrap();
-            copy_memory(
-                4,
-                memory.preserve_expansion,
-                &args[0],
-                &offset,
-                &args[1],
-                out,
-                declarations,
-            );
-        }
-        InstKind::CalldataCopy(..)
-        | InstKind::CodeCopy(..)
-        | InstKind::ReturnDataCopy(..)
-        | InstKind::MCopy(..) => {
-            let space = match inst {
-                InstKind::CalldataCopy(..) => 2,
-                InstKind::CodeCopy(..) => 4,
-                InstKind::ReturnDataCopy(..) => 3,
-                _ => 1,
-            };
-            copy_memory(
-                space,
-                memory.preserve_expansion,
-                &args[0],
-                &args[1],
-                &args[2],
-                out,
-                declarations,
-            );
-        }
-        InstKind::Select(..) => {
-            // c = icmp ne condition, 0; result = select c, yes, no
-            let result = result.ok_or("select without result")?;
-            writeln!(
-                out,
-                "{result}c = icmp ne i256 {}, 0\n{result} = select i1 {result}c, i256 {}, i256 {}",
-                args[0], args[1], args[2]
-            )
-            .unwrap();
-        }
-        InstKind::Clz(..) => {
-            declarations.insert("declare i256 @llvm.ctlz.i256(i256, i1 immarg)".into());
-            writeln!(
-                out,
-                "{} = call i256 @llvm.ctlz.i256(i256 {}, i1 false)",
-                result.ok_or("clz without result")?,
-                args[0]
-            )
-            .unwrap();
-        }
-        InstKind::Log0(..)
-        | InstKind::Log1(..)
-        | InstKind::Log2(..)
-        | InstKind::Log3(..)
-        | InstKind::Log4(..)
-        | InstKind::Create(..)
-        | InstKind::Create2(..)
-        | InstKind::Call { .. }
-        | InstKind::CallCode { .. }
-        | InstKind::StaticCall { .. }
-        | InstKind::DelegateCall { .. }
-        | InstKind::ExtCodeCopy(..) => {
-            // Convert each memory/code offset to its intrinsic address space before calling the EVM
-            // operation.
-            let pointers: &[(usize, u32)] = match inst {
-                InstKind::Call { .. } | InstKind::CallCode { .. } => &[(3, 1), (5, 1)],
-                InstKind::StaticCall { .. } | InstKind::DelegateCall { .. } => &[(2, 1), (4, 1)],
-                InstKind::Create(..) | InstKind::Create2(..) => &[(1, 1)],
-                InstKind::ExtCodeCopy(..) => &[(1, 1), (2, 4)],
-                _ => &[(0, 1)],
-            };
-            let mut typed = args.into_iter().map(|a| ("i256".into(), a)).collect::<Vec<_>>();
-            for &(index, space) in pointers {
-                let pointer = format!("%ptr{}", out.len());
-                writeln!(
-                    out,
-                    "{pointer} = inttoptr i256 {} to ptr addrspace({space})",
-                    typed[index].1
-                )
-                .unwrap();
-                typed[index] = (format!("ptr addrspace({space})"), pointer);
-            }
-            call(inst.mnemonic(), result, typed, out, declarations);
-        }
-        InstKind::Add(..)
-        | InstKind::Sub(..)
-        | InstKind::Mul(..)
-        | InstKind::And(..)
-        | InstKind::Or(..)
-        | InstKind::Xor(..) => writeln!(
-            out,
-            "{} = {} i256 {}, {}",
-            result.ok_or("arithmetic without result")?,
-            inst.mnemonic(),
-            args[0],
-            args[1]
-        )
-        .unwrap(),
-        InstKind::Not(..) => {
-            writeln!(out, "{} = xor i256 {}, -1", result.ok_or("not without result")?, args[0])
-                .unwrap()
-        }
-        InstKind::Lt(..)
-        | InstKind::Gt(..)
-        | InstKind::SLt(..)
-        | InstKind::SGt(..)
-        | InstKind::Eq(..)
-        | InstKind::Ne(..) => {
-            let result = result.ok_or("comparison without result")?;
-            let predicate = match inst {
-                InstKind::Ne(..) => "ne",
-                InstKind::Lt(..) => "ult",
-                InstKind::Gt(..) => "ugt",
-                InstKind::SLt(..) => "slt",
-                InstKind::SGt(..) => "sgt",
-                _ => "eq",
-            };
-            writeln!(out,"{result}cmp = icmp {predicate} i256 {}, {}\n{result} = zext i1 {result}cmp to i256",args[0],args[1]).unwrap();
-        }
-        InstKind::MLoad(..)
-        | InstKind::MStore(..)
-        | InstKind::SLoad(..)
-        | InstKind::SStore(..)
-        | InstKind::TLoad(..)
-        | InstKind::TStore(..)
-        | InstKind::Fmp
-        | InstKind::SetFmp(..) => {
-            let space = match inst {
-                InstKind::SLoad(..) | InstKind::SStore(..) => 5,
-                InstKind::TLoad(..) | InstKind::TStore(..) => 6,
-                _ => 1,
-            };
-            if matches!(inst, InstKind::Fmp | InstKind::SetFmp(..)) {
-                args.insert(0, (memory.base + 64).to_string());
-            }
-            let pointer = format!("%ptr{}", out.len());
-            writeln!(out, "{pointer} = inttoptr i256 {} to ptr addrspace({space})", args[0])
-                .unwrap();
-            if let Some(result) = result {
-                let volatile =
-                    if space == 1 && memory.preserve_expansion { "volatile " } else { "" };
-                writeln!(
-                    out,
-                    "{result} = load {volatile}i256, ptr addrspace({space}) {pointer}, align 1"
-                )
-                .unwrap();
-            } else {
-                writeln!(out, "store i256 {}, ptr addrspace({space}) {pointer}, align 1", args[1])
-                    .unwrap();
-            }
-        }
-        InstKind::CalldataLoad(..) | InstKind::Keccak256(..) | InstKind::MStore8(..) => {
-            if memory.preserve_expansion && matches!(inst, InstKind::Keccak256(..)) {
-                // volatile memmove(address, address, length): retain expansion if the hash is dead.
-                copy_memory(1, true, &args[0], &args[0], &args[1], out, declarations);
-            }
-            let space = if matches!(inst, InstKind::CalldataLoad(..)) { 2 } else { 1 };
-            let pointer = format!("%ptr{}", out.len());
-            writeln!(out, "{pointer} = inttoptr i256 {} to ptr addrspace({space})", args[0])
-                .unwrap();
-            let mut typed = vec![(format!("ptr addrspace({space})"), pointer)];
-            typed.extend(args.into_iter().skip(1).map(|a| ("i256".into(), a)));
-            call(
-                if matches!(inst, InstKind::Keccak256(..)) { "sha3" } else { inst.mnemonic() },
-                result,
-                typed,
-                out,
-                declarations,
-            );
-        }
-        InstKind::ICall { function: crate::mir::Callee::Function(function), .. } => {
-            if let Some(result) = &result {
-                write!(out, "{result} = ").unwrap();
-            }
-            writeln!(
-                out,
-                "call {} @f{}({})",
-                if module.functions[*function].return_components().is_empty() {
-                    "void"
-                } else {
-                    "i256"
-                },
-                function.index(),
-                args.iter().map(|v| format!("i256 {v}")).collect::<Vec<_>>().join(", ")
-            )
-            .unwrap();
-        }
-        InstKind::Div(..)
-        | InstKind::SDiv(..)
-        | InstKind::Mod(..)
-        | InstKind::SMod(..)
-        | InstKind::Shl(..)
-        | InstKind::Shr(..)
-        | InstKind::Sar(..)
-        | InstKind::Exp(..)
-        | InstKind::AddMod(..)
-        | InstKind::MulMod(..)
-        | InstKind::Byte(..)
-        | InstKind::SignExtend(..)
-        | InstKind::CalldataSize
-        | InstKind::Caller
-        | InstKind::CallValue
-        | InstKind::CodeSize
-        | InstKind::ExtCodeSize(..)
-        | InstKind::ExtCodeHash(..)
-        | InstKind::ReturnDataSize
-        | InstKind::Origin
-        | InstKind::GasPrice
-        | InstKind::BlockHash(..)
-        | InstKind::Coinbase
-        | InstKind::Timestamp
-        | InstKind::BlockNumber
-        | InstKind::GasLimit
-        | InstKind::ChainId
-        | InstKind::Balance(..)
-        | InstKind::SelfBalance
-        | InstKind::Gas
-        | InstKind::BaseFee
-        | InstKind::BlobBaseFee
-        | InstKind::BlobHash(..)
-        | InstKind::MSize
-        | InstKind::Address => {
-            call(
-                inst.mnemonic(),
-                result,
-                args.into_iter().map(|a| ("i256".into(), a)).collect(),
-                out,
-                declarations,
-            );
-        }
-        InstKind::PrevRandao => call("difficulty", result, vec![], out, declarations),
-        other => return Err(format!("unsupported LLVM instruction `{}`", other.mnemonic())),
-    }
-    Ok(())
-}
-
-fn call(
-    name: &str,
-    result: Option<String>,
-    args: Vec<(String, String)>,
-    out: &mut String,
-    declarations: &mut BTreeSet<String>,
-) {
-    let ret = if result.is_some() { "i256" } else { "void" };
-    // result = call llvm.evm.opcode(typed operands)
-    declarations.insert(format!(
-        "declare {ret} @llvm.evm.{name}({})",
-        args.iter().map(|(ty, _)| ty.as_str()).collect::<Vec<_>>().join(", ")
-    ));
-    if let Some(result) = result {
-        write!(out, "{result} = ").unwrap();
-    }
-    writeln!(
-        out,
-        "call {ret} @llvm.evm.{name}({})",
-        args.iter().map(|(ty, v)| format!("{ty} {v}")).collect::<Vec<_>>().join(", ")
-    )
-    .unwrap();
-}
-
-fn value(f: &Function, id: ValueId) -> Result<String, String> {
-    Ok(match f.value(id) {
-        Value::Immediate(imm) => imm.as_u256().ok_or("non-word immediate")?.to_string(),
-        Value::Arg(arg) => format!("%a{}", arg.index()),
-        Value::Inst(inst) => {
-            format!("%v{}", f.inst_result_value(*inst).ok_or("instruction without result")?.index())
-        }
-        _ => return Err("undefined value in LLVM lowering".into()),
-    })
-}
-
-fn copy_memory(
-    space: u32,
-    volatile: bool,
-    dest: &str,
-    source: &str,
-    size: &str,
-    out: &mut String,
-    declarations: &mut BTreeSet<String>,
-) {
-    let name = if space == 1 { "memmove" } else { "memcpy" };
-    let tmp = out.len();
-    // dest = inttoptr heap_offset; source = inttoptr source_offset; memcpy(dest, source, size)
-    writeln!(out, "%dest{tmp} = inttoptr i256 {dest} to ptr addrspace(1)\n%source{tmp} = inttoptr i256 {source} to ptr addrspace({space})\ncall void @llvm.{name}.p1.p{space}.i256(ptr addrspace(1) %dest{tmp}, ptr addrspace({space}) %source{tmp}, i256 {size}, i1 {volatile})").unwrap();
-    declarations.insert(format!("declare void @llvm.{name}.p1.p{space}.i256(ptr addrspace(1), ptr addrspace({space}), i256, i1 immarg)"));
 }

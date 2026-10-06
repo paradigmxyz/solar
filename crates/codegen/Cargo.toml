@@ -36,8 +36,8 @@ serde_json = { workspace = true, optional = true }
 
 # codegen-sonatina
 sonatina-ir = { git = "https://github.com/fe-lang/sonatina", rev = "8e6c99f67cf3f20b9672cab61d8655c2ff33a6a7", optional = true }
+sonatina-triple = { git = "https://github.com/fe-lang/sonatina", rev = "8e6c99f67cf3f20b9672cab61d8655c2ff33a6a7", optional = true }
 sonatina-codegen = { git = "https://github.com/fe-lang/sonatina", rev = "8e6c99f67cf3f20b9672cab61d8655c2ff33a6a7", optional = true }
-sonatina-parser = { git = "https://github.com/fe-lang/sonatina", rev = "8e6c99f67cf3f20b9672cab61d8655c2ff33a6a7", optional = true }
 
 # codegen-sir
 sir-parser = { git = "https://github.com/plankevm/plank-monorepo", rev = "fb3c5d7c6eb99e3b88d034aba0655ab81a6273ed", optional = true }
@@ -60,7 +60,7 @@ cranelift-isle.workspace = true
 
 [features]
 codegen-yul = ["dep:serde_json"]
-codegen-sonatina = ["dep:sonatina-codegen", "dep:sonatina-parser", "dep:sonatina-ir"]
+codegen-sonatina = ["dep:sonatina-codegen", "dep:sonatina-ir", "dep:sonatina-triple"]
 codegen-sir = ["dep:sir-parser", "dep:sir-passes", "dep:sir-release-backend", "dep:sir-stack-scheduling", "dep:sir-static-memory-allocator", "dep:bumpalo"]
 codegen-llvm = ["dep:inkwell", "dep:serde", "dep:serde_json"]
 nightly = [

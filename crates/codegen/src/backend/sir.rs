@@ -552,7 +552,7 @@ fn function(
             Terminator::Revert { offset, size } => {
                 writeln!(out, "revert {} {}", value(f, *offset)?, value(f, *size)?).unwrap()
             }
-            Terminator::Stop => out.push_str("iret\n"),
+            Terminator::Stop => out.push_str("stop\n"),
             Terminator::Invalid => out.push_str("invalid\n"),
             Terminator::SelfDestruct { recipient } => {
                 writeln!(out, "selfdestruct {}", value(f, *recipient)?).unwrap()

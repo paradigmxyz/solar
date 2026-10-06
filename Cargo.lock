@@ -2781,7 +2781,7 @@ dependencies = [
  "libc",
  "llvm-sys",
  "once_cell",
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -4766,7 +4766,7 @@ dependencies = [
  "plank-test-utils",
  "pretty_assertions",
  "sir-assembler",
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -4796,7 +4796,7 @@ dependencies = [
  "plank-evm",
  "sir-data",
  "smallvec",
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -5024,7 +5024,7 @@ dependencies = [
  "solar-sema",
  "sonatina-codegen",
  "sonatina-ir",
- "sonatina-parser",
+ "sonatina-triple",
  "tempfile",
  "tracing",
 ]
@@ -5331,7 +5331,7 @@ name = "sonatina-triple"
 version = "0.0.3-alpha"
 source = "git+https://github.com/fe-lang/sonatina?rev=8e6c99f67cf3f20b9672cab61d8655c2ff33a6a7#8e6c99f67cf3f20b9672cab61d8655c2ff33a6a7"
 dependencies = [
- "thiserror 2.0.20",
+ "thiserror 2.0.21",
 ]
 
 [[package]]

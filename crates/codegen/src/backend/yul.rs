@@ -255,7 +255,7 @@ fn functions(
                 Terminator::RevertReturndata => out.push_str(
                     "returndatacopy(physical(0), 0, returndatasize()) revert(physical(0), returndatasize())\n",
                 ),
-                Terminator::Stop => out.push_str("leave\n"),
+                Terminator::Stop => out.push_str("stop()\n"),
                 Terminator::Invalid => out.push_str("invalid()\n"),
                 Terminator::SelfDestruct { recipient } => {
                     writeln!(out, "selfdestruct({})", value(f, *recipient)?).unwrap()

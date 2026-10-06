@@ -66,7 +66,125 @@ pub(super) fn translate(module: &Module, base: u64) -> Module {
                         let size = builder.sub(physical, base);
                         kind = InstKind::Select(outside, size, zero);
                     }
-                    _ => {}
+                    InstKind::InsertValue { .. }
+                    | InstKind::ExtractValue { .. }
+                    | InstKind::Zext(..)
+                    | InstKind::Trunc(..)
+                    | InstKind::Sext(..)
+                    | InstKind::PtrToInt(..)
+                    | InstKind::IntToPtr(..)
+                    | InstKind::CheckedBinary { .. }
+                    | InstKind::ValidateStorageBytes(..)
+                    | InstKind::StorageBytesLoad(..)
+                    | InstKind::StorageArrayLoad { .. }
+                    | InstKind::StorageBytesStore(..)
+                    | InstKind::StorageBytesStoreLiteral { .. }
+                    | InstKind::StorageClearWords(..)
+                    | InstKind::ValidateAbi(..)
+                    | InstKind::AbiEncodePacked { .. }
+                    | InstKind::AddressCall { .. }
+                    | InstKind::Add(..)
+                    | InstKind::Sub(..)
+                    | InstKind::Mul(..)
+                    | InstKind::Div(..)
+                    | InstKind::SDiv(..)
+                    | InstKind::Mod(..)
+                    | InstKind::SMod(..)
+                    | InstKind::Exp(..)
+                    | InstKind::AddMod(..)
+                    | InstKind::MulMod(..)
+                    | InstKind::And(..)
+                    | InstKind::Or(..)
+                    | InstKind::Xor(..)
+                    | InstKind::Not(..)
+                    | InstKind::Clz(..)
+                    | InstKind::Shl(..)
+                    | InstKind::Shr(..)
+                    | InstKind::Sar(..)
+                    | InstKind::Byte(..)
+                    | InstKind::Lt(..)
+                    | InstKind::Gt(..)
+                    | InstKind::SLt(..)
+                    | InstKind::SGt(..)
+                    | InstKind::Eq(..)
+                    | InstKind::Ne(..)
+                    | InstKind::MemoryZero(..)
+                    | InstKind::Fmp
+                    | InstKind::SetFmp(..)
+                    | InstKind::Alloc { .. }
+                    | InstKind::MemoryObjectLen(..)
+                    | InstKind::SetMemoryObjectLen(..)
+                    | InstKind::MemoryObjectData(..)
+                    | InstKind::MemoryObjectFieldAddr { .. }
+                    | InstKind::MemoryObjectElementAddr { .. }
+                    | InstKind::MemoryObjectLoadField { .. }
+                    | InstKind::MemoryObjectStoreField { .. }
+                    | InstKind::MemoryObjectLoadElement { .. }
+                    | InstKind::MemoryObjectLoadByte { .. }
+                    | InstKind::MemoryObjectStoreElement { .. }
+                    | InstKind::MemoryObjectStoreByte { .. }
+                    | InstKind::MemoryObjectStoreWord { .. }
+                    | InstKind::MemorySliceLoadWord { .. }
+                    | InstKind::CalldataSliceLoadWord { .. }
+                    | InstKind::MemoryObjectCopyFromSlice { .. }
+                    | InstKind::MemoryObjectCopyFromSliceAt { .. }
+                    | InstKind::MemoryObjectCopy { .. }
+                    | InstKind::AbiEncode { .. }
+                    | InstKind::AbiDecode { .. }
+                    | InstKind::StorageToMemory { .. }
+                    | InstKind::MemoryToStorage { .. }
+                    | InstKind::ClearStorage { .. }
+                    | InstKind::SLoad(..)
+                    | InstKind::SStore(..)
+                    | InstKind::TLoad(..)
+                    | InstKind::TStore(..)
+                    | InstKind::CalldataLoad(..)
+                    | InstKind::CalldataSize
+                    | InstKind::MakeSlice { .. }
+                    | InstKind::SlicePtr(..)
+                    | InstKind::SliceLen(..)
+                    | InstKind::InternalFrameAddr(..)
+                    | InstKind::FrameLoad { .. }
+                    | InstKind::FrameStore { .. }
+                    | InstKind::ConstructorArgsBase
+                    | InstKind::ConstructorArgsEnd
+                    | InstKind::DataSize(..)
+                    | InstKind::CodeSize
+                    | InstKind::ExtCodeSize(..)
+                    | InstKind::ExtCodeHash(..)
+                    | InstKind::StoreImmutable(..)
+                    | InstKind::LoadImmutable(..)
+                    | InstKind::LibraryAddress(..)
+                    | InstKind::ReturnDataSize
+                    | InstKind::Caller
+                    | InstKind::CallValue
+                    | InstKind::Origin
+                    | InstKind::GasPrice
+                    | InstKind::BlockHash(..)
+                    | InstKind::Coinbase
+                    | InstKind::Timestamp
+                    | InstKind::BlockNumber
+                    | InstKind::PrevRandao
+                    | InstKind::GasLimit
+                    | InstKind::SlotNum
+                    | InstKind::ChainId
+                    | InstKind::Address
+                    | InstKind::Balance(..)
+                    | InstKind::SelfBalance
+                    | InstKind::Gas
+                    | InstKind::BaseFee
+                    | InstKind::BlobBaseFee
+                    | InstKind::BlobHash(..)
+                    | InstKind::Keccak256Bytes(..)
+                    | InstKind::MappingSlot(..)
+                    | InstKind::MappingSlotMemory(..)
+                    | InstKind::MappingSlotCalldata(..)
+                    | InstKind::StorageArrayDataSlot(..)
+                    | InstKind::StorageArrayElementSlot { .. }
+                    | InstKind::ICall { .. }
+                    | InstKind::Phi(..)
+                    | InstKind::Select(..)
+                    | InstKind::SignExtend(..) => {}
                 }
                 builder.func_mut().inst_mut(id).kind = kind;
                 builder.func_mut().blocks[block].instructions.push(id);

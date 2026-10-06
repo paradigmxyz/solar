@@ -193,9 +193,12 @@ cmake -S /path/to/solx-llvm/llvm -B target/llvm-evm \
   -DLLVM_TARGETS_TO_BUILD= -DLLVM_EXPERIMENTAL_TARGETS_TO_BUILD=EVM \
   -DLLVM_DEFAULT_TARGET_TRIPLE=evm -DLLVM_ENABLE_PROJECTS=lld \
   -DLLVM_ENABLE_RTTI=ON -DLLVM_INCLUDE_TESTS=OFF \
-  -DLLVM_INCLUDE_BENCHMARKS=OFF -DLLVM_ENABLE_ZLIB=OFF \
+  -DLLVM_INCLUDE_BENCHMARKS=OFF -DLLVM_INCLUDE_EXAMPLES=OFF \
+  -DLLVM_INCLUDE_UTILS=OFF -DLLVM_INCLUDE_RUNTIMES=OFF \
+  -DLLVM_BUILD_TOOLS=OFF -DLLD_BUILD_TOOLS=OFF -DLLVM_ENABLE_ZLIB=OFF \
   -DLLVM_ENABLE_ZSTD=OFF -DLLVM_ENABLE_LIBXML2=OFF
 cmake --build target/llvm-evm --parallel
+cmake --build target/llvm-evm --target llvm-config --parallel
 export LLVM_SYS_211_PREFIX="$PWD/target/llvm-evm"
 cargo build -p solar-compiler --bin solar
 ```
@@ -232,6 +235,11 @@ remain allocated so escaping references stay valid. This can cost more memory
 and gas than the built-in backend's frame planning.
 
 Yul uses solc's process interface; it does not link C++ libsolc into the CLI.
+LLVM and Sonatina construct their native IR with typed builders; text dumps are
+for inspection and LLVM worker transport. Sonatina uses a strict, tested parser
+for its pinned memory-plan snapshot because upstream keeps structured plan
+access private. Unknown formats stop compilation.
+
 Sonatina and SIR use their own native optimization and stack-scheduling pipelines.
 SIR uses the same upstream O2 pipeline for gas and size because it has no distinct
 size preset. LLVM uses the EVM LLVM target and linker in a child of the same
