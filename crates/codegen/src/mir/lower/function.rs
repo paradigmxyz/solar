@@ -829,8 +829,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     && rhs_ty.is_ref_at(DataLocation::Storage)
                     && self.discarded_exprs.contains(&expr.id)
                 {
-                    self.storage_access(expr)?;
-                    return Some(self.builder.imm(U256::ZERO));
+                    return self.storage_access(expr).map(|access| access.slot);
                 }
                 let fixed_bytes = operators::fixed_bytes_width(lhs_ty);
                 let memory_rhs_ty = rhs_ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
