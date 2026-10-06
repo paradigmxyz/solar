@@ -59,6 +59,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             // value = lower_builtin(member)
             return self.lower_builtin_value(expr, builtin);
         }
+        if self.discarded_exprs.contains(&expr.id) && self.cx.gcx.resolved_function(expr).is_some()
+        {
+            if !matches!(
+                self.cx.gcx.type_of_expr(receiver.id).map(|ty| ty.kind),
+                Some(TyKind::Type(_))
+            ) {
+                self.lower_discarded_expr(receiver)?;
+            }
+            return Some(self.builder.imm(0));
+        }
         if let Some(value) = self.lower_internal_function_value(expr) {
             // value = internal_function_pointer(member)
             return Some(value);

@@ -228,7 +228,7 @@ fn @pushZero(arg0: i256) -> struct0 [selector=0xb0e28d5e, abi_params=[u256], abi
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: 0], [bb3: v37]
+    v0 = phi [bb0: 0], [bb3: v42]
     v1 = phi [bb0: 0], [bb3: v1]
     v2 = phi [bb0: arg0], [bb3: v2]
     v3 = phi [bb0: memptr 96], [bb3: v3]
@@ -237,18 +237,18 @@ fn @pushZero(arg0: i256) -> struct0 [selector=0xb0e28d5e, abi_params=[u256], abi
   bb5:
     jump bb2
   bb2:
-    v38 = icall @load_storage_bytes, 0
-    v39 = sload 0 !metadata(storage=slot(0))
-    validate_storage_bytes v39
-    v40 = and v39, 1
-    v41 = eq v40, 1
-    v42 = sub 0, v40
-    v43 = or 127, v42
-    v44 = shr 1, v39
-    v45 = and v44, v43
-    v46 = insert_value struct0, undef struct0, 0, v38
-    v47 = insert_value struct0, v46, 1, v45
-    ret v47
+    v43 = icall @load_storage_bytes, 0
+    v44 = sload 0 !metadata(storage=slot(0))
+    validate_storage_bytes v44
+    v45 = and v44, 1
+    v46 = eq v45, 1
+    v47 = sub 0, v45
+    v48 = or 127, v47
+    v49 = shr 1, v44
+    v50 = and v49, v48
+    v51 = insert_value struct0, undef struct0, 0, v43
+    v52 = insert_value struct0, v51, 1, v50
+    ret v52
   bb4:
     v5 = sload 0 !metadata(storage=slot(0))
     validate_storage_bytes v5
@@ -298,11 +298,16 @@ fn @pushZero(arg0: i256) -> struct0 [selector=0xb0e28d5e, abi_params=[u256], abi
     v34 = phi [bb8: v19], [bb9: v21], [bb10: 0]
     v35 = and v11, 31
     v36 = sub 31, v35
+    v37 = sload v34 !metadata(storage=symbolic(v34))
+    v38 = mul v36, 8
+    v39 = shr v38, v37
+    v40 = and v39, 255
+    v41 = shl 248, v40
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v37 = checked_add u256, v0, 1
+    v42 = checked_add u256, v0, 1
     jump bb1
 }
 

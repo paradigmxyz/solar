@@ -11,17 +11,21 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         builtin: Builtin,
         args: hir::CallArgs<'_>,
         call_opts: Option<&hir::CallOptions<'_>>,
-        capture_value: bool,
-    ) -> Option<CallResult> {
+    ) -> Option<ValueId> {
         match builtin {
             Builtin::AddressCall | Builtin::AddressStaticcall | Builtin::AddressDelegatecall => {
                 // result = address_call(receiver, args, opts)
                 let ExprKind::Member(receiver, _) = callee.kind else {
                     return self.cx.report_unsupported(callee.span, "address call");
                 };
-                return self
-                    .lower_address_call(callee.span, receiver, builtin, args, call_opts, false)
-                    .map(CallResult::Value);
+                return self.lower_address_call(
+                    callee.span,
+                    receiver,
+                    builtin,
+                    args,
+                    call_opts,
+                    false,
+                );
             }
             Builtin::AddressPayableSend | Builtin::AddressPayableTransfer => {
                 // result = payable_address_call(receiver, args)
@@ -32,22 +36,24 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             Builtin::ArrayPush => {
                 // result = storage_array_push(receiver, value)
-                return self.builtin_args::<1>(builtin, &args).and_then(|arguments| {
-                    self.lower_storage_array_push(expr, callee, arguments.first(), capture_value)
+                let result = self.builtin_args::<1>(builtin, &args).and_then(|arguments| {
+                    self.lower_storage_array_push(expr, callee, arguments.first())
                 });
+                return Some(result.unwrap_or_else(|| self.builder.imm(U256::ZERO)));
             }
             Builtin::ArrayPush0 => {
                 // result = storage_array_push(receiver)
-                return self.builtin_args::<0>(builtin, &args).and_then(|_| {
-                    self.lower_storage_array_push(expr, callee, None, capture_value)
-                });
+                let result = self
+                    .builtin_args::<0>(builtin, &args)
+                    .and_then(|_| self.lower_storage_array_push(expr, callee, None));
+                return Some(result.unwrap_or_else(|| self.builder.imm(U256::ZERO)));
             }
             Builtin::ArrayPop => {
                 // storage_array_pop(receiver)
-                return self
+                let result = self
                     .builtin_args::<0>(builtin, &args)
-                    .and_then(|_| self.lower_storage_array_pop(expr, callee))
-                    .map(|()| CallResult::Void);
+                    .and_then(|_| self.lower_storage_array_pop(expr, callee));
+                return Some(result.unwrap_or_else(|| self.builder.imm(U256::ZERO)));
             }
             _ => {}
         }
@@ -74,17 +80,21 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // result = lower_builtin((yul | solidity), (void | value), args)
         match (is_yul, is_void) {
             (true, true) => {
-                self.lower_yul_unit_builtin_call(builtin, args).map(|()| CallResult::Void)
+                let _ = self.lower_yul_unit_builtin_call(builtin, args);
+                Some(self.builder.imm(U256::ZERO))
             }
-            (true, false) => {
-                self.lower_yul_value_builtin_call(builtin, args).map(CallResult::Value)
-            }
+            (true, false) => Some(
+                self.lower_yul_value_builtin_call(builtin, args)
+                    .unwrap_or_else(|| self.builder.imm(U256::ZERO)),
+            ),
             (false, true) => {
-                self.lower_solidity_unit_builtin_call(builtin, args).map(|()| CallResult::Void)
+                let _ = self.lower_solidity_unit_builtin_call(builtin, args);
+                Some(self.builder.imm(U256::ZERO))
             }
-            (false, false) => {
-                self.lower_solidity_value_builtin_call(expr, builtin, args).map(CallResult::Value)
-            }
+            (false, false) => Some(
+                self.lower_solidity_value_builtin_call(expr, builtin, args)
+                    .unwrap_or_else(|| self.builder.imm(U256::ZERO)),
+            ),
         }
     }
 
@@ -158,7 +168,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         receiver: &hir::Expr<'_>,
         builtin: Builtin,
         args: hir::CallArgs<'_>,
-    ) -> Option<CallResult> {
+    ) -> Option<ValueId> {
         let amount = &self.builtin_args::<1>(builtin, &args)?[0];
         let address = self.lower_expr(receiver)?;
         let amount = self.lower_typed_expr(amount, self.cx.gcx.types.uint(256))?;
@@ -166,11 +176,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             Builtin::AddressPayableTransfer => {
                 // transfer(address, amount)
                 self.builder.transfer(address, amount);
-                Some(CallResult::Void)
+                Some(self.builder.imm(U256::ZERO))
             }
             Builtin::AddressPayableSend => {
                 // success = send(address, amount)
-                Some(CallResult::Value(self.builder.send(address, amount)))
+                Some(self.builder.send(address, amount))
             }
             _ => unreachable!(),
         }
@@ -230,6 +240,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 };
                 let receiver = self.lower_expr(receiver)?;
                 Some(self.builder.balance(receiver))
+            }
+            Builtin::ArrayPop => {
+                let ExprKind::Member(receiver, _) = &expr.kind else {
+                    return self.cx.report_unsupported(expr.span, "array pop");
+                };
+                if self.storage_access(receiver).is_none() {
+                    return self.cx.report_unsupported(receiver.span, "storage access");
+                }
+                Some(self.builder.imm(U256::ZERO))
             }
             Builtin::ContractCreationCode
             | Builtin::ContractRuntimeCode

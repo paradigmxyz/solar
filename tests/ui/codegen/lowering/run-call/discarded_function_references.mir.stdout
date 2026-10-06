@@ -99,8 +99,9 @@ fn @nestedReceiverEffect(arg0: i256) -> i256 [selector=0xa644188c, abi_params=[b
     v1 = icall @next
     jump bb3
   bb3:
-    v3 = sload 0 !metadata(storage=slot(0))
-    ret v3
+    v3 = phi [bb1: v1], [bb2: v2]
+    v4 = sload 0 !metadata(storage=slot(0))
+    ret v4
 }
 
 fn @freeCheckedReceiver() [selector=0x13dcdc32, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
