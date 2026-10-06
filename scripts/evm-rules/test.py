@@ -10,6 +10,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
@@ -47,6 +48,7 @@ from evm_rules.prover import (
     job,
     lean_environment,
     prove,
+    stop,
 )
 from evm_rules.verification import (
     DEFAULT_FILES,
@@ -1127,6 +1129,28 @@ class CliTests(unittest.TestCase):
             ):
                 self.assertEqual(run(), ("failed", text))
             self.assertEqual(run(), ("proved", text))
+
+    def test_stopping_a_proof_stops_its_solver(self):
+        # `bv_decide` runs the SAT solver as a child of `lean`; a timeout must stop it
+        # too, or it keeps writing its proof file.
+        process = subprocess.Popen(
+            ["sh", "-c", "sleep 60 & echo $!; wait"],
+            stdout=subprocess.PIPE,
+            text=True,
+            start_new_session=True,
+        )
+        assert process.stdout is not None
+        child = int(process.stdout.readline())
+        stop(process)
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline:
+            try:
+                os.kill(child, 0)
+            except ProcessLookupError:
+                break
+            time.sleep(0.05)
+        else:
+            self.fail("the child process outlived its stopped parent")
 
 
 class DiscoveryTests(unittest.TestCase):

@@ -18,6 +18,7 @@ import json
 import os
 import re
 import select
+import signal
 import subprocess
 import time
 from dataclasses import dataclass
@@ -59,6 +60,22 @@ def lean_environment():
         text=True,
         check=True,
     ).stdout.strip()
+
+
+def stop(process):
+    """Kill a Lean process started in its own session, with every process it started.
+
+    `bv_decide` runs the SAT solver as a child of Lean; killing Lean alone would leave the
+    solver running and writing its proof file.
+    """
+    try:
+        os.killpg(process.pid, signal.SIGKILL)
+    except ProcessLookupError:
+        pass
+    process.wait()
+    for stream in (process.stdin, process.stdout, process.stderr):
+        if stream is not None:
+            stream.close()
 
 
 def errors(output, path):
@@ -264,23 +281,25 @@ def prove(task):
     path = directory / "Proof.lean"
     path.write_text(text)
     start = time.monotonic()
+    process = subprocess.Popen(
+        ["lean", "-j1", str(path)],
+        cwd=LEAN_PROJECT,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        env={**os.environ, "LEAN_PATH": task.lean_path},
+        start_new_session=True,
+    )
     try:
-        process = subprocess.run(
-            ["lean", "-j1", str(path)],
-            cwd=LEAN_PROJECT,
-            capture_output=True,
-            text=True,
-            timeout=task.timeout,
-            check=False,
-            env={**os.environ, "LEAN_PATH": task.lean_path},
-        )
+        stdout, stderr = process.communicate(timeout=task.timeout)
     except subprocess.TimeoutExpired:
+        stop(process)
         return name, {
             "status": "timeout",
             "seconds": round(time.monotonic() - start, 2),
         }
     result = {"seconds": round(time.monotonic() - start, 2)}
-    output = process.stdout + process.stderr
+    output = stdout + stderr
     reported = errors(output, path)
     # The theorem must have no error, and no warning that it relies on `sorry`.
     failures = [
@@ -353,11 +372,7 @@ class Checker:
 
     def close(self):
         if self.process is not None:
-            self.process.kill()
-            self.process.wait()
-            for stream in (self.process.stdin, self.process.stdout):
-                if stream is not None:
-                    stream.close()
+            stop(self.process)
             self.process = None
 
     def ask(self, source, timeout_s):
@@ -371,6 +386,7 @@ class Checker:
                 stderr=subprocess.DEVNULL,
                 text=True,
                 env={**os.environ, "LEAN_PATH": self.lean_path},
+                start_new_session=True,
             )
         process = self.process
         assert process.stdin is not None and process.stdout is not None
