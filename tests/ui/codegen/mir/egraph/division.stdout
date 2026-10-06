@@ -1,0 +1,315 @@
+- // === ROOT/tests/ui/codegen/mir/egraph/division.mir (before egraph) ===
++ // === ROOT/tests/ui/codegen/mir/egraph/division.mir (after egraph) ===
+  @module Division
+  @types
+    struct0: {i1, i1}
+    struct1: {i1, i1, i1}
+    struct2: {i256, i256}
+    struct3: {i1, i1, i1, i1}
+  
+  fn @checked_product(arg0: i256) -> i1 {
+    bb0:
+      v0 = mul arg0, 0xde0b6b3a7640000
+      v1 = div v0, 0xde0b6b3a7640000
+-     v2 = eq v1, arg0
++     v2 = lt arg0, 0x12725dd1d243aba0e75fe645cc4873f9e65afe688c928e1f22
+      ret v2
+  }
+  
+  fn @checked_product_left(arg0: i256) -> i1 {
+    bb0:
+      v0 = mul arg0, 997
+      v1 = eq arg0, 0
+      v2 = div v0, arg0
+      v3 = eq v2, 997
+-     v4 = or v1, v3
++     v4 = lt arg0, 0x41bbb2f80a4553f6c19ad51e8e40314cc63a07b3fef911341fd6eab024f995
+      ret v4
+  }
+  
+  fn @other_divisor(arg0: i256) -> i1 {
+    bb0:
+      v0 = mul arg0, 10
+      v1 = div v0, 5
+      v2 = eq v1, arg0
+      ret v2
+  }
+  
+  fn @quotient_below(arg0: i256) -> i1 {
+    bb0:
+      v0 = div arg0, 0x3e8
+-     v1 = lt v0, 7
++     v1 = lt arg0, 0x1b58
+      ret v1
+  }
+  
+  fn @quotient_above(arg0: i256) -> i1 {
+    bb0:
+      v0 = div arg0, 0x3e8
+-     v1 = gt v0, 7
++     v1 = gt arg0, 0x1f3f
+      ret v1
+  }
+  
+  fn @quotient_zero(arg0: i256) -> i1 {
+    bb0:
+      v0 = div arg0, 0x3e8
+-     v1 = eq v0, 0
++     v1 = lt arg0, 0x3e8
+      ret v1
+  }
+  
+  fn @quotient_nonzero(arg0: i256) -> i1 {
+    bb0:
+      v0 = div arg0, 0xe10
+-     v1 = ne v0, 0
++     v1 = gt arg0, 0xe0f
+      ret v1
+  }
+  
+  fn @shared_quotient(arg0: i256) -> struct0 [return_abi=[i1, i1]] {
+    bb0:
+      v0 = div arg0, 0x3e8
+      v1 = lt v0, 7
+      v2 = gt v0, 7
+      ret v1, v2
+  }
+  
+  fn @quotient_bounds(arg0: i256) -> struct1 [return_abi=[i1, i1, i1]] {
+    bb0:
+      v0 = div arg0, 0xc9f2c9cd04674edea40000000
+-     v1 = lt v0, 0x1a463b8d8ef089acfcf74dc68649c00000000000
+-     v2 = gt v0, 0x1a463b8d8ef089acfcf74dc68649c00000000000
+      v3 = div arg0, 3
+-     v4 = gt v3, 0x5555555555555555555555555555555555555555555555555555555555555555
+-     ret v1, v2, v4
++     ret true, false, false
+  }
+  
+  fn @nested_quotient(arg0: i256) -> struct2 [return_abi=[i256, i256]] {
+    bb0:
+      v0 = div arg0, 0x3b9aca00
+-     v1 = div v0, 0x3b9aca00
++     v1 = div arg0, 0xde0b6b3a7640000
+      v2 = div arg0, 0x4b3b4ca85a86c47a098a224000000000
+-     v3 = div v2, 0x386c797e43e5135b872799b0000000000
+-     ret v1, v3
++     ret v1, 0
+  }
+  
+  fn @split(arg0: i256) -> struct2 [return_abi=[i256, i256]] {
+    bb0:
+      v0 = div arg0, 0x15180
+      v1 = mul v0, 0x15180
+      v2 = mod arg0, 0x15180
+-     v3 = add v1, v2
+-     v4 = add v2, v1
+-     ret v3, v4
++     ret arg0, arg0
+  }
+  
+  fn @split_variable(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      v0 = div arg0, arg1
+      v1 = mul v0, arg1
+      v2 = mod arg0, arg1
+      v3 = add v1, v2
+      ret v3
+  }
+  
+  fn @rounding(arg0: i256, arg1: i256) -> struct1 [return_abi=[i1, i1, i1]] {
+    bb0:
+      v0 = div arg0, 0x15180
+      v1 = mul v0, 0x15180
+-     v2 = lt arg0, v1
+      v3 = div arg0, arg1
+      v4 = mul v3, arg1
+-     v5 = gt v4, arg0
+      v6 = div v4, arg1
+-     v7 = eq v6, v3
+-     ret v2, v5, v7
++     ret false, false, true
+  }
+  
+  fn @fractions(arg0: i256, arg1: i256) -> struct3 [return_abi=[i1, i1, i1, i1]] {
+    bb0:
+      v0 = div arg0, arg1
+-     v1 = lt arg0, v0
+      v2 = mul arg0, 30
+      v3 = div v2, 0x2710
+-     v4 = lt arg0, v3
+      v5 = mul arg0, 997
+      v6 = div v5, 0x3e8
+-     v7 = gt v6, arg0
+      v8 = mul arg0, 3
+-     v9 = div v8, 2
++     v9 = shr 1, v8
+      v10 = lt arg0, v9
+-     ret v1, v4, v7, v10
++     ret false, false, false, v10
+  }
+  
+  fn @remainder_bounds(arg0: i256) -> struct1 [return_abi=[i1, i1, i1]] {
+    bb0:
+      v0 = mod arg0, 0x3e8
+-     v1 = lt v0, 0x3e8
+      v2 = mod arg0, 7
+-     v3 = gt v2, 6
+      v4 = mod arg0, 9
+      v5 = lt v4, 5
+-     ret v1, v3, v5
++     ret true, false, v5
+  }
+  
+  fn @remainder_by_subtraction(arg0: i256) -> i256 {
+    bb0:
+      v0 = div arg0, 0x15180
+      v1 = mul v0, 0x15180
+-     v2 = sub arg0, v1
++     v2 = mod arg0, 0x15180
+      ret v2
+  }
+  
+- // === ROOT/tests/ui/codegen/mir/egraph/division.mir (before dce) ===
++ // === ROOT/tests/ui/codegen/mir/egraph/division.mir (after dce) ===
+  @module Division
+  @types
+    struct0: {i1, i1}
+    struct1: {i1, i1, i1}
+    struct2: {i256, i256}
+    struct3: {i1, i1, i1, i1}
+  
+  fn @checked_product(arg0: i256) -> i1 {
+    bb0:
+-     v0 = mul arg0, 0xde0b6b3a7640000
+-     v1 = div v0, 0xde0b6b3a7640000
+      v2 = lt arg0, 0x12725dd1d243aba0e75fe645cc4873f9e65afe688c928e1f22
+      ret v2
+  }
+  
+  fn @checked_product_left(arg0: i256) -> i1 {
+    bb0:
+-     v0 = mul arg0, 997
+-     v1 = eq arg0, 0
+-     v2 = div v0, arg0
+-     v3 = eq v2, 997
+      v4 = lt arg0, 0x41bbb2f80a4553f6c19ad51e8e40314cc63a07b3fef911341fd6eab024f995
+      ret v4
+  }
+  
+  fn @other_divisor(arg0: i256) -> i1 {
+    bb0:
+      v0 = mul arg0, 10
+      v1 = div v0, 5
+      v2 = eq v1, arg0
+      ret v2
+  }
+  
+  fn @quotient_below(arg0: i256) -> i1 {
+    bb0:
+-     v0 = div arg0, 0x3e8
+      v1 = lt arg0, 0x1b58
+      ret v1
+  }
+  
+  fn @quotient_above(arg0: i256) -> i1 {
+    bb0:
+-     v0 = div arg0, 0x3e8
+      v1 = gt arg0, 0x1f3f
+      ret v1
+  }
+  
+  fn @quotient_zero(arg0: i256) -> i1 {
+    bb0:
+-     v0 = div arg0, 0x3e8
+      v1 = lt arg0, 0x3e8
+      ret v1
+  }
+  
+  fn @quotient_nonzero(arg0: i256) -> i1 {
+    bb0:
+-     v0 = div arg0, 0xe10
+      v1 = gt arg0, 0xe0f
+      ret v1
+  }
+  
+  fn @shared_quotient(arg0: i256) -> struct0 [return_abi=[i1, i1]] {
+    bb0:
+      v0 = div arg0, 0x3e8
+      v1 = lt v0, 7
+      v2 = gt v0, 7
+      ret v1, v2
+  }
+  
+  fn @quotient_bounds(arg0: i256) -> struct1 [return_abi=[i1, i1, i1]] {
+    bb0:
+-     v0 = div arg0, 0xc9f2c9cd04674edea40000000
+-     v3 = div arg0, 3
+      ret true, false, false
+  }
+  
+  fn @nested_quotient(arg0: i256) -> struct2 [return_abi=[i256, i256]] {
+    bb0:
+-     v0 = div arg0, 0x3b9aca00
+      v1 = div arg0, 0xde0b6b3a7640000
+-     v2 = div arg0, 0x4b3b4ca85a86c47a098a224000000000
+      ret v1, 0
+  }
+  
+  fn @split(arg0: i256) -> struct2 [return_abi=[i256, i256]] {
+    bb0:
+-     v0 = div arg0, 0x15180
+-     v1 = mul v0, 0x15180
+-     v2 = mod arg0, 0x15180
+      ret arg0, arg0
+  }
+  
+  fn @split_variable(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      v0 = div arg0, arg1
+      v1 = mul v0, arg1
+      v2 = mod arg0, arg1
+      v3 = add v1, v2
+      ret v3
+  }
+  
+  fn @rounding(arg0: i256, arg1: i256) -> struct1 [return_abi=[i1, i1, i1]] {
+    bb0:
+-     v0 = div arg0, 0x15180
+-     v1 = mul v0, 0x15180
+-     v3 = div arg0, arg1
+-     v4 = mul v3, arg1
+-     v6 = div v4, arg1
+      ret false, false, true
+  }
+  
+  fn @fractions(arg0: i256, arg1: i256) -> struct3 [return_abi=[i1, i1, i1, i1]] {
+    bb0:
+-     v0 = div arg0, arg1
+-     v2 = mul arg0, 30
+-     v3 = div v2, 0x2710
+-     v5 = mul arg0, 997
+-     v6 = div v5, 0x3e8
+      v8 = mul arg0, 3
+      v9 = shr 1, v8
+      v10 = lt arg0, v9
+      ret false, false, false, v10
+  }
+  
+  fn @remainder_bounds(arg0: i256) -> struct1 [return_abi=[i1, i1, i1]] {
+    bb0:
+-     v0 = mod arg0, 0x3e8
+-     v2 = mod arg0, 7
+      v4 = mod arg0, 9
+      v5 = lt v4, 5
+      ret true, false, v5
+  }
+  
+  fn @remainder_by_subtraction(arg0: i256) -> i256 {
+    bb0:
+-     v0 = div arg0, 0x15180
+-     v1 = mul v0, 0x15180
+      v2 = mod arg0, 0x15180
+      ret v2
+  }
+  
