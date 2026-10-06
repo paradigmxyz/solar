@@ -191,6 +191,15 @@ impl StackPhiPlan {
                     return false;
                 }
             }
+            // Both arms must fit together before the branch selects one of them.
+            let mut merged = branch.clone();
+            Self::merge_edge(&mut merged.then_edge, then_values);
+            Self::merge_edge(&mut merged.else_edge, else_values);
+            if union_values(&merged.then_edge.sources, &merged.else_edge.sources).len()
+                > stack_access_limit
+            {
+                return false;
+            }
         }
 
         for (&block, entry) in &mut self.entries {
@@ -2051,5 +2060,57 @@ impl<'a> StackPhiPlanner<'a> {
         self.loops
             .iter()
             .any(|loop_info| self.func.blocks[loop_info.header].instructions.contains(inst))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use solar_interface::Ident;
+
+    #[test]
+    fn resident_merge_checks_branch_union_before_mutating() {
+        let mut func = Function::new(Ident::DUMMY);
+        let pred = func.alloc_block();
+        let then_block = func.alloc_block();
+        let else_block = func.alloc_block();
+        func.blocks[pred].terminator =
+            Some(Terminator::Branch { condition: ValueId::new(17), then_block, else_block });
+        let then_values = (0..15).map(ValueId::new).collect::<Vec<_>>();
+        let else_values = vec![ValueId::new(16)];
+        let mut plan = StackPhiPlan::default();
+        plan.entries.insert(then_block, then_values.clone());
+        plan.entries.insert(else_block, else_values.clone());
+        plan.branch_edges.insert(
+            pred,
+            StackPhiBranch {
+                then_edge: StackPhiEdge {
+                    sources: then_values.clone(),
+                    results: then_values.clone(),
+                },
+                else_edge: StackPhiEdge {
+                    sources: else_values.clone(),
+                    results: else_values.clone(),
+                },
+                union: union_values(&then_values, &else_values),
+            },
+        );
+        let mut resident = GlobalStackPlan::default();
+        resident.entries.insert(then_block, vec![ValueId::new(15)]);
+        resident.entries.insert(else_block, Vec::new());
+
+        assert!(!plan.merge_resident(&func, &resident, 16));
+        assert_eq!(plan.entries[&then_block], then_values);
+        assert_eq!(plan.entries[&else_block], else_values);
+        let branch = &plan.branch_edges[&pred];
+        assert_eq!(branch.then_edge.sources, then_values);
+        assert_eq!(branch.then_edge.results, then_values);
+        assert_eq!(branch.else_edge.sources, else_values);
+        assert_eq!(branch.else_edge.results, else_values);
+        assert_eq!(branch.union, union_values(&then_values, &else_values));
+
+        assert!(plan.merge_resident(&func, &resident, 17));
+        assert_eq!(plan.branch_edges[&pred].union.len(), 17);
+        assert_eq!(plan.entries[&then_block].len(), 16);
     }
 }

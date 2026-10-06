@@ -468,6 +468,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         func: &Function,
         liveness: &Liveness,
         values: &[ValueId],
+        stack_phi_plan: &StackPhiPlan,
     ) -> Option<(Vec<ValueId>, GlobalStackPlan)> {
         if self.spill_hazard_insts.is_empty() {
             return None;
@@ -484,6 +485,9 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.preserve_caller_stack || self.can_preserve_hazard_caller_stack(func_id),
             self.stack_access_limit(),
         )?;
+        if !stack_phi_plan.clone().merge_resident(func, &plan, self.stack_access_limit()) {
+            return None;
+        }
         Some((values.to_vec(), plan))
     }
 

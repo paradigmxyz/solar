@@ -208,6 +208,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     func,
                     liveness,
                     &protected_stack_values,
+                    &stack_phi_plan,
                 )
             })
             .flatten();
