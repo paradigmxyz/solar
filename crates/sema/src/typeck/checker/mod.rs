@@ -12,7 +12,11 @@ use solar_ast::{
     DataLocation, ElementaryType, LitKind, Span, StateMutability, TypeSize, UserDefinableOperator,
 };
 use solar_data_structures::{
-    Never, bit_set::DenseBitSet, map::FxHashMap, pluralize, smallvec::SmallVec,
+    Never,
+    bit_set::{DenseBitSet, GrowableBitSet},
+    map::FxHashMap,
+    pluralize,
+    smallvec::SmallVec,
 };
 use solar_interface::{
     Ident, Symbol,
@@ -930,6 +934,10 @@ impl<'gcx> TypeChecker<'gcx> {
             return;
         }
 
+        if ty.is_ref_at(DataLocation::Storage) && !self.is_local_or_return_variable(expr) {
+            let _ = self.check_array_copy_size(ty, expr.span);
+        }
+
         // Types containing mappings cannot be assigned to, unless the lvalue is a local/return
         // variable (local storage pointers are OK).
         if ty.has_mapping(self.gcx) && !self.is_local_or_return_variable(expr) {
@@ -1253,7 +1261,7 @@ impl<'gcx> TypeChecker<'gcx> {
         expected: Ty<'gcx>,
     ) -> Result<(), ErrorGuaranteed> {
         match self.expr_matches_expected(expr, actual, expected) {
-            Ok(()) => Ok(()),
+            Ok(()) => self.check_array_copy_conversion(actual, expected, expr.span),
             Err(err) => {
                 let mut diag = self.dcx().err("mismatched types").span(expr.span);
                 diag = diag.span_label(expr.span, err.message(actual, expected, self.gcx));
@@ -1990,6 +1998,7 @@ impl<'gcx> TypeChecker<'gcx> {
                 )));
                 continue;
             }
+            result = result.and(self.check_array_copy_size(ty, expr.span));
             if !valid_abi_encodable_arg(ty, self.gcx) {
                 result = result.and(Err(self.dcx().emit_err_label(
                     expr.span,
@@ -2880,6 +2889,7 @@ impl<'gcx> TypeChecker<'gcx> {
                 let _ = if var.is_state_variable() {
                     self.with_construction_context(|this| {
                         let init_ty = this.check_expr_with_noexpect(init, Some(ty));
+                        let _ = this.check_array_copy_size(ty, init.span);
                         if !this.can_copy_to_storage(init_ty, ty) {
                             let _ = this.check_expected(init, init_ty, ty);
                         }
@@ -2975,6 +2985,61 @@ impl<'gcx> TypeChecker<'gcx> {
             }
             TyKind::Ref(inner, _) => self.ty_memory_static_size(inner),
             _ => Some(U256::from(32)),
+        }
+    }
+
+    fn check_array_copy_conversion(
+        &self,
+        actual: Ty<'gcx>,
+        expected: Ty<'gcx>,
+        span: Span,
+    ) -> Result<(), ErrorGuaranteed> {
+        if let (TyKind::Tuple(actual), TyKind::Tuple(expected)) = (actual.kind, expected.kind) {
+            for (&actual, &expected) in actual.iter().zip(expected) {
+                self.check_array_copy_conversion(actual, expected, span)?;
+            }
+        } else if actual.is_ref_at(DataLocation::Storage)
+            && !expected.is_ref_at(DataLocation::Storage)
+        {
+            self.check_array_copy_size(actual, span)?;
+        }
+        Ok(())
+    }
+
+    fn check_array_copy_size(&self, ty: Ty<'gcx>, span: Span) -> Result<(), ErrorGuaranteed> {
+        if self.has_oversized_array(ty, &mut GrowableBitSet::new_empty()) {
+            Err(self
+                .dcx()
+                .err("array is too large to copy or encode")
+                .span(span)
+                .note(
+                    "copying or encoding arrays with more than 2^64 - 1 elements is not supported",
+                )
+                .emit())
+        } else {
+            Ok(())
+        }
+    }
+
+    fn has_oversized_array(
+        &self,
+        ty: Ty<'gcx>,
+        visited: &mut GrowableBitSet<hir::StructId>,
+    ) -> bool {
+        match ty.peel_refs().kind {
+            TyKind::Array(element, len) => {
+                len > U256::from(u64::MAX) || self.has_oversized_array(element, visited)
+            }
+            TyKind::DynArray(element) => self.has_oversized_array(element, visited),
+            TyKind::Struct(id) => {
+                visited.insert(id)
+                    && self
+                        .gcx
+                        .struct_field_types(id)
+                        .iter()
+                        .any(|&ty| self.has_oversized_array(ty, visited))
+            }
+            _ => false,
         }
     }
 

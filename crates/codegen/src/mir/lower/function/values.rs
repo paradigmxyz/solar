@@ -18,6 +18,10 @@ enum TupleAssignmentRhs<'gcx> {
 impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn lower_values(&mut self, expr: &hir::Expr<'_>) -> Option<Vec<ValueId>> {
         let expr = expr.peel_parens();
+        if self.cx.gcx.type_of_expr(expr.id).is_some_and(|ty| ty.is_unit()) {
+            self.lower_discarded_expr(expr)?;
+            return Some(Vec::new());
+        }
         if let ExprKind::Ternary(condition, then_expr, else_expr) = &expr.kind {
             return self.lower_ternary_values(condition, then_expr, else_expr);
         }
@@ -55,14 +59,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             {
                 let value = self.lower_expr(expr)?;
                 return Some(self.unpack_return_value(value));
-            }
-            let returns_empty = returns.is_some_and(|returns| returns == 0)
-                || resolved_builtin.is_some_and(|builtin| {
-                    matches!(builtin, Builtin::Assert | Builtin::Revert | Builtin::RevertMsg)
-                });
-            if returns_empty {
-                self.lower_expr(expr)?;
-                return Some(Vec::new());
             }
         }
         match &expr.kind {
@@ -286,12 +282,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if values.len() < elements.len() {
             return self.cx.report_unsupported(rhs.span, "tuple assignment arity");
         }
-        self.store_tuple_values(
-            elements
-                .iter()
-                .zip(values)
-                .filter_map(|(element, value)| element.map(|element| (element, value, None))),
-        )
+        let source_ty = self.cx.gcx.type_of_expr(rhs.id)?;
+        let source_types = match source_ty.kind {
+            TyKind::Tuple(types) => types,
+            _ => std::slice::from_ref(&source_ty),
+        };
+        self.store_tuple_values(elements.iter().zip(values).zip(source_types).filter_map(
+            |((element, value), &source_ty)| {
+                element.map(|element| (element, value, Some(source_ty)))
+            },
+        ))
     }
 
     fn prepare_tuple_rhs(
@@ -308,10 +308,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
         };
         let source_ty = source_ty.unwrap_or(target_ty);
-        let value = if target_ty.is_ref_at(DataLocation::Storage) {
-            value
-        } else {
+        let value = if target_ty.is_ref_at(DataLocation::Memory) {
             self.materialize_memory_argument(target_ty, value, span)?
+        } else {
+            value
         };
         let value = self.coerce_value(value, source_ty, target_ty);
         Some(TupleAssignmentRhs::Materialized { value, source_ty: Some(source_ty), span })
@@ -321,9 +321,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         &mut self,
         values: impl IntoIterator<Item = (&'hir hir::Expr<'hir>, ValueId, Option<Ty<'gcx>>)>,
     ) -> Option<()> {
-        self.store_prepared_tuple_values(values.into_iter().map(|(element, value, source_ty)| {
-            (element, TupleAssignmentRhs::Materialized { value, source_ty, span: element.span })
-        }))
+        let values = values
+            .into_iter()
+            .map(|(element, value, source_ty)| {
+                let rhs = TupleAssignmentRhs::Materialized { value, source_ty, span: element.span };
+                Some((element, self.prepare_tuple_rhs(element, rhs)?))
+            })
+            .collect::<Option<Vec<_>>>()?;
+        self.store_prepared_tuple_values(values)
     }
 
     fn store_prepared_tuple_values<'hir>(

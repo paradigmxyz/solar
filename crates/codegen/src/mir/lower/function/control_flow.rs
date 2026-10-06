@@ -726,7 +726,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
     }
 
-    fn lower_ternary_value(&mut self, expr: &hir::Expr<'_>, ty: Ty<'gcx>) -> Option<ValueId> {
+    pub(super) fn lower_ternary_value(
+        &mut self,
+        expr: &hir::Expr<'_>,
+        ty: Ty<'gcx>,
+    ) -> Option<ValueId> {
         let source_ty = self.cx.gcx.type_of_expr(expr.id)?;
         let value = self.lower_expr(expr)?;
         let value = if ty.is_ref_at(DataLocation::Memory) {
