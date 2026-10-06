@@ -239,7 +239,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if let Some(location) = self.cx.storage.get(id) {
             let ty = self.cx.gcx.type_of_item(id.into());
             if matches!(ty.peel_refs().kind, TyKind::Mapping(..)) {
-                return self.cx.report_unsupported(span, "mapping value");
+                return Some(self.builder.imm(location.slot));
             }
             let slot = self.builder.imm(location.slot);
             return self.load_storage_value(
@@ -422,12 +422,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if self.cx.gcx.hir.variable(id).is_state_variable() {
             return self.cx.report_unsupported(span, "Yul state-variable slot assignment");
         }
-        let Some(access) = self.storage_refs.get(&id).copied() else {
-            return self.cx.report_unsupported(span, "Yul storage assignment target");
-        };
-
         // storage_ref.slot = value
-        self.storage_refs.insert(id, StorageAccess { slot: value, ..access });
+        self.storage_refs
+            .entry(id)
+            .or_insert(StorageAccess {
+                slot: value,
+                location: StorageLocation::word(U256::ZERO),
+                offset: None,
+            })
+            .slot = value;
         Some(())
     }
 
