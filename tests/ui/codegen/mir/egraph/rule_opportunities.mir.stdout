@@ -1,0 +1,373 @@
+// === ROOT/tests/ui/codegen/mir/egraph/rule_opportunities.sol:RuleOpportunities ===
+@module RuleOpportunities
+fn @scale(arg0: i256) -> i256 [selector=0x2bec1547, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = mul arg0, 3
+    v1 = mul v0, 5
+    ret v1
+}
+
+fn @sameFee(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x6faceb8b, pure, abi_params=[u256, u256, u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = add arg0, arg2
+    v1 = add arg1, arg2
+    v2 = eq v0, v1
+    v3 = zext i1 v2 to i256
+    ret v3
+}
+
+fn @oddScale(arg0: i256, arg1: i256) -> i256 [selector=0x0c41cafa, pure, abi_params=[u256, u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = mul arg0, 3
+    v1 = mul arg1, 3
+    v2 = eq v0, v1
+    v3 = zext i1 v2 to i256
+    ret v3
+}
+
+fn @nestedDifference(arg0: i256, arg1: i256) -> i256 [selector=0x8fb9c59b, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = sub arg0, arg1
+    v1 = sub arg0, v0
+    ret v1
+}
+
+fn @invert(arg0: i256) -> i256 [selector=0x7351ee37, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = not 0
+    v1 = sub v0, arg0
+    ret v1
+}
+
+fn @nestedAnd(arg0: i256, arg1: i256) -> i256 [selector=0xe7b0d2bc, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = and arg0, arg1
+    v1 = and arg0, v0
+    ret v1
+}
+
+fn @nestedOr(arg0: i256, arg1: i256) -> i256 [selector=0xd42f18e5, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = or arg0, arg1
+    v1 = or arg0, v0
+    ret v1
+}
+
+fn @accumulatedFlags(arg0: i256) -> i256 [selector=0x695371f6, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = or arg0, 256
+    v1 = or v0, 32
+    ret v1
+}
+
+fn @toggleFlags(arg0: i256) -> i256 [selector=0x25ac3f2f, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = xor arg0, 256
+    v1 = xor v0, 288
+    ret v1
+}
+
+fn @page(arg0: i256, arg1: i256) -> i256 [selector=0xebb9e69c, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = shl arg1, 1
+    v1 = div arg0, v0
+    ret v1
+}
+
+fn @normalized(arg0: i256) -> i256 [selector=0x7c65a6f0, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = div arg0, arg0
+    ret v0
+}
+
+fn @emptyPower(arg0: i256) -> i256 [selector=0x27620125, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = exp 0, arg0
+    ret v0
+}
+
+fn @negate(arg0: i256) -> i256 [selector=0x25b832d9, pure, abi_params=[i256], abi_returns=[word], abi_return_params=[i256]] {
+  bb0:
+    v0 = not 0
+    v1 = sdiv arg0, v0
+    ret v1
+}
+
+fn @ringAdd(arg0: i256, arg1: i256) -> i256 [selector=0xe9eeeb86, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = icall checked_addmod<>, arg0, arg1, 256
+    ret v0
+}
+
+fn @ringMul(arg0: i256, arg1: i256) -> i256 [selector=0x35ed699c, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = icall checked_mulmod<>, arg0, arg1, 256
+    ret v0
+}
+
+fn @reduceAdd(arg0: i256, arg1: i256) -> i256 [selector=0xa6944881, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = icall checked_addmod<>, arg0, 0, arg1
+    ret v0
+}
+
+fn @reduceMul(arg0: i256, arg1: i256) -> i256 [selector=0xe74637c7, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = icall checked_mulmod<>, arg0, 1, arg1
+    ret v0
+}
+
+fn @belowBucket(arg0: i256, arg1: i256) -> i256 [selector=0xfb5d3534, pure, abi_params=[u256, u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = div arg0, arg1
+    v1 = eq v0, 0
+    v2 = zext i1 v1 to i256
+    ret v2
+}
+
+fn @nestedQuotient(arg0: i256) -> i256 [selector=0x82768581, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = div arg0, 7
+    v1 = div v0, 3
+    ret v1
+}
+
+fn @subset(arg0: i256, arg1: i256) -> i256 [selector=0xdbd46377, pure, abi_params=[u256, u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = and arg0, arg1
+    v1 = gt v0, arg0
+    v2 = zext i1 v1 to i256
+    ret v2
+}
+
+fn @superset(arg0: i256, arg1: i256) -> i256 [selector=0x593fca78, pure, abi_params=[u256, u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = or arg0, arg1
+    v1 = lt v0, arg0
+    v2 = zext i1 v1 to i256
+    ret v2
+}
+
+fn @shiftComplement(arg0: i256, arg1: i256) -> i256 [selector=0xf9567805, pure, abi_params=[i256, u256], abi_returns=[word], abi_return_params=[i256]] {
+  bb0:
+    v0 = not arg0
+    v1 = sar arg1, v0
+    ret v1
+}
+
+fn @signedNegative(arg0: i256) -> i256 [selector=0x9338d1e7, pure, abi_params=[i256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = sar 12, arg0
+    v1 = slt v0, 0
+    v2 = zext i1 v1 to i256
+    ret v2
+}
+
+fn @highSign(arg0: i256) -> i256 [selector=0x6d444306, pure, abi_params=[i256], abi_returns=[word], abi_return_params=[i256]] {
+  bb0:
+    v0 = sar 300, arg0
+    ret v0
+}
+
+fn @signMask(arg0: i256) -> i256 [selector=0xa9e59b2f, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = signextend 0, arg0
+    v1 = and v0, 255
+    ret v1
+}
+
+fn @highByte(arg0: i256) -> i256 [selector=0xda715bfd, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = signextend 0, arg0
+    v1 = shr 248, v0
+    ret v1
+}
+
+fn @realign(arg0: i256) -> i256 [selector=0x31820070, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = shl 8, arg0
+    v1 = shr 8, v0
+    ret v1
+}
+
+fn @clearLow(arg0: i256) -> i256 [selector=0xb70e19d9, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = shr 8, arg0
+    v1 = shl 8, v0
+    ret v1
+}
+
+fn @affineConstant(arg0: i256) -> i256 [selector=0x85d6efa9, pure, abi_params=[u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = add arg0, 7
+    v1 = eq v0, 31
+    v2 = zext i1 v1 to i256
+    ret v2
+}
+
+fn @booleanMask(arg0: i256, arg1: i256) -> i256 [selector=0xeaaf4de2, pure, abi_params=[u256, u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = and arg0, arg1
+    v1 = or v0, arg1
+    v2 = eq v1, arg1
+    v3 = zext i1 v2 to i256
+    ret v3
+}
+
+fn @complementSar(arg0: i256, arg1: i256) -> i256 [selector=0x2bf9b092, pure, abi_params=[i256, u256], abi_returns=[word], abi_return_params=[i256]] {
+  bb0:
+    v0 = not arg0
+    v1 = sar arg1, v0
+    v2 = not v1
+    ret v2
+}
+
+fn @sarOnes(arg0: i256) -> i256 [selector=0xa65bff8d, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[i256]] {
+  bb0:
+    v0 = sub 0, 1
+    v1 = sar arg0, v0
+    ret v1
+}
+
+fn @signedMinQuotient(arg0: i256) -> i256 [selector=0xd828c064, pure, abi_params=[i256], abi_returns=[word], abi_return_params=[i256]] {
+  bb0:
+    v0 = shl 255, 1
+    v1 = sdiv arg0, v0
+    ret v1
+}
+
+fn @fixedComplement(arg0: i256) -> i256 [selector=0xd4c9e305, pure, abi_params=[u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = not arg0
+    v1 = eq arg0, v0
+    v2 = zext i1 v1 to i256
+    ret v2
+}
+
+fn @shiftedOrder(arg0: i256, arg1: i256) -> i256 [selector=0x8b0f8fc8, pure, abi_params=[u256, u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = shr arg1, arg0
+    v1 = gt v0, arg0
+    v2 = zext i1 v1 to i256
+    ret v2
+}
+
+fn @tagDifference(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x20b58912, pure, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = xor arg0, arg1
+    v1 = xor arg0, arg2
+    v2 = xor v0, v1
+    ret v2
+}
+
+fn @repeatedPermission(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xcda5adde, pure, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = and arg0, arg1
+    v1 = or arg0, arg2
+    v2 = and v0, v1
+    ret v2
+}
+
+fn @fillOutsideMask(arg0: i256, arg1: i256) -> i256 [selector=0xd87ed015, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = and arg0, arg1
+    v1 = not arg1
+    v2 = or v0, v1
+    ret v2
+}
+
+fn @negatedParity(arg0: i256) -> i256 [selector=0xcd982929, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = sub 0, arg0
+    v1 = and v0, 1
+    ret v1
+}
+
+fn @signFromBit(arg0: i256) -> i256 [selector=0x0ea5e797, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = shr 255, arg0
+    v1 = sub 0, v0
+    ret v1
+}
+
+fn @shiftedDistance(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x7b3b8d06, pure, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = shl arg2, arg0
+    v1 = shl arg2, arg1
+    v2 = sub v0, v1
+    ret v2
+}
+
+fn @extractMasked(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xe932a70a, pure, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = shl arg2, arg0
+    v1 = and v0, arg1
+    v2 = shr arg2, v1
+    ret v2
+}
+
+fn @signedAligned(arg0: i256) -> i256 [selector=0xb80873c6, pure, abi_params=[i256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = smod arg0, 256
+    v1 = eq v0, 0
+    v2 = zext i1 v1 to i256
+    ret v2
+}
+
+fn @removeSetMask(arg0: i256) -> i256 [selector=0xef69c371, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = or arg0, 255
+    v1 = sub v0, 255
+    ret v1
+}
+
+fn @combinedFee(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x556c4a41, pure, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = mul arg0, arg1
+    v1 = mul arg0, arg2
+    v2 = add v0, v1
+    ret v2
+}
+
+fn @signedDelta(arg0: i256, arg1: i256) -> i256 [selector=0x190c21be, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = sub 0, arg1
+    v1 = add arg0, v0
+    ret v1
+}
+
+fn @belowUnit(arg0: i256) -> i256 [selector=0xb47b473c, pure, abi_params=[u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = checked_div u256, arg0, 0x3e8
+    v1 = eq v0, 0
+    v2 = zext i1 v1 to i256
+    ret v2
+}
+
+fn @minimumOnly(arg0: i256) -> i256 [selector=0x7b5aceb5, pure, abi_params=[i256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = checked_add i256, 0x8000000000000000000000000000000000000000000000000000000000000000, 1
+    v1 = slt arg0, v0
+    v2 = zext i1 v1 to i256
+    ret v2
+}
+
+fn @alternatingSign(arg0: i256) -> i256 [selector=0x85436958, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = not 0
+    v1 = exp v0, arg0
+    ret v1
+}
+
+fn @signedTopByte(arg0: i256) -> i256 [selector=0x22097a71, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[i256]] {
+  bb0:
+    v0 = shr 248, arg0
+    v1 = signextend 0, v0
+    ret v1
+}
+
+fn @firstRingIndex(arg0: i256) -> i256 [selector=0xecdb4dbe, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = mod 1, arg0
+    ret v0
+}

@@ -42,18 +42,18 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     icall panic_if<0x32>, v58
     v59 = mul 0, 40
     v60 = add v5, v59
-    v61 = alloc memoryfixedarray<10, 1>, exact, uninitialized, panic, 320
+    v61 = lt 0, 1
+    v62 = eq v61, false
+    icall panic_if<0x32>, v62
+    v63 = mul 0, 40
+    v64 = add v56, v63
+    v65 = alloc memoryfixedarray<10, 1>, exact, uninitialized, panic, 320
     jump bb7
   bb7:
-    v62 = phi [bb2: 0], [bb8: v81]
-    v63 = lt v62, 10
-    jumpi v63, bb8, bb9
+    v66 = phi [bb2: 0], [bb8: v85]
+    v67 = lt v66, 10
+    jumpi v67, bb8, bb9
   bb9:
-    v82 = lt 0, 1
-    v83 = eq v82, false
-    icall panic_if<0x32>, v83
-    v84 = mul 0, 40
-    v85 = add v56, v84
     jump bb10
   bb10:
     v86 = phi [bb9: 0], [bb15: v150]
@@ -209,7 +209,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     jump bb16
   bb11:
     v88 = mul v86, 4
-    v89 = add v85, v88
+    v89 = add v64, v88
     v90 = lt v86, 10
     jumpi v90, bb13, bb14
   bb14:
@@ -252,7 +252,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     sstore v143, v149 !metadata(storage=offset(v89, 3))
     jump bb15
   bb13:
-    v91 = memory_object_load_element memoryfixedarray<10, 1>, v61, v86
+    v91 = memory_object_load_element memoryfixedarray<10, 1>, v65, v86
     v92 = inttoptr i256 v91 to memptr
     v93 = memory_object_load_field memorystruct<5>, v92, 0
     sstore v89, v93 !metadata(storage=symbolic(v89))
@@ -294,30 +294,30 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v150 = add v86, 1
     jump bb10
   bb8:
-    v64 = mul v62, 4
-    v65 = add v60, v64
-    v66 = alloc memorystruct<5>, exact, uninitialized, panic, 160
-    v67 = sload v65 !metadata(storage=symbolic(v65))
-    memory_object_store_field memorystruct<5>, v66, 0, v67
-    v68 = add v65, 1
-    v69 = sload v68 !metadata(storage=offset(v65, 1))
-    v70 = and v69, 0xffffffffffffffffffffffffffffffff
-    memory_object_store_field memorystruct<5>, v66, 1, v70
-    v71 = add v65, 1
-    v72 = sload v71 !metadata(storage=offset(v65, 1))
-    v73 = shr 128, v72
-    v74 = and v73, 0xffffffffffffffff
-    memory_object_store_field memorystruct<5>, v66, 2, v74
-    v75 = add v65, 2
-    v76 = sload v75 !metadata(storage=offset(v65, 2))
-    memory_object_store_field memorystruct<5>, v66, 3, v76
-    v77 = add v65, 3
-    v78 = sload v77 !metadata(storage=offset(v65, 3))
-    v79 = and v78, 255
-    memory_object_store_field memorystruct<5>, v66, 4, v79
-    v80 = ptrtoint memptr v66 to i256
-    memory_object_store_element memoryfixedarray<10, 1>, v61, v62, v80
-    v81 = add v62, 1
+    v68 = mul v66, 4
+    v69 = add v60, v68
+    v70 = alloc memorystruct<5>, exact, uninitialized, panic, 160
+    v71 = sload v69 !metadata(storage=symbolic(v69))
+    memory_object_store_field memorystruct<5>, v70, 0, v71
+    v72 = add v69, 1
+    v73 = sload v72 !metadata(storage=offset(v69, 1))
+    v74 = and v73, 0xffffffffffffffffffffffffffffffff
+    memory_object_store_field memorystruct<5>, v70, 1, v74
+    v75 = add v69, 1
+    v76 = sload v75 !metadata(storage=offset(v69, 1))
+    v77 = shr 128, v76
+    v78 = and v77, 0xffffffffffffffff
+    memory_object_store_field memorystruct<5>, v70, 2, v78
+    v79 = add v69, 2
+    v80 = sload v79 !metadata(storage=offset(v69, 2))
+    memory_object_store_field memorystruct<5>, v70, 3, v80
+    v81 = add v69, 3
+    v82 = sload v81 !metadata(storage=offset(v69, 3))
+    v83 = and v82, 255
+    memory_object_store_field memorystruct<5>, v70, 4, v83
+    v84 = ptrtoint memptr v70 to i256
+    memory_object_store_element memoryfixedarray<10, 1>, v65, v66, v84
+    v85 = add v66, 1
     jump bb7
   bb4:
     v8 = alloc memorystruct<5>, exact, uninitialized, infallible, 160

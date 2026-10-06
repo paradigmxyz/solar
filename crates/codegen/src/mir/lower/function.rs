@@ -231,14 +231,6 @@ struct FunctionLowerer<'gcx, 'ctx> {
     is_getter: bool,
     unchecked: bool,
     in_inline_assembly: bool,
-    /// The expressions being lowered whose values nothing observes: a discarded expression
-    /// statement, and the tuple declaration and assignment components that have no target.
-    ///
-    /// Lowering an expression that has to read storage to produce its value can skip the read
-    /// here. Only the discarded expression itself and the tuple components and conditional
-    /// branches that just hand their value up to it qualify: every other subexpression feeds the
-    /// value it belongs to.
-    discarded_exprs: Vec<hir::ExprId>,
 }
 
 /// The lowered `{gas: ..., value: ...}` options of an external call.
@@ -413,6 +405,20 @@ fn internal_function_pointer_id(function_id: hir::FunctionId) -> u64 {
     function_id.index() as u64 + 1
 }
 
+enum CallResult {
+    Void,
+    Value(ValueId),
+}
+
+impl CallResult {
+    fn value(self) -> Option<ValueId> {
+        match self {
+            Self::Void => None,
+            Self::Value(value) => Some(value),
+        }
+    }
+}
+
 impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     fn new(cx: LoweringContext<'gcx, 'ctx>, function: &'ctx mut Function) -> Self {
         let gcx = cx.gcx;
@@ -437,7 +443,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             is_getter: false,
             unchecked: false,
             in_inline_assembly: false,
-            discarded_exprs: Vec::new(),
         }
     }
 
@@ -744,26 +749,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             ExprKind::Call(callee, args) => {
                 let (callee, call_opts) = callee.split_call_options();
-                self.lower_call(expr, callee, *args, call_opts)
+                self.lower_call(expr, callee, *args, call_opts, true)?.value()
             }
             ExprKind::CallOptions(callee, options) => {
-                let value = if self.discarded_exprs.contains(&expr.id) {
-                    match callee.peel_parens().kind {
-                        ExprKind::Member(receiver, _) => self.lower_discarded_expr(receiver)?,
-                        ExprKind::New(_) => self.builder.imm(0),
-                        _ => self.lower_discarded_expr(callee)?,
-                    }
-                } else {
-                    self.lower_expr(callee)?
-                };
+                let value = self.lower_expr(callee)?;
                 for option in options.args {
                     self.lower_discarded_expr(&option.value)?;
                 }
                 Some(value)
-            }
-            ExprKind::Delete(value) => {
-                self.delete_lvalue(value)?;
-                Some(self.builder.imm(U256::ZERO))
             }
             ExprKind::Unary(op, value) => {
                 self.assert_operand_ty_registered(expr);
@@ -806,12 +799,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 if compound_op.is_some() && self.cx.gcx.unsupported_udvt_operator(expr.id) {
                     return self.report_unsupported_udvt_operator(expr.span);
                 }
-                if op.is_none()
-                    && let ExprKind::Tuple(elements) = &lhs.peel_parens().kind
-                {
-                    self.lower_tuple_assignment(elements, rhs)?;
-                    return Some(self.builder.imm(U256::ZERO));
-                }
                 if op.is_none() && self.is_storage_reference_binding(lhs) {
                     let Some(access) = self.storage_access(rhs) else {
                         return self.cx.report_unsupported(rhs.span, "storage access");
@@ -820,11 +807,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         return self.cx.report_unsupported(lhs.span, "storage reference target");
                     };
                     self.storage_refs.insert(id, access);
-                    return Some(self.builder.imm(U256::ZERO));
+                    return Some(access.slot);
                 }
                 let lhs_ty = self.type_of_expr_or_variable(lhs)?;
-                let fixed_bytes = operators::fixed_bytes_width(lhs_ty);
                 let rhs_ty = self.cx.gcx.type_of_expr(rhs.id).unwrap_or(lhs_ty);
+                let fixed_bytes = operators::fixed_bytes_width(lhs_ty);
                 let memory_rhs_ty = rhs_ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
                 // A literal assigned to a fixed-bytes place is that word.
                 // Building it directly avoids allocating a memory literal whose
@@ -896,7 +883,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             ExprKind::Index(receiver, index) => self.lower_index(expr, receiver, *index),
             ExprKind::Slice(receiver, start, end) => self.lower_slice(expr, receiver, *start, *end),
             ExprKind::Payable(value) => self.lower_expr(value),
-            _ if self.cx.gcx.dcx().has_errors().is_err() => Some(self.builder.imm(U256::ZERO)),
+            _ if self.cx.gcx.dcx().has_errors().is_err() => None,
             _ => self.cx.report_unsupported(expr.span, "expression"),
         }
     }

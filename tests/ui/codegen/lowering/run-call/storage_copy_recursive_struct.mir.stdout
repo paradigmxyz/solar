@@ -184,26 +184,26 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     v141 = and 8, 0xffffffffffffffffffffffffffffffff
     v142 = or v140, v141
     sstore v137, v142 !metadata(storage=symbolic(v137))
-    v143 = alloc memorystruct<3>, exact, uninitialized, panic, 96
-    v144 = sload 0 !metadata(storage=slot(0))
-    v145 = and v144, 0xffffffffffffffffffffffffffffffff
-    memory_object_store_field memorystruct<3>, v143, 0, v145
-    v146 = add 0, 1
-    v147 = icall @load_storage_bytes, v146
-    v148 = ptrtoint memptr v147 to i256
-    memory_object_store_field memorystruct<3>, v143, 1, v148
-    v149 = add 0, 2
-    v150 = icall @load_storage_struct_array_0, v149
-    v151 = ptrtoint memptr v150 to i256
-    memory_object_store_field memorystruct<3>, v143, 2, v151
-    v152 = sload 6 !metadata(storage=slot(6))
-    v153 = lt 0, v152
-    v154 = eq v153, false
-    icall panic_if<0x32>, v154
-    v155 = storage_array_data_slot 6
-    v156 = mul 0, 3
-    v157 = add v155, v156
-    icall @store_recursive_storage_0_0, v157, v143
+    v143 = sload 6 !metadata(storage=slot(6))
+    v144 = lt 0, v143
+    v145 = eq v144, false
+    icall panic_if<0x32>, v145
+    v146 = storage_array_data_slot 6
+    v147 = mul 0, 3
+    v148 = add v146, v147
+    v149 = alloc memorystruct<3>, exact, uninitialized, panic, 96
+    v150 = sload 0 !metadata(storage=slot(0))
+    v151 = and v150, 0xffffffffffffffffffffffffffffffff
+    memory_object_store_field memorystruct<3>, v149, 0, v151
+    v152 = add 0, 1
+    v153 = icall @load_storage_bytes, v152
+    v154 = ptrtoint memptr v153 to i256
+    memory_object_store_field memorystruct<3>, v149, 1, v154
+    v155 = add 0, 2
+    v156 = icall @load_storage_struct_array_0, v155
+    v157 = ptrtoint memptr v156 to i256
+    memory_object_store_field memorystruct<3>, v149, 2, v157
+    icall @store_recursive_storage_0_0, v148, v149
     v158 = alloc memorystruct<3>, exact, uninitialized, panic, 96
     v159 = sload 3 !metadata(storage=slot(3))
     v160 = and v159, 0xffffffffffffffffffffffffffffffff

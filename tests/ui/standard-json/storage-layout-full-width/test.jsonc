@@ -1,0 +1,17 @@
+// CHECK: "label": "packed"
+// CHECK: "slot": "3618502788666131106986593281521497120414687020801267626233049500247285301249"
+// CHECK: "label": "afterPacked"
+// CHECK: "slot": "3731581000811947704079924321569043905427645990201307239552832297130012966914"
+// CHECK: "label": "tail"
+// CHECK: "slot": "3618502788666131106986593281521497120414687020801267626233049500247285301248"
+// CHECK: "numberOfBytes": "0"
+{
+  "language": "Solidity",
+  "settings": {
+    "outputSelection": {
+      "wide.sol": {
+        "WideLayout": ["storageLayout"]
+      }
+    }
+  }
+}

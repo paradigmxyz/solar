@@ -248,7 +248,7 @@ fn synthesize_tuple_helpers(
     }
 }
 
-/// Builds `encode_abi_array(value, dest) -> tail` for every memory array layout whose
+/// Builds `encode_abi_array(value, dest) -> length` for every memory array layout whose
 /// element-wise loop at least two sites would otherwise expand inline. Inner layouts are built
 /// first so an outer helper's element encoding calls the inner helper.
 fn synthesize_array_helpers(
@@ -320,14 +320,14 @@ fn synthesize_array_helpers(
             let mut builder =
                 FunctionBuilder::new(&mut function).with_revert_strings(revert_strings);
             let value = builder.add_param(key.value_ty);
-            // The destination is a heap pointer, and typing it so lets the backend's
-            // provenance analysis see that the returned tail stays in the heap.
+            // Keep the destination's heap provenance inside the helper. Return its
+            // length so the caller derives the tail from its own destination.
             let dest = builder.add_param(MirType::MemPtr);
-            // dest = ptrtoint memptr dest to i256
             let dest = builder.cast(dest, MirType::I256);
             let tail = encode_memory_array(&mut builder, &key.element, value, dest, &helpers);
+            let length = builder.sub(tail, dest);
             builder.set_return_type(MirType::I256);
-            builder.ret([tail]);
+            builder.ret([length]);
         }
         let helper = module.add_function(function);
         helpers.arrays.insert(key, helper);
@@ -1222,10 +1222,9 @@ fn encode_dynamic_body(
             let location = effective_slice_location(builder.func(), value, *location);
             if location == SliceLocation::Memory {
                 if let Some(helper) = array_helper(builder.func(), helpers, element, value) {
-                    // dest = inttoptr i256 dest to memptr
-                    // tail = icall @encode_abi_array, value, dest
-                    let dest = builder.cast(dest, MirType::MemPtr);
-                    return builder.icall(helper, vec![value, dest], MirType::I256);
+                    let pointer = builder.cast(dest, MirType::MemPtr);
+                    let length = builder.icall(helper, vec![value, pointer], MirType::I256);
+                    return builder.add(dest, length);
                 }
                 return encode_memory_array(builder, element, value, dest, helpers);
             }
@@ -1608,14 +1607,13 @@ fn encode_bytes(
         builder.mstore(last, zero);
         builder.mstore(dest, len);
     } else {
-        // if padded != 0: mstore data_dest + padded - 32, 0
+        // if padded != 0: mstore dest + padded, 0
         let zero_block = builder.create_block();
         let copy_block = builder.create_block();
         let empty = builder.eq_zero(padded);
         builder.branch(empty, copy_block, zero_block);
         builder.switch_to_block(zero_block);
-        let last_offset = builder.sub(padded, word);
-        let last = builder.add(data_dest, last_offset);
+        let last = builder.add(dest, padded);
         let zero = builder.imm(0);
         builder.mstore(last, zero);
         builder.jump(copy_block);

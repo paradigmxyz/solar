@@ -211,25 +211,25 @@ fn @ripemdLiteral() [selector=0x062c5650, abi_wrapper, pure] {
 
 fn @shaEmpty() [selector=0xf1609893, abi_wrapper, pure] {
   bb0:
-    v29 = mload 64 !metadata(memory=scratch)
-    v30 = add v29, 32
-    mstore 64, v30 !metadata(memory=scratch)
-    mstore v29, 0
-    v23 = mload 64 !metadata(memory=scratch)
-    v24 = add v23, 64
-    v25 = lt v24, v23
-    v26 = gt v24, 0xffffffffffffffff
-    v27 = or v25, v26
-    jumpi v27, bb2, bb1
+    v27 = mload 64 !metadata(memory=scratch)
+    v28 = add v27, 32
+    mstore 64, v28 !metadata(memory=scratch)
+    mstore v27, 0
+    v21 = mload 64 !metadata(memory=scratch)
+    v22 = add v21, 64
+    v23 = lt v22, v21
+    v24 = gt v22, 0xffffffffffffffff
+    v25 = or v23, v24
+    jumpi v25, bb2, bb1
   bb1:
-    mstore 64, v24 !metadata(memory=scratch)
-    v31 = calldatasize
-    calldatacopy v23, v31, 64
-    mstore v23, 32
-    v22 = add v23, 32
+    mstore 64, v22 !metadata(memory=scratch)
+    v29 = calldatasize
+    calldatacopy v21, v29, 64
+    mstore v21, 32
+    v20 = add v21, 32
     v7 = gas
-    v10 = staticcall v7, 2, v30, 0, v22, 32
-    v13 = mload v22
+    v10 = staticcall v7, 2, 0, 0, v20, 32
+    v13 = mload v20
     mstore 128, v13
     returndata 128, 32
   bb2:
@@ -240,25 +240,25 @@ fn @shaEmpty() [selector=0xf1609893, abi_wrapper, pure] {
 
 fn @ripemdEmpty() [selector=0x0c4b170a, abi_wrapper, pure] {
   bb0:
-    v30 = mload 64 !metadata(memory=scratch)
-    v31 = add v30, 32
-    mstore 64, v31 !metadata(memory=scratch)
-    mstore v30, 0
-    v24 = mload 64 !metadata(memory=scratch)
-    v25 = add v24, 64
-    v26 = lt v25, v24
-    v27 = gt v25, 0xffffffffffffffff
-    v28 = or v26, v27
-    jumpi v28, bb2, bb1
+    v28 = mload 64 !metadata(memory=scratch)
+    v29 = add v28, 32
+    mstore 64, v29 !metadata(memory=scratch)
+    mstore v28, 0
+    v22 = mload 64 !metadata(memory=scratch)
+    v23 = add v22, 64
+    v24 = lt v23, v22
+    v25 = gt v23, 0xffffffffffffffff
+    v26 = or v24, v25
+    jumpi v26, bb2, bb1
   bb1:
-    mstore 64, v25 !metadata(memory=scratch)
-    v32 = calldatasize
-    calldatacopy v24, v32, 64
-    mstore v24, 32
-    v23 = add v24, 32
+    mstore 64, v23 !metadata(memory=scratch)
+    v30 = calldatasize
+    calldatacopy v22, v30, 64
+    mstore v22, 32
+    v21 = add v22, 32
     v7 = gas
-    v10 = staticcall v7, 3, v31, 0, v23, 32
-    v13 = mload v23
+    v10 = staticcall v7, 3, 0, 0, v21, 32
+    v13 = mload v21
     v14 = shl 96, v13
     mstore 128, v14
     returndata 128, 32

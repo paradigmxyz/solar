@@ -339,12 +339,9 @@ bb18 [loop]:
   push 0x3e8
   dup 2
   mul
-  push 0x3e8
-  dup 2
-  div
   swap 1
-  swap 2
-  sub
+  push 0x4189374bc6a7ef9db22d0e5604189374bc6a7ef9db22d0e5604189374bc6a7
+  lt
   push bb26
   jumpi
   dup 3

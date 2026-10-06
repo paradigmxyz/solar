@@ -459,6 +459,21 @@ impl<'gcx> EvmCodegen<'gcx> {
                                     op::is_commutative(opcode),
                                 );
                             }
+                            crate::mir::InstKind::Zext(value)
+                            | crate::mir::InstKind::IntToPtr(value)
+                            | crate::mir::InstKind::PtrToInt(value, _)
+                                if !self.scheduler.stack.contains(val) =>
+                            {
+                                self.emit_value_fresh(func, *value);
+                                if let crate::mir::InstKind::PtrToInt(_, bits) = *inst_kind
+                                    && bits < 256
+                                {
+                                    self.asm.emit_push(U256::MAX >> (256 - bits));
+                                    self.asm.emit_op(op::AND);
+                                }
+                                self.scheduler.stack.pop();
+                                self.scheduler.stack.push(val);
+                            }
                             crate::mir::InstKind::SLoad(slot) => {
                                 // Re-emit SLOAD. CALL operands are materialized in a
                                 // tight sequence with no intervening store, so the

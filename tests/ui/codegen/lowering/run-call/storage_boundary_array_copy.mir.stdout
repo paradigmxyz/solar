@@ -42,18 +42,18 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_
     icall panic_if<0x32>, v14
     v15 = mul 0, 10
     v16 = add v0, v15
-    v17 = alloc memoryfixedarray<10, 1>, exact, uninitialized, panic, 320
+    v17 = lt 0, 1
+    v18 = eq v17, false
+    icall panic_if<0x32>, v18
+    v19 = mul 0, 10
+    v20 = add v1, v19
+    v21 = alloc memoryfixedarray<10, 1>, exact, uninitialized, panic, 320
     jump bb7
   bb7:
-    v18 = phi [bb3: 0], [bb8: v22]
-    v19 = lt v18, 10
-    jumpi v19, bb8, bb9
+    v22 = phi [bb3: 0], [bb8: v26]
+    v23 = lt v22, 10
+    jumpi v23, bb8, bb9
   bb9:
-    v23 = lt 0, 1
-    v24 = eq v23, false
-    icall panic_if<0x32>, v24
-    v25 = mul 0, 10
-    v26 = add v1, v25
     jump bb10
   bb10:
     v27 = phi [bb9: 0], [bb15: v32]
@@ -96,24 +96,24 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_
     v51 = checked_add u256, v34, 1
     jump bb16
   bb11:
-    v29 = add v26, v27
+    v29 = add v20, v27
     v30 = lt v27, 10
     jumpi v30, bb13, bb14
   bb14:
     sstore v29, 0 !metadata(storage=symbolic(v29))
     jump bb15
   bb13:
-    v31 = memory_object_load_element memoryfixedarray<10, 1>, v17, v27
+    v31 = memory_object_load_element memoryfixedarray<10, 1>, v21, v27
     sstore v29, v31 !metadata(storage=symbolic(v29))
     jump bb15
   bb15:
     v32 = add v27, 1
     jump bb10
   bb8:
-    v20 = add v16, v18
-    v21 = sload v20 !metadata(storage=symbolic(v20))
-    memory_object_store_element memoryfixedarray<10, 1>, v17, v18, v21
-    v22 = add v18, 1
+    v24 = add v16, v22
+    v25 = sload v24 !metadata(storage=symbolic(v24))
+    memory_object_store_element memoryfixedarray<10, 1>, v21, v22, v25
+    v26 = add v22, 1
     jump bb7
   bb2:
     v9 = add v6, v7

@@ -251,7 +251,7 @@ suite. The Aave harness is embedded in `../../testdata/projects/aave-l2-encoder.
 used by the cold-path workloads. Embedded Solidity sources retain their SPDX identifiers.
 
 `verified-words` is a synthetic workload in `../../testdata/runtime/VerifiedWords.sol`
-for the SMT-checked word rules. It measures mixed bitwise expressions and signed
+for the Lean-proved word rules. It measures mixed bitwise expressions and signed
 negation in hot loops, with edge-value return checks. Report its results
 separately from the pinned project corpus; it demonstrates targeted reductions,
 not a general advantage over solc.
@@ -278,6 +278,13 @@ the pinned project corpus and do not establish general superiority over solc.
 The Benchmark workflow also accepts a `codegen_backend` input for the candidate.
 LSP benchmark builds disable the optional backends because they only exercise
 the frontend.
+
+`division-words` uses `../../testdata/runtime/DivisionWords.sol` to measure
+checked products, quotients and remainders in hot loops: fixed-point scaling,
+fee routing and deduction, kept shares, lot thresholds and whole lots, week,
+period and day rounding, and nested unit conversion. Return checks include the
+overflow limits of the scaled products and maximal timestamps. Report it
+separately from the pinned project corpus.
 
 The local `minimal-proxy` micro benchmark uses `../../testdata/MinimalProxy.sol`.
 Its payable high-level fallback delegates to an immutable implementation deployed
