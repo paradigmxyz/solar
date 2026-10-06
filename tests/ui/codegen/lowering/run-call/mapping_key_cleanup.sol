@@ -8,7 +8,6 @@ contract C {
     mapping(uint16 => uint) cleanup;
 
     function test_cleanup() public returns (bool) {
-        cleanup;
         uint16 x;
         assembly {
             x := 0xffff0001

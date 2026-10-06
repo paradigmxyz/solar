@@ -29,7 +29,8 @@
 //! transfers. Existing exit-shape, call, and stack-depth restrictions still
 //! apply.
 //! Required forwarding-buffer phis additionally get unconditional edge layouts even when optional
-//! loop planning declines the body. All phis travel together, and target reach still bounds layouts.
+//! loop planning declines the body. All phis travel together, and target reach still bounds
+//! layouts.
 
 use super::super::super::{
     BlockId, DenseBitSet, Function, FunctionId, FxHashMap, FxHashSet, GlobalStackPlan,

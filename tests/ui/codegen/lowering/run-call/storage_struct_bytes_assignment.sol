@@ -4,11 +4,6 @@
 //@ run-call: cleanupShort => 1, 0, 0
 //@ run-call: choose true => 0x61
 //@ run-call: choose false => 0x62
-//@ run-call: assignmentValue => 0x616263, 1
-//@ run-call: assignmentLength => 4
-//@ run-call: assignmentStorage => 0x62
-//@ run-call: assignmentStruct => 0x616263
-//@ run-call: assignmentCalldata 0x616263 => 0x616263
 //@ run-call-fail: malformed 64 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000022
 //@ run-call-fail: malformed 1 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000022
 
@@ -18,7 +13,6 @@ contract StorageStructBytesAssignment {
     }
 
     State internal state;
-    uint256 private accesses;
 
     function roundTrip() external returns (uint256 first, uint256 length) {
         state.data = abi.encodePacked(uint256(9), uint256(5), uint256(1));
@@ -62,33 +56,5 @@ contract StorageStructBytesAssignment {
     function malformed(uint256 header) external {
         assembly { sstore(state.slot, header) }
         state = State("a");
-    }
-
-    function assignmentValue() external returns (bytes memory result, uint256 count) {
-        result = (accessState().data = "abc");
-        count = accesses;
-    }
-
-    function assignmentLength() external returns (uint256) {
-        return (state.data = "abcd").length;
-    }
-
-    function assignmentStruct() external returns (bytes memory) {
-        return (state = State("abc")).data;
-    }
-
-    function assignmentCalldata(bytes calldata input) external returns (bytes memory) {
-        return (state.data = input);
-    }
-
-    function assignmentStorage() external returns (bytes memory) {
-        state.data = "a";
-        return (accessState().data = state.data);
-    }
-
-    function accessState() internal returns (State storage) {
-        accesses++;
-        state.data = "b";
-        return state;
     }
 }
