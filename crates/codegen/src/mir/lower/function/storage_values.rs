@@ -1348,9 +1348,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         span: Span,
     ) -> Option<()> {
         let source_ty = source_ty.peel_refs();
+        let source_ty = match source_ty.kind {
+            TyKind::Slice(underlying) => underlying.peel_refs(),
+            _ => source_ty,
+        };
         let source_layout = self.types.memory_layout(source_ty)?;
         let (source_element, length, fixed_length) = match source_ty.kind {
-            TyKind::DynArray(source_element) | TyKind::Slice(source_element) => {
+            TyKind::DynArray(source_element) => {
                 (source_element, self.builder.memory_object_len(object, source_layout.kind()), None)
             }
             TyKind::Array(source_element, source_len) => {

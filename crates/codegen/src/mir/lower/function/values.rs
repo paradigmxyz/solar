@@ -286,12 +286,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if values.len() < elements.len() {
             return self.cx.report_unsupported(rhs.span, "tuple assignment arity");
         }
-        self.store_tuple_values(
-            elements
-                .iter()
-                .zip(values)
-                .filter_map(|(element, value)| element.map(|element| (element, value, None))),
-        )
+        let source_ty = self.cx.gcx.type_of_expr(rhs.id)?;
+        let source_types = match source_ty.kind {
+            TyKind::Tuple(types) => types,
+            _ => std::slice::from_ref(&source_ty),
+        };
+        self.store_tuple_values(elements.iter().zip(values).zip(source_types).filter_map(
+            |((element, value), &source_ty)| {
+                element.map(|element| (element, value, Some(source_ty)))
+            },
+        ))
     }
 
     fn prepare_tuple_rhs(
