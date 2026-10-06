@@ -239,7 +239,8 @@ class Context:
 
     def pattern(self, node):
         if isinstance(node, str):
-            if node.startswith(("@fresh:", "@environment:")):
+            # Names starting with `@` belong to the checker's own variables.
+            if node.startswith("@"):
                 raise Unsupported("reserved proof-variable prefix")
             if node == "_":
                 return self.fresh()
@@ -482,6 +483,8 @@ class Context:
             if len(clause) != 3 or clause[0] != "if-let":
                 raise Unsupported("only explicit if-let clauses are supported")
             _, pattern, expression = clause
+            if isinstance(pattern, str) and pattern.startswith("@"):
+                raise Unsupported("reserved proof-variable prefix")
             value = self.constructor(expression)
             if (
                 isinstance(pattern, str)

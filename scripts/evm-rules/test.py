@@ -789,6 +789,18 @@ class RuleTests(unittest.TestCase):
             path.write_text(source)
             return verify_rules(path)
 
+    def test_reserved_variable_names_fail_closed(self):
+        # Names starting with `@` belong to the checker; a rule cannot bind one.
+        for source in (
+            "(rule (rewrite (Op.Add @fresh:1 x)) x)",
+            "(rule (rewrite (Op.Add @flag:x x)) x)",
+            "(rule (rewrite (Op.Add @balance:0 x)) x)",
+            "(rule (rewrite (Op.Add x (zero))) (if-let @value (u256 1)) x)",
+        ):
+            with self.subTest(source=source):
+                result = self.verify(source)["rules"][0]
+                self.assertEqual(result["status"], "unsupported", result)
+
     def test_rule_directory_preserves_sources(self):
         with tempfile.TemporaryDirectory() as directory:
             rules = Path(directory) / "rules"
