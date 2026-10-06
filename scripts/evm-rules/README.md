@@ -50,8 +50,7 @@ checks every theorem against that initial environment, without retaining
 declarations from previous queries. A timeout stops the worker and its SAT solver; the next
 theorem starts a new worker. Reports and theorem files live under
 `target/evm-rules/`. [install_lean.sh](../../.github/scripts/install_lean.sh)
-installs the pinned toolchain for x86 and Arm runners in the proof and Python
-jobs.
+installs the pinned toolchain for the four-core x86 runners used by both jobs.
 
 ```sh
 # Verify all selected rules.
