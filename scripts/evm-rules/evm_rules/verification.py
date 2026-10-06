@@ -1,8 +1,8 @@
 """Verify ISLE rule files in Lean, one theorem per rule.
 
 Readers turn each rule into words and preconditions; `lean.py` states them as a
-theorem over the EVM semantics in `lean/EvmRules`, and `prover.py` checks it in its
-own `lean` process. `evm_auto` proves it over natural numbers with `evm_arith`, by
+theorem over the EVM semantics in `lean/EvmRules`, and `prover.py` checks it in a
+reusable worker process. `evm_auto` proves it over natural numbers with `evm_arith`, by
 bit-blasting with `evm_decide`, bit by bit with `evm_bits` or as a ring identity with
 `evm_ring`; a hand-written proof replaces them. A physical stack
 rule has one theorem per distinct shape of its per-depth variants: each variant is
@@ -17,12 +17,14 @@ import concurrent.futures
 import hashlib
 import re
 import time
+from contextlib import ExitStack
+from queue import SimpleQueue
 
 from .expr import Expr, Unsupported
 from .isle import ISLE, Context, Rule, forms, rule_sources
 from .late import late_obligation, late_rules
 from .lean import canonical, simplify
-from .prover import MANUAL_PROOFS, job, prove
+from .prover import MANUAL_PROOFS, Checker, job, prove
 from .stack import stack_rules, stack_variants
 
 DEFAULT_FILES = [
@@ -120,11 +122,13 @@ def verify_files(
     timeout_s,
     progress=print,
     checker=None,
+    isolated=False,
 ):
     """Check every rule of `paths`; return per-file results and status counts.
 
-    With a `checker`, every theorem is answered by that one process instead of a
-    `lean` process per theorem: faster for small files, with the same statuses.
+    Workers import the model once, but check every theorem in a fresh environment.
+    `isolated` starts a separate `lean` process per theorem. An explicit `checker`
+    answers all obligations sequentially, as in discovery tests.
     """
     tactic = f"evm_auto {timeout_s}"
     manual = {path.stem: path.read_text() for path in MANUAL_PROOFS.glob("*.lean")}
@@ -185,9 +189,23 @@ def verify_files(
                 tasks.append((task, proof is not None))
     if unused:
         raise ValueError(f"hand-written proofs without a rule: {sorted(unused)}")
-    with concurrent.futures.ThreadPoolExecutor(jobs) as pool:
+    workers = SimpleQueue()
+
+    def run(task):
+        if isolated:
+            return prove(task)
+        worker = workers.get()
+        try:
+            return prove(task, worker)
+        finally:
+            workers.put(worker)
+
+    with ExitStack() as stack, concurrent.futures.ThreadPoolExecutor(jobs) as pool:
+        if not isolated:
+            for _ in range(min(jobs, len(tasks))):
+                workers.put(stack.enter_context(Checker(lean_path)))
         for (_, manual_proof), (name, result) in zip(
-            tasks, pool.map(prove, [task for task, _ in tasks])
+            tasks, pool.map(run, [task for task, _ in tasks])
         ):
             result["method"] = "manual" if manual_proof else result.pop("tactic", "")
             proofs[name] = result

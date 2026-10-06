@@ -2,10 +2,10 @@
 
 `lean_environment` builds the EVM semantics in `lean/EvmRules` and the `evm_check`
 executable with the toolchain pinned in `lean/lean-toolchain`. Verification checks
-each theorem in its own `lean` process (`job` and `prove`), so every rule has its own
-time limit and failure. Search makes thousands of small queries instead: `Checker`
-keeps one `evm_check` process that has imported the model, and answers each query in
-milliseconds once it is warm.
+each theorem with `job` and `prove`, reusing `Checker` processes that import the model
+once. Each theorem still has its own time limit and failure; an isolated `lean`
+process remains available for diagnostics and comparison. Search also reuses
+`Checker` for thousands of small queries.
 
 A precondition set must also be satisfiable, as a rule that never applies proves
 nothing. Its theorem `preconditions → False` must fail with an assignment, and the
@@ -268,7 +268,7 @@ def job(work_dir, name, lhs, rhs, assumptions, tactic, timeout, lean_path):
     )
 
 
-def prove(task):
+def prove(task, checker=None):
     """Check one theorem file; the applicability search, if any, must fail with a witness.
 
     A failed proof whose counterexample replays in the integer semantics is reported as
@@ -281,27 +281,37 @@ def prove(task):
     path = directory / "Proof.lean"
     path.write_text(text)
     start = time.monotonic()
-    process = subprocess.Popen(
-        # A warning, such as a deprecated lemma or an unused simp argument in a script, fails
-        # the proof as an error would.
-        ["lean", "-j1", "-DwarningAsError=true", str(path)],
-        cwd=LEAN_PROJECT,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        env={**os.environ, "LEAN_PATH": task.lean_path},
-        start_new_session=True,
-    )
-    try:
-        stdout, stderr = process.communicate(timeout=task.timeout)
-    except subprocess.TimeoutExpired:
-        stop(process)
-        return name, {
-            "status": "timeout",
-            "seconds": round(time.monotonic() - start, 2),
-        }
+    if checker is None:
+        process = subprocess.Popen(
+            ["lean", "-j1", "-DwarningAsError=true", str(path)],
+            cwd=LEAN_PROJECT,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            env={**os.environ, "LEAN_PATH": task.lean_path},
+            start_new_session=True,
+        )
+        try:
+            stdout, stderr = process.communicate(timeout=task.timeout)
+        except subprocess.TimeoutExpired:
+            stop(process)
+            return name, {
+                "status": "timeout",
+                "seconds": round(time.monotonic() - start, 2),
+            }
+        output = stdout + stderr
+        returncode = process.returncode
+    else:
+        source = text.replace("import EvmRules", " " * len("import EvmRules"), 1)
+        reply = checker.ask(source, task.timeout, path=str(path))
+        if reply is None:
+            return name, {
+                "status": "timeout",
+                "seconds": round(time.monotonic() - start, 2),
+            }
+        ok, output = reply
+        returncode = 0 if ok else 1
     result = {"seconds": round(time.monotonic() - start, 2)}
-    output = stdout + stderr
     reported = errors(output, path)
     # The theorem must have no error, and no warning that it relies on `sorry`.
     failures = [
@@ -310,7 +320,7 @@ def prove(task):
         if (search_line is None or line < search_line)
         and (level == "error" or "sorry" in message)
     ]
-    if failures or (process.returncode != 0 and not reported):
+    if failures or (returncode != 0 and not reported):
         result.update(status="failed", output="\n".join(failures or [output])[-3000:])
         main = {}
         for item in (task.lhs, task.rhs, *assumptions):
@@ -377,7 +387,7 @@ class Checker:
             stop(self.process)
             self.process = None
 
-    def ask(self, source, timeout_s):
+    def ask(self, source, timeout_s, *, path=None):
         """Elaborate commands in the model's environment; None when the time runs out."""
         if self.process is None:
             self.process = subprocess.Popen(
@@ -387,21 +397,38 @@ class Checker:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.DEVNULL,
                 text=True,
-                env={**os.environ, "LEAN_PATH": self.lean_path},
+                env={
+                    **os.environ,
+                    "LEAN_PATH": self.lean_path,
+                    "LEAN_NUM_THREADS": "1",
+                },
                 start_new_session=True,
             )
         process = self.process
         assert process.stdin is not None and process.stdout is not None
         self.queries += 1
-        process.stdin.write(json.dumps({"id": self.queries, "source": source}) + "\n")
-        process.stdin.flush()
-        ready, _, _ = select.select([process.stdout], [], [], timeout_s)
-        line = process.stdout.readline() if ready else ""
+        request = {"id": self.queries, "source": source}
+        if path is not None:
+            request["path"] = path
+        try:
+            process.stdin.write(json.dumps(request) + "\n")
+            process.stdin.flush()
+            ready, _, _ = select.select([process.stdout], [], [], timeout_s)
+            line = process.stdout.readline() if ready else ""
+        except BrokenPipeError, OSError:
+            line = ""
         if not line:
             self.close()
             return None
         reply = json.loads(line)
-        return reply["ok"], "\n".join(message["text"] for message in reply["messages"])
+        output = "\n".join(
+            f"{path}:{message['line']}:{message['column']}: "
+            f"{message['severity']}: {message['text']}"
+            if path is not None
+            else message["text"]
+            for message in reply["messages"]
+        )
+        return reply["ok"], output
 
     def check(self, lhs, rhs, assumptions=(), timeout_ms=5000, tactic=None):
         """Decide `assumptions → lhs = rhs`, first requiring satisfiable assumptions.

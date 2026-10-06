@@ -42,8 +42,11 @@ requests it runs only when codegen, proof tooling, or their CI and dependency
 inputs change; main pushes always run it. The exact paths and schedule live in
 [ci.yml](../../.github/workflows/ci.yml). The [proof
 runner](../../.github/scripts/run_evm_proofs.sh) checks every selected rule with
-one single-threaded `lean` process per theorem, two at a time, as on that
-runner; `verify.py` alone uses every core. Reports and theorem files live under
+two single-threaded reusable Lean workers, as on that runner; `verify.py`
+alone uses every core. Each worker imports the model once and checks every
+theorem against that initial environment, without retaining declarations from
+previous queries. A timeout stops the worker and its SAT solver; the next
+theorem starts a new worker. Reports and theorem files live under
 `target/evm-rules/`. [install_lean.sh](../../.github/scripts/install_lean.sh)
 installs the pinned toolchain for x86 and Arm runners in the proof and Python
 jobs.
@@ -55,6 +58,10 @@ bash .github/scripts/run_evm_proofs.sh
 # Verify one rule set.
 uv run scripts/evm-rules/verify.py verify crates/codegen/isle/mir/word \
   --output target/evm-rules/selected.json
+
+# Compare the same rule set with a separate Lean process per theorem.
+uv run scripts/evm-rules/verify.py verify crates/codegen/isle/mir/word \
+  --isolated --output target/evm-rules/isolated.json
 ```
 
 Every run proves each selected rule and checks its applicability again. No

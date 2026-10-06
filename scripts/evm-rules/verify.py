@@ -27,6 +27,11 @@ def main():
     verify.add_argument("files", nargs="*", type=Path, default=DEFAULT_FILES)
     verify.add_argument("--jobs", type=int, default=os.cpu_count() or 4)
     verify.add_argument(
+        "--isolated",
+        action="store_true",
+        help="start Lean per theorem instead of reusing workers, for comparison",
+    )
+    verify.add_argument(
         "--timeout-s",
         type=int,
         default=120,
@@ -146,6 +151,7 @@ def main():
             lean_path,
             jobs=args.jobs,
             timeout_s=args.timeout_s,
+            isolated=args.isolated,
         )
         for file in report["files"]:
             for rule in file["rules"]:

@@ -98,7 +98,7 @@ def verify_rules(path, *, processes=False, timeout_s=PROOF_TIMEOUT_MS // 1000):
     """Verify one rule file; each rule's single proof result is merged into it.
 
     By default the shared checker answers every theorem; `processes` checks each in
-    its own `lean` process, as the command line does.
+    its own `lean` process, as `--isolated` does.
     """
     with tempfile.TemporaryDirectory() as directory:
         report = verify_files(
@@ -109,6 +109,7 @@ def verify_rules(path, *, processes=False, timeout_s=PROOF_TIMEOUT_MS // 1000):
             timeout_s=timeout_s,
             progress=None,
             checker=None if processes else shared_checker(),
+            isolated=processes,
         )["files"][0]
     for rule in report["rules"]:
         proofs = rule.get("proofs", [])
@@ -1203,6 +1204,117 @@ class CliTests(unittest.TestCase):
             ):
                 self.assertEqual(prove(task)[1]["status"], "timeout")
             stopped.assert_called_once_with(hung)
+
+    def test_worker_reuses_process_without_retaining_declarations(self):
+        with Checker(lean_path()) as checker:
+            source = COMMANDS + "\ntheorem previous (x : Word) : x = x := by rfl"
+            self.assertTrue(checker.ask(source, 30)[0])
+            process = checker.process
+            self.assertTrue(checker.ask(source, 30)[0])
+            self.assertIs(checker.process, process)
+            reply = checker.ask(
+                COMMANDS + "\ntheorem next (x : Word) : x = x := by exact previous x",
+                30,
+            )
+            self.assertFalse(reply[0])
+            self.assertIn("Unknown identifier", reply[1])
+
+    def test_worker_preserves_proof_and_applicability_results(self):
+        operand = Expr.var("x")
+        cases = [
+            ([], "rfl", "proved"),
+            ([Cond("eq", (operand, Expr.const(0)))], "rfl", "proved"),
+            (
+                [
+                    Cond("eq", (operand, Expr.const(0))),
+                    Cond("eq", (operand, Expr.const(1))),
+                ],
+                "rfl",
+                "inapplicable",
+            ),
+            ([], "sorry", "failed"),
+            ([Cond("eq", (operand, Expr.const(0)))], "sorry", "failed"),
+            ([], "simp only [Nat.add_comm]; rfl", "failed"),
+        ]
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            Checker(lean_path()) as checker,
+        ):
+            for assumptions, tactic, expected in cases:
+                task = job(
+                    Path(directory),
+                    "t",
+                    operand,
+                    operand,
+                    assumptions,
+                    tactic,
+                    30,
+                    lean_path(),
+                )
+                with self.subTest(tactic=tactic, assumptions=assumptions):
+                    isolated = prove(task)[1]
+                    reused = prove(task, checker)[1]
+                    self.assertEqual(isolated["status"], expected, isolated)
+                    self.assertEqual(reused["status"], expected, reused)
+                    self.assertEqual(isolated.get("witness"), reused.get("witness"))
+            wrong = job(
+                Path(directory),
+                "t",
+                operand,
+                Expr.const(0),
+                [],
+                "evm_decide 30",
+                30,
+                lean_path(),
+            )
+            result = prove(wrong, checker)[1]
+            self.assertEqual(result["status"], "counterexample", result)
+            self.assertTrue(result["replayed"])
+
+    def test_worker_timeout_restarts_before_the_next_proof(self):
+        operand = Expr.var("x")
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            Checker(lean_path()) as checker,
+        ):
+            task = job(
+                Path(directory), "t", operand, operand, [], "rfl", 30, lean_path()
+            )
+            self.assertEqual(prove(task, checker)[1]["status"], "proved")
+            process = checker.process
+            with patch("evm_rules.prover.select.select", return_value=([], [], [])):
+                self.assertEqual(prove(task, checker)[1]["status"], "timeout")
+            self.assertIsNone(checker.process)
+            self.assertIsNotNone(process.poll())
+            self.assertEqual(prove(task, checker)[1]["status"], "proved")
+            self.assertIsNot(checker.process, process)
+
+    def test_parallel_verification_bounds_and_closes_workers(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "rules.isle"
+            path.write_text(
+                "\n".join("(rule (simplify (Op.Add x (zero))) x)" for _ in range(6))
+            )
+            workers = []
+
+            def create_worker(environment):
+                worker = Checker(environment)
+                workers.append(worker)
+                return worker
+
+            with patch("evm_rules.verification.Checker", side_effect=create_worker):
+                report = verify_files(
+                    [path],
+                    Path(directory) / "work",
+                    lean_path(),
+                    jobs=2,
+                    timeout_s=30,
+                    progress=None,
+                )
+            self.assertEqual(report["counts"], {"proved": 6})
+            self.assertEqual(len(workers), 2)
+            self.assertEqual(sum(worker.queries for worker in workers), 6)
+            self.assertTrue(all(worker.process is None for worker in workers))
 
     def test_stopping_a_proof_stops_its_solver(self):
         # `bv_decide` runs the SAT solver as a child of `lean`; a timeout must stop it

@@ -5,7 +5,6 @@ cd "$(dirname "$0")/../.."
 output="${1:-target/evm-rules}"
 mkdir -p "$output"
 lean --version
-# Every selected rule is one Lean theorem, proved afresh in its own single-threaded `lean`
-# process; two run at a time, as on the standard CI runner.
+# Every selected theorem and applicability check is proved afresh by two reusable workers.
 uv run scripts/evm-rules/verify.py verify --jobs 2 \
   --work-dir "$output/theorems" --output "$output/proofs.json"

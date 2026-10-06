@@ -19,13 +19,15 @@ def describe (message : Message) : IO Json := do
     | .error => "error"
     | .warning => "warning"
     | .information => "information"
-  return Json.mkObj [("severity", severity), ("text", ← message.data.toString)]
+  return Json.mkObj [("severity", severity), ("text", ← message.data.toString),
+    ("line", toJson message.pos.line), ("column", toJson message.pos.column)]
 
 def answer (env : Environment) (opts : Options) (request : Json) : IO Json := do
   let id := request.getObjValD "id"
   let some source := (request.getObjValAs? String "source").toOption
     | return Json.mkObj [("id", id), ("ok", false), ("messages", Json.arr #[])]
-  let (_, log) ← Elab.process source env opts "<query>"
+  let path := (request.getObjValAs? String "path").toOption.getD "<query>"
+  let (_, log) ← Elab.process source env opts path
   let messages ← log.toList.toArray.mapM describe
   let texts ← log.toList.mapM fun message => message.data.toString
   -- A proof must have no error and must not rely on `sorry`.
