@@ -110,6 +110,14 @@ closes the goal with `omega`, which treats the remaining products, quotients
 and remainders as opaque terms. Its lemmas live in `lean/EvmRules/Arith.lean`.
 `evm_arith`, `evm_bits` and `evm_ring` rely on Lean's kernel alone.
 
+`lean/EvmRules/Reference.lean` holds the definitions of
+paradigmxyz/solar#1648, a second transcription of the same specifications
+written independently of `Word.lean`, with shifts by natural counts, zero
+divisors as an explicit case, `SIGNEXTEND` as a pair of shifts and comparisons
+as `if` terms. Lean proves, without `bv_decide`, that every operation of
+`Word.lean` agrees with it on all inputs, so a transcription error would have
+to be made twice, in two different forms, to go unnoticed.
+
 A script in `lean/proofs/` replaces `evm_auto` for one rule, with the lemmas in
 `lean/EvmRules/Lemmas.lean`. Its file is named after the rule's source file and
 the first 16 hex digits of the rule's digest (`egraph_44d329ef52b3f648.lean`),

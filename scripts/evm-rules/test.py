@@ -1535,6 +1535,37 @@ class LeanProofTests(unittest.TestCase):
         output = process.stdout + process.stderr
         return process.returncode == 0 and "error" not in output, output
 
+    def test_model_agrees_with_an_independent_transcription(self):
+        # The library proves every operation equal to the definitions of #1648; without the
+        # import, those proofs would silently stop being checked.
+        names = [
+            "shl",
+            "shr",
+            "sar",
+            "div",
+            "mod",
+            "sdiv",
+            "smod",
+            "addmod",
+            "mulmod",
+            "exp",
+            "byte",
+            "signextend",
+            "clz",
+            "lt",
+            "gt",
+            "slt",
+            "sgt",
+            "eq",
+            "ne",
+            "iszero",
+            "select",
+        ]
+        ok, output = self.check(
+            "\n".join(f"#check @EvmRules.{name}_agrees" for name in names)
+        )
+        self.assertTrue(ok, output[-2000:])
+
     def test_semantics_match_the_integer_evaluator(self):
         rng = random.Random(7)
         words = [0, 1, 2, 7, 8, 30, 31, 32, 33, 255, 256, 257, SIGN - 1, SIGN]
