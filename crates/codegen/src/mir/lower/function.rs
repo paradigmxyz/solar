@@ -823,8 +823,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     return Some(self.builder.imm(U256::ZERO));
                 }
                 let lhs_ty = self.type_of_expr_or_variable(lhs)?;
-                let fixed_bytes = operators::fixed_bytes_width(lhs_ty);
                 let rhs_ty = self.cx.gcx.type_of_expr(rhs.id).unwrap_or(lhs_ty);
+                if op.is_none()
+                    && lhs_ty.is_ref_at(DataLocation::Storage)
+                    && rhs_ty.is_ref_at(DataLocation::Storage)
+                    && self.discarded_exprs.contains(&expr.id)
+                {
+                    self.storage_access(expr)?;
+                    return Some(self.builder.imm(U256::ZERO));
+                }
+                let fixed_bytes = operators::fixed_bytes_width(lhs_ty);
                 let memory_rhs_ty = rhs_ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
                 // A literal assigned to a fixed-bytes place is that word.
                 // Building it directly avoids allocating a memory literal whose

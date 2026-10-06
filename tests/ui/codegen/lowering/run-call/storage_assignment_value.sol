@@ -4,6 +4,7 @@
 //@ run-call: assignmentStorage => 0x62
 //@ run-call: assignmentStruct => 0x616263
 //@ run-call: assignmentCalldata 0x616263 => 0x616263
+//@ run-call: assignmentChain => 0x62, 0x62, 1
 
 contract StorageAssignmentValue {
     struct State {
@@ -33,6 +34,12 @@ contract StorageAssignmentValue {
     function assignmentStorage() external returns (bytes memory) {
         state.data = "a";
         return (accessState().data = state.data);
+    }
+
+    function assignmentChain() external returns (bytes memory, bytes memory, uint256) {
+        State storage target = state;
+        accessState().data = target.data = "abc";
+        return (state.data, target.data, accesses);
     }
 
     function accessState() internal returns (State storage) {
