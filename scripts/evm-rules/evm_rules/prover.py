@@ -266,7 +266,7 @@ def prove(task):
     start = time.monotonic()
     try:
         process = subprocess.run(
-            ["lean", str(path)],
+            ["lean", "-j1", str(path)],
             cwd=LEAN_PROJECT,
             capture_output=True,
             text=True,

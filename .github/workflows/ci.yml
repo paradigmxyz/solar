@@ -19,8 +19,8 @@ env:
 jobs:
   evm-rules:
     name: EVM word and stack proofs
-    runs-on: depot-ubuntu-24.04-arm-32
-    timeout-minutes: 15
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
     permissions:
       id-token: write
       contents: read
@@ -39,7 +39,7 @@ jobs:
           if [[ "$EVENT_NAME" != pull_request ]]; then
             echo 'run=true' >> "$GITHUB_OUTPUT"
           else
-            changed=$(git diff --name-only HEAD^1 HEAD -- crates/codegen scripts/evm-rules .github/scripts/run_evm_proofs.sh .github/workflows/ci.yml .python-version pyproject.toml uv.lock)
+            changed=$(git diff --name-only HEAD^1 HEAD -- crates/codegen scripts/evm-rules .github/scripts/run_evm_proofs.sh .github/scripts/install_lean.sh .github/workflows/ci.yml .python-version pyproject.toml uv.lock)
             if [[ -n "$changed" ]]; then
               echo 'run=true' >> "$GITHUB_OUTPUT"
             else
@@ -52,24 +52,14 @@ jobs:
         if: steps.select.outputs.run == 'true'
         with:
           path: |
-            ${{ runner.temp }}/lean.tar.zst
+            ${{ runner.temp }}/solar-lean/*.tar.zst
             scripts/evm-rules/lean/.lake
-          key: lean-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/evm-rules/lean/**/*.lean', 'scripts/evm-rules/lean/lakefile.toml', 'scripts/evm-rules/lean/lake-manifest.json', 'scripts/evm-rules/lean/lean-toolchain') }}
+          key: lean-v2-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/evm-rules/lean/**/*.lean', 'scripts/evm-rules/lean/lakefile.toml', 'scripts/evm-rules/lean/lake-manifest.json', 'scripts/evm-rules/lean/lean-toolchain') }}
           restore-keys: |
-            lean-v1-${{ runner.os }}-${{ runner.arch }}-
-      - name: Install Lean 4.34.1
+            lean-v2-${{ runner.os }}-${{ runner.arch }}-
+      - name: Install Lean
         if: steps.select.outputs.run == 'true'
-        run: |
-          if [[ ! -f "$RUNNER_TEMP/lean.tar.zst" ]]; then
-            curl --fail --location --retry 3 --silent --show-error \
-              https://github.com/leanprover/lean4/releases/download/v4.34.1/lean-4.34.1-linux_aarch64.tar.zst \
-              --output "$RUNNER_TEMP/lean.tar.zst"
-          fi
-          echo "fdb974c2cdb4627e090d5d4007b913e09d13c4868720fb5594e22808b3de9e37  $RUNNER_TEMP/lean.tar.zst" | sha256sum --check
-          mkdir -p "$RUNNER_TEMP/lean"
-          tar --zstd -xf "$RUNNER_TEMP/lean.tar.zst" -C "$RUNNER_TEMP/lean" --strip-components=1
-          echo "$RUNNER_TEMP/lean/bin" >> "$GITHUB_PATH"
-          "$RUNNER_TEMP/lean/bin/lean" --version
+        run: bash .github/scripts/install_lean.sh
       - name: Verify rules
         if: steps.select.outputs.run == 'true'
         run: bash .github/scripts/run_evm_proofs.sh
@@ -86,7 +76,7 @@ jobs:
     if: github.event_name != 'schedule'
     name: test ${{ matrix.os }} ${{ matrix.rust }}${{ matrix.features && format(' ({0})', matrix.features) || '' }}
     runs-on: depot-${{ matrix.os }}
-    timeout-minutes: 30
+    timeout-minutes: 45
     permissions:
       id-token: write
       contents: read
@@ -189,23 +179,13 @@ jobs:
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
-            ${{ runner.temp }}/lean.tar.zst
+            ${{ runner.temp }}/solar-lean/*.tar.zst
             scripts/evm-rules/lean/.lake
-          key: lean-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/evm-rules/lean/**/*.lean', 'scripts/evm-rules/lean/lakefile.toml', 'scripts/evm-rules/lean/lake-manifest.json', 'scripts/evm-rules/lean/lean-toolchain') }}
+          key: lean-v2-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/evm-rules/lean/**/*.lean', 'scripts/evm-rules/lean/lakefile.toml', 'scripts/evm-rules/lean/lake-manifest.json', 'scripts/evm-rules/lean/lean-toolchain') }}
           restore-keys: |
-            lean-v1-${{ runner.os }}-${{ runner.arch }}-
-      - name: Install Lean 4.34.1
-        run: |
-          if [[ ! -f "$RUNNER_TEMP/lean.tar.zst" ]]; then
-            curl --fail --location --retry 3 --silent --show-error \
-              https://github.com/leanprover/lean4/releases/download/v4.34.1/lean-4.34.1-linux_aarch64.tar.zst \
-              --output "$RUNNER_TEMP/lean.tar.zst"
-          fi
-          echo "fdb974c2cdb4627e090d5d4007b913e09d13c4868720fb5594e22808b3de9e37  $RUNNER_TEMP/lean.tar.zst" | sha256sum --check
-          mkdir -p "$RUNNER_TEMP/lean"
-          tar --zstd -xf "$RUNNER_TEMP/lean.tar.zst" -C "$RUNNER_TEMP/lean" --strip-components=1
-          echo "$RUNNER_TEMP/lean/bin" >> "$GITHUB_PATH"
-          "$RUNNER_TEMP/lean/bin/lean" --version
+            lean-v2-${{ runner.os }}-${{ runner.arch }}-
+      - name: Install Lean
+        run: bash .github/scripts/install_lean.sh
       - name: Python checks and tests
         run: bash scripts/check-python.sh
 
@@ -213,7 +193,7 @@ jobs:
     if: github.event_name != 'schedule'
     name: fandango
     runs-on: depot-ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     continue-on-error: true
     permissions:
       id-token: write
@@ -269,7 +249,7 @@ jobs:
     if: github.event_name != 'schedule'
     name: features
     runs-on: depot-ubuntu-latest-4
-    timeout-minutes: 30
+    timeout-minutes: 45
     permissions:
       id-token: write
       contents: read
@@ -299,7 +279,7 @@ jobs:
   wasm:
     if: github.event_name != 'schedule'
     runs-on: depot-ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     permissions:
       id-token: write
       contents: read
@@ -326,7 +306,7 @@ jobs:
   typos:
     if: github.event_name != 'schedule'
     runs-on: depot-ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     permissions:
       id-token: write
       contents: read
@@ -341,7 +321,7 @@ jobs:
   clippy:
     if: github.event_name != 'schedule'
     runs-on: depot-ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     permissions:
       id-token: write
       contents: read
@@ -367,7 +347,7 @@ jobs:
   docs:
     if: github.event_name != 'schedule'
     runs-on: depot-ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     permissions:
       id-token: write
       contents: read
@@ -393,7 +373,7 @@ jobs:
   fmt:
     if: github.event_name != 'schedule'
     runs-on: depot-ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     permissions:
       id-token: write
       contents: read

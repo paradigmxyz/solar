@@ -37,13 +37,16 @@ files fail too. Failures print the source file, rule line, status and reason.
 
 ## CI
 
-CI runs one proof job on a larger Depot runner. On pull requests it runs only
-when codegen, proof tooling, or their CI and dependency inputs change; main
-pushes always run it. The exact paths and schedule live in
+CI runs one proof job on the standard GitHub-hosted x86 runner. On pull
+requests it runs only when codegen, proof tooling, or their CI and dependency
+inputs change; main pushes always run it. The exact paths and schedule live in
 [ci.yml](../../.github/workflows/ci.yml). The [proof
 runner](../../.github/scripts/run_evm_proofs.sh) checks every selected rule with
-one `lean` process per theorem on every core. Reports and theorem files live
-under `target/evm-rules/`.
+one single-threaded `lean` process per theorem, two at a time, as on that
+runner; `verify.py` alone uses every core. Reports and theorem files live under
+`target/evm-rules/`. [install_lean.sh](../../.github/scripts/install_lean.sh)
+installs the pinned toolchain for x86 and Arm runners in the proof and Python
+jobs.
 
 ```sh
 # Verify all selected rules.
