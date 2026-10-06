@@ -1178,8 +1178,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         object: ValueId,
         span: Span,
     ) -> Option<()> {
-        // MIR object values retain only their coarse kind; HIR types preserve
-        // the nested shape needed when fixed arrays convert to storage arrays.
+        let source_ty = source_ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
+        let object = self.materialize_memory_argument(source_ty, object, span)?;
+        // HIR types preserve the nested shape needed when fixed arrays convert to storage arrays.
         match ty.peel_refs().kind {
             TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
                 // store_storage_bytes(slot, object)
@@ -1347,9 +1348,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         span: Span,
     ) -> Option<()> {
         let source_ty = source_ty.peel_refs();
+        let source_ty = match source_ty.kind {
+            TyKind::Slice(underlying) => underlying.peel_refs(),
+            _ => source_ty,
+        };
         let source_layout = self.types.memory_layout(source_ty)?;
         let (source_element, length, fixed_length) = match source_ty.kind {
-            TyKind::DynArray(source_element) | TyKind::Slice(source_element) => {
+            TyKind::DynArray(source_element) => {
                 (source_element, self.builder.memory_object_len(object, source_layout.kind()), None)
             }
             TyKind::Array(source_element, source_len) => {
