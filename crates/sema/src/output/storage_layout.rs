@@ -2,7 +2,7 @@ use crate::{
     hir,
     ty::{Gcx, Ty, TyKind},
 };
-use alloy_primitives::{U256, U512};
+use alloy_primitives::U256;
 use serde::Serialize;
 use solar_ast::{DataLocation, ElementaryType};
 use solar_data_structures::map::FxIndexMap;
@@ -159,10 +159,10 @@ impl<'gcx> StorageLayoutBuilder<'gcx> {
         StorageLayoutOutput { storage, types }
     }
 
-    fn layout_members(&mut self, fields: &[hir::VariableId]) -> (Vec<StorageLayoutEntry>, U512) {
+    fn layout_members(&mut self, fields: &[hir::VariableId]) -> (Vec<StorageLayoutEntry>, U256) {
         let mut cursor = StorageCursor::new(U256::ZERO);
         let members = self.layout_fields(fields, &mut cursor);
-        (members, cursor.size())
+        (members, cursor.slots())
     }
 
     fn layout_fields(
@@ -198,15 +198,14 @@ impl<'gcx> StorageLayoutBuilder<'gcx> {
     }
 
     fn place_type(&mut self, ty: Ty<'gcx>, cursor: &mut StorageCursor) -> (U256, u64) {
-        let bytes = self.storage_bytes(ty);
         if !self.is_packable(ty) {
             cursor.align();
             let slot = cursor.slot;
-            cursor.advance(slots_for(bytes).wrapping_to());
+            cursor.advance(self.storage_slots(ty));
             return (slot, 0);
         }
 
-        let bytes = bytes.to::<u64>();
+        let bytes = self.storage_bytes(ty).to::<u64>();
         if cursor.offset + bytes > 32 {
             cursor.align();
         }
@@ -230,7 +229,7 @@ impl<'gcx> StorageLayoutBuilder<'gcx> {
         let mut info = StorageLayoutType {
             encoding: StorageEncoding::Inplace,
             label: self.storage_type_label(ty),
-            number_of_bytes: self.storage_bytes(ty).wrapping_to::<U256>().to_string(),
+            number_of_bytes: self.storage_bytes(ty).to_string(),
             ..Default::default()
         };
         match ty.kind {
@@ -392,41 +391,28 @@ impl<'gcx> StorageLayoutBuilder<'gcx> {
         }
     }
 
-    // A 256-bit slot count needs up to 261 bits when converted to bytes.
-    fn storage_bytes(&mut self, ty: Ty<'gcx>) -> U512 {
+    fn storage_bytes(&mut self, ty: Ty<'gcx>) -> U256 {
         match ty.kind {
             TyKind::Ref(inner, _) => self.storage_bytes(inner),
             TyKind::Elementary(ty) => match ty {
-                ElementaryType::Address(_) => U512::from(20),
-                ElementaryType::Bool => U512::from(1),
-                ElementaryType::String | ElementaryType::Bytes => U512::from(32),
+                ElementaryType::Address(_) => U256::from(20),
+                ElementaryType::Bool => U256::from(1),
+                ElementaryType::String | ElementaryType::Bytes => U256::from(32),
                 ElementaryType::Fixed(size, _)
                 | ElementaryType::UFixed(size, _)
                 | ElementaryType::Int(size)
                 | ElementaryType::UInt(size)
-                | ElementaryType::FixedBytes(size) => U512::from(size.bytes()),
+                | ElementaryType::FixedBytes(size) => U256::from(size.bytes()),
             },
-            TyKind::Array(base, length) => {
-                let length = U512::from(length);
-                let base_bytes = self.storage_bytes(base);
-                let slots = if self.is_packable(base) {
-                    let items_per_slot = U512::from(32) / base_bytes;
-                    length / items_per_slot
-                        + U512::from(u8::from(length % items_per_slot != U512::ZERO))
-                } else {
-                    slots_for(base_bytes) * length
-                };
-                slots.max(U512::from(1)) * U512::from(32)
+            TyKind::Array(..) | TyKind::Struct(_) => {
+                self.storage_slots(ty).wrapping_mul(U256::from(32))
             }
-            TyKind::DynArray(_) | TyKind::Mapping(..) => U512::from(32),
-            TyKind::Struct(struct_id) => {
-                self.layout_members(self.gcx.hir.strukt(struct_id).fields).1
-            }
-            TyKind::Contract(_) => U512::from(20),
-            TyKind::Enum(_) => U512::from(1),
+            TyKind::DynArray(_) | TyKind::Mapping(..) => U256::from(32),
+            TyKind::Contract(_) => U256::from(20),
+            TyKind::Enum(_) => U256::from(1),
             TyKind::Udvt(inner, _) => self.storage_bytes(inner),
-            TyKind::Fn(function) if function.is_external() => U512::from(24),
-            TyKind::Fn(_) => U512::from(8),
+            TyKind::Fn(function) if function.is_external() => U256::from(24),
+            TyKind::Fn(_) => U256::from(8),
             _ => unreachable!("invalid storage type: {ty:?}"),
         }
     }
@@ -447,6 +433,22 @@ impl<'gcx> StorageLayoutBuilder<'gcx> {
                 | TyKind::Udvt(..)
                 | TyKind::Fn(_)
         )
+    }
+
+    fn storage_slots(&mut self, ty: Ty<'gcx>) -> U256 {
+        match ty.peel_refs().kind {
+            TyKind::Array(base, length) => {
+                let slots = if self.is_packable(base) {
+                    let items_per_slot = U256::from(32) / self.storage_bytes(base);
+                    length.div_ceil(items_per_slot)
+                } else {
+                    self.storage_slots(base).wrapping_mul(length)
+                };
+                slots.max(U256::ONE)
+            }
+            TyKind::Struct(id) => self.layout_members(self.gcx.hir.strukt(id).fields).1,
+            _ => U256::ONE,
+        }
     }
 }
 
@@ -473,13 +475,9 @@ impl StorageCursor {
         self.offset = 0;
     }
 
-    fn size(self) -> U512 {
-        (U512::from(self.slot) + U512::from(u8::from(self.offset != 0))) * U512::from(32)
+    fn slots(self) -> U256 {
+        self.slot.wrapping_add(U256::from(u8::from(self.offset != 0)))
     }
-}
-
-fn slots_for(bytes: U512) -> U512 {
-    bytes / U512::from(32) + U512::from(u8::from(bytes % U512::from(32) != U512::ZERO))
 }
 
 #[cfg(test)]
