@@ -124,7 +124,9 @@ with shifts by natural counts, zero divisors as an explicit case, `SIGNEXTEND`
 as a pair of shifts and comparisons as `if` terms. Lean proves, without
 `bv_decide`, that every operation of `Word.lean` agrees with it on all inputs,
 so a transcription error would have to be made twice, in two different forms,
-to go unnoticed.
+to go unnoticed. Every theorem file is checked with `-DwarningAsError=true`,
+and the persistent checker treats warnings the same way, so a script that
+leans on a deprecated lemma or names an unused simplification lemma fails.
 
 A script in `lean/proofs/` replaces `evm_auto` for one rule, with the lemmas in
 `lean/EvmRules/Lemmas.lean`. Its file is named after the rule's source file and
@@ -143,18 +145,19 @@ preconditions the same way, require false rules to fail with replayed
 counterexamples, and require the tools to run without an SMT solver installed.
 
 On 2026-10-06 the lane proved all 845 selected rules: 166 with `evm_arith`,
-580 with `evm_decide`, 29 with `evm_bits`, 23 with `evm_ring` and 47 with
-hand-written scripts. Run as CI runs it, two single-threaded `lean` processes at
-a time with the 120-second SAT limit, it took 12 minutes of wall time and 865
-seconds of user CPU on an Apple M-series machine, and no theorem took 30
-seconds. Rebased onto the split rule sets, `evm_arith` and bit-blasting alone
-left 81 of these rules unproved with a 20-second SAT limit: shifts by variable
-counts, nested extensions, products of variables, `EXP`, signed division and
-remainders. The structural rewrites prove the nested `sext` composition and
-comparisons and the nested `SIGNEXTEND` in about a second each, where
-bit-blasting alone takes 40 to 60 seconds for each of them. All 388 rules with
-preconditions have a confirmed witness, and the 918 physical stack variants
-reduce to seven theorems.
+608 with `evm_decide`, 17 with `evm_bits`, 18 with `evm_ring`, 15 with
+`evm_simp` and 21 with hand-written scripts. Run as CI runs it, two
+single-threaded `lean` processes at a time with the 120-second SAT limit and
+warnings as errors, it took 9.4 minutes of wall time and 884 seconds of user
+CPU on an Apple M-series machine, and no theorem took 20 seconds. Rebased onto
+the split rule sets, `evm_arith` and bit-blasting alone left 81 of these rules
+unproved with a 20-second SAT limit: shifts by variable counts, nested
+extensions, products of variables, `EXP`, signed division and remainders. The
+structural rewrites prove the nested `sext` composition and comparisons and the
+nested `SIGNEXTEND` in about a second each, where bit-blasting alone takes 40 to
+60 seconds for each of them, and the lemmas of #1648 replace 26 hand-written
+scripts. All 388 rules with preconditions have a confirmed witness, and the 918
+physical stack variants reduce to seven theorems.
 
 Before the rebase, on 2026-10-02, the lane proved the 474 rules then selected in
 146 seconds of wall time with 18 jobs. The Z3 and cvc5 lane it replaces proved

@@ -1524,7 +1524,7 @@ class LeanProofTests(unittest.TestCase):
             path = Path(directory) / "Check.lean"
             path.write_text(PRELUDE + "\n" + text)
             process = subprocess.run(
-                ["lean", str(path)],
+                ["lean", "-DwarningAsError=true", str(path)],
                 cwd=LEAN_PROJECT,
                 capture_output=True,
                 text=True,

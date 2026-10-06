@@ -6,8 +6,9 @@ import Lean
 `evm_check` imports `EvmRules` once, then reads one JSON object per line from standard input,
 `{"id": …, "source": "<Lean commands>"}`, elaborates the source in that environment, and replies
 with one line, `{"id": …, "ok": …, "messages": […]}`. `ok` holds when no message is an error and
-none reports `sorry`. Discovery checks thousands of small candidate equalities this way, without
-starting `lean` and importing the model for each one.
+none reports `sorry`; warnings count as errors, as they do for the prover's `lean` processes.
+Discovery checks thousands of small candidate equalities this way, without starting `lean` and
+importing the model for each one.
 -/
 
 open Lean Elab
@@ -40,6 +41,7 @@ def main : IO UInt32 := do
     |>.set `sat.solver (sysroot / "bin" / "cadical").toString
     |>.set `maxRecDepth (100000 : Nat)
     |>.set `maxHeartbeats (0 : Nat)
+    |>.set `warningAsError true
   let stdin ← IO.getStdin
   let stdout ← IO.getStdout
   repeat

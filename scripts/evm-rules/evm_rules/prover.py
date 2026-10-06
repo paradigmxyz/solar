@@ -282,7 +282,9 @@ def prove(task):
     path.write_text(text)
     start = time.monotonic()
     process = subprocess.Popen(
-        ["lean", "-j1", str(path)],
+        # A warning, such as a deprecated lemma or an unused simp argument in a script, fails
+        # the proof as an error would.
+        ["lean", "-j1", "-DwarningAsError=true", str(path)],
         cwd=LEAN_PROJECT,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
