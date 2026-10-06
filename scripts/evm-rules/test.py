@@ -1778,6 +1778,18 @@ class TacticTests(unittest.TestCase):
         result = self.prove(source, "evm_bits")
         self.assertEqual(result["status"], "proved", result)
 
+    def test_simp_lemmas_prove_shift_compositions_and_folds(self):
+        # The lemmas of #1648 prove these without a hand-written script.
+        for source in (
+            """(rule (rewrite (Op.Shl (iconst outer) (shl (iconst inner) value)))
+              (Op.Shl (imm (shift_sum outer inner)) value))""",
+            "(rule 1 (simplify (Op.Exp a (one))) a)",
+            "(rule 2 (simplify (Op.Mod a a)) (imm (u256 0)))",
+        ):
+            with self.subTest(source):
+                result = self.prove(source, "evm_simp 30")
+                self.assertEqual(result["status"], "proved", result)
+
     def test_ring_proves_products_and_boolean_selects(self):
         for source in (
             """(rule (sequence_rewrite (Op.Sub (mul x r) (mul r y)))

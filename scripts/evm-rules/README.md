@@ -81,8 +81,9 @@ are substituted first. Physical stack rules are checked at every legal depth,
 and variants that differ only in variable names share one theorem.
 
 Each theorem is proved by `evm_auto`, which tries `evm_arith`, `evm_decide`
-with a five-second SAT limit, `evm_bits`, `evm_ring`, and finally `evm_decide`
-with the full limit, and reports which one succeeded. `evm_decide` first
+with a five-second SAT limit, `evm_bits`, `evm_ring`, `evm_simp` with the same
+short limit, and finally `evm_decide` with the full limit, and reports which
+one succeeded. `evm_decide` first
 rewrites with the structural identities of `lean/EvmRules/Casts.lean`: nested
 `SIGNEXTEND`s keep the narrower extension, nested `sext` casts compose and
 compare through their inputs, and a division by a power of two is a right
@@ -99,7 +100,14 @@ widths become linear arithmetic over bit indices, which `grind` closes.
 `evm_ring` splits conditions known to be booleans, writes left shifts as
 products with powers of two, and proves the identity with `grind`'s
 commutative-ring normalization, as for distributivity and reassociation of
-products.
+products. `evm_simp` is the pipeline of paradigmxyz/solar#1648: it rewrites the
+goal and every hypothesis with that branch's simplification lemmas, restated in
+`lean/EvmRules/Simp.lean` for these definitions, which turn products and
+quotients by powers of two into shifts and nested shifts into one, distribute a
+shift over bitwise operations and addition, fold `EXP` with a literal base or
+exponent and recover the input of a cast. It then tries `bv_omega` and
+bit-blasts what remains with associative and commutative operations
+normalized.
 
 `evm_arith` (`lean/EvmRules/ArithTactic.lean`) proves rules over products,
 quotients and remainders, whose circuits are too large to bit-blast, over
@@ -110,17 +118,17 @@ closes the goal with `omega`, which treats the remaining products, quotients
 and remainders as opaque terms. Its lemmas live in `lean/EvmRules/Arith.lean`.
 `evm_arith`, `evm_bits` and `evm_ring` rely on Lean's kernel alone.
 
-`lean/EvmRules/Reference.lean` holds the definitions of
-paradigmxyz/solar#1648, a second transcription of the same specifications
-written independently of `Word.lean`, with shifts by natural counts, zero
-divisors as an explicit case, `SIGNEXTEND` as a pair of shifts and comparisons
-as `if` terms. Lean proves, without `bv_decide`, that every operation of
-`Word.lean` agrees with it on all inputs, so a transcription error would have
-to be made twice, in two different forms, to go unnoticed.
+`lean/EvmRules/Reference.lean` holds the definitions of #1648, a second
+transcription of the same specifications written independently of `Word.lean`,
+with shifts by natural counts, zero divisors as an explicit case, `SIGNEXTEND`
+as a pair of shifts and comparisons as `if` terms. Lean proves, without
+`bv_decide`, that every operation of `Word.lean` agrees with it on all inputs,
+so a transcription error would have to be made twice, in two different forms,
+to go unnoticed.
 
 A script in `lean/proofs/` replaces `evm_auto` for one rule, with the lemmas in
 `lean/EvmRules/Lemmas.lean`. Its file is named after the rule's source file and
-the first 16 hex digits of the rule's digest (`egraph_44d329ef52b3f648.lean`),
+the first 16 hex digits of the rule's digest (`word_fe04e1fb6a7723d7.lean`),
 plus `_<index>` for a rule with several theorems, so edits elsewhere in the
 file do not move it. Its statement is still generated from the current rule,
 so a changed rule leaves the script without a rule and fails the run, and

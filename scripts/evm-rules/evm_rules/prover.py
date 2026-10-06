@@ -45,7 +45,7 @@ MANUAL_PROOFS = LEAN_PROJECT / "proofs"
 CHECKER = LEAN_PROJECT / ".lake/build/bin/evm_check"
 ADDRESS_MASK = (1 << 160) - 1
 # `evm_auto` reports which of its tactics proved the theorem.
-PROVED_BY = re.compile(r"proved by (evm_arith|evm_decide|evm_bits|evm_ring)")
+PROVED_BY = re.compile(r"proved by (evm_arith|evm_decide|evm_bits|evm_ring|evm_simp)")
 
 
 def lean_environment():
