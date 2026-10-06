@@ -335,11 +335,21 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             ExprKind::Ternary(condition, then_expr, else_expr) => {
                 let condition = self.lower_expr(condition)?;
+                let then_ty = self.cx.gcx.type_of_expr(then_expr.id)?;
+                let else_ty = self.cx.gcx.type_of_expr(else_expr.id)?;
+                let ty = then_ty.common_type(else_ty, self.cx.gcx)?;
+                let lower_branch = |this: &mut Self, branch| {
+                    if ty.is_ref_at(DataLocation::Memory) {
+                        this.lower_ternary_value(branch, ty).map(drop)
+                    } else {
+                        this.lower_discarded_expr(branch)
+                    }
+                };
                 self.lower_branches(
                     condition,
                     true,
-                    |this| this.lower_discarded_expr(then_expr),
-                    |this| this.lower_discarded_expr(else_expr),
+                    |this| lower_branch(this, then_expr),
+                    |this| lower_branch(this, else_expr),
                 )?;
                 Some(())
             }
