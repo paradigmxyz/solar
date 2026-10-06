@@ -308,10 +308,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
         };
         let source_ty = source_ty.unwrap_or(target_ty);
-        let value = if target_ty.is_ref_at(DataLocation::Storage) {
-            value
-        } else {
+        let value = if target_ty.is_ref_at(DataLocation::Memory) {
             self.materialize_memory_argument(target_ty, value, span)?
+        } else {
+            value
         };
         let value = self.coerce_value(value, source_ty, target_ty);
         Some(TupleAssignmentRhs::Materialized { value, source_ty: Some(source_ty), span })
@@ -321,9 +321,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         &mut self,
         values: impl IntoIterator<Item = (&'hir hir::Expr<'hir>, ValueId, Option<Ty<'gcx>>)>,
     ) -> Option<()> {
-        self.store_prepared_tuple_values(values.into_iter().map(|(element, value, source_ty)| {
-            (element, TupleAssignmentRhs::Materialized { value, source_ty, span: element.span })
-        }))
+        let values = values
+            .into_iter()
+            .map(|(element, value, source_ty)| {
+                let rhs = TupleAssignmentRhs::Materialized { value, source_ty, span: element.span };
+                Some((element, self.prepare_tuple_rhs(element, rhs)?))
+            })
+            .collect::<Option<Vec<_>>>()?;
+        self.store_prepared_tuple_values(values)
     }
 
     fn store_prepared_tuple_values<'hir>(

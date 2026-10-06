@@ -1,0 +1,139 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/calldata_tuple_materialization.sol:CalldataTupleMaterialization ===
+@module CalldataTupleMaterialization
+@types
+  struct0: {memptr, memptr}
+  struct1: {i256, i256}
+  struct2: {calldataslice, calldataslice}
+
+fn @storageTuple(arg0: calldataslice, arg1: calldataslice) -> struct0 [selector=0xccc7dfb8, abi_params=[bytes, bytes], abi_returns=[memory_bytes, memory_bytes], abi_return_params=[bytes, bytes]] {
+  bb0:
+    v0 = slice_ptr arg1
+    v1 = slice_len arg1
+    v2 = gt v1, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v2
+    v3 = calldatasize
+    v4 = sub v3, v1
+    v5 = sgt v0, v4
+    icall revert_if<calldata_tail_too_short>, v5
+    v6 = slice_len arg1
+    v7 = add v6, 63
+    v8 = lt v7, v6
+    icall panic_if<0x41>, v8
+    v9 = not 31
+    v10 = and v7, v9
+    v11 = alloc memorybytes, exact, uninitialized, infallible, v10
+    set_memory_object_len memorybytes, v11, v6
+    memory_object_copy_from_slice memorybytes, v11, arg1
+    icall @store_storage_bytes, 1, v11
+    v12 = slice_ptr arg0
+    v13 = slice_len arg0
+    v14 = gt v13, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v14
+    v15 = calldatasize
+    v16 = sub v15, v13
+    v17 = sgt v12, v16
+    icall revert_if<calldata_tail_too_short>, v17
+    v18 = slice_len arg0
+    v19 = add v18, 63
+    v20 = lt v19, v18
+    icall panic_if<0x41>, v20
+    v21 = not 31
+    v22 = and v19, v21
+    v23 = alloc memorybytes, exact, uninitialized, infallible, v22
+    set_memory_object_len memorybytes, v23, v18
+    memory_object_copy_from_slice memorybytes, v23, arg0
+    icall @store_storage_bytes, 0, v23
+    v24 = icall @load_storage_bytes, 0
+    v25 = icall @load_storage_bytes, 1
+    v26 = insert_value struct0, undef struct0, 0, v24
+    v27 = insert_value struct0, v26, 1, v25
+    ret v27
+}
+
+fn @memoryTuple(arg0: calldataslice) -> struct1 [selector=0x32e034d0, pure, abi_params=[array<_, u256>], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+  bb0:
+    v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
+    v1 = ptrtoint memptr 96 to i256
+    memory_object_store_field memorystruct<1>, v0, 0, v1
+    v2 = icall @split, arg0
+    v3 = extract_value struct2, v2, 0
+    v4 = extract_value struct2, v2, 1
+    v5 = slice_len v4
+    v6 = slice_ptr v4
+    v7 = mul v5, 32
+    v8 = eq 32, 0
+    v9 = div v7, 32
+    v10 = eq v9, v5
+    v11 = or v8, v10
+    v12 = zext i1 v11 to i256
+    v13 = eq v12, 0
+    icall panic_if<0x41>, v13
+    v14 = calldatasize
+    v15 = sub v14, v6
+    v16 = slt v15, v7
+    icall revert_if<calldata_tail_too_short>, v16
+    v17 = mul v5, 32
+    v18 = eq 32, 0
+    v19 = div v17, 32
+    v20 = eq v19, v5
+    v21 = or v18, v20
+    v22 = zext i1 v21 to i256
+    v23 = eq v22, 0
+    icall panic_if<0x41>, v23
+    v24 = add 32, v17
+    v25 = lt v24, 32
+    icall panic_if<0x41>, v25
+    v26 = alloc memoryarray<1>, exact, uninitialized, infallible, v24
+    set_memory_object_len memoryarray, v26, v5
+    v27 = make_calldata_slice v6, v17
+    memory_object_copy_from_slice memoryarray, v26, v27
+    v28 = ptrtoint memptr v26 to i256
+    memory_object_store_field memorystruct<1>, v0, 0, v28
+    v29 = slice_len v3
+    v30 = lt 0, v29
+    v31 = eq v30, false
+    icall panic_if<0x32>, v31
+    v32 = slice_ptr v3
+    v33 = add v32, 0
+    v34 = calldataload v33
+    v35 = memory_object_load_field memorystruct<1>, v0, 0, memptr
+    v36 = memory_object_len memoryarray, v35
+    v37 = lt 0, v36
+    v38 = eq v37, false
+    icall panic_if<0x32>, v38
+    v39 = memory_object_load_element memoryarray<1>, v35, 0
+    v40 = insert_value struct1, undef struct1, 0, v34
+    v41 = insert_value struct1, v40, 1, v39
+    ret v41
+}
+
+fn @split(arg0: calldataslice) -> struct2 [pure] {
+  bb0:
+    v0 = make_calldata_slice 0, 0
+    v1 = make_calldata_slice 0, 0
+    v2 = slice_ptr arg0
+    v3 = slice_len arg0
+    v4 = gt v3, v3
+    v5 = lt v3, 1
+    v6 = or v4, v5
+    v7 = zext i1 v6 to i256
+    icall revert_if<empty>, v6
+    v8 = sub v3, 1
+    v9 = add v2, 32
+    v10 = make_calldata_slice v9, v8
+    v11 = insert_value struct2, undef struct2, 0, v10
+    v12 = insert_value struct2, v11, 1, arg0
+    ret v12
+}
+
+fn @store_storage_bytes(arg0: i256, arg1: memptr) {
+  bb0:
+    store_storage_bytes arg0, arg1
+    ret
+}
+
+fn @load_storage_bytes(arg0: i256) -> memptr {
+  bb0:
+    v0 = load_storage_bytes arg0
+    ret v0
+}

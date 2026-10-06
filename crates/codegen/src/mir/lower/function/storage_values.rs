@@ -1179,8 +1179,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         object: ValueId,
         span: Span,
     ) -> Option<()> {
-        // MIR object values retain only their coarse kind; HIR types preserve
-        // the nested shape needed when fixed arrays convert to storage arrays.
+        let source_ty = source_ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
+        let object = self.materialize_memory_argument(source_ty, object, span)?;
+        // HIR types preserve the nested shape needed when fixed arrays convert to storage arrays.
         match ty.peel_refs().kind {
             TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
                 // store_storage_bytes(slot, object)
