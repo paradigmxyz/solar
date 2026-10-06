@@ -17,6 +17,21 @@
 ;; i1 a ^ true => a == false
 (rule (rewrite (Op.Xor (and a (integer_bits 1)) (one))) (Op.Eq a (imm_bool false)))
 
+;; x == 0 | (x * c) / x == c => x < MAX / c + 1.
+;; Requires: c is constant, c >= 2. The test divides by the variable factor when the
+;; constant is the left operand of the checked product.
+(rule (rewrite (Op.Or (eq x (zero)) (eq (div (mul x (iconst c)) x) (iconst d))))
+      (if-let true (u256_same c d))
+      (if-let true (u256_ge c 2))
+      (Op.Lt x (imm (u256_add (u256_div (u256_max) c) (u256 1)))))
+
+;; (x * c) / x == c | x == 0 => x < MAX / c + 1.
+;; Requires: c is constant, c >= 2.
+(rule (rewrite (Op.Or (eq (div (mul x (iconst c)) x) (iconst d)) (eq x (zero))))
+      (if-let true (u256_same c d))
+      (if-let true (u256_ge c 2))
+      (Op.Lt x (imm (u256_add (u256_div (u256_max) c) (u256 1)))))
+
 ;; Every selected bit outside constant is shifted out of the word.
 ;; ((value >> shift) | constant) & mask => constant & mask.
 ;; Requires: shift, constant, mask are constants, ((mask & ~constant) << shift) == 0.

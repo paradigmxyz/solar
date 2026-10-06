@@ -212,3 +212,9 @@
 (extern constructor integer_sign_bit integer_sign_bit)
 (decl pure is_i256 () bool)
 (extern constructor is_i256 is_i256)
+;; The exact product or sum is at most MAX.
+(decl pure u256_mul_fits (U256 U256) bool)
+(extern constructor u256_mul_fits u256_mul_fits)
+
+(decl pure u256_add_fits (U256 U256) bool)
+(extern constructor u256_add_fits u256_add_fits)

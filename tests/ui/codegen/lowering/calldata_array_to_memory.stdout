@@ -448,12 +448,9 @@ bb31:
   push 10
   dup 2
   mul
-  push 10
-  dup 2
-  div
   swap 1
-  swap 2
-  sub
+  push 0x1999999999999999999999999999999999999999999999999999999999999999
+  lt
   push bb45
   jumpi
   push 4
@@ -470,12 +467,9 @@ bb31:
   push 100
   dup 2
   mul
-  push 100
-  dup 2
-  div
   swap 1
-  swap 2
-  sub
+  push 0x28f5c28f5c28f5c28f5c28f5c28f5c28f5c28f5c28f5c28f5c28f5c28f5c28f
+  lt
   push bb45
   jumpi
   dup 2

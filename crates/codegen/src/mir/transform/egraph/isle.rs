@@ -130,6 +130,14 @@ impl<'a> RuleContext<'a> {
             {
                 kind.op().first_operand()?
             }
+            // Boolean combinations can fold bounds of their compared integers.
+            Op::Or { a, b }
+                if let Some(InstKind::Eq(x, _)) = defining_kind(self.func, a)
+                    && let Some(InstKind::Eq(y, _)) = defining_kind(self.func, b)
+                    && self.func.value_ty(*x) == self.func.value_ty(*y) =>
+            {
+                *x
+            }
             Op::Select { true_val, .. } => true_val,
             Op::Eq { a, .. }
             | Op::Ne { a, .. }
@@ -538,6 +546,14 @@ impl generated::Context for RuleContext<'_> {
 
     fn u256_and(&mut self, a: U256, b: U256) -> U256 {
         a & b
+    }
+
+    fn u256_mul_fits(&mut self, a: U256, b: U256) -> bool {
+        a.checked_mul(b).is_some_and(|value| value <= self.integer_mask())
+    }
+
+    fn u256_add_fits(&mut self, a: U256, b: U256) -> bool {
+        a.checked_add(b).is_some_and(|value| value <= self.integer_mask())
     }
 
     fn u256_shl(&mut self, shift: U256, value: U256) -> U256 {

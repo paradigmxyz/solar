@@ -1,0 +1,10 @@
+name = "evm_rules"
+defaultTargets = ["EvmRules", "evm_check"]
+
+[[lean_lib]]
+name = "EvmRules"
+
+[[lean_exe]]
+name = "evm_check"
+root = "Checker"
+supportInterpreter = true

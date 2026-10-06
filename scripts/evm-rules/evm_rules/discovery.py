@@ -1,20 +1,27 @@
-"""Bounded expression enumeration, concrete fingerprints, SMT and ISLE emission.
+"""Bounded expression enumeration, concrete fingerprints, Lean proofs and ISLE emission.
 
 Samples only propose equivalences. A representative can replace an expression
-in the enumeration frontier only after UNSAT. SAT witnesses refine the sample
-set; unknown results remain distinct. Prices come from a Rust Target snapshot.
-They estimate trees with resident inputs, not complete scheduled EVM programs.
+in the enumeration frontier only after Lean proves them equal. Replayed
+counterexamples refine the sample set; unknown results remain distinct. Prices
+come from a Rust Target snapshot. They estimate trees with resident inputs, not
+complete scheduled EVM programs.
 """
 
 import hashlib
 import json
 import random
 import re
+import tempfile
 from dataclasses import dataclass
 from itertools import product
+from math import ceil
+from pathlib import Path
 
-from .isle import ROOT, extractor_definitions, forms, verify_file
-from .semantics import MASK, Expr, Model, Unsupported, check, concrete
+from .expr import MASK, Expr, Unsupported, concrete
+from .isle import ROOT, extractor_definitions, forms
+from .lean import term
+from .prover import Checker, lean_environment
+from .verification import verify_files
 
 COSTS = ROOT / "crates/codegen/src/word_rule_costs.snap"
 
@@ -112,7 +119,7 @@ def read_seeds(path, prices, variables):
     for expr in result:
         if expr.operators() == 0:
             raise ValueError("seed requires an operation root")
-        Model().eval(expr)  # Reject operations without supported word semantics.
+        term(expr)  # Reject operations without Lean semantics.
     return result
 
 
@@ -128,6 +135,8 @@ def enumerate_rules(
     max_rhs_ops=1,
     constants=None,
     seeds=(),
+    *,
+    checker,
 ):
     if not 1 <= len(variables) <= 3 or len(set(variables)) != len(variables):
         raise ValueError("discovery requires one to three distinct variables")
@@ -148,10 +157,7 @@ def enumerate_rules(
     for op in ops:
         if op not in prices.ops or prices.ops[op][0] not in (1, 2):
             raise ValueError(f"unsupported search operation on selected fork: {op}")
-        Model.apply(
-            op,
-            tuple(Model().eval(Expr.var(v)) for v in variables[:1]) * prices.ops[op][0],
-        )
+        term(Expr(op, (Expr.var(variables[0]),) * prices.ops[op][0]))
     inputs = (
         list(initial_samples) if initial_samples is not None else samples(variables)
     )
@@ -170,10 +176,9 @@ def enumerate_rules(
     ] + [[] for _ in range(max_ops)]
     representatives = list(leaves)
     buckets = {}
-    model = Model()
     statistics = {
         "expressions": 0,
-        "smt_queries": 0,
+        "queries": 0,
         "proved": 0,
         "counterexamples": 0,
         "unknown": 0,
@@ -217,10 +222,8 @@ def enumerate_rules(
                         key=lambda e: (prices.key(prices.cost(e)), e.text()),
                     )
                     for candidate in candidates:
-                        statistics["smt_queries"] += 1
-                        result, _ = check(
-                            expr, candidate, timeout_ms=timeout_ms, model=model
-                        )
+                        statistics["queries"] += 1
+                        result = checker.check(expr, candidate, timeout_ms=timeout_ms)
                         statistics[
                             "counterexamples"
                             if result["status"] == "counterexample"
@@ -282,8 +285,8 @@ def enumerate_rules(
                 before
             ):
                 continue
-            statistics["smt_queries"] += 1
-            result, _ = check(seed, candidate, timeout_ms=timeout_ms, model=model)
+            statistics["queries"] += 1
+            result = checker.check(seed, candidate, timeout_ms=timeout_ms)
             statistics[
                 "counterexamples"
                 if result["status"] == "counterexample"
@@ -448,18 +451,21 @@ def discover_rules(args):
         op not in prices.ops and op not in ("var", "const") for op in result_ops
     ):
         raise ValueError("unsupported replacement root filter")
-    rules, summary = enumerate_rules(
-        prices,
-        args.variables,
-        args.ops,
-        args.max_ops,
-        args.max_expressions,
-        args.timeout_ms,
-        include_constants=args.include_constants,
-        max_rhs_ops=getattr(args, "max_rhs_ops", 1),
-        constants=getattr(args, "constants", None),
-        seeds=seeds,
-    )
+    lean_path = lean_environment()
+    with Checker(lean_path) as checker:
+        rules, summary = enumerate_rules(
+            prices,
+            args.variables,
+            args.ops,
+            args.max_ops,
+            args.max_expressions,
+            args.timeout_ms,
+            include_constants=args.include_constants,
+            max_rhs_ops=getattr(args, "max_rhs_ops", 1),
+            constants=getattr(args, "constants", None),
+            seeds=seeds,
+            checker=checker,
+        )
     if seed_path:
         rules = [rule for rule in rules if rule[0] in seeds]
     # A repeated identical child is handled by existing generic idempotence/
@@ -530,9 +536,16 @@ def discover_rules(args):
         )
         # Verify the exact emitted source, not just the internal expressions that inspired it.
         if emitted:
-            report["emitted_verification"] = verify_file(
-                args.emit_isle, args.timeout_ms
-            )
+            with tempfile.TemporaryDirectory() as work_dir:
+                verification = verify_files(
+                    [args.emit_isle],
+                    Path(work_dir),
+                    lean_path,
+                    jobs=4,
+                    timeout_s=ceil(args.timeout_ms / 1000),
+                    progress=None,
+                )
+            report["emitted_verification"] = verification["files"][0]
             report["accepted"] = all(
                 r["status"] == "proved" for r in report["emitted_verification"]["rules"]
             )
