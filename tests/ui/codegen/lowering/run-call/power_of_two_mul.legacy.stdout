@@ -216,11 +216,9 @@ bb29:
   push 32
   dup 2
   mul
-  push 32
-  dup 2
-  div
+  push 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
   dup 3
-  sub
+  gt
   push bb38
   jumpi
   push 32
