@@ -2,8 +2,9 @@
 
 Readers turn each rule into words and preconditions; `lean.py` states them as a
 theorem over the EVM semantics in `lean/EvmRules`, and `prover.py` checks it in its
-own `lean` process. `evm_auto` proves it over natural numbers with `evm_arith`, or by
-bit-blasting with `evm_decide`; a hand-written proof replaces both. A physical stack
+own `lean` process. `evm_auto` proves it over natural numbers with `evm_arith`, by
+bit-blasting with `evm_decide`, bit by bit with `evm_bits` or as a ring identity with
+`evm_ring`; a hand-written proof replaces them. A physical stack
 rule has one theorem per distinct shape of its per-depth variants: each variant is
 that theorem with its variables renamed.
 

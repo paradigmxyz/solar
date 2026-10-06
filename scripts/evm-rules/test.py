@@ -1690,5 +1690,52 @@ class ArithTests(unittest.TestCase):
                 self.assertTrue(result["replayed"])
 
 
+class TacticTests(unittest.TestCase):
+    """Each tactic of `evm_auto` proves the rule shapes it exists for on its own."""
+
+    def prove(self, source, tactic):
+        lhs, rhs, assumptions = lean_rule(source)
+        return shared_checker().check(
+            lhs, rhs, assumptions, PROOF_TIMEOUT_MS, tactic=tactic
+        )
+
+    def test_structural_rewrites_prove_nested_extensions(self):
+        # Before bit-blasting, the identities of `Casts.lean` close these goals.
+        for source in (
+            """(rule (rewrite (Op.Sext (sext value from middle) middle to))
+              (if-let true (u32_lt from middle)) (if-let true (u32_lt middle to))
+              (Op.Sext value from to))""",
+            """(rule (rewrite (Op.Eq (sext (and a (integer_bits from)) from to)
+                                   (sext (and b (integer_bits from)) from to)))
+              (if-let true (u32_lt from to)) (Op.Eq a b))""",
+            """(rule (rewrite
+                (Op.SignExtend (iconst outer) (signextend (iconst inner) value)))
+              (Op.SignExtend (imm (u256_min outer inner)) value))""",
+        ):
+            with self.subTest(source):
+                result = self.prove(source, "evm_struct")
+                self.assertEqual(result["status"], "proved", result)
+
+    def test_bits_prove_variable_shift_counts(self):
+        source = """(rule (sequence_rewrite (Op.Shr s (band (shl s x) m)))
+          (if-let shifted (make (Op.Shr s m)))
+          (sequence (Op.And x shifted)))"""
+        result = self.prove(source, "evm_bits")
+        self.assertEqual(result["status"], "proved", result)
+
+    def test_ring_proves_products_and_boolean_selects(self):
+        for source in (
+            """(rule (sequence_rewrite (Op.Sub (mul x r) (mul r y)))
+              (if-let combined (make (Op.Sub x y)))
+              (sequence (Op.Mul r combined)))""",
+            """(rule (sequence_rewrite (Op.Select (and c (bool_value)) (sub y x) y))
+              (if-let gated (make (Op.Mul c x)))
+              (sequence (Op.Sub y gated)))""",
+        ):
+            with self.subTest(source):
+                result = self.prove(source, "evm_ring")
+                self.assertEqual(result["status"], "proved", result)
+
+
 if __name__ == "__main__":
     unittest.main()

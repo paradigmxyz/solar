@@ -80,20 +80,35 @@ keep the readers' trusted extractor contracts; Boolean flags that a rule forces
 are substituted first. Physical stack rules are checked at every legal depth,
 and variants that differ only in variable names share one theorem.
 
-Each theorem is proved by `evm_auto`, which tries `evm_arith` and then
-`evm_decide`, and reports which one succeeded. `evm_decide` unfolds the
-definitions, rewriting the shifts by proven lemmas to Lean's saturating shifts,
-and bit-blasts the goal with `bv_decide`, which checks the SAT solver's LRAT
-certificate in Lean through `Lean.ofReduceBool`. `evm_arith`
-(`lean/EvmRules/ArithTactic.lean`) proves rules over products, quotients and
-remainders, whose circuits are too large to bit-blast, over natural numbers. It
-states comparison words as decided propositions and every operation with its
-wrapping, adds the bounds of every quotient and remainder by a non-literal,
-removes the wrapping and quotients those bounds rule out, and closes the goal
-with `omega`, which treats the remaining products, quotients and remainders as
-opaque terms. Its lemmas live in `lean/EvmRules/Arith.lean`, and its proofs rely
-on Lean's kernel alone. When it fails, which takes about a second,
-`evm_decide` proves the rule or searches for a counterexample as before.
+Each theorem is proved by `evm_auto`, which tries `evm_arith`, `evm_decide`
+with a five-second SAT limit, `evm_bits`, `evm_ring`, and finally `evm_decide`
+with the full limit, and reports which one succeeded. `evm_decide` first
+rewrites with the structural identities of `lean/EvmRules/Casts.lean`: nested
+`SIGNEXTEND`s keep the narrower extension, nested `sext` casts compose and
+compare through their inputs, and a division by a power of two is a right
+shift. It then unfolds the definitions, rewriting the shifts by proven lemmas to
+Lean's saturating shifts, and bit-blasts the goal with `bv_decide`, which checks
+the SAT solver's LRAT certificate in Lean through `Lean.ofReduceBool`.
+
+Bit-blasting builds a barrel shifter for every variable shift count, a 31-way
+choice for every variable `SIGNEXTEND` index and a multiplier for every product
+of variables, and SAT solvers handle these poorly once two of them interact.
+`evm_bits` states the goal and every word equation among the hypotheses bit by
+bit with the lemmas of `lean/EvmRules/Bits.lean`, so that variable counts and
+widths become linear arithmetic over bit indices, which `grind` closes.
+`evm_ring` splits conditions known to be booleans, writes left shifts as
+products with powers of two, and proves the identity with `grind`'s
+commutative-ring normalization, as for distributivity and reassociation of
+products.
+
+`evm_arith` (`lean/EvmRules/ArithTactic.lean`) proves rules over products,
+quotients and remainders, whose circuits are too large to bit-blast, over
+natural numbers. It states comparison words as decided propositions and every
+operation with its wrapping, adds the bounds of every quotient and remainder by
+a non-literal, removes the wrapping and quotients those bounds rule out, and
+closes the goal with `omega`, which treats the remaining products, quotients
+and remainders as opaque terms. Its lemmas live in `lean/EvmRules/Arith.lean`.
+`evm_arith`, `evm_bits` and `evm_ring` rely on Lean's kernel alone.
 
 A script in `lean/proofs/` replaces `evm_auto` for one rule, with the lemmas in
 `lean/EvmRules/Lemmas.lean`. Its file is named after the rule's source file and

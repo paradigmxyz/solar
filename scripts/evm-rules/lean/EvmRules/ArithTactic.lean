@@ -93,8 +93,16 @@ open Lean in
 /-- Records the tactic that proved a theorem, for the verification report. -/
 elab "evm_proved_by " name:str : tactic => logInfo m!"proved by {name.getString}"
 
-/-- Tries `evm_arith`, then `evm_decide` with a SAT limit of `n` seconds, and records which
-one proved the goal. -/
-macro "evm_auto " n:num : tactic => `(tactic| first
-  | (evm_arith; evm_proved_by "evm_arith")
-  | (evm_decide $n; evm_proved_by "evm_decide"))
+/-- Tries `evm_arith`, `evm_decide` with a SAT limit of at most five seconds, `evm_bits`,
+`evm_ring`, and finally `evm_decide` with a SAT limit of `n` seconds, and records which one
+proved the goal. Most rules bit-blast within the short limit; the two tactics without a SAT
+solver run before a long search for the shapes that bit-blasting handles poorly. The last
+attempt reports the counterexample of a false rule. -/
+macro "evm_auto " n:num : tactic => do
+  let short := Lean.Syntax.mkNumLit (toString (min 5 n.getNat))
+  `(tactic| first
+    | (evm_arith; evm_proved_by "evm_arith")
+    | (evm_decide $short; evm_proved_by "evm_decide")
+    | (evm_bits; evm_proved_by "evm_bits")
+    | (evm_ring; evm_proved_by "evm_ring")
+    | (evm_decide $n; evm_proved_by "evm_decide"))

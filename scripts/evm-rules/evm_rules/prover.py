@@ -39,12 +39,12 @@ from .lean import witness as lean_witness
 
 LEAN_PROJECT = Path(__file__).resolve().parents[1] / "lean"
 # Hand-written proof scripts, named after their rules, for obligations `evm_auto`
-# cannot finish. Their lemmas live in `lean/EvmRules/Lemmas.lean` and `Arith.lean`.
+# cannot finish. Their lemmas live in `lean/EvmRules/Lemmas.lean` and its imports.
 MANUAL_PROOFS = LEAN_PROJECT / "proofs"
 CHECKER = LEAN_PROJECT / ".lake/build/bin/evm_check"
 ADDRESS_MASK = (1 << 160) - 1
 # `evm_auto` reports which of its tactics proved the theorem.
-PROVED_BY = re.compile(r"proved by (evm_arith|evm_decide)")
+PROVED_BY = re.compile(r"proved by (evm_arith|evm_decide|evm_bits|evm_ring)")
 
 
 def lean_environment():
