@@ -65,36 +65,24 @@ fn @copy(arg0: calldataslice, arg1: i256, arg2: i256) -> i256 [selector=0xaabf50
     sstore 0, v39 !metadata(storage=slot(0))
     jump bb6
   bb6:
-    v47 = phi [bb2: 0], [bb10: v58]
+    v47 = phi [bb2: 0], [bb7: v52]
     v48 = lt v47, v39
     jumpi v48, bb7, bb8
   bb8:
-    v59 = sload 0 !metadata(storage=slot(0))
-    v60 = lt 0, v59
-    v61 = eq v60, false
-    icall panic_if<0x32>, v61
-    v62 = storage_array_data_slot 0
-    v63 = add v62, 0
-    v64 = sload v63 !metadata(storage=symbolic(v62))
-    ret v64
+    v53 = sload 0 !metadata(storage=slot(0))
+    v54 = lt 0, v53
+    v55 = eq v54, false
+    icall panic_if<0x32>, v55
+    v56 = storage_array_data_slot 0
+    v57 = add v56, 0
+    v58 = sload v57 !metadata(storage=symbolic(v56))
+    ret v58
   bb7:
     v49 = memory_object_load_element memoryarray<1>, v37, v47
-    v50 = inttoptr i256 v49 to memptr
-    v51 = eq v49, 0
-    jumpi v51, bb9, bb10
-  bb9:
-    v52 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    set_memory_object_len memoryarray, v52, 0
-    v53 = ptrtoint memptr v52 to i256
-    memory_object_store_element memoryarray<1>, v37, v47, v53
-    jump bb10
-  bb10:
-    v54 = phi [bb7: v50], [bb9: v52]
-    v55 = storage_array_data_slot 0
-    v56 = add v55, v47
-    v57 = ptrtoint memptr v54 to i256
-    sstore v56, v57 !metadata(storage=symbolic(v56))
-    v58 = add v47, 1
+    v50 = storage_array_data_slot 0
+    v51 = add v50, v47
+    sstore v51, v49 !metadata(storage=symbolic(v51))
+    v52 = add v47, 1
     jump bb6
   bb4:
     v44 = storage_array_data_slot 0

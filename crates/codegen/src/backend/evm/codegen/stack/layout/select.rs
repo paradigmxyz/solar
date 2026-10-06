@@ -542,6 +542,9 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
         }
         plan.entries.retain(|_, entry| !entry.is_empty());
+        if !stack_phi_plan.clone().merge_resident(func, &plan, self.stack_access_limit()) {
+            return None;
+        }
         Some((values.to_vec(), plan))
     }
 

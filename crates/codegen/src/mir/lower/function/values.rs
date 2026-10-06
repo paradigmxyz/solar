@@ -295,12 +295,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return self.cx.report_unsupported(rhs.span, "tuple assignment arity");
         }
         let source_ty = self.cx.gcx.type_of_expr(rhs.id)?;
-        let sources = match source_ty.kind {
-            TyKind::Tuple(sources) => sources,
+        let source_types = match source_ty.kind {
+            TyKind::Tuple(types) => types,
             _ => std::slice::from_ref(&source_ty),
         };
-        self.store_tuple_values(elements.iter().zip(values).zip(sources).filter_map(
-            |((element, value), &source)| element.map(|element| (element, value, Some(source))),
+        self.store_tuple_values(elements.iter().zip(values).zip(source_types).filter_map(
+            |((element, value), &source_ty)| {
+                element.map(|element| (element, value, Some(source_ty)))
+            },
         ))
     }
 
@@ -318,12 +320,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
         };
         let source_ty = source_ty.unwrap_or(target_ty);
-        let value = if target_ty.is_ref_at(DataLocation::Storage)
-            || target_ty.is_ref_at(DataLocation::Calldata)
-        {
-            value
-        } else {
+        let value = if target_ty.is_ref_at(DataLocation::Memory) {
             self.materialize_memory_argument(target_ty, value, span)?
+        } else {
+            value
         };
         let value = self.coerce_value(value, source_ty, target_ty);
         Some(TupleAssignmentRhs::Materialized { value, source_ty: Some(source_ty), span })

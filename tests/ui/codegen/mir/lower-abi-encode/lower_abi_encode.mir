@@ -74,7 +74,9 @@ fn @nested_dynamic_array(arg0: memptr) -> memoryslice {
 
 // A fixed array expands one encoder site per element.
 // CHECK-LABEL: {{^[ +].*}}fn @fixed_nested_dynamic_arrays{{[( ]}}
-// CHECK: + {{v[0-9]+}} = icall @encode_abi_array
+// CHECK: + [[DEST:v[0-9]+]] = inttoptr i256 [[TAIL:v[0-9]+]] to memptr
+// CHECK-NEXT: + [[ENCODED_LEN:v[0-9]+]] = icall @encode_abi_array, {{v[0-9]+}}, [[DEST]]
+// CHECK-NEXT: + {{v[0-9]+}} = add [[TAIL]], [[ENCODED_LEN]]
 fn @fixed_nested_dynamic_arrays(arg0: memptr) -> memoryslice {
   bb0:
     v0 = abi_encode [array<2, memory_array<word<u8>>>], args arg0
