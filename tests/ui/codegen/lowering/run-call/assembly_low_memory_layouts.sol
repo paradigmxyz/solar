@@ -11,6 +11,7 @@
 //@ run-call: hashRecursive 1, 2, 3 => 0x6e0c627900b24bd432fe7b1f713f1b0744091a646a9fe4a65a18dfed21f2949c
 //@ run-call: hashThenCopy 1, 2, 3 => 0x6e0c627900b24bd432fe7b1f713f1b0744091a646a9fe4a65a18dfed21f2949c
 //@ run-call: readScratch 5 => 5
+//@ run-call: readInHelper 5 => 5
 //@ run-call: hashHelperScratch 1, 2, 3 => 0x6e0c627900b24bd432fe7b1f713f1b0744091a646a9fe4a65a18dfed21f2949c
 //@ run-call: allocateAfterHelper 1, 2, 3 => 3
 //@ run-call: hashAroundCheckedAdd 1, 2, 3 => 0x6e0c627900b24bd432fe7b1f713f1b0744091a646a9fe4a65a18dfed21f2949c
@@ -321,6 +322,18 @@ contract AssemblyLowMemoryLayouts {
             mstore(0x40, calldataload(4))
             read := mload(0x40)
             mstore(0x40, m)
+        }
+    }
+
+    function readInHelper(uint256) external pure returns (uint256 read) {
+        assembly {
+            function readWord() -> word {
+                let m := mload(0x40)
+                mstore(0x40, calldataload(4))
+                word := mload(0x40)
+                mstore(0x40, m)
+            }
+            read := readWord()
         }
     }
 

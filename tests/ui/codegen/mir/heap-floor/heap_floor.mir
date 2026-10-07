@@ -254,3 +254,25 @@ fn @allocate_after_helper() -> i256 {
     v0 = icall @allocate
     ret v0
 }
+
+fn @read_word() -> i256 {
+  bb0:
+    v0 = mload 64
+    v1 = calldataload 4
+    mstore 64, v1
+    v2 = mload 64
+    mstore 64, v0
+    ret v2
+}
+
+// A word a helper loads and returns to an external function that returns it is data, as in an
+// assembly function that reads its scratch word back.
+// CHECK-LABEL: {{^[ +].*}}fn @read_word{{[( ]}}
+// CHECK-NOT: {{^[-+]}}
+// CHECK-LABEL: {{^[ +].*}}fn @read_in_helper{{[( ]}}
+// CHECK-NOT: {{^[-+]}}
+fn @read_in_helper() -> i256 [selector=0x12345679] {
+  bb0:
+    v0 = icall @read_word
+    ret v0
+}
