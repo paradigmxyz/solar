@@ -1830,6 +1830,12 @@ impl AliasAnalysis {
         offset: ValueId,
         depth: usize,
     ) -> Option<MemoryAddress> {
+        if let Value::Inst(inst) = func.value(offset)
+            && let InstKind::Sub(value, subtrahend) = func.inst(*inst).kind
+            && subtrahend == base
+        {
+            return self.memory_address_with_depth(func, value, depth + 1);
+        }
         self.memory_address_with_depth(func, base, depth + 1)?.checked_add(func.value_u64(offset)?)
     }
 
@@ -1984,15 +1990,6 @@ impl AliasAnalysis {
 
     fn allocation_is_dynamic(&self, func: &Function, target: InstId) -> bool {
         self.provenance(func).allocations.get(&target).is_some_and(|facts| facts.dynamic)
-    }
-
-    /// Returns whether an allocation runs before anything can recycle the FMP, so it
-    /// never overlaps memory allocated earlier.
-    pub(crate) fn allocation_is_unrecycled(&self, func: &Function, target: InstId) -> bool {
-        self.provenance(func)
-            .allocations
-            .get(&target)
-            .is_some_and(|facts| facts.unique || facts.dynamic)
     }
 
     /// Returns whether an instruction may recycle or arbitrarily replace the FMP.
