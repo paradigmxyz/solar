@@ -60,14 +60,15 @@
 //! from the pointer as `init + (ptr - start) / scale`, a shift for a power-of-two
 //! scale, at the top of the reading block, or at the end of the block a phi reads
 //! it from. Only the equality exit takes over from such a counter: it counts up
-//! and its clamped `end` cannot wrap, while a heap pointer's `ptr < end` would leave
-//! at once for a bound near the word size and return a counter the loop never
-//! reached. A phi reading it over a critical exit edge, from a loop block into a
-//! join, needs a block of its own on that edge: the pass splits those edges after
-//! visiting every loop of the function and then visits those loops again. Only
-//! the counter itself may be read after the loop; a value the loop derives from
-//! it keeps the counter, and so does a counter narrower than a word, which the
-//! rebuild would replace with a word.
+//! and its clamped `end` cannot wrap, while a heap pointer's `ptr < end` would
+//! leave at once for a bound near the word size and return a counter the loop
+//! never reached. A phi reading the counter over a critical edge, from a loop
+//! block or from a block after the loop that also branches elsewhere, needs a
+//! block of its own on that edge, so that only the path into the phi pays for the
+//! rebuild: the pass splits those edges after visiting every loop of the function
+//! and then visits those loops again. Only the counter itself may be read after
+//! the loop; a value the loop derives from it keeps the counter, and so does a
+//! counter narrower than a word, which the rebuild would replace with a word.
 //!
 //! Safety contract:
 //! - require canonical loops with a preheader and a single latch
@@ -174,7 +175,8 @@ struct ExitReads {
     blocks: Vec<BlockId>,
     /// Phis outside the loop with the counter incoming from a block outside the loop.
     phis: Vec<(InstId, BlockId)>,
-    /// Exit edges, from a loop block to a join outside it, whose phis read the counter.
+    /// Edges into a join outside the loop whose phis read the counter, from a loop block or
+    /// from a block that also branches elsewhere: each needs a block of its own to rebuild in.
     edges: Vec<(BlockId, BlockId)>,
 }
 
@@ -750,7 +752,13 @@ impl IndVarSimplifier {
                         if value != iv {
                             continue;
                         }
-                        if loop_data.blocks.contains(from) {
+                        // The rebuild runs at the end of the block the phi reads it from, so
+                        // every path out of that block would pay for it.
+                        let branches_elsewhere =
+                            func.blocks[from].terminator.as_ref().is_some_and(|term| {
+                                term.successors().iter().any(|&successor| successor != block_id)
+                            });
+                        if loop_data.blocks.contains(from) || branches_elsewhere {
                             reads.edges.push((from, block_id));
                         } else {
                             reads.phis.push((inst_id, from));

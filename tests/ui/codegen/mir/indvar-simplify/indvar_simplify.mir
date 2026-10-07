@@ -704,3 +704,37 @@ fn @keep_test_leaving_below_bound(arg0: i256, arg1: i256) -> i256 {
   bb3:
     ret 0
 }
+
+// A phi after the loop reading the counter from a block that also branches elsewhere gets the
+// rebuild on a block of its own, so the other path does not pay for it.
+// CHECK-LABEL: {{^[ +].*}}fn @rebuild_counter_on_conditional_edge{{[( ]}}
+// CHECK-NOT: = shr
+// CHECK: + jumpi arg3, [[SPLIT:bb[0-9]+]], bb5
+// CHECK: + [[SPLIT]]:
+// CHECK-NEXT: + [[DELTA:v[0-9]+]] = sub {{v[0-9]+}}, arg0
+// CHECK-NEXT: + [[INDEX:v[0-9]+]] = shr 5, [[DELTA]]
+// CHECK: + {{v[0-9]+}} = phi {{\[}}[[SPLIT]]: [[INDEX]]], [bb5: 7]
+fn @rebuild_counter_on_conditional_edge(arg0: i256, arg1: i256, arg2: i256, arg3: i1) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v4 = phi [bb0: 0], [bb4: v9]
+    v5 = lt v4, arg1
+    jumpi v5, bb3, bb5
+  bb3:
+    v6 = shl 5, v4
+    v7 = add arg0, v6
+    v8 = calldataload v7
+    v10 = eq v8, arg2
+    jumpi v10, bb5, bb4
+  bb4:
+    v9 = add v4, 1
+    jump bb1
+  bb5:
+    jumpi arg3, bb7, bb6
+  bb6:
+    jump bb7
+  bb7:
+    v11 = phi [bb5: v4], [bb6: 7]
+    ret v11
+}
