@@ -24,7 +24,10 @@
 //! A run continues through a branch to a block that aborts without reading the stack, the
 //! `PUSH target; JUMPI` of an overflow check or a guard: the pair takes only its condition, so it
 //! joins the run as one more ordered operation, and work may move across it, as only the path
-//! that continues matters. A block that returns or stops is a normal exit and ends the run.
+//! that continues matters. Such a block reaches its `REVERT` or `INVALID` without a jump and
+//! without an operation that depends on the gas left, such as a `GAS` reading in its payload,
+//! which could tell where the work ran. A block that returns or stops is a normal exit and ends
+//! the run.
 //! Spanning the checks gives the search more freedom, but a longer run can exhaust its budget
 //! where the runs between its checks would not, so those are scheduled separately as well and
 //! the cheaper result is kept. A run with more operations than one search takes is cut into
@@ -1178,14 +1181,24 @@ fn is_branch_pair(instructions: &[Instruction], index: usize, halts: &[bool]) ->
         && !jumpi.keeps_with_next()
 }
 
-/// Whether a block aborts without reading a word that was on the stack when it was entered.
+/// Whether a block aborts without reading a word that was on the stack when it was entered, and
+/// without anything that tells how much work ran before the branch into it.
 ///
 /// A run may move work across a branch to such a block: the work after the branch runs on the
-/// path that continues, which is the one that matters. A block that returns or stops is a
-/// normal exit, which a hoisted operation would make pay for work it does not need.
+/// path that continues, which is the one that matters. A block that returns or stops is a normal
+/// exit, which a hoisted operation would make pay for work it does not need, and so is one that
+/// jumps elsewhere before its end. A `GAS` reading, a call or an `SSTORE` would see how much gas
+/// the path spent, so a block with one keeps its branch out of runs.
 fn aborts_without_stack(block: &Block) -> bool {
     let mut depth = 0usize;
     for inst in &block.instructions {
+        if inst.opcode == op::JUMPI
+            || inst
+                .definition()
+                .is_some_and(|definition| definition.is_terminal() || definition.observes_gas())
+        {
+            return false;
+        }
         let effect = inst.stack_effect();
         let Some(rest) = depth.checked_sub(usize::from(effect.inputs)) else { return false };
         depth = rest + usize::from(effect.outputs);

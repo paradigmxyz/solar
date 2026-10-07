@@ -29,6 +29,10 @@ impl OpcodeTraits {
     pub(crate) const WRITES_STORAGE: Self = Self(1 << 3);
     /// The operation halts or unconditionally transfers control.
     pub(crate) const TERMINAL: Self = Self(1 << 4);
+    /// The operation depends on the gas left: `GAS` reads it, calls and creates forward all but
+    /// a 64th of it, and `SSTORE` fails unless more than the 2,300-gas call stipend remains. Work
+    /// that moves before it changes what it sees.
+    pub(crate) const OBSERVES_GAS: Self = Self(1 << 5);
 
     /// Returns the union of two property sets.
     pub(crate) const fn union(self, other: Self) -> Self {
@@ -368,12 +372,12 @@ opcodes! {
     0x52 => MSTORE => mstore => stack_io(2, 0) => traits(WRITES_MEMORY) => gas(verylow) => available(legacy);
     0x53 => MSTORE8 => mstore8 => stack_io(2, 0) => traits(WRITES_MEMORY) => gas(verylow) => available(legacy) => input_bits(256, 8);
     0x54 => SLOAD => sload => stack_io(1, 1) => traits() => gas(sload) => available(legacy);
-    0x55 => SSTORE => sstore => stack_io(2, 0) => traits(WRITES_STORAGE) => gas(sstore) => available(legacy);
+    0x55 => SSTORE => sstore => stack_io(2, 0) => traits(WRITES_STORAGE | OBSERVES_GAS) => gas(sstore) => available(legacy);
     0x56 => JUMP => jump => stack_io(1, 0) => traits(TERMINAL) => gas(mid) => available(legacy);
     0x57 => JUMPI => jumpi => stack_io(2, 0) => traits() => gas(high) => available(legacy);
     0x58 => PC => pc => stack_io(0, 1) => traits() => gas(base) => available(legacy);
     0x59 => MSIZE => msize => stack_io(0, 1) => traits() => gas(base) => available(legacy);
-    0x5a => GAS => gas => stack_io(0, 1) => traits() => gas(base) => available(legacy);
+    0x5a => GAS => gas => stack_io(0, 1) => traits(OBSERVES_GAS) => gas(base) => available(legacy);
     0x5b => JUMPDEST => jumpdest => stack_io(0, 0) => traits() => gas(jumpdest) => available(legacy);
     0x5c => TLOAD => tload => stack_io(1, 1) => traits() => gas(transient) => available(since Cancun);
     0x5d => TSTORE => tstore => stack_io(2, 0) => traits(WRITES_STORAGE) => gas(transient) => available(since Cancun);
@@ -451,13 +455,13 @@ opcodes! {
     0xe6 => DUPN => dupn => stack_io(_, _) => traits() => gas(verylow) => available(extended_stack_ops);
     0xe7 => SWAPN => swapn => stack_io(_, _) => traits() => gas(verylow) => available(extended_stack_ops);
     0xe8 => EXCHANGE => exchange => stack_io(_, _) => traits() => gas(verylow) => available(extended_stack_ops);
-    0xf0 => CREATE => create => stack_io(3, 1) => traits(WRITES_STORAGE) => gas(create) => available(legacy) => result_bits(160);
-    0xf1 => CALL => call => stack_io(7, 1) => traits(WRITES_MEMORY | WRITES_STORAGE) => gas(call) => available(legacy) => result_bits(1) => input_bits(256, 160);
-    0xf2 => CALLCODE => callcode => stack_io(7, 1) => traits(WRITES_MEMORY | WRITES_STORAGE) => gas(call) => available(legacy) => result_bits(1) => input_bits(256, 160);
+    0xf0 => CREATE => create => stack_io(3, 1) => traits(WRITES_STORAGE | OBSERVES_GAS) => gas(create) => available(legacy) => result_bits(160);
+    0xf1 => CALL => call => stack_io(7, 1) => traits(WRITES_MEMORY | WRITES_STORAGE | OBSERVES_GAS) => gas(call) => available(legacy) => result_bits(1) => input_bits(256, 160);
+    0xf2 => CALLCODE => callcode => stack_io(7, 1) => traits(WRITES_MEMORY | WRITES_STORAGE | OBSERVES_GAS) => gas(call) => available(legacy) => result_bits(1) => input_bits(256, 160);
     0xf3 => RETURN => r#return => stack_io(2, 0) => traits(TERMINAL) => gas(zero) => available(legacy);
-    0xf4 => DELEGATECALL => delegatecall => stack_io(6, 1) => traits(WRITES_MEMORY | WRITES_STORAGE) => gas(call) => available(legacy) => result_bits(1) => input_bits(256, 160);
-    0xf5 => CREATE2 => create2 => stack_io(4, 1) => traits(WRITES_STORAGE) => gas(create) => available(since Constantinople) => result_bits(160);
-    0xfa => STATICCALL => staticcall => stack_io(6, 1) => traits(WRITES_MEMORY | WRITES_STORAGE) => gas(call) => available(since Byzantium) => result_bits(1) => input_bits(256, 160);
+    0xf4 => DELEGATECALL => delegatecall => stack_io(6, 1) => traits(WRITES_MEMORY | WRITES_STORAGE | OBSERVES_GAS) => gas(call) => available(legacy) => result_bits(1) => input_bits(256, 160);
+    0xf5 => CREATE2 => create2 => stack_io(4, 1) => traits(WRITES_STORAGE | OBSERVES_GAS) => gas(create) => available(since Constantinople) => result_bits(160);
+    0xfa => STATICCALL => staticcall => stack_io(6, 1) => traits(WRITES_MEMORY | WRITES_STORAGE | OBSERVES_GAS) => gas(call) => available(since Byzantium) => result_bits(1) => input_bits(256, 160);
     0xfd => REVERT => revert => stack_io(2, 0) => traits(TERMINAL) => gas(zero) => available(since Byzantium);
     0xfe => INVALID => invalid => stack_io(0, 0) => traits(TERMINAL) => gas(zero) => available(legacy);
     0xff => SELFDESTRUCT => selfdestruct => stack_io(1, 0) => traits(TERMINAL) => gas(selfdestruct) => available(legacy) => input_bits(160);
@@ -515,6 +519,12 @@ impl OpDef {
     #[must_use]
     pub(crate) const fn writes_storage(self) -> bool {
         self.traits.contains(OpcodeTraits::WRITES_STORAGE)
+    }
+
+    /// Returns whether this operation depends on the gas left.
+    #[must_use]
+    pub(crate) const fn observes_gas(self) -> bool {
+        self.traits.contains(OpcodeTraits::OBSERVES_GAS)
     }
 }
 
@@ -978,6 +988,7 @@ mod tests {
                 ("writes_memory", def.writes_memory()),
                 ("writes_storage", def.writes_storage()),
                 ("terminal", def.is_terminal()),
+                ("observes_gas", def.observes_gas()),
             ];
             for (name, set) in traits {
                 if set {
