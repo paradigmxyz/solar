@@ -121,22 +121,23 @@ merged.
 
 ### Cargo Commands
 
-Crate features mean some commands need extra arguments. Most `cargo`
-subcommands run normally; omit `--workspace` to ignore benchmarks and examples:
+Install [`cargo-nextest`](https://nexte.st/) (`cargo install --locked cargo-nextest`),
+then use the workspace aliases from `.cargo/config.toml`:
 
 ```
 cargo check --workspace
-cargo clippy --workspace
-cargo +nightly fmt --all --check
-cargo test --workspace
+cargo cl            # clippy on all targets and features
+cargo fmt --all     # needs nightly rustfmt; see below
+cargo t             # all tests with nextest
+cargo uitest        # UI tests only
+cargo uibless       # update UI test expectations
 ```
 
-[`cargo-nextest`](https://nexte.st/) runs tests faster:
-
-```
-cargo install --locked cargo-nextest
-cargo nextest run --workspace
-```
+`rustfmt.toml` uses nightly-only options, so format with a nightly toolchain
+(`cargo +nightly fmt --all` if stable is your default); stable rustfmt ignores
+them and produces a different layout from CI. Prefer `cargo t` or
+`cargo nextest run` over plain `cargo test`, and never run tests with
+`--all-features`: it enables `tracy`, which slows every UI test process.
 
 Plain `cargo doc` does not match docs.rs. To build the same docs, which show the
 Cargo features that conditionally compiled APIs need, run:
@@ -155,7 +156,7 @@ cargo +nightly docs-rs -p solar-compiler [--open]
 
 ### Spellcheck
 
-You can perform spell-check on the codebase with the following commands:
+Check spelling with:
 
 ```
 cargo install --locked typos-cli
@@ -164,8 +165,7 @@ typos
 
 For details of how to use `typos`, see <https://github.com/crate-ci/typos>.
 
-If the command rejects a word, you should backtick the rejected word if it's code related.
-If not, the  rejected word should be inserted into `typos.toml`. 
+Backtick a rejected word if it is code; otherwise add it to `typos.toml`.
 
 ### Diagnostics
 
@@ -188,14 +188,14 @@ in the test. We use `snapbox`, which needs no external binaries. Run tests with
 crate or test name:
 
 ```bash
-SNAPSHOTS=overwrite cargo test -p solar-ast
+SNAPSHOTS=overwrite cargo nextest run -p solar-ast
 ```
 
 #### Integration Tests
 
 Integration tests live in `tests/` and use the [`ui_test`][ui_test] harness,
 inspired by rustc's [`compiletest`][compiletest]; see both for details. They run
-by default with `cargo test` or `cargo nextest run`; `cargo uitest` runs only
+by default with `cargo t`; `cargo uitest` runs only
 them. A UI test (`tests/ui/`) looks like this:
 
 ```rust
