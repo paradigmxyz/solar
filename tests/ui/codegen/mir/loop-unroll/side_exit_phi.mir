@@ -1,0 +1,26 @@
+//@compile-flags: -Zmir-pipeline=loop-unroll --optimize-runs 10000
+@module SideExitPhi
+
+// A side exit reads the same loop value directly and through an existing phi.
+fn @search(arg0: i256) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb3: v5]
+    v1 = phi [bb0: 1], [bb3: v3]
+    v2 = lt v0, arg0
+    jumpi v2, bb2, bb5
+  bb2:
+    v3 = mul v1, 3
+    v4 = gt v3, 1000
+    jumpi v4, bb4, bb3
+  bb3:
+    v5 = add v0, 1
+    jump bb1
+  bb4:
+    v6 = phi [bb2: v3]
+    v7 = add v6, v3
+    ret v7
+  bb5:
+    ret v1
+}

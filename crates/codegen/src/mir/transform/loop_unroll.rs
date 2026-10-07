@@ -144,7 +144,8 @@
 //! chain: pinning the base on the stack measured slower there.
 //!
 //! A loop whose literal start, step and bound give it at most 16 iterations
-//! becomes that many copies of its header and body, chained in order: each
+//! becomes that many copies of its header and body. For `<` and `<=`, the final
+//! counter update must not wrap. The copies are chained in order: each
 //! copy's header jumps into its body, as its test holds, and takes the previous
 //! copy's latch values for its phis. The original header follows the last copy
 //! and jumps to the exit, as its test fails there, so the values read after the
@@ -584,9 +585,12 @@ fn add_exit_phis(func: &mut Function, exit_phis: &[(BlockId, Vec<ValueId>)]) {
         }
         let mut instructions = phis;
         for inst in std::mem::take(&mut func.blocks[*block].instructions) {
-            func.inst_mut(inst).kind.visit_operands_mut(|operand| {
-                *operand = replacements.get(operand).copied().unwrap_or(*operand);
-            });
+            let kind = &mut func.inst_mut(inst).kind;
+            if !matches!(kind, InstKind::Phi(_)) {
+                kind.visit_operands_mut(|operand| {
+                    *operand = replacements.get(operand).copied().unwrap_or(*operand);
+                });
+            }
             instructions.push(inst);
         }
         func.blocks[*block].instructions = instructions;
@@ -775,9 +779,18 @@ fn counter(func: &Function, l: &Loop, shape: &Shape) -> Option<Counter> {
         test => test,
     };
     let trips = match (test, func.value_u256(start), func.value_u256(bound)) {
-        (Test::Below, Some(start), Some(limit)) => Some(limit.saturating_sub(start).div_ceil(step)),
-        (Test::AtMost | Test::UpTo, Some(start), Some(limit)) => {
-            Some(limit.checked_sub(start).map_or(U256::ZERO, |left| left / step + U256::from(1)))
+        (Test::Below | Test::AtMost | Test::UpTo, Some(start), Some(limit)) => {
+            let trips = if matches!(test, Test::Below) {
+                Some(limit.saturating_sub(start).div_ceil(step))
+            } else {
+                limit
+                    .checked_sub(start)
+                    .map_or(Some(U256::ZERO), |left| (left / step).checked_add(U256::from(1)))
+            };
+            // The final update must reach the failing test without wrapping below the bound.
+            trips.filter(|&trips| {
+                step.checked_mul(trips).and_then(|travel| start.checked_add(travel)).is_some()
+            })
         }
         // A step of `2^256 - m` counts down by `m`.
         (Test::Reaches, Some(start), Some(limit)) => {
