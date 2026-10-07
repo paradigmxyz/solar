@@ -189,12 +189,7 @@ impl MirPass for IntegerCleanup {
             }
             let cfg = CfgInfo::new(func);
             let mut eliminator = CheckEliminator { collect_masks: true, ..Default::default() };
-            let mut preds = index_vec![Vec::new(); func.blocks.len()];
-            for &block in cfg.rpo() {
-                for &succ in cfg.successors(block) {
-                    preds[succ].push(block);
-                }
-            }
+            let preds = cfg.reachable_predecessors();
             let facts = index_vec![Facts::default(); func.blocks.len()];
             let _ =
                 eliminator.collect_folds(func, &cfg, &preds, &facts, &[], &mut Vec::new(), None);
@@ -655,14 +650,8 @@ impl<'a> CheckEliminator<'a> {
         }
         self.universal_relations = universal_relations(func, &relevant);
 
-        // Predecessors recomputed from reachable terminators: facts must only
-        // come from edges that can actually execute.
-        let mut preds = index_vec![Vec::new(); func.blocks.len()];
-        for &block in cfg.rpo() {
-            for &succ in cfg.successors(block) {
-                preds[succ].push(block);
-            }
-        }
+        // Facts must only come from edges that can actually execute.
+        let preds = cfg.reachable_predecessors();
 
         const MAX_ACYCLIC_JOIN_INSTRUCTIONS: usize = 128;
         let bounded_acyclic_join = cfg.cyclic_blocks().is_empty()

@@ -204,6 +204,18 @@ impl CfgInfo {
         });
         (block.index() < self.successors.len()).then(|| reachability.row(block))
     }
+
+    /// Returns reachable predecessor lists in reverse postorder, once per edge.
+    #[must_use]
+    pub(crate) fn reachable_predecessors(&self) -> IndexVec<BlockId, Vec<BlockId>> {
+        let mut predecessors = index_vec![Vec::new(); self.num_blocks()];
+        for &block in self.rpo() {
+            for &successor in self.successors(block) {
+                predecessors[successor].push(block);
+            }
+        }
+        predecessors
+    }
 }
 
 /// Immediate-dominator tree for one MIR function.

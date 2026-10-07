@@ -800,7 +800,6 @@ fn local_summary(
 /// state changes are discarded with the call frame.
 fn returning_blocks(func: &Function) -> DenseBitSet<BlockId> {
     let mut returning = DenseBitSet::new_empty(func.blocks.len());
-    let mut edges = Vec::new();
     let mut worklist = Vec::new();
     for (block_id, block) in func.blocks.iter_enumerated() {
         let Some(terminator) = &block.terminator else {
@@ -809,10 +808,7 @@ fn returning_blocks(func: &Function) -> DenseBitSet<BlockId> {
             continue;
         };
         let mut exits = true;
-        terminator.for_each_successor(|successor| {
-            edges.push((successor, block_id));
-            exits = false;
-        });
+        terminator.for_each_successor(|_| exits = false);
         if exits
             && !matches!(
                 terminator,
@@ -823,9 +819,8 @@ fn returning_blocks(func: &Function) -> DenseBitSet<BlockId> {
             worklist.push(block_id);
         }
     }
-    let predecessors = IndexLists::new(func.blocks.len(), edges.iter().copied());
     while let Some(block) = worklist.pop() {
-        for &predecessor in predecessors.get(block) {
+        for &predecessor in &func.blocks[block].predecessors {
             if returning.insert(predecessor) {
                 worklist.push(predecessor);
             }

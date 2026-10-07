@@ -92,7 +92,7 @@ fn has_memory_writes(func: &Function) -> bool {
 /// Local dead memory optimization.
 #[derive(Debug, Default)]
 struct MemoryStoreEliminator {
-    /// Shared CFG snapshot for the immutable-copy reuse scan.
+    /// Shared CFG snapshot for memory liveness and immutable-copy reuse.
     cfg: Option<Rc<CfgInfo>>,
     /// Number of memory instructions eliminated.
     eliminated_count: usize,
@@ -472,7 +472,8 @@ impl MemoryStoreEliminator {
         // while touching each block only when one of its successors actually
         // moved. Postorder puts successors before predecessors, which is the
         // direction information flows here.
-        let (predecessors, order) = Self::block_order(func);
+        let cfg = self.cfg.as_ref().map_or_else(|| Rc::new(CfgInfo::new(func)), Rc::clone);
+        let order = Self::block_order(&cfg);
         let mut live_in = index_vec![MemLive::empty(); func.blocks.len()];
         let mut worklist: VecDeque<BlockId> = order.into();
         let mut queued = DenseBitSet::new_empty(func.blocks.len());
@@ -485,7 +486,7 @@ impl MemoryStoreEliminator {
             let new_in = self.transfer_block(func, block_id, out, &mut None);
             if live_in[block_id] != new_in {
                 live_in[block_id] = new_in;
-                for &pred in &predecessors[block_id] {
+                for &pred in cfg.predecessors(block_id) {
                     if queued.insert(pred) {
                         worklist.push_back(pred);
                     }
@@ -520,41 +521,23 @@ impl MemoryStoreEliminator {
         out
     }
 
-    /// Successor and predecessor lists for every block, plus a postorder over
-    /// all of them.
+    /// Returns a postorder over every block.
     ///
-    /// The shared [`CfgInfo`] snapshot only exposes successors, and the backward
-    /// worklist needs to re-queue a block when one of its successors moves.
     /// Postorder settles successors before their predecessors, which is the
     /// direction a backward analysis propagates, so seeding the worklist with it
     /// converges most functions in a single drain. Unreachable blocks are
     /// included so their liveness converges too.
-    fn block_order(func: &Function) -> (IndexVec<BlockId, SmallVec<[BlockId; 2]>>, Vec<BlockId>) {
-        let successors: IndexVec<BlockId, SmallVec<[BlockId; 2]>> = func
-            .blocks
-            .iter()
-            .map(|block| {
-                block.terminator.as_ref().map(|term| term.successors()).unwrap_or_default()
-            })
-            .collect();
-
-        let mut predecessors = index_vec![SmallVec::new(); func.blocks.len()];
-        for (block_id, succs) in successors.iter_enumerated() {
-            for &succ in succs {
-                predecessors[succ].push(block_id);
-            }
-        }
-
-        let mut order = Vec::with_capacity(func.blocks.len());
-        let mut visited = DenseBitSet::new_empty(func.blocks.len());
-        for root in func.blocks.indices() {
+    fn block_order(cfg: &CfgInfo) -> Vec<BlockId> {
+        let mut order = Vec::with_capacity(cfg.num_blocks());
+        let mut visited = DenseBitSet::new_empty(cfg.num_blocks());
+        for root in (0..cfg.num_blocks()).map(BlockId::new) {
             if !visited.insert(root) {
                 continue;
             }
             let mut stack = Vec::new();
             stack.push((root, 0usize));
             while let Some((block, next)) = stack.last_mut() {
-                if let Some(&succ) = successors[*block].get(*next) {
+                if let Some(&succ) = cfg.successors(*block).get(*next) {
                     *next += 1;
                     if visited.insert(succ) {
                         stack.push((succ, 0));
@@ -565,7 +548,7 @@ impl MemoryStoreEliminator {
                 }
             }
         }
-        (predecessors, order)
+        order
     }
 
     /// Runs the backward transfer over one block's terminator and instructions,

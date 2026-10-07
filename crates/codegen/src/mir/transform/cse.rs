@@ -89,7 +89,7 @@ use crate::mir::{
 use alloy_primitives::U256;
 use solar_data_structures::{
     bit_set::{DenseBitSet, GrowableBitSet},
-    index::{IndexVec, index_vec},
+    index::IndexVec,
     map::FxHashMap,
 };
 use std::{cell::OnceCell, cmp::Ordering, ops::Range, rc::Rc, sync::Arc};
@@ -520,16 +520,9 @@ impl CommonSubexprEliminator {
         } else {
             Default::default()
         };
-        let mut predecessors = IndexVec::new();
         let reuse = (!block_clobbers.is_empty()).then(OnceCell::new);
-        if !block_clobbers.is_empty() {
-            predecessors = index_vec![Vec::new(); func.blocks.len()];
-            for block in cfg.reachable().iter() {
-                for &successor in cfg.successors(block) {
-                    predecessors[successor].push(block);
-                }
-            }
-        }
+        let predecessors =
+            if block_clobbers.is_empty() { IndexVec::new() } else { cfg.reachable_predecessors() };
         let dom_tree = cfg.dominators();
         let mut replacements = FxHashMap::default();
         let mut dead = DenseBitSet::new_empty(func.num_insts());

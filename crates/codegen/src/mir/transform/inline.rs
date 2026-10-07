@@ -75,7 +75,7 @@ use crate::{
         immutable::immutable_push_type_size,
         memory::{EvmMemoryLayout, MemoryLayoutPolicy},
         pass::MirPass,
-        utils::{replace_terminator_uses_canonicalized, resolve_replacement},
+        utils::{rebuild_predecessors, replace_terminator_uses_canonicalized, resolve_replacement},
     },
     target::{Cost, Target},
 };
@@ -2254,7 +2254,7 @@ fn inline_call_impl(
     }
 
     cloner.caller.replace_uses(&replacements);
-    recompute_cfg(cloner.caller);
+    rebuild_predecessors(cloner.caller);
     prune_phi_incoming_to_predecessors(cloner.caller);
     Some(())
 }
@@ -2336,7 +2336,7 @@ pub(super) fn inline_dispatch_route(
     // NOTE: The wrapper call boundary disappears; its source checkpoint cannot
     // describe this generated jump. Cloned body instructions keep their origins.
     cloner.caller.blocks[block].set_generated_terminator(Terminator::Jump(entry));
-    recompute_cfg(cloner.caller);
+    rebuild_predecessors(cloner.caller);
     Some(())
 }
 
@@ -2712,28 +2712,6 @@ fn redirect_phi_predecessors(
                         *pred = new_pred;
                     }
                 }
-            }
-        }
-    }
-}
-
-fn recompute_cfg(func: &mut Function) {
-    let mut edges = Vec::new();
-    for (block, bb) in func.blocks.iter_enumerated() {
-        if let Some(term) = &bb.terminator {
-            edges.push((block, term.successors()));
-        }
-    }
-
-    for block in func.blocks.iter_mut() {
-        block.predecessors.clear();
-    }
-
-    for (block, successors) in edges {
-        for succ in successors {
-            let predecessors = &mut func.blocks[succ].predecessors;
-            if !predecessors.contains(&block) {
-                predecessors.push(block);
             }
         }
     }

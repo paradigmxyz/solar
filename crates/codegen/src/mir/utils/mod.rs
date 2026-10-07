@@ -270,6 +270,25 @@ pub(crate) fn invalidate_unreachable_block(func: &mut Function, block: BlockId) 
     true
 }
 
+/// Recomputes every block's predecessor list from the terminators.
+pub(crate) fn rebuild_predecessors(func: &mut Function) {
+    let mut edges = Vec::new();
+    for (block, body) in func.blocks.iter_enumerated() {
+        if let Some(terminator) = &body.terminator {
+            terminator.for_each_successor(|successor| edges.push((block, successor)));
+        }
+    }
+    for body in func.blocks.iter_mut() {
+        body.predecessors.clear();
+    }
+    for (from, to) in edges {
+        let predecessors = &mut func.blocks[to].predecessors;
+        if !predecessors.contains(&from) {
+            predecessors.push(from);
+        }
+    }
+}
+
 /// Resolves a value through a replacement map until it reaches its canonical value.
 pub(crate) fn resolve_replacement(
     mut value: ValueId,

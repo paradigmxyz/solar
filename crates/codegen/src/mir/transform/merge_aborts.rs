@@ -61,7 +61,6 @@
 //! cleanup that joins each copy's blocks, so the tests it merges are the ones
 //! that remain.
 
-use super::loop_split::rebuild_predecessors;
 use crate::{
     backend::evm::op,
     mir::{
@@ -69,6 +68,7 @@ use crate::{
         MirType, Module, Terminator, Value, ValueId,
         analysis::{CfgInfo, aborts, cold_functions},
         pass::{MirPass, run_function_pass},
+        utils::rebuild_predecessors,
     },
     target::Target,
 };

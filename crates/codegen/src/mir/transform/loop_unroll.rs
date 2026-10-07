@@ -176,7 +176,7 @@
 //! fixed the loop's physical shape, and before the final CFG cleanup and
 //! dead-code elimination remove the cloned tests the copies no longer read.
 
-use super::loop_split::{rebuild_predecessors, retarget};
+use super::loop_split::retarget;
 use crate::{
     backend::evm::op,
     mir::{
@@ -184,6 +184,7 @@ use crate::{
         MirType, Module, OpTraits, Terminator, Value, ValueId,
         analysis::{Loop, LoopAnalyzer, LoopInfo, aborts, cold_functions},
         pass::{MirPass, run_function_pass},
+        utils::rebuild_predecessors,
     },
     target::{Cost, Target},
 };

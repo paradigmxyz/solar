@@ -45,16 +45,13 @@ use crate::{
     mir::{
         BlockId, EffectKind, Function, Immediate, InstId, InstKind, MirType, Module, Terminator,
         Value, ValueId,
+        analysis::CfgInfo,
         pass::{MirPass, run_function_pass},
     },
     target::{Cost, Target},
 };
 use alloy_primitives::U256;
-use solar_data_structures::{
-    bit_set::DenseBitSet,
-    index::{IndexVec, index_vec},
-    map::FxHashMap,
-};
+use solar_data_structures::{index::IndexVec, map::FxHashMap};
 use std::cmp::Ordering;
 
 /// Function pass that converts small branch diamonds and triangles into selects.
@@ -123,7 +120,7 @@ enum SelectForm {
 fn if_convert_function(func: &mut Function, target: Target) -> bool {
     let mut changed = false;
     loop {
-        let mut preds = predecessors(func);
+        let mut preds = CfgInfo::new(func).reachable_predecessors();
         let mut converted = false;
         for block in func.blocks.indices() {
             if let Some(site) = find_site(func, target, &preds, block) {
@@ -145,25 +142,6 @@ fn if_convert_function(func: &mut Function, target: Target) -> bool {
         changed = true;
     }
     changed
-}
-
-/// Predecessor lists over the blocks reachable from the entry.
-fn predecessors(func: &Function) -> IndexVec<BlockId, Vec<BlockId>> {
-    let mut preds = index_vec![Vec::new(); func.blocks.len()];
-    let mut reachable = DenseBitSet::new_empty(func.blocks.len());
-    let mut worklist = Vec::new();
-    worklist.push(BlockId::ENTRY);
-    reachable.insert(BlockId::ENTRY);
-    while let Some(block) = worklist.pop() {
-        let Some(terminator) = &func.blocks[block].terminator else { continue };
-        for successor in terminator.successors() {
-            preds[successor].push(block);
-            if reachable.insert(successor) {
-                worklist.push(successor);
-            }
-        }
-    }
-    preds
 }
 
 fn find_site(
