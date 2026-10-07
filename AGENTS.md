@@ -63,11 +63,10 @@ Pipeline: lex -> parse -> sema (AST -> HIR, typeck) -> MIR -> EVM IR -> bytecode
   placement here.
 - Stack scheduling sits at the MIR-to-EVM boundary. It keeps value identities
   and virtual stack layouts private and emits scheduled EVM IR directly.
-- Keep the assembler primitive: it takes a compact stream of opcodes, labels,
-  deferred pushes, and immutable placeholders, then solves label offsets and
-  PUSH widths as a least fixed point (one forward pass cannot, since widening
-  one reference can push a later target across a width boundary). Never add
-  optimizations to this stream; add them to block EVM IR.
+- Keep the assembler primitive: a compact stream of opcodes, labels, deferred
+  pushes, and immutable placeholders, solved to a least fixed point of label
+  offsets and PUSH widths. Never add optimizations to this stream; add them to
+  block EVM IR.
 - MIR must not learn EVM stack layout; EVM IR must not rediscover Solidity types
   or call semantics.
 
@@ -83,28 +82,15 @@ debug-info changes with bytecode-neutrality tests.
 
 ### MIR Phases
 
-MIR has two representations, `semantic` (default, omitted when printing) and
-`lowered`; the text header round-trips the phase. Optimizations do not change
-it. Semantic MIR keeps typed SSA, aggregates, slices, object references, and
-semantic operations. Required conversion passes expand ABI, selector routing,
-aggregates, storage addresses, memory layouts, and allocations. `abi_wrapper`
-marks an external function that implements its own ABI; it is unrelated to the
-phase.
-
-`lower-evm-shaped` checks the shared lowered legality rules and calls
-`Module::advance_phase`. Lowered MIR holds word SSA and backend-supported
-operations; calls and phis survive until stack scheduling, and only verified
-static allocation placeholders remain for backend layout. The backend takes an
-immutable `LoweredModule` checked after the last MIR rewrite. Conversion errors
-stop the pipeline, even with a custom `-Zmir-pipeline`; never skip a lowering
-silently.
-
-Keep conversion passes small and named. Mixed semantic and primitive operations
-are fine mid-conversion, but every pass keeps SSA and type invariants. Add
-instruction legality to the exhaustive `Instruction::unlowered_reason` match and
-type/module rules to the shared phase verifier. Test these contracts under
-`tests/ui/codegen/mir/`, including bad pass order and falsely declared lowered
-input. See `docs/MIR.md` for the design.
+MIR has two phases, `semantic` (typed SSA, aggregates, semantic operations) and
+`lowered` (word SSA and backend-supported operations; calls and phis survive
+until stack scheduling). Required conversion passes in between stay small and
+named and keep SSA and type invariants. `lower-evm-shaped` checks legality and
+calls `Module::advance_phase`; the backend takes the checked `LoweredModule`.
+Conversion errors stop the pipeline, even with `-Zmir-pipeline`; never skip a
+lowering silently. Add instruction legality to `Instruction::unlowered_reason`
+and type/module rules to the phase verifier, and test them under
+`tests/ui/codegen/mir/`. See [docs/MIR.md](docs/MIR.md#phase-model).
 
 ### Operation Schema and ISLE Rules
 
