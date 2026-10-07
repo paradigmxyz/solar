@@ -62,7 +62,8 @@
 //! join, needs a block of its own on that edge: the pass splits those edges after
 //! visiting every loop of the function and then visits those loops again. Only
 //! the counter itself may be read after the loop; a value the loop derives from
-//! it keeps the counter.
+//! it keeps the counter, and so does a counter narrower than a word, which the
+//! rebuild would replace with a word.
 //!
 //! Safety contract:
 //! - require canonical loops with a preheader and a single latch
@@ -171,6 +172,12 @@ struct ExitReads {
     phis: Vec<(InstId, BlockId)>,
     /// Exit edges, from a loop block to a join outside it, whose phis read the counter.
     edges: Vec<(BlockId, BlockId)>,
+}
+
+impl ExitReads {
+    fn is_empty(&self) -> bool {
+        self.blocks.is_empty() && self.phis.is_empty() && self.edges.is_empty()
+    }
 }
 
 /// The header's exit test, `lt counter, bound` or `lt bound, counter`.
@@ -383,16 +390,21 @@ impl IndVarSimplifier {
         // that cannot wrap takes over the exit test and the counter dies; that credit
         // is weighed across all families at once.
         let exit_test = self.counter_exit_test(func, loop_data, iv.value);
-        let exit_reads = exit_test.filter(|_| !must_keep_update).and_then(|test| {
-            Self::counter_only_feeds(
-                func,
-                loop_data,
-                iv.value,
-                test.condition,
-                Some(iv.update_inst),
-                &addresses,
-            )
-        });
+        // The pointer rebuilds a counter read after the loop as a word, so a narrower counter
+        // read there keeps its test until integer lowering widens it.
+        let exit_reads = exit_test
+            .filter(|_| !must_keep_update)
+            .and_then(|test| {
+                Self::counter_only_feeds(
+                    func,
+                    loop_data,
+                    iv.value,
+                    test.condition,
+                    Some(iv.update_inst),
+                    &addresses,
+                )
+            })
+            .filter(|reads| reads.is_empty() || func.value_ty(iv.value) == Some(MirType::I256));
         let counter_free = exit_reads.is_some();
         // A counter that starts at a literal and steps by one leaves the loop exactly when an
         // ascending pointer reaches its value at the bound, clamped where that value could

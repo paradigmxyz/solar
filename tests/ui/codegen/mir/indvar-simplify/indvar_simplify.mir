@@ -599,3 +599,28 @@ fn @keep_counter_read_derived(arg0: i256, arg1: i256, arg2: i256) -> i256 {
   bb5:
     revert 0, 0
 }
+
+// A narrow counter read after the loop keeps its test: the pointer would rebuild it as a word
+// where its reader takes the counter's own width.
+// CHECK-LABEL: {{^[ +].*}}fn @keep_narrow_counter_read_after_loop{{[( ]}}
+// CHECK-NOT: {{^[-+]}}
+fn @keep_narrow_counter_read_after_loop(arg0: i256) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v1 = phi [bb0: i8 0], [bb2: v6]
+    v2 = lt v1, i8 4
+    jumpi v2, bb2, bb3
+  bb2:
+    v20 = zext i8 v1 to i256
+    v3 = shl 5, v20
+    v4 = add arg0, v3
+    v5 = mload v4
+    v7 = add v5, 1
+    mstore v4, v7
+    v6 = add v1, i8 1
+    jump bb1
+  bb3:
+    v8 = zext i8 v1 to i256
+    ret v8
+}
