@@ -1081,7 +1081,11 @@ fn apply(func: &mut Function, unroll: &Unroll) -> BlockId {
         }
     }
 
-    func.replace_uses(&replacements);
+    // A copied header's phi can map to another copied header's phi when the latch passes one
+    // header phi to another, as a swap does (`a = phi [latch: b]`, `b = phi [latch: a]`): with
+    // four copies, `a_2` maps to `b_1`, which maps to `a_0`. Follow each chain to the value that
+    // survives.
+    func.replace_uses_canonicalized(&replacements);
     rebuild_predecessors(func);
     main_header
 }
