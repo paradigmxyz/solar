@@ -166,15 +166,25 @@ enum CallSite {
 /// returns until it is read as the pointer, replaced, or execution ends.
 struct PointerUses<'a> {
     module: &'a Module,
-    /// The flow from the entry of each function, or `None` while it is being computed.
-    entry_flows: FxHashMap<FunctionId, Option<Flow>>,
+    /// The flow from the entry of each function, once known.
+    entry_flows: FxHashMap<FunctionId, Flow>,
+    /// The functions whose entry flow is being followed, by how deep the search entered them.
+    following: FxHashMap<FunctionId, usize>,
+    /// The shallowest function still being followed that the current flow passed a call into.
+    shallowest: usize,
     /// The call sites of each function, built on first use.
     call_sites: Option<FxHashMap<FunctionId, Vec<CallSite>>>,
 }
 
 impl<'a> PointerUses<'a> {
     fn new(module: &'a Module) -> Self {
-        Self { module, entry_flows: FxHashMap::default(), call_sites: None }
+        Self {
+            module,
+            entry_flows: FxHashMap::default(),
+            following: FxHashMap::default(),
+            shallowest: usize::MAX,
+            call_sites: None,
+        }
     }
 
     /// Returns whether the value stored by the instruction at `index` in `block` can be read
@@ -220,16 +230,30 @@ impl<'a> PointerUses<'a> {
     }
 
     /// Returns what a call to `func_id` does with the value its caller left in the slot.
+    ///
+    /// A call into a function still being followed passes the value through as far as the
+    /// search knows: following that function's own paths finds any read the call could make,
+    /// and the search goes on after the call. A flow that relied on that is remembered only once
+    /// the outermost function it passed into is done.
     fn entry_flow(&mut self, func_id: FunctionId) -> Flow {
-        match self.entry_flows.get(&func_id) {
-            Some(&Some(flow)) => return flow,
-            // A recursive call is assumed to allocate.
-            Some(None) => return Flow::Used,
-            None => {}
+        if let Some(&flow) = self.entry_flows.get(&func_id) {
+            return flow;
         }
-        self.entry_flows.insert(func_id, None);
+        if let Some(&depth) = self.following.get(&func_id) {
+            self.shallowest = self.shallowest.min(depth);
+            return Flow::Returned;
+        }
+        let depth = self.following.len();
+        self.following.insert(func_id, depth);
+        let outer = std::mem::replace(&mut self.shallowest, usize::MAX);
         let flow = self.flow_from(func_id, BlockId::ENTRY, 0);
-        self.entry_flows.insert(func_id, Some(flow));
+        self.following.remove(&func_id);
+        if self.shallowest >= depth {
+            self.entry_flows.insert(func_id, flow);
+            self.shallowest = outer;
+        } else {
+            self.shallowest = self.shallowest.min(outer);
+        }
         flow
     }
 

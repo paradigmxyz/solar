@@ -66,3 +66,26 @@
       ret v0
   }
   
+  fn @hash_scratch(arg0: i256) -> i256 {
+    bb0:
+      v0 = eq arg0, 0
+      jumpi v0, bb1, bb2
+    bb2:
+      v2 = sub arg0, 1
+      v3 = icall @hash_scratch, v2
+      ret v3
+    bb1:
+      v1 = keccak256 0, 96
+      ret v1
+  }
+  
+  fn @scratch_through_recursion() -> i256 {
+    bb0:
+      v0 = mload 64
+      v1 = calldataload 4
+      mstore 64, v1
+      v2 = icall @hash_scratch, 0
+      mstore 64, v0
+      ret v2
+  }
+  
