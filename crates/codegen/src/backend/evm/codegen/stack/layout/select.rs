@@ -475,13 +475,26 @@ impl<'gcx> EvmCodegen<'gcx> {
             return None;
         }
 
-        let plan = GlobalStackPlan::analyze_resident_args(
+        let mut plan = GlobalStackPlan::analyze_resident_args(
             func,
             liveness,
             values,
             self.preserve_caller_stack || self.can_preserve_hazard_caller_stack(func_id),
             self.stack_access_limit(),
         )?;
+        // Phi operands are edge uses, not unchanged target live-ins. Full
+        // liveness conservatively includes them at the header; remove those
+        // incoming identities from the resident prefix so the phi edge can
+        // replace each source with its result instead of trying to carry both.
+        for (&pred, edge) in &stack_phi_plan.edges {
+            let Some(Terminator::Jump(target)) = func.blocks[pred].terminator.as_ref() else {
+                continue;
+            };
+            if let Some(entry) = plan.entries.get_mut(target) {
+                entry.retain(|value| !edge.sources.contains(value));
+            }
+        }
+        plan.entries.retain(|_, entry| !entry.is_empty());
         if !stack_phi_plan.clone().merge_resident(func, &plan, self.stack_access_limit()) {
             return None;
         }

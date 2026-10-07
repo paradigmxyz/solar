@@ -241,11 +241,6 @@ fn get_solar_binary() -> PathBuf {
         return path.clone();
     }
 
-    if let Some(path) = std::env::var_os("SOLAR_FOUNDRY_COMPILER") {
-        let path = PathBuf::from(path);
-        return if path.is_absolute() { path } else { workspace_root().join(path) };
-    }
-
     if let Some(path) = option_env!("CARGO_BIN_EXE_solar") {
         return PathBuf::from(path);
     }
@@ -530,27 +525,7 @@ fn write_runtime_report(
         if report_dir.is_absolute() { report_dir } else { workspace_root().join(report_dir) };
     fs::create_dir_all(&report_dir).expect("failed to create Foundry report directory");
 
-    let mut rerun_env = serde_json::Map::new();
-    rerun_env.insert("SOLAR_FOUNDRY_REPORT_DIR".into(), report_dir.display().to_string().into());
-    for name in [
-        "PATH",
-        "SOLAR_FOUNDRY_COMPILER",
-        "SOLAR_FOUNDRY_OPTIMIZATION",
-        "FOUNDRY_OPTIMIZER",
-        "FOUNDRY_OPTIMIZER_RUNS",
-    ] {
-        if let Ok(value) = std::env::var(name) {
-            rerun_env.insert(name.into(), value.into());
-        }
-    }
-    let forge_version = Command::new("forge")
-        .arg("--version")
-        .output()
-        .ok()
-        .filter(|output| output.status.success())
-        .map(|output| String::from_utf8_lossy(&output.stdout).trim().to_owned());
     let report = serde_json::json!({
-        "forge_version": forge_version,
         "project": {
             "name": config.name.as_str(),
             "path": config.path.display().to_string(),
@@ -560,7 +535,9 @@ fn write_runtime_report(
         },
         "rerun": {
             "command": config.rerun_command.as_str(),
-            "env": rerun_env,
+            "env": {
+                "SOLAR_FOUNDRY_REPORT_DIR": report_dir.display().to_string(),
+            },
         },
         "solar": compiler_run_json(solar_run),
         "solc": solc_run.map(compiler_run_json),
@@ -619,18 +596,6 @@ fn run_forge_test(
         cmd.env("SOLC_WRAPPER", "1").env("FOUNDRY_SOLC", foundry_solc.path());
         if let Some(version) = &config.solc_wrapper_version {
             cmd.env("SOLC_WRAPPER_VERSION", version);
-        }
-        if let Ok(mode) = std::env::var("SOLAR_FOUNDRY_OPTIMIZATION") {
-            let (enabled, runs) = match mode.as_str() {
-                "none" => (false, 200),
-                "gas" => (true, 200),
-                "size" => (true, 1),
-                _ => panic!(
-                    "invalid SOLAR_FOUNDRY_OPTIMIZATION `{mode}`; expected none, gas, or size"
-                ),
-            };
-            cmd.env("FOUNDRY_OPTIMIZER", enabled.to_string())
-                .env("FOUNDRY_OPTIMIZER_RUNS", runs.to_string());
         }
     }
 
