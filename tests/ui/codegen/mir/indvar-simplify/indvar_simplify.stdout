@@ -571,3 +571,58 @@
       jump bb1
   }
   
+  fn @keep_descending_counter_read_after_loop(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      v0 = alloc raw, exact, uninitialized, infallible, 128
+      v1 = ptrtoint memptr v0 to i256
+      jump bb1
+    bb1:
+      v2 = phi [bb0: arg0], [bb3: v8]
+      v3 = lt 0, v2
+      jumpi v3, bb2, bb4
+    bb2:
+      v4 = shl 5, v2
+      v5 = add v1, v4
+      v6 = mload v5
+      v7 = eq v6, arg1
+      jumpi v7, bb4, bb3
+    bb3:
+      v8 = sub v2, 1
+      jump bb1
+    bb4:
+      ret v2
+  }
+  
+  fn @reach_heap_counter_read_after_loop(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      v0 = alloc raw, exact, uninitialized, infallible, 128
+      v1 = ptrtoint memptr v0 to i256
++     v11 = gt arg0, 0x20000000000000000
++     v12 = select v11, 0x20000000000000000, arg0
++     v13 = shl 5, v12
++     v14 = add v1, v13
+      jump bb1
+    bb1:
+-     v2 = phi [bb0: 0], [bb3: v8]
+-     v3 = lt v2, arg0
++     v9 = phi [bb0: v1], [bb3: v10]
++     v3 = ne v9, v14
+      jumpi v3, bb2, bb4
+    bb2:
+-     v4 = shl 5, v2
+-     v5 = add v1, v4
+-     v6 = mload v5
++     v6 = mload v9
+      v7 = eq v6, arg1
+      jumpi v7, bb4, bb3
+    bb3:
+-     v8 = add v2, 1
++     v10 = add v9, 32
+      jump bb1
+    bb4:
+-     ret v2
++     v15 = sub v9, v1
++     v16 = shr 5, v15
++     ret v16
+  }
+  

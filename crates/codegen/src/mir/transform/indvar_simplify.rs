@@ -58,7 +58,10 @@
 //! stopped. Once the pointer takes over the exit test, each such read is rebuilt
 //! from the pointer as `init + (ptr - start) / scale`, a shift for a power-of-two
 //! scale, at the top of the reading block, or at the end of the block a phi reads
-//! it from. A phi reading it over a critical exit edge, from a loop block into a
+//! it from. Only the equality exit takes over from such a counter: it counts up
+//! and its clamped `end` cannot wrap, while a heap pointer's `ptr < end` would leave
+//! at once for a bound near the word size and return a counter the loop never
+//! reached. A phi reading it over a critical exit edge, from a loop block into a
 //! join, needs a block of its own on that edge: the pass splits those edges after
 //! visiting every loop of the function and then visits those loops again. Only
 //! the counter itself may be read after the loop; a value the loop derives from
@@ -412,6 +415,11 @@ impl IndVarSimplifier {
         // proof that the pointer does not wrap.
         let literal_start =
             func.value_u256(iv.init).filter(|&start| step == 1 && start <= U256::from(u64::MAX));
+        // A counter read after the loop is rebuilt from where its pointer stopped, so the pointer
+        // must stop where the counter would: a heap pointer's unclamped `end` wraps for a bound
+        // near the word size, leaving at once where the counter runs out of gas, and a descending
+        // counter does not count up from its start. Only the clamped equality exit rebuilds it.
+        let read_after = exit_reads.as_ref().is_some_and(|reads| !reads.is_empty());
         let test_family = if counter_free {
             families
                 .iter()
@@ -421,6 +429,7 @@ impl IndVarSimplifier {
                         && key.invariants.is_empty()
                         && key.base.is_some_and(|base| self.is_heap_address(func, base))
                 })
+                .filter(|_| !read_after)
                 .map(|index| (index, PointerExit::Below))
                 .or_else(|| {
                     let start = literal_start?;
@@ -762,6 +771,11 @@ impl IndVarSimplifier {
         scale: i128,
         reads: &ExitReads,
     ) {
+        // The rebuild counts up from the start, as the equality exit's counter does; a counter
+        // left unrebuilt stays alive for its readers.
+        if iv.descending {
+            return;
+        }
         let Some(start) = preheader_value(func, pointer, preheader) else { return };
         let Ok(magnitude) = u128::try_from(scale) else { return };
         // counter = init + (ptr - start) >> log2(scale)   or   / scale

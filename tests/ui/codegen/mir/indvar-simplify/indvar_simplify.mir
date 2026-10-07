@@ -624,3 +624,61 @@ fn @keep_narrow_counter_read_after_loop(arg0: i256) -> i256 {
     v8 = zext i8 v1 to i256
     ret v8
 }
+
+// A descending counter read after the loop keeps its test: the rebuild counts up from the
+// start, and a heap pointer's `<` test never takes over from a counter read after the loop.
+// CHECK-LABEL: {{^[ +].*}}fn @keep_descending_counter_read_after_loop{{[( ]}}
+// CHECK-NOT: {{^[-+]}}
+fn @keep_descending_counter_read_after_loop(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v30 = alloc raw, exact, uninitialized, infallible, 128
+    v0 = ptrtoint memptr v30 to i256
+    jump bb1
+  bb1:
+    v1 = phi [bb0: arg0], [bb3: v6]
+    v2 = lt 0, v1
+    jumpi v2, bb2, bb4
+  bb2:
+    v3 = shl 5, v1
+    v4 = add v0, v3
+    v5 = mload v4
+    v7 = eq v5, arg1
+    jumpi v7, bb4, bb3
+  bb3:
+    v6 = sub v1, 1
+    jump bb1
+  bb4:
+    ret v1
+}
+
+// A heap pointer's `ptr < end` would leave at once for a bound near the word size, where
+// `end` wraps, and return a counter of zero where the loop runs out of gas. A counter read
+// after the loop takes the equality exit with its bound clamped instead.
+// CHECK-LABEL: {{^[ +].*}}fn @reach_heap_counter_read_after_loop{{[( ]}}
+// CHECK: + [[ABOVE:v[0-9]+]] = gt arg0, 0x20000000000000000
+// CHECK-NEXT: + {{v[0-9]+}} = select [[ABOVE]], 0x20000000000000000, arg0
+// CHECK: + {{v[0-9]+}} = ne [[POINTER:v[0-9]+]], {{v[0-9]+}}
+// CHECK: + [[DELTA:v[0-9]+]] = sub [[POINTER]], {{v[0-9]+}}
+// CHECK-NEXT: + [[INDEX:v[0-9]+]] = shr 5, [[DELTA]]
+// CHECK-NEXT: + ret [[INDEX]]
+fn @reach_heap_counter_read_after_loop(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v30 = alloc raw, exact, uninitialized, infallible, 128
+    v0 = ptrtoint memptr v30 to i256
+    jump bb1
+  bb1:
+    v1 = phi [bb0: 0], [bb3: v6]
+    v2 = lt v1, arg0
+    jumpi v2, bb2, bb4
+  bb2:
+    v3 = shl 5, v1
+    v4 = add v0, v3
+    v5 = mload v4
+    v7 = eq v5, arg1
+    jumpi v7, bb4, bb3
+  bb3:
+    v6 = add v1, 1
+    jump bb1
+  bb4:
+    ret v1
+}
