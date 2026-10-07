@@ -62,6 +62,12 @@ fn @lowHeapRoute(arg0: i256) -> i256 [selector=0x52ecae0e, pure, abi_params=[u25
     ret v8
 }
 
+fn @highRead() -> i256 [selector=0x80811e8c, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = mload 0x100000
+    ret v0
+}
+
 fn @_spillHashes(arg0: i256) -> i256 [pure] {
   bb0:
     v0 = keccak256_packed (u256 arg0, u256 0)
@@ -107,28 +113,28 @@ fn @_lay(arg0: i256) -> i256 [pure] {
     v2 = add 160, v1
     jump bb1
   bb1:
-    v3 = phi [bb0: arg0], [bb3: v3]
-    v4 = phi [bb0: v2], [bb3: v4]
-    v5 = phi [bb0: 160], [bb3: v10]
-    v6 = phi [bb0: 0], [bb3: v6]
-    v7 = lt v5, v4
+    v3 = phi [bb0: 0], [bb3: v3]
+    v4 = phi [bb0: 160], [bb3: v10]
+    v5 = phi [bb0: arg0], [bb3: v5]
+    v6 = phi [bb0: v2], [bb3: v6]
+    v7 = lt v4, v6
     v8 = zext i1 v7 to i256
     v9 = ne v8, 0
     jumpi v9, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    mstore v4, v3
-    v11 = sub v4, 160
+    mstore v6, v5
+    v11 = sub v6, 160
     v12 = add v11, 32
     v13 = keccak256 160, v12
     ret v13
   bb4:
-    mstore v5, v3
+    mstore v4, v5
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v10 = add v5, 32
+    v10 = add v4, 32
     jump bb1
 }

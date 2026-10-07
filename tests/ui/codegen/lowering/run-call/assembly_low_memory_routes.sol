@@ -1,10 +1,11 @@
 //@ codegen-matrix: standard
-//@ run-call: layout 5, 40 => 0x6ae76ef32a2e583db4df1f208a32cb3bba18e72c5e466a519d26ab93240a6e36
+//@ run-call: layout 5, 40; gas=1000000 => 0x6ae76ef32a2e583db4df1f208a32cb3bba18e72c5e466a519d26ab93240a6e36
 //@ run-call: lowHeapRoute 5 => true
 
 // One route lays memory out at addresses that calldata sizes, which moves its spill area and the
 // frames it reaches above low memory. Other routes keep theirs: the dispatcher's tail calls never
-// return, so it does not take that route's bound.
+// return, so it does not take that route's bound, and a route that only reads a far address does
+// not move the layout route's memory there.
 contract AssemblyLowMemoryRoutes {
     function layout(uint256 a, uint256 words) external pure returns (bytes32 result) {
         bytes32 h0 = keccak256(abi.encodePacked(a, uint256(0)));
@@ -35,6 +36,12 @@ contract AssemblyLowMemoryRoutes {
         bytes32 h = _spillHashes(a);
         assembly {
             lowHeap := and(lt(mload(0x40), 0x2000), iszero(iszero(h)))
+        }
+    }
+
+    function highRead() external pure returns (uint256 word) {
+        assembly {
+            word := mload(0x100000)
         }
     }
 

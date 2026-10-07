@@ -539,23 +539,50 @@ impl<'gcx> EvmCodegen<'gcx> {
             })
             .collect::<FxHashMap<_, _>>();
         // Compiler memory that starts at or above the bound must also clear the fixed memory
-        // assembly names there. An entry's spills start at its mark and shared frames above the
-        // highest entry end, so the ranges of every function a runtime entry reaches count.
+        // assembly names there: the entry's own, and that of every entry sharing a frame with it,
+        // since a shared frame sits above the highest end of the entries reaching it.
         let low_memory_bound = EvmMemoryLayout::HEAP_START + SPILL_HAZARD_BOUND;
         if reachable_memory_marks.values().any(|&mark| mark >= low_memory_bound) {
-            let mut reached = DenseBitSet::new_empty(module.functions.len());
-            for entry in &runtime_entries {
-                reached.union(&self.runtime_entry_reachability[entry]);
+            let mut frame_owners = DenseBitSet::new_empty(module.functions.len());
+            for &(func_id, _) in self.static_frame_addr_consts.keys() {
+                frame_owners.insert(func_id);
             }
-            let high_memory_end = reached
-                .iter()
-                .map(|func_id| Self::high_constant_memory_end(&module.functions[func_id]))
-                .max()
-                .unwrap_or(0);
-            for mark in reachable_memory_marks.values_mut() {
-                if *mark >= low_memory_bound {
-                    *mark = (*mark).max(high_memory_end);
+            let mut high_ends = index_vec![None; module.functions.len()];
+            let mut entry_high_ends = FxHashMap::default();
+            let mut entry_frames = FxHashMap::default();
+            for (&entry, reach) in &own_reach {
+                let high_end = reach
+                    .iter()
+                    .map(|func_id| {
+                        *high_ends[func_id].get_or_insert_with(|| {
+                            Self::high_constant_memory_end(&module.functions[func_id])
+                        })
+                    })
+                    .max()
+                    .unwrap_or(0);
+                entry_high_ends.insert(entry, high_end);
+                let mut frames = reach.clone();
+                frames.intersect(&frame_owners);
+                entry_frames.insert(entry, frames);
+            }
+            for (&entry, mark) in &mut reachable_memory_marks {
+                if *mark < low_memory_bound {
+                    continue;
                 }
+                let frames = &entry_frames[&entry];
+                let shared_end = entry_frames
+                    .iter()
+                    .filter(|&(&other, other_frames)| {
+                        other == entry || {
+                            let mut shared = frames.clone();
+                            shared.intersect(other_frames);
+                            !shared.is_empty()
+                        }
+                    })
+                    .map(|(other, _)| entry_high_ends[other])
+                    .max()
+                    .unwrap_or(0);
+                *mark = (*mark).max(shared_end);
             }
         }
         let entry_bases: FxHashMap<FunctionId, u64> = runtime_entries
@@ -1421,8 +1448,11 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// image reaching past the bound moves the spill area there, it is placed above them, so a
     /// fixed copy cannot overwrite live spills or frames and the heap starts above the buffer.
     ///
-    /// NOTE: A range at a huge constant address still moves the spill area above it, and every
-    /// call of the entry then pays for expanding memory that far.
+    /// Only the ranges in the functions an entry runs, or that an entry sharing a frame with it
+    /// runs, move its spill area.
+    ///
+    /// NOTE: A range at a huge constant address in such a function still moves the spill area
+    /// above it, and every call of the entry then pays for expanding memory that far.
     fn high_constant_memory_end(func: &Function) -> u64 {
         let bound = EvmMemoryLayout::HEAP_START + SPILL_HAZARD_BOUND;
         let mut end = 0;
