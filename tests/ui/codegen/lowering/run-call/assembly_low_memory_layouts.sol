@@ -11,6 +11,8 @@
 //@ run-call: hashRecursive 1, 2, 3 => 0x6e0c627900b24bd432fe7b1f713f1b0744091a646a9fe4a65a18dfed21f2949c
 //@ run-call: hashThenCopy 1, 2, 3 => 0x6e0c627900b24bd432fe7b1f713f1b0744091a646a9fe4a65a18dfed21f2949c
 //@ run-call: readScratch 5 => 5
+//@ run-call: hashHelperScratch 1, 2, 3 => 0x6e0c627900b24bd432fe7b1f713f1b0744091a646a9fe4a65a18dfed21f2949c
+//@ run-call: allocateAfterHelper 1, 2, 3 => 3
 //@ run-call: hashAroundCheckedAdd 1, 2, 3 => 0x6e0c627900b24bd432fe7b1f713f1b0744091a646a9fe4a65a18dfed21f2949c
 
 // Memory-unsafe assembly can treat all memory from 0x80 up as its own. Seaport lays a basic
@@ -22,7 +24,8 @@
 // free memory pointer now keeps it at or above the initial one, and a layout sized by
 // calldata moves the spill area above low memory. Storing calldata into the pointer's slot as
 // an error argument or a hash input keeps its value, also across calls to assembly helpers and
-// checked arithmetic, and so does a load that reads the slot back as data.
+// checked arithmetic, and so does a load that reads the slot back as data. A caller that
+// allocates from a helper's scratch word clamps it on its own path.
 contract AssemblyLowMemoryLayouts {
     bytes32 public seal;
 
@@ -274,6 +277,26 @@ contract AssemblyLowMemoryLayouts {
         }
     }
 
+    function hashHelperScratch(uint256 a, uint256 b, uint256) external pure returns (bytes32 h) {
+        uint256 m;
+        assembly {
+            m := mload(0x40)
+        }
+        _putScratch();
+        assembly {
+            mstore(0x00, a)
+            mstore(0x20, b)
+            h := keccak256(0x00, 0x60)
+            mstore(0x40, m)
+        }
+    }
+
+    function allocateAfterHelper(uint256, uint256, uint256 c) external pure returns (uint256) {
+        _putScratch();
+        bytes memory fresh = new bytes(c);
+        return fresh.length;
+    }
+
     // A checked addition may revert, but it reverts with scratch data and never reads the slot.
     function hashAroundCheckedAdd(uint256 a, uint256 b, uint256)
         external
@@ -293,6 +316,12 @@ contract AssemblyLowMemoryLayouts {
             mstore(0x40, m)
         }
         h ^= bytes32(sum - a - b);
+    }
+
+    function _putScratch() internal pure {
+        assembly {
+            mstore(0x40, calldataload(0x44)) // The third argument.
+        }
     }
 
     function _copy(uint256 n) internal pure returns (bytes memory out) {

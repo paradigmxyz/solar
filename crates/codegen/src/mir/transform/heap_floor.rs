@@ -5,35 +5,53 @@
 //! hand that memory back to the heap by storing an absolute address into the pointer's slot:
 //! Seaport moves the pointer to just past the event data it lays out at an address that calldata
 //! sizes, and resets it to `0x80` after batch transfers. The next allocation then overwrites live
-//! compiler words. This pass rewrites each such store, `mstore 64, v` with `v` computed from
-//! constants and calldata alone, into
+//! compiler words. This pass raises each word that such a store, `mstore 64, v` with `v` computed
+//! from constants and calldata alone, leaves in the slot to
 //!
 //! ```text
 //! floor = heap_floor
 //! below = lt v, floor
 //! clamped = select below, floor, v
-//! mstore 64, clamped
 //! ```
 //!
 //! where `heap_floor` is the initial pointer of every entry that can run the function, which
 //! codegen fixes once it has placed the frames. A pointer derived from the heap, or loaded from
 //! memory or a parameter, already lies above the floor in a valid program and stays as stored.
 //!
-//! A store that only fills the slot with data keeps its value: an error argument before a revert,
-//! or a hash input before the pointer is restored. A forward search tells the two apart. It
-//! follows the stored value through blocks, into internal calls, and from returns back to every
-//! call site, until something reads the slot as the pointer, another store or a copy over the whole
-//! slot replaces it, or execution ends. An `mload` of the slot reads it as the pointer when its
-//! word, or a word computed from it, addresses or sizes memory, becomes the pointer again, or
-//! leaves the function through a call or an internal return, as every allocation in assembly
-//! does; a word only compared, stored, or returned from an external function is data. The
-//! compiler's own free-memory-pointer reads and allocations read the slot as the pointer too, and
-//! so do the builtins and semantic operations whose lowering may allocate or encode at the
-//! pointer, unlike pure computations, checks that revert with scratch data, and accesses to
-//! frames, storage slots, and memory that already exists. A return from the constructor, or one
-//! from an external function that returns only scalar words, ends execution without reading the
-//! slot: codegen returns runtime code from a fixed address and encodes scalar results in a static
-//! buffer.
+//! The slot can also hold plain data: an error argument before a revert, or a hash input before the
+//! pointer is restored. A forward search tells the reads apart. It follows the stored word through
+//! blocks, into internal calls, and from returns back to every call site, until stores, copies, and
+//! zeroings at constant addresses have replaced all of its bytes, as Seaport's token transfers do
+//! when they lay call data out over the slot, or execution ends. An `mload` of the slot reads the
+//! word as the pointer when the loaded word, or one computed from it, addresses or sizes memory,
+//! becomes the pointer again, or leaves the function through a call or an internal return, as every
+//! allocation in assembly does; a loaded word only compared, stored, or returned from an external
+//! function is data. The compiler's own free-memory-pointer reads and allocations read the word as
+//! the pointer too, and so do the builtins and semantic operations whose lowering may allocate or
+//! encode at the pointer, unlike pure computations, checks that revert with scratch data, and
+//! accesses to frames, storage slots, and memory that already exists. An access at a constant or
+//! calldata address that may cover a byte the writes have not replaced reads the word as data, such
+//! as a scratch hash or revert data. A return from the constructor, or one from an external
+//! function that returns only scalar words, ends execution without reading the slot: codegen
+//! returns runtime code from a fixed address and encodes scalar results in a static buffer.
+//!
+//! A word read only as the pointer is clamped where it is stored, `mstore 64, clamped`. A word
+//! that is also read as data keeps its value in the slot, and the clamp moves to each pointer read
+//! that the search reaches. An assembly load uses the clamped word in place of the one it reads,
+//! and the slot itself is clamped right before a compiler read, before a call that reads the slot
+//! only as the pointer, and before a return to the dispatcher:
+//!
+//! ```text
+//! word = mload 64
+//! floor = heap_floor
+//! below = lt word, floor
+//! clamped = select below, floor, word
+//! mstore 64, clamped
+//! ```
+//!
+//! A callee that also reads the slot as data is entered and clamped inside. A helper that stores
+//! a scratch word thus keeps it for a caller that hashes it, while a caller that allocates from it
+//! clamps it on its own path.
 //!
 //! The pass runs first, on semantic MIR, so the passes that forward the slot's stored value to
 //! its loads or delete its dead stores see the clamped value. Clamping during codegen instead
@@ -41,21 +59,27 @@
 //!
 //! NOTE: Only a full-word store to the constant slot whose value the storing function computes
 //! from constants and calldata is clamped. An absolute address passed through a parameter, memory,
-//! or a call, and copies or byte stores that overwrite the pointer, keep their bytes. See
-//! CODEGEN-010.
+//! or a call, and copies or byte stores that overwrite the pointer, keep their bytes. An access
+//! at an address derived from memory, a parameter, or the heap is assumed not to cover the slot,
+//! and a loaded word stored elsewhere stays data even if a later load uses it as a pointer. A
+//! slot clamped before a compiler read stays clamped for a later read of it as data. Writes
+//! replace the word only when one block covers all of its bytes. See CODEGEN-010.
 
 use crate::mir::{
-    BlockId, Builtin, Callee, EffectKind, Function, FunctionId, InstId, InstKind, Instruction,
-    MirType, Module, Terminator, ValueId,
+    BlockId, Builtin, Callee, EffectKind, Function, FunctionId, Immediate, InstId, InstKind,
+    Instruction, InstructionMetadata, MemoryRegion, MirType, Module, Terminator, Value, ValueId,
     analysis::{AddressInput, absolute_address_inputs},
     memory::EvmMemoryLayout,
     pass::{MirPass, ModuleAnalyses},
     utils::IndexLists,
 };
+use alloy_primitives::U256;
 use solar_data_structures::{
     bit_set::DenseBitSet,
-    map::{FxHashMap, FxHashSet},
+    index::IndexVec,
+    map::{FxHashMap, FxHashSet, FxIndexSet},
 };
+use std::ops::BitOrAssign;
 
 pub(crate) struct HeapFloor;
 
@@ -74,37 +98,65 @@ impl MirPass for HeapFloor {
         module: &mut Module,
         _analyses: &mut ModuleAnalyses,
     ) -> bool {
-        let stores = floor_stores(module);
-        let changed = !stores.is_empty();
-        for (func_id, block, inst) in stores {
-            clamp_store(&mut module.functions[func_id], block, inst);
+        let clamps = floor_clamps(module);
+        let changed = !clamps.is_empty();
+        for clamp in clamps {
+            match clamp {
+                Clamp::Store(func, block, inst) => {
+                    clamp_store(&mut module.functions[func], block, inst);
+                }
+                Clamp::Load(func, block, inst) => {
+                    clamp_load(&mut module.functions[func], block, inst);
+                }
+                Clamp::Slot(func, block, before) => {
+                    clamp_slot(&mut module.functions[func], block, before);
+                }
+            }
         }
         changed
     }
 }
 
-/// The stores to the free memory pointer's slot whose value the function computes from constants
-/// and calldata alone and that something can read back as the pointer.
-fn floor_stores(module: &Module) -> Vec<(FunctionId, BlockId, InstId)> {
+/// Where the pass raises a word in the free memory pointer's slot to the heap floor.
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+enum Clamp {
+    /// The word a store leaves in the slot.
+    Store(FunctionId, BlockId, InstId),
+    /// The word a load reads from the slot as the pointer, keeping the slot as it is.
+    Load(FunctionId, BlockId, InstId),
+    /// The slot, before an instruction or, without one, before the block's terminator.
+    Slot(FunctionId, BlockId, Option<InstId>),
+}
+
+/// Finds where to clamp the words that stores of constants and calldata leave in the free memory
+/// pointer's slot: at the store when every read of the word reads the pointer, and at each
+/// pointer read when some read takes the word as data.
+fn floor_clamps(module: &Module) -> FxIndexSet<Clamp> {
     let mut uses = PointerUses::new(module);
-    let mut stores = Vec::new();
+    let mut clamps = FxIndexSet::default();
     for (func_id, func) in module.functions.iter_enumerated() {
-        let mut inputs = None;
         for (block, data) in func.blocks.iter_enumerated() {
             for (index, &inst_id) in data.instructions.iter().enumerate() {
                 if let InstKind::MStore(address, value) = func.inst(inst_id).kind
                     && is_slot(func, address)
                     && func.value_ty(value) == Some(MirType::I256)
-                    && inputs.get_or_insert_with(|| absolute_address_inputs(func))[value]
-                        != AddressInput::Other
-                    && uses.store_may_be_used_as_pointer(func_id, block, index)
+                    && uses.address_inputs(func_id)[value] != AddressInput::Other
                 {
-                    stores.push((func_id, block, inst_id));
+                    let reads = uses.reads_after(func_id, block, index + 1);
+                    match (reads.pointer, reads.data) {
+                        (true, false) => {
+                            clamps.insert(Clamp::Store(func_id, block, inst_id));
+                        }
+                        (true, true) => {
+                            uses.clamp_pointer_reads(func_id, block, index + 1, &mut clamps);
+                        }
+                        (false, _) => {}
+                    }
                 }
             }
         }
     }
-    stores
+    clamps
 }
 
 /// Rewrites `mstore 64, v` into `mstore 64, max(v, heap_floor)`.
@@ -113,23 +165,84 @@ fn clamp_store(func: &mut Function, block: BlockId, inst: InstId) {
         unreachable!("a floor store is an `mstore`")
     };
     let metadata = func.inst(inst).metadata.clone();
-    let emit = |func: &mut Function, kind, ty| {
-        let mut instruction = Instruction::new(kind, Some(ty));
-        instruction.metadata.copy_debug_context(&metadata);
-        func.alloc_value_inst(instruction)
-    };
     // floor = heap_floor
     // below = lt v, floor
     // clamped = select below, floor, v
-    let (floor_inst, floor) = emit(func, InstKind::HeapFloor, MirType::I256);
-    let (below_inst, below) = emit(func, InstKind::Lt(value, floor), MirType::I1);
-    let (clamped_inst, clamped) = emit(func, InstKind::Select(below, floor, value), MirType::I256);
-    let instructions = &mut func.blocks[block].instructions;
-    let position =
-        instructions.iter().position(|&id| id == inst).expect("the store is in its block");
-    instructions.splice(position..position, [floor_inst, below_inst, clamped_inst]);
+    let (clamp, clamped) = floor_max(func, value, &metadata);
+    let position = index_in_block(func, block, inst);
+    func.blocks[block].instructions.splice(position..position, clamp);
     // mstore 64, clamped
     func.inst_mut(inst).kind = InstKind::MStore(address, clamped);
+}
+
+/// Rewrites the users of `word = mload 64` to read `max(word, heap_floor)`, keeping the slot's
+/// word.
+fn clamp_load(func: &mut Function, block: BlockId, inst: InstId) {
+    let word = func.inst_result_value(inst).expect("a load produces the slot's word");
+    let metadata = func.inst(inst).metadata.clone();
+    let (clamp, clamped) = floor_max(func, word, &metadata);
+    // The clamp is not placed yet, so it keeps reading the loaded word.
+    func.replace_uses(&FxHashMap::from_iter([(word, clamped)]));
+    // word = mload 64
+    // floor = heap_floor
+    // below = lt word, floor
+    // clamped = select below, floor, word
+    let position = index_in_block(func, block, inst) + 1;
+    func.blocks[block].instructions.splice(position..position, clamp);
+}
+
+/// Raises the slot's word to the heap floor before `before`, or before the block's terminator.
+fn clamp_slot(func: &mut Function, block: BlockId, before: Option<InstId>) {
+    let metadata = before.map(|inst| func.inst(inst).metadata.clone()).unwrap_or_default();
+    let emit = |kind, ty| {
+        let mut instruction = Instruction::new(kind, ty);
+        instruction.metadata.copy_debug_context(&metadata);
+        instruction.metadata.set_memory_region(Some(MemoryRegion::Scratch));
+        instruction
+    };
+    let slot =
+        func.alloc_value(Value::Immediate(Immediate::I256(U256::from(EvmMemoryLayout::FMP_SLOT))));
+    let (load, word) = func.alloc_value_inst(emit(InstKind::MLoad(slot), Some(MirType::I256)));
+    let (clamp, clamped) = floor_max(func, word, &metadata);
+    let store = func.alloc_inst(emit(InstKind::MStore(slot, clamped), None));
+    let position = before
+        .map_or(func.blocks[block].instructions.len(), |inst| index_in_block(func, block, inst));
+    // word = mload 64
+    // floor = heap_floor
+    // below = lt word, floor
+    // clamped = select below, floor, word
+    // mstore 64, clamped
+    let sequence = std::iter::once(load).chain(clamp).chain(std::iter::once(store));
+    func.blocks[block].instructions.splice(position..position, sequence);
+}
+
+/// Allocates `max(word, heap_floor)`, returning its instructions in order and its value.
+fn floor_max(
+    func: &mut Function,
+    word: ValueId,
+    metadata: &InstructionMetadata,
+) -> ([InstId; 3], ValueId) {
+    let emit = |func: &mut Function, kind, ty| {
+        let mut instruction = Instruction::new(kind, Some(ty));
+        instruction.metadata.copy_debug_context(metadata);
+        func.alloc_value_inst(instruction)
+    };
+    // floor = heap_floor
+    // below = lt word, floor
+    // clamped = select below, floor, word
+    let (floor_inst, floor) = emit(func, InstKind::HeapFloor, MirType::I256);
+    let (below_inst, below) = emit(func, InstKind::Lt(word, floor), MirType::I1);
+    let (clamped_inst, clamped) = emit(func, InstKind::Select(below, floor, word), MirType::I256);
+    ([floor_inst, below_inst, clamped_inst], clamped)
+}
+
+/// Returns the position of `inst` in `block`.
+fn index_in_block(func: &Function, block: BlockId, inst: InstId) -> usize {
+    func.blocks[block]
+        .instructions
+        .iter()
+        .position(|&id| id == inst)
+        .expect("the instruction is in its block")
 }
 
 /// Whether a value is the address of the free memory pointer's slot.
@@ -151,10 +264,33 @@ fn returns_to_the_end(func: &Function) -> bool {
             })
 }
 
-/// Whether a copy or a zeroing writes every byte of the free memory pointer's slot, replacing the
-/// word stored there.
-fn overwrites_slot(func: &Function, kind: &InstKind) -> bool {
+/// The bytes of the free memory pointer's slot that writes have replaced since a store, one bit
+/// per byte.
+type SlotBytes = u32;
+
+/// Every byte of the slot.
+const WHOLE_SLOT: SlotBytes = SlotBytes::MAX;
+
+/// Returns the bytes of the slot that `size` bytes at `start` cover.
+fn slot_bytes(start: u64, size: u64) -> SlotBytes {
+    let slot = EvmMemoryLayout::FMP_SLOT;
+    let first = start.max(slot);
+    let end = start.saturating_add(size).min(slot + EvmMemoryLayout::WORD_SIZE);
+    if first >= end {
+        return 0;
+    }
+    let width = end - first;
+    let bytes = if width == EvmMemoryLayout::WORD_SIZE { WHOLE_SLOT } else { (1 << width) - 1 };
+    bytes << (first - slot)
+}
+
+/// The memory a store, copy, or zeroing writes at a constant address with a constant size.
+fn constant_write_range(func: &Function, kind: &InstKind) -> Option<(u64, u64)> {
     let (dest, size) = match *kind {
+        InstKind::MStore(dest, _) => {
+            return func.value_u64(dest).map(|dest| (dest, EvmMemoryLayout::WORD_SIZE));
+        }
+        InstKind::MStore8(dest, _) => return func.value_u64(dest).map(|dest| (dest, 1)),
         InstKind::CalldataCopy(dest, _, size)
         | InstKind::CodeCopy(dest, _, size)
         | InstKind::ReturnDataCopy(dest, _, size)
@@ -162,13 +298,31 @@ fn overwrites_slot(func: &Function, kind: &InstKind) -> bool {
         | InstKind::DataCopy(_, dest, size)
         | InstKind::MCopy(dest, _, size)
         | InstKind::MemoryZero(dest, size) => (dest, size),
-        _ => return false,
+        _ => return None,
     };
-    let slot = EvmMemoryLayout::FMP_SLOT;
-    func.value_u64(dest).zip(func.value_u64(size)).is_some_and(|(dest, size)| {
-        dest <= slot
-            && dest.checked_add(size).is_some_and(|end| end >= slot + EvmMemoryLayout::WORD_SIZE)
-    })
+    func.value_u64(dest).zip(func.value_u64(size))
+}
+
+/// The memory an instruction reads as data: an offset and a size, unknown when not constant.
+fn read_range(func: &Function, kind: &InstKind) -> Option<(ValueId, Option<u64>)> {
+    let (offset, size) = match *kind {
+        InstKind::MLoad(offset) => return Some((offset, Some(EvmMemoryLayout::WORD_SIZE))),
+        InstKind::MCopy(_, src, size) => (src, size),
+        InstKind::Keccak256(offset, size)
+        | InstKind::Log0(offset, size)
+        | InstKind::Log1(offset, size, _)
+        | InstKind::Log2(offset, size, ..)
+        | InstKind::Log3(offset, size, ..)
+        | InstKind::Log4(offset, size, ..)
+        | InstKind::Create(_, offset, size)
+        | InstKind::Create2(_, offset, size, _) => (offset, size),
+        InstKind::Call { args_offset, args_size, .. }
+        | InstKind::CallCode { args_offset, args_size, .. }
+        | InstKind::StaticCall { args_offset, args_size, .. }
+        | InstKind::DelegateCall { args_offset, args_size, .. } => (args_offset, args_size),
+        _ => return None,
+    };
+    Some((offset, func.value_u64(size)))
 }
 
 /// Whether lowering a semantic operation may read the free memory pointer. Pure computations,
@@ -304,15 +458,48 @@ enum User {
     Terminator(BlockId),
 }
 
-/// What happens to a value left in the free memory pointer slot from some point on.
+/// What an instruction does with the word in the free memory pointer's slot.
 #[derive(Clone, Copy)]
-enum Flow {
-    /// A path reads it as the pointer.
-    Used,
-    /// Every path overwrites it or ends execution first.
-    Replaced,
-    /// No path reads it as the pointer, and one returns it to the caller.
-    Returned,
+enum Effect {
+    /// Leaves it alone.
+    None,
+    /// Replaces it.
+    Replaces,
+    /// Reads its bytes as data.
+    ReadsData,
+    /// Reads its bytes as data, then writes the last of them.
+    ReadsDataAndReplaces,
+    /// Loads it as the pointer, in assembly.
+    LoadsPointer,
+    /// Reads it as the pointer, in code the compiler generates.
+    ReadsPointer,
+    /// Passes it to an internal call.
+    Calls(FunctionId),
+}
+
+/// How paths read a word left in the free memory pointer's slot.
+#[derive(Clone, Copy, Default)]
+struct Reads {
+    /// A path reads the word as the pointer.
+    pointer: bool,
+    /// A path reads the word's bytes as data.
+    data: bool,
+}
+
+impl BitOrAssign for Reads {
+    fn bitor_assign(&mut self, other: Self) {
+        self.pointer |= other.pointer;
+        self.data |= other.data;
+    }
+}
+
+/// What happens to a word left in the slot from some point to the end of a function.
+#[derive(Clone, Copy, Default)]
+struct Flow {
+    /// How paths read the word before replacing it or ending execution.
+    reads: Reads,
+    /// Whether a path returns to the caller with the word still in the slot.
+    returned: bool,
 }
 
 /// A call to a function: an internal call at an instruction, or a tail call ending a function.
@@ -322,8 +509,27 @@ enum CallSite {
     Tail(FunctionId),
 }
 
-/// Follows a value stored into the free memory pointer slot through blocks, internal calls, and
-/// returns until it is read as the pointer, replaced, or execution ends.
+/// A stretch of a function that the clamp placement walks, from instruction `start` of `block`.
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+struct Walk {
+    func: FunctionId,
+    block: BlockId,
+    start: usize,
+    returns: Returns,
+}
+
+/// Where the clamp placement goes on after a return.
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+enum Returns {
+    /// At every call site of the function.
+    ToCallers,
+    /// After the call that entered the function, where the caller's walk goes on. The flag tells
+    /// whether the slot's bytes may be read as data from there.
+    ToCall { data_after: bool },
+}
+
+/// Follows a word stored into the free memory pointer's slot through blocks, internal calls, and
+/// returns until it is replaced or execution ends.
 struct PointerUses<'a> {
     module: &'a Module,
     /// The flow from the entry of each function, once known.
@@ -334,6 +540,8 @@ struct PointerUses<'a> {
     shallowest: usize,
     /// The call sites of each function, built on first use.
     call_sites: Option<FxHashMap<FunctionId, Vec<CallSite>>>,
+    /// Which values of each function come from constants and calldata alone, built on first use.
+    address_inputs: FxHashMap<FunctionId, IndexVec<ValueId, AddressInput>>,
     /// The readers of each function's values, built on first use.
     users: FxHashMap<FunctionId, IndexLists<ValueId, User>>,
     /// Whether each classified load of the slot reads the pointer.
@@ -348,56 +556,65 @@ impl<'a> PointerUses<'a> {
             following: FxHashMap::default(),
             shallowest: usize::MAX,
             call_sites: None,
+            address_inputs: FxHashMap::default(),
             users: FxHashMap::default(),
             pointer_loads: FxHashMap::default(),
         }
     }
 
-    /// Returns whether the value stored by the instruction at `index` in `block` can be read
-    /// back as the free memory pointer, in its function or after it returns.
-    fn store_may_be_used_as_pointer(
-        &mut self,
-        func_id: FunctionId,
-        block: BlockId,
-        index: usize,
-    ) -> bool {
-        match self.flow_from(func_id, block, index + 1) {
-            Flow::Used => true,
-            Flow::Replaced => false,
-            Flow::Returned => self.used_after_return(func_id, &mut FxHashSet::default()),
-        }
+    /// Returns which values of `func_id` come from constants and calldata alone.
+    fn address_inputs(&mut self, func_id: FunctionId) -> &IndexVec<ValueId, AddressInput> {
+        let module = self.module;
+        self.address_inputs
+            .entry(func_id)
+            .or_insert_with(|| absolute_address_inputs(&module.functions[func_id]))
     }
 
-    /// Returns whether a value that `func_id` returns in the slot can be read as the pointer
-    /// after any of its call sites.
-    fn used_after_return(
+    /// Returns how the word that the instruction before `start` leaves in the slot can be read,
+    /// in its function or after it returns.
+    fn reads_after(&mut self, func_id: FunctionId, block: BlockId, start: usize) -> Reads {
+        let flow = self.flow_from(func_id, block, start);
+        let mut reads = flow.reads;
+        if flow.returned {
+            reads |= self.reads_after_return(func_id, &mut FxHashSet::default());
+        }
+        reads
+    }
+
+    /// Returns how a word that `func_id` returns in the slot can be read after any of its call
+    /// sites.
+    fn reads_after_return(
         &mut self,
         func_id: FunctionId,
         returned: &mut FxHashSet<FunctionId>,
-    ) -> bool {
+    ) -> Reads {
+        let mut reads = Reads::default();
         if !returned.insert(func_id) {
-            return false;
+            return reads;
         }
         let sites = self.call_sites(func_id).to_vec();
         if sites.is_empty() {
             // Any other function no call reaches returns to code the module does not show.
-            return !returns_to_the_end(&self.module.functions[func_id]);
+            reads.pointer = !returns_to_the_end(&self.module.functions[func_id]);
         }
-        sites.into_iter().any(|site| match site {
-            CallSite::Call(caller, block, index) => {
-                match self.flow_from(caller, block, index + 1) {
-                    Flow::Used => true,
-                    Flow::Replaced => false,
-                    Flow::Returned => self.used_after_return(caller, returned),
+        for site in sites {
+            match site {
+                CallSite::Call(caller, block, index) => {
+                    let flow = self.flow_from(caller, block, index + 1);
+                    reads |= flow.reads;
+                    if flow.returned {
+                        reads |= self.reads_after_return(caller, returned);
+                    }
                 }
+                CallSite::Tail(caller) => reads |= self.reads_after_return(caller, returned),
             }
-            CallSite::Tail(caller) => self.used_after_return(caller, returned),
-        })
+        }
+        reads
     }
 
-    /// Returns what a call to `func_id` does with the value its caller left in the slot.
+    /// Returns what a call to `func_id` does with the word its caller left in the slot.
     ///
-    /// A call into a function still being followed passes the value through as far as the
+    /// A call into a function still being followed passes the word through as far as the
     /// search knows: following that function's own paths finds any read the call could make,
     /// and the search goes on after the call. A flow that relied on that is remembered only once
     /// the outermost function it passed into is done.
@@ -407,7 +624,7 @@ impl<'a> PointerUses<'a> {
         }
         if let Some(&depth) = self.following.get(&func_id) {
             self.shallowest = self.shallowest.min(depth);
-            return Flow::Returned;
+            return Flow { reads: Reads::default(), returned: true };
         }
         let depth = self.following.len();
         self.following.insert(func_id, depth);
@@ -423,55 +640,39 @@ impl<'a> PointerUses<'a> {
         flow
     }
 
-    /// Follows the value from instruction `start` of `block` to the end of `func_id`.
+    /// Follows the word from instruction `start` of `block` to the end of `func_id`.
     fn flow_from(&mut self, func_id: FunctionId, block: BlockId, start: usize) -> Flow {
         let module = self.module;
         let func = &module.functions[func_id];
         let mut visited = DenseBitSet::new_empty(func.blocks.len());
         let mut pending = vec![(block, start)];
-        let mut returned = false;
+        let mut flow = Flow::default();
         while let Some((block, start)) = pending.pop() {
             let data = &func.blocks[block];
             let mut replaced = false;
-            for &inst_id in &data.instructions[start.min(data.instructions.len())..] {
-                let inst = func.inst(inst_id);
-                match inst.kind {
-                    InstKind::MStore(address, _) if is_slot(func, address) => {
+            let mut written = 0;
+            for &inst_id in data.instructions.iter().skip(start) {
+                match self.effect(func_id, inst_id, &mut written) {
+                    Effect::None => {}
+                    Effect::Replaces => {
                         replaced = true;
                         break;
                     }
-                    InstKind::SetFmp(_) => {
+                    Effect::ReadsData => flow.reads.data = true,
+                    Effect::ReadsDataAndReplaces => {
+                        flow.reads.data = true;
                         replaced = true;
                         break;
                     }
-                    _ if overwrites_slot(func, &inst.kind) => {
-                        replaced = true;
-                        break;
-                    }
-                    InstKind::MLoad(address)
-                        if is_slot(func, address) && self.loaded_as_pointer(func_id, inst_id) =>
-                    {
-                        return Flow::Used;
-                    }
-                    InstKind::ICall { function: Callee::Function(callee), .. } => {
-                        match self.entry_flow(callee) {
-                            Flow::Used => return Flow::Used,
-                            Flow::Replaced => {
-                                replaced = true;
-                                break;
-                            }
-                            Flow::Returned => {}
+                    Effect::LoadsPointer | Effect::ReadsPointer => flow.reads.pointer = true,
+                    Effect::Calls(callee) => {
+                        let callee_flow = self.entry_flow(callee);
+                        flow.reads |= callee_flow.reads;
+                        if !callee_flow.returned {
+                            replaced = true;
+                            break;
                         }
                     }
-                    // The compiler's own pointer reads and allocations, and the builtins and
-                    // semantic operations whose lowering may allocate or encode at the pointer.
-                    InstKind::Fmp | InstKind::Alloc { .. } => return Flow::Used,
-                    _ if inst.unlowered_reason(func).is_some()
-                        && lowered_reads_pointer(&inst.kind) =>
-                    {
-                        return Flow::Used;
-                    }
-                    _ => {}
                 }
             }
             if replaced {
@@ -479,13 +680,13 @@ impl<'a> PointerUses<'a> {
             }
             match data.terminator.as_ref() {
                 Some(
-                    Terminator::Revert { .. }
-                    | Terminator::RevertReturndata
-                    | Terminator::ReturnData { .. }
-                    | Terminator::Stop
-                    | Terminator::Invalid
-                    | Terminator::SelfDestruct { .. },
-                ) => {}
+                    &(Terminator::Revert { offset, size }
+                    | Terminator::ReturnData { offset, size }),
+                ) => {
+                    if self.may_read_slot(func_id, offset, func.value_u64(size), written) {
+                        flow.reads.data = true;
+                    }
+                }
                 Some(
                     terminator @ (Terminator::Jump(_)
                     | Terminator::Branch { .. }
@@ -495,17 +696,248 @@ impl<'a> PointerUses<'a> {
                         pending.push((successor, 0));
                     }
                 }),
-                Some(Terminator::Return { .. }) => returned = true,
+                Some(Terminator::Return { .. }) => flow.returned = true,
                 // The tail callee returns to this function's callers.
-                Some(&Terminator::TailCall { function, .. }) => match self.entry_flow(function) {
-                    Flow::Used => return Flow::Used,
-                    Flow::Replaced => {}
-                    Flow::Returned => returned = true,
-                },
-                None => return Flow::Used,
+                Some(&Terminator::TailCall { function, .. }) => {
+                    let callee_flow = self.entry_flow(function);
+                    flow.reads |= callee_flow.reads;
+                    flow.returned |= callee_flow.returned;
+                }
+                None => flow.reads.pointer = true,
+                // Execution ends.
+                Some(
+                    Terminator::RevertReturndata
+                    | Terminator::Stop
+                    | Terminator::Invalid
+                    | Terminator::SelfDestruct { .. },
+                ) => {}
             }
         }
-        if returned { Flow::Returned } else { Flow::Replaced }
+        flow
+    }
+
+    /// Clamps the word a store leaves in the slot at each pointer read of it from instruction
+    /// `start` of `block` on, keeping the slot's word for the reads of its bytes as data.
+    fn clamp_pointer_reads(
+        &mut self,
+        func_id: FunctionId,
+        block: BlockId,
+        start: usize,
+        clamps: &mut FxIndexSet<Clamp>,
+    ) {
+        let mut pending = vec![Walk { func: func_id, block, start, returns: Returns::ToCallers }];
+        let mut walked = FxHashSet::default();
+        while let Some(walk) = pending.pop() {
+            if walked.insert(walk) {
+                self.clamp_in_block(walk, &mut pending, clamps);
+            }
+        }
+    }
+
+    /// Clamps the pointer reads of one stretch of a block, queueing the stretches it reaches.
+    fn clamp_in_block(
+        &mut self,
+        walk: Walk,
+        pending: &mut Vec<Walk>,
+        clamps: &mut FxIndexSet<Clamp>,
+    ) {
+        let module = self.module;
+        let Walk { func: func_id, block, start, returns } = walk;
+        let data = &module.functions[func_id].blocks[block];
+        let mut written = 0;
+        for (index, &inst_id) in data.instructions.iter().enumerate().skip(start) {
+            match self.effect(func_id, inst_id, &mut written) {
+                Effect::None | Effect::ReadsData => {}
+                Effect::Replaces | Effect::ReadsDataAndReplaces => return,
+                // The slot keeps its word for later reads.
+                Effect::LoadsPointer => {
+                    clamps.insert(Clamp::Load(func_id, block, inst_id));
+                }
+                // The compiler takes the slot's word as the pointer from here on.
+                Effect::ReadsPointer => {
+                    clamps.insert(Clamp::Slot(func_id, block, Some(inst_id)));
+                    return;
+                }
+                Effect::Calls(callee) => {
+                    let flow = self.entry_flow(callee);
+                    if flow.reads.pointer {
+                        let data_after =
+                            flow.returned && self.data_after(func_id, block, index + 1, returns);
+                        if flow.reads.data || data_after {
+                            pending.push(Walk {
+                                func: callee,
+                                block: BlockId::ENTRY,
+                                start: 0,
+                                returns: Returns::ToCall { data_after },
+                            });
+                        } else {
+                            clamps.insert(Clamp::Slot(func_id, block, Some(inst_id)));
+                            return;
+                        }
+                    }
+                    if !flow.returned {
+                        return;
+                    }
+                }
+            }
+        }
+        match data.terminator.as_ref() {
+            Some(
+                terminator @ (Terminator::Jump(_)
+                | Terminator::Branch { .. }
+                | Terminator::Switch { .. }),
+            ) => terminator.for_each_successor(|successor| {
+                pending.push(Walk { func: func_id, block: successor, start: 0, returns });
+            }),
+            Some(Terminator::Return { .. }) => {
+                self.clamp_after_return(func_id, block, returns, pending, clamps);
+            }
+            Some(&Terminator::TailCall { function, .. }) => {
+                let flow = self.entry_flow(function);
+                if flow.reads.pointer {
+                    let data_after = flow.returned && self.data_after_return(func_id, returns);
+                    if flow.reads.data || data_after {
+                        pending.push(Walk {
+                            func: function,
+                            block: BlockId::ENTRY,
+                            start: 0,
+                            returns: Returns::ToCall { data_after },
+                        });
+                    } else {
+                        clamps.insert(Clamp::Slot(func_id, block, None));
+                        return;
+                    }
+                }
+                if flow.returned {
+                    self.clamp_after_return(func_id, block, returns, pending, clamps);
+                }
+            }
+            None => {
+                clamps.insert(Clamp::Slot(func_id, block, None));
+            }
+            // Execution ends.
+            Some(_) => {}
+        }
+    }
+
+    /// Goes on after a return from `func_id` at the end of `block`.
+    fn clamp_after_return(
+        &mut self,
+        func_id: FunctionId,
+        block: BlockId,
+        returns: Returns,
+        pending: &mut Vec<Walk>,
+        clamps: &mut FxIndexSet<Clamp>,
+    ) {
+        // The walk that entered the function goes on after its call.
+        if let Returns::ToCall { .. } = returns {
+            return;
+        }
+        let mut returning = vec![func_id];
+        let mut seen = FxHashSet::default();
+        while let Some(callee) = returning.pop() {
+            if !seen.insert(callee) {
+                continue;
+            }
+            let sites = self.call_sites(callee).to_vec();
+            if sites.is_empty() && !returns_to_the_end(&self.module.functions[callee]) {
+                // The code the function returns to reads the slot as the pointer.
+                clamps.insert(Clamp::Slot(func_id, block, None));
+            }
+            for site in sites {
+                match site {
+                    CallSite::Call(caller, call_block, index) => pending.push(Walk {
+                        func: caller,
+                        block: call_block,
+                        start: index + 1,
+                        returns: Returns::ToCallers,
+                    }),
+                    CallSite::Tail(caller) => returning.push(caller),
+                }
+            }
+        }
+    }
+
+    /// Returns whether the slot's bytes may be read as data from instruction `start` of `block`
+    /// on, including after `func_id` returns.
+    fn data_after(
+        &mut self,
+        func_id: FunctionId,
+        block: BlockId,
+        start: usize,
+        returns: Returns,
+    ) -> bool {
+        let flow = self.flow_from(func_id, block, start);
+        flow.reads.data || flow.returned && self.data_after_return(func_id, returns)
+    }
+
+    /// Returns whether the slot's bytes may be read as data after `func_id` returns.
+    fn data_after_return(&mut self, func_id: FunctionId, returns: Returns) -> bool {
+        match returns {
+            Returns::ToCallers => self.reads_after_return(func_id, &mut FxHashSet::default()).data,
+            Returns::ToCall { data_after } => data_after,
+        }
+    }
+
+    /// Returns what an instruction does with the word in the slot, given the slot bytes that
+    /// earlier writes in the block have `written`, and adds the bytes it writes.
+    fn effect(&mut self, func_id: FunctionId, inst_id: InstId, written: &mut SlotBytes) -> Effect {
+        let module = self.module;
+        let func = &module.functions[func_id];
+        let inst = func.inst(inst_id);
+        match inst.kind {
+            InstKind::MLoad(address) if is_slot(func, address) => {
+                if self.loaded_as_pointer(func_id, inst_id) {
+                    Effect::LoadsPointer
+                } else {
+                    Effect::ReadsData
+                }
+            }
+            InstKind::MStore(address, _) if is_slot(func, address) => Effect::Replaces,
+            InstKind::SetFmp(_) => Effect::Replaces,
+            InstKind::ICall { function: Callee::Function(callee), .. } => Effect::Calls(callee),
+            // The compiler's own pointer reads and allocations, and the builtins and semantic
+            // operations whose lowering may allocate or encode at the pointer.
+            InstKind::Fmp | InstKind::Alloc { .. } => Effect::ReadsPointer,
+            _ if inst.unlowered_reason(func).is_some() && lowered_reads_pointer(&inst.kind) => {
+                Effect::ReadsPointer
+            }
+            _ => {
+                // A copy reads its source before it writes its destination.
+                let reads = read_range(func, &inst.kind).is_some_and(|(offset, size)| {
+                    self.may_read_slot(func_id, offset, size, *written)
+                });
+                if let Some((start, size)) = constant_write_range(func, &inst.kind) {
+                    *written |= slot_bytes(start, size);
+                }
+                match (reads, *written == WHOLE_SLOT) {
+                    (true, true) => Effect::ReadsDataAndReplaces,
+                    (true, false) => Effect::ReadsData,
+                    (false, true) => Effect::Replaces,
+                    (false, false) => Effect::None,
+                }
+            }
+        }
+    }
+
+    /// Returns whether a read of `size` bytes at `offset`, or of an unknown size, may cover a
+    /// byte of the slot that still holds the stored word, given the bytes that later writes have
+    /// `written`. A computed offset may when the function computes it from constants and
+    /// calldata alone.
+    fn may_read_slot(
+        &mut self,
+        func_id: FunctionId,
+        offset: ValueId,
+        size: Option<u64>,
+        written: SlotBytes,
+    ) -> bool {
+        if size == Some(0) {
+            return false;
+        }
+        let Some(start) = self.module.functions[func_id].value_u64(offset) else {
+            return self.address_inputs(func_id)[offset] != AddressInput::Other;
+        };
+        slot_bytes(start, size.unwrap_or(u64::MAX)) & !written != 0
     }
 
     /// Returns whether the word a load reads from the slot is used as the pointer: it, or a word

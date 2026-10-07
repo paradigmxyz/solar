@@ -140,3 +140,117 @@ fn @scratch_read_as_data() -> i256 {
     mstore 64, v0
     ret v3
 }
+
+// A word read as data before a call allocates from it keeps its value for the data read, and the
+// slot is clamped right before the call.
+// CHECK-LABEL: {{^[ +].*}}fn @data_then_allocate{{[( ]}}
+// CHECK: [[READ:v[0-9]+]] = mload 64
+// CHECK-NEXT: mstore 0, [[READ]]
+// CHECK-NEXT: + [[SLOT:v[0-9]+]] = mload 64
+// CHECK-NEXT: + [[FLOOR:v[0-9]+]] = heap_floor
+// CHECK-NEXT: + [[BELOW:v[0-9]+]] = lt [[SLOT]], [[FLOOR]]
+// CHECK-NEXT: + [[CLAMPED:v[0-9]+]] = select [[BELOW]], [[FLOOR]], [[SLOT]]
+// CHECK-NEXT: + mstore 64, [[CLAMPED]]
+// CHECK-NEXT: icall @allocate
+fn @data_then_allocate() -> i256 {
+  bb0:
+    v0 = calldataload 4
+    mstore 64, v0
+    v1 = mload 64
+    mstore 0, v1
+    v2 = icall @allocate
+    ret v2
+}
+
+// A load that takes the word as the pointer after a read of it as data reads the clamped word,
+// while the slot keeps the stored one.
+// CHECK-LABEL: {{^[ +].*}}fn @data_then_pointer_load{{[( ]}}
+// CHECK: mstore 0, {{v[0-9]+}}
+// CHECK-NEXT: [[POINTER:v[0-9]+]] = mload 64
+// CHECK-NEXT: - mstore [[POINTER]], 1
+// CHECK-NEXT: - {{v[0-9]+}} = add [[POINTER]], 32
+// CHECK-NEXT: + [[FLOOR:v[0-9]+]] = heap_floor
+// CHECK-NEXT: + [[BELOW:v[0-9]+]] = lt [[POINTER]], [[FLOOR]]
+// CHECK-NEXT: + [[CLAMPED:v[0-9]+]] = select [[BELOW]], [[FLOOR]], [[POINTER]]
+// CHECK-NEXT: + mstore [[CLAMPED]], 1
+// CHECK-NEXT: + {{v[0-9]+}} = add [[CLAMPED]], 32
+fn @data_then_pointer_load() {
+  bb0:
+    v0 = calldataload 4
+    mstore 64, v0
+    v1 = mload 64
+    mstore 0, v1
+    v2 = mload 64
+    mstore v2, 1
+    v3 = add v2, 32
+    mstore 64, v3
+    ret
+}
+
+fn @transfer_scratch(arg0: i256) {
+  bb0:
+    v0 = mload 64
+    mstore 36, arg0
+    mstore 68, arg0
+    v1 = gas
+    v2 = call v1, arg0, 0, 0, 100, 0, 0
+    mstore 64, v0
+    ret
+}
+
+// Stores that together overwrite every byte of the slot replace the word, as a token transfer
+// that lays its call data out over the slot does, so the call does not read the word as data and
+// the word is clamped where it is stored.
+// CHECK-LABEL: {{^[ +].*}}fn @transfer_scratch{{[( ]}}
+// CHECK-NOT: {{^[-+]}}
+// CHECK-LABEL: {{^[ +].*}}fn @reset_then_transfer{{[( ]}}
+// CHECK: + [[FLOOR:v[0-9]+]] = heap_floor
+// CHECK-NEXT: + [[BELOW:v[0-9]+]] = lt [[WORD:v[0-9]+]], [[FLOOR]]
+// CHECK-NEXT: + [[CLAMPED:v[0-9]+]] = select [[BELOW]], [[FLOOR]], [[WORD]]
+// CHECK-NEXT: + mstore 64, [[CLAMPED]]
+// CHECK-NEXT: icall @transfer_scratch
+fn @reset_then_transfer() -> i256 {
+  bb0:
+    v0 = calldataload 4
+    mstore 64, v0
+    icall @transfer_scratch, 1
+    v1 = icall @allocate
+    ret v1
+}
+
+fn @put_scratch() {
+  bb0:
+    v0 = calldataload 4
+    mstore 64, v0
+    ret
+}
+
+// A helper's scratch word keeps its value for a caller that hashes it, and a caller that
+// allocates from it clamps the slot after the call.
+// CHECK-LABEL: {{^[ +].*}}fn @put_scratch{{[( ]}}
+// CHECK-NOT: {{^[-+]}}
+// CHECK-LABEL: {{^[ +].*}}fn @hash_helper_scratch{{[( ]}}
+// CHECK-NOT: {{^[-+]}}
+fn @hash_helper_scratch() -> i256 {
+  bb0:
+    v0 = mload 64
+    icall @put_scratch
+    v1 = keccak256 0, 96
+    mstore 64, v0
+    ret v1
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @allocate_after_helper{{[( ]}}
+// CHECK: icall @put_scratch
+// CHECK-NEXT: + [[SLOT:v[0-9]+]] = mload 64
+// CHECK-NEXT: + [[FLOOR:v[0-9]+]] = heap_floor
+// CHECK-NEXT: + [[BELOW:v[0-9]+]] = lt [[SLOT]], [[FLOOR]]
+// CHECK-NEXT: + [[CLAMPED:v[0-9]+]] = select [[BELOW]], [[FLOOR]], [[SLOT]]
+// CHECK-NEXT: + mstore 64, [[CLAMPED]]
+// CHECK-NEXT: icall @allocate
+fn @allocate_after_helper() -> i256 {
+  bb0:
+    icall @put_scratch
+    v0 = icall @allocate
+    ret v0
+}
