@@ -6,6 +6,7 @@
 //@ run-call: hashInHelper 1, 2, 3 => 0x6e0c627900b24bd432fe7b1f713f1b0744091a646a9fe4a65a18dfed21f2949c
 //@ run-call: storeInHelper 1, 2, 3 => 0x6e0c627900b24bd432fe7b1f713f1b0744091a646a9fe4a65a18dfed21f2949c
 //@ run-call: deepAddress 5 => 5
+//@ run-call: seal => 0xa0335e2fb93a29d2fa9e4b93eeb7ecc9a9ed34740c749d416b560fad02be2ab5
 
 // Memory-unsafe assembly can treat all memory from 0x80 up as its own. Seaport lays a basic
 // order's hashes and event data out at addresses that calldata sizes, moves the free memory
@@ -17,6 +18,21 @@
 // calldata moves the spill area above low memory. Storing calldata into the pointer's slot as
 // an error argument or a hash input keeps its value, also across calls to assembly helpers.
 contract AssemblyLowMemoryLayouts {
+    bytes32 public seal;
+
+    // A constructor that hashes data in the pointer's slot keeps it there: the constructor's
+    // return copies the runtime code to a fixed address and never reads the slot again.
+    constructor() {
+        bytes32 h;
+        assembly {
+            mstore(0x00, callvalue())
+            mstore(0x20, 2)
+            mstore(0x40, 3)
+            h := keccak256(0x00, 0x60)
+        }
+        seal = h;
+    }
+
     function resetHeap(uint256 a, uint256 flag) external pure returns (bytes32 result) {
         bytes32 h0 = keccak256(abi.encodePacked(a, uint256(0)));
         bytes32 h1 = keccak256(abi.encodePacked(a, uint256(1)));

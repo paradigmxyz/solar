@@ -536,9 +536,14 @@ impl<'a> FmpPointerUses<'a> {
             return false;
         }
         let sites = self.call_sites(func_id).to_vec();
-        // External entries and the dispatcher return to code outside the module.
         if sites.is_empty() {
-            return true;
+            // The dispatcher's and an external entry's return stops, and the constructor's copies
+            // the runtime code to a fixed address and returns it, so none reads the slot again.
+            // Any other function no call reaches returns to code the module does not show.
+            let func = &self.module.functions[func_id];
+            return !(func.attributes.is_constructor
+                || EvmCodegen::is_external_entry(func)
+                || self.module.dispatch_entry() == Some(func_id));
         }
         sites.into_iter().any(|site| match site {
             CallSite::Call(caller, block, index) => {
