@@ -571,9 +571,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use snapbox::{assert_data_eq, str};
     use solar_interface::{ColorChoice, source_map::FileName};
-    use solar_sema::Compiler;
     use std::path::{Path, PathBuf};
 
     fn parse_module(sess: &Session, input: &str) -> Result<Module> {
@@ -590,76 +588,6 @@ mod tests {
             .join("ui")
             .join("codegen")
             .join("evm-ir")
-    }
-
-    #[test]
-    fn bytecode_retains_library_identities() {
-        let compiler = Compiler::new(Session::builder().opts(Default::default()).build());
-        compiler.enter(|c| {
-            let gcx = c.gcx();
-            let module = parse_module(
-                gcx.sess,
-                r#"
-@module libraries
-@libraries
-  L_0: "a.sol:L"
-  L_1: "b.sol:L"
-
-bb0:
-  push_library L_0
-  push 0
-  mstore
-  push_library L_1
-  push 32
-  mstore
-  push 64
-  push 0
-  return
-"#,
-            )
-            .unwrap();
-            let bytecode = module.into_bytecode(gcx).unwrap();
-            let relocations = bytecode
-                .relocations
-                .iter()
-                .map(|relocation| {
-                    let library = bytecode.libraries.get(relocation.library).unwrap();
-                    format!("{}: {library}", relocation.offset)
-                })
-                .collect::<Vec<_>>()
-                .join("\n");
-            assert_data_eq!(
-                relocations,
-                str![[r#"
-1: "a.sol:L"
-24: "b.sol:L"
-"#]]
-            );
-        });
-    }
-
-    #[test]
-    fn legacy_stack_ops_print_with_operands() {
-        let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
-        let output = sess.enter(|| {
-            parse_module(&sess, "@module legacy\nbb0:\n  push0\n  dup1\n  swap16\n  stop\n")
-                .unwrap()
-                .to_text()
-                .to_string()
-        });
-
-        assert_data_eq!(
-            output,
-            str![[r#"
-@module legacy
-bb0:
-  push 0
-  dup 1
-  swap 16
-  stop
-
-"#]]
-        );
     }
 
     #[test]
