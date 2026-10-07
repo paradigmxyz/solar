@@ -167,23 +167,10 @@ programs or purposes.
 
 ### Python tooling
 
-Python tooling uses the version in `.python-version`.
-Use uv from the repository root; the workspace shares `uv.lock` across
-`tools/compiler-diff` and `benches/analyze`.
-Run `bash scripts/check-python.sh` for formatting, lint, type checks, and all
-Python unit tests. The required `Python` CI job runs the same command.
-Node.js and Lean must be on PATH for the workflow and proof unit tests;
-install Lean through elan, which selects the toolchain pinned in
-`scripts/evm-rules/lean/lean-toolchain`, and use the Node.js version configured in
-`.github/workflows/ci.yml`.
-These checks do not build the compilers or run live Fandango/Foundry differentials.
-Use `uv run --all-packages ruff format .` to format Python files.
-
-The proof CI job runs for changes to codegen or proof inputs, and on main.
-It proves every selected rule in Lean afresh on each run; only the Lean
-toolchain and the built model library are cached.
-See the [proof guide](scripts/evm-rules/README.md) for local commands and
-failure artifacts.
+Run `bash scripts/check-python.sh` for Python formatting, lint, type checks, and
+unit tests. Use uv, never pip. See
+[CONTRIBUTING.md](CONTRIBUTING.md#python-tooling) for prerequisites and the
+proof CI job.
 
 ### Compiler comparisons
 
@@ -315,22 +302,8 @@ Only add attribution if you're actually porting the semantics of the test 1-1 fr
 
 ### Updating Solc
 
-When updating the tracked Solc version, inspect both the GitHub release notes
-and the source diff before changing code. Use `gh release view vX.Y.Z -R
-argotorg/solidity` for the release notes, and compare tags locally with
-`git -C testdata/solidity diff vOLD..vNEW --stat` plus targeted diffs for
-parser, lexer, analysis, `liblangutil/EVMVersion.*`, and changed tests.
-
-Update `testdata/solidity` to the new tag, bump every local Solc version pin
-such as `SOLC_VERSION` in workflows and the fallback in
-`crates/config/build.rs`, and add any new EVM versions to
-`crates/config/src/lib.rs`. If upstream changes the default EVM version, update
-the default here and bless the affected CLI snapshots.
-
-Always run the complete upstream Solidity test mode with `cargo tq
-solc-solidity` and `cargo tq solc-yul`, without path filters. Update the Solc test ignore
-lists in `tools/tester/src/solc/solidity.rs` and `tools/tester/src/solc/yul.rs`
-only for tests that are still outside this compiler's implemented behavior.
+Follow [CONTRIBUTING.md](CONTRIBUTING.md#updating-solc) when updating the
+tracked Solc version.
 
 ## Diagnostics Style
 
