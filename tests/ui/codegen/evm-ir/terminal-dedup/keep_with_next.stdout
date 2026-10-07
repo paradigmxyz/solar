@@ -1,0 +1,33 @@
+- // === ROOT/tests/ui/codegen/evm-ir/terminal-dedup/keep_with_next.evmir (before terminal-dedup) ===
++ // === ROOT/tests/ui/codegen/evm-ir/terminal-dedup/keep_with_next.evmir (after terminal-dedup) ===
+  @module KeepWithNextTerminalDedup
+  bb0:
+    push 1
+    push bb1
+    jumpi
+    jump bb2
+  bb1:
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 71
+    gas !metadata(keep_with_next)
+    sub !metadata(keep_with_next)
+    call
+    stop
+  bb2:
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 71
+    gas
+    sub
+    call
+    stop
+  

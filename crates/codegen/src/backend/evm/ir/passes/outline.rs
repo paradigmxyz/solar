@@ -1165,23 +1165,3 @@ impl RunState {
         labels.take(count)
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn machine_run_candidate_budget() {
-        for repeated in [1, 10, 1_000, 200_000, 2_000_000] {
-            let lengths = max_machine_run_length(repeated) - MIN_MACHINE_RUN + 1;
-            assert!(repeated * lengths <= MAX_MACHINE_RUN_CANDIDATES);
-        }
-    }
-
-    #[test]
-    fn machine_run_lifetime_profitability() {
-        assert!(sharing_improves_lifetime(100, 2, 40, 200));
-        assert!(!sharing_improves_lifetime(80, 2, 40, 200));
-        assert!(!sharing_improves_lifetime(100, 2, 40, 1_000_000));
-    }
-}

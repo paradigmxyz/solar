@@ -1,0 +1,29 @@
+- // === ROOT/tests/ui/codegen/evm-ir/outline/lifetime_tie.evmir (before outline) ===
++ // === ROOT/tests/ui/codegen/evm-ir/outline/lifetime_tie.evmir (after outline) ===
+  @module LifetimeTie
+  bb0:
++   push bb6
++   jump bb1
++ bb1:
+    push 0x121212121212121212121212121212121212121212121212121212121212
+-   push 0x121212121212121212121212121212121212121212121212121212121212
+-   push 0x121212121212121212121212121212121212121212121212121212121212
+-   push 0x121212121212121212121212121212121212121212121212121212121212
+-   push 0x121212121212121212121212121212121212121212121212121212121212
++   swap 1
++   jump
++ bb2 [continuation]:
+    stop
++ bb3 [continuation]:
++   push bb2
++   jump bb1
++ bb4 [continuation]:
++   push bb3
++   jump bb1
++ bb5 [continuation]:
++   push bb4
++   jump bb1
++ bb6 [continuation]:
++   push bb5
++   jump bb1
+  

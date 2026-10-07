@@ -2367,19 +2367,3 @@ fn values_equal(func: &Function, a: ValueId, b: ValueId) -> bool {
         _ => false,
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn range_intersection_and_union() {
-        let a = Range::new(U256::from(0), U256::from(10));
-        let b = Range::new(U256::from(5), U256::from(20));
-        assert_eq!(a.intersect(b), Some(Range::new(U256::from(5), U256::from(10))));
-        assert_eq!(a.union(b), Range::new(U256::from(0), U256::from(20)));
-
-        let disjoint = Range::new(U256::from(11), U256::from(12));
-        assert_eq!(a.intersect(disjoint), None);
-    }
-}

@@ -1,0 +1,19 @@
+//@ revisions: below tie
+//@[below] compile-flags: -Ogas -Zevm-ir-pipeline=outline --optimize-runs 119
+//@[tie] compile-flags: -Ogas -Zevm-ir-pipeline=outline --optimize-runs 120
+//@[below] filecheck: --check-prefix=SHARE
+//@[tie] filecheck: --check-prefix=KEEP
+@module LifetimeTie
+
+// Sharing five 30-byte pushes saves 81 deposited bytes, worth 16200 gas, and each of the five
+// transfers costs 27 gas per execution. At 120 runs both sides are equal, and an equal trade
+// keeps the pushes inline.
+// SHARE: + jump
+// KEEP-NOT: jump
+bb0:
+  push 0x121212121212121212121212121212121212121212121212121212121212
+  push 0x121212121212121212121212121212121212121212121212121212121212
+  push 0x121212121212121212121212121212121212121212121212121212121212
+  push 0x121212121212121212121212121212121212121212121212121212121212
+  push 0x121212121212121212121212121212121212121212121212121212121212
+  stop
