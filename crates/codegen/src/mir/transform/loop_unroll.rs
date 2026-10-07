@@ -378,10 +378,13 @@ fn shape(
         }
     }
     // The original header repeats its instructions for the iteration the main loop declined,
-    // or for the one a peeled iteration's header declined.
+    // or for the one a peeled iteration's header declined, so they must give the same results
+    // again: a read of remaining gas or memory size could see a new value and branch the other
+    // way.
     if func.blocks[l.header].instructions.iter().any(|&inst| {
         let kind = &func.inst(inst).kind;
-        !matches!(kind, InstKind::Phi(_)) && kind.has_side_effects()
+        !matches!(kind, InstKind::Phi(_))
+            && (kind.has_side_effects() || kind.effects().observes_execution())
     }) {
         return None;
     }

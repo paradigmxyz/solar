@@ -921,6 +921,27 @@
       jump bb1
   }
   
+  fn @gas_header(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      v0 = ne arg1, 0
+      jump bb1
+    bb1:
+      v1 = phi [bb0: 0], [bb3: v5]
+      v2 = gas
+      v3 = lt v2, 0xf4240
+      jumpi v3, bb2, bb5
+    bb5:
+      ret v1
+    bb2:
+      jumpi v0, bb3, bb4
+    bb4:
+      revert 0, 0
+    bb3:
+      v4 = div arg0, arg1
+      v5 = add v1, v4
+      jump bb1
+  }
+  
   fn @reversed(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = shl 3, arg1

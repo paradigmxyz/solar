@@ -634,6 +634,32 @@ fn @variant_test(arg0: i256, arg1: i256) -> i256 {
     ret v1
 }
 
+// A header that reads the remaining gas could branch the other way when the
+// original header repeats it after a peeled copy's header declined, and enter a
+// body whose test the copy never ran: the loop is not peeled.
+// CHECK-LABEL: {{^[ +].*}}fn @gas_header{{[( ]}}
+// CHECK-NOT: {{^[-+]}}
+fn @gas_header(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v7 = ne arg1, 0
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb3: v4]
+    v1 = gas
+    v2 = lt v1, 1000000
+    jumpi v2, bb2, bb5
+  bb2:
+    jumpi v7, bb3, bb4
+  bb3:
+    v3 = div arg0, arg1
+    v4 = add v0, v3
+    jump bb1
+  bb4:
+    revert 0, 0
+  bb5:
+    ret v0
+}
+
 // A counter that only counts iterations counts from `-n` up to zero instead, so
 // the header tests a word against zero and needs no bound. This loop reads a
 // word computed before it and stays rolled.
