@@ -366,3 +366,31 @@ No intentional divergences documented yet.
   them.
 - Coverage: `tests/ui/codegen/lowering/run-call/pre_cancun_memory_copies.sol`
   encodes an object that assembly allocates through the shared copy helper.
+
+### CODEGEN-010: Assembly cannot hand compiler-owned memory to the heap
+
+- ID: CODEGEN-010
+- Status: intentional
+- Difference: An inline assembly store to the free memory pointer slot whose
+  value the function computes from constants and calldata, and which a later
+  `mload` of the slot can read back, stores at least the initial free memory
+  pointer. After `mstore(0x40, 0x80)`, a later `mload(0x40)` returns `0x80`
+  under `solc` and the initial pointer here. Every runtime entry that reaches
+  a function writing memory at an absolute address computed from calldata, as
+  Seaport lays out a basic order's hashes and event data, keeps its spill
+  slots and the frames it reaches above `0x2080`, which costs memory
+  expansion gas.
+- Rationale: The spill slots and internal-call frames below the initial free
+  memory pointer (CODEGEN-009) hold values that `solc` keeps on the stack. The
+  next allocation after a lowered pointer, or the absolute layout itself,
+  overwrote them. A pointer derived from the heap already lies above the
+  initial one and keeps its value. So does a store that only fills the slot
+  with data, such as an error argument before a revert or a hash input before
+  the pointer is restored, also when an assembly function writes or hashes the
+  slot; the search follows internal calls and returns. An absolute pointer
+  that reaches the store through a parameter, memory, or a call keeps its
+  value. A layout that grows past `0x2080`, or one indexed by a loop counter
+  alone, can still reach the compiler's memory; Seaport's basic orders with
+  about 40 or more additional recipients do.
+- Coverage: `tests/ui/codegen/lowering/run-call/assembly_low_memory_layouts.sol`
+  and Seaport's own suite in `cargo tq foundry-external seaport`.

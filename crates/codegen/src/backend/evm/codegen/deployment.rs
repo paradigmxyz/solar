@@ -75,6 +75,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         // once instead of rebuilding them for each artifact and caller-stack retry.
         let call_graph = CallGraphInfo::new(module);
         self.heap_pointer_return_functions = Self::collect_heap_pointer_return_functions(module);
+        self.fmp_floor_stores = Self::collect_fmp_floor_stores(module);
         self.cold_functions = if matches!(self.gcx.sess.opts.optimization, OptimizationMode::None) {
             DenseBitSet::new_empty(module.functions.len())
         } else {
@@ -392,6 +393,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.external_spill_addr_consts.clear();
             self.pending_static_allocs.clear();
             self.runtime_free_memory_consts.clear();
+            self.fmp_floor_consts.clear();
             self.runtime_entry_reachability.clear();
             self.runtime_entry_funcs.clear();
             self.current_internal_function = None;
@@ -430,6 +432,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             let constructor_fixed_memory_end = self.asm.new_deferred_const();
             let constructor_arg_offset =
                 (!ctor.params.is_empty()).then(|| self.asm.new_deferred_const());
+            self.constructor_heap_start = Some((constructor_fixed_memory_end, heap_guard));
 
             // Set constructor context for LoadArg handling
             self.in_constructor = true;
@@ -518,6 +521,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.in_constructor = false;
             self.constructor_args_base_const = None;
             self.constructor_args_offset_const = None;
+            self.constructor_heap_start = None;
             self.constructor_exit = None;
             self.constructor_param_count = 0;
 

@@ -15,8 +15,8 @@
 use super::{
     ArgIdx, CallGraphInfo, DebugFunction, DebugFunctionExit, DeferredConst, DenseBitSet,
     EvmCodegen, EvmMemoryLayout, Function, FunctionId, FxHashMap, FxHashSet, IndexVec, InstKind,
-    MirType, Module, RelayoutAddress, SpillSlot, StackEffect, StackOp, StackPush, Terminator, U256,
-    Value, ValueId, WORD_BYTES, immutable_staging_end, op, preserves_push_width,
+    MemoryRegion, MirType, Module, RelayoutAddress, SpillSlot, StackEffect, StackOp, StackPush,
+    Terminator, U256, Value, ValueId, WORD_BYTES, immutable_staging_end, op, preserves_push_width,
 };
 use crate::mir::{
     Callee,
@@ -506,13 +506,9 @@ impl<'gcx> EvmCodegen<'gcx> {
             .map(|entry| {
                 let mark = self.runtime_entry_reachability[&entry]
                     .iter()
-                    .map(|func_id| {
-                        Self::constant_memory_high_water_mark(&module.functions[func_id])
-                    })
+                    .map(|func_id| Self::low_memory_high_water_mark(&module.functions[func_id]))
                     .max()
-                    .unwrap_or_else(|| {
-                        Self::constant_memory_high_water_mark(&module.functions[entry])
-                    });
+                    .unwrap_or_else(|| Self::low_memory_high_water_mark(&module.functions[entry]));
                 (entry, mark)
             })
             .collect::<FxHashMap<_, _>>();
@@ -934,6 +930,21 @@ impl<'gcx> EvmCodegen<'gcx> {
             let floor = free_memory_floors[&entry];
             self.asm.set_deferred_const(id, U256::from(floor));
         }
+        // A clamped free-memory-pointer store keeps the highest initial pointer of the entries
+        // that reach its function; one that no entry reaches never runs.
+        for (func_id, id) in std::mem::take(&mut self.fmp_floor_consts) {
+            let floor = free_memory_floors
+                .iter()
+                .filter(|&(entry, _)| {
+                    self.runtime_entry_reachability
+                        .get(entry)
+                        .is_some_and(|reachable| reachable.contains(func_id))
+                })
+                .map(|(_, &floor)| floor)
+                .max()
+                .unwrap_or(low_memory_end);
+            self.asm.set_deferred_const(id, U256::from(floor));
+        }
         self.runtime_entry_reachability.clear();
     }
 
@@ -953,7 +964,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         // frame through constant addresses; spill only above everything it
         // names, so a reload never reads a byte of the user's image and a
         // store never lands inside it.
-        let mark = Self::constant_memory_high_water_mark(func).max(reachable_memory_mark);
+        let mark = Self::low_memory_high_water_mark(func).max(reachable_memory_mark);
         base.max(mark.next_multiple_of(EvmMemoryLayout::WORD_SIZE))
     }
 
@@ -1322,6 +1333,98 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
         });
         mark
+    }
+
+    /// Returns the highest low-memory end address hand-written assembly in `func` can name.
+    ///
+    /// Constant ranges give their exact ends. A write through an address computed from
+    /// constants and calldata, such as Seaport's event data at `0x180 + 32 * recipients`, lays
+    /// out absolute memory whose extent only the input fixes, so it owns all low memory below
+    /// `SPILL_HAZARD_BOUND` above `HEAP_START`. The compiler's own absolute buffers, such as the
+    /// static return buffer an encoding loop fills, never depend on calldata.
+    ///
+    /// NOTE: A layout that grows past the bound can still reach the spill area, and one indexed
+    /// only by a loop counter is not recognized. See CODEGEN-010.
+    pub(in crate::backend::evm::codegen) fn low_memory_high_water_mark(func: &Function) -> u64 {
+        let mark = Self::constant_memory_high_water_mark(func);
+        let bound = EvmMemoryLayout::HEAP_START + SPILL_HAZARD_BOUND;
+        if mark < bound && Self::writes_absolute_dynamic_memory(func) { bound } else { mark }
+    }
+
+    /// Returns whether `func` writes memory at an absolute address that is not a constant.
+    fn writes_absolute_dynamic_memory(func: &Function) -> bool {
+        func.instructions().any(|inst_id| {
+            if matches!(
+                func.inst(inst_id).metadata.memory_region(),
+                Some(MemoryRegion::AbiReturn | MemoryRegion::Heap | MemoryRegion::InternalFrame)
+            ) {
+                return false;
+            }
+            let dest = match func.inst(inst_id).kind {
+                InstKind::MStore(dest, _)
+                | InstKind::MStore8(dest, _)
+                | InstKind::MCopy(dest, _, _)
+                | InstKind::CalldataCopy(dest, _, _)
+                | InstKind::DataCopy(_, dest, _)
+                | InstKind::CodeCopy(dest, _, _)
+                | InstKind::ReturnDataCopy(dest, _, _)
+                | InstKind::ExtCodeCopy(_, dest, _, _) => dest,
+                InstKind::Call { ret_offset, .. }
+                | InstKind::CallCode { ret_offset, .. }
+                | InstKind::StaticCall { ret_offset, .. }
+                | InstKind::DelegateCall { ret_offset, .. } => ret_offset,
+                _ => return false,
+            };
+            func.value_u64(dest).is_none()
+                && Self::absolute_address_input(
+                    func,
+                    dest,
+                    &mut DenseBitSet::new_empty(func.num_values()),
+                    0,
+                ) == Some(true)
+        })
+    }
+
+    /// Classifies `value` as an absolute address: `Some(true)` when it is computed from
+    /// constants and calldata, `Some(false)` from constants alone, and `None` when it involves
+    /// the heap, a parameter, or a loaded word. A loop-carried value is absolute when every
+    /// value entering the loop is.
+    fn absolute_address_input(
+        func: &Function,
+        value: ValueId,
+        visiting: &mut DenseBitSet<ValueId>,
+        depth: usize,
+    ) -> Option<bool> {
+        if func.value_u256(value).is_some() {
+            return Some(false);
+        }
+        if depth > 64 {
+            return None;
+        }
+        let Value::Inst(inst_id) = func.value(value) else { return None };
+        if !visiting.insert(value) {
+            return Some(false);
+        }
+        let mut input =
+            |value| Self::absolute_address_input(func, value, &mut *visiting, depth + 1);
+        let result = match &func.inst(*inst_id).kind {
+            InstKind::CalldataLoad(_) | InstKind::CalldataSize => Some(true),
+            InstKind::Add(lhs, rhs)
+            | InstKind::Sub(lhs, rhs)
+            | InstKind::Mul(lhs, rhs)
+            | InstKind::Shl(lhs, rhs)
+            | InstKind::Shr(lhs, rhs)
+            | InstKind::And(lhs, rhs)
+            | InstKind::Or(lhs, rhs)
+            | InstKind::Select(_, lhs, rhs) => Some(input(*lhs)? | input(*rhs)?),
+            InstKind::Zext(inner) | InstKind::IntToPtr(inner) => input(*inner),
+            InstKind::Phi(incoming) => incoming
+                .iter()
+                .try_fold(false, |calldata, &(_, incoming)| Some(calldata | input(incoming)?)),
+            _ => None,
+        };
+        visiting.remove(value);
+        result
     }
 
     /// Visits physical memory ranges used by instructions and terminators.
