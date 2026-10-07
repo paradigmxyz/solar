@@ -26,16 +26,17 @@
 //! word as the pointer when the loaded word, or one computed from it, addresses or sizes memory or
 //! becomes the pointer again, in the function, in a callee it is passed to, or in a caller it is
 //! returned to, as every allocation in assembly does; a loaded word only compared, stored, or
-//! returned from an external function is data. The compiler's own free-memory-pointer reads and
-//! allocations read the word as the pointer too, and so do the builtins and semantic operations
-//! whose lowering may allocate or encode at the pointer, unlike pure computations, checks that
-//! revert with scratch data, and accesses to frames, storage slots, and memory that already exists.
-//! An access that may cover a byte the writes have not replaced reads the word as data, such as a
-//! scratch hash or revert data, when its address is computed from constants, calldata, and
-//! parameters that may hold such an address: an external function's integer arguments, or a
-//! parameter some call site passes one in. A return from the constructor, or one from an external
-//! function that returns only scalar words, ends execution without reading the slot: codegen
-//! returns runtime code from a fixed address and encodes scalar results in a static buffer.
+//! returned from an external function as integers is data. The compiler's own free-memory-pointer
+//! reads and allocations read the word as the pointer too, and so do the builtins and semantic
+//! operations whose lowering may allocate or encode at the pointer, unlike pure computations,
+//! checks that revert with scratch data, and accesses to frames, storage slots, and memory that
+//! already exists. An access that may cover a byte the writes have not replaced reads the word as
+//! data, such as a scratch hash or revert data, when its address is computed from constants,
+//! calldata, and parameters that may hold such an address: an external function's integer
+//! arguments, or a parameter some call site passes one in. A return from the constructor, or one
+//! from an external function whose results all have static ABI types, ends execution without
+//! reading the slot: codegen returns runtime code from a fixed address and encodes static results
+//! in a static buffer.
 //!
 //! A word read only as the pointer is clamped where it is stored, `mstore 64, clamped`. A word
 //! that is also read as data keeps its value in the slot, and the clamp moves to each pointer read
@@ -69,7 +70,7 @@
 //! CODEGEN-010.
 
 use crate::mir::{
-    ArgIdx, BlockId, Builtin, Callee, EffectKind, Function, FunctionId, Immediate, InstId,
+    AbiType, ArgIdx, BlockId, Builtin, Callee, EffectKind, Function, FunctionId, Immediate, InstId,
     InstKind, Instruction, InstructionMetadata, MemoryRegion, MirType, Module, Terminator, Value,
     ValueId,
     analysis::{AddressInput, absolute_address_inputs, absolute_address_inputs_with_params},
@@ -256,16 +257,26 @@ fn is_slot(func: &Function, address: ValueId) -> bool {
 
 /// Whether a function returns to code that ends execution without reading the free memory
 /// pointer: the constructor, whose runtime code codegen copies to a fixed address, or an
-/// external function returning only scalar words, which codegen encodes in a static buffer.
+/// external function whose results all have static ABI types, which codegen encodes in a static
+/// buffer.
 fn returns_to_the_end(func: &Function) -> bool {
     func.attributes.is_constructor
         || func.is_external_entry()
-            && func.blocks.iter().all(|block| match &block.terminator {
-                Some(Terminator::Return { values }) => values
-                    .iter()
-                    .all(|&value| matches!(func.value_ty(value), Some(MirType::Int(_)))),
-                _ => true,
-            })
+            && func
+                .abi_returns
+                .as_ref()
+                .is_none_or(|returns| !returns.types.iter().any(AbiType::is_dynamic))
+}
+
+/// Whether a returned value holds integers alone, which an external function encodes as data.
+fn is_scalar(module: &Module, ty: Option<MirType>) -> bool {
+    match ty {
+        Some(MirType::Int(_)) => true,
+        Some(MirType::Struct(id)) => {
+            module.struct_types[id].fields.iter().all(|&field| is_scalar(module, Some(field)))
+        }
+        _ => false,
+    }
 }
 
 /// The bytes of the free memory pointer's slot that writes have replaced since a store, one bit
@@ -1019,11 +1030,11 @@ impl<'a> PointerUses<'a> {
 
     /// Queues the call results that receive a word `func_id` returns, following tail calls to
     /// the callers they return to. Returns false when the word leaves the module as a pointer:
-    /// an external function encodes only a returned integer as data.
+    /// an external function encodes only a returned `scalar` as data.
     fn queue_returned(
         &mut self,
         func_id: FunctionId,
-        integer: bool,
+        scalar: bool,
         pending: &mut Vec<(FunctionId, ValueId)>,
     ) -> bool {
         let module = self.module;
@@ -1034,7 +1045,7 @@ impl<'a> PointerUses<'a> {
                 continue;
             }
             let sites = self.call_sites(callee).to_vec();
-            if sites.is_empty() && !(integer && module.functions[callee].is_external_entry()) {
+            if sites.is_empty() && !(scalar && module.functions[callee].is_external_entry()) {
                 return false;
             }
             for site in sites {
@@ -1109,8 +1120,8 @@ impl<'a> PointerUses<'a> {
                             ) => {}
                             // The callers use the word as they use the call's result.
                             Some(Terminator::Return { .. }) => {
-                                let integer = matches!(func.value_ty(word), Some(MirType::Int(_)));
-                                if !self.queue_returned(func_id, integer, &mut pending) {
+                                let scalar = is_scalar(module, func.value_ty(word));
+                                if !self.queue_returned(func_id, scalar, &mut pending) {
                                     break 'words true;
                                 }
                             }

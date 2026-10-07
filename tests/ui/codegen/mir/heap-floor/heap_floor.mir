@@ -1,6 +1,8 @@
 //@compile-flags: -Zmir-pipeline=heap-floor
 //@filecheck:
 @module HeapFloor
+@types
+  struct0: {i256, i256}
 
 // An absolute word stored as the pointer and loaded back is raised to the heap floor.
 // CHECK-LABEL: {{^[ +].*}}fn @reset_then_load{{[( ]}}
@@ -296,4 +298,19 @@ fn @hash_at_param(arg0: i256) -> i256 [selector=0x1234567a] {
     v2 = mload 64
     mstore v2, v1
     ret v1
+}
+
+// A scratch word an external function returns as one of two integers is data.
+// CHECK-LABEL: {{^[ +].*}}fn @tuple_return{{[( ]}}
+// CHECK-NOT: {{^[-+]}}
+fn @tuple_return() -> struct0 [selector=0x1234567c] {
+  bb0:
+    v0 = mload 64
+    v1 = calldataload 4
+    mstore 64, v1
+    v2 = mload 64
+    mstore 64, v0
+    v3 = insert_value struct0, undef struct0, 0, v2
+    v4 = insert_value struct0, v3, 1, 7
+    ret v4
 }

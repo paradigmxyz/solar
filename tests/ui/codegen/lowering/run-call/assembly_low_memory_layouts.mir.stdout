@@ -326,7 +326,7 @@ fn @hashInHelper(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xd93f511
     mstore 32, arg1 !metadata(memory=scratch)
     v1 = calldataload 68
     mstore 64, v1 !metadata(memory=scratch)
-    v2 = icall @hashScratch.24
+    v2 = icall @hashScratch.25
     mstore 64, v0 !metadata(memory=scratch)
     ret v2
 }
@@ -449,6 +449,18 @@ fn @hashAt(arg0: i256, arg1: i256) -> i256 [selector=0xf170e9dc, pure, abi_param
     ret v1
 }
 
+fn @tupleReturn(arg0: i256) -> struct0 [selector=0x6661d15f, pure, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    v1 = calldataload 4
+    mstore 64, v1 !metadata(memory=scratch)
+    v2 = mload 64 !metadata(memory=scratch)
+    mstore 64, v0 !metadata(memory=scratch)
+    v3 = insert_value struct0, undef struct0, 0, v2
+    v4 = insert_value struct0, v3, 1, 7
+    ret v4
+}
+
 fn @hashHelperScratch(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x75fdf974, pure, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
@@ -544,7 +556,7 @@ fn @_lay(arg0: i256) -> i256 [pure] {
     jump bb1
 }
 
-fn @hashScratch.24() -> i256 {
+fn @hashScratch.25() -> i256 {
   bb0:
     v0 = keccak256 0, 96 !metadata(memory=scratch)
     ret v0
