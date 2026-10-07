@@ -508,7 +508,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             *low_memory_marks[func_id]
                 .get_or_insert_with(|| Self::low_memory_high_water_mark(&module.functions[func_id]))
         };
-        let reachable_memory_marks = runtime_entries
+        let mut reachable_memory_marks = runtime_entries
             .iter()
             .copied()
             .map(|entry| {
@@ -520,6 +520,26 @@ impl<'gcx> EvmCodegen<'gcx> {
                 (entry, mark)
             })
             .collect::<FxHashMap<_, _>>();
+        // Compiler memory that starts at or above the bound must also clear the fixed memory
+        // assembly names there. An entry's spills start at its mark and shared frames above the
+        // highest entry end, so the ranges of every function a runtime entry reaches count.
+        let low_memory_bound = EvmMemoryLayout::HEAP_START + SPILL_HAZARD_BOUND;
+        if reachable_memory_marks.values().any(|&mark| mark >= low_memory_bound) {
+            let mut reached = DenseBitSet::new_empty(module.functions.len());
+            for entry in &runtime_entries {
+                reached.union(&self.runtime_entry_reachability[entry]);
+            }
+            let high_memory_end = reached
+                .iter()
+                .map(|func_id| Self::high_constant_memory_end(&module.functions[func_id]))
+                .max()
+                .unwrap_or(0);
+            for mark in reachable_memory_marks.values_mut() {
+                if *mark >= low_memory_bound {
+                    *mark = (*mark).max(high_memory_end);
+                }
+            }
+        }
         let entry_bases: FxHashMap<FunctionId, u64> = runtime_entries
             .iter()
             .copied()
@@ -1325,8 +1345,9 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// absolute accesses (the external return buffer, frame locals) never
     /// exceed the base they are placed under, so they never raise it. Ranges
     /// starting at or above `SPILL_HAZARD_BOUND` above `HEAP_START` are not low
-    /// memory and are ignored. A range that starts below the bound still owns
-    /// its complete extent, even when its end lies above the bound.
+    /// memory and are ignored, unless compiler memory moves there; see
+    /// [`Self::high_constant_memory_end`]. A range that starts below the bound
+    /// still owns its complete extent, even when its end lies above the bound.
     pub(in crate::backend::evm::codegen) fn constant_memory_high_water_mark(
         func: &Function,
     ) -> u64 {
@@ -1341,6 +1362,31 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
         });
         mark
+    }
+
+    /// Returns the highest end address of a constant memory range in `func` that starts at or
+    /// above `SPILL_HAZARD_BOUND` above `HEAP_START`, or zero without one.
+    ///
+    /// Compiler memory normally ends below these ranges. Once a calldata-sized layout or a low
+    /// image reaching past the bound moves the spill area there, it is placed above them, so a
+    /// fixed copy cannot overwrite live spills or frames and the heap starts above the buffer.
+    ///
+    /// NOTE: A range at a huge constant address still moves the spill area above it, and every
+    /// call of the entry then pays for expanding memory that far.
+    fn high_constant_memory_end(func: &Function) -> u64 {
+        let bound = EvmMemoryLayout::HEAP_START + SPILL_HAZARD_BOUND;
+        let mut end = 0;
+        Self::for_each_memory_range(func, |offset, size| {
+            if let Some(start) = func.value_u64(offset)
+                && start >= bound
+                && let Some(size) = size
+                && size != 0
+                && let Some(range_end) = start.checked_add(size)
+            {
+                end = end.max(range_end);
+            }
+        });
+        end
     }
 
     /// Returns the highest low-memory end address hand-written assembly in `func` can name.

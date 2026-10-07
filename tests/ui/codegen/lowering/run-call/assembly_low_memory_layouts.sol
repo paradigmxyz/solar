@@ -14,6 +14,8 @@
 //@ run-call: hashHelperScratch 1, 2, 3 => 0x6e0c627900b24bd432fe7b1f713f1b0744091a646a9fe4a65a18dfed21f2949c
 //@ run-call: allocateAfterHelper 1, 2, 3 => 3
 //@ run-call: hashAroundCheckedAdd 1, 2, 3 => 0x6e0c627900b24bd432fe7b1f713f1b0744091a646a9fe4a65a18dfed21f2949c
+//@ run-call: layoutAbove 5, 40 => 0x6ae76ef32a2e583db4df1f208a32cb3bba18e72c5e466a519d26ab93240a6e36
+//@ run-call: bufferAboveHeap 5, 0 => 1029
 
 // Memory-unsafe assembly can treat all memory from 0x80 up as its own. Seaport lays a basic
 // order's hashes and event data out at addresses that calldata sizes, moves the free memory
@@ -22,7 +24,8 @@
 // allocation overwrote live words: a decoded signature replaced the offerer and the order
 // hash, and the event data replaced the offered item type. A store that would lower the
 // free memory pointer now keeps it at or above the initial one, and a layout sized by
-// calldata moves the spill area above low memory. Storing calldata into the pointer's slot as
+// calldata moves the spill area above low memory, and above the fixed memory the assembly names
+// there. Storing calldata into the pointer's slot as
 // an error argument or a hash input keeps its value, also across calls to assembly helpers and
 // checked arithmetic, and so does a load that reads the slot back as data. A caller that
 // allocates from a helper's scratch word clamps it on its own path.
@@ -94,6 +97,50 @@ contract AssemblyLowMemoryLayouts {
         }
         result ^= h0 ^ h1 ^ h2 ^ h3 ^ h4 ^ h5 ^ h6 ^ h7 ^ h8 ^ h9 ^ h10 ^ h11 ^ h12 ^ h13 ^ h14
             ^ h15 ^ h16;
+    }
+
+    // A fixed copy above low memory keeps clear of the spills that a calldata-sized layout moves
+    // there.
+    function layoutAbove(uint256 a, uint256 words) external pure returns (bytes32 result) {
+        bytes32 h0 = keccak256(abi.encodePacked(a, uint256(0)));
+        bytes32 h1 = keccak256(abi.encodePacked(a, uint256(1)));
+        bytes32 h2 = keccak256(abi.encodePacked(a, uint256(2)));
+        bytes32 h3 = keccak256(abi.encodePacked(a, uint256(3)));
+        bytes32 h4 = keccak256(abi.encodePacked(a, uint256(4)));
+        bytes32 h5 = keccak256(abi.encodePacked(a, uint256(5)));
+        bytes32 h6 = keccak256(abi.encodePacked(a, uint256(6)));
+        bytes32 h7 = keccak256(abi.encodePacked(a, uint256(7)));
+        bytes32 h8 = keccak256(abi.encodePacked(a, uint256(8)));
+        bytes32 h9 = keccak256(abi.encodePacked(a, uint256(9)));
+        bytes32 h10 = keccak256(abi.encodePacked(a, uint256(10)));
+        bytes32 h11 = keccak256(abi.encodePacked(a, uint256(11)));
+        bytes32 h12 = keccak256(abi.encodePacked(a, uint256(12)));
+        bytes32 h13 = keccak256(abi.encodePacked(a, uint256(13)));
+        bytes32 h14 = keccak256(abi.encodePacked(a, uint256(14)));
+        bytes32 h15 = keccak256(abi.encodePacked(a, uint256(15)));
+        bytes32 h16 = keccak256(abi.encodePacked(a, uint256(16)));
+        if (words != 0) {
+            result = _lay(a);
+        }
+        assembly {
+            calldatacopy(0x2080, calldatasize(), 0x400)
+        }
+        result ^= h0 ^ h1 ^ h2 ^ h3 ^ h4 ^ h5 ^ h6 ^ h7 ^ h8 ^ h9 ^ h10 ^ h11 ^ h12 ^ h13 ^ h14
+            ^ h15 ^ h16;
+    }
+
+    // A fixed buffer above low memory keeps clear of the heap that such a layout moves there.
+    function bufferAboveHeap(uint256 a, uint256 words) external pure returns (uint256 kept) {
+        assembly {
+            mstore(0x2400, a)
+        }
+        if (words != 0) {
+            _lay(a);
+        }
+        bytes memory fresh = new bytes(0x400);
+        assembly {
+            kept := add(mload(0x2400), mload(fresh))
+        }
     }
 
     // The pointer read right after a reset is the clamped one in every build: optimized MIR
