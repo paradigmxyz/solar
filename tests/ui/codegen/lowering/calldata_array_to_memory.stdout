@@ -389,35 +389,34 @@ bb19:
   dup 3
   calldatacopy
   pop
-  swap 2
-  pop
-  pop
-  swap 1
+  dup 5
+  dup 5
+  dup 3
   push 4
   calldataload
+  swap 6
+  pop
+  swap 5
   dup 2
   mstore
   push 32
-  dup 2
   add
-  dup 4
-  swap 1
   mstore
+  swap 3
   push 64
   add
-  dup 2
   swap 1
+  pop
   mstore
   swap 1
   mload
-  push 10
-  dup 2
-  mul
-  swap 1
+  dup 1
   push 0x1999999999999999999999999999999999999999999999999999999999999999
   lt
   push bb27
   jumpi
+  push 10
+  mul
   push 4
   calldataload
   add
