@@ -1830,6 +1830,12 @@ impl AliasAnalysis {
         offset: ValueId,
         depth: usize,
     ) -> Option<MemoryAddress> {
+        if let Value::Inst(inst) = func.value(offset)
+            && let InstKind::Sub(value, subtrahend) = func.inst(*inst).kind
+            && subtrahend == base
+        {
+            return self.memory_address_with_depth(func, value, depth + 1);
+        }
         self.memory_address_with_depth(func, base, depth + 1)?.checked_add(func.value_u64(offset)?)
     }
 
