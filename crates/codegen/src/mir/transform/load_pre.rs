@@ -1348,12 +1348,7 @@ impl LoadRedundancyEliminator {
     // ----- CFG helpers -----
 
     fn can_insert_on_edge(func: &Function, pred: BlockId, target: BlockId) -> bool {
-        func.blocks[pred].terminator.as_ref().is_some_and(|term| {
-            matches!(
-                term,
-                Terminator::Jump(_) | Terminator::Branch { .. } | Terminator::Switch { .. }
-            ) && term.successors().contains(&target)
-        })
+        func.blocks[pred].terminator.as_ref().is_some_and(|term| term.has_successor(target))
     }
 
     fn operands_dominate_block(

@@ -1400,7 +1400,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                                     func.blocks[target]
                                         .terminator
                                         .as_ref()
-                                        .is_some_and(|term| term.successors().is_empty())
+                                        .is_some_and(|term| !term.has_successors())
                                 }) =>
                         {
                             *else_block

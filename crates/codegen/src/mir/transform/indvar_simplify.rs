@@ -255,10 +255,7 @@ impl IndVarSimplifier {
             let mut headers = FxHashSet::default();
             for &(header, from, to) in &splits {
                 // from -> to  =>  from -> split -> to
-                if func.blocks[from]
-                    .terminator
-                    .as_ref()
-                    .is_some_and(|term| term.successors().contains(&to))
+                if func.blocks[from].terminator.as_ref().is_some_and(|term| term.has_successor(to))
                 {
                     mir_utils::split_edge(func, from, to);
                     self.stats.exit_edges_split += 1;
