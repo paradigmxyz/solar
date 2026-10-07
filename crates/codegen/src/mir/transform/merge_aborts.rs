@@ -3,9 +3,10 @@
 //! Checked arithmetic and ABI decoding guard straight-line code with tests that
 //! each branch to an aborting block, such as a `Panic(0x11)` revert, and pay a
 //! conditional jump apiece. When a block ends with such a test, its
-//! continuation is entered from nowhere else, except from blocks that abort
-//! first, holds only speculatable instructions, and ends with a test into the
-//! same aborting block, the first test can wait for the second:
+//! continuation is entered from nowhere else, except from the test's own
+//! aborting block when that block calls a function that never returns and only
+//! this test enters it, holds only speculatable instructions, and ends with a
+//! test into the same aborting block, the first test can wait for the second:
 //!
 //! ```text
 //! b1: ...; jumpi c1, abort, b2         b1: ...; jump b2
@@ -215,11 +216,16 @@ fn mergeable(
     target: Target,
 ) -> Option<(Test, Test, Option<Flip>)> {
     let first = test(func, block, cold)?;
-    // Other edges into the continuation leave blocks that abort before taking them.
+    // Another edge into the continuation may leave only the first test's own aborting block,
+    // when that block calls a function that never returns and this test alone enters it. The
+    // merge removes that entrance, so the first test's condition still dominates the merged
+    // test; any other entrance would reach it without that condition defined.
     let continuation = &func.blocks[first.next];
-    if first.next == block
-        || !continuation.predecessors.iter().all(|&from| from == block || aborts(func, from, cold))
-    {
+    if first.next == block || !continuation.predecessors.iter().all(|&from| {
+        from == block
+            || (from == first.abort
+                && matches!(func.blocks[from].predecessors.as_slice(), [only] if *only == block))
+    }) {
         return None;
     }
     let second = test(func, first.next, cold)?;

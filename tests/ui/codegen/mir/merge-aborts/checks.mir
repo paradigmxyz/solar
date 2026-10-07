@@ -194,6 +194,30 @@ fn @panic_calls(arg0: i256, arg1: i256) -> i256 {
     ret v4
 }
 
+// A block that calls the panic helper also continues into the second check
+// without passing the first, so the first check's condition would not dominate
+// a merged test there: the tests stay apart.
+// CHECK-LABEL: {{^[ +].*}}fn @shared_entry{{[( ]}}
+// CHECK-NOT: {{^[-+]}}
+fn @shared_entry(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = eq arg1, 7
+    jumpi v0, bb2, bb1
+  bb1:
+    v1 = lt arg0, 10
+    jumpi v1, bb4, bb3
+  bb2:
+    icall @panic
+    jump bb3
+  bb3:
+    v2 = gt arg0, 100
+    jumpi v2, bb4, bb5
+  bb4:
+    revert 0, 0
+  bb5:
+    ret arg0
+}
+
 // An aborting block with a phi tells its edges apart: the tests stay apart.
 // CHECK-LABEL: {{^[ +].*}}fn @payload{{[( ]}}
 // CHECK-NOT: {{^[-+]}}

@@ -165,6 +165,25 @@
 +     jump bb4
   }
   
+  fn @shared_entry(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      v0 = eq arg1, 7
+      jumpi v0, bb2, bb1
+    bb1:
+      v1 = lt arg0, 10
+      jumpi v1, bb4, bb3
+    bb2:
+      icall @panic
+      jump bb3
+    bb3:
+      v2 = gt arg0, 100
+      jumpi v2, bb4, bb5
+    bb5:
+      ret arg0
+    bb4:
+      revert 0, 0
+  }
+  
   fn @payload(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = add arg0, arg1
