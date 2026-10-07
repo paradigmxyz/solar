@@ -11,7 +11,7 @@
 //! edge: an operand is live out of the predecessor it flows from and is not live into
 //! the merge block, which only sees the phi result.
 
-use crate::mir::{BlockId, Function, InstKind, Terminator, Value, ValueId};
+use crate::mir::{BlockId, Function, InstKind, Terminator, Value, ValueId, analysis::CfgInfo};
 use smallvec::SmallVec;
 use solar_data_structures::{
     bit_set::{BitMatrix, BitMatrixRow, DenseBitSet},
@@ -116,28 +116,9 @@ impl Liveness {
         // live_in(B) = block_uses(B) | (live_out(B) - block_defs(B))
         // Seed the worklist in postorder, so successors settle before their predecessors even
         // when transforms append blocks in the middle of the CFG. Unreachable blocks follow.
-        let mut worklist = VecDeque::with_capacity(num_blocks);
-        let mut seen = DenseBitSet::new_empty(num_blocks);
-        let successors = |block: BlockId| {
-            func.blocks[block].terminator.as_ref().map(Terminator::successors).unwrap_or_default()
-        };
-        let mut stack = Vec::new();
-        if num_blocks != 0 {
-            seen.insert(BlockId::ENTRY);
-            stack.push((BlockId::ENTRY, successors(BlockId::ENTRY)));
-        }
-        while let Some((block, succs)) = stack.last_mut() {
-            let block = *block;
-            if let Some(succ) = succs.pop() {
-                if seen.insert(succ) {
-                    stack.push((succ, successors(succ)));
-                }
-            } else {
-                worklist.push_back(block);
-                stack.pop();
-            }
-        }
-        worklist.extend(func.blocks.indices().rev().filter(|&block| !seen.contains(block)));
+        let cfg = CfgInfo::new(func);
+        let mut worklist = cfg.rpo().iter().rev().copied().collect::<VecDeque<_>>();
+        worklist.extend(func.blocks.indices().rev().filter(|&block| !cfg.is_reachable(block)));
         let mut queued = DenseBitSet::new_filled(num_blocks);
         let mut new_live_out = DenseBitSet::new_empty(num_values);
         let mut new_live_in = DenseBitSet::new_empty(num_values);

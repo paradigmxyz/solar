@@ -473,9 +473,9 @@ impl MemoryStoreEliminator {
         // moved. Postorder puts successors before predecessors, which is the
         // direction information flows here.
         let cfg = self.cfg.as_ref().map_or_else(|| Rc::new(CfgInfo::new(func)), Rc::clone);
-        let order = Self::block_order(&cfg);
         let mut live_in = index_vec![MemLive::empty(); func.blocks.len()];
-        let mut worklist: VecDeque<BlockId> = order.into();
+        let mut worklist = cfg.rpo().iter().rev().copied().collect::<VecDeque<_>>();
+        self.eliminated_count += mir_utils::invalidate_unreachable_blocks(func, cfg.reachable());
         let mut queued = DenseBitSet::new_empty(func.blocks.len());
         for &block_id in &worklist {
             queued.insert(block_id);
@@ -486,7 +486,7 @@ impl MemoryStoreEliminator {
             let new_in = self.transfer_block(func, block_id, out, &mut None);
             if live_in[block_id] != new_in {
                 live_in[block_id] = new_in;
-                for &pred in cfg.predecessors(block_id) {
+                for &pred in &func.blocks[block_id].predecessors {
                     if queued.insert(pred) {
                         worklist.push_back(pred);
                     }
@@ -496,7 +496,7 @@ impl MemoryStoreEliminator {
 
         // Collect dead stores using the stabilized live-out of each block.
         let mut dead = DenseBitSet::new_empty(func.num_insts());
-        for block_id in func.blocks.indices() {
+        for &block_id in cfg.rpo() {
             let out = Self::live_out(func, block_id, &live_in);
             let mut collector = Some(&mut dead);
             self.transfer_block(func, block_id, out, &mut collector);
@@ -519,36 +519,6 @@ impl MemoryStoreEliminator {
             }
         }
         out
-    }
-
-    /// Returns a postorder over every block.
-    ///
-    /// Postorder settles successors before their predecessors, which is the
-    /// direction a backward analysis propagates, so seeding the worklist with it
-    /// converges most functions in a single drain. Unreachable blocks are
-    /// included so their liveness converges too.
-    fn block_order(cfg: &CfgInfo) -> Vec<BlockId> {
-        let mut order = Vec::with_capacity(cfg.num_blocks());
-        let mut visited = DenseBitSet::new_empty(cfg.num_blocks());
-        for root in (0..cfg.num_blocks()).map(BlockId::new) {
-            if !visited.insert(root) {
-                continue;
-            }
-            let mut stack = Vec::new();
-            stack.push((root, 0usize));
-            while let Some((block, next)) = stack.last_mut() {
-                if let Some(&succ) = cfg.successors(*block).get(*next) {
-                    *next += 1;
-                    if visited.insert(succ) {
-                        stack.push((succ, 0));
-                    }
-                } else {
-                    order.push(*block);
-                    stack.pop();
-                }
-            }
-        }
-        order
     }
 
     /// Runs the backward transfer over one block's terminator and instructions,

@@ -1,0 +1,44 @@
+//@compile-flags: -Zmir-pipeline=check-elim
+//@filecheck:
+@module UnreachablePredecessors
+
+// A dead predecessor and its phi input must not weaken the live edge's bound.
+// CHECK-LABEL: {{^[ +].*}}fn @dead_input{{[( ]}}
+// CHECK: - {{v[0-9]+}} = phi [bb0: arg0], [bb3: 100]
+// CHECK: - jumpi {{v[0-9]+}}, bb2, bb4
+// CHECK: + {{v[0-9]+}} = phi [bb0: arg0]
+// CHECK: + jump bb2
+// CHECK: - jump bb1
+// CHECK: + invalid
+fn @dead_input(arg0: i256) -> i256 {
+  bb0:
+    v0 = lt arg0, 10
+    jumpi v0, bb1, bb4
+  bb1:
+    v1 = phi [bb0: arg0], [bb3: 100]
+    v2 = lt v1, 10
+    jumpi v2, bb2, bb4
+  bb2:
+    ret v1
+  bb3:
+    jump bb1
+  bb4:
+    revert 0, 0
+}
+
+// Both branch arms reach the same block, so the unique predecessor proves no condition.
+// CHECK-LABEL: {{^[ +].*}}fn @parallel_edges{{[( ]}}
+// CHECK: {{^ +}}jumpi {{v[0-9]+}}, bb1, bb1
+// CHECK: {{^ +}}jumpi {{v[0-9]+}}, bb2, bb3
+fn @parallel_edges(arg0: i256) -> i256 {
+  bb0:
+    v0 = lt arg0, 10
+    jumpi v0, bb1, bb1
+  bb1:
+    v1 = lt arg0, 10
+    jumpi v1, bb2, bb3
+  bb2:
+    ret 1
+  bb3:
+    ret 0
+}

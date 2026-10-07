@@ -72,17 +72,8 @@ impl CfgInfo {
     /// Returns the blocks reachable from the entry.
     #[must_use]
     pub(crate) fn reachable(&self) -> &DenseBitSet<BlockId> {
-        self.reachable.get_or_init(|| {
-            let mut reachable = DenseBitSet::new_empty(self.successors.len());
-            let mut stack = Vec::new();
-            stack.push(BlockId::ENTRY);
-            while let Some(block) = stack.pop() {
-                if reachable.insert(block) {
-                    stack.extend_from_slice(&self.successors[block]);
-                }
-            }
-            reachable
-        })
+        let _ = self.rpo();
+        self.reachable.get().expect("RPO initializes reachability")
     }
 
     /// Returns true if `block` is reachable from the entry.
@@ -153,6 +144,10 @@ impl CfgInfo {
         self.rpo.get_or_init(|| {
             let mut reachable = DenseBitSet::new_empty(self.successors.len());
             let mut rpo = Vec::with_capacity(self.successors.len());
+            if self.successors.is_empty() {
+                let _ = self.reachable.set(reachable);
+                return rpo;
+            }
             let mut stack = Vec::new();
             stack.push((BlockId::ENTRY, 0usize));
             reachable.insert(BlockId::ENTRY);
@@ -203,18 +198,6 @@ impl CfgInfo {
             reachability
         });
         (block.index() < self.successors.len()).then(|| reachability.row(block))
-    }
-
-    /// Returns reachable predecessor lists in reverse postorder, once per edge.
-    #[must_use]
-    pub(crate) fn reachable_predecessors(&self) -> IndexVec<BlockId, Vec<BlockId>> {
-        let mut predecessors = index_vec![Vec::new(); self.num_blocks()];
-        for &block in self.rpo() {
-            for &successor in self.successors(block) {
-                predecessors[successor].push(block);
-            }
-        }
-        predecessors
     }
 }
 

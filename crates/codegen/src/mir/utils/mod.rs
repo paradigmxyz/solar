@@ -8,6 +8,7 @@ use crate::mir::{BasicBlock, BlockId, Function, InstKind, Instruction, Terminato
 use alloy_primitives::U256;
 use smallvec::smallvec;
 use solar_data_structures::{
+    bit_set::DenseBitSet,
     index::{IndexVec, index_vec},
     map::FxHashMap,
 };
@@ -268,6 +269,18 @@ pub(crate) fn invalidate_unreachable_block(func: &mut Function, block: BlockId) 
         remove_predecessor(func, successor, block);
     }
     true
+}
+
+/// Clears dead blocks and their outgoing edges without renumbering live blocks.
+pub(crate) fn invalidate_unreachable_blocks(
+    func: &mut Function,
+    reachable: &DenseBitSet<BlockId>,
+) -> usize {
+    func.blocks
+        .indices()
+        .filter(|&block| !reachable.contains(block))
+        .map(|block| usize::from(invalidate_unreachable_block(func, block)))
+        .sum()
 }
 
 /// Recomputes every block's predecessor list from the terminators.
