@@ -802,19 +802,16 @@ fn returning_blocks(func: &Function) -> DenseBitSet<BlockId> {
     let mut returning = DenseBitSet::new_empty(func.blocks.len());
     let mut worklist = Vec::new();
     for (block_id, block) in func.blocks.iter_enumerated() {
-        let Some(terminator) = &block.terminator else {
-            returning.insert(block_id);
-            worklist.push(block_id);
-            continue;
-        };
-        let mut exits = true;
-        terminator.for_each_successor(|_| exits = false);
-        if exits
-            && !matches!(
-                terminator,
-                Terminator::Revert { .. } | Terminator::RevertReturndata | Terminator::Invalid
+        if matches!(
+            &block.terminator,
+            None | Some(
+                Terminator::Return { .. }
+                    | Terminator::ReturnData { .. }
+                    | Terminator::Stop
+                    | Terminator::SelfDestruct { .. }
+                    | Terminator::TailCall { .. }
             )
-        {
+        ) {
             returning.insert(block_id);
             worklist.push(block_id);
         }
