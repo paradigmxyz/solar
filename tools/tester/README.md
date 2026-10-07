@@ -17,6 +17,29 @@ cargo tq foundry
 
 Set `SOLAR_FOUNDRY_PROJECT` to run one discovered project while debugging.
 
+## Runtime directives
+
+UI tests can execute one isolated entry-point call with `run-call` and
+`run-call-fail`. Each directive deploys a fresh contract, so calls never share
+state. Use Foundry projects under `tests/foundry/` for multi-transaction
+sequences, persistent state, multiple actors or contracts, event assertions,
+cheatcodes, and complex setup.
+
+`//@ run-call: add 1, 2 => 3`: Deploy a fresh contract, ABI-encode and call the
+named function, then compare its ABI-encoded return values. Omit `=>` when no
+return data is expected. Raw calldata and return data may be written as hex.
+Add settings after a semicolon, for example
+`add 2; constructor=[40], gas=100000, value=3 => 45`. Settings are
+comma-separated. `constructor=[...]` supplies ABI-encoded constructor
+arguments, `gas` sets the call transaction's gas limit, and `value` sets its
+value in wei. Numeric settings accept decimal and `0x`-prefixed integers.
+Deployment and `setUp()` use the default gas limit and zero value.
+
+`//@ run-call-fail: fail()`: Like `run-call`, but require the call to fail.
+Add `=> 0x...` to check exact revert data. Both directives use the EVM version
+selected by `--evm-version`. Calls to functions named `test*` run a
+zero-argument `setUp()` first when the contract defines it.
+
 ## Compiler artifact comparisons
 
 Use [compiler-diff](../compiler-diff/README.md) for local or Sourcify standard-JSON
@@ -46,6 +69,15 @@ Projects are pinned to full commit hashes in
 network. Fetch failures skip the project, so offline runs degrade instead of
 failing. `forge` resolves and downloads each project's own solc for the
 baseline leg.
+
+Add a project (pinned to a full commit hash, git submodules only for
+dependencies) when whole-project scale is what finds the bugs: dispatch and
+ABI breadth, deep inheritance, assembly-heavy libraries, EIP-170 pressure.
+Keep writing minimal in-repo `tests/foundry/` projects or `run-call` UI tests
+for anything that can be reduced: external projects never run in CI, and a
+reduced regression test must land with any fix they surface. Skip entries
+require a reason; sustained divergences graduate to
+[SOLC_DIVERGENCE.md](../../docs/SOLC_DIVERGENCE.md).
 
 Use Forge v0.3.0 on `PATH` for Solmate: newer versions reject its `testFail*`
 cases before running them. The other projects use a current Forge; OpenZeppelin
