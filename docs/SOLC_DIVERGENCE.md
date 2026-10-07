@@ -371,15 +371,18 @@ No intentional divergences documented yet.
 
 - ID: CODEGEN-010
 - Status: intentional
-- Difference: An inline assembly store to the free memory pointer slot whose
-  value the function computes from constants and calldata, and which a later
-  `mload` of the slot can read back, stores at least the initial free memory
-  pointer. After `mstore(0x40, 0x80)`, a later `mload(0x40)` returns `0x80`
-  under `solc` and the initial pointer here. Every runtime entry that reaches
-  a function writing memory at an absolute address computed from calldata, as
-  Seaport lays out a basic order's hashes and event data, keeps its spill
-  slots and the frames it reaches above `0x2080`, which costs memory
-  expansion gas.
+- Difference: When inline assembly stores a value computed from constants
+  and calldata into the free memory pointer slot, every later read of the
+  slot as the pointer sees at least the initial free memory pointer: an
+  allocation, or an `mload` whose word addresses memory. After
+  `mstore(0x40, 0x80)`, such a read sees `0x80` under `solc` and the initial
+  pointer here. A word that is also read as data, such as one hashed in
+  scratch memory or loaded and compared, stays in the slot for those reads,
+  and only the pointer reads see the raised value. Every runtime entry that
+  reaches a function writing memory at an absolute address computed from
+  calldata, as Seaport lays out a basic order's hashes and event data, keeps
+  its spill slots and the frames it reaches above `0x2080` and above the
+  constant ranges assembly names there, which costs memory expansion gas.
 - Rationale: The spill slots and internal-call frames below the initial free
   memory pointer (CODEGEN-009) hold values that `solc` keeps on the stack. The
   next allocation after a lowered pointer, or the absolute layout itself,
@@ -387,10 +390,14 @@ No intentional divergences documented yet.
   initial one and keeps its value. So does a store that only fills the slot
   with data, such as an error argument before a revert or a hash input before
   the pointer is restored, also when an assembly function writes or hashes the
-  slot; the search follows internal calls and returns. An absolute pointer
-  that reaches the store through a parameter, memory, or a call keeps its
-  value. A layout that grows past `0x2080`, or one indexed by a loop counter
-  alone, can still reach the compiler's memory; Seaport's basic orders with
-  about 40 or more additional recipients do.
-- Coverage: `tests/ui/codegen/lowering/run-call/assembly_low_memory_layouts.sol`
-  and Seaport's own suite in `cargo tq foundry-external seaport`.
+  slot; the search follows internal calls and returns, so a helper's scratch
+  word is raised only on the paths of the callers that allocate from it. An
+  absolute pointer that reaches the store through a parameter, memory, or a
+  call keeps its value, and so does a read at an address derived from memory
+  or the heap that happens to cover the slot. A layout that grows past
+  `0x2080`, or one indexed by a loop counter alone, can still reach the
+  compiler's memory; Seaport's basic orders with about 40 or more additional
+  recipients do.
+- Coverage: `tests/ui/codegen/lowering/run-call/assembly_low_memory_layouts.sol`,
+  `tests/ui/codegen/mir/heap-floor/heap_floor.mir`, and Seaport's own suite in
+  `cargo tq foundry-external seaport`.
