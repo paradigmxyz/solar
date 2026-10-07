@@ -1,15 +1,16 @@
-//! Forward inherited return addresses through terminal void calls and reuse a
+//! Forward inherited return addresses through compatible terminal calls and reuse a
 //! dynamic frame for direct self-tail recursion.
 //!
-//! At the MIR-to-EVM boundary, an internal call immediately followed by a void
+//! At the MIR-to-EVM boundary, an internal call immediately followed by a compatible
 //! return can install the callee's argument stack above the caller's inherited
 //! return address. The callee then returns directly to the original continuation,
 //! avoiding a new return label and the caller's return epilogue. MIR call and
 //! return semantics remain unchanged.
 //!
 //! This currently requires nonrecursive static frames, a complete stack
-//! argument convention and a callee that returns no words: a result the void
-//! caller discards would otherwise stay on the continuation's stack. Dynamic
+//! argument convention and either no results or one directly forwarded stack result.
+//! Both functions must use the same stack-return convention for result forwarding;
+//! a result the void caller discards would stay on the continuation's stack. Dynamic
 //! frames retain their restoration protocol, and mixed memory/stack arguments
 //! retain ordinary call lowering. Constructors and external entries do not have
 //! the inherited internal return address. Discard
@@ -102,7 +103,7 @@ impl EvmCodegen<'_> {
         self.mark_debug_function_exit(func, DebugFunctionExit::Return);
     }
 
-    pub(in crate::backend::evm::codegen) fn void_tail_call<'a>(
+    pub(in crate::backend::evm::codegen) fn forwarding_tail_call<'a>(
         &self,
         caller: FunctionId,
         func: &'a Function,
@@ -110,7 +111,6 @@ impl EvmCodegen<'_> {
     ) -> Option<(FunctionId, &'a [ValueId])> {
         if matches!(self.gcx.sess.opts.optimization, OptimizationMode::None)
             || !self.in_internal_function
-            || !func.return_components().is_empty()
             || !self.static_frame_functions.contains(caller)
             || self.recursive_frame_functions.contains(caller)
             || self.recursive_stack_functions.contains(caller)
@@ -118,16 +118,16 @@ impl EvmCodegen<'_> {
             return None;
         }
         let block = &func.blocks[block];
-        if !matches!(&block.terminator, Some(Terminator::Return { values }) if values.is_empty()) {
-            return None;
-        }
-        let inst = func.inst(*block.instructions.last()?);
-        // A callee that returns words would leave them above the inherited return address, so
-        // only a void callee can return straight to the void caller's continuation, even when
-        // the caller discards the call's results.
+        let Some(Terminator::Return { values }) = &block.terminator else { return None };
+        let inst_id = *block.instructions.last()?;
+        let inst = func.inst(inst_id);
         if let InstKind::ICall { function: crate::mir::Callee::Function(function), args } =
             &inst.kind
-            && self.function_return_counts[*function] == 0
+            && (values.is_empty() && self.function_return_counts[*function] == 0
+                || values.len() == 1
+                    && func.inst_result_value(inst_id) == Some(values[0])
+                    && self.stack_return_plan(caller).is_some_and(|plan| plan.arity == 1)
+                    && self.stack_return_plan(*function).is_some_and(|plan| plan.arity == 1))
             && self.static_frame_functions.contains(*function)
             && !self.recursive_frame_functions.contains(*function)
             && !self.recursive_stack_functions.contains(*function)
@@ -143,7 +143,7 @@ impl EvmCodegen<'_> {
         }
     }
 
-    pub(in crate::backend::evm::codegen) fn emit_void_tail_call(
+    pub(in crate::backend::evm::codegen) fn emit_forwarding_tail_call(
         &mut self,
         caller: FunctionId,
         func: &Function,
