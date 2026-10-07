@@ -1,0 +1,433 @@
+// === ROOT/tests/ui/codegen/lowering/redundant_operand_pop.sol:Child (runtime) ===
+@module Child_runtime
+bb0:
+  push 0
+  push 0
+  revert
+// === ROOT/tests/ui/codegen/lowering/redundant_operand_pop.sol:RedundantOperandPop (runtime) ===
+@module RedundantOperandPop_runtime
+@data
+  Child_creation_code_0: hex"61017a38038061017a6101c0396101c001601f01601f191660405234610173576101c08061017a3803016060820181108282036020111761017357815180830160208101915f1960c01c10838311176101735751600181018015610161578060051b8060051c909103610161576040519081018181105f1960c01c82111761016157604052818152600860f81b8210156101615782840360051c8211610173576020015f9190929060cb565b81518060a01c610173578360051b85015260019003906020019160010191905b5f811160ab57602086019350505050808203602011610173575180920160208101925f1960c01c10828411176101735751600181018015610161578060051b8060051c909103610161576040519081018181105f1960c01c821117610161576040528181528160051b8060051c8303610161578490930360051c909111610173576020018183825e5050506003806101775f395ff35b634e487b715f5260416020526024601cfd5b5f5ffd5f5ffd"
+
+bb0:
+  callvalue
+  push bb4
+  jumpi
+  push 0
+  calldataload
+  push 224
+  shr
+  dup 1
+  push 0x9e78fb4f
+  eq
+  push bb5
+  jumpi
+  dup 1
+  push 0xebef2b99
+  eq
+  push bb14
+  jumpi
+  jump bb4
+bb4 [cold]:
+  push 0
+  push 0
+  revert
+bb13 [cold]:
+  push 0x4e487b71
+  push 0
+  mstore
+  push 65
+  push 32
+  mstore
+  push 36
+  push 28
+  revert
+bb5:
+  push 160
+  dup 1
+  push 64
+  mstore
+  dup 1
+  push 96
+  dup 3
+  add
+  dup 3
+  dup 2
+  lt
+  push 0
+  not
+  push 192
+  shr
+  dup 3
+  gt
+  or
+  push bb13
+  jumpi
+  push 64
+  mstore
+  push 96
+  calldatasize
+  dup 4
+  calldatacopy
+  push 2
+  swap 1
+  swap 2
+  mstore
+  push 64
+  mload
+  push 96
+  dup 2
+  add
+  dup 2
+  dup 2
+  lt
+  push 0
+  not
+  push 192
+  shr
+  dup 3
+  gt
+  or
+  push bb13
+  jumpi
+  push 64
+  mstore
+  push 96
+  calldatasize
+  dup 3
+  calldatacopy
+  push 2
+  dup 2
+  mstore
+  returndatasize
+  push 0
+  push 0
+  returndatacopy
+  push 64
+  mload
+  push 96
+  dup 2
+  add
+  push 96
+  dup 3
+  mstore
+  dup 1
+  push bb8
+  dup 6
+  dup 3
+  jump bb24
+bb24:
+  swap 1
+  dup 1
+  iszero
+  iszero
+  dup 2
+  mload
+  mul
+  dup 1
+  dup 4
+  mstore
+  push 32
+  dup 4
+  add
+  swap 2
+  push 32
+  add
+  dup 3
+  swap 1
+  sub
+  dup 2
+  iszero
+  iszero
+  swap 1
+  swap 3
+  swap 2
+  swap 1
+  push bb25
+  jumpi
+  pop
+  swap 1
+  pop
+  sub
+  swap 1
+  jump
+bb8 [continuation]:
+  swap 5
+  pop
+  pop
+  swap 1
+  swap 3
+  add
+  dup 3
+  dup 2
+  sub
+  push 32
+  dup 5
+  add
+  mstore
+  dup 2
+  iszero
+  iszero
+  dup 3
+  mload
+  mul
+  dup 1
+  dup 3
+  mstore
+  push 5
+  shl
+  swap 1
+  push 32
+  add
+  dup 2
+  dup 2
+  add
+  swap 3
+  push 32
+  add
+  dup 3
+  dup 2
+  dup 4
+  mcopy
+  pop
+  pop
+  pop
+  push 64
+  dup 3
+  add
+  push 17
+  swap 1
+  mstore
+  jump bb28
+bb28:
+  sub
+  push 31
+  dup 2
+  add
+  push 31
+  not
+  and
+  push 64
+  mload
+  swap 1
+  dup 2
+  add
+  push 64
+  mstore
+  push 378
+  dup 3
+  dup 2
+  add
+  dup 2
+  dup 2
+  lt
+  push 31
+  dup 3
+  add
+  dup 3
+  dup 2
+  lt
+  swap 1
+  swap 2
+  or
+  push bb13
+  jumpi
+  push 31
+  not
+  and
+  push 64
+  mload
+  swap 1
+  dup 2
+  add
+  push 64
+  mstore
+  dup 3
+  push_data Child_creation_code_0
+  dup 3
+  codecopy
+  swap 2
+  dup 3
+  add
+  dup 5
+  dup 5
+  dup 3
+  mcopy
+  pop
+  swap 3
+  pop
+  swap 1
+  pop
+  push 0
+  create
+  dup 1
+  iszero
+  push bb11
+  jumpi
+  push 128
+  mstore
+  push 32
+  push 128
+  return
+bb14:
+  push 160
+  dup 1
+  push 64
+  mstore
+  push 96
+  dup 2
+  add
+  dup 2
+  dup 2
+  lt
+  push 0
+  not
+  push 192
+  shr
+  dup 3
+  gt
+  or
+  push bb13
+  jumpi
+  push 64
+  mstore
+  dup 1
+  push 96
+  calldatasize
+  dup 3
+  calldatacopy
+  push 2
+  swap 1
+  mstore
+  returndatasize
+  push 0
+  push 0
+  returndatacopy
+  push 64
+  mload
+  dup 1
+  push 64
+  dup 3
+  add
+  dup 3
+  dup 2
+  lt
+  push 0
+  not
+  push 192
+  shr
+  dup 3
+  gt
+  or
+  push bb13
+  jumpi
+  push 64
+  mstore
+  push 64
+  calldatasize
+  dup 4
+  calldatacopy
+  push 1
+  swap 1
+  swap 2
+  mstore
+  push 64
+  mload
+  push 96
+  dup 2
+  add
+  push 96
+  dup 3
+  mstore
+  dup 1
+  push bb17
+  dup 5
+  dup 3
+  jump bb24
+bb17 [continuation]:
+  swap 4
+  pop
+  pop
+  swap 1
+  swap 2
+  add
+  dup 2
+  dup 2
+  sub
+  push 32
+  dup 4
+  add
+  mstore
+  dup 3
+  iszero
+  iszero
+  dup 4
+  mload
+  mul
+  dup 1
+  dup 3
+  mstore
+  push 5
+  shl
+  swap 1
+  push 32
+  add
+  dup 2
+  dup 2
+  add
+  swap 4
+  push 32
+  add
+  dup 3
+  dup 2
+  dup 4
+  mcopy
+  pop
+  pop
+  pop
+  push 64
+  dup 2
+  add
+  push 5
+  swap 1
+  mstore
+  swap 1
+  jump bb28
+bb25 [loop]:
+  dup 3
+  dup 3
+  add
+  mload
+  push 0
+  not
+  push 96
+  shr
+  and
+  dup 3
+  mstore
+  push 1
+  swap 1
+  sub
+  swap 1
+  push 32
+  add
+  dup 2
+  iszero
+  iszero
+  exchange 1, 2
+  push bb25
+  jumpi
+  pop
+  swap 1
+  pop
+  sub
+  swap 1
+  jump
+bb11 [cold]:
+  returndatasize
+  push 0
+  push 0
+  returndatacopy
+  returndatasize
+  push 0
+  revert
