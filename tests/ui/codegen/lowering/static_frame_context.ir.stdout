@@ -32,7 +32,7 @@ bb5 [cold]:
   push 0
   push 0
   revert
-bb41 [cold]:
+bb14 [cold]:
   push 0x4e487b71
   push 0
   mstore
@@ -42,13 +42,13 @@ bb41 [cold]:
   push 36
   push 28
   revert
-bb19 [continuation]:
+bb18 [continuation]:
   dup 2
   add
   swap 1
   dup 2
   lt
-  push bb41
+  push bb14
   jumpi
   swap 1
   jump
@@ -58,125 +58,55 @@ bb6:
   calldataload
   jump bb15
 bb15:
+  dup 1
   push 0x2000
   mstore
   push 0
+  sub
   push 0
+  swap 1
   jump bb16
-bb23 [loop]:
+bb21 [loop]:
   swap 1
   push 2
   add
-  push 2
-  add
-  push 2
-  add
-  push 2
-  add
   swap 1
-  push 1
-  add
-  push 1
-  add
-  push 1
-  add
   push 1
   add
   jump bb16
 bb16 [loop]:
-  push 3
-  dup 2
-  add
-  push 0x2000
-  mload
-  gt
-  push bb23
-  jumpi
-  jump bb17
-bb22 [loop]:
-  swap 1
-  push 2
-  add
-  swap 1
-  push 1
-  add
-  jump bb17
-bb17 [loop]:
-  push 0x2000
-  mload
-  dup 2
-  lt
-  push bb22
+  dup 1
+  push bb21
   jumpi
   pop
-  push bb19
+  push bb18
   push 0x2000
   mload
-  jump bb33
-bb33:
+  jump bb29
+bb29:
   push 0x2020
   mstore
   push 0
   push 0
-  jump bb34
-bb39 [loop]:
-  dup 1
-  dup 3
-  add
-  swap 1
-  push 1
-  add
-  dup 1
-  swap 2
-  add
-  swap 1
-  push 1
-  add
-  dup 1
-  swap 2
-  add
-  swap 1
-  push 1
-  add
-  dup 1
-  swap 2
-  add
-  swap 2
-  dup 3
-  lt
-  push bb41
-  jumpi
-  push 1
-  add
-  jump bb34
-bb34 [loop]:
-  push 3
-  dup 2
-  add
-  push 0x2020
-  mload
-  gt
-  push bb39
-  jumpi
-  jump bb35
-bb37 [loop]:
+  jump bb30
+bb32 [loop]:
   dup 1
   dup 3
   add
   swap 2
   dup 3
   lt
-  push bb41
+  push bb14
   jumpi
   push 1
   add
-  jump bb35
-bb35 [loop]:
+  jump bb30
+bb30 [loop]:
   push 0x2020
   mload
   dup 2
   lt
-  push bb37
+  push bb32
   jumpi
   pop
   swap 1
@@ -195,64 +125,33 @@ bb8:
   push bb9
   push 4
   calldataload
-  jump bb24
-bb24:
+  jump bb22
+bb22:
+  dup 1
   push 0x2000
   mstore
   push 0
+  sub
   push 0
-  jump bb25
-bb32 [loop]:
-  push 4
-  add
-  push 4
-  add
-  push 4
-  add
-  push 4
-  add
-  swap 1
-  push 1
-  add
-  push 1
-  add
-  push 1
-  add
-  push 1
-  add
-  swap 1
-  jump bb25
-bb25 [loop]:
-  push 3
-  dup 3
-  add
-  push 0x2000
-  mload
-  gt
-  push bb32
-  jumpi
-  jump bb26
-bb31 [loop]:
+  jump bb23
+bb28 [loop]:
   push 4
   add
   swap 1
   push 1
   add
   swap 1
-  jump bb26
-bb26 [loop]:
-  push 0x2000
-  mload
-  dup 3
-  lt
-  push bb31
+  jump bb23
+bb23 [loop]:
+  dup 2
+  push bb28
   jumpi
   swap 1
   pop
-  push bb19
+  push bb18
   push 0x2000
   mload
-  jump bb33
+  jump bb29
 bb9 [continuation]:
   push 4
   calldataload
@@ -271,7 +170,7 @@ bb11 [continuation]:
   push bb12
   push 4
   calldataload
-  jump bb24
+  jump bb22
 bb12 [continuation]:
   dup 2
   add
@@ -286,7 +185,7 @@ bb12 [continuation]:
   dup 3
   lt
   or
-  push bb41
+  push bb14
   jumpi
   push 128
   mstore

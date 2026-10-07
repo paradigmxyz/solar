@@ -14,10 +14,7 @@
 
 contract LoopBoundResident {
     // CHECK-LABEL: @module LoopBoundResident_runtime
-    // Both headers duplicate the resident bound: the unrolled loop's against the
-    // counter one step ahead, and the remaining loop's with the current counter.
-    // CHECK: dup 5
-    // CHECK-NEXT: gt
+    // The header duplicates both the resident bound and the current counter.
     // CHECK: dup 4
     // CHECK-NEXT: dup 4
     // CHECK-NEXT: lt

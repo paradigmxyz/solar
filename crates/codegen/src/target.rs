@@ -344,6 +344,11 @@ impl Target {
     /// run per invocation when weighing code growth inside it: GCC's estimate
     /// for such loops.
     pub(crate) const UNCOUNTED_LOOP_ITERATIONS: u64 = 10;
+    /// The optimizer runs from which loop transformations that copy a loop's
+    /// body, unrolling and peeling, may run: below them, as at the default 200,
+    /// a build still values its code size, and the copies grow a contract built
+    /// around one loop by half or more.
+    pub(crate) const LOOP_COPY_MIN_RUNS: u64 = 10_000;
 
     /// The model of the session's EVM version, objective, and optimizer runs.
     pub(crate) fn new(gcx: Gcx<'_>) -> Self {
@@ -382,6 +387,11 @@ impl Target {
 
     pub(crate) fn expected_executions(self) -> u64 {
         self.expected_executions
+    }
+
+    /// Whether the build expects enough executions to copy loop bodies for runtime gas.
+    pub(crate) fn copies_loops(self) -> bool {
+        self.expected_executions >= Self::LOOP_COPY_MIN_RUNS
     }
 
     /// Static gas of one opcode; unknown opcodes are free.
@@ -842,5 +852,14 @@ mod tests {
         assert_eq!(target.data_copy_gas(64), 18);
         let legacy = Target::with(EvmVersion::Paris, OptimizationMode::Gas, 200);
         assert_eq!(legacy.push(U256::ZERO), Cost::new(3, 2));
+    }
+
+    #[test]
+    fn loop_copies_need_many_runs() {
+        let target = |runs| Target::with(EvmVersion::Osaka, OptimizationMode::Gas, runs);
+        assert!(!target(Target::DEFAULT_EXPECTED_EXECUTIONS).copies_loops());
+        assert!(!target(Target::LOOP_COPY_MIN_RUNS - 1).copies_loops());
+        assert!(target(Target::LOOP_COPY_MIN_RUNS).copies_loops());
+        assert!(target(u64::from(u32::MAX)).copies_loops());
     }
 }

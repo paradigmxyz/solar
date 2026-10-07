@@ -162,17 +162,12 @@ fn @popStr() [selector=0x5d7696c3, abi_wrapper] {
   bb1:
     mstore 0, v4 !metadata(memory=scratch)
     v29 = keccak256 0, 32 !metadata(memory=scratch)
-    jump bb9
-  bb9:
-    v31 = phi [bb1: 0], [bb10: v49]
-    v32 = phi [bb1: v29], [bb10: v50]
-    v51 = add v31, 3
-    v52 = lt v51, v13
-    jumpi v52, bb10, bb5
+    v31 = sub 0, v13
+    jump bb5
   bb5:
-    v16 = phi [bb9: v31], [bb6: v19]
-    v17 = phi [bb9: v32], [bb6: v20]
-    v18 = lt v16, v13
+    v16 = phi [bb1: v31], [bb6: v19]
+    v17 = phi [bb1: v29], [bb6: v20]
+    v18 = ne v16, 0
     jumpi v18, bb6, bb2
   bb2:
     sstore v4, 0 !metadata(storage=symbolic(v4))
@@ -182,20 +177,6 @@ fn @popStr() [selector=0x5d7696c3, abi_wrapper] {
     v19 = add v16, 1
     v20 = add v17, 1
     jump bb5
-  bb10:
-    sstore v32, 0
-    v34 = add v31, 1
-    v35 = add v32, 1
-    sstore v35, 0
-    v39 = add v34, 1
-    v40 = add v35, 1
-    sstore v40, 0
-    v44 = add v39, 1
-    v45 = add v40, 1
-    sstore v45, 0
-    v49 = add v44, 1
-    v50 = add v45, 1
-    jump bb9
   bb7:
     tail_call @revert_stub.7
   bb3:

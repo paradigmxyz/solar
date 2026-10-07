@@ -73,77 +73,15 @@ bb8:
   push 1
   jump bb32
 bb32:
-  push 192
-  mstore
   push 160
   mstore
   push 0
+  sub
   push 0
+  swap 1
   jump bb33
-bb38 [loop]:
-  push 192
-  mload
-  dup 3
-  add
-  swap 2
-  dup 3
-  lt
-  swap 1
-  push 1
-  add
-  push 192
-  mload
-  dup 4
-  add
-  swap 3
-  dup 4
-  lt
-  swap 1
-  swap 2
-  or
-  swap 1
-  push 1
-  add
-  push 192
-  mload
-  dup 4
-  add
-  swap 3
-  dup 4
-  lt
-  swap 1
-  swap 2
-  or
-  swap 1
-  push 1
-  add
-  push 192
-  mload
-  dup 4
-  add
-  swap 3
-  dup 4
-  lt
-  swap 1
-  swap 2
-  or
-  push bb25
-  jumpi
-  push 1
-  add
-  jump bb33
-bb33 [loop]:
-  push 3
-  dup 2
-  add
+bb35 [loop]:
   push 160
-  mload
-  gt
-  push bb38
-  jumpi
-  jump bb34
-bb36 [loop]:
-  push 192
   mload
   dup 3
   add
@@ -154,13 +92,10 @@ bb36 [loop]:
   jumpi
   push 1
   add
-  jump bb34
-bb34 [loop]:
-  push 160
-  mload
-  dup 2
-  lt
-  push bb36
+  jump bb33
+bb33 [loop]:
+  dup 1
+  push bb35
   jumpi
   pop
   swap 1

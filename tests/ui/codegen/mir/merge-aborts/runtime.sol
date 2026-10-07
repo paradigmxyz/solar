@@ -1,5 +1,5 @@
 //@ codegen-matrix: standard dump
-//@[dump] compile-flags: -Ogas -Zdump=mir
+//@[dump] compile-flags: -Ogas --optimize-runs 10000 -Zdump=mir
 //@[dump] filecheck:
 //@ run-call: sum3 1, 2, 3 => 6
 //@ run-call-fail: sum3 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 1, 0 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011

@@ -1,4 +1,4 @@
-//@compile-flags: -Zmir-pipeline=loop-unroll
+//@compile-flags: -Zmir-pipeline=loop-unroll --optimize-runs 10000
 //@filecheck:
 @module CountedLoops
 
@@ -454,14 +454,14 @@ fn @up_to(arg0: i256, arg1: i256) -> i256 {
     revert 0, 0
 }
 
-// A larger body pays for two copies but not for four.
-// CHECK-LABEL: {{^[ +].*}}fn @two_copies{{[( ]}}
+// At these runs a larger body pays for four copies as well.
+// CHECK-LABEL: {{^[ +].*}}fn @larger_body{{[( ]}}
 // CHECK: + [[I:v[0-9]+]] = phi [bb0: 0], {{\[}}{{bb[0-9]+}}: {{v[0-9]+}}]
-// CHECK: + [[AHEAD:v[0-9]+]] = add [[I]], 1
+// CHECK: + [[AHEAD:v[0-9]+]] = add [[I]], 3
 // CHECK-NEXT: + {{v[0-9]+}} = lt [[AHEAD]], arg0
-// CHECK-COUNT-2: + {{v[0-9]+}} = xor
+// CHECK-COUNT-4: + {{v[0-9]+}} = xor
 // CHECK-NOT: + {{v[0-9]+}} = xor
-fn @two_copies(arg0: i256, arg1: i256) -> i256 {
+fn @larger_body(arg0: i256, arg1: i256) -> i256 {
   bb0:
     jump bb1
   bb1:

@@ -14,10 +14,7 @@
 //@ run-call: rotate 2, 3, 5, 4 => 23, 27, 11
 contract LoopPhiOrder {
     // CHECK-LABEL: @module LoopPhiOrder_runtime
-    // The loop that runs the last iterations consumes the accumulator directly
-    // after BYTE, without shuffling expired phis.
-    // CHECK: byte
-    // CHECK: jump {{bb[0-9]+}}
+    // The accumulator is consumed directly after BYTE, without shuffling expired phis.
     // CHECK: byte
     // CHECK-NEXT: add
     function packed(uint256 x, uint256 rounds) public pure returns (uint256 result) {

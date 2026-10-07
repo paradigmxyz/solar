@@ -1,4 +1,5 @@
 //@ codegen-matrix: standard dump
+//@ compile-flags: --optimize-runs 10000
 //@[dump] compile-flags: -Ogas -Zdump=mir
 //@[dump] filecheck:
 //@ run-call: sum 0 => 0
@@ -56,10 +57,11 @@
 // CHECK: [[J_AHEAD:v[0-9]+]] = add [[J]], 3
 // CHECK-NEXT: {{v[0-9]+}} = lt [[J_AHEAD]], {{v[0-9]+}}
 // CHECK: phi [{{bb[0-9]+}}: [[J]]]
-// `squares` counts from one while `i <= n`, and two copies testing `i < n`
-// cost less than four that add to the counter first.
+// `squares` counts from one while `i <= n`, and at these runs four copies that
+// add to the counter first pay more than two testing `i < n`.
 // CHECK: [[K:v[0-9]+]] = phi [{{bb[0-9]+}}: 1], {{\[}}{{bb[0-9]+}}: {{v[0-9]+}}]
-// CHECK: {{v[0-9]+}} = lt [[K]], {{v[0-9]+}}
+// CHECK-NEXT: [[K_AHEAD:v[0-9]+]] = add [[K]], 3
+// CHECK-NEXT: {{v[0-9]+}} = gt [[K_AHEAD]], {{v[0-9]+}}
 // CHECK: phi [{{bb[0-9]+}}: [[K]]]
 // CHECK: [[L:v[0-9]+]] = phi [{{bb[0-9]+}}: 0], {{\[}}{{bb[0-9]+}}: {{v[0-9]+}}]
 // CHECK: [[L_AHEAD:v[0-9]+]] = add [[L]], 3

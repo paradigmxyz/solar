@@ -682,17 +682,17 @@
 +     revert 0, 0
   }
   
-  fn @two_copies(arg0: i256, arg1: i256) -> i256 {
+  fn @larger_body(arg0: i256, arg1: i256) -> i256 {
     bb0:
 -     jump bb1
 +     jump bb4
 +   bb4:
-+     v9 = phi [bb0: 0], [bb7: v26]
-+     v10 = phi [bb0: 0], [bb7: v25]
++     v9 = phi [bb0: 0], [bb11: v44]
++     v10 = phi [bb0: 0], [bb11: v43]
 +     v11 = lt v9, arg0
-+     v27 = add v9, 1
-+     v28 = lt v27, arg0
-+     jumpi v28, bb5, bb1
++     v45 = add v9, 3
++     v46 = lt v45, arg0
++     jumpi v46, bb5, bb1
     bb1:
 -     v0 = phi [bb0: 0], [bb2: v8]
 -     v1 = phi [bb0: 0], [bb2: v7]
@@ -728,6 +728,28 @@
 +     v24 = and v23, 0x7fffffffffffffffffff
 +     v25 = add v24, v17
 +     v26 = add v17, 1
++     jump bb8
++   bb8:
++     v29 = lt v26, arg0
++     jump bb9
++   bb9:
++     v30 = mul v25, 0x123456789abcdef
++     v31 = xor v30, 0xfedcba987654321
++     v32 = add v31, arg1
++     v33 = and v32, 0x7fffffffffffffffffff
++     v34 = add v33, v26
++     v35 = add v26, 1
++     jump bb10
++   bb10:
++     v38 = lt v35, arg0
++     jump bb11
++   bb11:
++     v39 = mul v34, 0x123456789abcdef
++     v40 = xor v39, 0xfedcba987654321
++     v41 = add v40, arg1
++     v42 = and v41, 0x7fffffffffffffffffff
++     v43 = add v42, v35
++     v44 = add v35, 1
 +     jump bb4
   }
   

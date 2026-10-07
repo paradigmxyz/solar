@@ -15,25 +15,9 @@ bb0:
   jumpi
   dup 1
   push 0x65372147
-  eq
-  push bb5
+  sub
+  push bb4
   jumpi
-  jump bb4
-bb4 [cold]:
-  push 0
-  push 0
-  revert
-bb15 [cold]:
-  push 0x4e487b71
-  push 0
-  mstore
-  push 17
-  push 32
-  mstore
-  push 36
-  push 28
-  revert
-bb5:
   push 0
   sload
   push 128
@@ -41,6 +25,10 @@ bb5:
   push 32
   push 128
   return
+bb4 [cold]:
+  push 0
+  push 0
+  revert
 bb6:
   push 36
   calldatasize
@@ -50,46 +38,17 @@ bb6:
   push 1
   push 2
   jump bb8
-bb13 [loop]:
-  dup 1
-  dup 3
-  mul
-  dup 2
-  dup 2
-  div
-  swap 1
-  swap 3
-  eq
-  swap 1
-  push 1
-  add
-  dup 1
-  dup 4
-  mul
-  dup 2
-  dup 2
-  div
-  swap 1
-  swap 4
-  eq
-  swap 1
-  swap 2
-  and
-  iszero
-  push bb15
-  jumpi
-  push 1
-  add
-  jump bb8
-bb8 [loop]:
-  push 4
-  calldataload
-  dup 2
-  lt
-  push bb13
-  jumpi
-  jump bb9
-bb11 [loop]:
+bb12 [cold]:
+  push 0x4e487b71
+  push 0
+  mstore
+  push 17
+  push 32
+  mstore
+  push 36
+  push 28
+  revert
+bb10 [loop]:
   dup 1
   dup 3
   mul
@@ -99,18 +58,18 @@ bb11 [loop]:
   swap 1
   swap 3
   sub
-  push bb15
+  push bb12
   jumpi
   push 1
   add
-  jump bb9
-bb9 [loop]:
+  jump bb8
+bb8 [loop]:
   push 4
   calldataload
   dup 2
   gt
   iszero
-  push bb11
+  push bb10
   jumpi
   swap 1
   push 0
@@ -129,24 +88,18 @@ bb0:
   dup 1
   push 0x3ed7bb22
   eq
-  push bb17
+  push bb14
   jumpi
   dup 1
   push 0x6f25cb96
   eq
-  push bb26
+  push bb21
   jumpi
   dup 1
   push 0x83714834
-  eq
-  push bb6
+  sub
+  push bb5
   jumpi
-  jump bb5
-bb5 [cold]:
-  push 0
-  push 0
-  revert
-bb6:
   push 36
   calldatasize
   lt
@@ -155,7 +108,7 @@ bb6:
   push 2
   push 1
   jump bb8
-bb13 [loop]:
+bb10 [loop]:
   dup 2
   dup 2
   mul
@@ -164,24 +117,8 @@ bb13 [loop]:
   div
   swap 1
   swap 2
-  eq
-  swap 2
-  push 1
-  add
-  dup 1
-  dup 3
-  mul
-  dup 2
-  dup 2
-  div
-  swap 1
-  swap 3
-  eq
-  swap 1
-  swap 3
-  and
-  iszero
-  push bb15
+  sub
+  push bb12
   jumpi
   swap 1
   push 1
@@ -192,41 +129,20 @@ bb8 [loop]:
   push 4
   calldataload
   dup 3
-  lt
-  push bb13
-  jumpi
-  jump bb9
-bb11 [loop]:
-  dup 2
-  dup 2
-  mul
-  dup 3
-  dup 2
-  div
-  swap 1
-  swap 2
-  sub
-  push bb15
-  jumpi
-  swap 1
-  push 1
-  add
-  swap 1
-  jump bb9
-bb9 [loop]:
-  push 4
-  calldataload
-  dup 3
   gt
   iszero
-  push bb11
+  push bb10
   jumpi
   push 128
   mstore
   push 32
   push 128
   return
-bb17:
+bb5 [cold]:
+  push 0
+  push 0
+  revert
+bb14:
   push 68
   calldatasize
   lt
@@ -235,48 +151,15 @@ bb17:
   push 4
   calldataload
   push 0
-  jump bb19
-bb19 [loop]:
-  push 36
-  calldataload
-  dup 3
-  lt
-  push bb23
-  jumpi
-  jump bb20
-bb22 [loop]:
-  dup 2
-  add
-  swap 1
-  push 1
-  add
-  dup 1
-  iszero
-  exchange 1, 2
-  push bb15
-  jumpi
-  jump bb20
-bb20 [loop]:
+  jump bb16
+bb16 [loop]:
   push 36
   calldataload
   dup 3
   gt
-  iszero
-  push bb22
+  push bb17
   jumpi
-  push 128
-  mstore
-  push 32
-  push 128
-  return
-bb23 [loop]:
   dup 2
-  add
-  swap 1
-  push 1
-  add
-  dup 1
-  swap 2
   add
   swap 1
   push 1
@@ -285,10 +168,8 @@ bb23 [loop]:
   iszero
   exchange 1, 2
   iszero
-  push bb19
+  push bb16
   jumpi
-  jump bb15
-bb15 [cold]:
   push 0x4e487b71
   push 0
   mstore
@@ -298,7 +179,13 @@ bb15 [cold]:
   push 36
   push 28
   revert
-bb26:
+bb17:
+  push 128
+  mstore
+  push 32
+  push 128
+  return
+bb21:
   push 256
   push 64
   mstore
@@ -310,8 +197,8 @@ bb26:
   push 0
   push 4
   calldataload
-  jump bb28
-bb30 [loop]:
+  jump bb23
+bb25 [loop]:
   dup 1
   swap 2
   add
@@ -320,19 +207,19 @@ bb30 [loop]:
   add
   dup 1
   iszero
-  push bb32
+  push bb27
   jumpi
   swap 2
   pop
   swap 1
-  jump bb28
-bb28 [loop]:
+  jump bb23
+bb23 [loop]:
   push 36
   calldataload
   dup 2
   gt
   iszero
-  push bb30
+  push bb25
   jumpi
   swap 1
   push 128
@@ -340,7 +227,17 @@ bb28 [loop]:
   push 32
   push 128
   return
-bb32 [cold]:
+bb12 [cold]:
+  push 0x4e487b71
+  push 0
+  mstore
+  push 17
+  push 32
+  mstore
+  push 36
+  push 28
+  revert
+bb27 [cold]:
   push 160
   push 0x760769fe
   push 224

@@ -1,4 +1,5 @@
 //@ codegen-matrix: standard dump
+//@ compile-flags: --optimize-runs 10000
 //@[dump] compile-flags: -Ogas -Zdump=mir
 //@[dump] filecheck:
 //@ run-call: periodStarts 1700000000, 86400, 0 => 0

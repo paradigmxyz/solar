@@ -111,8 +111,12 @@
 //! and pops in the copies; recomputing keeps every copy's stack shape the
 //! original body's.
 //!
-//! Profitability: gas mode only, priced by the target over the deployment's
-//! expected executions. Each group of `k` iterations skips `k - 1` header tests
+//! Profitability: gas mode only, and only when the optimizer runs reach the
+//! target's threshold for copying loops: unrolling and peeling trade code size
+//! for runtime gas, and at fewer runs, as at the default 200, a build still
+//! values its size. Counting a counter up to zero copies nothing and runs at any
+//! runs. Copies are priced by the target over the deployment's expected
+//! executions. Each group of `k` iterations skips `k - 1` header tests
 //! and back-edge jumps. For `<` and `<=`, the first group pays for the original
 //! loop's last test and every test of the main loop, including the declined
 //! one, adds the offset first, except for `<=` stepping by one; for `!=`, which
@@ -450,6 +454,9 @@ fn plan(
     cold: &DenseBitSet<FunctionId>,
     target: Target,
 ) -> Option<Unroll> {
+    if !target.copies_loops() {
+        return None;
+    }
     let Shape { preheader, latch, body, exit, enters_on_true, condition, loop_insts } =
         shape(func, loops, l, cold)?;
     // The stack planner spills a word the body reads from before the loop, and the copies
@@ -738,6 +745,9 @@ fn plan_peel(
     cold: &DenseBitSet<FunctionId>,
     target: Target,
 ) -> Option<Peel> {
+    if !target.copies_loops() {
+        return None;
+    }
     let shape = shape(func, loops, l, cold)?;
     let tests: Vec<_> = l
         .blocks
