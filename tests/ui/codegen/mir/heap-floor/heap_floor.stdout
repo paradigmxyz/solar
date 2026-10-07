@@ -1,0 +1,68 @@
+- // === ROOT/tests/ui/codegen/mir/heap-floor/heap_floor.mir (before heap-floor) ===
++ // === ROOT/tests/ui/codegen/mir/heap-floor/heap_floor.mir (after heap-floor) ===
+  @module HeapFloor
+  fn @reset_then_load() -> i256 {
+    bb0:
+-     mstore 64, 128
++     v1 = heap_floor
++     v2 = lt 128, v1
++     v3 = select v2, v1, 128
++     mstore 64, v3
+      v0 = mload 64
+      mstore v0, 1
+      ret v0
+  }
+  
+  fn @scratch_restored() -> i256 {
+    bb0:
+      v0 = mload 64
+      v1 = calldataload 4
+      mstore 64, v1
+      v2 = keccak256 0, 96
+      mstore 64, v0
+      ret v2
+  }
+  
+  fn @revert_argument() {
+    bb0:
+      v0 = calldataload 36
+      mstore 64, v0
+      revert 28, 68
+  }
+  
+  fn @heap_bump() -> i256 {
+    bb0:
+      v0 = mload 64
+      v1 = add v0, 32
+      mstore 64, v1
+      v2 = mload 64
+      ret v2
+  }
+  
+  fn @scalar_return() -> i256 [selector=0x12345678] {
+    bb0:
+      v0 = calldataload 4
+      mstore 64, v0
+      v1 = keccak256 0, 96
+      ret v1
+  }
+  
+  fn @allocate() -> i256 {
+    bb0:
+      v0 = mload 64
+      v1 = add v0, 64
+      mstore 64, v1
+      ret v0
+  }
+  
+  fn @reset_then_call() -> i256 {
+    bb0:
+-     mstore 64, 128
++     v1 = heap_floor
++     v2 = lt 128, v1
++     v3 = select v2, v1, 128
++     mstore 64, v3
+      v0 = icall @allocate
+      ret v0
+  }
+  

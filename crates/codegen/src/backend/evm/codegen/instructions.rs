@@ -157,10 +157,6 @@ impl<'gcx> EvmCodegen<'gcx> {
             if matches!(kind, InstKind::Ne(..)) {
                 self.asm.emit_op(op::ISZERO);
             }
-        } else if let InstKind::MStore(address, value) = *kind
-            && self.fmp_floor_stores.get(&func_id).is_some_and(|stores| stores.contains(&inst_id))
-        {
-            self.emit_fmp_floor_store(func_id, func, address, value, liveness, block, inst_idx);
         } else if let Some(lowering) = select::opcode_lowering(&kind.op()) {
             self.emit_opcode_lowering(
                 func,
@@ -236,6 +232,11 @@ impl<'gcx> EvmCodegen<'gcx> {
                     func.value_u64(*size).expect("deferred allocation must have a constant size");
                 let alloc = self.asm.emit_deferred_alloc();
                 self.pending_static_allocs.entry(func_id).or_default().push((alloc, size));
+                self.scheduler.instruction_executed(0, result_value);
+            }
+            InstKind::HeapFloor => {
+                // push heap_floor
+                self.emit_heap_floor(func_id);
                 self.scheduler.instruction_executed(0, result_value);
             }
             InstKind::Fmp | InstKind::SetFmp(_) => {
@@ -883,94 +884,42 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.scheduler.instruction_executed(2, None);
     }
 
-    /// Emits a raw free-memory-pointer store that keeps the pointer at or above its initial
-    /// value, which lies above every static frame and spill slot the code can reach.
-    #[allow(clippy::too_many_arguments)]
-    fn emit_fmp_floor_store(
-        &mut self,
-        func_id: FunctionId,
-        func: &Function,
-        addr: ValueId,
-        val: ValueId,
-        liveness: &Liveness,
-        block: BlockId,
-        inst_idx: usize,
-    ) {
-        self.preserve_stack_only_operands(&[addr, val], liveness, block, inst_idx);
-        self.emit_value(func, val);
-        if !self.block_local_copy_survives(liveness, block, val, 1) {
-            self.spill_top_value_if_live(func, liveness, block, inst_idx, val);
-        }
-
-        // [v] -> [v, floor] -> [v, floor, v, floor] -> [v, floor, floor > v]
-        //     -> [v, floor > v, floor, v] -> [v, floor > v, floor - v] -> [max(v, floor)]
-        self.emit_heap_floor(func_id);
-        self.emit_stack_op(StackOp::Dup(2));
-        self.emit_stack_op(StackOp::Dup(2));
-        self.emit_op_with_effect(op::GT, StackEffect { pops: 2, pushes: 1 }, StackPush::Unknown);
-        self.emit_stack_op(StackOp::Swap(1));
-        self.emit_stack_op(StackOp::Dup(3));
-        self.emit_stack_op(StackOp::Swap(1));
-        for opcode in [op::SUB, op::MUL, op::ADD] {
-            self.emit_op_with_effect(
-                opcode,
-                StackEffect { pops: 2, pushes: 1 },
-                StackPush::Unknown,
-            );
-        }
-
-        // mstore(FMP_SLOT, max(v, floor))
-        self.emit_operand(func, addr);
-        self.asm.emit_op(op::MSTORE);
-        self.scheduler.instruction_executed(2, None);
-    }
-
-    /// Pushes the initial free memory pointer of the code being emitted.
+    /// Pushes the heap floor: the initial free memory pointer of the code being emitted, above
+    /// every static frame and spill slot that code can reach. The caller records the pushed word.
     ///
     /// A runtime function can serve several external entries, so it gets the highest of their
     /// initial pointers once frame placement fixes them. A constructor recomputes its own from
     /// the copied argument blob, whose words its parameters are read back from.
     fn emit_heap_floor(&mut self, func_id: FunctionId) {
         if !self.in_constructor {
+            // push floor
             let floor = self.asm.new_deferred_const();
             self.asm.emit_push_deferred(floor);
-            self.scheduler.stack.push_unknown();
             self.fmp_floor_consts.push((func_id, floor));
             return;
         }
         let (fixed_memory_end, heap_guard) = self
             .constructor_heap_start
             .expect("constructor heap start is recorded before its code");
-        let binary = StackEffect { pops: 2, pushes: 1 };
         // Mirrors the deployment prologue:
         // heap_start = align32(fixed_memory_end + codesize - arg_offset) + heap_guard
         //            | fixed_memory_end + heap_guard
         if let Some(arg_offset) = self.constructor_args_offset_const {
             self.asm.emit_push_deferred(arg_offset);
-            self.scheduler.stack.push_unknown();
-            self.emit_op_with_effect(
-                op::CODESIZE,
-                StackEffect { pops: 0, pushes: 1 },
-                StackPush::Unknown,
-            );
-            self.emit_op_with_effect(op::SUB, binary, StackPush::Unknown);
+            self.asm.emit_op(op::CODESIZE);
+            self.asm.emit_op(op::SUB);
             self.asm.emit_push_deferred(fixed_memory_end);
-            self.scheduler.stack.push_unknown();
-            self.emit_op_with_effect(op::ADD, binary, StackPush::Unknown);
+            self.asm.emit_op(op::ADD);
             self.asm.emit_push(U256::from(EvmMemoryLayout::WORD_SIZE - 1));
-            self.scheduler.stack.push_unknown();
-            self.emit_op_with_effect(op::ADD, binary, StackPush::Unknown);
+            self.asm.emit_op(op::ADD);
             self.asm.emit_push(U256::MAX - U256::from(EvmMemoryLayout::WORD_SIZE - 1));
-            self.scheduler.stack.push_unknown();
-            self.emit_op_with_effect(op::AND, binary, StackPush::Unknown);
+            self.asm.emit_op(op::AND);
         } else {
             self.asm.emit_push_deferred(fixed_memory_end);
-            self.scheduler.stack.push_unknown();
         }
         if heap_guard != 0 {
             self.asm.emit_push(U256::from(heap_guard));
-            self.scheduler.stack.push_unknown();
-            self.emit_op_with_effect(op::ADD, binary, StackPush::Unknown);
+            self.asm.emit_op(op::ADD);
         }
     }
 

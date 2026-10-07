@@ -75,7 +75,6 @@ impl<'gcx> EvmCodegen<'gcx> {
         // once instead of rebuilding them for each artifact and caller-stack retry.
         let call_graph = CallGraphInfo::new(module);
         self.heap_pointer_return_functions = Self::collect_heap_pointer_return_functions(module);
-        self.fmp_floor_stores = Self::collect_fmp_floor_stores(module);
         self.cold_functions = if matches!(self.gcx.sess.opts.optimization, OptimizationMode::None) {
             DenseBitSet::new_empty(module.functions.len())
         } else {

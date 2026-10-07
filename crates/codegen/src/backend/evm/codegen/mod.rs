@@ -335,8 +335,8 @@ pub struct EvmCodegen<'gcx> {
     /// Per-external-entry free-memory-pointer constants, resolved after static-frame placement.
     /// Entries that never use dynamic memory omit the initialization entirely.
     runtime_free_memory_consts: FxHashMap<FunctionId, DeferredConst>,
-    /// Heap floors of clamped free-memory-pointer stores, by the function that emits each one.
-    /// Each resolves to the highest initial free memory pointer of the entries reaching it.
+    /// Heap floors, by the function that pushes each one. Each resolves to the highest initial
+    /// free memory pointer of the entries reaching the function.
     fmp_floor_consts: Vec<(FunctionId, DeferredConst)>,
     /// Internal functions reachable from each entry that initializes the free-memory pointer.
     runtime_entry_reachability: FxHashMap<FunctionId, DenseBitSet<FunctionId>>,
@@ -375,10 +375,6 @@ pub struct EvmCodegen<'gcx> {
     /// Leaf helpers whose sole returned word is derived from the free-memory pointer.
     /// Their callers may safely use the result as a dynamic forwarding-buffer base.
     heap_pointer_return_functions: DenseBitSet<FunctionId>,
-    /// Raw free-memory-pointer stores, by function, whose absolute value can be read back as the
-    /// pointer. Each one stores at least the initial free memory pointer instead, so the heap
-    /// never reaches the static frames and spill slots below it.
-    fmp_floor_stores: FxHashMap<FunctionId, FxHashSet<InstId>>,
     /// Runtime code of a scheduled module, waiting for embedded bytecode to be linked in.
     pending_runtime: Option<PendingRuntime>,
     /// Whether the current function has canonical cross-block argument layouts.
@@ -475,7 +471,6 @@ impl<'gcx> EvmCodegen<'gcx> {
             function_ir_block_start: 0,
             spill_hazard_insts: FxHashSet::default(),
             heap_pointer_return_functions: DenseBitSet::new_empty(0),
-            fmp_floor_stores: FxHashMap::default(),
             pending_runtime: None,
             global_stack_active: false,
             global_stack_aliases: FxHashMap::default(),
@@ -541,7 +536,6 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.function_liveness.clear();
         self.spill_hazard_insts.clear();
         self.heap_pointer_return_functions.clear_to(module.functions.len());
-        self.fmp_floor_stores.clear();
         self.global_stack_active = false;
         self.global_stack_aliases.clear();
         self.runtime_immutable_refs.clear();

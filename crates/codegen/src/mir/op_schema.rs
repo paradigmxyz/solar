@@ -1476,6 +1476,20 @@ define_mir_ops! {
     )]
     #[operand_types(func => Some(smallvec![MirType::MemPtr]))]
     SetFmp(value: ValueId),
+    /// The lowest word the free-memory pointer may hold: the initial pointer of every entry that
+    /// can run this function, which codegen fixes once it has placed the frames and spill slots
+    /// below it.
+    #[mir_op(
+        mnemonic = "heap_floor",
+        result = I256,
+        phases = PhaseSet::ALL,
+        effect = EnvironmentRead,
+        traits = OpTraits::NONE,
+        side_effects = false,
+        category = None
+    )]
+    #[operand_types(func => Some(smallvec![]))]
+    HeapFloor,
     /// Reserve memory and return the previous free-memory pointer.
     #[mir_op(
         mnemonic = "alloc",

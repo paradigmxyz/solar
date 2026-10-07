@@ -1,0 +1,85 @@
+//@compile-flags: -Zmir-pipeline=heap-floor
+//@filecheck:
+@module HeapFloor
+
+// An absolute word stored as the pointer and loaded back is raised to the heap floor.
+// CHECK-LABEL: {{^[ +].*}}fn @reset_then_load{{[( ]}}
+// CHECK: + [[FLOOR:v[0-9]+]] = heap_floor
+// CHECK-NEXT: + [[BELOW:v[0-9]+]] = lt 128, [[FLOOR]]
+// CHECK-NEXT: + [[CLAMPED:v[0-9]+]] = select [[BELOW]], [[FLOOR]], 128
+// CHECK-NEXT: + mstore 64, [[CLAMPED]]
+fn @reset_then_load() -> i256 {
+  bb0:
+    mstore 64, 128
+    v0 = mload 64
+    mstore v0, 1
+    ret v0
+}
+
+// A calldata word hashed in the pointer's slot and restored before anything reads the slot as
+// the pointer keeps its value.
+// CHECK-LABEL: {{^[ +].*}}fn @scratch_restored{{[( ]}}
+// CHECK-NOT: {{^[-+]}}
+fn @scratch_restored() -> i256 {
+  bb0:
+    v0 = mload 64
+    v1 = calldataload 4
+    mstore 64, v1
+    v2 = keccak256 0, 96
+    mstore 64, v0
+    ret v2
+}
+
+// An error argument written into the slot before a revert keeps its value.
+// CHECK-LABEL: {{^[ +].*}}fn @revert_argument{{[( ]}}
+// CHECK-NOT: {{^[-+]}}
+fn @revert_argument() {
+  bb0:
+    v0 = calldataload 36
+    mstore 64, v0
+    revert 28, 68
+}
+
+// A pointer derived from the slot's own value is a heap pointer and stays as stored.
+// CHECK-LABEL: {{^[ +].*}}fn @heap_bump{{[( ]}}
+// CHECK-NOT: {{^[-+]}}
+fn @heap_bump() -> i256 {
+  bb0:
+    v0 = mload 64
+    v1 = add v0, 32
+    mstore 64, v1
+    v2 = mload 64
+    ret v2
+}
+
+// An external function returning only scalar words ends execution there: codegen encodes the
+// result in a static buffer without reading the slot.
+// CHECK-LABEL: {{^[ +].*}}fn @scalar_return{{[( ]}}
+// CHECK-NOT: {{^[-+]}}
+fn @scalar_return() -> i256 [selector=0x12345678] {
+  bb0:
+    v0 = calldataload 4
+    mstore 64, v0
+    v1 = keccak256 0, 96
+    ret v1
+}
+
+fn @allocate() -> i256 {
+  bb0:
+    v0 = mload 64
+    v1 = add v0, 64
+    mstore 64, v1
+    ret v0
+}
+
+// A callee that allocates from the slot reads the stored word as the pointer.
+// CHECK-LABEL: {{^[ +].*}}fn @reset_then_call{{[( ]}}
+// CHECK: + {{v[0-9]+}} = heap_floor
+// CHECK: + mstore 64, {{v[0-9]+}}
+// CHECK: icall @allocate
+fn @reset_then_call() -> i256 {
+  bb0:
+    mstore 64, 128
+    v0 = icall @allocate
+    ret v0
+}

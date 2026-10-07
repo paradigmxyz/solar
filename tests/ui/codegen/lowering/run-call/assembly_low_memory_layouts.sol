@@ -7,6 +7,7 @@
 //@ run-call: storeInHelper 1, 2, 3 => 0x6e0c627900b24bd432fe7b1f713f1b0744091a646a9fe4a65a18dfed21f2949c
 //@ run-call: deepAddress 5 => 5
 //@ run-call: seal => 0xa0335e2fb93a29d2fa9e4b93eeb7ecc9a9ed34740c749d416b560fad02be2ab5
+//@ run-call: resetLoop 1, 32 => 0xf937df1b2e7b71cce0c407a18a6afc64603df82e7adbc88898f1269c62f6d596
 
 // Memory-unsafe assembly can treat all memory from 0x80 up as its own. Seaport lays a basic
 // order's hashes and event data out at addresses that calldata sizes, moves the free memory
@@ -85,6 +86,38 @@ contract AssemblyLowMemoryLayouts {
         }
         result ^= h0 ^ h1 ^ h2 ^ h3 ^ h4 ^ h5 ^ h6 ^ h7 ^ h8 ^ h9 ^ h10 ^ h11 ^ h12 ^ h13 ^ h14
             ^ h15 ^ h16;
+    }
+
+    // The pointer read right after a reset is the clamped one in every build: optimized MIR
+    // forwards the stored word to the load, so the clamp is part of the stored word.
+    function resetLoop(uint256 a, uint256 n) external pure returns (bytes32 result) {
+        bytes32 h0 = keccak256(abi.encodePacked(a, uint256(0)));
+        bytes32 h1 = keccak256(abi.encodePacked(a, uint256(1)));
+        bytes32 h2 = keccak256(abi.encodePacked(a, uint256(2)));
+        bytes32 h3 = keccak256(abi.encodePacked(a, uint256(3)));
+        bytes32 h4 = keccak256(abi.encodePacked(a, uint256(4)));
+        bytes32 h5 = keccak256(abi.encodePacked(a, uint256(5)));
+        bytes32 h6 = keccak256(abi.encodePacked(a, uint256(6)));
+        bytes32 h7 = keccak256(abi.encodePacked(a, uint256(7)));
+        bytes32 h8 = keccak256(abi.encodePacked(a, uint256(8)));
+        bytes32 h9 = keccak256(abi.encodePacked(a, uint256(9)));
+        bytes32 h10 = keccak256(abi.encodePacked(a, uint256(10)));
+        bytes32 h11 = keccak256(abi.encodePacked(a, uint256(11)));
+        bytes32 h12 = keccak256(abi.encodePacked(a, uint256(12)));
+        bytes32 h13 = keccak256(abi.encodePacked(a, uint256(13)));
+        bytes32 h14 = keccak256(abi.encodePacked(a, uint256(14)));
+        bytes32 h15 = keccak256(abi.encodePacked(a, uint256(15)));
+        bytes32 h16 = keccak256(abi.encodePacked(a, uint256(16)));
+        assembly {
+            mstore(0x40, 0x80)
+            let p := mload(0x40)
+            for { let i := 0 } lt(i, n) { i := add(i, 1) } {
+                mstore(add(p, shl(5, i)), not(0))
+            }
+            mstore(0x40, add(p, shl(5, n)))
+        }
+        result = h0 ^ h1 ^ h2 ^ h3 ^ h4 ^ h5 ^ h6 ^ h7 ^ h8 ^ h9 ^ h10 ^ h11 ^ h12 ^ h13 ^ h14
+            ^ h15 ^ h16 ^ bytes32(n);
     }
 
     function revertWithTime(uint256 startTime, uint256) external pure {
