@@ -1,0 +1,135 @@
+// === ROOT/tests/ui/codegen/lowering/switch/constructor_table_growth.sol:ConstructorTable (creation) ===
+@module ConstructorTable_deployment
+bb0:
+  push 201
+  codesize
+  sub
+  dup 1
+  push 201
+  push 192
+  codecopy
+  push 192
+  add
+  push 31
+  add
+  push 31
+  not
+  and
+  push 64
+  mstore
+  callvalue
+  push bb21
+  jumpi
+  push 192
+  push 201
+  codesize
+  sub
+  add
+  push 224
+  gt
+  push bb21
+  jumpi
+  push 192
+  mload
+  dup 1
+  push 7
+  gt
+  push bb8
+  jumpi
+  dup 1
+  push 18
+  gt
+  push bb5
+  jumpi
+  dup 1
+  push 18
+  sub
+  push bb3
+  jumpi
+  pop
+  push 105
+  push 0
+  sstore
+  jump bb22
+bb22:
+  push 4
+  dup 1
+  push 197
+  push 0
+  codecopy
+  push 0
+  return
+bb21 [cold]:
+  push 0
+  dup 1
+  revert
+bb3:
+  dup 1
+  push 19
+  sub
+  push bb4
+  jumpi
+  pop
+  push 106
+  push 0
+  sstore
+  jump bb22
+bb4:
+  pop
+  push 999
+  push 0
+  sstore
+  jump bb22
+bb5:
+  dup 1
+  push 7
+  sub
+  push bb6
+  jumpi
+  pop
+  push 103
+  push 0
+  sstore
+  jump bb22
+bb6:
+  dup 1
+  push 8
+  sub
+  push bb4
+  jumpi
+  pop
+  push 104
+  push 0
+  sstore
+  jump bb22
+bb8:
+  dup 1
+  push bb9
+  jumpi
+  pop
+  push 100
+  push 0
+  sstore
+  jump bb22
+bb9:
+  dup 1
+  push 3
+  sub
+  push bb10
+  jumpi
+  pop
+  push 101
+  push 0
+  sstore
+  jump bb22
+bb10:
+  dup 1
+  push 5
+  sub
+  push bb4
+  jumpi
+  pop
+  push 102
+  push 0
+  sstore
+  jump bb22

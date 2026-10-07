@@ -1,0 +1,2594 @@
+// === ROOT/tests/ui/codegen/lowering/switch/auto_plans.sol:SmallDense (runtime) ===
+@module SmallDense_runtime
+bb0:
+  callvalue
+  iszero
+  iszero
+  push bb2
+  jumpi
+  jump bb1
+bb1:
+  jump bb3
+bb2 [cold]:
+  push 0
+  push 0
+  revert
+bb3:
+  push 0
+  calldataload
+  dup 1
+  push 128
+  mstore
+  pop
+  push 128
+  mload
+  dup 1
+  push 0
+  sub
+  push bb4
+  jumpi
+  pop
+  jump bb11
+bb4:
+  dup 1
+  push 1
+  sub
+  push bb5
+  jumpi
+  pop
+  jump bb10
+bb5:
+  dup 1
+  push 2
+  sub
+  push bb6
+  jumpi
+  pop
+  jump bb9
+bb6:
+  dup 1
+  push 3
+  sub
+  push bb7
+  jumpi
+  pop
+  jump bb8
+bb7:
+  pop
+  jump bb12
+bb8:
+  push 4
+  push 0
+  return
+bb9:
+  push 3
+  push 0
+  return
+bb10:
+  push 2
+  push 0
+  return
+bb11:
+  push 1
+  push 0
+  return
+bb12 [cold]:
+  push 0
+  push 0
+  revert
+// === ROOT/tests/ui/codegen/lowering/switch/auto_plans.sol:Conservative (runtime) ===
+@module Conservative_runtime
+bb0:
+  callvalue
+  iszero
+  iszero
+  push bb2
+  jumpi
+  jump bb1
+bb1:
+  jump bb3
+bb2 [cold]:
+  push 0
+  push 0
+  revert
+bb3:
+  push 0
+  calldataload
+  dup 1
+  push 128
+  mstore
+  pop
+  push 128
+  mload
+  dup 1
+  push 0
+  sub
+  push bb4
+  jumpi
+  pop
+  jump bb17
+bb4:
+  dup 1
+  push 3
+  sub
+  push bb5
+  jumpi
+  pop
+  jump bb16
+bb5:
+  dup 1
+  push 5
+  sub
+  push bb6
+  jumpi
+  pop
+  jump bb15
+bb6:
+  dup 1
+  push 7
+  sub
+  push bb7
+  jumpi
+  pop
+  jump bb14
+bb7:
+  dup 1
+  push 8
+  sub
+  push bb8
+  jumpi
+  pop
+  jump bb13
+bb8:
+  dup 1
+  push 18
+  sub
+  push bb9
+  jumpi
+  pop
+  jump bb12
+bb9:
+  dup 1
+  push 19
+  sub
+  push bb10
+  jumpi
+  pop
+  jump bb11
+bb10:
+  pop
+  jump bb18
+bb11:
+  push 106
+  push 0
+  mstore
+  jump bb19
+bb12:
+  push 105
+  push 0
+  mstore
+  jump bb19
+bb13:
+  push 104
+  push 0
+  mstore
+  jump bb19
+bb14:
+  push 103
+  push 0
+  mstore
+  jump bb19
+bb15:
+  push 102
+  push 0
+  mstore
+  jump bb19
+bb16:
+  push 101
+  push 0
+  mstore
+  jump bb19
+bb17:
+  push 100
+  push 0
+  mstore
+  jump bb19
+bb18:
+  push 999
+  push 0
+  mstore
+  jump bb19
+bb19:
+  push 32
+  push 0
+  return
+// === ROOT/tests/ui/codegen/lowering/switch/auto_plans.sol:Affine5 (runtime) ===
+@module Affine5_runtime
+bb0:
+  callvalue
+  iszero
+  iszero
+  push bb2
+  jumpi
+  jump bb1
+bb1:
+  jump bb3
+bb2 [cold]:
+  push 0
+  push 0
+  revert
+bb3:
+  push 0
+  calldataload
+  dup 1
+  push 128
+  mstore
+  pop
+  push 128
+  mload
+  dup 1
+  push 0
+  sub
+  push bb4
+  jumpi
+  pop
+  jump bb13
+bb4:
+  dup 1
+  push 0x1eef
+  sub
+  push bb5
+  jumpi
+  pop
+  jump bb12
+bb5:
+  dup 1
+  push 0x3dde
+  sub
+  push bb6
+  jumpi
+  pop
+  jump bb11
+bb6:
+  dup 1
+  push 0x5ccd
+  sub
+  push bb7
+  jumpi
+  pop
+  jump bb10
+bb7:
+  dup 1
+  push 0x7bbc
+  sub
+  push bb8
+  jumpi
+  pop
+  jump bb9
+bb8:
+  pop
+  jump bb14
+bb9:
+  push 104
+  push 0
+  mstore
+  jump bb15
+bb10:
+  push 103
+  push 0
+  mstore
+  jump bb15
+bb11:
+  push 102
+  push 0
+  mstore
+  jump bb15
+bb12:
+  push 101
+  push 0
+  mstore
+  jump bb15
+bb13:
+  push 100
+  push 0
+  mstore
+  jump bb15
+bb14:
+  push 999
+  push 0
+  mstore
+  jump bb15
+bb15:
+  push 32
+  push 0
+  return
+// === ROOT/tests/ui/codegen/lowering/switch/auto_plans.sol:Affine65 (runtime) ===
+@module Affine65_runtime
+bb0:
+  callvalue
+  iszero
+  iszero
+  push bb2
+  jumpi
+  jump bb1
+bb1:
+  jump bb3
+bb2 [cold]:
+  push 0
+  push 0
+  revert
+bb3:
+  push 0
+  calldataload
+  dup 1
+  push 128
+  mstore
+  pop
+  push 128
+  mload
+  dup 1
+  push 0
+  sub
+  push bb4
+  jumpi
+  pop
+  jump bb133
+bb4:
+  dup 1
+  push 0x1eef
+  sub
+  push bb5
+  jumpi
+  pop
+  jump bb132
+bb5:
+  dup 1
+  push 0x3dde
+  sub
+  push bb6
+  jumpi
+  pop
+  jump bb131
+bb6:
+  dup 1
+  push 0x5ccd
+  sub
+  push bb7
+  jumpi
+  pop
+  jump bb130
+bb7:
+  dup 1
+  push 0x7bbc
+  sub
+  push bb8
+  jumpi
+  pop
+  jump bb129
+bb8:
+  dup 1
+  push 0x9aab
+  sub
+  push bb9
+  jumpi
+  pop
+  jump bb128
+bb9:
+  dup 1
+  push 0xb99a
+  sub
+  push bb10
+  jumpi
+  pop
+  jump bb127
+bb10:
+  dup 1
+  push 0xd889
+  sub
+  push bb11
+  jumpi
+  pop
+  jump bb126
+bb11:
+  dup 1
+  push 0xf778
+  sub
+  push bb12
+  jumpi
+  pop
+  jump bb125
+bb12:
+  dup 1
+  push 0x11667
+  sub
+  push bb13
+  jumpi
+  pop
+  jump bb124
+bb13:
+  dup 1
+  push 0x13556
+  sub
+  push bb14
+  jumpi
+  pop
+  jump bb123
+bb14:
+  dup 1
+  push 0x15445
+  sub
+  push bb15
+  jumpi
+  pop
+  jump bb122
+bb15:
+  dup 1
+  push 0x17334
+  sub
+  push bb16
+  jumpi
+  pop
+  jump bb121
+bb16:
+  dup 1
+  push 0x19223
+  sub
+  push bb17
+  jumpi
+  pop
+  jump bb120
+bb17:
+  dup 1
+  push 0x1b112
+  sub
+  push bb18
+  jumpi
+  pop
+  jump bb119
+bb18:
+  dup 1
+  push 0x1d001
+  sub
+  push bb19
+  jumpi
+  pop
+  jump bb118
+bb19:
+  dup 1
+  push 0x1eef0
+  sub
+  push bb20
+  jumpi
+  pop
+  jump bb117
+bb20:
+  dup 1
+  push 0x20ddf
+  sub
+  push bb21
+  jumpi
+  pop
+  jump bb116
+bb21:
+  dup 1
+  push 0x22cce
+  sub
+  push bb22
+  jumpi
+  pop
+  jump bb115
+bb22:
+  dup 1
+  push 0x24bbd
+  sub
+  push bb23
+  jumpi
+  pop
+  jump bb114
+bb23:
+  dup 1
+  push 0x26aac
+  sub
+  push bb24
+  jumpi
+  pop
+  jump bb113
+bb24:
+  dup 1
+  push 0x2899b
+  sub
+  push bb25
+  jumpi
+  pop
+  jump bb112
+bb25:
+  dup 1
+  push 0x2a88a
+  sub
+  push bb26
+  jumpi
+  pop
+  jump bb111
+bb26:
+  dup 1
+  push 0x2c779
+  sub
+  push bb27
+  jumpi
+  pop
+  jump bb110
+bb27:
+  dup 1
+  push 0x2e668
+  sub
+  push bb28
+  jumpi
+  pop
+  jump bb109
+bb28:
+  dup 1
+  push 0x30557
+  sub
+  push bb29
+  jumpi
+  pop
+  jump bb108
+bb29:
+  dup 1
+  push 0x32446
+  sub
+  push bb30
+  jumpi
+  pop
+  jump bb107
+bb30:
+  dup 1
+  push 0x34335
+  sub
+  push bb31
+  jumpi
+  pop
+  jump bb106
+bb31:
+  dup 1
+  push 0x36224
+  sub
+  push bb32
+  jumpi
+  pop
+  jump bb105
+bb32:
+  dup 1
+  push 0x38113
+  sub
+  push bb33
+  jumpi
+  pop
+  jump bb104
+bb33:
+  dup 1
+  push 0x3a002
+  sub
+  push bb34
+  jumpi
+  pop
+  jump bb103
+bb34:
+  dup 1
+  push 0x3bef1
+  sub
+  push bb35
+  jumpi
+  pop
+  jump bb102
+bb35:
+  dup 1
+  push 0x3dde0
+  sub
+  push bb36
+  jumpi
+  pop
+  jump bb101
+bb36:
+  dup 1
+  push 0x3fccf
+  sub
+  push bb37
+  jumpi
+  pop
+  jump bb100
+bb37:
+  dup 1
+  push 0x41bbe
+  sub
+  push bb38
+  jumpi
+  pop
+  jump bb99
+bb38:
+  dup 1
+  push 0x43aad
+  sub
+  push bb39
+  jumpi
+  pop
+  jump bb98
+bb39:
+  dup 1
+  push 0x4599c
+  sub
+  push bb40
+  jumpi
+  pop
+  jump bb97
+bb40:
+  dup 1
+  push 0x4788b
+  sub
+  push bb41
+  jumpi
+  pop
+  jump bb96
+bb41:
+  dup 1
+  push 0x4977a
+  sub
+  push bb42
+  jumpi
+  pop
+  jump bb95
+bb42:
+  dup 1
+  push 0x4b669
+  sub
+  push bb43
+  jumpi
+  pop
+  jump bb94
+bb43:
+  dup 1
+  push 0x4d558
+  sub
+  push bb44
+  jumpi
+  pop
+  jump bb93
+bb44:
+  dup 1
+  push 0x4f447
+  sub
+  push bb45
+  jumpi
+  pop
+  jump bb92
+bb45:
+  dup 1
+  push 0x51336
+  sub
+  push bb46
+  jumpi
+  pop
+  jump bb91
+bb46:
+  dup 1
+  push 0x53225
+  sub
+  push bb47
+  jumpi
+  pop
+  jump bb90
+bb47:
+  dup 1
+  push 0x55114
+  sub
+  push bb48
+  jumpi
+  pop
+  jump bb89
+bb48:
+  dup 1
+  push 0x57003
+  sub
+  push bb49
+  jumpi
+  pop
+  jump bb88
+bb49:
+  dup 1
+  push 0x58ef2
+  sub
+  push bb50
+  jumpi
+  pop
+  jump bb87
+bb50:
+  dup 1
+  push 0x5ade1
+  sub
+  push bb51
+  jumpi
+  pop
+  jump bb86
+bb51:
+  dup 1
+  push 0x5ccd0
+  sub
+  push bb52
+  jumpi
+  pop
+  jump bb85
+bb52:
+  dup 1
+  push 0x5ebbf
+  sub
+  push bb53
+  jumpi
+  pop
+  jump bb84
+bb53:
+  dup 1
+  push 0x60aae
+  sub
+  push bb54
+  jumpi
+  pop
+  jump bb83
+bb54:
+  dup 1
+  push 0x6299d
+  sub
+  push bb55
+  jumpi
+  pop
+  jump bb82
+bb55:
+  dup 1
+  push 0x6488c
+  sub
+  push bb56
+  jumpi
+  pop
+  jump bb81
+bb56:
+  dup 1
+  push 0x6677b
+  sub
+  push bb57
+  jumpi
+  pop
+  jump bb80
+bb57:
+  dup 1
+  push 0x6866a
+  sub
+  push bb58
+  jumpi
+  pop
+  jump bb79
+bb58:
+  dup 1
+  push 0x6a559
+  sub
+  push bb59
+  jumpi
+  pop
+  jump bb78
+bb59:
+  dup 1
+  push 0x6c448
+  sub
+  push bb60
+  jumpi
+  pop
+  jump bb77
+bb60:
+  dup 1
+  push 0x6e337
+  sub
+  push bb61
+  jumpi
+  pop
+  jump bb76
+bb61:
+  dup 1
+  push 0x70226
+  sub
+  push bb62
+  jumpi
+  pop
+  jump bb75
+bb62:
+  dup 1
+  push 0x72115
+  sub
+  push bb63
+  jumpi
+  pop
+  jump bb74
+bb63:
+  dup 1
+  push 0x74004
+  sub
+  push bb64
+  jumpi
+  pop
+  jump bb73
+bb64:
+  dup 1
+  push 0x75ef3
+  sub
+  push bb65
+  jumpi
+  pop
+  jump bb72
+bb65:
+  dup 1
+  push 0x77de2
+  sub
+  push bb66
+  jumpi
+  pop
+  jump bb71
+bb66:
+  dup 1
+  push 0x79cd1
+  sub
+  push bb67
+  jumpi
+  pop
+  jump bb70
+bb67:
+  dup 1
+  push 0x7bbc0
+  sub
+  push bb68
+  jumpi
+  pop
+  jump bb69
+bb68:
+  pop
+  jump bb134
+bb69:
+  push 164
+  push 0
+  mstore
+  jump bb135
+bb70:
+  push 163
+  push 0
+  mstore
+  jump bb135
+bb71:
+  push 162
+  push 0
+  mstore
+  jump bb135
+bb72:
+  push 161
+  push 0
+  mstore
+  jump bb135
+bb73:
+  push 160
+  push 0
+  mstore
+  jump bb135
+bb74:
+  push 159
+  push 0
+  mstore
+  jump bb135
+bb75:
+  push 158
+  push 0
+  mstore
+  jump bb135
+bb76:
+  push 157
+  push 0
+  mstore
+  jump bb135
+bb77:
+  push 156
+  push 0
+  mstore
+  jump bb135
+bb78:
+  push 155
+  push 0
+  mstore
+  jump bb135
+bb79:
+  push 154
+  push 0
+  mstore
+  jump bb135
+bb80:
+  push 153
+  push 0
+  mstore
+  jump bb135
+bb81:
+  push 152
+  push 0
+  mstore
+  jump bb135
+bb82:
+  push 151
+  push 0
+  mstore
+  jump bb135
+bb83:
+  push 150
+  push 0
+  mstore
+  jump bb135
+bb84:
+  push 149
+  push 0
+  mstore
+  jump bb135
+bb85:
+  push 148
+  push 0
+  mstore
+  jump bb135
+bb86:
+  push 147
+  push 0
+  mstore
+  jump bb135
+bb87:
+  push 146
+  push 0
+  mstore
+  jump bb135
+bb88:
+  push 145
+  push 0
+  mstore
+  jump bb135
+bb89:
+  push 144
+  push 0
+  mstore
+  jump bb135
+bb90:
+  push 143
+  push 0
+  mstore
+  jump bb135
+bb91:
+  push 142
+  push 0
+  mstore
+  jump bb135
+bb92:
+  push 141
+  push 0
+  mstore
+  jump bb135
+bb93:
+  push 140
+  push 0
+  mstore
+  jump bb135
+bb94:
+  push 139
+  push 0
+  mstore
+  jump bb135
+bb95:
+  push 138
+  push 0
+  mstore
+  jump bb135
+bb96:
+  push 137
+  push 0
+  mstore
+  jump bb135
+bb97:
+  push 136
+  push 0
+  mstore
+  jump bb135
+bb98:
+  push 135
+  push 0
+  mstore
+  jump bb135
+bb99:
+  push 134
+  push 0
+  mstore
+  jump bb135
+bb100:
+  push 133
+  push 0
+  mstore
+  jump bb135
+bb101:
+  push 132
+  push 0
+  mstore
+  jump bb135
+bb102:
+  push 131
+  push 0
+  mstore
+  jump bb135
+bb103:
+  push 130
+  push 0
+  mstore
+  jump bb135
+bb104:
+  push 129
+  push 0
+  mstore
+  jump bb135
+bb105:
+  push 128
+  push 0
+  mstore
+  jump bb135
+bb106:
+  push 127
+  push 0
+  mstore
+  jump bb135
+bb107:
+  push 126
+  push 0
+  mstore
+  jump bb135
+bb108:
+  push 125
+  push 0
+  mstore
+  jump bb135
+bb109:
+  push 124
+  push 0
+  mstore
+  jump bb135
+bb110:
+  push 123
+  push 0
+  mstore
+  jump bb135
+bb111:
+  push 122
+  push 0
+  mstore
+  jump bb135
+bb112:
+  push 121
+  push 0
+  mstore
+  jump bb135
+bb113:
+  push 120
+  push 0
+  mstore
+  jump bb135
+bb114:
+  push 119
+  push 0
+  mstore
+  jump bb135
+bb115:
+  push 118
+  push 0
+  mstore
+  jump bb135
+bb116:
+  push 117
+  push 0
+  mstore
+  jump bb135
+bb117:
+  push 116
+  push 0
+  mstore
+  jump bb135
+bb118:
+  push 115
+  push 0
+  mstore
+  jump bb135
+bb119:
+  push 114
+  push 0
+  mstore
+  jump bb135
+bb120:
+  push 113
+  push 0
+  mstore
+  jump bb135
+bb121:
+  push 112
+  push 0
+  mstore
+  jump bb135
+bb122:
+  push 111
+  push 0
+  mstore
+  jump bb135
+bb123:
+  push 110
+  push 0
+  mstore
+  jump bb135
+bb124:
+  push 109
+  push 0
+  mstore
+  jump bb135
+bb125:
+  push 108
+  push 0
+  mstore
+  jump bb135
+bb126:
+  push 107
+  push 0
+  mstore
+  jump bb135
+bb127:
+  push 106
+  push 0
+  mstore
+  jump bb135
+bb128:
+  push 105
+  push 0
+  mstore
+  jump bb135
+bb129:
+  push 104
+  push 0
+  mstore
+  jump bb135
+bb130:
+  push 103
+  push 0
+  mstore
+  jump bb135
+bb131:
+  push 102
+  push 0
+  mstore
+  jump bb135
+bb132:
+  push 101
+  push 0
+  mstore
+  jump bb135
+bb133:
+  push 100
+  push 0
+  mstore
+  jump bb135
+bb134:
+  push 999
+  push 0
+  mstore
+  jump bb135
+bb135:
+  push 32
+  push 0
+  return
+// === ROOT/tests/ui/codegen/lowering/switch/auto_plans.sol:BitSlice7 (runtime) ===
+@module BitSlice7_runtime
+bb0:
+  callvalue
+  iszero
+  iszero
+  push bb2
+  jumpi
+  jump bb1
+bb1:
+  jump bb3
+bb2 [cold]:
+  push 0
+  push 0
+  revert
+bb3:
+  push 0
+  calldataload
+  dup 1
+  push 128
+  mstore
+  pop
+  push 128
+  mload
+  dup 1
+  push 1
+  sub
+  push bb4
+  jumpi
+  pop
+  jump bb17
+bb4:
+  dup 1
+  push 0x1ef0
+  sub
+  push bb5
+  jumpi
+  pop
+  jump bb16
+bb5:
+  dup 1
+  push 0x3ddf
+  sub
+  push bb6
+  jumpi
+  pop
+  jump bb15
+bb6:
+  dup 1
+  push 0x5cce
+  sub
+  push bb7
+  jumpi
+  pop
+  jump bb14
+bb7:
+  dup 1
+  push 0x7bbd
+  sub
+  push bb8
+  jumpi
+  pop
+  jump bb13
+bb8:
+  dup 1
+  push 0x9aac
+  sub
+  push bb9
+  jumpi
+  pop
+  jump bb12
+bb9:
+  dup 1
+  push 0xb99b
+  sub
+  push bb10
+  jumpi
+  pop
+  jump bb11
+bb10:
+  pop
+  jump bb18
+bb11:
+  push 106
+  push 0
+  mstore
+  jump bb19
+bb12:
+  push 105
+  push 0
+  mstore
+  jump bb19
+bb13:
+  push 104
+  push 0
+  mstore
+  jump bb19
+bb14:
+  push 103
+  push 0
+  mstore
+  jump bb19
+bb15:
+  push 102
+  push 0
+  mstore
+  jump bb19
+bb16:
+  push 101
+  push 0
+  mstore
+  jump bb19
+bb17:
+  push 100
+  push 0
+  mstore
+  jump bb19
+bb18:
+  push 999
+  push 0
+  mstore
+  jump bb19
+bb19:
+  push 32
+  push 0
+  return
+// === ROOT/tests/ui/codegen/lowering/switch/auto_plans.sol:Coalesced16 (runtime) ===
+@module Coalesced16_runtime
+bb0:
+  callvalue
+  iszero
+  iszero
+  push bb2
+  jumpi
+  jump bb1
+bb1:
+  jump bb3
+bb2 [cold]:
+  push 0
+  push 0
+  revert
+bb3:
+  push 0
+  calldataload
+  dup 1
+  push 128
+  mstore
+  pop
+  push 128
+  mload
+  dup 1
+  push 0x10000
+  sub
+  push bb4
+  jumpi
+  pop
+  jump bb35
+bb4:
+  dup 1
+  push 0x40001
+  sub
+  push bb5
+  jumpi
+  pop
+  jump bb34
+bb5:
+  dup 1
+  push 0x90002
+  sub
+  push bb6
+  jumpi
+  pop
+  jump bb33
+bb6:
+  dup 1
+  push 0x100003
+  sub
+  push bb7
+  jumpi
+  pop
+  jump bb32
+bb7:
+  dup 1
+  push 0x190004
+  sub
+  push bb8
+  jumpi
+  pop
+  jump bb31
+bb8:
+  dup 1
+  push 0x240005
+  sub
+  push bb9
+  jumpi
+  pop
+  jump bb30
+bb9:
+  dup 1
+  push 0x310006
+  sub
+  push bb10
+  jumpi
+  pop
+  jump bb29
+bb10:
+  dup 1
+  push 0x400007
+  sub
+  push bb11
+  jumpi
+  pop
+  jump bb28
+bb11:
+  dup 1
+  push 0x510008
+  sub
+  push bb12
+  jumpi
+  pop
+  jump bb27
+bb12:
+  dup 1
+  push 0x640009
+  sub
+  push bb13
+  jumpi
+  pop
+  jump bb26
+bb13:
+  dup 1
+  push 0x79000a
+  sub
+  push bb14
+  jumpi
+  pop
+  jump bb25
+bb14:
+  dup 1
+  push 0x90000b
+  sub
+  push bb15
+  jumpi
+  pop
+  jump bb24
+bb15:
+  dup 1
+  push 0xa9000c
+  sub
+  push bb16
+  jumpi
+  pop
+  jump bb23
+bb16:
+  dup 1
+  push 0xc4000d
+  sub
+  push bb17
+  jumpi
+  pop
+  jump bb22
+bb17:
+  dup 1
+  push 0xe1000e
+  sub
+  push bb18
+  jumpi
+  pop
+  jump bb21
+bb18:
+  dup 1
+  push 0x100000f
+  sub
+  push bb19
+  jumpi
+  pop
+  jump bb20
+bb19:
+  pop
+  jump bb36
+bb20:
+  push 115
+  push 0
+  mstore
+  jump bb37
+bb21:
+  push 114
+  push 0
+  mstore
+  jump bb37
+bb22:
+  push 113
+  push 0
+  mstore
+  jump bb37
+bb23:
+  push 112
+  push 0
+  mstore
+  jump bb37
+bb24:
+  push 111
+  push 0
+  mstore
+  jump bb37
+bb25:
+  push 110
+  push 0
+  mstore
+  jump bb37
+bb26:
+  push 109
+  push 0
+  mstore
+  jump bb37
+bb27:
+  push 108
+  push 0
+  mstore
+  jump bb37
+bb28:
+  push 107
+  push 0
+  mstore
+  jump bb37
+bb29:
+  push 106
+  push 0
+  mstore
+  jump bb37
+bb30:
+  push 105
+  push 0
+  mstore
+  jump bb37
+bb31:
+  push 104
+  push 0
+  mstore
+  jump bb37
+bb32:
+  push 103
+  push 0
+  mstore
+  jump bb37
+bb33:
+  push 102
+  push 0
+  mstore
+  jump bb37
+bb34:
+  push 101
+  push 0
+  mstore
+  jump bb37
+bb35:
+  push 100
+  push 0
+  mstore
+  jump bb37
+bb36:
+  push 999
+  push 0
+  mstore
+  jump bb37
+bb37:
+  push 32
+  push 0
+  return
+// === ROOT/tests/ui/codegen/lowering/switch/auto_plans.sol:Binary32 (runtime) ===
+@module Binary32_runtime
+bb0:
+  callvalue
+  iszero
+  iszero
+  push bb2
+  jumpi
+  jump bb1
+bb1:
+  jump bb3
+bb2 [cold]:
+  push 0
+  push 0
+  revert
+bb3:
+  push 0
+  calldataload
+  dup 1
+  push 128
+  mstore
+  pop
+  push 128
+  mload
+  dup 1
+  push 0
+  sub
+  push bb4
+  jumpi
+  pop
+  jump bb67
+bb4:
+  dup 1
+  push 257
+  sub
+  push bb5
+  jumpi
+  pop
+  jump bb66
+bb5:
+  dup 1
+  push 0x402
+  sub
+  push bb6
+  jumpi
+  pop
+  jump bb65
+bb6:
+  dup 1
+  push 0x903
+  sub
+  push bb7
+  jumpi
+  pop
+  jump bb64
+bb7:
+  dup 1
+  push 0x1004
+  sub
+  push bb8
+  jumpi
+  pop
+  jump bb63
+bb8:
+  dup 1
+  push 0x1905
+  sub
+  push bb9
+  jumpi
+  pop
+  jump bb62
+bb9:
+  dup 1
+  push 0x2406
+  sub
+  push bb10
+  jumpi
+  pop
+  jump bb61
+bb10:
+  dup 1
+  push 0x3107
+  sub
+  push bb11
+  jumpi
+  pop
+  jump bb60
+bb11:
+  dup 1
+  push 0x4008
+  sub
+  push bb12
+  jumpi
+  pop
+  jump bb59
+bb12:
+  dup 1
+  push 0x5109
+  sub
+  push bb13
+  jumpi
+  pop
+  jump bb58
+bb13:
+  dup 1
+  push 0x640a
+  sub
+  push bb14
+  jumpi
+  pop
+  jump bb57
+bb14:
+  dup 1
+  push 0x790b
+  sub
+  push bb15
+  jumpi
+  pop
+  jump bb56
+bb15:
+  dup 1
+  push 0x900c
+  sub
+  push bb16
+  jumpi
+  pop
+  jump bb55
+bb16:
+  dup 1
+  push 0xa90d
+  sub
+  push bb17
+  jumpi
+  pop
+  jump bb54
+bb17:
+  dup 1
+  push 0xc40e
+  sub
+  push bb18
+  jumpi
+  pop
+  jump bb53
+bb18:
+  dup 1
+  push 0xe10f
+  sub
+  push bb19
+  jumpi
+  pop
+  jump bb52
+bb19:
+  dup 1
+  push 0x10010
+  sub
+  push bb20
+  jumpi
+  pop
+  jump bb51
+bb20:
+  dup 1
+  push 0x12111
+  sub
+  push bb21
+  jumpi
+  pop
+  jump bb50
+bb21:
+  dup 1
+  push 0x14412
+  sub
+  push bb22
+  jumpi
+  pop
+  jump bb49
+bb22:
+  dup 1
+  push 0x16913
+  sub
+  push bb23
+  jumpi
+  pop
+  jump bb48
+bb23:
+  dup 1
+  push 0x19014
+  sub
+  push bb24
+  jumpi
+  pop
+  jump bb47
+bb24:
+  dup 1
+  push 0x1b915
+  sub
+  push bb25
+  jumpi
+  pop
+  jump bb46
+bb25:
+  dup 1
+  push 0x1e416
+  sub
+  push bb26
+  jumpi
+  pop
+  jump bb45
+bb26:
+  dup 1
+  push 0x21117
+  sub
+  push bb27
+  jumpi
+  pop
+  jump bb44
+bb27:
+  dup 1
+  push 0x24018
+  sub
+  push bb28
+  jumpi
+  pop
+  jump bb43
+bb28:
+  dup 1
+  push 0x27119
+  sub
+  push bb29
+  jumpi
+  pop
+  jump bb42
+bb29:
+  dup 1
+  push 0x2a41a
+  sub
+  push bb30
+  jumpi
+  pop
+  jump bb41
+bb30:
+  dup 1
+  push 0x2d91b
+  sub
+  push bb31
+  jumpi
+  pop
+  jump bb40
+bb31:
+  dup 1
+  push 0x3101c
+  sub
+  push bb32
+  jumpi
+  pop
+  jump bb39
+bb32:
+  dup 1
+  push 0x3491d
+  sub
+  push bb33
+  jumpi
+  pop
+  jump bb38
+bb33:
+  dup 1
+  push 0x3841e
+  sub
+  push bb34
+  jumpi
+  pop
+  jump bb37
+bb34:
+  dup 1
+  push 0x3c11f
+  sub
+  push bb35
+  jumpi
+  pop
+  jump bb36
+bb35:
+  pop
+  jump bb68
+bb36:
+  push 131
+  push 0
+  mstore
+  jump bb69
+bb37:
+  push 130
+  push 0
+  mstore
+  jump bb69
+bb38:
+  push 129
+  push 0
+  mstore
+  jump bb69
+bb39:
+  push 128
+  push 0
+  mstore
+  jump bb69
+bb40:
+  push 127
+  push 0
+  mstore
+  jump bb69
+bb41:
+  push 126
+  push 0
+  mstore
+  jump bb69
+bb42:
+  push 125
+  push 0
+  mstore
+  jump bb69
+bb43:
+  push 124
+  push 0
+  mstore
+  jump bb69
+bb44:
+  push 123
+  push 0
+  mstore
+  jump bb69
+bb45:
+  push 122
+  push 0
+  mstore
+  jump bb69
+bb46:
+  push 121
+  push 0
+  mstore
+  jump bb69
+bb47:
+  push 120
+  push 0
+  mstore
+  jump bb69
+bb48:
+  push 119
+  push 0
+  mstore
+  jump bb69
+bb49:
+  push 118
+  push 0
+  mstore
+  jump bb69
+bb50:
+  push 117
+  push 0
+  mstore
+  jump bb69
+bb51:
+  push 116
+  push 0
+  mstore
+  jump bb69
+bb52:
+  push 115
+  push 0
+  mstore
+  jump bb69
+bb53:
+  push 114
+  push 0
+  mstore
+  jump bb69
+bb54:
+  push 113
+  push 0
+  mstore
+  jump bb69
+bb55:
+  push 112
+  push 0
+  mstore
+  jump bb69
+bb56:
+  push 111
+  push 0
+  mstore
+  jump bb69
+bb57:
+  push 110
+  push 0
+  mstore
+  jump bb69
+bb58:
+  push 109
+  push 0
+  mstore
+  jump bb69
+bb59:
+  push 108
+  push 0
+  mstore
+  jump bb69
+bb60:
+  push 107
+  push 0
+  mstore
+  jump bb69
+bb61:
+  push 106
+  push 0
+  mstore
+  jump bb69
+bb62:
+  push 105
+  push 0
+  mstore
+  jump bb69
+bb63:
+  push 104
+  push 0
+  mstore
+  jump bb69
+bb64:
+  push 103
+  push 0
+  mstore
+  jump bb69
+bb65:
+  push 102
+  push 0
+  mstore
+  jump bb69
+bb66:
+  push 101
+  push 0
+  mstore
+  jump bb69
+bb67:
+  push 100
+  push 0
+  mstore
+  jump bb69
+bb68:
+  push 999
+  push 0
+  mstore
+  jump bb69
+bb69:
+  push 32
+  push 0
+  return
+// === ROOT/tests/ui/codegen/lowering/switch/auto_plans.sol:Rotated32 (runtime) ===
+@module Rotated32_runtime
+bb0:
+  callvalue
+  iszero
+  iszero
+  push bb2
+  jumpi
+  jump bb1
+bb1:
+  jump bb3
+bb2 [cold]:
+  push 0
+  push 0
+  revert
+bb3:
+  push 0
+  calldataload
+  dup 1
+  push 128
+  mstore
+  pop
+  push 128
+  mload
+  dup 1
+  push 0x3e8
+  sub
+  push bb4
+  jumpi
+  pop
+  jump bb67
+bb4:
+  dup 1
+  push 0x3ee
+  sub
+  push bb5
+  jumpi
+  pop
+  jump bb66
+bb5:
+  dup 1
+  push 0x3f4
+  sub
+  push bb6
+  jumpi
+  pop
+  jump bb65
+bb6:
+  dup 1
+  push 0x3fa
+  sub
+  push bb7
+  jumpi
+  pop
+  jump bb64
+bb7:
+  dup 1
+  push 0x400
+  sub
+  push bb8
+  jumpi
+  pop
+  jump bb63
+bb8:
+  dup 1
+  push 0x406
+  sub
+  push bb9
+  jumpi
+  pop
+  jump bb62
+bb9:
+  dup 1
+  push 0x40c
+  sub
+  push bb10
+  jumpi
+  pop
+  jump bb61
+bb10:
+  dup 1
+  push 0x412
+  sub
+  push bb11
+  jumpi
+  pop
+  jump bb60
+bb11:
+  dup 1
+  push 0x418
+  sub
+  push bb12
+  jumpi
+  pop
+  jump bb59
+bb12:
+  dup 1
+  push 0x41e
+  sub
+  push bb13
+  jumpi
+  pop
+  jump bb58
+bb13:
+  dup 1
+  push 0x424
+  sub
+  push bb14
+  jumpi
+  pop
+  jump bb57
+bb14:
+  dup 1
+  push 0x42a
+  sub
+  push bb15
+  jumpi
+  pop
+  jump bb56
+bb15:
+  dup 1
+  push 0x430
+  sub
+  push bb16
+  jumpi
+  pop
+  jump bb55
+bb16:
+  dup 1
+  push 0x436
+  sub
+  push bb17
+  jumpi
+  pop
+  jump bb54
+bb17:
+  dup 1
+  push 0x43c
+  sub
+  push bb18
+  jumpi
+  pop
+  jump bb53
+bb18:
+  dup 1
+  push 0x442
+  sub
+  push bb19
+  jumpi
+  pop
+  jump bb52
+bb19:
+  dup 1
+  push 0x448
+  sub
+  push bb20
+  jumpi
+  pop
+  jump bb51
+bb20:
+  dup 1
+  push 0x44e
+  sub
+  push bb21
+  jumpi
+  pop
+  jump bb50
+bb21:
+  dup 1
+  push 0x454
+  sub
+  push bb22
+  jumpi
+  pop
+  jump bb49
+bb22:
+  dup 1
+  push 0x45a
+  sub
+  push bb23
+  jumpi
+  pop
+  jump bb48
+bb23:
+  dup 1
+  push 0x460
+  sub
+  push bb24
+  jumpi
+  pop
+  jump bb47
+bb24:
+  dup 1
+  push 0x466
+  sub
+  push bb25
+  jumpi
+  pop
+  jump bb46
+bb25:
+  dup 1
+  push 0x46c
+  sub
+  push bb26
+  jumpi
+  pop
+  jump bb45
+bb26:
+  dup 1
+  push 0x472
+  sub
+  push bb27
+  jumpi
+  pop
+  jump bb44
+bb27:
+  dup 1
+  push 0x478
+  sub
+  push bb28
+  jumpi
+  pop
+  jump bb43
+bb28:
+  dup 1
+  push 0x47e
+  sub
+  push bb29
+  jumpi
+  pop
+  jump bb42
+bb29:
+  dup 1
+  push 0x484
+  sub
+  push bb30
+  jumpi
+  pop
+  jump bb41
+bb30:
+  dup 1
+  push 0x48a
+  sub
+  push bb31
+  jumpi
+  pop
+  jump bb40
+bb31:
+  dup 1
+  push 0x490
+  sub
+  push bb32
+  jumpi
+  pop
+  jump bb39
+bb32:
+  dup 1
+  push 0x496
+  sub
+  push bb33
+  jumpi
+  pop
+  jump bb38
+bb33:
+  dup 1
+  push 0x49c
+  sub
+  push bb34
+  jumpi
+  pop
+  jump bb37
+bb34:
+  dup 1
+  push 0x4a2
+  sub
+  push bb35
+  jumpi
+  pop
+  jump bb36
+bb35:
+  pop
+  jump bb68
+bb36:
+  push 131
+  push 0
+  mstore
+  jump bb69
+bb37:
+  push 130
+  push 0
+  mstore
+  jump bb69
+bb38:
+  push 129
+  push 0
+  mstore
+  jump bb69
+bb39:
+  push 128
+  push 0
+  mstore
+  jump bb69
+bb40:
+  push 127
+  push 0
+  mstore
+  jump bb69
+bb41:
+  push 126
+  push 0
+  mstore
+  jump bb69
+bb42:
+  push 125
+  push 0
+  mstore
+  jump bb69
+bb43:
+  push 124
+  push 0
+  mstore
+  jump bb69
+bb44:
+  push 123
+  push 0
+  mstore
+  jump bb69
+bb45:
+  push 122
+  push 0
+  mstore
+  jump bb69
+bb46:
+  push 121
+  push 0
+  mstore
+  jump bb69
+bb47:
+  push 120
+  push 0
+  mstore
+  jump bb69
+bb48:
+  push 119
+  push 0
+  mstore
+  jump bb69
+bb49:
+  push 118
+  push 0
+  mstore
+  jump bb69
+bb50:
+  push 117
+  push 0
+  mstore
+  jump bb69
+bb51:
+  push 116
+  push 0
+  mstore
+  jump bb69
+bb52:
+  push 115
+  push 0
+  mstore
+  jump bb69
+bb53:
+  push 114
+  push 0
+  mstore
+  jump bb69
+bb54:
+  push 113
+  push 0
+  mstore
+  jump bb69
+bb55:
+  push 112
+  push 0
+  mstore
+  jump bb69
+bb56:
+  push 111
+  push 0
+  mstore
+  jump bb69
+bb57:
+  push 110
+  push 0
+  mstore
+  jump bb69
+bb58:
+  push 109
+  push 0
+  mstore
+  jump bb69
+bb59:
+  push 108
+  push 0
+  mstore
+  jump bb69
+bb60:
+  push 107
+  push 0
+  mstore
+  jump bb69
+bb61:
+  push 106
+  push 0
+  mstore
+  jump bb69
+bb62:
+  push 105
+  push 0
+  mstore
+  jump bb69
+bb63:
+  push 104
+  push 0
+  mstore
+  jump bb69
+bb64:
+  push 103
+  push 0
+  mstore
+  jump bb69
+bb65:
+  push 102
+  push 0
+  mstore
+  jump bb69
+bb66:
+  push 101
+  push 0
+  mstore
+  jump bb69
+bb67:
+  push 100
+  push 0
+  mstore
+  jump bb69
+bb68:
+  push 999
+  push 0
+  mstore
+  jump bb69
+bb69:
+  push 32
+  push 0
+  return
+// === ROOT/tests/ui/codegen/lowering/switch/auto_plans.sol:Odd8 (runtime) ===
+@module Odd8_runtime
+bb0:
+  callvalue
+  iszero
+  iszero
+  push bb2
+  jumpi
+  jump bb1
+bb1:
+  jump bb3
+bb2 [cold]:
+  push 0
+  push 0
+  revert
+bb3:
+  push 0
+  calldataload
+  dup 1
+  push 128
+  mstore
+  pop
+  push 128
+  mload
+  dup 1
+  push 0
+  sub
+  push bb4
+  jumpi
+  pop
+  jump bb19
+bb4:
+  dup 1
+  push 3
+  sub
+  push bb5
+  jumpi
+  pop
+  jump bb18
+bb5:
+  dup 1
+  push 6
+  sub
+  push bb6
+  jumpi
+  pop
+  jump bb17
+bb6:
+  dup 1
+  push 9
+  sub
+  push bb7
+  jumpi
+  pop
+  jump bb16
+bb7:
+  dup 1
+  push 12
+  sub
+  push bb8
+  jumpi
+  pop
+  jump bb15
+bb8:
+  dup 1
+  push 15
+  sub
+  push bb9
+  jumpi
+  pop
+  jump bb14
+bb9:
+  dup 1
+  push 18
+  sub
+  push bb10
+  jumpi
+  pop
+  jump bb13
+bb10:
+  dup 1
+  push 21
+  sub
+  push bb11
+  jumpi
+  pop
+  jump bb12
+bb11:
+  pop
+  jump bb20
+bb12:
+  push 107
+  push 0
+  mstore
+  jump bb21
+bb13:
+  push 106
+  push 0
+  mstore
+  jump bb21
+bb14:
+  push 105
+  push 0
+  mstore
+  jump bb21
+bb15:
+  push 104
+  push 0
+  mstore
+  jump bb21
+bb16:
+  push 103
+  push 0
+  mstore
+  jump bb21
+bb17:
+  push 102
+  push 0
+  mstore
+  jump bb21
+bb18:
+  push 101
+  push 0
+  mstore
+  jump bb21
+bb19:
+  push 100
+  push 0
+  mstore
+  jump bb21
+bb20:
+  push 999
+  push 0
+  mstore
+  jump bb21
+bb21:
+  push 32
+  push 0
+  return
