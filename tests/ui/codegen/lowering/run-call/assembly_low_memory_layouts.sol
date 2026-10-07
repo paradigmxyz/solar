@@ -10,6 +10,8 @@
 //@ run-call: resetLoop 1, 32 => 0xf937df1b2e7b71cce0c407a18a6afc64603df82e7adbc88898f1269c62f6d596
 //@ run-call: hashRecursive 1, 2, 3 => 0x6e0c627900b24bd432fe7b1f713f1b0744091a646a9fe4a65a18dfed21f2949c
 //@ run-call: hashThenCopy 1, 2, 3 => 0x6e0c627900b24bd432fe7b1f713f1b0744091a646a9fe4a65a18dfed21f2949c
+//@ run-call: readScratch 5 => 5
+//@ run-call: hashAroundCheckedAdd 1, 2, 3 => 0x6e0c627900b24bd432fe7b1f713f1b0744091a646a9fe4a65a18dfed21f2949c
 
 // Memory-unsafe assembly can treat all memory from 0x80 up as its own. Seaport lays a basic
 // order's hashes and event data out at addresses that calldata sizes, moves the free memory
@@ -19,7 +21,8 @@
 // hash, and the event data replaced the offered item type. A store that would lower the
 // free memory pointer now keeps it at or above the initial one, and a layout sized by
 // calldata moves the spill area above low memory. Storing calldata into the pointer's slot as
-// an error argument or a hash input keeps its value, also across calls to assembly helpers.
+// an error argument or a hash input keeps its value, also across calls to assembly helpers and
+// checked arithmetic, and so does a load that reads the slot back as data.
 contract AssemblyLowMemoryLayouts {
     bytes32 public seal;
 
@@ -260,6 +263,36 @@ contract AssemblyLowMemoryLayouts {
             let p := mload(0x40)
             mstore(p, h)
         }
+    }
+
+    function readScratch(uint256) external pure returns (uint256 read) {
+        assembly {
+            let m := mload(0x40)
+            mstore(0x40, calldataload(4))
+            read := mload(0x40)
+            mstore(0x40, m)
+        }
+    }
+
+    // A checked addition may revert, but it reverts with scratch data and never reads the slot.
+    function hashAroundCheckedAdd(uint256 a, uint256 b, uint256)
+        external
+        pure
+        returns (bytes32 h)
+    {
+        uint256 m;
+        assembly {
+            m := mload(0x40)
+            mstore(0x40, calldataload(0x44)) // `c`.
+        }
+        uint256 sum = a + b;
+        assembly {
+            mstore(0x00, a)
+            mstore(0x20, b)
+            h := keccak256(0x00, 0x60)
+            mstore(0x40, m)
+        }
+        h ^= bytes32(sum - a - b);
     }
 
     function _copy(uint256 n) internal pure returns (bytes memory out) {

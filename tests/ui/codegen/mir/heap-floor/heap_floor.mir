@@ -125,3 +125,18 @@ fn @copy_replaces_scratch() -> i256 {
     mstore v2, v1
     ret v1
 }
+
+// A word loaded from the slot and only stored elsewhere is data, so the calldata word stays.
+// CHECK-LABEL: {{^[ +].*}}fn @scratch_read_as_data{{[( ]}}
+// CHECK-NOT: {{^[-+]}}
+fn @scratch_read_as_data() -> i256 {
+  bb0:
+    v0 = mload 64
+    v1 = calldataload 4
+    mstore 64, v1
+    v2 = mload 64
+    mstore 0, v2
+    v3 = keccak256 0, 32
+    mstore 64, v0
+    ret v3
+}
