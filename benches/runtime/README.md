@@ -1,21 +1,16 @@
 # Codegen benchmark corpus
 
-This directory contains the codegen benchmark runner and workload documentation. Local
-benchmark contracts live in `../../testdata/runtime/`. The shared
-project archives live in `../../testdata/projects/`; archives group cases from the same upstream
-project. The default `runtime` mode selects each entrypoint's transitive Solidity import closure and
-omits the heavy full-project cases. The `compile-time` mode measures those cases by passing full
-archived Standard JSON inputs to each compiler without deployment or runtime workloads. CI runs
-both modes with `--mode runtime compile-time`.
+`benchmark.py` runs the codegen benchmarks; `benchmark-compare.py` compares runs. Local contracts
+live in `../../testdata/runtime/`, project archives (one per upstream project) in
+`../../testdata/projects/`. Inputs live in this checkout so runs are reproducible and CI needs no
+second repository or its recursive submodules.
 
-The `counter-loop` microbenchmark exercises shared checked-arithmetic helpers
-inside a storage-backed accumulator loop. It measures 10, 100, and 1,000
-iterations as separate calls, after the same increment/subtract setup as the
-Solidity/Solcore comparison. It runs automatically in CI's `--suite all`,
-including the `hot` gas profile, alongside the existing `counter` workload.
+`--mode runtime` (default) compiles each entry point's transitive import closure and skips the heavy
+full-project cases. `--mode compile-time` compiles those from full archived Standard JSON inputs,
+without deployment or runtime workloads. CI runs `--mode runtime compile-time`.
 
-For one entry point shared with Sourcify, ABI/JSON, and symbolic comparisons,
-use the [compiler-diff CLI](../../tools/compiler-diff/README.md#execution-engines):
+The [compiler-diff CLI](../../tools/compiler-diff/README.md#execution-engines) runs the suite
+through the entry point it shares with Sourcify, ABI/JSON, and symbolic checks:
 
 ```sh
 uv run --project tools/compiler-diff compiler-diff runtime -- \
@@ -23,83 +18,69 @@ uv run --project tools/compiler-diff compiler-diff runtime -- \
   --mode runtime --suite micro --tests counter --gas --start-anvil
 ```
 
-The adapter stores logs, results, and artifacts under
-`/tmp/solar-sourcify/<version>/engines/runtime/<id>/`; put `--dir` before `runtime`
-to select another location. Pass engine options after `--` and use absolute paths.
-`--mode runtime` selects the corpus; `--gas` enables execution checks and
-`--start-anvil` starts a local node. The direct runner and benchmark comparison
-commands below remain the entry points used by CI and performance experiments.
+It writes logs, results, and artifacts to `/tmp/solar-sourcify/<version>/engines/runtime/<id>/`, or
+to `--dir` given before `runtime`. Pass engine options after `--`, with absolute paths. `--gas`
+enables execution checks; `--start-anvil` starts a local node. CI and performance work call the
+scripts directly.
 
-Keeping the inputs here makes the benchmark reproducible from this checkout and removes the CI
-dependency on a second repository and its recursive submodules.
+## Runner options
 
-Pass `--evm-version VERSION` to replace every archived Standard JSON target and benchmark a whole
-corpus against one EVM version. The default needs no solc and builds cold-path helper
-contracts with our compiler.
+`--evm-version VERSION` overrides every case's EVM target.
 
-Pass `--optimizer-runs N` to replace every case's `optimizer.runs`. We optimize for size below
-200 runs and for gas from 200 up, so `--optimizer-runs 1` turns the same corpus into a size
-benchmark. The override applies to every selected compiler, and runtime checks and gas calls
-still run against the size-optimized code when `--gas` is given.
+`--optimizer-runs N` overrides every case's `optimizer.runs` for all compilers. We optimize for size
+below 200 runs and for gas from 200, so `--optimizer-runs 1` makes a size benchmark (`--gas` then
+runs on the size-optimized code).
 
-The default runs only our compiler. Pass `--solc PATH` to record a two-compiler baseline.
-Pass `--solx PATH` to include [solx](https://github.com/NomicFoundation/solx) as a separate compiler,
-with its own compilation, gas, runtime checks, and artifacts. CI pins solx 0.1.8 and installs and
-runs it only on pushes to main. Its measurements appear alongside solc in the Markdown report.
+`--artifacts PATH` writes a file tree per runtime case and compiler from an extra, untimed compile.
+Each compiler directory has a `sources/` tree of every embedded Standard JSON source, keeping paths,
+contents, line endings, and extensionless names; source URLs are not fetched. Paths must be
+relative, with no empty, `.` or `..` parts, drive prefixes, backslashes, or control characters;
+symlinks and file/directory collisions are capture errors. Each compiler saves disassembly,
+bytecode, and raw Standard JSON input and output. Ours adds MIR and creation and runtime EVM IR.
+Solc and solx add unoptimized `ir.yul` and optimized `optimized-ir.yul` when returned (solx 0.1.8
+omits `irOptimized`). Solx adds creation and runtime LLVM IR before and after optimization
+(`*.unoptimized.ll`, `*.optimized.ll`). If `--reference-results` names a result beside an
+`artifacts` directory, the run copies the matching reference files.
 
-Pass `--oksolc PATH` to include [oksolc](https://github.com/okcontract/oksolc) with the same
-compilation, gas, runtime checks, and artifacts. CI builds revision
-`d5ff7399356b1ad238c839278a334e13e0e2dc81` with Zig 0.16.0 in ReleaseFast mode and runs it on
-main, PRs, and manual runs. CI caches the executable by revision, Zig version, OS, architecture,
-and build settings, skipping its shallow checkout and build on a cache hit. The build targets
-the baseline CPU for its architecture so the cached executable works across runners.
-The upstream build disables the browser UI by default, so no source patch, TypeScript,
-or Bun is needed.
-Oksolc uses `standard-json --no-cache --parallel --jobs 8 -`:
-eight workers match Solar's default, and disabling its persistent cache keeps repeated samples
-measuring compilation. Use `--oksolc-jobs N` to change its worker count locally. Inputs retain
-their settings; unsupported inputs remain failures. The website discovers compiler columns and
-artifact choices from the uploaded results, so oksolc appears in the overview and artifact
-permalinks posted in the PR comment, even when the base run has no oksolc data.
+## Reference compilers
 
-Reference compiler failures remain in the raw results but do not produce report warnings or
-trigger PR comments. Failures from our compiler and result mismatches involving it still do.
+By default only our compiler runs, so no solc is needed; it also builds the cold-path helper
+contracts unless a live solc comparison is selected. Such a run keeps compilation, gas, and runtime
+failure checks but makes no differential claims: passing runtime comparisons show as skipped unless
+a matching reference result exists.
 
-The default does not discover or run reference compilers. A one-compiler run retains
-compilation, gas measurements, and runtime failure checks, but cannot make differential
-runtime claims, so successful runtime comparisons are marked as skipped unless a
-matching reference result is supplied. Runtime helpers use our compiler unless a live
-solc comparison is explicitly selected.
+- `--solc PATH` records a two-compiler baseline.
+- `--solx PATH` adds [solx](https://github.com/NomicFoundation/solx) as a separate compiler with its
+  own compilation, gas, runtime checks, and artifacts.
+- `--oksolc PATH` adds [oksolc](https://github.com/okcontract/oksolc) the same way, run as
+  `standard-json --no-cache --parallel --jobs 8 -`: eight workers match our default, and no cache
+  keeps repeated samples measuring compilation. `--oksolc-jobs N` sets the workers. Inputs keep
+  their settings; unsupported inputs stay failures.
+- `--reference-results PATH` reuses solc, solx, and oksolc results from a prior run without running
+  them; it conflicts with `--solc` and `--solx`. It copies compile, gas, and runtime data only for
+  matching input fingerprints, then runs the usual cross-compiler checks. Live `--oksolc` results
+  override saved ones.
 
-Pass `--reference-results PATH` to reuse matching solc, solx, and oksolc results from a prior
-run without discovering or running those compilers. This option cannot be combined
-with `--solc` or `--solx`. Add `--oksolc PATH` to measure oksolc live alongside saved
-references; live results take precedence over saved oksolc data. CI uses this combination
-so PRs include oksolc before a main baseline with oksolc exists.
-The benchmark copies reference compile, gas, and runtime data only when the input fingerprint
-matches, then performs the normal cross-compiler runtime checks. PR CI uses the exact-base result
-as the reference, so solc runs on the base revision instead of repeating unchanged work on the PR.
-PR jobs never run solx, including when they must rebuild a missing baseline; solx columns appear
-when matching results are available in the downloaded main artifact.
+Reference compiler failures stay in the raw results but raise no report warnings or PR comments;
+failures of our compiler, and mismatches involving it, do.
 
-Pass `--artifacts PATH` to write a file tree for each runtime case and compiler. This extra compile
-runs outside the timed samples. Each compiler directory includes a `sources/` tree containing every
-embedded source in its Standard JSON input, preserving source paths and contents, including
-extensionless names and line endings. Source URLs are not fetched. Paths must be relative and cannot
-contain empty, `.` or `..` components, Windows drive prefixes, backslashes, or control characters.
-Symlinks and file/directory collisions report artifact capture errors.
+In CI, PRs pass the exact-base result as `--reference-results`, so solc runs only on the base
+revision. Solx 0.1.8 is pinned and runs only on pushes to main, never in PR jobs, even ones that
+rebuild a missing baseline; its columns appear when the downloaded main artifact has matching
+results. Oksolc runs on main, PRs, and manual runs; PRs add `--oksolc` to `--reference-results` so
+they include oksolc before a main baseline has it. CI builds oksolc revision
+`d5ff7399356b1ad238c839278a334e13e0e2dc81` with Zig 0.16.0, ReleaseFast, for the baseline CPU so the
+cached binary runs on any runner of that architecture. The upstream build disables the browser UI by
+default, so it needs no source patch, TypeScript, or Bun. The cache key covers revision, Zig
+version, OS, architecture, and build settings; a hit skips the shallow checkout and build. Solx and
+oksolc appear beside solc in the Markdown report. The website reads compiler columns and artifact
+choices from the uploaded results, so oksolc shows in the overview and the PR comment's artifact
+links even when the base run lacks it.
 
-The compiler emits MIR, creation and runtime EVM IR, disassembly, bytecode,
-and raw Standard JSON input and output. Solc emits unoptimized `ir.yul` and optimized
-`optimized-ir.yul` where available, disassembly,
-bytecode, and raw Standard JSON input and output. When `--reference-results` points to a result next
-to an `artifacts` directory, the matching reference files are copied into the new run. Solx artifacts
-use the same output requests as solc, saving `ir.yul` and `optimized-ir.yul` when returned,
-alongside disassembly, bytecode, and raw Standard JSON input and output. Solx 0.1.8 returns
-`ir` but omits `irOptimized`.
+## Comparing runs
 
-Compare two runs with `benchmark-compare.py`, which also generates CI's Markdown report,
-common benchmark JSON, job summary, and comment metadata:
+`benchmark-compare.py` also produces CI's Markdown report, common benchmark JSON, job summary, and
+comment metadata:
 
 ```bash
 uv run benches/runtime/benchmark-compare.py \
@@ -109,55 +90,106 @@ uv run benches/runtime/benchmark-compare.py \
   --diff-output target/codegen-bench/changes.patch
 ```
 
-The script prints Markdown to stdout by default. `--report-output` also saves the same
-report; omit it when you only need terminal output.
-CI uses `--pr-comment-output` for a compact PR comment with a gas and size overview,
-changed benchmarks compared with the base branch, and a button to open the web overview.
-Neither overview includes comparison counts. The detailed report stays in the job summary
-and artifacts. `--comment-output` writes the separate should-comment flag.
-With a baseline, the detailed report shows only changed benchmarks against that baseline,
-plus per-call gas changes and artifact details. Reference compiler tables appear only in
-single-run reports.
+- Inputs are JSON paths or directories holding `results.json`. Artifacts default to `artifacts/`
+  beside each JSON; override with `--baseline-artifacts` and `--artifacts`.
+- Markdown goes to stdout; `--report-output` also saves it. `--json-output` keeps exact values,
+  compile samples, comparison exclusions, and artifact paths and hashes. `--diff-output` writes
+  unified artifact diffs.
+- `--tests NAME...` selects cases. `--artifact KIND...` limits artifact kinds to any of `mir`,
+  `llvm-ir`, `evm-ir`, `disasm`, `bytecode`, and `json` (default: all).
+- `--compiler solc|solx|oksolc` compares that compiler instead of ours, needs a baseline, and omits
+  the compiler-primary CI tables. Use `--compiler solx --artifact llvm-ir` for solx LLVM IR.
+- `--results PATH` alone makes a single-run CI report, the only kind with reference compiler tables.
+  With a baseline, the detailed report shows only changed benchmarks, per-call gas changes, and
+  artifact details.
+- `--common-output` writes the shared CI schema; it needs a complete, unfiltered run of our
+  compiler.
+- CI's `--pr-comment-output` writes a compact PR comment: gas and size overview, benchmarks changed
+  against the base branch, and a button to the web overview. Neither overview shows comparison
+  counts; the detailed report stays in the job summary and artifacts. `--comment-output` writes the
+  should-comment flag.
+- Numeric regressions exit zero; missing or invalid result inputs do not.
 
-Inputs may be directories containing `results.json` or JSON paths. Artifacts default to
-`artifacts/` beside each JSON. Use `--baseline-artifacts` and `--artifacts` for other paths.
-Add `--tests factorial counter` to select cases, `--artifact mir` for MIR diffs, or
-`--artifact evm-ir disasm bytecode` for backend output. `--compiler solc`, `--compiler solx`, or `--compiler oksolc`
-inspects that reference compiler. Solx artifacts include creation and runtime LLVM IR
-before and after optimization (`*.unoptimized.ll` and `*.optimized.ll`); use
-`--compiler solx --artifact llvm-ir` to compare them.
-The default compares our compiler between runs. `--results PATH` without a baseline produces
-a single-run CI report. Numeric regressions do not cause a nonzero exit status;
-missing or invalid result inputs do. The shared CI schema (`--common-output`)
-requires a complete, unfiltered run. `--compiler solc` requires two runs and shows
-the solc comparison without the compiler-primary CI tables.
+The report lists missing and failed cases, artifact capture errors, and runtime observation changes,
+and leaves incompatible inputs or workloads out of deltas. The summary is the geometric mean of
+candidate/baseline ratios, per metric (gas, size, time, RSS), with each benchmark weighted equally
+regardless of contract size. Zero-valued pairs count in per-case results and change counts, not the
+mean. Runtime gas sums comparable transactions within, not across, benchmarks. Artifact hashes and
+file additions and removals expose changed bytecode of equal size. Missing artifacts show as
+unavailable; whole-project cases capture none.
 
-The comparison reports missing/failed cases and excludes incompatible inputs or runtime
-workloads from deltas. The summary uses the geometric mean of candidate/baseline ratios,
-with equal weight per benchmark, separately for each metric. Zero-valued pairs stay in
-the per-case results and change counts but do not enter the mean. Runtime gas sums the
-comparable transactions within each benchmark, not across benchmarks. It includes per-call gas changes,
-compile samples in JSON, artifact hashes, and file additions/removals, so equal bytecode sizes
-do not hide changed bytecode. Missing artifacts are reported as unavailable, including the
-whole-project cases that do not capture them. Compile time and RSS comparisons require matching
-compiler labels and known build profiles; machine differences and timing noise still need review.
-Use matching Cargo targets and dependency features too: building test targets can unify
-additional dependency features even when both binaries report the same debug profile.
-Record the build command and freeze the measured baseline binary before running builds
-with different targets. Compiler labels alone do not establish build comparability.
-Artifact capture errors and runtime observation changes appear in the comparison's issues.
+Compile time and RSS comparisons need matching compiler labels and known build profiles, but labels
+do not prove comparable builds: review machine differences and timing noise, and note that building
+test targets can unify extra dependency features under the same debug profile. Use matching Cargo
+targets and features, record the build command, and freeze the baseline binary before building other
+targets.
 
-Calls with `comparison_exclusion_reason` still execute and retain their raw gas and
-failures in `results.json`. Reports sum only calls eligible on both sides and list
-excluded gas and reasons separately. This excludes the upstream LibString memory
-brutalizer, whose workload depends on gas and contract bytecode. Older baselines
-use exclusions recorded by the candidate; two old reports without this metadata
-retain their original totals.
+Calls with `comparison_exclusion_reason` still run and keep raw gas and failures in `results.json`;
+reports sum only calls eligible on both sides and list excluded gas and reasons apart. This excludes
+the upstream LibString memory brutalizer, whose workload depends on gas and contract bytecode. Older
+baselines use the candidate's exclusions; two old reports without this metadata keep their totals.
 
-The workload definitions and helper fixtures were imported from
+## Comparing local builds
+
+Compare our base and candidate builds locally; do not install or run solc/solx unless asked. Record
+the baseline before editing and reuse it while the commit, toolchain, flags, and corpus match. While
+iterating, run affected cases with one compile sample; replace `counter factorial` below with their
+IDs. Execution uses Foundry's `cast` and `anvil`.
+
+```bash
+bench_run() {
+  cargo build -p solar-compiler --bin solar &&
+  mkdir -p "$1/debug" &&
+  cp target/debug/solar "$1/debug/solar" &&
+  /usr/bin/time -p -o "$1/time.txt" \
+    uv run benches/runtime/benchmark.py \
+    --solar "$1/debug/solar" \
+    --mode runtime --suite all --tests counter factorial --compile-repeats 1 \
+    --gas --gas-profile hot --start-anvil \
+    --output "$1/results.json"
+}
+bench_run target/codegen-bench/baseline
+
+# Make the code change, then continue.
+bench_run target/codegen-bench/candidate
+uv run benches/runtime/benchmark-compare.py \
+  target/codegen-bench/baseline target/codegen-bench/candidate \
+  --report-output target/codegen-bench/comparison.md \
+  --json-output target/codegen-bench/comparison.json
+```
+
+Read failures, missing cases, and excluded comparisons first. Check per-case size and gas, including
+per-call deltas; aggregate wins must not hide regressions or missing results. For changed gas, size,
+behavior, or output fingerprints, capture artifacts (`--artifacts`) from both saved builds and diff
+MIR (`mir.mir`), EVM IR (`creation.evmir`, `runtime.evmir`), disassembly, and bytecode with
+`--diff-output target/codegen-bench/changes.patch`; equal byte counts do not prove equal bytecode.
+Narrow with `--tests NAME...` or `--artifact mir evm-ir`. Whole-project cases measure compilation
+only; `testdata/projects/README.md` and [Workloads](#workloads) pin their inputs and upstream
+commits.
+
+Keep baseline binaries, results, and artifacts immutable; use fresh candidate directories, debug
+builds, and the existing target directory. Save evidence outside directories due for cleanup, then
+remove requested temporary worktrees with `git worktree remove`; never clean another task's files.
+Measure compiler time separately, with repeated samples, matching build profiles, and no concurrent
+benchmarks or heavy builds. One sample does not prove a compiler-speed change; repeat only affected
+cases and suspected regressions.
+
+Once a codegen change settles, run both corpora once: UI fixtures for size and `-Osize` coverage,
+and the full runtime and project corpus with
+`--mode runtime compile-time --suite all --compile-repeats 1` and no `--tests`. Reuse the matching
+baseline; after fixes repeat affected checks, and broaden only when changes or failures invalidate
+earlier coverage. When tuning a pipeline, move or remove one pass group at a time, record its order
+and both corpora's results under `target/codegen-bench/`, and keep IR snapshots canonical.
+`-Ztime-passes` on a large contract finds repeated passes that still change IR; one `changed=false`
+result does not prove a pass redundant.
+
+## Workloads
+
+Workloads and helper fixtures, including the `../../testdata/Arithmetic.sol`, `Factorial.sol`, and
+`SumArray.sol` micro contracts, come from
 [`walnuthq/solidity-compiler-benchmarks`](https://github.com/walnuthq/solidity-compiler-benchmarks)
-at commit `01209d2b8ac81645b92e3ef801b5bcdfd61bfd69`. The combined profile still contains each contract
-from both compilers, both deployed artifacts, the same ordered transactions, and matching normalized
+at `01209d2b8ac81645b92e3ef801b5bcdfd61bfd69`. The combined profile still holds each contract from
+both compilers, both deployed artifacts, the same ordered transactions, and matching normalized
 runtime observations.
 
 | Case | Upstream source | Revision | Files |
@@ -174,125 +206,91 @@ runtime observations.
 | `solady-encoding` | `Vectorized/solady` plus `Encoding.sol` | `solady-0.1.26` archive | 3 |
 | `solady-algorithms` | `Vectorized/solady` plus `Algorithms.sol` | `solady-0.1.26` archive | 5 |
 
-The OpenZeppelin cases share the canonical
-`../../testdata/projects/openzeppelin-5.6.1.json.gz` archive; the file counts above are the sliced
-closure for each case. This replaces the extracted OpenZeppelin
-runtime archive used by earlier versions of the benchmark.
+File counts are each case's sliced closure. Archives below are in `../../testdata/projects/`. The
+OpenZeppelin cases share `openzeppelin-5.6.1.json.gz`, which replaces the earlier extracted
+OpenZeppelin runtime archive; `lilweb3-flashloan` and `lilweb3-fractional` share
+`lilweb3-runtime.json.gz`; `aave-l2-encoder.json.gz` embeds the Aave harness. The large OpenZeppelin
+and Solady cases, like the normal benchmark suite, read the pinned archives there. `counter` reuses
+the normal suite's `../../testdata/Counter.sol`. `fixtures/runtime/RuntimeFixtures.sol` holds local
+Apache-2.0 helpers with the interfaces the cold-path workloads use. Embedded sources keep their SPDX
+identifiers.
 
-The Lil Web3 cases share `../../testdata/projects/lilweb3-runtime.json.gz`; the file counts above
-are the sliced closure for each case.
+`counter-loop` runs shared checked-arithmetic helpers in a storage-backed accumulator loop, timing
+10, 100, and 1,000 iterations as separate calls after the increment/subtract setup of the
+Solidity/Solcore comparison. CI runs it in `--suite all`, including the `hot` gas profile.
 
-The large OpenZeppelin and Solady cases use the pinned archives in `../../testdata/projects/`. The
-normal benchmark suite also reads those archives from there.
+`minimal-proxy` (`../../testdata/MinimalProxy.sol`) has a payable high-level fallback that delegates
+to an immutable implementation its constructor deploys, with assembly only to forward revert data.
+Both gas profiles measure storage writes, reads, and empty, short, and 1 KiB byte echoes through the
+proxy; runtime checks compare the stored value and returned bytes across compilers. Runtime size
+covers the proxy alone; creation gas and size include the implementation.
 
-Governor measures empty proposals and proposals with one, two, and eight elements.
-The nonempty cases exercise address cleanup, word-array copies, and nested bytes
-tails of 0, 1, 31, 32, and 33 bytes. Each workload also checks the returned proposal
-hash against solc. Keep per-call results visible: empty proposals do not exercise
-encoder loops, and transaction gas floors can hide execution-cost changes on
-inputs with substantial calldata.
+`openzeppelin-governor` measures proposals of zero, one, two, and eight elements. Nonempty ones
+exercise address cleanup, word-array copies, and nested bytes tails of 0, 1, 31, 32, and 33 bytes.
+Each checks the returned proposal hash against solc. Keep per-call results visible: empty proposals
+skip encoder loops, and transaction gas floors can hide execution-cost changes on calldata-heavy
+inputs.
 
-LibString also exercises byte-to-hex conversion, every possible single-byte ASCII
-input, and rune counting for empty, one-byte, 31/32/33-byte ASCII, and longer
-multibyte UTF-8 strings. These pinned upstream tests assert their own results,
-including comparison against reference implementations. Keep these workloads
-alongside replacement and conversion calls: they expose loop and bounds-check
-costs that the original six-function profile missed.
+`solady-lib-string` adds byte-to-hex conversion, every single-byte ASCII input, and rune counting
+for empty, one-byte, 31/32/33-byte ASCII, and longer multibyte UTF-8 strings. These pinned upstream
+tests assert their own results, including against reference implementations, and expose loop and
+bounds-check costs the original six-function profile missed; keep them beside the replacement and
+conversion calls. Byte conversion covers empty input and lengths 1, 31, 32, 33, 64, and 65 in both
+prefix modes; ASCII differential calls put high-bit bytes at the first byte, a word boundary, and
+the last byte. These checks dirty nearby memory and verify the helper restores its temporary writes,
+so their gas includes upstream memory brutalization and assertion setup, not the encoder alone. The
+brutalizer seeds a pseudorandom memory offset from `gas()` and copies `codesize()` bytes, so new
+generated code can pick a costlier stress path even when the library gets cheaper: keep those
+per-call changes visible, not summed as library cost. They are separate from the fixed hex and
+exhaustive single-byte workloads, so aggregates cannot hide the original gaps.
 
-The byte conversion workloads also cover empty input and lengths 1, 31, 32, 33,
-64, and 65 with both prefix modes. ASCII differential calls exercise high-bit
-bytes at the first byte, a word boundary, and the final byte. These upstream
-checks dirty surrounding memory and verify that the helper restores its temporary
-writes. Their gas includes the upstream memory-brutalization and assertion setup,
-so it does not measure the encoder in isolation. The brutalizer seeds a pseudorandom
-memory offset from `gas()` and also copies `codesize()` bytes; changing generated code
-can select a more expensive stress path even when the library itself gets cheaper.
-Keep those per-call changes visible instead of treating their sum as isolated library
-cost. They are separate from the fixed
-hex and exhaustive single-byte workloads, so aggregate results cannot hide the
-original gaps.
+`solady-algorithms` uses [`Algorithms.sol`](../../testdata/runtime/Algorithms.sol) with unchanged
+pinned LibString, LibSort, and Base64. Its 85 calls cover unsigned decimal digit boundaries, signed
+limits, insertion and quicksort lengths around their cutoff, sorted/reversed/equal/nonuniform
+arrays, and padded Base64 tails. It checks return values apart from gas; the wrappers have no
+assertions or gas-dependent memory stress.
 
-`solady-algorithms` uses [`Algorithms.sol`](../../testdata/runtime/Algorithms.sol) with unchanged pinned
-LibString, LibSort and Base64 sources. Its 85 calls cover unsigned decimal digit
-boundaries, signed limits, insertion and quicksort lengths around their cutoff,
-sorted/reversed/equal/nonuniform arrays, and padded Base64 tails. Return values
-are checked separately from gas measurements; the wrappers contain no assertions
-or gas-dependent memory stress.
+`solady-encoding` uses [`Encoding.sol`](../../testdata/runtime/Encoding.sol) with the same Solady
+and plain ABI calls. It measures both hex prefix modes and ASCII classification over nonuniform
+inputs of 0, 1, 15, 16, 31, 32, 33, 63, 64, 65, and 256 bytes, with high-bit bytes at the start, a
+word boundary, and the end; more boundaries reach 1024 bytes, including long all-ASCII scans and
+high-bit bytes near both ends. All 153 calls check returned values against solc. It isolates
+encoding and ABI costs from upstream assertions and memory brutalization; report both it and
+`solady-lib-string`, since they exercise different behavior.
 
-`solady-encoding` uses [`Encoding.sol`](../../testdata/runtime/Encoding.sol) with the same pinned Solady
-library and ordinary ABI calls. It measures both hex prefix modes and ASCII
-classification over nonuniform inputs of 0, 1, 15, 16, 31, 32, 33, 63, 64, 65,
-and 256 bytes, plus high-bit bytes at the beginning, word boundary, and end.
-Additional boundaries extend through 1024 bytes, including long all-ASCII scans
-and high-bit bytes near both ends. All 153 calls compare their returned values
-against solc. This isolates encoding
-and ABI costs from upstream assertions and memory brutalization; keep both cases
-in reports, since they exercise different behavior.
+These local workloads in `../../testdata/runtime/` target specific optimizations. Report each apart
+from the pinned project corpus; they show targeted gains, not general superiority over solc.
 
-The three additional micro contracts (`../../testdata/Arithmetic.sol`,
-`../../testdata/Factorial.sol`, and `../../testdata/SumArray.sol`) came from the benchmark repository at the commit above. The
-runtime suite reuses the existing `../../testdata/Counter.sol` source from the normal benchmark
-suite. The Aave harness is embedded in `../../testdata/projects/aave-l2-encoder.json.gz`.
-`fixtures/runtime/RuntimeFixtures.sol` provides local Apache-2.0 helpers with the same interfaces
-used by the cold-path workloads. Embedded Solidity sources retain their SPDX identifiers.
-
-`verified-words` is a synthetic workload in `../../testdata/runtime/VerifiedWords.sol`
-for the Lean-proved word rules. It measures mixed bitwise expressions and signed
-negation in hot loops, with edge-value return checks. Report its results
-separately from the pinned project corpus; it demonstrates targeted reductions,
-not a general advantage over solc.
-
-`compiler-optimizations` uses the local
-`../../testdata/runtime/CompilerOptimizations.sol` workload to exercise aggregate SSA
-across branches and loops, joined bounds, shared constant-argument helpers,
-packed storage updates, and overwrites on both branch arms. It measures both
-fresh and repeated writes and checks returned values and final storage against
-solc. It is a focused regression workload; retain the project corpus comparison
-when evaluating its improvements.
-
-`word-recipes` uses `../../testdata/runtime/WordRecipes.sol` to measure mixed arithmetic,
-common-mask factoring, packed-byte extraction and a deployment/runtime tradeoff
-for a large comparison constant. Keep its targeted hot-loop results separate from
-the pinned projects and compare both optimization objectives.
-
-`seeded-words` uses `../../testdata/runtime/SeededWords.sol` for mixed bitwise
-subtraction, complemented arithmetic and mask absorption discovered from the
-offline seed trees. It checks zero iterations and
-wrapping inputs as well as hot loops. These targeted results are separate from
-the pinned project corpus and do not establish general superiority over solc.
-
-`division-words` uses `../../testdata/runtime/DivisionWords.sol` to measure
-checked products, quotients and remainders in hot loops: fixed-point scaling,
-fee routing and deduction, kept shares, lot thresholds and whole lots, week,
-period and day rounding, and nested unit conversion. Return checks include the
-overflow limits of the scaled products and maximal timestamps. Report it
-separately from the pinned project corpus.
-
-The local `minimal-proxy` micro benchmark uses `../../testdata/MinimalProxy.sol`.
-Its payable high-level fallback delegates to an immutable implementation deployed
-by its constructor, using assembly only to forward revert data. Both gas profiles
-measure storage writes, reads, and empty, short, and 1 KiB byte echoes through the
-proxy. Runtime checks compare the stored value and returned bytes across compilers.
-Runtime size measures the proxy alone;
-creation gas and size include the helper implementation.
+- `verified-words` (`VerifiedWords.sol`): the Lean-proved word rules, as mixed bitwise expressions
+  and signed negation in hot loops, with edge-value return checks.
+- `compiler-optimizations` (`CompilerOptimizations.sol`): aggregate SSA across branches and loops,
+  joined bounds, shared constant-argument helpers, packed storage updates, and overwrites on both
+  branch arms. It measures fresh and repeated writes and checks returned values and final storage
+  against solc. It is a focused regression workload; keep the project corpus comparison when judging
+  its gains.
+- `word-recipes` (`WordRecipes.sol`): mixed arithmetic, common-mask factoring, packed-byte
+  extraction, and a deployment/runtime tradeoff for a large comparison constant. Compare both
+  optimization objectives.
+- `seeded-words` (`SeededWords.sol`): mixed bitwise subtraction, complemented arithmetic, and mask
+  absorption found in the offline seed trees, checking zero iterations and wrapping inputs as well
+  as hot loops.
+- `division-words` (`DivisionWords.sol`): checked products, quotients, and remainders in hot loops
+  for fixed-point scaling, fee routing and deduction, kept shares, lot thresholds and whole lots,
+  week, period, and day rounding, and nested unit conversion. Return checks include the scaled
+  products' overflow limits and maximal timestamps.
 
 ## Reproducing oksolc via-IR failures
 
-These commands recheck the three full-project inputs reported in
-[oksolc issue #8](https://github.com/okcontract/oksolc/issues/8), using revision
-`d5ff7399356b1ad238c839278a334e13e0e2dc81` on Ubuntu 24.04 x86-64. Start from
-[Solar PR #1601](https://github.com/paradigmxyz/solar/pull/1601):
+These steps recheck the three full-project inputs in [oksolc issue
+#8](https://github.com/okcontract/oksolc/issues/8) with revision
+`d5ff7399356b1ad238c839278a334e13e0e2dc81` on Ubuntu 24.04 x86-64, starting from [Solar PR
+#1601](https://github.com/paradigmxyz/solar/pull/1601). Put Zig 0.16.0 and uv on `PATH`; peak RSS
+needs GNU `/usr/bin/time`. No Solar build, Foundry, or JavaScript tools are needed. Build the same
+compiler-only binary as CI:
 
 ```sh
 git clone --depth 1 --branch dani/bench-oksolc https://github.com/paradigmxyz/solar.git solar-oksolc-repro
 cd solar-oksolc-repro
-```
-
-Install Zig 0.16.0 and uv, and put them on `PATH`. GNU `/usr/bin/time` is needed
-for peak RSS measurements. No Solar build, Foundry, or JavaScript tools are needed.
-Build the same compiler-only executable as CI:
-
-```sh
 mkdir -p target/oksolc-repro/source
 git -C target/oksolc-repro/source init
 git -C target/oksolc-repro/source fetch --depth 1 https://github.com/okcontract/oksolc.git d5ff7399356b1ad238c839278a334e13e0e2dc81
@@ -302,9 +300,8 @@ zig build --build-file target/oksolc-repro/source/build.zig build-cli \
   --prefix "$PWD/target/oksolc-repro/install"
 ```
 
-Generate inputs from the branch's checked-in project archives, changing only
-`settings.viaIR` to `true`. Optimizer settings, EVM targets, source contents, and
-output selections stay unchanged:
+Generate inputs from the branch's project archives, changing only `settings.viaIR` to `true`;
+optimizer settings, EVM targets, sources, and output selections stay as they are:
 
 ```sh
 uv run --no-project --python "$(cat .python-version)" python - <<'PY'
@@ -330,8 +327,8 @@ for case in benchmark.TEST_CASES:
 PY
 ```
 
-Run each compiler request directly, with the persistent compiler cache disabled
-and eight workers. Each input embeds its sources, so no import checkout is needed.
+Run each request directly, with the persistent cache off and eight workers. Inputs embed their
+sources, so no import checkout is needed:
 
 ```sh
 mkdir -p target/oksolc-repro/outputs
@@ -346,10 +343,9 @@ for case in seaport-1.6-project solady-0.1.26-project openzeppelin-5.6.1-project
 done
 ```
 
-Inspect both stderr and the output JSON's `errors` array: a zero process exit
-status does not mean compilation succeeded. Observed results:
+Check stderr and the output JSON's `errors` array; exit status zero does not mean success.
 
-| Input | Sources | EVM target | Optimizer runs | Result |
+| Input | Sources | EVM target | Optimizer runs | Observed result |
 | --- | ---: | --- | ---: | --- |
 | `seaport-1.6-project` | 386 | london | 4294967295 | Yul stack-depth error for `var_parameters_offset` |
 | `solady-0.1.26-project` | 208 | paris | 1000 | Compiles successfully |
@@ -363,16 +359,13 @@ solady-0.1.26-project     c6f7fda591cc00d880fcd21e18da99b4fab4bcd2fc9309cea78b85
 openzeppelin-5.6.1-project 666aacb77d7fdf356de4fcabc93a230e6daccb642e1857b41c8c727ee2cf33d6
 ```
 
-These are full-project reproducers, not reduced cases. On 2026-10-01, all 32
-CI-selected cases were retested with this revision. With the original settings,
-22 cases compiled; ten required via-IR, and two runtime helpers also required it.
-With `viaIR: true` on every input, including helpers, 30 cases compiled and all
-23 runtime cases completed their execution checks and hot gas calls. This run
-used oksolc alone and did not compare outputs against another compiler.
-CI retains each case's original settings.
+These reproduce whole projects; they are not reduced cases. On 2026-10-01 we retested all 32
+CI-selected cases with this revision, using oksolc alone with no output comparison. With original
+settings, 22 compiled; ten needed via-IR, as did two runtime helpers. With `viaIR: true` on every
+input and helper, 30 compiled and all 23 runtime cases passed their execution checks and hot gas
+calls. CI keeps each case's original settings.
 
-[Upstream PR #12](https://github.com/okcontract/oksolc/pull/12) fixes Solady's internal
-failure. OpenZeppelin now returns a Yul diagnostic instead of exiting 137; its
-measured peak RSS was 2,654,486,528 bytes in this run. The upstream maintainer
-reports that Seaport produces the same diagnostic with solc; see
+[Upstream PR #12](https://github.com/okcontract/oksolc/pull/12) fixes Solady's internal failure.
+OpenZeppelin now returns a Yul diagnostic instead of exiting 137, with 2,654,486,528 bytes peak RSS
+in this run. The upstream maintainer reports that Seaport gives the same diagnostic with solc; see
 [issue #8](https://github.com/okcontract/oksolc/issues/8#issuecomment-5902965134).
