@@ -23,7 +23,8 @@ cargo run -- file.sol                  # Run compiler
 cargo run -- -Zhelp                    # Unstable flags help
 ```
 
-Run focused tests while iterating and broader checks once the change settles.
+Filter tests with `cargo uitest <path-substring>` or
+`cargo nextest run -p <crate> <test-name>`. Run focused tests while iterating and broader checks once the change settles.
 For documentation-only changes, check prose, examples, and spelling; do not
 build or run tests. Avoid plain `cargo test`.
 
@@ -32,11 +33,24 @@ overhead turns the UI tests into minutes of 100% CPU.
 
 ## Architecture
 
-Crates: `solar-parse` (lexer, parser), `solar-ast` (AST, visitors), `solar-sema`
-(symbol resolution, type checking), `solar-codegen` (MIR, MIR optimizations,
-EVM backend), `solar-interface` (diagnostics, sources), `solar-cli`.
+Pipeline: lex -> parse -> sema (AST -> HIR, typeck) -> MIR -> EVM IR -> bytecode.
 
-Pipeline: lex -> parse -> sema -> MIR -> EVM IR -> bytecode.
+- `crates/parse`: Solidity and Yul lexer and parser. `crates/ast`: AST and
+  visitors.
+- `crates/sema`: `ast_lowering/` (name resolution, AST -> HIR), `hir/`, `ty/`,
+  `typeck/`, `output/` (ABI, NatSpec, storage layout).
+- `crates/codegen`: `mir/lower/` (HIR -> MIR), `mir/transform/` (one file per
+  MIR pass), `mir/pass.rs` (pass registry and pipelines),
+  `backend/evm/codegen/` (instruction selection, stack scheduling),
+  `backend/evm/ir/passes/` (EVM IR passes), `backend/assembler/`, `target.rs`
+  (cost model).
+- `crates/interface`: sources, spans, diagnostics, symbols.
+  `crates/data-structures`: index types, bitsets, arena helpers.
+  `crates/config`: options and `-Z` flags (`opts.rs`; bless
+  `tests/ui/cli/Zhelp.stdout`). `crates/cli`: driver.
+  `crates/solar`: binary and test entry point. Also `lsp`, `lint`, `capi`,
+  `macros`.
+- `tools/tester`: UI and integration test runners. `tools/xtask`: `cargo tq`.
 
 ### MIR and EVM IR
 
@@ -98,7 +112,10 @@ Declare MIR operations only in `crates/codegen/src/mir/op_schema.rs` and EVM
 opcodes only in `backend/evm/op.rs`; never add a parallel `match` that
 classifies operations elsewhere. Write rewrite rules in ISLE under
 `crates/codegen/isle/`, and never hand-edit the generated `prelude.isle` or
-`extractors.isle`. Read [docs/CODEGEN.md](docs/CODEGEN.md) before adding
+`extractors.isle`; regenerate them with
+`SNAPSHOTS=overwrite cargo nextest run -p solar-codegen isle_prelude`. Rules
+that affect execution need runtime coverage, and word rules need the
+`scripts/evm-rules/` checker. Read [docs/CODEGEN.md](docs/CODEGEN.md) before adding
 operations, writing rules, or extending the `egraph` pass.
 
 ### Target Cost Model
@@ -152,6 +169,8 @@ understand it without the code: what it rewrites, the analysis or algorithm,
 the main safety and profitability limits, its place in the pipeline, and any
 deliberate omissions. A one-line restatement of the name is not enough.
 
+- Before adding a pass, check `mir/transform/` and `backend/evm/ir/passes/`
+  for one to extend.
 - Test pass behavior with UI tests, by layer:
   - Solidity-to-IR lowering: `tests/ui/codegen/lowering/`.
   - MIR passes: `tests/ui/codegen/mir/<pass-name>/` (command-line pass name).
@@ -227,7 +246,8 @@ update the tracked solc version, follow
 - No full stops at the end of messages.
 - Quote code with backticks, not double quotes.
 - Keep the main message short.
-- Reuse solc's code for warnings solc also emits, so `--allow` works the same.
+- Reuse solc's code for diagnostics solc also emits (so `--allow` matches for
+  warnings); never invent codes.
 - Return `Result<(), ErrorGuaranteed>` rather than `bool` from emitting code
   where practical, and pass the guarantee to `mk_ty_err`. Never use
   `ErrorGuaranteed::new_unchecked()` when a real guarantee exists.
