@@ -22,12 +22,12 @@
 //! A store that only fills the slot with data keeps its value: an error argument before a revert,
 //! or a hash input before the pointer is restored. A forward search tells the two apart. It
 //! follows the stored value through blocks, into internal calls, and from returns back to every
-//! call site, until something reads the slot as the pointer, another store replaces it, or
-//! execution ends. An `mload` of the slot reads it as the pointer, as every allocation in
-//! assembly starts with one, and so do the compiler's own free-memory-pointer reads and
-//! allocations, builtin calls, and the semantic operations whose lowering may allocate. A return
-//! from the constructor, or one from an external function that returns only scalar words, ends
-//! execution without reading the slot: codegen returns runtime code from a fixed address and
+//! call site, until something reads the slot as the pointer, another store or a copy over the whole
+//! slot replaces it, or execution ends. An `mload` of the slot reads it as the pointer, as every
+//! allocation in assembly starts with one, and so do the compiler's own free-memory-pointer reads
+//! and allocations, builtin calls, and the semantic operations whose lowering may allocate. A
+//! return from the constructor, or one from an external function that returns only scalar words,
+//! ends execution without reading the slot: codegen returns runtime code from a fixed address and
 //! encodes scalar results in a static buffer.
 //!
 //! The pass runs first, on semantic MIR, so the passes that forward the slot's stored value to
@@ -142,6 +142,26 @@ fn returns_to_the_end(func: &Function) -> bool {
             }
             _ => true,
         })
+}
+
+/// Whether a copy or a zeroing writes every byte of the free memory pointer's slot, replacing the
+/// word stored there.
+fn overwrites_slot(func: &Function, kind: &InstKind) -> bool {
+    let (dest, size) = match *kind {
+        InstKind::CalldataCopy(dest, _, size)
+        | InstKind::CodeCopy(dest, _, size)
+        | InstKind::ReturnDataCopy(dest, _, size)
+        | InstKind::ExtCodeCopy(_, dest, _, size)
+        | InstKind::DataCopy(_, dest, size)
+        | InstKind::MCopy(dest, _, size)
+        | InstKind::MemoryZero(dest, size) => (dest, size),
+        _ => return false,
+    };
+    let slot = EvmMemoryLayout::FMP_SLOT;
+    func.value_u64(dest).zip(func.value_u64(size)).is_some_and(|(dest, size)| {
+        dest <= slot
+            && dest.checked_add(size).is_some_and(|end| end >= slot + EvmMemoryLayout::WORD_SIZE)
+    })
 }
 
 /// What happens to a value left in the free memory pointer slot from some point on.
@@ -277,6 +297,10 @@ impl<'a> PointerUses<'a> {
                         break;
                     }
                     InstKind::SetFmp(_) => {
+                        replaced = true;
+                        break;
+                    }
+                    _ if overwrites_slot(func, &inst.kind) => {
                         replaced = true;
                         break;
                     }

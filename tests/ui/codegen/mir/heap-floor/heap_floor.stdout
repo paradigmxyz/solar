@@ -89,3 +89,14 @@
       ret v2
   }
   
+  fn @copy_replaces_scratch() -> i256 {
+    bb0:
+      v0 = calldataload 4
+      mstore 64, v0
+      v1 = keccak256 0, 96
+      calldatacopy 64, 36, 32
+      v2 = mload 64
+      mstore v2, v1
+      ret v1
+  }
+  

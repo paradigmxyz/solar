@@ -9,6 +9,7 @@
 //@ run-call: seal => 0xa0335e2fb93a29d2fa9e4b93eeb7ecc9a9ed34740c749d416b560fad02be2ab5
 //@ run-call: resetLoop 1, 32 => 0xf937df1b2e7b71cce0c407a18a6afc64603df82e7adbc88898f1269c62f6d596
 //@ run-call: hashRecursive 1, 2, 3 => 0x6e0c627900b24bd432fe7b1f713f1b0744091a646a9fe4a65a18dfed21f2949c
+//@ run-call: hashThenCopy 1, 2, 3 => 0x6e0c627900b24bd432fe7b1f713f1b0744091a646a9fe4a65a18dfed21f2949c
 
 // Memory-unsafe assembly can treat all memory from 0x80 up as its own. Seaport lays a basic
 // order's hashes and event data out at addresses that calldata sizes, moves the free memory
@@ -245,6 +246,19 @@ contract AssemblyLowMemoryLayouts {
             mstore(0x40, calldataload(0x44)) // `c`.
             h := hashFrom(0)
             mstore(0x40, m)
+        }
+    }
+
+    // A copy over the whole slot replaces the hashed word before the slot is read as a pointer.
+    function hashThenCopy(uint256 a, uint256 b, uint256) external pure returns (bytes32 h) {
+        assembly {
+            mstore(0x00, a)
+            mstore(0x20, b)
+            mstore(0x40, calldataload(0x44)) // `c`.
+            h := keccak256(0x00, 0x60)
+            calldatacopy(0x40, 0x24, 0x20) // `b`.
+            let p := mload(0x40)
+            mstore(p, h)
         }
     }
 

@@ -110,3 +110,18 @@ fn @scratch_through_recursion() -> i256 {
     mstore 64, v0
     ret v2
 }
+
+// A copy over the whole slot replaces the scratch word, so a later read of the pointer reads the
+// copied word, not the stored one.
+// CHECK-LABEL: {{^[ +].*}}fn @copy_replaces_scratch{{[( ]}}
+// CHECK-NOT: {{^[-+]}}
+fn @copy_replaces_scratch() -> i256 {
+  bb0:
+    v0 = calldataload 4
+    mstore 64, v0
+    v1 = keccak256 0, 96
+    calldatacopy 64, 36, 32
+    v2 = mload 64
+    mstore v2, v1
+    ret v1
+}
