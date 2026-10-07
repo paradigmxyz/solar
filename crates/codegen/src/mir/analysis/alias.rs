@@ -1992,15 +1992,6 @@ impl AliasAnalysis {
         self.provenance(func).allocations.get(&target).is_some_and(|facts| facts.dynamic)
     }
 
-    /// Returns whether an allocation runs before anything can recycle the FMP, so it
-    /// never overlaps memory allocated earlier.
-    pub(crate) fn allocation_is_unrecycled(&self, func: &Function, target: InstId) -> bool {
-        self.provenance(func)
-            .allocations
-            .get(&target)
-            .is_some_and(|facts| facts.unique || facts.dynamic)
-    }
-
     /// Returns whether an instruction may recycle or arbitrarily replace the FMP.
     #[must_use]
     pub(crate) fn instruction_may_reset_fmp(&self, func: &Function, inst: InstId) -> bool {
