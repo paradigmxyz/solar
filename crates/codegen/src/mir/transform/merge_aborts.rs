@@ -37,10 +37,13 @@
 //! Safety: when the first test fails, the original code aborts at once, and the
 //! merged code first runs the continuation's instructions, then aborts on the
 //! combined test. Those instructions are pure word operations or environment
-//! reads such as calldata loads: they write nothing and cost bounded gas, so
-//! running them first changes nothing but the gas an aborting call spends before
-//! it reverts. The aborting block must have no phis, so it cannot tell which
-//! edge reached it; the values it reads dominate both edges.
+//! reads such as calldata loads: they write nothing and have no gas charges
+//! sized by operands.
+//! Operations with operand-sized gas charges, such as exponentiation, stay
+//! behind the original test. Merging can still change the gas spent before a
+//! revert and the exact out-of-gas threshold. The aborting block must have no
+//! phis, so it cannot tell which edge reached it; the values it reads dominate
+//! both edges.
 //!
 //! Aborting blocks merge when they do the same, as the panic calls that an
 //! unrolled loop's copies clone do; the merged test enters the second one.
@@ -239,9 +242,10 @@ fn same_abort(func: &Function, a: BlockId, b: BlockId, cold: &DenseBitSet<Functi
             }))
 }
 
-/// Whether running an instruction before an abort is decided changes nothing but gas.
-fn speculatable(kind: &InstKind) -> bool {
+/// Whether an instruction may run before deciding an abort.
+fn speculatable(kind: &InstKind, target: Target) -> bool {
     !kind.has_side_effects()
+        && !target.op_has_dynamic_gas(&kind.op())
         && match kind.op_def().effect {
             EffectKind::Pure => !matches!(kind, InstKind::Phi(_)),
             EffectKind::EnvironmentRead => true,
@@ -273,7 +277,10 @@ fn mergeable(
     }
     let second = test(func, first.next, cold, target.copies_loops())?;
     if !same_abort(func, first.abort, second.abort, cold)
-        || !continuation.instructions.iter().all(|&inst| speculatable(&func.inst(inst).kind))
+        || !continuation
+            .instructions
+            .iter()
+            .all(|&inst| speculatable(&func.inst(inst).kind, target))
     {
         return None;
     }

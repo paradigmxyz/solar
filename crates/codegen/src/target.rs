@@ -515,6 +515,13 @@ impl Target {
         Cost::new(static_gas.saturating_add(dynamic), 1)
     }
 
+    /// Whether an opcode-lowered MIR operation charges for operand-sized work.
+    pub(crate) fn op_has_dynamic_gas(self, op: &Op) -> bool {
+        select::opcode_lowering(op)
+            .and_then(|lowering| op::definition(lowering.opcode()))
+            .is_some_and(|definition| definition.gas.dynamic_gas(self.evm_version) != 0)
+    }
+
     /// Returns the sole materialized operand of an equality or inequality with zero.
     pub(crate) fn zero_test_input(
         op: &Op,
@@ -821,6 +828,13 @@ mod tests {
         assert_eq!(GasTier::Copy.dynamic_units(&[None, None, Some(U256::from(33))]), 2);
         assert_eq!(GasTier::Log(1).dynamic_units(&[None, Some(U256::from(5)), None]), 5);
         assert_eq!(GasTier::VeryLow.dynamic_units(&[None, None]), 0);
+        let a = ValueId::from_usize(0);
+        let b = ValueId::from_usize(1);
+        for version in [EvmVersion::Homestead, EvmVersion::Osaka] {
+            let target = Target::with(version, OptimizationMode::Gas, 200);
+            assert!(target.op_has_dynamic_gas(&Op::Exp { a, b }));
+            assert!(!target.op_has_dynamic_gas(&Op::Add { a, b }));
+        }
     }
 
     #[test]
