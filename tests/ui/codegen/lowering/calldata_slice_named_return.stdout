@@ -19,8 +19,6 @@ fn @use() [selector=0x01bd03f7, abi_wrapper, pure] {
   bb0:
     v2 = calldatasize
     v3 = lt v2, 36
-    jumpi v3, bb1, bb2
-  bb2:
     v4 = calldataload 4
     v5 = add v4, 4
     v6 = add v5, 32
@@ -31,8 +29,9 @@ fn @use() [selector=0x01bd03f7, abi_wrapper, pure] {
     v13 = sub v2, v6
     v14 = gt v11, v13
     v17 = or v9, v14
-    jumpi v17, bb1, bb3
-  bb3:
+    v27 = or v3, v17
+    jumpi v27, bb1, bb2
+  bb2:
     v0 = icall @unwrap, v6, v11
     v23 = mload 32 !metadata(memory=scratch)
     v24 = add v23, 32

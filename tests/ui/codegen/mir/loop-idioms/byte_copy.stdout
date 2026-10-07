@@ -104,8 +104,8 @@ fn @allocationOverlap() [selector=0x46aad008, abi_wrapper, pure] {
     v21 = lt v20, v19
     v22 = gt v20, 0xffffffffffffffff
     v23 = or v21, v22
-    jumpi v23, bb6, bb5
-  bb5:
+    jumpi v23, bb5, bb4
+  bb4:
     mstore 64, v20 !metadata(memory=scratch)
     v25 = calldatasize
     calldatacopy v19, v25, 64
@@ -117,10 +117,9 @@ fn @allocationOverlap() [selector=0x46aad008, abi_wrapper, pure] {
   bb3:
     v12 = add v10, 7
     v13 = lt v12, v10
-    jumpi v13, bb2, bb4
-  bb4:
     v15 = lt v12, 7
-    jumpi v15, bb2, bb1
+    v26 = or v13, v15
+    jumpi v26, bb2, bb1
   bb1:
     mstore 128, v10
     returndata 128, 32
@@ -128,7 +127,7 @@ fn @allocationOverlap() [selector=0x46aad008, abi_wrapper, pure] {
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 17 !metadata(memory=scratch)
     revert 28, 36
-  bb6:
+  bb5:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
     revert 28, 36
@@ -202,11 +201,12 @@ fn @zeroTripHeader() [selector=0xe0b1133b, abi_wrapper, pure] {
     v12 = lt v11, 36
     jumpi v12, bb4, bb5
   bb5:
+    v15 = sub 0, arg0
     jump bb2
   bb2:
-    v3 = phi [bb5: 0], [bb3: v9]
+    v3 = phi [bb5: v15], [bb3: v9]
     v4 = phi [bb5: 0], [bb3: v6]
-    v5 = lt v3, arg0
+    v5 = ne v3, 0
     jumpi v5, bb3, bb1
   bb1:
     mstore 128, v4
@@ -225,11 +225,12 @@ fn @headerExpansion() [selector=0xfb7c0847, abi_wrapper, pure] {
     v26 = lt v25, 36
     jumpi v26, bb4, bb5
   bb5:
+    v33 = sub 0, arg0
     jump bb1
   bb1:
     v0 = phi [bb5: 0], [bb3: v23]
-    v1 = phi [bb5: 0], [bb3: v19]
-    v4 = lt v1, arg0
+    v1 = phi [bb5: v33], [bb3: v19]
+    v4 = ne v1, 0
     jumpi v4, bb3, bb2
   bb2:
     mstore 128, v0

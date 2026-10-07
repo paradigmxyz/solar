@@ -279,12 +279,10 @@ impl CfgSimplifier {
         let shape = |block_id: BlockId| {
             let block = &func.blocks[block_id];
             let term = block.terminator.as_ref()?;
-            let mut has_successor = false;
-            term.for_each_successor(|_| has_successor = true);
             (!block.predecessors.is_empty()
                 && !matches!(term, Terminator::Invalid)
-                && !has_successor)
-                .then(|| (term.mnemonic(), block.instructions.len()))
+                && !term.has_successors())
+            .then(|| (term.mnemonic(), block.instructions.len()))
         };
         let mut shapes = FxHashMap::<_, usize>::default();
         for block_id in func.blocks.indices() {
@@ -340,7 +338,7 @@ impl CfgSimplifier {
     fn canonicalize_terminal_block(func: &Function, block_id: BlockId) -> Option<CanonBlock> {
         let block = &func.blocks[block_id];
         let term = block.terminator.as_ref()?;
-        if matches!(term, Terminator::Invalid) || !term.successors().is_empty() {
+        if matches!(term, Terminator::Invalid) || term.has_successors() {
             return None;
         }
 

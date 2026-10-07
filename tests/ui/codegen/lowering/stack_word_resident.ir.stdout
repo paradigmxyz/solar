@@ -31,14 +31,18 @@ bb0:
   dup 2
   dup 2
   add
+  push 2
+  shl
+  swap 2
+  dup 1
+  add
+  swap 1
+  swap 2
+  xor
+  xor
   push 128
   mstore
-  swap 1
-  push 160
-  mstore
-  push 192
-  mstore
-  push 96
+  push 32
   push 128
   return
 bb3 [cold]:

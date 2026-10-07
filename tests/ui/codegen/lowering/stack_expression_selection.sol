@@ -6,11 +6,8 @@
 // CHECK: xor
 // CHECK-NEXT: jump [[TAIL:bb[0-9]+]]
 // CHECK-NEXT: [[TAIL]]:
-// CHECK-NEXT: push 1
-// CHECK-NEXT: dup 2
-// CHECK-NEXT: add
-// CHECK-NEXT: dup 2
-// CHECK-NEXT: iszero
+// CHECK: add
+// CHECK: eq
 // CHECK: sub
 // CHECK-NEXT: jump [[TAIL]]
 //@ run-call: difference 9, 4 => 5, false

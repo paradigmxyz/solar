@@ -1,0 +1,28 @@
+// === ROOT/tests/ui/codegen/mir/merge-aborts/account_reads.sol:AccountReads ===
+@module AccountReads
+fn @balance(arg0: i256, arg1: i256, arg2: i160) -> i256 [selector=0x2139cfcb, view, abi_params=[u256, u256, address], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = checked_add u256, arg0, arg1
+    v1 = zext i160 arg2 to i256
+    v2 = balance v1
+    v3 = checked_add u256, v0, v2
+    ret v3
+}
+
+fn @codeSize(arg0: i256, arg1: i256, arg2: i160) -> i256 [selector=0x3ae86375, view, abi_params=[u256, u256, address], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = checked_add u256, arg0, arg1
+    v1 = zext i160 arg2 to i256
+    v2 = extcodesize v1
+    v3 = checked_add u256, v0, v2
+    ret v3
+}
+
+fn @codeHash(arg0: i256, arg1: i256, arg2: i160) -> i256 [selector=0x76806d71, view, abi_params=[u256, u256, address], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = checked_add u256, arg0, arg1
+    v1 = zext i160 arg2 to i256
+    v2 = extcodehash v1
+    v3 = checked_add u256, v0, v2
+    ret v3
+}

@@ -1,0 +1,57 @@
+// === ROOT/tests/ui/codegen/mir/loop-unroll/invariant_tests.sol:InvariantTests ===
+@module InvariantTests
+fn @periodStarts(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x2e930b8e, pure, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb3: v8]
+    v1 = phi [bb0: arg0], [bb3: v9]
+    v2 = phi [bb0: arg2], [bb3: v2]
+    v3 = phi [bb0: 0], [bb3: v10]
+    v4 = phi [bb0: arg1], [bb3: v4]
+    v5 = lt v3, v2
+    jumpi v5, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    ret v0
+  bb4:
+    v6 = checked_div u256, v1, v4
+    v7 = checked_mul u256, v6, v4
+    v8 = checked_add u256, v0, v7
+    v9 = checked_add u256, v1, 0xe10
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v10 = checked_add u256, v3, 1
+    jump bb1
+}
+
+fn @keep(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xdaef3dc2, pure, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: arg0], [bb3: v9]
+    v1 = phi [bb0: arg2], [bb3: v1]
+    v2 = phi [bb0: 0], [bb3: v10]
+    v3 = phi [bb0: arg1], [bb3: v3]
+    v4 = phi [bb0: 0], [bb3: v8]
+    v5 = lt v2, v1
+    jumpi v5, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    ret v4
+  bb4:
+    v6 = checked_div u256, v0, v3
+    v7 = checked_sub u256, v0, v6
+    v8 = checked_add u256, v4, v7
+    v9 = checked_add u256, v0, 0xde0b6b3a7640000
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v10 = checked_add u256, v2, 1
+    jump bb1
+}
