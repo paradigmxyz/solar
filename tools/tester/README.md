@@ -72,6 +72,9 @@ Environment variables:
   sources pin an exact `pragma solidity`), `skip_tests`, `skip_contracts`
   (arrays of `{ pattern, reason }`; the reason is mandatory), and `notes`.
 - `SOLAR_FOUNDRY_REPORT_DIR`: also write per-project JSON reports.
+- `SOLAR_FOUNDRY_COMPILER`: use this Solar executable instead of the latest
+  local build. Relative paths start at the workspace root. A debug build
+  enables MIR and EVM IR validation by default.
 - `SOLAR_FOUNDRY_OPTIMIZATION`: compile the Solar leg with `none`, `gas`, or
   `size` while keeping the project's solc optimizer settings. This lets the
   unoptimized Solar leg run projects that need solc's optimizer to compile.

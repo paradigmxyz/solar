@@ -241,6 +241,11 @@ fn get_solar_binary() -> PathBuf {
         return path.clone();
     }
 
+    if let Some(path) = std::env::var_os("SOLAR_FOUNDRY_COMPILER") {
+        let path = PathBuf::from(path);
+        return if path.is_absolute() { path } else { workspace_root().join(path) };
+    }
+
     if let Some(path) = option_env!("CARGO_BIN_EXE_solar") {
         return PathBuf::from(path);
     }
@@ -527,9 +532,13 @@ fn write_runtime_report(
 
     let mut rerun_env = serde_json::Map::new();
     rerun_env.insert("SOLAR_FOUNDRY_REPORT_DIR".into(), report_dir.display().to_string().into());
-    for name in
-        ["PATH", "SOLAR_FOUNDRY_OPTIMIZATION", "FOUNDRY_OPTIMIZER", "FOUNDRY_OPTIMIZER_RUNS"]
-    {
+    for name in [
+        "PATH",
+        "SOLAR_FOUNDRY_COMPILER",
+        "SOLAR_FOUNDRY_OPTIMIZATION",
+        "FOUNDRY_OPTIMIZER",
+        "FOUNDRY_OPTIMIZER_RUNS",
+    ] {
         if let Ok(value) = std::env::var(name) {
             rerun_env.insert(name.into(), value.into());
         }
