@@ -1405,7 +1405,8 @@ impl<'gcx> EvmCodegen<'gcx> {
         if mark < bound && Self::writes_absolute_dynamic_memory(func) { bound } else { mark }
     }
 
-    /// Returns whether `func` writes memory at an absolute address that is not a constant.
+    /// Returns whether `func` may write memory at an absolute address that is not a constant: a
+    /// write whose length is not the constant zero.
     fn writes_absolute_dynamic_memory(func: &Function) -> bool {
         let destinations = func
             .instructions()
@@ -1418,20 +1419,24 @@ impl<'gcx> EvmCodegen<'gcx> {
                 )
             })
             .filter_map(|inst_id| match func.inst(inst_id).kind {
-                InstKind::MStore(dest, _)
-                | InstKind::MStore8(dest, _)
-                | InstKind::MCopy(dest, _, _)
-                | InstKind::CalldataCopy(dest, _, _)
-                | InstKind::DataCopy(_, dest, _)
-                | InstKind::CodeCopy(dest, _, _)
-                | InstKind::ReturnDataCopy(dest, _, _)
-                | InstKind::ExtCodeCopy(_, dest, _, _) => Some(dest),
-                InstKind::Call { ret_offset, .. }
-                | InstKind::CallCode { ret_offset, .. }
-                | InstKind::StaticCall { ret_offset, .. }
-                | InstKind::DelegateCall { ret_offset, .. } => Some(ret_offset),
+                InstKind::MStore(dest, _) | InstKind::MStore8(dest, _) => Some((dest, None)),
+                InstKind::MCopy(dest, _, size)
+                | InstKind::CalldataCopy(dest, _, size)
+                | InstKind::DataCopy(_, dest, size)
+                | InstKind::CodeCopy(dest, _, size)
+                | InstKind::ReturnDataCopy(dest, _, size)
+                | InstKind::ExtCodeCopy(_, dest, _, size) => Some((dest, Some(size))),
+                InstKind::Call { ret_offset, ret_size, .. }
+                | InstKind::CallCode { ret_offset, ret_size, .. }
+                | InstKind::StaticCall { ret_offset, ret_size, .. }
+                | InstKind::DelegateCall { ret_offset, ret_size, .. } => {
+                    Some((ret_offset, Some(ret_size)))
+                }
                 _ => None,
             })
+            // A copy of no bytes writes no memory, wherever its destination points.
+            .filter(|&(_, size)| size.is_none_or(|size| func.value_u64(size) != Some(0)))
+            .map(|(dest, _)| dest)
             .filter(|&dest| func.value_u64(dest).is_none())
             .collect::<Vec<_>>();
         if destinations.is_empty() {

@@ -191,6 +191,19 @@ fn @bufferAboveHeap(arg0: i256, arg1: i256) -> i256 [selector=0x52cf10d7, pure, 
     ret v8
 }
 
+fn @zeroLengthCopy(arg0: i256) -> i256 [selector=0x634ce2de, view, abi_params=[u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = gas
+    v1 = staticcall v0, 4, 0, 1, 0, 0
+    v2 = zext i1 v1 to i256
+    v3 = calldataload 4
+    returndatacopy v3, 1, 0
+    v4 = mload 64 !metadata(memory=scratch)
+    v5 = lt v4, 0x2000
+    v6 = zext i1 v5 to i256
+    ret v6
+}
+
 fn @resetLoop(arg0: i256, arg1: i256) -> i256 [selector=0x20fd52b5, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = keccak256_packed (u256 arg0, u256 0)
@@ -214,67 +227,67 @@ fn @resetLoop(arg0: i256, arg1: i256) -> i256 [selector=0x20fd52b5, pure, abi_pa
     v17 = mload 64 !metadata(memory=scratch)
     jump bb1
   bb1:
-    v18 = phi [bb0: v0], [bb3: v18]
-    v19 = phi [bb0: arg0], [bb3: v19]
-    v20 = phi [bb0: v8], [bb3: v20]
-    v21 = phi [bb0: v5], [bb3: v21]
-    v22 = phi [bb0: v16], [bb3: v22]
-    v23 = phi [bb0: v2], [bb3: v23]
-    v24 = phi [bb0: v13], [bb3: v24]
-    v25 = phi [bb0: v10], [bb3: v25]
-    v26 = phi [bb0: 0], [bb3: v26]
-    v27 = phi [bb0: 0], [bb3: v46]
-    v28 = phi [bb0: v7], [bb3: v28]
-    v29 = phi [bb0: v4], [bb3: v29]
-    v30 = phi [bb0: v15], [bb3: v30]
-    v31 = phi [bb0: v1], [bb3: v31]
-    v32 = phi [bb0: v12], [bb3: v32]
-    v33 = phi [bb0: arg1], [bb3: v33]
-    v34 = phi [bb0: v9], [bb3: v34]
-    v35 = phi [bb0: v6], [bb3: v35]
-    v36 = phi [bb0: v17], [bb3: v36]
-    v37 = phi [bb0: v3], [bb3: v37]
-    v38 = phi [bb0: v14], [bb3: v38]
-    v39 = phi [bb0: v11], [bb3: v39]
-    v40 = lt v27, v33
+    v18 = phi [bb0: arg1], [bb3: v18]
+    v19 = phi [bb0: v6], [bb3: v19]
+    v20 = phi [bb0: v17], [bb3: v20]
+    v21 = phi [bb0: v3], [bb3: v21]
+    v22 = phi [bb0: v14], [bb3: v22]
+    v23 = phi [bb0: v0], [bb3: v23]
+    v24 = phi [bb0: v11], [bb3: v24]
+    v25 = phi [bb0: arg0], [bb3: v25]
+    v26 = phi [bb0: v8], [bb3: v26]
+    v27 = phi [bb0: v16], [bb3: v27]
+    v28 = phi [bb0: v5], [bb3: v28]
+    v29 = phi [bb0: v2], [bb3: v29]
+    v30 = phi [bb0: v13], [bb3: v30]
+    v31 = phi [bb0: v10], [bb3: v31]
+    v32 = phi [bb0: 0], [bb3: v32]
+    v33 = phi [bb0: v7], [bb3: v33]
+    v34 = phi [bb0: 0], [bb3: v46]
+    v35 = phi [bb0: v4], [bb3: v35]
+    v36 = phi [bb0: v15], [bb3: v36]
+    v37 = phi [bb0: v1], [bb3: v37]
+    v38 = phi [bb0: v12], [bb3: v38]
+    v39 = phi [bb0: v9], [bb3: v39]
+    v40 = lt v34, v18
     v41 = zext i1 v40 to i256
     v42 = ne v41, 0
     jumpi v42, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    v47 = shl 5, v33
-    v48 = add v36, v47
+    v47 = shl 5, v18
+    v48 = add v20, v47
     mstore 64, v48 !metadata(memory=scratch)
-    v49 = xor v18, v31
-    v50 = xor v49, v23
-    v51 = xor v50, v37
-    v52 = xor v51, v29
-    v53 = xor v52, v21
-    v54 = xor v53, v35
-    v55 = xor v54, v28
-    v56 = xor v55, v20
-    v57 = xor v56, v34
-    v58 = xor v57, v25
-    v59 = xor v58, v39
-    v60 = xor v59, v32
-    v61 = xor v60, v24
-    v62 = xor v61, v38
-    v63 = xor v62, v30
-    v64 = xor v63, v22
-    v65 = shl 0, v33
+    v49 = xor v23, v37
+    v50 = xor v49, v29
+    v51 = xor v50, v21
+    v52 = xor v51, v35
+    v53 = xor v52, v28
+    v54 = xor v53, v19
+    v55 = xor v54, v33
+    v56 = xor v55, v26
+    v57 = xor v56, v39
+    v58 = xor v57, v31
+    v59 = xor v58, v24
+    v60 = xor v59, v38
+    v61 = xor v60, v30
+    v62 = xor v61, v22
+    v63 = xor v62, v36
+    v64 = xor v63, v27
+    v65 = shl 0, v18
     v66 = xor v64, v65
     ret v66
   bb4:
     v43 = not 0
-    v44 = shl 5, v27
-    v45 = add v36, v44
+    v44 = shl 5, v34
+    v45 = add v20, v44
     mstore v45, v43
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v46 = add v27, 1
+    v46 = add v34, 1
     jump bb1
 }
 
@@ -287,7 +300,7 @@ fn @revertWithTime(arg0: i256, arg1: i256) [selector=0xa03dd0df, pure, abi_param
     revert 28, 68
 }
 
-fn @hashScratch.8(arg0: i256, arg1: i256, arg2: i256) -> struct0 [selector=0xe6a9e6e6, pure, abi_params=[u256, u256, u256], abi_returns=[word, word], abi_return_params=[bytes32, u256]] {
+fn @hashScratch.9(arg0: i256, arg1: i256, arg2: i256) -> struct0 [selector=0xe6a9e6e6, pure, abi_params=[u256, u256, u256], abi_returns=[word, word], abi_return_params=[bytes32, u256]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     mstore 0, arg0 !metadata(memory=scratch)
@@ -313,7 +326,7 @@ fn @hashInHelper(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xd93f511
     mstore 32, arg1 !metadata(memory=scratch)
     v1 = calldataload 68
     mstore 64, v1 !metadata(memory=scratch)
-    v2 = icall @hashScratch.23
+    v2 = icall @hashScratch.24
     mstore 64, v0 !metadata(memory=scratch)
     ret v2
 }
@@ -531,7 +544,7 @@ fn @_lay(arg0: i256) -> i256 [pure] {
     jump bb1
 }
 
-fn @hashScratch.23() -> i256 {
+fn @hashScratch.24() -> i256 {
   bb0:
     v0 = keccak256 0, 96 !metadata(memory=scratch)
     ret v0

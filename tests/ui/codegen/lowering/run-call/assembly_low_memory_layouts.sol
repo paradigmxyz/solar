@@ -13,6 +13,7 @@
 //@ run-call: readScratch 5 => 5
 //@ run-call: readInHelper 5 => 5
 //@ run-call: hashAt 0x40, 3 => 0xc2575a0e9e593c00f959f8c92f12db2869c3395a3b0502d05e2516446f71f85b
+//@ run-call: zeroLengthCopy 5 => true
 //@ run-call: hashHelperScratch 1, 2, 3 => 0x6e0c627900b24bd432fe7b1f713f1b0744091a646a9fe4a65a18dfed21f2949c
 //@ run-call: allocateAfterHelper 1, 2, 3 => 3
 //@ run-call: hashAroundCheckedAdd 1, 2, 3 => 0x6e0c627900b24bd432fe7b1f713f1b0744091a646a9fe4a65a18dfed21f2949c
@@ -142,6 +143,16 @@ contract AssemblyLowMemoryLayouts {
         bytes memory fresh = new bytes(0x400);
         assembly {
             kept := add(mload(0x2400), mload(fresh))
+        }
+    }
+
+    // A copy of no bytes to a calldata address checks the returndata bounds but writes nothing, so
+    // the spill area and the heap stay in low memory.
+    function zeroLengthCopy(uint256) external view returns (bool lowHeap) {
+        assembly {
+            pop(staticcall(gas(), 4, 0, 1, 0, 0))
+            returndatacopy(calldataload(4), 1, 0)
+            lowHeap := lt(mload(0x40), 0x2000)
         }
     }
 
