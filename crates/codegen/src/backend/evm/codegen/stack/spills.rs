@@ -755,7 +755,10 @@ impl<'gcx> EvmCodegen<'gcx> {
         func: &Function,
         val: ValueId,
     ) {
-        if self.scheduler.is_stack_only_value(val) || !Self::can_own_spill_slot(func, val) {
+        if self.scheduler.is_stack_only_value(val)
+            || self.scheduler.memory_home_forbidden(val)
+            || !Self::can_own_spill_slot(func, val)
+        {
             return;
         }
         if self.scheduler.should_recompute_unstored_spill(val)
@@ -811,6 +814,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         val: ValueId,
     ) -> bool {
         if self.scheduler.is_stack_only_value(val)
+            || self.scheduler.memory_home_forbidden(val)
             || Self::is_rematerializable_value(func, val)
             || Self::is_reloadable_argument_address(func, val)
             || self.scheduler.spills.get(val).is_none()
@@ -1250,7 +1254,9 @@ impl<'gcx> EvmCodegen<'gcx> {
         inst_idx: usize,
         value: ValueId,
     ) {
-        if self.scheduler.is_stack_only_value(value) || Self::is_rematerializable_value(func, value)
+        if self.scheduler.is_stack_only_value(value)
+            || self.scheduler.memory_home_forbidden(value)
+            || Self::is_rematerializable_value(func, value)
         {
             return;
         }

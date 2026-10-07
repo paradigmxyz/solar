@@ -104,11 +104,12 @@ impl<'gcx> EvmCodegen<'gcx> {
         module: &Module,
     ) -> FxHashMap<FunctionId, CanonicalArgValues> {
         let mut all_values = FxHashMap::default();
-        if matches!(self.gcx.sess.opts.optimization, OptimizationMode::None) {
-            return all_values;
-        }
-
         for func_id in self.static_frame_functions.iter() {
+            if matches!(self.gcx.sess.opts.optimization, OptimizationMode::None)
+                && !self.requires_spill_free_execution(func_id)
+            {
+                continue;
+            }
             let func = &module.functions[func_id];
             if func.params.is_empty() {
                 continue;
@@ -470,10 +471,6 @@ impl<'gcx> EvmCodegen<'gcx> {
         values: &[ValueId],
         stack_phi_plan: &StackPhiPlan,
     ) -> Option<(Vec<ValueId>, GlobalStackPlan)> {
-        if self.spill_hazard_insts.is_empty() {
-            return None;
-        }
-
         if values.is_empty() {
             return None;
         }

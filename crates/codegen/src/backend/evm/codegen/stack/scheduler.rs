@@ -257,6 +257,8 @@ pub(crate) struct StackScheduler {
     stack_only_values: DenseBitSet<ValueId>,
     /// Values whose memory homes may overlap an assembly write.
     protected_hazard_values: DenseBitSet<ValueId>,
+    /// Rematerializable values that may leave the stack but must never spill.
+    forbidden_memory_homes: DenseBitSet<ValueId>,
     preservation_failed: bool,
     /// Operations to emit.
     ops: Vec<ScheduledOp>,
@@ -775,6 +777,7 @@ impl StackScheduler {
             evm_version,
             stack_only_values: DenseBitSet::new_empty(0),
             protected_hazard_values: DenseBitSet::new_empty(0),
+            forbidden_memory_homes: DenseBitSet::new_empty(0),
             preservation_failed: false,
             ops: Vec::new(),
             operand_search_budget: Cell::new(OperandSearchBudget::default()),
@@ -796,6 +799,7 @@ impl StackScheduler {
         self.spills.clear();
         self.stack_only_values.clear_to(0);
         self.protected_hazard_values.clear_to(0);
+        self.forbidden_memory_homes.clear_to(0);
         self.preservation_failed = false;
         self.ops.clear();
         self.operand_search_budget.set(OperandSearchBudget::default());
@@ -838,6 +842,18 @@ impl StackScheduler {
         self.stack_only_values.insert(value);
     }
 
+    pub(crate) fn forbid_memory_home(&mut self, domain_size: usize, value: ValueId) {
+        if self.forbidden_memory_homes.domain_size() == 0 {
+            self.forbidden_memory_homes.clear_to(domain_size);
+        }
+        self.forbidden_memory_homes.insert(value);
+    }
+
+    pub(crate) fn memory_home_forbidden(&self, value: ValueId) -> bool {
+        self.forbidden_memory_homes.domain_size() != 0
+            && self.forbidden_memory_homes.contains(value)
+    }
+
     pub(crate) fn is_hazard_protected(&self, value: ValueId) -> bool {
         self.protected_hazard_values.domain_size() != 0
             && self.protected_hazard_values.contains(value)
@@ -845,7 +861,7 @@ impl StackScheduler {
 
     /// Records an unsupported memory fallback so the caller discards this emission attempt.
     pub(crate) fn reject_hazard_value_fallback(&mut self, value: ValueId) -> bool {
-        let protected = self.is_hazard_protected(value);
+        let protected = self.is_hazard_protected(value) || self.memory_home_forbidden(value);
         self.preservation_failed |= protected;
         protected
     }
@@ -2309,7 +2325,8 @@ impl StackScheduler {
 
     /// Returns whether an unstored reserved slot must be recomputed instead of loaded.
     pub(crate) fn should_recompute_unstored_spill(&self, value: ValueId) -> bool {
-        self.spills.get(value).is_some() && self.unstored_spill_requires_recompute(value)
+        self.memory_home_forbidden(value)
+            || (self.spills.get(value).is_some() && self.unstored_spill_requires_recompute(value))
     }
 
     fn unstored_spill_requires_recompute(&self, value: ValueId) -> bool {
@@ -2318,7 +2335,7 @@ impl StackScheduler {
 
     /// Returns the value's spill slot when it can materialize it at this program point.
     pub(crate) fn reloadable_spill(&self, value: ValueId) -> Option<SpillSlot> {
-        if self.is_hazard_protected(value) {
+        if self.is_hazard_protected(value) || self.memory_home_forbidden(value) {
             return None;
         }
         let slot = self.spills.get(value)?;

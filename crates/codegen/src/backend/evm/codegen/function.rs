@@ -124,7 +124,25 @@ impl<'gcx> EvmCodegen<'gcx> {
         let cross_block_live = OnceCell::new();
         let mut function_returns = FxHashSet::default();
 
-        self.spill_hazard_insts = self.compute_spill_hazard_insts(func);
+        let untrusted_memory = self.requires_spill_free_execution(func_id);
+        if untrusted_memory && self.in_internal_function {
+            let stack_args = self.stack_only_values(func_id, true);
+            if !self.static_frame_functions.contains(func_id)
+                || func.live_values().any(|value| {
+                    matches!(func.value(value), Value::Arg(_)) && !stack_args.contains(&value)
+                })
+                || (!func.return_components().is_empty()
+                    && self.stack_return_plan(func_id).is_none())
+            {
+                self.gcx.dcx().err(format!("codegen cannot preserve call frames after a free-memory-pointer reset in `{}`", func.name)).emit();
+                return;
+            }
+        }
+        self.spill_hazard_insts = if untrusted_memory {
+            func.instructions().collect()
+        } else {
+            self.compute_spill_hazard_insts(func)
+        };
 
         // Eliminate phis.
         self.block_copies.clear();
@@ -544,6 +562,17 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.scheduler.set_stack_only_values(func.num_values(), stack_only_values);
             for &value in hazard_stack_values.into_iter().flatten() {
                 self.scheduler.protect_hazard_value(func.num_values(), value);
+            }
+            if untrusted_memory {
+                for value in func.live_values() {
+                    if matches!(func.value(value), Value::Inst(_) | Value::Arg(_)) {
+                        if hazard_recomputable.contains(value) {
+                            self.scheduler.forbid_memory_home(func.num_values(), value);
+                        } else {
+                            self.scheduler.protect_hazard_value(func.num_values(), value);
+                        }
+                    }
+                }
             }
             if block_id != BlockId::ENTRY
                 && self.resident_stack_args(func_id).is_some()

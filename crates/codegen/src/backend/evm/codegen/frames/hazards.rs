@@ -17,7 +17,7 @@ use super::{
 };
 use crate::mir::{
     Callee,
-    analysis::{CallGraphInfo, CfgInfo},
+    analysis::{Access, CallGraphInfo, CfgInfo, Location},
 };
 use std::cell::OnceCell;
 
@@ -195,9 +195,11 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// Finds helpers returning heap pointers, including chains of already-proven helpers.
     /// Unknown calls and non-heap writes to the free-memory pointer exclude a function.
     /// Iteration only adds proven functions, so recursive call cycles remain unknown.
+    /// Also returns functions that access allocations after an absolute FMP reset and
+    /// their callers, which cannot use memory-backed frames or spills.
     pub(in crate::backend::evm::codegen) fn collect_heap_pointer_return_functions(
         module: &Module,
-    ) -> DenseBitSet<FunctionId> {
+    ) -> (DenseBitSet<FunctionId>, DenseBitSet<FunctionId>) {
         let mut functions = DenseBitSet::new_empty(module.functions.len());
         let mut preserves_fmp = DenseBitSet::new_empty(module.functions.len());
         loop {
@@ -273,7 +275,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         // A helper's FMP-relative return needs a valid incoming heap. Seed unknown
         // entry states only at calls reached after a reset, then propagate them.
         let mut unknown_fmp = DenseBitSet::new_empty(module.functions.len());
-        for (_, func) in module.functions.iter_enumerated() {
+        for func in &module.functions {
             let resets = Self::fmp_reset_insts(func, &functions, &preserves_fmp);
             if resets.is_empty() {
                 continue;
@@ -308,8 +310,269 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
         let graph = CallGraphInfo::new(module);
         unknown_fmp.union(&graph.reachable_callees_from(unknown_fmp.iter()));
+        let reset_insts = module
+            .functions
+            .iter()
+            .map(|func| {
+                let aa = AliasAnalysis::new(func);
+                Self::fmp_reset_insts(func, &functions, &preserves_fmp)
+                    .into_iter()
+                    .filter(|&inst| {
+                        let value = match func.inst(inst).kind {
+                            InstKind::SetFmp(value) => value,
+                            InstKind::MStore(address, value)
+                                if aa
+                                    .memory_address(func, address)
+                                    .and_then(|a| a.as_absolute())
+                                    == Some(EvmMemoryLayout::FMP_SLOT) =>
+                            {
+                                value
+                            }
+                            _ => return false,
+                        };
+                        aa.memory_address(func, value)
+                            .and_then(|address| address.as_absolute())
+                            .is_some()
+                    })
+                    .collect::<FxHashSet<_>>()
+            })
+            .collect::<Vec<_>>();
         functions.subtract(&unknown_fmp);
-        functions
+        let untrusted_memory = Self::collect_reset_memory_functions(module, &graph, &reset_insts);
+        (functions, untrusted_memory)
+    }
+
+    /// Tracks allocations rooted in an absolute FMP reset through internal calls.
+    /// A valid saved FMP can be restored while pointers into the reset heap remain live.
+    /// Analyze valid and tainted entries separately so a caller's reset does not poison
+    /// otherwise valid calls to the same allocator. Dynamic resets retain CODEGEN-009's
+    /// explicit-memory limitation.
+    fn collect_reset_memory_functions(
+        module: &Module,
+        graph: &CallGraphInfo,
+        reset_insts: &[FxHashSet<InstId>],
+    ) -> DenseBitSet<FunctionId> {
+        let mut untrusted_memory = DenseBitSet::new_empty(module.functions.len());
+        if reset_insts.iter().all(FxHashSet::is_empty) {
+            return untrusted_memory;
+        }
+        let mut invalid_entry = DenseBitSet::new_empty(module.functions.len());
+        let mut low_memory_entry = DenseBitSet::new_empty(module.functions.len());
+        let mut clobbers_valid_entry = DenseBitSet::new_empty(module.functions.len());
+        let mut invalid_return = DenseBitSet::new_empty(module.functions.len());
+        let mut invalid_result = DenseBitSet::new_empty(module.functions.len());
+        let mut invalid_args = module
+            .functions
+            .iter()
+            .map(|func| DenseBitSet::new_empty(func.arg_indices().count()))
+            .collect::<Vec<_>>();
+        loop {
+            let mut changed = false;
+            for (func_id, func) in module.functions.iter_enumerated() {
+                let resets = &reset_insts[func_id.index()];
+                let aa = AliasAnalysis::new(func);
+                if low_memory_entry.contains(func_id) {
+                    changed |= untrusted_memory.insert(func_id);
+                    for callee in graph.callees(func_id) {
+                        changed |= low_memory_entry.insert(callee);
+                    }
+                }
+                for propagated in [false, true] {
+                    if propagated
+                        && !invalid_entry.contains(func_id)
+                        && invalid_args[func_id.index()].is_empty()
+                    {
+                        continue;
+                    }
+                    let mut invalid_blocks = DenseBitSet::new_empty(func.blocks.len());
+                    let mut invalid_values = DenseBitSet::new_empty(func.num_values());
+                    if propagated && invalid_entry.contains(func_id) {
+                        invalid_blocks.insert(BlockId::ENTRY);
+                    }
+                    for value in func.live_values() {
+                        if propagated
+                            && let Value::Arg(index) = func.value(value)
+                            && invalid_args[func_id.index()].contains(index.index())
+                        {
+                            invalid_values.insert(value);
+                        }
+                    }
+                    loop {
+                        let mut blocks_changed = false;
+                        for (block_id, block) in func.blocks.iter_enumerated() {
+                            let mut invalid = invalid_blocks.contains(block_id);
+                            for &inst in &block.instructions {
+                                match &func.inst(inst).kind {
+                                    InstKind::ICall {
+                                        function: Callee::Function(callee),
+                                        args,
+                                        ..
+                                    } => {
+                                        let callee = *callee;
+                                        if invalid {
+                                            changed |= invalid_entry.insert(callee);
+                                        }
+                                        let mut tainted_args = false;
+                                        for (index, &arg) in args.iter().enumerate() {
+                                            if Self::value_depends_on(func, arg, &invalid_values) {
+                                                tainted_args = true;
+                                                changed |=
+                                                    invalid_args[callee.index()].insert(index);
+                                            }
+                                        }
+                                        if (invalid
+                                            || tainted_args
+                                            || invalid_result.contains(callee))
+                                            && let Some(value) = func.inst_result_value(inst)
+                                        {
+                                            blocks_changed |= invalid_values.insert(value);
+                                        }
+                                        invalid |= invalid_return.contains(callee);
+                                        if clobbers_valid_entry.contains(callee)
+                                            || ((invalid || tainted_args)
+                                                && untrusted_memory.contains(callee))
+                                        {
+                                            changed |= untrusted_memory.insert(func_id);
+                                            if !propagated {
+                                                changed |= clobbers_valid_entry.insert(func_id);
+                                            }
+                                        }
+                                        if !invalid_values.is_empty() {
+                                            changed |= low_memory_entry.insert(callee);
+                                            changed |= untrusted_memory.insert(func_id);
+                                            if !propagated {
+                                                changed |= clobbers_valid_entry.insert(func_id);
+                                            }
+                                        }
+                                    }
+                                    InstKind::Fmp if invalid => {
+                                        if let Some(value) = func.inst_result_value(inst) {
+                                            blocks_changed |= invalid_values.insert(value);
+                                        }
+                                    }
+                                    InstKind::MLoad(address)
+                                        if invalid
+                                            && aa
+                                                .memory_address(func, *address)
+                                                .and_then(|address| address.as_absolute())
+                                                == Some(EvmMemoryLayout::FMP_SLOT) =>
+                                    {
+                                        if let Some(value) = func.inst_result_value(inst) {
+                                            blocks_changed |= invalid_values.insert(value);
+                                        }
+                                    }
+                                    InstKind::SetFmp(value) if !resets.contains(&inst) => {
+                                        invalid =
+                                            Self::value_depends_on(func, *value, &invalid_values);
+                                    }
+                                    InstKind::MStore(address, value)
+                                        if aa
+                                            .memory_address(func, *address)
+                                            .and_then(|address| address.as_absolute())
+                                            == Some(EvmMemoryLayout::FMP_SLOT)
+                                            && !resets.contains(&inst) =>
+                                    {
+                                        invalid =
+                                            Self::value_depends_on(func, *value, &invalid_values);
+                                    }
+                                    InstKind::SetFmp(_) if resets.contains(&inst) => invalid = true,
+                                    InstKind::MStore(address, _)
+                                        if resets.contains(&inst)
+                                            && aa
+                                                .memory_address(func, *address)
+                                                .and_then(|address| address.as_absolute())
+                                                .is_some() =>
+                                    {
+                                        invalid = true
+                                    }
+                                    _ => {}
+                                }
+                                if !invalid_values.is_empty() {
+                                    let effects = aa.instruction_mod_ref(func, inst);
+                                    for access in effects.reads().iter().chain(effects.writes()) {
+                                        if let Access::Location(Location::Memory(location)) = access
+                                            && let MemoryBase::Value(dest) = location.address.base
+                                            && Self::value_depends_on(func, dest, &invalid_values)
+                                        {
+                                            changed |= untrusted_memory.insert(func_id);
+                                            if !propagated {
+                                                changed |= clobbers_valid_entry.insert(func_id);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            if !invalid_values.is_empty()
+                                && let Some(Terminator::TailCall { function, .. }) =
+                                    &block.terminator
+                            {
+                                changed |= low_memory_entry.insert(*function);
+                                changed |= untrusted_memory.insert(func_id);
+                                if !propagated {
+                                    changed |= clobbers_valid_entry.insert(func_id);
+                                }
+                            }
+                            if !propagated
+                                && let Some(Terminator::Return { values }) = &block.terminator
+                                && values.iter().any(|&value| {
+                                    Self::value_depends_on(func, value, &invalid_values)
+                                })
+                            {
+                                changed |= invalid_result.insert(func_id);
+                            }
+                            if invalid && let Some(terminator) = &block.terminator {
+                                match terminator {
+                                    Terminator::Return { .. } if !propagated => {
+                                        changed |= invalid_return.insert(func_id);
+                                    }
+                                    Terminator::TailCall { function, .. } => {
+                                        changed |= invalid_entry.insert(*function);
+                                    }
+                                    _ => {}
+                                }
+                                for successor in terminator.successors() {
+                                    blocks_changed |= invalid_blocks.insert(successor);
+                                }
+                            }
+                        }
+                        if !blocks_changed {
+                            break;
+                        }
+                    }
+                }
+            }
+            if !changed {
+                break;
+            }
+        }
+        untrusted_memory
+    }
+
+    fn value_depends_on(func: &Function, value: ValueId, invalid: &DenseBitSet<ValueId>) -> bool {
+        if invalid.is_empty() {
+            return false;
+        }
+        let mut seen = DenseBitSet::new_empty(func.num_values());
+        let mut pending = vec![value];
+        while let Some(value) = pending.pop() {
+            if invalid.contains(value) {
+                return true;
+            }
+            if seen.insert(value)
+                && let Value::Inst(inst) = func.value(value)
+            {
+                pending.extend(func.inst(*inst).kind.operands());
+            }
+        }
+        false
+    }
+
+    pub(in crate::backend::evm::codegen) fn requires_spill_free_execution(
+        &self,
+        func_id: FunctionId,
+    ) -> bool {
+        !self.untrusted_memory_functions.is_empty()
+            && self.untrusted_memory_functions.contains(func_id)
     }
 
     /// Instructions that can invalidate an initially compiler-owned free-memory pointer.

@@ -617,9 +617,15 @@ impl<'gcx> EvmCodegen<'gcx> {
             if let Some(mask) = &stack_mask {
                 for index in mask.iter() {
                     let arg = args[index];
-                    if self.scheduler.is_hazard_protected(arg)
+                    if (self.scheduler.is_hazard_protected(arg)
+                        || self.scheduler.memory_home_forbidden(arg))
                         && !resident_call_values.contains(&arg)
                     {
+                        if self.scheduler.memory_home_forbidden(arg)
+                            && !self.scheduler.stack.contains(arg)
+                        {
+                            self.emit_value(func, arg);
+                        }
                         resident_call_values.push(arg);
                     }
                 }

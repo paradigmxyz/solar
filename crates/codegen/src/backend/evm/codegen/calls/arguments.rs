@@ -26,9 +26,6 @@ impl<'gcx> EvmCodegen<'gcx> {
                 abi.entry = StaticCallEntry::Stored;
             }
         }
-        if matches!(self.gcx.sess.opts.optimization, OptimizationMode::None) {
-            return;
-        }
 
         // Start with every used canonical argument of an eligible function.
         // A computed actual can use the same validated spill/reload fallback
@@ -37,7 +34,9 @@ impl<'gcx> EvmCodegen<'gcx> {
         // copy even when the actual is not directly rematerializable.
         let mut candidates = FxHashMap::default();
         for (&func_id, values) in arg_values {
-            if self.disabled_stack_only_functions.contains(func_id)
+            if (matches!(self.gcx.sess.opts.optimization, OptimizationMode::None)
+                && !self.requires_spill_free_execution(func_id))
+                || self.disabled_stack_only_functions.contains(func_id)
                 || !self.static_frame_functions.contains(func_id)
                 || self.recursive_stack_functions.contains(func_id)
                 || self.recursion_reaching_functions.contains(func_id)
@@ -132,6 +131,8 @@ impl<'gcx> EvmCodegen<'gcx> {
             // whole-function liveness. Single-block leaves have no inter-block layout to solve.
             if func.blocks.iter().any(|block| {
                 !self.preserve_caller_stack
+                    && !(self.requires_spill_free_execution(func_id)
+                        && self.can_preserve_hazard_caller_stack(func_id))
                     && block
                         .instructions
                         .iter()
@@ -150,7 +151,18 @@ impl<'gcx> EvmCodegen<'gcx> {
                     .any(|block| block.predecessors.len() >= 2)
                     .then(|| self.stack_phi_plan(func_id, func, liveness));
                 let context = self.resident_search_context(func, &values, phi_plan.clone());
-                if let Some((plan, _)) = self.analyze_resident_subset(
+                if self.requires_spill_free_execution(func_id) {
+                    let Some((_, plan)) = self.compute_spill_hazard_stack_layout(
+                        func_id,
+                        func,
+                        liveness,
+                        &values,
+                        &phi_plan.as_deref().cloned().unwrap_or_default(),
+                    ) else {
+                        continue;
+                    };
+                    plan
+                } else if let Some((plan, _)) = self.analyze_resident_subset(
                     func,
                     liveness,
                     &values,

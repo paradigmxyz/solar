@@ -56,12 +56,10 @@ impl<'gcx> EvmCodegen<'gcx> {
         for func in &mut module.functions {
             Self::split_phi_critical_edges(func);
         }
-        if !matches!(self.gcx.sess.opts.optimization, OptimizationMode::None) {
-            for func in &mut module.functions {
-                func.canonicalize_argument_uses();
-                if matches!(self.gcx.sess.opts.optimization, OptimizationMode::Size) {
-                    func.canonicalize_immediate_uses();
-                }
+        for func in &mut module.functions {
+            func.canonicalize_argument_uses();
+            if matches!(self.gcx.sess.opts.optimization, OptimizationMode::Size) {
+                func.canonicalize_immediate_uses();
             }
         }
         let Ok(lowered) = module.as_lowered(self.gcx.dcx()) else {
@@ -71,7 +69,8 @@ impl<'gcx> EvmCodegen<'gcx> {
         // Runtime and constructor emission inspect the same final MIR. Compute module-wide facts
         // once instead of rebuilding them for each artifact and caller-stack retry.
         let call_graph = CallGraphInfo::new(module);
-        self.heap_pointer_return_functions = Self::collect_heap_pointer_return_functions(module);
+        (self.heap_pointer_return_functions, self.untrusted_memory_functions) =
+            Self::collect_heap_pointer_return_functions(module);
         self.cold_functions = if matches!(self.gcx.sess.opts.optimization, OptimizationMode::None) {
             DenseBitSet::new_empty(module.functions.len())
         } else {

@@ -370,6 +370,7 @@ pub struct EvmCodegen<'gcx> {
     /// Helpers whose sole returned word is proven to be a heap pointer.
     /// Their callers may safely use the result as a dynamic forwarding-buffer base.
     heap_pointer_return_functions: DenseBitSet<FunctionId>,
+    untrusted_memory_functions: DenseBitSet<FunctionId>,
     /// Runtime code of a scheduled module, waiting for embedded bytecode to be linked in.
     pending_runtime: Option<PendingRuntime>,
     /// Whether the current function has canonical cross-block argument layouts.
@@ -462,6 +463,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             function_ir_block_start: 0,
             spill_hazard_insts: FxHashSet::default(),
             heap_pointer_return_functions: DenseBitSet::new_empty(0),
+            untrusted_memory_functions: DenseBitSet::new_empty(0),
             pending_runtime: None,
             global_stack_active: false,
             global_stack_aliases: FxHashMap::default(),
@@ -525,6 +527,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.function_liveness.clear();
         self.spill_hazard_insts.clear();
         self.heap_pointer_return_functions.clear_to(module.functions.len());
+        self.untrusted_memory_functions.clear_to(module.functions.len());
         self.global_stack_active = false;
         self.global_stack_aliases.clear();
         self.runtime_immutable_refs.clear();
