@@ -793,21 +793,9 @@ impl<'a> FunctionBuilder<'a> {
         StorageAlias::for_value(self.func, slot)
     }
 
-    /// Sets the free-memory pointer.
-    #[cfg(test)]
-    pub(crate) fn set_fmp(&mut self, value: ValueId) {
-        self.emit_void_inst(InstKind::SetFmp(value))
-    }
-
     /// Reserves untyped memory under an explicit semantic policy.
     pub(crate) fn alloc_raw(&mut self, size: ValueId, semantics: AllocationSemantics) -> ValueId {
         self.alloc_kind(size, crate::mir::AllocationKind::Raw, semantics)
-    }
-
-    /// Reserves memory under an explicit semantic policy.
-    #[cfg(test)]
-    pub(crate) fn alloc(&mut self, size: ValueId, semantics: AllocationSemantics) -> ValueId {
-        self.alloc_raw(size, semantics)
     }
 
     /// Reserves memory for a semantically shaped object.
