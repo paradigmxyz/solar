@@ -184,8 +184,9 @@ extractor on the left and construct the replacement on the right:
 ```
 
 Use the operand order from the schema, not Solidity infix order; EVM shifts
-take the count before the value. Rules operate on full 256-bit words with
-wrapping arithmetic, saturating shifts, and EVM division-by-zero behavior.
+take the count before the value. MIR integer rules use the operand width;
+EVM IR rules use 256-bit words. Both use wrapping arithmetic, saturating
+shifts, and EVM division-by-zero behavior.
 Put readable `before => after` pseudocode and any preconditions immediately
 above every pattern. Declare Rust-backed predicates and projections in the
 pass's rule file and implement them in its sibling `isle.rs` context.

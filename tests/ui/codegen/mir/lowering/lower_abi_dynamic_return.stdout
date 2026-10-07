@@ -380,6 +380,14 @@
       ret v0
   }
   
+  fn @nativeCleanTuple(arg0: i128) -> memptr [selector=0x0dead020, abi_params=[u128], abi_returns=[tuple<word>], abi_return_params=[tuple<u128>]] {
+    bb0:
+      v0 = alloc memorystruct<1>, exact, uninitialized, panic, 32
+      v1 = zext i128 arg0 to i256
+      memory_object_store_field memorystruct<1>, v0, 0, v1
+      ret v0
+  }
+  
 - // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_dynamic_return.mir (before lower-builtins) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_dynamic_return.mir (after lower-builtins) ===
   @module LowerAbiDynamicReturn
@@ -841,6 +849,14 @@
       ret v0
   }
   
+  fn @nativeCleanTuple(arg0: i128) -> memptr [selector=0x0dead020, abi_params=[u128], abi_returns=[tuple<word>], abi_return_params=[tuple<u128>]] {
+    bb0:
+      v0 = alloc memorystruct<1>, exact, uninitialized, panic, 32
+      v1 = zext i128 arg0 to i256
+      memory_object_store_field memorystruct<1>, v0, 0, v1
+      ret v0
+  }
+  
 - // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_dynamic_return.mir (before lower-abi) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_dynamic_return.mir (after lower-abi) ===
   @module LowerAbiDynamicReturn
@@ -886,7 +902,7 @@
     bb0:
       v0 = icall @canonicalAddresses
 -     ret v0
-+     v1 = icall @cleanup_return.39, v0
++     v1 = icall @cleanup_return.40, v0
 +     v2 = abi_encode [memory_array<word>], args v1
 +     v3 = slice_ptr v2
 +     v4 = slice_len v2
@@ -898,7 +914,7 @@
     bb0:
       v0 = icall @canonicalAddresses
 -     ret v0
-+     v1 = icall @cleanup_return.39, v0
++     v1 = icall @cleanup_return.40, v0
 +     v2 = abi_encode [memory_array<word>], args v1
 +     v3 = slice_ptr v2
 +     v4 = slice_len v2
@@ -932,7 +948,7 @@
     bb0:
       v0 = icall @canonicalAddressArrays
 -     ret v0
-+     v1 = icall @cleanup_return.37, v0
++     v1 = icall @cleanup_return.39, v0
 +     v2 = abi_encode [memory_array<memory_array<word>>], args v1
 +     v3 = slice_ptr v2
 +     v4 = slice_len v2
@@ -944,7 +960,7 @@
     bb0:
       v0 = icall @canonicalAddressArrays
 -     ret v0
-+     v1 = icall @cleanup_return.37, v0
++     v1 = icall @cleanup_return.39, v0
 +     v2 = abi_encode [memory_array<memory_array<word>>], args v1
 +     v3 = slice_ptr v2
 +     v4 = slice_len v2
@@ -977,7 +993,7 @@
     bb0:
       v0 = icall @dirtyAddressArrays
 -     ret v0
-+     v1 = icall @cleanup_return.37, v0
++     v1 = icall @cleanup_return.39, v0
 +     v2 = abi_encode [memory_array<memory_array<word>>], args v1
 +     v3 = slice_ptr v2
 +     v4 = slice_len v2
@@ -989,7 +1005,7 @@
     bb0:
       v0 = icall @dirtyAddressArrays
 -     ret v0
-+     v1 = icall @cleanup_return.37, v0
++     v1 = icall @cleanup_return.39, v0
 +     v2 = abi_encode [memory_array<memory_array<word>>], args v1
 +     v3 = slice_ptr v2
 +     v4 = slice_len v2
@@ -1093,7 +1109,7 @@
     bb0:
       v0 = icall @dirtyAddressAliases
 -     ret v0
-+     v1 = icall @cleanup_return.37, v0
++     v1 = icall @cleanup_return.39, v0
 +     v2 = abi_encode [memory_array<memory_array<word>>], args v1
 +     v3 = slice_ptr v2
 +     v4 = slice_len v2
@@ -1105,7 +1121,7 @@
     bb0:
       v0 = icall @dirtyAddressReloads
 -     ret v0
-+     v1 = icall @cleanup_return.37, v0
++     v1 = icall @cleanup_return.39, v0
 +     v2 = abi_encode [memory_array<memory_array<word>>], args v1
 +     v3 = slice_ptr v2
 +     v4 = slice_len v2
@@ -1117,7 +1133,7 @@
     bb0:
       v0 = icall @escapingAddressArrays
 -     ret v0
-+     v1 = icall @cleanup_return.37, v0
++     v1 = icall @cleanup_return.39, v0
 +     v2 = abi_encode [memory_array<memory_array<word>>], args v1
 +     v3 = slice_ptr v2
 +     v4 = slice_len v2
@@ -1254,7 +1270,7 @@
       v0 = alloc memorystruct<1>, exact, uninitialized, panic, 32
       v1 = icall @aliasedAddressContainer, v0, v0
 -     ret v1
-+     v2 = icall @cleanup_return.39, v1
++     v2 = icall @cleanup_return.40, v1
 +     v3 = abi_encode [memory_array<word>], args v2
 +     v4 = slice_ptr v3
 +     v5 = slice_len v3
@@ -1267,7 +1283,7 @@
       v0 = icall @canonicalAddresses
       mstore 0, 256
 -     ret v0
-+     v1 = icall @cleanup_return.39, v0
++     v1 = icall @cleanup_return.40, v0
 +     v2 = abi_encode [memory_array<word>], args v1
 +     v3 = slice_ptr v2
 +     v4 = slice_len v2
@@ -1386,7 +1402,7 @@
 +   bb1:
       v0 = icall @bypassedArrayLoop, arg0
 -     ret v0
-+     v5 = icall @cleanup_return.39, v0
++     v5 = icall @cleanup_return.40, v0
 +     v6 = abi_encode [memory_array<word>], args v5
 +     v7 = slice_ptr v6
 +     v8 = slice_len v6
@@ -1400,7 +1416,7 @@
     bb0:
       v0 = icall @lateArrayLength
 -     ret v0
-+     v1 = icall @cleanup_return.39, v0
++     v1 = icall @cleanup_return.40, v0
 +     v2 = abi_encode [memory_array<word>], args v1
 +     v3 = slice_ptr v2
 +     v4 = slice_len v2
@@ -1566,14 +1582,51 @@
 + fn @givesDirtyStorageAddresses() [selector=0x0dead019, abi_wrapper] {
     bb0:
       v0 = icall @dirtyStorageAddresses, 0
-+     v1 = icall @cleanup_return.39, v0
+-     ret v0
++     v1 = icall @cleanup_return.40, v0
 +     v2 = abi_encode [memory_array<word>], args v1
 +     v3 = slice_ptr v2
 +     v4 = slice_len v2
 +     returndata v3, v4
+  }
+  
+- fn @nativeCleanTuple(arg0: i128) -> memptr [selector=0x0dead020, abi_params=[u128], abi_returns=[tuple<word>], abi_return_params=[tuple<u128>]] {
++ fn @nativeCleanTuple() [selector=0x0dead020, abi_wrapper] {
+    bb0:
++     v2 = calldatasize
++     v3 = lt v2, 36
++     jumpi v3, bb2, bb3
++   bb3:
++     v4 = calldataload 4
++     v5 = shr 128, v4
++     v6 = eq v5, 0
++     jumpi v6, bb4, bb2
++   bb4:
++     jump bb1
++   bb1:
+      v0 = alloc memorystruct<1>, exact, uninitialized, panic, 32
+      v1 = zext i128 arg0 to i256
+      memory_object_store_field memorystruct<1>, v0, 0, v1
++     v7 = memory_object_load_field memorystruct<1>, v0, 0
++     mstore 128, v7
++     v8 = add 128, 32
++     v9 = add 128, 32
++     v10 = sub v9, 128
++     returndata 128, v10
++   bb2:
++     revert 0, 0
 + }
 + 
-+ fn @cleanup_return.37(arg0: memptr) -> memptr {
++ fn @cleanup_return.38(arg0: memptr) -> memptr {
++   bb0:
++     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
++     v1 = memory_object_load_field memorystruct<1>, arg0, 0
++     v2 = and v1, 255
++     memory_object_store_field memorystruct<1>, v0, 0, v2
+      ret v0
++ }
++ 
++ fn @cleanup_return.39(arg0: memptr) -> memptr {
 +   bb0:
 +     v0 = memory_object_len memoryarray, arg0
 +     v1 = add v0, 1
@@ -1646,16 +1699,7 @@
 +     revert 28, 36
 + }
 + 
-+ fn @cleanup_return.38(arg0: memptr) -> memptr {
-+   bb0:
-+     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
-+     v1 = memory_object_load_field memorystruct<1>, arg0, 0
-+     v2 = and v1, 255
-+     memory_object_store_field memorystruct<1>, v0, 0, v2
-      ret v0
-+ }
-+ 
-+ fn @cleanup_return.39(arg0: memptr) -> memptr {
++ fn @cleanup_return.40(arg0: memptr) -> memptr {
 +   bb0:
 +     v0 = memory_object_len memoryarray, arg0
 +     v1 = add v0, 1

@@ -1,3 +1,6 @@
+//@ run-call: narrowBase 0, 0 => 0
+//@ run-call: narrowBase 255, 128 => 1276
+//@ run-call: narrowBase 250, 10 => 888
 //@ compile-flags: -Ogas -Zdump=mir
 //@ filecheck:
 //@ run-call: pack 0x414243444546 => 0x4142430044454600
@@ -20,6 +23,16 @@
 // CHECK: add [[OUT]], 4
 
 contract Test {
+    function narrowBase(uint8 base, uint256 extra) public pure returns (uint256 sum) {
+        unchecked {
+            for (uint256 i; i < 4; ++i) {
+                uint256 position = uint256(base) + 32 * i + extra * 2;
+                sum += position;
+                sum ^= position + 7;
+            }
+        }
+    }
+
     // Copies three input bytes into every four output bytes, so the read and
     // the write counters advance by different amounts.
     function pack(bytes memory s) public pure returns (bytes memory out) {

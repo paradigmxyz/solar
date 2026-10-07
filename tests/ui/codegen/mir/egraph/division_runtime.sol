@@ -35,6 +35,14 @@
 //@ run-call: isMultiple 0 => true
 //@ run-call: isMultiple 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => false
 
+//@ run-call: narrowBounds 249 => true, false, true, false
+//@ run-call: narrowBounds 250 => false, true, true, false
+//@ run-call: narrowBounds 255 => false, true, true, false
+//@ run-call: narrowProduct 0 => true, true
+//@ run-call: narrowProduct 25 => true, true
+//@ run-call: narrowProduct 26 => false, false
+//@ run-call: narrowProduct 255 => false, false
+
 // Boundaries of the division rules proved in Lean, through checked Solidity arithmetic.
 contract DivisionRuntime {
     function scale(uint256 x) external pure returns (uint256) {
@@ -103,5 +111,14 @@ contract DivisionRuntime {
 
     function isMultiple(uint256 x) external pure returns (bool) {
         return x / 1000 * 1000 == x;
+    }
+    function narrowBounds(uint8 x) external pure returns (bool, bool, bool, bool) {
+        return (x / 10 < 25, x / 10 > 24, x / 10 < 26, x / 10 > 25);
+    }
+
+    function narrowProduct(uint8 x) external pure returns (bool, bool) {
+        unchecked {
+            return (x * 10 / 10 == x, x == 0 || x * 10 / x == 10);
+        }
     }
 }

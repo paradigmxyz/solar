@@ -9,9 +9,9 @@
       (sequence (Op.Eq n zero)))
 
 ;; sdiv(x, c) => x == c.
-;; Requires: c is constant, c == (1 << 255).
+;; Requires: c is constant, c == (1 << (W - 1)).
 (rule (sequence_rewrite (Op.SDiv x (iconst c)))
-      (if-let true (u256_same c (u256_shl (u256 255) (u256 1)))) (if-let limit (imm c))
+      (if-let true (u256_same c (u256_shl (u256 (integer_sign_bit)) (u256 1)))) (if-let limit (imm c))
       (sequence (Op.Eq x limit)))
 
 ;; addmod(x, y, m) => (x + y) & (m - 1).

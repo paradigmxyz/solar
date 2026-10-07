@@ -168,3 +168,49 @@ fn @remainder_by_subtraction(arg0: i256) -> i256 {
     v2 = sub arg0, v1
     ret v2
 }
+
+fn @checked_product_i8(arg0: i8) -> i1 {
+  bb0:
+    v0 = mul arg0, i8 10
+    v1 = div v0, i8 10
+    v2 = eq v1, arg0
+    ret v2
+}
+
+fn @checked_product_left_i8(arg0: i8) -> i1 {
+  bb0:
+    v0 = mul arg0, i8 10
+    v1 = eq arg0, i8 0
+    v2 = div v0, arg0
+    v3 = eq v2, i8 10
+    v4 = or v1, v3
+    ret v4
+}
+
+fn @quotient_below_i8(arg0: i8) -> i1 {
+  bb0:
+    v0 = div arg0, i8 10
+    v1 = lt v0, i8 25
+    ret v1
+}
+
+fn @quotient_below_overflow_i8(arg0: i8) -> i1 {
+  bb0:
+    v0 = div arg0, i8 10
+    v1 = lt v0, i8 26
+    ret v1
+}
+
+fn @quotient_above_i8(arg0: i8) -> i1 {
+  bb0:
+    v0 = div arg0, i8 10
+    v1 = gt v0, i8 24
+    ret v1
+}
+
+fn @quotient_above_overflow_i8(arg0: i8) -> i1 {
+  bb0:
+    v0 = div arg0, i8 10
+    v1 = gt v0, i8 25
+    ret v1
+}

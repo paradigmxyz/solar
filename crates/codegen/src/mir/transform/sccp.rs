@@ -338,7 +338,7 @@ impl SccpCx {
     /// Evaluates a single instruction and returns its lattice value.
     fn evaluate_instruction(
         &self,
-        _func: &Function,
+        func: &Function,
         kind: &InstKind,
         lattice: &IndexVec<ValueId, LatticeValue>,
     ) -> LatticeValue {
@@ -363,7 +363,7 @@ impl SccpCx {
             };
         }
 
-        match eval::eval_inst(kind, |value| get_const(value).ok_or(())) {
+        match eval::eval_typed_inst(func, kind, |value| get_const(value).ok_or(())) {
             Ok(Some(value)) => LatticeValue::Constant(value),
             Ok(None) => LatticeValue::Bottom,
             Err(()) => match *kind {
@@ -669,19 +669,23 @@ fn can_change(func: &Function) -> bool {
             | InstKind::Mod(_, divisor)
             | InstKind::SMod(_, divisor) => {
                 func.value_u256(*divisor).is_some_and(|divisor| divisor.is_zero())
-                    || eval::eval_inst(&inst.kind, |value| func.value_u256(value).ok_or(()))
-                        .ok()
-                        .flatten()
-                        .is_some()
+                    || eval::eval_typed_inst(func, &inst.kind, |value| {
+                        func.value_u256(value).ok_or(())
+                    })
+                    .ok()
+                    .flatten()
+                    .is_some()
             }
             InstKind::AddMod(_, _, modulus) | InstKind::MulMod(_, _, modulus) => {
                 func.value_u256(*modulus).is_some_and(|modulus| modulus.is_zero())
-                    || eval::eval_inst(&inst.kind, |value| func.value_u256(value).ok_or(()))
-                        .ok()
-                        .flatten()
-                        .is_some()
+                    || eval::eval_typed_inst(func, &inst.kind, |value| {
+                        func.value_u256(value).ok_or(())
+                    })
+                    .ok()
+                    .flatten()
+                    .is_some()
             }
-            _ => eval::eval_inst(&inst.kind, |value| func.value_u256(value).ok_or(()))
+            _ => eval::eval_typed_inst(func, &inst.kind, |value| func.value_u256(value).ok_or(()))
                 .ok()
                 .flatten()
                 .is_some(),

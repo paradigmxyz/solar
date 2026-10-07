@@ -633,7 +633,11 @@ impl<'a> Validator<'a> {
                 }
                 InstKind::LoadImmutable(id) => {
                     match (module.get_immutable_type(id), inst.result_ty) {
-                        (Some(expected), Some(actual)) if actual != expected.mir_type() => {
+                        (Some(expected), Some(actual))
+                            if actual != expected.mir_type()
+                                && !(actual == MirType::I256
+                                    && expected.mir_type().integer_bits().is_some()) =>
+                        {
                             self.emit(format_args!(
                                 "inst{} loads immutable {} as `{actual}`, expected `{expected}`",
                                 inst_id.index(),
@@ -706,6 +710,7 @@ impl<'a> Validator<'a> {
         self.prepare_return_abi_validation(module);
         for (id, ty) in module.struct_types.iter_enumerated() {
             for field in &ty.fields {
+                self.validate_integer_type(*field);
                 if *field == MirType::Void
                     || matches!(field, MirType::Struct(nested) if *nested >= id)
                 {
@@ -755,6 +760,16 @@ impl<'a> Validator<'a> {
         }
     }
 
+    fn validate_integer_type(&mut self, ty: MirType) {
+        if let Some(bits) = ty.integer_bits()
+            && !MirType::valid_integer_width(bits)
+        {
+            self.emit(format_args!(
+                "unsupported integer type `{ty}`; expected i1 or a byte width from i8 through i256"
+            ));
+        }
+    }
+
     /// Checks constant widths and aggregate operands against their declared types.
     fn validate_value_types(&mut self, module: &Module, func: &Function) {
         self.validate_return_abi(module, func);
@@ -776,6 +791,7 @@ impl<'a> Validator<'a> {
             .chain(std::iter::once(func.return_type()))
             .chain(func.return_components().iter().copied())
         {
+            self.validate_integer_type(ty);
             if let MirType::Struct(id) = ty
                 && module.struct_types.get(id).is_none()
             {
@@ -1013,11 +1029,15 @@ impl<'a> Validator<'a> {
 
     /// Checks that a live value has a value type and that a constant fits it.
     fn validate_live_value_type(&mut self, func: &Function, value: ValueId) {
-        if func.value_ty(value).is_none_or(|ty| ty == MirType::Void) {
-            self.emit(format_args!("live value v{} has no value type", value.index()));
+        match func.value_ty(value) {
+            None | Some(MirType::Void) => {
+                self.emit(format_args!("live value v{} has no value type", value.index()));
+            }
+            Some(ty) => self.validate_integer_type(ty),
         }
         if let Value::Immediate(immediate) = func.value(value)
             && let MirType::Int(bits) = immediate.ty()
+            && bits.get() < 256
             && immediate.as_u256().is_some_and(|word| word.bit_len() > bits.get() as usize)
         {
             self.emit(format_args!(
@@ -1384,7 +1404,7 @@ impl<'a> Validator<'a> {
                     }
                     let semantic_op = func
                         .inst(inst_id)
-                        .unlowered_reason()
+                        .unlowered_reason(func)
                         .or_else(|| kind.phase_violation(phase, &func.inst(inst_id).metadata));
                     if let Some(semantic_op) = semantic_op {
                         self.emit_at_inst(
@@ -1479,13 +1499,14 @@ fn return_abi_matches(
 
 /// Returns the first type, in signature and then block order, that is not a scalar word.
 fn first_non_word_type(func: &Function) -> Option<MirType> {
+    let non_word = |ty: MirType| !matches!(ty, MirType::I1 | MirType::I256 | MirType::MemPtr);
     let signature = func.arg_indices().map(|index| func.arg_ty(index));
     if let Some(ty) =
-        signature.chain(func.return_components().iter().copied()).find(|&ty| !ty.is_word())
+        signature.chain(func.return_components().iter().copied()).find(|&ty| non_word(ty))
     {
         return Some(ty);
     }
-    let value_type = |value| func.value_ty(value).filter(|&ty| !ty.is_word());
+    let value_type = |value| func.value_ty(value).filter(|&ty| non_word(ty));
     let find = |found: &mut Option<MirType>, value| {
         if found.is_none() {
             *found = value_type(value);
@@ -1510,7 +1531,7 @@ fn first_non_word_type(func: &Function) -> Option<MirType> {
             return found;
         }
     }
-    func.instructions().filter_map(|id| func.inst(id).result_ty).find(|&ty| !ty.is_word())
+    func.instructions().filter_map(|id| func.inst(id).result_ty).find(|&ty| non_word(ty))
 }
 
 // =============================================================================
@@ -1649,7 +1670,7 @@ error: [fn3] [bb0] switch cases must have the selector type
     fn integer_constants_must_fit_their_types() {
         with_session(|sess| {
             let mut module = Module::new(Ident::DUMMY);
-            for bits in [1, 7, 160] {
+            for bits in [1, 8, 160] {
                 let mut function = make_func();
                 let width = NonZeroU32::new(bits).unwrap();
                 let value = function
@@ -1666,7 +1687,7 @@ error: [fn3] [bb0] switch cases must have the selector type
                 str![[r#"
 error: [fn0] constant v0 does not fit its type `i1`
 
-error: [fn1] constant v0 does not fit its type `i7`
+error: [fn1] constant v0 does not fit its type `i8`
 
 error: [fn2] constant v0 does not fit its type `i160`
 

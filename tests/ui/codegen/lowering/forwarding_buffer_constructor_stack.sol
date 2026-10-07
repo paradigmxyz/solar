@@ -2,7 +2,8 @@
 //@ compile-flags: --emit=bin
 //@[gas] compile-flags: -Ogas
 //@[size] compile-flags: -Osize
-//~? ERROR: codegen cannot preserve values across a low-memory forwarding buffer
+//@[size] normalize-stdout-test: "(?s).+" -> ""
+//~[gas]? ERROR: codegen cannot preserve values across a low-memory forwarding buffer
 
 struct S {
     uint24 a;

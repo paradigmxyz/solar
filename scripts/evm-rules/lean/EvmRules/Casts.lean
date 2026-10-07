@@ -127,6 +127,26 @@ theorem ne_sext_sext (n m x y : Word) (h₁ : 1 ≤ n) (h₂ : n < m)
         (Evm.sub (Evm.shl m 1) 1)) = Evm.ne x y :=
   ne_congr_iff (sext_inj n m x y h₁ h₂ hx hy)
 
+theorem eq_sext_zero (n m x : Word) (h₁ : 1 ≤ n) (h₂ : n < m)
+    (hx : Evm.and x (Evm.sub (Evm.shl n 1) 1) = x) :
+    Evm.eq
+      (Evm.and
+        (Evm.sar (Evm.sub 256 (Evm.select (Evm.lt n 256) n 256))
+          (Evm.shl (Evm.sub 256 (Evm.select (Evm.lt n 256) n 256)) x))
+        (Evm.sub (Evm.shl m 1) 1)) 0 = Evm.eq x 0 := by
+  simpa [Evm.shl, Evm.sar, Evm.and] using
+    eq_sext_sext n m x 0 h₁ h₂ hx (by simp [Evm.and])
+
+theorem ne_sext_zero (n m x : Word) (h₁ : 1 ≤ n) (h₂ : n < m)
+    (hx : Evm.and x (Evm.sub (Evm.shl n 1) 1) = x) :
+    Evm.ne
+      (Evm.and
+        (Evm.sar (Evm.sub 256 (Evm.select (Evm.lt n 256) n 256))
+          (Evm.shl (Evm.sub 256 (Evm.select (Evm.lt n 256) n 256)) x))
+        (Evm.sub (Evm.shl m 1) 1)) 0 = Evm.ne x 0 := by
+  simpa [Evm.shl, Evm.sar, Evm.and] using
+    ne_sext_sext n m x 0 h₁ h₂ hx (by simp [Evm.and])
+
 /-- Unsigned division by a power of two is a right shift, also once the count reaches the
 word width and the divisor is zero. -/
 theorem div_shl_one (x n : Word) : Evm.div x (Evm.shl n 1) = Evm.shr n x := by

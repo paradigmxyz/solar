@@ -61,3 +61,6 @@
 
 (decl integer_bits (u32) Value)
 (extern extractor integer_bits integer_bits)
+
+(decl pure integer_sign_bit () u64)
+(extern constructor integer_sign_bit integer_sign_bit)

@@ -64,8 +64,8 @@ contract CheckedArithmeticPanic {
     }
 
     // CHECK-LABEL: fn @narrow_add{{[( ]}}
-    // CHECK: [[LHS:v[0-9]+]] = and arg0, 255
-    // CHECK: [[RHS:v[0-9]+]] = and arg1, 255
+    // CHECK: [[LHS:v[0-9]+]] = zext i8 arg0 to i256
+    // CHECK: [[RHS:v[0-9]+]] = zext i8 arg1 to i256
     // CHECK: [[SUM:v[0-9]+]] = add [[LHS]], [[RHS]]
     // CHECK: gt [[SUM]], 255
     // CHECK: mstore 32, 17

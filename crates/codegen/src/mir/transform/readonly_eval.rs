@@ -27,8 +27,8 @@
 //! allocations lose their provenance. Facts do not cross caller block boundaries.
 
 use crate::mir::{
-    ArgIdx, BlockId, Function, FunctionId, Immediate, InstId, InstKind, MirType, Module,
-    Terminator, Value, ValueId,
+    ArgIdx, BlockId, Function, FunctionId, Immediate, InstId, InstKind, Module, Terminator, Value,
+    ValueId,
     analysis::{
         AddressSpace, AliasAnalysis, Location, LocationSize, MemoryAddress, MemoryBase,
         MemoryLocation,
@@ -159,7 +159,7 @@ fn find_calls(module: &Module, id: FunctionId) -> Vec<(InstId, EvaluatedReturn)>
                 folded.push((inst, result));
                 continue;
             }
-            let result = scalar(&instruction.kind, get, &memory);
+            let result = scalar(func, &instruction.kind, get, &memory);
             if let Some(alias) = &alias {
                 let effects = alias.instruction_mod_ref(func, inst);
                 if effects.writes_space(AddressSpace::Memory) {
@@ -211,6 +211,7 @@ fn operand(
 }
 
 fn scalar(
+    func: &Function,
     kind: &InstKind,
     get: impl Fn(ValueId) -> Option<Datum>,
     memory: &Memory,
@@ -235,7 +236,7 @@ fn scalar(
         }
         _ => {}
     }
-    eval::eval_inst(kind, |value| get(value).and_then(Datum::word).ok_or(()))
+    eval::eval_typed_inst(func, kind, |value| get(value).and_then(Datum::word).ok_or(()))
         .ok()
         .flatten()
         .map(Datum::Word)
@@ -253,10 +254,7 @@ fn evaluate(
     if depth >= MAX_DEPTH
         || args.len() != func.params.len()
         || func.return_components().len() > 1
-        || func
-            .return_components()
-            .first()
-            .is_some_and(|ty| !matches!(*ty, MirType::I256 | MirType::I160 | MirType::I1))
+        || func.return_components().first().is_some_and(|ty| ty.integer_bits().is_none())
     {
         return None;
     }
@@ -295,7 +293,7 @@ fn evaluate(
                         EvaluatedReturn::Word(word) => Datum::Word(word),
                     }
                 } else {
-                    scalar(kind, get, memory)?
+                    scalar(func, kind, get, memory)?
                 };
             env.insert(func.inst_result_value(inst)?, result);
         }

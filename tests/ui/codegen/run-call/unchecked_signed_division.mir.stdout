@@ -1,27 +1,21 @@
 // === ROOT/tests/ui/codegen/run-call/unchecked_signed_division.sol:UncheckedSignedDivision ===
 @module UncheckedSignedDivision
-fn @uncheckedI8(arg0: i256, arg1: i256) -> i256 [selector=0xa7f45646, pure, abi_params=[i8, i8], abi_returns=[word<i8>], abi_return_params=[i8]] {
+fn @uncheckedI8(arg0: i8, arg1: i8) -> i8 [selector=0xa7f45646, pure, abi_params=[i8, i8], abi_returns=[word<i8>], abi_return_params=[i8]] {
   bb0:
-    v0 = signextend 0, arg0
-    v1 = signextend 0, arg1
-    v2 = wrapping_div i8, v0, v1
-    ret v2
+    v0 = wrapping_div i8, arg0, arg1
+    ret v0
 }
 
-fn @uncheckedI24(arg0: i256, arg1: i256) -> i256 [selector=0xed3614ef, pure, abi_params=[i24, i24], abi_returns=[word<i24>], abi_return_params=[i24]] {
+fn @uncheckedI24(arg0: i24, arg1: i24) -> i24 [selector=0xed3614ef, pure, abi_params=[i24, i24], abi_returns=[word<i24>], abi_return_params=[i24]] {
   bb0:
-    v0 = signextend 2, arg0
-    v1 = signextend 2, arg1
-    v2 = wrapping_div i24, v0, v1
-    ret v2
+    v0 = wrapping_div i24, arg0, arg1
+    ret v0
 }
 
-fn @uncheckedI128(arg0: i256, arg1: i256) -> i256 [selector=0x0486d865, pure, abi_params=[i128, i128], abi_returns=[word<i128>], abi_return_params=[i128]] {
+fn @uncheckedI128(arg0: i128, arg1: i128) -> i128 [selector=0x0486d865, pure, abi_params=[i128, i128], abi_returns=[word<i128>], abi_return_params=[i128]] {
   bb0:
-    v0 = signextend 15, arg0
-    v1 = signextend 15, arg1
-    v2 = wrapping_div i128, v0, v1
-    ret v2
+    v0 = wrapping_div i128, arg0, arg1
+    ret v0
 }
 
 fn @uncheckedI256(arg0: i256, arg1: i256) -> i256 [selector=0x9762a930, pure, abi_params=[i256, i256], abi_returns=[word], abi_return_params=[i256]] {
@@ -30,42 +24,34 @@ fn @uncheckedI256(arg0: i256, arg1: i256) -> i256 [selector=0x9762a930, pure, ab
     ret v0
 }
 
-fn @checkedI8(arg0: i256, arg1: i256) -> i256 [selector=0x8287dbba, pure, abi_params=[i8, i8], abi_returns=[word<i8>], abi_return_params=[i8]] {
+fn @checkedI8(arg0: i8, arg1: i8) -> i8 [selector=0x8287dbba, pure, abi_params=[i8, i8], abi_returns=[word<i8>], abi_return_params=[i8]] {
   bb0:
-    v0 = signextend 0, arg0
-    v1 = signextend 0, arg1
-    v2 = checked_div i8, v0, v1
-    ret v2
+    v0 = checked_div i8, arg0, arg1
+    ret v0
 }
 
-fn @upcastI8(arg0: i256, arg1: i256) -> i256 [selector=0xc8f1d00b, pure, abi_params=[i8, i8], abi_returns=[word], abi_return_params=[i256]] {
+fn @upcastI8(arg0: i8, arg1: i8) -> i256 [selector=0xc8f1d00b, pure, abi_params=[i8, i8], abi_returns=[word], abi_return_params=[i256]] {
   bb0:
-    v0 = signextend 0, arg0
-    v1 = signextend 0, arg1
-    v2 = wrapping_div i8, v0, v1
-    ret v2
+    v0 = wrapping_div i8, arg0, arg1
+    v1 = sext i8 v0 to i256
+    ret v1
 }
 
-fn @internalI8(arg0: i256, arg1: i256) -> i256 [selector=0xeca4fc1e, pure, abi_params=[i8, i8], abi_returns=[word<i8>], abi_return_params=[i8]] {
+fn @internalI8(arg0: i8, arg1: i8) -> i8 [selector=0xeca4fc1e, pure, abi_params=[i8, i8], abi_returns=[word<i8>], abi_return_params=[i8]] {
   bb0:
     v0 = icall @divideI8, arg0, arg1
     ret v0
 }
 
-fn @isNegativeI8(arg0: i256, arg1: i256) -> i256 [selector=0x9ff9f4e2, pure, abi_params=[i8, i8], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @isNegativeI8(arg0: i8, arg1: i8) -> i1 [selector=0x9ff9f4e2, pure, abi_params=[i8, i8], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = signextend 0, arg0
-    v1 = signextend 0, arg1
-    v2 = wrapping_div i8, v0, v1
-    v3 = slt v2, 0
-    v4 = zext i1 v3 to i256
-    ret v4
+    v0 = wrapping_div i8, arg0, arg1
+    v1 = slt v0, i8 0
+    ret v1
 }
 
-fn @divideI8(arg0: i256, arg1: i256) -> i256 [pure] {
+fn @divideI8(arg0: i8, arg1: i8) -> i8 [pure] {
   bb0:
-    v0 = signextend 0, arg0
-    v1 = signextend 0, arg1
-    v2 = wrapping_div i8, v0, v1
-    ret v2
+    v0 = wrapping_div i8, arg0, arg1
+    ret v0
 }

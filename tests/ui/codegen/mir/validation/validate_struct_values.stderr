@@ -50,5 +50,11 @@ error: [fn25] [bb0, inst0] ABI input location does not support its layout
 
 error: [fn26] [bb0, inst0] `memory_object_data` has incompatible scalar types; use an explicit cast
 
-error: aborting due to 26 previous errors
+error: [fn27] [bb0, inst0] `add` has incompatible scalar types; use an explicit cast
+
+error: [fn28] [bb0, inst0] `eq` has incompatible scalar types; use an explicit cast
+
+error: [fn29] [bb0, inst0] `add` has incompatible scalar types; use an explicit cast
+
+error: aborting due to 29 previous errors
 

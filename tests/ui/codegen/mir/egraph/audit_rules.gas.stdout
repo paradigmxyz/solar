@@ -358,7 +358,8 @@
   fn @narrow_zero_keeps_legal_word_compare(arg0: i8) -> i1 {
     bb0:
       v0 = zext i8 arg0 to i256
-      v1 = eq v0, 0
+-     v1 = eq v0, 0
++     v1 = eq arg0, i8 0
       ret v1
   }
   
@@ -793,8 +794,7 @@
 -     v2 = and v0, v1
 -     v3 = eq v2, 0
 +     v4 = and arg0, arg1
-+     v5 = zext i1 v4 to i256
-+     v3 = eq v5, 0
++     v3 = eq v4, false
       ret v3
   }
   
@@ -805,8 +805,7 @@
 -     v2 = or v0, v1
 -     v3 = eq v2, 0
 +     v4 = or arg0, arg1
-+     v5 = zext i1 v4 to i256
-+     v3 = eq v5, 0
++     v3 = eq v4, false
       ret v3
   }
   
@@ -857,7 +856,7 @@
   fn @narrow_zero_keeps_legal_word_compare(arg0: i8) -> i1 {
     bb0:
       v0 = zext i8 arg0 to i256
-      v1 = eq v0, 0
+      v1 = eq arg0, i8 0
       ret v1
   }
   
@@ -897,8 +896,7 @@
 -     v1 = eq arg1, arg0
 -     v2 = or v1, v0
 +     v3 = lt arg0, arg1
-+     v4 = zext i1 v3 to i256
-+     v2 = eq v4, 0
++     v2 = eq v3, false
       ret v2
   }
   
@@ -908,8 +906,7 @@
 -     v1 = eq arg0, arg1
 -     v2 = xor v1, v0
 +     v3 = slt arg0, arg1
-+     v4 = zext i1 v3 to i256
-+     v2 = eq v4, 0
++     v2 = eq v3, false
       ret v2
   }
   
@@ -1271,18 +1268,14 @@
   fn @widened_and_zero(arg0: i1, arg1: i1) -> i1 {
     bb0:
       v4 = and arg0, arg1
-      v5 = zext i1 v4 to i256
--     v3 = eq v5, 0
-+     v3 = eq v4, false
+      v3 = eq v4, false
       ret v3
   }
   
   fn @widened_or_zero(arg0: i1, arg1: i1) -> i1 {
     bb0:
       v4 = or arg0, arg1
-      v5 = zext i1 v4 to i256
--     v3 = eq v5, 0
-+     v3 = eq v4, false
+      v3 = eq v4, false
       ret v3
   }
   
@@ -1333,7 +1326,7 @@
   fn @narrow_zero_keeps_legal_word_compare(arg0: i8) -> i1 {
     bb0:
       v0 = zext i8 arg0 to i256
-      v1 = eq v0, 0
+      v1 = eq arg0, i8 0
       ret v1
   }
   
@@ -1370,18 +1363,14 @@
   fn @inclusive_gt(arg0: i256, arg1: i256) -> i1 {
     bb0:
       v3 = lt arg0, arg1
-      v4 = zext i1 v3 to i256
--     v2 = eq v4, 0
-+     v2 = eq v3, false
+      v2 = eq v3, false
       ret v2
   }
   
   fn @signed_inclusive_gt(arg0: i256, arg1: i256) -> i1 {
     bb0:
       v3 = slt arg0, arg1
-      v4 = zext i1 v3 to i256
--     v2 = eq v4, 0
-+     v2 = eq v3, false
+      v2 = eq v3, false
       ret v2
   }
   

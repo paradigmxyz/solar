@@ -1,0 +1,8 @@
+error: integer width must be 1 or a multiple of 8 from 8 through 256
+   ╭▸ ROOT/tests/ui/codegen/mir/lowering/integer_width_limit.mir:LL:CC
+   │
+LL │ fn @wide(arg0: i512) -> i512 {
+   ╰╴                   ━
+
+error: aborting due to 1 previous error
+

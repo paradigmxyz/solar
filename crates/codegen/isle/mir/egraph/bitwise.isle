@@ -10,8 +10,12 @@
         (if-let false (u256_is_all_ones mask))
         (Op.And base (imm (u256_and mask existing))))
 
-;; a ^ MAX => ~a.
-(rule (rewrite (Op.Xor a (all_ones))) (Op.Not a))
+;; a ^ MAX => ~a, except i1 whose complement stays a legal branch condition.
+(rule (rewrite (Op.Xor a (all_ones)))
+      (if-let false (u256_eq (u256 (integer_width)) 1))
+      (Op.Not a))
+;; i1 a ^ true => a == false
+(rule (rewrite (Op.Xor (and a (integer_bits 1)) (one))) (Op.Eq a (imm_bool false)))
 
 ;; x == 0 | (x * c) / x == c => x < MAX / c + 1.
 ;; Requires: c is constant, c >= 2. The test divides by the variable factor when the

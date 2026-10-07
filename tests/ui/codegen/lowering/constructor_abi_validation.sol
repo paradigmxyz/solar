@@ -3,17 +3,16 @@
 
 contract ConstructorAbiValidation {
     // CHECK-LABEL: fn @flag{{[( ]}}
-    // CHECK: and {{v[0-9]+}}, 255
+    // CHECK: trunc i256 {{v[0-9]+}} to i8
     bool public flag;
 
     // CHECK-LABEL: fn @second{{[( ]}}
     // CHECK: shr 8,
-    // CHECK: and {{v[0-9]+}}, 255
+    // CHECK: trunc i256 {{v[0-9]+}} to i8
     bool public second;
 
     // CHECK-LABEL: fn @constructor{{[( ]}}
-    // CHECK: eq arg0, 0
-    // CHECK: = eq {{v[0-9]+}}, {{(0|false)}}
+    // CHECK: zext i1 arg0 to i256
     // CHECK: memory_object_load_element memoryfixedarray<2, 1>, arg1, 1
     // CHECK: sstore 0,
     constructor(bool flag_, bool[2] memory flags) {

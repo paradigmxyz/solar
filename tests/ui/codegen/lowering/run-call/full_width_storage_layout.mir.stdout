@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/full_width_storage_layout.sol:LargeStorageArrays ===
 @module LargeStorageArrays
-fn @check() -> i256 [selector=0x919840ad, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @check() -> i1 [selector=0x919840ad, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = lt 0xffffffffffffffff, 0x10000000000000000
     v1 = eq v0, false
@@ -119,8 +119,8 @@ fn @check() -> i256 [selector=0x919840ad, abi_params=[], abi_returns=[word<bool>
     v74 = sload v71 !metadata(storage=offset(v70, 0x100000000000000000000000000000000000000010000000000000000))
     v75 = mul v73, 8
     v76 = shr v75, v74
-    v77 = and v76, 255
-    v78 = eq v77, 13
+    v77 = trunc i256 v76 to i8
+    v78 = eq v77, i8 13
     jump bb15
   bb15:
     v79 = phi [bb13: v78], [bb14: false]
@@ -133,8 +133,7 @@ fn @check() -> i256 [selector=0x919840ad, abi_params=[], abi_returns=[word<bool>
     jump bb18
   bb18:
     v82 = phi [bb16: v81], [bb17: false]
-    v83 = zext i1 v82 to i256
-    ret v83
+    ret v82
 }
 
 fn @read(arg0: i256) -> i256 [selector=0xed2e5a97, view, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {

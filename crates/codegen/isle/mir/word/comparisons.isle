@@ -21,56 +21,44 @@
 ;; x < (x + MAX) => x == 0.
 (rule (rewrite (Op.Lt x (add x (all_ones)))) (Op.Eq x (imm (u256 0))))
 
-;; (x << shift) == (y << shift) => x == y.
-;; Requires: shift is constant, shift < 256, (MAX >> shift) is a low-bit mask covering all possible
-;; set bits of x, (MAX >> shift) is a low-bit mask covering all possible set bits of y.
+;; (x << s) == (y << s) => x == y, if neither shift loses bits.
 (rule (rewrite (Op.Eq (shl (iconst shift) x) (shl (iconst shift) y)))
-      (if-let true (u256_lt shift 256))
+      (if-let true (u256_lt shift (integer_width)))
       (if-let true (mask_covers (u256_shr shift (u256_max)) x))
       (if-let true (mask_covers (u256_shr shift (u256_max)) y))
       (Op.Eq x y))
 
-;; (x << shift) == c => x == (c >> shift).
-;; Requires: shift, c are constants, shift < 256, ((c >> shift) << shift) == c, (MAX >> shift) is a
-;; low-bit mask covering all possible set bits of x.
+;; (x << s) == c => x == (c >> s), if x fits and c is aligned to 2^s.
 (rule (rewrite (Op.Eq (shl (iconst shift) x) (iconst c)))
-      (if-let true (u256_lt shift 256))
+      (if-let true (u256_lt shift (integer_width)))
       (if-let true (u256_same (u256_shl shift (u256_shr shift c)) c))
       (if-let true (mask_covers (u256_shr shift (u256_max)) x))
       (Op.Eq x (imm (u256_shr shift c))))
 
-;; (x << shift) < (y << shift) => x < y.
-;; Requires: shift is constant, shift < 256, (MAX >> shift) is a low-bit mask covering all possible
-;; set bits of x, (MAX >> shift) is a low-bit mask covering all possible set bits of y.
+;; (x << s) < (y << s) => x < y, if neither shift loses bits.
 (rule (rewrite (Op.Lt (shl (iconst shift) x) (shl (iconst shift) y)))
-      (if-let true (u256_lt shift 256))
+      (if-let true (u256_lt shift (integer_width)))
       (if-let true (mask_covers (u256_shr shift (u256_max)) x))
       (if-let true (mask_covers (u256_shr shift (u256_max)) y))
       (Op.Lt x y))
 
-;; (x << shift) < c => x < (c >> shift).
-;; Requires: shift, c are constants, shift < 256, ((c >> shift) << shift) == c, (MAX >> shift) is a
-;; low-bit mask covering all possible set bits of x.
+;; (x << s) < c => x < (c >> s), if x fits and c is aligned to 2^s.
 (rule (rewrite (Op.Lt (shl (iconst shift) x) (iconst c)))
-      (if-let true (u256_lt shift 256))
+      (if-let true (u256_lt shift (integer_width)))
       (if-let true (u256_same (u256_shl shift (u256_shr shift c)) c))
       (if-let true (mask_covers (u256_shr shift (u256_max)) x))
       (Op.Lt x (imm (u256_shr shift c))))
 
-;; (x << shift) > (y << shift) => x > y.
-;; Requires: shift is constant, shift < 256, (MAX >> shift) is a low-bit mask covering all possible
-;; set bits of x, (MAX >> shift) is a low-bit mask covering all possible set bits of y.
+;; (x << s) > (y << s) => x > y, if neither shift loses bits.
 (rule (rewrite (Op.Gt (shl (iconst shift) x) (shl (iconst shift) y)))
-      (if-let true (u256_lt shift 256))
+      (if-let true (u256_lt shift (integer_width)))
       (if-let true (mask_covers (u256_shr shift (u256_max)) x))
       (if-let true (mask_covers (u256_shr shift (u256_max)) y))
       (Op.Gt x y))
 
-;; (x << shift) > c => x > (c >> shift).
-;; Requires: shift, c are constants, shift < 256, ((c >> shift) << shift) == c, (MAX >> shift) is a
-;; low-bit mask covering all possible set bits of x.
+;; (x << s) > c => x > (c >> s), if x fits and c is aligned to 2^s.
 (rule (rewrite (Op.Gt (shl (iconst shift) x) (iconst c)))
-      (if-let true (u256_lt shift 256))
+      (if-let true (u256_lt shift (integer_width)))
       (if-let true (u256_same (u256_shl shift (u256_shr shift c)) c))
       (if-let true (mask_covers (u256_shr shift (u256_max)) x))
       (Op.Gt x (imm (u256_shr shift c))))
@@ -227,18 +215,18 @@
 (rule (rewrite (Op.Eq (gt x (iconst c)) (zero))) (if-let false (u256_is_all_ones c)) (if-let true (push_not_larger (u256_add c (u256 1)) c)) (Op.Lt x (imm (u256_add c (u256 1)))))
 
 ;; (signed(x) < signed(c)) == 0 => signed(x) > signed(c - 1).
-;; Requires: c is constant, c != (1 << 255), pushing (c - 1) costs no more gas or bytes than pushing
+;; Requires: c is constant, c != (1 << (W - 1)), pushing (c - 1) costs no more gas or bytes than pushing
 ;; c.
-(rule (rewrite (Op.Eq (slt x (iconst c)) (zero))) (if-let false (u256_same c (u256_shl (u256 255) (u256 1)))) (if-let true (push_not_larger (u256_sub c (u256 1)) c)) (Op.SGt x (imm (u256_sub c (u256 1)))))
+(rule (rewrite (Op.Eq (slt x (iconst c)) (zero))) (if-let false (u256_same c (u256_shl (u256 (integer_sign_bit)) (u256 1)))) (if-let true (push_not_larger (u256_sub c (u256 1)) c)) (Op.SGt x (imm (u256_sub c (u256 1)))))
 
 ;; (signed(x) > signed(c)) == 0 => signed(x) < signed(c + 1).
 ;; Requires: c is constant, c != (MAX >> 1), pushing (c + 1) costs no more gas or bytes than pushing
 ;; c.
 (rule (rewrite (Op.Eq (sgt x (iconst c)) (zero))) (if-let false (u256_same c (u256_shr (u256 1) (u256_max)))) (if-let true (push_not_larger (u256_add c (u256 1)) c)) (Op.SLt x (imm (u256_add c (u256 1)))))
 
-;; signed(x) < signed(c) => x == (1 << 255).
-;; Requires: c is constant, c == ((1 << 255) + 1).
-(rule (rewrite (Op.SLt x (iconst c))) (if-let true (u256_same c (u256_add (u256_shl (u256 255) (u256 1)) (u256 1)))) (Op.Eq x (imm (u256_shl (u256 255) (u256 1)))))
+;; signed(x) < signed(c) => x == (1 << (W - 1)).
+;; Requires: c is constant, c == ((1 << (W - 1)) + 1).
+(rule (rewrite (Op.SLt x (iconst c))) (if-let true (u256_same c (u256_add (u256_shl (u256 (integer_sign_bit)) (u256 1)) (u256 1)))) (Op.Eq x (imm (u256_shl (u256 (integer_sign_bit)) (u256 1)))))
 
 ;; signed(x) > signed(c) => x == (MAX >> 1).
 ;; Requires: c is constant, c == ((MAX >> 1) - 1).
@@ -257,12 +245,12 @@
 (rule (rewrite (Op.Ne (bxor (zext (and a (bool_value))) (zext (and b (bool_value)))) (zero)))  (Op.Xor a b))
 
 ;; sar(s, x) == 0 => signed(x) > signed(MAX).
-;; Requires: s is constant, s >= 255.
-(rule (rewrite (Op.Eq (sar (iconst s) x) (zero))) (if-let true (u256_ge s 255)) (Op.SGt x (imm (u256_max))))
+;; Requires: s is constant, s >= (W - 1).
+(rule (rewrite (Op.Eq (sar (iconst s) x) (zero))) (if-let true (u256_ge s (integer_sign_bit))) (Op.SGt x (imm (u256_max))))
 
 ;; sar(s, x) != 0 => signed(x) < signed(0).
-;; Requires: s is constant, s >= 255.
-(rule (rewrite (Op.Ne (sar (iconst s) x) (zero))) (if-let true (u256_ge s 255)) (Op.SLt x (imm (u256 0))))
+;; Requires: s is constant, s >= (W - 1).
+(rule (rewrite (Op.Ne (sar (iconst s) x) (zero))) (if-let true (u256_ge s (integer_sign_bit))) (Op.SLt x (imm (u256 0))))
 
 ;; (x | c) == 0 => false.
 ;; Requires: c is a nonzero constant.

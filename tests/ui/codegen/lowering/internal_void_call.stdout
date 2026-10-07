@@ -50,10 +50,9 @@ fn @returnRevert() [selector=0xdcdb78bc, pure, abi_params=[], abi_returns=[], ab
     invalid
 }
 
-fn @unitTernary(arg0: i256, arg1: i256) [selector=0xeb6f9827, abi_params=[bool, u256], abi_returns=[], abi_return_params=[]] {
+fn @unitTernary(arg0: i1, arg1: i256) [selector=0xeb6f9827, abi_params=[bool, u256], abi_returns=[], abi_return_params=[]] {
   bb0:
-    v0 = ne arg0, 0
-    jumpi v0, bb1, bb2
+    jumpi arg0, bb1, bb2
   bb2:
     icall @clear
     jump bb3

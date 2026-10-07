@@ -26,9 +26,8 @@
 (rule (rewrite (Op.SignExtend (iconst outer) (signextend (iconst inner) value)))
       (Op.SignExtend (imm (u256_min outer inner)) value))
 
-;; clz(input) >> c => input == 0.
-;; Requires: c is constant, c == 8.
-(rule (rewrite (Op.Shr (iconst c) (clz input))) (if-let true (u256_eq c 8)) (Op.Eq input (imm (u256 0))))
+;; clz(input) >> 8 => input == 0, for i256
+(rule (rewrite (Op.Shr (iconst c) (clz input))) (if-let true (is_i256)) (if-let true (u256_eq c 8)) (Op.Eq input (imm (u256 0))))
 
 ;; byte(c, clz(input)) => input == 0.
 ;; Requires: c is constant, c == 30.
@@ -78,19 +77,15 @@
 ;; 0 << _ => 0.
 (rule 2 (simplify (Op.Shl _ (and value (zero)))) value)
 
-;; _ << shift => 0.
-;; Requires: shift is constant, shift >= 256.
-(rule 1 (simplify (Op.Shl (iconst shift) _)) (if-let true (u256_ge shift 256)) (imm (u256 0)))
+;; _ << shift => 0, when shift >= W
+(rule 1 (simplify (Op.Shl (iconst shift) _)) (if-let true (u256_ge shift (integer_width))) (imm (u256 0)))
 
-;; No address bits are lost, and constant fits below the shift.
-;; ((address << shift) | constant) >> shift => address.
-;; Requires: shift, constant are constants, shift < 97, (constant >> shift) == 0,
-;; (2 ** 160 - 1) == 2 ** 160 - 1 and address fits in 160 bits.
-(rule 30 (simplify (Op.Shr (iconst shift) (bor (shl (iconst shift) address) (iconst constant))))
-      (if-let true (u256_lt shift 97))
+;; (value << shift | constant) >> shift => value
+;; No value bits are lost at the operation's width, and constant fits below the shift.
+(rule 30 (simplify (Op.Shr (iconst shift) (bor (shl (iconst shift) value) (iconst constant))))
       (if-let true (u256_is_zero (u256_shr shift constant)))
-      (if-let true (masks_clean_address (u256_from_limbs 18446744073709551615 18446744073709551615 4294967295 0) address))
-      address)
+      (if-let true (mask_covers (u256_shr shift (u256_max)) value))
+      value)
 
 ;; value >> shift => 0.
 ;; Requires: shift is constant, shift is at least the known bit width of value.
@@ -106,9 +101,8 @@
 ;; Requires: shift is constant, shift >= 9.
 (rule 2 (simplify (Op.Shr (iconst shift) (clz _))) (if-let true (u256_ge shift 9)) (imm (u256 0)))
 
-;; _ >> shift => 0.
-;; Requires: shift is constant, shift >= 256.
-(rule 1 (simplify (Op.Shr (iconst shift) _)) (if-let true (u256_ge shift 256)) (imm (u256 0)))
+;; _ >> shift => 0, when shift >= W
+(rule 1 (simplify (Op.Shr (iconst shift) _)) (if-let true (u256_ge shift (integer_width))) (imm (u256 0)))
 
 ;; sar(0, value) => value.
 (rule 2 (simplify (Op.Sar (zero) value)) value)

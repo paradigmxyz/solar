@@ -40,10 +40,12 @@ def main():
     verify.add_argument(
         "--work-dir",
         type=Path,
-        default=Path("target/evm-rules/lean"),
+        default=Path("target/evm-rules/theorems"),
         help="directory for the checked theorem files",
     )
-    verify.add_argument("--output", type=Path, required=True)
+    verify.add_argument(
+        "--output", type=Path, default=Path("target/evm-rules/proofs.json")
+    )
     discover = subparsers.add_parser(
         "discover", help="bounded enumerative search with Lean validation"
     )
@@ -165,8 +167,11 @@ def main():
                         "",
                     )
                     source = rule.get("source", file["source"])
+                    width = (
+                        f" i{rule['integer_bits']}" if "integer_bits" in rule else ""
+                    )
                     print(
-                        f"{source}:{rule['line']}: {rule['status']}: {reason}",
+                        f"{source}:{rule['line']}:{width} {rule['status']}: {reason}",
                         file=sys.stderr,
                     )
         counts = report["counts"]
