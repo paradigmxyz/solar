@@ -9,8 +9,7 @@ theorem about EVM semantics written in Lean 4, and Lean proves it; no SMT
 solver takes part. The compiler itself has no prover dependency.
 
 ```sh
-uv run scripts/evm-rules/test.py
-uv run scripts/evm-rules/verify.py verify --output target/evm-rules/proofs.json
+uv run scripts/evm-rules/verify.py verify
 ```
 
 Install [elan](https://github.com/leanprover/elan), which selects the toolchain
@@ -18,17 +17,20 @@ pinned in `lean/lean-toolchain`; `verify` builds the Lean project with `lake`
 before checking anything. The rule readers in `evm_rules/isle.py`, `late.py`
 and `stack.py` produce solver-independent words and preconditions
 (`evm_rules/expr.py`). `evm_rules/lean.py` states each rule as a theorem over
-the definitions in `lean/EvmRules/Word.lean`, and every theorem is checked in
-its own `lean` process with its own time limit. `--timeout-s` sets the SAT
+the definitions in `lean/EvmRules/Word.lean`, and checks them through reusable
+Lean workers, with a time limit per theorem. `--timeout-s` sets the SAT
 limit, and each rule may run twice that, plus 30 seconds; `--jobs` sets the
 parallelism and `--work-dir` keeps the checked theorem files. The report
 records each rule's status, proof method, time and witness, the source and rule
 hashes, the Lean version, and hashes of the Python and Lean implementation and
 of the trusted Rust sources.
 
-A rule with preconditions must also be applicable: its file states that the
-preconditions contradict each other, and that theorem must fail with an
-assignment that the independent integer evaluator in `expr.py` confirms. Only a
+A rule with preconditions must also be applicable. The independent integer
+evaluator in `expr.py` first tries zero words and false flags, filling in word
+values fixed by constant equalities.
+If that fails any precondition, Lean searches for an assignment by attempting to
+prove that the preconditions contradict each other. That theorem must fail with
+an assignment that the integer evaluator confirms. Only a
 proof establishes equivalence. A failed proof whose counterexample replays in
 the integer evaluator is reported as that counterexample; timeouts, unsupported
 terms and contradictory preconditions are distinct failures, never proofs.
@@ -40,20 +42,19 @@ files fail too. Failures print the source file, rule line, status and reason.
 CI runs one proof job on a four-core Depot x86 runner. On pull
 requests it runs only when codegen, proof tooling, or their CI and dependency
 inputs change; main pushes always run it. The exact paths and schedule live in
-[ci.yml](../../.github/workflows/ci.yml). The [proof
-runner](../../.github/scripts/run_evm_proofs.sh) checks every selected rule with
+[ci.yml](../../.github/workflows/ci.yml). The same verification command checks
+every selected rule with
 one single-threaded reusable Lean worker per available core, both in CI and
 locally, without a hard-coded job limit. Each worker imports the model once and
 checks every theorem against that initial environment, without retaining
 declarations from previous queries. A timeout stops the worker and its SAT solver; the next
 theorem starts a new worker. Reports and theorem files live under
 `target/evm-rules/`. [install_lean.sh](../../.github/scripts/install_lean.sh)
-installs the pinned toolchain for x86 and Arm runners in the proof and Python
-jobs.
+installs the pinned toolchain for the four-core x86 runners used by both jobs.
 
 ```sh
 # Verify all selected rules.
-bash .github/scripts/run_evm_proofs.sh
+uv run scripts/evm-rules/verify.py verify
 
 # Verify one rule set.
 uv run scripts/evm-rules/verify.py verify crates/codegen/isle/mir/word \
@@ -93,7 +94,8 @@ short limit, and finally `evm_decide` with the full limit, and reports which
 one succeeded. `evm_decide` first
 rewrites with the structural identities of `lean/EvmRules/Casts.lean`: nested
 `SIGNEXTEND`s keep the narrower extension, nested `sext` casts compose and
-compare through their inputs, and a division by a power of two is a right
+compare through their inputs (including comparisons with zero), and a division
+by a power of two is a right
 shift. It then unfolds the definitions, rewriting the shifts by proven lemmas to
 Lean's saturating shifts, and bit-blasts the goal with `bv_decide`, which checks
 the SAT solver's LRAT certificate in Lean through `Lean.ofReduceBool`.
@@ -137,8 +139,9 @@ leans on a deprecated lemma or names an unused simplification lemma fails.
 
 A script in `lean/proofs/` replaces `evm_auto` for one rule, with the lemmas in
 `lean/EvmRules/Lemmas.lean`. Its file is named after the rule's source file and
-the first 16 hex digits of the rule's digest (`word_fe04e1fb6a7723d7.lean`),
-plus `_<index>` for a rule with several theorems, so edits elsewhere in the
+the first 16 hex digits of the rule's digest (`word_49f6ed45c2d5191e.lean`),
+plus `_<index>` for a rule with several theorems and `_i<bits>` for a native-width
+case, so edits elsewhere in the
 file do not move it. Its statement is still generated from the current rule,
 so a changed rule leaves the script without a rule and fails the run, and
 `test.py` checks every script against its rule; a script for a selected file
@@ -171,6 +174,14 @@ Before the rebase, on 2026-10-02, the lane proved the 474 rules then selected in
 the 444 rules before the division rules in 101 seconds of wall time as 13
 workers, with index and output-bit partitions for the rules no solver finished
 whole.
+
+The native-integer context constrains operands to clean bit patterns and
+models wrapping and signed interpretation at the selected width. The verification
+command also proves the shared scalar identities at i1 and every
+byte width from i8 through i256, using the same worker pool, timeouts and report.
+Each native-width result records its integer width. This does not prove every
+width-dependent rule or the
+`lower-integers` pass; MIR snapshots and runtime tests also cover legalization.
 
 ## Division rules
 

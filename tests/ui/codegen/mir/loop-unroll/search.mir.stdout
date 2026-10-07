@@ -1,0 +1,151 @@
+// === ROOT/tests/ui/codegen/mir/loop-unroll/search.sol:Search ===
+@module Search
+fn @find(arg0: calldataslice, arg1: i256) -> i256 [selector=0x867025b4, pure, abi_params=[array<_, u256>, u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = slice_len arg0
+    jump bb1
+  bb1:
+    v1 = phi [bb0: 0], [bb3: v21]
+    v2 = phi [bb0: arg0], [bb3: v2]
+    v3 = phi [bb0: v0], [bb3: v3]
+    v4 = phi [bb0: arg1], [bb3: v4]
+    v5 = slice_len v2
+    v6 = lt v1, v5
+    jumpi v6, bb4, bb5
+  bb5:
+    jump bb2
+  bb4:
+    v7 = slice_len v2
+    v8 = lt v1, v7
+    v9 = eq v8, false
+    icall panic_if<0x32>, v9
+    v10 = slice_ptr v2
+    v11 = mul v1, 32
+    v12 = eq 32, 0
+    v13 = div v11, 32
+    v14 = eq v13, v1
+    v15 = or v12, v14
+    v16 = zext i1 v15 to i256
+    v17 = eq v16, 0
+    icall panic_if<0x41>, v17
+    v18 = add v10, v11
+    v19 = calldataload v18
+    v20 = eq v19, v4
+    jumpi v20, bb7, bb8
+  bb8:
+    jump bb9
+  bb9:
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v21 = checked_add u256, v1, 1
+    jump bb1
+  bb7:
+    jump bb2
+  bb2:
+    v22 = phi [bb7: v1], [bb5: v3]
+    ret v22
+}
+
+fn @findReturn(arg0: calldataslice, arg1: i256) -> i256 [selector=0xc77230d0, pure, abi_params=[array<_, u256>, u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: arg1], [bb3: v0]
+    v1 = phi [bb0: 0], [bb3: v20]
+    v2 = phi [bb0: arg0], [bb3: v2]
+    v3 = phi [bb0: 0], [bb3: v3]
+    v4 = slice_len v2
+    v5 = lt v1, v4
+    jumpi v5, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    v21 = slice_len v2
+    ret v21
+  bb4:
+    v6 = slice_len v2
+    v7 = lt v1, v6
+    v8 = eq v7, false
+    icall panic_if<0x32>, v8
+    v9 = slice_ptr v2
+    v10 = mul v1, 32
+    v11 = eq 32, 0
+    v12 = div v10, 32
+    v13 = eq v12, v1
+    v14 = or v11, v13
+    v15 = zext i1 v14 to i256
+    v16 = eq v15, 0
+    icall panic_if<0x41>, v16
+    v17 = add v9, v10
+    v18 = calldataload v17
+    v19 = eq v18, v0
+    jumpi v19, bb7, bb8
+  bb8:
+    jump bb9
+  bb9:
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v20 = checked_add u256, v1, 1
+    jump bb1
+  bb7:
+    ret v1
+}
+
+fn @count(arg0: calldataslice, arg1: i256) -> i256 [selector=0xb77153be, pure, abi_params=[array<_, u256>, u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: arg1], [bb3: v0]
+    v1 = phi [bb0: 0], [bb3: v23]
+    v2 = phi [bb0: arg0], [bb3: v2]
+    v3 = phi [bb0: 0], [bb3: v22]
+    v4 = slice_len v2
+    v5 = lt v1, v4
+    jumpi v5, bb4, bb5
+  bb5:
+    jump bb6
+  bb4:
+    v6 = lt v1, v0
+    jump bb6
+  bb6:
+    v7 = phi [bb4: v6], [bb5: false]
+    jumpi v7, bb7, bb8
+  bb8:
+    jump bb2
+  bb7:
+    v8 = slice_len v2
+    v9 = lt v1, v8
+    v10 = eq v9, false
+    icall panic_if<0x32>, v10
+    v11 = slice_ptr v2
+    v12 = mul v1, 32
+    v13 = eq 32, 0
+    v14 = div v12, 32
+    v15 = eq v14, v1
+    v16 = or v13, v15
+    v17 = zext i1 v16 to i256
+    v18 = eq v17, 0
+    icall panic_if<0x41>, v18
+    v19 = add v11, v12
+    v20 = calldataload v19
+    v21 = eq v20, 0
+    jumpi v21, bb10, bb11
+  bb11:
+    jump bb12
+  bb12:
+    v22 = checked_add u256, v3, 1
+    jump bb9
+  bb9:
+    jump bb3
+  bb3:
+    v23 = checked_add u256, v1, 1
+    jump bb1
+  bb10:
+    jump bb2
+  bb2:
+    ret v3
+}

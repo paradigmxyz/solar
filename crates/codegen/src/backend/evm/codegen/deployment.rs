@@ -7,7 +7,11 @@ use super::{
     immutable_push_type_size, immutable_staging_addr, immutable_staging_base,
     immutable_staging_end, op,
 };
-use crate::{backend::assembler::PreparedAssembly, link::LibraryRelocation, mir::MirPhase};
+use crate::{
+    backend::assembler::PreparedAssembly,
+    link::LibraryRelocation,
+    mir::{MirPhase, analysis::cold_functions},
+};
 use solar_interface::diagnostics::ErrorGuaranteed;
 
 struct PreparedDeploymentPrefix {
@@ -74,7 +78,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.cold_functions = if matches!(self.gcx.sess.opts.optimization, OptimizationMode::None) {
             DenseBitSet::new_empty(module.functions.len())
         } else {
-            Self::collect_cold_functions(module)
+            cold_functions(module)
         };
 
         // First schedule the runtime code and run its EVM IR pipeline. Only final

@@ -31,46 +31,45 @@ fn @pairs() [selector=0x054d20d9, abi_wrapper, pure] {
     v42 = gt v39, 0xffffffffffffffff
     v43 = gt v41, v37
     v44 = or v42, v43
-    jumpi v44, bb13, bb14
-  bb14:
+    jumpi v44, bb12, bb13
+  bb13:
     v46 = calldataload v40
     v48 = shl 5, v46
     v50 = shr 5, v48
     v54 = ne v50, v46
-    jumpi v54, bb15, bb16
-  bb16:
     v55 = add v48, 32
     v56 = lt v55, v48
-    jumpi v56, bb15, bb17
-  bb17:
+    v110 = or v54, v56
+    jumpi v110, bb14, bb15
+  bb15:
     v103 = mload 64 !metadata(memory=scratch)
     v104 = add v103, v55
     v105 = lt v104, v103
     v106 = gt v104, 0xffffffffffffffff
     v107 = or v105, v106
-    jumpi v107, bb15, bb22
-  bb22:
+    jumpi v107, bb14, bb20
+  bb20:
     mstore 64, v104 !metadata(memory=scratch, preserves_valid_fmp)
     mstore v103, v46
     v58 = sub v37, v41
     v59 = shr 5, v58
     v60 = gt v46, v59
-    jumpi v60, bb13, bb18
-  bb18:
+    jumpi v60, bb12, bb16
+  bb16:
     v93 = add v103, 32
-    jump bb19
-  bb19:
-    v61 = phi [bb18: v46], [bb20: v67]
-    v62 = phi [bb18: v41], [bb20: v68]
-    v63 = phi [bb18: 0], [bb20: v69]
+    jump bb17
+  bb17:
+    v61 = phi [bb16: v46], [bb18: v67]
+    v62 = phi [bb16: v41], [bb18: v68]
+    v63 = phi [bb16: 0], [bb18: v69]
     v64 = gt v61, 0
-    jumpi v64, bb20, bb21
-  bb21:
+    jumpi v64, bb18, bb19
+  bb19:
     v73 = add v103, 32
     jump bb1
   bb1:
-    v0 = phi [bb21: 0], [bb12: v33]
-    v2 = phi [bb21: 0], [bb12: v35]
+    v0 = phi [bb19: 0], [bb11: v33]
+    v2 = phi [bb19: 0], [bb11: v35]
     v3 = mload v103
     v4 = lt v2, v3
     jumpi v4, bb3, bb2
@@ -121,19 +120,18 @@ fn @pairs() [selector=0x054d20d9, abi_wrapper, pure] {
     v27 = mload v101
     v31 = add v15, v27
     v32 = lt v31, v15
-    jumpi v32, bb10, bb11
-  bb11:
     v33 = add v0, v31
     v34 = lt v33, v0
-    jumpi v34, bb10, bb12
-  bb12:
+    v109 = or v32, v34
+    jumpi v109, bb10, bb11
+  bb11:
     v35 = add v2, 1
     jump bb1
   bb10:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 17 !metadata(memory=scratch)
     revert 28, 36
-  bb20:
+  bb18:
     v65 = icall @decode_calldata_type.4, v62, v41
     v66 = ptrtoint memptr v65 to i256
     v94 = shl 5, v63
@@ -142,12 +140,12 @@ fn @pairs() [selector=0x054d20d9, abi_wrapper, pure] {
     v67 = sub v61, 1
     v68 = add v62, 32
     v69 = add v63, 1
-    jump bb19
-  bb15:
+    jump bb17
+  bb14:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
     revert 28, 36
-  bb13:
+  bb12:
     revert 0, 0
 }
 
@@ -182,12 +180,11 @@ fn @decode_calldata_type.3(arg0: i256, arg1: i256) -> memptr [may_return_memory]
     v2 = add arg1, v1
     v3 = sub v0, arg1
     v4 = gt v1, v3
-    jumpi v4, bb1, bb2
-  bb2:
     v5 = sub v0, v2
     v6 = lt v5, 64
-    jumpi v6, bb1, bb3
-  bb3:
+    v46 = or v4, v6
+    jumpi v46, bb1, bb2
+  bb2:
     v44 = mload 64 !metadata(memory=scratch)
     v7 = inttoptr i256 v44 to memptr !metadata(memory=scratch)
     v45 = add v44, 96
@@ -201,27 +198,27 @@ fn @decode_calldata_type.3(arg0: i256, arg1: i256) -> memptr [may_return_memory]
     v13 = gt v10, 0xffffffffffffffff
     v14 = gt v12, v0
     v15 = or v13, v14
-    jumpi v15, bb1, bb4
-  bb4:
+    jumpi v15, bb1, bb3
+  bb3:
     v17 = calldataload v11
     v19 = add v17, 63
     v20 = lt v19, v17
-    jumpi v20, bb5, bb6
-  bb6:
+    jumpi v20, bb4, bb5
+  bb5:
     v22 = and v19, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v38 = mload 64 !metadata(memory=scratch)
     v39 = add v38, v22
     v40 = lt v39, v38
     v41 = gt v39, 0xffffffffffffffff
     v42 = or v40, v41
-    jumpi v42, bb5, bb8
-  bb8:
+    jumpi v42, bb4, bb7
+  bb7:
     mstore 64, v39 !metadata(memory=scratch, preserves_valid_fmp)
     mstore v38, v17
     v24 = sub v0, v12
     v25 = gt v17, v24
-    jumpi v25, bb1, bb7
-  bb7:
+    jumpi v25, bb1, bb6
+  bb6:
     v29 = add v38, 32
     calldatacopy v29, v12, v17
     v33 = add v44, 32
@@ -229,7 +226,7 @@ fn @decode_calldata_type.3(arg0: i256, arg1: i256) -> memptr [may_return_memory]
     v35 = add v44, 64
     mstore v35, v2
     ret v7
-  bb5:
+  bb4:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 65 !metadata(memory=scratch)
     revert 28, 36
@@ -244,12 +241,11 @@ fn @decode_calldata_type.4(arg0: i256, arg1: i256) -> memptr [may_return_memory]
     v2 = add arg1, v1
     v3 = sub v0, arg1
     v4 = gt v1, v3
-    jumpi v4, bb1, bb2
-  bb2:
     v5 = sub v0, v2
     v6 = lt v5, 64
-    jumpi v6, bb1, bb3
-  bb3:
+    v20 = or v4, v6
+    jumpi v20, bb1, bb2
+  bb2:
     v18 = mload 64 !metadata(memory=scratch)
     v7 = inttoptr i256 v18 to memptr !metadata(memory=scratch)
     v19 = add v18, 96

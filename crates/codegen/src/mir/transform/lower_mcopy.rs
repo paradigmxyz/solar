@@ -23,7 +23,8 @@
 //! Copies marked `disjoint`, such as ABI encoding's copies of source data into
 //! its output, run forward. Otherwise pointer provenance picks the direction at
 //! compile time: backward when the destination starts above the source in the
-//! same base, forward for disjoint allocations. Unknown relationships keep a
+//! same base, forward when both complete ranges fit disjoint allocations.
+//! Allocation origins alone do not prove disjointness. Unknown relationships keep a
 //! runtime direction check. A masked partial-word merge ensures that the
 //! lowering changes exactly `len` bytes; a length that is provably a multiple
 //! of 32, such as a word array's `len << 5`, copies whole words and needs no
@@ -36,17 +37,14 @@ use crate::{
     mir::{
         BlockId, Function, FunctionBuilder, FunctionId, InstId, InstKind, MirType, Module, Value,
         ValueId,
-        analysis::{
-            AliasAnalysis, AliasResult, CallGraphInfo, LocationSize, MemoryBase,
-            MemoryCallSummaries, MemoryLocation,
-        },
+        analysis::{AliasAnalysis, AliasResult, CallGraphInfo, MemoryBase, MemoryCallSummaries},
         memory::EvmMemoryLayout,
         pass::MirPass,
         transform::utils::redirect_successor_predecessors,
     },
     target::{Cost, Target},
 };
-use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
+use solar_data_structures::{index::IndexVec, map::FxHashMap};
 use solar_interface::{Ident, sym};
 use solar_sema::Gcx;
 use std::{collections::BTreeMap, sync::Arc};
@@ -89,14 +87,11 @@ impl MirPass for LowerMCopy {
         }
 
         let target = Target::new(gcx);
-        let fresh_returns = super::lower_abi_encode::fresh_object_returning_functions(module);
         let summaries = analyses.call_summaries(module);
         let sites = module
             .functions
             .iter_enumerated()
-            .map(|(id, func)| {
-                copy_sites(func, !constructor_reachable.contains(id), &fresh_returns, &summaries)
-            })
+            .map(|(id, func)| copy_sites(func, !constructor_reachable.contains(id), &summaries))
             .collect::<IndexVec<FunctionId, _>>();
 
         // One helper per copy shape, when its sites are worth sharing.
@@ -142,7 +137,6 @@ struct CopySite {
 fn copy_sites(
     func: &Function,
     runtime: bool,
-    fresh_returns: &DenseBitSet<FunctionId>,
     summaries: &Arc<MemoryCallSummaries>,
 ) -> Vec<CopySite> {
     if func.blocks.is_empty() || !func.instructions().any(|inst| is_mcopy(func, inst)) {
@@ -156,7 +150,7 @@ fn copy_sites(
             let direction = if disjoint {
                 CopyDirection::Forward
             } else {
-                copy_direction(func, &alias, fresh_returns, dest, src, len)
+                copy_direction(func, &alias, dest, src, len)
             };
             let shape = CopyShape { direction, whole_words: is_whole_words(func, len, 0) };
             // NOTE: a disjoint copy reads a Solidity memory object, which lies outside every
@@ -242,9 +236,12 @@ fn lower_function(
 
 /// Returns whether a helper call frame is provably disjoint from both copy ranges.
 fn copy_helper_eligible(func: &Function, alias: &AliasAnalysis, inst: InstId) -> bool {
-    let InstKind::MCopy(dest, src, _) = func.inst(inst).kind else { return false };
+    let InstKind::MCopy(dest, src, len) = func.inst(inst).kind else { return false };
+    let size = alias.location_size(func, len);
     [dest, src].into_iter().all(|pointer| {
-        alias.memory_address(func, pointer).is_some_and(|address| helper_owned_base(address.base))
+        alias
+            .bare_memory_location(func, pointer, size)
+            .is_some_and(|location| helper_owned_base(location.address.base))
     })
 }
 
@@ -267,78 +264,26 @@ enum CopyDirection {
 fn copy_direction(
     func: &Function,
     alias: &AliasAnalysis,
-    fresh_returns: &DenseBitSet<FunctionId>,
     dest: ValueId,
     src: ValueId,
     len: ValueId,
 ) -> CopyDirection {
-    let Some(dest) = alias.memory_address(func, dest) else { return CopyDirection::Dynamic };
-    let Some(src) = alias.memory_address(func, src) else { return CopyDirection::Dynamic };
-    let dest_location = MemoryLocation::new(dest, LocationSize::Dynamic(len));
-    let src_location = MemoryLocation::new(src, LocationSize::Dynamic(len));
+    let size = alias.location_size(func, len);
+    let Some(dest_location) = alias.bare_memory_location(func, dest, size) else {
+        return CopyDirection::Dynamic;
+    };
+    let Some(src_location) = alias.bare_memory_location(func, src, size) else {
+        return CopyDirection::Dynamic;
+    };
     if alias.memory_alias(dest_location, src_location) == AliasResult::NoAlias {
         return CopyDirection::Forward;
     }
-    let dest_fresh = fresh_base(func, alias, dest.base, fresh_returns);
-    let src_fresh = fresh_base(func, alias, src.base, fresh_returns);
-    if dest_fresh.is_some() && src_fresh.is_some() && dest_fresh != src_fresh {
-        return CopyDirection::Forward;
-    }
+    let Some(dest) = alias.memory_address(func, dest) else { return CopyDirection::Dynamic };
+    let Some(src) = alias.memory_address(func, src) else { return CopyDirection::Dynamic };
     if dest.base == src.base {
         if dest.offset > src.offset { CopyDirection::Reverse } else { CopyDirection::Forward }
     } else {
         CopyDirection::Dynamic
-    }
-}
-
-/// Returns the instruction that created a fresh memory base.
-fn fresh_base(
-    func: &Function,
-    alias: &AliasAnalysis,
-    base: MemoryBase,
-    fresh_returns: &DenseBitSet<FunctionId>,
-) -> Option<InstId> {
-    match base {
-        MemoryBase::Allocation(inst) | MemoryBase::DynamicAllocation(inst) => Some(inst),
-        MemoryBase::Value(value) => fresh_value_base(func, alias, value, fresh_returns, 0),
-        MemoryBase::Absolute | MemoryBase::InternalFrame => None,
-    }
-}
-
-/// Traces constant and dynamic offsets back to one fresh allocation.
-fn fresh_value_base(
-    func: &Function,
-    alias: &AliasAnalysis,
-    value: ValueId,
-    fresh_returns: &DenseBitSet<FunctionId>,
-    depth: usize,
-) -> Option<InstId> {
-    if depth > 8 {
-        return None;
-    }
-    let Value::Inst(inst) = func.value(value) else { return None };
-    match func.inst(*inst).kind {
-        // Assembly that may move the FMP back can place an allocation over live memory.
-        InstKind::Alloc { .. } if alias.allocation_is_unrecycled(func, *inst) => Some(*inst),
-        InstKind::ICall { function: crate::mir::Callee::Function(function), .. }
-            if fresh_returns.contains(function) =>
-        {
-            Some(*inst)
-        }
-        InstKind::Add(first, second) => {
-            let first = fresh_value_base(func, alias, first, fresh_returns, depth + 1);
-            let second = fresh_value_base(func, alias, second, fresh_returns, depth + 1);
-            match (first, second) {
-                (Some(first), None) | (None, Some(first)) => Some(first),
-                _ => None,
-            }
-        }
-        InstKind::Sub(base, offset)
-            if fresh_value_base(func, alias, offset, fresh_returns, depth + 1).is_none() =>
-        {
-            fresh_value_base(func, alias, base, fresh_returns, depth + 1)
-        }
-        _ => None,
     }
 }
 

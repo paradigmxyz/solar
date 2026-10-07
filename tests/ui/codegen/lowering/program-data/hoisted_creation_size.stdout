@@ -77,7 +77,10 @@ bb0:
   push 50
   push 64
   push 0
+  push 4
+  calldataload
   push 0
+  sub
   jump bb6
 bb8 [loop]:
   push 64
@@ -117,10 +120,7 @@ bb8 [loop]:
   add
   jump bb6
 bb6 [loop]:
-  push 4
-  calldataload
-  dup 2
-  lt
+  dup 1
   push bb8
   jumpi
   swap 1

@@ -128,8 +128,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 } else {
                     let value = this.lower_typed_expr(argument, parameter_ty)?;
                     let value = this.normalize_dirty_scalar(value, parameter_ty);
-                    let value =
-                        this.materialize_call_argument(parameter_ty, value, argument.span)?;
+                    let value = this.materialize_scalar_carrier(parameter, value, argument.span)?;
                     this.values.insert(parameter, value);
                 }
                 Some(())

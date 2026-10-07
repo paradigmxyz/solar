@@ -1,8 +1,10 @@
 // === ROOT/tests/ui/codegen/mir/egraph/division_runtime.sol:DivisionRuntime ===
 @module DivisionRuntime
 @types
-  struct0: {i256, i256, i256}
+  struct0: {i1, i1, i1}
   struct1: {i256, i256}
+  struct2: {i1, i1}
+  struct3: {i1, i1, i1, i1}
 
 fn @scale(arg0: i256) -> i256 [selector=0x2bec1547, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
@@ -23,36 +25,32 @@ fn @fee(arg0: i256) -> i256 [selector=0x39b37ab0, pure, abi_params=[u256], abi_r
     ret v1
 }
 
-fn @below(arg0: i256) -> i256 [selector=0x8de62f33, pure, abi_params=[u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @below(arg0: i256) -> i1 [selector=0x8de62f33, pure, abi_params=[u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = checked_div u256, arg0, 0x3e8
     v1 = lt v0, 7
-    v2 = zext i1 v1 to i256
-    ret v2
+    ret v1
 }
 
-fn @above(arg0: i256) -> i256 [selector=0x4a594865, pure, abi_params=[u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @above(arg0: i256) -> i1 [selector=0x4a594865, pure, abi_params=[u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = checked_div u256, arg0, 0x3e8
     v1 = gt v0, 7
-    v2 = zext i1 v1 to i256
-    ret v2
+    ret v1
 }
 
-fn @zero(arg0: i256) -> i256 [selector=0xe0353e59, pure, abi_params=[u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @zero(arg0: i256) -> i1 [selector=0xe0353e59, pure, abi_params=[u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = checked_div u256, arg0, 0x3e8
     v1 = eq v0, 0
-    v2 = zext i1 v1 to i256
-    ret v2
+    ret v1
 }
 
-fn @nonzero(arg0: i256) -> i256 [selector=0x161e4029, pure, abi_params=[u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @nonzero(arg0: i256) -> i1 [selector=0x161e4029, pure, abi_params=[u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = checked_div u256, arg0, 0xe10
     v1 = ne v0, 0
-    v2 = zext i1 v1 to i256
-    ret v2
+    ret v1
 }
 
 fn @bounds(arg0: i256) -> struct0 [selector=0xdc11a050, pure, abi_params=[u256], abi_returns=[word<bool>, word<bool>, word<bool>], abi_return_params=[bool, bool, bool]] {
@@ -64,13 +62,10 @@ fn @bounds(arg0: i256) -> struct0 [selector=0xdc11a050, pure, abi_params=[u256],
     v4 = checked_div u256, arg0, 3
     v5 = checked_div u256, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 3
     v6 = gt v4, v5
-    v7 = zext i1 v1 to i256
-    v8 = zext i1 v3 to i256
-    v9 = zext i1 v6 to i256
-    v10 = insert_value struct0, undef struct0, 0, v7
-    v11 = insert_value struct0, v10, 1, v8
-    v12 = insert_value struct0, v11, 2, v9
-    ret v12
+    v7 = insert_value struct0, undef struct0, 0, v1
+    v8 = insert_value struct0, v7, 1, v3
+    v9 = insert_value struct0, v8, 2, v6
+    ret v9
 }
 
 fn @nested(arg0: i256) -> struct1 [selector=0x10b80908, pure, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
@@ -122,17 +117,15 @@ fn @cut(arg0: i256, arg1: i256) -> i256 [selector=0x117c985b, pure, abi_params=[
     ret v1
 }
 
-fn @remainders(arg0: i256) -> struct1 [selector=0xb519d220, pure, abi_params=[u256], abi_returns=[word<bool>, word<bool>], abi_return_params=[bool, bool]] {
+fn @remainders(arg0: i256) -> struct2 [selector=0xb519d220, pure, abi_params=[u256], abi_returns=[word<bool>, word<bool>], abi_return_params=[bool, bool]] {
   bb0:
     v0 = checked_rem u256, arg0, 0x3e8
     v1 = lt v0, 0x3e8
     v2 = checked_rem u256, arg0, 7
     v3 = gt v2, 6
-    v4 = zext i1 v1 to i256
-    v5 = zext i1 v3 to i256
-    v6 = insert_value struct1, undef struct1, 0, v4
-    v7 = insert_value struct1, v6, 1, v5
-    ret v7
+    v4 = insert_value struct2, undef struct2, 0, v1
+    v5 = insert_value struct2, v4, 1, v3
+    ret v5
 }
 
 fn @intoDay(arg0: i256) -> i256 [selector=0xda923bdd, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
@@ -143,11 +136,48 @@ fn @intoDay(arg0: i256) -> i256 [selector=0xda923bdd, pure, abi_params=[u256], a
     ret v2
 }
 
-fn @isMultiple(arg0: i256) -> i256 [selector=0x6ee78aea, pure, abi_params=[u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @isMultiple(arg0: i256) -> i1 [selector=0x6ee78aea, pure, abi_params=[u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = checked_div u256, arg0, 0x3e8
     v1 = checked_mul u256, v0, 0x3e8
     v2 = eq v1, arg0
-    v3 = zext i1 v2 to i256
-    ret v3
+    ret v2
+}
+
+fn @narrowBounds(arg0: i8) -> struct3 [selector=0x0c7845a6, pure, abi_params=[u8], abi_returns=[word<bool>, word<bool>, word<bool>, word<bool>], abi_return_params=[bool, bool, bool, bool]] {
+  bb0:
+    v0 = checked_div u8, arg0, i8 10
+    v1 = lt v0, i8 25
+    v2 = checked_div u8, arg0, i8 10
+    v3 = gt v2, i8 24
+    v4 = checked_div u8, arg0, i8 10
+    v5 = lt v4, i8 26
+    v6 = checked_div u8, arg0, i8 10
+    v7 = gt v6, i8 25
+    v8 = insert_value struct3, undef struct3, 0, v1
+    v9 = insert_value struct3, v8, 1, v3
+    v10 = insert_value struct3, v9, 2, v5
+    v11 = insert_value struct3, v10, 3, v7
+    ret v11
+}
+
+fn @narrowProduct(arg0: i8) -> struct2 [selector=0xdd76da48, pure, abi_params=[u8], abi_returns=[word<bool>, word<bool>], abi_return_params=[bool, bool]] {
+  bb0:
+    v0 = mul arg0, i8 10
+    v1 = wrapping_div u8, v0, i8 10
+    v2 = eq v1, arg0
+    v3 = eq arg0, i8 0
+    jumpi v3, bb2, bb1
+  bb1:
+    v4 = mul arg0, i8 10
+    v5 = wrapping_div u8, v4, arg0
+    v6 = eq v5, i8 10
+    jump bb3
+  bb2:
+    jump bb3
+  bb3:
+    v7 = phi [bb1: v6], [bb2: true]
+    v8 = insert_value struct2, undef struct2, 0, v2
+    v9 = insert_value struct2, v8, 1, v7
+    ret v9
 }

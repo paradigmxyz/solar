@@ -82,15 +82,15 @@
 (rule (sequence_rewrite (Op.Lt v0 (iconst c0))) (if-let true (u256_same c0 (u256_from_limbs 0 0 0 72057594037927936))) (if-let r0 (imm (u256 248))) (if-let r1 (make (Op.Shr r0 v0))) (if-let zero (imm (u256 0))) (sequence (Op.Eq r1 zero)))
 
 ;; smod(x, m) == 0 => (x & (m - 1)) == 0.
-;; Requires: m is constant, m == 2 ** shift and 1 <= shift <= 255, shift < 255.
+;; Requires: m is constant, m == 2 ** shift and 1 <= shift <= (W - 1), shift < (W - 1).
 (rule (sequence_rewrite (Op.Eq (smod x (iconst m)) (zero)))
-      (if-let shift (power_of_two_shift m)) (if-let false (u256_ge shift (u256 255))) (if-let mask (imm (u256_sub m (u256 1)))) (if-let masked (make (Op.And x mask))) (if-let zero (imm (u256 0)))
+      (if-let shift (power_of_two_shift m)) (if-let false (u256_ge shift (u256 (integer_sign_bit)))) (if-let mask (imm (u256_sub m (u256 1)))) (if-let masked (make (Op.And x mask))) (if-let zero (imm (u256 0)))
       (sequence (Op.Eq masked zero)))
 
 ;; smod(x, m) != 0 => (x & (m - 1)) != 0.
-;; Requires: m is constant, m == 2 ** shift and 1 <= shift <= 255, shift < 255.
+;; Requires: m is constant, m == 2 ** shift and 1 <= shift <= (W - 1), shift < (W - 1).
 (rule (sequence_rewrite (Op.Ne (smod x (iconst m)) (zero)))
-      (if-let shift (power_of_two_shift m)) (if-let false (u256_ge shift (u256 255))) (if-let mask (imm (u256_sub m (u256 1)))) (if-let masked (make (Op.And x mask))) (if-let zero (imm (u256 0)))
+      (if-let shift (power_of_two_shift m)) (if-let false (u256_ge shift (u256 (integer_sign_bit)))) (if-let mask (imm (u256_sub m (u256 1)))) (if-let masked (make (Op.And x mask))) (if-let zero (imm (u256 0)))
       (sequence (Op.Ne masked zero)))
 
 ;; (zext(a) & zext(b)) == 0 => (a & b) == 0.

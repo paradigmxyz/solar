@@ -1,11 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/try_creation.sol:TryCreationChild ===
 @module TryCreationChild
-fn @constructor(arg0: i256) [constructor, abi_params=[bool]] {
+fn @constructor(arg0: i1) [constructor, abi_params=[bool]] {
   bb0:
-    v0 = eq arg0, 0
-    v1 = eq v0, false
-    v2 = eq v1, false
-    icall require<short_string>, v2, 1, 0x7800000000000000000000000000000000000000000000000000000000000000
+    v0 = eq arg0, false
+    icall require<short_string>, v0, 1, 0x7800000000000000000000000000000000000000000000000000000000000000
     ret
 }
 
@@ -14,41 +12,35 @@ fn @constructor(arg0: i256) [constructor, abi_params=[bool]] {
 @data
   TryCreationChild_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/try_creation.sol:TryCreationChild"
 
-fn @f(arg0: i256) -> i256 [selector=0x98c3a6c1, abi_params=[bool], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @f(arg0: i1) -> i1 [selector=0x98c3a6c1, abi_params=[bool], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = eq arg0, 0
-    v1 = eq v0, false
-    v2 = zext i1 v1 to i256
-    v3 = abi_encode [word<bool>], args v2
-    v4 = datasize TryCreationChild_creation_code_0
-    v5 = datasize TryCreationChild_creation_code_0, 32
-    v6 = datasize TryCreationChild_creation_code_0, 63, aligned
-    v7 = alloc raw, exact, uninitialized, infallible, v6
-    v8 = ptrtoint memptr v7 to i256
-    datacopy TryCreationChild_creation_code_0, v8, v4
-    v9 = slice_ptr v3
-    v10 = ptrtoint memptr v7 to i256
-    v11 = add v10, v4
-    mcopy v11, v9, 32 !metadata(memory=heap)
-    v12 = ptrtoint memptr v7 to i256
-    v13 = create 0, v12, v5
-    v14 = zext i160 v13 to i256
-    v15 = eq v14, 0
-    v16 = eq v15, false
-    jumpi v16, bb1, bb2
+    v0 = zext i1 arg0 to i256
+    v1 = abi_encode [word<bool>], args v0
+    v2 = datasize TryCreationChild_creation_code_0
+    v3 = datasize TryCreationChild_creation_code_0, 32
+    v4 = datasize TryCreationChild_creation_code_0, 63, aligned
+    v5 = alloc raw, exact, uninitialized, infallible, v4
+    v6 = ptrtoint memptr v5 to i256
+    datacopy TryCreationChild_creation_code_0, v6, v2
+    v7 = slice_ptr v1
+    v8 = ptrtoint memptr v5 to i256
+    v9 = add v8, v2
+    mcopy v9, v7, 32 !metadata(memory=heap)
+    v10 = ptrtoint memptr v5 to i256
+    v11 = create 0, v10, v3
+    v12 = eq v11, i160 0
+    v13 = eq v12, false
+    jumpi v13, bb1, bb2
   bb2:
     jumpi true, bb4, bb5
   bb5:
     icall revert_if<empty>, true
     invalid
   bb4:
-    v20 = zext i1 0 to i256
-    ret v20
+    ret false
   bb1:
-    v17 = trunc i256 0 to i160
-    v18 = ne v13, v17
-    v19 = zext i1 v18 to i256
-    ret v19
+    v14 = ne v11, i160 0
+    ret v14
   bb3:
-    ret 0
+    ret false
 }

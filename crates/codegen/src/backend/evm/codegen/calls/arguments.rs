@@ -150,7 +150,8 @@ impl<'gcx> EvmCodegen<'gcx> {
                     .iter()
                     .any(|block| block.predecessors.len() >= 2)
                     .then(|| self.stack_phi_plan(func_id, func, liveness));
-                let context = self.resident_search_context(func, &values, phi_plan.clone());
+                let context =
+                    self.resident_search_context(func, &values, liveness, phi_plan.clone());
                 if self.requires_spill_free_execution(func_id) {
                     let Some((_, plan)) = self.compute_spill_hazard_stack_layout(
                         func_id,
@@ -770,24 +771,13 @@ impl<'gcx> EvmCodegen<'gcx> {
             return None;
         }
 
-        // One physical word cannot fill two argument positions. Repeated
-        // values keep the spill-reload path, which materializes each
-        // occurrence independently.
-        let mut selected_value_counts = FxHashMap::default();
-        for (i, &arg) in args.iter().enumerate() {
-            if mask.contains(i)
-                && (matches!(func.value(arg), crate::mir::Value::Inst(_))
-                    || self.scheduler.is_stack_only_value(arg))
-            {
-                *selected_value_counts.entry(arg).or_insert(0usize) += 1;
-            }
-        }
         let candidates: Vec<_> = args
             .iter()
             .enumerate()
             .filter_map(|(i, &arg)| {
                 (mask.contains(i)
-                    && selected_value_counts.get(&arg) == Some(&1)
+                    && (matches!(func.value(arg), crate::mir::Value::Inst(_))
+                        || self.scheduler.is_stack_only_value(arg))
                     && self.scheduler.stack.contains(arg))
                 .then_some(i)
             })
@@ -833,6 +823,20 @@ impl<'gcx> EvmCodegen<'gcx> {
         for word in stack {
             layout.push(StaticCallStackWord::Argument(*keep.get(&word?)?));
         }
+        // Expand repeated actuals before inserting the hidden return address.
+        for &index in retained_indices {
+            if layout.contains(&StaticCallStackWord::Argument(index)) {
+                continue;
+            }
+            let depth = layout.iter().position(|word| {
+                matches!(word, StaticCallStackWord::Argument(other) if args[*other] == args[index])
+            })?;
+            if depth >= self.stack_access_limit() {
+                return None;
+            }
+            drain_ops.push(StackOp::Dup((depth + 1) as u8));
+            layout.insert(0, StaticCallStackWord::Argument(index));
+        }
         layout.insert(0, StaticCallStackWord::ReturnAddress);
         for i in mask.iter() {
             if !retained_indices.contains(&i) {
@@ -867,10 +871,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         // argument through at least PUSH1+MLOAD. A value without a stored slot
         // also pays at least DUP+PUSH1+MSTORE. Deferred addresses can only make
         // that baseline larger, so this is a conservative byte gate.
-        let fresh = retained_indices
-            .iter()
-            .filter(|&&index| !self.scheduler.spills.is_stored(args[index]))
-            .count();
+        let fresh = keep.keys().filter(|&&value| !self.scheduler.spills.is_stored(value)).count();
         let baseline_cost = self.scheduler.stack.depth() + retained_indices.len() * 3 + fresh * 4;
         let planned_cost = drain_ops.len() + shuffle_ops.len();
         if planned_cost >= baseline_cost {

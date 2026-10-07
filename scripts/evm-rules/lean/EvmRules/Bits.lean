@@ -121,4 +121,13 @@ theorem and_seven_eq_zero (s : Word) : Evm.and s 7 = 0 ↔ s.toNat % 8 = 0 := by
     Nat.and_two_pow_sub_one_eq_mod]
   rfl
 
+/-- Multiplication by the low-bits mask negates within those bits. -/
+theorem mul_low_mask {lo hi : Nat} (x : BitVec (hi + lo)) :
+    (x * (BitVec.allOnes lo).setWidth (hi + lo)) &&& (BitVec.allOnes lo).setWidth (hi + lo) =
+      (-x) &&& (BitVec.allOnes lo).setWidth (hi + lo) := by
+  rw [BitVec.and_setWidth_allOnes, BitVec.and_setWidth_allOnes]
+  congr 1
+  rw [BitVec.setWidth_mul _ _ (by omega), BitVec.setWidth_neg_of_le (by omega)]
+  simp [← BitVec.neg_one_eq_allOnes, BitVec.mul_neg]
+
 end EvmRules

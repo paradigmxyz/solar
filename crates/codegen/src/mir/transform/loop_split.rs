@@ -38,6 +38,7 @@ use crate::{
         ValueId,
         analysis::{Loop, LoopAnalyzer, LoopInfo},
         pass::{MirPass, run_function_pass},
+        utils::rebuild_predecessors,
     },
     target::Target,
 };
@@ -193,8 +194,16 @@ fn plan(func: &Function, loops: &LoopInfo, l: &Loop) -> Option<Split> {
     }
     // The counter travels at most `step << MAX_TRIP_COUNT_BITS` from its
     // start, so `counter + lookahead` never wraps.
-    let travel = step.checked_shl(Target::MAX_TRIP_COUNT_BITS)?;
-    start.checked_add(travel)?.checked_add(lookahead)?;
+    let travel = if let Some(trips) = l.trip_count {
+        step.checked_mul(U256::from(trips))?
+    } else {
+        step.checked_shl(Target::MAX_TRIP_COUNT_BITS)?
+    };
+    if start.checked_add(travel)?.checked_add(lookahead)?
+        > crate::mir::analysis::integers::integer_max(func, counter)
+    {
+        return None;
+    }
 
     let mut body_exit = false;
     for block in l.blocks.iter() {
@@ -307,9 +316,11 @@ fn apply(func: &mut Function, split: &Split) {
 
     // main_header: ahead = add counter', lookahead
     //              jumpi (lt ahead, bound), body', header
-    let lookahead = func.alloc_value(Value::Immediate(Immediate::I256(split.lookahead)));
+    let ty = func.value_ty(split.counter).unwrap();
+    let lookahead =
+        func.alloc_value(Value::Immediate(Immediate::for_type(Some(ty), split.lookahead)));
     let (add, ahead) = func.alloc_value_inst(
-        Instruction::new(InstKind::Add(mapped(split.counter), lookahead), Some(MirType::I256))
+        Instruction::new(InstKind::Add(mapped(split.counter), lookahead), Some(ty))
             .with_debug_info_dropped(),
     );
     let (lt, condition) = func.alloc_value_inst(
@@ -377,7 +388,7 @@ fn apply(func: &mut Function, split: &Split) {
 }
 
 /// Replaces every successor of a terminator through `map`.
-fn retarget(terminator: &mut Terminator, map: impl Fn(BlockId) -> BlockId) {
+pub(super) fn retarget(terminator: &mut Terminator, map: impl Fn(BlockId) -> BlockId) {
     match terminator {
         Terminator::Jump(target) => *target = map(*target),
         Terminator::Branch { then_block, else_block, .. } => {
@@ -391,24 +402,5 @@ fn retarget(terminator: &mut Terminator, map: impl Fn(BlockId) -> BlockId) {
             }
         }
         _ => {}
-    }
-}
-
-/// Recomputes every block's predecessor list from the terminators.
-fn rebuild_predecessors(func: &mut Function) {
-    let mut edges = Vec::new();
-    for (block, body) in func.blocks.iter_enumerated() {
-        if let Some(terminator) = &body.terminator {
-            terminator.for_each_successor(|successor| edges.push((block, successor)));
-        }
-    }
-    for body in func.blocks.iter_mut() {
-        body.predecessors.clear();
-    }
-    for (from, to) in edges {
-        let predecessors = &mut func.blocks[to].predecessors;
-        if !predecessors.contains(&from) {
-            predecessors.push(from);
-        }
     }
 }

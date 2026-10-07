@@ -1,8 +1,6 @@
-//@ revisions: gas size
-//@ compile-flags: --emit=bin
-//@[gas] compile-flags: -Ogas
-//@[size] compile-flags: -Osize
-//~? ERROR: codegen cannot preserve values across a low-memory forwarding buffer
+//@ codegen-matrix: standard
+//@ run-call-fail: C::f => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
+
 
 struct S {
     uint24 a;

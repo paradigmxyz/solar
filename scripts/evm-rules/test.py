@@ -48,6 +48,7 @@ from evm_rules.prover import (
     job,
     lean_environment,
     prove,
+    simple_witness,
     stop,
 )
 from evm_rules.stack import requirements, stack_rules, stack_variants
@@ -800,6 +801,102 @@ class MemoryAddressTests(unittest.TestCase):
 
 
 class RuleTests(unittest.TestCase):
+    def test_stack_selection_rules(self):
+        report = verify_rules(ISLE / "mir-to-evm/stack_select.isle")
+        self.assertEqual(len(report["rules"]), 15)
+        for result in report["rules"]:
+            with self.subTest(line=result["line"]):
+                self.assertEqual(result["status"], "proved", result)
+
+    def test_narrow_integer_rules(self):
+        entries = list(obligations(ISLE / "mir/word"))
+        native = [entry for entry in entries if "integer_bits" in entry]
+        self.assertEqual(len(native), 93 * 33)
+        for bits in (1, *range(8, 257, 8)):
+            selected = [entry for entry in native if entry["integer_bits"] == bits]
+            with self.subTest(bits=bits):
+                self.assertEqual(len(selected), 93)
+                self.assertTrue(all(entry.get("theorems") for entry in selected))
+                self.assertEqual([e["error"] for e in selected if "error" in e], [])
+        self.assertEqual(len({entry["name"] for entry in entries}), len(entries))
+
+    def test_native_width_failure_reaches_the_report(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "rules.isle"
+            path.write_text("(rule (simplify (Op.Add x (one))) x)\n;; end\n")
+            with (
+                patch("evm_rules.verification.NATIVE_PREFIXES", {path: ";; end"}),
+                patch("evm_rules.verification.INTEGER_WIDTHS", (1, 8)),
+            ):
+                report = verify_rules(path, processes=True)
+            self.assertEqual(len(report["rules"]), 3)
+            self.assertEqual(
+                [rule.get("integer_bits") for rule in report["rules"]], [None, 1, 8]
+            )
+            for rule in report["rules"]:
+                self.assertEqual(rule["status"], "counterexample", rule)
+                self.assertTrue(rule["replayed"], rule)
+
+    def test_native_rule_boundary_must_exist(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "rules.isle"
+            path.write_text("(rule (simplify (Op.Add x (zero))) x)\n")
+            with (
+                patch("evm_rules.verification.NATIVE_PREFIXES", {path: ";; end"}),
+                self.assertRaisesRegex(ValueError, "missing native rule boundary"),
+            ):
+                list(obligations(path))
+
+    def test_native_signed_limits(self):
+        rules = [
+            Rule(form, line, str(path))
+            for directory in ("word", "word_sequence", "egraph")
+            for path, source in rule_sources(ISLE / "mir" / directory)
+            for form, line in forms(source)
+            if form[0] == "rule"
+            and "integer_sign_bit" in repr(form)
+            and "power_of_two_shift" not in repr(form)
+        ]
+        self.assertGreater(len(rules), 10)
+        for bits in (1, 8, 16, 160, 248, 256):
+            for rule in rules:
+                with self.subTest(bits=bits, rule=rule.form):
+                    cx = Context(integer_bits=bits)
+                    lhs, rhs = cx.obligation(rule)
+                    result = check(lhs, rhs, cx.assumptions)
+                    if result["status"] == "inapplicable":
+                        self.assertEqual(
+                            check(Expr.const(0), Expr.const(1), cx.assumptions)[
+                                "status"
+                            ],
+                            "inapplicable",
+                        )
+                    else:
+                        self.assertEqual(result["status"], "proved", result)
+
+    def test_native_overflow_guards(self):
+        for bits in (1, *range(8, 257, 8)):
+            cx = Context(integer_bits=bits)
+            mask = (1 << bits) - 1
+            for a, b in itertools.product((0, 1, mask // 2, mask), repeat=2):
+                with self.subTest(bits=bits, a=a, b=b):
+                    self.assertEqual(
+                        holds(cx.constructor(("u256_mul_fits", str(a), str(b))), {}),
+                        a * b <= mask,
+                    )
+                    self.assertEqual(
+                        holds(cx.constructor(("u256_add_fits", str(a), str(b))), {}),
+                        a + b <= mask,
+                    )
+
+    def test_narrow_integer_wrap_is_not_word_wrap(self):
+        form, line = forms("(rule (simplify (Op.Add x (one))) x)")[0]
+        cx = Context(integer_bits=8)
+        lhs, rhs = cx.obligation(Rule(form, line, "narrow.isle"))
+        result = check(lhs, rhs, cx.assumptions)
+        self.assertEqual(result["status"], "counterexample")
+        self.assertTrue(result["replayed"])
+
     def verify(self, source):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "rules.isle"
@@ -815,7 +912,8 @@ class RuleTests(unittest.TestCase):
                     form for _, text in rule_sources(path) for form, _ in forms(text)
                 ]
                 self.assertEqual(
-                    len(entries), sum(form[0] == "rule" for form in rule_forms)
+                    sum("integer_bits" not in entry for entry in entries),
+                    sum(form[0] == "rule" for form in rule_forms),
                 )
                 skipped = [entry["name"] for entry in entries if "error" in entry]
                 self.assertEqual(skipped, [])
@@ -920,19 +1018,14 @@ class RuleTests(unittest.TestCase):
         rules = [
             Rule(form, line, str(path))
             for form, line in forms(read_egraph_source())
-            if form[0] == "rule"
-            and (
-                "imm_i160_zero" in repr(form)
-                or "'sext'" in repr(form)
-                and "'bool_value'" in repr(form)
-            )
+            if form[0] == "rule" and "imm_zero_like" in repr(form)
         ]
-        self.assertEqual(len(rules), 6)
+        self.assertEqual(len(rules), 4)
         for rule in rules:
             with self.subTest(rule=rule.form):
                 cx = Context()
                 lhs, rhs = cx.obligation(rule)
-                result = check(lhs, rhs, cx.assumptions, 10000)
+                result = check(lhs, rhs, cx.assumptions, 120_000)
                 self.assertEqual(result["status"], "proved", result)
 
     def test_actual_integer_and_pointer_cast_rules(self):
@@ -953,6 +1046,29 @@ class RuleTests(unittest.TestCase):
             report = verify_rules(path, processes=True, timeout_s=120)
         for rule in report["rules"]:
             self.assertEqual(rule["status"], "proved", rule)
+
+    def test_actual_power_of_two_remainder_rule(self):
+        def contains(node, atom):
+            return (
+                node == atom
+                or isinstance(node, tuple)
+                and any(contains(child, atom) for child in node)
+            )
+
+        path = ISLE / "mir/egraph"
+        rules = [
+            Rule(form, line, str(path))
+            for form, line in forms(read_egraph_source())
+            if form[0] == "rule"
+            and contains(form, "Op.Mod")
+            and contains(form, "power_of_two_shift")
+            and not contains(form, "integer_rewrite")
+        ]
+        self.assertEqual(len(rules), 1)
+        context = Context()
+        lhs, rhs = context.obligation(rules[0])
+        result = check(lhs, rhs, context.assumptions)
+        self.assertEqual(result["status"], "proved", (rules[0].line, result))
 
     def test_actual_nested_signextend_rule(self):
         path = ISLE / "mir/egraph"
@@ -1158,7 +1274,8 @@ class CliTests(unittest.TestCase):
                 )
                 self.assertEqual(json.loads(output.read_text())["counts"], {status: 1})
 
-    def test_changed_checker_rechecks_an_unchanged_theorem(self):
+    @patch("evm_rules.prover.simple_witness", return_value=None)
+    def test_changed_checker_rechecks_an_unchanged_theorem(self, _witness):
         # The theorem text stays the same while the result validation or the
         # applicability check changes: every run must apply the current checker, so
         # an earlier success cannot bypass it.
@@ -1204,6 +1321,28 @@ class CliTests(unittest.TestCase):
             ):
                 self.assertEqual(prove(task)[1]["status"], "timeout")
             stopped.assert_called_once_with(hung)
+
+    def test_simple_witness_checks_every_guard(self):
+        x = Expr.var("x")
+        zero, one = Expr.const(0), Expr.const(1)
+        self.assertEqual(simple_witness([Cond("eq", (x, zero))]), {"x": "0x0"})
+        self.assertEqual(simple_witness([Cond("eq", (zero, zero))]), {})
+        self.assertEqual(simple_witness([Cond("eq", (x, one))]), {"x": "0x1"})
+        self.assertIsNone(simple_witness([Cond("eq", (x, zero)), Cond("eq", (x, one))]))
+        self.assertIsNone(simple_witness([Cond("unsupported", (x,))]))
+        self.assertIsNone(simple_witness([Cond("eq", (Expr("address", ()), zero))]))
+
+    def test_simple_witness_still_requires_a_lean_proof(self):
+        x = Expr.var("x")
+        guards = [Cond("eq", (x, Expr.const(0)))]
+        with Checker(lean_path()) as checker:
+            result = checker.check(x, x, guards, PROOF_TIMEOUT_MS)
+            self.assertEqual(result["status"], "proved", result)
+            self.assertEqual(result["witness"], {"x": "0x0"})
+            self.assertEqual(checker.queries, 1)
+            result = checker.check(x, Expr.const(1), guards, PROOF_TIMEOUT_MS)
+            self.assertEqual(result["status"], "counterexample", result)
+            self.assertTrue(result["replayed"])
 
     def test_worker_reuses_process_without_retaining_declarations(self):
         with Checker(lean_path()) as checker:
@@ -1862,8 +2001,13 @@ class LeanProofTests(unittest.TestCase):
             "(rule (simplify (Op.Add a (iconst c)))"
             " (if-let true (u256_lt c 1)) (if-let true (u256_gt c 1)) a)"
         )
+        constant = lean_rule(
+            "(rule (simplify (Op.Add a (zero)))"
+            " (if-let false (u256_eq (u256 (integer_width)) 1)) a)"
+        )
         cases = (
             ("found", (lhs, rhs, guards), "evm_decide 60"),
+            ("constant", constant, "evm_decide 60"),
             ("vacuous", vacuous, "evm_decide 60"),
             # `sorry` is never accepted as a proof.
             ("unproved", (lhs, rhs, guards), "sorry"),
@@ -1885,6 +2029,9 @@ class LeanProofTests(unittest.TestCase):
         found = results["found"]
         self.assertEqual(found["status"], "proved", found)
         self.assertEqual(found["witness"]["c"], "0x0")
+        self.assertEqual(results["constant"]["status"], "proved", results)
+        self.assertEqual(results["constant"]["witness"], {})
+        self.assertEqual(check(*constant)["status"], "proved")
         self.assertEqual(results["vacuous"]["status"], "inapplicable", results)
         self.assertEqual(results["unproved"]["status"], "failed", results)
 

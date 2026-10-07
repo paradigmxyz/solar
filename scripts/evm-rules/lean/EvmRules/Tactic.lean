@@ -38,7 +38,8 @@ goals substitute equal variables: the goal keeps every variable, so that a count
 macro "evm_struct" : tactic =>
   `(tactic| (
     try simp (disch := (try subst_vars) <;> assumption) only [signextend_signextend,
-      select_same, sext_sext, eq_sext_sext, ne_sext_sext, div_shl_one] at *))
+      select_same, sext_sext, eq_sext_sext, ne_sext_sext, eq_sext_zero, ne_sext_zero,
+      div_shl_one] at *))
 
 /-- Rewrite structurally, unfold the EVM operations, then bit-blast whatever goal remains,
 with an optional SAT limit in seconds. -/

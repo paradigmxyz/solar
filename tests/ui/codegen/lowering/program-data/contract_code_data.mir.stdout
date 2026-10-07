@@ -58,12 +58,10 @@ fn @deployCreationCode() -> i256 [selector=0x5986dddb, abi_params=[], abi_return
     icall revert_if<tuple_data_too_short>, v21
     v22 = add 0, 0
     v23 = mload v22
-    v24 = add 0, 0
-    v25 = mload v24
-    ret v25
+    ret v23
 }
 
-fn @runtimeCodeMatches() -> i256 [selector=0x337e11d0, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @runtimeCodeMatches() -> i1 [selector=0x337e11d0, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = abi_encode []
     v1 = datasize CodeTarget_creation_code_0
@@ -77,28 +75,25 @@ fn @runtimeCodeMatches() -> i256 [selector=0x337e11d0, abi_params=[], abi_return
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
     v9 = create 0, v8, v1
-    v10 = zext i160 v9 to i256
-    v11 = ne v10, 0
-    jumpi v11, bb2, bb1
+    v10 = ne v9, i160 0
+    jumpi v10, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v12 = zext i160 v9 to i256
-    v13 = datasize CodeTarget_runtime_code_1
-    v14 = datasize CodeTarget_runtime_code_1, 63, aligned
-    v15 = alloc memorybytes, exact, uninitialized, infallible, v14 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v15, v13
-    v16 = memory_object_data memorybytes, v15
-    v17 = datasize CodeTarget_runtime_code_1, 31, aligned
-    v18 = ptrtoint memptr v15 to i256
-    v19 = add v18, v17
-    mstore v19, 0
-    v20 = ptrtoint memptr v16 to i256
-    datacopy CodeTarget_runtime_code_1, v20, v13
-    v21 = keccak256_bytes v15
-    v22 = zext i160 v9 to i256
-    v23 = extcodehash v22
-    v24 = eq v21, v23
-    v25 = zext i1 v24 to i256
-    ret v25
+    v11 = datasize CodeTarget_runtime_code_1
+    v12 = datasize CodeTarget_runtime_code_1, 63, aligned
+    v13 = alloc memorybytes, exact, uninitialized, infallible, v12 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v13, v11
+    v14 = memory_object_data memorybytes, v13
+    v15 = datasize CodeTarget_runtime_code_1, 31, aligned
+    v16 = ptrtoint memptr v13 to i256
+    v17 = add v16, v15
+    mstore v17, 0
+    v18 = ptrtoint memptr v14 to i256
+    datacopy CodeTarget_runtime_code_1, v18, v11
+    v19 = keccak256_bytes v13
+    v20 = zext i160 v9 to i256
+    v21 = extcodehash v20
+    v22 = eq v19, v21
+    ret v22
 }

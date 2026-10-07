@@ -290,6 +290,27 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.storage_refs.insert(id, access);
                 Some(access)
             }
+            ExprKind::Assign(lhs, None, rhs)
+                if self.cx.gcx.type_of_expr(expr.id)?.is_ref_at(DataLocation::Storage) =>
+            {
+                let lhs_ty = self.type_of_expr_or_variable(lhs)?;
+                let rhs_ty = self.cx.gcx.type_of_expr(rhs.id)?;
+                let memory_ty = rhs_ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
+                let (access, value) = if rhs_ty.is_ref_at(DataLocation::Storage) {
+                    let source = self.storage_access(rhs)?;
+                    let access = self.storage_access(lhs)?;
+                    // The destination expression may mutate the source's storage.
+                    let value = self.load_storage_object(memory_ty, source.slot, rhs.span)?;
+                    (access, value)
+                } else {
+                    let value = self.lower_typed_expr(rhs, memory_ty)?;
+                    (self.storage_access(lhs)?, value)
+                };
+                let value = self.materialize_memory_argument(memory_ty, value, rhs.span)?;
+                let value = self.coerce_value(value, rhs_ty, lhs_ty);
+                self.store_storage_value_with_source(lhs_ty, rhs_ty, access, value, expr.span)?;
+                Some(access)
+            }
             ExprKind::Ternary(condition, then_expr, else_expr)
                 if self.cx.gcx.type_of_expr(expr.id)?.is_ref_at(DataLocation::Storage) =>
             {
@@ -809,7 +830,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.builder.mapping_slot_memory(key, slot)
             }
         } else {
-            let key = self.normalize_dirty_scalar(key, key_ty);
+            let key = self.encode_memory_scalar(key_ty, key);
             self.builder.mapping_slot(key, slot)
         }
     }
@@ -1209,6 +1230,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         },
                         span,
                     )?;
+                    let object = self.builder.cast(object, MirType::MemPtr);
                     self.builder.icall_void(helper, vec![slot, object]);
                     return Some(());
                 }

@@ -1,0 +1,266 @@
+// === ROOT/tests/ui/codegen/mir/loop-unroll/pointer_loops.sol:PointerLoops ===
+@module PointerLoops
+@phase lowered
+fn @toHex() [selector=0xc5bec6fc, abi_wrapper, pure] {
+  bb0:
+    v33 = calldatasize
+    v34 = lt v33, 36
+    v35 = calldataload 4
+    v36 = add v35, 4
+    v37 = add v36, 32
+    v38 = gt v35, 0xffffffffffffffff
+    v39 = gt v37, v33
+    v40 = or v38, v39
+    v133 = or v34, v40
+    jumpi v133, bb4, bb5
+  bb5:
+    v42 = calldataload v36
+    v44 = add v42, 63
+    v45 = lt v44, v42
+    jumpi v45, bb6, bb7
+  bb7:
+    v47 = and v44, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v89 = mload 64 !metadata(memory=scratch)
+    v48 = inttoptr i256 v89 to memptr !metadata(memory=scratch)
+    v90 = add v89, v47
+    v91 = lt v90, v89
+    v92 = gt v90, 0xffffffffffffffff
+    v93 = or v91, v92
+    jumpi v93, bb6, bb9
+  bb9:
+    mstore 64, v90 !metadata(memory=scratch, preserves_valid_fmp)
+    mstore v89, v42
+    v49 = sub v33, v37
+    v50 = gt v42, v49
+    jumpi v50, bb4, bb8
+  bb8:
+    v84 = add v89, 32
+    calldatacopy v84, v37, v42
+    v2 = mload 64 !metadata(memory=scratch)
+    v3 = add v2, 2
+    v4 = add v42, v42
+    mstore v3, v4
+    mstore 15, 0x30313233343536373839616263646566 !metadata(memory=scratch)
+    v5 = add v3, 32
+    v7 = add v89, v42
+    v100 = ptrtoint memptr v48 to i256
+    v128 = sub v7, v100
+    v129 = and v128, 1
+    v130 = ne v129, 0
+    jumpi v130, bb10, bb11
+  bb10:
+    v102 = add v100, 1
+    v103 = mload v102
+    v104 = and v103, 15
+    v105 = mload v104
+    v106 = add v5, 1
+    mstore8 v106, v105
+    v107 = mload v102
+    v108 = shr 4, v107
+    v109 = and v108, 15
+    v110 = mload v109
+    mstore8 v5, v110
+    v111 = add v5, 2
+    v112 = inttoptr i256 v102 to memptr
+    jump bb11
+  bb11:
+    v131 = phi [bb8: v5], [bb10: v111]
+    v132 = phi [bb8: v48], [bb10: v112]
+    jump bb1
+  bb1:
+    v8 = phi [bb11: v131], [bb3: v126]
+    v9 = phi [bb11: v132], [bb3: v127]
+    v13 = ptrtoint memptr v9 to i256
+    v16 = ne v13, v7
+    jumpi v16, bb3, bb2
+  bb2:
+    mstore v8, 0
+    v31 = add v8, 32
+    mstore 64, v31 !metadata(memory=scratch)
+    v57 = add v31, 32
+    mstore v31, 32
+    v63 = ne v3, 0
+    v64 = zext i1 v63 to i256
+    v61 = mload v3
+    v65 = mul v61, v64
+    v67 = add v65, 31
+    v68 = and v67, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v69 = add v57, 32
+    v70 = add v57, v68
+    mstore v70, 0
+    mstore v57, v65
+    v72 = add v69, v68
+    mcopy v69, v5, v65 !metadata(disjoint)
+    v75 = sub v72, v31
+    v77 = add v75, 31
+    v79 = and v77, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v96 = mload 64 !metadata(memory=scratch)
+    v97 = add v96, v79
+    mstore 64, v97 !metadata(memory=scratch, preserves_valid_fmp)
+    returndata v96, v75
+  bb3:
+    v20 = add v13, 1
+    v21 = mload v20
+    v22 = and v21, 15
+    v23 = mload v22
+    v24 = add v8, 1
+    mstore8 v24, v23
+    v25 = mload v20
+    v26 = shr 4, v25
+    v27 = and v26, 15
+    v28 = mload v27
+    mstore8 v8, v28
+    v30 = inttoptr i256 v20 to memptr
+    v115 = ptrtoint memptr v30 to i256
+    v117 = add v115, 1
+    v118 = mload v117
+    v119 = and v118, 15
+    v120 = mload v119
+    v121 = add v8, 3
+    mstore8 v121, v120
+    v122 = mload v117
+    v123 = shr 4, v122
+    v124 = and v123, 15
+    v125 = mload v124
+    v29 = add v8, 2
+    mstore8 v29, v125
+    v126 = add v8, 4
+    v127 = inttoptr i256 v117 to memptr
+    jump bb1
+  bb6:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
+  bb4:
+    revert 0, 0
+}
+
+fn @sumWords() [selector=0x5a761098, abi_wrapper, pure] {
+  bb0:
+    v18 = calldatasize
+    v19 = lt v18, 36
+    v20 = calldataload 4
+    v21 = add v20, 4
+    v22 = add v21, 32
+    v23 = gt v20, 0xffffffffffffffff
+    v24 = gt v22, v18
+    v25 = or v23, v24
+    v72 = or v19, v25
+    jumpi v72, bb4, bb5
+  bb5:
+    v27 = calldataload v21
+    v29 = shl 5, v27
+    v31 = shr 5, v29
+    v35 = ne v31, v27
+    v36 = add v29, 32
+    v37 = lt v36, v29
+    v73 = or v35, v37
+    jumpi v73, bb6, bb7
+  bb7:
+    v50 = mload 64 !metadata(memory=scratch)
+    v51 = add v50, v36
+    v52 = lt v51, v50
+    v53 = gt v51, 0xffffffffffffffff
+    v54 = or v52, v53
+    jumpi v54, bb6, bb9
+  bb9:
+    mstore 64, v51 !metadata(memory=scratch, preserves_valid_fmp)
+    mstore v50, v27
+    v39 = sub v18, v22
+    v40 = shr 5, v39
+    v41 = gt v27, v40
+    jumpi v41, bb4, bb8
+  bb8:
+    v46 = add v50, 32
+    calldatacopy v46, v22, v29
+    v5 = add v46, v29
+    v68 = and v27, 1
+    v69 = ne v68, 0
+    jumpi v69, bb10, bb11
+  bb10:
+    v59 = mload v46
+    v60 = add 0, v59
+    v61 = add v46, 32
+    jump bb11
+  bb11:
+    v70 = phi [bb8: v46], [bb10: v61]
+    v71 = phi [bb8: 0], [bb10: v60]
+    jump bb1
+  bb1:
+    v7 = phi [bb11: v70], [bb3: v67]
+    v8 = phi [bb11: v71], [bb3: v66]
+    v12 = ne v7, v5
+    jumpi v12, bb3, bb2
+  bb2:
+    mstore 128, v8
+    returndata 128, 32
+  bb3:
+    v15 = mload v7
+    v16 = add v8, v15
+    v17 = add v7, 32
+    v65 = mload v17
+    v66 = add v16, v65
+    v67 = add v7, 64
+    jump bb1
+  bb6:
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
+  bb4:
+    revert 0, 0
+}
+
+fn @stepThree() [selector=0xbf2eba92, abi_wrapper, pure] {
+  bb0:
+    v11 = calldatasize
+    v12 = lt v11, 68
+    jumpi v12, bb4, bb5
+  bb5:
+    v25 = sub arg1, arg0
+    v26 = and v25, 1
+    v27 = ne v26, 0
+    jumpi v27, bb6, bb7
+  bb6:
+    v18 = add 0, arg0
+    v19 = add arg0, 3
+    jump bb7
+  bb7:
+    v28 = phi [bb5: 0], [bb6: v18]
+    v29 = phi [bb5: arg0], [bb6: v19]
+    jump bb1
+  bb1:
+    v1 = phi [bb7: v28], [bb3: v23]
+    v3 = phi [bb7: v29], [bb3: v24]
+    v6 = ne v3, arg1
+    jumpi v6, bb3, bb2
+  bb2:
+    mstore 128, v1
+    returndata 128, 32
+  bb3:
+    v9 = add v1, v3
+    v10 = add v3, 3
+    v23 = add v9, v10
+    v24 = add v10, 3
+    jump bb1
+  bb4:
+    revert 0, 0
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb5, bb1
+  bb1:
+    v2 = calldataload 0
+    v3 = shr 224, v2
+    switch v3, default bb5, [0x5a761098 => bb2, 0xbf2eba92 => bb3, 0xc5bec6fc => bb4]
+  bb4:
+    tail_call @toHex
+  bb3:
+    tail_call @stepThree
+  bb2:
+    tail_call @sumWords
+  bb5:
+    revert 0, 0
+}

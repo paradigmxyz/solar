@@ -1,0 +1,82 @@
+- // === ROOT/tests/ui/codegen/mir/load-pre/allocation_read_bounds.mir (before load-pre) ===
++ // === ROOT/tests/ui/codegen/mir/load-pre/allocation_read_bounds.mir (after load-pre) ===
+  @module AllocationReadBounds
+  fn @word_crosses_allocation(arg0: i1) -> i256 {
+    bb0:
+      v0 = alloc raw, exact, uninitialized, infallible, 32
+      v1 = alloc raw, exact, uninitialized, infallible, 32
+      v2 = ptrtoint memptr v0 to i256
+      v3 = add v2, 31
+      v4 = ptrtoint memptr v1 to i256
+      v5 = mload v3
+      jumpi arg0, bb1, bb2
+    bb2:
+      jump bb3
+    bb1:
+      jump bb3
+    bb3:
+      mstore v4, 7
+      v6 = mload v3
+      v7 = add v5, v6
+      ret v7
+  }
+  
+  fn @keccak_crosses_allocation(arg0: i1) -> i256 {
+    bb0:
+      v0 = alloc raw, exact, uninitialized, infallible, 32
+      v1 = alloc raw, exact, uninitialized, infallible, 32
+      v2 = ptrtoint memptr v0 to i256
+      v3 = add v2, 0
+      v4 = ptrtoint memptr v1 to i256
+      v5 = keccak256 v3, 33
+      jumpi arg0, bb1, bb2
+    bb2:
+      jump bb3
+    bb1:
+      jump bb3
+    bb3:
+      mstore v4, 7
+      v6 = keccak256 v3, 33
+      v7 = add v5, v6
+      ret v7
+  }
+  
+  fn @keccak_dynamic_size(arg0: i1, arg1: i256) -> i256 {
+    bb0:
+      v0 = alloc raw, exact, uninitialized, infallible, 32
+      v1 = alloc raw, exact, uninitialized, infallible, 32
+      v2 = ptrtoint memptr v0 to i256
+      v3 = add v2, 0
+      v4 = ptrtoint memptr v1 to i256
+      v5 = keccak256 v3, arg1
+      jumpi arg0, bb1, bb2
+    bb2:
+      jump bb3
+    bb1:
+      jump bb3
+    bb3:
+      mstore v4, 7
+      v6 = keccak256 v3, arg1
+      v7 = add v5, v6
+      ret v7
+  }
+  
+  fn @store_crosses_allocation(arg0: i1) -> i256 {
+    bb0:
+      v0 = alloc raw, exact, uninitialized, infallible, 32
+      v1 = alloc raw, exact, uninitialized, infallible, 32
+      v2 = ptrtoint memptr v0 to i256
+      v3 = add v2, 31
+      v4 = ptrtoint memptr v1 to i256
+      mstore v3, 99
+      jumpi arg0, bb1, bb2
+    bb2:
+      jump bb3
+    bb1:
+      jump bb3
+    bb3:
+      mstore v4, 7
+      v5 = mload v3
+      ret v5
+  }
+  

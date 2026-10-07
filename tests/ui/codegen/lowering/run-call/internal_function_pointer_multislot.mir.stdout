@@ -44,11 +44,9 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_
     icall revert_if<tuple_data_too_short>, v18
     v19 = add 0, 0
     v20 = mload v19
-    v21 = add 0, 0
-    v22 = mload v21
-    v23 = icall @internal_dispatcher_p_u256_u256_r_u256, 2, 5, 1
-    v24 = checked_add u256, v22, v23
-    ret v24
+    v21 = icall @internal_dispatcher_p_u256_u256_r_u256, 2, 5, 1
+    v22 = checked_add u256, v20, v21
+    ret v22
 }
 
 fn @internal_dispatcher_p_function_function_r_function(arg0: i256, arg1: i256, arg2: i256) -> i256 [function_pointer_dispatcher] {

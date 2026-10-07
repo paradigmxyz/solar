@@ -1,6 +1,9 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
+//@ run-call: ExternalReturnValidation::validatedTuple 255, 1 => 255, true, 340282366920938463463374607431768211455
+//@ run-call-fail: ExternalReturnValidation::validatedTuple 256, 1
+//@ run-call-fail: ExternalReturnValidation::validatedTuple 255, 2
 //@ run-call-fail: ExternalReturnValidation::short
 //@ run-call-fail: ExternalReturnValidation::dirty
 //@ run-call: ExternalReturnValidation::dirtyValue => 0
@@ -66,6 +69,19 @@ contract ExternalReturnValidation {
     }
 
     State state;
+
+    function validatedTuple(uint256 value, uint256 flag) external view returns (uint8, bool, uint128) {
+        return this.tupleTarget(value, flag);
+    }
+
+    function tupleTarget(uint256 value, uint256 flag) external pure returns (uint8, bool, uint128) {
+        assembly {
+            mstore(0, value)
+            mstore(32, flag)
+            mstore(64, 0xffffffffffffffffffffffffffffffff)
+            return(0, 96)
+        }
+    }
 
     function short() external view returns (uint256) {
         return this.shortTarget();

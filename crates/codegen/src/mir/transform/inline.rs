@@ -75,7 +75,7 @@ use crate::{
         immutable::immutable_push_type_size,
         memory::{EvmMemoryLayout, MemoryLayoutPolicy},
         pass::MirPass,
-        utils::{replace_terminator_uses_canonicalized, resolve_replacement},
+        utils::{rebuild_predecessors, replace_terminator_uses_canonicalized, resolve_replacement},
     },
     target::{Cost, Target},
 };
@@ -375,10 +375,6 @@ impl Default for MirInliner {
 }
 
 impl MirInliner {
-    /// How many times a loop without a computable trip count is assumed to
-    /// run per invocation when a hot leaf is weighed: GCC's estimate for such
-    /// loops. Counted loops use their real trip count instead.
-    const UNCOUNTED_LOOP_EXECUTIONS: u64 = 10;
     /// A hot leaf shared by more call sites than this stays a call: every
     /// clone deposits the whole body again.
     const MAX_HOT_LEAF_CALL_SITES: usize = 8;
@@ -987,7 +983,7 @@ impl MirInliner {
         let loop_executions = if !self.target.optimization().is_gas() {
             1
         } else if self.mode == InlineMode::HotLeaves && site.loop_depth > 0 && !site.loop_counted {
-            Self::UNCOUNTED_LOOP_EXECUTIONS
+            Target::UNCOUNTED_LOOP_ITERATIONS
         } else {
             site.loop_executions
         };
@@ -1470,7 +1466,9 @@ fn is_immutable_word_leaf(func: &Function) -> bool {
         let kind = &func.inst(inst).kind;
         if matches!(kind, InstKind::LoadImmutable(_)) {
             has_immutable = true;
-        } else if kind.effect_kind() != EffectKind::Pure || kind.evm_opcode().is_none() {
+        } else if !matches!(kind, InstKind::Zext(_))
+            && (kind.effect_kind() != EffectKind::Pure || kind.evm_opcode().is_none())
+        {
             return false;
         }
     }
@@ -1843,6 +1841,7 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> (Cost, 
         }
     };
     let instructions = match kind {
+        InstKind::Zext(_) | InstKind::IntToPtr(..) => 0,
         InstKind::MappingSlot(..) | InstKind::StorageArrayDataSlot(..) => 3,
         InstKind::MappingSlotMemory(..) => 8,
         InstKind::MappingSlotCalldata(..) => 9,
@@ -2255,7 +2254,7 @@ fn inline_call_impl(
     }
 
     cloner.caller.replace_uses(&replacements);
-    recompute_cfg(cloner.caller);
+    rebuild_predecessors(cloner.caller);
     prune_phi_incoming_to_predecessors(cloner.caller);
     Some(())
 }
@@ -2337,7 +2336,7 @@ pub(super) fn inline_dispatch_route(
     // NOTE: The wrapper call boundary disappears; its source checkpoint cannot
     // describe this generated jump. Cloned body instructions keep their origins.
     cloner.caller.blocks[block].set_generated_terminator(Terminator::Jump(entry));
-    recompute_cfg(cloner.caller);
+    rebuild_predecessors(cloner.caller);
     Some(())
 }
 
@@ -2716,28 +2715,6 @@ fn redirect_phi_predecessors(
                         *pred = new_pred;
                     }
                 }
-            }
-        }
-    }
-}
-
-fn recompute_cfg(func: &mut Function) {
-    let mut edges = Vec::new();
-    for (block, bb) in func.blocks.iter_enumerated() {
-        if let Some(term) = &bb.terminator {
-            edges.push((block, term.successors()));
-        }
-    }
-
-    for block in func.blocks.iter_mut() {
-        block.predecessors.clear();
-    }
-
-    for (block, successors) in edges {
-        for succ in successors {
-            let predecessors = &mut func.blocks[succ].predecessors;
-            if !predecessors.contains(&block) {
-                predecessors.push(block);
             }
         }
     }

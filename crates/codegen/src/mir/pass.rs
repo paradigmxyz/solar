@@ -65,11 +65,14 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &loop_exit_remat::LoopExitRemat,
     &loop_idioms::LoopIdioms,
     &loop_split::LoopSplit,
+    &loop_unroll::LoopUnroll,
+    &merge_aborts::MergeAborts,
     &indvar_simplify::IndVarSimplify,
     &storage_promotion::StorageScalarPromotion,
     &loop_opt::Licm,
     &check_elim::CheckElim,
     &check_elim::LateCheckElim,
+    &check_elim::IntegerCleanup,
     &check_elim::ImmutableCheckElim,
     &jump_threading::JumpThreading,
     &cfg_simplify::BranchSimplify,
@@ -94,6 +97,7 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &lower_frame_slots::LowerFrameSlots,
     &lower_evm_shaped::LowerEvmShaped,
     &lower_immutables::LowerImmutables,
+    &lower_integers::LowerIntegers,
     &lower_mcopy::LowerMCopy,
     &lower_abi_encode::LowerAbiEncode,
     &lower_aggregates::LowerAggregates,
@@ -343,10 +347,13 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     &lower_mcopy::LowerMCopy,
     &lower_alloc::LowerAlloc,
     &lower_memory_zero::LowerMemoryZero,
+    // Materialize integer cleanup before word-level extraction and scheduling.
+    &lower_integers::LowerIntegers,
     // Carry proved argument widths across calls before simplifying word masks.
     &call_cleanup::CallCleanup,
     // Shared scalar ABI words and wrapper bodies become one CFG before extraction.
     &inline_dispatch::InlineDispatch,
+    &check_elim::IntegerCleanup,
     // Memory lowering materializes address arithmetic; number and simplify it
     // once more before the physical shape is fixed. The stack-aware cost keeps
     // rewrites from reaching for values the scheduler would have to keep alive.
@@ -370,9 +377,18 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     // Collapse canonical read-only byte scans after bounds cleanup and word
     // simplification expose their final physical shape.
     &GasOnly::new(loop_idioms::LoopIdioms),
+    // Counted loops test their bound once per two iterations once their
+    // physical shape is final; the cleanup below drops the unread clones.
+    &GasOnly::new(loop_unroll::LoopUnroll),
+    // The unrolled main loop's test bounds the first copy's counter, so its
+    // overflow checks fold.
+    &GasOnly::new(check_elim::CheckElim),
     // ABI and memory lowering leave dead guards and empty trampoline blocks.
     // Clean them before EVM shaping isolates phi copies on critical edges.
     &cfg_simplify::CfgSimplify,
+    // With each straight-line run in one block, the checks that remain branch
+    // once per run.
+    &merge_aborts::MergeAborts,
     // A word-at-a-time loop is compact enough to consume at its sole call site.
     // This removes the internal frame protocol without duplicating the body;
     // the pass drops the consumed callee itself.

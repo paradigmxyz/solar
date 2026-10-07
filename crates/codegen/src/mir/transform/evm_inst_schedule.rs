@@ -19,6 +19,16 @@
 //! Instruction and value identities do not change; codegen recomputes liveness from the resulting
 //! order before stack scheduling.
 //!
+//! One move crosses barriers. A pure instruction whose single reader follows memory writes or logs
+//! in the same block moves to just before that reader when every word it reads stays live there
+//! anyway: rebuilt where it is read, live out of the block, or read again later. Its result then
+//! no longer occupies the stack across the writes, and no operand lives longer, as an unrolled
+//! copy's store address `add p, 2` computed ahead of the copy's other stores shows. A pure
+//! instruction reads no memory, so no write changes its result. It never crosses a `gas`
+//! reading, a call, a creation, or a storage write, since the moved work would change the gas
+//! they observe, forward, or check. Range checks of calldata arguments move next to the branch
+//! that reads them instead of riding the stack, or a spill slot, across the decoder's stores.
+//!
 //! This is a locality heuristic, not a whole-function profitability search. It does not price the
 //! residual physical stack left by each possible order, so an isolated function can grow even when
 //! aggregate corpus output improves. Keeping the pass separate from physical scheduling makes that
@@ -36,7 +46,9 @@
 //! [solx's EVM single-use-expression pass]: https://github.com/NomicFoundation/solx-llvm/blob/a2a603232892c9824f8783b55b49d5655d77a62c/llvm/lib/Target/EVM/EVMSingleUseExpression.cpp
 
 use crate::mir::{
-    Function, InstId, InstKind, Instruction, Module, Terminator, Value, ValueId,
+    BlockId, EffectKind, Function, InstId, InstKind, Instruction, Module, Terminator, Value,
+    ValueId,
+    analysis::Liveness,
     pass::{MirPass, ModuleAnalyses, run_function_pass},
 };
 use smallvec::SmallVec;
@@ -65,8 +77,11 @@ impl EvmInstSchedule {
         let block_ids = func.blocks.indices();
         let shared_results = Self::shared_results(func);
         let mut scratch = ScheduleScratch::new(func.num_insts());
+        let liveness = Liveness::compute_live_sets(func);
+        let users = Self::user_counts(func);
 
         for block_id in block_ids {
+            changed |= Self::sink_past_barriers(func, block_id, &liveness, &users);
             let original = std::mem::take(&mut func.blocks[block_id].instructions);
             if original.len() < 2 {
                 func.blocks[block_id].instructions = original;
@@ -121,6 +136,153 @@ impl EvmInstSchedule {
 }
 
 impl EvmInstSchedule {
+    /// Moves each pure instruction whose single user follows a barrier in the same block to just
+    /// before that user, when every word it reads stays live past the user anyway: its result no
+    /// longer occupies the stack across the barrier, and no operand lives longer. A pure
+    /// instruction reads no memory or state, so a write cannot change its result. Only memory
+    /// writes and logs are crossed: work moved past a `gas` reading or a call would change the
+    /// gas they observe or forward, and past a storage write the gas its sentry checks.
+    ///
+    /// ```text
+    /// v1 = add v0, 2            mstore8 v3, v4
+    /// mstore8 v3, v4      =>    v1 = add v0, 2
+    /// mstore8 v1, v5            mstore8 v1, v5
+    /// ```
+    fn sink_past_barriers(
+        func: &mut Function,
+        block: BlockId,
+        liveness: &Liveness,
+        users: &IndexVec<ValueId, u32>,
+    ) -> bool {
+        let instructions = &func.blocks[block].instructions;
+        let len = instructions.len();
+        if len < 3 {
+            return false;
+        }
+        let terminator_operands =
+            func.blocks[block].terminator.as_ref().map(Terminator::operands).unwrap_or_default();
+        // The user each sunk instruction moves in front of, by position, and the barriers, and
+        // the barriers no instruction may cross, from each position to the end of the block.
+        let mut target = vec![None::<usize>; len];
+        let mut barriers_after = vec![0usize; len + 1];
+        let mut walls_after = vec![0usize; len + 1];
+        for index in (0..len).rev() {
+            let inst = func.inst(instructions[index]);
+            let barrier = !Self::is_movable(inst);
+            barriers_after[index] = barriers_after[index + 1] + usize::from(barrier);
+            walls_after[index] =
+                walls_after[index + 1] + usize::from(barrier && !Self::is_crossable(inst));
+        }
+        // The position each instruction ends up just in front of: its own, or its user's anchor.
+        let mut anchor: Vec<usize> = (0..=len).collect();
+        let live_out = liveness.live_out(block);
+        for index in (0..len).rev() {
+            let inst_id = instructions[index];
+            let inst = func.inst(inst_id);
+            if inst.kind.effect_kind() != EffectKind::Pure
+                || matches!(inst.kind, InstKind::Phi(_))
+                || inst.kind.effects().control.any()
+                || inst.metadata.effect().is_some_and(|effect| effect != EffectKind::Pure)
+            {
+                continue;
+            }
+            let Some(result) = func.inst_result_value(inst_id) else { continue };
+            if users[result] != 1 || live_out.contains(result) {
+                continue;
+            }
+            // The single user: a later instruction of this block or its terminator.
+            let user = if terminator_operands.contains(&result) {
+                len
+            } else {
+                match (index + 1..len)
+                    .find(|&later| func.inst(instructions[later]).kind.operands().contains(&result))
+                {
+                    Some(later) => later,
+                    None => continue,
+                }
+            };
+            let destination = anchor[user];
+            if barriers_after[index + 1] == barriers_after[destination]
+                || walls_after[index + 1] != walls_after[destination]
+            {
+                continue;
+            }
+            // Every operand stays live past the destination: rebuilt where it is read, live out
+            // of the block, or read again at or after the destination.
+            let rebuilt =
+                |operand| matches!(func.value(operand), Value::Immediate(_) | Value::Arg(_));
+            let stays_live = inst.kind.operands().into_iter().all(|operand| {
+                rebuilt(operand)
+                    || live_out.contains(operand)
+                    || terminator_operands.contains(&operand)
+                    || (destination..len).any(|later| {
+                        anchor[later] == later
+                            && func.inst(instructions[later]).kind.operands().contains(&operand)
+                    })
+            });
+            if !stays_live {
+                continue;
+            }
+            target[index] = Some(user);
+            anchor[index] = destination;
+        }
+        if target.iter().all(Option::is_none) {
+            return false;
+        }
+        // Emit each kept instruction after the instructions sunk in front of it, in order, and
+        // each of those after the ones sunk in front of it in turn.
+        let mut attached = vec![SmallVec::<[usize; 2]>::new(); len + 1];
+        for (index, user) in target.iter().enumerate() {
+            if let Some(user) = *user {
+                attached[user].push(index);
+            }
+        }
+        let mut ordered = Vec::with_capacity(len);
+        let mut work = Vec::new();
+        for (index, sunk) in target.iter().map(Option::is_some).chain([false]).enumerate() {
+            if sunk {
+                continue;
+            }
+            work.push((index, false));
+            while let Some((index, expanded)) = work.pop() {
+                if expanded {
+                    if index < len {
+                        ordered.push(instructions[index]);
+                    }
+                    continue;
+                }
+                work.push((index, true));
+                work.extend(attached[index].iter().rev().map(|&before| (before, false)));
+            }
+        }
+        debug_assert_eq!(ordered.len(), len);
+        func.blocks[block].instructions = ordered;
+        true
+    }
+
+    /// Whether a pure instruction may move past this barrier: a memory write or a log, which
+    /// observe neither the gas left nor the words a pure instruction computes.
+    fn is_crossable(inst: &Instruction) -> bool {
+        let crossable = |effect| matches!(effect, EffectKind::MemoryWrite | EffectKind::Log);
+        !matches!(inst.kind, InstKind::Gas | InstKind::MSize | InstKind::Phi(_))
+            && !inst.kind.effects().control.any()
+            && crossable(inst.kind.effect_kind())
+            && inst.metadata.effect().is_none_or(crossable)
+    }
+
+    fn user_counts(func: &Function) -> IndexVec<ValueId, u32> {
+        let mut counts = index_vec![0u32; func.num_values()];
+        for block in &func.blocks {
+            for &inst_id in &block.instructions {
+                func.inst(inst_id).kind.visit_operands(|operand| counts[operand] += 1);
+            }
+            if let Some(terminator) = &block.terminator {
+                terminator.operands().into_iter().for_each(|operand| counts[operand] += 1);
+            }
+        }
+        counts
+    }
+
     /// Whether an instruction may move among other read-only instructions in the same segment.
     fn is_movable(inst: &Instruction) -> bool {
         if matches!(inst.kind, InstKind::Phi(_) | InstKind::Gas | InstKind::MSize) {

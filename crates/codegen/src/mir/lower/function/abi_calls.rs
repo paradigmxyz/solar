@@ -341,7 +341,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let value = self.materialize_memory_argument(ty, value, span)?;
             if self.builder.func().value_slice_location(value).is_none() {
                 // argument = cast value to the declared parameter type
-                Some(self.builder.cast(value, types::TypeLowerer::mir_signature_type(ty)))
+                Some(self.builder.cast(value, types::TypeLowerer::mir_type(ty)))
             } else {
                 Some(value)
             }

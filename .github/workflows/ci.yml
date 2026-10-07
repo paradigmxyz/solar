@@ -39,7 +39,7 @@ jobs:
           if [[ "$EVENT_NAME" != pull_request ]]; then
             echo 'run=true' >> "$GITHUB_OUTPUT"
           else
-            changed=$(git diff --name-only HEAD^1 HEAD -- crates/codegen scripts/evm-rules .github/scripts/run_evm_proofs.sh .github/scripts/install_lean.sh .github/workflows/ci.yml .python-version pyproject.toml uv.lock)
+            changed=$(git diff --name-only HEAD^1 HEAD -- crates/codegen scripts/evm-rules .github/scripts/install_lean.sh .github/workflows/ci.yml .python-version pyproject.toml uv.lock)
             if [[ -n "$changed" ]]; then
               echo 'run=true' >> "$GITHUB_OUTPUT"
             else
@@ -62,7 +62,7 @@ jobs:
         run: bash .github/scripts/install_lean.sh
       - name: Verify rules
         if: steps.select.outputs.run == 'true'
-        run: bash .github/scripts/run_evm_proofs.sh
+        run: uv run scripts/evm-rules/verify.py verify
       - name: Upload failed proof diagnostics
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -161,8 +161,8 @@ jobs:
   python:
     if: github.event_name != 'schedule'
     name: Python
-    runs-on: depot-ubuntu-24.04-arm
-    timeout-minutes: 15
+    runs-on: depot-ubuntu-latest-4
+    timeout-minutes: 30
     permissions:
       id-token: write
       contents: read

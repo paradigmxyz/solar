@@ -54,13 +54,12 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
     v11 = add v10, v4
     mcopy v11, v9, 32 !metadata(memory=heap)
     v12 = ptrtoint memptr v7 to i256
-    v13 = create2 v0, v12, v5, v1
-    v14 = zext i160 v13 to i256
-    v15 = ne v14, 0
-    jumpi v15, bb2, bb1
+    v13: i256 = create2 v0, v12, v5, v1
+    v14 = ne v13, 0
+    jumpi v14, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v16 = sload 0 !metadata(storage=slot(0))
-    ret v16
+    v15 = sload 0 !metadata(storage=slot(0))
+    ret v15
 }

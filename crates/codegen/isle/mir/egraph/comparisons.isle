@@ -21,13 +21,11 @@
 ;; (x - y) > x => x < y.
 (rule (rewrite (Op.Gt (sub x y) x)) (Op.Lt x y))
 
-;; clz(input) == c => input == 1.
-;; Requires: c is constant, c == 255.
-(rule (rewrite (Op.Eq (clz input) (iconst c))) (if-let true (u256_eq c 255)) (Op.Eq input (imm (u256 1))))
+;; clz(input) == W - 1 => input == 1
+(rule (rewrite (Op.Eq (clz input) (iconst c))) (if-let true (u256_eq c (integer_sign_bit))) (Op.Eq input (imm (u256 1))))
 
-;; clz(input) == c => input == 0.
-;; Requires: c is constant, c == 256.
-(rule (rewrite (Op.Eq (clz input) (iconst c))) (if-let true (u256_eq c 256)) (Op.Eq input (imm (u256 0))))
+;; clz(input) == W => input == 0
+(rule (rewrite (Op.Eq (clz input) (iconst c))) (if-let true (u256_eq c (integer_width))) (Op.Eq input (imm (u256 0))))
 
 ;; clz(input) == 0 => signed(input) < signed(0).
 (rule (rewrite (Op.Eq (clz input) (zero))) (Op.SLt input (imm (u256 0))))
@@ -38,16 +36,14 @@
 ;; (a ^ b) == 0 => a == b.
 (rule (rewrite (Op.Eq (bxor a b) (zero))) (Op.Eq a b))
 
-;; clz(input) < c => input != 0.
-;; Requires: c is constant, c == 256.
-(rule (rewrite (Op.Lt (clz input) (iconst c))) (if-let true (u256_eq c 256)) (Op.Ne input (imm (u256 0))))
+;; clz(input) < W => input > 0
+(rule (rewrite (Op.Lt (clz input) (iconst c))) (if-let true (u256_eq c (integer_width))) (Op.Ne input (imm (u256 0))))
 
 ;; a < 1 => a == 0.
 (rule (rewrite (Op.Lt a (one))) (Op.Eq a (imm (u256 0))))
 
-;; clz(input) > c => input == 0.
-;; Requires: c is constant, c == 255.
-(rule (rewrite (Op.Gt (clz input) (iconst c))) (if-let true (u256_eq c 255)) (Op.Eq input (imm (u256 0))))
+;; clz(input) > W - 1 => input == 0
+(rule (rewrite (Op.Gt (clz input) (iconst c))) (if-let true (u256_eq c (integer_sign_bit))) (Op.Eq input (imm (u256 0))))
 
 ;; (x * c) / c == x => x < MAX / c + 1.
 ;; Requires: c is constant, c >= 2. A checked product by c wraps exactly when x > MAX / c,
@@ -90,9 +86,8 @@
 ;; a == a => true.
 (rule 5 (simplify (Op.Eq a a)) (imm_bool true))
 
-;; clz(_) == c => false.
-;; Requires: c is constant, c > 256.
-(rule 4 (simplify (Op.Eq (clz _) (iconst c))) (if-let true (u256_gt c 256)) (imm_bool false))
+;; clz(_) == c => 0, when c > W
+(rule 4 (simplify (Op.Eq (clz _) (iconst c))) (if-let true (u256_gt c (integer_width))) (imm_bool false))
 
 ;; a == 1 => a.
 ;; Requires: a is boolean.
@@ -117,9 +112,8 @@
 ;; Requires: c is constant, a is known to be < c.
 (rule 10 (simplify (Op.Lt a (iconst c))) (if-let true (below_const a c)) (imm_bool true))
 
-;; clz(_) < b => true.
-;; Requires: b is constant, b > 256.
-(rule 8 (simplify (Op.Lt (clz _) (iconst b))) (if-let true (u256_gt b 256)) (imm_bool true))
+;; clz(_) < b => 1, when b > W
+(rule 8 (simplify (Op.Lt (clz _) (iconst b))) (if-let true (u256_gt b (integer_width))) (imm_bool true))
 
 ;; a < a => false.
 (rule 6 (simplify (Op.Lt a a)) (imm_bool false))
@@ -183,9 +177,8 @@
 ;; Requires: c is constant, a is known to be <= c.
 (rule 10 (simplify (Op.Gt a (iconst c))) (if-let true (at_most_const a c)) (imm_bool false))
 
-;; clz(_) > b => false.
-;; Requires: b is constant, b >= 256.
-(rule 8 (simplify (Op.Gt (clz _) (iconst b))) (if-let true (u256_ge b 256)) (imm_bool false))
+;; clz(_) > b => 0, when constant b >= W
+(rule 8 (simplify (Op.Gt (clz _) (iconst b))) (if-let true (u256_ge b (integer_width))) (imm_bool false))
 
 ;; a > a => false.
 (rule 6 (simplify (Op.Gt a a)) (imm_bool false))
@@ -269,13 +262,11 @@
 ;; (a ^ b) != 0 => a != b.
 (rule (rewrite (Op.Ne (bxor a b) (zero))) (Op.Ne a b))
 
-;; clz(x) != c => x != 1.
-;; Requires: c is constant, c == 255.
-(rule (rewrite (Op.Ne (clz x) (iconst c))) (if-let true (u256_eq c 255)) (Op.Ne x (imm (u256 1))))
+;; clz(x) != W - 1 => x != 1.
+(rule (rewrite (Op.Ne (clz x) (iconst c))) (if-let true (u256_eq c (integer_sign_bit))) (Op.Ne x (imm (u256 1))))
 
-;; clz(x) != c => x != 0.
-;; Requires: c is constant, c == 256.
-(rule (rewrite (Op.Ne (clz x) (iconst c))) (if-let true (u256_eq c 256)) (Op.Ne x (imm (u256 0))))
+;; clz(x) != W => x != 0.
+(rule (rewrite (Op.Ne (clz x) (iconst c))) (if-let true (u256_eq c (integer_width))) (Op.Ne x (imm (u256 0))))
 
 ;; x != 1 => x == false.
 ;; Requires: x is boolean.
@@ -285,9 +276,8 @@
 ;; Requires: c is constant, a is known to be < c.
 (rule 7 (simplify (Op.Ne a (iconst c))) (if-let true (below_const a c)) (imm_bool true))
 
-;; clz(_) != c => true.
-;; Requires: c is constant, c > 256.
-(rule 5 (simplify (Op.Ne (clz _) (iconst c))) (if-let true (u256_gt c 256)) (imm_bool true))
+;; clz(_) != c => true, when c > W.
+(rule 5 (simplify (Op.Ne (clz _) (iconst c))) (if-let true (u256_gt c (integer_width))) (imm_bool true))
 
 ;; x == ~x => false.
 (rule 1001 (simplify (Op.Eq x (bnot x)))  (imm_bool false))
@@ -360,41 +350,27 @@
 (rule 1104 (simplify (Op.Ne (band y (iconst m)) (bor x (iconst c)))) (if-let false (u256_is_zero (u256_and c (u256_not m)))) (imm_bool true))
 
 ;; signed(x) < signed(c) => false.
-;; Requires: c is constant, c == (1 << 255).
-(rule 1117 (simplify (Op.SLt x (iconst c))) (if-let true (u256_same c (u256_shl (u256 255) (u256 1)))) (imm_bool false))
+;; Requires: c is constant, c == (1 << (W - 1)).
+(rule 1117 (simplify (Op.SLt x (iconst c))) (if-let true (u256_same c (u256_shl (u256 (integer_sign_bit)) (u256 1)))) (imm_bool false))
 
 ;; signed(x) > signed(c) => false.
 ;; Requires: c is constant, c == (MAX >> 1).
 (rule 1118 (simplify (Op.SGt x (iconst c))) (if-let true (u256_same c (u256_shr (u256 1) (u256_max)))) (imm_bool false))
 
-;; zext(x) == 0 => x == 0:i160.
-;; Requires: x:i160.
-(rule (rewrite (Op.Eq (zext (and x (integer_bits 160))) (zero)))
-      (Op.Eq x (imm_i160_zero)))
+;; zext(x) == 0 => x == 0, at the source width.
+(rule (rewrite (Op.Eq (zext (and x (integer_bits bits))) (zero)))
+      (Op.Eq x (imm_zero_like x)))
 
-;; sext(x, 160, 256) == 0 => x == 0:i160.
-;; Requires: x:i160.
-(rule (rewrite (Op.Eq (sext (and x (integer_bits 160)) 160 256) (zero)))
-      (Op.Eq x (imm_i160_zero)))
+;; sext(x, from, to) == 0 => x == 0, at the source width.
+(rule (rewrite (Op.Eq (sext (and x (integer_bits from)) from to) (zero)))
+      (if-let true (u32_lt from to))
+      (Op.Eq x (imm_zero_like x)))
 
-;; sext(x, 1, to) == 0 => x == false.
-;; Requires: x is boolean, 1 < to.
-(rule (rewrite (Op.Eq (sext (and x (bool_value)) 1 to) (zero)))
-      (if-let true (u32_lt 1 to))
-      (Op.Eq x (imm_bool false)))
+;; zext(x) != 0 => x != 0, at the source width.
+(rule (rewrite (Op.Ne (zext (and x (integer_bits bits))) (zero)))
+      (Op.Ne x (imm_zero_like x)))
 
-;; zext(x) != 0 => x != 0:i160.
-;; Requires: x:i160.
-(rule (rewrite (Op.Ne (zext (and x (integer_bits 160))) (zero)))
-      (Op.Ne x (imm_i160_zero)))
-
-;; sext(x, 160, 256) != 0 => x != 0:i160.
-;; Requires: x:i160.
-(rule (rewrite (Op.Ne (sext (and x (integer_bits 160)) 160 256) (zero)))
-      (Op.Ne x (imm_i160_zero)))
-
-;; sext(x, 1, to) != 0 => x != false.
-;; Requires: x is boolean, 1 < to.
-(rule (rewrite (Op.Ne (sext (and x (bool_value)) 1 to) (zero)))
-      (if-let true (u32_lt 1 to))
-      (Op.Ne x (imm_bool false)))
+;; sext(x, from, to) != 0 => x != 0, at the source width.
+(rule (rewrite (Op.Ne (sext (and x (integer_bits from)) from to) (zero)))
+      (if-let true (u32_lt from to))
+      (Op.Ne x (imm_zero_like x)))
