@@ -114,22 +114,21 @@ impl StackPhiPlan {
         values: &[ValueId],
         stack_access_limit: usize,
     ) -> bool {
-        let source_additions = values.iter().filter(|value| !edge.sources.contains(value)).count();
-        let result_additions = values.iter().filter(|value| !edge.results.contains(value)).count();
-        edge.sources.len().saturating_add(source_additions) <= stack_access_limit
-            && edge.results.len().saturating_add(result_additions) <= stack_access_limit
+        let additions = values.iter().filter(|value| !edge.results.contains(value)).count();
+        edge.sources.len().saturating_add(additions) <= stack_access_limit
+            && edge.results.len().saturating_add(additions) <= stack_access_limit
     }
 
     pub(in crate::backend::evm::codegen) fn merge_edge(
         edge: &mut StackPhiEdge,
         values: &[ValueId],
     ) {
-        let source_additions: Vec<_> =
-            values.iter().copied().filter(|value| !edge.sources.contains(value)).collect();
-        let result_additions: Vec<_> =
-            values.iter().copied().filter(|value| !edge.results.contains(value)).collect();
-        edge.sources.extend(source_additions);
-        edge.results.extend(result_additions);
+        for &value in values {
+            if !edge.results.contains(&value) {
+                edge.sources.push(value);
+                edge.results.push(value);
+            }
+        }
     }
 
     pub(in crate::backend::evm::codegen) fn edge_sources(
