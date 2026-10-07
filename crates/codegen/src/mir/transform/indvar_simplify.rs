@@ -44,7 +44,8 @@
 //!
 //! A pointer with any other base, such as a calldata array element, may wrap,
 //! so it takes over the test only from a counter that starts at a literal below
-//! `2^64` and steps by one, and tests `ptr != end` instead. Two pointers agree
+//! `2^64`, steps by one, and keeps the loop running while `i < bound` holds, and
+//! tests `ptr != end` instead. Two pointers agree
 //! exactly when their counters agree modulo `2^(256 - k)`, where `2^k` is the
 //! largest power of two dividing the scale, so the pointer first reaches `end`
 //! when the counter reaches a bound between the start and that modulus. A bound
@@ -189,6 +190,8 @@ struct ExitTest {
     condition: InstId,
     bound: ValueId,
     counter_first: bool,
+    /// Whether the loop continues where the test holds and leaves where it fails.
+    continues_on_true: bool,
 }
 
 /// How a pointer that replaces the counter tests the loop's exit.
@@ -433,7 +436,10 @@ impl IndVarSimplifier {
                 .map(|index| (index, PointerExit::Below))
                 .or_else(|| {
                     let start = literal_start?;
-                    exit_test.filter(|test| test.counter_first)?;
+                    // `ptr != end` holds until the counter first reaches the bound, which is
+                    // `i < bound` only for a loop that runs while the test holds: one that runs
+                    // while `i >= bound` would leave a step past its start.
+                    exit_test.filter(|test| test.counter_first && test.continues_on_true)?;
                     let index = families.iter().position(|members| {
                         let key = &members[0].0;
                         key.scale > 0
@@ -645,10 +651,13 @@ impl IndVarSimplifier {
         loop_data: &Loop,
         iv: ValueId,
     ) -> Option<ExitTest> {
-        let Some(Terminator::Branch { condition, .. }) = &func.blocks[loop_data.header].terminator
+        let Some(Terminator::Branch { condition, then_block, else_block }) =
+            &func.blocks[loop_data.header].terminator
         else {
             return None;
         };
+        let continues_on_true =
+            loop_data.blocks.contains(*then_block) && !loop_data.blocks.contains(*else_block);
         let Value::Inst(condition) = *func.value(*condition) else { return None };
         let InstKind::Lt(a, b) = func.inst(condition).kind else { return None };
         let invariant = |value: ValueId| match func.value(value) {
@@ -660,9 +669,9 @@ impl IndVarSimplifier {
             Value::Undef(_) | Value::Error(_) => false,
         };
         if a == iv && invariant(b) {
-            Some(ExitTest { condition, bound: b, counter_first: true })
+            Some(ExitTest { condition, bound: b, counter_first: true, continues_on_true })
         } else if b == iv && invariant(a) {
-            Some(ExitTest { condition, bound: a, counter_first: false })
+            Some(ExitTest { condition, bound: a, counter_first: false, continues_on_true })
         } else {
             None
         }

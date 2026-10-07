@@ -682,3 +682,25 @@ fn @reach_heap_counter_read_after_loop(arg0: i256, arg1: i256) -> i256 {
   bb4:
     ret v1
 }
+
+// A loop that runs while `i >= bound` keeps its test: `ptr != end` would hold a step past the
+// start and leave there, where the counter never falls below the bound.
+// CHECK-LABEL: {{^[ +].*}}fn @keep_test_leaving_below_bound{{[( ]}}
+// CHECK-NOT: {{^[-+]}}
+fn @keep_test_leaving_below_bound(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v1 = phi [bb0: 5], [bb2: v6]
+    v2 = lt v1, arg1
+    jumpi v2, bb3, bb2
+  bb2:
+    v3 = shl 5, v1
+    v4 = add arg0, v3
+    v5 = calldataload v4
+    mstore 0, v5
+    v6 = add v1, 1
+    jump bb1
+  bb3:
+    ret 0
+}
