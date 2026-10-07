@@ -388,7 +388,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             let block = &func.blocks[block_id];
             let fallthrough = block_order.get(pos + 1).copied();
             let self_tail_call = self.void_self_tail_call(func_id, func, block_id);
-            let tail_call = self.void_tail_call(func_id, func, block_id);
+            let tail_call = self.forwarding_tail_call(func_id, func, block_id);
             if self.capture_debug_info {
                 let modifier_depth = block
                     .instructions
@@ -958,7 +958,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             } else if let Some((callee, args)) = tail_call {
                 // [inherited_return, caller_words] -> [inherited_return, callee_args]
                 // jump callee
-                self.emit_void_tail_call(func_id, func, callee, args);
+                self.emit_forwarding_tail_call(func_id, func, callee, args);
                 None
             } else if let (
                 Some(union),
