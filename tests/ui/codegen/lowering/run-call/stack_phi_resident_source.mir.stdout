@@ -1,0 +1,67 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/stack_phi_resident_source.sol:StackPhiResidentSource ===
+@module StackPhiResidentSource
+fn @constructor() [constructor] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb3: v5]
+    v1 = lt v0, 12
+    v2 = zext i1 v1 to i256
+    v3 = ne v2, 0
+    jumpi v3, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    ret
+  bb4:
+    v4 = add v0, 1
+    sstore v0, v4 !metadata(storage=symbolic(v0))
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v5 = add v0, 1
+    jump bb1
+}
+
+fn @run(arg0: i256, arg1: i256) [selector=0x0a3395f5, abi_params=[u256, bool], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = sload 1 !metadata(storage=slot(1))
+    v2 = sload 2 !metadata(storage=slot(2))
+    v3 = sload 3 !metadata(storage=slot(3))
+    v4 = sload 4 !metadata(storage=slot(4))
+    v5 = sload 5 !metadata(storage=slot(5))
+    v6 = sload 6 !metadata(storage=slot(6))
+    v7 = sload 7 !metadata(storage=slot(7))
+    v8 = sload 8 !metadata(storage=slot(8))
+    v9 = sload 9 !metadata(storage=slot(9))
+    v10 = sload 10 !metadata(storage=slot(10))
+    v11 = sload 11 !metadata(storage=slot(11))
+    v12 = calldatasize
+    calldatacopy 128, v12, arg0
+    v13 = ne arg1, 0
+    jumpi v13, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    log0 0, 0
+    v14 = add v0, 7
+    jump bb3
+  bb3:
+    v15 = phi [bb1: v14], [bb2: v0]
+    v16 = add v15, v0
+    v17 = add v16, v1
+    v18 = add v17, v2
+    v19 = add v18, v3
+    v20 = add v19, v4
+    v21 = add v20, v5
+    v22 = add v21, v6
+    v23 = add v22, v7
+    v24 = add v23, v8
+    v25 = add v24, v9
+    v26 = add v25, v10
+    v27 = add v26, v11
+    mstore 0, v27 !metadata(memory=scratch)
+    returndata 0, 32
+}
