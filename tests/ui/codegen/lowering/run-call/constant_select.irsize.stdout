@@ -658,12 +658,13 @@ bb68 [loop]:
   add
   mload
   dup 5
-  push 1
-  add
-  swap 5
   dup 5
   add
   sstore
+  swap 3
+  push 1
+  add
+  swap 3
   jump bb65
 bb69:
   push 512
@@ -707,12 +708,13 @@ bb88 [cold]:
 bb76 [loop]:
   push 0
   dup 3
-  push 1
-  add
-  swap 3
   sstore
   push 1
   add
+  swap 1
+  push 1
+  add
+  swap 1
   jump bb74
 bb74 [loop]:
   push 544

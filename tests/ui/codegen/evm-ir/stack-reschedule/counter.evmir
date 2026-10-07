@@ -4,15 +4,19 @@
 
 // Four unrolled copies of `t += i; i += 1` with one merged overflow check. Each copy computes
 // the step from a copy of `i` first and lets the sum consume `i` itself, and the check reads only
-// its condition, as its revert reads nothing from the stack, so the run continues through it
-// and the last step joins the schedule. The block's shuffles and pushes drop from 20 operations
-// to 14, and the back edge follows the check directly.
+// its condition, as its revert reads nothing from the stack, so the run continues through it.
+// The last step stays below the check: above it, the path that reverts would pay for it. The
+// block's shuffles and pushes drop from 20 to 16, and the code before the check from 75 gas to
+// 63.
 // CHECK-LABEL: {{^[ +].*}}bb0 [loop] [stack=3]:
 // CHECK: {{^[ +] *(lt|gt)$}}
 // CHECK-NEXT: push bb1
 // CHECK-NEXT: jumpi
-// CHECK-NOT: {{^[ +] .*(swap|add|push)}}
-// CHECK: jump bb0
+// CHECK-NEXT: swap 1
+// CHECK-NEXT: push 1
+// CHECK-NEXT: add
+// CHECK-NEXT: swap 1
+// CHECK-NEXT: jump bb0
 bb0 [loop, stack=3]:
   dup 2
   dup 2

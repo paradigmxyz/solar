@@ -143,13 +143,13 @@ bb5 [cold]:
   push 0
   revert
 bb14:
-  push 4
-  calldataload
   calldatasize
   push 68
   gt
   push bb5
   jumpi
+  push 4
+  calldataload
   push 0
   jump bb16
 bb16 [loop]:

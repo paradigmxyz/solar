@@ -39,12 +39,12 @@ bb4:
   push 4
   calldataload
   dup 1
+  dup 1
   push 160
   shr
   push bb3
   jumpi
   push 1
-  dup 2
   eq
   push bb20
   jumpi

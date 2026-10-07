@@ -288,14 +288,15 @@ bb16:
   swap 2
   jump bb67
 bb69 [loop]:
-  push 1
-  add
   push 0
   dup 3
+  sstore
   push 1
   add
-  swap 3
-  sstore
+  swap 1
+  push 1
+  add
+  swap 1
   jump bb67
 bb67 [loop]:
   push 352

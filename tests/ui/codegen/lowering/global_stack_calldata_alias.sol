@@ -4,11 +4,15 @@
 contract Test {
     // The decoded `account` stays resident through the comparison chain: each
     // test duplicates it instead of reloading calldata, and the last one
-    // consumes it.
+    // consumes it. The first test's copy is made above the address check, as
+    // no comparison moves above a check.
     // CHECK: push 0xc21f7bbb
     // CHECK: eq
+    // CHECK: push 4{{$}}
+    // CHECK-NEXT: calldataload
+    // CHECK-NEXT: dup 1
+    // CHECK-NEXT: dup 1
     // CHECK: push 1{{$}}
-    // CHECK-NEXT: dup 2
     // CHECK-NEXT: eq
     // CHECK-NEXT: push [[ONE:bb[0-9]+]]
     // CHECK-NEXT: jumpi

@@ -23,15 +23,16 @@
 //!
 //! A run continues through a branch to a block that aborts without reading the stack, the
 //! `PUSH target; JUMPI` of an overflow check or a guard: the pair takes only its condition, so it
-//! joins the run as one more ordered operation, and work may move across it, as only the path
-//! that continues matters. Such a block reaches its `REVERT` or `INVALID` without a jump and
-//! without an operation that depends on the gas left, such as a `GAS` reading in its payload,
-//! which could tell where the work ran. A block that returns or stops is a normal exit and ends
-//! the run.
-//! Spanning the checks gives the search more freedom, but a longer run can exhaust its budget
-//! where the runs between its checks would not, so those are scheduled separately as well and
-//! the cheaper result is kept. A run with more operations than one search takes is cut into
-//! windows after its checks.
+//! joins the run as one more ordered operation. Work may move below it, as only the path that
+//! continues needs it, but never above it, so the aborting path spends no more gas than before
+//! and still reaches its revert. Such a block reaches its `REVERT` or `INVALID` without a jump
+//! and without an operation that depends on the gas left, such as a `GAS` reading in its
+//! payload, which could tell where the work ran. A block that returns or stops is a normal exit
+//! and ends the run. Spanning the checks gives the search more freedom, but a longer run can
+//! exhaust its budget where the runs between its checks would not, so those are scheduled
+//! separately as well, split after each operation that depends on the gas left too, and the
+//! cheaper result is kept. A run with more operations than one search takes is cut into windows
+//! after its checks.
 //!
 //! The remaining cost of a state is bounded below by one copy for every missing use of a word
 //! and one pop for every surplus copy, and by one swap more when those counted moves cannot bring
@@ -71,12 +72,15 @@
 //! keeps memory and storage accesses in order, and leaves the same words in the same stack
 //! slots, so the code after the run observes no difference; a schedule whose replay does not
 //! reproduce the run is discarded. A check keeps its order with every access and its pushed
-//! target right before its `JUMPI`. Runs end at every other instruction, including `GAS`, calls,
-//! other branches and an instruction glued to the next one. Performed operations and the original
-//! pushes keep their debug metadata, function events included, while the new stack operations
-//! carry none, which is marked as intentionally dropped, and the origins and events of the
-//! replaced stack operations move to the run's last instruction. Debug metadata decides nothing,
-//! so requesting it leaves the code unchanged.
+//! target right before its `JUMPI`. The gas left is observable as well: no operation moves above
+//! a check or an operation that depends on it, such as an `SSTORE` with its 2,300-gas sentry,
+//! and a schedule that would spend more gas before one of them keeps the original code, so each
+//! sees at least the gas it saw before. Runs end at every other instruction, including `GAS`,
+//! calls, other branches and an instruction glued to the next one. Performed operations and the
+//! original pushes keep their debug metadata, function events included, while the new stack
+//! operations carry none, which is marked as intentionally dropped, and the origins and events of
+//! the replaced stack operations move to the run's last instruction. Debug metadata decides
+//! nothing, so requesting it leaves the code unchanged.
 //!
 //! The pass runs after the late push compaction, so it sees the final pushes, and before the
 //! last stack cleanup and loop layout.
@@ -195,7 +199,8 @@ struct Operation {
     commutative: bool,
     /// The comparison that computes the same result from swapped operands.
     mirror: Option<u8>,
-    /// The memory or storage access that has to run before this one.
+    /// The operation that has to run before this one: the previous check, memory or storage
+    /// access for one of those, and the last check or gas-dependent access for any other.
     after: Option<u8>,
     /// Whether this is a `PUSH target; JUMPI` pair into a block that aborts without reading the
     /// stack, which only takes the condition.
@@ -335,7 +340,9 @@ fn reschedule_block(
             ];
             for candidate in candidates.into_iter().flatten() {
                 let candidate_price = price(&candidate, target);
-                if candidate_price < best_price {
+                if candidate_price < best_price
+                    && spends_no_more_before_observations(window, &candidate, target)
+                {
                     best_price = candidate_price;
                     best = Some(candidate);
                 }
@@ -541,6 +548,8 @@ fn summarize(
     let mut keys = SmallVec::<[(u8, U256); 8]>::new();
     let mut cost = Cost::ZERO;
     let mut last_ordered = None;
+    // The last check or gas-dependent access: the operations after it stay after it.
+    let mut last_observed = None;
     let mut peak = 0usize;
     let deepen = |stack: &mut SmallVec<[Word; 24]>, entry: &mut usize, depth: usize| {
         while stack.len() < depth {
@@ -567,6 +576,7 @@ fn summarize(
                 branch: true,
             });
             last_ordered = Some(index);
+            last_observed = Some(index);
             position += 2;
             continue;
         }
@@ -613,11 +623,14 @@ fn summarize(
                     op::SGT => Some(op::SLT),
                     _ => None,
                 },
-                after: if is_ordered { last_ordered } else { None },
+                after: if is_ordered { last_ordered } else { last_observed },
                 branch: false,
             });
             if is_ordered {
                 last_ordered = Some(index);
+            }
+            if definition.observes_gas() {
+                last_observed = Some(index);
             }
             if outputs == 1 {
                 stack.insert(0, Word::Result(index));
@@ -1184,11 +1197,10 @@ fn is_branch_pair(instructions: &[Instruction], index: usize, halts: &[bool]) ->
 /// Whether a block aborts without reading a word that was on the stack when it was entered, and
 /// without anything that tells how much work ran before the branch into it.
 ///
-/// A run may move work across a branch to such a block: the work after the branch runs on the
-/// path that continues, which is the one that matters. A block that returns or stops is a normal
-/// exit, which a hoisted operation would make pay for work it does not need, and so is one that
-/// jumps elsewhere before its end. A `GAS` reading, a call or an `SSTORE` would see how much gas
-/// the path spent, so a block with one keeps its branch out of runs.
+/// A run may move work below a branch to such a block: the work then runs only on the path that
+/// continues, which is the one that needs it. A block that returns or stops is a normal exit, and
+/// so is one that jumps elsewhere before its end. A `GAS` reading, a call or an `SSTORE` would see
+/// how much gas the path spent, so a block with one keeps its branch out of runs.
 fn aborts_without_stack(block: &Block) -> bool {
     let mut depth = 0usize;
     for inst in &block.instructions {
@@ -1240,8 +1252,11 @@ fn schedule(
     emit(run, &summary, moves.as_ref()?)
 }
 
-/// Schedules the runs between a window's checks separately, keeping each check in place; `None`
-/// when the window has no check or no run improves.
+/// Schedules the runs between a window's checks and gas-dependent accesses separately, keeping
+/// each check in place; `None` when the window has neither or no run improves.
+///
+/// A run that ends at an access spends no more gas before it than the original whenever its
+/// schedule costs no more gas, as nothing of the original ran after the access.
 fn split_schedule(
     window: &[Instruction],
     target: Target,
@@ -1254,35 +1269,62 @@ fn split_schedule(
     let mut start = 0;
     let mut index = 0;
     while index < window.len() {
-        if !is_branch_pair(window, index, halts) {
+        if is_branch_pair(window, index, halts) {
+            // The pushed target closes the run before the `JUMPI`, which stays where it is.
+            improved |= extend_scheduled(
+                &mut rebuilt,
+                &window[start..index + 1],
+                target,
+                budget,
+                halts,
+                scratch,
+            );
+            rebuilt.push(window[index + 1].clone());
+            index += 2;
+        } else if observes_gas(&window[index]) {
+            // The access closes the run it ends.
+            improved |= extend_scheduled(
+                &mut rebuilt,
+                &window[start..index + 1],
+                target,
+                budget,
+                halts,
+                scratch,
+            );
+            index += 1;
+        } else {
             index += 1;
             continue;
         }
-        // The pushed target closes the run before the `JUMPI`, which stays where it is.
-        let run = &window[start..index + 1];
-        match schedule(run, target, budget, halts, scratch) {
-            Some(replacement) => {
-                improved = true;
-                rebuilt.extend(replacement);
-            }
-            None => rebuilt.extend_from_slice(run),
-        }
-        rebuilt.push(window[index + 1].clone());
-        index += 2;
         start = index;
     }
     if start == 0 {
         return None;
     }
-    let run = &window[start..];
+    improved |= extend_scheduled(&mut rebuilt, &window[start..], target, budget, halts, scratch);
+    improved.then_some(rebuilt)
+}
+
+/// Appends a run's cheapest schedule, or the run itself when the search finds none, and returns
+/// whether it found one.
+fn extend_scheduled(
+    rebuilt: &mut Vec<Instruction>,
+    run: &[Instruction],
+    target: Target,
+    budget: Budget,
+    halts: &[bool],
+    scratch: &mut Scratch,
+) -> bool {
     match schedule(run, target, budget, halts, scratch) {
         Some(replacement) => {
-            improved = true;
             rebuilt.extend(replacement);
+            true
         }
-        None => rebuilt.extend_from_slice(run),
+        None => {
+            rebuilt.extend_from_slice(run);
+            false
+        }
     }
-    improved.then_some(rebuilt)
 }
 
 /// The price of a sequence's stack operations and pushes, which is all a schedule changes.
@@ -1297,4 +1339,43 @@ fn price(instructions: &[Instruction], target: Target) -> u64 {
         }
     });
     scalar(cost, target)
+}
+
+/// Whether an instruction depends on the gas left, such as an `SSTORE` with its sentry.
+fn observes_gas(inst: &Instruction) -> bool {
+    inst.definition().is_some_and(|definition| definition.observes_gas())
+}
+
+/// Whether a schedule spends at most the original's gas before each check and each operation
+/// that depends on the gas left, so the path that aborts at the check and the operation see at
+/// least the gas they saw before.
+///
+/// The same operations run before each of them, or fewer, as none moves above one, so comparing
+/// the static gas of the instructions before it is enough.
+fn spends_no_more_before_observations(
+    original: &[Instruction],
+    schedule: &[Instruction],
+    target: Target,
+) -> bool {
+    let spent_before = |instructions: &[Instruction]| {
+        let mut spent = 0u64;
+        let mut before = SmallVec::<[u64; 8]>::new();
+        for inst in instructions {
+            let cost = if let Some(stack_op) = inst.as_stack_op() {
+                stack_op_cost(stack_op, target)
+            } else if inst.is_encoded_push() {
+                push_cost(inst, target)
+            } else {
+                if inst.opcode == op::JUMPI || observes_gas(inst) {
+                    before.push(spent);
+                }
+                target.opcode(inst.opcode)
+            };
+            spent += u64::from(cost.gas);
+        }
+        before
+    };
+    let (original, schedule) = (spent_before(original), spent_before(schedule));
+    original.len() == schedule.len()
+        && schedule.iter().zip(&original).all(|(schedule, original)| schedule <= original)
 }
