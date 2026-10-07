@@ -1,0 +1,78 @@
+// === ROOT/tests/ui/codegen/lowering/switch/entry_bit_slice_growth.sol:EntryBitSlice (runtime) ===
+@module EntryBitSlice_runtime
+bb0:
+  callvalue
+  push bb18
+  jumpi
+  push 0
+  calldataload
+  push 224
+  shr
+  dup 1
+  push 22
+  shr
+  push 7
+  and
+  indexed_jump bb2, bb3, bb4, bb5, bb6, bb7, bb8, bb9
+bb2:
+  dup 1
+  push 0x7c396b83
+  eq
+  push bb19
+  jumpi
+  jump bb3
+bb3:
+  dup 1
+  push 0xc27fc305
+  eq
+  push bb19
+  jumpi
+  jump bb4
+bb4:
+  dup 1
+  push 0x3c9d377d
+  eq
+  push bb19
+  jumpi
+  jump bb5
+bb5:
+  dup 1
+  push 0xaaf05f3d
+  eq
+  push bb19
+  jumpi
+  jump bb6
+bb6:
+  dup 1
+  push 0xdf2025dc
+  eq
+  push bb19
+  jumpi
+  jump bb7
+bb7:
+  dup 1
+  push 0x9942ec6f
+  eq
+  push bb19
+  jumpi
+  jump bb8
+bb8:
+  dup 1
+  push 0xa5850475
+  eq
+  push bb19
+  jumpi
+  jump bb9
+bb9:
+  dup 1
+  push 0xc3f90202
+  eq
+  push bb19
+  jumpi
+  jump bb18
+bb18 [cold]:
+  push 0
+  push 0
+  revert
+bb19:
+  stop
