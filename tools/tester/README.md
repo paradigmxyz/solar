@@ -89,10 +89,11 @@ Environment variables:
   the manifest). Optional keys: `mode` (`"test"` or `"build"`), `profile`
   (Foundry profile for both compiler legs), `prebuild_profiles` (Foundry
   profiles each leg builds with its own compiler before `forge test`, for
-  suites that deploy those profiles' artifacts), `solc_version` (solc version
-  the compiler leg emulates, needed when sources pin an exact
-  `pragma solidity`), `skip_tests` and `skip_contracts` (arrays of
-  `{ pattern, reason }`; `reason` is required), and `notes`.
+  suites that deploy those profiles' artifacts; a leg whose prebuild fails
+  runs no tests), `solc_version` (solc version the compiler leg emulates, needed
+  when sources pin an exact `pragma solidity`), `skip_tests` and
+  `skip_contracts` (arrays of `{ pattern, reason }`; `reason` is required), and
+  `notes`.
 - `SOLAR_FOUNDRY_REPORT_DIR`: also write per-project JSON reports.
 - `SOLAR_FOUNDRY_COMPILER`: Solar executable to use instead of the latest local
   build; relative paths start at the workspace root. A debug build enables MIR

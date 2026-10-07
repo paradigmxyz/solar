@@ -641,7 +641,11 @@ fn run_forge_test(
     }
 
     let start = Instant::now();
-    prebuild_profiles(project_dir, label, config, compiler, foundry_solc.as_ref());
+    if !prebuild_profiles(project_dir, label, config, compiler, foundry_solc.as_ref()) {
+        // A profile that failed to build may have left another leg's artifacts for the tests.
+        eprintln!("\n[{label}] running no tests: a prebuilt profile failed to build");
+        return (start.elapsed(), Vec::new(), ArtifactData::default());
+    }
     let command_failure = compiler.command_failure();
     let output = cmd.output().unwrap_or_else(|err| panic!("{command_failure}: {err}"));
     let test_time = start.elapsed();
@@ -692,17 +696,20 @@ fn set_forge_compiler(cmd: &mut Command, config: &TestConfig, foundry_solc: Opti
     }
 }
 
-/// Builds the profiles whose artifacts the tests deploy with the leg's compiler.
+/// Builds the profiles whose artifacts the tests deploy with the leg's compiler, and returns
+/// whether every one built.
 ///
 /// Each profile writes its own output directory inside the project, where the tests read it, so
-/// every leg rebuilds them before its `forge test`. A failed build leaves the tests to fail.
+/// every leg rebuilds them before its `forge test`. A profile that fails to build can leave an
+/// earlier leg's artifacts in that directory, so the leg then runs no tests: the compiler leg
+/// misses every test solc passes, and a solc leg without tests cannot judge the project.
 fn prebuild_profiles(
     project_dir: &Path,
     label: &str,
     config: &TestConfig,
     compiler: ForgeCompiler,
     foundry_solc: Option<&FoundrySolc>,
-) {
+) -> bool {
     for profile in &config.prebuild_profiles {
         let cache_dir = tempfile::Builder::new()
             .prefix(compiler.cache_prefix())
@@ -723,8 +730,10 @@ fn prebuild_profiles(
             if !output.stderr.is_empty() {
                 eprintln!("stderr: {}", String::from_utf8_lossy(&output.stderr));
             }
+            return false;
         }
     }
+    true
 }
 
 // ============================================================================
