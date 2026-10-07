@@ -123,12 +123,20 @@ const EXTERNAL_PROJECTS: &[ExternalProject] = &[
         skip_tests: &[],
         skip_contracts: &[],
         notes: "assembly-heavy library: the widest inline-assembly coverage available",
-        test_fixes: &[TestFix {
-            path: "test/ERC6551.t.sol",
-            before: "assertEq(target.balance, 123);\n\n        vm.prank(_randomNonZeroAddress());",
-            after: "assertEq(target.balance, 123);\n\n        vm.prank(address(uint160(t.owner) ^ 1));",
-            reason: "the unauthorized caller must differ from the owner; random addresses can repeat",
-        }],
+        test_fixes: &[
+            TestFix {
+                path: "test/ERC6551.t.sol",
+                before: "assertEq(target.balance, 123);\n\n        vm.prank(_randomNonZeroAddress());",
+                after: "assertEq(target.balance, 123);\n\n        vm.prank(address(uint160(t.owner) ^ 1));",
+                reason: "the unauthorized caller must differ from the owner; random addresses can repeat",
+            },
+            TestFix {
+                path: "foundry.toml",
+                before: "optimizer_runs = 1_000\ngas_limit = ",
+                after: "optimizer_runs = 1_000\nisolate = false\ngas_limit = ",
+                reason: "the ETH mover test expects SELFDESTRUCT and its next call in one transaction",
+            },
+        ],
     },
     // prb-math was considered but is excluded: its forge-std comes from
     // npm/bun (`devDependencies`), not a git submodule. Run it through
@@ -156,12 +164,20 @@ const EXTERNAL_PROJECTS: &[ExternalProject] = &[
         skip_tests: &[],
         skip_contracts: &[],
         notes: "divergence tracker: broadest idiomatic Solidity surface; needs a forge that knows evm osaka",
-        test_fixes: &[TestFix {
-            path: "test/utils/Blockhash.t.sol",
-            before: "uint256 currentBlock = block.number - 1;",
-            after: "uint256 currentBlock = vm.getBlockNumber() - 1;",
-            reason: "snapshot block number through the cheatcode getter before vm.roll (CODEGEN-008)",
-        }],
+        test_fixes: &[
+            TestFix {
+                path: "test/utils/Blockhash.t.sol",
+                before: "uint256 currentBlock = block.number - 1;",
+                after: "uint256 currentBlock = vm.getBlockNumber() - 1;",
+                reason: "snapshot block number through the cheatcode getter before vm.roll (CODEGEN-008)",
+            },
+            TestFix {
+                path: "foundry.toml",
+                before: "libs = ['node_modules', 'lib']\ncache_path",
+                after: "libs = ['node_modules', 'lib']\nfs_permissions = [{ access = 'read', path = './node_modules/hardhat-predeploy/bin' }]\ncache_path",
+                reason: "ERC7579UtilsTest reads the locked EntryPoint and SenderCreator predeploy bytecode",
+            },
+        ],
     },
     ExternalProject {
         name: "uniswap-v4-core",

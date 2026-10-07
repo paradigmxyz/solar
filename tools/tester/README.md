@@ -47,6 +47,18 @@ network. Fetch failures skip the project, so offline runs degrade instead of
 failing. `forge` resolves and downloads each project's own solc for the
 baseline leg.
 
+Use Forge v0.3.0 on `PATH` for Solmate: newer versions reject its `testFail*`
+cases before running them. The other projects use a current Forge; OpenZeppelin
+requires Osaka support. Solady keeps transaction isolation disabled, as its
+ETH mover tests rely on several calls sharing one transaction.
+
+OpenZeppelin's ERC7579 tests also read the two EntryPoint and SenderCreator
+bytecode files from `node_modules/hardhat-predeploy/bin` in its checkout.
+Prepare `hardhat-predeploy@1.0.1` using the version and integrity in that
+checkout's lockfile. The runner grants read access to that directory.
+A green differential run can still contain tests that fail under both
+compilers; check the reported baseline failures before claiming full coverage.
+
 Environment variables:
 
 - `SOLAR_FOUNDRY_PROJECT`: run one curated project (same as the positional
@@ -60,3 +72,6 @@ Environment variables:
   sources pin an exact `pragma solidity`), `skip_tests`, `skip_contracts`
   (arrays of `{ pattern, reason }`; the reason is mandatory), and `notes`.
 - `SOLAR_FOUNDRY_REPORT_DIR`: also write per-project JSON reports.
+- `SOLAR_FOUNDRY_OPTIMIZATION`: compile the Solar leg with `none`, `gas`, or
+  `size` while keeping the project's solc optimizer settings. This lets the
+  unoptimized Solar leg run projects that need solc's optimizer to compile.
