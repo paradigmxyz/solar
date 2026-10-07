@@ -76,9 +76,9 @@ fn @b(arg0: i256) -> i256 [selector=0xcd580ff3, pure, abi_params=[u256], abi_ret
 
 // === ROOT/tests/ui/codegen/mir/inline-dispatch/eligibility.sol:NarrowInputs ===
 @module NarrowInputs
-fn @a(arg0: i256) -> i256 [selector=0x2a500b7f, pure, abi_params=[u8], abi_returns=[word], abi_return_params=[u256]] {
+fn @a(arg0: i8) -> i256 [selector=0x2a500b7f, pure, abi_params=[u8], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = and arg0, 255
+    v0 = zext i8 arg0 to i256
     ret v0
 }
 

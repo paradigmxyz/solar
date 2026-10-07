@@ -6,149 +6,150 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     set_memory_object_len memoryarray, v0, 3
     jump bb1
   bb1:
-    v1 = phi [bb0: 0], [bb2: v9]
+    v1 = phi [bb0: 0], [bb2: v8]
     v2 = lt v1, 3
     jumpi v2, bb2, bb3
   bb3:
-    v10 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
-    v11 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
-    memory_object_store_element memoryfixedarray<3, 1>, v11, 0, 1
-    memory_object_store_element memoryfixedarray<3, 1>, v11, 1, 2
-    memory_object_store_element memoryfixedarray<3, 1>, v11, 2, 3
+    v9 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
+    v10 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
+    memory_object_store_element memoryfixedarray<3, 1>, v10, 0, 1
+    memory_object_store_element memoryfixedarray<3, 1>, v10, 1, 2
+    memory_object_store_element memoryfixedarray<3, 1>, v10, 2, 3
+    v11 = ptrtoint memptr v10 to i256
     v12 = alloc memoryarray<1>, exact, zeroed, panic, 128
     set_memory_object_len memoryarray, v12, 3
-    memory_object_store_field memorystruct<3>, v10, 0, 0
-    v13 = ptrtoint memptr v11 to i256
-    memory_object_store_field memorystruct<3>, v10, 1, v13
-    v14 = ptrtoint memptr v12 to i256
-    memory_object_store_field memorystruct<3>, v10, 2, v14
-    v15 = memory_object_len memoryarray, v0
-    v16 = lt 1, v15
-    v17 = eq v16, false
-    icall panic_if<0x32>, v17
-    v18 = ptrtoint memptr v10 to i256
-    memory_object_store_element memoryarray<1>, v0, 1, v18
-    v19 = memory_object_len memoryarray, v0
-    v20 = lt 1, v19
-    v21 = eq v20, false
-    icall panic_if<0x32>, v21
-    v22 = memory_object_load_element memoryarray<1>, v0, 1
-    v23 = inttoptr i256 v22 to memptr
-    v24 = eq v22, 0
-    jumpi v24, bb4, bb5
+    v13 = ptrtoint memptr v12 to i256
+    memory_object_store_field memorystruct<3>, v9, 0, 0
+    memory_object_store_field memorystruct<3>, v9, 1, v11
+    memory_object_store_field memorystruct<3>, v9, 2, v13
+    v14 = memory_object_len memoryarray, v0
+    v15 = lt 1, v14
+    v16 = eq v15, false
+    icall panic_if<0x32>, v16
+    v17 = ptrtoint memptr v9 to i256
+    memory_object_store_element memoryarray<1>, v0, 1, v17
+    v18 = memory_object_len memoryarray, v0
+    v19 = lt 1, v18
+    v20 = eq v19, false
+    icall panic_if<0x32>, v20
+    v21 = memory_object_load_element memoryarray<1>, v0, 1
+    v22 = inttoptr i256 v21 to memptr
+    v23 = eq v21, 0
+    jumpi v23, bb4, bb5
   bb4:
-    v25 = icall @default_struct_0
-    v26 = ptrtoint memptr v25 to i256
-    memory_object_store_element memoryarray<1>, v0, 1, v26
+    v24 = icall @default_struct_0
+    v25 = ptrtoint memptr v24 to i256
+    memory_object_store_element memoryarray<1>, v0, 1, v25
     jump bb5
   bb5:
-    v27 = phi [bb3: v23], [bb4: v25]
-    v28 = memory_object_load_field memorystruct<3>, v27, 2, memptr
-    v29 = memory_object_len memoryarray, v28
-    v30 = lt 0, v29
-    v31 = eq v30, false
-    icall panic_if<0x32>, v31
-    memory_object_store_element memoryarray<1>, v28, 0, 1
-    v32 = memory_object_len memoryarray, v0
-    v33 = lt 1, v32
-    v34 = eq v33, false
-    icall panic_if<0x32>, v34
-    v35 = memory_object_load_element memoryarray<1>, v0, 1
-    v36 = inttoptr i256 v35 to memptr
-    v37 = eq v35, 0
-    jumpi v37, bb6, bb7
+    v26 = phi [bb3: v22], [bb4: v24]
+    v27 = memory_object_load_field memorystruct<3>, v26, 2, memptr
+    v28 = memory_object_len memoryarray, v27
+    v29 = lt 0, v28
+    v30 = eq v29, false
+    icall panic_if<0x32>, v30
+    memory_object_store_element memoryarray<1>, v27, 0, 1
+    v31 = memory_object_len memoryarray, v0
+    v32 = lt 1, v31
+    v33 = eq v32, false
+    icall panic_if<0x32>, v33
+    v34 = memory_object_load_element memoryarray<1>, v0, 1
+    v35 = inttoptr i256 v34 to memptr
+    v36 = eq v34, 0
+    jumpi v36, bb6, bb7
   bb6:
-    v38 = icall @default_struct_0
-    v39 = ptrtoint memptr v38 to i256
-    memory_object_store_element memoryarray<1>, v0, 1, v39
+    v37 = icall @default_struct_0
+    v38 = ptrtoint memptr v37 to i256
+    memory_object_store_element memoryarray<1>, v0, 1, v38
     jump bb7
   bb7:
-    v40 = phi [bb5: v36], [bb6: v38]
-    v41 = memory_object_load_field memorystruct<3>, v40, 2, memptr
-    v42 = memory_object_len memoryarray, v41
-    v43 = lt 1, v42
-    v44 = eq v43, false
-    icall panic_if<0x32>, v44
-    memory_object_store_element memoryarray<1>, v41, 1, 2
-    v45 = memory_object_len memoryarray, v0
-    v46 = lt 1, v45
-    v47 = eq v46, false
-    icall panic_if<0x32>, v47
-    v48 = memory_object_load_element memoryarray<1>, v0, 1
-    v49 = inttoptr i256 v48 to memptr
-    v50 = eq v48, 0
-    jumpi v50, bb8, bb9
+    v39 = phi [bb5: v35], [bb6: v37]
+    v40 = memory_object_load_field memorystruct<3>, v39, 2, memptr
+    v41 = memory_object_len memoryarray, v40
+    v42 = lt 1, v41
+    v43 = eq v42, false
+    icall panic_if<0x32>, v43
+    memory_object_store_element memoryarray<1>, v40, 1, 2
+    v44 = memory_object_len memoryarray, v0
+    v45 = lt 1, v44
+    v46 = eq v45, false
+    icall panic_if<0x32>, v46
+    v47 = memory_object_load_element memoryarray<1>, v0, 1
+    v48 = inttoptr i256 v47 to memptr
+    v49 = eq v47, 0
+    jumpi v49, bb8, bb9
   bb8:
-    v51 = icall @default_struct_0
-    v52 = ptrtoint memptr v51 to i256
-    memory_object_store_element memoryarray<1>, v0, 1, v52
+    v50 = icall @default_struct_0
+    v51 = ptrtoint memptr v50 to i256
+    memory_object_store_element memoryarray<1>, v0, 1, v51
     jump bb9
   bb9:
-    v53 = phi [bb7: v49], [bb8: v51]
-    v54 = memory_object_load_field memorystruct<3>, v53, 2, memptr
-    v55 = memory_object_len memoryarray, v54
-    v56 = lt 2, v55
-    v57 = eq v56, false
-    icall panic_if<0x32>, v57
-    memory_object_store_element memoryarray<1>, v54, 2, 3
-    v58 = memory_object_len memoryarray, v0
-    v59 = sload 0 !metadata(storage=slot(0))
-    v60 = gt v59, v58
-    jumpi v60, bb10, bb11
+    v52 = phi [bb7: v48], [bb8: v50]
+    v53 = memory_object_load_field memorystruct<3>, v52, 2, memptr
+    v54 = memory_object_len memoryarray, v53
+    v55 = lt 2, v54
+    v56 = eq v55, false
+    icall panic_if<0x32>, v56
+    memory_object_store_element memoryarray<1>, v53, 2, 3
+    v57 = memory_object_len memoryarray, v0
+    v58 = sload 0 !metadata(storage=slot(0))
+    v59 = gt v58, v57
+    jumpi v59, bb10, bb11
   bb10:
     jump bb12
   bb12:
-    v61 = phi [bb10: v58], [bb17: v79]
-    v62 = lt v61, v59
-    jumpi v62, bb13, bb14
+    v60 = phi [bb10: v57], [bb17: v78]
+    v61 = lt v60, v58
+    jumpi v61, bb13, bb14
   bb14:
     jump bb11
   bb11:
-    sstore 0, v58 !metadata(storage=slot(0))
+    sstore 0, v57 !metadata(storage=slot(0))
     jump bb18
   bb18:
-    v80 = phi [bb11: 0], [bb38: v175]
-    v81 = lt v80, v58
-    jumpi v81, bb19, bb20
+    v79 = phi [bb11: 0], [bb38: v174]
+    v80 = lt v79, v57
+    jumpi v80, bb19, bb20
   bb20:
-    v176 = sload 0 !metadata(storage=slot(0))
-    v177 = lt 1, v176
-    v178 = eq v177, false
-    icall panic_if<0x32>, v178
-    v179 = storage_array_data_slot 0
-    v180 = mul 1, 4
-    v181 = add v179, v180
-    v182 = add v181, 1
-    v183 = sload 0 !metadata(storage=slot(0))
-    v184 = lt 1, v183
-    v185 = eq v184, false
-    icall panic_if<0x32>, v185
-    v186 = storage_array_data_slot 0
-    v187 = mul 1, 4
-    v188 = add v186, v187
-    v189 = add v188, 3
-    v190 = sload v189 !metadata(storage=offset(v188, 3))
-    v191 = checked_add u256, 3, v190
-    v192 = sload 0 !metadata(storage=slot(0))
-    v193 = lt 1, v192
-    v194 = eq v193, false
-    icall panic_if<0x32>, v194
-    v195 = storage_array_data_slot 0
-    v196 = mul 1, 4
-    v197 = add v195, v196
-    v198 = add v197, 1
-    v199 = lt 2, 3
-    v200 = eq v199, false
-    icall panic_if<0x32>, v200
-    v201 = div 2, 2
-    v202 = add v198, v201
-    v203 = mod 2, 2
-    v204 = mul v203, 16
-    v205 = sload v202 !metadata(storage=symbolic(v202))
-    v206 = mul v204, 8
-    v207 = shr v206, v205
-    v208 = and v207, 0xffffffffffffffffffffffffffffffff
-    v209 = checked_add u256, v191, v208
+    v175 = sload 0 !metadata(storage=slot(0))
+    v176 = lt 1, v175
+    v177 = eq v176, false
+    icall panic_if<0x32>, v177
+    v178 = storage_array_data_slot 0
+    v179 = mul 1, 4
+    v180 = add v178, v179
+    v181 = add v180, 1
+    v182 = sload 0 !metadata(storage=slot(0))
+    v183 = lt 1, v182
+    v184 = eq v183, false
+    icall panic_if<0x32>, v184
+    v185 = storage_array_data_slot 0
+    v186 = mul 1, 4
+    v187 = add v185, v186
+    v188 = add v187, 3
+    v189 = sload v188 !metadata(storage=offset(v187, 3))
+    v190 = checked_add u256, 3, v189
+    v191 = sload 0 !metadata(storage=slot(0))
+    v192 = lt 1, v191
+    v193 = eq v192, false
+    icall panic_if<0x32>, v193
+    v194 = storage_array_data_slot 0
+    v195 = mul 1, 4
+    v196 = add v194, v195
+    v197 = add v196, 1
+    v198 = lt 2, 3
+    v199 = eq v198, false
+    icall panic_if<0x32>, v199
+    v200 = div 2, 2
+    v201 = add v197, v200
+    v202 = mod 2, 2
+    v203 = mul v202, 16
+    v204 = sload v201 !metadata(storage=symbolic(v201))
+    v205 = mul v203, 8
+    v206 = shr v205, v204
+    v207 = trunc i256 v206 to i128
+    v208 = zext i128 v207 to i256
+    v209 = checked_add u256, v190, v208
     v210 = sload 0 !metadata(storage=slot(0))
     v211 = lt 1, v210
     v212 = eq v211, false
@@ -169,177 +170,178 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v225 = sload v222 !metadata(storage=symbolic(v222))
     v226 = mul v224, 8
     v227 = shr v226, v225
-    v228 = and v227, 0xffffffffffffffffffffffffffffffff
-    v229 = checked_add u256, v209, v228
-    ret v229
+    v228 = trunc i256 v227 to i128
+    v229 = zext i128 v228 to i256
+    v230 = checked_add u256, v209, v229
+    ret v230
   bb19:
-    v82 = memory_object_load_element memoryarray<1>, v0, v80
-    v83 = inttoptr i256 v82 to memptr
-    v84 = eq v82, 0
-    jumpi v84, bb21, bb22
+    v81 = memory_object_load_element memoryarray<1>, v0, v79
+    v82 = inttoptr i256 v81 to memptr
+    v83 = eq v81, 0
+    jumpi v83, bb21, bb22
   bb21:
-    v85 = icall @default_struct_0
-    v86 = ptrtoint memptr v85 to i256
-    memory_object_store_element memoryarray<1>, v0, v80, v86
+    v84 = icall @default_struct_0
+    v85 = ptrtoint memptr v84 to i256
+    memory_object_store_element memoryarray<1>, v0, v79, v85
     jump bb22
   bb22:
-    v87 = phi [bb19: v83], [bb21: v85]
-    v88 = storage_array_data_slot 0
-    v89 = mul v80, 4
-    v90 = add v88, v89
-    v91 = memory_object_load_field memorystruct<3>, v87, 0
-    v92 = sload v90 !metadata(storage=symbolic(v90))
-    v93 = not 0xffffffffffffffffffffffffffffffffff
-    v94 = and v92, v93
-    v95 = and v91, 0xffffffffffffffffffffffffffffffffff
-    v96 = or v94, v95
-    sstore v90, v96 !metadata(storage=symbolic(v90))
-    v97 = add v90, 1
-    v98 = memory_object_load_field memorystruct<3>, v87, 1
+    v86 = phi [bb19: v82], [bb21: v84]
+    v87 = storage_array_data_slot 0
+    v88 = mul v79, 4
+    v89 = add v87, v88
+    v90 = memory_object_load_field memorystruct<3>, v86, 0
+    v91 = sload v89 !metadata(storage=symbolic(v89))
+    v92 = not 0xffffffffffffffffffffffffffffffffff
+    v93 = and v91, v92
+    v94 = and v90, 0xffffffffffffffffffffffffffffffffff
+    v95 = or v93, v94
+    sstore v89, v95 !metadata(storage=symbolic(v89))
+    v96 = add v89, 1
+    v97 = memory_object_load_field memorystruct<3>, v86, 1
     jump bb23
   bb23:
-    v99 = phi [bb22: 0], [bb28: v124]
-    v100 = lt v99, 3
-    jumpi v100, bb24, bb25
+    v98 = phi [bb22: 0], [bb28: v123]
+    v99 = lt v98, 3
+    jumpi v99, bb24, bb25
   bb25:
-    v125 = add v90, 3
-    v126 = memory_object_load_field memorystruct<3>, v87, 2
-    v127 = inttoptr i256 v126 to memptr
-    v128 = memory_object_len memoryarray, v127
-    v129 = sload v125 !metadata(storage=offset(v90, 3))
-    v130 = gt v129, v128
-    jumpi v130, bb29, bb30
+    v124 = add v89, 3
+    v125 = memory_object_load_field memorystruct<3>, v86, 2
+    v126 = inttoptr i256 v125 to memptr
+    v127 = memory_object_len memoryarray, v126
+    v128 = sload v124 !metadata(storage=offset(v89, 3))
+    v129 = gt v128, v127
+    jumpi v129, bb29, bb30
   bb29:
     jump bb31
   bb31:
-    v131 = phi [bb29: v128], [bb32: v146]
-    v132 = lt v131, v129
-    jumpi v132, bb32, bb33
+    v130 = phi [bb29: v127], [bb32: v145]
+    v131 = lt v130, v128
+    jumpi v131, bb32, bb33
   bb33:
     jump bb30
   bb30:
-    sstore v125, v128 !metadata(storage=offset(v90, 3))
+    sstore v124, v127 !metadata(storage=offset(v89, 3))
     jump bb34
   bb34:
-    v147 = phi [bb30: 0], [bb35: v164]
-    v148 = lt v147, v128
-    jumpi v148, bb35, bb36
+    v146 = phi [bb30: 0], [bb35: v163]
+    v147 = lt v146, v127
+    jumpi v147, bb35, bb36
   bb36:
-    v165 = shr 1, v128
-    v166 = and v128, 1
-    v167 = eq v166, 0
-    jumpi v167, bb38, bb37
+    v164 = shr 1, v127
+    v165 = and v127, 1
+    v166 = eq v165, 0
+    jumpi v166, bb38, bb37
   bb37:
-    v168 = mul v166, 128
-    v169 = shl v168, 1
-    v170 = sub v169, 1
-    v171 = storage_array_data_slot v125
-    v172 = add v171, v165
-    v173 = sload v172 !metadata(storage=symbolic(v172))
-    v174 = and v173, v170
-    sstore v172, v174 !metadata(storage=symbolic(v172))
+    v167 = mul v165, 128
+    v168 = shl v167, 1
+    v169 = sub v168, 1
+    v170 = storage_array_data_slot v124
+    v171 = add v170, v164
+    v172 = sload v171 !metadata(storage=symbolic(v171))
+    v173 = and v172, v169
+    sstore v171, v173 !metadata(storage=symbolic(v171))
     jump bb38
   bb38:
-    v175 = add v80, 1
+    v174 = add v79, 1
     jump bb18
   bb35:
-    v149 = inttoptr i256 v126 to memptr
-    v150 = memory_object_load_element memoryarray<1>, v149, v147
-    v151 = storage_array_data_slot v125
-    v152 = div v147, 2
-    v153 = add v151, v152
-    v154 = mod v147, 2
-    v155 = mul v154, 16
-    v156 = mul v155, 8
-    v157 = shl v156, 0xffffffffffffffffffffffffffffffff
-    v158 = sload v153 !metadata(storage=symbolic(v153))
-    v159 = not v157
-    v160 = and v158, v159
-    v161 = and v150, 0xffffffffffffffffffffffffffffffff
-    v162 = shl v156, v161
-    v163 = or v160, v162
-    sstore v153, v163 !metadata(storage=symbolic(v153))
-    v164 = add v147, 1
+    v148 = inttoptr i256 v125 to memptr
+    v149 = memory_object_load_element memoryarray<1>, v148, v146
+    v150 = storage_array_data_slot v124
+    v151 = div v146, 2
+    v152 = add v150, v151
+    v153 = mod v146, 2
+    v154 = mul v153, 16
+    v155 = mul v154, 8
+    v156 = shl v155, 0xffffffffffffffffffffffffffffffff
+    v157 = sload v152 !metadata(storage=symbolic(v152))
+    v158 = not v156
+    v159 = and v157, v158
+    v160 = and v149, 0xffffffffffffffffffffffffffffffff
+    v161 = shl v155, v160
+    v162 = or v159, v161
+    sstore v152, v162 !metadata(storage=symbolic(v152))
+    v163 = add v146, 1
     jump bb34
   bb32:
-    v133 = storage_array_data_slot v125
-    v134 = div v131, 2
-    v135 = add v133, v134
-    v136 = mod v131, 2
-    v137 = mul v136, 16
-    v138 = mul v137, 8
-    v139 = shl v138, 0xffffffffffffffffffffffffffffffff
-    v140 = sload v135 !metadata(storage=symbolic(v135))
-    v141 = not v139
-    v142 = and v140, v141
-    v143 = and 0, 0xffffffffffffffffffffffffffffffff
-    v144 = shl v138, v143
-    v145 = or v142, v144
-    sstore v135, v145 !metadata(storage=symbolic(v135))
-    v146 = add v131, 1
+    v132 = storage_array_data_slot v124
+    v133 = div v130, 2
+    v134 = add v132, v133
+    v135 = mod v130, 2
+    v136 = mul v135, 16
+    v137 = mul v136, 8
+    v138 = shl v137, 0xffffffffffffffffffffffffffffffff
+    v139 = sload v134 !metadata(storage=symbolic(v134))
+    v140 = not v138
+    v141 = and v139, v140
+    v142 = and 0, 0xffffffffffffffffffffffffffffffff
+    v143 = shl v137, v142
+    v144 = or v141, v143
+    sstore v134, v144 !metadata(storage=symbolic(v134))
+    v145 = add v130, 1
     jump bb31
   bb24:
-    v101 = div v99, 2
-    v102 = add v97, v101
-    v103 = mod v99, 2
-    v104 = mul v103, 16
-    v105 = lt v99, 3
-    jumpi v105, bb26, bb27
+    v100 = div v98, 2
+    v101 = add v96, v100
+    v102 = mod v98, 2
+    v103 = mul v102, 16
+    v104 = lt v98, 3
+    jumpi v104, bb26, bb27
   bb27:
-    v116 = mul v104, 8
-    v117 = shl v116, 0xffffffffffffffffffffffffffffffff
-    v118 = sload v102 !metadata(storage=symbolic(v102))
-    v119 = not v117
-    v120 = and v118, v119
-    v121 = and 0, 0xffffffffffffffffffffffffffffffff
-    v122 = shl v116, v121
-    v123 = or v120, v122
-    sstore v102, v123 !metadata(storage=symbolic(v102))
+    v115 = mul v103, 8
+    v116 = shl v115, 0xffffffffffffffffffffffffffffffff
+    v117 = sload v101 !metadata(storage=symbolic(v101))
+    v118 = not v116
+    v119 = and v117, v118
+    v120 = and 0, 0xffffffffffffffffffffffffffffffff
+    v121 = shl v115, v120
+    v122 = or v119, v121
+    sstore v101, v122 !metadata(storage=symbolic(v101))
     jump bb28
   bb26:
-    v106 = inttoptr i256 v98 to memptr
-    v107 = memory_object_load_element memoryfixedarray<3, 1>, v106, v99
-    v108 = mul v104, 8
-    v109 = shl v108, 0xffffffffffffffffffffffffffffffff
-    v110 = sload v102 !metadata(storage=symbolic(v102))
-    v111 = not v109
-    v112 = and v110, v111
-    v113 = and v107, 0xffffffffffffffffffffffffffffffff
-    v114 = shl v108, v113
-    v115 = or v112, v114
-    sstore v102, v115 !metadata(storage=symbolic(v102))
+    v105 = inttoptr i256 v97 to memptr
+    v106 = memory_object_load_element memoryfixedarray<3, 1>, v105, v98
+    v107 = mul v103, 8
+    v108 = shl v107, 0xffffffffffffffffffffffffffffffff
+    v109 = sload v101 !metadata(storage=symbolic(v101))
+    v110 = not v108
+    v111 = and v109, v110
+    v112 = and v106, 0xffffffffffffffffffffffffffffffff
+    v113 = shl v107, v112
+    v114 = or v111, v113
+    sstore v101, v114 !metadata(storage=symbolic(v101))
     jump bb28
   bb28:
-    v124 = add v99, 1
+    v123 = add v98, 1
     jump bb23
   bb13:
-    v63 = storage_array_data_slot 0
-    v64 = mul v61, 4
-    v65 = add v63, v64
-    sstore v65, 0 !metadata(storage=symbolic(v65))
-    v66 = add v65, 1
+    v62 = storage_array_data_slot 0
+    v63 = mul v60, 4
+    v64 = add v62, v63
+    sstore v64, 0 !metadata(storage=symbolic(v64))
+    v65 = add v64, 1
     jump bb15
   bb15:
-    v67 = phi [bb13: 0], [bb16: v70]
-    v68 = lt v67, 2
-    jumpi v68, bb16, bb17
+    v66 = phi [bb13: 0], [bb16: v69]
+    v67 = lt v66, 2
+    jumpi v67, bb16, bb17
   bb17:
-    v71 = add v65, 3
-    v72 = sload v71 !metadata(storage=offset(v65, 3))
-    sstore v71, 0 !metadata(storage=offset(v65, 3))
-    v73 = div v72, 2
-    v74 = mod v72, 2
-    v75 = eq v74, 0
-    v76 = eq v75, false
-    v77 = zext i1 v76 to i256
-    v78 = add v73, v77
-    clear_storage_words v71, 0, v78
-    v79 = add v61, 1
+    v70 = add v64, 3
+    v71 = sload v70 !metadata(storage=offset(v64, 3))
+    sstore v70, 0 !metadata(storage=offset(v64, 3))
+    v72 = div v71, 2
+    v73 = mod v71, 2
+    v74 = eq v73, 0
+    v75 = eq v74, false
+    v76 = zext i1 v75 to i256
+    v77 = add v72, v76
+    clear_storage_words v70, 0, v77
+    v78 = add v60, 1
     jump bb12
   bb16:
-    v69 = add v66, v67
-    sstore v69, 0 !metadata(storage=symbolic(v69))
-    v70 = add v67, 1
+    v68 = add v65, v66
+    sstore v68, 0 !metadata(storage=symbolic(v68))
+    v69 = add v66, 1
     jump bb15
   bb2:
     v3 = alloc memorystruct<3>, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
@@ -349,11 +351,10 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     memory_zero v5, 96
     v6 = ptrtoint memptr v4 to i256
     memory_object_store_field memorystruct<3>, v3, 1, v6
-    v7 = ptrtoint memptr 96 to i256
-    memory_object_store_field memorystruct<3>, v3, 2, v7
-    v8 = ptrtoint memptr v3 to i256
-    memory_object_store_element memoryarray<1>, v0, v1, v8
-    v9 = add v1, 1
+    memory_object_store_field memorystruct<3>, v3, 2, 96
+    v7 = ptrtoint memptr v3 to i256
+    memory_object_store_element memoryarray<1>, v0, v1, v7
+    v8 = add v1, 1
     jump bb1
 }
 

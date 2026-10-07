@@ -126,3 +126,223 @@ bb3:
   not
   pop
   stop
+
+// Parameterized computations can return 2 stack words.
+bb4:
+  push 13
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  push 14
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  stop
+bb5:
+  push 15
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  push 16
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  stop
+bb6:
+  push 17
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  push 18
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  stop
+bb7:
+  push 19
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  push 20
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  stop
+
+// Parameterized computations can return 16 stack words.
+bb8:
+  push 17
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  push 18
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  stop
+bb9:
+  push 19
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  push 20
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  stop
+bb10:
+  push 21
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  push 22
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  stop
+bb11:
+  push 23
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  push 24
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  stop

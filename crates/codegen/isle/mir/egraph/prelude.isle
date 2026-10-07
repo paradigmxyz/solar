@@ -203,12 +203,18 @@
 (decl pure u256_div (U256 U256) U256)
 (extern constructor u256_div u256_div)
 
+(decl pure imm_zero_like (Value) Value)
+(extern constructor imm_zero_like imm_zero_like)
+
+(decl pure integer_width () u64)
+(extern constructor integer_width integer_width)
+(decl pure integer_sign_bit () u64)
+(extern constructor integer_sign_bit integer_sign_bit)
+(decl pure is_i256 () bool)
+(extern constructor is_i256 is_i256)
 ;; The exact product or sum is at most MAX.
 (decl pure u256_mul_fits (U256 U256) bool)
 (extern constructor u256_mul_fits u256_mul_fits)
 
 (decl pure u256_add_fits (U256 U256) bool)
 (extern constructor u256_add_fits u256_add_fits)
-
-(decl pure imm_i160_zero () Value)
-(extern constructor imm_i160_zero imm_i160_zero)

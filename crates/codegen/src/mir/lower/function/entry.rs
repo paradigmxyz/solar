@@ -7,7 +7,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.parameters.extend_from_slice(function.parameters);
         for &param in function.parameters {
             let ty = self.cx.gcx.type_of_item(param.into());
-            let value = self.builder.add_param(types::TypeLowerer::mir_signature_type(ty));
+            let value = self.builder.add_param(self.cx.state.scalar_carrier(self.cx.gcx, param));
             if ty.is_ref_at(DataLocation::Storage) {
                 self.storage_refs.insert(
                     param,
@@ -19,7 +19,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 );
             } else {
                 self.values.insert(param, value);
-                if ty.is_value_type() {
+                if ty.is_value_type() && self.builder.func().value_ty(value) == Some(MirType::I256)
+                {
                     self.dirty_values.insert(value);
                 }
             }
@@ -27,7 +28,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let return_types = function
             .returns
             .iter()
-            .map(|&ret| types::TypeLowerer::mir_return_type(self.cx.gcx.type_of_item(ret.into())))
+            .map(|&ret| self.cx.state.scalar_carrier(self.cx.gcx, ret))
             .collect();
         if let Some(ty) = self.cx.module.intern_return_type(return_types) {
             self.builder.set_return_type(ty);
@@ -180,6 +181,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 );
             } else {
                 self.storage_refs.remove(&parameter);
+                let value = self.materialize_raw_scalar(parameter, value);
                 self.values.insert(parameter, value);
             }
         }
@@ -272,8 +274,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 } else {
                     self.values.get(&id).copied().unwrap_or_else(|| self.default_binding_value(ty))
                 };
-                values.push(self.materialize_call_argument(
-                    ty,
+                values.push(self.materialize_scalar_carrier(
+                    id,
                     value,
                     self.cx.gcx.hir.variable(id).span,
                 )?);
@@ -302,6 +304,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         for id in ids {
             let ty = self.cx.gcx.type_of_item(id.into());
             let value = self.default_binding_value(ty);
+            let value = self.materialize_raw_scalar(id, value);
             self.values.insert(id, value);
         }
     }

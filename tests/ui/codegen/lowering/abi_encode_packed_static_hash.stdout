@@ -1,17 +1,13 @@
 // === ROOT/tests/ui/codegen/lowering/abi_encode_packed_static_hash.sol:AbiEncodePackedStaticHash ===
 @module AbiEncodePackedStaticHash
-fn @hash(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xd9d28840, pure, abi_params=[u64, u64, bytes32], abi_returns=[word], abi_return_params=[bytes32]] {
+fn @hash(arg0: i64, arg1: i64, arg2: i256) -> i256 [selector=0xd9d28840, pure, abi_params=[u64, u64, bytes32], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
-    v0 = and arg0, 0xffffffffffffffff
-    v1 = and arg1, 0xffffffffffffffff
-    v2 = keccak256_packed (data hex"4d656d6f72793a", u64 v0, u64 v1, bytes32 arg2)
-    ret v2
+    v0 = keccak256_packed (data hex"4d656d6f72793a", u64 arg0, u64 arg1, bytes32 arg2)
+    ret v0
 }
 
-fn @hashLocal(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x9f31b347, pure, abi_params=[u64, u64, bytes32], abi_returns=[word], abi_return_params=[bytes32]] {
+fn @hashLocal(arg0: i64, arg1: i64, arg2: i256) -> i256 [selector=0x9f31b347, pure, abi_params=[u64, u64, bytes32], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
-    v0 = and arg0, 0xffffffffffffffff
-    v1 = and arg1, 0xffffffffffffffff
-    v2 = keccak256_packed (data hex"4d656d6f72793a", u64 v0, u64 v1, bytes32 arg2)
-    ret v2
+    v0 = keccak256_packed (data hex"4d656d6f72793a", u64 arg0, u64 arg1, bytes32 arg2)
+    ret v0
 }

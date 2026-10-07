@@ -1,0 +1,59 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/value_tail_return.sol:ValueTailReturn ===
+@module ValueTailReturn
+fn @run(arg0: i256) -> i256 [selector=0xa444f5e9, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = icall @forward, arg0
+    v1 = checked_add u256, arg0, 1
+    v2 = icall @forward, v1
+    v3 = checked_add u256, v0, v2
+    ret v3
+}
+
+fn @forward(arg0: i256) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: arg0], [bb3: v0]
+    v1 = phi [bb0: 0], [bb3: v6]
+    v2 = phi [bb0: 0], [bb3: v2]
+    v3 = lt v1, v0
+    jumpi v3, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    v7 = icall @leaf
+    ret v7
+  bb4:
+    v4 = sload 0 !metadata(storage=slot(0))
+    v5 = add v4, v1
+    sstore 0, v5 !metadata(storage=slot(0))
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v6 = add v1, 1
+    jump bb1
+}
+
+fn @leaf() -> i256 [view] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    jump bb1
+  bb1:
+    v1 = phi [bb0: v0], [bb3: v4]
+    v2 = phi [bb0: 0], [bb3: v5]
+    v3 = lt v2, 4
+    jumpi v3, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    ret v1
+  bb4:
+    v4 = add v1, v2
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v5 = add v2, 1
+    jump bb1
+}

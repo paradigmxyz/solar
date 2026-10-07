@@ -136,7 +136,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 .zip(returns)
                 .map(|((value, source_ty), id)| {
                     let target_ty = self.cx.gcx.type_of_item(id.into());
-                    self.convert_return_component(value, source_ty, target_ty, expr.span)
+                    self.convert_tuple_component(value, source_ty, target_ty, expr.span)
                 })
                 .collect();
         }
@@ -153,9 +153,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some(types.to_vec())
     }
 
-    /// Converts one already-lowered component of a multi-value return source to the type the
-    /// enclosing function declares for it.
-    fn convert_return_component(
+    /// Converts an already-lowered tuple component to its target type.
+    pub(super) fn convert_tuple_component(
         &mut self,
         value: ValueId,
         source_ty: Ty<'gcx>,
@@ -265,9 +264,18 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             {
                 let values = self.lower_values(rhs)?;
                 if values.len() >= elements.len() {
-                    return self.store_tuple_values(elements.iter().zip(values).filter_map(
-                        |(element, value)| element.map(|element| (element, value, None)),
-                    ));
+                    let source_ty = self.cx.gcx.type_of_expr(rhs.id)?;
+                    let sources = match source_ty.kind {
+                        TyKind::Tuple(sources) => sources,
+                        _ => std::slice::from_ref(&source_ty),
+                    };
+                    return self.store_tuple_values(
+                        elements.iter().zip(values).zip(sources).filter_map(
+                            |((element, value), &source)| {
+                                element.map(|element| (element, value, Some(source)))
+                            },
+                        ),
+                    );
                 }
             }
             let mut values = Vec::with_capacity(rhs_elements.len());
@@ -555,7 +563,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         values: Vec<ValueId>,
         types: &[Ty<'gcx>],
     ) -> ValueId {
-        let fields = types.iter().map(|&ty| types::TypeLowerer::mir_return_type(ty)).collect();
+        let fields = types.iter().map(|&ty| types::TypeLowerer::mir_type(ty)).collect();
         let ty = self.cx.module.intern_return_type(fields).expect("return values are not empty");
         if let MirType::Struct(id) = ty {
             // result = insert_value(undef, field0), ...
@@ -610,7 +618,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         returns: usize,
         ty: Ty<'gcx>,
     ) -> ValueId {
-        if types::TypeLowerer::mir_return_type(ty) != MirType::MemPtr {
+        if types::TypeLowerer::mir_type(ty) != MirType::MemPtr {
             return self.load_static_abi_return_value(base, index, returns);
         }
         let index = self.builder.imm(u64::try_from(index).unwrap_or(u64::MAX));

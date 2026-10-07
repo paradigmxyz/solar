@@ -70,6 +70,7 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &loop_opt::Licm,
     &check_elim::CheckElim,
     &check_elim::LateCheckElim,
+    &check_elim::IntegerCleanup,
     &check_elim::ImmutableCheckElim,
     &jump_threading::JumpThreading,
     &cfg_simplify::BranchSimplify,
@@ -94,6 +95,7 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &lower_frame_slots::LowerFrameSlots,
     &lower_evm_shaped::LowerEvmShaped,
     &lower_immutables::LowerImmutables,
+    &lower_integers::LowerIntegers,
     &lower_mcopy::LowerMCopy,
     &lower_abi_encode::LowerAbiEncode,
     &lower_aggregates::LowerAggregates,
@@ -343,10 +345,13 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     &lower_mcopy::LowerMCopy,
     &lower_alloc::LowerAlloc,
     &lower_memory_zero::LowerMemoryZero,
+    // Materialize integer cleanup before word-level extraction and scheduling.
+    &lower_integers::LowerIntegers,
     // Carry proved argument widths across calls before simplifying word masks.
     &call_cleanup::CallCleanup,
     // Shared scalar ABI words and wrapper bodies become one CFG before extraction.
     &inline_dispatch::InlineDispatch,
+    &check_elim::IntegerCleanup,
     // Memory lowering materializes address arithmetic; number and simplify it
     // once more before the physical shape is fixed. The stack-aware cost keeps
     // rewrites from reaching for values the scheduler would have to keep alive.

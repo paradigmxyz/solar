@@ -55,58 +55,57 @@ fn @storageTuple(arg0: calldataslice, arg1: calldataslice) -> struct0 [selector=
 fn @memoryTuple(arg0: calldataslice) -> struct1 [selector=0x32e034d0, pure, abi_params=[array<_, u256>], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
-    v1 = ptrtoint memptr 96 to i256
-    memory_object_store_field memorystruct<1>, v0, 0, v1
-    v2 = icall @split, arg0
-    v3 = extract_value struct2, v2, 0
-    v4 = extract_value struct2, v2, 1
-    v5 = slice_len v4
-    v6 = slice_ptr v4
-    v7 = mul v5, 32
-    v8 = eq 32, 0
-    v9 = div v7, 32
-    v10 = eq v9, v5
-    v11 = or v8, v10
-    v12 = zext i1 v11 to i256
-    v13 = eq v12, 0
-    icall panic_if<0x41>, v13
-    v14 = calldatasize
-    v15 = sub v14, v6
-    v16 = slt v15, v7
-    icall revert_if<calldata_tail_too_short>, v16
-    v17 = mul v5, 32
-    v18 = eq 32, 0
-    v19 = div v17, 32
-    v20 = eq v19, v5
-    v21 = or v18, v20
-    v22 = zext i1 v21 to i256
-    v23 = eq v22, 0
-    icall panic_if<0x41>, v23
-    v24 = add 32, v17
-    v25 = lt v24, 32
-    icall panic_if<0x41>, v25
-    v26 = alloc memoryarray<1>, exact, uninitialized, infallible, v24
-    set_memory_object_len memoryarray, v26, v5
-    v27 = make_calldata_slice v6, v17
-    memory_object_copy_from_slice memoryarray, v26, v27
-    v28 = ptrtoint memptr v26 to i256
-    memory_object_store_field memorystruct<1>, v0, 0, v28
-    v29 = slice_len v3
-    v30 = lt 0, v29
-    v31 = eq v30, false
-    icall panic_if<0x32>, v31
-    v32 = slice_ptr v3
-    v33 = add v32, 0
-    v34 = calldataload v33
-    v35 = memory_object_load_field memorystruct<1>, v0, 0, memptr
-    v36 = memory_object_len memoryarray, v35
-    v37 = lt 0, v36
-    v38 = eq v37, false
-    icall panic_if<0x32>, v38
-    v39 = memory_object_load_element memoryarray<1>, v35, 0
-    v40 = insert_value struct1, undef struct1, 0, v34
-    v41 = insert_value struct1, v40, 1, v39
-    ret v41
+    memory_object_store_field memorystruct<1>, v0, 0, 96
+    v1 = icall @split, arg0
+    v2 = extract_value struct2, v1, 0
+    v3 = extract_value struct2, v1, 1
+    v4 = slice_len v3
+    v5 = slice_ptr v3
+    v6 = mul v4, 32
+    v7 = eq 32, 0
+    v8 = div v6, 32
+    v9 = eq v8, v4
+    v10 = or v7, v9
+    v11 = zext i1 v10 to i256
+    v12 = eq v11, 0
+    icall panic_if<0x41>, v12
+    v13 = calldatasize
+    v14 = sub v13, v5
+    v15 = slt v14, v6
+    icall revert_if<calldata_tail_too_short>, v15
+    v16 = mul v4, 32
+    v17 = eq 32, 0
+    v18 = div v16, 32
+    v19 = eq v18, v4
+    v20 = or v17, v19
+    v21 = zext i1 v20 to i256
+    v22 = eq v21, 0
+    icall panic_if<0x41>, v22
+    v23 = add 32, v16
+    v24 = lt v23, 32
+    icall panic_if<0x41>, v24
+    v25 = alloc memoryarray<1>, exact, uninitialized, infallible, v23
+    set_memory_object_len memoryarray, v25, v4
+    v26 = make_calldata_slice v5, v16
+    memory_object_copy_from_slice memoryarray, v25, v26
+    v27 = ptrtoint memptr v25 to i256
+    memory_object_store_field memorystruct<1>, v0, 0, v27
+    v28 = slice_len v2
+    v29 = lt 0, v28
+    v30 = eq v29, false
+    icall panic_if<0x32>, v30
+    v31 = slice_ptr v2
+    v32 = add v31, 0
+    v33 = calldataload v32
+    v34 = memory_object_load_field memorystruct<1>, v0, 0, memptr
+    v35 = memory_object_len memoryarray, v34
+    v36 = lt 0, v35
+    v37 = eq v36, false
+    icall panic_if<0x32>, v37
+    v38 = memory_object_load_element memoryarray<1>, v34, 0
+    v39 = insert_value struct1, undef struct1, 0, v33
+    v40 = insert_value struct1, v39, 1, v38
+    ret v40
 }
 
 fn @split(arg0: calldataslice) -> struct2 [pure] {

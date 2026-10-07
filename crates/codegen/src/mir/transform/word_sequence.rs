@@ -68,6 +68,7 @@ enum Temporary {
 #[derive(Clone)]
 struct Recipe {
     root: Op,
+    scalar_ty: MirType,
     temporaries: FxHashMap<ValueId, Temporary>,
 }
 
@@ -103,7 +104,7 @@ fn removable(func: &Function, inst: &Instruction, target: Target) -> bool {
         Op::Select { true_val, false_val, .. } => {
             [inst.result_ty, func.value_ty(true_val), func.value_ty(false_val)]
                 .into_iter()
-                .all(|ty| matches!(ty, Some(MirType::I256 | MirType::I1)))
+                .all(|ty| matches!(ty, Some(MirType::Int(_))))
         }
         _ => legal(&op, target),
     }
@@ -193,6 +194,7 @@ impl Recipe {
             root,
             op.into_kind().expect("legal recipe root"),
             func.inst(root).result_ty.unwrap(),
+            self.scalar_ty,
             &mut inserted,
         );
         let Value::Inst(last) = *func.value(result) else { unreachable!() };
@@ -215,21 +217,16 @@ impl Recipe {
         }
         let Some(temporary) = self.temporaries.get(&value) else { return value };
         let actual = match temporary {
-            Temporary::Constant(value) => {
-                func.alloc_value(Value::Immediate(Immediate::I256(*value)))
-            }
+            Temporary::Constant(value) => func
+                .alloc_value(Value::Immediate(Immediate::for_type(Some(self.scalar_ty), *value))),
             Temporary::Operation(op) => {
                 let op = op.map_values(|value| {
                     self.materialize_value(func, root, value, values, inserted)
                 });
                 // %temporary = recipe_child(earlier_values)
                 let kind = op.into_kind().expect("legal recipe child");
-                let ty = if let InstKind::Select(_, a, _) = kind {
-                    func.value_ty(a).expect("typed select arm")
-                } else {
-                    kind.op_def().result.default_type().unwrap_or(MirType::I256)
-                };
-                emit_recipe(func, root, kind, ty, inserted)
+                let ty = recipe_type(func, &kind, self.scalar_ty);
+                emit_recipe(func, root, kind, ty, self.scalar_ty, inserted)
             }
         };
         values.insert(value, actual);
@@ -243,6 +240,7 @@ fn emit_recipe(
     root: InstId,
     kind: InstKind,
     ty: MirType,
+    scalar_ty: MirType,
     inserted: &mut Vec<InstId>,
 ) -> ValueId {
     let metadata = func.inst(root).metadata.debug_context();
@@ -251,13 +249,31 @@ fn emit_recipe(
     // operands = zext i1 boolean_operands to i256
     // result = op operands
     // typed_result = cast result
-    let result = crate::mir::FunctionBuilder::new(func).emit_inst(kind, Some(ty));
+    let operation_ty = recipe_type(func, &kind, scalar_ty);
+    let mut builder = crate::mir::FunctionBuilder::new(func);
+    let result = builder.emit_inst(kind, Some(operation_ty));
+    let result = builder.cast(result, ty);
     let generated = func.blocks[block].instructions.split_off(start);
     for &inst in &generated {
         func.inst_mut(inst).metadata = metadata.clone();
     }
     inserted.extend(generated);
     result
+}
+
+fn recipe_type(func: &Function, kind: &InstKind, scalar_ty: MirType) -> MirType {
+    if let InstKind::Select(_, a, _) = *kind {
+        func.value_ty(a).expect("typed select arm")
+    } else if kind.op_def().result == crate::mir::ResultKind::Integer {
+        kind.operands()
+            .iter()
+            .filter_map(|&value| func.value_ty(value))
+            .filter(|ty| ty.integer_bits().is_some())
+            .max_by_key(|ty| ty.integer_bits())
+            .unwrap_or(scalar_ty)
+    } else {
+        kind.op_def().result.default_type().unwrap_or(scalar_ty)
+    }
 }
 
 fn run(func: &mut Function, target: Target) -> bool {

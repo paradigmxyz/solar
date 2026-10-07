@@ -335,10 +335,9 @@ fn @seen() -> i256 [selector=0xd99aa8e2, view, abi_params=[], abi_returns=[word]
     ret v0
 }
 
-fn @constructor(arg0: i256) [constructor, abi_params=[bool]] {
+fn @constructor(arg0: i1) [constructor, abi_params=[bool]] {
   bb0:
-    v0 = ne arg0, 0
-    jumpi v0, bb1, bb2
+    jumpi arg0, bb1, bb2
   bb2:
     jump bb3
   bb1:
@@ -408,9 +407,8 @@ fn @viaHelper() [selector=0x9c6f4ff5, abi_params=[], abi_returns=[], abi_return_
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
     v9 = create 0, v8, v1
-    v10 = zext i160 v9 to i256
-    v11 = ne v10, 0
-    jumpi v11, bb2, bb1
+    v10 = ne v9, i160 0
+    jumpi v10, bb2, bb1
   bb1:
     revert_returndata
   bb2:
@@ -431,9 +429,8 @@ fn @direct() [selector=0x222b1407, abi_params=[], abi_returns=[], abi_return_par
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
     v9 = create 0, v8, v1
-    v10 = zext i160 v9 to i256
-    v11 = ne v10, 0
-    jumpi v11, bb2, bb1
+    v10 = ne v9, i160 0
+    jumpi v10, bb2, bb1
   bb1:
     revert_returndata
   bb2:
@@ -454,9 +451,8 @@ fn @viaModifier() [selector=0xb93fa0d6, abi_params=[], abi_returns=[], abi_retur
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
     v9 = create 0, v8, v1
-    v10 = zext i160 v9 to i256
-    v11 = ne v10, 0
-    jumpi v11, bb2, bb1
+    v10 = ne v9, i160 0
+    jumpi v10, bb2, bb1
   bb1:
     revert_returndata
   bb2:
@@ -477,9 +473,8 @@ fn @viaBase() [selector=0x0f982f84, abi_params=[], abi_returns=[], abi_return_pa
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
     v9 = create 0, v8, v1
-    v10 = zext i160 v9 to i256
-    v11 = ne v10, 0
-    jumpi v11, bb2, bb1
+    v10 = ne v9, i160 0
+    jumpi v10, bb2, bb1
   bb1:
     revert_returndata
   bb2:
@@ -500,9 +495,8 @@ fn @viaInitializer() [selector=0x7c61d018, abi_params=[], abi_returns=[], abi_re
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
     v9 = create 0, v8, v1
-    v10 = zext i160 v9 to i256
-    v11 = ne v10, 0
-    jumpi v11, bb2, bb1
+    v10 = ne v9, i160 0
+    jumpi v10, bb2, bb1
   bb1:
     revert_returndata
   bb2:
@@ -523,9 +517,8 @@ fn @viaTry() [selector=0x9369e272, abi_params=[], abi_returns=[], abi_return_par
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
     v9 = create 0, v8, v1
-    v10 = zext i160 v9 to i256
-    v11 = ne v10, 0
-    jumpi v11, bb2, bb1
+    v10 = ne v9, i160 0
+    jumpi v10, bb2, bb1
   bb1:
     revert_returndata
   bb2:
@@ -534,26 +527,24 @@ fn @viaTry() [selector=0x9369e272, abi_params=[], abi_returns=[], abi_return_par
 
 fn @viaShared() [selector=0x86375232, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
-    v0 = zext i1 1 to i256
-    v1 = eq v0, 0
-    v2 = eq v1, false
-    v3 = zext i1 v2 to i256
-    v4 = abi_encode [word<bool>], args v3
-    v5 = datasize SharedHelper_creation_code_6
-    v6 = datasize SharedHelper_creation_code_6, 32
-    v7 = datasize SharedHelper_creation_code_6, 63, aligned
-    v8 = alloc raw, exact, uninitialized, infallible, v7
-    v9 = ptrtoint memptr v8 to i256
-    datacopy SharedHelper_creation_code_6, v9, v5
-    v10 = slice_ptr v4
-    v11 = ptrtoint memptr v8 to i256
-    v12 = add v11, v5
-    mcopy v12, v10, 32 !metadata(memory=heap)
-    v13 = ptrtoint memptr v8 to i256
-    v14 = create 0, v13, v6
-    v15 = zext i160 v14 to i256
-    v16 = ne v15, 0
-    jumpi v16, bb2, bb1
+    v0 = eq true, false
+    v1 = eq v0, false
+    v2 = zext i1 v1 to i256
+    v3 = abi_encode [word<bool>], args v2
+    v4 = datasize SharedHelper_creation_code_6
+    v5 = datasize SharedHelper_creation_code_6, 32
+    v6 = datasize SharedHelper_creation_code_6, 63, aligned
+    v7 = alloc raw, exact, uninitialized, infallible, v6
+    v8 = ptrtoint memptr v7 to i256
+    datacopy SharedHelper_creation_code_6, v8, v4
+    v9 = slice_ptr v3
+    v10 = ptrtoint memptr v7 to i256
+    v11 = add v10, v4
+    mcopy v11, v9, 32 !metadata(memory=heap)
+    v12 = ptrtoint memptr v7 to i256
+    v13 = create 0, v12, v5
+    v14 = ne v13, i160 0
+    jumpi v14, bb2, bb1
   bb1:
     revert_returndata
   bb2:

@@ -22,8 +22,10 @@ fn @entry() -> i256 [selector=1] {
 // Inlining preserves constructor staging loads at the original call site.
 fn @constructor(arg0: i256, arg1: i256) [constructor] {
   bb0:
-    storeimmutable start, arg0
-    storeimmutable duration, arg1
+    v10000 = trunc i256 arg0 to i64
+    storeimmutable start, v10000
+    v10001 = trunc i256 arg1 to i64
+    storeimmutable duration, v10001
     v0 = icall @end
     storeimmutable initial, v0
     stop
@@ -31,8 +33,10 @@ fn @constructor(arg0: i256, arg1: i256) [constructor] {
 
 fn @end() -> i256 {
   bb0:
-    v0 = loadimmutable start
-    v1 = loadimmutable duration
+    v10002 = loadimmutable start
+    v0 = zext i64 v10002 to i256
+    v10003 = loadimmutable duration
+    v1 = zext i64 v10003 to i256
     v2 = add v0, v1
     ret v2
 }
@@ -41,7 +45,8 @@ fn @end() -> i256 {
 fn @memory() -> i256 {
   bb0:
     v0 = mload 0
-    v1 = loadimmutable start
+    v10004 = loadimmutable start
+    v1 = zext i64 v10004 to i256
     v2 = add v0, v1
     ret v2
 }
@@ -56,7 +61,8 @@ fn @ordinary() -> i256 {
 // The adapter excludes argument-carrying helpers.
 fn @argument(arg0: i256) -> i256 {
   bb0:
-    v0 = loadimmutable start
+    v10005 = loadimmutable start
+    v0 = zext i64 v10005 to i256
     v1 = add v0, arg0
     ret v1
 }

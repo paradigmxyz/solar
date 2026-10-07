@@ -8,21 +8,20 @@ fn @dirty(arg0: i256) -> i256 [pure] {
 
 fn @switchCallResult() -> i256 [selector=0x2e6d4117, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = trunc i256 0 to i160
-    v1 = gas
-    v2 = alloc memorybytes, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v2, 0
-    v3 = memory_object_data memorybytes, v2
-    v4 = address_call v0, v2, gas v1
-    v5 = zext i1 v4 to i256
-    switch v5, default bb3, [0 => bb2]
+    v0 = gas
+    v1 = alloc memorybytes, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v1, 0
+    v2 = memory_object_data memorybytes, v1
+    v3 = address_call i160 0, v1, gas v0
+    v4 = zext i1 v3 to i256
+    switch v4, default bb3, [0 => bb2]
   bb2:
     jump bb1
   bb3:
     jump bb1
   bb1:
-    v6 = phi [bb2: 7], [bb3: 11]
-    ret v6
+    v5 = phi [bb2: 7], [bb3: 11]
+    ret v5
 }
 
 fn @switchBool(arg0: i256) -> i256 [selector=0xec9b6d62, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
@@ -39,9 +38,8 @@ fn @switchBool(arg0: i256) -> i256 [selector=0xec9b6d62, pure, abi_params=[bool]
 
 fn @switchDirty() -> i256 [selector=0x49dc0693, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = zext i1 1 to i256
-    v1 = icall @dirty, v0
-    switch v1, default bb4, [0 => bb2, 1 => bb3]
+    v0 = icall @dirty, 1
+    switch v0, default bb4, [0 => bb2, 1 => bb3]
   bb3:
     jump bb1
   bb2:
@@ -49,6 +47,6 @@ fn @switchDirty() -> i256 [selector=0x49dc0693, pure, abi_params=[], abi_returns
   bb4:
     jump bb1
   bb1:
-    v2 = phi [bb2: 7], [bb3: 11], [bb4: 13]
-    ret v2
+    v1 = phi [bb2: 7], [bb3: 11], [bb4: 13]
+    ret v1
 }

@@ -88,19 +88,18 @@ fn @tupleReceiverRevert() -> i256 [selector=0x48efbf0f, pure, abi_params=[], abi
     ret 3
 }
 
-fn @nestedReceiverEffect(arg0: i256) -> i256 [selector=0xa644188c, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
+fn @nestedReceiverEffect(arg0: i1) -> i256 [selector=0xa644188c, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = ne arg0, 0
-    jumpi v0, bb1, bb2
+    jumpi arg0, bb1, bb2
   bb2:
-    v2 = icall @fail
+    v1 = icall @fail
     jump bb3
   bb1:
-    v1 = icall @next
+    v0 = icall @next
     jump bb3
   bb3:
-    v3 = sload 0 !metadata(storage=slot(0))
-    ret v3
+    v2 = sload 0 !metadata(storage=slot(0))
+    ret v2
 }
 
 fn @freeCheckedReceiver() [selector=0x13dcdc32, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {

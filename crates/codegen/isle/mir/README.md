@@ -44,14 +44,14 @@ Use infix arithmetic and bitwise operators; use lowercase function calls for
 operations without an infix spelling. Describe complete replacement expressions,
 not the names of temporary recipe nodes. Keep operand-order variants accurate.
 
-Word arithmetic wraps at 256 bits. `/`, `%`, and comparisons are unsigned;
+Integer arithmetic wraps at the operand width `W` (1 or a multiple of 8 through 256). `/`, `%`, and comparisons are unsigned;
 `sdiv`, `smod`, and `signed(x)` select signed semantics. EVM division and modulo
 by zero yield zero. `<<` and `>>` are saturating logical shifts; `sar(count, x)`
-is an arithmetic shift. Counts and combined shift counts never wrap modulo 256. `byte(index, x)` counts
+is an arithmetic shift. Counts and combined shift counts saturate at `W`. `byte(index, x)` counts
 from the high byte, and `**` denotes exponentiation.
 
-`MAX` is `2 ** 256 - 1`; `MIN_SIGNED` and `MAX_SIGNED` are the words `2 ** 255`
-and `2 ** 255 - 1`. Booleans are 0 or 1, and `select(c, a, b)` chooses `a` for
+`MAX` is `2 ** W - 1`; `MIN_SIGNED` and `MAX_SIGNED` are `2 ** (W - 1)`
+and `2 ** (W - 1) - 1`. Booleans are 0 or 1, and `select(c, a, b)` chooses `a` for
 nonzero `c`. `x:iN` marks an N-bit integer. Width guards require integer sources of at most
 256 bits; other widths follow the matched MIR types. Constants and their arithmetic fold at compile time. Type, range,
 fork, and profitability guards remain explicit beside the rules. Cast rewrites

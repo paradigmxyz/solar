@@ -94,19 +94,21 @@ fn @read() -> struct0 [selector=0x57de26a4, abi_params=[], abi_returns=[word, wo
     v2 = add 0, 0
     v3 = sload v2 !metadata(storage=slot(0))
     v4 = shr 16, v3
-    v5 = and v4, 0xffffffffffffffff
-    v6 = icall @internal_dispatcher_p_none_r_u256, v5
-    v7 = lt 1, 2
-    v8 = eq v7, false
-    icall panic_if<0x32>, v8
-    v9 = add 0, 1
-    v10 = sload v9 !metadata(storage=slot(1))
-    v11 = shr 16, v10
-    v12 = and v11, 0xffffffffffffffff
-    v13 = icall @internal_dispatcher_p_none_r_u256, v12
-    v14 = insert_value struct0, undef struct0, 0, v6
-    v15 = insert_value struct0, v14, 1, v13
-    ret v15
+    v5 = trunc i256 v4 to i64
+    v6 = zext i64 v5 to i256
+    v7 = icall @internal_dispatcher_p_none_r_u256, v6
+    v8 = lt 1, 2
+    v9 = eq v8, false
+    icall panic_if<0x32>, v9
+    v10 = add 0, 1
+    v11 = sload v10 !metadata(storage=slot(1))
+    v12 = shr 16, v11
+    v13 = trunc i256 v12 to i64
+    v14 = zext i64 v13 to i256
+    v15 = icall @internal_dispatcher_p_none_r_u256, v14
+    v16 = insert_value struct0, undef struct0, 0, v7
+    v17 = insert_value struct0, v16, 1, v15
+    ret v17
 }
 
 fn @internal_dispatcher_p_none_r_u256(arg0: i256) -> i256 [function_pointer_dispatcher] {

@@ -20,5 +20,6 @@ fn @read(arg0: calldataslice) -> i256 [selector=0xfbb1e83c, pure, abi_params=[ar
     v7 = eq v5, v6
     v8 = eq v7, false
     icall revert_if<empty>, v8
+    v9 = trunc i256 v5 to i8
     ret 1
 }

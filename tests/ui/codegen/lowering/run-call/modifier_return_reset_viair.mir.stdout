@@ -3,8 +3,8 @@
 fn @foo() -> i256 [selector=0xc2985578, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = and v0, 255
-    v2 = ne v1, 0
+    v1 = trunc i256 v0 to i8
+    v2 = ne v1, i8 0
     jumpi v2, bb3, bb4
   bb4:
     jump bb5
@@ -17,25 +17,24 @@ fn @foo() -> i256 [selector=0xc2985578, abi_params=[], abi_returns=[word], abi_r
     v4 = sload 0 !metadata(storage=slot(0))
     v5 = not 255
     v6 = and v4, v5
-    v7 = zext i1 0 to i256
-    v8 = and v7, 255
-    v9 = or v6, v8
-    sstore 0, v9 !metadata(storage=slot(0))
-    v10 = sload 0 !metadata(storage=slot(0))
-    v11 = and v10, 255
-    v12 = ne v11, 0
-    jumpi v12, bb7, bb8
+    v7 = and 0, 255
+    v8 = or v6, v7
+    sstore 0, v8 !metadata(storage=slot(0))
+    v9 = sload 0 !metadata(storage=slot(0))
+    v10 = trunc i256 v9 to i8
+    v11 = ne v10, i8 0
+    jumpi v11, bb7, bb8
   bb8:
     jump bb9
   bb7:
     jump bb9
   bb9:
-    v13 = phi [bb7: 1], [bb8: 0]
+    v12 = phi [bb7: 1], [bb8: 0]
     jump bb6
   bb6:
     jump bb1
   bb1:
-    ret v13
+    ret v12
 }
 
 fn @constructor() [constructor] {
@@ -43,9 +42,8 @@ fn @constructor() [constructor] {
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = not 255
     v2 = and v0, v1
-    v3 = zext i1 1 to i256
-    v4 = and v3, 255
-    v5 = or v2, v4
-    sstore 0, v5 !metadata(storage=slot(0))
+    v3 = and 1, 255
+    v4 = or v2, v3
+    sstore 0, v4 !metadata(storage=slot(0))
     ret
 }

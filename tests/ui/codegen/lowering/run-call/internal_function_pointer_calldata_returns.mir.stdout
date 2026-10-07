@@ -18,17 +18,18 @@ fn @constructor() [constructor] {
 fn @dynamic(arg0: calldataslice) -> struct0 [selector=0xd543852a, abi_params=[bytes], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = and v0, 0xffffffffffffffff
-    v2 = icall @internal_dispatcher_p_calldataslice_r_calldataslice_u256_calldataslice, v1, arg0
-    v3 = extract_value struct1, v2, 0
-    v4 = extract_value struct1, v2, 1
-    v5 = extract_value struct1, v2, 2
-    v6 = slice_len v3
-    v7 = slice_len v5
-    v8 = insert_value struct0, undef struct0, 0, v6
-    v9 = insert_value struct0, v8, 1, v4
-    v10 = insert_value struct0, v9, 2, v7
-    ret v10
+    v1 = trunc i256 v0 to i64
+    v2 = zext i64 v1 to i256
+    v3 = icall @internal_dispatcher_p_calldataslice_r_calldataslice_u256_calldataslice, v2, arg0
+    v4 = extract_value struct1, v3, 0
+    v5 = extract_value struct1, v3, 1
+    v6 = extract_value struct1, v3, 2
+    v7 = slice_len v4
+    v8 = slice_len v6
+    v9 = insert_value struct0, undef struct0, 0, v7
+    v10 = insert_value struct0, v9, 1, v5
+    v11 = insert_value struct0, v10, 2, v8
+    ret v11
 }
 
 fn @specialized(arg0: calldataslice) -> struct0 [selector=0xe932b9d2, pure, abi_params=[bytes], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {

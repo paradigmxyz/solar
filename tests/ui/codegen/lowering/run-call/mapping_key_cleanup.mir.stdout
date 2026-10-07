@@ -1,14 +1,41 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/mapping_key_cleanup.sol:C ===
 @module C
-fn @test_cleanup() -> i256 [selector=0x2b63198c, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @signedUserKey() -> i256 [selector=0x27072c8b, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = and 0xffff0001, 0xffff
-    v1 = mapping_slot v0, 0
-    sstore v1, 3 !metadata(storage=symbolic(v1))
-    v2 = and 1, 0xffff
-    v3 = mapping_slot v2, 0
-    v4 = sload v3 !metadata(storage=symbolic(v3))
-    v5 = eq v4, 3
-    v6 = zext i1 v5 to i256
+    v0 = sub 0, 1
+    v1 = trunc i256 v0 to i16
+    v2 = sext i16 v1 to i256
+    v3 = mapping_slot v2, 2
+    sstore v3, 9 !metadata(storage=symbolic(v3))
+    v4 = not 0
+    mstore 0, v4 !metadata(memory=scratch)
+    mstore 32, 2 !metadata(memory=scratch)
+    v5 = keccak256 0, 64 !metadata(memory=scratch)
+    v6 = sload v5 !metadata(storage=symbolic(v5))
     ret v6
+}
+
+fn @signedKey() -> i256 [selector=0xa0b120fe, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = sub 0, 1
+    v1 = trunc i256 v0 to i8
+    v2 = sext i8 v1 to i256
+    v3 = mapping_slot v2, 1
+    sstore v3, 7 !metadata(storage=symbolic(v3))
+    v4 = not 0
+    mstore 0, v4 !metadata(memory=scratch)
+    mstore 32, 1 !metadata(memory=scratch)
+    v5 = keccak256 0, 64 !metadata(memory=scratch)
+    v6 = sload v5 !metadata(storage=symbolic(v5))
+    ret v6
+}
+
+fn @test_cleanup() -> i1 [selector=0x2b63198c, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = mapping_slot 1, 0
+    sstore v0, 3 !metadata(storage=symbolic(v0))
+    v1 = mapping_slot 1, 0
+    v2 = sload v1 !metadata(storage=symbolic(v1))
+    v3 = eq v2, 3
+    ret v3
 }

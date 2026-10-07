@@ -244,6 +244,332 @@
       ret v2
   }
   
+  fn @factor_zext_native(arg0: i1, arg1: i8, arg2: i8) -> i256 {
+    bb0:
+      v0 = zext i8 arg1 to i256
+      v1 = zext i8 arg2 to i256
+      v2 = select arg0, v0, v1
+      ret v2
+  }
+  
+  fn @factor_sext_native(arg0: i1, arg1: i8, arg2: i8) -> i160 {
+    bb0:
+      v0 = sext i8 arg1 to i160
+      v1 = sext i8 arg2 to i160
+      v2 = select arg0, v0, v1
+      ret v2
+  }
+  
+  fn @factor_trunc_native(arg0: i1, arg1: i160, arg2: i160) -> i8 {
+    bb0:
+      v0 = trunc i160 arg1 to i8
+      v1 = trunc i160 arg2 to i8
+      v2 = select arg0, v0, v1
+      ret v2
+  }
+  
+  fn @keep_mixed_source_widths(arg0: i1, arg1: i8, arg2: i16) -> i256 {
+    bb0:
+      v0 = zext i8 arg1 to i256
+      v1 = zext i16 arg2 to i256
+      v2 = select arg0, v0, v1
+      ret v2
+  }
+  
+- // === ROOT/tests/ui/codegen/mir/word-sequence/select.mir (before lower-integers) ===
++ // === ROOT/tests/ui/codegen/mir/word-sequence/select.mir (after lower-integers) ===
+  @module ConstantSelectRecipes
+  fn @zero_right_dirty(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = ne arg0, 0
+      v1 = select v0, arg1, 0
+      ret v1
+  }
+  
+  fn @zero_left_dirty(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = ne arg0, 0
+      v1 = select v0, 0, arg1
+      ret v1
+  }
+  
+  fn @max_right_dirty(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = ne arg0, 0
+      v1 = select v0, arg1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      ret v1
+  }
+  
+  fn @max_left_dirty(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = ne arg0, 0
+      v1 = select v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, arg1
+      ret v1
+  }
+  
+  fn @one_right_dirty(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = ne arg0, 0
+      v1 = select v0, arg1, 1
+      ret v1
+  }
+  
+  fn @one_left_dirty(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = ne arg0, 0
+      v1 = select v0, 1, arg1
+      ret v1
+  }
+  
+  fn @constant_right_dirty(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = ne arg0, 0
+      v1 = select v0, arg1, 42
+      ret v1
+  }
+  
+  fn @constant_left_dirty(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = ne arg0, 0
+      v1 = select v0, 42, arg1
+      ret v1
+  }
+  
+  fn @ascending_dirty(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = ne arg0, 0
+      v1 = select v0, 42, 7
+      ret v1
+  }
+  
+  fn @descending_dirty(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = ne arg0, 0
+      v1 = select v0, 7, 42
+      ret v1
+  }
+  
+  fn @wide_dirty(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = ne arg0, 0
+      v1 = select v0, 0x8000000000000000000000000000000000000000000000000000000000000000, 7
+      ret v1
+  }
+  
+  fn @variable_dirty(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = ne arg0, 0
+      v1 = select v0, arg1, arg2
+      ret v1
+  }
+  
+  fn @zero_right_canonical(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = eq arg0, 0
+      v1 = select v0, arg1, 0
+      ret v1
+  }
+  
+  fn @zero_left_canonical(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = eq arg0, 0
+      v1 = select v0, 0, arg1
+      ret v1
+  }
+  
+  fn @max_right_canonical(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = eq arg0, 0
+      v1 = select v0, arg1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      ret v1
+  }
+  
+  fn @max_left_canonical(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = eq arg0, 0
+      v1 = select v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, arg1
+      ret v1
+  }
+  
+  fn @one_right_canonical(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = eq arg0, 0
+      v1 = select v0, arg1, 1
+      ret v1
+  }
+  
+  fn @one_left_canonical(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = eq arg0, 0
+      v1 = select v0, 1, arg1
+      ret v1
+  }
+  
+  fn @constant_right_canonical(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = eq arg0, 0
+      v1 = select v0, arg1, 42
+      ret v1
+  }
+  
+  fn @constant_left_canonical(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = eq arg0, 0
+      v1 = select v0, 42, arg1
+      ret v1
+  }
+  
+  fn @ascending_canonical(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = eq arg0, 0
+      v1 = select v0, 42, 7
+      ret v1
+  }
+  
+  fn @descending_canonical(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = eq arg0, 0
+      v1 = select v0, 7, 42
+      ret v1
+  }
+  
+  fn @wide_canonical(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = eq arg0, 0
+      v1 = select v0, 0x8000000000000000000000000000000000000000000000000000000000000000, 7
+      ret v1
+  }
+  
+  fn @variable_canonical(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = eq arg0, 0
+      v1 = select v0, arg1, arg2
+      ret v1
+  }
+  
+  fn @canonical_bool(arg0: i1, arg1: i256) -> i256 {
+    bb0:
+      v0 = select arg0, arg1, 0
+      ret v0
+  }
+  
+  fn @pointer_arm(arg0: i1, arg1: memptr) -> memptr [may_return_memory] {
+    bb0:
+      v0 = select arg0, arg1, memptr 0
+      ret v0
+  }
+  
+  fn @factor_add(arg0: i1, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = add arg1, arg2
+      v1 = select arg0, v0, arg2
+      ret v1
+  }
+  
+  fn @factor_add_reverse(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = ne arg0, 0
+      v1 = add arg2, arg1
+      v2 = select v0, arg2, v1
+      ret v2
+  }
+  
+  fn @factor_sub(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = ne arg0, 0
+      v1 = sub arg2, arg1
+      v2 = select v0, v1, arg2
+      ret v2
+  }
+  
+  fn @factor_or(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = ne arg0, 0
+      v1 = or arg1, arg2
+      v2 = select v0, v1, arg2
+      ret v2
+  }
+  
+  fn @factor_xor(arg0: i1, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = xor arg2, arg1
+      v1 = select arg0, v0, arg2
+      ret v1
+  }
+  
+  fn @factor_and(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = ne arg0, 0
+      v1 = and arg1, arg2
+      v2 = select v0, v1, arg2
+      ret v2
+  }
+  
+  fn @factor_add_after_ne(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = add arg1, arg2
+      v1 = ne arg0, 0
+      v2 = select v1, v0, arg2
+      ret v2
+  }
+  
+  fn @factor_add_after_cast(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = add arg1, arg2
+-     v1 = trunc i256 arg0 to i1
+-     v2 = select v1, v0, arg2
++     v3 = and arg0, 1
++     v4 = ne v3, 0
++     v2 = select v4, v0, arg2
+      ret v2
+  }
+  
+- fn @factor_zext_native(arg0: i1, arg1: i8, arg2: i8) -> i256 {
++ fn @factor_zext_native(arg0: i1, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+-     v0 = zext i8 arg1 to i256
+-     v1 = zext i8 arg2 to i256
+-     v2 = select arg0, v0, v1
++     v2 = select arg0, arg1, arg2
+      ret v2
+  }
+  
+- fn @factor_sext_native(arg0: i1, arg1: i8, arg2: i8) -> i160 {
++ fn @factor_sext_native(arg0: i1, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+-     v0 = sext i8 arg1 to i160
+-     v1 = sext i8 arg2 to i160
+-     v2 = select arg0, v0, v1
++     v3 = signextend 0, arg1
++     v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
++     v5 = signextend 0, arg2
++     v6 = and v5, 0xffffffffffffffffffffffffffffffffffffffff
++     v2 = select arg0, v4, v6
+      ret v2
+  }
+  
+- fn @factor_trunc_native(arg0: i1, arg1: i160, arg2: i160) -> i8 {
++ fn @factor_trunc_native(arg0: i1, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+-     v0 = trunc i160 arg1 to i8
+-     v1 = trunc i160 arg2 to i8
+-     v2 = select arg0, v0, v1
++     v3 = and arg1, 255
++     v4 = and arg2, 255
++     v2 = select arg0, v3, v4
+      ret v2
+  }
+  
+- fn @keep_mixed_source_widths(arg0: i1, arg1: i8, arg2: i16) -> i256 {
++ fn @keep_mixed_source_widths(arg0: i1, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+-     v0 = zext i8 arg1 to i256
+-     v1 = zext i16 arg2 to i256
+-     v2 = select arg0, v0, v1
++     v2 = select arg0, arg1, arg2
+      ret v2
+  }
+  
 - // === ROOT/tests/ui/codegen/mir/word-sequence/select.mir (before lower-evm-shaped) ===
 + // === ROOT/tests/ui/codegen/mir/word-sequence/select.mir (after lower-evm-shaped) ===
   @module ConstantSelectRecipes
@@ -485,8 +811,39 @@
   fn @factor_add_after_cast(arg0: i256, arg1: i256, arg2: i256) -> i256 {
     bb0:
       v0 = add arg1, arg2
-      v1 = trunc i256 arg0 to i1
-      v2 = select v1, v0, arg2
+      v3 = and arg0, 1
+      v4 = ne v3, 0
+      v2 = select v4, v0, arg2
+      ret v2
+  }
+  
+  fn @factor_zext_native(arg0: i1, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v2 = select arg0, arg1, arg2
+      ret v2
+  }
+  
+  fn @factor_sext_native(arg0: i1, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v3 = signextend 0, arg1
+      v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
+      v5 = signextend 0, arg2
+      v6 = and v5, 0xffffffffffffffffffffffffffffffffffffffff
+      v2 = select arg0, v4, v6
+      ret v2
+  }
+  
+  fn @factor_trunc_native(arg0: i1, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v3 = and arg1, 255
+      v4 = and arg2, 255
+      v2 = select arg0, v3, v4
+      ret v2
+  }
+  
+  fn @keep_mixed_source_widths(arg0: i1, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v2 = select arg0, arg1, arg2
       ret v2
   }
   

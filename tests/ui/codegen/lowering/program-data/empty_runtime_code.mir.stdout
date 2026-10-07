@@ -44,7 +44,7 @@ fn @runtimeCode() -> memptr [selector=0x40e70806, pure, abi_params=[], abi_retur
     ret v2
 }
 
-fn @deploy() -> i256 [selector=0x775c300c, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @deploy() -> i1 [selector=0x775c300c, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = abi_encode []
     v1 = datasize EmptyRuntime_creation_code_1
@@ -58,15 +58,13 @@ fn @deploy() -> i256 [selector=0x775c300c, abi_params=[], abi_returns=[word<bool
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
     v9 = create 0, v8, v1
-    v10 = zext i160 v9 to i256
-    v11 = ne v10, 0
-    jumpi v11, bb2, bb1
+    v10 = ne v9, i160 0
+    jumpi v10, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v12 = zext i160 v9 to i256
-    v13 = extcodesize v12
-    v14 = eq v13, 0
-    v15 = zext i1 v14 to i256
-    ret v15
+    v11 = zext i160 v9 to i256
+    v12 = extcodesize v11
+    v13 = eq v12, 0
+    ret v13
 }

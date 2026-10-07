@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_forward_function_pointer_array.sol:AbiForwardFunctionPointerArray ===
 @module AbiForwardFunctionPointerArray
-fn @forward(arg0: calldataslice) -> i256 [selector=0xf848716a, view, abi_params=[array<_, function>], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @forward(arg0: calldataslice) -> i1 [selector=0xf848716a, view, abi_params=[array<_, function>], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = address
     v1 = gas
@@ -57,9 +57,8 @@ fn @forward(arg0: calldataslice) -> i256 [selector=0xf848716a, view, abi_params=
     v47 = eq v43, v46
     v48 = eq v47, false
     icall revert_if<empty>, v48
-    v49 = add 0, 0
-    v50 = mload v49
-    ret v50
+    v49 = ne v43, 0
+    ret v49
   bb2:
     v26 = mul v24, 32
     v27 = add v3, v26
@@ -75,10 +74,9 @@ fn @forward(arg0: calldataslice) -> i256 [selector=0xf848716a, view, abi_params=
     jump bb1
 }
 
-fn @accept(arg0: calldataslice) -> i256 [selector=0x50104649, pure, abi_params=[array<_, function>], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @accept(arg0: calldataslice) -> i1 [selector=0x50104649, pure, abi_params=[array<_, function>], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = slice_len arg0
     v1 = eq v0, 1
-    v2 = zext i1 v1 to i256
-    ret v2
+    ret v1
 }

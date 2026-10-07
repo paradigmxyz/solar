@@ -35,16 +35,27 @@ DEFAULT_FILES = [
     ISLE / "evm-ir/late_word.isle",
     ISLE / "mir/egraph",
 ]
+# These prefixes are the shared scalar rules covered by the native-width model.
+NATIVE_PREFIXES = {
+    ISLE / "mir/word/arithmetic.isle": ";; (x * a) * b",
+    ISLE / "mir/word/bitwise.isle": ";; Extract one byte",
+    ISLE / "mir/word/comparisons.isle": ";; (x << s) ==",
+    ISLE / "mir/word/shifts.isle": ";; (x << s) >>",
+}
+INTEGER_WIDTHS = (1, *range(8, 257, 8))
 FAILURES = (Unsupported, ValueError, TypeError, IndexError)
 # A hand-written proof is named after its rule's file and digest, which edits elsewhere
-# in the file leave unchanged; a rule with several theorems adds the theorem's index.
-PROOF_NAME = re.compile(r"(?P<stem>.+)_(?P<digest>[0-9a-f]{16})(?:_(?P<index>\d+))?")
+# in the file leave unchanged; variants add the theorem index and integer width.
+PROOF_NAME = re.compile(
+    r"(?P<stem>.+)_(?P<digest>[0-9a-f]{16})(?:_(?P<index>\d+))?(?:_i\d+)?"
+)
 
 
 def proof_name(path, entry, index):
     """The hand-written proof file name for one theorem of a rule."""
     suffix = f"_{index}" if len(entry.get("theorems", [])) > 1 else ""
-    return f"{path.stem}_{entry['sha256'][:16]}{suffix}"
+    width = f"_i{entry['integer_bits']}" if "integer_bits" in entry else ""
+    return f"{path.stem}_{entry['sha256'][:16]}{suffix}{width}"
 
 
 def obligations(path):
@@ -92,25 +103,38 @@ def obligations(path):
     for module, text in rule_sources(path):
         # Line numbers repeat across the modules of a rule-set directory.
         prefix = f"{path.name}_{module.stem}" if path.is_dir() else path.stem
+        native_lines = 0
+        if boundary := NATIVE_PREFIXES.get(module.resolve()):
+            prefix_text, found, _ = text.partition(boundary)
+            if not found:
+                raise ValueError(
+                    f"missing native rule boundary in {module}: {boundary}"
+                )
+            native_lines = len(prefix_text.splitlines())
         for form, line in forms(text):
             if form[0] != "rule":
                 continue
             rule = Rule(form, line, str(module))
-            entry = {
-                "source": str(module),
-                "line": line,
-                "name": f"{prefix}_L{line}",
-                "sha256": rule.digest,
-            }
-            context = Context()
-            try:
-                lhs, rhs = context.obligation(rule)
-                assumptions = simplify(context.assumptions)
-                entry["theorems"] = [(entry["name"], lhs, rhs, assumptions)]
-            except Unsupported as error:
-                entry["error"] = str(error)
-            entry["contracts"] = sorted(context.contracts)
-            yield entry
+            widths = (None, *INTEGER_WIDTHS) if line <= native_lines else (None,)
+            for bits in widths:
+                name = f"{prefix}_L{line}" + (f"_i{bits}" if bits else "")
+                entry = {
+                    "source": str(module),
+                    "line": line,
+                    "name": name,
+                    "sha256": rule.digest,
+                }
+                if bits is not None:
+                    entry["integer_bits"] = bits
+                context = Context(integer_bits=bits)
+                try:
+                    lhs, rhs = context.obligation(rule)
+                    assumptions = simplify(context.assumptions)
+                    entry["theorems"] = [(name, lhs, rhs, assumptions)]
+                except Unsupported as error:
+                    entry["error"] = str(error)
+                entry["contracts"] = sorted(context.contracts)
+                yield entry
 
 
 def verify_files(
@@ -159,11 +183,18 @@ def verify_files(
                 key = proof_name(path, entry, index)
                 unused.discard(key)
                 proof = manual.get(key)
+                automatic = tactic
+                if bits := entry.get("integer_bits"):
+                    automatic = (
+                        "first | (evm_unfold; (try simp only [BitVec.zero_and, BitVec.zero_sub]); "
+                        f"exact mul_low_mask (lo := {bits}) (hi := {256 - bits}) _) "
+                        f"| {tactic}"
+                    )
                 if checker is not None:
                     start = time.monotonic()
                     try:
                         result = checker.check(
-                            lhs, rhs, assumptions, timeout_s * 1000, proof
+                            lhs, rhs, assumptions, timeout_s * 1000, proof or automatic
                         )
                     except Unsupported as error:
                         entry["error"] = str(error)
@@ -179,7 +210,7 @@ def verify_files(
                         lhs,
                         rhs,
                         assumptions,
-                        proof or tactic,
+                        proof or automatic,
                         timeout_s,
                         lean_path,
                     )
