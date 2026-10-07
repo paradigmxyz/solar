@@ -854,10 +854,14 @@ fn memory_bound(snapshot: &str) -> Result<u64, String> {
     if functions == 0 {
         return Err(invalid());
     }
-    if dynamic {
-        return Err("Sonatina recursive spills require dynamic native frames".into());
+    if spills || bound > arena {
+        if dynamic {
+            return Err("Sonatina recursive spills require dynamic native frames".into());
+        }
+        Ok(bound)
+    } else {
+        Ok(0)
     }
-    Ok(if spills || bound > arena { bound } else { 0 })
 }
 
 fn snapshot_number(text: &str, prefix: &str, radix: u32) -> Result<u64, String> {
@@ -886,11 +890,26 @@ mod tests {
             ),
             Ok(192)
         );
-        snapbox::assert_data_eq!(
-            memory_bound(&EMPTY_PLAN.replace("stable_mode=None", "stable_mode=DynamicFrame"))
-                .unwrap_err(),
-            snapbox::str!["Sonatina recursive spills require dynamic native frames"]
-        );
+    }
+
+    #[test]
+    fn recursive_memory_bound() {
+        let dynamic = EMPTY_PLAN.replace("stable_mode=None", "stable_mode=DynamicFrame");
+        assert_eq!(memory_bound(&dynamic), Ok(0));
+        for snapshot in [
+            format!("{dynamic}  scratch_spill v7 slot=0 addr=0x0\n"),
+            format!("{dynamic}  spill v7 offset_words=0 loc=StableFrame(0) addr=sp-0x20\n"),
+            dynamic
+                .replace("global_dyn_base=0x80", "global_dyn_base=0xa0")
+                .replace("scratch_peak_words=0", "scratch_peak_words=1")
+                .replace("scratch_words=0", "scratch_words=1")
+                .replace("abs_words_end=0", "abs_words_end=1"),
+        ] {
+            snapbox::assert_data_eq!(
+                memory_bound(&snapshot).unwrap_err(),
+                snapbox::str!["Sonatina recursive spills require dynamic native frames"]
+            );
+        }
     }
 
     #[test]
