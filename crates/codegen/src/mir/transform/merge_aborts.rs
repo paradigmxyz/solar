@@ -37,10 +37,9 @@
 //! Safety: when the first test fails, the original code aborts at once, and the
 //! merged code first runs the continuation's instructions, then aborts on the
 //! combined test. Those instructions are pure word operations or environment
-//! reads such as calldata loads: they write nothing and have no gas charges
-//! sized by operands.
-//! Operations with operand-sized gas charges, such as exponentiation, stay
-//! behind the original test. Merging can still change the gas spent before a
+//! reads such as calldata loads: they write nothing and have fixed gas costs.
+//! Operations whose gas depends on operands or account warmth stay behind the
+//! original test. Merging can still change the gas spent before a
 //! revert and the exact out-of-gas threshold. The aborting block must have no
 //! phis, so it cannot tell which edge reached it; the values it reads dominate
 //! both edges.
@@ -245,7 +244,7 @@ fn same_abort(func: &Function, a: BlockId, b: BlockId, cold: &DenseBitSet<Functi
 /// Whether an instruction may run before deciding an abort.
 fn speculatable(kind: &InstKind, target: Target) -> bool {
     !kind.has_side_effects()
-        && !target.op_has_dynamic_gas(&kind.op())
+        && !target.op_has_variable_gas(&kind.op())
         && match kind.op_def().effect {
             EffectKind::Pure => !matches!(kind, InstKind::Phi(_)),
             EffectKind::EnvironmentRead => true,

@@ -515,11 +515,16 @@ impl Target {
         Cost::new(static_gas.saturating_add(dynamic), 1)
     }
 
-    /// Whether an opcode-lowered MIR operation charges for operand-sized work.
-    pub(crate) fn op_has_dynamic_gas(self, op: &Op) -> bool {
+    /// Whether an opcode-lowered MIR operation's gas depends on operands or access warmth.
+    pub(crate) fn op_has_variable_gas(self, op: &Op) -> bool {
         select::opcode_lowering(op)
             .and_then(|lowering| op::definition(lowering.opcode()))
-            .is_some_and(|definition| definition.gas.dynamic_gas(self.evm_version) != 0)
+            .is_some_and(|definition| {
+                let tier = definition.gas;
+                tier.dynamic_gas(self.evm_version) != 0
+                    || tier.gas_at(self.evm_version, Warmth::Cold)
+                        != tier.gas_at(self.evm_version, Warmth::Warm)
+            })
     }
 
     /// Returns the sole materialized operand of an equality or inequality with zero.
@@ -766,6 +771,14 @@ mod tests {
         let load = InstKind::SLoad(slot).op();
         assert_eq!(target.op_at(&load, |_| None, Warmth::Warm), Cost::new(100, 1));
         assert_eq!(target.op(&load, |_| None), Cost::new(2100, 1));
+        for version in [EvmVersion::Istanbul, EvmVersion::Berlin, EvmVersion::Osaka] {
+            let target = Target::with(version, OptimizationMode::Gas, 200);
+            for kind in
+                [InstKind::Balance(slot), InstKind::ExtCodeSize(slot), InstKind::ExtCodeHash(slot)]
+            {
+                assert_eq!(target.op_has_variable_gas(&kind.op()), version >= EvmVersion::Berlin);
+            }
+        }
     }
 
     #[test]
@@ -832,8 +845,8 @@ mod tests {
         let b = ValueId::from_usize(1);
         for version in [EvmVersion::Homestead, EvmVersion::Osaka] {
             let target = Target::with(version, OptimizationMode::Gas, 200);
-            assert!(target.op_has_dynamic_gas(&Op::Exp { a, b }));
-            assert!(!target.op_has_dynamic_gas(&Op::Add { a, b }));
+            assert!(target.op_has_variable_gas(&Op::Exp { a, b }));
+            assert!(!target.op_has_variable_gas(&Op::Add { a, b }));
         }
     }
 
