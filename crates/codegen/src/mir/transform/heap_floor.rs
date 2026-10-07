@@ -26,23 +26,25 @@
 //! word as the pointer when the loaded word, or one computed from it, addresses or sizes memory or
 //! becomes the pointer again, in the function, in a callee it is passed to, or in a caller it is
 //! returned to, as every allocation in assembly does; a loaded word only compared, stored, or
-//! returned from an external function as integers is data. The compiler's own free-memory-pointer
-//! reads and allocations read the word as the pointer too, and so do the builtins and semantic
-//! operations whose lowering may allocate or encode at the pointer, unlike pure computations,
-//! checks that revert with scratch data, and accesses to frames, storage slots, and memory that
-//! already exists. An access that may cover a byte the writes have not replaced reads the word as
-//! data, such as a scratch hash or revert data, when its address is computed from constants,
-//! calldata, and parameters that may hold such an address: an external function's integer
-//! arguments, or a parameter some call site passes one in. A return from the constructor, or one
-//! from an external function whose results all have static ABI types, ends execution without
-//! reading the slot: codegen returns runtime code from a fixed address and encodes static results
-//! in a static buffer.
+//! returned from an external function as integers is data. A load that uses its word both ways
+//! reads it both as the pointer and as data. The compiler's own free-memory-pointer reads and
+//! allocations read the word as the pointer too, and so do the builtins and semantic operations
+//! whose lowering may allocate or encode at the pointer, unlike pure computations, checks that
+//! revert with scratch data, and accesses to frames, storage slots, and memory that already exists.
+//! An access that may cover a byte the writes have not replaced reads the word as data, such as a
+//! scratch hash or revert data, when its address is computed from constants, calldata, and
+//! parameters that may hold such an address: an external function's integer arguments, or a
+//! parameter some call site passes one in. A return from the constructor, or one from an external
+//! function whose results all have static ABI types, ends execution without reading the slot:
+//! codegen returns runtime code from a fixed address and encodes static results in a static buffer.
 //!
-//! A word read only as the pointer is clamped where it is stored, `mstore 64, clamped`. A word
-//! that is also read as data keeps its value in the slot, and the clamp moves to each pointer read
-//! that the search reaches. An assembly load uses the clamped word in place of the one it reads,
-//! and the slot itself is clamped right before a compiler read, before a call that reads the slot
-//! only as the pointer, and before a return to the dispatcher:
+//! A word read only as the pointer is clamped where it is stored, `mstore 64, clamped`. A word that
+//! is also read as data keeps its value in the slot, and the clamp moves to each pointer read that
+//! the search reaches. The pointer uses of an assembly load read the clamped word in place of the
+//! one it loads; when the load's word is also read as data, the words computed from it on the way
+//! to its pointer uses get clamped copies, and its data uses keep the loaded word. The slot itself
+//! is clamped right before a compiler read, before a call that reads the slot only as the pointer,
+//! and before a return to the dispatcher:
 //!
 //! ```text
 //! word = mload 64
@@ -66,8 +68,9 @@
 //! address derived from memory or the heap, or from a parameter that every call site fills with
 //! one, is assumed not to cover the slot, and a loaded word stored elsewhere stays data even if a
 //! later load uses it as a pointer. A slot clamped before a compiler read stays clamped for a later
-//! read of it as data. Writes replace the word only when one block covers all of its bytes. See
-//! CODEGEN-010.
+//! read of it as data. Writes replace the word only when one block covers all of its bytes. A
+//! loaded word passed to a callee or returned to callers that read it as a pointer is clamped as a
+//! whole there, even if they also read it as data. See CODEGEN-010.
 
 use crate::mir::{
     AbiType, ArgIdx, BlockId, Builtin, Callee, EffectKind, Function, FunctionId, Immediate, InstId,
@@ -76,9 +79,10 @@ use crate::mir::{
     analysis::{AddressInput, absolute_address_inputs, absolute_address_inputs_with_params},
     memory::EvmMemoryLayout,
     pass::{MirPass, ModuleAnalyses},
-    utils::IndexLists,
+    utils::{IndexLists, replace_inst_uses},
 };
 use alloy_primitives::U256;
+use smallvec::{SmallVec, smallvec};
 use solar_data_structures::{
     bit_set::DenseBitSet,
     index::IndexVec,
@@ -103,16 +107,19 @@ impl MirPass for HeapFloor {
         module: &mut Module,
         _analyses: &mut ModuleAnalyses,
     ) -> bool {
-        let clamps = floor_clamps(module);
+        let (clamps, splits) = floor_clamps(module);
         let changed = !clamps.is_empty();
         for clamp in clamps {
             match clamp {
                 Clamp::Store(func, block, inst) => {
                     clamp_store(&mut module.functions[func], block, inst);
                 }
-                Clamp::Load(func, block, inst) => {
-                    clamp_load(&mut module.functions[func], block, inst);
-                }
+                Clamp::Load(func, block, inst) => match splits.get(&(func, inst)) {
+                    Some(split) => {
+                        clamp_pointer_uses(&mut module.functions[func], block, inst, split);
+                    }
+                    None => clamp_load(&mut module.functions[func], block, inst),
+                },
                 Clamp::Slot(func, block, before) => {
                     clamp_slot(&mut module.functions[func], block, before);
                 }
@@ -135,8 +142,11 @@ enum Clamp {
 
 /// Finds where to clamp the words that stores of constants and calldata leave in the free memory
 /// pointer's slot: at the store when every read of the word reads the pointer, and at each
-/// pointer read when some read takes the word as data.
-fn floor_clamps(module: &Module) -> FxIndexSet<Clamp> {
+/// pointer read when some read takes the word as data. A load whose word is read both ways comes
+/// with the uses that read it as the pointer.
+fn floor_clamps(
+    module: &Module,
+) -> (FxIndexSet<Clamp>, FxHashMap<(FunctionId, InstId), PointerUseSplit>) {
     let mut uses = PointerUses::new(module);
     let mut clamps = FxIndexSet::default();
     for (func_id, func) in module.functions.iter_enumerated() {
@@ -161,7 +171,15 @@ fn floor_clamps(module: &Module) -> FxIndexSet<Clamp> {
             }
         }
     }
-    clamps
+    let mut splits = FxHashMap::default();
+    for &clamp in &clamps {
+        if let Clamp::Load(func_id, _, load) = clamp
+            && uses.load_reads(func_id, load).data
+        {
+            splits.insert((func_id, load), uses.split(func_id, load));
+        }
+    }
+    (clamps, splits)
 }
 
 /// Rewrites `mstore 64, v` into `mstore 64, max(v, heap_floor)`.
@@ -194,6 +212,85 @@ fn clamp_load(func: &mut Function, block: BlockId, inst: InstId) {
     // clamped = select below, floor, word
     let position = index_in_block(func, block, inst) + 1;
     func.blocks[block].instructions.splice(position..position, clamp);
+}
+
+/// Raises a loaded word to the heap floor where its pointer uses read it, and leaves its data uses
+/// the loaded word: each word computed from it on the way to a pointer use gets a clamped copy.
+fn clamp_pointer_uses(func: &mut Function, block: BlockId, load: InstId, split: &PointerUseSplit) {
+    let Some(&word) = split.words.first() else { return };
+    let blocks = func.inst_block_table();
+    let metadata = func.inst(load).metadata.clone();
+    // floor = heap_floor
+    // below = lt word, floor
+    // clamped = select below, floor, word
+    let (clamp, clamped) = floor_max(func, word, &metadata);
+    let mut copies = FxHashMap::from_iter([(word, clamped)]);
+    let mut originals = Vec::new();
+    for &value in &split.words[1..] {
+        let Value::Inst(original) = *func.value(value) else {
+            unreachable!("a word computed from the load has an instruction")
+        };
+        let instruction = func.inst(original);
+        let mut copy = Instruction::new(instruction.kind.clone(), instruction.result_ty);
+        copy.metadata.copy_debug_context(&instruction.metadata);
+        let (copy, copy_value) = func.alloc_value_inst(copy);
+        copies.insert(value, copy_value);
+        originals.push((original, copy));
+    }
+    // copy = op(clamped copies of the derived operands, other operands)
+    for &(_, copy) in &originals {
+        replace_inst_uses(func.inst_mut(copy), &copies);
+    }
+    let position = index_in_block(func, block, load) + 1;
+    func.blocks[block].instructions.splice(position..position, clamp);
+    for &(original, copy) in &originals {
+        let original_block = blocks[original].expect("a derived word's instruction is placed");
+        let position = index_in_block(func, original_block, original) + 1;
+        func.blocks[original_block].instructions.insert(position, copy);
+    }
+    // pointer use(word) -> pointer use(clamped copy)
+    for (site, value) in &split.sites {
+        let copy = copies[value];
+        let swap = |operand: &mut ValueId| {
+            if *operand == *value {
+                *operand = copy;
+            }
+        };
+        match site {
+            UseSite::Inst(inst) => {
+                let slot_store = matches!(
+                    func.inst(*inst).kind,
+                    InstKind::MStore(address, _) if is_slot(func, address)
+                );
+                let mut kind = func.inst(*inst).kind.clone();
+                if let Some(operands) = pointer_operands_mut(&mut kind, slot_store) {
+                    operands.into_iter().for_each(swap);
+                } else {
+                    kind.visit_operands_mut(swap);
+                }
+                func.inst_mut(*inst).kind = kind;
+            }
+            UseSite::Args(inst, positions) => {
+                if let InstKind::ICall { args, .. } = &mut func.inst_mut(*inst).kind {
+                    for &index in positions {
+                        args[index] = copy;
+                    }
+                }
+            }
+            UseSite::Terminator(block, positions) => {
+                let terminator =
+                    func.blocks[*block].terminator.as_mut().expect("a terminator uses the word");
+                match (terminator, positions) {
+                    (Terminator::TailCall { args, .. }, Some(positions)) => {
+                        for &index in positions {
+                            args[index] = copy;
+                        }
+                    }
+                    (terminator, _) => terminator.visit_operands_mut(swap),
+                }
+            }
+        }
+    }
 }
 
 /// Raises the slot's word to the heap floor before `before`, or before the block's terminator.
@@ -453,39 +550,52 @@ fn read_address_inputs(module: &Module) -> IndexVec<FunctionId, IndexVec<ValueId
     inputs
 }
 
-/// How an instruction uses a word loaded from the slot, or a word computed from one.
-fn word_use(func: &Function, kind: &InstKind, word: ValueId) -> WordUse {
-    match *kind {
+/// Whether an instruction computes a word from its operands, so that a word computed from a
+/// pointer may be a pointer too.
+fn is_derivation(kind: &InstKind) -> bool {
+    matches!(
+        kind,
         InstKind::Add(..)
-        | InstKind::Sub(..)
-        | InstKind::Mul(..)
-        | InstKind::Div(..)
-        | InstKind::SDiv(..)
-        | InstKind::Mod(..)
-        | InstKind::SMod(..)
-        | InstKind::Exp(..)
-        | InstKind::AddMod(..)
-        | InstKind::MulMod(..)
-        | InstKind::CheckedBinary { .. }
-        | InstKind::And(..)
-        | InstKind::Or(..)
-        | InstKind::Xor(..)
-        | InstKind::Not(..)
-        | InstKind::Clz(..)
-        | InstKind::Shl(..)
-        | InstKind::Shr(..)
-        | InstKind::Sar(..)
-        | InstKind::Byte(..)
-        | InstKind::SignExtend(..)
-        | InstKind::Select(..)
-        | InstKind::Phi(..)
-        | InstKind::InsertValue { .. }
-        | InstKind::ExtractValue { .. }
-        | InstKind::Zext(..)
-        | InstKind::Trunc(..)
-        | InstKind::Sext(..)
-        | InstKind::IntToPtr(..)
-        | InstKind::PtrToInt(..) => WordUse::Derives,
+            | InstKind::Sub(..)
+            | InstKind::Mul(..)
+            | InstKind::Div(..)
+            | InstKind::SDiv(..)
+            | InstKind::Mod(..)
+            | InstKind::SMod(..)
+            | InstKind::Exp(..)
+            | InstKind::AddMod(..)
+            | InstKind::MulMod(..)
+            | InstKind::CheckedBinary { .. }
+            | InstKind::And(..)
+            | InstKind::Or(..)
+            | InstKind::Xor(..)
+            | InstKind::Not(..)
+            | InstKind::Clz(..)
+            | InstKind::Shl(..)
+            | InstKind::Shr(..)
+            | InstKind::Sar(..)
+            | InstKind::Byte(..)
+            | InstKind::SignExtend(..)
+            | InstKind::Select(..)
+            | InstKind::Phi(..)
+            | InstKind::InsertValue { .. }
+            | InstKind::ExtractValue { .. }
+            | InstKind::Zext(..)
+            | InstKind::Trunc(..)
+            | InstKind::Sext(..)
+            | InstKind::IntToPtr(..)
+            | InstKind::PtrToInt(..)
+    )
+}
+
+/// Returns the operands an instruction uses as memory addresses, memory sizes, or, for a store to
+/// the slot (`slot_store`), the free memory pointer. The other operands of the operations listed
+/// are data, and an operation not listed may use any operand as a pointer.
+fn pointer_operands_mut(
+    kind: &mut InstKind,
+    slot_store: bool,
+) -> Option<SmallVec<[&mut ValueId; 4]>> {
+    Some(match kind {
         InstKind::Lt(..)
         | InstKind::Gt(..)
         | InstKind::SLt(..)
@@ -496,25 +606,75 @@ fn word_use(func: &Function, kind: &InstKind, word: ValueId) -> WordUse {
         | InstKind::SStore(..)
         | InstKind::TLoad(_)
         | InstKind::TStore(..)
-        | InstKind::CalldataLoad(_) => WordUse::Data,
-        // A word stored elsewhere is data.
-        InstKind::MStore(address, _) | InstKind::MStore8(address, _)
-            if address != word && !is_slot(func, address) =>
-        {
-            WordUse::Data
+        | InstKind::CalldataLoad(_)
+        | InstKind::BlockHash(_)
+        | InstKind::Balance(_)
+        | InstKind::ExtCodeSize(_)
+        | InstKind::ExtCodeHash(_) => SmallVec::new(),
+        InstKind::MLoad(offset) | InstKind::MStore8(offset, _) => smallvec![offset],
+        InstKind::MStore(offset, value) => {
+            if slot_store {
+                smallvec![offset, value]
+            } else {
+                smallvec![offset]
+            }
         }
-        _ => WordUse::Pointer,
-    }
+        InstKind::MCopy(dest, src, size) => smallvec![dest, src, size],
+        InstKind::CalldataCopy(offset, _, size)
+        | InstKind::CodeCopy(offset, _, size)
+        | InstKind::ReturnDataCopy(offset, _, size)
+        | InstKind::ExtCodeCopy(_, offset, _, size)
+        | InstKind::DataCopy(_, offset, size)
+        | InstKind::MemoryZero(offset, size)
+        | InstKind::Keccak256(offset, size)
+        | InstKind::Log0(offset, size)
+        | InstKind::Log1(offset, size, _)
+        | InstKind::Log2(offset, size, ..)
+        | InstKind::Log3(offset, size, ..)
+        | InstKind::Log4(offset, size, ..)
+        | InstKind::Create(_, offset, size)
+        | InstKind::Create2(_, offset, size, _) => smallvec![offset, size],
+        InstKind::Call { args_offset, args_size, ret_offset, ret_size, .. }
+        | InstKind::CallCode { args_offset, args_size, ret_offset, ret_size, .. }
+        | InstKind::StaticCall { args_offset, args_size, ret_offset, ret_size, .. }
+        | InstKind::DelegateCall { args_offset, args_size, ret_offset, ret_size, .. } => {
+            smallvec![args_offset, args_size, ret_offset, ret_size]
+        }
+        _ => return None,
+    })
 }
 
-/// How a read uses a word loaded from the slot, or a word computed from one.
-enum WordUse {
-    /// Computes another word from it.
-    Derives,
-    /// Uses it as data.
-    Data,
-    /// May use it as a pointer.
-    Pointer,
+/// How an instruction other than a derivation or an internal call uses `word`: as a pointer in
+/// the operands [`pointer_operands_mut`] lists, and as data in its other operands.
+fn operand_reads(func: &Function, kind: &InstKind, word: ValueId) -> Reads {
+    let slot_store = matches!(*kind, InstKind::MStore(address, _) if is_slot(func, address));
+    let mut roles = kind.clone();
+    let Some(pointers) = pointer_operands_mut(&mut roles, slot_store) else {
+        return Reads { pointer: true, data: false };
+    };
+    let pointer_uses = pointers.into_iter().filter(|operand| **operand == word).count();
+    let mut uses = 0;
+    kind.visit_operands(|operand| uses += usize::from(operand == word));
+    Reads { pointer: pointer_uses != 0, data: uses > pointer_uses }
+}
+
+/// The uses of a loaded word that read it as the pointer, for a word also read as data.
+struct PointerUseSplit {
+    /// The words on the way from the load to a pointer use, which get clamped copies, the loaded
+    /// word first.
+    words: Vec<ValueId>,
+    /// The uses that read one of those words as the pointer.
+    sites: Vec<(UseSite, ValueId)>,
+}
+
+/// Where a pointer use reads a word.
+enum UseSite {
+    /// The pointer operands of an instruction, or every operand of one whose roles are unknown.
+    Inst(InstId),
+    /// The arguments at these positions of an internal call.
+    Args(InstId, SmallVec<[usize; 2]>),
+    /// The arguments at these positions of a tail call, or every operand of another terminator.
+    Terminator(BlockId, Option<SmallVec<[usize; 2]>>),
 }
 
 /// A reader of a value: an instruction, or a block's terminator.
@@ -537,6 +697,8 @@ enum Effect {
     ReadsDataAndReplaces,
     /// Loads it as the pointer, in assembly.
     LoadsPointer,
+    /// Loads it as the pointer and as data, in assembly.
+    LoadsMixed,
     /// Reads it as the pointer, in code the compiler generates.
     ReadsPointer,
     /// Passes it to an internal call.
@@ -615,8 +777,8 @@ struct PointerUses<'a> {
     arg_values: FxHashMap<FunctionId, IndexVec<ArgIdx, Vec<ValueId>>>,
     /// The readers of each function's values, built on first use.
     users: FxHashMap<FunctionId, IndexLists<ValueId, User>>,
-    /// Whether each classified load of the slot reads the pointer.
-    pointer_loads: FxHashMap<(FunctionId, InstId), bool>,
+    /// How each classified load of the slot uses its word.
+    load_reads: FxHashMap<(FunctionId, InstId), Reads>,
 }
 
 impl<'a> PointerUses<'a> {
@@ -631,7 +793,7 @@ impl<'a> PointerUses<'a> {
             read_inputs: None,
             arg_values: FxHashMap::default(),
             users: FxHashMap::default(),
-            pointer_loads: FxHashMap::default(),
+            load_reads: FxHashMap::default(),
         }
     }
 
@@ -738,6 +900,10 @@ impl<'a> PointerUses<'a> {
                         break;
                     }
                     Effect::LoadsPointer | Effect::ReadsPointer => flow.reads.pointer = true,
+                    Effect::LoadsMixed => {
+                        flow.reads.pointer = true;
+                        flow.reads.data = true;
+                    }
                     Effect::Calls(callee) => {
                         let callee_flow = self.entry_flow(callee);
                         flow.reads |= callee_flow.reads;
@@ -823,7 +989,7 @@ impl<'a> PointerUses<'a> {
                 Effect::None | Effect::ReadsData => {}
                 Effect::Replaces | Effect::ReadsDataAndReplaces => return,
                 // The slot keeps its word for later reads.
-                Effect::LoadsPointer => {
+                Effect::LoadsPointer | Effect::LoadsMixed => {
                     clamps.insert(Clamp::Load(func_id, block, inst_id));
                 }
                 // The compiler takes the slot's word as the pointer from here on.
@@ -960,10 +1126,12 @@ impl<'a> PointerUses<'a> {
         let inst = func.inst(inst_id);
         match inst.kind {
             InstKind::MLoad(address) if is_slot(func, address) => {
-                if self.loaded_as_pointer(func_id, inst_id) {
-                    Effect::LoadsPointer
-                } else {
-                    Effect::ReadsData
+                let reads = self.load_reads(func_id, inst_id);
+                match (reads.pointer, reads.data) {
+                    (true, true) => Effect::LoadsMixed,
+                    (true, false) => Effect::LoadsPointer,
+                    (false, true) => Effect::ReadsData,
+                    (false, false) => Effect::None,
                 }
             }
             InstKind::MStore(address, _) if is_slot(func, address) => Effect::Replaces,
@@ -1029,15 +1197,17 @@ impl<'a> PointerUses<'a> {
     }
 
     /// Queues the call results that receive a word `func_id` returns, following tail calls to
-    /// the callers they return to. Returns false when the word leaves the module as a pointer:
-    /// an external function encodes only a returned `scalar` as data.
+    /// the callers they return to, and returns how the word is read where it leaves the module:
+    /// an external function encodes a returned `scalar` as data, and anything else may be a
+    /// pointer.
     fn queue_returned(
         &mut self,
         func_id: FunctionId,
         scalar: bool,
         pending: &mut Vec<(FunctionId, ValueId)>,
-    ) -> bool {
+    ) -> Reads {
         let module = self.module;
+        let mut reads = Reads::default();
         let mut returning = vec![func_id];
         let mut seen = FxHashSet::default();
         while let Some(callee) = returning.pop() {
@@ -1045,8 +1215,12 @@ impl<'a> PointerUses<'a> {
                 continue;
             }
             let sites = self.call_sites(callee).to_vec();
-            if sites.is_empty() && !(scalar && module.functions[callee].is_external_entry()) {
-                return false;
+            if sites.is_empty() {
+                if scalar && module.functions[callee].is_external_entry() {
+                    reads.data = true;
+                } else {
+                    reads.pointer = true;
+                }
             }
             for site in sites {
                 match site {
@@ -1059,89 +1233,177 @@ impl<'a> PointerUses<'a> {
                 }
             }
         }
-        true
+        reads
     }
 
-    /// Returns whether the word a load reads from the slot is used as the pointer: it, or a word
-    /// computed from it, addresses or sizes memory or becomes the pointer again, in its function,
-    /// in the callees it is passed to, or in the callers it is returned to.
-    fn loaded_as_pointer(&mut self, func_id: FunctionId, load: InstId) -> bool {
-        if let Some(&pointer) = self.pointer_loads.get(&(func_id, load)) {
-            return pointer;
+    /// Returns how the word a load reads from the slot is used.
+    fn load_reads(&mut self, func_id: FunctionId, load: InstId) -> Reads {
+        if let Some(&reads) = self.load_reads.get(&(func_id, load)) {
+            return reads;
         }
+        let words = self.module.functions[func_id].inst_result_value(load).map(|w| (func_id, w));
+        let reads = self.word_reads(words.into_iter().collect());
+        self.load_reads.insert((func_id, load), reads);
+        reads
+    }
+
+    /// Returns how the words `pending` holds, and the words computed from them, are used: as a
+    /// pointer where they address or size memory or become the pointer again, and as data
+    /// elsewhere, in their functions, in the callees they are passed to, and in the callers they
+    /// are returned to.
+    fn word_reads(&mut self, mut pending: Vec<(FunctionId, ValueId)>) -> Reads {
         let module = self.module;
+        let mut reads = Reads::default();
         let mut seen = FxHashSet::default();
-        let mut pending = module.functions[func_id]
-            .inst_result_value(load)
-            .map(|word| (func_id, word))
-            .into_iter()
-            .collect::<Vec<_>>();
-        let pointer = 'words: {
-            while let Some((func_id, word)) = pending.pop() {
-                if !seen.insert((func_id, word)) {
-                    continue;
-                }
-                let func = &module.functions[func_id];
-                let users = self
-                    .users
-                    .entry(func_id)
-                    .or_insert_with(|| value_users(func))
-                    .get(word)
-                    .to_vec();
-                for user in users {
-                    match user {
-                        User::Inst(inst) => match (
-                            word_use(func, &func.inst(inst).kind, word),
-                            &func.inst(inst).kind,
-                        ) {
-                            (WordUse::Derives, _) => {
-                                pending.extend(func.inst_result_value(inst).map(|v| (func_id, v)));
-                            }
-                            (WordUse::Data, _) => {}
+        while let Some((func_id, word)) = pending.pop() {
+            if reads.pointer && reads.data {
+                break;
+            }
+            if !seen.insert((func_id, word)) {
+                continue;
+            }
+            let func = &module.functions[func_id];
+            let users =
+                self.users.entry(func_id).or_insert_with(|| value_users(func)).get(word).to_vec();
+            for user in users {
+                match user {
+                    User::Inst(inst) => {
+                        let kind = &func.inst(inst).kind;
+                        if is_derivation(kind) {
+                            pending.extend(func.inst_result_value(inst).map(|v| (func_id, v)));
+                        } else if let InstKind::ICall { function: Callee::Function(callee), args } =
+                            kind
+                        {
                             // A callee uses the word as it uses the parameter.
-                            (
-                                WordUse::Pointer,
-                                InstKind::ICall { function: Callee::Function(callee), args },
-                            ) => {
-                                for (index, _) in
-                                    args.iter().enumerate().filter(|&(_, &arg)| arg == word)
-                                {
-                                    let values = self.arg_values(*callee, index);
-                                    pending.extend(values.into_iter().map(|v| (*callee, v)));
-                                }
+                            let positions =
+                                args.iter().enumerate().filter(|&(_, &arg)| arg == word);
+                            for (index, _) in positions {
+                                let values = self.arg_values(*callee, index);
+                                pending.extend(values.into_iter().map(|v| (*callee, v)));
                             }
-                            (WordUse::Pointer, _) => break 'words true,
-                        },
-                        User::Terminator(block) => match func.blocks[block].terminator.as_ref() {
-                            Some(
-                                Terminator::Branch { .. }
-                                | Terminator::Switch { .. }
-                                | Terminator::SelfDestruct { .. },
-                            ) => {}
-                            // The callers use the word as they use the call's result.
-                            Some(Terminator::Return { .. }) => {
-                                let scalar = is_scalar(module, func.value_ty(word));
-                                if !self.queue_returned(func_id, scalar, &mut pending) {
-                                    break 'words true;
-                                }
-                            }
-                            Some(Terminator::TailCall { function, args }) => {
-                                for (index, _) in
-                                    args.iter().enumerate().filter(|&(_, &arg)| arg == word)
-                                {
-                                    let values = self.arg_values(*function, index);
-                                    pending.extend(values.into_iter().map(|v| (*function, v)));
-                                }
-                            }
-                            _ => break 'words true,
-                        },
+                        } else {
+                            reads |= operand_reads(func, kind, word);
+                        }
                     }
+                    User::Terminator(block) => match func.blocks[block].terminator.as_ref() {
+                        Some(
+                            Terminator::Branch { .. }
+                            | Terminator::Switch { .. }
+                            | Terminator::SelfDestruct { .. },
+                        ) => reads.data = true,
+                        // The callers use the word as they use the call's result.
+                        Some(Terminator::Return { .. }) => {
+                            let scalar = is_scalar(module, func.value_ty(word));
+                            reads |= self.queue_returned(func_id, scalar, &mut pending);
+                        }
+                        Some(Terminator::TailCall { function, args }) => {
+                            let positions =
+                                args.iter().enumerate().filter(|&(_, &arg)| arg == word);
+                            for (index, _) in positions {
+                                let values = self.arg_values(*function, index);
+                                pending.extend(values.into_iter().map(|v| (*function, v)));
+                            }
+                        }
+                        _ => reads.pointer = true,
+                    },
                 }
             }
-            false
-        };
-        self.pointer_loads.insert((func_id, load), pointer);
-        pointer
+        }
+        reads
+    }
+
+    /// Finds the uses of a load's word in its function that read it as the pointer, and the
+    /// words computed from it on the way to them, for a word that is also read as data.
+    fn split(&mut self, func_id: FunctionId, load: InstId) -> PointerUseSplit {
+        let module = self.module;
+        let func = &module.functions[func_id];
+        let word = func.inst_result_value(load).expect("a load produces the slot's word");
+        let mut derived = FxIndexSet::default();
+        derived.insert(word);
+        let mut sites = Vec::new();
+        let mut next = 0;
+        while let Some(&value) = derived.get_index(next) {
+            next += 1;
+            let users =
+                self.users.entry(func_id).or_insert_with(|| value_users(func)).get(value).to_vec();
+            for user in users {
+                match user {
+                    User::Inst(inst) => {
+                        let kind = &func.inst(inst).kind;
+                        if is_derivation(kind) {
+                            derived.extend(func.inst_result_value(inst));
+                        } else if let InstKind::ICall { function: Callee::Function(callee), args } =
+                            kind
+                        {
+                            let positions = self.pointer_args(*callee, args, value);
+                            if !positions.is_empty() {
+                                sites.push((UseSite::Args(inst, positions), value));
+                            }
+                        } else if operand_reads(func, kind, value).pointer {
+                            sites.push((UseSite::Inst(inst), value));
+                        }
+                    }
+                    User::Terminator(block) => match func.blocks[block].terminator.as_ref() {
+                        Some(
+                            Terminator::Branch { .. }
+                            | Terminator::Switch { .. }
+                            | Terminator::SelfDestruct { .. },
+                        ) => {}
+                        Some(Terminator::Return { .. }) => {
+                            let scalar = is_scalar(module, func.value_ty(value));
+                            let mut results = Vec::new();
+                            let mut reads = self.queue_returned(func_id, scalar, &mut results);
+                            reads |= self.word_reads(results);
+                            if reads.pointer {
+                                sites.push((UseSite::Terminator(block, None), value));
+                            }
+                        }
+                        Some(Terminator::TailCall { function, args }) => {
+                            let positions = self.pointer_args(*function, args, value);
+                            if !positions.is_empty() {
+                                sites.push((UseSite::Terminator(block, Some(positions)), value));
+                            }
+                        }
+                        _ => sites.push((UseSite::Terminator(block, None), value)),
+                    },
+                }
+            }
+        }
+        // Only the words a pointer use reads, and those they are computed from, need copies.
+        let mut needed = DenseBitSet::new_empty(func.num_values());
+        let mut pending = sites.iter().map(|&(_, value)| value).collect::<Vec<_>>();
+        while let Some(value) = pending.pop() {
+            if !needed.insert(value) || value == word {
+                continue;
+            }
+            if let Value::Inst(definition) = *func.value(value) {
+                func.inst(definition).visit_operands(|operand| {
+                    if derived.contains(&operand) {
+                        pending.push(operand);
+                    }
+                });
+            }
+        }
+        let words = derived.into_iter().filter(|&value| needed.contains(value)).collect();
+        PointerUseSplit { words, sites }
+    }
+
+    /// Returns the positions at which `args` passes `word` to a parameter `callee` reads as a
+    /// pointer.
+    fn pointer_args(
+        &mut self,
+        callee: FunctionId,
+        args: &[ValueId],
+        word: ValueId,
+    ) -> SmallVec<[usize; 2]> {
+        let mut positions = SmallVec::new();
+        for (index, _) in args.iter().enumerate().filter(|&(_, &arg)| arg == word) {
+            let params = self.arg_values(callee, index).into_iter().map(|v| (callee, v)).collect();
+            if self.word_reads(params).pointer {
+                positions.push(index);
+            }
+        }
+        positions
     }
 
     /// Returns the internal calls and tail calls to `func_id`.

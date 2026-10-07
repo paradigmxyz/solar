@@ -14,6 +14,8 @@
 //@ run-call: readInHelper 5 => 5
 //@ run-call: hashAt 0x40, 3 => 0xc2575a0e9e593c00f959f8c92f12db2869c3395a3b0502d05e2516446f71f85b
 //@ run-call: zeroLengthCopy 5 => true
+//@ run-call: mixedLoad 5 => 5
+//@ run-call: dataThenMixed 5 => 5, 5
 //@ run-call: tupleReturn 5 => 5, 7
 //@ run-call: hashHelperScratch 1, 2, 3 => 0x6e0c627900b24bd432fe7b1f713f1b0744091a646a9fe4a65a18dfed21f2949c
 //@ run-call: allocateAfterHelper 1, 2, 3 => 3
@@ -357,6 +359,27 @@ contract AssemblyLowMemoryLayouts {
             h := keccak256(offset, 0x20)
             let p := mload(0x40)
             mstore(p, h)
+        }
+    }
+
+    // A load whose word is both written through and returned: only the write is clamped.
+    function mixedLoad(uint256) external pure returns (uint256 seen) {
+        assembly {
+            mstore(0x40, calldataload(4))
+            let p := mload(0x40)
+            mstore(p, 1)
+            seen := p
+            mstore(0x40, add(p, 0x20))
+        }
+    }
+
+    function dataThenMixed(uint256) external pure returns (uint256 first, uint256 seen) {
+        assembly {
+            mstore(0x40, calldataload(4))
+            first := mload(0x40)
+            let p := mload(0x40)
+            mstore(p, 1)
+            seen := p
         }
     }
 
