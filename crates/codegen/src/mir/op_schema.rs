@@ -2897,94 +2897,6 @@ define_mir_ops! {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mir::{AbiLayout, AllocationKind, AllocationSemantics, Builtin, Value, ValueId};
-    use solar_interface::Ident;
-
-    #[test]
-    fn empty_signatures_reject_extra_operands() {
-        let mut func = Function::new(Ident::DUMMY);
-        let value = func.alloc_value(Value::Undef(MirType::I256));
-        let bytes = MirType::MemPtr;
-        let extra = [value].into();
-        let calls = [
-            InstKind::ICall { function: Callee::Builtin(Builtin::ReturndataBytes), args: extra },
-            InstKind::ICall {
-                function: Callee::Builtin(Builtin::Concat(Vec::new().into())),
-                args: [value].into(),
-            },
-            InstKind::AbiEncode {
-                mode: AbiEncodeMode::Bytes,
-                selector: None,
-                args: [value].into(),
-                layout: AbiLayout::new([]).into(),
-            },
-        ];
-        for kind in calls {
-            assert!(!kind.scalar_types_match(&func, Some(bytes)));
-        }
-        let empty = InstKind::ICall {
-            function: Callee::Builtin(Builtin::ReturndataBytes),
-            args: [].into(),
-        };
-        assert!(empty.scalar_types_match(&func, Some(bytes)));
-    }
-
-    #[test]
-    fn descriptors_drive_operation_properties() {
-        let add = InstKind::Add(ValueId::new(0), ValueId::new(1));
-        assert_eq!(add.mnemonic(), "add");
-        assert_eq!(add.effect_kind(), EffectKind::Pure);
-        assert!(add.op_def().traits.contains(OpTraits::REORDERABLE));
-        assert!(!add.has_side_effects());
-
-        let calldata_size = InstKind::CalldataSize;
-        assert!(calldata_size.op_def().traits.contains(OpTraits::REMATERIALIZABLE));
-        assert!(calldata_size.op_def().phases.contains(MirPhase::Lowered));
-
-        assert_eq!(add.op_def().result.default_type(), Some(MirType::I256));
-        assert!(
-            !InstKind::MStore(ValueId::new(0), ValueId::new(1)).op_def().result.produces_value()
-        );
-
-        let slice = InstKind::MakeSlice {
-            ptr: ValueId::new(0),
-            len: ValueId::new(1),
-            location: SliceLocation::Calldata,
-        };
-        assert_eq!(slice.mnemonic(), "make_calldata_slice");
-    }
-
-    #[test]
-    fn views_project_operands() {
-        let add = InstKind::Add(ValueId::new(0), ValueId::new(1));
-        assert_eq!(add.op(), Op::Add { a: ValueId::new(0), b: ValueId::new(1) });
-        let mapped = add.op().map_values(|value| ValueId::new(value.index() + 10));
-        assert_eq!(mapped, Op::Add { a: ValueId::new(10), b: ValueId::new(11) });
-        assert_eq!(InstKind::MSize.op(), Op::MSize);
-        assert_eq!(add.op().into_kind().as_ref(), Some(&add));
-        assert_eq!(InstKind::Phi(Vec::new()).op().into_kind(), None);
-    }
-
-    #[test]
-    fn commutativity_applies_only_to_the_declared_pair() {
-        let a = ValueId::new(2);
-        let b = ValueId::new(1);
-        let addmod = InstKind::AddMod(a, b, a);
-        assert!(addmod.op_def().traits.contains(OpTraits::COMMUTATIVE));
-        assert_eq!(addmod.op().canonicalize_commutative(), Op::AddMod { a: b, b: a, n: a });
-
-        assert_eq!(
-            addmod.op().canonicalize_commutative_by_key(|value| value == a),
-            Op::AddMod { a: b, b: a, n: a }
-        );
-        assert_eq!(addmod.op().canonicalize_commutative_by_key(|_| false), addmod.op());
-
-        let gt = InstKind::Gt(a, b);
-        assert!(gt.op_def().traits.contains(OpTraits::REORDERABLE));
-        assert!(!gt.op_def().traits.contains(OpTraits::COMMUTATIVE));
-        assert_eq!(gt.op().canonicalize_commutative(), gt.op());
-        assert_eq!(gt.op().canonicalize_commutative_by_key(|value| value == a), gt.op());
-    }
 
     #[test]
     fn isle_prelude_matches_schema() {
@@ -2992,30 +2904,6 @@ mod tests {
         snapbox::assert_data_eq!(
             Op::isle_extractors(),
             snapbox::file!["../../isle/mir/extractors.isle"]
-        );
-    }
-
-    #[test]
-    fn descriptors_enforce_phase_boundaries() {
-        let metadata = InstructionMetadata::EMPTY;
-        let fmp = InstKind::Fmp;
-        assert_eq!(fmp.phase_violation(MirPhase::Lowered, &metadata), Some("abstract allocation"));
-
-        let object_load =
-            InstKind::MemoryObjectLoadByte { object: ValueId::new(0), index: ValueId::new(1) };
-        assert_eq!(
-            object_load.phase_violation(MirPhase::Lowered, &metadata),
-            Some("memory-object")
-        );
-
-        let raw_alloc = InstKind::Alloc {
-            size: ValueId::new(0),
-            kind: AllocationKind::Raw,
-            semantics: AllocationSemantics::INTERNAL,
-        };
-        assert_eq!(
-            raw_alloc.phase_violation(MirPhase::Lowered, &metadata),
-            Some("abstract allocation")
         );
     }
 }

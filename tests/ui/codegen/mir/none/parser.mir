@@ -260,6 +260,21 @@ fn @cast_undef() -> memptr {
     ret v0
 }
 
+// `i1` literals 0 and 1 and `i1 undef` are valid operands.
+// CHECK-LABEL: fn @bool_literals
+// CHECK: zext i1 0 to i256
+// CHECK: zext i1 1 to i256
+// CHECK: zext i1 undef to i256
+// CHECK: and false, true
+fn @bool_literals() -> i1 {
+  bb0:
+    v0 = zext i1 0 to i256
+    v1 = zext i1 1 to i256
+    v2 = zext i1 undef to i256
+    v3 = and i1 0, i1 1
+    ret v3
+}
+
 // CHECK-LABEL: fn @integer_casts
 // CHECK: trunc i128 arg0 to i24
 // CHECK: zext i24 {{v[0-9]+}} to i256
