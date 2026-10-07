@@ -1,0 +1,134 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/assembly_low_memory_routes.sol:AssemblyLowMemoryRoutes ===
+@module AssemblyLowMemoryRoutes
+fn @layout(arg0: i256, arg1: i256) -> i256 [selector=0x3dab18c6, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = keccak256_packed (u256 arg0, u256 0)
+    v1 = keccak256_packed (u256 arg0, u256 1)
+    v2 = keccak256_packed (u256 arg0, u256 2)
+    v3 = keccak256_packed (u256 arg0, u256 3)
+    v4 = keccak256_packed (u256 arg0, u256 4)
+    v5 = keccak256_packed (u256 arg0, u256 5)
+    v6 = keccak256_packed (u256 arg0, u256 6)
+    v7 = keccak256_packed (u256 arg0, u256 7)
+    v8 = keccak256_packed (u256 arg0, u256 8)
+    v9 = keccak256_packed (u256 arg0, u256 9)
+    v10 = keccak256_packed (u256 arg0, u256 10)
+    v11 = keccak256_packed (u256 arg0, u256 11)
+    v12 = keccak256_packed (u256 arg0, u256 12)
+    v13 = keccak256_packed (u256 arg0, u256 13)
+    v14 = keccak256_packed (u256 arg0, u256 14)
+    v15 = keccak256_packed (u256 arg0, u256 15)
+    v16 = keccak256_packed (u256 arg0, u256 16)
+    v17 = ne arg1, 0
+    jumpi v17, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    v18 = icall @_lay, arg0
+    jump bb3
+  bb3:
+    v19 = phi [bb1: v18], [bb2: 0]
+    v20 = xor v0, v1
+    v21 = xor v20, v2
+    v22 = xor v21, v3
+    v23 = xor v22, v4
+    v24 = xor v23, v5
+    v25 = xor v24, v6
+    v26 = xor v25, v7
+    v27 = xor v26, v8
+    v28 = xor v27, v9
+    v29 = xor v28, v10
+    v30 = xor v29, v11
+    v31 = xor v30, v12
+    v32 = xor v31, v13
+    v33 = xor v32, v14
+    v34 = xor v33, v15
+    v35 = xor v34, v16
+    v36 = xor v19, v35
+    ret v36
+}
+
+fn @lowHeapRoute(arg0: i256) -> i256 [selector=0x52ecae0e, pure, abi_params=[u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = icall @_spillHashes, arg0
+    v1 = eq v0, 0
+    v2 = zext i1 v1 to i256
+    v3 = eq v2, 0
+    v4 = zext i1 v3 to i256
+    v5 = mload 64 !metadata(memory=scratch)
+    v6 = lt v5, 0x2000
+    v7 = zext i1 v6 to i256
+    v8 = and v7, v4
+    ret v8
+}
+
+fn @_spillHashes(arg0: i256) -> i256 [pure] {
+  bb0:
+    v0 = keccak256_packed (u256 arg0, u256 0)
+    v1 = keccak256_packed (u256 arg0, u256 1)
+    v2 = keccak256_packed (u256 arg0, u256 2)
+    v3 = keccak256_packed (u256 arg0, u256 3)
+    v4 = keccak256_packed (u256 arg0, u256 4)
+    v5 = keccak256_packed (u256 arg0, u256 5)
+    v6 = keccak256_packed (u256 arg0, u256 6)
+    v7 = keccak256_packed (u256 arg0, u256 7)
+    v8 = keccak256_packed (u256 arg0, u256 8)
+    v9 = keccak256_packed (u256 arg0, u256 9)
+    v10 = keccak256_packed (u256 arg0, u256 10)
+    v11 = keccak256_packed (u256 arg0, u256 11)
+    v12 = keccak256_packed (u256 arg0, u256 12)
+    v13 = keccak256_packed (u256 arg0, u256 13)
+    v14 = keccak256_packed (u256 arg0, u256 14)
+    v15 = keccak256_packed (u256 arg0, u256 15)
+    v16 = keccak256_packed (u256 arg0, u256 16)
+    v17 = xor v0, v1
+    v18 = xor v17, v2
+    v19 = xor v18, v3
+    v20 = xor v19, v4
+    v21 = xor v20, v5
+    v22 = xor v21, v6
+    v23 = xor v22, v7
+    v24 = xor v23, v8
+    v25 = xor v24, v9
+    v26 = xor v25, v10
+    v27 = xor v26, v11
+    v28 = xor v27, v12
+    v29 = xor v28, v13
+    v30 = xor v29, v14
+    v31 = xor v30, v15
+    v32 = xor v31, v16
+    ret v32
+}
+
+fn @_lay(arg0: i256) -> i256 [pure] {
+  bb0:
+    v0 = calldataload 36
+    v1 = shl 5, v0
+    v2 = add 160, v1
+    jump bb1
+  bb1:
+    v3 = phi [bb0: arg0], [bb3: v3]
+    v4 = phi [bb0: v2], [bb3: v4]
+    v5 = phi [bb0: 160], [bb3: v10]
+    v6 = phi [bb0: 0], [bb3: v6]
+    v7 = lt v5, v4
+    v8 = zext i1 v7 to i256
+    v9 = ne v8, 0
+    jumpi v9, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    mstore v4, v3
+    v11 = sub v4, 160
+    v12 = add v11, 32
+    v13 = keccak256 160, v12
+    ret v13
+  bb4:
+    mstore v5, v3
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v10 = add v5, 32
+    jump bb1
+}

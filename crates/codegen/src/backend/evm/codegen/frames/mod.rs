@@ -502,22 +502,40 @@ impl<'gcx> EvmCodegen<'gcx> {
             runtime_entries.iter().all(|entry| self.runtime_entry_reachability.contains_key(entry)),
             "runtime entry reachability must be recorded before frame placement"
         );
-        // Entries reach mostly the same functions, so each function's mark is computed once.
+        // Entries reach mostly the same functions, so each function's marks are computed once.
+        let mut constant_memory_marks = index_vec![None; module.functions.len()];
         let mut low_memory_marks = index_vec![None; module.functions.len()];
-        let mut low_memory_mark = |func_id: FunctionId| {
-            *low_memory_marks[func_id]
-                .get_or_insert_with(|| Self::low_memory_high_water_mark(&module.functions[func_id]))
-        };
-        let mut reachable_memory_marks = runtime_entries
+        // An entry's spill area stays above every constant image the functions it reaches lay
+        // out, but only a calldata-sized layout it runs before control passes to another entry
+        // moves it above low memory. The dispatcher's tail calls into the external functions
+        // never return, so neither its spill area nor the frames its end bounds take that move
+        // from the routes it dispatches to.
+        let own_reach = runtime_entries
             .iter()
-            .copied()
-            .map(|entry| {
-                let mark = self.runtime_entry_reachability[&entry]
+            .map(|&entry| (entry, Self::entry_own_reach(module, entry, &runtime_entries)))
+            .collect::<FxHashMap<_, _>>();
+        let mut reachable_memory_marks = own_reach
+            .iter()
+            .map(|(&entry, reach)| {
+                let images = self.runtime_entry_reachability[&entry]
                     .iter()
-                    .map(&mut low_memory_mark)
+                    .map(|func_id| {
+                        *constant_memory_marks[func_id].get_or_insert_with(|| {
+                            Self::constant_memory_high_water_mark(&module.functions[func_id])
+                        })
+                    })
                     .max()
-                    .unwrap_or_else(|| low_memory_mark(entry));
-                (entry, mark)
+                    .unwrap_or(0);
+                let own = reach
+                    .iter()
+                    .map(|func_id| {
+                        *low_memory_marks[func_id].get_or_insert_with(|| {
+                            Self::low_memory_high_water_mark(&module.functions[func_id])
+                        })
+                    })
+                    .max()
+                    .unwrap_or(0);
+                (entry, images.max(own))
             })
             .collect::<FxHashMap<_, _>>();
         // Compiler memory that starts at or above the bound must also clear the fixed memory
@@ -974,6 +992,38 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.asm.set_deferred_const(id, U256::from(floor));
         }
         self.runtime_entry_reachability.clear();
+    }
+
+    /// Returns the functions `entry` runs before control passes to another runtime entry: its
+    /// calls, and its tail calls into functions that are not entries.
+    fn entry_own_reach(
+        module: &Module,
+        entry: FunctionId,
+        entries: &[FunctionId],
+    ) -> DenseBitSet<FunctionId> {
+        let mut reach = DenseBitSet::new_empty(module.functions.len());
+        let mut pending = vec![entry];
+        while let Some(func_id) = pending.pop() {
+            if !reach.insert(func_id) {
+                continue;
+            }
+            let func = &module.functions[func_id];
+            for inst_id in func.instructions() {
+                if let InstKind::ICall { function: Callee::Function(callee), .. } =
+                    func.inst(inst_id).kind
+                {
+                    pending.push(callee);
+                }
+            }
+            for block in &func.blocks {
+                if let Some(Terminator::TailCall { function, .. }) = &block.terminator
+                    && !entries.contains(function)
+                {
+                    pending.push(*function);
+                }
+            }
+        }
+        reach
     }
 
     fn external_spill_base(
