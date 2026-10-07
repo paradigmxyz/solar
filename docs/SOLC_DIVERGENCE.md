@@ -378,11 +378,13 @@ No intentional divergences documented yet.
   `mstore(0x40, 0x80)`, such a read sees `0x80` under `solc` and the initial
   pointer here. A word that is also read as data, such as one hashed in
   scratch memory or loaded and compared, stays in the slot for those reads,
-  and only the pointer reads see the raised value. Every runtime entry that
-  reaches a function writing memory at an absolute address computed from
-  calldata, as Seaport lays out a basic order's hashes and event data, keeps
-  its spill slots and the frames it reaches above `0x2080` and above the
-  constant ranges assembly names there, which costs memory expansion gas.
+  and only the pointer reads see the raised value. Each external function
+  that runs code writing memory at an absolute address computed from calldata,
+  as Seaport lays out a basic order's hashes and event data, keeps its spill
+  slots and the frames it reaches above `0x2080`, and above the constant
+  ranges assembly names there in the functions it runs or that an external
+  function sharing those frames runs. This costs memory expansion gas; other
+  external functions keep their memory low unless they share those frames.
 - Rationale: The spill slots and internal-call frames below the initial free
   memory pointer (CODEGEN-009) hold values that `solc` keeps on the stack. The
   next allocation after a lowered pointer, or the absolute layout itself,
@@ -399,5 +401,6 @@ No intentional divergences documented yet.
   compiler's memory; Seaport's basic orders with about 40 or more additional
   recipients do.
 - Coverage: `tests/ui/codegen/lowering/run-call/assembly_low_memory_layouts.sol`,
+  `tests/ui/codegen/lowering/run-call/assembly_low_memory_routes.sol`,
   `tests/ui/codegen/mir/heap-floor/heap_floor.mir`, and Seaport's own suite in
   `cargo tq foundry-external seaport`.
