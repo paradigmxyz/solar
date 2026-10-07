@@ -5,6 +5,7 @@
 //@ run-call: hashScratch 1, 2, 3 => 0x6e0c627900b24bd432fe7b1f713f1b0744091a646a9fe4a65a18dfed21f2949c, 5
 //@ run-call: hashInHelper 1, 2, 3 => 0x6e0c627900b24bd432fe7b1f713f1b0744091a646a9fe4a65a18dfed21f2949c
 //@ run-call: storeInHelper 1, 2, 3 => 0x6e0c627900b24bd432fe7b1f713f1b0744091a646a9fe4a65a18dfed21f2949c
+//@ run-call: deepAddress 5 => 5
 
 // Memory-unsafe assembly can treat all memory from 0x80 up as its own. Seaport lays a basic
 // order's hashes and event data out at addresses that calldata sizes, moves the free memory
@@ -121,6 +122,63 @@ contract AssemblyLowMemoryLayouts {
             put(a, b)
             h := keccak256(0x00, 0x60)
             mstore(0x40, m)
+        }
+    }
+
+    // A destination built from many rounds over shared words is classified once per word.
+    function deepAddress(uint256) external pure returns (uint256 r) {
+        assembly {
+            let x := calldataload(4)
+            x := add(x, x)
+            x := add(x, x)
+            x := add(x, x)
+            x := add(x, x)
+            x := add(x, x)
+            x := add(x, x)
+            x := add(x, x)
+            x := add(x, x)
+            x := add(x, x)
+            x := add(x, x)
+            x := add(x, x)
+            x := add(x, x)
+            x := add(x, x)
+            x := add(x, x)
+            x := add(x, x)
+            x := add(x, x)
+            x := add(x, x)
+            x := add(x, x)
+            x := add(x, x)
+            x := add(x, x)
+            x := add(x, x)
+            x := add(x, x)
+            x := add(x, x)
+            x := add(x, x)
+            x := add(x, x)
+            x := add(x, x)
+            x := add(x, x)
+            x := add(x, x)
+            x := add(x, x)
+            x := add(x, x)
+            x := add(x, x)
+            x := add(x, x)
+            x := add(x, x)
+            x := add(x, x)
+            x := add(x, x)
+            x := add(x, x)
+            x := add(x, x)
+            x := add(x, x)
+            x := add(x, x)
+            x := add(x, x)
+            x := add(x, x)
+            x := add(x, x)
+            x := add(x, x)
+            x := add(x, x)
+            x := add(x, x)
+            x := add(x, x)
+            x := add(x, x)
+            x := add(x, x)
+            mstore(and(x, 0x1f), calldataload(4))
+            r := mload(0)
         }
     }
 

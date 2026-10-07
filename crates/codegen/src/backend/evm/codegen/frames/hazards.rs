@@ -6,7 +6,7 @@ use super::{
         FxHashMap, FxHashSet, InstId, InstKind, MemoryBase, MemoryRegion, MirType, Module,
         Terminator, U256, Value, ValueId,
     },
-    SPILL_HAZARD_BOUND,
+    AddressInput, SPILL_HAZARD_BOUND,
 };
 use crate::mir::Callee;
 
@@ -454,17 +454,13 @@ impl<'gcx> EvmCodegen<'gcx> {
         let mut uses = FmpPointerUses::new(module);
         let mut floor_stores = FxHashMap::<_, FxHashSet<_>>::default();
         for (func_id, func) in module.functions.iter_enumerated() {
+            let mut inputs = None;
             for (block, data) in func.blocks.iter_enumerated() {
                 for (index, &inst_id) in data.instructions.iter().enumerate() {
                     if let InstKind::MStore(address, value) = func.inst(inst_id).kind
                         && func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT)
-                        && Self::absolute_address_input(
-                            func,
-                            value,
-                            &mut DenseBitSet::new_empty(func.num_values()),
-                            0,
-                        )
-                        .is_some()
+                        && inputs.get_or_insert_with(|| Self::absolute_address_inputs(func))[value]
+                            != AddressInput::Other
                         && uses.store_may_be_used_as_pointer(func_id, block, index)
                     {
                         floor_stores.entry(func_id).or_default().insert(inst_id);

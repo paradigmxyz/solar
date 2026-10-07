@@ -16,7 +16,8 @@ use super::{
     ArgIdx, CallGraphInfo, DebugFunction, DebugFunctionExit, DeferredConst, DenseBitSet,
     EvmCodegen, EvmMemoryLayout, Function, FunctionId, FxHashMap, FxHashSet, IndexVec, InstKind,
     MemoryRegion, MirType, Module, RelayoutAddress, SpillSlot, StackEffect, StackOp, StackPush,
-    Terminator, U256, Value, ValueId, WORD_BYTES, immutable_staging_end, op, preserves_push_width,
+    Terminator, U256, Value, ValueId, WORD_BYTES, immutable_staging_end, index_vec, op,
+    preserves_push_width,
 };
 use crate::mir::{
     Callee,
@@ -500,15 +501,21 @@ impl<'gcx> EvmCodegen<'gcx> {
             runtime_entries.iter().all(|entry| self.runtime_entry_reachability.contains_key(entry)),
             "runtime entry reachability must be recorded before frame placement"
         );
+        // Entries reach mostly the same functions, so each function's mark is computed once.
+        let mut low_memory_marks = index_vec![None; module.functions.len()];
+        let mut low_memory_mark = |func_id: FunctionId| {
+            *low_memory_marks[func_id]
+                .get_or_insert_with(|| Self::low_memory_high_water_mark(&module.functions[func_id]))
+        };
         let reachable_memory_marks = runtime_entries
             .iter()
             .copied()
             .map(|entry| {
                 let mark = self.runtime_entry_reachability[&entry]
                     .iter()
-                    .map(|func_id| Self::low_memory_high_water_mark(&module.functions[func_id]))
+                    .map(&mut low_memory_mark)
                     .max()
-                    .unwrap_or_else(|| Self::low_memory_high_water_mark(&module.functions[entry]));
+                    .unwrap_or_else(|| low_memory_mark(entry));
                 (entry, mark)
             })
             .collect::<FxHashMap<_, _>>();
@@ -1353,14 +1360,17 @@ impl<'gcx> EvmCodegen<'gcx> {
 
     /// Returns whether `func` writes memory at an absolute address that is not a constant.
     fn writes_absolute_dynamic_memory(func: &Function) -> bool {
-        func.instructions().any(|inst_id| {
-            if matches!(
-                func.inst(inst_id).metadata.memory_region(),
-                Some(MemoryRegion::AbiReturn | MemoryRegion::Heap | MemoryRegion::InternalFrame)
-            ) {
-                return false;
-            }
-            let dest = match func.inst(inst_id).kind {
+        let destinations = func
+            .instructions()
+            .filter(|&inst_id| {
+                !matches!(
+                    func.inst(inst_id).metadata.memory_region(),
+                    Some(
+                        MemoryRegion::AbiReturn | MemoryRegion::Heap | MemoryRegion::InternalFrame
+                    )
+                )
+            })
+            .filter_map(|inst_id| match func.inst(inst_id).kind {
                 InstKind::MStore(dest, _)
                 | InstKind::MStore8(dest, _)
                 | InstKind::MCopy(dest, _, _)
@@ -1368,63 +1378,67 @@ impl<'gcx> EvmCodegen<'gcx> {
                 | InstKind::DataCopy(_, dest, _)
                 | InstKind::CodeCopy(dest, _, _)
                 | InstKind::ReturnDataCopy(dest, _, _)
-                | InstKind::ExtCodeCopy(_, dest, _, _) => dest,
+                | InstKind::ExtCodeCopy(_, dest, _, _) => Some(dest),
                 InstKind::Call { ret_offset, .. }
                 | InstKind::CallCode { ret_offset, .. }
                 | InstKind::StaticCall { ret_offset, .. }
-                | InstKind::DelegateCall { ret_offset, .. } => ret_offset,
-                _ => return false,
-            };
-            func.value_u64(dest).is_none()
-                && Self::absolute_address_input(
-                    func,
-                    dest,
-                    &mut DenseBitSet::new_empty(func.num_values()),
-                    0,
-                ) == Some(true)
-        })
+                | InstKind::DelegateCall { ret_offset, .. } => Some(ret_offset),
+                _ => None,
+            })
+            .filter(|&dest| func.value_u64(dest).is_none())
+            .collect::<Vec<_>>();
+        if destinations.is_empty() {
+            return false;
+        }
+        let inputs = Self::absolute_address_inputs(func);
+        destinations.into_iter().any(|dest| inputs[dest] == AddressInput::Calldata)
     }
 
-    /// Classifies `value` as an absolute address: `Some(true)` when it is computed from
-    /// constants and calldata, `Some(false)` from constants alone, and `None` when it involves
-    /// the heap, a parameter, or a loaded word. A loop-carried value is absolute when every
-    /// value entering the loop is.
-    fn absolute_address_input(
+    /// Classifies every value of `func` as an absolute address by what it is computed from.
+    ///
+    /// One pass per change reaches the fixed point: a value only rises from a constant to
+    /// calldata to anything else, and a loop-carried value starts as a constant and rises to
+    /// whatever enters the loop. Shared operands are classified once, however many expressions
+    /// read them.
+    pub(in crate::backend::evm::codegen) fn absolute_address_inputs(
         func: &Function,
-        value: ValueId,
-        visiting: &mut DenseBitSet<ValueId>,
-        depth: usize,
-    ) -> Option<bool> {
-        if func.value_u256(value).is_some() {
-            return Some(false);
+    ) -> IndexVec<ValueId, AddressInput> {
+        let mut inputs = index_vec![AddressInput::Constant; func.num_values()];
+        for (value, input) in inputs.iter_mut_enumerated() {
+            if !matches!(func.value(value), Value::Immediate(_) | Value::Inst(_)) {
+                *input = AddressInput::Other;
+            }
         }
-        if depth > 64 {
-            return None;
+        let mut changed = true;
+        while changed {
+            changed = false;
+            for inst_id in func.instructions() {
+                let Some(value) = func.inst_result_value(inst_id) else { continue };
+                let input = match &func.inst(inst_id).kind {
+                    InstKind::CalldataLoad(_) | InstKind::CalldataSize => AddressInput::Calldata,
+                    InstKind::Add(lhs, rhs)
+                    | InstKind::Sub(lhs, rhs)
+                    | InstKind::Mul(lhs, rhs)
+                    | InstKind::Shl(lhs, rhs)
+                    | InstKind::Shr(lhs, rhs)
+                    | InstKind::And(lhs, rhs)
+                    | InstKind::Or(lhs, rhs)
+                    | InstKind::Select(_, lhs, rhs) => inputs[*lhs].max(inputs[*rhs]),
+                    InstKind::Zext(inner) | InstKind::IntToPtr(inner) => inputs[*inner],
+                    InstKind::Phi(incoming) => incoming
+                        .iter()
+                        .map(|&(_, incoming)| inputs[incoming])
+                        .max()
+                        .unwrap_or(AddressInput::Constant),
+                    _ => AddressInput::Other,
+                };
+                if input > inputs[value] {
+                    inputs[value] = input;
+                    changed = true;
+                }
+            }
         }
-        let Value::Inst(inst_id) = func.value(value) else { return None };
-        if !visiting.insert(value) {
-            return Some(false);
-        }
-        let mut input =
-            |value| Self::absolute_address_input(func, value, &mut *visiting, depth + 1);
-        let result = match &func.inst(*inst_id).kind {
-            InstKind::CalldataLoad(_) | InstKind::CalldataSize => Some(true),
-            InstKind::Add(lhs, rhs)
-            | InstKind::Sub(lhs, rhs)
-            | InstKind::Mul(lhs, rhs)
-            | InstKind::Shl(lhs, rhs)
-            | InstKind::Shr(lhs, rhs)
-            | InstKind::And(lhs, rhs)
-            | InstKind::Or(lhs, rhs)
-            | InstKind::Select(_, lhs, rhs) => Some(input(*lhs)? | input(*rhs)?),
-            InstKind::Zext(inner) | InstKind::IntToPtr(inner) => input(*inner),
-            InstKind::Phi(incoming) => incoming
-                .iter()
-                .try_fold(false, |calldata, &(_, incoming)| Some(calldata | input(incoming)?)),
-            _ => None,
-        };
-        visiting.remove(value);
-        result
+        inputs
     }
 
     /// Visits physical memory ranges used by instructions and terminators.
@@ -1619,6 +1633,17 @@ impl<'gcx> EvmCodegen<'gcx> {
         );
         self.asm.emit_op(op::MLOAD);
     }
+}
+
+/// What an absolute address is computed from, ordered from the most to the least known.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub(in crate::backend::evm::codegen) enum AddressInput {
+    /// Constants alone.
+    Constant,
+    /// Constants and calldata.
+    Calldata,
+    /// The heap, a parameter, a loaded word, or anything else.
+    Other,
 }
 
 #[cfg(test)]
