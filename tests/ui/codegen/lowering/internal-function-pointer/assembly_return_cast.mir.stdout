@@ -7,7 +7,7 @@
 
 fn @decodePair(arg0: i256, arg1: i256) -> struct0 [selector=0xabce00be, pure, abi_params=[u256, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
-    v0 = icall @_toPairReturnType, 10
+    v0 = icall @_toPairReturnType, 11
     v1 = icall @internal_dispatcher_asm_p_u256_r_memorystruct, v0, 4
     v2 = memory_object_load_field memorystruct<2>, v1, 0
     v3 = memory_object_load_field memorystruct<2>, v1, 1
@@ -18,7 +18,7 @@ fn @decodePair(arg0: i256, arg1: i256) -> struct0 [selector=0xabce00be, pure, ab
 
 fn @decodePairLater(arg0: i256, arg1: i256) -> i256 [selector=0x4186506d, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = icall @_toPairReturnType, 10
+    v0 = icall @_toPairReturnType, 11
     v1 = icall @internal_dispatcher_asm_p_u256_r_memorystruct, v0, 4
     v2 = memory_object_load_field memorystruct<2>, v1, 0
     v3 = checked_mul u256, v2, 10
@@ -30,7 +30,7 @@ fn @decodePairLater(arg0: i256, arg1: i256) -> i256 [selector=0x4186506d, pure, 
 fn @decodePairField(arg0: i256, arg1: i256) -> struct0 [selector=0x3c031c90, pure, abi_params=[u256, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
-    memory_object_store_field memorystruct<1>, v0, 0, 10
+    memory_object_store_field memorystruct<1>, v0, 0, 11
     v1 = icall @_toPairDecoder, v0
     v2 = memory_object_load_field memorystruct<1>, v1, 0
     v3 = icall @internal_dispatcher_asm_p_u256_r_memorystruct, v2, 4
@@ -43,14 +43,14 @@ fn @decodePairField(arg0: i256, arg1: i256) -> struct0 [selector=0x3c031c90, pur
 
 fn @decodeBytes(arg0: calldataslice) -> memptr [selector=0x197621ce, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
-    v0 = icall @_toBytesReturnType, 11
+    v0 = icall @_toBytesReturnType, 12
     v1 = icall @internal_dispatcher_asm_p_u256_r_memorybytes, v0, 36
     ret v1
 }
 
 fn @sumPair(arg0: i256, arg1: i256) -> i256 [selector=0xc766468d, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = icall @_toPairInput, 12
+    v0 = icall @_toPairInput, 13
     v1 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
     memory_object_store_field memorystruct<2>, v1, 0, arg0
     memory_object_store_field memorystruct<2>, v1, 1, arg1
@@ -60,7 +60,7 @@ fn @sumPair(arg0: i256, arg1: i256) -> i256 [selector=0xc766468d, pure, abi_para
 
 fn @swapArrays(arg0: memptr, arg1: memptr) -> struct1 [selector=0x6568294d, pure, abi_params=[array<_, u256>, array<_, u256>], abi_returns=[word, memory_array<word>, memory_array<word>], abi_return_params=[u256, array<_, u256>, array<_, u256>]] {
   bb0:
-    v0 = icall @_toArrayTypes, 13
+    v0 = icall @_toArrayTypes, 14
     v1 = icall @internal_dispatcher_asm_p_memoryarray_memoryarray_r_u256_memoryarray_memoryarray, v0, arg0, arg1
     v2 = extract_value struct1, v1, 0
     v3 = extract_value struct1, v1, 1
@@ -73,18 +73,29 @@ fn @swapArrays(arg0: memptr, arg1: memptr) -> struct1 [selector=0x6568294d, pure
 
 fn @applyPair(arg0: i256, arg1: i256) -> i256 [selector=0x91b58050, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = icall @_toPairApply, 14
+    v0 = icall @_toPairApply, 15
     v1 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
     memory_object_store_field memorystruct<2>, v1, 0, arg0
     memory_object_store_field memorystruct<2>, v1, 1, arg1
-    v2 = icall @internal_dispatcher_asm_p_memorystruct_function_r_u256, v0, v1, 15
+    v2 = icall @internal_dispatcher_asm_p_memorystruct_function_r_u256, v0, v1, 16
     ret v2
 }
 
 fn @isOdd(arg0: i256) -> i1 [selector=0xd8b3a2eb, pure, abi_params=[u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = icall @internal_dispatcher_p_u256_r_bool, 16, arg0
+    v0 = icall @internal_dispatcher_p_u256_r_bool, 17, arg0
     ret v0
+}
+
+fn @widenNarrow(arg0: i256) -> struct0 [selector=0x699a082f, pure, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+  bb0:
+    v0 = icall @_toWideInput, 18
+    v1 = icall @internal_dispatcher_asm_p_u256_r_u256_u256, v0, arg0
+    v2 = extract_value struct0, v1, 0
+    v3 = extract_value struct0, v1, 1
+    v4 = insert_value struct0, undef struct0, 0, v2
+    v5 = insert_value struct0, v4, 1, v3
+    ret v5
 }
 
 fn @callInvalid() -> i256 [selector=0xa0a3185b, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
@@ -159,6 +170,15 @@ fn @_isOdd(arg0: i256) -> i1 [pure] {
     ret v1
 }
 
+fn @_rawAndTyped(arg0: i256) -> struct0 [pure] {
+  bb0:
+    v0 = trunc i256 arg0 to i8
+    v1 = zext i8 v0 to i256
+    v2 = insert_value struct0, undef struct0, 0, arg0
+    v3 = insert_value struct0, v2, 1, v1
+    ret v3
+}
+
 fn @_toPairReturnType(arg0: i256) -> i256 [pure] {
   bb0:
     ret arg0
@@ -185,6 +205,11 @@ fn @_toPairApply(arg0: i256) -> i256 [pure] {
     ret arg0
 }
 
+fn @_toWideInput(arg0: i256) -> i256 [pure] {
+  bb0:
+    ret arg0
+}
+
 fn @_toArrayTypes(arg0: i256) -> i256 [pure] {
   bb0:
     ret arg0
@@ -192,16 +217,16 @@ fn @_toArrayTypes(arg0: i256) -> i256 [pure] {
 
 fn @internal_dispatcher_asm_p_u256_r_memorystruct(arg0: i256, arg1: i256) -> memptr [function_pointer_dispatcher] {
   bb0:
-    v0 = eq arg0, 10
+    v0 = eq arg0, 11
     jumpi v0, bb1, bb2
   bb2:
-    v3 = eq arg0, 11
+    v3 = eq arg0, 12
     jumpi v3, bb3, bb4
   bb4:
-    v6 = eq arg0, 12
+    v6 = eq arg0, 13
     jumpi v6, bb5, bb6
   bb6:
-    v9 = eq arg0, 15
+    v9 = eq arg0, 16
     jumpi v9, bb7, bb8
   bb8:
     icall panic_if<0x51>, true
@@ -227,16 +252,16 @@ fn @internal_dispatcher_asm_p_u256_r_memorystruct(arg0: i256, arg1: i256) -> mem
 
 fn @internal_dispatcher_asm_p_u256_r_memorybytes(arg0: i256, arg1: i256) -> memptr [function_pointer_dispatcher] {
   bb0:
-    v0 = eq arg0, 10
+    v0 = eq arg0, 11
     jumpi v0, bb1, bb2
   bb2:
-    v3 = eq arg0, 11
+    v3 = eq arg0, 12
     jumpi v3, bb3, bb4
   bb4:
-    v6 = eq arg0, 12
+    v6 = eq arg0, 13
     jumpi v6, bb5, bb6
   bb6:
-    v9 = eq arg0, 15
+    v9 = eq arg0, 16
     jumpi v9, bb7, bb8
   bb8:
     icall panic_if<0x51>, true
@@ -262,16 +287,16 @@ fn @internal_dispatcher_asm_p_u256_r_memorybytes(arg0: i256, arg1: i256) -> memp
 
 fn @internal_dispatcher_asm_p_memorystruct_r_u256(arg0: i256, arg1: memptr) -> i256 [function_pointer_dispatcher] {
   bb0:
-    v0 = eq arg0, 10
+    v0 = eq arg0, 11
     jumpi v0, bb1, bb2
   bb2:
-    v3 = eq arg0, 11
+    v3 = eq arg0, 12
     jumpi v3, bb3, bb4
   bb4:
-    v6 = eq arg0, 12
+    v6 = eq arg0, 13
     jumpi v6, bb5, bb6
   bb6:
-    v9 = eq arg0, 15
+    v9 = eq arg0, 16
     jumpi v9, bb7, bb8
   bb8:
     icall panic_if<0x51>, true
@@ -295,7 +320,7 @@ fn @internal_dispatcher_asm_p_memorystruct_r_u256(arg0: i256, arg1: memptr) -> i
 
 fn @internal_dispatcher_asm_p_memoryarray_memoryarray_r_u256_memoryarray_memoryarray(arg0: i256, arg1: memptr, arg2: memptr) -> struct1 [function_pointer_dispatcher] {
   bb0:
-    v0 = eq arg0, 13
+    v0 = eq arg0, 14
     jumpi v0, bb1, bb2
   bb2:
     icall panic_if<0x51>, true
@@ -317,7 +342,7 @@ fn @internal_dispatcher_asm_p_memoryarray_memoryarray_r_u256_memoryarray_memorya
 
 fn @internal_dispatcher_asm_p_memorystruct_function_r_u256(arg0: i256, arg1: memptr, arg2: i256) -> i256 [function_pointer_dispatcher] {
   bb0:
-    v0 = eq arg0, 14
+    v0 = eq arg0, 15
     jumpi v0, bb1, bb2
   bb2:
     icall panic_if<0x51>, true
@@ -330,7 +355,7 @@ fn @internal_dispatcher_asm_p_memorystruct_function_r_u256(arg0: i256, arg1: mem
 
 fn @internal_dispatcher_p_u256_r_bool(arg0: i256, arg1: i256) -> i1 [function_pointer_dispatcher] {
   bb0:
-    v0 = eq arg0, 16
+    v0 = eq arg0, 17
     jumpi v0, bb1, bb2
   bb2:
     icall panic_if<0x51>, true
@@ -340,18 +365,30 @@ fn @internal_dispatcher_p_u256_r_bool(arg0: i256, arg1: i256) -> i1 [function_po
     ret v1
 }
 
-fn @internal_dispatcher_asm_p_u256_r_u256(arg0: i256, arg1: i256) -> i256 [function_pointer_dispatcher] {
+fn @internal_dispatcher_asm_p_u256_r_u256_u256(arg0: i256, arg1: i256) -> struct0 [function_pointer_dispatcher] {
   bb0:
-    v0 = eq arg0, 10
+    v0 = eq arg0, 18
     jumpi v0, bb1, bb2
   bb2:
-    v2 = eq arg0, 11
+    icall panic_if<0x51>, true
+    invalid
+  bb1:
+    v1 = icall @_rawAndTyped, arg1
+    ret v1
+}
+
+fn @internal_dispatcher_asm_p_u256_r_u256(arg0: i256, arg1: i256) -> i256 [function_pointer_dispatcher] {
+  bb0:
+    v0 = eq arg0, 11
+    jumpi v0, bb1, bb2
+  bb2:
+    v2 = eq arg0, 12
     jumpi v2, bb3, bb4
   bb4:
-    v4 = eq arg0, 12
+    v4 = eq arg0, 13
     jumpi v4, bb5, bb6
   bb6:
-    v6 = eq arg0, 15
+    v6 = eq arg0, 16
     jumpi v6, bb7, bb8
   bb8:
     icall panic_if<0x51>, true

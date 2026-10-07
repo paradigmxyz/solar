@@ -8,6 +8,7 @@
 //@ run-call: swapArrays [1, 2], [3] => 2, [3], [1, 2]
 //@ run-call: applyPair 3, 4 => 12
 //@ run-call: isOdd 3 => true
+//@ run-call: widenNarrow 0x1234 => 0x1234, 0x34
 //@ run-call-fail: callInvalid => 0x4e487b710000000000000000000000000000000000000000000000000000000000000051
 
 type CalldataPointer is uint256;
@@ -79,6 +80,12 @@ contract InternalFunctionPointerAssemblyReturnCast {
         return predicate(value);
     }
 
+    // A word passed through a pointer retyped from a `uint8` parameter keeps its bits for the
+    // callee's assembly; the callee's Solidity reads clean them.
+    function widenNarrow(uint256 value) external pure returns (uint256, uint256) {
+        return _toWideInput(_rawAndTyped)(value);
+    }
+
     function callInvalid() external pure returns (uint256) {
         function(MemoryPointer) internal pure returns (uint256) sum;
         assembly {
@@ -139,6 +146,13 @@ contract InternalFunctionPointerAssemblyReturnCast {
         return value % 2 == 1;
     }
 
+    function _rawAndTyped(uint8 narrow) internal pure returns (uint256 raw, uint256 typed) {
+        assembly {
+            raw := narrow
+        }
+        typed = narrow;
+    }
+
     // A pointer that comes from assembly can hold any exposed function with a one-word shape;
     // the dispatcher reinterprets the `MemoryPointer` word as the `memory` struct reference.
     // CHECK-LABEL: fn @internal_dispatcher_asm_p_u256_r_memorystruct(
@@ -151,6 +165,11 @@ contract InternalFunctionPointerAssemblyReturnCast {
     // CHECK-NOT: @_decodePair
     // CHECK: icall @_isOdd
     // CHECK-NOT: @_decodePair
+    //
+    // A raw word reaches a retyped callee's narrow parameter unmasked.
+    // CHECK-LABEL: fn @internal_dispatcher_asm_p_u256_r_u256_u256(
+    // CHECK-NOT: and arg1
+    // CHECK: icall @_rawAndTyped, arg1
     // CHECK-LABEL: fn @internal_dispatcher_asm_p_u256_r_u256(
     function _toPairReturnType(
         function(CalldataPointer) internal pure returns (MemoryPointer) inFn
@@ -198,6 +217,16 @@ contract InternalFunctionPointerAssemblyReturnCast {
             function(Pair memory, function(Pair memory) internal pure returns (uint256)) internal pure returns (uint256)
                 outFn
         )
+    {
+        assembly {
+            outFn := inFn
+        }
+    }
+
+    function _toWideInput(function(uint8) internal pure returns (uint256, uint256) inFn)
+        internal
+        pure
+        returns (function(uint256) internal pure returns (uint256, uint256) outFn)
     {
         assembly {
             outFn := inFn
