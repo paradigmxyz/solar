@@ -243,7 +243,9 @@ fn get_solar_binary() -> PathBuf {
 
     if let Some(path) = std::env::var_os("SOLAR_FOUNDRY_COMPILER") {
         let path = PathBuf::from(path);
-        return if path.is_absolute() { path } else { workspace_root().join(path) };
+        let path = if path.is_absolute() { path } else { workspace_root().join(path) };
+        assert!(path.is_file(), "SOLAR_FOUNDRY_COMPILER is not a file: {}", path.display());
+        return path;
     }
 
     if let Some(path) = option_env!("CARGO_BIN_EXE_solar") {
