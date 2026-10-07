@@ -46,4 +46,6 @@ mod validator;
 pub(crate) use validator::{validate, validate_phase};
 
 mod absolute_addresses;
-pub(crate) use absolute_addresses::{AddressInput, absolute_address_inputs};
+pub(crate) use absolute_addresses::{
+    AddressInput, absolute_address_inputs, absolute_address_inputs_with_params,
+};

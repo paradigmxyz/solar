@@ -12,6 +12,7 @@
 //@ run-call: hashThenCopy 1, 2, 3 => 0x6e0c627900b24bd432fe7b1f713f1b0744091a646a9fe4a65a18dfed21f2949c
 //@ run-call: readScratch 5 => 5
 //@ run-call: readInHelper 5 => 5
+//@ run-call: hashAt 0x40, 3 => 0xc2575a0e9e593c00f959f8c92f12db2869c3395a3b0502d05e2516446f71f85b
 //@ run-call: hashHelperScratch 1, 2, 3 => 0x6e0c627900b24bd432fe7b1f713f1b0744091a646a9fe4a65a18dfed21f2949c
 //@ run-call: allocateAfterHelper 1, 2, 3 => 3
 //@ run-call: hashAroundCheckedAdd 1, 2, 3 => 0x6e0c627900b24bd432fe7b1f713f1b0744091a646a9fe4a65a18dfed21f2949c
@@ -334,6 +335,16 @@ contract AssemblyLowMemoryLayouts {
                 mstore(0x40, m)
             }
             read := readWord()
+        }
+    }
+
+    // A hash at an offset the caller supplies can read the scratch word.
+    function hashAt(uint256 offset, uint256) external pure returns (bytes32 h) {
+        assembly {
+            mstore(0x40, calldataload(0x24))
+            h := keccak256(offset, 0x20)
+            let p := mload(0x40)
+            mstore(p, h)
         }
     }
 

@@ -276,3 +276,24 @@ fn @read_in_helper() -> i256 [selector=0x12345679] {
     v0 = icall @read_word
     ret v0
 }
+
+// A hash at an offset the caller supplies may read the scratch word as data, so the word stays in
+// the slot for it and the later load that allocates from the slot reads the clamped word.
+// CHECK-LABEL: {{^[ +].*}}fn @hash_at_param{{[( ]}}
+// CHECK: mstore 64, {{v[0-9]+}}
+// CHECK-NEXT: keccak256 arg0, 32
+// CHECK-NEXT: [[POINTER:v[0-9]+]] = mload 64
+// CHECK-NEXT: - mstore [[POINTER]], {{v[0-9]+}}
+// CHECK-NEXT: + [[FLOOR:v[0-9]+]] = heap_floor
+// CHECK-NEXT: + [[BELOW:v[0-9]+]] = lt [[POINTER]], [[FLOOR]]
+// CHECK-NEXT: + [[CLAMPED:v[0-9]+]] = select [[BELOW]], [[FLOOR]], [[POINTER]]
+// CHECK-NEXT: + mstore [[CLAMPED]], {{v[0-9]+}}
+fn @hash_at_param(arg0: i256) -> i256 [selector=0x1234567a] {
+  bb0:
+    v0 = calldataload 36
+    mstore 64, v0
+    v1 = keccak256 arg0, 32
+    v2 = mload 64
+    mstore v2, v1
+    ret v1
+}

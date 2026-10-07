@@ -30,11 +30,12 @@
 //! allocations read the word as the pointer too, and so do the builtins and semantic operations
 //! whose lowering may allocate or encode at the pointer, unlike pure computations, checks that
 //! revert with scratch data, and accesses to frames, storage slots, and memory that already exists.
-//! An access at a constant or calldata address that may cover a byte the writes have not replaced
-//! reads the word as data, such as a scratch hash or revert data. A return from the constructor, or
-//! one from an external function that returns only scalar words, ends execution without reading the
-//! slot: codegen returns runtime code from a fixed address and encodes scalar results in a static
-//! buffer.
+//! An access that may cover a byte the writes have not replaced reads the word as data, such as a
+//! scratch hash or revert data, when its address is computed from constants, calldata, and
+//! parameters that may hold such an address: an external function's integer arguments, or a
+//! parameter some call site passes one in. A return from the constructor, or one from an external
+//! function that returns only scalar words, ends execution without reading the slot: codegen
+//! returns runtime code from a fixed address and encodes scalar results in a static buffer.
 //!
 //! A word read only as the pointer is clamped where it is stored, `mstore 64, clamped`. A word
 //! that is also read as data keeps its value in the slot, and the clamp moves to each pointer read
@@ -58,19 +59,20 @@
 //! its loads or delete its dead stores see the clamped value. Clamping during codegen instead
 //! left a load forwarded from the store with the raw address.
 //!
-//! NOTE: Only a full-word store to the constant slot whose value the storing function computes
-//! from constants and calldata is clamped. An absolute address passed through a parameter, memory,
-//! or a call, and copies or byte stores that overwrite the pointer, keep their bytes. An access
-//! at an address derived from memory, a parameter, or the heap is assumed not to cover the slot,
-//! and a loaded word stored elsewhere stays data even if a later load uses it as a pointer. A
-//! slot clamped before a compiler read stays clamped for a later read of it as data. Writes
-//! replace the word only when one block covers all of its bytes. See CODEGEN-010.
+//! NOTE: Only a full-word store to the constant slot whose value the storing function computes from
+//! constants and calldata is clamped. An absolute address passed through a parameter, memory, or a
+//! call, and copies or byte stores that overwrite the pointer, keep their bytes. An access at an
+//! address derived from memory or the heap, or from a parameter that every call site fills with
+//! one, is assumed not to cover the slot, and a loaded word stored elsewhere stays data even if a
+//! later load uses it as a pointer. A slot clamped before a compiler read stays clamped for a later
+//! read of it as data. Writes replace the word only when one block covers all of its bytes. See
+//! CODEGEN-010.
 
 use crate::mir::{
     ArgIdx, BlockId, Builtin, Callee, EffectKind, Function, FunctionId, Immediate, InstId,
     InstKind, Instruction, InstructionMetadata, MemoryRegion, MirType, Module, Terminator, Value,
     ValueId,
-    analysis::{AddressInput, absolute_address_inputs},
+    analysis::{AddressInput, absolute_address_inputs, absolute_address_inputs_with_params},
     memory::EvmMemoryLayout,
     pass::{MirPass, ModuleAnalyses},
     utils::IndexLists,
@@ -376,6 +378,70 @@ fn value_users(func: &Function) -> IndexLists<ValueId, User> {
     IndexLists::new(func.num_values(), pairs.iter().copied())
 }
 
+/// Classifies the values of every function as absolute addresses for reads. A parameter may hold
+/// one when it is an integer an external function takes from calldata, or when a call site passes
+/// a word computed from constants, calldata, and such parameters.
+fn read_address_inputs(module: &Module) -> IndexVec<FunctionId, IndexVec<ValueId, AddressInput>> {
+    let mut params = module
+        .functions
+        .iter()
+        .map(|func| {
+            func.arg_indices()
+                .map(|index| {
+                    if func.is_external_entry() && matches!(func.arg_ty(index), MirType::Int(_)) {
+                        AddressInput::Calldata
+                    } else {
+                        AddressInput::Other
+                    }
+                })
+                .collect::<IndexVec<ArgIdx, _>>()
+        })
+        .collect::<IndexVec<FunctionId, _>>();
+    let classify = |func_id: FunctionId, params: &IndexVec<FunctionId, IndexVec<ArgIdx, _>>| {
+        absolute_address_inputs_with_params(&module.functions[func_id], |index| {
+            params[func_id].get(index).copied().unwrap_or(AddressInput::Other)
+        })
+    };
+    let mut inputs = module
+        .functions
+        .indices()
+        .map(|func_id| classify(func_id, &params))
+        .collect::<IndexVec<FunctionId, _>>();
+    let mut pending = module.functions.indices().collect::<Vec<_>>();
+    while let Some(caller) = pending.pop() {
+        let func = &module.functions[caller];
+        let mut raised = Vec::new();
+        let mut pass = |callee: FunctionId, args: &[ValueId]| {
+            for (index, &arg) in args.iter().enumerate() {
+                if inputs[caller][arg] != AddressInput::Other
+                    && let Some(param) = params[callee].get_mut(ArgIdx::new(index))
+                    && *param == AddressInput::Other
+                {
+                    *param = AddressInput::Calldata;
+                    raised.push(callee);
+                }
+            }
+        };
+        for inst in func.instructions() {
+            if let InstKind::ICall { function: Callee::Function(callee), args } =
+                &func.inst(inst).kind
+            {
+                pass(*callee, args);
+            }
+        }
+        for block in &func.blocks {
+            if let Some(Terminator::TailCall { function, args }) = &block.terminator {
+                pass(*function, args);
+            }
+        }
+        for callee in raised {
+            inputs[callee] = classify(callee, &params);
+            pending.push(callee);
+        }
+    }
+    inputs
+}
+
 /// How an instruction uses a word loaded from the slot, or a word computed from one.
 fn word_use(func: &Function, kind: &InstKind, word: ValueId) -> WordUse {
     match *kind {
@@ -531,6 +597,9 @@ struct PointerUses<'a> {
     call_sites: Option<FxHashMap<FunctionId, Vec<CallSite>>>,
     /// Which values of each function come from constants and calldata alone, built on first use.
     address_inputs: FxHashMap<FunctionId, IndexVec<ValueId, AddressInput>>,
+    /// The same with parameters classified by what their callers pass, for every function, built
+    /// on first use.
+    read_inputs: Option<IndexVec<FunctionId, IndexVec<ValueId, AddressInput>>>,
     /// The values of each function's parameters, built on first use.
     arg_values: FxHashMap<FunctionId, IndexVec<ArgIdx, Vec<ValueId>>>,
     /// The readers of each function's values, built on first use.
@@ -548,6 +617,7 @@ impl<'a> PointerUses<'a> {
             shallowest: usize::MAX,
             call_sites: None,
             address_inputs: FxHashMap::default(),
+            read_inputs: None,
             arg_values: FxHashMap::default(),
             users: FxHashMap::default(),
             pointer_loads: FxHashMap::default(),
@@ -927,9 +997,16 @@ impl<'a> PointerUses<'a> {
             return false;
         }
         let Some(start) = self.module.functions[func_id].value_u64(offset) else {
-            return self.address_inputs(func_id)[offset] != AddressInput::Other;
+            return self.read_inputs(func_id)[offset] != AddressInput::Other;
         };
         slot_bytes(start, size.unwrap_or(u64::MAX)) & !written != 0
+    }
+
+    /// Returns which values of `func_id` may be absolute addresses where it reads memory: words
+    /// computed from constants, calldata, and parameters that may hold one.
+    fn read_inputs(&mut self, func_id: FunctionId) -> &IndexVec<ValueId, AddressInput> {
+        let module = self.module;
+        &self.read_inputs.get_or_insert_with(|| read_address_inputs(module))[func_id]
     }
 
     /// Returns the values of parameter `index` of `func_id`.

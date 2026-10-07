@@ -1,6 +1,6 @@
 //! Classification of words as absolute memory addresses by what they are computed from.
 
-use crate::mir::{Function, InstKind, Value, ValueId};
+use crate::mir::{ArgIdx, Function, InstKind, Value, ValueId};
 use solar_data_structures::index::{IndexVec, index_vec};
 
 /// What an absolute address is computed from, ordered from the most to the least known.
@@ -10,7 +10,7 @@ pub(crate) enum AddressInput {
     Constant,
     /// Constants and calldata.
     Calldata,
-    /// The heap, a parameter, a loaded word, or anything else.
+    /// The heap, a loaded word, an unclassified parameter, or anything else.
     Other,
 }
 
@@ -20,11 +20,22 @@ pub(crate) enum AddressInput {
 /// to anything else, and a loop-carried value starts as a constant and rises to whatever enters
 /// the loop. Shared operands are classified once, however many expressions read them.
 pub(crate) fn absolute_address_inputs(func: &Function) -> IndexVec<ValueId, AddressInput> {
+    absolute_address_inputs_with_params(func, |_| AddressInput::Other)
+}
+
+/// Classifies every value of `func` like [`absolute_address_inputs`], with each parameter
+/// classified as `params` gives.
+pub(crate) fn absolute_address_inputs_with_params(
+    func: &Function,
+    params: impl Fn(ArgIdx) -> AddressInput,
+) -> IndexVec<ValueId, AddressInput> {
     let mut inputs = index_vec![AddressInput::Constant; func.num_values()];
     for (value, input) in inputs.iter_mut_enumerated() {
-        if !matches!(func.value(value), Value::Immediate(_) | Value::Inst(_)) {
-            *input = AddressInput::Other;
-        }
+        *input = match func.value(value) {
+            Value::Immediate(_) | Value::Inst(_) => continue,
+            Value::Arg(index) => params(*index),
+            _ => AddressInput::Other,
+        };
     }
     let mut changed = true;
     while changed {
