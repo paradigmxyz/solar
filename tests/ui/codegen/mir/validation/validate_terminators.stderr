@@ -1,0 +1,12 @@
+error: [fn0] [bb0] raw return and revert operands must have type `i256`; use an explicit cast
+
+error: [fn1] [bb0] raw return and revert operands must have type `i256`; use an explicit cast
+
+error: [fn2] [bb0] selfdestruct recipient must have type `i256`; use an explicit cast
+
+error: [fn3] [bb0] switch cases must have the selector type
+
+error: [fn4] [bb0] block has no terminator
+
+error: aborting due to 5 previous errors
+
