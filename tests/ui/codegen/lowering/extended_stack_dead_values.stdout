@@ -1,0 +1,181 @@
+// === ROOT/tests/ui/codegen/lowering/extended_stack_dead_values.sol:ExtendedStackDeadValues (runtime) ===
+@module ExtendedStackDeadValues_runtime
+bb0:
+  callvalue
+  push bb3
+  jumpi
+  push 0
+  calldataload
+  push 224
+  shr
+  dup 1
+  push 0xc0406226
+  sub
+  push bb3
+  jumpi
+  push 800
+  push 64
+  mstore
+  gas
+  push 160
+  mstore
+  gas
+  push 192
+  mstore
+  gas
+  push 224
+  mstore
+  gas
+  push 256
+  mstore
+  gas
+  push 288
+  mstore
+  gas
+  push 320
+  mstore
+  gas
+  push 352
+  mstore
+  gas
+  push 384
+  mstore
+  gas
+  push 416
+  mstore
+  gas
+  push 448
+  mstore
+  gas
+  push 480
+  mstore
+  gas
+  push 512
+  mstore
+  gas
+  push 544
+  mstore
+  gas
+  push 576
+  mstore
+  gas
+  push 608
+  mstore
+  gas
+  push 640
+  mstore
+  gas
+  push 672
+  mstore
+  gas
+  push 704
+  mstore
+  gas
+  push 736
+  mstore
+  gas
+  push 768
+  mstore
+  push 0
+  push 0
+  push 4
+  push 28
+  address
+  gas
+  staticcall
+  iszero
+  push bb3
+  jumpi
+  returndatasize
+  push 160
+  mload
+  push 192
+  mload
+  push 224
+  mload
+  push 256
+  mload
+  push 288
+  mload
+  push 320
+  mload
+  push 352
+  mload
+  push 384
+  mload
+  push 416
+  mload
+  push 448
+  mload
+  push 480
+  mload
+  push 512
+  mload
+  push 544
+  mload
+  push 576
+  mload
+  push 608
+  mload
+  push 640
+  mload
+  push 672
+  mload
+  push 704
+  mload
+  push 736
+  mload
+  push 768
+  mload
+  dup 21
+  push 0
+  push 0
+  returndatacopy
+  swap 20
+  pop
+  exchange 1, 19
+  and
+  swap 18
+  and
+  exchange 1, 17
+  and
+  swap 16
+  and
+  swap 2
+  and
+  and
+  swap 2
+  and
+  swap 2
+  swap 1
+  swap 3
+  and
+  and
+  and
+  exchange 1, 9
+  and
+  swap 8
+  and
+  swap 2
+  and
+  and
+  swap 2
+  and
+  swap 2
+  swap 1
+  swap 3
+  and
+  and
+  and
+  and
+  iszero
+  iszero
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+bb3 [cold]:
+  push 0
+  push 0
+  revert
