@@ -59,24 +59,21 @@ impl CfgInfo {
         &self.successors[block]
     }
 
-    fn predecessors(&self) -> &BlockLists {
+    /// Returns predecessor blocks for `block`, once per edge.
+    #[must_use]
+    pub(crate) fn predecessors(&self, block: BlockId) -> &[BlockId] {
+        self.all_predecessors().get(block)
+    }
+
+    fn all_predecessors(&self) -> &BlockLists {
         self.predecessors.get_or_init(|| predecessor_lists(&self.successors))
     }
 
     /// Returns the blocks reachable from the entry.
     #[must_use]
     pub(crate) fn reachable(&self) -> &DenseBitSet<BlockId> {
-        self.reachable.get_or_init(|| {
-            let mut reachable = DenseBitSet::new_empty(self.successors.len());
-            let mut stack = Vec::new();
-            stack.push(BlockId::ENTRY);
-            while let Some(block) = stack.pop() {
-                if reachable.insert(block) {
-                    stack.extend_from_slice(&self.successors[block]);
-                }
-            }
-            reachable
-        })
+        let _ = self.rpo();
+        self.reachable.get().expect("RPO initializes reachability")
     }
 
     /// Returns true if `block` is reachable from the entry.
@@ -90,7 +87,7 @@ impl CfgInfo {
     pub(crate) fn cyclic_blocks(&self) -> &DenseBitSet<BlockId> {
         self.cyclic_blocks.get_or_init(|| {
             let block_count = self.successors.len();
-            let predecessors = self.predecessors();
+            let predecessors = self.all_predecessors();
 
             let mut visited = DenseBitSet::new_empty(block_count);
             let mut finish_order = Vec::with_capacity(block_count);
@@ -147,6 +144,10 @@ impl CfgInfo {
         self.rpo.get_or_init(|| {
             let mut reachable = DenseBitSet::new_empty(self.successors.len());
             let mut rpo = Vec::with_capacity(self.successors.len());
+            if self.successors.is_empty() {
+                let _ = self.reachable.set(reachable);
+                return rpo;
+            }
             let mut stack = Vec::new();
             stack.push((BlockId::ENTRY, 0usize));
             reachable.insert(BlockId::ENTRY);
@@ -170,7 +171,7 @@ impl CfgInfo {
     /// Returns immediate-dominator information.
     #[must_use]
     pub(crate) fn dominators(&self) -> &DominatorTree {
-        self.dominators.get_or_init(|| DominatorTree::compute(self.predecessors(), self.rpo()))
+        self.dominators.get_or_init(|| DominatorTree::compute(self.all_predecessors(), self.rpo()))
     }
 
     /// Returns the blocks reachable from `block` through at least one CFG edge, or `None`

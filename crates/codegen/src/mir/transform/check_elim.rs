@@ -9,7 +9,10 @@
 //! - `require(b <= a)` proves the following `a - b` cannot underflow, so its `lt a, b` check is
 //!   constant false;
 //! - a constant bound `x < C` proves `x * K` or `x + K` cannot wrap whenever `(C-1) * K` (resp.
-//!   `(C-1) + K`) fits in 256 bits, so the `div`-based mul check or the add check folds.
+//!   `(C-1) + K`) fits in 256 bits, so the `div`-based mul check or the add check folds;
+//! - a product by `2^k` that keeps its shift, tested as `(x << k) >> k == x`, cannot wrap while `x`
+//!   stays below `2^(256 - k)`, as the offset `i * 32` of a calldata array element does for a loop
+//!   counter.
 //!
 //! The pass walks the dominator tree. On entry to a block with a unique
 //! predecessor ending in a two-way branch, it records what the branch
@@ -20,8 +23,11 @@
 //! dominated block. Branch conditions are then evaluated against the
 //! recorded facts with checked 256-bit arithmetic; a condition that is
 //! provably constant folds the branch to an unconditional jump, and the dead
-//! panic block is cleaned up by the existing CFG passes. Anything that is
-//! not provable is left untouched. Explicit integer casts retain range facts only
+//! panic block is cleaned up by the existing CFG passes. A condition that stays
+//! undecided drops any `or` operand proven false and `and` operand proven true,
+//! as the `x == 0` half of a checked product's `x == 0 || x * y / x == y` when
+//! `x` is a counter above zero, and the branch reads what remains. Anything
+//! that is not provable is left untouched. Explicit integer casts retain range facts only
 //! when their width and sign semantics preserve the bounded values. Semantic checks use the same
 //! facts in instruction order: a passing check refines all later execution, and a proven passing
 //! check can be removed before expansion. Facts roll back on leaving each dominator subtree, so a
@@ -41,6 +47,9 @@
 //! After an edge consumes a single-use predicate, its own range and single-use
 //! negations are discarded. Operand ranges and relations remain available;
 //! predicates referenced by instructions, phis, or other terminators stay live.
+//! Dead blocks are cleared before analysis, so joins use the maintained predecessor lists.
+//! Fact copies insert only occupied entries: copying hash-table capacity would carry the space
+//! left by discarded facts through every later block.
 //!
 //! Loop header phis of the form `p = phi [pre: init], [latch: p - c]` with a
 //! constant nonzero step are monotone when the update provably cannot wrap at
@@ -57,7 +66,11 @@
 //! query for the phi, so `i + 2` and `i + 4` never wrap for a counter that
 //! starts at zero even when the loop bound is an arbitrary word. The revert
 //! path such a check guards is unreachable by any transaction, not merely
-//! unlikely, so removing it preserves the checked semantics.
+//! unlikely, so removing it preserves the checked semantics. A counter that
+//! only some iterations advance, `if (c) ++count`, carries the same bound with
+//! its largest step when every value its update can take, through phis and
+//! selects, is the phi itself or the phi plus a constant; a phi met twice on
+//! that walk, as an inner loop's header, gives no bound.
 //!
 //! Transitive relational queries lazily index candidate edges once per function,
 //! when a query needs to combine facts. An edge is followed only
@@ -118,7 +131,7 @@ use crate::{
         pass::{
             MirPass, run_function_pass, run_function_pass_with_cfg, run_selected_function_pass,
         },
-        utils::fold_terminator_to_jump,
+        utils::{fold_terminator_to_jump, invalidate_unreachable_blocks},
     },
     target::Target,
 };
@@ -178,18 +191,12 @@ impl MirPass for IntegerCleanup {
                 return false;
             }
             let cfg = CfgInfo::new(func);
+            let removed = invalidate_unreachable_blocks(func, cfg.reachable());
             let mut eliminator = CheckEliminator { collect_masks: true, ..Default::default() };
-            let mut preds = index_vec![Vec::new(); func.blocks.len()];
-            for &block in cfg.rpo() {
-                for &succ in cfg.successors(block) {
-                    preds[succ].push(block);
-                }
-            }
             let facts = index_vec![Facts::default(); func.blocks.len()];
-            let _ =
-                eliminator.collect_folds(func, &cfg, &preds, &facts, &[], &mut Vec::new(), None);
+            let _ = eliminator.collect_folds(func, &cfg, &facts, &[], &mut Vec::new(), None);
             if eliminator.redundant_masks.is_empty() {
-                return false;
+                return removed != 0;
             }
             let mut replacements = FxHashMap::default();
             let mut dead = DenseBitSet::new_empty(func.num_insts());
@@ -443,6 +450,8 @@ struct CheckElimStats {
     /// Number of branches folded to unconditional jumps.
     branches_folded: usize,
     checks_removed: usize,
+    /// Number of branch conditions reduced to one operand of their `or` or `and`.
+    conditions_reduced: usize,
 }
 
 /// An inclusive unsigned 256-bit interval.
@@ -555,6 +564,10 @@ impl MonotonePhi {
     }
 }
 
+/// Branches to fold to one target, passing checks to remove, and branch conditions to reduce to
+/// one operand, as a dominator walk decides them.
+type Folds = (Vec<(BlockId, BlockId)>, DenseBitSet<InstId>, Vec<(BlockId, ValueId)>);
+
 /// Range-based overflow-check eliminator.
 #[derive(Default)]
 struct CheckEliminator<'a> {
@@ -633,20 +646,12 @@ impl<'a> CheckEliminator<'a> {
             return 0;
         }
         let cfg = self.cfg.as_ref().map_or_else(|| Rc::new(CfgInfo::new(func)), Rc::clone);
+        let removed = invalidate_unreachable_blocks(func, cfg.reachable());
         let relevant = branch_inputs(func, &cfg);
         if relevant.is_empty() {
-            return 0;
+            return removed;
         }
         self.universal_relations = universal_relations(func, &relevant);
-
-        // Predecessors recomputed from reachable terminators: facts must only
-        // come from edges that can actually execute.
-        let mut preds = index_vec![Vec::new(); func.blocks.len()];
-        for &block in cfg.rpo() {
-            for &succ in cfg.successors(block) {
-                preds[succ].push(block);
-            }
-        }
 
         const MAX_ACYCLIC_JOIN_INSTRUCTIONS: usize = 128;
         let bounded_acyclic_join = cfg.cyclic_blocks().is_empty()
@@ -659,17 +664,20 @@ impl<'a> CheckEliminator<'a> {
             // propagation for induction ranges.
             index_vec![Facts::default(); func.blocks.len()]
         } else {
-            self.join_facts(func, &cfg, &preds, &relevant)
+            self.join_facts(func, &cfg, &relevant)
         };
-        let candidates = monotone_phi_candidates(func, &cfg, &preds, &relevant);
+        let candidates = monotone_phi_candidates(func, &cfg, &relevant);
         for phi in &candidates {
             if let Some(bound) = trip_count_bound(func, phi) {
                 self.trip_bounds.insert(phi.value, bound);
             }
         }
+        for (value, bound) in counter_bounds(func, &cfg, &relevant) {
+            self.trip_bounds.entry(value).or_insert(bound);
+        }
         let mut proven = Vec::new();
-        let (mut folds, mut checks) =
-            self.collect_folds(func, &cfg, &preds, &facts, &candidates, &mut proven, selected);
+        let (mut folds, mut checks, mut reductions) =
+            self.collect_folds(func, &cfg, &facts, &candidates, &mut proven, selected);
         if !proven.is_empty() {
             // The invariant is available wherever the phi is: attach it to the
             // header's entry facts and index it for transitive queries.
@@ -692,16 +700,16 @@ impl<'a> CheckEliminator<'a> {
             self.relation_index = None;
             self.reverse_index = None;
             self.strict_lower_bounds = None;
-            (folds, checks) =
-                self.collect_folds(func, &cfg, &preds, &facts, &[], &mut Vec::new(), selected);
+            (folds, checks, reductions) =
+                self.collect_folds(func, &cfg, &facts, &[], &mut Vec::new(), selected);
         }
         self.ranges.clear();
         self.relations.clear();
         self.range_undo.clear();
         self.relation_undo.clear();
 
-        if folds.is_empty() && checks.is_empty() {
-            return 0;
+        if folds.is_empty() && checks.is_empty() && reductions.is_empty() {
+            return removed;
         }
         // branch proven_condition, keep, discard => jump keep
         for &(block, keep) in &folds {
@@ -714,13 +722,23 @@ impl<'a> CheckEliminator<'a> {
                 block.instructions.retain(|&id| !checks.contains(id));
             }
         }
+        // jumpi (or c, 0) | (and c, 1), then, else -> jumpi c, then, else
+        for &(block, reduced) in &reductions {
+            if let Some(Terminator::Branch { condition, .. }) = &mut func.blocks[block].terminator {
+                *condition = reduced;
+            }
+        }
         self.stats.branches_folded = folds.len();
         self.stats.checks_removed = checks.count();
-        self.stats.branches_folded + self.stats.checks_removed
+        self.stats.conditions_reduced = reductions.len();
+        removed
+            + self.stats.branches_folded
+            + self.stats.checks_removed
+            + self.stats.conditions_reduced
     }
 
-    /// Walks the dominator tree, recording edge and check facts. Returns branch folds and
-    /// proven passing checks to remove.
+    /// Walks the dominator tree, recording edge and check facts. Returns branch folds, proven
+    /// passing checks to remove, and branch conditions to reduce to one of their operands.
     /// `candidates` whose update is proven wrap-free in its defining block's
     /// scope are appended to `proven`. With `selected`, only folds of selected branches whose
     /// discarded arm reverts are evaluated and returned; evaluation records no facts.
@@ -729,12 +747,11 @@ impl<'a> CheckEliminator<'a> {
         &mut self,
         func: &Function,
         cfg: &CfgInfo,
-        preds: &IndexVec<BlockId, Vec<BlockId>>,
         facts: &IndexVec<BlockId, Facts>,
         candidates: &[MonotonePhi],
         proven: &mut Vec<MonotonePhi>,
         selected: Option<(&DenseBitSet<BlockId>, &FxHashSet<FunctionId>)>,
-    ) -> (Vec<(BlockId, BlockId)>, DenseBitSet<InstId>) {
+    ) -> Folds {
         enum Walk {
             Enter(BlockId),
             Exit { range_mark: usize, relation_mark: usize },
@@ -742,6 +759,7 @@ impl<'a> CheckEliminator<'a> {
 
         let mut folds = Vec::new();
         let mut checks = DenseBitSet::new_empty(func.num_insts());
+        let mut reductions = Vec::new();
         let mut stack = Vec::new();
         stack.push(Walk::Enter(BlockId::ENTRY));
         while let Some(item) = stack.pop() {
@@ -774,7 +792,7 @@ impl<'a> CheckEliminator<'a> {
                     for &relation in &facts[block].relations {
                         self.add_relation(relation);
                     }
-                    if let Some((condition, is_true)) = dominating_edge_fact(func, preds, block) {
+                    if let Some((condition, is_true)) = dominating_edge_fact(func, block) {
                         self.assume(func, condition, is_true, MAX_DEPTH);
                     }
                     for candidate in candidates.iter().filter(|candidate| candidate.home == block) {
@@ -817,13 +835,27 @@ impl<'a> CheckEliminator<'a> {
                                 && (leads_to_revert(func, *then_block, reverting)
                                     || leads_to_revert(func, *else_block, reverting))
                         })
-                        && let Some(truth) = self.eval_truth(func, *condition, MAX_DEPTH)
-                        && selected.is_none_or(|(_, reverting)| {
-                            let discarded = if truth { *else_block } else { *then_block };
-                            leads_to_revert(func, discarded, reverting)
-                        })
                     {
-                        folds.push((block, if truth { *then_block } else { *else_block }));
+                        match self.eval_truth(func, *condition, MAX_DEPTH) {
+                            Some(truth)
+                                if selected.is_none_or(|(_, reverting)| {
+                                    let discarded = if truth { *else_block } else { *then_block };
+                                    leads_to_revert(func, discarded, reverting)
+                                }) =>
+                            {
+                                folds.push((block, if truth { *then_block } else { *else_block }));
+                            }
+                            None if selected.is_none() => {
+                                let mut reduced = *condition;
+                                while let Some(operand) = self.reduced_condition(func, reduced) {
+                                    reduced = operand;
+                                }
+                                if reduced != *condition {
+                                    reductions.push((block, reduced));
+                                }
+                            }
+                            _ => {}
+                        }
                     }
 
                     for &child in cfg.dominators().children(block) {
@@ -832,7 +864,25 @@ impl<'a> CheckEliminator<'a> {
                 }
             }
         }
-        (folds, checks)
+        (folds, checks, reductions)
+    }
+
+    /// The operand an `or` or `and` condition reduces to when the other one is decided as the
+    /// neutral value of the operation: false for `or`, true for `and`, whose `i1` operands are
+    /// then exactly zero and one.
+    fn reduced_condition(&mut self, func: &Function, condition: ValueId) -> Option<ValueId> {
+        let (a, b, neutral) = match *inst_kind(func, condition)? {
+            InstKind::Or(a, b) => (a, b, false),
+            InstKind::And(a, b) => (a, b, true),
+            _ => return None,
+        };
+        if self.eval_truth(func, a, MAX_DEPTH) == Some(neutral) {
+            Some(b)
+        } else if self.eval_truth(func, b, MAX_DEPTH) == Some(neutral) {
+            Some(a)
+        } else {
+            None
+        }
     }
 
     /// Decides in the current scope whether a monotone phi's update cannot
@@ -853,7 +903,6 @@ impl<'a> CheckEliminator<'a> {
         &mut self,
         func: &Function,
         cfg: &CfgInfo,
-        preds: &IndexVec<BlockId, Vec<BlockId>>,
         relevant: &DenseBitSet<ValueId>,
     ) -> IndexVec<BlockId, Facts> {
         const MAX_ROUNDS: usize = 8;
@@ -899,9 +948,11 @@ impl<'a> CheckEliminator<'a> {
                 }
                 let mut merged: Option<Facts> = None;
                 if block != BlockId::ENTRY {
-                    for &pred in &preds[block] {
-                        cx.ranges.clone_from(&exits[pred].ranges);
-                        cx.relations.clone_from(&exits[pred].relations);
+                    for &pred in &func.blocks[block].predecessors {
+                        cx.ranges.clear();
+                        cx.ranges.extend(&exits[pred].ranges);
+                        cx.relations.clear();
+                        cx.relations.extend(&exits[pred].relations);
                         cx.strict_lower_bounds = None;
                         cx.range_undo.clear();
                         cx.relation_undo.clear();
@@ -971,8 +1022,10 @@ impl<'a> CheckEliminator<'a> {
                 if !visited.insert(block) && entries[block] == entry {
                     continue;
                 }
-                cx.ranges.clone_from(&entry.ranges);
-                cx.relations.clone_from(&entry.relations);
+                cx.ranges.clear();
+                cx.ranges.extend(&entry.ranges);
+                cx.relations.clear();
+                cx.relations.extend(&entry.relations);
                 cx.strict_lower_bounds = None;
                 cx.range_undo.clear();
                 cx.relation_undo.clear();
@@ -1815,6 +1868,21 @@ impl<'a> CheckEliminator<'a> {
                 return Some(true);
             }
         }
+        // A product by `2^k` tests `eq (shr k, (shl k, x)), x`, which holds iff the left
+        // shift kept every bit of `x`, as a calldata element offset `i * 32` does for
+        // `i < length` once decoding bounded the length.
+        for (shifted, expected) in [(a, b), (b, a)] {
+            if let Some(&InstKind::Shr(count, inner)) = inst_kind(func, shifted)
+                && let Some(&InstKind::Shl(inner_count, value)) = inst_kind(func, inner)
+                && value == expected
+                && let Some(bits) = const_of(func, count)
+                && const_of(func, inner_count) == Some(bits)
+                && bits < U256::from(256)
+                && U256::from(self.range_of(func, expected, depth).hi.leading_zeros()) >= bits
+            {
+                return Some(true);
+            }
+        }
 
         let (x, y) = ordered(a, b);
         if self.has_relation(func, Relation::Eq(x, y)) {
@@ -2067,7 +2135,6 @@ fn index_relation(index: &mut FxHashMap<ValueId, SmallVec<[Relation; 2]>>, relat
 fn monotone_phi_candidates(
     func: &Function,
     cfg: &CfgInfo,
-    preds: &IndexVec<BlockId, Vec<BlockId>>,
     relevant: &DenseBitSet<ValueId>,
 ) -> Vec<MonotonePhi> {
     let mut candidates = Vec::new();
@@ -2095,7 +2162,9 @@ fn monotone_phi_candidates(
                 (true, false) => (*second_block, *second, *first_block, *first),
                 _ => continue,
             };
-            if !preds[header].contains(&pre) || !preds[header].contains(&latch) {
+            if !func.blocks[header].predecessors.contains(&pre)
+                || !func.blocks[header].predecessors.contains(&latch)
+            {
                 continue;
             }
             let Value::Inst(next_inst) = func.value(next) else { continue };
@@ -2117,16 +2186,8 @@ fn monotone_phi_candidates(
 
 /// Returns the fact implied on the unique dominating edge into `block`:
 /// the branch condition of its sole predecessor and whether it is true.
-fn dominating_edge_fact(
-    func: &Function,
-    preds: &IndexVec<BlockId, Vec<BlockId>>,
-    block: BlockId,
-) -> Option<(ValueId, bool)> {
-    let preds = &preds[block];
-    let (&first, rest) = preds.split_first()?;
-    if rest.iter().any(|&pred| pred != first) {
-        return None;
-    }
+fn dominating_edge_fact(func: &Function, block: BlockId) -> Option<(ValueId, bool)> {
+    let &[first] = func.blocks[block].predecessors.as_slice() else { return None };
     let Terminator::Branch { condition, then_block, else_block } =
         func.blocks[first].terminator.as_ref()?
     else {
@@ -2203,6 +2264,83 @@ fn low_mask_input(func: &Function, kind: &InstKind) -> Option<(ValueId, U256)> {
         .map(|mask| (a, mask))
         .or_else(|| const_of(func, a).map(|mask| (b, mask)))?;
     (mask.wrapping_add(U256::ONE) & mask == U256::ZERO).then_some((value, mask))
+}
+
+/// The values a header phi `p = phi [pre: initial], [latch: next]` can take when every value
+/// `next` can be, through phis and selects inside the loop, is `p` itself or `p + c` for a
+/// constant `c`, as a counter that only some iterations advance is: within the target's trip
+/// bound, `p` moves at most `2^MAX_TRIP_COUNT_BITS` times the largest step from a constant
+/// start.
+fn counter_bounds(
+    func: &Function,
+    cfg: &CfgInfo,
+    relevant: &DenseBitSet<ValueId>,
+) -> Vec<(ValueId, Range)> {
+    let mut bounds = Vec::new();
+    let cyclic = cfg.cyclic_blocks();
+    if cyclic.is_empty() {
+        return bounds;
+    }
+    let dominators = cfg.dominators();
+    for header in cyclic.iter() {
+        for &inst in &func.blocks[header].instructions {
+            let InstKind::Phi(incoming) = &func.inst(inst).kind else { continue };
+            let Some(value) = func.inst_result_value(inst) else { continue };
+            if !relevant.contains(value) {
+                continue;
+            }
+            let [(first_block, first), (second_block, second)] = incoming.as_slice() else {
+                continue;
+            };
+            let (pre, initial, latch, next) = match (
+                dominators.dominates(header, *first_block),
+                dominators.dominates(header, *second_block),
+            ) {
+                (false, true) => (*first_block, *first, *second_block, *second),
+                (true, false) => (*second_block, *second, *first_block, *first),
+                _ => continue,
+            };
+            if !func.blocks[header].predecessors.contains(&pre)
+                || !func.blocks[header].predecessors.contains(&latch)
+            {
+                continue;
+            }
+            if let Some(initial) = const_of(func, initial)
+                && let Some(step) = largest_step(func, value, next)
+                && let Some(travel) = step.checked_shl(Target::MAX_TRIP_COUNT_BITS)
+                && let Some(far) = initial.checked_add(travel)
+            {
+                bounds.push((value, Range::new(initial, far)));
+            }
+        }
+    }
+    bounds
+}
+
+/// The largest constant `next` adds to the header phi `phi`, when every value `next` can be,
+/// through phis and selects, is `phi` itself or `phi + c` for a constant `c`, and some adds. A
+/// phi seen twice, as an inner loop's header, fails the walk.
+fn largest_step(func: &Function, phi: ValueId, next: ValueId) -> Option<U256> {
+    const MAX_VALUES: usize = 32;
+    let mut largest = U256::ZERO;
+    let mut pending = vec![next];
+    let mut seen = FxHashSet::default();
+    while let Some(value) = pending.pop() {
+        if value == phi {
+            continue;
+        }
+        if !seen.insert(value) || seen.len() > MAX_VALUES {
+            return None;
+        }
+        match *inst_kind(func, value)? {
+            InstKind::Add(a, b) if a == phi => largest = largest.max(const_of(func, b)?),
+            InstKind::Add(a, b) if b == phi => largest = largest.max(const_of(func, a)?),
+            InstKind::Phi(ref incoming) => pending.extend(incoming.iter().map(|&(_, value)| value)),
+            InstKind::Select(_, a, b) => pending.extend([a, b]),
+            _ => return None,
+        }
+    }
+    (!largest.is_zero()).then_some(largest)
 }
 
 fn const_of(func: &Function, value: ValueId) -> Option<U256> {

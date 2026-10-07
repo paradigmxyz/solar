@@ -12,7 +12,7 @@ use crate::mir::{
     Callee, Function, InstId, InstKind, Module, Value, ValueId,
     analysis::{CfgInfo, MemoryCallSummaries, may_observe_msize},
     pass::{MirPass, run_function_pass_with_cfg},
-    utils::invalidate_unreachable_block,
+    utils::invalidate_unreachable_blocks,
 };
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec};
 use std::sync::Arc;
@@ -70,13 +70,7 @@ impl DeadCodeEliminator {
     }
 
     fn run_with_cfg(&mut self, func: &mut Function, cfg: &CfgInfo) -> usize {
-        let mut removed = 0;
-        for block in func.blocks.indices() {
-            if !cfg.is_reachable(block) {
-                // unreachable block -> invalid
-                removed += usize::from(invalidate_unreachable_block(func, block));
-            }
-        }
+        let mut removed = invalidate_unreachable_blocks(func, cfg.reachable());
 
         let observes_msize = may_observe_msize(func, self.call_summaries.as_deref());
         removed += self.remove_dead_chains(func, observes_msize);

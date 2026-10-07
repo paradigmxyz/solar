@@ -274,11 +274,12 @@ fn @pop() [selector=0xa4ece52c, abi_wrapper] {
     v13 = add v8, v12
     mstore 0, v6 !metadata(memory=scratch)
     v22 = keccak256 0, 32 !metadata(memory=scratch)
+    v23 = sub 0, v13
     jump bb3
   bb3:
-    v16 = phi [bb2: 0], [bb4: v19]
+    v16 = phi [bb2: v23], [bb4: v19]
     v17 = phi [bb2: v22], [bb4: v20]
-    v18 = lt v16, v13
+    v18 = ne v16, 0
     jumpi v18, bb4, bb5
   bb5:
     stop

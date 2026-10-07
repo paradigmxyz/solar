@@ -89,7 +89,7 @@ use crate::mir::{
 use alloy_primitives::U256;
 use solar_data_structures::{
     bit_set::{DenseBitSet, GrowableBitSet},
-    index::{IndexVec, index_vec},
+    index::IndexVec,
     map::FxHashMap,
 };
 use std::{cell::OnceCell, cmp::Ordering, ops::Range, rc::Rc, sync::Arc};
@@ -325,8 +325,6 @@ struct GlobalCseContext<'a> {
     block_clobbers: &'a [(BlockId, Vec<Clobber>)],
     /// Where each side effect's clobbers sit in `block_clobbers`.
     side_effect_clobbers: &'a SideEffectClobbers,
-    /// Reachable predecessors, present only when clobbering blocks exist.
-    predecessors: &'a IndexVec<BlockId, Vec<BlockId>>,
     cfg: &'a CfgInfo,
     /// Compute liveness and loop membership only for a reused load on a cycle.
     reuse: Option<OnceCell<MemoryReuseFacts>>,
@@ -483,6 +481,8 @@ impl CommonSubexprEliminator {
         self.eliminated_casts = 0;
         let cfg = self.cfg.as_ref().map_or_else(|| Rc::new(CfgInfo::new(func)), Rc::clone);
 
+        let removed = mir_utils::invalidate_unreachable_blocks(func, cfg.reachable());
+
         // Sinking only creates pure expressions, while elimination removes instructions and
         // rewrites operands, so one provenance snapshot remains conservative across the complete
         // fixed point. Drop only its value-address memo between iterations instead of rebuilding
@@ -508,7 +508,7 @@ impl CommonSubexprEliminator {
                 break;
             }
         }
-        self.eliminated_count
+        self.eliminated_count + removed
     }
 
     fn process_global_pure(&mut self, func: &mut Function, cfg: &CfgInfo) {
@@ -520,16 +520,7 @@ impl CommonSubexprEliminator {
         } else {
             Default::default()
         };
-        let mut predecessors = IndexVec::new();
         let reuse = (!block_clobbers.is_empty()).then(OnceCell::new);
-        if !block_clobbers.is_empty() {
-            predecessors = index_vec![Vec::new(); func.blocks.len()];
-            for block in cfg.reachable().iter() {
-                for &successor in cfg.successors(block) {
-                    predecessors[successor].push(block);
-                }
-            }
-        }
         let dom_tree = cfg.dominators();
         let mut replacements = FxHashMap::default();
         let mut dead = DenseBitSet::new_empty(func.num_insts());
@@ -538,7 +529,6 @@ impl CommonSubexprEliminator {
             dom_tree,
             block_clobbers: &block_clobbers,
             side_effect_clobbers: &side_effect_clobbers,
-            predecessors: &predecessors,
             cfg,
             reuse,
             replacements: &mut replacements,
@@ -811,7 +801,7 @@ impl CommonSubexprEliminator {
         // a compare-and-branch on it; the scheduler keeps it resident when few
         // other words are live here.
         if let Some(home) = home(*cached_inst)
-            && ctx.predecessors[block].contains(&home)
+            && func.blocks[block].predecessors.contains(&home)
             && facts.liveness.live_in(block).count() < DIRECT_REUSE_LIVE_BUDGET
         {
             return true;
@@ -862,11 +852,11 @@ impl CommonSubexprEliminator {
         // Blocks with a path to `child` that avoids `parent`. Every such block is
         // dominated by `parent`, so the walk stays within its dominator subtree
         // and every block it finds is reachable from `parent`.
-        let mut reaching_child = DenseBitSet::new_empty(ctx.predecessors.len());
+        let mut reaching_child = DenseBitSet::new_empty(func.blocks.len());
         let mut pending = Vec::new();
         pending.push(child);
         while let Some(block) = pending.pop() {
-            for &pred in &ctx.predecessors[block] {
+            for &pred in &func.blocks[block].predecessors {
                 if pred != parent && reaching_child.insert(pred) {
                     pending.push(pred);
                 }

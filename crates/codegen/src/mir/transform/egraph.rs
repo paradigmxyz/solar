@@ -142,9 +142,10 @@ impl MirPass for Egraph {
             if !fresh_mapping_entries.contains(func_id)
                 && (func.instructions().next().is_some() || empty_return)
             {
-                let has_edges = func.blocks.iter().any(|block| {
-                    block.terminator.as_ref().is_some_and(|term| !term.successors().is_empty())
-                });
+                let has_edges = func
+                    .blocks
+                    .iter()
+                    .any(|block| block.terminator.as_ref().is_some_and(Terminator::has_successors));
                 if has_edges {
                     with_cfg.insert(func_id);
                 } else {

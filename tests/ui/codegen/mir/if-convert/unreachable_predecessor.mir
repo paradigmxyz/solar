@@ -1,0 +1,25 @@
+//@compile-flags: -Zmir-pipeline=if-convert
+//@filecheck:
+@module UnreachablePredecessor
+
+// Clearing a dead incoming edge leaves a diamond with private arms.
+// CHECK-LABEL: {{^[ +].*}}fn @diamond{{[( ]}}
+// CHECK: - jumpi
+// CHECK: + {{v[0-9]+}} = sub
+// CHECK-NOT: {{^[ +].*}}phi
+fn @diamond(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = ne arg0, 0
+    jumpi v0, bb1, bb2
+  bb1:
+    v1 = mul arg1, 3
+    jump bb3
+  bb2:
+    v2 = xor arg1, 7
+    jump bb3
+  bb3:
+    v3 = phi [bb1: v1], [bb2: v2]
+    ret v3
+  bb4:
+    jump bb1
+}

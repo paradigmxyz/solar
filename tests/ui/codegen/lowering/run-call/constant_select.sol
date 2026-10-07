@@ -77,16 +77,12 @@ contract ConstantSelect {
     // SIZE-NEXT: lt
     // SIZE-NEXT: push {{bb[0-9]+}}
     // SIZE-NEXT: jumpi
-    // SIZE-NEXT: push 0xe2179b8e
+    // SIZE: push 0xe2179b8e
     // SIZE-NEXT: push 224
     // SIZE-NEXT: shl
     // SIZE-NEXT: push 4
     // SIZE-NEXT: calldataload
-    // SIZE-NEXT: jump [[SHARED:bb[0-9]+]]
-    // SIZE-NEXT: [[SHARED]]:
     // SIZE-NEXT: push 0x26121ff0
-    // SIZE-NEXT: jump [[SELECT:bb[0-9]+]]
-    // SIZE-NEXT: [[SELECT]]:
     // SIZE-NEXT: push 224
     // SIZE-NEXT: shl
     // SIZE-NEXT: dup 3
