@@ -68,6 +68,15 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
             break;
         }
+        if let Some(func_id) = self.lost_frame_stack_value {
+            self.gcx
+                .dcx()
+                .err(format!(
+                    "codegen cannot preserve values across a low-memory forwarding buffer in `{}`",
+                    module.functions[func_id].name
+                ))
+                .emit();
+        }
     }
 
     /// Links embedded bytecode into the optimized runtime code and assembles it.
@@ -114,6 +123,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.runtime_entry_reachability.clear();
         self.runtime_entry_funcs.clear();
         self.current_internal_function = None;
+        self.lost_frame_stack_value = None;
         self.block_copies.clear();
         self.stack_phi_sources.clear();
         self.static_call_abis.clear();

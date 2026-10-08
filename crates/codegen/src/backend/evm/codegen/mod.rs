@@ -277,6 +277,10 @@ pub struct EvmCodegen<'gcx> {
     /// Functions whose stack-only argument convention had to materialize a frame fallback during
     /// emission. They stay on the ordinary stack-argument convention on the regenerated runtime.
     disabled_stack_only_functions: DenseBitSet<FunctionId>,
+    /// An internal function already on the frame-backed convention that lost a stack-only value
+    /// in this emission attempt. Regenerating cannot give the value a reload route, so a kept
+    /// attempt reports an error instead of shipping the placeholder.
+    lost_frame_stack_value: Option<FunctionId>,
     /// Whether stack-native return tuples may be selected. Cleared when the
     /// whole-program stack proof fails even without preserved prefixes or
     /// stack arguments, falling back to the frame-backed return convention.
@@ -437,6 +441,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             pending_frame_size_consts: Vec::new(),
             static_call_abis: FxHashMap::default(),
             disabled_stack_only_functions: DenseBitSet::new_empty(0),
+            lost_frame_stack_value: None,
             stack_returns_enabled: true,
             preserve_caller_stack: false,
             recursive_stack_functions: DenseBitSet::new_empty(0),
@@ -506,6 +511,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.pending_frame_size_consts.clear();
         self.static_call_abis.clear();
         self.disabled_stack_only_functions.clear_to(module.functions.len());
+        self.lost_frame_stack_value = None;
         self.stack_returns_enabled = true;
         self.preserve_caller_stack = false;
         self.recursive_stack_functions.clear_to(module.functions.len());
