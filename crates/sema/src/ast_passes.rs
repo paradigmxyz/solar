@@ -1,6 +1,5 @@
 //! AST-related passes.
 
-use alloy_primitives::Address;
 use solar_ast::{self as ast, visit::Visit};
 use solar_data_structures::Never;
 use solar_interface::{Session, Span, diagnostics::DiagCtxt, error_code, sym};
@@ -106,11 +105,13 @@ impl<'sess> AstValidator<'sess, '_> {
             return;
         };
 
-        if Address::parse_checksummed(lit.symbol.as_str().replace('_', ""), None).is_err() {
+        let checksummed = addr.to_checksum_buffer(None);
+        let digits = lit.symbol.as_str().bytes().filter(|&b| b != b'_');
+        if !digits.eq(checksummed.as_str().bytes()) {
             self.dcx()
                 .err("invalid checksummed address")
                 .span(lit.span)
-                .help(format!("correct checksummed address: \"{}\"", addr.to_checksum(None)))
+                .help(format!("correct checksummed address: \"{checksummed}\""))
                 .note("if this is not used as an address, please prepend \"00\"")
                 .emit();
         }
