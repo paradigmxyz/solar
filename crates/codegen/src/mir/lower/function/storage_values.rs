@@ -327,6 +327,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.builder.sstore(base.slot, new_length);
                 Some(access)
             }
+            // A call that returns a storage reference, directly or through a function pointer,
+            // yields its slot.
             ExprKind::Call(callee, ..) if self.call_returns_storage_ref(callee) => {
                 let slot = self.lower_expr(expr)?;
                 Some(StorageAccess {
