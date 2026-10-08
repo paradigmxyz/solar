@@ -12,10 +12,11 @@
 //!   original never writes may belong to another function; a scratch word may be one a caller keeps
 //!   across the call.
 //! - When the original returns, the bytes it wrote must end with the same contents.
-//! - When the original returns or ends the call without reverting, the candidate may only write
-//!   persistent and transient storage slots the original writes, every slot the original writes
-//!   must end with the same value, and both must log the same events in the same order. A write the
-//!   original does not make would also fail in a static call, where the original succeeds.
+//! - When the original returns or ends the call without reverting, the candidate must write exactly
+//!   the persistent and transient storage slots the original writes, each ending with the same
+//!   value, and both must log the same events in the same order. A write fails in a static call
+//!   whatever it stores, so one the original does not make would fail where the original succeeds,
+//!   and one it drops would succeed where the original fails.
 //!
 //! The inputs must also exercise the code. Every reachable block must run to its terminator, every
 //! decision must come out both true and false, and every other value must come out nonzero, on
@@ -655,9 +656,10 @@ fn merge_outcomes(outcomes: &mut IndexVec<InstId, u8>, run: &IndexVec<InstId, u8
     }
 }
 
-/// Checks that a candidate writes only the storage slots of one kind the original writes, and
-/// that every slot the original writes ends with the same value, where `before` returns what a
-/// slot held before the run.
+/// Checks that a candidate writes exactly the storage slots of one kind the original writes, and
+/// that every one ends with the same value, where `before` returns what a slot held before the
+/// run. A write fails in a static call whatever it stores, so one the candidate drops would
+/// succeed where the original fails.
 fn compare_slots(
     kind: &str,
     original: &FxHashMap<U256, U256>,
@@ -674,7 +676,12 @@ fn compare_slots(
     slots.sort_unstable();
     for slot in slots {
         let ends = original[&slot];
-        let candidate_ends = candidate.get(&slot).copied().unwrap_or_else(|| before(slot));
+        let Some(&candidate_ends) = candidate.get(&slot) else {
+            return Err(format!(
+                "the original writes {kind} slot {slot:#x}, which the candidate never writes; the \
+                 write fails in a static call even when it stores what the slot held"
+            ));
+        };
         if ends != candidate_ends {
             return Err(format!(
                 "{kind} slot {slot:#x}, which held {:#x}, ends as {ends:#x} in the original but \

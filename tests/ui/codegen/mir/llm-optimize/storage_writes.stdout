@@ -1,0 +1,34 @@
+llm-optimize StorageWrites @main: not offered: is the dispatch entry
+llm-optimize StorageWrites @rewrite: offered at 2233 gas, 15 bytes
+llm-optimize StorageWrites @rewrite: round 1: rejected at equivalence: the original writes storage slot 0x7, which the candidate never writes; the write fails in a static call even when it stores what the slot held
+  on free memory pointer 0xa0, storage slot 0x7 = 0x8
+llm-optimize StorageWrites @rewrite: round 2: nothing cheaper
+llm-optimize StorageWrites @rewrite_transient: offered at 233 gas, 15 bytes
+llm-optimize StorageWrites @rewrite_transient: round 1: rejected at equivalence: the original writes transient storage slot 0x7, which the candidate never writes; the write fails in a static call even when it stores what the slot held
+  on free memory pointer 0x140, transient storage slot 0x7 = 0x3e0639cf0c6df84fad7ef8d799834d7ab6130632
+llm-optimize StorageWrites @rewrite_transient: round 2: nothing cheaper
+- // === ROOT/tests/ui/codegen/mir/llm-optimize/storage_writes.mir (before llm-optimize) ===
++ // === ROOT/tests/ui/codegen/mir/llm-optimize/storage_writes.mir (after llm-optimize) ===
+  @module StorageWrites
+  @phase lowered
+  fn @main() [entry] {
+    bb0:
+      icall @rewrite
+      icall @rewrite_transient
+      stop
+  }
+  
+  fn @rewrite() {
+    bb0:
+      v0 = sload 7
+      sstore 7, v0
+      ret
+  }
+  
+  fn @rewrite_transient() {
+    bb0:
+      v0 = tload 7
+      tstore 7, v0
+      ret
+  }
+  

@@ -179,9 +179,11 @@ Each candidate goes through these stages, and the verdict names the one that rej
    candidate must end the same way (return the same words, revert or return the same data,
    stop, or reach `invalid`), write only memory bytes the original writes, and, when the
    original returns, leave those bytes the same. When the original ends without reverting, the
-   candidate must also write only the storage and transient storage slots the original writes,
-   leave every slot the original writes with the same value, and log the same events in the same
-   order; a write the original does not make would also fail in a static call. The inputs must
+   candidate must also write exactly the storage and transient storage slots the original writes,
+   leave each with the same value, and log the same events in the same order. A write fails in a
+   static call whatever it stores, so a write the original does not make would fail where the
+   original succeeds, and one it drops, even of the value a slot held, would succeed where the
+   original fails. The inputs must
    exercise the candidate as they exercise the original, under the rules above. Decisions are
    comparisons and the `and`, `or`, and `xor` of booleans, which is how if-converted code
    combines comparisons without branching; values must come out nonzero because a path the
