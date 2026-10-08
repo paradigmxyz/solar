@@ -34,6 +34,11 @@
 //@ run-call: hashLowObject 5 => 0x036b6384b5eca791c62761152d0c79bb0604c104a5fb6f4eb0703f3154bb3db0, 1
 //@ run-call: byteAtSlot 5 => 5, 1
 //@ run-call: wordAtSlot 5 => 5, 1
+//@ run-call: scratchPackedHash 5 => 0x036b6384b5eca791c62761152d0c79bb0604c104a5fb6f4eb0703f3154bb3db0
+//@ run-call: scratchMappingKey 5 => 1
+//@ run-call: scratchArrayElement 5 => 5
+//@ run-call: scratchEncoded 5 => 5
+//@ run-call-fail: scratchError 5 => 0x42886c340000000000000000000000000000000000000000000000000000000000000005
 //@ run-call: checkedScaled 0 => 0
 //@ run-call: hashHelperScratch 1, 2, 3 => 0x6e0c627900b24bd432fe7b1f713f1b0744091a646a9fe4a65a18dfed21f2949c
 //@ run-call: allocateAfterHelper 1, 2, 3 => 3
@@ -54,7 +59,10 @@
 // checked arithmetic, and so does a load that reads the slot back as data. A caller that
 // allocates from a helper's scratch word clamps it on its own path.
 contract AssemblyLowMemoryLayouts {
+    error ScratchWord(uint256 word);
+
     bytes32 public seal;
+    mapping(uint256 => uint256) internal scratchKeys;
 
     // A constructor that hashes data in the pointer's slot keeps it there: the constructor's
     // return copies the runtime code to a fixed address and never reads the slot again.
@@ -562,6 +570,31 @@ contract AssemblyLowMemoryLayouts {
         length = new bytes(1).length;
     }
 
+    // A scratch word that Solidity code hashes, uses as a key, stores in an array, encodes, or
+    // reverts with is data.
+    function scratchPackedHash(uint256) external pure returns (bytes32) {
+        return keccak256(abi.encodePacked(_scratchWord()));
+    }
+
+    function scratchMappingKey(uint256) external returns (uint256) {
+        scratchKeys[_scratchWord()] = 1;
+        return scratchKeys[5];
+    }
+
+    function scratchArrayElement(uint256) external pure returns (uint256) {
+        uint256[] memory a = new uint256[](1);
+        a[0] = _scratchWord();
+        return a[0];
+    }
+
+    function scratchEncoded(uint256) external pure returns (uint256) {
+        return abi.decode(abi.encode(_scratchWord()), (uint256));
+    }
+
+    function scratchError(uint256) external pure {
+        revert ScratchWord(_scratchWord());
+    }
+
     // A checked product on the way to a write keeps its check on the loaded word; the clamped
     // address it writes through wraps instead.
     function checkedScaled(uint256) external pure returns (uint256 seen) {
@@ -642,6 +675,15 @@ contract AssemblyLowMemoryLayouts {
             }
             mstore(end, a)
             h := keccak256(0xa0, add(sub(end, 0xa0), 0x20))
+        }
+    }
+
+    function _scratchWord() internal pure returns (uint256 word) {
+        assembly {
+            let m := mload(0x40)
+            mstore(0x40, calldataload(4))
+            word := mload(0x40)
+            mstore(0x40, m)
         }
     }
 

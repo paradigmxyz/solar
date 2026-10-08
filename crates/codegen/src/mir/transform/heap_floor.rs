@@ -25,26 +25,28 @@
 //! when they lay call data out over the slot, or execution ends. An `mload` of the slot reads the
 //! word as the pointer when the loaded word, or one computed from it, addresses or sizes memory or
 //! becomes the pointer again, in the function, in a callee it is passed to, or in a caller it is
-//! returned to, as every allocation in assembly does; a loaded word only compared, stored, or
-//! returned from an external function as integers is data. A load that uses its word both ways
-//! reads it both as the pointer and as data. The compiler's own free-memory-pointer reads and
-//! allocations read the word as the pointer too, and so do the builtins and semantic operations
-//! whose lowering may allocate or encode at the pointer, unlike pure computations, checks that
-//! revert with scratch data, and accesses to frames, storage slots, and memory that already exists.
-//! An access that may cover a byte the writes have not replaced reads the word as data, such as a
-//! scratch hash or revert data, unless its address is a heap pointer plus a constant: the free
-//! memory pointer, an allocation, a memory object, or a parameter every call fills with one, which
-//! all lie at or above the zero slot at `0x60`. Any other address may be low: a word loaded from
-//! memory is zero where nothing has written it, a subtraction or an offset the program computes can
-//! reach below the heap, and an external function's integer arguments come from calldata. A read
-//! or copy of a memory object, such as a hash of `bytes`, follows the same rule through the object,
-//! which assembly may have pointed anywhere, and so does the address of the object's data, a field,
-//! or an element. An element or byte at an index the program computes may wrap around to the slot
-//! even in a heap object, as when assembly forges the object's length; the range a hash or copy
-//! covers cannot, as memory that far is unaffordable. A return from the constructor, or one from an
-//! external function whose results all have static ABI types, ends execution without reading the
-//! slot: codegen returns runtime code from a fixed address and encodes static results in a static
-//! buffer. An external function returns to the dispatcher even when internal calls reach it too.
+//! returned to, as every allocation in assembly does; a loaded word only compared, stored, hashed,
+//! encoded, used as a key or an index, or returned from an external function as integers is data,
+//! as the compiler's operations reach memory only through the memory objects and slices made from
+//! it. A load that uses its word both ways reads it both as the pointer and as data. The compiler's
+//! own free-memory-pointer reads and allocations read the word as the pointer too, and so do the
+//! builtins and semantic operations whose lowering may allocate or encode at the pointer, unlike
+//! pure computations, checks that revert with scratch data, and accesses to frames, storage slots,
+//! and memory that already exists. An access that may cover a byte the writes have not replaced
+//! reads the word as data, such as a scratch hash or revert data, unless its address is a heap
+//! pointer plus a constant: the free memory pointer, an allocation, a memory object, or a parameter
+//! every call fills with one, which all lie at or above the zero slot at `0x60`. Any other address
+//! may be low: a word loaded from memory is zero where nothing has written it, a subtraction or an
+//! offset the program computes can reach below the heap, and an external function's integer
+//! arguments come from calldata. A read or copy of a memory object, such as a hash of `bytes`,
+//! follows the same rule through the object, which assembly may have pointed anywhere, and so does
+//! the address of the object's data, a field, or an element. An element or byte at an index the
+//! program computes may wrap around to the slot even in a heap object, as when assembly forges the
+//! object's length; the range a hash or copy covers cannot, as memory that far is unaffordable. A
+//! return from the constructor, or one from an external function whose results all have static ABI
+//! types, ends execution without reading the slot: codegen returns runtime code from a fixed
+//! address and encodes static results in a static buffer. An external function returns to the
+//! dispatcher even when internal calls reach it too.
 //!
 //! A word read only as the pointer is clamped where it is stored, `mstore 64, clamped`. A word that
 //! is also read as data keeps its value in the slot, and the clamp moves to each pointer read that
@@ -301,6 +303,8 @@ fn clamp_loads(func: &mut Function, plan: &LoadClamps) {
                 if let Some(operands) = pointer_operands_mut(&mut kind, slot_store) {
                     operands.into_iter().for_each(swap);
                 } else {
+                    // The word is a memory object or slice, which every operation not listed
+                    // reads only as the pointer.
                     kind.visit_operands_mut(swap);
                 }
                 func.inst_mut(*inst).kind = kind;
@@ -405,6 +409,11 @@ fn returns_to_the_end(func: &Function) -> bool {
 /// the caller of any other function no call reaches.
 fn returns_out_of_module(func: &Function, sites: &[CallSite]) -> bool {
     func.is_external_entry() || sites.is_empty()
+}
+
+/// Whether a value of type `ty` refers to memory: a memory object or a memory slice.
+fn is_memory_reference(ty: Option<MirType>) -> bool {
+    matches!(ty, Some(MirType::MemPtr | MirType::Slice(SliceLocation::Memory)))
 }
 
 /// Whether a returned value holds integers alone, which an external function encodes as data.
@@ -781,7 +790,8 @@ fn derives_from(kind: &InstKind, word: ValueId) -> bool {
 
 /// Returns the operands an instruction uses as memory addresses, memory sizes, or, for a store to
 /// the slot (`slot_store`), the free memory pointer. The other operands of the operations listed
-/// are data, and an operation not listed may use any operand as a pointer.
+/// are data. An operation not listed reaches memory only through the memory objects and slices it
+/// takes, which are its pointer operands.
 fn pointer_operands_mut(
     kind: &mut InstKind,
     slot_store: bool,
@@ -842,7 +852,10 @@ fn operand_reads(func: &Function, kind: &InstKind, word: ValueId) -> Reads {
     let slot_store = matches!(*kind, InstKind::MStore(address, _) if is_slot(func, address));
     let mut roles = kind.clone();
     let Some(pointers) = pointer_operands_mut(&mut roles, slot_store) else {
-        return Reads { pointer: true, data: false };
+        // It hashes, encodes, stores, or compares the other operands, or uses them as keys and
+        // indices.
+        let pointer = is_memory_reference(func.value_ty(word));
+        return Reads { pointer, data: !pointer };
     };
     let pointer_uses = pointers.into_iter().filter(|operand| **operand == word).count();
     let mut uses = 0;
@@ -1401,10 +1414,7 @@ impl<'a> PointerUses<'a> {
         }
         let mut objects = SmallVec::<[ValueId; 2]>::new();
         kind.visit_operands(|operand| {
-            if matches!(
-                func.value_ty(operand),
-                Some(MirType::MemPtr | MirType::Slice(SliceLocation::Memory))
-            ) {
+            if is_memory_reference(func.value_ty(operand)) {
                 objects.push(operand);
             }
         });

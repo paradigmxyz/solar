@@ -709,3 +709,51 @@ fn @byte_at_constant_index() -> i256 [selector=0x1234568f] {
     v3 = alloc memorybytes, exact, zeroed, panic, 64
     ret v2
 }
+
+// A scratch word that the compiler's operations hash, encode, store as a value, or use as a key
+// or an index is data, as they reach memory only through memory objects and slices.
+// CHECK-LABEL: {{^[ +].*}}fn @hash_packed_scratch{{[( ]}}
+// CHECK-NOT: {{^[-+]}}
+// CHECK-LABEL: {{^[ +].*}}fn @store_scratch_element{{[( ]}}
+// CHECK-NOT: {{^[-+]}}
+fn @hash_packed_scratch() -> i256 [selector=0x12345690] {
+  bb0:
+    v0 = mload 64
+    v1 = calldataload 4
+    mstore 64, v1
+    v2 = mload 64
+    mstore 64, v0
+    v3 = keccak256_packed (u256 v2)
+    ret v3
+}
+
+fn @store_scratch_element() -> i256 [selector=0x12345691] {
+  bb0:
+    v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
+    v1 = mload 64
+    v2 = calldataload 4
+    mstore 64, v2
+    v3 = mload 64
+    mstore 64, v1
+    memory_object_store_element memoryarray<1>, v0, 0, v3
+    v4 = memory_object_load_element memoryarray<1>, v0, 0
+    ret v4
+}
+
+// A memory object made from the slot's word addresses memory, so the word is clamped for it.
+// CHECK-LABEL: {{^[ +].*}}fn @object_from_scratch{{[( ]}}
+// CHECK: [[STORED:v[0-9]+]] = calldataload 4
+// CHECK-NEXT: - mstore 64, [[STORED]]
+// CHECK-NEXT: + [[FLOOR:v[0-9]+]] = heap_floor
+// CHECK-NEXT: + [[BELOW:v[0-9]+]] = lt [[STORED]], [[FLOOR]]
+// CHECK-NEXT: + [[CLAMPED:v[0-9]+]] = select [[BELOW]], [[FLOOR]], [[STORED]]
+// CHECK-NEXT: + mstore 64, [[CLAMPED]]
+fn @object_from_scratch() -> i256 [selector=0x12345692] {
+  bb0:
+    v0 = calldataload 4
+    mstore 64, v0
+    v1 = mload 64
+    v2 = inttoptr i256 v1 to memptr
+    v3 = memory_object_len memorybytes, v2
+    ret v3
+}

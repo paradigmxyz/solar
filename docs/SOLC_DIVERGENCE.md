@@ -377,8 +377,9 @@ No intentional divergences documented yet.
   allocation, or an `mload` whose word addresses memory. After
   `mstore(0x40, 0x80)`, such a read sees `0x80` under `solc` and the initial
   pointer here. A word that is also read as data, such as one hashed in
-  scratch memory or loaded and compared, stays in the slot for those reads,
-  and only the pointer reads see the raised value. Each external function
+  scratch memory, or loaded and then compared, hashed, encoded, stored, or
+  used as a key, stays in the slot for those reads, and only the pointer
+  reads see the raised value. Each external function
   that runs code writing memory at an absolute address computed from calldata,
   as Seaport lays out a basic order's hashes and event data, keeps its spill
   slots and the frames it reaches above `0x2080`, and above the constant
