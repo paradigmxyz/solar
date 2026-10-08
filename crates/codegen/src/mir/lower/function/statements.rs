@@ -307,10 +307,21 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn lower_discarded_expr_inner(&mut self, expr: &hir::Expr<'_>) -> Option<()> {
+        // Like solc, a constant evaluates its initializer at every use, which can revert.
+        let gcx = self.cx.gcx;
+        if let Some(id) = gcx.resolved_variable(expr)
+            && let variable = gcx.hir.variable(id)
+            && variable.is_constant()
+            && let Some(initializer) = variable.initializer
+        {
+            if gcx.try_eval_const_value(initializer).is_ok() {
+                return Some(());
+            }
+            return self.lower_discarded_expr(initializer);
+        }
         match &expr.kind {
-            // Names and `new T` have no effects to evaluate. A constant evaluates its initializer
-            // at every use, which can revert.
-            ExprKind::Ident(_) | ExprKind::New(_) if !self.is_constant_reference(expr) => Some(()),
+            // Names and `new T` have no effects to evaluate.
+            ExprKind::Ident(_) | ExprKind::New(_) => Some(()),
             ExprKind::Call(callee, args) => {
                 let (callee, options) = callee.split_call_options();
                 self.lower_call(expr, callee, *args, options, false).map(drop)
@@ -367,12 +378,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }
                 Some(())
             }
-            // A member function, such as `to.transfer`, or a non-constant member of an item only
-            // evaluates its receiver. Function-typed fields are still read: calldata reads validate
-            // them.
+            // A member function, such as `to.transfer`, or a member of an item only evaluates its
+            // receiver. Function-typed fields are still read: calldata reads validate them.
             ExprKind::Member(receiver, _)
-                if self.is_member_function(expr)
-                    || (self.is_item_reference(receiver) && !self.is_constant_reference(expr)) =>
+                if self.is_member_function(expr) || self.is_item_reference(receiver) =>
             {
                 self.lower_discarded_expr(receiver)
             }
@@ -390,12 +399,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             gcx.resolved_expr(expr),
             Some(hir::Res::Item(hir::ItemId::Function(_)) | hir::Res::Builtin(_))
         ) && gcx.type_of_expr(expr.id).is_some_and(|ty| matches!(ty.kind, TyKind::Fn(_)))
-    }
-
-    /// Returns whether `expr` names a constant variable.
-    fn is_constant_reference(&self, expr: &hir::Expr<'_>) -> bool {
-        let gcx = self.cx.gcx;
-        gcx.resolved_variable(expr).is_some_and(|id| gcx.hir.variable(id).is_constant())
     }
 
     /// Returns whether `expr` names a type, module, event, or error rather than a runtime value.

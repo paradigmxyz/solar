@@ -7,6 +7,7 @@
 //@ run-call-fail: constantStatement => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
 //@ run-call-fail: constantMember => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
 //@ run-call-fail: constantTuple => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
+//@ run-call-fail: storageReferences => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
 //@ run-call: 0x; value=7
 
 import "./auxiliary/bare_reference_module.sol" as Module;
@@ -21,8 +22,14 @@ contract BareReferenceStatements {
 
     uint256 internal constant MAX = type(uint256).max;
     uint256 internal constant OVERFLOW = MAX + 1;
+    string internal constant NAME = "bare";
+
+    struct Entry {
+        uint256 value;
+    }
 
     uint256 private count;
+    Entry[] private entries;
 
     function references() external payable returns (uint256, uint256) {
         address payable to = payable(address(0xdead));
@@ -38,6 +45,9 @@ contract BareReferenceStatements {
         Module.IModule.f;
         Module.IModule.f.selector;
         type(IToken);
+        MAX;
+        BareReferenceStatements.MAX;
+        NAME;
         new uint256[];
         to.transfer;
         to.send;
@@ -87,6 +97,12 @@ contract BareReferenceStatements {
 
     function constantTuple() external pure {
         (block, OVERFLOW);
+    }
+
+    function storageReferences() external view {
+        count;
+        entries;
+        entries[0];
     }
 
     receive() external payable {
