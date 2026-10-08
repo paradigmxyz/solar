@@ -31,6 +31,7 @@
 //@ run-call-fail: revertBelowPointer 5, 0 => 0x0000000000000000000000000000000000000000000000000000000000000005
 //@ run-call: revertPastPointer 5, 1
 //@ run-call-fail: revertPastPointer 5, 0 => 0x0000000000000000000000000000000000000000000000000000000000000005
+//@ run-call: hashLowObject 5 => 0x036b6384b5eca791c62761152d0c79bb0604c104a5fb6f4eb0703f3154bb3db0, 1
 //@ run-call: checkedScaled 0 => 0
 //@ run-call: hashHelperScratch 1, 2, 3 => 0x6e0c627900b24bd432fe7b1f713f1b0744091a646a9fe4a65a18dfed21f2949c
 //@ run-call: allocateAfterHelper 1, 2, 3 => 3
@@ -519,6 +520,18 @@ contract AssemblyLowMemoryLayouts {
             }
             revert(add(p, mload(0)), 0x20)
         }
+    }
+
+    // A hash of `bytes` that assembly points at 0x20 reads the slot's word as its data.
+    function hashLowObject(uint256) external pure returns (bytes32 h, uint256 length) {
+        bytes memory b;
+        assembly {
+            mstore(0x40, calldataload(4))
+            mstore(0x20, 0x20)
+            b := 0x20
+        }
+        h = keccak256(b);
+        length = new bytes(1).length;
     }
 
     // A checked product on the way to a write keeps its check on the loaded word; the clamped

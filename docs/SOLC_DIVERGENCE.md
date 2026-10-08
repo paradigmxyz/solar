@@ -399,8 +399,9 @@ No intentional divergences documented yet.
   that reaches the store through a parameter, memory, or a call keeps its
   value. A read at a heap pointer plus a constant lies above the slot, while a
   read at any other computed address, such as one loaded from memory or one
-  below a heap pointer, may read the slot as data. A layout that grows past
-  `0x2080`, or one indexed by a loop counter alone, can still reach the
+  below a heap pointer, may read the slot as data, and so may a hash or copy
+  of a memory object that assembly points below the heap. A layout that grows
+  past `0x2080`, or one indexed by a loop counter alone, can still reach the
   compiler's memory; Seaport's basic orders with about 40 or more additional
   recipients do.
 - Coverage: `tests/ui/codegen/lowering/run-call/assembly_low_memory_layouts.sol`,

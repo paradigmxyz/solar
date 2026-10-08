@@ -596,3 +596,60 @@ fn @revert_above_pointer(arg0: i256) [selector=0x12345689] {
   bb2:
     revert v1, 32
 }
+
+// A hash of a memory object that assembly points below the heap may read the slot, so the scratch
+// word stays there for it, and the slot is clamped only for the allocation after it.
+// CHECK-LABEL: {{^[ +].*}}fn @hash_low_object{{[( ]}}
+// CHECK: mstore 64, {{v[0-9]+}}
+// CHECK: keccak256_bytes memptr 32
+// CHECK-NEXT: + [[WORD:v[0-9]+]] = mload 64
+// CHECK-NEXT: + [[FLOOR:v[0-9]+]] = heap_floor
+// CHECK-NEXT: + [[BELOW:v[0-9]+]] = lt [[WORD]], [[FLOOR]]
+// CHECK-NEXT: + [[CLAMPED:v[0-9]+]] = select [[BELOW]], [[FLOOR]], [[WORD]]
+// CHECK-NEXT: + mstore 64, [[CLAMPED]]
+// CHECK-NEXT: alloc memorybytes
+fn @hash_low_object() -> i256 [selector=0x1234568a] {
+  bb0:
+    v0 = calldataload 4
+    mstore 64, v0
+    mstore 32, 32
+    v1 = keccak256_bytes memptr 32
+    v2 = alloc memorybytes, exact, zeroed, panic, 64
+    ret v1
+}
+
+// So may a copy out of such an object, which reads no pointer itself.
+// CHECK-LABEL: {{^[ +].*}}fn @copy_low_object{{[( ]}}
+// CHECK: mstore 64, {{v[0-9]+}}
+// CHECK: memory_object_copy memorybytes, {{v[0-9]+}}, memorybytes, memptr 32, 32
+// CHECK-NEXT: + [[WORD:v[0-9]+]] = mload 64
+// CHECK-NEXT: + [[FLOOR:v[0-9]+]] = heap_floor
+// CHECK: alloc memorybytes
+fn @copy_low_object() -> memptr [selector=0x1234568b] {
+  bb0:
+    v0 = alloc memorybytes, exact, zeroed, panic, 64
+    v1 = calldataload 4
+    mstore 64, v1
+    mstore 32, 32
+    memory_object_copy memorybytes, v0, memorybytes, memptr 32, 32
+    v2 = alloc memorybytes, exact, zeroed, panic, 64
+    ret v0
+}
+
+// And so may a hash at such an object's data.
+// CHECK-LABEL: {{^[ +].*}}fn @hash_low_object_data{{[( ]}}
+// CHECK: mstore 64, {{v[0-9]+}}
+// CHECK: keccak256 {{v[0-9]+}}, 32
+// CHECK-NEXT: + [[WORD:v[0-9]+]] = mload 64
+// CHECK-NEXT: + [[FLOOR:v[0-9]+]] = heap_floor
+// CHECK: alloc memorybytes
+fn @hash_low_object_data() -> i256 [selector=0x1234568c] {
+  bb0:
+    v0 = calldataload 4
+    mstore 64, v0
+    v1 = memory_object_data memorybytes, memptr 32
+    v2 = ptrtoint memptr v1 to i256
+    v3 = keccak256 v2, 32
+    v4 = alloc memorybytes, exact, zeroed, panic, 64
+    ret v3
+}

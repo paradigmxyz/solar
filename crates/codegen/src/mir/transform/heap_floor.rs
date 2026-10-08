@@ -36,11 +36,13 @@
 //! memory pointer, an allocation, a memory object, or a parameter every call fills with one, which
 //! all lie at or above the zero slot at `0x60`. Any other address may be low: a word loaded from
 //! memory is zero where nothing has written it, a subtraction or an offset the program computes can
-//! reach below the heap, and an external function's integer arguments come from calldata. A return
-//! from the constructor, or one from an external function whose results all have static ABI types,
-//! ends execution without reading the slot: codegen returns runtime code from a fixed address and
-//! encodes static results in a static buffer. An external function returns to the dispatcher even
-//! when internal calls reach it too.
+//! reach below the heap, and an external function's integer arguments come from calldata. A read
+//! or copy of a memory object, such as a hash of `bytes`, follows the same rule through the object,
+//! which assembly may have pointed anywhere, and so does the address of the object's data, a field,
+//! or an element. A return from the constructor, or one from an external function whose results all
+//! have static ABI types, ends execution without reading the slot: codegen returns runtime code
+//! from a fixed address and encodes static results in a static buffer. An external function returns
+//! to the dispatcher even when internal calls reach it too.
 //!
 //! A word read only as the pointer is clamped where it is stored, `mstore 64, clamped`. A word that
 //! is also read as data keeps its value in the slot, and the clamp moves to each pointer read that
@@ -76,18 +78,19 @@
 //! constants and calldata is clamped. An absolute address passed through a parameter, memory, or a
 //! call, and copies or byte stores that overwrite the pointer, keep their bytes. An access at a
 //! heap pointer plus a constant is assumed not to cover the slot, also when the pointer is a memory
-//! object that a call returns or a word the slot holds after a store the pass leaves alone, while a
-//! loaded word stored elsewhere stays data even if a later load uses it as a pointer. A slot
-//! clamped before a compiler read stays clamped for a later read of it as data. Writes replace the
-//! word only when one block covers all of its bytes. A loaded word passed to a callee or returned
-//! to callers that read it as a pointer is clamped as a whole there, even if they also read it as
-//! data, and a word an external function returns as data is clamped as a whole in each internal
-//! caller that reads it as a pointer. See CODEGEN-010.
+//! object that a call returns or another object holds, or a word the slot holds after a store the
+//! pass leaves alone, while a loaded word stored elsewhere stays data even if a later load uses it
+//! as a pointer. A slot clamped before a compiler read stays clamped for a later read of it as
+//! data, including the read of a memory object that an allocating operation such as an encoding
+//! takes. Writes replace the word only when one block covers all of its bytes. A loaded word passed
+//! to a callee or returned to callers that read it as a pointer is clamped as a whole there, even
+//! if they also read it as data, and a word an external function returns as data is clamped as a
+//! whole in each internal caller that reads it as a pointer. See CODEGEN-010.
 
 use crate::mir::{
     AbiType, ArgIdx, BlockId, Builtin, Callee, CheckedOp, EffectKind, Function, FunctionId,
     Immediate, InstId, InstKind, Instruction, InstructionMetadata, MemoryRegion, MirType, Module,
-    Terminator, Value, ValueId,
+    SliceLocation, Terminator, Value, ValueId,
     analysis::{AddressInput, absolute_address_inputs},
     memory::EvmMemoryLayout,
     pass::{MirPass, ModuleAnalyses},
@@ -522,6 +525,9 @@ fn lowered_reads_pointer(kind: &InstKind) -> bool {
                 | InstKind::MemoryObjectStoreElement { .. }
                 | InstKind::MemoryObjectStoreByte { .. }
                 | InstKind::MemoryObjectStoreWord { .. }
+                | InstKind::MemoryObjectCopy { .. }
+                | InstKind::MemoryObjectCopyFromSlice { .. }
+                | InstKind::MemoryObjectCopyFromSliceAt { .. }
                 | InstKind::MemorySliceLoadWord { .. }
                 | InstKind::CalldataSliceLoadWord { .. }
                 | InstKind::Keccak256Bytes(..)
@@ -628,8 +634,9 @@ fn module_heap_addresses(module: &Module) -> IndexVec<FunctionId, DenseBitSet<Va
 
 /// Returns the words `func` computes from heap pointers, with the parameters `params` marks as
 /// holding one: the free memory pointer, allocations, and memory objects, a word that adds a
-/// constant or another heap pointer to one, and a choice between such words. Every candidate
-/// starts as a heap pointer, and one whose inputs are not drops out until none does.
+/// constant or another heap pointer to one, the address of such an object's data, a field, or an
+/// element at a constant index, and a choice between such words. Every candidate starts as a heap
+/// pointer, and one whose inputs are not drops out until none does.
 fn function_heap_addresses(
     func: &Function,
     params: &IndexVec<ArgIdx, bool>,
@@ -674,7 +681,10 @@ fn may_compute_heap_address(func: &Function, inst: InstId) -> bool {
         | InstKind::Phi(_)
         | InstKind::Zext(_)
         | InstKind::IntToPtr(_)
-        | InstKind::PtrToInt(..) => true,
+        | InstKind::PtrToInt(..)
+        | InstKind::MemoryObjectData(..)
+        | InstKind::MemoryObjectFieldAddr { .. }
+        | InstKind::MemoryObjectElementAddr { .. } => true,
         InstKind::MLoad(address) => is_slot(func, address),
         _ => instruction.result_ty == Some(MirType::MemPtr),
     }
@@ -682,8 +692,9 @@ fn may_compute_heap_address(func: &Function, inst: InstId) -> bool {
 
 /// Whether an instruction computes a heap pointer from operands that `heap` holds: one plus a
 /// constant below 2^64, which cannot wrap around to low memory, or plus another such pointer, a
-/// choice between them, or one converted without losing bits, as memory addresses stay below
-/// 2^64. The free memory pointer, allocations, and memory objects are heap pointers themselves.
+/// choice between them, one converted without losing bits, as memory addresses stay below 2^64,
+/// or the address of such an object's data, a field, or an element at a constant index. The free
+/// memory pointer, allocations, and memory objects are heap pointers themselves.
 fn computes_heap_address(func: &Function, kind: &InstKind, heap: &DenseBitSet<ValueId>) -> bool {
     let offset = |value: ValueId| heap.contains(value) || func.value_u64(value).is_some();
     match kind {
@@ -692,6 +703,12 @@ fn computes_heap_address(func: &Function, kind: &InstKind, heap: &DenseBitSet<Va
         InstKind::Phi(incoming) => incoming.iter().all(|&(_, value)| heap.contains(value)),
         InstKind::Zext(operand) | InstKind::IntToPtr(operand) => heap.contains(*operand),
         InstKind::PtrToInt(operand, bits) => *bits >= 64 && heap.contains(*operand),
+        InstKind::MemoryObjectData(object, _) | InstKind::MemoryObjectFieldAddr { object, .. } => {
+            heap.contains(*object)
+        }
+        InstKind::MemoryObjectElementAddr { object, index, .. } => {
+            heap.contains(*object) && func.value_u64(*index).is_some()
+        }
         _ => true,
     }
 }
@@ -1314,7 +1331,7 @@ impl<'a> PointerUses<'a> {
                 // A copy reads its source before it writes its destination.
                 let reads = read_range(func, &inst.kind).is_some_and(|(offset, size)| {
                     self.may_read_slot(func_id, offset, size, *written)
-                });
+                }) || self.may_read_object_at_slot(func_id, &inst.kind, *written);
                 if let Some((start, size)) = constant_write_range(func, &inst.kind) {
                     *written |= slot_bytes(start, size);
                 }
@@ -1345,6 +1362,32 @@ impl<'a> PointerUses<'a> {
             return !self.heap_addresses(func_id).contains(offset);
         };
         slot_bytes(start, size.unwrap_or(u64::MAX)) & !written != 0
+    }
+
+    /// Returns whether an operation that reads or writes memory objects may read a byte of the slot
+    /// that still holds the stored word, through an object or a memory slice it takes. Its extent
+    /// is unknown, so any object `may_read_slot` cannot place above the slot may; a store into an
+    /// object counts too, as the bytes it writes are unknown.
+    fn may_read_object_at_slot(
+        &mut self,
+        func_id: FunctionId,
+        kind: &InstKind,
+        written: SlotBytes,
+    ) -> bool {
+        if !matches!(kind.op_def().effect, EffectKind::MemoryRead | EffectKind::MemoryWrite) {
+            return false;
+        }
+        let func = &self.module.functions[func_id];
+        let mut objects = SmallVec::<[ValueId; 2]>::new();
+        kind.visit_operands(|operand| {
+            if matches!(
+                func.value_ty(operand),
+                Some(MirType::MemPtr | MirType::Slice(SliceLocation::Memory))
+            ) {
+                objects.push(operand);
+            }
+        });
+        objects.into_iter().any(|object| self.may_read_slot(func_id, object, None, written))
     }
 
     /// Returns the words `func_id` computes from heap pointers.
