@@ -25,7 +25,7 @@ use solar_data_structures::map::FxHashMap;
 use solar_interface::{
     SourceMap,
     diagnostics::{DiagCtxt, InMemoryEmitter, JsonEmitter, SolcDiagnostic},
-    source_map::FileLoader,
+    source_map::{FileLoader, FileName},
 };
 use solar_sema::{Gcx, hir::ContractId};
 use std::{
@@ -397,7 +397,7 @@ fn compile(
                         .par_contracts_enumerated()
                         .filter_map(|(contract_id, contract)| {
                             let source = gcx.hir.source(contract.source);
-                            let source_name = standard_json_source_name(&source.file.name);
+                            let source_name = standard_json_source_name(gcx, &source.file.name);
                             let contract_name = contract.name.as_str();
                             let contract_selection =
                                 output_selection.contract(&source_name, contract_name);
@@ -526,8 +526,13 @@ fn callback_path(path: &Path) -> Cow<'_, str> {
     generic_separators(path.to_string_lossy())
 }
 
-pub(super) fn standard_json_source_name(name: &solar_interface::source_map::FileName) -> String {
-    generic_separators(name.display().to_string().into()).into_owned()
+pub(super) fn standard_json_source_name(gcx: Gcx<'_>, name: &FileName) -> String {
+    let name = name.display().to_string();
+    // Input keys are opaque; only names the resolver built from native paths get `/`.
+    match generic_separators(Cow::Borrowed(&name)) {
+        Cow::Owned(generic) if !gcx.sess.opts.input.contains(&name) => generic,
+        _ => name,
+    }
 }
 
 /// Uses `/` in a source unit name built from native path components.
@@ -547,12 +552,14 @@ fn disallowed_io(path: &Path) -> io::Error {
 fn source_outputs_from_compiler(
     compiler: &solar_sema::CompilerRef<'_>,
 ) -> FxIndexMap<String, SourceOutput> {
-    compiler
-        .gcx()
-        .sources
+    let gcx = compiler.gcx();
+    gcx.sources
         .iter_enumerated()
         .map(|(id, source)| {
-            (standard_json_source_name(&source.file.name), SourceOutput { id: id.index() as u32 })
+            (
+                standard_json_source_name(gcx, &source.file.name),
+                SourceOutput { id: id.index() as u32 },
+            )
         })
         .collect()
 }
@@ -789,7 +796,7 @@ fn requested_bytecode_contracts(
         }
 
         let source = gcx.hir.source(contract.source);
-        let source_name = standard_json_source_name(&source.file.name);
+        let source_name = standard_json_source_name(gcx, &source.file.name);
         let contract_name = contract.name.as_str();
         if output_selection.contract(&source_name, contract_name).intersects(bytecode_outputs) {
             contracts.insert(contract_id);
@@ -820,7 +827,7 @@ fn requested_metadata_contracts(
     if requests_metadata {
         for (contract_id, contract) in gcx.hir.contracts_enumerated() {
             let source = gcx.hir.source(contract.source);
-            let source_name = standard_json_source_name(&source.file.name);
+            let source_name = standard_json_source_name(gcx, &source.file.name);
             if output_selection
                 .contract(&source_name, contract.name.as_str())
                 .contains(OutputSelectionFlags::METADATA)
@@ -852,7 +859,7 @@ fn requested_debug_info_contracts(
         }
 
         let source = gcx.hir.source(contract.source);
-        let source_name = standard_json_source_name(&source.file.name);
+        let source_name = standard_json_source_name(gcx, &source.file.name);
         if output_selection.contract(&source_name, contract.name.as_str()).intersects(debug_outputs)
         {
             contracts.insert(contract_id);
@@ -869,7 +876,7 @@ fn contract_output_requested(
     output_selection.all().intersects(outputs)
         || gcx.hir.contracts().any(|contract| {
             let source = gcx.hir.source(contract.source);
-            let source_name = standard_json_source_name(&source.file.name);
+            let source_name = standard_json_source_name(gcx, &source.file.name);
             output_selection.contract(&source_name, contract.name.as_str()).intersects(outputs)
         })
 }
