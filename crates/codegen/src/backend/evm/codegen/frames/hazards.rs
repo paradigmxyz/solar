@@ -10,8 +10,8 @@
 use super::{
     super::{
         AliasAnalysis, BlockId, DenseBitSet, EvmCodegen, EvmMemoryLayout, Function, FunctionId,
-        FxHashMap, FxHashSet, InstId, InstKind, MemoryBase, MemoryRegion, MirType, Module,
-        Terminator, U256, Value, ValueId,
+        FxHashMap, FxHashSet, IndexVec, InstId, InstKind, MemoryBase, MemoryRegion, MirType,
+        Module, Terminator, U256, Value, ValueId,
     },
     SPILL_HAZARD_BOUND,
 };
@@ -19,7 +19,7 @@ use crate::mir::{
     Callee,
     analysis::{Access, CallGraphInfo, CfgInfo, Location},
 };
-use std::cell::OnceCell;
+use std::cell::{OnceCell, RefCell};
 
 impl<'gcx> EvmCodegen<'gcx> {
     /// Returns the destination of a symbolic memory write that can cover a
@@ -600,7 +600,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 Self::guarded_heap_pointer(
                     func,
                     &facts.cfg,
-                    facts.inst_blocks[&inst],
+                    facts.inst_blocks[inst],
                     value,
                     &is_heap_pointer,
                 )
@@ -928,35 +928,85 @@ impl<'gcx> EvmCodegen<'gcx> {
 }
 
 /// Uses executed memory accesses and dominating bounds to prove heap writes cannot wrap low.
+///
+/// The function-wide facts are indexed once so that each query only visits the instructions
+/// and branches that mention its value.
 struct HeapWriteProof<'a> {
     func: &'a Function,
     cfg: CfgInfo,
-    inst_blocks: FxHashMap<InstId, BlockId>,
+    /// Block and position of each placed instruction.
+    inst_blocks: IndexVec<InstId, BlockId>,
+    positions: IndexVec<InstId, u32>,
+    /// Word accesses by address.
+    accesses: FxHashMap<ValueId, Vec<InstId>>,
+    /// Copies by destination and length.
+    copies: FxHashMap<(ValueId, ValueId), Vec<InstId>>,
+    /// Bounds from `gt value, bound` branches, with their single-predecessor false successors.
+    gt_guards: FxHashMap<ValueId, Vec<(BlockId, U256)>>,
+    bounds: RefCell<FxHashMap<(InstId, ValueId, usize), Option<U256>>>,
 }
 
 impl<'a> HeapWriteProof<'a> {
     fn new(func: &'a Function) -> Self {
-        Self { func, cfg: CfgInfo::new(func), inst_blocks: func.inst_blocks() }
+        let mut inst_blocks = IndexVec::from_vec(vec![BlockId::ENTRY; func.num_insts()]);
+        let mut positions = IndexVec::from_vec(vec![0; func.num_insts()]);
+        let mut accesses = FxHashMap::<_, Vec<_>>::default();
+        let mut copies = FxHashMap::<_, Vec<_>>::default();
+        let mut gt_guards = FxHashMap::<_, Vec<_>>::default();
+        for (id, block) in func.blocks.iter_enumerated() {
+            for (position, &inst) in block.instructions.iter().enumerate() {
+                inst_blocks[inst] = id;
+                positions[inst] = position as u32;
+                match func.inst(inst).kind {
+                    InstKind::MStore(dest, _)
+                    | InstKind::MStore8(dest, _)
+                    | InstKind::MLoad(dest) => {
+                        accesses.entry(dest).or_default().push(inst);
+                    }
+                    InstKind::MCopy(dest, _, length)
+                    | InstKind::CalldataCopy(dest, _, length)
+                    | InstKind::CodeCopy(dest, _, length)
+                    | InstKind::ReturnDataCopy(dest, _, length) => {
+                        copies.entry((dest, length)).or_default().push(inst);
+                    }
+                    _ => {}
+                }
+            }
+            if let Some(Terminator::Branch { condition, then_block, else_block }) = block.terminator
+                && then_block != else_block
+                && func.blocks[else_block].predecessors.as_slice() == [id]
+                && let Value::Inst(inst) = func.value(condition)
+                && let InstKind::Gt(lhs, rhs) = func.inst(*inst).kind
+                && let Some(bound) = func.value_u256(rhs)
+            {
+                gt_guards.entry(lhs).or_default().push((else_block, bound));
+            }
+        }
+        Self {
+            func,
+            cfg: CfgInfo::new(func),
+            inst_blocks,
+            positions,
+            accesses,
+            copies,
+            gt_guards,
+            bounds: Default::default(),
+        }
     }
 
     fn precedes(&self, first: InstId, second: InstId) -> bool {
-        let a = self.inst_blocks[&first];
-        let b = self.inst_blocks[&second];
+        let a = self.inst_blocks[first];
+        let b = self.inst_blocks[second];
         if a != b {
             return self.cfg.dominators().dominates(a, b);
         }
-        let insts = &self.func.blocks[a].instructions;
-        insts.iter().position(|&i| i == first) < insts.iter().position(|&i| i == second)
+        self.positions[first] < self.positions[second]
     }
 
     fn completed_copy(&self, before: InstId, base: ValueId, size: ValueId) -> bool {
-        self.func.instructions().any(|inst| {
-            matches!(self.func.inst(inst).kind,
-                InstKind::MCopy(dest, _, length) | InstKind::CalldataCopy(dest, _, length)
-                | InstKind::CodeCopy(dest, _, length) | InstKind::ReturnDataCopy(dest, _, length)
-                if dest == base && length == size)
-                && self.precedes(inst, before)
-        })
+        self.copies
+            .get(&(base, size))
+            .is_some_and(|copies| copies.iter().any(|&inst| self.precedes(inst, before)))
     }
 
     fn upper_bound(&self, before: InstId, value: ValueId, depth: usize) -> Option<U256> {
@@ -966,28 +1016,31 @@ impl<'a> HeapWriteProof<'a> {
         if let Some(value) = self.func.value_u256(value) {
             return Some(value);
         }
+        let key = (before, value, depth);
+        if let Some(&bound) = self.bounds.borrow().get(&key) {
+            return bound;
+        }
+        let bound = self.compute_upper_bound(before, value, depth);
+        self.bounds.borrow_mut().insert(key, bound);
+        bound
+    }
+
+    fn compute_upper_bound(&self, before: InstId, value: ValueId, depth: usize) -> Option<U256> {
         // A successful word access expands memory, so its address fits the EVM memory limit.
-        if self.func.instructions().any(|inst| {
-            matches!(self.func.inst(inst).kind,
-                InstKind::MStore(dest, _) | InstKind::MStore8(dest, _) | InstKind::MLoad(dest)
-                if dest == value)
-                && self.precedes(inst, before)
-        }) {
+        if self
+            .accesses
+            .get(&value)
+            .is_some_and(|accesses| accesses.iter().any(|&inst| self.precedes(inst, before)))
+        {
             return Some(U256::from(u64::MAX));
         }
-        let block = self.inst_blocks[&before];
-        for (id, data) in self.func.blocks.iter_enumerated() {
-            if let Some(Terminator::Branch { condition, then_block, else_block }) = data.terminator
-                && then_block != else_block
-                && self.func.blocks[else_block].predecessors.as_slice() == [id]
-                && self.cfg.dominators().dominates(else_block, block)
-                && let Value::Inst(inst) = self.func.value(condition)
-                && let InstKind::Gt(lhs, rhs) = self.func.inst(*inst).kind
-                && lhs == value
-                && let Some(bound) = self.func.value_u256(rhs)
-            {
-                return Some(bound);
-            }
+        let block = self.inst_blocks[before];
+        if let Some(bound) =
+            self.gt_guards.get(&value).into_iter().flatten().find_map(|&(else_block, bound)| {
+                self.cfg.dominators().dominates(else_block, block).then_some(bound)
+            })
+        {
+            return Some(bound);
         }
         let Value::Inst(inst) = self.func.value(value) else {
             return None;
@@ -1076,15 +1129,15 @@ impl<'a> HeapWriteProof<'a> {
         let InstKind::Phi(incoming) = &self.func.inst(*phi).kind else {
             return false;
         };
-        let header = self.inst_blocks[phi];
-        let body = self.inst_blocks[&store];
+        let header = self.inst_blocks[*phi];
+        let body = self.inst_blocks[store];
         let dom = self.cfg.dominators();
         if !dom.dominates(header, body) {
             return false;
         }
         let mut invariant = base;
         if let Value::Inst(inst) = self.func.value(base)
-            && self.inst_blocks[inst] == header
+            && self.inst_blocks[*inst] == header
             && let InstKind::Phi(incoming) = &self.func.inst(*inst).kind
         {
             let mut external =
@@ -1098,7 +1151,7 @@ impl<'a> HeapWriteProof<'a> {
             invariant = first;
         }
         if let Value::Inst(base) = self.func.value(invariant) {
-            let block = self.inst_blocks[base];
+            let block = self.inst_blocks[*base];
             if block == header || !dom.dominates(block, header) {
                 return false;
             }
