@@ -134,7 +134,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         hir::ItemId::Contract(_) | hir::ItemId::Enum(_) | hir::ItemId::Udvt(_)
                     )
                 )
-            });
+            })
+            || self
+                .cx
+                .gcx
+                .type_of_expr(callee.id)
+                .is_some_and(|ty| matches!(ty.kind, TyKind::Type(_)));
         if is_type_conversion {
             // result = convert(callee, args)
             if args.len() != 1 {
@@ -177,6 +182,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     return self.cx.report_unsupported(arg.span, "storage access");
                 };
                 self.load_storage_bytes(access.slot)
+            } else if target_ty.is_ref_at(DataLocation::Storage) {
+                // NOTE: The result still refers to storage, so lowering the argument as a
+                // memory copy would redirect writes through it.
+                return self.cx.report_unsupported(arg.span, "storage reference conversion");
             } else {
                 self.lower_expr(arg)?
             };
