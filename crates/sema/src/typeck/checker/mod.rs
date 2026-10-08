@@ -9,7 +9,7 @@ use crate::{
 };
 use alloy_primitives::U256;
 use solar_ast::{
-    DataLocation, ElementaryType, LitKind, Span, StateMutability, TypeSize, UserDefinableOperator,
+    DataLocation, ElementaryType, Span, StateMutability, TypeSize, UserDefinableOperator,
 };
 use solar_data_structures::{
     Never,
@@ -874,9 +874,7 @@ impl<'gcx> TypeChecker<'gcx> {
                 // type to the inner expression because the result's type comes from its value,
                 // which has the opposite sign.
                 let propagate_expected = match op.kind {
-                    hir::UnOpKind::Neg | hir::UnOpKind::BitNot if is_int_literal_expr(inner) => {
-                        false
-                    }
+                    hir::UnOpKind::Neg | hir::UnOpKind::BitNot if inner.is_int_literal() => false,
                     hir::UnOpKind::Neg => !matches!(expected, Some(ty) if ty.is_signed()),
                     _ => true,
                 };
@@ -3665,25 +3663,6 @@ fn invalid_storage_pointer_return(actual: Ty<'_>, expected: Ty<'_>) -> bool {
         }
         (TyKind::Ref(_, DataLocation::Storage), TyKind::Ref(_, DataLocation::Storage)) => false,
         (_, TyKind::Ref(_, DataLocation::Storage)) => true,
-        _ => false,
-    }
-}
-
-fn is_int_literal_expr(expr: &hir::Expr<'_>) -> bool {
-    match &expr.kind {
-        hir::ExprKind::Lit(lit) => matches!(lit.kind, LitKind::Number(_)),
-        hir::ExprKind::Unary(op, inner)
-            if matches!(op.kind, hir::UnOpKind::Neg | hir::UnOpKind::BitNot) =>
-        {
-            is_int_literal_expr(inner)
-        }
-        hir::ExprKind::Binary(lhs, op, rhs)
-            if !op.kind.is_cmp()
-                && !matches!(op.kind, hir::BinOpKind::Or | hir::BinOpKind::And) =>
-        {
-            is_int_literal_expr(lhs) && is_int_literal_expr(rhs)
-        }
-        hir::ExprKind::Tuple([Some(inner)]) => is_int_literal_expr(inner),
         _ => false,
     }
 }
