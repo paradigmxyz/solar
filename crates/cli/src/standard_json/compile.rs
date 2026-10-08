@@ -527,7 +527,9 @@ fn callback_path(path: &Path) -> Cow<'_, str> {
 }
 
 pub(super) fn standard_json_source_name(name: &solar_interface::source_map::FileName) -> String {
-    name.display().to_string().replace('\\', "/")
+    let name = name.display().to_string();
+    // Backslashes are path separators only on Windows; elsewhere they belong to the name.
+    if cfg!(windows) { name.replace('\\', "/") } else { name }
 }
 
 fn disallowed_io(path: &Path) -> io::Error {

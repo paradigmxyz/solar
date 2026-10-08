@@ -180,9 +180,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     ) -> Option<ValueId> {
         if let TyKind::Array(_, len) = receiver_ty.peel_refs().kind {
             // length = static_len
-            if !matches!(receiver.peel_parens().kind, ExprKind::Ident(_)) {
-                self.lower_discarded_expr(receiver)?;
-            }
+            self.lower_discarded_expr(receiver)?;
             return Some(self.builder.imm(len));
         }
         if receiver_ty.is_ref_at(DataLocation::Storage) {
