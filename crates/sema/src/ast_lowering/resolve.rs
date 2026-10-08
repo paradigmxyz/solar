@@ -258,7 +258,7 @@ pub(super) struct ResolveContext<'gcx> {
     pub(super) lcx: super::LoweringContext<'gcx>,
     pub(super) scopes: SymbolResolverScopes,
     function_id: Option<hir::FunctionId>,
-    yul_scopes: Vec<usize>,
+    yul_root_scope: Option<usize>,
     yul_function_scope: Option<usize>,
 }
 
@@ -283,7 +283,7 @@ impl<'gcx> ResolveContext<'gcx> {
             lcx,
             scopes: SymbolResolverScopes::new(),
             function_id: None,
-            yul_scopes: Vec::new(),
+            yul_root_scope: None,
             yul_function_scope: None,
         }
     }
@@ -948,15 +948,6 @@ impl<'gcx> ResolveContext<'gcx> {
         t
     }
 
-    fn in_yul_scope<T>(&mut self, f: impl FnOnce(&mut Self) -> T) -> T {
-        self.scopes.enter();
-        self.yul_scopes.push(self.scopes.scopes.len() - 1);
-        let t = f(self);
-        self.yul_scopes.pop();
-        self.scopes.exit();
-        t
-    }
-
     fn in_scope_if<T>(&mut self, cond: bool, f: impl FnOnce(&mut Self) -> T) -> T {
         if cond { self.in_scope(f) } else { f(self) }
     }
@@ -1088,11 +1079,14 @@ impl<'gcx> ResolveContext<'gcx> {
             }
         }
 
-        hir::StmtKind::AssemblyBlock(self.lower_yul_block(&assembly.block))
+        let previous_yul_root_scope = self.yul_root_scope.replace(self.scopes.scopes.len());
+        let block = self.lower_yul_block(&assembly.block);
+        self.yul_root_scope = previous_yul_root_scope;
+        hir::StmtKind::AssemblyBlock(block)
     }
 
     fn lower_yul_block(&mut self, block: &ast::yul::Block<'_>) -> hir::Block<'gcx> {
-        self.in_yul_scope(|this| this.lower_yul_stmts(block.stmts, block.span))
+        self.in_scope(|this| this.lower_yul_stmts(block.stmts, block.span))
     }
 
     fn lower_yul_stmts(&mut self, stmts: &[ast::yul::Stmt<'_>], span: Span) -> hir::Block<'gcx> {
@@ -1135,7 +1129,6 @@ impl<'gcx> ResolveContext<'gcx> {
         let previous_function = self.function_id.replace(id);
         self.scopes.enter();
         let function_scope = self.scopes.scopes.len() - 1;
-        self.yul_scopes.push(function_scope);
         let previous_yul_function_scope = self.yul_function_scope.replace(function_scope);
 
         self.hir.functions[id].parameters =
@@ -1148,7 +1141,6 @@ impl<'gcx> ResolveContext<'gcx> {
         let body = self.hir_builder().block(self.arena.alloc_as_slice(unchecked), block.span);
 
         self.yul_function_scope = previous_yul_function_scope;
-        self.yul_scopes.pop();
         self.scopes.exit();
         self.hir.functions[id].body = Some(body);
         self.function_id = previous_function;
@@ -1286,7 +1278,7 @@ impl<'gcx> ResolveContext<'gcx> {
     }
 
     fn lower_yul_for_stmt(&mut self, for_: &ast::yul::StmtFor<'_>) -> hir::StmtKind<'gcx> {
-        self.in_yul_scope(|this| {
+        self.in_scope(|this| {
             // {
             //     { <init> } // fake block
             //     loop {
@@ -1298,10 +1290,8 @@ impl<'gcx> ResolveContext<'gcx> {
             // }
             let init = this.lower_yul_stmts(for_.init.stmts, for_.init.span);
             let cond = this.lower_yul_condition(&for_.cond);
-            let step =
-                this.in_yul_scope(|this| this.lower_yul_stmts(for_.step.stmts, for_.step.span));
-            let body =
-                this.in_yul_scope(|this| this.lower_yul_stmts(for_.body.stmts, for_.body.span));
+            let step = this.in_scope(|this| this.lower_yul_stmts(for_.step.stmts, for_.step.span));
+            let body = this.in_scope(|this| this.lower_yul_stmts(for_.body.stmts, for_.body.span));
             let builder = this.hir_builder();
 
             let step_stmt = this.arena.alloc(builder.stmt(hir::StmtKind::Block(step), step.span));
@@ -1390,31 +1380,16 @@ impl<'gcx> ResolveContext<'gcx> {
     }
 
     fn resolve_yul_call_name(&mut self, name: Ident) -> Result<&'gcx [Res], ErrorGuaranteed> {
-        for scope in self.scopes.scopes.iter().rev() {
+        // Yul calls resolve only to Yul functions and builtins, never to Solidity declarations.
+        let yul_root_scope = self.yul_root_scope.expect("Yul call outside inline assembly");
+        for scope in self.scopes.scopes[yul_root_scope..].iter().rev() {
             let Some(decls) = scope.resolve(name) else { continue };
-            if let Some(guar) = decls.iter().find_map(|decl| match decl.res {
-                Res::Err(guar) => Some(guar),
-                _ => None,
-            }) {
-                return Err(guar);
-            }
             let functions = decls
                 .iter()
-                .filter_map(|decl| match decl.res {
-                    Res::Item(hir::ItemId::Function(id)) if self.hir.function(id).is_yul => {
-                        Some(Res::Item(hir::ItemId::Function(id)))
-                    }
-                    _ => None,
-                })
+                .map(|decl| decl.res)
+                .filter(|res| matches!(res, Res::Item(hir::ItemId::Function(_))))
                 .collect::<SmallVec<[_; 4]>>();
             if functions.is_empty() {
-                if decls.iter().all(|decl| matches!(decl.res, Res::Item(hir::ItemId::Function(_))))
-                {
-                    return Err(self.resolver.emit_resolver_error()(ResolverError::new(
-                        name,
-                        ResolverErrorKind::Unresolved,
-                    )));
-                }
                 return Err(self.resolver.report_expected(
                     "function",
                     decls[0].res.description(),
