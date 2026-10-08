@@ -12,25 +12,23 @@ fn @dirty() -> memptr [pure] {
     icall panic_if<0x21>, v3
     memory_object_store_field memorystruct<6>, v0, 2, 1
     memory_object_store_field memorystruct<6>, v0, 3, 1
-    v4 = sub 0, 1
-    v5 = trunc i256 v4 to i8
-    v6 = sext i8 v5 to i256
-    memory_object_store_field memorystruct<6>, v0, 4, v6
+    v4 = sext i8 255 to i256
+    memory_object_store_field memorystruct<6>, v0, 4, v4
     memory_object_store_field memorystruct<6>, v0, 5, 0x1234000000000000000000000000000000000000000000000000000000000000
-    v7 = ptrtoint memptr v0 to i256
-    mstore v7, 511
+    v5 = ptrtoint memptr v0 to i256
+    mstore v5, 511
+    v6 = ptrtoint memptr v0 to i256
+    v7 = add v6, 32
+    mstore v7, 258
     v8 = ptrtoint memptr v0 to i256
-    v9 = add v8, 32
-    mstore v9, 258
+    v9 = add v8, 96
+    mstore v9, 0x1000000000000000000000000000000000000000000000000000000000000002
     v10 = ptrtoint memptr v0 to i256
-    v11 = add v10, 96
-    mstore v11, 0x1000000000000000000000000000000000000000000000000000000000000002
+    v11 = add v10, 128
+    mstore v11, 254
     v12 = ptrtoint memptr v0 to i256
-    v13 = add v12, 128
-    mstore v13, 254
-    v14 = ptrtoint memptr v0 to i256
-    v15 = add v14, 160
-    mstore v15, 0x1234567800000000000000000000000000000000000000000000000000000000
+    v13 = add v12, 160
+    mstore v13, 0x1234567800000000000000000000000000000000000000000000000000000000
     ret v0
 }
 
