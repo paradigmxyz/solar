@@ -1,0 +1,183 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/array_identity_conversion.sol:ArrayIdentityConversion ===
+@module ArrayIdentityConversion
+fn @fresh() -> i256 [selector=0xb466b76f, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
+    set_memory_object_len memoryarray, v0, 1
+    jump bb1
+  bb1:
+    v1 = phi [bb0: 0], [bb2: v5]
+    v2 = lt v1, 1
+    jumpi v2, bb2, bb3
+  bb3:
+    v6 = memory_object_len memoryarray, v0
+    v7 = lt 0, v6
+    v8 = eq v7, false
+    icall panic_if<0x32>, v8
+    v9 = memory_object_load_element memoryarray<1>, v0, 0
+    v10 = inttoptr i256 v9 to memptr
+    v11 = eq v9, 0
+    jumpi v11, bb4, bb5
+  bb4:
+    v12 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    memory_object_store_field memorystruct<2>, v12, 0, 0
+    memory_object_store_field memorystruct<2>, v12, 1, 0
+    v13 = ptrtoint memptr v12 to i256
+    memory_object_store_element memoryarray<1>, v0, 0, v13
+    jump bb5
+  bb5:
+    v14 = phi [bb3: v10], [bb4: v12]
+    memory_object_store_field memorystruct<2>, v14, 0, 7
+    v15 = memory_object_len memoryarray, v0
+    v16 = memory_object_len memoryarray, v0
+    v17 = lt 0, v16
+    v18 = eq v17, false
+    icall panic_if<0x32>, v18
+    v19 = memory_object_load_element memoryarray<1>, v0, 0
+    v20 = inttoptr i256 v19 to memptr
+    v21 = eq v19, 0
+    jumpi v21, bb6, bb7
+  bb6:
+    v22 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    memory_object_store_field memorystruct<2>, v22, 0, 0
+    memory_object_store_field memorystruct<2>, v22, 1, 0
+    v23 = ptrtoint memptr v22 to i256
+    memory_object_store_element memoryarray<1>, v0, 0, v23
+    jump bb7
+  bb7:
+    v24 = phi [bb5: v20], [bb6: v22]
+    v25 = memory_object_load_field memorystruct<2>, v24, 0
+    v26 = trunc i256 v25 to i32
+    v27 = zext i32 v26 to i256
+    v28 = checked_add u256, v15, v27
+    ret v28
+  bb2:
+    v3 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    memory_object_store_field memorystruct<2>, v3, 0, 0
+    memory_object_store_field memorystruct<2>, v3, 1, 0
+    v4 = ptrtoint memptr v3 to i256
+    memory_object_store_element memoryarray<1>, v0, v1, v4
+    v5 = add v1, 1
+    jump bb1
+}
+
+fn @aliased() -> i256 [selector=0x1d15e393, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
+    set_memory_object_len memoryarray, v0, 1
+    jump bb1
+  bb1:
+    v1 = phi [bb0: 0], [bb2: v5]
+    v2 = lt v1, 1
+    jumpi v2, bb2, bb3
+  bb3:
+    v6 = memory_object_len memoryarray, v0
+    v7 = lt 0, v6
+    v8 = eq v7, false
+    icall panic_if<0x32>, v8
+    v9 = memory_object_load_element memoryarray<1>, v0, 0
+    v10 = inttoptr i256 v9 to memptr
+    v11 = eq v9, 0
+    jumpi v11, bb4, bb5
+  bb4:
+    v12 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    memory_object_store_field memorystruct<2>, v12, 0, 0
+    memory_object_store_field memorystruct<2>, v12, 1, 0
+    v13 = ptrtoint memptr v12 to i256
+    memory_object_store_element memoryarray<1>, v0, 0, v13
+    jump bb5
+  bb5:
+    v14 = phi [bb3: v10], [bb4: v12]
+    memory_object_store_field memorystruct<2>, v14, 0, 5
+    v15 = memory_object_len memoryarray, v0
+    v16 = lt 0, v15
+    v17 = eq v16, false
+    icall panic_if<0x32>, v17
+    v18 = memory_object_load_element memoryarray<1>, v0, 0
+    v19 = inttoptr i256 v18 to memptr
+    v20 = eq v18, 0
+    jumpi v20, bb6, bb7
+  bb6:
+    v21 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    memory_object_store_field memorystruct<2>, v21, 0, 0
+    memory_object_store_field memorystruct<2>, v21, 1, 0
+    v22 = ptrtoint memptr v21 to i256
+    memory_object_store_element memoryarray<1>, v0, 0, v22
+    jump bb7
+  bb7:
+    v23 = phi [bb5: v19], [bb6: v21]
+    v24 = memory_object_load_field memorystruct<2>, v23, 0
+    v25 = trunc i256 v24 to i32
+    v26 = zext i32 v25 to i256
+    ret v26
+  bb2:
+    v3 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    memory_object_store_field memorystruct<2>, v3, 0, 0
+    memory_object_store_field memorystruct<2>, v3, 1, 0
+    v4 = ptrtoint memptr v3 to i256
+    memory_object_store_element memoryarray<1>, v0, v1, v4
+    v5 = add v1, 1
+    jump bb1
+}
+
+fn @fixedSize() -> i256 [selector=0x736172d3, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    jump bb1
+  bb1:
+    v1 = phi [bb0: 0], [bb2: v5]
+    v2 = lt v1, 2
+    jumpi v2, bb2, bb3
+  bb3:
+    v6 = lt 1, 2
+    v7 = eq v6, false
+    icall panic_if<0x32>, v7
+    v8 = memory_object_load_element memoryfixedarray<2, 1>, v0, 1
+    v9 = inttoptr i256 v8 to memptr
+    v10 = eq v8, 0
+    jumpi v10, bb4, bb5
+  bb4:
+    v11 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    memory_object_store_field memorystruct<2>, v11, 0, 0
+    memory_object_store_field memorystruct<2>, v11, 1, 0
+    v12 = ptrtoint memptr v11 to i256
+    memory_object_store_element memoryfixedarray<2, 1>, v0, 1, v12
+    jump bb5
+  bb5:
+    v13 = phi [bb3: v9], [bb4: v11]
+    memory_object_store_field memorystruct<2>, v13, 0, 9
+    v14 = lt 1, 2
+    v15 = eq v14, false
+    icall panic_if<0x32>, v15
+    v16 = memory_object_load_element memoryfixedarray<2, 1>, v0, 1
+    v17 = inttoptr i256 v16 to memptr
+    v18 = eq v16, 0
+    jumpi v18, bb6, bb7
+  bb6:
+    v19 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    memory_object_store_field memorystruct<2>, v19, 0, 0
+    memory_object_store_field memorystruct<2>, v19, 1, 0
+    v20 = ptrtoint memptr v19 to i256
+    memory_object_store_element memoryfixedarray<2, 1>, v0, 1, v20
+    jump bb7
+  bb7:
+    v21 = phi [bb5: v17], [bb6: v19]
+    v22 = memory_object_load_field memorystruct<2>, v21, 0
+    v23 = trunc i256 v22 to i32
+    v24 = zext i32 v23 to i256
+    ret v24
+  bb2:
+    v3 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    memory_object_store_field memorystruct<2>, v3, 0, 0
+    memory_object_store_field memorystruct<2>, v3, 1, 0
+    v4 = ptrtoint memptr v3 to i256
+    memory_object_store_element memoryfixedarray<2, 1>, v0, v1, v4
+    v5 = add v1, 1
+    jump bb1
+}
+
+fn @calldataLength(arg0: calldataslice) -> i256 [selector=0x52782626, pure, abi_params=[array<_, tuple<u32, i128>>], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = slice_len arg0
+    ret v0
+}
