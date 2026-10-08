@@ -63,38 +63,13 @@ impl<'sess> AstValidator<'sess, '_> {
         let (ast::LitKind::Number(_) | ast::LitKind::Rational(_)) = lit.kind else {
             return;
         };
-        let value = lit.symbol.as_str();
-
-        let report = |help: &'static str| {
+        for help in number_literal_underscore_errors(lit.symbol.as_str()) {
             let _ = self
                 .dcx()
                 .err("invalid use of underscores in number literal")
                 .span(lit.span)
                 .help(help)
                 .emit();
-        };
-
-        if value.ends_with('_') {
-            report("remove trailing underscores");
-            return;
-        }
-        if value.contains("__") {
-            report("only 1 consecutive underscore `_` is allowed between digits");
-            return;
-        }
-
-        if value.starts_with("0x") {
-            return;
-        }
-        if value.contains("._") || value.contains("_.") {
-            report("remove underscores in front of the fraction part");
-        }
-        // Like solc, accept underscores next to an uppercase `E` exponent.
-        if value.contains("_e") {
-            report("remove underscores at the end of the mantissa");
-        }
-        if value.contains("e_") {
-            report("remove underscores in front of the exponent");
         }
     }
 
@@ -435,4 +410,30 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
         }
         self.walk_ty(ty)
     }
+}
+
+/// Returns the help message of each invalid use of underscores in a number literal.
+pub(crate) fn number_literal_underscore_errors(value: &str) -> Vec<&'static str> {
+    if value.ends_with('_') {
+        return vec!["remove trailing underscores"];
+    }
+    if value.contains("__") {
+        return vec!["only 1 consecutive underscore `_` is allowed between digits"];
+    }
+
+    let mut errors = Vec::new();
+    if value.starts_with("0x") {
+        return errors;
+    }
+    if value.contains("._") || value.contains("_.") {
+        errors.push("remove underscores in front of the fraction part");
+    }
+    // Like solc, accept underscores next to an uppercase `E` exponent.
+    if value.contains("_e") {
+        errors.push("remove underscores at the end of the mantissa");
+    }
+    if value.contains("e_") {
+        errors.push("remove underscores in front of the exponent");
+    }
+    errors
 }
