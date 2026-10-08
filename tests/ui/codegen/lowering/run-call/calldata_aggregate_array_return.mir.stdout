@@ -1,0 +1,51 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/calldata_aggregate_array_return.sol:CalldataAggregateArrayReturn ===
+@module CalldataAggregateArrayReturn
+@types
+  struct0: {i256, calldataslice}
+
+fn @structs(arg0: calldataslice) -> calldataslice [selector=0x29869070, pure, abi_params=[array<_, tuple<u256, u256>>], abi_returns=[memory_array<tuple<word, word>>], abi_return_params=[array<_, tuple<u256, u256>>]] {
+  bb0:
+    v0 = make_calldata_slice 0, 0
+    ret arg0
+}
+
+fn @slice(arg0: calldataslice) -> calldataslice [selector=0x82cbd9d7, pure, abi_params=[array<_, tuple<u256, u256>>], abi_returns=[memory_array<tuple<word, word>>], abi_return_params=[array<_, tuple<u256, u256>>]] {
+  bb0:
+    v0 = make_calldata_slice 0, 0
+    v1 = slice_ptr arg0
+    v2 = slice_len arg0
+    v3 = gt 2, v2
+    v4 = lt 2, 1
+    v5 = or v3, v4
+    v6 = zext i1 v5 to i256
+    icall revert_if<empty>, v5
+    v7 = sub 2, 1
+    v8 = add v1, 64
+    v9 = make_calldata_slice v8, v7
+    ret v9
+}
+
+fn @rows(arg0: calldataslice) -> calldataslice [selector=0xc1ac1d8e, pure, abi_params=[array<_, array<2, u256>>], abi_returns=[memory_array<array<2, word>>], abi_return_params=[array<_, array<2, u256>>]] {
+  bb0:
+    v0 = make_calldata_slice 0, 0
+    ret arg0
+}
+
+fn @nested(arg0: calldataslice) -> calldataslice [selector=0xd3965fea, pure, abi_params=[array<_, array<_, u256>>], abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, u256>>]] {
+  bb0:
+    ret arg0
+}
+
+fn @narrow(arg0: calldataslice) -> calldataslice [selector=0xe999a4e4, pure, abi_params=[array<_, tuple<u8, bool>>], abi_returns=[memory_array<tuple<word<u8>, word<bool>>>], abi_return_params=[array<_, tuple<u8, bool>>]] {
+  bb0:
+    v0 = make_calldata_slice 0, 0
+    ret arg0
+}
+
+fn @pair(arg0: calldataslice) -> struct0 [selector=0xe0d8cd77, pure, abi_params=[array<_, tuple<u256, u256>>], abi_returns=[word, memory_array<tuple<word, word>>], abi_return_params=[u256, array<_, tuple<u256, u256>>]] {
+  bb0:
+    v0 = make_calldata_slice 0, 0
+    v1 = insert_value struct0, undef struct0, 0, 9
+    v2 = insert_value struct0, v1, 1, arg0
+    ret v2
+}
