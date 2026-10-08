@@ -271,13 +271,6 @@ impl<'gcx> Assembler<'gcx> {
         *self.immutable_pushes.get(index)
     }
 
-    /// Resolves relocations and encodes finalized EVM IR as bytecode.
-    #[must_use]
-    #[cfg(test)]
-    pub(crate) fn assemble(&mut self) -> AssembledCode {
-        self.assemble_with_evm_ir(false)
-    }
-
     #[must_use]
     pub(crate) fn assemble_with_evm_ir(&mut self, capture_evm_ir: bool) -> AssembledCode {
         self.assemble_with_captures(capture_evm_ir, false)
