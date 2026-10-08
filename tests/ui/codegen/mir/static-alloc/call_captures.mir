@@ -1,0 +1,81 @@
+//@compile-flags: -Zmir-pipeline=storage-promotion,static-alloc
+//@filecheck: --match-full-lines
+@module StaticAllocCallCaptures
+
+// A callee that returns the pointer it receives lets the caller keep an alias
+// to the object, so the allocation must stay dynamic.
+// CHECK-LABEL: + // === {{.*}} (after static-alloc) ===
+// CHECK:   fn @returning_caller{{.*}}
+// CHECK-NEXT:     bb0:
+// CHECK-NEXT:       v0 = alloc raw, exact, uninitialized, infallible, 32
+fn @returning_caller() -> i256 [selector=0x01020304] {
+  bb0:
+    v6 = alloc raw, exact, uninitialized, infallible, 32
+    v0 = ptrtoint memptr v6 to i256
+    mstore v0, 7
+    v1 = icall @returns, v0
+    ret v1
+}
+
+// Bitwise identities of the pointer capture it too.
+// CHECK:   fn @masking_caller{{.*}}
+// CHECK-NEXT:     bb0:
+// CHECK-NEXT:       v0 = alloc raw, exact, uninitialized, infallible, 32
+fn @masking_caller() -> i256 [selector=0x01020305] {
+  bb0:
+    v7 = alloc raw, exact, uninitialized, infallible, 32
+    v0 = ptrtoint memptr v7 to i256
+    mstore v0, 7
+    v1 = icall @masks, v0
+    ret v1
+}
+
+// A callee that only dereferences the pointer does not capture it, so the
+// object gets a static placement.
+// CHECK:   fn @dereferencing_caller{{.*}}
+// CHECK-NEXT:     bb0:
+// CHECK-NEXT: -     v0 = alloc raw, exact, uninitialized, infallible, 32
+fn @dereferencing_caller() -> i256 [selector=0x01020306] {
+  bb0:
+    v8 = alloc raw, exact, uninitialized, infallible, 32
+    v0 = ptrtoint memptr v8 to i256
+    mstore v0, 7
+    v1 = icall @dereferences, v0
+    ret v1
+}
+
+fn @returns(arg0: i256) -> i256 {
+  bb0:
+    ret arg0
+}
+
+fn @masks(arg0: i256) -> i256 {
+  bb0:
+    v0 = xor arg0, 0
+    ret v0
+}
+
+fn @dereferences(arg0: i256) -> i256 {
+  bb0:
+    v0 = mload arg0
+    ret v0
+}
+
+// Storage promotion gives another entry a 32-byte frame, providing the shadow
+// region used by the explicit static-allocation pass.
+fn @reserve_frame() [selector=0x01020308] {
+  bb0:
+    sstore 0, 1
+    jump bb1
+  bb1:
+    jumpi true, bb2, bb4
+  bb2:
+    v0 = sload 0
+    v1 = add v0, 1
+    sstore 0, v1
+    jump bb3
+  bb3:
+    jump bb1
+  bb4:
+    stop
+}

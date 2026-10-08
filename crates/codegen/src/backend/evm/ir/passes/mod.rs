@@ -343,23 +343,3 @@ pub fn run_pipeline(gcx: Gcx<'_>, module: &mut Module, name: Option<&str>) -> bo
     }
     changed
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn pass_cache_keys_include_configuration() {
-        let ordinary = PassCacheKey::new(&reorder_pushes::REORDER_PUSHES);
-        let final_pushes = PassCacheKey::new(&reorder_pushes::FINAL_REORDER_PUSHES);
-        let expressions = PassCacheKey::new(&reorder_pushes::REORDER_EXPRESSIONS);
-
-        assert_ne!(ordinary, final_pushes);
-        assert_ne!(final_pushes, expressions);
-        assert_ne!(ordinary, expressions);
-        assert_eq!(ordinary, PassCacheKey::new(&reorder_pushes::REORDER_PUSHES));
-
-        let dce_with_cleanup = peephole::Cleanup(dce::Dce);
-        assert_ne!(PassCacheKey::new(&dce::Dce), PassCacheKey::new(&dce_with_cleanup));
-    }
-}

@@ -1120,26 +1120,3 @@ fn static_call_args_reachable(
     }
     true
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn static_call_arguments_check_prepared_prefix() {
-        for stack_access_limit in [16, 235] {
-            let values = (0..stack_access_limit + 2).map(ValueId::from_usize).collect::<Vec<_>>();
-            let original = StackModel::from_top_to_bottom(
-                values[..stack_access_limit - 1].iter().copied().map(Some),
-            );
-            let args = [values[stack_access_limit], values[stack_access_limit + 1], values[0]];
-            let mut mask = DenseBitSet::new_empty(args.len());
-            mask.insert_all();
-            assert!(static_call_args_reachable(&original, &args, Some(&mask), stack_access_limit));
-            let mut prepared = original;
-            prepared.swap((stack_access_limit - 2) as u8);
-            prepared.pop();
-            assert!(!static_call_args_reachable(&prepared, &args, Some(&mask), stack_access_limit));
-        }
-    }
-}

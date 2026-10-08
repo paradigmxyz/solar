@@ -234,10 +234,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 parameter_names: Some(parameter_names),
                 static_call: false,
             }
-        } else if let ExprKind::Member(receiver, _) = callee.kind {
-            let Some(function_id) = self.cx.gcx.resolved_function(callee) else {
-                return self.cx.report_unsupported(try_stmt.expr.span, "try target");
-            };
+        } else if let ExprKind::Member(receiver, _) = callee.kind
+            && let Some(function_id) = self.cx.gcx.resolved_function(callee)
+        {
             let function = self.cx.gcx.hir.function(function_id);
             let is_external_library = function.contract.is_some_and(|contract| {
                 self.cx.gcx.hir.contract(contract).kind == hir::ContractKind::Library
@@ -720,13 +719,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         condition: &hir::Expr<'_>,
         then_expr: &hir::Expr<'_>,
         else_expr: &hir::Expr<'_>,
+        ty: Ty<'gcx>,
     ) -> Option<ValueId> {
         // branch(condition, then, else)
         // value = then_value | else_value | phi(then_value, else_value)
         let condition = self.lower_expr(condition)?;
-        let then_ty = self.cx.gcx.type_of_expr(then_expr.id)?;
-        let else_ty = self.cx.gcx.type_of_expr(else_expr.id)?;
-        let ty = then_ty.common_type(else_ty, self.cx.gcx)?;
         let (then_branch, else_branch) = self.lower_branches(
             condition,
             true,
@@ -821,11 +818,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         condition: &hir::Expr<'_>,
         then_expr: &hir::Expr<'_>,
         else_expr: &hir::Expr<'_>,
+        ty: Ty<'gcx>,
     ) -> Option<Vec<ValueId>> {
-        let then_ty = self.cx.gcx.type_of_expr(then_expr.id)?;
-        let else_ty = self.cx.gcx.type_of_expr(else_expr.id)?;
-        let TyKind::Tuple(types) = then_ty.common_type(else_ty, self.cx.gcx)?.kind else {
-            return self.lower_ternary(condition, then_expr, else_expr).map(|value| vec![value]);
+        let TyKind::Tuple(types) = ty.kind else {
+            return self
+                .lower_ternary(condition, then_expr, else_expr, ty)
+                .map(|value| vec![value]);
         };
         let condition = self.lower_expr(condition)?;
         // branch(condition, then, else)

@@ -1,6 +1,7 @@
 use crate::{
     Source, Sources, ast,
     ast_lowering::SymbolResolver,
+    ast_passes::number_literal_underscore_errors,
     builtins::{Builtin, members},
     hir::{self, Hir, SourceId},
     typeck::override_checker::OverrideProxy,
@@ -486,10 +487,7 @@ impl<'gcx> Gcx<'gcx> {
     }
 
     pub fn mk_ty_string_literal(self, s: &[u8]) -> Ty<'gcx> {
-        self.mk_ty(TyKind::StringLiteral(
-            std::str::from_utf8(s).is_ok(),
-            TypeSize::new_int_bits(s.len().min(32) as u16 * 8),
-        ))
+        self.mk_ty(TyKind::StringLiteral(std::str::from_utf8(s).is_ok(), s.len()))
     }
 
     pub fn mk_ty_int_literal(self, negative: bool, bits: u64) -> Option<Ty<'gcx>> {
@@ -1136,16 +1134,8 @@ impl<'gcx> Gcx<'gcx> {
                 })
             }
             solar_ast::LitKind::Rational(_) => {
-                let value = lit.symbol.as_str();
-                if value.ends_with('_')
-                    || value.contains("__")
-                    || value.contains("._")
-                    || value.contains("_.")
-                    || value.contains("_e")
-                    || value.contains("_E")
-                    || value.contains("e_")
-                    || value.contains("E_")
-                {
+                // The AST validator has already reported invalid underscores.
+                if !number_literal_underscore_errors(lit.symbol.as_str()).is_empty() {
                     self.mk_ty_misc_err()
                 } else {
                     self.mk_ty_err(

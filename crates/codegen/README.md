@@ -91,7 +91,7 @@ facts and choose placement. Keep these algorithms in Rust and use ISLE for
 bounded local identities. This gives us typed matchers, overlap checks, and
 one rule source for optimization and offline checking without implying that
 every Rust rewrite belongs in the DSL. See the repository's
-[rule-writing guidance](../../AGENTS.md#operation-schema-and-isle-rules).
+[rule-writing guidance](../../docs/CODEGEN.md#operation-schema-and-isle-rules).
 
 ### Library addresses and relocations
 

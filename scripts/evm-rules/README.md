@@ -73,7 +73,7 @@ toolchain archive and the built model library.
 The shared `Python` CI job installs the same toolchain and runs this project's
 unit tests alongside all other Python suites. Run `bash scripts/check-python.sh`
 from the repository root for the same formatting, lint, type checks, and tests.
-See [Python tooling](../../AGENTS.md#python-tooling) for prerequisites.
+See [Python tooling](../../CONTRIBUTING.md#python-tooling) for prerequisites.
 
 ## Lean model and proofs
 
