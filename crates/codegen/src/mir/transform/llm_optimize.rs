@@ -478,16 +478,23 @@ impl<'gcx> Optimizer<'gcx> {
         module.parse_function(&session, &file).map_err(|_| emitted(&session.dcx))
     }
 
-    /// Prints a trace line with `-Zllm-trace`.
+    /// Prints a trace line with `-Zllm-trace`: on stdout, or on stderr when stdout carries
+    /// Standard JSON output, which the line would corrupt.
     fn trace(&self, module: &Module, function: Option<FunctionId>, message: impl fmt::Display) {
-        if !self.gcx.sess.opts.unstable.llm_trace {
+        let opts = &self.gcx.sess.opts;
+        if !opts.unstable.llm_trace {
             return;
         }
-        match function {
+        let line = match function {
             Some(id) => {
-                println!("llm-optimize {} @{}: {message}", module.name, module.function(id).name)
+                format!("llm-optimize {} @{}: {message}", module.name, module.function(id).name)
             }
-            None => println!("llm-optimize {}: {message}", module.name),
+            None => format!("llm-optimize {}: {message}", module.name),
+        };
+        if opts.standard_json {
+            eprintln!("{line}");
+        } else {
+            println!("{line}");
         }
     }
 }

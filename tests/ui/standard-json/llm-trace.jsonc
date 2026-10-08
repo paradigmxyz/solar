@@ -1,0 +1,18 @@
+//@ compile-flags: -Zllm-optimize=script -Zllm-trace
+//@ compile-flags: -Zllm-script=../../tests/ui/codegen/mir/llm-optimize/auxiliary/triangle.script
+// `-Zllm-trace` reports on stderr in Standard JSON mode, where stdout carries the JSON output.
+// CHECK: "contracts": {
+// CHECK: "deployedBytecode": {
+{
+  "language": "Solidity",
+  "sources": {
+    "triangle.sol": {
+      "content": "contract Triangle { function triangle(uint256 n) external pure returns (uint256) { return sumBelow(n); } function triangles(uint256 a, uint256 b) external pure returns (uint256) { unchecked { return sumBelow(a) + sumBelow(b); } } function sumBelow(uint256 n) internal pure returns (uint256 s) { unchecked { for (uint256 i; i < uint8(n); ++i) { s += i; } } } }"
+    }
+  },
+  "settings": {
+    "optimizer": { "enabled": true, "runs": 200 },
+    "evmVersion": "cancun",
+    "outputSelection": { "*": { "*": ["evm.deployedBytecode.object"] } }
+  }
+}

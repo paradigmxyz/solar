@@ -27,8 +27,9 @@ Other flags:
 - `-Zllm-endpoint=URL`: the API base URL `live` asks instead of the provider's, such as a proxy.
 - `-Zllm-effort=EFFORT`: how much the model reasons: `none`, `low`, `medium`, `high`, `xhigh`,
   or `max`.
-- `-Zllm-trace`: print every offer, verdict, and decision on stdout. It also compiles contracts
-  one at a time, so the transcript is deterministic.
+- `-Zllm-trace`: print every offer, verdict, and decision on stdout, or on stderr in Standard JSON
+  mode, where stdout carries the JSON output. It also compiles contracts one at a time, so the
+  transcript is deterministic.
 
 A typical workflow asks a model once with a cache and commits what it found; later builds replay
 the cache without a model or a network, and apply each recorded rewrite only after checking it
