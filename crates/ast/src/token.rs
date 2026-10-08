@@ -2,7 +2,7 @@
 
 use crate::{
     StrKind,
-    ast::{BinOp, BinOpKind, UnOp, UnOpKind},
+    ast::{BinOp, BinOpKind, ElementaryType, UnOp, UnOpKind},
 };
 use solar_interface::{Ident, Span, Symbol, diagnostics::ErrorGuaranteed};
 use std::{borrow::Cow, fmt, mem::MaybeUninit};
@@ -646,12 +646,12 @@ impl Token {
         self.is_ident_where(|i| i.is_non_reserved(yul))
     }
 
-    /// Returns `true` if the token is an elementary type name.
-    ///
-    /// Note that this does not include `[u]fixedMxN` types.
+    /// Returns `true` if the token is an elementary type name, including `[u]fixedMxN` types.
     #[inline]
     pub fn is_elementary_type(&self) -> bool {
-        self.is_ident_where(Ident::is_elementary_type)
+        self.is_ident_where(|id| {
+            id.is_elementary_type() || ElementaryType::parse_fixed_mxn(id.name).is_some()
+        })
     }
 
     /// Returns `true` if the token is the identifier `true` or `false`.
