@@ -67,7 +67,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     // storage slot as if it were a memory pointer.
                     let ty = self.cx.gcx.type_of_item(id.into());
                     ty.is_ref_at(DataLocation::Storage) || ty.is_ref_at(DataLocation::Memory)
-                }) && let Some(values) = self.lower_storage_reference_call(expr.peel_parens())
+                }) && let Some(values) = self.lower_storage_reference_values(expr.peel_parens())
                 {
                     if values.len() != ids.len() {
                         return self.cx.report_unsupported(expr.span, "storage reference tuple");
