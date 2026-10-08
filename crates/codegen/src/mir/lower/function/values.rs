@@ -65,7 +65,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             ExprKind::Tuple(values) => {
                 values.iter().flatten().map(|expr| self.lower_component(expr)).collect()
             }
-            _ => Some(vec![self.lower_expr(expr)?]),
+            _ => Some(vec![self.lower_component(expr)?]),
         }
     }
 

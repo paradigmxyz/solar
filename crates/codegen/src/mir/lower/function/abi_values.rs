@@ -112,11 +112,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
 
         // selector = keccak256(materialize(signature))[0..4] << 224
-        let signature_ty = self.cx.gcx.type_of_expr(signature.id);
-        let signature = self.lower_expr(signature)?;
-        if let Some(signature_ty) = signature_ty
-            && let Some(abi_type) = self.types.abi_type(signature_ty)
-        {
+        let signature_ty = self.cx.gcx.type_of_expr(signature.id)?;
+        let memory_ty = signature_ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
+        let signature = self.lower_typed_expr(signature, memory_ty)?;
+        if let Some(abi_type) = self.types.abi_type(signature_ty) {
             self.validate_calldata_bytes_argument(signature, &abi_type);
         }
         let signature = match self.builder.func().value_ty(signature) {

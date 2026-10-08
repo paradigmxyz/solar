@@ -295,8 +295,154 @@ fn @assignStorage(arg0: i1) -> struct0 [selector=0xd54ebd37, abi_params=[bool], 
     jump bb6
 }
 
+fn @getFirst() -> i256 [view] {
+  bb0:
+    ret 0
+}
+
+fn @getSecond() -> i256 [view] {
+  bb0:
+    ret 1
+}
+
+fn @returnIndirect(arg0: i1) -> struct0 [selector=0xde009a58, view, abi_params=[bool], abi_returns=[memory_array<word>, memory_array<word>], abi_return_params=[array<_, u256>, array<_, u256>]] {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb2:
+    jumpi arg0, bb7, bb8
+  bb8:
+    jump bb9
+  bb7:
+    jump bb9
+  bb9:
+    v2 = phi [bb7: 13], [bb8: 12]
+    v3 = icall @internal_dispatcher_p_none_r_storageptr, v2
+    jump bb3
+  bb1:
+    jumpi arg0, bb4, bb5
+  bb5:
+    jump bb6
+  bb4:
+    jump bb6
+  bb6:
+    v0 = phi [bb4: 12], [bb5: 13]
+    v1 = icall @internal_dispatcher_p_none_r_storageptr, v0
+    jump bb3
+  bb3:
+    v4 = phi [bb6: v1], [bb9: 1]
+    v5 = phi [bb6: 1], [bb9: v3]
+    v6 = icall @load_storage_word_array, v4
+    v7 = icall @load_storage_word_array, v5
+    v8 = insert_value struct0, undef struct0, 0, v6
+    v9 = insert_value struct0, v8, 1, v7
+    ret v9
+}
+
+fn @returnIndirectOne(arg0: i1) -> memptr [selector=0xf7a7bdf0, view, abi_params=[bool], abi_returns=[memory_array<word>], abi_return_params=[array<_, u256>]] {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb2:
+    v3 = address
+    v4 = gas
+    v5 = abi_encode [], selector 0xf3aefcd800000000000000000000000000000000000000000000000000000000
+    v6 = slice_ptr v5
+    v7 = slice_len v5
+    v8 = zext i160 v3 to i256
+    v9 = staticcall v4, v8, v6, v7, 0, 0
+    jumpi v9, bb8, bb7
+  bb7:
+    revert_returndata
+  bb8:
+    v10 = icall returndata_bytes<>
+    v11 = abi_decode [array<_, u256>], v10
+    jump bb3
+  bb1:
+    jumpi arg0, bb4, bb5
+  bb5:
+    jump bb6
+  bb4:
+    jump bb6
+  bb6:
+    v0 = phi [bb4: 12], [bb5: 13]
+    v1 = icall @internal_dispatcher_p_none_r_storageptr, v0
+    v2 = icall @load_storage_word_array, v1
+    jump bb3
+  bb3:
+    v12 = phi [bb6: v2], [bb8: v11]
+    ret v12
+}
+
+fn @assignMixed(arg0: i1) -> struct0 [selector=0xe3f7893c, abi_params=[bool], abi_returns=[memory_array<word>, memory_array<word>], abi_return_params=[array<_, u256>, array<_, u256>]] {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    jump bb3
+  bb3:
+    v0 = phi [bb1: 0], [bb2: 1]
+    v1 = phi [bb1: 1], [bb2: 0]
+    v2 = icall @load_storage_word_array, v1
+    v3 = memory_object_len memoryarray, v2
+    v4 = sload 0 !metadata(storage=slot(0))
+    v5 = gt v4, v3
+    jumpi v5, bb4, bb5
+  bb4:
+    jump bb6
+  bb6:
+    v6 = phi [bb4: v3], [bb7: v10]
+    v7 = lt v6, v4
+    jumpi v7, bb7, bb8
+  bb8:
+    jump bb5
+  bb5:
+    sstore 0, v3 !metadata(storage=slot(0))
+    jump bb9
+  bb9:
+    v11 = phi [bb5: 0], [bb10: v16]
+    v12 = lt v11, v3
+    jumpi v12, bb10, bb11
+  bb11:
+    v17 = icall @load_storage_word_array, v0
+    v18 = icall @load_storage_word_array, 0
+    v19 = insert_value struct0, undef struct0, 0, v17
+    v20 = insert_value struct0, v19, 1, v18
+    ret v20
+  bb10:
+    v13 = memory_object_load_element memoryarray<1>, v2, v11
+    v14 = storage_array_data_slot 0
+    v15 = add v14, v11
+    sstore v15, v13 !metadata(storage=symbolic(v15))
+    v16 = add v11, 1
+    jump bb9
+  bb7:
+    v8 = storage_array_data_slot 0
+    v9 = add v8, v6
+    sstore v9, 0 !metadata(storage=symbolic(v9))
+    v10 = add v6, 1
+    jump bb6
+}
+
 fn @load_storage_word_array(arg0: i256) -> memptr {
   bb0:
     v0 = load_storage_array u256, arg0
     ret v0
+}
+
+fn @internal_dispatcher_p_none_r_storageptr(arg0: i256) -> i256 [function_pointer_dispatcher] {
+  bb0:
+    v0 = eq arg0, 12
+    jumpi v0, bb1, bb2
+  bb2:
+    v2 = eq arg0, 13
+    jumpi v2, bb3, bb4
+  bb4:
+    icall panic_if<0x51>, true
+    invalid
+  bb3:
+    v3 = icall @getSecond
+    ret v3
+  bb1:
+    v1 = icall @getFirst
+    ret v1
 }

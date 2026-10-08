@@ -327,7 +327,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.builder.sstore(base.slot, new_length);
                 Some(access)
             }
-            ExprKind::Call(callee, ..) if self.call_returns_storage_ref(callee) => {
+            // A call that returns a storage reference, directly or through a function pointer,
+            // yields its slot.
+            ExprKind::Call(..)
+                if self.cx.gcx.type_of_expr(expr.id)?.is_ref_at(DataLocation::Storage) =>
+            {
                 let slot = self.lower_expr(expr)?;
                 Some(StorageAccess {
                     slot,
@@ -337,14 +341,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             _ => None,
         }
-    }
-
-    fn call_returns_storage_ref(&self, callee: &hir::Expr<'_>) -> bool {
-        self.cx.gcx.resolved_function(callee).is_some_and(|function_id| {
-            self.cx.gcx.hir.function(function_id).returns.first().is_some_and(|&ret| {
-                self.cx.gcx.type_of_item(ret.into()).is_ref_at(DataLocation::Storage)
-            })
-        })
     }
 
     fn storage_access_ternary(
