@@ -22,7 +22,8 @@
 //!
 //! An entry is used only when its original matches the function exactly, and its rewrite goes
 //! through every check again, so a stale or edited cache cannot change code the checks reject.
-//! Entries are written to a temporary file and renamed into place.
+//! Entries hold the MIR of the code they rewrite, so on Unix only their owner may read them. Each
+//! is written to a fresh temporary file and renamed into place.
 //!
 //! A script lists the candidates a scripted rewriter proposes for each function, in order, after
 //! any preamble:
@@ -42,7 +43,9 @@ use crate::{
 use alloy_primitives::{hex, keccak256};
 use solar_data_structures::map::FxHashMap;
 use std::{
-    io,
+    fs::{File, OpenOptions},
+    hash::{BuildHasher, Hasher, RandomState},
+    io::{self, Write},
     path::{Path, PathBuf},
 };
 
@@ -112,16 +115,52 @@ impl Cache {
     }
 
     /// Records `entry` as `key`.
+    ///
+    /// An entry holds the original's MIR, as private as the sources it comes from, so on Unix
+    /// the files are their owner's alone, and so is a directory the cache creates. The entry is
+    /// written to a temporary file of a fresh random name, created only where nothing exists,
+    /// so that no file or link another user prepares there receives it, and renamed into place.
     pub(super) fn store(&self, key: &str, entry: &Entry) -> io::Result<()> {
-        std::fs::create_dir_all(&self.dir)?;
+        let mut directory = std::fs::DirBuilder::new();
+        directory.recursive(true);
+        #[cfg(unix)]
+        std::os::unix::fs::DirBuilderExt::mode(&mut directory, 0o700);
+        directory.create(&self.dir)?;
         let text = format!(
             "{CACHE_VERSION}\n--- original\n{}--- rewrite\n{}--- evidence\n{}",
             entry.original, entry.rewrite, entry.evidence
         );
-        let temporary = self.dir.join(format!("{key}.{}.tmp", std::process::id()));
-        std::fs::write(&temporary, text)?;
-        std::fs::rename(&temporary, self.dir.join(key))
+        let (mut file, temporary) = create_temporary(&self.dir, key)?;
+        let written = file.write_all(text.as_bytes()).and_then(|()| file.sync_all());
+        drop(file);
+        let stored = written.and_then(|()| std::fs::rename(&temporary, self.dir.join(key)));
+        if stored.is_err() {
+            let _ = std::fs::remove_file(&temporary);
+        }
+        stored
     }
+}
+
+/// Creates a temporary file for the entry named `key` in `dir`, readable and writable by its
+/// owner alone, under a random name that nothing in `dir` has yet.
+fn create_temporary(dir: &Path, key: &str) -> io::Result<(File, PathBuf)> {
+    const ATTEMPTS: usize = 16;
+    let mut error = None;
+    for _ in 0..ATTEMPTS {
+        let random = RandomState::new().build_hasher().finish();
+        let path = dir.join(format!("{key}.{random:016x}.tmp"));
+        let mut options = OpenOptions::new();
+        // `create_new` refuses an existing path, a link included, rather than following it.
+        options.write(true).create_new(true);
+        #[cfg(unix)]
+        std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
+        match options.open(&path) {
+            Ok(file) => return Ok((file, path)),
+            Err(e) if e.kind() == io::ErrorKind::AlreadyExists => error = Some(e),
+            Err(e) => return Err(e),
+        }
+    }
+    Err(error.unwrap_or_else(|| io::Error::other("cannot name a temporary cache file")))
 }
 
 /// Proposes scripted candidates, ignoring verdicts.
@@ -231,5 +270,37 @@ mod tests {
             (entry.original, entry.rewrite, entry.evidence)
         );
         std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    // The test reads back a file it wrote, not a source.
+    #[allow(clippy::disallowed_methods)]
+    #[cfg(unix)]
+    #[test]
+    fn cache_entries_are_private() {
+        use std::os::unix::fs::{PermissionsExt, symlink};
+        let root = std::env::temp_dir().join(format!("solar-llm-private-{}", std::process::id()));
+        let dir = root.join("cache");
+        let cache = Cache::new(&dir);
+        let entry = Entry {
+            original: "fn @f() {\n}\n".into(),
+            rewrite: "fn @f() {\n  bb0:\n    ret\n}\n".into(),
+            evidence: "source: script\n".into(),
+        };
+        let mode = |path: &Path| std::fs::metadata(path).unwrap().permissions().mode() & 0o777;
+        cache.store("entry.llm", &entry).unwrap();
+        assert_eq!(mode(&dir), 0o700);
+        assert_eq!(mode(&dir.join("entry.llm")), 0o600);
+
+        // A link planted at an entry's name is replaced, and what it points to is untouched.
+        let target = root.join("target");
+        std::fs::write(&target, "kept").unwrap();
+        symlink(&target, dir.join("linked.llm")).unwrap();
+        cache.store("linked.llm", &entry).unwrap();
+        assert_eq!(std::fs::read_to_string(&target).unwrap(), "kept");
+        assert!(!std::fs::symlink_metadata(dir.join("linked.llm")).unwrap().is_symlink());
+        assert_eq!(mode(&dir.join("linked.llm")), 0o600);
+        // No temporary file stays behind.
+        assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 2);
+        std::fs::remove_dir_all(root).unwrap();
     }
 }

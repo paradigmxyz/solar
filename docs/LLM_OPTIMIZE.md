@@ -287,7 +287,10 @@ samples: 512
 
 An entry applies only when its original matches the function exactly, and its rewrite goes
 through every check again, so an edited or stale cache cannot change code the checks reject.
-Entries are written to a temporary file and renamed into place.
+Entries hold the MIR of the code they rewrite, as private as its sources: on Unix, each file, and
+a cache directory the compiler creates, is its owner's alone. An entry is written to a temporary
+file of a fresh random name, created only where nothing exists, and renamed into place, so no
+file or link another user prepares in the directory receives it.
 
 ## Scripts
 
