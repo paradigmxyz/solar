@@ -17,6 +17,7 @@ use solar_data_structures::{
     map::FxHashMap,
     pluralize,
     smallvec::SmallVec,
+    stack::ensure_sufficient_stack,
 };
 use solar_interface::{
     Ident, Symbol,
@@ -292,7 +293,7 @@ impl<'gcx> TypeChecker<'gcx> {
         expr: &'gcx hir::Expr<'gcx>,
         expected: Option<Ty<'gcx>>,
     ) -> Ty<'gcx> {
-        let ty = self.check_expr_kind(expr, expected);
+        let ty = ensure_sufficient_stack(|| self.check_expr_kind(expr, expected));
         self.register_ty(expr, ty);
         ty
     }
@@ -3519,136 +3520,141 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
     }
 
     fn visit_stmt(&mut self, stmt: &'gcx hir::Stmt<'gcx>) -> ControlFlow<Self::BreakValue> {
-        // Every statement sets the position of the values it uses itself, so no position outlives
-        // the statement that set it.
-        self.value_position = ValuePosition::Expression;
-        match stmt.kind {
-            hir::StmtKind::DeclSingle(var) => {
-                let init = self.gcx.hir.variable(var).initializer;
-                self.check_decl(stmt.span, &[Some(var)], init);
-                return ControlFlow::Continue(());
-            }
-            hir::StmtKind::DeclMulti(decls, init) => {
-                self.check_decl(stmt.span, decls, Some(init));
-                return ControlFlow::Continue(());
-            }
-            hir::StmtKind::If(cond, body, else_) => {
-                let _ = self.expect_ty(cond, self.gcx.types.bool);
-                self.visit_stmt(body)?;
-                if let Some(else_) = else_ {
-                    self.visit_stmt(else_)?;
+        ensure_sufficient_stack(|| {
+            // Every statement sets the position of the values it uses itself, so no position
+            // outlives the statement that set it.
+            self.value_position = ValuePosition::Expression;
+            match stmt.kind {
+                hir::StmtKind::DeclSingle(var) => {
+                    let init = self.gcx.hir.variable(var).initializer;
+                    self.check_decl(stmt.span, &[Some(var)], init);
+                    return ControlFlow::Continue(());
                 }
-                return ControlFlow::Continue(());
-            }
-            hir::StmtKind::Switch(switch) => {
-                let _ = self.check_expr(switch.selector);
-                for case in switch.cases {
-                    for stmt in case.body.iter() {
+                hir::StmtKind::DeclMulti(decls, init) => {
+                    self.check_decl(stmt.span, decls, Some(init));
+                    return ControlFlow::Continue(());
+                }
+                hir::StmtKind::If(cond, body, else_) => {
+                    let _ = self.expect_ty(cond, self.gcx.types.bool);
+                    self.visit_stmt(body)?;
+                    if let Some(else_) = else_ {
+                        self.visit_stmt(else_)?;
+                    }
+                    return ControlFlow::Continue(());
+                }
+                hir::StmtKind::Switch(switch) => {
+                    let _ = self.check_expr(switch.selector);
+                    for case in switch.cases {
+                        for stmt in case.body.iter() {
+                            self.visit_stmt(stmt)?;
+                        }
+                    }
+                    return ControlFlow::Continue(());
+                }
+                hir::StmtKind::Try(try_) => {
+                    // A `returns` clause binds the call's values; without one they are discarded.
+                    // Binding an inaccessible one is the mismatch solc reports as 6509, and the
+                    // walk below checks the call expression before any clause body.
+                    if try_.clauses[0].args.is_empty() {
+                        self.discard(&try_.expr, Discarded::All);
+                    } else {
+                        self.value_position = ValuePosition::TryReturns;
+                    }
+                    // The clauses are checked against the call's type, so only after visiting it,
+                    // as in solc's `endVisit(TryStatement)`.
+                    self.walk_stmt(stmt)?;
+                    self.check_try(try_);
+                    return ControlFlow::Continue(());
+                }
+                hir::StmtKind::Emit(call_expr) | hir::StmtKind::Revert(call_expr) => {
+                    let is_emit = matches!(stmt.kind, hir::StmtKind::Emit(_));
+                    if is_emit {
+                        self.in_emit = true;
+                    } else {
+                        self.in_revert = true;
+                    }
+                    let _ty = self.check_expr(call_expr);
+                    self.in_emit = false;
+                    self.in_revert = false;
+
+                    let hir::ExprKind::Call(callee, ..) = call_expr.kind else {
+                        unreachable!("bad Emit|Revert");
+                    };
+                    let callee_ty = self.get(callee);
+                    if !callee_ty.references_error() {
+                        match stmt.kind {
+                            hir::StmtKind::Emit(_) => {
+                                if !matches!(callee_ty.kind, TyKind::Event(..)) {
+                                    self.dcx().emit_err(
+                                        callee.span,
+                                        "expression has to be an event invocation",
+                                    );
+                                }
+                            }
+                            hir::StmtKind::Revert(_) => {
+                                if !matches!(callee_ty.kind, TyKind::Error(..)) {
+                                    self.dcx()
+                                        .emit_err(callee.span, "expression has to be an error");
+                                }
+                            }
+                            _ => unreachable!(),
+                        }
+                    }
+                    return ControlFlow::Continue(());
+                }
+                hir::StmtKind::AssemblyBlock(block) => {
+                    let prev = std::mem::replace(&mut self.in_yul, true);
+                    for stmt in block.stmts {
                         self.visit_stmt(stmt)?;
                     }
+                    self.in_yul = prev;
+                    return ControlFlow::Continue(());
                 }
-                return ControlFlow::Continue(());
-            }
-            hir::StmtKind::Try(try_) => {
-                // A `returns` clause binds the call's values; without one they are discarded.
-                // Binding an inaccessible one is the mismatch solc reports as 6509, and the
-                // walk below checks the call expression before any clause body.
-                if try_.clauses[0].args.is_empty() {
-                    self.discard(&try_.expr, Discarded::All);
-                } else {
-                    self.value_position = ValuePosition::TryReturns;
-                }
-                // The clauses are checked against the call's type, so only after visiting it,
-                // as in solc's `endVisit(TryStatement)`.
-                self.walk_stmt(stmt)?;
-                self.check_try(try_);
-                return ControlFlow::Continue(());
-            }
-            hir::StmtKind::Emit(call_expr) | hir::StmtKind::Revert(call_expr) => {
-                let is_emit = matches!(stmt.kind, hir::StmtKind::Emit(_));
-                if is_emit {
-                    self.in_emit = true;
-                } else {
-                    self.in_revert = true;
-                }
-                let _ty = self.check_expr(call_expr);
-                self.in_emit = false;
-                self.in_revert = false;
-
-                let hir::ExprKind::Call(callee, ..) = call_expr.kind else {
-                    unreachable!("bad Emit|Revert");
-                };
-                let callee_ty = self.get(callee);
-                if !callee_ty.references_error() {
-                    match stmt.kind {
-                        hir::StmtKind::Emit(_) => {
-                            if !matches!(callee_ty.kind, TyKind::Event(..)) {
-                                self.dcx().emit_err(
-                                    callee.span,
-                                    "expression has to be an event invocation",
-                                );
-                            }
-                        }
-                        hir::StmtKind::Revert(_) => {
-                            if !matches!(callee_ty.kind, TyKind::Error(..)) {
-                                self.dcx().emit_err(callee.span, "expression has to be an error");
-                            }
-                        }
-                        _ => unreachable!(),
+                hir::StmtKind::Expr(expr) if self.in_yul => {
+                    let ty = self.check_expr(expr);
+                    if !matches!(expr.kind, hir::ExprKind::Assign(..))
+                        && !ty.is_unit()
+                        && !ty.references_error()
+                    {
+                        self.dcx().emit_err(
+                            expr.span,
+                            "inline assembly expression statements cannot return values",
+                        );
                     }
+                    return ControlFlow::Continue(());
                 }
-                return ControlFlow::Continue(());
-            }
-            hir::StmtKind::AssemblyBlock(block) => {
-                let prev = std::mem::replace(&mut self.in_yul, true);
-                for stmt in block.stmts {
-                    self.visit_stmt(stmt)?;
+                hir::StmtKind::Expr(expr) => {
+                    // An expression statement discards its value.
+                    self.discard(expr, Discarded::All);
                 }
-                self.in_yul = prev;
-                return ControlFlow::Continue(());
-            }
-            hir::StmtKind::Expr(expr) if self.in_yul => {
-                let ty = self.check_expr(expr);
-                if !matches!(expr.kind, hir::ExprKind::Assign(..))
-                    && !ty.is_unit()
-                    && !ty.references_error()
-                {
-                    self.dcx().emit_err(
-                        expr.span,
-                        "inline assembly expression statements cannot return values",
-                    );
-                }
-                return ControlFlow::Continue(());
-            }
-            hir::StmtKind::Expr(expr) => {
-                // An expression statement discards its value.
-                self.discard(expr, Discarded::All);
-            }
-            hir::StmtKind::Return(expr) if !self.in_yul => {
-                let returns =
-                    self.function.map(|id| self.gcx.hir.function(id).returns).unwrap_or_default();
-                if let Some(expr) = expr {
-                    let expected =
-                        match returns {
+                hir::StmtKind::Return(expr) if !self.in_yul => {
+                    let returns = self
+                        .function
+                        .map(|id| self.gcx.hir.function(id).returns)
+                        .unwrap_or_default();
+                    if let Some(expr) = expr {
+                        let expected = match returns {
                             [] => self.gcx.types.unit,
                             [id] => self.gcx.type_of_item((*id).into()),
                             ids => self.gcx.mk_ty_tuple(self.gcx.mk_ty_iter(
                                 ids.iter().map(|&id| self.gcx.type_of_item(id.into())),
                             )),
                         };
-                    // A return value's conversion error is solc's 6359.
-                    let prev = std::mem::replace(&mut self.value_position, ValuePosition::Return);
-                    let actual = self.check_expr_with_noexpect(expr, Some(expected));
-                    self.value_position = prev;
-                    let _ = self.check_return_expected(expr, actual, expected);
-                } else if !returns.is_empty() {
-                    self.dcx().emit_err(stmt.span, "return arguments required");
+                        // A return value's conversion error is solc's 6359.
+                        let prev =
+                            std::mem::replace(&mut self.value_position, ValuePosition::Return);
+                        let actual = self.check_expr_with_noexpect(expr, Some(expected));
+                        self.value_position = prev;
+                        let _ = self.check_return_expected(expr, actual, expected);
+                    } else if !returns.is_empty() {
+                        self.dcx().emit_err(stmt.span, "return arguments required");
+                    }
+                    return ControlFlow::Continue(());
                 }
-                return ControlFlow::Continue(());
+                _ => {}
             }
-            _ => {}
-        }
-        self.walk_stmt(stmt)
+            self.walk_stmt(stmt)
+        })
     }
 }
 

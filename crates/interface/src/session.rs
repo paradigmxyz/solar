@@ -520,12 +520,6 @@ impl Session {
         let mut builder = rayon::ThreadPoolBuilder::new()
             .thread_name(|i| format!("solar-{i}"))
             .num_threads(threads);
-        // Recursive passes over long `else if` or operator chains can exceed std's 2 MiB default
-        // thread stack. Use the 8 MiB main thread stack of Linux and macOS, so that `-j1` and
-        // parallel runs there accept the same inputs. `RUST_MIN_STACK` still takes precedence.
-        if std::env::var_os("RUST_MIN_STACK").is_none() {
-            builder = builder.stack_size(8 * 1024 * 1024);
-        }
         // We still want to use a rayon thread pool with 1 thread so that `ParallelIterator`s don't
         // install and run in the default global thread pool.
         if threads == 1 {

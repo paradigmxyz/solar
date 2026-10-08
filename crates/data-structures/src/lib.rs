@@ -15,6 +15,7 @@ pub mod fmt;
 pub mod hint;
 pub mod index;
 pub mod map;
+pub mod stack;
 pub mod sync;
 pub mod trustme;
 

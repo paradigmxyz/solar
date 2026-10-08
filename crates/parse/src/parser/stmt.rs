@@ -2,16 +2,16 @@ use super::item::VarFlags;
 use crate::{PResult, Parser, parser::SeqSep};
 use smallvec::SmallVec;
 use solar_ast::{token::*, *};
-use solar_data_structures::CollectAndApply;
+use solar_data_structures::{CollectAndApply, stack::ensure_sufficient_stack};
 use solar_interface::{Ident, Span, SpannedOption, Symbol, error_code, kw, sym};
 
 impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     /// Parses a statement.
     #[instrument(level = "trace", skip_all)]
     pub fn parse_stmt(&mut self) -> PResult<'sess, Stmt<'ast>> {
-        self.with_recursion_limit("statement", |this| {
-            let docs = this.parse_doc_comments();
-            this.parse_spanned(Self::parse_stmt_kind).map(|(span, kind)| Stmt { docs, kind, span })
+        ensure_sufficient_stack(|| {
+            let docs = self.parse_doc_comments();
+            self.parse_spanned(Self::parse_stmt_kind).map(|(span, kind)| Stmt { docs, kind, span })
         })
     }
 
@@ -84,49 +84,23 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     }
 
     /// Parses an if statement.
-    ///
-    /// `else if` chains are parsed in a loop, so their length does not count towards the
-    /// recursion limit.
     fn parse_stmt_if(&mut self) -> PResult<'sess, StmtKind<'ast>> {
-        let (cond, then_stmt) = self.parse_cond_and_body()?;
-        let mut chain = SmallVec::<[_; 4]>::new();
-        let mut else_stmt = None;
-        while self.eat_keyword(kw::Else) {
-            if !self.check_keyword(kw::If) {
-                else_stmt = Some(self.parse_stmt_boxed()?);
-                break;
-            }
-            let docs = self.parse_doc_comments();
-            let lo = self.token.span;
-            self.bump(); // `if`
-            let (cond, then_stmt) = self.parse_cond_and_body()?;
-            chain.push((docs, lo, cond, then_stmt));
-        }
-
-        // if (c0) s0 else if (c1) s1 ... else if (cN) sN else e
-        // => If(c0, s0, If(c1, s1, ... If(cN, sN, e)))
-        let hi = self.prev_token.span;
-        for (docs, lo, cond, then_stmt) in chain.into_iter().rev() {
-            let kind = StmtKind::If(cond, then_stmt, else_stmt);
-            else_stmt = Some(self.alloc(Stmt { docs, kind, span: lo.to(hi) }));
-        }
-        Ok(StmtKind::If(cond, then_stmt, else_stmt))
-    }
-
-    /// Parses the parenthesized condition and the body of an if or while statement.
-    fn parse_cond_and_body(
-        &mut self,
-    ) -> PResult<'sess, (Box<'ast, Expr<'ast>>, Box<'ast, Stmt<'ast>>)> {
         self.expect(TokenKind::OpenDelim(Delimiter::Parenthesis))?;
-        let cond = self.parse_expr()?;
+        let expr = self.parse_expr()?;
         self.expect(TokenKind::CloseDelim(Delimiter::Parenthesis))?;
-        let then_stmt = self.parse_stmt_boxed()?;
-        Ok((cond, then_stmt))
+        let true_stmt = self.parse_stmt()?;
+        let else_stmt =
+            if self.eat_keyword(kw::Else) { Some(self.parse_stmt_boxed()?) } else { None };
+        Ok(StmtKind::If(expr, self.alloc(true_stmt), else_stmt))
     }
 
     /// Parses a while statement.
     fn parse_stmt_while(&mut self) -> PResult<'sess, StmtKind<'ast>> {
-        self.parse_cond_and_body().map(|(cond, body)| StmtKind::While(cond, body))
+        self.expect(TokenKind::OpenDelim(Delimiter::Parenthesis))?;
+        let expr = self.parse_expr()?;
+        self.expect(TokenKind::CloseDelim(Delimiter::Parenthesis))?;
+        let stmt = self.parse_stmt()?;
+        Ok(StmtKind::While(expr, self.alloc(stmt)))
     }
 
     /// Parses a do-while statement.

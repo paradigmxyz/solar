@@ -59,34 +59,36 @@ impl<'gcx> Exposure<'gcx> {
     }
 
     fn sources(&mut self, expr: &hir::Expr<'_>, out: &mut SmallVec<[VariableId; 4]>) {
-        if let Some(id) = self.gcx.user_operator(expr.id) {
-            out.extend_from_slice(self.gcx.hir.function(id).returns);
-            return;
-        }
-        match expr.kind {
-            ExprKind::Ident(_) => {
-                if let Some(hir::Res::Item(hir::ItemId::Variable(id))) =
-                    self.gcx.resolved_expr(expr)
-                {
-                    out.push(id);
+        ensure_sufficient_stack(|| {
+            if let Some(id) = self.gcx.user_operator(expr.id) {
+                out.extend_from_slice(self.gcx.hir.function(id).returns);
+                return;
+            }
+            match expr.kind {
+                ExprKind::Ident(_) => {
+                    if let Some(hir::Res::Item(hir::ItemId::Variable(id))) =
+                        self.gcx.resolved_expr(expr)
+                    {
+                        out.push(id);
+                    }
                 }
-            }
-            ExprKind::Tuple(items) => {
-                for expr in items.iter().flatten() {
-                    self.sources(expr, out);
+                ExprKind::Tuple(items) => {
+                    for expr in items.iter().flatten() {
+                        self.sources(expr, out);
+                    }
                 }
-            }
-            ExprKind::Ternary(_, yes, no) => {
-                self.sources(yes, out);
-                self.sources(no, out);
-            }
-            ExprKind::Call(callee, _) => {
-                for id in self.callees(callee) {
-                    out.extend_from_slice(self.gcx.hir.function(id).returns);
+                ExprKind::Ternary(_, yes, no) => {
+                    self.sources(yes, out);
+                    self.sources(no, out);
                 }
+                ExprKind::Call(callee, _) => {
+                    for id in self.callees(callee) {
+                        out.extend_from_slice(self.gcx.hir.function(id).returns);
+                    }
+                }
+                _ => {}
             }
-            _ => {}
-        }
+        })
     }
 
     fn connect(&mut self, destinations: &[VariableId], expr: &hir::Expr<'_>) {

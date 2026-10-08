@@ -1,4 +1,4 @@
-// Both chains have 200 links, more than the parser recursion limit of 128.
+// Both chains have 200 links.
 contract C {
     function elseIf(bool b) external pure {
         if (b) {}

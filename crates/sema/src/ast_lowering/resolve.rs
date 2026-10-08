@@ -6,6 +6,7 @@ use solar_data_structures::{
     index::{Idx, IndexVec},
     map::{FxHashMap, FxIndexMap, IndexEntry},
     smallvec::SmallVec,
+    stack::ensure_sufficient_stack,
 };
 use solar_interface::{
     Ident, Session, Span, Symbol,
@@ -1019,73 +1020,75 @@ impl<'gcx> ResolveContext<'gcx> {
 
     #[instrument(name = "lower_stmt", level = "trace", skip_all)]
     fn lower_stmt_full(&mut self, stmt: &ast::Stmt<'_>) -> hir::Stmt<'gcx> {
-        let kind = match &stmt.kind {
-            ast::StmtKind::DeclSingle(var) => {
-                match self.lower_variable(
-                    var,
-                    self.function_id.map(hir::ItemId::Function),
-                    hir::VarKind::Statement,
-                ) {
-                    (id, Ok(())) => hir::StmtKind::DeclSingle(id),
-                    (_, Err(guar)) => hir::StmtKind::Err(guar),
+        ensure_sufficient_stack(|| {
+            let kind = match &stmt.kind {
+                ast::StmtKind::DeclSingle(var) => {
+                    match self.lower_variable(
+                        var,
+                        self.function_id.map(hir::ItemId::Function),
+                        hir::VarKind::Statement,
+                    ) {
+                        (id, Ok(())) => hir::StmtKind::DeclSingle(id),
+                        (_, Err(guar)) => hir::StmtKind::Err(guar),
+                    }
                 }
-            }
-            ast::StmtKind::DeclMulti(vars, expr) => {
-                let expr = self.lower_expr(expr);
-                let vars = self.arena.alloc_slice_fill_iter(vars.iter().map(|var| {
-                    var.as_ref().unspan().map(|var| {
-                        self.lower_variable(
-                            var,
-                            self.function_id.map(hir::ItemId::Function),
-                            hir::VarKind::Statement,
-                        )
-                        .0
-                    })
-                }));
-                hir::StmtKind::DeclMulti(vars, expr)
-            }
-            ast::StmtKind::Assembly(assembly) => self.lower_yul_assembly(assembly),
-            ast::StmtKind::Block(stmts) => hir::StmtKind::Block(self.lower_block(stmts)),
-            ast::StmtKind::UncheckedBlock(stmts) => {
-                hir::StmtKind::UncheckedBlock(self.lower_block(stmts))
-            }
-            ast::StmtKind::Break => hir::StmtKind::Break,
-            ast::StmtKind::Continue => hir::StmtKind::Continue,
-            ast::StmtKind::Return(expr) => {
-                hir::StmtKind::Return(self.lower_expr_opt(expr.as_deref()))
-            }
-            ast::StmtKind::While(_, _)
-            | ast::StmtKind::DoWhile(_, _)
-            | ast::StmtKind::For { .. } => self.lower_loop_stmt(stmt),
-            ast::StmtKind::Emit(path, args) => match self.resolve_callee_path(path) {
-                Ok(res) => {
-                    hir::StmtKind::Emit(self.make_call_expr_for_emit(path, res, args, stmt.span))
+                ast::StmtKind::DeclMulti(vars, expr) => {
+                    let expr = self.lower_expr(expr);
+                    let vars = self.arena.alloc_slice_fill_iter(vars.iter().map(|var| {
+                        var.as_ref().unspan().map(|var| {
+                            self.lower_variable(
+                                var,
+                                self.function_id.map(hir::ItemId::Function),
+                                hir::VarKind::Statement,
+                            )
+                            .0
+                        })
+                    }));
+                    hir::StmtKind::DeclMulti(vars, expr)
                 }
-                Err(guar) => hir::StmtKind::Err(guar),
-            },
-            ast::StmtKind::Revert(path, args) => match self.resolve_callee_path(path) {
-                Ok(res) => {
-                    hir::StmtKind::Revert(self.make_call_expr_for_emit(path, res, args, stmt.span))
+                ast::StmtKind::Assembly(assembly) => self.lower_yul_assembly(assembly),
+                ast::StmtKind::Block(stmts) => hir::StmtKind::Block(self.lower_block(stmts)),
+                ast::StmtKind::UncheckedBlock(stmts) => {
+                    hir::StmtKind::UncheckedBlock(self.lower_block(stmts))
                 }
-                Err(guar) => hir::StmtKind::Err(guar),
-            },
-            ast::StmtKind::Expr(expr) => hir::StmtKind::Expr(self.lower_expr(expr)),
-            ast::StmtKind::If(cond, then, else_) => hir::StmtKind::If(
-                self.lower_expr(cond),
-                self.lower_stmt(then),
-                else_.as_deref().map(|stmt| self.lower_stmt(stmt)),
-            ),
-            ast::StmtKind::Try(ast::StmtTry { expr, clauses }) => {
-                hir::StmtKind::Try(self.arena.alloc(hir::StmtTry {
-                    expr: self.lower_expr_full(expr),
-                    clauses: self.arena.alloc_slice_fill_iter(
-                        clauses.iter().map(|catch| self.lower_try_catch_clause(catch)),
+                ast::StmtKind::Break => hir::StmtKind::Break,
+                ast::StmtKind::Continue => hir::StmtKind::Continue,
+                ast::StmtKind::Return(expr) => {
+                    hir::StmtKind::Return(self.lower_expr_opt(expr.as_deref()))
+                }
+                ast::StmtKind::While(_, _)
+                | ast::StmtKind::DoWhile(_, _)
+                | ast::StmtKind::For { .. } => self.lower_loop_stmt(stmt),
+                ast::StmtKind::Emit(path, args) => match self.resolve_callee_path(path) {
+                    Ok(res) => hir::StmtKind::Emit(
+                        self.make_call_expr_for_emit(path, res, args, stmt.span),
                     ),
-                }))
-            }
-            ast::StmtKind::Placeholder => hir::StmtKind::Placeholder,
-        };
-        hir::Stmt { span: stmt.span, kind }
+                    Err(guar) => hir::StmtKind::Err(guar),
+                },
+                ast::StmtKind::Revert(path, args) => match self.resolve_callee_path(path) {
+                    Ok(res) => hir::StmtKind::Revert(
+                        self.make_call_expr_for_emit(path, res, args, stmt.span),
+                    ),
+                    Err(guar) => hir::StmtKind::Err(guar),
+                },
+                ast::StmtKind::Expr(expr) => hir::StmtKind::Expr(self.lower_expr(expr)),
+                ast::StmtKind::If(cond, then, else_) => hir::StmtKind::If(
+                    self.lower_expr(cond),
+                    self.lower_stmt(then),
+                    else_.as_deref().map(|stmt| self.lower_stmt(stmt)),
+                ),
+                ast::StmtKind::Try(ast::StmtTry { expr, clauses }) => {
+                    hir::StmtKind::Try(self.arena.alloc(hir::StmtTry {
+                        expr: self.lower_expr_full(expr),
+                        clauses: self.arena.alloc_slice_fill_iter(
+                            clauses.iter().map(|catch| self.lower_try_catch_clause(catch)),
+                        ),
+                    }))
+                }
+                ast::StmtKind::Placeholder => hir::StmtKind::Placeholder,
+            };
+            hir::Stmt { span: stmt.span, kind }
+        })
     }
 
     fn lower_yul_assembly(&mut self, assembly: &ast::StmtAssembly<'_>) -> hir::StmtKind<'gcx> {
@@ -1207,52 +1210,57 @@ impl<'gcx> ResolveContext<'gcx> {
     }
 
     fn lower_yul_stmt(&mut self, stmt: &ast::yul::Stmt<'_>) -> Option<hir::Stmt<'gcx>> {
-        let kind = match &stmt.kind {
-            ast::yul::StmtKind::Block(block) => hir::StmtKind::Block(self.lower_yul_block(block)),
-            ast::yul::StmtKind::AssignSingle(path, expr) => {
-                let lhs = self.lower_yul_path_expr(path);
-                let rhs = self.lower_yul_expr(expr);
-                hir::StmtKind::Expr(self.hir_builder().expr(
-                    self.next_id(),
-                    hir::ExprKind::Assign(lhs, None, rhs),
-                    stmt.span,
-                ))
-            }
-            ast::yul::StmtKind::AssignMulti(paths, expr) => {
-                // (a, b, c) = <expr>
-                let components = self.arena.alloc_slice_fill_iter(
-                    paths.iter().map(|path| Some(self.lower_yul_path_expr(path))),
-                );
-                let lhs = self.hir_builder().expr(
-                    self.next_id(),
-                    hir::ExprKind::Tuple(components),
-                    Span::join_first_last(paths.iter().map(|path| path.span())),
-                );
-                let rhs = self.lower_yul_expr(expr);
-                hir::StmtKind::Expr(self.hir_builder().expr(
-                    self.next_id(),
-                    hir::ExprKind::Assign(lhs, None, rhs),
-                    stmt.span,
-                ))
-            }
-            ast::yul::StmtKind::Expr(expr) => hir::StmtKind::Expr(self.lower_yul_expr(expr)),
-            ast::yul::StmtKind::If(cond, block) => {
-                let cond = self.lower_yul_condition(cond);
-                let block = self.lower_yul_block(block);
-                let body = self.hir_builder().stmt_alloc(hir::StmtKind::Block(block), block.span);
-                hir::StmtKind::If(cond, body, None)
-            }
-            ast::yul::StmtKind::For(for_) => self.lower_yul_for_stmt(for_),
-            ast::yul::StmtKind::Switch(switch) => self.lower_yul_switch_stmt(switch),
-            ast::yul::StmtKind::Leave => hir::StmtKind::Return(None),
-            ast::yul::StmtKind::Break => hir::StmtKind::Break,
-            ast::yul::StmtKind::Continue => hir::StmtKind::Continue,
-            ast::yul::StmtKind::FunctionDef(_) => return None,
-            ast::yul::StmtKind::VarDecl(idents, expr) => {
-                self.lower_yul_var_decl(idents, expr.as_ref(), stmt.span)
-            }
-        };
-        Some(hir::Stmt { span: stmt.span, kind })
+        ensure_sufficient_stack(|| {
+            let kind = match &stmt.kind {
+                ast::yul::StmtKind::Block(block) => {
+                    hir::StmtKind::Block(self.lower_yul_block(block))
+                }
+                ast::yul::StmtKind::AssignSingle(path, expr) => {
+                    let lhs = self.lower_yul_path_expr(path);
+                    let rhs = self.lower_yul_expr(expr);
+                    hir::StmtKind::Expr(self.hir_builder().expr(
+                        self.next_id(),
+                        hir::ExprKind::Assign(lhs, None, rhs),
+                        stmt.span,
+                    ))
+                }
+                ast::yul::StmtKind::AssignMulti(paths, expr) => {
+                    // (a, b, c) = <expr>
+                    let components = self.arena.alloc_slice_fill_iter(
+                        paths.iter().map(|path| Some(self.lower_yul_path_expr(path))),
+                    );
+                    let lhs = self.hir_builder().expr(
+                        self.next_id(),
+                        hir::ExprKind::Tuple(components),
+                        Span::join_first_last(paths.iter().map(|path| path.span())),
+                    );
+                    let rhs = self.lower_yul_expr(expr);
+                    hir::StmtKind::Expr(self.hir_builder().expr(
+                        self.next_id(),
+                        hir::ExprKind::Assign(lhs, None, rhs),
+                        stmt.span,
+                    ))
+                }
+                ast::yul::StmtKind::Expr(expr) => hir::StmtKind::Expr(self.lower_yul_expr(expr)),
+                ast::yul::StmtKind::If(cond, block) => {
+                    let cond = self.lower_yul_condition(cond);
+                    let block = self.lower_yul_block(block);
+                    let body =
+                        self.hir_builder().stmt_alloc(hir::StmtKind::Block(block), block.span);
+                    hir::StmtKind::If(cond, body, None)
+                }
+                ast::yul::StmtKind::For(for_) => self.lower_yul_for_stmt(for_),
+                ast::yul::StmtKind::Switch(switch) => self.lower_yul_switch_stmt(switch),
+                ast::yul::StmtKind::Leave => hir::StmtKind::Return(None),
+                ast::yul::StmtKind::Break => hir::StmtKind::Break,
+                ast::yul::StmtKind::Continue => hir::StmtKind::Continue,
+                ast::yul::StmtKind::FunctionDef(_) => return None,
+                ast::yul::StmtKind::VarDecl(idents, expr) => {
+                    self.lower_yul_var_decl(idents, expr.as_ref(), stmt.span)
+                }
+            };
+            Some(hir::Stmt { span: stmt.span, kind })
+        })
     }
 
     fn lower_yul_var_decl(
@@ -1387,12 +1395,14 @@ impl<'gcx> ResolveContext<'gcx> {
     }
 
     fn lower_yul_expr_full(&mut self, expr: &ast::yul::Expr<'_>) -> hir::Expr<'gcx> {
-        let kind = match &expr.kind {
-            ast::yul::ExprKind::Path(path) => return self.lower_yul_path_expr_full(path),
-            ast::yul::ExprKind::Call(call) => self.lower_yul_call(call, expr.span),
-            ast::yul::ExprKind::Lit(lit) => hir::ExprKind::Lit(self.lower_lit(lit)),
-        };
-        self.hir_builder().expr_owned(self.next_id(), kind, expr.span)
+        ensure_sufficient_stack(|| {
+            let kind = match &expr.kind {
+                ast::yul::ExprKind::Path(path) => return self.lower_yul_path_expr_full(path),
+                ast::yul::ExprKind::Call(call) => self.lower_yul_call(call, expr.span),
+                ast::yul::ExprKind::Lit(lit) => hir::ExprKind::Lit(self.lower_lit(lit)),
+            };
+            self.hir_builder().expr_owned(self.next_id(), kind, expr.span)
+        })
     }
 
     fn lower_yul_call(&mut self, call: &ast::yul::ExprCall<'_>, span: Span) -> hir::ExprKind<'gcx> {
@@ -1872,68 +1882,72 @@ impl<'gcx> ResolveContext<'gcx> {
 
     #[instrument(name = "lower_expr", level = "trace", skip_all)]
     fn lower_expr_full(&mut self, expr: &ast::Expr<'_>) -> hir::Expr<'gcx> {
-        let kind = match &expr.kind {
-            ast::ExprKind::Array(exprs) => hir::ExprKind::Array(self.lower_exprs(&**exprs)),
-            ast::ExprKind::Assign(lhs, op, rhs) => {
-                hir::ExprKind::Assign(self.lower_expr(lhs), *op, self.lower_expr(rhs))
-            }
-            ast::ExprKind::Binary(lhs, op, rhs) => {
-                hir::ExprKind::Binary(self.lower_expr(lhs), *op, self.lower_expr(rhs))
-            }
-            ast::ExprKind::Call(callee, args) => hir::ExprKind::Call(
-                self.lower_expr(callee.peel_parens()),
-                self.lower_call_args(args),
-            ),
-            ast::ExprKind::CallOptions(..) => self.lower_call_options(expr),
-            ast::ExprKind::Delete(expr) => hir::ExprKind::Delete(self.lower_expr(expr)),
-            ast::ExprKind::Ident(name) => {
-                match self.resolve_paths(ast::PathSlice::from_ref(name)) {
-                    Ok(decls) => hir::ExprKind::Ident(
-                        self.arena.alloc_slice_fill_iter(decls.iter().map(|decl| decl.res)),
+        ensure_sufficient_stack(|| {
+            let kind = match &expr.kind {
+                ast::ExprKind::Array(exprs) => hir::ExprKind::Array(self.lower_exprs(&**exprs)),
+                ast::ExprKind::Assign(lhs, op, rhs) => {
+                    hir::ExprKind::Assign(self.lower_expr(lhs), *op, self.lower_expr(rhs))
+                }
+                ast::ExprKind::Binary(lhs, op, rhs) => {
+                    hir::ExprKind::Binary(self.lower_expr(lhs), *op, self.lower_expr(rhs))
+                }
+                ast::ExprKind::Call(callee, args) => hir::ExprKind::Call(
+                    self.lower_expr(callee.peel_parens()),
+                    self.lower_call_args(args),
+                ),
+                ast::ExprKind::CallOptions(..) => self.lower_call_options(expr),
+                ast::ExprKind::Delete(expr) => hir::ExprKind::Delete(self.lower_expr(expr)),
+                ast::ExprKind::Ident(name) => {
+                    match self.resolve_paths(ast::PathSlice::from_ref(name)) {
+                        Ok(decls) => hir::ExprKind::Ident(
+                            self.arena.alloc_slice_fill_iter(decls.iter().map(|decl| decl.res)),
+                        ),
+                        Err(guar) => hir::ExprKind::Err(guar),
+                    }
+                }
+                ast::ExprKind::Index(expr, index) => match index {
+                    ast::IndexKind::Index(index) => hir::ExprKind::Index(
+                        self.lower_expr(expr),
+                        self.lower_expr_opt(index.as_deref()),
                     ),
-                    Err(guar) => hir::ExprKind::Err(guar),
+                    ast::IndexKind::Range(start, end) => hir::ExprKind::Slice(
+                        self.lower_expr(expr),
+                        self.lower_expr_opt(start.as_deref()),
+                        self.lower_expr_opt(end.as_deref()),
+                    ),
+                },
+                ast::ExprKind::Lit(lit, _) => hir::ExprKind::Lit(self.lower_lit(lit)),
+                ast::ExprKind::Member(expr, member) => {
+                    hir::ExprKind::Member(self.lower_expr(expr), *member)
                 }
-            }
-            ast::ExprKind::Index(expr, index) => match index {
-                ast::IndexKind::Index(index) => hir::ExprKind::Index(
-                    self.lower_expr(expr),
-                    self.lower_expr_opt(index.as_deref()),
-                ),
-                ast::IndexKind::Range(start, end) => hir::ExprKind::Slice(
-                    self.lower_expr(expr),
-                    self.lower_expr_opt(start.as_deref()),
-                    self.lower_expr_opt(end.as_deref()),
-                ),
-            },
-            ast::ExprKind::Lit(lit, _) => hir::ExprKind::Lit(self.lower_lit(lit)),
-            ast::ExprKind::Member(expr, member) => {
-                hir::ExprKind::Member(self.lower_expr(expr), *member)
-            }
-            ast::ExprKind::New(ty) => hir::ExprKind::New(self.lower_type(ty)),
-            ast::ExprKind::Payable(args) => 'b: {
-                if let ast::CallArgsKind::Unnamed(args) = &args.kind
-                    && let [arg] = &args[..]
-                {
-                    break 'b hir::ExprKind::Payable(self.lower_expr(arg));
+                ast::ExprKind::New(ty) => hir::ExprKind::New(self.lower_type(ty)),
+                ast::ExprKind::Payable(args) => 'b: {
+                    if let ast::CallArgsKind::Unnamed(args) = &args.kind
+                        && let [arg] = &args[..]
+                    {
+                        break 'b hir::ExprKind::Payable(self.lower_expr(arg));
+                    }
+                    let msg = "expected exactly one unnamed argument";
+                    let guar = self.sess.dcx.emit_err(expr.span, msg);
+                    hir::ExprKind::Err(guar)
                 }
-                let msg = "expected exactly one unnamed argument";
-                let guar = self.sess.dcx.emit_err(expr.span, msg);
-                hir::ExprKind::Err(guar)
-            }
-            ast::ExprKind::Ternary(cond, then, r#else) => hir::ExprKind::Ternary(
-                self.lower_expr(cond),
-                self.lower_expr(then),
-                self.lower_expr(r#else),
-            ),
-            ast::ExprKind::Tuple(exprs) => hir::ExprKind::Tuple(self.arena.alloc_slice_fill_iter(
-                exprs.iter().map(|expr| self.lower_expr_opt(expr.as_deref().unspan())),
-            )),
-            ast::ExprKind::TypeCall(ty) => hir::ExprKind::TypeCall(self.lower_type(ty)),
-            ast::ExprKind::Type(ty) => hir::ExprKind::Type(self.lower_type(ty)),
-            ast::ExprKind::Unary(op, expr) => hir::ExprKind::Unary(*op, self.lower_expr(expr)),
-            ast::ExprKind::Err(guar) => hir::ExprKind::Err(*guar),
-        };
-        self.hir_builder().expr_owned(self.next_id(), kind, expr.span)
+                ast::ExprKind::Ternary(cond, then, r#else) => hir::ExprKind::Ternary(
+                    self.lower_expr(cond),
+                    self.lower_expr(then),
+                    self.lower_expr(r#else),
+                ),
+                ast::ExprKind::Tuple(exprs) => {
+                    hir::ExprKind::Tuple(self.arena.alloc_slice_fill_iter(
+                        exprs.iter().map(|expr| self.lower_expr_opt(expr.as_deref().unspan())),
+                    ))
+                }
+                ast::ExprKind::TypeCall(ty) => hir::ExprKind::TypeCall(self.lower_type(ty)),
+                ast::ExprKind::Type(ty) => hir::ExprKind::Type(self.lower_type(ty)),
+                ast::ExprKind::Unary(op, expr) => hir::ExprKind::Unary(*op, self.lower_expr(expr)),
+                ast::ExprKind::Err(guar) => hir::ExprKind::Err(*guar),
+            };
+            self.hir_builder().expr_owned(self.next_id(), kind, expr.span)
+        })
     }
 
     fn lower_lit(&mut self, lit: &ast::Lit<'_>) -> &'gcx ast::Lit<'gcx> {
