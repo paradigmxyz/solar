@@ -199,7 +199,7 @@ fn source_metadata(metadata: &Metadata<'_, '_, '_>, source_id: SourceId) -> Valu
 }
 
 fn source_name(gcx: Gcx<'_>, source_id: SourceId) -> String {
-    standard_json_source_name(&gcx.hir.source(source_id).file.name)
+    standard_json_source_name(gcx, &gcx.hir.source(source_id).file.name)
 }
 
 fn collect_referenced_sources(gcx: Gcx<'_>, root: SourceId) -> Vec<SourceId> {

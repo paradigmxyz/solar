@@ -73,3 +73,41 @@ fn callback_imports_keep_source_unit_names() {
     let names = metadata["sources"].as_object().unwrap().keys().collect::<Vec<_>>();
     assert_eq!(names, ["lib/Lib.sol", "src/Main.sol", "src/dep.sol"]);
 }
+
+/// On Windows, input keys keep their backslashes, while imports the resolver builds from native
+/// paths use the `/` name the read callback receives.
+#[cfg(windows)]
+#[test]
+fn windows_backslash_keys_and_callback_imports() {
+    struct Callback;
+
+    impl StandardJsonReadCallback for Callback {
+        fn read(&self, kind: &str, data: &str) -> ReadCallbackResult {
+            assert_eq!(kind, "source");
+            assert_eq!(data, "contracts/B.sol");
+            ReadCallbackResult::Success("contract B {}".to_string())
+        }
+    }
+
+    let input = json!({
+        "language": "Solidity",
+        "sources": {"contracts\\A.sol": {"content": "import \"./B.sol\"; contract A is B {}"}},
+        "settings": {"outputSelection": {"contracts\\A.sol": {"A": ["abi"]}}}
+    });
+    let mut output = Vec::new();
+    compile_standard_json(
+        &input.to_string(),
+        CompileOpts::default(),
+        Some(Arc::new(Callback)),
+        &mut output,
+    )
+    .unwrap();
+    let output = serde_json::from_slice::<Value>(&output).unwrap();
+    assert_eq!(
+        output,
+        json!({
+            "sources": {"contracts\\A.sol": {"id": 0}, "contracts/B.sol": {"id": 1}},
+            "contracts": {"contracts\\A.sol": {"A": {"abi": []}}}
+        })
+    );
+}

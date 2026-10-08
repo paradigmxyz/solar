@@ -1,0 +1,103 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/pure_struct_constructor_storage_parameter.sol:PureStructConstructorStorageParameter ===
+@module PureStructConstructorStorageParameter
+@types
+  struct0: {i256, i160, i1}
+
+fn @constructor() [constructor] {
+  bb0:
+    v0 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
+    memory_object_store_field memorystruct<3>, v0, 0, 7
+    memory_object_store_field memorystruct<3>, v0, 1, 7
+    memory_object_store_field memorystruct<3>, v0, 2, 1
+    v1 = mapping_slot 3, 0
+    v2 = memory_object_load_field memorystruct<3>, v0, 0
+    sstore v1, v2 !metadata(storage=symbolic(v1))
+    v3 = add v1, 1
+    v4 = memory_object_load_field memorystruct<3>, v0, 1
+    v5 = sload v3 !metadata(storage=offset(v1, 1))
+    v6 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v7 = and v5, v6
+    v8 = and v4, 0xffffffffffffffffffffffffffffffffffffffff
+    v9 = or v7, v8
+    sstore v3, v9 !metadata(storage=offset(v1, 1))
+    v10 = add v1, 1
+    v11 = memory_object_load_field memorystruct<3>, v0, 2
+    v12 = shl 160, 255
+    v13 = sload v10 !metadata(storage=offset(v1, 1))
+    v14 = not v12
+    v15 = and v13, v14
+    v16 = and v11, 255
+    v17 = shl 160, v16
+    v18 = or v15, v17
+    sstore v10, v18 !metadata(storage=offset(v1, 1))
+    ret
+}
+
+fn @build(arg0: i256, arg1: i256) -> memptr [pure] {
+  bb0:
+    v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    memory_object_store_field memorystruct<2>, v0, 0, 0
+    v1 = alloc memorystruct<3>, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
+    memory_object_store_field memorystruct<3>, v1, 0, 0
+    memory_object_store_field memorystruct<3>, v1, 1, 0
+    memory_object_store_field memorystruct<3>, v1, 2, 0
+    v2 = ptrtoint memptr v1 to i256
+    memory_object_store_field memorystruct<2>, v0, 1, v2
+    v3 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    v4 = alloc memorystruct<3>, exact, uninitialized, panic, 96
+    v5 = sload arg1 !metadata(storage=symbolic(arg1))
+    memory_object_store_field memorystruct<3>, v4, 0, v5
+    v6 = add arg1, 1
+    v7 = sload v6 !metadata(storage=offset(arg1, 1))
+    v8 = trunc i256 v7 to i160
+    v9 = zext i160 v8 to i256
+    memory_object_store_field memorystruct<3>, v4, 1, v9
+    v10 = add arg1, 1
+    v11 = sload v10 !metadata(storage=offset(arg1, 1))
+    v12 = shr 160, v11
+    v13 = trunc i256 v12 to i8
+    v14 = zext i8 v13 to i256
+    memory_object_store_field memorystruct<3>, v4, 2, v14
+    v15 = ptrtoint memptr v4 to i256
+    memory_object_store_field memorystruct<2>, v3, 0, arg0
+    memory_object_store_field memorystruct<2>, v3, 1, v15
+    ret v3
+}
+
+fn @f(arg0: i256) -> struct0 [selector=0xb3de648b, view, abi_params=[u256], abi_returns=[word, word<u160>, word<bool>], abi_return_params=[u256, address, bool]] {
+  bb0:
+    v0 = mapping_slot arg0, 0
+    v1 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    v2 = alloc memorystruct<3>, exact, uninitialized, panic, 96
+    v3 = sload v0 !metadata(storage=symbolic(v0))
+    memory_object_store_field memorystruct<3>, v2, 0, v3
+    v4 = add v0, 1
+    v5 = sload v4 !metadata(storage=offset(v0, 1))
+    v6 = trunc i256 v5 to i160
+    v7 = zext i160 v6 to i256
+    memory_object_store_field memorystruct<3>, v2, 1, v7
+    v8 = add v0, 1
+    v9 = sload v8 !metadata(storage=offset(v0, 1))
+    v10 = shr 160, v9
+    v11 = trunc i256 v10 to i8
+    v12 = zext i8 v11 to i256
+    memory_object_store_field memorystruct<3>, v2, 2, v12
+    v13 = ptrtoint memptr v2 to i256
+    memory_object_store_field memorystruct<2>, v1, 0, arg0
+    memory_object_store_field memorystruct<2>, v1, 1, v13
+    v14 = memory_object_load_field memorystruct<2>, v1, 0
+    v15 = memory_object_load_field memorystruct<2>, v1, 1, memptr
+    v16 = memory_object_load_field memorystruct<3>, v15, 0
+    v17 = checked_add u256, v14, v16
+    v18 = memory_object_load_field memorystruct<2>, v1, 1, memptr
+    v19 = memory_object_load_field memorystruct<3>, v18, 1
+    v20 = trunc i256 v19 to i160
+    v21 = memory_object_load_field memorystruct<2>, v1, 1, memptr
+    v22 = memory_object_load_field memorystruct<3>, v21, 2
+    v23 = eq v22, 0
+    v24 = eq v23, false
+    v25 = insert_value struct0, undef struct0, 0, v17
+    v26 = insert_value struct0, v25, 1, v20
+    v27 = insert_value struct0, v26, 2, v24
+    ret v27
+}
