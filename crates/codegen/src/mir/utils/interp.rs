@@ -161,7 +161,7 @@ pub(crate) enum Outcome {
 /// A bound on one execution.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Limit {
-    /// The fuel budget ran out.
+    /// The fuel budget, or the budget of the run's meter, ran out.
     Fuel,
     /// Calls nested deeper than the call depth.
     Depth,
@@ -254,6 +254,12 @@ pub(crate) trait Meter {
     /// not reported: the callee's return delivers it.
     fn result(&mut self, value: U256) {
         let _ = value;
+    }
+
+    /// Whether the run has spent all the meter allows, which ends it as running out of fuel
+    /// does, before its next operation.
+    fn exhausted(&self) -> bool {
+        false
     }
 }
 
@@ -780,6 +786,9 @@ impl<'a> Run<'_, 'a, '_> {
         self.call(body, args.iter().copied().collect(), None)?;
         self.frame().entry = true;
         loop {
+            if meter.exhausted() {
+                return ControlFlow::Break(Outcome::Limit(Limit::Fuel));
+            }
             let frame = self.frame();
             let (body, block, next) = (frame.body, frame.block, frame.next);
             match body.blocks[block].instructions.get(next) {

@@ -1,12 +1,18 @@
 llm-optimize Fuel @main: not offered: is the dispatch entry
 llm-optimize Fuel @sum: offered at 6366 gas, 43 bytes
-llm-optimize Fuel @sum: round 1: rejected at equivalence: the original runs on past the tests' limits, but the candidate returns 0x2000000000000000003000000000000000001 after 9 steps; a candidate must not end where the original runs on, since the tests cannot know what the original does there
+llm-optimize Fuel @sum: round 1: rejected at equivalence: the original runs on past 400000 steps without ending, but the candidate returns 0x2000000000000000003000000000000000001 after 9 steps; a candidate must not end where the original runs on, since the tests cannot know what the original does there
   on arg0 = 0xfffffffffffffffffffffffffffffffffffffffffffffdffffffffffffffffff, free memory pointer 0x198e0
-llm-optimize Fuel @sum: round 2: rejected at equivalence: the original runs on past the tests' limits, but the candidate returns 0x2000000000000000003000000000000000001 after 4 steps; a candidate must not end where the original runs on, since the tests cannot know what the original does there
+llm-optimize Fuel @sum: round 2: rejected at equivalence: the original runs on past 400000 steps without ending, but the candidate returns 0x2000000000000000003000000000000000001 after 4 steps; a candidate must not end where the original runs on, since the tests cannot know what the original does there
   on arg0 = 0xfffffffffffffffffffffffffffffffffffffffffffffdffffffffffffffffff, free memory pointer 0x198e0
 llm-optimize Fuel @sum: round 3: rejected at equivalence: the original returns 0x1fff000, but the candidate returns 0x5ffd000
-  on arg0 = 0x2000, free memory pointer 0x140
+  on arg0 = 0x2000, free memory pointer 0x1e0
 llm-optimize Fuel @sum: stopped after 3 rejections in a row
+llm-optimize Fuel @total: offered at 7936 gas, 47 bytes
+llm-optimize Fuel @total: round 1: rejected at equivalence: the original returns 0x6b4a4730, but the candidate returns 0x141ded590
+  on arg0 = 0xea61, free memory pointer 0x120
+llm-optimize Fuel @total: round 2: rejected at equivalence: the original returns 0x7fff8000, but the candidate returns 0x17ffe8000
+  on arg0 = 0x10000, free memory pointer 0x80
+llm-optimize Fuel @total: round 3: nothing cheaper
 - // === ROOT/tests/ui/codegen/mir/llm-optimize/fuel.mir (before llm-optimize) ===
 + // === ROOT/tests/ui/codegen/mir/llm-optimize/fuel.mir (after llm-optimize) ===
   @module Fuel
@@ -15,7 +21,8 @@ llm-optimize Fuel @sum: stopped after 3 rejections in a row
     bb0:
       v0 = calldataload 0
       v1 = icall @sum, v0
-      mstore 0, v1
+      v2 = icall @total, v1
+      mstore 0, v2
       returndata 0, 32
   }
   
@@ -32,6 +39,23 @@ llm-optimize Fuel @sum: stopped after 3 rejections in a row
     bb2:
       v3 = add v0, 1
       v4 = add v1, v0
+      jump bb1
+  }
+  
+  fn @total(arg0: i256) -> i256 {
+    bb0:
+      jump bb1
+    bb1:
+      v0 = phi [bb0: 0], [bb2: v3]
+      v1 = phi [bb0: 0], [bb2: v5]
+      v2 = lt v0, arg0
+      jumpi v2, bb2, bb3
+    bb3:
+      ret v1
+    bb2:
+      v3 = add v0, 1
+      v4 = add v1, v0
+      v5 = mul v4, 1
       jump bb1
   }
   

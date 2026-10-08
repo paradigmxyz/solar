@@ -191,14 +191,17 @@ Each candidate goes through these stages, and the verdict names the one that rej
    leave each with the same value, and log the same events in the same order. A write fails in a
    static call whatever it stores, so a write the original does not make would fail where the
    original succeeds, and one it drops, even of the value a slot held, would succeed where the
-   original fails. An input on which the original runs out of fuel runs again with twenty times
-   as much; where the original still runs on, or calls too deeply, what it would do is unknown,
-   so the candidate must run on as well, and one that ends there fails. A formula replaces a loop
-   only when every input keeps the loop within the fuel, as a masked bound does. The inputs must
-   exercise the candidate as they exercise the original, under the rules above. Decisions are
-   comparisons and the `and`, `or`, and `xor` of booleans, which is how if-converted code
-   combines comparisons without branching; values must come out nonzero because a path the
-   inputs only complete on null pointers or empty data computes nothing a change would alter.
+   original fails. Up to 32 generated inputs on which the original runs out of fuel run again with
+   twenty times as much; on inputs at the candidate's constants, the original runs until it ends or
+   has spent twice a block's gas, so that every such input a call could finish on chain is compared.
+   Where the original still runs on, or calls too deeply, what it would do is unknown, so the
+   candidate must run on as well, past a quarter of the same budget, and one that ends there fails.
+   A formula replaces a loop only when every input keeps the loop within the fuel, as a masked bound
+   does. The inputs must exercise the candidate as they exercise the original, under the rules
+   above. Decisions are comparisons and the `and`, `or`, and `xor` of booleans, which is how
+   if-converted code combines comparisons without branching; values must come out nonzero because a
+   path the inputs only complete on null pointers or empty data computes nothing a change would
+   alter.
 5. **Cost.** The target cost model prices the candidate, which must beat the best so far: by at
    least one stack copy of lifetime gas in gas builds, and in bytes, then gas, in size builds.
 
@@ -228,8 +231,11 @@ two slots share their draws. Transient storage is zero more often, as every tran
 empty. A slot reads the same value throughout a run, and writes are kept until the run ends.
 
 Probes then put each constant in each argument and, for functions that use storage or their
-context, make each constant the world's answer to every read, or to half of them. A candidate that
-adds a constant is also run with it in its arguments and its world.
+context, make each constant the world's answer to every read, or to half of them. Each candidate is
+also run with every constant it uses, and the powers of two its shifts cross, in its arguments and
+its world, smallest first: a constant may be a bound past which a candidate stops agreeing. A
+candidate whose constants make more than 1,024 such inputs is rejected rather than tested on some
+of them.
 
 Memory writes must stay within the original's because the backend keeps call frames and spill
 slots in memory no function addresses, and callers may keep scratch words across a call. A
@@ -365,9 +371,10 @@ compiles a Foundry project this way.
   a four-byte error selector, or change behavior only on inputs the generators rarely reach,
   such as a bound one exact value reaches or a stored string shrinking to exactly one word.
   Proving loop-free candidates with the SMT checker in `scripts/evm-rules/` is future work.
-- Inputs on which the original runs past 400,000 steps are not compared: the candidate only has
-  to run as long there too. A candidate that runs as long but ends differently on such inputs
-  passes.
+- Inputs on which the original cannot finish within twice a block's gas, at a candidate's
+  constants, or within 400,000 steps elsewhere, are not compared: the candidate only has to run
+  on there too. A candidate that runs as long but ends differently on such inputs passes, as does
+  one that differs only past a bound that neither its constants nor its shifts name.
 - The interpreter models no calldata, `gas`, code reads, or calls to other contracts, so functions
   that use them are not offered. On the project archives, 28% of the reachable internal functions
   are offered. Decisions the inputs never complete both ways without reverting account for most

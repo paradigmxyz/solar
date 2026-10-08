@@ -353,6 +353,9 @@ impl Target {
     pub(crate) const MEMORY_WORD_GAS: u64 = 3;
     /// Divisor of the quadratic memory charge, `words² / 512` (`G_quaddivisor`).
     pub(crate) const MEMORY_QUADRATIC_DIVISOR: u64 = 512;
+    /// The block gas limit the compiler assumes, Ethereum mainnet's: a call that needs more gas
+    /// cannot complete in one transaction.
+    pub(crate) const BLOCK_GAS_LIMIT: u64 = 60_000_000;
     /// Gas of an `SSTORE` that makes a zero slot nonzero (`G_sset`).
     const SSTORE_SET_GAS: u32 = 20_000;
 
@@ -988,5 +991,12 @@ mod tests {
         assert!(!target(Target::LOOP_COPY_MIN_RUNS - 1).copies_loops());
         assert!(target(Target::LOOP_COPY_MIN_RUNS).copies_loops());
         assert!(target(u64::from(u32::MAX)).copies_loops());
+    }
+
+    #[test]
+    fn block_gas_limit() {
+        // llm-optimize compares rewrites on every input a call within twice this could finish.
+        assert_eq!(Target::BLOCK_GAS_LIMIT, 60_000_000);
+        assert!(Target::BLOCK_GAS_LIMIT.checked_mul(2).is_some());
     }
 }

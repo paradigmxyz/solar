@@ -63,6 +63,8 @@ pub(super) struct GasMeter<'a> {
     module: &'a Module,
     prices: FxHashMap<(usize, Site), u64>,
     gas: u64,
+    /// The gas past which a run ends as if out of fuel.
+    limit: u64,
     /// The storage slots the current run accessed, which later accesses find warm.
     warm: FxHashSet<U256>,
 }
@@ -76,7 +78,20 @@ enum Site {
 
 impl<'a> GasMeter<'a> {
     pub(super) fn new(target: Target, module: &'a Module) -> Self {
-        Self { target, module, prices: FxHashMap::default(), gas: 0, warm: FxHashSet::default() }
+        Self {
+            target,
+            module,
+            prices: FxHashMap::default(),
+            gas: 0,
+            limit: u64::MAX,
+            warm: FxHashSet::default(),
+        }
+    }
+
+    /// Ends each run once it has spent more than `gas`, as running out of fuel does.
+    pub(super) fn with_limit(mut self, gas: u64) -> Self {
+        self.limit = gas;
+        self
     }
 
     /// Returns the gas since the last call, which ends a run.
@@ -142,6 +157,10 @@ impl Meter for GasMeter<'_> {
             })
         };
         self.gas = self.gas.saturating_add(gas);
+    }
+
+    fn exhausted(&self) -> bool {
+        self.gas > self.limit
     }
 }
 

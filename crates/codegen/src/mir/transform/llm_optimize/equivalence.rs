@@ -1,16 +1,19 @@
 //! Differential tests of candidates against their original.
 //!
 //! [`Tests::new`] generates inputs for a function from a seed, runs the original on each through
-//! the interpreter, and keeps the runs that finish within its limits, running an input it does not
-//! finish again with more fuel. [`Tests::check`] runs a candidate on the same inputs, plus inputs
-//! at the constants the candidate adds, and compares the runs:
+//! the interpreter, and keeps the runs that finish within its limits, running up to 32 inputs it
+//! does not finish again with more fuel. [`Tests::check`] runs a candidate on the same inputs,
+//! plus inputs at every constant the candidate uses and at the powers of two its shifts cross, on
+//! which the original runs until it ends or has spent twice a block's gas, and compares the runs:
 //!
 //! - Both must end the same way: return the same words, revert or return the same payload, stop, or
 //!   reach `invalid`. A candidate that exceeds its limits where the original finished fails.
-//! - Where the original runs on past its larger fuel or the call depth, what it would do is
-//!   unknown, so the candidate must run on as well: one that ends there, by returning or reverting,
-//!   fails. A candidate that replaces a loop with a formula therefore only passes when the loop's
-//!   trip count stays within the fuel on every input, as a masked bound keeps it.
+//! - Where the original runs on past its fuel, its gas, or the call depth, what it would do is
+//!   unknown, so the candidate must run on as well, past a quarter of the same budget: one that
+//!   ends there, by returning or reverting, fails. A candidate that replaces a loop with a formula
+//!   therefore only passes when the loop's trip count stays within the fuel on every input, as a
+//!   masked bound keeps it. No run is dropped but those past the memory limit, which no block can
+//!   pay for, so every input at a candidate's constants a call could finish on chain is compared.
 //! - The candidate may only write memory bytes the original writes on the same input. The backend
 //!   keeps its call frames and spill slots in memory no MIR function addresses, so a byte the
 //!   original never writes may belong to another function; a scratch word may be one a caller keeps
@@ -92,16 +95,20 @@ use std::{fmt::Write, sync::Arc};
 const MIN_FINISHED_RUNS: usize = 16;
 /// Fuel for one run of the original: loops of a few thousand iterations finish.
 const ORIGINAL_FUEL: u64 = 20_000;
-/// Fuel for a second run of the original on an input [`ORIGINAL_FUEL`] does not finish: loops of
-/// tens of thousands of iterations finish.
+/// Fuel for a second run of the original on a generated input [`ORIGINAL_FUEL`] does not finish:
+/// loops of tens of thousands of iterations finish.
 const LONG_FUEL: u64 = 400_000;
-/// The most inputs of a function's tests that run again with [`LONG_FUEL`], which bounds the time
-/// the tests take.
+/// The most generated inputs that run again with [`LONG_FUEL`], which bounds the time a
+/// function's tests take.
 const MAX_LONG_RUNS: usize = 32;
+/// Gas the original may spend on an input at a candidate's constants: twice a block's, so that
+/// every such input a call could finish on chain, give or take the cost model's error, is compared.
+const PROBE_GAS: u64 = 2 * Target::BLOCK_GAS_LIMIT;
 /// Call depth of one run.
 const DEPTH: usize = 64;
-/// The most inputs added at the constants a candidate introduces.
-const MAX_CONSTANT_INPUTS: usize = 64;
+/// The most inputs at a candidate's constants; a candidate whose constants make more is rejected
+/// rather than tested on some of them.
+const MAX_CONSTANT_INPUTS: usize = 1024;
 /// The most probes placing the original's constants in its arguments.
 const MAX_PROBES: usize = 512;
 /// The most constants that probes place in the original's storage and context, three probes each.
@@ -194,14 +201,13 @@ pub(super) struct Tests<'a> {
     module: &'a Module,
     id: FunctionId,
     seed: u64,
-    constants: FxHashSet<U256>,
     /// The constants, in order, which inputs and their worlds draw words from.
     palette: Arc<[U256]>,
     /// Whether the function or a function it calls reads or writes storage or its context.
     world: bool,
     references: Vec<Reference>,
-    /// Inputs on which the original runs on past [`LONG_FUEL`] or the call depth.
-    unfinished: Vec<Input>,
+    /// Inputs on which the original runs on past its fuel or the call depth, and the fuel it had.
+    unfinished: Vec<(Input, Budget)>,
     baseline: CostReport,
 }
 
@@ -229,23 +235,27 @@ impl<'a> Tests<'a> {
         let mut run = |input: Input,
                        probe: bool,
                        references: &mut Vec<Reference>,
-                       unfinished: &mut Vec<Input>| {
+                       unfinished: &mut Vec<(Input, Budget)>| {
             let mut execution = execute(&machine, id, &input, &palette, ORIGINAL_FUEL, &mut meter);
+            let mut fuel = ORIGINAL_FUEL;
             let long = matches!(execution.outcome, Outcome::Limit(Limit::Fuel))
                 && long_runs < MAX_LONG_RUNS;
             if long {
                 long_runs += 1;
                 meter.take();
                 execution = execute(&machine, id, &input, &palette, LONG_FUEL, &mut meter);
+                fuel = LONG_FUEL;
             }
             let spent = meter.take();
             if let Outcome::Unsupported(what) = execution.outcome {
                 return Err(format!("reaches unsupported `{what}`"));
             }
             if let Outcome::Limit(limit) = execution.outcome {
-                // Without the longer fuel, the input may only have needed more.
-                if limit == Limit::Depth || long && limit == Limit::Fuel {
-                    unfinished.push(input);
+                // A run past the fuel or the call depth may still end on chain, so no candidate
+                // may end there instead. A run past the memory limit cannot: memory beyond it costs
+                // more gas than any block holds.
+                if limit != Limit::Memory {
+                    unfinished.push((input, Budget::Fuel(fuel)));
                 }
                 return Ok(());
             }
@@ -318,18 +328,7 @@ impl<'a> Tests<'a> {
         }
         let gas = average_gas(references.iter().map(|reference| (reference, reference.gas)));
         let baseline = CostReport { gas, bytes: code_bytes(target, module, function) };
-        Ok(Self {
-            target,
-            module,
-            id,
-            seed,
-            constants,
-            palette,
-            world,
-            references,
-            unfinished,
-            baseline,
-        })
+        Ok(Self { target, module, id, seed, palette, world, references, unfinished, baseline })
     }
 
     /// The original's cost.
@@ -349,20 +348,26 @@ impl<'a> Tests<'a> {
             coverage.add(&execution);
             gas.push(run_gas(self.target, &reference.input, &execution, spent));
         }
-        for input in &self.unfinished {
-            self.check_runs_on(&machine, input)?;
+        for (input, budget) in &self.unfinished {
+            self.check_runs_on(&machine, input, *budget)?;
         }
         let original = Machine::new(self.module);
-        for input in self.constant_inputs(candidate) {
+        for input in self.constant_inputs(candidate)? {
             let mut execution =
                 execute(&original, self.id, &input, &self.palette, ORIGINAL_FUEL, &mut ());
+            let mut budget = Budget::Fuel(ORIGINAL_FUEL);
             if matches!(execution.outcome, Outcome::Limit(Limit::Fuel)) {
-                execution = execute(&original, self.id, &input, &self.palette, LONG_FUEL, &mut ());
+                // A candidate's constant may be where it stops agreeing, so the original runs as
+                // long as a call could on chain before the input counts as endless.
+                let mut meter = GasMeter::new(self.target, self.module).with_limit(PROBE_GAS);
+                execution =
+                    execute(&original, self.id, &input, &self.palette, u64::MAX, &mut meter);
+                budget = Budget::Gas(PROBE_GAS);
             }
             match execution.outcome {
                 Outcome::Unsupported(_) | Outcome::Limit(Limit::Memory) => continue,
                 Outcome::Limit(_) => {
-                    self.check_runs_on(&machine, &input)?;
+                    self.check_runs_on(&machine, &input, budget)?;
                     continue;
                 }
                 _ => {}
@@ -418,18 +423,36 @@ impl<'a> Tests<'a> {
         (execution, meter.take())
     }
 
-    /// Checks that the candidate, which `machine` runs, also runs on past [`LONG_FUEL`] or the
-    /// call depth on `input`, where the original does. What the original would do there is
-    /// unknown, so a candidate that ends there could return what the original never would.
-    fn check_runs_on(&self, machine: &Machine<'_>, input: &Input) -> Result<(), Rejection> {
-        let execution = execute(machine, self.id, input, &self.palette, LONG_FUEL, &mut ());
+    /// Checks that the candidate, which `machine` runs, runs on past a quarter of `budget` on
+    /// `input`, where the original runs out of it. What the original would do there is unknown, so
+    /// a candidate that ends there could return what the original never would; a quarter leaves
+    /// room for a candidate that runs the same loop faster.
+    fn check_runs_on(
+        &self,
+        machine: &Machine<'_>,
+        input: &Input,
+        budget: Budget,
+    ) -> Result<(), Rejection> {
+        let execution = match budget {
+            Budget::Fuel(fuel) => {
+                execute(machine, self.id, input, &self.palette, fuel / 4, &mut ())
+            }
+            Budget::Gas(gas) => {
+                let mut meter = GasMeter::new(self.target, self.module).with_limit(gas / 4);
+                execute(machine, self.id, input, &self.palette, u64::MAX, &mut meter)
+            }
+        };
         if matches!(execution.outcome, Outcome::Limit(_)) {
             return Ok(());
         }
+        let ran = match budget {
+            Budget::Fuel(fuel) => format!("{fuel} steps"),
+            Budget::Gas(gas) => format!("{gas} gas"),
+        };
         let reason = format!(
-            "the original runs on past the tests' limits, but the candidate {} after {} steps; a \
-             candidate must not end where the original runs on, since the tests cannot know what \
-             the original does there",
+            "the original runs on past {ran} without ending, but the candidate {} after {} steps; \
+             a candidate must not end where the original runs on, since the tests cannot know \
+             what the original does there",
             describe_outcome(&execution.outcome),
             execution.fuel
         );
@@ -526,37 +549,47 @@ impl<'a> Tests<'a> {
         text
     }
 
-    /// Builds inputs that place each constant the candidate adds, and its neighbors and
-    /// left-aligned form, in each word argument of an existing input and, when either function
-    /// reads storage or its context, in half of the world's answers.
-    fn constant_inputs(&self, candidate: &Function) -> Vec<Input> {
-        let mut added = constants(candidate)
-            .into_iter()
-            .filter(|constant| !self.constants.contains(constant))
-            .collect::<Vec<_>>();
-        added.sort_unstable();
+    /// Builds inputs that place each constant of the candidate, its neighbors and left-aligned
+    /// form, and the powers of two its shifts cross, in ascending order, in each word argument of
+    /// an existing input and, when either function reads storage or its context, in all of the
+    /// world's answers or half of them.
+    ///
+    /// A constant may be a bound past which a candidate stops agreeing with the original, so
+    /// every one is tried, and a candidate whose constants make more inputs than the tests try is
+    /// rejected.
+    fn constant_inputs(&self, candidate: &Function) -> Result<Vec<Input>, Rejection> {
+        let mut values = constants(candidate);
+        values.extend(shift_bounds(candidate));
+        let mut values = values.into_iter().collect::<Vec<_>>();
+        values.sort_unstable();
         let params = &self.module.function(self.id).params;
         let world = self.world || uses_world(candidate);
-        let mut inputs = Vec::new();
-        for (index, &constant) in added.iter().enumerate() {
-            let base = mix64(self.seed ^ index as u64) as usize % self.references.len();
+        let count = values.len() * (params.len() + if world { 2 } else { 0 });
+        if count > MAX_CONSTANT_INPUTS {
+            let reason = format!(
+                "its constants make {count} inputs, more than the {MAX_CONSTANT_INPUTS} the tests \
+                 try"
+            );
+            return Err(Rejection::new(Stage::Equivalence, reason));
+        }
+        let mut inputs = Vec::with_capacity(count);
+        for constant in values {
+            // A constant lands in the same input for every candidate.
+            let base = mix64(self.seed ^ constant.as_limbs()[0]) as usize % self.references.len();
             for (param, &ty) in params.iter().enumerate() {
-                if inputs.len() == MAX_CONSTANT_INPUTS {
-                    return inputs;
-                }
                 let mut input = self.references[base].input.clone();
                 input.args[param] = mask(constant, ty);
                 inputs.push(input);
             }
-            for share in [1, 2] {
-                if world && inputs.len() < MAX_CONSTANT_INPUTS {
+            if world {
+                for share in [1, 2] {
                     let mut input = self.references[base].input.clone();
                     input.focus = Some(Focus { word: constant, share });
                     inputs.push(input);
                 }
             }
         }
-        inputs
+        Ok(inputs)
     }
 }
 
@@ -841,6 +874,36 @@ fn average_gas<'r>(runs: impl Iterator<Item = (&'r Reference, u64)>) -> u64 {
     }
     let (total, count) = if returning == 0 { (total, count) } else { (returning_total, returning) };
     u64::try_from(total / count.max(1)).unwrap_or(u64::MAX)
+}
+
+/// What a run of the original ran out of before it ended.
+#[derive(Clone, Copy, Debug)]
+enum Budget {
+    /// Fuel, which counts operations.
+    Fuel(u64),
+    /// Gas, as the target prices the operations.
+    Gas(u64),
+}
+
+/// Returns the values on either side of each power of two a shift by a constant of `function`
+/// crosses: `x >> k` turns nonzero from `2^k` on, a bound no literal in the code spells out.
+fn shift_bounds(function: &Function) -> FxHashSet<U256> {
+    let mut bounds = FxHashSet::default();
+    for inst in function.instructions() {
+        let (InstKind::Shl(shift, _) | InstKind::Shr(shift, _) | InstKind::Sar(shift, _)) =
+            function.inst(inst).kind
+        else {
+            continue;
+        };
+        if let Value::Immediate(immediate) = function.value(shift)
+            && let Some(shift) = immediate.as_u256()
+            && shift < U256::from(256)
+        {
+            let power = U256::ONE << shift.to::<usize>();
+            bounds.extend([power - U256::ONE, power, power.wrapping_add(U256::ONE)]);
+        }
+    }
+    bounds
 }
 
 /// Runs function `id` with `machine` on `input` with `fuel`, in the input's world, whose words
