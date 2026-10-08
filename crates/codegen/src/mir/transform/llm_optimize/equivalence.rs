@@ -8,12 +8,15 @@
 //!
 //! - Both must end the same way: return the same words, revert or return the same payload, stop, or
 //!   reach `invalid`. A candidate that exceeds its limits where the original finished fails.
-//! - Where the original runs on past its fuel, its gas, or the call depth, what it would do is
-//!   unknown, so the candidate must run on as well, past a quarter of the same budget: one that
-//!   ends there, by returning or reverting, fails. A candidate that replaces a loop with a formula
-//!   therefore only passes when the loop's trip count stays within the fuel on every input, as a
-//!   masked bound keeps it. No run is dropped but those past the memory limit, which no block can
-//!   pay for, so every input at a candidate's constants a call could finish on chain is compared.
+//! - Where the original runs on past its fuel or the call depth, the candidate gets the same fuel.
+//!   If it runs on as well, what either would do is unknown. If it ends, the original runs again
+//!   until it ends or has spent twice a block's gas, as at a candidate's constants, and the
+//!   candidate must end as it does. Where the original still runs on, or calls too deeply, what it
+//!   would do is unknown, so a candidate that ends there, by returning or reverting, fails. A
+//!   candidate that replaces a loop with a formula therefore only passes when the loop ends within
+//!   that gas on every input, as a masked bound keeps it, and the original needs at most four times
+//!   that gas in all to finish the inputs its fuel does not. No run is dropped but those past the
+//!   memory limit, which no block can pay for.
 //! - The candidate may only write memory bytes the original writes on the same input. The backend
 //!   keeps its call frames and spill slots in memory no MIR function addresses, so a byte the
 //!   original never writes may belong to another function; a scratch word may be one a caller keeps
@@ -89,7 +92,7 @@ use solar_data_structures::{
     index::{IndexVec, index_vec},
     map::{FxHashMap, FxHashSet},
 };
-use std::{fmt::Write, sync::Arc};
+use std::{cell::OnceCell, fmt::Write, sync::Arc};
 
 /// Runs of the original that must finish before its tests count.
 const MIN_FINISHED_RUNS: usize = 16;
@@ -101,9 +104,14 @@ const LONG_FUEL: u64 = 400_000;
 /// The most generated inputs that run again with [`LONG_FUEL`], which bounds the time a
 /// function's tests take.
 const MAX_LONG_RUNS: usize = 32;
-/// Gas the original may spend on an input at a candidate's constants: twice a block's, so that
-/// every such input a call could finish on chain, give or take the cost model's error, is compared.
+/// Gas the original may spend on an input it runs again to compare a candidate, such as one at a
+/// candidate's constants: twice a block's, so that every such input a call could finish on chain,
+/// give or take the cost model's error, is compared.
 const PROBE_GAS: u64 = 2 * Target::BLOCK_GAS_LIMIT;
+/// Gas the original may spend in all, for one candidate, running again on the inputs it did not
+/// finish but the candidate does: four runs of [`PROBE_GAS`]. A candidate that needs more is
+/// rejected rather than compared on some of them.
+const EARLY_END_GAS: u64 = 4 * PROBE_GAS;
 /// Call depth of one run.
 const DEPTH: usize = 64;
 /// The most inputs at a candidate's constants; a candidate whose constants make more is rejected
@@ -206,9 +214,19 @@ pub(super) struct Tests<'a> {
     /// Whether the function or a function it calls reads or writes storage or its context.
     world: bool,
     references: Vec<Reference>,
-    /// Inputs on which the original runs on past its fuel or the call depth, and the fuel it had.
-    unfinished: Vec<(Input, Budget)>,
+    /// Inputs on which the original runs on past its fuel or the call depth.
+    unfinished: Vec<Unfinished>,
     baseline: CostReport,
+}
+
+/// An input on which the original runs on past its fuel or the call depth.
+struct Unfinished {
+    input: Input,
+    /// The fuel the original had, which a candidate gets as well.
+    budget: Budget,
+    /// The original's run once it may spend [`PROBE_GAS`], and the gas it spent there, made when a
+    /// candidate first ends within `budget`.
+    longer: OnceCell<(Execution, u64)>,
 }
 
 impl<'a> Tests<'a> {
@@ -235,7 +253,7 @@ impl<'a> Tests<'a> {
         let mut run = |input: Input,
                        probe: bool,
                        references: &mut Vec<Reference>,
-                       unfinished: &mut Vec<(Input, Budget)>| {
+                       unfinished: &mut Vec<Unfinished>| {
             let mut execution = execute(&machine, id, &input, &palette, ORIGINAL_FUEL, &mut meter);
             let mut fuel = ORIGINAL_FUEL;
             let long = matches!(execution.outcome, Outcome::Limit(Limit::Fuel))
@@ -251,11 +269,12 @@ impl<'a> Tests<'a> {
                 return Err(format!("reaches unsupported `{what}`"));
             }
             if let Outcome::Limit(limit) = execution.outcome {
-                // A run past the fuel or the call depth may still end on chain, so no candidate
-                // may end there instead. A run past the memory limit cannot: memory beyond it costs
-                // more gas than any block holds.
+                // A run past the fuel or the call depth may still end on chain, so a candidate that
+                // ends there must end as the original does once it runs longer. A run past the
+                // memory limit cannot: memory beyond it costs more gas than any block holds.
                 if limit != Limit::Memory {
-                    unfinished.push((input, Budget::Fuel(fuel)));
+                    let budget = Budget::Fuel(fuel);
+                    unfinished.push(Unfinished { input, budget, longer: OnceCell::new() });
                 }
                 return Ok(());
             }
@@ -348,10 +367,35 @@ impl<'a> Tests<'a> {
             coverage.add(&execution);
             gas.push(run_gas(self.target, &reference.input, &execution, spent));
         }
-        for (input, budget) in &self.unfinished {
-            self.check_runs_on(&machine, input, *budget)?;
-        }
         let original = Machine::new(self.module);
+        let mut rerun_gas = 0u64;
+        for unfinished in &self.unfinished {
+            let execution = self.run_within(&machine, &unfinished.input, unfinished.budget);
+            if matches!(execution.outcome, Outcome::Limit(_)) {
+                // Both run on, and what either does next is unknown.
+                continue;
+            }
+            // The candidate ends where the original had not, so the original runs on as long as a
+            // call could on chain, and the candidate must end as it does.
+            let (longer, gas) =
+                unfinished.longer.get_or_init(|| self.run_longer(&original, &unfinished.input));
+            rerun_gas = rerun_gas.saturating_add(*gas);
+            if rerun_gas > EARLY_END_GAS {
+                let reason = format!(
+                    "the candidate ends early on inputs the original does not finish within the \
+                     tests' fuel, and finishing them takes the original more than \
+                     {EARLY_END_GAS} gas in all, more than the tests spend"
+                );
+                return Err(Rejection {
+                    stage: Stage::Equivalence,
+                    reason,
+                    counterexample: Some(self.describe(&unfinished.input)),
+                });
+            }
+            if self.ends_as(&unfinished.input, longer, &execution)? {
+                coverage.add(&execution);
+            }
+        }
         for input in self.constant_inputs(candidate)? {
             let mut execution =
                 execute(&original, self.id, &input, &self.palette, ORIGINAL_FUEL, &mut ());
@@ -359,15 +403,18 @@ impl<'a> Tests<'a> {
             if matches!(execution.outcome, Outcome::Limit(Limit::Fuel)) {
                 // A candidate's constant may be where it stops agreeing, so the original runs as
                 // long as a call could on chain before the input counts as endless.
-                let mut meter = GasMeter::new(self.target, self.module).with_limit(PROBE_GAS);
-                execution =
-                    execute(&original, self.id, &input, &self.palette, u64::MAX, &mut meter);
+                execution = self.run_longer(&original, &input).0;
                 budget = Budget::Gas(PROBE_GAS);
             }
             match execution.outcome {
                 Outcome::Unsupported(_) | Outcome::Limit(Limit::Memory) => continue,
                 Outcome::Limit(_) => {
-                    self.check_runs_on(&machine, &input, budget)?;
+                    // What the original does past the budget is unknown, so the candidate must
+                    // run on past it as well.
+                    let candidate_execution = self.run_within(&machine, &input, budget);
+                    if !matches!(candidate_execution.outcome, Outcome::Limit(_)) {
+                        return Err(self.ends_early(&input, &execution, &candidate_execution));
+                    }
                     continue;
                 }
                 _ => {}
@@ -423,44 +470,60 @@ impl<'a> Tests<'a> {
         (execution, meter.take())
     }
 
-    /// Checks that the candidate, which `machine` runs, runs on past a quarter of `budget` on
-    /// `input`, where the original runs out of it. What the original would do there is unknown, so
-    /// a candidate that ends there could return what the original never would; a quarter leaves
-    /// room for a candidate that runs the same loop faster.
-    fn check_runs_on(
-        &self,
-        machine: &Machine<'_>,
-        input: &Input,
-        budget: Budget,
-    ) -> Result<(), Rejection> {
-        let execution = match budget {
-            Budget::Fuel(fuel) => {
-                execute(machine, self.id, input, &self.palette, fuel / 4, &mut ())
-            }
+    /// Runs function `id` with `machine`, the original or the candidate, on `input` within
+    /// `budget`.
+    fn run_within(&self, machine: &Machine<'_>, input: &Input, budget: Budget) -> Execution {
+        match budget {
+            Budget::Fuel(fuel) => execute(machine, self.id, input, &self.palette, fuel, &mut ()),
             Budget::Gas(gas) => {
-                let mut meter = GasMeter::new(self.target, self.module).with_limit(gas / 4);
+                let mut meter = GasMeter::new(self.target, self.module).with_limit(gas);
                 execute(machine, self.id, input, &self.palette, u64::MAX, &mut meter)
             }
-        };
-        if matches!(execution.outcome, Outcome::Limit(_)) {
-            return Ok(());
         }
-        let ran = match budget {
-            Budget::Fuel(fuel) => format!("{fuel} steps"),
-            Budget::Gas(gas) => format!("{gas} gas"),
+    }
+
+    /// Runs the original, which `original` runs, on `input` until it ends or has spent
+    /// [`PROBE_GAS`], as long as a call could run on chain. Returns the run and the gas it spent.
+    fn run_longer(&self, original: &Machine<'_>, input: &Input) -> (Execution, u64) {
+        let mut meter = GasMeter::new(self.target, self.module).with_limit(PROBE_GAS);
+        let execution = execute(original, self.id, input, &self.palette, u64::MAX, &mut meter);
+        (execution, meter.take())
+    }
+
+    /// Compares the candidate's run on `input`, which ends within the budget the original ran out
+    /// of, with `longer`, the original's run once it may spend [`PROBE_GAS`]. Returns whether they
+    /// were compared: an original that needs more memory than any block pays for cannot end on
+    /// chain, and one that reaches an operation the interpreter lacks cannot be compared, so either
+    /// input passes, as one at a candidate's constants does.
+    fn ends_as(
+        &self,
+        input: &Input,
+        longer: &Execution,
+        candidate: &Execution,
+    ) -> Result<bool, Rejection> {
+        match longer.outcome {
+            Outcome::Unsupported(_) | Outcome::Limit(Limit::Memory) => Ok(false),
+            Outcome::Limit(_) => Err(self.ends_early(input, longer, candidate)),
+            _ => self.compare(input, longer, candidate).map(|()| true),
+        }
+    }
+
+    /// Rejects a candidate whose run `candidate` ends on `input` where the original's run
+    /// `original` runs on. What the original does there is unknown, so a candidate that ends
+    /// there could return what the original never would.
+    fn ends_early(&self, input: &Input, original: &Execution, candidate: &Execution) -> Rejection {
+        let original_runs = match original.outcome {
+            Outcome::Limit(Limit::Depth) => "calls deeper than the tests allow".to_string(),
+            _ => format!("runs on past {PROBE_GAS} gas without ending"),
         };
         let reason = format!(
-            "the original runs on past {ran} without ending, but the candidate {} after {} steps; \
-             a candidate must not end where the original runs on, since the tests cannot know \
-             what the original does there",
-            describe_outcome(&execution.outcome),
-            execution.fuel
+            "the original {original_runs}, but the candidate {} after {} steps; a candidate must \
+             not end where the original runs on, since the tests cannot know what the original \
+             does there",
+            describe_outcome(&candidate.outcome),
+            candidate.fuel
         );
-        Err(Rejection {
-            stage: Stage::Equivalence,
-            reason,
-            counterexample: Some(self.describe(input)),
-        })
+        Rejection { stage: Stage::Equivalence, reason, counterexample: Some(self.describe(input)) }
     }
 
     /// Runs the original on `input` and returns what it reads from its world.

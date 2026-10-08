@@ -192,16 +192,17 @@ Each candidate goes through these stages, and the verdict names the one that rej
    static call whatever it stores, so a write the original does not make would fail where the
    original succeeds, and one it drops, even of the value a slot held, would succeed where the
    original fails. Up to 32 generated inputs on which the original runs out of fuel run again with
-   twenty times as much; on inputs at the candidate's constants, the original runs until it ends or
-   has spent twice a block's gas, so that every such input a call could finish on chain is compared.
-   Where the original still runs on, or calls too deeply, what it would do is unknown, so the
-   candidate must run on as well, past a quarter of the same budget, and one that ends there fails.
-   A formula replaces a loop only when every input keeps the loop within the fuel, as a masked bound
-   does. The inputs must exercise the candidate as they exercise the original, under the rules
-   above. Decisions are comparisons and the `and`, `or`, and `xor` of booleans, which is how
-   if-converted code combines comparisons without branching; values must come out nonzero because a
-   path the inputs only complete on null pointers or empty data computes nothing a change would
-   alter.
+   twenty times as much. Where the original still runs on, or calls too deeply, the candidate gets
+   the same fuel: if it runs on too, what either would do is unknown, and if it ends, the original
+   runs again until it ends or has spent twice a block's gas, as on inputs at the candidate's
+   constants, and the candidate must end as it does. Where the original runs on even then, what it
+   would do is unknown, so a candidate that ends there fails. A formula replaces a loop only when
+   every input keeps the loop within that gas, as a masked bound does, and the original needs at
+   most four times that gas in all to finish the inputs its fuel does not. The inputs must exercise
+   the candidate as they exercise the original, under the rules above. Decisions are comparisons and
+   the `and`, `or`, and `xor` of booleans, which is how if-converted code combines comparisons
+   without branching; values must come out nonzero because a path the inputs only complete on null
+   pointers or empty data computes nothing a change would alter.
 5. **Cost.** The target cost model prices the candidate, which must beat the best so far: by at
    least one stack copy of lifetime gas in gas builds, and in bytes, then gas, in size builds.
 
@@ -371,10 +372,11 @@ compiles a Foundry project this way.
   a four-byte error selector, or change behavior only on inputs the generators rarely reach,
   such as a bound one exact value reaches or a stored string shrinking to exactly one word.
   Proving loop-free candidates with the SMT checker in `scripts/evm-rules/` is future work.
-- Inputs on which the original cannot finish within twice a block's gas, at a candidate's
-  constants, or within 400,000 steps elsewhere, are not compared: the candidate only has to run
-  on there too. A candidate that runs as long but ends differently on such inputs passes, as does
-  one that differs only past a bound that neither its constants nor its shifts name.
+- On an input the original does not finish within the tests' budget, its fuel or, at a candidate's
+  constants, twice a block's gas, a candidate that runs past the same budget is not compared, since
+  what either returns later is unknown. A candidate that runs as long as the original but ends
+  differently on such inputs passes, as does one that differs only past a bound that neither its
+  constants nor its shifts name.
 - The interpreter models no calldata, `gas`, code reads, or calls to other contracts, so functions
   that use them are not offered. On the project archives, 28% of the reachable internal functions
   are offered. Decisions the inputs never complete both ways without reverting account for most

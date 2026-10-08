@@ -1,8 +1,8 @@
 llm-optimize Fuel @main: not offered: is the dispatch entry
 llm-optimize Fuel @sum: offered at 6366 gas, 43 bytes
-llm-optimize Fuel @sum: round 1: rejected at equivalence: the original runs on past 400000 steps without ending, but the candidate returns 0x2000000000000000003000000000000000001 after 9 steps; a candidate must not end where the original runs on, since the tests cannot know what the original does there
+llm-optimize Fuel @sum: round 1: rejected at equivalence: the original runs on past 120000000 gas without ending, but the candidate returns 0x2000000000000000003000000000000000001 after 9 steps; a candidate must not end where the original runs on, since the tests cannot know what the original does there
   on arg0 = 0xfffffffffffffffffffffffffffffffffffffffffffffdffffffffffffffffff, free memory pointer 0x198e0
-llm-optimize Fuel @sum: round 2: rejected at equivalence: the original runs on past 400000 steps without ending, but the candidate returns 0x2000000000000000003000000000000000001 after 4 steps; a candidate must not end where the original runs on, since the tests cannot know what the original does there
+llm-optimize Fuel @sum: round 2: rejected at equivalence: the original runs on past 120000000 gas without ending, but the candidate returns 0x2000000000000000003000000000000000001 after 4 steps; a candidate must not end where the original runs on, since the tests cannot know what the original does there
   on arg0 = 0xfffffffffffffffffffffffffffffffffffffffffffffdffffffffffffffffff, free memory pointer 0x198e0
 llm-optimize Fuel @sum: round 3: rejected at equivalence: the original returns 0x1fff000, but the candidate returns 0x5ffd000
   on arg0 = 0x2000, free memory pointer 0x1e0

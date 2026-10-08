@@ -2,11 +2,11 @@
 //@ compile-flags: -Zllm-script=../../tests/ui/codegen/mir/llm-optimize/auxiliary/fuel.script
 // The loop takes as many steps as its argument says. Where the tests' first fuel runs out, the
 // original runs again with more, which compares a candidate tripling the sum from 8192 on. Where
-// even that runs out, what the loop returns is unknown, so the candidate must still be running
-// too: closed forms, which return at once, are rejected. At a candidate's own constants, and the
-// powers of two its shifts cross, the original runs as long as a call could on chain: candidates
-// of `@total` that drop its loop's redundant `mul` but triple the sum from 60001, or from 2^16,
-// are compared there; they are cheaper, and passed before.
+// even that runs out but a candidate ends, the original runs on as long as a call could on chain,
+// and on a huge argument it still does not end: closed forms, which return at once, are rejected.
+// At a candidate's own constants, and the powers of two its shifts cross, the original runs that
+// long too: candidates of `@total` that drop its loop's redundant `mul` but triple the sum from
+// 60001, or from 2^16, are compared there; they are cheaper, and passed before.
 @module Fuel
 @phase lowered
 fn @main() [entry] {
