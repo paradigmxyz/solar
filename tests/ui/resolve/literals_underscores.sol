@@ -12,6 +12,7 @@ contract LT {
     //~^ ERROR: invalid use of underscores in number literal
 
     uint X1 = 0x1234__1234__1234__123; //~ ERROR: invalid use of underscores in number literal
+    uint X2 = 0x_1234; //~ ERROR: invalid use of underscores in number literal
 
     uint D1 = 1234_; //~ ERROR: invalid use of underscores in number literal
     uint D2 = 12__34; //~ ERROR: invalid use of underscores in number literal
