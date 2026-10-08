@@ -82,18 +82,13 @@ impl<'a> FileResolver<'a> {
         if let Ok(current_dir) = std::env::current_dir() {
             self.set_current_dir(&current_dir);
         }
-        'b: {
-            if let Some(base_path) = &opts.base_path {
-                let base_path = if base_path.is_absolute() {
-                    base_path.as_path()
-                } else {
-                    &if let Ok(path) = self.canonicalize_unchecked(base_path) {
-                        path
-                    } else {
-                        break 'b;
-                    }
-                };
-                self.set_base_path(base_path);
+        if let Some(base_path) = &opts.base_path {
+            // Like solc, normalize lexically against the current directory: file loaders may
+            // canonicalize to relative paths, as in Standard JSON mode.
+            let base_path = self.make_absolute(base_path);
+            let base_path = self.normalize(&base_path);
+            if base_path.is_absolute() {
+                self.set_base_path(&base_path);
                 // Source unit names are relative to the base path after parent paths are stripped.
                 self.custom_current_dir = self.base_path.clone();
             }
