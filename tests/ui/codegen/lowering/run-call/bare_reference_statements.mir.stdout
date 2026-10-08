@@ -48,6 +48,24 @@ fn @revertingReceiver() [selector=0x4f422a71, pure, abi_params=[], abi_returns=[
     ret
 }
 
+fn @constantStatement() [selector=0xc51fba65, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    v0 = checked_add u256, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 1
+    ret
+}
+
+fn @constantMember() [selector=0xbfffd8f3, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    v0 = checked_add u256, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 1
+    ret
+}
+
+fn @constantTuple() [selector=0x4980abd6, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    v0 = checked_add u256, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 1
+    ret
+}
+
 fn @receive() [receive, payable] {
   bb0:
     ret

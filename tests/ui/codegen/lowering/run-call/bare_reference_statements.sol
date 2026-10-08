@@ -4,6 +4,9 @@
 //@ run-call: tupleEffects => 2
 //@ run-call: moduleSelector => 0x26121ff0
 //@ run-call-fail: revertingReceiver => 0x
+//@ run-call-fail: constantStatement => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
+//@ run-call-fail: constantMember => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
+//@ run-call-fail: constantTuple => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
 //@ run-call: 0x; value=7
 
 import "./auxiliary/bare_reference_module.sol" as Module;
@@ -15,6 +18,9 @@ interface IToken {
 contract BareReferenceStatements {
     event Withdrawn(uint256 amount);
     error Failed();
+
+    uint256 internal constant MAX = type(uint256).max;
+    uint256 internal constant OVERFLOW = MAX + 1;
 
     uint256 private count;
 
@@ -69,6 +75,18 @@ contract BareReferenceStatements {
 
     function revertingReceiver() external pure {
         fail().transfer;
+    }
+
+    function constantStatement() external pure {
+        OVERFLOW;
+    }
+
+    function constantMember() external pure {
+        BareReferenceStatements.OVERFLOW;
+    }
+
+    function constantTuple() external pure {
+        (block, OVERFLOW);
     }
 
     receive() external payable {
