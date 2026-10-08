@@ -1990,31 +1990,41 @@ impl<'gcx> ResolveContext<'gcx> {
                 ast::ElementaryType::UInt(size) if size == ast::TypeSize::ZERO => {
                     ast::ElementaryType::UInt(ast::TypeSize::new_int_bits(256))
                 }
+                ast::ElementaryType::Fixed(size, _) if size == ast::TypeSize::ZERO => {
+                    ast::ElementaryType::Fixed(
+                        ast::TypeSize::new_int_bits(128),
+                        ast::TypeFixedSize::new(18).unwrap(),
+                    )
+                }
+                ast::ElementaryType::UFixed(size, _) if size == ast::TypeSize::ZERO => {
+                    ast::ElementaryType::UFixed(
+                        ast::TypeSize::new_int_bits(128),
+                        ast::TypeFixedSize::new(18).unwrap(),
+                    )
+                }
                 ty => ty,
             }),
             ast::TypeKind::Array(array) => hir::TypeKind::Array(self.arena.alloc(hir::TypeArray {
                 element: self.lower_type(&array.element),
                 size: self.lower_expr_opt(array.size.as_deref()),
             })),
-            ast::TypeKind::Function(f) => hir::TypeKind::Function(
-                self.arena.alloc(hir::TypeFunction {
+            ast::TypeKind::Function(f) => {
+                let visibility = f.visibility().unwrap_or(ast::Visibility::Internal);
+                hir::TypeKind::Function(self.arena.alloc(hir::TypeFunction {
                     parameters: self.lower_variables_hidden(
                         *f.parameters,
                         self.function_id.map(hir::ItemId::Function),
-                        hir::VarKind::FunctionTyParam,
+                        hir::VarKind::FunctionTyParam(visibility),
                     ),
-                    visibility: f.visibility.map(|v| *v).unwrap_or(ast::Visibility::Public),
-                    state_mutability: f
-                        .state_mutability
-                        .map(|s| s.data)
-                        .unwrap_or(ast::StateMutability::NonPayable),
+                    visibility,
+                    state_mutability: f.state_mutability(),
                     returns: self.lower_variables_hidden(
                         f.returns(),
                         self.function_id.map(hir::ItemId::Function),
-                        hir::VarKind::FunctionTyReturn,
+                        hir::VarKind::FunctionTyReturn(visibility),
                     ),
-                }),
-            ),
+                }))
+            }
             ast::TypeKind::Mapping(mapping) => {
                 hir::TypeKind::Mapping(self.arena.alloc(hir::TypeMapping {
                     key: self.lower_type(&mapping.key),

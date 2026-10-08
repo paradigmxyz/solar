@@ -1325,8 +1325,8 @@ impl<'hir> Variable<'hir> {
     pub fn is_local_variable(&self) -> bool {
         matches!(
             self.kind,
-            VarKind::FunctionTyParam
-                | VarKind::FunctionTyReturn
+            VarKind::FunctionTyParam(_)
+                | VarKind::FunctionTyReturn(_)
                 | VarKind::Event
                 | VarKind::Error
                 | VarKind::FunctionParam
@@ -1342,9 +1342,9 @@ impl<'hir> Variable<'hir> {
             VarKind::Event
                 | VarKind::Error
                 | VarKind::FunctionParam
-                | VarKind::FunctionTyParam
+                | VarKind::FunctionTyParam(_)
                 | VarKind::FunctionReturn
-                | VarKind::FunctionTyReturn
+                | VarKind::FunctionTyReturn(_)
                 | VarKind::TryCatch
         )
     }
@@ -1355,7 +1355,7 @@ impl<'hir> Variable<'hir> {
     }
 
     pub fn is_return_parameter(&self) -> bool {
-        matches!(self.kind, VarKind::FunctionReturn | VarKind::FunctionTyReturn)
+        matches!(self.kind, VarKind::FunctionReturn | VarKind::FunctionTyReturn(_))
     }
 
     pub fn is_try_catch_parameter(&self) -> bool {
@@ -1396,10 +1396,10 @@ pub enum VarKind {
     FunctionParam,
     /// Defined as a function return.
     FunctionReturn,
-    /// Defined as a function type parameter.
-    FunctionTyParam,
-    /// Defined as a function type return.
-    FunctionTyReturn,
+    /// Defined as a parameter of a function type with the given visibility.
+    FunctionTyParam(Visibility),
+    /// Defined as a return of a function type with the given visibility.
+    FunctionTyReturn(Visibility),
     /// Defined as a statement, inside of a function, block or `for` statement.
     Statement,
     /// Defined in a catch clause.
@@ -1415,8 +1415,8 @@ impl VarKind {
             Self::Enum => "enum variant",
             Self::Event => "event parameter",
             Self::Error => "error parameter",
-            Self::FunctionParam | Self::FunctionTyParam => "function parameter",
-            Self::FunctionReturn | Self::FunctionTyReturn => "function return parameter",
+            Self::FunctionParam | Self::FunctionTyParam(_) => "function parameter",
+            Self::FunctionReturn | Self::FunctionTyReturn(_) => "function return parameter",
             Self::Statement => "variable",
             Self::TryCatch => "try/catch clause",
         }

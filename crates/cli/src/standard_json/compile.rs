@@ -523,7 +523,13 @@ fn callback_path(path: &Path) -> Cow<'_, str> {
     } else {
         path
     };
-    path.to_string_lossy()
+    generic_separators(path.to_string_lossy())
+}
+
+/// Uses `/` in a source unit name built from native path components.
+fn generic_separators(name: Cow<'_, str>) -> Cow<'_, str> {
+    // Backslashes are path separators only on Windows; elsewhere they belong to the name.
+    if cfg!(windows) && name.contains('\\') { name.replace('\\', "/").into() } else { name }
 }
 
 fn disallowed_io(path: &Path) -> io::Error {
