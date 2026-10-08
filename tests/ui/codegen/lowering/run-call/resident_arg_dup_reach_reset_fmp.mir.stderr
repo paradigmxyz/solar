@@ -1,0 +1,6 @@
+error: codegen cannot preserve values across a low-memory write in `f0`
+
+error: codegen cannot preserve values across a low-memory write in `f1`
+
+error: aborting due to 2 previous errors
+

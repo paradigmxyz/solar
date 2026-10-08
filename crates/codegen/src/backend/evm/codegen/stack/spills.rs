@@ -684,14 +684,11 @@ impl<'gcx> EvmCodegen<'gcx> {
             {
                 return false;
             }
-            let Some(depth) = depth else {
-                if self.recover_lost_internal_stack_value(operand) {
-                    return false;
-                }
-                panic!("stack-only CALL operand {operand:?} was lost before its use");
-            };
-            assert!(depth < stack_access_limit, "stack-only CALL operand exceeded DUP reach");
-            self.emit_stack_op(StackOp::Dup((depth + 1) as u8));
+            if !self.dup_resident_value(operand, |_| {
+                format!("stack-only CALL operand {operand:?} was lost or out of DUP reach")
+            }) {
+                return false;
+            }
         }
         true
     }
@@ -1310,19 +1307,34 @@ impl<'gcx> EvmCodegen<'gcx> {
             while self.scheduler.stack.iter().filter(|slot| *slot == Some(operand)).count()
                 <= consumed
             {
-                let depth = self.scheduler.stack.find(operand).unwrap_or_else(|| {
-                    if self.recover_lost_internal_stack_value(operand) {
-                        return 0;
-                    }
-                    panic!("resident stack argument {operand:?} was lost before its final use")
+                self.dup_resident_value(operand, |_| {
+                    format!(
+                        "resident stack argument {operand:?} was lost or out of DUP reach before \
+                         its final use"
+                    )
                 });
-                assert!(
-                    depth < self.stack_access_limit(),
-                    "resident stack argument exceeded DUP reach"
-                );
-                self.emit_stack_op(StackOp::Dup((depth + 1) as u8));
             }
         }
+    }
+
+    /// Duplicates a resident stack-only value, or abandons the speculative internal stack ABI
+    /// when the value is lost or out of DUP reach. Returns `false` when it pushed a placeholder
+    /// instead of a copy.
+    pub(in crate::backend::evm::codegen) fn dup_resident_value(
+        &mut self,
+        value: ValueId,
+        unrecoverable: impl FnOnce(&Self) -> String,
+    ) -> bool {
+        if let Some(depth) = self.scheduler.stack.find(value)
+            && depth < self.stack_access_limit()
+        {
+            self.emit_stack_op(StackOp::Dup((depth + 1) as u8));
+            return true;
+        }
+        if self.recover_lost_internal_stack_value(value) {
+            return false;
+        }
+        panic!("{}", unrecoverable(self))
     }
 
     /// Abandons a speculative internal stack ABI after one of its values was lost or became

@@ -650,22 +650,14 @@ impl<'gcx> EvmCodegen<'gcx> {
                 while self.scheduler.stack.iter().filter(|slot| *slot == Some(value)).count()
                     <= consumed
                 {
-                    let depth = self.scheduler.stack.find(value).unwrap_or_else(|| {
-                        if self.recover_lost_internal_stack_value(value) {
-                            return 0;
-                        }
-                        panic!(
-                            "resident argument {value:?} was lost before an internal call in `{}` \
-                             at {block:?}:{inst_idx}; args={args:?}, mask={stack_mask:?}, \
-                             resident={resident_call_values:?}, stack={:?}",
-                            func.name, self.scheduler.stack
+                    self.dup_resident_value(value, |this| {
+                        format!(
+                            "resident argument {value:?} was lost or out of DUP reach before an \
+                             internal call in `{}` at {block:?}:{inst_idx}; args={args:?}, \
+                             mask={stack_mask:?}, resident={resident_call_values:?}, stack={:?}",
+                            func.name, this.scheduler.stack
                         )
                     });
-                    assert!(
-                        depth < self.stack_access_limit(),
-                        "resident argument exceeded DUP reach"
-                    );
-                    self.emit_stack_op(StackOp::Dup((depth + 1) as u8));
                 }
             }
         }

@@ -315,17 +315,13 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
             crate::mir::Value::Arg(index) => {
                 if self.scheduler.is_stack_only_value(val) {
-                    let depth = self.scheduler.stack.find(val).unwrap_or_else(|| {
-                        panic!(
-                            "stack-only argument {val:?} was lost before fresh emission in `{}`",
+                    self.dup_resident_value(val, |_| {
+                        format!(
+                            "stack-only argument {val:?} was lost or out of DUP reach before \
+                             fresh emission in `{}`",
                             func.name
                         )
                     });
-                    assert!(
-                        depth < self.stack_access_limit(),
-                        "stack-only argument exceeded DUP reach"
-                    );
-                    self.emit_stack_op(StackOp::Dup(depth as u8 + 1));
                     return;
                 }
                 if let Some(depth) = self.scheduler.stack.find(val)
