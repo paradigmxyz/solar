@@ -958,9 +958,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
 
         let saved = self.snapshot_bindings(function.parameters);
-        for (&id, &value) in function.parameters.iter().zip(values) {
-            self.values.insert(id, value);
-        }
+        self.bind_inlined_parameters(function.parameters, values);
         let result = self.lower_struct_constructor(return_expr, struct_id, *args);
         self.restore_bindings(&saved);
         result
