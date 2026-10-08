@@ -18,9 +18,19 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let initializer = self.cx.gcx.hir.variable(*id).initializer;
                 let ty = self.cx.gcx.type_of_item((*id).into());
                 if ty.is_ref_at(DataLocation::Storage) {
-                    let Some(initializer) = initializer else { return Some(()) };
-                    let Some(access) = self.storage_access(initializer) else {
-                        return self.cx.report_unsupported(initializer.span, "storage access");
+                    let access = if let Some(initializer) = initializer {
+                        let Some(access) = self.storage_access(initializer) else {
+                            return self.cx.report_unsupported(initializer.span, "storage access");
+                        };
+                        access
+                    } else {
+                        // An unassigned storage reference points at slot zero, like in solc.
+                        // storage_ref = slot 0
+                        StorageAccess {
+                            slot: self.builder.imm(U256::ZERO),
+                            location: StorageLocation::word(U256::ZERO),
+                            offset: None,
+                        }
                     };
                     self.storage_refs.insert(*id, access);
                     return Some(());
