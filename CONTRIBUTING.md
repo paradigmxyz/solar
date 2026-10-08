@@ -254,7 +254,7 @@ PATH; install Lean through elan, which selects the toolchain pinned in
 `scripts/evm-rules/lean/lean-toolchain`. Format Python with
 `uv run --all-packages ruff format .`.
 
-The proof CI job runs on main and for changes to codegen or proof inputs. It
+The proof CI job runs on main and for changes to ISLE rules or proof inputs. It
 proves every selected rule in Lean afresh on each run, caching only the Lean
 toolchain and the built model library. See the
 [proof guide](scripts/evm-rules/README.md) for local commands and failure

@@ -12,8 +12,10 @@ import sys
 import tempfile
 import time
 import unittest
-from contextlib import redirect_stderr, redirect_stdout
+from concurrent.futures import ThreadPoolExecutor
+from contextlib import ExitStack, redirect_stderr, redirect_stdout
 from pathlib import Path
+from queue import SimpleQueue
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
@@ -61,8 +63,9 @@ from evm_rules.verification import (
 from verify import main
 
 # These tests check proof results, not prover performance. Leave headroom for
-# slower CI runners.
-PROOF_TIMEOUT_MS = 30_000
+# slower CI runners and for tests running in parallel: Lean limits the SAT
+# solver by wall-clock time.
+PROOF_TIMEOUT_MS = 120_000
 
 
 def expression(op, *args):
@@ -93,6 +96,24 @@ def tearDownModule():
 def check(lhs, rhs, assumptions=(), timeout_ms=PROOF_TIMEOUT_MS):
     """Decide `assumptions → lhs = rhs` with the Lean model."""
     return shared_checker().check(lhs, rhs, assumptions, timeout_ms)
+
+
+def check_all(queries, timeout_ms=PROOF_TIMEOUT_MS):
+    """Decide each `(lhs, rhs, assumptions)` query, with one Lean checker per core."""
+    idle = SimpleQueue()
+
+    def run(query):
+        worker = idle.get()
+        try:
+            return worker.check(*query, timeout_ms)
+        finally:
+            idle.put(worker)
+
+    jobs = os.cpu_count() or 4
+    with ExitStack() as stack, ThreadPoolExecutor(jobs) as pool:
+        for _ in range(jobs):
+            idle.put(stack.enter_context(Checker(lean_path())))
+        return list(pool.map(run, queries))
 
 
 def verify_rules(path, *, processes=False, timeout_s=PROOF_TIMEOUT_MS // 1000):
@@ -858,21 +879,22 @@ class RuleTests(unittest.TestCase):
             and "power_of_two_shift" not in repr(form)
         ]
         self.assertGreater(len(rules), 10)
+        cases = []
         for bits in (1, 8, 16, 160, 248, 256):
             for rule in rules:
-                with self.subTest(bits=bits, rule=rule.form):
-                    cx = Context(integer_bits=bits)
-                    lhs, rhs = cx.obligation(rule)
-                    result = check(lhs, rhs, cx.assumptions)
-                    if result["status"] == "inapplicable":
-                        self.assertEqual(
-                            check(Expr.const(0), Expr.const(1), cx.assumptions)[
-                                "status"
-                            ],
-                            "inapplicable",
-                        )
-                    else:
-                        self.assertEqual(result["status"], "proved", result)
+                cx = Context(integer_bits=bits)
+                lhs, rhs = cx.obligation(rule)
+                cases.append((bits, rule, (lhs, rhs, cx.assumptions)))
+        results = check_all([query for *_, query in cases])
+        for (bits, rule, (_, _, assumptions)), result in zip(cases, results):
+            with self.subTest(bits=bits, rule=rule.form):
+                if result["status"] == "inapplicable":
+                    self.assertEqual(
+                        check(Expr.const(0), Expr.const(1), assumptions)["status"],
+                        "inapplicable",
+                    )
+                else:
+                    self.assertEqual(result["status"], "proved", result)
 
     def test_native_overflow_guards(self):
         for bits in (1, *range(8, 257, 8)):
