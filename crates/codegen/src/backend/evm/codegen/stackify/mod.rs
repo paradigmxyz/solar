@@ -74,6 +74,7 @@
 //! output. Emission follows the general emitter's block order. Blocks that only jump on are
 //! skipped, and a branch whose successors both need a jump falls through into a trampoline.
 
+use super::stack::rematerializable_nullary_value;
 use super::{
     BlockId, CallGraphInfo, CfgInfo, DenseBitSet, EvmCodegen, FunctionId, FxHashMap, IndexVec,
     InstId, InstKind, LoopAnalyzer, MAX_STACK_DEPTH, Module, OptimizationMode, StackOp, Terminator,
@@ -346,8 +347,21 @@ impl<'gcx> EvmCodegen<'gcx> {
 
         let mut plans: IndexVec<FunctionId, Option<FunctionPlan>> =
             (0..functions).map(|_| None).collect();
-        for func_id in bodies {
-            let plan = self.plan_function_stackified(module, &info, func_id)?;
+        // More live words than reach and every allowed spill can hold rule a function out;
+        // decline before planning any of them.
+        let reach = self.gcx.sess.opts.evm_version.reachable_stack_depth();
+        let mut livenesses = Vec::with_capacity(bodies.len());
+        for &func_id in &bodies {
+            let func = &module.functions[func_id];
+            let liveness = super::Liveness::compute(func);
+            if stack_pressure(func, info.internal.contains(func_id), &liveness) > reach + MAX_SPILLS
+            {
+                return Err("too many spills");
+            }
+            livenesses.push(liveness);
+        }
+        for (func_id, liveness) in bodies.into_iter().zip(livenesses) {
+            let plan = self.plan_function_stackified(module, &info, func_id, &liveness)?;
             plans[func_id] = Some(plan);
         }
 
@@ -362,9 +376,9 @@ impl<'gcx> EvmCodegen<'gcx> {
         module: &Module,
         info: &ModuleInfo,
         func_id: FunctionId,
+        liveness: &super::Liveness,
     ) -> Result<FunctionPlan, &'static str> {
         let func = &module.functions[func_id];
-        let liveness = super::Liveness::compute(func);
         let target = crate::target::Target::new(self.gcx);
         let mut spilled = DenseBitSet::new_empty(func.num_values());
         let hazards = self.compute_spill_hazard_insts(func);
@@ -385,7 +399,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             tried.push(hints.clone());
             let Planned { plan, mut natural, first_use } = loop {
                 let planner = Planner::new(
-                    module, info, func_id, &liveness, target, &spilled, &hints, &hazards, &cfg,
+                    module, info, func_id, liveness, target, &spilled, &hints, &hazards, &cfg,
                     &loops,
                 )
                 .map_err(|fail| match fail {
@@ -497,6 +511,29 @@ fn argument_values(
         }
     }
     result.map(|()| args)
+}
+
+/// The most words live into any block that the planner must keep on the stack or spill. It
+/// leaves out every value the planner may materialize at its uses instead: immediates, stable
+/// reads and an external entry's calldata arguments.
+fn stack_pressure(
+    func: &crate::mir::Function,
+    internal: bool,
+    liveness: &super::Liveness,
+) -> usize {
+    let held = |value: ValueId| match func.value(value) {
+        Value::Arg(_) => internal,
+        Value::Inst(inst) => {
+            rematerializable_nullary_value(func, value).is_none()
+                && !matches!(func.inst(*inst).kind, InstKind::DataSize(_))
+        }
+        _ => false,
+    };
+    func.blocks
+        .indices()
+        .map(|block| liveness.live_in(block).iter().filter(|&value| held(value)).count())
+        .max()
+        .unwrap_or(0)
 }
 
 /// Returns the internal callee of an instruction, if it is a call.
