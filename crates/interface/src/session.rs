@@ -7,7 +7,7 @@ use solar_config::{
 };
 use std::{
     fmt,
-    path::Path,
+    path::{Path, PathBuf},
     sync::{Arc, OnceLock},
 };
 
@@ -253,6 +253,10 @@ impl Session {
             let new_base_path = if self.opts.unstable.ui_testing {
                 // `ui_test` relies on absolute paths.
                 None
+            } else if self.opts.standard_json {
+                // Standard JSON keys are source unit names, so display them verbatim. An empty
+                // base path also makes imports resolve by source unit name without `--base-path`.
+                Some(PathBuf::new())
             } else if let Some(base_path) =
                 self.opts.base_path.clone().or_else(|| std::env::current_dir().ok())
                 && let Ok(base_path) = self.source_map().file_loader().canonicalize_path(&base_path)

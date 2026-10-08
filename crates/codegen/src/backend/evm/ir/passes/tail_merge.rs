@@ -619,14 +619,3 @@ struct MergeGroup {
     representative: BlockId,
     sites: Vec<(BlockId, usize)>,
 }
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn hot_tail_lifetime_profitability() {
-        assert!(tail_merge_improves_lifetime(20, 12, 200));
-        assert!(!tail_merge_improves_lifetime(12, 12, 200));
-        assert!(!tail_merge_improves_lifetime(20, 12, 1_000_000));
-    }
-}

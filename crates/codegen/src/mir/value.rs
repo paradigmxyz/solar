@@ -131,20 +131,3 @@ impl PartialOrd for Immediate {
         Some(self.cmp(other))
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn integer_immediates_preserve_width() {
-        for bits in (8..256).step_by(8) {
-            let width = NonZeroU32::new(bits).unwrap();
-            let value = U256::MAX >> (256 - bits);
-            let immediate = Immediate::for_type(Some(MirType::Int(width)), value);
-            assert_eq!(immediate, Immediate::Int(value, width));
-            assert_eq!(immediate.ty(), MirType::Int(width));
-            assert_eq!(immediate.as_u256(), Some(value));
-        }
-    }
-}

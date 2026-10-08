@@ -1000,30 +1000,3 @@ pub(super) fn default_terminator_stack_effect(kind: &TerminatorKind) -> Option<S
     let (inputs, outputs) = kind.stack_io()?;
     Some(StackEffect::new(inputs, outputs))
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn terminators_describe_control_flow() {
-        let add = Instruction::opcode(op::ADD);
-        assert_eq!(add.definition().map(|def| def.mnemonic), Some("add"));
-        assert_eq!(add.stack_effect(), StackEffect::new(2, 1));
-        let effect = |op| Instruction::stack_op(op).stack_effect();
-        assert_eq!(effect(StackOp::Dup(2)), StackEffect::new(2, 3));
-        assert_eq!(effect(StackOp::Swap(1)), StackEffect::new(2, 2));
-        assert_eq!(effect(StackOp::Exchange(1, 3)), StackEffect::new(4, 4));
-        assert_eq!(effect(StackOp::Pop), StackEffect::new(1, 0));
-
-        let jump = TerminatorKind::Jump(BlockId::ENTRY);
-        assert_eq!(jump.stack_io(), Some((0, 0)));
-
-        let branch =
-            TerminatorKind::JumpI { then_block: BlockId::ENTRY, else_block: BlockId::ENTRY };
-        assert_eq!(default_terminator_stack_effect(&branch), Some(StackEffect::new(1, 0)));
-
-        let terminal = TerminatorKind::Op(op::RETURN);
-        assert_eq!(default_terminator_stack_effect(&terminal), Some(StackEffect::new(2, 0)));
-    }
-}

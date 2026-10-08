@@ -1,0 +1,10 @@
+//@compile-flags: -Zmir-pipeline=none
+
+// A cast must name the type of its operand as the source type.
+@module CastSource
+
+fn @f(arg0: i1) -> i256 {
+  bb0:
+    v0 = zext i160 arg0 to i256 //~ ERROR: cast source type does not match its operand
+    ret v0
+}

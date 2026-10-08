@@ -1,0 +1,165 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/phi_copy_cycles.sol:PhiCopyCycles ===
+@module PhiCopyCycles
+@types
+  struct0: {i256, i256}
+  struct1: {i256, i256, i256}
+
+fn @swap(arg0: i256, arg1: i256, arg2: i256) -> struct0 [selector=0x9d9892cd, pure, abi_params=[u256, u256, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb3: v0]
+    v1 = phi [bb0: 0], [bb3: v7]
+    v2 = phi [bb0: arg0], [bb3: v2]
+    v3 = phi [bb0: arg2], [bb3: v5]
+    v4 = phi [bb0: 0], [bb3: v4]
+    v5 = phi [bb0: arg1], [bb3: v3]
+    v6 = lt v1, v2
+    jumpi v6, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    v8 = insert_value struct0, undef struct0, 0, v5
+    v9 = insert_value struct0, v8, 1, v3
+    ret v9
+  bb4:
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v7 = checked_add u256, v1, 1
+    jump bb1
+}
+
+fn @rotate(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> struct1 [selector=0x5423941f, pure, abi_params=[u256, u256, u256, u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: arg3], [bb3: v4]
+    v1 = phi [bb0: 0], [bb3: v9]
+    v2 = phi [bb0: arg0], [bb3: v2]
+    v3 = phi [bb0: 0], [bb3: v3]
+    v4 = phi [bb0: arg1], [bb3: v6]
+    v5 = phi [bb0: 0], [bb3: v5]
+    v6 = phi [bb0: arg2], [bb3: v0]
+    v7 = phi [bb0: 0], [bb3: v7]
+    v8 = lt v1, v2
+    jumpi v8, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    v10 = insert_value struct1, undef struct1, 0, v4
+    v11 = insert_value struct1, v10, 1, v6
+    v12 = insert_value struct1, v11, 2, v0
+    ret v12
+  bb4:
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v9 = checked_add u256, v1, 1
+    jump bb1
+}
+
+fn @swapSpilled(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xb11604b0, pure, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = add arg1, 1
+    v1 = add arg2, 2
+    v2 = mul arg1, 3
+    v3 = mul arg2, 5
+    v4 = xor arg1, 7
+    v5 = xor arg2, 11
+    v6 = add arg1, arg2
+    v7 = mul arg1, arg2
+    jump bb1
+  bb1:
+    v8 = phi [bb0: arg2], [bb3: v17]
+    v9 = phi [bb0: v2], [bb3: v9]
+    v10 = phi [bb0: v6], [bb3: v10]
+    v11 = phi [bb0: 0], [bb3: v11]
+    v12 = phi [bb0: v3], [bb3: v12]
+    v13 = phi [bb0: v7], [bb3: v13]
+    v14 = phi [bb0: arg0], [bb3: v14]
+    v15 = phi [bb0: v0], [bb3: v15]
+    v16 = phi [bb0: v4], [bb3: v16]
+    v17 = phi [bb0: arg1], [bb3: v8]
+    v18 = phi [bb0: v1], [bb3: v18]
+    v19 = phi [bb0: 0], [bb3: v22]
+    v20 = phi [bb0: v5], [bb3: v20]
+    v21 = lt v19, v14
+    jumpi v21, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    v23 = mul v17, 16
+    v24 = add v23, v8
+    v25 = add v24, v15
+    v26 = add v25, v18
+    v27 = add v26, v9
+    v28 = add v27, v12
+    v29 = add v28, v16
+    v30 = add v29, v20
+    v31 = add v30, v10
+    v32 = add v31, v13
+    ret v32
+  bb4:
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v22 = add v19, 1
+    jump bb1
+}
+
+fn @rotateSpilled(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> i256 [selector=0x0fe3e75b, pure, abi_params=[u256, u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = add arg1, 1
+    v1 = add arg2, 2
+    v2 = mul arg3, 3
+    v3 = mul arg1, 5
+    v4 = xor arg2, 7
+    v5 = xor arg3, 11
+    v6 = add arg1, arg3
+    v7 = mul arg2, arg3
+    jump bb1
+  bb1:
+    v8 = phi [bb0: arg0], [bb3: v8]
+    v9 = phi [bb0: v6], [bb3: v9]
+    v10 = phi [bb0: 0], [bb3: v10]
+    v11 = phi [bb0: v3], [bb3: v11]
+    v12 = phi [bb0: arg1], [bb3: v16]
+    v13 = phi [bb0: v7], [bb3: v13]
+    v14 = phi [bb0: v0], [bb3: v14]
+    v15 = phi [bb0: v4], [bb3: v15]
+    v16 = phi [bb0: arg2], [bb3: v20]
+    v17 = phi [bb0: v1], [bb3: v17]
+    v18 = phi [bb0: 0], [bb3: v23]
+    v19 = phi [bb0: v5], [bb3: v19]
+    v20 = phi [bb0: arg3], [bb3: v12]
+    v21 = phi [bb0: v2], [bb3: v21]
+    v22 = lt v18, v8
+    jumpi v22, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    v24 = mul v12, 256
+    v25 = mul v16, 16
+    v26 = add v24, v25
+    v27 = add v26, v20
+    v28 = add v27, v14
+    v29 = add v28, v17
+    v30 = add v29, v21
+    v31 = add v30, v11
+    v32 = add v31, v15
+    v33 = add v32, v19
+    v34 = add v33, v9
+    v35 = add v34, v13
+    ret v35
+  bb4:
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v23 = add v18, 1
+    jump bb1
+}
