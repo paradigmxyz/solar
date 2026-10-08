@@ -22,8 +22,8 @@ impl super::LoweringContext<'_> {
         assert!(self.resolver.source_scopes.is_empty(), "exports already collected");
         self.resolver.source_scopes = self
             .hir
-            .sources()
-            .map(|source| {
+            .sources_enumerated()
+            .map(|(source_id, source)| {
                 let mut scope = Declarations::with_capacity(source.items.len());
                 for &item_id in source.items {
                     if let hir::ItemId::Function(id) = item_id
@@ -35,6 +35,17 @@ impl super::LoweringContext<'_> {
                     if let Some(name) = item.name() {
                         let decl = Declaration { res: Res::Item(item_id), span: name.span };
                         let _ = self.declare_in(&mut scope, name.name, decl);
+                    }
+                }
+                // Declare module aliases before performing any imports, like solc, so that
+                // cyclic importers can import them regardless of source order.
+                for &(item_id, import_id) in source.imports {
+                    let ast = self.sources[source_id].ast.as_ref().unwrap();
+                    let ast::ItemKind::Import(import) = &ast.items[item_id].kind else {
+                        unreachable!()
+                    };
+                    if let Some(alias) = import.source_alias() {
+                        let _ = self.declare_kind_in(&mut scope, alias, Res::Namespace(import_id));
                     }
                 }
                 scope
@@ -59,15 +70,10 @@ impl super::LoweringContext<'_> {
                     (&mut self.resolver.source_scopes[source_id], None)
                 };
                 match import.items {
-                    ast::ImportItems::Plain(_) | ast::ImportItems::Glob(_) => {
-                        if let Some(alias) = import.items.source_alias() {
-                            let _ = source_scope.declare_res(
-                                self.sess,
-                                &self.hir,
-                                alias,
-                                Res::Namespace(import_id),
-                            );
-                        } else if let Some(import_scope) = import_scope {
+                    // Module aliases are declared in `collect_exports`.
+                    ast::ImportItems::Plain(Some(_)) | ast::ImportItems::Glob(_) => {}
+                    ast::ImportItems::Plain(None) => {
+                        if let Some(import_scope) = import_scope {
                             // Import all declarations.
                             for (&name, decls) in &import_scope.declarations {
                                 for decl in &decls.all {
@@ -2463,8 +2469,14 @@ impl Declarations {
         name: Symbol,
         decl: Declaration,
     ) -> Result<(), ErrorGuaranteed> {
-        self.try_declare(hir, name, decl)
-            .map_err(|conflict| report_conflict(hir, sess, name, decl, conflict))
+        self.try_declare(hir, name, decl).map_err(|conflict| {
+            // Like solc, report the declaration that comes later in the source.
+            if conflict.span.lo() > decl.span.lo() {
+                report_conflict(hir, sess, name, conflict, decl)
+            } else {
+                report_conflict(hir, sess, name, decl, conflict)
+            }
+        })
     }
 
     pub(crate) fn try_declare(

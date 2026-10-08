@@ -1,0 +1,16 @@
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/bitnot_literal.sol:LL:CC
+   │
+LL │         uint8 e = ~0;
+   ╰╴                  ━━ expected `uint8`, found `int_literal[1]`
+
+error: cannot apply builtin operator `&` to `uint256` and `int_literal[1]`
+   ╭▸ ROOT/tests/ui/typeck/bitnot_literal.sol:LL:CC
+   │
+LL │         uint256 g = x & ~0;
+   │                     ┬ ━ ── int_literal[1]
+   │                     │
+   ╰╴                    uint256
+
+error: aborting due to 2 previous errors
+

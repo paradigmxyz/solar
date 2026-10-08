@@ -155,188 +155,152 @@ fn @compareUnsignedLiterals(arg0: i8) -> i1 [selector=0xdc492d0e, pure, abi_para
 
 fn @compareSignedLiterals(arg0: i8) -> i1 [selector=0x7ce2ee7f, pure, abi_params=[i8], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = sub 0, 129
-    v1 = sext i8 arg0 to i16
-    v2 = trunc i256 v0 to i16
-    v3 = eq v1, v2
-    v4 = sext i8 arg0 to i256
-    v5 = sub 0, 129
-    v6 = eq v4, v5
-    v7 = eq v3, v6
-    jumpi v7, bb1, bb2
+    v0 = sext i8 arg0 to i16
+    v1 = eq v0, i16 0xff7f
+    v2 = sext i8 arg0 to i256
+    v3 = eq v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f
+    v4 = eq v1, v3
+    jumpi v4, bb1, bb2
   bb2:
     jump bb3
   bb1:
-    v8 = sub 0, 129
-    v9 = trunc i256 v8 to i16
-    v10 = sext i8 arg0 to i16
-    v11 = eq v9, v10
-    v12 = sub 0, 129
-    v13 = sext i8 arg0 to i256
-    v14 = eq v12, v13
-    v15 = eq v11, v14
+    v5 = sext i8 arg0 to i16
+    v6 = eq i16 0xff7f, v5
+    v7 = sext i8 arg0 to i256
+    v8 = eq 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f, v7
+    v9 = eq v6, v8
     jump bb3
   bb3:
-    v16 = phi [bb1: v15], [bb2: false]
-    jumpi v16, bb4, bb5
+    v10 = phi [bb1: v9], [bb2: false]
+    jumpi v10, bb4, bb5
   bb5:
     jump bb6
   bb4:
-    v17 = sub 0, 129
-    v18 = sext i8 arg0 to i16
-    v19 = trunc i256 v17 to i16
-    v20 = ne v18, v19
-    v21 = sext i8 arg0 to i256
-    v22 = sub 0, 129
-    v23 = ne v21, v22
-    v24 = eq v20, v23
+    v11 = sext i8 arg0 to i16
+    v12 = ne v11, i16 0xff7f
+    v13 = sext i8 arg0 to i256
+    v14 = ne v13, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f
+    v15 = eq v12, v14
     jump bb6
   bb6:
-    v25 = phi [bb4: v24], [bb5: false]
-    jumpi v25, bb7, bb8
+    v16 = phi [bb4: v15], [bb5: false]
+    jumpi v16, bb7, bb8
   bb8:
     jump bb9
   bb7:
-    v26 = sub 0, 129
-    v27 = trunc i256 v26 to i16
-    v28 = sext i8 arg0 to i16
-    v29 = ne v27, v28
-    v30 = sub 0, 129
-    v31 = sext i8 arg0 to i256
-    v32 = ne v30, v31
-    v33 = eq v29, v32
+    v17 = sext i8 arg0 to i16
+    v18 = ne i16 0xff7f, v17
+    v19 = sext i8 arg0 to i256
+    v20 = ne 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f, v19
+    v21 = eq v18, v20
     jump bb9
   bb9:
-    v34 = phi [bb7: v33], [bb8: false]
-    jumpi v34, bb10, bb11
+    v22 = phi [bb7: v21], [bb8: false]
+    jumpi v22, bb10, bb11
   bb11:
     jump bb12
   bb10:
-    v35 = sub 0, 129
-    v36 = sext i8 arg0 to i16
-    v37 = trunc i256 v35 to i16
-    v38 = slt v36, v37
-    v39 = sext i8 arg0 to i256
-    v40 = sub 0, 129
-    v41 = slt v39, v40
-    v42 = eq v38, v41
+    v23 = sext i8 arg0 to i16
+    v24 = slt v23, i16 0xff7f
+    v25 = sext i8 arg0 to i256
+    v26 = slt v25, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f
+    v27 = eq v24, v26
     jump bb12
   bb12:
-    v43 = phi [bb10: v42], [bb11: false]
-    jumpi v43, bb13, bb14
+    v28 = phi [bb10: v27], [bb11: false]
+    jumpi v28, bb13, bb14
   bb14:
     jump bb15
   bb13:
-    v44 = sub 0, 129
-    v45 = trunc i256 v44 to i16
-    v46 = sext i8 arg0 to i16
-    v47 = slt v45, v46
-    v48 = sub 0, 129
-    v49 = sext i8 arg0 to i256
-    v50 = slt v48, v49
-    v51 = eq v47, v50
+    v29 = sext i8 arg0 to i16
+    v30 = slt i16 0xff7f, v29
+    v31 = sext i8 arg0 to i256
+    v32 = slt 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f, v31
+    v33 = eq v30, v32
     jump bb15
   bb15:
-    v52 = phi [bb13: v51], [bb14: false]
-    jumpi v52, bb16, bb17
+    v34 = phi [bb13: v33], [bb14: false]
+    jumpi v34, bb16, bb17
   bb17:
     jump bb18
   bb16:
-    v53 = sub 0, 129
-    v54 = sext i8 arg0 to i16
-    v55 = trunc i256 v53 to i16
-    v56 = sgt v54, v55
-    v57 = sext i8 arg0 to i256
-    v58 = sub 0, 129
-    v59 = sgt v57, v58
-    v60 = eq v56, v59
+    v35 = sext i8 arg0 to i16
+    v36 = sgt v35, i16 0xff7f
+    v37 = sext i8 arg0 to i256
+    v38 = sgt v37, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f
+    v39 = eq v36, v38
     jump bb18
   bb18:
-    v61 = phi [bb16: v60], [bb17: false]
-    jumpi v61, bb19, bb20
+    v40 = phi [bb16: v39], [bb17: false]
+    jumpi v40, bb19, bb20
   bb20:
     jump bb21
   bb19:
-    v62 = sub 0, 129
-    v63 = trunc i256 v62 to i16
-    v64 = sext i8 arg0 to i16
-    v65 = sgt v63, v64
-    v66 = sub 0, 129
-    v67 = sext i8 arg0 to i256
-    v68 = sgt v66, v67
-    v69 = eq v65, v68
+    v41 = sext i8 arg0 to i16
+    v42 = sgt i16 0xff7f, v41
+    v43 = sext i8 arg0 to i256
+    v44 = sgt 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f, v43
+    v45 = eq v42, v44
     jump bb21
   bb21:
-    v70 = phi [bb19: v69], [bb20: false]
-    jumpi v70, bb22, bb23
+    v46 = phi [bb19: v45], [bb20: false]
+    jumpi v46, bb22, bb23
   bb23:
     jump bb24
   bb22:
-    v71 = sub 0, 129
-    v72 = sext i8 arg0 to i16
-    v73 = trunc i256 v71 to i16
-    v74 = sgt v72, v73
-    v75 = eq v74, false
-    v76 = sext i8 arg0 to i256
-    v77 = sub 0, 129
-    v78 = sgt v76, v77
-    v79 = eq v78, false
-    v80 = eq v75, v79
+    v47 = sext i8 arg0 to i16
+    v48 = sgt v47, i16 0xff7f
+    v49 = eq v48, false
+    v50 = sext i8 arg0 to i256
+    v51 = sgt v50, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f
+    v52 = eq v51, false
+    v53 = eq v49, v52
     jump bb24
   bb24:
-    v81 = phi [bb22: v80], [bb23: false]
-    jumpi v81, bb25, bb26
+    v54 = phi [bb22: v53], [bb23: false]
+    jumpi v54, bb25, bb26
   bb26:
     jump bb27
   bb25:
-    v82 = sub 0, 129
-    v83 = trunc i256 v82 to i16
-    v84 = sext i8 arg0 to i16
-    v85 = sgt v83, v84
-    v86 = eq v85, false
-    v87 = sub 0, 129
-    v88 = sext i8 arg0 to i256
-    v89 = sgt v87, v88
-    v90 = eq v89, false
-    v91 = eq v86, v90
+    v55 = sext i8 arg0 to i16
+    v56 = sgt i16 0xff7f, v55
+    v57 = eq v56, false
+    v58 = sext i8 arg0 to i256
+    v59 = sgt 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f, v58
+    v60 = eq v59, false
+    v61 = eq v57, v60
     jump bb27
   bb27:
-    v92 = phi [bb25: v91], [bb26: false]
-    jumpi v92, bb28, bb29
+    v62 = phi [bb25: v61], [bb26: false]
+    jumpi v62, bb28, bb29
   bb29:
     jump bb30
   bb28:
-    v93 = sub 0, 129
-    v94 = sext i8 arg0 to i16
-    v95 = trunc i256 v93 to i16
-    v96 = slt v94, v95
-    v97 = eq v96, false
-    v98 = sext i8 arg0 to i256
-    v99 = sub 0, 129
-    v100 = slt v98, v99
-    v101 = eq v100, false
-    v102 = eq v97, v101
+    v63 = sext i8 arg0 to i16
+    v64 = slt v63, i16 0xff7f
+    v65 = eq v64, false
+    v66 = sext i8 arg0 to i256
+    v67 = slt v66, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f
+    v68 = eq v67, false
+    v69 = eq v65, v68
     jump bb30
   bb30:
-    v103 = phi [bb28: v102], [bb29: false]
-    jumpi v103, bb31, bb32
+    v70 = phi [bb28: v69], [bb29: false]
+    jumpi v70, bb31, bb32
   bb32:
     jump bb33
   bb31:
-    v104 = sub 0, 129
-    v105 = trunc i256 v104 to i16
-    v106 = sext i8 arg0 to i16
-    v107 = slt v105, v106
-    v108 = eq v107, false
-    v109 = sub 0, 129
-    v110 = sext i8 arg0 to i256
-    v111 = slt v109, v110
-    v112 = eq v111, false
-    v113 = eq v108, v112
+    v71 = sext i8 arg0 to i16
+    v72 = slt i16 0xff7f, v71
+    v73 = eq v72, false
+    v74 = sext i8 arg0 to i256
+    v75 = slt 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f, v74
+    v76 = eq v75, false
+    v77 = eq v73, v76
     jump bb33
   bb33:
-    v114 = phi [bb31: v113], [bb32: false]
-    ret v114
+    v78 = phi [bb31: v77], [bb32: false]
+    ret v78
 }
 
 fn @compareLiteralBoundaries(arg0: i8, arg1: i8) -> i1 [selector=0x03bc5c10, pure, abi_params=[u8, i8], abi_returns=[word<bool>], abi_return_params=[bool]] {
@@ -514,255 +478,207 @@ fn @compareLiteralBoundaries(arg0: i8, arg1: i8) -> i1 [selector=0x03bc5c10, pur
   bb41:
     jump bb42
   bb40:
-    v91 = sub 0, 127
-    v92 = trunc i256 v91 to i8
-    v93 = slt arg1, v92
-    v94 = sext i8 arg1 to i256
-    v95 = sub 0, 127
-    v96 = slt v94, v95
-    v97 = eq v93, v96
+    v91 = slt arg1, i8 129
+    v92 = sext i8 arg1 to i256
+    v93 = slt v92, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff81
+    v94 = eq v91, v93
     jump bb42
   bb42:
-    v98 = phi [bb40: v97], [bb41: false]
-    jumpi v98, bb43, bb44
+    v95 = phi [bb40: v94], [bb41: false]
+    jumpi v95, bb43, bb44
   bb44:
     jump bb45
   bb43:
-    v99 = sub 0, 127
-    v100 = trunc i256 v99 to i8
-    v101 = sgt v100, arg1
-    v102 = eq v101, false
-    v103 = sub 0, 127
-    v104 = sext i8 arg1 to i256
-    v105 = sgt v103, v104
-    v106 = eq v105, false
-    v107 = eq v102, v106
+    v96 = sgt i8 129, arg1
+    v97 = eq v96, false
+    v98 = sext i8 arg1 to i256
+    v99 = sgt 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff81, v98
+    v100 = eq v99, false
+    v101 = eq v97, v100
     jump bb45
   bb45:
-    v108 = phi [bb43: v107], [bb44: false]
-    jumpi v108, bb46, bb47
+    v102 = phi [bb43: v101], [bb44: false]
+    jumpi v102, bb46, bb47
   bb47:
     jump bb48
   bb46:
-    v109 = sub 0, 128
-    v110 = trunc i256 v109 to i8
-    v111 = slt arg1, v110
-    v112 = sext i8 arg1 to i256
-    v113 = sub 0, 128
-    v114 = slt v112, v113
-    v115 = eq v111, v114
+    v103 = slt arg1, i8 128
+    v104 = sext i8 arg1 to i256
+    v105 = slt v104, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80
+    v106 = eq v103, v105
     jump bb48
   bb48:
-    v116 = phi [bb46: v115], [bb47: false]
-    jumpi v116, bb49, bb50
+    v107 = phi [bb46: v106], [bb47: false]
+    jumpi v107, bb49, bb50
   bb50:
     jump bb51
   bb49:
-    v117 = sub 0, 128
-    v118 = trunc i256 v117 to i8
-    v119 = sgt v118, arg1
-    v120 = eq v119, false
-    v121 = sub 0, 128
-    v122 = sext i8 arg1 to i256
-    v123 = sgt v121, v122
-    v124 = eq v123, false
-    v125 = eq v120, v124
+    v108 = sgt i8 128, arg1
+    v109 = eq v108, false
+    v110 = sext i8 arg1 to i256
+    v111 = sgt 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80, v110
+    v112 = eq v111, false
+    v113 = eq v109, v112
     jump bb51
   bb51:
-    v126 = phi [bb49: v125], [bb50: false]
-    jumpi v126, bb52, bb53
+    v114 = phi [bb49: v113], [bb50: false]
+    jumpi v114, bb52, bb53
   bb53:
     jump bb54
   bb52:
-    v127 = sub 0, 129
-    v128 = sext i8 arg1 to i16
-    v129 = trunc i256 v127 to i16
-    v130 = slt v128, v129
-    v131 = sext i8 arg1 to i256
-    v132 = sub 0, 129
-    v133 = slt v131, v132
-    v134 = eq v130, v133
+    v115 = sext i8 arg1 to i16
+    v116 = slt v115, i16 0xff7f
+    v117 = sext i8 arg1 to i256
+    v118 = slt v117, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f
+    v119 = eq v116, v118
     jump bb54
   bb54:
-    v135 = phi [bb52: v134], [bb53: false]
-    jumpi v135, bb55, bb56
+    v120 = phi [bb52: v119], [bb53: false]
+    jumpi v120, bb55, bb56
   bb56:
     jump bb57
   bb55:
-    v136 = sub 0, 129
-    v137 = trunc i256 v136 to i16
-    v138 = sext i8 arg1 to i16
-    v139 = sgt v137, v138
-    v140 = eq v139, false
-    v141 = sub 0, 129
-    v142 = sext i8 arg1 to i256
-    v143 = sgt v141, v142
-    v144 = eq v143, false
-    v145 = eq v140, v144
+    v121 = sext i8 arg1 to i16
+    v122 = sgt i16 0xff7f, v121
+    v123 = eq v122, false
+    v124 = sext i8 arg1 to i256
+    v125 = sgt 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f, v124
+    v126 = eq v125, false
+    v127 = eq v123, v126
     jump bb57
   bb57:
-    v146 = phi [bb55: v145], [bb56: false]
-    jumpi v146, bb58, bb59
+    v128 = phi [bb55: v127], [bb56: false]
+    jumpi v128, bb58, bb59
   bb59:
     jump bb60
   bb58:
-    v147 = sub 0, 255
-    v148 = sext i8 arg1 to i16
-    v149 = trunc i256 v147 to i16
-    v150 = slt v148, v149
-    v151 = sext i8 arg1 to i256
-    v152 = sub 0, 255
-    v153 = slt v151, v152
-    v154 = eq v150, v153
+    v129 = sext i8 arg1 to i16
+    v130 = slt v129, i16 0xff01
+    v131 = sext i8 arg1 to i256
+    v132 = slt v131, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff01
+    v133 = eq v130, v132
     jump bb60
   bb60:
-    v155 = phi [bb58: v154], [bb59: false]
-    jumpi v155, bb61, bb62
+    v134 = phi [bb58: v133], [bb59: false]
+    jumpi v134, bb61, bb62
   bb62:
     jump bb63
   bb61:
-    v156 = sub 0, 255
-    v157 = trunc i256 v156 to i16
-    v158 = sext i8 arg1 to i16
-    v159 = sgt v157, v158
-    v160 = eq v159, false
-    v161 = sub 0, 255
-    v162 = sext i8 arg1 to i256
-    v163 = sgt v161, v162
-    v164 = eq v163, false
-    v165 = eq v160, v164
+    v135 = sext i8 arg1 to i16
+    v136 = sgt i16 0xff01, v135
+    v137 = eq v136, false
+    v138 = sext i8 arg1 to i256
+    v139 = sgt 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff01, v138
+    v140 = eq v139, false
+    v141 = eq v137, v140
     jump bb63
   bb63:
-    v166 = phi [bb61: v165], [bb62: false]
-    jumpi v166, bb64, bb65
+    v142 = phi [bb61: v141], [bb62: false]
+    jumpi v142, bb64, bb65
   bb65:
     jump bb66
   bb64:
-    v167 = sub 0, 256
-    v168 = sext i8 arg1 to i16
-    v169 = trunc i256 v167 to i16
-    v170 = slt v168, v169
-    v171 = sext i8 arg1 to i256
-    v172 = sub 0, 256
-    v173 = slt v171, v172
-    v174 = eq v170, v173
+    v143 = sext i8 arg1 to i16
+    v144 = slt v143, i16 0xff00
+    v145 = sext i8 arg1 to i256
+    v146 = slt v145, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    v147 = eq v144, v146
     jump bb66
   bb66:
-    v175 = phi [bb64: v174], [bb65: false]
-    jumpi v175, bb67, bb68
+    v148 = phi [bb64: v147], [bb65: false]
+    jumpi v148, bb67, bb68
   bb68:
     jump bb69
   bb67:
-    v176 = sub 0, 256
-    v177 = trunc i256 v176 to i16
-    v178 = sext i8 arg1 to i16
-    v179 = sgt v177, v178
-    v180 = eq v179, false
-    v181 = sub 0, 256
-    v182 = sext i8 arg1 to i256
-    v183 = sgt v181, v182
-    v184 = eq v183, false
-    v185 = eq v180, v184
+    v149 = sext i8 arg1 to i16
+    v150 = sgt i16 0xff00, v149
+    v151 = eq v150, false
+    v152 = sext i8 arg1 to i256
+    v153 = sgt 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00, v152
+    v154 = eq v153, false
+    v155 = eq v151, v154
     jump bb69
   bb69:
-    v186 = phi [bb67: v185], [bb68: false]
-    jumpi v186, bb70, bb71
+    v156 = phi [bb67: v155], [bb68: false]
+    jumpi v156, bb70, bb71
   bb71:
     jump bb72
   bb70:
-    v187 = sub 0, 257
-    v188 = sext i8 arg1 to i16
-    v189 = trunc i256 v187 to i16
-    v190 = slt v188, v189
-    v191 = sext i8 arg1 to i256
-    v192 = sub 0, 257
-    v193 = slt v191, v192
-    v194 = eq v190, v193
+    v157 = sext i8 arg1 to i16
+    v158 = slt v157, i16 0xfeff
+    v159 = sext i8 arg1 to i256
+    v160 = slt v159, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffeff
+    v161 = eq v158, v160
     jump bb72
   bb72:
-    v195 = phi [bb70: v194], [bb71: false]
-    jumpi v195, bb73, bb74
+    v162 = phi [bb70: v161], [bb71: false]
+    jumpi v162, bb73, bb74
   bb74:
     jump bb75
   bb73:
-    v196 = sub 0, 257
-    v197 = trunc i256 v196 to i16
-    v198 = sext i8 arg1 to i16
-    v199 = sgt v197, v198
-    v200 = eq v199, false
-    v201 = sub 0, 257
-    v202 = sext i8 arg1 to i256
-    v203 = sgt v201, v202
-    v204 = eq v203, false
-    v205 = eq v200, v204
+    v163 = sext i8 arg1 to i16
+    v164 = sgt i16 0xfeff, v163
+    v165 = eq v164, false
+    v166 = sext i8 arg1 to i256
+    v167 = sgt 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffeff, v166
+    v168 = eq v167, false
+    v169 = eq v165, v168
     jump bb75
   bb75:
-    v206 = phi [bb73: v205], [bb74: false]
-    jumpi v206, bb76, bb77
+    v170 = phi [bb73: v169], [bb74: false]
+    jumpi v170, bb76, bb77
   bb77:
     jump bb78
   bb76:
-    v207 = sub 0, 0x8000
-    v208 = sext i8 arg1 to i16
-    v209 = trunc i256 v207 to i16
-    v210 = slt v208, v209
-    v211 = sext i8 arg1 to i256
-    v212 = sub 0, 0x8000
-    v213 = slt v211, v212
-    v214 = eq v210, v213
+    v171 = sext i8 arg1 to i16
+    v172 = slt v171, i16 0x8000
+    v173 = sext i8 arg1 to i256
+    v174 = slt v173, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff8000
+    v175 = eq v172, v174
     jump bb78
   bb78:
-    v215 = phi [bb76: v214], [bb77: false]
-    jumpi v215, bb79, bb80
+    v176 = phi [bb76: v175], [bb77: false]
+    jumpi v176, bb79, bb80
   bb80:
     jump bb81
   bb79:
-    v216 = sub 0, 0x8000
-    v217 = trunc i256 v216 to i16
-    v218 = sext i8 arg1 to i16
-    v219 = sgt v217, v218
-    v220 = eq v219, false
-    v221 = sub 0, 0x8000
-    v222 = sext i8 arg1 to i256
-    v223 = sgt v221, v222
-    v224 = eq v223, false
-    v225 = eq v220, v224
+    v177 = sext i8 arg1 to i16
+    v178 = sgt i16 0x8000, v177
+    v179 = eq v178, false
+    v180 = sext i8 arg1 to i256
+    v181 = sgt 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff8000, v180
+    v182 = eq v181, false
+    v183 = eq v179, v182
     jump bb81
   bb81:
-    v226 = phi [bb79: v225], [bb80: false]
-    jumpi v226, bb82, bb83
+    v184 = phi [bb79: v183], [bb80: false]
+    jumpi v184, bb82, bb83
   bb83:
     jump bb84
   bb82:
-    v227 = sub 0, 0x8001
-    v228 = sext i8 arg1 to i24
-    v229 = trunc i256 v227 to i24
-    v230 = slt v228, v229
-    v231 = sext i8 arg1 to i256
-    v232 = sub 0, 0x8001
-    v233 = slt v231, v232
-    v234 = eq v230, v233
+    v185 = sext i8 arg1 to i24
+    v186 = slt v185, i24 0xff7fff
+    v187 = sext i8 arg1 to i256
+    v188 = slt v187, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7fff
+    v189 = eq v186, v188
     jump bb84
   bb84:
-    v235 = phi [bb82: v234], [bb83: false]
-    jumpi v235, bb85, bb86
+    v190 = phi [bb82: v189], [bb83: false]
+    jumpi v190, bb85, bb86
   bb86:
     jump bb87
   bb85:
-    v236 = sub 0, 0x8001
-    v237 = trunc i256 v236 to i24
-    v238 = sext i8 arg1 to i24
-    v239 = sgt v237, v238
-    v240 = eq v239, false
-    v241 = sub 0, 0x8001
-    v242 = sext i8 arg1 to i256
-    v243 = sgt v241, v242
-    v244 = eq v243, false
-    v245 = eq v240, v244
+    v191 = sext i8 arg1 to i24
+    v192 = sgt i24 0xff7fff, v191
+    v193 = eq v192, false
+    v194 = sext i8 arg1 to i256
+    v195 = sgt 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7fff, v194
+    v196 = eq v195, false
+    v197 = eq v193, v196
     jump bb87
   bb87:
-    v246 = phi [bb85: v245], [bb86: false]
-    ret v246
+    v198 = phi [bb85: v197], [bb86: false]
+    ret v198
 }
 
 fn @checkedUnsigned8(arg0: i8, arg1: i8) -> i8 [selector=0xcd491b52, pure, abi_params=[u8, u8], abi_returns=[word<u8>], abi_return_params=[u8]] {
@@ -1979,18 +1895,14 @@ fn @identity(arg0: i24, arg1: i24) -> struct0 [pure] {
 
 fn @compareComputedLiteral(arg0: i32) -> i1 [selector=0x83b388b9, pure, abi_params=[u32], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = exp 2, 32
-    v1 = zext i32 arg0 to i40
-    v2 = trunc i256 v0 to i40
-    v3 = lt v1, v2
-    v4 = eq v3, false
-    icall revert_if<empty>, v4
-    v5 = exp 2, 32
-    v6 = trunc i256 v5 to i40
-    v7 = zext i32 arg0 to i40
-    v8 = gt v6, v7
-    v9 = eq v8, false
-    icall revert_if<empty>, v9
+    v0 = zext i32 arg0 to i40
+    v1 = lt v0, i40 0x100000000
+    v2 = eq v1, false
+    icall revert_if<empty>, v2
+    v3 = zext i32 arg0 to i40
+    v4 = gt i40 0x100000000, v3
+    v5 = eq v4, false
+    icall revert_if<empty>, v5
     ret true
 }
 

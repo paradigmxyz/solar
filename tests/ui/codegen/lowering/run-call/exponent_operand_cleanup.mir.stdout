@@ -5,15 +5,13 @@
 
 fn @checkedDirtyOperands() -> struct0 [selector=0xfef4b418, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[i256, i256]] {
   bb0:
-    v0 = sub 0, 3
-    v1 = trunc i256 v0 to i32
-    v2 = checked_pow i32, v1, 2
+    v0 = checked_pow i32, i32 0xfffffffd, 2
+    v1 = sext i32 v0 to i256
+    v2 = checked_pow i32, i32 0xfffffffd, 3
     v3 = sext i32 v2 to i256
-    v4 = checked_pow i32, v1, 3
-    v5 = sext i32 v4 to i256
-    v6 = insert_value struct0, undef struct0, 0, v3
-    v7 = insert_value struct0, v6, 1, v5
-    ret v7
+    v4 = insert_value struct0, undef struct0, 0, v1
+    v5 = insert_value struct0, v4, 1, v3
+    ret v5
 }
 
 fn @uncheckedDirtyOperands() -> i256 [selector=0x84faa534, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
@@ -39,17 +37,15 @@ fn @branchedDirtyOperand(arg0: i1) -> i256 [selector=0x3d6d96b7, pure, abi_param
     jump bb3
   bb3:
     v0 = phi [bb1: 259], [bb2: 2]
-    v1 = sub 0, 3
-    v2 = trunc i256 v0 to i8
-    v3 = zext i8 v2 to i256
-    v4 = checked_pow i256, v1, v3
-    ret v4
+    v1 = trunc i256 v0 to i8
+    v2 = zext i8 v1 to i256
+    v3 = checked_pow i256, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffd, v2
+    ret v3
 }
 
 fn @fullWidthOperands() -> i256 [selector=0xd0e127e5, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = exp 2, 4
-    ret v0
+    ret 16
 }
 
 fn @signedProduct(arg0: i256, arg1: i256) -> i256 [selector=0x1224b6ec, pure, abi_params=[i256, i256], abi_returns=[word], abi_return_params=[i256]] {
