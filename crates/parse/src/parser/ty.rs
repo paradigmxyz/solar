@@ -67,7 +67,6 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     /// Must be used after checking that the next token is an elementary type.
     pub(super) fn parse_elementary_type(&mut self) -> PResult<'sess, ElementaryType> {
         let id = self.parse_ident_any()?;
-        debug_assert!(id.is_elementary_type());
         let mut ty = match id.name {
             kw::Address => ElementaryType::Address(false),
             kw::Bool => ElementaryType::Bool,
@@ -89,7 +88,8 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
                 let bytes = s.as_u32() - kw::Bytes1.as_u32() + 1;
                 ElementaryType::FixedBytes(TypeSize::new_fb_bytes(bytes as u8))
             }
-            s => unreachable!("unexpected elementary type: {s}"),
+            s => ElementaryType::parse_fixed_mxn(s)
+                .unwrap_or_else(|| unreachable!("unexpected elementary type: {s}")),
         };
 
         let sm = self.parse_state_mutability();
@@ -138,7 +138,6 @@ enum ParseTySizeError {
     TryFrom(std::num::TryFromIntError),
     NotMultipleOf8,
     OutOfRange(RangeInclusive<u16>),
-    FixedX,
 }
 
 impl fmt::Display for ParseTySizeError {
@@ -150,30 +149,8 @@ impl fmt::Display for ParseTySizeError {
             Self::OutOfRange(range) => {
                 write!(f, "size is out of range of {}:{} (inclusive)", range.start(), range.end())
             }
-            Self::FixedX => f.write_str("`fixed` sizes must be separated by exactly one 'x'"),
         }
     }
-}
-
-/// Parses `fixedMxN` or `ufixedMxN`.
-#[allow(dead_code)]
-fn parse_fixed_type(original: &str) -> Result<Option<ElementaryType>, ParseTySizeError> {
-    let s = original;
-    let tmp = s.strip_prefix('u');
-    let unsigned = tmp.is_some();
-    let s = tmp.unwrap_or(s);
-
-    if let Some(s) = s.strip_prefix("fixed") {
-        debug_assert!(!s.is_empty());
-        let (m, n) = parse_fixed_size(s)?;
-        return Ok(Some(if unsigned {
-            ElementaryType::UFixed(m, n)
-        } else {
-            ElementaryType::Fixed(m, n)
-        }));
-    }
-
-    Ok(None)
 }
 
 #[allow(dead_code)]
@@ -184,15 +161,6 @@ fn parse_fb_size(s: &str) -> Result<TypeSize, ParseTySizeError> {
 #[allow(dead_code)]
 fn parse_int_size(s: &str) -> Result<TypeSize, ParseTySizeError> {
     parse_ty_size_u8(s, 1..=32, true).map(|x| TypeSize::new_int_bits(x as u16 * 8))
-}
-
-#[allow(dead_code)]
-fn parse_fixed_size(s: &str) -> Result<(TypeSize, TypeFixedSize), ParseTySizeError> {
-    let (m, n) = s.split_once('x').ok_or(ParseTySizeError::FixedX)?;
-    let m = parse_int_size(m)?;
-    let n = parse_ty_size_u8(n, 0..=80, false)?;
-    let n = TypeFixedSize::new(n).unwrap();
-    Ok((m, n))
 }
 
 /// Parses a type size.
