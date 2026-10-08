@@ -49,6 +49,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     .and_then(|_| self.lower_storage_array_pop(expr, callee))
                     .map(|()| CallResult::Void);
             }
+            Builtin::AbiDecode
+                if args
+                    .exprs()
+                    .nth(1)
+                    .is_some_and(|types| matches!(types.kind, ExprKind::Tuple([]))) =>
+            {
+                // An empty target tuple decodes nothing, so only the data runs.
+                // lower_discarded(data)
+                let data = &self.builtin_args::<2>(builtin, &args)?[0];
+                return self.lower_discarded_expr(data).map(|()| CallResult::Void);
+            }
             _ => {}
         }
 
