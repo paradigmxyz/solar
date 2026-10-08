@@ -1,4 +1,4 @@
-//@ compile-flags: -O gas -Zdump=evm-ir-runtime
+//@ compile-flags: -O gas -Zdump=evm-ir-runtime -Zlegacy-stack-lowering
 //@ filecheck:
 //@ normalize-stdout-test: "(?s).+" -> ""
 

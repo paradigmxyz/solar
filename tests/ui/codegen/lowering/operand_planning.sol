@@ -1,6 +1,6 @@
 //@ revisions: gas size
-//@[gas] compile-flags: -O gas -Zdump=evm-ir-runtime
-//@[size] compile-flags: -O size -Zdump=evm-ir-runtime
+//@[gas] compile-flags: -O gas -Zdump=evm-ir-runtime -Zlegacy-stack-lowering
+//@[size] compile-flags: -O size -Zdump=evm-ir-runtime -Zlegacy-stack-lowering
 //@ filecheck:
 //@ normalize-stdout-test: "(?s).+" -> ""
 

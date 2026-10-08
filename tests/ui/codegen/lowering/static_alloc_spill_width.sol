@@ -1,4 +1,4 @@
-//@ compile-flags: -O size -Zdump=disasm-runtime
+//@ compile-flags: -O size -Zdump=disasm-runtime -Zlegacy-stack-lowering
 //@ filecheck:
 //@ run-call: f => 5, 6, 0
 

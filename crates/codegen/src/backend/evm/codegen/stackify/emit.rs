@@ -145,7 +145,7 @@ impl<'gcx> EvmCodegen<'gcx> {
 
         let mut order = self.block_layout_order(func, &cfg);
         order.retain(|block| !forward.contains_key(block));
-        let mut trampolines: Vec<(Label, Vec<Step>, BlockId)> = Vec::new();
+        let mut trampolines = Vec::new();
         for (pos, &block) in order.iter().enumerate() {
             let Some(block_plan) = plan.blocks[block].as_ref() else { continue };
             let next = order.get(pos + 1).copied();
@@ -174,12 +174,17 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.asm.set_modifier_depth(0);
             }
         }
-        for (label, steps, target) in trampolines {
+        for (label, steps, target, source) in trampolines {
             self.asm.define_label(label);
+            self.set_terminator_origin(func, source);
             for step in &steps {
                 self.emit_stackified_step(func_id, func, step);
             }
             self.emit_stackified_jump(target, None);
+        }
+        if self.capture_debug_info {
+            self.asm.set_source_span(None);
+            self.asm.set_modifier_depth(0);
         }
 
         self.function_stack_peaks.insert(func_id, plan.peak);
@@ -196,16 +201,21 @@ impl<'gcx> EvmCodegen<'gcx> {
         plan: &BlockPlan,
         next: Option<BlockId>,
         resolve: &dyn Fn(BlockId) -> BlockId,
-        trampolines: &mut Vec<(Label, Vec<Step>, BlockId)>,
+        trampolines: &mut Vec<(Label, Vec<Step>, BlockId, BlockId)>,
     ) {
-        for step in &plan.steps {
+        let (body, terminator) = plan.steps.split_at(plan.terminator_start);
+        for step in body {
+            self.emit_stackified_step(func_id, func, step);
+        }
+        self.set_terminator_origin(func, block);
+        for step in terminator {
             self.emit_stackified_step(func_id, func, step);
         }
         let mut edge_label = |codegen: &mut Self, edge: &Edge| match &edge.trampoline {
             None => codegen.block_labels[&edge.target],
             Some(steps) => {
                 let label = codegen.asm.new_label();
-                trampolines.push((label, steps.clone(), edge.target));
+                trampolines.push((label, steps.clone(), edge.target, block));
                 label
             }
         };
@@ -243,7 +253,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 let mut restore = Vec::new();
                 for (target, steps) in switch_trampolines {
                     let label = self.asm.new_label();
-                    trampolines.push((label, steps.clone(), *target));
+                    trampolines.push((label, steps.clone(), *target, block));
                     restore.push((*target, self.block_labels.insert(*target, label).unwrap()));
                 }
                 let next = next.filter(|next| !restore.iter().any(|(target, _)| target == next));
@@ -350,6 +360,15 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.asm.emit_push(U256::from(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT));
                 self.asm.emit_op(op::MSTORE);
             }
+        }
+    }
+
+    /// Attributes the code that follows to the block's terminator.
+    fn set_terminator_origin(&mut self, func: &Function, block: BlockId) {
+        if self.capture_debug_info {
+            let metadata = &func.blocks[block].terminator_metadata;
+            self.asm.set_source_spans(metadata.source_spans());
+            self.asm.set_modifier_depth(metadata.modifier_depth());
         }
     }
 

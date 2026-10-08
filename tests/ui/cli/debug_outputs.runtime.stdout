@@ -109,6 +109,15 @@
               "mnemonic": "STOP"
             },
             "context": {
+              "code": {
+                "source": {
+                  "id": 0
+                },
+                "range": {
+                  "offset": 392,
+                  "length": 24
+                }
+              },
               "return": {}
             }
           },

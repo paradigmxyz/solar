@@ -1,4 +1,4 @@
-//@ compile-flags: -O gas --evm-version amsterdam -Zdump=evm-ir-runtime
+//@ compile-flags: -O gas --evm-version amsterdam -Zdump=evm-ir-runtime -Zlegacy-stack-lowering
 //@ filecheck:
 //@ normalize-stdout-test: "(?s).+" -> ""
 

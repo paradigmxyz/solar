@@ -550,10 +550,11 @@ impl<'a> Planner<'a> {
                 sim.observe(1);
             }
             self.plan_body(&mut sim, block)?;
+            let terminator_start = sim.steps.len();
             let exit = self.plan_terminator(&mut sim, block)?;
             self.peak = self.peak.max(sim.peak + self.floating_below[block]);
             self.cost += self.weigh(sim.cost, block);
-            self.blocks[block] = Some(BlockPlan { steps: sim.steps, exit });
+            self.blocks[block] = Some(BlockPlan { steps: sim.steps, terminator_start, exit });
         }
         let plan = FunctionPlan {
             blocks: self.blocks,

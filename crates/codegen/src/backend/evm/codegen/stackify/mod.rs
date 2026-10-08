@@ -176,6 +176,8 @@ enum Exit {
 #[derive(Clone, Debug)]
 struct BlockPlan {
     steps: Vec<Step>,
+    /// Index of the first step planned for the terminator.
+    terminator_start: usize,
     exit: Exit,
 }
 
