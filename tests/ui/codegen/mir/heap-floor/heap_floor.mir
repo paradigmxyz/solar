@@ -375,3 +375,40 @@ fn @branch_loads() -> i256 [selector=0x1234567d] {
     mstore v5, 1
     ret v5
 }
+
+// A checked operation on the way to a pointer use keeps its check on the loaded word, and the
+// clamped copy that addresses memory wraps instead of checking.
+// CHECK-LABEL: {{^[ +].*}}fn @checked_scale{{[( ]}}
+// CHECK: [[WORD:v[0-9]+]] = mload 64
+// CHECK-NEXT: + [[FLOOR:v[0-9]+]] = heap_floor
+// CHECK-NEXT: + [[BELOW:v[0-9]+]] = lt [[WORD]], [[FLOOR]]
+// CHECK-NEXT: + [[CLAMPED:v[0-9]+]] = select [[BELOW]], [[FLOOR]], [[WORD]]
+// CHECK-NEXT: [[FACTOR:v[0-9]+]] = shl 255, 1
+// CHECK-NEXT: [[SCALED:v[0-9]+]] = checked_mul u256, [[WORD]], [[FACTOR]]
+// CHECK-NEXT: - mstore [[SCALED]], 1
+// CHECK-NEXT: + [[COPY:v[0-9]+]] = mul [[CLAMPED]], [[FACTOR]]
+// CHECK-NEXT: + mstore [[COPY]], 1
+fn @checked_scale() -> i256 [selector=0x1234567e] {
+  bb0:
+    v0 = calldataload 4
+    mstore 64, v0
+    v1 = mload 64
+    v2 = shl 255, 1
+    v3 = checked_mul u256, v1, v2
+    mstore v3, 1
+    ret v1
+}
+
+// A word subtracted from another yields a distance, not a pointer, so a write at the distance
+// leaves the scratch word alone.
+// CHECK-LABEL: {{^[ +].*}}fn @distance{{[( ]}}
+// CHECK-NOT: {{^[-+]}}
+fn @distance() -> i256 [selector=0x1234567f] {
+  bb0:
+    v0 = calldataload 4
+    mstore 64, v0
+    v1 = mload 64
+    v2 = checked_sub u256, 64, v1
+    mstore v2, 1
+    ret v1
+}

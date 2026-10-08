@@ -17,6 +17,7 @@
 //@ run-call: mixedLoad 5 => 5
 //@ run-call: dataThenMixed 5 => 5, 5
 //@ run-call: tupleReturn 5 => 5, 7
+//@ run-call: checkedScaled 0 => 0
 //@ run-call: hashHelperScratch 1, 2, 3 => 0x6e0c627900b24bd432fe7b1f713f1b0744091a646a9fe4a65a18dfed21f2949c
 //@ run-call: allocateAfterHelper 1, 2, 3 => 3
 //@ run-call: hashAroundCheckedAdd 1, 2, 3 => 0x6e0c627900b24bd432fe7b1f713f1b0744091a646a9fe4a65a18dfed21f2949c
@@ -391,6 +392,21 @@ contract AssemblyLowMemoryLayouts {
             mstore(0x40, m)
             other := 7
         }
+    }
+
+    // A checked product on the way to a write keeps its check on the loaded word; the clamped
+    // address it writes through wraps instead.
+    function checkedScaled(uint256) external pure returns (uint256 seen) {
+        uint256 p;
+        assembly {
+            mstore(0x40, calldataload(4))
+            p := mload(0x40)
+        }
+        uint256 q = p * (1 << 255);
+        assembly {
+            mstore(q, 1)
+        }
+        seen = p;
     }
 
     function hashHelperScratch(uint256 a, uint256 b, uint256) external pure returns (bytes32 h) {

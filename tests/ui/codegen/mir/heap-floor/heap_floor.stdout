@@ -286,3 +286,29 @@
       ret v5
   }
   
+  fn @checked_scale() -> i256 [selector=0x1234567e] {
+    bb0:
+      v0 = calldataload 4
+      mstore 64, v0
+      v1 = mload 64
++     v4 = heap_floor
++     v5 = lt v1, v4
++     v6 = select v5, v4, v1
+      v2 = shl 255, 1
+      v3 = checked_mul u256, v1, v2
+-     mstore v3, 1
++     v7 = mul v6, v2
++     mstore v7, 1
+      ret v1
+  }
+  
+  fn @distance() -> i256 [selector=0x1234567f] {
+    bb0:
+      v0 = calldataload 4
+      mstore 64, v0
+      v1 = mload 64
+      v2 = checked_sub u256, 64, v1
+      mstore v2, 1
+      ret v1
+  }
+  

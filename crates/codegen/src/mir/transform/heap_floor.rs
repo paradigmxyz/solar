@@ -44,7 +44,9 @@
 //! one it loads; when the load's word is also read as data, the words computed from it on the way
 //! to its pointer uses get clamped copies, and its data uses keep the loaded word. A function's
 //! loads are clamped together, so a word computed from several of them, such as a phi of two
-//! branches' loads, is clamped on every path. The slot itself is clamped right before a compiler
+//! branches' loads, is clamped on every path. A copy of checked arithmetic wraps, and the original
+//! keeps its check on the loaded words. A word subtracted from another yields a distance rather
+//! than a pointer, so it stays as computed. The slot itself is clamped right before a compiler
 //! read, before a call that reads the slot only as the pointer, and before a return to the
 //! dispatcher:
 //!
@@ -75,9 +77,9 @@
 //! whole there, even if they also read it as data. See CODEGEN-010.
 
 use crate::mir::{
-    AbiType, ArgIdx, BlockId, Builtin, Callee, EffectKind, Function, FunctionId, Immediate, InstId,
-    InstKind, Instruction, InstructionMetadata, MemoryRegion, MirType, Module, Terminator, Value,
-    ValueId,
+    AbiType, ArgIdx, BlockId, Builtin, Callee, CheckedOp, EffectKind, Function, FunctionId,
+    Immediate, InstId, InstKind, Instruction, InstructionMetadata, MemoryRegion, MirType, Module,
+    Terminator, Value, ValueId,
     analysis::{AddressInput, absolute_address_inputs, absolute_address_inputs_with_params},
     memory::EvmMemoryLayout,
     pass::{MirPass, ModuleAnalyses},
@@ -201,7 +203,8 @@ fn clamp_store(func: &mut Function, block: BlockId, inst: InstId) {
 
 /// Raises the words a function's loads read from the slot to the heap floor where they are read
 /// as the pointer. A word that no other use reads is rewritten in place; one that another use
-/// still reads unclamped gets a clamped copy for its pointer uses.
+/// still reads unclamped, or that a checked operation computes, gets a clamped copy for its
+/// pointer uses, computed with wrapping arithmetic so that the copy checks nothing.
 fn clamp_loads(func: &mut Function, plan: &LoadClamps) {
     let blocks = func.inst_block_table();
     let mut copies = FxHashMap::default();
@@ -232,7 +235,14 @@ fn clamp_loads(func: &mut Function, plan: &LoadClamps) {
             continue;
         }
         let instruction = func.inst(original);
-        let mut copy = Instruction::new(instruction.kind.clone(), instruction.result_ty);
+        // checked_add | checked_sub | checked_mul a, b -> add | sub | mul a, b
+        let kind = match instruction.kind {
+            InstKind::CheckedBinary { op: CheckedOp::Add, lhs, rhs, .. } => InstKind::Add(lhs, rhs),
+            InstKind::CheckedBinary { op: CheckedOp::Sub, lhs, rhs, .. } => InstKind::Sub(lhs, rhs),
+            InstKind::CheckedBinary { op: CheckedOp::Mul, lhs, rhs, .. } => InstKind::Mul(lhs, rhs),
+            _ => instruction.kind.clone(),
+        };
+        let mut copy = Instruction::new(kind, instruction.result_ty);
         copy.metadata.copy_debug_context(&instruction.metadata);
         let (copy, copy_value) = func.alloc_value_inst(copy);
         copies.insert(value, copy_value);
@@ -565,7 +575,7 @@ fn is_derivation(kind: &InstKind) -> bool {
             | InstKind::Exp(..)
             | InstKind::AddMod(..)
             | InstKind::MulMod(..)
-            | InstKind::CheckedBinary { .. }
+            | InstKind::CheckedBinary { op: CheckedOp::Add | CheckedOp::Sub | CheckedOp::Mul, .. }
             | InstKind::And(..)
             | InstKind::Or(..)
             | InstKind::Xor(..)
@@ -588,6 +598,17 @@ fn is_derivation(kind: &InstKind) -> bool {
     )
 }
 
+/// Whether an instruction computes from `word` a word that may still be a pointer: any derivation
+/// but a subtraction of `word` from another word, which yields a distance.
+fn derives_from(kind: &InstKind, word: ValueId) -> bool {
+    match *kind {
+        InstKind::Sub(lhs, _) | InstKind::CheckedBinary { op: CheckedOp::Sub, lhs, .. } => {
+            lhs == word
+        }
+        _ => is_derivation(kind),
+    }
+}
+
 /// Returns the operands an instruction uses as memory addresses, memory sizes, or, for a store to
 /// the slot (`slot_store`), the free memory pointer. The other operands of the operations listed
 /// are data, and an operation not listed may use any operand as a pointer.
@@ -602,6 +623,7 @@ fn pointer_operands_mut(
         | InstKind::SGt(..)
         | InstKind::Eq(..)
         | InstKind::Ne(..)
+        | InstKind::CheckedBinary { .. }
         | InstKind::SLoad(_)
         | InstKind::SStore(..)
         | InstKind::TLoad(_)
@@ -664,8 +686,8 @@ struct LoadClamps {
     loads: Vec<(BlockId, InstId)>,
     /// The words computed from the loaded ones on the way to a pointer use.
     words: Vec<ValueId>,
-    /// The loaded and computed words whose unclamped value another use still reads, so that their
-    /// pointer uses read a clamped copy.
+    /// The loaded and computed words whose unclamped value another use still reads, or that a
+    /// checked operation computes, so that their pointer uses read a clamped copy.
     copied: FxHashSet<ValueId>,
     /// The uses that read a loaded or computed word as the pointer.
     sites: Vec<(UseSite, ValueId)>,
@@ -1273,8 +1295,10 @@ impl<'a> PointerUses<'a> {
                 match user {
                     User::Inst(inst) => {
                         let kind = &func.inst(inst).kind;
-                        if is_derivation(kind) {
+                        if derives_from(kind, word) {
                             pending.extend(func.inst_result_value(inst).map(|v| (func_id, v)));
+                        } else if is_derivation(kind) {
+                            reads.data = true;
                         } else if let InstKind::ICall { function: Callee::Function(callee), args } =
                             kind
                         {
@@ -1340,11 +1364,13 @@ impl<'a> PointerUses<'a> {
                 match user {
                     User::Inst(inst) => {
                         let kind = &func.inst(inst).kind;
-                        if is_derivation(kind) {
+                        if derives_from(kind, value) {
                             if let Some(result) = func.inst_result_value(inst) {
                                 derived.insert(result);
                                 derivations.push((value, result));
                             }
+                        } else if is_derivation(kind) {
+                            raw.insert(value);
                         } else if let InstKind::ICall { function: Callee::Function(callee), args } =
                             kind
                         {
@@ -1420,12 +1446,18 @@ impl<'a> PointerUses<'a> {
                 raw.insert(operand);
             }
         }
-        // A copied word keeps its original, which reads its operands unclamped.
+        // A copied word keeps its original, which reads its operands unclamped, and so does a
+        // checked operation, whose check stays on the unclamped words.
         let mut copied = FxHashSet::default();
         let mut pending = derived
             .iter()
             .copied()
-            .filter(|&value| needed.contains(value) && raw.contains(&value))
+            .filter(|&value| {
+                needed.contains(value)
+                    && (raw.contains(&value)
+                        || matches!(*func.value(value), Value::Inst(inst)
+                            if matches!(func.inst(inst).kind, InstKind::CheckedBinary { .. })))
+            })
             .collect::<Vec<_>>();
         while let Some(value) = pending.pop() {
             if !copied.insert(value) || roots.contains(&value) {
