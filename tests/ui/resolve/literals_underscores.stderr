@@ -71,6 +71,14 @@ LL │     uint X1 = 0x1234__1234__1234__123;
 error: invalid use of underscores in number literal
    ╭▸ ROOT/tests/ui/resolve/literals_underscores.sol:LL:CC
    │
+LL │     uint X2 = 0x_1234;
+   │               ━━━━━━━
+   │
+   ╰ help: remove underscores after the `0x` prefix
+
+error: invalid use of underscores in number literal
+   ╭▸ ROOT/tests/ui/resolve/literals_underscores.sol:LL:CC
+   │
 LL │     uint D1 = 1234_;
    │               ━━━━━
    │
@@ -148,5 +156,5 @@ LL │     uint F5 = 1.2e_12;
    │
    ╰ help: remove underscores in front of the exponent
 
-error: aborting due to 19 previous errors
+error: aborting due to 20 previous errors
 
