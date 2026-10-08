@@ -9,7 +9,7 @@ use crate::{
 };
 use alloy_primitives::U256;
 use solar_ast::{
-    DataLocation, ElementaryType, LitKind, Span, StateMutability, TypeSize, UserDefinableOperator,
+    DataLocation, ElementaryType, Span, StateMutability, TypeSize, UserDefinableOperator,
 };
 use solar_data_structures::{
     Never,
@@ -870,11 +870,14 @@ impl<'gcx> TypeChecker<'gcx> {
                 self.gcx.mk_ty(TyKind::Type(self.gcx.type_of_hir_ty(ty)))
             }
             hir::ExprKind::Unary(op, inner) => {
-                // For integer literal negation, don't propagate the expected type to the inner
-                // expression because we'll modify its type by flipping the sign.
-                let propagate_expected = op.kind != hir::UnOpKind::Neg
-                    || (!is_int_literal_expr(inner)
-                        && !matches!(expected, Some(ty) if ty.is_signed()));
+                // For integer literal negation and bitwise negation, don't propagate the expected
+                // type to the inner expression because the result's type comes from its value,
+                // which has the opposite sign.
+                let propagate_expected = match op.kind {
+                    hir::UnOpKind::Neg | hir::UnOpKind::BitNot if inner.is_int_literal() => false,
+                    hir::UnOpKind::Neg => !matches!(expected, Some(ty) if ty.is_signed()),
+                    _ => true,
+                };
                 let ty = if op.kind.has_side_effects() {
                     self.require_lvalue(inner)
                 } else if propagate_expected {
@@ -883,8 +886,7 @@ impl<'gcx> TypeChecker<'gcx> {
                     self.check_expr(inner)
                 };
                 if valid_unop(ty, op.kind) {
-                    if op.kind == hir::UnOpKind::Neg
-                        && let TyKind::IntLiteral(..) = ty.kind
+                    if let TyKind::IntLiteral(..) = ty.kind
                         && let Some(lit_ty) = self.try_eval_int_literal_expr(expr)
                     {
                         return lit_ty;
@@ -3665,25 +3667,6 @@ fn invalid_storage_pointer_return(actual: Ty<'_>, expected: Ty<'_>) -> bool {
     }
 }
 
-fn is_int_literal_expr(expr: &hir::Expr<'_>) -> bool {
-    match &expr.kind {
-        hir::ExprKind::Lit(lit) => matches!(lit.kind, LitKind::Number(_)),
-        hir::ExprKind::Unary(op, inner)
-            if matches!(op.kind, hir::UnOpKind::Neg | hir::UnOpKind::BitNot) =>
-        {
-            is_int_literal_expr(inner)
-        }
-        hir::ExprKind::Binary(lhs, op, rhs)
-            if !op.kind.is_cmp()
-                && !matches!(op.kind, hir::BinOpKind::Or | hir::BinOpKind::And) =>
-        {
-            is_int_literal_expr(lhs) && is_int_literal_expr(rhs)
-        }
-        hir::ExprKind::Tuple([Some(inner)]) => is_int_literal_expr(inner),
-        _ => false,
-    }
-}
-
 fn invalid_enum_literal(gcx: Gcx<'_>, expr: &hir::Expr<'_>, variants: usize) -> bool {
     gcx.try_eval_const(expr)
         .is_ok_and(|value| value.as_u256().is_none_or(|value| value >= U256::from(variants)))
@@ -3901,7 +3884,7 @@ fn valid_unop(ty: Ty<'_>, op: hir::UnOpKind) -> bool {
                 | hir::UnOpKind::PostDec => true,
             }
         }
-        // IntLiteral can always be negated (it becomes a negative literal).
+        // IntLiteral can always be negated or bitwise negated; the result is a new literal.
         TyKind::IntLiteral(..) => match op {
             hir::UnOpKind::Neg | hir::UnOpKind::BitNot => true,
             hir::UnOpKind::Not
