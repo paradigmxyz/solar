@@ -1,0 +1,14 @@
+error: call frame with its heap prefix exceeds the addressable memory range
+   ╭▸ ROOT/tests/ui/codegen/lowering/heap_prefix_frame_overflow.sol:LL:CC
+   │
+LL │ ┏     function wide(uint256 seed) internal pure returns (uint256 total) {
+LL │ ┃         uint256[40] memory words;
+LL │ ┃         for (uint256 i; i < 40; ++i) words[i] = seed + i;
+LL │ ┃         for (uint256 i; i < 40; ++i) total += words[i];
+LL │ ┃     }
+   │ ┗━━━━━┛
+   │
+   ╰ note: the frame of `wide` takes 608 bytes
+
+error: aborting due to 1 previous error
+

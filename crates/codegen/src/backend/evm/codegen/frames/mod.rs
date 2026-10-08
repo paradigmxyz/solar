@@ -163,9 +163,22 @@ impl<'gcx> EvmCodegen<'gcx> {
         module: &Module,
         heap_guard: impl Fn(FunctionId) -> u64,
     ) {
+        let mut reported = FxHashSet::default();
         for (id, callee) in std::mem::take(&mut self.pending_frame_size_consts) {
             // frame_extent = frame_size + heap_guard
-            let extent = self.emitted_frame_size(module, callee) + heap_guard(callee);
+            let frame_size = self.emitted_frame_size(module, callee);
+            let extent = frame_size.checked_add(heap_guard(callee)).unwrap_or_else(|| {
+                if reported.insert(callee) {
+                    let function = &module.functions[callee];
+                    self.gcx
+                        .dcx()
+                        .err("call frame with its heap prefix exceeds the addressable memory range")
+                        .span(function.declaration_span)
+                        .note(format!("the frame of `{}` takes {frame_size} bytes", function.name))
+                        .emit();
+                }
+                u64::MAX
+            });
             self.dynamic_frame_extents.insert(callee, extent);
             self.asm.set_deferred_const(id, U256::from(extent));
         }
