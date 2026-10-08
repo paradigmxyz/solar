@@ -6,6 +6,7 @@ use super::{
     StackOp, StackResultProjection, StackReturnPlan, StaticCallStackPlan, TargetSlot, U256, Value,
     ValueId, WORD_BYTES, op,
 };
+use std::cmp::Reverse;
 
 mod abi;
 mod arguments;
@@ -766,13 +767,39 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.pop_stack_values_not_needed_by(func, &resident_call_values);
             let target =
                 resident_call_values.iter().copied().map(TargetSlot::Value).collect::<Vec<_>>();
-            let shuffle = self.scheduler.shuffle_to_layout(&target).unwrap_or_else(|| {
-                panic!(
-                    "could not preserve resident arguments across an internal call in `{}`: \
-                     stack={:?}, target={target:?}",
-                    func.name, self.scheduler.stack
+            // The return label and earlier stack arguments bury the preserved words before each
+            // argument is duplicated. When that leaves an argument beyond `DUP` reach, keep the
+            // arguments on top, the last pushed nearest, if the stack can be shuffled that far:
+            // [last pushed arg, ..., first pushed arg, other preserved words...]
+            let mut shuffle = None;
+            if let Some(mask) = &stack_mask
+                && !static_call_args_reachable(
+                    &StackModel::from_top_to_bottom(resident_call_values.iter().copied().map(Some)),
+                    args,
+                    Some(mask),
+                    self.stack_access_limit(),
                 )
-            });
+            {
+                let mut reordered = resident_call_values.clone();
+                reordered.sort_by_key(|&value| {
+                    Reverse(
+                        args.iter()
+                            .enumerate()
+                            .rposition(|(index, &arg)| arg == value && mask.contains(index)),
+                    )
+                });
+                let reordered = reordered.into_iter().map(TargetSlot::Value).collect::<Vec<_>>();
+                shuffle = self.scheduler.shuffle_to_layout(&reordered);
+            }
+            let shuffle = shuffle
+                .or_else(|| self.scheduler.shuffle_to_layout(&target))
+                .unwrap_or_else(|| {
+                    panic!(
+                        "could not preserve resident arguments across an internal call in `{}`: \
+                         stack={:?}, target={target:?}",
+                        func.name, self.scheduler.stack
+                    )
+                });
             for op in shuffle.ops {
                 self.asm.emit_stack_op(op);
             }

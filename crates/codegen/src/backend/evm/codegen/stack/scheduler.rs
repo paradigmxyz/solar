@@ -2452,6 +2452,15 @@ impl StackScheduler {
             return &self.ops;
         }
 
+        if self.is_stack_only_value(value) && self.reject_hazard_value_fallback(value) {
+            // A protected value has no memory home to reload. The caller reports a preservation
+            // failure after this instruction and discards the attempt:
+            // push 0
+            self.ops.push(ScheduledOp::PushImmediate(alloy_primitives::U256::ZERO));
+            self.stack.push(value);
+            return &self.ops;
+        }
+
         assert!(
             !self.is_stack_only_value(value),
             "stack-only value {value:?} was lost before its final use in `{}`: stack={:?}",
