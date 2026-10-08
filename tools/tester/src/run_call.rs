@@ -373,7 +373,8 @@ fn resolve_call<'a>(
     }
 
     let (function_name, args) = call.split_once(char::is_whitespace).unwrap_or((call, ""));
-    let (artifact, function) = find_function(artifacts, function_name)?;
+    let mir = test_path.extension().is_some_and(|extension| extension == "mir");
+    let (artifact, function) = find_function(artifacts, function_name, mir)?;
     let constructor_args = encode_constructor(artifact, settings.constructor.as_deref())?;
     let input = encode_values(&function, args, false)?;
     let expected = if failure {
@@ -464,9 +465,12 @@ fn only_artifact<'a>(artifacts: &'a [Artifact], test_path: &Path) -> Result<&'a 
     }
 }
 
+/// Finds the function `name` names in `artifacts`. In a test of MIR input, whose modules have no
+/// ABI, a full signature names a function without one.
 fn find_function<'a>(
     artifacts: &'a [Artifact],
     name: &str,
+    mir: bool,
 ) -> Result<(&'a Artifact, Cow<'a, Function>), String> {
     let (contract_name, function_name) = name
         .split_once("::")
@@ -486,7 +490,12 @@ fn find_function<'a>(
                 .map(move |function| (artifact, function))
         });
     let Some((artifact, function)) = matches.next() else {
-        // A MIR module has no ABI, so a call to it gives the function's full signature.
+        // A MIR module has no ABI, so a call to it gives the function's full signature. A
+        // Solidity contract without functions only has a fallback, which a call naming a missing
+        // function would reach.
+        if !mir {
+            return Err(format!("function `{name}` was not found in compiler output"));
+        }
         let abi_less = artifacts
             .iter()
             .filter(|artifact| {
@@ -980,6 +989,22 @@ mod tests {
         assert!(encode_revert_data("E(uint256)").is_err());
         assert!(encode_revert_data("E(uint256)(1) extra").is_err());
         assert!(encode_revert_data("E(uint256)(1").is_err());
+    }
+
+    #[test]
+    fn signatures_name_functions_only_in_mir() {
+        let artifact = |abi: &str| Artifact {
+            name: "source:Test".into(),
+            abi: serde_json::from_str(abi).unwrap(),
+            bytecode: vec![0],
+        };
+        let fallback_only = [artifact(r#"[{"type":"fallback","stateMutability":"nonpayable"}]"#)];
+        let signature = "missing(uint256)(uint256)";
+        let error = find_function(&fallback_only, signature, false).unwrap_err();
+        assert_eq!(error, "function `missing(uint256)(uint256)` was not found in compiler output");
+        let module = [artifact("[]")];
+        let (_, function) = find_function(&module, signature, true).unwrap();
+        assert_eq!(function.signature(), "missing(uint256)");
     }
 
     #[test]
