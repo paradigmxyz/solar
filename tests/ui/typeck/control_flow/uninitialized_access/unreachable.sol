@@ -4,7 +4,7 @@ contract C {
     function f() internal returns (uint[] storage a)
     {
         revert();
-        a[0] = 0;
+        a[0] = 0; //~ WARN: unreachable code
         a = s;
     }
 }

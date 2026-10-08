@@ -5,14 +5,14 @@ contract C {
     function f() internal view returns (S storage c) { //~ ERROR: this variable is of storage pointer type and can be returned
         do {
             break;
-            c = s;
-        } while(false);
+            c = s; //~ WARN: unreachable code
+        } while(false); //~ WARN: unreachable code
     }
     function g() internal view returns (S storage c) { //~ ERROR: this variable is of storage pointer type and can be returned
         do {
             if (s.f) {
                 continue;
-                c = s;
+                c = s; //~ WARN: unreachable code
             }
             else {
             }
@@ -41,7 +41,7 @@ contract C {
     function j() internal view returns (S storage c) { //~ ERROR: this variable is of storage pointer type and can be returned
         do {
             continue;
-            c = s;
+            c = s; //~ WARN: unreachable code
         } while(false);
     }
 }

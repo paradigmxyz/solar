@@ -6,8 +6,8 @@ contract C {
         S storage c;
         do {
             break;
-            c = s;
-        } while(false);
+            c = s; //~ WARN: unreachable code
+        } while(false); //~ WARN: unreachable code
         c; //~ ERROR: this variable is of storage pointer type and can be accessed
     }
     function g() internal view {
@@ -15,7 +15,7 @@ contract C {
         do {
             if (s.f) {
                 continue;
-                c = s;
+                c = s; //~ WARN: unreachable code
             }
             else {
             }
@@ -50,7 +50,7 @@ contract C {
         S storage c;
         do {
             continue;
-            c = s;
+            c = s; //~ WARN: unreachable code
         } while(false);
         c; //~ ERROR: this variable is of storage pointer type and can be accessed
     }

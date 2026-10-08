@@ -4,6 +4,6 @@ contract C {
     {
         uint b = a[0];
         revert();
-        b;
+        b; //~ WARN: unreachable code
     }
 }

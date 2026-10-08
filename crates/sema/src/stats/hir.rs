@@ -489,7 +489,7 @@ impl<'hir> HirVisit<'hir> for HirStatCollector<'hir> {
             | hir::StmtKind::AssemblyBlock(block) => self.visit_block(block)?,
             hir::StmtKind::Loop(block, source) => {
                 self.visit_block(block)?;
-                if let hir::LoopSource::For { update: Some(update), .. } = source {
+                if let hir::LoopSource::For { update: Some(update) } = source {
                     self.visit_stmt(update)?;
                 }
             }

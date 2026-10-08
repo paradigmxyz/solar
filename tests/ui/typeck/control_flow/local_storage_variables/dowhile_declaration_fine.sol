@@ -29,7 +29,7 @@ contract C {
         do {
             c = s;
             break;
-        } while(false);
+        } while(false); //~ WARN: unreachable code
         c;
     }
     function k() internal view {

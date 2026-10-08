@@ -1564,11 +1564,7 @@ pub struct TryCatchClause<'hir> {
 #[derive(Clone, Copy, Debug)]
 pub enum LoopSource<'hir> {
     /// A `for (...) { ... }` loop.
-    For {
-        update: Option<&'hir Stmt<'hir>>,
-        /// Whether the loop has a condition, lowered to `if (<cond>) ... else break;`.
-        has_cond: bool,
-    },
+    For { update: Option<&'hir Stmt<'hir>> },
     /// A `while (...) { ... }` loop.
     While,
     /// A `do { ... } while (...);` loop.

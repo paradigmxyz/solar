@@ -20,7 +20,7 @@ contract C {
         do {
             c = s;
             break;
-        } while(false);
+        } while(false); //~ WARN: unreachable code
     }
     function k() internal view returns (S storage c) {
         do {

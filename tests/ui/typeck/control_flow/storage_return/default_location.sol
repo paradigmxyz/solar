@@ -13,7 +13,7 @@ contract C {
     function i(bool flag) internal view returns (S memory c) {
         if (flag) c = s;
     }
-    function j(bool flag) internal view returns (S memory) {
+    function j(bool flag) internal view returns (S memory) { //~ WARN: unnamed return variable can remain unassigned
         if (flag) return s;
     }
 }

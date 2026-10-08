@@ -3,7 +3,7 @@ abstract contract B
 {
         function iWillRevert() pure public virtual { }
 
-        function test(bool _param) pure external returns(uint256)
+        function test(bool _param) pure external returns(uint256) //~ WARN: unnamed return variable can remain unassigned
         {
                 if (_param) return 1;
 

@@ -884,10 +884,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     ) -> Option<()> {
         self.materialize_default_bindings();
         let update_stmt = match source {
-            LoopSource::For { update: Some(update), .. } if matches!(&update.kind, StmtKind::Block(block) if block.is_empty()) => {
+            LoopSource::For { update: Some(update) } if matches!(&update.kind, StmtKind::Block(block) if block.is_empty()) => {
                 None
             }
-            LoopSource::For { update, .. } => update,
+            LoopSource::For { update } => update,
             LoopSource::While => None,
             LoopSource::DoWhile => {
                 // body = block[..-1]

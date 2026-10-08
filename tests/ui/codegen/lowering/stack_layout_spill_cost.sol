@@ -35,7 +35,7 @@ contract SpillCost {
         }
     }
 
-    function checkDynArray() external returns (uint256) {
+    function checkDynArray() external returns (uint256) { //~ WARN: unnamed return variable can remain unassigned
         arr.push(11);
         uint256 data = uint256(keccak256(abi.encode(uint256(4))));
         require(raw(4) == 3, "len");
@@ -46,7 +46,7 @@ contract SpillCost {
         require(raw(data) == 7 | (uint256(13) << 128), "elem write");
     }
 
-    function checkSignedArray() external view returns (uint256) {
+    function checkSignedArray() external view returns (uint256) { //~ WARN: unnamed return variable can remain unassigned
         require(signedArr[0] == -5 && signedArr[1] == 6, "signed reads");
     }
 }

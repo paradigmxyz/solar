@@ -4,11 +4,29 @@ error[3464]: this variable is of storage pointer type and can be returned withou
 LL │     function f() internal view returns (S storage c) {
    ╰╴                                        ━━━━━━━━━━━
 
+warning[5740]: unreachable code
+   ╭▸ ROOT/tests/ui/typeck/control_flow/storage_return/dowhile_err.sol:LL:CC
+   │
+LL │             c = s;
+   ╰╴            ━━━━━
+
+warning[5740]: unreachable code
+   ╭▸ ROOT/tests/ui/typeck/control_flow/storage_return/dowhile_err.sol:LL:CC
+   │
+LL │         } while(false);
+   ╰╴                ━━━━━
+
 error[3464]: this variable is of storage pointer type and can be returned without prior assignment, which would lead to undefined behaviour
    ╭▸ ROOT/tests/ui/typeck/control_flow/storage_return/dowhile_err.sol:LL:CC
    │
 LL │     function g() internal view returns (S storage c) {
    ╰╴                                        ━━━━━━━━━━━
+
+warning[5740]: unreachable code
+   ╭▸ ROOT/tests/ui/typeck/control_flow/storage_return/dowhile_err.sol:LL:CC
+   │
+LL │                 c = s;
+   ╰╴                ━━━━━
 
 error[3464]: this variable is of storage pointer type and can be returned without prior assignment, which would lead to undefined behaviour
    ╭▸ ROOT/tests/ui/typeck/control_flow/storage_return/dowhile_err.sol:LL:CC
@@ -28,5 +46,11 @@ error[3464]: this variable is of storage pointer type and can be returned withou
 LL │     function j() internal view returns (S storage c) {
    ╰╴                                        ━━━━━━━━━━━
 
-error: aborting due to 5 previous errors
+warning[5740]: unreachable code
+   ╭▸ ROOT/tests/ui/typeck/control_flow/storage_return/dowhile_err.sol:LL:CC
+   │
+LL │             c = s;
+   ╰╴            ━━━━━
+
+error: aborting due to 5 previous errors; 4 warnings emitted
 

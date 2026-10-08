@@ -814,7 +814,7 @@ impl<'gcx> Visit<'gcx> for BreakContinueChecker<'gcx> {
             hir::StmtKind::Loop(block, source) => {
                 self.loop_depth += 1;
                 self.visit_block(block)?;
-                if let hir::LoopSource::For { update: Some(update), .. } = source {
+                if let hir::LoopSource::For { update: Some(update) } = source {
                     self.visit_stmt(update)?;
                 }
                 self.loop_depth -= 1;

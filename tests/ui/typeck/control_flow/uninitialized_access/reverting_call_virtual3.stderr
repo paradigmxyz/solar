@@ -1,0 +1,16 @@
+warning[6321]: unnamed return variable can remain unassigned when the function is called when `B` is the most derived contract
+   ╭▸ ROOT/tests/ui/typeck/control_flow/uninitialized_access/reverting_call_virtual3.sol:LL:CC
+   │
+LL │   function f() public virtual returns (uint) { g(); }
+   │                                        ━━━━
+   │
+   ╰ help: add an explicit return with value to all non-reverting code paths or name the variable
+
+warning[6321]: unnamed return variable can remain unassigned
+   ╭▸ ROOT/tests/ui/typeck/control_flow/uninitialized_access/reverting_call_virtual3.sol:LL:CC
+   │
+LL │   function f() public override returns (uint) { A.f(); }
+   │                                         ━━━━
+   │
+   ╰ help: add an explicit return with value to all non-reverting code paths or name the variable
+
