@@ -15,7 +15,8 @@
     },
     "contracts/USDС.sol": {
       "USDC": {
-        "abi": []
+        "abi": [],
+        "metadata": "{\"compiler\":{\"version\":\"VERSION\"},\"language\":\"Solidity\",\"output\":{\"abi\":[],\"devdoc\":{\"kind\":\"dev\",\"methods\":{},\"version\":1},\"userdoc\":{\"kind\":\"user\",\"methods\":{},\"version\":1}},\"settings\":{\"compilationTarget\":{\"contracts//USDС.sol\":\"USDC\"},\"evmVersion\":\"osaka\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"ipfs\"},\"optimizer\":{\"enabled\":false,\"runs\":200},\"remappings\":[]},\"sources\":{\"contracts//USDС.sol\":{\"keccak256\":\"0xc75c401c48b92d52f20481056bb4ff19886426ba657312b0bb9571a8dac46d42\",\"urls\":[\"bzz-raw://89688d5d7ead487ceecd10fcb3d842cb3355f12353c7f2ab04050e494cd4043f\",\"dweb:/ipfs/QmdzTA8QatEbqZ4baP5RtDmVG4E9BHgRFb96b35VKCwJQn\"]}},\"version\":1}"
       }
     }
   }

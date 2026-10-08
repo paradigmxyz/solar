@@ -526,9 +526,9 @@ fn callback_path(path: &Path) -> Cow<'_, str> {
     path.to_string_lossy()
 }
 
-/// Returns the source unit name of an input source.
+/// Returns the source unit name of a source file.
 ///
-/// Like solc, this is the input key verbatim: `\` is an ordinary character, not a separator.
+/// Like solc, this keeps `\` as an ordinary character, not a separator.
 pub(crate) fn standard_json_source_name(name: &solar_interface::source_map::FileName) -> String {
     name.display().to_string()
 }
