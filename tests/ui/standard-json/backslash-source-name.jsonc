@@ -1,0 +1,26 @@
+//@ ignore-host: windows
+// The tester rewrites backslashes in the output to slashes.
+// CHECK: "contracts": {
+// CHECK: "contracts/A.sol": {
+// CHECK: "A": {
+// CHECK: "a()": "0dbe671f"
+{
+  "language": "Solidity",
+  "sources": {
+    "contracts\\A.sol": {
+      "content": "import \"./B.sol\"; contract A is B { function a() public pure returns (uint256) { return b(); } }"
+    },
+    "B.sol": {
+      "content": "contract B { function b() public pure returns (uint256) { return 1; } }"
+    }
+  },
+  "settings": {
+    "outputSelection": {
+      "contracts\\A.sol": {
+        "A": [
+          "evm.methodIdentifiers"
+        ]
+      }
+    }
+  }
+}
