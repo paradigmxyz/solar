@@ -876,7 +876,7 @@ impl<'a> Validator<'a> {
                                 })
                             }
                             Some(ty) => layout.types.len() == 1 && ty == layout.types[0].mir_type(),
-                            None => false,
+                            None => layout.types.is_empty(),
                         };
                         if !valid {
                             self.emit_at_inst(

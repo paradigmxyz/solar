@@ -79,17 +79,15 @@ impl<'a> FileResolver<'a> {
     pub fn configure_from_opts(&mut self, opts: &CompileOpts) {
         self.add_include_paths(opts.include_paths.iter().cloned());
         self.add_import_remappings(opts.import_remappings.iter().cloned());
-        if let Ok(current_dir) = std::env::current_dir() {
-            self.set_current_dir(&current_dir);
-        }
         if let Some(base_path) = &opts.base_path {
             let base_path = if base_path.is_absolute() {
                 Cow::Borrowed(base_path.as_path())
             } else {
                 let Ok(path) = self.canonicalize_unchecked(base_path) else { return };
+                let Some(current_dir) = self.env_current_dir() else { return };
                 // Loaders without a real file system, as in Standard JSON mode, may keep the path
                 // relative; resolve it lexically against the current directory, like solc.
-                Cow::Owned(self.normalize(&self.make_absolute(&path)).into_owned())
+                Cow::Owned(self.normalize(&current_dir.join(path)).into_owned())
             };
             if base_path.is_absolute() {
                 self.set_base_path(&base_path);

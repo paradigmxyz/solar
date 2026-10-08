@@ -1033,7 +1033,8 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         } else if if self.in_yul {
             self.is_reserved_yul_ident(ident)
         } else {
-            ident.is_reserved(false)
+            // Like solc, `[u]fixedMxN` types are keywords outside of Yul.
+            ident.is_reserved(false) || ast::ElementaryType::parse_fixed_mxn(ident.name).is_some()
         } {
             let err = self.expected_ident_found_err();
             if recover {

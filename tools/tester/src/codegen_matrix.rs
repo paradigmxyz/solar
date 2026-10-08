@@ -6,7 +6,10 @@ use ui_test::{
 
 pub(crate) const NAME: &str = "codegen-matrix";
 
-const STANDARD_REVISIONS: &[&str] = &["mir", "gas", "size"];
+pub(crate) const STANDARD_REVISIONS: &[&str] = &["mir", "gas", "size"];
+
+/// Also emits runtime bytecode and source maps so every revision exercises them.
+const EMIT: &str = "--emit=abi,bin,bin-runtime,srcmap,srcmap-runtime";
 
 pub(crate) fn parse(parser: &mut CommentParser<&mut Revisioned>, args: Spanned<&str>, _span: Span) {
     let mut revisions = args.split_whitespace();
@@ -53,11 +56,11 @@ pub(crate) fn apply(config: &mut Config, src: &str) -> bool {
     for (revision, flags, stdout) in [
         (
             "mir",
-            &["-O", "none", "--emit=abi,bin", "-Zdump=mir"] as &[&str],
+            &["-O", "none", EMIT, "-Zdump=mir"] as &[&str],
             crate::run_call_dump_stdout_regex(),
         ),
-        ("gas", &["-O", "gas", "--emit=abi,bin"], &artifact_stdout),
-        ("size", &["-O", "size", "--emit=abi,bin"], &artifact_stdout),
+        ("gas", &["-O", "gas", EMIT], &artifact_stdout),
+        ("size", &["-O", "size", EMIT], &artifact_stdout),
     ] {
         let defaults =
             config.comment_defaults.revisioned.entry(vec![revision.to_owned()]).or_default();
@@ -99,7 +102,7 @@ mod tests {
         );
         assert_eq!(
             config.comment_defaults.revisioned[&["mir".to_owned()][..]].compile_flags,
-            ["-O", "none", "--emit=abi,bin", "-Zdump=mir"].map(str::to_owned)
+            ["-O", "none", EMIT, "-Zdump=mir"].map(str::to_owned)
         );
     }
 
