@@ -870,11 +870,16 @@ impl<'gcx> TypeChecker<'gcx> {
                 self.gcx.mk_ty(TyKind::Type(self.gcx.type_of_hir_ty(ty)))
             }
             hir::ExprKind::Unary(op, inner) => {
-                // For integer literal negation, don't propagate the expected type to the inner
-                // expression because we'll modify its type by flipping the sign.
-                let propagate_expected = op.kind != hir::UnOpKind::Neg
-                    || (!is_int_literal_expr(inner)
-                        && !matches!(expected, Some(ty) if ty.is_signed()));
+                // For integer literal negation and bitwise negation, don't propagate the expected
+                // type to the inner expression because the result's type comes from its value,
+                // which has the opposite sign.
+                let propagate_expected = match op.kind {
+                    hir::UnOpKind::Neg | hir::UnOpKind::BitNot if is_int_literal_expr(inner) => {
+                        false
+                    }
+                    hir::UnOpKind::Neg => !matches!(expected, Some(ty) if ty.is_signed()),
+                    _ => true,
+                };
                 let ty = if op.kind.has_side_effects() {
                     self.require_lvalue(inner)
                 } else if propagate_expected {
@@ -883,8 +888,7 @@ impl<'gcx> TypeChecker<'gcx> {
                     self.check_expr(inner)
                 };
                 if valid_unop(ty, op.kind) {
-                    if op.kind == hir::UnOpKind::Neg
-                        && let TyKind::IntLiteral(..) = ty.kind
+                    if let TyKind::IntLiteral(..) = ty.kind
                         && let Some(lit_ty) = self.try_eval_int_literal_expr(expr)
                     {
                         return lit_ty;
@@ -3901,7 +3905,7 @@ fn valid_unop(ty: Ty<'_>, op: hir::UnOpKind) -> bool {
                 | hir::UnOpKind::PostDec => true,
             }
         }
-        // IntLiteral can always be negated (it becomes a negative literal).
+        // IntLiteral can always be negated or bitwise negated; the result is a new literal.
         TyKind::IntLiteral(..) => match op {
             hir::UnOpKind::Neg | hir::UnOpKind::BitNot => true,
             hir::UnOpKind::Not
