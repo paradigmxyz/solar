@@ -1,0 +1,14 @@
+- // === ROOT/tests/ui/codegen/mir/validation/mir_input_embedded_code.mir (before none) ===
++ // === ROOT/tests/ui/codegen/mir/validation/mir_input_embedded_code.mir (after none) ===
+  @module Deployer
+  @phase lowered
+  @data
+    child_0: creation_code "child.sol:Child"
+  
+  fn @entry() [entry] {
+    bb0:
+      v0 = datasize child_0
+      mstore 0, v0
+      returndata 0, 32
+  }
+  
