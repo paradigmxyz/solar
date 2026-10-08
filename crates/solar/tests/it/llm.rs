@@ -3,7 +3,8 @@
 use serde_json::{Value, json};
 use solar::{
     codegen::llm::{
-        LlmError, LlmRewriter, LlmSession, Proposal, RewriteRequest, Stage, Verdict, set_rewriter,
+        LlmError, LlmRewriter, LlmSession, Proposal, RewriteRequest, Stage, Verdict, bind_rewriter,
+        rewriter, set_rewriter,
     },
     config::{CompileOpts, CompilerOutput, EvmVersion, LlmOptimizeMode, UnstableOpts},
 };
@@ -126,8 +127,8 @@ fn embedded_rewriter() {
     assert_ne!(runtime(&rewritten), runtime(&plain));
 }
 
-/// An embedder that loads the sources itself gets the command line's outputs, and its rewriter
-/// stays in place.
+/// An embedder that loads the sources itself gets the command line's outputs, and the rewriter it
+/// binds to its session stays in place, while another session never sees it.
 #[test]
 fn embedded_sources() {
     let out = tempfile::tempdir().unwrap();
@@ -139,15 +140,16 @@ fn embedded_sources() {
         ..Default::default()
     };
     let verdicts = Arc::new(Mutex::new(Vec::new()));
-    set_rewriter(Some(Arc::new(Rewriter { verdicts: Arc::clone(&verdicts) })));
     let sess = solar::interface::Session::new(opts);
+    let binding = bind_rewriter(&sess, Arc::new(Rewriter { verdicts: Arc::clone(&verdicts) }));
+    assert!(rewriter(&solar::interface::Session::new(CompileOpts::default())).is_none());
     let compiled = solar::cli::run_compiler_with_sources(sess, |pcx| {
         let file =
             pcx.sess.source_map().new_source_file(PathBuf::from("triangle.sol"), SOURCE).unwrap();
         pcx.add_file(file);
         Ok(())
     });
-    set_rewriter(None);
+    drop(binding);
     assert!(compiled.is_ok());
     assert_eq!(verdicts.lock().unwrap().len(), 2);
     let combined = std::fs::File::open(out.path().join("combined.json")).unwrap();

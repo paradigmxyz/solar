@@ -2,8 +2,9 @@
 //!
 //! The `llm-optimize` MIR pass, enabled with `-Zllm-optimize`, offers eligible functions of lowered
 //! MIR to a rewriter and asks it for cheaper equivalents over several rounds. A rewriter is
-//! anything implementing [`LlmRewriter`]: the command line installs one that asks a model when it
-//! is built with its `llm` feature, and an embedder can install its own with [`set_rewriter`].
+//! anything implementing [`LlmRewriter`]: the command line binds one that asks a model to its
+//! session when it is built with its `llm` feature, and an embedder can bind its own to the session
+//! it compiles in with [`bind_rewriter`], or install one for every session with [`set_rewriter`].
 //!
 //! Rewriters are never trusted. The pass parses each candidate with a stricter grammar than MIR
 //! files use, checks its signature, operations, and callees, validates it, runs it against the
@@ -12,13 +13,16 @@
 //! [`Verdict`] tells the rewriter which check decided, so the next proposal can improve on it.
 
 use solar_config::{EvmVersion, OptimizationMode};
+use solar_interface::{Session, SessionBinding, SessionBindings};
 use std::{
     fmt,
     sync::{Arc, PoisonError, RwLock},
 };
 
-/// The rewriter `-Zllm-optimize=live` asks.
-static REWRITER: RwLock<Option<Arc<dyn LlmRewriter>>> = RwLock::new(None);
+/// The rewriters bound to sessions.
+static REWRITERS: SessionBindings<dyn LlmRewriter> = SessionBindings::new();
+/// The rewriter of sessions without one of their own.
+static DEFAULT_REWRITER: RwLock<Option<Arc<dyn LlmRewriter>>> = RwLock::new(None);
 
 /// Proposes rewrites of MIR functions.
 pub trait LlmRewriter: Send + Sync {
@@ -160,12 +164,30 @@ impl fmt::Display for LlmError {
 
 impl std::error::Error for LlmError {}
 
-/// Installs the rewriter that `-Zllm-optimize=live` asks, or removes it with `None`.
-pub fn set_rewriter(rewriter: Option<Arc<dyn LlmRewriter>>) {
-    *REWRITER.write().unwrap_or_else(PoisonError::into_inner) = rewriter;
+/// Binds the rewriter that `-Zllm-optimize=live` asks in `sess`, and in sessions forked from it,
+/// until the returned binding drops. No other session asks it, so a compilation's functions only
+/// reach the rewriter, and the model and endpoint behind it, that its own session chose.
+pub fn bind_rewriter(
+    sess: &Session,
+    rewriter: Arc<dyn LlmRewriter>,
+) -> SessionBinding<dyn LlmRewriter> {
+    REWRITERS.bind(sess, rewriter)
 }
 
-/// Returns the installed rewriter.
-pub fn rewriter() -> Option<Arc<dyn LlmRewriter>> {
-    REWRITER.read().unwrap_or_else(PoisonError::into_inner).clone()
+/// Installs the rewriter that `-Zllm-optimize=live` asks in every session without a rewriter of
+/// its own, or removes it with `None`.
+///
+/// Every compilation in the process that has no bound rewriter then sends its functions to this
+/// one. An embedder whose compilations serve different users binds a rewriter to each session
+/// with [`bind_rewriter`] instead.
+pub fn set_rewriter(rewriter: Option<Arc<dyn LlmRewriter>>) {
+    *DEFAULT_REWRITER.write().unwrap_or_else(PoisonError::into_inner) = rewriter;
+}
+
+/// Returns the rewriter `-Zllm-optimize=live` asks in `sess`: the one bound to it, or the one
+/// [`set_rewriter`] installed for every session.
+pub fn rewriter(sess: &Session) -> Option<Arc<dyn LlmRewriter>> {
+    REWRITERS
+        .get(sess)
+        .or_else(|| DEFAULT_REWRITER.read().unwrap_or_else(PoisonError::into_inner).clone())
 }

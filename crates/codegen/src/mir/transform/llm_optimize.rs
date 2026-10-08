@@ -1,6 +1,6 @@
 //! LLM-backed rewriting of lowered MIR functions.
 //!
-//! This pass asks a rewriter, usually a language model behind [`crate::llm::set_rewriter`], for
+//! This pass asks a rewriter, usually a language model behind [`crate::llm::bind_rewriter`], for
 //! cheaper versions of small word-level functions, and keeps the candidates it can check. It runs
 //! only with `-Zllm-optimize`, on lowered MIR, in the lowered pipeline after `dce` and before
 //! stack scheduling. Without the flag it does nothing, so no default build depends on a model.
@@ -180,11 +180,11 @@ impl<'gcx> Optimizer<'gcx> {
                 }
             }
             LlmOptimizeMode::Live => {
-                let Some(rewriter) = llm::rewriter() else {
+                let Some(rewriter) = llm::rewriter(gcx.sess) else {
                     let message = "`-Zllm-optimize=live` requires an installed rewriter";
                     gcx.dcx()
                         .err(message)
-                        .help("build the compiler with its `llm` feature, or install a rewriter")
+                        .help("build the compiler with its `llm` feature, or bind a rewriter to the session")
                         .emit();
                     return None;
                 };

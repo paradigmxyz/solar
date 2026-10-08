@@ -314,17 +314,23 @@ The fixtures under `tests/ui/codegen/mir/llm-optimize/` use scripts to cover eve
 ## Embedding
 
 `solar::codegen::llm` exposes the rewriter interface. An embedder implements `LlmRewriter`, which
-opens an `LlmSession` per function, and installs it with `set_rewriter` before compiling with
-`-Zllm-optimize=live`. `LlmSession::propose` receives the verdict on the previous candidate and
-returns the next candidate or `Proposal::Done`; `LlmSession::finish` hears the verdict the last
-candidate got, when no proposal heard it, and the cost of the rewrite the pass keeps.
-`LlmRewriter::cached` hears about a function whose cached rewrite the pass keeps instead of asking. The command line's rewriter in
+opens an `LlmSession` per function, and binds it to the session it compiles in with `bind_rewriter`,
+which returns a binding that lasts until it drops, before compiling with `-Zllm-optimize=live`. No
+other session asks a bound rewriter, so compilations running at once in one process each reach only
+the model and endpoint their own session chose. `set_rewriter` instead installs a rewriter for every
+session without one of its own, which suits an embedder whose compilations all serve one user, or
+one that calls `solar::cli::standard_json::compile_standard_json`, which creates its session itself.
+`LlmSession::propose` receives the verdict on the previous candidate and returns the next candidate
+or `Proposal::Done`; `LlmSession::finish` hears the verdict the last candidate got, when no proposal
+heard it, and the cost of the rewrite the pass keeps. `LlmRewriter::cached` hears about a function
+whose cached rewrite the pass keeps instead of asking. The command line's rewriter in
 `crates/cli/src/llm.rs` is one such implementation, which the command line and
-`solar::cli::standard_json::compile_standard_json` install only when no rewriter is installed.
+`solar::cli::standard_json::compile_standard_json` bind to their session only when it has no
+rewriter yet.
 
 An embedder can also keep that rewriter and carry its requests instead. With the `llm` feature,
-`solar::cli::llm::set_transport` installs a `ChatTransport` that sends every request of the chat
-providers, `anthropic/`, `opencode/`, and `openai-chat/`, in place of the compiler's client, and
+`solar::cli::llm::bind_transport` binds a `ChatTransport` to a session, and `set_transport`
+installs one for every session without its own; it sends every request of the chat providers, `anthropic/`, `opencode/`, and `openai-chat/`, in place of the compiler's client, and
 the compiler then reads no key and sends none. `ChatTransport::send` takes a `reqwest::Request`
 with a buffered body and returns the response; a `TransportError` it returns is sent again when
 it is transient, and ends the turn otherwise. The CLI crate's `llm-transport` feature builds only

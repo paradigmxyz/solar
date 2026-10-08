@@ -9,7 +9,10 @@ use solar_config::{
 use std::{
     fmt,
     path::{Path, PathBuf},
-    sync::{Arc, OnceLock},
+    sync::{
+        Arc, OnceLock, PoisonError, RwLock,
+        atomic::{AtomicU64, Ordering},
+    },
 };
 
 /// Information about the current compiler session.
@@ -21,6 +24,8 @@ pub struct Session {
     pub dcx: DiagCtxt,
     /// The globals.
     globals: Arc<SessionGlobals>,
+    /// The session's identity, which the sessions forked from it share.
+    id: SessionId,
     /// The rayon thread pool. This is spawned lazily on first use, rather than always constructing
     /// one with `SessionBuilder`.
     thread_pool: OnceLock<rayon::ThreadPool>,
@@ -172,7 +177,8 @@ impl SessionBuilder {
         });
         let mut opts = opts.unwrap_or_default();
         Session::infer_language(&mut opts);
-        let sess = Session { globals, dcx, opts, thread_pool: OnceLock::new() };
+        let sess =
+            Session { globals, dcx, opts, id: SessionId::fresh(), thread_pool: OnceLock::new() };
         sess.reconfigure();
         debug!(version = %solar_config::version::SEMVER_VERSION, "created new session");
         sess
@@ -233,8 +239,15 @@ impl Session {
             opts: self.opts.clone(),
             dcx,
             globals: self.globals.clone(),
+            id: self.id,
             thread_pool: OnceLock::new(),
         }
+    }
+
+    /// Returns the session's identity, which the sessions forked from it with
+    /// [`with_diagnostics`](Self::with_diagnostics) share.
+    pub fn id(&self) -> SessionId {
+        self.id
     }
 
     /// Validates the session options.
@@ -615,6 +628,70 @@ fn in_rayon() -> bool {
     rayon::current_thread_index().is_some()
 }
 
+/// Identifies a session and the sessions forked from it with [`Session::with_diagnostics`], for
+/// state another crate keeps for one compilation, such as with [`SessionBindings`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct SessionId(u64);
+
+impl SessionId {
+    /// Returns an identity no other session has.
+    fn fresh() -> Self {
+        static NEXT: AtomicU64 = AtomicU64::new(0);
+        Self(NEXT.fetch_add(1, Ordering::Relaxed))
+    }
+}
+
+/// Values bound to sessions, so that what one compilation installs never serves another one that
+/// runs in the same process.
+///
+/// A session sees the value bound to it last, until that binding drops.
+pub struct SessionBindings<T: ?Sized> {
+    /// Each binding's session, its token, and its value, in the order they were bound.
+    entries: RwLock<Vec<(SessionId, u64, Arc<T>)>>,
+}
+
+impl<T: ?Sized> Default for SessionBindings<T> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<T: ?Sized> SessionBindings<T> {
+    /// Creates bindings that bind nothing yet.
+    pub const fn new() -> Self {
+        Self { entries: RwLock::new(Vec::new()) }
+    }
+
+    /// Binds `value` to `sess` and the sessions forked from it, until the returned binding drops.
+    pub fn bind(&'static self, sess: &Session, value: Arc<T>) -> SessionBinding<T> {
+        static NEXT: AtomicU64 = AtomicU64::new(0);
+        let token = NEXT.fetch_add(1, Ordering::Relaxed);
+        let mut entries = self.entries.write().unwrap_or_else(PoisonError::into_inner);
+        entries.push((sess.id(), token, value));
+        SessionBinding { bindings: self, token }
+    }
+
+    /// Returns the value bound to `sess` last, if one is.
+    pub fn get(&self, sess: &Session) -> Option<Arc<T>> {
+        let entries = self.entries.read().unwrap_or_else(PoisonError::into_inner);
+        entries.iter().rev().find(|(id, ..)| *id == sess.id()).map(|(.., value)| Arc::clone(value))
+    }
+}
+
+/// A value bound to a session with [`SessionBindings::bind`], which dropping unbinds.
+#[must_use = "the value is unbound when the binding drops"]
+pub struct SessionBinding<T: ?Sized + 'static> {
+    bindings: &'static SessionBindings<T>,
+    token: u64,
+}
+
+impl<T: ?Sized + 'static> Drop for SessionBinding<T> {
+    fn drop(&mut self) {
+        let mut entries = self.bindings.entries.write().unwrap_or_else(PoisonError::into_inner);
+        entries.retain(|&(_, token, _)| token != self.token);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -853,5 +930,27 @@ mod tests {
         assert!(sess.dcx.emitted_errors().unwrap().is_ok());
         let err = fork.dcx.emitted_errors().unwrap().unwrap_err();
         assert!(err.to_string().contains("error: private"), "{err:?}");
+    }
+
+    #[test]
+    fn bindings_serve_their_session() {
+        static BINDINGS: SessionBindings<str> = SessionBindings::new();
+        let a = Session::builder().with_test_emitter().build();
+        let b = Session::builder().with_test_emitter().build();
+        let fork = a.with_diagnostics(DiagCtxt::with_buffer_emitter(None, ColorChoice::Never));
+        assert_ne!(a.id(), b.id());
+        assert_eq!(fork.id(), a.id());
+
+        let binding = BINDINGS.bind(&a, Arc::from("a"));
+        assert_eq!(BINDINGS.get(&a).as_deref(), Some("a"));
+        assert_eq!(BINDINGS.get(&fork).as_deref(), Some("a"));
+        assert_eq!(BINDINGS.get(&b), None);
+        // A later binding serves the session until it drops.
+        let later = BINDINGS.bind(&a, Arc::from("later"));
+        assert_eq!(BINDINGS.get(&a).as_deref(), Some("later"));
+        drop(later);
+        assert_eq!(BINDINGS.get(&a).as_deref(), Some("a"));
+        drop(binding);
+        assert_eq!(BINDINGS.get(&a), None);
     }
 }
