@@ -486,10 +486,7 @@ impl<'gcx> Gcx<'gcx> {
     }
 
     pub fn mk_ty_string_literal(self, s: &[u8]) -> Ty<'gcx> {
-        self.mk_ty(TyKind::StringLiteral(
-            std::str::from_utf8(s).is_ok(),
-            TypeSize::new_int_bits(s.len().min(32) as u16 * 8),
-        ))
+        self.mk_ty(TyKind::StringLiteral(std::str::from_utf8(s).is_ok(), s.len()))
     }
 
     pub fn mk_ty_int_literal(self, negative: bool, bits: u64) -> Option<Ty<'gcx>> {

@@ -910,7 +910,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 Some(value)
             }
             ExprKind::Ternary(cond, then_expr, else_expr) => {
-                self.lower_ternary(cond, then_expr, else_expr)
+                let ty = self.cx.gcx.type_of_expr(expr.id)?;
+                self.lower_ternary(cond, then_expr, else_expr, ty)
             }
             ExprKind::Tuple([Some(inner)]) => self.lower_expr(inner),
             ExprKind::Tuple(values) => self.lower_tuple(expr, values),
