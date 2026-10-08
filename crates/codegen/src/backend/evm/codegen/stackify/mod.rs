@@ -74,11 +74,10 @@
 //! output. Emission follows the general emitter's block order. Blocks that only jump on are
 //! skipped, and a branch whose successors both need a jump falls through into a trampoline.
 
-use super::stack::rematerializable_nullary_value;
 use super::{
     BlockId, CallGraphInfo, CfgInfo, DenseBitSet, EvmCodegen, FunctionId, FxHashMap, IndexVec,
     InstId, InstKind, LoopAnalyzer, MAX_STACK_DEPTH, Module, OptimizationMode, StackOp, Terminator,
-    Value, ValueId, index_vec,
+    Value, ValueId, index_vec, stack::rematerializable_nullary_value,
 };
 use crate::{mir::Callee, target::Cost};
 use smallvec::SmallVec;
