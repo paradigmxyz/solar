@@ -131,6 +131,10 @@ interface is a few words the tests can generate:
   wrapper, or a function-pointer dispatcher;
 - not recursive, with explicit `iN` or `memptr` parameters and at most one returned word,
   since the backend passes further results through a memory buffer of its own;
+- outside the constructor, and calling nothing recursive: the backend keeps the frames of such
+  calls on the heap, where a call writes memory above the free memory pointer and, when the
+  callee takes or returns memory, leaves the pointer raised past its frame, neither of which the
+  tests model;
 - at most 256 instructions;
 - only word operations and casts, `select`, phis, `mload`, `mstore`, `mstore8`, `mcopy`,
   `keccak256`, persistent and transient storage, logs, reads of the call and block context other

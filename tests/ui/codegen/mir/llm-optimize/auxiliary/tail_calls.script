@@ -16,22 +16,6 @@ fn @wraps(arg0: i256) -> i256 {
     ret v1
 }
 
---- function forwards
---- candidate
-fn @forwards(arg0: i256) -> i256 {
-  bb0:
-    v0 = mul arg0, 3
-    tail_call @parity, v0
-}
-
---- function shared
---- candidate
-fn @shared(arg0: i256) -> i256 {
-  bb0:
-    v0 = mul arg0, 3
-    tail_call @helper, v0
-}
-
 --- function ends
 --- candidate
 fn @ends(arg0: i256) {

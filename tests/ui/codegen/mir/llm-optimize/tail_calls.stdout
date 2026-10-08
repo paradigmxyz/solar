@@ -1,19 +1,14 @@
 llm-optimize TailCalls @constructor: not offered: is an external entry
 llm-optimize TailCalls @main: not offered: is the dispatch entry
-llm-optimize TailCalls @helper: offered at 52 gas, 21 bytes
-llm-optimize TailCalls @helper: round 1: nothing cheaper
+llm-optimize TailCalls @helper: not offered: runs in the constructor, which keeps call frames on the heap
 llm-optimize TailCalls @parity: not offered: is recursive
 llm-optimize TailCalls @wraps: offered at 255 gas, 53 bytes
 llm-optimize TailCalls @wraps: round 1: rejected at constraints: tail calls `@helper`, which returns; call it and return its results instead
 llm-optimize TailCalls @wraps: round 2: accepted at 245 gas, 50 bytes
 llm-optimize TailCalls @wraps: round 3: nothing cheaper
 llm-optimize TailCalls @wraps: rewritten from 255 gas, 53 bytes to 245 gas, 50 bytes
-llm-optimize TailCalls @forwards: offered at 368 gas, 50 bytes
-llm-optimize TailCalls @forwards: round 1: rejected at constraints: tail calls `@parity`, which is recursive or an entry point; call it instead
-llm-optimize TailCalls @forwards: round 2: nothing cheaper
-llm-optimize TailCalls @shared: offered at 247 gas, 50 bytes
-llm-optimize TailCalls @shared: round 1: rejected at constraints: tail calls from code the constructor runs, which deployment cannot do; call and return instead
-llm-optimize TailCalls @shared: round 2: nothing cheaper
+llm-optimize TailCalls @forwards: not offered: calls `@parity`, which is recursive and keeps its frame on the heap
+llm-optimize TailCalls @shared: not offered: runs in the constructor, which keeps call frames on the heap
 llm-optimize TailCalls @ends: offered at 47 gas, 13 bytes
 llm-optimize TailCalls @ends: round 1: accepted at 37 gas, 10 bytes
 llm-optimize TailCalls @ends: round 2: nothing cheaper

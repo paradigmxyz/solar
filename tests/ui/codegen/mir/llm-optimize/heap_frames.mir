@@ -1,0 +1,38 @@
+//@ compile-flags: -Zmir-pipeline=llm-optimize -Zllm-optimize=script -Zllm-trace --evm-version=cancun
+//@ compile-flags: -Zllm-script=../../tests/ui/codegen/mir/llm-optimize/auxiliary/heap_frames.script
+// The backend keeps the frame of a recursive function on the heap, and after a call to one that
+// takes memory, the free memory pointer stays above its frame. The tests model no such frames, so
+// a function that can call a recursive one is not offered: `@wrapper` reads the pointer the call
+// to `@walk` leaves, which a candidate dropping the call would change.
+@module HeapFrames
+@phase lowered
+fn @main() [entry] {
+  bb0:
+    v0 = calldataload 0
+    v1 = icall @wrapper, v0
+    mstore 0, v1
+    returndata 0, 32
+}
+
+fn @wrapper(arg0: i256) -> i256 {
+  bb0:
+    v0 = mload 64
+    v1: memptr = inttoptr i256 v0 to memptr
+    v2 = and arg0, 7
+    v3 = icall @walk, v1, v2
+    v4 = mload 64
+    ret v4
+}
+
+fn @walk(arg0: memptr, arg1: i256) -> i256 {
+  bb0:
+    v0 = eq arg1, 0
+    jumpi v0, bb1, bb2
+  bb1:
+    ret 0
+  bb2:
+    v1 = sub arg1, 1
+    v2 = icall @walk, arg0, v1
+    v3 = add v2, 1
+    ret v3
+}

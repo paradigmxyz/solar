@@ -1,0 +1,38 @@
+llm-optimize HeapFrames @main: not offered: is the dispatch entry
+llm-optimize HeapFrames @wrapper: not offered: calls `@walk`, which is recursive and keeps its frame on the heap
+llm-optimize HeapFrames @walk: not offered: is recursive
+- // === ROOT/tests/ui/codegen/mir/llm-optimize/heap_frames.mir (before llm-optimize) ===
++ // === ROOT/tests/ui/codegen/mir/llm-optimize/heap_frames.mir (after llm-optimize) ===
+  @module HeapFrames
+  @phase lowered
+  fn @main() [entry] {
+    bb0:
+      v0 = calldataload 0
+      v1 = icall @wrapper, v0
+      mstore 0, v1
+      returndata 0, 32
+  }
+  
+  fn @wrapper(arg0: i256) -> i256 {
+    bb0:
+      v0 = mload 64
+      v1 = inttoptr i256 v0 to memptr
+      v2 = and arg0, 7
+      v3 = icall @walk, v1, v2
+      v4 = mload 64
+      ret v4
+  }
+  
+  fn @walk(arg0: memptr, arg1: i256) -> i256 {
+    bb0:
+      v0 = eq arg1, 0
+      jumpi v0, bb1, bb2
+    bb2:
+      v1 = sub arg1, 1
+      v2 = icall @walk, arg0, v1
+      v3 = add v2, 1
+      ret v3
+    bb1:
+      ret 0
+  }
+  

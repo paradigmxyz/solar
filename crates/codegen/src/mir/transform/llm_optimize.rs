@@ -8,7 +8,8 @@
 //! # Sessions
 //!
 //! [`eligibility`] decides which functions are offered: internal, non-recursive functions of a few
-//! words whose every reachable operation the tests run, storage and logs included. Each offered
+//! words, outside the constructor and calling nothing recursive, whose every reachable operation
+//! the tests run, storage and logs included. Each offered
 //! function is printed as candidate text, lowered MIR without metadata, parsed back, and printed
 //! again; that fixed point is what the rewriter sees and what the cache is keyed by, so debug
 //! options cannot change which rewrites apply. A rewriter session then proposes candidates over at
@@ -67,10 +68,7 @@ use crate::{
         Value, ValueId,
         analysis::{CallGraphInfo, validate_function_at_phase},
         pass::{MirPass, ModuleAnalyses},
-        transform::{
-            dce::DeadCodeEliminator,
-            lower_evm_shaped::{constructor_reachable, is_tail_callable},
-        },
+        transform::{dce::DeadCodeEliminator, lower_evm_shaped::is_tail_callable},
         utils::interp,
     },
     target::{Cost, Target},
@@ -541,13 +539,9 @@ fn constraints(
         match terminator {
             Terminator::TailCall { function, .. } => {
                 callee(*function)?;
-                // The backend lowers only the tail calls `lower-evm-shaped` forms.
+                // The backend lowers only the tail calls `lower-evm-shaped` forms. Code the
+                // constructor runs is never offered, so these are runtime tail calls.
                 let graph = CallGraphInfo::new(module);
-                if constructor_reachable(module, &graph).contains(id) {
-                    return Err("tail calls from code the constructor runs, which deployment \
-                                cannot do; call and return instead"
-                        .into());
-                }
                 let name = module.function(*function).name;
                 if !is_tail_callable(module, &graph, *function) {
                     return Err(format!(
