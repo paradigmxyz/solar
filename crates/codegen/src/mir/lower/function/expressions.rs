@@ -75,13 +75,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let selector = self.builder.imm(U256::from_be_slice(&selector));
             return Some(self.builder.or(address, selector));
         }
-        if name.name == sym::offset
-            && self
-                .type_of_expr_or_variable(receiver)
-                .is_some_and(|ty| ty.is_ref_at(DataLocation::Calldata))
-        {
-            return self.lower_yul_member(expr, receiver, name);
-        }
         if let Some(access) = self.storage_access(expr) {
             // value = load_storage(member_slot)
             return self.load_storage_access(expr, access);

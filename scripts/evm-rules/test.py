@@ -238,7 +238,7 @@ fn @second(arg0: u256, arg1: u256) {
                 ["not"],
                 1,
                 10,
-                5000,
+                PROOF_TIMEOUT_MS,
                 seeds=seeds,
                 checker=shared_checker(),
             )
@@ -521,7 +521,9 @@ class EnvironmentTests(unittest.TestCase):
                 lhs, rhs = cx.obligation(rule)
                 # Lean relates the two reads through the rule's hand-written proof.
                 proof = (MANUAL_PROOFS / f"egraph_{rule.digest[:16]}.lean").read_text()
-                result = shared_checker().check(lhs, rhs, cx.assumptions, 30_000, proof)
+                result = shared_checker().check(
+                    lhs, rhs, cx.assumptions, PROOF_TIMEOUT_MS, proof
+                )
                 self.assertEqual(result["status"], "proved", result)
                 # Dropping the low-bit guard must expose a different account balance.
                 broken = Rule(
@@ -533,7 +535,7 @@ class EnvironmentTests(unittest.TestCase):
                 )
                 cx = Context()
                 lhs, rhs = cx.obligation(broken)
-                result = check(lhs, rhs, cx.assumptions, 5000)
+                result = check(lhs, rhs, cx.assumptions)
                 self.assertEqual(result["status"], "counterexample")
                 self.assertTrue(result["replayed"])
 
@@ -637,7 +639,7 @@ class CallEffectTests(unittest.TestCase):
         for rule in rules:
             context = Context()
             lhs, rhs = context.obligation(rule)
-            result = check(lhs, rhs, context.assumptions, 5000)
+            result = check(lhs, rhs, context.assumptions)
             self.assertEqual(result["status"], "proved")
 
     def test_changed_call_operands_are_counterexamples(self):
@@ -650,7 +652,7 @@ class CallEffectTests(unittest.TestCase):
                 )
                 context = Context()
                 lhs, rhs = context.obligation(changed)
-                result = check(lhs, rhs, context.assumptions, 5000)
+                result = check(lhs, rhs, context.assumptions)
                 self.assertEqual(result["status"], "counterexample")
 
     def test_empty_memory_regions_preserve_effects(self):
@@ -668,7 +670,7 @@ class CallEffectTests(unittest.TestCase):
         for rule in rules:
             cx = Context()
             lhs, rhs = cx.obligation(rule)
-            result = check(lhs, rhs, cx.assumptions, 5000)
+            result = check(lhs, rhs, cx.assumptions)
             self.assertEqual(result["status"], "proved", rule.line)
         for source in (
             "(rule (rewrite (Op.Log0 offset size)) (Op.Log0 (imm (u256 0)) size))",
@@ -677,7 +679,7 @@ class CallEffectTests(unittest.TestCase):
             form, line = forms(source)[0]
             cx = Context()
             lhs, rhs = cx.obligation(Rule(form, line, "missing-size-guard"))
-            result = check(lhs, rhs, cx.assumptions, 5000)
+            result = check(lhs, rhs, cx.assumptions)
             self.assertEqual(result["status"], "counterexample")
 
     def test_calls_cannot_be_removed_changed_or_nested(self):
@@ -710,7 +712,7 @@ class MemoryAddressTests(unittest.TestCase):
         for rule in rules:
             cx = Context()
             lhs, rhs = cx.obligation(rule)
-            result = check(lhs, rhs, cx.assumptions, 5000)
+            result = check(lhs, rhs, cx.assumptions)
             self.assertEqual(result["status"], "proved", rule.line)
             # Removing the actual source guard must expose a nonzero header
             # or field offset, rather than implicitly assuming the rewrite.
@@ -719,7 +721,7 @@ class MemoryAddressTests(unittest.TestCase):
             )
             cx = Context()
             lhs, rhs = cx.obligation(unguarded)
-            result = check(lhs, rhs, cx.assumptions, 5000)
+            result = check(lhs, rhs, cx.assumptions)
             self.assertEqual(result["status"], "counterexample", rule.line)
             self.assertTrue(result["replayed"])
 
@@ -742,7 +744,7 @@ class MemoryAddressTests(unittest.TestCase):
                     )
         # Adding a header to a slice pointer is wrong, even for dynamic data.
         wrong = expression("add", object, cx.memory.data_offset(kind))
-        result = check(value, wrong, cx.assumptions, 5000)
+        result = check(value, wrong, cx.assumptions)
         self.assertEqual(result["status"], "counterexample")
         self.assertEqual(int(result["inputs"][flag], 16), 1)
 
@@ -1030,7 +1032,7 @@ class RuleTests(unittest.TestCase):
             for bit in (0, 1):
                 assumptions = [Cond("eq", (value, Expr.const(bit)))]
                 for lowered in (shifted, multiply):
-                    result = check(expected, lowered, assumptions, 5000)
+                    result = check(expected, lowered, assumptions)
                     self.assertEqual(
                         result["status"], "proved", (bits, bit, lowered, result)
                     )
@@ -1310,7 +1312,12 @@ class CliTests(unittest.TestCase):
 
             def run():
                 report = verify_files(
-                    [path], work, lean_path(), jobs=1, timeout_s=30, progress=None
+                    [path],
+                    work,
+                    lean_path(),
+                    jobs=1,
+                    timeout_s=PROOF_TIMEOUT_MS // 1000,
+                    progress=None,
                 )
                 rule = report["files"][0]["rules"][0]
                 return rule["status"], (work / rule["name"] / "Proof.lean").read_text()
@@ -1369,13 +1376,13 @@ class CliTests(unittest.TestCase):
     def test_worker_reuses_process_without_retaining_declarations(self):
         with Checker(lean_path()) as checker:
             source = COMMANDS + "\ntheorem previous (x : Word) : x = x := by rfl"
-            self.assertTrue(checker.ask(source, 30)[0])
+            self.assertTrue(checker.ask(source, PROOF_TIMEOUT_MS // 1000)[0])
             process = checker.process
-            self.assertTrue(checker.ask(source, 30)[0])
+            self.assertTrue(checker.ask(source, PROOF_TIMEOUT_MS // 1000)[0])
             self.assertIs(checker.process, process)
             reply = checker.ask(
                 COMMANDS + "\ntheorem next (x : Word) : x = x := by exact previous x",
-                30,
+                PROOF_TIMEOUT_MS // 1000,
             )
             self.assertFalse(reply[0])
             self.assertIn("Unknown identifier", reply[1])
@@ -1469,7 +1476,7 @@ class CliTests(unittest.TestCase):
                     Path(directory) / "work",
                     lean_path(),
                     jobs=2,
-                    timeout_s=30,
+                    timeout_s=PROOF_TIMEOUT_MS // 1000,
                     progress=None,
                 )
             self.assertEqual(report["counts"], {"proved": 6})
@@ -1510,7 +1517,7 @@ class DiscoveryTests(unittest.TestCase):
             ["xor"],
             1,
             20,
-            5000,
+            PROOF_TIMEOUT_MS,
             seeds=[seed],
             checker=shared_checker(),
         )
@@ -1530,7 +1537,7 @@ class DiscoveryTests(unittest.TestCase):
             ["not"],
             1,
             20,
-            5000,
+            PROOF_TIMEOUT_MS,
             initial_samples=initial,
             seeds=[seed],
             checker=shared_checker(),
@@ -1547,7 +1554,7 @@ class DiscoveryTests(unittest.TestCase):
             ["not"],
             1,
             20,
-            5000,
+            PROOF_TIMEOUT_MS,
             seeds=[expression("not", expression("not", x))],
             checker=unknown,
         )
@@ -1597,7 +1604,7 @@ class DiscoveryTests(unittest.TestCase):
                     ops=["xor"],
                     max_ops=1,
                     max_expressions=20,
-                    timeout_ms=5000,
+                    timeout_ms=PROOF_TIMEOUT_MS,
                     include_constants=False,
                     emit_isle=output,
                 )
@@ -1621,7 +1628,7 @@ class DiscoveryTests(unittest.TestCase):
                     ops=["not"],
                     max_ops=1,
                     max_expressions=10,
-                    timeout_ms=5000,
+                    timeout_ms=PROOF_TIMEOUT_MS,
                     include_constants=False,
                     emit_isle=output,
                 )
@@ -1638,7 +1645,7 @@ class DiscoveryTests(unittest.TestCase):
                     ["not"],
                     1,
                     20,
-                    5000,
+                    PROOF_TIMEOUT_MS,
                     checker=shared_checker(),
                 )
 
@@ -1649,7 +1656,7 @@ class DiscoveryTests(unittest.TestCase):
             ["xor", "not"],
             3,
             1000,
-            5000,
+            PROOF_TIMEOUT_MS,
             include_constants=True,
             checker=shared_checker(),
         )
@@ -1677,7 +1684,7 @@ class DiscoveryTests(unittest.TestCase):
             ["not"],
             1,
             20,
-            5000,
+            PROOF_TIMEOUT_MS,
             initial_samples=[{"x": 0}],
             checker=shared_checker(),
         )
@@ -1701,7 +1708,7 @@ class DiscoveryTests(unittest.TestCase):
             ["not", "and", "or"],
             3,
             500,
-            5000,
+            PROOF_TIMEOUT_MS,
             max_rhs_ops=2,
             checker=shared_checker(),
         )
@@ -1741,7 +1748,7 @@ class DiscoveryTests(unittest.TestCase):
                 ["and"],
                 2,
                 20,
-                5000,
+                PROOF_TIMEOUT_MS,
                 constants=[123456789],
                 checker=shared_checker(),
             )
@@ -1753,7 +1760,7 @@ class DiscoveryTests(unittest.TestCase):
             ["xor"],
             2,
             30,
-            5000,
+            PROOF_TIMEOUT_MS,
             include_constants=True,
             constants=[255],
             checker=shared_checker(),
@@ -2095,7 +2102,7 @@ class ArithTests(unittest.TestCase):
             with self.subTest(name):
                 lhs, rhs, assumptions = lean_rule(source)
                 # `evm_arith` fails, and bit-blasting still finds a counterexample.
-                result = shared_checker().check(lhs, rhs, assumptions, 5_000)
+                result = check(lhs, rhs, assumptions)
                 self.assertEqual(result["status"], "counterexample", result)
                 self.assertTrue(result["replayed"])
 
