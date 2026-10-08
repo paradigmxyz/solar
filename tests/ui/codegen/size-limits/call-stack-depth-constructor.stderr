@@ -1,0 +1,19 @@
+warning[3860]: contract initcode size is <SIZE> bytes and exceeds 49152 bytes
+   ╭▸ ROOT/tests/ui/codegen/size-limits/call-stack-depth-constructor.sol:LL:CC
+   │
+LL │ ┏ contract ConstructorFits {
+LL │ ┃     uint256 public value;
+LL │ ┃
+LL │ ┃     constructor() {
+   ‡ ┃
+LL │ ┃ }
+   │ ┗━┛
+   │
+   ├ note: the limit was introduced in shanghai
+   ├ note: this contract may not be deployable on Mainnet
+   ╰ help: consider enabling the optimizer with a low runs value, turning off revert strings, or using libraries
+
+error: codegen cannot keep the generated EVM stack within 1024 words
+
+error: aborting due to 1 previous error; 1 warning emitted
+

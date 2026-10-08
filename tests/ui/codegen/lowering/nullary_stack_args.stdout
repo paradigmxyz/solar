@@ -1,0 +1,135 @@
+// === ROOT/tests/ui/codegen/lowering/nullary_stack_args.sol:NullaryStackArgs (runtime) ===
+@module NullaryStackArgs_runtime
+bb0:
+  push 0
+  calldataload
+  push 224
+  shr
+  dup 1
+  push 0xb3de648b
+  eq
+  push bb3
+  jumpi
+  push 0
+  push 0
+  revert
+bb17 [cold]:
+  push 0x4e487b71
+  push 0
+  mstore
+  push 17
+  push 32
+  mstore
+  push 36
+  push 28
+  revert
+bb3:
+  push 36
+  calldatasize
+  lt
+  push bb8
+  jumpi
+  push 4
+  calldataload
+  push 192
+  mstore
+  push bb5
+  callvalue
+  jump bb9
+bb9:
+  push 160
+  mstore
+  push 0
+  sload
+  push 160
+  mload
+  dup 2
+  add
+  swap 1
+  dup 2
+  lt
+  push bb17
+  jumpi
+  push 0
+  sstore
+  push 160
+  mload
+  iszero
+  push 160
+  mload
+  push 0
+  not
+  div
+  sub
+  push 0
+  jump bb11
+bb14 [loop]:
+  push 160
+  mload
+  dup 2
+  mul
+  dup 3
+  dup 3
+  gt
+  push bb17
+  jumpi
+  push 0
+  sload
+  swap 1
+  dup 2
+  add
+  swap 1
+  dup 2
+  lt
+  push bb17
+  jumpi
+  push 0
+  sstore
+  push 1
+  add
+  jump bb11
+bb11 [loop]:
+  push 192
+  mload
+  dup 2
+  lt
+  push bb14
+  jumpi
+  push 0
+  sload
+  swap 2
+  pop
+  pop
+  push 192
+  mload
+  dup 2
+  add
+  swap 1
+  dup 2
+  lt
+  push bb17
+  jumpi
+  swap 1
+  jump
+bb5 [continuation]:
+  push 192
+  mstore
+  push bb6
+  callvalue
+  jump bb9
+bb6 [continuation]:
+  push 192
+  mstore
+  push bb7
+  callvalue
+  jump bb9
+bb7 [continuation]:
+  push 128
+  mstore
+  push 32
+  push 128
+  return
+bb8 [cold]:
+  push 0
+  push 0
+  revert

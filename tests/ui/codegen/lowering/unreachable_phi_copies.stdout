@@ -1,0 +1,232 @@
+// === ROOT/tests/ui/codegen/lowering/unreachable_phi_copies.sol:UnreachablePhiCopies (runtime) ===
+@module UnreachablePhiCopies_runtime
+bb0:
+  push 36
+  calldatasize
+  lt
+  callvalue
+  or
+  iszero
+  iszero
+  push bb4
+  jumpi
+  jump bb1
+bb1:
+  push 0
+  calldataload
+  push 224
+  shr
+  dup 1
+  push 0xb3f62f5
+  eq
+  push bb3
+  jumpi
+  dup 1
+  push 0x7896dfe3
+  eq
+  push bb2
+  jumpi
+  jump bb4
+bb2:
+  jump bb11
+bb3:
+  jump bb5
+bb4 [cold]:
+  push 0
+  push 0
+  revert
+bb5:
+  push 36
+  calldatasize
+  lt
+  pop
+  push 0
+  push 4
+  calldataload
+  swap 1
+  jump bb6
+bb6 [loop]:
+  dup 2
+  push 160
+  mstore
+  push 3
+  dup 3
+  gt
+  iszero
+  push bb8
+  jumpi
+  jump bb7
+bb7:
+  dup 2
+  dup 1
+  push 160
+  mstore
+  push 128
+  mstore
+  pop
+  pop
+  push 32
+  push 128
+  add
+  push 128
+  swap 1
+  sub
+  push 128
+  return
+bb8 [loop]:
+  push 1
+  dup 3
+  dup 1
+  push 160
+  mstore
+  add
+  dup 1
+  push 192
+  mstore
+  dup 1
+  push 192
+  mstore
+  dup 3
+  dup 1
+  push 160
+  mstore
+  dup 2
+  lt
+  swap 3
+  pop
+  dup 2
+  push 224
+  mstore
+  pop
+  pop
+  iszero
+  push bb10
+  jumpi
+  jump bb9
+bb9 [cold]:
+  push 0x4e487b71
+  push 0
+  mstore
+  push 17
+  push 32
+  mstore
+  push 36
+  push 28
+  revert
+bb10 [loop]:
+  push 224
+  mload
+  push 192
+  mload
+  swap 1
+  jump bb6
+bb11:
+  push 36
+  calldatasize
+  lt
+  pop
+  push 10
+  push 4
+  calldataload
+  eq
+  iszero
+  iszero
+  push bb20
+  jumpi
+  jump bb12
+bb12:
+  push 11
+  push 4
+  calldataload
+  eq
+  iszero
+  iszero
+  push bb20
+  jumpi
+  jump bb13
+bb13:
+  push 12
+  push 4
+  calldataload
+  eq
+  iszero
+  iszero
+  push bb20
+  jumpi
+  jump bb14
+bb14:
+  push 13
+  push 4
+  calldataload
+  eq
+  iszero
+  iszero
+  push bb20
+  jumpi
+  jump bb15
+bb15:
+  push 14
+  push 4
+  calldataload
+  eq
+  iszero
+  iszero
+  push bb20
+  jumpi
+  jump bb16
+bb16:
+  push 15
+  push 4
+  calldataload
+  eq
+  iszero
+  iszero
+  push bb20
+  jumpi
+  jump bb17
+bb17:
+  push 1
+  push 4
+  calldataload
+  add
+  dup 1
+  push 160
+  mstore
+  dup 1
+  push 160
+  mstore
+  push 4
+  calldataload
+  dup 2
+  lt
+  push bb19
+  jumpi
+  jump bb18
+bb18:
+  dup 1
+  push 160
+  mstore
+  push 128
+  mstore
+  push 32
+  push 128
+  add
+  push 128
+  swap 1
+  sub
+  push 128
+  return
+bb19 [cold]:
+  push 0x4e487b71
+  push 0
+  mstore
+  push 17
+  push 32
+  mstore
+  push 36
+  push 28
+  revert
+bb20 [cold]:
+  push 0
+  push 0
+  revert
