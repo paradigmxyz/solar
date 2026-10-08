@@ -330,56 +330,55 @@ fn @const10(arg0: i256) -> i256 [selector=0xd325f19a, pure, abi_params=[u256], a
 
 fn @const_neg2(arg0: i256) -> i256 [selector=0xf3adabf1, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[i256]] {
   bb0:
-    v0 = sub 0, 2
     jump bb1
   bb1:
-    v2 = phi [bb0: 1], [bb6: v23]
-    v3 = phi [bb0: v0], [bb6: v25]
-    v4 = phi [bb0: arg0], [bb6: v24]
-    v5 = gt v4, 0
-    jumpi v5, bb2, bb3
+    v1 = phi [bb0: 1], [bb6: v22]
+    v2 = phi [bb0: 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe], [bb6: v24]
+    v3 = phi [bb0: arg0], [bb6: v23]
+    v4 = gt v3, 0
+    jumpi v4, bb2, bb3
   bb3:
-    ret v2
+    ret v1
   bb2:
-    v6 = and v4, 1
-    v7 = mul v2, v3
-    v8 = eq v3, 0
-    v9 = sdiv v7, v3
-    v10 = eq v9, v2
-    v11 = or v8, v10
-    v12 = zext i1 v11 to i256
-    v13 = eq v12, 0
-    v14 = eq v2, 0x8000000000000000000000000000000000000000000000000000000000000000
-    v15 = slt v3, 0
-    v16 = and v14, v15
-    v17 = zext i1 v16 to i256
-    v18 = zext i1 v13 to i256
-    v19 = or v18, v17
-    v20 = and v6, v19
-    v21 = ne v20, 0
-    jumpi v21, bb4, bb5
+    v5 = and v3, 1
+    v6 = mul v1, v2
+    v7 = eq v2, 0
+    v8 = sdiv v6, v2
+    v9 = eq v8, v1
+    v10 = or v7, v9
+    v11 = zext i1 v10 to i256
+    v12 = eq v11, 0
+    v13 = eq v1, 0x8000000000000000000000000000000000000000000000000000000000000000
+    v14 = slt v2, 0
+    v15 = and v13, v14
+    v16 = zext i1 v15 to i256
+    v17 = zext i1 v12 to i256
+    v18 = or v17, v16
+    v19 = and v5, v18
+    v20 = ne v19, 0
+    jumpi v20, bb4, bb5
   bb5:
-    v22 = ne v6, 0
-    v23 = select v22, v7, v2
-    v24 = shr 1, v4
-    v25 = mul v3, v3
-    v26 = eq v3, 0
-    v27 = sdiv v25, v3
-    v28 = eq v27, v3
-    v29 = or v26, v28
-    v30 = zext i1 v29 to i256
-    v31 = eq v30, 0
-    v32 = eq v3, 0x8000000000000000000000000000000000000000000000000000000000000000
-    v33 = slt v3, 0
-    v34 = and v32, v33
-    v35 = zext i1 v34 to i256
-    v36 = zext i1 v31 to i256
-    v37 = or v36, v35
-    v38 = gt v24, 0
-    v39 = zext i1 v38 to i256
-    v40 = and v39, v37
-    v41 = ne v40, 0
-    jumpi v41, bb4, bb6
+    v21 = ne v5, 0
+    v22 = select v21, v6, v1
+    v23 = shr 1, v3
+    v24 = mul v2, v2
+    v25 = eq v2, 0
+    v26 = sdiv v24, v2
+    v27 = eq v26, v2
+    v28 = or v25, v27
+    v29 = zext i1 v28 to i256
+    v30 = eq v29, 0
+    v31 = eq v2, 0x8000000000000000000000000000000000000000000000000000000000000000
+    v32 = slt v2, 0
+    v33 = and v31, v32
+    v34 = zext i1 v33 to i256
+    v35 = zext i1 v30 to i256
+    v36 = or v35, v34
+    v37 = gt v23, 0
+    v38 = zext i1 v37 to i256
+    v39 = and v38, v36
+    v40 = ne v39, 0
+    jumpi v40, bb4, bb6
   bb6:
     jump bb1
   bb4:

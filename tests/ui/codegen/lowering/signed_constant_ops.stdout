@@ -2,21 +2,18 @@
 @module SignedConstantOps
 fn @lt() -> i1 [selector=0xa22ca2a6, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = sub 0, 1
-    v1 = slt v0, 1
-    ret v1
+    v0 = slt 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 1
+    ret v0
 }
 
 fn @div() -> i256 [selector=0xf9fa48c3, pure, abi_params=[], abi_returns=[word], abi_return_params=[i256]] {
   bb0:
-    v0 = sub 0, 7
-    v1 = checked_div i256, v0, 2
-    ret v1
+    v0 = checked_div i256, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff9, 2
+    ret v0
 }
 
 fn @shr() -> i256 [selector=0xb87f777a, pure, abi_params=[], abi_returns=[word], abi_return_params=[i256]] {
   bb0:
-    v0 = sub 0, 8
-    v1 = sar 1, v0
-    ret v1
+    v0 = sar 1, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff8
+    ret v0
 }
