@@ -4,7 +4,6 @@ use smallvec::SmallVec;
 use solar_ast::{
     AstPath, Box, DocComments, Lit, LitKind, PathSlice, StrKind, StrLit, Symbol, token::*, yul::*,
 };
-use solar_data_structures::stack::ensure_sufficient_stack;
 use solar_interface::{Ident, error_code, kw, sym};
 
 impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
@@ -105,14 +104,8 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
 
     /// Parses a Yul statement, without setting `in_yul`.
     pub fn parse_yul_stmt_unchecked(&mut self) -> PResult<'sess, Stmt<'ast>> {
-        ensure_sufficient_stack(|| {
-            let docs = self.parse_doc_comments();
-            self.parse_spanned(Self::parse_yul_stmt_kind).map(|(span, kind)| Stmt {
-                docs,
-                span,
-                kind,
-            })
-        })
+        let docs = self.parse_doc_comments();
+        self.parse_spanned(Self::parse_yul_stmt_kind).map(|(span, kind)| Stmt { docs, span, kind })
     }
 
     /// Parses a Yul block.
@@ -283,9 +276,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
 
     /// Parses a Yul expression.
     fn parse_yul_expr(&mut self) -> PResult<'sess, Expr<'ast>> {
-        ensure_sufficient_stack(|| {
-            self.parse_spanned(Self::parse_yul_expr_kind).map(|(span, kind)| Expr { span, kind })
-        })
+        self.parse_spanned(Self::parse_yul_expr_kind).map(|(span, kind)| Expr { span, kind })
     }
 
     /// Parses a Yul expression kind.

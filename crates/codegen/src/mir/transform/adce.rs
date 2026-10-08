@@ -15,7 +15,6 @@ use solar_data_structures::{
     bit_set::DenseBitSet,
     index::{IndexVec, index_vec},
     map::FxHashMap,
-    stack::ensure_sufficient_stack,
 };
 
 /// Function pass for aggressive dead-code elimination.
@@ -178,9 +177,7 @@ impl AggressiveDeadCodeEliminator {
         if !search.visiting.insert(block_id) {
             return None;
         }
-        let target = ensure_sufficient_stack(|| {
-            self.compute_transparent_target(func, ctx, block_id, search)
-        });
+        let target = self.compute_transparent_target(func, ctx, block_id, search);
         search.visiting.remove(block_id);
         search.targets.insert(block_id, target);
         target

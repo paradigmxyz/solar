@@ -1,5 +1,4 @@
 use super::*;
-use solar_data_structures::stack::ensure_sufficient_stack;
 use std::ops::ControlFlow;
 
 solar_macros::declare_visitors! {
@@ -148,62 +147,60 @@ pub trait Visit<'hir> {
     }
 
     fn visit_expr(&mut self, expr: &'hir Expr<'hir>) -> ControlFlow<Self::BreakValue> {
-        ensure_sufficient_stack(|| {
-            match expr.kind {
-                ExprKind::Call(expr, ref args) => {
-                    self.visit_expr(expr)?;
-                    self.visit_call_args(args)?;
-                }
-                ExprKind::CallOptions(callee, options) => {
-                    self.visit_expr(callee)?;
-                    for arg in options.args { self.visit_expr(&arg.value)?; }
-                }
-                ExprKind::Delete(expr)
-                | ExprKind::Member(expr, _)
-                | ExprKind::Payable(expr)
-                | ExprKind::Unary(_, expr)
-                | ExprKind::YulMember(expr, _) => self.visit_expr(expr)?,
-                ExprKind::Assign(lhs, _, rhs) | ExprKind::Binary(lhs, _, rhs) => {
-                    self.visit_expr(lhs)?;
-                    self.visit_expr(rhs)?;
-                }
-                ExprKind::Index(expr, index) => {
-                    self.visit_expr(expr)?;
-                    if let Some(index) = index {
-                        self.visit_expr(index)?;
-                    }
-                }
-                ExprKind::Slice(expr, start, end) => {
-                    self.visit_expr(expr)?;
-                    if let Some(start) = start {
-                        self.visit_expr(start)?;
-                    }
-                    if let Some(end) = end {
-                        self.visit_expr(end)?;
-                    }
-                }
-                ExprKind::Ternary(cond, true_, false_) => {
-                    self.visit_expr(cond)?;
-                    self.visit_expr(true_)?;
-                    self.visit_expr(false_)?;
-                }
-                ExprKind::Array(exprs) => {
-                    for expr in exprs {
-                        self.visit_expr(expr)?;
-                    }
-                }
-                ExprKind::Tuple(exprs) => {
-                    exprs.iter().copied().flatten().try_for_each(|expr| self.visit_expr(expr))?;
-                }
-                ExprKind::Ident(_) => {}
-                ExprKind::Lit(_) => {}
-                ExprKind::New(ref ty) | ExprKind::TypeCall(ref ty) | ExprKind::Type(ref ty) => {
-                    self.visit_ty(ty)?;
-                }
-                ExprKind::Err(_guar) => {}
+        match expr.kind {
+            ExprKind::Call(expr, ref args) => {
+                self.visit_expr(expr)?;
+                self.visit_call_args(args)?;
             }
-            ControlFlow::Continue(())
-        })
+            ExprKind::CallOptions(callee, options) => {
+                self.visit_expr(callee)?;
+                for arg in options.args { self.visit_expr(&arg.value)?; }
+            }
+            ExprKind::Delete(expr)
+            | ExprKind::Member(expr, _)
+            | ExprKind::Payable(expr)
+            | ExprKind::Unary(_, expr)
+            | ExprKind::YulMember(expr, _) => self.visit_expr(expr)?,
+            ExprKind::Assign(lhs, _, rhs) | ExprKind::Binary(lhs, _, rhs) => {
+                self.visit_expr(lhs)?;
+                self.visit_expr(rhs)?;
+            }
+            ExprKind::Index(expr, index) => {
+                self.visit_expr(expr)?;
+                if let Some(index) = index {
+                    self.visit_expr(index)?;
+                }
+            }
+            ExprKind::Slice(expr, start, end) => {
+                self.visit_expr(expr)?;
+                if let Some(start) = start {
+                    self.visit_expr(start)?;
+                }
+                if let Some(end) = end {
+                    self.visit_expr(end)?;
+                }
+            }
+            ExprKind::Ternary(cond, true_, false_) => {
+                self.visit_expr(cond)?;
+                self.visit_expr(true_)?;
+                self.visit_expr(false_)?;
+            }
+            ExprKind::Array(exprs) => {
+                for expr in exprs {
+                    self.visit_expr(expr)?;
+                }
+            }
+            ExprKind::Tuple(exprs) => {
+                exprs.iter().copied().flatten().try_for_each(|expr| self.visit_expr(expr))?;
+            }
+            ExprKind::Ident(_) => {}
+            ExprKind::Lit(_) => {}
+            ExprKind::New(ref ty) | ExprKind::TypeCall(ref ty) | ExprKind::Type(ref ty) => {
+                self.visit_ty(ty)?;
+            }
+            ExprKind::Err(_guar) => {}
+        }
+        ControlFlow::Continue(())
     }
 
     fn visit_call_args(&mut self, args: &'hir CallArgs<'hir>) -> ControlFlow<Self::BreakValue> {
@@ -215,73 +212,71 @@ pub trait Visit<'hir> {
     }
 
     fn visit_stmt(&mut self, stmt: &'hir Stmt<'hir>) -> ControlFlow<Self::BreakValue> {
-        ensure_sufficient_stack(|| {
-            match stmt.kind {
-                StmtKind::DeclSingle(var) => self.visit_nested_var(var)?,
-                StmtKind::DeclMulti(vars, expr) => {
-                    for &var in vars {
-                        if let Some(var) = var {
-                            self.visit_nested_var(var)?;
-                        }
+        match stmt.kind {
+            StmtKind::DeclSingle(var) => self.visit_nested_var(var)?,
+            StmtKind::DeclMulti(vars, expr) => {
+                for &var in vars {
+                    if let Some(var) = var {
+                        self.visit_nested_var(var)?;
                     }
+                }
+                self.visit_expr(expr)?;
+            }
+            StmtKind::Block(block)
+            | StmtKind::UncheckedBlock(block)
+            | StmtKind::AssemblyBlock(block) => {
+                for stmt in block.stmts {
+                    self.visit_stmt(stmt)?;
+                }
+            }
+            StmtKind::Loop(block, source) => {
+                for stmt in block.stmts {
+                    self.visit_stmt(stmt)?;
+                }
+                if let LoopSource::For { update: Some(update) } = source {
+                    self.visit_stmt(update)?;
+                }
+            }
+            StmtKind::Emit(expr) => self.visit_expr(expr)?,
+            StmtKind::Revert(expr) => self.visit_expr(expr)?,
+            StmtKind::Return(expr) => {
+                if let Some(expr) = expr {
                     self.visit_expr(expr)?;
                 }
-                StmtKind::Block(block)
-                | StmtKind::UncheckedBlock(block)
-                | StmtKind::AssemblyBlock(block) => {
-                    for stmt in block.stmts {
-                        self.visit_stmt(stmt)?;
-                    }
-                }
-                StmtKind::Loop(block, source) => {
-                    for stmt in block.stmts {
-                        self.visit_stmt(stmt)?;
-                    }
-                    if let LoopSource::For { update: Some(update) } = source {
-                        self.visit_stmt(update)?;
-                    }
-                }
-                StmtKind::Emit(expr) => self.visit_expr(expr)?,
-                StmtKind::Revert(expr) => self.visit_expr(expr)?,
-                StmtKind::Return(expr) => {
-                    if let Some(expr) = expr {
-                        self.visit_expr(expr)?;
-                    }
-                }
-                StmtKind::Break => {}
-                StmtKind::Continue => {}
-                StmtKind::If(cond, true_, false_) => {
-                    self.visit_expr(cond)?;
-                    self.visit_stmt(true_)?;
-                    if let Some(false_) = false_ {
-                        self.visit_stmt(false_)?;
-                    }
-                }
-                StmtKind::Switch(switch) => {
-                    self.visit_expr(switch.selector)?;
-                    for case in switch.cases {
-                        for stmt in case.body.iter() {
-                            self.visit_stmt(stmt)?;
-                        }
-                    }
-                }
-                StmtKind::Try(try_) => {
-                    self.visit_expr(&try_.expr)?;
-                    for clause in try_.clauses {
-                        for &var in clause.args {
-                            self.visit_nested_var(var)?;
-                        }
-                        for stmt in clause.block.iter() {
-                            self.visit_stmt(stmt)?;
-                        }
-                    }
-                }
-                StmtKind::Expr(expr) => self.visit_expr(expr)?,
-                StmtKind::Placeholder => {}
-                StmtKind::Err(_guar) => {}
             }
-            ControlFlow::Continue(())
-        })
+            StmtKind::Break => {}
+            StmtKind::Continue => {}
+            StmtKind::If(cond, true_, false_) => {
+                self.visit_expr(cond)?;
+                self.visit_stmt(true_)?;
+                if let Some(false_) = false_ {
+                    self.visit_stmt(false_)?;
+                }
+            }
+            StmtKind::Switch(switch) => {
+                self.visit_expr(switch.selector)?;
+                for case in switch.cases {
+                    for stmt in case.body.iter() {
+                        self.visit_stmt(stmt)?;
+                    }
+                }
+            }
+            StmtKind::Try(try_) => {
+                self.visit_expr(&try_.expr)?;
+                for clause in try_.clauses {
+                    for &var in clause.args {
+                        self.visit_nested_var(var)?;
+                    }
+                    for stmt in clause.block.iter() {
+                        self.visit_stmt(stmt)?;
+                    }
+                }
+            }
+            StmtKind::Expr(expr) => self.visit_expr(expr)?,
+            StmtKind::Placeholder => {}
+            StmtKind::Err(_guar) => {}
+        }
+        ControlFlow::Continue(())
     }
 
     fn visit_ty(&mut self, ty: &'hir Type<'hir>) -> ControlFlow<Self::BreakValue> {

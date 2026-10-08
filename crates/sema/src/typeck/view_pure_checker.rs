@@ -5,9 +5,7 @@ use crate::{
 };
 use rayon::prelude::*;
 use solar_ast::{DataLocation, StateMutability, Visibility};
-use solar_data_structures::{
-    Never, bit_set::DenseBitSet, map::FxBuildHasher, stack::ensure_sufficient_stack,
-};
+use solar_data_structures::{Never, bit_set::DenseBitSet, map::FxBuildHasher};
 use solar_interface::{
     Span,
     diagnostics::{Diag, Level},
@@ -160,7 +158,7 @@ impl<'gcx, 'a> ViewPureChecker<'gcx, 'a> {
 
     fn visit_expr_with_writing(&mut self, expr: &'gcx hir::Expr<'gcx>, writing: bool) {
         let previous = std::mem::replace(&mut self.writing, writing);
-        let _ = ensure_sufficient_stack(|| self.visit_expr(expr));
+        let _ = self.visit_expr(expr);
         self.writing = previous;
     }
 

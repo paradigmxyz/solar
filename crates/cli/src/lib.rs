@@ -54,7 +54,16 @@ pub fn main() -> ExitCode {
         Ok(args) => args,
         Err(e) => e.exit(),
     };
-    commands::run(args)
+    // A single-threaded thread pool runs on the current thread, so give it a large stack too.
+    std::thread::scope(|s| {
+        std::thread::Builder::new()
+            .name("solar".into())
+            .stack_size(solar_interface::thread_stack_size())
+            .spawn_scoped(s, || commands::run(args))
+            .unwrap()
+            .join()
+            .unwrap_or_else(|e| std::panic::resume_unwind(e))
+    })
 }
 
 fn parse_args<I, T>(itr: I) -> Result<Args, clap::Error>

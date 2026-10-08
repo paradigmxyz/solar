@@ -9,7 +9,6 @@ use solar_data_structures::{
     BumpExt,
     index::{Idx, IndexVec},
     newtype_index,
-    stack::ensure_sufficient_stack,
 };
 use solar_interface::{
     Ident, Span, Symbol, diagnostics::ErrorGuaranteed, kw, source_map::SourceFile,
@@ -1838,7 +1837,7 @@ impl<'hir> Expr<'hir> {
     /// Returns `true` if this expression is integer literal arithmetic, which is evaluated exactly
     /// at compile time.
     pub fn is_int_literal(&self) -> bool {
-        ensure_sufficient_stack(|| match &self.kind {
+        match &self.kind {
             ExprKind::Lit(lit) => matches!(lit.kind, ast::LitKind::Number(_)),
             ExprKind::Unary(op, inner) if matches!(op.kind, UnOpKind::Neg | UnOpKind::BitNot) => {
                 inner.is_int_literal()
@@ -1850,7 +1849,7 @@ impl<'hir> Expr<'hir> {
             }
             ExprKind::Tuple([Some(inner)]) => inner.is_int_literal(),
             _ => false,
-        })
+        }
     }
 }
 

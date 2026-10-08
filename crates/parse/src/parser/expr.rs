@@ -1,14 +1,14 @@
 use crate::{PResult, Parser};
 use smallvec::SmallVec;
 use solar_ast::{token::*, *};
-use solar_data_structures::stack::ensure_sufficient_stack;
+
 use solar_interface::{Ident, Symbol, kw};
 
 impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     /// Parses an expression.
     #[inline]
     pub fn parse_expr(&mut self) -> PResult<'sess, Box<'ast, Expr<'ast>>> {
-        ensure_sufficient_stack(|| self.parse_expr_with(None))
+        self.parse_expr_with(None)
     }
 
     #[instrument(name = "parse_expr", level = "trace", skip_all)]
@@ -103,13 +103,13 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         if let Some(with) = with {
             parse_lhs(self, Some(with))
         } else if self.eat_keyword(kw::Delete) {
-            ensure_sufficient_stack(|| self.parse_unary_expr(None)).map(|expr| {
+            self.parse_unary_expr(None).map(|expr| {
                 let span = lo.to(self.prev_token.span);
                 self.alloc(Expr { span, kind: ExprKind::Delete(expr) })
             })
         } else if let Some(unop) = self.token.as_unop(false) {
             self.bump(); // unop
-            ensure_sufficient_stack(|| self.parse_unary_expr(None)).map(|expr| {
+            self.parse_unary_expr(None).map(|expr| {
                 let span = lo.to(self.prev_token.span);
                 self.alloc(Expr { span, kind: ExprKind::Unary(unop, expr) })
             })

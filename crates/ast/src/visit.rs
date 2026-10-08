@@ -1,7 +1,6 @@
 //! Constant and mutable AST visitor trait definitions.
 
 use crate::ast::*;
-use solar_data_structures::stack::ensure_sufficient_stack;
 use solar_interface::{Ident, Span, Spanned, SpannedOption};
 use solar_macros::declare_visitors;
 use std::ops::ControlFlow;
@@ -294,86 +293,82 @@ declare_visitors! {
         }
 
         fn visit_stmt(&mut self, stmt: &'ast #mut Stmt<'ast>) -> ControlFlow<Self::BreakValue> {
-            ensure_sufficient_stack(|| {
-                let Stmt { docs, span, kind } = stmt;
-                self.visit_doc_comments #_mut(docs)?;
-                self.visit_span #_mut(span)?;
-                match kind {
-                    StmtKind::Assembly(assembly) => {
-                        self.visit_stmt_assembly #_mut(assembly)?;
-                    }
-                    StmtKind::DeclSingle(var) => {
-                        self.visit_variable_definition #_mut(var)?;
-                    }
-                    StmtKind::DeclMulti(vars, expr) => {
-                        for spanned_var in vars.iter #_mut() {
-                            match spanned_var {
-                                SpannedOption::Some(var) => {
-                                    self.visit_variable_definition #_mut(var)?
-                                }
-                                SpannedOption::None(span) => self.visit_span #_mut(span)?,
-                            }
-                        }
-                        self.visit_expr #_mut(expr)?;
-                    }
-                    StmtKind::Block(block) => {
-                        self.visit_block #_mut(block)?;
-                    }
-                    StmtKind::Break => {}
-                    StmtKind::Continue => {}
-                    StmtKind::DoWhile(stmt, expr) => {
-                        self.visit_stmt #_mut(stmt)?;
-                        self.visit_expr #_mut(expr)?;
-                    }
-                    StmtKind::Emit(path, args) => {
-                        self.visit_path #_mut(path)?;
-                        self.visit_call_args #_mut(args)?;
-                    }
-                    StmtKind::Expr(expr) => {
-                        self.visit_expr #_mut(expr)?;
-                    }
-                    StmtKind::For { init, cond, next, body } => {
-                        if let Some(init) = init {
-                            self.visit_stmt #_mut(init)?;
-                        }
-                        if let Some(cond) = cond {
-                            self.visit_expr #_mut(cond)?;
-                        }
-                        if let Some(next) = next {
-                            self.visit_expr #_mut(next)?;
-                        }
-                        self.visit_stmt #_mut(body)?;
-                    }
-                    StmtKind::If(cond, then, else_) => {
-                        self.visit_expr #_mut(cond)?;
-                        self.visit_stmt #_mut(then)?;
-                        if let Some(else_) = else_ {
-                            self.visit_stmt #_mut(else_)?;
-                        }
-                    }
-                    StmtKind::Return(expr) => {
-                        if let Some(expr) = expr {
-                            self.visit_expr #_mut(expr)?;
-                        }
-                    }
-                    StmtKind::Revert(path, args) => {
-                        self.visit_path #_mut(path)?;
-                        self.visit_call_args #_mut(args)?;
-                    }
-                    StmtKind::Try(try_) => {
-                        self.visit_stmt_try #_mut(try_)?;
-                    }
-                    StmtKind::UncheckedBlock(block) => {
-                        self.visit_block #_mut(block)?;
-                    }
-                    StmtKind::While(cond, stmt) => {
-                        self.visit_expr #_mut(cond)?;
-                        self.visit_stmt #_mut(stmt)?;
-                    }
-                    StmtKind::Placeholder => {}
+            let Stmt { docs, span, kind } = stmt;
+            self.visit_doc_comments #_mut(docs)?;
+            self.visit_span #_mut(span)?;
+            match kind {
+                StmtKind::Assembly(assembly) => {
+                    self.visit_stmt_assembly #_mut(assembly)?;
                 }
-                ControlFlow::Continue(())
-            })
+                StmtKind::DeclSingle(var) => {
+                    self.visit_variable_definition #_mut(var)?;
+                }
+                StmtKind::DeclMulti(vars, expr) => {
+                    for spanned_var in vars.iter #_mut() {
+                        match spanned_var {
+                            SpannedOption::Some(var) => self.visit_variable_definition #_mut(var)?,
+                            SpannedOption::None(span) => self.visit_span #_mut(span)?,
+                        }
+                    }
+                    self.visit_expr #_mut(expr)?;
+                }
+                StmtKind::Block(block) => {
+                    self.visit_block #_mut(block)?;
+                }
+                StmtKind::Break => {}
+                StmtKind::Continue => {}
+                StmtKind::DoWhile(stmt, expr) => {
+                    self.visit_stmt #_mut(stmt)?;
+                    self.visit_expr #_mut(expr)?;
+                }
+                StmtKind::Emit(path, args) => {
+                    self.visit_path #_mut(path)?;
+                    self.visit_call_args #_mut(args)?;
+                }
+                StmtKind::Expr(expr) => {
+                    self.visit_expr #_mut(expr)?;
+                }
+                StmtKind::For { init, cond, next, body } => {
+                    if let Some(init) = init {
+                        self.visit_stmt #_mut(init)?;
+                    }
+                    if let Some(cond) = cond {
+                        self.visit_expr #_mut(cond)?;
+                    }
+                    if let Some(next) = next {
+                        self.visit_expr #_mut(next)?;
+                    }
+                    self.visit_stmt #_mut(body)?;
+                }
+                StmtKind::If(cond, then, else_) => {
+                    self.visit_expr #_mut(cond)?;
+                    self.visit_stmt #_mut(then)?;
+                    if let Some(else_) = else_ {
+                        self.visit_stmt #_mut(else_)?;
+                    }
+                }
+                StmtKind::Return(expr) => {
+                    if let Some(expr) = expr {
+                        self.visit_expr #_mut(expr)?;
+                    }
+                }
+                StmtKind::Revert(path, args) => {
+                    self.visit_path #_mut(path)?;
+                    self.visit_call_args #_mut(args)?;
+                }
+                StmtKind::Try(try_) => {
+                    self.visit_stmt_try #_mut(try_)?;
+                }
+                StmtKind::UncheckedBlock(block) => {
+                    self.visit_block #_mut(block)?;
+                }
+                StmtKind::While(cond, stmt) => {
+                    self.visit_expr #_mut(cond)?;
+                    self.visit_stmt #_mut(stmt)?;
+                }
+                StmtKind::Placeholder => {}
+            }
+            ControlFlow::Continue(())
         }
 
         fn visit_stmt_assembly(&mut self, assembly: &'ast #mut StmtAssembly<'ast>) -> ControlFlow<Self::BreakValue> {
@@ -412,94 +407,92 @@ declare_visitors! {
         }
 
         fn visit_expr(&mut self, expr: &'ast #mut Expr<'ast>) -> ControlFlow<Self::BreakValue> {
-            ensure_sufficient_stack(|| {
-                let Expr { span, kind } = expr;
-                self.visit_span #_mut(span)?;
-                match kind {
-                    ExprKind::Array(exprs) => {
-                        for expr in exprs.iter #_mut() {
-                            self.visit_expr #_mut(expr)?;
-                        }
-                    }
-                    ExprKind::Assign(lhs, _op, rhs) => {
-                        self.visit_expr #_mut(lhs)?;
-                        self.visit_expr #_mut(rhs)?;
-                    }
-                    ExprKind::Binary(lhs, _op, rhs) => {
-                        self.visit_expr #_mut(lhs)?;
-                        self.visit_expr #_mut(rhs)?;
-                    }
-                    ExprKind::Call(lhs, args) => {
-                        self.visit_expr #_mut(lhs)?;
-                        self.visit_call_args #_mut(args)?;
-                    }
-                    ExprKind::CallOptions(lhs, args) => {
-                        self.visit_expr #_mut(lhs)?;
-                        self.visit_named_args #_mut(args)?;
-                    }
-                    ExprKind::Delete(expr) => {
+            let Expr { span, kind } = expr;
+            self.visit_span #_mut(span)?;
+            match kind {
+                ExprKind::Array(exprs) => {
+                    for expr in exprs.iter #_mut() {
                         self.visit_expr #_mut(expr)?;
                     }
-                    ExprKind::Ident(ident) => {
-                        self.visit_ident #_mut(ident)?;
-                    }
-                    ExprKind::Index(lhs, kind) => {
-                        self.visit_expr #_mut(lhs)?;
-                        match kind {
-                            IndexKind::Index(expr) => {
-                                if let Some(expr) = expr {
-                                    self.visit_expr #_mut(expr)?;
-                                }
-                            }
-                            IndexKind::Range(start, end) => {
-                                if let Some(start) = start {
-                                    self.visit_expr #_mut(start)?;
-                                }
-                                if let Some(end) = end {
-                                    self.visit_expr #_mut(end)?;
-                                }
-                            }
-                        }
-                    }
-                    ExprKind::Lit(lit, _sub) => {
-                        self.visit_lit #_mut(lit)?;
-                    }
-                    ExprKind::Member(expr, member) => {
-                        self.visit_expr #_mut(expr)?;
-                        self.visit_ident #_mut(member)?;
-                    }
-                    ExprKind::New(ty) => {
-                        self.visit_ty #_mut(ty)?;
-                    }
-                    ExprKind::Payable(args) => {
-                        self.visit_call_args #_mut(args)?;
-                    }
-                    ExprKind::Ternary(cond, true_, false_) => {
-                        self.visit_expr #_mut(cond)?;
-                        self.visit_expr #_mut(true_)?;
-                        self.visit_expr #_mut(false_)?;
-                    }
-                    ExprKind::Tuple(exprs) => {
-                        for spanned_expr in exprs.iter #_mut() {
-                            match spanned_expr {
-                                SpannedOption::Some(expr) => self.visit_expr #_mut(expr)?,
-                                SpannedOption::None(span) => self.visit_span #_mut(span)?,
-                            }
-                        }
-                    }
-                    ExprKind::TypeCall(ty) => {
-                        self.visit_ty #_mut(ty)?;
-                    }
-                    ExprKind::Type(ty) => {
-                        self.visit_ty #_mut(ty)?;
-                    }
-                    ExprKind::Unary(_op, expr) => {
-                        self.visit_expr #_mut(expr)?;
-                    }
-                    ExprKind::Err(_guar) => {}
                 }
-                ControlFlow::Continue(())
-            })
+                ExprKind::Assign(lhs, _op, rhs) => {
+                    self.visit_expr #_mut(lhs)?;
+                    self.visit_expr #_mut(rhs)?;
+                }
+                ExprKind::Binary(lhs, _op, rhs) => {
+                    self.visit_expr #_mut(lhs)?;
+                    self.visit_expr #_mut(rhs)?;
+                }
+                ExprKind::Call(lhs, args) => {
+                    self.visit_expr #_mut(lhs)?;
+                    self.visit_call_args #_mut(args)?;
+                }
+                ExprKind::CallOptions(lhs, args) => {
+                    self.visit_expr #_mut(lhs)?;
+                    self.visit_named_args #_mut(args)?;
+                }
+                ExprKind::Delete(expr) => {
+                    self.visit_expr #_mut(expr)?;
+                }
+                ExprKind::Ident(ident) => {
+                    self.visit_ident #_mut(ident)?;
+                }
+                ExprKind::Index(lhs, kind) => {
+                    self.visit_expr #_mut(lhs)?;
+                    match kind {
+                        IndexKind::Index(expr) => {
+                            if let Some(expr) = expr {
+                                self.visit_expr #_mut(expr)?;
+                            }
+                        }
+                        IndexKind::Range(start, end) => {
+                            if let Some(start) = start {
+                                self.visit_expr #_mut(start)?;
+                            }
+                            if let Some(end) = end {
+                                self.visit_expr #_mut(end)?;
+                            }
+                        }
+                    }
+                }
+                ExprKind::Lit(lit, _sub) => {
+                    self.visit_lit #_mut(lit)?;
+                }
+                ExprKind::Member(expr, member) => {
+                    self.visit_expr #_mut(expr)?;
+                    self.visit_ident #_mut(member)?;
+                }
+                ExprKind::New(ty) => {
+                    self.visit_ty #_mut(ty)?;
+                }
+                ExprKind::Payable(args) => {
+                    self.visit_call_args #_mut(args)?;
+                }
+                ExprKind::Ternary(cond, true_, false_) => {
+                    self.visit_expr #_mut(cond)?;
+                    self.visit_expr #_mut(true_)?;
+                    self.visit_expr #_mut(false_)?;
+                }
+                ExprKind::Tuple(exprs) => {
+                    for spanned_expr in exprs.iter #_mut() {
+                        match spanned_expr {
+                            SpannedOption::Some(expr) => self.visit_expr #_mut(expr)?,
+                            SpannedOption::None(span) => self.visit_span #_mut(span)?,
+                        }
+                    }
+                }
+                ExprKind::TypeCall(ty) => {
+                    self.visit_ty #_mut(ty)?;
+                }
+                ExprKind::Type(ty) => {
+                    self.visit_ty #_mut(ty)?;
+                }
+                ExprKind::Unary(_op, expr) => {
+                    self.visit_expr #_mut(expr)?;
+                }
+                ExprKind::Err(_guar) => {}
+            }
+            ControlFlow::Continue(())
         }
 
         fn visit_parameter_list(&mut self, list: &'ast #mut ParameterList<'ast>) -> ControlFlow<Self::BreakValue> {
@@ -518,57 +511,55 @@ declare_visitors! {
         }
 
         fn visit_yul_stmt(&mut self, stmt: &'ast #mut yul::Stmt<'ast>) -> ControlFlow<Self::BreakValue> {
-            ensure_sufficient_stack(|| {
-                let yul::Stmt { docs, span, kind } = stmt;
-                self.visit_doc_comments #_mut(docs)?;
-                self.visit_span #_mut(span)?;
-                match kind {
-                    yul::StmtKind::Block(block) => {
-                        self.visit_yul_block #_mut(block)?;
-                    }
-                    yul::StmtKind::AssignSingle(path, expr) => {
+            let yul::Stmt { docs, span, kind } = stmt;
+            self.visit_doc_comments #_mut(docs)?;
+            self.visit_span #_mut(span)?;
+            match kind {
+                yul::StmtKind::Block(block) => {
+                    self.visit_yul_block #_mut(block)?;
+                }
+                yul::StmtKind::AssignSingle(path, expr) => {
+                    self.visit_path #_mut(path)?;
+                    self.visit_yul_expr #_mut(expr)?;
+                }
+                yul::StmtKind::AssignMulti(paths, expr) => {
+                    for path in paths.iter #_mut() {
                         self.visit_path #_mut(path)?;
+                    }
+                    self.visit_yul_expr #_mut(expr)?;
+                }
+                yul::StmtKind::Expr(expr) => {
+                    self.visit_yul_expr #_mut(expr)?;
+                }
+                yul::StmtKind::If(expr, block) => {
+                    self.visit_yul_expr #_mut(expr)?;
+                    self.visit_yul_block #_mut(block)?;
+                }
+                yul::StmtKind::For(yul::StmtFor { init, cond, step, body }) => {
+                    self.visit_yul_block #_mut(init)?;
+                    self.visit_yul_expr #_mut(cond)?;
+                    self.visit_yul_block #_mut(step)?;
+                    self.visit_yul_block #_mut(body)?;
+                }
+                yul::StmtKind::Switch(switch) => {
+                    self.visit_yul_stmt_switch #_mut(switch)?;
+                }
+                yul::StmtKind::Leave => {}
+                yul::StmtKind::Break => {}
+                yul::StmtKind::Continue => {}
+                yul::StmtKind::FunctionDef(function) => {
+                    self.visit_yul_function #_mut(function)?;
+                }
+                yul::StmtKind::VarDecl(idents, expr) => {
+                    for ident in idents.iter #_mut() {
+                        self.visit_ident #_mut(ident)?;
+                    }
+                    if let Some(expr) = expr {
                         self.visit_yul_expr #_mut(expr)?;
-                    }
-                    yul::StmtKind::AssignMulti(paths, expr) => {
-                        for path in paths.iter #_mut() {
-                            self.visit_path #_mut(path)?;
-                        }
-                        self.visit_yul_expr #_mut(expr)?;
-                    }
-                    yul::StmtKind::Expr(expr) => {
-                        self.visit_yul_expr #_mut(expr)?;
-                    }
-                    yul::StmtKind::If(expr, block) => {
-                        self.visit_yul_expr #_mut(expr)?;
-                        self.visit_yul_block #_mut(block)?;
-                    }
-                    yul::StmtKind::For(yul::StmtFor { init, cond, step, body }) => {
-                        self.visit_yul_block #_mut(init)?;
-                        self.visit_yul_expr #_mut(cond)?;
-                        self.visit_yul_block #_mut(step)?;
-                        self.visit_yul_block #_mut(body)?;
-                    }
-                    yul::StmtKind::Switch(switch) => {
-                        self.visit_yul_stmt_switch #_mut(switch)?;
-                    }
-                    yul::StmtKind::Leave => {}
-                    yul::StmtKind::Break => {}
-                    yul::StmtKind::Continue => {}
-                    yul::StmtKind::FunctionDef(function) => {
-                        self.visit_yul_function #_mut(function)?;
-                    }
-                    yul::StmtKind::VarDecl(idents, expr) => {
-                        for ident in idents.iter #_mut() {
-                            self.visit_ident #_mut(ident)?;
-                        }
-                        if let Some(expr) = expr {
-                            self.visit_yul_expr #_mut(expr)?;
-                        }
                     }
                 }
-                ControlFlow::Continue(())
-            })
+            }
+            ControlFlow::Continue(())
         }
 
         fn visit_yul_block(&mut self, block: &'ast #mut yul::Block<'ast>) -> ControlFlow<Self::BreakValue> {
@@ -613,22 +604,20 @@ declare_visitors! {
         }
 
         fn visit_yul_expr(&mut self, expr: &'ast #mut yul::Expr<'ast>) -> ControlFlow<Self::BreakValue> {
-            ensure_sufficient_stack(|| {
-                let yul::Expr { span, kind } = expr;
-                self.visit_span #_mut(span)?;
-                match kind {
-                    yul::ExprKind::Path(path) => {
-                        self.visit_path #_mut(path)?;
-                    }
-                    yul::ExprKind::Call(call) => {
-                        self.visit_yul_expr_call #_mut(call)?;
-                    }
-                    yul::ExprKind::Lit(lit) => {
-                        self.visit_lit #_mut(lit)?;
-                    }
+            let yul::Expr { span, kind } = expr;
+            self.visit_span #_mut(span)?;
+            match kind {
+                yul::ExprKind::Path(path) => {
+                    self.visit_path #_mut(path)?;
                 }
-                ControlFlow::Continue(())
-            })
+                yul::ExprKind::Call(call) => {
+                    self.visit_yul_expr_call #_mut(call)?;
+                }
+                yul::ExprKind::Lit(lit) => {
+                    self.visit_lit #_mut(lit)?;
+                }
+            }
+            ControlFlow::Continue(())
         }
 
         fn visit_yul_expr_call(&mut self, call: &'ast #mut yul::ExprCall<'ast>) -> ControlFlow<Self::BreakValue> {

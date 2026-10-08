@@ -17,7 +17,6 @@ use solar_ast::{BinOpKind, DataLocation, LitKind, StateMutability, StrKind, Type
 use solar_data_structures::{
     bit_set::DenseBitSet,
     map::{FxHashMap, FxHashSet, FxIndexSet, StdEntry},
-    stack::ensure_sufficient_stack,
 };
 use solar_interface::{ByteSymbol, Ident, Span, Symbol, kw, sym};
 use solar_sema::{
@@ -607,7 +606,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     fn lower_expr(&mut self, expr: &hir::Expr<'_>) -> Option<ValueId> {
         let previous = self.builder.replace_source_span(expr.span);
         let previous_modifier_depth = self.builder.replace_modifier_depth(self.modifier_depth);
-        let result = ensure_sufficient_stack(|| self.lower_expr_inner(expr)).map(|value| {
+        let result = self.lower_expr_inner(expr).map(|value| {
             if !self.in_inline_assembly
                 && !self.dirty_values.contains(&value)
                 && let Some(ty) = self.cx.gcx.type_of_expr(expr.id)

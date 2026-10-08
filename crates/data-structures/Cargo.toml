@@ -32,7 +32,6 @@ parking_lot.workspace = true
 rayon.workspace = true
 rustc-hash.workspace = true
 smallvec.workspace = true
-stacker.workspace = true
 
 [features]
 nightly = [

@@ -1,6 +1,6 @@
 use super::{Gcx, TyKind};
 use crate::hir::{self, Visit};
-use solar_data_structures::{Never, bit_set::DenseBitSet, stack::ensure_sufficient_stack};
+use solar_data_structures::{Never, bit_set::DenseBitSet};
 use std::{collections::VecDeque, ops::ControlFlow};
 
 pub(super) struct ReferencedItems {
@@ -247,21 +247,19 @@ impl<'gcx> Visit<'gcx> for CallGraphBuilder<'gcx> {
         }
 
         if let Some((callee, args, options)) = expr.as_call() {
-            return ensure_sufficient_stack(|| {
-                let direct = self.collect_call(callee);
-                let previous = self.direct_callee;
-                if direct {
-                    self.direct_callee = Some(callee.id);
+            let direct = self.collect_call(callee);
+            let previous = self.direct_callee;
+            if direct {
+                self.direct_callee = Some(callee.id);
+            }
+            self.visit_expr(callee)?;
+            self.direct_callee = previous;
+            if let Some(options) = options {
+                for option in options.args {
+                    self.visit_expr(&option.value)?;
                 }
-                self.visit_expr(callee)?;
-                self.direct_callee = previous;
-                if let Some(options) = options {
-                    for option in options.args {
-                        self.visit_expr(&option.value)?;
-                    }
-                }
-                self.visit_call_args(args)
-            });
+            }
+            return self.visit_call_args(args);
         }
 
         self.walk_expr(expr)

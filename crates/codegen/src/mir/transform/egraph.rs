@@ -83,9 +83,7 @@ use crate::{
 use alloy_primitives::U256;
 use smallvec::SmallVec;
 use solar_config::EvmVersion;
-use solar_data_structures::{
-    bit_set::DenseBitSet, index::IndexVec, map::FxHashMap, stack::ensure_sufficient_stack,
-};
+use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
 use std::rc::Rc;
 
 mod isle;
@@ -468,7 +466,7 @@ impl<'a> Builder<'a> {
         if let Some(cfg) = &self.cfg {
             let children = cfg.dominators().children(block).to_vec();
             for child in children {
-                ensure_sufficient_stack(|| self.visit(child));
+                self.visit(child);
             }
         }
         while self.undo.len() > mark {
