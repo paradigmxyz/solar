@@ -84,3 +84,15 @@ fn @decodeMemoryLength(arg0: i256) -> i256 [selector=0xc96a44ab, pure, abi_param
     icall revert_if<tuple_data_too_short>, v5
     ret 4
 }
+
+fn @decodeStorageLength(arg0: i256) -> i256 [selector=0x0359dd97, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = mul arg0, 2
+    v1 = add v0, 1
+    sstore 1, v1 !metadata(storage=slot(1))
+    v2 = load_storage_bytes 1
+    v3 = memory_object_len memorybytes, v2
+    v4 = slt v3, 0
+    icall revert_if<tuple_data_too_short>, v4
+    ret 5
+}

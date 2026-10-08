@@ -6,11 +6,14 @@
 //@ run-call-fail: decodeCalldataLength 57896044618658097711785492504343953926634992332820282019728792003956564819968
 //@ run-call: decodeMemoryLength 57896044618658097711785492504343953926634992332820282019728792003956564819967 => 4
 //@ run-call-fail: decodeMemoryLength 57896044618658097711785492504343953926634992332820282019728792003956564819968
+//@ run-call: decodeStorageLength 40 => 5
+//@ run-call-fail: decodeStorageLength 340282366920938463463374607431768211456 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000041
 
-// `abi.decode(data, ())` decodes nothing, but its data argument still runs and a length with the
-// sign bit set reverts.
+// `abi.decode(data, ())` decodes nothing, but its data argument still runs, storage data is still
+// copied to memory, and a length with the sign bit set reverts.
 contract AbiDecodeEmptyTuple {
     uint256 calls;
+    bytes stored;
 
     function record(uint256 value) internal returns (bytes memory) {
         calls += value;
@@ -55,5 +58,13 @@ contract AbiDecodeEmptyTuple {
         }
         abi.decode(data, ());
         return 4;
+    }
+
+    function decodeStorageLength(uint256 length) external returns (uint256) {
+        assembly {
+            sstore(stored.slot, add(mul(length, 2), 1))
+        }
+        abi.decode(stored, ());
+        return 5;
     }
 }
