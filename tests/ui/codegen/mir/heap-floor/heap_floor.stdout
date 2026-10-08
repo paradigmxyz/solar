@@ -374,3 +374,22 @@
       ret 1
   }
   
+  fn @revert_at_loaded_offset(arg0: i256) [selector=0x12345686] {
+    bb0:
+      v0 = calldataload 4
+      mstore 64, v0
+      v1 = ne arg0, 0
+      jumpi v1, bb1, bb2
+    bb2:
+      v3 = mload 0x10000
+      revert v3, 96
+    bb1:
+      v2 = mload 64
+-     mstore v2, 1
++     v4 = heap_floor
++     v5 = lt v2, v4
++     v6 = select v5, v4, v2
++     mstore v6, 1
+      returndata 0, 0
+  }
+  

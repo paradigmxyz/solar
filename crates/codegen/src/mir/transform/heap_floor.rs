@@ -32,12 +32,14 @@
 //! whose lowering may allocate or encode at the pointer, unlike pure computations, checks that
 //! revert with scratch data, and accesses to frames, storage slots, and memory that already exists.
 //! An access that may cover a byte the writes have not replaced reads the word as data, such as a
-//! scratch hash or revert data, when its address is computed from constants, calldata, and
-//! parameters that may hold such an address: an external function's integer arguments, or a
-//! parameter some call site passes one in. A return from the constructor, or one from an external
-//! function whose results all have static ABI types, ends execution without reading the slot:
-//! codegen returns runtime code from a fixed address and encodes static results in a static buffer.
-//! An external function returns to the dispatcher even when internal calls reach it too.
+//! scratch hash or revert data, unless its address is computed from heap pointers: the free memory
+//! pointer, an allocation, a memory object, or a parameter every call fills with one. Any other
+//! address may be low, as a word loaded from memory is zero where nothing has written it and an
+//! external function's integer arguments come from calldata. A return from the constructor, or one
+//! from an external function whose results all have static ABI types, ends execution without
+//! reading the slot: codegen returns runtime code from a fixed address and encodes static results
+//! in a static buffer. An external function returns to the dispatcher even when internal calls
+//! reach it too.
 //!
 //! A word read only as the pointer is clamped where it is stored, `mstore 64, clamped`. A word that
 //! is also read as data keeps its value in the slot, and the clamp moves to each pointer read that
@@ -71,20 +73,20 @@
 //!
 //! NOTE: Only a full-word store to the constant slot whose value the storing function computes from
 //! constants and calldata is clamped. An absolute address passed through a parameter, memory, or a
-//! call, and copies or byte stores that overwrite the pointer, keep their bytes. An access at an
-//! address derived from memory or the heap, or from a parameter that every call site fills with
-//! one, is assumed not to cover the slot, and a loaded word stored elsewhere stays data even if a
-//! later load uses it as a pointer. A slot clamped before a compiler read stays clamped for a later
-//! read of it as data. Writes replace the word only when one block covers all of its bytes. A
-//! loaded word passed to a callee or returned to callers that read it as a pointer is clamped as a
-//! whole there, even if they also read it as data, and a word an external function returns as data
-//! is clamped as a whole in each internal caller that reads it as a pointer. See CODEGEN-010.
+//! call, and copies or byte stores that overwrite the pointer, keep their bytes. An access at a
+//! heap pointer offset by any word is assumed not to cover the slot, and so is one at a memory
+//! object that a call returns, while a loaded word stored elsewhere stays data even if a later load
+//! uses it as a pointer. A slot clamped before a compiler read stays clamped for a later read of it
+//! as data. Writes replace the word only when one block covers all of its bytes. A loaded word
+//! passed to a callee or returned to callers that read it as a pointer is clamped as a whole there,
+//! even if they also read it as data, and a word an external function returns as data is clamped
+//! as a whole in each internal caller that reads it as a pointer. See CODEGEN-010.
 
 use crate::mir::{
     AbiType, ArgIdx, BlockId, Builtin, Callee, CheckedOp, EffectKind, Function, FunctionId,
     Immediate, InstId, InstKind, Instruction, InstructionMetadata, MemoryRegion, MirType, Module,
     Terminator, Value, ValueId,
-    analysis::{AddressInput, absolute_address_inputs, absolute_address_inputs_with_params},
+    analysis::{AddressInput, absolute_address_inputs},
     memory::EvmMemoryLayout,
     pass::{MirPass, ModuleAnalyses},
     utils::{IndexLists, replace_inst_uses},
@@ -548,47 +550,57 @@ fn value_users(func: &Function) -> IndexLists<ValueId, User> {
     IndexLists::new(func.num_values(), pairs.iter().copied())
 }
 
-/// Classifies the values of every function as absolute addresses for reads. A parameter may hold
-/// one when it is an integer an external function takes from calldata, or when a call site passes
-/// a word computed from constants, calldata, and such parameters.
-fn read_address_inputs(module: &Module) -> IndexVec<FunctionId, IndexVec<ValueId, AddressInput>> {
+/// Returns the words every function computes from heap pointers. A parameter holds one when every
+/// call passes one in and, in an external function, when it is a memory object, which the ABI
+/// decodes into the heap; an external function's integers come from calldata, and a function no
+/// call reaches may be given anything.
+fn module_heap_addresses(module: &Module) -> IndexVec<FunctionId, DenseBitSet<ValueId>> {
+    let mut called = DenseBitSet::new_empty(module.functions.len());
+    for func in &module.functions {
+        for inst in func.instructions() {
+            if let InstKind::ICall { function: Callee::Function(callee), .. } = func.inst(inst).kind
+            {
+                called.insert(callee);
+            }
+        }
+        for block in &func.blocks {
+            if let Some(&Terminator::TailCall { function, .. }) = block.terminator.as_ref() {
+                called.insert(function);
+            }
+        }
+    }
     let mut params = module
         .functions
-        .iter()
-        .map(|func| {
+        .iter_enumerated()
+        .map(|(func_id, func)| {
             func.arg_indices()
                 .map(|index| {
-                    if func.is_external_entry() && matches!(func.arg_ty(index), MirType::Int(_)) {
-                        AddressInput::Calldata
+                    if func.is_external_entry() {
+                        func.arg_ty(index) == MirType::MemPtr
                     } else {
-                        AddressInput::Other
+                        called.contains(func_id)
                     }
                 })
                 .collect::<IndexVec<ArgIdx, _>>()
         })
         .collect::<IndexVec<FunctionId, _>>();
-    let classify = |func_id: FunctionId, params: &IndexVec<FunctionId, IndexVec<ArgIdx, _>>| {
-        absolute_address_inputs_with_params(&module.functions[func_id], |index| {
-            params[func_id].get(index).copied().unwrap_or(AddressInput::Other)
-        })
-    };
-    let mut inputs = module
+    let mut heap = module
         .functions
-        .indices()
-        .map(|func_id| classify(func_id, &params))
+        .iter_enumerated()
+        .map(|(func_id, func)| function_heap_addresses(func, &params[func_id]))
         .collect::<IndexVec<FunctionId, _>>();
     let mut pending = module.functions.indices().collect::<Vec<_>>();
     while let Some(caller) = pending.pop() {
         let func = &module.functions[caller];
-        let mut raised = Vec::new();
+        let mut lowered = Vec::new();
         let mut pass = |callee: FunctionId, args: &[ValueId]| {
             for (index, &arg) in args.iter().enumerate() {
-                if inputs[caller][arg] != AddressInput::Other
+                if !heap[caller].contains(arg)
                     && let Some(param) = params[callee].get_mut(ArgIdx::new(index))
-                    && *param == AddressInput::Other
+                    && *param
                 {
-                    *param = AddressInput::Calldata;
-                    raised.push(callee);
+                    *param = false;
+                    lowered.push(callee);
                 }
             }
         };
@@ -604,12 +616,85 @@ fn read_address_inputs(module: &Module) -> IndexVec<FunctionId, IndexVec<ValueId
                 pass(*function, args);
             }
         }
-        for callee in raised {
-            inputs[callee] = classify(callee, &params);
+        for callee in lowered {
+            heap[callee] = function_heap_addresses(&module.functions[callee], &params[callee]);
             pending.push(callee);
         }
     }
-    inputs
+    heap
+}
+
+/// Returns the words `func` computes from heap pointers, with the parameters `params` marks as
+/// holding one: the free memory pointer, allocations, and memory objects, a word that adds any
+/// offset to one or subtracts one from it, and a choice between such words. Every candidate starts
+/// as a heap pointer, and one whose inputs are not drops out until none does.
+fn function_heap_addresses(
+    func: &Function,
+    params: &IndexVec<ArgIdx, bool>,
+) -> DenseBitSet<ValueId> {
+    let mut heap = DenseBitSet::new_empty(func.num_values());
+    for index in 0..func.num_values() {
+        let value = ValueId::new(index);
+        let candidate = match *func.value(value) {
+            Value::Arg(index) => params.get(index).copied().unwrap_or(false),
+            Value::Inst(inst) => may_compute_heap_address(func, inst),
+            _ => false,
+        };
+        if candidate {
+            heap.insert(value);
+        }
+    }
+    let mut changed = true;
+    while changed {
+        changed = false;
+        for inst in func.instructions() {
+            if let Some(value) = func.inst_result_value(inst)
+                && heap.contains(value)
+                && !computes_heap_address(&func.inst(inst).kind, &heap)
+            {
+                heap.remove(value);
+                changed = true;
+            }
+        }
+    }
+    heap
+}
+
+/// Whether an instruction may compute a heap pointer: the free memory pointer, an allocation, or
+/// another memory object, or a word computed from such pointers.
+fn may_compute_heap_address(func: &Function, inst: InstId) -> bool {
+    let instruction = func.inst(inst);
+    match instruction.kind {
+        InstKind::Fmp
+        | InstKind::Alloc { .. }
+        | InstKind::Add(..)
+        | InstKind::Sub(..)
+        | InstKind::Select(..)
+        | InstKind::Phi(_)
+        | InstKind::Zext(_)
+        | InstKind::Trunc(..)
+        | InstKind::IntToPtr(_)
+        | InstKind::PtrToInt(..) => true,
+        InstKind::MLoad(address) => is_slot(func, address),
+        _ => instruction.result_ty == Some(MirType::MemPtr),
+    }
+}
+
+/// Whether an instruction computes a heap pointer from operands that `heap` holds: an offset added
+/// to one, an offset subtracted from one, or a choice between them. The free memory pointer,
+/// allocations, and memory objects are heap pointers themselves.
+fn computes_heap_address(kind: &InstKind, heap: &DenseBitSet<ValueId>) -> bool {
+    match kind {
+        InstKind::Add(a, b) => heap.contains(*a) || heap.contains(*b),
+        InstKind::Sub(a, b) => heap.contains(*a) && !heap.contains(*b),
+        InstKind::Select(_, a, b) => heap.contains(*a) && heap.contains(*b),
+        InstKind::Phi(incoming) => incoming.iter().all(|&(_, value)| heap.contains(value)),
+        InstKind::Zext(operand)
+        | InstKind::Trunc(operand, _)
+        | InstKind::IntToPtr(operand)
+        | InstKind::PtrToInt(operand, _) => heap.contains(*operand),
+        _ => true,
+    }
 }
 
 /// Whether an instruction computes a word from its operands, so that a word computed from a
@@ -849,9 +934,8 @@ struct PointerUses<'a> {
     call_sites: Option<FxHashMap<FunctionId, Vec<CallSite>>>,
     /// Which values of each function come from constants and calldata alone, built on first use.
     address_inputs: FxHashMap<FunctionId, IndexVec<ValueId, AddressInput>>,
-    /// The same with parameters classified by what their callers pass, for every function, built
-    /// on first use.
-    read_inputs: Option<IndexVec<FunctionId, IndexVec<ValueId, AddressInput>>>,
+    /// The words each function computes from heap pointers, built on first use.
+    heap_addresses: Option<IndexVec<FunctionId, DenseBitSet<ValueId>>>,
     /// The values of each function's parameters, built on first use.
     arg_values: FxHashMap<FunctionId, IndexVec<ArgIdx, Vec<ValueId>>>,
     /// The readers of each function's values, built on first use.
@@ -872,7 +956,7 @@ impl<'a> PointerUses<'a> {
             shallowest: usize::MAX,
             call_sites: None,
             address_inputs: FxHashMap::default(),
-            read_inputs: None,
+            heap_addresses: None,
             arg_values: FxHashMap::default(),
             users: FxHashMap::default(),
             load_reads: FxHashMap::default(),
@@ -1247,8 +1331,7 @@ impl<'a> PointerUses<'a> {
 
     /// Returns whether a read of `size` bytes at `offset`, or of an unknown size, may cover a
     /// byte of the slot that still holds the stored word, given the bytes that later writes have
-    /// `written`. A computed offset may when the function computes it from constants and
-    /// calldata alone.
+    /// `written`. A computed offset may unless the function computes it from heap pointers.
     fn may_read_slot(
         &mut self,
         func_id: FunctionId,
@@ -1260,16 +1343,15 @@ impl<'a> PointerUses<'a> {
             return false;
         }
         let Some(start) = self.module.functions[func_id].value_u64(offset) else {
-            return self.read_inputs(func_id)[offset] != AddressInput::Other;
+            return !self.heap_addresses(func_id).contains(offset);
         };
         slot_bytes(start, size.unwrap_or(u64::MAX)) & !written != 0
     }
 
-    /// Returns which values of `func_id` may be absolute addresses where it reads memory: words
-    /// computed from constants, calldata, and parameters that may hold one.
-    fn read_inputs(&mut self, func_id: FunctionId) -> &IndexVec<ValueId, AddressInput> {
+    /// Returns the words `func_id` computes from heap pointers.
+    fn heap_addresses(&mut self, func_id: FunctionId) -> &DenseBitSet<ValueId> {
         let module = self.module;
-        &self.read_inputs.get_or_insert_with(|| read_address_inputs(module))[func_id]
+        &self.heap_addresses.get_or_insert_with(|| module_heap_addresses(module))[func_id]
     }
 
     /// Returns the values of parameter `index` of `func_id`.

@@ -25,6 +25,8 @@
 //@ run-call: writeThroughPublicRead 5 => 1
 //@ run-call: returnAndWriteThroughPublicRead 5 => 5
 //@ run-call: writeThroughPublicPair 5 => 1, 7
+//@ run-call: revertAtLoadedOffset 5, 1
+//@ run-call-fail: revertAtLoadedOffset 5, 0 => 0x000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000005
 //@ run-call: checkedScaled 0 => 0
 //@ run-call: hashHelperScratch 1, 2, 3 => 0x6e0c627900b24bd432fe7b1f713f1b0744091a646a9fe4a65a18dfed21f2949c
 //@ run-call: allocateAfterHelper 1, 2, 3 => 3
@@ -473,6 +475,18 @@ contract AssemblyLowMemoryLayouts {
         }
     }
 
+    // A revert at an offset loaded from memory may cover the slot: untouched memory reads zero.
+    function revertAtLoadedOffset(uint256, uint256 write) external pure {
+        assembly {
+            mstore(0x40, calldataload(4))
+            if write {
+                let p := mload(0x40)
+                mstore(p, 1)
+                return(0, 0)
+            }
+            revert(mload(0x10000), 0x60)
+        }
+    }
 
     // A checked product on the way to a write keeps its check on the loaded word; the clamped
     // address it writes through wraps instead.

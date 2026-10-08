@@ -495,3 +495,28 @@ fn @call_public_reset(arg0: memptr) -> i256 [selector=0x12345685] {
     ret 1
 }
 
+// A revert at an offset loaded from memory may cover the slot, as untouched memory reads zero, so
+// the scratch word stays in the slot for it, and only the branch that addresses memory with the
+// slot's word reads it clamped.
+// CHECK-LABEL: {{^[ +].*}}fn @revert_at_loaded_offset{{[( ]}}
+// CHECK: mstore 64, {{v[0-9]+}}
+// CHECK: [[POINTER:v[0-9]+]] = mload 64
+// CHECK-NEXT: - mstore [[POINTER]], 1
+// CHECK-NEXT: + [[FLOOR:v[0-9]+]] = heap_floor
+// CHECK-NEXT: + [[BELOW:v[0-9]+]] = lt [[POINTER]], [[FLOOR]]
+// CHECK-NEXT: + [[CLAMPED:v[0-9]+]] = select [[BELOW]], [[FLOOR]], [[POINTER]]
+// CHECK-NEXT: + mstore [[CLAMPED]], 1
+fn @revert_at_loaded_offset(arg0: i256) [selector=0x12345686] {
+  bb0:
+    v0 = calldataload 4
+    mstore 64, v0
+    v1 = ne arg0, 0
+    jumpi v1, bb1, bb2
+  bb1:
+    v2 = mload 64
+    mstore v2, 1
+    returndata 0, 0
+  bb2:
+    v3 = mload 0x10000
+    revert v3, 96
+}
