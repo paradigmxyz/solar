@@ -2,7 +2,7 @@
 //@ run-call: decodeCall 5 => 6
 //@ run-call: decodeReturn 0x1234 => 1
 //@ run-call: decodeCalldata 0x1234 => 2
-//@ run-call: decodeCalldataLength 57896044618658097711785492504343953926634992332820282019728792003956564819967 => 3
+//@ run-call-fail: decodeCalldataLength 57896044618658097711785492504343953926634992332820282019728792003956564819967
 //@ run-call-fail: decodeCalldataLength 57896044618658097711785492504343953926634992332820282019728792003956564819968
 //@ run-call: decodeMemoryLength 57896044618658097711785492504343953926634992332820282019728792003956564819967 => 4
 //@ run-call-fail: decodeMemoryLength 57896044618658097711785492504343953926634992332820282019728792003956564819968
@@ -10,7 +10,8 @@
 //@ run-call-fail: decodeStorageLength 340282366920938463463374607431768211456 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000041
 
 // `abi.decode(data, ())` decodes nothing, but its data argument still runs, storage data is still
-// copied to memory, and a length with the sign bit set reverts.
+// copied to memory, and a length with the sign bit set reverts. Like every other decode of calldata,
+// calldata data is validated and copied to memory first, which rejects any oversized length.
 contract AbiDecodeEmptyTuple {
     uint256 calls;
     bytes stored;

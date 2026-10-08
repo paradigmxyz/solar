@@ -218,7 +218,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
     }
 
-    pub(super) fn lower_abi_decode(&mut self, args: hir::CallArgs<'_>) -> Option<ValueId> {
+    pub(super) fn lower_abi_decode(&mut self, args: hir::CallArgs<'_>) -> Option<CallResult> {
         // data = materialize_memory_argument(input)
         // layout = intern_abi_layout(target_types)
         // value = abi_decode(layout, data)
@@ -229,9 +229,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 return self.cx.report_unsupported(args[1].span, "abi.decode target type");
             }
         };
-        if types.is_empty() {
-            return self.cx.report_unsupported(args[1].span, "abi.decode target type");
-        }
         let mut decoded_types = Vec::with_capacity(types.len());
         for ty_expr in &types {
             let Some(TyKind::Type(ty)) = self.cx.gcx.type_of_expr(ty_expr.id).map(|ty| ty.kind)
@@ -249,28 +246,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let (data, layout) = self.lower_abi_decode_layout(data, &decoded_types, args[1].span)?;
         let layout = self.cx.module.intern_abi_param_layout(layout);
         let fields = decoded_types.iter().map(|&ty| types::TypeLowerer::mir_type(ty)).collect();
-        let result_ty = self.cx.module.intern_return_type(fields)?;
-        Some(self.builder.abi_decode(layout, data, result_ty))
-    }
-
-    /// Lowers `abi.decode(data, ())`, which decodes nothing but, like solc's tuple decoder,
-    /// rejects data whose length has the sign bit set.
-    pub(super) fn lower_abi_decode_empty(&mut self, data_expr: &hir::Expr<'_>) -> Option<()> {
-        // Like solc, copy storage bytes to memory first; calldata stays in place.
-        let data_ty = self.cx.gcx.type_of_expr(data_expr.id)?;
-        let memory_ty = data_ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
-        let data = self.lower_typed_expr(data_expr, memory_ty)?;
-        // length = len(data)
-        // if slt(length, 0) { revert }
-        let length = match self.builder.func().value_ty(data) {
-            Some(MirType::Slice(_)) => self.builder.slice_len(data),
-            Some(MirType::MemPtr) => self.builder.memory_object_len(data, MemoryObjectKind::Bytes),
-            _ => return self.cx.report_unsupported(data_expr.span, "abi.decode data"),
+        let Some(result_ty) = self.cx.module.intern_return_type(fields) else {
+            self.builder.abi_decode_void(layout, data);
+            return Some(CallResult::Void);
         };
-        let zero = self.builder.imm(U256::ZERO);
-        let negative = self.builder.slt(length, zero);
-        self.builder.revert_if(negative, RevertReason::TupleDataTooShort);
-        Some(())
+        Some(CallResult::Value(self.builder.abi_decode(layout, data, result_ty)))
     }
 
     fn lower_abi_decode_layout(

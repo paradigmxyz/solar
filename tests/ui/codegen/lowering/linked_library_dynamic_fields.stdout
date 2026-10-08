@@ -798,17 +798,9 @@ bb9:
   push 0
   dup 3
   returndatacopy
-  dup 2
-  dup 2
-  add
-  dup 2
-  gt
-  swap 2
-  push 32
-  gt
   swap 1
-  swap 2
-  or
+  push 32
+  sgt
   push bb4
   jumpi
   mload

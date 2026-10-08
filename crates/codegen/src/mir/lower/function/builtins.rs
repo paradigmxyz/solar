@@ -49,15 +49,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     .and_then(|_| self.lower_storage_array_pop(expr, callee))
                     .map(|()| CallResult::Void);
             }
-            Builtin::AbiDecode
-                if args
-                    .exprs()
-                    .nth(1)
-                    .is_some_and(|types| matches!(types.kind, ExprKind::Tuple([]))) =>
-            {
-                let data = &self.builtin_args::<2>(builtin, &args)?[0];
-                return self.lower_abi_decode_empty(data).map(|()| CallResult::Void);
-            }
+            Builtin::AbiDecode => return self.lower_abi_decode(args),
             _ => {}
         }
 
@@ -620,7 +612,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             Builtin::AbiEncodePacked => self.lower_abi_encode_packed(args),
             Builtin::AbiEncodeWithSignature => self.lower_abi_encode_with_signature(args),
             Builtin::AbiEncodeCall => self.lower_abi_encode_call(args),
-            Builtin::AbiDecode => self.lower_abi_decode(args),
             Builtin::Blockhash | Builtin::Blobhash => {
                 let value = &self.builtin_args::<1>(builtin, &args)?[0];
                 let value = self.lower_expr(value)?;
