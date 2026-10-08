@@ -1,6 +1,5 @@
 //! AST-related passes.
 
-use alloy_primitives::Address;
 use solar_ast::{self as ast, visit::Visit};
 use solar_data_structures::Never;
 use solar_interface::{Session, Span, diagnostics::DiagCtxt, error_code, sym};
@@ -60,7 +59,9 @@ impl<'sess> AstValidator<'sess, '_> {
     }
 
     fn check_underscores_in_number_literals(&self, lit: &ast::Lit<'_>) {
-        let (ast::LitKind::Number(_) | ast::LitKind::Rational(_)) = lit.kind else {
+        let (ast::LitKind::Number(_) | ast::LitKind::Rational(_) | ast::LitKind::Address(_)) =
+            lit.kind
+        else {
             return;
         };
         for help in number_literal_underscore_errors(lit.symbol.as_str()) {
@@ -104,11 +105,13 @@ impl<'sess> AstValidator<'sess, '_> {
             return;
         };
 
-        if Address::parse_checksummed(lit.symbol.as_str(), None).is_err() {
+        let checksummed = addr.to_checksum_buffer(None);
+        let digits = lit.symbol.as_str().bytes().filter(|&b| b != b'_');
+        if !digits.eq(checksummed.as_str().bytes()) {
             self.dcx()
                 .err("invalid checksummed address")
                 .span(lit.span)
-                .help(format!("correct checksummed address: \"{}\"", addr.to_checksum(None)))
+                .help(format!("correct checksummed address: \"{checksummed}\""))
                 .note("if this is not used as an address, please prepend \"00\"")
                 .emit();
         }
@@ -419,6 +422,9 @@ pub(crate) fn number_literal_underscore_errors(value: &str) -> Vec<&'static str>
     }
     if value.contains("__") {
         return vec!["only 1 consecutive underscore `_` is allowed between digits"];
+    }
+    if value.starts_with("0x_") {
+        return vec!["remove underscores after the `0x` prefix"];
     }
     // Like solc, reject underscores after a leading zero, as in `0_E5`.
     if value.starts_with("0_") {
