@@ -83,10 +83,14 @@ impl<'a> FileResolver<'a> {
             self.set_current_dir(&current_dir);
         }
         if let Some(base_path) = &opts.base_path {
-            // Like solc, normalize lexically against the current directory: file loaders may
-            // canonicalize to relative paths, as in Standard JSON mode.
-            let base_path = self.make_absolute(base_path);
-            let base_path = self.normalize(&base_path);
+            let base_path = if base_path.is_absolute() {
+                Cow::Borrowed(base_path.as_path())
+            } else {
+                let Ok(path) = self.canonicalize_unchecked(base_path) else { return };
+                // Loaders without a real file system, as in Standard JSON mode, may keep the path
+                // relative; resolve it lexically against the current directory, like solc.
+                Cow::Owned(self.normalize(&self.make_absolute(&path)).into_owned())
+            };
             if base_path.is_absolute() {
                 self.set_base_path(&base_path);
                 // Source unit names are relative to the base path after parent paths are stripped.
