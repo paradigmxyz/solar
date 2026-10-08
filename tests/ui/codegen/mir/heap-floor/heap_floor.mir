@@ -301,18 +301,18 @@ fn @hash_at_param(arg0: i256) -> i256 [selector=0x1234567a] {
 }
 
 // A load whose word addresses memory and is also returned keeps the word for the return; only
-// the pointer uses read a clamped copy, and the words computed for them are copied too.
+// the pointer uses read the clamped word, and the bump, which only the pointer reads, is computed
+// from it in place.
 // CHECK-LABEL: {{^[ +].*}}fn @mixed_load{{[( ]}}
 // CHECK: [[WORD:v[0-9]+]] = mload 64
 // CHECK-NEXT: - mstore [[WORD]], 1
+// CHECK-NEXT: - [[END:v[0-9]+]] = add [[WORD]], 32
 // CHECK-NEXT: + [[FLOOR:v[0-9]+]] = heap_floor
 // CHECK-NEXT: + [[BELOW:v[0-9]+]] = lt [[WORD]], [[FLOOR]]
 // CHECK-NEXT: + [[CLAMPED:v[0-9]+]] = select [[BELOW]], [[FLOOR]], [[WORD]]
 // CHECK-NEXT: + mstore [[CLAMPED]], 1
-// CHECK-NEXT: [[END:v[0-9]+]] = add [[WORD]], 32
-// CHECK-NEXT: - mstore 64, [[END]]
-// CHECK-NEXT: + [[CLAMPED_END:v[0-9]+]] = add [[CLAMPED]], 32
-// CHECK-NEXT: + mstore 64, [[CLAMPED_END]]
+// CHECK-NEXT: + [[END]] = add [[CLAMPED]], 32
+// CHECK-NEXT: mstore 64, [[END]]
 // CHECK-NEXT: ret [[WORD]]
 fn @mixed_load() -> i256 [selector=0x1234567b] {
   bb0:
@@ -338,4 +338,40 @@ fn @tuple_return() -> struct0 [selector=0x1234567c] {
     v3 = insert_value struct0, undef struct0, 0, v2
     v4 = insert_value struct0, v3, 1, 7
     ret v4
+}
+
+// Two branches' loads meet in a phi that addresses memory and is returned: the address reads a
+// copy of the phi over both clamped words.
+// CHECK-LABEL: {{^[ +].*}}fn @branch_loads{{[( ]}}
+// CHECK: [[RIGHT:v[0-9]+]] = mload 64
+// CHECK-NEXT: + {{v[0-9]+}} = heap_floor
+// CHECK-NEXT: + {{v[0-9]+}} = lt [[RIGHT]],
+// CHECK-NEXT: + [[RIGHT_CLAMPED:v[0-9]+]] = select
+// CHECK: [[LEFT:v[0-9]+]] = mload 64
+// CHECK-NEXT: + {{v[0-9]+}} = heap_floor
+// CHECK-NEXT: + {{v[0-9]+}} = lt [[LEFT]],
+// CHECK-NEXT: + [[LEFT_CLAMPED:v[0-9]+]] = select
+// CHECK: [[PHI:v[0-9]+]] = phi [bb1: [[LEFT]]], [bb2: [[RIGHT]]]
+// CHECK-NEXT: - mstore [[PHI]], 1
+// CHECK-NEXT: + [[COPY:v[0-9]+]] = phi [bb1: [[LEFT_CLAMPED]]], [bb2: [[RIGHT_CLAMPED]]]
+// CHECK-NEXT: + mstore [[COPY]], 1
+// CHECK-NEXT: ret [[PHI]]
+fn @branch_loads() -> i256 [selector=0x1234567d] {
+  bb0:
+    v0 = calldataload 4
+    v1 = eq v0, 0
+    jumpi v1, bb1, bb2
+  bb1:
+    mstore 64, v0
+    v2 = mload 64
+    jump bb3
+  bb2:
+    v3 = calldataload 36
+    mstore 64, v3
+    v4 = mload 64
+    jump bb3
+  bb3:
+    v5 = phi [bb1: v2], [bb2: v4]
+    mstore v5, 1
+    ret v5
 }

@@ -42,9 +42,11 @@
 //! is also read as data keeps its value in the slot, and the clamp moves to each pointer read that
 //! the search reaches. The pointer uses of an assembly load read the clamped word in place of the
 //! one it loads; when the load's word is also read as data, the words computed from it on the way
-//! to its pointer uses get clamped copies, and its data uses keep the loaded word. The slot itself
-//! is clamped right before a compiler read, before a call that reads the slot only as the pointer,
-//! and before a return to the dispatcher:
+//! to its pointer uses get clamped copies, and its data uses keep the loaded word. A function's
+//! loads are clamped together, so a word computed from several of them, such as a phi of two
+//! branches' loads, is clamped on every path. The slot itself is clamped right before a compiler
+//! read, before a call that reads the slot only as the pointer, and before a return to the
+//! dispatcher:
 //!
 //! ```text
 //! word = mload 64
@@ -86,7 +88,7 @@ use smallvec::{SmallVec, smallvec};
 use solar_data_structures::{
     bit_set::DenseBitSet,
     index::IndexVec,
-    map::{FxHashMap, FxHashSet, FxIndexSet},
+    map::{FxHashMap, FxHashSet, FxIndexMap, FxIndexSet},
 };
 use std::ops::BitOrAssign;
 
@@ -107,23 +109,22 @@ impl MirPass for HeapFloor {
         module: &mut Module,
         _analyses: &mut ModuleAnalyses,
     ) -> bool {
-        let (clamps, splits) = floor_clamps(module);
+        let (clamps, loads) = floor_clamps(module);
         let changed = !clamps.is_empty();
         for clamp in clamps {
             match clamp {
                 Clamp::Store(func, block, inst) => {
                     clamp_store(&mut module.functions[func], block, inst);
                 }
-                Clamp::Load(func, block, inst) => match splits.get(&(func, inst)) {
-                    Some(split) => {
-                        clamp_pointer_uses(&mut module.functions[func], block, inst, split);
-                    }
-                    None => clamp_load(&mut module.functions[func], block, inst),
-                },
+                // A function's loads are clamped together below.
+                Clamp::Load(..) => {}
                 Clamp::Slot(func, block, before) => {
                     clamp_slot(&mut module.functions[func], block, before);
                 }
             }
+        }
+        for (func, plan) in &loads {
+            clamp_loads(&mut module.functions[*func], plan);
         }
         changed
     }
@@ -142,11 +143,9 @@ enum Clamp {
 
 /// Finds where to clamp the words that stores of constants and calldata leave in the free memory
 /// pointer's slot: at the store when every read of the word reads the pointer, and at each
-/// pointer read when some read takes the word as data. A load whose word is read both ways comes
-/// with the uses that read it as the pointer.
-fn floor_clamps(
-    module: &Module,
-) -> (FxIndexSet<Clamp>, FxHashMap<(FunctionId, InstId), PointerUseSplit>) {
+/// pointer read when some read takes the word as data. The loads to clamp come with a plan for
+/// each function, which covers all of the function's loads at once.
+fn floor_clamps(module: &Module) -> (FxIndexSet<Clamp>, Vec<(FunctionId, LoadClamps)>) {
     let mut uses = PointerUses::new(module);
     let mut clamps = FxIndexSet::default();
     for (func_id, func) in module.functions.iter_enumerated() {
@@ -171,15 +170,17 @@ fn floor_clamps(
             }
         }
     }
-    let mut splits = FxHashMap::default();
+    let mut loads = FxIndexMap::<_, Vec<_>>::default();
     for &clamp in &clamps {
-        if let Clamp::Load(func_id, _, load) = clamp
-            && uses.load_reads(func_id, load).data
-        {
-            splits.insert((func_id, load), uses.split(func_id, load));
+        if let Clamp::Load(func_id, block, load) = clamp {
+            loads.entry(func_id).or_default().push((block, load));
         }
     }
-    (clamps, splits)
+    let plans = loads
+        .into_iter()
+        .map(|(func_id, loads)| (func_id, uses.load_clamps(func_id, loads)))
+        .collect();
+    (clamps, plans)
 }
 
 /// Rewrites `mstore 64, v` into `mstore 64, max(v, heap_floor)`.
@@ -198,59 +199,58 @@ fn clamp_store(func: &mut Function, block: BlockId, inst: InstId) {
     func.inst_mut(inst).kind = InstKind::MStore(address, clamped);
 }
 
-/// Rewrites the users of `word = mload 64` to read `max(word, heap_floor)`, keeping the slot's
-/// word.
-fn clamp_load(func: &mut Function, block: BlockId, inst: InstId) {
-    let word = func.inst_result_value(inst).expect("a load produces the slot's word");
-    let metadata = func.inst(inst).metadata.clone();
-    let (clamp, clamped) = floor_max(func, word, &metadata);
-    // The clamp is not placed yet, so it keeps reading the loaded word.
-    func.replace_uses(&FxHashMap::from_iter([(word, clamped)]));
-    // word = mload 64
-    // floor = heap_floor
-    // below = lt word, floor
-    // clamped = select below, floor, word
-    let position = index_in_block(func, block, inst) + 1;
-    func.blocks[block].instructions.splice(position..position, clamp);
-}
-
-/// Raises a loaded word to the heap floor where its pointer uses read it, and leaves its data uses
-/// the loaded word: each word computed from it on the way to a pointer use gets a clamped copy.
-fn clamp_pointer_uses(func: &mut Function, block: BlockId, load: InstId, split: &PointerUseSplit) {
-    let Some(&word) = split.words.first() else { return };
+/// Raises the words a function's loads read from the slot to the heap floor where they are read
+/// as the pointer. A word that no other use reads is rewritten in place; one that another use
+/// still reads unclamped gets a clamped copy for its pointer uses.
+fn clamp_loads(func: &mut Function, plan: &LoadClamps) {
     let blocks = func.inst_block_table();
-    let metadata = func.inst(load).metadata.clone();
-    // floor = heap_floor
-    // below = lt word, floor
-    // clamped = select below, floor, word
-    let (clamp, clamped) = floor_max(func, word, &metadata);
-    let mut copies = FxHashMap::from_iter([(word, clamped)]);
-    let mut originals = Vec::new();
-    for &value in &split.words[1..] {
+    let mut copies = FxHashMap::default();
+    for &(block, load) in &plan.loads {
+        let word = func.inst_result_value(load).expect("a load produces the slot's word");
+        let metadata = func.inst(load).metadata.clone();
+        let (clamp, clamped) = floor_max(func, word, &metadata);
+        if !plan.copied.contains(&word) {
+            // The clamp is not placed yet, so it keeps reading the loaded word.
+            func.replace_uses(&FxHashMap::from_iter([(word, clamped)]));
+        }
+        copies.insert(word, clamped);
+        // word = mload 64
+        // floor = heap_floor
+        // below = lt word, floor
+        // clamped = select below, floor, word
+        let position = index_in_block(func, block, load) + 1;
+        func.blocks[block].instructions.splice(position..position, clamp);
+    }
+    let mut rewritten = Vec::new();
+    let mut placed = Vec::new();
+    for &value in &plan.words {
         let Value::Inst(original) = *func.value(value) else {
-            unreachable!("a word computed from the load has an instruction")
+            unreachable!("a word computed from a load has an instruction")
         };
+        if !plan.copied.contains(&value) {
+            rewritten.push(original);
+            continue;
+        }
         let instruction = func.inst(original);
         let mut copy = Instruction::new(instruction.kind.clone(), instruction.result_ty);
         copy.metadata.copy_debug_context(&instruction.metadata);
         let (copy, copy_value) = func.alloc_value_inst(copy);
         copies.insert(value, copy_value);
-        originals.push((original, copy));
+        rewritten.push(copy);
+        placed.push((original, copy));
     }
-    // copy = op(clamped copies of the derived operands, other operands)
-    for &(_, copy) in &originals {
-        replace_inst_uses(func.inst_mut(copy), &copies);
+    // op(words) -> op(clamped words)
+    for inst in rewritten {
+        replace_inst_uses(func.inst_mut(inst), &copies);
     }
-    let position = index_in_block(func, block, load) + 1;
-    func.blocks[block].instructions.splice(position..position, clamp);
-    for &(original, copy) in &originals {
+    for (original, copy) in placed {
         let original_block = blocks[original].expect("a derived word's instruction is placed");
         let position = index_in_block(func, original_block, original) + 1;
         func.blocks[original_block].instructions.insert(position, copy);
     }
     // pointer use(word) -> pointer use(clamped copy)
-    for (site, value) in &split.sites {
-        let copy = copies[value];
+    for (site, value) in &plan.sites {
+        let Some(&copy) = copies.get(value) else { continue };
         let swap = |operand: &mut ValueId| {
             if *operand == *value {
                 *operand = copy;
@@ -658,12 +658,16 @@ fn operand_reads(func: &Function, kind: &InstKind, word: ValueId) -> Reads {
     Reads { pointer: pointer_uses != 0, data: uses > pointer_uses }
 }
 
-/// The uses of a loaded word that read it as the pointer, for a word also read as data.
-struct PointerUseSplit {
-    /// The words on the way from the load to a pointer use, which get clamped copies, the loaded
-    /// word first.
+/// How the pass clamps the words a function's loads read from the slot.
+struct LoadClamps {
+    /// The loads to clamp, with their blocks.
+    loads: Vec<(BlockId, InstId)>,
+    /// The words computed from the loaded ones on the way to a pointer use.
     words: Vec<ValueId>,
-    /// The uses that read one of those words as the pointer.
+    /// The loaded and computed words whose unclamped value another use still reads, so that their
+    /// pointer uses read a clamped copy.
+    copied: FxHashSet<ValueId>,
+    /// The uses that read a loaded or computed word as the pointer.
     sites: Vec<(UseSite, ValueId)>,
 }
 
@@ -1312,15 +1316,21 @@ impl<'a> PointerUses<'a> {
         reads
     }
 
-    /// Finds the uses of a load's word in its function that read it as the pointer, and the
-    /// words computed from it on the way to them, for a word that is also read as data.
-    fn split(&mut self, func_id: FunctionId, load: InstId) -> PointerUseSplit {
+    /// Plans the clamps of the words `loads` read from the slot in `func_id`. All of a function's
+    /// loads are planned at once, so that a word computed from several of them, such as a phi of
+    /// two branches' loads, is clamped on every path.
+    fn load_clamps(&mut self, func_id: FunctionId, loads: Vec<(BlockId, InstId)>) -> LoadClamps {
         let module = self.module;
         let func = &module.functions[func_id];
-        let word = func.inst_result_value(load).expect("a load produces the slot's word");
-        let mut derived = FxIndexSet::default();
-        derived.insert(word);
+        let roots = loads
+            .iter()
+            .filter_map(|&(_, load)| func.inst_result_value(load))
+            .collect::<FxHashSet<_>>();
+        let mut derived = roots.iter().copied().collect::<FxIndexSet<_>>();
         let mut sites = Vec::new();
+        // Words whose unclamped value a use reads, and the derivations of each word.
+        let mut raw = FxHashSet::default();
+        let mut derivations = Vec::new();
         let mut next = 0;
         while let Some(&value) = derived.get_index(next) {
             next += 1;
@@ -1331,16 +1341,28 @@ impl<'a> PointerUses<'a> {
                     User::Inst(inst) => {
                         let kind = &func.inst(inst).kind;
                         if is_derivation(kind) {
-                            derived.extend(func.inst_result_value(inst));
+                            if let Some(result) = func.inst_result_value(inst) {
+                                derived.insert(result);
+                                derivations.push((value, result));
+                            }
                         } else if let InstKind::ICall { function: Callee::Function(callee), args } =
                             kind
                         {
-                            let positions = self.pointer_args(*callee, args, value);
+                            let (positions, data) = self.arg_roles(*callee, args, value);
                             if !positions.is_empty() {
                                 sites.push((UseSite::Args(inst, positions), value));
                             }
-                        } else if operand_reads(func, kind, value).pointer {
-                            sites.push((UseSite::Inst(inst), value));
+                            if data {
+                                raw.insert(value);
+                            }
+                        } else {
+                            let reads = operand_reads(func, kind, value);
+                            if reads.pointer {
+                                sites.push((UseSite::Inst(inst), value));
+                            }
+                            if reads.data {
+                                raw.insert(value);
+                            }
                         }
                     }
                     User::Terminator(block) => match func.blocks[block].terminator.as_ref() {
@@ -1348,7 +1370,9 @@ impl<'a> PointerUses<'a> {
                             Terminator::Branch { .. }
                             | Terminator::Switch { .. }
                             | Terminator::SelfDestruct { .. },
-                        ) => {}
+                        ) => {
+                            raw.insert(value);
+                        }
                         Some(Terminator::Return { .. }) => {
                             let scalar = is_scalar(module, func.value_ty(value));
                             let mut results = Vec::new();
@@ -1357,11 +1381,17 @@ impl<'a> PointerUses<'a> {
                             if reads.pointer {
                                 sites.push((UseSite::Terminator(block, None), value));
                             }
+                            if reads.data {
+                                raw.insert(value);
+                            }
                         }
                         Some(Terminator::TailCall { function, args }) => {
-                            let positions = self.pointer_args(*function, args, value);
+                            let (positions, data) = self.arg_roles(*function, args, value);
                             if !positions.is_empty() {
                                 sites.push((UseSite::Terminator(block, Some(positions)), value));
+                            }
+                            if data {
+                                raw.insert(value);
                             }
                         }
                         _ => sites.push((UseSite::Terminator(block, None), value)),
@@ -1369,11 +1399,11 @@ impl<'a> PointerUses<'a> {
                 }
             }
         }
-        // Only the words a pointer use reads, and those they are computed from, need copies.
+        // The words a pointer use reads, and those they are computed from, get clamped.
         let mut needed = DenseBitSet::new_empty(func.num_values());
         let mut pending = sites.iter().map(|&(_, value)| value).collect::<Vec<_>>();
         while let Some(value) = pending.pop() {
-            if !needed.insert(value) || value == word {
+            if !needed.insert(value) || roots.contains(&value) {
                 continue;
             }
             if let Value::Inst(definition) = *func.value(value) {
@@ -1384,26 +1414,57 @@ impl<'a> PointerUses<'a> {
                 });
             }
         }
-        let words = derived.into_iter().filter(|&value| needed.contains(value)).collect();
-        PointerUseSplit { words, sites }
+        // A word feeding a derivation that no pointer use needs keeps its value for it.
+        for &(operand, result) in &derivations {
+            if !needed.contains(result) {
+                raw.insert(operand);
+            }
+        }
+        // A copied word keeps its original, which reads its operands unclamped.
+        let mut copied = FxHashSet::default();
+        let mut pending = derived
+            .iter()
+            .copied()
+            .filter(|&value| needed.contains(value) && raw.contains(&value))
+            .collect::<Vec<_>>();
+        while let Some(value) = pending.pop() {
+            if !copied.insert(value) || roots.contains(&value) {
+                continue;
+            }
+            if let Value::Inst(definition) = *func.value(value) {
+                func.inst(definition).visit_operands(|operand| {
+                    if needed.contains(operand) {
+                        pending.push(operand);
+                    }
+                });
+            }
+        }
+        let words = derived
+            .into_iter()
+            .filter(|value| needed.contains(*value) && !roots.contains(value))
+            .collect();
+        LoadClamps { loads, words, copied, sites }
     }
 
     /// Returns the positions at which `args` passes `word` to a parameter `callee` reads as a
-    /// pointer.
-    fn pointer_args(
+    /// pointer, and whether one of the parameters it passes `word` to is read as data.
+    fn arg_roles(
         &mut self,
         callee: FunctionId,
         args: &[ValueId],
         word: ValueId,
-    ) -> SmallVec<[usize; 2]> {
+    ) -> (SmallVec<[usize; 2]>, bool) {
         let mut positions = SmallVec::new();
+        let mut data = false;
         for (index, _) in args.iter().enumerate().filter(|&(_, &arg)| arg == word) {
             let params = self.arg_values(callee, index).into_iter().map(|v| (callee, v)).collect();
-            if self.word_reads(params).pointer {
+            let reads = self.word_reads(params);
+            if reads.pointer {
                 positions.push(index);
             }
+            data |= reads.data;
         }
-        positions
+        (positions, data)
     }
 
     /// Returns the internal calls and tail calls to `func_id`.
