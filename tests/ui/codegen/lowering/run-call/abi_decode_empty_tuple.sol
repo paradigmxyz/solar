@@ -2,8 +2,13 @@
 //@ run-call: decodeCall 5 => 6
 //@ run-call: decodeReturn 0x1234 => 1
 //@ run-call: decodeCalldata 0x1234 => 2
+//@ run-call: decodeCalldataLength 57896044618658097711785492504343953926634992332820282019728792003956564819967 => 3
+//@ run-call-fail: decodeCalldataLength 57896044618658097711785492504343953926634992332820282019728792003956564819968
+//@ run-call: decodeMemoryLength 57896044618658097711785492504343953926634992332820282019728792003956564819967 => 4
+//@ run-call-fail: decodeMemoryLength 57896044618658097711785492504343953926634992332820282019728792003956564819968
 
-// `abi.decode(data, ())` decodes nothing, but its data argument still runs.
+// `abi.decode(data, ())` decodes nothing, but its data argument still runs and a length with the
+// sign bit set reverts.
 contract AbiDecodeEmptyTuple {
     uint256 calls;
 
@@ -32,5 +37,23 @@ contract AbiDecodeEmptyTuple {
         calls = 2;
         abi.decode(data, ());
         return calls;
+    }
+
+    function decodeCalldataLength(uint256 length) external pure returns (uint256) {
+        bytes calldata data = msg.data[0:0];
+        assembly {
+            data.length := length
+        }
+        abi.decode(data, ());
+        return 3;
+    }
+
+    function decodeMemoryLength(uint256 length) external pure returns (uint256) {
+        bytes memory data = new bytes(0);
+        assembly {
+            mstore(data, length)
+        }
+        abi.decode(data, ());
+        return 4;
     }
 }

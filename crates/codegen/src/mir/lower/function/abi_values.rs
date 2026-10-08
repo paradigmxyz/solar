@@ -253,6 +253,20 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some(self.builder.abi_decode(layout, data, result_ty))
     }
 
+    /// Lowers `abi.decode(data, ())`, which decodes nothing but, like solc's tuple decoder,
+    /// rejects data whose length has the sign bit set.
+    pub(super) fn lower_abi_decode_empty(&mut self, data_expr: &hir::Expr<'_>) -> Option<()> {
+        let data_ty = self.cx.gcx.type_of_expr(data_expr.id)?;
+        // length = len(data)
+        // if slt(length, 0) { revert }
+        let length =
+            self.lower_array_length(data_expr, data_ty, data_expr.span, "abi.decode data")?;
+        let zero = self.builder.imm(U256::ZERO);
+        let negative = self.builder.slt(length, zero);
+        self.builder.revert_if(negative, RevertReason::TupleDataTooShort);
+        Some(())
+    }
+
     fn lower_abi_decode_layout(
         &mut self,
         data: ValueId,
