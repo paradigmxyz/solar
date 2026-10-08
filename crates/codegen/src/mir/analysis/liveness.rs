@@ -227,8 +227,9 @@ impl Liveness {
             }
         }
 
-        let live_in = BitMatrix::new(func.blocks.len(), 0);
-        let live_out = BitMatrix::new(func.blocks.len(), 0);
+        // Empty rows over every value: consumers combine them with value-sized sets.
+        let live_in = BitMatrix::new(func.blocks.len(), num_values);
+        let live_out = BitMatrix::new(func.blocks.len(), num_values);
         let mut last_use_in_block = FxHashMap::default();
         for (block_id, block) in func.blocks.iter_enumerated() {
             if let Some(term) = &block.terminator {

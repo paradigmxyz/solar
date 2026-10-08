@@ -63,14 +63,11 @@ fn @notBytes32(arg0: i256) -> i256 [selector=0xb683cb30, pure, abi_params=[bytes
 
 fn @notLiteral() -> i256 [selector=0x3fa60fe7, pure, abi_params=[], abi_returns=[word], abi_return_params=[i256]] {
   bb0:
-    v0 = not 0
-    ret v0
+    ret 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 }
 
 fn @notLiteralEqualsNegativeOne() -> i1 [selector=0x5055348d, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = not 0
-    v1 = sub 0, 1
-    v2 = eq v0, v1
-    ret v2
+    v0 = eq 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    ret v0
 }
