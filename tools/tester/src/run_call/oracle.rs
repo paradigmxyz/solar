@@ -280,9 +280,13 @@ pub(super) fn check(
     let Some(module) = dump.modules.get(call.contract) else {
         return skip("the MIR dump has no module for the contract");
     };
+    // Every contract a call deploys has a runtime: a dump without it would skip every call.
+    let Some(runtime) = dump.runtimes.get(call.contract) else {
+        return Err(format!("the MIR dump has no runtime for `{}`", call.contract));
+    };
     // A constructor may deploy other code, and deployment patches immutables into the runtime.
     let deployed = trace.before.accounts.get(&trace.before.contract).map(|account| &account.code);
-    if dump.runtimes.get(call.contract) != deployed {
+    if deployed != Some(runtime) {
         return skip("the deployed code is not the compiled runtime");
     }
     let block = BlockEnv::<BaseEvmTypes>::default();
@@ -419,7 +423,8 @@ fn dump_command(command: &Command) -> Command {
     let mut args = command.get_args().peekable();
     while let Some(arg) = args.next() {
         let text = arg.to_string_lossy();
-        if text.starts_with("-Zdump=") {
+        // The JSON stays compact, one line among the dump's.
+        if text.starts_with("-Zdump=") || text == "--pretty-json" {
             continue;
         }
         if text == "-Z"
@@ -460,22 +465,50 @@ fn run_dump(mut command: Command) -> Result<Dump, String> {
     if !output.status.success() {
         return Err("the MIR dump failed".into());
     }
-    let stdout = String::from_utf8_lossy(&output.stdout);
+    parse_dump(&output.stdout)
+}
+
+/// Splits what a dump command printed into modules, heap frames, and runtime bytecode by contract.
+fn parse_dump(stdout: &[u8]) -> Result<Dump, String> {
     let mut dump = Dump::default();
-    for module in interpret::parse_dump(&stdout) {
+    for module in interpret::parse_dump(&String::from_utf8_lossy(stdout)) {
         dump.frames.insert(module.name.clone(), module.frames);
         dump.modules.insert(module.name, module.mir);
     }
-    if let Some(line) = stdout.lines().find(|line| line.starts_with(r#"{"contracts""#)) {
-        let json = serde_json::from_str::<serde_json::Value>(line)
-            .map_err(|error| format!("unreadable compiler output: {error}"))?;
-        let contracts = json.get("contracts").and_then(serde_json::Value::as_object);
-        for (name, contract) in contracts.into_iter().flatten() {
-            let runtime = contract.get("bin-runtime").and_then(serde_json::Value::as_str);
-            if let Some(runtime) = runtime.and_then(|runtime| hex::decode(runtime).ok()) {
-                dump.runtimes.insert(name.clone(), runtime);
-            }
+    let json = super::compiler_json(stdout)?;
+    let contracts = json.get("contracts").and_then(serde_json::Value::as_object);
+    for (name, contract) in contracts.into_iter().flatten() {
+        let runtime = contract.get("bin-runtime").and_then(serde_json::Value::as_str);
+        if let Some(runtime) = runtime.and_then(|runtime| hex::decode(runtime).ok()) {
+            dump.runtimes.insert(name.clone(), runtime);
         }
     }
     Ok(dump)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn dumps_keep_compact_json() {
+        let mut command = Command::new("solar");
+        command.args(["--pretty-json", "--emit=abi", "-Zdump=evm-ir", "test.sol"]);
+        let args = dump_command(&command)
+            .get_args()
+            .map(|arg| arg.to_string_lossy().into_owned())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            args,
+            ["--emit=abi,bin-runtime", "test.sol", "-Zdump=mir-final", "--color=never"]
+        );
+    }
+
+    #[test]
+    fn dumps_read_pretty_json() {
+        let stdout =
+            b"{\n  \"contracts\": {\n    \"a.sol:A\": {\"bin-runtime\": \"6001\"}\n  }\n}\n";
+        let dump = parse_dump(stdout).unwrap();
+        assert_eq!(dump.runtimes["a.sol:A"], [0x60, 0x01]);
+    }
 }

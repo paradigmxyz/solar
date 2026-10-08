@@ -402,30 +402,34 @@ fn flag_error(command: &str, message: String) -> Errored {
     }
 }
 
+/// Returns the JSON document of `--emit` outputs in `output`, compact or pretty, which a dump the
+/// compiler prints may precede or follow.
+fn compiler_json(output: &[u8]) -> Result<Value, String> {
+    let err = match serde_json::from_slice(output) {
+        Ok(output) => return Ok(output),
+        Err(err) => err,
+    };
+    let marker = br#""contracts""#;
+    let Some(contracts) = output.windows(marker.len()).rposition(|window| window == marker) else {
+        return Err(format!("failed to parse compiler output: {err}"));
+    };
+    let Some(start) = output[..contracts].iter().rposition(|&byte| byte == b'{') else {
+        return Err(format!("failed to parse compiler output: {err}"));
+    };
+    serde_json::Deserializer::from_slice(&output[start..])
+        .into_iter()
+        .next()
+        .transpose()
+        .map_err(|_| format!("failed to parse compiler output: {err}"))?
+        .ok_or_else(|| format!("failed to parse compiler output: {err}"))
+}
+
 fn display_call(call: &str, function: Option<&Function>) -> String {
     function.map_or_else(|| call.to_owned(), Function::signature)
 }
 
 fn parse_artifacts(output: &[u8]) -> Result<Vec<Artifact>, String> {
-    let output: Value = match serde_json::from_slice(output) {
-        Ok(output) => output,
-        Err(err) => {
-            let marker = br#""contracts""#;
-            let Some(contracts) = output.windows(marker.len()).rposition(|window| window == marker)
-            else {
-                return Err(format!("failed to parse compiler output: {err}"));
-            };
-            let Some(start) = output[..contracts].iter().rposition(|&byte| byte == b'{') else {
-                return Err(format!("failed to parse compiler output: {err}"));
-            };
-            serde_json::Deserializer::from_slice(&output[start..])
-                .into_iter()
-                .next()
-                .transpose()
-                .map_err(|_| format!("failed to parse compiler output: {err}"))?
-                .ok_or_else(|| format!("failed to parse compiler output: {err}"))?
-        }
-    };
+    let output = compiler_json(output)?;
     let contracts = output
         .get("contracts")
         .and_then(Value::as_object)
