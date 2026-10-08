@@ -182,6 +182,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     return self.cx.report_unsupported(arg.span, "storage access");
                 };
                 self.load_storage_bytes(access.slot)
+            } else if source_ty.is_ref_at(DataLocation::Storage) {
+                // NOTE: The result still refers to storage, so lowering the argument as a
+                // memory copy would redirect writes through it.
+                return self.cx.report_unsupported(arg.span, "storage reference conversion");
             } else {
                 self.lower_expr(arg)?
             };
