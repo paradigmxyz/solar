@@ -128,7 +128,7 @@ impl<'sess> AstValidator<'sess, '_> {
             return;
         };
 
-        if Address::parse_checksummed(lit.symbol.as_str(), None).is_err() {
+        if Address::parse_checksummed(lit.symbol.as_str().replace('_', ""), None).is_err() {
             self.dcx()
                 .err("invalid checksummed address")
                 .span(lit.span)

@@ -7,5 +7,14 @@ LL │     address public a = 0xb71cb1A7ab0B6Bc6c07f5A3Ef2EA36757968A121;
    ├ help: correct checksummed address: "0xB71cb1A7ab0B6Bc6c07f5A3Ef2EA36757968A121"
    ╰ note: if this is not used as an address, please prepend "00"
 
-error: aborting due to 1 previous error
+error: invalid checksummed address
+   ╭▸ ROOT/tests/ui/resolve/address_checksums.sol:LL:CC
+   │
+LL │     address public c = 0xb71c_b1A7_ab0B_6Bc6_c07f_5A3E_f2EA_3675_7968_A121;
+   │                        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ├ help: correct checksummed address: "0xB71cb1A7ab0B6Bc6c07f5A3Ef2EA36757968A121"
+   ╰ note: if this is not used as an address, please prepend "00"
+
+error: aborting due to 2 previous errors
 
