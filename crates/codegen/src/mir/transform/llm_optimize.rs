@@ -31,8 +31,8 @@
 //! 3. Validation: the MIR validator checks the candidate's body in place of the original's.
 //! 4. Equivalence: [`equivalence`] runs it against the original on generated inputs, with seeded
 //!    storage and context; it must end the same way, write only memory the original writes and
-//!    exactly the storage slots it writes, leave them the same, log the same events, and run every
-//!    block.
+//!    exactly the storage slots it writes, leave them the same, log the same events, run every
+//!    block, and run on wherever the original runs past the tests' fuel.
 //! 5. Cost: [`cost`] prices it with the target cost model, and it must beat the best so far: by a
 //!    stack copy's lifetime gas when optimizing gas, and in bytes, then gas, for size.
 //!

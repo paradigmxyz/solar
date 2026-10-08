@@ -1,12 +1,16 @@
 //! Differential tests of candidates against their original.
 //!
 //! [`Tests::new`] generates inputs for a function from a seed, runs the original on each through
-//! the interpreter, and keeps the runs that finish within its limits. [`Tests::check`] runs a
-//! candidate on the same inputs, plus inputs at the constants the candidate adds, and compares the
-//! runs:
+//! the interpreter, and keeps the runs that finish within its limits, running an input it does not
+//! finish again with more fuel. [`Tests::check`] runs a candidate on the same inputs, plus inputs
+//! at the constants the candidate adds, and compares the runs:
 //!
 //! - Both must end the same way: return the same words, revert or return the same payload, stop, or
 //!   reach `invalid`. A candidate that exceeds its limits where the original finished fails.
+//! - Where the original runs on past its larger fuel or the call depth, what it would do is
+//!   unknown, so the candidate must run on as well: one that ends there, by returning or reverting,
+//!   fails. A candidate that replaces a loop with a formula therefore only passes when the loop's
+//!   trip count stays within the fuel on every input, as a masked bound keeps it.
 //! - The candidate may only write memory bytes the original writes on the same input. The backend
 //!   keeps its call frames and spill slots in memory no MIR function addresses, so a byte the
 //!   original never writes may belong to another function; a scratch word may be one a caller keeps
@@ -69,8 +73,8 @@ use crate::{
         analysis::{CallGraphInfo, CfgInfo},
         memory::EvmMemoryLayout,
         utils::interp::{
-            self, Execution, Host, Limit, Limits, Log, MEMORY_LIMIT, Machine, Memory, Outcome,
-            mix64,
+            self, Execution, Host, Limit, Limits, Log, MEMORY_LIMIT, Machine, Memory, Meter,
+            Outcome, mix64,
         },
     },
     target::Target,
@@ -88,6 +92,12 @@ use std::{fmt::Write, sync::Arc};
 const MIN_FINISHED_RUNS: usize = 16;
 /// Fuel for one run of the original: loops of a few thousand iterations finish.
 const ORIGINAL_FUEL: u64 = 20_000;
+/// Fuel for a second run of the original on an input [`ORIGINAL_FUEL`] does not finish: loops of
+/// tens of thousands of iterations finish.
+const LONG_FUEL: u64 = 400_000;
+/// The most inputs of a function's tests that run again with [`LONG_FUEL`], which bounds the time
+/// the tests take.
+const MAX_LONG_RUNS: usize = 32;
 /// Call depth of one run.
 const DEPTH: usize = 64;
 /// The most inputs added at the constants a candidate introduces.
@@ -190,6 +200,8 @@ pub(super) struct Tests<'a> {
     /// Whether the function or a function it calls reads or writes storage or its context.
     world: bool,
     references: Vec<Reference>,
+    /// Inputs on which the original runs on past [`LONG_FUEL`] or the call depth.
+    unfinished: Vec<Input>,
     baseline: CostReport,
 }
 
@@ -212,27 +224,41 @@ impl<'a> Tests<'a> {
         let machine = Machine::new(module);
         let mut meter = GasMeter::new(target, module);
         let mut references = Vec::new();
-        let mut run = |input: Input, probe: bool, references: &mut Vec<Reference>| {
-            let limits = Limits { fuel: ORIGINAL_FUEL, depth: DEPTH };
-            let mut world = World::new(&input, &palette);
-            let memory = input.memory.clone();
-            let execution =
-                machine.run(id, &input.args, memory, Some(&mut world), limits, &mut meter);
-            let spent = meter.take();
-            match execution.outcome {
-                Outcome::Unsupported(what) => Err(format!("reaches unsupported `{what}`")),
-                Outcome::Limit(_) => Ok(()),
-                _ => {
-                    let gas = run_gas(target, &input, &execution, spent);
-                    let growth = execution.memory.size().saturating_sub(input.memory.size());
-                    let priced = !probe && growth <= PRICED_GROWTH_WORDS;
-                    references.push(Reference { input, execution, gas, priced });
-                    Ok(())
-                }
+        let mut unfinished = Vec::new();
+        let mut long_runs = 0;
+        let mut run = |input: Input,
+                       probe: bool,
+                       references: &mut Vec<Reference>,
+                       unfinished: &mut Vec<Input>| {
+            let mut execution = execute(&machine, id, &input, &palette, ORIGINAL_FUEL, &mut meter);
+            let long = matches!(execution.outcome, Outcome::Limit(Limit::Fuel))
+                && long_runs < MAX_LONG_RUNS;
+            if long {
+                long_runs += 1;
+                meter.take();
+                execution = execute(&machine, id, &input, &palette, LONG_FUEL, &mut meter);
             }
+            let spent = meter.take();
+            if let Outcome::Unsupported(what) = execution.outcome {
+                return Err(format!("reaches unsupported `{what}`"));
+            }
+            if let Outcome::Limit(limit) = execution.outcome {
+                // Without the longer fuel, the input may only have needed more.
+                if limit == Limit::Depth || long && limit == Limit::Fuel {
+                    unfinished.push(input);
+                }
+                return Ok(());
+            }
+            let gas = run_gas(target, &input, &execution, spent);
+            let growth = execution.memory.size().saturating_sub(input.memory.size());
+            // Probes and long runs exercise edge cases rather than typical calls.
+            let priced = !probe && !long && growth <= PRICED_GROWTH_WORDS;
+            references.push(Reference { input, execution, gas, priced });
+            Ok(())
         };
         for _ in 0..count {
-            run(generate(&mut rng, function, &sorted, &palette), false, &mut references)?;
+            let input = generate(&mut rng, function, &sorted, &palette);
+            run(input, false, &mut references, &mut unfinished)?;
         }
         if references.len() < MIN_FINISHED_RUNS {
             return Err(format!("finishes only {} of {count} test runs", references.len()));
@@ -267,7 +293,7 @@ impl<'a> Tests<'a> {
             }
         }
         for input in probes {
-            run(input, true, &mut references)?;
+            run(input, true, &mut references, &mut unfinished)?;
         }
         let mut coverage = Coverage::new(module, function);
         for reference in &references {
@@ -292,7 +318,18 @@ impl<'a> Tests<'a> {
         }
         let gas = average_gas(references.iter().map(|reference| (reference, reference.gas)));
         let baseline = CostReport { gas, bytes: code_bytes(target, module, function) };
-        Ok(Self { target, module, id, seed, constants, palette, world, references, baseline })
+        Ok(Self {
+            target,
+            module,
+            id,
+            seed,
+            constants,
+            palette,
+            world,
+            references,
+            unfinished,
+            baseline,
+        })
     }
 
     /// The original's cost.
@@ -312,10 +349,23 @@ impl<'a> Tests<'a> {
             coverage.add(&execution);
             gas.push(run_gas(self.target, &reference.input, &execution, spent));
         }
+        for input in &self.unfinished {
+            self.check_runs_on(&machine, input)?;
+        }
+        let original = Machine::new(self.module);
         for input in self.constant_inputs(candidate) {
-            let (execution, _) = self.run_original(&input, false);
-            if matches!(execution.outcome, Outcome::Limit(_) | Outcome::Unsupported(_)) {
-                continue;
+            let mut execution =
+                execute(&original, self.id, &input, &self.palette, ORIGINAL_FUEL, &mut ());
+            if matches!(execution.outcome, Outcome::Limit(Limit::Fuel)) {
+                execution = execute(&original, self.id, &input, &self.palette, LONG_FUEL, &mut ());
+            }
+            match execution.outcome {
+                Outcome::Unsupported(_) | Outcome::Limit(Limit::Memory) => continue,
+                Outcome::Limit(_) => {
+                    self.check_runs_on(&machine, &input)?;
+                    continue;
+                }
+                _ => {}
             }
             let reference = Reference { input, execution, gas: 0, priced: false };
             let (candidate_execution, _) = self.run_candidate(&machine, &mut meter, &reference);
@@ -368,17 +418,37 @@ impl<'a> Tests<'a> {
         (execution, meter.take())
     }
 
-    /// Runs the original on `input`, and returns what it reads from its world when `record` is
-    /// set.
-    fn run_original(&self, input: &Input, record: bool) -> (Execution, Vec<String>) {
+    /// Checks that the candidate, which `machine` runs, also runs on past [`LONG_FUEL`] or the
+    /// call depth on `input`, where the original does. What the original would do there is
+    /// unknown, so a candidate that ends there could return what the original never would.
+    fn check_runs_on(&self, machine: &Machine<'_>, input: &Input) -> Result<(), Rejection> {
+        let execution = execute(machine, self.id, input, &self.palette, LONG_FUEL, &mut ());
+        if matches!(execution.outcome, Outcome::Limit(_)) {
+            return Ok(());
+        }
+        let reason = format!(
+            "the original runs on past the tests' limits, but the candidate {} after {} steps; a \
+             candidate must not end where the original runs on, since the tests cannot know what \
+             the original does there",
+            describe_outcome(&execution.outcome),
+            execution.fuel
+        );
+        Err(Rejection {
+            stage: Stage::Equivalence,
+            reason,
+            counterexample: Some(self.describe(input)),
+        })
+    }
+
+    /// Runs the original on `input` and returns what it reads from its world.
+    fn original_reads(&self, input: &Input) -> Vec<String> {
         let limits = Limits { fuel: ORIGINAL_FUEL, depth: DEPTH };
         let mut world = World::new(input, &self.palette);
-        world.reads = record.then(Vec::new);
+        world.reads = Some(Vec::new());
         let memory = input.memory.clone();
         let machine = Machine::new(self.module);
-        let execution =
-            machine.run(self.id, &input.args, memory, Some(&mut world), limits, &mut ());
-        (execution, world.reads.unwrap_or_default())
+        machine.run(self.id, &input.args, memory, Some(&mut world), limits, &mut ());
+        world.reads.unwrap_or_default()
     }
 
     /// Compares a candidate's run with the original's on `input`.
@@ -443,7 +513,7 @@ impl<'a> Tests<'a> {
             let _ = write!(text, "arg{index} = {arg:#x}, ");
         }
         let _ = write!(text, "free memory pointer {:#x}", input.free_memory_pointer);
-        let (_, mut reads) = self.run_original(input, true);
+        let mut reads = self.original_reads(input);
         let mut seen = FxHashSet::default();
         reads.retain(|read| seen.insert(read.clone()));
         let omitted = reads.len().saturating_sub(MAX_REPORTED_READS);
@@ -771,6 +841,21 @@ fn average_gas<'r>(runs: impl Iterator<Item = (&'r Reference, u64)>) -> u64 {
     }
     let (total, count) = if returning == 0 { (total, count) } else { (returning_total, returning) };
     u64::try_from(total / count.max(1)).unwrap_or(u64::MAX)
+}
+
+/// Runs function `id` with `machine` on `input` with `fuel`, in the input's world, whose words
+/// `palette` holds.
+fn execute(
+    machine: &Machine<'_>,
+    id: FunctionId,
+    input: &Input,
+    palette: &[U256],
+    fuel: u64,
+    meter: &mut dyn Meter,
+) -> Execution {
+    let limits = Limits { fuel, depth: DEPTH };
+    let mut world = World::new(input, palette);
+    machine.run(id, &input.args, input.memory.clone(), Some(&mut world), limits, meter)
 }
 
 /// Adds the memory a run grew into to the gas its operations spent.

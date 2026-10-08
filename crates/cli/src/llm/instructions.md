@@ -15,6 +15,9 @@ ignored; keep it short.
 - The header line: the name, the parameters, the return type, and the attributes in brackets.
 - The behavior on every input: the returned value; whether it reverts and the revert data; whether
   it ends the call with `returndata`, `stop`, or `invalid`, and the data returned.
+- Termination: where the original runs on for a very long time, such as a loop to a large
+  argument, the candidate must too, since the tests cannot know what the original would return
+  there; a formula in place of a loop to an arbitrary argument is rejected.
 - Memory: write only bytes the original writes, and when the function returns, leave them with
   the contents the original leaves. Memory the function does not write holds unknown data, so
   the result must not depend on reading it.
@@ -105,7 +108,8 @@ inputs the original returns on, and its bytes are the size of its code:
 
 Good directions: strength reduction, such as shifts for multiplication and division by powers of
 two; folding constants and removing redundant masks, comparisons, and branches; closed forms for
-loops; `select` instead of small branches; inlining a callee's body when that is cheaper than the
+loops whose trip count every input keeps small, such as loops to a masked bound; `select` instead
+of small branches; inlining a callee's body when that is cheaper than the
 call; fewer live values; and reading a storage slot once instead of again after writing it, or
 writing it once instead of twice, when no other access comes in between. A candidate with more simultaneously live values than the original
 is rejected.

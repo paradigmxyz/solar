@@ -6,10 +6,13 @@
 //@ run-call: triangle 1 => 0
 //@ run-call: triangle 2 => 1
 //@ run-call: triangle 10 => 45
-//@ run-call: triangle 1000 => 499500
+//@ run-call: triangle 255 => 32385
+//@ run-call: triangle 256 => 0
 //@ run-call: triangles 3, 4 => 9
 // Gas and size builds replace the loop with the scripted closed form, which `rewritten` shows,
-// and the calls run the result; builds without optimization keep the loop and agree.
+// and the calls run the result; builds without optimization keep the loop and agree. The loop
+// sums below `n` modulo 256, a trip count within the tests' fuel, so the tests compare the closed
+// form on every input.
 
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
@@ -27,7 +30,7 @@ contract Triangle {
 
     function sumBelow(uint256 n) internal pure returns (uint256 s) {
         unchecked {
-            for (uint256 i; i < n; ++i) {
+            for (uint256 i; i < uint8(n); ++i) {
                 s += i;
             }
         }

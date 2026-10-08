@@ -1,11 +1,12 @@
-Closed forms of `0 + 1 + ... + (n - 1)`, each cheaper than the last.
+Closed forms of `0 + 1 + ... + (n - 1)` for `n = arg0 & 255`, each cheaper than the last.
 
 --- function sum
 --- candidate
 fn @sum(arg0: i256) -> i256 {
   bb0:
-    v0 = sub arg0, 1
-    v1 = mul arg0, v0
+    v4 = and arg0, 255
+    v0 = sub v4, 1
+    v1 = mul v4, v0
     v2 = div v1, 2
     v3 = add v2, 0
     ret v3
@@ -13,16 +14,18 @@ fn @sum(arg0: i256) -> i256 {
 --- candidate
 fn @sum(arg0: i256) -> i256 {
   bb0:
-    v0 = sub arg0, 1
-    v1 = mul arg0, v0
+    v4 = and arg0, 255
+    v0 = sub v4, 1
+    v1 = mul v4, v0
     v2 = div v1, 2
     ret v2
 }
 --- candidate
 fn @sum(arg0: i256) -> i256 {
   bb0:
-    v0 = sub arg0, 1
-    v1 = mul arg0, v0
+    v4 = and arg0, 255
+    v0 = sub v4, 1
+    v1 = mul v4, v0
     v2 = shr 1, v1
     ret v2
 }

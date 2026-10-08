@@ -4,8 +4,9 @@ The closed form of `sumBelow` in `triangle.sol`.
 --- candidate
 fn @sumBelow(arg0: i256) -> i256 [pure] {
   bb0:
-    v0 = sub arg0, 1
-    v1 = mul arg0, v0
+    v3 = and arg0, 255
+    v0 = sub v3, 1
+    v1 = mul v3, v0
     v2 = shr 1, v1
     ret v2
 }

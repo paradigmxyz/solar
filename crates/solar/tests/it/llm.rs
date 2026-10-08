@@ -24,21 +24,23 @@ use std::{
 
 const SOURCE: &str = include_str!("../../../../tests/ui/codegen/mir/llm-optimize/triangle.sol");
 
-/// `sumBelow` as `n * (n + 1) / 2`: wrong by `n`.
+/// `sumBelow` as `m * (m + 1) / 2` for `m = n % 256`: wrong by `m`.
 const WRONG: &str = "fn @sumBelow(arg0: i256) -> i256 [pure] {
   bb0:
-    v0 = add arg0, 1
-    v1 = mul arg0, v0
+    v3 = and arg0, 255
+    v0 = add v3, 1
+    v1 = mul v3, v0
     v2 = shr 1, v1
     ret v2
 }
 ";
 
-/// `sumBelow` as `n * (n - 1) / 2`.
+/// `sumBelow` as `m * (m - 1) / 2` for `m = n % 256`.
 const RIGHT: &str = "fn @sumBelow(arg0: i256) -> i256 [pure] {
   bb0:
-    v0 = sub arg0, 1
-    v1 = mul arg0, v0
+    v3 = and arg0, 255
+    v0 = sub v3, 1
+    v1 = mul v3, v0
     v2 = shr 1, v1
     ret v2
 }
@@ -413,27 +415,28 @@ fn anthropic_rewrites() {
         str![[r#"
 warning: `-Zllm-optimize=live` sends the MIR of offered functions to `127.0.0.1`
 
-llm-optimize Triangle @sumBelow: costs 6741 gas, 43 bytes; asking anthropic/claude-opus-5-5 for something cheaper
+llm-optimize Triangle @sumBelow: costs 5047 gas, 47 bytes; asking anthropic/claude-opus-5-5 for something cheaper
 llm-optimize Triangle @sumBelow: round 1
   Triangle @sumBelow ┆ Summing an arithmetic series.
   Triangle @sumBelow │ The loop sums an arithmetic series.
   Triangle @sumBelow │ ```mir
   Triangle @sumBelow │ fn @sumBelow(arg0: i256) -> i256 [pure] {
   Triangle @sumBelow │   bb0:
-  Triangle @sumBelow │     v0 = sub arg0, 1
-  Triangle @sumBelow │     v1 = mul arg0, v0
+  Triangle @sumBelow │     v3 = and arg0, 255
+  Triangle @sumBelow │     v0 = sub v3, 1
+  Triangle @sumBelow │     v1 = mul v3, v0
   Triangle @sumBelow │     v2 = shr 1, v1
   Triangle @sumBelow │     ret v2
   Triangle @sumBelow │ }
   Triangle @sumBelow │ ```
 llm-optimize Triangle @sumBelow: replied in [..] s using 1200 tokens, an estimated $0.008
-llm-optimize Triangle @sumBelow: accepted at 72 gas, 28 bytes
+llm-optimize Triangle @sumBelow: accepted at 81 gas, 32 bytes
 llm-optimize Triangle @sumBelow: round 2
   Triangle @sumBelow ┆ Summing an arithmetic series.
   Triangle @sumBelow │ NO_IMPROVEMENT
 llm-optimize Triangle @sumBelow: replied in [..] s using 1200 tokens, an estimated $0.008
 llm-optimize Triangle @sumBelow: the model has nothing cheaper
-llm-optimize Triangle @sumBelow: keeps a rewrite at 72 gas, 28 bytes, down from 6741 gas, 43 bytes
+llm-optimize Triangle @sumBelow: keeps a rewrite at 81 gas, 32 bytes, down from 5047 gas, 47 bytes
 note: `llm-optimize` asked Anthropic 2 turns using 2400 tokens, an estimated $0.016
 
 
@@ -473,27 +476,28 @@ fn opencode_rewrites() {
         str![[r#"
 warning: `-Zllm-optimize=live` sends the MIR of offered functions to `127.0.0.1`
 
-llm-optimize Triangle @sumBelow: costs 6741 gas, 43 bytes; asking opencode/deepseek-v4.1-flash for something cheaper
+llm-optimize Triangle @sumBelow: costs 5047 gas, 47 bytes; asking opencode/deepseek-v4.1-flash for something cheaper
 llm-optimize Triangle @sumBelow: round 1
   Triangle @sumBelow ┆ Summing an arithmetic series.
   Triangle @sumBelow │ The loop sums an arithmetic series.
   Triangle @sumBelow │ ```mir
   Triangle @sumBelow │ fn @sumBelow(arg0: i256) -> i256 [pure] {
   Triangle @sumBelow │   bb0:
-  Triangle @sumBelow │     v0 = sub arg0, 1
-  Triangle @sumBelow │     v1 = mul arg0, v0
+  Triangle @sumBelow │     v3 = and arg0, 255
+  Triangle @sumBelow │     v0 = sub v3, 1
+  Triangle @sumBelow │     v1 = mul v3, v0
   Triangle @sumBelow │     v2 = shr 1, v1
   Triangle @sumBelow │     ret v2
   Triangle @sumBelow │ }
   Triangle @sumBelow │ ```
 llm-optimize Triangle @sumBelow: replied in [..] s using 1200 tokens, an estimated $0.00054
-llm-optimize Triangle @sumBelow: accepted at 72 gas, 28 bytes
+llm-optimize Triangle @sumBelow: accepted at 81 gas, 32 bytes
 llm-optimize Triangle @sumBelow: round 2
   Triangle @sumBelow ┆ Summing an arithmetic series.
   Triangle @sumBelow │ NO_IMPROVEMENT
 llm-optimize Triangle @sumBelow: replied in [..] s using 1200 tokens, an estimated $0.00054
 llm-optimize Triangle @sumBelow: the model has nothing cheaper
-llm-optimize Triangle @sumBelow: keeps a rewrite at 72 gas, 28 bytes, down from 6741 gas, 43 bytes
+llm-optimize Triangle @sumBelow: keeps a rewrite at 81 gas, 32 bytes, down from 5047 gas, 47 bytes
 note: `llm-optimize` asked OpenCode Zen 2 turns using 2400 tokens, an estimated $0.00108
 
 
@@ -558,7 +562,7 @@ fn chat_provider_retries() {
         str![[r#"
 warning: `-Zllm-optimize=live` sends the MIR of offered functions to `127.0.0.1`
 
-llm-optimize Triangle @sumBelow: costs 6741 gas, 43 bytes; asking opencode/deepseek-v4.1-flash for something cheaper
+llm-optimize Triangle @sumBelow: costs 5047 gas, 47 bytes; asking opencode/deepseek-v4.1-flash for something cheaper
 llm-optimize Triangle @sumBelow: round 1
 llm-optimize Triangle @sumBelow: OpenCode Zen answered 429 Too Many Requests: slow down; sending again in 0.0 s
 llm-optimize Triangle @sumBelow: OpenCode Zen answered 429 Too Many Requests: slow down; sending again in 0.0 s
@@ -567,20 +571,21 @@ llm-optimize Triangle @sumBelow: OpenCode Zen answered 429 Too Many Requests: sl
   Triangle @sumBelow │ ```mir
   Triangle @sumBelow │ fn @sumBelow(arg0: i256) -> i256 [pure] {
   Triangle @sumBelow │   bb0:
-  Triangle @sumBelow │     v0 = sub arg0, 1
-  Triangle @sumBelow │     v1 = mul arg0, v0
+  Triangle @sumBelow │     v3 = and arg0, 255
+  Triangle @sumBelow │     v0 = sub v3, 1
+  Triangle @sumBelow │     v1 = mul v3, v0
   Triangle @sumBelow │     v2 = shr 1, v1
   Triangle @sumBelow │     ret v2
   Triangle @sumBelow │ }
   Triangle @sumBelow │ ```
 llm-optimize Triangle @sumBelow: replied in [..] s using 1200 tokens, an estimated $0.00054
-llm-optimize Triangle @sumBelow: accepted at 72 gas, 28 bytes
+llm-optimize Triangle @sumBelow: accepted at 81 gas, 32 bytes
 llm-optimize Triangle @sumBelow: round 2
   Triangle @sumBelow ┆ Summing an arithmetic series.
   Triangle @sumBelow │ NO_IMPROVEMENT
 llm-optimize Triangle @sumBelow: replied in [..] s using 1200 tokens, an estimated $0.00054
 llm-optimize Triangle @sumBelow: the model has nothing cheaper
-llm-optimize Triangle @sumBelow: keeps a rewrite at 72 gas, 28 bytes, down from 6741 gas, 43 bytes
+llm-optimize Triangle @sumBelow: keeps a rewrite at 81 gas, 32 bytes, down from 5047 gas, 47 bytes
 note: `llm-optimize` asked OpenCode Zen 2 turns using 2400 tokens, an estimated $0.00108
 
 
@@ -612,7 +617,7 @@ fn cached_rewrites_skip_the_model() {
         str![[r#"
 warning: `-Zllm-optimize=live` sends the MIR of offered functions to `127.0.0.1`
 
-llm-optimize Triangle @sumBelow: reuses its cached rewrite at 72 gas, 28 bytes, down from 6741 gas, 43 bytes, without asking opencode/deepseek-v4.1-flash
+llm-optimize Triangle @sumBelow: reuses its cached rewrite at 81 gas, 32 bytes, down from 5047 gas, 47 bytes, without asking opencode/deepseek-v4.1-flash
 
 "#]]
     );

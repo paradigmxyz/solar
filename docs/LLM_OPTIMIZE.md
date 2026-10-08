@@ -86,19 +86,19 @@ or delete the function's entry, to ask again. Nothing is printed when `--error-f
 machine-readable. A short conversation reads:
 
 ```text
-llm-optimize Triangle @sumBelow: costs 8019 gas, 43 bytes; asking opencode/deepseek-v4.1-flash for something cheaper
+llm-optimize Triangle @sumBelow: costs 5047 gas, 47 bytes; asking opencode/deepseek-v4.1-flash for something cheaper
 llm-optimize Triangle @sumBelow: round 1
   Triangle @sumBelow ┆ The loop adds 0 through n - 1, an arithmetic series.
   Triangle @sumBelow │ ```mir
   Triangle @sumBelow │ fn @sumBelow(arg0: i256) -> i256 [pure] {
   ...
 llm-optimize Triangle @sumBelow: replied in 41.3 s using 5062 tokens, an estimated $0.0049
-llm-optimize Triangle @sumBelow: accepted at 72 gas, 28 bytes
+llm-optimize Triangle @sumBelow: accepted at 81 gas, 32 bytes
 llm-optimize Triangle @sumBelow: round 2
   Triangle @sumBelow │ NO_IMPROVEMENT
 llm-optimize Triangle @sumBelow: replied in 9.8 s using 1320 tokens, an estimated $0.0006
 llm-optimize Triangle @sumBelow: the model has nothing cheaper
-llm-optimize Triangle @sumBelow: keeps a rewrite at 72 gas, 28 bytes, down from 8019 gas, 43 bytes
+llm-optimize Triangle @sumBelow: keeps a rewrite at 81 gas, 32 bytes, down from 5047 gas, 47 bytes
 ```
 
 `-Zllm-effort` sets how much the model reasons, in its provider's terms: nanocodex's thinking
@@ -183,7 +183,10 @@ Each candidate goes through these stages, and the verdict names the one that rej
    leave each with the same value, and log the same events in the same order. A write fails in a
    static call whatever it stores, so a write the original does not make would fail where the
    original succeeds, and one it drops, even of the value a slot held, would succeed where the
-   original fails. The inputs must
+   original fails. An input on which the original runs out of fuel runs again with twenty times
+   as much; where the original still runs on, or calls too deeply, what it would do is unknown,
+   so the candidate must run on as well, and one that ends there fails. A formula replaces a loop
+   only when every input keeps the loop within the fuel, as a masked bound does. The inputs must
    exercise the candidate as they exercise the original, under the rules above. Decisions are
    comparisons and the `and`, `or`, and `xor` of booleans, which is how if-converted code
    combines comparisons without branching; values must come out nonzero because a path the
@@ -345,6 +348,9 @@ compiles a Foundry project this way.
   a four-byte error selector, or change behavior only on inputs the generators rarely reach,
   such as a bound one exact value reaches or a stored string shrinking to exactly one word.
   Proving loop-free candidates with the SMT checker in `scripts/evm-rules/` is future work.
+- Inputs on which the original runs past 400,000 steps are not compared: the candidate only has
+  to run as long there too. A candidate that runs as long but ends differently on such inputs
+  passes.
 - The interpreter models no calldata, `gas`, code reads, or calls to other contracts, so functions
   that use them are not offered. On the project archives, 28% of the reachable internal functions
   are offered. Decisions the inputs never complete both ways without reverting account for most
