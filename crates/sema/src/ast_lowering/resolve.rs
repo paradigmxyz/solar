@@ -1990,6 +1990,18 @@ impl<'gcx> ResolveContext<'gcx> {
                 ast::ElementaryType::UInt(size) if size == ast::TypeSize::ZERO => {
                     ast::ElementaryType::UInt(ast::TypeSize::new_int_bits(256))
                 }
+                ast::ElementaryType::Fixed(size, _) if size == ast::TypeSize::ZERO => {
+                    ast::ElementaryType::Fixed(
+                        ast::TypeSize::new_int_bits(128),
+                        ast::TypeFixedSize::new(18).unwrap(),
+                    )
+                }
+                ast::ElementaryType::UFixed(size, _) if size == ast::TypeSize::ZERO => {
+                    ast::ElementaryType::UFixed(
+                        ast::TypeSize::new_int_bits(128),
+                        ast::TypeFixedSize::new(18).unwrap(),
+                    )
+                }
                 ty => ty,
             }),
             ast::TypeKind::Array(array) => hir::TypeKind::Array(self.arena.alloc(hir::TypeArray {

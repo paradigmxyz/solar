@@ -420,6 +420,10 @@ impl<'gcx> StorageBuilder<'gcx> {
             }
             TyKind::Elementary(ElementaryType::Int(size)) => (size, StorageEncoding::Signed),
             TyKind::Elementary(ElementaryType::UInt(size)) => (size, StorageEncoding::Unsigned),
+            TyKind::Elementary(ElementaryType::Fixed(size, _)) => (size, StorageEncoding::Signed),
+            TyKind::Elementary(ElementaryType::UFixed(size, _)) => {
+                (size, StorageEncoding::Unsigned)
+            }
             TyKind::Enum(id) => {
                 let variants = self.gcx.hir.enumm(id).variants.len().max(1);
                 let bits = (usize::BITS - (variants - 1).leading_zeros()).max(1);

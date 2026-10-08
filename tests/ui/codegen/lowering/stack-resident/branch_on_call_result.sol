@@ -1,6 +1,7 @@
-//@ codegen-matrix: standard
-//@[gas] compile-flags: -Zdump=evm-ir-runtime
-//@[gas] filecheck: --implicit-check-not=mload
+//@ codegen-matrix: standard ir
+//@[ir] compile-flags: -Ogas -Zdump=evm-ir-runtime
+//@[ir] filecheck: --implicit-check-not=mload
+//@[ir] normalize-stdout-test: "(?s).+" -> ""
 //@ run-call: run 3, 5 => 12
 //@ run-call: run 4, 6 => 12
 //@ run-call: run 4, 5 => 60

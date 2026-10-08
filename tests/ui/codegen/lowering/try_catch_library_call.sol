@@ -1,8 +1,8 @@
 //@ codegen-matrix: standard unlinked
-//@[none, gas, size, mir] compile-flags: --libraries Lib=0x1111111111111111111111111111111111111111
+//@[gas, size, mir] compile-flags: --libraries Lib=0x1111111111111111111111111111111111111111
 //@[mir] filecheck: --check-prefix=LINKED
 //@[unlinked] compile-flags: -O none
-//@[none, gas, size, mir] run-call-fail: C::emptyCode => 0x
+//@[gas, size, mir] run-call-fail: C::emptyCode => 0x
 // ported-from: test/libsolidity/semanticTests/tryCatch/try_catch_library_call.sol
 
 library Lib {

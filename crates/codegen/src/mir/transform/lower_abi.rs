@@ -596,7 +596,7 @@ impl LowerAbiCx {
                     continue;
                 };
                 decode_functions.insert(func_id);
-                if layout.types.is_empty() || layout.checked_head_size().is_none() {
+                if layout.checked_head_size().is_none() {
                     return false;
                 }
                 let count = decode_counts.entry(layout.clone()).or_insert(0);
@@ -663,18 +663,16 @@ impl LowerAbiCx {
                     let data = crate::mir::utils::resolve_replacement(*data, &replacements);
                     let layout = layout.clone();
 
-                    let result = builder
-                        .func()
-                        .inst_result_value(inst)
-                        .expect("ABI decode must produce a value");
+                    let result = builder.func().inst_result_value(inst);
                     let data = if matches!(builder.func().value_ty(data), Some(MirType::I256)) {
                         Self::materialize_static_decode_bytes(&mut builder, data, &layout)
                     } else {
                         data
                     };
-                    let result_ty = builder.func().value_ty(result).expect("typed ABI decode");
                     if let Some(&helper) = decode_helpers.get(layout.as_ref()) {
                         // result = icall decode_helper(data)
+                        let result = result.expect("decode helpers have outputs");
+                        let result_ty = builder.func().value_ty(result).expect("typed ABI decode");
                         let value = builder.icall(helper, vec![data], result_ty);
                         replacements.insert(result, value);
                         continue;
@@ -692,6 +690,7 @@ impl LowerAbiCx {
                     ) else {
                         return false;
                     };
+                    let Some(result) = result else { continue };
                     // field = cast decoded word to the declared field type
                     // result = insert_value(undef, field0), ...
                     let values = values
@@ -699,7 +698,7 @@ impl LowerAbiCx {
                         .zip(&layout.types)
                         .map(|(value, ty)| builder.cast(value, ty.mir_type()))
                         .collect::<Vec<_>>();
-                    let value = if let MirType::Struct(id) = result_ty {
+                    let value = if let Some(MirType::Struct(id)) = builder.func().value_ty(result) {
                         builder.make_struct(id, values)
                     } else {
                         values[0]
@@ -929,13 +928,13 @@ impl LowerAbiCx {
         head_size: u64,
         current: &mut BlockId,
     ) -> ValueId {
+        // input_end = base + length
+        // if slt(length, head_size) { revert }
         builder.switch_to_block(*current);
         let input_end = builder.add(base, length);
-        let overflow = builder.lt(input_end, base);
         let head_size = builder.imm(head_size);
-        let short = builder.lt(length, head_size);
-        let invalid = builder.or(overflow, short);
-        *current = builder.revert_if(invalid, RevertReason::TupleDataTooShort);
+        let short = builder.slt(length, head_size);
+        *current = builder.revert_if(short, RevertReason::TupleDataTooShort);
         input_end
     }
 

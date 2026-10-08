@@ -1,6 +1,7 @@
-//@ codegen-matrix: standard
-//@[gas] compile-flags: -Zdump=evm-ir-runtime
-//@[gas] filecheck:
+//@ codegen-matrix: standard ir
+//@[ir] compile-flags: -Ogas -Zdump=evm-ir-runtime
+//@[ir] filecheck:
+//@[ir] normalize-stdout-test: "(?s).+" -> ""
 //@ run-call: fact 0 => 1
 //@ run-call: fact 5 => 120
 //@ run-call: fact 57 => 40526919504877216755680601905432322134980384796226602145184481280000000000000
