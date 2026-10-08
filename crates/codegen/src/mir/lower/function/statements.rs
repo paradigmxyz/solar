@@ -308,8 +308,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     fn lower_discarded_expr_inner(&mut self, expr: &hir::Expr<'_>) -> Option<()> {
         match &expr.kind {
-            // Names and `new T` have no effects to evaluate. A constant evaluates its initializer at
-            // every use, which can revert.
+            // Names and `new T` have no effects to evaluate. A constant evaluates its initializer
+            // at every use, which can revert.
             ExprKind::Ident(_) | ExprKind::New(_) if !self.is_constant_reference(expr) => Some(()),
             ExprKind::Call(callee, args) => {
                 let (callee, options) = callee.split_call_options();
