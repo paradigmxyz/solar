@@ -420,6 +420,10 @@ pub(crate) fn number_literal_underscore_errors(value: &str) -> Vec<&'static str>
     if value.contains("__") {
         return vec!["only 1 consecutive underscore `_` is allowed between digits"];
     }
+    // Like solc, reject underscores after a leading zero, as in `0_E5`.
+    if value.starts_with("0_") {
+        return vec!["remove underscores after the leading zero"];
+    }
 
     let mut errors = Vec::new();
     if value.starts_with("0x") {
