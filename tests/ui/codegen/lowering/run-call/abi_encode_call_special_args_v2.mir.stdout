@@ -8,7 +8,7 @@ fn @fNoArgs() [selector=0x1af93581, abi_params=[], abi_returns=[], abi_return_pa
     ret
 }
 
-fn @fArray(arg0: memoryarray) [selector=0x0a326c0c, abi_params=[array<_, u256>], abi_returns=[], abi_return_params=[]] {
+fn @fArray(arg0: memptr) [selector=0x0a326c0c, abi_params=[array<_, u256>], abi_returns=[], abi_return_params=[]] {
   bb0:
     ret
 }
@@ -20,7 +20,7 @@ fn @fUint(arg0: i256, arg1: i256) -> struct0 [selector=0x432672b2, abi_params=[u
     ret v1
 }
 
-fn @test() -> i256 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @test() -> i1 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = abi_encode [], object, selector 0x1af9358100000000000000000000000000000000000000000000000000000000
     v1 = keccak256_bytes v0
@@ -31,9 +31,9 @@ fn @test() -> i256 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<
   bb2:
     jump bb3
   bb1:
-    v5 = abi_encode [memory_array<word>], object, selector 0xa326c0c00000000000000000000000000000000000000000000000000000000, args memoryarray 96
+    v5 = abi_encode [memory_array<word>], object, selector 0xa326c0c00000000000000000000000000000000000000000000000000000000, args memptr 96
     v6 = keccak256_bytes v5
-    v7 = abi_encode [memory_array<word>], object, selector 0xa326c0c00000000000000000000000000000000000000000000000000000000, args memoryarray 96
+    v7 = abi_encode [memory_array<word>], object, selector 0xa326c0c00000000000000000000000000000000000000000000000000000000, args memptr 96
     v8 = keccak256_bytes v7
     v9 = eq v6, v8
     jump bb3
@@ -51,6 +51,5 @@ fn @test() -> i256 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<
     jump bb6
   bb6:
     v16 = phi [bb4: v15], [bb5: false]
-    v17 = zext i1 v16 to i256
-    ret v17
+    ret v16
 }

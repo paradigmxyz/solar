@@ -1,0 +1,13 @@
+//@ compile-flags: --evm-version byzantium -Zevm-ir-pipeline=default -O gas -Zdump=disasm-runtime
+//~? ERROR: EVM IR verification failed: block 0: opcode `selfbalance` is unavailable for `byzantium` EVM
+@module module
+
+// A pass deletes the dead `push 1; pop`. The checks after each pass ignore the
+// `selfbalance` the input already had, so only the final check reports it.
+bb0:
+  push 1
+  pop
+  selfbalance
+  push 0
+  sstore
+  stop

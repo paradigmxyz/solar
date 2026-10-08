@@ -2,13 +2,20 @@
 
 use super::*;
 use crate::workspace::WorkspaceEditError;
-use lsp_types::{
-    DocumentChanges, WorkspaceClientCapabilities, WorkspaceEdit, WorkspaceEditClientCapabilities,
-};
-use std::path::Path;
 
 #[cfg(unix)]
-mod paths;
+use std::os::unix::fs::symlink;
+
+/// Requests rename and delete edits for `target`.
+fn will_edits(state: &mut GlobalState, target: &Path) -> [EditResult; 2] {
+    [will_rename(state, target, target.with_file_name("Renamed.sol")), will_delete(state, target)]
+}
+
+fn assert_rejected(state: &mut GlobalState, target: &Path) {
+    for edit in will_edits(state, target) {
+        assert_eq!(edit.unwrap(), None, "dependency edits must reject the entire plan");
+    }
+}
 
 #[test]
 fn will_operations_reject_indexed_dependency_edits() {
@@ -39,83 +46,61 @@ fn will_operations_reject_indexed_dependency_edits() {
             if open {
                 project.open_file(&importer, &project.read_file(&importer));
             }
-            let config = config_with_initialization_options(
-                &project,
-                Some(serde_json::json!({
-                    "indexing": { "useDefaultExcludes": default_excludes },
-                })),
-            );
+            let options = json!({ "indexing": { "useDefaultExcludes": default_excludes } });
+            let config = config_with_options(project.initialize_params(), options);
             let mut state = state_with_config(&project, config);
             assert!(!state.config.may_omit_source_files());
             for path in [&importer, "/src/Main.sol"] {
                 assert!(state.config.tracks_source_file(&project.path(path)));
                 assert_eq!(state.symbol_tables.load().document_links(&project.path(path)).len(), 1);
             }
-            for edit in will_edits(&mut state, &project.path(&format!("/{directory}/Target.sol"))) {
-                assert!(
-                    edit.is_none(),
-                    "dependency edits must reject the entire plan ({directory}, open={open}): {edit:?}",
-                );
-            }
+            assert_rejected(&mut state, &project.path(&format!("/{directory}/Target.sol")));
         }
     }
 }
 
 #[test]
 fn will_operations_allow_project_importers_of_dependency_targets() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /foundry.toml
+        [profile.default]
+        remappings = ["dep/=vendor/dep/src/"]
+
+        //- /src/Importer.sol open
+        import "dep/Target.sol";
+
+        //- /vendor/dep/src/Target.sol
+        contract Target {}
+        "#,
+    );
+    let importer = Url::from_file_path(project.path("/src/Importer.sol")).unwrap();
+    let target = project.path("/vendor/dep/src/Target.sol");
     for document_changes in [false, true] {
-        let project = TestProject::from_fixture(
-            r#"
-            //- /foundry.toml
-            [profile.default]
-            remappings = ["dep/=vendor/dep/src/"]
-
-            //- /src/Importer.sol open
-            import "dep/Target.sol";
-
-            //- /vendor/dep/src/Target.sol
-            contract Target {}
-            "#,
-        );
-        let mut params = project.initialize_params();
-        params.capabilities.workspace = Some(WorkspaceClientCapabilities {
-            workspace_edit: Some(WorkspaceEditClientCapabilities {
-                document_changes: Some(document_changes),
-                ..Default::default()
-            }),
-            ..Default::default()
-        });
-        let (_, mut config) = negotiate_capabilities(params);
-        config.rediscover_workspaces();
+        let capabilities =
+            json!({ "workspace": { "workspaceEdit": { "documentChanges": document_changes } } });
+        let config =
+            rediscovered_config(with_capabilities(project.initialize_params(), capabilities));
         let mut state = state_with_config(&project, config);
-        let importer = Url::from_file_path(project.path("/src/Importer.sol")).unwrap();
-        let target = project.path("/vendor/dep/src/Target.sol");
         assert!(matches!(
             state.config.workspace_edit_scope().check(&target),
             Err(WorkspaceEditError::Dependency)
         ));
-
-        for (edit, expected) in will_edits(&mut state, &target).into_iter().zip([
-            TextEdit::new(
-                Range::new(Position::new(0, 7), Position::new(0, 23)),
-                r#""dep/Renamed.sol""#.into(),
-            ),
-            TextEdit::new(Range::new(Position::new(0, 0), Position::new(0, 24)), String::new()),
-        ]) {
-            let edit = edit.expect("only the importer needs edit permission, not the target");
-            if document_changes {
-                assert!(edit.changes.is_none());
-                let Some(DocumentChanges::Edits(edits)) = edit.document_changes else {
-                    panic!("expected versioned document edits");
-                };
-                assert_eq!(edits.len(), 1);
-                assert_eq!(edits[0].text_document.uri, importer);
-                assert_eq!(edits[0].text_document.version, Some(0));
-                assert_eq!(edits[0].edits, vec![lsp_types::OneOf::Left(expected)]);
+        // Only the importer needs edit permission, not the target.
+        let expected = [
+            json!({ "range": Range::new(Position::new(0, 7), Position::new(0, 23)), "newText": "\"dep/Renamed.sol\"" }),
+            json!({ "range": Range::new(Position::new(0, 0), Position::new(0, 24)), "newText": "" }),
+        ];
+        for (edit, expected) in will_edits(&mut state, &target).into_iter().zip(expected) {
+            let expected = if document_changes {
+                json!({ "documentChanges": [{
+                    "textDocument": { "uri": importer, "version": 0 },
+                    "edits": [expected],
+                }] })
             } else {
-                assert!(edit.document_changes.is_none());
-                assert_eq!(edit.changes.unwrap(), [(importer.clone(), vec![expected])].into());
-            }
+                json!({ "changes": { importer.as_str(): [expected] } })
+            };
+            assert_eq!(edit.unwrap(), Some(from_json(expected)));
         }
     }
 }
@@ -144,13 +129,9 @@ fn will_operations_allow_explicit_dependency_directory_sources() {
             project.config()
         };
         let mut state = state_with_config(&project, config);
-        let importer =
-            Url::from_file_path(project.path("/dependencies/app/src/Importer.sol")).unwrap();
+        let importer = project.path("/dependencies/app/src/Importer.sol");
         for edit in will_edits(&mut state, &project.path("/dependencies/app/src/Target.sol")) {
-            let changes =
-                edit.expect("explicit project sources must remain editable").changes.unwrap();
-            assert_eq!(changes.len(), 1);
-            assert_eq!(changes[&importer].len(), 1);
+            assert_one_edit_per_file(edit, std::slice::from_ref(&importer));
         }
     }
 }
@@ -177,10 +158,7 @@ fn will_operations_use_dependency_policy_published_with_analysis() {
         let protected = project.config();
         project.write_file(
             "/foundry.toml",
-            r#"[profile.default]
-src = "vendor/dep/src"
-remappings = ["dep/=vendor/dep/src/"]
-"#,
+            "[profile.default]\nsrc = \"vendor/dep/src\"\nremappings = [\"dep/=vendor/dep/src/\"]\n",
         );
         let allowed = project.config();
         let (published, current) =
@@ -190,35 +168,112 @@ remappings = ["dep/=vendor/dep/src/"]
         state.config = Arc::new(current);
         let target = project.path("/vendor/dep/src/Target.sol");
         for edit in will_edits(&mut state, &target) {
-            assert_eq!(edit.is_none(), published_protects);
+            assert_eq!(edit.unwrap().is_none(), published_protects);
         }
         state.analysis_commit.lock().analysis_config = None;
         for edit in will_edits(&mut state, &target) {
-            assert_eq!(edit.is_some(), published_protects);
+            assert_eq!(edit.unwrap().is_some(), published_protects);
         }
     }
 }
 
-fn will_edits(state: &mut GlobalState, target: &Path) -> [Option<WorkspaceEdit>; 2] {
-    [
-        block_on(crate::handlers::will_rename_files(
-            state,
-            RenameFilesParams {
-                files: vec![FileRename {
-                    old_uri: Url::from_file_path(target).unwrap().to_string(),
-                    new_uri: Url::from_file_path(target.with_file_name("Renamed.sol"))
-                        .unwrap()
-                        .to_string(),
-                }],
-            },
-        ))
-        .unwrap(),
-        block_on(crate::handlers::will_delete_files(
-            state,
-            DeleteFilesParams {
-                files: vec![FileDelete { uri: Url::from_file_path(target).unwrap().to_string() }],
-            },
-        ))
-        .unwrap(),
-    ]
+#[cfg(unix)]
+const SYMLINK_FIXTURE: &str = r#"
+//- /foundry.toml
+[profile.default]
+auto_detect_remappings = false
+
+//- /src/Importer.sol open
+import "../Target.sol";
+
+//- /Target.sol
+contract Target {}
+"#;
+
+/// Checks that each source is indexed and links to `target`.
+#[cfg(unix)]
+fn assert_links_to(state: &GlobalState, sources: &[&PathBuf], target: &Path) {
+    assert!(!state.config.may_omit_source_files());
+    for source in sources {
+        assert!(state.config.tracks_source_file(source));
+        let links = state.symbol_tables.load().document_links(source);
+        assert_eq!(links.len(), 1);
+        assert_eq!(links[0].target, Some(Url::from_file_path(target).unwrap()));
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn will_file_operations_reject_source_symlinks_into_dependencies() {
+    for directory in [false, true] {
+        let project = TestProject::from_fixture(&format!(
+            "{SYMLINK_FIXTURE}\n//- /lib/dep/src/Importer.sol\nimport \"../Target.sol\";\n"
+        ));
+        let importer = project.path("/src/Importer.sol");
+        let target = project.path("/Target.sol");
+        let mut state = state(&project);
+        assert_links_to(&state, &[&importer], &target);
+        for edit in will_edits(&mut state, &target) {
+            assert_one_edit_per_file(edit, std::slice::from_ref(&importer));
+        }
+
+        if directory {
+            fs::remove_dir_all(project.path("/src")).unwrap();
+            symlink(project.path("/lib/dep/src"), project.path("/src")).unwrap();
+        } else {
+            fs::remove_file(&importer).unwrap();
+            symlink(project.path("/lib/dep/src/Importer.sol"), &importer).unwrap();
+        }
+        // The lexical path stays editable, but its resolved target is a dependency.
+        assert!(state.config.workspace_edit_scope().check(&importer).is_ok());
+        assert_rejected(&mut state, &target);
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn will_file_operations_refresh_retargeted_dependency_symlinks() {
+    let project = TestProject::from_fixture(&format!(
+        "{SYMLINK_FIXTURE}\n//- /vendor_old/Empty.sol\ncontract Empty {{}}\n\n\
+         //- /vendor_new/Importer.sol\nimport \"../Target.sol\";\n"
+    ));
+    let library = project.path("/lib");
+    let importer = project.path("/src/Importer.sol");
+    let dependency = project.path("/vendor_new/Importer.sol");
+    let target = project.path("/Target.sol");
+    symlink(project.path("/vendor_old"), &library).unwrap();
+    let mut state = state(&project);
+    let config = Arc::clone(&state.config);
+    assert_links_to(&state, &[&importer, &dependency], &target);
+    fs::remove_file(&importer).unwrap();
+    symlink(&dependency, &importer).unwrap();
+    for edit in will_edits(&mut state, &target) {
+        assert_one_edit_per_file(edit, &[importer.clone(), dependency.clone()]);
+    }
+
+    fs::remove_file(&library).unwrap();
+    symlink(project.path("/vendor_new"), &library).unwrap();
+    assert_rejected(&mut state, &target);
+    assert!(Arc::ptr_eq(&state.config, &config));
+}
+
+#[cfg(unix)]
+#[test]
+fn will_file_operations_reject_dangling_links_but_allow_unsaved_importers() {
+    for link in [false, true] {
+        let project = TestProject::from_fixture(SYMLINK_FIXTURE);
+        let importer = project.path("/src/Importer.sol");
+        let target = project.path("/Target.sol");
+        let mut state = state(&project);
+        assert_links_to(&state, &[&importer], &target);
+        fs::remove_file(&importer).unwrap();
+        if link {
+            symlink(project.path("/lib/dep/Missing.sol"), &importer).unwrap();
+            assert_rejected(&mut state, &target);
+        } else {
+            for edit in will_edits(&mut state, &target) {
+                assert_one_edit_per_file(edit, std::slice::from_ref(&importer));
+            }
+        }
+    }
 }

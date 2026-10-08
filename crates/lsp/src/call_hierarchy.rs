@@ -4,14 +4,19 @@
 //! compatible declarations. Query adjacency uses canonical symbol IDs and is sorted once by
 //! URI and selection range, so expanding a callable only builds the owned protocol response.
 //! Conflicting declarations and incomplete relations remain excluded from navigation.
+//! Contracts without a declared constructor use their contract declaration as an implicit
+//! constructor node, without treating the contract body as a callable body. Inheritance-list
+//! argument calls belong to the constructor whether it is explicit or implicit. Only written
+//! calls are collected; bare inheritance does not synthesize C3 constructor execution edges.
 
 use crate::{
-    hierarchy::{HierarchyItem, HierarchyKey as CallableKey},
-    proto,
+    hierarchy::{CanonicalSymbols, HierarchyItem, HierarchyKey as CallableKey},
+    proto::{self, PositionIndex},
     symbols::{DeclarationSymbol, SymbolId},
 };
 use lsp_types::{
-    CallHierarchyIncomingCall, CallHierarchyItem, CallHierarchyOutgoingCall, Position, Range, Url,
+    CallHierarchyIncomingCall, CallHierarchyItem, CallHierarchyOutgoingCall, Position, Range,
+    SymbolKind, Url,
 };
 use solar_interface::{
     Span,
@@ -53,6 +58,7 @@ struct CallHierarchyFacts {
 struct CallableFact {
     symbol: SymbolId,
     body_range: Option<Range>,
+    implicit_constructor: bool,
 }
 
 #[derive(Debug, Default)]
@@ -60,62 +66,30 @@ struct QueryIndex {
     items_by_symbol: FxHashMap<SymbolId, HierarchyItem>,
     candidate_key_by_symbol: FxHashMap<SymbolId, CallableKey>,
     body_range_by_symbol: FxHashMap<SymbolId, Range>,
-    canonical_symbol_by_key: FxHashMap<CallableKey, SymbolId>,
-    canonical_symbol_by_symbol: FxHashMap<SymbolId, SymbolId>,
+    canonical: CanonicalSymbols,
     outgoing_by_symbol: CallRelations,
     incoming_by_symbol: CallRelations,
     incomplete_outgoing: FxHashSet<SymbolId>,
     incomplete_incoming: FxHashSet<SymbolId>,
-    call_sites_by_uri: FxHashMap<Arc<Url>, IndexedRanges<CallSite>>,
-    bodies_by_uri: FxHashMap<Arc<Url>, IndexedRanges<CallableBody>>,
+    call_sites_by_uri: FxHashMap<Arc<Url>, PositionIndex<CallSite>>,
+    bodies_by_uri: FxHashMap<Arc<Url>, PositionIndex<CallableBody>>,
 }
 
 type CallRelations = FxHashMap<SymbolId, Vec<(SymbolId, Range)>>;
 
-/// Entries sorted by start position with a prefix maximum end, allowing point queries to
-/// skip entries that end before the cursor while retaining the original range tie order.
-#[derive(Clone, Debug)]
-struct IndexedRanges<T> {
-    entries: Vec<T>,
-    prefix_max_end: Vec<Position>,
-}
-
-impl<T> Default for IndexedRanges<T> {
-    fn default() -> Self {
-        Self { entries: Vec::new(), prefix_max_end: Vec::new() }
-    }
-}
-
-impl<T> IndexedRanges<T> {
-    fn push(&mut self, entry: T) {
-        self.entries.push(entry);
-    }
-
-    fn rebuild(&mut self, range: impl Fn(&T) -> Range) {
-        self.prefix_max_end.clear();
-        self.prefix_max_end.reserve(self.entries.len());
-        let mut max_end = Position::default();
-        for entry in &self.entries {
-            let end = range(entry).end;
-            max_end = max_end.max(end);
-            self.prefix_max_end.push(max_end);
-        }
-    }
-
-    fn candidates_at<'a>(
-        &'a self,
-        position: Position,
-        range: impl Fn(&T) -> Range + Copy + 'a,
-    ) -> impl Iterator<Item = &'a T> + 'a {
-        let end = self.entries.partition_point(|entry| range(entry).start <= position);
-        self.entries[..end]
-            .iter()
-            .zip(self.prefix_max_end[..end].iter().copied())
-            .rev()
-            .take_while(move |(_, prefix_max_end)| *prefix_max_end >= position)
-            .filter(move |(entry, _)| proto::range_contains(range(entry), position))
-            .map(|(entry, _)| entry)
-    }
+/// Sorts entries by range and then by `tie`, deduplicates them, and indexes them.
+fn rebuild_ranges<T: Copy + PartialEq, K: Ord>(
+    index: &mut PositionIndex<T>,
+    range: impl Fn(T) -> Range,
+    tie: impl Fn(&T) -> K,
+) {
+    index.entries.sort_by(|a, b| {
+        proto::range_key(range(*a))
+            .cmp(&proto::range_key(range(*b)))
+            .then_with(|| tie(a).cmp(&tie(b)))
+    });
+    index.entries.dedup();
+    index.index_sorted(range);
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -125,13 +99,13 @@ struct DirectCall {
     from_range: Range,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct CallSite {
     range: Range,
     callee: Option<SymbolId>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct CallableBody {
     range: Range,
     callable: SymbolId,
@@ -158,12 +132,26 @@ impl CallHierarchyIndex {
             let Some(&symbol_id) = item_symbols.get(&ItemId::Function(function_id)) else {
                 continue;
             };
-            let body_range = if function.body.is_some() {
-                locations.location(function.body_span).map(|location| location.range)
-            } else {
-                None
-            };
-            index.facts.callables.push(CallableFact { symbol: symbol_id, body_range });
+            let body_range = function
+                .body
+                .and_then(|_| locations.location(function.body_span))
+                .map(|location| location.range);
+            index.facts.callables.push(CallableFact {
+                symbol: symbol_id,
+                body_range,
+                implicit_constructor: false,
+            });
+        }
+        for contract_id in gcx.hir.contract_ids() {
+            if let Some(item @ ItemId::Contract(_)) = constructor_item(gcx, contract_id)
+                && let Some(&symbol) = item_symbols.get(&item)
+            {
+                index.facts.callables.push(CallableFact {
+                    symbol,
+                    body_range: None,
+                    implicit_constructor: true,
+                });
+            }
         }
 
         if gcx.has_typeck_results() {
@@ -174,13 +162,15 @@ impl CallHierarchyIndex {
 
     pub(crate) fn extend(&mut self, other: Self, symbol_offset: usize) {
         let Self { facts, query: _ } = other;
-        self.facts.callables.extend(facts.callables.into_iter().map(|fact| CallableFact {
-            symbol: fact.symbol.offset_by(symbol_offset),
-            body_range: fact.body_range,
-        }));
+        self.facts.callables.extend(
+            facts
+                .callables
+                .into_iter()
+                .map(|fact| CallableFact { symbol: fact.symbol + symbol_offset, ..fact }),
+        );
         self.facts.direct_calls.extend(facts.direct_calls.into_iter().map(|call| DirectCall {
-            caller: call.caller.offset_by(symbol_offset),
-            callee: call.callee.offset_by(symbol_offset),
+            caller: call.caller + symbol_offset,
+            callee: call.callee + symbol_offset,
             from_range: call.from_range,
         }));
         self.invalidate_query();
@@ -251,13 +241,20 @@ impl QueryIndex {
                     .clone(),
                 selection_range: declaration.name_range,
             };
-            let detail = declaration.parent.map(|parent| declarations[parent].name.clone());
+            let (kind, detail) = if fact.implicit_constructor {
+                (SymbolKind::CONSTRUCTOR, Some("implicit constructor".into()))
+            } else {
+                (
+                    declaration.kind,
+                    declaration.parent.map(|parent| declarations[parent].name.clone()),
+                )
+            };
             index.items_by_symbol.insert(
                 fact.symbol,
                 HierarchyItem {
                     key: key.clone(),
                     name: declaration.name.clone(),
-                    kind: declaration.kind,
+                    kind,
                     detail,
                     range: declaration.location.range,
                 },
@@ -287,44 +284,25 @@ impl QueryIndex {
             facts.dedup();
         }
 
-        let mut incompatible_keys = FxHashSet::default();
-        for (&symbol, key) in &self.candidate_key_by_symbol {
-            if conflicting_contents.contains(key.uri.as_ref()) || incompatible_keys.contains(key) {
-                continue;
-            }
-            if let Some(&existing) = self.canonical_symbol_by_key.get(key) {
-                let facts =
-                    outgoing_facts_by_symbol.get(&symbol).map(Vec::as_slice).unwrap_or_default();
-                let existing_facts =
-                    outgoing_facts_by_symbol.get(&existing).map(Vec::as_slice).unwrap_or_default();
-                if self.items_by_symbol.get(&symbol) != self.items_by_symbol.get(&existing)
-                    || self.body_range_by_symbol.get(&symbol)
-                        != self.body_range_by_symbol.get(&existing)
-                    || facts != existing_facts
-                {
-                    self.canonical_symbol_by_key.remove(key);
-                    incompatible_keys.insert(key.clone());
-                }
-            } else {
-                self.canonical_symbol_by_key.insert(key.clone(), symbol);
-            }
-        }
-        self.canonical_symbol_by_key.retain(|_, symbol| self.items_by_symbol.contains_key(symbol));
-        for (&symbol, key) in &self.candidate_key_by_symbol {
-            if self.items_by_symbol.contains_key(&symbol)
-                && let Some(&canonical) = self.canonical_symbol_by_key.get(key)
-            {
-                self.canonical_symbol_by_symbol.insert(symbol, canonical);
-            }
-        }
+        let facts = |symbol| outgoing_facts_by_symbol.get(&symbol).map_or(&[][..], Vec::as_slice);
+        self.canonical = CanonicalSymbols::new(
+            &self.candidate_key_by_symbol,
+            &self.items_by_symbol,
+            conflicting_contents,
+            |symbol, existing| {
+                self.body_range_by_symbol.get(&symbol) == self.body_range_by_symbol.get(&existing)
+                    && facts(symbol) == facts(existing)
+            },
+        );
 
         for call in direct_calls {
-            let caller = self.canonical_symbol_by_symbol.get(&call.caller).copied();
-            let callee = self.canonical_symbol_by_symbol.get(&call.callee).copied();
+            let caller = self.canonical.by_symbol.get(&call.caller).copied();
+            let callee = self.canonical.by_symbol.get(&call.callee).copied();
             if let Some(caller) = caller {
                 self.call_sites_by_uri
                     .entry(self.items_by_symbol[&caller].key.uri.clone())
                     .or_default()
+                    .entries
                     .push(CallSite { range: call.from_range, callee });
             }
             let (Some(caller), Some(callee)) = (caller, callee) else {
@@ -342,35 +320,24 @@ impl QueryIndex {
         normalize_relations(&mut self.outgoing_by_symbol, &self.items_by_symbol);
         normalize_relations(&mut self.incoming_by_symbol, &self.items_by_symbol);
         for sites in self.call_sites_by_uri.values_mut() {
-            sites.entries.sort_by(|a, b| {
-                proto::range_key(a.range).cmp(&proto::range_key(b.range)).then_with(|| {
-                    a.callee
-                        .map(|symbol| &self.items_by_symbol[&symbol].key)
-                        .cmp(&b.callee.map(|symbol| &self.items_by_symbol[&symbol].key))
-                })
-            });
-            sites.entries.dedup();
-            sites.rebuild(|site| site.range);
+            sort_call_sites(sites, &self.items_by_symbol);
         }
 
-        for (key, &symbol) in &self.canonical_symbol_by_key {
+        for (key, &symbol) in &self.canonical.by_key {
             if let Some(&range) = self.body_range_by_symbol.get(&symbol) {
                 self.bodies_by_uri
                     .entry(key.uri.clone())
                     .or_default()
+                    .entries
                     .push(CallableBody { range, callable: symbol });
             }
         }
         for bodies in self.bodies_by_uri.values_mut() {
-            bodies.entries.sort_by(|a, b| {
-                proto::range_key(a.range).cmp(&proto::range_key(b.range)).then_with(|| {
-                    self.items_by_symbol[&a.callable]
-                        .key
-                        .cmp(&self.items_by_symbol[&b.callable].key)
-                })
-            });
-            bodies.entries.dedup();
-            bodies.rebuild(|body| body.range);
+            rebuild_ranges(
+                bodies,
+                |body| body.range,
+                |body| &self.items_by_symbol[&body.callable].key,
+            );
         }
     }
 
@@ -383,9 +350,7 @@ impl QueryIndex {
         if let Some(site) = self.call_site(uri, position) {
             return Some(vec![self.items_by_symbol[&site.callee?].to_call_item()]);
         }
-        if let Some(symbol) =
-            declaration.and_then(|symbol| self.canonical_symbol_by_symbol.get(&symbol))
-        {
+        if let Some(symbol) = declaration.and_then(|symbol| self.canonical.by_symbol.get(&symbol)) {
             return Some(vec![self.items_by_symbol[symbol].to_call_item()]);
         }
         let symbol = self.enclosing_body(uri, position)?;
@@ -396,39 +361,48 @@ impl QueryIndex {
         &self,
         item: &CallHierarchyItem,
     ) -> Option<Vec<CallHierarchyIncomingCall>> {
-        let symbol = self.resolve_item(item)?;
-        if self.incomplete_incoming.contains(&symbol) {
-            return None;
-        }
-        let calls = self.incoming_by_symbol.get(&symbol).map(Vec::as_slice).unwrap_or_default();
-        // Reserve one response item per callable, including when it has many call sites.
-        let mut response = Vec::with_capacity(calls.chunk_by(|a, b| a.0 == b.0).count());
-        response.extend(calls.chunk_by(|a, b| a.0 == b.0).map(|calls| CallHierarchyIncomingCall {
-            from: self.items_by_symbol[&calls[0].0].to_call_item(),
-            from_ranges: calls.iter().map(|&(_, range)| range).collect(),
-        }));
-        Some(response)
+        self.calls(
+            item,
+            &self.incoming_by_symbol,
+            &self.incomplete_incoming,
+            |from, from_ranges| CallHierarchyIncomingCall { from, from_ranges },
+        )
     }
 
     pub(crate) fn outgoing(
         &self,
         item: &CallHierarchyItem,
     ) -> Option<Vec<CallHierarchyOutgoingCall>> {
+        self.calls(item, &self.outgoing_by_symbol, &self.incomplete_outgoing, |to, from_ranges| {
+            CallHierarchyOutgoingCall { to, from_ranges }
+        })
+    }
+
+    /// Groups the item's relations by neighboring callable, unless they are incomplete.
+    fn calls<T>(
+        &self,
+        item: &CallHierarchyItem,
+        relations: &CallRelations,
+        incomplete: &FxHashSet<SymbolId>,
+        call: impl Fn(CallHierarchyItem, Vec<Range>) -> T,
+    ) -> Option<Vec<T>> {
         let symbol = self.resolve_item(item)?;
-        if self.incomplete_outgoing.contains(&symbol) {
+        if incomplete.contains(&symbol) {
             return None;
         }
-        let calls = self.outgoing_by_symbol.get(&symbol).map(Vec::as_slice).unwrap_or_default();
+        let calls = relations.get(&symbol).map_or(&[][..], Vec::as_slice);
         // Reserve one response item per callable, including when it has many call sites.
         let mut response = Vec::with_capacity(calls.chunk_by(|a, b| a.0 == b.0).count());
-        response.extend(calls.chunk_by(|a, b| a.0 == b.0).map(|calls| CallHierarchyOutgoingCall {
-            to: self.items_by_symbol[&calls[0].0].to_call_item(),
-            from_ranges: calls.iter().map(|&(_, range)| range).collect(),
+        response.extend(calls.chunk_by(|a, b| a.0 == b.0).map(|calls| {
+            call(
+                self.items_by_symbol[&calls[0].0].to_call_item(),
+                calls.iter().map(|&(_, range)| range).collect(),
+            )
         }));
         Some(response)
     }
 
-    fn call_site(&self, uri: &Url, position: Position) -> Option<&CallSite> {
+    fn call_site(&self, uri: &Url, position: Position) -> Option<CallSite> {
         self.call_sites_by_uri
             .get(uri)?
             .candidates_at(position, |site| site.range)
@@ -459,7 +433,7 @@ impl QueryIndex {
 
     fn resolve_item(&self, item: &CallHierarchyItem) -> Option<SymbolId> {
         let key = CallableKey::from_data(item.data.as_ref()?)?;
-        let &symbol = self.canonical_symbol_by_key.get(&key)?;
+        let &symbol = self.canonical.by_key.get(&key)?;
         let current = &self.items_by_symbol[&symbol];
         // Name and kind distinguish a declaration replacement at the same source position. The
         // full range and detail are presentation data that may change while the callable remains.
@@ -478,6 +452,19 @@ fn collect_direct_calls<'gcx>(
     item_symbols: &FxHashMap<ItemId, SymbolId>,
     declarations: &IndexVec<SymbolId, DeclarationSymbol>,
 ) {
+    for contract_id in gcx.hir.contract_ids() {
+        if let Some(item) = constructor_item(gcx, contract_id)
+            && let Some(&caller) = item_symbols.get(&item)
+        {
+            let mut collector =
+                CallCollector { gcx, locations, item_symbols, declarations, facts, caller };
+            for base in gcx.hir.contract(contract_id).bases_args {
+                if !base.args.is_dummy() {
+                    let _ = collector.visit_modifier(base);
+                }
+            }
+        }
+    }
     for caller_id in gcx.hir.function_ids() {
         let function = gcx.hir.function(caller_id);
         if !is_source_callable(function) {
@@ -489,15 +476,6 @@ fn collect_direct_calls<'gcx>(
 
         let mut collector =
             CallCollector { gcx, locations, item_symbols, declarations, facts, caller };
-        if function.is_constructor()
-            && let Some(contract_id) = function.contract
-        {
-            for base in gcx.hir.contract(contract_id).bases_args {
-                if !base.args.is_dummy() {
-                    let _ = collector.visit_modifier(base);
-                }
-            }
-        }
         for modifier in function.modifiers {
             let _ = collector.visit_modifier(modifier);
         }
@@ -530,8 +508,8 @@ impl<'gcx> Visit<'gcx> for CallCollector<'_, 'gcx> {
         modifier: &'gcx hir::Modifier<'gcx>,
     ) -> ControlFlow<Self::BreakValue> {
         let callee = match modifier.id {
-            ItemId::Function(callee) => Some(callee),
-            ItemId::Contract(contract) => self.gcx.hir.contract(contract).ctor,
+            ItemId::Function(_) => Some(modifier.id),
+            ItemId::Contract(contract) => constructor_item(self.gcx, contract),
             _ => None,
         };
         if let Some(callee) = callee {
@@ -564,11 +542,13 @@ impl<'gcx> Visit<'gcx> for CallCollector<'_, 'gcx> {
 }
 
 impl CallCollector<'_, '_> {
-    fn push_call(&mut self, callee_id: hir::FunctionId, span: Span) {
-        if !is_source_callable(self.gcx.hir.function(callee_id)) {
+    fn push_call(&mut self, callee_id: ItemId, span: Span) {
+        if let ItemId::Function(function) = callee_id
+            && !is_source_callable(self.gcx.hir.function(function))
+        {
             return;
         }
-        let Some(&callee) = self.item_symbols.get(&ItemId::Function(callee_id)) else {
+        let Some(&callee) = self.item_symbols.get(&callee_id) else {
             return;
         };
         let Some(location) = self.locations.location(span) else { return };
@@ -587,24 +567,29 @@ fn is_source_callable(function: &hir::Function<'_>) -> bool {
     !function.is_yul && !function.is_getter()
 }
 
-fn resolved_source_call<'gcx>(
-    gcx: Gcx<'gcx>,
-    expr: &hir::Expr<'gcx>,
-) -> Option<(hir::FunctionId, Span)> {
+fn resolved_source_call<'gcx>(gcx: Gcx<'gcx>, expr: &hir::Expr<'gcx>) -> Option<(ItemId, Span)> {
     let (callee, _, _) = expr.as_call()?;
     if let hir::ExprKind::New(ty) = &callee.kind
         && let TyKind::Fn(function) = gcx.type_of_expr(callee.id)?.kind
         && function.is_creation()
         && let hir::TypeKind::Custom(ItemId::Contract(contract_id)) = ty.kind
     {
-        return Some((gcx.hir.contract(contract_id).ctor?, ty.span));
+        return Some((constructor_item(gcx, contract_id)?, ty.span));
     }
     let callee_id = gcx.resolved_call(expr)?.res.as_function()?;
     let span = match callee.kind {
         hir::ExprKind::Member(_, member) => member.span,
         _ => callee.span,
     };
-    Some((callee_id, span))
+    Some((ItemId::Function(callee_id), span))
+}
+
+/// Orders call sites by range, then by callee key, for deterministic point queries.
+fn sort_call_sites(
+    sites: &mut PositionIndex<CallSite>,
+    items: &FxHashMap<SymbolId, HierarchyItem>,
+) {
+    rebuild_ranges(sites, |site| site.range, |site| site.callee.map(|symbol| &items[&symbol].key));
 }
 
 fn normalize_relations(relations: &mut CallRelations, items: &FxHashMap<SymbolId, HierarchyItem>) {
@@ -616,12 +601,21 @@ fn normalize_relations(relations: &mut CallRelations, items: &FxHashMap<SymbolId
     }
 }
 
+/// Uses the contract declaration to locate an implicit constructor without adding a HIR function.
+fn constructor_item(gcx: Gcx<'_>, contract_id: hir::ContractId) -> Option<ItemId> {
+    let contract = gcx.hir.contract(contract_id);
+    if contract.kind.is_interface() || contract.kind.is_library() {
+        return None;
+    }
+    Some(contract.ctor.map_or(ItemId::Contract(contract_id), ItemId::Function))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use lsp_types::SymbolKind;
 
-    #[derive(Clone, Copy)]
+    #[derive(Clone, Copy, PartialEq)]
     struct Entry {
         id: u8,
         range: Range,
@@ -629,17 +623,14 @@ mod tests {
 
     #[test]
     fn indexed_ranges_match_linear_point_queries() {
-        let mut indexed = IndexedRanges::default();
-        for entry in [
+        let mut indexed = PositionIndex::default();
+        indexed.entries = vec![
             Entry { id: 3, range: Range::new(Position::new(2, 0), Position::new(2, 0)) },
             Entry { id: 1, range: Range::new(Position::new(0, 0), Position::new(4, 0)) },
             Entry { id: 4, range: Range::new(Position::new(1, 2), Position::new(1, 2)) },
             Entry { id: 2, range: Range::new(Position::new(1, 0), Position::new(3, 0)) },
-        ] {
-            indexed.push(entry);
-        }
-        indexed.entries.sort_by_key(|entry| proto::range_key(entry.range));
-        indexed.rebuild(|entry| entry.range);
+        ];
+        rebuild_ranges(&mut indexed, |entry| entry.range, |entry| entry.id);
 
         for position in [
             Position::new(0, 0),
@@ -690,17 +681,10 @@ mod tests {
                 },
             );
         }
-        let mut sites = IndexedRanges::default();
-        sites.push(CallSite { range, callee: Some(high) });
-        sites.push(CallSite { range, callee: Some(low) });
-        sites.entries.sort_by(|a, b| {
-            proto::range_key(a.range).cmp(&proto::range_key(b.range)).then_with(|| {
-                a.callee
-                    .map(|symbol| &query.items_by_symbol[&symbol].key)
-                    .cmp(&b.callee.map(|symbol| &query.items_by_symbol[&symbol].key))
-            })
-        });
-        sites.rebuild(|site| site.range);
+        let mut sites = PositionIndex::default();
+        sites.entries =
+            vec![CallSite { range, callee: Some(high) }, CallSite { range, callee: Some(low) }];
+        sort_call_sites(&mut sites, &query.items_by_symbol);
         query.call_sites_by_uri.insert(uri.clone(), sites);
         let selected = query.call_site(uri.as_ref(), Position::new(1, 3));
         assert_eq!(selected.and_then(|site| site.callee), Some(low));

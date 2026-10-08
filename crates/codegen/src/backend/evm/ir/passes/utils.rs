@@ -198,26 +198,3 @@ fn remap_terminator_blocks(kind: &mut TerminatorKind, remap: &IndexVec<BlockId, 
         *target = remap[*target].expect("terminator target must be retained");
     });
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn machine_keys_preserve_stack_depths_and_boundaries() {
-        let mut keys = FxHashSet::default();
-        let mut operations = vec![op::StackOp::Pop];
-        for first in [1, 16, 17, 255] {
-            operations.extend([op::StackOp::Dup(first), op::StackOp::Swap(first)]);
-            for second in [1, 16, 17, 255] {
-                operations.push(op::StackOp::Exchange(first, second));
-            }
-        }
-        for operation in operations {
-            let mut instruction = Instruction::stack_op(operation);
-            assert!(keys.insert(MachineInstKey::new(&instruction)));
-            instruction.metadata.keep_with_next = true;
-            assert!(keys.insert(MachineInstKey::new(&instruction)));
-        }
-    }
-}

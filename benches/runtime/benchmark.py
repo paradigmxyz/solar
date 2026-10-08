@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compare solc and Solar codegen on the curated runtime corpus."""
+"""Compare Solidity compiler codegen on the curated runtime corpus."""
 
 # Adapted from walnuthq/solidity-compiler-benchmarks at
 # 01209d2b8ac81645b92e3ef801b5bcdfd61bfd69 under Apache-2.0.
@@ -320,6 +320,7 @@ class CompilerSpec:
     label: str
     path: Path
     kind: str
+    args: tuple[str, ...] = ("--standard-json",)
 
 
 def standard_json_input(test_case: TestCase) -> str:
@@ -421,7 +422,7 @@ def artifact_compiler_input(input_text: str, test_case: TestCase, kind: str) -> 
         "evm.bytecode.object",
         "evm.deployedBytecode.object",
     ]
-    if kind in ("solc", "solx"):
+    if kind in ("solc", "solx", "oksolc"):
         outputs.extend(("ir", "irOptimized"))
     if kind == "solx":
         outputs.extend(
@@ -523,7 +524,7 @@ def write_artifacts(
         except (OSError, RuntimeError) as error:
             return f"cannot write source artifact {name!r}: {error}"
 
-    cmd = [str(spec.path), "--standard-json"]
+    cmd = [str(spec.path), *spec.args]
     source = test_case.source_name or test_case.source or f"{test_case.test_id}.sol"
     contract_path = f"{source}:{test_case.contract_name}"
     if spec.kind == "solar":
@@ -576,9 +577,9 @@ def write_artifacts(
             (output_dir / "creation.disasm").write_text(disassemble_evm(deployment))
         if runtime:
             (output_dir / "runtime.disasm").write_text(disassemble_evm(runtime))
-    if spec.kind in ("solc", "solx") and (ir := contract.get("ir")):
+    if spec.kind in ("solc", "solx", "oksolc") and (ir := contract.get("ir")):
         (output_dir / "ir.yul").write_text(str(ir).rstrip() + "\n")
-    if spec.kind in ("solc", "solx") and (ir := contract.get("irOptimized")):
+    if spec.kind in ("solc", "solx", "oksolc") and (ir := contract.get("irOptimized")):
         (output_dir / "optimized-ir.yul").write_text(str(ir).rstrip() + "\n")
     return ""
 
@@ -658,7 +659,7 @@ def compile_case(
     input_text, timeout, input_fingerprint = prepared_input
 
     result["input_fingerprint"] = input_fingerprint
-    cmd = [str(spec.path), "--standard-json"]
+    cmd = [str(spec.path), *spec.args]
     samples = []
     reference_output = None
     output_fingerprint = None
@@ -1968,6 +1969,16 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="Also benchmark solx using this binary (default: disabled)",
     )
     parser.add_argument(
+        "--oksolc",
+        help="Also benchmark oksolc using this binary (default: disabled)",
+    )
+    parser.add_argument(
+        "--oksolc-jobs",
+        type=int,
+        default=8,
+        help="Oksolc worker count (default: 8, matching Solar's default)",
+    )
+    parser.add_argument(
         "--solar",
         help="Path to solar binary (default: solar or target/{release,debug}/solar)",
     )
@@ -2007,7 +2018,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument(
         "--reference-results",
         type=Path,
-        help="Compare with saved solc/solx results without running reference compilers",
+        help="Compare with saved reference compiler results without running reference compilers",
     )
     parser.add_argument("--tests", nargs="*", help="Subset of test IDs to run")
     parser.add_argument(
@@ -2060,6 +2071,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="Exit successfully even if a compiler fails for one or more tests",
     )
     args = parser.parse_args(argv)
+    if args.oksolc_jobs < 1:
+        parser.error("--oksolc-jobs must be positive")
     if args.reference_results and (args.solc or args.solx):
         parser.error("--reference-results cannot be combined with --solc or --solx")
     try:
@@ -2150,9 +2163,36 @@ def main(argv: Sequence[str] | None = None) -> int:
         if solx_error:
             parser.error(f"solx --version failed: {solx_error}")
         specs.append(CompilerSpec("solx", f"solx {solx_version}", solx, "solx"))
+    if args.oksolc:
+        oksolc = find_binary(args.oksolc, ["oksolc"])
+        if oksolc is None:
+            parser.error(f"oksolc not found: {args.oksolc}")
+        oksolc_version, oksolc_error = binary_version(oksolc)
+        if oksolc_error:
+            parser.error(f"oksolc --version failed: {oksolc_error}")
+        specs.append(
+            CompilerSpec(
+                "oksolc",
+                f"oksolc {oksolc_version}",
+                oksolc,
+                "oksolc",
+                (
+                    "standard-json",
+                    "--no-cache",
+                    "--parallel",
+                    "--jobs",
+                    str(args.oksolc_jobs),
+                    "-",
+                ),
+            )
+        )
     specs.append(CompilerSpec("solar", f"solar {solar_version}", solar, "solar"))
     reference_specs = (
-        [CompilerSpec(name, name, Path(name), name) for name in ("solc", "solx")]
+        [
+            CompilerSpec(name, name, Path(name), name)
+            for name in ("solc", "solx", "oksolc")
+            if name not in {spec.compiler_id for spec in specs}
+        ]
         if args.reference_results
         else []
     )

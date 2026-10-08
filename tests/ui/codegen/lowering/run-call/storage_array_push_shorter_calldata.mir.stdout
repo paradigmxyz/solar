@@ -325,7 +325,7 @@ fn @pushNestedShorterCalldata(arg0: calldataslice) -> struct1 [selector=0xae0512
     jumpi v23, bb7, bb8
   bb8:
     v32 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
-    v33 = ptrtoint memoryfixedarray v32 to i256
+    v33 = ptrtoint memptr v32 to i256
     memory_zero v33, 96
     jump bb16
   bb16:
@@ -368,7 +368,7 @@ fn @pushNestedShorterCalldata(arg0: calldataslice) -> struct1 [selector=0xae0512
     sstore v27, 0 !metadata(storage=symbolic(v27))
     jump bb15
   bb13:
-    v29 = inttoptr i256 v24 to memoryfixedarray
+    v29 = inttoptr i256 v24 to memptr
     v30 = memory_object_load_element memoryfixedarray<2, 1>, v29, v25
     sstore v27, v30 !metadata(storage=symbolic(v27))
     jump bb15
@@ -381,7 +381,7 @@ fn @pushNestedShorterCalldata(arg0: calldataslice) -> struct1 [selector=0xae0512
     v9 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
     v10 = make_calldata_slice v8, 64
     memory_object_copy_from_slice memoryfixedarray, v9, v10
-    v11 = ptrtoint memoryfixedarray v9 to i256
+    v11 = ptrtoint memptr v9 to i256
     memory_object_store_element memoryfixedarray<2, 1>, v4, v5, v11
     v12 = add v5, 1
     jump bb1

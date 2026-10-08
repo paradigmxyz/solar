@@ -145,6 +145,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn lower_switch(&mut self, switch: &hir::StmtSwitch<'_>) -> Option<()> {
         let selector = self.lower_yul_word_expr(switch.selector)?;
+        let selector = self.builder.cast_word(selector);
         self.materialize_default_bindings();
         let switch_block = self.builder.current_block();
         let merge_block = self.builder.create_block();
@@ -487,6 +488,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let Some(value) = creation_value else {
                 return self.cx.report_unsupported(returns_clause.span, "try return binding list");
             };
+            let value = self.materialize_raw_scalar(binding, value);
             self.values.insert(binding, value);
         } else if !return_types.is_empty() {
             let values = if let Some(plan) = ret_plan {
@@ -504,6 +506,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.lower_abi_decode_values(data, &return_types, returns_clause.span)?
             };
             for (&binding, value) in returns_clause.args.iter().zip(values) {
+                let value = self.materialize_raw_scalar(binding, value);
                 self.values.insert(binding, value);
             }
         }
@@ -651,7 +654,23 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if let ExprKind::Lit(lit) = expr.peel_parens().kind {
             return self.lower_word_literal(lit);
         }
-        self.lower_expr(expr)
+        let value = self.lower_expr(expr)?;
+        let ty = self
+            .cx
+            .gcx
+            .resolved_variable(expr)
+            .map(|id| self.cx.gcx.type_of_item(id.into()))
+            .or_else(|| self.cx.gcx.type_of_expr(expr.id));
+        Some(if let Some(ty) = ty {
+            raw_scalars::cast_carrier(
+                &mut self.builder,
+                value,
+                types::TypeLowerer::value_layout(ty),
+                MirType::I256,
+            )
+        } else {
+            self.builder.cast_word(value)
+        })
     }
 
     pub(super) fn merge_storage_refs(
@@ -661,10 +680,22 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         else_branch: MergeBranch<StorageAccess>,
     ) -> FxHashMap<VariableId, StorageAccess> {
         let mut merged = before;
-        let ids = merged.keys().copied().collect::<Vec<_>>();
+        let mut ids = merged
+            .keys()
+            .chain(then_branch.values.keys())
+            .chain(else_branch.values.keys())
+            .copied()
+            .collect::<Vec<_>>();
+        ids.sort_unstable();
+        ids.dedup();
         for id in ids {
             let then = then_branch.values.get(&id).copied().or_else(|| merged.get(&id).copied());
             let else_ = else_branch.values.get(&id).copied().or_else(|| merged.get(&id).copied());
+            if (!then_branch.terminated && then.is_none())
+                || (!else_branch.terminated && else_.is_none())
+            {
+                continue;
+            }
             let mut incoming = Vec::with_capacity(2);
             if !then_branch.terminated
                 && let Some(access) = then
@@ -689,13 +720,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         condition: &hir::Expr<'_>,
         then_expr: &hir::Expr<'_>,
         else_expr: &hir::Expr<'_>,
+        ty: Ty<'gcx>,
     ) -> Option<ValueId> {
         // branch(condition, then, else)
         // value = then_value | else_value | phi(then_value, else_value)
         let condition = self.lower_expr(condition)?;
-        let then_ty = self.cx.gcx.type_of_expr(then_expr.id)?;
-        let else_ty = self.cx.gcx.type_of_expr(else_expr.id)?;
-        let ty = then_ty.common_type(else_ty, self.cx.gcx)?;
         let (then_branch, else_branch) = self.lower_branches(
             condition,
             true,
@@ -706,14 +735,45 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             (true, false) => Some(else_branch.value),
             (false, true) => Some(then_branch.value),
             _ if then_branch.value == else_branch.value => Some(then_branch.value),
-            _ => Some(self.merge_value_phi(vec![
-                (then_branch.block, then_branch.value),
-                (else_branch.block, else_branch.value),
-            ])),
+            _ => Some(self.merge_ternary_phi(
+                vec![
+                    (then_branch.block, then_branch.value),
+                    (else_branch.block, else_branch.value),
+                ],
+                ty,
+            )),
         }
     }
 
-    fn lower_ternary_value(&mut self, expr: &hir::Expr<'_>, ty: Ty<'gcx>) -> Option<ValueId> {
+    fn merge_ternary_phi(
+        &mut self,
+        mut incoming: Vec<(BlockId, ValueId)>,
+        ty: Ty<'gcx>,
+    ) -> ValueId {
+        let layout = types::TypeLowerer::value_layout(ty);
+        if matches!(layout, crate::mir::ValueLayout::Int(_))
+            && incoming.iter().any(|(_, value)| self.dirty_values.contains(value))
+        {
+            let current = self.builder.current_block();
+            for (block, value) in &mut incoming {
+                self.builder.switch_to_block(*block);
+                let dirty = self.dirty_values.contains(value);
+                *value =
+                    raw_scalars::cast_carrier(&mut self.builder, *value, layout, MirType::I256);
+                if dirty {
+                    self.dirty_values.insert(*value);
+                }
+            }
+            self.builder.switch_to_block(current);
+        }
+        self.merge_value_phi(incoming)
+    }
+
+    pub(super) fn lower_ternary_value(
+        &mut self,
+        expr: &hir::Expr<'_>,
+        ty: Ty<'gcx>,
+    ) -> Option<ValueId> {
         let source_ty = self.cx.gcx.type_of_expr(expr.id)?;
         let value = self.lower_expr(expr)?;
         let value = if ty.is_ref_at(DataLocation::Memory) {
@@ -759,14 +819,20 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         condition: &hir::Expr<'_>,
         then_expr: &hir::Expr<'_>,
         else_expr: &hir::Expr<'_>,
+        ty: Ty<'gcx>,
     ) -> Option<Vec<ValueId>> {
+        let TyKind::Tuple(types) = ty.kind else {
+            return self
+                .lower_ternary(condition, then_expr, else_expr, ty)
+                .map(|value| vec![value]);
+        };
         let condition = self.lower_expr(condition)?;
         // branch(condition, then, else)
         let (then_branch, else_branch) = self.lower_branches(
             condition,
             true,
-            |this| this.lower_values(then_expr),
-            |this| this.lower_values(else_expr),
+            |this| this.lower_ternary_components(then_expr, types),
+            |this| this.lower_ternary_components(else_expr, types),
         )?;
         if !then_branch.terminated
             && !else_branch.terminated
@@ -783,19 +849,38 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 .value
                 .into_iter()
                 .zip(else_branch.value)
-                .map(|(then, else_)| {
+                .zip(types)
+                .map(|((then, else_), &ty)| {
                     if then == else_ {
                         then
                     } else {
-                        self.merge_value_phi(vec![
-                            (then_branch.block, then),
-                            (else_branch.block, else_),
-                        ])
+                        self.merge_ternary_phi(
+                            vec![(then_branch.block, then), (else_branch.block, else_)],
+                            ty,
+                        )
                     }
                 })
                 .collect(),
         };
         Some(values)
+    }
+
+    fn lower_ternary_components(
+        &mut self,
+        expr: &hir::Expr<'_>,
+        types: &[Ty<'gcx>],
+    ) -> Option<Vec<ValueId>> {
+        let TyKind::Tuple(sources) = self.cx.gcx.type_of_expr(expr.id)?.kind else {
+            return None;
+        };
+        self.lower_values(expr)?
+            .into_iter()
+            .zip(sources)
+            .zip(types)
+            .map(|((value, &source), &target)| {
+                self.convert_tuple_component(value, source, target, expr.span)
+            })
+            .collect()
     }
 
     pub(super) fn lower_loop(
@@ -833,6 +918,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let mut header_values = before_values.clone();
         let mut header_phis = FxHashMap::default();
         for (&id, &value) in &before_values {
+            let value = if self.cx.state.raw_scalars.contains(&id)
+                && self.builder.func().value_ty(value).is_some_and(|ty| ty.integer_bits().is_some())
+            {
+                self.builder.switch_to_block(preheader);
+                let value = self.materialize_raw_scalar(id, value);
+                self.builder.switch_to_block(header);
+                value
+            } else {
+                value
+            };
             let phi = self.merge_value_phi(vec![(preheader, value)]);
             header_values.insert(id, phi);
             header_phis.insert(id, phi);
@@ -1093,15 +1188,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     fn merge_value_phi(&mut self, incoming: Vec<(BlockId, ValueId)>) -> ValueId {
         let dirty = !self.dirty_values.is_empty()
             && incoming.iter().any(|(_, value)| self.dirty_values.contains(value));
-        // Source bindings may acquire raw bits through assembly on a backedge.
-        // Preserve those bits even when the initial incoming value is i1 or i160.
-        let ty = incoming
-            .first()
-            .and_then(|(_, value)| self.builder.func().value_ty(*value))
-            .map(|ty| if matches!(ty, MirType::I1 | MirType::I160) { MirType::I256 } else { ty })
-            .unwrap_or(MirType::I256);
-        // value = phi [predecessor: cast incoming to the source carrier type, ...]
-        let value = self.builder.emit_inst(InstKind::Phi(incoming), Some(ty));
+        let value = if dirty {
+            // Preserve native widths; raw assembly carriers already use i256.
+            self.builder.phi(incoming)
+        } else {
+            let ty = incoming
+                .first()
+                .and_then(|(_, value)| self.builder.func().value_ty(*value))
+                .unwrap_or(MirType::I256);
+            self.builder.emit_inst(InstKind::Phi(incoming), Some(ty))
+        };
         if dirty {
             self.dirty_values.insert(value);
         }
@@ -1113,9 +1209,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         mut before: FxHashMap<VariableId, StorageAccess>,
         states: &[LoopState],
     ) -> FxHashMap<VariableId, StorageAccess> {
-        let ids = before.keys().copied().collect::<Vec<_>>();
+        let mut ids = before.keys().copied().collect::<Vec<_>>();
+        ids.extend(states.iter().flat_map(|state| state.storage_refs.keys().copied()));
+        ids.sort_unstable();
+        ids.dedup();
         for id in ids {
             let fallback = before.get(&id).copied();
+            if fallback.is_none()
+                && states.iter().any(|state| !state.storage_refs.contains_key(&id))
+            {
+                continue;
+            }
             let incoming = states
                 .iter()
                 .filter_map(|state| {

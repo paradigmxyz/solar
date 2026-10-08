@@ -1,4 +1,4 @@
-//! Pure in-memory project fixtures shared by tests and benchmarks.
+//! Pure in-memory project fixtures for tests.
 
 use lsp_types::Position;
 use solar_interface::data_structures::map::FxHashMap;
@@ -82,10 +82,6 @@ impl ProjectFixture {
 
     pub(crate) fn files(&self) -> &[FixtureFile] {
         &self.files
-    }
-
-    pub(crate) fn markers(&self) -> &FxHashMap<String, Vec<FixtureMarker>> {
-        &self.markers
     }
 
     pub(crate) fn marker(&self, name: &str) -> &FixtureMarker {
@@ -269,13 +265,14 @@ mod tests {
 
     #[test]
     fn markers_use_utf16_positions() {
-        let fixture = ProjectFixture::parse(concat!(
+        let source = concat!(
             "//- /Unicode.sol\n",
             "contract Unicode {\n",
             "    string value = \"\u{1F600}\";$0\n",
             "    function $12read() external {}\n",
             "}\n",
-        ));
+        );
+        let fixture = ProjectFixture::parse(source);
 
         let file = &fixture.files()[0];
         assert_eq!(
@@ -285,22 +282,23 @@ mod tests {
         assert_eq!(fixture.marker("0").position(), Position::new(1, 24));
         assert_eq!(fixture.marker("$12").position(), Position::new(2, 13));
         assert_eq!(fixture.marker("12").path(), "/Unicode.sol");
-    }
 
-    #[test]
-    fn parsing_without_markers_preserves_marker_text() {
-        let fixture = ProjectFixture::parse_without_markers(
-            r#"
-                //- /Raw.sol
-                contract $0Raw {}
-            "#,
+        // Parsing without markers preserves marker text.
+        assert_eq!(
+            ProjectFixture::parse_without_markers(source).files()[0].text(),
+            "contract Unicode {\n    string value = \"\u{1F600}\";$0\n    function $12read() external {}\n}"
         );
-
-        assert_eq!(fixture.files()[0].text(), "contract $0Raw {}");
     }
 
     #[test]
-    fn rejects_paths_that_can_escape_the_project_root() {
+    fn rejects_malformed_fixtures_and_paths_that_can_escape_the_project_root() {
+        for fixture in [
+            "contract BeforeMarker {}",
+            "//-\ncontract MissingPath {}",
+            "//- /Unknown.sol unsupported\ncontract Unknown {}",
+        ] {
+            assert!(ProjectFixture::try_parse(fixture).is_err(), "accepted {fixture:?}");
+        }
         for path in [
             "/../Outside.sol",
             "/src/../../Outside.sol",

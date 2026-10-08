@@ -6,7 +6,7 @@
 //! instruction's debug context. Later cleanup can combine exposed checks and scalar expressions.
 
 use crate::mir::{
-    ArithmeticKind, CheckedOp, FunctionBuilder, InstKind, Module, PanicCode, ValueId,
+    ArithmeticKind, CheckedOp, FunctionBuilder, InstKind, MirType, Module, PanicCode, ValueId,
     pass::{MirPass, run_function_pass},
     transform::utils::redirect_successor_predecessors,
 };
@@ -61,6 +61,7 @@ impl MirPass for LowerArithmetic {
                     // result = scalar arithmetic(lhs, rhs); check overflow/zero
                     let result = ArithmeticLowerer { builder: &mut builder }
                         .binary(op, lhs, rhs, arithmetic);
+                    let result = builder.cast(result, arithmetic.ty().mir_type());
                     replacements.insert(
                         builder.func().inst_result_value(id).expect("arithmetic result"),
                         result,
@@ -221,6 +222,22 @@ impl ArithmeticLowerer<'_, '_> {
         rhs: ValueId,
         kind: ArithmeticKind,
     ) -> ValueId {
+        let widen = |builder: &mut FunctionBuilder<'_>, value| {
+            if matches!(kind, ArithmeticKind::Signed(_))
+                && let Some(bits) = builder.func().value_ty(value).and_then(MirType::integer_bits)
+                && bits < 256
+            {
+                builder.emit_inst(InstKind::Sext(value, bits, 256), Some(MirType::I256))
+            } else {
+                builder.cast_word(value)
+            }
+        };
+        let lhs = widen(self.builder, lhs);
+        let rhs = if op == CheckedOp::Pow {
+            self.builder.cast_word(rhs)
+        } else {
+            widen(self.builder, rhs)
+        };
         match op {
             CheckedOp::Add => {
                 // result = add lhs, rhs

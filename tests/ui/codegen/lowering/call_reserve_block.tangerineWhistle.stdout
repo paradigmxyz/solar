@@ -76,6 +76,8 @@ bb0:
   dup 7
   push 0xc350
   call
+  jump bb10
+bb10:
   swap 2
   pop
   pop
@@ -85,22 +87,23 @@ bb0:
   push 160
   mload
   mload
-  push 0
+  push 128
   mstore
   push 32
-  push 0
+  push 128
   return
 bb4 [cold]:
   push 0
   dup 1
   invalid
 bb9:
-  push 160
+  push 192
   push 64
   mstore
   push 0
   sload
   push 0xffffffffffffffffffffffffffffffffffffffff
+  dup 2
   and
   gas
   push 64
@@ -113,29 +116,22 @@ bb9:
   push 0x3fa4f24500000000000000000000000000000000000000000000000000000000
   dup 2
   mstore
-  dup 3
+  swap 2
   extcodesize
   iszero
   push bb4
   jumpi
-  push 32
   dup 2
+  push 160
+  mstore
+  push 32
+  dup 3
   push 4
   dup 2
   push 0
   dup 8
-  dup 8
+  dup 7
   call
-  swap 2
+  swap 1
   pop
-  swap 2
-  pop
-  iszero
-  push bb4
-  jumpi
-  mload
-  push 128
-  mstore
-  push 32
-  push 128
-  return
+  jump bb10

@@ -28,9 +28,10 @@ fn @double(arg0: i256) -> i256 [selector=0xeee97206, pure, abi_params=[u256], ab
 fn @use(arg0: i256) -> i256 [selector=0xab5b4456, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
-    v1 = and v0, 0xffffffffffffffff
-    v2 = icall @internal_dispatcher_p_u256_r_u256, v1, arg0
-    ret v2
+    v1 = trunc i256 v0 to i64
+    v2 = zext i64 v1 to i256
+    v3 = icall @internal_dispatcher_p_u256_r_u256, v2, arg0
+    ret v3
 }
 
 fn @internal_dispatcher_p_u256_r_u256(arg0: i256, arg1: i256) -> i256 [function_pointer_dispatcher] {

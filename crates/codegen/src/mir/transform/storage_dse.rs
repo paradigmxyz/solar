@@ -13,6 +13,8 @@
 //! forwarding so packed read-modify-write chains expose their overwritten
 //! stores without discarding preserved fields. A `gas` read clears both
 //! forward and backward facts so measured storage writes remain explicit.
+//! Calls that may terminate the current EVM call clear backward facts because
+//! they can commit earlier writes without reaching the later overwrite.
 
 use crate::mir::{
     BlockId, Function, InstId, InstKind, Module, StorageAlias, Terminator, ValueId,
@@ -153,10 +155,7 @@ impl StorageStoreEliminator {
         incoming: &IndexVec<BlockId, FxHashSet<StorageAlias>>,
         block: BlockId,
     ) -> FxHashSet<StorageAlias> {
-        if !matches!(
-            func.blocks[block].terminator,
-            Some(Terminator::Jump(_) | Terminator::Branch { .. } | Terminator::Switch { .. })
-        ) {
+        if !func.blocks[block].terminator.as_ref().is_some_and(Terminator::has_successors) {
             return FxHashSet::default();
         }
         let mut successors = cfg.successors(block).iter();
@@ -177,6 +176,9 @@ impl StorageStoreEliminator {
     ) {
         let aa = self.alias.as_ref().expect("storage DSE alias snapshot is initialized");
         for &inst_id in func.blocks[block_id].instructions.iter().rev() {
+            if aa.instruction_may_terminate(func, inst_id) {
+                later_writes.clear();
+            }
             match &func.inst(inst_id).kind {
                 InstKind::SStore(slot, _) => {
                     let alias = aa.storage_alias(func, inst_id, *slot);

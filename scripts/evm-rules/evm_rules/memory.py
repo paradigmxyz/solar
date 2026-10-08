@@ -9,9 +9,7 @@ preconditions; the Rust policy and lowering remain fingerprinted trusted code.
 from dataclasses import dataclass
 from typing import ClassVar
 
-import z3
-
-from .semantics import Expr, Unsupported
+from .expr import Cond, Expr, Unsupported
 
 
 def expr(op, *args):
@@ -51,7 +49,7 @@ class MemoryAddresses:
         self.slices = {}
 
     def bounded(self, value, maximum):
-        self.context.assumptions.append(z3.ULE(self.context.model.eval(value), maximum))
+        self.context.assumptions.append(Cond("ule", (value, Expr.const(maximum))))
         return value
 
     def kind(self, value):
@@ -84,8 +82,8 @@ class MemoryAddresses:
         self.bounded(field, (1 << 64) - 1)
         cx.assumptions.extend(
             (
-                cx.model.eval(layout.kind) == 3,
-                z3.ULT(cx.model.eval(field), cx.model.eval(layout.fields)),
+                Cond("eq", (layout.kind, Expr.const(3))),
+                Cond("ult", (field, layout.fields)),
             )
         )
         # Rust field_offset uses u64::saturating_mul, not wrapping arithmetic.
@@ -114,7 +112,7 @@ class MemoryAddresses:
                 return expr("add", object, self.field_offset(layout, field))
             case "Op.MemoryObjectElementAddr", (object, layout, index):
                 layout = self.layout(layout)
-                cx.assumptions.append(cx.model.eval(layout.kind) != 3)
+                cx.assumptions.append(Cond("ne", (layout.kind, Expr.const(3))))
                 words = expr(
                     "select", expr("eq", layout.kind, 0), 1, layout.element_words
                 )

@@ -89,7 +89,7 @@ use crate::mir::{
 use alloy_primitives::U256;
 use solar_data_structures::{
     bit_set::{DenseBitSet, GrowableBitSet},
-    index::{IndexVec, index_vec},
+    index::IndexVec,
     map::FxHashMap,
 };
 use std::{cell::OnceCell, cmp::Ordering, ops::Range, rc::Rc, sync::Arc};
@@ -222,6 +222,9 @@ struct CommonSubexprEliminator {
     cfg: Option<Rc<CfgInfo>>,
     /// Number of instructions eliminated.
     eliminated_count: usize,
+    /// Number of casts the dominator-scoped pass eliminated, which call for another fixpoint
+    /// round only through phi sinking.
+    eliminated_casts: usize,
     /// Gas observations and their forward CFG closure, including backedges.
     gas: Option<GasObservations>,
     alias: Option<AliasAnalysis>,
@@ -282,6 +285,17 @@ enum ExprKey {
     SelfBalance,
     BlobHash(OperandKey),
     LoadImmutable(ImmutableId),
+    Cast(CastKey, OperandKey, Option<MirType>),
+}
+
+/// A conversion. Its operand and result types imply every width it carries.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+enum CastKey {
+    Zext,
+    Trunc,
+    Sext,
+    PtrToInt,
+    IntToPtr,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -311,8 +325,6 @@ struct GlobalCseContext<'a> {
     block_clobbers: &'a [(BlockId, Vec<Clobber>)],
     /// Where each side effect's clobbers sit in `block_clobbers`.
     side_effect_clobbers: &'a SideEffectClobbers,
-    /// Reachable predecessors, present only when clobbering blocks exist.
-    predecessors: &'a IndexVec<BlockId, Vec<BlockId>>,
     cfg: &'a CfgInfo,
     /// Compute liveness and loop membership only for a reused load on a cycle.
     reuse: Option<OnceCell<MemoryReuseFacts>>,
@@ -466,7 +478,10 @@ impl CommonSubexprEliminator {
     /// Runs CSE iteratively until no more changes.
     fn run_to_fixpoint(&mut self, func: &mut Function) -> usize {
         self.eliminated_count = 0;
+        self.eliminated_casts = 0;
         let cfg = self.cfg.as_ref().map_or_else(|| Rc::new(CfgInfo::new(func)), Rc::clone);
+
+        let removed = mir_utils::invalidate_unreachable_blocks(func, cfg.reachable());
 
         // Sinking only creates pure expressions, while elimination removes instructions and
         // rewrites operands, so one provenance snapshot remains conservative across the complete
@@ -475,14 +490,25 @@ impl CommonSubexprEliminator {
         self.refresh_alias(func);
         self.gas = Some(GasObservations::new(func, &cfg, self.alias()));
         loop {
-            let before = self.eliminated_count;
+            let (before, casts) = (self.eliminated_count, self.eliminated_casts);
             self.alias().clear_cached_addresses();
             self.run_with_cfg(func, &cfg);
-            if self.eliminated_count == before {
+            if self.eliminated_count - self.eliminated_casts != before - casts {
+                continue;
+            }
+            // Later instructions of the dominator-scoped pass read its merged casts through its
+            // replacements, but phi sinking ran before the merges. Rerun only it, and keep going
+            // if it sinks.
+            if self.eliminated_casts == casts {
+                break;
+            }
+            let sunk = self.eliminated_count;
+            self.sink_redundant_phi_expressions(func, &cfg);
+            if self.eliminated_count == sunk {
                 break;
             }
         }
-        self.eliminated_count
+        self.eliminated_count + removed
     }
 
     fn process_global_pure(&mut self, func: &mut Function, cfg: &CfgInfo) {
@@ -494,16 +520,7 @@ impl CommonSubexprEliminator {
         } else {
             Default::default()
         };
-        let mut predecessors = IndexVec::new();
         let reuse = (!block_clobbers.is_empty()).then(OnceCell::new);
-        if !block_clobbers.is_empty() {
-            predecessors = index_vec![Vec::new(); func.blocks.len()];
-            for block in cfg.reachable().iter() {
-                for &successor in cfg.successors(block) {
-                    predecessors[successor].push(block);
-                }
-            }
-        }
         let dom_tree = cfg.dominators();
         let mut replacements = FxHashMap::default();
         let mut dead = DenseBitSet::new_empty(func.num_insts());
@@ -512,7 +529,6 @@ impl CommonSubexprEliminator {
             dom_tree,
             block_clobbers: &block_clobbers,
             side_effect_clobbers: &side_effect_clobbers,
-            predecessors: &predecessors,
             cfg,
             reuse,
             replacements: &mut replacements,
@@ -692,6 +708,7 @@ impl CommonSubexprEliminator {
                     ctx.replacements.insert(*result, *cached);
                     ctx.dead.insert(inst_id);
                     self.eliminated_count += 1;
+                    self.eliminated_casts += usize::from(matches!(key, ExprKey::Cast(..)));
                     continue;
                 }
                 if kind.has_side_effects() {
@@ -784,7 +801,7 @@ impl CommonSubexprEliminator {
         // a compare-and-branch on it; the scheduler keeps it resident when few
         // other words are live here.
         if let Some(home) = home(*cached_inst)
-            && ctx.predecessors[block].contains(&home)
+            && func.blocks[block].predecessors.contains(&home)
             && facts.liveness.live_in(block).count() < DIRECT_REUSE_LIVE_BUDGET
         {
             return true;
@@ -835,11 +852,11 @@ impl CommonSubexprEliminator {
         // Blocks with a path to `child` that avoids `parent`. Every such block is
         // dominated by `parent`, so the walk stays within its dominator subtree
         // and every block it finds is reachable from `parent`.
-        let mut reaching_child = DenseBitSet::new_empty(ctx.predecessors.len());
+        let mut reaching_child = DenseBitSet::new_empty(func.blocks.len());
         let mut pending = Vec::new();
         pending.push(child);
         while let Some(block) = pending.pop() {
-            for &pred in &ctx.predecessors[block] {
+            for &pred in &func.blocks[block].predecessors {
                 if pred != parent && reaching_child.insert(pred) {
                     pending.push(pred);
                 }
@@ -1030,6 +1047,7 @@ impl CommonSubexprEliminator {
         // Helper to get canonical operands after in-block replacements.
         let operand = |v: ValueId| Self::operand_key(func, v, replacements);
         let value = |v: ValueId| mir_utils::resolve_replacement(v, replacements);
+        let cast = |cast, v| Some(ExprKey::Cast(cast, operand(v), func.inst(inst_id).result_ty));
 
         match kind {
             InstKind::ICall { function: Callee::Function(function), args }
@@ -1188,6 +1206,12 @@ impl CommonSubexprEliminator {
             )),
 
             InstKind::SelfBalance => Some(ExprKey::SelfBalance),
+
+            InstKind::Zext(a) => cast(CastKey::Zext, *a),
+            InstKind::Trunc(a, _) => cast(CastKey::Trunc, *a),
+            InstKind::Sext(a, ..) => cast(CastKey::Sext, *a),
+            InstKind::PtrToInt(a, _) => cast(CastKey::PtrToInt, *a),
+            InstKind::IntToPtr(a) => cast(CastKey::IntToPtr, *a),
 
             // Don't cache these:
             // - Cheap nullary reads usually cost less than their extra stack lifetime

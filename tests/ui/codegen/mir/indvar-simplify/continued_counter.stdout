@@ -1,0 +1,47 @@
+- // === ROOT/tests/ui/codegen/mir/indvar-simplify/continued_counter.mir (before indvar-simplify) ===
++ // === ROOT/tests/ui/codegen/mir/indvar-simplify/continued_counter.mir (after indvar-simplify) ===
+  @module ContinuedCounter
+  fn @continued_counter() -> i256 {
+    bb0:
+      v0 = mload 64
++     v13 = add v0, 128
+      jump bb1
+    bb1:
+-     v1 = phi [bb0: 0], [bb2: v5]
+-     v2 = lt v1, 4
++     v11 = phi [bb0: v0], [bb2: v12]
++     v2 = lt v11, v13
+      jumpi v2, bb2, bb3
+    bb3:
++     v14 = sub v11, v0
++     v15 = shr 5, v14
++     v16 = shl 5, v15
++     v17 = add v0, v16
++     v20 = add v0, 256
+      jump bb4
+    bb4:
+-     v6 = phi [bb3: v1], [bb5: v10]
+-     v7 = lt v6, 8
++     v18 = phi [bb3: v17], [bb5: v19]
++     v7 = lt v18, v20
+      jumpi v7, bb5, bb6
+    bb6:
+      ret 0
+    bb5:
+-     v8 = shl 5, v6
+-     v9 = add v0, v8
+-     mstore v9, 9
+-     v10 = add v6, 1
++     mstore v18, 9
++     v19 = add v18, 32
+      jump bb4
+    bb2:
+-     v3 = shl 5, v1
+-     v4 = add v0, v3
+-     mstore v4, 8
+-     v5 = add v1, 1
++     mstore v11, 8
++     v12 = add v11, 32
+      jump bb1
+  }
+  

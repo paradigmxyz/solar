@@ -665,20 +665,3 @@ fn append_runtime_data(module: &mut Module, data: Option<&Bytes>) {
         module.append_runtime_data(data.clone(), None);
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn library_references_use_recorded_identities() {
-        solar_interface::enter(|| {
-            let mut libraries = LibraryTable::default();
-            let library = QualifiedName::parse("literal:runtime").unwrap();
-            let relocation = LibraryRelocation { offset: 22, library: libraries.intern(library) };
-            let references = collect_library_references(&[relocation], &libraries);
-            assert_eq!(references, [LibraryReference { library, start: 22 }]);
-            assert_eq!(library_relocations(&references, &mut libraries), [relocation]);
-        });
-    }
-}

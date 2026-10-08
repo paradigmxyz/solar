@@ -1,512 +1,8 @@
-use super::{AnalysisBatch, GlobalState, analyze, support::RequestFixture};
-use crate::test_support::TestProject;
-use async_lsp::ClientSocket;
-use lsp_types::{
-    HoverContents, HoverParams, Position, TextDocumentIdentifier, TextDocumentPositionParams, Url,
-    WorkDoneProgressParams,
-};
+use super::support::{Query, RequestFixture};
 use snapbox::str;
-use solar_config::CompileOpts;
-use std::{
-    sync::Arc,
-    task::{Context, Poll, Waker},
-};
 
 #[test]
-fn shows_function_signature_at_a_reference() {
-    let fixture = RequestFixture::new(
-        r#"
-        //- /Hover.sol open
-        contract C {
-            function $1add(uint256 value) public pure {}
-
-            function use() public pure {
-                $2add(1);
-            }
-        }
-        "#,
-        "/Hover.sol",
-    );
-
-    fixture.check_hover(
-        "$1",
-        str![[r#"
-1:13-1:16
-```solidity
-function add(uint256 value) public pure
-```
-
-"#]],
-    );
-    fixture.check_hover(
-        "$2",
-        str![[r#"
-3:8-3:11
-```solidity
-function add(uint256 value) public pure
-```
-
-"#]],
-    );
-}
-
-#[test]
-fn includes_resolved_natspec_documentation() {
-    let fixture = RequestFixture::new(
-        r#"
-        //- /Hover.sol open
-        contract C {
-            /// @notice Updates the stored value.
-            /// @dev The caller is responsible for choosing the value.
-            /// @param value The next value.
-            /// @return result The normalized value.
-            function set(uint256 $2value) public pure returns (uint256 $3result) {
-                result = value;
-            }
-
-            function use() public pure {
-                $1set(1);
-            }
-        }
-        "#,
-        "/Hover.sol",
-    );
-
-    fixture.check_hover(
-        "$1",
-        str![[r#"
-9:8-9:11
-```solidity
-function set(uint256 value) public pure returns (uint256 result)
-```
-
-Updates the stored value.
-
-**@dev**
-
-The caller is responsible for choosing the value.
-
-**@param**
-
-- `value`: The next value.
-
-**@return**
-
-- `result`: The normalized value.
-
-"#]],
-    );
-    fixture.check_hover(
-        "$2",
-        str![[r#"
-5:25-5:30
-```solidity
-uint256 value
-```
-
-**@param**
-
-- `value`: The next value.
-
-"#]],
-    );
-    fixture.check_hover(
-        "$3",
-        str![[r#"
-5:61-5:67
-```solidity
-uint256 result
-```
-
-**@return**
-
-- `result`: The normalized value.
-
-"#]],
-    );
-}
-
-#[test]
-fn maps_mixed_named_and_unnamed_return_docs_by_position() {
-    let fixture = RequestFixture::new(
-        r#"
-        //- /Hover.sol open
-        contract C {
-            /// @return The first return value.
-            /// @return result The named return value.
-            /// @return The final return value.
-            function read() public pure returns (uint256, uint256 result, address) {
-                return (1, 2, address(0));
-            }
-
-            function use() public pure {
-                $1read();
-            }
-        }
-        "#,
-        "/Hover.sol",
-    );
-
-    fixture.check_hover(
-        "$1",
-        str![[r#"
-8:8-8:12
-```solidity
-function read() public pure returns (uint256, uint256 result, address)
-```
-
-**@return**
-
-- The first return value.
-
-- `result`: The named return value.
-
-- The final return value.
-
-"#]],
-    );
-}
-
-#[test]
-fn preserves_unnamed_return_docs_after_an_invalid_named_tag() {
-    let fixture = RequestFixture::new_allowing_diagnostics(
-        r#"
-        //- /Hover.sol open
-        contract C {
-            /// @return wrong This tag is invalid.
-            /// @return The unnamed return value.
-            function read() public pure returns (uint256 first, uint256) {
-                return (1, 2);
-            }
-
-            function use() public pure {
-                $1read();
-            }
-        }
-        "#,
-        "/Hover.sol",
-    );
-
-    fixture.check_hover(
-        "$1",
-        str![[r#"
-7:8-7:12
-```solidity
-function read() public pure returns (uint256 first, uint256)
-```
-
-**@return**
-
-- The unnamed return value.
-
-"#]],
-    );
-}
-
-#[test]
-fn includes_local_docs_for_multi_return_public_getters() {
-    let fixture = RequestFixture::new(
-        r#"
-        //- /Hover.sol open
-        contract C {
-            struct Record {
-                uint256 value;
-                address owner;
-            }
-
-            /// @return value The stored value.
-            /// @return owner The record owner.
-            Record public $1record;
-        }
-        "#,
-        "/Hover.sol",
-    );
-
-    fixture.check_hover(
-        "$1",
-        str![[r#"
-7:18-7:24
-```solidity
-Record public record
-```
-
-**@return**
-
-- `value`: The stored value.
-
-- `owner`: The record owner.
-
-"#]],
-    );
-}
-
-#[test]
-fn maps_inherited_docs_to_current_public_getter_returns() {
-    let fixture = RequestFixture::new(
-        r#"
-        //- /Hover.sol open
-        interface Base {
-            /// @return first The first base value.
-            /// @return second The second base value.
-            function record() external view returns (uint256 first, address second);
-        }
-
-        contract Child is Base {
-            struct Record {
-                uint256 value;
-                address owner;
-            }
-
-            /// @inheritdoc Base
-            Record public override $1record;
-        }
-        "#,
-        "/Hover.sol",
-    );
-
-    fixture.check_hover(
-        "$1",
-        str![[r#"
-11:27-11:33
-```solidity
-Record public override record
-```
-
-**@return**
-
-- `value`: The first base value.
-
-- `owner`: The second base value.
-
-"#]],
-    );
-}
-
-#[test]
-fn shows_explicit_state_variable_override_list() {
-    let fixture = RequestFixture::new(
-        r#"
-        //- /Hover.sol open
-        interface First {
-            function value() external view returns (uint256);
-        }
-        interface Second {
-            function value() external view returns (uint256);
-        }
-        contract Child is First, Second {
-            uint256 public override(First, Second) $1value;
-        }
-        "#,
-        "/Hover.sol",
-    );
-
-    fixture.check_hover(
-        "$1",
-        str![[r#"
-7:43-7:48
-```solidity
-uint256 public override(First, Second) value
-```
-
-"#]],
-    );
-}
-
-#[test]
-fn preserves_named_mapping_keys_and_values() {
-    let fixture = RequestFixture::new(
-        r#"
-        //- /Hover.sol open
-        contract C {
-            mapping(uint256 bucket => mapping(address account => uint256 amount)) private $1balances;
-
-            function read(uint256 bucket, address account) external view returns (uint256) {
-                return $2balances[bucket][account];
-            }
-        }
-        "#,
-        "/Hover.sol",
-    );
-
-    fixture.check_hover(
-        "$1",
-        str![[r#"
-1:82-1:90
-```solidity
-mapping(uint256 bucket => mapping(address account => uint256 amount)) private balances
-```
-
-"#]],
-    );
-    fixture.check_hover(
-        "$2",
-        str![[r#"
-3:15-3:23
-```solidity
-mapping(uint256 bucket => mapping(address account => uint256 amount)) private balances
-```
-
-"#]],
-    );
-}
-
-#[test]
-fn shows_variable_types_and_attributes() {
-    let fixture = RequestFixture::new(
-        r#"
-        //- /Variables.sol open
-        type UserId is uint256;
-        contract C {
-            mapping(address => UserId) private $1ids;
-            uint256 public constant $7LIMIT = 10;
-            address immutable $8owner;
-
-            function use(UserId[] calldata $3values) external {
-                UserId[] memory $5local;
-                $2ids[msg.sender] = $4values[0];
-                $6local = values;
-            }
-        }
-        "#,
-        "/Variables.sol",
-    );
-
-    fixture.check_hover(
-        "$1",
-        str![[r#"
-2:39-2:42
-```solidity
-mapping(address => UserId) private ids
-```
-
-"#]],
-    );
-    fixture.check_hover(
-        "$2",
-        str![[r#"
-7:8-7:11
-```solidity
-mapping(address => UserId) private ids
-```
-
-"#]],
-    );
-    fixture.check_hover(
-        "$3",
-        str![[r#"
-5:35-5:41
-```solidity
-UserId[] calldata values
-```
-
-"#]],
-    );
-    fixture.check_hover(
-        "$4",
-        str![[r#"
-7:26-7:32
-```solidity
-UserId[] calldata values
-```
-
-"#]],
-    );
-    fixture.check_hover(
-        "$5",
-        str![[r#"
-6:24-6:29
-```solidity
-UserId[] memory local
-```
-
-"#]],
-    );
-    fixture.check_hover(
-        "$6",
-        str![[r#"
-8:8-8:13
-```solidity
-UserId[] memory local
-```
-
-"#]],
-    );
-    fixture.check_hover(
-        "$7",
-        str![[r#"
-3:28-3:33
-```solidity
-uint256 public constant LIMIT
-```
-
-"#]],
-    );
-    fixture.check_hover(
-        "$8",
-        str![[r#"
-4:22-4:27
-```solidity
-address immutable owner
-```
-
-"#]],
-    );
-}
-
-#[test]
-fn shows_public_state_variable_at_internal_references() {
-    let fixture = RequestFixture::new(
-        r#"
-        //- /Counter.sol open
-        contract Counter {
-            uint256 public $1number;
-
-            function setNumber(uint256 newNumber) public {
-                $2number = newNumber;
-            }
-
-            function increment() public {
-                $3number++;
-            }
-        }
-        "#,
-        "/Counter.sol",
-    );
-
-    fixture.check_hover(
-        "$1",
-        str![[r#"
-1:19-1:25
-```solidity
-uint256 public number
-```
-
-"#]],
-    );
-    fixture.check_hover(
-        "$2",
-        str![[r#"
-3:8-3:14
-```solidity
-uint256 public number
-```
-
-"#]],
-    );
-    fixture.check_hover(
-        "$3",
-        str![[r#"
-6:8-6:14
-```solidity
-uint256 public number
-```
-
-"#]],
-    );
-}
-
-#[test]
-fn shows_contracts_at_declarations_imports_creation_and_inheritance() {
+fn shows_declaration_signatures() {
     let fixture = RequestFixture::new(
         r#"
         //- /lib/forge-std/src/Script.sol
@@ -524,214 +20,114 @@ fn shows_contracts_at_declarations_imports_creation_and_inheritance() {
                 counter = new $5Counter();
             }
         }
-        "#,
-        "/script/Counter.s.sol",
-    );
 
-    fixture.check_hover(
-        "$1",
-        str![[r#"
-0:8-0:14
-```solidity
-abstract contract Script
-```
+        contract Adder {
+            function $6add(uint256 value) public pure {}
 
-"#]],
-    );
-    fixture.check_hover(
-        "$2",
-        str![[r#"
-1:8-1:15
-```solidity
-contract Counter
-```
+            function use() public pure {
+                $7add(1);
+            }
+        }
 
-"#]],
-    );
-    fixture.check_hover(
-        "$3",
-        str![[r#"
-2:9-2:22
-```solidity
-contract CounterScript is Script
-```
+        interface First {
+            function value() external view returns (uint256);
+        }
+        interface Second {
+            function value() external view returns (uint256);
+        }
+        contract Child is First, Second {
+            uint256 public override(First, Second) $8value;
+        }
 
-"#]],
-    );
-    fixture.check_hover(
-        "$4",
-        str![[r#"
-2:26-2:32
-```solidity
-abstract contract Script
-```
+        contract Balances {
+            mapping(uint256 bucket => mapping(address account => uint256 amount)) private $9balances;
 
-"#]],
-    );
-    fixture.check_hover(
-        "$5",
-        str![[r#"
-5:22-5:29
-```solidity
-contract Counter
-```
+            function read(uint256 bucket, address account) external view returns (uint256) {
+                return $10balances[bucket][account];
+            }
+        }
 
-"#]],
-    );
-}
+        type UserId is uint256;
+        contract Variables {
+            mapping(address => UserId) private $11ids;
+            uint256 public constant $12LIMIT = 10;
+            address immutable $13owner;
+            uint256 public $14number;
 
-#[test]
-fn uses_the_type_checked_overload() {
-    let fixture = RequestFixture::new(
-        r#"
-        //- /Overloads.sol open
-        contract C {
+            function use(UserId[] calldata $15values) external {
+                UserId[] memory $16local;
+                $17ids[msg.sender] = $18values[0];
+                $19local = values;
+                $20number++;
+            }
+        }
+
+        contract Overloads {
             function pick(string memory value) public pure returns (string memory) { return value; }
             function pick(uint256 value) public pure returns (uint256) { return value; }
 
             function use() public pure returns (uint256) {
-                return $1pick(1);
+                return $21pick(1);
             }
         }
-        "#,
-        "/Overloads.sol",
-    );
 
-    fixture.check_hover(
-        "$1",
-        str![[r#"
-4:15-4:19
-```solidity
-function pick(uint256 value) public pure returns (uint256)
-```
-
-"#]],
-    );
-}
-
-#[test]
-fn returns_no_hover_for_an_ambiguous_overload() {
-    let fixture = RequestFixture::new_allowing_diagnostics(
-        r#"
-        //- /Ambiguous.sol open
-        contract C {
-            function pick(uint8 value) internal pure returns (uint8) {
-                return value;
-            }
-
-            function pick(uint256 value) internal pure returns (uint256) {
-                return value;
-            }
-
-            function call(uint8 value) public pure returns (uint256) {
-                return $1pick(value);
-            }
+        contract Special {
+            modifier $22limited(uint256 amount) { require(amount > 0); _; }
+            $23constructor(uint256 count) payable { require(count > 0); }
+            $24fallback() external payable {}
+            $25receive() external payable {}
         }
-        "#,
-        "/Ambiguous.sol",
-    );
 
-    fixture.check_hover("$1", "<none>\n");
-}
-
-#[test]
-fn shows_special_functions_and_modifiers() {
-    let fixture = RequestFixture::new(
-        r#"
-        //- /Special.sol open
-        contract C {
-            modifier $1limited(uint256 amount) { require(amount > 0); _; }
-            $2constructor(uint256 count) payable { require(count > 0); }
-            $3fallback() external payable {}
-            $4receive() external payable {}
-        }
-        "#,
-        "/Special.sol",
-    );
-
-    fixture.check_hover(
-        "$1",
-        str![[r#"
-1:13-1:20
-```solidity
-modifier limited(uint256 amount)
-```
-
-"#]],
-    );
-    fixture.check_hover(
-        "$2",
-        str![[r#"
-2:4-2:15
-```solidity
-constructor(uint256 count) payable
-```
-
-"#]],
-    );
-    fixture.check_hover(
-        "$3",
-        str![[r#"
-3:4-3:12
-```solidity
-fallback() external payable
-```
-
-"#]],
-    );
-    fixture.check_hover(
-        "$4",
-        str![[r#"
-4:4-4:11
-```solidity
-receive() external payable
-```
-
-"#]],
-    );
-}
-
-#[test]
-fn includes_modifier_and_base_constructor_arguments() {
-    let fixture = RequestFixture::new(
-        r#"
-        //- /Special.sol open
         contract Base {
             constructor(uint256 initial) {}
         }
-        contract Child is Base {
+        contract Derived is Base {
             modifier guarded(uint256 threshold) { _; }
-            $1constructor(uint256 initial) Base(initial + 1) {}
-            function $2run(uint256 value) public guarded(value * 2) {}
+            $26constructor(uint256 initial) Base(initial + 1) {}
+            function $27run(uint256 value) public guarded(value * 2) {}
         }
         "#,
-        "/Special.sol",
+        "/script/Counter.s.sol",
     );
 
-    fixture.check_hover(
-        "$1",
+    fixture.check_queries(
+        &[Query::Hover],
+        1..=27,
         str![[r#"
-5:4-5:15
-```solidity
-constructor(uint256 initial) Base(initial + 1)
-```
-
-"#]],
-    );
-    fixture.check_hover(
-        "$2",
-        str![[r#"
-6:13-6:16
-```solidity
-function run(uint256 value) public guarded(value * 2)
-```
+$1 0:8-0:14 abstract contract Script
+$2 1:8-1:15 contract Counter
+$3 2:9-2:22 contract CounterScript is Script
+$4 2:26-2:32 abstract contract Script
+$5 5:22-5:29 contract Counter
+$6 9:13-9:16 function add(uint256 value) public pure
+$7 11:8-11:11 function add(uint256 value) public pure
+$8 21:43-21:48 uint256 public override(First, Second) value
+$9 24:82-24:90 mapping(uint256 bucket => mapping(address account => uint256 amount)) private balances
+$10 26:15-26:23 mapping(uint256 bucket => mapping(address account => uint256 amount)) private balances
+$11 31:39-31:42 mapping(address => UserId) private ids
+$12 32:28-32:33 uint256 public constant LIMIT
+$13 33:22-33:27 address immutable owner
+$14 34:19-34:25 uint256 public number
+$15 35:35-35:41 UserId[] calldata values
+$16 36:24-36:29 UserId[] memory local
+$17 37:8-37:11 mapping(address => UserId) private ids
+$18 37:26-37:32 UserId[] calldata values
+$19 38:8-38:13 UserId[] memory local
+$20 39:8-39:14 uint256 public number
+$21 46:15-46:19 function pick(uint256 value) public pure returns (uint256)
+$22 50:13-50:20 modifier limited(uint256 amount)
+$23 51:4-51:15 constructor(uint256 count) payable
+$24 52:4-52:12 fallback() external payable
+$25 53:4-53:11 receive() external payable
+$26 60:4-60:15 constructor(uint256 initial) Base(initial + 1)
+$27 61:13-61:16 function run(uint256 value) public guarded(value * 2)
 
 "#]],
     );
 }
 
 #[test]
-fn resolves_inherited_cross_file_symbols_and_inheritdoc() {
+fn includes_resolved_natspec_documentation() {
     let fixture = RequestFixture::new(
         r#"
         //- /Base.sol
@@ -750,131 +146,7 @@ fn resolves_inherited_cross_file_symbols_and_inheritdoc() {
             /// @notice The account is forbidden.
             /// @param account The rejected account.
             error Forbidden(address account);
-        }
-        //- /Use.sol open
-        import {Base} from "./Base.sol";
-        contract Child is Base {
-            modifier onlyReady() { _; }
 
-            /// @inheritdoc Base
-            function update(uint256 $4amount) public pure override onlyReady returns (uint256 $5out) {
-                out = amount;
-            }
-
-            function run(address account) public returns (uint256) {
-                emit $1Updated(1);
-                if (account == address(0)) {
-                    revert $2Forbidden(account);
-                }
-                return $3update(1);
-            }
-        }
-        "#,
-        "/Use.sol",
-    );
-
-    fixture.check_hover(
-        "$1",
-        str![[r#"
-8:13-8:20
-```solidity
-event Updated(uint256 indexed value) anonymous
-```
-
-Emitted after an update.
-
-**@param**
-
-- `value`: The emitted value.
-
-"#]],
-    );
-    fixture.check_hover(
-        "$6",
-        str![[r#"
-9:34-9:39
-```solidity
-uint256 indexed value
-```
-
-**@param**
-
-- `value`: The emitted value.
-
-"#]],
-    );
-    fixture.check_hover(
-        "$2",
-        str![[r#"
-10:19-10:28
-```solidity
-error Forbidden(address account)
-```
-
-The account is forbidden.
-
-**@param**
-
-- `account`: The rejected account.
-
-"#]],
-    );
-    fixture.check_hover(
-        "$3",
-        str![[r#"
-12:15-12:21
-```solidity
-function update(uint256 amount) public pure override onlyReady returns (uint256 out)
-```
-
-Updates the value.
-
-**@param**
-
-- `amount`: The next value.
-
-**@return**
-
-- `out`: The stored value.
-
-"#]],
-    );
-    fixture.check_hover(
-        "$4",
-        str![[r#"
-4:28-4:34
-```solidity
-uint256 amount
-```
-
-**@param**
-
-- `amount`: The next value.
-
-"#]],
-    );
-    fixture.check_hover(
-        "$5",
-        str![[r#"
-4:84-4:87
-```solidity
-uint256 out
-```
-
-**@return**
-
-- `out`: The stored value.
-
-"#]],
-    );
-}
-
-#[test]
-fn maps_inherited_documentation_by_position_when_names_collide() {
-    let fixture = RequestFixture::new(
-        r#"
-        //- /Base.sol
-        contract Base {
             /// @notice Chooses a value.
             /// @param first The first value.
             /// @param second The second value.
@@ -886,9 +158,16 @@ fn maps_inherited_documentation_by_position_when_names_collide() {
                 return (first, second);
             }
         }
-        //- /Child.sol open
+        //- /Use.sol open
         import {Base} from "./Base.sol";
         contract Child is Base {
+            modifier onlyReady() { _; }
+
+            /// @inheritdoc Base
+            function update(uint256 $4amount) public pure override onlyReady returns (uint256 $5out) {
+                out = amount;
+            }
+
             /// @inheritdoc Base
             function choose(uint256 second, uint256 third)
                 public pure override returns (uint256 secondOut, uint256 thirdOut)
@@ -896,21 +175,152 @@ fn maps_inherited_documentation_by_position_when_names_collide() {
                 return (second, third);
             }
 
+            function run(address account) public returns (uint256) {
+                emit $1Updated(1);
+                if (account == address(0)) {
+                    revert $2Forbidden(account);
+                }
+                $7choose(1, 2);
+                return $3update(1);
+            }
+        }
+
+        contract Local {
+            /// @notice Updates the stored value.
+            /// @dev The caller is responsible for choosing the value.
+            /// @param value The next value.
+            /// @return result The normalized value.
+            function set(uint256 $9value) public pure returns (uint256 $10result) {
+                result = value;
+            }
+
+            /// @return The first return value.
+            /// @return result The named return value.
+            /// @return The final return value.
+            function read() public pure returns (uint256, uint256 result, address) {
+                return (1, 2, address(0));
+            }
+
             function use() public pure {
-                $1choose(1, 2);
+                $8set(1);
+                $11read();
+            }
+        }
+
+        struct Record {
+            uint256 value;
+            address owner;
+        }
+
+        contract Getter {
+            /// @return value The stored value.
+            /// @return owner The record owner.
+            Record public $12record;
+        }
+
+        interface RecordBase {
+            /// @return first The first base value.
+            /// @return second The second base value.
+            function record() external view returns (uint256 first, address second);
+        }
+
+        contract InheritedGetter is RecordBase {
+            /// @inheritdoc RecordBase
+            Record public override $13record;
+        }
+
+        contract FirstChooser {
+            /// @param right The first contract's left value.
+            /// @param left The first contract's right value.
+            function choose(uint256 right, uint256 left) public pure virtual {}
+        }
+
+        contract SecondChooser {
+            /// @param left The second contract's left value.
+            /// @param right The second contract's right value.
+            function choose(uint256 left, uint256 right) public pure virtual {}
+        }
+
+        contract Chooser is FirstChooser, SecondChooser {
+            /// @inheritdoc SecondChooser
+            function choose(uint256 first, uint256 second)
+                public pure override(FirstChooser, SecondChooser)
+            {}
+
+            function use() public pure {
+                $14choose(1, 2);
+            }
+        }
+
+        contract ReadBase {
+            /// @param value The base value.
+            /// @return result The base result.
+            function read(uint256 value) public pure virtual returns (uint256 result) {}
+        }
+
+        contract ReadMiddle is ReadBase {
+            /// @inheritdoc ReadBase
+            function read(uint256 middleValue)
+                public pure virtual override returns (uint256 middleResult)
+            {}
+        }
+
+        contract ReadLeaf is ReadMiddle {
+            /// @inheritdoc ReadMiddle
+            function read(uint256 leafValue)
+                public pure override returns (uint256 leafResult)
+            {}
+
+            function use() public pure {
+                $15read(1);
             }
         }
         "#,
-        "/Child.sol",
+        "/Use.sol",
     );
 
-    fixture.check_hover(
-        "$1",
-        str![[r#"
-9:8-9:14
-```solidity
-function choose(uint256 second, uint256 third) public pure override returns (uint256 secondOut, uint256 thirdOut)
-```
+    fixture.check_queries(&[Query::Hover], 1..=15, str![[r#"
+$1 14:13-14:20 event Updated(uint256 indexed value) anonymous
+
+Emitted after an update.
+
+**@param**
+
+- `value`: The emitted value.
+$2 16:19-16:28 error Forbidden(address account)
+
+The account is forbidden.
+
+**@param**
+
+- `account`: The rejected account.
+$3 19:15-19:21 function update(uint256 amount) public pure override onlyReady returns (uint256 out)
+
+Updates the value.
+
+**@param**
+
+- `amount`: The next value.
+
+**@return**
+
+- `out`: The stored value.
+$4 4:28-4:34 uint256 amount
+
+**@param**
+
+- `amount`: The next value.
+$5 4:84-4:87 uint256 out
+
+**@return**
+
+- `out`: The stored value.
+$6 9:34-9:39 uint256 indexed value
+
+**@param**
+
+- `value`: The emitted value.
+$7 18:8-18:14 function choose(uint256 second, uint256 third) public pure override returns (uint256 secondOut, uint256 thirdOut)
 
 Chooses a value.
 
@@ -925,146 +335,62 @@ Chooses a value.
 - `secondOut`: The first result.
 
 - `thirdOut`: The second result.
+$8 37:8-37:11 function set(uint256 value) public pure returns (uint256 result)
 
-"#]],
-    );
-}
+Updates the stored value.
 
-#[test]
-fn uses_the_explicit_inheritdoc_source_for_positional_documentation() {
-    let fixture = RequestFixture::new(
-        r#"
-        //- /Hover.sol open
-        contract First {
-            /// @param right The first contract's left value.
-            /// @param left The first contract's right value.
-            function choose(uint256 right, uint256 left) public pure virtual {}
-        }
+**@dev**
 
-        contract Second {
-            /// @param left The second contract's left value.
-            /// @param right The second contract's right value.
-            function choose(uint256 left, uint256 right) public pure virtual {}
-        }
+The caller is responsible for choosing the value.
 
-        contract Child is First, Second {
-            /// @inheritdoc Second
-            function choose(uint256 first, uint256 second)
-                public pure override(First, Second)
-            {}
+**@param**
 
-            function use() public pure {
-                $1choose(1, 2);
-            }
-        }
-        "#,
-        "/Hover.sol",
-    );
+- `value`: The next value.
 
-    fixture.check_hover(
-        "$1",
-        str![[r#"
-16:8-16:14
-```solidity
-function choose(uint256 first, uint256 second) public pure override(First, Second)
-```
+**@return**
+
+- `result`: The normalized value.
+$9 27:25-27:30 uint256 value
+
+**@param**
+
+- `value`: The next value.
+$10 27:61-27:67 uint256 result
+
+**@return**
+
+- `result`: The normalized value.
+$11 38:8-38:12 function read() public pure returns (uint256, uint256 result, address)
+
+**@return**
+
+- The first return value.
+
+- `result`: The named return value.
+
+- The final return value.
+$12 48:18-48:24 Record public record
+
+**@return**
+
+- `value`: The stored value.
+
+- `owner`: The record owner.
+$13 57:27-57:33 Record public override record
+
+**@return**
+
+- `value`: The first base value.
+
+- `owner`: The second base value.
+$14 75:8-75:14 function choose(uint256 first, uint256 second) public pure override(FirstChooser, SecondChooser)
 
 **@param**
 
 - `first`: The second contract's left value.
 
 - `second`: The second contract's right value.
-
-"#]],
-    );
-}
-
-#[test]
-fn ignores_invalid_local_tags_when_resolving_inheritdoc() {
-    let fixture = RequestFixture::new_allowing_diagnostics(
-        r#"
-        //- /Hover.sol open
-        contract Base {
-            /// @param value The inherited value.
-            /// @return result The inherited result.
-            function update(uint256 value) public pure virtual returns (uint256 result) {}
-        }
-
-        contract Child is Base {
-            /// @param missing This tag is invalid.
-            /// @return missing This tag is also invalid.
-            /// @inheritdoc Base
-            function update(uint256 renamed)
-                public pure override returns (uint256 renamedResult)
-            {}
-
-            function use() public pure {
-                $1update(1);
-            }
-        }
-        "#,
-        "/Hover.sol",
-    );
-
-    fixture.check_hover(
-        "$1",
-        str![[r#"
-13:8-13:14
-```solidity
-function update(uint256 renamed) public pure override returns (uint256 renamedResult)
-```
-
-**@param**
-
-- `renamed`: The inherited value.
-
-**@return**
-
-- `renamedResult`: The inherited result.
-
-"#]],
-    );
-}
-
-#[test]
-fn follows_positional_documentation_through_multiple_inheritdoc_levels() {
-    let fixture = RequestFixture::new(
-        r#"
-        //- /Hover.sol open
-        contract Base {
-            /// @param value The base value.
-            /// @return result The base result.
-            function read(uint256 value) public pure virtual returns (uint256 result) {}
-        }
-
-        contract Middle is Base {
-            /// @inheritdoc Base
-            function read(uint256 middleValue)
-                public pure virtual override returns (uint256 middleResult)
-            {}
-        }
-
-        contract Leaf is Middle {
-            /// @inheritdoc Middle
-            function read(uint256 leafValue)
-                public pure override returns (uint256 leafResult)
-            {}
-
-            function use() public pure {
-                $1read(1);
-            }
-        }
-        "#,
-        "/Hover.sol",
-    );
-
-    fixture.check_hover(
-        "$1",
-        str![[r#"
-17:8-17:12
-```solidity
-function read(uint256 leafValue) public pure override returns (uint256 leafResult)
-```
+$15 95:8-95:12 function read(uint256 leafValue) public pure override returns (uint256 leafResult)
 
 **@param**
 
@@ -1074,12 +400,11 @@ function read(uint256 leafValue) public pure override returns (uint256 leafResul
 
 - `leafResult`: The base result.
 
-"#]],
-    );
+"#]]);
 }
 
 #[test]
-fn shows_all_hir_items_and_skips_non_symbol_positions() {
+fn skips_invalid_documentation_and_non_symbol_positions() {
     let fixture = RequestFixture::new_allowing_diagnostics(
         r#"
         //- /Unsupported.sol open
@@ -1098,151 +423,254 @@ fn shows_all_hir_items_and_skips_non_symbol_positions() {
 
             function empty() public { $5
             }
+
+            function pick(uint8 value) internal pure returns (uint8) {
+                return value;
+            }
+
+            function pick(uint256 value) internal pure returns (uint256) {
+                return value;
+            }
+
+            function call(uint8 value) public pure returns (uint256) {
+                return $9pick(value);
+            }
+
+            /// @return wrong This tag is invalid.
+            /// @return The unnamed return value.
+            function read() public pure returns (uint256 first, uint256) {
+                return (1, 2);
+            }
+
+            function useRead() public pure {
+                $10read();
+            }
+        }
+
+        contract Base {
+            /// @param value The inherited value.
+            /// @return result The inherited result.
+            function update(uint256 value) public pure virtual returns (uint256 result) {}
+        }
+
+        contract Child is Base {
+            /// @param missing This tag is invalid.
+            /// @return missing This tag is also invalid.
+            /// @inheritdoc Base
+            function update(uint256 renamed)
+                public pure override returns (uint256 renamedResult)
+            {}
+
+            function use() public pure {
+                $11update(1);
+            }
         }
         "#,
         "/Unsupported.sol",
     );
 
-    fixture.check_hover(
-        "$1",
+    fixture.check_queries(
+        &[Query::Hover],
+        1..=11,
         str![[r#"
-0:9-0:10
-```solidity
-contract C
-```
-
-"#]],
-    );
-    fixture.check_hover(
-        "$2",
-        str![[r#"
-4:11-4:15
-```solidity
-struct Data
-```
+$1 0:9-0:10 contract C
+$2 4:11-4:15 struct Data
 
 Stored data.
-
-"#]],
-    );
-    fixture.check_hover(
-        "$3",
-        str![[r#"
-6:9-6:13
-```solidity
-enum Kind
-```
+$3 6:9-6:13 enum Kind
 
 An available kind.
-
-"#]],
-    );
-    fixture.check_hover(
-        "$6",
-        str![[r#"
-2:9-2:15
-```solidity
-type UserId is uint256
-```
+$4 <none>
+$5 <none>
+$6 2:9-2:15 type UserId is uint256
 
 A user ID.
+$7 <none>
+$8 <none>
+$9 <none>
+$10 28:8-28:12 function read() public pure returns (uint256 first, uint256)
+
+**@return**
+
+- The unnamed return value.
+$11 44:8-44:14 function update(uint256 renamed) public pure override returns (uint256 renamedResult)
+
+**@param**
+
+- `renamed`: The inherited value.
+
+**@return**
+
+- `renamedResult`: The inherited result.
 
 "#]],
     );
-    for marker in ["$4", "$5", "$7", "$8"] {
-        fixture.check_hover(marker, "<none>\n");
-    }
 }
 
 #[test]
-fn preserves_hover_payloads_across_analysis_batches() {
-    let fixture = RequestFixture::new_in_batches(
+fn shows_builtin_signature() {
+    let fixture = RequestFixture::new(
         r#"
-        //- /First.sol open
-        contract First {
-            uint256 $1one;
-        }
-        //- /Second.sol open
-        contract Second {
-            function $2two(address account) external pure returns (address) {
-                return account;
+        //- /Builtins.sol open
+        contract C {
+            function hash(bytes memory data) external pure returns (bytes32) {
+                return $1keccak256(data);
             }
         }
         "#,
-        &["/First.sol", "/Second.sol"],
+        "/Builtins.sol",
     );
 
-    fixture.check_hover(
-        "$1",
+    fixture.check_queries(
+        &[Query::Hover],
+        [1],
         str![[r#"
-1:12-1:15
-```solidity
-uint256 one
-```
+$1 2:15-2:24 function keccak256(bytes memory) pure returns (bytes32)
 
 "#]],
     );
-    fixture.check_hover(
-        "$2",
+    fixture.check_queries(
+        &[Query::Definition, Query::Declaration],
+        [1],
         str![[r#"
-1:13-1:16
-```solidity
-function two(address account) external pure returns (address)
-```
+$1 definition: <none>
+$1 declaration: <none>
 
 "#]],
     );
 }
 
 #[test]
-fn waits_for_requested_analysis_before_returning_hover() {
-    let project = TestProject::from_fixture(
+fn builtin_hover_distinguishes_selectors_and_bound_array_overloads() {
+    let fixture = RequestFixture::new(
         r#"
-        //- /Fresh.sol
+        //- /Members.sol open
         contract C {
-            uint256 oldValue;
+            event E(uint256 value);
+            error Bad(uint256 value);
+            uint256[] values;
+            function f() external {}
+            function inspect() external view returns (bytes4, bytes32, bytes4, address) {
+                return (this.f.$1selector, E.$2selector, Bad.$3selector, /* 😀 */ msg.$4sender);
+            }
+            function mutate() external {
+                values.$5push();
+                values.$6push(1);
+                values.$7pop();
+            }
         }
         "#,
+        "/Members.sol",
     );
-    let path = project.path("/Fresh.sol");
-    let old_tables = analyze(AnalysisBatch::from_files(
-        CompileOpts::default(),
-        [(path.clone(), project.read_file("/Fresh.sol"))],
-    ))
-    .symbol_tables;
-    let new_tables = analyze(AnalysisBatch::from_files(
-        CompileOpts::default(),
-        [(path.clone(), "contract C {\n    address newValue;\n}\n".into())],
-    ))
-    .symbol_tables;
-    let uri = Url::from_file_path(path).unwrap();
-    let params = HoverParams {
-        text_document_position_params: TextDocumentPositionParams {
-            text_document: TextDocumentIdentifier::new(uri),
-            position: Position::new(1, 12),
-        },
-        work_done_progress_params: WorkDoneProgressParams::default(),
-    };
-    let mut state = GlobalState::new(ClientSocket::new_closed());
-    state.symbol_tables.store(Arc::new(old_tables));
-    state.mark_analysis_pending_for_test();
 
-    let mut request = std::pin::pin!(crate::handlers::hover(&mut state, params));
-    let waker = Waker::noop();
-    let mut context = Context::from_waker(waker);
-    assert!(request.as_mut().poll(&mut context).is_pending());
+    fixture.check_queries(
+        &[Query::Hover],
+        1..=7,
+        str![[r#"
+$1 6:23-6:31 bytes4 function.selector
+$2 6:35-6:43 bytes32 event.selector
+$3 6:49-6:57 bytes4 error.selector
+$4 6:72-6:78 address msg.sender
+$5 9:15-9:19 function uint256[] storage.push() returns (uint256)
+$6 10:15-10:19 function uint256[] storage.push(uint256)
+$7 11:15-11:18 function uint256[] storage.pop()
 
-    let mut snapshot = state.snapshot();
-    assert!(snapshot.publish_symbol_tables(1, Arc::new(new_tables)));
-    assert!(!snapshot.publish_symbol_tables(0, Default::default()));
+"#]],
+    );
+    fixture.check_queries(
+        &[Query::Definition, Query::Declaration],
+        1..=7,
+        str![[r#"
+$1 definition: <none>
+$1 declaration: <none>
+$2 definition: <none>
+$2 declaration: <none>
+$3 definition: <none>
+$3 declaration: <none>
+$4 definition: <none>
+$4 declaration: <none>
+$5 definition: <none>
+$5 declaration: <none>
+$6 definition: <none>
+$6 declaration: <none>
+$7 definition: <none>
+$7 declaration: <none>
 
-    let Poll::Ready(response) = request.as_mut().poll(&mut context) else {
-        panic!("hover request should complete after analysis is published");
-    };
-    let hover = response.unwrap().expect("new analysis should provide hover");
-    assert_eq!(hover.range.unwrap().start, Position::new(1, 12));
-    let HoverContents::Markup(contents) = hover.contents else {
-        panic!("hover should use markdown");
-    };
-    assert!(contents.value.contains("address newValue"));
+"#]],
+    );
+}
+
+#[test]
+fn builtin_hover_uses_concrete_receiver_names() {
+    let fixture = RequestFixture::new(
+        r#"
+        //- /Names.sol open
+        type Price is uint256;
+        contract C {
+            uint256[] values;
+            bytes data;
+            function inspect(address payable target, bytes32 word, uint256[2] memory fixedValues)
+                external view
+            {
+                $1msg;
+                $2block.$3timestamp;
+                $4tx.$5origin;
+                $6abi.$7encode(1);
+                target.$8balance;
+                target.$9code;
+                word.$10length;
+                values.$11length;
+                data.$12length;
+                fixedValues.$13length;
+                type(C).$14name;
+                type(uint256).$15max;
+                Price.$16wrap(Price.$17unwrap(Price.wrap(1)));
+                string.$18concat("a", "b");
+                bytes.$19concat(hex"01", hex"02");
+                data.$20pop;
+            }
+            function mutate(address payable target) external {
+                target.$21call("");
+                target.$22send(1);
+                data.$23push();
+                data.$24push(0x01);
+                data.$25pop();
+            }
+        }
+        "#,
+        "/Names.sol",
+    );
+
+    fixture.check_queries(
+        &[Query::Hover],
+        1..=25,
+        str![[r#"
+$1 7:8-7:11 namespace msg
+$2 8:8-8:13 namespace block
+$3 8:14-8:23 uint256 block.timestamp
+$4 9:8-9:10 namespace tx
+$5 9:11-9:17 address tx.origin
+$6 10:8-10:11 namespace abi
+$7 10:12-10:18 function abi.encode(...) pure returns (bytes memory)
+$8 11:15-11:22 uint256 address payable.balance
+$9 12:15-12:19 bytes memory address payable.code
+$10 13:13-13:19 uint8 bytes32.length
+$11 14:15-14:21 uint256 uint256[] storage.length
+$12 15:13-15:19 uint256 bytes storage.length
+$13 16:20-16:26 uint256 uint256[2] memory.length
+$14 17:16-17:20 string memory type(contract C).name
+$15 18:22-18:25 uint256 type(uint256).max
+$16 19:14-19:18 function Price.wrap(uint256) pure returns (Price)
+$17 19:25-19:31 function Price.unwrap(Price) pure returns (uint256)
+$18 20:15-20:21 function string.concat(...) pure returns (string memory)
+$19 21:14-21:20 function bytes.concat(...) pure returns (bytes memory)
+$20 22:13-22:16 function bytes storage.pop()
+$21 25:15-25:19 function address payable.call(bytes memory) payable returns (bool, bytes memory)
+$22 26:15-26:19 function address payable.send(uint256) returns (bool)
+$23 27:13-27:17 function bytes storage.push() returns (bytes1)
+$24 28:13-28:17 function bytes storage.push(bytes1)
+$25 29:13-29:16 function bytes storage.pop()
+
+"#]],
+    );
 }

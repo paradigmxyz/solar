@@ -7,11 +7,11 @@
 
 use crate::workspace::index_policy::IndexingCancellation;
 use solar_interface::{
-    data_structures::sync::Mutex,
+    data_structures::{map::FxHashMap, sync::Mutex},
     source_map::{FileLoader, RealFileLoader},
 };
 use std::{
-    collections::HashMap,
+    collections::hash_map::Entry,
     env, io,
     path::{Path, PathBuf},
     sync::Arc,
@@ -23,32 +23,25 @@ pub(super) struct DependencySnapshot {
     observations: Arc<Mutex<Option<Observations>>>,
 }
 
+/// Replay order is irrelevant: reuse requires every observation to match.
 struct Observations {
     cwd: PathBuf,
-    entries: Vec<Observation>,
-    /// Deduplicate repeated loader calls while retaining conflict detection.
-    resolutions: HashMap<PathBuf, Resolution>,
-    reads: HashMap<PathBuf, usize>,
+    resolutions: FxHashMap<PathBuf, Resolution>,
+    reads: FxHashMap<PathBuf, String>,
 }
 
+#[derive(PartialEq)]
 enum Resolution {
     Canonical(PathBuf),
     Missing(Option<i32>),
-}
-
-enum Observation {
-    Canonicalized { path: PathBuf, canonical: PathBuf },
-    Missing { path: PathBuf, raw_os_error: Option<i32> },
-    Read { path: PathBuf, source: String },
 }
 
 impl Default for DependencySnapshot {
     fn default() -> Self {
         let observations = env::current_dir().ok().map(|cwd| Observations {
             cwd,
-            entries: Vec::new(),
-            resolutions: HashMap::new(),
-            reads: HashMap::new(),
+            resolutions: FxHashMap::default(),
+            reads: FxHashMap::default(),
         });
         Self { observations: Arc::new(Mutex::new(observations)) }
     }
@@ -61,67 +54,35 @@ impl DependencySnapshot {
             Err(error) if error.kind() == io::ErrorKind::NotFound => {
                 Resolution::Missing(error.raw_os_error())
             }
-            Err(_) => {
-                self.invalidate();
-                return;
+            Err(_) => return self.invalidate(),
+        };
+        let mut observations = self.observations.lock();
+        let Some(recorded) = observations.as_mut() else { return };
+        let conflict = match recorded.resolutions.entry(path.to_path_buf()) {
+            Entry::Occupied(previous) => *previous.get() != resolution,
+            Entry::Vacant(entry) => {
+                entry.insert(resolution);
+                false
             }
         };
-        let mut conflict = false;
-        let mut observations_guard = self.observations.lock();
-        if let Some(observations) = observations_guard.as_mut() {
-            let key = path.to_path_buf();
-            match observations.resolutions.get(&key) {
-                Some(Resolution::Canonical(previous)) if matches!(&resolution, Resolution::Canonical(current) if current == previous) =>
-                    {}
-                Some(Resolution::Missing(previous)) if matches!(&resolution, Resolution::Missing(current) if current == previous) =>
-                    {}
-                Some(_) => conflict = true,
-                None => {
-                    let entry = match &resolution {
-                        Resolution::Canonical(canonical) => Observation::Canonicalized {
-                            path: key.clone(),
-                            canonical: canonical.clone(),
-                        },
-                        Resolution::Missing(raw_os_error) => {
-                            Observation::Missing { path: key.clone(), raw_os_error: *raw_os_error }
-                        }
-                    };
-                    observations.resolutions.insert(key, resolution);
-                    observations.entries.push(entry);
-                }
-            }
-        }
-        drop(observations_guard);
         if conflict {
-            self.invalidate();
+            *observations = None;
         }
     }
 
     pub(super) fn record_read(&self, path: &Path, result: &io::Result<String>) {
-        let Ok(source) = result else {
-            self.invalidate();
-            return;
-        };
-        let mut observations_guard = self.observations.lock();
-        let mut conflict = false;
-        if let Some(observations) = observations_guard.as_mut() {
-            if let Some(&index) = observations.reads.get(path) {
-                let previous = match &observations.entries[index] {
-                    Observation::Read { source: previous, .. } => previous,
-                    _ => unreachable!(),
-                };
-                conflict = previous != source;
-            } else {
-                let index = observations.entries.len();
-                observations.reads.insert(path.to_path_buf(), index);
-                observations
-                    .entries
-                    .push(Observation::Read { path: path.to_path_buf(), source: source.clone() });
+        let Ok(source) = result else { return self.invalidate() };
+        let mut observations = self.observations.lock();
+        let Some(recorded) = observations.as_mut() else { return };
+        let conflict = match recorded.reads.entry(path.to_path_buf()) {
+            Entry::Occupied(previous) => previous.get() != source,
+            Entry::Vacant(entry) => {
+                entry.insert(source.clone());
+                false
             }
-        }
-        drop(observations_guard);
+        };
         if conflict {
-            self.invalidate();
+            *observations = None;
         }
     }
 
@@ -140,29 +101,23 @@ impl DependencySnapshot {
         if env::current_dir().ok().as_ref() != Some(&observations.cwd) {
             return false;
         }
-        for observation in &observations.entries {
-            if cancellation.is_cancelled() {
-                return false;
-            }
-            let matches = match observation {
-                Observation::Canonicalized { path, canonical } => {
-                    RealFileLoader.canonicalize_path(path).ok().as_ref() == Some(canonical)
-                }
-                Observation::Missing { path, raw_os_error } => {
-                    RealFileLoader.canonicalize_path(path).is_err_and(|error| {
+        let resolutions_match = observations.resolutions.iter().all(|(path, resolution)| {
+            !cancellation.is_cancelled()
+                && match (RealFileLoader.canonicalize_path(path), resolution) {
+                    (Ok(current), Resolution::Canonical(canonical)) => current == *canonical,
+                    (Err(error), Resolution::Missing(raw_os_error)) => {
                         error.kind() == io::ErrorKind::NotFound
                             && error.raw_os_error() == *raw_os_error
-                    })
+                    }
+                    _ => false,
                 }
-                Observation::Read { path, source } => {
-                    RealFileLoader.load_file(path).ok().as_ref() == Some(source)
-                }
-            };
-            if !matches {
-                return false;
-            }
-        }
-        !cancellation.is_cancelled()
+        });
+        resolutions_match
+            && observations.reads.iter().all(|(path, source)| {
+                !cancellation.is_cancelled()
+                    && RealFileLoader.load_file(path).ok().as_ref() == Some(source)
+            })
+            && !cancellation.is_cancelled()
     }
 }
 
@@ -173,41 +128,33 @@ mod tests {
     #[cfg(unix)]
     use std::os::unix::fs::symlink;
 
-    #[test]
-    fn unchanged_resolutions_and_reads_are_reusable() {
-        let directory = tempfile::tempdir().unwrap();
-        let path = directory.path().join("source.sol");
-        fs::write(&path, "contract Source {}\n").unwrap();
-        let snapshot = DependencySnapshot::default();
-        snapshot.record_canonicalize(&path, &RealFileLoader.canonicalize_path(&path));
-        snapshot.record_read(&path, &RealFileLoader.load_file(&path));
+    fn unchanged(snapshot: &DependencySnapshot) -> bool {
+        snapshot.unchanged(&IndexingCancellation::default())
+    }
 
-        assert!(snapshot.unchanged(&IndexingCancellation::default()));
+    fn record(snapshot: &DependencySnapshot, path: &Path) {
+        snapshot.record_canonicalize(path, &RealFileLoader.canonicalize_path(path));
+        snapshot.record_read(path, &RealFileLoader.load_file(path));
     }
 
     #[test]
-    fn source_byte_changes_prevent_reuse() {
-        let directory = tempfile::tempdir().unwrap();
-        let path = directory.path().join("source.sol");
-        fs::write(&path, "contract Before {}\n").unwrap();
-        let snapshot = DependencySnapshot::default();
-        snapshot.record_read(&path, &RealFileLoader.load_file(&path));
-        fs::write(&path, "contract After_ {}\n").unwrap();
-
-        assert!(!snapshot.unchanged(&IndexingCancellation::default()));
-    }
-
-    #[test]
-    fn removing_a_byte_order_mark_prevents_reuse() {
+    fn observations_are_reusable_until_source_bytes_change() {
         let directory = tempfile::tempdir().unwrap();
         let path = directory.path().join("source.sol");
         fs::write(&path, "\u{feff}contract Source {}\n").unwrap();
         let snapshot = DependencySnapshot::default();
-        snapshot.record_read(&path, &RealFileLoader.load_file(&path));
-        assert!(snapshot.unchanged(&IndexingCancellation::default()));
-        fs::write(&path, "contract Source {}\n").unwrap();
+        record(&snapshot, &path);
+        record(&snapshot, &path);
+        assert!(unchanged(&snapshot));
 
-        assert!(!snapshot.unchanged(&IndexingCancellation::default()));
+        fs::write(&path, "contract Source {}\n").unwrap();
+        assert!(!unchanged(&snapshot));
+
+        // A rewrite that keeps the length must still compare the bytes.
+        let snapshot = DependencySnapshot::default();
+        record(&snapshot, &path);
+        fs::write(&path, "contract Target {}\n").unwrap();
+        assert!(!unchanged(&snapshot));
     }
 
     #[test]
@@ -218,10 +165,10 @@ mod tests {
         let resolution = RealFileLoader.canonicalize_path(&path);
         assert_eq!(resolution.as_ref().unwrap_err().kind(), io::ErrorKind::NotFound);
         snapshot.record_canonicalize(&path, &resolution);
-        assert!(snapshot.unchanged(&IndexingCancellation::default()));
+        assert!(unchanged(&snapshot));
         fs::write(&path, "contract Created {}\n").unwrap();
 
-        assert!(!snapshot.unchanged(&IndexingCancellation::default()));
+        assert!(!unchanged(&snapshot));
     }
 
     #[test]
@@ -235,68 +182,48 @@ mod tests {
         fs::write(&second, "contract Source {}\n").unwrap();
         symlink(&first, &link).unwrap();
         let snapshot = DependencySnapshot::default();
-        snapshot.record_canonicalize(&link, &RealFileLoader.canonicalize_path(&link));
-        snapshot.record_read(&link, &RealFileLoader.load_file(&link));
-        assert!(snapshot.unchanged(&IndexingCancellation::default()));
+        record(&snapshot, &link);
+        assert!(unchanged(&snapshot));
         fs::remove_file(&link).unwrap();
         symlink(&second, &link).unwrap();
 
-        assert!(!snapshot.unchanged(&IndexingCancellation::default()));
+        assert!(!unchanged(&snapshot));
     }
 
     #[test]
-    fn unexpected_canonicalization_errors_prevent_reuse() {
-        let snapshot = DependencySnapshot::default();
-        snapshot.record_canonicalize(
-            Path::new("source.sol"),
-            &Err(io::Error::from(io::ErrorKind::PermissionDenied)),
-        );
-
-        assert!(!snapshot.unchanged(&IndexingCancellation::default()));
-    }
-
-    #[test]
-    fn read_errors_prevent_reuse() {
-        let snapshot = DependencySnapshot::default();
-        snapshot
-            .record_read(Path::new("missing.sol"), &Err(io::Error::from(io::ErrorKind::NotFound)));
-
-        assert!(!snapshot.unchanged(&IndexingCancellation::default()));
-    }
-
-    #[test]
-    fn conflicting_reads_are_not_overwritten() {
+    fn conflicts_errors_cancellation_and_invalidation_prevent_reuse() {
         let directory = tempfile::tempdir().unwrap();
         let path = directory.path().join("source.sol");
         fs::write(&path, "contract Before {}\n").unwrap();
-        let snapshot = DependencySnapshot::default();
-        snapshot.record_read(&path, &RealFileLoader.load_file(&path));
+        let conflicting_reads = DependencySnapshot::default();
+        conflicting_reads.record_read(&path, &RealFileLoader.load_file(&path));
         fs::write(&path, "contract After_ {}\n").unwrap();
-        snapshot.record_read(&path, &RealFileLoader.load_file(&path));
+        conflicting_reads.record_read(&path, &RealFileLoader.load_file(&path));
+        assert!(!unchanged(&conflicting_reads));
 
-        assert!(!snapshot.unchanged(&IndexingCancellation::default()));
-    }
+        let canonicalize_error = DependencySnapshot::default();
+        canonicalize_error.record_canonicalize(
+            Path::new("source.sol"),
+            &Err(io::Error::from(io::ErrorKind::PermissionDenied)),
+        );
+        assert!(!unchanged(&canonicalize_error));
 
-    #[test]
-    fn cancellation_prevents_reuse() {
-        let snapshot = DependencySnapshot::default();
+        let read_error = DependencySnapshot::default();
+        read_error
+            .record_read(Path::new("missing.sol"), &Err(io::Error::from(io::ErrorKind::NotFound)));
+        assert!(!unchanged(&read_error));
+
         let cancellation = IndexingCancellation::default();
         cancellation.cancel();
+        assert!(!DependencySnapshot::default().unchanged(&cancellation));
 
-        assert!(!snapshot.unchanged(&cancellation));
-    }
-
-    #[test]
-    fn invalidation_is_shared_and_cannot_be_reversed_by_recording() {
-        let directory = tempfile::tempdir().unwrap();
-        let snapshot = DependencySnapshot::default();
-        let loader_snapshot = snapshot.clone();
+        let invalidated = DependencySnapshot::default();
+        let loader_snapshot = invalidated.clone();
         loader_snapshot.invalidate();
         loader_snapshot.record_canonicalize(
             directory.path(),
             &RealFileLoader.canonicalize_path(directory.path()),
         );
-
-        assert!(!snapshot.unchanged(&IndexingCancellation::default()));
+        assert!(!unchanged(&invalidated));
     }
 }

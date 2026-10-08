@@ -3,43 +3,42 @@
 @phase lowered
 fn @combine() [selector=0xd9171e32, abi_wrapper, pure] {
   bb0:
-    v18 = calldatasize
-    v19 = lt v18, 36
-    jumpi v19, bb4, bb5
-  bb5:
+    v16 = calldatasize
+    v17 = lt v16, 36
+    jumpi v17, bb3, bb4
+  bb4:
     v0 = alloc raw, exact, uninitialized, infallible, 96 !metadata(deferred_alloc)
-    v41 = mload 64 !metadata(memory=scratch)
-    v42 = add v41, 128
-    mstore 64, v42 !metadata(memory=scratch)
-    mstore v41, arg0
-    v25 = add v41, 32
-    mstore v25, 1
-    v40 = add v41, 64
-    mstore v40, 2
-    v27 = add v41, 96
-    mstore v27, arg0
-    v37 = ptrtoint memptr v0 to i256
-    mstore v37, v41
-    v29 = add v37, 32
-    mstore v29, v40
-    v31 = add v37, 64
-    mstore v31, 3
-    v7 = mload v41
-    v14 = add v7, arg0
-    v15 = lt v14, v7
-    jumpi v15, bb1, bb2
+    v42 = mload 64 !metadata(memory=scratch)
+    v43 = add v42, 128
+    mstore 64, v43 !metadata(memory=scratch)
+    mstore v42, arg0
+    v23 = add v42, 32
+    mstore v23, 1
+    v41 = add v42, 64
+    mstore v41, 2
+    v25 = add v42, 96
+    mstore v25, arg0
+    v36 = ptrtoint memptr v0 to i256
+    mstore v36, v42
+    v27 = add v36, 32
+    mstore v27, v41
+    v29 = add v36, 64
+    mstore v29, 3
+    v6 = mload v42
+    v12 = add v6, arg0
+    v13 = lt v12, v6
+    v14 = add v12, 3
+    v15 = lt v14, v12
+    v44 = or v13, v15
+    jumpi v44, bb1, bb2
   bb2:
-    v16 = add v14, 3
-    v17 = lt v16, v14
-    jumpi v17, bb1, bb3
-  bb3:
-    mstore 128, v16
+    mstore 128, v14
     returndata 128, 32
   bb1:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     mstore 32, 17 !metadata(memory=scratch)
     revert 28, 36
-  bb4:
+  bb3:
     revert 0, 0
 }
 

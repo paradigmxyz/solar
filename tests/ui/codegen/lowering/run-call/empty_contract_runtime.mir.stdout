@@ -7,7 +7,7 @@
   A_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/empty_contract_runtime.sol:A"
   A_runtime_code_1: runtime_code "ROOT/tests/ui/codegen/lowering/run-call/empty_contract_runtime.sol:A"
 
-fn @nonEmptyCode() -> i256 [selector=0x73c60a6b, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @nonEmptyCode() -> i1 [selector=0x73c60a6b, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = datasize A_creation_code_0
     v1 = datasize A_creation_code_0, 63, aligned
@@ -15,7 +15,7 @@ fn @nonEmptyCode() -> i256 [selector=0x73c60a6b, pure, abi_params=[], abi_return
     set_memory_object_len memorybytes, v2, v0
     v3 = memory_object_data memorybytes, v2
     v4 = datasize A_creation_code_0, 31, aligned
-    v5 = ptrtoint memorybytes v2 to i256
+    v5 = ptrtoint memptr v2 to i256
     v6 = add v5, v4
     mstore v6, 0
     v7 = ptrtoint memptr v3 to i256
@@ -32,7 +32,7 @@ fn @nonEmptyCode() -> i256 [selector=0x73c60a6b, pure, abi_params=[], abi_return
     set_memory_object_len memorybytes, v12, v10
     v13 = memory_object_data memorybytes, v12
     v14 = datasize A_runtime_code_1, 31, aligned
-    v15 = ptrtoint memorybytes v12 to i256
+    v15 = ptrtoint memptr v12 to i256
     v16 = add v15, v14
     mstore v16, 0
     v17 = ptrtoint memptr v13 to i256
@@ -42,8 +42,7 @@ fn @nonEmptyCode() -> i256 [selector=0x73c60a6b, pure, abi_params=[], abi_return
     jump bb3
   bb3:
     v20 = phi [bb1: v19], [bb2: false]
-    v21 = zext i1 v20 to i256
-    ret v21
+    ret v20
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/empty_contract_runtime.sol:InternalContract ===
@@ -68,7 +67,7 @@ fn @constructor() [constructor] {
   InternalLibrary_runtime_code_2: runtime_code "ROOT/tests/ui/codegen/lowering/run-call/empty_contract_runtime.sol:InternalLibrary"
   A_creation_code_3: creation_code "ROOT/tests/ui/codegen/lowering/run-call/empty_contract_runtime.sol:A"
 
-fn @hasNonCallableRuntime() -> i256 [selector=0x0fedb051, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @hasNonCallableRuntime() -> i1 [selector=0x0fedb051, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = datasize InternalContract_runtime_code_0
     v1 = datasize InternalContract_runtime_code_0, 63, aligned
@@ -76,7 +75,7 @@ fn @hasNonCallableRuntime() -> i256 [selector=0x0fedb051, pure, abi_params=[], a
     set_memory_object_len memorybytes, v2, v0
     v3 = memory_object_data memorybytes, v2
     v4 = datasize InternalContract_runtime_code_0, 31, aligned
-    v5 = ptrtoint memorybytes v2 to i256
+    v5 = ptrtoint memptr v2 to i256
     v6 = add v5, v4
     mstore v6, 0
     v7 = ptrtoint memptr v3 to i256
@@ -93,7 +92,7 @@ fn @hasNonCallableRuntime() -> i256 [selector=0x0fedb051, pure, abi_params=[], a
     set_memory_object_len memorybytes, v12, v10
     v13 = memory_object_data memorybytes, v12
     v14 = datasize ConstructorOnly_runtime_code_1, 31, aligned
-    v15 = ptrtoint memorybytes v12 to i256
+    v15 = ptrtoint memptr v12 to i256
     v16 = add v15, v14
     mstore v16, 0
     v17 = ptrtoint memptr v13 to i256
@@ -113,7 +112,7 @@ fn @hasNonCallableRuntime() -> i256 [selector=0x0fedb051, pure, abi_params=[], a
     set_memory_object_len memorybytes, v23, v21
     v24 = memory_object_data memorybytes, v23
     v25 = datasize InternalLibrary_runtime_code_2, 31, aligned
-    v26 = ptrtoint memorybytes v23 to i256
+    v26 = ptrtoint memptr v23 to i256
     v27 = add v26, v25
     mstore v27, 0
     v28 = ptrtoint memptr v24 to i256
@@ -123,11 +122,10 @@ fn @hasNonCallableRuntime() -> i256 [selector=0x0fedb051, pure, abi_params=[], a
     jump bb6
   bb6:
     v31 = phi [bb4: v30], [bb5: false]
-    v32 = zext i1 v31 to i256
-    ret v32
+    ret v31
 }
 
-fn @deploysRevertingRuntime() -> i256 [selector=0x7c2d5470, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @deploysRevertingRuntime() -> i1 [selector=0x7c2d5470, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = abi_encode []
     v1 = datasize A_creation_code_3
@@ -141,36 +139,33 @@ fn @deploysRevertingRuntime() -> i256 [selector=0x7c2d5470, abi_params=[], abi_r
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
     v9 = create 0, v8, v1
-    v10 = zext i160 v9 to i256
-    v11 = ne v10, 0
-    jumpi v11, bb2, bb1
+    v10 = ne v9, i160 0
+    jumpi v10, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v12 = zext i160 v9 to i256
-    v13 = gas
-    v14 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v14, 4
-    v15 = memory_object_data memorybytes, v14
-    v16 = ptrtoint memptr v15 to i256
-    mstore v16, 0xdeadbeef00000000000000000000000000000000000000000000000000000000
-    v17 = address_call v9, v14, gas v13
-    v18 = zext i160 v9 to i256
-    v19 = extcodesize v18
-    v20 = gt v19, 0
-    jumpi v20, bb3, bb4
+    v11 = gas
+    v12 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v12, 4
+    v13 = memory_object_data memorybytes, v12
+    v14 = ptrtoint memptr v13 to i256
+    mstore v14, 0xdeadbeef00000000000000000000000000000000000000000000000000000000
+    v15 = address_call v9, v12, gas v11
+    v16 = zext i160 v9 to i256
+    v17 = extcodesize v16
+    v18 = gt v17, 0
+    jumpi v18, bb3, bb4
   bb4:
     jump bb5
   bb3:
-    v21 = eq v17, false
+    v19 = eq v15, false
     jump bb5
   bb5:
-    v22 = phi [bb3: v21], [bb4: false]
-    v23 = zext i1 v22 to i256
-    ret v23
+    v20 = phi [bb3: v19], [bb4: false]
+    ret v20
 }
 
-fn @hasCode() -> i256 [selector=0xfffc60a2, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @hasCode() -> i1 [selector=0xfffc60a2, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = abi_encode []
     v1 = datasize A_creation_code_3
@@ -184,21 +179,18 @@ fn @hasCode() -> i256 [selector=0xfffc60a2, abi_params=[], abi_returns=[word<boo
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
     v9 = create 0, v8, v1
-    v10 = zext i160 v9 to i256
-    v11 = ne v10, 0
-    jumpi v11, bb2, bb1
+    v10 = ne v9, i160 0
+    jumpi v10, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v12 = zext i160 v9 to i256
-    v13 = zext i160 v9 to i256
-    v14 = extcodesize v13
-    v15 = ne v14, 0
-    v16 = zext i1 v15 to i256
-    ret v16
+    v11 = zext i160 v9 to i256
+    v12 = extcodesize v11
+    v13 = ne v12, 0
+    ret v13
 }
 
-fn @rejectsCalls() -> i256 [selector=0x99b623b6, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @rejectsCalls() -> i1 [selector=0x99b623b6, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = abi_encode []
     v1 = datasize A_creation_code_3
@@ -212,19 +204,16 @@ fn @rejectsCalls() -> i256 [selector=0x99b623b6, abi_params=[], abi_returns=[wor
     mcopy v7, v5, 0 !metadata(memory=heap)
     v8 = ptrtoint memptr v3 to i256
     v9 = create 0, v8, v1
-    v10 = zext i160 v9 to i256
-    v11 = ne v10, 0
-    jumpi v11, bb2, bb1
+    v10 = ne v9, i160 0
+    jumpi v10, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v12 = zext i160 v9 to i256
-    v13 = gas
-    v14 = alloc memorybytes, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v14, 0
-    v15 = memory_object_data memorybytes, v14
-    v16 = address_call v9, v14, gas v13
-    v17 = eq v16, false
-    v18 = zext i1 v17 to i256
-    ret v18
+    v11 = gas
+    v12 = alloc memorybytes, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v12, 0
+    v13 = memory_object_data memorybytes, v12
+    v14 = address_call v9, v12, gas v11
+    v15 = eq v14, false
+    ret v15
 }

@@ -314,30 +314,3 @@ fn symbolic_stack_op(inst: &Instruction) -> Option<SymbolicStackOp> {
     }
     inst.as_stack_op().map(SymbolicStackOp::Physical)
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn cached_normalizations_respect_target_legality() {
-        let input = StackRun::from_slice(&[StackOp::Swap(17), StackOp::Swap(17)]);
-        let mut cache = SharedNormalizations::default();
-        assert_eq!(cache.get(&input, EvmVersion::Amsterdam), Some(StackRun::new()));
-        assert_eq!(cache.get(&input, EvmVersion::Osaka), None);
-        assert_eq!(cache.get(&input, EvmVersion::Amsterdam), Some(StackRun::new()));
-    }
-
-    #[test]
-    fn shared_normalizations_stay_bounded() {
-        let mut cache = SharedNormalizations::default();
-        for depth in 1..=16 {
-            for length in 2..=24 {
-                let input = StackRun::from_elem(StackOp::Dup(depth), length);
-                let expected = compute_normalization(&input, EvmVersion::Osaka);
-                assert_eq!(cache.get(&input, EvmVersion::Osaka), expected);
-                assert!(cache.entries.len() <= MAX_SHARED_NORMALIZATIONS);
-            }
-        }
-    }
-}

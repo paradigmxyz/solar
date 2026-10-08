@@ -147,7 +147,6 @@ bb6:
   dup 2
   mstore
   push 470
-  push 502
   push 512
   push 64
   mload
@@ -156,20 +155,22 @@ bb6:
   add
   push 64
   mstore
-  dup 3
+  dup 2
   push_data ChildWithArg_creation_code_0
   dup 3
   codecopy
-  swap 2
-  dup 3
+  swap 1
+  dup 2
   add
   push 32
-  dup 5
+  dup 4
   dup 3
   mcopy
   pop
-  swap 2
+  swap 1
   pop
+  push 502
+  swap 1
   push 0
   create
   jump bb28
@@ -234,7 +235,6 @@ bb12:
   dup 2
   mstore
   push 470
-  push 502
   push 512
   push 64
   mload
@@ -243,23 +243,23 @@ bb12:
   add
   push 64
   mstore
-  dup 3
+  dup 2
   push_data ChildWithArg_creation_code_0
   dup 3
   codecopy
-  swap 2
-  dup 3
+  swap 1
+  dup 2
   add
   push 32
-  dup 5
+  dup 4
   dup 3
   mcopy
   pop
-  swap 2
+  swap 1
   pop
+  push 502
   push 1
   swap 2
-  swap 1
   push 0
   create2
   jump bb28

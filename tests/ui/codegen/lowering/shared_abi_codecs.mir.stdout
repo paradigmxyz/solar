@@ -1,12 +1,12 @@
 // === ROOT/tests/ui/codegen/lowering/shared_abi_codecs.sol:SharedAbiCodecs ===
 @module SharedAbiCodecs
-fn @encodeFirst(arg0: memorystruct) -> memorybytes [selector=0xe9a7b169, pure, abi_params=[tuple<u256, array<_, array<_, u256>>>], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @encodeFirst(arg0: memptr) -> memptr [selector=0xe9a7b169, pure, abi_params=[tuple<u256, array<_, array<_, u256>>>], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = abi_encode [tuple<word, memory_array<memory_array<word>>>], object, args arg0
     ret v0
 }
 
-fn @encodeSecond(arg0: memorystruct) -> memorybytes [selector=0x108c1ec5, pure, abi_params=[tuple<u256, array<_, array<_, u256>>>], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @encodeSecond(arg0: memptr) -> memptr [selector=0x108c1ec5, pure, abi_params=[tuple<u256, array<_, array<_, u256>>>], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = abi_encode [tuple<word, memory_array<memory_array<word>>>], object, args arg0
     ret v0
@@ -48,61 +48,59 @@ fn @roundTrip(arg0: i256, arg1: calldataslice) -> i256 [selector=0x00746047, pur
     v24 = lt v23, v1
     jumpi v24, bb2, bb3
   bb3:
+    v58 = ptrtoint memptr v22 to i256
     memory_object_store_field memorystruct<2>, v0, 0, arg0
-    v58 = ptrtoint memoryarray v22 to i256
     memory_object_store_field memorystruct<2>, v0, 1, v58
     v59 = icall @encodeFirst, v0
     v60 = abi_decode [tuple<u256, array<_, array<_, u256>>>], v59
     v61 = memory_object_load_field memorystruct<2>, v60, 0
-    v62 = memory_object_load_field memorystruct<2>, v60, 1
-    v63 = inttoptr i256 v62 to memoryarray
-    v64 = memory_object_len memoryarray, v63
-    v65 = lt 0, v64
-    v66 = eq v65, false
-    icall panic_if<0x32>, v66
-    v67 = memory_object_load_element memoryarray<1>, v63, 0
-    v68 = inttoptr i256 v67 to memoryarray
-    v69 = eq v67, 0
-    jumpi v69, bb4, bb5
+    v62 = memory_object_load_field memorystruct<2>, v60, 1, memptr
+    v63 = memory_object_len memoryarray, v62
+    v64 = lt 0, v63
+    v65 = eq v64, false
+    icall panic_if<0x32>, v65
+    v66 = memory_object_load_element memoryarray<1>, v62, 0
+    v67 = inttoptr i256 v66 to memptr
+    v68 = eq v66, 0
+    jumpi v68, bb4, bb5
   bb4:
-    v70 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    set_memory_object_len memoryarray, v70, 0
-    v71 = ptrtoint memoryarray v70 to i256
-    memory_object_store_element memoryarray<1>, v63, 0, v71
+    v69 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    set_memory_object_len memoryarray, v69, 0
+    v70 = ptrtoint memptr v69 to i256
+    memory_object_store_element memoryarray<1>, v62, 0, v70
     jump bb5
   bb5:
-    v72 = phi [bb3: v68], [bb4: v70]
-    v73 = memory_object_len memoryarray, v72
-    v74 = lt 0, v73
-    v75 = eq v74, false
-    icall panic_if<0x32>, v75
-    v76 = memory_object_load_element memoryarray<1>, v72, 0
-    v77 = checked_add u256, v61, v76
-    v78 = memory_object_load_field memorystruct<2>, v60, 1
-    v79 = inttoptr i256 v78 to memoryarray
-    v80 = memory_object_len memoryarray, v79
-    v81 = lt 1, v80
-    v82 = eq v81, false
-    icall panic_if<0x32>, v82
-    v83 = memory_object_load_element memoryarray<1>, v79, 1
-    v84 = inttoptr i256 v83 to memoryarray
-    v85 = eq v83, 0
-    jumpi v85, bb6, bb7
+    v71 = phi [bb3: v67], [bb4: v69]
+    v72 = memory_object_len memoryarray, v71
+    v73 = lt 0, v72
+    v74 = eq v73, false
+    icall panic_if<0x32>, v74
+    v75 = memory_object_load_element memoryarray<1>, v71, 0
+    v76 = checked_add u256, v61, v75
+    v77 = memory_object_load_field memorystruct<2>, v60, 1, memptr
+    v78 = memory_object_len memoryarray, v77
+    v79 = lt 1, v78
+    v80 = eq v79, false
+    icall panic_if<0x32>, v80
+    v81 = memory_object_load_element memoryarray<1>, v77, 1
+    v82 = inttoptr i256 v81 to memptr
+    v83 = eq v81, 0
+    jumpi v83, bb6, bb7
   bb6:
-    v86 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    set_memory_object_len memoryarray, v86, 0
-    v87 = ptrtoint memoryarray v86 to i256
-    memory_object_store_element memoryarray<1>, v79, 1, v87
+    v84 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    set_memory_object_len memoryarray, v84, 0
+    v85 = ptrtoint memptr v84 to i256
+    memory_object_store_element memoryarray<1>, v77, 1, v85
     jump bb7
   bb7:
-    v88 = phi [bb5: v84], [bb6: v86]
-    v89 = memory_object_len memoryarray, v88
-    v90 = lt 0, v89
-    v91 = eq v90, false
-    icall panic_if<0x32>, v91
-    v92 = memory_object_load_element memoryarray<1>, v88, 0
-    v93 = checked_add u256, v77, v92
-    ret v93
+    v86 = phi [bb5: v82], [bb6: v84]
+    v87 = memory_object_len memoryarray, v86
+    v88 = lt 0, v87
+    v89 = eq v88, false
+    icall panic_if<0x32>, v89
+    v90 = memory_object_load_element memoryarray<1>, v86, 0
+    v91 = checked_add u256, v76, v90
+    ret v91
   bb2:
     v25 = mul v23, 32
     v26 = add v2, v25
@@ -143,7 +141,7 @@ fn @roundTrip(arg0: i256, arg1: calldataslice) -> i256 [selector=0x00746047, pur
     set_memory_object_len memoryarray, v54, v37
     v55 = make_calldata_slice v44, v45
     memory_object_copy_from_slice memoryarray, v54, v55
-    v56 = ptrtoint memoryarray v54 to i256
+    v56 = ptrtoint memptr v54 to i256
     memory_object_store_element memoryarray<1>, v22, v23, v56
     v57 = add v23, 1
     jump bb1

@@ -2,8 +2,7 @@ use super::*;
 
 #[tokio::test]
 async fn rejects_renaming_nested_repository_declarations_and_override_families() {
-    for marker_file in [true, false] {
-        let marker = if marker_file { ".git" } else { ".git/HEAD" };
+    for marker in [".git", ".git/HEAD"] {
         let mut fixture = RequestFixture::new(
             &format!(
                 r#"
@@ -35,8 +34,7 @@ async fn rejects_renaming_nested_repository_declarations_and_override_families()
                 fixture.set_open_file_contents("/modules/dep/IDep.sol", &contents);
             }
             for marker in ["$1", "$2", "$3", "$4", "$5"] {
-                let (mut state, params) = fixture.rename_state_and_params(marker, "renamed");
-                assert_dependency_rename_rejected(&mut state, params).await;
+                check_marker(&fixture, marker, &["/"], DEPENDENCY).await;
             }
         }
     }
@@ -44,10 +42,11 @@ async fn rejects_renaming_nested_repository_declarations_and_override_families()
 
 #[tokio::test]
 async fn allows_nested_repository_sources_explicitly_owned_by_a_project() {
-    for independent in [false, true] {
-        let manifest = if independent { "/owner/foundry.toml" } else { "/foundry.toml" };
-        let source = if independent { "../modules/dep/src" } else { "modules/dep/src" };
-        let root_manifest = if independent { "//- /foundry.toml" } else { "" };
+    // The owning manifest is either the root project or an independent sibling project.
+    for (root_manifest, manifest, source) in [
+        ("", "/foundry.toml", "modules/dep/src"),
+        ("//- /foundry.toml", "/owner/foundry.toml", "../modules/dep/src"),
+    ] {
         let fixture = RequestFixture::new(
             &format!(
                 r#"
@@ -71,24 +70,20 @@ async fn allows_nested_repository_sources_explicitly_owned_by_a_project() {
             "/src/Main.sol",
         );
         for marker in ["$1", "$3"] {
-            let (mut state, params) = fixture.rename_state_and_params(marker, "Renamed");
-            assert!(
-                handlers::prepare_rename(&mut state, params.text_document_position.clone())
-                    .await
-                    .unwrap()
-                    .is_some()
-            );
-            let changes =
-                handlers::rename(&mut state, params).await.unwrap().unwrap().changes.unwrap();
-            assert_eq!(changes.len(), 2);
-            for (path, count) in [("/modules/dep/src/Owned.sol", 1), ("/src/Main.sol", 2)] {
-                let uri = Url::from_file_path(fixture.project_path(path)).unwrap();
-                assert_eq!(changes[&uri].len(), count);
-                assert!(changes[&uri].iter().all(|edit| edit.new_text == "Renamed"));
-            }
+            check_marker(
+                &fixture,
+                marker,
+                &["/"],
+                str![[r#"
+/modules/dep/src/Owned.sol:0:9-0:14 -> Renamed
+/src/Main.sol:0:8-0:13 -> Renamed
+/src/Main.sol:2:17-2:22 -> Renamed
+
+"#]],
+            )
+            .await;
         }
-        let (mut state, params) = fixture.rename_state_and_params("$2", "Renamed");
-        assert_dependency_rename_rejected(&mut state, params).await;
+        check_marker(&fixture, "$2", &["/"], DEPENDENCY).await;
     }
 }
 
@@ -118,42 +113,21 @@ async fn explicit_client_roots_do_not_authorize_deeper_nested_repositories() {
         "/src/Main.sol",
     );
     for roots in [["/", "/modules/dep"], ["/modules/dep", "/"]] {
-        for marker in ["$1", "$2", "$3"] {
-            let (mut state, params) = fixture.rename_state_and_params(marker, "Renamed");
-            let initialize = InitializeParams {
-                workspace_folders: Some(
-                    roots
-                        .iter()
-                        .map(|path| WorkspaceFolder {
-                            uri: Url::from_file_path(fixture.project_path(path)).unwrap(),
-                            name: (*path).into(),
-                        })
-                        .collect(),
-                ),
-                ..Default::default()
-            };
-            let (_, mut config) = negotiate_capabilities(initialize);
-            config.rediscover_workspaces();
-            state.config = Arc::new(config);
-            if marker == "$2" {
-                assert_dependency_rename_rejected(&mut state, params).await;
-            } else {
-                assert!(
-                    handlers::prepare_rename(&mut state, params.text_document_position.clone())
-                        .await
-                        .unwrap()
-                        .is_some()
-                );
-                let changes =
-                    handlers::rename(&mut state, params).await.unwrap().unwrap().changes.unwrap();
-                assert_eq!(changes.len(), 2);
-                for (path, count) in [("/modules/dep/src/Owned.sol", 1), ("/src/Main.sol", 2)] {
-                    let uri = Url::from_file_path(fixture.project_path(path)).unwrap();
-                    assert_eq!(changes[&uri].len(), count);
-                    assert!(changes[&uri].iter().all(|edit| edit.new_text == "Renamed"));
-                }
-            }
+        for marker in ["$1", "$3"] {
+            check_marker(
+                &fixture,
+                marker,
+                &roots,
+                str![[r#"
+/modules/dep/src/Owned.sol:0:9-0:14 -> Renamed
+/src/Main.sol:0:8-0:13 -> Renamed
+/src/Main.sol:2:17-2:22 -> Renamed
+
+"#]],
+            )
+            .await;
         }
+        check_marker(&fixture, "$2", &roots, DEPENDENCY).await;
     }
 }
 
@@ -177,28 +151,21 @@ async fn ordinary_directories_and_disabled_repository_exclusion_remain_editable(
             fixture.write_file("/modules/dep/.git", "gitdir: elsewhere");
         }
         let (mut state, params) = fixture.rename_state_and_params("$2", "Renamed");
-        let initialize = InitializeParams {
-            workspace_folders: Some(vec![WorkspaceFolder {
-                uri: Url::from_file_path(fixture.project_path("/")).unwrap(),
-                name: "fixture".into(),
-            }]),
-            initialization_options: Some(serde_json::json!({
-                "indexing": { "excludeNestedRepositories": !marker_exists },
-            })),
-            ..Default::default()
-        };
-        let (_, mut config) = negotiate_capabilities(initialize);
-        config.rediscover_workspaces();
-        state.config = Arc::new(config);
-        assert!(
-            handlers::prepare_rename(&mut state, params.text_document_position.clone())
-                .await
-                .unwrap()
-                .is_some()
-        );
-        let changes = handlers::rename(&mut state, params).await.unwrap().unwrap().changes.unwrap();
-        assert_eq!(changes.len(), 2);
-        assert_eq!(changes.values().map(Vec::len).sum::<usize>(), 3);
+        let options = json!({ "indexing": { "excludeNestedRepositories": !marker_exists } });
+        state.config =
+            Arc::new(config_with_options(fixture.project().initialize_params(), options));
+        check_report(
+            &fixture,
+            &mut state,
+            params,
+            str![[r#"
+/modules/dep/Owned.sol:0:9-0:14 -> Renamed
+/src/Main.sol:0:8-0:13 -> Renamed
+/src/Main.sol:1:17-1:22 -> Renamed
+
+"#]],
+        )
+        .await;
     }
 }
 
@@ -220,18 +187,14 @@ async fn rejects_source_symlinks_into_nested_repositories() {
             "#,
             "/src/IDep.sol",
         );
-        if directory {
-            fs::remove_dir_all(fixture.project_path("/src")).unwrap();
-            symlink(fixture.project_path("/modules/dep"), fixture.project_path("/src")).unwrap();
+        let (link, target) = if directory {
+            ("/src", "/modules/dep")
         } else {
-            fs::remove_file(fixture.project_path("/src/IDep.sol")).unwrap();
-            symlink(
-                fixture.project_path("/modules/dep/IDep.sol"),
-                fixture.project_path("/src/IDep.sol"),
-            )
-            .unwrap();
-        }
-        let (mut state, params) = fixture.rename_state_and_params("$1", "Renamed");
-        assert_dependency_rename_rejected(&mut state, params).await;
+            ("/src/IDep.sol", "/modules/dep/IDep.sol")
+        };
+        let link = fixture.project_path(link);
+        if directory { fs::remove_dir_all(&link) } else { fs::remove_file(&link) }.unwrap();
+        symlink(fixture.project_path(target), link).unwrap();
+        check_marker(&fixture, "$1", &["/"], DEPENDENCY).await;
     }
 }

@@ -1,0 +1,95 @@
+- // === ROOT/tests/ui/codegen/mir/sccp/sccp_fold_narrow.mir (before sccp) ===
++ // === ROOT/tests/ui/codegen/mir/sccp/sccp_fold_narrow.mir (after sccp) ===
+  @module SccpFoldNarrow
+  fn @add_wraps() -> i8 {
+    bb0:
+-     v0 = add i8 255, i8 1
+-     ret v0
++     ret i8 0
+  }
+  
+  fn @sub_wraps() -> i8 {
+    bb0:
+-     v0 = sub i8 0, i8 1
+-     ret v0
++     ret i8 255
+  }
+  
+  fn @mul_wraps() -> i8 {
+    bb0:
+-     v0 = mul i8 255, i8 255
+-     ret v0
++     ret i8 1
+  }
+  
+  fn @not_masks() -> i8 {
+    bb0:
+-     v0 = not i8 0
+-     ret v0
++     ret i8 255
+  }
+  
+  fn @sdiv_min_by_neg_one() -> i8 {
+    bb0:
+-     v0 = sdiv i8 128, i8 255
+-     ret v0
++     ret i8 128
+  }
+  
+  fn @smod_negative() -> i8 {
+    bb0:
+-     v0 = smod i8 249, i8 2
+-     ret v0
++     ret i8 255
+  }
+  
+  fn @slt_negative() -> i1 {
+    bb0:
+-     v0 = slt i8 128, i8 0
+-     ret v0
++     ret true
+  }
+  
+  fn @sgt_negative() -> i1 {
+    bb0:
+-     v0 = sgt i8 0, i8 128
+-     ret v0
++     ret true
+  }
+  
+  fn @shl_by_width() -> i8 {
+    bb0:
+-     v0 = shl i8 8, i8 255
+-     ret v0
++     ret i8 0
+  }
+  
+  fn @sar_by_width() -> i8 {
+    bb0:
+-     v0 = sar i8 8, i8 128
+-     ret v0
++     ret i8 255
+  }
+  
+  fn @clz_zero() -> i8 {
+    bb0:
+-     v0 = clz i8 0
+-     ret v0
++     ret i8 8
+  }
+  
+  fn @clz_one() -> i8 {
+    bb0:
+-     v0 = clz i8 1
+-     ret v0
++     ret i8 7
+  }
+  
+  fn @ptrtoint_masks() -> i160 {
+    bb0:
+-     v0 = inttoptr i256 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff to memptr
+-     v1 = ptrtoint memptr v0 to i160
+-     ret v1
++     ret i160 0xffffffffffffffffffffffffffffffffffffffff
+  }
+  

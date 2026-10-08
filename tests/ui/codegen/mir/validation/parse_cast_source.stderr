@@ -1,0 +1,8 @@
+error: cast source type does not match its operand
+   ╭▸ ROOT/tests/ui/codegen/mir/validation/parse_cast_source.mir:LL:CC
+   │
+LL │     v0 = zext i160 arg0 to i256
+   ╰╴         ━━━━
+
+error: aborting due to 1 previous error
+

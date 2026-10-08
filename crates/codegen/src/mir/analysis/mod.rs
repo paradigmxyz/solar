@@ -5,6 +5,8 @@
 //! - Phi elimination for converting SSA to CSSA
 //! - Loop analysis for detecting and analyzing natural loops
 
+pub(crate) mod integers;
+
 mod alias;
 pub(crate) use alias::{
     Access, AddressSpace, AliasAnalysis, AliasResult, Location, LocationSize, MemoryAddress,
@@ -24,6 +26,9 @@ pub(crate) use gas::GasObservations;
 
 mod call_graph;
 pub(crate) use call_graph::CallGraphInfo;
+
+mod cold;
+pub(crate) use cold::{aborts, cold_functions};
 
 mod liveness;
 pub(crate) use liveness::Liveness;

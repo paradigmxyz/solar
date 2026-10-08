@@ -3,9 +3,8 @@
 fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word<bytes3>], abi_return_params=[bytes3]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = and v0, 0xffffff
-    v2 = shl 232, v1
-    ret v2
+    v1 = shl 232, v0
+    ret v1
 }
 
 fn @constructor(arg0: i256) [constructor, abi_params=[bytes3]] {
@@ -26,9 +25,8 @@ fn @constructor(arg0: i256) [constructor, abi_params=[bytes3]] {
 fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word<bytes3>], abi_return_params=[bytes3]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = and v0, 0xffffff
-    v2 = shl 232, v1
-    ret v2
+    v1 = shl 232, v0
+    ret v1
 }
 
 fn @constructor() [constructor] {

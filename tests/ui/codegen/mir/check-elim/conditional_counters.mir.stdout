@@ -1,0 +1,52 @@
+// === ROOT/tests/ui/codegen/mir/check-elim/conditional_counters.sol:ConditionalCounters ===
+@module ConditionalCounters
+@types
+  struct0: {i256, i256}
+
+fn @lots(arg0: i256, arg1: i256, arg2: i256) -> struct0 [selector=0xc106c1f6, pure, abi_params=[u256, u256, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb3: v10]
+    v1 = phi [bb0: 0], [bb3: v16]
+    v2 = phi [bb0: arg0], [bb3: v15]
+    v3 = phi [bb0: arg2], [bb3: v3]
+    v4 = phi [bb0: 0], [bb3: v14]
+    v5 = phi [bb0: arg1], [bb3: v5]
+    v6 = lt v1, v3
+    jumpi v6, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    v17 = insert_value struct0, undef struct0, 0, v0
+    v18 = insert_value struct0, v17, 1, v4
+    ret v18
+  bb4:
+    v7 = checked_div u256, v2, 0xf4240
+    v8 = ne v7, 0
+    jumpi v8, bb7, bb8
+  bb8:
+    jump bb9
+  bb7:
+    v9 = checked_add u256, v0, 1
+    jump bb9
+  bb9:
+    v10 = phi [bb7: v9], [bb8: v0]
+    v11 = checked_div u256, v2, 0x3e8
+    v12 = gt v11, 0x1388
+    jumpi v12, bb10, bb11
+  bb11:
+    jump bb12
+  bb10:
+    v13 = checked_add u256, v4, 1
+    jump bb12
+  bb12:
+    v14 = phi [bb10: v13], [bb11: v4]
+    v15 = checked_add u256, v2, v5
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v16 = checked_add u256, v1, 1
+    jump bb1
+}

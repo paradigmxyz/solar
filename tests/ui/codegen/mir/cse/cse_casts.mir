@@ -1,0 +1,36 @@
+//@ compile-flags: -Zmir-pipeline=cse,dce
+@module CseCasts
+
+// Merging the casts makes both phi inputs the same expression, which phi
+// sinking then moves below the phi.
+fn @sink_after_cast_merge(arg0: i160, arg1: i1) -> i256 {
+  bb0:
+    v1 = zext i160 arg0 to i256
+    v2 = zext i160 arg0 to i256
+    jumpi arg1, bb1, bb2
+  bb1:
+    v3 = add v1, 7
+    jump bb3
+  bb2:
+    v4 = add v2, 7
+    jump bb3
+  bb3:
+    v5 = phi [bb1: v3], [bb2: v4]
+    ret v5
+}
+
+// Casts of one operand to different types stay separate.
+fn @distinct_casts(arg0: i256, arg1: i1) -> i256 {
+  bb0:
+    v0 = trunc i256 arg0 to i160
+    v1 = trunc i256 arg0 to i1
+    v2 = zext i1 arg1 to i256
+    v3 = zext i1 arg1 to i160
+    v4 = zext i160 v0 to i256
+    v5 = zext i1 v1 to i256
+    v6 = zext i160 v3 to i256
+    v7 = add v4, v5
+    v8 = add v2, v6
+    v9 = add v7, v8
+    ret v9
+}

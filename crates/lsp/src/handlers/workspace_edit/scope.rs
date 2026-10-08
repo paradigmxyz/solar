@@ -36,7 +36,7 @@ pub(crate) fn check_edit_scope<'a>(
     let resolved = lexical.map_paths(|path| resolve(path).unwrap_or_else(|| path.to_path_buf()));
     for uri in uris {
         let path = proto::vfs_path(uri).ok_or(WorkspaceEditError::UnresolvedPath)?;
-        let path = path.as_path().ok_or(WorkspaceEditError::UnresolvedPath)?;
+        let path = path.as_path();
         let lexical_result = lexical.check(path);
         if matches!(lexical_result, Err(WorkspaceEditError::Dependency)) {
             return lexical_result;

@@ -106,19 +106,20 @@ fn @spow(arg0: i256, arg1: i256) -> i256 [selector=0x8c0da14f, pure, abi_params=
     revert 28, 36
 }
 
-fn @upow8(arg0: i256, arg1: i256) -> i256 [selector=0x3f7ced5f, pure, abi_params=[u8, u8], abi_returns=[word<u8>], abi_return_params=[u8]] {
+fn @upow8(arg0: i8, arg1: i8) -> i8 [selector=0x3f7ced5f, pure, abi_params=[u8, u8], abi_returns=[word<u8>], abi_return_params=[u8]] {
   bb0:
-    v0 = and arg0, 255
-    v1 = and arg1, 255
+    v0 = zext i8 arg1 to i256
+    v2 = zext i8 arg0 to i256
     jump bb1
   bb1:
     v3 = phi [bb0: 1], [bb6: v21]
-    v4 = phi [bb0: v0], [bb6: v23]
-    v5 = phi [bb0: v1], [bb6: v22]
+    v4 = phi [bb0: v2], [bb6: v23]
+    v5 = phi [bb0: v0], [bb6: v22]
     v6 = gt v5, 0
     jumpi v6, bb2, bb3
   bb3:
-    ret v3
+    v37 = trunc i256 v3 to i8
+    ret v37
   bb2:
     v7 = and v5, 1
     v8 = mul v3, v4
@@ -161,19 +162,20 @@ fn @upow8(arg0: i256, arg1: i256) -> i256 [selector=0x3f7ced5f, pure, abi_params
     revert 28, 36
 }
 
-fn @spow8(arg0: i256, arg1: i256) -> i256 [selector=0xd44642ed, pure, abi_params=[i8, u8], abi_returns=[word<i8>], abi_return_params=[i8]] {
+fn @spow8(arg0: i8, arg1: i8) -> i8 [selector=0xd44642ed, pure, abi_params=[i8, u8], abi_returns=[word<i8>], abi_return_params=[i8]] {
   bb0:
-    v0 = signextend 0, arg0
-    v1 = and arg1, 255
+    v0 = zext i8 arg1 to i256
+    v2 = sext i8 arg0 to i256
     jump bb1
   bb1:
     v3 = phi [bb0: 1], [bb6: v29]
-    v4 = phi [bb0: v0], [bb6: v31]
-    v5 = phi [bb0: v1], [bb6: v30]
+    v4 = phi [bb0: v2], [bb6: v31]
+    v5 = phi [bb0: v0], [bb6: v30]
     v6 = gt v5, 0
     jumpi v6, bb2, bb3
   bb3:
-    ret v3
+    v53 = trunc i256 v3 to i8
+    ret v53
   bb2:
     v7 = and v5, 1
     v8 = mul v3, v4
@@ -386,11 +388,11 @@ fn @const_neg2(arg0: i256) -> i256 [selector=0xf3adabf1, pure, abi_params=[u256]
     revert 28, 36
 }
 
-fn @unchecked_pow8(arg0: i256, arg1: i256) -> i256 [selector=0xa376b2ef, pure, abi_params=[u8, u8], abi_returns=[word<u8>], abi_return_params=[u8]] {
+fn @unchecked_pow8(arg0: i8, arg1: i8) -> i8 [selector=0xa376b2ef, pure, abi_params=[u8, u8], abi_returns=[word<u8>], abi_return_params=[u8]] {
   bb0:
-    v0 = and arg0, 255
-    v1 = and arg1, 255
+    v0 = zext i8 arg0 to i256
+    v1 = zext i8 arg1 to i256
     v2 = exp v0, v1
-    v3 = and v2, 255
+    v3 = trunc i256 v2 to i8
     ret v3
 }

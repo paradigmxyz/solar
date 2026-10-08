@@ -8,19 +8,32 @@ is a late lowering decision.
 
 ## Value types and conversions
 
-SSA values use integers (`iN`), raw memory pointers (`memptr`), structs, slices,
-or memory-object references. A `memptr` carries a 256-bit memory address without
-implying validity, heap provenance, or non-wrapping pointer arithmetic.
-An `i256` carries 256 bits; source widths, signedness, and ABI encoding rules
-belong to operation and layout metadata. An `i256` argument does not imply
-heap provenance or non-wrapping address arithmetic. `void` denotes no function result.
+SSA values use integers (`iN`), opaque memory pointers (`memptr`), structs, or
+slices. A `memptr` carries a 256-bit memory address without implying validity,
+heap provenance, or non-wrapping pointer arithmetic. Memory objects are `memptr`
+values too: an access such as `memory_object_load_field memorystruct<3>, v0, 2`
+names the object layout itself, as LLVM loads name their type.
+An `i256` carries 256 bits and does not imply heap provenance or non-wrapping
+address arithmetic. Signedness and ABI encoding rules belong to operation and
+layout metadata. `void` denotes no function result.
 
-Integer type names follow `iN`, where `N` ranges from 1 to 4294967295. All
-widths can appear in MIR text; typed literals currently hold at most 256 bits.
-Only `i1`, `i160`, and `i256` have codegen support and are emitted by source
-lowering. Other widths are syntax-only for now; their eventual lowering belongs
-at the EVM IR boundary.
-Signedness belongs to operations, not integer types.
+Integer types are `i1` and byte widths `i8`, `i16`, …, `i256`. Solidity
+`uintN` and `intN` both become `iN`; signedness belongs to the operation.
+Every integer is a clean bit pattern with no set bits above its width.
+Arithmetic wraps at that width, shifts saturate, and division follows EVM's
+zero-divisor semantics. Checked Solidity arithmetic retains its explicit
+width and panic behavior.
+
+`lower-integers` legalizes narrow arithmetic and conversions to `i256` before
+EVM-shaped MIR. It materializes masks and sign extension as MIR operations,
+then `integer-cleanup` removes masks proved redundant by dominating range
+checks, and scalar passes simplify the remaining operations before stack scheduling. `i1` remains
+the branch condition type.
+
+Source bindings exposed to inline assembly use explicit `i256` carriers where
+raw upper bits must survive copies and internal calls. Typed Solidity uses
+convert these carriers to their native types. ABI and memory layout metadata
+retain signedness and storage widths independently of SSA types.
 
 Every `i1` is zero or one. Branches and select conditions require `i1`;
 compare a word with zero using `eq value, 0` or `ne value, 0` before branching.
@@ -34,7 +47,6 @@ and use `opcode source-type value to destination-type`:
 - `sext i160 value to i256` widens by copying the sign bit.
 - `ptrtoint memptr value to i256` exposes a pointer's bits; narrower results truncate.
 - `inttoptr i256 value to memptr` interprets integer bits as a pointer.
-- `bitcast memptr value to memorybytes` changes a pointer's nominal type.
 
 `trunc i256 value to i1` keeps only the low bit. Use `ne value, 0` for
 nonzero truth conversion. Pointer casts establish no validity or ownership. Phi
@@ -45,7 +57,9 @@ Every operation declares its operand contract in the operation schema. The valid
 checks those contracts, dependent result types, builtin and function signatures,
 aggregate layouts, and terminators. Phase transitions and the backend boundary run
 full validation, including SSA and constant widths. Builders emit conversion
-instructions; parsing and validation never repair mismatched types.
+instructions; parsing and validation never repair mismatched types. Optional
+result annotations such as `v0: i256 = caller` preserve the legalized type of
+producers whose default result is narrow.
 
 Solidity booleans and addresses whose raw bits can be observed by assembly travel as words
 across source-function calls, source-variable joins, and immutable storage.
@@ -72,7 +86,7 @@ or types a module may contain.
 | Representation | Contract | Main work |
 | --- | --- | --- |
 | Semantic MIR | Typed SSA, structs, slices, object references, semantic builtins, ordinary function calls; ABI and storage layouts remain explicit data. | Inline and specialize small functions, propagate constants, promote frame slots, simplify aggregates, remove redundant checks and memory/storage work. |
-| Lowered MIR | `i256`, `i160`, `i1`, and `memptr` SSA, explicit routing and ABI code, physical memory accesses, lowered call signatures, backend-supported operations. No semantic builtin or unresolved layout remains. | Simplify exposed scalar code, remove redundant loads/stores, optimize generated loops where profitable, prepare scheduling. |
+| Lowered MIR | `i256`, `i1`, and `memptr` SSA, explicit routing and ABI code, physical memory accesses, lowered call signatures, backend-supported operations. No semantic builtin or unresolved layout remains. | Simplify exposed scalar code, remove redundant loads/stores, optimize generated loops where profitable, prepare scheduling. |
 | EVM IR | Scheduled blocks with physical stack operations and explicit control transfers. | Target peepholes, sharing, outlining, layout, then assembly. |
 
 `lowered` does not mean scheduled: SSA values, phis, functions, and calls survive
@@ -104,7 +118,7 @@ fold checks that forwarding exposes. Storage PRE leaves memory reads alone to
 avoid extending pointer lifetimes. After allocation expansion, gas mode forwards
 free-memory-pointer loads within each block, discarding the cached word at other
 side effects. ABI expansion can create object operations
-and aggregate results; flatten structs before erasing object types, and keep
+and aggregate results; flatten structs before lowering memory objects, and keep
 allocation identity until placement has finished. Any newly introduced helper must pass through the remaining required
 lowerings too. Expansion must not leave a high-level operation behind merely
 because it was created after that operation's lowering pass ran.
@@ -312,7 +326,7 @@ loop allocations lose their distinct site identities after a possible pointer
 reset. Region labels describe layout and do not prove disjointness from raw
 addresses; CSE, memory DSE, and PRE require address or allocation proofs. Semantic
 object stores and copies also invalidate allocation provenance when their destination
-may reach reserved memory. An object type alone does not establish ownership. Do not
+may reach reserved memory. An object layout alone does not establish ownership. Do not
 attach heap-allocated effect records to every instruction. Unknown calls remain
 conservative; known intrinsics expose their summaries without expanding their
 implementation.
@@ -488,19 +502,18 @@ transforms justify their cost.
 
 `insert_value` and `extract_value` construct and project fixed SSA structs.
 They do not allocate storage, copy bytes, or imply an address. A slice field
-carries its pointer and length; a memory-object field carries a typed reference,
-not a copy of the referenced object.
+carries its pointer and length; a memory-object field carries a `memptr`, not a
+copy of the referenced object.
 
-A raw `i256` field can carry all bits of a nominal object reference. Keep that
-loss of type information explicit: `ptrtoint` exposes pointer bits as an
-integer; `inttoptr` gives an integer an object type without proving
-validity or ownership. Neither operation allocates or copies memory. Aggregate
-lowering inserts `ptrtoint` when a raw field contains a nominal reference;
-memory-object lowering erases object types, and later simplification removes
-redundant word casts. Alias analysis follows their unchanged addresses.
+A raw `i256` field can carry all bits of a pointer. Keep the conversion
+explicit: `ptrtoint` exposes pointer bits as an integer; `inttoptr` turns an
+integer into a `memptr` without proving validity or ownership. Neither operation
+allocates or copies memory. Field and element loads of a pointer produce a
+`memptr` directly, and later simplification removes redundant word casts. Alias
+analysis follows their unchanged addresses.
 
-The verifier checks nominal object kinds against semantic accesses, while
-retaining compatibility with raw pointer carriers during lowering. It also
+The verifier checks that semantic accesses receive pointers; the access itself
+names the object layout. It also
 checks ordinary return counts and void signatures. `ret` returns to a MIR
 caller, including for void functions; `stop` ends EVM execution even inside
 a helper. ABI lowering converts empty external returns into `stop`. A shared

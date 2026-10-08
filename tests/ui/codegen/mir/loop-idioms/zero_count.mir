@@ -1,7 +1,6 @@
 //@ compile-flags: -Ogas -Zmir-pipeline=loop-idioms
 //@ filecheck:
 @module ZeroCountLoop
-@phase lowered
 
 // CHECK-LABEL: {{^[ +].*}}fn @count_zero{{[( ]}}
 // CHECK: + [[FULL:v[0-9]+]] = and {{v[0-9]+}}, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
@@ -62,6 +61,38 @@ fn @count_zero_calldata(arg0: i256, arg1: i256) -> i256 {
   bb3:
     v6 = add v0, 1
     v13 = ne v6, 0
+    jumpi v13, bb5, bb4
+  bb4:
+    revert 0, 0
+  bb5:
+    v10 = phi [bb3: v6], [bb2: v0]
+    v11 = add v1, 1
+    jump bb1
+  bb6:
+    ret v0
+}
+
+// A narrow counter must keep its overflow failure.
+// CHECK-LABEL: {{^[ +].*}}fn @narrow_count{{[( ]}}
+// CHECK-NOT: {{^\+}}
+// CHECK: {{^ +}}revert 0, 0
+fn @narrow_count(arg0: i256, arg1: i256) -> i8 {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: i8 0], [bb5: v10]
+    v1 = phi [bb0: 0], [bb5: v11]
+    v2 = lt v1, arg1
+    jumpi v2, bb2, bb6
+  bb2:
+    v3 = add arg0, v1
+    v4 = calldataload v3
+    v5 = byte 0, v4
+    v12 = ne v5, 0
+    jumpi v12, bb5, bb3
+  bb3:
+    v6 = add v0, i8 1
+    v13 = ne v6, i8 0
     jumpi v13, bb5, bb4
   bb4:
     revert 0, 0
