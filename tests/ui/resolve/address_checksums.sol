@@ -6,4 +6,9 @@ contract C {
     // OK
     address public b = 0xB71cb1A7ab0B6Bc6c07f5A3Ef2EA36757968A121;
     address public d = 0xB71c_b1A7_ab0B_6Bc6_c07f_5A3E_f2EA_3675_7968_A121;
+
+    // Invalid underscores
+    address public e = 0xB71c_b1A7_ab0B_6Bc6_c07f_5A3E_f2EA_3675_7968_A121_; //~ ERROR: invalid use of underscores
+    address public f = 0xB71c__b1A7_ab0B_6Bc6_c07f_5A3E_f2EA_3675_7968_A121; //~ ERROR: invalid use of underscores
+    address public g = 0x_B71c_b1A7_ab0B_6Bc6_c07f_5A3E_f2EA_3675_7968_A121; //~ ERROR: invalid use of underscores
 }

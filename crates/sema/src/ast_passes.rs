@@ -60,7 +60,9 @@ impl<'sess> AstValidator<'sess, '_> {
     }
 
     fn check_underscores_in_number_literals(&self, lit: &ast::Lit<'_>) {
-        let (ast::LitKind::Number(_) | ast::LitKind::Rational(_)) = lit.kind else {
+        let (ast::LitKind::Number(_) | ast::LitKind::Rational(_) | ast::LitKind::Address(_)) =
+            lit.kind
+        else {
             return;
         };
         let value = lit.symbol.as_str();
@@ -83,6 +85,10 @@ impl<'sess> AstValidator<'sess, '_> {
             return;
         }
 
+        if value.starts_with("0x_") {
+            report("remove underscores after the `0x` prefix");
+            return;
+        }
         if value.starts_with("0x") {
             return;
         }
