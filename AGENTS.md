@@ -21,6 +21,7 @@ cargo fmt --all                        # Format
 cargo cl                               # Lint
 cargo run -- file.sol                  # Run compiler
 cargo run -- -Zhelp                    # Unstable flags help
+cargo run -p solar-mir-interp -- f.mir # Run lowered MIR in the MIR interpreter
 ```
 
 Filter tests with `cargo uitest <path-substring>` or
@@ -162,6 +163,8 @@ deliberate omissions. A one-line restatement of the name is not enough.
   - MIR passes: `tests/ui/codegen/mir/<pass-name>/` (command-line pass name).
   - `lower-abi`, `lower-dispatch`, `lower-evm-shaped`:
     `tests/ui/codegen/mir/lowering/`.
+  - Lowered MIR checked against the MIR interpreter with `run-call`:
+    `tests/ui/codegen/mir/interp/`.
   - EVM IR passes: `tests/ui/codegen/evm-ir/<pass-name>/` (`-Zevm-ir-pipeline`
     name).
   - Round-trip, pipeline, and validation tests: existing `none/`, `pipeline/`,
@@ -202,7 +205,9 @@ Other directives: `//@ compile-flags: ...`, `//@[rev] compile-flags: ...`,
   failure. See the [tester guide](tools/tester/README.md#runtime-directives)
   for settings. Use them for one isolated call; use `tests/foundry/`
   (`cargo tq foundry`) for multiple transactions, state, actors, events,
-  cheatcodes, or complex setup.
+  cheatcodes, or complex setup. Lowered `.mir` tests also run each call through
+  the MIR interpreter and name the function by signature and outputs, as in
+  `add(uint256,uint256)(uint256) 2, 3 => 5`.
 - `//@ filecheck: ARGS` runs LLVM FileCheck on the `.stdout` with `ARGS`.
 
 Use FileCheck when full snapshots are too brittle or the test checks order,

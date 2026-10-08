@@ -349,6 +349,15 @@ impl Target {
     /// a build still values its code size, and the copies grow a contract built
     /// around one loop by half or more.
     pub(crate) const LOOP_COPY_MIN_RUNS: u64 = 10_000;
+    /// Gas per word of memory, charged as memory grows (`G_memory`).
+    pub(crate) const MEMORY_WORD_GAS: u64 = 3;
+    /// Divisor of the quadratic memory charge, `words² / 512` (`G_quaddivisor`).
+    pub(crate) const MEMORY_QUADRATIC_DIVISOR: u64 = 512;
+    /// The block gas limit the compiler assumes, Ethereum mainnet's: a call that needs more gas
+    /// cannot complete in one transaction.
+    pub(crate) const BLOCK_GAS_LIMIT: u64 = 60_000_000;
+    /// Gas of an `SSTORE` that makes a zero slot nonzero (`G_sset`).
+    const SSTORE_SET_GAS: u32 = 20_000;
 
     /// The model of the session's EVM version, objective, and optimizer runs.
     pub(crate) fn new(gcx: Gcx<'_>) -> Self {
@@ -609,11 +618,64 @@ impl Target {
         }
         let edges = block.terminator.as_ref().map_or(0, |terminator| terminator.successors().len());
         for _ in 0..edges {
-            cost += self.opcode(op::PUSH2);
-            cost += self.opcode(op::JUMPI);
-            cost += self.opcode(op::JUMPDEST);
+            cost += self.branch();
         }
         cost
+    }
+
+    /// Cost of one jump to a block: the pushed label, `JUMP`, and the target's `JUMPDEST`.
+    pub(crate) fn jump(self) -> Cost {
+        self.opcode(op::PUSH2) + self.opcode(op::JUMP) + self.opcode(op::JUMPDEST)
+    }
+
+    /// Cost of one conditional jump to a block: the pushed label, `JUMPI`, and the target's
+    /// `JUMPDEST`.
+    pub(crate) fn branch(self) -> Cost {
+        self.opcode(op::PUSH2) + self.opcode(op::JUMPI) + self.opcode(op::JUMPDEST)
+    }
+
+    /// Gas of growing memory from `from_words` to `to_words` words: memory costs
+    /// [`Self::MEMORY_WORD_GAS`] per word plus the square of its words over
+    /// [`Self::MEMORY_QUADRATIC_DIVISOR`], and growth pays the difference. Staying the same size
+    /// or shrinking is free.
+    pub(crate) fn memory_expansion_gas(self, from_words: u64, to_words: u64) -> u128 {
+        let memory_gas = |words: u64| {
+            let words = u128::from(words);
+            words * u128::from(Self::MEMORY_WORD_GAS)
+                + words * words / u128::from(Self::MEMORY_QUADRATIC_DIVISOR)
+        };
+        memory_gas(to_words).saturating_sub(memory_gas(from_words))
+    }
+
+    /// Gas of one `SSTORE` writing `new` to a slot that holds `current` and held `original` when
+    /// the transaction began, before refunds. Since Istanbul, EIP-2200 charges a warm read for a
+    /// write that changes nothing or rewrites a slot the transaction already changed, and the set
+    /// or reset price for the first change; since Berlin, EIP-2929 adds the cold access surcharge
+    /// to the first access of a slot. Earlier versions charge the set price for a write that makes
+    /// a zero slot nonzero and the reset price for every other write.
+    pub(crate) fn sstore_gas(
+        self,
+        original: U256,
+        current: U256,
+        new: U256,
+        warmth: Warmth,
+    ) -> u32 {
+        if !since(self.evm_version, EvmVersion::Istanbul) {
+            return if current.is_zero() && !new.is_zero() {
+                Self::SSTORE_SET_GAS
+            } else {
+                GasTier::SStore.gas(self.evm_version)
+            };
+        }
+        let gas = if current == new || original != current {
+            GasTier::SLoad.gas_at(self.evm_version, Warmth::Warm)
+        } else if original.is_zero() {
+            Self::SSTORE_SET_GAS
+        } else {
+            GasTier::SStore.gas_at(self.evm_version, Warmth::Warm)
+        };
+        let cold = since(self.evm_version, EvmVersion::Berlin) && warmth == Warmth::Cold;
+        gas + if cold { GasTier::COLD_SLOAD_GAS } else { 0 }
     }
 
     /// Deployment-lifetime gas of `cost`: expected executions of its runtime
@@ -782,6 +844,30 @@ mod tests {
     }
 
     #[test]
+    fn storage_writes_follow_the_fork_schedule() {
+        let (zero, one, two) = (U256::ZERO, U256::from(1), U256::from(2));
+        let gas = |version, original, current, new, warmth| {
+            let target = Target::with(version, OptimizationMode::Gas, 200);
+            target.sstore_gas(original, current, new, warmth)
+        };
+        // Before Istanbul: set when a zero slot becomes nonzero, reset otherwise.
+        assert_eq!(gas(EvmVersion::Petersburg, zero, zero, one, Warmth::Cold), 20_000);
+        assert_eq!(gas(EvmVersion::Petersburg, one, one, one, Warmth::Warm), 5000);
+        assert_eq!(gas(EvmVersion::Petersburg, one, one, zero, Warmth::Warm), 5000);
+        // Istanbul: EIP-2200 net metering.
+        assert_eq!(gas(EvmVersion::Istanbul, one, one, one, Warmth::Cold), 800);
+        assert_eq!(gas(EvmVersion::Istanbul, zero, zero, one, Warmth::Cold), 20_000);
+        assert_eq!(gas(EvmVersion::Istanbul, one, one, two, Warmth::Cold), 5000);
+        assert_eq!(gas(EvmVersion::Istanbul, one, two, zero, Warmth::Warm), 800);
+        // Berlin on: EIP-2929 access surcharges.
+        assert_eq!(gas(EvmVersion::Osaka, zero, zero, one, Warmth::Cold), 22_100);
+        assert_eq!(gas(EvmVersion::Osaka, one, one, two, Warmth::Cold), 5000);
+        assert_eq!(gas(EvmVersion::Osaka, one, one, two, Warmth::Warm), 2900);
+        assert_eq!(gas(EvmVersion::Osaka, one, one, one, Warmth::Cold), 2200);
+        assert_eq!(gas(EvmVersion::Osaka, one, two, zero, Warmth::Warm), 100);
+    }
+
+    #[test]
     fn select_prices_the_emitted_sequence() {
         let target = Target::with(EvmVersion::Osaka, OptimizationMode::Gas, 200);
         assert_eq!(target.select(false), Cost::new(17, 5));
@@ -869,6 +955,23 @@ mod tests {
     }
 
     #[test]
+    fn jumps_and_memory_expansion() {
+        let target = Target::with(EvmVersion::Osaka, OptimizationMode::Gas, 200);
+        assert_eq!(target.jump(), Cost::new(12, 5));
+        assert_eq!(target.branch(), Cost::new(14, 5));
+        assert_eq!(target.memory_expansion_gas(0, 1), 3);
+        assert_eq!(target.memory_expansion_gas(0, 32), 98);
+        assert_eq!(target.memory_expansion_gas(32, 64), 102);
+        assert_eq!(target.memory_expansion_gas(64, 32), 0);
+        assert_eq!(target.memory_expansion_gas(0, 1 << 20), 2_150_629_376);
+        let top = target.memory_expansion_gas(0, u64::MAX);
+        assert_eq!(
+            top,
+            (u128::from(u64::MAX) * u128::from(u64::MAX)) / 512 + 3 * u128::from(u64::MAX)
+        );
+    }
+
+    #[test]
     fn pushes_and_stack_ops() {
         let target = Target::with(EvmVersion::Osaka, OptimizationMode::Gas, 200);
         assert_eq!(target.dup(), Cost::new(3, 1));
@@ -888,5 +991,12 @@ mod tests {
         assert!(!target(Target::LOOP_COPY_MIN_RUNS - 1).copies_loops());
         assert!(target(Target::LOOP_COPY_MIN_RUNS).copies_loops());
         assert!(target(u64::from(u32::MAX)).copies_loops());
+    }
+
+    #[test]
+    fn block_gas_limit() {
+        // llm-optimize compares rewrites on every input a call within twice this could finish.
+        assert_eq!(Target::BLOCK_GAS_LIMIT, 60_000_000);
+        assert!(Target::BLOCK_GAS_LIMIT.checked_mul(2).is_some());
     }
 }

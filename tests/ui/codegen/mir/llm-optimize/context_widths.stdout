@@ -1,0 +1,37 @@
+llm-optimize ContextWidths @main: not offered: is the dispatch entry
+llm-optimize ContextWidths @price: offered at 54 gas, 21 bytes
+llm-optimize ContextWidths @price: round 1: rejected at equivalence: the original returns 0x0, but the candidate returns 0x10000000000000000
+  on free memory pointer 0x15fc0, `gasprice` = 0x10000000000000000
+llm-optimize ContextWidths @price: round 2: nothing cheaper
+llm-optimize ContextWidths @sender: offered at 54 gas, 21 bytes
+llm-optimize ContextWidths @sender: round 1: accepted at 37 gas, 14 bytes
+llm-optimize ContextWidths @sender: round 2: nothing cheaper
+llm-optimize ContextWidths @sender: rewritten from 54 gas, 21 bytes to 37 gas, 14 bytes
+- // === ROOT/tests/ui/codegen/mir/llm-optimize/context_widths.mir (before llm-optimize) ===
++ // === ROOT/tests/ui/codegen/mir/llm-optimize/context_widths.mir (after llm-optimize) ===
+  @module ContextWidths
+  @phase lowered
+  fn @main() [entry] {
+    bb0:
+      v0 = icall @price
+      v1 = icall @sender
+      v2 = add v0, v1
+      mstore 0, v2
+      returndata 0, 32
+  }
+  
+  fn @price() -> i256 {
+    bb0:
+      v0 = gasprice
+      v1 = and v0, 0xffffffffffffffff
+      ret v1
+  }
+  
+  fn @sender() -> i256 {
+    bb0:
+      v0: i256 = caller
+-     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
+-     ret v1
++     ret v0
+  }
+  

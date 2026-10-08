@@ -22,7 +22,7 @@ Options:
       -Zdump=<KIND[,KIND...][=PATHS...]>
           Print additional information about the compiler's internal state.
           
-          Valid kinds are `ast`, `hir`, `mir`, `mir-cfg`, `evm-ir`, `evm-ir-runtime`, `disasm-deploy`, and `disasm-runtime`.
+          Valid kinds are `ast`, `hir`, `mir`, `mir-cfg`, `mir-final`, `evm-ir`, `evm-ir-runtime`, `disasm-deploy`, and `disasm-runtime`.
 
       -Zast-stats
           Print AST stats
@@ -74,6 +74,35 @@ Options:
 
       -Zassert-planned-edge-spill-home
           Assert instead of logging when a value is live across a planned stack edge into an already-emitted block without a spill home
+
+      -Zllm-optimize=<MODE>
+          Rewrite eligible functions of lowered MIR with the `llm-optimize` pass, taking rewrites from the cache (`replay`), a model (`live`), or a script (`script`). Rewrites are tested, not proved
+
+      -Zllm-cache=<DIR>
+          Directory of `llm-optimize` rewrites, read in every mode and written unless replaying
+
+      -Zllm-script=<FILE>
+          File of scripted `llm-optimize` candidates, for `-Zllm-optimize=script`
+
+      -Zllm-model=<MODEL>
+          Model that `-Zllm-optimize=live` asks, as `PROVIDER/MODEL` with provider `openai`, `anthropic`, `opencode`, or `openai-chat`; a model without a provider is an OpenAI one
+
+      -Zllm-endpoint=<URL>
+          Base URL of the API `-Zllm-optimize=live` asks, replacing its provider's
+
+      -Zllm-effort=<EFFORT>
+          Reasoning effort `-Zllm-optimize=live` asks the model for
+          
+          [possible values: none, low, medium, high, xhigh, max]
+
+      -Zllm-rounds=<N>
+          Candidates `llm-optimize` asks for per function (default: 6)
+
+      -Zllm-samples=<N>
+          Generated inputs `llm-optimize` runs each candidate on (default: 512)
+
+      -Zllm-trace
+          Print what `llm-optimize` offers, hears, and decides
 
       -Zhelp
           Print help

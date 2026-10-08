@@ -1,0 +1,47 @@
+llm-optimize EarlyEnds @main: not offered: is the dispatch entry
+llm-optimize EarlyEnds @sum: offered at 3738 gas, 91 bytes
+llm-optimize EarlyEnds @sum: round 1: rejected at equivalence: the original returns 0x32b8b965, but the candidate returns 0x2b8b964
+  on arg0 = 0x1723275bc92a8051cacaa29440b46e9ed37628248303801b4ca352e2c9a127e8, free memory pointer 0xc0
+llm-optimize EarlyEnds @sum: round 2: accepted at 1650 gas, 63 bytes
+llm-optimize EarlyEnds @sum: round 3: nothing cheaper
+llm-optimize EarlyEnds @sum: rewritten from 3738 gas, 91 bytes to 1650 gas, 63 bytes
+- // === ROOT/tests/ui/codegen/mir/llm-optimize/early_ends.mir (before llm-optimize) ===
++ // === ROOT/tests/ui/codegen/mir/llm-optimize/early_ends.mir (after llm-optimize) ===
+  @module EarlyEnds
+  @phase lowered
+  fn @main() [entry] {
+    bb0:
+      v0 = calldataload 0
+      v1 = icall @sum, v0
+      mstore 0, v1
+      returndata 0, 32
+  }
+  
+  fn @sum(arg0: i256) -> i256 {
+    bb0:
+      v0 = shr 8, arg0
+      v1 = and v0, 0xffff
+      v2 = slt arg0, 0
+      v3 = select v2, 0, v1
+      jump bb1
+    bb1:
+      v4 = phi [bb0: 0], [bb2: v7]
+-     v5 = phi [bb0: 0], [bb2: v15]
++     v5 = phi [bb0: 0], [bb2: v8]
+      v6 = lt v4, v3
+      jumpi v6, bb2, bb3
+    bb3:
+      ret v5
+    bb2:
+      v7 = add v4, 1
+      v8 = add v5, v4
+-     v9 = mul v8, 1
+-     v10 = mul v9, 1
+-     v11 = mul v10, 1
+-     v12 = mul v11, 1
+-     v13 = mul v12, 1
+-     v14 = mul v13, 1
+-     v15 = mul v14, 1
+      jump bb1
+  }
+  

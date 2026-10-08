@@ -128,7 +128,7 @@ impl<'a> Validator<'a> {
             self.validate_value_types(module, func);
             self.validate_memory_object_types(func);
         }
-        self.validate_function_phase(phase, func);
+        self.validate_function_phase(module, phase, func);
     }
 
     /// Checks arena references before any operation can query operand types.
@@ -160,6 +160,29 @@ impl<'a> Validator<'a> {
                 term.visit_operands(|value| {
                     self.validate_value_reference(func, value, num_args, block);
                 });
+            }
+        }
+        // A storage alias names its base slot like an operand, so the base must stay defined.
+        for (block, body) in func.blocks.iter_enumerated() {
+            for &id in body.instructions.iter().filter(|id| id.index() < func.num_insts()) {
+                let alias = func.inst(id).metadata.storage_alias();
+                let Some(base) = alias.and_then(|alias| alias.symbolic_base()) else { continue };
+                let defined = base.index() < func.num_values()
+                    && match func.value(base) {
+                        Value::Inst(defining) => seen.contains(*defining),
+                        Value::Arg(index) => index.index() < num_args,
+                        Value::Immediate(_) | Value::Undef(_) | Value::Error(_) => true,
+                    };
+                if !defined {
+                    self.emit_at_inst(
+                        format_args!(
+                            "storage alias names v{}, which the function does not define",
+                            base.index()
+                        ),
+                        block,
+                        id,
+                    );
+                }
             }
         }
         self.error_count == errors_before
@@ -726,6 +749,10 @@ impl<'a> Validator<'a> {
         if !module.functions.iter().any(|func| func.return_abi().is_some()) {
             return;
         }
+        self.count_return_fields(module);
+    }
+
+    fn count_return_fields(&mut self, module: &Module) {
         for (id, structure) in module.struct_types.iter_enumerated() {
             let count = structure.fields.iter().try_fold(0usize, |count, &field| {
                 let fields = match field {
@@ -1345,7 +1372,7 @@ impl<'a> Validator<'a> {
         }
     }
 
-    fn validate_function_phase(&mut self, phase: MirPhase, func: &Function) {
+    fn validate_function_phase(&mut self, module: &Module, phase: MirPhase, func: &Function) {
         if phase == MirPhase::Lowered && func.is_external_entry() && !func.attributes.is_abi_wrapper
         {
             self.emit("external entry has no explicit ABI implementation");
@@ -1379,6 +1406,28 @@ impl<'a> Validator<'a> {
                 if matches!(block.terminator, Some(crate::mir::Terminator::RevertReturndata)) {
                     self.emit_at_block(
                         "returndata bubbling survives the `lowered` phase boundary",
+                        block_id,
+                    );
+                }
+                // The backend jumps to a tail call's target and never expects it back: an
+                // internal function returns its results where its own caller reads them, not
+                // where this function's caller does. `lower-evm-shaped` forms tail calls only
+                // to functions that never return, and an external entry's return ends the
+                // transaction.
+                if let Some(Terminator::TailCall { function, .. }) = block.terminator
+                    && let Some(callee) = module.functions.get(function)
+                    && !callee.is_external_entry()
+                    && self
+                        .returning_functions
+                        .as_ref()
+                        .is_some_and(|returning| returning.contains(function))
+                {
+                    self.emit_at_block(
+                        format_args!(
+                            "tail call to returning function `{}` survives the `lowered` phase \
+                             boundary",
+                            callee.name
+                        ),
                         block_id,
                     );
                 }
@@ -1427,6 +1476,26 @@ pub(crate) fn validate_phase(
 ) -> solar_interface::Result<()> {
     let mut validator = Validator::new(dcx);
     validator.validate_module_at_phase(module, phase);
+    validator.error.map_or(Ok(()), Err)
+}
+
+/// Checks `function` against the requested phase as a replacement for function `id` of `module`.
+///
+/// Calls resolve against the rest of the module, which is not checked again.
+pub(crate) fn validate_function_at_phase(
+    dcx: &DiagCtxt,
+    module: &Module,
+    id: FunctionId,
+    function: &Function,
+    phase: MirPhase,
+) -> solar_interface::Result<()> {
+    let mut validator = Validator::new(dcx);
+    validator.returning_functions = Some(module.returning_functions());
+    if function.return_abi().is_some() {
+        validator.count_return_fields(module);
+    }
+    validator.function = Some(id);
+    validator.validate_function(module, function, phase);
     validator.error.map_or(Ok(()), Err)
 }
 

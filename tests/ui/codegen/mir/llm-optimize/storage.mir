@@ -1,0 +1,67 @@
+//@ compile-flags: -Zmir-pipeline=llm-optimize -Zllm-optimize=script -Zllm-trace --evm-version=cancun
+//@ compile-flags: -Zllm-script=../../tests/ui/codegen/mir/llm-optimize/auxiliary/storage.script
+// Storage, transient storage, logs, and context reads run in the tests, on storage and context
+// derived from each input. A candidate must leave every slot the original writes the same, write
+// no other slot, and log the same events; storage accesses cost what the slots' states cost.
+@module Storage
+@phase lowered
+fn @main() [entry] {
+  bb0:
+    v0 = calldataload 0
+    v1 = calldataload 32
+    v2 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
+    icall @credit, v2, v1
+    icall @move, v2, v1
+    icall @locked, v1
+    stop
+}
+
+fn @credit(arg0: i256, arg1: i256) {
+  bb0:
+    mstore 0, arg0
+    mstore 32, 0
+    v0 = keccak256 0, 64
+    v1 = sload v0
+    v2 = add v1, arg1
+    sstore v0, v2
+    v3 = sload v0
+    mstore 0, v3
+    log2 0, 32, 0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef, arg0
+    ret
+}
+
+fn @move(arg0: i256, arg1: i256) {
+  bb0:
+    v0: i256 = caller
+    mstore 0, v0
+    mstore 32, 0
+    v1 = keccak256 0, 64
+    v2 = sload v1
+    v3 = lt v2, arg1
+    jumpi v3, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v4 = sub v2, arg1
+    sstore v1, v4
+    mstore 0, arg0
+    v5 = keccak256 0, 64
+    v6 = sload v5
+    v7 = add v6, arg1
+    sstore v5, v7
+    ret
+}
+
+fn @locked(arg0: i256) {
+  bb0:
+    v0 = tload 0
+    v1 = ne v0, 0
+    jumpi v1, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    tstore 0, 1
+    sstore 5, arg0
+    tstore 0, 0
+    ret
+}

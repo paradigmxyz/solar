@@ -272,6 +272,40 @@ str_enum! {
     }
 }
 
+str_enum! {
+    /// Where the `llm-optimize` MIR pass takes its rewrites from.
+    #[strum(serialize_all = "kebab-case")]
+    #[non_exhaustive]
+    pub enum LlmOptimizeMode {
+        /// Only rewrites recorded in the cache, checked again before use.
+        Replay,
+        /// A model, through the installed rewriter.
+        Live,
+        /// Scripted candidates, for testing the pass.
+        Script,
+    }
+}
+
+str_enum! {
+    /// How much a model reasons before it replies to `-Zllm-optimize=live`.
+    #[strum(serialize_all = "kebab-case")]
+    #[non_exhaustive]
+    pub enum LlmEffort {
+        /// No reasoning.
+        None,
+        /// Low effort.
+        Low,
+        /// Medium effort.
+        Medium,
+        /// High effort.
+        High,
+        /// Extra-high effort.
+        Xhigh,
+        /// The most the model allows.
+        Max,
+    }
+}
+
 impl OptimizationMode {
     /// Returns whether codegen should favor bytecode size over runtime gas (`-O size`).
     #[inline]
@@ -341,6 +375,7 @@ impl Dump {
                 kind,
                 DumpKind::Mir
                     | DumpKind::MirCfg
+                    | DumpKind::MirFinal
                     | DumpKind::EvmIr
                     | DumpKind::EvmIrRuntime
                     | DumpKind::DisasmDeploy
@@ -381,6 +416,8 @@ str_enum! {
         Mir,
         /// Print MIR CFGs in DOT format.
         MirCfg,
+        /// Print the final MIR the backend compiles, which `mir` prints only when optimizing.
+        MirFinal,
         /// Print creation EVM IR.
         EvmIr,
         /// Print runtime EVM IR.

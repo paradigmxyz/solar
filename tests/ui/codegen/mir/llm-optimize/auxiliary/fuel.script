@@ -1,0 +1,90 @@
+Candidates for `fuel.mir`: a closed form that triples the sum from 8192 on without branching, the
+closed form, and the loop tripling its sum from 8192 on; for `total`, its loop without the
+redundant `mul`, tripling its sum from 60001 on, and from 2^16 on.
+
+--- function sum
+--- candidate
+fn @sum(arg0: i256) -> i256 {
+  bb0:
+    v0 = sub arg0, 1
+    v1 = mul arg0, v0
+    v2 = shr 1, v1
+    v3 = sub arg0, 8192
+    v4 = shr 255, v3
+    v5 = shl 1, v4
+    v6 = sub 3, v5
+    v7 = mul v2, v6
+    ret v7
+}
+--- candidate
+fn @sum(arg0: i256) -> i256 {
+  bb0:
+    v0 = sub arg0, 1
+    v1 = mul arg0, v0
+    v2 = shr 1, v1
+    ret v2
+}
+--- candidate
+fn @sum(arg0: i256) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb2: v3]
+    v1 = phi [bb0: 0], [bb2: v4]
+    v2 = lt v0, arg0
+    jumpi v2, bb2, bb3
+  bb2:
+    v3 = add v0, 1
+    v4 = add v1, v0
+    jump bb1
+  bb3:
+    v5 = sub arg0, 8192
+    v6 = shr 255, v5
+    v7 = shl 1, v6
+    v8 = sub 3, v7
+    v9 = mul v1, v8
+    ret v9
+}
+
+--- function total
+--- candidate
+fn @total(arg0: i256) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb2: v3]
+    v1 = phi [bb0: 0], [bb2: v4]
+    v2 = lt v0, arg0
+    jumpi v2, bb2, bb3
+  bb2:
+    v3 = add v0, 1
+    v4 = add v1, v0
+    jump bb1
+  bb3:
+    v5 = sub arg0, 60001
+    v6 = shr 255, v5
+    v7 = shl 1, v6
+    v8 = sub 3, v7
+    v9 = mul v1, v8
+    ret v9
+}
+--- candidate
+fn @total(arg0: i256) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb2: v3]
+    v1 = phi [bb0: 0], [bb2: v4]
+    v2 = lt v0, arg0
+    jumpi v2, bb2, bb3
+  bb2:
+    v3 = add v0, 1
+    v4 = add v1, v0
+    jump bb1
+  bb3:
+    v5 = shr 16, arg0
+    v6 = shl 1, v5
+    v7 = add v6, 1
+    v8 = mul v1, v7
+    ret v8
+}

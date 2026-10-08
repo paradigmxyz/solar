@@ -215,6 +215,12 @@ revision, and the `division-words` runtime benchmark measures their gas.
 
 ## Semantics and trusted boundary
 
+The compiler's own opcode semantics are checked against this model as well.
+`crates/codegen/src/backend/evm/op/word.snap` lists every pure opcode of the
+compiler's opcode table on boundary words, with results from the table's word
+semantics, and `test.py` evaluates each line with both the integer and the SMT
+word models. The definitions stay independent; they only have to agree.
+
 Three semantic memory-object address projections are modeled under the selected
 `EvmMemoryLayout` policy: payload, direct struct field, and array element
 addresses. The reader checks their field names and types against the generated

@@ -1,0 +1,15 @@
+Candidates for `storage_writes.mir` that drop a write of the value a slot already holds.
+
+--- function rewrite
+--- candidate
+fn @rewrite() {
+  bb0:
+    ret
+}
+
+--- function rewrite_transient
+--- candidate
+fn @rewrite_transient() {
+  bb0:
+    ret
+}

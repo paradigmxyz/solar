@@ -86,6 +86,21 @@ struct GeneratedCode {
     library_relocations: Vec<LibraryRelocation>,
     evm_ir: Option<ir::Module>,
     debug_info: Option<DebugInfo>,
+    dynamic_frames: Vec<DynamicFrame>,
+}
+
+/// A frame the runtime allocates at the free memory pointer on every call to a function.
+///
+/// MIR leaves frame placement to the backend, so a program can observe these frames only through
+/// the addresses its later allocations get. The final MIR dump reports them for interpreters.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DynamicFrame {
+    /// The called function's MIR name.
+    pub function: String,
+    /// Bytes the frame takes above the free memory pointer, including any heap guard.
+    pub size: u64,
+    /// Whether the caller moves the free memory pointer back to the frame's base afterwards.
+    pub restores_free_memory: bool,
 }
 
 /// Describes the stack effect of an EVM instruction.
@@ -271,6 +286,8 @@ pub struct EvmCodegen<'gcx> {
     function_spill_sizes: FxHashMap<FunctionId, u64>,
     /// Internal-call frame-size constants waiting for exact callee spill sizes.
     pending_frame_size_consts: Vec<(DeferredConst, FunctionId)>,
+    /// The resolved extent of each dynamic internal-call frame, by callee.
+    dynamic_frame_extents: FxHashMap<FunctionId, u64>,
     /// Per-function entry/exit stack signatures for non-recursive static calls. An absent plan, or
     /// an argument not selected by a plan, uses the existing static-memory convention.
     static_call_abis: FxHashMap<FunctionId, StaticCallAbi>,
@@ -409,6 +426,8 @@ pub struct EvmCodegen<'gcx> {
     capture_mir: bool,
     capture_evm_ir: bool,
     capture_debug_info: bool,
+    /// Whether the MIR pipeline runs before code generation; MIR input has already run it.
+    run_pipeline: bool,
 }
 
 impl<'gcx> EvmCodegen<'gcx> {
@@ -429,6 +448,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             cold_blocks: DenseBitSet::new_empty(0),
             function_spill_sizes: FxHashMap::default(),
             pending_frame_size_consts: Vec::new(),
+            dynamic_frame_extents: FxHashMap::default(),
             static_call_abis: FxHashMap::default(),
             disabled_stack_only_functions: DenseBitSet::new_empty(0),
             stack_returns_enabled: true,
@@ -482,6 +502,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             capture_mir: false,
             capture_evm_ir: false,
             capture_debug_info: false,
+            run_pipeline: true,
         }
     }
 
@@ -496,6 +517,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.cold_blocks.clear_to(0);
         self.function_spill_sizes.clear();
         self.pending_frame_size_consts.clear();
+        self.dynamic_frame_extents.clear();
         self.static_call_abis.clear();
         self.disabled_stack_only_functions.clear_to(module.functions.len());
         self.stack_returns_enabled = true;
@@ -615,6 +637,11 @@ impl<'gcx> EvmCodegen<'gcx> {
     pub(crate) fn set_capture_mir(&mut self, capture: bool) {
         self.capture_mir = capture;
     }
+
+    /// Controls whether the MIR pipeline runs before code generation.
+    pub(crate) fn set_run_pipeline(&mut self, run: bool) {
+        self.run_pipeline = run;
+    }
 }
 
 /// Runtime code whose EVM IR pipeline has run in the assembler, waiting for embedded bytecode.
@@ -645,6 +672,9 @@ pub struct EvmArtifact {
     pub deployment_debug_info: Option<DebugInfo>,
     /// Final runtime instruction locations.
     pub runtime_debug_info: Option<DebugInfo>,
+    /// Runtime internal calls whose frames take memory at the free memory pointer, captured
+    /// with the final MIR.
+    pub runtime_dynamic_frames: Vec<DynamicFrame>,
 }
 
 impl crate::backend::Backend for EvmCodegen<'_> {

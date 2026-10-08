@@ -13,7 +13,7 @@ use solar_config::{EvmVersion, OptimizationMode};
 
 mod codegen;
 pub(crate) use codegen::select;
-pub use codegen::{EvmArtifact, EvmCodegen};
+pub use codegen::{DynamicFrame, EvmArtifact, EvmCodegen};
 
 mod debug_info;
 pub(crate) use debug_info::DebugInfoBuilder;

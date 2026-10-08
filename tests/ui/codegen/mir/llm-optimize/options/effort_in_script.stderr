@@ -1,0 +1,2 @@
+error: `-Zllm-effort` requires `-Zllm-optimize=live`
+

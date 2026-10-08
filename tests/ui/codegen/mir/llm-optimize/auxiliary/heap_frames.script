@@ -1,0 +1,10 @@
+A candidate for `heap_frames.mir` that drops the call to `walk`, whose result `wrapper` ignores,
+which the pass never asks for, since `wrapper` is not offered.
+
+--- function wrapper
+--- candidate
+fn @wrapper(arg0: i256) -> i256 {
+  bb0:
+    v0 = mload 64
+    ret v0
+}

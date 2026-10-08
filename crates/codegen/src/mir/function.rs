@@ -610,6 +610,29 @@ impl Function {
         changed
     }
 
+    /// Drops storage aliases whose base slot no instruction defines any more.
+    ///
+    /// A key naming a deleted value is consistent only until values are renumbered, when it could
+    /// come to name another value. Readers recompute a dropped key from the slot operand.
+    pub(crate) fn drop_dangling_storage_aliases(&mut self) {
+        let mut placed = DenseBitSet::new_empty(self.num_insts());
+        for inst in self.instructions() {
+            placed.insert(inst);
+        }
+        let dangling = self
+            .instructions()
+            .filter(|&inst| {
+                let base = self.inst(inst).metadata.storage_alias().and_then(|a| a.symbolic_base());
+                base.is_some_and(|base| {
+                    matches!(self.value(base), Value::Inst(defining) if !placed.contains(*defining))
+                })
+            })
+            .collect::<Vec<_>>();
+        for inst in dangling {
+            self.inst_mut(inst).metadata.set_storage_alias(None);
+        }
+    }
+
     /// Returns stored storage-alias metadata, or computes a conservative alias key.
     #[must_use]
     pub(crate) fn storage_alias(&self, inst_id: InstId, slot: ValueId) -> StorageAlias {
@@ -640,6 +663,17 @@ impl Function {
     #[must_use]
     pub(crate) fn is_public(&self) -> bool {
         matches!(self.attributes.visibility, Visibility::Public | Visibility::External)
+    }
+
+    /// Replaces the body of this function, its argument slots, values, instructions, and blocks,
+    /// with that of `body`, which must take the same parameters. The function keeps its name,
+    /// signature, attributes, spans, and memory layout.
+    pub(crate) fn replace_body(&mut self, body: Self) {
+        debug_assert_eq!(self.params, body.params);
+        self.arg_types = body.arg_types;
+        self.values = body.values;
+        self.instructions = body.instructions;
+        self.blocks = body.blocks;
     }
 }
 

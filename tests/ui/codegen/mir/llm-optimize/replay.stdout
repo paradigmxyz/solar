@@ -1,0 +1,38 @@
+llm-optimize Replay @main: not offered: is the dispatch entry
+llm-optimize Replay @pow2: replayed, from 846 gas, 21 bytes to 52 gas, 21 bytes
+llm-optimize Replay @identity: the cached rewrite is rejected at equivalence: the original returns 0x1a0, but the candidate returns 0x1a1
+llm-optimize Replay @absent: no cached rewrite
+- // === ROOT/tests/ui/codegen/mir/llm-optimize/replay.mir (before llm-optimize) ===
++ // === ROOT/tests/ui/codegen/mir/llm-optimize/replay.mir (after llm-optimize) ===
+  @module Replay
+  @phase lowered
+  fn @main() [entry] {
+    bb0:
+      v0 = calldataload 0
+      v1 = icall @pow2, v0
+      v2 = icall @identity, v1
+      v3 = icall @absent, v2
+      mstore 0, v3
+      returndata 0, 32
+  }
+  
+  fn @pow2(arg0: i256) -> i256 {
+    bb0:
+-     v0 = exp 2, arg0
++     v0 = shl arg0, 1
+      ret v0
+  }
+  
+  fn @identity(arg0: i256) -> i256 {
+    bb0:
+      v0 = add arg0, 0
+      v1 = mul v0, 1
+      ret v1
+  }
+  
+  fn @absent(arg0: i256) -> i256 {
+    bb0:
+      v0 = add arg0, 0
+      ret v0
+  }
+  

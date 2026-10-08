@@ -1,0 +1,10 @@
+A candidate for `storage_slots.mir` that reads slot 0, which the slot `read` reads folded onto
+when storage values were drawn from a 64-bit hash of the slot.
+
+--- function read
+--- candidate
+fn @read() -> i256 {
+  bb0:
+    v0 = sload 0
+    ret v0
+}

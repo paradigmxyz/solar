@@ -1,0 +1,89 @@
+//@ compile-flags: -Zmir-pipeline=llm-optimize -Zllm-optimize=script -Zllm-trace --evm-version=cancun
+//@ compile-flags: -Zllm-script=../../tests/ui/codegen/mir/llm-optimize/auxiliary/rejections.script
+// Each function's scripted candidate fails one check, and no function changes.
+@module Rejections
+@phase lowered
+fn @main() [entry] {
+  bb0:
+    v0 = calldataload 0
+    v1 = calldataload 32
+    v2 = icall @syntax, v0
+    v3 = icall @metadata, v2
+    v4 = icall @undefined, v3
+    v5 = icall @renamed, v4
+    v6 = icall @signature, v5
+    v7 = icall @callee, v6
+    v8 = icall @validation, v7
+    v9 = icall @pressure, v8, v1
+    v10 = icall @coverage, v9
+    v11 = icall @costlier, v10
+    mstore 0, v11
+    returndata 0, 32
+}
+
+fn @helper(arg0: i256) -> i256 {
+  bb0:
+    v0 = add arg0, 1
+    ret v0
+}
+
+fn @syntax(arg0: i256) -> i256 {
+  bb0:
+    v0 = add arg0, 1
+    ret v0
+}
+
+fn @metadata(arg0: i256) -> i256 {
+  bb0:
+    v0 = add arg0, 1
+    ret v0
+}
+
+fn @undefined(arg0: i256) -> i256 {
+  bb0:
+    v0 = add arg0, 1
+    ret v0
+}
+
+fn @renamed(arg0: i256) -> i256 {
+  bb0:
+    v0 = add arg0, 1
+    ret v0
+}
+
+fn @signature(arg0: i256) -> i256 {
+  bb0:
+    v0 = add arg0, 1
+    ret v0
+}
+
+fn @callee(arg0: i256) -> i256 {
+  bb0:
+    v0 = add arg0, 1
+    ret v0
+}
+
+fn @validation(arg0: i256) -> i256 {
+  bb0:
+    v0 = add arg0, 1
+    ret v0
+}
+
+fn @pressure(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = add arg0, arg1
+    ret v0
+}
+
+fn @coverage(arg0: i256) -> i256 {
+  bb0:
+    v0 = add arg0, 1
+    v1 = mul v0, arg0
+    ret v1
+}
+
+fn @costlier(arg0: i256) -> i256 {
+  bb0:
+    v0 = add arg0, 1
+    ret v0
+}

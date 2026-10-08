@@ -1,0 +1,141 @@
+llm-optimize Rejections @main: not offered: is the dispatch entry
+llm-optimize Rejections @helper: not offered: is unreachable
+llm-optimize Rejections @syntax: offered at 52 gas, 21 bytes
+llm-optimize Rejections @syntax: round 1: rejected at parse: error: expected value reference, got `ret`
+  ╭▸ <candidate>:4:9
+  │
+4 │     ret v0
+  ╰╴        ━━
+
+
+llm-optimize Rejections @syntax: round 2: nothing cheaper
+llm-optimize Rejections @metadata: offered at 52 gas, 21 bytes
+llm-optimize Rejections @metadata: round 1: rejected at parse: error: candidates may not carry `!metadata`
+  ╭▸ <candidate>:3:22
+  │
+3 │     v0 = add arg0, 1 !metadata(effect=pure)
+  ╰╴                     ━
+
+
+llm-optimize Rejections @metadata: round 2: nothing cheaper
+llm-optimize Rejections @undefined: offered at 52 gas, 21 bytes
+llm-optimize Rejections @undefined: round 1: rejected at parse: error: candidates may not use `undef`
+  ╭▸ <candidate>:3:9
+  │
+3 │     ret undef i256
+  ╰╴        ━━━━━
+
+
+llm-optimize Rejections @undefined: round 2: nothing cheaper
+llm-optimize Rejections @renamed: offered at 52 gas, 21 bytes
+llm-optimize Rejections @renamed: round 1: rejected at constraints: renames the function to `@other`
+llm-optimize Rejections @renamed: round 2: nothing cheaper
+llm-optimize Rejections @signature: offered at 52 gas, 21 bytes
+llm-optimize Rejections @signature: round 1: rejected at constraints: changes the parameters
+llm-optimize Rejections @signature: round 2: nothing cheaper
+llm-optimize Rejections @callee: offered at 52 gas, 21 bytes
+llm-optimize Rejections @callee: round 1: rejected at constraints: calls `@helper`, which the original does not call
+llm-optimize Rejections @callee: round 2: nothing cheaper
+llm-optimize Rejections @validation: offered at 52 gas, 21 bytes
+llm-optimize Rejections @validation: round 1: rejected at validation: error: [fn8] [bb0, inst0] use of ValueId(1) precedes its definition in this block
+
+
+llm-optimize Rejections @validation: round 2: nothing cheaper
+llm-optimize Rejections @pressure: offered at 60 gas, 24 bytes
+llm-optimize Rejections @pressure: round 1: rejected at constraints: keeps 3 values live at once, more than the original's 2, which the stack may not hold
+llm-optimize Rejections @pressure: round 2: nothing cheaper
+llm-optimize Rejections @coverage: offered at 63 gas, 24 bytes
+llm-optimize Rejections @coverage: round 1: rejected at equivalence: block 1 of the candidate, counting from zero in the order written, never runs to its end in a test that does not revert
+llm-optimize Rejections @coverage: round 2: nothing cheaper
+llm-optimize Rejections @costlier: offered at 52 gas, 21 bytes
+llm-optimize Rejections @costlier: round 1: rejected at cost: costs 61 gas, 25 bytes, which does not beat 52 gas, 21 bytes
+llm-optimize Rejections @costlier: round 2: nothing cheaper
+- // === ROOT/tests/ui/codegen/mir/llm-optimize/rejections.mir (before llm-optimize) ===
++ // === ROOT/tests/ui/codegen/mir/llm-optimize/rejections.mir (after llm-optimize) ===
+  @module Rejections
+  @phase lowered
+  fn @main() [entry] {
+    bb0:
+      v0 = calldataload 0
+      v1 = calldataload 32
+      v2 = icall @syntax, v0
+      v3 = icall @metadata, v2
+      v4 = icall @undefined, v3
+      v5 = icall @renamed, v4
+      v6 = icall @signature, v5
+      v7 = icall @callee, v6
+      v8 = icall @validation, v7
+      v9 = icall @pressure, v8, v1
+      v10 = icall @coverage, v9
+      v11 = icall @costlier, v10
+      mstore 0, v11
+      returndata 0, 32
+  }
+  
+  fn @helper(arg0: i256) -> i256 {
+    bb0:
+      v0 = add arg0, 1
+      ret v0
+  }
+  
+  fn @syntax(arg0: i256) -> i256 {
+    bb0:
+      v0 = add arg0, 1
+      ret v0
+  }
+  
+  fn @metadata(arg0: i256) -> i256 {
+    bb0:
+      v0 = add arg0, 1
+      ret v0
+  }
+  
+  fn @undefined(arg0: i256) -> i256 {
+    bb0:
+      v0 = add arg0, 1
+      ret v0
+  }
+  
+  fn @renamed(arg0: i256) -> i256 {
+    bb0:
+      v0 = add arg0, 1
+      ret v0
+  }
+  
+  fn @signature(arg0: i256) -> i256 {
+    bb0:
+      v0 = add arg0, 1
+      ret v0
+  }
+  
+  fn @callee(arg0: i256) -> i256 {
+    bb0:
+      v0 = add arg0, 1
+      ret v0
+  }
+  
+  fn @validation(arg0: i256) -> i256 {
+    bb0:
+      v0 = add arg0, 1
+      ret v0
+  }
+  
+  fn @pressure(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      v0 = add arg0, arg1
+      ret v0
+  }
+  
+  fn @coverage(arg0: i256) -> i256 {
+    bb0:
+      v0 = add arg0, 1
+      v1 = mul v0, arg0
+      ret v1
+  }
+  
+  fn @costlier(arg0: i256) -> i256 {
+    bb0:
+      v0 = add arg0, 1
+      ret v0
+  }
+  

@@ -23,7 +23,7 @@ use solar_config::{
 };
 use solar_data_structures::map::FxHashMap;
 use solar_interface::{
-    SourceMap,
+    Session, SourceMap,
     diagnostics::{DiagCtxt, InMemoryEmitter, JsonEmitter, SolcDiagnostic},
     source_map::FileLoader,
 };
@@ -40,9 +40,26 @@ use std::{
 /// Compiles Standard JSON input and returns Standard JSON output.
 pub fn compile_standard_json(
     input: &str,
+    opts: CompileOpts,
+    read_callback: Option<Arc<dyn StandardJsonReadCallback>>,
+    out: &mut (dyn Write + Send),
+) -> io::Result<()> {
+    compile_standard_json_with(input, opts, read_callback, out, |_| ())
+}
+
+/// Compiles Standard JSON input like [`compile_standard_json`], first calling `prepare` with the
+/// session the compilation runs in.
+///
+/// `prepare` binds to the session what this compilation alone uses, such as the rewriter
+/// `-Zllm-optimize=live` asks, with `solar_codegen::llm::bind_rewriter`, and returns the bindings,
+/// which last until the compilation ends. Input that stops before compiling, such as input that
+/// does not parse, never reaches `prepare`.
+pub fn compile_standard_json_with<T>(
+    input: &str,
     mut opts: CompileOpts,
     read_callback: Option<Arc<dyn StandardJsonReadCallback>>,
     out: &mut (dyn Write + Send),
+    prepare: impl FnOnce(&Session) -> T,
 ) -> io::Result<()> {
     // Library callers bypass CLI argument conflicts. Only outputSelection may
     // select Standard JSON artifacts; never leak a second CLI-shaped document.
@@ -74,6 +91,7 @@ pub fn compile_standard_json(
                 dcx,
                 &diagnostics,
                 out,
+                prepare,
             );
         }
         Err(e) => {
@@ -190,13 +208,14 @@ fn apply_debug_settings(
     }
 }
 
-fn compile(
+fn compile<T>(
     input: CompilerInput<'_>,
     opts: &mut CompileOpts,
     source_map: Arc<SourceMap>,
     dcx: DiagCtxt,
     diagnostics: &solar_data_structures::sync::RwLock<Vec<solar_interface::diagnostics::Diag>>,
     out: &mut (dyn Write + Send),
+    prepare: impl FnOnce(&Session) -> T,
 ) -> io::Result<()> {
     let CompilerInput { language, sources, settings } = input;
     // Destructure `Settings` so every recognized field is handled explicitly;
@@ -290,11 +309,10 @@ fn compile(
     }
     opts.input = sources.keys().map(ToString::to_string).collect();
 
-    let sess = solar_interface::Session::builder()
-        .source_map(Arc::clone(&source_map))
-        .dcx(dcx)
-        .opts(opts.clone())
-        .build();
+    let sess =
+        Session::builder().source_map(Arc::clone(&source_map)).dcx(dcx).opts(opts.clone()).build();
+    // What the embedder binds to the session lasts until the compilation ends.
+    let _prepared = prepare(&sess);
 
     let mut output_result = None;
     let _ = crate::commands::compile::run_compiler_session_with(
@@ -388,7 +406,7 @@ fn compile(
                     // Metadata settings affect the CBOR trailer independently of
                     // the code-generation options stored in the session.
                     let metadata_identity = alloy_primitives::keccak256(format!("{metadata:?}"));
-                    make_ethdebug_compilation(gcx, Some(metadata_identity))
+                    make_ethdebug_compilation(gcx, Some(metadata_identity), bytecodes.as_ref())
                 });
                 let compilation_id = compilation.as_ref().map(EthdebugCompilation::id);
 

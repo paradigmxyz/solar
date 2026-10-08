@@ -1,0 +1,38 @@
+//@ run-call: counter()(uint256,uint256,uint256) => 2, 7, 5
+// Transient storage lasts the transaction: the calls see each other's writes, and the slots are
+// separate from persistent storage, of which the transaction writes only its slot 0.
+@module Transient
+@phase lowered
+fn @entry() [entry] {
+  bb0:
+    v0 = calldataload 0
+    v1 = shr 224, v0
+    switch v1, default bb2, [0x61bc221a => bb1]
+  bb1:
+    tail_call @counter
+  bb2:
+    revert 0, 0
+}
+
+fn @counter() [selector=0x61bc221a, abi_wrapper] {
+  bb0:
+    sstore 0, 5
+    tstore 1, 7
+    icall @bump
+    icall @bump
+    v0 = tload 0
+    v1 = tload 1
+    v2 = sload 0
+    mstore 0x80, v0
+    mstore 0xa0, v1
+    mstore 0xc0, v2
+    returndata 0x80, 0x60
+}
+
+fn @bump() {
+  bb0:
+    v0 = tload 0
+    v1 = add v0, 1
+    tstore 0, v1
+    ret
+}

@@ -1,0 +1,12 @@
+- // === ROOT/tests/ui/codegen/mir/dce/dce_storage_alias_base.mir (before dce) ===
++ // === ROOT/tests/ui/codegen/mir/dce/dce_storage_alias_base.mir (after dce) ===
+  @module DceStorageAliasBase
+  fn @store(arg0: i256, arg1: i256) {
+    bb0:
+-     v0 = add arg0, 1
+      v1 = add arg0, 2
+-     sstore v1, arg1 !metadata(storage=offset(v0, 1))
++     sstore v1, arg1
+      stop
+  }
+  
