@@ -2,8 +2,6 @@
 @module EqualImmediateScheduling_runtime
 bb0:
   callvalue
-  iszero
-  iszero
   push bb3
   jumpi
   jump bb1
@@ -34,8 +32,7 @@ bb4:
 bb5:
   push 4
   calldataload
-  iszero
-  iszero
+  dup 1
   push bb7
   jumpi
   jump bb6
@@ -50,8 +47,6 @@ bb6 [cold]:
   push 28
   revert
 bb7:
-  push 4
-  calldataload
   push 0x123456789abcde
   push 0x123456789abcde
   addmod

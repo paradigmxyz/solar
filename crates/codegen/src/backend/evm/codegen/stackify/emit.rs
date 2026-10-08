@@ -6,7 +6,10 @@ use crate::{
         assembler::Label,
         evm::{
             DebugFunctionExit,
-            codegen::{EvmCodegen, StackModel, StackOp, stack::rematerializable_nullary_value},
+            codegen::{
+                EvmCodegen, StackModel, StackOp, select::opcode_lowering,
+                stack::rematerializable_nullary_value,
+            },
             op::{self, WORD_BYTES},
         },
     },
@@ -82,6 +85,64 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.resolve_static_frames(module);
     }
 
+    /// Emits the constructor's helpers, then the constructor, which the deployment prefix
+    /// enters by jumping over the helpers. Every helper gets a fixed frame; constructor code
+    /// runs once, so the frames lie one after another above the constructor's spill area.
+    pub(super) fn emit_constructor_stackified(
+        &mut self,
+        module: &Module,
+        call_graph: &CallGraphInfo,
+        info: &ModuleInfo,
+        mut plans: IndexVec<FunctionId, Option<FunctionPlan>>,
+    ) {
+        let constructor = info.entry;
+        self.collect_empty_stop_functions(module);
+        self.runtime_stack_args = true;
+        self.static_frame_functions.insert(constructor);
+        for func_id in info.internal.iter() {
+            self.static_frame_functions.insert(func_id);
+            if call_graph.is_recursive(func_id) {
+                self.recursive_frame_functions.insert(func_id);
+            }
+            let label = self.new_function_label(func_id);
+            self.function_labels.insert(func_id, label);
+        }
+
+        // push constructor; jump; <helpers>; constructor:
+        let constructor_label = self.asm.new_label();
+        if !info.internal.is_empty() {
+            self.emit_push_label(constructor_label);
+            self.asm.emit_op(op::JUMP);
+        }
+        for func_id in info.internal.iter() {
+            let Some(plan) = plans[func_id].take() else { continue };
+            let func = &module.functions[func_id];
+            self.asm.define_label(self.function_labels[&func_id]);
+            self.mark_debug_function_invoke(func);
+            self.in_internal_function = true;
+            self.current_internal_function = Some(func_id);
+            self.emit_stackified_body(func_id, func, plan);
+            self.in_internal_function = false;
+        }
+        if !info.internal.is_empty() {
+            self.asm.define_label(constructor_label);
+        }
+        let func = &module.functions[constructor];
+        self.mark_debug_function_invoke(func);
+        self.current_internal_function = Some(constructor);
+        let plan = plans[constructor].take().expect("constructor plan");
+        self.emit_stackified_body(constructor, func, plan);
+        self.current_internal_function = None;
+
+        self.pack_scalar_static_frames(module);
+        // Allocations stay dynamic: the constructor's heap starts above its argument copy.
+        for (_, allocations) in self.pending_static_allocs.drain() {
+            for (alloc, size) in allocations {
+                self.asm.set_deferred_alloc_dynamic(alloc, U256::from(size));
+            }
+        }
+    }
+
     fn emit_stackified_body(&mut self, func_id: FunctionId, func: &Function, plan: FunctionPlan) {
         self.scheduler.reset();
         self.spill_addr_consts.clear();
@@ -89,6 +150,9 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.spill_loads.clear();
         for value in plan.spilled.iter() {
             self.scheduler.spills.reserve(value);
+        }
+        if plan.ret_spilled {
+            self.scheduler.spills.reserve(ret_slot_key(func));
         }
         self.cold_blocks = self.collect_cold_blocks(func);
         self.block_labels.clear();
@@ -322,6 +386,16 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.emit_spill_slot_addr(func, slot);
                 self.asm.emit_op(op::MSTORE);
             }
+            Step::SpillRet => {
+                // push slot; mstore
+                let slot = self.scheduler.spills.get(ret_slot_key(func)).expect("return slot");
+                self.emit_spill_slot_addr(func, slot);
+                self.asm.emit_op(op::MSTORE);
+            }
+            Step::ReloadRet => {
+                let slot = self.scheduler.spills.get(ret_slot_key(func)).expect("return slot");
+                self.emit_spill_load(func, slot);
+            }
             Step::Filler => self.asm.emit_push(U256::ZERO),
             Step::Begin(inst) => {
                 if self.capture_debug_info {
@@ -390,12 +464,28 @@ impl<'gcx> EvmCodegen<'gcx> {
                 InstKind::Sub(_, reserve) => {
                     self.emit_gas_minus(func.value_u256(*reserve).expect("constant gas reserve"));
                 }
-                _ => {
-                    let opcode = rematerializable_nullary_value(func, value)
-                        .expect("materialized instruction is a stable read");
-                    self.asm.emit_op(opcode);
+                InstKind::Zext(operand)
+                | InstKind::PtrToInt(operand, _)
+                | InstKind::IntToPtr(operand) => self.emit_materialized(func, *operand),
+                InstKind::CalldataLoad(offset) => {
+                    self.emit_materialized(func, *offset);
+                    self.asm.emit_op(op::CALLDATALOAD);
+                }
+                kind => {
+                    if let Some(opcode) = rematerializable_nullary_value(func, value) {
+                        self.asm.emit_op(opcode);
+                        return;
+                    }
+                    // A recomputed value: its operands in push order, then its opcode.
+                    let lowering =
+                        opcode_lowering(&kind.op()).expect("recomputed value has an opcode");
+                    for &operand in kind.operands().iter().rev() {
+                        self.emit_materialized(func, operand);
+                    }
+                    self.asm.emit_op(lowering.opcode());
                 }
             },
+            Value::Arg(index) if self.in_constructor => self.emit_constructor_arg_load(*index),
             Value::Arg(index) => {
                 // External arguments: push 4 + 32 * index; calldataload
                 let offset = 4 + (index.index() as u64) * WORD_BYTES as u64;
@@ -416,6 +506,8 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
             InstKind::LibraryAddress(library) => self.asm.emit_push_library(*library),
             InstKind::LoadImmutable(id) => self.emit_load_immutable(*id),
+            InstKind::ConstructorArgsBase => self.emit_constructor_args_base(),
+            InstKind::ConstructorArgsEnd => self.emit_constructor_args_end(),
             InstKind::InternalFrameAddr(offset) => self.emit_own_frame_addr(*offset),
             InstKind::DataCopy(data, ..) => {
                 // [size, dest] -> push_data data; swap1; codecopy
@@ -434,4 +526,9 @@ impl<'gcx> EvmCodegen<'gcx> {
             kind => unreachable!("instruction `{}` has no custom stack lowering", kind.mnemonic()),
         }
     }
+}
+
+/// The spill-slot key of a function's return address: one past its values.
+fn ret_slot_key(func: &Function) -> ValueId {
+    ValueId::from_usize(func.num_values())
 }

@@ -1,14 +1,14 @@
 // === ROOT/tests/ui/codegen/lowering/constructor_internal_call.sol:ConstructorICall (creation) ===
 @module ConstructorICall_deployment
 bb0:
-  push 348
+  push 190
   codesize
   sub
   dup 1
-  push 348
-  push 224
+  push 190
+  push 192
   codecopy
-  push 224
+  push 192
   add
   push 31
   add
@@ -20,102 +20,38 @@ bb0:
   callvalue
   push bb12
   jumpi
-  push 224
-  push 348
+  push 192
+  push 190
   codesize
   sub
   add
-  push 256
+  push 224
   gt
   push bb12
   jumpi
   push 7
-  push 224
+  push 192
   mload
   and
-  push 64
-  mload
-  push 160
-  mload
-  dup 2
-  push 32
-  add
-  mstore
-  dup 2
-  dup 2
-  push 64
-  add
-  mstore
-  dup 1
-  push 160
-  mstore
-  push 224
-  add
-  push 64
-  mstore
-  pop
   push bb11
   jump bb1
 bb1:
-  push 160
-  mload
-  push 64
-  add
-  mload
+  dup 2
   iszero
   push bb7
   jumpi
   push 11
-  push 160
-  mload
-  push 64
-  add
-  mload
+  dup 3
   mul
   push 0x1745d1745d1745d1745d1745d1745d1745d1745d1745d1745d1745d1745d1745
-  push 160
-  mload
-  push 64
-  add
-  mload
+  dup 4
   gt
   push bb6
   jumpi
   push 1
-  push 160
-  mload
-  push 64
-  add
-  mload
+  swap 1
+  swap 3
   sub
-  dup 2
-  push 160
-  mload
-  push 128
-  add
-  mstore
-  push 64
-  mload
-  push 160
-  mload
-  dup 2
-  push 32
-  add
-  mstore
-  dup 2
-  dup 2
-  push 64
-  add
-  mstore
-  dup 1
-  push 160
-  mstore
-  push 224
-  add
-  push 64
-  mstore
-  pop
-  pop
   push bb4
   jump bb1
 bb12 [cold]:
@@ -133,70 +69,26 @@ bb6 [cold]:
   push 28
   revert
 bb4 [continuation]:
-  push 160
-  mload
-  push 96
+  dup 3
   add
-  mload
-  push 160
-  mload
-  push 64
-  mstore
-  push 160
-  mload
-  push 32
-  add
-  mload
-  dup 1
-  push 160
-  mstore
-  push 128
-  add
-  mload
-  swap 1
-  dup 2
-  add
-  swap 1
-  dup 2
+  swap 2
+  dup 3
   lt
   push bb6
   jumpi
-  push 160
-  mload
-  push 96
-  add
-  mstore
   jump
 bb7:
+  swap 1
+  pop
   push 1
-  push 160
-  mload
-  push 96
-  add
-  mstore
+  swap 1
   jump
 bb11 [continuation]:
-  push 160
-  mload
-  push 96
-  add
-  mload
-  push 160
-  mload
-  push 64
-  mstore
-  push 160
-  mload
-  push 32
-  add
-  mload
-  push 160
-  mstore
   push 0
   sstore
   push 33
   dup 1
-  push 315
+  push 157
   push 0
   codecopy
   push 0

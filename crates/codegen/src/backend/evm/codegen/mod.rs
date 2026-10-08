@@ -12,11 +12,10 @@
 //! `frames`. The private `stack` subtree owns operand scheduling, CFG layout
 //! planning, edge transitions, and spilling.
 //!
-//! Optimized runtime code first tries the stack-resident lowering in
+//! Runtime and constructor code first try the stack-resident lowering in
 //! `stackify`, which plans each function's stack layouts ahead of emission and
 //! passes values and return addresses on the stack. The frame-backed emitter
-//! lowers unoptimized and creation code and every runtime that lowering
-//! declines.
+//! lowers every artifact that lowering declines.
 
 use self::{
     stack::{

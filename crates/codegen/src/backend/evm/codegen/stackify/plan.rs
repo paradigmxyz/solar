@@ -1,8 +1,8 @@
 //! Per-function planning: block layouts, operand preparation, shuffles, and spills.
 
 use super::{
-    BlockPlan, Edge, Exit, Fail, FunctionPlan, Layout, ModuleInfo, Operands, Slot, Step, Want,
-    argument_values, icall,
+    BlockPlan, Edge, Exit, Fail, FunctionPlan, Layout, ModuleInfo, Operands, Slot, Step, Victim,
+    Want, argument_values, icall, live_after,
     shuffle::{self, Move},
 };
 use crate::{
@@ -16,8 +16,8 @@ use crate::{
         op,
     },
     mir::{
-        ArgIdx, BlockId, EffectKind, Function, FunctionId, InstId, InstKind, Module, Terminator,
-        Value, ValueId,
+        ArgIdx, BlockId, EffectKind, Function, FunctionId, InstId, InstKind, Module, OpTraits,
+        Terminator, Value, ValueId,
         analysis::{CfgInfo, Liveness, LoopInfo},
         memory::EvmMemoryLayout,
     },
@@ -96,6 +96,9 @@ const MAX_PLACEMENT_WINDOW: usize = 4;
 /// Most dying words a result placement tries to swap with.
 const MAX_PLACEMENT_CANDIDATES: usize = 2;
 
+/// Most opcodes recomputing one value that cannot spill.
+const MAX_RECOMPUTED_OPS: u32 = 4;
+
 /// A planned function together with the layouts its loop latches would choose.
 pub(super) struct Planned {
     pub(super) plan: FunctionPlan,
@@ -115,6 +118,8 @@ pub(super) struct Planner<'a> {
     hints: &'a FxHashMap<BlockId, Layout>,
     /// Whether the function is entered with a return address.
     has_ret: bool,
+    /// Whether the return address moves to its memory slot on entry and is reloaded to return.
+    ret_spilled: bool,
     reach: usize,
     cfg: &'a CfgInfo,
     /// Values pushed fresh at each use instead of kept on the stack.
@@ -123,6 +128,9 @@ pub(super) struct Planner<'a> {
     remat_costs: IndexVec<ValueId, Cost>,
     /// Values live across a write that may overwrite spill slots; they cannot spill.
     pinned: DenseBitSet<ValueId>,
+    /// Values that stable arithmetic recomputes from fresh words, with the cost of doing so.
+    /// A pinned one of them leaves the stack this way instead of through memory.
+    recomputable: FxHashMap<ValueId, (Cost, u32)>,
     /// Instructions with no code of their own.
     skipped: FxHashSet<InstId>,
     /// Extra results of multi-word calls, adopted from the returned stack words.
@@ -173,6 +181,7 @@ impl<'a> Planner<'a> {
         liveness: &'a Liveness,
         target: Target,
         spilled: &'a DenseBitSet<ValueId>,
+        ret_spilled: bool,
         hints: &'a FxHashMap<BlockId, Layout>,
         hazards: &FxHashSet<InstId>,
         cfg: &'a CfgInfo,
@@ -342,15 +351,6 @@ impl<'a> Planner<'a> {
                 }
             }
         }
-        if func.instructions().any(|inst| {
-            matches!(
-                func.inst(inst).kind,
-                InstKind::ConstructorArgsBase | InstKind::ConstructorArgsEnd
-            )
-        }) {
-            return Err(Fail::Unsupported("constructor arguments"));
-        }
-
         // jumpi (eq x, 0) -> jumpi x with exchanged targets; jumpi (ne x, 0) -> jumpi x
         let mut conditions = FxHashMap::default();
         for (block_id, block) in func.blocks.iter_enumerated() {
@@ -421,7 +421,7 @@ impl<'a> Planner<'a> {
                 std::cmp::Reverse(order.get(value).copied().unwrap_or(usize::MAX))
             });
             let mut layout: Layout = Vec::with_capacity(words.len() + 1);
-            if has_ret {
+            if has_ret && !ret_spilled {
                 layout.push(Slot::Ret);
             }
             layout.extend(words.into_iter().map(Slot::Value));
@@ -438,29 +438,21 @@ impl<'a> Planner<'a> {
         }
         // Spill slots live in low memory, which these writes may overwrite; values live across
         // one stay on the stack.
-        let mut pinned = DenseBitSet::new_empty(func.num_values());
-        for (block, data) in func.blocks.iter_enumerated() {
-            for (index, inst) in data.instructions.iter().enumerate() {
-                if !hazards.contains(inst) {
-                    continue;
-                }
-                let mut live: FxHashSet<ValueId> = liveness.live_out(block).iter().collect();
-                if let Some(term) = &data.terminator {
-                    term.visit_operands(|value| {
-                        live.insert(value);
-                    });
-                }
-                for &later in data.instructions[index + 1..].iter().rev() {
-                    if let Some(result) = func.inst_result_value(later) {
-                        live.remove(&result);
-                    }
-                    func.inst(later).kind.visit_operands(|value| {
-                        live.insert(value);
-                    });
-                }
-                for value in live {
-                    pinned.insert(value);
-                }
+        let pinned = live_after(func, liveness, |inst| hazards.contains(&inst));
+
+        // A pinned value chosen to leave the stack is recomputed at each use.
+        let recomputable = if pinned.is_empty() {
+            FxHashMap::default()
+        } else {
+            recomputable(func, cfg, internal, target)
+        };
+        for value in spilled.iter() {
+            if pinned.contains(value)
+                && recomputable.contains_key(&value)
+                && let Value::Inst(def) = *func.value(value)
+            {
+                remat.insert(value);
+                skipped.insert(def);
             }
         }
 
@@ -491,17 +483,22 @@ impl<'a> Planner<'a> {
             spilled,
             hints,
             has_ret,
+            ret_spilled: has_ret && ret_spilled,
             reach: target.evm_version().reachable_stack_depth(),
             cfg,
             remat_costs: {
                 let mut costs = index_vec![Cost::ZERO; func.num_values()];
                 for value in remat.iter() {
-                    costs[value] = materialize_cost(func, target, value);
+                    costs[value] = match recomputable.get(&value) {
+                        Some(&(cost, _)) => cost,
+                        None => materialize_cost(func, target, value),
+                    };
                 }
                 costs
             },
             remat,
             pinned,
+            recomputable,
             skipped,
             projections,
             publish,
@@ -539,6 +536,13 @@ impl<'a> Planner<'a> {
             };
             let mut sim = Sim::new(layout);
             if block == BlockId::ENTRY {
+                if self.ret_spilled {
+                    // [args, return] -> [args]; push slot; mstore
+                    sim.stack.pop();
+                    sim.cost += StackCosts::DIRECT_STORE;
+                    sim.steps.push(Step::SpillRet);
+                    sim.observe(1);
+                }
                 self.spill_entry_arguments(&mut sim)?;
             }
             self.pop_top_junk(&mut sim)?;
@@ -559,6 +563,7 @@ impl<'a> Planner<'a> {
         let plan = FunctionPlan {
             blocks: self.blocks,
             spilled: self.spilled.clone(),
+            ret_spilled: self.ret_spilled,
             peak: self.peak,
             calls: self.calls,
             cost: self.cost,
@@ -868,6 +873,60 @@ impl<'a> Planner<'a> {
         Ok(())
     }
 
+    /// The words in this function's fixed frame that a call can overwrite before they are read
+    /// again: with a callee in this function's recursive component, the spilled values live
+    /// after the call and a spilled return address.
+    fn saved_across(
+        &self,
+        block: BlockId,
+        uses: &Uses,
+        operands: &[ValueId],
+        callee: FunctionId,
+    ) -> SmallVec<[Slot; 4]> {
+        let mut saved = SmallVec::new();
+        let component = self.info.components[self.func_id];
+        if component.is_none() || self.info.components[callee] != component {
+            return saved;
+        }
+        if self.ret_spilled {
+            saved.push(Slot::Ret);
+        }
+        for value in self.spilled.iter() {
+            if !self.remat.contains(value) && !self.dies(block, uses, operands, value) {
+                saved.push(Slot::Value(value));
+            }
+        }
+        saved
+    }
+
+    /// Stores a word saved across a call back into its slot.
+    fn restore_in_place(&self, sim: &mut Sim, slot: Slot) -> Result<(), Fail> {
+        match slot {
+            Slot::Value(value) => {
+                let depth = sim.depth_of(Slot::Saved(value)).expect("saved value");
+                if depth != 0 {
+                    self.stack_op(sim, StackOp::Swap(depth as u8))?;
+                }
+                *sim.stack.last_mut().unwrap() = Slot::Value(value);
+                self.spill_top(sim, value);
+                Ok(())
+            }
+            Slot::Ret => {
+                let depth = sim.depth_of(Slot::Ret).expect("saved return address");
+                if depth != 0 {
+                    self.stack_op(sim, StackOp::Swap(depth as u8))?;
+                }
+                // push slot; mstore
+                sim.stack.pop();
+                sim.cost += StackCosts::DIRECT_STORE;
+                sim.steps.push(Step::SpillRet);
+                sim.observe(1);
+                Ok(())
+            }
+            Slot::Junk | Slot::Saved(_) => unreachable!("only spilled words are saved"),
+        }
+    }
+
     /// Stores a spilled value from wherever it sits, leaving the rest of the stack in order.
     fn spill_in_place(&self, sim: &mut Sim, value: ValueId) -> Result<(), Fail> {
         let Some(depth) = sim.depth_of(Slot::Value(value)) else { return Ok(()) };
@@ -911,29 +970,67 @@ impl<'a> Planner<'a> {
         Ok(())
     }
 
-    /// Returns a failure for a word beyond reach, naming a value to spill.
+    /// Returns a failure for a word beyond reach, naming a value to spill. Without one, the
+    /// return address may move to memory.
     fn deep(&self, sim: &Sim, position: Option<usize>) -> Fail {
+        let victim = self.stack_victim(sim, position).or_else(|| {
+            (self.can_spill_ret() && sim.stack.contains(&Slot::Ret)).then_some(Victim::Ret)
+        });
+        Fail::Deep(victim, self.beyond_reach(sim, victim))
+    }
+
+    /// The spillable values beyond reach other than `victim`, deepest first.
+    fn beyond_reach(&self, sim: &Sim, victim: Option<Victim>) -> SmallVec<[ValueId; 8]> {
+        let end = sim.stack.len().saturating_sub(self.reach);
+        sim.stack[..end]
+            .iter()
+            .filter_map(|&slot| match slot {
+                Slot::Value(value)
+                    if self.can_spill(value) && victim != Some(Victim::Value(value)) =>
+                {
+                    Some(value)
+                }
+                _ => None,
+            })
+            .collect()
+    }
+
+    /// A spillable value at or above `position`, else anywhere on the stack.
+    fn stack_victim(&self, sim: &Sim, position: Option<usize>) -> Option<Victim> {
         let spillable = |slot: Slot| match slot {
-            Slot::Value(value) => self.can_spill(value).then_some(value),
+            Slot::Value(value) => self.can_spill(value).then_some(Victim::Value(value)),
             _ => None,
         };
         if let Some(position) = position {
-            if let Some(value) = spillable(sim.stack[position]) {
-                return Fail::Deep(Some(value));
+            if let Some(victim) = spillable(sim.stack[position]) {
+                return Some(victim);
             }
             // Spilling a word above the unreachable one brings it closer to the top.
-            if let Some(value) = sim.stack[position + 1..].iter().copied().find_map(spillable) {
-                return Fail::Deep(Some(value));
+            if let Some(victim) = sim.stack[position + 1..].iter().copied().find_map(spillable) {
+                return Some(victim);
             }
         }
-        Fail::Deep(sim.stack.iter().copied().find_map(spillable))
+        sim.stack.iter().copied().find_map(spillable)
+    }
+
+    fn can_spill_ret(&self) -> bool {
+        self.has_ret && !self.ret_spilled
     }
 
     fn can_spill(&self, value: ValueId) -> bool {
         !self.remat.contains(value)
             && !self.spilled.contains(value)
-            && !self.pinned.contains(value)
+            && (!self.pinned.contains(value) || self.leaves_without_memory(value))
             && matches!(self.func.value(value), Value::Inst(_) | Value::Arg(_))
+    }
+
+    /// Whether a spilled value is pushed fresh without its memory slot: a calldata argument
+    /// or a recomputable value.
+    fn leaves_without_memory(&self, value: ValueId) -> bool {
+        match self.func.value(value) {
+            Value::Arg(_) => !self.info.internal.contains(self.func_id),
+            _ => self.recomputable.contains_key(&value),
+        }
     }
 
     /// Pushes a fresh copy of a value that is not kept on the stack.
@@ -951,6 +1048,30 @@ impl<'a> Planner<'a> {
 
     fn is_fresh(&self, value: ValueId) -> bool {
         self.remat.contains(value) || self.spilled.contains(value)
+    }
+
+    /// Whether a word can be pushed without a stack copy.
+    fn is_fresh_slot(&self, slot: Slot) -> bool {
+        match slot {
+            Slot::Value(value) => self.is_fresh(value),
+            Slot::Ret => self.ret_spilled,
+            Slot::Junk | Slot::Saved(_) => false,
+        }
+    }
+
+    /// Pushes a fresh copy of a word that `is_fresh_slot` accepts.
+    fn fresh_slot(&self, sim: &mut Sim, slot: Slot) {
+        match slot {
+            Slot::Value(value) => self.fresh(sim, value),
+            Slot::Ret => {
+                // push slot; mload
+                sim.cost += StackCosts::DIRECT_LOAD;
+                sim.steps.push(Step::ReloadRet);
+                sim.stack.push(Slot::Ret);
+                sim.observe(1);
+            }
+            Slot::Junk | Slot::Saved(_) => unreachable!("no fresh copy"),
+        }
     }
 
     fn materialize_cost(&self, value: ValueId) -> Cost {
@@ -1207,14 +1328,32 @@ impl<'a> Planner<'a> {
 
     /// Rearranges the whole stack into `target`, bottom to top.
     fn shuffle(&self, sim: &mut Sim, target: &[Want]) -> Result<(), Fail> {
-        let fresh = |value| self.is_fresh(value);
-        let moves = shuffle::shuffle(&sim.stack, target, self.reach, &fresh)
-            .map_err(|shuffle::Unreachable(position)| self.deep(sim, position))?;
+        let fresh = |slot| self.is_fresh_slot(slot);
+        let moves = match shuffle::shuffle(&sim.stack, target, self.reach, &fresh) {
+            Ok(moves) => moves,
+            Err(shuffle::Unreachable(position)) => {
+                if let Some(victim) = self.stack_victim(sim, position) {
+                    return Err(Fail::Deep(Some(victim), self.beyond_reach(sim, Some(victim))));
+                }
+                // Nothing on the stack can make room: rebuild the target above the words
+                // already in place, or name a word that needs a slot.
+                shuffle::rebuild(&sim.stack, target, self.reach, &fresh).map_err(|slot| {
+                    let victim = match slot {
+                        Some(Slot::Value(value)) if self.can_spill(value) => {
+                            Some(Victim::Value(value))
+                        }
+                        Some(Slot::Ret) if self.can_spill_ret() => Some(Victim::Ret),
+                        _ => None,
+                    };
+                    Fail::Deep(victim, self.beyond_reach(sim, victim))
+                })?
+            }
+        };
         for mv in moves {
             match mv {
                 Move::Swap(depth) => self.stack_op(sim, StackOp::Swap(depth as u8))?,
                 Move::Dup(depth) => self.stack_op(sim, StackOp::Dup(depth as u8 + 1))?,
-                Move::Fresh(value) => self.fresh(sim, value),
+                Move::Fresh(slot) => self.fresh_slot(sim, slot),
                 Move::Filler => self.filler(sim),
                 Move::Pop => self.stack_op(sim, StackOp::Pop)?,
             }
@@ -1288,6 +1427,17 @@ impl<'a> Planner<'a> {
         let pushes = |result: Option<ValueId>| result.map_or(0, |_| 1);
 
         if let Some((callee, args)) = icall(kind) {
+            // Another activation of this function reuses its fixed frame, so the stack keeps
+            // the spilled words still needed afterwards across the call.
+            // [...] -> [..., saved]
+            let saved = self.saved_across(block, uses, &operands, callee);
+            for &slot in &saved {
+                self.fresh_slot(sim, slot);
+                if let Slot::Value(value) = slot {
+                    // Operand preparation must not consume the saved copy.
+                    *sim.stack.last_mut().unwrap() = Slot::Saved(value);
+                }
+            }
             // Arguments go in reverse, so the first argument sits just below the return address.
             let ops: Operands = args.iter().rev().copied().collect();
             self.prepare(sim, &ops, &dying)?;
@@ -1329,6 +1479,10 @@ impl<'a> Planner<'a> {
                 if self.spilled.contains(value) {
                     self.spill_in_place(sim, value)?;
                 }
+            }
+            // [saved, results] -> [results]; each saved word goes back to its slot
+            for &slot in &saved {
+                self.restore_in_place(sim, slot)?;
             }
             self.finish_inst(sim, &operands, block, uses, None)?;
             return Ok(());
@@ -1423,6 +1577,20 @@ impl<'a> Planner<'a> {
                 sim.cost += self.target.opcode(op::PUSH2);
                 sim.stack.push(result.map_or(Slot::Junk, Slot::Value));
                 sim.observe(0);
+            }
+            InstKind::ConstructorArgsBase | InstKind::ConstructorArgsEnd => {
+                // push base; [push offset; codesize; sub; add]
+                sim.steps.push(Step::Inst(inst));
+                sim.cost += self.target.opcode(op::PUSH2);
+                if matches!(kind, InstKind::ConstructorArgsEnd) {
+                    sim.cost += self
+                        .target
+                        .opcode(op::PUSH2)
+                        .plus(StackCosts::NULLARY_READ)
+                        .plus(self.target.opcode(op::SUB).plus(self.target.opcode(op::ADD)));
+                }
+                sim.stack.push(result.map_or(Slot::Junk, Slot::Value));
+                sim.observe(2);
             }
             InstKind::LoadImmutable(_) => {
                 sim.steps.push(Step::Inst(inst));
@@ -1614,7 +1782,7 @@ impl<'a> Planner<'a> {
                 Want::Value(input.map_or(value, |&(_, input)| input))
             }
             Slot::Ret => Want::Ret,
-            Slot::Junk => Want::Any,
+            Slot::Junk | Slot::Saved(_) => Want::Any,
         }));
         target
     }
@@ -1745,6 +1913,8 @@ impl<'a> Planner<'a> {
         if self.layouts[join].is_none() {
             let mut best: Option<(Cost, Layout)> = None;
             let mut candidates: Vec<Layout> = Vec::new();
+            // Without any candidate, the first edge that failed to adopt names a word to spill.
+            let mut failure = None;
             for edge in &pending {
                 if edge.side.is_some()
                     && self
@@ -1755,14 +1925,18 @@ impl<'a> Planner<'a> {
                     continue;
                 }
                 let mut sim = Sim::new(edge.stack.clone());
-                if let Ok(candidate) = self.adopt(&mut sim, edge.pred, join) {
-                    candidates.push(candidate);
+                match self.adopt(&mut sim, edge.pred, join) {
+                    Ok(candidate) => candidates.push(candidate),
+                    Err(fail) => {
+                        failure.get_or_insert(fail);
+                    }
                 }
             }
             for candidate in candidates {
                 let mut total = Cost::ZERO;
                 for other in &pending {
-                    let Some(cost) = self.edge_cost(other, join, &candidate) else {
+                    // An unreachable edge fails again below, naming a word to spill.
+                    let Ok(cost) = self.edge_cost(other, join, &candidate) else {
                         total = Cost::new(u32::MAX, u32::MAX);
                         break;
                     };
@@ -1772,8 +1946,11 @@ impl<'a> Planner<'a> {
                     best = Some((total, candidate));
                 }
             }
-            let Some((_, layout)) = best else {
-                return Err(Fail::Unsupported("join without a plannable layout"));
+            let layout = match (best, failure) {
+                (Some((_, layout)), _) => layout,
+                (None, Some(fail)) => return Err(fail),
+                // No edge proposes a layout; every edge can still rebuild a canonical one.
+                (None, None) => self.canonical_layout(join),
             };
             self.layouts[join] = Some(layout);
         }
@@ -1817,21 +1994,44 @@ impl<'a> Planner<'a> {
         Ok(())
     }
 
+    /// A join layout derived from no edge: the return address, then the join's live words and
+    /// phi results kept on the stack, by value.
+    fn canonical_layout(&self, join: BlockId) -> Layout {
+        let func = self.func;
+        let mut words: Vec<ValueId> = self.liveness.live_in(join).iter().collect();
+        for &inst in &func.blocks[join].instructions {
+            if matches!(func.inst(inst).kind, InstKind::Phi(_))
+                && let Some(result) = func.inst_result_value(inst)
+            {
+                words.push(result);
+            }
+        }
+        words.retain(|&value| !self.is_fresh(value));
+        words.sort_unstable();
+        words.dedup();
+        let mut layout = Layout::with_capacity(words.len() + 1);
+        if self.has_ret && !self.ret_spilled {
+            layout.push(Slot::Ret);
+        }
+        layout.extend(words.into_iter().map(Slot::Value));
+        layout
+    }
+
     /// Prices one recorded edge into a candidate join layout.
-    fn edge_cost(&self, edge: &Pending, join: BlockId, layout: &Layout) -> Option<Cost> {
+    fn edge_cost(&self, edge: &Pending, join: BlockId, layout: &Layout) -> Result<Cost, Fail> {
         let mut sim = Sim::new(edge.stack.clone());
         let target = self.edge_target(edge.pred, join, layout, sim.height());
         if edge.side.is_some() {
             if target.len() == sim.stack.len()
                 && target.iter().zip(&sim.stack).all(|(want, &slot)| want.accepts(slot))
             {
-                return Some(Cost::ZERO);
+                return Ok(Cost::ZERO);
             }
-            self.shuffle(&mut sim, &target).ok()?;
-            return Some(sim.cost.plus(StackCosts::EDGE_JUMP));
+            self.shuffle(&mut sim, &target)?;
+            return Ok(sim.cost.plus(StackCosts::EDGE_JUMP));
         }
-        self.shuffle(&mut sim, &target).ok()?;
-        Some(sim.cost)
+        self.shuffle(&mut sim, &target)?;
+        Ok(sim.cost)
     }
 
     /// Whether a layout from an earlier round still names exactly the successor's live words.
@@ -1847,9 +2047,9 @@ impl<'a> Planner<'a> {
             Slot::Value(value) => {
                 !self.spilled.contains(value) && (live_in.contains(value) || phis.contains(&value))
             }
-            Slot::Ret => self.has_ret,
-            Slot::Junk => true,
-        }) && (hint.contains(&Slot::Ret) == self.has_ret)
+            Slot::Ret => self.has_ret && !self.ret_spilled,
+            Slot::Junk | Slot::Saved(_) => true,
+        }) && (hint.contains(&Slot::Ret) == (self.has_ret && !self.ret_spilled))
     }
 
     /// Builds the successor's layout from the current stack, materializing phi inputs that
@@ -1891,7 +2091,7 @@ impl<'a> Planner<'a> {
                     .map(|(_, &physical)| match physical {
                         Slot::Value(value) => Want::Value(value),
                         Slot::Ret => Want::Ret,
-                        Slot::Junk => unreachable!("live view word over junk"),
+                        Slot::Junk | Slot::Saved(_) => unreachable!("live view word over junk"),
                     }),
             );
             self.shuffle(sim, &target)?;
@@ -2024,7 +2224,14 @@ impl<'a> Planner<'a> {
             let survives = other_needs
                 .iter()
                 .all(|&value| self.is_fresh(value) || target.contains(&Want::Value(value)));
+            // The fixed successor's spilled phis store their inputs on its edge.
+            let stores_survive = self.phi_inputs(block, fixed).iter().all(|&(result, input)| {
+                !self.spilled.contains(result)
+                    || self.is_fresh(input)
+                    || target.contains(&Want::Value(input))
+            });
             if survives
+                && stores_survive
                 && self.phi_inputs(block, other).iter().all(|&(r, _)| !self.spilled.contains(r))
             {
                 target.push(Want::Value(condition));
@@ -2315,6 +2522,66 @@ fn call_projection(
         }
     }
     Some(Projection { elided, extras, tracked })
+}
+
+/// Values computed by stable single-opcode arithmetic, calldata loads, and casts from words
+/// pushed fresh at no risk of change: immediates, calldata arguments, stable environment reads,
+/// and data sizes. Maps each to the cost and opcode count of recomputing it, at most
+/// [`MAX_RECOMPUTED_OPS`] opcodes.
+fn recomputable(
+    func: &Function,
+    cfg: &CfgInfo,
+    internal: bool,
+    target: Target,
+) -> FxHashMap<ValueId, (Cost, u32)> {
+    let leaf = |value: ValueId| match func.value(value) {
+        Value::Immediate(_) | Value::Undef(_) => true,
+        Value::Arg(_) => !internal,
+        Value::Inst(inst) => {
+            rematerializable_nullary_value(func, value).is_some()
+                || matches!(func.inst(*inst).kind, InstKind::DataSize(_))
+        }
+        _ => false,
+    };
+    let mut values = FxHashMap::default();
+    // Operands are defined before their users in reverse postorder; phis never qualify.
+    for &block in cfg.rpo() {
+        for &inst in &func.blocks[block].instructions {
+            let kind = &func.inst(inst).kind;
+            let Some(result) = func.inst_result_value(inst) else { continue };
+            let (mut cost, mut ops) = match kind {
+                InstKind::Zext(_) | InstKind::PtrToInt(..) | InstKind::IntToPtr(_) => {
+                    (Cost::ZERO, 0)
+                }
+                InstKind::CalldataLoad(_) => (target.opcode(op::CALLDATALOAD), 1),
+                _ => {
+                    let def = kind.op_def();
+                    if !def.traits.contains(OpTraits::REMATERIALIZABLE)
+                        || def.effect != EffectKind::Pure
+                    {
+                        continue;
+                    }
+                    let Some(lowering) = opcode_lowering(&kind.op()) else { continue };
+                    (target.opcode(lowering.opcode()), 1)
+                }
+            };
+            let computable = kind.operands().iter().all(|&operand| {
+                if leaf(operand) {
+                    cost += materialize_cost(func, target, operand);
+                } else if let Some(&(operand_cost, operand_ops)) = values.get(&operand) {
+                    cost += operand_cost;
+                    ops += operand_ops;
+                } else {
+                    return false;
+                }
+                true
+            });
+            if computable && ops <= MAX_RECOMPUTED_OPS {
+                values.insert(result, (cost, ops));
+            }
+        }
+    }
+    values
 }
 
 /// The cost of pushing a value that is materialized at its use.

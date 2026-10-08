@@ -419,10 +419,6 @@ impl<'gcx> EvmCodegen<'gcx> {
                 .map(|func_id| heap_prefix.guard(func_id, &module.functions[func_id]))
                 .max()
                 .unwrap_or(0);
-            for func_id in &internal_targets {
-                let label = self.new_function_label(func_id);
-                self.function_labels.insert(func_id, label);
-            }
 
             // Constructor locals, immutable staging, and spills occupy fixed
             // compiler-owned regions. The ABI blob starts after their exact
@@ -467,38 +463,48 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.asm.emit_push(U256::from(EvmMemoryLayout::FMP_SLOT));
             self.asm.emit_op(op::MSTORE);
 
-            if !internal_targets.is_empty() {
-                let constructor_entry = self.asm.new_label();
-                self.emit_push_label(constructor_entry);
-                self.asm.emit_op(op::JUMP);
-
-                for (func_id, func) in module.functions.iter_enumerated() {
-                    if !internal_targets.contains(func_id) {
-                        continue;
-                    }
-                    let label = self.function_labels[&func_id];
-                    self.asm.define_label(label);
-                    self.mark_debug_function_invoke(func);
-                    self.in_internal_function = true;
-                    self.generate_function_body(func_id, func);
-                    self.in_internal_function = false;
-                    self.record_function_spill_size(func_id);
-                }
-
-                self.asm.define_label(constructor_entry);
-            }
-
-            // Generate the constructor body (which includes SSTORE for
-            // initializers). Every ordinary completion jumps to one label so
-            // branch layout cannot strand the deployment postlude behind a
-            // non-final STOP.
+            // Every ordinary completion of the constructor body (which includes SSTORE for
+            // initializers) jumps to one label so branch layout cannot strand the deployment
+            // postlude behind a non-final STOP.
             let constructor_exit = self.asm.new_label();
             self.constructor_exit = Some(constructor_exit);
-            self.mark_debug_function_invoke(ctor);
-            self.generate_function_body(ctor_id, ctor);
-            let constructor_spill_size = self.record_function_spill_size(ctor_id);
-            let fixed_memory_end =
+            let stackified = self.try_emit_constructor_stackified(module, call_graph, ctor_id);
+            if !stackified {
+                for func_id in &internal_targets {
+                    let label = self.new_function_label(func_id);
+                    self.function_labels.insert(func_id, label);
+                }
+                if !internal_targets.is_empty() {
+                    let constructor_entry = self.asm.new_label();
+                    self.emit_push_label(constructor_entry);
+                    self.asm.emit_op(op::JUMP);
+
+                    for (func_id, func) in module.functions.iter_enumerated() {
+                        if !internal_targets.contains(func_id) {
+                            continue;
+                        }
+                        let label = self.function_labels[&func_id];
+                        self.asm.define_label(label);
+                        self.mark_debug_function_invoke(func);
+                        self.in_internal_function = true;
+                        self.generate_function_body(func_id, func);
+                        self.in_internal_function = false;
+                        self.record_function_spill_size(func_id);
+                    }
+
+                    self.asm.define_label(constructor_entry);
+                }
+                self.mark_debug_function_invoke(ctor);
+                self.generate_function_body(ctor_id, ctor);
+                self.record_function_spill_size(ctor_id);
+            }
+            let constructor_spill_size = self.function_spill_size(ctor_id);
+            let mut fixed_memory_end =
                 self.constructor_fixed_memory_end(module.immutable_count(), constructor_spill_size);
+            if stackified {
+                // The helpers' fixed frames follow the constructor's spill area.
+                fixed_memory_end = self.place_constructor_static_frames(module, fixed_memory_end);
+            }
             if fixed_memory_end.checked_add(heap_guard).is_none() {
                 self.gcx
                     .dcx()
@@ -510,7 +516,7 @@ impl<'gcx> EvmCodegen<'gcx> {
 
             self.resolve_pending_frame_size_consts(module, |_| heap_guard);
 
-            if !self.stack_prefixes_fit_from(module, ctor_id, MAX_STACK_DEPTH) {
+            if !stackified && !self.stack_prefixes_fit_from(module, ctor_id, MAX_STACK_DEPTH) {
                 self.report_stack_limit_error();
             }
 

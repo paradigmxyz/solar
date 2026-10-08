@@ -6,9 +6,9 @@ bb0:
   sub
   dup 1
   push 190
-  push 320
+  push 288
   codecopy
-  push 320
+  push 288
   add
   push 31
   add
@@ -20,7 +20,7 @@ bb0:
   callvalue
   push bb6
   jumpi
-  push 320
+  push 288
   dup 1
   push 190
   codesize
@@ -55,17 +55,17 @@ bb0:
   shl
   push bb6
   jumpi
-  push 320
+  push 288
   mload
   push 192
   mstore
   push 255
-  push 352
+  push 320
   mload
   and
   push 224
   mstore
-  push 384
+  push 352
   mload
   push 256
   mstore

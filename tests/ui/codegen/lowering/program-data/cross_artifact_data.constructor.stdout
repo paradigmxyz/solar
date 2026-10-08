@@ -4,7 +4,7 @@
   literal_0: hex"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 
 bb0:
-  push 288
+  push 192
   push 64
   mstore
   callvalue
@@ -52,11 +52,10 @@ bb0:
   push 32
   dup 6
   add
-  dup 2
-  dup 7
-  add
   push 0
-  swap 1
+  dup 3
+  dup 8
+  add
   mstore
   dup 3
   swap 1
@@ -64,15 +63,13 @@ bb0:
   mstore
   dup 5
   add
-  dup 2
-  dup 5
-  dup 7
-  mcopy
-  swap 3
-  pop
-  pop
+  swap 1
   swap 2
-  pop
+  swap 3
+  swap 1
+  swap 4
+  mcopy
+  swap 1
   sub
   push 31
   dup 2
@@ -93,7 +90,7 @@ bb0:
   log1
   push 247
   dup 1
-  push 379
+  push 375
   push 0
   codecopy
   push 0

@@ -147,7 +147,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     }
 
     /// Returns the exact spill area recorded for `func_id` after emission.
-    fn function_spill_size(&self, func_id: FunctionId) -> u64 {
+    pub(in crate::backend::evm::codegen) fn function_spill_size(&self, func_id: FunctionId) -> u64 {
         self.function_spill_sizes.get(&func_id).copied().unwrap_or_else(|| {
             panic!("spill size for emitted function {func_id:?} was not recorded")
         })
@@ -419,6 +419,34 @@ impl<'gcx> EvmCodegen<'gcx> {
         let id = self.asm.new_deferred_const();
         self.static_frame_addr_consts.insert((func_id, offset), (id, 1));
         id
+    }
+
+    /// Places the referenced fixed frames of constructor code one after another from `base`,
+    /// resolves their addresses, and returns their end. Constructor code runs once, so its
+    /// frames are not overlaid.
+    pub(in crate::backend::evm::codegen) fn place_constructor_static_frames(
+        &mut self,
+        module: &Module,
+        base: u64,
+    ) -> u64 {
+        let mut placed: Vec<FunctionId> =
+            self.static_frame_addr_consts.keys().map(|&(func_id, _)| func_id).collect();
+        placed.sort_unstable();
+        placed.dedup();
+        let mut bases = FxHashMap::default();
+        let mut end = base;
+        for func_id in placed {
+            bases.insert(func_id, end);
+            end = end
+                .checked_add(self.emitted_frame_size(module, func_id))
+                .expect("constructor static frame span overflow");
+        }
+        // frame[offset] -> absolute(frame_base + offset)
+        for (&(func_id, offset), &(id, _)) in &self.static_frame_addr_consts {
+            self.asm.set_deferred_const(id, U256::from(bases[&func_id] + offset));
+        }
+        self.static_frame_addr_consts.clear();
+        end
     }
 
     /// Total emitted frame size of `func_id`, including its exact spill area.

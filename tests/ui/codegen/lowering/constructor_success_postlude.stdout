@@ -6,9 +6,9 @@ bb0:
   sub
   dup 1
   push 72
-  push 224
+  push 192
   codecopy
-  push 224
+  push 192
   add
   push 31
   add
@@ -20,7 +20,7 @@ bb0:
   callvalue
   push bb5
   jumpi
-  push 224
+  push 192
   dup 1
   push 72
   codesize
@@ -37,7 +37,7 @@ bb0:
   lt
   push bb5
   jumpi
-  push 224
+  push 192
   mload
   push bb5
   jumpi
