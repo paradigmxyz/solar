@@ -63,7 +63,9 @@ The command line supports `live` when the compiler is built with its `llm` featu
 | `openai-chat/MODEL`     | OpenAI's chat completions at `https://api.openai.com/v1`               | `OPENAI_API_KEY`       |
 
 The key goes only to the provider's client. `-Zllm-endpoint` replaces the base URL, for a proxy or
-another server that speaks the same API. The compiler warns that `live` sends the MIR of every
+another server that speaks the same API, and every request then goes there: OpenAI models, which
+nanocodex asks over a WebSocket by default, are asked over HTTPS at the endpoint instead. The
+compiler warns that `live` sends the MIR of every
 offered function to the provider, or to the host `-Zllm-endpoint` names, and ends with a note of
 the turns, tokens, and estimated cost it spent.
 

@@ -405,6 +405,27 @@ fn ask(model: &str, effort: &str, key: &str, reply: fn(&Value) -> Value) -> (Out
     (output, requests)
 }
 
+/// With `-Zllm-endpoint`, an OpenAI model is asked at the endpoint, over HTTPS rather than
+/// nanocodex's default WebSocket, whose URL the endpoint does not set.
+#[cfg(feature = "llm")]
+#[test]
+fn openai_endpoint() {
+    let (url, requests) = serve(|_| json!({"error": {"message": "stand-in"}}), 0, false);
+    let endpoint = format!("-Zllm-endpoint={url}");
+    let output = build(
+        &["-Zllm-optimize=live", "-Zllm-model=openai/gpt-6-sol", &endpoint],
+        Some("OPENAI_API_KEY"),
+    );
+    // A model that fails never fails the build.
+    runtime(&output);
+    let requests = requests.lock().unwrap();
+    assert!(!requests.is_empty(), "{}", String::from_utf8_lossy(&output.stderr));
+    for request in requests.iter() {
+        assert_eq!(request.path, "/v1/responses");
+        assert_eq!(request.header("authorization"), Some("Bearer test-key"));
+    }
+}
+
 #[cfg(feature = "llm")]
 #[test]
 fn anthropic_rewrites() {

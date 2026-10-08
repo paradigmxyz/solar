@@ -73,8 +73,9 @@ use wire::Transcript;
 
 #[cfg(feature = "llm")]
 use nanocodex::{
-    AgentEvents, Model, Nanocodex, OpenAi, Thinking, Tools, agent::ExecutionEnvironment,
-    oai::events::AgentEventKind,
+    AgentEvents, Model, Nanocodex, OpenAi, Thinking, Tools,
+    agent::ExecutionEnvironment,
+    oai::{events::AgentEventKind, transport::ResponsesTransport},
 };
 #[cfg(feature = "llm")]
 use serde_json::Value;
@@ -324,7 +325,10 @@ impl Installed {
                 let client = async move {
                     let mut builder = OpenAi::builder(key);
                     if let Some(endpoint) = endpoint {
-                        builder = builder.api_base_url(endpoint);
+                        // nanocodex asks over a WebSocket by default, whose URL the API base does
+                        // not set: over HTTPS, every request goes to the endpoint.
+                        builder =
+                            builder.api_base_url(endpoint).transport(ResponsesTransport::Https);
                     }
                     builder.build()
                 };
