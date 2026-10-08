@@ -4,11 +4,12 @@
 //! reply as they stream in, what the turn used, and the verdict on each candidate. Each line names
 //! its module and function, so conversations that run at once interleave by whole lines: streamed
 //! text waits for the end of its line, or for the model to switch between reasoning and reply.
-//! Reasoning is marked `┆` and the reply `│`. Nothing is printed when diagnostics are
-//! machine-readable.
+//! Reasoning is marked `┆` and the reply `│`. Control characters and the marks that reorder text
+//! are printed as escapes, so a reply cannot steer the terminal. Nothing is printed when
+//! diagnostics are machine-readable.
 
 use super::wire::Delta;
-use std::{fmt, io::Write, sync::Mutex};
+use std::{borrow::Cow, fmt, io::Write, sync::Mutex};
 
 /// One conversation's lines on stderr.
 pub(super) struct Voice {
@@ -74,9 +75,32 @@ impl Voice {
     }
 }
 
-/// Writes `line` to stderr in one piece, so concurrent lines never mix.
+/// Writes `line` to stderr in one piece, so concurrent lines never mix, with what a terminal would
+/// act on escaped: lines quote the model's replies, and a reply must not be able to move the
+/// cursor, change colors, or hide text.
 fn print_line(line: &str) {
-    let _ = writeln!(std::io::stderr().lock(), "{line}");
+    let _ = writeln!(std::io::stderr().lock(), "{}", printable(line));
+}
+
+/// Returns `text` with every character a terminal acts on rather than shows written as its
+/// escape: the control characters other than tabs, and the marks that reorder text around them.
+fn printable(text: &str) -> Cow<'_, str> {
+    let acts = |c: char| {
+        (c.is_control() && c != '\t')
+            || matches!(c, '\u{061c}' | '\u{200e}' | '\u{200f}' | '\u{202a}'..='\u{202e}' | '\u{2066}'..='\u{2069}')
+    };
+    if !text.chars().any(acts) {
+        return Cow::Borrowed(text);
+    }
+    let mut escaped = String::with_capacity(text.len());
+    for c in text.chars() {
+        if acts(c) {
+            escaped.extend(c.escape_unicode());
+        } else {
+            escaped.push(c);
+        }
+    }
+    Cow::Owned(escaped)
 }
 
 #[cfg(test)]
@@ -101,5 +125,14 @@ mod tests {
         assert_eq!(*voice.pending.lock().unwrap(), ("two".to_string(), false));
         voice.flush();
         assert!(voice.pending.lock().unwrap().0.is_empty());
+    }
+
+    #[test]
+    fn terminal_controls_are_escaped() {
+        assert!(matches!(printable("plain\ttext │ ┆"), Cow::Borrowed("plain\ttext │ ┆")));
+        assert_eq!(
+            printable("ok\x1b[2J\x1b]0;title\x07\r\u{9b}31m\u{202e}desrever\u{2066}"),
+            "ok\\u{1b}[2J\\u{1b}]0;title\\u{7}\\u{d}\\u{9b}31m\\u{202e}desrever\\u{2066}"
+        );
     }
 }
