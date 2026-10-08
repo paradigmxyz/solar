@@ -22,7 +22,8 @@ ignored; keep it short.
   the storage and transient storage slots the original writes, leave each of them with the value
   the original leaves, and log the same events, in the same order, with the same topics and data.
   Storage holds unknown values, and context reads such as `caller` return unknown values that stay
-  the same within a call.
+  the same within a call. Only addresses are known to fit 160 bits: a gas price, chain ID,
+  timestamp, or amount of ether may be any word.
 - Calls: call only functions the original calls.
 
 Never write `!metadata(...)`, `undef`, or numeric function references such as `fn3`.

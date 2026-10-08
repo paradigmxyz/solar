@@ -49,8 +49,10 @@
 //! Each input also has a world derived from its seed, which answers storage and context reads: a
 //! storage slot or context value is zero, a small number, a constant, one of the input's
 //! arguments, the caller, or a random word, cut to the width the value has on chain, such as 160
-//! bits for addresses. Each read draws from a hash of the seed and the whole slot or operands, so
-//! that no two slots share their draws. Transient storage is zero more often, as every
+//! bits for addresses. Only addresses keep their width everywhere: the EVM bounds no other value,
+//! so a quarter of the worlds, and every probe, answer the rest with whole words. Each read draws
+//! from a hash of the seed and the whole slot or operands, so that no two slots share their
+//! draws. Transient storage is zero more often, as every
 //! transaction starts it empty. The tests answer no reads of code sizes or hashes: a rewrite
 //! changes the contract's own code, and with it what such reads return on chain.
 //!
@@ -956,6 +958,8 @@ impl<'t> World<'t> {
     /// which the opcode salts.
     const STORAGE_SALT: u64 = 0x100;
     const TRANSIENT_SALT: u64 = 0x101;
+    /// Salts the choice of the worlds whose context reads answer with whole words.
+    const WIDTH_SALT: u64 = 0x102;
 
     fn new(input: &'t Input, palette: &'t [U256]) -> Self {
         let (seed, args, focus) = (input.world, &input.args[..], input.focus);
@@ -974,12 +978,21 @@ impl<'t> World<'t> {
         if lane(&digest, 2).is_multiple_of(2) { U256::ZERO } else { self.draw(&digest, true) }
     }
 
-    /// Returns what context read `opcode` returns for `operands`, cut to the width the value has
-    /// on chain: 160 bits for addresses, 64 for block numbers, times, limits, and prices, and 128
-    /// for amounts of ether.
+    /// Returns what context read `opcode` returns for `operands`. Addresses have 160 bits, as the
+    /// EVM returns them. Block numbers, times, limits, and prices fit 64 bits on chain, and amounts
+    /// of ether 128, so most worlds cut them to that width, where checked arithmetic on them
+    /// succeeds. The EVM does not bound them, though, and the compiler relies on no such width,
+    /// so a quarter of the worlds, and every focused read, answer them with whole words.
     fn context_word(&self, opcode: u8, operands: &[U256]) -> U256 {
+        let digest = self.digest(u64::from(opcode), operands);
+        // Storage may hold the caller, which context values do not draw, keeping draws finite.
+        let (word, focused) = match self.focused(&digest) {
+            Some(word) => (word, true),
+            None => (self.drawn(&digest, false), false),
+        };
         let bits = match opcode {
             op::ADDRESS | op::ORIGIN | op::CALLER | op::COINBASE => 160,
+            _ if focused || mix64(self.seed ^ Self::WIDTH_SALT).is_multiple_of(4) => 256,
             op::TIMESTAMP
             | op::NUMBER
             | op::GASLIMIT
@@ -991,9 +1004,7 @@ impl<'t> World<'t> {
             op::CALLVALUE | op::BALANCE | op::SELFBALANCE => 128,
             _ => 256,
         };
-        // Storage may hold the caller, which context values do not draw, keeping draws finite.
-        let digest = self.digest(u64::from(opcode), operands);
-        self.draw(&digest, false) & (U256::MAX >> (256 - bits))
+        word & (U256::MAX >> (256 - bits))
     }
 
     /// Hashes the world's seed, `salt`, and every bit of `words`, so that reads of different
@@ -1009,15 +1020,20 @@ impl<'t> World<'t> {
         hasher.finalize()
     }
 
-    /// Returns the word drawn for a read hashed to `digest`: zero, a small number, a constant, an
-    /// argument, the caller when `caller` is set, or a random word, unless the input focuses the
-    /// read on its word.
+    /// Returns the word for a read hashed to `digest`: the input's focused word, or a drawn one.
     fn draw(&self, digest: &B256, caller: bool) -> U256 {
-        if let Some(Focus { word, share }) = self.focus
-            && lane(digest, 1).is_multiple_of(share)
-        {
-            return word;
-        }
+        self.focused(digest).unwrap_or_else(|| self.drawn(digest, caller))
+    }
+
+    /// Returns the input's focused word when it answers the read hashed to `digest`.
+    fn focused(&self, digest: &B256) -> Option<U256> {
+        let Focus { word, share } = self.focus?;
+        lane(digest, 1).is_multiple_of(share).then_some(word)
+    }
+
+    /// Returns the word drawn for a read hashed to `digest`: zero, a small number, a constant, an
+    /// argument, the caller when `caller` is set, or a random word.
+    fn drawn(&self, digest: &B256, caller: bool) -> U256 {
         let pick = lane(digest, 0);
         let rest = pick >> 4;
         let choose = |words: &[U256]| words[(rest % words.len() as u64) as usize];

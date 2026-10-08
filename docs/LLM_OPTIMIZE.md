@@ -208,8 +208,10 @@ nested objects.
 Each input also has a world derived from its seed, which answers storage, transient storage, and
 context reads: zero, a small number, a constant, one of the input's arguments, the caller, or a
 random word, cut to the width the value has on chain, such as 160 bits for an address or 64 for
-a timestamp. Each read draws from a hash of the seed and the whole slot or operands, so no two
-slots share their draws. Transient storage is zero more often, as every transaction starts it
+a timestamp. Only addresses keep their width everywhere: the EVM bounds no other value, and the
+compiler relies on no such bound, so a quarter of the worlds, and every probe, answer the rest
+with whole words. Each read draws from a hash of the seed and the whole slot or operands, so no
+two slots share their draws. Transient storage is zero more often, as every transaction starts it
 empty. A slot reads the same value throughout a run, and writes are kept until the run ends.
 
 Probes then put each constant in each argument and, for functions that use storage or their
