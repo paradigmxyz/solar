@@ -89,10 +89,11 @@ impl<'sess> AstValidator<'sess, '_> {
         if value.contains("._") || value.contains("_.") {
             report("remove underscores in front of the fraction part");
         }
-        if value.contains("_e") || value.contains("_E") {
+        // Like solc, accept underscores next to an uppercase `E` exponent.
+        if value.contains("_e") {
             report("remove underscores at the end of the mantissa");
         }
-        if value.contains("e_") || value.contains("E_") {
+        if value.contains("e_") {
             report("remove underscores in front of the exponent");
         }
     }
