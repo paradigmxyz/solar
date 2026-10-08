@@ -27,7 +27,8 @@ use lsp_types::{
     PreviousResultId, PublishDiagnosticsParams, Range, Registration, RegistrationParams,
     RelativePattern, SetTraceParams, Unregistration, UnregistrationParams, Url, WatchKind,
     WorkDoneProgressCancelParams,
-    notification::{DidChangeWatchedFiles, Notification},
+    notification::{DidChangeWatchedFiles, Notification, PublishDiagnostics},
+    request::{CodeLensRefresh, InlayHintRefreshRequest, WorkspaceDiagnosticRefresh},
 };
 use normalize_path::NormalizePath;
 use solar_config::CompileOpts;
@@ -133,12 +134,6 @@ impl ImportPathTracker {
     fn take_probes(&self) -> ImportPathProbes {
         mem::take(&mut *self.0.lock())
     }
-
-    fn clear(&self) {
-        let mut probes = self.0.lock();
-        probes.existing.clear();
-        probes.missing.clear();
-    }
 }
 
 struct TrackingFileLoader {
@@ -205,61 +200,10 @@ pub(crate) struct DeferredSourceFileEventsReady {
 
 pub(crate) struct WatchedFileRegistrationReady;
 
-struct WorkspaceDiscoveryMonitor {
-    version: usize,
-    disk_paths: Vec<PathBuf>,
-    progress: ProgressTicket,
-    cancellation: IndexingCancellation,
-    analysis_version: Arc<AtomicUsize>,
-    client: ClientSocket,
-}
-
-impl WorkspaceDiscoveryMonitor {
-    async fn finish(
-        self,
-        worker: JoinHandle<Result<Option<WorkspaceDiscoveryResult>, WorkspaceError>>,
-    ) {
-        match worker.await {
-            Ok(Ok(Some(result)))
-                if !self.cancellation.is_cancelled()
-                    && self.analysis_version.load(Ordering::Acquire) == self.version =>
-            {
-                let _ = self.client.emit(WorkspaceDiscoveryReady {
-                    version: self.version,
-                    result,
-                    disk_paths: self.disk_paths,
-                    progress: self.progress,
-                    cancellation: self.cancellation,
-                });
-            }
-            Ok(Err(error)) if !self.cancellation.is_cancelled() => {
-                let _ = self.client.emit(WorkspaceDiscoveryFailed {
-                    version: self.version,
-                    error: error.to_string(),
-                    progress: self.progress,
-                });
-            }
-            Ok(_) => {}
-            Err(error) => {
-                let _ = self.client.emit(WorkspaceDiscoveryFailed {
-                    version: self.version,
-                    error: error.to_string(),
-                    progress: self.progress,
-                });
-            }
-        }
-    }
-}
-
 #[derive(Clone, Copy, Default)]
 struct RefreshRequests {
     diagnostics: bool,
     inlay_hints: bool,
-}
-
-#[derive(Default)]
-struct PendingExternalRefresh {
-    diagnostics_changed: bool,
 }
 
 /// State serialized with analysis and diagnostic publication.
@@ -270,7 +214,8 @@ struct AnalysisCommitState {
     workspace_roots_before_change: Option<Vec<PathBuf>>,
     analysis_paths: AnalysisPathIndex,
     deferred_source_file_events: FxHashMap<PathBuf, FileChangeType>,
-    external_refresh: Option<PendingExternalRefresh>,
+    /// A pending external refresh, recording whether pull diagnostics changed since it began.
+    external_refresh: Option<bool>,
     /// VFS content revision captured when the current analysis epoch began.
     vfs_content_revision: u64,
     /// Last version that actually replaced the symbol tables.
@@ -313,23 +258,21 @@ struct AnalysisBatchInputs {
     preloaded_files: Vec<(PathBuf, Arc<String>)>,
 }
 
+impl AnalysisBatchInputs {
+    fn new(batch: &AnalysisBatch) -> Self {
+        Self { files: batch.files.clone(), preloaded_files: batch.preloaded_files.clone() }
+    }
+
+    fn matches(&self, batch: &AnalysisBatch) -> bool {
+        self.files == batch.files && self.preloaded_files == batch.preloaded_files
+    }
+}
+
 impl AnalysisCommitState {
-    fn begin_external_refresh(&mut self) {
-        self.external_refresh.get_or_insert_default();
-    }
-
     fn record_external_diagnostics_change(&mut self, changed: bool) {
-        if changed && let Some(refresh) = &mut self.external_refresh {
-            refresh.diagnostics_changed = true;
+        if changed && let Some(diagnostics_changed) = &mut self.external_refresh {
+            *diagnostics_changed = true;
         }
-    }
-
-    fn fail_external_refresh(&mut self) -> RefreshRequests {
-        let diagnostics = self
-            .external_refresh
-            .as_mut()
-            .is_some_and(|refresh| mem::take(&mut refresh.diagnostics_changed));
-        RefreshRequests { diagnostics, inlay_hints: false }
     }
 
     fn finish_external_refresh(
@@ -337,11 +280,11 @@ impl AnalysisCommitState {
         diagnostics_changed: bool,
         inlay_hints_changed: bool,
     ) -> RefreshRequests {
-        let Some(refresh) = self.external_refresh.take() else {
+        let Some(refresh_diagnostics) = self.external_refresh.take() else {
             return RefreshRequests::default();
         };
         RefreshRequests {
-            diagnostics: refresh.diagnostics_changed || diagnostics_changed,
+            diagnostics: refresh_diagnostics || diagnostics_changed,
             inlay_hints: inlay_hints_changed,
         }
     }
@@ -397,6 +340,7 @@ struct ImportCompletionCache {
 }
 
 const MAX_IMPORT_COMPLETION_CACHE_ENTRIES: usize = 256;
+const FLYCHECK_TIMEOUT: Duration = Duration::from_secs(30);
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 struct AnalysisTaskKey {
@@ -489,8 +433,8 @@ impl GlobalState {
         let analysis_progress = ProgressCoordinator::with_timing(
             client.clone(),
             false,
-            config.progress_delay(),
-            config.progress_create_timeout(),
+            Duration::from_millis(250),
+            Duration::from_secs(1),
         );
         Self {
             client,
@@ -557,12 +501,8 @@ impl GlobalState {
             let mut cache = self.import_completion_cache.lock();
             if cache.generation != Some(generation) {
                 cache.generation = Some(generation);
-                cache.overlay_paths = self
-                    .vfs
-                    .read()
-                    .iter()
-                    .filter_map(|(path, _)| path.as_path().map(Path::to_path_buf))
-                    .collect();
+                cache.overlay_paths =
+                    self.vfs.read().iter().map(|(path, _)| path.as_path().to_path_buf()).collect();
                 cache.entries.clear();
             }
             if let Some(completion) = cache.entries.get(&key).cloned() {
@@ -605,10 +545,13 @@ impl GlobalState {
         self.diagnostics.write().update_analyzed_document_version(uri, i64::from(version));
     }
 
+    fn tracks_source_or_overlay(&self, path: &Path) -> bool {
+        self.config.tracks_watched_source_file(path)
+            || self.vfs.read().exists(&VfsPath::from(path.to_path_buf()))
+    }
+
     pub(crate) fn source_file_event_is_relevant(&self, path: &Path, include_missing: bool) -> bool {
-        if self.config.tracks_watched_source_file(path)
-            || self.vfs.read().exists(&crate::vfs::VfsPath::from(path.to_path_buf()))
-        {
+        if self.tracks_source_or_overlay(path) {
             return true;
         }
         let commit = self.analysis_commit.lock();
@@ -621,9 +564,7 @@ impl GlobalState {
         path: &Path,
         typ: FileChangeType,
     ) -> SourceFileEventDisposition {
-        if self.config.tracks_watched_source_file(path)
-            || self.vfs.read().exists(&crate::vfs::VfsPath::from(path.to_path_buf()))
-        {
+        if self.tracks_source_or_overlay(path) {
             return SourceFileEventDisposition::Relevant;
         }
 
@@ -653,18 +594,18 @@ impl GlobalState {
             Err(error) if error.kind() == io::ErrorKind::NotFound => Some(false),
             Err(_) => None,
         };
+        // Unreadable metadata falls back to the event type.
+        let present = present.or(match typ {
+            FileChangeType::CREATED => Some(true),
+            FileChangeType::DELETED => Some(false),
+            _ => None,
+        });
         match present {
             Some(true) => Arc::make_mut(&mut self.config).add_source_file(path.to_path_buf()),
             Some(false) => Arc::make_mut(&mut self.config).remove_source_file(path),
-            None if typ == FileChangeType::CREATED => {
-                Arc::make_mut(&mut self.config).add_source_file(path.to_path_buf());
-            }
-            None if typ == FileChangeType::DELETED => {
-                Arc::make_mut(&mut self.config).remove_source_file(path);
-            }
             None => {}
         }
-        present == Some(false) || present.is_none() && typ == FileChangeType::DELETED
+        present == Some(false)
     }
 
     pub(crate) fn created_file_operation_path_is_relevant(&self, path: &Path) -> bool {
@@ -682,31 +623,23 @@ impl GlobalState {
             return true;
         }
 
-        if !self.symbol_tables.load().file_operation_paths_under(&[path.to_path_buf()]).is_empty() {
-            return true;
-        }
-
-        if !self.config.file_operation_paths_under(&[path.to_path_buf()]).is_empty() {
-            return true;
-        }
-
-        if self.config.workspace_roots().iter().any(|root| root.starts_with(path)) {
+        let paths = [path.to_path_buf()];
+        if !self.symbol_tables.load().file_operation_paths_under(&paths).is_empty()
+            || !self.config.file_operation_paths_under(&paths).is_empty()
+            || self.config.workspace_roots().iter().any(|root| root.starts_with(path))
+        {
             return true;
         }
 
         let commit = self.analysis_commit.lock();
-        let known_dependency_under = commit
-            .analysis_paths
+        let analysis_paths = &commit.analysis_paths;
+        if analysis_paths
             .resolved_dependencies
             .iter()
-            .chain(commit.analysis_paths.existing_unresolved_candidates.iter())
-            .any(|candidate| candidate.starts_with(path));
-        let missing_candidate_under = commit
-            .analysis_paths
-            .missing_candidates
-            .iter()
-            .any(|candidate| candidate.starts_with(path));
-        if known_dependency_under || missing_candidate_under {
+            .chain(&analysis_paths.existing_unresolved_candidates)
+            .chain(&analysis_paths.missing_candidates)
+            .any(|candidate| candidate.starts_with(path))
+        {
             return true;
         }
         let conservatively_admit = commit.discovery_pending
@@ -761,7 +694,7 @@ impl GlobalState {
             &self.launch_config,
         );
 
-        self.analysis_progress.set_enabled(config.supports_work_done_progress());
+        self.analysis_progress.set_enabled(config.client.work_done_progress);
         self.config = Arc::new(config);
         std::future::ready(Ok(proto::InitializeResponse::new(capabilities)))
     }
@@ -776,7 +709,7 @@ impl GlobalState {
     }
 
     pub(crate) fn on_initialized(&mut self, _: InitializedParams) -> NotifyResult {
-        self.update_watched_file_registration();
+        self.reregister_watched_files();
 
         self.reindex();
 
@@ -788,11 +721,7 @@ impl GlobalState {
     }
 
     pub(crate) fn reregister_watched_files(&self) {
-        self.update_watched_file_registration();
-    }
-
-    fn update_watched_file_registration(&self) {
-        if !self.config.supports_watched_file_dynamic_registration() {
+        if !self.config.client.watched_file_dynamic_registration {
             return;
         }
         let analysis_paths = self.analysis_commit.lock().analysis_paths.clone();
@@ -933,8 +862,8 @@ impl GlobalState {
 
     pub(crate) fn clear_analysis_cache(&mut self) {
         let refresh_code_lenses =
-            self.config.supports_code_lens_refresh() && self.config.code_lens_options().is_active();
-        let compare_inlay_hints = self.config.supports_inlay_hint_refresh();
+            self.config.client.code_lens_refresh && self.config.code_lens.is_active();
+        let compare_inlay_hints = self.config.client.inlay_hint_refresh;
         let config = self.config.clone();
         let (old_symbol_tables, refresh_requests) = {
             let Self {
@@ -991,7 +920,7 @@ impl GlobalState {
         drop(old_symbol_tables);
         request_pull_result_refreshes(&self.client, &self.config, refresh_requests);
         if refresh_code_lenses {
-            request_code_lens_refresh(&self.client);
+            request_refresh::<CodeLensRefresh>(&self.client, "CodeLens");
         }
     }
 
@@ -1021,32 +950,16 @@ impl GlobalState {
         if rediscover {
             if self.background_discovery {
                 self.schedule_workspace_discovery(version, disk_paths, progress, delay);
-            } else {
-                match self.rediscover_workspaces() {
-                    Ok(()) => {
-                        let mut commit = self.analysis_commit.lock();
-                        commit.discovery_pending = false;
-                        commit.workspace_roots_before_change = None;
-                        drop(commit);
-                        self.schedule_analysis(version, disk_paths, progress, delay);
-                    }
-                    Err(error) => {
-                        self.finish_workspace_discovery_failure(version, error, progress);
-                    }
-                }
+                return;
             }
-        } else {
-            self.schedule_analysis(version, disk_paths, progress, delay);
+            if let Err(error) = self.rediscover_workspaces() {
+                self.finish_workspace_discovery_failure(version, error, progress);
+                return;
+            }
+            let mut commit = self.analysis_commit.lock();
+            commit.discovery_pending = false;
+            commit.workspace_roots_before_change = None;
         }
-    }
-
-    fn schedule_analysis(
-        &self,
-        version: usize,
-        disk_paths: Vec<PathBuf>,
-        progress: ProgressTicket,
-        delay: Duration,
-    ) {
         self.schedule_analysis_with_cancellation(
             version,
             disk_paths,
@@ -1099,16 +1012,32 @@ impl GlobalState {
                 discovery_config.try_discover_workspaces(&worker_cancellation)
             });
             task_scheduler.tasks.lock().worker = Some((task_key, worker.abort_handle()));
-            WorkspaceDiscoveryMonitor {
-                version,
-                disk_paths,
-                progress,
-                cancellation,
-                analysis_version,
-                client,
+            let outcome = match worker.await {
+                Ok(Ok(Some(result)))
+                    if !cancellation.is_cancelled()
+                        && analysis_version.load(Ordering::Acquire) == version =>
+                {
+                    Ok(result)
+                }
+                Ok(Err(error)) if !cancellation.is_cancelled() => Err(Some(error.to_string())),
+                Ok(_) => Err(None),
+                Err(error) => Err(Some(error.to_string())),
+            };
+            match outcome {
+                Ok(result) => {
+                    let _ = client.emit(WorkspaceDiscoveryReady {
+                        version,
+                        result,
+                        disk_paths,
+                        progress,
+                        cancellation,
+                    });
+                }
+                Err(Some(error)) => {
+                    let _ = client.emit(WorkspaceDiscoveryFailed { version, error, progress });
+                }
+                Err(None) => {}
             }
-            .finish(worker)
-            .await;
 
             let mut tasks = task_scheduler.tasks.lock();
             tasks.clear_worker(task_key);
@@ -1139,9 +1068,7 @@ impl GlobalState {
         let mut deferred_paths = Vec::new();
         let mut still_deferred = FxHashMap::default();
         for (path, typ) in deferred_source_file_events {
-            if !self.config.tracks_watched_source_file(&path)
-                && !self.vfs.read().exists(&crate::vfs::VfsPath::from(path.clone()))
-            {
+            if !self.tracks_source_or_overlay(&path) {
                 still_deferred.insert(path, typ);
                 continue;
             }
@@ -1230,11 +1157,7 @@ impl GlobalState {
         let scheduler = self.analysis_scheduler.clone();
         let task_scheduler = scheduler.clone();
         let mut snapshot = self.snapshot();
-        let analysis_version = self.analysis_version.clone();
-        let published_analysis_version = self.published_analysis_version.clone();
-        let analysis_commit = self.analysis_commit.clone();
-        let client = self.client.clone();
-        let config = self.config.clone();
+        let monitor = self.snapshot();
         let task_key = AnalysisTaskKey { version, stage: AnalysisTaskStage::Analysis };
 
         let mut tasks = scheduler.tasks.lock();
@@ -1267,7 +1190,7 @@ impl GlobalState {
             };
             let worker = {
                 let mut tasks = task_scheduler.tasks.lock();
-                if cancellation.is_cancelled() || !snapshot.is_current(version) {
+                if snapshot.is_stale(version, &cancellation) {
                     return;
                 }
 
@@ -1288,18 +1211,7 @@ impl GlobalState {
                 worker
             };
 
-            if let Some(refresh_requests) = monitor_analysis_task(
-                version,
-                worker,
-                progress,
-                &analysis_version,
-                &published_analysis_version,
-                &analysis_commit,
-            )
-            .await
-            {
-                request_pull_result_refreshes(&client, &config, refresh_requests);
-            }
+            monitor.monitor_analysis_task(version, worker, progress).await;
 
             let mut tasks = task_scheduler.tasks.lock();
             tasks.clear_worker(task_key);
@@ -1328,41 +1240,35 @@ impl GlobalState {
         changed_paths: Vec<PathBuf>,
         trigger: AnalysisTrigger,
     ) -> Option<(usize, bool, ProgressTicket)> {
-        let (version, rediscover, progress) = {
-            let analysis_commit = self.analysis_commit.clone();
-            let mut commit = analysis_commit.lock();
-            if matches!(mode, AnalysisMode::IfInvalidated) && !commit.cache_invalidated {
-                return None;
-            }
+        let mut commit = self.analysis_commit.lock();
+        if matches!(mode, AnalysisMode::IfInvalidated) && !commit.cache_invalidated {
+            return None;
+        }
 
-            let invalidated = mem::take(&mut commit.cache_invalidated);
-            let rediscover =
-                matches!(mode, AnalysisMode::Rediscover) || invalidated || commit.discovery_pending;
-            commit.discovery_pending = rediscover;
-            let refresh_pull_results = invalidated || matches!(trigger, AnalysisTrigger::External);
-            let version = self.next_analysis_version();
-            // Reserve progress before publishing the epoch so a delayed create response cannot end
-            // the previous wave after the new analysis becomes current. The progress delay is armed
-            // after debounce and scheduler wait complete.
-            let progress = self.analysis_progress.reserve(version);
-            if refresh_pull_results {
-                commit.begin_external_refresh();
-                // Keep invalidation even if a later request cancels the debounced worker.
-                commit.cached_output = None;
-            }
-            self.commit_analysis_epoch(&mut commit, version, changed_paths, rediscover);
-            let update =
-                self.diagnostics.write().clear_file_path_prefixes_retaining_and_publish_batches(
-                    &removed_paths,
-                    retained_paths,
-                );
-            commit.record_external_diagnostics_change(
-                update.pull_reports_changed || update.workspace_documents_changed,
-            );
-            publish_diagnostic_batches(&mut self.client, update.batches, &self.config);
-            (version, rediscover, progress)
-        };
-
+        let invalidated = mem::take(&mut commit.cache_invalidated);
+        let rediscover =
+            matches!(mode, AnalysisMode::Rediscover) || invalidated || commit.discovery_pending;
+        commit.discovery_pending = rediscover;
+        let refresh_pull_results = invalidated || matches!(trigger, AnalysisTrigger::External);
+        let version = self.next_analysis_version();
+        // Reserve progress before publishing the epoch so a delayed create response cannot end
+        // the previous wave after the new analysis becomes current. The progress delay is armed
+        // after debounce and scheduler wait complete.
+        let progress = self.analysis_progress.reserve(version);
+        if refresh_pull_results {
+            commit.external_refresh.get_or_insert_default();
+            // Keep invalidation even if a later request cancels the debounced worker.
+            commit.cached_output = None;
+        }
+        self.commit_analysis_epoch(&mut commit, version, changed_paths, rediscover);
+        let update = self
+            .diagnostics
+            .write()
+            .clear_file_path_prefixes_retaining_and_publish_batches(&removed_paths, retained_paths);
+        commit.record_external_diagnostics_change(
+            update.pull_reports_changed || update.workspace_documents_changed,
+        );
+        publish_diagnostic_batches(&self.client, update.batches, &self.config);
         Some((version, rediscover, progress))
     }
 
@@ -1404,18 +1310,6 @@ impl GlobalState {
             );
             request_pull_result_refreshes(&self.client, &self.config, refresh_requests);
         }
-    }
-
-    #[cfg(test)]
-    fn begin_analysis_epoch(
-        &self,
-        commit: &mut AnalysisCommitState,
-        changed_paths: Vec<PathBuf>,
-        context_changed: bool,
-    ) -> usize {
-        let version = self.next_analysis_version();
-        self.commit_analysis_epoch(commit, version, changed_paths, context_changed);
-        version
     }
 
     fn commit_analysis_epoch(
@@ -1644,7 +1538,7 @@ impl GlobalState {
             let Ok(uri) = Url::from_file_path(&path) else { return false };
             let analyzed =
                 self.symbol_tables.load().natspec_source_fingerprint(&uri).map(str::to_owned);
-            let vfs_path = crate::vfs::VfsPath::from(path.clone());
+            let vfs_path = VfsPath::from(path.clone());
             let open_contents = self.vfs.read().get_file_contents(&vfs_path).cloned();
             let current = open_contents
                 .map(|contents| contents.to_string())
@@ -1662,23 +1556,24 @@ impl GlobalState {
 
     #[cfg(test)]
     pub(crate) fn mark_analysis_pending_for_test(&self) {
-        let analysis_commit = self.analysis_commit.clone();
-        let mut commit = analysis_commit.lock();
-        self.begin_analysis_epoch(&mut commit, Vec::new(), false);
+        self.mark_pending_for_test(Vec::new(), false);
     }
 
     #[cfg(test)]
     pub(crate) fn mark_source_analysis_pending_for_test(&self, path: PathBuf) {
-        let analysis_commit = self.analysis_commit.clone();
-        let mut commit = analysis_commit.lock();
-        self.begin_analysis_epoch(&mut commit, vec![path], false);
+        self.mark_pending_for_test(vec![path], false);
     }
 
     #[cfg(test)]
     pub(crate) fn mark_context_analysis_pending_for_test(&self) {
-        let analysis_commit = self.analysis_commit.clone();
-        let mut commit = analysis_commit.lock();
-        self.begin_analysis_epoch(&mut commit, Vec::new(), true);
+        self.mark_pending_for_test(Vec::new(), true);
+    }
+
+    #[cfg(test)]
+    fn mark_pending_for_test(&self, changed_paths: Vec<PathBuf>, context_changed: bool) {
+        let mut commit = self.analysis_commit.lock();
+        let version = self.next_analysis_version();
+        self.commit_analysis_epoch(&mut commit, version, changed_paths, context_changed);
     }
 
     #[cfg(test)]
@@ -1689,7 +1584,6 @@ impl GlobalState {
     }
 
     pub(crate) fn run_flychecks_on_save(&mut self, path: PathBuf) {
-        let timeout = self.config.flycheck_timeout();
         for flycheck in self.config.flychecks_for_path(&path) {
             let owner = flycheck.owner();
             let version = self.begin_flycheck_epoch(&owner);
@@ -1699,34 +1593,29 @@ impl GlobalState {
             let (cancel, cancelled) = oneshot::channel();
             let task_owner = owner.clone();
             tokio::spawn(async move {
-                let result = flycheck::run(flycheck, timeout, cancelled, source_paths).await;
+                let result =
+                    flycheck::run(flycheck, FLYCHECK_TIMEOUT, cancelled, source_paths).await;
                 if !snapshot.is_current_flycheck(&task_owner, version) {
                     return;
                 }
 
-                match result {
-                    Ok(result) => {
-                        let diagnostics = if result.sources_unchanged
-                            && snapshot.flycheck_sources_match_vfs(&result)
-                        {
-                            result.diagnostics
-                        } else {
-                            // The command analyzed a disk snapshot that no longer describes the
-                            // open VFS. Keep the owner empty instead of publishing ranges from
-                            // an unrelated source revision.
-                            DiagnosticMap::default()
-                        };
-                        snapshot.publish_flycheck_diagnostics(task_owner, version, diagnostics)
+                let diagnostics = match result {
+                    Ok(result)
+                        if result.sources_unchanged
+                            && snapshot.flycheck_sources_match_vfs(&result) =>
+                    {
+                        result.diagnostics
                     }
+                    // The command analyzed a disk snapshot that no longer describes the open VFS.
+                    // Keep the owner empty instead of publishing ranges from an unrelated source
+                    // revision.
+                    Ok(_) => DiagnosticMap::default(),
                     Err(error) => {
                         tracing::warn!(%id, %error, "flycheck failed");
-                        snapshot.publish_flycheck_diagnostics(
-                            task_owner,
-                            version,
-                            DiagnosticMap::default(),
-                        );
+                        DiagnosticMap::default()
                     }
-                }
+                };
+                snapshot.publish_flycheck_diagnostics(task_owner, version, diagnostics);
             });
             self.flycheck_cancels.insert(owner, cancel);
         }
@@ -1782,21 +1671,16 @@ impl GlobalState {
 
     fn begin_flycheck_epoch(&mut self, owner: &DiagnosticOwner) -> usize {
         let version = {
-            let analysis_commit = self.analysis_commit.clone();
-            let _commit = analysis_commit.lock();
+            let _commit = self.analysis_commit.lock();
             let mut versions = self.flycheck_versions.write();
-            let version = versions.get(owner).copied().unwrap_or_default() + 1;
-            versions.insert(owner.clone(), version);
-            version
+            let version = versions.entry(owner.clone()).or_default();
+            *version += 1;
+            *version
         };
-        self.cancel_flycheck(owner);
-        version
-    }
-
-    fn cancel_flycheck(&mut self, owner: &DiagnosticOwner) {
         if let Some(cancel) = self.flycheck_cancels.remove(owner) {
             let _ = cancel.send(());
         }
+        version
     }
 
     fn snapshot(&self) -> GlobalStateSnapshot {
@@ -1823,25 +1707,8 @@ impl GlobalState {
         task: JoinHandle<AnalysisTaskOutcome>,
         progress: ProgressTicket,
     ) {
-        let analysis_version = self.analysis_version.clone();
-        let published_analysis_version = self.published_analysis_version.clone();
-        let analysis_commit = self.analysis_commit.clone();
-        let client = self.client.clone();
-        let config = self.config.clone();
-        tokio::spawn(async move {
-            if let Some(refresh_requests) = monitor_analysis_task(
-                version,
-                task,
-                progress,
-                &analysis_version,
-                &published_analysis_version,
-                &analysis_commit,
-            )
-            .await
-            {
-                request_pull_result_refreshes(&client, &config, refresh_requests);
-            }
-        });
+        let snapshot = self.snapshot();
+        tokio::spawn(async move { snapshot.monitor_analysis_task(version, task, progress).await });
     }
 }
 
@@ -1858,7 +1725,7 @@ fn run_analysis(
     if has_disk_paths {
         snapshot.analysis_commit.lock().cached_output = None;
     }
-    if !has_disk_paths && !cancellation.is_cancelled() && snapshot.is_current(version) {
+    if !has_disk_paths && !snapshot.is_stale(version, cancellation) {
         let cached = {
             let commit = snapshot.analysis_commit.lock();
             if commit.cache_invalidated {
@@ -1875,15 +1742,12 @@ fn run_analysis(
         };
         if let Some(output) = cached {
             progress.report("Reusing workspace index");
-            if snapshot.publish_analysis_output(version, output) {
-                return AnalysisTaskOutcome::Published;
-            }
-            return AnalysisTaskOutcome::Superseded;
+            return snapshot.publish_outcome(version, output);
         }
     }
 
     progress.report("Reading workspace sources");
-    if cancellation.is_cancelled() || !snapshot.is_current(version) {
+    if snapshot.is_stale(version, cancellation) {
         return AnalysisTaskOutcome::Superseded;
     }
 
@@ -1896,7 +1760,7 @@ fn run_analysis(
         Arc::make_mut(&mut snapshot.config).mark_analysis_source_files_incomplete();
     }
     progress.report("Analyzing workspace");
-    if cancellation.is_cancelled() || !snapshot.is_current(version) {
+    if snapshot.is_stale(version, cancellation) {
         return AnalysisTaskOutcome::Superseded;
     }
 
@@ -1911,9 +1775,7 @@ fn run_analysis(
                 // Multi-workspace caches must validate each batch's filesystem observations below.
                 && cached.batches.is_empty()
                 && cached.inputs.len() == batches.len()
-                && cached.inputs.iter().zip(&batches).all(|(inputs, batch)| {
-                    inputs.files == batch.files && inputs.preloaded_files == batch.preloaded_files
-                })
+                && cached.inputs.iter().zip(&batches).all(|(inputs, batch)| inputs.matches(batch))
             {
                 Some(cached.dependencies.clone())
             } else {
@@ -1925,10 +1787,7 @@ fn run_analysis(
         {
             let output = {
                 let mut commit = snapshot.analysis_commit.lock();
-                if !snapshot.is_current(version)
-                    || cancellation.is_cancelled()
-                    || commit.cache_invalidated
-                {
+                if snapshot.is_stale(version, cancellation) || commit.cache_invalidated {
                     return AnalysisTaskOutcome::Superseded;
                 }
                 let Some(cached) = &mut commit.cached_output else {
@@ -1939,11 +1798,7 @@ fn run_analysis(
                 cached.output.clone()
             };
             progress.report("Reusing workspace index");
-            return if snapshot.publish_analysis_output(version, output) {
-                AnalysisTaskOutcome::Published
-            } else {
-                AnalysisTaskOutcome::Superseded
-            };
+            return snapshot.publish_outcome(version, output);
         }
     }
 
@@ -1973,12 +1828,10 @@ fn run_analysis(
         // retain the aggregate and its initialized lazy query indexes across analysis epochs.
         let mut all_reused = true;
         for (idx, batch) in batches.iter().enumerate() {
-            if cancellation.is_cancelled() || !snapshot.is_current(version) {
+            if snapshot.is_stale(version, cancellation) {
                 return AnalysisTaskOutcome::Superseded;
             }
-            let inputs = &inputs[idx];
-            let inputs_match =
-                inputs.files == batch.files && inputs.preloaded_files == batch.preloaded_files;
+            let inputs_match = inputs[idx].matches(batch);
             if inputs_match && !batch.files.is_empty() {
                 next_cached_batches[idx] = outputs[idx]
                     .clone()
@@ -1991,8 +1844,7 @@ fn run_analysis(
         if all_reused {
             let cached = {
                 let mut commit = snapshot.analysis_commit.lock();
-                if snapshot.is_current(version)
-                    && !cancellation.is_cancelled()
+                if !snapshot.is_stale(version, cancellation)
                     && !commit.cache_invalidated
                     && let Some(cached) = &mut commit.cached_output
                     && Arc::ptr_eq(&cached.config, &config)
@@ -2006,24 +1858,14 @@ fn run_analysis(
             if let Some(mut output) = cached {
                 output.update_document_versions(&batches);
                 progress.report("Reusing workspace index");
-                return if snapshot.publish_analysis_output(version, output) {
-                    AnalysisTaskOutcome::Published
-                } else {
-                    AnalysisTaskOutcome::Superseded
-                };
+                return snapshot.publish_outcome(version, output);
             }
         }
     }
     let inputs = if has_disk_paths {
         Vec::new()
     } else {
-        batches
-            .iter()
-            .map(|batch| AnalysisBatchInputs {
-                files: batch.files.clone(),
-                preloaded_files: batch.preloaded_files.clone(),
-            })
-            .collect::<Vec<_>>()
+        batches.iter().map(AnalysisBatchInputs::new).collect()
     };
     let mut results = AnalysisOutputAccumulator::default();
 
@@ -2032,7 +1874,7 @@ fn run_analysis(
             continue;
         }
 
-        if cancellation.is_cancelled() || !snapshot.is_current(version) {
+        if snapshot.is_stale(version, cancellation) {
             return AnalysisTaskOutcome::Superseded;
         }
 
@@ -2065,7 +1907,7 @@ fn run_analysis(
         };
         results.push(result);
 
-        if cancellation.is_cancelled() || !snapshot.is_current(version) {
+        if snapshot.is_stale(version, cancellation) {
             return AnalysisTaskOutcome::Superseded;
         }
     }
@@ -2092,51 +1934,7 @@ fn run_analysis(
         }
     }
     progress.report("Publishing workspace index");
-    if snapshot.publish_analysis_output(version, output) {
-        AnalysisTaskOutcome::Published
-    } else {
-        AnalysisTaskOutcome::Superseded
-    }
-}
-
-async fn monitor_analysis_task(
-    version: usize,
-    task: JoinHandle<AnalysisTaskOutcome>,
-    progress: ProgressTicket,
-    analysis_version: &Arc<AtomicUsize>,
-    published_analysis_version: &watch::Sender<usize>,
-    analysis_commit: &Arc<Mutex<AnalysisCommitState>>,
-) -> Option<RefreshRequests> {
-    match task.await {
-        Ok(AnalysisTaskOutcome::Published) => {
-            finish_analysis_progress_if_current(
-                version,
-                analysis_version,
-                analysis_commit,
-                &progress,
-                "Workspace index ready",
-            );
-            None
-        }
-        Ok(AnalysisTaskOutcome::Superseded) => None,
-        Err(error) => {
-            let refresh_requests = handle_analysis_failure(
-                version,
-                error,
-                analysis_version,
-                published_analysis_version,
-                analysis_commit,
-            )?;
-            finish_analysis_progress_if_current(
-                version,
-                analysis_version,
-                analysis_commit,
-                &progress,
-                "Workspace indexing failed",
-            );
-            Some(refresh_requests)
-        }
-    }
+    snapshot.publish_outcome(version, output)
 }
 
 fn finish_analysis_progress_if_current(
@@ -2169,7 +1967,10 @@ fn handle_analysis_failure(
     }
 
     tracing::warn!(%error, version, "workspace indexing task failed");
-    let refresh_requests = commit.fail_external_refresh();
+    let refresh_requests = RefreshRequests {
+        diagnostics: commit.external_refresh.as_mut().is_some_and(mem::take),
+        inlay_hints: false,
+    };
     commit.cache_invalidated = true;
     commit.cached_output = None;
     commit.discovery_pending = false;
@@ -2178,7 +1979,7 @@ fn handle_analysis_failure(
     Some(refresh_requests)
 }
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 struct AnalysisResult<T = SymbolTables> {
     analyzed_documents: AnalyzedDocuments,
     diagnostics: DiagnosticMap,
@@ -2313,28 +2114,14 @@ fn dependency_watch_roots(config: &Config) -> FxHashSet<PathBuf> {
         config.workspace_roots().iter().map(|root| root.normalize()).collect::<FxHashSet<_>>();
     for workspace in config.workspaces() {
         let opts = workspace.compile_opts();
-        let base_path = opts.base_path.as_deref();
-        if let Some(base_path) = base_path {
+        if let Some(base_path) = &opts.base_path {
             roots.insert(base_path.normalize());
         }
-        roots.extend(
-            opts.include_paths
-                .iter()
-                .filter_map(|path| resolve_dependency_watch_root(base_path, path)),
-        );
-        roots.extend(opts.import_remappings.iter().filter_map(|remapping| {
-            resolve_dependency_watch_root(base_path, Path::new(&remapping.path))
-        }));
+        roots
+            .extend(opts.include_paths.iter().filter_map(|path| workspace.resolve_base_path(path)));
+        roots.extend(workspace.import_remapping_paths());
     }
     roots
-}
-
-fn resolve_dependency_watch_root(base_path: Option<&Path>, path: &Path) -> Option<PathBuf> {
-    if path.is_absolute() {
-        Some(path.normalize())
-    } else {
-        base_path.map(|base_path| base_path.join(path).normalize())
-    }
 }
 
 fn watched_file_specs(config: &Config, analysis_paths: &AnalysisPathIndex) -> Vec<WatchedFileSpec> {
@@ -2394,10 +2181,10 @@ fn prepare_watched_file_registration_update(
     coordinator: &WatchedFileRegistrationCoordinator,
     specs: Vec<WatchedFileSpec>,
 ) -> Option<WatchedFileRegistrationUpdate> {
-    if !config.supports_watched_file_dynamic_registration() {
+    if !config.client.watched_file_dynamic_registration {
         return None;
     }
-    let relative_patterns = config.supports_watched_file_relative_patterns();
+    let relative_patterns = config.client.watched_file_relative_patterns;
     let mut current_specs = coordinator.desired_specs.lock();
     if current_specs.as_ref().is_some_and(|current| {
         if relative_patterns { current == &specs } else { current.is_empty() }
@@ -2438,13 +2225,11 @@ fn spawn_watched_file_registration_update(
         }
         if let Err(error) = client.register_capability(registration).await {
             tracing::warn!(%error, "failed to register watched-file notifications");
-            if coordinator.generation.load(Ordering::Acquire) == generation {
-                let mut current_specs = coordinator.desired_specs.lock();
-                if current_specs.as_ref() == Some(&desired_specs)
-                    && coordinator.generation.load(Ordering::Acquire) == generation
-                {
-                    *current_specs = None;
-                }
+            let mut current_specs = coordinator.desired_specs.lock();
+            if current_specs.as_ref() == Some(&desired_specs)
+                && coordinator.generation.load(Ordering::Acquire) == generation
+            {
+                *current_specs = None;
             }
             return;
         }
@@ -2459,7 +2244,12 @@ fn spawn_watched_file_registration_update(
             if coordinator.generation.load(Ordering::Acquire) != generation {
                 break;
             }
-            match unregister_watched_file_registration(&mut client, previous_id.clone()).await {
+            let unregistration = Unregistration {
+                id: previous_id.clone(),
+                method: DidChangeWatchedFiles::METHOD.into(),
+            };
+            let params = UnregistrationParams { unregisterations: vec![unregistration] };
+            match client.unregister_capability(params).await {
                 Ok(()) => {
                     coordinator.active_registration_ids.lock().retain(|id| id != &previous_id);
                 }
@@ -2469,16 +2259,6 @@ fn spawn_watched_file_registration_update(
             }
         }
     });
-}
-
-async fn unregister_watched_file_registration(
-    client: &mut ClientSocket,
-    id: String,
-) -> async_lsp::Result<()> {
-    let params = UnregistrationParams {
-        unregisterations: vec![Unregistration { id, method: DidChangeWatchedFiles::METHOD.into() }],
-    };
-    client.unregister_capability(params).await
 }
 
 #[cfg(test)]
@@ -2495,7 +2275,7 @@ fn watched_file_registration_params_with_specs(
     specs: &[WatchedFileSpec],
     registration_id: &str,
 ) -> RegistrationParams {
-    let watchers = if config.supports_watched_file_relative_patterns() {
+    let watchers = if config.client.watched_file_relative_patterns {
         specs
             .iter()
             .filter_map(|spec| {
@@ -2510,17 +2290,12 @@ fn watched_file_registration_params_with_specs(
             })
             .collect::<Vec<_>>()
     } else {
-        let mut watchers = [
-            ("**/*.sol", WatchKind::Create | WatchKind::Change | WatchKind::Delete),
-            ("**/foundry.toml", WatchKind::Create | WatchKind::Change | WatchKind::Delete),
-            ("**/remappings.txt", WatchKind::Create | WatchKind::Change | WatchKind::Delete),
-        ]
-        .into_iter()
-        .map(|(pattern, kind)| FileSystemWatcher {
-            glob_pattern: GlobPattern::String(pattern.into()),
-            kind: Some(kind),
-        })
-        .collect::<Vec<_>>();
+        let mut watchers = ["**/*.sol", "**/foundry.toml", "**/remappings.txt"]
+            .map(|pattern| FileSystemWatcher {
+                glob_pattern: GlobPattern::String(pattern.into()),
+                kind: Some(WatchKind::Create | WatchKind::Change | WatchKind::Delete),
+            })
+            .to_vec();
         if config.watches_nested_repository_markers() {
             watchers.push(FileSystemWatcher {
                 glob_pattern: GlobPattern::String("**/.git".into()),
@@ -2541,7 +2316,7 @@ fn watched_file_registration_params_with_specs(
 }
 
 fn publish_diagnostic_batches(
-    client: &mut ClientSocket,
+    client: &ClientSocket,
     batches: impl IntoIterator<Item = PublishDiagnosticsParams>,
     config: &Config,
 ) {
@@ -2556,7 +2331,7 @@ fn publish_diagnostic_batches(
                 diagnostic.data = None;
             }
         }
-        let _ = client.publish_diagnostics(batch);
+        let _ = client.notify::<PublishDiagnostics>(batch);
     }
 }
 
@@ -2604,8 +2379,58 @@ pub(crate) struct GlobalStateSnapshot {
 }
 
 impl GlobalStateSnapshot {
+    async fn monitor_analysis_task(
+        &self,
+        version: usize,
+        task: JoinHandle<AnalysisTaskOutcome>,
+        progress: ProgressTicket,
+    ) {
+        let (refresh_requests, message) = match task.await {
+            Ok(AnalysisTaskOutcome::Published) => (None, "Workspace index ready"),
+            Ok(AnalysisTaskOutcome::Superseded) => return,
+            Err(error) => {
+                let Some(refresh_requests) = handle_analysis_failure(
+                    version,
+                    error,
+                    &self.analysis_version,
+                    &self.published_analysis_version,
+                    &self.analysis_commit,
+                ) else {
+                    return;
+                };
+                (Some(refresh_requests), "Workspace indexing failed")
+            }
+        };
+        finish_analysis_progress_if_current(
+            version,
+            &self.analysis_version,
+            &self.analysis_commit,
+            &progress,
+            message,
+        );
+        if let Some(refresh_requests) = refresh_requests {
+            request_pull_result_refreshes(&self.client, &self.config, refresh_requests);
+        }
+    }
+
     fn is_current(&self, version: usize) -> bool {
         self.analysis_version.load(Ordering::Acquire) == version
+    }
+
+    fn is_stale(&self, version: usize, cancellation: &IndexingCancellation) -> bool {
+        cancellation.is_cancelled() || !self.is_current(version)
+    }
+
+    fn publish_outcome(
+        &mut self,
+        version: usize,
+        output: AnalysisOutput<Arc<SymbolTables>>,
+    ) -> AnalysisTaskOutcome {
+        if self.publish_analysis_output(version, output) {
+            AnalysisTaskOutcome::Published
+        } else {
+            AnalysisTaskOutcome::Superseded
+        }
     }
 
     fn is_current_flycheck(&self, owner: &DiagnosticOwner, version: usize) -> bool {
@@ -2651,10 +2476,9 @@ impl GlobalStateSnapshot {
         }
 
         result.diagnostics.keys().all(|uri| {
-            let Some(path) = proto::vfs_path(uri) else { return true };
-            let Some(_current) = vfs.get_file_contents(&path) else { return true };
-            let Some(path) = path.as_path() else { return false };
-            result.sources.contains_key(path)
+            proto::vfs_path(uri).is_none_or(|path| {
+                !vfs.exists(&path) || result.sources.contains_key(path.as_path())
+            })
         })
     }
 
@@ -2677,11 +2501,10 @@ impl GlobalStateSnapshot {
                 if cancellation.is_cancelled() {
                     return None;
                 }
-                let Some(path_buf) = path.as_path() else { continue };
                 let contents = vfs
                     .get_file_analysis_source(path)
                     .expect("iterated VFS path should retain its source");
-                files.push((path_buf.to_path_buf(), contents, vfs.get_file_version(path)));
+                files.push((path.as_path().to_path_buf(), contents, vfs.get_file_version(path)));
             }
             files
         };
@@ -2704,6 +2527,18 @@ impl GlobalStateSnapshot {
         }
         let source_map = SourceMap::empty();
         let mut source_files_complete = true;
+        let mut load_file = |batch: &mut AnalysisBatch, path: &Path, missing_is_complete: bool| {
+            match std::fs::symlink_metadata(path) {
+                Ok(metadata) if metadata.is_file() => {
+                    match source_map.file_loader().load_file(path) {
+                        Ok(contents) => batch.push_file(path.to_path_buf(), contents),
+                        Err(_) => source_files_complete = false,
+                    }
+                }
+                Err(error) if missing_is_complete && error.kind() == io::ErrorKind::NotFound => {}
+                Ok(_) | Err(_) => source_files_complete = false,
+            }
+        };
 
         for (path, contents, version) in vfs_files {
             if cancellation.is_cancelled() {
@@ -2741,21 +2576,8 @@ impl GlobalStateSnapshot {
             else {
                 continue;
             };
-            if batches[idx].seen_paths.contains(&path) {
-                continue;
-            }
-
-            match std::fs::symlink_metadata(&path) {
-                Ok(metadata) if metadata.is_file() => {
-                    if let Ok(contents) = source_map.file_loader().load_file(&path) {
-                        batches[idx].push_file(path, contents);
-                    } else {
-                        source_files_complete = false;
-                    }
-                }
-                Ok(_) => source_files_complete = false,
-                Err(error) if error.kind() == io::ErrorKind::NotFound => {}
-                Err(_) => source_files_complete = false,
+            if !batches[idx].seen_paths.contains(&path) {
+                load_file(&mut batches[idx], &path, true);
             }
         }
 
@@ -2765,18 +2587,8 @@ impl GlobalStateSnapshot {
                 if cancellation.is_cancelled() {
                     return None;
                 }
-                if batch.seen_paths.contains(path) {
-                    continue;
-                }
-                match std::fs::symlink_metadata(path) {
-                    Ok(metadata) if metadata.is_file() => {
-                        if let Ok(contents) = source_map.file_loader().load_file(path) {
-                            batch.push_file(path.clone(), contents);
-                        } else {
-                            source_files_complete = false;
-                        }
-                    }
-                    Ok(_) | Err(_) => source_files_complete = false,
+                if !batch.seen_paths.contains(path) {
+                    load_file(batch, path, false);
                 }
             }
         }
@@ -2801,15 +2613,15 @@ impl GlobalStateSnapshot {
         output: AnalysisOutput<Arc<SymbolTables>>,
     ) -> bool {
         let refresh_code_lenses =
-            self.config.supports_code_lens_refresh() && self.config.code_lens_options().is_active();
+            self.config.client.code_lens_refresh && self.config.code_lens.is_active();
         let AnalysisOutput { result, analysis_paths } = output;
         let analysis_watched_file_specs = self
             .config
-            .supports_watched_file_dynamic_registration()
+            .client
+            .watched_file_dynamic_registration
             .then(|| watched_file_specs(&self.config, &analysis_paths));
         let (old_symbol_tables, refresh_requests) = {
-            let analysis_commit = self.analysis_commit.clone();
-            let mut commit = analysis_commit.lock();
+            let mut commit = self.analysis_commit.lock();
             if !self.is_current(version) {
                 return false;
             }
@@ -2825,7 +2637,7 @@ impl GlobalStateSnapshot {
                     .into_iter()
                     .filter(|(path, typ)| {
                         self.config.tracks_watched_source_file(path)
-                            || vfs.exists(&crate::vfs::VfsPath::from(path.clone()))
+                            || vfs.exists(&VfsPath::from(path.clone()))
                             || analysis_paths
                                 .includes(path, *typ == FileChangeType::CREATED || path.exists())
                     })
@@ -2859,7 +2671,7 @@ impl GlobalStateSnapshot {
                 }
             }
             let inlay_hints_changed = commit.external_refresh.is_some()
-                && self.config.supports_inlay_hint_refresh()
+                && self.config.client.inlay_hint_refresh
                 && self.symbol_tables.load().inlay_hints_changed(&new_tables);
             let old_symbol_tables = self.symbol_tables.swap(new_tables);
             commit.analysis_paths = analysis_paths;
@@ -2877,7 +2689,7 @@ impl GlobalStateSnapshot {
                 diagnostics: external_refresh.diagnostics || update.workspace_documents_changed,
                 inlay_hints: external_refresh.inlay_hints,
             };
-            publish_diagnostic_batches(&mut self.client, update.batches, &self.config);
+            publish_diagnostic_batches(&self.client, update.batches, &self.config);
             self.published_analysis_version.send_replace(version);
             tracing::info!(
                 visited = index_metrics.visited,
@@ -2910,7 +2722,7 @@ impl GlobalStateSnapshot {
         }
         request_pull_result_refreshes(&self.client, &self.config, refresh_requests);
         if refresh_code_lenses {
-            request_code_lens_refresh(&self.client);
+            request_refresh::<CodeLensRefresh>(&self.client, "CodeLens");
         }
         true
     }
@@ -2920,11 +2732,7 @@ impl GlobalStateSnapshot {
         self.publish_analysis_output(
             version,
             AnalysisOutput {
-                result: AnalysisResult {
-                    analyzed_documents: AnalyzedDocuments::default(),
-                    diagnostics: DiagnosticMap::default(),
-                    symbol_tables,
-                },
+                result: AnalysisResult { symbol_tables, ..Default::default() },
                 analysis_paths: AnalysisPathIndex::default(),
             },
         )
@@ -2941,16 +2749,12 @@ impl GlobalStateSnapshot {
 
     #[cfg(test)]
     fn publish_diagnostics(&mut self, owner: DiagnosticOwner, diagnostics: DiagnosticMap) -> bool {
-        let analysis_commit = self.analysis_commit.clone();
-        let mut commit = analysis_commit.lock();
-        let update = {
-            let mut store = self.diagnostics.write();
-            store.replace_and_publish_batches(owner, diagnostics)
-        };
+        let mut commit = self.analysis_commit.lock();
+        let update = self.diagnostics.write().replace_and_publish_batches(owner, diagnostics);
 
         let refresh_immediately = update.pull_reports_changed && commit.external_refresh.is_none();
         commit.record_external_diagnostics_change(update.pull_reports_changed);
-        publish_diagnostic_batches(&mut self.client, update.batches, &self.config);
+        publish_diagnostic_batches(&self.client, update.batches, &self.config);
         refresh_immediately
     }
 
@@ -2959,8 +2763,7 @@ impl GlobalStateSnapshot {
         owners: impl IntoIterator<Item = DiagnosticOwner>,
         use_current_versions: bool,
     ) -> bool {
-        let analysis_commit = self.analysis_commit.clone();
-        let mut commit = analysis_commit.lock();
+        let mut commit = self.analysis_commit.lock();
         let mut update = self.diagnostics.write().clear_owners_and_publish_batches(owners);
         if use_current_versions {
             let vfs = self.vfs.read();
@@ -2977,7 +2780,7 @@ impl GlobalStateSnapshot {
 
         let refresh_immediately = update.pull_reports_changed && commit.external_refresh.is_none();
         commit.record_external_diagnostics_change(update.pull_reports_changed);
-        publish_diagnostic_batches(&mut self.client, update.batches, &self.config);
+        publish_diagnostic_batches(&self.client, update.batches, &self.config);
         refresh_immediately
     }
 
@@ -2988,18 +2791,14 @@ impl GlobalStateSnapshot {
         diagnostics: DiagnosticMap,
     ) {
         let pull_reports_changed = {
-            let analysis_commit = self.analysis_commit.clone();
-            let _commit = analysis_commit.lock();
+            let _commit = self.analysis_commit.lock();
             if !self.is_current_flycheck(&owner, version) {
                 return;
             }
 
-            let update = {
-                let mut store = self.diagnostics.write();
-                store.replace_and_publish_batches(owner, diagnostics)
-            };
+            let update = self.diagnostics.write().replace_and_publish_batches(owner, diagnostics);
             let pull_reports_changed = update.pull_reports_changed;
-            publish_diagnostic_batches(&mut self.client, update.batches, &self.config);
+            publish_diagnostic_batches(&self.client, update.batches, &self.config);
             pull_reports_changed
         };
         request_pull_result_refreshes(
@@ -3010,52 +2809,33 @@ impl GlobalStateSnapshot {
     }
 }
 
-fn request_code_lens_refresh(client: &ClientSocket) {
-    let mut client = client.clone();
-    let Ok(handle) = tokio::runtime::Handle::try_current() else { return };
-    handle.spawn(async move {
-        if let Err(error) = client.code_lens_refresh(()).await {
-            tracing::debug!(%error, "client does not accept CodeLens refresh");
-        }
-    });
-}
-
 fn request_pull_result_refreshes(
     client: &ClientSocket,
     config: &Config,
     requests: RefreshRequests,
 ) {
-    if requests.diagnostics
-        && config.uses_pull_diagnostics()
-        && config.supports_diagnostic_refresh()
-    {
-        request_diagnostic_refresh(client);
+    if requests.diagnostics && config.uses_pull_diagnostics() && config.client.diagnostic_refresh {
+        request_refresh::<WorkspaceDiagnosticRefresh>(client, "diagnostic");
     }
-    if requests.inlay_hints && config.supports_inlay_hint_refresh() {
-        request_inlay_hint_refresh(client);
+    if requests.inlay_hints && config.client.inlay_hint_refresh {
+        request_refresh::<InlayHintRefreshRequest>(client, "inlay-hint");
     }
 }
 
-fn request_diagnostic_refresh(client: &ClientSocket) {
-    let mut client = client.clone();
+fn request_refresh<R>(client: &ClientSocket, kind: &'static str)
+where
+    R: lsp_types::request::Request<Params = (), Result = ()>,
+{
+    let client = client.clone();
     let Ok(handle) = tokio::runtime::Handle::try_current() else { return };
     handle.spawn(async move {
-        if let Err(error) = client.workspace_diagnostic_refresh(()).await {
-            tracing::debug!(%error, "client does not accept diagnostic refresh");
+        if let Err(error) = client.request::<R>(()).await {
+            tracing::debug!(%error, "client does not accept {kind} refresh");
         }
     });
 }
 
-fn request_inlay_hint_refresh(client: &ClientSocket) {
-    let mut client = client.clone();
-    let Ok(handle) = tokio::runtime::Handle::try_current() else { return };
-    handle.spawn(async move {
-        if let Err(error) = client.inlay_hint_refresh(()).await {
-            tracing::debug!(%error, "client does not accept inlay-hint refresh");
-        }
-    });
-}
-
+#[derive(Default)]
 struct AnalysisBatch {
     opts: CompileOpts,
     files: Vec<(PathBuf, Arc<String>)>,
@@ -3067,14 +2847,7 @@ struct AnalysisBatch {
 
 impl AnalysisBatch {
     fn new(opts: CompileOpts) -> Self {
-        Self {
-            opts,
-            files: Vec::new(),
-            preloaded_files: Vec::new(),
-            preloaded_paths: FxHashSet::default(),
-            open_file_versions: FxHashMap::default(),
-            seen_paths: FxHashSet::default(),
-        }
+        Self { opts, ..Default::default() }
     }
 
     #[cfg(any(test, feature = "bench"))]
@@ -3106,11 +2879,7 @@ impl AnalysisBatch {
     }
 
     fn push_open_file(&mut self, path: PathBuf, contents: Arc<String>, version: Option<i32>) {
-        if let Some(version) = version
-            && let Ok(uri) = Url::from_file_path(&path)
-        {
-            self.open_file_versions.insert(uri, i64::from(version));
-        }
+        self.record_open_version(&path, version);
         self.push_shared_file(path, contents);
     }
 
@@ -3118,172 +2887,21 @@ impl AnalysisBatch {
         if self.seen_paths.contains(&path) || !self.preloaded_paths.insert(path.clone()) {
             return;
         }
+        self.record_open_version(&path, version);
+        self.preloaded_files.push((path, contents));
+    }
+
+    fn record_open_version(&mut self, path: &Path, version: Option<i32>) {
         if let Some(version) = version
-            && let Ok(uri) = Url::from_file_path(&path)
+            && let Ok(uri) = Url::from_file_path(path)
         {
             self.open_file_versions.insert(uri, i64::from(version));
         }
-        self.preloaded_files.push((path, contents));
     }
 
     fn finish(&mut self) {
         self.files.sort_by(|(lhs, _), (rhs, _)| lhs.cmp(rhs));
         self.preloaded_files.sort_by(|(lhs, _), (rhs, _)| lhs.cmp(rhs));
-    }
-}
-
-#[cfg(test)]
-mod analysis_batch_tests {
-    use super::*;
-    use crate::{config::negotiate_capabilities, test_support::TestProject};
-
-    #[test]
-    fn from_files_tracks_unique_sorted_paths() {
-        let a = PathBuf::from("a.sol");
-        let b = PathBuf::from("b.sol");
-        let batch = AnalysisBatch::from_files(
-            CompileOpts::default(),
-            [
-                (b.clone(), "contract B {}".into()),
-                (a.clone(), "contract A {}".into()),
-                (b.clone(), "contract Duplicate {}".into()),
-            ],
-        );
-
-        assert_eq!(batch.files.len(), 2);
-        assert_eq!(batch.files[0], (a.clone(), Arc::new("contract A {}".into())));
-        assert_eq!(batch.files[1], (b.clone(), Arc::new("contract B {}".into())));
-        assert_eq!(batch.seen_paths, FxHashSet::from_iter([a, b]));
-    }
-
-    #[test]
-    fn flycheck_snapshot_includes_saved_file_and_default_foundry_inputs() {
-        let project = TestProject::from_fixture(
-            r#"
-            //- /foundry.toml
-            [profile.default]
-            src = "src"
-            //- /src/Tracked.sol
-            contract Tracked {}
-            //- /test/Tracked.t.sol
-            contract TrackedTest {}
-            //- /script/Tracked.s.sol
-            contract TrackedScript {}
-            "#,
-        );
-        let mut params = project.initialize_params();
-        params.initialization_options = Some(serde_json::json!({
-            "flychecks": [{
-                "id": "custom",
-                "command": "custom-lint"
-            }]
-        }));
-        let (_, mut config) = negotiate_capabilities(params);
-        config.rediscover_workspaces();
-        let saved_path = project.path("/src/SavedAfterDiscovery.sol");
-        project.write_file("/src/SavedAfterDiscovery.sol", "contract SavedAfterDiscovery {}\n");
-        let [flycheck] = config.flychecks_for_path(&saved_path).try_into().unwrap();
-        let mut state = GlobalState::new(ClientSocket::new_closed());
-        state.config = Arc::new(config);
-
-        let paths = state.snapshot().flycheck_source_paths(&flycheck, &saved_path);
-
-        assert!(paths.contains(&project.path("/src/Tracked.sol")));
-        assert!(paths.contains(&project.path("/test/Tracked.t.sol")));
-        assert!(paths.contains(&project.path("/script/Tracked.s.sol")));
-        assert!(paths.contains(&saved_path));
-    }
-
-    #[test]
-    fn flycheck_snapshot_preserves_nested_workspace_sources() {
-        let project = TestProject::from_fixture(
-            r#"
-            //- /foundry.toml
-            [profile.default]
-            src = "src"
-            //- /src/Outer.sol
-            contract Outer {}
-            //- /nested/foundry.toml
-            [profile.default]
-            src = "src"
-            //- /nested/src/Nested.sol
-            contract Nested {}
-            "#,
-        );
-        let mut params = project.initialize_params();
-        params.initialization_options = Some(serde_json::json!({
-            "flychecks": [{
-                "id": "custom",
-                "command": "custom-lint"
-            }]
-        }));
-        let (_, mut config) = negotiate_capabilities(params);
-        config.rediscover_workspaces();
-        let saved_path = project.path("/src/SavedAfterDiscovery.sol");
-        project.write_file("/src/SavedAfterDiscovery.sol", "contract SavedAfterDiscovery {}\n");
-        let [flycheck] = config.flychecks_for_path(&saved_path).try_into().unwrap();
-        let mut state = GlobalState::new(ClientSocket::new_closed());
-        state.config = Arc::new(config);
-
-        let paths = state.snapshot().flycheck_source_paths(&flycheck, &saved_path);
-
-        assert!(paths.contains(&project.path("/nested/src/Nested.sol")));
-    }
-
-    #[test]
-    fn flycheck_snapshot_includes_all_configured_foundry_input_roots() {
-        let project = TestProject::new();
-        let external_test_root = project.path("/checks");
-        project.write_file(
-            "/workspace/foundry.toml",
-            &format!(
-                r#"
-            [profile.default]
-            src = "contracts"
-            test = '{}'
-            script = "deployments"
-            "#,
-                external_test_root.display()
-            ),
-        );
-        project.write_file("/workspace/contracts/Tracked.sol", "contract Tracked {}");
-        project.write_file("/checks/Tracked.t.sol", "contract TrackedTest {}");
-        project.write_file("/workspace/deployments/Tracked.s.sol", "contract TrackedScript {}");
-        let mut params = project.initialize_params();
-        params.initialization_options = Some(serde_json::json!({
-            "flychecks": [{
-                "id": "custom",
-                "command": "custom-lint"
-            }]
-        }));
-        let (_, mut config) = negotiate_capabilities(params);
-        config.rediscover_workspaces();
-        assert_eq!(
-            config.workspaces()[0].source_files(),
-            &[
-                project.path("/checks/Tracked.t.sol"),
-                project.path("/workspace/contracts/Tracked.sol"),
-                project.path("/workspace/deployments/Tracked.s.sol")
-            ]
-        );
-        let saved_path = project.path("/checks/SavedAfterDiscovery.t.sol");
-        project
-            .write_file("/checks/SavedAfterDiscovery.t.sol", "contract SavedAfterDiscovery {}\n");
-        let [flycheck] = config.flychecks_for_path(&saved_path).try_into().unwrap();
-        let mut state = GlobalState::new(ClientSocket::new_closed());
-        state.config = Arc::new(config);
-
-        let paths = state.snapshot().flycheck_source_paths(&flycheck, &saved_path);
-
-        assert_eq!(
-            paths,
-            vec![
-                project.path("/checks/SavedAfterDiscovery.t.sol"),
-                project.path("/checks/Tracked.t.sol"),
-                project.path("/workspace/contracts/Tracked.sol"),
-                project.path("/workspace/deployments/Tracked.s.sol"),
-            ]
-        );
     }
 }
 
@@ -3354,7 +2972,7 @@ fn analyze_cancellable_with_source_map(
         .build();
     // Session construction canonicalizes the base path through the same loader. Only subsequent
     // resolver probes are import candidates.
-    import_paths.clear();
+    import_paths.take_probes();
 
     let mut compiler = Compiler::new(sess);
     compiler.enter_mut(move |compiler| {

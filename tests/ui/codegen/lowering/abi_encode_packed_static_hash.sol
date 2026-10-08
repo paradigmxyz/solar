@@ -5,13 +5,13 @@
 // temporary bytes object.
 contract AbiEncodePackedStaticHash {
     // CHECK-LABEL: fn @hash{{[( ]}}
-    // CHECK: keccak256_packed (data hex"4d656d6f72793a", u64 {{v[0-9]+}}, u64 {{v[0-9]+}}, bytes32 arg2)
+    // CHECK: keccak256_packed (data hex"4d656d6f72793a", u64 arg0, u64 arg1, bytes32 arg2)
     function hash(uint64 size, uint64 maxSize, bytes32 root) external pure returns (bytes32) {
         return keccak256(abi.encodePacked("Memory:", size, maxSize, root));
     }
 
     // CHECK-LABEL: fn @hashLocal{{[( ]}}
-    // CHECK: keccak256_packed (data hex"4d656d6f72793a", u64 {{v[0-9]+}}, u64 {{v[0-9]+}}, bytes32 arg2)
+    // CHECK: keccak256_packed (data hex"4d656d6f72793a", u64 arg0, u64 arg1, bytes32 arg2)
     function hashLocal(uint64 size, uint64 maxSize, bytes32 root)
         external
         pure

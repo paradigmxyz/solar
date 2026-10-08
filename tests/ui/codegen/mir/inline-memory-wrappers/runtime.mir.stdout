@@ -1,15 +1,15 @@
 // === ROOT/tests/ui/codegen/mir/inline-memory-wrappers/runtime.sol:SharedMemoryWrapper ===
 @module SharedMemoryWrapper
 @types
-  struct0: {memorybytes, memorybytes, memorybytes}
+  struct0: {memptr, memptr, memptr}
 
-fn @once(arg0: memorybytes) -> memorybytes [selector=0x356f1140, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @once(arg0: memptr) -> memptr [selector=0x356f1140, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = icall @wrap, arg0
     ret v0
 }
 
-fn @twice(arg0: memorybytes) -> struct0 [selector=0xff491092, pure, abi_params=[bytes], abi_returns=[memory_bytes, memory_bytes, memory_bytes], abi_return_params=[bytes, bytes, bytes]] {
+fn @twice(arg0: memptr) -> struct0 [selector=0xff491092, pure, abi_params=[bytes], abi_returns=[memory_bytes, memory_bytes, memory_bytes], abi_return_params=[bytes, bytes, bytes]] {
   bb0:
     v0 = icall @wrap, arg0
     v1 = icall @wrap, arg0
@@ -19,10 +19,10 @@ fn @twice(arg0: memorybytes) -> struct0 [selector=0xff491092, pure, abi_params=[
     ret v4
 }
 
-fn @wrap(arg0: memorybytes) -> memorybytes [pure] {
+fn @wrap(arg0: memptr) -> memptr [pure] {
   bb0:
     v0 = icall @copy, arg0
-    v1 = ptrtoint memorybytes v0 to i256
+    v1 = ptrtoint memptr v0 to i256
     v2 = add v1, 32
     v3 = mload v2
     v4 = add v3, 1
@@ -30,7 +30,7 @@ fn @wrap(arg0: memorybytes) -> memorybytes [pure] {
     ret v0
 }
 
-fn @copy(arg0: memorybytes) -> memorybytes [pure] {
+fn @copy(arg0: memptr) -> memptr [pure] {
   bb0:
     v0 = memory_object_len memorybytes, arg0
     v1 = add v0, 63

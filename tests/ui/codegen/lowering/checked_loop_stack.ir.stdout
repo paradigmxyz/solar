@@ -53,17 +53,11 @@ bb10 [loop]:
   dup 3
   mul
   dup 2
-  iszero
-  dup 3
-  dup 3
+  dup 2
   div
   swap 1
-  swap 4
-  eq
-  swap 1
   swap 3
-  or
-  iszero
+  sub
   push bb12
   jumpi
   push 1
@@ -119,17 +113,11 @@ bb10 [loop]:
   dup 2
   mul
   dup 3
-  iszero
-  dup 4
-  dup 3
+  dup 2
   div
   swap 1
-  swap 3
-  eq
-  swap 1
   swap 2
-  or
-  iszero
+  sub
   push bb12
   jumpi
   swap 1

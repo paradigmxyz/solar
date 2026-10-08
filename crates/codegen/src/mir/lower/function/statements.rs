@@ -53,8 +53,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 } else {
                     self.default_binding_value(ty)
                 };
-                let value = self.materialize_call_argument(
-                    ty,
+                let value = self.materialize_scalar_carrier(
+                    *id,
                     value,
                     initializer.map_or(stmt.span, |expr| expr.span),
                 )?;
@@ -72,7 +72,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     if values.len() != ids.len() {
                         return self.cx.report_unsupported(expr.span, "storage reference tuple");
                     }
-                    for (id, (value, _, access)) in ids.iter().zip(values) {
+                    for (id, (value, source_ty, access)) in ids.iter().zip(values) {
                         let Some(id) = id else { continue };
                         let ty = self.cx.gcx.type_of_item((*id).into());
                         if let Some(access) = access {
@@ -93,6 +93,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                                 "mixed storage tuple",
                             );
                         } else {
+                            let value =
+                                self.convert_tuple_component(value, source_ty, ty, expr.span)?;
+                            let value = self.materialize_raw_scalar(*id, value);
                             self.values.insert(*id, value);
                         }
                     }
@@ -125,7 +128,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         }
                         let span = value.span;
                         let value = self.lower_typed_expr(value, ty)?;
-                        let value = self.materialize_call_argument(ty, value, span)?;
+                        let value = self.materialize_scalar_carrier(*id, value, span)?;
                         self.values.insert(*id, value);
                     }
                     return Some(());
@@ -138,6 +141,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         ids.first().is_some_and(Option::is_none),
                     )?;
                     for (id, value) in ids.iter().flatten().zip(values) {
+                        let value = self.materialize_raw_scalar(*id, value);
                         self.values.insert(*id, value);
                     }
                     return Some(());
@@ -146,31 +150,42 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 if values.len() != ids.len() {
                     return self.cx.report_unsupported(expr.span, "tuple declaration arity");
                 }
-                for (id, value) in ids.iter().zip(values) {
+                let source_ty = self.cx.gcx.type_of_expr(expr.id)?;
+                let sources = match source_ty.kind {
+                    TyKind::Tuple(sources) => sources,
+                    _ => std::slice::from_ref(&source_ty),
+                };
+                for ((id, value), &source) in ids.iter().zip(values).zip(sources) {
                     if let Some(id) = id {
+                        let target = self.cx.gcx.type_of_item((*id).into());
+                        let value =
+                            self.convert_tuple_component(value, source, target, expr.span)?;
+                        let value = self.materialize_raw_scalar(*id, value);
                         self.values.insert(*id, value);
                     }
                 }
             }
             StmtKind::Expr(expr) => {
                 let expr = expr.peel_parens();
-                let is_item_reference =
-                    matches!(
-                        self.cx.gcx.type_of_expr(expr.id).map(|ty| ty.kind),
-                        Some(TyKind::Type(_))
-                    ) || self.cx.gcx.resolved_function(expr).is_some_and(|function| {
-                        self.cx.gcx.hir.function(function).contract.is_some_and(|contract| {
-                            self.cx.gcx.hir.contract(contract).kind.is_library()
-                        })
-                    }) || matches!(
-                        expr.kind,
-                        ExprKind::Member(receiver, _)
-                            if matches!(
-                                self.cx.gcx.type_of_expr(receiver.id).map(|ty| ty.kind),
-                                Some(TyKind::Type(_))
-                            )
-                    );
-                if is_item_reference {
+                let is_item_reference = matches!(
+                    self.cx.gcx.type_of_expr(expr.id).map(|ty| ty.kind),
+                    Some(TyKind::Type(_))
+                ) || matches!(
+                    expr.kind,
+                    ExprKind::Member(receiver, _)
+                        if matches!(
+                            self.cx.gcx.type_of_expr(receiver.id).map(|ty| ty.kind),
+                            Some(TyKind::Type(_))
+                        )
+                );
+                if is_item_reference
+                    || (matches!(expr.kind, ExprKind::Ident(_))
+                        && self.cx.gcx.resolved_builtin(expr).is_some()
+                        && matches!(
+                            self.cx.gcx.type_of_expr(expr.id).map(|ty| ty.kind),
+                            Some(TyKind::Fn(_))
+                        ))
+                {
                     return Some(());
                 }
                 if let ExprKind::Assign(lhs, None, rhs) = &expr.kind
@@ -179,15 +194,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     self.lower_constant_storage_assignment(lhs, rhs)?;
                     return Some(());
                 }
-                // Nothing observes the statement's value, which lets `a.push();` skip the
-                // read that produces the appended element.
-                self.with_discarded(expr, |this| {
-                    if this.cx.gcx.type_of_expr(expr.id).is_some_and(|ty| ty.is_tuple()) {
-                        this.lower_values(expr).map(drop)
-                    } else {
-                        this.lower_expr(expr).map(drop)
-                    }
-                })?;
+                self.lower_discarded_expr(expr)?;
             }
             StmtKind::Block(block) => self.lower_block(*block)?,
             StmtKind::UncheckedBlock(block) => {
@@ -240,7 +247,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                                 self.storage_refs
                                     .insert(id, StorageAccess { slot: value, ..access });
                             } else {
-                                let value = self.materialize_call_argument(ty, value, stmt.span)?;
+                                let value =
+                                    self.materialize_scalar_carrier(id, value, stmt.span)?;
                                 self.values.insert(id, value);
                             }
                         }
@@ -261,7 +269,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                                 if ty.is_ref_at(DataLocation::Storage) {
                                     Some(value)
                                 } else {
-                                    self.materialize_call_argument(ty, value, stmt.span)
+                                    self.materialize_scalar_carrier(id, value, stmt.span)
                                 }
                             })
                             .collect::<Option<Vec<_>>>()?;
@@ -310,41 +318,93 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     /// Lowers an expression whose value is dropped, such as a tuple declaration or assignment
     /// hole, so that it can skip the reads only its value would need.
-    pub(super) fn lower_discarded_expr(&mut self, expr: &hir::Expr<'_>) -> Option<ValueId> {
-        self.with_discarded(expr, |this| this.lower_expr(expr))
-    }
-
-    /// Runs `f` with `expr` recorded as discarded, restoring the previously recorded discards on
-    /// every exit.
-    fn with_discarded<T>(
-        &mut self,
-        expr: &hir::Expr<'_>,
-        f: impl FnOnce(&mut Self) -> Option<T>,
-    ) -> Option<T> {
-        let previous = self.discarded_exprs.len();
-        self.mark_discarded(expr);
-        let result = f(self);
-        self.discarded_exprs.truncate(previous);
+    pub(super) fn lower_discarded_expr(&mut self, expr: &hir::Expr<'_>) -> Option<()> {
+        let previous = self.builder.replace_source_span(expr.span);
+        let previous_modifier_depth = self.builder.replace_modifier_depth(self.modifier_depth);
+        let result = self.lower_discarded_expr_inner(expr.peel_parens());
+        self.builder.replace_modifier_depth(previous_modifier_depth);
+        self.builder.replace_source_span(previous);
         result
     }
 
-    /// Records the expressions of a discarded value: the discarded expression itself, and the
-    /// tuple components and conditional branches that only forward it, since nothing observes
-    /// their values either.
-    fn mark_discarded(&mut self, expr: &hir::Expr<'_>) {
-        let expr = expr.peel_parens();
-        self.discarded_exprs.push(expr.id);
-        match expr.kind {
-            ExprKind::Tuple(exprs) => {
-                for &expr in exprs.iter().flatten() {
-                    self.mark_discarded(expr);
+    fn lower_discarded_expr_inner(&mut self, expr: &hir::Expr<'_>) -> Option<()> {
+        match &expr.kind {
+            ExprKind::Call(callee, args) => {
+                let (callee, options) = callee.split_call_options();
+                self.lower_call(expr, callee, *args, options, false).map(drop)
+            }
+            ExprKind::Delete(value) => self.delete_lvalue(value),
+            ExprKind::Assign(lhs, None, rhs) => {
+                if let ExprKind::Tuple(elements) = &lhs.peel_parens().kind {
+                    self.lower_tuple_assignment(elements, rhs)
+                } else if !self.is_storage_reference_binding(lhs)
+                    && self.type_of_expr_or_variable(lhs)?.is_ref_at(DataLocation::Storage)
+                    && self.cx.gcx.type_of_expr(rhs.id)?.is_ref_at(DataLocation::Storage)
+                {
+                    self.storage_access(expr).map(drop)
+                } else {
+                    self.lower_expr(expr).map(drop)
                 }
             }
-            ExprKind::Ternary(_, then_expr, else_expr) => {
-                self.mark_discarded(then_expr);
-                self.mark_discarded(else_expr);
+            ExprKind::Tuple(values) => {
+                for value in values.iter().flatten() {
+                    self.lower_discarded_expr(value)?;
+                }
+                Some(())
             }
-            _ => {}
+            ExprKind::Ternary(condition, then_expr, else_expr) => {
+                let condition = self.lower_expr(condition)?;
+                let then_ty = self.cx.gcx.type_of_expr(then_expr.id)?;
+                let else_ty = self.cx.gcx.type_of_expr(else_expr.id)?;
+                let ty = then_ty.common_type(else_ty, self.cx.gcx)?;
+                let lower_branch = |this: &mut Self, branch| {
+                    if ty.is_ref_at(DataLocation::Memory) {
+                        this.lower_ternary_value(branch, ty).map(drop)
+                    } else {
+                        this.lower_discarded_expr(branch)
+                    }
+                };
+                self.lower_branches(
+                    condition,
+                    true,
+                    |this| lower_branch(this, then_expr),
+                    |this| lower_branch(this, else_expr),
+                )?;
+                Some(())
+            }
+            ExprKind::CallOptions(callee, options) => {
+                match callee.peel_parens().kind {
+                    ExprKind::Member(receiver, _) => {
+                        self.lower_discarded_expr(receiver)?;
+                    }
+                    ExprKind::New(_) => {}
+                    _ => {
+                        self.lower_discarded_expr(callee)?;
+                    }
+                }
+                for option in options.args {
+                    self.lower_discarded_expr(&option.value)?;
+                }
+                Some(())
+            }
+            ExprKind::Member(receiver, _) if self.cx.gcx.resolved_function(expr).is_some() => {
+                if !matches!(
+                    self.cx.gcx.type_of_expr(receiver.id).map(|ty| ty.kind),
+                    Some(TyKind::Type(_))
+                ) {
+                    self.lower_discarded_expr(receiver)?;
+                }
+                Some(())
+            }
+            ExprKind::Member(receiver, _)
+                if self.cx.gcx.resolved_builtin(expr) == Some(Builtin::ArrayPop) =>
+            {
+                if self.storage_access(receiver).is_none() {
+                    return self.cx.report_unsupported(receiver.span, "storage access");
+                }
+                Some(())
+            }
+            _ => self.lower_expr(expr).map(drop),
         }
     }
 
@@ -686,15 +746,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return self.builder.shl(shift, value);
         }
         if !matches!(ty.peel_refs().kind, TyKind::Elementary(ElementaryType::FixedBytes(_))) {
-            return value;
+            let layout = types::TypeLowerer::value_layout(ty);
+            return if matches!(layout, crate::mir::ValueLayout::Int(_)) {
+                raw_scalars::cast_carrier(&mut self.builder, value, layout, MirType::I256)
+            } else {
+                value
+            };
         }
         if let Some(value) = self.lower_fixed_bytes_literal(ty, expr) {
             return value;
         }
-        if matches!(
-            self.builder.func().value_ty(value),
-            Some(MirType::MemoryObject(MemoryObjectKind::Bytes))
-        ) {
+        if matches!(self.builder.func().value_ty(value), Some(MirType::MemPtr)) {
             let zero = self.builder.imm(0);
             return self.builder.memory_object_load_element(value, MemoryObjectLayout::Bytes, zero);
         }

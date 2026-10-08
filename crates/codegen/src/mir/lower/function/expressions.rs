@@ -155,11 +155,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let layout = self.types.memory_layout(receiver_ty)?;
         let field_ty =
             self.cx.gcx.type_of_item(id.into()).with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
-        let value = if let MirType::MemoryObject(kind) = types::TypeLowerer::mir_type(field_ty) {
-            self.builder.memory_object_load_object_field(object, layout, field as u64, kind)
-        } else {
-            self.builder.memory_object_load_field(object, layout, field as u64)
-        };
+        let value = self.builder.memory_object_load_field_as(
+            object,
+            layout,
+            field as u64,
+            types::TypeLowerer::mir_type(field_ty),
+        );
         if receiver_ty.is_ref_at(DataLocation::Calldata)
             && let TyKind::Fn(function) = field_ty.peel_refs().kind
             && function.is_external()
@@ -180,7 +181,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if let TyKind::Array(_, len) = receiver_ty.peel_refs().kind {
             // length = static_len
             if !matches!(receiver.peel_parens().kind, ExprKind::Ident(_)) {
-                self.lower_expr(receiver)?;
+                self.lower_discarded_expr(receiver)?;
             }
             return Some(self.builder.imm(len));
         }
@@ -200,7 +201,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             let object = self.lower_expr(receiver)?;
             return match self.builder.func().value_ty(object) {
-                Some(MirType::MemoryObject(MemoryObjectKind::Bytes)) => {
+                Some(MirType::MemPtr) => {
                     // length = object.len
                     Some(self.builder.memory_object_len(object, MemoryObjectKind::Bytes))
                 }

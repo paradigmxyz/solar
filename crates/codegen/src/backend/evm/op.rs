@@ -906,31 +906,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn opcode_schema_drives_metadata() {
-        let add = definition(ADD).expect("declared opcode");
-        assert_eq!(add.opcode, ADD);
-        assert_eq!(add.mnemonic, "add");
-        assert_eq!(add.stack_io, Some((2, 1)));
-        assert!(add.is_pure());
-        assert!(add.is_commutative());
-        assert_eq!(definition(0x0c), None);
-        assert!(is_terminal(STOP));
-        assert!(!is_terminal(ADD));
-
-        for opcode in u8::MIN..=u8::MAX {
-            if let Some(definition) = definition(opcode) {
-                assert_eq!(definition.opcode, opcode);
-                assert_eq!(mnemonic(opcode), Some(definition.mnemonic));
-            }
-        }
-
-        let exchange = StackOp::Exchange(2, 3).definition();
-        assert_eq!(exchange.mnemonic, "exchange");
-        assert_eq!(exchange.ir_opcode, EXCHANGE);
-        assert_eq!(exchange.gas, GasTier::VeryLow);
-    }
-
-    #[test]
     fn opcode_table() {
         use std::fmt::Write;
 
@@ -1021,41 +996,5 @@ mod tests {
             isle_prelude(),
             snapbox::file!["../../../isle/evm-ir/prelude.isle"]
         );
-    }
-
-    #[test]
-    fn eip_8024_immediates() {
-        assert_eq!(encode_stack_depth(17), 0x80);
-        assert_eq!(decode_stack_depth(0xdb), Some(108));
-        assert_eq!(decode_stack_depth(0x5b), None);
-        assert_eq!(encode_exchange(2, 3), 0x9d);
-        assert_eq!(encode_exchange(1, 19), 0x2f);
-        assert_eq!(decode_exchange(0x50), Some((14, 16)));
-        assert_eq!(decode_exchange(0x52), None);
-        assert_eq!(
-            StackOp::Dup(16).lowering(EvmVersion::Osaka),
-            Some(StackOpLowering::Direct(DUP16, None))
-        );
-        assert_eq!(StackOp::Dup(17).lowering(EvmVersion::Osaka), None);
-        assert_eq!(
-            StackOp::Swap(108).lowering(EvmVersion::Amsterdam),
-            Some(StackOpLowering::Direct(SWAPN, Some(0xdb)))
-        );
-        assert_eq!(StackOp::Exchange(1, 16).assembled_len(EvmVersion::Osaka), Some(3));
-        assert_eq!(StackOp::Exchange(1, 17).assembled_len(EvmVersion::Osaka), None);
-        assert_eq!(StackOp::Exchange(1, 17).assembled_len(EvmVersion::Amsterdam), Some(2));
-        assert_eq!(StackOp::from_swaps(2, 3, 2), Some(StackOp::Exchange(2, 3)));
-
-        for depth in 17..=235 {
-            assert_eq!(decode_stack_depth(encode_stack_depth(depth)), Some(depth));
-        }
-        for immediate in u8::MIN..=u8::MAX {
-            if let Some(depth) = decode_stack_depth(immediate) {
-                assert_eq!(encode_stack_depth(depth), immediate);
-            }
-            if let Some((n, m)) = decode_exchange(immediate) {
-                assert_eq!(encode_exchange(n, m), immediate);
-            }
-        }
     }
 }

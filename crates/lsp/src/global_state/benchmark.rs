@@ -12,10 +12,9 @@ use super::{
     SymbolTables, analyze, analyze_with_source_map, run_analysis,
 };
 use crate::{
-    config::negotiate_capabilities,
+    config::{Config, negotiate_capabilities},
     diagnostics::{AnalyzedDocuments, DiagnosticOwner, DiagnosticStore, PullReport},
     handlers,
-    project_fixture::ProjectFixture,
     symbols::CompletionContext,
     utils::apply_document_changes,
     vfs::VfsPath,
@@ -75,16 +74,7 @@ impl BenchmarkWorkspaceDiscovery {
     /// Run discovery for `root` using the production indexing policy.
     #[doc(hidden)]
     pub fn run(root: impl Into<PathBuf>) -> Self {
-        let root = root.into();
-        let params = lsp_types::InitializeParams {
-            workspace_folders: Some(vec![WorkspaceFolder {
-                uri: Url::from_file_path(&root).expect("benchmark root should be a file path"),
-                name: "benchmark".into(),
-            }]),
-            ..Default::default()
-        };
-        let (_, config) = negotiate_capabilities(params);
-        let result = config
+        let result = workspace_config(&[root.into()])
             .discover_workspaces(&IndexingCancellation::default())
             .expect("benchmark discovery should not be cancelled");
         Self {
@@ -152,35 +142,30 @@ impl BenchmarkWorkspacePathQueries {
 
     /// Execute ownership and overlay-recipient queries for every prepared path.
     pub fn run(&self) -> usize {
-        self.run_paths(&self.paths)
+        self.query(false, &self.paths)
     }
 
     /// Construct the index and execute one ownership and overlay-recipient query.
     pub fn run_one(&self) -> usize {
-        self.run_paths(&self.paths[..1])
+        self.query(false, &self.paths[..1])
     }
 
     /// Execute the same queries with a prebuilt workspace path index.
     pub fn run_cached(&self) -> usize {
-        self.run_paths_cached(&self.paths)
+        self.query(true, &self.paths)
     }
 
     /// Execute one query with a prebuilt workspace path index.
     pub fn run_cached_one(&self) -> usize {
-        self.run_paths_cached(&self.paths[..1])
+        self.query(true, &self.paths[..1])
     }
 
-    fn run_paths(&self, paths: &[PathBuf]) -> usize {
-        let index = WorkspacePathIndex::new(&self.workspaces);
-        self.run_with_index(&index, paths)
-    }
-
-    fn run_paths_cached(&self, paths: &[PathBuf]) -> usize {
-        let index = WorkspacePathIndex::with_cache(&self.workspaces, Arc::clone(&self.path_cache));
-        self.run_with_index(&index, paths)
-    }
-
-    fn run_with_index(&self, index: &WorkspacePathIndex<'_>, paths: &[PathBuf]) -> usize {
+    fn query(&self, cached: bool, paths: &[PathBuf]) -> usize {
+        let index = if cached {
+            WorkspacePathIndex::with_cache(&self.workspaces, Arc::clone(&self.path_cache))
+        } else {
+            WorkspacePathIndex::new(&self.workspaces)
+        };
         paths.iter().fold(0, |fingerprint, path| {
             let query = index.query(path);
             let primary = query.workspace_idx_for_path();
@@ -204,7 +189,6 @@ pub struct BenchmarkProject {
     opts: CompileOpts,
     files: Vec<(PathBuf, String)>,
     loader: InMemoryFileLoader,
-    markers: FxHashMap<String, Vec<(PathBuf, Position)>>,
 }
 
 impl BenchmarkProject {
@@ -253,45 +237,7 @@ impl BenchmarkProject {
 
         let loader_sources = files.iter().cloned().collect();
         let loader = InMemoryFileLoader::new(root.clone(), loader_sources);
-        Ok(Self { root, opts, files, loader, markers: FxHashMap::default() })
-    }
-
-    /// Prepare a stable multi-file project from the fixture format shared with LSP tests.
-    pub fn from_fixture(name: &str, fixture: &str) -> Result<Self, BenchmarkError> {
-        if name.is_empty() {
-            return Err(BenchmarkError::new("benchmark fixture name cannot be empty"));
-        }
-        let fixture_root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("benches/fixtures");
-        let root = resolve_relative_path(&fixture_root, Path::new(name))?;
-        let fixture = ProjectFixture::try_parse(fixture)
-            .map_err(|error| BenchmarkError::new(error.to_string()))?;
-        let sources = fixture
-            .files()
-            .iter()
-            .filter_map(|file| {
-                let path = Path::new(file.path());
-                (path.extension().is_some_and(|extension| extension == "sol")).then(|| {
-                    let relative = path.strip_prefix("/").expect("fixture paths start with `/`");
-                    (relative.to_path_buf(), file.text().to_string())
-                })
-            })
-            .collect::<Vec<_>>();
-        let opts = CompileOpts { base_path: Some(root), ..Default::default() };
-        let mut project = Self::from_sources(opts, sources)?;
-        for (name, markers) in fixture.markers() {
-            let resolved = markers
-                .iter()
-                .map(|marker| {
-                    let relative = Path::new(marker.path())
-                        .strip_prefix("/")
-                        .expect("fixture paths start with `/`");
-                    let (path, _) = project.source(relative)?;
-                    Ok((path.clone(), marker.position()))
-                })
-                .collect::<Result<Vec<_>, BenchmarkError>>()?;
-            project.markers.insert(name.clone(), resolved);
-        }
-        Ok(project)
+        Ok(Self { root, opts, files, loader })
     }
 
     /// Load a Foundry project's manifest, primary sources, and import dependencies.
@@ -332,14 +278,14 @@ impl BenchmarkProject {
             files.push((path.clone(), source));
         }
         let mut dependency_roots = opts.include_paths.clone();
-        for remapping in &opts.import_remappings {
-            let target = Path::new(&remapping.path);
-            let target =
-                if target.is_absolute() { target.to_path_buf() } else { root.join(target) };
-            dependency_roots.push(target);
-        }
+        dependency_roots.extend(workspace.import_remapping_paths());
         for dependency_root in deduplicate_dependency_roots(dependency_roots) {
-            collect_dependency_sources(file_loader, &dependency_root, &mut loader_sources)?;
+            collect_dependency_sources(
+                file_loader,
+                &dependency_root,
+                &mut loader_sources,
+                &mut FxHashSet::default(),
+            )?;
         }
         if files.is_empty() {
             return Err(BenchmarkError::new(format!(
@@ -351,7 +297,7 @@ impl BenchmarkProject {
 
         let root = root.normalize();
         let loader = InMemoryFileLoader::new(root.clone(), loader_sources);
-        Ok(Self { root, opts, files, loader, markers: FxHashMap::default() })
+        Ok(Self { root, opts, files, loader })
     }
 
     /// The number of primary Solidity source files in this project.
@@ -380,20 +326,6 @@ impl BenchmarkProject {
         let (path, source) = self.source(relative_path.as_ref())?;
         let start = unique_offset(source, needle, path)?;
         Ok((file_url(path)?, position_at(source, start)))
-    }
-
-    /// Resolve one fixture `$N` marker to its LSP URI and UTF-16 position.
-    pub fn marker(&self, name: &str) -> Result<(Url, Position), BenchmarkError> {
-        let name = name.strip_prefix('$').unwrap_or(name);
-        let markers = self
-            .markers
-            .get(name)
-            .ok_or_else(|| BenchmarkError::new(format!("missing benchmark marker `${name}`")))?;
-        if markers.len() != 1 {
-            return Err(BenchmarkError::new(format!("benchmark marker `${name}` is ambiguous")));
-        }
-        let (path, position) = &markers[0];
-        Ok((file_url(path)?, *position))
     }
 
     /// Create a validated LSP range edit replacing one unique source substring.
@@ -452,41 +384,25 @@ impl BenchmarkProject {
 
     /// Consume this prepared project and run the production compiler analysis pipeline.
     pub fn analyze(self) -> BenchmarkAnalysis {
-        let Self { root, mut opts, files, loader, markers: _ } = self;
-        opts.threads = Threads::resolve(1);
+        let Self { root, opts, files, loader } = self;
         let default_uri = files.first().and_then(|(path, _)| Url::from_file_path(path).ok());
-        let source_map = Arc::new(SourceMap::empty());
-        source_map.set_file_loader(loader);
-        let result = analyze_with_source_map(AnalysisBatch::from_files(opts, files), source_map);
-        BenchmarkAnalysis {
-            root,
-            diagnostics: result.diagnostics,
-            symbol_tables: result.symbol_tables,
-            default_uri,
-        }
+        analyze_files(root, opts, files, loader, default_uri)
     }
 
     /// Analyze each primary file as an independent production analysis batch.
     pub fn analyze_file_batches(self) -> Vec<BenchmarkAnalysis> {
-        let Self { root, mut opts, files, loader, markers: _ } = self;
-        opts.threads = Threads::resolve(1);
-
+        let Self { root, opts, files, loader } = self;
         files
             .into_iter()
             .map(|(path, source)| {
                 let default_uri = Url::from_file_path(&path).ok();
-                let source_map = Arc::new(SourceMap::empty());
-                source_map.set_file_loader(loader.clone());
-                let result = analyze_with_source_map(
-                    AnalysisBatch::from_files(opts.clone(), [(path, source)]),
-                    source_map,
-                );
-                BenchmarkAnalysis {
-                    root: root.clone(),
-                    diagnostics: result.diagnostics,
-                    symbol_tables: result.symbol_tables,
+                analyze_files(
+                    root.clone(),
+                    opts.clone(),
+                    [(path, source)],
+                    loader.clone(),
                     default_uri,
-                }
+                )
             })
             .collect()
     }
@@ -571,34 +487,17 @@ impl BenchmarkRepeatedAnalysis {
     ///
     /// The caller keeps these roots and their disk dependencies alive for the workload.
     pub fn from_workspaces(roots: &[PathBuf], source: &str) -> Self {
-        let params = lsp_types::InitializeParams {
-            workspace_folders: Some(
-                roots
-                    .iter()
-                    .enumerate()
-                    .map(|(index, root)| WorkspaceFolder {
-                        uri: Url::from_file_path(root).expect("benchmark root should be absolute"),
-                        name: format!("workspace-{index}"),
-                    })
-                    .collect(),
-            ),
-            ..Default::default()
-        };
-        let (_, mut config) = negotiate_capabilities(params);
+        let mut config = workspace_config(roots);
         config.try_rediscover_workspaces().expect("benchmark workspace discovery should succeed");
         assert_eq!(config.workspaces().len(), roots.len());
         assert!(config.workspaces().iter().all(|workspace| {
             workspace.source_files().len() == 1
                 && workspace.source_files()[0].file_name().is_some_and(|name| name == "Main.sol")
         }));
-        let mut state = super::GlobalState::new(ClientSocket::new_closed());
+        let mut state = new_state();
         state.config = Arc::new(config);
         for root in roots {
-            state.vfs.write().set_file_contents_with_version(
-                VfsPath::from(root.join("Main.sol")),
-                Some(Rope::from(source)),
-                Some(1),
-            );
+            open_document(&state, root.join("Main.sol"), Rope::from(source), 1);
         }
         Self { state }
     }
@@ -696,8 +595,7 @@ impl BenchmarkDocumentUpdate {
     /// Prepare one open document and a full-content update with the same source text.
     pub fn from_source(source: String) -> Self {
         let (state, path) = open_benchmark_document(&source, "benchmark.sol", 0);
-        let uri = Url::from_file_path(path.as_path().unwrap())
-            .expect("benchmark path should be a file URL");
+        let uri = Url::from_file_path(path.as_path()).expect("benchmark path should be a file URL");
         let params = DidChangeTextDocumentParams {
             text_document: VersionedTextDocumentIdentifier::new(uri, 1),
             content_changes: vec![TextDocumentContentChangeEvent {
@@ -756,15 +654,17 @@ pub struct BenchmarkCallHierarchyRequests {
 impl BenchmarkCallHierarchyRequests {
     /// Publish an analyzed project without initializing the lazy call-hierarchy query index.
     pub fn new(analysis: BenchmarkAnalysis) -> Self {
-        let state = super::GlobalState::new(ClientSocket::new_closed());
-        state.symbol_tables.store(Arc::new(analysis.symbol_tables));
-        Self { state }
+        Self::from_symbol_tables(analysis.symbol_tables)
     }
 
     /// Clone semantic facts into a fresh snapshot outside the first-request timing.
     pub fn before_first_request(&self) -> Self {
-        let state = super::GlobalState::new(ClientSocket::new_closed());
-        state.symbol_tables.store(Arc::new(self.state.symbol_tables.load().as_ref().clone()));
+        Self::from_symbol_tables(self.state.symbol_tables.load().as_ref().clone())
+    }
+
+    fn from_symbol_tables(symbol_tables: SymbolTables) -> Self {
+        let state = new_state();
+        state.symbol_tables.store(Arc::new(symbol_tables));
         Self { state }
     }
 
@@ -774,10 +674,7 @@ impl BenchmarkCallHierarchyRequests {
         complete_request(handlers::prepare_call_hierarchy(
             &mut self.state,
             CallHierarchyPrepareParams {
-                text_document_position_params: TextDocumentPositionParams {
-                    text_document: TextDocumentIdentifier { uri: uri.clone() },
-                    position,
-                },
+                text_document_position_params: position_params(uri.clone(), position),
                 work_done_progress_params: Default::default(),
             },
         ))
@@ -831,7 +728,7 @@ impl BenchmarkCodeActionRequests {
     pub fn new(source: String, whole_document: bool) -> Self {
         let analysis = BenchmarkAnalysis::from_source(source.clone());
         let (mut state, path) = open_benchmark_document(&source, "benchmark.sol", 1);
-        let uri = Url::from_file_path(path.as_path().unwrap()).unwrap();
+        let uri = Url::from_file_path(path.as_path()).unwrap();
         let mut initialize = lsp_types::InitializeParams::default();
         initialize.capabilities.text_document.get_or_insert_default().code_action =
             Some(lsp_types::CodeActionClientCapabilities {
@@ -888,8 +785,8 @@ impl BenchmarkCodeActionRequests {
             self.params.clone(),
             diagnostics,
             self.state.vfs.clone(),
-            self.state.config.supports_workspace_edit_document_changes(),
-            self.state.config.supports_code_action_is_preferred(),
+            self.state.config.client.workspace_edit_document_changes,
+            self.state.config.client.code_action_is_preferred,
             self.state.config.supports_code_action_diagnostic_data(),
         )
     }
@@ -905,20 +802,13 @@ pub struct BenchmarkRenameRequests {
 impl BenchmarkRenameRequests {
     /// Analyze the project and retain all source documents as versioned VFS snapshots.
     pub fn new(project: BenchmarkProject, uri: Url, position: Position) -> Self {
-        let state = super::GlobalState::new(ClientSocket::new_closed());
+        let state = new_state();
         for (path, contents) in &project.files {
-            state.vfs.write().set_file_contents_with_version(
-                VfsPath::from(path.clone()),
-                Some(Rope::from(contents.as_str())),
-                Some(1),
-            );
+            open_document(&state, path.clone(), Rope::from(contents.as_str()), 1);
         }
         state.symbol_tables.store(Arc::new(project.analyze().symbol_tables));
         let params = RenameParams {
-            text_document_position: TextDocumentPositionParams {
-                text_document: TextDocumentIdentifier { uri },
-                position,
-            },
+            text_document_position: position_params(uri, position),
             new_name: "renamed".into(),
             work_done_progress_params: Default::default(),
         };
@@ -941,7 +831,7 @@ impl BenchmarkRenameRequests {
                 candidate,
                 self.params.new_name.clone(),
                 self.state.vfs.clone(),
-                self.state.config.supports_workspace_edit_document_changes(),
+                self.state.config.client.workspace_edit_document_changes,
             )
             .expect("rename benchmark request should succeed"),
         )
@@ -957,19 +847,12 @@ impl BenchmarkSignatureHelpRequests {
             .iter()
             .find(|(source_path, _)| *source_path == path)
             .expect("signature-help benchmark document should belong to the project");
-        let state = super::GlobalState::new(ClientSocket::new_closed());
-        state.vfs.write().set_file_contents_with_version(
-            VfsPath::from(path),
-            Some(Rope::from(contents.as_str())),
-            Some(1),
-        );
+        let state = new_state();
+        open_document(&state, path, Rope::from(contents.as_str()), 1);
         state.symbol_tables.store(Arc::new(project.clone().analyze().symbol_tables));
         state.analysis_commit.lock().vfs_content_revision = state.vfs.read().content_revision();
         let params = SignatureHelpParams {
-            text_document_position_params: TextDocumentPositionParams {
-                text_document: TextDocumentIdentifier { uri },
-                position,
-            },
+            text_document_position_params: position_params(uri, position),
             work_done_progress_params: Default::default(),
             context: None,
         };
@@ -996,7 +879,7 @@ impl BenchmarkSignatureHelpRequests {
         }
         let mut project = self.project.clone();
         let symbol_tables = if edit {
-            let source_path = path.as_path().unwrap();
+            let source_path = path.as_path();
             let (_, source) = project
                 .files
                 .iter_mut()
@@ -1008,13 +891,9 @@ impl BenchmarkSignatureHelpRequests {
         } else {
             self.state.symbol_tables.load_full()
         };
-        let mut state = super::GlobalState::new(ClientSocket::new_closed());
+        let mut state = new_state();
         state.config = self.state.config.clone();
-        state.vfs.write().set_file_contents_with_version(
-            path,
-            Some(contents),
-            Some(if edit { 2 } else { 1 }),
-        );
+        open_document(&state, path, contents, if edit { 2 } else { 1 });
         state.symbol_tables.store(symbol_tables);
         state.analysis_commit.lock().vfs_content_revision = state.vfs.read().content_revision();
         Self { state, params: self.params.clone(), project }
@@ -1029,14 +908,21 @@ impl BenchmarkSignatureHelpRequests {
     /// Execute one synchronous signature-help request through the production handler.
     #[inline(never)]
     pub fn run(&mut self) -> Option<SignatureHelp> {
-        let request = handlers::signature_help(&mut self.state, self.params.clone());
-        let mut request = std::pin::pin!(request);
-        let mut context = Context::from_waker(Waker::noop());
-        let Poll::Ready(response) = request.as_mut().poll(&mut context) else {
-            panic!("signature-help benchmark request should complete immediately");
-        };
-        response.expect("signature-help benchmark request should succeed")
+        complete_request(handlers::signature_help(&mut self.state, self.params.clone()))
     }
+}
+
+fn new_state() -> super::GlobalState {
+    super::GlobalState::new(ClientSocket::new_closed())
+}
+
+fn open_document(
+    state: &super::GlobalState,
+    path: impl Into<VfsPath>,
+    contents: Rope,
+    version: i32,
+) {
+    state.vfs.write().set_file_contents_with_version(path.into(), Some(contents), Some(version));
 }
 
 fn open_benchmark_document(
@@ -1044,14 +930,29 @@ fn open_benchmark_document(
     name: &str,
     version: i32,
 ) -> (super::GlobalState, VfsPath) {
-    let state = super::GlobalState::new(ClientSocket::new_closed());
+    let state = new_state();
     let path = VfsPath::from(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("benches").join(name));
-    state.vfs.write().set_file_contents_with_version(
-        path.clone(),
-        Some(Rope::from(source)),
-        Some(version),
-    );
+    open_document(&state, path.clone(), Rope::from(source), version);
     (state, path)
+}
+
+fn position_params(uri: Url, position: Position) -> TextDocumentPositionParams {
+    TextDocumentPositionParams::new(TextDocumentIdentifier::new(uri), position)
+}
+
+/// Negotiate a configuration with one workspace folder per root.
+fn workspace_config(roots: &[PathBuf]) -> Config {
+    let folders = roots
+        .iter()
+        .enumerate()
+        .map(|(index, root)| WorkspaceFolder {
+            uri: Url::from_file_path(root).expect("benchmark root should be absolute"),
+            name: format!("workspace-{index}"),
+        })
+        .collect();
+    let params =
+        lsp_types::InitializeParams { workspace_folders: Some(folders), ..Default::default() };
+    negotiate_capabilities(params).1
 }
 
 impl BenchmarkFoldingRangeRequests {
@@ -1095,20 +996,17 @@ impl BenchmarkOpenDocuments {
         assert!(document_count > 0);
         assert!(bytes_per_document > 0);
 
-        let state = super::GlobalState::new(ClientSocket::new_closed());
-        let mut vfs = state.vfs.write();
+        let state = new_state();
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("benches/open-documents");
         for index in 0..document_count {
-            let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-                .join("benches/open-documents")
-                .join(format!("Document-{index}.sol"));
             let source = "x".repeat(bytes_per_document);
-            vfs.set_file_contents_with_version(
-                VfsPath::from(path),
-                Some(Rope::from(source.as_str())),
-                Some(1),
+            open_document(
+                &state,
+                root.join(format!("Document-{index}.sol")),
+                Rope::from(source.as_str()),
+                1,
             );
         }
-        drop(vfs);
 
         Self { snapshot: state.snapshot(), source_bytes: document_count * bytes_per_document }
     }
@@ -1141,13 +1039,12 @@ impl BenchmarkWorkspaceReports {
     /// Prepare a representative workspace report request for `document_count` current documents.
     pub fn new(document_count: usize) -> Self {
         assert!(document_count > 0);
-        let uris = (0..document_count)
-            .map(|index| {
-                Url::from_file_path(
-                    std::env::temp_dir().join(format!("solar-lsp-benchmark-{index:05}.sol")),
-                )
+        let temp_uri = |name: String| {
+            Url::from_file_path(std::env::temp_dir().join(name))
                 .expect("benchmark path should be a file URL")
-            })
+        };
+        let uris = (0..document_count)
+            .map(|index| temp_uri(format!("solar-lsp-benchmark-{index:05}.sol")))
             .collect::<Vec<_>>();
         let analyzed_documents =
             uris.iter().cloned().map(|uri| (uri, None)).collect::<AnalyzedDocuments>();
@@ -1171,14 +1068,9 @@ impl BenchmarkWorkspaceReports {
                 },
             })
             .collect::<Vec<_>>();
-        previous.extend((0..document_count / 4).map(|index| {
-            PreviousResultId {
-                uri: Url::from_file_path(
-                    std::env::temp_dir().join(format!("solar-lsp-stale-{index:05}.sol")),
-                )
-                .expect("benchmark path should be a file URL"),
-                value: format!("stale-{index}"),
-            }
+        previous.extend((0..document_count / 4).map(|index| PreviousResultId {
+            uri: temp_uri(format!("solar-lsp-stale-{index:05}.sol")),
+            value: format!("stale-{index}"),
         }));
         Self { store, previous }
     }
@@ -1262,14 +1154,10 @@ impl BenchmarkAnalysis {
         let first = batches.next().expect("benchmark analysis needs at least one batch");
         let Self { root, diagnostics, symbol_tables, default_uri } = first;
         let mut accumulator = AnalysisResultAccumulator::default();
-        accumulator.push(AnalysisResult {
-            analyzed_documents: Default::default(),
-            diagnostics,
-            symbol_tables,
-        });
-
-        for batch in batches {
-            let Self { diagnostics, symbol_tables, .. } = batch;
+        let rest = batches.map(|batch| (batch.diagnostics, batch.symbol_tables));
+        for (diagnostics, symbol_tables) in
+            std::iter::once((diagnostics, symbol_tables)).chain(rest)
+        {
             accumulator.push(AnalysisResult {
                 analyzed_documents: Default::default(),
                 diagnostics,
@@ -1303,6 +1191,15 @@ impl BenchmarkAnalysis {
                 BenchmarkResponse::WorkspaceSymbols(self.symbol_tables.workspace_symbols(query))
             }
         }
+    }
+
+    /// Resolve hover and definition responses at one position.
+    pub fn navigation(
+        &self,
+        uri: &Url,
+        position: Position,
+    ) -> (Option<Hover>, Option<GotoDefinitionResponse>) {
+        (self.symbol_tables.hover(uri, position), self.symbol_tables.goto_definition(uri, position))
     }
 
     /// Prepare a callable and query its incoming calls.
@@ -1521,15 +1418,6 @@ fn read_source(file_loader: &dyn FileLoader, path: &Path) -> Result<String, Benc
     })
 }
 
-fn collect_dependency_sources(
-    file_loader: &dyn FileLoader,
-    path: &Path,
-    sources: &mut FxHashMap<PathBuf, String>,
-) -> Result<(), BenchmarkError> {
-    let mut directory_stack = FxHashSet::default();
-    collect_dependency_sources_inner(file_loader, path, sources, &mut directory_stack)
-}
-
 fn deduplicate_dependency_roots(mut roots: Vec<PathBuf>) -> Vec<PathBuf> {
     roots.iter_mut().for_each(|path| *path = path.normalize());
     roots.sort();
@@ -1543,7 +1431,7 @@ fn deduplicate_dependency_roots(mut roots: Vec<PathBuf>) -> Vec<PathBuf> {
     deduplicated
 }
 
-fn collect_dependency_sources_inner(
+fn collect_dependency_sources(
     file_loader: &dyn FileLoader,
     path: &Path,
     sources: &mut FxHashMap<PathBuf, String>,
@@ -1568,23 +1456,37 @@ fn collect_dependency_sources_inner(
     if !directory_stack.insert(canonical.clone()) {
         return Ok(());
     }
-    let entries = std::fs::read_dir(path).map_err(|error| {
+    let enumerate_error = |error: io::Error| {
         BenchmarkError::new(format!(
             "failed to enumerate benchmark dependency directory `{}`: {error}",
             path.display()
         ))
-    })?;
-    for entry in entries {
-        let entry = entry.map_err(|error| {
-            BenchmarkError::new(format!(
-                "failed to enumerate benchmark dependency directory `{}`: {error}",
-                path.display()
-            ))
-        })?;
-        collect_dependency_sources_inner(file_loader, &entry.path(), sources, directory_stack)?;
+    };
+    for entry in std::fs::read_dir(path).map_err(enumerate_error)? {
+        let entry = entry.map_err(enumerate_error)?;
+        collect_dependency_sources(file_loader, &entry.path(), sources, directory_stack)?;
     }
     directory_stack.remove(&canonical);
     Ok(())
+}
+
+fn analyze_files(
+    root: PathBuf,
+    mut opts: CompileOpts,
+    files: impl IntoIterator<Item = (PathBuf, String)>,
+    loader: InMemoryFileLoader,
+    default_uri: Option<Url>,
+) -> BenchmarkAnalysis {
+    opts.threads = Threads::resolve(1);
+    let source_map = Arc::new(SourceMap::empty());
+    source_map.set_file_loader(loader);
+    let result = analyze_with_source_map(AnalysisBatch::from_files(opts, files), source_map);
+    BenchmarkAnalysis {
+        root,
+        diagnostics: result.diagnostics,
+        symbol_tables: result.symbol_tables,
+        default_uri,
+    }
 }
 
 fn diagnostic_line(root: &Path, uri: &Url, diagnostic: &Diagnostic) -> String {
@@ -1612,10 +1514,10 @@ fn diagnostic_line(root: &Path, uri: &Url, diagnostic: &Diagnostic) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::fs;
+    use crate::test_support::TestProject;
 
     #[cfg(unix)]
-    use std::os::unix::fs::symlink;
+    use std::{fs, os::unix::fs::symlink};
 
     #[tokio::test]
     async fn rename_workload_matches_handler() {
@@ -1686,15 +1588,11 @@ mod tests {
     #[test]
     fn repeated_analysis_limits_only_benchmark_snapshot_threads() {
         let source = "contract C {}";
-        let temp = tempfile::tempdir().unwrap();
-        let roots = (0..2)
-            .map(|index| {
-                let root = temp.path().join(format!("workspace-{index}"));
-                fs::create_dir(&root).unwrap();
-                fs::write(root.join("Main.sol"), source).unwrap();
-                root
-            })
-            .collect::<Vec<_>>();
+        let project = TestProject::new();
+        let roots = ["/workspace-0", "/workspace-1"].map(|root| {
+            project.write_file(&format!("{root}/Main.sol"), source);
+            project.path(root)
+        });
         for analysis in [
             BenchmarkRepeatedAnalysis::new(source.into()),
             BenchmarkRepeatedAnalysis::from_workspaces(&roots[..1], source),
@@ -1713,19 +1611,24 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn dependency_collection_follows_directory_symlinks_without_cycles() {
-        let temp = tempfile::tempdir().unwrap();
-        let dependency = temp.path().join("vendor/package");
-        fs::create_dir_all(&dependency).unwrap();
-        fs::write(dependency.join("Dependency.sol"), "contract Dependency {}").unwrap();
+        let project = TestProject::new();
+        project.write_file("/vendor/package/Dependency.sol", "contract Dependency {}");
+        let dependency = project.path("/vendor/package");
         symlink(&dependency, dependency.join("cycle")).unwrap();
 
-        let alias = temp.path().join("lib/package");
-        fs::create_dir_all(alias.parent().unwrap()).unwrap();
+        let alias = project.path("/lib/package");
+        fs::create_dir(project.path("/lib")).unwrap();
         symlink(&dependency, &alias).unwrap();
 
         let source_map = SourceMap::empty();
         let mut sources = FxHashMap::default();
-        collect_dependency_sources(source_map.file_loader(), &alias, &mut sources).unwrap();
+        collect_dependency_sources(
+            source_map.file_loader(),
+            &alias,
+            &mut sources,
+            &mut FxHashSet::default(),
+        )
+        .unwrap();
 
         assert_eq!(sources.get(&alias.join("Dependency.sol")).unwrap(), "contract Dependency {}");
         assert_eq!(sources.len(), 1);
@@ -1756,77 +1659,25 @@ mod tests {
 
         let duplicate = BenchmarkProject::from_source("contract C { uint x; uint x; }".into());
         assert!(duplicate.unique_anchor("benchmark.sol", "x").is_err());
+        assert!(duplicate.unique_anchor("missing.sol", "x").is_err());
     }
 
     #[test]
-    fn replacement_edits_feed_the_next_analysis() {
-        let mut project = BenchmarkProject::from_source("contract C { uint x; }".into());
+    fn edits_overlay_a_shared_corpus_and_feed_analysis() {
+        let (original, updated) = ("contract C { uint x; }", "contract C { address x; }");
+        let project = BenchmarkProject::from_source(original.into());
         let edit = project.replacement_edit("benchmark.sol", "uint x", "address x").unwrap();
-        project.apply_edit(&edit).unwrap();
-        let analysis = project.analyze();
-        assert_eq!(analysis.diagnostic_count(), 0);
-    }
+        assert_eq!(project.document_change(&edit).unwrap().apply().contents.to_string(), updated);
 
-    #[test]
-    fn cloned_projects_share_prepared_loader_sources() {
-        let project = BenchmarkProject::from_source("contract C { uint x; }".into());
-        let cloned = project.clone();
-
-        assert!(Arc::ptr_eq(&project.loader.corpus, &cloned.loader.corpus));
-    }
-
-    #[test]
-    fn editing_a_clone_does_not_change_the_original_project() {
-        let project = BenchmarkProject::from_source("contract C { uint x; }".into());
-        let edit = project.replacement_edit("benchmark.sol", "uint x", "address x").unwrap();
         let mut edited = project.clone();
+        assert!(Arc::ptr_eq(&project.loader.corpus, &edited.loader.corpus));
         edited.apply_edit(&edit).unwrap();
-
-        assert_eq!(project.source(Path::new("benchmark.sol")).unwrap().1, "contract C { uint x; }");
-        assert_eq!(
-            edited.source(Path::new("benchmark.sol")).unwrap().1,
-            "contract C { address x; }"
-        );
-        assert_eq!(
-            project.loader.load_file(Path::new("benchmark.sol")).unwrap(),
-            "contract C { uint x; }"
-        );
-        assert_eq!(
-            edited.loader.load_file(Path::new("benchmark.sol")).unwrap(),
-            "contract C { address x; }"
-        );
-    }
-
-    #[test]
-    fn edited_sources_are_loaded_from_the_project_overlay() {
-        let mut project = BenchmarkProject::from_source("contract C { uint x; }".into());
-        let edit = project.replacement_edit("benchmark.sol", "uint x", "address x").unwrap();
-        project.apply_edit(&edit).unwrap();
-
-        assert_eq!(
-            project.loader.load_file(Path::new("benchmark.sol")).unwrap(),
-            "contract C { address x; }"
-        );
-    }
-
-    #[test]
-    fn document_changes_use_the_production_rope_path() {
-        let project = BenchmarkProject::from_source("contract C { uint x; }".into());
-        let edit = project.replacement_edit("benchmark.sol", "uint x", "address value").unwrap();
-
-        let changed = project.document_change(&edit).unwrap().apply();
-
-        assert_eq!(changed.contents.to_string(), "contract C { address value; }");
-    }
-
-    #[test]
-    fn source_bytes_include_edit_overlays() {
-        let mut project = BenchmarkProject::from_source("contract C { uint x; }".into());
-        let original_bytes = project.source_bytes();
-        let edit = project.replacement_edit("benchmark.sol", "uint x", "address value").unwrap();
-        project.apply_edit(&edit).unwrap();
-
-        assert_eq!(project.source_bytes(), original_bytes + "address value".len() - "uint x".len());
+        for (project, source) in [(&project, original), (&edited, updated)] {
+            assert_eq!(project.source(Path::new("benchmark.sol")).unwrap().1, source);
+            assert_eq!(project.loader.load_file(Path::new("benchmark.sol")).unwrap(), source);
+        }
+        assert_eq!(edited.source_bytes(), project.source_bytes() + updated.len() - original.len());
+        assert_eq!(edited.analyze().diagnostic_count(), 0);
     }
 
     #[test]
@@ -1849,126 +1700,42 @@ mod tests {
 
     #[test]
     fn foundry_benchmark_corpus_loads_explicit_remapping_targets() {
-        let temp = tempfile::tempdir().unwrap();
-        let root = temp.path();
-        fs::create_dir_all(root.join("src")).unwrap();
-        fs::create_dir_all(root.join("vendor/dep/src")).unwrap();
-        fs::write(
-            root.join("foundry.toml"),
+        let fixture = TestProject::from_fixture(
             r#"
-                [profile.default]
-                src = "src"
-                libs = []
-                auto_detect_remappings = false
-                remappings = ["@dep/=vendor/dep/src/"]
+            //- /foundry.toml
+            [profile.default]
+            src = "src"
+            libs = []
+            auto_detect_remappings = false
+            remappings = ["@dep/=vendor/dep/src/"]
+
+            //- /src/Main.sol
+            import "@dep/Dependency.sol"; contract Main is Dependency {}
+
+            //- /vendor/dep/src/Dependency.sol
+            contract Dependency {}
             "#,
-        )
-        .unwrap();
-        fs::write(
-            root.join("src/Main.sol"),
-            "import \"@dep/Dependency.sol\"; contract Main is Dependency {}",
-        )
-        .unwrap();
-        fs::write(root.join("vendor/dep/src/Dependency.sol"), "contract Dependency {}").unwrap();
-
-        let project = BenchmarkProject::from_foundry_manifest(root.join("foundry.toml")).unwrap();
-        let analysis = project.analyze();
-
-        assert_eq!(analysis.diagnostic_count(), 0, "{}", analysis.diagnostic_fingerprint());
-    }
-
-    #[test]
-    fn fixture_projects_support_relative_imports() {
-        let project = BenchmarkProject::from_fixture(
-            "relative-imports",
-            r#"
-                    //- /src/Imported.sol
-                    contract Imported {}
-
-                    //- /src/Main.sol
-                    import "./Imported.sol";
-                    contract Main is Imported {}
-                "#,
-        )
-        .unwrap();
-        assert_eq!(project.file_count(), 2);
-        let analysis = project.analyze();
-        assert_eq!(analysis.diagnostic_count(), 0, "{}", analysis.diagnostic_fingerprint());
-    }
-
-    #[test]
-    fn fixture_projects_expose_markers() {
-        let project = BenchmarkProject::from_fixture(
-            "markers",
-            r#"
-                //- /src/Main.sol
-                contract Main {
-                    function $12run() external {}
-                }
-            "#,
-        )
-        .unwrap();
-
-        let (uri, position) = project.marker("$12").unwrap();
-        assert!(uri.path().ends_with("/src/Main.sol"));
-        assert_eq!(position, Position::new(1, 13));
-    }
-
-    #[test]
-    fn fixture_markers_must_target_primary_sources() {
-        let result = BenchmarkProject::from_fixture(
-            "non-source-marker",
-            concat!(
-                "//- /src/Main.sol\n",
-                "contract Main {}\n",
-                "//- /foundry.toml\n",
-                "$0[profile.default]",
-            ),
         );
 
-        assert!(result.is_err());
-    }
+        let project =
+            BenchmarkProject::from_foundry_manifest(fixture.path("/foundry.toml")).unwrap();
+        let analysis = project.analyze();
 
-    #[test]
-    fn malformed_fixtures_return_errors() {
-        for fixture in [
-            "contract BeforeMarker {}",
-            "//-\ncontract MissingPath {}",
-            "//- /Unknown.sol unsupported\ncontract Unknown {}",
-        ] {
-            assert!(BenchmarkProject::from_fixture("malformed", fixture).is_err());
-        }
+        assert_eq!(analysis.diagnostic_count(), 0, "{}", analysis.diagnostic_fingerprint());
     }
 
     #[test]
     fn repeated_analysis_reuses_and_invalidates_snapshot() {
         let mut analysis = BenchmarkRepeatedAnalysis::new("contract Cached {}".into());
-        assert!(analysis.run());
-        let first_revision = analysis
-            .state
-            .analysis_commit
-            .lock()
-            .cached_output
-            .as_ref()
-            .unwrap()
-            .vfs_content_revision;
-
-        assert!(analysis.run());
+        let run = |analysis: &mut BenchmarkRepeatedAnalysis| {
+            assert!(analysis.run());
+            let commit = analysis.state.analysis_commit.lock();
+            commit.cached_output.as_ref().unwrap().vfs_content_revision
+        };
+        let first_revision = run(&mut analysis);
+        assert_eq!(run(&mut analysis), first_revision);
         let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("benches/repeated-analysis.sol");
-        analysis.state.vfs.write().set_file_contents_with_version(
-            VfsPath::from(path),
-            Some(Rope::from("contract Cached { uint value; }")),
-            Some(2),
-        );
-        assert!(analysis.run());
-        let second_revision = analysis
-            .state
-            .analysis_commit
-            .lock()
-            .cached_output
-            .as_ref()
-            .unwrap()
-            .vfs_content_revision;
-        assert_ne!(first_revision, second_revision);
+        analysis.replace_source(&path, "contract Cached { uint value; }");
+        assert_ne!(run(&mut analysis), first_revision);
     }
 }

@@ -91,20 +91,22 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             LValuePlace::Storage { ty, access, span } => self.load_storage_value(ty, access, span),
             LValuePlace::MemoryField { object, layout, field, ty } => {
                 // value = memory_object_load_field layout, object, field
-                let value = if let MirType::MemoryObject(kind) = types::TypeLowerer::mir_type(ty) {
-                    self.builder.memory_object_load_object_field(object, layout, field, kind)
-                } else {
-                    self.builder.memory_object_load_field(object, layout, field)
-                };
+                let value = self.builder.memory_object_load_field_as(
+                    object,
+                    layout,
+                    field,
+                    types::TypeLowerer::mir_type(ty),
+                );
                 Some(self.normalize_memory_scalar(ty, value))
             }
             LValuePlace::MemoryElement { object, layout, index, ty } => {
                 // value = memory_object_load_element layout, object, index
-                let value = if let MirType::MemoryObject(kind) = types::TypeLowerer::mir_type(ty) {
-                    self.builder.memory_object_load_object(object, layout, index, kind)
-                } else {
-                    self.builder.memory_object_load_element(object, layout, index)
-                };
+                let value = self.builder.memory_object_load_element_as(
+                    object,
+                    layout,
+                    index,
+                    types::TypeLowerer::mir_type(ty),
+                );
                 Some(self.normalize_memory_scalar(ty, value))
             }
             LValuePlace::MemoryByte { object, index, ty } => {
@@ -208,6 +210,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if self.default_bindings.contains(&id) || self.deferred_bindings.contains(&id) {
             let ty = self.cx.gcx.type_of_item(id.into());
             let value = self.default_binding_value(ty);
+            let value = self.materialize_raw_scalar(id, value);
             self.values.insert(id, value);
             return Some(value);
         }
@@ -236,7 +239,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if let Some(location) = self.cx.storage.get(id) {
             let ty = self.cx.gcx.type_of_item(id.into());
             if matches!(ty.peel_refs().kind, TyKind::Mapping(..)) {
-                return self.cx.report_unsupported(span, "mapping value");
+                return Some(self.builder.imm(location.slot));
             }
             let slot = self.builder.imm(location.slot);
             return self.load_storage_value(
@@ -254,6 +257,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         mut value: ValueId,
         span: Span,
     ) -> Option<()> {
+        if !self.in_inline_assembly {
+            value = self.materialize_raw_scalar(id, value);
+        }
         if self.in_inline_assembly {
             let ty = self.cx.gcx.type_of_item(id.into());
             if self.builder.func().value_slice_location(value) != Some(SliceLocation::Calldata)
@@ -416,12 +422,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if self.cx.gcx.hir.variable(id).is_state_variable() {
             return self.cx.report_unsupported(span, "Yul state-variable slot assignment");
         }
-        let Some(access) = self.storage_refs.get(&id).copied() else {
-            return self.cx.report_unsupported(span, "Yul storage assignment target");
-        };
-
         // storage_ref.slot = value
-        self.storage_refs.insert(id, StorageAccess { slot: value, ..access });
+        self.storage_refs
+            .entry(id)
+            .or_insert(StorageAccess {
+                slot: value,
+                location: StorageLocation::word(U256::ZERO),
+                offset: None,
+            })
+            .slot = value;
         Some(())
     }
 

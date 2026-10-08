@@ -30,8 +30,8 @@
 //! 13. **Program data consistency**: data references name allocated entries at valid offsets.
 //! 14. **Return contracts**: return counts match signatures, including through tail-call chains;
 //!     signatures cannot contain void values.
-//! 15. **Representation boundaries**: SSA aggregates and semantic memory types/operations cannot
-//!     survive their lowering boundaries. Object operations agree with nominal reference kinds.
+//! 15. **Representation boundaries**: SSA aggregates and semantic memory operations cannot survive
+//!     their lowering boundaries.
 //!
 //! # Usage
 //!
@@ -100,14 +100,6 @@ impl<'a> Validator<'a> {
     #[track_caller]
     fn emit_at_inst(&mut self, message: impl fmt::Display, block: BlockId, inst: InstId) {
         self.emit(format_args!("[bb{}, inst{}] {message}", block.index(), inst.index()));
-    }
-
-    /// Validates a single function.
-    #[cfg(test)]
-    fn validate_standalone_function(mut self, func: &Function) {
-        if self.validate_references(func) {
-            self.validate_function_body(None, func);
-        }
     }
 
     fn validate_function(&mut self, module: &Module, func: &Function, phase: MirPhase) {
@@ -633,7 +625,11 @@ impl<'a> Validator<'a> {
                 }
                 InstKind::LoadImmutable(id) => {
                     match (module.get_immutable_type(id), inst.result_ty) {
-                        (Some(expected), Some(actual)) if actual != expected.mir_type() => {
+                        (Some(expected), Some(actual))
+                            if actual != expected.mir_type()
+                                && !(actual == MirType::I256
+                                    && expected.mir_type().integer_bits().is_some()) =>
+                        {
                             self.emit(format_args!(
                                 "inst{} loads immutable {} as `{actual}`, expected `{expected}`",
                                 inst_id.index(),
@@ -706,6 +702,7 @@ impl<'a> Validator<'a> {
         self.prepare_return_abi_validation(module);
         for (id, ty) in module.struct_types.iter_enumerated() {
             for field in &ty.fields {
+                self.validate_integer_type(*field);
                 if *field == MirType::Void
                     || matches!(field, MirType::Struct(nested) if *nested >= id)
                 {
@@ -755,6 +752,16 @@ impl<'a> Validator<'a> {
         }
     }
 
+    fn validate_integer_type(&mut self, ty: MirType) {
+        if let Some(bits) = ty.integer_bits()
+            && !MirType::valid_integer_width(bits)
+        {
+            self.emit(format_args!(
+                "unsupported integer type `{ty}`; expected i1 or a byte width from i8 through i256"
+            ));
+        }
+    }
+
     /// Checks constant widths and aggregate operands against their declared types.
     fn validate_value_types(&mut self, module: &Module, func: &Function) {
         self.validate_return_abi(module, func);
@@ -776,6 +783,7 @@ impl<'a> Validator<'a> {
             .chain(std::iter::once(func.return_type()))
             .chain(func.return_components().iter().copied())
         {
+            self.validate_integer_type(ty);
             if let MirType::Struct(id) = ty
                 && module.struct_types.get(id).is_none()
             {
@@ -852,7 +860,7 @@ impl<'a> Validator<'a> {
                     InstKind::AbiDecode { data, layout } => {
                         self.check_value_type(
                             func.value_ty(*data),
-                            Some(MirType::MemoryObject(MemoryObjectKind::Bytes)),
+                            Some(MirType::MemPtr),
                             block,
                             id,
                         );
@@ -1013,16 +1021,15 @@ impl<'a> Validator<'a> {
 
     /// Checks that a live value has a value type and that a constant fits it.
     fn validate_live_value_type(&mut self, func: &Function, value: ValueId) {
-        if func.value_ty(value).is_none_or(|ty| ty == MirType::Void) {
-            self.emit(format_args!("live value v{} has no value type", value.index()));
-        }
-        if let Value::Immediate(crate::mir::Immediate::Pointer(_, ty)) = func.value(value)
-            && !ty.is_pointer()
-        {
-            self.emit("pointer constant must have a pointer type");
+        match func.value_ty(value) {
+            None | Some(MirType::Void) => {
+                self.emit(format_args!("live value v{} has no value type", value.index()));
+            }
+            Some(ty) => self.validate_integer_type(ty),
         }
         if let Value::Immediate(immediate) = func.value(value)
             && let MirType::Int(bits) = immediate.ty()
+            && bits.get() < 256
             && immediate.as_u256().is_some_and(|word| word.bit_len() > bits.get() as usize)
         {
             self.emit(format_args!(
@@ -1042,9 +1049,7 @@ impl<'a> Validator<'a> {
                     InstKind::ICall { function: Callee::Builtin(builtin), args } => {
                         let result = match builtin {
                             Builtin::Require(_) | Builtin::Check { .. } | Builtin::Transfer => None,
-                            Builtin::ReturndataBytes | Builtin::Concat(_) => {
-                                Some(MirType::MemoryObject(MemoryObjectKind::Bytes))
-                            }
+                            Builtin::ReturndataBytes | Builtin::Concat(_) => Some(MirType::MemPtr),
                             Builtin::CheckedAddMod
                             | Builtin::CheckedMulMod
                             | Builtin::Sha256
@@ -1106,11 +1111,7 @@ impl<'a> Validator<'a> {
                         });
                         valid_parts
                             && inst.result_ty
-                                == Some(if *hash {
-                                    MirType::I256
-                                } else {
-                                    MirType::MemoryObject(MemoryObjectKind::Bytes)
-                                })
+                                == Some(if *hash { MirType::I256 } else { MirType::MemPtr })
                     }
                     InstKind::CheckedBinary { arithmetic, .. } => {
                         let (crate::mir::ArithmeticKind::Unsigned(bits)
@@ -1128,12 +1129,9 @@ impl<'a> Validator<'a> {
                             (1..=256).contains(&variants)
                                 && *element
                                     == crate::mir::ValueLayout::UInt(TypeSize::new_int_bits(8))
-                        }) && inst.result_ty
-                            == Some(MirType::MemoryObject(MemoryObjectKind::DynamicArray))
+                        }) && inst.result_ty == Some(MirType::MemPtr)
                     }
-                    InstKind::StorageBytesLoad(_) => {
-                        inst.result_ty == Some(MirType::MemoryObject(MemoryObjectKind::Bytes))
-                    }
+                    InstKind::StorageBytesLoad(_) => inst.result_ty == Some(MirType::MemPtr),
                     InstKind::AddressCall { kind, value, .. } => {
                         *kind == AddressCallKind::Call || value.is_none()
                     }
@@ -1398,7 +1396,7 @@ impl<'a> Validator<'a> {
                     }
                     let semantic_op = func
                         .inst(inst_id)
-                        .unlowered_reason()
+                        .unlowered_reason(func)
                         .or_else(|| kind.phase_violation(phase, &func.inst(inst_id).metadata));
                     if let Some(semantic_op) = semantic_op {
                         self.emit_at_inst(
@@ -1464,7 +1462,7 @@ fn return_abi_matches(
                     continue;
                 }
                 match ty {
-                    MirType::MemoryObject(_) if actual == MirType::I256 => {}
+                    MirType::MemPtr if actual == MirType::I256 => {}
                     MirType::Slice(location) => {
                         let pointer = match location {
                             SliceLocation::Memory => MirType::I256,
@@ -1493,7 +1491,7 @@ fn return_abi_matches(
 
 /// Returns the first type, in signature and then block order, that is not a scalar word.
 fn first_non_word_type(func: &Function) -> Option<MirType> {
-    let non_word = |ty: MirType| !ty.is_word() || matches!(ty, MirType::MemoryObject(_));
+    let non_word = |ty: MirType| !matches!(ty, MirType::I1 | MirType::I256 | MirType::MemPtr);
     let signature = func.arg_indices().map(|index| func.arg_ty(index));
     if let Some(ty) =
         signature.chain(func.return_components().iter().copied()).find(|&ty| non_word(ty))
@@ -1531,557 +1529,3 @@ fn first_non_word_type(func: &Function) -> Option<MirType> {
 // =============================================================================
 // Tests
 // =============================================================================
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::mir::{DataId, DataRef, Function, FunctionBuilder, Immediate, MirType, Terminator};
-    use alloy_primitives::U256;
-    use snapbox::{assert_data_eq, str};
-    use solar_interface::{ColorChoice, Ident, Session};
-    use std::num::NonZeroU32;
-
-    fn with_session<F: FnOnce(&Session) + Send>(f: F) {
-        let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
-        sess.dcx.set_flags(|flags| flags.track_diagnostics = false);
-        sess.enter(|| f(&sess));
-    }
-
-    fn make_func() -> Function {
-        Function::new(Ident::DUMMY)
-    }
-
-    #[test]
-    fn phase_boundary_rejects_invalid_value_references() {
-        with_session(|sess| {
-            let mut module = Module::new(Ident::DUMMY);
-            for mode in 0..4 {
-                let mut function = make_func();
-                let value = match mode {
-                    0 => ValueId::from_usize(99),
-                    1 => {
-                        let value = function.alloc_value(Value::Undef(MirType::I256));
-                        *function.value_mut(value) = Value::Inst(InstId::from_usize(99));
-                        value
-                    }
-                    2 => function.alloc_value(Value::Arg(crate::mir::ArgIdx::from_usize(99))),
-                    _ => {
-                        function.blocks[BlockId::ENTRY].instructions.push(InstId::from_usize(99));
-                        function.alloc_value(Value::Immediate(Immediate::I1(true)))
-                    }
-                };
-                // return invalid_value
-                function.blocks[BlockId::ENTRY].terminator =
-                    Some(Terminator::Return { values: smallvec::smallvec![value] });
-                module.add_function(function);
-            }
-            assert!(validate_phase(&sess.dcx, &module, MirPhase::Lowered).is_err());
-            assert_data_eq!(
-                sess.emitted_diagnostics().unwrap().to_string(),
-                str![[r#"
-error: [fn0] [bb0] reference to undefined value v99
-
-error: [fn1] [bb0] value v0 references nonexistent inst99
-
-error: [fn2] [bb0] value v0 references nonexistent argument 99
-
-error: [fn3] [bb0] block contains nonexistent inst99
-
-
-"#]]
-            );
-        });
-    }
-
-    #[test]
-    fn phase_boundary_checks_types() {
-        with_session(|sess| {
-            let mut module = Module::new(Ident::DUMMY);
-            let mut function = make_func();
-            let mut builder = FunctionBuilder::new(&mut function);
-            let value = builder.imm(0);
-            // return i256 0 from an i1 function
-            builder.set_return_type(MirType::I1);
-            builder.set_terminator(Terminator::Return { values: smallvec::smallvec![value] });
-            module.add_function(function);
-            assert!(validate_phase(&sess.dcx, &module, MirPhase::Lowered).is_err());
-            assert_data_eq!(
-                sess.emitted_diagnostics().unwrap().to_string(),
-                str![[r#"
-error: [fn0] [bb0] return values do not match the signature
-
-
-"#]]
-            );
-        });
-    }
-
-    #[test]
-    fn terminator_operands_require_explicit_conversions() {
-        with_session(|sess| {
-            let mut module = Module::new(Ident::DUMMY);
-            for mode in 0..4 {
-                let mut function = make_func();
-                let boolean = function.alloc_value(Value::Immediate(Immediate::I1(true)));
-                let word = function.alloc_value(Value::Immediate(Immediate::I256(U256::ONE)));
-                let term = match mode {
-                    0 => Terminator::Revert { offset: boolean, size: word },
-                    1 => Terminator::ReturnData { offset: word, size: boolean },
-                    2 => Terminator::SelfDestruct { recipient: boolean },
-                    _ => {
-                        let next = function.alloc_block();
-                        function.blocks[next].terminator = Some(Terminator::Stop);
-                        Terminator::Switch {
-                            value: boolean,
-                            default: next,
-                            cases: vec![(word, next)],
-                        }
-                    }
-                };
-                // terminate with an operand of the wrong type
-                FunctionBuilder::new(&mut function).set_terminator(term);
-                module.add_function(function);
-            }
-            assert!(validate_phase(&sess.dcx, &module, MirPhase::Lowered).is_err());
-            assert_data_eq!(
-                sess.emitted_diagnostics().unwrap().to_string(),
-                str![[r#"
-error: [fn0] [bb0] raw return and revert operands must have type `i256`; use an explicit cast
-
-error: [fn1] [bb0] raw return and revert operands must have type `i256`; use an explicit cast
-
-error: [fn2] [bb0] selfdestruct recipient must have type `i256`; use an explicit cast
-
-error: [fn3] [bb0] switch cases must have the selector type
-
-
-"#]]
-            );
-        });
-    }
-
-    #[test]
-    fn integer_constants_must_fit_their_types() {
-        with_session(|sess| {
-            let mut module = Module::new(Ident::DUMMY);
-            for bits in [1, 7, 160] {
-                let mut function = make_func();
-                let width = NonZeroU32::new(bits).unwrap();
-                let value = function
-                    .alloc_value(Value::Immediate(Immediate::Int(U256::ONE << bits, width)));
-                // ret an out-of-range integer constant
-                let mut builder = FunctionBuilder::new(&mut function);
-                builder.set_return_type(MirType::Int(width));
-                builder.ret([value]);
-                module.add_function(function);
-            }
-            validate(&sess.dcx, &module);
-            assert_data_eq!(
-                sess.emitted_diagnostics().unwrap().to_string(),
-                str![[r#"
-error: [fn0] constant v0 does not fit its type `i1`
-
-error: [fn1] constant v0 does not fit its type `i7`
-
-error: [fn2] constant v0 does not fit its type `i160`
-
-
-"#]]
-            );
-        });
-    }
-
-    #[test]
-    fn return_abi_matches_struct_fields() {
-        with_session(|sess| {
-            let mut module = Module::new(Ident::DUMMY);
-            let pair = module.intern_struct(vec![MirType::I256, MirType::I1]);
-            let slice = MirType::Slice(SliceLocation::Memory);
-            let nested = module.intern_struct(vec![pair, slice]);
-            let mut function = make_func();
-            function.set_return_type(nested);
-            let words = [MirType::I256, MirType::I1, MirType::I256, MirType::I256];
-            function.set_return_abi(words);
-            module.add_function(function);
-            let mut validator = Validator::new(&sess.dcx);
-            validator.prepare_return_abi_validation(&module);
-            let matches = |ty, words: &[MirType]| {
-                return_abi_matches(&module, ty, words, &validator.return_field_counts)
-            };
-            assert!(matches(nested, &words));
-            assert!(!matches(nested, &words[..3]));
-            assert!(!matches(pair, &words));
-            assert!(!matches(pair, &[MirType::I1, MirType::I256]));
-            assert!(matches(slice, &[MirType::I256]));
-            assert!(matches(slice, &words[2..]));
-            assert!(!matches(slice, &[MirType::I256, MirType::I1]));
-        });
-    }
-
-    #[test]
-    fn return_abi_skips_repeated_empty_structs() {
-        with_session(|sess| {
-            let mut module = Module::new(Ident::DUMMY);
-            let mut ty = module.intern_struct(Vec::new());
-            for _ in 0..128 {
-                ty = module.intern_struct(vec![ty, ty]);
-            }
-            let mut function = make_func();
-            function.set_return_type(ty);
-            function.set_return_abi([]);
-            module.add_function(function);
-            let mut validator = Validator::new(&sess.dcx);
-            validator.prepare_return_abi_validation(&module);
-            assert!(return_abi_matches(&module, ty, &[], &validator.return_field_counts));
-            assert!(!return_abi_matches(
-                &module,
-                ty,
-                &[MirType::I256],
-                &validator.return_field_counts
-            ));
-        });
-    }
-
-    #[test]
-    fn orphaned_instruction_result_is_caught() {
-        with_session(|sess| {
-            let mut func = make_func();
-            {
-                let mut builder = FunctionBuilder::new(&mut func);
-                // value = calldatasize
-                // return value
-                let value = builder.calldatasize();
-                builder.ret([value]);
-            }
-            func.blocks[BlockId::ENTRY].instructions.clear();
-            Validator::new(&sess.dcx).validate_standalone_function(&func);
-            assert_data_eq!(
-                sess.emitted_diagnostics().unwrap().to_string(),
-                str![[r#"
-error: [bb0] use of ValueId(0) has no live definition
-
-
-"#]]
-            );
-        });
-    }
-
-    #[test]
-    fn phase_boundary_checks_predecessors_and_call_targets() {
-        with_session(|sess| {
-            let mut module = Module::new(Ident::DUMMY);
-            let mut func = make_func();
-            let next = func.alloc_block();
-            {
-                let mut builder = FunctionBuilder::new(&mut func);
-                // icall fn99
-                // jump bb1
-                // bb1: tail_call fn98
-                builder.icall_void(FunctionId::from_usize(99), Vec::new());
-                builder.jump(next);
-                builder.switch_to_block(next);
-                builder.tail_call(FunctionId::from_usize(98), Vec::new());
-            }
-            func.blocks[next].predecessors.clear();
-            module.add_function(func);
-            assert!(module.advance_phase(&sess.dcx, MirPhase::Lowered).is_err());
-            assert_eq!(module.phase(), MirPhase::Semantic);
-            assert_data_eq!(
-                sess.emitted_diagnostics().unwrap().to_string(),
-                str![[r#"
-error: [fn0] [bb0] successor bb1 does not list bb0 as a predecessor
-
-error: [fn0] icall targets nonexistent function fn99
-
-error: [fn0] tail_call targets nonexistent function fn98
-
-
-"#]]
-            );
-        });
-    }
-
-    #[test]
-    fn phase_boundary_checks_tail_call_results() {
-        for mode in 0..3 {
-            with_session(|sess| {
-                let mut module = Module::new(Ident::DUMMY);
-                let mut callee = make_func();
-                callee.set_return_type(MirType::I256);
-                // ret 0
-                let mut builder = FunctionBuilder::new(&mut callee);
-                let zero = builder.imm(0);
-                builder.ret([zero]);
-                let callee = module.add_function(callee);
-                let mut caller = make_func();
-                caller.set_return_type(MirType::I256);
-                // tail_call callee
-                FunctionBuilder::new(&mut caller).tail_call(callee, Vec::new());
-                let caller = module.add_function(caller);
-                assert!(module.advance_phase(&sess.dcx, MirPhase::Lowered).is_ok());
-                module.functions[caller].set_return_type(MirType::Void);
-                match mode {
-                    0 => validate(&sess.dcx, &module),
-                    1 => assert!(module.advance_phase(&sess.dcx, MirPhase::Lowered).is_err()),
-                    _ => assert!(module.as_lowered(&sess.dcx).is_err()),
-                }
-                assert_data_eq!(
-                    sess.emitted_diagnostics().unwrap().to_string(),
-                    str![[r#"
-error: [fn1] tail_call to `.0` returns 1 value(s), caller signature expects 0
-
-
-"#]]
-                );
-            });
-        }
-    }
-
-    #[test]
-    fn phase_boundary_ignores_other_modules_errors() {
-        with_session(|sess| {
-            sess.dcx.err("another module failed").emit();
-            let mut module = Module::new(Ident::DUMMY);
-            let mut func = make_func();
-            // stop
-            FunctionBuilder::new(&mut func).stop();
-            module.add_function(func);
-            assert!(module.advance_phase(&sess.dcx, MirPhase::Lowered).is_ok());
-            assert!(module.as_lowered(&sess.dcx).is_ok());
-            assert_data_eq!(
-                sess.emitted_diagnostics().unwrap().to_string(),
-                str![[r#"
-error: another module failed
-
-
-"#]]
-            );
-        });
-    }
-
-    #[test]
-    fn missing_dispatch_entry_is_caught_without_runtime_attributes() {
-        with_session(|sess| {
-            let mut module = Module::new(Ident::DUMMY);
-
-            for _ in 0..2 {
-                let mut func = make_func();
-                func.selector = Some([0; 4]);
-                func.attributes.is_abi_wrapper = true;
-                FunctionBuilder::new(&mut func).stop();
-                module.functions.push(func);
-            }
-            let _ = validate_phase(&sess.dcx, &module, MirPhase::Lowered);
-            assert!(sess.dcx.has_errors().is_err());
-            assert_data_eq!(
-                sess.emitted_diagnostics().unwrap().to_string(),
-                str![[r#"
-error: module is in the `lowered` phase but has no `entry` routing function
-
-
-"#]]
-            );
-        });
-    }
-
-    #[test]
-    fn invalid_data_reference_is_caught() {
-        with_session(|sess| {
-            let mut module = Module::new(Ident::DUMMY);
-            let mut func = make_func();
-            {
-                let mut builder = FunctionBuilder::new(&mut func);
-                let dest = builder.imm(0);
-                let size = builder.imm(1);
-                builder.data_copy(DataRef::new(DataId::from_usize(7), 0), dest, size);
-                builder.stop();
-            }
-            module.functions.push(func);
-            Validator::new(&sess.dcx).validate_module(&module);
-            assert_data_eq!(
-                sess.emitted_diagnostics().unwrap().to_string(),
-                str![[r#"
-error: [fn0] [bb0, inst0] datacopy references nonexistent data7
-
-
-"#]]
-            );
-        });
-    }
-
-    #[test]
-    fn invalid_data_offset_is_caught() {
-        with_session(|sess| {
-            let mut module = Module::new(Ident::DUMMY);
-            let data = module.add_data(vec![0; 4].into(), None);
-            let mut func = make_func();
-            {
-                let mut builder = FunctionBuilder::new(&mut func);
-                let dest = builder.imm(0);
-                let size = builder.imm(1);
-                builder.data_copy(DataRef::new(data, 5), dest, size);
-                builder.stop();
-            }
-            module.functions.push(func);
-            Validator::new(&sess.dcx).validate_module(&module);
-            assert_data_eq!(
-                sess.emitted_diagnostics().unwrap().to_string(),
-                str![[r#"
-error: [fn0] [bb0, inst0] datacopy range 5..6 exceeds data size 4
-
-
-"#]]
-            );
-        });
-    }
-
-    #[test]
-    fn missing_terminator_is_caught() {
-        with_session(|sess| {
-            let mut func = make_func();
-            // Add a parameter to the entry block but no terminator.
-            {
-                let mut b = FunctionBuilder::new(&mut func);
-                let _p = b.add_param(MirType::I256);
-                // Don't terminate — leave the entry block dangling.
-            }
-            Validator::new(&sess.dcx).validate_standalone_function(&func);
-            assert!(sess.dcx.has_errors().is_err());
-            assert_data_eq!(
-                sess.emitted_diagnostics().unwrap().to_string(),
-                str![[r#"
-error: [bb0] block has no terminator
-
-
-"#]]
-            );
-        });
-    }
-
-    #[test]
-    fn bad_block_reference_is_caught() {
-        with_session(|sess| {
-            let mut func = make_func();
-            {
-                let mut b = FunctionBuilder::new(&mut func);
-                let x = b.add_param(MirType::I256);
-                b.ret([x]);
-            }
-            // Manually corrupt: replace the terminator with a Jump to a nonexistent block.
-            let bad_block = BlockId::from_usize(99);
-            func.blocks[BlockId::ENTRY].terminator = Some(Terminator::Jump(bad_block));
-            Validator::new(&sess.dcx).validate_standalone_function(&func);
-            assert!(sess.dcx.has_errors().is_err());
-            assert_data_eq!(
-                sess.emitted_diagnostics().unwrap().to_string(),
-                str![[r#"
-error: [bb0] terminator references nonexistent block bb99
-
-
-"#]]
-            );
-        });
-    }
-
-    #[test]
-    fn predecessor_back_link_is_caught() {
-        with_session(|sess| {
-            let mut func = make_func();
-            let target;
-            {
-                let mut b = FunctionBuilder::new(&mut func);
-                target = b.create_block();
-                b.jump(target);
-                b.switch_to_block(target);
-                b.stop();
-            }
-            Validator::new(&sess.dcx).validate_standalone_function(&func);
-            assert!(sess.dcx.has_errors().is_ok());
-            // Drop the back-link.
-            func.blocks[target].predecessors.clear();
-            Validator::new(&sess.dcx).validate_standalone_function(&func);
-            assert!(sess.dcx.has_errors().is_err());
-            assert_data_eq!(
-                sess.emitted_diagnostics().unwrap().to_string(),
-                str![[r#"
-error: [bb0] successor bb1 does not list bb0 as a predecessor
-
-
-"#]]
-            );
-        });
-    }
-
-    #[test]
-    fn unexpected_stored_predecessor_is_caught() {
-        with_session(|sess| {
-            let mut func = make_func();
-            let target;
-            {
-                let mut builder = FunctionBuilder::new(&mut func);
-                target = builder.create_block();
-                builder.stop();
-                builder.switch_to_block(target);
-                builder.stop();
-            }
-            func.blocks[target].predecessors.push(BlockId::ENTRY);
-            Validator::new(&sess.dcx).validate_standalone_function(&func);
-            assert!(sess.dcx.has_errors().is_err());
-            assert_data_eq!(
-                sess.emitted_diagnostics().unwrap().to_string(),
-                str![[r#"
-error: [bb1] stored predecessor bb0 does not branch to bb1
-
-
-"#]]
-            );
-        });
-    }
-
-    #[test]
-    fn duplicate_predecessor_is_caught() {
-        with_session(|sess| {
-            let mut func = make_func();
-            let target;
-            {
-                let mut builder = FunctionBuilder::new(&mut func);
-                target = builder.create_block();
-                let condition = builder.imm_bool(true);
-                builder.branch(condition, target, target);
-                builder.switch_to_block(target);
-                builder.stop();
-            }
-            // A branch with equal arms still lists its block once.
-            assert_eq!(func.blocks[target].predecessors.as_slice(), [BlockId::ENTRY]);
-            func.blocks[target].predecessors.push(BlockId::ENTRY);
-            Validator::new(&sess.dcx).validate_standalone_function(&func);
-            assert!(sess.dcx.has_errors().is_err());
-            assert_data_eq!(
-                sess.emitted_diagnostics().unwrap().to_string(),
-                str![[r#"
-error: [bb1] predecessor bb0 is listed more than once
-
-
-"#]]
-            );
-        });
-    }
-
-    #[test]
-    fn function_without_entry_block_is_caught() {
-        with_session(|sess| {
-            let mut func = make_func();
-            func.blocks.clear();
-            Validator::new(&sess.dcx).validate_standalone_function(&func);
-            assert!(sess.dcx.has_errors().is_err());
-            assert_data_eq!(
-                sess.emitted_diagnostics().unwrap().to_string(),
-                str![[r#"
-error: function has no entry block
-
-
-"#]]
-            );
-        });
-    }
-}

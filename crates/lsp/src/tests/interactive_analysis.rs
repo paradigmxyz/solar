@@ -1,86 +1,35 @@
 use super::*;
-use crate::test_support::start_request;
-use lsp_types::{
-    CompletionParams, CompletionResponse, DocumentSymbolParams, GotoDefinitionParams, HoverParams,
-    ReferenceContext, ReferenceParams, RenameParams, SignatureHelpParams,
-    TextDocumentPositionParams,
-};
+use lsp_types::{CompletionParams, CompletionResponse, SignatureHelpParams};
+use serde::de::DeserializeOwned;
+
+const POSITION: Position = Position { line: 0, character: 9 };
 
 fn fixture() -> (TestProject, GlobalState, Url) {
     let project = TestProject::from_fixture("//- /Request.sol open\ncontract Before {}\n");
-    let mut batches = snapshot(&project).analysis_batches(Vec::new());
-    let result = analyze(batches.pop().unwrap());
-    assert!(batches.is_empty());
+    let result = analyze_single_batch(&snapshot(&project));
     assert!(result.diagnostics.is_empty());
-    let uri = Url::from_file_path(project.path("/Request.sol")).unwrap();
-    let mut state = GlobalState::new(ClientSocket::new_closed());
-    state.config = Arc::new(project.config());
-    state.vfs = Arc::new(RwLock::new(project.vfs()));
+    let uri = project.uri("/Request.sol");
+    let state = project.state();
     state.symbol_tables.store(Arc::new(result.symbol_tables));
     (project, state, uri)
 }
 
-fn change(state: &mut GlobalState, uri: &Url, version: i32, source: &str) {
-    assert!(
-        crate::handlers::did_change_text_document(
-            state,
-            DidChangeTextDocumentParams {
-                text_document: VersionedTextDocumentIdentifier::new(uri.clone(), version),
-                content_changes: vec![TextDocumentContentChangeEvent {
-                    range: None,
-                    range_length: None,
-                    text: source.into(),
-                }],
-            },
-        )
-        .is_continue()
-    );
-}
-
-fn position(uri: &Url) -> TextDocumentPositionParams {
-    TextDocumentPositionParams {
-        text_document: TextDocumentIdentifier::new(uri.clone()),
-        position: Position::new(0, 9),
-    }
-}
-
-fn hover_params(uri: &Url) -> HoverParams {
-    HoverParams {
-        text_document_position_params: position(uri),
-        work_done_progress_params: Default::default(),
-    }
+/// Builds params for any request at the contract name.
+fn params<T: DeserializeOwned>(uri: &Url) -> T {
+    let extra = json!({ "newName": "Renamed", "context": { "includeDeclaration": true } });
+    request_params(uri, POSITION, extra)
 }
 
 fn request_foreground(state: &mut GlobalState, uri: &Url, method: &str) {
-    let goto = GotoDefinitionParams {
-        text_document_position_params: position(uri),
-        work_done_progress_params: Default::default(),
-        partial_result_params: Default::default(),
-    };
     match method {
-        "hover" => drop(crate::handlers::hover(state, hover_params(uri))),
-        "definition" => drop(crate::handlers::goto_definition(state, goto)),
-        "typeDefinition" => drop(crate::handlers::goto_type_definition(state, goto)),
-        "declaration" => drop(crate::handlers::goto_declaration(state, goto)),
-        "implementation" => drop(crate::handlers::goto_implementation(state, goto)),
-        "references" => drop(crate::handlers::references(
-            state,
-            ReferenceParams {
-                text_document_position: position(uri),
-                context: ReferenceContext { include_declaration: true },
-                work_done_progress_params: Default::default(),
-                partial_result_params: Default::default(),
-            },
-        )),
-        "prepareRename" => drop(crate::handlers::prepare_rename(state, position(uri))),
-        "rename" => drop(crate::handlers::rename(
-            state,
-            RenameParams {
-                text_document_position: position(uri),
-                new_name: "Renamed".into(),
-                work_done_progress_params: Default::default(),
-            },
-        )),
+        "hover" => drop(crate::handlers::hover(state, params(uri))),
+        "definition" => drop(crate::handlers::goto_definition(state, params(uri))),
+        "typeDefinition" => drop(crate::handlers::goto_type_definition(state, params(uri))),
+        "declaration" => drop(crate::handlers::goto_declaration(state, params(uri))),
+        "implementation" => drop(crate::handlers::goto_implementation(state, params(uri))),
+        "references" => drop(crate::handlers::references(state, params(uri))),
+        "prepareRename" => drop(crate::handlers::prepare_rename(state, params(uri))),
+        "rename" => drop(crate::handlers::rename(state, params(uri))),
         _ => unreachable!(),
     }
 }
@@ -99,8 +48,7 @@ async fn foreground_requests_end_the_pending_source_change_debounce() {
     ] {
         let (_project, mut state, uri) = fixture();
         change(&mut state, &uri, 1, "contract After {}");
-        let coordinator =
-            state.analysis_scheduler.tasks.lock().coordinator.as_ref().unwrap().1.clone();
+        let coordinator = analysis_coordinator(&state);
         state.analysis_scheduler.gate.close();
         tokio::time::sleep(state.config.source_change_debounce() / 2).await;
         let start = tokio::time::Instant::now();
@@ -119,22 +67,10 @@ async fn foreground_requests_end_the_pending_source_change_debounce() {
 async fn document_symbols_and_diagnostics_retain_the_source_change_debounce() {
     let (_project, mut state, uri) = fixture();
     change(&mut state, &uri, 1, "contract After {}");
-    let mut symbols = std::pin::pin!(crate::handlers::document_symbol(
-        &mut state,
-        DocumentSymbolParams {
-            text_document: TextDocumentIdentifier::new(uri.clone()),
-            work_done_progress_params: Default::default(),
-            partial_result_params: Default::default(),
-        },
-    ));
-    let mut diagnostics = std::pin::pin!(crate::handlers::document_diagnostic(
-        &mut state,
-        document_diagnostic_params(uri, None),
-    ));
-    let mut cx = Context::from_waker(Waker::noop());
-    assert!(symbols.as_mut().poll(&mut cx).is_pending());
-    assert!(diagnostics.as_mut().poll(&mut cx).is_pending());
-    let coordinator = state.analysis_scheduler.tasks.lock().coordinator.as_ref().unwrap().1.clone();
+    let _symbols = start_request(crate::handlers::document_symbol(&mut state, params(&uri)));
+    let diagnostics = document_diagnostic_params(&uri, None);
+    let _diagnostics = start_request(crate::handlers::document_diagnostic(&mut state, diagnostics));
+    let coordinator = analysis_coordinator(&state);
     let tick = Duration::from_millis(1);
     state.analysis_scheduler.gate.close();
 
@@ -150,10 +86,9 @@ async fn repeated_foreground_requests_wait_for_one_fresh_analysis() {
     let (_project, mut state, uri) = fixture();
     let gate = state.analysis_scheduler.gate.clone().acquire_owned().await.unwrap();
     change(&mut state, &uri, 1, "contract After {}");
-    let version = state.analysis_version.load(Ordering::Acquire);
-    let coordinator = state.analysis_scheduler.tasks.lock().coordinator.as_ref().unwrap().1.clone();
-    let mut hover = std::pin::pin!(crate::handlers::hover(&mut state, hover_params(&uri)));
-    let pending = hover.as_mut().poll(&mut Context::from_waker(Waker::noop())).is_pending();
+    let version = analysis_version(&state);
+    let coordinator = analysis_coordinator(&state);
+    let hover = start_request(crate::handlers::hover(&mut state, params(&uri)));
     for _ in 0..8 {
         request_foreground(&mut state, &uri, "definition");
     }
@@ -168,21 +103,17 @@ async fn repeated_foreground_requests_wait_for_one_fresh_analysis() {
     };
     let unpublished = *state.published_analysis_version.borrow() == 0;
     let old_symbols_visible = !state.symbol_tables.load().workspace_symbols("Before").is_empty();
-    let unchanged_epoch = state.analysis_version.load(Ordering::Acquire) == version;
+    let unchanged_epoch = analysis_version(&state) == version;
     drop(gate);
     tokio::time::resume();
 
-    let response = tokio::time::timeout(ASYNC_TEST_TIMEOUT, hover)
-        .await
-        .expect("foreground analysis should finish after the worker gate opens")
-        .unwrap();
-    assert!(pending && waiting_at_gate && same_coordinator && debounce_ended);
+    let response = within("foreground analysis", hover).await.unwrap();
+    assert!(waiting_at_gate && same_coordinator && debounce_ended);
     assert!(unpublished && old_symbols_visible && unchanged_epoch);
     assert!(response.is_some());
     let tables = state.symbol_tables.load();
-    assert!(tables.workspace_symbols("Before").is_empty());
-    assert!(tables.workspace_symbols("After").iter().any(|symbol| symbol.name == "After"));
-    assert_eq!(response, tables.hover(&uri, position(&uri).position));
+    assert_eq!(workspace_symbol_names(&tables), ["After"]);
+    assert_eq!(response, tables.hover(&uri, POSITION));
     assert_eq!(*state.published_analysis_version.borrow(), version);
 }
 
@@ -191,15 +122,13 @@ async fn edits_after_foreground_urgency_restart_the_full_debounce() {
     let (_project, mut state, uri) = fixture();
     let gate = state.analysis_scheduler.gate.clone().acquire_owned().await.unwrap();
     change(&mut state, &uri, 1, "contract Intermediate {}");
-    let first_coordinator =
-        state.analysis_scheduler.tasks.lock().coordinator.as_ref().unwrap().1.clone();
-    let hover = crate::handlers::hover(&mut state, hover_params(&uri));
+    let first_coordinator = analysis_coordinator(&state);
+    let hover = crate::handlers::hover(&mut state, params(&uri));
     let tick = Duration::from_millis(1);
     tokio::time::sleep(tick).await;
 
     change(&mut state, &uri, 2, "contract Latest {}");
-    let latest_coordinator =
-        state.analysis_scheduler.tasks.lock().coordinator.as_ref().unwrap().1.clone();
+    let latest_coordinator = analysis_coordinator(&state);
     drop(gate);
     tokio::time::sleep(state.config.source_change_debounce() - tick).await;
 
@@ -211,28 +140,15 @@ async fn edits_after_foreground_urgency_restart_the_full_debounce() {
 
     tokio::time::sleep(tick * 2).await;
     tokio::time::resume();
-    let response = tokio::time::timeout(ASYNC_TEST_TIMEOUT, hover)
-        .await
-        .expect("the earlier foreground request should be invalidated")
-        .unwrap_err();
+    let response = within("the invalidated hover", hover).await.unwrap_err();
     assert_eq!(response.code, ErrorCode::CONTENT_MODIFIED);
-    let response = tokio::time::timeout(
-        ASYNC_TEST_TIMEOUT,
-        crate::handlers::hover(&mut state, hover_params(&uri)),
-    )
-    .await
-    .unwrap()
-    .unwrap();
+    let response =
+        within("request", crate::handlers::hover(&mut state, params(&uri))).await.unwrap();
     assert!(response.is_some());
     let tables = state.symbol_tables.load();
-    assert!(tables.workspace_symbols("Before").is_empty());
-    assert!(tables.workspace_symbols("Intermediate").is_empty());
-    assert!(tables.workspace_symbols("Latest").iter().any(|symbol| symbol.name == "Latest"));
-    assert_eq!(response, tables.hover(&uri, position(&uri).position));
-    assert_eq!(
-        *state.published_analysis_version.borrow(),
-        state.analysis_version.load(Ordering::Acquire),
-    );
+    assert_eq!(workspace_symbol_names(&tables), ["Latest"]);
+    assert_eq!(response, tables.hover(&uri, POSITION));
+    assert_eq!(*state.published_analysis_version.borrow(), analysis_version(&state));
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -240,44 +156,35 @@ async fn requests_recheck_freshness_after_analysis_wakes_them() {
     let (_project, mut state, uri) = fixture();
     let gate = state.analysis_scheduler.gate.clone().acquire_owned().await.unwrap();
     change(&mut state, &uri, 1, "contract Intermediate {}");
-    let mut hover = std::pin::pin!(crate::handlers::hover(&mut state, hover_params(&uri)));
-    let mut diagnostics = std::pin::pin!(crate::handlers::document_diagnostic(
-        &mut state,
-        document_diagnostic_params(uri.clone(), None),
-    ));
-    let mut cx = Context::from_waker(Waker::noop());
-    assert!(hover.as_mut().poll(&mut cx).is_pending());
-    assert!(diagnostics.as_mut().poll(&mut cx).is_pending());
+    let mut hover = start_request(crate::handlers::hover(&mut state, params(&uri)));
+    let diagnostics = document_diagnostic_params(&uri, None);
+    let mut diagnostics =
+        start_request(crate::handlers::document_diagnostic(&mut state, diagnostics));
 
     let mut snapshot = state.snapshot();
     let result = analyze(snapshot.analysis_batches(Vec::new()).pop().unwrap());
-    assert!(snapshot.publish_analysis(state.analysis_version.load(Ordering::Acquire), result));
+    assert!(snapshot.publish_analysis(analysis_version(&state), result));
     change(&mut state, &uri, 2, "contract Latest {}");
 
-    let Poll::Ready(Err(error)) = hover.as_mut().poll(&mut cx) else {
+    let Err(error) = expect_ready(hover.as_mut()) else {
         panic!("a superseded hover must finish without waiting for more edits");
     };
     assert_eq!(error.code, ErrorCode::CONTENT_MODIFIED);
-    let Poll::Ready(Err(error)) = diagnostics.as_mut().poll(&mut cx) else {
+    let Err(error) = expect_ready(diagnostics.as_mut()) else {
         panic!("a superseded diagnostic request must finish without waiting for more edits");
     };
     assert_eq!(error.code, ErrorCode::SERVER_CANCELLED);
-    let hover = crate::handlers::hover(&mut state, hover_params(&uri));
-    let diagnostics = crate::handlers::document_diagnostic(
-        &mut state,
-        document_diagnostic_params(uri.clone(), None),
-    );
+    let hover = crate::handlers::hover(&mut state, params(&uri));
+    let diagnostics =
+        crate::handlers::document_diagnostic(&mut state, document_diagnostic_params(&uri, None));
     drop(gate);
     state.prioritize_pending_analysis();
-    let response = tokio::time::timeout(ASYNC_TEST_TIMEOUT, hover).await.unwrap().unwrap();
-    tokio::time::timeout(ASYNC_TEST_TIMEOUT, diagnostics).await.unwrap().unwrap();
+    let response = within("request", hover).await.unwrap();
+    within("request", diagnostics).await.unwrap();
     assert!(response.is_some());
-    assert_eq!(response, state.symbol_tables.load().hover(&uri, position(&uri).position));
+    assert_eq!(response, state.symbol_tables.load().hover(&uri, POSITION));
     assert!(state.symbol_tables.load().workspace_symbols("Intermediate").is_empty());
-    assert_eq!(
-        *state.published_analysis_version.borrow(),
-        state.analysis_version.load(Ordering::Acquire),
-    );
+    assert_eq!(*state.published_analysis_version.borrow(), analysis_version(&state));
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -289,60 +196,39 @@ async fn rapid_edits_and_saves_in_a_large_workspace_publish_the_latest_analysis(
         ));
     }
     let project = TestProject::from_fixture(&source);
-    let uri = Url::from_file_path(project.path("/Request.sol")).unwrap();
-    let mut state = GlobalState::new(ClientSocket::new_closed());
-    state.config = Arc::new(project.config());
-    state.vfs = Arc::new(RwLock::new(project.vfs()));
+    let uri = project.uri("/Request.sol");
+    let mut state = project.state();
     change(&mut state, &uri, 1, "contract Intermediate {}");
     state.prioritize_pending_analysis();
-    tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap();
+    settle(&state).await;
 
     // Keep the ready request unpolled while the editor sends another burst of changes.
-    let diagnostics = crate::handlers::document_diagnostic(
-        &mut state,
-        document_diagnostic_params(uri.clone(), None),
-    );
+    let diagnostics =
+        crate::handlers::document_diagnostic(&mut state, document_diagnostic_params(&uri, None));
     for version in 2..=201 {
         let text = if version % 2 == 0 { "contract Broken {" } else { "contract Latest {}" };
         change(&mut state, &uri, version, text);
         project.write_file("/Request.sol", text);
-        assert!(
-            crate::handlers::did_save_text_document(
-                &mut state,
-                DidSaveTextDocumentParams {
-                    text_document: TextDocumentIdentifier::new(uri.clone()),
-                    text: None,
-                },
-            )
-            .is_continue()
-        );
+        save(&mut state, &uri);
         if version % 10 == 0 {
             state.prioritize_pending_analysis();
             tokio::time::sleep(Duration::from_millis(1)).await;
         }
     }
-    let mut diagnostics = std::pin::pin!(diagnostics);
-    let Poll::Ready(Err(error)) =
-        diagnostics.as_mut().poll(&mut Context::from_waker(Waker::noop()))
-    else {
+    let Err(error) = expect_ready(diagnostics) else {
         panic!("the earlier request must finish despite continued edits");
     };
     assert_eq!(error.code, ErrorCode::SERVER_CANCELLED);
-    let diagnostics = crate::handlers::document_diagnostic(
-        &mut state,
-        document_diagnostic_params(uri.clone(), None),
-    );
+    let diagnostics =
+        crate::handlers::document_diagnostic(&mut state, document_diagnostic_params(&uri, None));
     state.prioritize_pending_analysis();
-    let report = tokio::time::timeout(ASYNC_TEST_TIMEOUT, diagnostics).await.unwrap().unwrap();
+    let report = within("request", diagnostics).await.unwrap();
     let DocumentDiagnosticReportResult::Report(DocumentDiagnosticReport::Full(report)) = report
     else {
         panic!("expected a full diagnostic report");
     };
     assert!(report.full_document_diagnostic_report.items.is_empty());
-    assert_eq!(
-        *state.published_analysis_version.borrow(),
-        state.analysis_version.load(Ordering::Acquire),
-    );
+    assert_eq!(*state.published_analysis_version.borrow(), analysis_version(&state));
     let tables = state.symbol_tables.load();
     assert!(tables.workspace_symbols("Intermediate").is_empty());
     assert!(tables.workspace_symbols("Broken").is_empty());
@@ -355,26 +241,16 @@ async fn pending_rename_rejects_a_different_identifier_at_the_same_position() {
     let (_project, mut state, uri) = fixture();
     let gate = state.analysis_scheduler.gate.clone().acquire_owned().await.unwrap();
     change(&mut state, &uri, 1, "contract Original {}");
-    let mut rename = std::pin::pin!(crate::handlers::rename(
-        &mut state,
-        RenameParams {
-            text_document_position: position(&uri),
-            new_name: "Renamed".into(),
-            work_done_progress_params: Default::default(),
-        },
-    ));
-    let mut prepare = std::pin::pin!(crate::handlers::prepare_rename(&mut state, position(&uri)));
-    let mut cx = Context::from_waker(Waker::noop());
-    assert!(rename.as_mut().poll(&mut cx).is_pending());
-    assert!(prepare.as_mut().poll(&mut cx).is_pending());
+    let rename = start_request(crate::handlers::rename(&mut state, params(&uri)));
+    let prepare = start_request(crate::handlers::prepare_rename(&mut state, params(&uri)));
     change(&mut state, &uri, 2, "contract Replaced {}");
     drop(gate);
     state.prioritize_pending_analysis();
-    tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap();
+    settle(&state).await;
 
-    let error = tokio::time::timeout(ASYNC_TEST_TIMEOUT, rename).await.unwrap().unwrap_err();
+    let error = within("request", rename).await.unwrap_err();
     assert_eq!(error.code, ErrorCode::CONTENT_MODIFIED);
-    let error = tokio::time::timeout(ASYNC_TEST_TIMEOUT, prepare).await.unwrap().unwrap_err();
+    let error = within("request", prepare).await.unwrap_err();
     assert_eq!(error.code, ErrorCode::CONTENT_MODIFIED);
 }
 
@@ -383,12 +259,12 @@ async fn superseded_requests_wake_without_analysis_publication() {
     let (_project, mut state, uri) = fixture();
     let gate = state.analysis_scheduler.gate.clone().acquire_owned().await.unwrap();
     change(&mut state, &uri, 1, "contract First {}");
-    let hover = tokio::spawn(crate::handlers::hover(&mut state, hover_params(&uri)));
+    let hover = tokio::spawn(crate::handlers::hover(&mut state, params(&uri)));
     tokio::task::yield_now().await;
     assert!(!hover.is_finished());
 
     change(&mut state, &uri, 2, "contract Second {}");
-    let result = tokio::time::timeout(ASYNC_TEST_TIMEOUT, hover).await;
+    let result = tokio::time::timeout(TIMEOUT, hover).await;
     assert_eq!(*state.published_analysis_version.borrow(), 0);
     drop(gate);
     let error = result
@@ -402,26 +278,19 @@ async fn superseded_requests_wake_without_analysis_publication() {
 async fn pending_rename_rejects_disk_changes_after_analysis_catches_up() {
     let (project, mut state, uri) = fixture();
     let path = project.path("/Request.sol");
-    state.vfs.write().set_file_contents(path.clone().into(), None);
+    remove_overlay(&state, &path);
     project.write_file("/Request.sol", "contract Original {}");
     let gate = state.analysis_scheduler.gate.clone().acquire_owned().await.unwrap();
     state.recompute_with_disk_files(vec![path.clone()]);
-    let rename = crate::handlers::rename(
-        &mut state,
-        RenameParams {
-            text_document_position: position(&uri),
-            new_name: "Renamed".into(),
-            work_done_progress_params: Default::default(),
-        },
-    );
+    let rename = crate::handlers::rename(&mut state, params(&uri));
     let revision = state.vfs.read().content_revision();
     project.write_file("/Request.sol", "contract Replaced {}");
     state.recompute_with_disk_files(vec![path]);
     drop(gate);
     state.prioritize_pending_analysis();
-    tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap();
+    settle(&state).await;
     assert_eq!(state.vfs.read().content_revision(), revision);
-    let error = tokio::time::timeout(ASYNC_TEST_TIMEOUT, rename).await.unwrap().unwrap_err();
+    let error = within("request", rename).await.unwrap_err();
     assert_eq!(error.code, ErrorCode::CONTENT_MODIFIED);
 }
 
@@ -430,10 +299,10 @@ async fn content_identical_edits_preserve_pending_requests() {
     let (_project, mut state, uri) = fixture();
     let gate = state.analysis_scheduler.gate.clone().acquire_owned().await.unwrap();
     change(&mut state, &uri, 1, "contract Latest {}");
-    let hover = crate::handlers::hover(&mut state, hover_params(&uri));
+    let hover = crate::handlers::hover(&mut state, params(&uri));
     change(&mut state, &uri, 2, "contract Latest {}");
     drop(gate);
-    let response = tokio::time::timeout(ASYNC_TEST_TIMEOUT, hover).await.unwrap().unwrap();
+    let response = within("request", hover).await.unwrap();
     assert!(response.is_some());
 }
 
@@ -453,28 +322,16 @@ async fn using_fixture() -> (TestProject, GlobalState, Url) {
     let (project, mut state, uri) = fixture();
     change(&mut state, &uri, 1, USING_SOURCE);
     state.prioritize_pending_analysis();
-    tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap();
+    within("analysis", state.latest_analysis()).await.unwrap();
     (project, state, uri)
 }
 
 fn completion_params(uri: &Url, position: Position) -> CompletionParams {
-    CompletionParams {
-        text_document_position: TextDocumentPositionParams {
-            text_document: TextDocumentIdentifier::new(uri.clone()),
-            position,
-        },
-        work_done_progress_params: Default::default(),
-        partial_result_params: Default::default(),
-        context: None,
-    }
+    request_params(uri, position, json!({}))
 }
 
 fn signature_params(uri: &Url, position: Position) -> SignatureHelpParams {
-    SignatureHelpParams {
-        text_document_position_params: completion_params(uri, position).text_document_position,
-        work_done_progress_params: Default::default(),
-        context: None,
-    }
+    request_params(uri, position, json!({}))
 }
 
 fn completion_labels(response: Option<CompletionResponse>) -> Vec<String> {
@@ -499,7 +356,7 @@ async fn completion_refreshes_local_names_and_using_methods_after_edits() {
     ] {
         let (_project, mut state, uri) = using_fixture().await;
         let gate = state.analysis_scheduler.gate.clone().acquire_owned().await.unwrap();
-        change(&mut state, &uri, 2, &changed.replace("// completion", expression));
+        change(&mut state, &uri, 2, changed.replace("// completion", expression));
         let mut request = std::pin::pin!(crate::handlers::completion(
             &mut state,
             completion_params(&uri, Position::new(8, 8 + expression.len() as u32)),
@@ -507,7 +364,7 @@ async fn completion_refreshes_local_names_and_using_methods_after_edits() {
         assert!(request.as_mut().poll(&mut Context::from_waker(Waker::noop())).is_pending());
         assert!(state.analysis_scheduler.tasks.lock().debounce.is_none());
         drop(gate);
-        let response = tokio::time::timeout(ASYNC_TEST_TIMEOUT, request).await.unwrap().unwrap();
+        let response = within("request", request).await.unwrap();
         assert_eq!(completion_labels(response), expected);
     }
 }
@@ -516,7 +373,7 @@ async fn completion_refreshes_local_names_and_using_methods_after_edits() {
 async fn signature_help_waits_for_a_new_attached_call() {
     let (_project, mut state, uri) = using_fixture().await;
     let gate = state.analysis_scheduler.gate.clone().acquire_owned().await.unwrap();
-    change(&mut state, &uri, 2, &USING_SOURCE.replace("// completion", "x.twice("));
+    change(&mut state, &uri, 2, USING_SOURCE.replace("// completion", "x.twice("));
     let mut request = std::pin::pin!(crate::handlers::signature_help(
         &mut state,
         signature_params(&uri, Position::new(8, 16)),
@@ -524,8 +381,7 @@ async fn signature_help_waits_for_a_new_attached_call() {
     assert!(request.as_mut().poll(&mut Context::from_waker(Waker::noop())).is_pending());
     assert!(state.analysis_scheduler.tasks.lock().debounce.is_none());
     drop(gate);
-    let response =
-        tokio::time::timeout(ASYNC_TEST_TIMEOUT, request).await.unwrap().unwrap().unwrap();
+    let response = within("request", request).await.unwrap().unwrap();
     snapbox::assert_data_eq!(
         response.signatures[0].label.as_str(),
         snapbox::str!["function twice() internal pure returns (uint256)"]
@@ -567,8 +423,7 @@ async fn incomplete_members_before_blocks_preserve_interactive_analysis() {
             let request = start_request(crate::handlers::completion(&mut state, params));
             assert!(state.analysis_scheduler.tasks.lock().debounce.is_none());
             drop(gate);
-            let response =
-                tokio::time::timeout(ASYNC_TEST_TIMEOUT, request).await.unwrap().unwrap();
+            let response = within("request", request).await.unwrap();
             assert_eq!(completion_labels(response), ["twice"], "{expression} before {following}");
             let ready = expect_ready(crate::handlers::completion(
                 &mut state,
@@ -651,8 +506,7 @@ async fn incomplete_calls_before_blocks_preserve_interactive_analysis() {
             let signature = start_request(crate::handlers::signature_help(&mut state, params));
             assert!(state.analysis_scheduler.tasks.lock().debounce.is_none());
             drop(gate);
-            let response =
-                tokio::time::timeout(ASYNC_TEST_TIMEOUT, completion).await.unwrap().unwrap();
+            let response = within("completion", completion).await.unwrap();
             let labels = completion_labels(response);
             let locals = labels
                 .iter()
@@ -660,11 +514,7 @@ async fn incomplete_calls_before_blocks_preserve_interactive_analysis() {
                 .filter(|label| matches!(*label, "x" | "addedLocal" | "blockLocal" | "afterBlock"))
                 .collect::<Vec<_>>();
             assert_eq!(locals, ["addedLocal", "x"], "{expression} before {following}");
-            let response = tokio::time::timeout(ASYNC_TEST_TIMEOUT, signature)
-                .await
-                .unwrap()
-                .unwrap()
-                .unwrap();
+            let response = within("signature help", signature).await.unwrap().unwrap();
             assert_eq!(response.signatures.len(), 1);
             if expression.starts_with("x.") {
                 snapbox::assert_data_eq!(
@@ -737,7 +587,7 @@ async fn incomplete_calls_before_blocks_preserve_interactive_analysis() {
 async fn completion_and_signature_help_reject_failed_analysis() {
     let (_project, mut state, uri) = using_fixture().await;
     let gate = state.analysis_scheduler.gate.clone().acquire_owned().await.unwrap();
-    change(&mut state, &uri, 2, &USING_SOURCE.replace("// completion", "x.twice("));
+    change(&mut state, &uri, 2, USING_SOURCE.replace("// completion", "x.twice("));
     let completion = start_request(crate::handlers::completion(
         &mut state,
         completion_params(&uri, Position::new(8, 10)),
@@ -780,7 +630,7 @@ async fn completion_and_signature_help_reject_superseded_inputs() {
         for published in [false, true] {
             let (_project, mut state, uri) = using_fixture().await;
             let gate = state.analysis_scheduler.gate.clone().acquire_owned().await.unwrap();
-            change(&mut state, &uri, 2, &USING_SOURCE.replace("// completion", "x.twice("));
+            change(&mut state, &uri, 2, USING_SOURCE.replace("// completion", "x.twice("));
             let completion = start_request(crate::handlers::completion(
                 &mut state,
                 completion_params(&uri, Position::new(8, 10)),
@@ -803,7 +653,7 @@ async fn completion_and_signature_help_reject_superseded_inputs() {
                     DidChangeConfigurationParams { settings: serde_json::Value::Null },
                 );
             } else {
-                change(&mut state, &uri, 3, &USING_SOURCE.replace("// completion", "x.triple("));
+                change(&mut state, &uri, 3, USING_SOURCE.replace("// completion", "x.triple("));
             }
             assert_eq!(expect_ready(completion).unwrap_err().code, ErrorCode::CONTENT_MODIFIED);
             assert_eq!(expect_ready(signature).unwrap_err().code, ErrorCode::CONTENT_MODIFIED);
@@ -851,7 +701,7 @@ async fn completion_and_signature_help_refresh_changed_imports() {
         &mut state,
         signature_params(&uri, signature_position),
     ));
-    change(&mut state, &imported, 2, &changed.replace("count", "increment"));
+    change(&mut state, &imported, 2, changed.replace("count", "increment"));
     assert_eq!(expect_ready(completion).unwrap_err().code, ErrorCode::CONTENT_MODIFIED);
     assert_eq!(expect_ready(signature).unwrap_err().code, ErrorCode::CONTENT_MODIFIED);
     let completion = start_request(crate::handlers::completion(
@@ -863,10 +713,9 @@ async fn completion_and_signature_help_refresh_changed_imports() {
         signature_params(&uri, signature_position),
     ));
     drop(gate);
-    let response = tokio::time::timeout(ASYNC_TEST_TIMEOUT, completion).await.unwrap().unwrap();
+    let response = within("completion", completion).await.unwrap();
     assert_eq!(completion_labels(response), ["triple", "twice"]);
-    let response =
-        tokio::time::timeout(ASYNC_TEST_TIMEOUT, signature).await.unwrap().unwrap().unwrap();
+    let response = within("signature help", signature).await.unwrap().unwrap();
     snapbox::assert_data_eq!(
         response.signatures[0].label.as_str(),
         snapbox::str!["function twice(uint256 increment) internal pure returns (uint256)"]
@@ -898,11 +747,10 @@ async fn completion_and_signature_help_share_analysis_through_identical_edits() 
         coordinator.id()
     );
     drop(gate);
-    let response = tokio::time::timeout(ASYNC_TEST_TIMEOUT, completion).await.unwrap().unwrap();
+    let response = within("completion", completion).await.unwrap();
     assert_eq!(completion_labels(response), ["twice"]);
     assert_eq!(completion_labels(second.await.unwrap()), ["twice"]);
-    let response =
-        tokio::time::timeout(ASYNC_TEST_TIMEOUT, signature).await.unwrap().unwrap().unwrap();
+    let response = within("signature help", signature).await.unwrap().unwrap();
     let ready_completion = expect_ready(crate::handlers::completion(
         &mut state,
         completion_params(&uri, Position::new(8, 10)),
@@ -926,7 +774,7 @@ async fn ready_completion_and_signature_help_recheck_inputs_when_polled() {
     let signature =
         crate::handlers::signature_help(&mut state, signature_params(&uri, Position::new(8, 8)));
     let gate = state.analysis_scheduler.gate.clone().acquire_owned().await.unwrap();
-    change(&mut state, &uri, 2, &USING_SOURCE.replace("uint256 x;", "uint256 other;"));
+    change(&mut state, &uri, 2, USING_SOURCE.replace("uint256 x;", "uint256 other;"));
     assert_eq!(expect_ready(completion).unwrap_err().code, ErrorCode::CONTENT_MODIFIED);
     assert_eq!(expect_ready(signature).unwrap_err().code, ErrorCode::CONTENT_MODIFIED);
     drop(gate);
@@ -967,7 +815,7 @@ async fn completion_syntax_and_invalid_positions_do_not_wait_for_analysis() {
     ))
     .unwrap();
     assert!(completion_labels(response).is_empty());
-    change(&mut state, &uri, 5, &format!("//😀\n{USING_SOURCE}"));
+    change(&mut state, &uri, 5, format!("//😀\n{USING_SOURCE}"));
     for (request_uri, position) in [
         (uri.clone(), Position::new(0, 3)),
         (uri.join("Missing.sol").unwrap(), Position::new(0, 0)),
@@ -1018,16 +866,15 @@ async fn aliased_interactive_requests_refresh_analysis_and_clamp_signature_posit
         assert!(state.analysis_scheduler.tasks.lock().debounce.is_none());
         drop(gate);
 
-        let response = tokio::time::timeout(ASYNC_TEST_TIMEOUT, completion).await.unwrap().unwrap();
+        let response = within("completion", completion).await.unwrap();
         assert_eq!(completion_labels(response), ["triple"]);
-        let response =
-            tokio::time::timeout(ASYNC_TEST_TIMEOUT, signature).await.unwrap().unwrap().unwrap();
+        let response = within("signature help", signature).await.unwrap().unwrap();
         snapbox::assert_data_eq!(
             response.signatures[0].label.as_str(),
             snapbox::str!["function triple() internal pure returns (uint256)"]
         );
         assert_eq!(
-            tokio::time::timeout(ASYNC_TEST_TIMEOUT, eof_signature).await.unwrap().unwrap(),
+            within("EOF signature help", eof_signature).await.unwrap(),
             Some(response.clone())
         );
         let ready = expect_ready(crate::handlers::signature_help(

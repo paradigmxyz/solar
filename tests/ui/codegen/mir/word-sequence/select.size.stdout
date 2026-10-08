@@ -14,10 +14,9 @@
     bb0:
       v0 = ne arg0, 0
 -     v1 = select v0, 0, arg1
-+     v2 = zext i1 v0 to i256
-+     v3 = eq v2, 0
-+     v4 = zext i1 v3 to i256
-+     v1 = mul v4, arg1
++     v2 = eq v0, false
++     v3 = zext i1 v2 to i256
++     v1 = mul v3, arg1
       ret v1
   }
   
@@ -35,11 +34,10 @@
     bb0:
       v0 = ne arg0, 0
 -     v1 = select v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, arg1
-+     v2 = zext i1 v0 to i256
-+     v3 = eq v2, 0
-+     v4 = zext i1 v3 to i256
-+     v5 = sub v4, 1
-+     v1 = or arg1, v5
++     v2 = eq v0, false
++     v3 = zext i1 v2 to i256
++     v4 = sub v3, 1
++     v1 = or arg1, v4
       ret v1
   }
   
@@ -112,10 +110,9 @@
     bb0:
       v0 = eq arg0, 0
 -     v1 = select v0, 0, arg1
-+     v2 = zext i1 v0 to i256
-+     v3 = eq v2, 0
-+     v4 = zext i1 v3 to i256
-+     v1 = mul v4, arg1
++     v2 = eq v0, false
++     v3 = zext i1 v2 to i256
++     v1 = mul v3, arg1
       ret v1
   }
   
@@ -133,11 +130,10 @@
     bb0:
       v0 = eq arg0, 0
 -     v1 = select v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, arg1
-+     v2 = zext i1 v0 to i256
-+     v3 = eq v2, 0
-+     v4 = zext i1 v3 to i256
-+     v5 = sub v4, 1
-+     v1 = or arg1, v5
++     v2 = eq v0, false
++     v3 = zext i1 v2 to i256
++     v4 = sub v3, 1
++     v1 = or arg1, v4
       ret v1
   }
   
@@ -205,9 +201,9 @@
       ret v0
   }
   
-  fn @pointer_arm(arg0: i1, arg1: memorybytes) -> memorybytes {
+  fn @pointer_arm(arg0: i1, arg1: memptr) -> memptr {
     bb0:
-      v0 = select arg0, arg1, memorybytes 0
+      v0 = select arg0, arg1, memptr 0
       ret v0
   }
   
@@ -226,11 +222,10 @@
       v0 = ne arg0, 0
 -     v1 = add arg2, arg1
 -     v2 = select v0, arg2, v1
-+     v3 = zext i1 v0 to i256
-+     v4 = eq v3, 0
-+     v5 = zext i1 v4 to i256
-+     v6 = mul v5, arg1
-+     v2 = add arg2, v6
++     v3 = eq v0, false
++     v4 = zext i1 v3 to i256
++     v5 = mul v4, arg1
++     v2 = add arg2, v5
       ret v2
   }
   
@@ -298,6 +293,44 @@
 +     v3 = zext i1 v1 to i256
 +     v4 = mul v3, arg1
 +     v2 = add arg2, v4
+      ret v2
+  }
+  
+  fn @factor_zext_native(arg0: i1, arg1: i8, arg2: i8) -> i256 {
+    bb0:
+-     v0 = zext i8 arg1 to i256
+-     v1 = zext i8 arg2 to i256
+-     v2 = select arg0, v0, v1
++     v3 = select arg0, arg1, arg2
++     v2 = zext i8 v3 to i256
+      ret v2
+  }
+  
+  fn @factor_sext_native(arg0: i1, arg1: i8, arg2: i8) -> i160 {
+    bb0:
+-     v0 = sext i8 arg1 to i160
+-     v1 = sext i8 arg2 to i160
+-     v2 = select arg0, v0, v1
++     v3 = select arg0, arg1, arg2
++     v2 = sext i8 v3 to i160
+      ret v2
+  }
+  
+  fn @factor_trunc_native(arg0: i1, arg1: i160, arg2: i160) -> i8 {
+    bb0:
+-     v0 = trunc i160 arg1 to i8
+-     v1 = trunc i160 arg2 to i8
+-     v2 = select arg0, v0, v1
++     v3 = select arg0, arg1, arg2
++     v2 = trunc i160 v3 to i8
+      ret v2
+  }
+  
+  fn @keep_mixed_source_widths(arg0: i1, arg1: i8, arg2: i16) -> i256 {
+    bb0:
+      v0 = zext i8 arg1 to i256
+      v1 = zext i16 arg2 to i256
+      v2 = select arg0, v0, v1
       ret v2
   }
   

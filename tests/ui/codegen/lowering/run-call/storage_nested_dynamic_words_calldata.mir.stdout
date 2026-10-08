@@ -87,13 +87,13 @@ fn @copyDynamic(arg0: calldataslice) -> i256 [selector=0x2662f0b3, abi_params=[a
     ret v120
   bb13:
     v73 = memory_object_load_element memoryarray<1>, v21, v71
-    v74 = inttoptr i256 v73 to memoryarray
+    v74 = inttoptr i256 v73 to memptr
     v75 = eq v73, 0
     jumpi v75, bb15, bb16
   bb15:
     v76 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
     set_memory_object_len memoryarray, v76, 0
-    v77 = ptrtoint memoryarray v76 to i256
+    v77 = ptrtoint memptr v76 to i256
     memory_object_store_element memoryarray<1>, v21, v71, v77
     jump bb16
   bb16:
@@ -194,7 +194,7 @@ fn @copyDynamic(arg0: calldataslice) -> i256 [selector=0x2662f0b3, abi_params=[a
     set_memory_object_len memoryarray, v53, v36
     v54 = make_calldata_slice v43, v44
     memory_object_copy_from_slice memoryarray, v53, v54
-    v55 = ptrtoint memoryarray v53 to i256
+    v55 = ptrtoint memptr v53 to i256
     memory_object_store_element memoryarray<1>, v21, v22, v55
     v56 = add v22, 1
     jump bb1
@@ -293,7 +293,7 @@ fn @copyFixedDynamic(arg0: calldataslice) -> i256 [selector=0x8b16421b, abi_para
     jump bb20
   bb7:
     v44 = memory_object_load_element memoryfixedarray<2, 1>, v4, v40
-    v45 = inttoptr i256 v44 to memoryarray
+    v45 = inttoptr i256 v44 to memptr
     v46 = memory_object_len memoryarray, v45
     v47 = sload v42 !metadata(storage=offset(v40, 1))
     v48 = gt v47, v46
@@ -319,7 +319,7 @@ fn @copyFixedDynamic(arg0: calldataslice) -> i256 [selector=0x8b16421b, abi_para
     v76 = add v40, 1
     jump bb4
   bb16:
-    v56 = inttoptr i256 v44 to memoryarray
+    v56 = inttoptr i256 v44 to memptr
     v57 = memory_object_load_element memoryarray<1>, v56, v54
     v58 = storage_array_data_slot v42
     v59 = add v58, v54
@@ -372,7 +372,7 @@ fn @copyFixedDynamic(arg0: calldataslice) -> i256 [selector=0x8b16421b, abi_para
     set_memory_object_len memoryarray, v36, v19
     v37 = make_calldata_slice v26, v27
     memory_object_copy_from_slice memoryarray, v36, v37
-    v38 = ptrtoint memoryarray v36 to i256
+    v38 = ptrtoint memptr v36 to i256
     memory_object_store_element memoryfixedarray<2, 1>, v4, v5, v38
     v39 = add v5, 1
     jump bb1
@@ -463,14 +463,14 @@ fn @copyDynamicFixed(arg0: calldataslice) -> i256 [selector=0xde674e0a, abi_para
     ret v90
   bb13:
     v51 = memory_object_load_element memoryarray<1>, v21, v49
-    v52 = inttoptr i256 v51 to memoryfixedarray
+    v52 = inttoptr i256 v51 to memptr
     v53 = eq v51, 0
     jumpi v53, bb15, bb16
   bb15:
     v54 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
-    v55 = ptrtoint memoryfixedarray v54 to i256
+    v55 = ptrtoint memptr v54 to i256
     memory_zero v55, 64
-    v56 = ptrtoint memoryfixedarray v54 to i256
+    v56 = ptrtoint memptr v54 to i256
     memory_object_store_element memoryarray<1>, v21, v49, v56
     jump bb16
   bb16:
@@ -530,7 +530,7 @@ fn @copyDynamicFixed(arg0: calldataslice) -> i256 [selector=0xde674e0a, abi_para
     v32 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
     v33 = make_calldata_slice v31, 64
     memory_object_copy_from_slice memoryfixedarray, v32, v33
-    v34 = ptrtoint memoryfixedarray v32 to i256
+    v34 = ptrtoint memptr v32 to i256
     memory_object_store_element memoryarray<1>, v21, v22, v34
     v35 = add v22, 1
     jump bb1
@@ -647,14 +647,14 @@ fn @copyDynamicFixedWiden(arg0: calldataslice) -> i256 [selector=0x48878fa6, abi
     ret v112
   bb13:
     v51 = memory_object_load_element memoryarray<1>, v21, v49
-    v52 = inttoptr i256 v51 to memoryfixedarray
+    v52 = inttoptr i256 v51 to memptr
     v53 = eq v51, 0
     jumpi v53, bb15, bb16
   bb15:
     v54 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
-    v55 = ptrtoint memoryfixedarray v54 to i256
+    v55 = ptrtoint memptr v54 to i256
     memory_zero v55, 64
-    v56 = ptrtoint memoryfixedarray v54 to i256
+    v56 = ptrtoint memptr v54 to i256
     memory_object_store_element memoryarray<1>, v21, v49, v56
     jump bb16
   bb16:
@@ -714,7 +714,7 @@ fn @copyDynamicFixedWiden(arg0: calldataslice) -> i256 [selector=0x48878fa6, abi
     v32 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
     v33 = make_calldata_slice v31, 64
     memory_object_copy_from_slice memoryfixedarray, v32, v33
-    v34 = ptrtoint memoryfixedarray v32 to i256
+    v34 = ptrtoint memptr v32 to i256
     memory_object_store_element memoryarray<1>, v21, v22, v34
     v35 = add v22, 1
     jump bb1
@@ -769,7 +769,7 @@ fn @copyFixed(arg0: calldataslice) -> i256 [selector=0x4ae52609, abi_params=[arr
     jumpi v17, bb7, bb8
   bb8:
     v26 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
-    v27 = ptrtoint memoryfixedarray v26 to i256
+    v27 = ptrtoint memptr v26 to i256
     memory_zero v27, 64
     jump bb16
   bb16:
@@ -812,7 +812,7 @@ fn @copyFixed(arg0: calldataslice) -> i256 [selector=0x4ae52609, abi_params=[arr
     sstore v21, 0 !metadata(storage=symbolic(v21))
     jump bb15
   bb13:
-    v23 = inttoptr i256 v18 to memoryfixedarray
+    v23 = inttoptr i256 v18 to memptr
     v24 = memory_object_load_element memoryfixedarray<2, 1>, v23, v19
     sstore v21, v24 !metadata(storage=symbolic(v21))
     jump bb15
@@ -825,7 +825,7 @@ fn @copyFixed(arg0: calldataslice) -> i256 [selector=0x4ae52609, abi_params=[arr
     v9 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
     v10 = make_calldata_slice v8, 64
     memory_object_copy_from_slice memoryfixedarray, v9, v10
-    v11 = ptrtoint memoryfixedarray v9 to i256
+    v11 = ptrtoint memptr v9 to i256
     memory_object_store_element memoryfixedarray<2, 1>, v4, v5, v11
     v12 = add v5, 1
     jump bb1

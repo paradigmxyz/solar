@@ -315,7 +315,7 @@ class ReportFormattingTests(unittest.TestCase):
 
     def test_codegen_report_adds_reference_compiler_columns(self):
         current = result()
-        current["compilers"]["extra"] = {
+        current["compilers"]["oksolc"] = {
             "status": "ok",
             "total_gas": 10,
             "runtime_size": 20,
@@ -326,13 +326,13 @@ class ReportFormattingTests(unittest.TestCase):
             benchmark.codegen_report([current], [current]),
             "## Codegen benchmark\n"
             "\n"
-            "| bench | gas (vs main) | solc | extra | size (vs main) | solc | extra |\n"
+            "| bench | gas (vs main) | solc | oksolc | size (vs main) | solc | oksolc |\n"
             "| ----- | ------------- | ---- | ---- | -------------- | ---- | ---- |\n"
             "| test | n/a (n/a) | n/a (n/a) | 10 (n/a) | n/a (n/a) | n/a (n/a) | 20B (n/a) |\n"
             "\n"
             "### Deployment\n"
             "\n"
-            "| bench | gas (vs main) | solc | extra | size (vs main) | solc | extra |\n"
+            "| bench | gas (vs main) | solc | oksolc | size (vs main) | solc | oksolc |\n"
             "| ----- | ------------- | ---- | ---- | -------------- | ---- | ---- |\n"
             "| test | n/a (n/a) | n/a (n/a) | 30 (n/a) | n/a (n/a) | n/a (n/a) | 40B (n/a) |\n",
         )
@@ -885,42 +885,43 @@ class RunComparisonTests(unittest.TestCase):
                 "## Codegen benchmark\n\nNo benchmark results were produced.\n",
             )
 
-    def test_solc_report_uses_selected_compiler(self):
-        before = self.fixture()
-        before["compilers"]["solc"] = copy.deepcopy(before["compilers"]["solar"])
-        after = copy.deepcopy(before)
-        after["compilers"]["solc"]["runtime_size"] = 90
-        with (
-            tempfile.TemporaryDirectory() as directory,
-            patch.dict(os.environ, {}, clear=True),
-            patch("sys.stdout", new_callable=io.StringIO),
-            patch("sys.stderr", new_callable=io.StringIO),
-        ):
-            root = Path(directory)
-            paths = [root / "before.json", root / "after.json"]
-            for path, row in zip(paths, [before, after], strict=True):
-                path.write_text(json.dumps({"results": [row]}))
-            output = root / "report.md"
-            self.assertEqual(
-                benchmark.main(
+    def test_reference_report_uses_selected_compiler(self):
+        for compiler in ("solc", "solx", "oksolc"):
+            before = self.fixture()
+            before["compilers"][compiler] = copy.deepcopy(before["compilers"]["solar"])
+            after = copy.deepcopy(before)
+            after["compilers"][compiler]["runtime_size"] = 90
+            with (
+                tempfile.TemporaryDirectory() as directory,
+                patch.dict(os.environ, {}, clear=True),
+                patch("sys.stdout", new_callable=io.StringIO),
+                patch("sys.stderr", new_callable=io.StringIO),
+            ):
+                root = Path(directory)
+                paths = [root / "before.json", root / "after.json"]
+                for path, row in zip(paths, [before, after], strict=True):
+                    path.write_text(json.dumps({"results": [row]}))
+                output = root / "report.md"
+                self.assertEqual(
+                    benchmark.main(
+                        [
+                            *(str(path) for path in paths),
+                            "--compiler",
+                            compiler,
+                            "--report-output",
+                            str(output),
+                        ]
+                    ),
+                    0,
+                )
+                self.assertEqual(
+                    output.read_text().splitlines()[:3],
                     [
-                        *(str(path) for path in paths),
-                        "--compiler",
-                        "solc",
-                        "--report-output",
-                        str(output),
-                    ]
-                ),
-                0,
-            )
-            self.assertEqual(
-                output.read_text().splitlines()[:3],
-                [
-                    "### Run comparison",
-                    "",
-                    "Compiler: `solc`. Deltas are candidate minus baseline; lower is better.",
-                ],
-            )
+                        "### Run comparison",
+                        "",
+                        f"Compiler: `{compiler}`. Deltas are candidate minus baseline; lower is better.",
+                    ],
+                )
 
     def fixture(self, test_id="test", **values):
         row = result(
@@ -1028,7 +1029,7 @@ class RunComparisonTests(unittest.TestCase):
         self.assertIn("candidate gas run failed", row["issues"])
 
     def test_reference_failures_do_not_trigger_comments_or_warnings(self):
-        for compiler in ("solc", "solx"):
+        for compiler in ("solc", "solx", "oksolc"):
             for stage in ("status", "runtime_status", "gas_status"):
                 with self.subTest(compiler=compiler, stage=stage):
                     before = self.fixture()

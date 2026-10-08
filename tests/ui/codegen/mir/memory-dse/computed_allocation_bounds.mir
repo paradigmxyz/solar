@@ -1,0 +1,76 @@
+//@compile-flags: -Zmir-pipeline=memory-dse
+//@filecheck: --enable-var-scope
+
+@module ComputedAllocationBounds
+
+// CHECK-LABEL: @cancelled_word
+// CHECK: {{^[ +].*}}[[RESULT:v[0-9]+]] = mload
+// CHECK: {{^[ +].*}}ret [[RESULT]]
+fn @cancelled_word(arg0: i256) -> i256 {
+  bb0:
+    v0 = alloc raw, exact, uninitialized, infallible, 32
+    v1 = ptrtoint memptr v0 to i256
+    v2 = alloc raw, exact, uninitialized, infallible, 32
+    v3 = ptrtoint memptr v2 to i256
+    mstore v3, 7
+    v4 = add v1, 32
+    v6 = sub v4, arg0
+    v5 = add arg0, v6
+    mstore v5, 9
+    v7 = mload v3
+    ret v7
+}
+
+// CHECK-LABEL: @crossing_word
+// CHECK: {{^[ +].*}}[[RESULT:v[0-9]+]] = mload
+// CHECK: {{^[ +].*}}ret [[RESULT]]
+fn @crossing_word(arg0: i256) -> i256 {
+  bb0:
+    v0 = alloc raw, exact, uninitialized, infallible, 32
+    v1 = ptrtoint memptr v0 to i256
+    v2 = alloc raw, exact, uninitialized, infallible, 32
+    v3 = ptrtoint memptr v2 to i256
+    mstore v3, 7
+    v4 = add v1, 31
+    v6 = sub v4, arg0
+    v5 = add arg0, v6
+    mstore v5, 9
+    v7 = mload v3
+    ret v7
+}
+
+// CHECK-LABEL: @cancelled_byte
+// CHECK: {{^[ +].*}}[[RESULT:v[0-9]+]] = mload
+// CHECK: {{^[ +].*}}ret [[RESULT]]
+fn @cancelled_byte(arg0: i256) -> i256 {
+  bb0:
+    v0 = alloc raw, exact, uninitialized, infallible, 32
+    v1 = ptrtoint memptr v0 to i256
+    v2 = alloc raw, exact, uninitialized, infallible, 32
+    v3 = ptrtoint memptr v2 to i256
+    mstore v3, 7
+    v4 = add v1, 32
+    v6 = sub v4, arg0
+    v5 = add arg0, v6
+    mstore8 v5, 9
+    v7 = mload v3
+    ret v7
+}
+
+// CHECK-LABEL: @crossing_copy
+// CHECK: {{^[ +].*}}[[RESULT:v[0-9]+]] = mload
+// CHECK: {{^[ +].*}}ret [[RESULT]]
+fn @crossing_copy(arg0: i256) -> i256 {
+  bb0:
+    v0 = alloc raw, exact, uninitialized, infallible, 32
+    v1 = ptrtoint memptr v0 to i256
+    v2 = alloc raw, exact, uninitialized, infallible, 32
+    v3 = ptrtoint memptr v2 to i256
+    mstore v3, 7
+    v4 = add v1, 0
+    v6 = sub v4, arg0
+    v5 = add arg0, v6
+    calldatacopy v5, 0, 64
+    v7 = mload v3
+    ret v7
+}

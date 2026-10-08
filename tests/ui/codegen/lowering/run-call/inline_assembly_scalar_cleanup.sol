@@ -13,12 +13,32 @@
 //@ run-call: assemblyRead => 0x0101
 //@ run-call: internalArguments => 0x42, 0x42
 //@ run-call: storageAssignment => 1
+//@ run-call: signedAssignment => -1
+//@ run-call: signedMerge true => -1
+//@ run-call: signedMerge false => -2
+//@ run-call: signedLoop 0 => -1
+//@ run-call: signedLoop 2 => -3
+//@ run-call: signedUserAssignment => -1
+//@ run-call: signedModifier => -1
+//@ run-call: dirtySigned => 0x1234
+//@ run-call: signedTry true => -2
+//@ run-call: signedTry false => -1
+//@ run-call: signedCallTuple true => -2
+//@ run-call: signedCallTuple false => -1
+//@ run-call: signedAssemblyComparison => 1
+//@ run-call: signedTernary true => -1, true
+//@ run-call: signedTernary false => 0x1234, false
+//@ run-call: signedTupleTernary true => -2, 1
+//@ run-call: signedTupleTernary false => 0x1234, 2
+//@ run-call: signedUserTernary true => -1
+//@ run-call: signedUserTernary false => 0x1234
 // ported-from: test/libsolidity/semanticTests/viaYul/cleanup/checked_arithmetic.sol
 // ported-from: test/libsolidity/semanticTests/viaYul/cleanup/comparison.sol
 // ported-from: test/libsolidity/semanticTests/viaYul/conversion/implicit_cast_assignment.sol
 // ported-from: test/libsolidity/semanticTests/operators/userDefined/operator_parameter_cleanup.sol
 // ported-from: test/libsolidity/semanticTests/variables/storing_invalid_boolean.sol
 
+type DirtyI8 is int8;
 type DirtyU8 is uint8;
 using {dirtyNot as ~} for DirtyU8 global;
 
@@ -35,6 +55,101 @@ contract InlineAssemblyScalarCleanup {
     }
 
     bool private stored;
+
+    function signedAssignment() external pure returns (int256 raw) {
+        int8 value;
+        value = -1;
+        assembly { raw := value }
+    }
+
+    function signedMerge(bool choose) external pure returns (int256 raw) {
+        int8 value = -2;
+        if (choose) value = -1;
+        assembly { raw := value }
+    }
+
+    function signedLoop(uint256 count) external pure returns (int256 raw) {
+        int8 value;
+        value = -1;
+        for (uint256 i; i < count; ++i) --value;
+        assembly { raw := value }
+    }
+
+    function signedUserAssignment() external pure returns (int256 raw) {
+        DirtyI8 value;
+        value = DirtyI8.wrap(-1);
+        assembly { raw := value }
+    }
+
+    modifier signedArgument(int8 value) {
+        int256 raw;
+        assembly { raw := value }
+        require(raw == -1);
+        _;
+    }
+
+    function signedModifier() external pure signedArgument(-1) returns (int256) {
+        return -1;
+    }
+
+    function signedSource() external pure returns (int8, bytes memory) {
+        return (-1, "");
+    }
+
+    function signedTry(bool choose) external view returns (int256 raw) {
+        try this.signedSource() returns (int8 value, bytes memory) {
+            if (choose) value = -2;
+            assembly { raw := value }
+        } catch {}
+    }
+
+    function signedCallTuple(bool choose) external view returns (int256 raw) {
+        (int8 value,) = this.signedSource();
+        if (choose) value = -2;
+        assembly { raw := value }
+    }
+
+    function signedAssemblyComparison() external pure returns (uint256 raw) {
+        int8 value;
+        assembly {
+            value := eq(1, 1)
+            raw := value
+        }
+    }
+
+    function signedTernary(bool choose) external pure returns (int256 raw, bool negative) {
+        int8 dirty;
+        assembly { dirty := 0x1234 }
+        int8 selected = choose ? int8(-1) : dirty;
+        assembly {
+            raw := selected
+            negative := slt(selected, 0)
+        }
+    }
+
+    function signedTupleTernary(bool choose) external pure returns (int256 raw, uint256 other) {
+        int8 dirty;
+        assembly { dirty := 0x1234 }
+        (int8 selected, uint256 companion) =
+            choose ? (int8(-2), uint256(1)) : (dirty, uint256(2));
+        assembly { raw := selected }
+        other = companion;
+    }
+
+    function signedUserTernary(bool choose) external pure returns (int256 raw) {
+        DirtyI8 dirty;
+        assembly { dirty := 0x1234 }
+        DirtyI8 selected = choose ? DirtyI8.wrap(-1) : dirty;
+        assembly { raw := selected }
+    }
+
+    function dirtySigned() external pure returns (uint256 raw) {
+        int8 value;
+        assembly { value := 0x1234 }
+        int8 copied = value;
+        if (raw == 0) value = copied;
+        assembly { raw := value }
+    }
 
     function arithmetic() external pure returns (uint8, uint8, uint8, uint8, uint8, uint8) {
         uint8 value;

@@ -32,7 +32,7 @@ fn @branch_checks(arg0: i1, arg1: i256) -> i256 {
     ret v2
 }
 
-fn @payloads(arg0: i1, arg1: memorybytes, arg2: i256) {
+fn @payloads(arg0: i1, arg1: memptr, arg2: i256) {
   bb0:
     icall require<short_string>, arg0, 3, 0x6261640000000000000000000000000000000000000000000000000000000000
     icall require<empty_string>, arg0

@@ -7,31 +7,38 @@
   
   fn @constructor(arg0: i256, arg1: i1) -> i256 [constructor] {
     bb0:
--     storeimmutable first, arg0
+      v0 = trunc i256 arg0 to i8
+-     storeimmutable first, v0
 -     storeimmutable second, arg1
-+     mstore 192, arg0
-+     v1 = zext i1 arg1 to i256
-+     mstore 224, v1
-      v0 = loadimmutable first
-      ret v0
++     v3 = zext i8 v0 to i256
++     mstore 192, v3
++     v4 = zext i1 arg1 to i256
++     mstore 224, v4
+      v1 = loadimmutable first
+      v2 = zext i8 v1 to i256
+      ret v2
   }
   
   fn @runtime() [selector=0x00000001] {
     bb0:
-      storeimmutable first, 1
+      v0 = trunc i256 1 to i8
+      storeimmutable first, v0
       stop
   }
   
   fn @entry() {
     bb0:
--     storeimmutable first, 2
-+     mstore 192, 2
+      v0 = trunc i256 2 to i8
+-     storeimmutable first, v0
++     v1 = zext i8 v0 to i256
++     mstore 192, v1
       stop
   }
   
   fn @router() [entry] {
     bb0:
-      storeimmutable first, 3
+      v0 = trunc i256 3 to i8
+      storeimmutable first, v0
       stop
   }
   

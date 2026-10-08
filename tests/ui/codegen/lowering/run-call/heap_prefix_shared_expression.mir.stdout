@@ -1,0 +1,32 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/heap_prefix_shared_expression.sol:HeapPrefixSharedExpression ===
+@module HeapPrefixSharedExpression
+fn @run(arg0: i256) -> i256 [selector=0xa444f5e9, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = icall @repeated, arg0
+    ret v0
+}
+
+fn @repeated(arg0: i256) -> i256 [selector=0x0abef8a2, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = add arg0, arg0
+    v1 = add v0, v0
+    v2 = add v1, v1
+    v3 = add v2, v2
+    v4 = add v3, v3
+    v5 = add v4, v4
+    v6 = add v5, v5
+    v7 = add v6, v6
+    v8 = add v7, v7
+    v9 = add v8, v8
+    v10 = add v9, v9
+    v11 = add v10, v10
+    v12 = add v11, v11
+    v13 = add v12, v12
+    v14 = add v13, v13
+    v15 = add v14, v14
+    v16 = add v15, v15
+    v17 = add v16, v16
+    v18 = add v17, v17
+    v19 = add v18, v18
+    ret v19
+}

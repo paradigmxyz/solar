@@ -1,0 +1,10 @@
+//@compile-flags: -Zmir-pipeline=none
+
+// A typed literal must fit the bit width of its type.
+@module IntegerLiteral
+
+fn @f() -> i8 {
+  bb0:
+    v0 = add i8 256, 1 //~ ERROR: i8 literal must fit in 8 bits
+    ret v0
+}

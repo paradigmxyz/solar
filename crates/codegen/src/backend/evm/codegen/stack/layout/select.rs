@@ -10,6 +10,9 @@
 //! zero-iteration calls can cost more. Size mode retains rematerialization. This decision
 //! stays at the scheduling boundary and neither changes the MIR recurrence nor moves loads
 //! across external calls.
+//! Resident arguments keep frame homes when estimated live-word pressure reaches DUP16. This
+//! pressure estimate is conservative: other values might spill first, but choosing a frame
+//! early avoids emitting the whole runtime again when an argument falls beyond DUP16 reach.
 
 use super::super::super::{
     BlockId, CanonicalArgValues, CfgInfo, DenseBitSet, EvmCodegen, EvmMemoryLayout, Function,
@@ -57,7 +60,13 @@ impl<'gcx> EvmCodegen<'gcx> {
                 // header: compare(index, bound)
                 // latch: carry(bound, next phis...)
                 let values = vec![bound];
-                let plan = GlobalStackPlan::analyze_resident_args(func, liveness, &values, false)?;
+                let plan = GlobalStackPlan::analyze_resident_args(
+                    func,
+                    liveness,
+                    &values,
+                    false,
+                    self.stack_access_limit(),
+                )?;
                 return Some((values, plan));
             }
         }
@@ -129,6 +138,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         &self,
         func: &Function,
         values: &[ValueId],
+        liveness: &Liveness,
         phi_plan: Option<Arc<StackPhiPlan>>,
     ) -> ResidentSearchContext {
         let mut value_uses = FxHashMap::default();
@@ -144,7 +154,45 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
             }
         }
-        ResidentSearchContext { phi_plan, cfg: CfgInfo::new(func), value_uses }
+        let mut frame_required = DenseBitSet::new_empty(func.num_values());
+        let needs_stack = |value: ValueId| {
+            matches!(func.value(value), Value::Arg(_)) && values.contains(&value)
+                || Self::can_own_spill_slot(func, value)
+        };
+        let mut live = DenseBitSet::new_empty(func.num_values());
+        for (block_id, block) in func.blocks.iter_enumerated() {
+            live.clear();
+            let mut live_count = 0;
+            for value in liveness
+                .live_out(block_id)
+                .iter()
+                .chain(block.terminator.iter().flat_map(Terminator::operands))
+            {
+                if needs_stack(value) {
+                    live_count += usize::from(live.insert(value));
+                }
+            }
+            for &id in block.instructions.iter().rev() {
+                if let Some(result) = func.inst_result_value(id) {
+                    live_count -= usize::from(live.remove(result));
+                }
+                if !matches!(func.inst(id).kind, InstKind::Phi(_)) {
+                    for value in func.inst(id).kind.operands() {
+                        if needs_stack(value) {
+                            live_count += usize::from(live.insert(value));
+                        }
+                    }
+                }
+                if live_count >= self.stack_access_limit() {
+                    for &value in values {
+                        if live.contains(value) && matches!(func.value(value), Value::Arg(_)) {
+                            frame_required.insert(value);
+                        }
+                    }
+                }
+            }
+        }
+        ResidentSearchContext { phi_plan, cfg: CfgInfo::new(func), value_uses, frame_required }
     }
 
     pub(in crate::backend::evm::codegen) fn analyze_resident_subset(
@@ -155,8 +203,16 @@ impl<'gcx> EvmCodegen<'gcx> {
         preserve_across_calls: bool,
         context: &ResidentSearchContext,
     ) -> Option<(GlobalStackPlan, ScheduleCost)> {
-        let plan =
-            GlobalStackPlan::analyze_resident_args(func, liveness, values, preserve_across_calls)?;
+        if values.iter().any(|&value| context.frame_required.contains(value)) {
+            return None;
+        }
+        let plan = GlobalStackPlan::analyze_resident_args(
+            func,
+            liveness,
+            values,
+            preserve_across_calls,
+            self.stack_access_limit(),
+        )?;
         if let Some(phi_plan) = &context.phi_plan {
             // One physical word cannot be both a phi input and an invariant resident prefix word.
             // `merge_resident` would otherwise extend only the result side of that edge, leaving a
@@ -315,7 +371,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             .iter()
             .fold(ScheduleCost::default(), |cost, &value| cost.plus(memory_cost(value)));
         let target = Target::new(self.gcx);
-        let context = self.resident_search_context(func, values, phi_plan);
+        let context = self.resident_search_context(func, values, liveness, phi_plan);
         let mut best = Option::<(ScheduleCost, Vec<ValueId>, GlobalStackPlan)>::None;
         for bits in 1usize..(1usize << values.len()) {
             let subset = values
@@ -466,25 +522,16 @@ impl<'gcx> EvmCodegen<'gcx> {
             return None;
         }
 
-        let mut plan = GlobalStackPlan::analyze_resident_args(
+        let plan = GlobalStackPlan::analyze_resident_args(
             func,
             liveness,
             values,
             self.preserve_caller_stack,
+            self.stack_access_limit(),
         )?;
-        // Phi operands are edge uses, not unchanged target live-ins. Full
-        // liveness conservatively includes them at the header; remove those
-        // incoming identities from the resident prefix so the phi edge can
-        // replace each source with its result instead of trying to carry both.
-        for (&pred, edge) in &stack_phi_plan.edges {
-            let Some(Terminator::Jump(target)) = func.blocks[pred].terminator.as_ref() else {
-                continue;
-            };
-            if let Some(entry) = plan.entries.get_mut(target) {
-                entry.retain(|value| !edge.sources.contains(value));
-            }
+        if !stack_phi_plan.clone().merge_resident(func, &plan, self.stack_access_limit()) {
+            return None;
         }
-        plan.entries.retain(|_, entry| !entry.is_empty());
         Some((values.to_vec(), plan))
     }
 
@@ -606,7 +653,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             .iter()
             .fold(ScheduleCost::default(), |cost, &value| cost.plus(memory_cost(value)));
         let target = Target::new(self.gcx);
-        let context = self.resident_search_context(func, values, phi_plan);
+        let context = self.resident_search_context(func, values, liveness, phi_plan);
         let mut best = Option::<(ScheduleCost, Vec<ValueId>, GlobalStackPlan)>::None;
         for bits in 1usize..(1usize << values.len()) {
             let subset = values

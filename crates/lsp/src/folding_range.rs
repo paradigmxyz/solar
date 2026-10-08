@@ -1,15 +1,15 @@
 //! Syntax-based folding-range construction.
 
+use crate::utils::{checked_span_range, parse_recovering};
 use crop::Rope;
 use lsp_types::{FoldingRange, FoldingRangeKind, Position};
-use solar_config::CompileOpts;
 use solar_interface::{
-    Session, Span,
+    Span,
     data_structures::{Never, map::FxHashMap},
-    source_map::{FileName, SourceFile},
+    source_map::SourceFile,
 };
 use solar_parse::{
-    Cursor, Parser,
+    Cursor,
     ast::{self, token::Delimiter, visit::Visit},
     lexer::token::RawTokenKind,
 };
@@ -69,14 +69,7 @@ fn collect_comment_ranges(source: &str) -> Vec<Candidate> {
         let end = start + token.len as usize;
         match token.kind {
             RawTokenKind::LineComment { .. } => {
-                if let Some(group) = &mut line_group
-                    && has_one_line_break(&source[group.end..start])
-                {
-                    group.end = end;
-                } else {
-                    flush_line_comment_group(&mut ranges, &mut line_group);
-                    line_group = Some(start..end);
-                }
+                push_line_comment(source, &mut ranges, &mut line_group, start..end);
             }
             RawTokenKind::BlockComment { .. } => {
                 flush_line_comment_group(&mut ranges, &mut line_group);
@@ -111,70 +104,57 @@ fn collect_lexical_info(source: &str, include_fallback: bool) -> LexicalInfo {
         }
         match token.kind {
             RawTokenKind::LineComment { .. } => {
-                if let Some(group) = &mut line_group
-                    && has_one_line_break(&source[group.end..start])
-                {
-                    group.end = end;
-                } else {
-                    flush_line_comment_group(&mut ranges, &mut line_group);
-                    line_group = Some(start..end);
-                }
+                push_line_comment(source, &mut ranges, &mut line_group, start..end);
             }
             RawTokenKind::Whitespace => {}
             RawTokenKind::BlockComment { .. } => {
                 ranges.push(Candidate { range: start..end, kind: Some(FoldingRangeKind::Comment) });
             }
-            RawTokenKind::OpenDelim(Delimiter::Brace) if include_fallback => {
-                let class = classify_fallback_block(source, &syntax_tokens, &brace_stack);
-                brace_stack.push(OpenBrace { start, class });
-                syntax_tokens.push(SyntaxToken {
-                    kind: token.kind,
-                    range: start..end,
-                    closes_yul_for_init: false,
-                });
+            kind => {
+                let mut closes_yul_for_init = false;
+                if kind == RawTokenKind::OpenDelim(Delimiter::Brace) {
+                    let class = classify_fallback_block(source, &syntax_tokens, &brace_stack);
+                    brace_stack.push(OpenBrace { start, class });
+                } else if kind == RawTokenKind::CloseDelim(Delimiter::Brace)
+                    && let Some(open) = brace_stack.pop()
+                    && let Some(class) = open.class
+                {
+                    fallback_ranges.push(class.candidate(open.start, end));
+                    closes_yul_for_init = matches!(class.kind, FallbackBlockKind::YulForInit);
+                }
+                syntax_tokens.push(SyntaxToken { kind, range: start..end, closes_yul_for_init });
             }
-            RawTokenKind::CloseDelim(Delimiter::Brace) if include_fallback => {
-                let closed_block = brace_stack.pop().and_then(|open| {
-                    if let Some(class) = open.class {
-                        fallback_ranges.push(class.candidate(open.start, end));
-                    }
-                    open.class
-                });
-                syntax_tokens.push(SyntaxToken {
-                    kind: token.kind,
-                    range: start..end,
-                    closes_yul_for_init: closed_block
-                        .is_some_and(|block| matches!(block.kind, FallbackBlockKind::YulForInit)),
-                });
-            }
-            _ if include_fallback => {
-                syntax_tokens.push(SyntaxToken {
-                    kind: token.kind,
-                    range: start..end,
-                    closes_yul_for_init: false,
-                });
-            }
-            _ => {}
         }
     }
     flush_line_comment_group(&mut ranges, &mut line_group);
-    let unclosed_braces = if include_fallback {
-        fallback_ranges.extend(collect_fallback_import_ranges(source, &syntax_tokens));
-        let unclosed_braces = brace_stack.iter().map(|brace| brace.start).collect();
-        for open in brace_stack {
-            if let Some(class) = open.class {
-                fallback_ranges.push(class.candidate(open.start, source.len()));
-            }
+    fallback_ranges.extend(collect_fallback_import_ranges(source, &syntax_tokens));
+    let unclosed_braces = brace_stack.iter().map(|brace| brace.start).collect();
+    for open in brace_stack {
+        if let Some(class) = open.class {
+            fallback_ranges.push(class.candidate(open.start, source.len()));
         }
-        fallback_ranges.sort_unstable_by_key(|candidate| {
-            (candidate.range.start, Reverse(candidate.range.end))
-        });
-        fallback_ranges.dedup_by_key(|candidate| candidate.range.start);
-        unclosed_braces
-    } else {
-        Vec::new()
-    };
+    }
+    fallback_ranges
+        .sort_unstable_by_key(|candidate| (candidate.range.start, Reverse(candidate.range.end)));
+    fallback_ranges.dedup_by_key(|candidate| candidate.range.start);
     LexicalInfo { ranges, fallback_ranges, unclosed_braces }
+}
+
+/// Extends the current line-comment group when only one line break separates the comments.
+fn push_line_comment(
+    source: &str,
+    ranges: &mut Vec<Candidate>,
+    line_group: &mut Option<ByteRange<usize>>,
+    comment: ByteRange<usize>,
+) {
+    if let Some(group) = line_group
+        && has_one_line_break(&source[group.end..comment.start])
+    {
+        group.end = comment.end;
+    } else {
+        flush_line_comment_group(ranges, line_group);
+        *line_group = Some(comment);
+    }
 }
 
 fn flush_line_comment_group(
@@ -438,16 +418,10 @@ fn has_one_line_break(text: &str) -> bool {
     let mut bytes = text.bytes().peekable();
     while let Some(byte) = bytes.next() {
         match byte {
-            b'\r' => {
-                if bytes.peek() == Some(&b'\n') {
+            b'\r' | b'\n' => {
+                if byte == b'\r' && bytes.peek() == Some(&b'\n') {
                     bytes.next();
                 }
-                line_breaks += 1;
-                if line_breaks > 1 {
-                    return false;
-                }
-            }
-            b'\n' => {
                 line_breaks += 1;
                 if line_breaks > 1 {
                     return false;
@@ -461,38 +435,19 @@ fn has_one_line_break(text: &str) -> bool {
 }
 
 fn collect_ranges(source: Arc<String>) -> Option<(Arc<SourceFile>, Vec<Candidate>)> {
-    let mut opts = CompileOpts::default();
-    opts.unstable.recover_incomplete_input = true;
-    let sess = Session::builder().opts(opts).with_silent_emitter(None).single_threaded().build();
-
-    sess.enter_sequential(|| {
-        let arena = ast::Arena::new();
-        let file = sess
-            .source_map()
-            .new_source_file_shared(FileName::Custom("lsp-folding-range.sol".into()), source)
-            .ok()?;
-        let mut parser = Parser::from_source_file(&sess, &arena, &file);
-        let source_unit = match parser.parse_file() {
-            Ok(source_unit) => Some(source_unit),
-            Err(error) => {
-                error.emit();
-                None
-            }
-        };
-        drop(parser);
-
+    parse_recovering("lsp-folding-range.sol", source, |sess, file, source_unit| {
         let has_errors = sess.dcx.has_errors().is_err();
         let include_fallback = has_errors || source_unit.is_none();
         let LexicalInfo { mut ranges, fallback_ranges, unclosed_braces } =
             collect_lexical_info(&file.src, include_fallback);
         let Some(source_unit) = source_unit else {
             ranges.extend(fallback_ranges);
-            return Some((file, ranges));
+            return (file.clone(), ranges);
         };
 
-        let mut collector = AstRangeCollector::new(&file, &unclosed_braces);
-        let _ = collector.visit_source_unit(&source_unit);
-        let mut ast_ranges = collect_import_ranges(&source_unit, &file);
+        let mut collector = AstRangeCollector::new(file, &unclosed_braces);
+        let _ = collector.visit_source_unit(source_unit);
+        let mut ast_ranges = collect_import_ranges(source_unit, file);
         ast_ranges.extend(collector.ranges);
 
         if has_errors {
@@ -510,7 +465,7 @@ fn collect_ranges(source: Arc<String>) -> Option<(Arc<SourceFile>, Vec<Candidate
             }));
         }
         ranges.extend(ast_ranges);
-        Some((file, ranges))
+        (file.clone(), ranges)
     })
 }
 
@@ -519,25 +474,19 @@ fn collect_import_ranges(source_unit: &ast::SourceUnit<'_>, file: &SourceFile) -
     let mut current = None::<ByteRange<usize>>;
 
     for item in source_unit.items.iter() {
-        if !matches!(item.kind, ast::ItemKind::Import(_)) {
-            if let Some(range) = current.take() {
-                ranges.push(Candidate { range, kind: Some(FoldingRangeKind::Imports) });
+        let range = matches!(item.kind, ast::ItemKind::Import(_))
+            .then(|| checked_span_range(file, item.span))
+            .flatten();
+        let split = match (&current, &range) {
+            (Some(group), Some(range)) => {
+                has_blank_line_between(file.src[group.end..range.start].bytes())
             }
-            continue;
-        }
-
-        let Some(range) = checked_span_range(file, item.span) else {
-            if let Some(range) = current.take() {
-                ranges.push(Candidate { range, kind: Some(FoldingRangeKind::Imports) });
-            }
-            continue;
+            _ => true,
         };
-        let split = current
-            .as_ref()
-            .is_some_and(|group| has_blank_line_between(file.src[group.end..range.start].bytes()));
         if split && let Some(range) = current.take() {
             ranges.push(Candidate { range, kind: Some(FoldingRangeKind::Imports) });
         }
+        let Some(range) = range else { continue };
         if let Some(group) = &mut current {
             group.end = range.end;
         } else {
@@ -593,18 +542,7 @@ struct FlatPositionIndex<'a> {
 
 impl<'a> FlatPositionIndex<'a> {
     fn new(source: &'a str, file: Option<&SourceFile>) -> Self {
-        let mut line_starts = Vec::new();
-        line_starts.push(0);
-        let mut previous_cr_end = None;
-        for offset in memchr::memchr2_iter(b'\r', b'\n', source.as_bytes()) {
-            let is_cr = source.as_bytes()[offset] == b'\r';
-            if !is_cr && previous_cr_end == Some(offset) {
-                *line_starts.last_mut().unwrap() = offset + 1;
-            } else {
-                line_starts.push(offset + 1);
-            }
-            previous_cr_end = is_cr.then_some(offset + 1);
-        }
+        let line_starts = crate::proto::line_starts([source], 1);
         let mut multibyte_offsets = Vec::new();
         let mut extra_bytes = 0;
         if let Some(file) = file {
@@ -825,20 +763,6 @@ impl<'a> AstRangeCollector<'a> {
     }
 }
 
-fn checked_span_range(file: &SourceFile, span: Span) -> Option<ByteRange<usize>> {
-    if span.is_dummy()
-        || span.lo() >= span.hi()
-        || !file.contains(span.lo())
-        || !file.contains(span.hi())
-    {
-        return None;
-    }
-    let range =
-        file.relative_position(span.lo()).to_usize()..file.relative_position(span.hi()).to_usize();
-    (file.src.is_char_boundary(range.start) && file.src.is_char_boundary(range.end))
-        .then_some(range)
-}
-
 impl<'ast> Visit<'ast> for AstRangeCollector<'_> {
     type BreakValue = Never;
 
@@ -905,12 +829,9 @@ impl<'ast> Visit<'ast> for AstRangeCollector<'_> {
 
 #[cfg(test)]
 mod position_tests {
-    use super::{
-        FlatPositionIndex, checked_span_range, collect_comment_ranges, collect_lexical_info,
-    };
+    use super::*;
     use crate::proto::LspPositionIndex;
-    use crop::Rope;
-    use solar_interface::{BytePos, SourceMap, Span, source_map::FileName};
+    use solar_interface::{BytePos, SourceMap, source_map::FileName};
 
     #[test]
     fn sparse_comments_match_full_lexing() {
@@ -990,22 +911,32 @@ mod position_tests {
         let source_map = SourceMap::empty();
         let first = source_map.new_source_file(FileName::Custom("first".into()), "other").unwrap();
         let file = source_map.new_source_file(FileName::Custom("input".into()), "aé😀z").unwrap();
+        let after = source_map.new_source_file(FileName::Custom("after".into()), "last").unwrap();
         let span = |start, end| {
             Span::new(
                 file.start_pos + BytePos::from_usize(start),
                 file.start_pos + BytePos::from_usize(end),
             )
         };
-        assert_eq!(checked_span_range(&file, span(1, 7)), Some(1..7));
-        assert_eq!(checked_span_range(&file, span(0, file.src.len())), Some(0..file.src.len()));
+        for range in [1..7, 0..file.src.len(), 3..7, 1..3, 7..8] {
+            assert_eq!(checked_span_range(&file, span(range.start, range.end)), Some(range));
+        }
         for span in [
             Span::DUMMY,
             span(1, 1),
+            span(8, 8),
             span(2, 7),
-            span(1, 6),
+            span(1, 2),
+            span(4, 7),
+            span(3, 6),
             span(0, file.src.len() + 1),
             Span::new(first.start_pos, first.end_position()),
             Span::new(first.start_pos, file.end_position()),
+            Span::new(after.start_pos, after.end_position()),
+            Span::new(file.start_pos, after.end_position()),
+            Span::new(file.start_pos - BytePos(1), file.end_position()),
+            Span::new(file.end_position() + BytePos(1), file.end_position() + BytePos(2)),
+            Span::new(file.start_pos, BytePos(u32::MAX)),
         ] {
             assert_eq!(checked_span_range(&file, span), None);
         }

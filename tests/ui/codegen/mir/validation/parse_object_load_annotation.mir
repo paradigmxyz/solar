@@ -1,0 +1,9 @@
+//@compile-flags: -Zmir-pipeline=none
+
+@module ObjectLoadAnnotation
+
+fn @f(arg0: memptr) -> i256 {
+  bb0:
+    v0 = memory_object_load_field memorystruct<1>, arg0, 0, i256
+    ret v0 //~ ERROR: object load annotation must be `memptr`
+}

@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/array_copy_clear_storage_packed.sol:ArrayCopyClearStoragePacked ===
 @module ArrayCopyClearStoragePacked
-fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word<u128>], abi_return_params=[u128]] {
+fn @f() -> i128 [selector=0x26121ff0, abi_params=[], abi_returns=[word<u128>], abi_return_params=[u128]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = gt v0, 0xffffffffffffffff
@@ -133,8 +133,8 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word<u128>], a
     v122 = sload v119 !metadata(storage=symbolic(v119))
     v123 = mul v121, 8
     v124 = shr v123, v122
-    v125 = and v124, 0xffffffffffffffffffffffffffffffff
-    v126 = eq v125, 23
+    v125 = trunc i256 v124 to i128
+    v126 = eq v125, i128 23
     v127 = eq v126, false
     icall panic_if<0x1>, v127
     v128 = sload 0 !metadata(storage=slot(0))
@@ -149,8 +149,8 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word<u128>], a
     v136 = sload v133 !metadata(storage=symbolic(v133))
     v137 = mul v135, 8
     v138 = shr v137, v136
-    v139 = and v138, 0xffffffffffffffffffffffffffffffff
-    v140 = eq v139, 0
+    v139 = trunc i256 v138 to i128
+    v140 = eq v139, i128 0
     v141 = eq v140, false
     icall panic_if<0x1>, v141
     v142 = sload 0 !metadata(storage=slot(0))
@@ -165,8 +165,8 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word<u128>], a
     v150 = sload v147 !metadata(storage=symbolic(v147))
     v151 = mul v149, 8
     v152 = shr v151, v150
-    v153 = and v152, 0xffffffffffffffffffffffffffffffff
-    v154 = eq v153, 0
+    v153 = trunc i256 v152 to i128
+    v154 = eq v153, i128 0
     v155 = eq v154, false
     icall panic_if<0x1>, v155
     v156 = sload 0 !metadata(storage=slot(0))
@@ -181,7 +181,7 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word<u128>], a
     v164 = sload v161 !metadata(storage=symbolic(v161))
     v165 = mul v163, 8
     v166 = shr v165, v164
-    v167 = and v166, 0xffffffffffffffffffffffffffffffff
+    v167 = trunc i256 v166 to i128
     ret v167
   bb7:
     v89 = memory_object_load_element memoryarray<1>, v64, v87
@@ -220,7 +220,7 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word<u128>], a
     jump bb3
 }
 
-fn @g() -> i256 [selector=0xe2179b8e, abi_params=[], abi_returns=[word<u64>], abi_return_params=[u64]] {
+fn @g() -> i64 [selector=0xe2179b8e, abi_params=[], abi_returns=[word<u64>], abi_return_params=[u64]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = gt v0, 0xffffffffffffffff
@@ -353,8 +353,8 @@ fn @g() -> i256 [selector=0xe2179b8e, abi_params=[], abi_returns=[word<u64>], ab
     v122 = sload v119 !metadata(storage=symbolic(v119))
     v123 = mul v121, 8
     v124 = shr v123, v122
-    v125 = and v124, 0xffffffffffffffff
-    v126 = eq v125, 23
+    v125 = trunc i256 v124 to i64
+    v126 = eq v125, i64 23
     v127 = eq v126, false
     icall panic_if<0x1>, v127
     v128 = sload 1 !metadata(storage=slot(1))
@@ -369,8 +369,8 @@ fn @g() -> i256 [selector=0xe2179b8e, abi_params=[], abi_returns=[word<u64>], ab
     v136 = sload v133 !metadata(storage=symbolic(v133))
     v137 = mul v135, 8
     v138 = shr v137, v136
-    v139 = and v138, 0xffffffffffffffff
-    v140 = eq v139, 0
+    v139 = trunc i256 v138 to i64
+    v140 = eq v139, i64 0
     v141 = eq v140, false
     icall panic_if<0x1>, v141
     v142 = sload 1 !metadata(storage=slot(1))
@@ -385,8 +385,8 @@ fn @g() -> i256 [selector=0xe2179b8e, abi_params=[], abi_returns=[word<u64>], ab
     v150 = sload v147 !metadata(storage=symbolic(v147))
     v151 = mul v149, 8
     v152 = shr v151, v150
-    v153 = and v152, 0xffffffffffffffff
-    v154 = eq v153, 0
+    v153 = trunc i256 v152 to i64
+    v154 = eq v153, i64 0
     v155 = eq v154, false
     icall panic_if<0x1>, v155
     v156 = sload 1 !metadata(storage=slot(1))
@@ -401,7 +401,7 @@ fn @g() -> i256 [selector=0xe2179b8e, abi_params=[], abi_returns=[word<u64>], ab
     v164 = sload v161 !metadata(storage=symbolic(v161))
     v165 = mul v163, 8
     v166 = shr v165, v164
-    v167 = and v166, 0xffffffffffffffff
+    v167 = trunc i256 v166 to i64
     ret v167
   bb7:
     v89 = memory_object_load_element memoryarray<1>, v64, v87
@@ -440,7 +440,7 @@ fn @g() -> i256 [selector=0xe2179b8e, abi_params=[], abi_returns=[word<u64>], ab
     jump bb3
 }
 
-fn @h() -> i256 [selector=0xb8c9d365, abi_params=[], abi_returns=[word<u120>], abi_return_params=[u120]] {
+fn @h() -> i120 [selector=0xb8c9d365, abi_params=[], abi_returns=[word<u120>], abi_return_params=[u120]] {
   bb0:
     v0 = sload 2 !metadata(storage=slot(2))
     v1 = gt v0, 0xffffffffffffffff
@@ -573,8 +573,8 @@ fn @h() -> i256 [selector=0xb8c9d365, abi_params=[], abi_returns=[word<u120>], a
     v122 = sload v119 !metadata(storage=symbolic(v119))
     v123 = mul v121, 8
     v124 = shr v123, v122
-    v125 = and v124, 0xffffffffffffffffffffffffffffff
-    v126 = eq v125, 23
+    v125 = trunc i256 v124 to i120
+    v126 = eq v125, i120 23
     v127 = eq v126, false
     icall panic_if<0x1>, v127
     v128 = sload 2 !metadata(storage=slot(2))
@@ -589,8 +589,8 @@ fn @h() -> i256 [selector=0xb8c9d365, abi_params=[], abi_returns=[word<u120>], a
     v136 = sload v133 !metadata(storage=symbolic(v133))
     v137 = mul v135, 8
     v138 = shr v137, v136
-    v139 = and v138, 0xffffffffffffffffffffffffffffff
-    v140 = eq v139, 0
+    v139 = trunc i256 v138 to i120
+    v140 = eq v139, i120 0
     v141 = eq v140, false
     icall panic_if<0x1>, v141
     v142 = sload 2 !metadata(storage=slot(2))
@@ -605,8 +605,8 @@ fn @h() -> i256 [selector=0xb8c9d365, abi_params=[], abi_returns=[word<u120>], a
     v150 = sload v147 !metadata(storage=symbolic(v147))
     v151 = mul v149, 8
     v152 = shr v151, v150
-    v153 = and v152, 0xffffffffffffffffffffffffffffff
-    v154 = eq v153, 0
+    v153 = trunc i256 v152 to i120
+    v154 = eq v153, i120 0
     v155 = eq v154, false
     icall panic_if<0x1>, v155
     v156 = sload 2 !metadata(storage=slot(2))
@@ -621,7 +621,7 @@ fn @h() -> i256 [selector=0xb8c9d365, abi_params=[], abi_returns=[word<u120>], a
     v164 = sload v161 !metadata(storage=symbolic(v161))
     v165 = mul v163, 8
     v166 = shr v165, v164
-    v167 = and v166, 0xffffffffffffffffffffffffffffff
+    v167 = trunc i256 v166 to i120
     ret v167
   bb7:
     v89 = memory_object_load_element memoryarray<1>, v64, v87

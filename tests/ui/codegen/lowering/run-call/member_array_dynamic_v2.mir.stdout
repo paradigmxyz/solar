@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/member_array_dynamic_v2.sol:C ===
 @module C
-fn @f(arg0: calldataslice) -> memorybytes [selector=0x59862edc, abi_params=[tuple<array<_, u256>>], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @f(arg0: calldataslice) -> memptr [selector=0x59862edc, abi_params=[tuple<array<_, u256>>], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
@@ -41,13 +41,13 @@ fn @f(arg0: calldataslice) -> memorybytes [selector=0x59862edc, abi_params=[tupl
     set_memory_object_len memoryarray, v29, v12
     v30 = make_calldata_slice v19, v20
     memory_object_copy_from_slice memoryarray, v29, v30
-    v31 = ptrtoint memoryarray v29 to i256
+    v31 = ptrtoint memptr v29 to i256
     memory_object_store_field memorystruct<1>, v1, 0, v31
     v32 = abi_encode [tuple<memory_array<word>>], object, args v1
     ret v32
 }
 
-fn @g(arg0: calldataslice) -> memorybytes [selector=0x397cf2ca, abi_params=[tuple<array<_, u256>>], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @g(arg0: calldataslice) -> memptr [selector=0x397cf2ca, abi_params=[tuple<array<_, u256>>], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = address
     v1 = gas
@@ -90,7 +90,7 @@ fn @g(arg0: calldataslice) -> memorybytes [selector=0x397cf2ca, abi_params=[tupl
     set_memory_object_len memoryarray, v31, v14
     v32 = make_calldata_slice v21, v22
     memory_object_copy_from_slice memoryarray, v31, v32
-    v33 = ptrtoint memoryarray v31 to i256
+    v33 = ptrtoint memptr v31 to i256
     memory_object_store_field memorystruct<1>, v3, 0, v33
     v34 = abi_encode [tuple<memory_array<word>>], selector 0x59862edc00000000000000000000000000000000000000000000000000000000, args v3
     v35 = slice_ptr v34

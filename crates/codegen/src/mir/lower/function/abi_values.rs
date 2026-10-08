@@ -202,8 +202,19 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             // per-type encoders; copying them into a canonical object first would duplicate
             // the whole tree at every call site.
             TyKind::DynArray(_) | TyKind::Array(_, _) | TyKind::Struct(_) => value,
-            _ if external_only && !dirty => value,
-            _ => self.normalize_abi_scalar(value, ty),
+            _ => {
+                let value = if external_only && !dirty {
+                    value
+                } else {
+                    self.normalize_abi_scalar(value, ty)
+                };
+                let layout = types::TypeLowerer::value_layout(ty);
+                if matches!(layout, crate::mir::ValueLayout::Int(_)) {
+                    raw_scalars::cast_carrier(&mut self.builder, value, layout, MirType::I256)
+                } else {
+                    value
+                }
+            }
         }
     }
 
@@ -331,11 +342,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let layout = self.cx.module.intern_abi_param_layout(AbiParamLayout::new(
             vec![AbiParamType::Bytes].into_boxed_slice(),
         ));
-        Some(self.builder.abi_decode(
-            layout,
-            payload,
-            MirType::MemoryObject(MemoryObjectKind::Bytes),
-        ))
+        Some(self.builder.abi_decode(layout, payload, MirType::MemPtr))
     }
 
     /// Checks whether an `Error(string)` payload can be decoded without reverting.
@@ -434,10 +441,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let exprs = self.variadic_builtin_args(Builtin::AbiEncodePacked, &args)?;
         let parts = self.lower_packed_parts(exprs)?;
         // output = abi_encode_packed(parts)
-        Some(self.builder.emit_inst(
-            InstKind::AbiEncodePacked { parts, hash: false },
-            Some(MirType::MemoryObject(MemoryObjectKind::Bytes)),
-        ))
+        Some(
+            self.builder
+                .emit_inst(InstKind::AbiEncodePacked { parts, hash: false }, Some(MirType::MemPtr)),
+        )
     }
 
     pub(super) fn lower_keccak_abi_encode_packed(
@@ -544,9 +551,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
         let layout = self.types.memory_layout(ty)?;
         let source = match self.builder.func().value_ty(value) {
-            Some(MirType::MemoryObject(
-                MemoryObjectKind::DynamicArray | MemoryObjectKind::FixedArray,
-            )) => PackedArraySource::Memory { layout },
+            Some(MirType::MemPtr) => PackedArraySource::Memory { layout },
             Some(MirType::Slice(location @ (SliceLocation::Memory | SliceLocation::Calldata))) => {
                 PackedArraySource::Slice(location)
             }
@@ -575,7 +580,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 parts: Box::new([PackedPart::Array { value, element, source }]),
                 hash: false,
             },
-            Some(MirType::MemoryObject(MemoryObjectKind::Bytes)),
+            Some(MirType::MemPtr),
         ))
     }
 
@@ -592,7 +597,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             InstKind::MemoryObjectLoadField { .. } | InstKind::MemoryObjectLoadElement { .. }
         ));
         if !self.inplace_dynamic_shape(ty)
-            || (!matches!(self.builder.func().value_ty(value), Some(MirType::MemoryObject(_)))
+            || (!matches!(self.builder.func().value_ty(value), Some(MirType::MemPtr))
                 && !nullable_memory)
         {
             return None;
@@ -800,7 +805,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     .expect("function words always require cleanup")
                     .cleanup(&mut self.builder, value)
             }
-            _ => self.normalize_abi_scalar(value, ty),
+            _ => {
+                let value = self.normalize_abi_scalar(value, ty);
+                raw_scalars::cast_carrier(
+                    &mut self.builder,
+                    value,
+                    types::TypeLowerer::value_layout(ty),
+                    MirType::I256,
+                )
+            }
         };
         self.builder.memory_object_store_word(output, offset, value);
         let word = self.builder.imm(32);

@@ -121,45 +121,33 @@ merged.
 
 ### Cargo Commands
 
-Due to the extensive use of features in Solar, you will often need to add extra
-arguments to many common cargo commands. This section lists some commonly needed
-commands.
-
-Most `cargo` subcommands can be run normally; the `--workspace` flag can be skipped
-to ignore benchmarks and examples:
+Install [`cargo-nextest`](https://nexte.st/) (`cargo install --locked cargo-nextest`),
+then use the workspace aliases from `.cargo/config.toml`:
 
 ```
 cargo check --workspace
-cargo clippy --workspace
-cargo +nightly fmt --all --check
-cargo test --workspace
+cargo cl            # clippy on all targets and features
+cargo fmt --all     # needs nightly rustfmt; see below
+cargo t             # all tests with nextest
+cargo uitest        # UI tests only
+cargo uibless       # update UI test expectations
 ```
 
-For running tests, we recommend using [`cargo-nextest`][cargo-nextest] to make tests run faster:
+`rustfmt.toml` uses nightly-only options, so format with a nightly toolchain
+(`cargo +nightly fmt --all` if stable is your default); stable rustfmt ignores
+them and produces a different layout from CI. Prefer `cargo t` or
+`cargo nextest run` over plain `cargo test`, and never run tests with
+`--all-features`: it enables `tracy`, which slows every UI test process.
 
-[cargo-nextest]: https://nexte.st/
-
-```
-cargo install --locked cargo-nextest
-cargo nextest run --workspace
-```
-
-When building documentation, a simple `cargo doc` is not sufficient. To produce
-documentation equivalent to what will be produced in docs.rs's builds of Solar's
-docs, please use:
+Plain `cargo doc` does not match docs.rs. To build the same docs, which show the
+Cargo features that conditionally compiled APIs need, run:
 
 ```
 RUSTDOCFLAGS="--cfg docsrs" cargo +nightly doc --workspace --no-deps --all-features [--open]
 ```
 
-This turns on indicators to display the Cargo features required for
-conditionally compiled APIs in Solar.
-
-There is a more concise way to build docs.rs-equivalent docs by using
-[`cargo docs-rs`], which reads the above documentation flags out of
-Solar's Cargo.toml as docs.rs itself does.
-
-[`cargo docs-rs`]: https://github.com/dtolnay/cargo-docs-rs
+[`cargo docs-rs`](https://github.com/dtolnay/cargo-docs-rs) does the same by
+reading these flags from `Cargo.toml`, as docs.rs does:
 
 ```
 cargo install --locked cargo-docs-rs
@@ -168,7 +156,7 @@ cargo +nightly docs-rs -p solar-compiler [--open]
 
 ### Spellcheck
 
-You can perform spell-check on the codebase with the following commands:
+Check spelling with:
 
 ```
 cargo install --locked typos-cli
@@ -177,8 +165,7 @@ typos
 
 For details of how to use `typos`, see <https://github.com/crate-ci/typos>.
 
-If the command rejects a word, you should backtick the rejected word if it's code related.
-If not, the  rejected word should be inserted into `typos.toml`. 
+Backtick a rejected word if it is code; otherwise add it to `typos.toml`.
 
 ### Diagnostics
 
@@ -188,63 +175,46 @@ compilers.
 
 ### Tests
 
-If the change being proposed alters code (as opposed to only documentation for
-example), it is either adding new functionality to Solar or it is fixing
-existing, broken functionality. In both of these cases, the pull request should
-include one or more tests to ensure that Solar does not regress in the future.
-There are a few ways to write tests:
-- [unit tests][unit-tests]
-- [documentation tests][documentation-tests]
-- [snapshot tests][snapshot-tests]
-- [integration tests][integration-tests]
-
-Unit, documentation, and snapshot tests are used to test individual library functions or modules, whereas
-integration tests are used to test the compiler binary.
+Code changes, whether new features or fixes, need tests that guard against
+regressions. Use [unit][unit-tests], [documentation][documentation-tests], or
+[snapshot](#snapshot-tests) tests for library functions and modules, and
+[integration tests][integration-tests] for the compiler binary.
 
 #### Snapshot Tests
 
-Snapshot tests are a subset of unit tests that capture some specific output and compare it to a snapshot, usually defined inline in the test itself.
+Snapshot tests are unit tests that compare output to a snapshot, usually inline
+in the test. We use `snapbox`, which needs no external binaries. Run tests with
+`SNAPSHOTS=overwrite` to create or update snapshots, optionally filtering by
+crate or test name:
 
-We use `snapbox` as the snapshot testing framework, which does not require any external binaries to be installed.
-
-You can automatically create or update the snapshots by running tests normally with the `SNAPSHOTS=overwrite` environment variable,
-optionally specifying the crate or test name, as you would with `cargo test` normally.
-For example:
 ```bash
-SNAPSHOTS=overwrite cargo test -p solar-ast
+SNAPSHOTS=overwrite cargo nextest run -p solar-ast
 ```
 
 #### Integration Tests
 
-Integration tests are located in the `tests` directory. They are run using the
-[`ui_test`][ui_test] test harness, which is inspired by [`compiletest`][compiletest],
-the rustc test harness.
-
-These tests are run by default when running `cargo test` or `cargo nextest run`.
-
-To run them specifically, you can use `cargo uitest`.
-
-Here's a simple example to show how to write a "UI" integration test (`tests/ui` directory):
+Integration tests live in `tests/` and use the [`ui_test`][ui_test] harness,
+inspired by rustc's [`compiletest`][compiletest]; see both for details. They run
+by default with `cargo t`; `cargo uitest` runs only
+them. A UI test (`tests/ui/`) looks like this:
 
 ```rust
 // Directives
 //@ compile-flags: --flag
 
-// Annotations specify the diagnostics that the compiler is expected to emit.
-// These are `//~`, one of HELP, NOTE, WARN, ERROR, or ICE, and a colon (`:`),
-// followed by the expected message. The message can be a partial match.
-// An annotation can also match a diagnostic code directly.
+// Annotations give the diagnostics the compiler must emit: `//~`, then HELP,
+// NOTE, WARN, ERROR, or ICE, a colon, and the expected message, which may be a
+// partial match. An annotation can also match a diagnostic code.
 
 line with error //~ ERROR: error message
 
-// The annotation can be prefixed with any number of `^` or `v`
-// to point at the N'th line above or below respectively.
+// Prefix any number of `^` or `v` to point N lines above or below.
 
 //~vv ERROR: error message
 
 line with error
 
-// Diagnostics pointing to the same line should be grouped together using `|`.
+// Use `|` to group diagnostics on the same line.
 
 line with multiple errors
 //~^ ERROR: first error
@@ -256,20 +226,15 @@ line with multiple errors
 //~? ERROR: error without a source location
 ```
 
-The UI runner infers the expected exit status from annotations. `ERROR` and
-`ICE` annotations expect status 1; tests without them expect status 0. Do not
-add `check-pass` or `check-fail` to ordinary tests. Use an explicit status
-directive only when the inferred status is wrong for the test:
+The runner infers the expected exit status: 1 with `ERROR` or `ICE`
+annotations, 0 without. Add a status directive only when the inference is
+wrong, never to ordinary tests:
 
-- `//@ check-pass` expects status 0.
-- `//@ check-fail` expects status 1.
-- `//@ failure-status: N` expects status `N`.
+- `//@ check-pass`: status 0.
+- `//@ check-fail`: status 1.
+- `//@ failure-status: N`: status `N`.
 
-Once you have written your test, or existing tests' output has changed, you must
-run `cargo uibless` to update the expected output files.
-
-For detailed information on how to write integration tests, see the
-[`ui_test`][ui_test] and [`compiletest`][compiletest] documentation.
+Run `cargo uibless` after adding a test or when expected output changes.
 
 [unit-tests]: https://doc.rust-lang.org/rust-by-example/testing/unit_testing.html
 [documentation-tests]: https://doc.rust-lang.org/rust-by-example/testing/doc_testing.html
@@ -277,9 +242,44 @@ For detailed information on how to write integration tests, see the
 [ui_test]: https://github.com/oli-obk/ui_test
 [compiletest]: https://rustc-dev-guide.rust-lang.org/tests/compiletest.html
 
+### Python tooling
+
+Python tooling uses the version in `.python-version`. Run uv from the repository
+root; `tools/compiler-diff` and `benches/analyze` share the workspace `uv.lock`.
+`bash scripts/check-python.sh` runs format, lint, and type checks and all Python
+unit tests, as does the required `Python` CI job. It does not build the
+compilers or run live Fandango/Foundry differentials. The workflow and proof
+unit tests need Node.js (the version in `.github/workflows/ci.yml`) and Lean on
+PATH; install Lean through elan, which selects the toolchain pinned in
+`scripts/evm-rules/lean/lean-toolchain`. Format Python with
+`uv run --all-packages ruff format .`.
+
+The proof CI job runs on main and for changes to codegen or proof inputs. It
+proves every selected rule in Lean afresh on each run, caching only the Lean
+toolchain and the built model library. See the
+[proof guide](scripts/evm-rules/README.md) for local commands and failure
+artifacts.
+
+### Updating Solc
+
+Before changing code, read the release notes
+(`gh release view vX.Y.Z -R argotorg/solidity`) and the source diff
+(`git -C testdata/solidity diff vOLD..vNEW --stat`, plus targeted diffs for
+parser, lexer, analysis, `liblangutil/EVMVersion.*`, and changed tests).
+
+Update `testdata/solidity` to the new tag, bump every local Solc version pin,
+such as `SOLC_VERSION` in workflows and the fallback in `crates/config/build.rs`,
+and add new EVM versions to `crates/config/src/lib.rs`. If upstream changes the
+default EVM version, change ours and bless the affected CLI snapshots.
+
+Always run the complete `cargo tq solc-solidity` and `cargo tq solc-yul` suites,
+without path filters. Change the ignore lists in
+`tools/tester/src/solc/solidity.rs` and `tools/tester/src/solc/yul.rs` only for
+tests still outside the compiler's implemented behavior.
+
 ### Benchmarks
 
-Check out the [`benches`](/benches) directory for information about benchmarks.
+See [`benches`](/benches).
 
 ### Commits
 

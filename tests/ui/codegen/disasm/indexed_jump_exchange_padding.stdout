@@ -1,0 +1,435 @@
+- // === ROOT/tests/ui/codegen/disasm/indexed_jump_exchange_padding.evmir (before none) ===
++ // === ROOT/tests/ui/codegen/disasm/indexed_jump_exchange_padding.evmir (after none) ===
+  @module exchange_padding
+  bb0:
+    push 1
+    indexed_jump bb2, bb3, bb4, bb5, bb6, bb7, bb8, bb9, bb10, bb11
+  bb1:
+    push 1
+    push 1
+    push 1
+    exchange 1, 2
+    exchange 1, 2
+    exchange 1, 2
+    exchange 1, 2
+    exchange 1, 2
+    exchange 1, 2
+    exchange 1, 2
+    exchange 1, 2
+    exchange 1, 2
+    exchange 1, 2
+    exchange 1, 2
+    exchange 1, 2
+    exchange 1, 2
+    exchange 1, 2
+    exchange 1, 2
+    exchange 1, 2
+    exchange 1, 2
+    exchange 1, 2
+    exchange 1, 2
+    exchange 1, 2
+    exchange 1, 2
+    exchange 1, 2
+    exchange 1, 2
+    exchange 1, 2
+    exchange 1, 2
+    exchange 1, 2
+    exchange 1, 2
+    exchange 1, 2
+    exchange 1, 2
+    exchange 1, 2
+    exchange 1, 2
+    exchange 1, 2
+    exchange 1, 2
+    exchange 1, 2
+    exchange 1, 2
+    exchange 1, 2
+    exchange 1, 2
+    exchange 1, 2
+    exchange 1, 2
+    exchange 1, 2
+    exchange 1, 2
+    exchange 1, 2
+    exchange 1, 2
+    exchange 1, 2
+    exchange 1, 2
+    exchange 1, 2
+    exchange 1, 2
+    exchange 1, 2
+    exchange 1, 2
+    exchange 1, 2
+    exchange 1, 2
+    exchange 1, 2
+    exchange 1, 2
+    exchange 1, 2
+    exchange 1, 2
+    exchange 1, 2
+    exchange 1, 2
+    exchange 1, 2
+    exchange 1, 2
+    exchange 1, 2
+    exchange 1, 2
+    exchange 1, 2
+    exchange 1, 2
+    exchange 1, 2
+    exchange 1, 2
+    exchange 1, 2
+    exchange 1, 2
+    exchange 1, 2
+    exchange 1, 2
+    exchange 1, 2
+    exchange 1, 2
+    exchange 1, 2
+    exchange 1, 2
+    exchange 1, 2
+    exchange 1, 2
+    exchange 1, 2
+    exchange 1, 2
+    exchange 1, 2
+    exchange 1, 2
+    exchange 1, 2
+    exchange 1, 2
+    exchange 1, 2
+    exchange 1, 2
+    exchange 1, 2
+    exchange 1, 2
+    exchange 1, 2
+    exchange 1, 2
+    exchange 1, 2
+    exchange 1, 2
+    exchange 1, 2
+    stop
+  bb2:
+    stop
+  bb3:
+    stop
+  bb4:
+    stop
+  bb5:
+    stop
+  bb6:
+    stop
+  bb7:
+    stop
+  bb8:
+    stop
+  bb9:
+    stop
+  bb10:
+    stop
+  bb11:
+    stop
+  
+// === exchange_padding (runtime) ===
+PUSH1 0x01
+PUSH1 0x16
+ADD
+PUSH10 0x00020406080a0c0e1012
+SWAP1
+BYTE
+PUSH2 0x012c
+ADD
+JUMP ; unknown
+PUSH1 0x01
+PUSH1 0x01
+PUSH1 0x01
+SWAP1
+SWAP2
+SWAP1
+SWAP1
+SWAP2
+SWAP1
+SWAP1
+SWAP2
+SWAP1
+SWAP1
+SWAP2
+SWAP1
+SWAP1
+SWAP2
+SWAP1
+SWAP1
+SWAP2
+SWAP1
+SWAP1
+SWAP2
+SWAP1
+SWAP1
+SWAP2
+SWAP1
+SWAP1
+SWAP2
+SWAP1
+SWAP1
+SWAP2
+SWAP1
+SWAP1
+SWAP2
+SWAP1
+SWAP1
+SWAP2
+SWAP1
+SWAP1
+SWAP2
+SWAP1
+SWAP1
+SWAP2
+SWAP1
+SWAP1
+SWAP2
+SWAP1
+SWAP1
+SWAP2
+SWAP1
+SWAP1
+SWAP2
+SWAP1
+SWAP1
+SWAP2
+SWAP1
+SWAP1
+SWAP2
+SWAP1
+SWAP1
+SWAP2
+SWAP1
+SWAP1
+SWAP2
+SWAP1
+SWAP1
+SWAP2
+SWAP1
+SWAP1
+SWAP2
+SWAP1
+SWAP1
+SWAP2
+SWAP1
+SWAP1
+SWAP2
+SWAP1
+SWAP1
+SWAP2
+SWAP1
+SWAP1
+SWAP2
+SWAP1
+SWAP1
+SWAP2
+SWAP1
+SWAP1
+SWAP2
+SWAP1
+SWAP1
+SWAP2
+SWAP1
+SWAP1
+SWAP2
+SWAP1
+SWAP1
+SWAP2
+SWAP1
+SWAP1
+SWAP2
+SWAP1
+SWAP1
+SWAP2
+SWAP1
+SWAP1
+SWAP2
+SWAP1
+SWAP1
+SWAP2
+SWAP1
+SWAP1
+SWAP2
+SWAP1
+SWAP1
+SWAP2
+SWAP1
+SWAP1
+SWAP2
+SWAP1
+SWAP1
+SWAP2
+SWAP1
+SWAP1
+SWAP2
+SWAP1
+SWAP1
+SWAP2
+SWAP1
+SWAP1
+SWAP2
+SWAP1
+SWAP1
+SWAP2
+SWAP1
+SWAP1
+SWAP2
+SWAP1
+SWAP1
+SWAP2
+SWAP1
+SWAP1
+SWAP2
+SWAP1
+SWAP1
+SWAP2
+SWAP1
+SWAP1
+SWAP2
+SWAP1
+SWAP1
+SWAP2
+SWAP1
+SWAP1
+SWAP2
+SWAP1
+SWAP1
+SWAP2
+SWAP1
+SWAP1
+SWAP2
+SWAP1
+SWAP1
+SWAP2
+SWAP1
+SWAP1
+SWAP2
+SWAP1
+SWAP1
+SWAP2
+SWAP1
+SWAP1
+SWAP2
+SWAP1
+SWAP1
+SWAP2
+SWAP1
+SWAP1
+SWAP2
+SWAP1
+SWAP1
+SWAP2
+SWAP1
+SWAP1
+SWAP2
+SWAP1
+SWAP1
+SWAP2
+SWAP1
+SWAP1
+SWAP2
+SWAP1
+SWAP1
+SWAP2
+SWAP1
+SWAP1
+SWAP2
+SWAP1
+SWAP1
+SWAP2
+SWAP1
+SWAP1
+SWAP2
+SWAP1
+SWAP1
+SWAP2
+SWAP1
+SWAP1
+SWAP2
+SWAP1
+SWAP1
+SWAP2
+SWAP1
+SWAP1
+SWAP2
+SWAP1
+SWAP1
+SWAP2
+SWAP1
+SWAP1
+SWAP2
+SWAP1
+SWAP1
+SWAP2
+SWAP1
+SWAP1
+SWAP2
+SWAP1
+SWAP1
+SWAP2
+SWAP1
+SWAP1
+SWAP2
+SWAP1
+SWAP1
+SWAP2
+SWAP1
+SWAP1
+SWAP2
+SWAP1
+SWAP1
+SWAP2
+SWAP1
+SWAP1
+SWAP2
+SWAP1
+SWAP1
+SWAP2
+SWAP1
+SWAP1
+SWAP2
+SWAP1
+SWAP1
+SWAP2
+SWAP1
+SWAP1
+SWAP2
+SWAP1
+SWAP1
+SWAP2
+SWAP1
+SWAP1
+SWAP2
+SWAP1
+SWAP1
+SWAP2
+SWAP1
+SWAP1
+SWAP2
+SWAP1
+SWAP1
+SWAP2
+SWAP1
+STOP
+; bb0
+JUMPDEST
+STOP
+; bb1
+JUMPDEST
+STOP
+; bb2
+JUMPDEST
+STOP
+; bb3
+JUMPDEST
+STOP
+; bb4
+JUMPDEST
+STOP
+; bb5
+JUMPDEST
+STOP
+; bb6
+JUMPDEST
+STOP
+; bb7
+JUMPDEST
+STOP
+; bb8
+JUMPDEST
+STOP
+; bb9
+JUMPDEST

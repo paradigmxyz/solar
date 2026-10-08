@@ -1,0 +1,64 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/loop_split_downstream_phi.sol:LoopSplitDownstreamPhi ===
+@module LoopSplitDownstreamPhi
+fn @nestedExit(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x5d8a2cec, pure, abi_params=[u256, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb3: v6]
+    v1 = phi [bb0: arg0], [bb3: v8]
+    v2 = phi [bb0: arg2], [bb3: v9]
+    v3 = phi [bb0: 0], [bb3: v21]
+    v4 = phi [bb0: arg1], [bb3: v11]
+    v5 = lt v3, v1
+    jumpi v5, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    ret v0
+  bb4:
+    jump bb7
+  bb7:
+    v6 = phi [bb4: v0], [bb9: v19]
+    v7 = phi [bb4: 0], [bb9: v20]
+    v8 = phi [bb4: v1], [bb9: v8]
+    v9 = phi [bb4: v2], [bb9: v9]
+    v10 = phi [bb4: v3], [bb9: v10]
+    v11 = phi [bb4: v4], [bb9: v11]
+    v12 = lt v7, v11
+    jumpi v12, bb10, bb11
+  bb11:
+    jump bb8
+  bb10:
+    v13 = lt v7, v9
+    v14 = eq v13, false
+    jumpi v14, bb13, bb14
+  bb14:
+    jump bb15
+  bb15:
+    v15 = add v7, 1
+    v16 = lt v15, v11
+    jumpi v16, bb16, bb17
+  bb17:
+    jump bb18
+  bb16:
+    v17 = add v7, 1
+    v18 = add v6, v17
+    jump bb18
+  bb18:
+    v19 = phi [bb16: v18], [bb17: v6]
+    jump bb12
+  bb12:
+    jump bb9
+  bb9:
+    v20 = add v7, 1
+    jump bb7
+  bb13:
+    jump bb8
+  bb8:
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v21 = add v10, 1
+    jump bb1
+}

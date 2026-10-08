@@ -1,66 +1,11 @@
-use super::support::RequestFixture;
-use crate::{
-    config::negotiate_capabilities,
-    global_state::{AnalysisBatch, GlobalState, analyze},
-    utils::apply_document_changes,
-};
-use async_lsp::ErrorCode;
+use super::*;
+use crate::utils::apply_document_changes;
 use crop::Rope;
-use lsp_types::{
-    DidChangeTextDocumentParams, DocumentChanges, InitializeParams, TextDocumentContentChangeEvent,
-    Url, VersionedTextDocumentIdentifier, WorkspaceClientCapabilities,
-    WorkspaceEditClientCapabilities, WorkspaceFolder,
-};
+use lsp_types::DocumentChanges;
 use snapbox::str;
-use solar_config::CompileOpts;
-use std::{
-    future::Future,
-    sync::{Arc, mpsc},
-    task::{Context, Poll, Wake, Waker},
-    time::Duration,
-};
 
 mod coverage;
 mod dependencies;
-
-#[test]
-fn prepares_and_renames_a_state_variable() {
-    let fixture = RequestFixture::new(
-        r#"
-        //- /Basic.sol
-        contract C {
-            uint256 $1value;
-
-            function set(uint256 next) public {
-                value = next;
-            }
-
-            function get() public view returns (uint256) {
-                return value;
-            }
-        }
-        "#,
-        "/Basic.sol",
-    );
-
-    fixture.check_prepare_rename(
-        "$1",
-        str![[r#"
-1:12-1:17
-
-"#]],
-    );
-    fixture.check_rename(
-        "$1",
-        "renamed",
-        str![[r#"
-/Basic.sol:1:12-1:17 -> renamed
-/Basic.sol:3:8-3:13 -> renamed
-/Basic.sol:6:15-6:20 -> renamed
-
-"#]],
-    );
-}
 
 // ported-from: test/libsolidity/lsp/rename/contract.sol
 #[test]
@@ -166,21 +111,10 @@ fn renames_variable_references_and_public_getters() {
     );
 
     fixture.check_prepare_rename("$3", "4:20-4:28\n");
-    fixture.check_rename(
-        "$1",
-        "Renamed",
+    fixture.check_renames(
+        &[("$1 $2 $3 $4", "Renamed")],
         str![[r#"
-/Variable.sol:1:15-1:23 -> Renamed
-/Variable.sol:3:8-3:16 -> Renamed
-/Variable.sol:4:20-4:28 -> Renamed
-/Variable.sol:8:13-8:21 -> Renamed
-
-"#]],
-    );
-    fixture.check_rename(
-        "$4",
-        "Renamed",
-        str![[r#"
+$1 $2 $3 $4:
 /Variable.sol:1:15-1:23 -> Renamed
 /Variable.sol:3:8-3:16 -> Renamed
 /Variable.sol:4:20-4:28 -> Renamed
@@ -221,7 +155,7 @@ fn renames_named_call_arguments_with_the_parameter() {
 }
 
 #[test]
-fn renames_named_call_arguments_with_call_options() {
+fn renames_named_call_and_constructor_arguments_with_call_options() {
     let fixture = RequestFixture::new(
         r#"
         //- /Target.sol
@@ -229,6 +163,9 @@ fn renames_named_call_arguments_with_call_options() {
             function pay(uint256 $1amount) external payable returns (uint256) {
                 return amount;
             }
+        }
+        contract Created {
+            constructor(uint256 $5value) payable {}
         }
         //- /Caller.sol
         import "./Target.sol";
@@ -238,38 +175,38 @@ fn renames_named_call_arguments_with_call_options() {
                 t.pay{value: 1}({$3amount: 2});
                 (t.pay){gas: 100000, value: 1}({$4amount: 2});
             }
+            function deploy() external {
+                new Created({$6value: 2});
+                new Created{value: 1, salt: bytes32(0)}({$7value: 2});
+            }
         }
         "#,
         "/Caller.sol",
     );
-
-    let expected = str![[r#"
+    fixture.check_renames(
+        &[("$1 $2 $3 $4", "renamed"), ("$5 $6 $7", "renamed")],
+        str![[r#"
+$1 $2 $3 $4:
 /Caller.sol:3:15-3:21 -> renamed
 /Caller.sol:4:25-4:31 -> renamed
 /Caller.sol:5:40-5:46 -> renamed
 /Target.sol:1:25-1:31 -> renamed
 /Target.sol:2:15-2:21 -> renamed
+$5 $6 $7:
+/Caller.sol:8:21-8:26 -> renamed
+/Caller.sol:9:49-9:54 -> renamed
+/Target.sol:6:24-6:29 -> renamed
 
-"#]];
-    for marker in ["$1", "$2", "$3", "$4"] {
-        fixture.check_rename(marker, "renamed", expected.clone());
-    }
+"#]],
+    );
 
+    // The renamed sources still analyze without diagnostics.
     let (mut state, params) = fixture.rename_state_and_params("$1", "renamed");
-    let edits = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-        .unwrap()
-        .block_on(crate::handlers::rename(&mut state, params))
-        .unwrap()
-        .unwrap();
-    let mut changes = edits.changes.unwrap();
-    let mut files = Vec::new();
-    for file in ["/Caller.sol", "/Target.sol"] {
+    let mut changes =
+        block_on(crate::handlers::rename(&mut state, params)).unwrap().unwrap().changes.unwrap();
+    let files = ["/Caller.sol", "/Target.sol"].map(|file| {
         let path = fixture.project_path(file);
-        let uri = Url::from_file_path(&path).unwrap();
-        let mut edits = changes.remove(&uri).unwrap();
-        let contents = Rope::from(fixture.project_contents(file));
+        let mut edits = changes.remove(&Url::from_file_path(&path).unwrap()).unwrap();
         edits.sort_by_key(|edit| std::cmp::Reverse(edit.range.start));
         let changes = edits
             .into_iter()
@@ -279,42 +216,14 @@ fn renames_named_call_arguments_with_call_options() {
                 text: edit.new_text,
             })
             .collect();
+        let contents = Rope::from(fixture.project_contents(file));
         let renamed = apply_document_changes(&contents, changes).unwrap().to_string();
         fixture.write_file(file, &renamed);
-        files.push((path, renamed));
-    }
+        (path, renamed)
+    });
     assert!(changes.is_empty());
     let result = analyze(AnalysisBatch::from_files(CompileOpts::default(), files));
     assert!(result.diagnostics.is_empty(), "{:#?}", result.diagnostics);
-}
-
-#[test]
-fn renames_named_constructor_arguments_with_call_options() {
-    let fixture = RequestFixture::new(
-        r#"
-        //- /Creation.sol
-        contract Target {
-            constructor(uint256 $1value) payable {}
-        }
-        contract Caller {
-            function deploy() external {
-                new Target({$2value: 2});
-                new Target{value: 1, salt: bytes32(0)}({$3value: 2});
-            }
-        }
-        "#,
-        "/Creation.sol",
-    );
-
-    let expected = str![[r#"
-/Creation.sol:1:24-1:29 -> renamed
-/Creation.sol:5:20-5:25 -> renamed
-/Creation.sol:6:48-6:53 -> renamed
-
-"#]];
-    for marker in ["$1", "$2", "$3"] {
-        fixture.check_rename(marker, "renamed", expected.clone());
-    }
 }
 
 #[test]
@@ -333,19 +242,20 @@ fn renames_named_function_type_arguments_with_call_options() {
         "/Callback.sol",
     );
 
-    let expected = str![[r#"
+    fixture.check_renames(
+        &[("$1 $2 $3", "renamed")],
+        str![[r#"
+$1 $2 $3:
 /Callback.sol:1:34-1:39 -> renamed
 /Callback.sol:2:16-2:21 -> renamed
 /Callback.sol:3:39-3:44 -> renamed
 
-"#]];
-    for marker in ["$1", "$2", "$3"] {
-        fixture.check_rename(marker, "renamed", expected.clone());
-    }
+"#]],
+    );
 }
 
 #[test]
-fn renames_named_modifier_and_base_constructor_arguments() {
+fn renames_modifiers_and_their_named_and_base_constructor_arguments() {
     let fixture = RequestFixture::new(
         r#"
         //- /NamedModifiers.sol
@@ -354,28 +264,29 @@ fn renames_named_modifier_and_base_constructor_arguments() {
         }
 
         contract Child is Base({$4amount: 1}) {
-            modifier guarded(uint256 $1amount) { _; }
-            function run() public guarded({$2amount: 1}) {}
+            modifier $5guarded(uint256 $1amount) { _; }
+            function run() public $6guarded({$2amount: 1}) {}
         }
         "#,
         "/NamedModifiers.sol",
     );
 
-    let modifier = str![[r#"
+    fixture.check_renames(
+        &[("$1 $2", "value"), ("$3 $4", "value"), ("$5 $6", "check")],
+        str![[r#"
+$1 $2:
 /NamedModifiers.sol:4:29-4:35 -> value
 /NamedModifiers.sol:5:35-5:41 -> value
-
-"#]];
-    fixture.check_rename("$1", "value", modifier.clone());
-    fixture.check_rename("$2", "value", modifier);
-
-    let constructor = str![[r#"
+$3 $4:
 /NamedModifiers.sol:1:24-1:30 -> value
 /NamedModifiers.sol:3:24-3:30 -> value
+$5 $6:
+/NamedModifiers.sol:4:13-4:20 -> check
+/NamedModifiers.sol:5:26-5:33 -> check
 
-"#]];
-    fixture.check_rename("$3", "value", constructor.clone());
-    fixture.check_rename("$4", "value", constructor);
+"#]],
+    );
+    fixture.check_prepare_rename("$6", "5:26-5:33\n");
 }
 
 #[test]
@@ -394,33 +305,21 @@ fn renames_mapping_names_from_generated_getter_signature() {
         "/MappingNames.sol",
     );
 
-    fixture.check_rename(
-        "$2",
-        "account",
+    fixture.check_renames(
+        &[("$2", "account"), ("$4", "delegate"), ("$5", "amount")],
         str![[r#"
+$2:
 /MappingNames.sol:1:20-1:25 -> account
 /MappingNames.sol:3:30-3:35 -> account
-
-"#]],
-    );
-    fixture.check_rename(
-        "$4",
-        "delegate",
-        str![[r#"
+$4:
 /MappingNames.sol:1:45-1:52 -> delegate
 /MappingNames.sol:3:49-3:56 -> delegate
-
-"#]],
-    );
-    fixture.check_prepare_rename("$5", "1:64-1:71\n");
-    fixture.check_rename(
-        "$5",
-        "amount",
-        str![[r#"
+$5:
 /MappingNames.sol:1:64-1:71 -> amount
 
 "#]],
     );
+    fixture.check_prepare_rename("$5", "1:64-1:71\n");
 }
 
 // ported-from: test/libsolidity/lsp/rename/import_directive.sol
@@ -448,55 +347,32 @@ fn distinguishes_import_aliases_from_imported_declarations() {
         "/Main.sol",
     );
 
-    fixture.check_prepare_rename("$1", "0:27-0:39\n");
-    fixture.check_prepare_rename("$3", "1:20-1:36\n");
-    fixture.check_prepare_rename("$2", "1:8-1:16\n");
-    fixture.check_prepare_rename("$6", "4:4-4:16\n");
-    fixture.check_prepare_rename("$5", "3:4-3:20\n");
-    fixture.check_prepare_rename("$7", "4:17-4:25\n");
-    fixture.check_prepare_rename("$8", "5:4-5:8\n");
-    fixture.check_rename(
-        "$1",
-        "Renamed",
+    for (marker, range) in [
+        ("$1", "0:27-0:39\n"),
+        ("$2", "1:8-1:16\n"),
+        ("$3", "1:20-1:36\n"),
+        ("$5", "3:4-3:20\n"),
+        ("$6", "4:4-4:16\n"),
+        ("$7", "4:17-4:25\n"),
+        ("$8", "5:4-5:8\n"),
+    ] {
+        fixture.check_prepare_rename(marker, range);
+    }
+    fixture.check_renames(
+        &[("$1", "Renamed"), ("$3 $5", "Renamed"), ("$2", "Renamed"), ("$4", "Renamed")],
         str![[r#"
+$1:
 /Main.sol:0:27-0:39 -> Renamed
 /Main.sol:4:4-4:16 -> Renamed
-
-"#]],
-    );
-    fixture.check_rename(
-        "$3",
-        "Renamed",
-        str![[r#"
+$3 $5:
 /Main.sol:1:20-1:36 -> Renamed
 /Main.sol:3:4-3:20 -> Renamed
-
-"#]],
-    );
-    fixture.check_rename(
-        "$5",
-        "Renamed",
-        str![[r#"
-/Main.sol:1:20-1:36 -> Renamed
-/Main.sol:3:4-3:20 -> Renamed
-
-"#]],
-    );
-    fixture.check_rename(
-        "$2",
-        "Renamed",
-        str![[r#"
+$2:
 /Imported.sol:0:9-0:17 -> Renamed
 /Imported.sol:2:4-2:12 -> Renamed
 /Main.sol:1:8-1:16 -> Renamed
 /Main.sol:4:17-4:25 -> Renamed
-
-"#]],
-    );
-    fixture.check_rename(
-        "$4",
-        "Renamed",
-        str![[r#"
+$4:
 /Imported.sol:1:9-1:13 -> Renamed
 /Main.sol:1:38-1:42 -> Renamed
 /Main.sol:5:4-5:8 -> Renamed
@@ -506,165 +382,129 @@ fn distinguishes_import_aliases_from_imported_declarations() {
 }
 
 #[test]
-fn validates_new_names_and_handles_noop_renames() {
+fn validates_names_positions_and_yul_locals() {
     let fixture = RequestFixture::new(
         r#"
-        //- /Names.sol
-        contract C {
-            uint256 $1value;
+        //- /Assembly.sol
+        $4contract C {
+            uint256 $1stored;
+
+            $5constructor() {}
+
+            function run(uint256 $2input) public returns (uint256 output) {
+                uint256 height = $6block.number;
+                assembly {
+                    let $3local := input
+                    sstore(stored.slot, add(local, input))
+                    output := local
+                }
+                output += $7  height;
+            }
         }
         "#,
-        "/Names.sol",
+        "/Assembly.sol",
     );
 
-    fixture.check_rename_error("$1", "not a name", ErrorCode::INVALID_PARAMS);
-    fixture.check_rename_error("$1", "256value", ErrorCode::INVALID_PARAMS);
-    fixture.check_rename_error("$1", "contract", ErrorCode::INVALID_PARAMS);
-    fixture.check_rename_error("$1", "uint256", ErrorCode::INVALID_PARAMS);
-    fixture.check_rename("$1", "value", "<none>\n");
+    fixture.check_prepare_rename("$1", "1:12-1:18\n");
+    fixture.check_renames(
+        &[("$1", "renamed"), ("$2", "renamed"), ("$3", "renamed"), ("$1", "stored")],
+        str![[r#"
+$1:
+/Assembly.sol:1:12-1:18 -> renamed
+/Assembly.sol:7:19-7:25 -> renamed
+$2:
+/Assembly.sol:3:25-3:30 -> renamed
+/Assembly.sol:6:25-6:30 -> renamed
+/Assembly.sol:7:43-7:48 -> renamed
+$3:
+<none>
+$1:
+<none>
+
+"#]],
+    );
+    for marker in ["$3", "$4", "$5", "$6", "$7"] {
+        fixture.check_prepare_rename(marker, "<none>\n");
+    }
+    for name in ["not a name", "256value", "contract", "uint256", "leave"] {
+        fixture.check_rename_error("$1", name, ErrorCode::INVALID_PARAMS);
+    }
+    fixture.check_rename_error("$2", "add", ErrorCode::INVALID_PARAMS);
 }
 
 #[test]
-fn renames_qualified_type_components_and_bases() {
+fn renames_qualified_type_components_bases_and_layout_expressions() {
     let fixture = RequestFixture::new(
         r#"
         //- /Qualified.sol
+        uint256 constant $5BASE = 42;
         contract $1Outer {
             struct $2Inner { uint256 field; }
         }
+        contract $3Child is Outer {}
 
         contract C is Outer {
             Outer.Inner value;
+            $4Child.Inner inherited;
 
             function read() public view returns (Outer.Inner memory) {
                 // Outer and Inner in this text must remain unchanged.
                 return value;
             }
         }
+        contract Layout layout at BASE {}
         "#,
         "/Qualified.sol",
     );
 
-    fixture.check_rename(
-        "$1",
-        "Renamed",
+    fixture.check_renames(
+        &[("$1", "Renamed"), ("$2", "Renamed"), ("$3 $4", "Renamed"), ("$5", "RENAMED")],
         str![[r#"
-/Qualified.sol:0:9-0:14 -> Renamed
-/Qualified.sol:3:14-3:19 -> Renamed
-/Qualified.sol:4:4-4:9 -> Renamed
-/Qualified.sol:5:41-5:46 -> Renamed
-
-"#]],
-    );
-    fixture.check_rename(
-        "$2",
-        "Renamed",
-        str![[r#"
-/Qualified.sol:1:11-1:16 -> Renamed
-/Qualified.sol:4:10-4:15 -> Renamed
-/Qualified.sol:5:47-5:52 -> Renamed
-
-"#]],
-    );
-}
-
-#[test]
-fn renames_inherited_qualified_type_components() {
-    let fixture = RequestFixture::new(
-        r#"
-        //- /InheritedQualifier.sol
-        contract Base { struct S { uint256 field; } }
-        contract $1Child is Base {}
-        contract Use { $2Child.S value; }
-        "#,
-        "/InheritedQualifier.sol",
-    );
-
-    let expected = str![[r#"
-/InheritedQualifier.sol:1:9-1:14 -> Renamed
-/InheritedQualifier.sol:2:15-2:20 -> Renamed
-
-"#]];
-    fixture.check_rename("$1", "Renamed", expected.clone());
-    fixture.check_rename("$2", "Renamed", expected);
-}
-
-#[test]
-fn renames_storage_layout_expressions() {
-    let fixture = RequestFixture::new(
-        r#"
-        //- /Layout.sol
-        uint256 constant $1BASE = 42;
-        contract C layout at BASE {}
-        "#,
-        "/Layout.sol",
-    );
-
-    fixture.check_rename(
-        "$1",
-        "RENAMED",
-        str![[r#"
-/Layout.sol:0:17-0:21 -> RENAMED
-/Layout.sol:1:21-1:25 -> RENAMED
+$1:
+/Qualified.sol:1:9-1:14 -> Renamed
+/Qualified.sol:4:18-4:23 -> Renamed
+/Qualified.sol:5:14-5:19 -> Renamed
+/Qualified.sol:6:4-6:9 -> Renamed
+/Qualified.sol:8:41-8:46 -> Renamed
+$2:
+/Qualified.sol:2:11-2:16 -> Renamed
+/Qualified.sol:6:10-6:15 -> Renamed
+/Qualified.sol:7:10-7:15 -> Renamed
+/Qualified.sol:8:47-8:52 -> Renamed
+$3 $4:
+/Qualified.sol:4:9-4:14 -> Renamed
+/Qualified.sol:7:4-7:9 -> Renamed
+$5:
+/Qualified.sol:0:17-0:21 -> RENAMED
+/Qualified.sol:13:26-13:30 -> RENAMED
 
 "#]],
     );
 }
 
 #[test]
-fn renames_override_contract_paths() {
-    let fixture = RequestFixture::new(
-        r#"
-        //- /Override.sol
-        contract $1Base {
-            function f() public virtual {}
-            fallback() external virtual {}
-            receive() external payable virtual {}
-        }
-
-        contract Child is Base {
-            function f() public override(Base) {}
-            fallback() external override(Base) {}
-            receive() external payable override(Base) {}
-        }
-        "#,
-        "/Override.sol",
-    );
-
-    fixture.check_rename(
-        "$1",
-        "Renamed",
-        str![[r#"
-/Override.sol:0:9-0:13 -> Renamed
-/Override.sol:5:18-5:22 -> Renamed
-/Override.sol:6:33-6:37 -> Renamed
-/Override.sol:7:33-7:37 -> Renamed
-/Override.sol:8:40-8:44 -> Renamed
-
-"#]],
-    );
-}
-
-#[test]
-fn renames_validated_natspec_parameter_references() {
+fn renames_validated_natspec_parameter_and_return_references() {
     let fixture = RequestFixture::new(
         r#"
         //- /NatSpec.sol
         contract C {
             /// @param $2amount Payment amount.
             function pay(uint256 $1amount) public {}
+
+            /// @return $4result The value.
+            function f() public pure returns (uint256 $3result) {
+                result = 1;
+            }
+
+            /// @param $5output The output.
+            function g() public pure returns (uint256 output) { output = 1; }
         }
         "#,
         "/NatSpec.sol",
     );
 
-    fixture.check_goto_definition(
-        "$2",
-        str![[r#"
-/NatSpec.sol:2:25 function pay(uint256 amount) public {}
-
-"#]],
-    );
+    fixture
+        .check_goto_definition("$2", "/NatSpec.sol:2:25 function pay(uint256 amount) public {}\n");
     fixture.check_references(
         "$2",
         true,
@@ -682,101 +522,83 @@ fn renames_validated_natspec_parameter_references() {
 
 "#]],
     );
-    fixture.check_rename(
-        "$1",
-        "value",
+    fixture.check_renames(
+        &[("$1", "value"), ("$3", "value"), ("$5", "value")],
         str![[r#"
+$1:
 /NatSpec.sol:1:15-1:21 -> value
 /NatSpec.sol:2:25-2:31 -> value
+$3:
+/NatSpec.sol:3:16-3:22 -> value
+/NatSpec.sol:4:46-4:52 -> value
+/NatSpec.sol:5:8-5:14 -> value
+$5:
+/NatSpec.sol:7:15-7:21 -> value
+/NatSpec.sol:8:46-8:52 -> value
+/NatSpec.sol:8:56-8:62 -> value
 
 "#]],
-    );
-}
-
-#[test]
-fn renames_validated_natspec_return_references() {
-    let fixture = RequestFixture::new(
-        r#"
-        //- /NatSpecReturn.sol
-        contract C {
-            /// @return $2result The value.
-            function f() public pure returns (uint256 $1result) {
-                result = 1;
-            }
-        }
-        "#,
-        "/NatSpecReturn.sol",
     );
 
     fixture.check_goto_definition(
-        "$2",
-        str![[r#"
-/NatSpecReturn.sol:2:46 function f() public pure returns (uint256 result) {
-
-"#]],
+        "$4",
+        "/NatSpec.sol:4:46 function f() public pure returns (uint256 result) {\n",
     );
     fixture.check_references(
-        "$2",
+        "$4",
         true,
         str![[r#"
-/NatSpecReturn.sol:1:16 /// @return result The value.
-/NatSpecReturn.sol:2:46 function f() public pure returns (uint256 result) {
-/NatSpecReturn.sol:3:8 result = 1;
+/NatSpec.sol:3:16 /// @return result The value.
+/NatSpec.sol:4:46 function f() public pure returns (uint256 result) {
+/NatSpec.sol:5:8 result = 1;
 
 "#]],
     );
     fixture.check_document_highlights(
-        "$2",
+        "$4",
         str![[r#"
-1:16-1:22 READ
-2:46-2:52 WRITE
-3:8-3:14 WRITE
+3:16-3:22 READ
+4:46-4:52 WRITE
+5:8-5:14 WRITE
 
 "#]],
     );
-    fixture.check_rename(
-        "$1",
-        "value",
-        str![[r#"
-/NatSpecReturn.sol:1:16-1:22 -> value
-/NatSpecReturn.sol:2:46-2:52 -> value
-/NatSpecReturn.sol:3:8-3:14 -> value
 
-"#]],
+    fixture.check_goto_definition(
+        "$5",
+        "/NatSpec.sol:8:46 function g() public pure returns (uint256 output) { output = 1; }\n",
     );
 }
 
 #[test]
-fn renames_validated_natspec_inheritdoc_references() {
+fn renames_validated_natspec_inheritdoc_and_override_contract_paths() {
     let fixture = RequestFixture::new(
         r#"
         //- /Inheritdoc.sol
         contract $1Base {
             function run() public virtual {}
+            fallback() external virtual {}
+            receive() external payable virtual {}
         }
 
         contract Child is Base {
             /// @inheritdoc $2Base
             function run() public override(Base) {}
+            fallback() external override(Base) {}
+            receive() external payable override(Base) {}
         }
         "#,
         "/Inheritdoc.sol",
     );
 
-    fixture.check_goto_definition(
-        "$2",
-        str![[r#"
-/Inheritdoc.sol:0:9 contract Base {
-
-"#]],
-    );
+    fixture.check_goto_definition("$2", "/Inheritdoc.sol:0:9 contract Base {\n");
     fixture.check_references(
         "$2",
         true,
         str![[r#"
 /Inheritdoc.sol:0:9 contract Base {
-/Inheritdoc.sol:3:18 contract Child is Base {
-/Inheritdoc.sol:4:20 /// @inheritdoc Base
+/Inheritdoc.sol:5:18 contract Child is Base {
+/Inheritdoc.sol:6:20 /// @inheritdoc Base
 
 "#]],
     );
@@ -784,8 +606,8 @@ fn renames_validated_natspec_inheritdoc_references() {
         "$2",
         str![[r#"
 0:9-0:13 WRITE
-3:18-3:22 READ
-4:20-4:24 READ
+5:18-5:22 READ
+6:20-6:24 READ
 
 "#]],
     );
@@ -794,28 +616,33 @@ fn renames_validated_natspec_inheritdoc_references() {
         "Parent",
         str![[r#"
 /Inheritdoc.sol:0:9-0:13 -> Parent
-/Inheritdoc.sol:3:18-3:22 -> Parent
-/Inheritdoc.sol:4:20-4:24 -> Parent
-/Inheritdoc.sol:5:35-5:39 -> Parent
+/Inheritdoc.sol:5:18-5:22 -> Parent
+/Inheritdoc.sol:6:20-6:24 -> Parent
+/Inheritdoc.sol:7:35-7:39 -> Parent
+/Inheritdoc.sol:8:33-8:37 -> Parent
+/Inheritdoc.sol:9:40-9:44 -> Parent
 
 "#]],
     );
 }
 
 #[test]
-fn renames_override_families_from_base_and_derived_declarations() {
+fn renames_override_families_but_not_function_typed_parameters() {
     let fixture = RequestFixture::new(
         r#"
         //- /OverrideFamily.sol
         contract Base {
             function $1run() public virtual {}
             modifier $3guard() virtual { _; }
+            function $10hook(uint256 x) public virtual returns (uint256) { return x; }
         }
 
         contract Child is Base {
             function $2run() public override {}
             modifier $4guard() override { _; }
             function call() public $5guard { $6run(); }
+            function use(function(uint256) external returns (uint256) $11hook, uint256 x)
+                public returns (uint256) { return $12hook(x); }
         }
 
         abstract contract GetterBase {
@@ -830,110 +657,58 @@ fn renames_override_families_from_base_and_derived_declarations() {
         "/OverrideFamily.sol",
     );
 
-    let functions = str![[r#"
+    fixture.check_renames(
+        &[
+            ("$1 $2 $6", "renamed"),
+            ("$3 $4 $5", "checked"),
+            ("$7 $8 $9", "amount"),
+            ("$11 $12", "callback"),
+            ("$10", "renamed"),
+        ],
+        str![[r#"
+$1 $2 $6:
 /OverrideFamily.sol:1:13-1:16 -> renamed
-/OverrideFamily.sol:5:13-5:16 -> renamed
-/OverrideFamily.sol:7:35-7:38 -> renamed
-
-"#]];
-    fixture.check_rename("$1", "renamed", functions.clone());
-    fixture.check_rename("$2", "renamed", functions);
-
-    let modifiers = str![[r#"
+/OverrideFamily.sol:6:13-6:16 -> renamed
+/OverrideFamily.sol:8:35-8:38 -> renamed
+$3 $4 $5:
 /OverrideFamily.sol:2:13-2:18 -> checked
-/OverrideFamily.sol:6:13-6:18 -> checked
-/OverrideFamily.sol:7:27-7:32 -> checked
-
-"#]];
-    fixture.check_rename("$3", "checked", modifiers.clone());
-    fixture.check_rename("$4", "checked", modifiers);
-
-    let getter = str![[r#"
-/OverrideFamily.sol:10:13-10:18 -> amount
-/OverrideFamily.sol:13:28-13:33 -> amount
-/OverrideFamily.sol:14:66-14:71 -> amount
-
-"#]];
-    fixture.check_rename("$7", "amount", getter.clone());
-    fixture.check_rename("$8", "amount", getter);
-}
-
-#[test]
-fn does_not_merge_function_typed_parameters_into_override_families() {
-    let fixture = RequestFixture::new(
-        r#"
-        //- /Callback.sol
-        contract Base {
-            function $3hook(uint256 x) public virtual returns (uint256) { return x; }
-        }
-
-        contract Child is Base {
-            function use(function(uint256) external returns (uint256) $1hook, uint256 x)
-                public returns (uint256) { return $2hook(x); }
-        }
-        "#,
-        "/Callback.sol",
-    );
-
-    fixture.check_rename(
-        "$1",
-        "callback",
-        str![[r#"
-/Callback.sol:4:62-4:66 -> callback
-/Callback.sol:5:42-5:46 -> callback
-
-"#]],
-    );
-    fixture.check_rename(
-        "$3",
-        "renamed",
-        str![[r#"
-/Callback.sol:1:13-1:17 -> renamed
+/OverrideFamily.sol:7:13-7:18 -> checked
+/OverrideFamily.sol:8:27-8:32 -> checked
+$7 $8 $9:
+/OverrideFamily.sol:13:13-13:18 -> amount
+/OverrideFamily.sol:16:28-16:33 -> amount
+/OverrideFamily.sol:17:66-17:71 -> amount
+$11 $12:
+/OverrideFamily.sol:9:62-9:66 -> callback
+/OverrideFamily.sol:10:42-10:46 -> callback
+$10:
+/OverrideFamily.sol:3:13-3:17 -> renamed
 
 "#]],
     );
 }
 
 #[test]
-fn renames_modifier_declarations_and_uses() {
-    let fixture = RequestFixture::new(
-        r#"
-        //- /Modifier.sol
-        contract C {
-            modifier $1guard(uint256 amount) {
-                _;
-            }
-            function f() public $2guard(1) {}
-        }
-        "#,
-        "/Modifier.sol",
-    );
-
-    fixture.check_prepare_rename("$2", "4:24-4:29\n");
-    fixture.check_rename(
-        "$2",
-        "check",
-        str![[r#"
-/Modifier.sol:1:13-1:18 -> check
-/Modifier.sol:4:24-4:29 -> check
-
-"#]],
-    );
-}
-
-#[test]
-fn renames_struct_fields_and_enum_variants() {
+fn renames_members_using_paths_and_attached_calls() {
     let fixture = RequestFixture::new(
         r#"
         //- /Members.sol
+        library $3Lib {
+            function $4add(uint256 self, uint256 other) internal pure returns (uint256) {
+                return self + other;
+            }
+        }
+
+        using {Lib.add} for uint256;
+
         contract C {
-            struct $1S { uint256 $2field; }
-            enum $3E { $4One, Two }
+            struct S { uint256 $1field; }
+            enum E { $2One, Two }
 
             S value;
 
             function read() public view returns (uint256) {
-                return value.field;
+                return value.field.add(1);
             }
 
             function state() public pure returns (E) {
@@ -944,64 +719,22 @@ fn renames_struct_fields_and_enum_variants() {
         "/Members.sol",
     );
 
-    fixture.check_rename(
-        "$2",
-        "renamed",
+    fixture.check_renames(
+        &[("$1", "renamed"), ("$2", "Ready"), ("$3", "Math"), ("$4", "plus")],
         str![[r#"
-/Members.sol:1:23-1:28 -> renamed
-/Members.sol:5:21-5:26 -> renamed
-
-"#]],
-    );
-    fixture.check_rename(
-        "$4",
-        "Ready",
-        str![[r#"
-/Members.sol:2:13-2:16 -> Ready
-/Members.sol:8:17-8:20 -> Ready
-
-"#]],
-    );
-}
-
-#[test]
-fn renames_using_paths_and_attached_calls() {
-    let fixture = RequestFixture::new(
-        r#"
-        //- /Using.sol
-        library $1Lib {
-            function $2add(uint256 self, uint256 other) internal pure returns (uint256) {
-                return self + other;
-            }
-        }
-
-        using {Lib.add} for uint256;
-
-        contract C {
-            function sum(uint256 value) public pure returns (uint256) {
-                return value.add(1);
-            }
-        }
-        "#,
-        "/Using.sol",
-    );
-
-    fixture.check_rename(
-        "$1",
-        "Math",
-        str![[r#"
-/Using.sol:0:8-0:11 -> Math
-/Using.sol:5:7-5:10 -> Math
-
-"#]],
-    );
-    fixture.check_rename(
-        "$2",
-        "plus",
-        str![[r#"
-/Using.sol:1:13-1:16 -> plus
-/Using.sol:5:11-5:14 -> plus
-/Using.sol:8:21-8:24 -> plus
+$1:
+/Members.sol:7:23-7:28 -> renamed
+/Members.sol:11:21-11:26 -> renamed
+$2:
+/Members.sol:8:13-8:16 -> Ready
+/Members.sol:14:17-14:20 -> Ready
+$3:
+/Members.sol:0:8-0:11 -> Math
+/Members.sol:5:7-5:10 -> Math
+$4:
+/Members.sol:1:13-1:16 -> plus
+/Members.sol:5:11-5:14 -> plus
+/Members.sol:11:27-11:30 -> plus
 
 "#]],
     );
@@ -1029,9 +762,9 @@ fn rejects_targets_with_ambiguous_references() {
         "/Ambiguous.sol",
     );
 
-    fixture.check_prepare_rename("$1", "<none>\n");
-    fixture.check_prepare_rename("$2", "<none>\n");
-    fixture.check_prepare_rename("$3", "<none>\n");
+    for marker in ["$1", "$2", "$3"] {
+        fixture.check_prepare_rename(marker, "<none>\n");
+    }
     fixture.check_rename("$1", "renamed", "<none>\n");
 }
 
@@ -1063,36 +796,18 @@ fn resolves_overloads_and_shadowed_names_before_renaming() {
     );
 
     fixture.check_prepare_rename("$3", "8:15-8:19\n");
-    fixture.check_rename(
-        "$1",
-        "selected",
+    fixture.check_renames(
+        &[("$1", "selected"), ("$2", "other"), ("$4", "stateValue"), ("$5 $6", "localValue")],
         str![[r#"
+$1:
 /Resolution.sol:1:13-1:17 -> selected
 /Resolution.sol:8:15-8:19 -> selected
-
-"#]],
-    );
-    fixture.check_rename(
-        "$2",
-        "other",
-        str![[r#"
+$2:
 /Resolution.sol:4:13-4:17 -> other
-
-"#]],
-    );
-    fixture.check_rename(
-        "$4",
-        "stateValue",
-        str![[r#"
+$4:
 /Resolution.sol:10:12-10:17 -> stateValue
 /Resolution.sol:15:15-15:20 -> stateValue
-
-"#]],
-    );
-    fixture.check_rename(
-        "$5",
-        "localValue",
-        str![[r#"
+$5 $6:
 /Resolution.sol:11:26-11:31 -> localValue
 /Resolution.sol:12:15-12:20 -> localValue
 
@@ -1102,105 +817,48 @@ fn resolves_overloads_and_shadowed_names_before_renaming() {
 
 #[test]
 fn rejects_stale_disk_and_vfs_contents() {
-    let disk = RequestFixture::new(
-        r#"
-        //- /Disk.sol
-        contract C { uint256 $1value; }
-        "#,
-        "/Disk.sol",
-    );
-    disk.write_file("/Disk.sol", "contract C { uint256 changed; }");
+    // The declaration range still matches, but every analyzed file must be unchanged.
+    let disk = RequestFixture::new("//- /Disk.sol\ncontract C { uint256 $1value; }\n", "/Disk.sol");
+    disk.write_file("/Disk.sol", "contract C { uint256 value; uint256 other; }\n");
     disk.check_rename_error("$1", "renamed", ErrorCode::CONTENT_MODIFIED);
 
-    let mut open = RequestFixture::new(
-        r#"
-        //- /Open.sol open
-        contract C { uint256 $1value; }
-        "#,
-        "/Open.sol",
-    );
+    let mut open =
+        RequestFixture::new("//- /Open.sol open\ncontract C { uint256 $1value; }\n", "/Open.sol");
     open.set_open_file_contents("/Open.sol", "contract C { uint256 changed; }");
     open.check_rename_error("$1", "renamed", ErrorCode::CONTENT_MODIFIED);
-
-    let disk_with_matching_range = RequestFixture::new(
-        r#"
-        //- /MatchingRange.sol
-        contract C {
-            uint256 $1value;
-        }
-        "#,
-        "/MatchingRange.sol",
-    );
-    disk_with_matching_range.write_file(
-        "/MatchingRange.sol",
-        r#"contract C {
-    uint256 value;
-    function read() public view returns (uint256) {
-        return value;
-    }
-}
-"#,
-    );
-    disk_with_matching_range.check_rename_error("$1", "renamed", ErrorCode::CONTENT_MODIFIED);
 }
 
 #[test]
 fn in_flight_rename_response_keeps_the_validated_version() {
-    let fixture = RequestFixture::new(
-        r#"
-        //- /Race.sol open
-        contract C { uint256 $1value; }
-        "#,
-        "/Race.sol",
-    );
+    let fixture =
+        RequestFixture::new("//- /Race.sol open\ncontract C { uint256 $1value; }\n", "/Race.sol");
     let contents = fixture.project_contents("/Race.sol");
     let (mut state, params) = fixture.rename_state_and_params("$1", "renamed");
     let uri = params.text_document_position.text_document.uri.clone();
     let path = crate::proto::vfs_path(&uri).unwrap();
 
-    let mut initialize = InitializeParams {
-        workspace_folders: Some(vec![WorkspaceFolder {
-            uri: Url::from_file_path(fixture.project_path("/")).unwrap(),
-            name: "fixture".into(),
-        }]),
-        ..Default::default()
-    };
-    initialize.capabilities.workspace = Some(WorkspaceClientCapabilities {
-        workspace_edit: Some(WorkspaceEditClientCapabilities {
-            document_changes: Some(true),
-            ..Default::default()
-        }),
-        ..Default::default()
-    });
-    let (_, config) = negotiate_capabilities(initialize);
-    state.config = Arc::new(config);
-    assert!(state.config.supports_workspace_edit_document_changes());
+    let capabilities = json!({ "workspace": { "workspaceEdit": { "documentChanges": true } } });
+    let initialize = with_capabilities(fixture.project().initialize_params(), capabilities);
+    state.config = Arc::new(negotiate_capabilities(initialize).1);
 
-    set_document_contents(&mut state, uri.clone(), 7, &contents);
+    change(&mut state, &uri, 7, contents.as_str());
     assert_eq!(state.vfs.read().get_file_version(&path), Some(7));
 
-    let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
-    let entered = runtime.enter();
-    let mut rename = Box::pin(crate::handlers::rename(&mut state, params));
+    let runtime = single_blocking_worker_runtime();
+    let _entered = runtime.enter();
+    let rename = crate::handlers::rename(&mut state, params);
     let vfs = Arc::clone(&state.vfs);
     let vfs_guard = vfs.write();
-    let (wake_tx, wake_rx) = mpsc::channel();
-    let waker = Waker::from(Arc::new(CompletionWaker(wake_tx)));
-    let mut context = Context::from_waker(&waker);
-
-    assert!(rename.as_mut().poll(&mut context).is_pending());
-    assert_eq!(wake_rx.try_recv(), Err(mpsc::TryRecvError::Empty));
+    let rename = start_request(rename);
     drop(vfs_guard);
-    wake_rx.recv_timeout(Duration::from_secs(5)).expect("rename validation task should complete");
+    // The only blocking worker runs this after the rename validation task completes.
+    runtime.block_on(within("rename validation", tokio::task::spawn_blocking(|| {}))).unwrap();
 
     let changed_contents = format!("// changed while rename was in flight\n{contents}");
-    set_document_contents(&mut state, uri.clone(), 8, &changed_contents);
+    change(&mut state, &uri, 8, changed_contents);
     assert_eq!(state.vfs.read().get_file_version(&path), Some(8));
 
-    let Poll::Ready(response) = rename.as_mut().poll(&mut context) else {
-        panic!("completed rename task should make the handler ready");
-    };
-    let edit = response.unwrap().unwrap();
+    let edit = expect_ready(rename).unwrap().unwrap();
     assert!(edit.changes.is_none());
     let Some(DocumentChanges::Edits(edits)) = edit.document_changes else {
         panic!("expected versioned document edits");
@@ -1208,10 +866,6 @@ fn in_flight_rename_response_keeps_the_validated_version() {
     assert_eq!(edits.len(), 1);
     assert_eq!(edits[0].text_document.uri, uri);
     assert_eq!(edits[0].text_document.version, Some(7));
-
-    drop(rename);
-    drop(entered);
-    drop(runtime);
 }
 
 #[test]
@@ -1242,42 +896,27 @@ fn validates_and_edits_utf16_ranges() {
 }
 
 #[test]
-fn prepare_rename_rejects_keywords_builtins_and_whitespace() {
-    let fixture = RequestFixture::new(
-        r#"
-        //- /InvalidPositions.sol
-        $1contract C {
-            uint256 value;
-
-            $2constructor() {}
-
-            function read() public view returns (uint256) {
-                uint256 height = $3block.number;
-                return $4  value;
-            }
-        }
-        "#,
-        "/InvalidPositions.sol",
-    );
-
-    fixture.check_prepare_rename("$1", "<none>\n");
-    fixture.check_prepare_rename("$2", "<none>\n");
-    fixture.check_prepare_rename("$3", "<none>\n");
-    fixture.check_prepare_rename("$4", "<none>\n");
-}
-
-#[test]
-fn remaps_rename_ids_across_analysis_batches() {
+fn remaps_and_unifies_rename_ids_across_analysis_batches() {
     let fixture = RequestFixture::new_in_batches(
         r#"
+        //- /Lib.sol
+        contract Target {}
+
+        //- /Shared.sol
+        import "./Lib.sol" as $5Lib;
+        contract $6Shared {
+            Lib.Target value;
+        }
+
         //- /first/Lib.sol
         contract FirstTarget {}
 
         //- /first/Main.sol
         import "./Lib.sol" as FirstNS;
+        import "../Shared.sol";
 
-        contract First {
-            FirstNS.FirstTarget value;
+        contract First is Shared {
+            FirstNS.FirstTarget first;
         }
 
         //- /second/Lib.sol
@@ -1286,8 +925,9 @@ fn remaps_rename_ids_across_analysis_batches() {
         //- /second/Main.sol
         import "./Lib.sol" as $2SecondNS;
         import {$3SecondTarget as $4Alias} from "./Lib.sol";
+        import "../Shared.sol";
 
-        contract Second {
+        contract Second is Shared {
             SecondNS.SecondTarget direct;
             Alias aliased;
         }
@@ -1295,34 +935,46 @@ fn remaps_rename_ids_across_analysis_batches() {
         &["/first/Main.sol", "/second/Main.sol"],
     );
 
-    fixture.check_rename(
-        "$1",
-        "Renamed",
+    fixture.check_renames(
+        &[
+            ("$1", "Renamed"),
+            ("$2", "Renamed"),
+            ("$4", "Renamed"),
+            ("$5", "Renamed"),
+            ("$6", "Renamed"),
+        ],
         str![[r#"
+$1:
 /second/Lib.sol:0:9-0:21 -> Renamed
 /second/Main.sol:1:8-1:20 -> Renamed
-/second/Main.sol:3:13-3:25 -> Renamed
-
-"#]],
-    );
-    fixture.check_rename(
-        "$2",
-        "Renamed",
-        str![[r#"
+/second/Main.sol:4:13-4:25 -> Renamed
+$2:
 /second/Main.sol:0:22-0:30 -> Renamed
-/second/Main.sol:3:4-3:12 -> Renamed
-
-"#]],
-    );
-    fixture.check_rename(
-        "$4",
-        "Renamed",
-        str![[r#"
+/second/Main.sol:4:4-4:12 -> Renamed
+$4:
 /second/Main.sol:1:24-1:29 -> Renamed
-/second/Main.sol:4:4-4:9 -> Renamed
+/second/Main.sol:5:4-5:9 -> Renamed
+$5:
+/Shared.sol:0:22-0:25 -> Renamed
+/Shared.sol:2:4-2:7 -> Renamed
+$6:
+/Shared.sol:1:9-1:15 -> Renamed
+/first/Main.sol:2:18-2:24 -> Renamed
+/second/Main.sol:3:19-3:25 -> Renamed
 
 "#]],
     );
+
+    let state = fixture.state();
+    let (uri, position) = fixture.marker_location("$6");
+    let tables = state.symbol_tables.load();
+    let candidate = tables.rename_candidate(&uri, position).unwrap();
+    // Validation groups adjacent locations by file, so preserve unique URI/range order.
+    assert_eq!(candidate.locations.len(), 3);
+    assert_eq!(candidate.analyzed_contents.len(), 3);
+    assert!(candidate.locations.is_sorted_by(|a, b| {
+        (&a.uri, crate::proto::range_key(a.range)) < (&b.uri, crate::proto::range_key(b.range))
+    }));
 }
 
 #[test]
@@ -1338,55 +990,7 @@ fn preserves_import_aliases_in_declaration_free_batches() {
         &["/Main.sol"],
     );
 
-    fixture.check_rename(
-        "$1",
-        "Renamed",
-        str![[r#"
-/Main.sol:0:24-0:29 -> Renamed
-
-"#]],
-    );
-}
-
-#[test]
-fn unifies_shared_declarations_across_analysis_batches() {
-    let fixture = RequestFixture::new_in_batches(
-        r#"
-        //- /Shared.sol
-        contract $1Shared {}
-
-        //- /first/Main.sol
-        import "../Shared.sol";
-        contract First is Shared {}
-
-        //- /second/Main.sol
-        import "../Shared.sol";
-        contract Second is Shared {}
-        "#,
-        &["/first/Main.sol", "/second/Main.sol"],
-    );
-
-    fixture.check_rename(
-        "$1",
-        "Renamed",
-        str![[r#"
-/Shared.sol:0:9-0:15 -> Renamed
-/first/Main.sol:1:18-1:24 -> Renamed
-/second/Main.sol:1:19-1:25 -> Renamed
-
-"#]],
-    );
-
-    let state = fixture.state();
-    let (uri, position) = fixture.marker_location("$1");
-    let tables = state.symbol_tables.load();
-    let candidate = tables.rename_candidate(&uri, position).unwrap();
-    // Validation groups adjacent locations by file, so preserve unique URI/range order.
-    assert_eq!(candidate.locations.len(), 3);
-    assert_eq!(candidate.analyzed_contents.len(), 3);
-    assert!(candidate.locations.is_sorted_by(|a, b| {
-        (&a.uri, crate::proto::range_key(a.range)) < (&b.uri, crate::proto::range_key(b.range))
-    }));
+    fixture.check_rename("$1", "Renamed", "/Main.sol:0:24-0:29 -> Renamed\n");
 }
 
 #[test]
@@ -1414,10 +1018,11 @@ fn unifies_override_families_across_analysis_batches() {
         for (marker, range) in [("$1", "1:13-1:16\n"), ("$2", "2:13-2:16\n"), ("$3", "2:13-2:16\n")]
         {
             fixture.check_prepare_rename(marker, range);
-            fixture.check_rename(
-                marker,
-                "renamed",
-                str![[r#"
+        }
+        fixture.check_renames(
+            &[("$1 $2 $3", "renamed")],
+            str![[r#"
+$1 $2 $3:
 /Base.sol:1:13-1:16 -> renamed
 /Left.sol:2:13-2:16 -> renamed
 /Left.sol:3:29-3:32 -> renamed
@@ -1425,8 +1030,7 @@ fn unifies_override_families_across_analysis_batches() {
 /Right.sol:3:29-3:32 -> renamed
 
 "#]],
-            );
-        }
+        );
     }
 }
 
@@ -1463,138 +1067,30 @@ fn rejects_conflicting_source_snapshots_across_analysis_batches() {
     }
 }
 
-#[test]
-fn unifies_shared_import_aliases_across_analysis_batches() {
-    let fixture = RequestFixture::new_in_batches(
-        r#"
-        //- /Lib.sol
-        contract Target {}
-
-        //- /Shared.sol
-        import "./Lib.sol" as $1Lib;
-        contract Shared {
-            Lib.Target value;
-        }
-
-        //- /first/Main.sol
-        import "../Shared.sol";
-
-        //- /second/Main.sol
-        import "../Shared.sol";
-        "#,
-        &["/first/Main.sol", "/second/Main.sol"],
-    );
-
-    fixture.check_rename(
-        "$1",
-        "Renamed",
-        str![[r#"
-/Shared.sol:0:22-0:25 -> Renamed
-/Shared.sol:2:4-2:7 -> Renamed
-
-"#]],
-    );
-}
-
-#[test]
-fn renames_solidity_variables_but_not_yul_locals_in_inline_assembly() {
-    let fixture = RequestFixture::new(
-        r#"
-        //- /Assembly.sol
-        contract C {
-            uint256 $1stored;
-
-            function run(uint256 $2input) public returns (uint256 output) {
-                assembly {
-                    let $3local := input
-                    sstore(stored.slot, add(local, input))
-                    output := local
-                }
-            }
-        }
-        "#,
-        "/Assembly.sol",
-    );
-
-    fixture.check_rename(
-        "$1",
-        "renamed",
-        str![[r#"
-/Assembly.sol:1:12-1:18 -> renamed
-/Assembly.sol:5:19-5:25 -> renamed
-
-"#]],
-    );
-    fixture.check_rename(
-        "$2",
-        "renamed",
-        str![[r#"
-/Assembly.sol:2:25-2:30 -> renamed
-/Assembly.sol:4:25-4:30 -> renamed
-/Assembly.sol:5:43-5:48 -> renamed
-
-"#]],
-    );
-    fixture.check_prepare_rename("$3", "<none>\n");
-    fixture.check_rename("$3", "renamed", "<none>\n");
-    fixture.check_rename_error("$1", "leave", ErrorCode::INVALID_PARAMS);
-    fixture.check_rename_error("$2", "add", ErrorCode::INVALID_PARAMS);
-}
-
-struct CompletionWaker(mpsc::Sender<()>);
-
-impl Wake for CompletionWaker {
-    fn wake(self: Arc<Self>) {
-        self.wake_by_ref();
+/// Publishes the current config as the analysis config, marked incomplete unless `complete`.
+fn publish_analysis_config(state: &GlobalState, complete: bool) {
+    assert!(!state.config.may_omit_source_files());
+    let mut config = (*state.config).clone();
+    if !complete {
+        config.mark_analysis_source_files_incomplete();
     }
-
-    fn wake_by_ref(self: &Arc<Self>) {
-        let _ = self.0.send(());
-    }
+    state.analysis_commit.lock().analysis_config = Some(Arc::new(config));
 }
 
-fn set_document_contents(state: &mut GlobalState, uri: Url, version: i32, text: &str) {
-    let result = crate::handlers::did_change_text_document(
-        state,
-        DidChangeTextDocumentParams {
-            text_document: VersionedTextDocumentIdentifier::new(uri, version),
-            content_changes: vec![TextDocumentContentChangeEvent {
-                range: None,
-                range_length: None,
-                text: text.into(),
-            }],
-        },
-    );
-    assert!(matches!(result, std::ops::ControlFlow::Continue(())));
-}
-
-#[test]
-fn renames_natspec_param_for_return_variable() {
-    let fixture = RequestFixture::new(
-        r#"
-        //- /NatSpec.sol
-        contract C {
-            /// @param $1result The result.
-            function f() public pure returns (uint256 result) { result = 1; }
+/// Renders the rename edits, or the request error that prepare-rename must share.
+async fn rename_report(state: &mut GlobalState, params: RenameParams, root: &Path) -> String {
+    let prepare = crate::handlers::prepare_rename(state, params.text_document_position.clone());
+    let prepared = within("prepare rename", prepare).await;
+    match (prepared, crate::handlers::rename(state, params).await) {
+        (Ok(Some(_)), Ok(edit)) => rename_output(root, edit),
+        (Err(prepared), Err(error)) => {
+            assert_eq!(
+                (prepared.code, error.code),
+                (ErrorCode::REQUEST_FAILED, ErrorCode::REQUEST_FAILED)
+            );
+            assert_eq!(prepared.message, error.message);
+            format!("{}\n", error.message)
         }
-        "#,
-        "/NatSpec.sol",
-    );
-    fixture.check_goto_definition(
-        "$1",
-        str![[r#"
-/NatSpec.sol:2:46 function f() public pure returns (uint256 result) { result = 1; }
-
-"#]],
-    );
-    fixture.check_rename(
-        "$1",
-        "value",
-        str![[r#"
-/NatSpec.sol:1:15-1:21 -> value
-/NatSpec.sol:2:46-2:52 -> value
-/NatSpec.sol:2:56-2:62 -> value
-
-"#]],
-    );
+        other => panic!("prepare and rename disagree: {other:?}"),
+    }
 }

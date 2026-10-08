@@ -3,14 +3,14 @@
 #![allow(unused_crate_dependencies)]
 
 use lsp_types::{
-    DidChangeTextDocumentParams, GotoDefinitionParams, GotoDefinitionResponse, Hover, HoverParams,
-    Position, Range, TextDocumentContentChangeEvent, TextDocumentIdentifier,
-    TextDocumentPositionParams, Url, VersionedTextDocumentIdentifier,
+    DidChangeTextDocumentParams, GotoDefinitionResponse, Hover, Position, Range,
+    TextDocumentContentChangeEvent, TextDocumentIdentifier, TextDocumentPositionParams, Url,
+    VersionedTextDocumentIdentifier,
 };
 use serde_json::{Value, json};
 use solar_config::CompileOpts;
 use solar_interface::source_map::SourceMap;
-use solar_lsp::{BenchmarkPendingRequests, BenchmarkProject, BenchmarkRequest, BenchmarkResponse};
+use solar_lsp::{BenchmarkPendingRequests, BenchmarkProject};
 use std::{fmt::Write as _, fs, path::PathBuf};
 
 struct Expected {
@@ -94,35 +94,14 @@ impl Fixture {
                 project.unique_anchor(path.strip_prefix(&root).unwrap(), anchor).unwrap();
             let analysis = project.analyze();
             assert_eq!(analysis.diagnostic_count(), 0, "{}", analysis.diagnostic_fingerprint());
-            let BenchmarkResponse::Hover(hover) =
-                analysis.execute(&BenchmarkRequest::Hover { uri: uri.clone(), position })
-            else {
-                unreachable!();
-            };
-            let BenchmarkResponse::GotoDefinition(definition) =
-                analysis.execute(&BenchmarkRequest::GotoDefinition { uri, position })
-            else {
-                unreachable!();
-            };
+            let (hover, definition) = analysis.navigation(&uri, position);
             assert!(hover.is_some() && definition.is_some());
             (analysis, Expected { position, hover, definition })
         });
         let expected = [before_expected, after_expected];
         // A stale table at the edited cursor must not accidentally resolve an adjacent reference.
         for (stale, fresh) in [(&before, &expected[1]), (&after, &expected[0])] {
-            let BenchmarkResponse::Hover(hover) = stale
-                .execute(&BenchmarkRequest::Hover { uri: uri.clone(), position: fresh.position })
-            else {
-                unreachable!();
-            };
-            let BenchmarkResponse::GotoDefinition(definition) =
-                stale.execute(&BenchmarkRequest::GotoDefinition {
-                    uri: uri.clone(),
-                    position: fresh.position,
-                })
-            else {
-                unreachable!();
-            };
+            let (hover, definition) = stale.navigation(&uri, fresh.position);
             assert_ne!(hover, fresh.hover, "stale hover must fail preflight");
             assert_ne!(definition, fresh.definition, "stale definition must fail preflight");
         }
@@ -152,35 +131,18 @@ impl Fixture {
                     text: if shift == 1 { "\n".into() } else { String::new() },
                 }],
             };
-            let position = TextDocumentPositionParams {
-                text_document: TextDocumentIdentifier::new(self.uri.clone()),
-                position: expected.position,
-            };
+            let position = TextDocumentPositionParams::new(
+                TextDocumentIdentifier::new(self.uri.clone()),
+                expected.position,
+            );
             let elapsed = match method {
                 "hover" => {
-                    let (elapsed, response) = requests
-                        .hover(
-                            change,
-                            HoverParams {
-                                text_document_position_params: position,
-                                work_done_progress_params: Default::default(),
-                            },
-                        )
-                        .await;
+                    let (elapsed, response) = requests.hover(change, position).await;
                     assert_eq!(response, expected.hover);
                     elapsed
                 }
                 "definition" => {
-                    let (elapsed, response) = requests
-                        .definition(
-                            change,
-                            GotoDefinitionParams {
-                                text_document_position_params: position,
-                                work_done_progress_params: Default::default(),
-                                partial_result_params: Default::default(),
-                            },
-                        )
-                        .await;
+                    let (elapsed, response) = requests.definition(change, position).await;
                     assert_eq!(response, expected.definition);
                     elapsed
                 }

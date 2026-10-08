@@ -94,15 +94,6 @@ impl WorkspaceIndexPolicy {
         self.options.exclude_nested_repositories
     }
 
-    pub(crate) fn should_prune_directory(
-        &self,
-        workspace_root: &Path,
-        source_root: &Path,
-        directory: &Path,
-    ) -> bool {
-        self.should_prune_source_directory(workspace_root, source_root, directory)
-    }
-
     pub(crate) fn should_prune_source_directory(
         &self,
         workspace_root: &Path,
@@ -141,15 +132,6 @@ impl WorkspaceIndexPolicy {
         path.parent().is_some_and(|parent| {
             self.excludes_source_directory(workspace_root, source_root, parent)
         })
-    }
-
-    pub(crate) fn excludes_directory(
-        &self,
-        workspace_root: &Path,
-        source_root: &Path,
-        directory: &Path,
-    ) -> bool {
-        self.excludes_source_directory(workspace_root, source_root, directory)
     }
 
     pub(crate) fn excludes_source_directory(
@@ -249,41 +231,7 @@ mod tests {
         let project = TestProject::new();
         let workspace_root = project.root();
         let source_root = project.path("/src");
-        let policy = WorkspaceIndexPolicy::new(IndexingOptions {
-            exclude: vec!["src/generated/**".into(), "src/vendor/?old[0-9]/**".into()],
-            ..Default::default()
-        });
-
-        assert!(policy.should_prune_directory(
-            workspace_root,
-            &source_root,
-            &project.path("/src/node_modules")
-        ));
-        assert!(policy.should_prune_directory(
-            workspace_root,
-            &source_root,
-            &project.path("/src/.hidden")
-        ));
-        assert!(policy.should_prune_directory(
-            workspace_root,
-            &source_root,
-            &project.path("/src/generated")
-        ));
-        assert!(policy.should_prune_directory(
-            workspace_root,
-            &source_root,
-            &project.path("/src/vendor/xold7")
-        ));
-        assert!(!policy.should_prune_directory(workspace_root, &source_root, &source_root));
-        assert!(!policy.excludes_source_file(
-            workspace_root,
-            &source_root,
-            &project.path("/src/contracts/Token.sol"),
-        ));
-    }
-
-    #[test]
-    fn invalid_absolute_and_parent_globs_are_ignored_individually() {
+        // Invalid, absolute, and parent globs are ignored individually.
         let policy = WorkspaceIndexPolicy::new(IndexingOptions {
             exclude: vec![
                 "/absolute/**".into(),
@@ -291,12 +239,37 @@ mod tests {
                 "../escape/**".into(),
                 "src/[invalid".into(),
                 "src/generated/**".into(),
+                "src/vendor/?old[0-9]/**".into(),
             ],
             ..Default::default()
         });
+        assert_eq!(
+            policy.excludes.iter().map(Pattern::as_str).collect::<Vec<_>>(),
+            ["src/generated/**", "src/vendor/?old[0-9]/**"]
+        );
 
-        assert_eq!(policy.excludes.len(), 1);
-        assert_eq!(policy.excludes[0].as_str(), "src/generated/**");
+        for (directory, pruned) in [
+            ("/src/node_modules", true),
+            ("/src/.hidden", true),
+            ("/src/generated", true),
+            ("/src/vendor/xold7", true),
+            ("/src", false),
+        ] {
+            assert_eq!(
+                policy.should_prune_source_directory(
+                    workspace_root,
+                    &source_root,
+                    &project.path(directory)
+                ),
+                pruned,
+                "{directory}"
+            );
+        }
+        assert!(!policy.excludes_source_file(
+            workspace_root,
+            &source_root,
+            &project.path("/src/contracts/Token.sol"),
+        ));
     }
 
     #[test]

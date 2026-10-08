@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/reencoded_calldata_string.sol:C ===
 @module C
-fn @f(arg0: calldataslice) -> memorybytes [selector=0x91e145ef, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @f(arg0: calldataslice) -> memptr [selector=0x91e145ef, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     jump bb1
@@ -8,7 +8,7 @@ fn @f(arg0: calldataslice) -> memorybytes [selector=0x91e145ef, abi_params=[byte
     v1 = phi [bb0: v0], [bb3: v10]
     v2 = phi [bb0: arg0], [bb3: v2]
     v3 = phi [bb0: v0], [bb3: v3]
-    v4 = phi [bb0: memorybytes 96], [bb3: v4]
+    v4 = phi [bb0: memptr 96], [bb3: v4]
     v5 = add v3, 256
     v6 = lt v1, v5
     v7 = zext i1 v6 to i256
@@ -26,7 +26,7 @@ fn @f(arg0: calldataslice) -> memorybytes [selector=0x91e145ef, abi_params=[byte
     v16 = sgt v11, v15
     icall revert_if<calldata_tail_too_short>, v16
     v17 = abi_encode [calldata_bytes], object, args v2
-    v18 = ptrtoint memorybytes v17 to i256
+    v18 = ptrtoint memptr v17 to i256
     v19 = eq v3, v18
     v20 = zext i1 v19 to i256
     v21 = eq v20, 0
@@ -50,7 +50,7 @@ fn @f(arg0: calldataslice) -> memorybytes [selector=0x91e145ef, abi_params=[byte
     jump bb1
 }
 
-fn @test() -> memorybytes [selector=0xf8a8fd6d, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @test() -> memptr [selector=0xf8a8fd6d, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = address
     v1 = gas
@@ -73,11 +73,11 @@ fn @test() -> memorybytes [selector=0xf8a8fd6d, abi_params=[], abi_returns=[memo
     ret v11
 }
 
-fn @encodeDynamic(arg0: calldataslice) -> memorybytes [selector=0x44a76707, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @encodeDynamic(arg0: calldataslice) -> memptr [selector=0x44a76707, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     v1 = abi_encode [calldata_bytes], object, args arg0
-    v2 = ptrtoint memorybytes v1 to i256
+    v2 = ptrtoint memptr v1 to i256
     v3 = eq v0, v2
     v4 = zext i1 v3 to i256
     v5 = eq v4, 0
@@ -92,11 +92,11 @@ fn @encodeDynamic(arg0: calldataslice) -> memorybytes [selector=0x44a76707, pure
     revert 0, 0
 }
 
-fn @encodeStatic(arg0: i256) -> memorybytes [selector=0x815736ce, pure, abi_params=[u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @encodeStatic(arg0: i256) -> memptr [selector=0x815736ce, pure, abi_params=[u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     v1 = abi_encode [word], object, args arg0
-    v2 = ptrtoint memorybytes v1 to i256
+    v2 = ptrtoint memptr v1 to i256
     v3 = eq v0, v2
     v4 = zext i1 v3 to i256
     v5 = eq v4, 0

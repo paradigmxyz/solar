@@ -39,13 +39,13 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v23 = eq v22, false
     icall panic_if<0x32>, v23
     v24 = memory_object_load_element memoryarray<1>, v20, 0
-    v25 = inttoptr i256 v24 to memorybytes
+    v25 = inttoptr i256 v24 to memptr
     v26 = eq v24, 0
     jumpi v26, bb1, bb2
   bb1:
     v27 = alloc memorybytes, exact, uninitialized, infallible, 32
     set_memory_object_len memorybytes, v27, 0
-    v28 = ptrtoint memorybytes v27 to i256
+    v28 = ptrtoint memptr v27 to i256
     memory_object_store_element memoryarray<1>, v20, 0, v28
     jump bb2
   bb2:
@@ -56,13 +56,13 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v33 = eq v32, false
     icall panic_if<0x32>, v33
     v34 = memory_object_load_element memoryarray<1>, v20, 1
-    v35 = inttoptr i256 v34 to memorybytes
+    v35 = inttoptr i256 v34 to memptr
     v36 = eq v34, 0
     jumpi v36, bb3, bb4
   bb3:
     v37 = alloc memorybytes, exact, uninitialized, infallible, 32
     set_memory_object_len memorybytes, v37, 0
-    v38 = ptrtoint memorybytes v37 to i256
+    v38 = ptrtoint memptr v37 to i256
     memory_object_store_element memoryarray<1>, v20, 1, v38
     jump bb4
   bb4:
@@ -74,13 +74,13 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v44 = eq v43, false
     icall panic_if<0x32>, v44
     v45 = memory_object_load_element memoryarray<1>, v20, 0
-    v46 = inttoptr i256 v45 to memorybytes
+    v46 = inttoptr i256 v45 to memptr
     v47 = eq v45, 0
     jumpi v47, bb5, bb6
   bb5:
     v48 = alloc memorybytes, exact, uninitialized, infallible, 32
     set_memory_object_len memorybytes, v48, 0
-    v49 = ptrtoint memorybytes v48 to i256
+    v49 = ptrtoint memptr v48 to i256
     memory_object_store_element memoryarray<1>, v20, 0, v49
     jump bb6
   bb6:
@@ -92,41 +92,45 @@ fn @copy() -> i256 [selector=0x60726abb, abi_params=[], abi_returns=[word], abi_
     v54 = memory_object_load_byte memorybytes, v50, 1
     v55 = shl 248, v54
     v56 = shr 248, v55
-    v57 = checked_add u256, v41, v56
-    v58 = memory_object_len memoryarray, v20
-    v59 = lt 1, v58
-    v60 = eq v59, false
-    icall panic_if<0x32>, v60
-    v61 = memory_object_load_element memoryarray<1>, v20, 1
-    v62 = inttoptr i256 v61 to memorybytes
-    v63 = eq v61, 0
-    jumpi v63, bb7, bb8
+    v57 = trunc i256 v56 to i8
+    v58 = zext i8 v57 to i256
+    v59 = checked_add u256, v41, v58
+    v60 = memory_object_len memoryarray, v20
+    v61 = lt 1, v60
+    v62 = eq v61, false
+    icall panic_if<0x32>, v62
+    v63 = memory_object_load_element memoryarray<1>, v20, 1
+    v64 = inttoptr i256 v63 to memptr
+    v65 = eq v63, 0
+    jumpi v65, bb7, bb8
   bb7:
-    v64 = alloc memorybytes, exact, uninitialized, infallible, 32
-    set_memory_object_len memorybytes, v64, 0
-    v65 = ptrtoint memorybytes v64 to i256
-    memory_object_store_element memoryarray<1>, v20, 1, v65
+    v66 = alloc memorybytes, exact, uninitialized, infallible, 32
+    set_memory_object_len memorybytes, v66, 0
+    v67 = ptrtoint memptr v66 to i256
+    memory_object_store_element memoryarray<1>, v20, 1, v67
     jump bb8
   bb8:
-    v66 = phi [bb6: v62], [bb7: v64]
-    v67 = memory_object_len memorybytes, v66
-    v68 = lt 39, v67
-    v69 = eq v68, false
-    icall panic_if<0x32>, v69
-    v70 = memory_object_load_byte memorybytes, v66, 39
-    v71 = shl 248, v70
-    v72 = shr 248, v71
-    v73 = checked_add u256, v57, v72
-    ret v73
+    v68 = phi [bb6: v64], [bb7: v66]
+    v69 = memory_object_len memorybytes, v68
+    v70 = lt 39, v69
+    v71 = eq v70, false
+    icall panic_if<0x32>, v71
+    v72 = memory_object_load_byte memorybytes, v68, 39
+    v73 = shl 248, v72
+    v74 = shr 248, v73
+    v75 = trunc i256 v74 to i8
+    v76 = zext i8 v75 to i256
+    v77 = checked_add u256, v59, v76
+    ret v77
 }
 
-fn @store_storage_bytes(arg0: i256, arg1: memorybytes) {
+fn @store_storage_bytes(arg0: i256, arg1: memptr) {
   bb0:
     store_storage_bytes arg0, arg1
     ret
 }
 
-fn @load_storage_bytes_array(arg0: i256) -> memoryarray {
+fn @load_storage_bytes_array(arg0: i256) -> memptr {
   bb0:
     v0 = load_storage_array memorybytes, arg0
     ret v0

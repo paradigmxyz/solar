@@ -34,61 +34,25 @@ async fn discovered_repository_manifest_cannot_grant_other_projects_dependencies
         "#,
         "/a/src/Main.sol",
     );
-    for explicit_client_root in [false, true] {
-        for marker in ["$1", "$2"] {
-            let (mut state, params) = fixture.rename_state_and_params(marker, "Renamed");
-            if explicit_client_root {
-                let initialize = InitializeParams {
-                    workspace_folders: Some(
-                        ["/", "/c/modules/dep/src"]
-                            .into_iter()
-                            .map(|path| WorkspaceFolder {
-                                uri: Url::from_file_path(fixture.project_path(path)).unwrap(),
-                                name: path.into(),
-                            })
-                            .collect(),
-                    ),
-                    ..Default::default()
-                };
-                let (_, mut config) = negotiate_capabilities(initialize);
-                config.rediscover_workspaces();
-                state.config = Arc::new(config);
-            }
+    let allowed = str![[r#"
+/a/src/Main.sol:1:17-1:22 -> Renamed
+/a/vendor/owned/Owned.sol:0:9-0:14 -> Renamed
 
+"#]];
+    for (roots, expected) in
+        [(&["/"][..], DEPENDENCY.into_data()), (&["/", "/c/modules/dep/src"], allowed.into())]
+    {
+        for marker in ["$1", "$2"] {
+            let (mut state, params) = fixture.rename_state_with_roots(marker, "Renamed", roots);
             // A source grant discovers the repository's manifest without making that
             // manifest independent authorization to edit another project's dependencies.
             assert_eq!(state.config.workspaces().len(), 4);
-            let dependency = state
-                .config
-                .workspaces()
-                .iter()
-                .find(|workspace| {
-                    workspace.compile_opts().base_path.as_ref()
-                        == Some(&fixture.project_path("/c/modules/dep/src"))
-                })
-                .expect("the repository manifest is discovered through the explicit source root");
+            let dependency =
+                workspace_at(&state.config, &fixture.project_path("/c/modules/dep/src"));
             assert!(
                 dependency.import_source_roots().contains(&fixture.project_path("/a/vendor/owned"))
             );
-            if !explicit_client_root {
-                assert_dependency_rename_rejected(&mut state, params).await;
-                continue;
-            }
-
-            assert!(
-                handlers::prepare_rename(&mut state, params.text_document_position.clone())
-                    .await
-                    .unwrap()
-                    .is_some()
-            );
-            let changes =
-                handlers::rename(&mut state, params).await.unwrap().unwrap().changes.unwrap();
-            assert_eq!(changes.len(), 2);
-            for path in ["/a/vendor/owned/Owned.sol", "/a/src/Main.sol"] {
-                let uri = Url::from_file_path(fixture.project_path(path)).unwrap();
-                assert_eq!(changes[&uri].len(), 1);
-                assert_eq!(changes[&uri][0].new_text, "Renamed");
-            }
+            check_report(&fixture, &mut state, params, expected.clone()).await;
         }
     }
 }

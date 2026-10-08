@@ -91,7 +91,7 @@
       jump bb1
   }
   
-  fn @keep_returndatasize_with_sha256(arg0: memorybytes) -> i256 {
+  fn @keep_returndatasize_with_sha256(arg0: memptr) -> i256 {
     bb0:
       jump bb1
     bb1:
@@ -106,7 +106,7 @@
       jump bb1
   }
   
-  fn @keep_returndatasize_with_ripemd160(arg0: memorybytes) -> i256 {
+  fn @keep_returndatasize_with_ripemd160(arg0: memptr) -> i256 {
     bb0:
       jump bb1
     bb1:
@@ -136,7 +136,7 @@
       jump bb1
   }
   
-  fn @gas_precompile(arg0: i256, arg1: memorybytes) -> i256 {
+  fn @gas_precompile(arg0: i256, arg1: memptr) -> i256 {
     bb0:
       jump bb1
     bb1:
@@ -150,7 +150,7 @@
       jump bb1
   }
   
-  fn @gas_default_call(arg0: i256, arg1: memorybytes) -> i256 {
+  fn @gas_default_call(arg0: i256, arg1: memptr) -> i256 {
     bb0:
       jump bb1
     bb1:
@@ -165,7 +165,7 @@
       jump bb1
   }
   
-  fn @gas_explicit_call(arg0: i256, arg1: memorybytes) -> i256 {
+  fn @gas_explicit_call(arg0: i256, arg1: memptr) -> i256 {
     bb0:
 +     v1 = mul arg0, 3
 +     v2 = trunc i256 0xbeef to i160

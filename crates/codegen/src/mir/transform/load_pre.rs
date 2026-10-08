@@ -1177,11 +1177,11 @@ impl LoadRedundancyEliminator {
                 GenSource::Stored(value),
             )),
             InstKind::MLoad(addr) => self
-                .mem_addr(func, inst_id, addr)
+                .mem_addr(func, inst_id, addr, LocationSize::Const(32))
                 .map(|addr| (LoadKey::Memory(addr), GenSource::LoadResult)),
             InstKind::Fmp => Some((LoadKey::Memory(Self::fmp_addr()), GenSource::LoadResult)),
             InstKind::MStore(addr, value) => self
-                .mem_addr(func, inst_id, addr)
+                .mem_addr(func, inst_id, addr, LocationSize::Const(32))
                 .map(|addr| (LoadKey::Memory(addr), GenSource::Stored(value))),
             InstKind::MemoryObjectLen(object, kind) => self
                 .memory_object_addr(func, inst_id, object, kind)
@@ -1190,7 +1190,7 @@ impl LoadRedundancyEliminator {
                 .memory_object_addr(func, inst_id, object, kind)
                 .map(|addr| (LoadKey::Memory(addr), GenSource::Stored(value))),
             InstKind::Keccak256(offset, size) => {
-                let addr = self.mem_addr(func, inst_id, offset)?;
+                let addr = self.mem_addr(func, inst_id, offset, aa.location_size(func, size))?;
                 let size = match func.value_u64(size) {
                     Some(size) => KeccakSize::Const(size),
                     None => KeccakSize::Dyn(size),
@@ -1323,10 +1323,14 @@ impl LoadRedundancyEliminator {
         }
     }
 
-    fn mem_addr(&self, func: &Function, inst_id: InstId, addr: ValueId) -> Option<MemoryAddress> {
-        self.alias()
-            .memory_location(func, inst_id, addr, LocationSize::Const(1))
-            .map(|location| location.address)
+    fn mem_addr(
+        &self,
+        func: &Function,
+        inst_id: InstId,
+        addr: ValueId,
+        size: LocationSize,
+    ) -> Option<MemoryAddress> {
+        self.alias().memory_location(func, inst_id, addr, size).map(|location| location.address)
     }
 
     fn memory_object_addr(
@@ -1348,12 +1352,7 @@ impl LoadRedundancyEliminator {
     // ----- CFG helpers -----
 
     fn can_insert_on_edge(func: &Function, pred: BlockId, target: BlockId) -> bool {
-        func.blocks[pred].terminator.as_ref().is_some_and(|term| {
-            matches!(
-                term,
-                Terminator::Jump(_) | Terminator::Branch { .. } | Terminator::Switch { .. }
-            ) && term.successors().contains(&target)
-        })
+        func.blocks[pred].terminator.as_ref().is_some_and(|term| term.has_successor(target))
     }
 
     fn operands_dominate_block(

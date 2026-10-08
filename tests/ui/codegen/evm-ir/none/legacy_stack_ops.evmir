@@ -1,0 +1,13 @@
+//@ filecheck:
+@module legacy
+
+// The parser accepts single-byte stack mnemonics and prints the operand forms.
+// CHECK-LABEL: {{^[ +].*}}bb0 [stack=16]:
+// CHECK-NEXT: {{^[ +].*}}push 0
+// CHECK-NEXT: {{^[ +].*}}dup 1
+// CHECK-NEXT: {{^[ +].*}}swap 16
+bb0 [stack=16]:
+  push0
+  dup1
+  swap16
+  stop

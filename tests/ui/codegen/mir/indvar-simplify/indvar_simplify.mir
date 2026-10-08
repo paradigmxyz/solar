@@ -2,11 +2,13 @@
 //@filecheck:
 @module IndVarSimplify
 // Two shifted address computations share one pointer phi. The raw word base
-// may wrap, so the original counter still controls the loop.
+// may wrap, but the counter starts at zero and steps by one, so the pointer
+// leaves the loop on reaching its value at the bound and the counter dies.
 // CHECK-LABEL: {{^[ +].*}}fn @strength_reduce_shifted_address{{[( ]}}
-// CHECK: {{^ +}}[[INDEX:v[0-9]+]] = phi [bb0: 0], [bb2: {{v[0-9]+}}]
+// CHECK: + [[END:v[0-9]+]] = add arg0, 128
+// CHECK: - {{v[0-9]+}} = phi [bb0: 0], [bb2: {{v[0-9]+}}]
 // CHECK: + [[ADDRESS:v[0-9]+]] = phi [bb0: arg0], [bb2: [[NEXT:v[0-9]+]]]
-// CHECK: {{^ +}}{{v[0-9]+}} = lt [[INDEX]], 4
+// CHECK: + {{v[0-9]+}} = ne [[ADDRESS]], [[END]]
 // CHECK: + {{v[0-9]+}} = mload [[ADDRESS]]
 // CHECK: + mstore [[ADDRESS]], {{v[0-9]+}}
 // CHECK: + [[NEXT]] = add [[ADDRESS]], 32
@@ -219,4 +221,381 @@ fn @keep_checked_scale_one_address(arg0: i256) -> i256 {
     jump bb1
   bb3:
     ret 0
+}
+
+// CHECK-LABEL: fn @native_counter
+// CHECK: + [[POINTER:v[0-9]+]] = phi [bb0: arg0]
+// CHECK: + {{v[0-9]+}} = mload [[POINTER]]
+fn @native_counter(arg0: i256) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v1 = phi [bb0: i8 0], [bb2: v6]
+    v2 = lt v1, i8 4
+    jumpi v2, bb2, bb3
+  bb2:
+    v20 = zext i8 v1 to i256
+    v3 = shl 5, v20
+    v4 = add arg0, v3
+    v5 = mload v4
+    v7 = shl 5, v20
+    v8 = add arg0, v7
+    v9 = add v5, 1
+    mstore v8, v9
+    v6 = add v1, i8 1
+    jump bb1
+  bb3:
+    ret 0
+}
+
+// CHECK-LABEL: fn @wrapping_counter
+// CHECK-NOT: + {{.*}}phi
+// CHECK: shl 5,
+// CHECK: mload
+fn @wrapping_counter(arg0: i256, arg1: i8) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v1 = phi [bb0: i8 250], [bb2: v6]
+    v2 = lt v1, arg1
+    jumpi v2, bb2, bb3
+  bb2:
+    v20 = zext i8 v1 to i256
+    v3 = shl 5, v20
+    v4 = add arg0, v3
+    v5 = mload v4
+    v7 = shl 5, v20
+    v8 = add arg0, v7
+    v9 = add v5, 1
+    mstore v8, v9
+    v6 = add v1, i8 2
+    jump bb1
+  bb3:
+    ret 0
+}
+
+// Widen a native loop-invariant base before accumulating word-sized offsets.
+// CHECK-LABEL: fn @native_base
+// CHECK: + [[BASE:v[0-9]+]] = zext i8 arg0 to i256
+// CHECK: + {{v[0-9]+}} = add [[BASE]],
+fn @native_base(arg0: i8, arg1: i256) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v1 = phi [bb0: 0], [bb2: v6]
+    v2 = lt v1, 4
+    jumpi v2, bb2, bb3
+  bb2:
+    v20 = zext i8 arg0 to i256
+    v3 = shl 5, v1
+    v4 = add v20, v3
+    v10 = shl 1, arg1
+    v11 = add v4, v10
+    v5 = mload v11
+    v7 = shl 5, v1
+    v8 = add v20, v7
+    v12 = add v8, v10
+    v9 = add v5, 1
+    mstore v12, v9
+    v6 = add v1, 1
+    jump bb1
+  bb3:
+    ret 0
+}
+
+// A pointer that may wrap tests `ptr != end`, which holds once the counter reaches the bound
+// as long as the bound stays below `2^251`, where 32-byte steps would wrap `end` back onto
+// earlier elements. A decoder's check of the length against the remaining calldata keeps it
+// there, so no clamp is needed.
+// CHECK-LABEL: {{^[ +].*}}fn @reach_checked_bound{{[( ]}}
+// CHECK-NOT: = select
+// CHECK: + [[SCALED:v[0-9]+]] = shl 5, arg1
+// CHECK-NEXT: + [[END:v[0-9]+]] = add arg0, [[SCALED]]
+// CHECK: + [[ADDRESS:v[0-9]+]] = phi [bb1: arg0], [bb3: [[NEXT:v[0-9]+]]]
+// CHECK: + {{v[0-9]+}} = ne [[ADDRESS]], [[END]]
+// CHECK: + {{v[0-9]+}} = calldataload [[ADDRESS]]
+// CHECK: + [[NEXT]] = add [[ADDRESS]], 32
+fn @reach_checked_bound(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = calldatasize
+    v1 = sub v0, arg0
+    v2 = shr 5, v1
+    v3 = gt arg1, v2
+    jumpi v3, bb5, bb1
+  bb1:
+    jump bb2
+  bb2:
+    v4 = phi [bb1: 0], [bb3: v9]
+    v5 = phi [bb1: 0], [bb3: v8]
+    v6 = lt v4, arg1
+    jumpi v6, bb3, bb4
+  bb3:
+    v7 = shl 5, v4
+    v10 = add arg0, v7
+    v11 = calldataload v10
+    v8 = add v5, v11
+    v9 = add v4, 1
+    jump bb2
+  bb4:
+    ret v5
+  bb5:
+    revert 0, 0
+}
+
+// An unchecked bound is clamped to `2^65` first, which the counter reaches only after more
+// iterations than a loop can run.
+// CHECK-LABEL: {{^[ +].*}}fn @clamp_unchecked_bound{{[( ]}}
+// CHECK: + [[ABOVE:v[0-9]+]] = gt arg1, 0x20000000000000000
+// CHECK-NEXT: + [[BOUND:v[0-9]+]] = select [[ABOVE]], 0x20000000000000000, arg1
+// CHECK-NEXT: + [[SCALED:v[0-9]+]] = shl 5, [[BOUND]]
+// CHECK-NEXT: + [[END:v[0-9]+]] = add arg0, [[SCALED]]
+// CHECK: + {{v[0-9]+}} = ne {{v[0-9]+}}, [[END]]
+fn @clamp_unchecked_bound(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb2: v5]
+    v1 = phi [bb0: 0], [bb2: v4]
+    v2 = lt v0, arg1
+    jumpi v2, bb2, bb3
+  bb2:
+    v6 = shl 5, v0
+    v7 = add arg0, v6
+    v8 = calldataload v7
+    v4 = add v1, v8
+    v5 = add v0, 1
+    jump bb1
+  bb3:
+    ret v1
+}
+
+// A check on only one path into the loop bounds nothing on entry.
+// CHECK-LABEL: {{^[ +].*}}fn @clamp_bound_checked_on_one_path{{[( ]}}
+// CHECK: + [[ABOVE:v[0-9]+]] = gt arg1, 0x20000000000000000
+// CHECK-NEXT: + {{v[0-9]+}} = select [[ABOVE]], 0x20000000000000000, arg1
+fn @clamp_bound_checked_on_one_path(arg0: i256, arg1: i256, arg2: i1) -> i256 {
+  bb0:
+    jumpi arg2, bb6, bb1
+  bb6:
+    v12 = calldatasize
+    v13 = sub v12, arg0
+    v14 = shr 5, v13
+    v15 = gt arg1, v14
+    jumpi v15, bb5, bb1
+  bb1:
+    jump bb2
+  bb2:
+    v4 = phi [bb1: 0], [bb3: v9]
+    v5 = phi [bb1: 0], [bb3: v8]
+    v6 = lt v4, arg1
+    jumpi v6, bb3, bb4
+  bb3:
+    v7 = shl 5, v4
+    v10 = add arg0, v7
+    v11 = calldataload v10
+    v8 = add v5, v11
+    v9 = add v4, 1
+    jump bb2
+  bb4:
+    ret v5
+  bb5:
+    revert 0, 0
+}
+
+// A counter starting at one enters no iteration for a bound of zero, where `ptr == end` would
+// never hold, so the bound is raised to the start.
+// CHECK-LABEL: {{^[ +].*}}fn @clamp_bound_below_start{{[( ]}}
+// CHECK-NOT: = gt arg1, 0x
+// CHECK: + [[BELOW:v[0-9]+]] = lt arg1, 1
+// CHECK-NEXT: + [[BOUND:v[0-9]+]] = select [[BELOW]], 1, arg1
+// CHECK-NEXT: + [[SCALED:v[0-9]+]] = shl 5, [[BOUND]]
+// CHECK-NEXT: + [[END:v[0-9]+]] = add arg0, [[SCALED]]
+// CHECK: + [[ADDRESS:v[0-9]+]] = phi [bb1: [[START:v[0-9]+]]], [bb3: {{v[0-9]+}}]
+// CHECK: + {{v[0-9]+}} = ne [[ADDRESS]], [[END]]
+fn @clamp_bound_below_start(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = calldatasize
+    v1 = sub v0, arg0
+    v2 = shr 5, v1
+    v3 = gt arg1, v2
+    jumpi v3, bb5, bb1
+  bb1:
+    jump bb2
+  bb2:
+    v4 = phi [bb1: 1], [bb3: v9]
+    v5 = phi [bb1: 0], [bb3: v8]
+    v6 = lt v4, arg1
+    jumpi v6, bb3, bb4
+  bb3:
+    v7 = shl 5, v4
+    v10 = add arg0, v7
+    v11 = calldataload v10
+    v8 = add v5, v11
+    v9 = add v4, 1
+    jump bb2
+  bb4:
+    ret v5
+  bb5:
+    revert 0, 0
+}
+
+// With an odd scale the pointers agree only when the counters do, so even an unchecked bound
+// needs no clamp.
+// CHECK-LABEL: {{^[ +].*}}fn @reach_odd_scale{{[( ]}}
+// CHECK-NOT: = select
+// CHECK: + [[END:v[0-9]+]] = add arg0, arg1
+// CHECK: + [[POINTER:v[0-9]+]] = phi [bb0: arg0], [bb2: [[NEXT:v[0-9]+]]]
+// CHECK: + {{v[0-9]+}} = ne [[POINTER]], [[END]]
+// CHECK: + [[NEXT]] = add [[POINTER]], 1
+fn @reach_odd_scale(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb2: v7]
+    v1 = phi [bb0: 0], [bb2: v6]
+    v2 = lt v0, arg1
+    jumpi v2, bb2, bb3
+  bb2:
+    v3 = add arg0, v0
+    v4 = sload v3
+    v8 = add v3, 1
+    v9 = sload v8
+    v5 = add v4, v9
+    v6 = add v1, v5
+    v7 = add v0, 1
+    jump bb1
+  bb3:
+    ret v1
+}
+
+// A counter stepping by two could jump past the bound, so it keeps its test.
+// CHECK-LABEL: {{^[ +].*}}fn @keep_counter_stepping_by_two{{[( ]}}
+// CHECK-NOT: = ne
+// CHECK: {{^ +}}{{v[0-9]+}} = lt {{v[0-9]+}}, arg1
+fn @keep_counter_stepping_by_two(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb2: v5]
+    v1 = phi [bb0: 0], [bb2: v4]
+    v2 = lt v0, arg1
+    jumpi v2, bb2, bb3
+  bb2:
+    v6 = shl 5, v0
+    v7 = add arg0, v6
+    v8 = calldataload v7
+    v4 = add v1, v8
+    v5 = add v0, 2
+    jump bb1
+  bb3:
+    ret v1
+}
+
+// A search returns the counter where it stops, which the exit edge rebuilds from the
+// pointer, `(ptr - start) >> 5`, after splitting the edge, so the counter dies and the
+// pointer tests the exit.
+// CHECK-LABEL: {{^[ +].*}}fn @rebuild_counter_on_exit_edge{{[( ]}}
+// CHECK: + [[END:v[0-9]+]] = add arg0, {{v[0-9]+}}
+// CHECK: - {{v[0-9]+}} = phi [bb1: 0]
+// CHECK: + [[POINTER:v[0-9]+]] = phi [bb1: arg0], [{{bb[0-9]+}}: {{v[0-9]+}}]
+// CHECK: + {{v[0-9]+}} = ne [[POINTER]], [[END]]
+// CHECK: + [[SPLIT:bb[0-9]+]]:
+// CHECK-NEXT: + [[DELTA:v[0-9]+]] = sub [[POINTER]], arg0
+// CHECK-NEXT: + [[INDEX:v[0-9]+]] = shr 5, [[DELTA]]
+// CHECK: = phi {{\[}}[[SPLIT]]: [[INDEX]]], [bb2: arg1]
+fn @rebuild_counter_on_exit_edge(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+  bb0:
+    v0 = calldatasize
+    v1 = sub v0, arg0
+    v2 = shr 5, v1
+    v3 = gt arg1, v2
+    jumpi v3, bb6, bb1
+  bb1:
+    jump bb2
+  bb2:
+    v4 = phi [bb1: 0], [bb5: v9]
+    v5 = lt v4, arg1
+    jumpi v5, bb3, bb4
+  bb3:
+    v6 = shl 5, v4
+    v7 = add arg0, v6
+    v8 = calldataload v7
+    v10 = eq v8, arg2
+    jumpi v10, bb4, bb5
+  bb5:
+    v9 = add v4, 1
+    jump bb2
+  bb4:
+    v11 = phi [bb3: v4], [bb2: arg1]
+    ret v11
+  bb6:
+    revert 0, 0
+}
+
+// A counter read directly after the loop is rebuilt at the top of the reading block.
+// CHECK-LABEL: {{^[ +].*}}fn @rebuild_counter_after_loop{{[( ]}}
+// CHECK: + {{v[0-9]+}} = ne
+// CHECK: + [[DELTA:v[0-9]+]] = sub {{v[0-9]+}}, arg0
+// CHECK-NEXT: + [[INDEX:v[0-9]+]] = shr 5, [[DELTA]]
+// CHECK: ret [[INDEX]]
+fn @rebuild_counter_after_loop(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+  bb0:
+    v0 = calldatasize
+    v1 = sub v0, arg0
+    v2 = shr 5, v1
+    v3 = gt arg1, v2
+    jumpi v3, bb5, bb1
+  bb1:
+    jump bb2
+  bb2:
+    v4 = phi [bb1: 0], [bb4: v9]
+    v5 = lt v4, arg1
+    jumpi v5, bb3, bb6
+  bb3:
+    v6 = shl 5, v4
+    v7 = add arg0, v6
+    v8 = calldataload v7
+    v10 = eq v8, arg2
+    jumpi v10, bb6, bb4
+  bb4:
+    v9 = add v4, 1
+    jump bb2
+  bb6:
+    ret v4
+  bb5:
+    revert 0, 0
+}
+
+// A value the loop derives from the counter, read after the loop, keeps the counter.
+// CHECK-LABEL: {{^[ +].*}}fn @keep_counter_read_derived{{[( ]}}
+// CHECK-NOT: = ne
+// CHECK: {{^ +}}{{v[0-9]+}} = lt
+fn @keep_counter_read_derived(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+  bb0:
+    v0 = calldatasize
+    v1 = sub v0, arg0
+    v2 = shr 5, v1
+    v3 = gt arg1, v2
+    jumpi v3, bb5, bb1
+  bb1:
+    jump bb2
+  bb2:
+    v4 = phi [bb1: 0], [bb4: v9]
+    v5 = lt v4, arg1
+    jumpi v5, bb3, bb7
+  bb3:
+    v6 = shl 5, v4
+    v7 = add arg0, v6
+    v8 = calldataload v7
+    v10 = eq v8, arg2
+    jumpi v10, bb6, bb4
+  bb4:
+    v9 = add v4, 1
+    jump bb2
+  bb6:
+    ret v6
+  bb7:
+    ret 0
+  bb5:
+    revert 0, 0
 }

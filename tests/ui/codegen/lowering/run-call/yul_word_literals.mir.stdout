@@ -28,29 +28,27 @@ fn @builtin() -> i256 [selector=0x44d2c8a8, pure, abi_params=[], abi_returns=[wo
 
 fn @loop() -> i256 [selector=0xa92100cb, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = zext i1 0 to i256
-    v1 = ne v0, 0
-    jumpi v1, bb1, bb2
+    v0 = ne 0, 0
+    jumpi v0, bb1, bb2
   bb2:
     jump bb3
   bb1:
     jump bb3
   bb3:
-    v2 = phi [bb1: 99], [bb2: 0]
+    v1 = phi [bb1: 99], [bb2: 0]
     jump bb4
   bb4:
-    v3 = phi [bb3: v2], [bb8: v6]
-    v4 = zext i1 1 to i256
-    v5 = ne v4, 0
-    jumpi v5, bb6, bb7
+    v2 = phi [bb3: v1], [bb8: v4]
+    v3 = ne 1, 0
+    jumpi v3, bb6, bb7
   bb7:
     jump bb5
   bb6:
-    v6 = add v3, 1
-    v7 = eq v6, 3
-    v8 = zext i1 v7 to i256
-    v9 = ne v8, 0
-    jumpi v9, bb9, bb10
+    v4 = add v2, 1
+    v5 = eq v4, 3
+    v6 = zext i1 v5 to i256
+    v7 = ne v6, 0
+    jumpi v7, bb9, bb10
   bb10:
     jump bb11
   bb11:
@@ -60,6 +58,6 @@ fn @loop() -> i256 [selector=0xa92100cb, pure, abi_params=[], abi_returns=[word]
   bb9:
     jump bb5
   bb5:
-    v10 = phi [bb9: v6], [bb7: v3]
-    ret v10
+    v8 = phi [bb9: v4], [bb7: v2]
+    ret v8
 }

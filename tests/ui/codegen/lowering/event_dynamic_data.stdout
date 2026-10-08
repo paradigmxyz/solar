@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/event_dynamic_data.sol:EventDynamicData ===
 @module EventDynamicData
-fn @text(arg0: memorybytes) [selector=0x174e6c98, abi_params=[bytes], abi_returns=[], abi_return_params=[]] {
+fn @text(arg0: memptr) [selector=0x174e6c98, abi_params=[bytes], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = abi_encode [memory_bytes, word], args arg0, 7
     v1 = slice_ptr v0
@@ -23,7 +23,7 @@ fn @literal() [selector=0x1373185e, abi_params=[], abi_returns=[], abi_return_pa
     ret
 }
 
-fn @blob(arg0: memorybytes) [selector=0x03cd5167, abi_params=[bytes], abi_returns=[], abi_return_params=[]] {
+fn @blob(arg0: memptr) [selector=0x03cd5167, abi_params=[bytes], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = abi_encode [memory_bytes], args arg0
     v1 = slice_ptr v0
