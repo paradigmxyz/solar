@@ -11,7 +11,7 @@
 // CHECK: {{^[ +].*}}[[SAME:v[0-9]+]] = eq [[LEFT]], [[RIGHT]]
 // CHECK: {{^[ +].*}}[[SAME_WORD:v[0-9]+]] = {{(zext|ptrtoint)}} {{[^ ]+}} [[SAME]]
 // CHECK: {{^[ +].*}}add [[SAME_WORD]], 1
-fn @fold_identity_projections(arg0: memorystruct, arg1: memoryfixedarray) -> i256 {
+fn @fold_identity_projections(arg0: memptr, arg1: memptr) -> i256 {
   bb0:
     v10 = memory_object_data memorystruct, arg0
     v2 = ptrtoint memptr v10 to i256

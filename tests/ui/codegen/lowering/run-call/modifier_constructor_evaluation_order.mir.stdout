@@ -47,7 +47,7 @@ fn @constructor() [constructor] {
     ret
 }
 
-fn @query() -> memoryarray [selector=0x2c46b205, view, abi_params=[], abi_returns=[memory_array<word>], abi_return_params=[array<_, u256>]] {
+fn @query() -> memptr [selector=0x2c46b205, view, abi_params=[], abi_returns=[memory_array<word>], abi_return_params=[array<_, u256>]] {
   bb0:
     v0 = icall @load_storage_word_array, 0
     ret v0
@@ -66,7 +66,7 @@ fn @f(arg0: i256) -> i256 {
     ret 0
 }
 
-fn @load_storage_word_array(arg0: i256) -> memoryarray {
+fn @load_storage_word_array(arg0: i256) -> memptr {
   bb0:
     v0 = load_storage_array u256, arg0
     ret v0

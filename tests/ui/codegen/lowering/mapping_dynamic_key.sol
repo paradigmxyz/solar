@@ -32,14 +32,12 @@ contract MappingDynamicKeyPaths {
 
     // CHECK-LABEL: fn @nestedFirst{{[( ]}}
     // CHECK: [[OUTER:v[0-9]+]] = mapping_slot_calldata arg0, 1
-    // CHECK: [[KEY_I160:v[0-9]+]] = trunc i256 arg1 to i160
-    // CHECK: [[KEY:v[0-9]+]] = zext i160 [[KEY_I160]] to i256
+    // CHECK: [[KEY:v[0-9]+]] = zext i160 arg1 to i256
     // CHECK: [[INNER:v[0-9]+]] = mapping_slot [[KEY]], [[OUTER]]
     mapping(string => mapping(address => uint256)) public nestedFirst;
 
     // CHECK-LABEL: fn @nestedSecond{{[( ]}}
-    // CHECK: [[KEY_I160:v[0-9]+]] = trunc i256 arg0 to i160
-    // CHECK: [[KEY:v[0-9]+]] = zext i160 [[KEY_I160]] to i256
+    // CHECK: [[KEY:v[0-9]+]] = zext i160 arg0 to i256
     // CHECK: [[OUTER:v[0-9]+]] = mapping_slot [[KEY]], 2
     // CHECK: [[INNER:v[0-9]+]] = mapping_slot_calldata arg1, [[OUTER]]
     mapping(address => mapping(string => uint256)) public nestedSecond;
@@ -71,8 +69,7 @@ contract MappingDynamicKeyPaths {
     // Nested mappings dispatch on the key type at every level.
     // CHECK-LABEL: fn @setNestedFirst{{[( ]}}
     // CHECK: [[OUTER:v[0-9]+]] = mapping_slot_memory arg0, 1
-    // CHECK: [[KEY_I160:v[0-9]+]] = trunc i256 arg1 to i160
-    // CHECK: [[KEY:v[0-9]+]] = zext i160 [[KEY_I160]] to i256
+    // CHECK: [[KEY:v[0-9]+]] = zext i160 arg1 to i256
     // CHECK: [[INNER:v[0-9]+]] = mapping_slot [[KEY]], [[OUTER]]
     // CHECK: sstore [[INNER]], arg2
     function setNestedFirst(string memory k, address a, uint256 v) public {
@@ -81,8 +78,7 @@ contract MappingDynamicKeyPaths {
 
     // CHECK-LABEL: fn @getNestedFirst{{[( ]}}
     // CHECK: [[OUTER:v[0-9]+]] = mapping_slot_memory arg0, 1
-    // CHECK: [[KEY_I160:v[0-9]+]] = trunc i256 arg1 to i160
-    // CHECK: [[KEY:v[0-9]+]] = zext i160 [[KEY_I160]] to i256
+    // CHECK: [[KEY:v[0-9]+]] = zext i160 arg1 to i256
     // CHECK: [[INNER:v[0-9]+]] = mapping_slot [[KEY]], [[OUTER]]
     // CHECK: sload [[INNER]]
     function getNestedFirst(string memory k, address a) public view returns (uint256) {
@@ -90,8 +86,7 @@ contract MappingDynamicKeyPaths {
     }
 
     // CHECK-LABEL: fn @setNestedSecond{{[( ]}}
-    // CHECK: [[KEY_I160:v[0-9]+]] = trunc i256 arg0 to i160
-    // CHECK: [[KEY:v[0-9]+]] = zext i160 [[KEY_I160]] to i256
+    // CHECK: [[KEY:v[0-9]+]] = zext i160 arg0 to i256
     // CHECK: [[OUTER:v[0-9]+]] = mapping_slot [[KEY]], 2
     // CHECK: [[INNER:v[0-9]+]] = mapping_slot_memory arg1, [[OUTER]]
     // CHECK: sstore [[INNER]], arg2

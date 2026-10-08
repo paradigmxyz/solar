@@ -29,7 +29,7 @@
 //! that function reads. Provisional width summaries establish array origins first;
 //! a second summary includes stores through unknown origins before any masks are removed.
 //!
-//! Only word-element arrays, contiguous low-bit masks, and `zext i160 (trunc i256 x to i160) to
+//! Only word-element arrays, contiguous low-bit masks, and `zext iN (trunc i256 x to iN) to
 //! i256` round trips are rewritten. A narrowing result with other typed uses stays in place.
 //! Runs early in the optimized phase, while element accesses are still
 //! semantic and the call graph is explicit; removed masks lose their debug
@@ -38,8 +38,8 @@
 use super::egraph::max_bits_with_args;
 use crate::mir::{
     AbiParamType, AbiWordValidator, AllocationInitialization, AllocationKind, ArgIdx, EffectKind,
-    Function, FunctionId, InstId, InstKind, MemoryObjectKind, MemoryObjectLayout, MemoryRegion,
-    MirType, Module, Terminator, Value, ValueId,
+    Function, FunctionId, InstId, InstKind, MemoryObjectLayout, MemoryRegion, MirType, Module,
+    Terminator, Value, ValueId,
     memory::EvmMemoryLayout,
     pass::{MirPass, ModuleAnalyses},
     utils,
@@ -147,7 +147,7 @@ impl MirPass for ElementCleanup {
                     && objects.get(&object).is_some_and(|&origin| origin.max(reading) <= bits)
                     && let Some(result) = func.inst_result_value(inst)
                 {
-                    // zext i160 (trunc i256 element to i160) to i256 -> element
+                    // zext iN (trunc i256 element to iN) to i256 -> element
                     if let InstKind::Zext(narrow) = func.inst(inst).kind
                         && uses[narrow] == 1
                         && let Value::Inst(trunc) = func.value(narrow)
@@ -190,20 +190,14 @@ fn is_word_array(layout: MemoryObjectLayout) -> bool {
     )
 }
 
-fn is_array(ty: MirType) -> bool {
-    matches!(
-        ty,
-        MirType::MemoryObject(MemoryObjectKind::DynamicArray | MemoryObjectKind::FixedArray)
-    )
-}
-
 /// The value a contiguous low-bit mask keeps, and the mask's width in bits.
 fn masked_element(func: &Function, inst: InstId) -> Option<(ValueId, u32)> {
     if let InstKind::Zext(narrow) = func.inst(inst).kind
+        && func.inst(inst).result_ty == Some(MirType::I256)
         && let Value::Inst(trunc) = func.value(narrow)
-        && let InstKind::Trunc(element, 160) = func.inst(*trunc).kind
+        && let InstKind::Trunc(element, bits) = func.inst(*trunc).kind
     {
-        return Some((element, 160));
+        return Some((element, bits));
     }
     let InstKind::And(a, b) = func.inst(inst).kind else { return None };
     let (element, mask) = match (func.value_u256(a), func.value_u256(b)) {
@@ -331,8 +325,8 @@ fn externally_callable(func: &Function) -> bool {
         || func.attributes.is_fallback
 }
 
-/// The widest word each array parameter may hold on entry: what ABI
-/// decoding admits, or the widest argument any call site passes.
+/// The widest word each pointer parameter's array elements may hold on entry:
+/// what ABI decoding admits, or the widest argument any call site passes.
 fn param_bounds(
     module: &Module,
     transitive: &IndexVec<FunctionId, u32>,
@@ -340,7 +334,7 @@ fn param_bounds(
     let mut bounds = FxHashMap::default();
     for (id, func) in module.functions.iter_enumerated() {
         for (index, &ty) in func.params.iter_enumerated() {
-            if !is_array(ty) {
+            if ty != MirType::MemPtr {
                 continue;
             }
             let entry = if !externally_callable(func) {

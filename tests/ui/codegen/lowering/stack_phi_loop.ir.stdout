@@ -45,13 +45,15 @@ bb7:
   lt
   push bb6
   jumpi
-  push 3
-  not
   push 36
   calldataload
+  push 3
+  not
   mul
   push 11
   add
+  push 255
+  and
   push 0
   push 0
   jump bb10
@@ -222,9 +224,18 @@ bb38:
   push 36
   calldataload
   iszero
+  push 36
+  calldataload
+  push 0
+  not
+  div
+  sub
   push 128
   mstore
+  push 68
+  calldataload
   push 0
+  sub
   push 4
   calldataload
   jump bb40
@@ -233,17 +244,10 @@ bb42 [loop]:
   calldataload
   dup 2
   mul
-  push 36
-  calldataload
-  dup 2
-  div
   swap 1
-  swap 2
-  eq
   push 128
   mload
-  or
-  iszero
+  lt
   push bb45
   jumpi
   push 4
@@ -268,10 +272,7 @@ bb42 [loop]:
   swap 1
   jump bb40
 bb40 [loop]:
-  push 68
-  calldataload
-  dup 3
-  lt
+  dup 2
   push bb42
   jumpi
   push 0

@@ -1,45 +1,43 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_validation.sol:AbiValidation ===
 @module AbiValidation
-fn @vBool(arg0: i256) -> i256 [selector=0x18a11c47, pure, abi_params=[bool], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @vBool(arg0: i1) -> i1 [selector=0x18a11c47, pure, abi_params=[bool], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     ret arg0
 }
 
-fn @vUint8(arg0: i256) -> i256 [selector=0xd5f6949e, pure, abi_params=[u8], abi_returns=[word<u8>], abi_return_params=[u8]] {
+fn @vUint8(arg0: i8) -> i8 [selector=0xd5f6949e, pure, abi_params=[u8], abi_returns=[word<u8>], abi_return_params=[u8]] {
   bb0:
     ret arg0
 }
 
-fn @vAddress(arg0: i256) -> i256 [selector=0x23347413, view, abi_params=[address], abi_returns=[word<u160>], abi_return_params=[address]] {
+fn @vAddress(arg0: i160) -> i160 [selector=0x23347413, view, abi_params=[address], abi_returns=[word<u160>], abi_return_params=[address]] {
   bb0:
     v0 = address
     v1 = gas
-    v2 = trunc i256 arg0 to i160
-    v3 = zext i160 v2 to i256
-    v4 = abi_encode [word<u160>], selector 0x9e9aa54a00000000000000000000000000000000000000000000000000000000, args v3
-    v5 = slice_ptr v4
-    v6 = slice_len v4
-    v7 = zext i160 v0 to i256
-    v8 = staticcall v1, v7, v5, v6, 0, 32
-    jumpi v8, bb2, bb1
+    v2 = zext i160 arg0 to i256
+    v3 = abi_encode [word<u160>], selector 0x9e9aa54a00000000000000000000000000000000000000000000000000000000, args v2
+    v4 = slice_ptr v3
+    v5 = slice_len v3
+    v6 = zext i160 v0 to i256
+    v7 = staticcall v1, v6, v4, v5, 0, 32
+    jumpi v7, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v9 = returndatasize
-    v10 = lt v9, 32
-    icall revert_if<tuple_data_too_short>, v10
-    v11 = add 0, 0
-    v12 = mload v11
-    v13 = and v12, 0xffffffffffffffffffffffffffffffffffffffff
-    v14 = eq v12, v13
-    v15 = eq v14, false
-    icall revert_if<empty>, v15
-    v16 = add 0, 0
-    v17 = mload v16
-    ret v17
+    v8 = returndatasize
+    v9 = lt v8, 32
+    icall revert_if<tuple_data_too_short>, v9
+    v10 = add 0, 0
+    v11 = mload v10
+    v12 = and v11, 0xffffffffffffffffffffffffffffffffffffffff
+    v13 = eq v11, v12
+    v14 = eq v13, false
+    icall revert_if<empty>, v14
+    v15 = trunc i256 v11 to i160
+    ret v15
 }
 
-fn @vAddressTarget(arg0: i256) -> i256 [selector=0x9e9aa54a, pure, abi_params=[address], abi_returns=[word<u160>], abi_return_params=[address]] {
+fn @vAddressTarget(arg0: i160) -> i160 [selector=0x9e9aa54a, pure, abi_params=[address], abi_returns=[word<u160>], abi_return_params=[address]] {
   bb0:
     ret arg0
 }
@@ -63,9 +61,7 @@ fn @dirtyBytes1(arg0: i256) -> i256 [selector=0x92fef914, view, abi_params=[byte
     icall revert_if<tuple_data_too_short>, v9
     v10 = add 0, 0
     v11 = mload v10
-    v12 = add 0, 0
-    v13 = mload v12
-    ret v13
+    ret v11
 }
 
 fn @bytes1Target(arg0: i256) -> i256 [selector=0xa408523c, pure, abi_params=[bytes1], abi_returns=[word], abi_return_params=[bytes32]] {
@@ -95,9 +91,7 @@ fn @dirtyEnumArg(arg0: i256) -> i256 [selector=0xc3e104d2, view, abi_params=[u25
     icall revert_if<tuple_data_too_short>, v10
     v11 = add 0, 0
     v12 = mload v11
-    v13 = add 0, 0
-    v14 = mload v13
-    ret v14
+    ret v12
 }
 
 fn @enumTarget(arg0: i256) -> i256 [selector=0x5688f443, pure, abi_params=[enum<2, u8>], abi_returns=[word], abi_return_params=[u256]] {
@@ -105,5 +99,7 @@ fn @enumTarget(arg0: i256) -> i256 [selector=0x5688f443, pure, abi_params=[enum<
     v0 = lt arg0, 2
     v1 = eq v0, false
     icall panic_if<0x21>, v1
-    ret arg0
+    v2 = trunc i256 arg0 to i8
+    v3 = zext i8 v2 to i256
+    ret v3
 }

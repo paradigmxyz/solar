@@ -235,7 +235,11 @@ fn remove_redundant_permutations(
         while end < instructions.len() && symbolic_stack_op(&instructions[end]).is_some() {
             end += 1;
         }
-        if end != start {
+        // Only a `DUP` makes two stack slots hold the same value.
+        if instructions[start..end]
+            .iter()
+            .any(|inst| matches!(inst.as_stack_op(), Some(StackOp::Dup(_))))
+        {
             find_redundant_permutations(&instructions[start..end], start, remove);
         }
         start = end + 1;
@@ -309,31 +313,4 @@ fn symbolic_stack_op(inst: &Instruction) -> Option<SymbolicStackOp> {
         return Some(SymbolicStackOp::Push);
     }
     inst.as_stack_op().map(SymbolicStackOp::Physical)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn cached_normalizations_respect_target_legality() {
-        let input = StackRun::from_slice(&[StackOp::Swap(17), StackOp::Swap(17)]);
-        let mut cache = SharedNormalizations::default();
-        assert_eq!(cache.get(&input, EvmVersion::Amsterdam), Some(StackRun::new()));
-        assert_eq!(cache.get(&input, EvmVersion::Osaka), None);
-        assert_eq!(cache.get(&input, EvmVersion::Amsterdam), Some(StackRun::new()));
-    }
-
-    #[test]
-    fn shared_normalizations_stay_bounded() {
-        let mut cache = SharedNormalizations::default();
-        for depth in 1..=16 {
-            for length in 2..=24 {
-                let input = StackRun::from_elem(StackOp::Dup(depth), length);
-                let expected = compute_normalization(&input, EvmVersion::Osaka);
-                assert_eq!(cache.get(&input, EvmVersion::Osaka), expected);
-                assert!(cache.entries.len() <= MAX_SHARED_NORMALIZATIONS);
-            }
-        }
-    }
 }

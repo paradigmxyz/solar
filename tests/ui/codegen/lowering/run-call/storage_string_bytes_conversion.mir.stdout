@@ -1,9 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_string_bytes_conversion.sol:StorageStringBytesConversion ===
 @module StorageStringBytesConversion
-types:
-  struct0: {memorybytes, i256}
+@types
+  struct0: {memptr, i256}
 
-fn @constructor(arg0: memorybytes) [constructor, abi_params=[bytes]] {
+fn @constructor(arg0: memptr) [constructor, abi_params=[bytes]] {
   bb0:
     icall @store_storage_bytes, 0, arg0
     ret
@@ -22,13 +22,13 @@ fn @readLength() -> i256 [selector=0x3d19002a, view, abi_params=[], abi_returns=
     ret v6
 }
 
-fn @readBytes() -> memorybytes [selector=0xd98b5568, view, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @readBytes() -> memptr [selector=0xd98b5568, view, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = load_storage_bytes 0
     ret v0
 }
 
-fn @pushThroughConversion() -> memorybytes [selector=0x10f946b0, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @pushThroughConversion() -> memptr [selector=0x10f946b0, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     validate_storage_bytes v0
@@ -91,7 +91,7 @@ fn @pushThroughConversion() -> memorybytes [selector=0x10f946b0, abi_params=[], 
     ret v40
 }
 
-fn @pushAssignThroughConversion() -> memorybytes [selector=0x2975c49f, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @pushAssignThroughConversion() -> memptr [selector=0x2975c49f, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     validate_storage_bytes v0
@@ -155,7 +155,7 @@ fn @pushAssignThroughConversion() -> memorybytes [selector=0x2975c49f, abi_param
     ret v41
 }
 
-fn @popThroughConversion() -> memorybytes [selector=0x14044da4, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @popThroughConversion() -> memptr [selector=0x14044da4, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     validate_storage_bytes v0
@@ -226,7 +226,7 @@ fn @transitionThroughConversion() -> struct0 [selector=0x7117dd67, abi_params=[]
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: memorybytes 96], [bb5: v0]
+    v0 = phi [bb0: memptr 96], [bb5: v0]
     v1 = phi [bb0: 0], [bb5: v1]
     v2 = sload 0 !metadata(storage=slot(0))
     validate_storage_bytes v2
@@ -370,7 +370,7 @@ fn @transitionThroughConversion() -> struct0 [selector=0x7117dd67, abi_params=[]
     jump bb1
 }
 
-fn @store_storage_bytes(arg0: i256, arg1: memorybytes) {
+fn @store_storage_bytes(arg0: i256, arg1: memptr) {
   bb0:
     store_storage_bytes arg0, arg1
     ret

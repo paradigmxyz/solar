@@ -28,6 +28,15 @@
 //! loop that reads it; the late run hoists that base so a hot loop carries one word instead
 //! of reloading its argument and re-adding the header on every iteration.
 //!
+//! In gas mode, an unsigned checked product inside a loop whose factor `y` is defined before
+//! the loop, lowered as `y == 0 || (x * y) / y == x` or, with `y` first, as a check that
+//! divides by `x`, becomes `x <= MAX / y - (y == 0)`, with the bound computed once in the
+//! preheader. A nonzero `y` keeps the product below `2^256`
+//! exactly when `x <= MAX / y`. A zero `y` turns the bound into `0 - 1 = MAX`, which every
+//! `x` meets. Each iteration then compares instead of dividing. The check keeps its branch,
+//! which panics when the comparison fails: flipping the branch so the check could merge with
+//! the add overflow check after it made the loop carry more words, and it measured slower.
+//!
 //! ## Gas Savings
 //!
 //! This optimization is particularly important for EVM:
@@ -38,8 +47,8 @@
 //! therefore constrain the guarantee even when a constant loop bound is known.
 
 use crate::mir::{
-    BlockId, Callee, EffectKind, Function, ImmutableId, InstId, InstKind, Module, OpTraits,
-    StorageAlias, Terminator, Value, ValueId,
+    BlockId, Callee, EffectKind, Function, FunctionBuilder, Immediate, ImmutableId, InstId,
+    InstKind, Instruction, MirType, Module, OpTraits, StorageAlias, Terminator, Value, ValueId,
     analysis::{
         Access, AddressSpace, AffineExpr, AliasAnalysis, AliasResult, CfgInfo, Location,
         LocationSize, Loop, LoopAnalyzer, ScalarEvolution,
@@ -49,7 +58,7 @@ use crate::mir::{
 };
 use alloy_primitives::U256;
 use arrayvec::ArrayVec;
-use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
+use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
 use std::rc::Rc;
 
 /// Most words a loop may carry after a below-threshold hoist. The count is the header's phis
@@ -92,7 +101,12 @@ impl MirPass for Licm {
                 let mut optimizer = LoopOptimizer::with_limits(3, 8);
                 optimizer.hoist_cheap = hoist_cheap;
                 optimizer.alias = Some(Rc::clone(analyses.alias()));
-                optimizer.optimize(func, Rc::clone(analyses.cfg())).instructions_hoisted != 0
+                let changed =
+                    optimizer.optimize(func, Rc::clone(analyses.cfg())).instructions_hoisted != 0;
+                if optimizer.annotated_aliases {
+                    analyses.note_unreported_edit();
+                }
+                changed
             },
         )
     }
@@ -133,6 +147,8 @@ struct LoopOptimizer {
     hoist_cheap: bool,
     stats: LoopOptStats,
     alias: Option<Rc<AliasAnalysis>>,
+    /// Whether storage-alias annotation changed metadata, which is not reported as a change.
+    annotated_aliases: bool,
 }
 
 impl Default for LoopOptimizer {
@@ -143,6 +159,7 @@ impl Default for LoopOptimizer {
             hoist_cheap: false,
             stats: LoopOptStats::default(),
             alias: None,
+            annotated_aliases: false,
         }
     }
 }
@@ -162,13 +179,15 @@ impl LoopOptimizer {
             hoist_cheap: false,
             stats: LoopOptStats::default(),
             alias: None,
+            annotated_aliases: false,
         }
     }
 
     /// Runs loop-invariant code motion on a function.
     fn optimize(&mut self, func: &mut Function, cfg: Rc<CfgInfo>) -> &LoopOptStats {
         self.stats = LoopOptStats::default();
-        func.annotate_storage_aliases(mir_utils::StorageAliasScope::StorageAndTransient);
+        self.annotated_aliases |=
+            func.annotate_storage_aliases(mir_utils::StorageAliasScope::StorageAndTransient);
         if self.alias.is_none() {
             self.alias = Some(Rc::new(AliasAnalysis::new(func)));
         }
@@ -181,7 +200,12 @@ impl LoopOptimizer {
         }
 
         let loops = loop_info.loops.values().cloned().collect::<Vec<_>>();
-        let inst_blocks = func.inst_blocks();
+        if self.hoist_cheap {
+            for loop_data in &loops {
+                self.stats.instructions_hoisted += reduce_product_checks(func, loop_data);
+            }
+        }
+        let inst_blocks = func.inst_block_table();
         let mut carried = loops
             .iter()
             .map(|loop_data| (loop_data.header, Self::carried_words(func, loop_data, &inst_blocks)))
@@ -199,7 +223,7 @@ impl LoopOptimizer {
     fn carried_words(
         func: &Function,
         loop_data: &Loop,
-        inst_blocks: &FxHashMap<InstId, BlockId>,
+        inst_blocks: &IndexVec<InstId, Option<BlockId>>,
     ) -> usize {
         let header = &func.blocks[loop_data.header];
         let mut count = header
@@ -208,20 +232,23 @@ impl LoopOptimizer {
             .filter(|&&inst_id| matches!(func.inst(inst_id).kind, InstKind::Phi(_)))
             .count();
         let mut seen = DenseBitSet::new_empty(func.num_values());
+        let mut visit = |operand| {
+            if Self::is_carried_operand(func, loop_data, inst_blocks, operand)
+                && seen.insert(operand)
+            {
+                count += 1;
+            }
+        };
         for block in loop_data.blocks.iter() {
             let block = &func.blocks[block];
-            for operand in block
-                .instructions
-                .iter()
-                .filter(|&&inst_id| !matches!(func.inst(inst_id).kind, InstKind::Phi(_)))
-                .flat_map(|&inst_id| func.inst(inst_id).kind.operands())
-                .chain(block.terminator.iter().flat_map(Terminator::operands))
-            {
-                if Self::is_carried_operand(func, loop_data, inst_blocks, operand)
-                    && seen.insert(operand)
-                {
-                    count += 1;
+            for &inst_id in &block.instructions {
+                let kind = &func.inst(inst_id).kind;
+                if !matches!(kind, InstKind::Phi(_)) {
+                    kind.visit_operands(&mut visit);
                 }
+            }
+            if let Some(term) = &block.terminator {
+                term.visit_operands(&mut visit);
             }
         }
         count
@@ -232,12 +259,16 @@ impl LoopOptimizer {
     fn is_carried_operand(
         func: &Function,
         loop_data: &Loop,
-        inst_blocks: &FxHashMap<InstId, BlockId>,
+        inst_blocks: &IndexVec<InstId, Option<BlockId>>,
         value: ValueId,
     ) -> bool {
         let Value::Inst(inst_id) = func.value(value) else { return false };
         let kind = &func.inst(*inst_id).kind;
-        inst_blocks.get(inst_id).is_none_or(|block| !loop_data.blocks.contains(*block))
+        inst_blocks
+            .get(*inst_id)
+            .copied()
+            .flatten()
+            .is_none_or(|block| !loop_data.blocks.contains(block))
             && !(kind.operands().is_empty()
                 && kind.op_def().traits.contains(OpTraits::REMATERIALIZABLE))
     }
@@ -251,17 +282,13 @@ impl LoopOptimizer {
         inner: &Loop,
         closure: &[InstId],
         closure_set: &DenseBitSet<InstId>,
-        inst_blocks: &FxHashMap<InstId, BlockId>,
+        inst_blocks: &IndexVec<InstId, Option<BlockId>>,
     ) -> isize {
         let reads_outside_closure = |value: ValueId, block: BlockId| {
             let block = &func.blocks[block];
-            block
-                .instructions
-                .iter()
-                .filter(|&&inst_id| !closure_set.contains(inst_id))
-                .flat_map(|&inst_id| func.inst(inst_id).kind.operands())
-                .chain(block.terminator.iter().flat_map(Terminator::operands))
-                .any(|operand| operand == value)
+            block.instructions.iter().any(|&inst_id| {
+                !closure_set.contains(inst_id) && func.inst(inst_id).kind.reads(value)
+            }) || block.terminator.as_ref().is_some_and(|term| term.reads(value))
         };
         let mut delta = 0isize;
         for &inst_id in closure {
@@ -320,7 +347,7 @@ impl LoopOptimizer {
                 .then_with(|| a.index().cmp(&b.index()))
         });
 
-        let inst_blocks = func.inst_blocks();
+        let inst_blocks = func.inst_block_table();
         let mut selected = DenseBitSet::new_empty(func.num_insts());
         let mut closure = Vec::new();
         let mut closure_set = DenseBitSet::new_empty(func.num_insts());
@@ -344,7 +371,7 @@ impl LoopOptimizer {
             for &inst_id in &closure {
                 closure_set.insert(inst_id);
             }
-            let Some(&root_block) = inst_blocks.get(&root) else { continue };
+            let Some(root_block) = inst_blocks.get(root).copied().flatten() else { continue };
             let nest = loops
                 .iter()
                 .filter(|inner| {
@@ -458,7 +485,7 @@ impl LoopOptimizer {
             // header. Element, byte, and word stores address the payload that
             // follows the header, so alias analysis can prove the loop leaves
             // the length alone while the object identity is still explicit.
-            // Nominal object types do not prove that the header is allocated.
+            // An object layout does not prove that the header is allocated.
             // As with raw loads, require execution on every path through the loop.
             InstKind::MemoryObjectLen(..) => {
                 return !self.function_observes_msize(func)
@@ -1134,4 +1161,93 @@ impl LoopOptimizer {
 
 fn u256_to_i128(value: U256) -> Option<i128> {
     if value <= U256::from(i128::MAX as u128) { Some(value.to::<u128>() as i128) } else { None }
+}
+
+/// Rewrites each check of a product `x * y` with a factor `y` defined before the loop, lowered as
+/// `d == 0 || (x * y) / d == q` for either order of the factors, into `x <= MAX / y - (y == 0)`,
+/// computing the bound once in the preheader. Returns the number of checks rewritten.
+fn reduce_product_checks(func: &mut Function, loop_data: &Loop) -> usize {
+    let Some(preheader) = loop_data.preheader else { return 0 };
+    let inst_blocks = func.inst_block_table();
+    let outside = |func: &Function, value: ValueId| match *func.value(value) {
+        Value::Arg(_) => true,
+        Value::Inst(inst) => {
+            inst_blocks.get(inst).copied().flatten().is_some_and(|b| !loop_data.blocks.contains(b))
+        }
+        _ => false,
+    };
+    let mut checks = Vec::new();
+    for block in loop_data.blocks.iter() {
+        for &inst in &func.blocks[block].instructions {
+            let InstKind::Or(a, b) = func.inst(inst).kind else { continue };
+            let Some((divisor, other, zero)) =
+                product_check(func, a, b).or_else(|| product_check(func, b, a))
+            else {
+                continue;
+            };
+            // Overflow does not depend on which factor the check divides by.
+            if outside(func, divisor) {
+                checks.push((block, inst, other, divisor, Some(zero)));
+            } else if outside(func, other) {
+                checks.push((block, inst, divisor, other, None));
+            }
+        }
+    }
+    let mut limits = FxHashMap::default();
+    for &(block, inst, x, y, zero) in &checks {
+        let context = func.inst(inst).metadata.debug_context();
+        let limit = *limits.entry(y).or_insert_with(|| {
+            // preheader: zero = eq y, 0
+            //            limit = sub (div MAX, y), (zext zero)
+            let mut builder = FunctionBuilder::new(func);
+            builder.switch_to_block(preheader);
+            builder.set_debug_context(&context);
+            let zero = match zero {
+                Some(zero) if outside(builder.func(), zero) => zero,
+                _ => builder.eq_zero(y),
+            };
+            let max = builder.imm(U256::MAX);
+            let quotient = builder.div(max, y);
+            let wide = builder.cast(zero, MirType::I256);
+            builder.sub(quotient, wide)
+        });
+        // overflows = gt x, limit
+        let mut overflows = Instruction::new(InstKind::Gt(x, limit), Some(MirType::I1));
+        overflows.metadata.copy_debug_context(&func.inst(inst).metadata);
+        let (overflows_inst, overflows) = func.alloc_value_inst(overflows);
+        let position = func.blocks[block].instructions.iter().position(|&id| id == inst);
+        let position = position.expect("the check is in its block");
+        func.blocks[block].instructions.insert(position, overflows_inst);
+        // valid = eq overflows, 0
+        let zero = func.alloc_value(Value::Immediate(Immediate::I1(false)));
+        func.inst_mut(inst).kind = InstKind::Eq(overflows, zero);
+    }
+    checks.len()
+}
+
+/// Matches `d == 0` and `(x * y) / d == q`, where `d` and `q` are the factors `x` and `y` in
+/// either order, as the two operands of a product's check, returning `d`, `q`, and the zero test.
+fn product_check(
+    func: &Function,
+    zero_test: ValueId,
+    exact: ValueId,
+) -> Option<(ValueId, ValueId, ValueId)> {
+    let def = |value: ValueId| match *func.value(value) {
+        Value::Inst(inst) => Some(&func.inst(inst).kind),
+        _ => None,
+    };
+    let InstKind::Eq(l, r) = *def(zero_test)? else { return None };
+    let divisor = match (func.value_u256(l), func.value_u256(r)) {
+        (None, Some(zero)) if zero.is_zero() => l,
+        (Some(zero), None) if zero.is_zero() => r,
+        _ => return None,
+    };
+    let InstKind::Eq(l, r) = *def(exact)? else { return None };
+    [(l, r), (r, l)].into_iter().find_map(|(quotient, other)| {
+        let &InstKind::Div(product, by) = def(quotient)? else { return None };
+        let &InstKind::Mul(a, b) = def(product)? else { return None };
+        let factors = (a == other && b == divisor) || (a == divisor && b == other);
+        let words = [divisor, other].iter().all(|&v| func.value_ty(v) == Some(MirType::I256));
+        (by == divisor && factors && words).then_some((divisor, other, zero_test))
+    })
 }

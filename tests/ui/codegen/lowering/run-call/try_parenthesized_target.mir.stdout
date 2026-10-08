@@ -13,64 +13,49 @@ fn @bad() [selector=0x9c3674fc, pure, abi_params=[], abi_returns=[word], abi_ret
 
 // === ROOT/tests/ui/codegen/lowering/run-call/try_parenthesized_target.sol:Caller ===
 @module Caller
+@data
+  Target_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/try_parenthesized_target.sol:Target"
+
 fn @constructor() [constructor] {
   bb0:
     v0 = abi_encode []
-    v1 = not 31
-    v2 = and 225, v1
+    v1 = datasize Target_creation_code_0
+    v2 = datasize Target_creation_code_0, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    mstore v4, 0x34600d5760b18060115f395ff35b5f5ffd341515602a575f3560e01c80639c36
-    v5 = ptrtoint memptr v3 to i256
-    v6 = add v5, 32
-    mstore v6, 0x74fc146026578063d909b40314602257602a565b602e565b6040565b5f5ffd5b
-    v7 = ptrtoint memptr v3 to i256
-    v8 = add v7, 64
-    mstore v8, 0x60056080526020608001608090036080f35b60e06040525f607657600260a052
-    v9 = ptrtoint memptr v3 to i256
-    v10 = add v9, 96
-    mstore v10, 0x7f6e6f0000000000000000000000000000000000000000000000000000000000
-    v11 = ptrtoint memptr v3 to i256
-    v12 = add v11, 128
-    mstore v12, 0x60c0526078565bfe5b7f08c379a00000000000000000000000000000000000
-    v13 = ptrtoint memptr v3 to i256
-    v14 = add v13, 160
-    mstore v14, 0x5f52602060045260a05160245260c0516044526064
-    v15 = ptrtoint memptr v3 to i256
-    v16 = add v15, 192
-    mstore v16, 0x5ffd000000000000000000000000000000000000000000000000000000000000
-    v17 = slice_ptr v0
-    v18 = ptrtoint memptr v3 to i256
-    v19 = add v18, 194
-    mcopy v19, v17, 0 !metadata(memory=heap)
-    v20 = ptrtoint memptr v3 to i256
-    v21 = create 0, v20, 194
-    v22 = zext i160 v21 to i256
-    v23 = ne v22, 0
-    jumpi v23, bb2, bb1
+    datacopy Target_creation_code_0, v4, v1
+    v5 = slice_ptr v0
+    v6 = ptrtoint memptr v3 to i256
+    v7 = add v6, v1
+    mcopy v7, v5, 0 !metadata(memory=heap)
+    v8 = ptrtoint memptr v3 to i256
+    v9 = create 0, v8, v1
+    v10 = ne v9, i160 0
+    jumpi v10, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v24 = sload 0 !metadata(storage=slot(0))
-    v25 = not 0xffffffffffffffffffffffffffffffffffffffff
-    v26 = and v24, v25
-    v27 = zext i160 v21 to i256
-    v28 = and v27, 0xffffffffffffffffffffffffffffffffffffffff
-    v29 = or v26, v28
-    sstore 0, v29 !metadata(storage=slot(0))
+    v11 = sload 0 !metadata(storage=slot(0))
+    v12 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v13 = and v11, v12
+    v14 = zext i160 v9 to i256
+    v15 = and v14, 0xffffffffffffffffffffffffffffffffffffffff
+    v16 = or v13, v15
+    sstore 0, v16 !metadata(storage=slot(0))
     ret
 }
 
 fn @success() -> i256 [selector=0x0b93381b, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
+    v1 = trunc i256 v0 to i160
     v2 = gas
     v3 = abi_encode [], selector 0xd909b40300000000000000000000000000000000000000000000000000000000
     v4 = slice_ptr v3
     v5 = slice_len v3
-    v6 = staticcall v2, v1, v4, v5, 0, 0
-    jumpi v6, bb1, bb2
+    v6 = zext i160 v1 to i256
+    v7 = staticcall v2, v6, v4, v5, 0, 0
+    jumpi v7, bb1, bb2
   bb2:
     jumpi true, bb4, bb5
   bb5:
@@ -79,9 +64,9 @@ fn @success() -> i256 [selector=0x0b93381b, view, abi_params=[], abi_returns=[wo
   bb4:
     ret 1
   bb1:
-    v7 = icall returndata_bytes<>
-    v8 = abi_decode [u256], v7
-    ret v8
+    v8 = icall returndata_bytes<>
+    v9 = abi_decode [u256], v8
+    ret v9
   bb3:
     ret 0
 }
@@ -89,13 +74,14 @@ fn @success() -> i256 [selector=0x0b93381b, view, abi_params=[], abi_returns=[wo
 fn @failure() -> i256 [selector=0x76ffb887, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
+    v1 = trunc i256 v0 to i160
     v2 = gas
     v3 = abi_encode [], selector 0x9c3674fc00000000000000000000000000000000000000000000000000000000
     v4 = slice_ptr v3
     v5 = slice_len v3
-    v6 = staticcall v2, v1, v4, v5, 0, 0
-    jumpi v6, bb1, bb2
+    v6 = zext i160 v1 to i256
+    v7 = staticcall v2, v6, v4, v5, 0, 0
+    jumpi v7, bb1, bb2
   bb2:
     jumpi true, bb4, bb5
   bb5:
@@ -104,9 +90,9 @@ fn @failure() -> i256 [selector=0x76ffb887, view, abi_params=[], abi_returns=[wo
   bb4:
     ret 2
   bb1:
-    v7 = icall returndata_bytes<>
-    v8 = abi_decode [u256], v7
-    ret v8
+    v8 = icall returndata_bytes<>
+    v9 = abi_decode [u256], v8
+    ret v9
   bb3:
     ret 0
 }

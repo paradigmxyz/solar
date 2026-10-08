@@ -1,5 +1,4 @@
 //@ codegen-matrix: standard
-//@ compile-flags: -Zvalidate-ir=true
 //@ run-call: ConstantIntegerValue::calc => 1020847100762815390390123822295304
 //@ run-call: ConstantIntegerValue::avgEdge => 0x8000000000000000000000000000000000000000000000000000000000000000
 //@ run-call: ConstantIntegerValue::negativeConstant => true

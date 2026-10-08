@@ -1,29 +1,28 @@
 // === ROOT/tests/ui/codegen/lowering/stack_only_rematerialization.sol:StackOnlyRematerialization ===
 @module StackOnlyRematerialization
-fn @first(arg0: i256) -> i256 [selector=0x6c94fb44, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
+fn @first(arg0: i1) -> i256 [selector=0x6c94fb44, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @storeAtDerivedAddress, 256, arg0
     ret v0
 }
 
-fn @second(arg0: i256) -> i256 [selector=0xc04a1ee8, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
+fn @second(arg0: i1) -> i256 [selector=0xc04a1ee8, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = icall @storeAtDerivedAddress, 288, arg0
     ret v0
 }
 
-fn @storeAtDerivedAddress(arg0: i256, arg1: i256) -> i256 [pure] {
+fn @storeAtDerivedAddress(arg0: i256, arg1: i1) -> i256 [pure] {
   bb0:
     v0 = add arg0, 32
-    v1 = ne arg1, 0
-    jumpi v1, bb1, bb2
+    jumpi arg1, bb1, bb2
   bb2:
     jump bb3
   bb1:
     jump bb3
   bb3:
-    v2 = phi [bb1: 7], [bb2: 8]
-    mstore v0, v2
-    v3 = mload v0
-    ret v3
+    v1 = phi [bb1: 7], [bb2: 8]
+    mstore v0, v1
+    v2 = mload v0
+    ret v2
 }

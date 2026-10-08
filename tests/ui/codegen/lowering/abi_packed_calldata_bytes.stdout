@@ -32,11 +32,9 @@ bb5:
   push 64
   mstore
   push bb6
-  push 4
   jump bb11
 bb11:
-  calldatasize
-  swap 1
+  push 4
   calldataload
   push 4
   dup 2
@@ -50,20 +48,20 @@ bb11:
   push 192
   shr
   lt
-  swap 3
-  dup 3
+  calldatasize
+  dup 4
   gt
-  swap 1
-  swap 3
   or
-  dup 3
+  dup 2
   calldataload
-  swap 2
+  swap 3
   calldatasize
   sub
   swap 1
-  swap 2
+  swap 3
   gt
+  swap 1
+  swap 2
   or
   push bb4
   jumpi
@@ -113,7 +111,6 @@ bb7:
   push bb4
   jumpi
   push bb9
-  push 4
   jump bb11
 bb9 [continuation]:
   dup 1

@@ -887,5 +887,5 @@ enum VarMode {
 }
 
 fn builtin_name(builtin: Builtin) -> impl fmt::Display {
-    solar_data_structures::fmt::from_fn(move |f| f.write_str(builtin.name().as_str()))
+    fmt::from_fn(move |f| f.write_str(builtin.name().as_str()))
 }

@@ -33,8 +33,11 @@ impl MirPass for LowerSlices {
         &self,
         _gcx: Gcx<'_>,
         module: &mut Module,
-        _analyses: &mut crate::mir::pass::ModuleAnalyses,
+        analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
+        // NOTE: Rewriting a projection of a lowered memory object into a load is not reported
+        // as a change on its own.
+        analyses.note_unreported_module_edit();
         Self::run(module)
     }
 }
@@ -712,9 +715,8 @@ impl LowerSlices {
         }
 
         // Inlining can substitute an already-materialized memory object for a
-        // logical calldata slice parameter. Once memory-object lowering has
-        // erased the nominal object type, the projections must use the
-        // physical object representation.
+        // logical calldata slice parameter. Once memory objects are lowered,
+        // the projections must use the physical object representation.
         for &(slice, inst, is_ptr) in projections.values() {
             let Some(ty) = func.value_ty(slice) else { continue };
             if let Value::Undef(MirType::Slice(location)) = *func.value(slice) {

@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_function_pointer_validation.sol:AbiFunctionPointerValidation ===
 @module AbiFunctionPointerValidation
-fn @f(arg0: memorystruct) -> i256 [selector=0x9f4a608d, pure, abi_params=[tuple<function>], abi_returns=[word], abi_return_params=[u256]] {
+fn @f(arg0: memptr) -> i256 [selector=0x9f4a608d, pure, abi_params=[tuple<function>], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     ret 1
 }

@@ -1,0 +1,89 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/heap_prefix_shapes.sol:HeapPrefixShapes ===
+@module HeapPrefixShapes
+@types
+  struct0: {i256, i256}
+
+fn @addNegative(arg0: i256) -> i256 [selector=0x672d5378, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = add arg0, 1
+    v1 = icall @pair.4
+    v2 = extract_value struct0, v1, 0
+    v3 = extract_value struct0, v1, 1
+    mstore v2, 999
+    v4 = add v0, v3
+    ret v4
+}
+
+fn @addNegativeFirst(arg0: i256) -> i256 [selector=0x62e6d0ca, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = add arg0, 1
+    v1 = icall @pair.5
+    v2 = extract_value struct0, v1, 0
+    v3 = extract_value struct0, v1, 1
+    mstore v2, 999
+    v4 = add v0, v3
+    ret v4
+}
+
+fn @byteStore(arg0: i256) -> i256 [selector=0x072e82c0, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = add arg0, 1
+    v1 = icall @pair.6
+    v2 = extract_value struct0, v1, 0
+    v3 = extract_value struct0, v1, 1
+    mstore8 v2, 255
+    v4 = add v0, v3
+    ret v4
+}
+
+fn @callOutput(arg0: i256) -> i256 [selector=0x9b878558, view, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = add arg0, 1
+    v1 = icall @pair.7
+    v2 = extract_value struct0, v1, 0
+    v3 = extract_value struct0, v1, 1
+    mstore 0, 0xdead !metadata(memory=scratch)
+    v4 = gas
+    v5 = staticcall v4, 4, 0, 32, v2, 32
+    v6 = zext i1 v5 to i256
+    v7 = add v0, v3
+    ret v7
+}
+
+fn @pair.4() -> struct0 {
+  bb0:
+    v0 = not 159
+    v1 = mload 64 !metadata(memory=scratch)
+    v2 = add v1, v0
+    v3 = insert_value struct0, undef struct0, 0, v2
+    v4 = insert_value struct0, v3, 1, 7
+    ret v4
+}
+
+fn @pair.5() -> struct0 {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    v1 = not 159
+    v2 = add v1, v0
+    v3 = insert_value struct0, undef struct0, 0, v2
+    v4 = insert_value struct0, v3, 1, 7
+    ret v4
+}
+
+fn @pair.6() -> struct0 {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    v1 = sub v0, 160
+    v2 = insert_value struct0, undef struct0, 0, v1
+    v3 = insert_value struct0, v2, 1, 7
+    ret v3
+}
+
+fn @pair.7() -> struct0 {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    v1 = sub v0, 160
+    v2 = insert_value struct0, undef struct0, 0, v1
+    v3 = insert_value struct0, v2, 1, 7
+    ret v3
+}

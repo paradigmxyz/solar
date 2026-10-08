@@ -10,6 +10,10 @@
 //@ run-call: ReturndataBranch::test 1 => 7
 //@ run-call: ReturndataBranch::test 32 => 7
 
+//@ run-call: ReloadableBranch::aggregate false, 2 => 23, false
+//@ run-call: ReloadableBranch::aggregate true, 2 => 15, true
+//@ run-call: ReloadableBranch::aggregate true, 0 => 0, true
+
 contract LiveBranchCondition {
     // CHECK-LABEL: @module LiveBranchCondition_runtime
     // The return store of the assembly switch is shared after dispatcher
@@ -56,5 +60,19 @@ contract ReturndataBranch {
             mstore(0, 9)
             return(0, 32)
         }
+    }
+}
+
+contract ReloadableBranch {
+    struct Pair { uint256 x; uint256 y; }
+
+    function aggregate(bool choice, uint256 n) external pure returns (uint256, bool) {
+        Pair memory p;
+        if (choice) p.x = 7; else p.x = 11;
+        for (uint256 i; i < n; ++i) {
+            p.x += i;
+            p.y += p.x;
+        }
+        return (p.y, choice);
     }
 }

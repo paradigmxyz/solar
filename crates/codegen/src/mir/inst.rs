@@ -1,9 +1,6 @@
 //! MIR instructions.
 
-use super::{
-    Function, InstKind, MemoryObjectKind, MemoryObjectLayout, MirType, SliceLocation, Value,
-    ValueId,
-};
+use super::{Function, InstKind, MemoryObjectLayout, MirType, SliceLocation, Value, ValueId};
 use crate::mir::{Builtin, Callee};
 use alloy_primitives::U256;
 use smallvec::SmallVec;
@@ -233,6 +230,17 @@ impl InstructionMetadata {
     pub(crate) fn set_preserves_fmp(&mut self, value: bool) {
         self.flags.set_preserves_fmp(value);
     }
+
+    /// Returns whether this copy's source and destination ranges never overlap.
+    #[must_use]
+    pub(crate) fn disjoint(&self) -> bool {
+        self.flags.disjoint()
+    }
+
+    /// Marks a copy whose source and destination ranges never overlap.
+    pub(crate) fn set_disjoint(&mut self, value: bool) {
+        self.flags.set_disjoint(value);
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -245,6 +253,7 @@ impl MetadataFlags {
     const EFFECT_SHIFT: u16 = 3;
     const UNCHECKED: u16 = 0b1000_0000;
     const DEFERRED_ALLOC: u16 = 0b1_0000_0000;
+    const DISJOINT: u16 = 0b10_0000_0000;
     const PRESERVES_FMP: u16 = 0b100_0000_0000;
     const DISPLAY_SOURCE_SPAN: u16 = 0b1000_0000_0000;
     const DEBUG_INFO_HANDLED: u16 = 0b1_0000_0000_0000;
@@ -295,6 +304,18 @@ impl MetadataFlags {
 
     fn clear_deferred_alloc(&mut self) {
         self.0 &= !Self::DEFERRED_ALLOC;
+    }
+
+    fn disjoint(self) -> bool {
+        self.0 & Self::DISJOINT != 0
+    }
+
+    fn set_disjoint(&mut self, value: bool) {
+        if value {
+            self.0 |= Self::DISJOINT;
+        } else {
+            self.0 &= !Self::DISJOINT;
+        }
     }
 
     fn preserves_fmp(self) -> bool {
@@ -610,7 +631,7 @@ impl AbiEncodeMode {
     pub(crate) const fn result_type(self) -> MirType {
         match self {
             Self::Slice | Self::Scratch => MirType::Slice(SliceLocation::Memory),
-            Self::Bytes => MirType::MemoryObject(MemoryObjectKind::Bytes),
+            Self::Bytes => MirType::MemPtr,
         }
     }
 }
@@ -620,8 +641,7 @@ impl AllocationKind {
     #[must_use]
     pub(crate) const fn result_type(self) -> MirType {
         match self {
-            Self::Raw => MirType::MemPtr,
-            Self::Object(layout) => MirType::MemoryObject(layout.kind()),
+            Self::Raw | Self::Object(_) => MirType::MemPtr,
         }
     }
 }
@@ -684,7 +704,15 @@ impl Instruction {
     }
 
     /// Returns the semantic operation that still needs representation lowering.
-    pub(crate) fn unlowered_reason(&self) -> Option<&'static str> {
+    pub(crate) fn unlowered_reason(&self, func: &Function) -> Option<&'static str> {
+        if self.result_ty == Some(MirType::I1)
+            && self.kind.op_def().result == super::ResultKind::Integer
+            && !matches!(self.kind, InstKind::And(..) | InstKind::Or(..) | InstKind::Xor(..))
+            || matches!(self.kind, InstKind::SLt(a, _) | InstKind::SGt(a, _)
+                if func.value_ty(a) == Some(MirType::I1))
+        {
+            return Some("narrow integer arithmetic");
+        }
         match &self.kind {
             InstKind::InsertValue { .. } | InstKind::ExtractValue { .. } => Some("struct value"),
             InstKind::MakeSlice { .. } | InstKind::SlicePtr(..) | InstKind::SliceLen(..) => {
@@ -749,12 +777,11 @@ impl Instruction {
                 || !matches!(kind, AllocationKind::Raw)
                 || *semantics != AllocationSemantics::INTERNAL)
                 .then_some("abstract allocation"),
+            InstKind::Trunc(..) | InstKind::Sext(..) => Some("integer conversion"),
+            InstKind::PtrToInt(_, bits) if *bits < 256 => Some("integer conversion"),
             InstKind::Zext(..)
-            | InstKind::Trunc(..)
-            | InstKind::Sext(..)
             | InstKind::PtrToInt(..)
             | InstKind::IntToPtr(..)
-            | InstKind::Bitcast(..)
             | InstKind::Add(..)
             | InstKind::Sub(..)
             | InstKind::Mul(..)
@@ -802,6 +829,7 @@ impl Instruction {
             | InstKind::ExtCodeCopy(..)
             | InstKind::ExtCodeHash(..)
             | InstKind::LibraryAddress(..)
+            | InstKind::DataSize(..)
             | InstKind::LoadImmutable(..)
             | InstKind::ReturnDataSize
             | InstKind::ReturnDataCopy(..)
@@ -934,10 +962,20 @@ pub(crate) enum AddressCallKind {
 }
 
 impl InstKind {
-    /// Checks the operation's result type, including boolean bitwise operations.
+    /// Infers integer results from the operation's declared operand signature.
+    pub(crate) fn inferred_result_type(&self, func: &Function) -> Option<MirType> {
+        if let Self::CheckedBinary { arithmetic, .. } = self {
+            Some(arithmetic.ty().mir_type())
+        } else if self.op_def().result == super::ResultKind::Integer {
+            self.op().first_operand().map(|value| super::typing::integer_type(func, value))
+        } else {
+            self.op_def().result.default_type()
+        }
+    }
+
+    /// Checks the operation's result representation.
     pub(crate) fn admits_result_type(&self, ty: MirType) -> bool {
         self.op_def().result.admits_type(ty)
-            || (ty == MirType::I1 && matches!(self, Self::And(..) | Self::Or(..) | Self::Xor(..)))
     }
 
     /// Checks scalar operation contracts without applying implicit conversions.
@@ -954,15 +992,15 @@ impl InstKind {
             }
         }
         match *self {
-            Self::Eq(a, b) | Self::Ne(a, b) => {
+            Self::Eq(a, b)
+            | Self::Ne(a, b)
+            | Self::Lt(a, b)
+            | Self::Gt(a, b)
+            | Self::SLt(a, b)
+            | Self::SGt(a, b) => {
                 result == Some(MirType::I1)
                     && ty(a) == ty(b)
-                    && matches!(ty(a), Some(MirType::I256 | MirType::I160 | MirType::I1))
-            }
-            Self::And(a, b) | Self::Or(a, b) | Self::Xor(a, b) => {
-                ty(a) == result
-                    && ty(b) == result
-                    && matches!(result, Some(MirType::I256 | MirType::I1))
+                    && matches!(ty(a), Some(MirType::Int(_)))
             }
             Self::Trunc(value, bits) => matches!((ty(value), result),
                 (Some(MirType::Int(from)), Some(MirType::Int(to))) if from > to && to.get() == bits),
@@ -979,11 +1017,7 @@ impl InstKind {
                 matches!(ty(value), Some(MirType::Int(_)))
                     && result.is_some_and(MirType::is_pointer)
             }
-            Self::Bitcast(value) => {
-                (ty(value).is_some_and(MirType::is_pointer)
-                    && result.is_some_and(MirType::is_pointer))
-                    || (matches!(ty(value), Some(MirType::Int(_))) && ty(value) == result)
-            }
+            Self::CheckedBinary { arithmetic, .. } => result == Some(arithmetic.ty().mir_type()),
             Self::Alloc { kind, .. } => result == Some(kind.result_type()),
             Self::MakeSlice { location, .. } => result == Some(MirType::Slice(location)),
             Self::FrameLoad { kind, .. } => result == Some(kind.result_type()),
@@ -1007,9 +1041,16 @@ impl InstKind {
             | Self::LoadImmutable(..) => result.is_some(),
             // Module and builtin signatures are checked by the validator.
             Self::ICall { .. } => true,
+            _ if self.op_def().result == super::ResultKind::Integer => {
+                self.inferred_result_type(func) == result
+                    && result.is_some_and(|ty| self.admits_result_type(ty))
+            }
             _ => {
-                self.op_def().result != super::ResultKind::Custom
-                    && self.op_def().result.default_type() == result
+                let kind = self.op_def().result;
+                kind != super::ResultKind::Custom
+                    && result.map_or(!kind.produces_value(), |ty| {
+                        kind.produces_value() && kind.admits_type(ty)
+                    })
             }
         }
     }
@@ -1061,6 +1102,21 @@ impl InstKind {
         let mut out = SmallVec::new();
         self.collect_operands(&mut out);
         out
+    }
+
+    /// Returns whether `value` is an operand of this instruction, without collecting them.
+    #[must_use]
+    pub(crate) fn reads(&self, value: ValueId) -> bool {
+        self.any_operand(|operand| operand == value)
+    }
+
+    /// Returns whether any operand of this instruction satisfies `predicate`, without collecting
+    /// them.
+    #[must_use]
+    pub(crate) fn any_operand(&self, mut predicate: impl FnMut(ValueId) -> bool) -> bool {
+        let mut found = false;
+        self.visit_operands(|operand| found = found || predicate(operand));
+        found
     }
 
     /// Returns the mnemonic for this instruction.
@@ -1142,101 +1198,6 @@ impl InstKind {
 impl fmt::Display for InstKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.mnemonic())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::mir::{BlockId, Function, Immediate, Value};
-    use alloy_primitives::U256;
-    use solar_interface::Ident;
-
-    #[test]
-    fn rewrites_preserve_provenance_and_invalidate_facts() {
-        let a = ValueId::new(0);
-        let b = ValueId::new(1);
-        let mut inst = Instruction::new(InstKind::MLoad(a), Some(MirType::I256));
-        inst.metadata.set_storage_alias(Some(StorageAlias::Slot(U256::from(7))));
-        inst.metadata.set_memory_region(Some(MemoryRegion::Scratch));
-        inst.metadata.set_effect(Some(EffectKind::MemoryRead));
-        inst.metadata.set_modifier_depth(3);
-        inst.metadata.loop_depth = 2;
-        let mut expected = inst.metadata.clone();
-        expected.set_storage_alias(None);
-        expected.set_memory_region(None);
-        expected.set_effect(None);
-
-        // An unchanged operand walk keeps all existing proofs.
-        let original = inst.metadata.clone();
-        inst.rewrite_operands(|_| {});
-        assert_eq!(inst.metadata, original);
-
-        // %value = mload %a -> %value = mload %b
-        inst.rewrite_operands(|operand| *operand = b);
-        assert_eq!(inst.metadata, expected);
-        assert_eq!(inst.kind, InstKind::MLoad(b));
-
-        inst.metadata = original;
-        // %value = mload %b -> %value = add %a, %b
-        inst.replace_kind(InstKind::Add(a, b));
-        assert_eq!(inst.metadata, expected);
-        assert_eq!(inst.kind.effect_kind(), EffectKind::Pure);
-    }
-
-    #[test]
-    fn equivalent_allocations_keep_semantic_obligations() {
-        let size = ValueId::new(0);
-        let kind = InstKind::Alloc {
-            size,
-            kind: AllocationKind::Raw,
-            semantics: AllocationSemantics::INTERNAL,
-        };
-        let mut inst = Instruction::new(kind.clone(), Some(MirType::I256));
-        inst.metadata.set_deferred_alloc();
-        inst.metadata.set_preserves_fmp(true);
-        inst.replace_kind(kind);
-        assert!(inst.metadata.deferred_alloc());
-        assert!(inst.metadata.preserves_fmp());
-
-        // %ptr = alloc ... -> %ptr = add %base, %offset
-        inst.replace_kind(InstKind::Add(size, size));
-        assert!(!inst.metadata.deferred_alloc());
-        assert!(!inst.metadata.preserves_fmp());
-    }
-
-    #[test]
-    fn phi_operands_include_incoming_values() {
-        let mut func = Function::new(Ident::DUMMY);
-        let pred_a = BlockId::ENTRY;
-        let pred_b = func.alloc_block();
-        let a = func.alloc_value(Value::Immediate(Immediate::I256(U256::from(1))));
-        let b = func.alloc_value(Value::Immediate(Immediate::I256(U256::from(2))));
-
-        let phi = InstKind::Phi(vec![(pred_a, a), (pred_b, b)]);
-
-        assert_eq!(phi.operands().as_slice(), &[a, b]);
-    }
-
-    #[test]
-    #[cfg_attr(not(target_pointer_width = "64"), ignore = "64-bit only")]
-    #[cfg_attr(feature = "nightly", ignore = "stable only")]
-    fn instruction_layout_sizes() {
-        use snapbox::{assert_data_eq, str};
-
-        #[track_caller]
-        fn assert_size<T>(size: impl snapbox::IntoData) {
-            assert_size_(std::mem::size_of::<T>(), size.into_data());
-        }
-
-        #[track_caller]
-        fn assert_size_(actual: usize, expected: snapbox::Data) {
-            assert_data_eq!(actual.to_string(), expected);
-        }
-
-        assert_size::<InstKind>(str!["40"]);
-        assert_size::<InstructionMetadata>(str!["40"]);
-        assert_size::<Instruction>(str!["96"]);
     }
 }
 

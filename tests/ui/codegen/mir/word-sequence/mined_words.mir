@@ -1,6 +1,6 @@
 //@ compile-flags: -Zmir-pipeline=egraph,word-sequence,dce
 @module MinedWords
-types:
+@types
   struct0: {i256, i256}
 
 fn @odd(arg0: i256) -> i256 {

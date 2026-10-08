@@ -1,0 +1,8 @@
+//@compile-flags: -Zmir-pipeline=none
+
+@module ObjectLayoutType
+
+fn @f(arg0: memorybytes) { //~ ERROR: `memorybytes` is an object layout; memory objects are `memptr` values
+  bb0:
+    stop
+}

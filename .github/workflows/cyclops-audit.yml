@@ -2,7 +2,7 @@ name: Cyclops audit
 
 on:
   pull_request:
-    types: [labeled]
+    types: [labeled, opened, synchronize, reopened, ready_for_review]
   issue_comment:
     types: [created]
 
@@ -12,21 +12,18 @@ jobs:
   audit:
     if: >-
       github.event_name == 'pull_request' &&
-      github.event.pull_request.head.repo.full_name == github.repository &&
-      (
-        github.event.label.name == 'cyclops' ||
-        github.event.label.name == 'agentic-audit'
-      )
+      github.event.pull_request.head.repo.full_name == github.repository
     permissions:
       id-token: write
       contents: read
       pull-requests: read
       statuses: write
-    uses: tempoxyz/gh-actions/.github/workflows/pr-audit.yml@9714ff353c4199ff9f498205ef7b3319869dd51d # 2026-09-25T18-10-33Z-9714ff35
+    uses: tempoxyz/gh-actions/.github/workflows/pr-audit.yml@e813067e922303348ee5aad965f745803cc24f1f # 2026-10-02T09-56-31Z-e813067e
     with:
       required-labels: |
         cyclops
         agentic-audit
+      audit-on-push: true
     secrets:
       EVENTS_KEY: ${{ secrets.EVENTS_KEY }}
       EVENTS_CERT: ${{ secrets.EVENTS_CERT }}
@@ -47,7 +44,7 @@ jobs:
       issues: write
       pull-requests: read
     steps:
-      - uses: tempoxyz/gh-actions/actions/pr-audit-comment@117919c943b804057be733b0c4034c5542e58959 # 2026-09-23T05-09-41Z-117919c9
+      - uses: tempoxyz/gh-actions/actions/pr-audit-comment@d5402286a7abdfb7232173b3228d56473feb8a66 # 2026-09-29T02-04-45Z-d5402286
         with:
           command-regex: '^(?:@decofe\s+)?(?:cyclops\s+audit|derek\s+audit)\b'
           permission-check-mode: association

@@ -1,7 +1,6 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ compile-flags: -Zvalidate-ir=true
 //@ run-call: negativeRemainder => -5
 //@ run-call: mixedRemainder => -5
 //@ run-call: negativeDivisorRemainder => 5

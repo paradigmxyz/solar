@@ -6,12 +6,74 @@
 
 use crate::{
     backend::evm::op,
-    mir::{ArithmeticKind, Builtin, Callee, CheckedOp, InstKind, ValueId},
+    mir::{
+        ArithmeticKind, Builtin, Callee, CheckedOp, Function, InstKind, MirType, ResultKind,
+        ValueId,
+    },
 };
 use alloy_primitives::{I256, U256};
 use std::cmp::Ordering;
 
 type Word = U256;
+
+/// Evaluates integer operations in their declared width, with EVM's total semantics.
+pub(crate) fn eval_typed_inst<E>(
+    func: &Function,
+    kind: &InstKind,
+    mut get: impl FnMut(ValueId) -> Result<U256, E>,
+) -> Result<Option<U256>, E> {
+    if kind.op_def().result != ResultKind::Integer
+        && !matches!(kind, InstKind::SLt(..) | InstKind::SGt(..) | InstKind::CheckedBinary { .. })
+    {
+        return eval_inst(kind, get);
+    }
+    let bits = kind
+        .op()
+        .first_operand()
+        .and_then(|value| func.value_ty(value))
+        .and_then(MirType::integer_bits)
+        .unwrap_or(256);
+    if bits == 256 {
+        return eval_inst(kind, get);
+    }
+    if bits > 256 {
+        return Ok(None);
+    }
+    let signed = matches!(
+        kind,
+        InstKind::SDiv(..)
+            | InstKind::SMod(..)
+            | InstKind::SLt(..)
+            | InstKind::SGt(..)
+            | InstKind::Sar(..)
+            | InstKind::CheckedBinary { arithmetic: ArithmeticKind::Signed(_), .. }
+    );
+    let mut index = 0;
+    let value = eval_inst(kind, |value| {
+        let word = get(value)?;
+        let extend = signed
+            && !(matches!(kind, InstKind::Sar(..)) && index == 0)
+            && !(matches!(kind, InstKind::CheckedBinary { op: CheckedOp::Pow, .. }) && index == 1);
+        index += 1;
+        Ok(if extend { sign_extend(word, bits) } else { word })
+    })?;
+    Ok(value.map(|mut value| {
+        if kind.op_def().result == ResultKind::Integer
+            || matches!(kind, InstKind::CheckedBinary { .. })
+        {
+            if matches!(kind, InstKind::Clz(..)) {
+                value -= U256::from(256 - bits);
+            }
+            value &= U256::MAX >> (256 - bits);
+        }
+        value
+    }))
+}
+
+/// Sign-extends a zero-clean integer bit pattern to an EVM word.
+pub(crate) fn sign_extend(value: U256, bits: u32) -> U256 {
+    if bits < 256 && value.bit((bits - 1) as usize) { value | (U256::MAX << bits) } else { value }
+}
 
 /// Evaluates a pure EVM word instruction.
 ///
@@ -28,16 +90,14 @@ pub(crate) fn eval_inst<E>(
             }
             return Ok(Some(get(value)? & (U256::MAX >> (256 - bits))));
         }
-        InstKind::Zext(value) | InstKind::IntToPtr(value) | InstKind::Bitcast(value) => {
+        InstKind::Zext(value) | InstKind::IntToPtr(value) => {
             return Ok(Some(get(value)?));
         }
         InstKind::Sext(value, from, to) => {
             if from == 0 || from >= to || to > 256 {
                 return Ok(None);
             }
-            let value = get(value)?;
-            let value =
-                if value.bit((from - 1) as usize) { value | (U256::MAX << from) } else { value };
+            let value = sign_extend(get(value)?, from);
             return Ok(Some(value & (U256::MAX >> (256 - to))));
         }
         _ => {}
@@ -323,30 +383,4 @@ fn i256_mod(mut first: Word, mut second: Word) -> Word {
     u256_remove_sign(&mut remainder);
 
     if first_sign == Sign::Minus { two_compl(remainder) } else { remainder }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn llvm_integer_and_pointer_casts() {
-        let value = ValueId::new(0);
-        let address_mask = U256::MAX >> 96;
-        for (kind, input, expected) in [
-            (InstKind::Trunc(value, 1), U256::from(2), U256::ZERO),
-            (InstKind::Trunc(value, 1), U256::from(3), U256::ONE),
-            (InstKind::Trunc(value, 160), U256::MAX, address_mask),
-            (InstKind::Zext(value), U256::ONE, U256::ONE),
-            (InstKind::Sext(value, 1, 256), U256::ONE, U256::MAX),
-            (InstKind::Sext(value, 1, 160), U256::ONE, address_mask),
-            (InstKind::Sext(value, 160, 256), address_mask, U256::MAX),
-            (InstKind::Sext(value, 160, 256), U256::ONE, U256::ONE),
-            (InstKind::PtrToInt(value, 160), U256::MAX, address_mask),
-            (InstKind::IntToPtr(value), U256::MAX, U256::MAX),
-            (InstKind::Bitcast(value), U256::MAX, U256::MAX),
-        ] {
-            assert_eq!(eval_inst(&kind, |_| Ok::<_, ()>(input)), Ok(Some(expected)), "{kind:?}");
-        }
-    }
 }

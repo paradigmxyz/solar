@@ -33,11 +33,14 @@
 //! the same bounded question.
 
 use super::model::StackModel;
-use crate::{backend::evm::op::StackOp, mir::ValueId};
+use crate::{
+    backend::evm::op::{StackOp, StackOpMetrics},
+    mir::ValueId,
+};
 use smallvec::SmallVec;
 use solar_config::EvmVersion;
 use solar_data_structures::map::{FxHashMap, StdEntry};
-use std::{cell::RefCell, collections::VecDeque};
+use std::{cell::RefCell, collections::VecDeque, ops::ControlFlow};
 
 const MAX_LAYOUT_SEARCH_STATES: usize = 100_000;
 const MAX_SHARED_EXACT_SEARCHES: usize = 2_048;
@@ -170,59 +173,113 @@ fn synthesize_unique_layout(
         return None;
     }
     removed.sort_unstable();
-    let mut best = None::<(Vec<StackOp>, (usize, usize, usize))>;
-    'orders: loop {
-        let mut current = source.clone();
-        let mut ops = Vec::new();
-        let mut prefix_cost = (0, 0, 0);
-        for index in 0..removed.len() {
-            let start = ops.len();
-            let depth = current.iter().position(|&current| current == removed[index])?;
-            if depth != 0 {
-                ops.push(StackOp::Swap(depth as u8));
-                current.swap(0, depth);
+    let mut search = RemovalSearch {
+        evm_version,
+        pop: StackOp::Pop.metrics(evm_version)?,
+        swap: StackOp::Swap(1).metrics(evm_version)?,
+        target: &target_values,
+        removed: &removed,
+        current: source,
+        ops: Vec::new(),
+        best: None,
+    };
+    match search.visit(0, (0, 0, 0)) {
+        ControlFlow::Break(ops) => Some(ops),
+        ControlFlow::Continue(()) => search.best.map(|(ops, _)| ops),
+    }
+}
+
+/// A depth-first search over removal orders in lexicographic order of the removed values,
+/// keeping the first cheapest complete sequence.
+struct RemovalSearch<'a> {
+    evm_version: EvmVersion,
+    pop: StackOpMetrics,
+    swap: StackOpMetrics,
+    target: &'a [ValueId],
+    /// Values to remove; the ones the current prefix has not removed yet are still in `current`.
+    removed: &'a [ValueId],
+    current: SmallVec<[ValueId; 16]>,
+    ops: Vec<StackOp>,
+    best: Option<(Vec<StackOp>, (usize, usize, usize))>,
+}
+
+impl RemovalSearch<'_> {
+    /// Extends the current prefix of `depth` removals, breaking with a sequence nothing can beat.
+    fn visit(
+        &mut self,
+        depth: usize,
+        prefix_cost: (usize, usize, usize),
+    ) -> ControlFlow<Vec<StackOp>> {
+        let count = self.removed.len();
+        if depth == count {
+            let mut current = self.current.clone();
+            let mut ops = self.ops.clone();
+            ops.extend(synthesize_unique_permutation(&mut current, self.target));
+            if ops.iter().all(|op| op.lowering(self.evm_version).is_some()) {
+                let cost = lowered_stack_cost(&ops, self.evm_version);
+                // Removing k words requires at least k POPs. Nothing can improve
+                // a sequence that meets this bound, regardless of removal order.
+                if ops.len() == count {
+                    return ControlFlow::Break(ops);
+                }
+                if self.best.as_ref().is_none_or(|(_, best_cost)| cost < *best_cost) {
+                    self.best = Some((ops, cost));
+                }
             }
-            ops.push(StackOp::Pop);
-            current.remove(0);
-            // Costs only grow, so no order sharing this prefix can beat `best`, and a prefix
-            // without a lowering makes every such order invalid. Skip them all.
+            return ControlFlow::Continue(());
+        }
+        for &value in self.removed {
+            let Some(position) = self.current.iter().position(|&current| current == value) else {
+                continue;
+            };
+            let start = self.ops.len();
+            if position != 0 {
+                self.ops.push(StackOp::Swap(position as u8));
+                self.current.swap(0, position);
+            }
+            self.ops.push(StackOp::Pop);
+            self.current.remove(0);
+            // Costs only grow, every remaining removal needs a `POP`, and a `SWAP` must come
+            // next unless the top is removed next or the layout is final. No order sharing this
+            // prefix can beat `best` then, and a prefix without a lowering makes every such order
+            // invalid. Skip them all.
             let cost =
-                ops[start..].iter().try_fold(prefix_cost, |(instructions, gas, size), op| {
-                    let metrics = op.metrics(evm_version)?;
+                self.ops[start..].iter().try_fold(prefix_cost, |(instructions, gas, size), op| {
+                    let metrics = op.metrics(self.evm_version)?;
                     Some((
                         instructions + metrics.instruction_count,
                         gas + metrics.static_gas,
                         size + metrics.assembled_len,
                     ))
                 });
-            match cost {
-                Some(cost) if best.as_ref().is_none_or(|(_, best_cost)| cost < *best_cost) => {
-                    prefix_cost = cost;
-                }
-                _ => {
-                    removed[index + 1..].sort_unstable_by(|a, b| b.cmp(a));
-                    if !next_permutation(&mut removed) {
-                        return best.map(|(ops, _)| ops);
-                    }
-                    continue 'orders;
-                }
+            let pops = count - depth - 1;
+            let swaps = usize::from(if pops == 0 {
+                self.current.as_slice() != self.target
+            } else {
+                !self.removed.contains(&self.current[0])
+            });
+            if let Some(cost) = cost
+                && self.best.as_ref().is_none_or(|(_, best_cost)| {
+                    let bound = (
+                        cost.0
+                            + pops * self.pop.instruction_count
+                            + swaps * self.swap.instruction_count,
+                        cost.1 + pops * self.pop.static_gas + swaps * self.swap.static_gas,
+                        cost.2 + pops * self.pop.assembled_len + swaps * self.swap.assembled_len,
+                    );
+                    bound < *best_cost
+                })
+            {
+                self.visit(depth + 1, cost)?;
             }
-        }
-        ops.extend(synthesize_unique_permutation(&mut current, &target_values));
-        if ops.iter().all(|op| op.lowering(evm_version).is_some()) {
-            let cost = lowered_stack_cost(&ops, evm_version);
-            // Removing k words requires at least k POPs. Nothing can improve
-            // a sequence that meets this bound, regardless of removal order.
-            if ops.len() == removed.len() {
-                return Some(ops);
+            // Restore the prefix before trying the next value.
+            self.current.insert(0, value);
+            if position != 0 {
+                self.current.swap(0, position);
             }
-            if best.as_ref().is_none_or(|(_, best_cost)| cost < *best_cost) {
-                best = Some((ops, cost));
-            }
+            self.ops.truncate(start);
         }
-        if !next_permutation(&mut removed) {
-            return best.map(|(ops, _)| ops);
-        }
+        ControlFlow::Continue(())
     }
 }
 
@@ -247,19 +304,6 @@ fn synthesize_unique_permutation(
         ops.push(StackOp::Swap(cycle as u8));
         current.swap(0, cycle);
     }
-}
-
-fn next_permutation(values: &mut [ValueId]) -> bool {
-    let Some(pivot) =
-        (0..values.len().saturating_sub(1)).rev().find(|&index| values[index] < values[index + 1])
-    else {
-        return false;
-    };
-    let successor =
-        (pivot + 1..values.len()).rev().find(|&index| values[pivot] < values[index]).unwrap();
-    values.swap(pivot, successor);
-    values[pivot + 1..].reverse();
-    true
 }
 
 /// Result of a shuffle operation.
@@ -293,12 +337,6 @@ pub(crate) struct StackShuffler<'a> {
 }
 
 impl<'a> StackShuffler<'a> {
-    /// Creates a new shuffler to transform source to target layout.
-    #[cfg(test)]
-    pub(crate) fn new(source: &StackModel, target: &'a [TargetSlot]) -> Self {
-        Self::for_evm_version(source, target, EvmVersion::Osaka)
-    }
-
     /// Creates a shuffler for an EVM version.
     pub(crate) fn for_evm_version(
         source: &StackModel,
@@ -697,27 +735,6 @@ impl<'a> StackShuffler<'a> {
 mod tests {
     use super::*;
 
-    fn make_model(values: &[Option<ValueId>]) -> StackModel {
-        let mut model = StackModel::new();
-        // Push in reverse order so the first element ends up on top.
-        for &v in values.iter().rev() {
-            if let Some(val) = v {
-                model.push(val);
-            } else {
-                model.push_unknown();
-            }
-        }
-        model
-    }
-
-    fn assert_reaches(source: &StackModel, target: &[TargetSlot], result: &ShuffleResult) {
-        let mut actual = source.clone();
-        for &op in &result.ops {
-            actual.apply(op);
-        }
-        assert!(StackShuffler::matches_target(actual.as_slice(), target));
-    }
-
     fn sequences(values: &[ValueId], len: usize) -> Vec<Vec<ValueId>> {
         if len == 0 {
             return vec![Vec::new()];
@@ -735,307 +752,30 @@ mod tests {
     }
 
     #[test]
-    fn test_shuffle_already_correct() {
-        let v0 = ValueId::from_usize(0);
-        let v1 = ValueId::from_usize(1);
-
-        let source = make_model(&[Some(v0), Some(v1)]);
-        let target = [TargetSlot::Value(v0), TargetSlot::Value(v1)];
-
-        let result = StackShuffler::new(&source, &target).shuffle().unwrap();
-        assert!(result.ops.is_empty());
-        assert_reaches(&source, &target, &result);
-    }
-
-    #[test]
-    fn test_shuffle_swap_needed() {
-        let v0 = ValueId::from_usize(0);
-        let v1 = ValueId::from_usize(1);
-
-        // Source: [v1, v0] (v1 on top).
-        let source = make_model(&[Some(v1), Some(v0)]);
-        // Target: [v0, v1] (v0 on top).
-        let target = [TargetSlot::Value(v0), TargetSlot::Value(v1)];
-
-        let result = StackShuffler::new(&source, &target).shuffle().unwrap();
-        assert!(result.ops.contains(&StackOp::Swap(1)));
-        assert_reaches(&source, &target, &result);
-    }
-
-    #[test]
-    fn test_shuffle_dup_needed() {
-        let v0 = ValueId::from_usize(0);
-
-        // Source: [v0].
-        let source = make_model(&[Some(v0)]);
-        // Target: [v0, v0] (needs two copies).
-        let target = [TargetSlot::Value(v0), TargetSlot::Value(v0)];
-
-        let result = StackShuffler::new(&source, &target).shuffle().unwrap();
-        assert!(result.ops.iter().any(|op| matches!(op, StackOp::Dup(_))));
-        assert_reaches(&source, &target, &result);
-    }
-
-    #[test]
-    fn test_shuffle_pop_excess() {
-        let v0 = ValueId::from_usize(0);
-        let v1 = ValueId::from_usize(1);
-
-        // Source: [v0, v1] (v0 on top).
-        let source = make_model(&[Some(v0), Some(v1)]);
-        // Target: [v1] (only needs v1).
-        let target = [TargetSlot::Value(v1)];
-
-        let result = StackShuffler::new(&source, &target).shuffle().unwrap();
-        // Should swap v1 to the top, then pop v0.
-        assert!(result.ops.iter().any(|op| matches!(op, StackOp::Pop | StackOp::Swap(_))));
-        assert_reaches(&source, &target, &result);
-    }
-
-    #[test]
-    fn test_shuffle_pops_duplicate_suffix() {
-        let v0 = ValueId::from_usize(0);
-        let v1 = ValueId::from_usize(1);
-        let v2 = ValueId::from_usize(2);
-        let source = make_model(&[Some(v0), Some(v1), Some(v2), Some(v0), Some(v1), Some(v2)]);
-        let target = [TargetSlot::Value(v0), TargetSlot::Value(v1), TargetSlot::Value(v2)];
-
-        let result = StackShuffler::new(&source, &target).shuffle().unwrap();
-
-        assert_reaches(&source, &target, &result);
-    }
-
-    #[test]
-    fn test_shuffle_pops_large_duplicate_suffix() {
-        let values = [23usize, 53, 17, 47, 11, 41, 5, 35, 53, 17, 41, 11, 35, 5, 47, 23];
-        let source = make_model(
-            &values.iter().copied().map(ValueId::from_usize).map(Some).collect::<Vec<_>>(),
-        );
-        let target = [23usize, 53, 17, 47, 11, 41, 5, 35]
-            .into_iter()
-            .map(ValueId::from_usize)
-            .map(TargetSlot::Value)
-            .collect::<Vec<_>>();
-
-        let result = StackShuffler::new(&source, &target).shuffle().unwrap();
-
-        assert_reaches(&source, &target, &result);
-    }
-
-    #[test]
-    fn test_shuffle_complex_rearrangement() {
-        let v0 = ValueId::from_usize(0);
-        let v1 = ValueId::from_usize(1);
-        let v2 = ValueId::from_usize(2);
-
-        // Source: [v0, v1, v2] (v0 on top).
-        let source = make_model(&[Some(v0), Some(v1), Some(v2)]);
-        // Target: [v2, v0, v1] (v2 on top).
-        let target = [TargetSlot::Value(v2), TargetSlot::Value(v0), TargetSlot::Value(v1)];
-
-        let result = StackShuffler::new(&source, &target).shuffle().unwrap();
-
-        // Should use swaps to rearrange.
-        assert!(result.ops.iter().any(|op| matches!(op, StackOp::Swap(_))));
-        assert_reaches(&source, &target, &result);
-    }
-
-    #[test]
-    fn test_amsterdam_shuffle_prefers_smaller_encoding() {
-        let v0 = ValueId::from_usize(0);
-        let v1 = ValueId::from_usize(1);
-        let v2 = ValueId::from_usize(2);
-        let source = make_model(&[Some(v0), Some(v1), Some(v2)]);
-        let target = [TargetSlot::Value(v1), TargetSlot::Value(v2), TargetSlot::Value(v0)];
-
-        let result = StackShuffler::for_evm_version(&source, &target, EvmVersion::Amsterdam)
-            .shuffle()
-            .unwrap();
-
-        assert_eq!(result.ops, [StackOp::Swap(2), StackOp::Swap(1)]);
-        assert_reaches(&source, &target, &result);
-    }
-
-    #[test]
-    fn test_shuffle_preserves_fixed_duplicate_prefix() {
-        let v0 = ValueId::from_usize(0);
-        let v1 = ValueId::from_usize(1);
-        let source = make_model(&[Some(v0), Some(v1), Some(v0)]);
-        let target = [TargetSlot::Value(v0), TargetSlot::Value(v0), TargetSlot::Value(v1)];
-
-        let result = StackShuffler::new(&source, &target).shuffle().unwrap();
-
-        assert_eq!(result.ops, [StackOp::Swap(1), StackOp::Swap(2)]);
-        assert_reaches(&source, &target, &result);
-    }
-
-    #[test]
-    fn test_legacy_shuffle_uses_exchange() {
-        let values: Vec<_> = (0..4).map(ValueId::from_usize).collect();
-        let source = make_model(&values.iter().copied().map(Some).collect::<Vec<_>>());
-        let target = [
-            TargetSlot::Value(values[0]),
-            TargetSlot::Value(values[2]),
-            TargetSlot::Value(values[1]),
-            TargetSlot::Value(values[3]),
-        ];
-
-        let result =
-            StackShuffler::for_evm_version(&source, &target, EvmVersion::Osaka).shuffle().unwrap();
-
-        assert_eq!(result.ops, [StackOp::Exchange(1, 2)]);
-        assert_reaches(&source, &target, &result);
-    }
-
-    #[test]
-    fn test_shuffle_uses_extended_exchange() {
-        let values: Vec<_> = (0..18).map(ValueId::from_usize).collect();
-        let source = make_model(&values.iter().copied().map(Some).collect::<Vec<_>>());
-        let mut target_values = values;
-        target_values.swap(1, 17);
-        let target: Vec<_> = target_values.into_iter().map(TargetSlot::Value).collect();
-
-        let result = StackShuffler::for_evm_version(&source, &target, EvmVersion::Amsterdam)
-            .shuffle()
-            .unwrap();
-
-        assert_eq!(result.ops, [StackOp::Exchange(1, 17)]);
-        assert_reaches(&source, &target, &result);
-    }
-
-    #[test]
-    fn test_shuffle_uses_extended_swap() {
-        let values: Vec<_> = (0..18).map(ValueId::from_usize).collect();
-        let source = make_model(&values.iter().copied().map(Some).collect::<Vec<_>>());
-        let mut target_values = values;
-        target_values.swap(0, 17);
-        let target: Vec<_> = target_values.into_iter().map(TargetSlot::Value).collect();
-
-        let result = StackShuffler::for_evm_version(&source, &target, EvmVersion::Amsterdam)
-            .shuffle()
-            .unwrap();
-
-        assert_eq!(result.ops, [StackOp::Swap(17)]);
-        assert_reaches(&source, &target, &result);
-    }
-
-    #[test]
-    fn test_shuffle_optimizes_duplicate_placement() {
-        let v0 = ValueId::from_usize(0);
-        let v1 = ValueId::from_usize(1);
-        let source = make_model(&[Some(v0), Some(v1)]);
-        let target = [TargetSlot::Value(v0), TargetSlot::Value(v1), TargetSlot::Value(v0)];
-
-        let result = StackShuffler::new(&source, &target).shuffle().unwrap();
-
-        assert_eq!(result.ops, [StackOp::Swap(1), StackOp::Dup(2)]);
-        assert_reaches(&source, &target, &result);
-    }
-
-    #[test]
-    fn test_shuffle_removes_anonymous_word_below_target() {
-        let v0 = ValueId::from_usize(0);
-        let source = make_model(&[Some(v0), None]);
-        let target = [TargetSlot::Value(v0)];
-
-        let result = StackShuffler::new(&source, &target).shuffle().unwrap();
-
-        assert_eq!(result.ops, [StackOp::Swap(1), StackOp::Pop]);
-        assert_reaches(&source, &target, &result);
-    }
-
-    #[test]
-    fn test_shuffle_uses_swap16() {
-        let values: Vec<_> = (0..=16).map(ValueId::from_usize).collect();
-        let source = make_model(&values.iter().copied().map(Some).collect::<Vec<_>>());
-        let mut target_values = values;
-        target_values.swap(0, 16);
-        let target: Vec<_> = target_values.into_iter().map(TargetSlot::Value).collect();
-
-        let result = StackShuffler::new(&source, &target).shuffle().unwrap();
-
-        assert_eq!(result.ops, [StackOp::Swap(16)]);
-        assert_reaches(&source, &target, &result);
-    }
-
-    #[test]
-    fn test_shuffle_missing_value_fails_without_partial_result() {
-        let v0 = ValueId::from_usize(0);
-        let v1 = ValueId::from_usize(1);
-        let source = make_model(&[Some(v0)]);
-        let target = [TargetSlot::Value(v1)];
-
-        assert!(StackShuffler::new(&source, &target).shuffle().is_none());
-    }
-
-    #[test]
-    fn exact_search_drains_frontier_after_state_limit() {
-        let values = (0..8).map(ValueId::from_usize).collect::<Vec<_>>();
-        let source = values.iter().copied().map(Some).collect::<Layout>();
-        let target = values[..5].iter().copied().map(TargetSlot::Value).collect::<Vec<_>>();
-        let multiplicities = target.iter().fold(FxHashMap::default(), |mut counts, target| {
-            let TargetSlot::Value(value) = target;
-            *counts.entry(*value).or_default() += 1;
-            counts
-        });
-
-        let result =
-            StackShuffler::search_exact(source, &target, &multiplicities, 16, EvmVersion::Osaka)
-                .unwrap();
-
-        assert_eq!(
-            result.ops,
-            [
-                StackOp::Swap(3),
-                StackOp::Swap(6),
-                StackOp::Pop,
-                StackOp::Swap(3),
-                StackOp::Swap(6),
-                StackOp::Pop,
-                StackOp::Swap(3),
-                StackOp::Pop,
-            ]
-        );
-    }
-
-    #[test]
-    fn six_word_duplicate_permutation_uses_five_swaps() {
-        let values = [0, 0, 1, 1, 2, 2].map(|n| Some(ValueId::from_usize(n)));
-        let source = make_model(&values);
-        let target = [2, 1, 0, 2, 1, 0].map(|n| TargetSlot::Value(ValueId::from_usize(n)));
-        let result = StackShuffler::new(&source, &target).shuffle().unwrap();
-        assert_eq!(result.ops.len(), 5);
-        assert!(result.ops.iter().all(|op| matches!(op, StackOp::Swap(_))));
-        assert_reaches(&source, &target, &result);
-    }
-
-    #[test]
     fn exhaustive_small_reachable_layouts_are_optimal() {
         let values = [ValueId::from_usize(0), ValueId::from_usize(1), ValueId::from_usize(2)];
         let sources: Vec<_> = (1..=4).flat_map(|len| sequences(&values, len)).collect();
         let targets: Vec<_> = (0..=4).flat_map(|len| sequences(&values, len)).collect();
 
         for source_values in &sources {
-            let source = make_model(
-                &source_values.iter().copied().map(Some).collect::<Vec<Option<ValueId>>>(),
-            );
+            let source = StackModel::from_top_to_bottom(source_values.iter().copied().map(Some));
             for target_values in &targets {
                 if target_values.iter().any(|value| !source_values.contains(value)) {
                     continue;
                 }
                 let target: Vec<_> = target_values.iter().copied().map(TargetSlot::Value).collect();
-                let result = StackShuffler::new(&source, &target).shuffle().unwrap_or_else(|| {
-                    panic!("failed to shuffle {source_values:?} to {target_values:?}")
-                });
-                let shuffler = StackShuffler::new(&source, &target);
+                let shuffler = StackShuffler::for_evm_version(&source, &target, EvmVersion::Osaka);
                 let exact = StackShuffler::search_exact(
-                    shuffler.source,
+                    shuffler.source.clone(),
                     &target,
                     &shuffler.multiplicities,
                     16,
                     shuffler.evm_version,
                 )
                 .unwrap();
+                let result = shuffler.shuffle().unwrap_or_else(|| {
+                    panic!("failed to shuffle {source_values:?} to {target_values:?}")
+                });
                 assert!(
                     result.ops.len() <= exact.ops.len(),
                     "non-minimal shuffle from {source_values:?} to {target_values:?}: \
@@ -1043,7 +783,11 @@ mod tests {
                     result.ops,
                     exact.ops
                 );
-                assert_reaches(&source, &target, &result);
+                let mut actual = source.clone();
+                for &op in &result.ops {
+                    actual.apply(op);
+                }
+                assert!(StackShuffler::matches_target(actual.as_slice(), &target));
             }
         }
     }

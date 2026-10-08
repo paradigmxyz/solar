@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/inline-tiny-leaves/literal_artifacts_runtime.sol:LiteralArtifacts ===
 @module LiteralArtifacts
-immutables:
+@immutables
   initial: bytes32
 
 fn @constructor() [constructor] {
@@ -11,7 +11,7 @@ fn @constructor() [constructor] {
     ret
 }
 
-fn @version() -> memorybytes [selector=0x54fd4d50, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+fn @version() -> memptr [selector=0x54fd4d50, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 1
@@ -21,7 +21,7 @@ fn @version() -> memorybytes [selector=0x54fd4d50, pure, abi_params=[], abi_retu
     ret v0
 }
 
-fn @constructorAndRuntime() -> i256 [selector=0x6b57fb7b, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @constructorAndRuntime() -> i1 [selector=0x6b57fb7b, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = loadimmutable initial
     v1 = address
@@ -39,6 +39,5 @@ fn @constructorAndRuntime() -> i256 [selector=0x6b57fb7b, view, abi_params=[], a
     v9 = abi_decode [bytes], v8
     v10 = keccak256_bytes v9
     v11 = eq v0, v10
-    v12 = zext i1 v11 to i256
-    ret v12
+    ret v11
 }

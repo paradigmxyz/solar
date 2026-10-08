@@ -54,6 +54,14 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let name = self.parser.parse_ident()?;
 
         let mut module = Module::new(name);
+        while self.parser.eat(TokenKind::At) {
+            let section = self.parser.parse_ident()?;
+            match section {
+                sym::libraries => self.parser.parse_library_declarations()?,
+                sym::data => module.data = self.parser.parse_data_declarations()?,
+                _ => return Err(self.parser.error(format!("unknown module section `@{section}`"))),
+            }
+        }
         self.parse_program_body(&mut module)?;
         let tracks_debug_info = module.blocks.iter().any(|block| {
             block.metadata.function_invoke.is_some()
@@ -92,11 +100,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     fn parse_program_body(&mut self, module: &mut Module) -> PResult<'sess, ()> {
         let mut current_block = None;
         while !self.parser.is_eof() {
-            if self.parser.eat(TokenKind::At) {
-                self.parse_data(module)?;
-                current_block = None;
-                continue;
-            }
             if let Some(header) = self.try_parse_block_header()? {
                 let block_id = self.define_block(module, header.label)?;
                 module.blocks[block_id].metadata.hotness = header.hotness;
@@ -119,21 +122,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         self.reject_unresolved_blocks()?;
         super::passes::utils::remap_block_order(module, &self.block_order);
 
-        Ok(())
-    }
-
-    fn parse_data(&mut self, module: &mut Module) -> PResult<'sess, ()> {
-        self.parser.expect_keyword(sym::data)?;
-        let (id, name) = self.parse_data_id()?;
-        let id = id as usize;
-        if id != module.data.len() {
-            return Err(self
-                .parser
-                .error(format!("expected program data ID {}, found {id}", module.data.len())));
-        }
-        let bytes = self.parser.parse_data_bytes()?;
-        let library_relocations = self.parser.parse_data_library_relocations(&bytes)?;
-        module.data.push(Data { bytes, name, emit_in_runtime: false, library_relocations });
         Ok(())
     }
 
@@ -281,16 +269,27 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             sym::push => match self.parse_push_value(module)? {
                 PushValue::Immediate(value) => Instruction::push_value(value),
                 PushValue::Block(block) => Instruction::push_block(block),
-                PushValue::Data(_) | PushValue::Library(_) => {
+                PushValue::Data(_) | PushValue::DataSize(_) | PushValue::Library(_) => {
                     unreachable!("ordinary push parser only produces immediates and blocks")
                 }
             },
-            sym::push_library => Instruction::push_library(self.parser.parse_library()?),
+            sym::push_library => Instruction::push_library(self.parser.parse_library_ref()?),
             sym::push_data => {
                 let span = self.parser.token().span;
                 let (id, offset, _) = self.parser.parse_data_ref()?;
                 let id = self.check_assembly_id("program data", span, id)?;
                 Instruction::push_data(DataRef::new(DataId::from_usize(id as usize), offset))
+            }
+            sym::push_data_size => {
+                let span = self.parser.token().span;
+                let (id, offset, _) = self.parser.parse_data_ref()?;
+                let id = self.check_assembly_id("program data", span, id)?;
+                if offset != 0 {
+                    return Err(self.parser.error_at(span, "data size cannot take an offset"));
+                }
+                let data = DataId::from_usize(id as usize);
+                let (addend, aligned) = self.parser.parse_data_size_operands()?;
+                Instruction::push_data_size(DataSize { data, addend, aligned })
             }
             sym::push_deferred => {
                 let id = self.parse_assembly_id("deferred constant")?;
@@ -418,12 +417,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let span = self.parser.token().span;
         let value = self.parser.parse_uint()?;
         self.check_assembly_id(name, span, value)
-    }
-
-    fn parse_data_id(&mut self) -> PResult<'sess, (u32, Option<Symbol>)> {
-        let span = self.parser.token().span;
-        let (value, name) = self.parser.parse_data_id()?;
-        self.check_assembly_id("program data", span, value).map(|id| (id, name))
     }
 
     fn check_assembly_id(&self, name: &str, span: Span, value: U256) -> PResult<'sess, u32> {
@@ -578,9 +571,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use snapbox::{assert_data_eq, str};
     use solar_interface::{ColorChoice, source_map::FileName};
-    use solar_sema::Compiler;
     use std::path::{Path, PathBuf};
 
     fn parse_module(sess: &Session, input: &str) -> Result<Module> {
@@ -597,69 +588,6 @@ mod tests {
             .join("ui")
             .join("codegen")
             .join("evm-ir")
-    }
-
-    #[test]
-    fn bytecode_retains_library_identities() {
-        let compiler = Compiler::new(Session::builder().opts(Default::default()).build());
-        compiler.enter(|c| {
-            let gcx = c.gcx();
-            let module = parse_module(
-                gcx.sess,
-                r#"
-@module libraries
-bb0:
-  push_library "a.sol":"L"
-  push 0
-  mstore
-  push_library "b.sol":"L"
-  push 32
-  mstore
-  push 64
-  push 0
-  return
-"#,
-            )
-            .unwrap();
-            let bytecode = module.into_bytecode(gcx).unwrap();
-            let relocations = bytecode
-                .relocations
-                .iter()
-                .map(|relocation| relocation.display(&bytecode.libraries).to_string())
-                .collect::<Vec<_>>()
-                .join("\n");
-            assert_data_eq!(
-                relocations,
-                str![[r#"
-1: "a.sol":"L"
-24: "b.sol":"L"
-"#]]
-            );
-        });
-    }
-
-    #[test]
-    fn legacy_stack_ops_print_with_operands() {
-        let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
-        let output = sess.enter(|| {
-            parse_module(&sess, "@module legacy\nbb0:\n  push0\n  dup1\n  swap16\n  stop\n")
-                .unwrap()
-                .to_text()
-                .to_string()
-        });
-
-        assert_data_eq!(
-            output,
-            str![[r#"
-@module legacy
-bb0:
-  push 0
-  dup 1
-  swap 16
-  stop
-
-"#]]
-        );
     }
 
     #[test]

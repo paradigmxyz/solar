@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_array_copy.sol:C ===
 @module C
-types:
+@types
   struct0: {i256, i256}
 
 fn @copyState() -> struct0 [selector=0x183a6195, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
@@ -71,7 +71,7 @@ fn @copyReference() -> struct0 [selector=0x4cf1051d, abi_params=[], abi_returns=
     ret v17
 }
 
-fn @load_storage_word_array(arg0: i256) -> memoryarray {
+fn @load_storage_word_array(arg0: i256) -> memptr {
   bb0:
     v0 = load_storage_array u256, arg0
     ret v0
@@ -79,7 +79,7 @@ fn @load_storage_word_array(arg0: i256) -> memoryarray {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_array_copy.sol:AggregateStorageCopy ===
 @module AggregateStorageCopy
-types:
+@types
   struct0: {i256, i256, i256}
 
 fn @copyAggregate() -> struct0 [selector=0x515a112e, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
@@ -115,14 +115,14 @@ fn @copyAggregate() -> struct0 [selector=0x515a112e, abi_params=[], abi_returns=
     v22 = eq v21, false
     icall panic_if<0x32>, v22
     v23 = memory_object_load_element memoryarray<1>, v19, 0
-    v24 = inttoptr i256 v23 to memorystruct
+    v24 = inttoptr i256 v23 to memptr
     v25 = eq v23, 0
     jumpi v25, bb1, bb2
   bb1:
     v26 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
     memory_object_store_field memorystruct<2>, v26, 0, 0
     memory_object_store_field memorystruct<2>, v26, 1, 0
-    v27 = ptrtoint memorystruct v26 to i256
+    v27 = ptrtoint memptr v26 to i256
     memory_object_store_element memoryarray<1>, v19, 0, v27
     jump bb2
   bb2:
@@ -133,14 +133,14 @@ fn @copyAggregate() -> struct0 [selector=0x515a112e, abi_params=[], abi_returns=
     v32 = eq v31, false
     icall panic_if<0x32>, v32
     v33 = memory_object_load_element memoryarray<1>, v19, 0
-    v34 = inttoptr i256 v33 to memorystruct
+    v34 = inttoptr i256 v33 to memptr
     v35 = eq v33, 0
     jumpi v35, bb3, bb4
   bb3:
     v36 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
     memory_object_store_field memorystruct<2>, v36, 0, 0
     memory_object_store_field memorystruct<2>, v36, 1, 0
-    v37 = ptrtoint memorystruct v36 to i256
+    v37 = ptrtoint memptr v36 to i256
     memory_object_store_element memoryarray<1>, v19, 0, v37
     jump bb4
   bb4:
@@ -153,7 +153,7 @@ fn @copyAggregate() -> struct0 [selector=0x515a112e, abi_params=[], abi_returns=
     ret v43
 }
 
-fn @load_storage_struct_array_0(arg0: i256) -> memoryarray {
+fn @load_storage_struct_array_0(arg0: i256) -> memptr {
   bb0:
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
     v1 = add v0, 1
@@ -185,7 +185,7 @@ fn @load_storage_struct_array_0(arg0: i256) -> memoryarray {
     v17 = add v13, 1
     v18 = sload v17 !metadata(storage=offset(v13, 1))
     memory_object_store_field memorystruct<2>, v15, 1, v18
-    v19 = ptrtoint memorystruct v15 to i256
+    v19 = ptrtoint memptr v15 to i256
     memory_object_store_element memoryarray<1>, v10, v12, v19
     v20 = add v12, 1
     v21 = add v13, 2
@@ -209,7 +209,9 @@ fn @smallInvalid() -> i256 [selector=0x7ab5e63b, abi_params=[], abi_returns=[wor
     v6 = lt v5, 2
     v7 = eq v6, false
     icall panic_if<0x21>, v7
-    ret v5
+    v8 = trunc i256 v5 to i8
+    v9 = zext i8 v8 to i256
+    ret v9
 }
 
 fn @largeValid() -> i256 [selector=0x9f458284, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
@@ -227,16 +229,18 @@ fn @largeValid() -> i256 [selector=0x9f458284, abi_params=[], abi_returns=[word]
     v6 = lt v5, 3
     v7 = eq v6, false
     icall panic_if<0x21>, v7
-    ret v5
+    v8 = trunc i256 v5 to i8
+    v9 = zext i8 v8 to i256
+    ret v9
 }
 
-fn @load_storage_packed_array_1_0_enum_2(arg0: i256) -> memoryarray {
+fn @load_storage_packed_array_1_0_enum_2(arg0: i256) -> memptr {
   bb0:
     v0 = load_storage_array enum<2>, arg0
     ret v0
 }
 
-fn @load_storage_packed_array_1_0_enum_3(arg0: i256) -> memoryarray {
+fn @load_storage_packed_array_1_0_enum_3(arg0: i256) -> memptr {
   bb0:
     v0 = load_storage_array enum<3>, arg0
     ret v0

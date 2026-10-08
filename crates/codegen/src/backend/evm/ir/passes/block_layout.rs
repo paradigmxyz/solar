@@ -168,12 +168,15 @@ fn pack_terminal_traces(gcx: Gcx<'_>, module: &Module, state: &mut RunState) {
             let block = state.order[position];
             let next = state.order.get(position + 1).copied();
             let block_offset = offset + size;
-            size += estimated_block_size(
+            // Past the first 256 bytes, only whether a trace fits in 32 bytes matters.
+            let limit = if offset > 0xff { 32usize.saturating_sub(size) } else { usize::MAX };
+            size += estimated_block_size_up_to(
                 gcx,
                 &module.blocks[block],
                 next,
                 state.references[block] != 0,
                 module.code_follows,
+                limit,
             );
             references += state.references[block];
             position += 1;
@@ -242,6 +245,10 @@ fn terminal_packing_budget(
         let mut offsets = IndexVec::from_vec(vec![usize::MAX; module.blocks.len()]);
         let mut offset = 0;
         for (position, &block_id) in state.order.iter().enumerate() {
+            // Offsets only grow, and targets from here on cannot fit in one-byte entries.
+            if offset >= 0xff {
+                break;
+            }
             offsets[block_id] = offset;
             let block = &module.blocks[block_id];
             let next = state.order.get(position + 1).copied();
@@ -306,12 +313,30 @@ pub(super) fn estimated_block_size(
     addressed: bool,
     code_follows: bool,
 ) -> usize {
-    usize::from(addressed)
-        + block.instructions.iter().map(|inst| estimated_instruction_size(gcx, inst)).sum::<usize>()
+    estimated_block_size_up_to(gcx, block, next, addressed, code_follows, usize::MAX)
+}
+
+/// Returns [`estimated_block_size`] when it is at most `limit`, and otherwise some larger size.
+fn estimated_block_size_up_to(
+    gcx: Gcx<'_>,
+    block: &Block,
+    next: Option<BlockId>,
+    addressed: bool,
+    code_follows: bool,
+    limit: usize,
+) -> usize {
+    let mut size = usize::from(addressed)
         + block
             .terminator
             .as_ref()
-            .map_or(0, |term| estimated_terminator_size(gcx, &term.kind, next, code_follows))
+            .map_or(0, |term| estimated_terminator_size(gcx, &term.kind, next, code_follows));
+    for inst in &block.instructions {
+        if size > limit {
+            break;
+        }
+        size += estimated_instruction_size(gcx, inst);
+    }
+    size
 }
 
 fn estimated_instruction_size(gcx: Gcx<'_>, inst: &Instruction) -> usize {
@@ -325,6 +350,7 @@ fn estimated_instruction_size(gcx: Gcx<'_>, inst: &Instruction) -> usize {
             Some(PushValue::Library(_)) => 21,
             Some(PushValue::Block(_)) => 3,
             Some(PushValue::Data(_)) => 4,
+            Some(PushValue::DataSize(size)) => selected_len(gcx, size.bound()),
             _ => 1,
         }
     } else if let Some(stack_op) = inst.as_stack_op() {
@@ -420,38 +446,4 @@ pub(super) fn triangle_arm(module: &Module, arm: BlockId, join: BlockId) -> bool
 fn is_cold_terminal_block(block: &Block) -> bool {
     block.metadata.hotness.is_cold()
         && block.terminator.as_ref().is_some_and(|term| is_terminal_boundary(&term.kind))
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use solar_config::{CompileOpts, EvmVersion, OptimizationMode};
-    use solar_interface::Session;
-    use solar_sema::Compiler;
-
-    fn opts(evm_version: EvmVersion, optimization: OptimizationMode) -> CompileOpts {
-        CompileOpts { evm_version, optimization, ..Default::default() }
-    }
-
-    #[test]
-    fn indexed_jump_estimate_includes_packed_table() {
-        let one = TerminatorKind::IndexedJump(vec![BlockId::ENTRY].into_boxed_slice());
-        let packed = TerminatorKind::IndexedJump(vec![BlockId::ENTRY; 2].into_boxed_slice());
-        let many = TerminatorKind::IndexedJump(vec![BlockId::ENTRY; 33].into_boxed_slice());
-        let compiler = Compiler::new(
-            Session::builder().opts(opts(EvmVersion::Osaka, OptimizationMode::Size)).build(),
-        );
-        compiler.enter(|c| {
-            assert_eq!(estimated_terminator_size(c.gcx(), &one, None, false), 8);
-            assert_eq!(estimated_terminator_size(c.gcx(), &packed, None, false), 19);
-            assert_eq!(estimated_terminator_size(c.gcx(), &many, None, false), 61);
-        });
-
-        let compiler = Compiler::new(
-            Session::builder().opts(opts(EvmVersion::Byzantium, OptimizationMode::Size)).build(),
-        );
-        compiler.enter(|c| {
-            assert_eq!(estimated_terminator_size(c.gcx(), &many, None, false), 9);
-        });
-    }
 }

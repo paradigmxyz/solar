@@ -71,29 +71,6 @@ pub trait BitRelations<Rhs> {
     fn intersect(&mut self, other: &Rhs) -> bool;
 }
 
-#[inline]
-fn inclusive_start_end<T: BitSetIndex>(
-    range: impl RangeBounds<T>,
-    domain: usize,
-) -> Option<(usize, usize)> {
-    // Both start and end are inclusive.
-    let start = match range.start_bound().cloned() {
-        Bound::Included(start) => start.index(),
-        Bound::Excluded(start) => start.index() + 1,
-        Bound::Unbounded => 0,
-    };
-    let end = match range.end_bound().cloned() {
-        Bound::Included(end) => end.index(),
-        Bound::Excluded(end) => end.index().checked_sub(1)?,
-        Bound::Unbounded => domain - 1,
-    };
-    assert!(end < domain);
-    if start > end {
-        return None;
-    }
-    Some((start, end))
-}
-
 macro_rules! bit_relations_inherent_impls {
     () => {
         /// Sets `self = self | other` and returns `true` if `self` changed
@@ -218,7 +195,7 @@ impl<T: BitSetIndex> DenseBitSet<T> {
     /// Is the set empty?
     #[inline]
     pub fn is_empty(&self) -> bool {
-        self.words.iter().all(|a| *a == 0)
+        words_are_zero(&self.words)
     }
 
     /// Insert `elem`. Returns whether the set has changed.
@@ -289,7 +266,7 @@ impl<T: BitSetIndex> DenseBitSet<T> {
 
             let remaining = start_word_index + 1..end_word_index;
             if remaining.start <= remaining.end {
-                self.words[remaining].iter().any(|&w| w != 0)
+                !words_are_zero(&self.words[remaining])
                     || self.words[end_word_index] & (end_mask | (end_mask - 1)) != 0
             } else {
                 false
@@ -370,17 +347,17 @@ impl<T: BitSetIndex> DenseBitSet<T> {
 impl<T: BitSetIndex> BitRelations<DenseBitSet<T>> for DenseBitSet<T> {
     fn union(&mut self, other: &DenseBitSet<T>) -> bool {
         assert_eq!(self.domain_size, other.domain_size);
-        update_words(&mut self.words, &other.words, |a, b| a | b)
+        union_words(&mut self.words, &other.words)
     }
 
     fn subtract(&mut self, other: &DenseBitSet<T>) -> bool {
         assert_eq!(self.domain_size, other.domain_size);
-        update_words(&mut self.words, &other.words, |a, b| a & !b)
+        subtract_words(&mut self.words, &other.words)
     }
 
     fn intersect(&mut self, other: &DenseBitSet<T>) -> bool {
         assert_eq!(self.domain_size, other.domain_size);
-        update_words(&mut self.words, &other.words, |a, b| a & b)
+        intersect_words(&mut self.words, &other.words)
     }
 }
 
@@ -836,10 +813,9 @@ impl<T: BitSetIndex> BitRelations<ChunkedBitSet<T>> for ChunkedBitSet<T> {
 
                     // If we reach here, `self_chunk_words` is definitely changing.
                     let self_chunk_words = Rc::make_mut(self_chunk_words);
-                    let has_changed = update_words(
+                    let has_changed = union_words(
                         &mut self_chunk_words[0..num_words],
                         &other_chunk_words[0..num_words],
-                        op,
                     );
                     debug_assert!(has_changed);
                     *self_chunk_ones_count =
@@ -913,10 +889,9 @@ impl<T: BitSetIndex> BitRelations<ChunkedBitSet<T>> for ChunkedBitSet<T> {
                     }
 
                     let self_chunk_words = Rc::make_mut(self_chunk_words);
-                    let has_changed = update_words(
+                    let has_changed = subtract_words(
                         &mut self_chunk_words[0..num_words],
                         &other_chunk_words[0..num_words],
-                        op,
                     );
                     debug_assert!(has_changed);
                     *self_chunk_ones_count =
@@ -962,10 +937,9 @@ impl<T: BitSetIndex> BitRelations<ChunkedBitSet<T>> for ChunkedBitSet<T> {
                     }
 
                     let self_chunk_words = Rc::make_mut(self_chunk_words);
-                    let has_changed = update_words(
+                    let has_changed = intersect_words(
                         &mut self_chunk_words[0..num_words],
                         &other_chunk_words[0..num_words],
-                        op,
                     );
                     debug_assert!(has_changed);
                     *self_chunk_ones_count =
@@ -1102,74 +1076,6 @@ impl<T: BitSetIndex> fmt::Debug for ChunkedBitSet<T> {
     fn fmt(&self, w: &mut fmt::Formatter<'_>) -> fmt::Result {
         w.debug_list().entries(self.iter()).finish()
     }
-}
-
-/// Sets `lhs[i] = op(lhs[i], rhs[i])` for each index `i` in both
-/// slices. The slices must have the same length.
-///
-/// Returns true if at least one bit in `lhs` was changed.
-///
-/// ## Warning
-/// Some bitwise operations (e.g. union-not, xor) can set output bits that were
-/// unset in in both inputs. If this happens in the last word/chunk of a bitset,
-/// it can cause the bitset to contain out-of-domain values, which need to
-/// be cleared with `clear_excess_bits_in_final_word`. This also makes the
-/// "changed" return value unreliable, because the change might have only
-/// affected excess bits.
-#[inline]
-fn update_words<Op>(lhs: &mut [Word], rhs: &[Word], op: Op) -> bool
-where
-    Op: Fn(Word, Word) -> Word,
-{
-    assert_eq!(lhs.len(), rhs.len());
-    let mut changed = 0;
-    for (lhs_slot, &rhs_val) in iter::zip(lhs, rhs) {
-        let old_val = *lhs_slot;
-        let new_val = op(old_val, rhs_val);
-        *lhs_slot = new_val;
-        // This is essentially equivalent to a != with changed being a bool, but
-        // in practice this code gets auto-vectorized by the compiler for most
-        // operators. Using != here causes us to generate quite poor code as the
-        // compiler tries to go back to a boolean on each loop iteration.
-        changed |= old_val ^ new_val;
-    }
-    changed != 0
-}
-
-/// Returns true if a call to [`update_words`] would modify `lhs`, i.e.
-/// `lhs[i] != op(lhs[i], rhs[i])` for some `i`.
-#[inline]
-fn would_modify_words<Op>(lhs: &[Word], rhs: &[Word], op: Op) -> bool
-where
-    Op: Fn(Word, Word) -> Word,
-{
-    assert_eq!(lhs.len(), rhs.len());
-
-    // To make codegen more vectorizer-friendly, we traverse each slice in larger
-    // "subchunks", and only consider an early return at subchunk boundaries.
-    // These subchunks are smaller than full `ChunkedBitSet` chunks, so that
-    // we still have some chance of stopping early.
-    const SUBCHUNK_LEN: usize = 64 / size_of::<Word>();
-    let (lhs_chunks, lhs_tail) = lhs.as_chunks::<SUBCHUNK_LEN>();
-    let (rhs_chunks, rhs_tail) = rhs.as_chunks::<SUBCHUNK_LEN>();
-
-    let would_modify_subchunk = |lhs_chunk: &[Word], rhs_chunk: &[Word]| {
-        let mut changed = 0;
-        for (&old_val, &rhs_val) in iter::zip(lhs_chunk, rhs_chunk) {
-            let new_val = op(old_val, rhs_val);
-            // Set `changed` to a non-zero value if any bits changed.
-            // This gives better SIMD codegen than using an actual boolean.
-            changed |= old_val ^ new_val;
-        }
-        changed != 0
-    };
-
-    for (lhs_chunk, rhs_chunk) in iter::zip(lhs_chunks, rhs_chunks) {
-        if would_modify_subchunk(lhs_chunk, rhs_chunk) {
-            return true;
-        }
-    }
-    would_modify_subchunk(lhs_tail, rhs_tail)
 }
 
 /// A bitset with a mixed representation, using `DenseBitSet` for small and
@@ -1418,8 +1324,7 @@ impl<T: BitSetIndex> GrowableBitSet<T> {
 
     #[inline]
     pub fn contains(&self, elem: T) -> bool {
-        let (word_index, mask) = word_index_and_mask(elem);
-        self.bit_set.words.get(word_index).is_some_and(|word| (word & mask) != 0)
+        words_contain(&self.bit_set.words, elem.index())
     }
 
     #[inline]
@@ -1452,19 +1357,18 @@ impl<T: BitSetIndex> From<DenseBitSet<T>> for GrowableBitSet<T> {
 impl<T: BitSetIndex> BitRelations<Self> for GrowableBitSet<T> {
     fn union(&mut self, other: &Self) -> bool {
         self.ensure(other.bit_set.domain_size);
-        update_words(&mut self.bit_set.words, &other.bit_set.words, |a, b| a | b)
+        union_words(&mut self.bit_set.words, &other.bit_set.words)
     }
 
     fn subtract(&mut self, other: &Self) -> bool {
         let len = self.bit_set.words.len().min(other.bit_set.words.len());
-        update_words(&mut self.bit_set.words[..len], &other.bit_set.words[..len], |a, b| a & !b)
+        subtract_words(&mut self.bit_set.words[..len], &other.bit_set.words[..len])
     }
 
     fn intersect(&mut self, other: &Self) -> bool {
         let len = self.bit_set.words.len().min(other.bit_set.words.len());
-        let changed =
-            update_words(&mut self.bit_set.words[..len], &other.bit_set.words[..len], |a, b| a & b);
-        let truncated = self.bit_set.words[len..].iter().any(|word| *word != 0);
+        let changed = intersect_words(&mut self.bit_set.words[..len], &other.bit_set.words[..len]);
+        let truncated = !words_are_zero(&self.bit_set.words[len..]);
         self.bit_set.words[len..].fill(0);
         changed || truncated
     }
@@ -1602,7 +1506,7 @@ impl<R: BitSetIndex, C: BitSetIndex> BitMatrix<R, C> {
         assert!(write.index() < self.num_rows);
         assert_eq!(with.domain_size(), self.num_columns);
         let (write_start, write_end) = self.range(write);
-        update_words(&mut self.words[write_start..write_end], &with.words, |a, b| a | b)
+        union_words(&mut self.words[write_start..write_end], &with.words)
     }
 
     /// Sets every cell in `row` to true.
@@ -1633,6 +1537,94 @@ impl<R: BitSetIndex, C: BitSetIndex> BitMatrix<R, C> {
     pub fn count(&self, row: R) -> usize {
         let (start, end) = self.range(row);
         count_ones(&self.words[start..end])
+    }
+
+    /// Borrows `row` as a set of columns.
+    pub fn row(&self, row: R) -> BitMatrixRow<'_, C> {
+        assert!(row.index() < self.num_rows);
+        let (start, end) = self.range(row);
+        BitMatrixRow {
+            num_columns: self.num_columns,
+            words: &self.words[start..end],
+            marker: PhantomData,
+        }
+    }
+
+    /// Replaces the bits of `row` with `with`, and returns `true` if anything changed.
+    pub fn replace_row(&mut self, row: R, with: &DenseBitSet<C>) -> bool {
+        assert!(row.index() < self.num_rows);
+        assert_eq!(with.domain_size(), self.num_columns);
+        let (start, end) = self.range(row);
+        let words = &mut self.words[start..end];
+        if *words == *with.words {
+            return false;
+        }
+        words.copy_from_slice(&with.words);
+        true
+    }
+}
+
+/// A borrowed row of a [`BitMatrix`], viewed as a set of columns.
+///
+/// Queries outside the column domain report absence.
+#[derive(Clone, Copy)]
+pub struct BitMatrixRow<'a, C> {
+    num_columns: usize,
+    words: &'a [Word],
+    marker: PhantomData<C>,
+}
+
+impl<'a, C: BitSetIndex> BitMatrixRow<'a, C> {
+    /// Returns `true` if `column` is in the row.
+    pub fn contains(&self, column: C) -> bool {
+        words_contain(self.words, column.index())
+    }
+
+    /// Returns the number of columns in the row.
+    pub fn count(&self) -> usize {
+        count_ones(self.words)
+    }
+
+    /// Iterates over the columns in the row, in ascending order.
+    pub fn iter(&self) -> BitIter<'a, C> {
+        BitIter::new(self.words)
+    }
+}
+
+impl<'a, C: BitSetIndex> IntoIterator for BitMatrixRow<'a, C> {
+    type Item = C;
+    type IntoIter = BitIter<'a, C>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
+}
+
+impl<C: BitSetIndex> From<BitMatrixRow<'_, C>> for DenseBitSet<C> {
+    fn from(row: BitMatrixRow<'_, C>) -> Self {
+        DenseBitSet {
+            domain_size: row.num_columns,
+            words: WordVec::from_slice(row.words),
+            marker: PhantomData,
+        }
+    }
+}
+
+// dense REL matrix row
+impl<T: BitSetIndex> BitRelations<BitMatrixRow<'_, T>> for DenseBitSet<T> {
+    fn union(&mut self, other: &BitMatrixRow<'_, T>) -> bool {
+        assert_eq!(self.domain_size, other.num_columns);
+        union_words(&mut self.words, other.words)
+    }
+
+    fn subtract(&mut self, other: &BitMatrixRow<'_, T>) -> bool {
+        assert_eq!(self.domain_size, other.num_columns);
+        subtract_words(&mut self.words, other.words)
+    }
+
+    fn intersect(&mut self, other: &BitMatrixRow<'_, T>) -> bool {
+        assert_eq!(self.domain_size, other.num_columns);
+        intersect_words(&mut self.words, other.words)
     }
 }
 
@@ -1739,7 +1731,7 @@ impl<R: BitSetIndex, C: BitSetIndex> SparseBitMatrix<R, C> {
         }
 
         self.ensure_row(write);
-        let Some((read_row, write_row)) = pick2_mut(&mut self.rows, read.index(), write.index())
+        let Ok([read_row, write_row]) = self.rows.get_disjoint_mut([read.index(), write.index()])
         else {
             unreachable!()
         };
@@ -1836,20 +1828,6 @@ fn chunk_word_index_and_mask<T: BitSetIndex>(elem: T) -> (usize, Word) {
     word_index_and_mask_usize(chunk_elem)
 }
 
-fn pick2_mut<T>(slice: &mut [T], idx_1: usize, idx_2: usize) -> Option<(&mut T, &mut T)> {
-    if idx_1 == idx_2 || idx_1 >= slice.len() || idx_2 >= slice.len() {
-        return None;
-    }
-
-    if idx_1 < idx_2 {
-        let (left, right) = slice.split_at_mut(idx_2);
-        Some((&mut left[idx_1], &mut right[0]))
-    } else {
-        let (left, right) = slice.split_at_mut(idx_1);
-        Some((&mut right[0], &mut left[idx_2]))
-    }
-}
-
 fn clear_excess_bits_in_final_word(domain_size: usize, words: &mut [Word]) {
     let num_bits_in_final_word = domain_size % WORD_BITS;
     if num_bits_in_final_word > 0 {
@@ -1866,4 +1844,129 @@ fn max_bit(word: Word) -> usize {
 #[inline]
 fn count_ones(words: &[Word]) -> usize {
     words.iter().map(|word| word.count_ones() as usize).sum()
+}
+
+#[inline]
+fn inclusive_start_end<T: BitSetIndex>(
+    range: impl RangeBounds<T>,
+    domain: usize,
+) -> Option<(usize, usize)> {
+    // Both start and end are inclusive.
+    let start = match range.start_bound().cloned() {
+        Bound::Included(start) => start.index(),
+        Bound::Excluded(start) => start.index() + 1,
+        Bound::Unbounded => 0,
+    };
+    let end = match range.end_bound().cloned() {
+        Bound::Included(end) => end.index(),
+        Bound::Excluded(end) => end.index().checked_sub(1)?,
+        Bound::Unbounded => domain - 1,
+    };
+    assert!(end < domain);
+    if start > end {
+        return None;
+    }
+    Some((start, end))
+}
+
+/// Sets `lhs[i] = op(lhs[i], rhs[i])` for each index `i` in both
+/// slices. The slices must have the same length.
+///
+/// Returns true if at least one bit in `lhs` was changed.
+///
+/// ## Warning
+/// Some bitwise operations (e.g. union-not, xor) can set output bits that were
+/// unset in in both inputs. If this happens in the last word/chunk of a bitset,
+/// it can cause the bitset to contain out-of-domain values, which need to
+/// be cleared with `clear_excess_bits_in_final_word`. This also makes the
+/// "changed" return value unreliable, because the change might have only
+/// affected excess bits.
+#[inline]
+fn update_words<Op>(lhs: &mut [Word], rhs: &[Word], op: Op) -> bool
+where
+    Op: Fn(Word, Word) -> Word,
+{
+    assert_eq!(lhs.len(), rhs.len());
+    let mut changed = 0;
+    for (lhs_slot, &rhs_val) in iter::zip(lhs, rhs) {
+        let old_val = *lhs_slot;
+        let new_val = op(old_val, rhs_val);
+        *lhs_slot = new_val;
+        // This is essentially equivalent to a != with changed being a bool, but
+        // in practice this code gets auto-vectorized by the compiler for most
+        // operators. Using != here causes us to generate quite poor code as the
+        // compiler tries to go back to a boolean on each loop iteration.
+        changed |= old_val ^ new_val;
+    }
+    changed != 0
+}
+
+// Non-generic word operations, so each operation is compiled once rather than once per set type
+// and index type.
+
+/// Sets `lhs |= rhs`, returning whether `lhs` changed.
+#[inline]
+fn union_words(lhs: &mut [Word], rhs: &[Word]) -> bool {
+    update_words(lhs, rhs, |a, b| a | b)
+}
+
+/// Sets `lhs &= !rhs`, returning whether `lhs` changed.
+#[inline]
+fn subtract_words(lhs: &mut [Word], rhs: &[Word]) -> bool {
+    update_words(lhs, rhs, |a, b| a & !b)
+}
+
+/// Sets `lhs &= rhs`, returning whether `lhs` changed.
+#[inline]
+fn intersect_words(lhs: &mut [Word], rhs: &[Word]) -> bool {
+    update_words(lhs, rhs, |a, b| a & b)
+}
+
+/// Returns whether no bit is set.
+#[inline]
+fn words_are_zero(words: &[Word]) -> bool {
+    words.iter().all(|&word| word == 0)
+}
+
+/// Returns whether bit `elem` is set, treating bits past the end as unset.
+#[inline]
+fn words_contain(words: &[Word], elem: usize) -> bool {
+    let (word_index, mask) = word_index_and_mask_usize(elem);
+    words.get(word_index).is_some_and(|word| (word & mask) != 0)
+}
+
+/// Returns true if a call to [`update_words`] would modify `lhs`, i.e.
+/// `lhs[i] != op(lhs[i], rhs[i])` for some `i`.
+#[inline]
+fn would_modify_words<Op>(lhs: &[Word], rhs: &[Word], op: Op) -> bool
+where
+    Op: Fn(Word, Word) -> Word,
+{
+    assert_eq!(lhs.len(), rhs.len());
+
+    // To make codegen more vectorizer-friendly, we traverse each slice in larger
+    // "subchunks", and only consider an early return at subchunk boundaries.
+    // These subchunks are smaller than full `ChunkedBitSet` chunks, so that
+    // we still have some chance of stopping early.
+    const SUBCHUNK_LEN: usize = 64 / size_of::<Word>();
+    let (lhs_chunks, lhs_tail) = lhs.as_chunks::<SUBCHUNK_LEN>();
+    let (rhs_chunks, rhs_tail) = rhs.as_chunks::<SUBCHUNK_LEN>();
+
+    let would_modify_subchunk = |lhs_chunk: &[Word], rhs_chunk: &[Word]| {
+        let mut changed = 0;
+        for (&old_val, &rhs_val) in iter::zip(lhs_chunk, rhs_chunk) {
+            let new_val = op(old_val, rhs_val);
+            // Set `changed` to a non-zero value if any bits changed.
+            // This gives better SIMD codegen than using an actual boolean.
+            changed |= old_val ^ new_val;
+        }
+        changed != 0
+    };
+
+    for (lhs_chunk, rhs_chunk) in iter::zip(lhs_chunks, rhs_chunks) {
+        if would_modify_subchunk(lhs_chunk, rhs_chunk) {
+            return true;
+        }
+    }
+    would_modify_subchunk(lhs_tail, rhs_tail)
 }

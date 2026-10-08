@@ -1,6 +1,6 @@
 //! Contract-level lowering and function discovery.
 
-use super::{ContractBytecodes, function, storage::StorageLayout, types::TypeLowerer};
+use super::{function, storage::StorageLayout, types::TypeLowerer};
 use solar_data_structures::{
     Never,
     map::{FxHashMap, FxHashSet, FxIndexSet},
@@ -16,16 +16,8 @@ use std::ops::ControlFlow;
 use crate::mir::{Function, FunctionAttributes, FunctionBuilder, Module};
 
 /// Builds a typed MIR module from one HIR contract.
-///
-/// `sema_errored` records whether the compilation had already failed when the
-/// code generation phase started, which decides whether a lowering bail-out is
-/// worth reporting.
-pub(super) fn lower(
-    gcx: Gcx<'_>,
-    contract_id: ContractId,
-    child_bytecodes: &FxHashMap<ContractId, ContractBytecodes>,
-    sema_errored: bool,
-) -> Module {
+#[tracing::instrument(name = "mir_lowering", level = "debug", skip_all)]
+pub(super) fn lower(gcx: Gcx<'_>, contract_id: ContractId) -> Module {
     let contract = gcx.hir.contract(contract_id);
     let mut module = Module::new(contract.name);
     let storage = StorageLayout::for_contract(gcx, contract_id);
@@ -145,6 +137,7 @@ pub(super) fn lower(
     let mut seen_ids = FxHashSet::default();
     let function_ids =
         function_ids.into_iter().filter(|(id, _)| seen_ids.insert(*id)).collect::<Vec<_>>();
+    state.analyze_raw_scalars(gcx, contract_id, &function_ids);
     let is_library = contract.kind == hir::ContractKind::Library;
     module.is_library = is_library;
     // A library's non-view external functions may only run through `DELEGATECALL`. Like
@@ -205,11 +198,10 @@ pub(super) fn lower(
             module: &mut module,
             storage: &storage,
             contract_id,
+            bytecode_dependencies: gcx.contract_bytecode_dependencies(contract_id),
             function_ids: &mir_ids,
             immutable_ids: &immutable_ids,
-            child_bytecodes,
             state: &mut state,
-            sema_errored,
             shared_literals: &shared_literals,
             shared_word_literals: &shared_word_literals,
             share_storage_bytes,
@@ -235,14 +227,13 @@ pub(super) fn lower(
                 let return_types = function
                     .returns
                     .iter()
-                    .map(|&ret| TypeLowerer::mir_return_type(gcx.type_of_item(ret.into())))
+                    .map(|&ret| context.state.scalar_carrier(gcx, ret))
                     .collect();
                 let return_type = context.module.intern_return_type(return_types);
                 let mut builder =
                     FunctionBuilder::new_semantic(context.module.function_mut(mir_id));
                 for &param in function.parameters {
-                    builder
-                        .add_param(TypeLowerer::mir_signature_type(gcx.type_of_item(param.into())));
+                    builder.add_param(context.state.scalar_carrier(gcx, param));
                 }
                 if let Some(ty) = return_type {
                     builder.set_return_type(ty);

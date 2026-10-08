@@ -23,7 +23,7 @@
   fn @loop(arg0: i256) -> i256 {
     bb0:
       v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
--     v1 = ptrtoint memorystruct v0 to i256
+-     v1 = ptrtoint memptr v0 to i256
 -     memory_zero v1, 32
 -     v2 = memory_object_field_addr memorystruct<1>, v0, 0
 -     v3 = ptrtoint memptr v2 to i256
@@ -61,7 +61,7 @@
   fn @cross_field_phi(arg0: i1, arg1: i256) -> i256 {
     bb0:
       v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
--     v1 = ptrtoint memorystruct v0 to i256
+-     v1 = ptrtoint memptr v0 to i256
 -     memory_zero v1, 64
 -     v2 = memory_object_field_addr memorystruct<2>, v0, 0
 -     v3 = ptrtoint memptr v2 to i256
@@ -83,7 +83,7 @@
   fn @observe_size() -> i256 {
     bb0:
       v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
-      v1 = ptrtoint memorystruct v0 to i256
+      v1 = ptrtoint memptr v0 to i256
       memory_zero v1, 32
       v2 = memory_object_field_addr memorystruct<1>, v0, 0
       v3 = ptrtoint memptr v2 to i256
@@ -95,7 +95,7 @@
   fn @outside_object() -> i256 {
     bb0:
       v0 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32
-      v1 = ptrtoint memoryfixedarray v0 to i256
+      v1 = ptrtoint memptr v0 to i256
       memory_zero v1, 32
       v2 = memory_object_element_addr memoryfixedarray<1, 1>, v0, 1
       v3 = ptrtoint memptr v2 to i256
@@ -162,7 +162,7 @@
   fn @observe_size() -> i256 {
     bb0:
       v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
-      v1 = ptrtoint memorystruct v0 to i256
+      v1 = ptrtoint memptr v0 to i256
       memory_zero v1, 32
       v2 = memory_object_field_addr memorystruct<1>, v0, 0
       v3 = ptrtoint memptr v2 to i256
@@ -174,7 +174,7 @@
   fn @outside_object() -> i256 {
     bb0:
       v0 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32
-      v1 = ptrtoint memoryfixedarray v0 to i256
+      v1 = ptrtoint memptr v0 to i256
       memory_zero v1, 32
       v2 = memory_object_element_addr memoryfixedarray<1, 1>, v0, 1
       v3 = ptrtoint memptr v2 to i256

@@ -97,7 +97,7 @@
 use super::{
     model::{MAX_STACK_DEPTH, StackModel},
     shuffler::{ShuffleResult, StackShuffler, TargetSlot},
-    spill::{SpillManager, SpillSlot},
+    spill::{SharedSpillManager, SpillSlot},
 };
 use crate::{
     backend::evm::{
@@ -105,7 +105,10 @@ use crate::{
         ir::{ImmediateMaterialization, immediate_materialization_cost},
         op::StackOp,
     },
-    mir::{ArgIdx, BlockId, Function, InstKind, OpTraits, Value, ValueId, analysis::Liveness},
+    mir::{
+        ArgIdx, BlockId, EffectKind, Function, InstKind, OpTraits, Value, ValueId,
+        analysis::Liveness,
+    },
     target::{Cost, StackCosts, Target},
 };
 use smallvec::SmallVec;
@@ -130,7 +133,11 @@ pub(crate) const fn is_rematerializable_leaf(value: &Value) -> bool {
 
 /// Returns the opcode for a stable nullary read that is cheaper to re-emit than preserve.
 pub(crate) fn rematerializable_nullary_opcode(kind: &InstKind) -> Option<u8> {
-    if kind.op_def().traits.contains(OpTraits::REMATERIALIZABLE)
+    // The rematerializable nullary reads are environment reads; pure rematerializable
+    // operations are arithmetic, which never lowers to a nullary opcode.
+    let def = kind.op_def();
+    if def.traits.contains(OpTraits::REMATERIALIZABLE)
+        && def.effect != EffectKind::Pure
         && let Some(OpcodeLowering::Nullary { opcode }) = opcode_lowering(&kind.op())
     {
         Some(opcode)
@@ -206,6 +213,7 @@ const MAX_OPERAND_SEARCH_CREATED_STATES: usize = 4096;
 const MAX_OPERAND_SEARCH_VISITED_STATES: usize = 4096;
 const MAX_OPERAND_SEARCH_OPEN_STATES: usize = 2048;
 const MAX_OPERAND_SEARCH_RETAINED_BYTES: usize = 2 * 1024 * 1024;
+const MAX_RETAINED_VISITED_CAPACITY: usize = 256;
 
 type PlannedActions = SmallVec<[PlannedAction; 8]>;
 
@@ -237,7 +245,7 @@ pub(crate) struct StackScheduler {
     /// Current stack state.
     pub stack: StackModel,
     /// Spill slots and their current reloadability.
-    pub spills: SpillManager,
+    pub spills: SharedSpillManager,
     /// Target used to cost logical stack operations before assembly lowers them.
     evm_version: EvmVersion,
     /// Gas mode may select wider edge permutations; size mode preserves existing sharing choices.
@@ -251,8 +259,7 @@ pub(crate) struct StackScheduler {
     ops: Vec<ScheduledOp>,
     /// Remaining bounded-search work for this function.
     operand_search_budget: Cell<OperandSearchBudget>,
-    #[cfg(test)]
-    operand_search_stats: Cell<OperandSearchStats>,
+    operand_search_scratch: OperandSearchScratch,
 }
 
 /// A scheduled operation to emit.
@@ -336,11 +343,31 @@ impl OperandCostModel {
 
 #[derive(Clone, Copy)]
 struct OperandPlanningContext<'a> {
-    func: &'a Function,
-    required_counts: &'a FxHashMap<ValueId, usize>,
+    /// Every value the plan must place, in the iteration order of its required-count map.
+    required: &'a [RequiredOperand],
     optimization: OptimizationMode,
     evm_version: EvmVersion,
     cost_model: OperandCostModel,
+}
+
+impl OperandPlanningContext<'_> {
+    fn required_operand(&self, value: ValueId) -> &RequiredOperand {
+        self.required
+            .iter()
+            .find(|operand| operand.value == value)
+            .expect("every goal value is required")
+    }
+}
+
+/// Stack-independent facts about one value that an operand plan must place.
+#[derive(Clone, Copy)]
+struct RequiredOperand {
+    value: ValueId,
+    count: usize,
+    /// A fresh materialization of the value and its cost.
+    materialize: Option<(ScheduledOp, ScheduleCost)>,
+    /// A fresh materialization that dominates `DUP1` for an extra copy.
+    preferred_copy: Option<ScheduledOp>,
 }
 
 /// Estimated cost of an operand preparation plan.
@@ -377,15 +404,8 @@ impl ScheduleCost {
     /// bytes. This matches the model used by the MIR inliner for choices that
     /// trade emitted bytes against runtime gas.
     pub(crate) fn cmp_lifetime_for(self, other: Self, target: Target) -> Ordering {
-        if !target.optimization().is_gas() {
-            return self.cmp_for(other, target.optimization());
-        }
-        let score =
-            |cost: Self| target.lifetime_gas(Cost::new(cost.static_gas, cost.encoded_bytes));
-        score(self)
-            .cmp(&score(other))
-            .then_with(|| self.static_gas.cmp(&other.static_gas))
-            .then_with(|| self.encoded_bytes.cmp(&other.encoded_bytes))
+        target
+            .cmp_lifetime(self.target_cost(), other.target_cost())
             .then_with(|| self.actions.cmp(&other.actions))
     }
 
@@ -579,6 +599,45 @@ struct OperandSearchState {
     parent: Option<(usize, PlannedAction)>,
 }
 
+/// Operand-search buffers a scheduler reuses across its searches. A cloned scheduler starts
+/// with empty buffers instead of copying them.
+#[derive(Default)]
+struct OperandSearchScratch(Cell<OperandSearchBuffers>);
+
+impl Clone for OperandSearchScratch {
+    fn clone(&self) -> Self {
+        Self::default()
+    }
+}
+
+#[derive(Default)]
+struct OperandSearchBuffers {
+    states: Vec<OperandSearchState>,
+    queue: BinaryHeap<OperandSearchQueueEntry>,
+    visited: FxHashMap<SearchStack, [u32; 3]>,
+}
+
+/// Lends the scratch buffers to one search and returns them cleared when it ends.
+struct OperandSearchBuffersGuard<'a> {
+    scratch: &'a OperandSearchScratch,
+    buffers: OperandSearchBuffers,
+}
+
+impl Drop for OperandSearchBuffersGuard<'_> {
+    fn drop(&mut self) {
+        let mut buffers = std::mem::take(&mut self.buffers);
+        buffers.states.clear();
+        buffers.queue.clear();
+        // Clearing a table costs time proportional to its capacity, and most searches are small.
+        if buffers.visited.capacity() > MAX_RETAINED_VISITED_CAPACITY {
+            buffers.visited = FxHashMap::default();
+        } else {
+            buffers.visited.clear();
+        }
+        self.scratch.0.set(buffers);
+    }
+}
+
 #[derive(Clone, Debug)]
 struct OperandSearchQueueEntry {
     priority: [u32; 3],
@@ -610,19 +669,6 @@ impl Ord for OperandSearchQueueEntry {
             .then_with(|| self.actions.cmp(&other.actions))
             .then_with(|| other.serial.cmp(&self.serial))
     }
-}
-
-#[cfg(test)]
-#[derive(Clone, Copy, Debug, Default)]
-struct OperandSearchStats {
-    expansions: usize,
-    created: usize,
-    max_visited: usize,
-    max_open: usize,
-    retained_bytes: usize,
-    unreachable_preflights: usize,
-    limit_hit: bool,
-    skipped_by_function_budget: bool,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -707,13 +753,12 @@ impl StackScheduler {
         Self {
             wide_permutations: true,
             stack: StackModel::new(),
-            spills: SpillManager::new(),
+            spills: SharedSpillManager::new(),
             evm_version,
             stack_only_values: DenseBitSet::new_empty(0),
             ops: Vec::new(),
             operand_search_budget: Cell::new(OperandSearchBudget::default()),
-            #[cfg(test)]
-            operand_search_stats: Cell::new(OperandSearchStats::default()),
+            operand_search_scratch: OperandSearchScratch::default(),
         }
     }
 
@@ -730,8 +775,6 @@ impl StackScheduler {
         self.stack_only_values.clear_to(0);
         self.ops.clear();
         self.operand_search_budget.set(OperandSearchBudget::default());
-        #[cfg(test)]
-        self.operand_search_stats.set(OperandSearchStats::default());
     }
 
     fn max_stack_access(&self) -> usize {
@@ -787,9 +830,6 @@ impl StackScheduler {
         optimization: OptimizationMode,
         cost_model: OperandCostModel,
     ) -> Option<OperandPlan> {
-        #[cfg(test)]
-        self.operand_search_stats.set(OperandSearchStats::default());
-
         if matches!(optimization, OptimizationMode::None) {
             return None;
         }
@@ -899,9 +939,10 @@ impl StackScheduler {
                 *reachable += usize::from(depth <= max_stack_access);
             }
         }
-        let inaccessible_required = required_counts.keys().any(|&value| {
-            self.materialize_operand(value, func).is_none()
-                && stack_counts.get(&value).is_none_or(|&(_, reachable)| reachable == 0)
+        let required = self.required_operands(&required_counts, func, evm_version, cost_model);
+        let inaccessible_required = required.iter().any(|operand| {
+            operand.materialize.is_none()
+                && stack_counts.get(&operand.value).is_none_or(|&(_, reachable)| reachable == 0)
         });
         let inaccessible_dead_copy = goal.iter().any(|&value| {
             !preserve_counts.contains_key(&value)
@@ -915,12 +956,6 @@ impl StackScheduler {
             });
         if inaccessible_required || (inaccessible_dead_copy && !inaccessible_dead_copy_is_removable)
         {
-            #[cfg(test)]
-            {
-                let mut stats = self.operand_search_stats.get();
-                stats.unreachable_preflights += 1;
-                self.operand_search_stats.set(stats);
-            }
             return None;
         }
 
@@ -929,13 +964,8 @@ impl StackScheduler {
             actions: PlannedActions::new(),
             cost: ScheduleCost::default(),
         };
-        let context = OperandPlanningContext {
-            func,
-            required_counts: &required_counts,
-            optimization,
-            evm_version,
-            cost_model,
-        };
+        let context =
+            OperandPlanningContext { required: &required, optimization, evm_version, cost_model };
         if let Some(plan) = validate(self.try_goal_directed_operand_plan(
             start.clone(),
             &goal,
@@ -949,20 +979,16 @@ impl StackScheduler {
         if budget.remaining_expansions == 0
             || budget.limited_searches >= MAX_OPERAND_SEARCH_FUNCTION_LIMITS
         {
-            #[cfg(test)]
-            {
-                let mut stats = self.operand_search_stats.get();
-                stats.skipped_by_function_budget = true;
-                self.operand_search_stats.set(stats);
-            }
             return None;
         }
         let expansion_limit = MAX_OPERAND_SEARCH_EXPANSIONS.min(budget.remaining_expansions);
         let start_state = OperandSearchState { stack: start.stack, cost: start.cost, parent: None };
-        let mut states = Vec::new();
+        let mut guard = OperandSearchBuffersGuard {
+            scratch: &self.operand_search_scratch,
+            buffers: self.operand_search_scratch.0.take(),
+        };
+        let OperandSearchBuffers { states, queue, visited } = &mut guard.buffers;
         states.push(start_state);
-        let mut queue = BinaryHeap::new();
-        let mut visited = FxHashMap::default();
         let mut serial = 0usize;
         let start_key = states[0].cost.key(optimization);
         let priority = self.operand_search_priority_parts(
@@ -981,8 +1007,6 @@ impl StackScheduler {
             actions: 0,
         });
         let mut retained_bytes = Self::operand_search_state_bytes(&states[0].stack);
-        let mut max_visited = visited.len();
-        let mut max_open = queue.len();
 
         let mut expansions = 0usize;
         let mut limit_hit = false;
@@ -994,18 +1018,7 @@ impl StackScheduler {
                 continue;
             }
             if Self::operand_goal_reached(&state.stack, &goal, &preserve_counts) {
-                let plan = Self::operand_plan_from_search_state(&states, state_idx);
-                #[cfg(test)]
-                self.operand_search_stats.set(OperandSearchStats {
-                    expansions,
-                    created: states.len(),
-                    max_visited,
-                    max_open,
-                    retained_bytes,
-                    unreachable_preflights: 0,
-                    limit_hit,
-                    skipped_by_function_budget: false,
-                });
+                let plan = Self::operand_plan_from_search_state(states, state_idx);
                 if let Some(plan) = validate(Some(plan)) {
                     self.finish_operand_search(expansions, false);
                     return Some(plan);
@@ -1017,8 +1030,9 @@ impl StackScheduler {
             }
             expansions += 1;
 
-            let stack = state.stack.clone();
+            // Each state is expanded at most once, and nothing reads its stack afterwards.
             let cost = state.cost;
+            let stack = std::mem::take(&mut states[state_idx].stack);
             for action in self.operand_search_actions(&stack, &goal, &preserve_counts, context) {
                 if states.len() >= MAX_OPERAND_SEARCH_CREATED_STATES
                     || visited.len() >= MAX_OPERAND_SEARCH_VISITED_STATES
@@ -1082,22 +1096,9 @@ impl StackScheduler {
                     state: next_state,
                     actions,
                 });
-                max_visited = max_visited.max(visited.len());
-                max_open = max_open.max(queue.len());
             }
         }
 
-        #[cfg(test)]
-        self.operand_search_stats.set(OperandSearchStats {
-            expansions,
-            created: states.len(),
-            max_visited,
-            max_open,
-            retained_bytes,
-            unreachable_preflights: 0,
-            limit_hit,
-            skipped_by_function_budget: false,
-        });
         self.finish_operand_search(expansions, limit_hit);
 
         None
@@ -1797,8 +1798,7 @@ impl StackScheduler {
         preserve_counts: &FxHashMap<ValueId, usize>,
         context: OperandPlanningContext<'_>,
     ) -> SmallVec<[PlannedAction; 24]> {
-        let OperandPlanningContext { func, required_counts, optimization, evm_version, cost_model } =
-            context;
+        let OperandPlanningContext { required, optimization, evm_version, cost_model } = context;
         let max_stack_access = evm_version.reachable_stack_depth();
         let mut actions = SmallVec::<[PlannedAction; 24]>::new();
         if (matches!(optimization, OptimizationMode::Gas) || cost_model.needs_headroom(stack.len()))
@@ -1812,7 +1812,9 @@ impl StackScheduler {
         for depth in 1..=max_swap {
             if StackOp::Swap(depth as u8).single_byte_evm_opcode().is_none() {
                 let Some(value) = stack[depth] else { continue };
-                if !required_counts.contains_key(&value) || deep_values.contains(&value) {
+                if !required.iter().any(|operand| operand.value == value)
+                    || deep_values.contains(&value)
+                {
                     continue;
                 }
                 deep_values.push(value);
@@ -1826,18 +1828,13 @@ impl StackScheduler {
         }
 
         if stack.len() < MAX_STACK_DEPTH {
-            for (&value, &required) in required_counts {
+            let duplicate_cost =
+                ScheduleCost::of_op(&ScheduledOp::Stack(StackOp::Dup(1)), evm_version, cost_model);
+            for &RequiredOperand { value, count: required, materialize, preferred_copy } in required
+            {
                 let current = stack.iter().filter(|&&slot| slot == Some(value)).count();
-                let materialize = self.materialize_operand(value, func);
-                let cheap_surplus_materialization = materialize.as_ref().is_some_and(|op| {
-                    let materialize_cost = ScheduleCost::of_op(op, evm_version, cost_model);
-                    let duplicate_cost = ScheduleCost::of_op(
-                        &ScheduledOp::Stack(StackOp::Dup(1)),
-                        evm_version,
-                        cost_model,
-                    );
-                    materialize_cost.cmp_for(duplicate_cost, optimization).is_lt()
-                });
+                let cheap_surplus_materialization = materialize
+                    .is_some_and(|(_, cost)| cost.cmp_for(duplicate_cost, optimization).is_lt());
                 let cheap_surplus_copy_can_help = matches!(optimization, OptimizationMode::Gas)
                     && preserve_counts.contains_key(&value)
                     && cheap_surplus_materialization;
@@ -1845,9 +1842,9 @@ impl StackScheduler {
                     && let Some(depth) =
                         stack.iter().take(max_stack_access).position(|&slot| slot == Some(value))
                 {
-                    let op = self.copy_or_materialize(
-                        value,
-                        func,
+                    let op = Self::choose_copy(
+                        preferred_copy,
+                        materialize,
                         (depth + 1) as u8,
                         optimization,
                         evm_version,
@@ -1862,11 +1859,11 @@ impl StackScheduler {
                     continue;
                 }
                 let current = stack.iter().filter(|&&slot| slot == Some(value)).count();
-                let required = required_counts.get(&value).copied().unwrap_or_default();
+                let operand = context.required_operand(value);
                 let accessible =
                     stack.iter().take(max_stack_access).any(|&slot| slot == Some(value));
-                if (current < required || !accessible)
-                    && let Some(op) = self.materialize_operand(value, func)
+                if (current < operand.count || !accessible)
+                    && let Some((op, _)) = operand.materialize
                 {
                     actions.push(PlannedAction { op, pushed: Some(value) });
                 }
@@ -2007,14 +2004,13 @@ impl StackScheduler {
         preserve_counts: &FxHashMap<ValueId, usize>,
         context: OperandPlanningContext<'_>,
     ) -> ScheduleCost {
-        let OperandPlanningContext { func, required_counts, optimization, evm_version, cost_model } =
-            context;
+        let OperandPlanningContext { required, optimization, evm_version, cost_model } = context;
         let max_stack_access = evm_version.reachable_stack_depth();
 
         let mut remaining = ScheduleCost::default();
         let mut missing_counts = SmallVec::<[(ValueId, usize); 8]>::new();
         let mut total_missing = 0usize;
-        for (&value, &required) in required_counts {
+        for &RequiredOperand { value, count: required, materialize, .. } in required {
             let current = stack.iter().filter(|&&slot| slot == Some(value)).count();
             let missing = required.saturating_sub(current);
             if missing == 0 {
@@ -2024,9 +2020,7 @@ impl StackScheduler {
             total_missing += missing;
 
             let duplicate = ScheduleCost::stack_op(StackOp::Dup(1), evm_version);
-            let materialize = self
-                .materialize_operand(value, func)
-                .map(|op| ScheduleCost::of_op(&op, evm_version, cost_model));
+            let materialize = materialize.map(|(_, cost)| cost);
             let subsequent = materialize
                 .filter(|cost| cost.cmp_for(duplicate, optimization).is_lt())
                 .unwrap_or(duplicate);
@@ -2070,18 +2064,16 @@ impl StackScheduler {
                 if (missing || accessible) && !surplus_copy_can_help {
                     continue;
                 }
-                if let Some(op) = self.materialize_operand(value, func) {
-                    let cost = ScheduleCost::of_op(&op, evm_version, cost_model);
-                    if cost.cmp_for(rearrange, optimization).is_lt() {
-                        rearrange = cost;
-                    }
+                if let Some((_, cost)) = context.required_operand(value).materialize
+                    && cost.cmp_for(rearrange, optimization).is_lt()
+                {
+                    rearrange = cost;
                 }
             }
             remaining = remaining.plus(rearrange);
         } else if total_missing == 0 && !Self::operand_goal_reached(stack, goal, preserve_counts) {
             let mut cheapest = None;
-            let mut consider = |op: ScheduledOp| {
-                let cost = ScheduleCost::of_op(&op, evm_version, cost_model);
+            let mut consider = |cost: ScheduleCost| {
                 if cheapest.is_none_or(|old: ScheduleCost| cost.cmp_for(old, optimization).is_lt())
                 {
                     cheapest = Some(cost);
@@ -2091,13 +2083,21 @@ impl StackScheduler {
             if let Some(&top) = stack.first()
                 && stack.iter().take(max_stack_access + 1).skip(1).any(|&slot| slot != top)
             {
-                consider(ScheduledOp::Stack(StackOp::Swap(1)));
+                consider(ScheduleCost::of_op(
+                    &ScheduledOp::Stack(StackOp::Swap(1)),
+                    evm_version,
+                    cost_model,
+                ));
             }
             if (matches!(optimization, OptimizationMode::Gas)
                 || cost_model.needs_headroom(stack.len()))
                 && Self::operand_pop_can_help(stack, goal, preserve_counts, max_stack_access)
             {
-                consider(ScheduledOp::Stack(StackOp::Pop));
+                consider(ScheduleCost::of_op(
+                    &ScheduledOp::Stack(StackOp::Pop),
+                    evm_version,
+                    cost_model,
+                ));
             }
             for &value in goal {
                 let accessible =
@@ -2105,9 +2105,9 @@ impl StackScheduler {
                 let surplus_copy_can_help = matches!(optimization, OptimizationMode::Gas)
                     && preserve_counts.contains_key(&value);
                 if (!accessible || surplus_copy_can_help)
-                    && let Some(op) = self.materialize_operand(value, func)
+                    && let Some((_, cost)) = context.required_operand(value).materialize
                 {
-                    consider(op);
+                    consider(cost);
                 }
             }
             if let Some(cheapest) = cheapest {
@@ -2237,6 +2237,27 @@ impl StackScheduler {
         }
     }
 
+    /// Collects the stack-independent facts of each required value, in the map's iteration order.
+    fn required_operands(
+        &self,
+        required_counts: &FxHashMap<ValueId, usize>,
+        func: &Function,
+        evm_version: EvmVersion,
+        cost_model: OperandCostModel,
+    ) -> SmallVec<[RequiredOperand; 8]> {
+        required_counts
+            .iter()
+            .map(|(&value, &count)| RequiredOperand {
+                value,
+                count,
+                materialize: self
+                    .materialize_operand(value, func)
+                    .map(|op| (op, ScheduleCost::of_op(&op, evm_version, cost_model))),
+                preferred_copy: self.preferred_copy_materialization(value, func),
+            })
+            .collect()
+    }
+
     fn rematerialize_nullary(value: ValueId, func: &Function) -> Option<ScheduledOp> {
         rematerializable_nullary_value(func, value).map(ScheduledOp::RematerializeNullary)
     }
@@ -2275,17 +2296,33 @@ impl StackScheduler {
         evm_version: EvmVersion,
         cost_model: OperandCostModel,
     ) -> ScheduledOp {
+        Self::choose_copy(
+            self.preferred_copy_materialization(value, func),
+            self.materialize_operand(value, func)
+                .map(|op| (op, ScheduleCost::of_op(&op, evm_version, cost_model))),
+            depth,
+            optimization,
+            evm_version,
+            cost_model,
+        )
+    }
+
+    /// Prefers `preferred`, then a materialization cheaper than `DUP{depth}`, then the `DUP`.
+    fn choose_copy(
+        preferred: Option<ScheduledOp>,
+        materialize: Option<(ScheduledOp, ScheduleCost)>,
+        depth: u8,
+        optimization: OptimizationMode,
+        evm_version: EvmVersion,
+        cost_model: OperandCostModel,
+    ) -> ScheduledOp {
         let duplicate = ScheduledOp::Stack(StackOp::Dup(depth));
-        self.preferred_copy_materialization(value, func)
+        let duplicate_cost = ScheduleCost::of_op(&duplicate, evm_version, cost_model);
+        preferred
             .or_else(|| {
-                self.materialize_operand(value, func).filter(|materialize| {
-                    ScheduleCost::of_op(materialize, evm_version, cost_model)
-                        .cmp_for(
-                            ScheduleCost::of_op(&duplicate, evm_version, cost_model),
-                            optimization,
-                        )
-                        .is_lt()
-                })
+                materialize
+                    .filter(|(_, cost)| cost.cmp_for(duplicate_cost, optimization).is_lt())
+                    .map(|(op, _)| op)
             })
             .unwrap_or(duplicate)
     }
@@ -2556,118 +2593,8 @@ impl StackScheduler {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        backend::evm::op,
-        mir::{
-            BlockId, Function, FunctionBuilder, Immediate, ImmutableId, InstKind, Instruction,
-            MirType, Value,
-        },
-    };
-    use alloy_primitives::U256;
+    use crate::mir::{Function, Immediate, MirType, Value};
     use solar_interface::Ident;
-
-    #[test]
-    fn rematerializes_only_stable_nullary_reads() {
-        assert_eq!(
-            rematerializable_nullary_opcode(&InstKind::CalldataSize),
-            Some(op::CALLDATASIZE)
-        );
-        assert_eq!(rematerializable_nullary_opcode(&InstKind::SlotNum), Some(op::SLOTNUM));
-        assert_eq!(rematerializable_nullary_opcode(&InstKind::BlockNumber), Some(op::NUMBER));
-        assert_eq!(rematerializable_nullary_opcode(&InstKind::ReturnDataSize), None);
-        assert_eq!(rematerializable_nullary_opcode(&InstKind::Gas), None);
-        assert_eq!(rematerializable_nullary_opcode(&InstKind::MSize), None);
-        let add = InstKind::Add(ValueId::new(0), ValueId::new(1));
-        assert!(is_cross_block_recomputable_kind(&add));
-        assert_eq!(rematerializable_nullary_opcode(&add), None);
-    }
-
-    #[test]
-    fn cross_block_recomputation_requires_stable_leaves() {
-        let mut function = Function::new(Ident::DUMMY);
-        let argument = function.alloc_param(MirType::I256);
-        let immediate = function.alloc_value(Value::Immediate(Immediate::I256(U256::from(1))));
-        let (safe_inst, safe) = function.alloc_value_inst(Instruction::new(
-            InstKind::Add(argument, immediate),
-            Some(MirType::I256),
-        ));
-        let (nested_safe_inst, nested_safe) = function
-            .alloc_value_inst(Instruction::new(InstKind::Mul(safe, argument), Some(MirType::I256)));
-        let (calldata_inst, calldata) = function
-            .alloc_value_inst(Instruction::new(InstKind::CalldataLoad(safe), Some(MirType::I256)));
-        let (calldata_safe_inst, calldata_safe) = function.alloc_value_inst(Instruction::new(
-            InstKind::Add(calldata, immediate),
-            Some(MirType::I256),
-        ));
-        let (context_inst, context) =
-            function.alloc_value_inst(Instruction::new(InstKind::CallValue, Some(MirType::I256)));
-        let (immutable_inst, immutable) = function.alloc_value_inst(Instruction::new(
-            InstKind::LoadImmutable(ImmutableId::from_usize(0)),
-            Some(MirType::I256),
-        ));
-        let (mutable_inst, mutable) = function
-            .alloc_value_inst(Instruction::new(InstKind::SLoad(immediate), Some(MirType::I256)));
-        let (unsafe_inst, unsafe_value) = function.alloc_value_inst(Instruction::new(
-            InstKind::Add(mutable, immediate),
-            Some(MirType::I256),
-        ));
-        function.blocks[BlockId::ENTRY].instructions.extend([
-            safe_inst,
-            nested_safe_inst,
-            calldata_inst,
-            calldata_safe_inst,
-            context_inst,
-            immutable_inst,
-            mutable_inst,
-            unsafe_inst,
-        ]);
-        let recomputable = cross_block_values(&function, |_| true);
-        let without_argument = cross_block_values(&function, |value| value != argument);
-
-        assert!(recomputable.contains(safe));
-        assert!(recomputable.contains(nested_safe));
-        assert!(recomputable.contains(calldata));
-        assert!(recomputable.contains(calldata_safe));
-        assert!(recomputable.contains(context));
-        assert!(!recomputable.contains(immutable));
-        assert!(!recomputable.contains(mutable));
-        assert!(!recomputable.contains(unsafe_value));
-        assert!(!without_argument.contains(safe));
-        assert!(!without_argument.contains(nested_safe));
-        assert!(!without_argument.contains(calldata));
-        assert!(!without_argument.contains(calldata_safe));
-        assert!(without_argument.contains(context));
-    }
-
-    #[test]
-    fn folds_exchange_for_legacy_and_extended_targets() {
-        let actions = [StackOp::Swap(2), StackOp::Swap(3), StackOp::Swap(2)]
-            .into_iter()
-            .map(|stack_op| PlannedAction { op: ScheduledOp::Stack(stack_op), pushed: None })
-            .collect::<PlannedActions>();
-
-        for evm_version in [EvmVersion::Osaka, EvmVersion::Amsterdam] {
-            let cost = ScheduleCost::stack_op(StackOp::Swap(2), evm_version)
-                .plus(ScheduleCost::stack_op(StackOp::Swap(3), evm_version))
-                .plus(ScheduleCost::stack_op(StackOp::Swap(2), evm_version));
-            let plan = OperandPlan { actions: actions.clone(), cost }.fold_exchanges(evm_version);
-
-            assert_eq!(plan.actions.len(), 1);
-            assert_eq!(plan.actions[0].op, ScheduledOp::Stack(StackOp::Exchange(2, 3)));
-            assert_eq!(plan.cost, ScheduleCost::stack_op(StackOp::Exchange(2, 3), evm_version));
-        }
-    }
-
-    fn make_test_func() -> Function {
-        let name = Ident::DUMMY;
-        let mut func = Function::new(name);
-
-        // Add some values.
-        func.alloc_value(Value::Immediate(Immediate::I256(alloy_primitives::U256::from(42))));
-        func.alloc_value(Value::Immediate(Immediate::I256(alloy_primitives::U256::from(100))));
-
-        func
-    }
 
     fn exact_operand_cost(
         scheduler: &StackScheduler,
@@ -2686,9 +2613,14 @@ mod tests {
         for &value in &goal {
             *required_counts.entry(value).or_default() += 1;
         }
-        let context = OperandPlanningContext {
+        let required = scheduler.required_operands(
+            &required_counts,
             func,
-            required_counts: &required_counts,
+            evm_version,
+            OperandCostModel::DIRECT,
+        );
+        let context = OperandPlanningContext {
+            required: &required,
             optimization,
             evm_version,
             cost_model: OperandCostModel::DIRECT,
@@ -2794,808 +2726,6 @@ mod tests {
     }
 
     #[test]
-    fn test_ensure_on_top_already_there() {
-        let func = make_test_func();
-        let mut scheduler = StackScheduler::new();
-
-        let v0 = ValueId::from_usize(0);
-        scheduler.stack.push(v0);
-
-        let ops = scheduler.ensure_on_top(v0, &func);
-        assert!(ops.is_empty());
-    }
-
-    #[test]
-    fn failed_layout_shuffle_preserves_live_stack() {
-        let mut func = Function::new(Ident::DUMMY);
-        let present =
-            func.alloc_value(Value::Immediate(Immediate::I256(alloy_primitives::U256::ZERO)));
-        let missing =
-            func.alloc_value(Value::Immediate(Immediate::I256(alloy_primitives::U256::from(1))));
-        let mut scheduler = StackScheduler::new();
-        scheduler.stack.push(present);
-
-        assert!(scheduler.shuffle_to_layout(&[TargetSlot::Value(missing)]).is_none());
-        assert_eq!(scheduler.stack.as_slice(), &[Some(present)]);
-    }
-
-    #[test]
-    fn test_ensure_on_top_dup() {
-        let func = make_test_func();
-        let mut scheduler = StackScheduler::new();
-
-        let v0 = ValueId::from_usize(0);
-        let v1 = ValueId::from_usize(1);
-
-        scheduler.stack.push(v0);
-        scheduler.stack.push(v1);
-        // Stack: [v1, v0]
-
-        let ops = scheduler.ensure_on_top(v0, &func);
-        // Should emit DUP2 to get v0 on top.
-
-        assert_eq!(ops.len(), 1);
-        if let ScheduledOp::Stack(StackOp::Dup(n)) = &ops[0] {
-            assert_eq!(*n, 2);
-        } else {
-            panic!("Expected DUP operation");
-        }
-    }
-
-    #[test]
-    fn ensure_operand_on_top_prefers_push0() {
-        let mut func = Function::new(Ident::DUMMY);
-        let zero =
-            func.alloc_value(Value::Immediate(Immediate::I256(alloy_primitives::U256::ZERO)));
-
-        for (evm_version, expected) in [
-            (EvmVersion::London, ScheduledOp::Stack(StackOp::Dup(1))),
-            (EvmVersion::Shanghai, ScheduledOp::PushImmediate(alloy_primitives::U256::ZERO)),
-        ] {
-            let mut scheduler = StackScheduler::for_evm_version(evm_version);
-            scheduler.stack.push(zero);
-            assert_eq!(scheduler.ensure_operand_on_top(zero, &func), &[expected]);
-        }
-    }
-
-    #[test]
-    fn ensure_operand_on_top_rematerializes_stable_nullaries() {
-        let mut func = Function::new(Ident::DUMMY);
-        let (_, caller) =
-            func.alloc_value_inst(Instruction::new(InstKind::Caller, Some(MirType::I256)));
-        let mut scheduler = StackScheduler::new();
-        scheduler.stack.push(caller);
-
-        assert_eq!(
-            scheduler.ensure_operand_on_top(caller, &func),
-            &[ScheduledOp::RematerializeNullary(op::CALLER)]
-        );
-    }
-
-    #[test]
-    fn ensure_operand_on_top_rematerializes_deep_cheap_values() {
-        let mut func = Function::new(Ident::DUMMY);
-        let zero =
-            func.alloc_value(Value::Immediate(Immediate::I256(alloy_primitives::U256::ZERO)));
-        let filler =
-            func.alloc_value(Value::Immediate(Immediate::I256(alloy_primitives::U256::ONE)));
-        let (_, caller) =
-            func.alloc_value_inst(Instruction::new(InstKind::Caller, Some(MirType::I256)));
-
-        for (value, expected) in [
-            (zero, ScheduledOp::PushImmediate(alloy_primitives::U256::ZERO)),
-            (caller, ScheduledOp::RematerializeNullary(op::CALLER)),
-        ] {
-            let mut scheduler = StackScheduler::new();
-            scheduler.stack.push(value);
-            scheduler.stack.push(filler);
-            assert_eq!(scheduler.ensure_operand_on_top(value, &func), &[expected]);
-        }
-    }
-
-    #[test]
-    fn test_deep_unspilled_inst_result_is_not_emittable() {
-        let mut func = make_test_func();
-        let v0 = ValueId::from_usize(0);
-        let v1 = ValueId::from_usize(1);
-        let (_, deep) =
-            func.alloc_value_inst(Instruction::new(InstKind::Add(v0, v1), Some(MirType::I256)));
-        let mut scheduler = StackScheduler::new();
-
-        scheduler.stack.push(deep);
-        for i in 0..16 {
-            scheduler.stack.push(ValueId::from_usize(100 + i));
-        }
-
-        assert_eq!(scheduler.stack.find(deep), Some(16));
-        assert!(!scheduler.can_emit_value(deep, &func));
-
-        scheduler.spills.allocate(deep);
-        assert!(!scheduler.can_emit_value(deep, &func));
-
-        scheduler.spills.mark_reloadable(deep);
-        scheduler.spills.mark_recomputable(deep);
-        assert!(!scheduler.can_emit_value(deep, &func));
-
-        scheduler.stack.clear();
-        assert!(scheduler.can_emit_value(deep, &func));
-
-        scheduler.spills.mark_stored(deep);
-        assert!(scheduler.can_emit_value(deep, &func));
-    }
-
-    #[test]
-    fn amsterdam_uses_dupn_for_deep_value() {
-        let func = make_test_func();
-        let target = ValueId::from_usize(0);
-        let mut scheduler = StackScheduler::for_evm_version(EvmVersion::Amsterdam);
-        scheduler.stack.push(target);
-        for i in 0..16 {
-            scheduler.stack.push(ValueId::from_usize(100 + i));
-        }
-
-        assert_eq!(scheduler.ensure_on_top(target, &func), [ScheduledOp::Stack(StackOp::Dup(17))]);
-    }
-
-    #[test]
-    fn amsterdam_still_spills_past_dupn_reach() {
-        let mut func = make_test_func();
-        let v0 = ValueId::from_usize(0);
-        let v1 = ValueId::from_usize(1);
-        let (_, target) =
-            func.alloc_value_inst(Instruction::new(InstKind::Add(v0, v1), Some(MirType::I256)));
-        let mut scheduler = StackScheduler::for_evm_version(EvmVersion::Amsterdam);
-        scheduler.stack.push(target);
-        for i in 0..235 {
-            scheduler.stack.push(ValueId::from_usize(100 + i));
-        }
-
-        assert!(!scheduler.can_emit_value(target, &func));
-        let slot = scheduler.spills.allocate(target);
-        scheduler.spills.mark_stored(target);
-        assert_eq!(scheduler.ensure_on_top(target, &func), [ScheduledOp::LoadSpill(slot)]);
-    }
-
-    #[test]
-    fn operand_plan_consumes_aligned_last_uses() {
-        let func = make_test_func();
-        let a = ValueId::from_usize(0);
-        let b = ValueId::from_usize(1);
-        let mut scheduler = StackScheduler::new();
-        scheduler.stack.push(b);
-        scheduler.stack.push(a);
-
-        let plan = scheduler
-            .plan_operands(&[b, a], &[], &func, OptimizationMode::Gas, OperandCostModel::DIRECT)
-            .unwrap();
-        assert!(plan.actions.is_empty());
-
-        assert!(scheduler.apply_operand_plan(plan).is_empty());
-        scheduler.instruction_executed(2, None);
-        assert_eq!(scheduler.depth(), 0);
-    }
-
-    #[test]
-    fn operand_plan_swaps_last_uses_instead_of_duping() {
-        let func = make_test_func();
-        let a = ValueId::from_usize(0);
-        let b = ValueId::from_usize(1);
-        let mut scheduler = StackScheduler::new();
-        scheduler.stack.push(a);
-        scheduler.stack.push(b);
-
-        let plan = scheduler
-            .plan_operands(&[b, a], &[], &func, OptimizationMode::Gas, OperandCostModel::DIRECT)
-            .unwrap();
-        assert_eq!(plan.actions.len(), 1);
-        assert_eq!(plan.actions[0].op, ScheduledOp::Stack(StackOp::Swap(1)));
-
-        scheduler.apply_operand_plan(plan);
-        assert_eq!(scheduler.stack.top(), Some(a));
-        assert_eq!(scheduler.stack.peek(1), Some(b));
-    }
-
-    #[test]
-    fn operand_plan_pops_redundant_top_copy() {
-        let func = make_test_func();
-        let a = ValueId::from_usize(0);
-        let b = ValueId::from_usize(1);
-        let mut scheduler = StackScheduler::new();
-        scheduler.stack.push(b);
-        scheduler.stack.push(a);
-        scheduler.stack.push(b);
-
-        let plan = scheduler
-            .plan_operands(&[b, a], &[], &func, OptimizationMode::Gas, OperandCostModel::DIRECT)
-            .unwrap();
-
-        assert_eq!(plan.actions[0].op, ScheduledOp::Stack(StackOp::Pop));
-    }
-
-    #[test]
-    fn operand_plan_does_not_pop_unique_unrelated_value() {
-        let func = make_test_func();
-        let a = ValueId::from_usize(0);
-        let b = ValueId::from_usize(1);
-        let mut scheduler = StackScheduler::new();
-        scheduler.stack.push(a);
-        scheduler.stack.push(b);
-
-        let plan = scheduler
-            .plan_operands(&[a], &[], &func, OptimizationMode::Gas, OperandCostModel::DIRECT)
-            .unwrap();
-
-        assert_ne!(plan.actions[0].op, ScheduledOp::Stack(StackOp::Pop));
-    }
-
-    #[test]
-    fn operand_plan_preserves_live_values() {
-        let func = make_test_func();
-        let a = ValueId::from_usize(0);
-        let b = ValueId::from_usize(1);
-        let mut scheduler = StackScheduler::new();
-        scheduler.stack.push(b);
-        scheduler.stack.push(a);
-
-        let plan = scheduler
-            .plan_operands(
-                &[b, a],
-                &[a, b],
-                &func,
-                OptimizationMode::Size,
-                OperandCostModel::DIRECT,
-            )
-            .unwrap();
-        scheduler.apply_operand_plan(plan);
-        scheduler.instruction_executed(2, None);
-
-        assert!(scheduler.stack.contains(a));
-        assert!(scheduler.stack.contains(b));
-    }
-
-    #[test]
-    fn operand_plan_handles_repeated_operands() {
-        let func = make_test_func();
-        let a = ValueId::from_usize(0);
-        let mut scheduler = StackScheduler::new();
-        scheduler.stack.push(a);
-
-        let plan = scheduler
-            .plan_operands(&[a, a], &[], &func, OptimizationMode::Gas, OperandCostModel::DIRECT)
-            .unwrap();
-        scheduler.apply_operand_plan(plan);
-
-        assert_eq!(scheduler.stack.top(), Some(a));
-        assert_eq!(scheduler.stack.peek(1), Some(a));
-    }
-
-    #[test]
-    fn operand_plan_prefers_push0_for_repeated_zero() {
-        let mut func = Function::new(Ident::DUMMY);
-        let zero =
-            func.alloc_value(Value::Immediate(Immediate::I256(alloy_primitives::U256::ZERO)));
-        let mut scheduler = StackScheduler::new();
-        scheduler.stack.push(zero);
-
-        let plan = scheduler
-            .plan_operands(
-                &[zero, zero, zero],
-                &[],
-                &func,
-                OptimizationMode::Gas,
-                OperandCostModel::DIRECT,
-            )
-            .unwrap();
-
-        assert_eq!(plan.cost.static_gas, 4);
-        assert_eq!(plan.actions.len(), 2);
-        assert!(plan.actions.iter().all(|action| {
-            action.op == ScheduledOp::PushImmediate(alloy_primitives::U256::ZERO)
-        }));
-    }
-
-    #[test]
-    fn operand_plan_prefers_rematerialized_nullary() {
-        let mut func = Function::new(Ident::DUMMY);
-        let (_, caller) =
-            func.alloc_value_inst(Instruction::new(InstKind::Caller, Some(MirType::I256)));
-        for optimization in [OptimizationMode::Gas, OptimizationMode::Size] {
-            let mut scheduler = StackScheduler::new();
-            scheduler.stack.push(caller);
-
-            let plan = scheduler
-                .plan_operands(
-                    &[caller, caller],
-                    &[],
-                    &func,
-                    optimization,
-                    OperandCostModel::DIRECT,
-                )
-                .unwrap();
-
-            assert_eq!(plan.actions.len(), 1);
-            assert_eq!(
-                plan.actions[0].op,
-                ScheduledOp::RematerializeNullary(crate::backend::evm::op::CALLER)
-            );
-            assert_eq!(plan.actions[0].pushed, Some(caller));
-            assert_eq!(plan.cost.static_gas, 2);
-        }
-    }
-
-    #[test]
-    fn operand_plan_does_not_rematerialize_at_stack_limit() {
-        let mut func = Function::new(Ident::DUMMY);
-        let (_, caller) =
-            func.alloc_value_inst(Instruction::new(InstKind::Caller, Some(MirType::I256)));
-        let filler =
-            func.alloc_value(Value::Immediate(Immediate::I256(alloy_primitives::U256::from(1))));
-        let top =
-            func.alloc_value(Value::Immediate(Immediate::I256(alloy_primitives::U256::from(2))));
-        let mut scheduler = StackScheduler::new();
-        for _ in 0..MAX_STACK_DEPTH - 3 {
-            scheduler.stack.push(filler);
-        }
-        scheduler.stack.push(caller);
-        scheduler.stack.push(caller);
-        scheduler.stack.push(top);
-        assert_eq!(scheduler.stack.depth(), MAX_STACK_DEPTH);
-
-        let overflow = OperandPlan {
-            actions: smallvec::smallvec![PlannedAction {
-                op: ScheduledOp::RematerializeNullary(crate::backend::evm::op::CALLER),
-                pushed: Some(caller),
-            }],
-            cost: ScheduleCost::default(),
-        };
-        assert!(
-            scheduler
-                .validate_operand_plan(
-                    overflow,
-                    &[caller],
-                    &[caller],
-                    &func,
-                    OperandCostModel::DIRECT,
-                )
-                .is_none()
-        );
-
-        let plan = scheduler
-            .plan_operands(
-                &[caller],
-                &[caller],
-                &func,
-                OptimizationMode::Gas,
-                OperandCostModel::DIRECT,
-            )
-            .unwrap();
-
-        assert_eq!(plan.actions.len(), 1);
-        assert_eq!(plan.actions[0].op, ScheduledOp::Stack(StackOp::Swap(1)));
-        assert_eq!(plan.actions[0].pushed, None);
-        scheduler.apply_operand_plan(plan);
-        assert_eq!(scheduler.stack.depth(), MAX_STACK_DEPTH);
-    }
-
-    #[test]
-    fn operand_plan_creates_headroom_before_copying() {
-        let mut func = make_test_func();
-        let a = ValueId::from_usize(0);
-        let b = ValueId::from_usize(1);
-        let (_, value) =
-            func.alloc_value_inst(Instruction::new(InstKind::Add(a, b), Some(MirType::I256)));
-        let dead =
-            func.alloc_value(Value::Immediate(Immediate::I256(alloy_primitives::U256::from(1))));
-
-        for optimization in [OptimizationMode::Gas, OptimizationMode::Size] {
-            let mut scheduler = StackScheduler::new();
-            for _ in 0..MAX_STACK_DEPTH - 2 {
-                scheduler.stack.push(dead);
-            }
-            scheduler.stack.push(value);
-            scheduler.stack.push(dead);
-
-            let plan = scheduler
-                .plan_operands(&[value], &[value], &func, optimization, OperandCostModel::DIRECT)
-                .unwrap();
-
-            assert_eq!(plan.actions.len(), 2);
-            assert_eq!(plan.actions[0].op, ScheduledOp::Stack(StackOp::Pop));
-            assert_eq!(plan.actions[1].op, ScheduledOp::Stack(StackOp::Dup(1)));
-            scheduler.apply_operand_plan(plan);
-            assert_eq!(scheduler.stack.depth(), MAX_STACK_DEPTH);
-        }
-    }
-
-    #[test]
-    fn operand_plan_accounts_for_load_peak() {
-        let mut func = Function::new(Ident::DUMMY);
-        func.alloc_param(MirType::I256);
-        let argument = func.alloc_param(MirType::I256);
-        let spilled = func.alloc_param(MirType::I256);
-        let filler =
-            func.alloc_value(Value::Immediate(Immediate::I256(alloy_primitives::U256::from(1))));
-        let mut scheduler = StackScheduler::new();
-        let spill = scheduler.spills.allocate(spilled);
-        scheduler.spills.mark_reloadable(spilled);
-        for _ in 0..MAX_STACK_DEPTH - 1 {
-            scheduler.stack.push(filler);
-        }
-        let load = OperandPlan {
-            actions: smallvec::smallvec![PlannedAction {
-                op: ScheduledOp::LoadArg(ArgIdx::from_usize(1)),
-                pushed: Some(argument),
-            }],
-            cost: ScheduleCost::default(),
-        };
-
-        assert!(
-            scheduler
-                .validate_operand_plan(
-                    load.clone(),
-                    &[argument],
-                    &[],
-                    &func,
-                    OperandCostModel::DYNAMIC_FRAME,
-                )
-                .is_none()
-        );
-        assert!(
-            scheduler
-                .validate_operand_plan(
-                    load.clone(),
-                    &[argument],
-                    &[],
-                    &func,
-                    OperandCostModel::CONSTRUCTOR,
-                )
-                .is_none()
-        );
-        assert!(
-            scheduler
-                .validate_operand_plan(load, &[argument], &[], &func, OperandCostModel::DIRECT)
-                .is_some()
-        );
-
-        let spill_load = OperandPlan {
-            actions: smallvec::smallvec![PlannedAction {
-                op: ScheduledOp::LoadSpill(spill),
-                pushed: Some(spilled),
-            }],
-            cost: ScheduleCost::default(),
-        };
-        assert!(
-            scheduler
-                .validate_operand_plan(
-                    spill_load,
-                    &[spilled],
-                    &[],
-                    &func,
-                    OperandCostModel::CONSTRUCTOR,
-                )
-                .is_some()
-        );
-    }
-
-    #[test]
-    fn fallback_materialization_accounts_for_load_peak() {
-        let mut func = Function::new(Ident::DUMMY);
-        let argument = func.alloc_param(MirType::I256);
-        let filler =
-            func.alloc_value(Value::Immediate(Immediate::I256(alloy_primitives::U256::ONE)));
-        let mut scheduler = StackScheduler::new();
-        for _ in 0..MAX_STACK_DEPTH - 1 {
-            scheduler.stack.push(filler);
-        }
-
-        let start_depth = scheduler.depth();
-        let ops = scheduler.ensure_on_top(argument, &func).to_vec();
-        let peak = scheduler.observe_scheduled_ops_peak(
-            start_depth,
-            &ops,
-            OperandCostModel::DYNAMIC_FRAME,
-        );
-        assert_eq!(peak, MAX_STACK_DEPTH + 1);
-        assert_eq!(scheduler.stack.max_depth(), MAX_STACK_DEPTH + 1);
-
-        scheduler.stack.pop();
-        scheduler.spills.allocate(argument);
-        scheduler.spills.mark_stored(argument);
-        let start_depth = scheduler.depth();
-        let ops = scheduler.ensure_on_top(argument, &func).to_vec();
-        let peak = scheduler.observe_scheduled_ops_peak(
-            start_depth,
-            &ops,
-            OperandCostModel::DYNAMIC_FRAME,
-        );
-        assert_eq!(peak, MAX_STACK_DEPTH + 1);
-
-        let immediate =
-            func.alloc_value(Value::Immediate(Immediate::I256(alloy_primitives::U256::from(2))));
-        let start_depth = scheduler.depth();
-        let ops = scheduler.ensure_on_top(immediate, &func).to_vec();
-        let peak =
-            scheduler.observe_scheduled_ops_peak(start_depth, &ops, OperandCostModel::DIRECT);
-        assert_eq!(peak, MAX_STACK_DEPTH + 1);
-    }
-
-    #[test]
-    fn compact_immediate_accounts_for_transient_peak() {
-        let mut func = Function::new(Ident::DUMMY);
-        let filler =
-            func.alloc_value(Value::Immediate(Immediate::I256(alloy_primitives::U256::ONE)));
-        let shifted =
-            func.alloc_value(Value::Immediate(Immediate::I256(alloy_primitives::U256::ONE << 128)));
-        let mut scheduler = StackScheduler::new();
-        for _ in 0..MAX_STACK_DEPTH - 1 {
-            scheduler.stack.push(filler);
-        }
-
-        let ops = scheduler.ensure_on_top(shifted, &func).to_vec();
-        assert_eq!(
-            scheduler.observe_scheduled_ops_peak(
-                MAX_STACK_DEPTH - 1,
-                &ops,
-                OperandCostModel::DIRECT,
-            ),
-            MAX_STACK_DEPTH + 1
-        );
-    }
-
-    #[test]
-    fn operand_plan_does_not_defer_dead_zero_cleanup() {
-        let mut func = Function::new(Ident::DUMMY);
-        let zero =
-            func.alloc_value(Value::Immediate(Immediate::I256(alloy_primitives::U256::ZERO)));
-        let one =
-            func.alloc_value(Value::Immediate(Immediate::I256(alloy_primitives::U256::from(1))));
-        let two =
-            func.alloc_value(Value::Immediate(Immediate::I256(alloy_primitives::U256::from(2))));
-        let mut scheduler = StackScheduler::new();
-        scheduler.stack.push(zero);
-        scheduler.stack.push(two);
-        scheduler.stack.push(one);
-
-        let plan = scheduler
-            .plan_operands(&[zero], &[], &func, OptimizationMode::Gas, OperandCostModel::DIRECT)
-            .unwrap();
-
-        assert_eq!(plan.actions[0].op, ScheduledOp::Stack(StackOp::Swap(2)));
-        assert_eq!(plan.cost.static_gas, 3);
-    }
-
-    #[test]
-    fn operand_plan_prefers_push0_for_live_unary_value() {
-        let mut func = Function::new(Ident::DUMMY);
-        let zero =
-            func.alloc_value(Value::Immediate(Immediate::I256(alloy_primitives::U256::ZERO)));
-        let one =
-            func.alloc_value(Value::Immediate(Immediate::I256(alloy_primitives::U256::from(1))));
-        let mut scheduler = StackScheduler::new();
-        scheduler.stack.push(zero);
-        scheduler.stack.push(one);
-
-        let plan = scheduler
-            .plan_operands(&[zero], &[zero], &func, OptimizationMode::Gas, OperandCostModel::DIRECT)
-            .unwrap();
-
-        assert_eq!(plan.actions[0].op, ScheduledOp::PushImmediate(alloy_primitives::U256::ZERO));
-        assert_eq!(plan.cost.static_gas, 2);
-    }
-
-    #[test]
-    fn operand_plan_does_not_defer_multi_operand_cleanup() {
-        let mut func = Function::new(Ident::DUMMY);
-        let zero =
-            func.alloc_value(Value::Immediate(Immediate::I256(alloy_primitives::U256::ZERO)));
-        let one =
-            func.alloc_value(Value::Immediate(Immediate::I256(alloy_primitives::U256::from(1))));
-        let mut scheduler = StackScheduler::new();
-        scheduler.stack.push(zero);
-
-        let plan = scheduler
-            .plan_operands(
-                &[zero, one],
-                &[one],
-                &func,
-                OptimizationMode::Gas,
-                OperandCostModel::DIRECT,
-            )
-            .unwrap();
-
-        assert_eq!(plan.cost.static_gas, 9);
-        assert_eq!(plan.actions[1].op, ScheduledOp::Stack(StackOp::Swap(1)));
-    }
-
-    #[test]
-    fn operand_plan_uses_push0_for_live_multi_operand_value() {
-        let mut func = Function::new(Ident::DUMMY);
-        let zero =
-            func.alloc_value(Value::Immediate(Immediate::I256(alloy_primitives::U256::ZERO)));
-        let one =
-            func.alloc_value(Value::Immediate(Immediate::I256(alloy_primitives::U256::from(1))));
-        let mut scheduler = StackScheduler::new();
-        scheduler.stack.push(zero);
-        scheduler.stack.push(zero);
-
-        let plan = scheduler
-            .plan_operands(
-                &[zero, one, zero],
-                &[zero],
-                &func,
-                OptimizationMode::Gas,
-                OperandCostModel::DIRECT,
-            )
-            .unwrap();
-
-        assert_eq!(plan.cost.static_gas, 5);
-        assert_eq!(plan.actions[1].op, ScheduledOp::PushImmediate(alloy_primitives::U256::ZERO));
-    }
-
-    #[test]
-    fn operand_plan_handles_resident_nary_layouts_without_search() {
-        let mut func = make_test_func();
-        let a = ValueId::from_usize(0);
-        let b = ValueId::from_usize(1);
-        let (_, preserved) =
-            func.alloc_value_inst(Instruction::new(InstKind::Add(a, b), Some(MirType::I256)));
-        let (_, second) =
-            func.alloc_value_inst(Instruction::new(InstKind::Sub(a, b), Some(MirType::I256)));
-        let size =
-            func.alloc_value(Value::Immediate(Immediate::I256(alloy_primitives::U256::from(32))));
-        let topic =
-            func.alloc_value(Value::Immediate(Immediate::I256(alloy_primitives::U256::from(256))));
-        let trailing =
-            func.alloc_value(Value::Immediate(Immediate::I256(alloy_primitives::U256::ZERO)));
-        let operand_sets =
-            [vec![trailing, second, preserved], vec![trailing, second, topic, size, preserved]];
-        let cases = [
-            ([preserved, second], true),
-            ([second, preserved], true),
-            ([second, preserved], false),
-        ];
-
-        for optimization in [OptimizationMode::Gas, OptimizationMode::Size] {
-            for operands in &operand_sets {
-                for (layout, retain) in &cases {
-                    let mut scheduler = StackScheduler::new();
-                    scheduler.spills.allocate(preserved);
-                    scheduler.spills.mark_reloadable(preserved);
-                    scheduler.spills.mark_stored(preserved);
-                    for &value in layout.iter().rev() {
-                        scheduler.stack.push(value);
-                    }
-                    let retained = [preserved];
-                    let retained = if *retain { retained.as_slice() } else { &[] };
-                    let exact = exact_operand_cost(
-                        &scheduler,
-                        operands,
-                        retained,
-                        &func,
-                        optimization,
-                        EvmVersion::Shanghai,
-                    )
-                    .unwrap();
-
-                    let plan = scheduler
-                        .plan_operands(
-                            operands,
-                            retained,
-                            &func,
-                            optimization,
-                            OperandCostModel::DIRECT,
-                        )
-                        .unwrap();
-
-                    assert_eq!(plan.cost, exact.cost);
-                    let stats = scheduler.operand_search_stats.get();
-                    assert_eq!(stats.expansions, 0);
-                    assert_eq!(stats.created, 0);
-
-                    scheduler.apply_operand_plan(plan);
-                    scheduler.instruction_executed(operands.len(), None);
-                    if *retain {
-                        assert_eq!(scheduler.stack.as_slice(), &[Some(preserved)]);
-                    } else {
-                        assert_eq!(scheduler.stack.depth(), 0);
-                    }
-                }
-            }
-        }
-    }
-
-    #[test]
-    fn operand_plan_handles_max_nary_layout_in_large_function_and_block() {
-        const BIG_BLOCK_INSTRUCTIONS: usize = 4096;
-
-        let mut func = Function::new(Ident::DUMMY);
-        let (first, penultimate) = {
-            let mut builder = FunctionBuilder::new(&mut func);
-            let zero = builder.imm(0);
-            let one = builder.imm(1);
-            for _ in 0..BIG_BLOCK_INSTRUCTIONS {
-                builder.add(zero, one);
-            }
-            let first = builder.add(zero, one);
-            let penultimate = builder.sub(one, zero);
-            builder.stop();
-            (first, penultimate)
-        };
-        assert_eq!(func.blocks[BlockId::ENTRY].instructions.len(), BIG_BLOCK_INSTRUCTIONS + 2);
-
-        let middle = (0..16 - 3)
-            .map(|i| {
-                func.alloc_value(Value::Immediate(Immediate::I256(alloy_primitives::U256::from(
-                    1000 + i,
-                ))))
-            })
-            .collect::<Vec<_>>();
-        let trailing =
-            func.alloc_value(Value::Immediate(Immediate::I256(alloy_primitives::U256::from(2000))));
-        let mut goal = Vec::with_capacity(16);
-        goal.push(first);
-        goal.extend(middle);
-        goal.push(penultimate);
-        goal.push(trailing);
-        assert_eq!(goal.len(), 16);
-        let operands = goal.iter().rev().copied().collect::<Vec<_>>();
-
-        let tail = (0..64)
-            .map(|i| {
-                func.alloc_value(Value::Immediate(Immediate::I256(alloy_primitives::U256::from(
-                    3000 + i,
-                ))))
-            })
-            .collect::<Vec<_>>();
-        assert!(func.num_values() > BIG_BLOCK_INSTRUCTIONS);
-        let cases = [
-            ([first, penultimate], true),
-            ([penultimate, first], true),
-            ([penultimate, first], false),
-        ];
-
-        for optimization in [OptimizationMode::Gas, OptimizationMode::Size] {
-            for (layout, retain) in &cases {
-                let mut scheduler = StackScheduler::new();
-                scheduler.spills.allocate(first);
-                scheduler.spills.mark_reloadable(first);
-                scheduler.spills.mark_stored(first);
-                for &value in &tail {
-                    scheduler.stack.push(value);
-                }
-                for &value in layout.iter().rev() {
-                    scheduler.stack.push(value);
-                }
-
-                let retained = [first];
-                let retained = if *retain { retained.as_slice() } else { &[] };
-                let plan = scheduler
-                    .plan_operands(
-                        &operands,
-                        retained,
-                        &func,
-                        optimization,
-                        OperandCostModel::DIRECT,
-                    )
-                    .unwrap();
-
-                let stats = scheduler.operand_search_stats.get();
-                assert_eq!(stats.expansions, 0);
-                assert_eq!(stats.created, 0);
-
-                scheduler.apply_operand_plan(plan);
-                scheduler.instruction_executed(operands.len(), None);
-                let mut expected =
-                    tail.iter().rev().copied().map(Some).collect::<Vec<Option<ValueId>>>();
-                if *retain {
-                    expected.insert(0, Some(first));
-                }
-                assert_eq!(scheduler.stack.as_slice(), expected);
-            }
-        }
-    }
-
-    #[test]
     fn operand_search_matches_exact_cost_for_small_layouts() {
         let mut func = Function::new(Ident::DUMMY);
         let zero =
@@ -3668,117 +2798,6 @@ mod tests {
     }
 
     #[test]
-    fn operand_search_byte_budget_counts_spilled_stacks() {
-        let inline = SearchStack::default();
-        let base_bytes = size_of::<OperandSearchState>()
-            + size_of::<SearchStack>()
-            + size_of::<OperandSearchQueueEntry>();
-        assert_eq!(StackScheduler::operand_search_state_bytes(&inline), base_bytes);
-
-        let mut spilled = SearchStack::default();
-        spilled.resize(SEARCH_STACK_INLINE_CAPACITY + 1, None);
-        assert!(spilled.spilled());
-        assert_eq!(
-            StackScheduler::operand_search_state_bytes(&spilled),
-            base_bytes + 2 * spilled.capacity() * size_of::<Option<ValueId>>()
-        );
-    }
-
-    #[test]
-    fn operand_search_handles_anonymous_top_admissibly() {
-        let mut func = Function::new(Ident::DUMMY);
-        let a = func.alloc_param(MirType::I256);
-        let c =
-            func.alloc_value(Value::Immediate(Immediate::I256(alloy_primitives::U256::from(17))));
-        let mut scheduler = StackScheduler::new();
-        scheduler.stack.push(a);
-        scheduler.stack.push(a);
-        scheduler.stack.push_unknown();
-        scheduler.stack.push(c);
-
-        let plan = scheduler
-            .plan_operands(&[a, c, a], &[a], &func, OptimizationMode::Gas, OperandCostModel::DIRECT)
-            .unwrap();
-
-        assert_eq!(
-            plan.actions.iter().map(|action| &action.op).collect::<Vec<_>>(),
-            [
-                &ScheduledOp::Stack(StackOp::Dup(3)),
-                &ScheduledOp::Stack(StackOp::Swap(2)),
-                &ScheduledOp::Stack(StackOp::Swap(3)),
-            ]
-        );
-        assert_eq!(plan.cost.key(OptimizationMode::Gas), [9, 3, 3]);
-        let stats = scheduler.operand_search_stats.get();
-        assert!(stats.created > 0);
-        assert!(stats.expansions <= MAX_OPERAND_SEARCH_EXPANSIONS);
-        assert!(stats.created <= MAX_OPERAND_SEARCH_CREATED_STATES);
-        assert!(stats.max_visited <= MAX_OPERAND_SEARCH_VISITED_STATES);
-        assert!(stats.max_open <= MAX_OPERAND_SEARCH_OPEN_STATES);
-        assert!(stats.retained_bytes <= MAX_OPERAND_SEARCH_RETAINED_BYTES);
-    }
-
-    #[test]
-    fn operand_search_exhausts_function_budget_and_keeps_fast_paths() {
-        let mut func = Function::new(Ident::DUMMY);
-        let a = func.alloc_param(MirType::I256);
-        let c =
-            func.alloc_value(Value::Immediate(Immediate::I256(alloy_primitives::U256::from(17))));
-        let mut scheduler = StackScheduler::new();
-        scheduler.stack.push(a);
-        scheduler.stack.push(a);
-        scheduler.stack.push_unknown();
-        scheduler.stack.push(c);
-        scheduler
-            .operand_search_budget
-            .set(OperandSearchBudget { remaining_expansions: 1, limited_searches: 0 });
-
-        assert!(
-            scheduler
-                .plan_operands(
-                    &[a, c, a],
-                    &[a],
-                    &func,
-                    OptimizationMode::Gas,
-                    OperandCostModel::DIRECT,
-                )
-                .is_none()
-        );
-        let stats = scheduler.operand_search_stats.get();
-        assert_eq!(stats.expansions, 1);
-        assert!(stats.limit_hit);
-        assert!(!stats.skipped_by_function_budget);
-        assert_eq!(scheduler.operand_search_budget.get().remaining_expansions, 0);
-
-        assert!(
-            scheduler
-                .plan_operands(
-                    &[a, c, a],
-                    &[a],
-                    &func,
-                    OptimizationMode::Gas,
-                    OperandCostModel::DIRECT,
-                )
-                .is_none()
-        );
-        let stats = scheduler.operand_search_stats.get();
-        assert_eq!(stats.expansions, 0);
-        assert!(!stats.limit_hit);
-        assert!(stats.skipped_by_function_budget);
-
-        let mut scheduler = StackScheduler::new();
-        scheduler.stack.push(a);
-        scheduler.operand_search_budget.set(OperandSearchBudget {
-            remaining_expansions: 0,
-            limited_searches: MAX_OPERAND_SEARCH_FUNCTION_LIMITS,
-        });
-        let plan = scheduler
-            .plan_operands(&[a], &[], &func, OptimizationMode::Gas, OperandCostModel::DIRECT)
-            .unwrap();
-        assert!(plan.is_free());
-    }
-
-    #[test]
     fn operand_search_lower_bound_is_admissible_with_anonymous_slots() {
         let mut func = Function::new(Ident::DUMMY);
         let a = func.alloc_param(MirType::I256);
@@ -3824,9 +2843,14 @@ mod tests {
                         for &value in &goal {
                             *required_counts.entry(value).or_default() += 1;
                         }
+                        let required = scheduler.required_operands(
+                            &required_counts,
+                            &func,
+                            EvmVersion::Shanghai,
+                            OperandCostModel::DIRECT,
+                        );
                         let context = OperandPlanningContext {
-                            func: &func,
-                            required_counts: &required_counts,
+                            required: &required,
                             optimization,
                             evm_version: EvmVersion::Shanghai,
                             cost_model: OperandCostModel::DIRECT,
@@ -3846,861 +2870,6 @@ mod tests {
                     }
                 }
             }
-        }
-    }
-
-    #[test]
-    fn operand_plan_can_consume_swap16_value() {
-        let mut func = make_test_func();
-        let target = ValueId::from_usize(0);
-        let mut scheduler = StackScheduler::new();
-        scheduler.stack.push(target);
-        for i in 0..16 {
-            let filler = func.alloc_value(Value::Immediate(Immediate::I256(
-                alloy_primitives::U256::from(100 + i),
-            )));
-            scheduler.stack.push(filler);
-        }
-        assert_eq!(scheduler.stack.find(target), Some(16));
-
-        let plan = scheduler
-            .plan_operands(&[target], &[], &func, OptimizationMode::Gas, OperandCostModel::DIRECT)
-            .unwrap();
-        assert_eq!(plan.actions.len(), 1);
-        assert_eq!(plan.actions[0].op, ScheduledOp::Stack(StackOp::Swap(16)));
-    }
-
-    #[test]
-    fn amsterdam_operand_plan_uses_swapn() {
-        let mut func = make_test_func();
-        let target = ValueId::from_usize(0);
-        let mut scheduler = StackScheduler::for_evm_version(EvmVersion::Amsterdam);
-        scheduler.stack.push(target);
-        for i in 0..17 {
-            let filler = func.alloc_value(Value::Immediate(Immediate::I256(
-                alloy_primitives::U256::from(100 + i),
-            )));
-            scheduler.stack.push(filler);
-        }
-
-        let plan = scheduler
-            .plan_operands(&[target], &[], &func, OptimizationMode::Gas, OperandCostModel::DIRECT)
-            .unwrap();
-        assert_eq!(plan.actions[0].op, ScheduledOp::Stack(StackOp::Swap(17)));
-    }
-
-    #[test]
-    fn amsterdam_binary_operand_plan_uses_swapn() {
-        let mut func = make_test_func();
-        let target = ValueId::from_usize(0);
-        let mut scheduler = StackScheduler::for_evm_version(EvmVersion::Amsterdam);
-        scheduler.stack.push(target);
-        let fillers = (0..17)
-            .map(|i| {
-                let filler = func.alloc_value(Value::Immediate(Immediate::I256(
-                    alloy_primitives::U256::from(100 + i),
-                )));
-                scheduler.stack.push(filler);
-                filler
-            })
-            .collect::<Vec<_>>();
-
-        let plan = scheduler
-            .plan_operands(
-                &[fillers[15], target],
-                &[],
-                &func,
-                OptimizationMode::Gas,
-                OperandCostModel::DIRECT,
-            )
-            .unwrap();
-        assert_eq!(plan.actions.len(), 1);
-        assert_eq!(plan.actions[0].op, ScheduledOp::Stack(StackOp::Swap(17)));
-    }
-
-    #[test]
-    fn amsterdam_operand_search_considers_deep_ops() {
-        let mut func = make_test_func();
-        let first = ValueId::from_usize(0);
-        let second = ValueId::from_usize(1);
-        let mut scheduler = StackScheduler::for_evm_version(EvmVersion::Amsterdam);
-        scheduler.stack.push(first);
-        scheduler.stack.push(second);
-        for i in 0..17 {
-            let filler = func.alloc_value(Value::Immediate(Immediate::I256(
-                alloy_primitives::U256::from(100 + i),
-            )));
-            scheduler.stack.push(filler);
-        }
-
-        let goal = [second, first];
-        let required_counts = FxHashMap::from_iter([(first, 1), (second, 1)]);
-        let context = OperandPlanningContext {
-            func: &func,
-            required_counts: &required_counts,
-            optimization: OptimizationMode::Gas,
-            evm_version: EvmVersion::Amsterdam,
-            cost_model: OperandCostModel::DIRECT,
-        };
-        let actions = scheduler.operand_search_actions(
-            scheduler.stack.as_slice(),
-            &goal,
-            &FxHashMap::default(),
-            context,
-        );
-
-        assert!(
-            actions.iter().any(|action| { action.op == ScheduledOp::Stack(StackOp::Swap(17)) })
-        );
-        assert!(
-            actions.iter().any(|action| { action.op == ScheduledOp::Stack(StackOp::Swap(18)) })
-        );
-    }
-
-    #[test]
-    fn amsterdam_preserved_binary_operand_uses_dupn() {
-        let mut func = make_test_func();
-        let target = ValueId::from_usize(0);
-        let other =
-            func.alloc_value(Value::Immediate(Immediate::I256(alloy_primitives::U256::from(999))));
-        let mut scheduler = StackScheduler::for_evm_version(EvmVersion::Amsterdam);
-        scheduler.stack.push(target);
-        for i in 0..17 {
-            let filler = func.alloc_value(Value::Immediate(Immediate::I256(
-                alloy_primitives::U256::from(100 + i),
-            )));
-            scheduler.stack.push(filler);
-        }
-
-        let plan = scheduler
-            .plan_operands(
-                &[target, other],
-                &[target],
-                &func,
-                OptimizationMode::Gas,
-                OperandCostModel::DIRECT,
-            )
-            .unwrap();
-        assert_eq!(plan.actions[0].op, ScheduledOp::Stack(StackOp::Dup(18)));
-    }
-
-    #[test]
-    fn operand_search_preflights_value_below_swap16() {
-        let mut func = make_test_func();
-        let a = ValueId::from_usize(0);
-        let b = ValueId::from_usize(1);
-        let (_, target) =
-            func.alloc_value_inst(Instruction::new(InstKind::Add(a, b), Some(MirType::I256)));
-        let mut scheduler = StackScheduler::new();
-        scheduler.stack.push(target);
-        for value in 0..=16 {
-            let filler = func.alloc_value(Value::Immediate(Immediate::I256(
-                alloy_primitives::U256::from(value),
-            )));
-            scheduler.stack.push(filler);
-        }
-        assert_eq!(scheduler.stack.find(target), Some(16 + 1));
-
-        assert!(
-            scheduler
-                .plan_operands(
-                    &[target],
-                    &[],
-                    &func,
-                    OptimizationMode::Gas,
-                    OperandCostModel::DIRECT,
-                )
-                .is_none()
-        );
-        let stats = scheduler.operand_search_stats.get();
-        assert_eq!(stats.unreachable_preflights, 1);
-        assert_eq!(stats.expansions, 0);
-        assert_eq!(stats.created, 0);
-        assert_eq!(stats.max_visited, 0);
-        assert_eq!(stats.max_open, 0);
-        assert_eq!(stats.retained_bytes, 0);
-    }
-
-    #[test]
-    fn operand_search_preflights_dead_reloadable_copy_below_swap16() {
-        let mut func = make_test_func();
-        let a = ValueId::from_usize(0);
-        let b = ValueId::from_usize(1);
-        let (_, target) =
-            func.alloc_value_inst(Instruction::new(InstKind::Add(a, b), Some(MirType::I256)));
-        let (_, top) =
-            func.alloc_value_inst(Instruction::new(InstKind::Sub(a, b), Some(MirType::I256)));
-        let mut scheduler = StackScheduler::new();
-        scheduler.spills.allocate(target);
-        scheduler.spills.mark_reloadable(target);
-        scheduler.stack.push(target);
-        for value in 0..16 {
-            let filler = func.alloc_value(Value::Immediate(Immediate::I256(
-                alloy_primitives::U256::from(value),
-            )));
-            scheduler.stack.push(filler);
-        }
-        scheduler.stack.push(top);
-        assert_eq!(scheduler.stack.find(target), Some(16 + 1));
-
-        assert!(
-            scheduler
-                .plan_operands(
-                    &[top, target],
-                    &[],
-                    &func,
-                    OptimizationMode::Gas,
-                    OperandCostModel::DIRECT,
-                )
-                .is_none()
-        );
-        let stats = scheduler.operand_search_stats.get();
-        assert_eq!(stats.unreachable_preflights, 1);
-        assert_eq!(stats.expansions, 0);
-    }
-
-    #[test]
-    fn size_operand_search_preflights_dead_copy_with_accessible_surplus() {
-        let mut func = make_test_func();
-        let a = ValueId::from_usize(0);
-        let b = ValueId::from_usize(1);
-        let (_, target) =
-            func.alloc_value_inst(Instruction::new(InstKind::Add(a, b), Some(MirType::I256)));
-        let (_, top) =
-            func.alloc_value_inst(Instruction::new(InstKind::Sub(a, b), Some(MirType::I256)));
-        let surplus =
-            func.alloc_value(Value::Immediate(Immediate::I256(alloy_primitives::U256::from(256))));
-        let mut scheduler = StackScheduler::new();
-        scheduler.spills.allocate(target);
-        scheduler.spills.mark_reloadable(target);
-        scheduler.stack.push(target);
-        for value in 0..16 - 2 {
-            let filler = func.alloc_value(Value::Immediate(Immediate::I256(
-                alloy_primitives::U256::from(value),
-            )));
-            scheduler.stack.push(filler);
-        }
-        scheduler.stack.push(surplus);
-        scheduler.stack.push(surplus);
-        scheduler.stack.push(top);
-        assert_eq!(scheduler.stack.find(target), Some(16 + 1));
-
-        assert!(
-            scheduler
-                .plan_operands(
-                    &[top, target],
-                    &[],
-                    &func,
-                    OptimizationMode::Size,
-                    OperandCostModel::DIRECT,
-                )
-                .is_none()
-        );
-        let stats = scheduler.operand_search_stats.get();
-        assert_eq!(stats.unreachable_preflights, 1);
-        assert_eq!(stats.expansions, 0);
-    }
-
-    #[test]
-    fn operand_plan_validation_rejects_invalid_depths() {
-        let mut func = Function::new(Ident::DUMMY);
-        let target =
-            func.alloc_value(Value::Immediate(Immediate::I256(alloy_primitives::U256::ZERO)));
-
-        let mut scheduler = StackScheduler::new();
-        scheduler.stack.push(target);
-        let swap0 = OperandPlan {
-            actions: smallvec::smallvec![PlannedAction {
-                op: ScheduledOp::Stack(StackOp::Swap(0)),
-                pushed: None,
-            }],
-            cost: ScheduleCost::default(),
-        };
-        assert!(
-            scheduler
-                .validate_operand_plan(swap0, &[target], &[], &func, OperandCostModel::DIRECT)
-                .is_none()
-        );
-
-        for value in 0..=16 {
-            let filler = func.alloc_value(Value::Immediate(Immediate::I256(
-                alloy_primitives::U256::from(value + 1),
-            )));
-            scheduler.stack.push(filler);
-        }
-        let swap17 = OperandPlan {
-            actions: smallvec::smallvec![PlannedAction {
-                op: ScheduledOp::Stack(StackOp::Swap(17)),
-                pushed: None,
-            }],
-            cost: ScheduleCost::default(),
-        };
-        assert!(
-            scheduler
-                .validate_operand_plan(swap17, &[target], &[], &func, OperandCostModel::DIRECT)
-                .is_none()
-        );
-
-        let scheduler = StackScheduler::new();
-        let dup0 = OperandPlan {
-            actions: smallvec::smallvec![PlannedAction {
-                op: ScheduledOp::Stack(StackOp::Dup(0)),
-                pushed: None,
-            }],
-            cost: ScheduleCost::default(),
-        };
-        assert!(
-            scheduler
-                .validate_operand_plan(dup0, &[target], &[], &func, OperandCostModel::DIRECT)
-                .is_none()
-        );
-
-        let mut scheduler = StackScheduler::new();
-        scheduler.stack.push(target);
-        for value in 0..16 {
-            let filler = func.alloc_value(Value::Immediate(Immediate::I256(
-                alloy_primitives::U256::from(value + 100),
-            )));
-            scheduler.stack.push(filler);
-        }
-        let dup17 = OperandPlan {
-            actions: smallvec::smallvec![PlannedAction {
-                op: ScheduledOp::Stack(StackOp::Dup(17)),
-                pushed: Some(target),
-            }],
-            cost: ScheduleCost::default(),
-        };
-        assert!(
-            scheduler
-                .validate_operand_plan(
-                    dup17,
-                    &[target],
-                    &[target],
-                    &func,
-                    OperandCostModel::DIRECT,
-                )
-                .is_none()
-        );
-    }
-
-    #[test]
-    fn operand_plan_validation_rejects_forged_materializations() {
-        let mut func = Function::new(Ident::DUMMY);
-        let immediate =
-            func.alloc_value(Value::Immediate(Immediate::I256(alloy_primitives::U256::ZERO)));
-        let argument = func.alloc_param(MirType::I256);
-        let spilled = func.alloc_param(MirType::I256);
-        let mut scheduler = StackScheduler::new();
-        let spill = scheduler.spills.allocate(spilled);
-        scheduler.spills.mark_reloadable(spilled);
-
-        let forged_immediate = OperandPlan {
-            actions: smallvec::smallvec![PlannedAction {
-                op: ScheduledOp::PushImmediate(alloy_primitives::U256::from(1)),
-                pushed: Some(immediate),
-            }],
-            cost: ScheduleCost::default(),
-        };
-        assert!(
-            scheduler
-                .validate_operand_plan(
-                    forged_immediate,
-                    &[immediate],
-                    &[],
-                    &func,
-                    OperandCostModel::DIRECT,
-                )
-                .is_none()
-        );
-
-        let forged_argument = OperandPlan {
-            actions: smallvec::smallvec![PlannedAction {
-                op: ScheduledOp::LoadArg(ArgIdx::from_usize(1)),
-                pushed: Some(argument),
-            }],
-            cost: ScheduleCost::default(),
-        };
-        assert!(
-            scheduler
-                .validate_operand_plan(
-                    forged_argument,
-                    &[argument],
-                    &[],
-                    &func,
-                    OperandCostModel::DIRECT,
-                )
-                .is_none()
-        );
-
-        let forged_spill = OperandPlan {
-            actions: smallvec::smallvec![PlannedAction {
-                op: ScheduledOp::LoadSpill(SpillSlot { offset: spill.offset + 1 }),
-                pushed: Some(spilled),
-            }],
-            cost: ScheduleCost::default(),
-        };
-        assert!(
-            scheduler
-                .validate_operand_plan(
-                    forged_spill,
-                    &[spilled],
-                    &[],
-                    &func,
-                    OperandCostModel::DIRECT,
-                )
-                .is_none()
-        );
-    }
-
-    #[test]
-    fn operand_plan_validation_preserves_non_operands() {
-        let mut func = Function::new(Ident::DUMMY);
-        let target =
-            func.alloc_value(Value::Immediate(Immediate::I256(alloy_primitives::U256::ZERO)));
-        let unrelated =
-            func.alloc_value(Value::Immediate(Immediate::I256(alloy_primitives::U256::from(1))));
-        let mut scheduler = StackScheduler::new();
-        scheduler.stack.push(target);
-        scheduler.stack.push(unrelated);
-
-        let forged_pop = OperandPlan {
-            actions: smallvec::smallvec![PlannedAction {
-                op: ScheduledOp::Stack(StackOp::Pop),
-                pushed: None,
-            }],
-            cost: ScheduleCost::default(),
-        };
-        assert!(
-            scheduler
-                .validate_operand_plan(forged_pop, &[target], &[], &func, OperandCostModel::DIRECT,)
-                .is_none()
-        );
-    }
-
-    #[test]
-    fn operand_plan_validation_can_drop_redundant_non_operand_copy() {
-        let mut func = Function::new(Ident::DUMMY);
-        let target =
-            func.alloc_value(Value::Immediate(Immediate::I256(alloy_primitives::U256::ZERO)));
-        let unrelated =
-            func.alloc_value(Value::Immediate(Immediate::I256(alloy_primitives::U256::from(1))));
-        let mut scheduler = StackScheduler::new();
-        scheduler.stack.push(target);
-        scheduler.stack.push(unrelated);
-        scheduler.stack.push(unrelated);
-
-        let plan = OperandPlan {
-            actions: smallvec::smallvec![
-                PlannedAction { op: ScheduledOp::Stack(StackOp::Pop), pushed: None },
-                PlannedAction { op: ScheduledOp::Stack(StackOp::Swap(1)), pushed: None }
-            ],
-            cost: ScheduleCost::default(),
-        };
-        assert!(
-            scheduler
-                .validate_operand_plan(plan, &[target], &[], &func, OperandCostModel::DIRECT)
-                .is_some()
-        );
-    }
-
-    #[test]
-    fn operand_plan_duplicates_value_below_dup16_reach() {
-        let mut func = Function::new(Ident::DUMMY);
-        let target = func.alloc_param(MirType::I256);
-        let mut scheduler = StackScheduler::new();
-        scheduler.stack.push(target);
-        for value in 0..16 {
-            let filler = func.alloc_value(Value::Immediate(Immediate::I256(
-                alloy_primitives::U256::from(value),
-            )));
-            scheduler.stack.push(filler);
-        }
-        assert_eq!(scheduler.stack.find(target), Some(16));
-
-        let plan = scheduler
-            .plan_operands(
-                &[target, target],
-                &[],
-                &func,
-                OptimizationMode::Gas,
-                OperandCostModel::DYNAMIC_FRAME,
-            )
-            .unwrap();
-
-        assert_eq!(
-            plan.actions.iter().map(|action| &action.op).collect::<Vec<_>>(),
-            [&ScheduledOp::Stack(StackOp::Swap(16)), &ScheduledOp::Stack(StackOp::Dup(1))]
-        );
-        assert_eq!(plan.cost.key(OptimizationMode::Gas), [6, 2, 2]);
-    }
-
-    #[test]
-    fn operand_plan_materializes_around_anonymous_words() {
-        let func = make_test_func();
-        let value = ValueId::from_usize(0);
-        let mut scheduler = StackScheduler::new();
-        scheduler.stack.push_unknown();
-
-        let plan = scheduler
-            .plan_operands(&[value], &[], &func, OptimizationMode::Gas, OperandCostModel::DIRECT)
-            .unwrap();
-        scheduler.apply_operand_plan(plan);
-        scheduler.instruction_executed(1, None);
-
-        assert_eq!(scheduler.depth(), 1);
-        assert!(scheduler.stack.top().is_none());
-    }
-
-    #[test]
-    fn operand_plan_rejects_unstored_recomputable_spill() {
-        let mut func = make_test_func();
-        let a = ValueId::from_usize(0);
-        let b = ValueId::from_usize(1);
-        let (_, value) =
-            func.alloc_value_inst(Instruction::new(InstKind::Add(a, b), Some(MirType::I256)));
-        let mut scheduler = StackScheduler::new();
-        let slot = scheduler.spills.allocate(value);
-        scheduler.spills.mark_reloadable(value);
-        scheduler.spills.mark_recomputable(value);
-
-        assert!(scheduler.should_recompute_unstored_spill(value));
-        assert!(
-            scheduler
-                .plan_operands(
-                    &[value],
-                    &[],
-                    &func,
-                    OptimizationMode::Gas,
-                    OperandCostModel::DIRECT,
-                )
-                .is_none()
-        );
-
-        scheduler.spills.mark_stored(value);
-        let plan = scheduler
-            .plan_operands(&[value], &[], &func, OptimizationMode::Gas, OperandCostModel::DIRECT)
-            .unwrap();
-        assert_eq!(plan.actions[0].op, ScheduledOp::LoadSpill(slot));
-    }
-
-    #[test]
-    fn operand_plan_prefers_stable_nullary_rematerialization() {
-        let mut func = make_test_func();
-        let (_, value) =
-            func.alloc_value_inst(Instruction::new(InstKind::CallValue, Some(MirType::I256)));
-        let mut scheduler = StackScheduler::new();
-        scheduler.spills.allocate(value);
-        scheduler.spills.mark_stored(value);
-
-        assert!(scheduler.can_emit_value(value, &func));
-
-        let plan = scheduler
-            .plan_operands(&[value], &[], &func, OptimizationMode::Gas, OperandCostModel::DIRECT)
-            .unwrap();
-
-        assert_eq!(
-            plan.actions[0].op,
-            ScheduledOp::RematerializeNullary(crate::backend::evm::op::CALLVALUE)
-        );
-
-        scheduler.stack.push(value);
-        for index in 0..16 {
-            scheduler.stack.push(ValueId::from_usize(100 + index));
-        }
-        assert_eq!(scheduler.stack.find(value), Some(16));
-        assert_eq!(
-            scheduler.ensure_on_top(value, &func),
-            [ScheduledOp::RematerializeNullary(crate::backend::evm::op::CALLVALUE)]
-        );
-    }
-
-    #[test]
-    fn operand_plan_accepts_runtime_valid_unstored_spill() {
-        let mut func = make_test_func();
-        let (_, value) =
-            func.alloc_value_inst(Instruction::new(InstKind::Gas, Some(MirType::I256)));
-        let mut scheduler = StackScheduler::new();
-        let slot = scheduler.spills.allocate(value);
-        scheduler.spills.mark_reloadable(value);
-
-        let plan = scheduler
-            .plan_operands(&[value], &[], &func, OptimizationMode::Gas, OperandCostModel::DIRECT)
-            .unwrap();
-        assert_eq!(plan.actions[0].op, ScheduledOp::LoadSpill(slot));
-    }
-
-    #[test]
-    fn operand_plan_uses_active_frame_reload_cost() {
-        let mut func = make_test_func();
-        let a = ValueId::from_usize(0);
-        let b = ValueId::from_usize(1);
-        let (_, value) =
-            func.alloc_value_inst(Instruction::new(InstKind::Add(a, b), Some(MirType::I256)));
-
-        for (cost_model, expected_gas, expected_bytes) in
-            [(OperandCostModel::DIRECT, 6, 4), (OperandCostModel::DYNAMIC_FRAME, 15, 7)]
-        {
-            let mut scheduler = StackScheduler::new();
-            let slot = scheduler.spills.allocate(value);
-            scheduler.spills.mark_stored(value);
-
-            let plan = scheduler
-                .plan_operands(&[value], &[], &func, OptimizationMode::Gas, cost_model)
-                .unwrap();
-
-            assert_eq!(plan.actions[0].op, ScheduledOp::LoadSpill(slot));
-            assert_eq!(plan.cost.static_gas, expected_gas);
-            assert_eq!(plan.cost.encoded_bytes, expected_bytes);
-        }
-    }
-
-    #[test]
-    fn operand_plan_preserves_resident_reloadable_value() {
-        let mut func = make_test_func();
-        let a = ValueId::from_usize(0);
-        let b = ValueId::from_usize(1);
-        let (_, value) =
-            func.alloc_value_inst(Instruction::new(InstKind::Add(a, b), Some(MirType::I256)));
-        let mut scheduler = StackScheduler::new();
-        scheduler.spills.allocate(value);
-        scheduler.spills.mark_reloadable(value);
-        scheduler.stack.push(value);
-
-        let plan = scheduler
-            .plan_operands(
-                &[value],
-                &[value],
-                &func,
-                OptimizationMode::Gas,
-                OperandCostModel::DIRECT,
-            )
-            .unwrap();
-
-        assert_eq!(plan.actions[0].op, ScheduledOp::Stack(StackOp::Dup(1)));
-        scheduler.apply_operand_plan(plan);
-        scheduler.instruction_executed(1, None);
-        assert_eq!(scheduler.stack.top(), Some(value));
-    }
-
-    #[test]
-    fn preserved_binary_plan_lifts_resident_at_dup_boundary() {
-        for evm_version in [EvmVersion::Shanghai, EvmVersion::Amsterdam] {
-            for depth in
-                [evm_version.reachable_stack_depth() - 1, evm_version.reachable_stack_depth()]
-            {
-                for immediate in [0, 17] {
-                    let mut func = Function::new(Ident::DUMMY);
-                    let resident = func.alloc_param(MirType::I256);
-                    let other = func.alloc_value(Value::Immediate(Immediate::I256(
-                        alloy_primitives::U256::from(immediate),
-                    )));
-                    let mut scheduler = StackScheduler::for_evm_version(evm_version);
-                    scheduler.stack.push(resident);
-                    for _ in 0..depth {
-                        let filler = func.alloc_param(MirType::I256);
-                        scheduler.stack.push(filler);
-                    }
-                    let original = scheduler.stack.clone();
-                    let plan = scheduler
-                        .plan_operands(
-                            &[other, resident],
-                            &[resident],
-                            &func,
-                            OptimizationMode::Gas,
-                            OperandCostModel::DIRECT,
-                        )
-                        .unwrap();
-                    assert_eq!(scheduler.operand_search_stats.get().created, 0);
-                    assert_eq!(plan.actions[0].op, ScheduledOp::Stack(StackOp::Swap(depth as u8)));
-                    assert_eq!(plan.actions.len(), 3);
-                    scheduler.apply_operand_plan(plan);
-                    assert_eq!(&scheduler.stack.as_slice()[..2], &[Some(resident), Some(other)]);
-                    scheduler.instruction_executed(2, None);
-                    let mut expected = original.as_slice().to_vec();
-                    expected.swap(0, depth);
-                    assert_eq!(scheduler.stack.as_slice(), expected);
-                }
-            }
-        }
-    }
-
-    #[test]
-    fn preserved_binary_boundary_keeps_cheaper_pop_in_search() {
-        let mut func = Function::new(Ident::DUMMY);
-        let resident = func.alloc_param(MirType::I256);
-        let other =
-            func.alloc_value(Value::Immediate(Immediate::I256(alloy_primitives::U256::ONE)));
-        let filler = func.alloc_param(MirType::I256);
-        let mut scheduler = StackScheduler::new();
-        scheduler.stack.push(resident);
-        for _ in 0..16 - 1 {
-            scheduler.stack.push(filler);
-        }
-        assert!(
-            scheduler
-                .try_preserved_resident_binary_plan(
-                    &[other, resident],
-                    &[resident],
-                    &func,
-                    OptimizationMode::Gas,
-                    EvmVersion::Shanghai,
-                    OperandCostModel::DIRECT,
-                )
-                .is_none()
-        );
-        let plan = scheduler
-            .plan_operands(
-                &[other, resident],
-                &[resident],
-                &func,
-                OptimizationMode::Gas,
-                OperandCostModel::DIRECT,
-            )
-            .unwrap();
-        assert_eq!(plan.actions[0].op, ScheduledOp::Stack(StackOp::Pop));
-        assert_eq!(plan.cost.static_gas, 8);
-    }
-
-    #[test]
-    fn operand_plan_materializes_high_arity_in_push_order() {
-        let mut func = make_test_func();
-        let mut operands = vec![ValueId::from_usize(0), ValueId::from_usize(1)];
-        for value in 2..6 {
-            operands.push(func.alloc_value(Value::Immediate(Immediate::I256(
-                alloy_primitives::U256::from(value),
-            ))));
-        }
-        let mut scheduler = StackScheduler::new();
-
-        let plan = scheduler
-            .plan_operands(&operands, &[], &func, OptimizationMode::Gas, OperandCostModel::DIRECT)
-            .unwrap();
-        let ops = scheduler.apply_operand_plan(plan);
-
-        assert_eq!(ops.len(), operands.len());
-        assert!(ops.iter().all(|op| matches!(op, ScheduledOp::PushImmediate(_))));
-        assert!(scheduler.stack.iter().eq(operands.iter().rev().copied().map(Some)));
-    }
-
-    #[test]
-    fn operand_plan_linearizes_single_resident_last_use() {
-        let mut func = Function::new(Ident::DUMMY);
-        let operands = (1..=5)
-            .map(|value| {
-                func.alloc_value(Value::Immediate(Immediate::I256(alloy_primitives::U256::from(
-                    value,
-                ))))
-            })
-            .collect::<Vec<_>>();
-
-        for optimization in [OptimizationMode::Gas, OptimizationMode::Size] {
-            let mut scheduler = StackScheduler::new();
-            scheduler.stack.push(operands[1]);
-
-            let plan = scheduler
-                .plan_operands(&operands, &[], &func, optimization, OperandCostModel::DIRECT)
-                .unwrap();
-            assert_eq!(
-                plan.actions.iter().map(|action| &action.op).collect::<Vec<_>>(),
-                [
-                    &ScheduledOp::PushImmediate(alloy_primitives::U256::from(1)),
-                    &ScheduledOp::Stack(StackOp::Swap(1)),
-                    &ScheduledOp::PushImmediate(alloy_primitives::U256::from(3)),
-                    &ScheduledOp::PushImmediate(alloy_primitives::U256::from(4)),
-                    &ScheduledOp::PushImmediate(alloy_primitives::U256::from(5)),
-                ]
-            );
-
-            scheduler.apply_operand_plan(plan);
-            assert!(scheduler.stack.iter().eq(operands.iter().rev().copied().map(Some)));
-        }
-    }
-
-    #[test]
-    fn operand_plan_is_disabled_without_optimization() {
-        let func = make_test_func();
-        let value = ValueId::from_usize(0);
-        let scheduler = StackScheduler::new();
-
-        assert!(
-            scheduler
-                .plan_operands(
-                    &[value],
-                    &[],
-                    &func,
-                    OptimizationMode::None,
-                    OperandCostModel::DIRECT,
-                )
-                .is_none()
-        );
-    }
-
-    #[test]
-    fn drops_contiguous_dead_values_with_one_swap() {
-        let mut func = Function::new(Ident::DUMMY);
-        let mut builder = FunctionBuilder::new(&mut func);
-        let a = builder.add_param(MirType::I256);
-        let b = builder.add_param(MirType::I256);
-        let c = builder.add_param(MirType::I256);
-        let sum = builder.add(a, b);
-        let result = builder.add(sum, c);
-        builder.ret([result]);
-
-        let liveness = Liveness::compute(&func);
-        let mut scheduler = StackScheduler::new();
-        scheduler.stack.push(c);
-        scheduler.stack.push(b);
-        scheduler.stack.push(a);
-        scheduler.stack.push(sum);
-
-        let ops = scheduler.drop_dead_values(&liveness, BlockId::ENTRY, 0);
-
-        assert_eq!(ops, [StackOp::Swap(2), StackOp::Pop, StackOp::Pop]);
-        assert!(scheduler.stack.iter().eq([Some(sum), Some(c)]));
-    }
-
-    #[test]
-    fn amsterdam_drops_deep_dead_values() {
-        let mut func = Function::new(Ident::DUMMY);
-        let mut builder = FunctionBuilder::new(&mut func);
-        let a = builder.add_param(MirType::I256);
-        let b = builder.add_param(MirType::I256);
-        let sum = builder.add(a, b);
-        builder.ret([sum]);
-
-        let liveness = Liveness::compute(&func);
-        let mut scheduler = StackScheduler::for_evm_version(EvmVersion::Amsterdam);
-        scheduler.stack.push(a);
-        for _ in 0..=16 {
-            scheduler.stack.push(sum);
-        }
-
-        let ops = scheduler.drop_dead_values(&liveness, BlockId::ENTRY, 0);
-        assert_eq!(ops, [StackOp::Swap(17), StackOp::Pop]);
-        assert!(scheduler.stack.find(a).is_none());
-    }
-
-    #[test]
-    fn schedule_cost_honors_gas_and_size_objectives() {
-        let gas_plan = ScheduleCost { static_gas: 3, encoded_bytes: 5, actions: 1 };
-        let size_plan = ScheduleCost { static_gas: 6, encoded_bytes: 2, actions: 2 };
-
-        assert!(gas_plan.cmp_for(size_plan, OptimizationMode::Gas).is_lt());
-        assert!(size_plan.cmp_for(gas_plan, OptimizationMode::Size).is_lt());
-        let once = Target::with(EvmVersion::default(), OptimizationMode::Gas, 1);
-        let default_runs = Target::with(EvmVersion::default(), OptimizationMode::Gas, 200);
-        assert!(size_plan.cmp_lifetime_for(gas_plan, once).is_lt());
-        assert!(gas_plan.cmp_lifetime_for(size_plan, default_runs).is_lt());
-    }
-
-    #[test]
-    fn frame_store_cost_includes_value_copy() {
-        for cost_model in [OperandCostModel::DIRECT, OperandCostModel::DYNAMIC_FRAME] {
-            let load = ScheduleCost::memory_load(cost_model);
-            let store = ScheduleCost::memory_store(cost_model);
-
-            assert_eq!(store.static_gas, load.static_gas + 3);
-            assert_eq!(store.encoded_bytes, load.encoded_bytes + 1);
         }
     }
 }

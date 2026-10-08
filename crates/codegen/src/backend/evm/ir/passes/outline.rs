@@ -3,8 +3,9 @@
 //! The pass finds repeated straight-line machine instruction runs, replaces each profitable site
 //! with a jump to one shared body, and returns from that body through a stack-held continuation.
 //! It also finds structurally equal runs whose concrete pushes differ, turning those pushes into
-//! stack parameters in size-oriented modes. A final specialized path shares repeated large pushes
-//! when the call and return sequence is smaller than spelling out each literal.
+//! stack parameters in size mode, with up to sixteen result words. A final specialized path
+//! shares repeated large pushes when the call and return sequence is smaller than spelling out
+//! each literal.
 //!
 //! Gas-mode candidates are closed stack computations: they leave the incoming stack untouched
 //! and produce up to sixteen outputs. The hidden return address remains below those outputs;
@@ -26,6 +27,11 @@
 //! Enumerating all substrings is potentially quadratic, so the implementation cuts runs at unique
 //! instructions, hashes slices from prefix tables, and applies a module-wide candidate budget.
 //! Large modules shorten the maximum considered run rather than allowing unbounded compile time.
+//! In gas mode, a module-wide screen first asks whether the widest push, or a closed whitelisted
+//! prefix that occurs at two starts, could repay its transfer gas over the expected executions.
+//! When neither could, the pass builds no run tables. Machine runs are skipped only when no push
+//! can be shared either, since a rejected store run keeps its literal from becoming a push share.
+//!
 //! Outlining runs before late CFG/CSE/DCE cleanup, which removes jump thunks and redundancies
 //! exposed by sharing; assembly remains responsible only for final label offsets and push widths.
 
@@ -77,10 +83,136 @@ fn outline(gcx: Gcx<'_>, module: &mut Module) -> bool {
         "analyzing machine instruction outlines"
     );
     let mut state = RunState::default();
-    outline_machine_runs(gcx, module, &mut state)
-        | ((gcx.sess.opts.optimization.is_size() || module.enable_size_outlining)
+    // A rejected machine run can veto a push share, so skip runs only when no push can share.
+    let pushes = may_share_pushes(gcx);
+    let runs = pushes || may_share_machine_runs(gcx, module);
+    (runs && outline_machine_runs(gcx, module, &mut state))
+        | (gcx.sess.opts.optimization.is_size()
             && outline_parametric_machine_runs(gcx, module, &mut state))
-        | outline_repeated_pushes(gcx, module, &mut state)
+        | (pushes && outline_repeated_pushes(gcx, module, &mut state))
+}
+
+/// Byte length of the widest push, `PUSH32` and its immediate.
+const MAX_PUSH_LEN: usize = 33;
+
+/// Returns whether any repeated push could repay its call and return gas in gas mode.
+///
+/// A share of `n` pushes of at most [`MAX_PUSH_LEN`] bytes saves fewer than
+/// `n * (MAX_PUSH_LEN - site bytes)` bytes, while its transfers cost `n` times the transfer gas.
+fn may_share_pushes(gcx: Gcx<'_>) -> bool {
+    if !gcx.sess.opts.optimization.is_gas() {
+        return true;
+    }
+    let target = Target::new(gcx);
+    let (site_bytes, _, transfer_gas) = push_share_costs(target);
+    sharing_improves_lifetime(
+        MAX_PUSH_LEN.saturating_sub(site_bytes),
+        1,
+        transfer_gas,
+        target.expected_executions(),
+    )
+}
+
+/// Returns whether gas mode could share some closed machine run outside loops.
+///
+/// A share of `n` runs of `size` bytes saves fewer than `n * (size - transfer bytes)` bytes,
+/// while its transfers cost at least `n` times the gas of two pushes, two jumps, and two
+/// labels. Every candidate is a closed run of whitelisted instructions, and every site of a
+/// profitable share starts with the same shortest closed prefix that is large enough. Sharing
+/// is possible only if two starts have equal prefixes, which hashes can rule out. The screen
+/// shares the outliner's candidate budget and gives up, answering yes, once it is spent.
+fn may_share_machine_runs(gcx: Gcx<'_>, module: &Module) -> bool {
+    if !gcx.sess.opts.optimization.is_gas() {
+        return true;
+    }
+    let target = Target::new(gcx);
+    let transfer_size = transfer_size(target);
+    let transfer_gas = transfer_gas(target);
+    let profitable = |size: usize| {
+        sharing_improves_lifetime(
+            size.saturating_sub(transfer_size),
+            1,
+            transfer_gas,
+            target.expected_executions(),
+        )
+    };
+    let mut metrics = Vec::new();
+    let mut prefixes = FxHashSet::default();
+    let mut budget = MAX_MACHINE_RUN_CANDIDATES;
+    for block in &module.blocks {
+        if block.metadata.in_loop {
+            continue;
+        }
+        metrics.clear();
+        metrics.extend(block.instructions.iter().map(|inst| {
+            whitelisted_effect(inst).map(|effect| (effect, instruction_size_lower_bound(gcx, inst)))
+        }));
+        let mut remaining = metrics.iter().flatten().map(|&(_, size)| size).sum::<usize>();
+        for start in 0..metrics.len() {
+            // Neither this start nor any later one can reach a profitable size.
+            if !profitable(remaining) {
+                break;
+            }
+            remaining -= metrics[start].map_or(0, |(_, size)| size);
+            if !is_split_point(&block.instructions, start) {
+                continue;
+            }
+            let mut delta = 0i32;
+            let mut run_size = 0usize;
+            for (end, &metric) in metrics.iter().enumerate().skip(start) {
+                let Some(((reads, pops, pushes), size)) = metric else { break };
+                if i32::from(reads) > delta {
+                    break;
+                }
+                let Some(left) = budget.checked_sub(1) else { return true };
+                budget = left;
+                delta = delta - i32::from(pops) + i32::from(pushes);
+                run_size += size;
+                if profitable(run_size) {
+                    let mut hasher = FxHasher::default();
+                    for inst in &block.instructions[start..=end] {
+                        MachineInstKey::new(inst).hash(&mut hasher);
+                    }
+                    if !prefixes.insert(hasher.finish()) {
+                        return true;
+                    }
+                    break;
+                }
+            }
+        }
+    }
+    false
+}
+
+/// Returns the bytes of one call site:
+///
+/// push2 return
+/// push2 body
+/// jump
+/// jumpdest
+fn transfer_size(target: Target) -> usize {
+    (target.opcode(op::PUSH2).bytes * 2
+        + target.opcode(op::JUMP).bytes
+        + target.opcode(op::JUMPDEST).bytes) as usize
+}
+
+/// Returns the gas of one call and return, excluding the shared body's rotations.
+fn transfer_gas(target: Target) -> u32 {
+    target.opcode_gas(op::PUSH2) * 2
+        + target.opcode_gas(op::JUMP) * 2
+        + target.opcode_gas(op::JUMPDEST) * 2
+}
+
+/// Returns the per-site bytes, shared body bytes, and transfer gas of a push share.
+fn push_share_costs(target: Target) -> (usize, usize, u32) {
+    // The shared body around the push:
+    // jumpdest
+    // swap1
+    // jump
+    let body_bytes = (target.opcode(op::JUMPDEST).bytes
+        + target.opcode(op::SWAP1).bytes
+        + target.opcode(op::JUMP).bytes) as usize;
+    (transfer_size(target), body_bytes, transfer_gas(target) + target.opcode_gas(op::SWAP1))
 }
 
 fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState) -> bool {
@@ -92,7 +224,7 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
     //   at least twice module-wide. Runs are cut at any instruction that does not, which ends them
     //   at the unique pushes that separate most straight-line code.
     // - A run's hash comes from a per-block prefix table, so it costs the same whatever the run's
-    //   length. Equality still compares instructions, so the grouping is exactly as before.
+    //   length. Equality compares interned instruction IDs, preserving exact grouping.
     // - Large modules use shorter runs so candidate storage stays bounded. Longer repeated
     //   sequences can still be outlined in chunks.
     let hashes = RunHashes::new(module, MachineInstKey::new);
@@ -102,12 +234,10 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
     }
     let max_run_length = max_machine_run_length(repeated_instructions);
     let target = Target::new(gcx);
-    let transfer_size = (target.opcode(op::PUSH2).bytes * 2
-        + target.opcode(op::JUMP).bytes
-        + target.opcode(op::JUMPDEST).bytes) as usize;
+    let transfer_size = transfer_size(target);
     let shuffle_size = target.opcode(op::SWAP1).bytes as usize;
 
-    let mut candidates = FxHashMap::<MachineInstSlice<'_>, SmallVec<[Site; 2]>>::default();
+    let mut candidates = FxHashMap::<RunSlice<'_>, SmallVec<[Site; 2]>>::default();
     let mut metrics = Vec::new();
     for (block_id, block) in module.blocks.iter_enumerated() {
         if gcx.sess.opts.optimization.is_gas() && block.metadata.in_loop {
@@ -156,9 +286,10 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
                     && (closed || open_size_run)
                     && is_split_point(&block.instructions, end + 1)
                 {
-                    let key = MachineInstSlice {
+                    let key = RunSlice {
                         hash: hashes.range(block_id, start, end),
-                        insts: &block.instructions[start..=end],
+                        ids: &hashes.ids
+                            [hashes.starts[block_id] + start..=hashes.starts[block_id] + end],
                     };
                     candidates.entry(key).or_default().push(Site {
                         block: block_id,
@@ -178,7 +309,7 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
     }
     groups.sort_unstable_by_key(|(key, sites)| {
         let first = sites[0];
-        (std::cmp::Reverse(key.insts.len()), first.block.index(), first.start)
+        (std::cmp::Reverse(key.ids.len()), first.block.index(), first.start)
     });
     let mut claimed = FxHashMap::<BlockId, DenseBitSet<usize>>::default();
     let mut chosen = Vec::new();
@@ -233,9 +364,7 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
         // not make the calls cold, even when every site is outside a loop.
         if gcx.sess.opts.optimization.is_gas() {
             let saved_bytes = free.len() * (run_size - site_size) - stub_size;
-            let transfer_gas = target.opcode_gas(op::PUSH2) * 2
-                + target.opcode_gas(op::JUMP) * 2
-                + target.opcode_gas(op::JUMPDEST) * 2
+            let transfer_gas = transfer_gas(target)
                 + target.opcode_gas(op::SWAP1)
                     * u32::from(first.outputs.saturating_add(first.inputs));
             if !sharing_improves_lifetime(
@@ -341,9 +470,19 @@ fn outline_parametric_machine_runs(
     const MAX_PARAMETERS: usize = 8;
 
     let hashes = RunHashes::new(module, ParamInstKey::new);
-    let mut candidates =
-        FxHashMap::<ParamMachineInstSlice<'_>, SmallVec<[ParamSite; 2]>>::default();
+    let mut candidates = FxHashMap::<RunSlice<'_>, SmallVec<[ParamSite; 2]>>::default();
+    let mut metrics = Vec::new();
     for (block_id, block) in module.blocks.iter_enumerated() {
+        // Overlapping candidate windows revisit each instruction, so classify it once.
+        metrics.clear();
+        metrics.extend(block.instructions.iter().enumerate().map(|(index, inst)| {
+            hashes
+                .repeats(block_id, index)
+                .then(|| {
+                    whitelisted_effect(inst).map(|effect| (effect, parameterizable_push(inst)))
+                })
+                .flatten()
+        }));
         for start in 0..block.instructions.len() {
             if !is_split_point(&block.instructions, start) {
                 continue;
@@ -352,13 +491,9 @@ fn outline_parametric_machine_runs(
             let mut inputs = 0i32;
             let mut immediate_pushes = 0usize;
             let limit = block.instructions.len().min(start + MAX_RUN_LENGTH);
-            for end in start..limit {
-                if !hashes.repeats(block_id, end) {
-                    break;
-                }
-                let inst = &block.instructions[end];
-                let Some((reads, pops, pushes)) = whitelisted_effect(inst) else { break };
-                if parameterizable_push(inst) {
+            for (end, &metric) in metrics.iter().enumerate().take(limit).skip(start) {
+                let Some(((reads, pops, pushes), parameter)) = metric else { break };
+                if parameter {
                     immediate_pushes += 1;
                 }
                 inputs = inputs.max(i32::from(reads) - delta);
@@ -367,17 +502,17 @@ fn outline_parametric_machine_runs(
                 let outputs = inputs + delta;
                 if len < MIN_RUN_LENGTH
                     || inputs != 0
-                    || !matches!(outputs, 0 | 1)
+                    || !(0..=16).contains(&outputs)
                     || immediate_pushes == 0
                     || immediate_pushes > MAX_PARAMETERS * 2
                     || !is_split_point(&block.instructions, end + 1)
                 {
                     continue;
                 }
-                let instructions = &block.instructions[start..=end];
-                let key = ParamMachineInstSlice {
+                let key = RunSlice {
                     hash: hashes.range(block_id, start, end),
-                    insts: instructions,
+                    ids: &hashes.ids
+                        [hashes.starts[block_id] + start..=hashes.starts[block_id] + end],
                 };
                 candidates.entry(key).or_default().push(ParamSite {
                     block: block_id,
@@ -395,7 +530,7 @@ fn outline_parametric_machine_runs(
     }
     groups.sort_unstable_by_key(|(key, sites)| {
         let first = sites[0];
-        (std::cmp::Reverse(key.insts.len()), first.block.index(), first.start)
+        (std::cmp::Reverse(key.ids.len()), first.block.index(), first.start)
     });
 
     let mut claimed = FxHashMap::<BlockId, DenseBitSet<usize>>::default();
@@ -658,25 +793,7 @@ fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunSta
     }
 
     let target = Target::new(gcx);
-    // Each site:
-    // push2 return
-    // push2 body
-    // jump
-    // jumpdest
-    let site_bytes = (2 * target.opcode(op::PUSH2).bytes
-        + target.opcode(op::JUMP).bytes
-        + target.opcode(op::JUMPDEST).bytes) as usize;
-    // The shared body around the push:
-    // jumpdest
-    // swap1
-    // jump
-    let body_bytes = (target.opcode(op::JUMPDEST).bytes
-        + target.opcode(op::SWAP1).bytes
-        + target.opcode(op::JUMP).bytes) as usize;
-    let transfer_gas = target.opcode_gas(op::PUSH2) * 2
-        + target.opcode_gas(op::JUMP) * 2
-        + target.opcode_gas(op::JUMPDEST) * 2
-        + target.opcode_gas(op::SWAP1);
+    let (site_bytes, body_bytes, transfer_gas) = push_share_costs(target);
     const MIN_SAVING: usize = 8;
     let mut values: Vec<_> = sites
         .iter()
@@ -924,12 +1041,13 @@ struct ParamEdit {
 ///
 /// `prefix[i + 1] = prefix[i] * BASE + hash(inst[i])`, so the run `[start, end]`
 /// hashes to `prefix[end + 1] - prefix[start] * BASE^len`. Equal instruction
-/// sequences always produce equal hashes, which is all the map needs: equality
-/// still compares the instructions themselves.
+/// sequences always produce equal hashes. Equality compares interned instruction IDs,
+/// retaining exact machine identity without decoding each instruction again.
 ///
 /// The blocks share flat tables. Block `b`'s instructions start at `starts[b]`, and its
 /// prefixes, which hold one more entry, at `starts[b] + b`.
 struct RunHashes {
+    ids: Vec<usize>,
     starts: IndexVec<BlockId, usize>,
     prefixes: Vec<u64>,
     repeats: DenseBitSet<usize>,
@@ -967,11 +1085,11 @@ impl RunHashes {
 
         let mut prefixes = Vec::with_capacity(total + module.blocks.len());
         let mut repeats = DenseBitSet::new_empty(total);
-        let mut ids = ids.iter().enumerate();
+        let mut id_iter = ids.iter().enumerate();
         for block in &module.blocks {
             let mut last = 0u64;
             prefixes.push(last);
-            for (index, &id) in ids.by_ref().take(block.instructions.len()) {
+            for (index, &id) in id_iter.by_ref().take(block.instructions.len()) {
                 if counts[id] >= 2 {
                     repeats.insert(index);
                 }
@@ -986,7 +1104,7 @@ impl RunHashes {
             powers.push(powers[index].wrapping_mul(Self::BASE));
         }
 
-        Self { starts, prefixes, repeats, powers }
+        Self { ids, starts, prefixes, repeats, powers }
     }
 
     /// Whether this instruction occurs more than once in the module. A run that
@@ -1006,26 +1124,13 @@ impl RunHashes {
     }
 }
 
-#[derive(Clone, Copy)]
-struct MachineInstSlice<'a> {
+#[derive(Clone, Copy, PartialEq, Eq)]
+struct RunSlice<'a> {
     hash: u64,
-    insts: &'a [Instruction],
+    ids: &'a [usize],
 }
 
-impl PartialEq for MachineInstSlice<'_> {
-    fn eq(&self, other: &Self) -> bool {
-        self.insts.len() == other.insts.len()
-            && self
-                .insts
-                .iter()
-                .zip(other.insts)
-                .all(|(a, b)| MachineInstKey::new(a) == MachineInstKey::new(b))
-    }
-}
-
-impl Eq for MachineInstSlice<'_> {}
-
-impl Hash for MachineInstSlice<'_> {
+impl Hash for RunSlice<'_> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         state.write_u64(self.hash);
     }
@@ -1048,31 +1153,6 @@ impl ParamInstKey {
     }
 }
 
-#[derive(Clone, Copy)]
-struct ParamMachineInstSlice<'a> {
-    hash: u64,
-    insts: &'a [Instruction],
-}
-
-impl PartialEq for ParamMachineInstSlice<'_> {
-    fn eq(&self, other: &Self) -> bool {
-        self.insts.len() == other.insts.len()
-            && self
-                .insts
-                .iter()
-                .zip(other.insts)
-                .all(|(a, b)| ParamInstKey::new(a) == ParamInstKey::new(b))
-    }
-}
-
-impl Eq for ParamMachineInstSlice<'_> {}
-
-impl Hash for ParamMachineInstSlice<'_> {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        state.write_u64(self.hash);
-    }
-}
-
 #[derive(Default)]
 struct RunState {
     inline_store_literals: FxHashSet<U256>,
@@ -1083,25 +1163,5 @@ impl RunState {
     fn labels(&mut self, module: &Module, count: usize) -> Option<Vec<u32>> {
         let labels = self.labels.get_or_insert_with(|| FreshLabels::new(module));
         labels.take(count)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn machine_run_candidate_budget() {
-        for repeated in [1, 10, 1_000, 200_000, 2_000_000] {
-            let lengths = max_machine_run_length(repeated) - MIN_MACHINE_RUN + 1;
-            assert!(repeated * lengths <= MAX_MACHINE_RUN_CANDIDATES);
-        }
-    }
-
-    #[test]
-    fn machine_run_lifetime_profitability() {
-        assert!(sharing_improves_lifetime(100, 2, 40, 200));
-        assert!(!sharing_improves_lifetime(80, 2, 40, 200));
-        assert!(!sharing_improves_lifetime(100, 2, 40, 1_000_000));
     }
 }

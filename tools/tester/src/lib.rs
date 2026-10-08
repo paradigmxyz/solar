@@ -4,9 +4,6 @@
 
 #![allow(unreachable_pub)]
 
-#[cfg(test)]
-use cfg_if as _;
-
 use eyre::{Result, eyre};
 use regex::bytes::Regex;
 use std::{
@@ -134,7 +131,10 @@ fn config(cmd: &'static Path, args: &ui_test::Args, mode: Mode) -> ui_test::Conf
             program: cmd.into(),
             args: {
                 let mut args: Vec<OsString> =
-                    ["-j1", "--error-format=rustc-json"].into_iter().map(Into::into).collect();
+                    ["-j1", "--error-format=rustc-json", "-Zvalidate-ir=true"]
+                        .into_iter()
+                        .map(Into::into)
+                        .collect();
                 match mode {
                     Mode::Mir | Mode::EvmIr => {
                         args.extend(["-Zui-testing", "-Zparse-yul", "-Zpass-diff"].map(Into::into))

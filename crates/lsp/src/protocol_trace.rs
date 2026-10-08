@@ -68,12 +68,11 @@ impl ProtocolTrace {
             return None;
         }
         self.enabled_level()?;
-        let request = ActiveRequest {
+        Some(ActiveRequest {
             trace: self.clone(),
             method: display_method(method).to_owned(),
             started: Instant::now(),
-        };
-        Some(request)
+        })
     }
 
     fn emit(&self, message: String, verbose: Option<String>) {
@@ -93,11 +92,8 @@ impl ActiveRequest {
     async fn complete(self, succeeded: bool) {
         let Some(level) = self.trace.enabled_level() else { return };
         let elapsed = self.started.elapsed().as_millis();
-        let message = if succeeded {
-            format!("Server completed request `{}` successfully", self.method)
-        } else {
-            format!("Server completed request `{}` with an error", self.method)
-        };
+        let outcome = if succeeded { "successfully" } else { "with an error" };
+        let message = format!("Server completed request `{}` {outcome}", self.method);
         let verbose =
             (level == TraceValue::Verbose).then(|| format!("Server processing took {elapsed} ms"));
         self.trace.emit(message, verbose);

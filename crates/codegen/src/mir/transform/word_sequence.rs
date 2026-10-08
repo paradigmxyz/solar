@@ -1,4 +1,4 @@
-//! Bounded, proved word-expression recipes after e-graph extraction.
+//! Bounded word-expression recipes after e-graph extraction.
 //!
 //! ISLE can propose a small tree of operations, including intermediate results
 //! that do not exist in MIR yet. Matching uses earlier definitions in the same
@@ -16,6 +16,9 @@
 //! a proof of scheduled cost; gas and size corpus measurements remain required.
 //! Scalar selects can also be roots: their arithmetic recipes preserve zero/nonzero
 //! conditions, while pointer and aggregate selects retain their provenance.
+//! Shared integer casts can move outside a select when their source widths match;
+//! temporary selects retain that source type. Pointer and wider-than-word roots
+//! remain excluded from arithmetic selection.
 //! Inequality recipes use the backend's EQ/ISZERO expansion and its target cost.
 //! Pure, nontrapping operations without recipes stay in place without breaking
 //! the segment; they never earn deletion credit.
@@ -65,36 +68,46 @@ enum Temporary {
 #[derive(Clone)]
 struct Recipe {
     root: Op,
+    scalar_ty: MirType,
     temporaries: FxHashMap<ValueId, Temporary>,
 }
 
 fn legal(op: &Op, target: Target) -> bool {
+    if matches!(op, Op::Select { .. } | Op::Zext { .. } | Op::Sext { .. } | Op::Trunc { .. }) {
+        return true;
+    }
     if matches!(op, Op::Ne { .. }) {
         return [op::EQ, op::ISZERO].into_iter().all(|opcode| {
             op::definition(opcode).is_some_and(|def| def.is_available(target.evm_version()))
         });
     }
-    op.into_kind().is_some_and(|kind| kind.effect_kind() == EffectKind::Pure)
-        && select::opcode_lowering(op).is_some_and(|lowering| {
-            matches!(
-                lowering,
-                select::OpcodeLowering::Unary { .. } | select::OpcodeLowering::Binary { .. }
-            ) && op::definition(lowering.opcode())
-                .is_some_and(|def| def.is_available(target.evm_version()))
-        })
+    select::opcode_lowering(op).is_some_and(|lowering| {
+        matches!(
+            lowering,
+            select::OpcodeLowering::Unary { .. }
+                | select::OpcodeLowering::Binary { .. }
+                | select::OpcodeLowering::Nary { .. }
+        ) && op::definition(lowering.opcode())
+            .is_some_and(|def| def.is_available(target.evm_version()))
+    }) && op.into_kind().is_some_and(|kind| kind.effect_kind() == EffectKind::Pure)
 }
 
 fn removable(func: &Function, inst: &Instruction, target: Target) -> bool {
-    let scalar_select = match inst.kind.op() {
+    // Selects and legal operations are pure, so other instructions need no view.
+    if inst.kind.effect_kind() != EffectKind::Pure
+        || inst.metadata.effect().is_some_and(|effect| effect != EffectKind::Pure)
+    {
+        return false;
+    }
+    let op = inst.kind.op();
+    match op {
         Op::Select { true_val, false_val, .. } => {
             [inst.result_ty, func.value_ty(true_val), func.value_ty(false_val)]
                 .into_iter()
-                .all(|ty| matches!(ty, Some(MirType::I256 | MirType::I1)))
+                .all(|ty| matches!(ty, Some(MirType::Int(_))))
         }
-        _ => false,
-    };
-    inst.metadata.effect().is_none_or(|effect| effect == EffectKind::Pure)
-        && (legal(&inst.kind.op(), target) || scalar_select)
+        _ => legal(&op, target),
+    }
 }
 
 fn operation_cost(
@@ -181,6 +194,7 @@ impl Recipe {
             root,
             op.into_kind().expect("legal recipe root"),
             func.inst(root).result_ty.unwrap(),
+            self.scalar_ty,
             &mut inserted,
         );
         let Value::Inst(last) = *func.value(result) else { unreachable!() };
@@ -203,17 +217,16 @@ impl Recipe {
         }
         let Some(temporary) = self.temporaries.get(&value) else { return value };
         let actual = match temporary {
-            Temporary::Constant(value) => {
-                func.alloc_value(Value::Immediate(Immediate::I256(*value)))
-            }
+            Temporary::Constant(value) => func
+                .alloc_value(Value::Immediate(Immediate::for_type(Some(self.scalar_ty), *value))),
             Temporary::Operation(op) => {
                 let op = op.map_values(|value| {
                     self.materialize_value(func, root, value, values, inserted)
                 });
                 // %temporary = recipe_child(earlier_values)
                 let kind = op.into_kind().expect("legal recipe child");
-                let ty = kind.op_def().result.default_type().unwrap_or(MirType::I256);
-                emit_recipe(func, root, kind, ty, inserted)
+                let ty = recipe_type(func, &kind, self.scalar_ty);
+                emit_recipe(func, root, kind, ty, self.scalar_ty, inserted)
             }
         };
         values.insert(value, actual);
@@ -227,6 +240,7 @@ fn emit_recipe(
     root: InstId,
     kind: InstKind,
     ty: MirType,
+    scalar_ty: MirType,
     inserted: &mut Vec<InstId>,
 ) -> ValueId {
     let metadata = func.inst(root).metadata.debug_context();
@@ -235,7 +249,10 @@ fn emit_recipe(
     // operands = zext i1 boolean_operands to i256
     // result = op operands
     // typed_result = cast result
-    let result = crate::mir::FunctionBuilder::new(func).emit_inst(kind, Some(ty));
+    let operation_ty = recipe_type(func, &kind, scalar_ty);
+    let mut builder = crate::mir::FunctionBuilder::new(func);
+    let result = builder.emit_inst(kind, Some(operation_ty));
+    let result = builder.cast(result, ty);
     let generated = func.blocks[block].instructions.split_off(start);
     for &inst in &generated {
         func.inst_mut(inst).metadata = metadata.clone();
@@ -244,15 +261,30 @@ fn emit_recipe(
     result
 }
 
+fn recipe_type(func: &Function, kind: &InstKind, scalar_ty: MirType) -> MirType {
+    if let InstKind::Select(_, a, _) = *kind {
+        func.value_ty(a).expect("typed select arm")
+    } else if kind.op_def().result == crate::mir::ResultKind::Integer {
+        kind.operands()
+            .iter()
+            .filter_map(|&value| func.value_ty(value))
+            .filter(|ty| ty.integer_bits().is_some())
+            .max_by_key(|ty| ty.integer_bits())
+            .unwrap_or(scalar_ty)
+    } else {
+        kind.op_def().result.default_type().unwrap_or(scalar_ty)
+    }
+}
+
 fn run(func: &mut Function, target: Target) -> bool {
-    let mut uses = super::egraph::use_counts(func);
+    let mut uses = None;
     let mut changed = false;
     for block in func.blocks.indices().collect::<Vec<_>>() {
         let original = std::mem::take(&mut func.blocks[block].instructions);
         let mut ordered = Vec::with_capacity(original.len());
         let mut seen = FxHashSet::default();
         let mut deleted = FxHashSet::default();
-        for inst in original {
+        for &inst in &original {
             if !removable(func, func.inst(inst), target) {
                 let instruction = func.inst(inst);
                 if instruction.kind.effect_kind() != EffectKind::Pure
@@ -271,8 +303,16 @@ fn run(func: &mut Function, target: Target) -> bool {
             let mut best = None;
             for recipe in isle::alternatives(func, &seen, &op, target) {
                 if let Some((after, leaves)) = recipe.cost_and_leaves(func, target) {
+                    // Nothing changed before the first count; this block is detached.
+                    let uses = uses.get_or_insert_with(|| {
+                        let mut uses = super::egraph::use_counts(func);
+                        for &inst in &original {
+                            func.inst(inst).visit_operands(|operand| uses[operand] += 1);
+                        }
+                        uses
+                    });
                     let mut dead = FxHashSet::default();
-                    collect_dead(func, &op, &uses, &seen, &leaves, target, &mut dead);
+                    collect_dead(func, &op, uses, &seen, &leaves, target, &mut dead);
                     let empty = FxHashMap::default();
                     let before = operation_cost(func, &op, target, &empty)
                         + dead
@@ -289,6 +329,7 @@ fn run(func: &mut Function, target: Target) -> bool {
                 }
             }
             if let Some((recipe, _, dead)) = best {
+                let uses = uses.as_mut().expect("a recipe was costed");
                 // Remove dead single-use producers; insert recipe children; retain the root.
                 for old in std::iter::once(inst).chain(dead.iter().copied()) {
                     func.inst(old).visit_operands(|operand| {

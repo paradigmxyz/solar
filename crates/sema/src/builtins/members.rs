@@ -27,7 +27,7 @@ pub(crate) fn native_members<'gcx>(gcx: Gcx<'gcx>, ty: Ty<'gcx>) -> MemberList<'
             ElementaryType::UInt(_size) => Default::default(),
             ElementaryType::FixedBytes(_size) => fixed_bytes(gcx),
         },
-        TyKind::StringLiteral(_utf8, _size) => Default::default(),
+        TyKind::StringLiteral(_utf8, _len) => Default::default(),
         TyKind::IntLiteral(..) | TyKind::RationalLiteral | TyKind::CallOptions(_) => {
             Default::default()
         }

@@ -176,7 +176,8 @@ pub(crate) fn run_passes_inner(
                 false
             } else {
                 analyses.begin_pass();
-                let pass_changed = pass.run_pass(gcx, module, &mut analyses);
+                let pass_changed = tracing::trace_span!("mir_pass", pass = pass_name)
+                    .in_scope(|| pass.run_pass(gcx, module, &mut analyses));
                 analyses.finish_pass(pass_changed);
                 pass_changed
             };
@@ -253,64 +254,4 @@ pub(crate) fn print_pass_diff(
     let before = format!("// === {name} (before {pass}) ===\n{before}");
     let after = format!("// === {name} (after {pass}) ===\n{after}");
     print!("{}", line_diff(&before, &after));
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use solar_interface::{ColorChoice, Ident, Session};
-    use solar_sema::Compiler;
-    use std::sync::atomic::{AtomicUsize, Ordering};
-
-    struct Fail;
-
-    impl MirPass for Fail {
-        fn is_required(&self) -> bool {
-            true
-        }
-
-        fn run_pass(
-            &self,
-            gcx: Gcx<'_>,
-            _module: &mut Module,
-            analyses: &mut ModuleAnalyses,
-        ) -> bool {
-            analyses.fail(gcx.dcx().err("this module failed").emit());
-            false
-        }
-    }
-
-    struct Checkpoint<'a>(&'a AtomicUsize);
-
-    impl MirPass for Checkpoint<'_> {
-        fn is_required(&self) -> bool {
-            true
-        }
-
-        fn run_pass(
-            &self,
-            _gcx: Gcx<'_>,
-            _module: &mut Module,
-            _analyses: &mut ModuleAnalyses,
-        ) -> bool {
-            self.0.fetch_add(1, Ordering::Relaxed);
-            false
-        }
-    }
-
-    #[test]
-    fn failed_pass_only_stops_its_own_pipeline() {
-        let compiler =
-            Compiler::new(Session::builder().with_buffer_emitter(ColorChoice::Never).build());
-        compiler.enter(|c| {
-            let hits = AtomicUsize::new(0);
-            let checkpoint = Checkpoint(&hits);
-            let mut failed = Module::new(Ident::DUMMY);
-            let _ = run_passes_no_validate(c.gcx(), &mut failed, &[&Fail, &checkpoint]);
-            assert_eq!(hits.load(Ordering::Relaxed), 0);
-            let mut independent = Module::new(Ident::DUMMY);
-            let _ = run_passes_no_validate(c.gcx(), &mut independent, &[&checkpoint, &checkpoint]);
-            assert_eq!(hits.load(Ordering::Relaxed), 2);
-        });
-    }
 }

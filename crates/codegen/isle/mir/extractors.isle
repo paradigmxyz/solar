@@ -27,9 +27,6 @@
 (decl inttoptr (Value) Value)
 (extractor (inttoptr operand0) (inst (Op.IntToPtr operand0)))
 
-(decl bitcast (Value) Value)
-(extractor (bitcast operand0) (inst (Op.Bitcast operand0)))
-
 (decl checkedbinary (CheckedOp ArithmeticKind Value Value) Value)
 (extractor (checkedbinary op arithmetic lhs rhs) (inst (Op.CheckedBinary op arithmetic lhs rhs)))
 
@@ -275,6 +272,9 @@
 
 (decl datacopy (DataRef Value Value) Value)
 (extractor (datacopy data dest size) (inst (Op.DataCopy data dest size)))
+
+(decl datasize (DataSize) Value)
+(extractor (datasize size) (inst (Op.DataSize size)))
 
 (decl codesize () Value)
 (extractor (codesize) (inst (Op.CodeSize)))

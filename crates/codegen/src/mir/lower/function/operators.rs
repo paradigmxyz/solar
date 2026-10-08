@@ -9,12 +9,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         kind: Option<ArithmeticKind>,
     ) -> ValueId {
         match kind {
-            Some(ArithmeticKind::Unsigned(bits)) if bits < 256 => self.mask_to_bits(value, bits),
-            Some(ArithmeticKind::Signed(bits)) if (8..256).contains(&bits) => {
-                let byte = self.builder.imm(u64::from(bits / 8 - 1));
-                self.builder.signextend(byte, value)
-            }
-            _ => value,
+            Some(kind) => self.builder.cast(value, kind.ty().mir_type()),
+            None => value,
         }
     }
 
@@ -42,6 +38,20 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         ty: Option<Ty<'gcx>>,
     ) -> ValueId {
         let arithmetic = ty.and_then(arithmetic_kind);
+        let (lhs, rhs) = if let Some(kind) = arithmetic {
+            let lhs = self.builder.cast(lhs, kind.ty().mir_type());
+            let rhs = if matches!(
+                op,
+                BinOpKind::Shl | BinOpKind::Shr | BinOpKind::Sar | BinOpKind::Pow
+            ) {
+                rhs
+            } else {
+                self.builder.cast(rhs, kind.ty().mir_type())
+            };
+            (lhs, rhs)
+        } else {
+            (lhs, rhs)
+        };
         let checked = match op {
             BinOpKind::Add if !self.unchecked && arithmetic.is_some() => Some(CheckedOp::Add),
             BinOpKind::Sub if !self.unchecked && arithmetic.is_some() => Some(CheckedOp::Sub),
@@ -55,14 +65,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         };
         if let Some(op) = checked {
             // lhs/rhs = ptrtoint(object) when assembly supplied raw pointer bits
-            let lhs = if matches!(self.builder.func().value_ty(lhs), Some(MirType::MemoryObject(_)))
-            {
+            let lhs = if matches!(self.builder.func().value_ty(lhs), Some(MirType::MemPtr)) {
                 self.builder.cast_word(lhs)
             } else {
                 lhs
             };
-            let rhs = if matches!(self.builder.func().value_ty(rhs), Some(MirType::MemoryObject(_)))
-            {
+            let rhs = if matches!(self.builder.func().value_ty(rhs), Some(MirType::MemPtr)) {
                 self.builder.cast_word(rhs)
             } else {
                 rhs
@@ -75,22 +83,63 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     lhs,
                     rhs,
                 },
-                Some(MirType::I256),
+                Some(arithmetic.unwrap_or(ArithmeticKind::Unsigned(256)).ty().mir_type()),
             );
         }
-        match op {
-            BinOpKind::Add | BinOpKind::Sub | BinOpKind::Mul => {
-                let result = match op {
-                    BinOpKind::Add => self.builder.add(lhs, rhs),
-                    BinOpKind::Sub => self.builder.sub(lhs, rhs),
-                    _ => self.builder.mul(lhs, rhs),
-                };
-                if self.unchecked {
-                    self.truncate_wrapping_result(result, arithmetic)
-                } else {
-                    result
+        if let Some(kind) = arithmetic
+            && matches!(
+                op,
+                BinOpKind::Add
+                    | BinOpKind::Sub
+                    | BinOpKind::Mul
+                    | BinOpKind::BitAnd
+                    | BinOpKind::BitOr
+                    | BinOpKind::BitXor
+                    | BinOpKind::Shl
+                    | BinOpKind::Shr
+                    | BinOpKind::Sar
+            )
+        {
+            let scalar_ty = kind.ty().mir_type();
+            let lhs = self.builder.cast(lhs, scalar_ty);
+            let rhs = if matches!(op, BinOpKind::Shl | BinOpKind::Shr | BinOpKind::Sar)
+                && scalar_ty != MirType::I256
+                && self.builder.func().value_ty(rhs).and_then(MirType::integer_bits)
+                    > scalar_ty.integer_bits()
+                && !self.builder.func().value_u256(rhs).is_some_and(|value| {
+                    value.bit_len() <= scalar_ty.integer_bits().unwrap() as usize
+                }) {
+                let bits = scalar_ty.integer_bits().unwrap();
+                let limit = self.builder.imm(bits);
+                let too_large = self.builder.gt(rhs, limit);
+                let count = self.builder.select(too_large, limit, rhs);
+                self.builder.cast(count, scalar_ty)
+            } else {
+                self.builder.cast(rhs, scalar_ty)
+            };
+            let operation = match op {
+                BinOpKind::Add => Some(InstKind::Add(lhs, rhs)),
+                BinOpKind::Sub => Some(InstKind::Sub(lhs, rhs)),
+                BinOpKind::Mul => Some(InstKind::Mul(lhs, rhs)),
+                BinOpKind::BitAnd => Some(InstKind::And(lhs, rhs)),
+                BinOpKind::BitOr => Some(InstKind::Or(lhs, rhs)),
+                BinOpKind::BitXor => Some(InstKind::Xor(lhs, rhs)),
+                BinOpKind::Shl => Some(InstKind::Shl(rhs, lhs)),
+                BinOpKind::Shr if matches!(kind, ArithmeticKind::Signed(_)) => {
+                    Some(InstKind::Sar(rhs, lhs))
                 }
+                BinOpKind::Shr => Some(InstKind::Shr(rhs, lhs)),
+                BinOpKind::Sar => Some(InstKind::Sar(rhs, lhs)),
+                _ => None,
+            };
+            if let Some(operation) = operation {
+                return self.builder.emit_inst(operation, Some(scalar_ty));
             }
+        }
+        match op {
+            BinOpKind::Add => self.builder.add(lhs, rhs),
+            BinOpKind::Sub => self.builder.sub(lhs, rhs),
+            BinOpKind::Mul => self.builder.mul(lhs, rhs),
             BinOpKind::Div | BinOpKind::Rem => unreachable!("division is a semantic operation"),
             BinOpKind::Lt => match arithmetic {
                 Some(ArithmeticKind::Signed(_)) => self.builder.slt(lhs, rhs),
@@ -119,14 +168,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             BinOpKind::And | BinOpKind::BitAnd => self.builder.and(lhs, rhs),
             BinOpKind::Or | BinOpKind::BitOr => self.builder.or(lhs, rhs),
             BinOpKind::BitXor => self.builder.xor(lhs, rhs),
-            BinOpKind::Shl => {
-                let result = self.builder.shl(rhs, lhs);
-                self.truncate_wrapping_result(result, arithmetic)
-            }
-            BinOpKind::Shr => match arithmetic {
-                Some(ArithmeticKind::Signed(_)) => self.builder.sar(rhs, lhs),
-                _ => self.builder.shr(rhs, lhs),
-            },
+            BinOpKind::Shl => self.builder.shl(rhs, lhs),
+            BinOpKind::Shr => self.builder.shr(rhs, lhs),
             BinOpKind::Sar => self.builder.sar(rhs, lhs),
             BinOpKind::Pow => {
                 if self.unchecked {
@@ -140,6 +183,18 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn unary(&mut self, op: UnOpKind, value: ValueId, ty: Option<Ty<'gcx>>) -> ValueId {
+        if let Some(kind) = ty.and_then(arithmetic_kind) {
+            let scalar_ty = kind.ty().mir_type();
+            let value = self.builder.cast(value, scalar_ty);
+            if op == UnOpKind::BitNot {
+                return self.builder.emit_inst(InstKind::Not(value), Some(scalar_ty));
+            }
+            if op == UnOpKind::Neg && self.unchecked {
+                let zero = self.builder.imm(0);
+                let zero = self.builder.cast(zero, scalar_ty);
+                return self.builder.emit_inst(InstKind::Sub(zero, value), Some(scalar_ty));
+            }
+        }
         match op {
             UnOpKind::Not => self.builder.eq_zero(value),
             UnOpKind::Neg => {
@@ -155,16 +210,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                             lhs: zero,
                             rhs: value,
                         },
-                        Some(MirType::I256),
+                        Some(ArithmeticKind::Signed(bits).ty().mir_type()),
                     );
                 }
                 let zero = self.builder.imm(U256::ZERO);
-                let result = self.builder.sub(zero, value);
-                if self.unchecked {
-                    self.truncate_wrapping_result(result, ty.and_then(arithmetic_kind))
-                } else {
-                    result
-                }
+                self.builder.sub(zero, value)
             }
             UnOpKind::BitNot => {
                 let result = self.builder.not(value);

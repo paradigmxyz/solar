@@ -33,11 +33,6 @@ where
     pub(in crate::backend) fn get(&self, index: I) -> &T {
         self.values.get_index(index.index()).expect("local interner index out of bounds")
     }
-
-    #[cfg(test)]
-    pub(super) fn len(&self) -> usize {
-        self.values.len()
-    }
 }
 
 impl<T, I> Default for LocalInterner<T, I> {

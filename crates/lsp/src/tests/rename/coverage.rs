@@ -1,52 +1,9 @@
 use super::*;
 use crate::{
     FoundryWorkspaceConfig, LaunchConfig, config::negotiate_capabilities_with_pull_diagnostic_data,
-    handlers, test_support::MarkedProject,
+    handlers,
 };
-use async_lsp::ClientSocket;
-use lsp_types::{RenameParams, TextDocumentIdentifier, TextDocumentPositionParams};
-
-#[tokio::test(flavor = "current_thread")]
-async fn rejects_rename_with_unindexed_callers() {
-    let marked = MarkedProject::from_fixture(
-        r#"
-        //- /foundry.toml
-        [profile.default]
-        //- /src/Counter.sol
-        contract Counter {
-            function $1increment() public {}
-        }
-        //- /test/Counter.t.sol
-        import "../src/Counter.sol";
-        contract CounterTest {
-            function run(Counter counter) public { counter.increment(); }
-        }
-        "#,
-    );
-    let mut state = coverage_state(&marked, false);
-    let params = rename_params(&marked, "$1", "increase");
-    let position = params.text_document_position.clone();
-    let error = tokio::time::timeout(
-        super::super::ASYNC_TEST_TIMEOUT,
-        handlers::rename(&mut state, params),
-    )
-    .await
-    .unwrap()
-    .unwrap_err();
-    assert_eq!(error.code, ErrorCode::REQUEST_FAILED);
-    snapbox::assert_data_eq!(
-        error.message,
-        "cannot rename this symbol because workspace indexing may omit source files",
-    );
-    let error = handlers::prepare_rename(&mut state, position).await.unwrap_err();
-    assert_eq!(error.code, ErrorCode::REQUEST_FAILED);
-    assert!(
-        handlers::rename(&mut state, rename_params(&marked, "$1", "increment"))
-            .await
-            .unwrap()
-            .is_none()
-    );
-}
+use std::fmt::Write as _;
 
 #[tokio::test(flavor = "current_thread")]
 async fn incomplete_coverage_distinguishes_locals_from_named_arguments() {
@@ -57,7 +14,7 @@ async fn incomplete_coverage_distinguishes_locals_from_named_arguments() {
         //- /src/Counter.sol
         contract Counter {
             mapping(address $1owner => uint256) public balances;
-            function increase(uint256 $2amount) public pure returns (uint256 $3result) {
+            function $6increase(uint256 $2amount) public pure returns (uint256 $3result) {
                 uint256 $4local = amount;
                 result = local;
             }
@@ -70,55 +27,72 @@ async fn incomplete_coverage_distinguishes_locals_from_named_arguments() {
         import "../src/Counter.sol";
         contract CounterTest {
             function run(Counter counter) public view returns (uint256) {
-                return counter.increase({$6amount: 1}) + counter.balances({$7owner: address(this)});
+                return counter.increase({amount: 1}) + counter.balances({owner: address(this)});
             }
         }
         "#,
     );
-    for complete in [false, true] {
+    for (complete, expected) in [
+        (
+            false,
+            str![[r#"
+$1:
+cannot rename this symbol because workspace indexing may omit source files
+$2:
+cannot rename this symbol because workspace indexing may omit source files
+$3:
+/src/Counter.sol:2:67-2:73 -> renamed
+/src/Counter.sol:4:8-4:14 -> renamed
+$4:
+/src/Counter.sol:3:16-3:21 -> renamed
+/src/Counter.sol:4:17-4:22 -> renamed
+$5:
+/src/Counter.sol:7:58-7:64 -> renamed
+/src/Counter.sol:7:75-7:81 -> renamed
+$6:
+cannot rename this symbol because workspace indexing may omit source files
+
+"#]],
+        ),
+        (
+            true,
+            str![[r#"
+$1:
+/src/Counter.sol:1:20-1:25 -> renamed
+/test/Counter.t.sol:3:65-3:70 -> renamed
+$2:
+/src/Counter.sol:2:30-2:36 -> renamed
+/src/Counter.sol:3:24-3:30 -> renamed
+/test/Counter.t.sol:3:33-3:39 -> renamed
+$3:
+/src/Counter.sol:2:67-2:73 -> renamed
+/src/Counter.sol:4:8-4:14 -> renamed
+$4:
+/src/Counter.sol:3:16-3:21 -> renamed
+/src/Counter.sol:4:17-4:22 -> renamed
+$5:
+/src/Counter.sol:7:58-7:64 -> renamed
+/src/Counter.sol:7:75-7:81 -> renamed
+$6:
+/src/Counter.sol:2:13-2:21 -> renamed
+/src/Counter.sol:7:17-7:25 -> renamed
+/test/Counter.t.sol:3:23-3:31 -> renamed
+
+"#]],
+        ),
+    ] {
         let mut state = coverage_state(&marked, complete);
-        tokio::time::timeout(super::super::ASYNC_TEST_TIMEOUT, state.latest_analysis())
-            .await
-            .unwrap()
-            .unwrap();
-        for (marker, references) in [("$1", 1), ("$2", 2), ("$3", 2), ("$4", 2), ("$5", 2)] {
-            let params = rename_params(&marked, marker, "renamed");
-            let prepare =
-                handlers::prepare_rename(&mut state, params.text_document_position.clone()).await;
-            let renamed = handlers::rename(&mut state, params).await;
-            if !complete && matches!(marker, "$1" | "$2") {
-                assert_eq!(prepare.unwrap_err().code, ErrorCode::REQUEST_FAILED);
-                assert_eq!(renamed.unwrap_err().code, ErrorCode::REQUEST_FAILED);
-                continue;
-            }
-            assert!(prepare.unwrap().is_some());
-            let changes = renamed.unwrap().unwrap().changes.unwrap();
-            let source_uri =
-                Url::from_file_path(marked.project().path("/src/Counter.sol")).unwrap();
-            let source = &changes[&source_uri];
-            assert_eq!(source.len(), references, "{marker}");
-            assert!(source.iter().all(|edit| edit.new_text == "renamed"));
-            if matches!(marker, "$1" | "$2") {
-                let caller_uri =
-                    Url::from_file_path(marked.project().path("/test/Counter.t.sol")).unwrap();
-                let caller = &changes[&caller_uri];
-                let reference = marked.marker(if marker == "$1" { "$7" } else { "$6" }).position();
-                let length = if marker == "$1" { 5 } else { 6 };
-                assert_eq!(
-                    caller,
-                    &[lsp_types::TextEdit::new(
-                        lsp_types::Range::new(
-                            reference,
-                            lsp_types::Position::new(reference.line, reference.character + length)
-                        ),
-                        "renamed".into(),
-                    )]
-                );
-                assert_eq!(changes.len(), 2);
-            } else {
-                assert_eq!(changes.len(), 1);
-            }
+        // Renaming to the current name is a no-op even when callers may be unindexed.
+        let unchanged = rename_at(&marked, "$6", "increase");
+        assert!(handlers::rename(&mut state, unchanged).await.unwrap().is_none());
+        settle(&state).await;
+        let mut output = String::new();
+        for marker in ["$1", "$2", "$3", "$4", "$5", "$6"] {
+            let params = rename_at(&marked, marker, "renamed");
+            let report = rename_report(&mut state, params, marked.project().root()).await;
+            write!(output, "{marker}:\n{report}").unwrap();
         }
+        snapbox::assert_data_eq!(output, expected);
     }
 }
 
@@ -141,25 +115,27 @@ async fn rename_coverage_uses_the_analyzed_config_after_merging_batches() {
         "#,
         &["/First.sol", "/Shared.sol", "/Caller.sol"],
     );
+    let mut output = String::new();
     for marker in ["$1", "$2", "$3"] {
         let (mut state, params) = fixture.rename_state_and_params(marker, "renamed");
-        assert!(!state.config.may_omit_source_files());
-        let mut analyzed_config = (*state.config).clone();
-        analyzed_config.mark_analysis_source_files_incomplete();
-        state.analysis_commit.lock().analysis_config = Some(Arc::new(analyzed_config));
-        let prepare =
-            handlers::prepare_rename(&mut state, params.text_document_position.clone()).await;
-        let renamed = handlers::rename(&mut state, params).await;
-        if marker == "$1" {
-            assert_eq!(prepare.unwrap_err().code, ErrorCode::REQUEST_FAILED);
-            assert_eq!(renamed.unwrap_err().code, ErrorCode::REQUEST_FAILED);
-        } else {
-            assert!(prepare.unwrap().is_some());
-            let changes = renamed.unwrap().unwrap().changes.unwrap();
-            assert_eq!(changes.len(), 1);
-            assert_eq!(changes.values().next().unwrap().len(), 2);
-        }
+        publish_analysis_config(&state, false);
+        let report = rename_report(&mut state, params, &fixture.project_path("/")).await;
+        write!(output, "{marker}:\n{report}").unwrap();
     }
+    snapbox::assert_data_eq!(
+        output,
+        str![[r#"
+$1:
+cannot rename this symbol because workspace indexing may omit source files
+$2:
+/Shared.sol:1:48-1:54 -> renamed
+/Shared.sol:3:8-3:14 -> renamed
+$3:
+/Shared.sol:2:16-2:21 -> renamed
+/Shared.sol:3:17-3:22 -> renamed
+
+"#]]
+    );
 }
 
 fn coverage_state(marked: &MarkedProject, complete: bool) -> GlobalState {
@@ -178,22 +154,12 @@ fn coverage_state(marked: &MarkedProject, complete: bool) -> GlobalState {
     );
     config.rediscover_workspaces();
     assert_eq!(config.may_omit_source_files(), !complete);
-    let mut state = GlobalState::new(ClientSocket::new_closed());
-    state.config = Arc::new(config);
+    let mut state = state_with(config);
     state.recompute_after_opening_source(Vec::new());
     state
 }
 
-fn rename_params(marked: &MarkedProject, marker: &str, new_name: &str) -> RenameParams {
-    let marker = marked.marker(marker);
-    RenameParams {
-        text_document_position: TextDocumentPositionParams::new(
-            TextDocumentIdentifier::new(
-                Url::from_file_path(marked.project().path(marker.path())).unwrap(),
-            ),
-            marker.position(),
-        ),
-        new_name: new_name.into(),
-        work_done_progress_params: Default::default(),
-    }
+fn rename_at(marked: &MarkedProject, marker: &str, new_name: &str) -> RenameParams {
+    let (uri, position) = marked.location(marker);
+    rename_params(&uri, position, new_name)
 }

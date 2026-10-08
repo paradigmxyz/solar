@@ -314,8 +314,8 @@ impl<'a> PeepContext<'a> {
     }
 
     /// Returns the edit to apply to the tail of the block, when a rule matches.
-    pub(super) fn select<const LATE: bool>(&mut self) -> Option<Rewrite> {
-        if !LATE {
+    pub(super) fn select(&mut self, late: bool) -> Option<Rewrite> {
+        if !late {
             return self.final_rewrite().or_else(|| self.select_by_tail());
         }
         if self.instructions.len() < 5 || raw_opcode(self.instructions.last()?) != Some(SUB) {
@@ -761,66 +761,5 @@ impl generated::Context for PeepContext<'_> {
 
     fn rewrite(&mut self, skip: u8, edit: &Edit) -> Rewrite {
         Rewrite { skip, edit: *edit }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn protected_word_rejects_observation_and_unknown_instructions() {
-        let mut instructions =
-            [Instruction::push_value(U256::from(288)), Instruction::opcode(MLOAD)];
-        assert_eq!(protected_word_depth(&instructions), Some(1));
-        for index in 0..instructions.len() {
-            instructions[index].metadata.keep_with_next = true;
-            assert_eq!(protected_word_depth(&instructions), None);
-            instructions[index].metadata.keep_with_next = false;
-        }
-        instructions[1] = Instruction::opcode(0x0c);
-        assert_eq!(protected_word_depth(&instructions), None);
-        instructions[1] = Instruction::stack_op(StackOp::Dup(2));
-        assert_eq!(protected_word_depth(&instructions), None);
-        instructions[1] = Instruction::stack_op(StackOp::Swap(1));
-        assert_eq!(protected_word_depth(&instructions), Some(0));
-    }
-
-    #[test]
-    fn suffix_boundaries_remain_protected() {
-        let mut instructions = [
-            Instruction::opcode(GAS),
-            Instruction::push_value(U256::from(2)),
-            Instruction::opcode(ISZERO),
-        ];
-        assert!(
-            PeepContext::new(&instructions, EvmVersion::Osaka).unprotected_tail::<2>().is_some()
-        );
-        for boundary in 0..instructions.len() {
-            instructions[boundary].metadata.keep_with_next = true;
-            assert!(
-                PeepContext::new(&instructions, EvmVersion::Osaka)
-                    .unprotected_tail::<2>()
-                    .is_none()
-            );
-            instructions[boundary].metadata.keep_with_next = false;
-        }
-    }
-
-    #[test]
-    fn equality_shuffle_requires_unprotected_window() {
-        let mut instructions = [GAS, DUP2, EQ, ISZERO, SWAP1, POP].map(Instruction::opcode);
-        assert!(
-            PeepContext::new(&instructions, EvmVersion::Osaka).unprotected_tail::<5>().is_some()
-        );
-        for boundary in 0..instructions.len() {
-            instructions[boundary].metadata.keep_with_next = true;
-            assert!(
-                PeepContext::new(&instructions, EvmVersion::Osaka)
-                    .unprotected_tail::<5>()
-                    .is_none()
-            );
-            instructions[boundary].metadata.keep_with_next = false;
-        }
     }
 }

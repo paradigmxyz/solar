@@ -28,11 +28,11 @@ pub struct TyAbiPrinter<'gcx, W> {
     gcx: Gcx<'gcx>,
     buf: W,
     mode: TyAbiPrinterMode,
-    /// Print types in the library function signature form used by solc.
+    /// Print types in the library function form used by solc.
     ///
-    /// Unlike contract functions, library functions may take `mapping`/`storage`
-    /// reference parameters and refer to structs, enums, and contracts by name
-    /// (e.g. `f(DataTypes.Reserve storage)`).
+    /// Enums and contracts use their canonical names. Signatures also name structs
+    /// and may include `mapping`/`storage` references (e.g. `f(DataTypes.Reserve storage)`).
+    /// JSON ABI structs remain tuples, and storage-reference functions are omitted.
     in_library: bool,
 }
 
@@ -57,7 +57,7 @@ impl<'gcx, W: fmt::Write> TyAbiPrinter<'gcx, W> {
         Self { gcx, buf, mode, in_library: false }
     }
 
-    /// Sets whether types are printed as a `library` function signature.
+    /// Sets whether types are printed for a `library` function.
     pub fn with_in_library(mut self, yes: bool) -> Self {
         self.in_library = yes;
         self
@@ -77,7 +77,7 @@ impl<'gcx, W: fmt::Write> TyAbiPrinter<'gcx, W> {
     pub fn print(&mut self, ty: Ty<'gcx>) -> fmt::Result {
         match ty.kind {
             TyKind::Elementary(ty) => ty.write_abi_str(&mut self.buf),
-            TyKind::Contract(id) if self.mode == TyAbiPrinterMode::Signature && self.in_library => {
+            TyKind::Contract(id) if self.in_library => {
                 write!(self.buf, "{}", self.gcx.item_canonical_name(id))
             }
             TyKind::Contract(_) => self.buf.write_str("address"),
@@ -99,12 +99,10 @@ impl<'gcx, W: fmt::Write> TyAbiPrinter<'gcx, W> {
                 }
                 TyAbiPrinterMode::Abi => self.buf.write_str("tuple"),
             },
-            TyKind::Enum(id) => match self.mode {
-                TyAbiPrinterMode::Signature if self.in_library => {
-                    write!(self.buf, "{}", self.gcx.item_canonical_name(id))
-                }
-                _ => self.buf.write_str("uint8"),
-            },
+            TyKind::Enum(id) if self.in_library => {
+                write!(self.buf, "{}", self.gcx.item_canonical_name(id))
+            }
+            TyKind::Enum(_) => self.buf.write_str("uint8"),
             TyKind::Udvt(ty, _) => self.print(ty),
             TyKind::Ref(ty, loc) => {
                 self.print(ty)?;
@@ -265,9 +263,9 @@ impl<'gcx, W: fmt::Write> TySolcPrinter<'gcx, W> {
                 self.buf.write_str(" with call options")
             }
             TyKind::RationalLiteral => self.buf.write_str("rational_literal"),
-            TyKind::StringLiteral(utf8, size) => {
+            TyKind::StringLiteral(utf8, len) => {
                 let kind = if utf8 { "utf8" } else { "bytes" };
-                write!(self.buf, "{kind}_string_literal[{}]", size.bytes_raw())
+                write!(self.buf, "{kind}_string_literal[{len}]")
             }
             TyKind::IntLiteral(_, size, _) => {
                 write!(self.buf, "int_literal[{}]", size.bits())

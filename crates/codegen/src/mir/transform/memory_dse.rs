@@ -7,7 +7,8 @@
 //! no intervening operation can mutate memory. Across a unique predecessor
 //! edge, equal constant stores can be removed only while no overlapping
 //! 32-byte write has invalidated the remembered word. Gas and memory-size
-//! observations act as barriers to memory elimination.
+//! observations act as barriers to memory elimination. Allocation-based keys require
+//! the complete access range to fit; wider accesses may overlap adjacent allocations.
 
 use crate::mir::{
     BlockId, Callee, Function, Immediate, InstId, InstKind, MemoryObjectKind, MemoryRegion, Module,
@@ -92,7 +93,7 @@ fn has_memory_writes(func: &Function) -> bool {
 /// Local dead memory optimization.
 #[derive(Debug, Default)]
 struct MemoryStoreEliminator {
-    /// Shared CFG snapshot for the immutable-copy reuse scan.
+    /// Shared CFG snapshot for memory liveness and immutable-copy reuse.
     cfg: Option<Rc<CfgInfo>>,
     /// Number of memory instructions eliminated.
     eliminated_count: usize,
@@ -421,16 +422,9 @@ impl MemoryStoreEliminator {
         let has_precise_reads = func
             .instructions()
             .any(|inst_id| Self::constant_range_read(&func.inst(inst_id).kind).is_some());
-        if has_precise_reads {
-            for block_id in block_ids {
-                self.process_block::<true>(func, block_id, scratch);
-                self.alias().clear_cached_addresses();
-            }
-        } else {
-            for block_id in block_ids {
-                self.process_block::<false>(func, block_id, scratch);
-                self.alias().clear_cached_addresses();
-            }
+        for block_id in block_ids {
+            self.process_block(func, block_id, has_precise_reads, scratch);
+            self.alias().clear_cached_addresses();
         }
         self.remove_cross_block_equal_const_stores(func);
         self.remove_cross_block_overwrites(func);
@@ -479,9 +473,10 @@ impl MemoryStoreEliminator {
         // while touching each block only when one of its successors actually
         // moved. Postorder puts successors before predecessors, which is the
         // direction information flows here.
-        let (predecessors, order) = Self::block_order(func);
+        let cfg = self.cfg.as_ref().map_or_else(|| Rc::new(CfgInfo::new(func)), Rc::clone);
         let mut live_in = index_vec![MemLive::empty(); func.blocks.len()];
-        let mut worklist: VecDeque<BlockId> = order.into();
+        let mut worklist = cfg.rpo().iter().rev().copied().collect::<VecDeque<_>>();
+        self.eliminated_count += mir_utils::invalidate_unreachable_blocks(func, cfg.reachable());
         let mut queued = DenseBitSet::new_empty(func.blocks.len());
         for &block_id in &worklist {
             queued.insert(block_id);
@@ -492,7 +487,7 @@ impl MemoryStoreEliminator {
             let new_in = self.transfer_block(func, block_id, out, &mut None);
             if live_in[block_id] != new_in {
                 live_in[block_id] = new_in;
-                for &pred in &predecessors[block_id] {
+                for &pred in &func.blocks[block_id].predecessors {
                     if queued.insert(pred) {
                         worklist.push_back(pred);
                     }
@@ -502,7 +497,7 @@ impl MemoryStoreEliminator {
 
         // Collect dead stores using the stabilized live-out of each block.
         let mut dead = DenseBitSet::new_empty(func.num_insts());
-        for block_id in func.blocks.indices() {
+        for &block_id in cfg.rpo() {
             let out = Self::live_out(func, block_id, &live_in);
             let mut collector = Some(&mut dead);
             self.transfer_block(func, block_id, out, &mut collector);
@@ -525,54 +520,6 @@ impl MemoryStoreEliminator {
             }
         }
         out
-    }
-
-    /// Successor and predecessor lists for every block, plus a postorder over
-    /// all of them.
-    ///
-    /// The shared [`CfgInfo`] snapshot only exposes successors, and the backward
-    /// worklist needs to re-queue a block when one of its successors moves.
-    /// Postorder settles successors before their predecessors, which is the
-    /// direction a backward analysis propagates, so seeding the worklist with it
-    /// converges most functions in a single drain. Unreachable blocks are
-    /// included so their liveness converges too.
-    fn block_order(func: &Function) -> (IndexVec<BlockId, SmallVec<[BlockId; 2]>>, Vec<BlockId>) {
-        let successors: IndexVec<BlockId, SmallVec<[BlockId; 2]>> = func
-            .blocks
-            .iter()
-            .map(|block| {
-                block.terminator.as_ref().map(|term| term.successors()).unwrap_or_default()
-            })
-            .collect();
-
-        let mut predecessors = index_vec![SmallVec::new(); func.blocks.len()];
-        for (block_id, succs) in successors.iter_enumerated() {
-            for &succ in succs {
-                predecessors[succ].push(block_id);
-            }
-        }
-
-        let mut order = Vec::with_capacity(func.blocks.len());
-        let mut visited = DenseBitSet::new_empty(func.blocks.len());
-        for root in func.blocks.indices() {
-            if !visited.insert(root) {
-                continue;
-            }
-            let mut stack = Vec::new();
-            stack.push((root, 0usize));
-            while let Some((block, next)) = stack.last_mut() {
-                if let Some(&succ) = successors[*block].get(*next) {
-                    *next += 1;
-                    if visited.insert(succ) {
-                        stack.push((succ, 0));
-                    }
-                } else {
-                    order.push(*block);
-                    stack.pop();
-                }
-            }
-        }
-        (predecessors, order)
     }
 
     /// Runs the backward transfer over one block's terminator and instructions,
@@ -691,7 +638,7 @@ impl MemoryStoreEliminator {
 
     /// Returns a constant, 32-byte-aligned memory address, or `None` otherwise.
     fn word_aligned_const(&self, func: &Function, addr: ValueId) -> Option<u64> {
-        self.mem_addr_key(func, addr)?.0.as_absolute().filter(|address| address % 32 == 0)
+        self.mem_addr_key(func, addr, 32)?.0.as_absolute().filter(|address| address % 32 == 0)
     }
 
     /// Runs local memory optimization until no more instructions can be eliminated.
@@ -745,7 +692,7 @@ impl MemoryStoreEliminator {
                 let InstKind::MLoad(load_addr) = func.inst(load).kind else {
                     continue;
                 };
-                if self.mem_addr_key(func, dest) != self.mem_addr_key(func, load_addr) {
+                if self.mem_addr_key(func, dest, 32) != self.mem_addr_key(func, load_addr, 32) {
                     continue;
                 }
                 let Some(loaded_value) = func.inst_result_value(load) else {
@@ -829,10 +776,11 @@ impl MemoryStoreEliminator {
         }
     }
 
-    fn process_block<const PRECISE_READS: bool>(
+    fn process_block(
         &mut self,
         func: &mut Function,
         block_id: BlockId,
+        precise_reads: bool,
         scratch: &mut BlockScratch,
     ) {
         let mut mstores = 0;
@@ -888,7 +836,7 @@ impl MemoryStoreEliminator {
             let inst = func.inst(inst_id);
             match &inst.kind {
                 InstKind::MStore(addr, _) => {
-                    if let Some(key) = self.mem_addr_key(func, *addr) {
+                    if let Some(key) = self.mem_addr_key(func, *addr, 32) {
                         if scratch.overwritten.contains(&key) {
                             scratch.dead.insert(inst_id);
                             self.eliminated_count += 1;
@@ -913,7 +861,7 @@ impl MemoryStoreEliminator {
                     }
                 }
                 InstKind::MLoad(addr) => {
-                    if let Some(key) = self.mem_addr_key(func, *addr) {
+                    if let Some(key) = self.mem_addr_key(func, *addr, 32) {
                         Self::remove_overlapping_set(&mut scratch.overwritten, key);
                     } else {
                         scratch.overwritten.clear();
@@ -977,7 +925,7 @@ impl MemoryStoreEliminator {
                 // Modelling the range (instead of clearing) lets a return-value
                 // slot's dead default-init survive the mapping-hash keccaks and
                 // event logs that sit between it and its real store.
-                kind if PRECISE_READS
+                kind if precise_reads
                     && let Some((offset, size)) = Self::constant_range_read(kind) =>
                 {
                     self.retain_overwritten_disjoint_from_read(
@@ -1137,7 +1085,9 @@ impl MemoryStoreEliminator {
                             }
                         }
                         None => {
-                            match self.mem_addr_key(func, *addr).and_then(|key| key.0.as_absolute())
+                            match self
+                                .mem_addr_key(func, *addr, 32)
+                                .and_then(|key| key.0.as_absolute())
                             {
                                 // A non-constant word written at a known address
                                 // invalidates every remembered overlapping word.
@@ -1225,7 +1175,7 @@ impl MemoryStoreEliminator {
         for &inst_id in func.blocks[block].instructions.iter().rev() {
             match func.inst(inst_id).kind {
                 InstKind::MStore(addr, _) => {
-                    let key = self.mem_addr_key(func, addr)?;
+                    let key = self.mem_addr_key(func, addr, 32)?;
                     return Some((inst_id, key));
                 }
                 _ if self.cross_block_memory_barrier(func, inst_id) => return None,
@@ -1238,7 +1188,7 @@ impl MemoryStoreEliminator {
     fn first_cross_block_overwrite(&self, func: &Function, block: BlockId) -> Option<MemAddrKey> {
         for &inst_id in &func.blocks[block].instructions {
             match func.inst(inst_id).kind {
-                InstKind::MStore(addr, _) => return self.mem_addr_key(func, addr),
+                InstKind::MStore(addr, _) => return self.mem_addr_key(func, addr, 32),
                 _ if self.cross_block_memory_barrier(func, inst_id) => return None,
                 _ => {}
             }
@@ -1260,7 +1210,7 @@ impl MemoryStoreEliminator {
             let inst_id = func.blocks[block_id].instructions[index];
             match &func.inst(inst_id).kind {
                 InstKind::MStore(addr, value) => {
-                    let Some(key) = self.mem_addr_key(func, *addr) else {
+                    let Some(key) = self.mem_addr_key(func, *addr, 32) else {
                         scratch.stored_words.clear();
                         continue;
                     };
@@ -1314,7 +1264,7 @@ impl MemoryStoreEliminator {
             let inst = func.inst(inst_id);
             match &inst.kind {
                 InstKind::MStore(addr, value) => {
-                    let Some(key) = self.mem_addr_key(func, *addr) else {
+                    let Some(key) = self.mem_addr_key(func, *addr, 32) else {
                         scratch.stored_values.clear();
                         continue;
                     };
@@ -1356,7 +1306,7 @@ impl MemoryStoreEliminator {
             let inst = func.inst(inst_id);
             match &inst.kind {
                 InstKind::MStore(addr, value) => {
-                    if let Some(key) = self.mem_addr_key(func, *addr) {
+                    if let Some(key) = self.mem_addr_key(func, *addr, 32) {
                         if !self.remove_overlapping_write_range(
                             func,
                             &mut scratch.stored_values,
@@ -1386,7 +1336,7 @@ impl MemoryStoreEliminator {
                         .insert(key, mir_utils::resolve_replacement(*value, &scratch.replacements));
                 }
                 InstKind::MLoad(addr) => {
-                    let Some(key) = self.mem_addr_key(func, *addr) else {
+                    let Some(key) = self.mem_addr_key(func, *addr, 32) else {
                         continue;
                     };
                     let Some(&stored_value) = scratch.stored_values.get(key) else {
@@ -1468,8 +1418,10 @@ impl MemoryStoreEliminator {
         func.blocks[block_id].instructions.retain(|&id| !scratch.dead.contains(id));
     }
 
-    fn mem_addr_key(&self, func: &Function, value: ValueId) -> Option<MemAddrKey> {
-        self.alias().memory_address(func, value).map(MemAddrKey)
+    fn mem_addr_key(&self, func: &Function, value: ValueId, size: u64) -> Option<MemAddrKey> {
+        self.alias()
+            .bare_memory_location(func, value, LocationSize::Const(size))
+            .map(|location| MemAddrKey(location.address))
     }
 
     fn memory_object_length_key(
@@ -1566,7 +1518,7 @@ impl MemoryStoreEliminator {
         dest: ValueId,
         size: u64,
     ) -> bool {
-        let Some(write) = self.mem_addr_key(func, dest) else {
+        let Some(write) = self.mem_addr_key(func, dest, size) else {
             return false;
         };
         map.invalidate(write, size);
@@ -1587,7 +1539,7 @@ impl MemoryStoreEliminator {
             return false;
         }
 
-        let Some(base) = self.mem_addr_key(func, dest) else {
+        let Some(base) = self.mem_addr_key(func, dest, size) else {
             return false;
         };
         for offset in (0..size).step_by(32) {

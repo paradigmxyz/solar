@@ -2,11 +2,10 @@
 
 use super::{
     BlockId, EvmCodegen, Function, FunctionId, InstId, InstKind, Liveness, SmallVec, StackEffect,
-    StackOp, StackPush, Terminator, ValueId, op,
+    StackOp, StackPush, Terminator, Value, ValueId, op,
     select::{self, OpcodeLowering},
 };
 use crate::{mir::Callee, target::Target};
-use alloy_primitives::U256;
 
 impl<'gcx> EvmCodegen<'gcx> {
     // ==================== Stack-Aware Emitter API ====================
@@ -114,11 +113,8 @@ impl<'gcx> EvmCodegen<'gcx> {
         if self.emit_stack_expression(func, liveness, block, inst_idx) {
             // The selected expression already produced the original result.
         } else if let InstKind::Zext(value)
-        | InstKind::Trunc(value, _)
-        | InstKind::Sext(value, _, _)
         | InstKind::PtrToInt(value, _)
-        | InstKind::IntToPtr(value)
-        | InstKind::Bitcast(value) = *kind
+        | InstKind::IntToPtr(value) = *kind
         {
             // cast value -> schedule the operand under the result identity
             if let Some(plan) = self.plan_operands(func, &[value], liveness, block, inst_idx) {
@@ -129,39 +125,6 @@ impl<'gcx> EvmCodegen<'gcx> {
                 if !self.block_local_copy_survives(liveness, block, value, 1) {
                     self.spill_top_value_if_live(func, liveness, block, inst_idx, value);
                 }
-            }
-            match *kind {
-                InstKind::Sext(_, 1, 256) => {
-                    // sext i1 value to i256 -> SUB 0, value
-                    self.asm.emit_push(U256::ZERO);
-                    self.asm.emit_op(op::SUB);
-                }
-                InstKind::Sext(_, 1, 160)
-                    if self.gcx.sess.opts.evm_version.has_bitwise_shifting() =>
-                {
-                    // sext i1 value to i160 -> SUB 0, value; SHR 96
-                    self.asm.emit_push(U256::ZERO);
-                    self.asm.emit_op(op::SUB);
-                    self.asm.emit_push(U256::from(96));
-                    self.asm.emit_op(op::SHR);
-                }
-                InstKind::Sext(_, 1, bits) => {
-                    // sext i1 value to iN -> MUL value, (1 << N) - 1
-                    self.asm.emit_push(U256::MAX >> (256 - bits));
-                    self.asm.emit_op(op::MUL);
-                }
-                InstKind::Sext(_, 160, 256) => {
-                    // sext i160 value to i256 -> SIGNEXTEND 19, value
-                    self.asm.emit_push(U256::from(19));
-                    self.asm.emit_op(op::SIGNEXTEND);
-                }
-                InstKind::Trunc(_, bits) | InstKind::PtrToInt(_, bits) if bits < 256 => {
-                    // result = AND value, (1 << bits) - 1
-                    self.asm.emit_push(U256::MAX >> (256 - bits));
-                    self.asm.emit_op(op::AND);
-                }
-                InstKind::Sext(..) => unreachable!("unsupported integer width reached codegen"),
-                _ => {}
             }
             self.scheduler.instruction_executed(1, result_value);
         } else if let InstKind::Eq(a, b) | InstKind::Ne(a, b) = *kind {
@@ -471,6 +434,11 @@ impl<'gcx> EvmCodegen<'gcx> {
             // Memory copy operations
             InstKind::DataCopy(data, dest, size) => {
                 self.emit_data_copy(func, *data, *dest, *size, liveness, block, inst_idx);
+            }
+            InstKind::DataSize(size) => {
+                // push_data_size data, addend[, aligned]
+                self.asm.emit_push_data_size(*size);
+                self.scheduler.instruction_executed(0, result_value);
             }
 
             InstKind::MappingSlot(_, _)
@@ -959,7 +927,17 @@ impl<'gcx> EvmCodegen<'gcx> {
         let operands = [size, dest];
         self.preserve_stack_only_operands(&operands, liveness, block, inst_idx);
 
-        self.emit_value(func, size);
+        if let Value::Inst(size_inst) = *func.value(size)
+            && let InstKind::DataSize(data_size) = func.inst(size_inst).kind
+        {
+            // Data packing can only bound a copy whose size is pushed at the copy, so
+            // materialize the deferred length here instead of reusing a stack copy.
+            // push_data_size data, addend[, aligned]
+            self.asm.emit_push_data_size(data_size);
+            self.scheduler.stack.push(size);
+        } else {
+            self.emit_value(func, size);
+        }
         if !self.block_local_copy_survives(liveness, block, size, 1) {
             self.spill_top_value_if_live(func, liveness, block, inst_idx, size);
         }

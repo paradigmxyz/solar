@@ -5,15 +5,22 @@ use super::{
     data::{MetadataHash, Settings, optimizer_settings},
 };
 use alloy_primitives::{Bytes, keccak256};
+use rayon::prelude::*;
 use serde_json::{Map, Value, json};
 use sha2::{Digest, Sha256};
 use solar_config::{RevertStrings, version::SEMVER_VERSION};
-use solar_data_structures::{bit_set::GrowableBitSet, index::IndexVec};
+use solar_data_structures::{
+    bit_set::{DenseBitSet, GrowableBitSet},
+    index::IndexVec,
+};
 use solar_sema::{
     Gcx,
     hir::{ContractId, SourceId},
 };
-use std::sync::OnceLock;
+use std::{
+    cmp::Reverse,
+    sync::{LazyLock, OnceLock},
+};
 
 const INVALID: u8 = 0xfe;
 const IPFS_MULTIHASH_LEN: usize = 34;
@@ -46,15 +53,35 @@ pub(super) struct Metadata<'a, 'input, 'gcx> {
 }
 
 impl<'a, 'input, 'gcx> Metadata<'a, 'input, 'gcx> {
+    #[tracing::instrument(name = "metadata", level = "debug", skip_all)]
     pub(super) fn new(gcx: Gcx<'gcx>, settings: &'a Settings<'input>) -> Self {
-        let contracts = IndexVec::from_vec(
-            (0..gcx.hir.contract_ids().len()).map(|_| Default::default()).collect(),
-        );
-        let sources =
-            IndexVec::from_vec((0..gcx.hir.source_ids().len()).map(|_| OnceLock::new()).collect());
+        let contracts =
+            std::iter::repeat_n(OnceLock::new(), gcx.hir.contract_ids().len()).collect();
+        let sources = std::iter::repeat_n(OnceLock::new(), gcx.hir.source_ids().len()).collect();
         let referenced_sources =
-            IndexVec::from_vec((0..gcx.hir.source_ids().len()).map(|_| OnceLock::new()).collect());
+            std::iter::repeat_n(OnceLock::new(), gcx.hir.source_ids().len()).collect();
         Self { gcx, settings, contracts, sources, referenced_sources }
+    }
+
+    /// Computes the metadata of `contracts` in parallel, hashing each referenced source once.
+    #[tracing::instrument(name = "precompute_metadata", level = "debug", skip_all)]
+    pub(super) fn precompute(&self, contracts: &[ContractId]) {
+        let mut sources = DenseBitSet::new_empty(self.sources.len());
+        for &contract_id in contracts {
+            for &source_id in self.referenced_sources(self.gcx.hir.contract(contract_id).source) {
+                sources.insert(source_id);
+            }
+        }
+        // Hash every source before building contract metadata, which blocks on missing hashes.
+        // Start with the largest sources, one task each, so no large source starts last.
+        let mut sources = sources.iter().collect::<Vec<_>>();
+        sources.sort_unstable_by_key(|&id| Reverse(self.gcx.hir.source(id).file.src.len()));
+        sources.into_par_iter().with_max_len(1).for_each(|source_id| {
+            self.source(source_id);
+        });
+        contracts.par_iter().for_each(|&contract_id| {
+            self.json(contract_id);
+        });
     }
 
     pub(super) fn json(&self, contract_id: ContractId) -> &str {
@@ -159,13 +186,13 @@ fn source_metadata(metadata: &Metadata<'_, '_, '_>, source_id: SourceId) -> Valu
         value.insert("content".into(), json!(content));
     } else {
         let swarm = bzzr1_hash(content.as_bytes());
-        let ipfs = ipfs_hash(content.as_bytes());
+        let mut ipfs = String::from("dweb:/ipfs/");
+        bs58::encode(ipfs_hash(content.as_bytes()))
+            .onto(&mut ipfs)
+            .expect("base58 encoding into a string cannot fail");
         value.insert(
             "urls".into(),
-            json!([
-                format!("bzz-raw://{}", alloy_primitives::hex::encode(swarm)),
-                format!("dweb:/ipfs/{}", bs58::encode(ipfs).into_string()),
-            ]),
+            json!([format!("bzz-raw://{}", alloy_primitives::hex::display(swarm)), ipfs]),
         );
     }
     Value::Object(value)
@@ -370,23 +397,25 @@ fn bzzr1_hash(input: &[u8]) -> [u8; 32] {
 
 fn bzzr1_chunk(input: &[u8], force_higher: bool) -> [u8; 32] {
     let hash = if input.len() == 0x1000 && !force_higher {
-        bmt_hash(input)
+        bmt_hash(input, input.len())
     } else {
         let mut padded = [0; 0x1000];
-        if input.len() < 0x1000 {
+        let len = if input.len() < 0x1000 {
             padded[..input.len()].copy_from_slice(input);
+            input.len()
         } else {
             let mut represented = 0x1000;
             while represented * (0x1000 / 32) < input.len() {
                 represented *= 0x1000 / 32;
             }
-            for (output, chunk) in
-                padded.as_chunks_mut::<32>().0.iter_mut().zip(input.chunks(represented))
-            {
+            let children = input.chunks(represented);
+            let len = children.len() * 32;
+            for (output, chunk) in padded.as_chunks_mut::<32>().0.iter_mut().zip(children) {
                 output.copy_from_slice(&bzzr1_chunk(chunk, represented > 0x1000));
             }
-        }
-        bmt_hash(&padded)
+            len
+        };
+        bmt_hash(&padded, len)
     };
     let mut value = [0; 40];
     value[..8].copy_from_slice(&(input.len() as u64).to_le_bytes());
@@ -394,15 +423,30 @@ fn bzzr1_chunk(input: &[u8], force_higher: bool) -> [u8; 32] {
     keccak256(value).into()
 }
 
-fn bmt_hash(input: &[u8]) -> [u8; 32] {
+/// Hashes a power-of-two BMT span whose bytes from `len` onward are zero.
+fn bmt_hash(input: &[u8], len: usize) -> [u8; 32] {
+    if len == 0 {
+        return bmt_zero_hash(input.len());
+    }
     if input.len() <= 64 {
         return keccak256(input).into();
     }
     let middle = input.len() / 2;
     let mut value = [0; 64];
-    value[..32].copy_from_slice(&bmt_hash(&input[..middle]));
-    value[32..].copy_from_slice(&bmt_hash(&input[middle..]));
+    value[..32].copy_from_slice(&bmt_hash(&input[..middle], len.min(middle)));
+    value[32..].copy_from_slice(&bmt_hash(&input[middle..], len.saturating_sub(middle)));
     keccak256(value).into()
+}
+
+fn bmt_zero_hash(len: usize) -> [u8; 32] {
+    static HASHES: LazyLock<[[u8; 32]; 7]> = LazyLock::new(|| {
+        let mut hashes = [keccak256([0; 64]).0; 7];
+        for level in 1..hashes.len() {
+            hashes[level] = keccak256([hashes[level - 1], hashes[level - 1]].as_flattened()).0;
+        }
+        hashes
+    });
+    HASHES[(len.trailing_zeros() - 6) as usize]
 }
 
 #[cfg(test)]
@@ -436,6 +480,15 @@ mod tests {
             alloy_primitives::hex::encode(bzzr1_hash(&[0; 4097])),
             "c082943c4cb8a97c67947f290f5421cf4c61d021eb303c8df77de6fe208df516"
         );
+        // Nonzero data with partial chunks, up to three tree levels.
+        for (len, expected) in [
+            (5000, "709a516189f2fb91e52bd09e07eb8eba21eff0f7881a9227c6e5569cddf807d3"),
+            (3 * 4096 + 100, "9b1e9758713ee3f99d86501c8def8b0a3bd650e9ad2466be27578f80782cf726"),
+            (130 * 4096 + 17, "39cdea97dc669a2f4d779d9c0ece6ce64d87273a3eb10a9baa7cde54716ec418"),
+        ] {
+            let input = (0..len).map(|i| (i % 251) as u8).collect::<Vec<_>>();
+            assert_eq!(alloy_primitives::hex::encode(bzzr1_hash(&input)), expected, "{len}");
+        }
     }
 
     #[test]

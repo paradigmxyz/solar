@@ -70,7 +70,7 @@ single EVM opcodes and scheduling shapes, without access to value definitions.
 The emitter and target cost model call that same selector.
 
 `build.rs` compiles the rule sets to Rust with `cranelift-isle`. Local identities
-in `isle/mir/egraph.isle` run inside the existing Rust e-graph algorithm; EVM IR window
+in `isle/mir/egraph` run inside the existing Rust e-graph algorithm; EVM IR window
 patterns live in `isle/evm-ir/peephole.isle`. Global analysis, profitability, stack
 scheduling, complex lowering, and assembly remain in Rust. The schema snapshot
 tests check the generated vocabularies, and the selector snapshot checks its
@@ -91,7 +91,7 @@ facts and choose placement. Keep these algorithms in Rust and use ISLE for
 bounded local identities. This gives us typed matchers, overlap checks, and
 one rule source for optimization and offline checking without implying that
 every Rust rewrite belongs in the DSL. See the repository's
-[rule-writing guidance](../../AGENTS.md#operation-schema-and-isle-rules).
+[rule-writing guidance](../../docs/CODEGEN.md#operation-schema-and-isle-rules).
 
 ### Library addresses and relocations
 
@@ -103,8 +103,20 @@ placeholder bytes carry no identity. Embedded creation and runtime bytecode carr
 their library tables and relocations; lowering remaps their IDs into the parent
 module's table.
 Data pooling shares bytes only when the library identities and offsets also match.
-The textual IR prints library identities as `"source.sol":"Library"` and data
-relocations as `library_relocations [offset: "source.sol":"Library"]`.
+MIR and EVM IR text declare libraries and data in `@libraries` and `@data` sections after the
+module header, and refer to both by declared name:
+
+```text
+@libraries
+  Library_0: "source.sol:Library"
+
+@data
+  Child_creation_code_0: creation_code "child.sol:Child"
+  literal_1: hex"..." library_relocations [2: Library_0]
+```
+
+Instructions refer to a library as `library_address Library_0` in MIR and
+`push_library Library_0` in EVM IR.
 
 ### Optimization search and costs
 
@@ -137,8 +149,8 @@ replacement avoids changes to earlier sharing decisions that can turn a local
 MIR size reduction into larger final bytecode.
 
 CI checks the compiled word rules and a separate pure physical-stack subset.
-Z3 verifies the rules and cvc5 replays every exported proof query, including
-exhaustive index partitions and their coverage checks.
+Lean proves every rule against EVM semantics written in Lean, and its kernel
+checks each proof.
 These proofs cover the modeled rules and explicit trusted contracts, not global
 memory transformations, the complete backend, or whole-program correctness.
 

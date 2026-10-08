@@ -125,17 +125,19 @@ fn analysis(gcx: Gcx<'_>) -> Result<ControlFlow<()>> {
     }
 
     // Lower HIR types.
-    gcx.hir.par_item_ids().for_each(|id| {
-        let _ = gcx.type_of_item(id);
-        match id {
-            hir::ItemId::Struct(id) => {
-                let _ = gcx.struct_recursiveness(id);
-                let _ = gcx.struct_field_types(id);
+    debug_span!("item_types").in_scope(|| {
+        gcx.hir.par_item_ids().for_each(|id| {
+            let _ = gcx.type_of_item(id);
+            match id {
+                hir::ItemId::Struct(id) => {
+                    let _ = gcx.struct_recursiveness(id);
+                    let _ = gcx.struct_field_types(id);
+                }
+                hir::ItemId::Contract(id) => _ = gcx.interface_functions(id),
+                _ => {}
             }
-            hir::ItemId::Contract(id) => _ = gcx.interface_functions(id),
-            _ => {}
-        }
-        natspec::validate_item_docs(gcx, id);
+            natspec::validate_item_docs(gcx, id);
+        });
     });
 
     typeck::check(gcx);
@@ -198,7 +200,7 @@ fn dump_hir(gcx: Gcx<'_>, paths: Option<&[String]>) -> Result<()> {
 }
 
 fn fmt_bytes(bytes: usize) -> impl std::fmt::Display {
-    solar_data_structures::fmt::from_fn(move |f| {
+    std::fmt::from_fn(move |f| {
         let mut size = bytes as f64;
         let mut suffix = "B";
         if size >= 1024.0 {

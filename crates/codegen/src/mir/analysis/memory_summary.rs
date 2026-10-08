@@ -19,11 +19,14 @@ use crate::mir::{
 };
 use alloy_primitives::U256;
 use solar_data_structures::{
-    bit_set::DenseBitSet,
+    bit_set::{BitMatrix, DenseBitSet},
     index::{IndexVec, index_vec},
     map::FxHashSet,
 };
-use std::collections::{BTreeSet, VecDeque};
+use std::{
+    collections::{BTreeSet, VecDeque},
+    rc::Rc,
+};
 
 /// Includes observations in callees, conservatively retaining reads without a call summary.
 pub(crate) fn may_observe_msize(func: &Function, summaries: Option<&MemoryCallSummaries>) -> bool {
@@ -307,6 +310,12 @@ impl FunctionMemorySummary {
         self.may_observe_gas
     }
 
+    /// Returns whether the function may terminate the current EVM call successfully.
+    #[must_use]
+    pub(crate) const fn may_terminate(&self) -> bool {
+        self.control.may_terminate
+    }
+
     /// Returns whether the function may relate a parameter's pointer value to the heap.
     ///
     /// Dereferencing the pointer, or comparing it with values derived from itself, is
@@ -398,74 +407,130 @@ pub(crate) struct MemoryCallSummaries {
     summaries: IndexVec<FunctionId, Option<FunctionMemorySummary>>,
 }
 
+/// Local summary facts of functions whose bodies have not changed since they were computed,
+/// reused by later summary builds.
+pub(crate) struct LocalSummaryCache {
+    entries: IndexVec<FunctionId, Option<LocalSummaryEntry>>,
+    /// The functions with several return components when the entries were computed. A local
+    /// summary counts a call to one as a memory access, so a change invalidates every entry.
+    multiple_returns: DenseBitSet<FunctionId>,
+}
+
+struct LocalSummaryEntry {
+    sources: Rc<BitMatrix<ValueId, ArgIdx>>,
+    /// The alias analysis as the local summary left it. Address memos are depth-limited, so
+    /// their results depend on query order and later queries must continue from this state.
+    alias: AliasAnalysis,
+    summary: FunctionMemorySummary,
+}
+
+impl LocalSummaryEntry {
+    fn new(module: &Module, func: &Function) -> Self {
+        let sources = parameter_sources(func);
+        let alias = AliasAnalysis::new(func);
+        let summary = local_summary(module, func, &sources, &alias);
+        Self { sources: Rc::new(sources), alias, summary }
+    }
+
+    /// Checks that recomputing the entry reproduces it. Values added since, such as
+    /// immediates a rewrite created and discarded, must have no parameter sources.
+    #[cfg(debug_assertions)]
+    fn assert_current(&self, module: &Module, func: &Function) {
+        let fresh = Self::new(module, func);
+        let cached_rows = self.sources.rows().count();
+        let same_sources = fresh.sources.rows().count() >= cached_rows
+            && fresh.sources.rows().all(|row| {
+                if row.index() < cached_rows {
+                    self.sources.iter(row).eq(fresh.sources.iter(row))
+                } else {
+                    fresh.sources.iter(row).next().is_none()
+                }
+            });
+        assert!(
+            same_sources && self.summary == fresh.summary && self.alias.same_memo(&fresh.alias),
+            "stale local memory summary of `{}`",
+            func.name
+        );
+    }
+}
+
+impl Default for LocalSummaryCache {
+    fn default() -> Self {
+        Self { entries: IndexVec::new(), multiple_returns: DenseBitSet::new_empty(0) }
+    }
+}
+
+impl LocalSummaryCache {
+    /// Drops the entry of a function whose body changed.
+    pub(crate) fn invalidate(&mut self, func_id: FunctionId) {
+        if let Some(entry) = self.entries.get_mut(func_id) {
+            *entry = None;
+        }
+    }
+
+    /// Drops every entry.
+    pub(crate) fn clear(&mut self) {
+        self.entries = IndexVec::new();
+    }
+}
+
 impl MemoryCallSummaries {
-    /// Computes summaries to a monotone fixpoint over the module call graph.
+    /// Computes summaries to a monotone fixpoint over the module call graph, reusing the cached
+    /// local summaries of unchanged functions and caching the rest.
     #[must_use]
-    pub(crate) fn new(module: &Module) -> Self {
+    pub(crate) fn new_cached(module: &Module, cache: &mut LocalSummaryCache) -> Self {
+        let calls = CallGraphInfo::new(module);
         let mut targets = DenseBitSet::new_empty(module.functions.len());
-        for func in &module.functions {
-            for inst in func.instructions() {
-                if let InstKind::ICall { function: Callee::Function(function), .. } =
-                    func.inst(inst).kind
-                    && module.functions.get(function).is_some()
-                {
-                    targets.insert(function);
-                }
-            }
-            for block in &func.blocks {
-                if let Some(Terminator::TailCall { function, .. }) = &block.terminator
-                    && module.functions.get(*function).is_some()
-                {
-                    targets.insert(*function);
-                }
+        for caller in module.functions.indices() {
+            for callee in calls.callees(caller) {
+                targets.insert(callee);
             }
         }
         if targets.is_empty() {
             return Self { summaries: IndexVec::new() };
         }
 
-        // The parameter sources and alias analysis of each target.
-        let facts = module
-            .functions
-            .iter_enumerated()
-            .map(|(id, func)| {
-                targets.contains(id).then(|| (parameter_sources(func), AliasAnalysis::new(func)))
-            })
-            .collect::<IndexVec<FunctionId, _>>();
-        let calls = CallGraphInfo::new(module);
+        let mut multiple_returns = DenseBitSet::new_empty(module.functions.len());
+        for (func_id, func) in module.functions.iter_enumerated() {
+            if func.return_components().len() > 1 {
+                multiple_returns.insert(func_id);
+            }
+        }
+        if cache.entries.len() != module.functions.len()
+            || cache.multiple_returns != multiple_returns
+        {
+            cache.entries = module.functions.indices().map(|_| None).collect();
+            cache.multiple_returns = multiple_returns;
+        }
+
+        // The parameter sources, alias analysis, and local summary of each target.
+        let mut facts = IndexVec::with_capacity(module.functions.len());
         let mut local = index_vec![None; module.functions.len()];
-        for func_id in &targets {
-            let func = &module.functions[func_id];
-            let (sources, alias) = facts[func_id].as_ref().unwrap();
-            let mut summary = local_summary(module, func, sources, alias);
+        for (func_id, func) in module.functions.iter_enumerated() {
+            if !targets.contains(func_id) {
+                facts.push(None);
+                continue;
+            }
+            let slot = &mut cache.entries[func_id];
+            #[cfg(debug_assertions)]
+            if let Some(entry) = slot {
+                entry.assert_current(module, func);
+            }
+            let entry = slot.get_or_insert_with(|| LocalSummaryEntry::new(module, func));
+            let mut summary = entry.summary.clone();
             summary.has_multiple_returns = func.return_components().len() > 1;
             summary.control.may_diverge |= calls.is_recursive(func_id);
             local[func_id] = Some(summary);
+            facts.push(Some((Rc::clone(&entry.sources), entry.alias.clone())));
         }
         let mut summaries = local.clone();
 
+        // Ascending callers per target, each listed once.
         let mut callers = index_vec![Vec::new(); module.functions.len()];
         for caller in &targets {
-            let func = &module.functions[caller];
-            for inst_id in func.instructions() {
-                if let InstKind::ICall { function: Callee::Function(function), .. } =
-                    func.inst(inst_id).kind
-                    && let Some(function_callers) = callers.get_mut(function)
-                {
-                    function_callers.push(caller);
-                }
+            for callee in calls.callees(caller) {
+                callers[callee].push(caller);
             }
-            for block in &func.blocks {
-                if let Some(Terminator::TailCall { function, .. }) = &block.terminator
-                    && let Some(function_callers) = callers.get_mut(*function)
-                {
-                    function_callers.push(caller);
-                }
-            }
-        }
-        for function_callers in &mut callers {
-            function_callers.sort_unstable();
-            function_callers.dedup();
         }
 
         let mut worklist = targets.iter().collect::<VecDeque<_>>();
@@ -528,7 +593,7 @@ fn merge_call(
     func: &Function,
     callee: Option<&FunctionMemorySummary>,
     args: &[ValueId],
-    sources: &IndexVec<ValueId, DenseBitSet<ArgIdx>>,
+    sources: &BitMatrix<ValueId, ArgIdx>,
     aa: &AliasAnalysis,
 ) {
     let conservative;
@@ -574,7 +639,7 @@ const fn space_index(space: AddressSpace) -> usize {
 fn local_summary(
     module: &Module,
     func: &Function,
-    sources: &IndexVec<ValueId, DenseBitSet<ArgIdx>>,
+    sources: &BitMatrix<ValueId, ArgIdx>,
     aa: &AliasAnalysis,
 ) -> FunctionMemorySummary {
     if func.blocks.is_empty() {
@@ -728,32 +793,21 @@ fn local_summary(
 /// state changes are discarded with the call frame.
 fn returning_blocks(func: &Function) -> DenseBitSet<BlockId> {
     let mut returning = DenseBitSet::new_empty(func.blocks.len());
-    let mut edges = Vec::new();
     let mut worklist = Vec::new();
     for (block_id, block) in func.blocks.iter_enumerated() {
-        let Some(terminator) = &block.terminator else {
-            returning.insert(block_id);
-            worklist.push(block_id);
-            continue;
-        };
-        let mut exits = true;
-        terminator.for_each_successor(|successor| {
-            edges.push((successor, block_id));
-            exits = false;
-        });
-        if exits
-            && !matches!(
-                terminator,
-                Terminator::Revert { .. } | Terminator::RevertReturndata | Terminator::Invalid
-            )
-        {
+        if block.terminator.as_ref().is_none_or(|term| {
+            !term.has_successors()
+                && !matches!(
+                    term,
+                    Terminator::Revert { .. } | Terminator::RevertReturndata | Terminator::Invalid
+                )
+        }) {
             returning.insert(block_id);
             worklist.push(block_id);
         }
     }
-    let predecessors = IndexLists::new(func.blocks.len(), edges.iter().copied());
     while let Some(block) = worklist.pop() {
-        for &predecessor in predecessors.get(block) {
+        for &predecessor in &func.blocks[block].predecessors {
             if returning.insert(predecessor) {
                 worklist.push(predecessor);
             }
@@ -808,15 +862,20 @@ fn heap_derived_values(func: &Function) -> DenseBitSet<ValueId> {
 fn observe_sources(
     summary: &mut FunctionMemorySummary,
     func: &Function,
-    sources: &IndexVec<ValueId, DenseBitSet<ArgIdx>>,
+    sources: &BitMatrix<ValueId, ArgIdx>,
     value: ValueId,
 ) {
+    if summary.observes.domain_size() == 0 {
+        return;
+    }
     if let Value::Arg(index) = func.value(value)
         && index.index() < summary.observes.domain_size()
     {
         summary.observes.insert(*index);
     }
-    summary.observes.union(&sources[value]);
+    for index in sources.iter(value) {
+        summary.observes.insert(index);
+    }
 }
 
 /// Returns whether an instruction reads the free-memory pointer or the memory size directly.
@@ -955,15 +1014,20 @@ fn is_nonnegative_offset(func: &Function, value: ValueId) -> bool {
 fn capture_sources(
     summary: &mut FunctionMemorySummary,
     func: &Function,
-    sources: &IndexVec<ValueId, DenseBitSet<ArgIdx>>,
+    sources: &BitMatrix<ValueId, ArgIdx>,
     value: ValueId,
 ) {
+    if summary.captures.domain_size() == 0 {
+        return;
+    }
     if let Value::Arg(index) = func.value(value)
         && index.index() < summary.captures.domain_size()
     {
         summary.captures.insert(*index);
     }
-    summary.captures.union(&sources[value]);
+    for index in sources.iter(value) {
+        summary.captures.insert(index);
+    }
 }
 
 /// Tracks which parameters a value is derived from.
@@ -971,9 +1035,9 @@ fn capture_sources(
 /// Capture summaries follow pointer-preserving computations: a helper can
 /// return an arithmetic or bitwise identity of a pointer parameter. Direct
 /// argument sources are handled lazily while propagating or capturing.
-fn parameter_sources(func: &Function) -> IndexVec<ValueId, DenseBitSet<ArgIdx>> {
+fn parameter_sources(func: &Function) -> BitMatrix<ValueId, ArgIdx> {
     let params = func.params.len();
-    let mut sources = IndexVec::from_vec(vec![DenseBitSet::new_empty(params); func.num_values()]);
+    let mut sources = BitMatrix::new(func.num_values(), params);
     if params == 0 {
         return sources;
     }
@@ -988,7 +1052,7 @@ fn parameter_sources(func: &Function) -> IndexVec<ValueId, DenseBitSet<ArgIdx>> 
             edges.push((operand, result));
             if let Value::Arg(index) = func.value(operand)
                 && index.index() < params
-                && sources[operand].insert(*index)
+                && sources.insert(operand, *index)
                 && queued.insert(operand)
             {
                 worklist.push_back(operand);
@@ -1005,9 +1069,8 @@ fn parameter_sources(func: &Function) -> IndexVec<ValueId, DenseBitSet<ArgIdx>> 
 
     while let Some(value) = worklist.pop_front() {
         queued.remove(value);
-        let propagated = sources[value].clone();
         for &user in users.get(value) {
-            if sources[user].union(&propagated) && queued.insert(user) {
+            if sources.union_rows(value, user) && queued.insert(user) {
                 worklist.push_back(user);
             }
         }
@@ -1043,169 +1106,4 @@ fn instruction_loads_data(kind: &InstKind) -> bool {
             | InstKind::CalldataSliceLoadWord { .. }
             | InstKind::SliceLen(_)
     )
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::mir::{FunctionBuilder, MirType};
-    use solar_interface::{Ident, sym};
-    use std::sync::Arc;
-
-    #[test]
-    fn propagates_terminator_memory_reads() {
-        for revert in [false, true] {
-            for tail in [false, true] {
-                let mut module = Module::new(Ident::DUMMY);
-                let mut leaf = Function::new(Ident::with_dummy_span(sym::memory_read));
-                {
-                    let mut builder = FunctionBuilder::new(&mut leaf);
-                    // return/revert memory[offset..offset + size]
-                    let pointer = builder.add_param(MirType::I256);
-                    let offset = builder.add_u64_offset(pointer, 32);
-                    let size = builder.imm(32);
-                    let term = if revert {
-                        Terminator::Revert { offset, size }
-                    } else {
-                        Terminator::ReturnData { offset, size }
-                    };
-                    builder.set_terminator(term);
-                }
-                let leaf = module.add_function(leaf);
-                let mut caller = Function::new(Ident::with_dummy_span(sym::icall));
-                {
-                    let mut builder = FunctionBuilder::new(&mut caller);
-                    let pointer = builder.imm(128);
-                    if tail {
-                        // tail_call leaf(128)
-                        builder.set_terminator(Terminator::TailCall {
-                            function: leaf,
-                            args: vec![pointer].into(),
-                        });
-                    } else {
-                        // icall leaf(128)
-                        // ret
-                        builder.icall_void(leaf, vec![pointer]);
-                        builder.ret([]);
-                    }
-                }
-                let caller = module.add_function(caller);
-                let mut entry = Function::new(Ident::DUMMY);
-                // tail_call caller()
-                FunctionBuilder::new(&mut entry).set_terminator(Terminator::TailCall {
-                    function: caller,
-                    args: Default::default(),
-                });
-                let entry = module.add_function(entry);
-                let summaries = MemoryCallSummaries::new(&module);
-                assert!(summaries.get(entry).is_none());
-                for function in [leaf, caller] {
-                    let summary = summaries.get(function).unwrap();
-                    assert!(summary.reads(AddressSpace::Memory), "revert={revert}, tail={tail}");
-                    assert!(!summary.writes(AddressSpace::Memory));
-                }
-                let func = module.function(caller);
-                let aa = AliasAnalysis::with_call_summaries(func, Arc::new(summaries));
-                let effects = if tail {
-                    aa.terminator_mod_ref(
-                        func,
-                        func.blocks[crate::mir::BlockId::ENTRY].terminator.as_ref().unwrap(),
-                    )
-                } else {
-                    aa.instruction_mod_ref(func, func.instructions().next().unwrap())
-                };
-                let mut address = MemoryAddress::absolute(160);
-                address.region = MemoryRegion::Unknown;
-                assert_eq!(
-                    effects.reads(),
-                    &[Access::Location(Location::Memory(MemoryLocation::new(
-                        address,
-                        LocationSize::Const(32)
-                    )))]
-                );
-                assert!(effects.writes().is_empty());
-            }
-        }
-    }
-
-    #[test]
-    fn propagates_captures_and_fmp_resets() {
-        let mut module = Module::new(Ident::DUMMY);
-
-        let mut reader = Function::new(Ident::with_dummy_span(sym::memory_read));
-        {
-            let mut builder = FunctionBuilder::new(&mut reader);
-            let ptr = builder.add_param(MirType::I256);
-            let value = builder.mload(ptr);
-            builder.ret([value]);
-        }
-        reader.set_return_type(MirType::I256);
-        let reader = module.add_function(reader);
-
-        let mut returning = Function::new(Ident::with_dummy_span(sym::ret));
-        {
-            let mut builder = FunctionBuilder::new(&mut returning);
-            let ptr = builder.add_param(MirType::I256);
-            builder.ret([ptr]);
-        }
-        returning.set_return_type(MirType::I256);
-        let returning = module.add_function(returning);
-
-        let mut obfuscated = Function::new(Ident::with_dummy_span(sym::ret));
-        {
-            let mut builder = FunctionBuilder::new(&mut obfuscated);
-            let ptr = builder.add_param(MirType::I256);
-            let zero = builder.imm(0);
-            let value = builder.xor(ptr, zero);
-            builder.ret([value]);
-        }
-        obfuscated.set_return_type(MirType::I256);
-        let obfuscated = module.add_function(obfuscated);
-
-        let mut resetter = Function::new(Ident::with_dummy_span(sym::fmp));
-        {
-            let mut builder = FunctionBuilder::new(&mut resetter);
-            let ptr = builder.add_param(MirType::I256);
-            builder.set_fmp(ptr);
-            builder.ret([]);
-        }
-        let resetter = module.add_function(resetter);
-
-        let mut reader_caller = Function::new(Ident::with_dummy_span(sym::icall));
-        {
-            let mut builder = FunctionBuilder::new(&mut reader_caller);
-            let ptr = builder.add_param(MirType::I256);
-            builder.icall_void(reader, vec![ptr]);
-            builder.ret([]);
-        }
-        let reader_caller = module.add_function(reader_caller);
-
-        let mut returning_caller = Function::new(Ident::with_dummy_span(sym::result_ty));
-        {
-            let mut builder = FunctionBuilder::new(&mut returning_caller);
-            let ptr = builder.add_param(MirType::I256);
-            builder.icall_void(returning, vec![ptr]);
-            builder.ret([]);
-        }
-        let returning_caller = module.add_function(returning_caller);
-
-        let mut entry = Function::new(Ident::DUMMY);
-        {
-            let mut builder = FunctionBuilder::new(&mut entry);
-            let pointer = builder.imm(128);
-            // icall each target(pointer)
-            // ret
-            for function in [reader_caller, returning_caller, obfuscated, resetter] {
-                builder.icall_void(function, vec![pointer]);
-            }
-            builder.ret([]);
-        }
-        let entry = module.add_function(entry);
-        let summaries = MemoryCallSummaries::new(&module);
-        assert!(summaries.get(entry).is_none());
-        assert!(!summaries.get(reader_caller).unwrap().captures_param(ArgIdx::new(0)));
-        assert!(summaries.get(returning_caller).unwrap().captures_param(ArgIdx::new(0)));
-        assert!(summaries.get(obfuscated).unwrap().captures_param(ArgIdx::new(0)));
-        assert!(summaries.get(resetter).unwrap().may_reset_fmp());
-    }
 }

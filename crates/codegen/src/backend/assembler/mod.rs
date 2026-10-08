@@ -9,9 +9,10 @@
 
 use crate::{
     backend::evm::{
-        DebugFunction, DebugFunctionExit, DebugInstruction, DebugSpans, ir, op, op::WORD_BYTES,
+        DebugFunction, DebugFunctionExit, DebugInfo, DebugInfoBuilder, DebugSpans, ir, op,
+        op::WORD_BYTES,
     },
-    link::LibraryRelocation,
+    link::{EmbeddedBytecodes, LibraryRelocation, LibraryTable},
     mir::{ImmutableId, TypeSize},
 };
 use alloy_primitives::U256;
@@ -31,6 +32,8 @@ mod local_interner;
 pub(in crate::backend) use local_interner::LocalInterner;
 
 use assembly::Program as AssemblyProgram;
+
+const _: () = assert!(size_of::<AsmInst>() == 4);
 
 /// An immutable placeholder emitted into the assembled bytecode.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -64,7 +67,7 @@ pub(crate) struct AssembledCode {
     /// Final EVM IR captured immediately before byte emission.
     pub evm_ir: Option<ir::Module>,
     /// Final instruction offsets and source spans.
-    pub debug_info: Option<Vec<DebugInstruction>>,
+    pub debug_info: Option<DebugInfo>,
 }
 
 /// The bytecode artifact currently being assembled.
@@ -99,7 +102,7 @@ pub(in crate::backend) struct PreparedAssembly {
 }
 
 /// Relocating assembler for finalized EVM IR.
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub(crate) struct Assembler<'gcx> {
     pub(in crate::backend) gcx: Gcx<'gcx>,
     /// Artifact whose labels are being laid out.
@@ -108,8 +111,6 @@ pub(crate) struct Assembler<'gcx> {
     pub(in crate::backend) program: ir::Module,
     /// Whether `program` already has explicit EVM IR terminators.
     pub(in crate::backend) program_is_finalized: bool,
-    /// Pass history at the shared input to gas-first and size-rescue outlining.
-    pub(in crate::backend) outlining: Option<ir::OutliningCheckpoint>,
     /// Block currently receiving emitted instructions.
     pub(in crate::backend) current_block: Option<ir::BlockId>,
     /// Source span attached to newly emitted EVM IR operations.
@@ -147,6 +148,17 @@ pub(crate) struct Assembler<'gcx> {
     pub(in crate::backend) next_deferred_alloc: IdCounter<DeferredAlloc>,
     /// Final placement of deferred allocations.
     pub(in crate::backend) deferred_allocations: FxHashMap<DeferredAlloc, DeferredAllocResolution>,
+    /// EVM IR after its pipeline, waiting to be linked and lowered.
+    pub(in crate::backend) optimized: Option<OptimizedProgram>,
+}
+
+/// EVM IR after its pipeline and legalization, before lowering to primitive assembly.
+#[derive(Debug)]
+pub(in crate::backend) struct OptimizedProgram {
+    pub(in crate::backend) program: ir::Module,
+    pub(in crate::backend) labels: Vec<Option<Label>>,
+    /// Whether the pipeline reported an error.
+    pub(in crate::backend) failed: bool,
 }
 
 /// Final lowering selected for a deferred allocation.
@@ -165,7 +177,6 @@ impl<'gcx> Assembler<'gcx> {
             artifact_kind: ArtifactKind::Runtime,
             program: ir::Module::new(sym::asm),
             program_is_finalized: false,
-            outlining: None,
             current_block: None,
             current_source_spans: DebugSpans::new(),
             current_modifier_depth: 0,
@@ -184,6 +195,7 @@ impl<'gcx> Assembler<'gcx> {
             alloc_relocations: Vec::new(),
             next_deferred_alloc: IdCounter::new(),
             deferred_allocations: FxHashMap::default(),
+            optimized: None,
         }
     }
 
@@ -192,7 +204,6 @@ impl<'gcx> Assembler<'gcx> {
         self.artifact_kind = ArtifactKind::Runtime;
         self.program.clear();
         self.program_is_finalized = false;
-        self.outlining = None;
         self.current_block = None;
         self.current_source_spans.clear();
         self.current_modifier_depth = 0;
@@ -211,6 +222,7 @@ impl<'gcx> Assembler<'gcx> {
         self.alloc_relocations.clear();
         self.next_deferred_alloc.clear();
         self.deferred_allocations.clear();
+        self.optimized = None;
     }
 
     /// Sets the artifact context used by conservative layout estimates.
@@ -223,11 +235,6 @@ impl<'gcx> Assembler<'gcx> {
     /// Sets the source module name carried by emitted EVM IR.
     pub(crate) fn set_evm_ir_name(&mut self, name: Symbol) {
         self.program.set_name(Symbol::intern(&format!("{name}_{}", self.artifact_kind.name())));
-    }
-
-    /// Enables size-oriented outlining for an oversized gas-mode runtime.
-    pub(crate) fn set_enable_size_outlining(&mut self, enable: bool) {
-        self.program.enable_size_outlining = enable;
     }
 
     /// Returns the conservative indexed-jump target width for this artifact.
@@ -264,13 +271,6 @@ impl<'gcx> Assembler<'gcx> {
         *self.immutable_pushes.get(index)
     }
 
-    /// Resolves relocations and encodes finalized EVM IR as bytecode.
-    #[must_use]
-    #[cfg(test)]
-    pub(crate) fn assemble(&mut self) -> AssembledCode {
-        self.assemble_with_evm_ir(false)
-    }
-
     #[must_use]
     pub(crate) fn assemble_with_evm_ir(&mut self, capture_evm_ir: bool) -> AssembledCode {
         self.assemble_with_captures(capture_evm_ir, false)
@@ -282,7 +282,26 @@ impl<'gcx> Assembler<'gcx> {
         capture_evm_ir: bool,
         capture_debug_info: bool,
     ) -> AssembledCode {
-        let prepared = self.prepare(capture_evm_ir, capture_debug_info);
+        self.optimize();
+        self.assemble_linked(
+            &EmbeddedBytecodes::default(),
+            &mut LibraryTable::default(),
+            capture_evm_ir,
+            capture_debug_info,
+        )
+    }
+
+    /// Links embedded contract bytecode into the optimized program, then lowers and
+    /// assembles it and clears the assembler.
+    pub(in crate::backend) fn assemble_linked(
+        &mut self,
+        bytecodes: &EmbeddedBytecodes,
+        libraries: &mut LibraryTable,
+        capture_evm_ir: bool,
+        capture_debug_info: bool,
+    ) -> AssembledCode {
+        let prepared =
+            self.prepare_linked(bytecodes, libraries, capture_evm_ir, capture_debug_info);
         let result = self.assemble_owned(prepared, &[]);
         self.clear();
         result
@@ -296,6 +315,7 @@ impl<'gcx> Assembler<'gcx> {
         self.assemble_owned(prepared.clone(), deferred_values)
     }
 
+    #[tracing::instrument(name = "assemble", level = "debug", skip_all)]
     fn assemble_owned(
         &mut self,
         prepared: PreparedAssembly,
@@ -467,7 +487,7 @@ impl<'gcx> Assembler<'gcx> {
                 }
                 AsmInstKind::Data(data) => {
                     data_offsets.insert(data, offset);
-                    offset += program.data[data].bytes.len();
+                    offset += program.data[data].bytes.linked().len();
                 }
             }
         }
@@ -592,17 +612,11 @@ impl<'gcx> Assembler<'gcx> {
                             }
                         }),
                     );
-                    out.bytecode.extend_from_slice(&program.data[data].bytes);
+                    out.bytecode.extend_from_slice(program.data[data].bytes.linked());
                 }
             }
         }
         out.finish()
-    }
-
-    /// Returns the minimum number of non-zero bytes needed to push a value.
-    #[cfg(test)]
-    fn push_width(value: U256) -> u8 {
-        value.byte_len() as u8
     }
 }
 
@@ -612,7 +626,7 @@ fn resolve_data_offset(
     data_ref: assembly::DataRefId,
 ) -> usize {
     let data = program.data_refs[data_ref];
-    let data_size = program.data[data.id].bytes.len();
+    let data_size = program.data[data.id].bytes.linked().len();
     assert!(
         data.offset as usize <= data_size,
         "program data offset {} exceeds data size {data_size}",
@@ -632,7 +646,7 @@ struct BytecodeAssembler<'gcx> {
     bytecode: Vec<u8>,
     immutable_refs: Vec<ImmutableRef>,
     library_relocations: Vec<LibraryRelocation>,
-    debug_info: Option<Vec<DebugInstruction>>,
+    debug_info: Option<DebugInfoBuilder>,
     function_invoke: Option<DebugFunction>,
     function_exit: Option<DebugFunctionExit>,
     modifier_depth: u32,
@@ -645,7 +659,7 @@ impl<'gcx> BytecodeAssembler<'gcx> {
             bytecode: Vec::new(),
             immutable_refs: Vec::new(),
             library_relocations: Vec::new(),
-            debug_info: capture_debug_info.then(Vec::new),
+            debug_info: capture_debug_info.then(DebugInfoBuilder::default),
             function_invoke: None,
             function_exit: None,
             modifier_depth: 0,
@@ -747,178 +761,19 @@ impl<'gcx> BytecodeAssembler<'gcx> {
             immutable_refs: self.immutable_refs,
             library_relocations: self.library_relocations,
             evm_ir: None,
-            debug_info: self.debug_info,
+            debug_info: self.debug_info.map(DebugInfoBuilder::finish),
         }
     }
 
     fn record_instruction(&mut self, offset: usize, source_spans: &[Span]) {
         let Some(debug_info) = &mut self.debug_info else { return };
-        debug_info.push(DebugInstruction {
-            offset: offset.try_into().expect("EVM bytecode offset exceeds u32"),
-            opcode: self.bytecode[offset],
-            source_spans: source_spans.iter().copied().collect(),
-            function_invoke: self.function_invoke,
-            function_exit: self.function_exit,
-            modifier_depth: self.modifier_depth,
-        });
-    }
-}
-
-// DO NOT ADD CODEGEN TESTS HERE. USE UI TESTS UNDER tests/ui/codegen INSTEAD.
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::backend::evm::disassemble;
-    use snapbox::{assert_data_eq, str};
-    use solar_config::{CompileOpts, EvmVersion};
-    use solar_interface::Session;
-    use solar_sema::Compiler;
-
-    fn with_assembler<T: Send>(opts: CompileOpts, f: impl FnOnce(Assembler<'_>) -> T + Send) -> T {
-        let compiler = Compiler::new(Session::builder().opts(opts).build());
-        compiler.enter(|c| f(Assembler::new(c.gcx())))
-    }
-
-    #[test]
-    fn opcode_mnemonics_round_trip() {
-        for opcode in 0..=u8::MAX {
-            if let Some(mnemonic) = op::mnemonic(opcode) {
-                assert_eq!(op::from_mnemonic(mnemonic), Some(opcode));
-            }
-        }
-        assert_eq!(op::stack_io(op::ADD), Some((2, 1)));
-        assert_eq!(op::stack_io(op::MSTORE), Some((2, 0)));
-        assert_eq!(op::stack_io(op::CALLVALUE), Some((0, 1)));
-        assert_eq!(op::stack_io(0x0c), None);
-        solar_interface::enter(|| {
-            assert_eq!(op::from_ir_symbol(solar_interface::kw::Add), Some(op::ADD));
-        });
-    }
-
-    #[test]
-    fn test_push_width() {
-        assert_eq!(Assembler::push_width(U256::ZERO), 0);
-        assert_eq!(Assembler::push_width(U256::from(1)), 1);
-        assert_eq!(Assembler::push_width(U256::from(255)), 1);
-        assert_eq!(Assembler::push_width(U256::from(256)), 2);
-        assert_eq!(Assembler::push_width(U256::from(0xFFFF)), 2);
-        assert_eq!(Assembler::push_width(U256::from(0x10000)), 3);
-    }
-
-    #[test]
-    fn assembler_inst_is_compact() {
-        assert_eq!(std::mem::size_of::<AsmInst>(), 4);
-    }
-
-    #[test]
-    fn push_values_are_inline_or_interned() {
-        with_assembler(CompileOpts::default(), |mut asm| {
-            let inline = u32::MAX >> 1;
-            let large = U256::from(1u64 << 31);
-
-            assert!(AsmInst::push_inline(inline).is_some());
-            assert!(AsmInst::push_inline(1u32 << 31).is_none());
-
-            let inline = asm.push_inst(U256::from(inline));
-            let first = asm.push_inst(large);
-            let second = asm.push_inst(large);
-
-            assert_eq!(inline.kind(), AsmInstKind::PushInline(u32::MAX >> 1));
-            assert_eq!(first.kind(), AsmInstKind::Push(PushValueId::from_usize(0)));
-            assert_eq!(first, second);
-            assert_eq!(asm.push_values.len(), 1);
-            assert_eq!(*asm.push_values.get(PushValueId::from_usize(0)), large);
-        });
-    }
-
-    #[test]
-    fn immutable_push_uses_declared_width() {
-        with_assembler(CompileOpts::default(), |mut asm| {
-            let narrow = ImmutableId::new(3);
-            let address = ImmutableId::new(4);
-            let narrow_size = TypeSize::new_int_bits(8);
-            let address_size = TypeSize::new_int_bits(160);
-
-            asm.emit_push_immutable(narrow, narrow_size);
-            asm.emit_push_immutable(address, address_size);
-            let result = asm.assemble();
-
-            assert_data_eq!(
-                disassemble(&result.bytecode, EvmVersion::Osaka),
-                str![[r#"
-PUSH1 0x00
-PUSH20 0x0000000000000000000000000000000000000000
-
-"#]]
-            );
-            assert_eq!(
-                result.immutable_refs,
-                [
-                    ImmutableRef { id: narrow, code_offset: 0, type_size: narrow_size },
-                    ImmutableRef { id: address, code_offset: 2, type_size: address_size },
-                ]
-            );
-        });
-    }
-
-    #[test]
-    fn assembler_can_be_reused_after_assembly() {
-        with_assembler(CompileOpts::default(), |mut asm| {
-            let large = U256::from(1u64 << 31);
-
-            asm.emit_push(large);
-            let first = asm.assemble();
-
-            assert_data_eq!(
-                disassemble(&first.bytecode, EvmVersion::Osaka),
-                str![[r#"
-PUSH4 0x80000000
-
-"#]]
-            );
-            assert!(asm.program.blocks.is_empty());
-            assert_eq!(asm.push_values.len(), 0);
-            assert_eq!(asm.immutable_pushes.len(), 0);
-
-            asm.emit_push(U256::from(2));
-            let second = asm.assemble();
-
-            assert_data_eq!(
-                disassemble(&second.bytecode, EvmVersion::Osaka),
-                str![[r#"
-PUSH1 0x02
-
-"#]]
-            );
-        });
-    }
-
-    #[test]
-    fn deferred_allocations_expand_after_layout() {
-        with_assembler(CompileOpts::default(), |mut static_asm| {
-            let static_alloc = static_asm.emit_deferred_alloc();
-            static_asm.set_deferred_alloc_static(static_alloc, U256::from(0xa0));
-            assert_eq!(static_asm.assemble().bytecode, [op::PUSH1, 0xa0]);
-        });
-
-        with_assembler(CompileOpts::default(), |mut dynamic_asm| {
-            let dynamic_alloc = dynamic_asm.emit_deferred_alloc();
-            dynamic_asm.set_deferred_alloc_dynamic(dynamic_alloc, U256::from(0x20));
-            assert_eq!(
-                dynamic_asm.assemble().bytecode,
-                [
-                    op::PUSH1,
-                    0x40,
-                    op::MLOAD,
-                    op::DUP1,
-                    op::PUSH1,
-                    0x20,
-                    op::ADD,
-                    op::PUSH1,
-                    0x40,
-                    op::MSTORE,
-                ]
-            );
-        });
+        debug_info.record(
+            offset,
+            self.bytecode[offset],
+            source_spans,
+            self.function_invoke,
+            self.function_exit,
+            self.modifier_depth,
+        );
     }
 }

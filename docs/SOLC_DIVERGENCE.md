@@ -164,6 +164,27 @@ accepted statement always compiles.
 
 Coverage: `tests/ui/codegen/lowering/run-call/try_parenthesized_target.sol`.
 
+### TYPECK-006: Oversized fixed-array copies
+
+Status: intentional.
+
+Difference: Solar rejects copying or ABI-encoding fixed arrays with more than
+`2^64 - 1` elements during type checking, including arrays nested in structs.
+It still accepts their storage declarations, indexed accesses, and storage
+reference bindings. Solc 0.8.37 compiles the storage-to-storage array, tuple,
+and struct copies covered by the fixture, but those copies panic with code
+`0x41` at runtime. ABI-encoding the same array causes an internal compiler
+error in solc 0.8.37. These results hold with both code generators and with
+optimization enabled or disabled.
+
+Rationale: report unsupported copies at their source during type checking,
+rather than fail during lowering or emit a runtime panic for a known oversized
+copy. The restriction applies to copying the values, not to addressing their
+storage.
+
+Coverage: `tests/ui/typeck/storage_oversized_copy.sol` and
+`tests/ui/codegen/lowering/run-call/full_width_storage_layout.sol`.
+
 ## Contract-Level Checks
 
 No intentional divergences documented yet.
@@ -326,3 +347,22 @@ No intentional divergences documented yet.
   cases under both compilers. The external runner applies this test-only
   correction to both compiler legs and keeps the test enabled. It checks the
   expected source text before applying the correction.
+
+### CODEGEN-009: Static frames sit below the initial free memory pointer
+
+- ID: CODEGEN-009
+- Status: intentional
+- Difference: `solc` starts the free memory pointer at `0x80`. `solar` keeps
+  internal-call frames and spill slots in static memory from `0x80` up to the
+  initial free memory pointer, so a contract's heap starts above every frame it
+  can reach. Inline assembly that stores data at constant addresses in that
+  range, instead of allocating through the free memory pointer, can have it
+  overwritten by any internal call, including the helpers the compiler
+  generates for ABI encoding and pre-Cancun memory copies.
+- Rationale: The Solidity documentation counts only scratch space, memory
+  allocated through the free memory pointer, and memory past the free memory
+  pointer within one assembly block as memory-safe. Static frames make internal
+  calls cheaper than a memory stack, and memory-safe assembly never reaches
+  them.
+- Coverage: `tests/ui/codegen/lowering/run-call/pre_cancun_memory_copies.sol`
+  encodes an object that assembly allocates through the shared copy helper.

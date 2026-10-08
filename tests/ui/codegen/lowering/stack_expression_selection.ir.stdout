@@ -73,13 +73,16 @@ bb34:
   push 1
   dup 2
   add
-  dup 2
-  iszero
-  swap 2
+  swap 1
   push 128
   mstore
   push 160
   mstore
+  push 36
+  calldataload
+  push 4
+  calldataload
+  eq
   push 192
   mstore
   push 96
@@ -118,15 +121,19 @@ bb20:
   push 36
   calldataload
   push 4
+  jump bb36
+bb36:
   calldataload
-  eq
+  sub
+  jump bb35
+bb35:
+  push 128
+  mstore
   push 36
   calldataload
   push 4
   calldataload
-  sub
-  push 128
-  mstore
+  eq
   push 160
   mstore
   push 64
@@ -138,23 +145,10 @@ bb23:
   lt
   push bb10
   jumpi
-  push 36
-  calldataload
-  push 4
-  calldataload
-  eq
   push 4
   calldataload
   push 36
-  calldataload
-  sub
-  push 128
-  mstore
-  push 160
-  mstore
-  push 64
-  push 128
-  return
+  jump bb36
 bb26:
   push 68
   calldatasize
@@ -165,19 +159,8 @@ bb26:
   calldataload
   push 4
   calldataload
-  eq
-  push 36
-  calldataload
-  push 4
-  calldataload
   xor
-  push 128
-  mstore
-  push 160
-  mstore
-  push 64
-  push 128
-  return
+  jump bb35
 bb29:
   push 36
   calldatasize

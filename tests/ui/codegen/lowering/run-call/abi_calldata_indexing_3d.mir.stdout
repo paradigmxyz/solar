@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_indexing_3d.sol:AbiCalldataIndexing3d ===
 @module AbiCalldataIndexing3d
-types:
+@types
   struct0: {i256, i256, i256, i256}
 
 fn @f(arg0: calldataslice, arg1: i256, arg2: i256, arg3: i256) -> struct0 [selector=0xe272a16e, pure, abi_params=[array<_, array<2, array<_, u256>>>, u256, u256, u256], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {

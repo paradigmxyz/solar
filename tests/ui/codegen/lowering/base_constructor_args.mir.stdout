@@ -6,14 +6,14 @@ fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word
     ret v0
 }
 
-fn @constructor(arg0: i256, arg1: memorybytes) [constructor, abi_params=[u256, bytes]] {
+fn @constructor(arg0: i256, arg1: memptr) [constructor, abi_params=[u256, bytes]] {
   bb0:
     sstore 0, arg0 !metadata(storage=slot(0))
     icall @store_storage_bytes, 1, arg1
     ret
 }
 
-fn @store_storage_bytes(arg0: i256, arg1: memorybytes) {
+fn @store_storage_bytes(arg0: i256, arg1: memptr) {
   bb0:
     store_storage_bytes arg0, arg1
     ret
@@ -21,7 +21,7 @@ fn @store_storage_bytes(arg0: i256, arg1: memorybytes) {
 
 // === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:Middle ===
 @module Middle
-fn @constructor(arg0: i256, arg1: memorybytes) [constructor, abi_params=[u256, bytes]] {
+fn @constructor(arg0: i256, arg1: memptr) [constructor, abi_params=[u256, bytes]] {
   bb0:
     v0 = checked_add u256, arg0, 1
     sstore 0, v0 !metadata(storage=slot(0))
@@ -39,7 +39,7 @@ fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word
     ret v0
 }
 
-fn @store_storage_bytes(arg0: i256, arg1: memorybytes) {
+fn @store_storage_bytes(arg0: i256, arg1: memptr) {
   bb0:
     store_storage_bytes arg0, arg1
     ret
@@ -82,7 +82,7 @@ fn @value() -> i256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word
     ret v0
 }
 
-fn @store_storage_bytes(arg0: i256, arg1: memorybytes) {
+fn @store_storage_bytes(arg0: i256, arg1: memptr) {
   bb0:
     store_storage_bytes arg0, arg1
     ret
@@ -118,7 +118,7 @@ fn @constructor(arg0: i256) [constructor, abi_params=[u256]] {
 
 // === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:ConstructorArgumentOrder ===
 @module ConstructorArgumentOrder
-types:
+@types
   struct0: {i256, i256, i256, i256}
 
 fn @constructor() [constructor] {
@@ -417,10 +417,10 @@ fn @constructor() [constructor] {
 
 // === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:DomainBase ===
 @module DomainBase
-types:
-  struct0: {memorybytes, memorybytes}
+@types
+  struct0: {memptr, memptr}
 
-fn @constructor(arg0: memorybytes, arg1: memorybytes) [constructor, abi_params=[bytes, bytes]] {
+fn @constructor(arg0: memptr, arg1: memptr) [constructor, abi_params=[bytes, bytes]] {
   bb0:
     icall @store_storage_bytes, 0, arg0
     icall @store_storage_bytes, 1, arg1
@@ -436,13 +436,13 @@ fn @domain() -> struct0 [selector=0xc2fb26a6, view, abi_params=[], abi_returns=[
     ret v3
 }
 
-fn @store_storage_bytes(arg0: i256, arg1: memorybytes) {
+fn @store_storage_bytes(arg0: i256, arg1: memptr) {
   bb0:
     store_storage_bytes arg0, arg1
     ret
 }
 
-fn @load_storage_bytes(arg0: i256) -> memorybytes {
+fn @load_storage_bytes(arg0: i256) -> memptr {
   bb0:
     v0 = load_storage_bytes arg0
     ret v0
@@ -450,10 +450,10 @@ fn @load_storage_bytes(arg0: i256) -> memorybytes {
 
 // === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:PermitBase ===
 @module PermitBase
-types:
-  struct0: {memorybytes, memorybytes}
+@types
+  struct0: {memptr, memptr}
 
-fn @constructor(arg0: memorybytes) [constructor, abi_params=[bytes]] {
+fn @constructor(arg0: memptr) [constructor, abi_params=[bytes]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     set_memory_object_len memorybytes, v0, 1
@@ -478,13 +478,13 @@ fn @domain() -> struct0 [selector=0xc2fb26a6, view, abi_params=[], abi_returns=[
     ret v3
 }
 
-fn @store_storage_bytes(arg0: i256, arg1: memorybytes) {
+fn @store_storage_bytes(arg0: i256, arg1: memptr) {
   bb0:
     store_storage_bytes arg0, arg1
     ret
 }
 
-fn @load_storage_bytes(arg0: i256) -> memorybytes {
+fn @load_storage_bytes(arg0: i256) -> memptr {
   bb0:
     v0 = load_storage_bytes arg0
     ret v0
@@ -492,15 +492,15 @@ fn @load_storage_bytes(arg0: i256) -> memorybytes {
 
 // === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:TokenBase ===
 @module TokenBase
-fn @constructor(arg0: memorybytes, arg1: memorybytes) [constructor, abi_params=[bytes, bytes]] {
+fn @constructor(arg0: memptr, arg1: memptr) [constructor, abi_params=[bytes, bytes]] {
   bb0:
     ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:EmptyBaseArgumentMask ===
 @module EmptyBaseArgumentMask
-types:
-  struct0: {memorybytes, memorybytes}
+@types
+  struct0: {memptr, memptr}
 
 fn @constructor() [constructor] {
   bb0:
@@ -548,13 +548,13 @@ fn @domain() -> struct0 [selector=0xc2fb26a6, view, abi_params=[], abi_returns=[
     ret v3
 }
 
-fn @store_storage_bytes(arg0: i256, arg1: memorybytes) {
+fn @store_storage_bytes(arg0: i256, arg1: memptr) {
   bb0:
     store_storage_bytes arg0, arg1
     ret
 }
 
-fn @load_storage_bytes(arg0: i256) -> memorybytes {
+fn @load_storage_bytes(arg0: i256) -> memptr {
   bb0:
     v0 = load_storage_bytes arg0
     ret v0
@@ -606,4 +606,140 @@ fn @trace(arg0: i256) -> i256 {
     v2 = checked_add u256, v1, arg0
     sstore 0, v2 !metadata(storage=slot(0))
     ret arg0
+}
+
+// === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:RawCarrierBase ===
+@module RawCarrierBase
+fn @raw() -> i256 [selector=0xc096a632, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @modified() -> i256 [selector=0x45ecd3d7, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = sload 1 !metadata(storage=slot(1))
+    ret v0
+}
+
+fn @constructor() [constructor] {
+  bb0:
+    sstore 1, 0x5678 !metadata(storage=slot(1))
+    v0 = icall @forward, 0x1234
+    v1 = icall @internal_dispatcher_p_u8_r_u8, 45, v0
+    sstore 0, v1 !metadata(storage=slot(0))
+    jump bb2
+  bb2:
+    jump bb1
+  bb1:
+    ret
+}
+
+fn @forward(arg0: i256) -> i256 [pure] {
+  bb0:
+    ret arg0
+}
+
+fn @internal_dispatcher_p_u8_r_u8(arg0: i256, arg1: i256) -> i256 [function_pointer_dispatcher] {
+  bb0:
+    v0 = eq arg0, 45
+    jumpi v0, bb1, bb2
+  bb2:
+    icall panic_if<0x51>, true
+    invalid
+  bb1:
+    v1 = icall @forward, arg1
+    ret v1
+}
+
+// === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:RawCarrierMiddle ===
+@module RawCarrierMiddle
+fn @raw() -> i256 [selector=0xc096a632, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @modified() -> i256 [selector=0x45ecd3d7, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = sload 1 !metadata(storage=slot(1))
+    ret v0
+}
+
+fn @forward(arg0: i256) -> i256 [pure] {
+  bb0:
+    ret arg0
+}
+
+fn @constructor() [constructor] {
+  bb0:
+    sstore 1, 0x5678 !metadata(storage=slot(1))
+    v0 = icall @forward, 0x1234
+    v1 = icall @internal_dispatcher_p_u8_r_u8, 45, v0
+    sstore 0, v1 !metadata(storage=slot(0))
+    jump bb3
+  bb3:
+    jump bb2
+  bb2:
+    jump bb1
+  bb1:
+    ret
+}
+
+fn @internal_dispatcher_p_u8_r_u8(arg0: i256, arg1: i256) -> i256 [function_pointer_dispatcher] {
+  bb0:
+    v0 = eq arg0, 45
+    jumpi v0, bb1, bb2
+  bb2:
+    icall panic_if<0x51>, true
+    invalid
+  bb1:
+    v1 = icall @forward, arg1
+    ret v1
+}
+
+// === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:RawCarrierDerived ===
+@module RawCarrierDerived
+fn @constructor() [constructor] {
+  bb0:
+    sstore 1, 0x5678 !metadata(storage=slot(1))
+    v0 = icall @forward, 0x1234
+    v1 = icall @internal_dispatcher_p_u8_r_u8, 45, v0
+    sstore 0, v1 !metadata(storage=slot(0))
+    jump bb3
+  bb3:
+    jump bb2
+  bb2:
+    jump bb1
+  bb1:
+    ret
+}
+
+fn @raw() -> i256 [selector=0xc096a632, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @modified() -> i256 [selector=0x45ecd3d7, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = sload 1 !metadata(storage=slot(1))
+    ret v0
+}
+
+fn @forward(arg0: i256) -> i256 [pure] {
+  bb0:
+    ret arg0
+}
+
+fn @internal_dispatcher_p_u8_r_u8(arg0: i256, arg1: i256) -> i256 [function_pointer_dispatcher] {
+  bb0:
+    v0 = eq arg0, 45
+    jumpi v0, bb1, bb2
+  bb2:
+    icall panic_if<0x51>, true
+    invalid
+  bb1:
+    v1 = icall @forward, arg1
+    ret v1
 }

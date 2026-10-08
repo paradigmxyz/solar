@@ -1,0 +1,45 @@
+//@compile-flags: -Zmir-pipeline=indvar-simplify
+//@filecheck:
+@module ContinuedCounter
+
+// The second loop's counter starts where the first one stops. The first loop's
+// pointer takes over its exit test and rebuilds the counter on the way into the
+// second loop, whose pointer then starts from the rebuilt counter rather than
+// from the dead phi.
+// CHECK-LABEL: {{^[ +].*}}fn @continued_counter{{[( ]}}
+// CHECK: + [[FIRST:v[0-9]+]] = phi [bb0: [[BASE:v[0-9]+]]], [bb2: {{v[0-9]+}}]
+// CHECK: bb3:
+// CHECK-NEXT: + [[DELTA:v[0-9]+]] = sub [[FIRST]], [[BASE]]
+// CHECK-NEXT: + [[INDEX:v[0-9]+]] = shr 5, [[DELTA]]
+// CHECK-NEXT: + [[OFFSET:v[0-9]+]] = shl 5, [[INDEX]]
+// CHECK-NEXT: + [[START:v[0-9]+]] = add [[BASE]], [[OFFSET]]
+// CHECK: + {{v[0-9]+}} = phi [bb3: [[START]]], [bb5: {{v[0-9]+}}]
+fn @continued_counter() -> i256 {
+  bb0:
+    v0 = mload 64
+    jump bb1
+  bb1:
+    v1 = phi [bb0: 0], [bb2: v4]
+    v2 = lt v1, 4
+    jumpi v2, bb2, bb3
+  bb2:
+    v3 = shl 5, v1
+    v5 = add v0, v3
+    mstore v5, 8
+    v4 = add v1, 1
+    jump bb1
+  bb3:
+    jump bb4
+  bb4:
+    v6 = phi [bb3: v1], [bb5: v9]
+    v7 = lt v6, 8
+    jumpi v7, bb5, bb6
+  bb5:
+    v8 = shl 5, v6
+    v10 = add v0, v8
+    mstore v10, 9
+    v9 = add v6, 1
+    jump bb4
+  bb6:
+    ret 0
+}

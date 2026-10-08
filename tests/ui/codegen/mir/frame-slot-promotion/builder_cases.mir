@@ -32,7 +32,7 @@
 // CHECK: [[BODY_STORE_FRAME:v[0-9]+]] = ptrtoint memptr [[BODY_STORE_FRAME_PTR]] to i256
 // CHECK: -     mstore [[BODY_STORE_FRAME]], [[OLD_NEXT]]
 // CHECK:       jump [[HEADER]]
-types:
+@types
   struct0: {i256, i256}
 
 fn @loop_carried() -> i256 {

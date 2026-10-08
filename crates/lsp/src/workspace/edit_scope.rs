@@ -1,7 +1,8 @@
 //! Project ownership rules for edits that must update every semantic reference.
 //!
 //! Client workspace roots and configured source roots admit project files. Library roots,
-//! conventional dependency directories, and nonlocal remapping targets restrict that admission.
+//! conventional dependency directories, nonlocal remapping targets, and discovered nested
+//! repositories restrict that admission.
 //! Source exceptions retain their declaring workspace: automatically discovered dependency
 //! manifests cannot lift an enclosing project's restrictions, but independent projects can
 //! explicitly own shared sources. Multiple restrictions on the same directory remain cumulative.
@@ -34,12 +35,26 @@ struct ProjectSources {
     remappings: Vec<PathBuf>,
 }
 
+/// Why an edit cannot be authorized by the workspace ownership policy.
+#[derive(Debug)]
+pub(crate) enum WorkspaceEditError {
+    Dependency,
+    OutsideWorkspace,
+    UnresolvedPath,
+}
+
 impl WorkspaceEditScope {
-    pub(crate) fn new(workspace_roots: &[PathBuf], workspaces: &[Workspace]) -> Self {
+    pub(crate) fn new(
+        workspace_roots: &[PathBuf],
+        workspaces: &[Workspace],
+        repository_roots: &[PathBuf],
+    ) -> Self {
         let unrestricted = workspace_roots.is_empty()
             && workspaces.iter().all(|workspace| workspace.compile_opts().base_path.is_none());
         let mut client_roots = workspace_roots.iter().map(|path| path.normalize()).collect();
         dedup_paths(&mut client_roots);
+        let mut repository_roots = repository_roots.iter().map(|path| path.normalize()).collect();
+        dedup_paths(&mut repository_roots);
         let mut sources = client_roots.clone();
         let mut dependencies = Vec::new();
         let projects = workspaces
@@ -73,10 +88,17 @@ impl WorkspaceEditScope {
             .collect::<Vec<_>>();
         // A dependency manifest cannot authorize edits through a different project's rules.
         // Classify donors from declarations alone, before incorporating cross-project grants.
+        // A source grant into a nested repository admits those files, not its manifests as
+        // donors to other projects. Only an explicit client root makes those independent.
         let source_projects = projects
             .iter()
             .filter(|project| {
-                !projects.iter().any(|owner| {
+                !repository_roots.iter().any(|root| {
+                    project.base.starts_with(root)
+                        && !client_roots.iter().any(|client| {
+                            client.starts_with(root) && project.base.starts_with(client)
+                        })
+                }) && !projects.iter().any(|owner| {
                     owner.base != project.base
                         && owner.protects_project(&project.base, &client_roots)
                 })
@@ -138,6 +160,19 @@ impl WorkspaceEditScope {
             }
         }
 
+        // Discovery also stops at repositories outside conventional dependency directories.
+        // Their own manifests cannot grant edit ownership, but an independent project's
+        // explicit sources or a client root within the repository can. Ancestor sources do
+        // not lift a deeper repository boundary.
+        for path in &repository_roots {
+            let grants = source_projects
+                .iter()
+                .filter(|project| !project.base.starts_with(path))
+                .flat_map(|project| &project.sources);
+            dependencies
+                .push(DependencyRoot::new(path.clone(), grants.chain(&client_roots).cloned()));
+        }
+
         dedup_paths(&mut sources);
         // Restrictions intersect. Equal paths with different exceptions cannot be merged by
         // taking the union of their source roots without granting additional edit permissions.
@@ -163,12 +198,20 @@ impl WorkspaceEditScope {
         Self { unrestricted: self.unrestricted, sources, dependencies }
     }
 
-    pub(crate) fn allows(&self, path: &Path) -> bool {
-        self.unrestricted
-            || (self.sources.iter().any(|root| path.starts_with(root))
-                && !self.dependencies.iter().any(|dependency| {
-                    is_import_only_path_in_root(path, &dependency.path, dependency.sources.iter())
-                }))
+    pub(crate) fn check(&self, path: &Path) -> Result<(), WorkspaceEditError> {
+        if self.unrestricted {
+            return Ok(());
+        }
+        // External libraries and remappings remain dependencies even outside all source roots.
+        if self.dependencies.iter().any(|dependency| {
+            is_import_only_path_in_root(path, &dependency.path, dependency.sources.iter())
+        }) {
+            return Err(WorkspaceEditError::Dependency);
+        }
+        if !self.sources.iter().any(|root| path.starts_with(root)) {
+            return Err(WorkspaceEditError::OutsideWorkspace);
+        }
+        Ok(())
     }
 }
 

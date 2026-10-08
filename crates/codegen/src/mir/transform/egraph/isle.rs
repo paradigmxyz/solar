@@ -1,6 +1,6 @@
 //! ISLE rewrite rules for the e-graph pass.
 //!
-//! The rules live in `isle/mir/egraph.isle` and `isle/mir/word.isle`. The instruction vocabulary
+//! The rules live in `isle/mir/egraph` and `isle/mir/word`. The instruction vocabulary
 //! they match on is generated from the MIR operation schema into `isle/mir/prelude.isle`, and
 //! `build.rs` compiles both into Rust. This module implements the extractors
 //! and constructors the rules call. Root operations and nested definitions expose
@@ -16,6 +16,7 @@ use crate::{
         memory::{EvmMemoryLayout, MemoryLayoutPolicy},
         utils::eval::eval_opcode,
     },
+    target::Target,
 };
 use alloy_primitives::U256;
 use solar_config::EvmVersion;
@@ -51,18 +52,34 @@ mod generated {
 pub(super) struct RuleContext<'a> {
     func: &'a mut Function,
     evm_version: EvmVersion,
+    target: Option<Target>,
     /// Original block of the root, for rules that must not extend cross-block dependencies.
     block: Option<BlockId>,
     /// Pre-pass use counts for profitability guards, when available.
     uses: Option<&'a IndexVec<ValueId, u32>>,
     /// Up to two retained equivalent definitions exposed during bounded matching.
     views: OperandViews,
+    integer_ty: MirType,
 }
 
 impl<'a> RuleContext<'a> {
     /// Creates a context over `func`.
     pub(super) fn new(func: &'a mut Function, evm_version: EvmVersion) -> Self {
-        Self { func, evm_version, block: None, uses: None, views: [None; 2] }
+        Self {
+            func,
+            evm_version,
+            target: None,
+            block: None,
+            uses: None,
+            views: [None; 2],
+            integer_ty: MirType::I256,
+        }
+    }
+
+    /// Supplies the session cost model for conservative materialization guards.
+    pub(super) fn with_target(mut self, target: Target) -> Self {
+        self.target = Some(target);
+        self
     }
 
     /// Restricts placement-sensitive matching to producers in this block.
@@ -86,13 +103,52 @@ impl<'a> RuleContext<'a> {
     /// Appends every equivalent instruction the rules can build for `op`,
     /// whose operands must be in [`canonical_operands`] order.
     pub(super) fn rewrite(&mut self, op: &Op, alternatives: &mut Vec<Op>) {
+        self.integer_ty = self.operation_type(op).unwrap_or(MirType::I256);
         generated::constructor_rewrite(self, op, alternatives);
     }
 
     /// Returns the value `op` is equal to, when a rule applies. The operands
     /// of `op` must be in [`canonical_operands`] order.
     pub(super) fn simplify(&mut self, op: &Op) -> Option<ValueId> {
+        self.integer_ty = self.operation_type(op).unwrap_or(MirType::I256);
         generated::constructor_simplify(self, op)
+    }
+
+    fn integer_mask(&self) -> U256 {
+        crate::mir::analysis::integers::integer_mask(self.integer_ty.integer_bits().unwrap())
+    }
+
+    fn operation_type(&self, op: &Op) -> Option<MirType> {
+        let value = match *op {
+            // Inverting a comparison folds its bound at the input width.
+            Op::Eq { a, .. } | Op::Ne { a, .. }
+                if let Some(kind) = defining_kind(self.func, a)
+                    && matches!(
+                        kind,
+                        InstKind::Lt(..) | InstKind::Gt(..) | InstKind::SLt(..) | InstKind::SGt(..)
+                    ) =>
+            {
+                kind.op().first_operand()?
+            }
+            // Boolean combinations can fold bounds of their compared integers.
+            Op::Or { a, b }
+                if let Some(InstKind::Eq(x, _)) = defining_kind(self.func, a)
+                    && let Some(InstKind::Eq(y, _)) = defining_kind(self.func, b)
+                    && self.func.value_ty(*x) == self.func.value_ty(*y) =>
+            {
+                *x
+            }
+            Op::Select { true_val, .. } => true_val,
+            Op::Eq { a, .. }
+            | Op::Ne { a, .. }
+            | Op::Lt { a, .. }
+            | Op::Gt { a, .. }
+            | Op::SLt { a, .. }
+            | Op::SGt { a, .. } => a,
+            _ if op.result_kind() == crate::mir::ResultKind::Integer => op.first_operand()?,
+            _ => return None,
+        };
+        self.func.value_ty(value).filter(|ty| ty.integer_bits().is_some())
     }
 
     fn has_const(&self, value: ValueId, expected: U256) -> bool {
@@ -128,54 +184,70 @@ pub(in crate::mir::transform) fn max_bits_with_args(
     depth: u32,
     argument_bits: &impl Fn(ArgIdx) -> u32,
 ) -> u32 {
-    if let Some(crate::mir::MirType::Int(bits)) = func.value_ty(value)
-        && bits.get() < 256
-    {
-        return bits.get();
-    }
+    max_bits_with_budget(func, value, depth, &mut 64, argument_bits)
+}
+
+fn max_bits_with_budget(
+    func: &Function,
+    value: ValueId,
+    depth: u32,
+    budget: &mut u32,
+    argument_bits: &impl Fn(ArgIdx) -> u32,
+) -> u32 {
+    let width = func.value_ty(value).and_then(MirType::integer_bits).unwrap_or(256).min(256);
+    // Shared producers and wide phis must not multiply the work at each depth.
+    let Some(remaining) = budget.checked_sub(1) else { return width };
+    *budget = remaining;
     if let Some(constant) = func.value_u256(value) {
         return constant.bit_len() as u32;
     }
     if let MirValue::Arg(index) = func.value(value) {
-        return argument_bits(*index);
+        return argument_bits(*index).min(width);
     }
     if depth == 0 {
-        return 256;
+        return width;
     }
-    let Some(kind) = defining_kind(func, value) else { return 256 };
+    let Some(kind) = defining_kind(func, value) else { return width };
     if let Some(definition) = kind.evm_opcode().and_then(op::definition)
         && definition.result_bits < 256
     {
-        return u32::from(definition.result_bits);
+        return u32::from(definition.result_bits).min(width);
     }
-    let bits = |value| max_bits_with_args(func, value, depth - 1, argument_bits);
+    let mut bits = |value| max_bits_with_budget(func, value, depth - 1, budget, argument_bits);
     let shift = |shift| func.value_u256(shift).map(|shift| shift.min(U256::from(256)).to::<u32>());
     match *kind {
-        InstKind::Zext(value) => bits(value),
+        InstKind::Zext(value) | InstKind::Trunc(value, _) => bits(value),
+        InstKind::DataSize(size) => size.bound().bit_len() as u32,
         InstKind::And(a, b) => {
             let a = bits(a);
             if a == 0 { 0 } else { a.min(bits(b)) }
         }
         InstKind::Or(a, b) | InstKind::Xor(a, b) | InstKind::Select(_, a, b) => {
             let a = bits(a);
-            if a == 256 { 256 } else { a.max(bits(b)) }
+            if a == width { width } else { a.max(bits(b)) }
         }
         InstKind::Add(a, b) => {
             let a = bits(a);
-            if a >= 255 { 256 } else { (a.max(bits(b)) + 1).min(256) }
+            if a >= width - 1 { width } else { (a.max(bits(b)) + 1).min(width) }
         }
         InstKind::Mul(a, b) => {
             let a = bits(a);
-            if a == 256 { 256 } else { (a + bits(b)).min(256) }
+            let b = bits(b);
+            match (a, b) {
+                (0, _) | (_, 0) => 0,
+                (1, _) => b,
+                (_, 1) => a,
+                _ => (a + b).min(width),
+            }
         }
         InstKind::Shl(amount, value) => match shift(amount) {
-            Some(256) => 0,
-            Some(amount) => (bits(value) + amount).min(256),
-            None => 256,
+            Some(amount) if amount >= width => 0,
+            Some(amount) => (bits(value) + amount).min(width),
+            None => width,
         },
         InstKind::Shr(amount, value) => match shift(amount) {
             Some(amount) => bits(value).saturating_sub(amount),
-            None => 256,
+            None => width,
         },
         InstKind::Div(value, divisor) => match func.value_u256(divisor) {
             Some(divisor) if divisor.is_zero() => 0,
@@ -188,19 +260,20 @@ pub(in crate::mir::transform) fn max_bits_with_args(
         },
         InstKind::Phi(ref incoming) => {
             if incoming.is_empty() {
-                return 256;
+                return width;
             }
             let mut widest = 0;
             for &(_, value) in incoming {
                 widest = widest.max(bits(value));
-                if widest == 256 {
+                if widest == width {
                     break;
                 }
             }
             widest
         }
-        _ => 256,
+        _ => width,
     }
+    .min(width)
 }
 
 /// Returns whether `value` is always below `bound`.
@@ -221,8 +294,9 @@ pub(in crate::mir::transform) fn is_bool_value(func: &Function, value: ValueId) 
 }
 
 fn has_known_sign_bit(func: &Function, value: ValueId) -> bool {
-    if let Some(value) = func.value_u256(value) {
-        return value.bit(255);
+    if let Some(constant) = func.value_u256(value) {
+        let bits = func.value_ty(value).and_then(MirType::integer_bits).unwrap_or(256);
+        return constant.bit((bits - 1) as usize);
     }
     match defining_kind(func, value) {
         Some(InstKind::Or(a, b)) => has_known_sign_bit(func, *a) || has_known_sign_bit(func, *b),
@@ -238,6 +312,27 @@ impl generated::Context for RuleContext<'_> {
         self.uses.and_then(|uses| uses.get(value)) == Some(&1)
     }
 
+    fn u256_mul(&mut self, a: U256, b: U256) -> U256 {
+        a.wrapping_mul(b) & self.integer_mask()
+    }
+    fn u256_or(&mut self, a: U256, b: U256) -> U256 {
+        a | b
+    }
+    fn u256_xor(&mut self, a: U256, b: U256) -> U256 {
+        a ^ b
+    }
+    fn u256_div(&mut self, a: U256, b: U256) -> U256 {
+        if b.is_zero() { U256::ZERO } else { a / b }
+    }
+
+    fn push_not_larger(&mut self, replacement: U256, original: U256) -> bool {
+        self.target.is_some_and(|target| {
+            let after = target.push(replacement);
+            let before = target.push(original);
+            after.gas <= before.gas && after.bytes <= before.bytes
+        })
+    }
+
     fn inst_data(&mut self, value: Value) -> Option<Op> {
         self.views
             .iter()
@@ -245,6 +340,32 @@ impl generated::Context for RuleContext<'_> {
             .find(|&&(operand, _)| operand == value)
             .map(|&(_, op)| op)
             .or_else(|| defining_kind(self.func, value).map(InstKind::op))
+            .filter(|op| {
+                matches!(
+                    op,
+                    Op::Eq { .. }
+                        | Op::Ne { .. }
+                        | Op::Lt { .. }
+                        | Op::Gt { .. }
+                        | Op::SLt { .. }
+                        | Op::SGt { .. }
+                        | Op::Zext { .. }
+                        | Op::Trunc { .. }
+                        | Op::Sext { .. }
+                        | Op::PtrToInt { .. }
+                        | Op::IntToPtr { .. }
+                ) || if op.result_kind() == crate::mir::ResultKind::Integer
+                    || matches!(op, Op::Select { .. })
+                {
+                    self.func
+                        .value_ty(value)
+                        .filter(|ty| ty.integer_bits().is_some())
+                        .unwrap_or(MirType::I256)
+                        == self.integer_ty
+                } else {
+                    self.operation_type(op).unwrap_or(MirType::I256) == self.integer_ty
+                }
+            })
             .map(|op| canonical_operands(self.func, op))
     }
 
@@ -265,7 +386,8 @@ impl generated::Context for RuleContext<'_> {
     }
 
     fn all_ones(&mut self, value: Value) -> Option<()> {
-        self.has_const(value, U256::MAX).then_some(())
+        let value = self.func.value_u256(value)?;
+        (value == self.integer_mask()).then_some(())
     }
 
     fn bool_value(&mut self, value: Value) -> Option<()> {
@@ -338,11 +460,31 @@ impl generated::Context for RuleContext<'_> {
     }
 
     fn imm(&mut self, value: U256) -> Value {
-        self.func.alloc_value(MirValue::Immediate(Immediate::I256(value)))
+        self.func
+            .alloc_value(MirValue::Immediate(Immediate::for_type(Some(self.integer_ty), value)))
+    }
+
+    fn imm_zero_like(&mut self, value: Value) -> Value {
+        self.func.alloc_value(MirValue::Immediate(Immediate::for_type(
+            self.func.value_ty(value),
+            U256::ZERO,
+        )))
     }
 
     fn imm_bool(&mut self, value: bool) -> Value {
         self.func.alloc_value(MirValue::Immediate(Immediate::I1(value)))
+    }
+
+    fn integer_width(&mut self) -> u64 {
+        u64::from(self.integer_ty.integer_bits().unwrap())
+    }
+
+    fn integer_sign_bit(&mut self) -> u64 {
+        self.integer_width() - 1
+    }
+
+    fn is_i256(&mut self) -> bool {
+        self.integer_ty == MirType::I256
     }
 
     fn u256(&mut self, value: u64) -> U256 {
@@ -350,11 +492,11 @@ impl generated::Context for RuleContext<'_> {
     }
 
     fn u256_max(&mut self) -> U256 {
-        U256::MAX
+        self.integer_mask()
     }
 
     fn u256_not(&mut self, value: U256) -> U256 {
-        !value
+        !value & self.integer_mask()
     }
 
     fn u256_is_zero(&mut self, value: U256) -> bool {
@@ -366,7 +508,7 @@ impl generated::Context for RuleContext<'_> {
     }
 
     fn u256_is_all_ones(&mut self, value: U256) -> bool {
-        value == U256::MAX
+        value == self.integer_mask()
     }
 
     fn u256_gt(&mut self, value: U256, limit: u64) -> bool {
@@ -391,23 +533,31 @@ impl generated::Context for RuleContext<'_> {
     }
 
     fn u256_add(&mut self, a: U256, b: U256) -> U256 {
-        a.wrapping_add(b)
+        a.wrapping_add(b) & self.integer_mask()
     }
 
     fn u256_sub(&mut self, a: U256, b: U256) -> U256 {
-        a.wrapping_sub(b)
+        a.wrapping_sub(b) & self.integer_mask()
     }
 
     fn u256_neg(&mut self, value: U256) -> U256 {
-        U256::ZERO.wrapping_sub(value)
+        U256::ZERO.wrapping_sub(value) & self.integer_mask()
     }
 
     fn u256_and(&mut self, a: U256, b: U256) -> U256 {
         a & b
     }
 
+    fn u256_mul_fits(&mut self, a: U256, b: U256) -> bool {
+        a.checked_mul(b).is_some_and(|value| value <= self.integer_mask())
+    }
+
+    fn u256_add_fits(&mut self, a: U256, b: U256) -> bool {
+        a.checked_add(b).is_some_and(|value| value <= self.integer_mask())
+    }
+
     fn u256_shl(&mut self, shift: U256, value: U256) -> U256 {
-        eval_opcode(op::SHL, &[shift, value]).expect("SHL has word semantics")
+        eval_opcode(op::SHL, &[shift, value]).expect("SHL has word semantics") & self.integer_mask()
     }
 
     fn u256_shr(&mut self, shift: U256, value: U256) -> U256 {
@@ -434,12 +584,15 @@ impl generated::Context for RuleContext<'_> {
     }
 
     fn shift_sum(&mut self, a: U256, b: U256) -> U256 {
-        let width = U256::from(256);
+        let width = U256::from(self.integer_ty.integer_bits().unwrap());
         (a.min(width) + b.min(width)).min(width)
     }
 
     fn sign_byte(&mut self, shift: U256) -> Option<U256> {
-        if shift < U256::from(256) && shift.byte(0).is_multiple_of(8) {
+        if self.integer_ty == MirType::I256
+            && shift < U256::from(256)
+            && shift.byte(0).is_multiple_of(8)
+        {
             Some(U256::from(31 - shift.to::<u32>() / 8))
         } else {
             None

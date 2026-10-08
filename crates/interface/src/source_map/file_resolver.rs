@@ -82,18 +82,17 @@ impl<'a> FileResolver<'a> {
         if let Ok(current_dir) = std::env::current_dir() {
             self.set_current_dir(&current_dir);
         }
-        'b: {
-            if let Some(base_path) = &opts.base_path {
-                let base_path = if base_path.is_absolute() {
-                    base_path.as_path()
-                } else {
-                    &if let Ok(path) = self.canonicalize_unchecked(base_path) {
-                        path
-                    } else {
-                        break 'b;
-                    }
-                };
-                self.set_base_path(base_path);
+        if let Some(base_path) = &opts.base_path {
+            let base_path = if base_path.is_absolute() {
+                Cow::Borrowed(base_path.as_path())
+            } else {
+                let Ok(path) = self.canonicalize_unchecked(base_path) else { return };
+                // Loaders without a real file system, as in Standard JSON mode, may keep the path
+                // relative; resolve it lexically against the current directory, like solc.
+                Cow::Owned(self.normalize(&self.make_absolute(&path)).into_owned())
+            };
+            if base_path.is_absolute() {
+                self.set_base_path(&base_path);
                 // Source unit names are relative to the base path after parent paths are stripped.
                 self.custom_current_dir = self.base_path.clone();
             }
@@ -287,6 +286,9 @@ impl<'a> FileResolver<'a> {
 
         let path = &*self.remap_path(path, parent);
         if path.is_absolute() {
+            // An absolute remapping target inside the base path names the same source unit as its
+            // base-relative path, matching how importing files are treated in `import_parent`.
+            visit(path, ResolutionCandidateKind::SourceUnit)?;
             visit(path, ResolutionCandidateKind::SearchFile)?;
             return ControlFlow::Continue(());
         }
@@ -327,7 +329,7 @@ impl<'a> FileResolver<'a> {
     /// Resolves an import path.
     ///
     /// `parent` is the path of the file that contains the import, if any.
-    #[instrument(level = "debug", skip_all, fields(path = %path.display()))]
+    #[instrument(level = "trace", skip_all, fields(path = %path.display()))]
     pub fn resolve_file(
         &self,
         path: &Path,
@@ -397,9 +399,13 @@ impl<'a> FileResolver<'a> {
     }
 
     fn get_source_unit_file(&self, path: &Path) -> Option<Arc<SourceFile>> {
-        if path.is_absolute() {
-            return None;
-        }
+        let normalized;
+        let path = if path.is_absolute() {
+            normalized = self.normalize(path);
+            normalized.strip_prefix(self.try_base_path()?).ok()?
+        } else {
+            path
+        };
         if let Some(file) = self.source_map().get_file(path) {
             return Some(file);
         }
@@ -777,6 +783,42 @@ mod tests {
             file_resolver.resolve_file(Path::new("src/B.sol"), Some(Path::new("test/A.sol")));
 
         assert!(Arc::ptr_eq(&resolved.unwrap(), &imported));
+    }
+
+    #[test]
+    fn absolute_remapping_reuses_preloaded_source_unit_name() {
+        let tmp = tempfile::Builder::new().prefix("solar-file-resolver-test").tempdir().unwrap();
+        let base_path = tmp.path().to_path_buf();
+        for path in ["lib/dep/Test.sol", "lib/dep/Base.sol"] {
+            let path = base_path.join(path);
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(path, "").unwrap();
+        }
+
+        let sm = SourceMap::empty();
+        sm.set_base_path(Some(base_path.clone()));
+        let test = sm.new_source_file(PathBuf::from("lib/dep/Test.sol"), "").unwrap();
+        let base = sm.new_source_file(PathBuf::from("lib/dep/Base.sol"), "").unwrap();
+        let mut file_resolver = FileResolver::new(&sm);
+        file_resolver.set_current_dir(&base_path);
+        file_resolver.add_import_remapping(
+            format!("dep/={}/", base_path.join("lib/dep").display()).parse().unwrap(),
+        );
+
+        // `dep/Test.sol` remaps to an absolute path that names the preloaded `lib/dep/Test.sol`.
+        let resolved = file_resolver
+            .resolve_file(Path::new("dep/Test.sol"), Some(Path::new("test/A.t.sol")))
+            .unwrap();
+        assert!(Arc::ptr_eq(&resolved, &test));
+
+        // Its relative imports then resolve to the same copies as direct imports do.
+        let parent = resolved.name.as_real().unwrap();
+        let relative = file_resolver.resolve_file(Path::new("./Base.sol"), Some(parent)).unwrap();
+        let direct = file_resolver
+            .resolve_file(Path::new("dep/Base.sol"), Some(Path::new("test/A.t.sol")))
+            .unwrap();
+        assert!(Arc::ptr_eq(&relative, &base));
+        assert!(Arc::ptr_eq(&direct, &base));
     }
 
     #[test]

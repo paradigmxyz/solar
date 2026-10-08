@@ -15,6 +15,7 @@ pub(crate) mod override_checker;
 mod udvt;
 mod view_pure_checker;
 
+#[instrument(name = "typeck", level = "debug", skip_all)]
 pub(crate) fn check(gcx: Gcx<'_>) {
     let mut typeck_results = TypeckResults::default();
     parallel!(gcx.sess, gcx.hir.par_contract_ids().for_each(|id| check_contract(gcx, id)), {

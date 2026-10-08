@@ -411,6 +411,11 @@ fn match_zero_count_loop(func: &Function, header: BlockId) -> Option<ZeroCountLo
         return None;
     }
     let (count_phi, index_phi, count, count_exit) = count_phis(func, phis, *exit, index)?;
+    if crate::mir::analysis::integers::unsigned_bounds(func, length).1
+        > crate::mir::analysis::integers::integer_max(func, count)
+    {
+        return None;
+    }
 
     // body: [base = object + 32]; ptr = base + index; word = mload ptr; byte = byte 0, word
     //       aligned = shl 248, byte; nonzero = ne aligned, 0; jumpi nonzero, latch, increment
@@ -532,6 +537,11 @@ fn match_calldata_zero_count_loop(func: &Function, header: BlockId) -> Option<Ze
         return None;
     }
     let (count_phi, index_phi, count, count_exit) = count_phis(func, phis, *exit, index)?;
+    if crate::mir::analysis::integers::unsigned_bounds(func, length).1
+        > crate::mir::analysis::integers::integer_max(func, count)
+    {
+        return None;
+    }
 
     let [ptr_inst, load_inst, byte_inst, nonzero_inst] = func.blocks[*body].instructions.as_slice()
     else {
@@ -1045,7 +1055,7 @@ fn match_copy_loop(func: &Function, alias: &AliasAnalysis, header: BlockId) -> O
     if !matches!(func.blocks[body].terminator, Some(Terminator::Jump(target)) if target == header) {
         return None;
     }
-    if !defined_outside(func, header, body, bound) || counter_escapes(func, header, body, index) {
+    if !defined_outside(func, header, body, bound) {
         return None;
     }
 
@@ -1083,7 +1093,7 @@ fn match_copy_loop(func: &Function, alias: &AliasAnalysis, header: BlockId) -> O
         }
     }
     let ((source_address, _), byte, dest_address) = (load?, extract?, store?);
-    if !step {
+    if !step || counter_escapes(func, header, body, index) {
         return None;
     }
     // A discarded read raises the memory high-water mark, and the copy this

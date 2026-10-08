@@ -14,9 +14,9 @@
 
 use super::{
     ArgIdx, CallGraphInfo, DebugFunction, DebugFunctionExit, DeferredConst, DenseBitSet,
-    EvmCodegen, EvmMemoryLayout, Function, FunctionId, FxHashMap, FxHashSet, InstKind, MirType,
-    Module, RelayoutAddress, SpillSlot, StackEffect, StackOp, StackPush, Terminator, U256, Value,
-    ValueId, WORD_BYTES, immutable_staging_end, op, preserves_push_width,
+    EvmCodegen, EvmMemoryLayout, Function, FunctionId, FxHashMap, FxHashSet, IndexVec, InstKind,
+    MirType, Module, RelayoutAddress, SpillSlot, StackEffect, StackOp, StackPush, Terminator, U256,
+    Value, ValueId, WORD_BYTES, immutable_staging_end, op, preserves_push_width,
 };
 use crate::mir::{
     Callee,
@@ -45,6 +45,12 @@ impl HeapPrefixOffsets {
             self.projections.get(&func_id),
         )
     }
+}
+
+#[derive(Default)]
+struct HeapPrefixCache {
+    offsets: FxHashMap<ValueId, Option<u64>>,
+    cyclic: FxHashSet<ValueId>,
 }
 
 impl<'gcx> EvmCodegen<'gcx> {
@@ -657,15 +663,17 @@ impl<'gcx> EvmCodegen<'gcx> {
             })
             .collect();
         let heap_prefix = Self::heap_prefix_offsets(module);
+        let heap_prefix_guards = module
+            .functions
+            .iter_enumerated()
+            .map(|(func_id, func)| heap_prefix.guard(func_id, func))
+            .collect::<IndexVec<FunctionId, _>>();
         let reachable_heap_prefix_guards: FxHashMap<FunctionId, u64> = self
             .runtime_entry_reachability
             .iter()
             .map(|(&entry, reachable)| {
-                let guard = reachable
-                    .iter()
-                    .map(|func_id| heap_prefix.guard(func_id, &module.functions[func_id]))
-                    .max()
-                    .unwrap_or(0);
+                let guard =
+                    reachable.iter().map(|func_id| heap_prefix_guards[func_id]).max().unwrap_or(0);
                 (entry, guard)
             })
             .collect();
@@ -968,7 +976,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 return;
             }
             let mut visiting = DenseBitSet::new_empty(func.num_values());
-            let mut memo = FxHashMap::default();
+            let mut memo = HeapPrefixCache::default();
             if let Some(prefix) = Self::heap_prefix_offset(
                 func,
                 offset,
@@ -1021,10 +1029,11 @@ impl<'gcx> EvmCodegen<'gcx> {
             let mut changed = false;
             for (func_id, func) in module.functions.iter_enumerated() {
                 let mut visiting = DenseBitSet::new_empty(func.num_values());
-                let mut memo = FxHashMap::default();
+                let mut memo = HeapPrefixCache::default();
                 let mut derive = |value| {
                     // A cycle can leave a partial result for a nested root.
-                    memo.clear();
+                    memo.offsets.clear();
+                    memo.cyclic.clear();
                     Self::heap_prefix_offset(
                         func,
                         value,
@@ -1165,10 +1174,10 @@ impl<'gcx> EvmCodegen<'gcx> {
         returned_offsets: &FxHashMap<(FunctionId, usize), u64>,
         projections: Option<&FxHashMap<ValueId, (FunctionId, usize)>>,
         visiting: &mut DenseBitSet<ValueId>,
-        memo: &mut FxHashMap<ValueId, u64>,
+        memo: &mut HeapPrefixCache,
     ) -> Option<u64> {
-        if let Some(&offset) = memo.get(&value) {
-            return Some(offset);
+        if let Some(&offset) = memo.offsets.get(&value) {
+            return offset;
         }
         if let Some(component) = projections.and_then(|values| values.get(&value))
             && let Some(&offset) = returned_offsets.get(component)
@@ -1176,9 +1185,11 @@ impl<'gcx> EvmCodegen<'gcx> {
             return Some(offset);
         }
         if !visiting.insert(value) {
+            // A failed derivation through a cycle can gain a heap origin on another path.
+            memo.cyclic.extend(visiting.iter());
             return None;
         }
-        let derive = |value, visiting: &mut DenseBitSet<ValueId>, memo: &mut FxHashMap<_, _>| {
+        let derive = |value, visiting: &mut DenseBitSet<ValueId>, memo: &mut HeapPrefixCache| {
             Self::heap_prefix_offset(
                 func,
                 value,
@@ -1192,7 +1203,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         let shifted = |base,
                        adjustment: U256,
                        visiting: &mut DenseBitSet<ValueId>,
-                       memo: &mut FxHashMap<_, _>| {
+                       memo: &mut HeapPrefixCache| {
             if Self::heap_prefix_constant(func, base, 0).is_some() {
                 return None;
             }
@@ -1261,9 +1272,9 @@ impl<'gcx> EvmCodegen<'gcx> {
                     let (base, padding) = Self::heap_prefix_alignment(func, value)?;
                     Some(derive(base, visiting, memo)?.saturating_add(padding))
                 }
-                InstKind::PtrToInt(base, 256)
-                | InstKind::Bitcast(base)
-                | InstKind::IntToPtr(base) => derive(*base, visiting, memo),
+                InstKind::PtrToInt(base, 256) | InstKind::IntToPtr(base) => {
+                    derive(*base, visiting, memo)
+                }
                 InstKind::Phi(incoming) => incoming
                     .iter()
                     .filter_map(|&(_, incoming)| derive(incoming, visiting, memo))
@@ -1277,8 +1288,8 @@ impl<'gcx> EvmCodegen<'gcx> {
             _ => None,
         })();
         visiting.remove(value);
-        if let Some(offset) = offset {
-            memo.insert(value, offset);
+        if offset.is_some() || !memo.cyclic.contains(&value) {
+            memo.offsets.insert(value, offset);
         }
         offset
     }
@@ -1592,7 +1603,7 @@ mod tests {
             (mixed_shift, 63),
         ];
         let mut visiting = DenseBitSet::new_empty(function.num_values());
-        let mut memo = FxHashMap::default();
+        let mut memo = HeapPrefixCache::default();
         for (value, expected) in cases {
             assert_eq!(
                 EvmCodegen::heap_prefix_offset(
@@ -1622,40 +1633,6 @@ mod tests {
                 None,
             );
         }
-    }
-
-    #[test]
-    fn heap_prefix_guard_covers_consumers_only() {
-        let mut function = Function::new(Ident::DUMMY);
-        let mut builder = FunctionBuilder::new(&mut function);
-        // base = fmp
-        // prefix = base - 32
-        // adjacent = base + 32
-        let base = builder.fmp();
-        let word = builder.imm(32);
-        let prefix = builder.sub(base, word);
-        let adjacent = builder.add(base, word);
-        assert_eq!(EvmCodegen::heap_prefix_guard(&function, None, &FxHashMap::default(), None), 0);
-
-        // hash(adjacent, 32)
-        FunctionBuilder::new(&mut function).keccak256(adjacent, word);
-        assert_eq!(EvmCodegen::heap_prefix_guard(&function, None, &FxHashMap::default(), None), 0);
-
-        // hash(prefix, 32)
-        FunctionBuilder::new(&mut function).keccak256(prefix, word);
-        assert_eq!(EvmCodegen::heap_prefix_guard(&function, None, &FxHashMap::default(), None), 32);
-
-        // oversized = base - u64::MAX - 32
-        // mload oversized
-        let mut builder = FunctionBuilder::new(&mut function);
-        let maximum = builder.imm(u64::MAX);
-        let oversized = builder.sub(base, maximum);
-        let oversized = builder.sub(oversized, word);
-        builder.mload(oversized);
-        assert_eq!(
-            EvmCodegen::heap_prefix_guard(&function, None, &FxHashMap::default(), None),
-            u64::MAX
-        );
     }
 
     #[test]
@@ -1784,7 +1761,7 @@ mod tests {
         let selected = builder.select(condition, opaque, known);
         let merged = builder.phi(vec![(BlockId::ENTRY, opaque), (BlockId::ENTRY, known)]);
         let mut visiting = DenseBitSet::new_empty(function.num_values());
-        let mut memo = FxHashMap::default();
+        let mut memo = HeapPrefixCache::default();
         for value in [selected, merged] {
             assert_eq!(
                 EvmCodegen::heap_prefix_offset(

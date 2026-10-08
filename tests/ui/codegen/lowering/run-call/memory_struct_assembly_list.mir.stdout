@@ -1,16 +1,16 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/memory_struct_assembly_list.sol:MemoryStructAssemblyList ===
 @module MemoryStructAssemblyList
-types:
+@types
   struct0: {i256, i256}
 
-fn @empty() -> memorystruct [pure] {
+fn @empty() -> memptr [pure] {
   bb0:
     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<1>, v0, 0, 0
     ret v0
 }
 
-fn @append.1(arg0: memorystruct, arg1: i256) -> memorystruct [pure] {
+fn @append.1(arg0: memptr, arg1: i256) -> memptr [pure] {
   bb0:
     v0 = shl 48, arg1
     v1 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
@@ -20,15 +20,15 @@ fn @append.1(arg0: memorystruct, arg1: i256) -> memorystruct [pure] {
     ret arg0
 }
 
-fn @append.2(arg0: memorystruct, arg1: memorystruct) -> memorystruct [pure] {
+fn @append.2(arg0: memptr, arg1: memptr) -> memptr [pure] {
   bb0:
-    v0 = ptrtoint memorystruct arg1 to i256
+    v0 = ptrtoint memptr arg1 to i256
     v1 = shl 8, v0
     v2 = or 3, v1
     v3 = shl 40, v2
     v4 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<1>, v4, 0, 0
-    v5 = ptrtoint memorystruct v4 to i256
+    v5 = ptrtoint memptr v4 to i256
     mstore v5, v3
     icall @updateTail, arg0, v4
     ret arg0
@@ -53,7 +53,7 @@ fn @defaultLocal() -> i256 [selector=0x2f73c827, view, abi_params=[], abi_return
     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<1>, v0, 0, 0
     icall @dirtyFreeMemory
-    v1 = ptrtoint memorystruct v0 to i256
+    v1 = ptrtoint memptr v0 to i256
     v2 = mload v1
     v3 = eq v2, 0
     v4 = zext i1 v3 to i256
@@ -64,7 +64,7 @@ fn @defaultReturn() -> i256 [selector=0x099c80fd, view, abi_params=[], abi_retur
   bb0:
     icall @dirtyFreeMemory
     v0 = icall @empty
-    v1 = ptrtoint memorystruct v0 to i256
+    v1 = ptrtoint memptr v0 to i256
     v2 = mload v1
     v3 = eq v2, 0
     v4 = zext i1 v3 to i256
@@ -77,7 +77,7 @@ fn @firstAppend() -> i256 [selector=0x9d2b282b, view, abi_params=[], abi_returns
     memory_object_store_field memorystruct<1>, v0, 0, 0
     icall @dirtyFreeMemory
     v1 = icall @append.1, v0, 7
-    v2 = ptrtoint memorystruct v1 to i256
+    v2 = ptrtoint memptr v1 to i256
     v3 = mload v2
     v4 = and v3, 0xffffffffff
     v5 = shr 40, v3
@@ -103,7 +103,7 @@ fn @secondAppend() -> i256 [selector=0xdce19125, view, abi_params=[], abi_return
     icall @dirtyFreeMemory
     v1 = icall @append.1, v0, 7
     v2 = icall @append.1, v1, 9
-    v3 = ptrtoint memorystruct v2 to i256
+    v3 = ptrtoint memptr v2 to i256
     v4 = mload v3
     v5 = and v4, 0xffffffffff
     v6 = shr 40, v4
@@ -149,7 +149,7 @@ fn @nestedListEncoding() -> struct0 [selector=0xb61d93a1, pure, abi_params=[], a
     v13 = icall @append.2, v9, v12
     v14 = icall @append.2, v6, v13
     v15 = mload 64 !metadata(memory=scratch)
-    v16 = ptrtoint memorystruct v14 to i256
+    v16 = ptrtoint memptr v14 to i256
     v17 = icall @encodeList, v16, v15
     v18 = sub v17, v15
     v19 = mload v15
@@ -158,25 +158,25 @@ fn @nestedListEncoding() -> struct0 [selector=0xb61d93a1, pure, abi_params=[], a
     ret v21
 }
 
-fn @updateTail(arg0: memorystruct, arg1: memorystruct) [pure] {
+fn @updateTail(arg0: memptr, arg1: memptr) [pure] {
   bb0:
-    v0 = ptrtoint memorystruct arg0 to i256
+    v0 = ptrtoint memptr arg0 to i256
     v1 = mload v0
-    v2 = ptrtoint memorystruct arg0 to i256
-    v3 = mload v2
-    v4 = ptrtoint memorystruct arg1 to i256
-    v5 = shr v3, v4
+    v2 = ptrtoint memptr arg1 to i256
+    v3 = ptrtoint memptr arg0 to i256
+    v4 = mload v3
+    v5 = shr v4, v2
     v6 = or v5, v1
     v7 = shr 40, v6
-    v8 = ptrtoint memorystruct arg1 to i256
+    v8 = ptrtoint memptr arg1 to i256
     v9 = xor v7, v8
     v10 = shl 40, v9
     v11 = xor v10, v6
-    v12 = ptrtoint memorystruct arg0 to i256
+    v12 = ptrtoint memptr arg0 to i256
     mstore v12, v11
-    v13 = mload v7
-    v14 = ptrtoint memorystruct arg1 to i256
-    v15 = or v13, v14
+    v13 = ptrtoint memptr arg1 to i256
+    v14 = mload v7
+    v15 = or v14, v13
     mstore v7, v15
     ret
 }
@@ -306,23 +306,22 @@ fn @encodeBytes(arg0: i256, arg1: i256, arg2: i256) -> i256 {
     v45 = phi [bb3: arg2], [bb11: v45]
     v46 = phi [bb3: v34], [bb11: v46]
     v47 = phi [bb3: v39], [bb11: v47]
-    v48 = phi [bb3: v38], [bb11: v53]
+    v48 = phi [bb3: v38], [bb11: v52]
     v49 = phi [bb3: arg0], [bb11: v49]
-    v50 = ne 1, 0
-    jumpi v50, bb9, bb10
+    jumpi true, bb9, bb10
   bb10:
     jump bb8
   bb9:
-    v51 = add v43, v48
-    v52 = mload v51
-    mstore v48, v52
-    v53 = add v48, 32
-    v54 = lt v53, v47
-    v55 = zext i1 v54 to i256
-    v56 = eq v55, 0
-    v57 = zext i1 v56 to i256
-    v58 = ne v57, 0
-    jumpi v58, bb12, bb13
+    v50 = add v43, v48
+    v51 = mload v50
+    mstore v48, v51
+    v52 = add v48, 32
+    v53 = lt v52, v47
+    v54 = zext i1 v53 to i256
+    v55 = eq v54, 0
+    v56 = zext i1 v55 to i256
+    v57 = ne v56, 0
+    jumpi v57, bb12, bb13
   bb13:
     jump bb14
   bb14:
@@ -332,13 +331,13 @@ fn @encodeBytes(arg0: i256, arg1: i256, arg2: i256) -> i256 {
   bb12:
     jump bb8
   bb8:
-    v59 = phi [bb12: v53], [bb10: v48]
-    v60 = shl 3, v46
-    v61 = sub 248, v60
-    v62 = shl v61, v42
-    v63 = mload v44
-    v64 = or v63, v62
-    mstore v44, v64
+    v58 = phi [bb12: v52], [bb10: v48]
+    v59 = shl 3, v46
+    v60 = sub 248, v59
+    v61 = shl v60, v42
+    v62 = mload v44
+    v63 = or v62, v61
+    mstore v44, v63
     ret v47
   bb1:
     v7 = add 32, arg0
@@ -384,115 +383,114 @@ fn @encodeList(arg0: i256, arg1: i256) -> i256 {
     jump bb4
   bb4:
     v6 = phi [bb3: arg1], [bb8: v6], [bb15: v6], [bb17: v6], [bb18: v6], [bb21: v6]
-    v7 = phi [bb3: v5], [bb8: v48], [bb15: v29], [bb17: v33], [bb18: v39], [bb21: v45]
+    v7 = phi [bb3: v5], [bb8: v47], [bb15: v28], [bb17: v32], [bb18: v38], [bb21: v44]
     v8 = phi [bb3: arg0], [bb8: v8], [bb15: v8], [bb17: v8], [bb18: v8], [bb21: v8]
     v9 = phi [bb3: 0], [bb8: v9], [bb15: v9], [bb17: v9], [bb18: v9], [bb21: v9]
-    v10 = phi [bb3: arg0], [bb8: v13], [bb15: v13], [bb17: v13], [bb18: v13], [bb21: v13]
-    v11 = ne 1, 0
-    jumpi v11, bb6, bb7
+    v10 = phi [bb3: arg0], [bb8: v12], [bb15: v12], [bb17: v12], [bb18: v12], [bb21: v12]
+    jumpi true, bb6, bb7
   bb7:
     jump bb5
   bb6:
-    v12 = mload v10
-    v13 = and v12, 0xffffffffff
-    v14 = eq v13, 0
-    v15 = zext i1 v14 to i256
-    v16 = ne v15, 0
-    jumpi v16, bb9, bb10
+    v11 = mload v10
+    v12 = and v11, 0xffffffffff
+    v13 = eq v12, 0
+    v14 = zext i1 v13 to i256
+    v15 = ne v14, 0
+    jumpi v15, bb9, bb10
   bb10:
     jump bb11
   bb11:
-    v17 = mload v13
-    v18 = byte 26, v17
-    v19 = gt v18, 1
-    v20 = zext i1 v19 to i256
-    v21 = eq v20, 0
-    v22 = zext i1 v21 to i256
-    v23 = ne v22, 0
-    jumpi v23, bb12, bb13
+    v16 = mload v12
+    v17 = byte 26, v16
+    v18 = gt v17, 1
+    v19 = zext i1 v18 to i256
+    v20 = eq v19, 0
+    v21 = zext i1 v20 to i256
+    v22 = ne v21, 0
+    jumpi v22, bb12, bb13
   bb13:
     jump bb14
   bb14:
-    v34 = eq v18, 2
-    v35 = zext i1 v34 to i256
-    v36 = ne v35, 0
-    jumpi v36, bb18, bb19
+    v33 = eq v17, 2
+    v34 = zext i1 v33 to i256
+    v35 = ne v34, 0
+    jumpi v35, bb18, bb19
   bb19:
     jump bb20
   bb20:
-    v40 = eq v18, 3
-    v41 = zext i1 v40 to i256
-    v42 = ne v41, 0
-    jumpi v42, bb21, bb22
+    v39 = eq v17, 3
+    v40 = zext i1 v39 to i256
+    v41 = ne v40, 0
+    jumpi v41, bb21, bb22
   bb22:
     jump bb23
   bb23:
-    v46 = mload v13
-    v47 = shr 48, v46
-    v48 = icall @encodeAddress, v47, v7
+    v45 = mload v12
+    v46 = shr 48, v45
+    v47 = icall @encodeAddress, v46, v7
     jump bb8
   bb8:
     jump bb4
   bb21:
-    v43 = mload v13
-    v44 = shr 48, v43
-    v45 = icall @encodeList, v44, v7
+    v42 = mload v12
+    v43 = shr 48, v42
+    v44 = icall @encodeList, v43, v7
     jump bb4
   bb18:
-    v37 = mload v13
-    v38 = shr 48, v37
-    v39 = icall @encodeBytes, v38, v7, 128
+    v36 = mload v12
+    v37 = shr 48, v36
+    v38 = icall @encodeBytes, v37, v7, 128
     jump bb4
   bb12:
-    v24 = eq v18, 0
-    v25 = zext i1 v24 to i256
-    v26 = ne v25, 0
-    jumpi v26, bb15, bb16
+    v23 = eq v17, 0
+    v24 = zext i1 v23 to i256
+    v25 = ne v24, 0
+    jumpi v25, bb15, bb16
   bb16:
     jump bb17
   bb17:
-    v30 = mload v13
-    v31 = shr 48, v30
-    v32 = mload v31
-    v33 = icall @encodeUint, v32, v7
+    v29 = mload v12
+    v30 = shr 48, v29
+    v31 = mload v30
+    v32 = icall @encodeUint, v31, v7
     jump bb4
   bb15:
-    v27 = mload v13
-    v28 = shr 48, v27
-    v29 = icall @encodeUint, v28, v7
+    v26 = mload v12
+    v27 = shr 48, v26
+    v28 = icall @encodeUint, v27, v7
     jump bb4
   bb9:
     jump bb5
   bb5:
-    v49 = phi [bb9: v13], [bb7: v10]
-    v50 = add v6, 32
-    v51 = sub v7, v50
-    v52 = gt v51, 55
-    v53 = zext i1 v52 to i256
-    v54 = eq v53, 0
-    v55 = zext i1 v54 to i256
-    v56 = ne v55, 0
-    jumpi v56, bb24, bb25
+    v48 = phi [bb9: v12], [bb7: v10]
+    v49 = add v6, 32
+    v50 = sub v7, v49
+    v51 = gt v50, 55
+    v52 = zext i1 v51 to i256
+    v53 = eq v52, 0
+    v54 = zext i1 v53 to i256
+    v55 = ne v54, 0
+    jumpi v55, bb24, bb25
   bb25:
     jump bb26
   bb26:
-    mstore v6, v51
-    v66 = icall @encodeBytes, v6, v6, 192
-    ret v66
-  bb24:
-    v57 = add v51, 192
-    mstore8 v6, v57
-    v58 = add v6, 32
-    v59 = mload v58
-    v60 = add v6, 1
-    mstore v60, v59
-    v61 = add v6, 64
-    v62 = mload v61
-    v63 = add v6, 33
-    mstore v63, v62
-    v64 = add v6, 1
-    v65 = add v51, v64
+    mstore v6, v50
+    v65 = icall @encodeBytes, v6, v6, 192
     ret v65
+  bb24:
+    v56 = add v50, 192
+    mstore8 v6, v56
+    v57 = add v6, 32
+    v58 = mload v57
+    v59 = add v6, 1
+    mstore v59, v58
+    v60 = add v6, 64
+    v61 = mload v60
+    v62 = add v6, 33
+    mstore v62, v61
+    v63 = add v6, 1
+    v64 = add v50, v63
+    ret v64
   bb1:
     mstore8 arg1, 192
     v4 = add arg1, 1

@@ -2,9 +2,9 @@ use super::{Gcx, Recursiveness, print::TySolcPrinter};
 use crate::{builtins::Builtin, hir};
 use alloy_primitives::U256;
 use solar_ast::{DataLocation, ElementaryType, StateMutability, TypeSize};
-use solar_data_structures::{Interned, bit_set::GrowableBitSet, fmt};
+use solar_data_structures::{Interned, bit_set::GrowableBitSet};
 use solar_interface::diagnostics::ErrorGuaranteed;
-use std::{borrow::Borrow, hash::Hash, ops::ControlFlow};
+use std::{borrow::Borrow, fmt, hash::Hash, ops::ControlFlow};
 
 /// An interned type.
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
@@ -797,8 +797,8 @@ impl<'gcx> Ty<'gcx> {
             {
                 Ok(())
             }
-            (StringLiteral(_, size_from), Elementary(FixedBytes(size_to))) => {
-                if size_from.bytes_raw() <= size_to.bytes() {
+            (StringLiteral(_, len), Elementary(FixedBytes(size_to))) => {
+                if len <= usize::from(size_to.bytes()) {
                     Ok(())
                 } else {
                     Result::Err(TyConvertError::LiteralTooLarge)
@@ -1251,11 +1251,11 @@ pub enum TyKind<'gcx> {
     /// An elementary/primitive type.
     Elementary(ElementaryType),
 
-    /// Any string literal. Contains `(is_valid_utf8(s), min(s.len(), 32))`.
+    /// Any string literal. Contains `(is_valid_utf8(s), s.len())`.
     /// - all string literals can coerce to `bytes`
     /// - only valid UTF-8 string literals can coerce to `string`
     /// - only string literals with `len <= N` can coerce to `bytesN`
-    StringLiteral(bool, TypeSize),
+    StringLiteral(bool, usize),
 
     /// Any integer or fixed-point number literal.
     /// Contains `(negative, minimum bits, compatible fixed-bytes size)`.

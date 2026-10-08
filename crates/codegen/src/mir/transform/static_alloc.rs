@@ -28,6 +28,7 @@ use crate::mir::{
 };
 use alloy_primitives::U256;
 use solar_data_structures::{
+    bit_set::DenseBitSet,
     index::{IndexVec, index_vec},
     map::FxHashMap,
 };
@@ -138,20 +139,23 @@ fn fmp_write_has_future_observer(func: &Function, cfg: &CfgInfo, inst_id: InstId
     {
         return true;
     }
-    if cfg.transitive_reachability().get(block).into_iter().flat_map(|blocks| blocks.iter()).any(
-        |block| {
-            func.blocks[block]
-                .instructions
-                .iter()
-                .copied()
-                .any(|inst| instruction_observes_fmp(func, inst))
-                || func.blocks[block]
-                    .terminator
-                    .as_ref()
-                    .is_some_and(|term| matches!(term, Terminator::TailCall { .. }))
-        },
-    ) {
-        return true;
+    // Search the blocks reachable through at least one edge, without the
+    // quadratic all-pairs reachability table.
+    let mut seen = DenseBitSet::new_empty(cfg.num_blocks());
+    let mut stack = cfg.successors(block).to_vec();
+    while let Some(block) = stack.pop() {
+        if !seen.insert(block) {
+            continue;
+        }
+        if func.blocks[block].instructions.iter().any(|&inst| instruction_observes_fmp(func, inst))
+            || func.blocks[block]
+                .terminator
+                .as_ref()
+                .is_some_and(|term| matches!(term, Terminator::TailCall { .. }))
+        {
+            return true;
+        }
+        stack.extend_from_slice(cfg.successors(block));
     }
 
     false
@@ -313,9 +317,9 @@ fn candidate_uses_are_safe(
             }
             let kind = func.inst(inst_id).kind.clone();
             let offset = match kind {
-                InstKind::PtrToInt(base, 256)
-                | InstKind::IntToPtr(base)
-                | InstKind::Bitcast(base) => derived.get(&base).copied(),
+                InstKind::PtrToInt(base, 256) | InstKind::IntToPtr(base) => {
+                    derived.get(&base).copied()
+                }
                 InstKind::Add(a, b) => {
                     let (base, offset) = if derived.contains_key(&a) { (a, b) } else { (b, a) };
                     let (Some(base_offset), Some(offset)) =
@@ -386,10 +390,7 @@ fn candidate_uses_are_safe(
                 }
                 // In-bounds derivations were collected above; anything
                 // else consuming an address is an escape.
-                InstKind::Add(_, _)
-                | InstKind::PtrToInt(_, 256)
-                | InstKind::IntToPtr(_)
-                | InstKind::Bitcast(_) => {
+                InstKind::Add(_, _) | InstKind::PtrToInt(_, 256) | InstKind::IntToPtr(_) => {
                     func.inst_result_value(inst_id).is_some_and(|r| derived.contains_key(&r))
                 }
                 InstKind::MemoryObjectData(_, _)

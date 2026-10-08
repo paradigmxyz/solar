@@ -1,0 +1,112 @@
+//@ compile-flags: --evm-version paris
+//@ codegen-matrix: standard shared
+//@[shared] compile-flags: -Osize -Zdump=mir
+//@[shared] filecheck: --check-prefix=SHARED
+//@ run-call: words => true
+//@ run-call: bytesTail => true
+//@ run-call: concat => true
+//@ run-call: assembled => true
+//@ run-call: recycled => true
+//@ run-call: fresh => [1, 2, 3]
+//@ run-call: freshEmpty => []
+
+// Without `MCOPY`, memory copies lower to word loops: whole-word lengths skip
+// the partial-word merge, and a partial tail changes exactly the copied bytes.
+// Returning a fresh array encodes it in place, a backward whole-word copy.
+// In size mode, the forward byte copies of ABI encoding share one helper, which
+// needs no runtime direction check, even for an object that assembly allocates.
+// Concatenation keeps a runtime direction check when the loaded length does not
+// prove that the whole copy fits its allocation.
+// Once assembly moves the free memory pointer back, a new object can overlap a
+// live one, and the copy between them must check its direction at runtime.
+contract PreCancunMemoryCopies {
+    function words() external pure returns (bool) {
+        uint256[] memory values = new uint256[](3);
+        values[0] = 1;
+        values[1] = 2;
+        values[2] = 3;
+        return keccak256(abi.encode(values))
+            == keccak256(abi.encodePacked(uint256(32), uint256(3), uint256(1), uint256(2), uint256(3)));
+    }
+
+    // SHARED-LABEL: fn @bytesTail(
+    // SHARED: icall @[[FORWARD:mcopy_words[.0-9]*]],
+    function bytesTail() external pure returns (bool) {
+        bytes memory payload = new bytes(33);
+        for (uint256 i; i < 33; ++i) {
+            payload[i] = bytes1(uint8(i + 1));
+        }
+        bytes memory encoded = abi.encode(payload);
+        uint256 last;
+        assembly {
+            last := mload(add(encoded, 128))
+        }
+        return encoded.length == 128 && encoded[64] == 0x01 && last == uint256(33) << 248;
+    }
+
+    // SHARED-LABEL: fn @concat(
+    // SHARED: [[SOURCE:v[0-9]+]] = add {{v[0-9]+}}, 32
+    // SHARED: [[DEST:v[0-9]+]] = add {{v[0-9]+}}, 32
+    // SHARED: [[REVERSE:v[0-9]+]] = lt [[SOURCE]], [[DEST]]
+    // SHARED-NEXT: jumpi [[REVERSE]],
+    function concat() external pure returns (bool) {
+        bytes memory first = hex"0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f2021";
+        bytes memory second = hex"2223";
+        bytes memory joined = bytes.concat(first, second);
+        return joined.length == 35
+            && keccak256(joined)
+                == keccak256(hex"0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20212223");
+    }
+
+    // SHARED-LABEL: fn @assembled(
+    // SHARED: icall @[[FORWARD]],
+    function assembled() external pure returns (bool) {
+        bytes memory payload;
+        bytes32 expected;
+        assembly ("memory-safe") {
+            payload := mload(0x40)
+            mstore(payload, 70)
+            mstore(add(payload, 32), 0x0101010101010101010101010101010101010101010101010101010101010101)
+            mstore(add(payload, 64), 0x0202020202020202020202020202020202020202020202020202020202020202)
+            mstore(add(payload, 96), 0x0303030303030303030303030303030303030303030303030303030303030303)
+            mstore(0x40, add(payload, 128))
+            expected := keccak256(add(payload, 32), 70)
+        }
+        bytes memory encoded = abi.encode(payload, uint256(7));
+        bytes32 actual;
+        assembly {
+            actual := keccak256(add(encoded, 128), 70)
+        }
+        return actual == expected;
+    }
+
+    function recycled() external pure returns (bool) {
+        bytes memory source = new bytes(64);
+        assembly {
+            mstore(add(source, 32), 0x1111111111111111111111111111111111111111111111111111111111111111)
+            mstore(add(source, 64), 0x2222222222222222222222222222222222222222222222222222222222222222)
+            mstore(0x40, add(source, 32))
+        }
+        bytes memory copy = bytes.concat(source, "");
+        bytes32 second;
+        assembly {
+            second := mload(add(copy, 64))
+        }
+        return second == 0x2222222222222222222222222222222222222222222222222222222222222222;
+    }
+
+    function fresh() external pure returns (uint256[] memory values) {
+        values = new uint256[](3);
+        values[0] = 1;
+        values[1] = 2;
+        values[2] = 3;
+    }
+
+    function freshEmpty() external pure returns (uint256[] memory) {
+        return new uint256[](0);
+    }
+
+    // SHARED: {{^}}fn @[[FORWARD]](
+    // SHARED-NOT: lt arg1, arg0
+    // SHARED: ret
+}

@@ -5,13 +5,12 @@
 
 use super::{
     BlockId, CfgInfo, DenseBitSet, EvmCodegen, EvmMemoryLayout, Function, FunctionId, FxHashMap,
-    FxHashSet, GlobalStackPlan, GrowableBitSet, InstId, InstKind, Label, Liveness, LoopAnalyzer,
-    Module, OnceCell, OptimizationMode, PhiEliminator, StackModel, StackOp, StackPhiPlan,
-    Terminator, Value, ValueId, cross_block_values, planned_entry_carries,
-    stack::layout::LIVE_JOIN_LAYOUT_LIMIT,
+    FxHashSet, GlobalStackPlan, InstId, InstKind, Label, Liveness, LoopAnalyzer, OnceCell,
+    OptimizationMode, PhiEliminator, StackModel, StackOp, StackPhiPlan, Terminator, Value, ValueId,
+    cross_block_values, planned_entry_carries, stack::layout::LIVE_JOIN_LAYOUT_LIMIT,
 };
 use crate::{mir::Callee, target::Target};
-use std::rc::Rc;
+use std::{cell::LazyCell, sync::Arc};
 
 impl<'gcx> EvmCodegen<'gcx> {
     /// Splits phi-carrying edges out of multi-successor predecessors when a
@@ -36,7 +35,8 @@ impl<'gcx> EvmCodegen<'gcx> {
         if !has_phis {
             return;
         }
-        let liveness = Liveness::compute(func);
+        // Only an edge from a block with other successors needs liveness.
+        let liveness = LazyCell::new(|| Liveness::compute(func));
 
         let mut splits: Vec<(BlockId, BlockId)> = Vec::new();
         for (block_id, block) in func.blocks.iter_enumerated() {
@@ -59,6 +59,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
             }
         }
+        drop(liveness);
 
         for (pred, succ) in splits {
             let edge = func.alloc_block();
@@ -109,14 +110,16 @@ impl<'gcx> EvmCodegen<'gcx> {
     }
 
     /// Generates the body of a function.
+    #[tracing::instrument(name = "function", level = "trace", skip_all, fields(name = %func.name))]
     pub(super) fn generate_function_body(&mut self, func_id: FunctionId, func: &Function) {
         let stack_only_disabled_at_entry = self.stack_only_function_disabled(func_id);
         let report_missing_spill_home = self.gcx.sess.opts.unstable.assert_planned_edge_spill_home;
         let block_local_liveness =
             self.emitting_entry.then(|| Liveness::compute_block_local_for_codegen(func)).flatten();
         let whole_function_liveness = block_local_liveness.is_none();
-        let liveness = block_local_liveness.unwrap_or_else(|| Liveness::compute(func));
-        let liveness = &liveness;
+        let liveness =
+            block_local_liveness.map_or_else(|| self.function_liveness(func_id, func), Arc::new);
+        let liveness = &*liveness;
         let cross_block_live = OnceCell::new();
         let mut function_returns = FxHashSet::default();
 
@@ -138,7 +141,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         } else if whole_function_liveness {
             Some(self.stack_phi_plan(func_id, func, liveness))
         } else {
-            Some(Rc::new(StackPhiPlan::analyze(
+            Some(Arc::new(StackPhiPlan::analyze(
                 func,
                 liveness,
                 &self.cold_functions,
@@ -149,15 +152,20 @@ impl<'gcx> EvmCodegen<'gcx> {
         let mut stack_phi_plan =
             phi_plan.as_deref().map_or_else(StackPhiPlan::default, StackPhiPlan::clone);
         let resident_stack_plan = self.resident_stack_plan(func_id).cloned();
-        let existing_stack_only_values = self.stack_only_values(func_id, true);
-        let hazard_recomputable =
-            cross_block_values(func, |value| !existing_stack_only_values.contains(&value));
-        let hazard_cross_block_values = self.spill_hazard_cross_block_values(
-            func,
-            liveness,
-            &cross_block_live,
-            &hazard_recomputable,
-        );
+        // Without a forwarding-buffer clobber no value needs a successor after one.
+        let hazard_cross_block_values = if self.spill_hazard_insts.is_empty() {
+            Vec::new()
+        } else {
+            let existing_stack_only_values = self.stack_only_values(func_id, true);
+            let hazard_recomputable =
+                cross_block_values(func, |value| !existing_stack_only_values.contains(&value));
+            self.spill_hazard_cross_block_values(
+                func,
+                liveness,
+                &cross_block_live,
+                &hazard_recomputable,
+            )
+        };
         let resident_carries_hazards = resident_stack_plan.as_ref().is_some_and(|plan| {
             self.stack_plan_carries_spill_hazards(func, liveness, plan, &hazard_cross_block_values)
         });
@@ -379,7 +387,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             let block = &func.blocks[block_id];
             let fallthrough = block_order.get(pos + 1).copied();
             let self_tail_call = self.void_self_tail_call(func_id, func, block_id);
-            let tail_call = self.void_tail_call(func_id, func, block_id);
+            let tail_call = self.forwarding_tail_call(func_id, func, block_id);
             if self.capture_debug_info {
                 let modifier_depth = block
                     .instructions
@@ -812,6 +820,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             if !preserve_branch_targets.is_empty()
                 && let Some(Terminator::Branch { condition, .. }) = block.terminator.as_ref()
                 && liveness.live_out(block_id).contains(*condition)
+                && self.scheduler.stack.top() == Some(*condition)
                 && !self.scheduler.stack.iter().skip(1).any(|value| value == Some(*condition))
             {
                 if self.scheduler.stack.depth() == 1 {
@@ -948,7 +957,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             } else if let Some((callee, args)) = tail_call {
                 // [inherited_return, caller_words] -> [inherited_return, callee_args]
                 // jump callee
-                self.emit_void_tail_call(func_id, func, callee, args);
+                self.emit_forwarding_tail_call(func_id, func, callee, args);
                 None
             } else if let (
                 Some(union),
@@ -1090,9 +1099,13 @@ impl<'gcx> EvmCodegen<'gcx> {
 
         // A freshly computed condition is the top word and JUMPI consumes it. A condition
         // carried below the top is a loop invariant the successors still read; the terminator
-        // duplicates it for JUMPI, so the whole stack survives the branch.
+        // duplicates it for JUMPI, so the whole stack survives the branch. A reloadable
+        // argument can instead be pushed above the carried words immediately before JUMPI.
         let condition_on_top = self.scheduler.stack.top() == Some(*condition);
+        let reload_condition = Self::is_rematerializable_value(func, *condition)
+            && !self.scheduler.is_stack_only_value(*condition);
         if !condition_on_top
+            && !reload_condition
             && !(liveness.live_out(block_id).contains(*condition)
                 && self
                     .scheduler
@@ -1223,73 +1236,6 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
                 _ => false,
             }
-    }
-
-    /// Finds functions whose reachable exits all abort, including chains of
-    /// calls to other cold functions.
-    pub(super) fn collect_cold_functions(module: &Module) -> DenseBitSet<FunctionId> {
-        let mut cold = DenseBitSet::new_empty(module.functions.len());
-        let mut worklist = Vec::new();
-        let mut visited = GrowableBitSet::new_empty();
-        loop {
-            let mut changed = false;
-            for (function_id, func) in module.functions.iter_enumerated() {
-                if cold.contains(function_id) {
-                    continue;
-                }
-                worklist.clear();
-                worklist.push(BlockId::ENTRY);
-                visited.clear();
-                let mut saw_exit = false;
-                let mut all_exits_cold = true;
-                while let Some(block_id) = worklist.pop()
-                    && all_exits_cold
-                {
-                    if !visited.insert(block_id) {
-                        continue;
-                    }
-                    let block = &func.blocks[block_id];
-                    if block.instructions.iter().any(|&inst_id| {
-                        matches!(
-                            func.inst(inst_id).kind,
-                            InstKind::ICall { function: Callee::Function(function), .. } if cold.contains(function)
-                        )
-                    }) {
-                        saw_exit = true;
-                        continue;
-                    }
-                    let Some(term) = block.terminator.as_ref() else {
-                        all_exits_cold = false;
-                        continue;
-                    };
-                    match term {
-                        Terminator::Revert { .. }
-                        | Terminator::RevertReturndata
-                        | Terminator::Invalid => {
-                            saw_exit = true;
-                        }
-                        Terminator::TailCall { function, .. } if cold.contains(*function) => {
-                            saw_exit = true;
-                        }
-                        _ => {
-                            let successors = term.successors();
-                            if successors.is_empty() {
-                                all_exits_cold = false;
-                            } else {
-                                worklist.extend(successors);
-                            }
-                        }
-                    }
-                }
-                if saw_exit && all_exits_cold {
-                    cold.insert(function_id);
-                    changed = true;
-                }
-            }
-            if !changed {
-                return cold;
-            }
-        }
     }
 
     /// Finds blocks that abort directly or can only reach other cold blocks.
@@ -1454,7 +1400,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                                     func.blocks[target]
                                         .terminator
                                         .as_ref()
-                                        .is_some_and(|term| term.successors().is_empty())
+                                        .is_some_and(|term| !term.has_successors())
                                 }) =>
                         {
                             *else_block

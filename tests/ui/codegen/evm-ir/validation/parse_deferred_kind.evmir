@@ -1,0 +1,6 @@
+@module DeferredKind
+@data
+  child_0: initcode "child.sol:Child" //~ ERROR: expected `hex"..."`, `creation_code`, or `runtime_code`
+
+bb0:
+  stop

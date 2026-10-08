@@ -10,11 +10,13 @@
 //! Remove blocks that contain no instructions and only an unconditional jump,
 //! redirecting predecessors to the target.
 //!
-//! A branch also folds when its sole incoming edge establishes the same SSA condition.
+//! A branch also folds when a chain of unique incoming edges establishes the same SSA condition.
 //! The block keeps its instructions; only its terminator changes. Entry blocks and
-//! predecessors whose two arms reach the block provide no such fact. `branch-simplify`
-//! runs just this terminator cleanup after lowering, followed by unreachable-block removal.
-//! It leaves block merging and terminal sharing to the backend to preserve stack lifetimes.
+//! predecessors whose two arms reach the block provide no such fact. The bounded walk stops
+//! at the condition definition so loop iterations cannot reuse a prior iteration’s condition.
+//! `branch-simplify` runs just this terminator cleanup after lowering, followed by
+//! unreachable-block removal. It leaves block merging and terminal sharing to the backend to
+//! preserve stack lifetimes.
 //!
 //! ## Dead Function Elimination
 //! Remove functions that are never called, starting from entry points
@@ -40,6 +42,7 @@ use solar_data_structures::{
     index::{IndexVec, index_vec},
     map::FxHashMap,
 };
+use std::cell::OnceCell;
 
 /// Function pass for CFG simplification.
 pub(crate) struct CfgSimplify;
@@ -271,10 +274,26 @@ impl CfgSimplifier {
     /// no phis and a terminal block has no successors, so no phi inputs
     /// elsewhere can mention it.
     fn deduplicate_terminal_blocks(&mut self, func: &mut Function) {
+        // Equal keys imply equal terminator mnemonics and block lengths, so only
+        // blocks sharing that shape with another candidate need a key.
+        let shape = |block_id: BlockId| {
+            let block = &func.blocks[block_id];
+            let term = block.terminator.as_ref()?;
+            (!block.predecessors.is_empty()
+                && !matches!(term, Terminator::Invalid)
+                && !term.has_successors())
+            .then(|| (term.mnemonic(), block.instructions.len()))
+        };
+        let mut shapes = FxHashMap::<_, usize>::default();
+        for block_id in func.blocks.indices() {
+            if let Some(shape) = shape(block_id) {
+                *shapes.entry(shape).or_default() += 1;
+            }
+        }
         let mut kept: FxHashMap<CanonBlock, BlockId> = FxHashMap::default();
         let mut merges: Vec<(BlockId, BlockId)> = Vec::new();
         for block_id in func.blocks.indices() {
-            if func.blocks[block_id].predecessors.is_empty() {
+            if shape(block_id).is_none_or(|shape| shapes[&shape] < 2) {
                 continue;
             }
             let Some(canon) = Self::canonicalize_terminal_block(func, block_id) else {
@@ -319,7 +338,7 @@ impl CfgSimplifier {
     fn canonicalize_terminal_block(func: &Function, block_id: BlockId) -> Option<CanonBlock> {
         let block = &func.blocks[block_id];
         let term = block.terminator.as_ref()?;
-        if matches!(term, Terminator::Invalid) || !term.successors().is_empty() {
+        if matches!(term, Terminator::Invalid) || term.has_successors() {
             return None;
         }
 
@@ -527,24 +546,33 @@ impl CfgSimplifier {
         let taken = if let Some(value) = func.value_u256(*condition) {
             !value.is_zero()
         } else {
-            if block == BlockId::ENTRY {
-                return None;
-            }
-            let [pred] = func.blocks[block].predecessors.as_slice() else {
-                return None;
+            let definition = match func.value(*condition) {
+                Value::Inst(id) => Some(*id),
+                _ => None,
             };
-            let Terminator::Branch {
-                condition: incoming,
-                then_block: incoming_then,
-                else_block: incoming_else,
-            } = func.blocks[*pred].terminator.as_ref()?
-            else {
-                return None;
-            };
-            if incoming != condition || incoming_then == incoming_else {
-                return None;
+            let mut cursor = block;
+            let mut known = None;
+            for _ in 0..16 {
+                if cursor == BlockId::ENTRY
+                    || definition.is_some_and(|id| func.blocks[cursor].instructions.contains(&id))
+                {
+                    break;
+                }
+                let [pred] = func.blocks[cursor].predecessors.as_slice() else { break };
+                if let Some(Terminator::Branch {
+                    condition: incoming,
+                    then_block: incoming_then,
+                    else_block: incoming_else,
+                }) = func.blocks[*pred].terminator.as_ref()
+                    && incoming == condition
+                    && incoming_then != incoming_else
+                {
+                    known = Some(*incoming_then == cursor);
+                    break;
+                }
+                cursor = *pred;
             }
-            *incoming_then == block
+            known?
         };
         Some(if taken { *then_block } else { *else_block })
     }
@@ -691,19 +719,25 @@ impl CfgSimplifier {
 
     /// Eliminates empty blocks that only contain an unconditional jump.
     fn eliminate_empty_blocks(&mut self, func: &mut Function) {
+        // Only a forwarder consults the CFG. Eliminating one contracts it into its target, which
+        // changes neither reachability nor dominance among the other blocks, so one snapshot
+        // answers every round; the eliminated block is never a forwarder again.
+        let snapshot = OnceCell::new();
         let mut eliminated = true;
         while eliminated {
             eliminated = false;
 
-            let cfg = CfgInfo::new(func);
+            let cfg = || snapshot.get_or_init(|| CfgInfo::new(func));
             let block_ids = func.blocks.indices();
             for block_id in block_ids {
-                if func.blocks[block_id].predecessors.is_empty() && cfg.is_reachable(block_id) {
+                if !self.is_empty_forwarder(func, block_id)
+                    || (func.blocks[block_id].predecessors.is_empty()
+                        && cfg().is_reachable(block_id))
+                {
                     continue;
                 }
 
-                if self.is_empty_forwarder(func, block_id)
-                    && !self.is_loop_preheader_forwarder(func, block_id, &cfg)
+                if !self.is_loop_preheader_forwarder(func, block_id, cfg())
                     && self.forwarder_elimination_preserves_phis(func, block_id)
                 {
                     self.eliminate_forwarder(func, block_id);

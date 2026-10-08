@@ -10,10 +10,11 @@ use super::{
 use crate::mir::{Builtin, Callee, RequireKind, analysis::CfgInfo};
 use arrayvec::ArrayVec;
 use solar_data_structures::{
-    fmt::{self, FmtIteratorExt},
+    fmt::FmtIteratorExt,
     map::{FxHashMap, FxHashSet},
 };
 use solar_sema::hir;
+use std::fmt;
 
 /// Displays a DOT format CFG for a function.
 pub(crate) fn display_function_dot<'a>(
@@ -237,7 +238,16 @@ pub(crate) fn display_function_text<'a>(
 
             write!(f, "    ")?;
             if inst.result_ty.is_some() {
-                write!(f, "v{} = ", inst_result_index(func, inst_id))?;
+                write!(f, "v{}", inst_result_index(func, inst_id))?;
+                if let Some(ty) = inst.result_ty
+                    && (inst.kind.op_def().result == super::ResultKind::I160 && ty == MirType::I256
+                        || matches!(inst.kind, InstKind::LoadImmutable(id)
+                            if module.and_then(|module| module.get_immutable_type(id))
+                                .is_some_and(|layout| layout.mir_type() != ty)))
+                {
+                    write!(f, ": {ty}")?;
+                }
+                write!(f, " = ")?;
             }
             writeln!(
                 f,
@@ -426,8 +436,7 @@ fn display_inst_kind<'a>(
         | InstKind::Zext(value)
         | InstKind::Sext(value, _, _)
         | InstKind::PtrToInt(value, _)
-        | InstKind::IntToPtr(value)
-        | InstKind::Bitcast(value) => {
+        | InstKind::IntToPtr(value) => {
             let from = func.value_ty(*value).unwrap_or(MirType::I256);
             let to = result_ty.unwrap_or(MirType::I256);
             write!(f, "{} {from} ", kind.mnemonic())?;
@@ -445,8 +454,8 @@ fn display_inst_kind<'a>(
             write!(f, ", {}", display_val(*value, func))
         }
         InstKind::LibraryAddress(id) => {
-            if let Some(library) = module.and_then(|module| module.libraries.get(*id)) {
-                write!(f, "library_address {library}")
+            if let Some(module) = module {
+                write!(f, "library_address {}", module.libraries.display_ref(*id))
             } else {
                 write!(f, "library_address {id:?}")
             }
@@ -455,13 +464,17 @@ fn display_inst_kind<'a>(
             write!(f, "loadimmutable {}", display_immutable_ref(*id, module))
         }
         InstKind::DataCopy(id, dest, size) => {
-            let name = module.and_then(|module| module.data_name(id.id));
+            let name = module.and_then(|module| module.data[id.id].name);
             write!(
                 f,
-                "data_copy {}",
+                "datacopy {}",
                 crate::utils::display_data_ref(name, id.id.index(), id.offset)
             )?;
             write!(f, ", {}, {}", display_val(*dest, func), display_val(*size, func))
+        }
+        InstKind::DataSize(size) => {
+            let name = module.and_then(|module| module.data[size.data].name);
+            write!(f, "datasize {}", crate::utils::display_data_size(name, *size))
         }
         InstKind::Alloc { size, kind, semantics } => {
             let kind = match kind {
@@ -501,8 +514,8 @@ fn display_inst_kind<'a>(
                 "memory_object_load_field {layout}, {}, {field}",
                 display_val(*object, func)
             )?;
-            if let Some(ty @ MirType::MemoryObject(_)) = result_ty {
-                write!(f, ", {ty}")?;
+            if result_ty == Some(MirType::MemPtr) {
+                write!(f, ", memptr")?;
             }
             Ok(())
         }
@@ -519,8 +532,8 @@ fn display_inst_kind<'a>(
                 display_val(*object, func),
                 display_val(*index, func)
             )?;
-            if let Some(ty @ MirType::MemoryObject(_)) = result_ty {
-                write!(f, ", {ty}")?;
+            if result_ty == Some(MirType::MemPtr) {
+                write!(f, ", memptr")?;
             }
             Ok(())
         }
@@ -593,7 +606,7 @@ fn display_inst_kind<'a>(
             f,
             "store_storage_bytes_literal {}, hex\"{}\"",
             display_val(*slot, func),
-            alloy_primitives::hex::encode(bytes)
+            alloy_primitives::hex::display(bytes)
         ),
         InstKind::StorageArrayLoad { slot, element, enum_variants } => {
             write!(f, "load_storage_array ")?;
@@ -638,7 +651,7 @@ fn display_inst_kind<'a>(
                 }
                 match part {
                     super::PackedPart::Literal(bytes) => {
-                        write!(f, "data hex\"{}\"", alloy_primitives::hex::encode(bytes))?
+                        write!(f, "data hex\"{}\"", alloy_primitives::hex::display(bytes))?
                     }
                     super::PackedPart::Scalar { value, ty } => {
                         write!(f, "{ty} {}", display_val(*value, func))?
@@ -893,6 +906,7 @@ fn display_metadata<'a>(
         Unchecked,
         DeferredAlloc,
         PreservesFmp,
+        Disjoint,
         LoopDepth(u16),
         Effect(EffectKind),
     }
@@ -919,6 +933,7 @@ fn display_metadata<'a>(
             MetadataField::Unchecked => write!(f, "unchecked"),
             MetadataField::DeferredAlloc => write!(f, "deferred_alloc"),
             MetadataField::PreservesFmp => write!(f, "preserves_fmp"),
+            MetadataField::Disjoint => write!(f, "disjoint"),
             MetadataField::LoopDepth(loop_depth) => write!(f, "loop_depth={loop_depth}"),
             MetadataField::Effect(effect) => write!(f, "effect={}", effect.name()),
         })
@@ -935,7 +950,7 @@ fn display_metadata<'a>(
     }
 
     fmt::from_fn(move |f| {
-        let mut fields = ArrayVec::<MetadataField<'_>, 10>::new();
+        let mut fields = ArrayVec::<MetadataField<'_>, 11>::new();
 
         if let Some(storage) = metadata.storage_alias() {
             fields.push(MetadataField::Storage(storage, func));
@@ -968,6 +983,9 @@ fn display_metadata<'a>(
         }
         if metadata.preserves_fmp() {
             fields.push(MetadataField::PreservesFmp);
+        }
+        if metadata.disjoint() {
+            fields.push(MetadataField::Disjoint);
         }
         if metadata.loop_depth != 0 {
             fields.push(MetadataField::LoopDepth(metadata.loop_depth));

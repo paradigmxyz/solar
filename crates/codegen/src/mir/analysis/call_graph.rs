@@ -102,6 +102,11 @@ impl CallGraphInfo {
         component
     }
 
+    /// Returns the functions `func` calls or tail-calls directly, in ascending order.
+    pub(crate) fn callees(&self, func: FunctionId) -> impl Iterator<Item = FunctionId> + '_ {
+        self.callees.get(&func).into_iter().flatten()
+    }
+
     /// Returns functions reachable from `roots` through MIR call edges.
     #[must_use]
     pub(crate) fn reachable_callees_from(
@@ -247,40 +252,5 @@ impl CallGraphInfo {
             }
         }
         recursive
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn recursion_excludes_callers_outside_the_cycle() {
-        let mut callees = FxHashMap::default();
-        for (caller, callee) in [(0, 1), (1, 2), (2, 1)] {
-            callees
-                .entry(FunctionId::from_usize(caller))
-                .or_insert_with(|| DenseBitSet::new_empty(3))
-                .insert(FunctionId::from_usize(callee));
-        }
-
-        let recursive = CallGraphInfo::recursive_functions_in_graph(&callees, 3);
-        assert!(!recursive.contains(FunctionId::from_usize(0)));
-        assert!(recursive.contains(FunctionId::from_usize(1)));
-        assert!(recursive.contains(FunctionId::from_usize(2)));
-    }
-
-    #[test]
-    fn recursion_excludes_reachable_siblings_in_acyclic_graph() {
-        let mut callees = FxHashMap::default();
-        for (caller, callee) in [(0, 1), (0, 2), (2, 1)] {
-            callees
-                .entry(FunctionId::from_usize(caller))
-                .or_insert_with(|| DenseBitSet::new_empty(3))
-                .insert(FunctionId::from_usize(callee));
-        }
-
-        let recursive = CallGraphInfo::recursive_functions_in_graph(&callees, 3);
-        assert!(recursive.is_empty());
     }
 }

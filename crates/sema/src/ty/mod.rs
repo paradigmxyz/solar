@@ -1,6 +1,7 @@
 use crate::{
     Source, Sources, ast,
     ast_lowering::SymbolResolver,
+    ast_passes::number_literal_underscore_errors,
     builtins::{Builtin, members},
     hir::{self, Hir, SourceId},
     typeck::override_checker::OverrideProxy,
@@ -11,7 +12,7 @@ use solar_ast::{DataLocation, StateMutability, TypeSize, UserDefinableOperator, 
 use solar_data_structures::{
     BumpExt,
     bit_set::{DenseBitSet, GrowableBitSet},
-    fmt::{from_fn, or_list},
+    fmt::or_list,
     map::{FxBuildHasher, FxHashMap, FxHashSet},
     smallvec::SmallVec,
     trustme,
@@ -488,10 +489,7 @@ impl<'gcx> Gcx<'gcx> {
     }
 
     pub fn mk_ty_string_literal(self, s: &[u8]) -> Ty<'gcx> {
-        self.mk_ty(TyKind::StringLiteral(
-            std::str::from_utf8(s).is_ok(),
-            TypeSize::new_int_bits(s.len().min(32) as u16 * 8),
-        ))
+        self.mk_ty(TyKind::StringLiteral(std::str::from_utf8(s).is_ok(), s.len()))
     }
 
     pub fn mk_ty_int_literal(self, negative: bool, bits: u64) -> Option<Ty<'gcx>> {
@@ -823,7 +821,7 @@ impl<'gcx> Gcx<'gcx> {
     fn item_canonical_name_(self, id: hir::ItemId) -> impl fmt::Display {
         let name = self.item_name(id);
         let contract = self.hir.item(id).contract().map(|id| self.item_name(id));
-        from_fn(move |f| {
+        fmt::from_fn(move |f| {
             if let Some(contract) = contract {
                 write!(f, "{contract}.")?;
             }
@@ -836,7 +834,7 @@ impl<'gcx> Gcx<'gcx> {
         self,
         id: hir::ContractId,
     ) -> impl fmt::Display + use<'gcx> {
-        from_fn(move |f| {
+        fmt::from_fn(move |f| {
             let c = self.hir.contract(id);
             let source = self.hir.source(c.source);
             write!(f, "{}:{}", source.file.name.display(), c.name)
@@ -1138,15 +1136,10 @@ impl<'gcx> Gcx<'gcx> {
                 })
             }
             solar_ast::LitKind::Rational(value) => {
-                let spelling = lit.symbol.as_str();
-                if spelling.ends_with('_')
-                    || ["__", "._", "_.", "_e", "_E", "e_", "E_"]
-                        .iter()
-                        .any(|pattern| spelling.contains(pattern))
-                {
-                    return self.mk_ty_misc_err();
-                }
-                if *value.denom() == alloy_primitives::U256::from(1) {
+                // The AST validator has already reported invalid underscores.
+                if !number_literal_underscore_errors(lit.symbol.as_str()).is_empty() {
+                    self.mk_ty_misc_err()
+                } else if *value.denom() == alloy_primitives::U256::from(1) {
                     self.mk_ty_int_literal(false, value.numer().bit_len() as _)
                         .unwrap_or_else(|| self.mk_ty_misc_err())
                 } else {
