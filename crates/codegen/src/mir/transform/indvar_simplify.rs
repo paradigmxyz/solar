@@ -244,7 +244,7 @@ impl IndVarSimplifier {
         let loops: Vec<_> = loop_info.loops.values().cloned().collect();
 
         for loop_data in loops {
-            self.run_loop(func, &cfg, &loop_data);
+            self.run_loop(func, &cfg, loop_data);
         }
 
         // A counter read after its loop through a phi on a critical exit edge can die only
@@ -271,7 +271,7 @@ impl IndVarSimplifier {
                 .cloned()
                 .collect();
             for loop_data in loops {
-                self.run_loop(func, &cfg, &loop_data);
+                self.run_loop(func, &cfg, loop_data);
             }
             // NOTE: A second request for the same loop is dropped: its edges were split once.
             self.exit_splits.clear();
@@ -280,10 +280,17 @@ impl IndVarSimplifier {
         &self.stats
     }
 
-    fn run_loop(&mut self, func: &mut Function, cfg: &CfgInfo, loop_data: &Loop) {
+    fn run_loop(&mut self, func: &mut Function, cfg: &CfgInfo, mut loop_data: Loop) {
         let Some(preheader) = loop_data.preheader else { return };
         let [latch] = loop_data.back_edges.as_slice() else { return };
         let latch = *latch;
+        // Reducing an earlier loop can rewrite this loop's entry values, such as with a
+        // counter rebuilt after that loop, so read them again from the header phis.
+        for iv in &mut loop_data.induction_vars {
+            if let Some(init) = preheader_value(func, iv.value, preheader) {
+                iv.init = init;
+            }
+        }
         // A loop may step more than one counter, each walking its own addresses:
         // a codec reading an input and writing an output steps both, and taking
         // only the single-counter case left every such loop rebuilding both
@@ -292,7 +299,7 @@ impl IndVarSimplifier {
         // its latch update, and deletes arithmetic it just made dead, so the
         // blocks, preheader and back edge analyzed here stay valid for the next.
         for iv in loop_data.induction_vars.clone() {
-            self.reduce_induction_variable(func, cfg, loop_data, preheader, latch, iv);
+            self.reduce_induction_variable(func, cfg, &loop_data, preheader, latch, iv);
         }
     }
 
@@ -743,13 +750,7 @@ impl IndVarSimplifier {
         scale: i128,
         reads: &ExitReads,
     ) {
-        let Value::Inst(phi) = *func.value(pointer) else { return };
-        let InstKind::Phi(incoming) = &func.inst(phi).kind else { return };
-        let Some(start) =
-            incoming.iter().find_map(|&(from, value)| (from == preheader).then_some(value))
-        else {
-            return;
-        };
+        let Some(start) = preheader_value(func, pointer, preheader) else { return };
         let Ok(magnitude) = u128::try_from(scale) else { return };
         // counter = init + (ptr - start) >> log2(scale)   or   / scale
         let rebuild = |this: &Self, func: &mut Function, block: BlockId| -> ValueId {
@@ -1434,4 +1435,11 @@ fn upper_bound(func: &Function, value: ValueId, depth: usize) -> Option<U256> {
         }
         _ => None,
     }
+}
+
+/// The value the header phi `phi` takes on entry from `preheader`.
+fn preheader_value(func: &Function, phi: ValueId, preheader: BlockId) -> Option<ValueId> {
+    let Value::Inst(inst_id) = *func.value(phi) else { return None };
+    let InstKind::Phi(incoming) = &func.inst(inst_id).kind else { return None };
+    incoming.iter().find_map(|&(from, value)| (from == preheader).then_some(value))
 }

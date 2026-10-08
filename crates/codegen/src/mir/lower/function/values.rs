@@ -23,7 +23,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return Some(Vec::new());
         }
         if let ExprKind::Ternary(condition, then_expr, else_expr) = &expr.kind {
-            return self.lower_ternary_values(condition, then_expr, else_expr);
+            let ty = self.cx.gcx.type_of_expr(expr.id)?;
+            return self.lower_ternary_values(condition, then_expr, else_expr, ty);
         }
         if let Some((callee, args, call_opts)) = expr.as_call() {
             if let Some(builtin) = self.low_level_call_builtin(expr) {

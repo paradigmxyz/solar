@@ -1,0 +1,16 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/literal_arithmetic_fold.sol:LiteralArithmeticFold ===
+@module LiteralArithmeticFold
+fn @negPlusHigh() -> i256 [selector=0x6af7d583, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    ret 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+}
+
+fn @notPlusHigh() -> i256 [selector=0x3b25d9c9, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    ret 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+}
+
+fn @negHigh() -> i256 [selector=0x88fcf516, pure, abi_params=[], abi_returns=[word], abi_return_params=[i256]] {
+  bb0:
+    ret 0x8000000000000000000000000000000000000000000000000000000000000000
+}

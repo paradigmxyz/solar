@@ -315,7 +315,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 match item {
                     Some(item) => {
                         // selector = selector(item) << 224
-                        self.lower_selector_receiver_effects(receiver)?;
+                        self.lower_discarded_expr(receiver)?;
                         let selector = self.cx.gcx.function_selector(item).0;
                         Some(self.builder.imm(U256::from_be_slice(&selector) << 224))
                     }
@@ -439,23 +439,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             Builtin::TxOrigin => Some(self.builder.origin()),
             Builtin::TxGasPrice => Some(self.builder.gasprice()),
             _ => self.cx.report_unsupported(expr.span, "environment builtin"),
-        }
-    }
-
-    pub(super) fn lower_selector_receiver_effects(
-        &mut self,
-        receiver: &hir::Expr<'_>,
-    ) -> Option<()> {
-        let receiver = receiver.peel_parens();
-        match receiver.kind {
-            ExprKind::Ident(_) | ExprKind::Type(_) => Some(()),
-            ExprKind::Member(base, _)
-                if matches!(base.peel_parens().kind, ExprKind::Ident(_) | ExprKind::Type(_)) =>
-            {
-                Some(())
-            }
-            ExprKind::Member(base, _) => self.lower_expr(base).map(|_| ()),
-            _ => self.lower_expr(receiver).map(|_| ()),
         }
     }
 

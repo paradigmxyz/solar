@@ -1,16 +1,32 @@
 {
   "sources": {
-    "C:/Users/dev/ECoin.sol": {
+    "B.sol": {
       "id": 0
     },
-    "contracts/USDС.sol": {
+    "C:/Users/dev/ECoin.sol": {
       "id": 1
+    },
+    "contracts/A.sol": {
+      "id": 2
+    },
+    "contracts/USDС.sol": {
+      "id": 3
     }
   },
   "contracts": {
     "C:/Users/dev/ECoin.sol": {
       "ECoin": {
         "abi": []
+      }
+    },
+    "contracts/A.sol": {
+      "A": {
+        "evm": {
+          "methodIdentifiers": {
+            "a()": "0dbe671f",
+            "b()": "4df7e3d0"
+          }
+        }
       }
     },
     "contracts/USDС.sol": {
