@@ -12,7 +12,9 @@
 //!
 //! Replies stream in as server-sent events, each piece passed on as it arrives; once a reply has
 //! begun, a failure ends the turn rather than sending the request again. A server that ignores
-//! the request to stream sends its reply whole, which is shown whole.
+//! the request to stream sends its reply whole, which is shown whole. A reply beyond 16 MiB ends
+//! the turn, and only the first 64 KiB of an error reply are read, so an endpoint cannot exhaust
+//! the compiler's memory.
 
 use super::{
     ChatTransport,
@@ -39,6 +41,11 @@ const FIRST_RETRY: Duration = Duration::from_secs(2);
 const MAX_RETRY: Duration = Duration::from_secs(60);
 /// The most characters of a provider's error message a diagnostic repeats.
 const MAX_MESSAGE: usize = 500;
+/// The most bytes a reply may take, streamed or whole: many times what a reply of the most tokens
+/// a request allows takes, even with an event's framing around every token.
+const MAX_REPLY_BYTES: usize = 16 << 20;
+/// The most bytes of an error reply read for its message.
+const MAX_ERROR_BYTES: usize = 64 << 10;
 
 /// What carries a chat endpoint's requests.
 enum Sender {
@@ -170,14 +177,14 @@ impl ChatClient {
                                     "{name} answered {status} through the embedder's transport, \
                                      which did not settle the payment"
                                 );
-                                match message(&response.text().await.unwrap_or_default()) {
+                                match message(&error_text(response).await) {
                                     message if message.is_empty() => answer,
                                     message => format!("{answer}: {message}"),
                                 }
                             }
                         });
                     }
-                    let text = response.text().await.unwrap_or_default();
+                    let text = error_text(response).await;
                     let answer = format!("{name} answered {status}: {}", message(&text));
                     match retry(after).filter(|_| retryable(status)) {
                         Some(pause) => {
@@ -223,21 +230,31 @@ impl ChatClient {
             .get(CONTENT_TYPE)
             .and_then(|value| value.to_str().ok())
             .is_some_and(|value| value.starts_with("text/event-stream"));
-        if !streamed {
-            let whole = response
-                .json::<Value>()
+        let mut received = 0;
+        let mut chunk = async || {
+            let chunk = response
+                .chunk()
                 .await
+                .map_err(|error| format!("the reply from {name} broke off: {error}"))?;
+            received += chunk.as_ref().map_or(0, |chunk| chunk.len());
+            if received > MAX_REPLY_BYTES {
+                return Err(format!("the reply from {name} exceeds {} MiB", MAX_REPLY_BYTES >> 20));
+            }
+            Ok(chunk)
+        };
+        if !streamed {
+            let mut body = Vec::new();
+            while let Some(piece) = chunk().await? {
+                body.extend_from_slice(&piece);
+            }
+            let whole = serde_json::from_slice::<Value>(&body)
                 .map_err(|error| format!("{name} sent an unreadable reply: {error}"))?;
             reply.deltas_of(&whole).into_iter().for_each(&on_delta);
             return Ok(whole);
         }
         let mut parser = SseParser::default();
         loop {
-            let chunk = response
-                .chunk()
-                .await
-                .map_err(|error| format!("the reply from {name} broke off: {error}"))?;
-            let events = match chunk {
+            let events = match chunk().await? {
                 Some(chunk) => parser.push(&chunk),
                 None => {
                     if let Some(event) = std::mem::take(&mut parser).finish() {
@@ -282,6 +299,19 @@ impl ChatClient {
 /// Whether a request that failed with `status` may succeed later.
 fn retryable(status: StatusCode) -> bool {
     status == StatusCode::TOO_MANY_REQUESTS || status.is_server_error()
+}
+
+/// Returns the start of an error reply's body, at most [`MAX_ERROR_BYTES`] of it, which is all its
+/// message needs.
+async fn error_text(mut response: Response) -> String {
+    let mut body = Vec::new();
+    while body.len() < MAX_ERROR_BYTES
+        && let Ok(Some(chunk)) = response.chunk().await
+    {
+        let room = MAX_ERROR_BYTES - body.len();
+        body.extend_from_slice(&chunk[..chunk.len().min(room)]);
+    }
+    String::from_utf8_lossy(&body).into_owned()
 }
 
 /// The message in an error reply, which both formats keep at `error.message`, or its text.
@@ -490,6 +520,17 @@ data: {"type":"message_stop"}
         );
         // A payment request is not sent again.
         assert_eq!(seen.lock().unwrap().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn oversized_replies_end_the_turn() {
+        // One line without an end, larger than any reply may be.
+        let line = format!("data: {}", "x".repeat(MAX_REPLY_BYTES));
+        let (url, _) = gateway(Box::leak(line.into_boxed_str())).await;
+        let transport = Paying::new(true).await;
+        let client =
+            ChatClient::new(Provider::Anthropic, &url, None, Some(transport), None).await.unwrap();
+        assert_eq!(ask(&client).await, Err("the reply from Anthropic exceeds 16 MiB".into()));
     }
 
     #[cfg(feature = "llm")]
