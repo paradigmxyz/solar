@@ -217,7 +217,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
     }
 
-    pub(super) fn lower_abi_decode(&mut self, args: hir::CallArgs<'_>) -> Option<ValueId> {
+    pub(super) fn lower_abi_decode(&mut self, args: hir::CallArgs<'_>) -> Option<CallResult> {
         // data = materialize_memory_argument(input)
         // layout = intern_abi_layout(target_types)
         // value = abi_decode(layout, data)
@@ -228,9 +228,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 return self.cx.report_unsupported(args[1].span, "abi.decode target type");
             }
         };
-        if types.is_empty() {
-            return self.cx.report_unsupported(args[1].span, "abi.decode target type");
-        }
         let mut decoded_types = Vec::with_capacity(types.len());
         for ty_expr in &types {
             let Some(TyKind::Type(ty)) = self.cx.gcx.type_of_expr(ty_expr.id).map(|ty| ty.kind)
@@ -248,8 +245,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let (data, layout) = self.lower_abi_decode_layout(data, &decoded_types, args[1].span)?;
         let layout = self.cx.module.intern_abi_param_layout(layout);
         let fields = decoded_types.iter().map(|&ty| types::TypeLowerer::mir_type(ty)).collect();
-        let result_ty = self.cx.module.intern_return_type(fields)?;
-        Some(self.builder.abi_decode(layout, data, result_ty))
+        let Some(result_ty) = self.cx.module.intern_return_type(fields) else {
+            self.builder.abi_decode_void(layout, data);
+            return Some(CallResult::Void);
+        };
+        Some(CallResult::Value(self.builder.abi_decode(layout, data, result_ty)))
     }
 
     fn lower_abi_decode_layout(

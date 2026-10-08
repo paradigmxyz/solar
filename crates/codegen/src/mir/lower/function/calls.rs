@@ -523,18 +523,26 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             "named internal function argument",
             |this, index, argument| {
                 let parameter = function.parameters[index];
-                let value = this.lower_typed_expr(argument, parameter)?;
-                if parameter.is_value_type() {
-                    let ty = this.cx.state.pointer_carrier(types::TypeLowerer::mir_type(parameter));
-                    Some(raw_scalars::cast_carrier(
-                        &mut this.builder,
-                        value,
-                        types::TypeLowerer::value_layout(parameter),
-                        ty,
-                    ))
+                let value = if Self::is_storage_parameter(parameter) {
+                    // argument = slot of the storage argument
+                    let Some(access) = this.storage_access(argument) else {
+                        return this.cx.report_unsupported(argument.span, "storage access");
+                    };
+                    access.slot
                 } else {
-                    this.materialize_call_argument(parameter, value, argument.span)
-                }
+                    let value = this.lower_typed_expr(argument, parameter)?;
+                    if !parameter.is_value_type() {
+                        return this.materialize_call_argument(parameter, value, argument.span);
+                    }
+                    value
+                };
+                let ty = this.cx.state.pointer_carrier(types::TypeLowerer::mir_type(parameter));
+                Some(raw_scalars::cast_carrier(
+                    &mut this.builder,
+                    value,
+                    types::TypeLowerer::value_layout(parameter),
+                    ty,
+                ))
             },
         )?;
         values.insert(0, function_value);
