@@ -282,11 +282,20 @@ impl ReplyStream {
             Protocol::Messages => match data["type"].as_str().unwrap_or_default() {
                 "message_start" => self.add_usage(&data["message"]["usage"]),
                 "content_block_start" => {
+                    // Blocks start in order, each an object: a block far ahead would make the
+                    // reply allocate every block before it, and deltas write into objects.
                     let index = block_index(&data)?;
-                    if self.content.len() <= index {
-                        self.content.resize(index + 1, Value::Null);
+                    if index != self.content.len() {
+                        return Err(format!(
+                            "the reply started block {index} where block {} was due",
+                            self.content.len()
+                        ));
                     }
-                    self.content[index] = data["content_block"].clone();
+                    let block = &data["content_block"];
+                    if !block.is_object() {
+                        return Err("the reply started a block that is not an object".into());
+                    }
+                    self.content.push(block.clone());
                 }
                 "content_block_delta" => {
                     let block = self
@@ -749,5 +758,28 @@ data: [DONE]
         assert!(stream(Protocol::ChatCompletions, cut, 64).1.is_err());
         let error = "data: {\"error\":{\"message\":\"bad request\"}}\n\n";
         assert_eq!(stream(Protocol::ChatCompletions, error, 64).1, Err("bad request".into()));
+    }
+
+    #[test]
+    fn malformed_blocks_end_the_reply() {
+        let start = |index: &str, block: &str| {
+            format!(
+                "event: content_block_start\ndata: {{\"type\":\"content_block_start\",\
+                 \"index\":{index},\"content_block\":{block}}}\n\n"
+            )
+        };
+        let text = r#"{"type":"text","text":""}"#;
+        let cases = [
+            (start("4294967296", text), "the reply started block 4294967296 where block 0 was due"),
+            (start("1", text), "the reply started block 1 where block 0 was due"),
+            (start("0", r#""text""#), "the reply started a block that is not an object"),
+            (
+                start("0", text) + &start("0", text),
+                "the reply started block 0 where block 1 was due",
+            ),
+        ];
+        for (sse, error) in cases {
+            assert_eq!(stream(Protocol::Messages, &sse, 64).1, Err(error.into()), "{sse}");
+        }
     }
 }
