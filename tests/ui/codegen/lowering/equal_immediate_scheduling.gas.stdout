@@ -20,11 +20,10 @@ bb0:
   jumpi
   push 4
   calldataload
+  dup 1
   iszero
   push bb7
   jumpi
-  push 4
-  calldataload
   push 0x123456789abcde
   dup 1
   addmod
@@ -49,7 +48,7 @@ bb7 [cold]:
   revert
 // === ROOT/tests/ui/codegen/lowering/equal_immediate_scheduling.sol:EqualImmediateScheduling (runtime) ===
 CALLVALUE
-PUSH1 0x36 ; bb0
+PUSH1 0x34 ; bb0
 JUMPI
 PUSH0
 CALLDATALOAD
@@ -58,20 +57,19 @@ SHR
 DUP1
 PUSH4 0xd9171e32
 SUB
-PUSH1 0x36 ; bb0
+PUSH1 0x34 ; bb0
 JUMPI
 PUSH1 0x24
 CALLDATASIZE
 LT
-PUSH1 0x36 ; bb0
+PUSH1 0x34 ; bb0
 JUMPI
 PUSH1 0x04
 CALLDATALOAD
+DUP1
 ISZERO
-PUSH1 0x3a ; bb1
+PUSH1 0x38 ; bb1
 JUMPI
-PUSH1 0x04
-CALLDATALOAD
 PUSH7 0x123456789abcde
 DUP1
 ADDMOD

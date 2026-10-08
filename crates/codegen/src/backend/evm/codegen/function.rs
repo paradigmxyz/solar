@@ -1239,7 +1239,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     }
 
     /// Finds blocks that abort directly or can only reach other cold blocks.
-    fn collect_cold_blocks(&self, func: &Function) -> DenseBitSet<BlockId> {
+    pub(super) fn collect_cold_blocks(&self, func: &Function) -> DenseBitSet<BlockId> {
         let mut cold = DenseBitSet::new_empty(func.blocks.len());
         let mut worklist = Vec::new();
         for block_id in func.blocks.indices() {
@@ -1304,7 +1304,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         label
     }
 
-    fn block_layout_order(&self, func: &Function, cfg: &CfgInfo) -> Vec<BlockId> {
+    pub(super) fn block_layout_order(&self, func: &Function, cfg: &CfgInfo) -> Vec<BlockId> {
         // Visit predecessors before private continuations, including blocks appended by lowering.
         let reachable = cfg.reachable();
         let mut order = Vec::with_capacity(func.blocks.len());

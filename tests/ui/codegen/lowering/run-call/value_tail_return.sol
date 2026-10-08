@@ -1,6 +1,6 @@
-//@ codegen-matrix: standard
-//@[size] compile-flags: -Zdump=evm-ir-runtime
-//@[size] filecheck:
+//@ codegen-matrix: standard legacy-stack
+//@[legacy-stack] compile-flags: -O size -Zlegacy-stack-lowering -Zdump=evm-ir-runtime
+//@[legacy-stack] filecheck:
 //@ run-call: run 0 => 12
 //@ run-call: run 2 => 17
 //@ run-call: run 5 => 47

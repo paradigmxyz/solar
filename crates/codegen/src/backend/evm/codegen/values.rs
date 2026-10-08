@@ -1,7 +1,7 @@
 //! Value materialization and replay of operand schedules.
 
 use super::{
-    BlockId, EvmCodegen, EvmMemoryLayout, Function, InstKind, LateGasOperand, Liveness,
+    BlockId, EvmCodegen, EvmMemoryLayout, Function, InstId, InstKind, LateGasOperand, Liveness,
     OperandCostModel, OperandPlan, ScheduledOp, SmallVec, StackOp, StackScheduler, U256, Value,
     ValueId, WORD_BYTES, index_vec, op, rematerializable_nullary_value,
 };
@@ -209,56 +209,9 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// regardless of scheduler stack tracking state.
     pub(super) fn collect_late_gas_operands(&mut self, func: &Function) {
         self.late_gas_operands.clear();
-
-        let mut use_counts = index_vec![0u32; func.num_values()];
-        for block in &func.blocks {
-            for &inst_id in &block.instructions {
-                func.inst(inst_id).kind.visit_operands(|operand| {
-                    use_counts[operand] += 1;
-                });
-            }
-            if let Some(terminator) = &block.terminator {
-                terminator.visit_operands(|operand| {
-                    use_counts[operand] += 1;
-                });
-            }
-        }
-
-        for block in &func.blocks {
-            for &inst_id in &block.instructions {
-                let gas = match func.inst(inst_id).kind {
-                    InstKind::Call { gas, .. }
-                    | InstKind::CallCode { gas, .. }
-                    | InstKind::StaticCall { gas, .. }
-                    | InstKind::DelegateCall { gas, .. } => gas,
-                    _ => continue,
-                };
-                if use_counts[gas] != 1 {
-                    continue;
-                }
-                let Value::Inst(operand) = func.value(gas) else { continue };
-                let (reading, subtracted) = match func.inst(*operand).kind {
-                    InstKind::Gas => (*operand, None),
-                    InstKind::Sub(lhs, rhs) => {
-                        let Value::Inst(reading) = func.value(lhs) else { continue };
-                        let Value::Immediate(imm) = func.value(rhs) else { continue };
-                        let Some(subtracted) = imm.as_u256() else { continue };
-                        if !matches!(func.inst(*reading).kind, InstKind::Gas)
-                            || use_counts[lhs] != 1
-                        {
-                            continue;
-                        }
-                        (*reading, Some(subtracted))
-                    }
-                    _ => continue,
-                };
-                if !block.instructions.contains(&reading) || !block.instructions.contains(operand) {
-                    continue;
-                }
-                self.elided_insts.insert(reading);
-                self.elided_insts.insert(*operand);
-                self.late_gas_operands.insert(gas, LateGasOperand { subtracted });
-            }
+        for read in late_gas_reads(func) {
+            self.elided_insts.extend(read.insts);
+            self.late_gas_operands.insert(read.gas, LateGasOperand { subtracted: read.subtracted });
         }
     }
 
@@ -269,28 +222,33 @@ impl<'gcx> EvmCodegen<'gcx> {
         };
 
         if let Some(subtracted) = late.subtracted {
-            // push <reserve>
-            // gas !metadata(keep_with_next)
-            // sub !metadata(keep_with_next)
-            //
-            // Before EIP-150 a call asking for more gas than is left throws, so the reserve only
-            // keeps solc's 10-gas margin while nothing but the `SUB` runs between the `GAS` and
-            // the call. Keeping both with the next instruction stops every backend transform from
-            // making that boundary a block boundary, and with it from inserting a jump.
-            let keep_with_call = !self.gcx.sess.opts.evm_version.can_overcharge_gas_for_call();
-            self.asm.emit_push(subtracted);
-            self.asm.emit_op(op::GAS);
-            if keep_with_call {
-                self.asm.keep_last_with_next();
-            }
-            self.asm.emit_op(op::SUB);
-            if keep_with_call {
-                self.asm.keep_last_with_next();
-            }
+            self.emit_gas_minus(subtracted);
         } else {
             self.asm.emit_op(op::GAS);
         }
         self.scheduler.stack.push(gas);
+    }
+
+    /// Emits the gas left minus `reserve`, for a call's gas operand.
+    pub(super) fn emit_gas_minus(&mut self, reserve: U256) {
+        // push <reserve>
+        // gas !metadata(keep_with_next)
+        // sub !metadata(keep_with_next)
+        //
+        // Before EIP-150 a call asking for more gas than is left throws, so the reserve only
+        // keeps solc's 10-gas margin while nothing but the `SUB` runs between the `GAS` and
+        // the call. Keeping both with the next instruction stops every backend transform from
+        // making that boundary a block boundary, and with it from inserting a jump.
+        let keep_with_call = !self.gcx.sess.opts.evm_version.can_overcharge_gas_for_call();
+        self.asm.emit_push(reserve);
+        self.asm.emit_op(op::GAS);
+        if keep_with_call {
+            self.asm.keep_last_with_next();
+        }
+        self.asm.emit_op(op::SUB);
+        if keep_with_call {
+            self.asm.keep_last_with_next();
+        }
     }
 
     pub(super) fn emit_value_fresh(&mut self, func: &Function, val: ValueId) {
@@ -535,4 +493,59 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
         }
     }
+}
+
+/// A call's gas operand read right before the call.
+pub(super) struct LateGasRead {
+    pub(super) gas: ValueId,
+    /// The `gas` read and, with a reserve, the subtraction.
+    pub(super) insts: SmallVec<[InstId; 2]>,
+    pub(super) subtracted: Option<U256>,
+}
+
+/// Finds the gas operands of calls that are a `gas` read, possibly minus a constant reserve,
+/// computed in the call's block and read only by the call.
+pub(super) fn late_gas_reads(func: &Function) -> Vec<LateGasRead> {
+    let mut use_counts = index_vec![0u32; func.num_values()];
+    for block in &func.blocks {
+        for &inst_id in &block.instructions {
+            func.inst(inst_id).kind.visit_operands(|operand| use_counts[operand] += 1);
+        }
+        if let Some(terminator) = &block.terminator {
+            terminator.visit_operands(|operand| use_counts[operand] += 1);
+        }
+    }
+
+    let mut reads = Vec::new();
+    for block in &func.blocks {
+        for &inst_id in &block.instructions {
+            let gas = match func.inst(inst_id).kind {
+                InstKind::Call { gas, .. }
+                | InstKind::CallCode { gas, .. }
+                | InstKind::StaticCall { gas, .. }
+                | InstKind::DelegateCall { gas, .. } => gas,
+                _ => continue,
+            };
+            if use_counts[gas] != 1 {
+                continue;
+            }
+            let Value::Inst(operand) = *func.value(gas) else { continue };
+            let (insts, subtracted): (SmallVec<[InstId; 2]>, _) = match func.inst(operand).kind {
+                InstKind::Gas => (SmallVec::from_slice(&[operand]), None),
+                InstKind::Sub(lhs, rhs) => {
+                    let Value::Inst(reading) = *func.value(lhs) else { continue };
+                    let Some(subtracted) = func.value_u256(rhs) else { continue };
+                    if !matches!(func.inst(reading).kind, InstKind::Gas) || use_counts[lhs] != 1 {
+                        continue;
+                    }
+                    (SmallVec::from_slice(&[reading, operand]), Some(subtracted))
+                }
+                _ => continue,
+            };
+            if insts.iter().all(|inst| block.instructions.contains(inst)) {
+                reads.push(LateGasRead { gas, insts, subtracted });
+            }
+        }
+    }
+    reads
 }

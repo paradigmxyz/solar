@@ -29,11 +29,15 @@ impl<'gcx> EvmCodegen<'gcx> {
             MirPhase::Lowered,
             "EVM codegen requires MIR in the final phase"
         );
+        self.disabled_stack_only_functions.clear_to(module.functions.len());
+        self.reset_runtime_codegen(module);
+        if self.try_emit_runtime_stackified(module, call_graph) {
+            return;
+        }
         let mut preserve_caller_stack =
             !matches!(self.gcx.sess.opts.optimization, OptimizationMode::None);
         let mut runtime_stack_args = true;
         let mut stack_returns_enabled = true;
-        self.disabled_stack_only_functions.clear_to(module.functions.len());
         loop {
             let disabled_stack_only_functions = self.disabled_stack_only_functions.count();
             self.reset_runtime_codegen(module);
@@ -88,6 +92,31 @@ impl<'gcx> EvmCodegen<'gcx> {
             library_relocations: result.library_relocations,
             evm_ir: result.evm_ir,
             debug_info: result.debug_info,
+        }
+    }
+
+    /// Functions reachable through internal calls from the dispatch entry and external entries.
+    pub(super) fn internal_call_targets(
+        module: &Module,
+        call_graph: &CallGraphInfo,
+        entry: FunctionId,
+    ) -> DenseBitSet<FunctionId> {
+        call_graph.reachable_callees_from(module.functions.iter_enumerated().filter_map(
+            |(func_id, func)| {
+                (func_id == entry || Self::is_external_entry(func)).then_some(func_id)
+            },
+        ))
+    }
+
+    /// Marks the functions whose whole body is `stop`.
+    pub(super) fn collect_empty_stop_functions(&mut self, module: &Module) {
+        for (func_id, func) in module.functions.iter_enumerated() {
+            if func.blocks.len() == 1
+                && func.blocks[BlockId::ENTRY].instructions.is_empty()
+                && matches!(func.blocks[BlockId::ENTRY].terminator, Some(Terminator::Stop))
+            {
+                self.empty_stop_functions.insert(func_id);
+            }
         }
     }
 
@@ -291,13 +320,8 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
         }
 
-        for (func_id, func) in module.functions.iter_enumerated() {
-            if func.blocks.len() == 1
-                && func.blocks[BlockId::ENTRY].instructions.is_empty()
-                && matches!(func.blocks[BlockId::ENTRY].terminator, Some(Terminator::Stop))
-            {
-                self.empty_stop_functions.insert(func_id);
-            }
+        self.collect_empty_stop_functions(module);
+        for func_id in module.functions.indices() {
             if call_graph.is_recursive(func_id) {
                 self.recursive_stack_functions.insert(func_id);
                 self.recursive_stack_functions.union(&call_graph.reachable_callees_from([func_id]));
@@ -311,11 +335,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.recursion_reaching_functions.insert(func_id);
             }
         }
-        let internal_targets = call_graph.reachable_callees_from(
-            module.functions.iter_enumerated().filter_map(|(func_id, func)| {
-                (func_id == entry_id || Self::is_external_entry(func)).then_some(func_id)
-            }),
-        );
+        let internal_targets = Self::internal_call_targets(module, call_graph, entry_id);
 
         for (func_id, func) in module.functions.iter_enumerated() {
             if !func.attributes.may_return_memory

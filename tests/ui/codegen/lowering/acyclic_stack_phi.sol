@@ -1,4 +1,4 @@
-//@ compile-flags: -Zdump=evm-ir-runtime
+//@ compile-flags: -Zdump=evm-ir-runtime -Zlegacy-stack-lowering
 //@ filecheck:
 
 contract AcyclicStackPhi {

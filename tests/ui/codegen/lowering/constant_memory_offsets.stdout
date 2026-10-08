@@ -31,11 +31,10 @@ bb0:
   calldatasize
   dup 3
   calldatacopy
-  push 64
-  dup 2
-  add
   push 7
-  swap 1
+  push 64
+  dup 3
+  add
   mstore
   push 128
   swap 1
@@ -78,11 +77,10 @@ bb6:
   push 3
   dup 2
   mstore
-  push 96
-  dup 2
-  add
   push 7
-  swap 1
+  push 96
+  dup 3
+  add
   mstore
   push 32
   add

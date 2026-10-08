@@ -1,6 +1,6 @@
-//@ codegen-matrix: standard
-//@[gas] compile-flags: -Zdump=evm-ir-runtime
-//@[gas] filecheck:
+//@ codegen-matrix: standard legacy-stack
+//@[legacy-stack] compile-flags: -O gas -Zlegacy-stack-lowering -Zdump=evm-ir-runtime
+//@[legacy-stack] filecheck:
 //@ run-call: toHexStringNoPrefix 0x => ""
 //@ run-call: toHexStringNoPrefix 0x00abff => "00abff"
 //@ run-call: prefixed 0x => "0x"

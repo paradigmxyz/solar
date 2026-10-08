@@ -1,5 +1,5 @@
 //@ revisions: ir run size
-//@[ir] compile-flags: -Ogas -Zdump=evm-ir-runtime
+//@[ir] compile-flags: -Ogas -Zdump=evm-ir-runtime -Zlegacy-stack-lowering
 //@[ir] filecheck:
 //@[run] compile-flags: -Ogas
 //@[size] compile-flags: -Osize

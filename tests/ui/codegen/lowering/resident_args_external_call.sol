@@ -1,5 +1,5 @@
 //@ revisions: ir run
-//@[ir] compile-flags: -Ogas -Zdump=evm-ir-runtime
+//@[ir] compile-flags: -Ogas -Zdump=evm-ir-runtime -Zlegacy-stack-lowering
 //@[ir] filecheck:
 //@[run] compile-flags: -Ogas
 //@ run-call: first 1, 2, 3, 4, 5, 6 => 49

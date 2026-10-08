@@ -129,12 +129,11 @@ bb0:
   push 0
   dup 2
   mstore
-  push 32
-  dup 2
-  add
   push 4
   calldataload
-  swap 1
+  push 32
+  dup 3
+  add
   mstore
   push 64
   add
@@ -149,8 +148,6 @@ bb0:
   push 0x1111111111111111111111111111111111111111
   gas
   delegatecall
-  swap 1
-  pop
   iszero
   push bb10
   jumpi

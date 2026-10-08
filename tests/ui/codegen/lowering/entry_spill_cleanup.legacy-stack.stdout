@@ -1,0 +1,332 @@
+// === ROOT/tests/ui/codegen/lowering/entry_spill_cleanup.sol:EntrySpillCleanup (runtime) ===
+@module EntrySpillCleanup_runtime
+bb0:
+  push 36
+  calldatasize
+  lt
+  callvalue
+  or
+  push bb4
+  jumpi
+  push 0
+  calldataload
+  push 224
+  shr
+  dup 1
+  push 0x13e7d096
+  eq
+  push bb5
+  jumpi
+  dup 1
+  push 0x449f3447
+  eq
+  push bb8
+  jumpi
+  jump bb4
+bb4 [cold]:
+  push 0
+  push 0
+  revert
+bb16 [cold]:
+  push 0x4e487b71
+  push 0
+  mstore
+  push 65
+  push 32
+  mstore
+  push 36
+  push 28
+  revert
+bb5:
+  push 160
+  push 64
+  mstore
+  push bb6
+  jump bb11
+bb11:
+  push 4
+  calldataload
+  push 4
+  dup 2
+  add
+  push 32
+  dup 2
+  add
+  swap 2
+  push 0
+  not
+  push 192
+  shr
+  lt
+  calldatasize
+  dup 4
+  gt
+  or
+  push bb4
+  jumpi
+  calldataload
+  push 63
+  dup 2
+  add
+  dup 2
+  dup 2
+  lt
+  push bb16
+  jumpi
+  push 31
+  not
+  and
+  push 64
+  mload
+  dup 1
+  swap 2
+  dup 2
+  add
+  dup 2
+  dup 2
+  lt
+  push 0
+  not
+  push 192
+  shr
+  dup 3
+  gt
+  or
+  push bb16
+  jumpi
+  push 64
+  mstore
+  dup 3
+  dup 2
+  mstore
+  dup 4
+  calldatasize
+  sub
+  dup 4
+  gt
+  push bb4
+  jumpi
+  push 32
+  add
+  dup 3
+  dup 5
+  dup 3
+  calldatacopy
+  pop
+  swap 2
+  pop
+  pop
+  swap 1
+  jump
+bb6 [continuation]:
+  push bb7
+  swap 1
+  jump bb18
+bb18:
+  dup 1
+  dup 1
+  mload
+  push 64
+  mload
+  push 2
+  add
+  dup 2
+  dup 1
+  add
+  dup 2
+  mstore
+  push 0x30313233343536373839616263646566
+  push 15
+  mstore
+  push 32
+  dup 2
+  add
+  swap 2
+  swap 1
+  swap 3
+  add
+  swap 2
+  swap 3
+  jump bb19
+bb21 [loop]:
+  push 1
+  add
+  dup 1
+  mload
+  push 15
+  and
+  mload
+  push 1
+  dup 4
+  add
+  mstore8
+  dup 1
+  mload
+  push 4
+  shr
+  push 15
+  and
+  mload
+  dup 3
+  mstore8
+  swap 1
+  push 2
+  add
+  swap 1
+  jump bb19
+bb19 [loop]:
+  dup 3
+  dup 2
+  sub
+  push bb21
+  jumpi
+  pop
+  swap 1
+  pop
+  push 0
+  dup 2
+  mstore
+  push 32
+  add
+  push 64
+  mstore
+  swap 1
+  jump
+bb7 [continuation]:
+  dup 1
+  mload
+  push 2
+  add
+  push 0x3078
+  dup 3
+  mstore
+  push 2
+  swap 1
+  swap 2
+  sub
+  swap 1
+  dup 2
+  mstore
+  push 64
+  mload
+  push 32
+  dup 2
+  add
+  push 32
+  dup 3
+  mstore
+  dup 3
+  iszero
+  iszero
+  dup 4
+  mload
+  mul
+  push 31
+  dup 2
+  add
+  push 31
+  not
+  and
+  push 32
+  dup 4
+  add
+  dup 2
+  dup 5
+  add
+  push 0
+  swap 1
+  mstore
+  dup 3
+  swap 1
+  swap 4
+  mstore
+  dup 3
+  add
+  swap 4
+  push 32
+  add
+  dup 2
+  dup 2
+  dup 5
+  mcopy
+  pop
+  pop
+  jump bb22
+bb22:
+  pop
+  swap 1
+  sub
+  push 31
+  dup 2
+  add
+  push 31
+  not
+  and
+  push 64
+  mload
+  swap 1
+  dup 2
+  add
+  push 64
+  mstore
+  dup 2
+  dup 2
+  return
+bb8:
+  push 128
+  push 64
+  mstore
+  push bb9
+  jump bb11
+bb9 [continuation]:
+  push bb10
+  swap 1
+  jump bb18
+bb10 [continuation]:
+  push 64
+  mload
+  push 32
+  dup 2
+  add
+  push 32
+  dup 3
+  mstore
+  swap 2
+  dup 1
+  iszero
+  iszero
+  dup 2
+  mload
+  mul
+  push 31
+  dup 2
+  add
+  push 31
+  not
+  and
+  push 32
+  dup 6
+  add
+  dup 2
+  dup 7
+  add
+  push 0
+  swap 1
+  mstore
+  dup 3
+  swap 1
+  swap 6
+  mstore
+  dup 5
+  add
+  swap 2
+  push 32
+  add
+  dup 2
+  dup 2
+  dup 7
+  mcopy
+  pop
+  pop
+  swap 2
+  jump bb22

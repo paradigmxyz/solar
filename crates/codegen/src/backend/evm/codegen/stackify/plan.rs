@@ -1,0 +1,2351 @@
+//! Per-function planning: block layouts, operand preparation, shuffles, and spills.
+
+use super::{
+    BlockPlan, Edge, Exit, Fail, FunctionPlan, Layout, ModuleInfo, Operands, Slot, Step, Want,
+    argument_values, icall,
+    shuffle::{self, Move},
+};
+use crate::{
+    backend::evm::{
+        codegen::{
+            ScheduleCost, StackOp,
+            select::{OpcodeLowering, opcode_lowering},
+            stack::rematerializable_nullary_value,
+            values::late_gas_reads,
+        },
+        op,
+    },
+    mir::{
+        ArgIdx, BlockId, EffectKind, Function, FunctionId, InstId, InstKind, Module, Terminator,
+        Value, ValueId,
+        analysis::{CfgInfo, Liveness, LoopInfo},
+        memory::EvmMemoryLayout,
+    },
+    target::{Cost, StackCosts, Target},
+};
+use alloy_primitives::U256;
+use smallvec::{SmallVec, smallvec};
+use solar_data_structures::{
+    bit_set::DenseBitSet,
+    index::{IndexVec, index_vec},
+    map::{FxHashMap, FxHashSet},
+};
+
+/// The modeled stack of a block being planned and the steps that produced it.
+#[derive(Clone)]
+struct Sim {
+    stack: Layout,
+    steps: Vec<Step>,
+    cost: Cost,
+    peak: usize,
+}
+
+impl Sim {
+    fn new(stack: Layout) -> Self {
+        let peak = stack.len();
+        Self { stack, steps: Vec::new(), cost: Cost::ZERO, peak }
+    }
+
+    fn height(&self) -> usize {
+        self.stack.len()
+    }
+
+    /// Depth from the top of the shallowest copy of `slot`.
+    fn depth_of(&self, slot: Slot) -> Option<usize> {
+        self.stack.iter().rev().position(|&s| s == slot)
+    }
+
+    /// Number of dead words.
+    fn junk(&self) -> u32 {
+        self.stack.iter().filter(|&&slot| slot == Slot::Junk).count() as u32
+    }
+
+    fn observe(&mut self, extra: usize) {
+        self.peak = self.peak.max(self.stack.len() + extra);
+    }
+
+    /// Copies the state without the steps recorded so far.
+    fn fork(&self) -> Self {
+        Self { stack: self.stack.clone(), steps: Vec::new(), cost: self.cost, peak: self.peak }
+    }
+
+    /// Makes this a fork of `other`, reusing its buffers.
+    fn refork(&mut self, other: &Self) {
+        self.stack.clear();
+        self.stack.extend_from_slice(&other.stack);
+        self.steps.clear();
+        self.cost = other.cost;
+        self.peak = other.peak;
+    }
+
+    /// Continues with a fork's state, appending its steps.
+    fn join(&mut self, fork: Self) {
+        self.stack = fork.stack;
+        self.steps.extend(fork.steps);
+        self.cost = fork.cost;
+        self.peak = fork.peak;
+    }
+}
+
+/// Longest instruction chain before a consumer considered for copying its deeper operands first.
+const MAX_PREPLACEMENT_WINDOW: usize = 16;
+
+/// Most instructions a result placement trial plans ahead.
+const MAX_PLACEMENT_WINDOW: usize = 4;
+
+/// Most dying words a result placement tries to swap with.
+const MAX_PLACEMENT_CANDIDATES: usize = 2;
+
+/// A planned function together with the layouts its loop latches would choose.
+pub(super) struct Planned {
+    pub(super) plan: FunctionPlan,
+    /// For each loop header, the layout its latch leaves before shuffling.
+    pub(super) natural: FxHashMap<BlockId, Layout>,
+    /// For each loop header, its words ordered by last use in the loop body.
+    pub(super) first_use: FxHashMap<BlockId, Layout>,
+}
+
+pub(super) struct Planner<'a> {
+    info: &'a ModuleInfo,
+    func_id: FunctionId,
+    func: &'a Function,
+    liveness: &'a Liveness,
+    target: Target,
+    spilled: &'a DenseBitSet<ValueId>,
+    hints: &'a FxHashMap<BlockId, Layout>,
+    /// Whether the function is entered with a return address.
+    has_ret: bool,
+    reach: usize,
+    cfg: &'a CfgInfo,
+    /// Values pushed fresh at each use instead of kept on the stack.
+    remat: DenseBitSet<ValueId>,
+    /// The cost of pushing each value of `remat`.
+    remat_costs: IndexVec<ValueId, Cost>,
+    /// Values live across a write that may overwrite spill slots; they cannot spill.
+    pinned: DenseBitSet<ValueId>,
+    /// Instructions with no code of their own.
+    skipped: FxHashSet<InstId>,
+    /// Extra results of multi-word calls, adopted from the returned stack words.
+    projections: FxHashMap<InstId, SmallVec<[Option<ValueId>; 4]>>,
+    /// Multi-word calls that store their extra results to the multi-return buffer.
+    publish: FxHashSet<InstId>,
+    /// Branch conditions with their single-use zero tests peeled off, and whether that
+    /// inverts the branch.
+    conditions: FxHashMap<BlockId, (ValueId, bool)>,
+    /// External arguments loaded at the start of a block and kept on the stack.
+    arg_defs: FxHashMap<BlockId, SmallVec<[ValueId; 2]>>,
+    /// Number of operand positions reading each value.
+    use_counts: IndexVec<ValueId, u32>,
+    /// Blocks that return the results of their last instruction, an internal call, which
+    /// becomes a tail call.
+    tail_calls: FxHashMap<BlockId, InstId>,
+    args: IndexVec<ArgIdx, Option<ValueId>>,
+    layouts: IndexVec<BlockId, Option<Layout>>,
+    blocks: IndexVec<BlockId, Option<BlockPlan>>,
+    natural: FxHashMap<BlockId, Layout>,
+    first_use: FxHashMap<BlockId, Layout>,
+    gas_mode: bool,
+    /// Relative executions of each block, which scale the gas of its planned code.
+    executions: IndexVec<BlockId, u32>,
+    backedges: FxHashSet<(BlockId, BlockId)>,
+    /// Blocks that never return through the caller's address and leave no loop: their layouts
+    /// constrain only the words at the top of the stack.
+    floating: DenseBitSet<BlockId>,
+    /// Words below a floating block's layout on its deepest entry.
+    floating_below: IndexVec<BlockId, usize>,
+    /// Number of forward (non-back) edges into each block.
+    forward_preds: IndexVec<BlockId, u32>,
+    /// Edges into joins whose layout waits until every forward predecessor is planned.
+    pending: FxHashMap<BlockId, Vec<Pending>>,
+    /// The latest plain plan of a result placement decision.
+    plain_trial: Option<PlainTrial>,
+    peak: usize,
+    calls: Vec<(FunctionId, usize)>,
+    cost: Cost,
+}
+
+impl<'a> Planner<'a> {
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn new(
+        module: &'a Module,
+        info: &'a ModuleInfo,
+        func_id: FunctionId,
+        liveness: &'a Liveness,
+        target: Target,
+        spilled: &'a DenseBitSet<ValueId>,
+        hints: &'a FxHashMap<BlockId, Layout>,
+        hazards: &FxHashSet<InstId>,
+        cfg: &'a CfgInfo,
+        loops: &LoopInfo,
+    ) -> Result<Self, Fail> {
+        let func = &module.functions[func_id];
+        let internal = info.internal.contains(func_id);
+        let has_ret = info.returning.contains(func_id);
+        let args = if internal { argument_values(func)? } else { IndexVec::new() };
+
+        let mut use_counts = index_vec![0u32; func.num_values()];
+        for block in &func.blocks {
+            for &inst in &block.instructions {
+                func.inst(inst).kind.visit_operands(|operand| use_counts[operand] += 1);
+            }
+            if let Some(term) = &block.terminator {
+                term.visit_operands(|operand| use_counts[operand] += 1);
+            }
+        }
+        // External arguments are calldata words. One read more than once loads at the nearest
+        // block outside every loop that dominates its uses and then stays on the stack.
+        let gas_mode = target.optimization().is_gas();
+        let mut use_blocks = FxHashMap::<ValueId, BlockId>::default();
+        if !internal {
+            // In gas mode a read inside a loop also loads once, outside the loop.
+            let mut note = |value: ValueId, block: BlockId| {
+                if matches!(func.value(value), Value::Arg(_))
+                    && (use_counts[value] >= 2 || (gas_mode && cfg.cyclic_blocks().contains(block)))
+                {
+                    let block = match use_blocks.get(&value) {
+                        Some(&other) => common_dominator(cfg, other, block),
+                        None => block,
+                    };
+                    use_blocks.insert(value, block);
+                }
+            };
+            for (block_id, block) in func.blocks.iter_enumerated() {
+                for &inst in &block.instructions {
+                    match &func.inst(inst).kind {
+                        InstKind::Phi(incoming) => {
+                            for &(pred, value) in incoming {
+                                note(value, pred);
+                            }
+                        }
+                        kind => kind.visit_operands(|value| note(value, block_id)),
+                    }
+                }
+                if let Some(term) = &block.terminator {
+                    term.visit_operands(|value| note(value, block_id));
+                }
+            }
+        }
+        let mut arg_defs = FxHashMap::<BlockId, SmallVec<[ValueId; 2]>>::default();
+        // A spilled argument is read from calldata again at each use instead.
+        use_blocks.retain(|&value, _| !spilled.contains(value));
+        for (value, mut block) in use_blocks {
+            while cfg.cyclic_blocks().contains(block)
+                && let Some(idom) = cfg.dominators().idom(block)
+            {
+                block = idom;
+            }
+            arg_defs.entry(block).or_default().push(value);
+        }
+        for defs in arg_defs.values_mut() {
+            defs.sort_unstable();
+        }
+        let mut remat = DenseBitSet::new_empty(func.num_values());
+        let mut skipped = FxHashSet::default();
+        for value in func.live_values() {
+            if matches!(func.value(value), Value::Immediate(_) | Value::Undef(_))
+                || (!internal
+                    && matches!(func.value(value), Value::Arg(_))
+                    && !arg_defs.values().any(|defs| defs.contains(&value)))
+            {
+                remat.insert(value);
+            }
+        }
+        for inst in func.instructions() {
+            let Some(result) = func.inst_result_value(inst) else { continue };
+            if rematerializable_nullary_value(func, result).is_some()
+                || matches!(func.inst(inst).kind, InstKind::DataSize(_))
+            {
+                remat.insert(result);
+                skipped.insert(inst);
+            }
+        }
+        // A gas read used only as a call's gas operand is read immediately before the call.
+        for read in late_gas_reads(func) {
+            remat.insert(read.gas);
+            skipped.extend(read.insts);
+        }
+
+        let mut projections = FxHashMap::default();
+        for (block_id, block) in func.blocks.iter_enumerated() {
+            for (idx, &inst) in block.instructions.iter().enumerate() {
+                let Some((callee, _)) = icall(&func.inst(inst).kind) else { continue };
+                let arity = info.returns[callee];
+                if arity <= 1 {
+                    continue;
+                }
+                let Some(Projection { elided, extras, tracked }) =
+                    call_projection(func, block_id, idx, arity)
+                else {
+                    return Err(Fail::Unsupported("multi-word call result through memory"));
+                };
+                // The protocol's pointer and addresses have no readers beyond the elided
+                // instructions.
+                let protocol_reads: u32 = elided
+                    .iter()
+                    .map(|&inst| {
+                        let operands = func.inst(inst).kind.operands();
+                        operands.iter().filter(|op| tracked.contains(op)).count() as u32
+                    })
+                    .sum();
+                let escapes =
+                    tracked.iter().map(|&value| use_counts[value]).sum::<u32>() != protocol_reads;
+                if escapes {
+                    return Err(Fail::Unsupported("multi-word call result through memory"));
+                }
+                skipped.extend(elided);
+                projections.insert(inst, extras);
+            }
+        }
+        // A read of the multi-return buffer that no call binds may observe the results of a
+        // call whose protocol is not adjacent to it, so such calls publish their results.
+        let mut publish = FxHashSet::default();
+        if func.instructions().any(|inst| {
+            !skipped.contains(&inst)
+                && matches!(func.inst(inst).kind, InstKind::MLoad(addr)
+                    if func.value_u64(addr) == Some(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT))
+        }) {
+            for (&inst, extras) in &projections {
+                if extras.iter().all(Option::is_none) {
+                    let (callee, _) = icall(&func.inst(inst).kind).unwrap();
+                    if info.recursive.contains(callee) {
+                        return Err(Fail::Unsupported("recursive multi-word call through memory"));
+                    }
+                    publish.insert(inst);
+                }
+            }
+        }
+        // icall f(args); return results -> jump f with the inherited return address
+        let mut tail_calls = FxHashMap::default();
+        if has_ret {
+            for (block_id, block) in func.blocks.iter_enumerated() {
+                let Some(Terminator::Return { values }) = &block.terminator else { continue };
+                let Some(&last) =
+                    block.instructions.iter().rev().find(|inst| !skipped.contains(*inst))
+                else {
+                    continue;
+                };
+                let Some((callee, _)) = icall(&func.inst(last).kind) else { continue };
+                if !info.internal.contains(callee)
+                    || info.returns[callee] != values.len()
+                    || publish.contains(&last)
+                {
+                    continue;
+                }
+                let mut results: SmallVec<[Option<ValueId>; 4]> =
+                    smallvec![func.inst_result_value(last)];
+                if let Some(extras) = projections.get(&last) {
+                    results.extend(extras.iter().copied());
+                }
+                if values.iter().enumerate().all(|(i, &value)| results.get(i) == Some(&Some(value)))
+                {
+                    tail_calls.insert(block_id, last);
+                }
+            }
+        }
+        if func.instructions().any(|inst| {
+            matches!(
+                func.inst(inst).kind,
+                InstKind::ConstructorArgsBase | InstKind::ConstructorArgsEnd
+            )
+        }) {
+            return Err(Fail::Unsupported("constructor arguments"));
+        }
+
+        // jumpi (eq x, 0) -> jumpi x with exchanged targets; jumpi (ne x, 0) -> jumpi x
+        let mut conditions = FxHashMap::default();
+        for (block_id, block) in func.blocks.iter_enumerated() {
+            let Some(Terminator::Branch { condition, .. }) = &block.terminator else { continue };
+            let mut condition = *condition;
+            let mut inverted = false;
+            while use_counts[condition] == 1
+                && !remat.contains(condition)
+                && let Value::Inst(def) = *func.value(condition)
+                && block.instructions.contains(&def)
+                && let kind @ (InstKind::Eq(..) | InstKind::Ne(..)) = &func.inst(def).kind
+                && let Some(input) =
+                    Target::zero_test_input(&kind.op(), |value| func.value_u256(value))
+            {
+                inverted ^= matches!(kind, InstKind::Eq(..));
+                skipped.insert(def);
+                condition = input;
+            }
+            if condition != block.terminator.as_ref().unwrap().operands()[0] {
+                conditions.insert(block_id, (condition, inverted));
+            }
+        }
+
+        let mut executions = index_vec![1u32; func.blocks.len()];
+        let mut backedges = FxHashSet::default();
+        let mut first_use = FxHashMap::default();
+        for lp in loops.all_loops() {
+            for block in lp.blocks.iter() {
+                executions[block] = executions[block].saturating_mul(8).min(512);
+            }
+            for &latch in &lp.back_edges {
+                backedges.insert((latch, lp.header));
+            }
+            // Order the header's words by their last use in the loop body: the word consumed
+            // first sits on top, and words the body never reads sit deepest.
+            let mut order = FxHashMap::<ValueId, usize>::default();
+            let mut position = 0usize;
+            for &block in cfg.rpo() {
+                if !lp.blocks.contains(block) || block == lp.header {
+                    continue;
+                }
+                for &inst in &func.blocks[block].instructions {
+                    if !matches!(func.inst(inst).kind, InstKind::Phi(_)) {
+                        func.inst(inst).kind.visit_operands(|operand| {
+                            order.insert(operand, position);
+                        });
+                        position += 1;
+                    }
+                }
+                if let Some(term) = &func.blocks[block].terminator {
+                    term.visit_operands(|operand| {
+                        order.insert(operand, position);
+                    });
+                    position += 1;
+                }
+            }
+            let header = lp.header;
+            let mut words: Vec<ValueId> = liveness.live_in(header).iter().collect();
+            for &inst in &func.blocks[header].instructions {
+                if matches!(func.inst(inst).kind, InstKind::Phi(_))
+                    && let Some(result) = func.inst_result_value(inst)
+                {
+                    words.push(result);
+                }
+            }
+            words.retain(|&value| !remat.contains(value) && !spilled.contains(value));
+            words.sort_by_key(|value| {
+                std::cmp::Reverse(order.get(value).copied().unwrap_or(usize::MAX))
+            });
+            let mut layout: Layout = Vec::with_capacity(words.len() + 1);
+            if has_ret {
+                layout.push(Slot::Ret);
+            }
+            layout.extend(words.into_iter().map(Slot::Value));
+            first_use.insert(header, layout);
+        }
+
+        let mut forward_preds = index_vec![0u32; func.blocks.len()];
+        for (block, data) in func.blocks.iter_enumerated() {
+            for &pred in &data.predecessors {
+                if cfg.is_reachable(pred) && !cfg.dominators().dominates(block, pred) {
+                    forward_preds[block] += 1;
+                }
+            }
+        }
+        // Spill slots live in low memory, which these writes may overwrite; values live across
+        // one stay on the stack.
+        let mut pinned = DenseBitSet::new_empty(func.num_values());
+        for (block, data) in func.blocks.iter_enumerated() {
+            for (index, inst) in data.instructions.iter().enumerate() {
+                if !hazards.contains(inst) {
+                    continue;
+                }
+                let mut live: FxHashSet<ValueId> = liveness.live_out(block).iter().collect();
+                if let Some(term) = &data.terminator {
+                    term.visit_operands(|value| {
+                        live.insert(value);
+                    });
+                }
+                for &later in data.instructions[index + 1..].iter().rev() {
+                    if let Some(result) = func.inst_result_value(later) {
+                        live.remove(&result);
+                    }
+                    func.inst(later).kind.visit_operands(|value| {
+                        live.insert(value);
+                    });
+                }
+                for value in live {
+                    pinned.insert(value);
+                }
+            }
+        }
+
+        let mut floating = DenseBitSet::new_empty(func.blocks.len());
+        for &block in cfg.rpo().iter().rev() {
+            let Some(term) = &func.blocks[block].terminator else { continue };
+            let returns = match term {
+                Terminator::Return { .. } => has_ret,
+                Terminator::TailCall { function, .. } => {
+                    has_ret && info.returning.contains(*function)
+                }
+                _ => false,
+            };
+            if !returns
+                && !cfg.cyclic_blocks().contains(block)
+                && term.successors().iter().all(|&succ| floating.contains(succ))
+            {
+                floating.insert(block);
+            }
+        }
+
+        Ok(Self {
+            info,
+            func_id,
+            func,
+            liveness,
+            target,
+            spilled,
+            hints,
+            has_ret,
+            reach: target.evm_version().reachable_stack_depth(),
+            cfg,
+            remat_costs: {
+                let mut costs = index_vec![Cost::ZERO; func.num_values()];
+                for value in remat.iter() {
+                    costs[value] = materialize_cost(func, target, value);
+                }
+                costs
+            },
+            remat,
+            pinned,
+            skipped,
+            projections,
+            publish,
+            conditions,
+            arg_defs,
+            use_counts,
+            tail_calls,
+            args,
+            layouts: index_vec![None; func.blocks.len()],
+            blocks: index_vec![None; func.blocks.len()],
+            natural: FxHashMap::default(),
+            first_use,
+            gas_mode,
+            executions,
+            backedges,
+            floating,
+            floating_below: index_vec![0; func.blocks.len()],
+            forward_preds,
+            pending: FxHashMap::default(),
+            plain_trial: None,
+            peak: 0,
+            calls: Vec::new(),
+            cost: Cost::ZERO,
+        })
+    }
+
+    pub(super) fn plan(mut self) -> Result<Planned, Fail> {
+        let cfg = self.cfg;
+        for &block in cfg.rpo() {
+            self.resolve_join(block)?;
+            let layout = match self.layouts[block].clone() {
+                Some(layout) => layout,
+                None if block == BlockId::ENTRY => self.entry_layout(),
+                None => return Err(Fail::Unsupported("block without a planned predecessor")),
+            };
+            let mut sim = Sim::new(layout);
+            if block == BlockId::ENTRY {
+                self.spill_entry_arguments(&mut sim)?;
+            }
+            self.pop_top_junk(&mut sim)?;
+            for value in self.arg_defs.get(&block).into_iter().flatten().copied() {
+                // push 4 + 32 * index; calldataload
+                sim.cost += self.materialize_cost(value);
+                sim.steps.push(Step::Materialize(value));
+                sim.stack.push(Slot::Value(value));
+                sim.observe(1);
+            }
+            self.plan_body(&mut sim, block)?;
+            let exit = self.plan_terminator(&mut sim, block)?;
+            self.peak = self.peak.max(sim.peak + self.floating_below[block]);
+            self.cost += self.weigh(sim.cost, block);
+            self.blocks[block] = Some(BlockPlan { steps: sim.steps, exit });
+        }
+        let plan = FunctionPlan {
+            blocks: self.blocks,
+            spilled: self.spilled.clone(),
+            peak: self.peak,
+            calls: self.calls,
+            cost: self.cost,
+        };
+        Ok(Planned { plan, natural: self.natural, first_use: self.first_use })
+    }
+
+    /// Plans a block's instructions in their MIR order.
+    fn plan_body(&mut self, sim: &mut Sim, block: BlockId) -> Result<(), Fail> {
+        let func = self.func;
+        let early = self.early_branch_phis(block);
+        let tail_call = self.tail_calls.get(&block).copied();
+        let mut uses = self.block_uses(block);
+        let planned: Vec<InstId> = func.blocks[block]
+            .instructions
+            .iter()
+            .copied()
+            .filter(|&inst| {
+                !self.skipped.contains(&inst)
+                    && !matches!(func.inst(inst).kind, InstKind::Phi(_))
+                    && Some(inst) != tail_call
+            })
+            .collect();
+        let windows = self.preplacement_windows(&planned);
+        for (position, &inst) in planned.iter().enumerate() {
+            if let Some((early_inst, then_block, else_block)) = early
+                && early_inst == inst
+            {
+                self.branch_phi_prep(sim, block, then_block, else_block)?;
+            }
+            for (consumer, pre) in windows.get(&position).into_iter().flatten() {
+                // Copy a consumer's deeper operands before the expression computing its top
+                // operand starts, when planning that expression and the consumer gets cheaper.
+                let window = &planned[position..=*consumer];
+                let plain = self.trial(sim, block, window, &uses, &[], None);
+                let placed = self.trial(sim, block, window, &uses, pre, None);
+                if let Some(placed) = placed
+                    && plain.is_none_or(|plain| self.target.cmp(placed, plain).is_lt())
+                {
+                    for &value in pre {
+                        self.copy(sim, value)?;
+                    }
+                }
+            }
+            self.plan_inst_inner(sim, block, inst, &uses)?;
+            uses.consume(&func.inst(inst).kind.operands());
+            if let Some(result) = func.inst_result_value(inst)
+                && sim.stack.last() == Some(&Slot::Value(result))
+            {
+                self.place_result(sim, block, &planned, position + 1, &uses)?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Swaps a result just left on top into the slot of a deeper word whose last read in the
+    /// block comes within a few instructions, when planning up to that read gets cheaper with
+    /// the dying word on top.
+    fn place_result(
+        &mut self,
+        sim: &mut Sim,
+        block: BlockId,
+        planned: &[InstId],
+        next: usize,
+        uses: &Uses,
+    ) -> Result<(), Fail> {
+        let func = self.func;
+        let live_out = self.liveness.live_out(block);
+        let rest = &planned[next..planned.len().min(next + MAX_PLACEMENT_WINDOW)];
+        // Calls record their frames while planned; trials stop before them.
+        let calls = rest.iter().position(|&inst| icall(&func.inst(inst).kind).is_some());
+        let rest = &rest[..calls.unwrap_or(rest.len())];
+        let mut candidates: SmallVec<[(usize, usize); MAX_PLACEMENT_CANDIDATES]> = SmallVec::new();
+        for depth in 1..sim.stack.len().min(self.reach + 1) {
+            if candidates.len() == MAX_PLACEMENT_CANDIDATES {
+                break;
+            }
+            let Slot::Value(value) = sim.stack[sim.stack.len() - 1 - depth] else { continue };
+            let mut remaining = uses.count(value);
+            if remaining == 0 || live_out.contains(value) || self.is_fresh(value) {
+                continue;
+            }
+            if let Some(end) = rest.iter().position(|&inst| {
+                let operands = func.inst(inst).kind.operands();
+                remaining -= operands.iter().filter(|&&operand| operand == value).count() as u32;
+                remaining == 0
+            }) {
+                candidates.push((depth, end));
+            }
+        }
+        let Some(&(_, last)) = candidates.iter().max_by_key(|&&(_, end)| end) else {
+            return Ok(());
+        };
+        let plain = self.plain_prefix(sim, block, planned, next, last + 1, uses);
+        // Outside loops a single saved swap rarely outweighs the shared block tails that a
+        // uniform layout lets EVM IR merge.
+        let margin =
+            if self.weight(block) > 1 { Cost::ZERO } else { self.target.opcode(op::SWAP1) };
+        let mut best: Option<(Cost, usize)> = None;
+        for (depth, end) in candidates {
+            // Without a swap in the plain plan, an early one cannot pay for itself.
+            let Some(&(plain, true)) = plain.get(end) else { continue };
+            let mut swapped = sim.fork();
+            if self.stack_op(&mut swapped, StackOp::Swap(depth as u8)).is_err() {
+                continue;
+            }
+            if let Some(cost) = self.trial(&swapped, block, &rest[..=end], uses, &[], Some(plain))
+                && self.target.cmp(cost.plus(margin), plain).is_lt()
+                && best.is_none_or(|(best, _)| self.target.cmp(cost, best).is_lt())
+            {
+                best = Some((cost, depth));
+            }
+        }
+        if let Some((_, depth)) = best {
+            self.stack_op(sim, StackOp::Swap(depth as u8))?;
+        }
+        Ok(())
+    }
+
+    /// The cost of eventually removing one dead word from below the top.
+    fn dead_word_removal(&self) -> Cost {
+        StackCosts::POP.plus(self.target.opcode(op::SWAP1))
+    }
+
+    /// Prices planning `window` after copying `pre`, or `None` when it cannot be planned or
+    /// its cost reaches `bound`.
+    fn trial(
+        &mut self,
+        sim: &Sim,
+        block: BlockId,
+        window: &[InstId],
+        uses: &Uses,
+        pre: &[ValueId],
+        bound: Option<Cost>,
+    ) -> Option<Cost> {
+        let mut sim = sim.fork();
+        let mut uses = uses.clone();
+        for &value in pre {
+            self.copy(&mut sim, value).ok()?;
+        }
+        for &inst in window {
+            self.plan_inst_inner(&mut sim, block, inst, &uses).ok()?;
+            if bound.is_some_and(|bound| !self.target.cmp(sim.cost, bound).is_lt()) {
+                return None;
+            }
+            uses.consume(&self.func.inst(inst).kind.operands());
+        }
+        // Dead words left behind are removed eventually.
+        let leftovers = pre
+            .iter()
+            .filter(|&&value| sim.stack.contains(&Slot::Value(value)) && self.is_fresh(value))
+            .count() as u32;
+        Some(sim.cost.plus(self.dead_word_removal().times(sim.junk() + leftovers)))
+    }
+
+    /// Prices planning each prefix of the `len` instructions from position `next`, as `trial`
+    /// does, and whether the plan swapped so far. Stops at the first instruction that cannot be
+    /// planned. The plan continues the previous one when the planner reached the state that
+    /// plan predicted.
+    fn plain_prefix(
+        &mut self,
+        sim: &Sim,
+        block: BlockId,
+        planned: &[InstId],
+        next: usize,
+        len: usize,
+        uses: &Uses,
+    ) -> SmallVec<[(Cost, bool); MAX_PLACEMENT_WINDOW]> {
+        let mut trial = match self.plain_trial.take() {
+            Some(mut trial)
+                if trial.block == block
+                    && next > trial.start
+                    && next - trial.start <= trial.after.len()
+                    && trial.after[next - 1 - trial.start].stack == sim.stack
+                    && trial.after[next - 1 - trial.start].cost == sim.cost =>
+            {
+                trial.after.drain(..next - trial.start);
+                trial.start = next;
+                trial
+            }
+            _ => PlainTrial {
+                block,
+                start: next,
+                after: Vec::new(),
+                sim: sim.fork(),
+                uses: uses.clone(),
+                stopped: false,
+            },
+        };
+        while trial.after.len() < len && !trial.stopped {
+            let inst = planned[trial.start + trial.after.len()];
+            trial.sim.steps.clear();
+            if self.plan_inst_inner(&mut trial.sim, block, inst, &trial.uses).is_err() {
+                trial.stopped = true;
+                break;
+            }
+            trial.uses.consume(&self.func.inst(inst).kind.operands());
+            trial.after.push(PlainStep {
+                stack: trial.sim.stack.clone(),
+                cost: trial.sim.cost,
+                price: trial.sim.cost.plus(self.dead_word_removal().times(trial.sim.junk())),
+                swapped: trial
+                    .sim
+                    .steps
+                    .iter()
+                    .any(|step| matches!(step, Step::Stack(StackOp::Swap(_)))),
+            });
+        }
+        let mut swapped = false;
+        let prices = trial.after[..len.min(trial.after.len())]
+            .iter()
+            .map(|step| {
+                swapped |= step.swapped;
+                (step.price, swapped)
+            })
+            .collect();
+        self.plain_trial = Some(trial);
+        prices
+    }
+
+    /// Finds, for instructions whose topmost computed operand comes from a chain of single-use
+    /// instructions in this block, the start of that chain and the deeper operands that are
+    /// pushed or copied anyway. Keyed by the chain's first position.
+    fn preplacement_windows(&self, planned: &[InstId]) -> FxHashMap<usize, Vec<(usize, Operands)>> {
+        let func = self.func;
+        let mut def_position = FxHashMap::default();
+        for (position, &inst) in planned.iter().enumerate() {
+            if let Some(result) = func.inst_result_value(inst) {
+                def_position.insert(result, position);
+            }
+        }
+        let mut windows: FxHashMap<usize, Vec<(usize, Operands)>> = FxHashMap::default();
+        for (consumer, &inst) in planned.iter().enumerate() {
+            let kind = &func.inst(inst).kind;
+            if matches!(
+                kind,
+                InstKind::Select(..)
+                    | InstKind::Eq(..)
+                    | InstKind::Ne(..)
+                    | InstKind::Zext(_)
+                    | InstKind::PtrToInt(..)
+                    | InstKind::IntToPtr(_)
+            ) {
+                continue;
+            }
+            let push_order: Operands = kind.operands().iter().rev().copied().collect();
+            let Some(top) = push_order.iter().rposition(|&value| !self.is_fresh(value)) else {
+                continue;
+            };
+            let value = push_order[top];
+            let pre: Operands = push_order[..top].iter().copied().collect();
+            if pre.is_empty() || self.use_counts[value] != 1 {
+                continue;
+            }
+            let Some(&def) = def_position.get(&value) else { continue };
+            // The chain: single-use producers feeding the value within this block.
+            let mut start = def;
+            let mut work = vec![def];
+            while let Some(position) = work.pop() {
+                start = start.min(position);
+                for operand in func.inst(planned[position]).kind.operands() {
+                    if self.use_counts[operand] == 1
+                        && let Some(&producer) = def_position.get(&operand)
+                        && producer < position
+                    {
+                        work.push(producer);
+                    }
+                }
+            }
+            // Copied values must exist before the chain starts.
+            let available = |value: &ValueId| {
+                self.is_fresh(*value)
+                    || def_position.get(value).is_none_or(|&position| position < start)
+            };
+            if consumer - start <= MAX_PREPLACEMENT_WINDOW && pre.iter().all(available) {
+                windows.entry(start).or_default().push((consumer, pre));
+            }
+        }
+        windows
+    }
+
+    /// How often `block` runs relative to others, for gas-mode decisions that favor hot paths.
+    fn weight(&self, block: BlockId) -> u32 {
+        if self.gas_mode { self.executions[block] } else { 1 }
+    }
+
+    /// Scales the gas of code in `block` by how often the block runs; its bytes count once.
+    fn weigh(&self, cost: Cost, block: BlockId) -> Cost {
+        Cost::new(cost.gas.saturating_mul(self.executions[block]), cost.bytes)
+    }
+
+    fn entry_layout(&self) -> Layout {
+        let mut layout: Layout =
+            self.args.iter().rev().map(|value| value.map_or(Slot::Junk, Slot::Value)).collect();
+        if self.has_ret {
+            layout.push(Slot::Ret);
+        }
+        layout
+    }
+
+    fn spill_entry_arguments(&self, sim: &mut Sim) -> Result<(), Fail> {
+        for value in self.args.iter().flatten().copied() {
+            if self.spilled.contains(value) {
+                self.spill_in_place(sim, value)?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Stores a spilled value from wherever it sits, leaving the rest of the stack in order.
+    fn spill_in_place(&self, sim: &mut Sim, value: ValueId) -> Result<(), Fail> {
+        let Some(depth) = sim.depth_of(Slot::Value(value)) else { return Ok(()) };
+        if depth != 0 {
+            self.stack_op(sim, StackOp::Swap(depth as u8))?;
+        }
+        self.spill_top(sim, value);
+        Ok(())
+    }
+
+    // ----------------------------------------------------------------------------------------
+    // Primitive operations
+    // ----------------------------------------------------------------------------------------
+
+    fn stack_op(&self, sim: &mut Sim, op: StackOp) -> Result<(), Fail> {
+        let height = sim.stack.len();
+        match op {
+            StackOp::Dup(n) => {
+                let n = n as usize;
+                if n == 0 || n > self.reach || n > height {
+                    return Err(self.deep(sim, height.checked_sub(n)));
+                }
+                let slot = sim.stack[height - n];
+                sim.stack.push(slot);
+            }
+            StackOp::Swap(n) => {
+                let n = n as usize;
+                if n == 0 || n > self.reach || n >= height {
+                    return Err(self.deep(sim, height.checked_sub(n + 1)));
+                }
+                sim.stack.swap(height - 1, height - 1 - n);
+            }
+            StackOp::Pop => {
+                sim.stack.pop().expect("pop from an empty modeled stack");
+            }
+            StackOp::Exchange(..) => unreachable!("planner does not emit exchanges"),
+        }
+        sim.cost += ScheduleCost::stack_op(op, self.target.evm_version()).target_cost();
+        sim.steps.push(Step::Stack(op));
+        sim.observe(0);
+        Ok(())
+    }
+
+    /// Returns a failure for a word beyond reach, naming a value to spill.
+    fn deep(&self, sim: &Sim, position: Option<usize>) -> Fail {
+        let spillable = |slot: Slot| match slot {
+            Slot::Value(value) => self.can_spill(value).then_some(value),
+            _ => None,
+        };
+        if let Some(position) = position {
+            if let Some(value) = spillable(sim.stack[position]) {
+                return Fail::Deep(Some(value));
+            }
+            // Spilling a word above the unreachable one brings it closer to the top.
+            if let Some(value) = sim.stack[position + 1..].iter().copied().find_map(spillable) {
+                return Fail::Deep(Some(value));
+            }
+        }
+        Fail::Deep(sim.stack.iter().copied().find_map(spillable))
+    }
+
+    fn can_spill(&self, value: ValueId) -> bool {
+        !self.remat.contains(value)
+            && !self.spilled.contains(value)
+            && !self.pinned.contains(value)
+            && matches!(self.func.value(value), Value::Inst(_) | Value::Arg(_))
+    }
+
+    /// Pushes a fresh copy of a value that is not kept on the stack.
+    fn fresh(&self, sim: &mut Sim, value: ValueId) {
+        if self.spilled.contains(value) && !self.remat.contains(value) {
+            sim.cost += StackCosts::DIRECT_LOAD;
+            sim.steps.push(Step::Reload(value));
+        } else {
+            sim.cost += self.materialize_cost(value);
+            sim.steps.push(Step::Materialize(value));
+        }
+        sim.stack.push(Slot::Value(value));
+        sim.observe(1);
+    }
+
+    fn is_fresh(&self, value: ValueId) -> bool {
+        self.remat.contains(value) || self.spilled.contains(value)
+    }
+
+    fn materialize_cost(&self, value: ValueId) -> Cost {
+        if self.remat.contains(value) {
+            self.remat_costs[value]
+        } else {
+            materialize_cost(self.func, self.target, value)
+        }
+    }
+
+    fn spill_top(&self, sim: &mut Sim, value: ValueId) {
+        debug_assert_eq!(sim.stack.last(), Some(&Slot::Value(value)));
+        sim.stack.pop();
+        sim.cost += StackCosts::DIRECT_STORE;
+        sim.steps.push(Step::Spill(value));
+        sim.observe(1);
+    }
+
+    /// Pushes a copy of `value`: a fresh materialization or a `DUP` of its shallowest copy.
+    fn copy(&self, sim: &mut Sim, value: ValueId) -> Result<(), Fail> {
+        if self.is_fresh(value) {
+            self.fresh(sim, value);
+            return Ok(());
+        }
+        let Some(depth) = sim.depth_of(Slot::Value(value)) else {
+            return Err(Fail::Unsupported("value missing from the modeled stack"));
+        };
+        if depth + 1 > self.reach {
+            return Err(self.deep(sim, Some(sim.stack.len() - 1 - depth)));
+        }
+        self.stack_op(sim, StackOp::Dup(depth as u8 + 1))
+    }
+
+    fn filler(&self, sim: &mut Sim) {
+        sim.cost += self.target.push(U256::ZERO);
+        sim.steps.push(Step::Filler);
+        sim.stack.push(Slot::Junk);
+        sim.observe(0);
+    }
+
+    fn pop_top_junk(&self, sim: &mut Sim) -> Result<(), Fail> {
+        while sim.stack.last() == Some(&Slot::Junk) {
+            self.stack_op(sim, StackOp::Pop)?;
+        }
+        Ok(())
+    }
+
+    /// Marks every remaining copy of a dead value as junk.
+    fn kill(sim: &mut Sim, value: ValueId) {
+        for slot in &mut sim.stack {
+            if *slot == Slot::Value(value) {
+                *slot = Slot::Junk;
+            }
+        }
+    }
+
+    // ----------------------------------------------------------------------------------------
+    // Operand preparation and shuffling
+    // ----------------------------------------------------------------------------------------
+
+    /// Prepares an external call's operands. A rematerialized gas operand is read last, so
+    /// nothing separates `GAS` from the call.
+    fn prepare_call(
+        &self,
+        sim: &mut Sim,
+        ops: &[ValueId],
+        dying: &dyn Fn(ValueId) -> bool,
+    ) -> Result<(), Fail> {
+        let (&gas, rest) = ops.split_last().expect("call has a gas operand");
+        if !self.remat.contains(gas) {
+            return self.prepare(sim, ops, dying);
+        }
+        self.prepare(sim, rest, dying)?;
+        self.fresh(sim, gas);
+        Ok(())
+    }
+
+    /// Arranges `ops`, in push order, on top of the stack, trying both preparation strategies
+    /// and keeping the cheaper.
+    fn prepare(
+        &self,
+        sim: &mut Sim,
+        ops: &[ValueId],
+        dying: &dyn Fn(ValueId) -> bool,
+    ) -> Result<(), Fail> {
+        self.prepare_any(sim, &[ops], dying).map(drop)
+    }
+
+    /// Arranges one of the operand orders `orders` on top of the stack, choosing the cheapest
+    /// order and strategy. Copies of dying values left below the operands are priced as the
+    /// `SWAP` and `POP` that eventually remove them. Returns the chosen order's index.
+    fn prepare_any(
+        &self,
+        sim: &mut Sim,
+        orders: &[&[ValueId]],
+        dying: &dyn Fn(ValueId) -> bool,
+    ) -> Result<usize, Fail> {
+        if orders[0].is_empty() {
+            return Ok(0);
+        }
+        // Every order holds the same operands.
+        let dying_ops: SmallVec<[ValueId; 8]> =
+            orders[0].iter().copied().filter(|&value| dying(value)).collect();
+        let dying = &|value: ValueId| dying_ops.contains(&value);
+        let mut best: Option<(Cost, usize)> = None;
+        let mut best_sim = Sim::new(Layout::new());
+        let mut candidate = sim.fork();
+        let mut failure = None;
+        'orders: for (index, ops) in orders.iter().enumerate() {
+            for build in [false, true] {
+                candidate.refork(sim);
+                let result = if build {
+                    self.prepare_build(&mut candidate, ops, dying)
+                } else {
+                    self.prepare_reorder(&mut candidate, ops, dying)
+                };
+                if let Err(fail) = result {
+                    failure.get_or_insert(fail);
+                    continue;
+                }
+                let below = &candidate.stack[..candidate.stack.len() - ops.len()];
+                let leftovers = below
+                    .iter()
+                    .filter(|slot| matches!(slot, Slot::Value(value) if dying_ops.contains(value)))
+                    .count() as u32;
+                let price = candidate.cost.plus(
+                    StackCosts::POP.plus(self.target.opcode(op::SWAP1).times(2)).times(leftovers),
+                );
+                if best.is_none_or(|(best, _)| self.target.cmp(price, best).is_lt()) {
+                    best = Some((price, index));
+                    std::mem::swap(&mut best_sim, &mut candidate);
+                    // Nothing beats preparing at no cost.
+                    if price == sim.cost {
+                        break 'orders;
+                    }
+                }
+            }
+        }
+        match best {
+            Some((_, index)) => {
+                sim.join(best_sim);
+                Ok(index)
+            }
+            None => Err(failure.expect("a failed candidate")),
+        }
+    }
+
+    /// Builds the operands bottom up: values already in place at the top of the stack are
+    /// kept, the deepest operand may be swapped up when it dies here, and every other operand
+    /// is copied on top.
+    fn prepare_build(
+        &self,
+        sim: &mut Sim,
+        ops: &[ValueId],
+        dying: &dyn Fn(ValueId) -> bool,
+    ) -> Result<(), Fail> {
+        let k = ops.len();
+        // Longest run of operands already in push order at the top of the stack whose words can
+        // be consumed: last uses, materializable values, and surplus copies.
+        let mut placed = 0;
+        for t in (1..=k.min(sim.stack.len())).rev() {
+            let top = &sim.stack[sim.stack.len() - t..];
+            let distinct = (0..t).all(|i| !ops[..i].contains(&ops[i]));
+            if distinct
+                && (0..t).all(|i| {
+                    let slot = Slot::Value(ops[i]);
+                    top[i] == slot
+                        && (self.is_fresh(ops[i])
+                            || dying(ops[i])
+                            || sim.stack.iter().filter(|&&s| s == slot).count() > 1)
+                })
+            {
+                placed = t;
+                break;
+            }
+        }
+        if placed == 0
+            && !self.is_fresh(ops[0])
+            && dying(ops[0])
+            && let Some(depth) = sim.depth_of(Slot::Value(ops[0]))
+            && depth > 0
+            && depth <= self.reach
+        {
+            self.stack_op(sim, StackOp::Swap(depth as u8))?;
+            placed = 1;
+        }
+        for &value in &ops[placed..] {
+            self.copy(sim, value)?;
+        }
+        Ok(())
+    }
+
+    /// Consumes each value whose last use this is in place, copies every other operand, and
+    /// then moves each operand to its position with at most two swaps.
+    fn prepare_reorder(
+        &self,
+        sim: &mut Sim,
+        ops: &[ValueId],
+        dying: &dyn Fn(ValueId) -> bool,
+    ) -> Result<(), Fail> {
+        let k = ops.len();
+        let mut tags: SmallVec<[Option<u8>; 32]> = smallvec![None; sim.stack.len()];
+        let mut consumed: SmallVec<[ValueId; 8]> = SmallVec::new();
+        for (i, &value) in ops.iter().enumerate() {
+            if self.is_fresh(value) || consumed.contains(&value) || !dying(value) {
+                continue;
+            }
+            if let Some(position) = (0..sim.stack.len())
+                .rev()
+                .find(|&p| sim.stack[p] == Slot::Value(value) && tags[p].is_none())
+            {
+                tags[position] = Some(i as u8);
+                consumed.push(value);
+            }
+        }
+        for (i, &value) in ops.iter().enumerate() {
+            if tags.contains(&Some(i as u8)) {
+                continue;
+            }
+            self.copy(sim, value)?;
+            tags.push(Some(i as u8));
+        }
+        for i in 0..k {
+            let want = k - 1 - i;
+            let position = tags.iter().position(|&tag| tag == Some(i as u8)).expect("tagged");
+            let depth = sim.stack.len() - 1 - position;
+            if depth == want {
+                continue;
+            }
+            if depth != 0 {
+                self.tagged_swap(sim, &mut tags, depth)?;
+            }
+            if want != 0 {
+                self.tagged_swap(sim, &mut tags, want)?;
+            }
+        }
+        Ok(())
+    }
+
+    fn tagged_swap(
+        &self,
+        sim: &mut Sim,
+        tags: &mut SmallVec<[Option<u8>; 32]>,
+        depth: usize,
+    ) -> Result<(), Fail> {
+        if depth > u8::MAX as usize {
+            return Err(self.deep(sim, sim.stack.len().checked_sub(depth + 1)));
+        }
+        self.stack_op(sim, StackOp::Swap(depth as u8))?;
+        let top = tags.len() - 1;
+        tags.swap(top, top - depth);
+        Ok(())
+    }
+
+    /// Rearranges the whole stack into `target`, bottom to top.
+    fn shuffle(&self, sim: &mut Sim, target: &[Want]) -> Result<(), Fail> {
+        let fresh = |value| self.is_fresh(value);
+        let moves = shuffle::shuffle(&sim.stack, target, self.reach, &fresh)
+            .map_err(|shuffle::Unreachable(position)| self.deep(sim, position))?;
+        for mv in moves {
+            match mv {
+                Move::Swap(depth) => self.stack_op(sim, StackOp::Swap(depth as u8))?,
+                Move::Dup(depth) => self.stack_op(sim, StackOp::Dup(depth as u8 + 1))?,
+                Move::Fresh(value) => self.fresh(sim, value),
+                Move::Filler => self.filler(sim),
+                Move::Pop => self.stack_op(sim, StackOp::Pop)?,
+            }
+        }
+        debug_assert!(
+            sim.stack.len() == target.len()
+                && target.iter().zip(&sim.stack).all(|(want, &slot)| want.accepts(slot)),
+            "shuffle missed its target"
+        );
+        Ok(())
+    }
+
+    // ----------------------------------------------------------------------------------------
+    // Instructions
+    // ----------------------------------------------------------------------------------------
+
+    /// Whether `value` has no use after the instruction reading `operands`.
+    fn dies(&self, block: BlockId, uses: &Uses, operands: &[ValueId], value: ValueId) -> bool {
+        let reads = operands.iter().filter(|&&operand| operand == value).count() as u32;
+        !self.liveness.live_out(block).contains(value) && uses.count(value) <= reads
+    }
+
+    /// Whether `value` is read after the current instruction, whose reads `uses` still counts.
+    fn used_later(&self, block: BlockId, uses: &Uses, value: ValueId) -> bool {
+        self.liveness.live_out(block).contains(value) || uses.count(value) > 0
+    }
+
+    /// Counts the reads of each value by the block's planned instructions and terminator.
+    fn block_uses(&self, block: BlockId) -> Uses {
+        let func = self.func;
+        let mut uses = Uses::default();
+        let mut add = |value: ValueId| *uses.remaining.entry(value).or_default() += 1;
+        let tail_call = self.tail_calls.get(&block).copied();
+        for &inst in &func.blocks[block].instructions {
+            let kind = &func.inst(inst).kind;
+            if self.skipped.contains(&inst)
+                || matches!(kind, InstKind::Phi(_))
+                || Some(inst) == tail_call
+            {
+                continue;
+            }
+            kind.visit_operands(&mut add);
+        }
+        match &func.blocks[block].terminator {
+            Some(Terminator::Branch { condition, .. }) => {
+                add(self.conditions.get(&block).map_or(*condition, |&(condition, _)| condition));
+            }
+            Some(Terminator::Return { .. }) if let Some(call) = tail_call => {
+                icall(&func.inst(call).kind).unwrap().1.iter().copied().for_each(add);
+            }
+            Some(term) => term.visit_operands(add),
+            None => {}
+        }
+        uses
+    }
+
+    fn plan_inst_inner(
+        &mut self,
+        sim: &mut Sim,
+        block: BlockId,
+        inst: InstId,
+        uses: &Uses,
+    ) -> Result<(), Fail> {
+        let func = self.func;
+        let kind = &func.inst(inst).kind;
+        sim.steps.push(Step::Begin(inst));
+        let result = func.inst_result_value(inst);
+        let operands = kind.operands();
+        let dying = |value: ValueId| self.dies(block, uses, &operands, value);
+        let push_order: Operands = operands.iter().rev().copied().collect();
+        let pushes = |result: Option<ValueId>| result.map_or(0, |_| 1);
+
+        if let Some((callee, args)) = icall(kind) {
+            // Arguments go in reverse, so the first argument sits just below the return address.
+            let ops: Operands = args.iter().rev().copied().collect();
+            self.prepare(sim, &ops, &dying)?;
+            let base = sim.height() - args.len();
+            self.calls.push((callee, base));
+            sim.observe(2);
+            sim.steps.push(Step::Call(callee));
+            sim.cost += StackCosts::INTERNAL_CALL;
+            sim.stack.truncate(base);
+            let arity = self.info.returns[callee];
+            let extras = self.projections.get(&inst);
+            for index in (0..arity).rev() {
+                let value = if index == 0 {
+                    result
+                } else {
+                    extras.and_then(|extras| extras.get(index - 1).copied().flatten())
+                };
+                let live = value.filter(|&value| self.used_later(block, uses, value));
+                sim.stack.push(live.map_or(Slot::Junk, Slot::Value));
+            }
+            sim.observe(0);
+            if self.publish.contains(&inst) {
+                // [result(m-1), ..., result1, result0] -> [result0], storing result1.. to the
+                // callee's return area
+                sim.steps.push(Step::Publish { callee, arity, params: self.info.params[callee] });
+                let top = sim.stack.pop().unwrap();
+                sim.stack.truncate(sim.stack.len() + 1 - arity);
+                sim.stack.push(top);
+                sim.observe(2);
+                sim.cost += self
+                    .target
+                    .opcode(op::SWAP1)
+                    .plus(StackCosts::DIRECT_STORE)
+                    .times(arity as u32 - 1)
+                    .plus(StackCosts::DIRECT_STORE)
+                    .plus(self.target.opcode(op::PUSH2));
+            }
+            for &value in extras.into_iter().flatten().flatten().chain(result.iter()) {
+                if self.spilled.contains(value) {
+                    self.spill_in_place(sim, value)?;
+                }
+            }
+            self.finish_inst(sim, &operands, block, uses, None)?;
+            return Ok(());
+        }
+
+        match kind {
+            InstKind::Zext(value) | InstKind::PtrToInt(value, _) | InstKind::IntToPtr(value) => {
+                // cast value -> the operand word under the result identity
+                let result = result.expect("cast has a result");
+                if !self.is_fresh(*value)
+                    && !self.spilled.contains(result)
+                    && dying(*value)
+                    && let Some(depth) = sim.depth_of(Slot::Value(*value))
+                {
+                    // The dying operand's word becomes the result where it is.
+                    let position = sim.stack.len() - 1 - depth;
+                    sim.stack[position] = Slot::Value(result);
+                } else {
+                    self.prepare(sim, &[*value], &dying)?;
+                    *sim.stack.last_mut().unwrap() = Slot::Value(result);
+                }
+            }
+            InstKind::Eq(..) | InstKind::Ne(..) => {
+                let ne = matches!(kind, InstKind::Ne(..));
+                if let Some(value) =
+                    Target::zero_test_input(&kind.op(), |value| func.value_u256(value))
+                {
+                    // eq x, 0 -> iszero x; ne x, 0 -> iszero (iszero x)
+                    self.prepare(sim, &[value], &dying)?;
+                    self.op(sim, op::ISZERO, 1, 1);
+                } else {
+                    // ne a, b -> iszero (eq a, b)
+                    let mirrored: Operands = operands.iter().copied().collect();
+                    self.prepare_any(sim, &[&push_order, &mirrored], &dying)?;
+                    self.op(sim, op::EQ, 2, 1);
+                }
+                if ne {
+                    self.op(sim, op::ISZERO, 1, 1);
+                }
+                self.set_top_result(sim, result);
+            }
+            InstKind::Select(cond, true_value, false_value) => {
+                // [f, c, t] -> [f, c, f, t] -> [f, c, t-f] -> [f, c*(t-f)] -> [f + c*(t-f)]
+                self.prepare(sim, &[*false_value, *cond, *true_value], &dying)?;
+                sim.observe(1);
+                sim.steps.push(Step::Inst(inst));
+                sim.cost += self.target.opcode(op::DUP3).plus(self.target.opcode(op::SWAP1));
+                sim.stack.truncate(sim.stack.len() - 3);
+                sim.stack.push(result.map_or(Slot::Junk, Slot::Value));
+            }
+            InstKind::DataCopy(_, dest, size) => {
+                // [size, dest] -> push_data data; swap1; codecopy
+                self.prepare(sim, &[*size, *dest], &dying)?;
+                sim.observe(1);
+                sim.steps.push(Step::Inst(inst));
+                sim.cost += self.target.opcode(op::SWAP1);
+                sim.stack.truncate(sim.stack.len() - 2);
+            }
+            InstKind::Call { gas, addr, value, args_offset, args_size, ret_offset, ret_size }
+            | InstKind::CallCode {
+                gas,
+                addr,
+                value,
+                args_offset,
+                args_size,
+                ret_offset,
+                ret_size,
+            } => {
+                let opcode =
+                    if matches!(kind, InstKind::Call { .. }) { op::CALL } else { op::CALLCODE };
+                let ops = [*ret_size, *ret_offset, *args_size, *args_offset, *value, *addr, *gas];
+                self.prepare_call(sim, &ops, &dying)?;
+                self.op(sim, opcode, 7, pushes(result));
+                self.set_top_result(sim, result);
+            }
+            InstKind::StaticCall { gas, addr, args_offset, args_size, ret_offset, ret_size }
+            | InstKind::DelegateCall { gas, addr, args_offset, args_size, ret_offset, ret_size } => {
+                let opcode = if matches!(kind, InstKind::StaticCall { .. }) {
+                    op::STATICCALL
+                } else {
+                    op::DELEGATECALL
+                };
+                let ops = [*ret_size, *ret_offset, *args_size, *args_offset, *addr, *gas];
+                self.prepare_call(sim, &ops, &dying)?;
+                self.op(sim, opcode, 6, pushes(result));
+                self.set_top_result(sim, result);
+            }
+            InstKind::Alloc { .. }
+            | InstKind::LibraryAddress(_)
+            | InstKind::InternalFrameAddr(_) => {
+                sim.steps.push(Step::Inst(inst));
+                sim.cost += self.target.opcode(op::PUSH2);
+                sim.stack.push(result.map_or(Slot::Junk, Slot::Value));
+                sim.observe(0);
+            }
+            InstKind::LoadImmutable(_) => {
+                sim.steps.push(Step::Inst(inst));
+                sim.cost += self.target.opcode(op::PUSH32);
+                sim.stack.push(result.map_or(Slot::Junk, Slot::Value));
+                sim.observe(1);
+            }
+            _ => {
+                let Some(lowering) = opcode_lowering(&kind.op()) else {
+                    return Err(Fail::Unsupported("instruction without a stack lowering"));
+                };
+                let opcode = lowering.opcode();
+                match lowering {
+                    OpcodeLowering::Binary { opcode }
+                        if let Some(mirror) = op::swapped_binary_opcode(opcode) =>
+                    {
+                        let mirrored_ops: Operands = operands.iter().copied().collect();
+                        let flipped =
+                            self.prepare_any(sim, &[&push_order, &mirrored_ops], &dying)? == 1;
+                        self.op(sim, if flipped { mirror } else { opcode }, 2, pushes(result));
+                    }
+                    _ => {
+                        self.prepare(sim, &push_order, &dying)?;
+                        self.op(sim, opcode, operands.len(), pushes(result));
+                    }
+                }
+                self.set_top_result(sim, result);
+            }
+        }
+        self.finish_inst(sim, &operands, block, uses, result)
+    }
+
+    /// Records an opcode with its stack effect; the result word is anonymous until named.
+    fn op(&self, sim: &mut Sim, opcode: u8, pops: usize, pushes: usize) {
+        sim.steps.push(Step::Op(opcode));
+        sim.stack.truncate(sim.stack.len() - pops);
+        for _ in 0..pushes {
+            sim.stack.push(Slot::Junk);
+        }
+        sim.observe(0);
+    }
+
+    fn set_top_result(&self, sim: &mut Sim, result: Option<ValueId>) {
+        if let Some(result) = result {
+            *sim.stack.last_mut().expect("instruction result") = Slot::Value(result);
+        }
+    }
+
+    fn finish_inst(
+        &self,
+        sim: &mut Sim,
+        operands: &[ValueId],
+        block: BlockId,
+        uses: &Uses,
+        result: Option<ValueId>,
+    ) -> Result<(), Fail> {
+        for &operand in operands {
+            if self.dies(block, uses, operands, operand) {
+                Self::kill(sim, operand);
+            }
+        }
+        if let Some(result) = result {
+            if !self.used_later(block, uses, result) {
+                Self::kill(sim, result);
+            } else if self.spilled.contains(result)
+                && sim.stack.last() == Some(&Slot::Value(result))
+            {
+                self.spill_top(sim, result);
+            }
+        }
+        self.pop_top_junk(sim)
+    }
+
+    // ----------------------------------------------------------------------------------------
+    // Terminators and edges
+    // ----------------------------------------------------------------------------------------
+
+    fn plan_terminator(&mut self, sim: &mut Sim, block: BlockId) -> Result<Exit, Fail> {
+        let func = self.func;
+        let Some(term) = &func.blocks[block].terminator else {
+            return Err(Fail::Unsupported("block without a terminator"));
+        };
+        let live_out = self.liveness.live_out(block);
+        let dying = |value: ValueId| !live_out.contains(value);
+        match term {
+            Terminator::Jump(target) => {
+                if self.defers(*target) {
+                    self.defer(block, *target, sim, None)?;
+                } else {
+                    self.jump_edge(sim, block, *target)?;
+                }
+                Ok(Exit::Jump(*target))
+            }
+            Terminator::Branch { condition, then_block, else_block } => {
+                // jumpi (eq x, 0), a, b -> jumpi x, b, a
+                let (condition, inverted) =
+                    self.conditions.get(&block).copied().unwrap_or((*condition, false));
+                let (then_block, else_block) =
+                    if inverted { (*else_block, *then_block) } else { (*then_block, *else_block) };
+                self.plan_branch(sim, block, condition, then_block, else_block)
+            }
+            Terminator::Switch { value, default, cases } => {
+                self.plan_switch(sim, block, *value, *default, cases)
+            }
+            Terminator::Return { values } => {
+                if !self.has_ret {
+                    return Ok(Exit::Terminal);
+                }
+                if let Some(&call) = self.tail_calls.get(&block) {
+                    // [...] -> [arg(n-1), ..., arg0, return]; jump callee
+                    let (callee, args) = icall(&func.inst(call).kind).unwrap();
+                    self.shuffle(sim, &with_return_address(args))?;
+                    self.calls.push((callee, 0));
+                    sim.observe(1);
+                    return Ok(Exit::TailCall(callee));
+                }
+                // [..., return] -> [result(m-1), ..., result0, return]
+                self.shuffle(sim, &with_return_address(values))?;
+                Ok(Exit::Return)
+            }
+            Terminator::Revert { offset, size } | Terminator::ReturnData { offset, size } => {
+                self.prepare(sim, &[*size, *offset], &dying)?;
+                Ok(Exit::Terminal)
+            }
+            Terminator::SelfDestruct { recipient } => {
+                self.prepare(sim, &[*recipient], &dying)?;
+                Ok(Exit::Terminal)
+            }
+            Terminator::RevertReturndata => {
+                sim.observe(3);
+                Ok(Exit::Terminal)
+            }
+            Terminator::Stop | Terminator::Invalid => Ok(Exit::Terminal),
+            Terminator::TailCall { function, args } => {
+                let callee = *function;
+                let base;
+                if self.info.returning.contains(callee) && self.has_ret {
+                    // [...] -> [arg(n-1), ..., arg0, return]
+                    self.shuffle(sim, &with_return_address(args))?;
+                    base = 0;
+                } else {
+                    let ops: Operands = args.iter().rev().copied().collect();
+                    self.prepare(sim, &ops, &dying)?;
+                    base = sim.height() - args.len();
+                    if self.info.returning.contains(callee) {
+                        // This body has no return address to forward.
+                        self.filler(sim);
+                    }
+                }
+                self.calls.push((callee, base));
+                sim.observe(1);
+                Ok(Exit::TailCall(callee))
+            }
+        }
+    }
+
+    fn phi_inputs(&self, pred: BlockId, succ: BlockId) -> SmallVec<[(ValueId, ValueId); 4]> {
+        let mut inputs = SmallVec::new();
+        for &inst in &self.func.blocks[succ].instructions {
+            let InstKind::Phi(incoming) = &self.func.inst(inst).kind else { continue };
+            let Some(result) = self.func.inst_result_value(inst) else { continue };
+            if let Some(&(_, value)) = incoming.iter().find(|(block, _)| *block == pred) {
+                inputs.push((result, value));
+            }
+        }
+        inputs
+    }
+
+    fn is_join(&self, block: BlockId) -> bool {
+        self.func.blocks[block].predecessors.len() > 1
+    }
+
+    /// The physical words a fixed successor layout requires on the edge from `pred`, for a stack
+    /// of `height` words. A floating layout only constrains the words at the top.
+    fn edge_target(
+        &self,
+        pred: BlockId,
+        succ: BlockId,
+        layout: &Layout,
+        height: usize,
+    ) -> Vec<Want> {
+        let inputs = self.phi_inputs(pred, succ);
+        let below =
+            if self.floating.contains(succ) { height.saturating_sub(layout.len()) } else { 0 };
+        let mut target = vec![Want::Any; below];
+        target.extend(layout.iter().map(|&slot| match slot {
+            Slot::Value(value) => {
+                let input = inputs.iter().find(|(result, _)| *result == value);
+                Want::Value(input.map_or(value, |&(_, input)| input))
+            }
+            Slot::Ret => Want::Ret,
+            Slot::Junk => Want::Any,
+        }));
+        target
+    }
+
+    /// The successor's view of each word of the predecessor's stack, with phi inputs renamed to
+    /// their results where an otherwise dead word holds them. Returns `None` when a phi input
+    /// has no such word.
+    fn view(&self, sim: &Sim, pred: BlockId, succ: BlockId) -> Option<Layout> {
+        let live_in = self.liveness.live_in(succ);
+        let floating = self.floating.contains(succ);
+        let mut view: Layout = sim
+            .stack
+            .iter()
+            .map(|&slot| match slot {
+                Slot::Value(value) if live_in.contains(value) => slot,
+                Slot::Ret if !floating => Slot::Ret,
+                _ => Slot::Junk,
+            })
+            .collect();
+        for (result, input) in self.phi_inputs(pred, succ) {
+            if self.spilled.contains(result) {
+                return None;
+            }
+            let position = (0..view.len())
+                .rev()
+                .find(|&p| sim.stack[p] == Slot::Value(input) && view[p] == Slot::Junk)?;
+            view[position] = Slot::Value(result);
+        }
+        Some(view)
+    }
+
+    /// Number of bottom words a floating successor does not model.
+    fn floating_cut(&self, succ: BlockId, view: &Layout) -> usize {
+        if self.floating.contains(succ) {
+            view.iter().take_while(|&&slot| slot == Slot::Junk).count()
+        } else {
+            0
+        }
+    }
+
+    /// Plans an unshared edge: adopts the stack as the successor's layout, or shuffles to it.
+    /// Stores the inputs of the successor's spilled phi results on the edge.
+    fn store_spilled_phis(&self, sim: &mut Sim, pred: BlockId, succ: BlockId) -> Result<(), Fail> {
+        for (result, input) in self.phi_inputs(pred, succ) {
+            if self.spilled.contains(result) {
+                self.copy(sim, input)?;
+                sim.stack.pop();
+                sim.stack.push(Slot::Value(result));
+                self.spill_top(sim, result);
+            }
+        }
+        Ok(())
+    }
+
+    fn jump_edge(&mut self, sim: &mut Sim, pred: BlockId, succ: BlockId) -> Result<(), Fail> {
+        self.store_spilled_phis(sim, pred, succ)?;
+        if let Some(layout) = self.layouts[succ].clone() {
+            self.record_natural(sim, pred, succ);
+            let target = self.edge_target(pred, succ, &layout, sim.height());
+            self.shuffle(sim, &target)?;
+            self.note_entry(succ, sim.height());
+            return Ok(());
+        }
+        if let Some(hint) = self.hints.get(&succ).filter(|hint| self.hint_fits(succ, hint)) {
+            self.layouts[succ] = Some(hint.clone());
+            let target = self.edge_target(pred, succ, hint, sim.height());
+            self.shuffle(sim, &target)?;
+            self.note_entry(succ, sim.height());
+            return Ok(());
+        }
+        let layout = self.adopt(sim, pred, succ)?;
+        self.layouts[succ] = Some(layout);
+        self.note_entry(succ, sim.height());
+        Ok(())
+    }
+
+    /// Records, on the first backedge into a loop header, the layout its latch would choose.
+    fn record_natural(&mut self, sim: &Sim, pred: BlockId, succ: BlockId) {
+        if self.backedges.contains(&(pred, succ))
+            && !self.natural.contains_key(&succ)
+            && let Ok(layout) = self.adopt(&mut sim.fork(), pred, succ)
+        {
+            self.natural.insert(succ, layout);
+        }
+    }
+
+    /// Records the physical height on an edge into a floating block, whose layout omits the
+    /// words below it.
+    fn note_entry(&mut self, succ: BlockId, height: usize) {
+        if let Some(layout) = &self.layouts[succ] {
+            let below = height.saturating_sub(layout.len());
+            self.floating_below[succ] = self.floating_below[succ].max(below);
+        }
+    }
+
+    /// Whether the layout of `succ` waits for all of its forward predecessors.
+    fn defers(&self, succ: BlockId) -> bool {
+        self.layouts[succ].is_none()
+            && self.forward_preds[succ] >= 2
+            && !self.floating.contains(succ)
+            && !self.hints.contains_key(&succ)
+    }
+
+    /// Records an edge into a join whose layout is chosen later. Spilled phi results take
+    /// their inputs before the edge is recorded.
+    fn defer(
+        &mut self,
+        pred: BlockId,
+        succ: BlockId,
+        sim: &mut Sim,
+        side: Option<bool>,
+    ) -> Result<(), Fail> {
+        if side.is_none() {
+            self.store_spilled_phis(sim, pred, succ)?;
+        }
+        self.pending.entry(succ).or_default().push(Pending {
+            pred,
+            stack: sim.stack.clone(),
+            side,
+        });
+        Ok(())
+    }
+
+    /// Chooses the layout of a join from its recorded edges, minimizing the weighted cost of
+    /// the shuffles and trampolines into it, and completes each edge.
+    fn resolve_join(&mut self, join: BlockId) -> Result<(), Fail> {
+        let Some(pending) = self.pending.remove(&join) else { return Ok(()) };
+        if self.layouts[join].is_none() {
+            let mut best: Option<(Cost, Layout)> = None;
+            let mut candidates: Vec<Layout> = Vec::new();
+            for edge in &pending {
+                if edge.side.is_some()
+                    && self
+                        .phi_inputs(edge.pred, join)
+                        .iter()
+                        .any(|&(result, _)| self.spilled.contains(result))
+                {
+                    continue;
+                }
+                let mut sim = Sim::new(edge.stack.clone());
+                if let Ok(candidate) = self.adopt(&mut sim, edge.pred, join) {
+                    candidates.push(candidate);
+                }
+            }
+            for candidate in candidates {
+                let mut total = Cost::ZERO;
+                for other in &pending {
+                    let Some(cost) = self.edge_cost(other, join, &candidate) else {
+                        total = Cost::new(u32::MAX, u32::MAX);
+                        break;
+                    };
+                    total += self.weigh(cost, other.pred);
+                }
+                if best.as_ref().is_none_or(|(best, _)| self.target.cmp(total, *best).is_lt()) {
+                    best = Some((total, candidate));
+                }
+            }
+            let Some((_, layout)) = best else {
+                return Err(Fail::Unsupported("join without a plannable layout"));
+            };
+            self.layouts[join] = Some(layout);
+        }
+        let layout = self.layouts[join].clone().unwrap();
+        for edge in pending {
+            let mut sim = Sim::new(edge.stack.clone());
+            let target = self.edge_target(edge.pred, join, &layout, sim.height());
+            match edge.side {
+                None => {
+                    self.shuffle(&mut sim, &target)?;
+                    self.note_entry(join, sim.height());
+                    self.peak = self.peak.max(sim.peak);
+                    self.cost += self.weigh(sim.cost, edge.pred);
+                    let plan = self.blocks[edge.pred].as_mut().expect("planned predecessor");
+                    plan.steps.extend(sim.steps);
+                }
+                Some(then) => {
+                    if self.satisfies(&sim, edge.pred, join) {
+                        self.note_entry(join, sim.height());
+                        continue;
+                    }
+                    self.jump_edge(&mut sim, edge.pred, join)?;
+                    sim.cost += StackCosts::EDGE_JUMP;
+                    self.cost += self.weigh(sim.cost, edge.pred);
+                    self.peak = self.peak.max(sim.peak);
+                    let plan = self.blocks[edge.pred].as_mut().expect("planned predecessor");
+                    let Exit::Branch { then_edge, else_edge } = &mut plan.exit else {
+                        unreachable!("deferred branch edge from a non-branch block")
+                    };
+                    // Both arms share one recorded edge when they reach the same join.
+                    let both = then_edge.target == join && else_edge.target == join;
+                    if then_edge.target == join && (then || both) {
+                        then_edge.trampoline = Some(sim.steps.clone());
+                    }
+                    if else_edge.target == join && (!then || both) {
+                        else_edge.trampoline = Some(sim.steps);
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Prices one recorded edge into a candidate join layout.
+    fn edge_cost(&self, edge: &Pending, join: BlockId, layout: &Layout) -> Option<Cost> {
+        let mut sim = Sim::new(edge.stack.clone());
+        let target = self.edge_target(edge.pred, join, layout, sim.height());
+        if edge.side.is_some() {
+            if target.len() == sim.stack.len()
+                && target.iter().zip(&sim.stack).all(|(want, &slot)| want.accepts(slot))
+            {
+                return Some(Cost::ZERO);
+            }
+            self.shuffle(&mut sim, &target).ok()?;
+            return Some(sim.cost.plus(StackCosts::EDGE_JUMP));
+        }
+        self.shuffle(&mut sim, &target).ok()?;
+        Some(sim.cost)
+    }
+
+    /// Whether a layout from an earlier round still names exactly the successor's live words.
+    fn hint_fits(&self, succ: BlockId, hint: &Layout) -> bool {
+        let live_in = self.liveness.live_in(succ);
+        let phis: SmallVec<[ValueId; 4]> = self.func.blocks[succ]
+            .instructions
+            .iter()
+            .filter(|&&inst| matches!(self.func.inst(inst).kind, InstKind::Phi(_)))
+            .filter_map(|&inst| self.func.inst_result_value(inst))
+            .collect();
+        hint.iter().all(|slot| match *slot {
+            Slot::Value(value) => {
+                !self.spilled.contains(value) && (live_in.contains(value) || phis.contains(&value))
+            }
+            Slot::Ret => self.has_ret,
+            Slot::Junk => true,
+        }) && (hint.contains(&Slot::Ret) == self.has_ret)
+    }
+
+    /// Builds the successor's layout from the current stack, materializing phi inputs that
+    /// have no reusable word. Joins drop every junk word so that later edges need not fill them;
+    /// floating successors also leave out the junk below their deepest live word.
+    fn adopt(&self, sim: &mut Sim, pred: BlockId, succ: BlockId) -> Result<Layout, Fail> {
+        // Copy phi inputs that cannot take over a dead word.
+        let mut fresh: SmallVec<[(ValueId, ValueId); 4]> = SmallVec::new();
+        let mut claimed: SmallVec<[usize; 8]> = SmallVec::new();
+        let live_in = self.liveness.live_in(succ);
+        for (result, input) in self.phi_inputs(pred, succ) {
+            if self.spilled.contains(result) {
+                continue;
+            }
+            let reusable = !self.is_fresh(input)
+                && !live_in.contains(input)
+                && (0..sim.stack.len()).rev().any(|p| {
+                    sim.stack[p] == Slot::Value(input) && !claimed.contains(&p) && {
+                        claimed.push(p);
+                        true
+                    }
+                });
+            if !reusable {
+                fresh.push((result, input));
+            }
+        }
+        for &(_, input) in &fresh {
+            self.copy(sim, input)?;
+        }
+        let mut view = self.view_with_fresh(sim, pred, succ, &fresh);
+        let cut = self.floating_cut(succ, &view);
+        if self.is_join(succ) && view[cut..].contains(&Slot::Junk) {
+            let mut target = vec![Want::Any; cut];
+            target.extend(
+                view[cut..]
+                    .iter()
+                    .zip(&sim.stack[cut..])
+                    .filter(|(slot, _)| **slot != Slot::Junk)
+                    .map(|(_, &physical)| match physical {
+                        Slot::Value(value) => Want::Value(value),
+                        Slot::Ret => Want::Ret,
+                        Slot::Junk => unreachable!("live view word over junk"),
+                    }),
+            );
+            self.shuffle(sim, &target)?;
+            view = view[cut..].iter().copied().filter(|slot| *slot != Slot::Junk).collect();
+        } else {
+            while view.len() > cut && view.last() == Some(&Slot::Junk) {
+                self.stack_op(sim, StackOp::Pop)?;
+                view.pop();
+            }
+            view.drain(..cut);
+        }
+        Ok(view)
+    }
+
+    /// The successor's view after copying `fresh` phi inputs to the top.
+    fn view_with_fresh(
+        &self,
+        sim: &Sim,
+        pred: BlockId,
+        succ: BlockId,
+        fresh: &[(ValueId, ValueId)],
+    ) -> Layout {
+        let live_in = self.liveness.live_in(succ);
+        let floating = self.floating.contains(succ);
+        let base = sim.stack.len() - fresh.len();
+        let mut view: Layout = sim.stack[..base]
+            .iter()
+            .map(|&slot| match slot {
+                Slot::Value(value) if live_in.contains(value) => slot,
+                Slot::Ret if !floating => Slot::Ret,
+                _ => Slot::Junk,
+            })
+            .collect();
+        view.extend(fresh.iter().map(|&(result, _)| Slot::Value(result)));
+        for (result, input) in self.phi_inputs(pred, succ) {
+            if self.spilled.contains(result) || fresh.iter().any(|&(r, _)| r == result) {
+                continue;
+            }
+            let position = (0..base)
+                .rev()
+                .find(|&p| sim.stack[p] == Slot::Value(input) && view[p] == Slot::Junk)
+                .expect("reusable phi input word");
+            view[position] = Slot::Value(result);
+        }
+        view
+    }
+
+    /// Whether the current stack already satisfies a fixed successor layout.
+    fn satisfies(&self, sim: &Sim, pred: BlockId, succ: BlockId) -> bool {
+        let Some(layout) = &self.layouts[succ] else { return false };
+        let target = self.edge_target(pred, succ, layout, sim.height());
+        target.len() == sim.stack.len()
+            && target.iter().zip(&sim.stack).all(|(want, &slot)| want.accepts(slot))
+    }
+
+    /// Plans one branch successor from the shared exit stack.
+    fn branch_edge(
+        &mut self,
+        sim: &Sim,
+        pred: BlockId,
+        succ: BlockId,
+        then: bool,
+    ) -> Result<Edge, Fail> {
+        if self.defers(succ) {
+            self.defer(pred, succ, &mut sim.fork(), Some(then))?;
+            return Ok(Edge { target: succ, trampoline: None });
+        }
+        if self.layouts[succ].is_some() {
+            let spilled_phi = self
+                .phi_inputs(pred, succ)
+                .iter()
+                .any(|&(result, _)| self.spilled.contains(result));
+            if !spilled_phi && self.satisfies(sim, pred, succ) {
+                self.note_entry(succ, sim.height());
+                return Ok(Edge { target: succ, trampoline: None });
+            }
+        } else if let Some(mut view) = self.view(sim, pred, succ) {
+            let cut = self.floating_cut(succ, &view);
+            view.drain(..cut);
+            self.layouts[succ] = Some(view);
+            self.note_entry(succ, sim.height());
+            return Ok(Edge { target: succ, trampoline: None });
+        }
+        let mut trampoline = Sim::new(sim.stack.clone());
+        self.jump_edge(&mut trampoline, pred, succ)?;
+        trampoline.cost += StackCosts::EDGE_JUMP;
+        self.cost += self.weigh(trampoline.cost, pred);
+        self.peak = self.peak.max(trampoline.peak);
+        Ok(Edge { target: succ, trampoline: Some(trampoline.steps) })
+    }
+
+    fn plan_branch(
+        &mut self,
+        sim: &mut Sim,
+        block: BlockId,
+        condition: ValueId,
+        then_block: BlockId,
+        else_block: BlockId,
+    ) -> Result<Exit, Fail> {
+        let live_out = self.liveness.live_out(block);
+        for succ in [then_block, else_block] {
+            if self.layouts[succ].is_some() {
+                self.record_natural(sim, block, succ);
+            }
+        }
+        let then_fixed = self.layouts[then_block].is_some();
+        let else_fixed = self.layouts[else_block].is_some();
+        // Prefer satisfying a fixed successor directly, in particular a loop header on a
+        // conditional backedge, when the other successor's words survive that layout.
+        let preferred = match (then_fixed, else_fixed) {
+            (true, false) => Some((then_block, else_block)),
+            (false, true) => Some((else_block, then_block)),
+            (true, true) => {
+                if self.weight(then_block) >= self.weight(else_block) {
+                    Some((then_block, else_block))
+                } else {
+                    Some((else_block, then_block))
+                }
+            }
+            (false, false) => None,
+        };
+        let mut shuffled = false;
+        if let Some((fixed, other)) = preferred
+            && then_block != else_block
+            && !self.floating.contains(fixed)
+        {
+            let layout = self.layouts[fixed].as_ref().unwrap();
+            let mut target = self.edge_target(block, fixed, layout, layout.len());
+            let other_needs = self.edge_needs(block, other);
+            let survives = other_needs
+                .iter()
+                .all(|&value| self.is_fresh(value) || target.contains(&Want::Value(value)));
+            if survives
+                && self.phi_inputs(block, other).iter().all(|&(r, _)| !self.spilled.contains(r))
+            {
+                target.push(Want::Value(condition));
+                let mut candidate = sim.fork();
+                if self.shuffle(&mut candidate, &target).is_ok() {
+                    sim.join(candidate);
+                    shuffled = true;
+                }
+            }
+        }
+        if !shuffled {
+            self.branch_phi_prep(sim, block, then_block, else_block)?;
+            let dying = |value: ValueId| !live_out.contains(value);
+            self.prepare(sim, &[condition], &dying)?;
+        }
+        // jumpi consumes the condition
+        sim.stack.pop();
+        let then_edge = self.branch_edge(sim, block, then_block, true)?;
+        let else_edge = if else_block == then_block {
+            then_edge.clone()
+        } else {
+            self.branch_edge(sim, block, else_block, false)?
+        };
+        sim.cost += self.target.opcode(op::JUMPI).plus(self.target.opcode(op::PUSH2));
+        Ok(Exit::Branch { then_edge, else_edge })
+    }
+
+    /// Copies the phi inputs of unplanned branch successors that no dead word holds. They sit
+    /// below the condition. A successor that runs less often than the other takes its inputs
+    /// on its own edge instead, so the hotter path carries no extra words.
+    fn branch_phi_prep(
+        &self,
+        sim: &mut Sim,
+        block: BlockId,
+        then_block: BlockId,
+        else_block: BlockId,
+    ) -> Result<(), Fail> {
+        for (succ, other) in [(then_block, else_block), (else_block, then_block)] {
+            if self.layouts[succ].is_none()
+                && self.weight(succ) >= self.weight(other)
+                && self.view(sim, block, succ).is_none()
+            {
+                let live_in = self.liveness.live_in(succ);
+                let mut claimed: SmallVec<[usize; 8]> = SmallVec::new();
+                for (result, input) in self.phi_inputs(block, succ) {
+                    if self.spilled.contains(result) {
+                        continue;
+                    }
+                    let reusable = !self.is_fresh(input)
+                        && !live_in.contains(input)
+                        && (0..sim.stack.len()).rev().any(|p| {
+                            sim.stack[p] == Slot::Value(input) && !claimed.contains(&p) && {
+                                claimed.push(p);
+                                true
+                            }
+                        });
+                    if !reusable {
+                        self.copy(sim, input)?;
+                        claimed.push(sim.stack.len() - 1);
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// For a branch whose condition is computed by an instruction of the block for the branch
+    /// alone, returns that instruction when unplanned successors take their phi inputs from the
+    /// shared stack. Copying those inputs before the condition is computed leaves the condition
+    /// on top.
+    fn early_branch_phis(&self, block: BlockId) -> Option<(InstId, BlockId, BlockId)> {
+        let Some(Terminator::Branch { condition, then_block, else_block }) =
+            &self.func.blocks[block].terminator
+        else {
+            return None;
+        };
+        let condition = self.conditions.get(&block).map_or(*condition, |&(condition, _)| condition);
+        let fixed = |succ: BlockId| self.layouts[succ].is_some() && !self.floating.contains(succ);
+        if fixed(*then_block) || fixed(*else_block) || self.use_counts[condition] != 1 {
+            return None;
+        }
+        let Value::Inst(def) = *self.func.value(condition) else { return None };
+        let instructions = &self.func.blocks[block].instructions;
+        let position = instructions.iter().position(|&inst| inst == def)?;
+        // Every phi input must exist before the condition's instruction, including the results
+        // a call binds through the instructions after it.
+        let later = |value: ValueId| matches!(*self.func.value(value), Value::Inst(inst) if instructions[position..].contains(&inst));
+        if [*then_block, *else_block]
+            .into_iter()
+            .flat_map(|succ| self.phi_inputs(block, succ))
+            .any(|(_, input)| later(input))
+        {
+            return None;
+        }
+        Some((def, *then_block, *else_block))
+    }
+
+    /// Values a successor reads from the edge, in predecessor terms.
+    fn edge_needs(&self, pred: BlockId, succ: BlockId) -> Vec<ValueId> {
+        let mut needs: Vec<ValueId> = self.liveness.live_in(succ).iter().collect();
+        needs.extend(self.phi_inputs(pred, succ).iter().map(|&(_, input)| input));
+        needs
+    }
+
+    fn plan_switch(
+        &mut self,
+        sim: &mut Sim,
+        block: BlockId,
+        value: ValueId,
+        default: BlockId,
+        cases: &[(ValueId, BlockId)],
+    ) -> Result<Exit, Fail> {
+        let live_out = self.liveness.live_out(block);
+        let dying = |v: ValueId| !live_out.contains(v);
+        let entry_mode = self.func_id == self.info.entry && self.info.emitting_entry;
+        let mut targets: SmallVec<[BlockId; 8]> = SmallVec::new();
+        targets.push(default);
+        for &(_, target) in cases {
+            if !targets.contains(&target) {
+                targets.push(target);
+            }
+        }
+        self.prepare(sim, &[value], &dying)?;
+        if !entry_mode {
+            sim.stack.pop();
+        } else {
+            *sim.stack.last_mut().unwrap() = Slot::Junk;
+        }
+        let mut trampolines = Vec::new();
+        for target in targets {
+            let direct = match &self.layouts[target] {
+                Some(_) => self.satisfies(sim, block, target),
+                None => match self.view(sim, block, target) {
+                    Some(mut view) => {
+                        let cut = self.floating_cut(target, &view);
+                        view.drain(..cut);
+                        self.layouts[target] = Some(view);
+                        true
+                    }
+                    None => false,
+                },
+            };
+            if direct {
+                self.note_entry(target, sim.height());
+            } else {
+                let mut trampoline = Sim::new(sim.stack.clone());
+                self.jump_edge(&mut trampoline, block, target)?;
+                trampoline.cost += StackCosts::EDGE_JUMP;
+                self.cost += self.weigh(trampoline.cost, block);
+                self.peak = self.peak.max(trampoline.peak);
+                trampolines.push((target, trampoline.steps));
+            }
+        }
+        sim.observe(2);
+        Ok(Exit::Switch { value, default, cases: cases.to_vec(), trampolines })
+    }
+}
+
+/// The plain plan of the instructions after a result placement decision, kept so that the
+/// next decision in the block can continue it.
+struct PlainTrial {
+    block: BlockId,
+    /// Position of the first instruction in `after`.
+    start: usize,
+    after: Vec<PlainStep>,
+    /// The state after the last planned instruction.
+    sim: Sim,
+    uses: Uses,
+    /// Whether an instruction could not be planned.
+    stopped: bool,
+}
+
+/// One instruction of a plain plan.
+struct PlainStep {
+    /// The stack and cost after the instruction.
+    stack: Layout,
+    cost: Cost,
+    /// The cost with the removal of dead words.
+    price: Cost,
+    /// Whether planning the instruction swapped.
+    swapped: bool,
+}
+
+/// Uses of values by the unplanned instructions and the terminator of the block being planned.
+#[derive(Clone, Default)]
+struct Uses {
+    remaining: FxHashMap<ValueId, u32>,
+}
+
+impl Uses {
+    fn count(&self, value: ValueId) -> u32 {
+        self.remaining.get(&value).copied().unwrap_or(0)
+    }
+
+    fn consume(&mut self, operands: &[ValueId]) {
+        for operand in operands {
+            if let Some(count) = self.remaining.get_mut(operand) {
+                *count -= 1;
+            }
+        }
+    }
+}
+
+/// An edge into a join, recorded until the join's layout is chosen.
+struct Pending {
+    pred: BlockId,
+    /// The predecessor's stack on the edge.
+    stack: Layout,
+    /// For a branch, whether this is the taken (`then`) edge.
+    side: Option<bool>,
+}
+
+/// The stack an internal function is entered or left with, bottom to top: `values` with the
+/// first on top, then the return address.
+fn with_return_address(values: &[ValueId]) -> Vec<Want> {
+    values.iter().rev().map(|&value| Want::Value(value)).chain([Want::Ret]).collect()
+}
+
+/// The multi-return protocol after one call.
+struct Projection {
+    /// Protocol instructions to elide.
+    elided: Vec<InstId>,
+    /// The value reading each extra result, if any.
+    extras: SmallVec<[Option<ValueId>; 4]>,
+    /// The pointer and address values, which must have no other consumers.
+    tracked: FxHashSet<ValueId>,
+}
+
+/// Binds the extra results of a multi-word call to the words it returns on the stack.
+///
+/// MIR reads results `1..N` through the multi-return buffer: the pointer read and one offset
+/// load per used result follow the call with only pure instructions between.
+fn call_projection(
+    func: &Function,
+    block: BlockId,
+    call_idx: usize,
+    arity: usize,
+) -> Option<Projection> {
+    let tail = &func.blocks[block].instructions[call_idx + 1..];
+    let mut extras: SmallVec<[Option<ValueId>; 4]> = smallvec![None; arity - 1];
+    let mut elided = Vec::new();
+    let mut tracked = FxHashSet::default();
+    let mut base = None;
+    for (offset, &inst) in tail.iter().enumerate() {
+        let kind = &func.inst(inst).kind;
+        if let InstKind::MLoad(addr) = *kind
+            && func.value_u64(addr) == Some(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT)
+        {
+            base = Some((offset, inst));
+            break;
+        }
+        if kind.effect_kind() != EffectKind::Pure {
+            break;
+        }
+    }
+    let Some((base_offset, base_inst)) = base else {
+        // No result beyond the first is read before memory may change.
+        return Some(Projection { elided, extras, tracked });
+    };
+    let base_value = func.inst_result_value(base_inst)?;
+    elided.push(base_inst);
+    tracked.insert(base_value);
+    let mut addresses = FxHashMap::default();
+    for &inst in &tail[base_offset + 1..] {
+        match &func.inst(inst).kind {
+            InstKind::Add(a, b) if *a == base_value || *b == base_value => {
+                let imm = if *a == base_value { *b } else { *a };
+                let index = func
+                    .value_u64(imm)
+                    .filter(|offset| offset % EvmMemoryLayout::WORD_SIZE == 0)
+                    .map(|offset| (offset / EvmMemoryLayout::WORD_SIZE) as usize)?;
+                let address = func.inst_result_value(inst)?;
+                if !(1..arity).contains(&index) || addresses.insert(address, index).is_some() {
+                    return None;
+                }
+                tracked.insert(address);
+                elided.push(inst);
+            }
+            InstKind::MLoad(addr) if addresses.contains_key(addr) => {
+                let result = func.inst_result_value(inst)?;
+                if extras[addresses[addr] - 1].replace(result).is_some() {
+                    return None;
+                }
+                elided.push(inst);
+            }
+            kind if kind.effect_kind() == EffectKind::Pure => {}
+            _ => break,
+        }
+    }
+    Some(Projection { elided, extras, tracked })
+}
+
+/// The cost of pushing a value that is materialized at its use.
+fn materialize_cost(func: &Function, target: Target, value: ValueId) -> Cost {
+    match func.value(value) {
+        Value::Immediate(imm) => target.push(imm.as_u256().unwrap_or_default()),
+        Value::Undef(_) => target.push(U256::ZERO),
+        Value::Arg(_) => target.opcode(op::PUSH1).plus(target.opcode(op::CALLDATALOAD)),
+        Value::Inst(inst) => match &func.inst(*inst).kind {
+            InstKind::DataSize(_) => target.opcode(op::PUSH2),
+            InstKind::Gas => target.opcode(op::GAS),
+            InstKind::Sub(..) => {
+                target.opcode(op::GAS).plus(target.opcode(op::PUSH1)).plus(target.opcode(op::SUB))
+            }
+            _ => rematerializable_nullary_value(func, value)
+                .map_or(StackCosts::NULLARY_READ, |opcode| target.opcode(opcode)),
+        },
+        _ => StackCosts::NULLARY_READ,
+    }
+}
+
+/// Returns the nearest block that dominates both blocks.
+fn common_dominator(cfg: &CfgInfo, a: BlockId, b: BlockId) -> BlockId {
+    let ancestors = cfg.dominators().self_and_dominators(a);
+    let mut block = b;
+    loop {
+        if ancestors.contains(&block) {
+            return block;
+        }
+        match cfg.dominators().idom(block) {
+            Some(idom) if idom != block => block = idom,
+            _ => return BlockId::ENTRY,
+        }
+    }
+}

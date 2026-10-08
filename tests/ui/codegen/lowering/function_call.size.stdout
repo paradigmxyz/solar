@@ -45,24 +45,22 @@ bb5:
   lt
   push bb4
   jumpi
-  push bb7
   push 4
   calldataload
+  push bb7
   jump bb16
 bb16:
-  dup 1
+  dup 2
   dup 1
   add
-  swap 1
-  dup 2
+  swap 2
+  dup 3
   lt
   push bb19
   jumpi
-  swap 1
   jump
 bb7 [continuation]:
   push bb8
-  swap 1
   jump bb16
 bb10:
   push 68
@@ -70,17 +68,16 @@ bb10:
   lt
   push bb4
   jumpi
+  push 4
+  calldataload
   push 36
   calldataload
-  push 4
-  calldataload
+  dup 2
   add
-  push 4
-  calldataload
+  swap 1
   dup 2
   lt
   push bb19
   jumpi
   push bb8
-  swap 1
   jump bb16

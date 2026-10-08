@@ -37,16 +37,15 @@ contract R {
     // CHECK-NEXT: push 168
     // CHECK-NEXT: shl
     // CHECK-NEXT: push 11
-    // CHECK-NEXT: swap 1
     // CHECK-NEXT: jump [[SHORT_HELPER]]
     function viaLiteral(uint256 x) external pure returns (uint256) {
         require(x > 5, "literal msg");
         return x;
     }
 
+    // CHECK: push 0x6c6f63616c2d636f6e73742d6d7367
     // CHECK: push 15
-    // CHECK-NEXT: push 0x6c6f63616c2d636f6e73742d6d7367
-    // CHECK: jump [[SHORT_HELPER]]
+    // CHECK-NEXT: jump [[SHORT_HELPER]]
     function viaLocalConst(uint256 x) external pure returns (uint256) {
         require(x > 5, LOCAL);
         return x;

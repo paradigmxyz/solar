@@ -1,5 +1,5 @@
 //@ codegen-matrix: standard ir
-//@[ir] compile-flags: -Ogas -Zdump=evm-ir-runtime
+//@[ir] compile-flags: -Ogas -Zdump=evm-ir-runtime -Zlegacy-stack-lowering
 //@[ir] filecheck:
 //@ run-call: masked 9, 4 => 46
 //@ run-call: masked 7, 7 => 27

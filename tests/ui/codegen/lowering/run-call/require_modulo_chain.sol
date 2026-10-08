@@ -12,9 +12,9 @@ contract RequireModuloCases {
     // STACK-LABEL: RequireModuloCases (runtime)
     // STACK: CALLDATALOAD
     // STACK: CALLDATASIZE
-    // STACK: PUSH1 0x04
+    // STACK: PUSH1 0x24
     // STACK-NEXT: CALLDATALOAD
-    // STACK-NEXT: PUSH1 0x24
+    // STACK: PUSH1 0x04
     // STACK-NEXT: CALLDATALOAD
     // STACK: MOD
     // STACK: MOD

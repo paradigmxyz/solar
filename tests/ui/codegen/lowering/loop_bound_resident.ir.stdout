@@ -13,19 +13,18 @@ bb0:
   sub
   push bb3
   jumpi
-  push 68
-  calldataload
   push 100
   calldatasize
   lt
   push bb3
   jumpi
-  push 4
-  calldataload
-  push 36
+  push 68
   calldataload
   push 0
-  swap 2
+  push 36
+  calldataload
+  push 4
+  calldataload
   jump bb6
 bb8 [loop]:
   dup 2
@@ -175,10 +174,12 @@ bb4:
   dup 5
   dup 3
   calldatacopy
-  swap 3
-  pop
+  swap 2
   add
   dup 1
+  swap 2
+  swap 3
+  pop
   jump bb9
 bb12 [loop]:
   swap 1
@@ -188,10 +189,22 @@ bb9 [loop]:
   dup 3
   dup 2
   gt
-  push bb10
+  iszero
+  push bb11
+  jumpi
+  dup 1
+  mload
+  push 32
+  dup 3
+  sub
+  swap 1
+  dup 2
+  mload
+  gt
+  iszero
+  push bb12
   jumpi
   swap 2
-  pop
   swap 1
   jump bb11
 bb11:
@@ -204,22 +217,3 @@ bb11:
   push 32
   push 128
   return
-bb10 [loop]:
-  dup 1
-  mload
-  push 32
-  dup 3
-  sub
-  dup 1
-  mload
-  swap 1
-  swap 2
-  lt
-  iszero
-  push bb12
-  jumpi
-  pop
-  swap 2
-  pop
-  swap 1
-  jump bb11

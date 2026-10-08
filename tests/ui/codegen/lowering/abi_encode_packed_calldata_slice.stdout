@@ -32,6 +32,10 @@ bb5:
   lt
   push bb4
   jumpi
+  push 36
+  calldataload
+  push 68
+  calldataload
   push bb7
   jump bb15
 bb15:
@@ -75,34 +79,27 @@ bb7 [continuation]:
   push 32
   add
   swap 1
-  push 68
-  calldataload
+  dup 3
   gt
-  push 36
-  calldataload
-  push 68
-  calldataload
+  dup 4
+  dup 4
   lt
   or
   push bb4
   jumpi
-  push 36
-  calldataload
-  push 68
-  calldataload
-  sub
+  dup 3
   swap 1
-  push 36
-  calldataload
+  swap 2
+  sub
+  swap 2
   add
+  swap 1
   push 64
   mload
-  dup 3
-  dup 3
+  dup 2
+  dup 4
   dup 3
   calldatacopy
-  swap 1
-  pop
   keccak256
   push 128
   mstore
@@ -118,6 +115,8 @@ bb10:
   lt
   push bb4
   jumpi
+  push 36
+  calldataload
   push bb12
   jump bb15
 bb12 [continuation]:
@@ -126,20 +125,16 @@ bb12 [continuation]:
   swap 1
   push 32
   add
-  push 36
-  calldataload
+  dup 3
   dup 3
   lt
   push bb4
   jumpi
-  push 36
-  calldataload
+  dup 3
   swap 1
   swap 2
   sub
-  swap 1
-  push 36
-  calldataload
+  swap 2
   add
   push 64
   mload
@@ -155,19 +150,19 @@ bb12 [continuation]:
   dup 4
   dup 3
   calldatacopy
-  swap 2
-  pop
-  swap 2
+  swap 1
+  swap 3
   add
   push 1
   dup 2
   mstore
   push 32
   add
-  dup 2
+  dup 3
   swap 1
   sub
   swap 1
+  swap 2
   keccak256
   push 128
   mstore

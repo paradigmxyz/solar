@@ -309,11 +309,10 @@ bb13:
   push 32
   dup 2
   add
-  push 288
-  dup 3
-  add
   push 0
-  swap 1
+  push 288
+  dup 4
+  add
   mstore
   push 257
   push_data literal_0
@@ -332,20 +331,17 @@ bb32:
   push 31
   not
   and
-  dup 1
-  dup 4
-  add
   push 0
-  swap 1
-  mstore
-  push 64
+  dup 2
   dup 5
   add
-  dup 3
-  dup 5
-  dup 3
+  mstore
+  dup 2
+  dup 4
+  push 64
+  dup 7
+  add
   mcopy
-  pop
   push 32
   dup 5
   mstore
@@ -355,7 +351,7 @@ bb31:
   mstore
   push 64
   add
-  dup 2
+  swap 1
   return
 bb14:
   push 128
@@ -373,11 +369,10 @@ bb14:
   push 32
   dup 2
   add
-  push 192
-  dup 3
-  add
   push 0
-  swap 1
+  push 192
+  dup 4
+  add
   mstore
   push 161
   push_data literal_0+64
@@ -421,11 +416,10 @@ bb28:
   swap 1
   push 32
   add
-  push 160
   calldatasize
-  dup 3
+  push 160
+  swap 2
   calldatacopy
-  pop
   swap 1
   jump
 bb18 [continuation]:
@@ -444,20 +438,17 @@ bb18 [continuation]:
   push 31
   not
   and
-  dup 1
-  dup 3
-  add
   push 0
-  swap 1
-  mstore
-  push 64
-  dup 5
+  dup 2
+  dup 4
   add
-  dup 4
-  dup 4
+  mstore
   dup 3
+  dup 3
+  push 64
+  dup 7
+  add
   mcopy
-  pop
   push 32
   dup 5
   mstore
@@ -549,33 +540,28 @@ bb26:
   push bb23
   jump bb30
 bb35 [continuation]:
-  swap 1
-  mstore
-  push 96
-  dup 4
-  add
   push 64
-  dup 3
-  dup 3
+  dup 5
+  add
+  mstore
+  push 64
+  dup 2
+  push 96
+  dup 6
+  add
   mcopy
-  pop
   swap 2
   push 160
   add
   push 32
-  dup 4
-  dup 3
-  mcopy
-  pop
+  swap 2
+  swap 3
   swap 1
-  pop
+  mcopy
   swap 1
   jump
 bb36 [continuation]:
   dup 2
   mstore
-  push 64
-  dup 4
-  add
   push bb35
   jump bb34

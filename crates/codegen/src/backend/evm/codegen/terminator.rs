@@ -143,7 +143,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         Some(position)
     }
 
-    fn emit_external_return(&mut self, func: &Function) {
+    pub(super) fn emit_external_return(&mut self, func: &Function) {
         if let Some(exit) = self.constructor_exit {
             // return [] => push constructor_exit; jump
             self.emit_push_label(exit);
@@ -155,7 +155,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.mark_debug_function_exit(func, DebugFunctionExit::Return);
     }
 
-    fn emit_revert_returndata(&mut self) {
+    pub(super) fn emit_revert_returndata(&mut self) {
         if self.gcx.sess.opts.evm_version.supports_returndata() {
             // size = returndatasize
             // returndatacopy 0, 0, size

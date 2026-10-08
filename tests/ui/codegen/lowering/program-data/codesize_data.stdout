@@ -134,11 +134,10 @@ bb6:
   push 32
   dup 2
   add
-  push 256
-  dup 3
-  add
   push 0
-  swap 1
+  push 256
+  dup 4
+  add
   mstore
   push 241
   push_data literal_0
@@ -157,20 +156,17 @@ bb9:
   push 31
   not
   and
-  dup 1
-  dup 4
-  add
   push 0
-  swap 1
-  mstore
-  push 64
+  dup 2
   dup 5
   add
-  dup 3
-  dup 5
-  dup 3
+  mstore
+  dup 2
+  dup 4
+  push 64
+  dup 7
+  add
   mcopy
-  pop
   push 32
   dup 5
   mstore
@@ -178,7 +174,7 @@ bb9:
   mstore
   push 64
   add
-  dup 2
+  swap 1
   return
 bb7:
   push 128
@@ -196,11 +192,10 @@ bb7:
   push 32
   dup 2
   add
-  push 192
-  dup 3
-  add
   push 0
-  swap 1
+  push 192
+  dup 4
+  add
   mstore
   push 161
   push_data literal_1
@@ -216,10 +211,9 @@ bb8:
   codesize
   sub
   push 1
-  dup 2
   push 0
+  exchange 1, 2
   codecopy
-  pop
   push 0
   mload
   push 0

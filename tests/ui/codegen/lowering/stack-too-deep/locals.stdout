@@ -39,6 +39,8 @@ bb4:
   calldataload
   add
   dup 1
+  push 160
+  mstore
   iszero
   push bb8
   jumpi
@@ -46,53 +48,60 @@ bb4:
   push 4
   calldataload
   add
+  push 192
+  mstore
   push 4
   calldataload
-  dup 2
+  push 192
+  mload
   lt
   push 3
   push 4
   calldataload
   add
+  push 224
+  mstore
   push 4
   calldataload
-  dup 2
+  push 224
+  mload
   lt
-  swap 1
-  swap 2
   or
   push 4
   dup 1
   calldataload
   add
+  push 256
+  mstore
   push 4
   calldataload
-  dup 2
+  push 256
+  mload
   lt
-  swap 1
-  swap 2
   or
   push 5
   push 4
   calldataload
   add
+  push 288
+  mstore
   push 4
   calldataload
-  dup 2
+  push 288
+  mload
   lt
-  swap 1
-  swap 2
   or
   push 6
   push 4
   calldataload
   add
+  push 320
+  mstore
   push 4
   calldataload
-  dup 2
+  push 320
+  mload
   lt
-  swap 1
-  swap 2
   or
   push 7
   push 4
@@ -259,34 +268,7 @@ bb4:
   swap 1
   swap 2
   or
-  push 352
-  mstore
   push 160
-  mstore
-  push 192
-  mstore
-  push 224
-  mstore
-  push 256
-  mstore
-  push 384
-  mstore
-  dup 16
-  push 288
-  mstore
-  push 384
-  mload
-  push 256
-  mload
-  push 224
-  mload
-  push 192
-  mload
-  push 160
-  mload
-  push 352
-  mload
-  push 288
   mload
   push 4
   calldataload
@@ -298,30 +280,31 @@ bb4:
   swap 1
   swap 2
   or
-  push 448
-  mstore
-  push 480
-  mstore
-  pop
-  pop
-  pop
-  pop
-  dup 16
-  push 416
-  mstore
+  push 192
+  mload
+  dup 3
+  add
+  swap 2
+  dup 3
+  lt
+  or
+  push 224
+  mload
+  dup 3
+  add
+  swap 2
+  dup 3
+  lt
+  or
   push 256
   mload
-  push 224
-  mload
-  push 192
-  mload
-  push 160
-  mload
-  push 480
-  mload
-  push 448
-  mload
-  push 416
+  dup 3
+  add
+  swap 2
+  dup 3
+  lt
+  or
+  push 288
   mload
   dup 3
   add
@@ -329,93 +312,7 @@ bb4:
   dup 3
   lt
   or
-  push 544
-  mstore
-  push 576
-  mstore
-  pop
-  pop
-  pop
-  dup 16
-  push 512
-  mstore
-  push 224
-  mload
-  push 192
-  mload
-  push 160
-  mload
-  push 576
-  mload
-  push 544
-  mload
-  push 512
-  mload
-  dup 3
-  add
-  swap 2
-  dup 3
-  lt
-  or
-  push 640
-  mstore
-  push 672
-  mstore
-  pop
-  pop
-  dup 16
-  push 608
-  mstore
-  push 192
-  mload
-  push 160
-  mload
-  push 672
-  mload
-  push 640
-  mload
-  push 608
-  mload
-  dup 3
-  add
-  swap 2
-  dup 3
-  lt
-  or
-  push 736
-  mstore
-  push 768
-  mstore
-  pop
-  dup 16
-  push 704
-  mstore
-  push 160
-  mload
-  push 768
-  mload
-  push 736
-  mload
-  push 704
-  mload
-  dup 3
-  add
-  swap 2
-  dup 3
-  lt
-  or
-  push 832
-  mstore
-  push 864
-  mstore
-  dup 16
-  push 800
-  mstore
-  push 864
-  mload
-  push 832
-  mload
-  push 800
+  push 320
   mload
   dup 3
   add
@@ -540,25 +437,12 @@ bb4:
   swap 1
   dup 3
   add
-  dup 1
-  push 320
-  mstore
   swap 2
   dup 3
   lt
   or
-  swap 7
-  pop
-  pop
-  pop
-  pop
-  pop
-  pop
-  pop
   push bb8
   jumpi
-  push 320
-  mload
   push 0
   mstore
   push 32

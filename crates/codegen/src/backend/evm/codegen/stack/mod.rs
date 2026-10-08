@@ -7,6 +7,10 @@
 //! representations: the current physical layout, local operand preparation,
 //! control-flow-edge layout transitions, and memory-backed spill locations.
 //!
+//! This scheduler serves the frame-backed emitter. Optimized runtime code is
+//! normally lowered by the stack-resident planner in `stackify`, which reuses
+//! the spill placement here but plans its own layouts.
+//!
 //! ## Architecture
 //!
 //! Late MIR lowering is followed by dead-code elimination and then `evm-inst-schedule`, the final

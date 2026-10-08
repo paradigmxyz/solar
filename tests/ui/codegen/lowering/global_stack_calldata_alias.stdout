@@ -29,8 +29,6 @@ bb22 [cold]:
   push 28
   revert
 bb4:
-  push 36
-  calldataload
   push 68
   calldatasize
   lt
@@ -38,31 +36,35 @@ bb4:
   jumpi
   push 4
   calldataload
-  dup 1
   push 160
   shr
   push bb3
   jumpi
+  push 4
+  calldataload
+  push 36
+  calldataload
   push 1
-  dup 2
+  dup 3
   eq
   push bb20
   jumpi
   push 2
-  dup 2
+  dup 3
   eq
   push bb18
   jumpi
   push 3
-  dup 2
+  dup 3
   eq
   push bb16
   jumpi
   push 4
-  dup 2
+  dup 3
   eq
   push bb14
   jumpi
+  swap 1
   push 5
   eq
   push bb12
@@ -88,10 +90,8 @@ bb12:
   return
 bb14:
   push 4
-  dup 3
+  dup 2
   add
-  swap 1
-  pop
   swap 1
   dup 2
   lt
@@ -104,10 +104,8 @@ bb14:
   return
 bb16:
   push 3
-  dup 3
+  dup 2
   add
-  swap 1
-  pop
   swap 1
   dup 2
   lt
@@ -120,10 +118,8 @@ bb16:
   return
 bb18:
   push 2
-  dup 3
+  dup 2
   add
-  swap 1
-  pop
   swap 1
   dup 2
   lt
@@ -135,11 +131,8 @@ bb18:
   push 128
   return
 bb20:
-  swap 1
   push 1
   add
-  swap 1
-  pop
   dup 1
   iszero
   push bb22

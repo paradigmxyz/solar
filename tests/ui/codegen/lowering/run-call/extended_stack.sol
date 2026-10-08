@@ -1,6 +1,6 @@
 //@ codegen-matrix: standard instructions
 //@ compile-flags: --evm-version amsterdam
-//@[instructions] compile-flags: -O gas -Zdump=disasm-runtime
+//@[instructions] compile-flags: -O gas -Zdump=disasm-runtime -Zlegacy-stack-lowering
 //@[instructions] filecheck:
 //@ run-call: check => true
 

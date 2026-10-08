@@ -16,8 +16,10 @@ library DataTypes {
 contract E {
     // CHECK: push 0xbc477c04
     // CHECK: calldataload
+    // CHECK-NEXT: push 2
+    // CHECK-NEXT: dup 2
     // CHECK-NEXT: gt
-    // CHECK-NEXT: push bb11
+    // CHECK-NEXT: push bb{{[0-9]+}}
     // CHECK-NEXT: jumpi
     // CHECK: return
     function isNone(uint256 x) external pure returns (bool) {

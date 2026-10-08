@@ -1,4 +1,4 @@
-//@compile-flags: -Zdump=evm-ir-runtime --pretty-json
+//@compile-flags: -Zdump=evm-ir-runtime --pretty-json -Zlegacy-stack-lowering
 //@ filecheck:
 
 contract ICallFrameDealloc {
