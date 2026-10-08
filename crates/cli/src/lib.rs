@@ -33,6 +33,9 @@ pub mod signal_handler {
 
     /// No-op function.
     pub fn install() {}
+
+    /// No-op function.
+    pub fn install_alt_stack() {}
 }
 
 mod args;
@@ -59,7 +62,10 @@ pub fn main() -> ExitCode {
         std::thread::Builder::new()
             .name("solar".into())
             .stack_size(solar_interface::thread_stack_size())
-            .spawn_scoped(s, || commands::run(args))
+            .spawn_scoped(s, || {
+                signal_handler::install_alt_stack();
+                commands::run(args)
+            })
             .unwrap()
             .join()
             .unwrap_or_else(|e| std::panic::resume_unwind(e))
