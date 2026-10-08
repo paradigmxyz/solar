@@ -397,7 +397,7 @@ fn compile(
                         .par_contracts_enumerated()
                         .filter_map(|(contract_id, contract)| {
                             let source = gcx.hir.source(contract.source);
-                            let source_name = standard_json_source_name(&source.file.name);
+                            let source_name = source.file.name.display().to_string();
                             let contract_name = contract.name.as_str();
                             let contract_selection =
                                 output_selection.contract(&source_name, contract_name);
@@ -526,13 +526,6 @@ fn callback_path(path: &Path) -> Cow<'_, str> {
     path.to_string_lossy()
 }
 
-/// Returns the source unit name of a source file.
-///
-/// Like solc, this keeps `\` as an ordinary character, not a separator.
-pub(crate) fn standard_json_source_name(name: &solar_interface::source_map::FileName) -> String {
-    name.display().to_string()
-}
-
 fn disallowed_io(path: &Path) -> io::Error {
     io::Error::new(
         io::ErrorKind::PermissionDenied,
@@ -549,7 +542,7 @@ fn source_outputs_from_compiler(
         .sources
         .iter_enumerated()
         .map(|(id, source)| {
-            (standard_json_source_name(&source.file.name), SourceOutput { id: id.index() as u32 })
+            (source.file.name.display().to_string(), SourceOutput { id: id.index() as u32 })
         })
         .collect()
 }
@@ -786,7 +779,7 @@ fn requested_bytecode_contracts(
         }
 
         let source = gcx.hir.source(contract.source);
-        let source_name = standard_json_source_name(&source.file.name);
+        let source_name = source.file.name.display().to_string();
         let contract_name = contract.name.as_str();
         if output_selection.contract(&source_name, contract_name).intersects(bytecode_outputs) {
             contracts.insert(contract_id);
@@ -817,7 +810,7 @@ fn requested_metadata_contracts(
     if requests_metadata {
         for (contract_id, contract) in gcx.hir.contracts_enumerated() {
             let source = gcx.hir.source(contract.source);
-            let source_name = standard_json_source_name(&source.file.name);
+            let source_name = source.file.name.display().to_string();
             if output_selection
                 .contract(&source_name, contract.name.as_str())
                 .contains(OutputSelectionFlags::METADATA)
@@ -849,7 +842,7 @@ fn requested_debug_info_contracts(
         }
 
         let source = gcx.hir.source(contract.source);
-        let source_name = standard_json_source_name(&source.file.name);
+        let source_name = source.file.name.display().to_string();
         if output_selection.contract(&source_name, contract.name.as_str()).intersects(debug_outputs)
         {
             contracts.insert(contract_id);
@@ -866,7 +859,7 @@ fn contract_output_requested(
     output_selection.all().intersects(outputs)
         || gcx.hir.contracts().any(|contract| {
             let source = gcx.hir.source(contract.source);
-            let source_name = standard_json_source_name(&source.file.name);
+            let source_name = source.file.name.display().to_string();
             output_selection.contract(&source_name, contract.name.as_str()).intersects(outputs)
         })
 }

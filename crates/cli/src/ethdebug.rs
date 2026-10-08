@@ -1,6 +1,5 @@
 //! ETHDebug resources and programs shared by CLI and Standard JSON output.
 
-use crate::standard_json::standard_json_source_name;
 use serde::Serialize;
 use serde_json::{Map, Value};
 use solar_codegen::{
@@ -163,14 +162,9 @@ pub(crate) fn make_ethdebug_compilation(
         .source_ids()
         .map(|source_id| {
             let source = gcx.hir.source(source_id);
-            let path = if gcx.sess.opts.standard_json {
-                standard_json_source_name(&source.file.name)
-            } else {
-                source.file.name.display().to_string().replace('\\', "/")
-            };
             EthdebugSource {
                 id: EthdebugId::Number(source_id.index() as u32),
-                path,
+                path: source.file.name.display().to_string(),
                 contents: source.file.src.as_ref().clone(),
                 language: language.to_owned(),
             }
