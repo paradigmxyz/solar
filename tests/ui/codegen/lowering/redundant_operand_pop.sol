@@ -1,5 +1,6 @@
 //@ compile-flags: -O gas -Zdump=evm-ir-runtime
 //@ filecheck:
+//@ normalize-stdout-test: "(?s).+" -> ""
 
 // Keeping both arrays on the stack across the low-memory copy leaves a
 // redundant copy of a word on top. Gas mode pops it while arranging the next

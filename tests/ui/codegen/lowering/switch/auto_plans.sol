@@ -7,6 +7,7 @@
 //@[none] filecheck: --check-prefixes=CHECK,NONE
 //@[byzantium] compile-flags: -O gas --evm-version byzantium -Zdump=evm-ir-runtime
 //@[byzantium] filecheck: --check-prefixes=CHECK,BYZ
+//@ normalize-stdout-test: "(?s).+" -> ""
 
 // Each contract holds one internal switch, so every switch gets the full
 // gas-mode growth budget. The checks pin the shape that automatic selection

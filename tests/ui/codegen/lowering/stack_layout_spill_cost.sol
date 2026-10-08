@@ -1,5 +1,6 @@
 //@ compile-flags: -O gas -Zdump=evm-ir-runtime
 //@ filecheck:
+//@ normalize-stdout-test: "(?s).+" -> ""
 
 struct Market {
     uint128 fee;

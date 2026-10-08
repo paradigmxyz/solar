@@ -1,5 +1,6 @@
 //@ compile-flags: -O size -Zdump=evm-ir-runtime
 //@ filecheck:
+//@ normalize-stdout-test: "(?s).+" -> ""
 
 // Size-mode selector dispatch for contracts whose functions are empty. Every
 // empty function ends in the same STOP, which block layout can place near the

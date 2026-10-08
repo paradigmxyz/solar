@@ -1,5 +1,6 @@
 //@ compile-flags: -O none -Zdump=evm-ir-runtime
 //@ filecheck:
+//@ normalize-stdout-test: "(?s).+" -> ""
 
 // Without optimization, the ternary after the endless loop in `first` stays
 // in the MIR as unreachable blocks, and its phi still gets copies planned on

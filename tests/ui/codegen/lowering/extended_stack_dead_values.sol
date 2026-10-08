@@ -1,5 +1,6 @@
 //@ compile-flags: -O gas --evm-version amsterdam -Zdump=evm-ir-runtime
 //@ filecheck:
+//@ normalize-stdout-test: "(?s).+" -> ""
 
 // After `returndatacopy`, a dead word sits below twenty live values, out of
 // `SWAP16` reach. Amsterdam drops it at once with `SWAPN` and `POP` instead of

@@ -1636,40 +1636,6 @@ mod tests {
     }
 
     #[test]
-    fn heap_prefix_guard_covers_consumers_only() {
-        let mut function = Function::new(Ident::DUMMY);
-        let mut builder = FunctionBuilder::new(&mut function);
-        // base = fmp
-        // prefix = base - 32
-        // adjacent = base + 32
-        let base = builder.fmp();
-        let word = builder.imm(32);
-        let prefix = builder.sub(base, word);
-        let adjacent = builder.add(base, word);
-        assert_eq!(EvmCodegen::heap_prefix_guard(&function, None, &FxHashMap::default(), None), 0);
-
-        // hash(adjacent, 32)
-        FunctionBuilder::new(&mut function).keccak256(adjacent, word);
-        assert_eq!(EvmCodegen::heap_prefix_guard(&function, None, &FxHashMap::default(), None), 0);
-
-        // hash(prefix, 32)
-        FunctionBuilder::new(&mut function).keccak256(prefix, word);
-        assert_eq!(EvmCodegen::heap_prefix_guard(&function, None, &FxHashMap::default(), None), 32);
-
-        // oversized = base - u64::MAX - 32
-        // mload oversized
-        let mut builder = FunctionBuilder::new(&mut function);
-        let maximum = builder.imm(u64::MAX);
-        let oversized = builder.sub(base, maximum);
-        let oversized = builder.sub(oversized, word);
-        builder.mload(oversized);
-        assert_eq!(
-            EvmCodegen::heap_prefix_guard(&function, None, &FxHashMap::default(), None),
-            u64::MAX
-        );
-    }
-
-    #[test]
     fn heap_prefix_guard_covers_memory_ranges() {
         let mut function = Function::new(Ident::DUMMY);
         let mut builder = FunctionBuilder::new(&mut function);

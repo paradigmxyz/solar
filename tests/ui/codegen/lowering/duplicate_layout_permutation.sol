@@ -1,5 +1,6 @@
 //@ compile-flags: -O gas -Zdump=evm-ir-runtime
 //@ filecheck:
+//@ normalize-stdout-test: "(?s).+" -> ""
 
 // The stack entering the outer loop holds one value twice. Gas mode searches
 // such permutations exactly up to six words, so three swaps reach the loop

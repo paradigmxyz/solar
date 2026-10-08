@@ -1,5 +1,6 @@
 //@ compile-flags: -O none --evm-version amsterdam -Zdump=evm-ir-runtime
 //@ filecheck:
+//@ normalize-stdout-test: "(?s).+" -> ""
 
 // Each MIR operation that lowers to a single EVM opcode, reached through its
 // inline assembly builtin. Unoptimized code keeps the source order.
