@@ -17,25 +17,52 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         with: Option<Box<'ast, Expr<'ast>>>,
     ) -> PResult<'sess, Box<'ast, Expr<'ast>>> {
         let expr = self.parse_binary_expr(4, with)?;
-        if self.eat(TokenKind::Question) {
+        if self.check(TokenKind::Question) {
+            self.parse_ternary_chain(expr)
+        } else {
+            self.parse_assign_expr(expr)
+        }
+    }
+
+    /// Parses an assignment to `lhs` if the current token is an assignment operator.
+    fn parse_assign_expr(
+        &mut self,
+        lhs: Box<'ast, Expr<'ast>>,
+    ) -> PResult<'sess, Box<'ast, Expr<'ast>>> {
+        let kind = self.token.as_binop_eq();
+        if kind.is_none() && self.token.kind != TokenKind::Eq {
+            return Ok(lhs);
+        }
+        self.bump(); // binop token
+        let rhs = self.parse_expr()?;
+        let span = lhs.span.to(self.prev_token.span);
+        Ok(self.alloc(Expr { span, kind: ExprKind::Assign(lhs, kind, rhs) }))
+    }
+
+    /// Parses a chain of ternary expressions whose first condition is `expr`.
+    ///
+    /// The chain is parsed in a loop, so its length does not count towards the recursion limit.
+    fn parse_ternary_chain(
+        &mut self,
+        mut expr: Box<'ast, Expr<'ast>>,
+    ) -> PResult<'sess, Box<'ast, Expr<'ast>>> {
+        let mut chain = SmallVec::<[_; 4]>::new();
+        while self.eat(TokenKind::Question) {
             let then = self.parse_expr()?;
             self.expect(TokenKind::Colon)?;
-            let else_ = self.parse_expr()?;
-            let span = expr.span.to(self.prev_token.span);
-            Ok(self.alloc(Expr { span, kind: ExprKind::Ternary(expr, then, else_) }))
-        } else {
-            let kind = if let Some(binop_eq) = self.token.as_binop_eq() {
-                Some(binop_eq)
-            } else if self.token.kind == TokenKind::Eq {
-                None
-            } else {
-                return Ok(expr);
-            };
-            self.bump(); // binop token
-            let rhs = self.parse_expr()?;
-            let span = expr.span.to(self.prev_token.span);
-            Ok(self.alloc(Expr { span, kind: ExprKind::Assign(expr, kind, rhs) }))
+            chain.push((expr, then));
+            expr = self.parse_binary_expr(4, None)?;
         }
+        expr = self.parse_assign_expr(expr)?;
+
+        // c0 ? t0 : c1 ? t1 : ... cN ? tN : e
+        // => Ternary(c0, t0, Ternary(c1, t1, ... Ternary(cN, tN, e)))
+        let hi = self.prev_token.span;
+        for (cond, then) in chain.into_iter().rev() {
+            let span = cond.span.to(hi);
+            expr = self.alloc(Expr { span, kind: ExprKind::Ternary(cond, then, expr) });
+        }
+        Ok(expr)
     }
 
     /// Parses a binary expression.
