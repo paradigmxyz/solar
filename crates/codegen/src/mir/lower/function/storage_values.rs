@@ -340,10 +340,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn call_returns_storage_ref(&self, callee: &hir::Expr<'_>) -> bool {
-        self.cx.gcx.resolved_function(callee).is_some_and(|function_id| {
-            self.cx.gcx.hir.function(function_id).returns.first().is_some_and(|&ret| {
-                self.cx.gcx.type_of_item(ret.into()).is_ref_at(DataLocation::Storage)
-            })
+        self.cx.gcx.type_of_expr(callee.id).is_some_and(|ty| {
+            matches!(ty.kind, TyKind::Fn(function)
+                if function.returns.first().is_some_and(|ret| ret.is_ref_at(DataLocation::Storage)))
         })
     }
 
