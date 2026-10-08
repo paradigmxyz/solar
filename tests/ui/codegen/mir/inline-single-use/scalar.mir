@@ -39,3 +39,27 @@ fn @reference(arg0: i256) -> i256 {
   bb0:
     ret arg0
 }
+
+fn @tail_caller(arg0: i256) -> i256 {
+  bb0:
+    tail_call @tail_shared, arg0
+}
+
+fn @call_caller(arg0: i256) -> i256 {
+  bb0:
+    v0 = icall @tail_shared, arg0
+    ret v0
+}
+
+// Tail calls count as call sites, so this body has two and retains its ordinary call.
+fn @tail_shared(arg0: i256) -> i256 {
+  bb0:
+    v0 = lt arg0, 10
+    jumpi v0, bb1, bb2
+  bb1:
+    v1 = add arg0, 7
+    ret v1
+  bb2:
+    v2 = sub arg0, 3
+    ret v2
+}

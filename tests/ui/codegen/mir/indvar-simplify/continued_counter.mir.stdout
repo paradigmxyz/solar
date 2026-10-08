@@ -1,0 +1,258 @@
+// === ROOT/tests/ui/codegen/mir/indvar-simplify/continued_counter.sol:ContinuedCounter ===
+@module ContinuedCounter
+fn @fill() -> memptr [selector=0xd9c55ce1, pure, abi_params=[], abi_returns=[memory_array<word>], abi_return_params=[array<_, u256>]] {
+  bb0:
+    v0 = alloc memoryarray<1>, exact, zeroed, panic, 224
+    set_memory_object_len memoryarray, v0, 6
+    jump bb1
+  bb1:
+    v1 = phi [bb0: v0], [bb3: v1]
+    v2 = phi [bb0: 0], [bb3: v7]
+    v3 = lt v2, 2
+    jumpi v3, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    jump bb7
+  bb7:
+    v8 = phi [bb2: v1], [bb9: v8]
+    v9 = phi [bb2: v2], [bb9: v14]
+    v10 = lt v9, 5
+    jumpi v10, bb10, bb11
+  bb11:
+    jump bb8
+  bb8:
+    jump bb13
+  bb13:
+    v15 = phi [bb8: v8], [bb15: v15]
+    v16 = phi [bb8: v9], [bb15: v21]
+    v17 = lt v16, 6
+    jumpi v17, bb16, bb17
+  bb17:
+    jump bb14
+  bb14:
+    ret v15
+  bb16:
+    v18 = memory_object_len memoryarray, v15
+    v19 = lt v16, v18
+    v20 = eq v19, false
+    icall panic_if<0x32>, v20
+    memory_object_store_element memoryarray<1>, v15, v16, 7
+    jump bb18
+  bb18:
+    jump bb15
+  bb15:
+    v21 = checked_add u256, v16, 1
+    jump bb13
+  bb10:
+    v11 = memory_object_len memoryarray, v8
+    v12 = lt v9, v11
+    v13 = eq v12, false
+    icall panic_if<0x32>, v13
+    memory_object_store_element memoryarray<1>, v8, v9, 9
+    jump bb12
+  bb12:
+    jump bb9
+  bb9:
+    v14 = checked_add u256, v9, 1
+    jump bb7
+  bb4:
+    v4 = memory_object_len memoryarray, v1
+    v5 = lt v2, v4
+    v6 = eq v5, false
+    icall panic_if<0x32>, v6
+    memory_object_store_element memoryarray<1>, v1, v2, 8
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v7 = checked_add u256, v2, 1
+    jump bb1
+}
+
+fn @remove(arg0: i256, arg1: i160) -> i256 [selector=0x9dfa4e94, abi_params=[u256, address], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = mapping_slot arg0, 0
+    jump bb1
+  bb1:
+    v1 = phi [bb0: arg0], [bb3: v1]
+    v2 = phi [bb0: i160 0], [bb3: v25]
+    v3 = phi [bb0: 0], [bb3: v3]
+    v4 = phi [bb0: arg1], [bb3: v4]
+    v5 = phi [bb0: v0], [bb3: v5]
+    v6 = lt v2, i160 5
+    jumpi v6, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    jump bb7
+  bb7:
+    v26 = phi [bb2: v1], [bb9: v26]
+    v27 = phi [bb2: v2], [bb9: v27]
+    v28 = phi [bb2: v3], [bb9: v28]
+    v29 = phi [bb2: v4], [bb9: v29]
+    v30 = phi [bb2: 0], [bb9: v86]
+    v31 = phi [bb2: v5], [bb9: v31]
+    v32 = lt v30, 5
+    jumpi v32, bb10, bb11
+  bb11:
+    jump bb8
+  bb10:
+    v33 = lt v30, 5
+    v34 = eq v33, false
+    icall panic_if<0x32>, v34
+    v35 = mul v30, 2
+    v36 = add v31, v35
+    v37 = sload v36 !metadata(storage=symbolic(v36))
+    v38 = trunc i256 v37 to i160
+    v39 = eq v38, v29
+    jumpi v39, bb13, bb14
+  bb14:
+    jump bb15
+  bb15:
+    jump bb12
+  bb12:
+    jump bb9
+  bb9:
+    v86 = checked_add u256, v30, 1
+    jump bb7
+  bb13:
+    jump bb16
+  bb16:
+    v40 = phi [bb13: v26], [bb18: v40]
+    v41 = phi [bb13: v27], [bb18: v41]
+    v42 = phi [bb13: v28], [bb18: v42]
+    v43 = phi [bb13: v30], [bb18: v72]
+    v44 = phi [bb13: v29], [bb18: v44]
+    v45 = phi [bb13: v30], [bb18: v45]
+    v46 = phi [bb13: v31], [bb18: v46]
+    v47 = lt v43, 4
+    jumpi v47, bb19, bb20
+  bb20:
+    jump bb17
+  bb17:
+    v73 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    memory_object_store_field memorystruct<2>, v73, 0, 0
+    memory_object_store_field memorystruct<2>, v73, 1, 0
+    v74 = lt 4, 5
+    v75 = eq v74, false
+    icall panic_if<0x32>, v75
+    v76 = mul 4, 2
+    v77 = add v46, v76
+    v78 = memory_object_load_field memorystruct<2>, v73, 0
+    v79 = sload v77 !metadata(storage=symbolic(v77))
+    v80 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v81 = and v79, v80
+    v82 = and v78, 0xffffffffffffffffffffffffffffffffffffffff
+    v83 = or v81, v82
+    sstore v77, v83 !metadata(storage=symbolic(v77))
+    v84 = add v77, 1
+    v85 = memory_object_load_field memorystruct<2>, v73, 1
+    sstore v84, v85 !metadata(storage=offset(v77, 1))
+    jump bb8
+  bb8:
+    v87 = phi [bb17: v40], [bb11: v26]
+    v88 = phi [bb17: v41], [bb11: v27]
+    v89 = phi [bb17: v42], [bb11: v28]
+    v90 = phi [bb17: v44], [bb11: v29]
+    v91 = phi [bb17: v45], [bb11: v30]
+    v92 = phi [bb17: v46], [bb11: v31]
+    jump bb22
+  bb22:
+    v93 = phi [bb8: v87], [bb24: v93]
+    v94 = phi [bb8: v88], [bb24: v94]
+    v95 = phi [bb8: v89], [bb24: v108]
+    v96 = phi [bb8: v90], [bb24: v96]
+    v97 = phi [bb8: v91], [bb24: v97]
+    v98 = phi [bb8: 0], [bb24: v109]
+    v99 = phi [bb8: v92], [bb24: v99]
+    v100 = lt v98, 5
+    jumpi v100, bb25, bb26
+  bb26:
+    jump bb23
+  bb23:
+    ret v95
+  bb25:
+    v101 = checked_mul u256, v95, 10
+    v102 = lt v98, 5
+    v103 = eq v102, false
+    icall panic_if<0x32>, v103
+    v104 = mul v98, 2
+    v105 = add v99, v104
+    v106 = add v105, 1
+    v107 = sload v106 !metadata(storage=offset(v105, 1))
+    v108 = checked_add u256, v101, v107
+    jump bb27
+  bb27:
+    jump bb24
+  bb24:
+    v109 = checked_add u256, v98, 1
+    jump bb22
+  bb19:
+    v48 = checked_add u256, v43, 1
+    v49 = lt v48, 5
+    v50 = eq v49, false
+    icall panic_if<0x32>, v50
+    v51 = mul v48, 2
+    v52 = add v46, v51
+    v53 = lt v43, 5
+    v54 = eq v53, false
+    icall panic_if<0x32>, v54
+    v55 = mul v43, 2
+    v56 = add v46, v55
+    v57 = alloc memorystruct<2>, exact, uninitialized, panic, 64
+    v58 = sload v52 !metadata(storage=symbolic(v52))
+    v59 = trunc i256 v58 to i160
+    v60 = zext i160 v59 to i256
+    memory_object_store_field memorystruct<2>, v57, 0, v60
+    v61 = add v52, 1
+    v62 = sload v61 !metadata(storage=offset(v52, 1))
+    memory_object_store_field memorystruct<2>, v57, 1, v62
+    v63 = ptrtoint memptr v57 to i256
+    v64 = memory_object_load_field memorystruct<2>, v57, 0
+    v65 = sload v56 !metadata(storage=symbolic(v56))
+    v66 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v67 = and v65, v66
+    v68 = and v64, 0xffffffffffffffffffffffffffffffffffffffff
+    v69 = or v67, v68
+    sstore v56, v69 !metadata(storage=symbolic(v56))
+    v70 = add v56, 1
+    v71 = memory_object_load_field memorystruct<2>, v57, 1
+    sstore v70, v71 !metadata(storage=offset(v56, 1))
+    jump bb21
+  bb21:
+    jump bb18
+  bb18:
+    v72 = checked_add u256, v43, 1
+    jump bb16
+  bb4:
+    v7 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    v8 = checked_add u160, v2, i160 1
+    v9 = zext i160 v8 to i256
+    v10 = checked_add u160, v2, i160 1
+    v11 = zext i160 v10 to i256
+    memory_object_store_field memorystruct<2>, v7, 0, v9
+    memory_object_store_field memorystruct<2>, v7, 1, v11
+    v12 = lt v2, i160 5
+    v13 = eq v12, false
+    icall panic_if<0x32>, v13
+    v14 = zext i160 v2 to i256
+    v15 = mul v14, 2
+    v16 = add v5, v15
+    v17 = memory_object_load_field memorystruct<2>, v7, 0
+    v18 = sload v16 !metadata(storage=symbolic(v16))
+    v19 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v20 = and v18, v19
+    v21 = and v17, 0xffffffffffffffffffffffffffffffffffffffff
+    v22 = or v20, v21
+    sstore v16, v22 !metadata(storage=symbolic(v16))
+    v23 = add v16, 1
+    v24 = memory_object_load_field memorystruct<2>, v7, 1
+    sstore v23, v24 !metadata(storage=offset(v16, 1))
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v25 = checked_add u160, v2, i160 1
+    jump bb1
+}

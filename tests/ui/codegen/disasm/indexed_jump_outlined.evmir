@@ -1,0 +1,125 @@
+//@ compile-flags: -Zevm-ir-pipeline=none -O none -Zdump=disasm-runtime
+//@ filecheck:
+
+// With a short outlined dispatch the last target ends below 255 bytes. A packed
+// table is longer and would push the last target past 255 bytes, so the table
+// stays outlined with one-byte entry stubs.
+@module outlined
+
+// CHECK-LABEL: // === outlined (runtime) ===
+// CHECK-NEXT: PUSH1 0x01
+// CHECK-NEXT: PUSH1 0x04
+// CHECK-NEXT: MUL
+// CHECK-NEXT: PUSH2
+// CHECK-NEXT: ADD
+// CHECK-NEXT: JUMP ; unknown
+bb0:
+  push 1
+  indexed_jump bb1, bb2, bb3, bb4, bb5, bb6, bb7, bb8, bb9, bb10, bb11, bb12, bb13, bb14, bb15, bb16, bb17, bb18, bb19, bb20, bb21, bb22, bb23, bb24
+
+bb1:
+  push 0x01010101010101
+  stop
+
+bb2:
+  push 0x01010101010101
+  stop
+
+bb3:
+  push 0x01010101010101
+  stop
+
+bb4:
+  push 0x01010101010101
+  stop
+
+bb5:
+  push 0x01010101010101
+  stop
+
+bb6:
+  push 0x01010101010101
+  stop
+
+bb7:
+  push 0x01010101010101
+  stop
+
+bb8:
+  push 0x01010101010101
+  stop
+
+bb9:
+  push 0x01010101010101
+  stop
+
+bb10:
+  push 0x01010101010101
+  stop
+
+bb11:
+  push 0x01010101010101
+  stop
+
+bb12:
+  push 0x01010101010101
+  stop
+
+bb13:
+  push 0x01010101010101
+  stop
+
+bb14:
+  push 0x01010101010101
+  stop
+
+bb15:
+  push 0x01010101010101
+  stop
+
+bb16:
+  push 0x01010101010101
+  stop
+
+bb17:
+  push 0x01010101010101
+  stop
+
+bb18:
+  push 0x01010101010101
+  stop
+
+bb19:
+  push 0x01010101010101
+  stop
+
+bb20:
+  push 0x01010101010101
+  stop
+
+bb21:
+  push 0x01010101010101
+  stop
+
+bb22:
+  push 0x01010101010101
+  stop
+
+bb23:
+  push 0x01010101010101
+  stop
+
+bb24:
+  push 0x01010101010101
+  stop
+
+bb25:
+  push 0xf000000000000000000000000000000000000000000000000000000000000001
+  push 0xf000000000000000000000000000000000000000000000000000000000000001
+  push 0xf000000000000000000000000000000000000000000000000000000000000001
+  push 0xf000000000000000000000000000000000000000000000000000000000000001
+  push 0xf000000000000000000000000000000000000000000000000000000000000001
+  push 0xf000000000000000000000000000000000000000000000000000000000000001
+  push 0xf000000000000000000000000000000000000000000000000000000000000001
+  push 0xf000000000000000000000000000000000000000000000000000000000000001
+  stop

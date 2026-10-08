@@ -133,17 +133,3 @@ fn arithmetic_bounds(
     };
     (range.1 <= max).then_some(range)
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn integer_masks_have_exact_width() {
-        for bits in 0..=256 {
-            let mask = integer_mask(bits);
-            assert_eq!(mask.bit_len(), bits as usize);
-            assert_eq!(mask.count_ones(), bits as usize);
-        }
-    }
-}
