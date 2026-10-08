@@ -1,0 +1,22 @@
+{
+  "sources": {
+    "B.sol": {
+      "id": 0
+    },
+    "contracts/A.sol": {
+      "id": 1
+    }
+  },
+  "contracts": {
+    "contracts/A.sol": {
+      "A": {
+        "evm": {
+          "methodIdentifiers": {
+            "a()": "0dbe671f",
+            "b()": "4df7e3d0"
+          }
+        }
+      }
+    }
+  }
+}

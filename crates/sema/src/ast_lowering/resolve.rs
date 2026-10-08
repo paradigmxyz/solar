@@ -22,8 +22,8 @@ impl super::LoweringContext<'_> {
         assert!(self.resolver.source_scopes.is_empty(), "exports already collected");
         self.resolver.source_scopes = self
             .hir
-            .sources()
-            .map(|source| {
+            .sources_enumerated()
+            .map(|(source_id, source)| {
                 let mut scope = Declarations::with_capacity(source.items.len());
                 for &item_id in source.items {
                     if let hir::ItemId::Function(id) = item_id
@@ -35,6 +35,17 @@ impl super::LoweringContext<'_> {
                     if let Some(name) = item.name() {
                         let decl = Declaration { res: Res::Item(item_id), span: name.span };
                         let _ = self.declare_in(&mut scope, name.name, decl);
+                    }
+                }
+                // Declare module aliases before performing any imports, like solc, so that
+                // cyclic importers can import them regardless of source order.
+                for &(item_id, import_id) in source.imports {
+                    let ast = self.sources[source_id].ast.as_ref().unwrap();
+                    let ast::ItemKind::Import(import) = &ast.items[item_id].kind else {
+                        unreachable!()
+                    };
+                    if let Some(alias) = import.source_alias() {
+                        let _ = self.declare_kind_in(&mut scope, alias, Res::Namespace(import_id));
                     }
                 }
                 scope
@@ -59,15 +70,10 @@ impl super::LoweringContext<'_> {
                     (&mut self.resolver.source_scopes[source_id], None)
                 };
                 match import.items {
-                    ast::ImportItems::Plain(_) | ast::ImportItems::Glob(_) => {
-                        if let Some(alias) = import.items.source_alias() {
-                            let _ = source_scope.declare_res(
-                                self.sess,
-                                &self.hir,
-                                alias,
-                                Res::Namespace(import_id),
-                            );
-                        } else if let Some(import_scope) = import_scope {
+                    // Module aliases are declared in `collect_exports`.
+                    ast::ImportItems::Plain(Some(_)) | ast::ImportItems::Glob(_) => {}
+                    ast::ImportItems::Plain(None) => {
+                        if let Some(import_scope) = import_scope {
                             // Import all declarations.
                             for (&name, decls) in &import_scope.declarations {
                                 for decl in &decls.all {
@@ -258,7 +264,7 @@ pub(super) struct ResolveContext<'gcx> {
     pub(super) lcx: super::LoweringContext<'gcx>,
     pub(super) scopes: SymbolResolverScopes,
     function_id: Option<hir::FunctionId>,
-    yul_scopes: Vec<usize>,
+    yul_root_scope: Option<usize>,
     yul_function_scope: Option<usize>,
 }
 
@@ -283,7 +289,7 @@ impl<'gcx> ResolveContext<'gcx> {
             lcx,
             scopes: SymbolResolverScopes::new(),
             function_id: None,
-            yul_scopes: Vec::new(),
+            yul_root_scope: None,
             yul_function_scope: None,
         }
     }
@@ -948,15 +954,6 @@ impl<'gcx> ResolveContext<'gcx> {
         t
     }
 
-    fn in_yul_scope<T>(&mut self, f: impl FnOnce(&mut Self) -> T) -> T {
-        self.scopes.enter();
-        self.yul_scopes.push(self.scopes.scopes.len() - 1);
-        let t = f(self);
-        self.yul_scopes.pop();
-        self.scopes.exit();
-        t
-    }
-
     fn in_scope_if<T>(&mut self, cond: bool, f: impl FnOnce(&mut Self) -> T) -> T {
         if cond { self.in_scope(f) } else { f(self) }
     }
@@ -968,17 +965,41 @@ impl<'gcx> ResolveContext<'gcx> {
         self.resolver.resolve_paths(path, &self.scopes).map_err(self.resolver.emit_resolver_error())
     }
 
-    fn resolve_path(&self, path: &ast::PathSlice) -> Result<&'gcx [Res], ErrorGuaranteed> {
-        self.resolve_paths(path)
-            .map(|decls| &*self.arena.alloc_slice_fill_iter(decls.iter().map(|decl| decl.res)))
-    }
-
     fn resolve_path_as<T: TryFrom<Res>>(
         &self,
         path: &ast::PathSlice,
         description: &str,
     ) -> Result<T, ErrorGuaranteed> {
         self.resolver.resolve_path_as(path, &self.scopes, description)
+    }
+
+    /// Resolves the event or error path of an `emit` or `revert` statement.
+    ///
+    /// solc checks the qualified callee as a member access, and a contract name exposes only the
+    /// contract's own declarations, so `emit I.E()` ignores any `E` that `I` inherits.
+    ///
+    /// Reference: <https://github.com/argotorg/solidity/blob/v0.8.37/libsolidity/ast/Types.cpp#L3966-L4010>
+    fn resolve_callee_path(&self, path: &ast::PathSlice) -> Result<&'gcx [Res], ErrorGuaranteed> {
+        let (mut qualifier, mut last) = (None, None);
+        let decls = self
+            .resolver
+            .resolve_paths_with(path, &self.scopes, |decls| {
+                qualifier = last;
+                last = if let [decl] = decls { Some(decl.res) } else { None };
+            })
+            .map_err(self.resolver.emit_resolver_error())?;
+        let res = decls.iter().map(|decl| decl.res);
+        let Some(Res::Item(hir::ItemId::Contract(contract))) = qualifier else {
+            return Ok(self.arena.alloc_slice_fill_iter(res));
+        };
+        let own = self.arena.alloc_from_iter(res.filter(|res| {
+            matches!(*res, Res::Item(item) if self.hir.item(item).contract() == Some(contract))
+        }));
+        if own.is_empty() {
+            let error = ResolverError::new(*path.last(), ResolverErrorKind::Unresolved);
+            return Err(self.resolver.emit_resolver_error()(error));
+        }
+        Ok(own)
     }
 
     /// Lowers the given statements by first entering a new scope.
@@ -1036,13 +1057,13 @@ impl<'gcx> ResolveContext<'gcx> {
             ast::StmtKind::While(_, _)
             | ast::StmtKind::DoWhile(_, _)
             | ast::StmtKind::For { .. } => self.lower_loop_stmt(stmt),
-            ast::StmtKind::Emit(path, args) => match self.resolve_path(path) {
+            ast::StmtKind::Emit(path, args) => match self.resolve_callee_path(path) {
                 Ok(res) => {
                     hir::StmtKind::Emit(self.make_call_expr_for_emit(path, res, args, stmt.span))
                 }
                 Err(guar) => hir::StmtKind::Err(guar),
             },
-            ast::StmtKind::Revert(path, args) => match self.resolve_path(path) {
+            ast::StmtKind::Revert(path, args) => match self.resolve_callee_path(path) {
                 Ok(res) => {
                     hir::StmtKind::Revert(self.make_call_expr_for_emit(path, res, args, stmt.span))
                 }
@@ -1088,11 +1109,14 @@ impl<'gcx> ResolveContext<'gcx> {
             }
         }
 
-        hir::StmtKind::AssemblyBlock(self.lower_yul_block(&assembly.block))
+        let previous_yul_root_scope = self.yul_root_scope.replace(self.scopes.scopes.len());
+        let block = self.lower_yul_block(&assembly.block);
+        self.yul_root_scope = previous_yul_root_scope;
+        hir::StmtKind::AssemblyBlock(block)
     }
 
     fn lower_yul_block(&mut self, block: &ast::yul::Block<'_>) -> hir::Block<'gcx> {
-        self.in_yul_scope(|this| this.lower_yul_stmts(block.stmts, block.span))
+        self.in_scope(|this| this.lower_yul_stmts(block.stmts, block.span))
     }
 
     fn lower_yul_stmts(&mut self, stmts: &[ast::yul::Stmt<'_>], span: Span) -> hir::Block<'gcx> {
@@ -1135,7 +1159,6 @@ impl<'gcx> ResolveContext<'gcx> {
         let previous_function = self.function_id.replace(id);
         self.scopes.enter();
         let function_scope = self.scopes.scopes.len() - 1;
-        self.yul_scopes.push(function_scope);
         let previous_yul_function_scope = self.yul_function_scope.replace(function_scope);
 
         self.hir.functions[id].parameters =
@@ -1148,7 +1171,6 @@ impl<'gcx> ResolveContext<'gcx> {
         let body = self.hir_builder().block(self.arena.alloc_as_slice(unchecked), block.span);
 
         self.yul_function_scope = previous_yul_function_scope;
-        self.yul_scopes.pop();
         self.scopes.exit();
         self.hir.functions[id].body = Some(body);
         self.function_id = previous_function;
@@ -1286,7 +1308,7 @@ impl<'gcx> ResolveContext<'gcx> {
     }
 
     fn lower_yul_for_stmt(&mut self, for_: &ast::yul::StmtFor<'_>) -> hir::StmtKind<'gcx> {
-        self.in_yul_scope(|this| {
+        self.in_scope(|this| {
             // {
             //     { <init> } // fake block
             //     loop {
@@ -1298,10 +1320,8 @@ impl<'gcx> ResolveContext<'gcx> {
             // }
             let init = this.lower_yul_stmts(for_.init.stmts, for_.init.span);
             let cond = this.lower_yul_condition(&for_.cond);
-            let step =
-                this.in_yul_scope(|this| this.lower_yul_stmts(for_.step.stmts, for_.step.span));
-            let body =
-                this.in_yul_scope(|this| this.lower_yul_stmts(for_.body.stmts, for_.body.span));
+            let step = this.in_scope(|this| this.lower_yul_stmts(for_.step.stmts, for_.step.span));
+            let body = this.in_scope(|this| this.lower_yul_stmts(for_.body.stmts, for_.body.span));
             let builder = this.hir_builder();
 
             let step_stmt = this.arena.alloc(builder.stmt(hir::StmtKind::Block(step), step.span));
@@ -1390,31 +1410,16 @@ impl<'gcx> ResolveContext<'gcx> {
     }
 
     fn resolve_yul_call_name(&mut self, name: Ident) -> Result<&'gcx [Res], ErrorGuaranteed> {
-        for scope in self.scopes.scopes.iter().rev() {
+        // Yul calls resolve only to Yul functions and builtins, never to Solidity declarations.
+        let yul_root_scope = self.yul_root_scope.expect("Yul call outside inline assembly");
+        for scope in self.scopes.scopes[yul_root_scope..].iter().rev() {
             let Some(decls) = scope.resolve(name) else { continue };
-            if let Some(guar) = decls.iter().find_map(|decl| match decl.res {
-                Res::Err(guar) => Some(guar),
-                _ => None,
-            }) {
-                return Err(guar);
-            }
             let functions = decls
                 .iter()
-                .filter_map(|decl| match decl.res {
-                    Res::Item(hir::ItemId::Function(id)) if self.hir.function(id).is_yul => {
-                        Some(Res::Item(hir::ItemId::Function(id)))
-                    }
-                    _ => None,
-                })
+                .map(|decl| decl.res)
+                .filter(|res| matches!(res, Res::Item(hir::ItemId::Function(_))))
                 .collect::<SmallVec<[_; 4]>>();
             if functions.is_empty() {
-                if decls.iter().all(|decl| matches!(decl.res, Res::Item(hir::ItemId::Function(_))))
-                {
-                    return Err(self.resolver.emit_resolver_error()(ResolverError::new(
-                        name,
-                        ResolverErrorKind::Unresolved,
-                    )));
-                }
                 return Err(self.resolver.report_expected(
                     "function",
                     decls[0].res.description(),
@@ -2462,8 +2467,14 @@ impl Declarations {
         name: Symbol,
         decl: Declaration,
     ) -> Result<(), ErrorGuaranteed> {
-        self.try_declare(hir, name, decl)
-            .map_err(|conflict| report_conflict(hir, sess, name, decl, conflict))
+        self.try_declare(hir, name, decl).map_err(|conflict| {
+            // Like solc, report the declaration that comes later in the source.
+            if conflict.span.lo() > decl.span.lo() {
+                report_conflict(hir, sess, name, conflict, decl)
+            } else {
+                report_conflict(hir, sess, name, decl, conflict)
+            }
+        })
     }
 
     pub(crate) fn try_declare(
