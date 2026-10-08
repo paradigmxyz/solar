@@ -261,9 +261,9 @@ impl<'gcx, W: fmt::Write> TySolcPrinter<'gcx, W> {
                 self.print(ty)?;
                 self.buf.write_str(" with call options")
             }
-            TyKind::StringLiteral(utf8, size) => {
+            TyKind::StringLiteral(utf8, len) => {
                 let kind = if utf8 { "utf8" } else { "bytes" };
-                write!(self.buf, "{kind}_string_literal[{}]", size.bytes_raw())
+                write!(self.buf, "{kind}_string_literal[{len}]")
             }
             TyKind::IntLiteral(_, size, _) => {
                 write!(self.buf, "int_literal[{}]", size.bits())
