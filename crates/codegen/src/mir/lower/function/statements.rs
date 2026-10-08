@@ -167,27 +167,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             StmtKind::Expr(expr) => {
                 let expr = expr.peel_parens();
-                let is_item_reference = matches!(
-                    self.cx.gcx.type_of_expr(expr.id).map(|ty| ty.kind),
-                    Some(TyKind::Type(_))
-                ) || matches!(
-                    expr.kind,
-                    ExprKind::Member(receiver, _)
-                        if matches!(
-                            self.cx.gcx.type_of_expr(receiver.id).map(|ty| ty.kind),
-                            Some(TyKind::Type(_))
-                        )
-                );
-                if is_item_reference
-                    || (matches!(expr.kind, ExprKind::Ident(_))
-                        && self.cx.gcx.resolved_builtin(expr).is_some()
-                        && matches!(
-                            self.cx.gcx.type_of_expr(expr.id).map(|ty| ty.kind),
-                            Some(TyKind::Fn(_))
-                        ))
-                {
-                    return Some(());
-                }
                 if let ExprKind::Assign(lhs, None, rhs) = &expr.kind
                     && self.is_constant_storage_assignment(lhs, rhs)
                 {
@@ -329,6 +308,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     fn lower_discarded_expr_inner(&mut self, expr: &hir::Expr<'_>) -> Option<()> {
         match &expr.kind {
+            // Names and `new T` have no effects to evaluate.
+            ExprKind::Ident(_) | ExprKind::New(_) => Some(()),
             ExprKind::Call(callee, args) => {
                 let (callee, options) = callee.split_call_options();
                 self.lower_call(expr, callee, *args, options, false).map(drop)
@@ -371,26 +352,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 Some(())
             }
             ExprKind::CallOptions(callee, options) => {
-                match callee.peel_parens().kind {
-                    ExprKind::Member(receiver, _) => {
-                        self.lower_discarded_expr(receiver)?;
-                    }
-                    ExprKind::New(_) => {}
-                    _ => {
-                        self.lower_discarded_expr(callee)?;
-                    }
-                }
+                self.lower_discarded_expr(callee)?;
                 for option in options.args {
                     self.lower_discarded_expr(&option.value)?;
-                }
-                Some(())
-            }
-            ExprKind::Member(receiver, _) if self.cx.gcx.resolved_function(expr).is_some() => {
-                if !matches!(
-                    self.cx.gcx.type_of_expr(receiver.id).map(|ty| ty.kind),
-                    Some(TyKind::Type(_))
-                ) {
-                    self.lower_discarded_expr(receiver)?;
                 }
                 Some(())
             }
@@ -402,8 +366,42 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }
                 Some(())
             }
+            // A member function, such as `to.transfer`, or a member of an item only evaluates its
+            // receiver. Function-typed fields are still read: calldata reads validate them.
+            ExprKind::Member(receiver, _)
+                if self.is_member_function(expr) || self.is_item_reference(receiver) =>
+            {
+                self.lower_discarded_expr(receiver)
+            }
+            // Types, modules, events, and errors have no effects to evaluate.
+            _ if self.is_item_reference(expr) => Some(()),
             _ => self.lower_expr(expr).map(drop),
         }
+    }
+
+    /// Returns whether `expr` names a function or a builtin function, such as `this.f` or
+    /// `to.transfer`, rather than a function-typed value.
+    fn is_member_function(&self, expr: &hir::Expr<'_>) -> bool {
+        let gcx = self.cx.gcx;
+        matches!(
+            gcx.resolved_expr(expr),
+            Some(hir::Res::Item(hir::ItemId::Function(_)) | hir::Res::Builtin(_))
+        ) && gcx.type_of_expr(expr.id).is_some_and(|ty| matches!(ty.kind, TyKind::Fn(_)))
+    }
+
+    /// Returns whether `expr` names a type, module, event, or error rather than a runtime value.
+    fn is_item_reference(&self, expr: &hir::Expr<'_>) -> bool {
+        self.cx.gcx.type_of_expr(expr.id).is_some_and(|ty| {
+            matches!(
+                ty.kind,
+                TyKind::Type(_)
+                    | TyKind::Meta(_)
+                    | TyKind::Module(_)
+                    | TyKind::BuiltinModule(_)
+                    | TyKind::Event(..)
+                    | TyKind::Error(..)
+            )
+        })
     }
 
     pub(super) fn lower_revert_payload(&mut self, expr: &hir::Expr<'_>) -> Option<()> {
