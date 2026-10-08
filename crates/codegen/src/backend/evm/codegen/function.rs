@@ -248,6 +248,8 @@ impl<'gcx> EvmCodegen<'gcx> {
                 if resident_carries_hazards { resident_stack_plan.clone() } else { None }
             });
         let has_hazard_stack_plan = hazard_stack_plan.is_some();
+        let hazard_reaching_blocks = (hazard_stack_values.is_some() && !untrusted_memory)
+            .then(|| self.spill_hazard_reaching_blocks(func));
         let required_stack_plan = resident_stack_plan.is_some() || hazard_stack_plan.is_some();
         let mut global_stack_plan =
             hazard_stack_plan.clone().or(resident_stack_plan).unwrap_or_else(|| {
@@ -559,8 +561,16 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
             stack_only_values.extend(hazard_stack_values.into_iter().flatten().copied());
             self.scheduler.set_stack_only_values(func.num_values(), stack_only_values);
+            // Past the last clobber a fresh spill slot stays valid. Argument frame homes may
+            // already be overwritten, so arguments stay pinned.
+            let after_hazards =
+                hazard_reaching_blocks.as_ref().is_some_and(|blocks| !blocks.contains(block_id));
             for &value in hazard_stack_values.into_iter().flatten() {
-                self.scheduler.protect_hazard_value(func.num_values(), value);
+                if after_hazards && !matches!(func.value(value), Value::Arg(_)) {
+                    self.scheduler.unprotect_hazard_value(value);
+                } else {
+                    self.scheduler.protect_hazard_value(func.num_values(), value);
+                }
             }
             if untrusted_memory {
                 for value in func.live_values() {

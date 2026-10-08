@@ -1,9 +1,10 @@
 //@ revisions: none gas size
-//@ compile-flags: --emit=bin
 //@[none] compile-flags: -O none
 //@[gas] compile-flags: -O gas
 //@[size] compile-flags: -O size
-//~? ERROR: codegen cannot preserve values across a low-memory write in `constructor`
+//@ run-call: stored; constructor=[0] => 0
+//@ run-call: stored; constructor=[1] => 0
+//@ run-call: stored; constructor=[1024] => 0
 
 contract ConstructorForwarding {
     constructor(uint256 length) {
@@ -31,6 +32,12 @@ contract ConstructorForwarding {
                 sum := add(sum, add(a15, a16))
                 sstore(0, xor(xor(a15, a16), xor(sum, xor(xor(xor(xor(xor(xor(xor(xor(xor(xor(xor(xor(xor(xor(a0, a1), a2), a3), a4), a5), a6), a7), a8), a9), a10), a11), a12), a13), a14))))
             }
+        }
+    }
+
+    function stored() external view returns (uint256 value) {
+        assembly {
+            value := sload(0)
         }
     }
 }

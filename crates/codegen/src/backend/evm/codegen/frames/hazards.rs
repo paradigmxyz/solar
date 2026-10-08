@@ -159,6 +159,30 @@ impl<'gcx> EvmCodegen<'gcx> {
         hazards
     }
 
+    /// Returns the blocks that contain a spill hazard or can reach one.
+    ///
+    /// A spill slot written in any other block stays valid for the rest of the function.
+    pub(in crate::backend::evm::codegen) fn spill_hazard_reaching_blocks(
+        &self,
+        func: &Function,
+    ) -> DenseBitSet<BlockId> {
+        let mut reaching = DenseBitSet::new_empty(func.blocks.len());
+        let mut pending = func
+            .blocks
+            .iter_enumerated()
+            .filter(|(_, block)| {
+                block.instructions.iter().any(|inst| self.spill_hazard_insts.contains(inst))
+            })
+            .map(|(id, _)| id)
+            .collect::<Vec<_>>();
+        while let Some(block) = pending.pop() {
+            if reaching.insert(block) {
+                pending.extend(func.blocks[block].predecessors.iter().copied());
+            }
+        }
+        reaching
+    }
+
     /// Whether a dynamic-length write's destination may overlap the spill area.
     /// A free-memory-pointer, allocation, or internal-frame destination stays
     /// in compiler-owned high memory; a symbolic low base (raw
@@ -667,47 +691,20 @@ impl<'gcx> EvmCodegen<'gcx> {
                 {
                     continue;
                 }
-                let mut conditions = vec![(condition, truth)];
-                let mut seen = FxHashSet::default();
-                while let Some((condition, truth)) = conditions.pop() {
-                    if !seen.insert((condition, truth)) {
-                        continue;
+                implied_conditions(func, condition, truth, |kind, truth| match *kind {
+                    InstKind::Lt(a, b) if !truth => {
+                        lower |= a == value && is_heap_pointer(b);
+                        upper |= b == value && func.value_u64(a).is_some();
                     }
-                    let Value::Inst(inst) = func.value(condition) else { continue };
-                    match func.inst(*inst).kind {
-                        InstKind::Zext(inner) => conditions.push((inner, truth)),
-                        InstKind::Ne(inner, zero) if func.value_u64(zero) == Some(0) => {
-                            conditions.push((inner, truth));
-                        }
-                        InstKind::Ne(zero, inner) if func.value_u64(zero) == Some(0) => {
-                            conditions.push((inner, truth));
-                        }
-                        InstKind::Eq(inner, zero) if func.value_u64(zero) == Some(0) => {
-                            conditions.push((inner, !truth));
-                        }
-                        InstKind::Eq(zero, inner) if func.value_u64(zero) == Some(0) => {
-                            conditions.push((inner, !truth));
-                        }
-                        InstKind::Or(a, b) if !truth => {
-                            conditions.extend([(a, false), (b, false)]);
-                        }
-                        InstKind::And(a, b) if truth => {
-                            conditions.extend([(a, true), (b, true)]);
-                        }
-                        InstKind::Lt(a, b) if !truth => {
-                            lower |= a == value && is_heap_pointer(b);
-                            upper |= b == value && func.value_u64(a).is_some();
-                        }
-                        InstKind::Gt(a, b) if !truth => {
-                            lower |= b == value && is_heap_pointer(a);
-                            upper |= a == value && func.value_u64(b).is_some();
-                        }
-                        InstKind::Shr(bits, a) if !truth && a == value => {
-                            upper |= func.value_u64(bits).is_some_and(|bits| bits <= 64);
-                        }
-                        _ => {}
+                    InstKind::Gt(a, b) if !truth => {
+                        lower |= b == value && is_heap_pointer(a);
+                        upper |= a == value && func.value_u64(b).is_some();
                     }
-                }
+                    InstKind::Shr(bits, a) if !truth && a == value => {
+                        upper |= func.value_u64(bits).is_some_and(|bits| bits <= 64);
+                    }
+                    _ => {}
+                });
             }
         }
         lower && upper
@@ -941,8 +938,8 @@ struct HeapWriteProof<'a> {
     accesses: FxHashMap<ValueId, Vec<InstId>>,
     /// Copies by destination and length.
     copies: FxHashMap<(ValueId, ValueId), Vec<InstId>>,
-    /// Bounds from `gt value, bound` branches, with their single-predecessor false successors.
-    gt_guards: FxHashMap<ValueId, Vec<(BlockId, U256)>>,
+    /// Upper bounds proved on entry to single-predecessor branch successors.
+    edge_bounds: FxHashMap<ValueId, Vec<(BlockId, U256)>>,
     bounds: RefCell<FxHashMap<(InstId, ValueId, usize), Option<U256>>>,
 }
 
@@ -952,7 +949,7 @@ impl<'a> HeapWriteProof<'a> {
         let mut positions = IndexVec::from_vec(vec![0; func.num_insts()]);
         let mut accesses = FxHashMap::<_, Vec<_>>::default();
         let mut copies = FxHashMap::<_, Vec<_>>::default();
-        let mut gt_guards = FxHashMap::<_, Vec<_>>::default();
+        let mut edge_bounds = FxHashMap::<_, Vec<_>>::default();
         for (id, block) in func.blocks.iter_enumerated() {
             for (position, &inst) in block.instructions.iter().enumerate() {
                 inst_blocks[inst] = id;
@@ -972,14 +969,33 @@ impl<'a> HeapWriteProof<'a> {
                     _ => {}
                 }
             }
-            if let Some(Terminator::Branch { condition, then_block, else_block }) = block.terminator
-                && then_block != else_block
-                && func.blocks[else_block].predecessors.as_slice() == [id]
-                && let Value::Inst(inst) = func.value(condition)
-                && let InstKind::Gt(lhs, rhs) = func.inst(*inst).kind
-                && let Some(bound) = func.value_u256(rhs)
-            {
-                gt_guards.entry(lhs).or_default().push((else_block, bound));
+            let Some(Terminator::Branch { condition, then_block, else_block }) = block.terminator
+            else {
+                continue;
+            };
+            if then_block == else_block {
+                continue;
+            }
+            for (successor, truth) in [(then_block, true), (else_block, false)] {
+                if func.blocks[successor].predecessors.as_slice() != [id] {
+                    continue;
+                }
+                implied_conditions(func, condition, truth, |kind, truth| {
+                    let (value, bound) = match (kind, truth) {
+                        // `gt x, c` false or `lt c, x` false: x <= c
+                        (&InstKind::Gt(x, c), false) | (&InstKind::Lt(c, x), false) => {
+                            (x, func.value_u256(c))
+                        }
+                        // `lt x, c` true or `gt c, x` true: x <= c - 1
+                        (&InstKind::Lt(x, c), true) | (&InstKind::Gt(c, x), true) => {
+                            (x, func.value_u256(c).and_then(|c| c.checked_sub(U256::from(1))))
+                        }
+                        _ => return,
+                    };
+                    if let Some(bound) = bound {
+                        edge_bounds.entry(value).or_default().push((successor, bound));
+                    }
+                });
             }
         }
         Self {
@@ -989,7 +1005,7 @@ impl<'a> HeapWriteProof<'a> {
             positions,
             accesses,
             copies,
-            gt_guards,
+            edge_bounds,
             bounds: Default::default(),
         }
     }
@@ -1036,8 +1052,8 @@ impl<'a> HeapWriteProof<'a> {
         }
         let block = self.inst_blocks[before];
         if let Some(bound) =
-            self.gt_guards.get(&value).into_iter().flatten().find_map(|&(else_block, bound)| {
-                self.cfg.dominators().dominates(else_block, block).then_some(bound)
+            self.edge_bounds.get(&value).into_iter().flatten().find_map(|&(successor, bound)| {
+                self.cfg.dominators().dominates(successor, block).then_some(bound)
             })
         {
             return Some(bound);
@@ -1178,5 +1194,40 @@ impl<'a> HeapWriteProof<'a> {
         // The first store uses the base itself. Every backedge has already executed that
         // store, bounding its address before the next constant increment can take effect.
         grounded
+    }
+}
+
+/// Calls `leaf` with each condition and truth value implied by `condition` having value `truth`,
+/// looking through boolean wrappers, `or` on the false edge, and `and` on the true edge.
+fn implied_conditions(
+    func: &Function,
+    condition: ValueId,
+    truth: bool,
+    mut leaf: impl FnMut(&InstKind, bool),
+) {
+    let mut conditions = vec![(condition, truth)];
+    let mut seen = FxHashSet::default();
+    while let Some((condition, truth)) = conditions.pop() {
+        if !seen.insert((condition, truth)) {
+            continue;
+        }
+        let Value::Inst(inst) = func.value(condition) else { continue };
+        let kind = &func.inst(*inst).kind;
+        match *kind {
+            InstKind::Zext(inner) => conditions.push((inner, truth)),
+            InstKind::Ne(inner, zero) | InstKind::Ne(zero, inner)
+                if func.value_u64(zero) == Some(0) =>
+            {
+                conditions.push((inner, truth));
+            }
+            InstKind::Eq(inner, zero) | InstKind::Eq(zero, inner)
+                if func.value_u64(zero) == Some(0) =>
+            {
+                conditions.push((inner, !truth));
+            }
+            InstKind::Or(a, b) if !truth => conditions.extend([(a, false), (b, false)]),
+            InstKind::And(a, b) if truth => conditions.extend([(a, true), (b, true)]),
+            _ => leaf(kind, truth),
+        }
     }
 }

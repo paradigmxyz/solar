@@ -823,6 +823,13 @@ impl StackScheduler {
         self.stack_only_values.insert(value);
     }
 
+    /// Lifts the pin on a value once no clobber can follow.
+    pub(crate) fn unprotect_hazard_value(&mut self, value: ValueId) {
+        if self.protected_hazard_values.domain_size() != 0 {
+            self.protected_hazard_values.remove(value);
+        }
+    }
+
     pub(crate) fn forbid_memory_home(&mut self, domain_size: usize, value: ValueId) {
         if self.forbidden_memory_homes.domain_size() == 0 {
             self.forbidden_memory_homes.clear_to(domain_size);
