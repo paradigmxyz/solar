@@ -234,10 +234,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 parameter_names: Some(parameter_names),
                 static_call: false,
             }
-        } else if let ExprKind::Member(receiver, _) = callee.kind {
-            let Some(function_id) = self.cx.gcx.resolved_function(callee) else {
-                return self.cx.report_unsupported(try_stmt.expr.span, "try target");
-            };
+        } else if let ExprKind::Member(receiver, _) = callee.kind
+            && let Some(function_id) = self.cx.gcx.resolved_function(callee)
+        {
             let function = self.cx.gcx.hir.function(function_id);
             let is_external_library = function.contract.is_some_and(|contract| {
                 self.cx.gcx.hir.contract(contract).kind == hir::ContractKind::Library
