@@ -397,9 +397,9 @@ No intentional divergences documented yet.
   word a public function returns to its external callers as data is raised
   only in the internal callers that use it as a pointer. An absolute pointer
   that reaches the store through a parameter, memory, or a call keeps its
-  value, and so does a read at a heap pointer, offset by any word, that happens
-  to cover the slot; a read at any other computed address, such as one loaded
-  from memory, may read the slot as data. A layout that grows past
+  value. A read at a heap pointer plus a constant lies above the slot, while a
+  read at any other computed address, such as one loaded from memory or one
+  below a heap pointer, may read the slot as data. A layout that grows past
   `0x2080`, or one indexed by a loop counter alone, can still reach the
   compiler's memory; Seaport's basic orders with about 40 or more additional
   recipients do.

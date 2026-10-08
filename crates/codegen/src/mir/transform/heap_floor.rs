@@ -32,14 +32,15 @@
 //! whose lowering may allocate or encode at the pointer, unlike pure computations, checks that
 //! revert with scratch data, and accesses to frames, storage slots, and memory that already exists.
 //! An access that may cover a byte the writes have not replaced reads the word as data, such as a
-//! scratch hash or revert data, unless its address is computed from heap pointers: the free memory
-//! pointer, an allocation, a memory object, or a parameter every call fills with one. Any other
-//! address may be low, as a word loaded from memory is zero where nothing has written it and an
-//! external function's integer arguments come from calldata. A return from the constructor, or one
-//! from an external function whose results all have static ABI types, ends execution without
-//! reading the slot: codegen returns runtime code from a fixed address and encodes static results
-//! in a static buffer. An external function returns to the dispatcher even when internal calls
-//! reach it too.
+//! scratch hash or revert data, unless its address is a heap pointer plus a constant: the free
+//! memory pointer, an allocation, a memory object, or a parameter every call fills with one, which
+//! all lie at or above the zero slot at `0x60`. Any other address may be low: a word loaded from
+//! memory is zero where nothing has written it, a subtraction or an offset the program computes can
+//! reach below the heap, and an external function's integer arguments come from calldata. A return
+//! from the constructor, or one from an external function whose results all have static ABI types,
+//! ends execution without reading the slot: codegen returns runtime code from a fixed address and
+//! encodes static results in a static buffer. An external function returns to the dispatcher even
+//! when internal calls reach it too.
 //!
 //! A word read only as the pointer is clamped where it is stored, `mstore 64, clamped`. A word that
 //! is also read as data keeps its value in the slot, and the clamp moves to each pointer read that
@@ -74,13 +75,14 @@
 //! NOTE: Only a full-word store to the constant slot whose value the storing function computes from
 //! constants and calldata is clamped. An absolute address passed through a parameter, memory, or a
 //! call, and copies or byte stores that overwrite the pointer, keep their bytes. An access at a
-//! heap pointer offset by any word is assumed not to cover the slot, and so is one at a memory
-//! object that a call returns, while a loaded word stored elsewhere stays data even if a later load
-//! uses it as a pointer. A slot clamped before a compiler read stays clamped for a later read of it
-//! as data. Writes replace the word only when one block covers all of its bytes. A loaded word
-//! passed to a callee or returned to callers that read it as a pointer is clamped as a whole there,
-//! even if they also read it as data, and a word an external function returns as data is clamped
-//! as a whole in each internal caller that reads it as a pointer. See CODEGEN-010.
+//! heap pointer plus a constant is assumed not to cover the slot, also when the pointer is a memory
+//! object that a call returns or a word the slot holds after a store the pass leaves alone, while a
+//! loaded word stored elsewhere stays data even if a later load uses it as a pointer. A slot
+//! clamped before a compiler read stays clamped for a later read of it as data. Writes replace the
+//! word only when one block covers all of its bytes. A loaded word passed to a callee or returned
+//! to callers that read it as a pointer is clamped as a whole there, even if they also read it as
+//! data, and a word an external function returns as data is clamped as a whole in each internal
+//! caller that reads it as a pointer. See CODEGEN-010.
 
 use crate::mir::{
     AbiType, ArgIdx, BlockId, Builtin, Callee, CheckedOp, EffectKind, Function, FunctionId,
@@ -625,9 +627,9 @@ fn module_heap_addresses(module: &Module) -> IndexVec<FunctionId, DenseBitSet<Va
 }
 
 /// Returns the words `func` computes from heap pointers, with the parameters `params` marks as
-/// holding one: the free memory pointer, allocations, and memory objects, a word that adds any
-/// offset to one or subtracts one from it, and a choice between such words. Every candidate starts
-/// as a heap pointer, and one whose inputs are not drops out until none does.
+/// holding one: the free memory pointer, allocations, and memory objects, a word that adds a
+/// constant or another heap pointer to one, and a choice between such words. Every candidate
+/// starts as a heap pointer, and one whose inputs are not drops out until none does.
 fn function_heap_addresses(
     func: &Function,
     params: &IndexVec<ArgIdx, bool>,
@@ -650,7 +652,7 @@ fn function_heap_addresses(
         for inst in func.instructions() {
             if let Some(value) = func.inst_result_value(inst)
                 && heap.contains(value)
-                && !computes_heap_address(&func.inst(inst).kind, &heap)
+                && !computes_heap_address(func, &func.inst(inst).kind, &heap)
             {
                 heap.remove(value);
                 changed = true;
@@ -668,11 +670,9 @@ fn may_compute_heap_address(func: &Function, inst: InstId) -> bool {
         InstKind::Fmp
         | InstKind::Alloc { .. }
         | InstKind::Add(..)
-        | InstKind::Sub(..)
         | InstKind::Select(..)
         | InstKind::Phi(_)
         | InstKind::Zext(_)
-        | InstKind::Trunc(..)
         | InstKind::IntToPtr(_)
         | InstKind::PtrToInt(..) => true,
         InstKind::MLoad(address) => is_slot(func, address),
@@ -680,19 +680,18 @@ fn may_compute_heap_address(func: &Function, inst: InstId) -> bool {
     }
 }
 
-/// Whether an instruction computes a heap pointer from operands that `heap` holds: an offset added
-/// to one, an offset subtracted from one, or a choice between them. The free memory pointer,
-/// allocations, and memory objects are heap pointers themselves.
-fn computes_heap_address(kind: &InstKind, heap: &DenseBitSet<ValueId>) -> bool {
+/// Whether an instruction computes a heap pointer from operands that `heap` holds: one plus a
+/// constant below 2^64, which cannot wrap around to low memory, or plus another such pointer, a
+/// choice between them, or one converted without losing bits, as memory addresses stay below
+/// 2^64. The free memory pointer, allocations, and memory objects are heap pointers themselves.
+fn computes_heap_address(func: &Function, kind: &InstKind, heap: &DenseBitSet<ValueId>) -> bool {
+    let offset = |value: ValueId| heap.contains(value) || func.value_u64(value).is_some();
     match kind {
-        InstKind::Add(a, b) => heap.contains(*a) || heap.contains(*b),
-        InstKind::Sub(a, b) => heap.contains(*a) && !heap.contains(*b),
+        InstKind::Add(a, b) => heap.contains(*a) && offset(*b) || heap.contains(*b) && offset(*a),
         InstKind::Select(_, a, b) => heap.contains(*a) && heap.contains(*b),
         InstKind::Phi(incoming) => incoming.iter().all(|&(_, value)| heap.contains(value)),
-        InstKind::Zext(operand)
-        | InstKind::Trunc(operand, _)
-        | InstKind::IntToPtr(operand)
-        | InstKind::PtrToInt(operand, _) => heap.contains(*operand),
+        InstKind::Zext(operand) | InstKind::IntToPtr(operand) => heap.contains(*operand),
+        InstKind::PtrToInt(operand, bits) => *bits >= 64 && heap.contains(*operand),
         _ => true,
     }
 }
