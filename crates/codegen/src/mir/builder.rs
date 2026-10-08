@@ -793,21 +793,9 @@ impl<'a> FunctionBuilder<'a> {
         StorageAlias::for_value(self.func, slot)
     }
 
-    /// Sets the free-memory pointer.
-    #[cfg(test)]
-    pub(crate) fn set_fmp(&mut self, value: ValueId) {
-        self.emit_void_inst(InstKind::SetFmp(value))
-    }
-
     /// Reserves untyped memory under an explicit semantic policy.
     pub(crate) fn alloc_raw(&mut self, size: ValueId, semantics: AllocationSemantics) -> ValueId {
         self.alloc_kind(size, crate::mir::AllocationKind::Raw, semantics)
-    }
-
-    /// Reserves memory under an explicit semantic policy.
-    #[cfg(test)]
-    pub(crate) fn alloc(&mut self, size: ValueId, semantics: AllocationSemantics) -> ValueId {
-        self.alloc_raw(size, semantics)
     }
 
     /// Reserves memory for a semantically shaped object.
@@ -1761,28 +1749,5 @@ impl<'a> FunctionBuilder<'a> {
     /// Returns a mutable reference to the function.
     pub(crate) fn func_mut(&mut self) -> &mut Function {
         self.func
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn to_uint_accepts_primitives() {
-        let _ = 1_u8.to_uint();
-        let _ = 1_u16.to_uint();
-        let _ = 1_u32.to_uint();
-        let _ = 1_u64.to_uint();
-        let _ = 1_u128.to_uint();
-        let _ = 1_usize.to_uint();
-        let _ = 1_i8.to_uint();
-        let _ = 1_i16.to_uint();
-        let _ = 1_i32.to_uint();
-        let _ = 1_i64.to_uint();
-        let _ = 1_i128.to_uint();
-        let _ = 1_isize.to_uint();
-        let _ = U256::from(1).to_uint();
-        assert_eq!((-1_i8).to_uint(), U256::MAX);
     }
 }

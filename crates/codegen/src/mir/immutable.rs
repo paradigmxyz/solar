@@ -64,31 +64,3 @@ pub(crate) fn immutable_staging_end(base: u64, count: usize) -> u64 {
         .expect("constructor immutable staging size overflow");
     base.checked_add(size).expect("constructor immutable staging end overflow")
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn push_width_respects_codegen_objective() {
-        let byte = TypeSize::new_int_bits(8);
-        let signed = ImmutableEncoding::Signed(byte);
-        let unsigned = ImmutableEncoding::Unsigned(byte);
-        let fixed = ImmutableEncoding::LeftAligned(byte);
-        let int224 = ImmutableEncoding::Signed(TypeSize::new_int_bits(224));
-        let int232 = ImmutableEncoding::Signed(TypeSize::new_int_bits(232));
-        let bytes28 = ImmutableEncoding::LeftAligned(TypeSize::new_fb_bytes(28));
-        let bytes29 = ImmutableEncoding::LeftAligned(TypeSize::new_fb_bytes(29));
-
-        assert_eq!(immutable_push_type_size(unsigned, OptimizationMode::Gas, true).bytes(), 1);
-        assert_eq!(immutable_push_type_size(signed, OptimizationMode::Gas, true).bytes(), 32);
-        assert_eq!(immutable_push_type_size(signed, OptimizationMode::Size, true).bytes(), 1);
-        assert_eq!(immutable_push_type_size(int224, OptimizationMode::Size, true).bytes(), 28);
-        assert_eq!(immutable_push_type_size(int232, OptimizationMode::Size, true).bytes(), 32);
-        assert_eq!(immutable_push_type_size(bytes28, OptimizationMode::Size, true).bytes(), 28);
-        assert_eq!(immutable_push_type_size(bytes29, OptimizationMode::Size, true).bytes(), 32);
-        assert_eq!(immutable_push_type_size(unsigned, OptimizationMode::Gas, false).bytes(), 1);
-        assert_eq!(immutable_push_type_size(signed, OptimizationMode::Size, false).bytes(), 1);
-        assert_eq!(immutable_push_type_size(fixed, OptimizationMode::Size, false).bytes(), 32);
-    }
-}

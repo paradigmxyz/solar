@@ -259,6 +259,42 @@
       ret v0
   }
   
+  fn @pointer_casts(arg0: i256) {
+    bb0:
+      v0 = inttoptr i256 arg0 to memptr
+-     v1 = ptrtoint memptr v0 to i1
+-     v2 = ptrtoint memptr v0 to i160
++     v6 = and arg0, 1
++     v7 = ne v6, 0
++     v8 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+      v3 = ptrtoint memptr v0 to i256
+-     v4 = zext i1 v1 to i256
+-     v5 = zext i160 v2 to i256
++     v4 = zext i1 v7 to i256
+      mstore 0, v4
+-     mstore 32, v5
++     mstore 32, v8
+      mstore 64, v3
+      stop
+  }
+  
+  fn @bool_sext(arg0: i1) {
+    bb0:
+-     v0 = sext i1 arg0 to i256
+-     v1 = sext i1 arg0 to i160
+-     v2 = zext i160 v1 to i256
+-     mstore 0, v0
+-     mstore 32, v2
++     v3 = zext i1 arg0 to i256
++     v4 = sub 0, v3
++     v5 = zext i1 arg0 to i256
++     v6 = sub 0, v5
++     v7 = and v6, 0xffffffffffffffffffffffffffffffffffffffff
++     mstore 0, v4
++     mstore 32, v7
+      stop
+  }
+  
 - // === ROOT/tests/ui/codegen/mir/lowering/lower_integers.mir (before integer-cleanup) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_integers.mir (after integer-cleanup) ===
   @module Integers
@@ -460,6 +496,32 @@
     bb0:
       v0: i256 = loadimmutable signed
       ret v0
+  }
+  
+  fn @pointer_casts(arg0: i256) {
+    bb0:
+      v0 = inttoptr i256 arg0 to memptr
+      v6 = and arg0, 1
+      v7 = ne v6, 0
+      v8 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+      v3 = ptrtoint memptr v0 to i256
+      v4 = zext i1 v7 to i256
+      mstore 0, v4
+      mstore 32, v8
+      mstore 64, v3
+      stop
+  }
+  
+  fn @bool_sext(arg0: i1) {
+    bb0:
+      v3 = zext i1 arg0 to i256
+      v4 = sub 0, v3
+      v5 = zext i1 arg0 to i256
+      v6 = sub 0, v5
+      v7 = and v6, 0xffffffffffffffffffffffffffffffffffffffff
+      mstore 0, v4
+      mstore 32, v7
+      stop
   }
   
 - // === ROOT/tests/ui/codegen/mir/lowering/lower_integers.mir (before egraph) ===
@@ -667,6 +729,34 @@
       ret v0
   }
   
+  fn @pointer_casts(arg0: i256) {
+    bb0:
+      v0 = inttoptr i256 arg0 to memptr
+      v6 = and arg0, 1
+      v7 = ne v6, 0
+      v8 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+-     v3 = ptrtoint memptr v0 to i256
+      v4 = zext i1 v7 to i256
+      mstore 0, v4
+      mstore 32, v8
+-     mstore 64, v3
++     mstore 64, arg0
+      stop
+  }
+  
+  fn @bool_sext(arg0: i1) {
+    bb0:
+      v3 = zext i1 arg0 to i256
+      v4 = sub 0, v3
+-     v5 = zext i1 arg0 to i256
+-     v6 = sub 0, v5
+-     v7 = and v6, 0xffffffffffffffffffffffffffffffffffffffff
++     v7 = and v4, 0xffffffffffffffffffffffffffffffffffffffff
+      mstore 0, v4
+      mstore 32, v7
+      stop
+  }
+  
 - // === ROOT/tests/ui/codegen/mir/lowering/lower_integers.mir (before lower-evm-shaped) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_integers.mir (after lower-evm-shaped) ===
   @module Integers
@@ -852,5 +942,28 @@
     bb0:
       v0: i256 = loadimmutable signed
       ret v0
+  }
+  
+  fn @pointer_casts(arg0: i256) {
+    bb0:
+      v0 = inttoptr i256 arg0 to memptr
+      v6 = and arg0, 1
+      v7 = ne v6, 0
+      v8 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+      v4 = zext i1 v7 to i256
+      mstore 0, v4
+      mstore 32, v8
+      mstore 64, arg0
+      stop
+  }
+  
+  fn @bool_sext(arg0: i1) {
+    bb0:
+      v3 = zext i1 arg0 to i256
+      v4 = sub 0, v3
+      v7 = and v4, 0xffffffffffffffffffffffffffffffffffffffff
+      mstore 0, v4
+      mstore 32, v7
+      stop
   }
   

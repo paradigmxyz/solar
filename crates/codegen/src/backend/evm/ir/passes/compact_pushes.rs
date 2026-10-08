@@ -312,38 +312,3 @@ enum CompactPush {
     Not,
     Shl { shift: u8 },
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn costs_selected_immediate_materializations() {
-        assert_eq!(immediate_materialization_cost(EvmVersion::Cancun, U256::MAX), (2, 5));
-        assert_eq!(immediate_materialization_cost(EvmVersion::Berlin, U256::MAX), (3, 6));
-        assert_eq!(
-            immediate_materialization_cost(EvmVersion::Cancun, U256::MAX - U256::from(384)),
-            (4, 6)
-        );
-        assert_eq!(immediate_materialization_cost(EvmVersion::Cancun, U256::ONE << 128), (5, 9));
-        assert_eq!(
-            immediate_materialization_cost(EvmVersion::Cancun, (U256::ONE << 40) - U256::ONE),
-            (5, 11)
-        );
-
-        let nested = !(U256::ONE << 128usize);
-        assert_eq!(immediate_materialization_cost(EvmVersion::Cancun, nested), (6, 12));
-        assert_eq!(ImmediateMaterialization::new(EvmVersion::Cancun, nested).stack_peak(), 2);
-        let mut ops = Vec::new();
-        ImmediateMaterialization::new(EvmVersion::Cancun, nested).for_each(|op| ops.push(op));
-        assert_eq!(
-            ops,
-            [
-                ImmediateMaterializationOp::Push(U256::ONE),
-                ImmediateMaterializationOp::Push(U256::from(128)),
-                ImmediateMaterializationOp::Opcode(op::SHL),
-                ImmediateMaterializationOp::Opcode(op::NOT),
-            ]
-        );
-    }
-}

@@ -184,6 +184,15 @@
       ret v0
   }
   
+  fn @bool_literals() -> i1 {
+    bb0:
+      v0 = zext i1 0 to i256
+      v1 = zext i1 1 to i256
+      v2 = zext i1 undef to i256
+      v3 = and false, true
+      ret v3
+  }
+  
   fn @integer_casts(arg0: i128) -> i256 {
     bb0:
       v0 = trunc i128 arg0 to i24

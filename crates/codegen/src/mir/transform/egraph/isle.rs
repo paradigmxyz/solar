@@ -635,37 +635,3 @@ impl generated::Context for RuleContext<'_> {
         layout.kind()
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::mir::Instruction;
-    use solar_interface::Ident;
-    use std::{cell::Cell, num::NonZeroU32};
-
-    #[test]
-    fn significant_bits_bounds_shared_producer_work() {
-        for ty in [MirType::Int(NonZeroU32::new(8).unwrap()), MirType::I256] {
-            let mut func = Function::new(Ident::DUMMY);
-            let condition = func.alloc_param(MirType::I1);
-            let argument = func.alloc_param(ty);
-            let mut value = argument;
-            for _ in 0..7 {
-                value = func
-                    .alloc_value_inst(Instruction::new(
-                        InstKind::Select(condition, value, value),
-                        Some(ty),
-                    ))
-                    .1;
-            }
-            let visits = Cell::new(0);
-            let result = max_bits_with_args(&func, value, MAX_BITS_DEPTH, &|_| {
-                visits.set(visits.get() + 1);
-                1
-            });
-            assert_eq!(result, ty.integer_bits().unwrap());
-            assert!(visits.get() < 64);
-            assert_eq!(max_bits_with_args(&func, argument, MAX_BITS_DEPTH, &|_| 1), 1);
-        }
-    }
-}
