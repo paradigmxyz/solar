@@ -968,17 +968,41 @@ impl<'gcx> ResolveContext<'gcx> {
         self.resolver.resolve_paths(path, &self.scopes).map_err(self.resolver.emit_resolver_error())
     }
 
-    fn resolve_path(&self, path: &ast::PathSlice) -> Result<&'gcx [Res], ErrorGuaranteed> {
-        self.resolve_paths(path)
-            .map(|decls| &*self.arena.alloc_slice_fill_iter(decls.iter().map(|decl| decl.res)))
-    }
-
     fn resolve_path_as<T: TryFrom<Res>>(
         &self,
         path: &ast::PathSlice,
         description: &str,
     ) -> Result<T, ErrorGuaranteed> {
         self.resolver.resolve_path_as(path, &self.scopes, description)
+    }
+
+    /// Resolves the event or error path of an `emit` or `revert` statement.
+    ///
+    /// solc checks the qualified callee as a member access, and a contract name exposes only the
+    /// contract's own declarations, so `emit I.E()` ignores any `E` that `I` inherits.
+    ///
+    /// Reference: <https://github.com/argotorg/solidity/blob/v0.8.37/libsolidity/ast/Types.cpp#L3966-L4010>
+    fn resolve_callee_path(&self, path: &ast::PathSlice) -> Result<&'gcx [Res], ErrorGuaranteed> {
+        let (mut qualifier, mut last) = (None, None);
+        let decls = self
+            .resolver
+            .resolve_paths_with(path, &self.scopes, |decls| {
+                qualifier = last;
+                last = if let [decl] = decls { Some(decl.res) } else { None };
+            })
+            .map_err(self.resolver.emit_resolver_error())?;
+        let res = decls.iter().map(|decl| decl.res);
+        let Some(Res::Item(hir::ItemId::Contract(contract))) = qualifier else {
+            return Ok(self.arena.alloc_slice_fill_iter(res));
+        };
+        let own = self.arena.alloc_from_iter(res.filter(|res| {
+            matches!(*res, Res::Item(item) if self.hir.item(item).contract() == Some(contract))
+        }));
+        if own.is_empty() {
+            let error = ResolverError::new(*path.last(), ResolverErrorKind::Unresolved);
+            return Err(self.resolver.emit_resolver_error()(error));
+        }
+        Ok(own)
     }
 
     /// Lowers the given statements by first entering a new scope.
@@ -1036,13 +1060,13 @@ impl<'gcx> ResolveContext<'gcx> {
             ast::StmtKind::While(_, _)
             | ast::StmtKind::DoWhile(_, _)
             | ast::StmtKind::For { .. } => self.lower_loop_stmt(stmt),
-            ast::StmtKind::Emit(path, args) => match self.resolve_path(path) {
+            ast::StmtKind::Emit(path, args) => match self.resolve_callee_path(path) {
                 Ok(res) => {
                     hir::StmtKind::Emit(self.make_call_expr_for_emit(path, res, args, stmt.span))
                 }
                 Err(guar) => hir::StmtKind::Err(guar),
             },
-            ast::StmtKind::Revert(path, args) => match self.resolve_path(path) {
+            ast::StmtKind::Revert(path, args) => match self.resolve_callee_path(path) {
                 Ok(res) => {
                     hir::StmtKind::Revert(self.make_call_expr_for_emit(path, res, args, stmt.span))
                 }
