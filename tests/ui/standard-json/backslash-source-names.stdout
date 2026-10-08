@@ -1,0 +1,22 @@
+{
+  "sources": {
+    "C:/Users/dev/ECoin.sol": {
+      "id": 0
+    },
+    "contracts/USDС.sol": {
+      "id": 1
+    }
+  },
+  "contracts": {
+    "C:/Users/dev/ECoin.sol": {
+      "ECoin": {
+        "abi": []
+      }
+    },
+    "contracts/USDС.sol": {
+      "USDC": {
+        "abi": []
+      }
+    }
+  }
+}
