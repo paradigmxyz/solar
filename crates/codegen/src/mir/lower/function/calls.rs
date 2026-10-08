@@ -134,7 +134,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         hir::ItemId::Contract(_) | hir::ItemId::Enum(_) | hir::ItemId::Udvt(_)
                     )
                 )
-            });
+            })
+            || self
+                .cx
+                .gcx
+                .type_of_expr(callee.id)
+                .is_some_and(|ty| matches!(ty.kind, TyKind::Type(_)));
         if is_type_conversion {
             // result = convert(callee, args)
             if args.len() != 1 {
