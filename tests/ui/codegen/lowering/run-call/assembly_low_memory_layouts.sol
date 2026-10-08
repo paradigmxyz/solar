@@ -21,6 +21,10 @@
 //@ run-call: tupleThroughYul 5 => 5, 7
 //@ run-call: tupleReturnPublic 5 => 5, 7
 //@ run-call: tupleThroughPublic 5 => 5, 7
+//@ run-call: publicRead 5 => 5
+//@ run-call: writeThroughPublicRead 5 => 1
+//@ run-call: returnAndWriteThroughPublicRead 5 => 5
+//@ run-call: writeThroughPublicPair 5 => 1, 7
 //@ run-call: checkedScaled 0 => 0
 //@ run-call: hashHelperScratch 1, 2, 3 => 0x6e0c627900b24bd432fe7b1f713f1b0744091a646a9fe4a65a18dfed21f2949c
 //@ run-call: allocateAfterHelper 1, 2, 3 => 3
@@ -429,6 +433,46 @@ contract AssemblyLowMemoryLayouts {
     function tupleThroughPublic(uint256 value) external pure returns (uint256, uint256) {
         return tupleReturnPublic(value);
     }
+
+    // A public function's scratch word stays data for its external callers, while an internal
+    // caller that writes through the word reads it clamped.
+    function publicRead(uint256) public pure returns (uint256 read) {
+        assembly {
+            let m := mload(0x40)
+            mstore(0x40, calldataload(4))
+            read := mload(0x40)
+            mstore(0x40, m)
+        }
+    }
+
+    function writeThroughPublicRead(uint256 value) external pure returns (uint256 seen) {
+        uint256 p = publicRead(value);
+        assembly {
+            mstore(p, 1)
+            seen := mload(p)
+        }
+    }
+
+    function returnAndWriteThroughPublicRead(uint256 value) external pure returns (uint256 read) {
+        read = publicRead(value);
+        assembly {
+            mstore(read, 1)
+        }
+    }
+
+    function writeThroughPublicPair(uint256 value)
+        external
+        pure
+        returns (uint256 seen, uint256 other)
+    {
+        uint256 p;
+        (p, other) = tupleReturnPublic(value);
+        assembly {
+            mstore(p, 1)
+            seen := mload(p)
+        }
+    }
+
 
     // A checked product on the way to a write keeps its check on the loaded word; the clamped
     // address it writes through wraps instead.

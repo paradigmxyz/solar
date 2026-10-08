@@ -412,3 +412,86 @@ fn @distance() -> i256 [selector=0x1234567f] {
     mstore v2, 1
     ret v1
 }
+
+// A public function returns its scratch word to external callers as data and to an internal
+// caller that addresses memory with it: the word returns unclamped, and the caller clamps what its
+// call receives.
+// CHECK-LABEL: {{^[ +].*}}fn @public_read{{[( ]}}
+// CHECK-NOT: {{^[-+]}}
+// CHECK-LABEL: {{^[ +].*}}fn @use_public_read{{[( ]}}
+// CHECK: [[WORD:v[0-9]+]] = icall @public_read
+// CHECK-NEXT: - mstore [[WORD]], 1
+// CHECK-NEXT: + [[FLOOR:v[0-9]+]] = heap_floor
+// CHECK-NEXT: + [[BELOW:v[0-9]+]] = lt [[WORD]], [[FLOOR]]
+// CHECK-NEXT: + [[CLAMPED:v[0-9]+]] = select [[BELOW]], [[FLOOR]], [[WORD]]
+// CHECK-NEXT: + mstore [[CLAMPED]], 1
+fn @public_read() -> i256 [selector=0x12345680] {
+  bb0:
+    v0 = mload 64
+    v1 = calldataload 4
+    mstore 64, v1
+    v2 = mload 64
+    mstore 64, v0
+    ret v2
+}
+
+fn @use_public_read() -> i256 [selector=0x12345681] {
+  bb0:
+    v0 = icall @public_read
+    mstore v0, 1
+    ret 1
+}
+
+// The same through a pair: the caller clamps the field that carries the word, and the other field
+// keeps its value.
+// CHECK-LABEL: {{^[ +].*}}fn @public_pair{{[( ]}}
+// CHECK-NOT: {{^[-+]}}
+// CHECK-LABEL: {{^[ +].*}}fn @use_public_pair{{[( ]}}
+// CHECK: [[WORD:v[0-9]+]] = extract_value struct0, {{v[0-9]+}}, 0
+// CHECK-NEXT: + [[FLOOR:v[0-9]+]] = heap_floor
+// CHECK-NEXT: + [[BELOW:v[0-9]+]] = lt [[WORD]], [[FLOOR]]
+// CHECK-NEXT: + [[CLAMPED:v[0-9]+]] = select [[BELOW]], [[FLOOR]], [[WORD]]
+// CHECK-NEXT: [[OTHER:v[0-9]+]] = extract_value struct0, {{v[0-9]+}}, 1
+// CHECK-NEXT: - mstore [[WORD]], [[OTHER]]
+// CHECK-NEXT: + mstore [[CLAMPED]], [[OTHER]]
+fn @public_pair() -> struct0 [selector=0x12345682] {
+  bb0:
+    v0 = mload 64
+    v1 = calldataload 4
+    mstore 64, v1
+    v2 = mload 64
+    mstore 64, v0
+    v3 = insert_value struct0, undef struct0, 0, v2
+    v4 = insert_value struct0, v3, 1, 7
+    ret v4
+}
+
+fn @use_public_pair() -> i256 [selector=0x12345683] {
+  bb0:
+    v0 = icall @public_pair
+    v1 = extract_value struct0, v0, 0
+    v2 = extract_value struct0, v0, 1
+    mstore v1, v2
+    ret v2
+}
+
+// A public function that leaves an absolute word in the slot also returns to the dispatcher,
+// which encodes its bytes at the pointer, so the word is clamped although its internal caller
+// reads nothing after the call.
+// CHECK-LABEL: {{^[ +].*}}fn @public_reset{{[( ]}}
+// CHECK: + [[FLOOR:v[0-9]+]] = heap_floor
+// CHECK-NEXT: + [[BELOW:v[0-9]+]] = lt 128, [[FLOOR]]
+// CHECK-NEXT: + [[CLAMPED:v[0-9]+]] = select [[BELOW]], [[FLOOR]], 128
+// CHECK-NEXT: + mstore 64, [[CLAMPED]]
+fn @public_reset(arg0: memptr) -> memptr [selector=0x12345684, abi_returns=[memory_bytes]] {
+  bb0:
+    mstore 64, 128
+    ret arg0
+}
+
+fn @call_public_reset(arg0: memptr) -> i256 [selector=0x12345685] {
+  bb0:
+    v0 = icall @public_reset, arg0
+    ret 1
+}
+

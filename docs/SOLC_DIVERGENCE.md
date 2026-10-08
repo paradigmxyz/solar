@@ -393,10 +393,12 @@ No intentional divergences documented yet.
   with data, such as an error argument before a revert or a hash input before
   the pointer is restored, also when an assembly function writes or hashes the
   slot; the search follows internal calls and returns, so a helper's scratch
-  word is raised only on the paths of the callers that allocate from it. An
-  absolute pointer that reaches the store through a parameter, memory, or a
-  call keeps its value, and so does a read at an address derived from memory
-  or the heap that happens to cover the slot. A layout that grows past
+  word is raised only on the paths of the callers that allocate from it, and a
+  word a public function returns to its external callers as data is raised
+  only in the internal callers that use it as a pointer. An absolute pointer
+  that reaches the store through a parameter, memory, or a call keeps its
+  value, and so does a read at an address derived from memory or the heap that
+  happens to cover the slot. A layout that grows past
   `0x2080`, or one indexed by a loop counter alone, can still reach the
   compiler's memory; Seaport's basic orders with about 40 or more additional
   recipients do.

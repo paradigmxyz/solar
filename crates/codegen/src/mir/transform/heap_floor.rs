@@ -37,18 +37,21 @@
 //! parameter some call site passes one in. A return from the constructor, or one from an external
 //! function whose results all have static ABI types, ends execution without reading the slot:
 //! codegen returns runtime code from a fixed address and encodes static results in a static buffer.
+//! An external function returns to the dispatcher even when internal calls reach it too.
 //!
 //! A word read only as the pointer is clamped where it is stored, `mstore 64, clamped`. A word that
 //! is also read as data keeps its value in the slot, and the clamp moves to each pointer read that
 //! the search reaches. The pointer uses of an assembly load read the clamped word in place of the
 //! one it loads; when the load's word is also read as data, the words computed from it on the way
-//! to its pointer uses get clamped copies, and its data uses keep the loaded word. A function's
-//! loads are clamped together, so a word computed from several of them, such as a phi of two
-//! branches' loads, is clamped on every path. A copy of checked arithmetic wraps, and the original
-//! keeps its check on the loaded words. A word subtracted from another yields a distance rather
-//! than a pointer, so it stays as computed. The slot itself is clamped right before a compiler
-//! read, before a call that reads the slot only as the pointer, and before a return to the
-//! dispatcher:
+//! to its pointer uses get clamped copies, and its data uses keep the loaded word. A word that an
+//! external function returns as data stays unclamped at the return, and an internal caller that
+//! reads the word as the pointer clamps the result of its call instead, or the fields of a returned
+//! struct that carry it. A function's loads are clamped together, so a word computed from several
+//! of them, such as a phi of two branches' loads, is clamped on every path. A copy of checked
+//! arithmetic wraps, and the original keeps its check on the loaded words. A word subtracted from
+//! another yields a distance rather than a pointer, so it stays as computed. The slot itself is
+//! clamped right before a compiler read, before a call that reads the slot only as the pointer,
+//! and before a return to the dispatcher:
 //!
 //! ```text
 //! word = mload 64
@@ -74,7 +77,8 @@
 //! later load uses it as a pointer. A slot clamped before a compiler read stays clamped for a later
 //! read of it as data. Writes replace the word only when one block covers all of its bytes. A
 //! loaded word passed to a callee or returned to callers that read it as a pointer is clamped as a
-//! whole there, even if they also read it as data. See CODEGEN-010.
+//! whole there, even if they also read it as data, and a word an external function returns as data
+//! is clamped as a whole in each internal caller that reads it as a pointer. See CODEGEN-010.
 
 use crate::mir::{
     AbiType, ArgIdx, BlockId, Builtin, Callee, CheckedOp, EffectKind, Function, FunctionId,
@@ -172,17 +176,28 @@ fn floor_clamps(module: &Module) -> (FxIndexSet<Clamp>, Vec<(FunctionId, LoadCla
             }
         }
     }
-    let mut loads = FxIndexMap::<_, Vec<_>>::default();
+    let mut roots = FxIndexMap::<_, Vec<_>>::default();
     for &clamp in &clamps {
         if let Clamp::Load(func_id, block, load) = clamp {
-            loads.entry(func_id).or_default().push((block, load));
+            roots.entry(func_id).or_default().push((block, load));
         }
     }
-    let plans = loads
-        .into_iter()
-        .map(|(func_id, loads)| (func_id, uses.load_clamps(func_id, loads)))
-        .collect();
-    (clamps, plans)
+    // Planning a function can hand a returned word's clamp to the callers that receive it, whose
+    // plans then take those calls as roots too.
+    let mut plans = FxIndexMap::default();
+    let mut pending = roots.keys().copied().collect::<Vec<_>>();
+    while let Some(func_id) = pending.pop() {
+        let plan = uses.load_clamps(func_id, roots[&func_id].clone());
+        plans.insert(func_id, plan);
+        for (caller, block, root) in std::mem::take(&mut uses.caller_roots) {
+            let caller_roots = roots.entry(caller).or_default();
+            if !caller_roots.contains(&(block, root)) {
+                caller_roots.push((block, root));
+                pending.push(caller);
+            }
+        }
+    }
+    (clamps, plans.into_iter().collect())
 }
 
 /// Rewrites `mstore 64, v` into `mstore 64, max(v, heap_floor)`.
@@ -201,15 +216,16 @@ fn clamp_store(func: &mut Function, block: BlockId, inst: InstId) {
     func.inst_mut(inst).kind = InstKind::MStore(address, clamped);
 }
 
-/// Raises the words a function's loads read from the slot to the heap floor where they are read
-/// as the pointer. A word that no other use reads is rewritten in place; one that another use
-/// still reads unclamped, or that a checked operation computes, gets a clamped copy for its
-/// pointer uses, computed with wrapping arithmetic so that the copy checks nothing.
+/// Raises the words a function's loads read from the slot, and the returned words its calls
+/// receive, to the heap floor where they are read as the pointer. A word that no other use reads
+/// is rewritten in place; one that another use still reads unclamped, or that a checked operation
+/// computes, gets a clamped copy for its pointer uses, computed with wrapping arithmetic so that
+/// the copy checks nothing.
 fn clamp_loads(func: &mut Function, plan: &LoadClamps) {
     let blocks = func.inst_block_table();
     let mut copies = FxHashMap::default();
     for &(block, load) in &plan.loads {
-        let word = func.inst_result_value(load).expect("a load produces the slot's word");
+        let word = func.inst_result_value(load).expect("a root produces a word");
         let metadata = func.inst(load).metadata.clone();
         let (clamp, clamped) = floor_max(func, word, &metadata);
         if !plan.copied.contains(&word) {
@@ -217,7 +233,7 @@ fn clamp_loads(func: &mut Function, plan: &LoadClamps) {
             func.replace_uses(&FxHashMap::from_iter([(word, clamped)]));
         }
         copies.insert(word, clamped);
-        // word = mload 64
+        // word = mload 64 | icall @f | extract_value result, i
         // floor = heap_floor
         // below = lt word, floor
         // clamped = select below, floor, word
@@ -375,6 +391,13 @@ fn returns_to_the_end(func: &Function) -> bool {
                 .is_none_or(|returns| !returns.types.iter().any(AbiType::is_dynamic))
 }
 
+/// Whether a return from `func`, which `sites` call, can reach code the module does not show: the
+/// dispatcher, which returns from an external function even when internal calls reach it too, or
+/// the caller of any other function no call reaches.
+fn returns_out_of_module(func: &Function, sites: &[CallSite]) -> bool {
+    func.is_external_entry() || sites.is_empty()
+}
+
 /// Whether a returned value holds integers alone, which an external function encodes as data.
 fn is_scalar(module: &Module, ty: Option<MirType>) -> bool {
     match ty {
@@ -383,6 +406,35 @@ fn is_scalar(module: &Module, ty: Option<MirType>) -> bool {
             module.struct_types[id].fields.iter().all(|&field| is_scalar(module, Some(field)))
         }
         _ => false,
+    }
+}
+
+/// Returns the fields of the struct `value` that hold words in `derived`, when insertions into an
+/// aggregate outside `derived` build it, or None when another instruction does.
+fn word_fields(
+    func: &Function,
+    mut value: ValueId,
+    derived: &FxIndexSet<ValueId>,
+) -> Option<SmallVec<[u32; 2]>> {
+    let mut fields = SmallVec::new();
+    let mut inserted = SmallVec::<[u32; 4]>::new();
+    loop {
+        let Value::Inst(inst) = *func.value(value) else { return None };
+        let InstKind::InsertValue { aggregate, index, value: field, .. } = func.inst(inst).kind
+        else {
+            return None;
+        };
+        // A later insertion at the same index replaces this field.
+        if !inserted.contains(&index) {
+            inserted.push(index);
+            if derived.contains(&field) {
+                fields.push(index);
+            }
+        }
+        if !derived.contains(&aggregate) {
+            return Some(fields);
+        }
+        value = aggregate;
     }
 }
 
@@ -682,7 +734,8 @@ fn operand_reads(func: &Function, kind: &InstKind, word: ValueId) -> Reads {
 
 /// How the pass clamps the words a function's loads read from the slot.
 struct LoadClamps {
-    /// The loads to clamp, with their blocks.
+    /// The loads to clamp, and the calls and extractions that receive a returned word to clamp,
+    /// with their blocks.
     loads: Vec<(BlockId, InstId)>,
     /// The words computed from the loaded ones on the way to a pointer use.
     words: Vec<ValueId>,
@@ -805,6 +858,9 @@ struct PointerUses<'a> {
     users: FxHashMap<FunctionId, IndexLists<ValueId, User>>,
     /// How each classified load of the slot uses its word.
     load_reads: FxHashMap<(FunctionId, InstId), Reads>,
+    /// The calls and extractions in callers that clamp a word planned functions return, with their
+    /// functions and blocks.
+    caller_roots: Vec<(FunctionId, BlockId, InstId)>,
 }
 
 impl<'a> PointerUses<'a> {
@@ -820,6 +876,7 @@ impl<'a> PointerUses<'a> {
             arg_values: FxHashMap::default(),
             users: FxHashMap::default(),
             load_reads: FxHashMap::default(),
+            caller_roots: Vec::new(),
         }
     }
 
@@ -854,9 +911,9 @@ impl<'a> PointerUses<'a> {
             return reads;
         }
         let sites = self.call_sites(func_id).to_vec();
-        if sites.is_empty() {
-            // Any other function no call reaches returns to code the module does not show.
-            reads.pointer = !returns_to_the_end(&self.module.functions[func_id]);
+        let func = &self.module.functions[func_id];
+        if returns_out_of_module(func, &sites) {
+            reads.pointer = !returns_to_the_end(func);
         }
         for site in sites {
             match site {
@@ -1105,7 +1162,8 @@ impl<'a> PointerUses<'a> {
                 continue;
             }
             let sites = self.call_sites(callee).to_vec();
-            if sites.is_empty() && !returns_to_the_end(&self.module.functions[callee]) {
+            let func = &self.module.functions[callee];
+            if returns_out_of_module(func, &sites) && !returns_to_the_end(func) {
                 // The code the function returns to reads the slot as the pointer.
                 clamps.insert(Clamp::Slot(func_id, block, None));
             }
@@ -1222,10 +1280,8 @@ impl<'a> PointerUses<'a> {
         values.get(ArgIdx::new(index)).cloned().unwrap_or_default()
     }
 
-    /// Queues the call results that receive a word `func_id` returns, following tail calls to
-    /// the callers they return to, and returns how the word is read where it leaves the module:
-    /// an external function encodes a returned `scalar` as data, and anything else may be a
-    /// pointer.
+    /// Queues the call results that receive a word `func_id` returns, and returns how the code
+    /// outside the module reads it, as [`Self::returned_calls`] finds them.
     fn queue_returned(
         &mut self,
         func_id: FunctionId,
@@ -1233,7 +1289,25 @@ impl<'a> PointerUses<'a> {
         pending: &mut Vec<(FunctionId, ValueId)>,
     ) -> Reads {
         let module = self.module;
-        let mut reads = Reads::default();
+        let (calls, outside) = self.returned_calls(func_id, scalar);
+        pending.extend(calls.into_iter().filter_map(|(caller, _, call)| {
+            module.functions[caller].inst_result_value(call).map(|result| (caller, result))
+        }));
+        outside
+    }
+
+    /// Follows the returns of `func_id`, through tail calls, to the internal calls that receive
+    /// its result, and returns them with their functions and blocks, along with how the code
+    /// outside the module reads a returned word: an external function encodes a `scalar` as
+    /// data, and anything else may be a pointer.
+    fn returned_calls(
+        &mut self,
+        func_id: FunctionId,
+        scalar: bool,
+    ) -> (Vec<(FunctionId, BlockId, InstId)>, Reads) {
+        let module = self.module;
+        let mut calls = Vec::new();
+        let mut outside = Reads::default();
         let mut returning = vec![func_id];
         let mut seen = FxHashSet::default();
         while let Some(callee) = returning.pop() {
@@ -1241,25 +1315,25 @@ impl<'a> PointerUses<'a> {
                 continue;
             }
             let sites = self.call_sites(callee).to_vec();
-            if sites.is_empty() {
-                if scalar && module.functions[callee].is_external_entry() {
-                    reads.data = true;
+            let func = &module.functions[callee];
+            if returns_out_of_module(func, &sites) {
+                if scalar && func.is_external_entry() {
+                    outside.data = true;
                 } else {
-                    reads.pointer = true;
+                    outside.pointer = true;
                 }
             }
             for site in sites {
                 match site {
                     CallSite::Call(caller, block, index) => {
-                        let caller_func = &module.functions[caller];
-                        let call = caller_func.blocks[block].instructions[index];
-                        pending.extend(caller_func.inst_result_value(call).map(|r| (caller, r)));
+                        let call = module.functions[caller].blocks[block].instructions[index];
+                        calls.push((caller, block, call));
                     }
                     CallSite::Tail(caller) => returning.push(caller),
                 }
             }
         }
-        reads
+        (calls, outside)
     }
 
     /// Returns how the word a load reads from the slot is used.
@@ -1401,9 +1475,30 @@ impl<'a> PointerUses<'a> {
                         }
                         Some(Terminator::Return { .. }) => {
                             let scalar = is_scalar(module, func.value_ty(value));
-                            let mut results = Vec::new();
-                            let mut reads = self.queue_returned(func_id, scalar, &mut results);
-                            reads |= self.word_reads(results);
+                            let (calls, outside) = self.returned_calls(func_id, scalar);
+                            let results = calls
+                                .iter()
+                                .filter_map(|&(caller, _, call)| {
+                                    let result = module.functions[caller].inst_result_value(call);
+                                    result.map(|result| (caller, result))
+                                })
+                                .collect();
+                            let callers = self.word_reads(results);
+                            // An external return encodes the word as data, so it returns
+                            // unclamped, and the callers that read it as the pointer clamp what
+                            // their calls receive.
+                            if outside.data
+                                && !outside.pointer
+                                && callers.pointer
+                                && let Some(roots) =
+                                    self.result_roots(func, value, &derived, &calls)
+                            {
+                                self.caller_roots.extend(roots);
+                                raw.insert(value);
+                                continue;
+                            }
+                            let mut reads = outside;
+                            reads |= callers;
                             if reads.pointer {
                                 sites.push((UseSite::Terminator(block, None), value));
                             }
@@ -1475,7 +1570,65 @@ impl<'a> PointerUses<'a> {
             .into_iter()
             .filter(|value| needed.contains(*value) && !roots.contains(value))
             .collect();
+        // A root whose pointer uses all moved to the callers stays as it is.
+        let loads = loads
+            .into_iter()
+            .filter(|&(_, root)| {
+                func.inst_result_value(root).is_some_and(|word| needed.contains(word))
+            })
+            .collect();
         LoadClamps { loads, words, copied, sites }
+    }
+
+    /// Returns the roots that clamp, in each of `calls` whose caller reads the result as the
+    /// pointer, the word that `func` returns as `value`: the call itself for a returned word, or
+    /// the extractions of the fields that carry the word from a returned struct. None when a
+    /// caller receives it in another form, such as a whole struct it passes on.
+    fn result_roots(
+        &mut self,
+        func: &Function,
+        value: ValueId,
+        derived: &FxIndexSet<ValueId>,
+        calls: &[(FunctionId, BlockId, InstId)],
+    ) -> Option<Vec<(FunctionId, BlockId, InstId)>> {
+        let module = self.module;
+        let fields = match func.value_ty(value) {
+            Some(MirType::I256) => None,
+            Some(MirType::Struct(_)) => Some(word_fields(func, value, derived)?),
+            _ => return None,
+        };
+        let mut roots = Vec::new();
+        for &(caller, block, call) in calls {
+            let caller_func = &module.functions[caller];
+            let Some(result) = caller_func.inst_result_value(call) else { continue };
+            if !self.word_reads(vec![(caller, result)]).pointer {
+                continue;
+            }
+            let Some(fields) = &fields else {
+                roots.push((caller, block, call));
+                continue;
+            };
+            let blocks = caller_func.inst_block_table();
+            let users = self
+                .users
+                .entry(caller)
+                .or_insert_with(|| value_users(caller_func))
+                .get(result)
+                .to_vec();
+            for user in users {
+                let User::Inst(inst) = user else { return None };
+                let InstKind::ExtractValue { index, .. } = caller_func.inst(inst).kind else {
+                    return None;
+                };
+                if fields.contains(&index) {
+                    if caller_func.inst(inst).result_ty != Some(MirType::I256) {
+                        return None;
+                    }
+                    roots.push((caller, blocks[inst]?, inst));
+                }
+            }
+        }
+        Some(roots)
     }
 
     /// Returns the positions at which `args` passes `word` to a parameter `callee` reads as a
