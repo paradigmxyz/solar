@@ -653,3 +653,59 @@ fn @hash_low_object_data() -> i256 [selector=0x1234568c] {
     v4 = alloc memorybytes, exact, zeroed, panic, 64
     ret v3
 }
+
+// A byte at an index the program computes can wrap around to the slot even in a heap object, as
+// when assembly forges the object's length, so the scratch word stays in the slot for it.
+// CHECK-LABEL: {{^[ +].*}}fn @byte_at_computed_index{{[( ]}}
+// CHECK: mstore 64, {{v[0-9]+}}
+// CHECK: memory_object_load_byte memorybytes, {{v[0-9]+}}, {{v[0-9]+}}
+// CHECK-NEXT: + [[WORD:v[0-9]+]] = mload 64
+// CHECK-NEXT: + [[FLOOR:v[0-9]+]] = heap_floor
+// CHECK: alloc memorybytes
+fn @byte_at_computed_index() -> i256 [selector=0x1234568d] {
+  bb0:
+    v0 = alloc memorybytes, exact, zeroed, panic, 64
+    v1 = calldataload 4
+    v2 = calldataload 36
+    mstore 64, v2
+    v3 = memory_object_load_byte memorybytes, v0, v1
+    v4 = alloc memorybytes, exact, zeroed, panic, 64
+    ret v3
+}
+
+// So can an element at a computed index.
+// CHECK-LABEL: {{^[ +].*}}fn @element_at_computed_index{{[( ]}}
+// CHECK: mstore 64, {{v[0-9]+}}
+// CHECK: memory_object_load_element memoryarray<1>, {{v[0-9]+}}, {{v[0-9]+}}
+// CHECK-NEXT: + [[WORD:v[0-9]+]] = mload 64
+// CHECK-NEXT: + [[FLOOR:v[0-9]+]] = heap_floor
+// CHECK: alloc memorybytes
+fn @element_at_computed_index() -> i256 [selector=0x1234568e] {
+  bb0:
+    v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
+    v1 = calldataload 4
+    v2 = calldataload 36
+    mstore 64, v2
+    v3 = memory_object_load_element memoryarray<1>, v0, v1
+    v4 = alloc memorybytes, exact, zeroed, panic, 64
+    ret v3
+}
+
+// A byte at a constant index lies past a heap object's address, so only the allocation reads the
+// stored word, as the pointer, and the store is clamped where it is made.
+// CHECK-LABEL: {{^[ +].*}}fn @byte_at_constant_index{{[( ]}}
+// CHECK: [[STORED:v[0-9]+]] = calldataload 36
+// CHECK-NEXT: - mstore 64, [[STORED]]
+// CHECK-NEXT: + [[FLOOR:v[0-9]+]] = heap_floor
+// CHECK-NEXT: + [[BELOW:v[0-9]+]] = lt [[STORED]], [[FLOOR]]
+// CHECK-NEXT: + [[CLAMPED:v[0-9]+]] = select [[BELOW]], [[FLOOR]], [[STORED]]
+// CHECK-NEXT: + mstore 64, [[CLAMPED]]
+fn @byte_at_constant_index() -> i256 [selector=0x1234568f] {
+  bb0:
+    v0 = alloc memorybytes, exact, zeroed, panic, 64
+    v1 = calldataload 36
+    mstore 64, v1
+    v2 = memory_object_load_byte memorybytes, v0, 7
+    v3 = alloc memorybytes, exact, zeroed, panic, 64
+    ret v2
+}

@@ -39,10 +39,12 @@
 //! reach below the heap, and an external function's integer arguments come from calldata. A read
 //! or copy of a memory object, such as a hash of `bytes`, follows the same rule through the object,
 //! which assembly may have pointed anywhere, and so does the address of the object's data, a field,
-//! or an element. A return from the constructor, or one from an external function whose results all
-//! have static ABI types, ends execution without reading the slot: codegen returns runtime code
-//! from a fixed address and encodes static results in a static buffer. An external function returns
-//! to the dispatcher even when internal calls reach it too.
+//! or an element. An element or byte at an index the program computes may wrap around to the slot
+//! even in a heap object, as when assembly forges the object's length; the range a hash or copy
+//! covers cannot, as memory that far is unaffordable. A return from the constructor, or one from an
+//! external function whose results all have static ABI types, ends execution without reading the
+//! slot: codegen returns runtime code from a fixed address and encodes static results in a static
+//! buffer. An external function returns to the dispatcher even when internal calls reach it too.
 //!
 //! A word read only as the pointer is clamped where it is stored, `mstore 64, clamped`. A word that
 //! is also read as data keeps its value in the slot, and the clamp moves to each pointer read that
@@ -504,6 +506,21 @@ fn read_range(func: &Function, kind: &InstKind) -> Option<(ValueId, Option<u64>)
         _ => return None,
     };
     Some((offset, func.value_u64(size)))
+}
+
+/// The index or offset that a memory-object operation adds to the object's address, with wrapping
+/// arithmetic, to reach the element, byte, or word it reads or writes.
+fn object_access_index(kind: &InstKind) -> Option<ValueId> {
+    match *kind {
+        InstKind::MemoryObjectLoadElement { index, .. }
+        | InstKind::MemoryObjectStoreElement { index, .. }
+        | InstKind::MemoryObjectLoadByte { index, .. }
+        | InstKind::MemoryObjectStoreByte { index, .. } => Some(index),
+        InstKind::MemoryObjectStoreWord { offset, .. }
+        | InstKind::MemorySliceLoadWord { offset, .. }
+        | InstKind::MemoryObjectCopyFromSliceAt { offset, .. } => Some(offset),
+        _ => None,
+    }
 }
 
 /// Whether lowering a semantic operation may read the free memory pointer. Pure computations,
@@ -1365,9 +1382,9 @@ impl<'a> PointerUses<'a> {
     }
 
     /// Returns whether an operation that reads or writes memory objects may read a byte of the slot
-    /// that still holds the stored word, through an object or a memory slice it takes. Its extent
-    /// is unknown, so any object `may_read_slot` cannot place above the slot may; a store into an
-    /// object counts too, as the bytes it writes are unknown.
+    /// that still holds the stored word, through an object or a memory slice it takes, or at an
+    /// index it computes. Its extent is unknown, so any object `may_read_slot` cannot place above
+    /// the slot may; a store into an object counts too, as the bytes it writes are unknown.
     fn may_read_object_at_slot(
         &mut self,
         func_id: FunctionId,
@@ -1378,6 +1395,10 @@ impl<'a> PointerUses<'a> {
             return false;
         }
         let func = &self.module.functions[func_id];
+        // A computed index wraps the address around to any word, whatever the object.
+        if object_access_index(kind).is_some_and(|index| func.value_u64(index).is_none()) {
+            return written != WHOLE_SLOT;
+        }
         let mut objects = SmallVec::<[ValueId; 2]>::new();
         kind.visit_operands(|operand| {
             if matches!(

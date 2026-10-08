@@ -32,6 +32,8 @@
 //@ run-call: revertPastPointer 5, 1
 //@ run-call-fail: revertPastPointer 5, 0 => 0x0000000000000000000000000000000000000000000000000000000000000005
 //@ run-call: hashLowObject 5 => 0x036b6384b5eca791c62761152d0c79bb0604c104a5fb6f4eb0703f3154bb3db0, 1
+//@ run-call: byteAtSlot 5 => 5, 1
+//@ run-call: wordAtSlot 5 => 5, 1
 //@ run-call: checkedScaled 0 => 0
 //@ run-call: hashHelperScratch 1, 2, 3 => 0x6e0c627900b24bd432fe7b1f713f1b0744091a646a9fe4a65a18dfed21f2949c
 //@ run-call: allocateAfterHelper 1, 2, 3 => 3
@@ -531,6 +533,32 @@ contract AssemblyLowMemoryLayouts {
             b := 0x20
         }
         h = keccak256(b);
+        length = new bytes(1).length;
+    }
+
+    // A forged length lets an index the program computes wrap a heap object's element around to
+    // the slot.
+    function byteAtSlot(uint256) external pure returns (uint8 r, uint256 length) {
+        bytes memory b = new bytes(1);
+        uint256 i;
+        assembly {
+            mstore(b, not(0))
+            mstore(0x40, calldataload(4))
+            i := sub(0x5f, add(b, 0x20))
+        }
+        r = uint8(b[i]);
+        length = new bytes(1).length;
+    }
+
+    function wordAtSlot(uint256) external pure returns (uint256 r, uint256 length) {
+        uint256[] memory a = new uint256[](1);
+        uint256 i;
+        assembly {
+            mstore(a, not(0))
+            mstore(0x40, calldataload(4))
+            i := shr(5, sub(0x40, add(a, 0x20)))
+        }
+        r = a[i];
         length = new bytes(1).length;
     }
 

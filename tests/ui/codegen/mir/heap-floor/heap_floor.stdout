@@ -502,3 +502,49 @@
       ret v3
   }
   
+  fn @byte_at_computed_index() -> i256 [selector=0x1234568d] {
+    bb0:
+      v0 = alloc memorybytes, exact, zeroed, panic, 64
+      v1 = calldataload 4
+      v2 = calldataload 36
+      mstore 64, v2
+      v3 = memory_object_load_byte memorybytes, v0, v1
++     v5 = mload 64 !metadata(memory=scratch)
++     v6 = heap_floor
++     v7 = lt v5, v6
++     v8 = select v7, v6, v5
++     mstore 64, v8 !metadata(memory=scratch)
+      v4 = alloc memorybytes, exact, zeroed, panic, 64
+      ret v3
+  }
+  
+  fn @element_at_computed_index() -> i256 [selector=0x1234568e] {
+    bb0:
+      v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
+      v1 = calldataload 4
+      v2 = calldataload 36
+      mstore 64, v2
+      v3 = memory_object_load_element memoryarray<1>, v0, v1
++     v5 = mload 64 !metadata(memory=scratch)
++     v6 = heap_floor
++     v7 = lt v5, v6
++     v8 = select v7, v6, v5
++     mstore 64, v8 !metadata(memory=scratch)
+      v4 = alloc memorybytes, exact, zeroed, panic, 64
+      ret v3
+  }
+  
+  fn @byte_at_constant_index() -> i256 [selector=0x1234568f] {
+    bb0:
+      v0 = alloc memorybytes, exact, zeroed, panic, 64
+      v1 = calldataload 36
+-     mstore 64, v1
++     v4 = heap_floor
++     v5 = lt v1, v4
++     v6 = select v5, v4, v1
++     mstore 64, v6
+      v2 = memory_object_load_byte memorybytes, v0, 7
+      v3 = alloc memorybytes, exact, zeroed, panic, 64
+      ret v2
+  }
+  
