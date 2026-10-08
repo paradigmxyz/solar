@@ -384,7 +384,8 @@ fn configure_run_call_stdout(config: &mut ui_test::Config, src: &str) {
     if codegen_matrix::is_standard(src) {
         declared_revisions.extend(codegen_matrix::revisions(src).into_iter().map(str::to_owned));
         dump_revisions.push("mir".to_owned());
-        emitted_revisions.extend(["none", "gas", "size"].map(str::to_owned));
+        emitted_revisions
+            .extend(codegen_matrix::STANDARD_REVISIONS.iter().map(|&revision| revision.to_owned()));
     }
     for line in src.lines() {
         let Some((directive, revisions)) = run_call::parse_directive(line) else {
@@ -533,7 +534,7 @@ fn run_call_stdout_regex() -> &'static Regex {
     FILTER.get_or_init(|| Regex::new(RUN_CALL_STDOUT_FILTER_PATTERN).unwrap())
 }
 
-fn run_call_dump_stdout_regex() -> &'static Regex {
+pub(crate) fn run_call_dump_stdout_regex() -> &'static Regex {
     static FILTER: OnceLock<Regex> = OnceLock::new();
     FILTER.get_or_init(|| Regex::new(RUN_CALL_DUMP_STDOUT_FILTER_PATTERN).unwrap())
 }

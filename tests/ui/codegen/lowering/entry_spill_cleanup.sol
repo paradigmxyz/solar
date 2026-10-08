@@ -1,6 +1,7 @@
-//@ codegen-matrix: standard
-//@[gas] compile-flags: -Zdump=evm-ir-runtime
-//@[gas] filecheck:
+//@ codegen-matrix: standard ir
+//@[ir] compile-flags: -Ogas -Zdump=evm-ir-runtime
+//@[ir] filecheck:
+//@[ir] normalize-stdout-test: "(?s).+" -> ""
 //@ run-call: toHexStringNoPrefix 0x => ""
 //@ run-call: toHexStringNoPrefix 0x00abff => "00abff"
 //@ run-call: prefixed 0x => "0x"

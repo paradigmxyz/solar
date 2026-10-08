@@ -127,8 +127,8 @@ fn visit_expr(&mut self, expr: &'ast Expr) -> ControlFlow<Self::BreakValue> {
 
 - Prefer UI tests (`tests/ui/`) over unit tests for end-to-end behavior,
   especially diagnostics, sema, and compiler output.
-- For codegen tests, use `//@ codegen-matrix: standard` (`none`, `gas`, `size`,
-  `mir` revisions) unless it cannot express the test.
+- For codegen tests, use `//@ codegen-matrix: standard` (`mir`, `gas`, `size`
+  revisions) unless it cannot express the test.
 - To test one source under different flags, passes, levels, EVM versions, or
   outputs, use one test with `//@ revisions:` and revision-scoped directives.
   Use separate files only when the source text itself differs in purpose.

@@ -1985,21 +1985,21 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 }
                 let fields = layout.types.iter().map(AbiParamType::mir_type).collect::<Vec<_>>();
                 let result_ty = match fields.as_slice() {
-                    [] => return Err(self.parser.error("ABI decode requires a result type")),
-                    [ty] => *ty,
+                    [] => None,
+                    [ty] => Some(*ty),
                     _ => {
                         let fields = fields.into_iter().collect::<Box<[_]>>();
                         let id = self
                             .struct_types
                             .iter_enumerated()
                             .find_map(|(id, ty)| (ty.fields == fields).then_some(id));
-                        MirType::Struct(
+                        Some(MirType::Struct(
                             id.unwrap_or_else(|| self.struct_types.push(StructType { fields })),
-                        )
+                        ))
                     }
                 };
                 let layout = self.intern_abi_param_layout(layout);
-                (InstKind::AbiDecode { data, layout }, Some(result_ty))
+                (InstKind::AbiDecode { data, layout }, result_ty)
             }
             // Aggregate storage/memory copies with recursive layouts.
             sym::storage_to_memory => {
