@@ -16,10 +16,9 @@ fn @lowerBound(arg0: i256) -> i1 [selector=0x74380a78, pure, abi_params=[u256], 
 
 fn @signedUpper(arg0: i256) -> i1 [selector=0xd00a7c5c, pure, abi_params=[i256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = sub 0, 2
-    v1 = sgt arg0, v0
-    v2 = eq v1, false
-    ret v2
+    v0 = sgt arg0, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe
+    v1 = eq v0, false
+    ret v1
 }
 
 fn @signedLower(arg0: i256) -> i1 [selector=0xc2b80224, pure, abi_params=[i256], abi_returns=[word<bool>], abi_return_params=[bool]] {
