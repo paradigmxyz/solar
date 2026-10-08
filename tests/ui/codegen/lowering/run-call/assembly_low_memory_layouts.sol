@@ -17,6 +17,10 @@
 //@ run-call: mixedLoad 5 => 5
 //@ run-call: dataThenMixed 5 => 5, 5
 //@ run-call: tupleReturn 5 => 5, 7
+//@ run-call: tupleThroughHelper 5 => 5, 7
+//@ run-call: tupleThroughYul 5 => 5, 7
+//@ run-call: tupleReturnPublic 5 => 5, 7
+//@ run-call: tupleThroughPublic 5 => 5, 7
 //@ run-call: checkedScaled 0 => 0
 //@ run-call: hashHelperScratch 1, 2, 3 => 0x6e0c627900b24bd432fe7b1f713f1b0744091a646a9fe4a65a18dfed21f2949c
 //@ run-call: allocateAfterHelper 1, 2, 3 => 3
@@ -394,6 +398,38 @@ contract AssemblyLowMemoryLayouts {
         }
     }
 
+    // A pair of integers returned through an internal, Yul, or public helper is data as well.
+    function tupleThroughHelper(uint256) external pure returns (uint256, uint256) {
+        return _scratchPair();
+    }
+
+    function tupleThroughYul(uint256) external pure returns (uint256 read, uint256 other) {
+        assembly {
+            function scratchPair() -> a, b {
+                let m := mload(0x40)
+                mstore(0x40, calldataload(4))
+                a := mload(0x40)
+                mstore(0x40, m)
+                b := 7
+            }
+            read, other := scratchPair()
+        }
+    }
+
+    function tupleReturnPublic(uint256) public pure returns (uint256 read, uint256 other) {
+        assembly {
+            let m := mload(0x40)
+            mstore(0x40, calldataload(4))
+            read := mload(0x40)
+            mstore(0x40, m)
+            other := 7
+        }
+    }
+
+    function tupleThroughPublic(uint256 value) external pure returns (uint256, uint256) {
+        return tupleReturnPublic(value);
+    }
+
     // A checked product on the way to a write keeps its check on the loaded word; the clamped
     // address it writes through wraps instead.
     function checkedScaled(uint256) external pure returns (uint256 seen) {
@@ -474,6 +510,16 @@ contract AssemblyLowMemoryLayouts {
             }
             mstore(end, a)
             h := keccak256(0xa0, add(sub(end, 0xa0), 0x20))
+        }
+    }
+
+    function _scratchPair() internal pure returns (uint256 read, uint256 other) {
+        assembly {
+            let m := mload(0x40)
+            mstore(0x40, calldataload(4))
+            read := mload(0x40)
+            mstore(0x40, m)
+            other := 7
         }
     }
 }
