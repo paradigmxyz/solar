@@ -1,0 +1,542 @@
+// === ROOT/tests/ui/codegen/lowering/opcode_selection.sol:OpcodeSelection (runtime) ===
+@module OpcodeSelection_runtime
+bb0:
+  callvalue
+  iszero
+  iszero
+  push bb3
+  jumpi
+  jump bb1
+bb1:
+  push 0
+  calldataload
+  push 224
+  shr
+  dup 1
+  push 0x10c4e8b0
+  eq
+  push bb2
+  jumpi
+  jump bb3
+bb2:
+  jump bb4
+bb3 [cold]:
+  push 0
+  push 0
+  revert
+bb4:
+  push 0x8e0
+  push 64
+  mstore
+  push 36
+  calldataload
+  push 4
+  calldataload
+  add
+  push 0
+  mstore
+  push 36
+  calldataload
+  push 4
+  calldataload
+  sub
+  push 32
+  mstore
+  push 36
+  calldataload
+  push 4
+  calldataload
+  mul
+  push 64
+  mstore
+  push 36
+  calldataload
+  push 4
+  calldataload
+  div
+  push 96
+  mstore
+  push 36
+  calldataload
+  push 4
+  calldataload
+  sdiv
+  push 128
+  mstore
+  push 36
+  calldataload
+  push 4
+  calldataload
+  mod
+  push 160
+  mstore
+  push 36
+  calldataload
+  push 4
+  calldataload
+  smod
+  push 192
+  mstore
+  push 36
+  calldataload
+  push 4
+  calldataload
+  exp
+  push 224
+  mstore
+  push 68
+  calldataload
+  push 36
+  calldataload
+  push 4
+  calldataload
+  dup 3
+  dup 3
+  dup 3
+  addmod
+  swap 3
+  pop
+  pop
+  pop
+  push 256
+  mstore
+  push 68
+  calldataload
+  push 36
+  calldataload
+  push 4
+  calldataload
+  dup 3
+  dup 3
+  dup 3
+  mulmod
+  swap 3
+  pop
+  pop
+  pop
+  push 288
+  mstore
+  push 36
+  calldataload
+  push 4
+  calldataload
+  and
+  push 320
+  mstore
+  push 36
+  calldataload
+  push 4
+  calldataload
+  or
+  push 352
+  mstore
+  push 36
+  calldataload
+  push 4
+  calldataload
+  xor
+  push 384
+  mstore
+  push 4
+  calldataload
+  not
+  push 416
+  mstore
+  push 4
+  calldataload
+  clz
+  push 448
+  mstore
+  push 36
+  calldataload
+  push 4
+  calldataload
+  shl
+  push 480
+  mstore
+  push 36
+  calldataload
+  push 4
+  calldataload
+  shr
+  push 512
+  mstore
+  push 36
+  calldataload
+  push 4
+  calldataload
+  sar
+  push 544
+  mstore
+  push 36
+  calldataload
+  push 4
+  calldataload
+  byte
+  push 576
+  mstore
+  push 36
+  calldataload
+  push 4
+  calldataload
+  lt
+  push 608
+  mstore
+  push 36
+  calldataload
+  push 4
+  calldataload
+  gt
+  push 640
+  mstore
+  push 36
+  calldataload
+  push 4
+  calldataload
+  slt
+  push 672
+  mstore
+  push 36
+  calldataload
+  push 4
+  calldataload
+  sgt
+  push 704
+  mstore
+  push 36
+  calldataload
+  push 4
+  calldataload
+  eq
+  push 736
+  mstore
+  push 4
+  calldataload
+  mload
+  push 768
+  mstore
+  push 36
+  calldataload
+  push 4
+  calldataload
+  mstore
+  push 36
+  calldataload
+  push 4
+  calldataload
+  mstore8
+  msize
+  push 864
+  mstore
+  push 68
+  calldataload
+  push 36
+  calldataload
+  push 4
+  calldataload
+  dup 3
+  dup 3
+  dup 3
+  mcopy
+  pop
+  pop
+  pop
+  push 4
+  calldataload
+  sload
+  push 928
+  mstore
+  push 36
+  calldataload
+  push 4
+  calldataload
+  sstore
+  push 4
+  calldataload
+  tload
+  push 992
+  mstore
+  push 36
+  calldataload
+  push 4
+  calldataload
+  tstore
+  push 4
+  calldataload
+  calldataload
+  push 0x420
+  mstore
+  push 68
+  calldataload
+  push 36
+  calldataload
+  push 4
+  calldataload
+  dup 3
+  dup 3
+  dup 3
+  calldatacopy
+  pop
+  pop
+  pop
+  calldatasize
+  push 0x460
+  mstore
+  codesize
+  push 0x480
+  mstore
+  push 68
+  calldataload
+  push 36
+  calldataload
+  push 4
+  calldataload
+  dup 3
+  dup 3
+  dup 3
+  codecopy
+  pop
+  pop
+  pop
+  push 4
+  calldataload
+  extcodesize
+  push 0x4c0
+  mstore
+  push 100
+  calldataload
+  push 68
+  calldataload
+  push 36
+  calldataload
+  push 4
+  calldataload
+  dup 4
+  dup 4
+  dup 4
+  dup 4
+  extcodecopy
+  pop
+  pop
+  pop
+  pop
+  push 4
+  calldataload
+  extcodehash
+  push 0x500
+  mstore
+  returndatasize
+  push 0x520
+  mstore
+  push 68
+  calldataload
+  push 36
+  calldataload
+  push 4
+  calldataload
+  dup 3
+  dup 3
+  dup 3
+  returndatacopy
+  pop
+  pop
+  pop
+  caller
+  push 0x560
+  mstore
+  callvalue
+  push 0x580
+  mstore
+  origin
+  push 0x5a0
+  mstore
+  gasprice
+  push 0x5c0
+  mstore
+  push 4
+  calldataload
+  blockhash
+  push 0x5e0
+  mstore
+  coinbase
+  push 0x600
+  mstore
+  timestamp
+  push 0x620
+  mstore
+  number
+  push 0x640
+  mstore
+  prevrandao
+  push 0x660
+  mstore
+  gaslimit
+  push 0x680
+  mstore
+  slotnum
+  push 0x6a0
+  mstore
+  chainid
+  push 0x6c0
+  mstore
+  address
+  push 0x6e0
+  mstore
+  push 4
+  calldataload
+  balance
+  push 0x700
+  mstore
+  selfbalance
+  push 0x720
+  mstore
+  gas
+  push 0x740
+  mstore
+  basefee
+  push 0x760
+  mstore
+  blobbasefee
+  push 0x780
+  mstore
+  push 4
+  calldataload
+  blobhash
+  push 0x7a0
+  mstore
+  push 36
+  calldataload
+  push 4
+  calldataload
+  keccak256
+  push 0x7c0
+  mstore
+  push 68
+  calldataload
+  push 36
+  calldataload
+  push 4
+  calldataload
+  dup 3
+  dup 3
+  dup 3
+  create
+  swap 3
+  pop
+  pop
+  pop
+  push 0x7e0
+  mstore
+  push 100
+  calldataload
+  push 68
+  calldataload
+  push 36
+  calldataload
+  push 4
+  calldataload
+  dup 4
+  dup 4
+  dup 4
+  dup 4
+  create2
+  swap 4
+  pop
+  pop
+  pop
+  pop
+  push 0x800
+  mstore
+  push 36
+  calldataload
+  push 4
+  calldataload
+  dup 2
+  dup 2
+  log0
+  pop
+  pop
+  push 68
+  calldataload
+  push 36
+  calldataload
+  push 4
+  calldataload
+  dup 3
+  dup 3
+  dup 3
+  log1
+  pop
+  pop
+  pop
+  push 100
+  calldataload
+  push 68
+  calldataload
+  push 36
+  calldataload
+  push 4
+  calldataload
+  dup 4
+  dup 4
+  dup 4
+  dup 4
+  log2
+  pop
+  pop
+  pop
+  pop
+  push 132
+  calldataload
+  push 100
+  calldataload
+  push 68
+  calldataload
+  push 36
+  calldataload
+  push 4
+  calldataload
+  dup 5
+  dup 5
+  dup 5
+  dup 5
+  dup 5
+  log3
+  pop
+  pop
+  pop
+  pop
+  pop
+  push 164
+  calldataload
+  push 132
+  calldataload
+  push 100
+  calldataload
+  push 68
+  calldataload
+  push 36
+  calldataload
+  push 4
+  calldataload
+  dup 6
+  dup 6
+  dup 6
+  dup 6
+  dup 6
+  dup 6
+  log4
+  pop
+  pop
+  pop
+  pop
+  pop
+  pop
+  push 36
+  calldataload
+  push 4
+  calldataload
+  signextend
+  push 0x8c0
+  mstore
+  stop

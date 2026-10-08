@@ -80,34 +80,3 @@ impl InstKind {
         opcode_lowering(&self.op()).map(OpcodeLowering::opcode)
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::mir::ValueId;
-    use std::fmt::Write as _;
-
-    #[test]
-    fn opcode_selection_matches_schema() {
-        let mut output = String::new();
-        for &name in InstKind::MNEMONICS {
-            if let Some((arity, build)) = InstKind::operand_only(name) {
-                let operands = (0..arity).map(ValueId::from_usize).collect::<Vec<_>>();
-                let kind = build(&operands);
-                if let Some(lowering) = opcode_lowering(&kind.op()) {
-                    let definition = definition(lowering.opcode()).unwrap();
-                    let (pops, pushes) = definition.stack_io.unwrap();
-                    assert_eq!(usize::from(pops), arity, "{name}");
-                    assert_eq!(pushes != 0, kind.op_def().result.produces_value(), "{name}");
-                    writeln!(
-                        output,
-                        "{name}: {lowering:?}, {} ({pops} -> {pushes})",
-                        definition.mnemonic
-                    )
-                    .unwrap();
-                }
-            }
-        }
-        snapbox::assert_data_eq!(output, snapbox::file!["select.snap"]);
-    }
-}
