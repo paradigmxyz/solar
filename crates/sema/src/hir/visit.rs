@@ -233,7 +233,7 @@ pub trait Visit<'hir> {
                 for stmt in block.stmts {
                     self.visit_stmt(stmt)?;
                 }
-                if let LoopSource::For { update: Some(update) } = source {
+                if let LoopSource::For { update: Some(update), .. } = source {
                     self.visit_stmt(update)?;
                 }
             }

@@ -1340,7 +1340,7 @@ impl<'gcx> ResolveContext<'gcx> {
             let loop_stmt = builder.stmt(
                 hir::StmtKind::Loop(
                     builder.block(this.arena.alloc_as_slice(loop_body), for_.body.span),
-                    hir::LoopSource::For { update: Some(step_stmt) },
+                    hir::LoopSource::For { update: Some(step_stmt), has_cond: true },
                 ),
                 for_.body.span,
             );
@@ -1834,7 +1834,7 @@ impl<'gcx> ResolveContext<'gcx> {
 
                     let mut kind = hir::StmtKind::Loop(
                         builder.block(this.arena.alloc_as_slice(body), span),
-                        hir::LoopSource::For { update },
+                        hir::LoopSource::For { update, has_cond: cond.is_some() },
                     );
 
                     if let Some(init) = init {

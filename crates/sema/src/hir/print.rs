@@ -480,7 +480,7 @@ impl<'gcx, W: fmt::Write> HirPrinter<'gcx, W> {
                 for stmt in block.stmts {
                     self.print_stmt(stmt)?;
                 }
-                if let hir::LoopSource::For { update: Some(update) } = source {
+                if let hir::LoopSource::For { update: Some(update), .. } = source {
                     self.write_indent()?;
                     self.out.write_str("hir.loop.update ")?;
                     self.print_stmt_as_block(update)?;

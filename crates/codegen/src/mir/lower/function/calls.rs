@@ -1610,7 +1610,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         callee: &hir::Expr<'_>,
         function: hir::FunctionId,
     ) -> hir::FunctionId {
-        super::resolve_call_target(self.cx.gcx, self.cx.contract_id, callee, function)
+        self.cx.gcx.resolve_call_target(self.cx.contract_id, callee, function)
     }
 }
 

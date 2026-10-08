@@ -1,0 +1,8 @@
+error[3464]: this variable is of storage pointer type and can be returned without prior assignment, which would lead to undefined behaviour
+   ╭▸ ROOT/tests/ui/typeck/control_flow/storage_return/while_err.sol:LL:CC
+   │
+LL │     function f() internal view returns (S storage c) {
+   ╰╴                                        ━━━━━━━━━━━
+
+error: aborting due to 1 previous error
+

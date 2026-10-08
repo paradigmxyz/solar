@@ -11,6 +11,7 @@ use solar_interface::{Span, diagnostics::ErrorGuaranteed, error_code};
 use std::ops::ControlFlow;
 
 mod checker;
+mod control_flow;
 pub(crate) mod override_checker;
 mod udvt;
 mod view_pure_checker;
@@ -33,6 +34,7 @@ pub(crate) fn check(gcx: Gcx<'_>) {
             });
     },);
     gcx.set_typeck_results(typeck_results);
+    control_flow::check(gcx);
     view_pure_checker::check(gcx);
 }
 
@@ -812,7 +814,7 @@ impl<'gcx> Visit<'gcx> for BreakContinueChecker<'gcx> {
             hir::StmtKind::Loop(block, source) => {
                 self.loop_depth += 1;
                 self.visit_block(block)?;
-                if let hir::LoopSource::For { update: Some(update) } = source {
+                if let hir::LoopSource::For { update: Some(update), .. } = source {
                     self.visit_stmt(update)?;
                 }
                 self.loop_depth -= 1;

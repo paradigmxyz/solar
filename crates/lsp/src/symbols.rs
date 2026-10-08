@@ -2201,7 +2201,7 @@ impl<'gcx> ScopeBuilder<'_, 'gcx> {
             for stmt in block.stmts {
                 let _ = this.visit_stmt(stmt);
             }
-            if let hir::LoopSource::For { update: Some(update) } = source {
+            if let hir::LoopSource::For { update: Some(update), .. } = source {
                 let _ = this.visit_stmt(update);
             }
         });

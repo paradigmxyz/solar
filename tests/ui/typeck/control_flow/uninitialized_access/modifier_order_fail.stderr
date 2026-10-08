@@ -1,0 +1,14 @@
+error[3464]: this variable is of storage pointer type and can be accessed without prior assignment, which would lead to undefined behaviour
+   ╭▸ ROOT/tests/ui/typeck/control_flow/uninitialized_access/modifier_order_fail.sol:LL:CC
+   │
+LL │     function f() m1(b) m2(b = s) internal view returns (uint[] storage b) {}
+   │                     ━
+   ╰╴
+note: the variable was declared here
+   ╭▸ ROOT/tests/ui/typeck/control_flow/uninitialized_access/modifier_order_fail.sol:LL:CC
+   │
+LL │     function f() m1(b) m2(b = s) internal view returns (uint[] storage b) {}
+   ╰╴                                                        ━━━━━━━━━━━━━━━━
+
+error: aborting due to 1 previous error
+

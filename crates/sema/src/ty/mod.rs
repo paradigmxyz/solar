@@ -1387,6 +1387,49 @@ impl<'gcx> Gcx<'gcx> {
         self.super_function_target((contract, defining_contract, function))
     }
 
+    /// Resolves an internal call of `function` through `callee` in the context of the
+    /// most-derived contract.
+    ///
+    /// `super` calls resolve to the next base, calls qualified with a contract name are static,
+    /// and other calls are virtual.
+    pub fn resolve_call_target(
+        self,
+        contract: hir::ContractId,
+        callee: &hir::Expr<'_>,
+        function: hir::FunctionId,
+    ) -> hir::FunctionId {
+        if let hir::ExprKind::Member(base, _) = callee.kind
+            && let Some(TyKind::Type(ty)) = self.type_of_expr(base.id).map(|ty| ty.kind)
+        {
+            return match ty.kind {
+                TyKind::Contract(_) => function,
+                TyKind::Super(defining_contract) => {
+                    self.resolve_super_function(contract, defining_contract, function)
+                }
+                _ => self.resolve_virtual_function(contract, function),
+            };
+        }
+        self.resolve_virtual_function(contract, function)
+    }
+
+    /// Returns the function an internal call through `callee` runs, resolved in the context of
+    /// the most-derived contract, or `None` if `callee` is not an internal function.
+    pub fn internal_call_target(
+        self,
+        contract: Option<hir::ContractId>,
+        callee: &hir::Expr<'_>,
+    ) -> Option<hir::FunctionId> {
+        let TyKind::Fn(ty) = self.type_of_expr(callee.id)?.kind else { return None };
+        if !ty.is_internal() {
+            return None;
+        }
+        let function = ty.function_id.or_else(|| self.resolved_function(callee))?;
+        Some(match contract {
+            Some(contract) => self.resolve_call_target(contract, callee, function),
+            None => function,
+        })
+    }
+
     /// Returns all events included in the external interface of the given contract.
     pub fn interface_events(self, id: hir::ContractId) -> &'gcx DenseBitSet<hir::EventId> {
         let items = self.interface_items(id);
