@@ -332,10 +332,11 @@ fn message(text: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::llm::{TransportError, set_transport, wire::Transcript};
+    use crate::llm::{TransportError, bind_transport, wire::Transcript};
     use clap::Parser;
     use reqwest::Client;
     use solar_config::CompileOpts;
+    use solar_interface::Session;
     use std::{
         future::Future,
         pin::Pin,
@@ -590,14 +591,13 @@ data: {"type":"message_stop"}
         assert!(request.contains("x-api-key: sk-test"), "{request}");
     }
 
-    /// A live compilation asks through the installed transport, which pays each request, and
-    /// needs no key.
+    /// A live compilation asks through the transport bound to its session, which pays each
+    /// request, and needs no key.
     #[test]
     fn live_compilation_through_a_transport() {
         let server = Runtime::new().unwrap();
         let (url, seen) = server.block_on(gateway(NO_IMPROVEMENT));
         let transport = server.block_on(Paying::new(true));
-        set_transport(Some(transport.clone()));
         let mut opts = CompileOpts::try_parse_from([
             "solar",
             "../../tests/ui/codegen/mir/llm-optimize/basics.mir",
@@ -609,8 +609,15 @@ data: {"type":"message_stop"}
         ])
         .unwrap();
         opts.finish().unwrap();
-        let compiled = crate::run_compiler_args(opts);
-        set_transport(None);
+        let sess = Session::new(opts);
+        let binding = bind_transport(&sess, transport.clone());
+        // No other session sends through it.
+        assert!(crate::llm::transport(&Session::new(CompileOpts::default())).is_none());
+        let compiled = crate::run_compiler_with_sources(sess, |pcx| {
+            let inputs = pcx.sess.opts.input.clone();
+            pcx.par_load_files(inputs)
+        });
+        drop(binding);
         assert!(compiled.is_ok());
         let seen = seen.lock().unwrap();
         let payments = transport.payments.load(Ordering::Relaxed);

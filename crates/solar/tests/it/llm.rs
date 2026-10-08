@@ -4,7 +4,7 @@ use serde_json::{Value, json};
 use solar::{
     codegen::llm::{
         LlmError, LlmRewriter, LlmSession, Proposal, RewriteRequest, Stage, Verdict, bind_rewriter,
-        rewriter, set_rewriter,
+        rewriter,
     },
     config::{CompileOpts, CompilerOutput, EvmVersion, LlmOptimizeMode, UnstableOpts},
 };
@@ -79,7 +79,8 @@ impl LlmSession for Session {
     }
 }
 
-fn compile(mode: Option<LlmOptimizeMode>) -> Value {
+/// Compiles `triangle.sol` through Standard JSON in `mode`, with `rewriter` bound to the session.
+fn compile(mode: Option<LlmOptimizeMode>, rewriter: Option<Arc<dyn LlmRewriter>>) -> Value {
     let input = json!({
         "language": "Solidity",
         "sources": {"triangle.sol": {"content": SOURCE}},
@@ -94,8 +95,14 @@ fn compile(mode: Option<LlmOptimizeMode>) -> Value {
         ..Default::default()
     };
     let mut output = Vec::new();
-    solar::cli::standard_json::compile_standard_json(&input.to_string(), opts, None, &mut output)
-        .unwrap();
+    solar::cli::standard_json::compile_standard_json_with(
+        &input.to_string(),
+        opts,
+        None,
+        &mut output,
+        |sess| rewriter.map(|rewriter| bind_rewriter(sess, rewriter)),
+    )
+    .unwrap();
     serde_json::from_slice(&output).unwrap()
 }
 
@@ -104,11 +111,10 @@ fn embedded_rewriter() {
     let runtime = |output: &Value| {
         output["contracts"]["triangle.sol"]["Triangle"]["evm"]["deployedBytecode"]["object"].clone()
     };
-    let plain = compile(None);
+    let plain = compile(None, None);
     let verdicts = Arc::new(Mutex::new(Vec::new()));
-    set_rewriter(Some(Arc::new(Rewriter { verdicts: Arc::clone(&verdicts) })));
-    let rewritten = compile(Some(LlmOptimizeMode::Live));
-    set_rewriter(None);
+    let embedded = Arc::new(Rewriter { verdicts: Arc::clone(&verdicts) });
+    let rewritten = compile(Some(LlmOptimizeMode::Live), Some(embedded));
 
     // The embedder's rewriter stays in place, and hears why its first candidate failed.
     let verdicts = verdicts.lock().unwrap();

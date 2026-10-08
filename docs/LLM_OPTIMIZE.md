@@ -325,34 +325,34 @@ The fixtures under `tests/ui/codegen/mir/llm-optimize/` use scripts to cover eve
 `solar::codegen::llm` exposes the rewriter interface. An embedder implements `LlmRewriter`, which
 opens an `LlmSession` per function, and binds it to the session it compiles in with `bind_rewriter`,
 which returns a binding that lasts until it drops, before compiling with `-Zllm-optimize=live`. No
-other session asks a bound rewriter, so compilations running at once in one process each reach only
-the model and endpoint their own session chose. `set_rewriter` instead installs a rewriter for every
-session without one of its own, which suits an embedder whose compilations all serve one user, or
-one that calls `solar::cli::standard_json::compile_standard_json`, which creates its session itself.
-`LlmSession::propose` receives the verdict on the previous candidate and returns the next candidate
-or `Proposal::Done`; `LlmSession::finish` hears the verdict the last candidate got, when no proposal
-heard it, and the cost of the rewrite the pass keeps. `LlmRewriter::cached` hears about a function
-whose cached rewrite the pass keeps instead of asking. The command line's rewriter in
-`crates/cli/src/llm.rs` is one such implementation, which the command line and
-`solar::cli::standard_json::compile_standard_json` bind to their session only when it has no
-rewriter yet.
+other session asks a bound rewriter, and nothing installs one for every session, so compilations
+running at once in one process each reach only the model and endpoint their own session chose. An
+embedder that compiles Standard JSON calls `solar::cli::standard_json::compile_standard_json_with`,
+which creates the session and hands it to a closure before compiling; the bindings the closure
+returns last until the compilation ends. `LlmSession::propose` receives the verdict on the previous
+candidate and returns the next candidate or `Proposal::Done`; `LlmSession::finish` hears the verdict
+the last candidate got, when no proposal heard it, and the cost of the rewrite the pass keeps.
+`LlmRewriter::cached` hears about a function whose cached rewrite the pass keeps instead of asking.
+The command line's rewriter in `crates/cli/src/llm.rs` is one such implementation, which the command
+line and Standard JSON bind to their session only when it has no rewriter yet.
 
 An embedder can also keep that rewriter and carry its requests instead. With the `llm` feature,
-`solar::cli::llm::bind_transport` binds a `ChatTransport` to a session, and `set_transport`
-installs one for every session without its own; it sends every request of the chat providers, `anthropic/`, `opencode/`, and `openai-chat/`, in place of the compiler's client, and
-the compiler then reads no key and sends none. `ChatTransport::send` takes a `reqwest::Request`
-with a buffered body and returns the response; a `TransportError` it returns is sent again when
-it is transient, and ends the turn otherwise. The CLI crate's `llm-transport` feature builds only
-this path, without nanocodex, TLS, or a client of the compiler's own: `live` then requires a
-transport, and `openai/` models, which only nanocodex asks, are unavailable.
+`solar::cli::llm::bind_transport` binds a `ChatTransport` to a session, the same way; it sends every
+request of the chat providers in that session, `anthropic/`, `opencode/`, and `openai-chat/`, in
+place of the compiler's client, and the compiler then reads no key and sends none.
+`ChatTransport::send` takes a `reqwest::Request` with a buffered body and returns the response; a
+`TransportError` it returns is sent again when it is transient, and ends the turn otherwise. The CLI
+crate's `llm-transport` feature builds only this path, without nanocodex, TLS, or a client of the
+compiler's own: `live` then requires a transport, and `openai/` models, which only nanocodex asks,
+are unavailable.
 
 A transport can pay for requests. A gateway that fronts a provider and charges per request with
 the [Machine Payments Protocol](https://mpp.dev) answers an unpaid request with HTTP 402 and a
 payment challenge, which the transport pays, for example from its user's wallet, before sending
 the request again; `-Zllm-endpoint` names the gateway's API base, such as
 `https://gateway.example/anthropic/v1` for an Anthropic route. Without a transport that pays, a
-402 ends the turn. Foundry's `forge optimize` installs such a transport, paid from the Tempo
-account its user signed in with.
+402 ends the turn. Foundry's `forge optimize` binds such a transport to its session, paid from the
+Tempo account its user signed in with.
 
 An embedder that resolves a project's sources itself compiles them with
 `solar::cli::run_compiler_with_sources`, which runs the command line's pipeline, outputs, and

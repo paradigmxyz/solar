@@ -30,10 +30,10 @@
 //! each ask the model and endpoint their own options name.
 //!
 //! An embedder can send the chat providers' requests itself by binding a [`ChatTransport`] to the
-//! session it compiles in with [`bind_transport`], or installing one for every session with
-//! [`set_transport`]: to answer the HTTP 402 challenges of a gateway that charges its user per
-//! request, for example, with the Machine Payments Protocol. The compiler then reads no key and
-//! sends none, since the transport authenticates or pays for each request.
+//! session it compiles in with [`bind_transport`]: to answer the HTTP 402 challenges of a gateway
+//! that charges its user per request, for example, with the Machine Payments Protocol. The
+//! compiler then reads no key and sends none, since the transport authenticates or pays for each
+//! request. A transport carries only the requests of the session it is bound to.
 //! The `llm-transport` feature builds only this path: the chat providers without nanocodex, TLS,
 //! or an HTTP client of the compiler's own, so `-Zllm-optimize=live` requires a transport.
 
@@ -60,7 +60,7 @@ use std::{
     fmt::{self, Write},
     pin::Pin,
     sync::{
-        Arc, PoisonError, RwLock,
+        Arc,
         atomic::{AtomicU64, Ordering},
         mpsc,
     },
@@ -124,9 +124,6 @@ const FORMAT_REMINDER: &str = "Your reply held no candidate. Reply with exactly 
 /// The transports embedders bound to sessions, which their chat providers send through.
 #[cfg(feature = "llm-transport")]
 static TRANSPORTS: SessionBindings<dyn ChatTransport> = SessionBindings::new();
-/// The transport of sessions without one of their own.
-#[cfg(feature = "llm-transport")]
-static DEFAULT_TRANSPORT: RwLock<Option<Arc<dyn ChatTransport>>> = RwLock::new(None);
 
 /// Sends the requests of the chat providers, `anthropic/`, `opencode/`, and `openai-chat/`, in
 /// place of the compiler's own HTTP client.
@@ -189,30 +186,17 @@ pub fn bind_transport(
     TRANSPORTS.bind(sess, transport)
 }
 
-/// Installs the transport the chat providers send through in every session without one of its
-/// own, or removes it with `None`.
-///
-/// Every compilation in the process that has no bound transport then sends through this one. An
-/// embedder whose compilations serve different users binds a transport to each session with
-/// [`bind_transport`] instead.
-#[cfg(feature = "llm-transport")]
-pub fn set_transport(transport: Option<Arc<dyn ChatTransport>>) {
-    *DEFAULT_TRANSPORT.write().unwrap_or_else(PoisonError::into_inner) = transport;
-}
-
-/// Returns the transport the chat providers send through in `sess`: the one bound to it, or the
-/// one [`set_transport`] installed for every session.
+/// Returns the transport the chat providers send through in `sess`: the one bound to it last, if
+/// any.
 #[cfg(feature = "llm-transport")]
 pub fn transport(sess: &Session) -> Option<Arc<dyn ChatTransport>> {
-    TRANSPORTS
-        .get(sess)
-        .or_else(|| DEFAULT_TRANSPORT.read().unwrap_or_else(PoisonError::into_inner).clone())
+    TRANSPORTS.get(sess)
 }
 
 /// Binds the rewriter `-Zllm-optimize=live` asks to `sess`, returning it for
 /// [`Installed::finish`].
 ///
-/// A rewriter an embedder bound to the session, or installed for every session, stays in place.
+/// A rewriter an embedder bound to the session stays in place.
 pub(crate) fn install(sess: &Session) -> Result<Option<Installed>> {
     if sess.opts.unstable.llm_optimize != Some(LlmOptimizeMode::Live)
         || solar_codegen::llm::rewriter(sess).is_some()
