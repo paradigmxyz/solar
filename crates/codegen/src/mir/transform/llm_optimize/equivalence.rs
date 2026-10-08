@@ -49,9 +49,10 @@
 //! Each input also has a world derived from its seed, which answers storage and context reads: a
 //! storage slot or context value is zero, a small number, a constant, one of the input's
 //! arguments, the caller, or a random word, cut to the width the value has on chain, such as 160
-//! bits for addresses. Transient storage is zero more often, as every transaction starts it
-//! empty. The tests answer no reads of code sizes or hashes: a rewrite changes the contract's own
-//! code, and with it what such reads return on chain.
+//! bits for addresses. Each read draws from a hash of the seed and the whole slot or operands, so
+//! that no two slots share their draws. Transient storage is zero more often, as every
+//! transaction starts it empty. The tests answer no reads of code sizes or hashes: a rewrite
+//! changes the contract's own code, and with it what such reads return on chain.
 //!
 //! Testing is not proof: a difference on an input no generator reaches goes unnoticed.
 
@@ -71,7 +72,7 @@ use crate::{
     },
     target::Target,
 };
-use alloy_primitives::{U256, hex};
+use alloy_primitives::{B256, Keccak256, U256, hex, keccak256};
 use smallvec::SmallVec;
 use solar_data_structures::{
     bit_set::DenseBitSet,
@@ -951,11 +952,10 @@ struct World<'t> {
 }
 
 impl<'t> World<'t> {
-    /// Salts the keys of persistent and transient storage slots apart from context reads, and
-    /// the choice of focused reads apart from the words drawn.
+    /// Salts the digests of persistent and transient storage slots apart from context reads,
+    /// which the opcode salts.
     const STORAGE_SALT: u64 = 0x100;
     const TRANSIENT_SALT: u64 = 0x101;
-    const FOCUS_SALT: u64 = 0x102;
 
     fn new(input: &'t Input, palette: &'t [U256]) -> Self {
         let (seed, args, focus) = (input.world, &input.args[..], input.focus);
@@ -964,14 +964,14 @@ impl<'t> World<'t> {
 
     /// Returns what persistent storage slot `slot` holds before the run.
     fn storage_word(&self, slot: U256) -> U256 {
-        self.draw(key(Self::STORAGE_SALT, &[slot]), true)
+        self.draw(&self.digest(Self::STORAGE_SALT, &[slot]), true)
     }
 
     /// Returns what transient storage slot `slot` holds before the run: zero half the time, as
     /// every transaction starts it empty.
     fn transient_word(&self, slot: U256) -> U256 {
-        let key = key(Self::TRANSIENT_SALT, &[slot]);
-        if mix64(self.seed ^ key).is_multiple_of(2) { U256::ZERO } else { self.draw(key, true) }
+        let digest = self.digest(Self::TRANSIENT_SALT, &[slot]);
+        if lane(&digest, 2).is_multiple_of(2) { U256::ZERO } else { self.draw(&digest, true) }
     }
 
     /// Returns what context read `opcode` returns for `operands`, cut to the width the value has
@@ -992,19 +992,33 @@ impl<'t> World<'t> {
             _ => 256,
         };
         // Storage may hold the caller, which context values do not draw, keeping draws finite.
-        self.draw(key(u64::from(opcode), operands), false) & (U256::MAX >> (256 - bits))
+        let digest = self.digest(u64::from(opcode), operands);
+        self.draw(&digest, false) & (U256::MAX >> (256 - bits))
     }
 
-    /// Returns the word drawn for `key`: zero, a small number, a constant, an argument, the
-    /// caller when `caller` is set, or a random word, unless the input focuses the read on its
-    /// word.
-    fn draw(&self, key: u64, caller: bool) -> U256 {
+    /// Hashes the world's seed, `salt`, and every bit of `words`, so that reads of different
+    /// slots or operands draw independently. A shorter key would let two slots share every
+    /// draw, and a candidate read one in place of the other unseen.
+    fn digest(&self, salt: u64, words: &[U256]) -> B256 {
+        let mut hasher = Keccak256::new();
+        hasher.update(self.seed.to_be_bytes());
+        hasher.update(salt.to_be_bytes());
+        for word in words {
+            hasher.update(word.to_be_bytes::<32>());
+        }
+        hasher.finalize()
+    }
+
+    /// Returns the word drawn for a read hashed to `digest`: zero, a small number, a constant, an
+    /// argument, the caller when `caller` is set, or a random word, unless the input focuses the
+    /// read on its word.
+    fn draw(&self, digest: &B256, caller: bool) -> U256 {
         if let Some(Focus { word, share }) = self.focus
-            && mix64(self.seed ^ key ^ Self::FOCUS_SALT).is_multiple_of(share)
+            && lane(digest, 1).is_multiple_of(share)
         {
             return word;
         }
-        let pick = mix64(self.seed ^ key);
+        let pick = lane(digest, 0);
         let rest = pick >> 4;
         let choose = |words: &[U256]| words[(rest % words.len() as u64) as usize];
         match pick % 16 {
@@ -1013,7 +1027,7 @@ impl<'t> World<'t> {
             6..=8 if !self.palette.is_empty() => choose(self.palette),
             9 | 10 if !self.args.is_empty() => choose(self.args),
             11 if caller => self.context_word(op::CALLER, &[]),
-            _ => U256::from_limbs(std::array::from_fn(|lane| mix64(pick ^ lane as u64))),
+            _ => U256::from_be_bytes(keccak256(digest).0),
         }
     }
 
@@ -1051,9 +1065,9 @@ impl Host for World<'_> {
     }
 }
 
-/// Folds `words` into a key salted by `salt`.
-fn key(salt: u64, words: &[U256]) -> u64 {
-    words.iter().flat_map(|word| word.as_limbs()).fold(mix64(salt), |key, &limb| mix64(key ^ limb))
+/// Returns the `index`th 64-bit lane of `digest`.
+fn lane(digest: &B256, index: usize) -> u64 {
+    u64::from_be_bytes(digest[8 * index..8 * index + 8].try_into().unwrap())
 }
 
 /// A deterministic generator of test inputs.

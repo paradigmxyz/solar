@@ -208,8 +208,9 @@ nested objects.
 Each input also has a world derived from its seed, which answers storage, transient storage, and
 context reads: zero, a small number, a constant, one of the input's arguments, the caller, or a
 random word, cut to the width the value has on chain, such as 160 bits for an address or 64 for
-a timestamp. Transient storage is zero more often, as every transaction starts it empty. A slot
-reads the same value throughout a run, and writes are kept until the run ends.
+a timestamp. Each read draws from a hash of the seed and the whole slot or operands, so no two
+slots share their draws. Transient storage is zero more often, as every transaction starts it
+empty. A slot reads the same value throughout a run, and writes are kept until the run ends.
 
 Probes then put each constant in each argument and, for functions that use storage or their
 context, make each constant the world's answer to every read, or to half of them. A candidate that
