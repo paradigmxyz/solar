@@ -121,7 +121,8 @@ turn starts once the estimated spend reaches five dollars or the conversations h
 million tokens, which bounds a model without known prices. Anthropic and OpenCode Zen requests
 that meet a rate limit, an overloaded or failing server, or a failed connection are sent up to
 four times, waiting between tries as long as the provider asks, or two seconds and then twice as
-long each time. A failed session leaves its function with the best candidate so far.
+long each time. The compiler's client follows no redirect, which would carry a key elsewhere. A
+failed session leaves its function with the best candidate so far.
 
 ## What is offered
 

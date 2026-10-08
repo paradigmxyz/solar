@@ -8,7 +8,8 @@
 //! as the provider asks through `retry-after`, or two seconds and then twice as long each time,
 //! but never more than a minute; any other failure ends the turn with the provider's message. An
 //! endpoint that asks for payment with HTTP 402 is not asked again: only a transport that pays
-//! gets past it. The key travels in a request header marked sensitive and nowhere else.
+//! gets past it. The key travels in a request header marked sensitive and nowhere else, and the
+//! compiler's client follows no redirect, which would carry it to wherever the redirect points.
 //!
 //! Replies stream in as server-sent events, each piece passed on as it arrives; once a reply has
 //! begun, a failure ends the turn rather than sending the request again. A server that ignores
@@ -108,8 +109,11 @@ impl ChatClient {
                 let tls = nanocodex::oai::tls::native_client_config()
                     .await
                     .map_err(|error| format!("cannot load trusted certificates: {error}"))?;
+                // An API answers where it is asked. A redirect to another host would also carry
+                // Anthropic's key there, whose header, unlike `authorization`, redirects keep.
                 let client = Client::builder()
                     .use_preconfigured_tls((*tls).clone())
+                    .redirect(reqwest::redirect::Policy::none())
                     .build()
                     .map_err(|error| error.to_string())?;
                 Sender::Client(client)
@@ -184,8 +188,10 @@ impl ChatClient {
                             }
                         });
                     }
-                    let text = error_text(response).await;
-                    let answer = format!("{name} answered {status}: {}", message(&text));
+                    let answer = match message(&error_text(response).await) {
+                        message if message.is_empty() => format!("{name} answered {status}"),
+                        message => format!("{name} answered {status}: {message}"),
+                    };
                     match retry(after).filter(|_| retryable(status)) {
                         Some(pause) => {
                             on_retry(format!(
@@ -520,6 +526,39 @@ data: {"type":"message_stop"}
         );
         // A payment request is not sent again.
         assert_eq!(seen.lock().unwrap().len(), 1);
+    }
+
+    /// A server that answers every request with a redirect to `location`. Returns its API base
+    /// URL.
+    #[cfg(feature = "llm")]
+    async fn redirector(location: String) -> String {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("http://{}/v1", listener.local_addr().unwrap());
+        tokio::spawn(async move {
+            loop {
+                let (mut socket, _) = listener.accept().await.unwrap();
+                read_request(&mut socket).await;
+                let response = format!(
+                    "HTTP/1.1 307 Temporary Redirect\r\nlocation: {location}\r\n\
+                     content-length: 0\r\nconnection: close\r\n\r\n"
+                );
+                socket.write_all(response.as_bytes()).await.unwrap();
+                let _ = socket.shutdown().await;
+            }
+        });
+        url
+    }
+
+    #[cfg(feature = "llm")]
+    #[tokio::test]
+    async fn keys_follow_no_redirect() {
+        let (elsewhere, seen) = gateway(NO_IMPROVEMENT).await;
+        let url = redirector(format!("{elsewhere}/messages")).await;
+        let client =
+            ChatClient::new(Provider::Anthropic, &url, Some("sk-test"), None, None).await.unwrap();
+        assert_eq!(ask(&client).await, Err("Anthropic answered 307 Temporary Redirect".into()));
+        // Nothing, and so no key, reached where the redirect pointed.
+        assert!(seen.lock().unwrap().is_empty());
     }
 
     #[tokio::test]
