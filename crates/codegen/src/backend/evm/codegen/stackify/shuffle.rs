@@ -3,13 +3,13 @@
 //! A target names a specific word ([`Want::Value`] or [`Want::Ret`]) or accepts anything
 //! ([`Want::Any`]) at each position. The shuffle runs in two phases:
 //!
-//! 1. Counts: pop or swap-and-pop surplus words that no open position can absorb, copy each
-//!    missing word to the top (`DUP`, or a fresh push for materializable values), and push
-//!    fillers until the height matches.
-//! 2. Order: with the multiset now right, follow permutation cycles through the top. The top
-//!    word goes to the deepest misplaced position that accepts it; when the top is already in
-//!    place, the deepest misplaced word is brought up to start the next cycle. Surplus words
-//!    belong in open positions, and needed words only in positions that name them.
+//! 1. Counts: pop or swap-and-pop surplus words that no open position can absorb, copy each missing
+//!    word to the top (`DUP`, or a fresh push for materializable values), and push fillers until
+//!    the height matches.
+//! 2. Order: with the multiset now right, follow permutation cycles through the top. The top word
+//!    goes to the deepest misplaced position that accepts it; when the top is already in place, the
+//!    deepest misplaced word is brought up to start the next cycle. Surplus words belong in open
+//!    positions, and needed words only in positions that name them.
 //!
 //! Each `SWAP` in the second phase settles one word or opens one cycle, so the phase is
 //! optimal for permutations that only exchange through the top. The first phase favors
@@ -18,8 +18,7 @@
 
 use super::{Slot, Want};
 use crate::mir::ValueId;
-use solar_data_structures::bit_set::DenseBitSet;
-use solar_data_structures::map::FxHashMap;
+use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 
 /// One shuffle operation. Depths are counted from the top, which has depth zero.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
