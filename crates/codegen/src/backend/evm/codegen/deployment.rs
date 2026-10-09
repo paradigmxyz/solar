@@ -389,6 +389,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             let constructor_fixed_memory_end = self.asm.new_deferred_const();
             let constructor_arg_offset =
                 (!ctor.params.is_empty()).then(|| self.asm.new_deferred_const());
+            self.constructor_heap_start = Some((constructor_fixed_memory_end, heap_guard));
 
             // Constructor arguments load from the copied ABI blob.
             self.in_constructor = true;
@@ -399,29 +400,14 @@ impl<'gcx> EvmCodegen<'gcx> {
             if let Some(arg_offset) = constructor_arg_offset {
                 self.constructor_args_base_const = Some(constructor_fixed_memory_end);
                 self.constructor_args_offset_const = Some(arg_offset);
-                self.asm.emit_push_deferred(arg_offset);
-                self.asm.emit_op(op::CODESIZE);
-                self.asm.emit_op(op::SUB); // size = CODESIZE - arg_offset
+                self.emit_constructor_args_size(arg_offset);
                 self.asm.emit_stack_op(StackOp::Dup(1));
                 self.asm.emit_push_deferred(arg_offset); // code offset
                 self.asm.emit_push_deferred(constructor_fixed_memory_end);
                 self.asm.emit_op(op::CODECOPY);
-
-                self.asm.emit_push_deferred(constructor_fixed_memory_end);
-                self.asm.emit_op(op::ADD);
-                self.asm.emit_push(U256::from(EvmMemoryLayout::WORD_SIZE - 1));
-                self.asm.emit_op(op::ADD);
-                self.asm.emit_push(U256::MAX - U256::from(EvmMemoryLayout::WORD_SIZE - 1));
-                self.asm.emit_op(op::AND);
-            } else {
-                self.asm.emit_push_deferred(constructor_fixed_memory_end);
             }
-            // heap_start = aligned_args_end + heap_guard
             // mstore(FMP_SLOT, heap_start)
-            if heap_guard != 0 {
-                self.asm.emit_push(U256::from(heap_guard));
-                self.asm.emit_op(op::ADD);
-            }
+            self.emit_constructor_heap_start();
             self.asm.emit_push(U256::from(EvmMemoryLayout::FMP_SLOT));
             self.asm.emit_op(op::MSTORE);
 
@@ -449,6 +435,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.in_constructor = false;
             self.constructor_args_base_const = None;
             self.constructor_args_offset_const = None;
+            self.constructor_heap_start = None;
             self.constructor_exit = None;
 
             self.asm.define_label(constructor_exit);
@@ -471,6 +458,31 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.asm.emit_op(op::REVERT);
         }
         (constructor_arg_offset, runtime_offset)
+    }
+
+    /// Emits the constructor's initial free memory pointer, consuming the size of the argument
+    /// blob from the stack when the constructor takes arguments.
+    pub(super) fn emit_constructor_heap_start(&mut self) {
+        let (fixed_memory_end, heap_guard) = self
+            .constructor_heap_start
+            .expect("constructor heap start is recorded before its code");
+        if self.constructor_args_offset_const.is_some() {
+            // heap_start = align32(fixed_memory_end + args_size)
+            self.asm.emit_push_deferred(fixed_memory_end);
+            self.asm.emit_op(op::ADD);
+            self.asm.emit_push(U256::from(EvmMemoryLayout::WORD_SIZE - 1));
+            self.asm.emit_op(op::ADD);
+            self.asm.emit_push(U256::MAX - U256::from(EvmMemoryLayout::WORD_SIZE - 1));
+            self.asm.emit_op(op::AND);
+        } else {
+            // heap_start = fixed_memory_end
+            self.asm.emit_push_deferred(fixed_memory_end);
+        }
+        // heap_start += heap_guard
+        if heap_guard != 0 {
+            self.asm.emit_push(U256::from(heap_guard));
+            self.asm.emit_op(op::ADD);
+        }
     }
 
     fn assemble_deployment_prefix(

@@ -547,7 +547,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         )?;
         values.insert(0, function_value);
 
-        let dispatcher = self.ensure_internal_function_pointer_dispatcher(function);
+        // A pointer retyped by assembly needs its own dispatcher only when that reaches more
+        // functions than the per-type one.
+        let registry = &self.cx.state.pointer_registry;
+        let from_assembly = registry.assembly_calls.contains(&expr.id)
+            && registry
+                .assembly_widens(self.cx.gcx, &InternalFunctionPointerShape::from_ty(function));
+        let dispatcher = self.ensure_internal_function_pointer_dispatcher(function, from_assembly);
         if function.returns.is_empty() {
             // icall_void(dispatcher, function, args)
             self.builder.icall_void(dispatcher, values);
@@ -587,10 +593,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn ensure_internal_function_pointer_dispatcher(
         &mut self,
         function: &TyFn<'gcx>,
+        from_assembly: bool,
     ) -> FunctionId {
         // dispatch(function_ptr, params...) -> returns...
         let shape = InternalFunctionPointerShape::from_ty(function);
-        let name = shape.helper_name();
+        let name = shape.helper_name(from_assembly);
         let InternalFunctionPointerShape { params, returns } = shape.clone();
         let id = self
             .lazy_helper(name, |this, function| {
@@ -610,7 +617,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 Some(())
             })
             .expect("internal dispatcher helper construction cannot fail");
-        self.cx.state.pointer_registry.dispatchers.insert(id, shape);
+        self.cx
+            .state
+            .pointer_registry
+            .dispatchers
+            .insert(id, InternalFunctionPointerDispatch { shape, from_assembly });
         id
     }
 

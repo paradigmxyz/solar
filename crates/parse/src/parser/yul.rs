@@ -210,6 +210,9 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     }
 
     /// Parses a Yul function definition.
+    ///
+    /// Kept out of line so that its locals take no space in other statements.
+    #[inline(never)]
     fn parse_yul_function(&mut self) -> PResult<'sess, StmtKind<'ast>> {
         let name = self.parse_ident()?;
         let parameters = self.parse_paren_comma_seq(true, Self::parse_ident)?;
@@ -312,6 +315,9 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     }
 
     /// Parses a Yul for statement.
+    ///
+    /// Kept out of line so that its locals take no space in other statements.
+    #[inline(never)]
     fn parse_yul_stmt_for(&mut self) -> PResult<'sess, StmtKind<'ast>> {
         let init = self.parse_yul_block_unchecked()?;
         let cond = self.parse_yul_expr()?;

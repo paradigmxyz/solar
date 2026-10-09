@@ -1679,9 +1679,11 @@ impl<'a> Planner<'a> {
                 sim.stack.push(result.map_or(Slot::Junk, Slot::Value));
                 sim.observe(2);
             }
-            InstKind::LoadImmutable(_) => {
+            InstKind::LoadImmutable(_) | InstKind::HeapFloor => {
+                // A heap floor in a constructor is recomputed from the argument blob.
+                let push = if matches!(kind, InstKind::HeapFloor) { op::PUSH2 } else { op::PUSH32 };
                 sim.steps.push(Step::Inst(inst));
-                sim.cost += self.target.opcode(op::PUSH32);
+                sim.cost += self.target.opcode(push);
                 sim.stack.push(result.map_or(Slot::Junk, Slot::Value));
                 sim.observe(1);
             }

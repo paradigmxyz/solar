@@ -1,3 +1,4 @@
+time: <TIME>	MIR TimePasses heap-floor changed=false
 time: <TIME>	MIR TimePasses function-dce changed=false
 time: <TIME>	MIR TimePasses simplify-phis changed=false
 time: <TIME>	MIR TimePasses cfg-simplify changed=false

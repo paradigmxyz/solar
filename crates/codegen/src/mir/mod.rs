@@ -52,7 +52,7 @@ pub(crate) use checks::{PanicCode, RevertKind, RevertPayload, RevertReason};
 mod effects;
 pub(crate) use effects::ControlEffects;
 mod op_schema;
-pub(crate) use op_schema::{InstKind, Op, OpTraits, ResultKind};
+pub(crate) use op_schema::{InstKind, Op, OpTraits, RawMemoryAccess, RawMemorySize, ResultKind};
 
 mod block;
 pub(crate) use block::{BasicBlock, Terminator};
