@@ -1326,7 +1326,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
         // buffer = bytes(head_size(static))
         let layout = self.static_aggregate_return_layout(return_tys.iter().copied())?;
-        self.alloc_static_return_buffer(&layout, true)
+        self.alloc_static_return_buffer(&layout)
     }
 
     pub(super) fn plan_return_buffer(
@@ -1368,9 +1368,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // decode = any_return_is_nonword
         // offset = static.data ? static.data : (!decode && returns > 1 ? input : zero)
         // size = static.size ? static.size : (decode ? 0 : returns * 32)
-        let static_return_buffer = static_return
-            .as_ref()
-            .and_then(|layout| self.alloc_static_return_buffer(layout, false));
+        let static_return_buffer =
+            static_return.as_ref().and_then(|layout| self.alloc_static_return_buffer(layout));
         let (ret_offset, ret_size) = if let Some((_, data, size)) = static_return_buffer {
             (data, size)
         } else if decode_returndata {
@@ -1474,13 +1473,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 // mcopy(data, ret_offset, ret_size)
                 self.builder.mcopy(data, offset, size);
             }
-            if object == data {
-                // A single static aggregate returns into a raw buffer, which decoding copies.
-                // source = make_slice(data, size)
-                Some(self.builder.make_slice(data, size, SliceLocation::Memory))
-            } else {
-                Some(object)
-            }
+            Some(object)
         } else if decode_returndata {
             if !self.cx.gcx.sess.opts.evm_version.supports_returndata() {
                 return report_error(self.cx.gcx, span, unsupported_returndata);
@@ -1524,35 +1517,25 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some(self.pack_return_values(values, &decoded_types))
     }
 
-    /// Allocates the buffer a call decodes its static aggregate return values from.
-    ///
-    /// `as_bytes` allocates a bytes object, which the decoding reads in place; a single return
-    /// value otherwise decodes out of a raw buffer, which the decoding copies into a bytes object
-    /// of its own.
+    /// Allocates the bytes object a call decodes its static aggregate return values from in place.
     fn alloc_static_return_buffer(
         &mut self,
         layout: &AbiParamLayout,
-        as_bytes: bool,
     ) -> Option<(ValueId, ValueId, ValueId)> {
         // size = head_size(layout)
-        // buffer = bytes(size) if multiple_returns else raw(size)
-        // return (buffer, data, size)
+        // buffer = bytes(size)
+        // return (buffer, buffer.data, size)
         let size = layout.checked_head_size()?;
-        if as_bytes || layout.types.len() != 1 {
-            let object_size = self.builder.imm(size.checked_add(EvmMemoryLayout::WORD_SIZE)?);
-            let object = self.builder.alloc_object(
-                object_size,
-                MemoryObjectLayout::Bytes,
-                AllocationSemantics::INTERNAL,
-            );
-            let size = self.builder.imm(size);
-            self.builder.set_memory_object_len(object, size, MemoryObjectKind::Bytes);
-            let data = self.builder.memory_object_data(object, MemoryObjectKind::Bytes);
-            return Some((object, data, size));
-        }
+        let object_size = self.builder.imm(size.checked_add(EvmMemoryLayout::WORD_SIZE)?);
+        let object = self.builder.alloc_object(
+            object_size,
+            MemoryObjectLayout::Bytes,
+            AllocationSemantics::INTERNAL,
+        );
         let size = self.builder.imm(size);
-        let data = self.builder.alloc_raw(size, AllocationSemantics::INTERNAL);
-        Some((data, data, size))
+        self.builder.set_memory_object_len(object, size, MemoryObjectKind::Bytes);
+        let data = self.builder.memory_object_data(object, MemoryObjectKind::Bytes);
+        Some((object, data, size))
     }
 
     fn revert_if_short_returndata(&mut self, expected: ValueId) {
