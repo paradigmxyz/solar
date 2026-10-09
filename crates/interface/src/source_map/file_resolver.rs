@@ -220,7 +220,10 @@ impl<'a> FileResolver<'a> {
 
     /// Applies import remappings in the context of the source unit name of `parent`.
     pub fn remap_import_path<'b>(&self, path: &'b Path, parent: Option<&Path>) -> Cow<'b, Path> {
-        self.remap_path(path, parent.map(|parent| self.source_unit_name(parent)))
+        match parent {
+            Some(parent) => self.remap_import(path, parent),
+            None => self.remap_path(path, None),
+        }
     }
 
     /// Resolves an import path.
@@ -268,32 +271,35 @@ impl<'a> FileResolver<'a> {
 
     /// Returns the source unit name that `path` refers to when imported from `parent`.
     fn import_source_unit_name<'b>(&self, path: &'b Path, parent: &Path) -> Cow<'b, Path> {
-        let name = self.source_unit_name(parent);
-        // Unlike solc, also use the importing file's path relative to the base path, which is
-        // absolute outside of it, when its name is relative to an include path: `../` can leave
-        // the include path, and remapping contexts can name the absolute path.
-        let base_relative = strip_root(parent, self.try_base_path());
-        let fallback = (name != base_relative).then_some(base_relative);
-
         // Only paths starting with `./` or `../` are relative to the importing source unit;
         // `import "b.sol";` is looked up in the base path and include paths.
         let path = if path.starts_with("./") || path.starts_with("../") {
-            let (joined, left) = join_relative_import(name, path);
-            Cow::Owned(match fallback {
-                Some(fallback) if left => join_relative_import(fallback, path).0,
-                _ => joined,
-            })
+            // Unlike solc, use the importing file's path relative to the base path, which is
+            // absolute outside of it, as build tools such as Foundry name those files.
+            Cow::Owned(join_relative_import(strip_root(parent, self.try_base_path()), path))
         } else {
             Cow::Borrowed(path)
         };
-        let contexts = std::iter::once(name).chain(fallback).collect::<SmallVec<[_; 2]>>();
-        match remap_in_contexts(&self.remappings, &path, &contexts) {
-            Cow::Owned(remapped) => {
-                trace!(remapped=%remapped.display());
-                Cow::Owned(remapped)
-            }
+        match self.remap_import(&path, parent) {
+            Cow::Owned(remapped) => Cow::Owned(remapped),
             Cow::Borrowed(_) => path,
         }
+    }
+
+    /// Applies import remappings in the context of the importing file `parent`.
+    ///
+    /// Contexts match its source unit name and, unlike solc, its path relative to the base path,
+    /// which build tools such as Foundry use for files outside of it.
+    fn remap_import<'b>(&self, path: &'b Path, parent: &Path) -> Cow<'b, Path> {
+        let name = self.source_unit_name(parent);
+        let base_relative = strip_root(parent, self.try_base_path());
+        let fallback = (name != base_relative).then_some(base_relative);
+        let contexts = std::iter::once(name).chain(fallback).collect::<SmallVec<[_; 2]>>();
+        let remapped = remap_in_contexts(&self.remappings, path, &contexts);
+        if remapped != path {
+            trace!(remapped=%remapped.display());
+        }
+        remapped
     }
 
     /// Returns the base path, or an empty path without one, followed by the include paths.
@@ -316,17 +322,7 @@ impl<'a> FileResolver<'a> {
         // An absolute name inside the base path may refer to a source loaded under its relative
         // name, like the ones a build tool preloads.
         let unit = self.rooted(unit).normalize();
-        if let Some(file) = source_map.get_file(self.source_unit_name(&unit)) {
-            return Some(file);
-        }
-        // Like solc, prefer a loaded file with this source unit name over searching the disk.
-        if unit.has_root() {
-            return None;
-        }
-        self.roots().find_map(|root| {
-            let path = generic_path(root.join(&unit).normalize());
-            source_map.get_file(&path).filter(|_| self.source_unit_name(&path) == unit)
-        })
+        source_map.get_file(self.source_unit_name(&unit))
     }
 
     /// Returns the paths that the host filesystem loader looks up for a source unit name.
@@ -389,9 +385,8 @@ impl<'a> FileResolver<'a> {
         if let Some(file) = self.source_map().get_file(&name) {
             return Ok(Some(file));
         }
-        // Check that the file exists. Like solc, resolve symbolic links before `..` segments, but
-        // keep them in the name.
-        let Ok(canonical) = self.canonicalize_unchecked(&generic_path(path.to_path_buf())) else {
+        // Check that the file exists. Its name keeps symbolic links, like solc.
+        let Ok(canonical) = self.canonicalize_unchecked(&name) else {
             trace!(path=%name.display(), "not found");
             return Ok(None);
         };
@@ -502,20 +497,20 @@ pub(crate) fn strip_root(path: &Path, roots: impl IntoIterator<Item: AsRef<Path>
 /// Resolves a relative import against the source unit name of the importing file.
 ///
 /// Only the import path is normalized; the importing name may contain `..` segments, or `//` in
-/// URLs, that are part of its identity. Also returns whether a `..` segment left the importing
-/// name's directory, which solc ignores.
+/// URLs, that are part of its identity.
 // Reference: <https://github.com/argotorg/solidity/blob/e202d30db8e7e4211ee973237ecbe485048aae97/libsolutil/CommonIO.cpp#L140>
-fn join_relative_import(parent: &Path, path: &Path) -> (PathBuf, bool) {
+fn join_relative_import(parent: &Path, path: &Path) -> PathBuf {
     let mut unit = parent.parent().unwrap_or(Path::new("")).to_path_buf();
-    let mut left = false;
     for component in path.components() {
         match component {
             Component::CurDir => {}
-            Component::ParentDir => left |= !unit.pop(),
+            Component::ParentDir => {
+                unit.pop();
+            }
             component => unit.push(component),
         }
     }
-    (unit, left)
+    unit
 }
 
 fn real_path(file: &SourceFile) -> &Path {
@@ -1020,8 +1015,11 @@ mod tests {
         resolver.add_include_path(root.join("ext"));
         resolver.add_import_remapping("x/=z/".parse().unwrap());
         // Build tools such as Foundry name files outside the base path by their absolute paths.
-        let context = root.join("ext/foo/").display().to_string();
-        resolver.add_import_remapping(format!("{context}:x/=y/").parse().unwrap());
+        resolver.add_import_remapping(ImportRemapping {
+            context: root.join("ext/foo/").display().to_string(),
+            prefix: "x/".into(),
+            path: "y/".into(),
+        });
 
         let parent = root.join("ext/foo/A.sol");
         let resolved = resolver.resolve_file(Path::new("x/X.sol"), Some(&parent)).unwrap();

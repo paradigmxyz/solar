@@ -38,10 +38,9 @@ fn base_and_include_paths_name_sources() {
     assert_eq!(names, ["A.sol:A", "dep/C.sol:C", "dep/D.sol:D"]);
 }
 
-/// Like solc, an import resolves to a loaded source with its source unit name before searching the
-/// base path and include paths.
+/// A relative import can reach a file in an include path whose name matches an input file.
 #[test]
-fn imports_prefer_loaded_sources() {
+fn imported_source_unit_name_collision() {
     let dir = project(&[
         ("src/Main.sol", "import \"x/A.sol\"; contract M {}"),
         ("lib/x/A.sol", "import \"../Main.sol\"; contract A {}"),
@@ -49,10 +48,19 @@ fn imports_prefer_loaded_sources() {
     ]);
     let output =
         compile(dir.path(), &["--base-path", "src", "--include-path", "lib", "src/Main.sol"]);
-    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
-    let output = serde_json::from_slice::<Value>(&output.stdout).unwrap();
-    let names = output["contracts"].as_object().unwrap().keys().collect::<Vec<_>>();
-    assert_eq!(names, ["Main.sol:M", "x/A.sol:A"]);
+    assert!(!output.status.success());
+    snapbox::assert_data_eq!(
+        String::from_utf8(output.stderr).unwrap(),
+        snapbox::str![[r#"
+error: source unit name `Main.sol` matches multiple files
+  │
+  [..] note: `[..]/lib/Main.sol` and `[..]/src/Main.sol`
+...
+error: aborting due to 1 previous error
+
+
+"#]]
+    );
 }
 
 #[test]

@@ -65,6 +65,13 @@ non-empty base path to them. Since names come from paths, two different files
 can get the same name; `solar` reports this for any source, where `solc` only
 checks the files given on the command line.
 
+Normalizing names has other effects. Remapping contexts match the normalized
+name, so a file reached through the target `./lib/` has the context `lib/...`
+in `solar` and `./lib/...` in `solc`. `solar` applies `..` segments before
+following symbolic links, so `link/../x.sol` names `x.sol` next to `link`, not
+next to its target. On Windows, names keep the drive letter, where `solc`
+drops it when it matches the current directory's drive.
+
 Rationale: duplicate copies of one file only produce spurious conflicts. Build
 tools such as Foundry preload sources under relative names and pass absolute
 remapping targets, which must resolve to the preloaded sources
@@ -89,10 +96,14 @@ remapping contexts match the importing file's name, a context such as
 `@oz/:x/=y/` applies in `solc` and not in `solar`, and `node_modules/@oz/:x/=y/`
 the other way around.
 
-For a file named relative to an include path outside the base path, `solar` also
-matches remapping contexts against the file's absolute path, and resolves a
-relative import against that path when `../` leaves the include path, where
-`solc` drops the `..` segment.
+For a file named relative to an include path outside the base path, `solar`
+resolves relative imports against the file's absolute path. Remappings for
+source unit names then do not apply to them, they do not search the other
+roots, and `../` can leave the include path.
+Remapping contexts match both the file's name and its absolute path. Where
+`solc` would resolve an import to an input file of the same name, as with
+`--base-path src -I lib lib/X.sol src/A.sol` and `import "X.sol"`, `solar`
+reports an ambiguous import or a duplicate name instead.
 
 Rationale: a name that depends only on the file's path is the same for every
 import of the file. It also keeps remapping contexts such as `lib/dep/` matching
@@ -112,7 +123,10 @@ Status: intentional.
 
 Difference: `solar` accepts `--include-path` without `--base-path`, using the
 current directory as the base path, and does not report an ambiguous import
-when several roots contain the same file, as with a repeated include path.
+when several roots contain the same file, as with a repeated include path. It
+only checks that the base path exists, and not in Standard JSON mode, where
+`solc` also rejects a base path that is not a directory. It does not restrict
+imports to allowed paths, so `--allow-paths` has no effect.
 
 Rationale: these inputs have a single sensible meaning.
 
