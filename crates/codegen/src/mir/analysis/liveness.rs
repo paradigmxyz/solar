@@ -45,7 +45,7 @@ impl Liveness {
     }
 
     /// Computes only the block live-in and live-out sets, without the per-block
-    /// last uses that [`Self::is_used_at_or_after`] and [`Self::is_dead_after`] need.
+    /// last uses that [`Self::is_used_at_or_after`] needs.
     #[must_use]
     pub(crate) fn compute_live_sets(func: &Function) -> Self {
         Self::compute_inner(func, false)
