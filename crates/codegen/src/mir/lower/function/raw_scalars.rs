@@ -148,7 +148,7 @@ impl<'gcx> Exposure<'gcx> {
             return None;
         }
         let id = self.gcx.resolved_function(expr)?;
-        Some(super::resolve_call_target(self.gcx, self.contract, expr, id))
+        Some(self.gcx.resolve_call_target(self.contract, expr, id))
     }
 
     /// Collects the bindings whose pointers an expression's value may copy or load, and the
