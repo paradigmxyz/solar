@@ -16,20 +16,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         ty: Ty<'gcx>,
         expr: &hir::Expr<'_>,
     ) -> Option<ValueId> {
-        let TyKind::Elementary(solar_sema::hir::ElementaryType::FixedBytes(size)) =
-            ty.peel_refs().kind
-        else {
+        if !matches!(ty.peel_refs().kind, TyKind::Elementary(ElementaryType::FixedBytes(_))) {
             return None;
-        };
+        }
         let ExprKind::Lit(lit) = self.peel_bytes_conversion(expr).peel_parens().kind else {
             return None;
         };
         match &lit.kind {
             LitKind::Str(_, bytes, _) => Some(self.lower_string_literal_word(bytes.as_byte_str())),
-            LitKind::Number(value) => {
-                let shift = usize::from(32 - size.bytes()) * 8;
-                Some(self.builder.imm(*value << shift))
-            }
+            LitKind::Number(value) => Some(self.lower_const_integer(ty, *value)),
             _ => None,
         }
     }
@@ -314,15 +309,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 ConstValue::Rational(_) => self.cx.report_unsupported(span, "fractional constant"),
                 ConstValue::Bool(value) => Some(self.builder.imm_bool(*value)),
                 ConstValue::Integer(value) => {
-                    let value = value.as_evm_word();
-                    if let TyKind::Elementary(ElementaryType::FixedBytes(size)) =
-                        ty.peel_refs().kind
-                    {
-                        let shift = usize::from(32 - size.bytes()) * 8;
-                        Some(self.builder.imm(value << shift))
-                    } else {
-                        Some(self.builder.imm(value))
-                    }
+                    Some(self.lower_const_integer(ty, value.as_evm_word()))
                 }
                 ConstValue::String(value) => {
                     let bytes = value.as_byte_str_in(self.cx.gcx.sess);
@@ -338,5 +325,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             };
         }
         self.lower_expr(initializer)
+    }
+
+    /// Lowers the constant integer `value` of type `ty`, left-aligning `bytesN` values.
+    pub(super) fn lower_const_integer(&mut self, ty: Ty<'gcx>, value: U256) -> ValueId {
+        let shift = operators::fixed_bytes_width(ty).map_or(0, |bytes| usize::from(32 - bytes) * 8);
+        // value << (32 - N) * 8
+        self.builder.imm(value << shift)
     }
 }

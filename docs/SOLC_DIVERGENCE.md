@@ -364,3 +364,41 @@ No intentional divergences documented yet.
   them.
 - Coverage: `tests/ui/codegen/lowering/run-call/pre_cancun_memory_copies.sol`
   encodes an object that assembly allocates through the shared copy helper.
+
+### CODEGEN-010: Assembly cannot hand compiler-owned memory to the heap
+
+- ID: CODEGEN-010
+- Status: intentional
+- Difference: When inline assembly stores a value computed from constants
+  and calldata into the free memory pointer slot, every later read of the
+  slot as the pointer sees at least the initial free memory pointer: an
+  allocation, or an `mload` whose word addresses memory. After
+  `mstore(0x40, 0x80)`, such a read sees `0x80` under `solc` and the initial
+  pointer here. A word that is also read as data, such as one hashed in
+  scratch memory, or loaded and then compared, hashed, encoded, stored, or
+  used as a key, stays in the slot for those reads, and only the pointer
+  reads see the raised value. Each external function
+  that runs code writing memory at an absolute address computed from calldata,
+  as Seaport lays out a basic order's hashes and event data, keeps its spill
+  slots and the frames it reaches above `0x2080`, and above the constant
+  ranges assembly names there in the functions it runs or that an external
+  function sharing those frames runs. This costs memory expansion gas; other
+  external functions keep their memory low unless they share those frames, or
+  a recursive helper places every frame above all external functions.
+- Rationale: The spill slots and internal-call frames below the initial free
+  memory pointer (CODEGEN-009) hold values that `solc` keeps on the stack, so
+  the next allocation after a lowered pointer, or the absolute layout itself,
+  would replace them. Raising only the pointer reads keeps the stored value for
+  code that uses the slot as scratch, such as an error argument before a revert
+  or a hash input before the pointer is restored. A pointer derived from the
+  heap already lies above the initial one, and an absolute pointer that reaches
+  the store through a parameter, memory, or a call keeps its value. The
+  `heap-floor` pass documents how it tells pointer reads from data reads. A
+  layout that grows past `0x2080`, or one indexed by a loop counter alone, can
+  still reach the compiler's memory; Seaport's basic orders with about 40 or
+  more additional recipients do.
+- Coverage: `tests/ui/codegen/lowering/run-call/assembly_low_memory_layouts.sol`,
+  `tests/ui/codegen/lowering/run-call/assembly_low_memory_routes.sol`,
+  `tests/ui/codegen/lowering/run-call/assembly_low_memory_recursive_routes.sol`,
+  `tests/ui/codegen/mir/heap-floor/heap_floor.mir`, and Seaport's own suite in
+  `cargo tq foundry-external seaport`.
