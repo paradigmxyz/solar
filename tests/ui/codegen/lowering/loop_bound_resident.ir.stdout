@@ -15,9 +15,9 @@ bb0:
   jumpi
   push 68
   calldataload
-  push 100
   calldatasize
-  lt
+  push 100
+  gt
   push bb3
   jumpi
   push 4
@@ -29,15 +29,13 @@ bb0:
   jump bb6
 bb8 [loop]:
   dup 2
-  add
-  swap 1
-  dup 3
-  add
-  swap 2
+  dup 4
   push 1
   add
+  swap 4
+  add
   swap 2
-  swap 1
+  add
   jump bb6
 bb6 [loop]:
   dup 4
@@ -119,20 +117,19 @@ bb4:
   dup 1
   push 5
   shl
-  dup 1
+  dup 2
+  dup 2
   push 5
   shr
   dup 3
+  push 32
+  add
+  swap 2
   eq
   iszero
-  push 32
   dup 3
-  add
   dup 3
-  dup 2
   lt
-  swap 1
-  swap 2
   or
   push bb13
   jumpi
@@ -205,16 +202,14 @@ bb11:
   push 128
   return
 bb10 [loop]:
-  dup 1
-  mload
   push 32
-  dup 3
+  dup 2
   sub
-  dup 1
+  dup 2
   mload
-  swap 1
-  swap 2
-  lt
+  dup 2
+  mload
+  gt
   iszero
   push bb12
   jumpi

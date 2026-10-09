@@ -72,3 +72,19 @@ fn @mismatched_shift(arg0: i256) -> i256 {
   bb5:
     ret v0
 }
+
+// A narrow word shifts within its own width: `(x << 1) >> 1` drops the top bit of an `i8`, so
+// 128 comes back as 0 and the check stays.
+// CHECK-LABEL: {{^[ +].*}}fn @narrow_round_trip{{[( ]}}
+// CHECK: {{^ +}}jumpi {{v[0-9]+}}, bb2, bb1
+fn @narrow_round_trip(arg0: i8) -> i256 {
+  bb0:
+    v0 = shl i8 1, arg0
+    v1 = shr i8 1, v0
+    v2 = ne v1, arg0
+    jumpi v2, bb2, bb1
+  bb1:
+    ret 1
+  bb2:
+    revert 0, 0
+}

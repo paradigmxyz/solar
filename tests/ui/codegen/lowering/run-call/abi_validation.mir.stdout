@@ -29,8 +29,8 @@ fn @vAddress(arg0: i160) -> i160 [selector=0x23347413, view, abi_params=[address
     icall revert_if<tuple_data_too_short>, v9
     v10 = add 0, 0
     v11 = mload v10
-    v12 = and v11, 0xffffffffffffffffffffffffffffffffffffffff
-    v13 = eq v11, v12
+    v12 = shr 160, v11
+    v13 = eq v12, 0
     v14 = eq v13, false
     icall revert_if<empty>, v14
     v15 = trunc i256 v11 to i160

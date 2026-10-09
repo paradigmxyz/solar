@@ -126,3 +126,33 @@ fn @signed_factor(arg0: i256, arg1: i256, arg2: i256) -> i256 {
   bb5:
     ret v1
 }
+
+// A storage write fails when its sentry finds 2300 gas or less, so a loop that writes storage
+// keeps its check: the limit would run before the loop, ahead of the first write.
+// CHECK-LABEL: @storage_write_before_check
+// CHECK-NOT: div 0xff
+// CHECK: {{^ +}}v7 = or v4, v6
+fn @storage_write_before_check(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb3: v8]
+    v1 = phi [bb0: arg0], [bb3: v3]
+    v2 = lt v0, arg2
+    jumpi v2, bb2, bb5
+  bb2:
+    sstore v0, v1
+    v3 = mul v1, arg1
+    v4 = eq arg1, 0
+    v5 = div v3, arg1
+    v6 = eq v5, v1
+    v7 = or v4, v6
+    jumpi v7, bb3, bb4
+  bb3:
+    v8 = add v0, 1
+    jump bb1
+  bb4:
+    revert 0, 0
+  bb5:
+    ret v1
+}

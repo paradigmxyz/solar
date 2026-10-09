@@ -78,12 +78,11 @@ bb0:
   call
   jump bb10
 bb10:
-  swap 2
-  pop
-  pop
   iszero
   push bb4
   jumpi
+  pop
+  pop
   push 160
   mload
   mload

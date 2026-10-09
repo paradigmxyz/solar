@@ -100,29 +100,28 @@ bb6:
   swap 2
   push 0
   sstore
-  dup 1
+  dup 3
+  dup 2
   dup 1
   add
   dup 1
   push 1
   shr
-  swap 1
   swap 2
-  eq
-  iszero
-  swap 1
-  dup 4
   add
   swap 3
   dup 4
-  lt
-  or
-  swap 1
-  dup 3
   add
-  swap 2
-  dup 3
+  swap 4
+  dup 5
+  dup 5
+  gt
+  swap 4
   lt
+  swap 2
+  eq
+  iszero
+  or
   or
   push bb17
   jumpi
@@ -354,29 +353,28 @@ bb14 [continuation]:
   sstore
   push 224
   mload
+  dup 1
   push 288
   mload
-  dup 2
   add
-  swap 1
-  dup 2
-  lt
+  dup 1
   push 256
   mload
-  dup 3
   add
   swap 2
+  dup 2
+  lt
+  swap 1
   dup 3
   lt
+  swap 3
+  dup 3
+  add
+  swap 3
   or
-  swap 2
-  dup 2
-  add
   swap 1
-  dup 2
+  dup 3
   lt
-  swap 1
-  swap 2
   or
   push bb17
   jumpi

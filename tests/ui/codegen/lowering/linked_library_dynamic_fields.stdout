@@ -238,14 +238,13 @@ bb1:
   swap 2
   pop
   pop
-  push 64
   dup 4
-  add
   dup 2
-  swap 1
+  dup 5
+  push 64
+  add
   mstore
   push 96
-  dup 5
   add
   calldataload
   dup 1
@@ -253,14 +252,13 @@ bb1:
   shr
   push bb3
   jumpi
-  push 96
-  dup 5
-  add
+  dup 4
   dup 2
-  swap 1
+  dup 2
+  push 96
+  add
   mstore
   push 128
-  dup 5
   add
   exchange 1, 5
   mstore
@@ -269,16 +267,13 @@ bb1:
   swap 1
   mload
   dup 1
-  mload
   push 32
-  dup 3
   add
-  push 0
-  swap 1
+  dup 2
+  mload
   swap 2
   swap 3
-  swap 4
-  swap 1
+  push 0
   exchange 5, 6
   jump bb15
 bb19 [loop]:
@@ -326,20 +321,19 @@ bb15 [loop]:
   lt
   push bb19
   jumpi
-  swap 6
-  mload
-  swap 4
   pop
   swap 5
-  pop
-  pop
-  pop
+  mload
   push 0x3e8
   dup 2
-  mul
-  swap 1
   push 0x4189374bc6a7ef9db22d0e5604189374bc6a7ef9db22d0e5604189374bc6a7
   lt
+  swap 4
+  pop
+  mul
+  swap 3
+  pop
+  pop
   push bb22
   jumpi
   dup 3
@@ -764,12 +758,11 @@ bb9:
   push 0x1000000000000000000000000000000000000001
   gas
   delegatecall
-  swap 2
-  pop
-  pop
   iszero
   push bb17
   jumpi
+  pop
+  pop
   returndatasize
   push 63
   dup 2
