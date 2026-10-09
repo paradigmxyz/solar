@@ -132,8 +132,6 @@ pub(super) struct Planner<'a> {
     recomputable: &'a FxHashMap<ValueId, (Cost, u32)>,
     /// Whether a failure lists every spillable value beyond reach, for spilling in batches.
     batch_spills: bool,
-    /// Whether the target has a native `EXCHANGE` that can beat swaps.
-    exchanges: bool,
     /// Instructions with no code of their own.
     skipped: FxHashSet<InstId>,
     /// Extra results of multi-word calls, adopted from the returned stack words.
@@ -486,7 +484,6 @@ impl<'a> Planner<'a> {
             pinned,
             recomputable,
             batch_spills,
-            exchanges: target.evm_version().has_extended_stack_ops(),
             skipped,
             projections,
             publish,
@@ -1297,7 +1294,8 @@ impl<'a> Planner<'a> {
                 continue;
             }
             // Move the operand between two words below the top in one step when that is cheaper.
-            if self.exchanges
+            // Before Amsterdam an `EXCHANGE` costs its three swaps and never wins.
+            if self.target.evm_version().has_extended_stack_ops()
                 && depth != 0
                 && want != 0
                 && let (Ok(depth8), Ok(want8)) = (u8::try_from(depth), u8::try_from(want))
@@ -1357,7 +1355,7 @@ impl<'a> Planner<'a> {
         };
         let mut index = 0;
         while let Some(&mv) = moves.get(index) {
-            if self.exchanges
+            if self.target.evm_version().has_extended_stack_ops()
                 && let Some((exchanges, end)) = self.exchange_cycle(&moves, index)
             {
                 for exchange in exchanges {
