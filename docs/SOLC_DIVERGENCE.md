@@ -218,6 +218,20 @@ Coverage: `tests/ui/typeck/rational_literal_operators.sol`,
 `tests/ui/codegen/lowering/run-call/rational_literal_arithmetic.sol`, and
 `tests/ui/codegen/lowering/run-call/constant_integer_value.sol`.
 
+### TYPECK-008: Constant initializers that are not compile-time constants
+
+Status: parity debt.
+
+Difference: solc rejects a constant whose initializer reads state or calls a
+function that is not a pure builtin, such as `uint constant T =
+block.timestamp;`, with error 8349. Solar accepts it and computes the value at
+each use.
+
+Rationale: the check is not implemented yet. Codegen does not treat such
+constants as free of side effects.
+
+Coverage: none yet.
+
 ## Contract-Level Checks
 
 No intentional divergences documented yet.

@@ -1160,7 +1160,6 @@ impl<'gcx> TypeChecker<'gcx> {
             return ty;
         }
 
-        let too_large = is_literal_too_large(lhs) || is_literal_too_large(rhs);
         let emit = || {
             let msg = format!(
                 "cannot apply builtin operator `{op}` to `{}` and `{}`",
@@ -1170,14 +1169,17 @@ impl<'gcx> TypeChecker<'gcx> {
             let mut err = self.dcx().err(msg).span(op.span);
             err = err.span_label(lhs_e.span, lhs.display(self.gcx).to_string());
             err = err.span_label(rhs_e.span, rhs.display(self.gcx).to_string());
-            if too_large {
+            if is_literal_too_large(lhs) || is_literal_too_large(rhs) {
                 err = err.note("literal is too large for any integer type");
             }
             err.emit()
         };
-        // Constant evaluation reports the same error, such as for an array length.
-        let guar =
-            if too_large && let Some(id) = expr_id { self.gcx.emit_once(id, emit) } else { emit() };
+        // Constant evaluation can report an error for the same expression, such as an array
+        // length, and solc reports one.
+        let guar = match expr_id {
+            Some(id) => self.gcx.emit_once(id, emit),
+            None => emit(),
+        };
         self.gcx.mk_ty_err(guar)
     }
 

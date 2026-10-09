@@ -129,13 +129,18 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 })
             }
             TyKind::Array(..) | TyKind::DynArray(..) => false,
-            // Lowering computes some constants, such as `bytesN` ones, which still have no effects.
+            // Lowering computes some constants, such as `bytesN` ones. Their initializers must
+            // still be compile-time constants, as solar does not reject those that read state.
             TyKind::Elementary(_) => {
                 let gcx = self.cx.gcx;
                 gcx.try_eval_const_value(expr).is_ok()
-                    || gcx
-                        .resolved_variable(expr)
-                        .is_some_and(|id| gcx.hir.variable(id).is_constant())
+                    || gcx.resolved_variable(expr).is_some_and(|id| {
+                        let variable = gcx.hir.variable(id);
+                        variable.is_constant()
+                            && variable
+                                .initializer
+                                .is_some_and(|init| gcx.try_eval_const_value(init).is_ok())
+                    })
             }
             _ => false,
         }

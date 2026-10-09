@@ -217,16 +217,19 @@ impl<'gcx> ConstantEvaluator<'gcx> {
                     return Err(EE::UnsupportedExpr.into());
                 };
                 let (taken, other) = if cond { (t, f) } else { (f, t) };
-                let value = match self.eval_operand(taken)? {
+                let mut value = match self.eval_operand(taken)? {
                     ConstValue::Integer(value) => value,
                     ConstValue::Rational(_) => return Err(EE::UnsupportedExpr.into()),
                     value => return Ok(value),
                 };
                 // Like at runtime, the result has the common type of both branches, so both must
-                // be constants.
-                let other = self.eval_operand(other)?.into_integer()?;
-                let ty = value.int_ty()?.common(other.int_ty()?).ok_or(EE::UnsupportedExpr)?;
-                Ok(ConstValue::Integer(value.typed(Some(ty))))
+                // be constants. Type checking reports branches without a common type.
+                if let ConstValue::Integer(other) = self.eval_operand(other)?
+                    && let Some(ty) = value.int_ty()?.common(other.int_ty()?)
+                {
+                    value = value.typed(Some(ty));
+                }
+                Ok(ConstValue::Integer(value))
             }
             // hir::ExprKind::Tuple(_) => unimplemented!(),
             // hir::ExprKind::TypeCall(_) => unimplemented!(),
