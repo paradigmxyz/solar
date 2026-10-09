@@ -95,10 +95,11 @@ jobs:
             rust: "nightly"
             features: "nightly"
         exclude:
+          # Only pushes to main and manual runs test every OS.
           - os: "macos-latest"
-            rust: ${{ github.event_name == 'push' && 'none' || 'stable' }}
+            rust: ${{ contains(fromJSON('["push", "workflow_dispatch"]'), github.event_name) && 'none' || 'stable' }}
           - os: "windows-latest"
-            rust: ${{ github.event_name == 'push' && 'none' || 'stable' }}
+            rust: ${{ contains(fromJSON('["push", "workflow_dispatch"]'), github.event_name) && 'none' || 'stable' }}
     steps:
       - name: Secure runner
         uses: tempoxyz/gh-actions/actions/secure-runner@d5402286a7abdfb7232173b3228d56473feb8a66 # 2026-09-29T02-04-45Z-d5402286
