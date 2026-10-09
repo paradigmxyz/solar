@@ -2094,6 +2094,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         if "compile-time" in args.mode and not args.ignore_compile_time:
             parser.error("--jobs skews compile-time mode; pass --ignore-compile-time")
         args.ignore_compile_time = True
+    if args.ignore_compile_time:
+        args.compile_repeats = 1
     if args.reference_results and (args.solc or args.solx):
         parser.error("--reference-results cannot be combined with --solc or --solx")
     try:
@@ -2310,7 +2312,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 args.rpc_url,
                 args.private_key,
                 args.verbose,
-                1 if args.ignore_compile_time else args.compile_repeats,
+                args.compile_repeats,
                 args.evm_version,
                 args.repeat_long_compiles,
                 args.artifacts,

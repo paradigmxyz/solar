@@ -53,8 +53,7 @@ def lean_environment():
     """Build the semantics library and checker; return the `LEAN_PATH` that finds them."""
     # Concurrent `lake build` runs on a cold `.lake` corrupt each other's outputs, so
     # parallel test workers take turns.
-    (LEAN_PROJECT / ".lake").mkdir(exist_ok=True)
-    with (LEAN_PROJECT / ".lake/evm-rules-build.lock").open("w") as lock:
+    with (LEAN_PROJECT / "lakefile.toml").open() as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
         subprocess.run(
             ["lake", "build"],
