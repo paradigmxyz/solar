@@ -42,7 +42,7 @@ use crate::mir::{
     ArgIdx, Callee, EffectKind, InstId, Module, Terminator,
     analysis::{LocalSummaryCache, MemoryBase, MemoryCallSummaries},
 };
-use solar_data_structures::smallvec::SmallVec;
+use solar_data_structures::{bit_set::GrowableBitSet, smallvec::SmallVec};
 
 /// A `@custom:solar-scratch` block after lowering.
 pub(in crate::mir::lower) struct ScratchRegion {
@@ -76,13 +76,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // saved = fmp
         let saved = self.builder.fmp();
         let start = InstId::from_usize(self.builder.func().num_insts());
-        let open = self
-            .builder
-            .func()
-            .blocks
-            .iter()
-            .map(|block| block.terminator.is_none())
-            .collect::<Vec<_>>();
+        // The blocks already terminated before the block's statements.
+        let mut closed = GrowableBitSet::new_empty();
+        for (id, block) in self.builder.func().blocks.iter_enumerated() {
+            if block.terminator.is_some() {
+                closed.insert(id);
+            }
+        }
         self.open_scratch.push(tag);
         let lowered = self.lower_block(block);
         self.open_scratch.pop();
@@ -97,9 +97,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             .func()
             .blocks
             .iter_enumerated()
-            .filter(|&(id, block)| {
-                block.terminator.is_some() && open.get(id.index()).copied().unwrap_or(true)
-            })
+            .filter(|&(id, block)| block.terminator.is_some() && !closed.contains(id))
             .map(|(id, _)| id)
             .collect();
         self.cx.state.scratch_regions.push(ScratchRegion { saved, start, end, terminated, tag });

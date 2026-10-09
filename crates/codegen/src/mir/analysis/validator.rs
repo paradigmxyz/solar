@@ -859,17 +859,6 @@ impl<'a> Validator<'a> {
                     }
                     InstKind::AbiDecode { data, layout } => {
                         let data_ty = func.value_ty(*data);
-                        if !matches!(
-                            data_ty,
-                            Some(
-                                MirType::MemPtr
-                                    | MirType::Slice(
-                                        SliceLocation::Memory | SliceLocation::Calldata
-                                    )
-                            )
-                        ) {
-                            self.check_value_type(data_ty, Some(MirType::MemPtr), block, id);
-                        }
                         // A `bytes`, array, or struct field may be a view: a slice of the data's
                         // location.
                         let view = MirType::Slice(match data_ty {

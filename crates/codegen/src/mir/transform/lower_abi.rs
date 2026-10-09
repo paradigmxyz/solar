@@ -28,7 +28,9 @@
 //! base and its length is checked against the head size, so a constant-length slice, such as an
 //! external call's static return buffer, needs no length word. Repeated decodes of a layout from
 //! the same kind of input share a helper; one that static slices share takes only the base, and
-//! each caller checks its own length, which then usually folds away.
+//! each caller checks its own length, which then usually folds away. A decode of a calldata slice,
+//! or one whose `bytes`, array and struct fields are views of the data, decodes in place without
+//! a helper.
 //!
 //! Unsupported return layouts fail the preflight checks. The pass reports an error if
 //! any external entry still has an implicit ABI or any `abi_decode` remains afterward.
@@ -726,32 +728,17 @@ impl LowerAbiCx {
                                 true,
                             ),
                         };
-                        let copies = decoded
-                            .iter()
-                            .zip(&layout.types)
-                            .all(|(&field, ty)| field == ty.mir_type());
-                        let values = if constructor && copies {
-                            // A decode of a memory view's bytes is any memory decode.
-                            decode_memory_tuple(
-                                &mut builder,
-                                base,
-                                length,
-                                layout.as_ref(),
-                                None,
-                                self.has_bitwise_shifting,
-                            )
-                        } else {
-                            decode_view_tuple(
-                                &mut builder,
-                                base,
-                                length,
-                                constructor,
-                                layout.as_ref(),
-                                decoded,
-                                self.has_bitwise_shifting,
-                            )
+                        let Some(values) = decode_view_tuple(
+                            &mut builder,
+                            base,
+                            length,
+                            constructor,
+                            layout.as_ref(),
+                            decoded,
+                            self.has_bitwise_shifting,
+                        ) else {
+                            return false;
                         };
-                        let Some(values) = values else { return false };
                         let Some(result) = result else { continue };
                         // field = cast decoded value to the declared field type
                         // result = insert_value(undef, field0), ...

@@ -5,7 +5,7 @@ use crate::mir::{
     InstId,
     analysis::{AliasAnalysis, MemoryBase, MemoryCallSummaries, MemoryLocation},
 };
-use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec};
+use solar_data_structures::bit_set::DenseBitSet;
 
 /// A function prepared for a tag check: a copy whose trivial phis are resolved, with its alias
 /// analysis.
@@ -92,20 +92,19 @@ fn fresh_fmps(func: &Function, aa: &AliasAnalysis) -> FxHashSet<InstId> {
     if !func.instructions().any(|inst| matches!(func.inst(inst).kind, InstKind::Fmp)) {
         return fresh;
     }
-    let resets = func
-        .blocks
-        .iter()
-        .map(|block| {
-            block.instructions.iter().any(|&inst| aa.instruction_may_reset_fmp(func, inst))
-        })
-        .collect::<IndexVec<BlockId, _>>();
+    let mut resets = DenseBitSet::new_empty(func.blocks.len());
+    for (id, block) in func.blocks.iter_enumerated() {
+        if block.instructions.iter().any(|&inst| aa.instruction_may_reset_fmp(func, inst)) {
+            resets.insert(id);
+        }
+    }
     // Blocks some path into which may reset the free memory pointer.
     let mut reached = DenseBitSet::new_empty(func.blocks.len());
     let mut poisoned = DenseBitSet::new_empty(func.blocks.len());
     let mut worklist = vec![BlockId::ENTRY];
     reached.insert(BlockId::ENTRY);
     while let Some(block) = worklist.pop() {
-        let out = poisoned.contains(block) || resets[block];
+        let out = poisoned.contains(block) || resets.contains(block);
         let Some(terminator) = &func.blocks[block].terminator else { continue };
         for successor in terminator.successors() {
             let mut changed = reached.insert(successor);
