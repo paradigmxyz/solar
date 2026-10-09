@@ -1,0 +1,75 @@
+//@ compile-flags: -Zevm-ir-pipeline=stack-reschedule
+//@ filecheck:
+@module module
+
+// A check into a block that only reverts joins the run: its condition is copied straight into
+// the branch, and the swaps around it go.
+// CHECK-LABEL: {{^[ +].*}}bb0 [stack=2]:
+// CHECK: dup 1
+// CHECK-NEXT: push bb3
+// CHECK-NEXT: jumpi
+// CHECK-NOT: {{^[ +] .*swap}}
+// CHECK: stop
+bb0 [stack=2]:
+  swap 1
+  dup 2
+  push bb3
+  jumpi
+  swap 1
+  push 1
+  add
+  stop
+
+// A revert that reads `GAS` into its payload would see whatever gas the moved work spent, so
+// its check ends the run and the code stays.
+// CHECK-LABEL: {{^[ +].*}}bb1 [stack=2]:
+// CHECK-NOT: {{^[-+]}}
+// CHECK: stop
+bb1 [stack=2]:
+  swap 1
+  dup 2
+  push bb4
+  jumpi
+  swap 1
+  push 1
+  add
+  stop
+
+// A block that may jump elsewhere before it reverts is no abort: the path through its jump
+// continues with the stack.
+// CHECK-LABEL: {{^[ +].*}}bb2 [stack=2]:
+// CHECK-NOT: {{^[-+]}}
+// CHECK: stop
+bb2 [stack=2]:
+  swap 1
+  dup 2
+  push bb5
+  jumpi
+  swap 1
+  push 1
+  add
+  stop
+
+bb3 [cold]:
+  push 0
+  push 0
+  revert
+
+bb4 [cold]:
+  gas
+  push 0
+  mstore
+  push 32
+  push 0
+  revert
+
+bb5 [cold]:
+  push 1
+  push bb6
+  jumpi
+  push 0
+  push 0
+  revert
+
+bb6:
+  stop

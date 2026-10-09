@@ -36,12 +36,10 @@ bb23 [cold]:
   push 0
   revert
 bb4:
-  dup 1
   push 64
   sub
   push bb23
   jumpi
-  pop
   push 107
   push 0
   mstore
@@ -62,12 +60,10 @@ bb6:
   push 0
   return
 bb7:
-  dup 1
   push 48
   sub
   push bb23
   jumpi
-  pop
   push 105
   push 0
   mstore
@@ -93,12 +89,10 @@ bb9:
   push 0
   return
 bb10:
-  dup 1
   push 32
   sub
   push bb23
   jumpi
-  pop
   push 103
   push 0
   mstore
@@ -119,12 +113,10 @@ bb12:
   push 0
   return
 bb13:
-  dup 1
   push 16
   sub
   push bb23
   jumpi
-  pop
   push 101
   push 0
   mstore
@@ -143,12 +135,12 @@ MSTORE
 DUP1
 PUSH1 0x28
 GT
-PUSH1 0x5f ; bb4
+PUSH1 0x5b ; bb4
 JUMPI
 DUP1
 PUSH1 0x38
 GT
-PUSH1 0x3d ; bb2
+PUSH1 0x3b ; bb2
 JUMPI
 DUP1
 PUSH1 0x38
@@ -169,12 +161,10 @@ PUSH0
 REVERT
 ; bb1
 JUMPDEST
-DUP1
 PUSH1 0x40
 SUB
 PUSH1 0x28 ; bb0
 JUMPI
-POP
 PUSH1 0x6b
 PUSH0
 MSTORE
@@ -186,7 +176,7 @@ JUMPDEST
 DUP1
 PUSH1 0x28
 SUB
-PUSH1 0x4e ; bb3
+PUSH1 0x4c ; bb3
 JUMPI
 POP
 PUSH1 0x68
@@ -197,12 +187,10 @@ PUSH0
 RETURN
 ; bb3
 JUMPDEST
-DUP1
 PUSH1 0x30
 SUB
 PUSH1 0x28 ; bb0
 JUMPI
-POP
 PUSH1 0x69
 PUSH0
 MSTORE
@@ -214,12 +202,12 @@ JUMPDEST
 DUP1
 PUSH1 0x18
 GT
-PUSH1 0x88 ; bb6
+PUSH1 0x82 ; bb6
 JUMPI
 DUP1
 PUSH1 0x18
 SUB
-PUSH1 0x77 ; bb5
+PUSH1 0x73 ; bb5
 JUMPI
 POP
 PUSH1 0x66
@@ -230,12 +218,10 @@ PUSH0
 RETURN
 ; bb5
 JUMPDEST
-DUP1
 PUSH1 0x20
 SUB
 PUSH1 0x28 ; bb0
 JUMPI
-POP
 PUSH1 0x67
 PUSH0
 MSTORE
@@ -247,7 +233,7 @@ JUMPDEST
 DUP1
 PUSH1 0x08
 SUB
-PUSH1 0x99 ; bb7
+PUSH1 0x93 ; bb7
 JUMPI
 POP
 PUSH1 0x64
@@ -258,12 +244,10 @@ PUSH0
 RETURN
 ; bb7
 JUMPDEST
-DUP1
 PUSH1 0x10
 SUB
 PUSH1 0x28 ; bb0
 JUMPI
-POP
 PUSH1 0x65
 PUSH0
 MSTORE

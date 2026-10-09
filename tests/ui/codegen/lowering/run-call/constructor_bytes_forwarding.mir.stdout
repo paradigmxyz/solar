@@ -179,8 +179,8 @@ fn @f(arg0: i256, arg1: memptr) -> struct0 [selector=0xcdc9dc79, abi_params=[u25
     icall revert_if<tuple_data_too_short>, v34
     v35 = add 0, 0
     v36 = mload v35
-    v37 = and v36, 0xff00000000000000000000000000000000000000000000000000000000000000
-    v38 = eq v36, v37
+    v37 = shl 8, v36
+    v38 = eq v37, 0
     v39 = eq v38, false
     icall revert_if<empty>, v39
     v40 = insert_value struct0, undef struct0, 0, v26

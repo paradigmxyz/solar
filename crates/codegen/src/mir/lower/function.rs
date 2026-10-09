@@ -602,24 +602,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         allow_value: bool,
         diagnostic: &'static str,
     ) -> Option<LoweredCallOptions> {
-        // zero = 0
-        // gas = gas() if can_overcharge_gas_for_call
-        // value = zero
         // for option { gas/value = lower(option.value) }
-        let zero = self.builder.imm(U256::ZERO);
-        let evm_version = self.cx.gcx.sess.opts.evm_version;
-        let mut gas = evm_version.can_overcharge_gas_for_call().then(|| self.builder.gas());
-        let mut value = zero;
-        let mut value_set = false;
+        let mut lowered = self.default_call_options();
         if let Some(options) = options {
             for option in options.args {
                 let option_value =
                     self.lower_typed_expr(&option.value, self.cx.gcx.types.uint(256))?;
                 match option.name.name {
-                    kw::Gas => gas = Some(option_value),
+                    kw::Gas => lowered.gas = Some(option_value),
                     sym::value if allow_value => {
-                        value = option_value;
-                        value_set = true;
+                        lowered.value = option_value;
+                        lowered.value_set = true;
                     }
                     _ => {
                         return self.cx.report_unsupported(option.name.span, diagnostic);
@@ -627,7 +620,18 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }
             }
         }
-        Some(LoweredCallOptions { gas, value, value_set, zero })
+        Some(lowered)
+    }
+
+    /// Lowers the options of a call that sets none.
+    fn default_call_options(&mut self) -> LoweredCallOptions {
+        // zero = 0
+        // gas = gas() if can_overcharge_gas_for_call
+        // value = zero
+        let zero = self.builder.imm(U256::ZERO);
+        let evm_version = self.cx.gcx.sess.opts.evm_version;
+        let gas = evm_version.can_overcharge_gas_for_call().then(|| self.builder.gas());
+        LoweredCallOptions { gas, value: zero, value_set: false, zero }
     }
 
     fn validate_enum(&mut self, ty: Ty<'gcx>, value: ValueId) {

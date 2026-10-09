@@ -104,12 +104,10 @@ bb9:
   push 0
   return
 bb10:
-  dup 1
   push 64
   sub
   push bb11
   jumpi
-  pop
   push 107
   push 0
   mstore
@@ -228,12 +226,10 @@ PUSH0
 RETURN
 ; bb7
 JUMPDEST
-DUP1
 PUSH1 0x40
 SUB
 PUSH1 0x1a ; bb0
 JUMPI
-POP
 PUSH1 0x6b
 PUSH0
 MSTORE
