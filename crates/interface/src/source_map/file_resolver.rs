@@ -315,17 +315,25 @@ impl<'a> FileResolver<'a> {
             .is_some_and(|path| path.as_os_str().is_empty())
             .then(|| generic_path(lexical_normalize(&unit)));
         let mut found = SmallVec::<[_; 1]>::new();
+        let mut read_error = None;
         for candidate in self.search_paths(&unit) {
-            // Quick deduplication when include paths are duplicated.
-            if let Some(file) =
-                self.load(&candidate, name.as_deref(), self.allowed_paths.as_deref())?
-                && !found.iter().any(|f| Arc::ptr_eq(f, &file))
-            {
-                found.push(file);
+            // After a match, load the other candidates under their own names, so that matches in
+            // several roots are reported as ambiguous.
+            let candidate_name = if found.is_empty() { name.as_deref() } else { None };
+            match self.load(&candidate, candidate_name, self.allowed_paths.as_deref()) {
+                // Quick deduplication when include paths are duplicated.
+                Ok(Some(file)) if !found.iter().any(|f| Arc::ptr_eq(f, &file)) => found.push(file),
+                Ok(_) => {}
+                // A read callback need not serve every root.
+                Err(e @ ResolveError::ReadFile(..)) if name.is_some() => {
+                    read_error.get_or_insert(e);
+                }
+                Err(e) => return Err(e),
             }
         }
         match found.len() {
-            0 | 1 => Ok(found.pop()),
+            0 => read_error.map_or(Ok(None), Err),
+            1 => Ok(found.pop()),
             _ => Err(ResolveError::MultipleMatches(path.into(), found.into_vec())),
         }
     }

@@ -157,3 +157,44 @@ fn callback_imports_with_base_path() {
     let output = serde_json::from_slice::<Value>(&output).unwrap();
     assert_eq!(output, json!({"sources": {"A.sol": {"id": 1}, "X.sol": {"id": 0}}}));
 }
+
+/// The read callback is asked for every root: a file that only an include path serves resolves,
+/// and one that several roots serve is ambiguous.
+#[test]
+fn callback_imports_search_include_paths() {
+    struct Callback(&'static [&'static str]);
+
+    impl StandardJsonReadCallback for Callback {
+        fn read(&self, _kind: &str, data: &str) -> ReadCallbackResult {
+            if self.0.contains(&data) {
+                ReadCallbackResult::Success("contract X {}".to_string())
+            } else {
+                ReadCallbackResult::Error(format!("`{data}` not found"))
+            }
+        }
+    }
+
+    let input = json!({
+        "language": "Solidity",
+        "sources": {"A.sol": {"content": "import \"X.sol\"; contract A {}"}},
+        "settings": {"outputSelection": {}}
+    })
+    .to_string();
+    let compile = |served| {
+        let opts = CompileOpts {
+            base_path: Some("lib".into()),
+            include_paths: vec!["inc".into()],
+            ..Default::default()
+        };
+        let mut output = Vec::new();
+        compile_standard_json(&input, opts, Some(Arc::new(Callback(served))), &mut output).unwrap();
+        serde_json::from_slice::<Value>(&output).unwrap()
+    };
+    assert_eq!(
+        compile(&["inc/X.sol"]),
+        json!({"sources": {"A.sol": {"id": 1}, "X.sol": {"id": 0}}})
+    );
+    let output = compile(&["lib/X.sol", "inc/X.sol"]);
+    let message = output["errors"][0]["message"].as_str().unwrap();
+    assert!(message.starts_with("multiple files match X.sol: "), "{message}");
+}
