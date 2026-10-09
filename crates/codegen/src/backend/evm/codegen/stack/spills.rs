@@ -651,6 +651,8 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// them.
     pub(in crate::backend::evm::codegen) fn stage_stack_only_fresh_operands(
         &mut self,
+        func: &Function,
+        block: BlockId,
         operands: &[ValueId],
     ) {
         if !self.scheduler.has_stack_only_values() {
@@ -666,6 +668,10 @@ impl<'gcx> EvmCodegen<'gcx> {
                     match stack.find(operand) {
                         Some(depth) if depth < stack_access_limit => {
                             stack.dup((depth + 1) as u8);
+                        }
+                        // The fresh emission reloads the phi from its slot.
+                        None if self.stack_only_phi_slot(func, block, operand).is_some() => {
+                            stack.push(operand);
                         }
                         _ => {
                             inaccessible = Some(operand);
@@ -1248,9 +1254,11 @@ impl<'gcx> EvmCodegen<'gcx> {
 
     /// Keeps stack-only operands alive when an instruction is emitted without an operand plan.
     /// Planned operations preserve these values as part of the plan itself, so doing this before
-    /// every instruction duplicates both liveness queries and stack scans on the hot path.
+    /// every instruction duplicates both liveness queries and stack scans on the hot path. A
+    /// stack-only phi that arrived through its slot is loaded first.
     pub(in crate::backend::evm::codegen) fn preserve_stack_only_operands(
         &mut self,
+        func: &Function,
         operands: &[ValueId],
         liveness: &Liveness,
         block: BlockId,
@@ -1277,12 +1285,19 @@ impl<'gcx> EvmCodegen<'gcx> {
             while self.scheduler.stack.iter().filter(|slot| *slot == Some(operand)).count()
                 <= consumed
             {
-                let depth = self.scheduler.stack.find(operand).unwrap_or_else(|| {
+                let Some(depth) = self.scheduler.stack.find(operand) else {
+                    // push <phi slot>
+                    // mload
+                    if let Some(slot) = self.stack_only_phi_slot(func, block, operand) {
+                        let load = ScheduledOp::LoadSpill(slot);
+                        self.emit_fresh_scheduled_value(func, operand, load);
+                        continue;
+                    }
                     if self.recover_lost_internal_stack_value(operand) {
-                        return 0;
+                        continue;
                     }
                     panic!("resident stack argument {operand:?} was lost before its final use")
-                });
+                };
                 assert!(
                     depth < self.stack_access_limit(),
                     "resident stack argument exceeded DUP reach"
@@ -1292,18 +1307,43 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
     }
 
+    /// Returns the slot a stack-only phi of `block` arrived through, while it still holds it.
+    ///
+    /// A phi kept on the stack across a forwarding-buffer clobber is stack-only from its
+    /// definition, but an incoming edge that does not carry it on the stack stores it to its
+    /// slot. The slot stays reloadable until a clobber in `block` pins the phi and invalidates
+    /// it, so a use before any clobber can load it, and the copy then rides the stack.
+    fn stack_only_phi_slot(
+        &self,
+        func: &Function,
+        block: BlockId,
+        value: ValueId,
+    ) -> Option<SpillSlot> {
+        let Value::Inst(inst_id) = func.value(value) else { return None };
+        if !matches!(func.inst(*inst_id).kind, InstKind::Phi(_))
+            || !func.blocks[block].instructions.contains(inst_id)
+        {
+            return None;
+        }
+        self.scheduler.reloadable_spill(value)
+    }
+
     /// Abandons a speculative internal stack ABI after one of its values was lost or became
     /// inaccessible.
     ///
     /// The emitted placeholder belongs to an attempt that the outer codegen loop discards. The
     /// next attempt excludes this function from stack-only argument and return plans, so every
-    /// value has a frame-backed reload route.
+    /// value has a frame-backed reload route. A function already on that convention has no
+    /// further fallback, so the loss is recorded and reported unless a retry discards the
+    /// attempt for another reason.
     pub(in crate::backend::evm::codegen) fn recover_lost_internal_stack_value(
         &mut self,
         value: ValueId,
     ) -> bool {
         let Some(func_id) = self.current_internal_function else { return false };
-        self.disabled_stack_only_functions.insert(func_id);
+        if !self.disabled_stack_only_functions.insert(func_id) {
+            self.lost_frame_stack_value.get_or_insert(func_id);
+        }
         self.asm.emit_push(U256::ZERO);
         self.scheduler.stack.push(value);
         true
