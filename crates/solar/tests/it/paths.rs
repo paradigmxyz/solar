@@ -132,3 +132,21 @@ error: base path `A.sol` is not a directory
 "#]]
     );
 }
+
+/// An input file only replaces the import of its own source unit name, not of a name that
+/// normalizes to it.
+#[test]
+fn input_files_keep_leading_parent_segments() {
+    let dir = project(&[
+        ("proj/src/A.sol", "import \"shared/X.sol\"; contract A {}"),
+        ("proj/shared/X.sol", "contract Inner {}"),
+        ("shared/X.sol", "contract Outer {}"),
+    ]);
+    let output =
+        compile(&dir.path().join("proj"), &["src/A.sol", "shared/X.sol", "shared/=../shared/"]);
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    let output = serde_json::from_slice::<Value>(&output.stdout).unwrap();
+    let names = output["contracts"].as_object().unwrap().keys().collect::<Vec<_>>();
+    assert_eq!(names.len(), 3, "{names:?}");
+    assert!(names.iter().any(|name| name.ends_with("/shared/X.sol:Outer")), "{names:?}");
+}

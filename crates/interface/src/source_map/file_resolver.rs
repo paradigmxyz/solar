@@ -265,11 +265,11 @@ impl<'a> FileResolver<'a> {
         if let Some(last_input) = last_input
             && !unit.has_root()
         {
-            let unit = unit.normalize();
+            let name = unit.normalize();
             let input = self.roots().find_map(|root| {
                 let path = generic_path(root.join(&unit).normalize());
                 let file = self.source_map().get_file(&path)?;
-                (file.start_pos <= last_input && self.source_unit_name(&path) == unit)
+                (file.start_pos <= last_input && self.source_unit_name(&path) == name)
                     .then_some(file)
             });
             if input.is_some() {
@@ -345,7 +345,7 @@ impl<'a> FileResolver<'a> {
         // An absolute name inside the base path may refer to a source loaded under its relative
         // name, like the ones a build tool preloads.
         let unit = self.rooted(unit).normalize();
-        source_map.get_file(self.source_unit_name(&unit))
+        source_map.get_file(strip_root(&unit, self.try_base_path()))
     }
 
     /// Returns the paths that the host filesystem loader looks up for a source unit name.
@@ -1047,6 +1047,28 @@ mod tests {
         let parent = root.join("ext/foo/A.sol");
         let resolved = resolver.resolve_file(Path::new("x/X.sol"), Some(&parent)).unwrap();
         assert_eq!(resolved.name.as_real(), Some(root.join("proj/y/X.sol").as_path()));
+    }
+
+    #[test]
+    fn absolute_names_in_include_paths_skip_relative_sources() {
+        let tmp = tempfile::Builder::new().prefix("solar-file-resolver-test").tempdir().unwrap();
+        let root = tmp.path();
+        write_files(root, &["ext/src/X.sol"]);
+
+        let sm = SourceMap::empty();
+        // A different file, named relative to the base path.
+        sm.new_source_file(PathBuf::from("src/X.sol"), "").unwrap();
+        let mut resolver = FileResolver::new(&sm);
+        resolver.set_base_path(&root.join("proj"));
+        resolver.add_include_path(root.join("ext"));
+        resolver.add_import_remapping(ImportRemapping {
+            context: String::new(),
+            prefix: "dep/".into(),
+            path: format!("{}/", root.join("ext/src").display()),
+        });
+
+        let resolved = resolver.resolve_file(Path::new("dep/X.sol"), Some(Path::new("src/A.sol")));
+        assert_eq!(resolved.unwrap().name.as_real(), Some(root.join("ext/src/X.sol").as_path()));
     }
 
     #[test]
