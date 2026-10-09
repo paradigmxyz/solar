@@ -290,3 +290,24 @@ fn callback_imports_merge_spellings() {
     );
     assert_eq!(callback.0.load(Ordering::Relaxed), 2);
 }
+
+/// Relative imports join the importing source unit name, which the base path does not shorten.
+#[test]
+fn relative_imports_with_base_path() {
+    let input = json!({
+        "language": "Solidity",
+        "sources": {
+            "/project/A.sol": {"content": "import \"./B.sol\"; contract A is B {}"},
+            "/project/B.sol": {"content": "contract B {}"}
+        },
+        "settings": {"outputSelection": {}}
+    });
+    let opts = CompileOpts { base_path: Some("/project".into()), ..Default::default() };
+    let mut output = Vec::new();
+    compile_standard_json(&input.to_string(), opts, None, &mut output).unwrap();
+    let output = serde_json::from_slice::<Value>(&output).unwrap();
+    assert_eq!(
+        output,
+        json!({"sources": {"/project/A.sol": {"id": 1}, "/project/B.sol": {"id": 0}}})
+    );
+}

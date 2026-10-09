@@ -223,7 +223,7 @@ impl<'a> FileResolver<'a> {
     /// Applies import remappings in the context of the source unit name of `parent`.
     pub fn remap_import_path<'b>(&self, path: &'b Path, parent: Option<&Path>) -> Cow<'b, Path> {
         match parent {
-            Some(parent) => self.remap_import(path, parent),
+            Some(parent) => self.remap_import(path, &self.importer_names(parent)),
             None => self.remap_path(path, None),
         }
     }
@@ -365,31 +365,41 @@ impl<'a> FileResolver<'a> {
 
     /// Returns the source unit name that `path` refers to when imported from `parent`.
     fn import_source_unit_name<'b>(&self, path: &'b Path, parent: &Path) -> Cow<'b, Path> {
+        let names = self.importer_names(parent);
         // Only paths starting with `./` or `../` are relative to the importing source unit;
         // `import "b.sol";` is looked up in the base path and include paths.
         let path = if path.starts_with("./") || path.starts_with("../") {
             // Unlike solc, use the importing file's path relative to the base path, which is
             // absolute outside of it, as build tools such as Foundry name those files.
-            Cow::Owned(join_relative_import(strip_root(parent, self.try_base_path()), path))
+            let base_relative = names.last().unwrap();
+            Cow::Owned(join_relative_import(base_relative, path))
         } else {
             Cow::Borrowed(path)
         };
-        match self.remap_import(&path, parent) {
+        match self.remap_import(&path, &names) {
             Cow::Owned(remapped) => Cow::Owned(remapped),
             Cow::Borrowed(_) => path,
         }
     }
 
-    /// Applies import remappings in the context of the importing file `parent`.
-    ///
-    /// Contexts match its source unit name and, unlike solc, its path relative to the base path,
-    /// which build tools such as Foundry use for files outside of it.
-    fn remap_import<'b>(&self, path: &'b Path, parent: &Path) -> Cow<'b, Path> {
+    /// Returns the names of the importing file `parent` that remapping contexts match: its source
+    /// unit name and, unlike solc, its path relative to the base path if that differs, which build
+    /// tools such as Foundry use for files outside of it.
+    fn importer_names<'b>(&self, parent: &'b Path) -> SmallVec<[&'b Path; 2]> {
+        // An empty base path in the source map means that file names are source unit names, as in
+        // Standard JSON.
+        let roots = self.source_map().roots();
+        if roots.as_ref().and_then(|roots| roots.base_path.as_deref()) == Some(Path::new("")) {
+            return smallvec![parent];
+        }
         let name = self.source_unit_name(parent);
         let base_relative = strip_root(parent, self.try_base_path());
-        let fallback = (name != base_relative).then_some(base_relative);
-        let contexts = std::iter::once(name).chain(fallback).collect::<SmallVec<[_; 2]>>();
-        let remapped = remap_in_contexts(&self.remappings, path, &contexts);
+        std::iter::once(name).chain((name != base_relative).then_some(base_relative)).collect()
+    }
+
+    /// Applies import remappings in the contexts of the importing file's names.
+    fn remap_import<'b>(&self, path: &'b Path, contexts: &[&Path]) -> Cow<'b, Path> {
+        let remapped = remap_in_contexts(&self.remappings, path, contexts);
         if remapped != path {
             trace!(remapped=%remapped.display());
         }
