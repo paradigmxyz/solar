@@ -23,7 +23,8 @@ cargo run -- file.sol                  # Run compiler
 cargo run -- -Zhelp                    # Unstable flags help
 ```
 
-Filter tests with `cargo uitest <path-substring>` or
+Filter UI tests with `cargo uitest <path-substring>` or
+`cargo tq <mode> <path-substring>`, and Rust tests with
 `cargo nextest run -p <crate> <test-name>`. Run focused tests while iterating and broader checks once the change settles.
 For documentation-only changes, check prose, examples, and spelling; do not
 build or run tests. Avoid plain `cargo test`.
