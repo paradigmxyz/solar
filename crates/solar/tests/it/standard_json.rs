@@ -5,7 +5,10 @@ use solar::{
     cli::standard_json::{ReadCallbackResult, StandardJsonReadCallback, compile_standard_json},
     config::CompileOpts,
 };
-use std::sync::Arc;
+use std::sync::{
+    Arc,
+    atomic::{AtomicUsize, Ordering},
+};
 
 /// Source keys are opaque source unit names: `--base-path` must not shorten them, or the output
 /// selection for the exact key matches nothing.
@@ -233,4 +236,46 @@ fn callback_imports_keep_exact_names() {
     let mut names = output["sources"].as_object().unwrap().keys().collect::<Vec<_>>();
     names.sort();
     assert_eq!(names, ["A.sol", "X.sol", "https://example.com/B.sol", "sub/X.sol"], "{output}");
+}
+
+/// Spellings of a callback source unit name that differ only in `.` and `..` segments or repeated
+/// separators name one source with a normalized name, and the callback reads it once.
+#[test]
+fn callback_imports_merge_spellings() {
+    #[derive(Default)]
+    struct Callback(AtomicUsize);
+
+    impl StandardJsonReadCallback for Callback {
+        fn read(&self, _kind: &str, data: &str) -> ReadCallbackResult {
+            self.0.fetch_add(1, Ordering::Relaxed);
+            ReadCallbackResult::Success(format!("// {data}\ncontract X {{}}"))
+        }
+    }
+
+    let sources = ["lib//X.sol", "lib/X.sol", "lib/./X.sol", "lib/sub/../X.sol"]
+        .iter()
+        .enumerate()
+        .map(|(i, import)| {
+            (
+                format!("S{i}.sol"),
+                json!({"content": format!("import \"{import}\"; contract S{i} {{}}")}),
+            )
+        })
+        .collect::<serde_json::Map<_, _>>();
+    let input =
+        json!({"language": "Solidity", "sources": sources, "settings": {"outputSelection": {}}});
+    let callback = Arc::new(Callback::default());
+    let mut output = Vec::new();
+    compile_standard_json(
+        &input.to_string(),
+        CompileOpts::default(),
+        Some(callback.clone()),
+        &mut output,
+    )
+    .unwrap();
+    let output = serde_json::from_slice::<Value>(&output).unwrap();
+    let mut names = output["sources"].as_object().unwrap().keys().collect::<Vec<_>>();
+    names.sort();
+    assert_eq!(names, ["S0.sol", "S1.sol", "S2.sol", "S3.sol", "lib/X.sol"], "{output}");
+    assert_eq!(callback.0.load(Ordering::Relaxed), 1);
 }

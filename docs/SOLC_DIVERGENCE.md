@@ -58,9 +58,9 @@ Difference: `solc` treats source unit names as opaque strings, so `src/B.sol`,
 absolute path to the same file are separate source units. `solar` names a file
 that it loads from disk by its normalized path, shown relative to the base
 path, so all of these are one source unit named `src/B.sol`. In Standard JSON,
-a file loaded through the read callback keeps the source unit name of the
-import that loaded it first, so spellings such as `lib/X.sol` and `lib//X.sol`
-also name one source unit. A file that
+the read callback reads a file once and names it by its normalized source unit
+name, keeping the `//` of a URL scheme, so `lib/X.sol`, `lib//X.sol` and
+`lib/sub/../X.sol` also name one source unit `lib/X.sol`. A file that
 imports both `src/B.sol` and `src//B.sol` fails with `Identifier already
 declared` in `solc` and compiles in `solar`. `solar` also looks up absolute
 import paths and remapping targets as they are, where `solc` prepends a
@@ -79,7 +79,9 @@ tools such as Foundry preload sources under relative names and pass absolute
 remapping targets, which must resolve to the preloaded sources
 ([#1628](https://github.com/paradigmxyz/solar/pull/1628)).
 
-Coverage: `absolute_remapping_reuses_preloaded_source_unit_name` and
+Coverage: `callback_imports_merge_spellings` in
+`crates/solar/tests/it/standard_json.rs`,
+`absolute_remapping_reuses_preloaded_source_unit_name` and
 `direct_import_reuses_preloaded_source_unit_name` in
 `crates/interface/src/source_map/file_resolver.rs`.
 

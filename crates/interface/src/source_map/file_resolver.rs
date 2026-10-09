@@ -363,13 +363,40 @@ impl<'a> FileResolver<'a> {
         path: &Path,
         unit: &Path,
     ) -> Result<Option<Arc<SourceFile>>, ResolveError> {
+        // Read inside the source map's insertion, so that concurrent imports of the same name
+        // wait for one read. Spellings of the name that differ only in `.` and `..` segments or
+        // repeated separators name one source, so name it by a normalized spelling.
+        let mut result = Ok(None);
+        let file = self.source_map().new_source_file_with(normalize_unit(unit).into(), || {
+            match self.read_roots(path, unit) {
+                Ok(Some(src)) => return Ok(src),
+                Ok(None) => {}
+                Err(e) => result = Err(e),
+            }
+            Err(io::ErrorKind::NotFound.into())
+        });
+        match file {
+            Ok(file) => Ok(Some(file)),
+            Err(e) if result.is_ok() && e.kind() != io::ErrorKind::NotFound => {
+                Err(ResolveError::ReadFile(unit.into(), e))
+            }
+            Err(_) => result,
+        }
+    }
+
+    /// Reads `unit` from each root once through the file loader, like solc's file reader.
+    fn read_roots(&self, path: &Path, unit: &Path) -> Result<Option<String>, ResolveError> {
         let loader = self.source_map().file_loader();
+        // Like solc, give the loader an absolute name as is, and normalize it otherwise.
+        let candidates = if unit.has_root() {
+            vec![unit.to_path_buf()]
+        } else {
+            self.roots().map(|root| normalize_unit(&root.join(unit))).collect()
+        };
         let mut found = SmallVec::<[(PathBuf, String); 1]>::new();
         let mut read_error = None;
-        for candidate in self.search_paths(unit) {
-            let Ok(path) = loader.canonicalize_path(&generic_path(candidate.into_owned())) else {
-                continue;
-            };
+        for candidate in candidates {
+            let Ok(path) = loader.canonicalize_path(&candidate) else { continue };
             if found.iter().any(|(found, _)| *found == path) {
                 continue;
             }
@@ -383,12 +410,7 @@ impl<'a> FileResolver<'a> {
         }
         match found.len() {
             0 => read_error.map_or(Ok(None), Err),
-            1 => {
-                let (path, src) = found.pop().unwrap();
-                let name = generic_path(unit.to_path_buf());
-                let file = self.source_map().new_source_file(name, src);
-                file.map(Some).map_err(|e| ResolveError::ReadFile(path, e))
-            }
+            1 => Ok(found.pop().map(|(_, src)| src)),
             _ => {
                 let paths = found.into_iter().map(|(path, _)| path).collect();
                 Err(ResolveError::MultipleMatches(path.into(), paths))
@@ -711,6 +733,20 @@ fn without_verbatim_prefix(path: &Path) -> Cow<'_, Path> {
     let mut plain = PathBuf::from(prefix);
     plain.push(components.as_path());
     Cow::Owned(plain)
+}
+
+/// Normalizes a source unit name like [`lexical_normalize`], with `/` separators, keeping the `//`
+/// of a URL scheme.
+fn normalize_unit(unit: &Path) -> PathBuf {
+    if let Some(unit) = unit.to_str()
+        && let Some((scheme, rest)) = unit.split_once("://")
+        && !scheme.is_empty()
+        && !scheme.contains(['/', '\\'])
+    {
+        let rest = generic_path(lexical_normalize(Path::new(rest)));
+        return PathBuf::from(format!("{scheme}://{}", rest.display()));
+    }
+    generic_path(lexical_normalize(unit))
 }
 
 fn real_path(file: &SourceFile) -> &Path {
