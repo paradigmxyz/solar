@@ -70,22 +70,21 @@ bb15:
   jump
 bb7 [continuation]:
   dup 1
-  calldataload
-  swap 1
-  push 32
-  add
-  swap 1
-  push 68
-  calldataload
-  gt
   push 36
   calldataload
   push 68
   calldataload
   lt
+  swap 1
+  calldataload
+  push 68
+  calldataload
+  gt
   or
   push bb4
   jumpi
+  push 32
+  add
   push 36
   calldataload
   push 68
@@ -159,18 +158,18 @@ bb12 [continuation]:
   pop
   swap 2
   add
-  push 1
-  dup 2
-  mstore
   push 32
+  push 1
+  dup 4
+  dup 4
+  dup 4
   add
-  dup 2
-  swap 1
   sub
-  swap 1
+  swap 3
+  mstore
+  swap 2
   keccak256
   push 128
   mstore
-  push 32
   push 128
   return

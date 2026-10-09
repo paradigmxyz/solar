@@ -339,11 +339,11 @@ impl<'gcx> EvmCodegen<'gcx> {
 
     fn emit_stack_phi_edge_layout(&mut self, func: &Function, edge: &StackPhiEdge) {
         self.pop_stack_values_not_needed_by(&edge.sources);
-        // edge: push deferred_immediates; shuffle sources; rename to results
+        // edge: push deferred_immediates; reload deferred words; shuffle sources; rename to results
         for value in Self::missing_stack_phi_sources(&self.scheduler.stack, &edge.sources) {
             // Repeated sources already on the stack are duplicated by the shuffle.
             if self.scheduler.stack.find(value).is_none() {
-                debug_assert!(func.value(value).as_immediate().is_some());
+                debug_assert!(self.can_emit_stack_phi_value(func, value));
                 self.emit_operand(func, value);
             }
         }
@@ -367,18 +367,43 @@ impl<'gcx> EvmCodegen<'gcx> {
         branch: &StackPhiBranch,
         fallthrough: Option<BlockId>,
     ) {
+        let gas = self.gcx.sess.opts.optimization.is_gas();
+        let exclusive = |value: ValueId| {
+            self.scheduler.stack.find(value).is_none()
+                && !(branch.then_edge.sources.contains(&value)
+                    && branch.else_edge.sources.contains(&value))
+        };
         let mut union = branch
             .union
             .iter()
             .copied()
             .filter(|&value| {
-                !self.gcx.sess.opts.optimization.is_gas()
-                    || func.value(value).as_immediate().is_none()
-                    || self.scheduler.stack.find(value).is_some()
-                    || (branch.then_edge.sources.contains(&value)
-                        && branch.else_edge.sources.contains(&value))
+                !gas || func.value(value).as_immediate().is_none() || !exclusive(value)
             })
             .collect::<Vec<_>>();
+        // A word only one edge takes that the stack does not hold is reloaded on that edge
+        // after the branch, when the other edge then holds exactly the remaining words and
+        // stays the direct target: reloading ahead of the branch would cost both edges.
+        if gas {
+            let rest = union
+                .iter()
+                .copied()
+                .filter(|&value| {
+                    func.value(value).as_immediate().is_some()
+                        || !exclusive(value)
+                        || !self.can_emit_stack_phi_value(func, value)
+                })
+                .collect::<Vec<_>>();
+            let counts = Self::value_counts(rest.iter().copied());
+            if rest.len() != union.len()
+                && [&branch.then_edge, &branch.else_edge].into_iter().any(|edge| {
+                    edge.sources.len() == rest.len()
+                        && Self::value_counts(edge.sources.iter().copied()) == counts
+                })
+            {
+                union = rest;
+            }
+        }
         if union.len() != branch.union.len() {
             let counts = Self::value_counts(union.iter().copied());
             for edge in [&branch.else_edge, &branch.then_edge] {

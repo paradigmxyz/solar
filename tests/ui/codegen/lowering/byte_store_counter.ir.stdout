@@ -68,26 +68,24 @@ bb9:
   push 4
   jump bb82
 bb82:
-  calldatasize
-  swap 1
-  calldataload
-  push 4
-  dup 2
-  add
-  push 32
-  dup 2
-  add
-  swap 2
   push 0
   not
   push 192
   shr
-  lt
-  swap 3
-  dup 3
-  gt
   swap 1
-  swap 3
+  calldataload
+  dup 1
+  push 4
+  add
+  swap 2
+  dup 3
+  push 32
+  add
+  swap 2
+  gt
+  dup 2
+  calldatasize
+  lt
   or
   push bb8
   jumpi
@@ -261,14 +259,13 @@ bb60 [loop]:
   jumpi
   push 1
   dup 4
+  push 2
+  add
+  swap 4
   add
   mstore8
   push 1
   add
-  swap 1
-  push 2
-  add
-  swap 1
   jump bb58
 bb58 [loop]:
   dup 6
@@ -446,11 +443,10 @@ bb29 [continuation]:
   dup 2
   jump bb67
 bb30 [continuation]:
-  swap 1
-  pop
-  swap 1
+  swap 2
   push 128
   mstore
+  pop
   push 160
   mstore
   push 64
@@ -630,17 +626,15 @@ bb71:
   jump bb72
 bb73 [loop]:
   dup 1
-  mload
-  swap 1
   push 32
   add
+  dup 1
   push 32
-  dup 2
   add
-  swap 1
-  mload
-  swap 1
   swap 2
+  mload
+  swap 1
+  mload
   or
   push 0x8080808080808080808080808080808080808080808080808080808080808080
   and

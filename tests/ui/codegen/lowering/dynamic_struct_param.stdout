@@ -5,8 +5,8 @@ fn @init(arg0: calldataslice, arg1: i160) -> i256 [selector=0x5c58abd8, pure, ab
     v0 = slice_ptr arg0
     v1 = add v0, 32
     v2 = calldataload v1
-    v3 = and v2, 255
-    v4 = eq v2, v3
+    v3 = shr 8, v2
+    v4 = eq v3, 0
     v5 = eq v4, false
     icall revert_if<empty>, v5
     v6 = trunc i256 v2 to i8

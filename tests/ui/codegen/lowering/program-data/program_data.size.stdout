@@ -466,9 +466,9 @@ bb18 [continuation]:
   jump bb31
 bb19:
   push 32
+  dup 1
   push 128
   mstore
-  push 32
   push 160
   mstore
   push 0

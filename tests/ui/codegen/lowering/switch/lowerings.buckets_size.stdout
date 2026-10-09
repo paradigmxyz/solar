@@ -87,12 +87,10 @@ bb11:
   push 106
   jump bb23
 bb12:
-  dup 1
   push 64
   sub
   push bb22
   jumpi
-  pop
   push 107
   jump bb23
 // === ROOT/tests/ui/codegen/lowering/switch/lowerings.sol:SwitchLowerings (runtime) ===
@@ -202,12 +200,10 @@ PUSH1 0x2c ; bb2
 JUMP
 ; bb9
 JUMPDEST
-DUP1
 PUSH1 0x40
 SUB
 PUSH1 0x1d ; bb0
 JUMPI
-POP
 PUSH1 0x6b
 PUSH1 0x2c ; bb2
 JUMP
