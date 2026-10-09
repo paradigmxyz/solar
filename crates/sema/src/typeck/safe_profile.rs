@@ -19,9 +19,12 @@
 //! Two kinds of code are trusted. The compiler-owned `solar:core/` modules are the primitive layer
 //! the profile builds on, so their bodies are not checked. And `@custom:solar-trusted` marks a
 //! function, a modifier, a contract or a library as reviewed: the profile does not look inside it,
-//! so what only it reaches is not checked either. It is a boundary that review, not this compiler,
-//! answers for. An assembly block that only points storage references at their ERC-7201
-//! namespaces, which the namespace check verifies, needs no trust.
+//! so what only it reaches is not checked either, except where its calls dispatch to an override
+//! or a `super` target other than the function they name: the contract chose that code, not the
+//! review. It is a boundary that review, not this compiler, answers for. Every
+//! `@custom:solar-safe` tag on a contract adds its properties. An assembly block that only points
+//! storage references at their ERC-7201 namespaces, which the namespace check verifies, needs no
+//! trust.
 
 use super::erc7201::is_namespace_accessor;
 use crate::{
@@ -53,38 +56,49 @@ pub(super) fn check(gcx: Gcx<'_>) {
     }
 }
 
-/// The `@custom:solar-safe` tag on the contract `id`, if it has one.
+/// The `@custom:solar-safe` tags on the contract `id`, if it has any: their profile requires
+/// every property one of them requires.
 fn profile(gcx: Gcx<'_>, id: hir::ContractId) -> Option<Profile> {
     let contract = gcx.hir.contract(id);
     // The tag on an interface is reported with the documentation.
     if contract.kind == hir::ContractKind::Interface {
         return None;
     }
-    let natspec = gcx
+    let mut tags = gcx
         .hir
         .doc(contract.doc)
         .ast_comments
         .iter()
         .flat_map(|comment| comment.natspec.iter())
-        .find(|natspec| is_tag(natspec, sym::solar_dash_safe))?;
+        .filter(|natspec| is_tag(natspec, sym::solar_dash_safe))
+        .peekable();
+    let tag = tags.peek()?.span;
     let (mut memory, mut arithmetic) = (false, false);
-    for property in natspec.content().split_whitespace() {
-        match property {
-            "memory" => memory = true,
-            "arithmetic" => arithmetic = true,
-            _ => {
-                gcx.dcx()
-                    .err(format!("`@custom:solar-safe` has no property `{property}`"))
-                    .span(natspec.span)
-                    .help("the properties are `memory` and `arithmetic`; naming none requires both")
-                    .emit();
+    for natspec in tags {
+        let (mut tag_memory, mut tag_arithmetic) = (false, false);
+        for property in natspec.content().split_whitespace() {
+            match property {
+                "memory" => tag_memory = true,
+                "arithmetic" => tag_arithmetic = true,
+                _ => {
+                    gcx.dcx()
+                        .err(format!("`@custom:solar-safe` has no property `{property}`"))
+                        .span(natspec.span)
+                        .help(
+                            "the properties are `memory` and `arithmetic`; naming none requires \
+                             both",
+                        )
+                        .emit();
+                }
             }
         }
+        if !tag_memory && !tag_arithmetic {
+            (tag_memory, tag_arithmetic) = (true, true);
+        }
+        memory |= tag_memory;
+        arithmetic |= tag_arithmetic;
     }
-    if !memory && !arithmetic {
-        (memory, arithmetic) = (true, true);
-    }
-    Some(Profile { memory, arithmetic, tag: natspec.span })
+    Some(Profile { memory, arithmetic, tag })
 }
 
 /// Whether `natspec` is the custom tag `name`.

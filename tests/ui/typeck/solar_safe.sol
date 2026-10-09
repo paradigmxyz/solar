@@ -175,3 +175,70 @@ contract CallsOut {
         return other.f();
     }
 }
+
+// Trusted code is reviewed, but the overrides its calls dispatch to are chosen
+// by the safe contract, so they are checked.
+/// @custom:solar-trusted
+abstract contract ReviewedBase {
+    function run(uint256 a) external returns (uint256) {
+        return _hook(a);
+    }
+
+    function _hook(uint256 a) internal virtual returns (uint256) {
+        return a;
+    }
+}
+
+/// @custom:solar-safe
+contract SafeOverride is ReviewedBase {
+    function _hook(uint256 a) internal pure override returns (uint256 r) {
+        unchecked { r = a - 1; } //~ ERROR: `SafeOverride` is tagged `@custom:solar-safe` but runs an `unchecked` block
+        assembly { mstore(0x40, 0) } //~ ERROR: `SafeOverride` is tagged `@custom:solar-safe` but runs inline assembly
+    }
+}
+
+abstract contract ModifiedBase {
+    modifier m() virtual {
+        _;
+    }
+
+    /// @custom:solar-trusted
+    function f() external m returns (uint256) {
+        return 1;
+    }
+}
+
+/// @custom:solar-safe
+contract SafeModifier is ModifiedBase {
+    modifier m() override {
+        assembly { mstore(0x40, 0) } //~ ERROR: `SafeModifier` is tagged `@custom:solar-safe` but runs inline assembly
+        _;
+    }
+}
+
+/// @custom:solar-trusted
+abstract contract ReviewedInit {
+    uint256 internal x;
+
+    constructor() {
+        _init();
+    }
+
+    function _init() internal virtual {}
+}
+
+/// @custom:solar-safe
+contract SafeInit is ReviewedInit {
+    function _init() internal override {
+        unchecked { x = x - 1; } //~ ERROR: `SafeInit` is tagged `@custom:solar-safe` but runs an `unchecked` block
+    }
+}
+
+// Every `@custom:solar-safe` tag adds its properties.
+/// @custom:solar-safe memory
+/// @custom:solar-safe arithmetic
+contract TwoTags {
+    function f(uint256 a) external pure returns (uint256) {
+        unchecked { return a - 1; } //~ ERROR: `TwoTags` is tagged `@custom:solar-safe` but runs an `unchecked` block
+    }
+}

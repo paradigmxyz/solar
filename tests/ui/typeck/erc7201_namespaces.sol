@@ -113,3 +113,35 @@ contract Custom {
         uint256 z;
     }
 }
+
+// A deployed library runs in the storage of the contract that calls it.
+library Deployed {
+    //~v ERROR: ERC-7201 namespace `example.deployed` is declared twice
+    /// @custom:storage-location erc7201:example.deployed
+    struct Layout {
+        address owner;
+    }
+
+    bytes32 private constant LOCATION = bytes32(erc7201("example.deployed"));
+
+    function layout() private pure returns (Layout storage $) {
+        assembly {
+            $.slot := LOCATION
+        }
+    }
+
+    function setOwner(address owner) public {
+        layout().owner = owner;
+    }
+}
+
+contract CallsDeployed {
+    /// @custom:storage-location erc7201:example.deployed
+    struct Main {
+        uint256 balance;
+    }
+
+    function setOwner(address owner) external {
+        Deployed.setOwner(owner);
+    }
+}

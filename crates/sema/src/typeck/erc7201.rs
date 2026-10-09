@@ -7,21 +7,22 @@
 //! assign the namespace's location, and no contract may see two structs in one namespace, which
 //! would overlap. A contract sees the namespaced structs it declares or inherits, and those that
 //! the accessors in the code it runs point at, which places a library's or a free function's
-//! struct in the storage of every contract that runs its accessor. Other compilers read the
-//! annotation as documentation.
+//! struct in the storage of every contract that runs its accessor. The code a contract runs
+//! includes the deployed libraries it calls, whose functions run in its storage. Other compilers
+//! read the annotation as documentation.
 //!
 //! An assignment whose value is not a compile-time constant is not checked.
 
 use crate::{
     eval::erc7201_slot,
     hir::{self, ExprKind, ItemId, StmtKind, Visit},
-    ty::{Gcx, traced_functions},
+    ty::{Gcx, TraceRoot, TyKind, traced_from, traced_functions},
 };
 use alloy_primitives::U256;
 use solar_ast::DataLocation;
 use solar_data_structures::{
     Never,
-    map::{FxHashMap, FxHashSet},
+    map::{FxHashMap, FxHashSet, FxIndexSet},
 };
 use solar_interface::{Span, Symbol, sym};
 use std::ops::ControlFlow;
@@ -69,9 +70,19 @@ fn check_overlaps(gcx: Gcx<'_>, namespaces: &FxHashMap<hir::StructId, Namespace>
             .filter(|id| namespaces.contains_key(id))
             .collect::<Vec<_>>();
         let library = contract.kind == hir::ContractKind::Library;
-        let mut pointed = Pointed { gcx, namespaces, structs: Vec::new() };
+        let mut pointed =
+            Pointed { gcx, namespaces, structs: Vec::new(), library_calls: FxIndexSet::default() };
         for &function in traced_functions(gcx, contract_id, library, &|_| false).keys() {
             let _ = pointed.visit_nested_function(function);
+        }
+        // A deployed library's functions run by delegatecall in this contract's storage.
+        let mut traced = 0;
+        while let Some(&called) = pointed.library_calls.get_index(traced) {
+            traced += 1;
+            let library = gcx.hir.function(called).contract.expect("library functions");
+            for &function in traced_from(gcx, library, TraceRoot::Function(called)).keys() {
+                let _ = pointed.visit_nested_function(function);
+            }
         }
         let mut seen = FxHashMap::<Symbol, hir::StructId>::default();
         for &id in declared.iter().chain(&pointed.structs) {
@@ -120,7 +131,7 @@ fn storage_struct(gcx: Gcx<'_>, expr: &hir::Expr<'_>) -> Option<hir::StructId> {
     if !ty.is_ref_at(DataLocation::Storage) {
         return None;
     }
-    let crate::ty::TyKind::Struct(id) = ty.peel_refs().kind else { return None };
+    let TyKind::Struct(id) = ty.peel_refs().kind else { return None };
     Some(id)
 }
 
@@ -193,6 +204,8 @@ struct Pointed<'gcx, 'a> {
     gcx: Gcx<'gcx>,
     namespaces: &'a FxHashMap<hir::StructId, Namespace>,
     structs: Vec<hir::StructId>,
+    /// The public and external library functions the code calls, which run by delegatecall.
+    library_calls: FxIndexSet<hir::FunctionId>,
 }
 
 impl<'gcx> Visit<'gcx> for Pointed<'gcx, '_> {
@@ -212,6 +225,16 @@ impl<'gcx> Visit<'gcx> for Pointed<'gcx, '_> {
             && !self.structs.contains(&id)
         {
             self.structs.push(id);
+        }
+        // Library.f(...), where `f` is public or external
+        if let Some((callee, _, _)) = expr.as_call()
+            && let Some(TyKind::Fn(function)) = self.gcx.type_of_expr(callee.id).map(|ty| ty.kind)
+            && !function.is_internal()
+            && let Some(id) = function.function_id.or_else(|| self.gcx.resolved_function(callee))
+            && let Some(library) = self.gcx.hir.function(id).contract
+            && self.gcx.hir.contract(library).kind.is_library()
+        {
+            self.library_calls.insert(id);
         }
         self.walk_expr(expr)
     }

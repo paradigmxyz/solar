@@ -35,10 +35,12 @@ struct CallGraphBuilder<'gcx, 's> {
     worklist: VecDeque<hir::FunctionId>,
     visited_constants: DenseBitSet<hir::VariableId>,
     direct_callee: Option<hir::ExprId>,
-    /// Whether the traversal reaches a function without entering its body.
+    /// Whether the traversal enters a function's body only for the targets its calls dispatch to.
     stop: &'s dyn Fn(hir::FunctionId) -> bool,
     /// The function whose body is being visited, if any.
     current: Option<hir::FunctionId>,
+    /// Whether `current` is a function `stop` accepts.
+    stopped: bool,
     /// The function that first reached each function, or `None` for a root.
     parents: FxIndexMap<hir::FunctionId, Option<hir::FunctionId>>,
     /// The first call through an internal function pointer, as the function it is in, or `None`
@@ -61,6 +63,7 @@ impl<'gcx, 's> CallGraphBuilder<'gcx, 's> {
             direct_callee: None,
             stop,
             current: None,
+            stopped: false,
             parents: FxIndexMap::default(),
             pointer_call: None,
         }
@@ -122,7 +125,7 @@ impl<'gcx, 's> CallGraphBuilder<'gcx, 's> {
             self.enqueue(receive);
         }
         for function in &creation.internal_dispatch_targets {
-            self.add_internal_dispatch_target(function);
+            self.add_internal_dispatch_target(function, function);
         }
     }
 
@@ -163,12 +166,22 @@ impl<'gcx, 's> CallGraphBuilder<'gcx, 's> {
 
     fn drain(&mut self) {
         while let Some(function) = self.worklist.pop_front() {
-            if (self.stop)(function) {
+            self.stopped = (self.stop)(function);
+            // A free or library function dispatches nowhere the contract chooses.
+            if self.stopped
+                && self
+                    .gcx
+                    .hir
+                    .function(function)
+                    .contract
+                    .is_none_or(|contract| self.gcx.hir.contract(contract).kind.is_library())
+            {
                 continue;
             }
             self.current = Some(function);
             let _ = self.visit_nested_function(function);
             self.current = None;
+            self.stopped = false;
         }
     }
 
@@ -179,9 +192,21 @@ impl<'gcx, 's> CallGraphBuilder<'gcx, 's> {
         }
     }
 
-    fn add_internal_dispatch_target(&mut self, function: hir::FunctionId) {
-        self.graph.internal_dispatch_targets.insert(function);
-        self.enqueue(function);
+    /// Reaches `resolved`, the target a call or reference to `named` dispatches to. A body `stop`
+    /// accepts reaches only the targets the contract chooses, an override or a `super` target
+    /// other than the function it names.
+    fn enqueue_dispatched(&mut self, named: hir::FunctionId, resolved: hir::FunctionId) -> bool {
+        let reached = !self.stopped || resolved != named;
+        if reached {
+            self.enqueue(resolved);
+        }
+        reached
+    }
+
+    fn add_internal_dispatch_target(&mut self, named: hir::FunctionId, function: hir::FunctionId) {
+        if self.enqueue_dispatched(named, function) {
+            self.graph.internal_dispatch_targets.insert(function);
+        }
     }
 
     fn collect_call(&mut self, callee: &'gcx hir::Expr<'gcx>) -> bool {
@@ -200,7 +225,7 @@ impl<'gcx, 's> CallGraphBuilder<'gcx, 's> {
                     return false;
                 }
                 let function = self.resolve_call_target(callee, function_id);
-                self.enqueue(function);
+                self.enqueue_dispatched(function_id, function);
                 true
             }
             TyKind::Error(_, error) => {
@@ -225,8 +250,8 @@ impl<'gcx, 's> CallGraphBuilder<'gcx, 's> {
         else {
             return;
         };
-        let function = self.resolve_call_target(expr, function);
-        self.add_internal_dispatch_target(function);
+        let resolved = self.resolve_call_target(expr, function);
+        self.add_internal_dispatch_target(function, resolved);
     }
 
     fn collect_constant_reference(&mut self, expr: &'gcx hir::Expr<'gcx>) {
@@ -294,7 +319,7 @@ impl<'gcx> Visit<'gcx> for CallGraphBuilder<'gcx, '_> {
         self.collect_constant_reference(expr);
         self.collect_function_reference(expr);
         if let Some(function) = self.gcx.user_operator(expr.id) {
-            self.enqueue(function);
+            self.enqueue_dispatched(function, function);
         }
 
         if let Some((callee, args, options)) = expr.as_call() {
@@ -331,8 +356,10 @@ impl<'gcx> Visit<'gcx> for CallGraphBuilder<'gcx, '_> {
         &mut self,
         modifier: &'gcx hir::Modifier<'gcx>,
     ) -> ControlFlow<Self::BreakValue> {
-        if let Some(function) = self.gcx.resolve_modifier_target(self.contract, modifier) {
-            self.enqueue(function);
+        if let Some(function) = self.gcx.resolve_modifier_target(self.contract, modifier)
+            && let hir::ItemId::Function(named) = modifier.id
+        {
+            self.enqueue_dispatched(named, function);
         }
         self.walk_modifier(modifier)
     }
@@ -392,8 +419,9 @@ pub(crate) fn traced_from(
 
 /// The functions the contract `id` runs, found as [`interface_items`] finds them, from its
 /// creation and its interface, or from every function of its bases when `all`, with the function
-/// that first reached each, or `None` for a root. A function `stop` accepts is reached but not
-/// entered, so what only it reaches is not.
+/// that first reached each, or `None` for a root. A function `stop` accepts is reached, and its
+/// body reaches only the overrides and `super` targets its calls dispatch to in this contract,
+/// so what else only it reaches is not.
 pub(crate) fn traced_functions(
     gcx: Gcx<'_>,
     id: hir::ContractId,

@@ -212,5 +212,75 @@ LL │ /// @custom:solar-safe everything
    │
    ╰ help: the properties are `memory` and `arithmetic`; naming none requires both
 
-error: aborting due to 17 previous errors
+error: `SafeOverride` is tagged `@custom:solar-safe` but runs an `unchecked` block
+   ╭▸ ROOT/tests/ui/typeck/solar_safe.sol:LL:CC
+   │
+LL │         unchecked { r = a - 1; }
+   │         ━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: the tag is here
+   ╭▸ ROOT/tests/ui/typeck/solar_safe.sol:LL:CC
+   │
+LL │ /// @custom:solar-safe
+   │      ━━━━━━━━━━━━━━━━━
+   ├ note: it runs this through `ReviewedBase.run` → `SafeOverride._hook`
+   ╰ help: use checked arithmetic, or review it and tag its function `@custom:solar-trusted`
+
+error: `SafeOverride` is tagged `@custom:solar-safe` but runs inline assembly
+   ╭▸ ROOT/tests/ui/typeck/solar_safe.sol:LL:CC
+   │
+LL │         assembly { mstore(0x40, 0) }
+   │         ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: the tag is here
+   ╭▸ ROOT/tests/ui/typeck/solar_safe.sol:LL:CC
+   │
+LL │ /// @custom:solar-safe
+   │      ━━━━━━━━━━━━━━━━━
+   ├ note: it runs this through `ReviewedBase.run` → `SafeOverride._hook`
+   ╰ help: write it without assembly, or review it and tag its function `@custom:solar-trusted`
+
+error: `SafeModifier` is tagged `@custom:solar-safe` but runs inline assembly
+   ╭▸ ROOT/tests/ui/typeck/solar_safe.sol:LL:CC
+   │
+LL │         assembly { mstore(0x40, 0) }
+   │         ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: the tag is here
+   ╭▸ ROOT/tests/ui/typeck/solar_safe.sol:LL:CC
+   │
+LL │ /// @custom:solar-safe
+   │      ━━━━━━━━━━━━━━━━━
+   ├ note: it runs this through `ModifiedBase.f` → `SafeModifier.m`
+   ╰ help: write it without assembly, or review it and tag its function `@custom:solar-trusted`
+
+error: `SafeInit` is tagged `@custom:solar-safe` but runs an `unchecked` block
+   ╭▸ ROOT/tests/ui/typeck/solar_safe.sol:LL:CC
+   │
+LL │         unchecked { x = x - 1; }
+   │         ━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: the tag is here
+   ╭▸ ROOT/tests/ui/typeck/solar_safe.sol:LL:CC
+   │
+LL │ /// @custom:solar-safe
+   │      ━━━━━━━━━━━━━━━━━
+   ├ note: it runs this through `ReviewedInit.constructor` → `SafeInit._init`
+   ╰ help: use checked arithmetic, or review it and tag its function `@custom:solar-trusted`
+
+error: `TwoTags` is tagged `@custom:solar-safe` but runs an `unchecked` block
+   ╭▸ ROOT/tests/ui/typeck/solar_safe.sol:LL:CC
+   │
+LL │         unchecked { return a - 1; }
+   │         ━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: the tag is here
+   ╭▸ ROOT/tests/ui/typeck/solar_safe.sol:LL:CC
+   │
+LL │ /// @custom:solar-safe memory
+   │      ━━━━━━━━━━━━━━━━━
+   ├ note: it runs this through `TwoTags.f`
+   ╰ help: use checked arithmetic, or review it and tag its function `@custom:solar-trusted`
+
+error: aborting due to 22 previous errors
 
