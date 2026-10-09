@@ -1,0 +1,38 @@
+error[3208]: array length cannot be fractional
+   ╭▸ ROOT/tests/ui/typeck/array_length_fractional.sol:LL:CC
+   │
+LL │     uint[-0.5] negativeFraction;
+   ╰╴         ━━━━
+
+error[3208]: array length cannot be fractional
+   ╭▸ ROOT/tests/ui/typeck/array_length_fractional.sol:LL:CC
+   │
+LL │     uint[(0.5)] parenthesized;
+   ╰╴         ━━━━━
+
+error[3208]: array length cannot be fractional
+   ╭▸ ROOT/tests/ui/typeck/array_length_fractional.sol:LL:CC
+   │
+LL │         uint[3.5] a; a;
+   ╰╴             ━━━
+
+error[3208]: array length cannot be fractional
+   ╭▸ ROOT/tests/ui/typeck/array_length_fractional.sol:LL:CC
+   │
+LL │         uint[7 / 3] memory y; y[0];
+   ╰╴             ━━━━━
+
+error[3208]: array length cannot be fractional
+   ╭▸ ROOT/tests/ui/typeck/array_length_fractional.sol:LL:CC
+   │
+LL │         uint[1.5][] memory nested;
+   ╰╴             ━━━
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/array_length_fractional.sol:LL:CC
+   │
+LL │         new uint[2][](0.5);
+   ╰╴                      ━━━ expected `uint256`, found `rational_literal`
+
+error: aborting due to 6 previous errors
+

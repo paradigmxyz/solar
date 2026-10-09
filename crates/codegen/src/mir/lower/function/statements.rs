@@ -332,6 +332,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         match &expr.kind {
             // Names and `new T` have no effects to evaluate.
             ExprKind::Ident(_) | ExprKind::New(_) => Some(()),
+            // Neither does literal arithmetic, whose fractions have no runtime value.
+            _ if expr.is_numeric_literal() => Some(()),
             ExprKind::Call(callee, args) => {
                 let (callee, options) = callee.split_call_options();
                 self.lower_call(expr, callee, *args, options, false).map(drop)

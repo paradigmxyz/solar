@@ -136,6 +136,7 @@ impl<'gcx, W: fmt::Write> TyAbiPrinter<'gcx, W> {
             | TyKind::StringLiteral(..)
             | TyKind::CallOptions(_)
             | TyKind::IntLiteral(..)
+            | TyKind::RationalLiteral
             | TyKind::Tuple(_)
             | TyKind::Mapping(..)
             | TyKind::Super(_)
@@ -268,6 +269,7 @@ impl<'gcx, W: fmt::Write> TySolcPrinter<'gcx, W> {
             TyKind::IntLiteral(_, size, _) => {
                 write!(self.buf, "int_literal[{}]", size.bits())
             }
+            TyKind::RationalLiteral => self.buf.write_str("rational_literal"),
             TyKind::Slice(ty) => {
                 self.print(ty)?;
                 self.buf.write_str(" slice")

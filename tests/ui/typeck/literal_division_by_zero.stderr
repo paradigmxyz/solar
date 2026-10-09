@@ -1,0 +1,59 @@
+error: failed to evaluate constant: attempted to divide by zero
+   ╭▸ ROOT/tests/ui/typeck/literal_division_by_zero.sol:LL:CC
+   │
+LL │     uint[3/0] ids;
+   ╰╴         ━━━ evaluation of constant value failed here
+
+error: failed to evaluate constant: attempted to divide by zero
+   ╭▸ ROOT/tests/ui/typeck/literal_division_by_zero.sol:LL:CC
+   │
+LL │     uint constant c = 0.5 / 0;
+   │                       ─────── evaluation of constant value failed here
+LL │     uint constant d = 0.5 % (0.5 - 0.5);
+LL │     uint[c] lengths;
+   ╰╴         ━
+
+error: failed to evaluate constant: attempted to divide by zero
+   ╭▸ ROOT/tests/ui/typeck/literal_division_by_zero.sol:LL:CC
+   │
+LL │     uint constant a = 1 / 0;
+   ╰╴                      ━━━━━ evaluation of constant value failed here
+
+error: failed to evaluate constant: attempted to divide by zero
+   ╭▸ ROOT/tests/ui/typeck/literal_division_by_zero.sol:LL:CC
+   │
+LL │     uint constant a = 1 / ((1+3)-4);
+   ╰╴                      ━━━━━━━━━━━━━ evaluation of constant value failed here
+
+error: failed to evaluate constant: attempted to divide by zero
+   ╭▸ ROOT/tests/ui/typeck/literal_division_by_zero.sol:LL:CC
+   │
+LL │     uint constant b3 = 1 % 0;
+   ╰╴                       ━━━━━ evaluation of constant value failed here
+
+error: failed to evaluate constant: attempted to divide by zero
+   ╭▸ ROOT/tests/ui/typeck/literal_division_by_zero.sol:LL:CC
+   │
+LL │     uint constant b3 = 1 % (-4+((2)*2));
+   ╰╴                       ━━━━━━━━━━━━━━━━ evaluation of constant value failed here
+
+error: failed to evaluate constant: attempted to divide by zero
+   ╭▸ ROOT/tests/ui/typeck/literal_division_by_zero.sol:LL:CC
+   │
+LL │     uint constant c = 0.5 / 0;
+   ╰╴                      ━━━━━━━ evaluation of constant value failed here
+
+error: failed to evaluate constant: attempted to divide by zero
+   ╭▸ ROOT/tests/ui/typeck/literal_division_by_zero.sol:LL:CC
+   │
+LL │     uint constant d = 0.5 % (0.5 - 0.5);
+   ╰╴                      ━━━━━━━━━━━━━━━━━ evaluation of constant value failed here
+
+error: failed to evaluate constant: attempted to divide by zero
+   ╭▸ ROOT/tests/ui/typeck/literal_division_by_zero.sol:LL:CC
+   │
+LL │         return (1 / 0) + 1;
+   ╰╴                ━━━━━ evaluation of constant value failed here
+
+error: aborting due to 9 previous errors
+

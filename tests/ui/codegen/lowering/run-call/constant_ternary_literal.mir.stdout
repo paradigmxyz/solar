@@ -1,0 +1,30 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/constant_ternary_literal.sol:ConstantTernaryLiteral ===
+@module ConstantTernaryLiteral
+fn @aligned() -> i256 [selector=0x0d60ac76, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    ret 64
+}
+
+fn @constantValue() -> i256 [selector=0xdc7e9270, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    ret 6
+}
+
+fn @widened() -> i256 [selector=0xd3eaa7aa, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    ret 600
+}
+
+fn @overflow() -> i256 [selector=0x004264c3, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    jumpi true, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    jump bb3
+  bb3:
+    v0 = phi [bb1: i8 200], [bb2: i8 1]
+    v1 = checked_mul u8, v0, i8 2
+    v2 = zext i8 v1 to i256
+    ret v2
+}

@@ -16,29 +16,35 @@ error: failed to evaluate constant: unsupported literal
 LL │ contract HexStringLiteral layout at hex"616263" {}
    ╰╴                                    ━━━━━━━━━━━ evaluation of constant value failed here
 
-error: failed to evaluate constant: unsupported literal
+error[1763]: base slot of storage layout must evaluate to an integer
+   ╭▸ ROOT/tests/ui/typeck/storage_layout_base_slot_unsupported.sol:LL:CC
+   │
+LL │ contract FractionalDivision layout at 3/2 {}
+   ╰╴                                      ━━━
+
+error[1763]: base slot of storage layout must evaluate to an integer
    ╭▸ ROOT/tests/ui/typeck/storage_layout_base_slot_unsupported.sol:LL:CC
    │
 LL │ contract FractionalNumber layout at 4.2 {}
-   ╰╴                                    ━━━ evaluation of constant value failed here
+   ╰╴                                    ━━━
 
-error: failed to evaluate constant: unsupported literal
+error[1763]: base slot of storage layout must evaluate to an integer
    ╭▸ ROOT/tests/ui/typeck/storage_layout_base_slot_unsupported.sol:LL:CC
    │
 LL │ contract LeadingFractionalNumber layout at .1 {}
-   ╰╴                                           ━━ evaluation of constant value failed here
+   ╰╴                                           ━━
 
-error: failed to evaluate constant: unsupported literal
+error[1763]: base slot of storage layout must evaluate to an integer
    ╭▸ ROOT/tests/ui/typeck/storage_layout_base_slot_unsupported.sol:LL:CC
    │
 LL │ contract NegativeExponent layout at 42e-10 {}
-   ╰╴                                    ━━━━━━ evaluation of constant value failed here
+   ╰╴                                    ━━━━━━
 
-error: failed to evaluate constant: unsupported literal
+error[1763]: base slot of storage layout must evaluate to an integer
    ╭▸ ROOT/tests/ui/typeck/storage_layout_base_slot_unsupported.sol:LL:CC
    │
 LL │ contract UnderscoredNegativeExponent layout at 1_7e-10 {}
-   ╰╴                                               ━━━━━━━ evaluation of constant value failed here
+   ╰╴                                               ━━━━━━━
 
-error: aborting due to 7 previous errors
+error: aborting due to 8 previous errors
 

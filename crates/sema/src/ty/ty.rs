@@ -438,6 +438,7 @@ impl<'gcx> Ty<'gcx> {
             TyKind::Elementary(_)
             | TyKind::StringLiteral(..)
             | TyKind::IntLiteral(..)
+            | TyKind::RationalLiteral
             | TyKind::Contract(_)
             | TyKind::Super(_)
             | TyKind::Fn(_)
@@ -504,6 +505,7 @@ impl<'gcx> Ty<'gcx> {
             TyKind::Elementary(_)
             | TyKind::StringLiteral(..)
             | TyKind::IntLiteral(..)
+            | TyKind::RationalLiteral
             | TyKind::Contract(_)
             | TyKind::Super(_)
             | TyKind::Fn(_)
@@ -1155,7 +1157,8 @@ impl<'gcx> Ty<'gcx> {
     #[doc(alias = "mobile_type")]
     pub fn mobile(self, gcx: Gcx<'gcx>) -> Option<Self> {
         Some(match self.kind {
-            TyKind::CallOptions(_) => return None,
+            // solc gives fractions a fixed-point mobile type, which we do not support.
+            TyKind::CallOptions(_) | TyKind::RationalLiteral => return None,
             TyKind::IntLiteral(false, size, _) => gcx.types.uint_(size),
             TyKind::IntLiteral(true, size, _) => gcx.types.int_(size),
             TyKind::StringLiteral(..) => gcx.types.string_ref.memory,
@@ -1255,9 +1258,14 @@ pub enum TyKind<'gcx> {
     /// - only string literals with `len <= N` can coerce to `bytesN`
     StringLiteral(bool, usize),
 
-    /// Any integer or fixed-point number literal.
+    /// Any integer number literal.
     /// Contains `(negative, minimum bits, compatible fixed-bytes size)`.
     IntLiteral(bool, TypeSize, Option<TypeSize>),
+
+    /// Any fractional number literal, such as `0.5` or `1 / 3`.
+    ///
+    /// Fractional values only exist in literal arithmetic, and do not convert to any integer type.
+    RationalLiteral,
 
     /// An ephemeral function value with call options.
     CallOptions(Ty<'gcx>),
@@ -1472,6 +1480,7 @@ impl TyFlags {
             TyKind::Elementary(_)
             | TyKind::StringLiteral(..)
             | TyKind::IntLiteral(..)
+            | TyKind::RationalLiteral
             | TyKind::Contract(_)
             | TyKind::Super(_)
             | TyKind::Enum(_)

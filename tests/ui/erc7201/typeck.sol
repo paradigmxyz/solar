@@ -12,6 +12,7 @@ string constant FILE_LEVEL_STR = "test.file";
 bytes constant BYTES_ARG = "abcdef";
 
 contract LayoutAtErc7201 layout at erc7201("storageBase") {}
+contract LayoutAtErc7201Division layout at erc7201("storageBase") / 3 {}
 
 contract ConstVarAssignment {
     uint constant x = erc7201("abc");

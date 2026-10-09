@@ -185,6 +185,25 @@ storage.
 Coverage: `tests/ui/typeck/storage_oversized_copy.sol` and
 `tests/ui/codegen/lowering/run-call/full_width_storage_layout.sol`.
 
+### TYPECK-007: Comparisons of fractional literals
+
+Status: intentional.
+
+Difference: solc compares fractional literals through their fixed-point mobile
+types. It accepts `0.3 < 0.5` and `1000.5 < 1`, rejects `0.5 < 0.25` because
+the two mobile types have no common type, and then fails code generation for
+every comparison it accepts ("Not yet implemented - FixedPointType." or, through
+the IR pipeline, "Fixed point types not implemented."). Solar accepts every
+comparison of two fractions and evaluates it at compile time, and rejects every
+comparison of a fraction with an integer.
+
+Rationale: we do not support fixed-point types, and literal arithmetic is
+exact, so a comparison of two fractions is a constant.
+
+Coverage: `tests/ui/typeck/rational_literal_operators.sol`,
+`tests/ui/codegen/lowering/run-call/rational_literal_arithmetic.sol`, and
+`tests/ui/codegen/lowering/run-call/constant_integer_value.sol`.
+
 ## Contract-Level Checks
 
 No intentional divergences documented yet.
@@ -235,27 +254,6 @@ No intentional divergences documented yet.
   and EIP-170 parity for the rest of the corpus.
 - Coverage: `cargo tq foundry-external seaport`; the exact exemptions live in
   `SEAPORT_CODE_SIZE_SKIPS` in `tools/tester/src/foundry/external.rs`.
-
-### CODEGEN-003: Integer literal expressions lose arbitrary precision during lowering
-
-- ID: CODEGEN-003
-- Status: intentional
-- Difference: `solc` keeps a number-literal expression at arbitrary precision
-  until conversion to a non-literal type. `solar`'s type checker computes the
-  same literal-only expression with `BigInt` and retains an `IntLiteral` type,
-  but function lowering ignores that computed value. It recursively emits
-  `U256` EVM operations for its leaves and operators. An intermediate that
-  exceeds an EVM word can therefore wrap or, when given a checked integer type
-  by lowering, revert with `Panic(0x11)` before a later literal operation
-  reduces it. `(2**255 + 2**255) % 7` is one reproducer: solc returns `2`;
-  solar reverts. The divergence also covers literal-only expressions with
-  oversized intermediates followed by division, comparison, subtraction,
-  shifts, or another operation that makes the final result representable.
-- Rationale: this codegen path intentionally lowers function-body operations
-  as EVM-width operations, even when type checking has evaluated an all-literal
-  tree. We do not materialize the type checker's literal result here.
-- Coverage: `symbolic-audit/literal_addmod_fold.sol`; upstream source
-  `testdata/solidity/test/libsolidity/semanticTests/arithmetics/addmod_mulmod.sol`.
 
 ### CODEGEN-004: Public array getters return a panic instead of an empty revert
 

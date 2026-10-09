@@ -5,7 +5,7 @@ uint constant rec2 = rec1;
 
 uint constant bigLiteral = 115792089237316195423570985008687907853269984665640564039457584007913129639935;
 
-uint constant fails = 0 / 0;
+uint constant fails = 0 / 0; //~ ERROR: failed to evaluate constant: attempted to divide by zero
 
 contract C {
     uint constant zero = x - x;
@@ -16,8 +16,9 @@ contract C {
     uint[bigLiteral] public big;
     uint[bigLiteral + 1] public tooBig1; //~ ERROR: failed to evaluate constant: arithmetic overflow
 
-    int constant signedTwo = 7 / 3;
-    int constant signedNegTwo = (-7) / 3;
+    int constant SEVEN = 7;
+    int constant signedTwo = SEVEN / 3;
+    int constant signedNegTwo = (-SEVEN) / 3;
 
     int8 constant maxInt8 = 127;
     int8 constant minInt8 = -128;
@@ -63,4 +64,12 @@ contract C {
     function m(uint[stateVarPublic] memory) public {} //~ ERROR: failed to evaluate constant: only constant variables are allowed
 
     function tern(uint[(zero > 0) ? 1 : 0] memory) public {} //~ ERROR: array length must be greater than zero
+
+    function zeroDivision() external pure returns (uint) {
+        return 1 / 0; //~ ERROR: failed to evaluate constant: attempted to divide by zero
+    }
+    uint fractional = 0.5; //~ ERROR: mismatched types
+    uint quotient = 7 / 3; //~ ERROR: mismatched types
+    uint shift = 1 << 0.5; //~ ERROR: cannot apply builtin operator
+    uint power = 2 ** 0.5; //~ ERROR: cannot apply builtin operator
 }

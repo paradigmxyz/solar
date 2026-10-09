@@ -1834,20 +1834,22 @@ impl<'hir> Expr<'hir> {
         ControlFlow::Continue(())
     }
 
-    /// Returns `true` if this expression is integer literal arithmetic, which is evaluated exactly
+    /// Returns `true` if this expression is number literal arithmetic, which is evaluated exactly
     /// at compile time.
-    pub fn is_int_literal(&self) -> bool {
+    pub fn is_numeric_literal(&self) -> bool {
         match &self.kind {
-            ExprKind::Lit(lit) => matches!(lit.kind, ast::LitKind::Number(_)),
+            ExprKind::Lit(lit) => {
+                matches!(lit.kind, ast::LitKind::Number(_) | ast::LitKind::Rational(_))
+            }
             ExprKind::Unary(op, inner) if matches!(op.kind, UnOpKind::Neg | UnOpKind::BitNot) => {
-                inner.is_int_literal()
+                inner.is_numeric_literal()
             }
             ExprKind::Binary(lhs, op, rhs)
                 if !op.kind.is_cmp() && !matches!(op.kind, BinOpKind::Or | BinOpKind::And) =>
             {
-                lhs.is_int_literal() && rhs.is_int_literal()
+                lhs.is_numeric_literal() && rhs.is_numeric_literal()
             }
-            ExprKind::Tuple([Some(inner)]) => inner.is_int_literal(),
+            ExprKind::Tuple([Some(inner)]) => inner.is_numeric_literal(),
             _ => false,
         }
     }

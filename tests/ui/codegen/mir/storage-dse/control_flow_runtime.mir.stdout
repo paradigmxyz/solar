@@ -62,19 +62,18 @@ fn @changingSlot() -> i256 [selector=0xf8e62371, abi_params=[], abi_returns=[wor
     jump bb1
   bb1:
     v0 = phi [bb0: 0], [bb3: v0]
-    v1 = phi [bb0: 0], [bb3: v8]
-    v2 = ne 1, 0
-    jumpi v2, bb4, bb5
+    v1 = phi [bb0: 0], [bb3: v7]
+    jumpi true, bb4, bb5
   bb5:
     jump bb2
   bb4:
     sstore v1, 1 !metadata(storage=symbolic(v1))
-    v3 = lt v1, 2
-    v4 = zext i1 v3 to i256
-    v5 = eq v4, 0
-    v6 = zext i1 v5 to i256
-    v7 = ne v6, 0
-    jumpi v7, bb7, bb8
+    v2 = lt v1, 2
+    v3 = zext i1 v2 to i256
+    v4 = eq v3, 0
+    v5 = zext i1 v4 to i256
+    v6 = ne v5, 0
+    jumpi v6, bb7, bb8
   bb8:
     jump bb9
   bb9:
@@ -83,13 +82,13 @@ fn @changingSlot() -> i256 [selector=0xf8e62371, abi_params=[], abi_returns=[wor
   bb6:
     jump bb3
   bb3:
-    v8 = add v1, 1
+    v7 = add v1, 1
     jump bb1
   bb7:
     jump bb2
   bb2:
-    v9 = sload 0 !metadata(storage=slot(0))
-    ret v9
+    v8 = sload 0 !metadata(storage=slot(0))
+    ret v8
 }
 
 fn @observer() -> i256 [selector=0xeb70e498, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {

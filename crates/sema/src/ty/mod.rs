@@ -354,6 +354,7 @@ pub struct GlobalCtxt<'gcx> {
     interner: Interner<'gcx>,
     cache: Cache<'gcx>,
     pub(crate) eval_cache: FxOnceMap<hir::ExprId, Box<crate::eval::EvalResult>>,
+    pub(crate) eval_errors: FxOnceMap<hir::ExprId, ErrorGuaranteed>,
     pub(crate) override_index: OnceLock<crate::typeck::override_checker::OverrideIndex<'gcx>>,
 }
 
@@ -390,6 +391,7 @@ impl<'gcx> GlobalCtxt<'gcx> {
             interner,
             cache: Cache::default(),
             eval_cache: FxOnceMap::default(),
+            eval_errors: FxOnceMap::default(),
             override_index: OnceLock::new(),
         }
     }
@@ -1138,9 +1140,7 @@ impl<'gcx> Gcx<'gcx> {
                 if !number_literal_underscore_errors(lit.symbol.as_str()).is_empty() {
                     self.mk_ty_misc_err()
                 } else {
-                    self.mk_ty_err(
-                        self.dcx().emit_err(lit.span, "rational literals are not supported"),
-                    )
+                    self.mk_ty(TyKind::RationalLiteral)
                 }
             }
             solar_ast::LitKind::Address(_) => self.types.address,

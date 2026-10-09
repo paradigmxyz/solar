@@ -1,0 +1,82 @@
+error: failed to evaluate constant: arithmetic overflow
+   ╭▸ ROOT/tests/ui/typeck/rational_literal_precision.sol:LL:CC
+   │
+LL │     uint[(1 << 4096) >> 4095] shiftTooLarge;
+   │          ┬──────────━━━━━━━━
+   │          │
+   ╰╴         evaluation of constant value failed here
+
+error: failed to evaluate constant: arithmetic overflow
+   ╭▸ ROOT/tests/ui/typeck/rational_literal_precision.sol:LL:CC
+   │
+LL │     uint[2 ** 2049 / 2 ** 2048] powTooLarge;
+   │          ┬────────━━━━━━━━━━━━
+   │          │
+   ╰╴         evaluation of constant value failed here
+
+error: failed to evaluate constant: arithmetic overflow
+   ╭▸ ROOT/tests/ui/typeck/rational_literal_precision.sol:LL:CC
+   │
+LL │     uint[0.5 ** 2049 * 2 ** 2049] fractionPowTooLarge;
+   │          ┬──────────━━━━━━━━━━━━
+   │          │
+   ╰╴         evaluation of constant value failed here
+
+error: failed to evaluate constant: arithmetic overflow
+   ╭▸ ROOT/tests/ui/typeck/rational_literal_precision.sol:LL:CC
+   │
+LL │     uint[1 / 2 ** 4095 * 2 ** 4095] powDenominatorTooLarge;
+   │          ━━━━┬────────━━━━━━━━━━━━
+   │              │
+   ╰╴             evaluation of constant value failed here
+
+error: failed to evaluate constant: arithmetic overflow
+   ╭▸ ROOT/tests/ui/typeck/rational_literal_precision.sol:LL:CC
+   │
+LL │     uint[2 ** 4294967296] exponentTooLarge;
+   ╰╴         ━━━━━━━━━━━━━━━ evaluation of constant value failed here
+
+error: failed to evaluate constant: arithmetic overflow
+   ╭▸ ROOT/tests/ui/typeck/rational_literal_precision.sol:LL:CC
+   │
+LL │     uint[1 << 4294967296] shiftAmountTooLarge;
+   ╰╴         ━━━━━━━━━━━━━━━ evaluation of constant value failed here
+
+error: failed to evaluate constant: arithmetic overflow
+   ╭▸ ROOT/tests/ui/typeck/rational_literal_precision.sol:LL:CC
+   │
+LL │     uint[1 >> 4294967296] rightShiftAmountTooLarge;
+   ╰╴         ━━━━━━━━━━━━━━━ evaluation of constant value failed here
+
+error: failed to evaluate constant: arithmetic overflow
+   ╭▸ ROOT/tests/ui/typeck/rational_literal_precision.sol:LL:CC
+   │
+LL │     uint[0 << 4294967295 + 1] zeroShiftAmountTooLarge;
+   ╰╴         ━━━━━━━━━━━━━━━━━━━ evaluation of constant value failed here
+
+error: failed to evaluate constant: arithmetic overflow
+   ╭▸ ROOT/tests/ui/typeck/rational_literal_precision.sol:LL:CC
+   │
+LL │         a = 1/(2<<4094)/(2<<4094);
+   ╰╴            ━━━━━━━━━━━━━━━━━━━━━ evaluation of constant value failed here
+
+error: failed to evaluate constant: arithmetic overflow
+   ╭▸ ROOT/tests/ui/typeck/rational_literal_precision.sol:LL:CC
+   │
+LL │         a = (1<<4095)*(1<<4095);
+   ╰╴            ━━━━━━━━━━━━━━━━━━━ evaluation of constant value failed here
+
+error: failed to evaluate constant: arithmetic overflow
+   ╭▸ ROOT/tests/ui/typeck/rational_literal_precision.sol:LL:CC
+   │
+LL │     uint[0.5 ** 2049 * 2 ** 2049] fractionPowTooLarge;
+   ╰╴                       ━━━━━━━━━ evaluation of constant value failed here
+
+error: failed to evaluate constant: arithmetic overflow
+   ╭▸ ROOT/tests/ui/typeck/rational_literal_precision.sol:LL:CC
+   │
+LL │     uint[1 / 2 ** 4095 * 2 ** 4095] powDenominatorTooLarge;
+   ╰╴                         ━━━━━━━━━ evaluation of constant value failed here
+
+error: aborting due to 12 previous errors
+

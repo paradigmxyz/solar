@@ -1,0 +1,15 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/negative_fractional_mod.sol:NegativeFractionalMod ===
+@module NegativeFractionalMod
+@types
+  struct0: {i256, i256}
+
+fn @f() -> struct0 [selector=0x26121ff0, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[i256, i256]] {
+  bb0:
+    v0 = checked_sub i256, 0, 5
+    v1 = checked_rem i256, v0, 3
+    v2 = checked_sub i256, 0, v1
+    v3 = checked_mul i256, v2, 5
+    v4 = insert_value struct0, undef struct0, 0, 11
+    v5 = insert_value struct0, v4, 1, v3
+    ret v5
+}
