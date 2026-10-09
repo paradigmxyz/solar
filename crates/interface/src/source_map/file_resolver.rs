@@ -29,6 +29,8 @@ pub enum ResolveError {
     NotFound(PathBuf),
     #[error("multiple files match {}: {}", .0.display(), .1.iter().map(|path| path.display()).format(", "))]
     MultipleMatches(PathBuf, Vec<PathBuf>),
+    #[error("{} is outside of the allowed directories", .0.display())]
+    NotAllowed(PathBuf),
 }
 
 /// Performs file resolution by applying import paths and mappings.
@@ -50,6 +52,10 @@ pub struct FileResolver<'a> {
     env_current_dir: OnceLock<Option<PathBuf>>,
     /// The start of the last source loaded before the first import that searches the disk.
     last_input: OnceLock<Option<BytePos>>,
+    /// The paths that imports can load files from, in addition to the default ones, if restricted.
+    allowed_paths: Option<Vec<PathBuf>>,
+    /// All the directories that imports can load files from, with symbolic links resolved.
+    allowed_dirs: OnceLock<Vec<PathBuf>>,
 }
 
 impl<'a> FileResolver<'a> {
@@ -64,6 +70,8 @@ impl<'a> FileResolver<'a> {
             custom_current_dir: None,
             env_current_dir: OnceLock::new(),
             last_input: OnceLock::new(),
+            allowed_paths: None,
+            allowed_dirs: OnceLock::new(),
         }
     }
 
@@ -80,6 +88,7 @@ impl<'a> FileResolver<'a> {
         self.add_import_remappings(opts.import_remappings.iter().cloned());
         if let Some(base_path) = &opts.base_path {
             self.base_path = Some(self.absolute(base_path));
+            self.allowed_dirs.take();
         }
     }
 
@@ -91,6 +100,8 @@ impl<'a> FileResolver<'a> {
         self.custom_current_dir = None;
         self.env_current_dir.take();
         self.last_input.take();
+        self.allowed_paths = None;
+        self.allowed_dirs.take();
     }
 
     /// Sets the current directory.
@@ -104,6 +115,7 @@ impl<'a> FileResolver<'a> {
             panic!("current_dir must be an absolute path");
         }
         self.custom_current_dir = Some(current_dir.to_path_buf());
+        self.allowed_dirs.take();
     }
 
     /// Sets the base path.
@@ -117,6 +129,7 @@ impl<'a> FileResolver<'a> {
             panic!("base_path must be an absolute path");
         }
         self.base_path = Some(base_path.to_path_buf());
+        self.allowed_dirs.take();
     }
 
     /// Adds include paths.
@@ -133,17 +146,60 @@ impl<'a> FileResolver<'a> {
     /// Relative paths are relative to the current directory.
     pub fn add_include_path(&mut self, path: PathBuf) {
         let path = self.absolute(&path);
-        self.include_paths.push(path)
+        self.include_paths.push(path);
+        self.allowed_dirs.take();
+    }
+
+    /// Only lets imports load files inside `paths`, the base path, the include paths and the
+    /// directories of the remapping targets, like solc's allowed paths. Paths that don't exist are
+    /// ignored.
+    pub fn set_allowed_paths(&mut self, paths: impl IntoIterator<Item = PathBuf>) {
+        self.allowed_paths = Some(paths.into_iter().collect());
+        self.allowed_dirs.take();
+    }
+
+    /// Returns the directories that imports can load files from, if restricted.
+    fn allowed_dirs(&self) -> Option<&[PathBuf]> {
+        let paths = self.allowed_paths.as_ref()?;
+        Some(self.allowed_dirs.get_or_init(|| {
+            // Remapping targets that name a directory, and the directories of the others.
+            let targets = self.remappings.iter().filter(|r| !r.path.is_empty()).map(|r| {
+                let target = sanitize_path(&r.path);
+                let path = Path::new(&*target);
+                let is_dir =
+                    target.ends_with('/') || target.ends_with("/.") || path.ends_with("..");
+                if is_dir { path } else { path.parent().unwrap_or(Path::new("")) }.to_path_buf()
+            });
+            let mut paths = paths
+                .iter()
+                .cloned()
+                .chain(self.roots().map(Path::to_path_buf))
+                .chain(targets)
+                .collect_vec();
+            paths.sort();
+            paths.dedup();
+            let mut dirs = paths
+                .iter()
+                .filter_map(|path| self.canonicalize(path).ok())
+                .map(|dir| without_verbatim_prefix(&dir).into_owned())
+                .collect_vec();
+            // Keep only the outermost directories.
+            dirs.sort();
+            dirs.dedup_by(|dir, outer| dir.starts_with(outer));
+            dirs
+        }))
     }
 
     /// Adds import remappings.
     pub fn add_import_remappings(&mut self, remappings: impl IntoIterator<Item = ImportRemapping>) {
         self.remappings.extend(remappings);
+        self.allowed_dirs.take();
     }
 
     /// Adds an import remapping.
     pub fn add_import_remapping(&mut self, remapping: ImportRemapping) {
         self.remappings.push(remapping);
+        self.allowed_dirs.take();
     }
 
     /// Returns the source map.
@@ -283,10 +339,11 @@ impl<'a> FileResolver<'a> {
             }
         }
 
+        let allowed_dirs = self.allowed_dirs();
         let mut found = SmallVec::<[_; 1]>::new();
         for candidate in self.search_paths(&unit) {
             // Quick deduplication when include paths are duplicated.
-            if let Some(file) = self.load(&candidate)?
+            if let Some(file) = self.load(&candidate, allowed_dirs)?
                 && !found.iter().any(|f| Arc::ptr_eq(f, &file))
             {
                 found.push(file);
@@ -470,11 +527,16 @@ impl<'a> FileResolver<'a> {
         if let Some(file) = self.source_map().get_file(path) {
             return Ok(Some(file));
         }
-        self.load(&self.make_absolute(path))
+        // Like solc, don't restrict input files to the allowed paths.
+        self.load(&self.make_absolute(path), None)
     }
 
-    /// Loads the file at `path`, named by its normalized path.
-    fn load(&self, path: &Path) -> Result<Option<Arc<SourceFile>>, ResolveError> {
+    /// Loads the file at `path`, named by its normalized path, if it is inside `allowed_dirs`.
+    fn load(
+        &self,
+        path: &Path,
+        allowed_dirs: Option<&[PathBuf]>,
+    ) -> Result<Option<Arc<SourceFile>>, ResolveError> {
         let path = generic_path(lexical_normalize(path));
         // A file inside the base path may be loaded under its relative name, like the ones a build
         // tool preloads.
@@ -490,6 +552,12 @@ impl<'a> FileResolver<'a> {
             trace!(path=%path.display(), "not found");
             return Ok(None);
         };
+        if let Some(allowed_dirs) = allowed_dirs
+            && let plain = without_verbatim_prefix(&canonical)
+            && !allowed_dirs.iter().any(|dir| plain.starts_with(dir))
+        {
+            return Err(ResolveError::NotAllowed(path));
+        }
         self.source_map()
             .load_file_with_name(path.into(), &canonical)
             .map(Some)
@@ -656,6 +724,23 @@ fn lexical_normalize(path: &Path) -> PathBuf {
         }
     }
     normalized
+}
+
+/// Replaces a verbatim `\\?\` Windows prefix with the plain prefix, which canonical paths keep when
+/// they are too long, so that they compare equal to other canonical paths.
+fn without_verbatim_prefix(path: &Path) -> Cow<'_, Path> {
+    let mut components = path.components();
+    let Some(Component::Prefix(prefix)) = components.next() else { return Cow::Borrowed(path) };
+    let prefix = match prefix.kind() {
+        Prefix::VerbatimDisk(drive) => format!("{}:", char::from(drive)),
+        Prefix::VerbatimUNC(server, share) => {
+            format!(r"\\{}\{}", server.to_string_lossy(), share.to_string_lossy())
+        }
+        _ => return Cow::Borrowed(path),
+    };
+    let mut plain = PathBuf::from(prefix);
+    plain.push(components.as_path());
+    Cow::Owned(plain)
 }
 
 /// Normalizes a source unit name like [`lexical_normalize`], with `/` separators, keeping the `//`
