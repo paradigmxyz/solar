@@ -36,18 +36,17 @@ impl FunctionLowerer<'_, '_> {
         operands: &[ValueId],
     ) -> Option<ValueId> {
         let [subject, needle, replacement] = *operands else { return None };
-        let helper =
-            self.lazy_helper(Symbol::intern("core_string_replace"), |this, function| {
-                function.attributes.no_inline = true;
-                let mut lowerer = FunctionLowerer::new(this.cx.reborrow(), function);
-                let ty = MirType::MemPtr;
-                let subject = lowerer.builder.add_param(ty);
-                let needle = lowerer.builder.add_param(ty);
-                let replacement = lowerer.builder.add_param(ty);
-                lowerer.builder.set_return_type(ty);
-                lowerer.lower_core_string_replace(subject, needle, replacement);
-                Some(())
-            })?;
+        let helper = self.lazy_helper(sym::core_string_replace, |this, function| {
+            function.attributes.no_inline = true;
+            let mut lowerer = FunctionLowerer::new(this.cx.reborrow(), function);
+            let ty = MirType::MemPtr;
+            let subject = lowerer.builder.add_param(ty);
+            let needle = lowerer.builder.add_param(ty);
+            let replacement = lowerer.builder.add_param(ty);
+            lowerer.builder.set_return_type(ty);
+            lowerer.lower_core_string_replace(subject, needle, replacement);
+            Some(())
+        })?;
         Some(self.builder.icall(helper, vec![subject, needle, replacement], MirType::MemPtr))
     }
 
@@ -1030,7 +1029,7 @@ impl FunctionLowerer<'_, '_> {
     }
 
     fn ensure_core_string_indices_helper(&mut self) -> Option<FunctionId> {
-        self.lazy_helper(Symbol::intern("core_string_search"), |this, function| {
+        self.lazy_helper(sym::core_string_search, |this, function| {
             let mut lowerer = FunctionLowerer::new(this.cx.reborrow(), function);
             let bytes = MirType::MemPtr;
             let subject = lowerer.builder.add_param(bytes);

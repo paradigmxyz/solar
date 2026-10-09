@@ -4,7 +4,11 @@ use crate::{
 };
 use solar_ast as ast;
 use solar_data_structures::{BumpExt, map::FxHashSet, smallvec::SmallVec};
-use solar_interface::{Ident, Span, Symbol, diagnostics::DiagCtxt, error_code, kw, sym};
+use solar_interface::{
+    Ident, Span, Symbol,
+    diagnostics::{DiagCtxt, ErrorGuaranteed},
+    error_code, kw, sym,
+};
 use std::ops::Range;
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -328,7 +332,7 @@ impl<'gcx> Resolver<'gcx> {
                     | NatSpecKind::Custom { .. }
                     | NatSpecKind::Internal { .. } => {
                         // `solar-terminates`, `solar-view` naming parameters, `solar-safe` and
-                        // `solar-trusted` are the Solar tags of a declaration.
+                        // `solar-trusted` are the `solar-` tags of a declaration.
                         if let NatSpecKind::Custom { name } = natspec.kind
                             && let Some(tag) = SolarTag::from_custom(name.name)
                             && !item_tag_applies(self.gcx, tag, item_id)
@@ -862,8 +866,8 @@ impl SolarTag {
     }
 }
 
-/// Whether the Solar tag `tag` can document the item `item`: `@custom:solar-safe` a contract or a
-/// library, `@custom:solar-trusted` one of those or a function or modifier with a body, and the
+/// Whether the `solar-` tag `tag` can document the item `item`: `@custom:solar-safe` a contract or
+/// a library, `@custom:solar-trusted` one of those or a function or modifier with a body, and the
 /// other declaration tags what [`declaration_tag_applies`] accepts.
 fn item_tag_applies(gcx: Gcx<'_>, tag: SolarTag, item: hir::ItemId) -> bool {
     let code_contract = |id| gcx.hir.contract(id).kind != hir::ContractKind::Interface;
@@ -886,8 +890,13 @@ pub(crate) fn declaration_tag_applies(gcx: Gcx<'_>, item: hir::ItemId) -> bool {
         && function.body.is_some()
 }
 
-/// Reports a Solar tag that documents something it does not apply to, or that is unknown.
-pub(crate) fn report_misplaced_solar_tag(dcx: &DiagCtxt, tag: SolarTag, name: Symbol, span: Span) {
+/// Reports a `solar-` tag that documents something it does not apply to, or that is unknown.
+pub(crate) fn report_misplaced_solar_tag(
+    dcx: &DiagCtxt,
+    tag: SolarTag,
+    name: Symbol,
+    span: Span,
+) -> ErrorGuaranteed {
     match tag {
         SolarTag::View => dcx
             .err(
@@ -924,7 +933,7 @@ pub(crate) fn report_misplaced_solar_tag(dcx: &DiagCtxt, tag: SolarTag, name: Sy
             .help("put it on the reviewed code a `@custom:solar-safe` contract runs")
             .emit(),
         SolarTag::Unknown => dcx
-            .err(format!("unknown Solar tag `@custom:{name}`"))
+            .err(format!("unknown tag `@custom:{name}`"))
             .span(span)
             .note("`@custom:solar-` tags are requirements this compiler checks")
             .help(
@@ -932,5 +941,5 @@ pub(crate) fn report_misplaced_solar_tag(dcx: &DiagCtxt, tag: SolarTag, name: Sy
                  `@custom:solar-terminates`, `@custom:solar-safe`, and `@custom:solar-trusted`",
             )
             .emit(),
-    };
+    }
 }

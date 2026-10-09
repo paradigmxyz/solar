@@ -1,8 +1,8 @@
 //! Checks of the `@custom:solar-*` tags that need types.
 //!
-//! A Solar tag states a requirement this compiler checks and relies on, while other compilers read
-//! it as documentation. Each check here rejects a program whose tagged code breaks its tag, so a
-//! program this compiler accepts behaves the same under a compiler that ignores the tags.
+//! A `solar-` tag states a requirement this compiler checks and relies on, while other compilers
+//! read it as documentation. Each check here rejects a program whose tagged code breaks its tag, so
+//! a program this compiler accepts behaves the same under a compiler that ignores the tags.
 
 use crate::{
     builtins::Builtin,

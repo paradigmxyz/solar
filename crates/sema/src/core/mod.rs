@@ -307,7 +307,7 @@ fn intrinsics_of_module(path: &str) -> Option<&'static FxHashMap<Symbol, CoreInt
             // `decode` is library code.
             FxHashMap::from_iter([
                 (sym::encode, CoreIntrinsic::HexEncode),
-                (Symbol::intern("encodePrefixed"), CoreIntrinsic::HexEncodePrefixed),
+                (sym::encodePrefixed, CoreIntrinsic::HexEncodePrefixed),
             ])
         })),
         "solar:core/codecs/Base64.sol" => Some(BASE64.get_or_init(|| {
@@ -351,9 +351,9 @@ fn intrinsics_of_module(path: &str) -> Option<&'static FxHashMap<Symbol, CoreInt
         "solar:core/WordArrays.sol" => Some(WORD_ARRAYS.get_or_init(|| {
             FxHashMap::from_iter([
                 (sym::groupSum, CoreIntrinsic::ArrayGroupSum),
-                (Symbol::intern("hasDuplicate"), CoreIntrinsic::ArrayHasDuplicate),
-                (Symbol::intern("sort"), CoreIntrinsic::ArraySort),
-                (Symbol::intern("uniquifySorted"), CoreIntrinsic::ArrayUniquifySorted),
+                (sym::hasDuplicate, CoreIntrinsic::ArrayHasDuplicate),
+                (sym::sort, CoreIntrinsic::ArraySort),
+                (sym::uniquifySorted, CoreIntrinsic::ArrayUniquifySorted),
                 (sym::union, CoreIntrinsic::ArrayUnion),
                 (sym::intersection, CoreIntrinsic::ArrayIntersection),
                 (sym::difference, CoreIntrinsic::ArrayDifference),
@@ -362,9 +362,9 @@ fn intrinsics_of_module(path: &str) -> Option<&'static FxHashMap<Symbol, CoreInt
         })),
         "solar:core/Strings.sol" => Some(STRINGS.get_or_init(|| {
             FxHashMap::from_iter([
-                (Symbol::intern("replace"), CoreIntrinsic::StringReplace),
-                (Symbol::intern("indicesOf"), CoreIntrinsic::StringIndicesOf),
-                (Symbol::intern("split"), CoreIntrinsic::StringSplit),
+                (sym::replace, CoreIntrinsic::StringReplace),
+                (sym::indicesOf, CoreIntrinsic::StringIndicesOf),
+                (sym::split, CoreIntrinsic::StringSplit),
                 (sym::indexOf, CoreIntrinsic::StringIndexOf),
                 (sym::lastIndexOf, CoreIntrinsic::StringLastIndexOf),
                 (sym::runeCount, CoreIntrinsic::StringRuneCount),
@@ -375,15 +375,15 @@ fn intrinsics_of_module(path: &str) -> Option<&'static FxHashMap<Symbol, CoreInt
                 // Both arities share a name; the lowering reads the operand count.
                 (sym::escapeJSON, CoreIntrinsic::StringEscapeJSON),
                 (sym::encodeURIComponent, CoreIntrinsic::StringEncodeURIComponent),
-                (Symbol::intern("toMinimalHexStringNoPrefix"), CoreIntrinsic::StringMinimalHex),
-                (Symbol::intern("toMinimalHexString"), CoreIntrinsic::StringMinimalHexPrefixed),
+                (sym::toMinimalHexStringNoPrefix, CoreIntrinsic::StringMinimalHex),
+                (sym::toMinimalHexString, CoreIntrinsic::StringMinimalHexPrefixed),
                 // Both arities share a name; the lowering reads the operand count.
-                (Symbol::intern("toHexStringNoPrefix"), CoreIntrinsic::StringHex),
-                (Symbol::intern("toHexString"), CoreIntrinsic::StringHexPrefixed),
-                (Symbol::intern("packOne"), CoreIntrinsic::StringPackOne),
-                (Symbol::intern("unpackOne"), CoreIntrinsic::StringUnpackOne),
-                (Symbol::intern("packTwo"), CoreIntrinsic::StringPackTwo),
-                (Symbol::intern("unpackTwo"), CoreIntrinsic::StringUnpackTwo),
+                (sym::toHexStringNoPrefix, CoreIntrinsic::StringHex),
+                (sym::toHexString, CoreIntrinsic::StringHexPrefixed),
+                (sym::packOne, CoreIntrinsic::StringPackOne),
+                (sym::unpackOne, CoreIntrinsic::StringUnpackOne),
+                (sym::packTwo, CoreIntrinsic::StringPackTwo),
+                (sym::unpackTwo, CoreIntrinsic::StringUnpackTwo),
             ])
         })),
         "solar:core/Revert.sol" => Some(

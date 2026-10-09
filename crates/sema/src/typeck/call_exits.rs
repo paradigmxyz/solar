@@ -233,12 +233,12 @@ impl<'gcx> Visit<'gcx> for TakenExits<'gcx, '_> {
             && self.exits.contains(&operation)
         {
             let function = self.gcx.hir.function(operation);
-            let name = match (function.contract, function.name) {
-                (Some(contract), Some(name)) => {
-                    format!("{}.{name}", self.gcx.hir.contract(contract).name)
-                }
-                _ => "this operation".to_string(),
-            };
+            let contract = function.contract.expect("call exits are library functions");
+            let name = format!(
+                "{}.{}",
+                self.gcx.hir.contract(contract).name,
+                function.name.expect("call exits are named")
+            );
             self.gcx
                 .dcx()
                 .err(format!("`{name}` can only be called directly"))

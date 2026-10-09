@@ -83,7 +83,7 @@ impl FunctionLowerer<'_, '_> {
         let no_padding = operands.get(2).copied().unwrap_or_else(|| self.builder.imm_bool(false));
         let file_safe = self.builder.cast(file_safe, MirType::I1);
         let no_padding = self.builder.cast(no_padding, MirType::I1);
-        let helper = self.lazy_helper(Symbol::intern("core_base64_encode"), |this, function| {
+        let helper = self.lazy_helper(sym::core_base64_encode, |this, function| {
             function.attributes.no_inline = true;
             let mut lowerer = FunctionLowerer::new(this.cx.reborrow(), function);
             let ty = MirType::MemPtr;
@@ -230,8 +230,9 @@ impl FunctionLowerer<'_, '_> {
         // The last word holds the characters past the input: '=' up to the
         // padded length unless padding is omitted, then zero.
         // rest = MAX >> 8 * (destination + unpadded - output)
-        // padding = no_padding ? 0 : "====..." & rest & ~(MAX >> 8 * (destination + padded -
-        // output)) output[0..32] = mload(output) & ~rest | padding
+        // tail = MAX >> 8 * (destination + padded - output)
+        // padding = no_padding ? 0 : "====..." & rest & ~tail
+        // output[0..32] = mload(output) & ~rest | padding
         self.builder.switch_to_block(exit);
         let last = self.builder.mload(output);
         let unpadded_end = self.builder.add(destination, unpadded);

@@ -25,7 +25,7 @@
 
 use super::erc7201::is_namespace_accessor;
 use crate::{
-    core::is_core_file,
+    core::{CoreIntrinsic, intrinsic_of, is_core_file},
     hir::{self, StmtKind, Visit},
     ty::{Gcx, traced_functions},
 };
@@ -33,7 +33,7 @@ use solar_data_structures::{
     Never,
     map::{FxHashSet, FxIndexMap},
 };
-use solar_interface::{Span, source_map::FileName, sym};
+use solar_interface::{Span, sym};
 use std::ops::ControlFlow;
 
 /// The properties a `@custom:solar-safe` tag requires.
@@ -331,9 +331,8 @@ impl<'gcx> Visit<'gcx> for Scan<'gcx> {
 
 /// Whether the function `id` is one of the wrapping operations of `solar:core/Math.sol`.
 fn is_wrapping(gcx: Gcx<'_>, id: hir::FunctionId) -> bool {
-    let function = gcx.hir.function(id);
     matches!(
-        &gcx.hir.source(function.source).file.name,
-        FileName::Custom(path) if path == "solar:core/Math.sol"
-    ) && gcx.item_name(id).as_str().starts_with("wrapping")
+        intrinsic_of(gcx, id),
+        Some(CoreIntrinsic::WrappingAdd | CoreIntrinsic::WrappingSub | CoreIntrinsic::WrappingMul)
+    )
 }

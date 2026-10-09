@@ -32,21 +32,25 @@ use std::ops::ControlFlow;
 const BUFFERS: &str = "solar:core/Buffers.sol";
 
 pub(super) fn check(gcx: Gcx<'_>) {
+    // Builders exist only once `Buffers` is loaded.
+    let Some(buffers) = gcx.hir.source_ids().find(|&source| is_buffers(gcx, source)) else {
+        return;
+    };
     for source in gcx.hir.source_ids() {
-        if !is_buffers(gcx, source) {
+        if source != buffers {
             let _ = BuilderFields { gcx }.visit_nested_source(source);
         }
     }
-    check_declarations(gcx);
+    check_declarations(gcx, buffers);
 }
 
 /// Rejects every declaration outside `Buffers` whose type holds a builder inside another type,
 /// or that would store a builder or pass one through the ABI.
-fn check_declarations(gcx: Gcx<'_>) {
+fn check_declarations(gcx: Gcx<'_>, buffers: hir::SourceId) {
     let fields = BuilderFields { gcx };
     for id in gcx.hir.variable_ids() {
         let variable = gcx.hir.variable(id);
-        if is_buffers(gcx, variable.source) {
+        if variable.source == buffers {
             continue;
         }
         let ty = gcx.type_of_item(id.into());
