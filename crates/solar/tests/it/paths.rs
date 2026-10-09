@@ -177,3 +177,30 @@ error: [..]/outside/O.sol is outside of the allowed directories
 "#]]
     );
 }
+
+/// The directory of an input file is allowed by the path that is loaded, which applies `..` before
+/// following symbolic links.
+#[cfg(unix)]
+#[test]
+fn allowed_paths_use_loaded_input_paths() {
+    let dir = project(&[
+        ("elsewhere/dep/.keep", ""),
+        ("elsewhere/B.sol", "contract Other {}"),
+        ("elsewhere/Secret.sol", "contract Secret {}"),
+    ]);
+    let secret = dir.path().join("elsewhere/Secret.sol");
+    let source = format!("import \"{}\"; contract B {{}}", secret.display());
+    std::fs::create_dir(dir.path().join("proj")).unwrap();
+    std::fs::write(dir.path().join("proj/B.sol"), source).unwrap();
+    std::os::unix::fs::symlink("../elsewhere/dep", dir.path().join("proj/dep")).unwrap();
+
+    let output = compile(&dir.path().join("proj"), &["dep/../B.sol"]);
+    assert!(!output.status.success());
+    snapbox::assert_data_eq!(
+        String::from_utf8(output.stderr).unwrap(),
+        snapbox::str![[r#"
+error: [..]/elsewhere/Secret.sol is outside of the allowed directories
+...
+"#]]
+    );
+}
