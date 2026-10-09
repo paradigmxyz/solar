@@ -20,9 +20,9 @@ use super::{
 };
 use crate::{
     backend::assembler::{
-        ArtifactKind, Assembler, DeferredAlloc, DeferredConst, ImmutableRef, Label,
+        ArtifactKind, AssembledCode, Assembler, DeferredAlloc, DeferredConst, ImmutableRef, Label,
     },
-    link::{EmbeddedBytecodes, LibraryRelocation, LibraryTable},
+    link::{EmbeddedBytecodes, LibraryRelocation},
     mir::{
         ArgIdx, BlockId, Function, FunctionId, ImmutableEncoding, ImmutableId, InstId, InstKind,
         MemoryRegion, MirPhase, MirType, Module, Terminator, Value, ValueId,
@@ -60,14 +60,6 @@ pub(crate) mod select;
 mod stackify;
 mod terminator;
 mod values;
-
-#[derive(Default)]
-struct GeneratedCode {
-    bytecode: Vec<u8>,
-    library_relocations: Vec<LibraryRelocation>,
-    evm_ir: Option<ir::Module>,
-    debug_info: Option<DebugInfo>,
-}
 
 /// EVM code generator.
 pub struct EvmCodegen<'gcx> {
@@ -135,8 +127,6 @@ pub struct EvmCodegen<'gcx> {
     heap_pointer_args: IndexVec<FunctionId, DenseBitSet<ArgIdx>>,
     /// Runtime code of a scheduled module, waiting for embedded bytecode to be linked in.
     pending_runtime: Option<PendingRuntime>,
-    /// Immutable `PUSH<N>` placeholders in the last assembled runtime code.
-    runtime_immutable_refs: Vec<ImmutableRef>,
     /// Backend encodings derived from the current module's immutable declarations.
     immutable_encodings: IndexVec<ImmutableId, ImmutableEncoding>,
     /// First constructor-memory word reserved for immutable staging.
@@ -197,7 +187,6 @@ impl<'gcx> EvmCodegen<'gcx> {
             heap_pointer_return_functions: DenseBitSet::new_empty(0),
             heap_pointer_args: IndexVec::new(),
             pending_runtime: None,
-            runtime_immutable_refs: Vec::new(),
             immutable_encodings: IndexVec::new(),
             immutable_staging_base: EvmMemoryLayout::INTERNAL_FRAME_PTR_SLOT
                 + EvmMemoryLayout::WORD_SIZE,
@@ -221,8 +210,6 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.cold_functions.clear_to(module.functions.len());
         self.empty_stop_functions.clear_to(module.functions.len());
         self.heap_pointer_return_functions.clear_to(module.functions.len());
-        self.heap_pointer_args.clear();
-        self.runtime_immutable_refs.clear();
         self.immutable_encodings.clear();
         self.immutable_staging_base =
             EvmMemoryLayout::INTERNAL_FRAME_PTR_SLOT + EvmMemoryLayout::WORD_SIZE;

@@ -1,8 +1,8 @@
 //! Runtime emission and assembly.
 
 use super::{
-    ArtifactKind, BlockId, CallGraphInfo, DenseBitSet, EmbeddedBytecodes, EvmCodegen, FunctionId,
-    GeneratedCode, LibraryTable, MAX_STACK_DEPTH, MirPhase, Module, Terminator, run_pipeline,
+    ArtifactKind, BlockId, CallGraphInfo, DenseBitSet, EvmCodegen, FunctionId, MAX_STACK_DEPTH,
+    MirPhase, Module, Terminator, run_pipeline,
 };
 
 impl<'gcx> EvmCodegen<'gcx> {
@@ -36,27 +36,6 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.reset_switch_gas_code_growth();
         if !module.functions.is_empty() {
             self.emit_runtime(module, call_graph);
-        }
-    }
-
-    /// Links embedded bytecode into the optimized runtime code and assembles it.
-    pub(super) fn assemble_runtime_code(
-        &mut self,
-        bytecodes: &EmbeddedBytecodes,
-        libraries: &mut LibraryTable,
-    ) -> GeneratedCode {
-        let result = self.asm.assemble_linked(
-            bytecodes,
-            libraries,
-            self.capture_evm_ir,
-            self.capture_debug_info,
-        );
-        self.runtime_immutable_refs = result.immutable_refs;
-        GeneratedCode {
-            bytecode: result.bytecode,
-            library_relocations: result.library_relocations,
-            evm_ir: result.evm_ir,
-            debug_info: result.debug_info,
         }
     }
 
