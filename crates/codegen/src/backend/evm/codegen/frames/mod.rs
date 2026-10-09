@@ -20,7 +20,7 @@ use super::{
     preserves_push_width,
 };
 use crate::mir::{
-    Callee,
+    Callee, RawMemoryAccess,
     analysis::{AddressInput, absolute_address_inputs},
     utils::{eval::eval_inst, u256_to_u64},
 };
@@ -1492,37 +1492,25 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// Returns whether `func` may write memory at an absolute address that is not a constant: a
     /// write whose length is not the constant zero.
     fn writes_absolute_dynamic_memory(func: &Function) -> bool {
-        let destinations = func
-            .instructions()
-            .filter(|&inst_id| {
-                !matches!(
-                    func.inst(inst_id).metadata.memory_region(),
-                    Some(
-                        MemoryRegion::AbiReturn | MemoryRegion::Heap | MemoryRegion::InternalFrame
-                    )
-                )
-            })
-            .filter_map(|inst_id| match func.inst(inst_id).kind {
-                InstKind::MStore(dest, _) | InstKind::MStore8(dest, _) => Some((dest, None)),
-                InstKind::MCopy(dest, _, size)
-                | InstKind::CalldataCopy(dest, _, size)
-                | InstKind::DataCopy(_, dest, size)
-                | InstKind::CodeCopy(dest, _, size)
-                | InstKind::ReturnDataCopy(dest, _, size)
-                | InstKind::ExtCodeCopy(_, dest, _, size) => Some((dest, Some(size))),
-                InstKind::Call { ret_offset, ret_size, .. }
-                | InstKind::CallCode { ret_offset, ret_size, .. }
-                | InstKind::StaticCall { ret_offset, ret_size, .. }
-                | InstKind::DelegateCall { ret_offset, ret_size, .. } => {
-                    Some((ret_offset, Some(ret_size)))
+        let mut destinations = Vec::new();
+        for inst_id in func.instructions() {
+            let inst = func.inst(inst_id);
+            if matches!(
+                inst.metadata.memory_region(),
+                Some(MemoryRegion::AbiReturn | MemoryRegion::Heap | MemoryRegion::InternalFrame)
+            ) {
+                continue;
+            }
+            inst.kind.visit_raw_memory(|access, dest, size| {
+                // A copy of no bytes writes no memory, wherever its destination points.
+                if access != RawMemoryAccess::Read
+                    && size.constant(func) != Some(0)
+                    && func.value_u64(dest).is_none()
+                {
+                    destinations.push(dest);
                 }
-                _ => None,
-            })
-            // A copy of no bytes writes no memory, wherever its destination points.
-            .filter(|&(_, size)| size.is_none_or(|size| func.value_u64(size) != Some(0)))
-            .map(|(dest, _)| dest)
-            .filter(|&dest| func.value_u64(dest).is_none())
-            .collect::<Vec<_>>();
+            });
+        }
         if destinations.is_empty() {
             return false;
         }
@@ -1534,37 +1522,9 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// Unknown lengths still expose their base to heap-prefix analysis.
     fn for_each_memory_range(func: &Function, mut visit: impl FnMut(ValueId, Option<u64>)) {
         for inst_id in func.instructions() {
-            match func.inst(inst_id).kind {
-                InstKind::MLoad(addr) | InstKind::MStore(addr, _) => {
-                    visit(addr, Some(EvmMemoryLayout::WORD_SIZE));
-                }
-                InstKind::MStore8(addr, _) => visit(addr, Some(1)),
-                InstKind::MCopy(dest, src, size) => {
-                    visit(dest, func.value_u64(size));
-                    visit(src, func.value_u64(size));
-                }
-                InstKind::CalldataCopy(dest, _, size)
-                | InstKind::DataCopy(_, dest, size)
-                | InstKind::CodeCopy(dest, _, size)
-                | InstKind::ReturnDataCopy(dest, _, size)
-                | InstKind::ExtCodeCopy(_, dest, _, size)
-                | InstKind::Keccak256(dest, size)
-                | InstKind::Log0(dest, size)
-                | InstKind::Log1(dest, size, _)
-                | InstKind::Log2(dest, size, _, _)
-                | InstKind::Log3(dest, size, _, _, _)
-                | InstKind::Log4(dest, size, _, _, _, _)
-                | InstKind::Create(_, dest, size)
-                | InstKind::Create2(_, dest, size, _) => visit(dest, func.value_u64(size)),
-                InstKind::Call { args_offset, args_size, ret_offset, ret_size, .. }
-                | InstKind::CallCode { args_offset, args_size, ret_offset, ret_size, .. }
-                | InstKind::StaticCall { args_offset, args_size, ret_offset, ret_size, .. }
-                | InstKind::DelegateCall { args_offset, args_size, ret_offset, ret_size, .. } => {
-                    visit(args_offset, func.value_u64(args_size));
-                    visit(ret_offset, func.value_u64(ret_size));
-                }
-                _ => {}
-            }
+            func.inst(inst_id)
+                .kind
+                .visit_raw_memory(|_, offset, size| visit(offset, size.constant(func)));
         }
         for block in &func.blocks {
             if let Some(

@@ -94,14 +94,14 @@
 use crate::mir::{
     AbiType, ArgIdx, BlockId, Builtin, Callee, CheckedOp, EffectKind, Function, FunctionId,
     Immediate, InstId, InstKind, Instruction, InstructionMetadata, MemoryRegion, MirType, Module,
-    SliceLocation, Terminator, Value, ValueId,
+    RawMemoryAccess, RawMemorySize, SliceLocation, Terminator, Value, ValueId,
     analysis::{AddressInput, absolute_address_inputs},
     memory::EvmMemoryLayout,
     pass::{MirPass, ModuleAnalyses},
     utils::{IndexLists, replace_inst_uses},
 };
 use alloy_primitives::U256;
-use smallvec::{SmallVec, smallvec};
+use smallvec::SmallVec;
 use solar_data_structures::{
     bit_set::DenseBitSet,
     index::IndexVec,
@@ -299,15 +299,17 @@ fn clamp_loads(func: &mut Function, plan: &LoadClamps) {
                     func.inst(*inst).kind,
                     InstKind::MStore(address, _) if is_slot(func, address)
                 );
-                let mut kind = func.inst(*inst).kind.clone();
-                if let Some(operands) = pointer_operands_mut(&mut kind, slot_store) {
-                    operands.into_iter().for_each(swap);
+                let kind = &mut func.inst_mut(*inst).kind;
+                if has_raw_memory(kind) {
+                    if slot_store && let InstKind::MStore(_, value) = kind {
+                        swap(value);
+                    }
+                    kind.visit_raw_memory_operands_mut(swap);
                 } else {
-                    // The word is a memory object or slice, which every operation not listed
-                    // reads only as the pointer.
+                    // The word is a memory object or slice, which an operation without raw
+                    // memory reads only as the pointer.
                     kind.visit_operands_mut(swap);
                 }
-                func.inst_mut(*inst).kind = kind;
             }
             UseSite::Args(inst, positions) => {
                 if let InstKind::ICall { args, .. } = &mut func.inst_mut(*inst).kind {
@@ -474,47 +476,6 @@ fn slot_bytes(start: u64, size: u64) -> SlotBytes {
     let width = end - first;
     let bytes = if width == EvmMemoryLayout::WORD_SIZE { WHOLE_SLOT } else { (1 << width) - 1 };
     bytes << (first - slot)
-}
-
-/// The memory a store, copy, or zeroing writes at a constant address with a constant size.
-fn constant_write_range(func: &Function, kind: &InstKind) -> Option<(u64, u64)> {
-    let (dest, size) = match *kind {
-        InstKind::MStore(dest, _) => {
-            return func.value_u64(dest).map(|dest| (dest, EvmMemoryLayout::WORD_SIZE));
-        }
-        InstKind::MStore8(dest, _) => return func.value_u64(dest).map(|dest| (dest, 1)),
-        InstKind::CalldataCopy(dest, _, size)
-        | InstKind::CodeCopy(dest, _, size)
-        | InstKind::ReturnDataCopy(dest, _, size)
-        | InstKind::ExtCodeCopy(_, dest, _, size)
-        | InstKind::DataCopy(_, dest, size)
-        | InstKind::MCopy(dest, _, size)
-        | InstKind::MemoryZero(dest, size) => (dest, size),
-        _ => return None,
-    };
-    func.value_u64(dest).zip(func.value_u64(size))
-}
-
-/// The memory an instruction reads as data: an offset and a size, unknown when not constant.
-fn read_range(func: &Function, kind: &InstKind) -> Option<(ValueId, Option<u64>)> {
-    let (offset, size) = match *kind {
-        InstKind::MLoad(offset) => return Some((offset, Some(EvmMemoryLayout::WORD_SIZE))),
-        InstKind::MCopy(_, src, size) => (src, size),
-        InstKind::Keccak256(offset, size)
-        | InstKind::Log0(offset, size)
-        | InstKind::Log1(offset, size, _)
-        | InstKind::Log2(offset, size, ..)
-        | InstKind::Log3(offset, size, ..)
-        | InstKind::Log4(offset, size, ..)
-        | InstKind::Create(_, offset, size)
-        | InstKind::Create2(_, offset, size, _) => (offset, size),
-        InstKind::Call { args_offset, args_size, .. }
-        | InstKind::CallCode { args_offset, args_size, .. }
-        | InstKind::StaticCall { args_offset, args_size, .. }
-        | InstKind::DelegateCall { args_offset, args_size, .. } => (args_offset, args_size),
-        _ => return None,
-    };
-    Some((offset, func.value_u64(size)))
 }
 
 /// The index or offset that a memory-object operation adds to the object's address, with wrapping
@@ -788,76 +749,34 @@ fn derives_from(kind: &InstKind, word: ValueId) -> bool {
     }
 }
 
-/// Returns the operands an instruction uses as memory addresses, memory sizes, or, for a store to
-/// the slot (`slot_store`), the free memory pointer. The other operands of the operations listed
-/// are data. An operation not listed reaches memory only through the memory objects and slices it
-/// takes, which are its pointer operands.
-fn pointer_operands_mut(
-    kind: &mut InstKind,
-    slot_store: bool,
-) -> Option<SmallVec<[&mut ValueId; 4]>> {
-    Some(match kind {
-        InstKind::Lt(..)
-        | InstKind::Gt(..)
-        | InstKind::SLt(..)
-        | InstKind::SGt(..)
-        | InstKind::Eq(..)
-        | InstKind::Ne(..)
-        | InstKind::CheckedBinary { .. }
-        | InstKind::SLoad(_)
-        | InstKind::SStore(..)
-        | InstKind::TLoad(_)
-        | InstKind::TStore(..)
-        | InstKind::CalldataLoad(_)
-        | InstKind::BlockHash(_)
-        | InstKind::Balance(_)
-        | InstKind::ExtCodeSize(_)
-        | InstKind::ExtCodeHash(_) => SmallVec::new(),
-        InstKind::MLoad(offset) | InstKind::MStore8(offset, _) => smallvec![offset],
-        InstKind::MStore(offset, value) => {
-            if slot_store {
-                smallvec![offset, value]
-            } else {
-                smallvec![offset]
-            }
-        }
-        InstKind::MCopy(dest, src, size) => smallvec![dest, src, size],
-        InstKind::CalldataCopy(offset, _, size)
-        | InstKind::CodeCopy(offset, _, size)
-        | InstKind::ReturnDataCopy(offset, _, size)
-        | InstKind::ExtCodeCopy(_, offset, _, size)
-        | InstKind::DataCopy(_, offset, size)
-        | InstKind::MemoryZero(offset, size)
-        | InstKind::Keccak256(offset, size)
-        | InstKind::Log0(offset, size)
-        | InstKind::Log1(offset, size, _)
-        | InstKind::Log2(offset, size, ..)
-        | InstKind::Log3(offset, size, ..)
-        | InstKind::Log4(offset, size, ..)
-        | InstKind::Create(_, offset, size)
-        | InstKind::Create2(_, offset, size, _) => smallvec![offset, size],
-        InstKind::Call { args_offset, args_size, ret_offset, ret_size, .. }
-        | InstKind::CallCode { args_offset, args_size, ret_offset, ret_size, .. }
-        | InstKind::StaticCall { args_offset, args_size, ret_offset, ret_size, .. }
-        | InstKind::DelegateCall { args_offset, args_size, ret_offset, ret_size, .. } => {
-            smallvec![args_offset, args_size, ret_offset, ret_size]
-        }
-        _ => return None,
-    })
+/// Whether an instruction reads or writes raw memory. One that does not reaches memory only
+/// through the memory objects and slices it takes, which are its pointer operands.
+fn has_raw_memory(kind: &InstKind) -> bool {
+    let mut any = false;
+    kind.visit_raw_memory(|_, _, _| any = true);
+    any
 }
 
 /// How an instruction other than a derivation or an internal call uses `word`: as a pointer in
-/// the operands [`pointer_operands_mut`] lists, and as data in its other operands.
+/// the addresses and sizes of the raw memory it accesses and, in a store to the slot, as the
+/// stored free memory pointer; as data in its other operands.
 fn operand_reads(func: &Function, kind: &InstKind, word: ValueId) -> Reads {
-    let slot_store = matches!(*kind, InstKind::MStore(address, _) if is_slot(func, address));
-    let mut roles = kind.clone();
-    let Some(pointers) = pointer_operands_mut(&mut roles, slot_store) else {
+    if !has_raw_memory(kind) {
         // It hashes, encodes, stores, or compares the other operands, or uses them as keys and
         // indices.
         let pointer = is_memory_reference(func.value_ty(word));
         return Reads { pointer, data: !pointer };
-    };
-    let pointer_uses = pointers.into_iter().filter(|operand| **operand == word).count();
+    }
+    let mut pointer_uses = 0;
+    if let InstKind::MStore(address, value) = *kind
+        && is_slot(func, address)
+    {
+        pointer_uses += usize::from(value == word);
+    }
+    kind.visit_raw_memory(|_, offset, size| {
+        pointer_uses += usize::from(offset == word);
+        pointer_uses += usize::from(size == RawMemorySize::Value(word));
+    });
     let mut uses = 0;
     kind.visit_operands(|operand| uses += usize::from(operand == word));
     Reads { pointer: pointer_uses != 0, data: uses > pointer_uses }
@@ -1359,12 +1278,20 @@ impl<'a> PointerUses<'a> {
             }
             _ => {
                 // A copy reads its source before it writes its destination.
-                let reads = read_range(func, &inst.kind).is_some_and(|(offset, size)| {
-                    self.may_read_slot(func_id, offset, size, *written)
-                }) || self.may_read_object_at_slot(func_id, &inst.kind, *written);
-                if let Some((start, size)) = constant_write_range(func, &inst.kind) {
-                    *written |= slot_bytes(start, size);
-                }
+                let mut reads = self.may_read_object_at_slot(func_id, &inst.kind, *written);
+                inst.kind.visit_raw_memory(|access, offset, size| {
+                    reads = reads
+                        || access == RawMemoryAccess::Read
+                            && self.may_read_slot(func_id, offset, size.constant(func), *written);
+                });
+                inst.kind.visit_raw_memory(|access, offset, size| {
+                    if access == RawMemoryAccess::Write
+                        && let Some(start) = func.value_u64(offset)
+                        && let Some(size) = size.constant(func)
+                    {
+                        *written |= slot_bytes(start, size);
+                    }
+                });
                 match (reads, *written == WHOLE_SLOT) {
                     (true, true) => Effect::ReadsDataAndReplaces,
                     (true, false) => Effect::ReadsData,
