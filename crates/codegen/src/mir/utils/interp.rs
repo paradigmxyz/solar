@@ -1,13 +1,10 @@
 //! Concrete execution of word-level lowered MIR.
 //!
 //! [`Machine::run`] executes one function of a lowered module on concrete arguments and memory,
-//! following internal calls into the rest of the module, and reports how the run ended, the
-//! memory it left behind, the blocks of the function it completed, and whether each value of that
-//! function was ever zero and ever nonzero. With a [`Host`], the run also reads and writes
-//! persistent and transient storage, logs events, and reads the context values the host answers,
-//! and reports what it wrote and logged. It is a testing oracle, not part of code generation: the
-//! `llm-optimize` pass runs an original function and a candidate replacement on the same inputs
-//! and compares what they do.
+//! following internal calls into the rest of the module, and reports how the run ended. With a
+//! [`Host`], the run also reads and writes persistent and transient storage, logs events, and
+//! reads the context values the host answers, and reports what it wrote and logged. It is a
+//! testing oracle, not part of code generation.
 //!
 //! [`Machine::transact`] executes a whole transaction instead: the module's dispatch entry on
 //! calldata, with zeroed memory and a [`Host`] answering what the contract reads from its context,
@@ -27,11 +24,8 @@
 //! Memory is byte-addressed EVM memory, on which the memory opcodes run: `MLOAD`, `MSTORE`,
 //! `MSTORE8`, `MCOPY`, and `KECCAK256`. An access with a nonzero length grows memory to the word
 //! containing its last byte, and a zero-length access ignores its offset. `mcopy` behaves as if it
-//! copied through a buffer, and `keccak256` hashes the bytes it reads. Words that no run has
-//! written hold deterministic garbage derived from a seed unless the caller set them, so a
-//! function reading memory it does not own sees garbage, as it could on chain. Besides random
-//! words, garbage holds the small numbers, heap addresses, and constants that programs keep in
-//! memory, so that a function following pointers through it can reach data it accepts.
+//! copied through a buffer, and `keccak256` hashes the bytes it reads. Memory that nothing wrote
+//! is zero, unless the caller set it before the run.
 //!
 //! Internal calls and tail calls run the callee on the same memory, and a call's result is the
 //! value the callee returns. The backend passes further results through a buffer of its own that
@@ -52,12 +46,12 @@
 //!
 //! A run has a fuel budget, one unit per operation and per copied, hashed, or returned word, and a
 //! call depth. Memory ends at [`MEMORY_LIMIT`], past which the EVM runs out of gas under any block
-//! gas limit. Exceeding a limit ends the run with [`Outcome::Limit`]. Operations outside
-//! [`supports`] and [`supports_terminator`] end it with [`Outcome::Unsupported`]: opcodes on
-//! storage, calldata, code, the environment, external calls, logs, and `msize`, allocations, and
-//! operations that declare no semantics, such as frame addresses and every semantic operation. A
-//! run with a host also runs the storage, transient storage, and log opcodes and the context reads
-//! its host answers, which [`supports_with_host`] lists. A transaction also runs the calldata and
+//! gas limit. Exceeding a limit ends the run with [`Outcome::Limit`]. Operations the interpreter
+//! does not model end it with [`Outcome::Unsupported`]: opcodes on storage, calldata, code, the
+//! environment, external calls, logs, and `msize`, allocations, and operations that declare no
+//! semantics, such as frame addresses and every semantic operation. A run with a host also runs
+//! the storage, transient storage, and log opcodes and the context reads its host answers. A
+//! transaction also runs the calldata and
 //! return data opcodes and places the allocations the backend would place, but not `gas`, calls,
 //! or contract creation. The interpreter relies on the validator only for the existence of the
 //! instructions, values, and blocks a function names, and checks the rest as it runs, so a value
@@ -67,20 +61,18 @@ use crate::{
     backend::evm::op,
     mir::{
         AllocationKind, ArgIdx, BlockId, Callee, DataRef, Function, FunctionId, InstId, InstKind,
-        MirPhase, Module, Semantics, Terminator, Value, ValueId,
-        memory::EvmMemoryLayout,
-        utils::eval::{eval_inst, eval_semantics},
+        MirPhase, Module, Semantics, Terminator, Value, ValueId, memory::EvmMemoryLayout,
+        utils::eval::eval_semantics,
     },
 };
 use alloy_primitives::{U256, keccak256};
 use smallvec::SmallVec;
 use solar_config::EvmVersion;
 use solar_data_structures::{
-    bit_set::DenseBitSet,
     index::{IndexVec, index_vec},
     map::FxHashMap,
 };
-use std::{convert::Infallible, ops::ControlFlow, sync::Arc};
+use std::{convert::Infallible, ops::ControlFlow};
 
 /// Bytes of memory an execution may use: growing memory to 16 MiB costs about 538 million gas,
 /// more than any block holds.
@@ -91,19 +83,6 @@ const WORD_BYTES: u64 = 32;
 
 /// The opcodes a run executes on its memory, besides the pure opcodes it evaluates.
 const MEMORY_OPCODES: [u8; 5] = [op::MLOAD, op::MSTORE, op::MSTORE8, op::MCOPY, op::KECCAK256];
-
-/// The opcodes a run with a [`Host`] executes on persistent and transient storage and its logs.
-const WORLD_OPCODES: [u8; 9] = [
-    op::SLOAD,
-    op::SSTORE,
-    op::TLOAD,
-    op::TSTORE,
-    op::LOG0,
-    op::LOG1,
-    op::LOG2,
-    op::LOG3,
-    op::LOG4,
-];
 
 /// The opcodes whose values a run asks its [`Host`] for.
 pub(crate) const HOST_OPCODES: [u8; 21] = [
@@ -174,7 +153,7 @@ pub(crate) enum Limit {
 pub(crate) struct Limits {
     /// Units of work before the run stops: one per operation and per word copied or hashed.
     pub(crate) fuel: u64,
-    /// Frames that may be live at once, the function under test included.
+    /// Frames that may be live at once, the called function's included.
     pub(crate) depth: usize,
 }
 
@@ -183,16 +162,6 @@ pub(crate) struct Limits {
 pub(crate) struct Execution {
     /// How it ended.
     pub(crate) outcome: Outcome,
-    /// The memory it left.
-    pub(crate) memory: Memory,
-    /// The fuel it spent.
-    pub(crate) fuel: u64,
-    /// The blocks of the function under test whose terminators it reached, before any tail call
-    /// left it. A block that a call inside it never returns from is not complete.
-    pub(crate) visited: DenseBitSet<BlockId>,
-    /// For each instruction of the function under test, whether its result was ever zero (bit 0)
-    /// and ever nonzero (bit 1).
-    pub(crate) outcomes: IndexVec<InstId, u8>,
     /// What it did outside memory, which only a run with a [`Host`] can do.
     pub(crate) effects: Effects,
 }
@@ -206,18 +175,6 @@ pub(crate) struct Effects {
     pub(crate) transient: FxHashMap<U256, U256>,
     /// The events it logged, in order.
     pub(crate) logs: Vec<Log>,
-}
-
-/// An access to a persistent storage slot.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) struct StorageAccess {
-    pub(crate) slot: U256,
-    /// What the slot held when the run started.
-    pub(crate) original: U256,
-    /// What the slot holds before the access.
-    pub(crate) current: U256,
-    /// What an `SSTORE` writes, or `None` for an `SLOAD`.
-    pub(crate) new: Option<U256>,
 }
 
 /// Observes every operation an execution runs, for example to price it.
@@ -245,21 +202,10 @@ pub(crate) trait Meter {
         let _ = (function, block, operand);
     }
 
-    /// The `SLOAD` or `SSTORE` [`Self::instruction`] just reported accesses persistent storage.
-    fn storage(&mut self, access: StorageAccess) {
-        let _ = access;
-    }
-
     /// The instruction [`Self::instruction`] just reported produced `value`. A call's result is
     /// not reported: the callee's return delivers it.
     fn result(&mut self, value: U256) {
         let _ = value;
-    }
-
-    /// Whether the run has spent all the meter allows, which ends it as running out of fuel
-    /// does, before its next operation.
-    fn exhausted(&self) -> bool {
-        false
     }
 }
 
@@ -324,128 +270,19 @@ pub(crate) struct TransactionExecution {
     pub(crate) effects: Effects,
 }
 
-/// Returns whether [`Machine::run`] executes an instruction of this kind without a host:
-/// lowered operations whose declared semantics are word operations and casts, `select`, phis,
-/// memory opcodes, and calls to functions.
-pub(crate) fn supports(kind: &InstKind) -> bool {
-    if !kind.op_def().phases.contains(MirPhase::Lowered) {
-        return false;
-    }
-    match kind.semantics() {
-        Some(Semantics::Phi(_) | Semantics::Select(..)) => true,
-        Some(Semantics::Opcode(opcode, _)) if MEMORY_OPCODES.contains(&opcode) => true,
-        Some(Semantics::Call(callee, _)) => matches!(callee, Callee::Function(_)),
-        _ => matches!(eval_inst(kind, |_| Ok::<_, Infallible>(U256::ZERO)), Ok(Some(_))),
-    }
-}
-
-/// Returns whether [`Machine::run`] executes an instruction of this kind with a host that
-/// answers the context reads in `context`, a subset of [`HOST_OPCODES`]: what [`supports`]
-/// accepts, persistent and transient storage, and logs.
-pub(crate) fn supports_with_host(kind: &InstKind, context: &[u8]) -> bool {
-    if supports(kind) {
-        return true;
-    }
-    kind.op_def().phases.contains(MirPhase::Lowered)
-        && matches!(
-            kind.semantics(),
-            Some(Semantics::Opcode(opcode, _))
-                if WORLD_OPCODES.contains(&opcode) || context.contains(&opcode)
-        )
-}
-
-/// Returns whether [`Machine::run`] executes this terminator.
-pub(crate) fn supports_terminator(terminator: &Terminator) -> bool {
-    !matches!(terminator, Terminator::SelfDestruct { .. } | Terminator::RevertReturndata)
-}
-
-/// Mixes a word into a well-distributed one: the SplitMix64 finalizer.
-pub(crate) fn mix64(value: u64) -> u64 {
-    let mut z = value.wrapping_add(0x9e37_79b9_7f4a_7c15);
-    z = (z ^ (z >> 30)).wrapping_mul(0xbf58_476d_1ce4_e5b9);
-    z = (z ^ (z >> 27)).wrapping_mul(0x94d0_49bb_1331_11eb);
-    z ^ (z >> 31)
-}
-
-/// Byte-addressed EVM memory whose unwritten words hold seeded garbage, or zero.
+/// Byte-addressed EVM memory, zero where nothing wrote.
 #[derive(Clone, Debug)]
 pub(crate) struct Memory {
-    /// What unwritten words hold, which is zero without it.
-    garbage: Option<Garbage>,
     /// Materialized words by word index.
     words: FxHashMap<u64, [u8; 32]>,
-    /// Bytes a run wrote, as a mask per word index.
-    written: FxHashMap<u64, u32>,
     /// The size in words, as `MSIZE` reports it.
     size: u64,
 }
 
-/// The contents of unwritten memory words, derived from a seed per word.
-///
-/// A word is random, or one of the words programs keep in memory: a small number such as a
-/// length, a flag, or an enum; an address near the heap start; or a word of the palette, such as
-/// the constants of the code under test. A program that loads a word and follows it as a pointer
-/// then reaches more such words, so chains of loads through garbage can end in data it accepts.
-#[derive(Clone, Debug)]
-struct Garbage {
-    seed: u64,
-    palette: Arc<[U256]>,
-}
-
-impl Garbage {
-    /// Words above the heap start that garbage addresses point into: 64 KiB.
-    const ADDRESS_WORDS: u64 = 2048;
-    /// The largest small number garbage holds.
-    const SMALL: u64 = 32;
-
-    fn word(&self, index: u64) -> [u8; 32] {
-        let pick = mix64(self.seed ^ mix64(index.wrapping_mul(4).wrapping_sub(1)));
-        let rest = pick >> 3;
-        let word = match pick % 8 {
-            0 | 1 => U256::from(rest % (Self::SMALL + 1)),
-            2 | 3 => {
-                let offset = WORD_BYTES * (rest % Self::ADDRESS_WORDS);
-                U256::from(EvmMemoryLayout::HEAP_START + offset)
-            }
-            4 if !self.palette.is_empty() => {
-                self.palette[(rest % self.palette.len() as u64) as usize]
-            }
-            _ => {
-                let mut bytes = [0; 32];
-                for (lane, chunk) in bytes.as_chunks_mut::<8>().0.iter_mut().enumerate() {
-                    let lane = mix64(index.wrapping_mul(4).wrapping_add(lane as u64));
-                    *chunk = mix64(self.seed ^ lane).to_be_bytes();
-                }
-                return bytes;
-            }
-        };
-        word.to_be_bytes()
-    }
-}
-
 impl Memory {
-    /// Creates memory of `size` words whose contents derive from `seed`.
-    pub(crate) fn new(seed: u64, size: u64) -> Self {
-        let garbage = Garbage { seed, palette: Arc::from([]) };
-        Self {
-            garbage: Some(garbage),
-            words: FxHashMap::default(),
-            written: FxHashMap::default(),
-            size,
-        }
-    }
-
-    /// Makes some unwritten words hold words of `palette`.
-    pub(crate) fn with_palette(mut self, palette: Arc<[U256]>) -> Self {
-        if let Some(garbage) = &mut self.garbage {
-            garbage.palette = palette;
-        }
-        self
-    }
-
     /// Creates empty memory whose bytes are zero, as a transaction starts with.
     pub(crate) fn zeroed() -> Self {
-        Self { garbage: None, words: FxHashMap::default(), written: FxHashMap::default(), size: 0 }
+        Self { words: FxHashMap::default(), size: 0 }
     }
 
     /// Sets the word at byte `offset` before a run, without counting it as written or growing
@@ -454,11 +291,6 @@ impl Memory {
         for (index, byte) in value.to_be_bytes::<32>().into_iter().enumerate() {
             self.set_byte(offset.wrapping_add(index as u64), byte);
         }
-    }
-
-    /// Returns the size in words.
-    pub(crate) fn size(&self) -> u64 {
-        self.size
     }
 
     /// Returns the word at byte `offset`, without growing memory.
@@ -470,55 +302,14 @@ impl Memory {
         U256::from_be_bytes(bytes)
     }
 
-    /// Returns the lowest byte address that either memory wrote and where their contents
-    /// differ.
-    pub(crate) fn first_difference(&self, other: &Self) -> Option<u64> {
-        let mut first = None::<u64>;
-        for (&word, &mask) in self.written.iter().chain(&other.written) {
-            for index in 0..WORD_BYTES {
-                let address = word * WORD_BYTES + index;
-                if mask & (1 << index) != 0
-                    && first.is_none_or(|first| address < first)
-                    && self.byte(address) != other.byte(address)
-                {
-                    first = Some(address);
-                }
-            }
-        }
-        first
-    }
-
-    /// Returns the lowest byte address this memory wrote and `other` did not.
-    pub(crate) fn first_write_outside(&self, other: &Self) -> Option<u64> {
-        let mut first = None::<u64>;
-        for (&word, &mask) in &self.written {
-            let outside = mask & !other.written.get(&word).copied().unwrap_or_default();
-            if outside != 0 {
-                let address = word * WORD_BYTES + u64::from(outside.trailing_zeros());
-                first = Some(first.map_or(address, |first| first.min(address)));
-            }
-        }
-        first
-    }
-
     fn byte(&self, address: u64) -> u8 {
         let (word, index) = (address / WORD_BYTES, (address % WORD_BYTES) as usize);
-        self.words.get(&word).map_or_else(|| self.seeded(word)[index], |bytes| bytes[index])
+        self.words.get(&word).map_or(0, |bytes| bytes[index])
     }
 
     fn set_byte(&mut self, address: u64, value: u8) {
         let (word, index) = (address / WORD_BYTES, (address % WORD_BYTES) as usize);
-        let seeded = self.seeded(word);
-        self.words.entry(word).or_insert(seeded)[index] = value;
-    }
-
-    fn write_byte(&mut self, address: u64, value: u8) {
-        self.set_byte(address, value);
-        *self.written.entry(address / WORD_BYTES).or_default() |= 1 << (address % WORD_BYTES);
-    }
-
-    fn seeded(&self, word: u64) -> [u8; 32] {
-        self.garbage.as_ref().map_or([0; 32], |garbage| garbage.word(word))
+        self.words.entry(word).or_insert([0; 32])[index] = value;
     }
 
     /// Checks an access of `len` bytes at `offset` against the memory limit and grows memory
@@ -544,14 +335,14 @@ impl Memory {
     fn store(&mut self, offset: U256, value: U256) -> Result<(), Limit> {
         let offset = self.access(offset, U256::from(WORD_BYTES))?.unwrap_or_default();
         for (index, byte) in value.to_be_bytes::<32>().into_iter().enumerate() {
-            self.write_byte(offset + index as u64, byte);
+            self.set_byte(offset + index as u64, byte);
         }
         Ok(())
     }
 
     fn store8(&mut self, offset: U256, value: U256) -> Result<(), Limit> {
         let offset = self.access(offset, U256::ONE)?.unwrap_or_default();
-        self.write_byte(offset, value.byte(0));
+        self.set_byte(offset, value.byte(0));
         Ok(())
     }
 
@@ -564,7 +355,7 @@ impl Memory {
     fn write(&mut self, offset: U256, bytes: &[u8]) -> Result<(), Limit> {
         let Some(offset) = self.access(offset, U256::from(bytes.len()))? else { return Ok(()) };
         for (index, &byte) in bytes.iter().enumerate() {
-            self.write_byte(offset + index as u64, byte);
+            self.set_byte(offset + index as u64, byte);
         }
         Ok(())
     }
@@ -573,27 +364,21 @@ impl Memory {
         let Some(dest) = self.access(dest, len)? else { return Ok(()) };
         let bytes = self.read(src, len)?;
         for (index, byte) in bytes.into_iter().enumerate() {
-            self.write_byte(dest + index as u64, byte);
+            self.set_byte(dest + index as u64, byte);
         }
         Ok(())
     }
 }
 
-/// Runs functions of one lowered module, optionally with one function's body replaced.
+/// Runs functions of one lowered module.
 pub(crate) struct Machine<'a> {
     module: &'a Module,
-    replacement: Option<(FunctionId, &'a Function)>,
 }
 
 impl<'a> Machine<'a> {
     /// Runs `module`'s functions as they are.
     pub(crate) fn new(module: &'a Module) -> Self {
-        Self { module, replacement: None }
-    }
-
-    /// Runs `module`'s functions with `body` in place of function `id`.
-    pub(crate) fn with_replacement(module: &'a Module, id: FunctionId, body: &'a Function) -> Self {
-        Self { module, replacement: Some((id, body)) }
+        Self { module }
     }
 
     /// Runs `function` on `args` and `memory` within `limits`, reporting each operation to
@@ -614,15 +399,12 @@ impl<'a> Machine<'a> {
             limits,
             fuel: 0,
             frames: Vec::new(),
-            visited: DenseBitSet::new_empty(0),
-            outcomes: IndexVec::new(),
             world: host.map(|host| World { host, effects: Effects::default() }),
             transaction: None,
         };
         let ControlFlow::Break(outcome) = run.execute(function, args, meter);
-        let Run { memory, fuel, visited, outcomes, world, .. } = run;
-        let effects = world.map(|world| world.effects).unwrap_or_default();
-        Execution { outcome, memory, fuel, visited, outcomes, effects }
+        let effects = run.world.map(|world| world.effects).unwrap_or_default();
+        Execution { outcome, effects }
     }
 
     /// Runs the module's dispatch entry as a transaction with `calldata` on `evm_version`, asking
@@ -650,8 +432,6 @@ impl<'a> Machine<'a> {
             limits,
             fuel: 0,
             frames: Vec::new(),
-            visited: DenseBitSet::new_empty(0),
-            outcomes: IndexVec::new(),
             world: Some(World { host, effects: Effects::default() }),
             transaction: Some(Transaction {
                 calldata,
@@ -672,10 +452,7 @@ impl<'a> Machine<'a> {
     }
 
     fn body(&self, id: FunctionId) -> Option<&'a Function> {
-        match self.replacement {
-            Some((replaced, body)) if replaced == id => Some(body),
-            _ => self.module.functions.get(id),
-        }
+        self.module.functions.get(id)
     }
 }
 
@@ -689,8 +466,6 @@ struct Frame<'a> {
     next: usize,
     /// The caller's value receiving this call's first returned value.
     result: Option<ValueId>,
-    /// Whether this frame runs the function under test.
-    entry: bool,
     /// Where the free memory pointer returns to when this call returns, if the backend takes a
     /// heap frame for the call and releases it.
     heap_frame_base: Option<U256>,
@@ -699,16 +474,7 @@ struct Frame<'a> {
 impl<'a> Frame<'a> {
     fn new(body: &'a Function, args: IndexVec<ArgIdx, U256>, result: Option<ValueId>) -> Self {
         let values = index_vec![None; body.num_values()];
-        Self {
-            body,
-            args,
-            values,
-            block: BlockId::ENTRY,
-            next: 0,
-            result,
-            entry: false,
-            heap_frame_base: None,
-        }
+        Self { body, args, values, block: BlockId::ENTRY, next: 0, result, heap_frame_base: None }
     }
 
     fn word(&self, value: ValueId) -> Option<U256> {
@@ -763,8 +529,6 @@ struct Run<'m, 'a, 't> {
     limits: Limits,
     fuel: u64,
     frames: Vec<Frame<'a>>,
-    visited: DenseBitSet<BlockId>,
-    outcomes: IndexVec<InstId, u8>,
     /// Storage, logs, and context, when the run has a host.
     world: Option<World<'t>>,
     /// The transaction a run of the dispatch entry executes, which always has a world.
@@ -781,14 +545,8 @@ impl<'a> Run<'_, 'a, '_> {
         let Some(body) = self.machine.body(function) else {
             return ControlFlow::Break(Outcome::Unsupported("call to an unknown function"));
         };
-        self.visited = DenseBitSet::new_empty(body.blocks.len());
-        self.outcomes = index_vec![0; body.num_insts()];
         self.call(body, args.iter().copied().collect(), None)?;
-        self.frame().entry = true;
         loop {
-            if meter.exhausted() {
-                return ControlFlow::Break(Outcome::Limit(Limit::Fuel));
-            }
             let frame = self.frame();
             let (body, block, next) = (frame.body, frame.block, frame.next);
             match body.blocks[block].instructions.get(next) {
@@ -863,8 +621,7 @@ impl<'a> Run<'_, 'a, '_> {
         self.burn(1)?;
         let instruction = body.inst(inst);
         let mnemonic = instruction.kind.op_def().mnemonic;
-        // `supports` in full costs an evaluation per step; the arms below and `eval_semantics`
-        // decide the rest the same way.
+        // Only lowered operations run; the arms below and `eval_semantics` decide the rest.
         if !instruction.kind.op_def().phases.contains(MirPhase::Lowered) {
             return ControlFlow::Break(Outcome::Unsupported(mnemonic));
         }
@@ -872,7 +629,6 @@ impl<'a> Run<'_, 'a, '_> {
             return ControlFlow::Break(Outcome::Unsupported(mnemonic));
         };
         let frame = self.frames.last().expect("a run always has a frame");
-        let entry = frame.entry;
         meter.instruction(body, inst, &|value| frame.word(value));
         let result = match semantics {
             Semantics::Phi(_) => {
@@ -891,7 +647,7 @@ impl<'a> Run<'_, 'a, '_> {
             }
             Semantics::Opcode(opcode, operands) if self.world.is_some() && !op::is_pure(opcode) => {
                 let operands = frame.read_all(&operands)?;
-                match self.world_opcode(opcode, &operands, meter)? {
+                match self.world_opcode(opcode, &operands)? {
                     Some(word) => word,
                     None => return ControlFlow::Continue(()),
                 }
@@ -926,9 +682,6 @@ impl<'a> Run<'_, 'a, '_> {
         let Some(value) = instruction.result() else {
             return ControlFlow::Break(Outcome::Unsupported("result without a value"));
         };
-        if entry {
-            self.outcomes[inst] |= if result.is_zero() { 1 } else { 2 };
-        }
         meter.result(result);
         self.frame().values[value] = Some(result);
         ControlFlow::Continue(())
@@ -974,7 +727,6 @@ impl<'a> Run<'_, 'a, '_> {
         &mut self,
         opcode: u8,
         operands: &[U256],
-        meter: &mut dyn Meter,
     ) -> ControlFlow<Outcome, Option<U256>> {
         let unsupported = || Outcome::Unsupported(op::mnemonic(opcode).unwrap_or("opcode"));
         // Operations on memory come first, while no borrow of the world is live.
@@ -1016,13 +768,9 @@ impl<'a> Run<'_, 'a, '_> {
             (op::SLOAD, &[slot]) => {
                 let original = world.host.storage(slot);
                 let current = world.effects.storage.get(&slot).copied().unwrap_or(original);
-                meter.storage(StorageAccess { slot, original, current, new: None });
                 Some(current)
             }
             (op::SSTORE, &[slot, value]) => {
-                let original = world.host.storage(slot);
-                let current = world.effects.storage.get(&slot).copied().unwrap_or(original);
-                meter.storage(StorageAccess { slot, original, current, new: Some(value) });
                 world.effects.storage.insert(slot, value);
                 None
             }
@@ -1141,9 +889,6 @@ impl<'a> Run<'_, 'a, '_> {
         };
         let frame = self.frames.last().expect("a run always has a frame");
         meter.terminator(body, block, &|value| frame.word(value));
-        if frame.entry {
-            self.visited.insert(block);
-        }
         match terminator {
             &Terminator::Jump(target) => self.enter(target, meter),
             &Terminator::Branch { condition, then_block, else_block } => {
@@ -1181,11 +926,6 @@ impl<'a> Run<'_, 'a, '_> {
                         return ControlFlow::Break(Outcome::Unsupported("call without a result"));
                     };
                     caller.values[result] = Some(value);
-                    if caller.entry
-                        && let &Value::Inst(call) = caller.body.value(result)
-                    {
-                        self.outcomes[call] |= if value.is_zero() { 1 } else { 2 };
-                    }
                 }
                 ControlFlow::Continue(())
             }
@@ -1236,7 +976,7 @@ impl<'a> Run<'_, 'a, '_> {
         let Some(block) = body.blocks.get(target) else {
             return ControlFlow::Break(Outcome::Unsupported("jump to an unknown block"));
         };
-        let mut incoming = SmallVec::<[(InstId, ValueId, U256); 8]>::new();
+        let mut incoming = SmallVec::<[(ValueId, U256); 8]>::new();
         for &inst in &block.instructions {
             let instruction = body.inst(inst);
             let InstKind::Phi(inputs) = &instruction.kind else { break };
@@ -1248,21 +988,15 @@ impl<'a> Run<'_, 'a, '_> {
             meter.instruction(body, inst, &|value| frame.word(value));
             let word = frame.read(value)?;
             meter.result(word);
-            incoming.push((inst, result, word));
+            incoming.push((result, word));
         }
         self.burn(incoming.len() as u64)?;
         let frame = self.frame();
         frame.next = incoming.len();
-        let entry = frame.entry;
-        for &(_, result, value) in &incoming {
+        for &(result, value) in &incoming {
             frame.values[result] = Some(value);
         }
         frame.block = target;
-        if entry {
-            for (inst, _, value) in incoming {
-                self.outcomes[inst] |= if value.is_zero() { 1 } else { 2 };
-            }
-        }
         ControlFlow::Continue(())
     }
 }
@@ -1405,20 +1139,6 @@ fn @storage(arg0: i256) -> i256 {
 }
 ";
 
-    /// Counts the operations an execution reports.
-    #[derive(Default)]
-    struct Counter(u64);
-
-    impl Meter for Counter {
-        fn instruction(&mut self, _: &Function, _: InstId, _: &dyn Fn(ValueId) -> Option<U256>) {
-            self.0 += 1;
-        }
-
-        fn terminator(&mut self, _: &Function, _: BlockId, _: &dyn Fn(ValueId) -> Option<U256>) {
-            self.0 += 1;
-        }
-    }
-
     fn with_module(f: impl FnOnce(&Module, &dyn Fn(&str) -> FunctionId) + Send) {
         let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
         sess.enter(|| {
@@ -1435,7 +1155,7 @@ fn @storage(arg0: i256) -> i256 {
     }
 
     fn run(module: &Module, function: FunctionId, arg: U256) -> Execution {
-        Machine::new(module).run(function, &[arg], Memory::new(7, 0), None, LIMITS, &mut ())
+        Machine::new(module).run(function, &[arg], Memory::zeroed(), None, LIMITS, &mut ())
     }
 
     fn returned(value: u64) -> Outcome {
@@ -1448,16 +1168,6 @@ fn @storage(arg0: i256) -> i256 {
             assert_eq!(run(module, id("sum"), U256::from(10)).outcome, returned(55));
             // The phis of a block read their inputs before any of them is assigned.
             assert_eq!(run(module, id("swap"), U256::from(3)).outcome, returned(21));
-            let execution = run(module, id("sum"), U256::ZERO);
-            let blocks = execution.visited.iter().map(BlockId::index).collect::<Vec<_>>();
-            assert_eq!(blocks, [0, 1, 3]);
-            // `v2 = lt v0, arg0` only ever came out false, and both ways over ten iterations.
-            let compare = InstId::from_usize(2);
-            assert_eq!(execution.outcomes[compare], 1);
-            assert_eq!(run(module, id("sum"), U256::from(10)).outcomes[compare], 3);
-            // A block counts once its terminator runs: the call to `@fail` never returns.
-            let visited = run(module, id("calls"), U256::from(30)).visited;
-            assert_eq!(visited.iter().map(BlockId::index).collect::<Vec<_>>(), [0]);
         });
     }
 
@@ -1472,103 +1182,17 @@ fn @storage(arg0: i256) -> i256 {
             shifted[1..].copy_from_slice(&arg.to_be_bytes::<32>()[..31]);
             let empty = U256::from_be_bytes(keccak256([]).0);
             let expected = U256::from_be_bytes(shifted) ^ empty;
-            assert_eq!(execution.outcome, Outcome::Return([expected].into_iter().collect()),);
-            // `mstore8` and the copy reach byte 160; zero-length accesses reach nothing.
-            assert_eq!(execution.memory.size(), 6);
-            assert_eq!(execution.memory.word(129), arg);
+            assert_eq!(execution.outcome, Outcome::Return([expected].into_iter().collect()));
         });
-    }
-
-    #[test]
-    fn seeded_memory() {
-        let mut memory = Memory::new(1, 0);
-        let fresh = memory.clone();
-        assert_eq!(memory.word(64), Memory::new(1, 0).word(64));
-        assert_ne!(memory.word(64), Memory::new(2, 0).word(64));
-        memory.set(64, U256::from(0x80));
-        assert_eq!(memory.word(64), U256::from(0x80));
-        assert_eq!(memory.first_difference(&fresh), None);
-
-        let mut written = fresh.clone();
-        written.store8(U256::from(70), U256::from(fresh.byte(70))).unwrap();
-        assert_eq!(written.first_difference(&fresh), None);
-        written.store8(U256::from(90), U256::from(fresh.byte(90) ^ 1)).unwrap();
-        written.store8(U256::from(80), U256::from(fresh.byte(80) ^ 1)).unwrap();
-        assert_eq!(written.first_difference(&fresh), Some(80));
-        assert_eq!(fresh.first_difference(&written), Some(80));
-        assert_eq!(written.first_write_outside(&fresh), Some(70));
-        assert_eq!(fresh.first_write_outside(&written), None);
     }
 
     #[test]
     fn calls_and_halts() {
         with_module(|module, id| {
-            let execution = run(module, id("calls"), U256::from(5));
-            assert_eq!(execution.outcome, returned(20));
-            // A call's result counts when the callee returns it: `v0 = icall @double, arg0`.
-            assert_eq!(execution.outcomes[InstId::from_usize(0)], 2);
+            assert_eq!(run(module, id("calls"), U256::from(5)).outcome, returned(20));
             let payload = U256::from(120).to_be_bytes::<32>().to_vec();
             assert_eq!(run(module, id("calls"), U256::from(30)).outcome, Outcome::Revert(payload));
-
-            // The meter sees every unit of fuel a run without copies burns.
-            let mut counter = Counter::default();
-            let execution = Machine::new(module).run(
-                id("calls"),
-                &[U256::from(5)],
-                Memory::new(7, 0),
-                None,
-                LIMITS,
-                &mut counter,
-            );
-            assert_eq!(counter.0, execution.fuel);
-
-            // A replacement runs in place of its original, including through calls.
-            let module_double = module.function(id("double"));
-            let replacement = Machine::with_replacement(module, id("double"), module_double);
-            let execution = replacement.run(
-                id("calls"),
-                &[U256::from(5)],
-                Memory::new(7, 0),
-                None,
-                LIMITS,
-                &mut (),
-            );
-            assert_eq!(execution.outcome, returned(20));
         });
-    }
-
-    #[test]
-    fn supported_operations() {
-        let mut supported = Vec::new();
-        for &name in InstKind::MNEMONICS {
-            if let Some((arity, build)) = InstKind::operand_only(name) {
-                let operands = (0..arity).map(ValueId::from_usize).collect::<Vec<_>>();
-                if supports(&build(&operands)) {
-                    supported.push(name);
-                }
-            }
-        }
-        snapbox::assert_data_eq!(
-            supported.join(" "),
-            snapbox::str![
-                "zext inttoptr add sub mul div sdiv mod smod exp addmod mulmod and or xor not clz shl shr sar byte lt gt slt sgt eq ne mload mstore mstore8 mcopy keccak256 select signextend"
-            ]
-        );
-        let mut with_host = Vec::new();
-        for &name in InstKind::MNEMONICS {
-            if let Some((arity, build)) = InstKind::operand_only(name) {
-                let kind = build(&(0..arity).map(ValueId::from_usize).collect::<Vec<_>>());
-                if !supports(&kind) && supports_with_host(&kind, &[op::CALLER]) {
-                    with_host.push(name);
-                }
-            }
-        }
-        snapbox::assert_data_eq!(
-            with_host.join(" "),
-            snapbox::str!["sload sstore tload tstore caller log0 log1 log2 log3 log4"]
-        );
-        assert!(supports_terminator(&Terminator::Stop));
-        assert!(!supports_terminator(&Terminator::RevertReturndata));
     }
 
     #[test]
@@ -1725,16 +1349,6 @@ fn @entry() [entry] {
         assert_eq!(outcome, Outcome::Invalid);
     }
 
-    /// Records the storage accesses a run reports.
-    #[derive(Default)]
-    struct Accesses(Vec<StorageAccess>);
-
-    impl Meter for Accesses {
-        fn storage(&mut self, access: StorageAccess) {
-            self.0.push(access);
-        }
-    }
-
     #[test]
     fn functions_with_a_host() {
         let source = "@module World
@@ -1760,10 +1374,8 @@ fn @world(arg0: i256) -> i256 {
             let id = module.functions.indices().next().unwrap();
             let machine = Machine::new(&module);
             let args = [U256::from(3)];
-            let mut accesses = Accesses::default();
             let host: &mut dyn Host = &mut TestHost;
-            let execution =
-                machine.run(id, &args, Memory::new(7, 0), Some(host), LIMITS, &mut accesses);
+            let execution = machine.run(id, &args, Memory::zeroed(), Some(host), LIMITS, &mut ());
             assert_eq!(execution.outcome, returned(103));
             let effects = execution.effects;
             let mut storage = effects.storage.into_iter().collect::<Vec<_>>();
@@ -1779,22 +1391,8 @@ fn @world(arg0: i256) -> i256 {
             );
             let data = U256::from(5).to_be_bytes::<32>().to_vec();
             assert_eq!(effects.logs, [Log { topics: words(&[103, 3]), data }]);
-            // Each access sees what the slot held when the run started and what it holds now.
-            let access = |slot: u64, original: u64, current: u64, new: Option<u64>| StorageAccess {
-                slot: U256::from(slot),
-                original: U256::from(original),
-                current: U256::from(current),
-                new: new.map(U256::from),
-            };
-            let expected = [
-                access(7, 100, 100, None),
-                access(7, 100, 100, Some(103)),
-                access(8, 0, 0, Some(100)),
-                access(7, 100, 103, None),
-            ];
-            assert_eq!(accesses.0, expected);
             // Without a host, the run stops at its first storage access.
-            let outcome = machine.run(id, &args, Memory::new(7, 0), None, LIMITS, &mut ()).outcome;
+            let outcome = machine.run(id, &args, Memory::zeroed(), None, LIMITS, &mut ()).outcome;
             assert_eq!(outcome, Outcome::Unsupported("sload"));
         });
     }

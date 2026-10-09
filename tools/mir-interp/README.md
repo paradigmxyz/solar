@@ -1,8 +1,7 @@
 # solar-mir-interp
 
-Runs lowered MIR in the compiler's MIR interpreter: the interpreter the `llm-optimize` pass tests
-candidates with, and the UI test runner checks `run-call` directives against. The library side is
-`solar_codegen::interpret`.
+Runs lowered MIR in the compiler's MIR interpreter, which the UI test runner checks `run-call`
+directives against. The library side is `solar_codegen::interpret`.
 
 The input is one lowered MIR module, such as a fixture under `tests/ui/codegen/mir/`, or the output
 of `solar -Zdump=mir-final`, which prints the final MIR of each contract along with the heap frames
@@ -39,7 +38,7 @@ from memory that holds only the free memory pointer. External entries read their
 calldata, so they run in transactions instead.
 
 ```bash
-cargo run -p solar-mir-interp -- tests/ui/codegen/mir/llm-optimize/calls.mir --function twice --arg 40
+cargo run -p solar-mir-interp -- tests/ui/codegen/mir/interp/calls.mir --function double --arg 21
 ```
 
 ## Storage and context

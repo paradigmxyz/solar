@@ -11,8 +11,7 @@
 //! The UI test runner executes every `run-call` directive in an EVM. With `SOLAR_RUN_CALL_MIR` set,
 //! it also runs the call through [`transact`] on the MIR the compiler lowered to that bytecode.
 //! Both execute the same compiled program, so a disagreement is a bug in the backend or in the
-//! interpreter the `llm-optimize` pass trusts. The `solar-mir-interp` tool runs MIR from the
-//! command line.
+//! interpreter. The `solar-mir-interp` tool runs MIR from the command line.
 //!
 //! The interpreter models one contract: calls, contract creation, and `gas` end a run as
 //! unsupported, and so does a module the compiler dumped before lowering it, as `-O none` does.
