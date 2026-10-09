@@ -1166,7 +1166,8 @@ impl<'a> Planner<'a> {
 
     /// Arranges one of the operand orders `orders` on top of the stack, choosing the cheapest
     /// order and strategy. The price counts each copy of a dying value left below the operands
-    /// as the `SWAP` and `POP` that eventually remove it. Returns the chosen order's index.
+    /// as a `POP` and two `SWAP`s. Pricing one `SWAP`, as [`Self::dead_word_removal`] does, leaves
+    /// more such words behind and measured larger code. Returns the chosen order's index.
     fn prepare_any(
         &self,
         sim: &mut Sim,
