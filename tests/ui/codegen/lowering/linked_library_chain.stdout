@@ -113,7 +113,9 @@ bb0:
   mstore
   push 32
   add
-  exchange 1, 2
+  swap 2
+  swap 1
+  swap 2
   mstore
   push 0
   push 0

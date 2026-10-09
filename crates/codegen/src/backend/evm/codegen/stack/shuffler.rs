@@ -81,9 +81,12 @@ pub(crate) fn lowered_stack_cost(
 }
 
 /// Resynthesizes a bounded physical stack operation sequence from its symbolic result.
+///
+/// The result contains `EXCHANGE` only when `exchanges` is set.
 pub(crate) fn resynthesize_physical_ops(
     ops: &[StackOp],
     evm_version: EvmVersion,
+    exchanges: bool,
 ) -> Option<Vec<StackOp>> {
     let mut source_depth = 0usize;
     let mut available = 0usize;
@@ -110,7 +113,7 @@ pub(crate) fn resynthesize_physical_ops(
     if !evm_version.has_extended_stack_ops() && permutation.is_some() {
         return permutation;
     }
-    let mut shuffler = StackShuffler::new(source.as_slice(), target, evm_version);
+    let mut shuffler = StackShuffler::new(source.as_slice(), target, evm_version, exchanges);
     let shuffled = if source_depth.max(target.len()) <= EXACT_LAYOUT_OPTIMIZATION_LIMIT {
         shuffler.shuffle()
     } else {
@@ -307,10 +310,17 @@ struct StackShuffler<'a> {
     evm_version: EvmVersion,
     /// Multiplicity: how many copies of each value are needed.
     multiplicities: FxHashMap<ValueId, usize>,
+    /// Whether two non-top words may swap with one `EXCHANGE` instead of three `SWAP`s.
+    exchanges: bool,
 }
 
 impl<'a> StackShuffler<'a> {
-    fn new(source: &[ValueId], target: &'a [ValueId], evm_version: EvmVersion) -> Self {
+    fn new(
+        source: &[ValueId],
+        target: &'a [ValueId],
+        evm_version: EvmVersion,
+        exchanges: bool,
+    ) -> Self {
         let mut multiplicities = FxHashMap::default();
         for &value in target {
             *multiplicities.entry(value).or_default() += 1;
@@ -321,6 +331,7 @@ impl<'a> StackShuffler<'a> {
             ops: Vec::new(),
             evm_version,
             multiplicities,
+            exchanges,
         }
     }
 
@@ -581,12 +592,15 @@ impl<'a> StackShuffler<'a> {
 
             let target_depth = target_depth as u8;
             let source_depth = source_depth as u8;
-            if let Some(exchange) = StackOp::from_swaps(target_depth, source_depth, target_depth) {
+            if self.exchanges
+                && let Some(exchange) =
+                    StackOp::from_swaps(target_depth, source_depth, target_depth)
+            {
                 self.ops.push(exchange);
                 self.source.swap(usize::from(target_depth), usize::from(source_depth));
             } else {
-                // Bring the selected value through the top when `EXCHANGE` cannot encode these
-                // two depths.
+                // Bring the selected value through the top when `EXCHANGE` is disabled or cannot
+                // encode these two depths.
                 self.swap(usize::from(target_depth));
                 self.swap(usize::from(source_depth));
                 self.swap(usize::from(target_depth));
@@ -689,7 +703,7 @@ mod tests {
                 if target.iter().any(|value| !source_values.contains(value)) {
                     continue;
                 }
-                let shuffler = StackShuffler::new(source_values, target, EvmVersion::Osaka);
+                let shuffler = StackShuffler::new(source_values, target, EvmVersion::Osaka, true);
                 let exact = StackShuffler::search_exact(
                     shuffler.source.clone(),
                     target,

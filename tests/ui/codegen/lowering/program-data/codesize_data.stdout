@@ -210,9 +210,10 @@ bb8:
   push 1
   codesize
   sub
-  push 1
   push 0
-  exchange 1, 2
+  push 1
+  swap 2
+  swap 1
   codecopy
   push 0
   mload

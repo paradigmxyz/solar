@@ -101,7 +101,9 @@ bb19 [loop]:
   swap 2
   iszero
   iszero
-  exchange 2, 3
+  swap 3
+  swap 2
+  swap 3
   swap 1
   dup 3
   swap 1

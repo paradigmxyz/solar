@@ -96,7 +96,8 @@ pub static ALL_PASSES: &[&dyn EvmPass] = &[
     &reorder_pushes::REORDER_EXPRESSIONS,
     &share_reverts::ShareReverts,
     &stack_normalize::StackDedup,
-    &stack_normalize::StackNormalize,
+    &stack_normalize::StackNormalize::EARLY,
+    &stack_normalize::StackNormalize::FINAL,
     &compact_pushes::CompactPushes,
     &constant_data::ConstantData,
     &coalesce_copies::CoalesceCopies,
@@ -141,7 +142,7 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     &peephole::Cleanup(block_cse::BlockCse),
     &peephole::Cleanup(dce::Dce),
     // Stack normalization exposes local rewrites.
-    &peephole::Cleanup(stack_normalize::StackNormalize),
+    &peephole::Cleanup(stack_normalize::StackNormalize::EARLY),
     // Pack address-sensitive terminal blocks, then clean up any adjacent
     // revert branch that remains profitable in the final layout.
     &block_layout::BlockLayout,
@@ -162,7 +163,7 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     &peephole::Peephole::EARLY,
     &peephole::Cleanup(block_cse::BlockCse),
     &peephole::Cleanup(dce::Dce),
-    &peephole::Cleanup(stack_normalize::StackNormalize),
+    &peephole::Cleanup(stack_normalize::StackNormalize::EARLY),
     &block_layout::BlockLayout,
     &share_reverts::ShareReverts,
     &cfg_simplify::CfgSimplify::FINAL,
@@ -183,6 +184,8 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     &terminal_layout::TerminalLayout,
     &reorder_pushes::REORDER_EXPRESSIONS,
     &peephole::LateWord,
+    // Introduce `EXCHANGE` only after every peephole has seen the plain swaps.
+    &stack_normalize::StackNormalize::FINAL,
 ];
 
 /// Finds an EVM IR pass by command-line name.

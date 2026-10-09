@@ -282,6 +282,11 @@ impl Cost {
         Self { gas, bytes }
     }
 
+    /// Whether this costs no more gas and bytes than `other` and less of one.
+    pub(crate) fn dominates(self, other: Self) -> bool {
+        self.gas <= other.gas && self.bytes <= other.bytes && self != other
+    }
+
     /// Cost of an opcode whose static gas is identical on every EVM version.
     /// Panics for unknown opcodes or a fork-dependent gas tier.
     const fn fixed_opcode(opcode: u8) -> Self {
@@ -431,10 +436,11 @@ impl Target {
         self.opcode(op::DUP1)
     }
 
-    /// Cost of a stack operation as the target lowers it.
-    pub(crate) fn stack_op(self, op: op::StackOp) -> Cost {
-        let metrics = op.metrics(self.evm_version).expect("stack operation must be supported");
-        Cost::new(metrics.static_gas as u32, metrics.assembled_len as u32)
+    /// Cost of one logical stack operation after target lowering, or `None` when the target
+    /// cannot lower it. An `EXCHANGE` before Amsterdam costs its three swaps.
+    pub(crate) fn stack_op(self, stack_op: op::StackOp) -> Option<Cost> {
+        let metrics = stack_op.metrics(self.evm_version)?;
+        Some(Cost::new(metrics.static_gas as u32, metrics.assembled_len as u32))
     }
 
     /// Cost of pushing `value` through its cheapest materialization.
@@ -885,12 +891,17 @@ mod tests {
         assert_eq!(target.data_copy_gas(64), 18);
         let legacy = Target::with(EvmVersion::Paris, OptimizationMode::Gas, 200);
         assert_eq!(legacy.push(U256::ZERO), Cost::new(3, 2));
-        assert_eq!(target.stack_op(op::StackOp::Swap(16)), Cost::new(3, 1));
-        assert_eq!(target.stack_op(op::StackOp::Pop), Cost::new(2, 1));
-        assert_eq!(target.stack_op(op::StackOp::Exchange(1, 2)), Cost::new(9, 3));
-        let extended = Target::with(EvmVersion::Amsterdam, OptimizationMode::Gas, 200);
-        assert_eq!(extended.stack_op(op::StackOp::Dup(17)), Cost::new(3, 2));
-        assert_eq!(extended.stack_op(op::StackOp::Exchange(1, 2)), Cost::new(3, 2));
+        assert_eq!(target.stack_op(op::StackOp::Swap(16)), Some(Cost::new(3, 1)));
+        assert_eq!(target.stack_op(op::StackOp::Pop), Some(Cost::new(2, 1)));
+        assert_eq!(target.stack_op(op::StackOp::Exchange(1, 2)), Some(Cost::new(9, 3)));
+        assert_eq!(target.stack_op(op::StackOp::Exchange(1, 17)), None);
+        let amsterdam = Target::with(EvmVersion::Amsterdam, OptimizationMode::Gas, 200);
+        assert_eq!(amsterdam.stack_op(op::StackOp::Dup(17)), Some(Cost::new(3, 2)));
+        assert_eq!(amsterdam.stack_op(op::StackOp::Exchange(1, 2)), Some(Cost::new(3, 2)));
+        assert!(Cost::new(3, 2).dominates(Cost::new(9, 3)));
+        assert!(Cost::new(9, 2).dominates(Cost::new(9, 3)));
+        assert!(!Cost::new(9, 3).dominates(Cost::new(9, 3)));
+        assert!(!Cost::new(3, 4).dominates(Cost::new(9, 3)));
     }
 
     #[test]

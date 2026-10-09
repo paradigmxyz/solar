@@ -138,7 +138,9 @@ bb82:
   jumpi
   push 32
   add
-  exchange 1, 3
+  swap 3
+  swap 1
+  swap 3
   calldatacopy
   swap 1
   jump

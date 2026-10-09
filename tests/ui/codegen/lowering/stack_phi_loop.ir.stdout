@@ -152,7 +152,9 @@ bb24 [loop]:
   swap 2
   dup 3
   lt
-  exchange 1, 2
+  swap 2
+  swap 1
+  swap 2
   iszero
   push bb18
   jumpi

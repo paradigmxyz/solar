@@ -153,7 +153,9 @@ bb0:
   push 4
   swap 2
   swap 4
-  exchange 1, 3
+  swap 1
+  swap 3
+  swap 1
   gas
   staticcall
   iszero
@@ -201,9 +203,10 @@ bb10:
   push_data CodeTarget_creation_code_0
   dup 3
   codecopy
-  push 252
   push 0
-  exchange 1, 2
+  push 252
+  swap 2
+  swap 1
   create
   dup 1
   iszero

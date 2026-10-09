@@ -30,7 +30,9 @@ bb0:
   jumpi
   push 0
   swap 3
-  exchange 1, 2
+  swap 2
+  swap 1
+  swap 2
   jump bb17
 bb19 [loop]:
   dup 2
@@ -124,7 +126,9 @@ bb3:
   pop
   push 0
   push 0
-  exchange 1, 2
+  swap 2
+  swap 1
+  swap 2
   jump bb7
 bb9 [loop]:
   dup 2

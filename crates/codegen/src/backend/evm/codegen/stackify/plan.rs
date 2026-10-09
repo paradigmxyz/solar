@@ -132,6 +132,8 @@ pub(super) struct Planner<'a> {
     recomputable: &'a FxHashMap<ValueId, (Cost, u32)>,
     /// Whether a failure lists every spillable value beyond reach, for spilling in batches.
     batch_spills: bool,
+    /// Whether the target has a native `EXCHANGE` that can beat swaps.
+    exchanges: bool,
     /// Instructions with no code of their own.
     skipped: FxHashSet<InstId>,
     /// Extra results of multi-word calls, adopted from the returned stack words.
@@ -484,6 +486,7 @@ impl<'a> Planner<'a> {
             pinned,
             recomputable,
             batch_spills,
+            exchanges: target.evm_version().has_extended_stack_ops(),
             skipped,
             projections,
             publish,
@@ -747,11 +750,9 @@ impl<'a> Planner<'a> {
                 stack: trial.sim.stack.clone(),
                 cost: trial.sim.cost,
                 price: trial.sim.cost.plus(self.dead_word_removal().times(trial.sim.junk())),
-                swapped: trial
-                    .sim
-                    .steps
-                    .iter()
-                    .any(|step| matches!(step, Step::Stack(StackOp::Swap(_)))),
+                swapped: trial.sim.steps.iter().any(|step| {
+                    matches!(step, Step::Stack(StackOp::Swap(_) | StackOp::Exchange(..)))
+                }),
             });
         }
         let mut swapped = false;
@@ -936,9 +937,15 @@ impl<'a> Planner<'a> {
             StackOp::Pop => {
                 sim.stack.pop().expect("pop from an empty modeled stack");
             }
-            StackOp::Exchange(..) => unreachable!("planner does not emit exchanges"),
+            StackOp::Exchange(n, m) => {
+                let (n, m) = (n as usize, m as usize);
+                if op.lowering(self.target.evm_version()).is_none() || m >= height {
+                    return Err(self.deep(sim, height.checked_sub(m + 1)));
+                }
+                sim.stack.swap(height - 1 - n, height - 1 - m);
+            }
         }
-        sim.cost += self.target.stack_op(op);
+        sim.cost += self.target.stack_op(op).expect("stack operation within reach");
         sim.steps.push(Step::Stack(op));
         sim.observe(0);
         Ok(())
@@ -1289,6 +1296,19 @@ impl<'a> Planner<'a> {
             if depth == want {
                 continue;
             }
+            // Move the operand between two words below the top in one step when that is cheaper.
+            if self.exchanges
+                && depth != 0
+                && want != 0
+                && let (Ok(depth8), Ok(want8)) = (u8::try_from(depth), u8::try_from(want))
+                && let Some(exchange) = StackOp::from_swaps(depth8, want8, depth8)
+                && self.exchanges_beat(&[exchange], &[StackOp::Swap(depth8), StackOp::Swap(want8)])
+            {
+                self.stack_op(sim, exchange)?;
+                let top = tags.len() - 1;
+                tags.swap(top - depth, top - want);
+                continue;
+            }
             if depth != 0 {
                 self.tagged_swap(sim, &mut tags, depth)?;
             }
@@ -1335,7 +1355,18 @@ impl<'a> Planner<'a> {
                 })?
             }
         };
-        for mv in moves {
+        let mut index = 0;
+        while let Some(&mv) = moves.get(index) {
+            if self.exchanges
+                && let Some((exchanges, end)) = self.exchange_cycle(&moves, index)
+            {
+                for exchange in exchanges {
+                    self.stack_op(sim, exchange)?;
+                }
+                index = end;
+                continue;
+            }
+            index += 1;
             match mv {
                 Move::Swap(depth) => self.stack_op(sim, StackOp::Swap(depth as u8))?,
                 Move::Dup(depth) => self.stack_op(sim, StackOp::Dup(depth as u8 + 1))?,
@@ -1350,6 +1381,33 @@ impl<'a> Planner<'a> {
             "shuffle missed its target"
         );
         Ok(())
+    }
+
+    /// Rewrites the swaps `SWAPa SWAPb1 ... SWAPbj SWAPa` that start at `moves[start]`, a cycle
+    /// through the top that leaves the top in place, as `EXCHANGE a, b1 ... EXCHANGE a, bj` when
+    /// the exchanges are cheaper. Returns the exchanges and the index after the swaps.
+    fn exchange_cycle(
+        &self,
+        moves: &[Move],
+        start: usize,
+    ) -> Option<(SmallVec<[StackOp; 4]>, usize)> {
+        let swaps = moves[start..].iter().map_while(|&mv| match mv {
+            Move::Swap(depth) => u8::try_from(depth).ok().map(StackOp::Swap),
+            _ => None,
+        });
+        let (exchanges, len) = StackOp::exchange_cycle(swaps.clone())?;
+        let swaps: SmallVec<[StackOp; 8]> = swaps.take(len).collect();
+        self.exchanges_beat(&exchanges, &swaps).then_some((exchanges, start + len))
+    }
+
+    /// Whether the target lowers `exchanges` and they cost no more than the equivalent `swaps`
+    /// in gas and bytes and less in one.
+    fn exchanges_beat(&self, exchanges: &[StackOp], swaps: &[StackOp]) -> bool {
+        let cost =
+            |ops: &[StackOp]| ops.iter().map(|&op| self.target.stack_op(op)).sum::<Option<Cost>>();
+        cost(exchanges)
+            .zip(cost(swaps))
+            .is_some_and(|(exchanges, swaps)| exchanges.dominates(swaps))
     }
 
     // ----------------------------------------------------------------------------------------

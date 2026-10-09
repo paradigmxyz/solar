@@ -221,7 +221,9 @@ bb1:
   push 32
   dup 2
   add
-  exchange 1, 3
+  swap 3
+  swap 1
+  swap 3
   calldatacopy
   dup 1
   push 64
@@ -561,7 +563,9 @@ bb9:
   push 32
   dup 2
   add
-  exchange 1, 4
+  swap 4
+  swap 1
+  swap 4
   calldatacopy
   push 64
   mload
@@ -728,7 +732,9 @@ bb9:
   push 0x1000000000000000000000000000000000000001
   swap 2
   swap 4
-  exchange 1, 3
+  swap 1
+  swap 3
+  swap 1
   swap 2
   gas
   delegatecall

@@ -256,7 +256,9 @@ bb24:
   pop
   push 0
   swap 1
-  exchange 2, 3
+  swap 3
+  swap 2
+  swap 3
   jump bb25
 bb25 [loop]:
   dup 4
@@ -529,7 +531,9 @@ bb91:
   swap 1
   push 32
   add
-  exchange 1, 2
+  swap 2
+  swap 1
+  swap 2
   mstore
   push bb42
   jump bb84
@@ -611,7 +615,9 @@ bb65 [loop]:
   and
   swap 3
   add
-  exchange 1, 2
+  swap 2
+  swap 1
+  swap 2
   sstore
   jump
 bb68 [loop]:
@@ -754,7 +760,9 @@ bb94 [continuation]:
   jumpi
   push 32
   add
-  exchange 1, 3
+  swap 3
+  swap 1
+  swap 3
   calldatacopy
   push bb20
   push 0

@@ -6,9 +6,10 @@
 
 // Keep distinct, non-rematerializable values live beyond the legacy stack
 // window, then consume them in two different orders. Execute the same bytecode
-// whose disassembly requires the EIP-8024 `DUPN` and `SWAPN` instructions.
+// whose disassembly requires all three EIP-8024 instructions.
 // CHECK: DUPN
 // CHECK: SWAPN
+// CHECK: EXCHANGE
 
 contract ExtendedStack {
     function check() external view returns (bool result) {

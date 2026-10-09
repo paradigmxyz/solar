@@ -114,7 +114,9 @@ bb19 [loop]:
   swap 2
   iszero
   iszero
-  exchange 2, 3
+  swap 3
+  swap 2
+  swap 3
   swap 1
   dup 3
   swap 1
@@ -139,7 +141,9 @@ bb19 [loop]:
   iszero
   iszero
   and
-  exchange 1, 2
+  swap 2
+  swap 1
+  swap 2
   iszero
   push bb17
   jumpi

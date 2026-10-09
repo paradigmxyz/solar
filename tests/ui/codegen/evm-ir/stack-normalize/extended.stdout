@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/stack-normalize/extended.evmir (before stack-normalize) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/stack-normalize/extended.evmir (after stack-normalize) ===
+- // === ROOT/tests/ui/codegen/evm-ir/stack-normalize/extended.evmir (before final-stack-normalize) ===
++ // === ROOT/tests/ui/codegen/evm-ir/stack-normalize/extended.evmir (after final-stack-normalize) ===
   @module extended
   bb0:
     push 0
@@ -124,5 +124,29 @@
     dup 1
 -   swap 1
     exchange 1, 17
+    stop
+  bb6:
+    push 0
+    push 1
+    push 2
+    push 3
+    push 4
+    push 5
+    swap 2
+    swap 4
+-   swap 1
+-   swap 3
+-   swap 1
++   exchange 1, 3
+    swap 5
+    stop
+  bb7:
+    calldatasize
+    returndatasize
+    callvalue
+-   swap 1
+-   swap 2
++   exchange 1, 2
+    add
     stop
   

@@ -1,4 +1,4 @@
-//@ compile-flags: --evm-version amsterdam -Zevm-ir-pipeline=stack-normalize
+//@ compile-flags: --evm-version amsterdam -Zevm-ir-pipeline=final-stack-normalize
 //@ filecheck:
 @module extended
 
@@ -159,4 +159,43 @@ bb5:
   dup 1
   swap 1
   exchange 1, 17
+  stop
+
+// Fold a cycle through the top inside a longer run that resynthesis leaves as plain swaps.
+// CHECK-LABEL: {{^[ +].*}}bb6:
+// CHECK: {{^[ +].*}}swap 4
+// CHECK-NEXT: -   swap 1
+// CHECK-NEXT: -   swap 3
+// CHECK-NEXT: -   swap 1
+// CHECK-NEXT: +   exchange 1, 3
+// CHECK-NEXT: {{^[ +].*}}swap 5
+bb6:
+  push 0
+  push 1
+  push 2
+  push 3
+  push 4
+  push 5
+  swap 2
+  swap 4
+  swap 1
+  swap 3
+  swap 1
+  swap 5
+  stop
+
+// Absorb the consumer's freedom into one exchange.
+// CHECK-LABEL: {{^[ +].*}}bb7:
+// CHECK: {{^[ +].*}}callvalue
+// CHECK-NEXT: -   swap 1
+// CHECK-NEXT: -   swap 2
+// CHECK-NEXT: +   exchange 1, 2
+// CHECK-NEXT: {{^[ +].*}}add
+bb7:
+  calldatasize
+  returndatasize
+  callvalue
+  swap 1
+  swap 2
+  add
   stop

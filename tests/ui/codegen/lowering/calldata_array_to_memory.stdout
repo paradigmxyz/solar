@@ -227,7 +227,9 @@ bb16:
   mstore
   push 32
   add
-  exchange 1, 2
+  swap 1
+  swap 2
+  swap 1
   calldatacopy
   push 128
   mstore

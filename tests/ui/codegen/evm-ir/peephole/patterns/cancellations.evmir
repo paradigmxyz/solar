@@ -198,9 +198,9 @@ bb13:
 
 // Do not remove an identity that only holds with an unavailable stack prefix.
 // CHECK-LABEL: {{^[ +].*}}bb14:
-// CHECK: +   exchange 1, 2
+// CHECK: +   swap 2
 // CHECK-NEXT: {{^[ +].*}}pop
-// CHECK-NEXT: {{^[ +].*}}swap 1
+// CHECK-NEXT: -   swap 1
 // CHECK-NEXT: {{^[ +].*}}pop
 bb14:
   push 0

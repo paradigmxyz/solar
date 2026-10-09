@@ -20,37 +20,63 @@
 //! It repairs local permutations exposed after value identities are gone, then peephole cleanup
 //! removes any simpler identities that become adjacent. The length bound keeps symbolic
 //! resynthesis and cache keys independent of function size.
+//!
+//! A run directly before a commutative binary operation or a comparison with a mirrored form may
+//! leave the top two words in either order: the alternative also normalizes the run followed by
+//! `SWAP1` and wins when cheaper, and then a comparison flips to its mirrored form.
+//!
+//! `SWAP` is the canonical form of a two-word exchange until the last peephole has run, so
+//! consumer rules such as `SWAP1 ADD -> ADD` see every top swap. The ordinary instance never
+//! introduces `EXCHANGE`. The final instance runs after the last peephole, only on targets with a
+//! native `EXCHANGE`, and may use it wherever it is cheaper. Besides resynthesis, it folds each
+//! cycle through the top that leaves the top in place, `SWAPa SWAPb ... SWAPa`, into one
+//! `EXCHANGE a, b` per inner swap when that improves the lowered cost.
 
 use super::EvmPass;
 use crate::{
     backend::evm::{
         codegen::{StackModel, StackOp, lowered_stack_cost, resynthesize_physical_ops},
         ir::{Instruction, Module},
+        op,
     },
     mir::ValueId,
 };
 use smallvec::SmallVec;
-use solar_config::EvmVersion;
+use solar_config::{EvmVersion, OptimizationMode};
 use solar_data_structures::map::FxHashMap;
 use solar_sema::Gcx;
 use std::cell::RefCell;
 
 const MAX_STACK_RUN_LEN: usize = 24;
 
-pub(super) struct StackNormalize;
+pub(super) struct StackNormalize {
+    /// Whether this is the final instance, which may introduce `EXCHANGE`.
+    exchanges: bool,
+}
+
+impl StackNormalize {
+    pub(super) const EARLY: Self = Self { exchanges: false };
+    pub(super) const FINAL: Self = Self { exchanges: true };
+}
 
 pub(super) struct StackDedup;
 
 impl EvmPass for StackNormalize {
     fn name(&self) -> &'static str {
-        "stack-normalize"
+        if self.exchanges { "final-stack-normalize" } else { "stack-normalize" }
+    }
+
+    fn is_enabled(&self, gcx: Gcx<'_>, _module: &Module) -> bool {
+        !matches!(gcx.sess.opts.optimization, OptimizationMode::None)
+            && (!self.exchanges || gcx.sess.opts.evm_version.has_extended_stack_ops())
     }
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
         let mut changed = false;
         let mut normalizer = Normalizer::default();
+        let key = (gcx.sess.opts.evm_version, self.exchanges);
         for block in &mut module.blocks {
-            changed |= normalizer.run(&mut block.instructions, gcx.sess.opts.evm_version);
+            changed |= normalizer.run(&mut block.instructions, key);
         }
         changed
     }
@@ -77,6 +103,9 @@ type NormalizationCache = FxHashMap<StackRun, Option<StackRun>>;
 /// Reuse the common physical shuffles without retaining unbounded compiler state.
 const MAX_SHARED_NORMALIZATIONS: usize = 4096;
 
+/// The target and whether the output may contain `EXCHANGE`.
+type NormalizationKey = (EvmVersion, bool);
+
 thread_local! {
     static SHARED_NORMALIZATIONS: RefCell<SharedNormalizations> = RefCell::default();
 }
@@ -84,23 +113,26 @@ thread_local! {
 #[derive(Default)]
 struct SharedNormalizations {
     evm_version: Option<EvmVersion>,
-    entries: NormalizationCache,
+    /// Entries without and with `EXCHANGE` in the output.
+    entries: [NormalizationCache; 2],
 }
 
 impl SharedNormalizations {
-    fn get(&mut self, input: &StackRun, evm_version: EvmVersion) -> Option<StackRun> {
+    fn get(&mut self, input: &StackRun, key: NormalizationKey) -> Option<StackRun> {
+        let (evm_version, exchanges) = key;
         if self.evm_version != Some(evm_version) {
-            self.entries.clear();
+            self.entries.iter_mut().for_each(NormalizationCache::clear);
             self.evm_version = Some(evm_version);
         }
-        if let Some(output) = self.entries.get(input) {
+        let entries = &mut self.entries[usize::from(exchanges)];
+        if let Some(output) = entries.get(input) {
             return output.clone();
         }
-        let output = compute_normalization(input, evm_version);
-        if self.entries.len() == MAX_SHARED_NORMALIZATIONS {
-            self.entries.clear();
+        let output = compute_normalization(input, key);
+        if entries.len() == MAX_SHARED_NORMALIZATIONS {
+            entries.clear();
         }
-        self.entries.insert(input.clone(), output.clone());
+        entries.insert(input.clone(), output.clone());
         output
     }
 }
@@ -109,6 +141,9 @@ struct Normalization {
     start: usize,
     end: usize,
     output: StackRun,
+    /// The opcode that replaces the consumer at `end` when the output leaves the top two words
+    /// exchanged.
+    consumer: Option<u8>,
 }
 
 #[derive(Default)]
@@ -119,7 +154,7 @@ struct Normalizer {
 }
 
 impl Normalizer {
-    fn run(&mut self, instructions: &mut Vec<Instruction>, evm_version: EvmVersion) -> bool {
+    fn run(&mut self, instructions: &mut Vec<Instruction>, key: NormalizationKey) -> bool {
         self.normalizations.clear();
         if !instructions
             .windows(2)
@@ -138,6 +173,13 @@ impl Normalizer {
                 cursor += 1;
                 continue;
             }
+            // A consumer that reads the top two words in either order, and the opcode that
+            // reads them exchanged.
+            let consumer = instructions
+                .get(cursor)
+                .filter(|inst| !inst.keeps_with_next())
+                .and_then(Instruction::as_evm_opcode)
+                .and_then(op::swapped_binary_opcode);
             let mut start = run_start;
             while start < cursor {
                 let remaining = cursor - start;
@@ -149,16 +191,43 @@ impl Normalizer {
                 let end = start + len;
                 input.clear();
                 input.extend(instructions[start..end].iter().filter_map(Instruction::as_stack_op));
-                if input.len() >= 2
-                    && let Some(output) = normalization(&input, evm_version, &mut self.cache)
-                {
-                    self.normalizations.push(Normalization { start, end, output });
+                let consumer = consumer.filter(|_| {
+                    end == cursor
+                        && !instructions[start..end].iter().any(Instruction::keeps_with_next)
+                });
+                if input.len() >= 2 {
+                    let mut best =
+                        normalization(&input, key, &mut self.cache).map(|output| (output, None));
+                    if let Some(consumer) = consumer {
+                        // run; consumer => run; swap 1; mirrored consumer
+                        let cost = lowered_stack_cost(
+                            best.as_ref().map_or(&input, |(output, _)| output),
+                            key.0,
+                        );
+                        input.push(StackOp::Swap(1));
+                        if let Some(output) = normalization(&input, key, &mut self.cache)
+                            && improves(lowered_stack_cost(&output, key.0), cost)
+                        {
+                            best = Some((output, Some(consumer)));
+                        }
+                    }
+                    if let Some((output, consumer)) = best {
+                        self.normalizations.push(Normalization { start, end, output, consumer });
+                    }
                 }
                 start = end;
             }
         }
         if self.normalizations.is_empty() {
             return false;
+        }
+        for normalization in &self.normalizations {
+            if let Some(opcode) = normalization.consumer
+                && instructions[normalization.end].as_evm_opcode() != Some(opcode)
+            {
+                instructions[normalization.end]
+                    .replace_preserving_metadata(Instruction::opcode(opcode));
+            }
         }
 
         self.scratch.clear();
@@ -201,27 +270,64 @@ impl Normalizer {
 
 fn normalization(
     input: &StackRun,
-    evm_version: EvmVersion,
+    key: NormalizationKey,
     cache: &mut NormalizationCache,
 ) -> Option<StackRun> {
     if let Some(output) = cache.get(input) {
         output.clone()
     } else {
-        let output = SHARED_NORMALIZATIONS.with_borrow_mut(|shared| shared.get(input, evm_version));
+        let output = SHARED_NORMALIZATIONS.with_borrow_mut(|shared| shared.get(input, key));
         cache.insert(input.clone(), output.clone());
         output
     }
 }
 
-fn compute_normalization(input: &StackRun, evm_version: EvmVersion) -> Option<StackRun> {
-    let output = StackRun::from_vec(resynthesize_physical_ops(input, evm_version)?);
+fn compute_normalization(
+    input: &StackRun,
+    (evm_version, exchanges): NormalizationKey,
+) -> Option<StackRun> {
     let input_cost = lowered_stack_cost(input, evm_version);
-    let output_cost = lowered_stack_cost(&output, evm_version);
-    (output_cost.0 <= input_cost.0
-        && output_cost.1 <= input_cost.1
-        && output_cost.2 <= input_cost.2
-        && output_cost != input_cost)
-        .then_some(output)
+    let resynthesized = resynthesize_physical_ops(input, evm_version, exchanges)
+        .map(StackRun::from_vec)
+        .filter(|output| improves(lowered_stack_cost(output, evm_version), input_cost));
+    if !exchanges {
+        return resynthesized;
+    }
+    // Resynthesis rebuilds a run from its permutation and can miss a cycle through the top
+    // inside a longer run, so the final instance also folds such cycles in place.
+    fold_exchange_cycles(resynthesized.as_ref().unwrap_or(input), evm_version).or(resynthesized)
+}
+
+/// Whether `cost` weakly improves every lowered objective of `than` and strictly improves one.
+fn improves(cost: (usize, usize, usize), than: (usize, usize, usize)) -> bool {
+    cost.0 <= than.0 && cost.1 <= than.1 && cost.2 <= than.2 && cost != than
+}
+
+/// Rewrites each `SWAPa SWAPb1 ... SWAPbj SWAPa`, a cycle through the top that leaves the top in
+/// place, as `EXCHANGE a, b1 ... EXCHANGE a, bj` where that improves the lowered cost. Returns
+/// `None` when nothing folds.
+fn fold_exchange_cycles(run: &[StackOp], evm_version: EvmVersion) -> Option<StackRun> {
+    let mut output = StackRun::new();
+    let mut folded = false;
+    let mut index = 0;
+    while index < run.len() {
+        // swap a; swap b1; ...; swap bj; swap a
+        // => exchange a, b1; ...; exchange a, bj
+        if let Some((exchanges, len)) = StackOp::exchange_cycle(run[index..].iter().copied())
+            && improves(
+                lowered_stack_cost(&exchanges, evm_version),
+                lowered_stack_cost(&run[index..index + len], evm_version),
+            )
+        {
+            output.extend(exchanges);
+            folded = true;
+            index += len;
+        } else {
+            output.push(run[index]);
+            index += 1;
+        }
+    }
+    folded.then_some(output)
 }
 
 fn remove_redundant_permutations(

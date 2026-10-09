@@ -262,7 +262,9 @@ bb16:
   push bb42
   jumpi
   push 0
-  exchange 1, 2
+  swap 1
+  swap 2
+  swap 1
   push bb23
   swap 1
   push 0

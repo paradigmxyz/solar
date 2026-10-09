@@ -46,7 +46,6 @@
   (ReloadStoredValue)
   (DropNonzeroTest)
   (EqIszeroJumpi)
-  (StackOp (op StackOp))
   (StackOps (first StackOp) (second StackOp))
 ))
 
@@ -127,9 +126,6 @@
 (extern constructor u8_add u8_add)
 (decl pure swap_op (u8) StackOp)
 (extern constructor swap_op swap_op)
-;; The `EXCHANGE` represented by three swaps.
-(decl pure partial exchange_of_swaps (u8 u8 u8) StackOp)
-(extern constructor exchange_of_swaps exchange_of_swaps)
 (decl pure u256_is_zero (U256) bool)
 (extern constructor u256_is_zero u256_is_zero)
 (decl pure u256_is_one (U256) bool)
@@ -269,11 +265,6 @@
 (rule 80 (peep_swap (last2 (exchange n m) (swap m))) (rewrite 2 (Edit.StackOps (swap_op m) (swap_op n))))
 (rule 70 (peep_exchange (last2 (swap n) (exchange n m))) (rewrite 2 (Edit.StackOps (swap_op m) (swap_op n))))
 (rule 60 (peep_exchange (last2 (swap m) (exchange n m))) (rewrite 2 (Edit.StackOps (swap_op n) (swap_op m))))
-
-;; `SWAPn SWAPm SWAPn -> EXCHANGE n, m`.
-(rule 50 (peep_swap (last3 (swap first) (swap second) (swap third)))
-        (if-let exchange (exchange_of_swaps first second third))
-        (rewrite 3 (Edit.StackOp exchange)))
 
 ;; A bounded window around a closed, one-result shift-count computation.
 (type LateWindow (primitive LateWindow))
