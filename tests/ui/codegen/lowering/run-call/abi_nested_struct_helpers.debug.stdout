@@ -36,7 +36,7 @@ fn @pair() [selector=0x7a5de1e9, abi_wrapper, pure] {
   bb9:
     v127 = mload 64
     v128 = add v127, 96
-    mstore 64, v128
+    mstore 64, v128 !metadata(preserves_valid_fmp)
     v28 = calldataload v21
     mstore v127, v28
     v29 = add v21, 32
@@ -62,7 +62,7 @@ fn @pair() [selector=0x7a5de1e9, abi_wrapper, pure] {
     v119 = or v117, v118
     jumpi v119, bb13, bb23
   bb23:
-    mstore 64, v116
+    mstore 64, v116 !metadata(preserves_valid_fmp)
     mstore v115, v35
     v42 = sub v10, v33
     v43 = gt v35, v42
@@ -90,7 +90,7 @@ fn @pair() [selector=0x7a5de1e9, abi_wrapper, pure] {
   bb18:
     v129 = mload 64
     v130 = add v129, 96
-    mstore 64, v130
+    mstore 64, v130 !metadata(preserves_valid_fmp)
     v56 = calldataload v49
     mstore v129, v56
     v57 = add v49, 32
@@ -116,7 +116,7 @@ fn @pair() [selector=0x7a5de1e9, abi_wrapper, pure] {
     v125 = or v123, v124
     jumpi v125, bb13, bb24
   bb24:
-    mstore 64, v122
+    mstore 64, v122 !metadata(preserves_valid_fmp)
     mstore v121, v63
     v70 = sub v10, v61
     v71 = gt v63, v70
@@ -219,7 +219,7 @@ fn @pairs() [selector=0x054d20d9, abi_wrapper, pure] {
     v193 = or v191, v192
     jumpi v193, bb18, bb44
   bb44:
-    mstore 64, v190
+    mstore 64, v190 !metadata(preserves_valid_fmp)
     mstore v189, v44
     v56 = sub v37, v42
     v57 = shr 5, v56
@@ -317,7 +317,7 @@ fn @pairs() [selector=0x054d20d9, abi_wrapper, pure] {
   bb29:
     v207 = mload 64
     v208 = add v207, 96
-    mstore 64, v208
+    mstore 64, v208 !metadata(preserves_valid_fmp)
     v72 = calldataload v65
     v73 = add v65, v72
     v74 = gt v72, 0xffffffffffffffff
@@ -331,7 +331,7 @@ fn @pairs() [selector=0x054d20d9, abi_wrapper, pure] {
   bb32:
     v209 = mload 64
     v210 = add v209, 96
-    mstore 64, v210
+    mstore 64, v210 !metadata(preserves_valid_fmp)
     v80 = calldataload v73
     mstore v209, v80
     v81 = add v73, 32
@@ -357,7 +357,7 @@ fn @pairs() [selector=0x054d20d9, abi_wrapper, pure] {
     v199 = or v197, v198
     jumpi v199, bb18, bb45
   bb45:
-    mstore 64, v196
+    mstore 64, v196 !metadata(preserves_valid_fmp)
     mstore v195, v87
     v94 = sub v37, v85
     v95 = gt v87, v94
@@ -384,7 +384,7 @@ fn @pairs() [selector=0x054d20d9, abi_wrapper, pure] {
   bb39:
     v211 = mload 64
     v212 = add v211, 96
-    mstore 64, v212
+    mstore 64, v212 !metadata(preserves_valid_fmp)
     v108 = calldataload v101
     mstore v211, v108
     v109 = add v101, 32
@@ -410,7 +410,7 @@ fn @pairs() [selector=0x054d20d9, abi_wrapper, pure] {
     v205 = or v203, v204
     jumpi v205, bb18, bb46
   bb46:
-    mstore 64, v202
+    mstore 64, v202 !metadata(preserves_valid_fmp)
     mstore v201, v115
     v122 = sub v37, v113
     v123 = gt v115, v122
@@ -501,7 +501,7 @@ fn @default_struct_1() -> memptr [may_return_memory] {
     v26 = mload 64 !metadata(memory=scratch)
     v0 = inttoptr i256 v26 to memptr !metadata(memory=scratch)
     v27 = add v26, 256
-    mstore 64, v27
+    mstore 64, v27 !metadata(preserves_valid_fmp)
     v23 = add v26, 64
     mstore v23, 0
     v17 = add v26, 128

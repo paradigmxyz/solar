@@ -528,17 +528,18 @@ impl<'gcx> EvmCodegen<'gcx> {
 
     pub(in crate::backend::evm::codegen) fn pop_stack_values_not_needed_by(
         &mut self,
+        func: &Function,
         needed: &[ValueId],
     ) {
         while let Some(depth) = self.first_stack_value_not_needed_by(needed) {
+            let saved =
+                self.save_stack_prefix(func, depth.saturating_sub(self.stack_access_limit()));
+            let depth = depth.min(self.stack_access_limit());
             if depth > 0 {
-                assert!(
-                    depth <= self.stack_access_limit(),
-                    "resident stack discard exceeded SWAP reach"
-                );
                 self.emit_stack_op(StackOp::Swap(depth as u8));
             }
             self.emit_stack_op(StackOp::Pop);
+            self.restore_stack_prefix(func, saved);
         }
     }
 
@@ -652,9 +653,9 @@ impl<'gcx> EvmCodegen<'gcx> {
     pub(in crate::backend::evm::codegen) fn stage_stack_only_fresh_operands(
         &mut self,
         operands: &[ValueId],
-    ) {
+    ) -> bool {
         if !self.scheduler.has_stack_only_values() {
-            return;
+            return true;
         }
         let stack_access_limit = self.stack_access_limit();
 
@@ -677,15 +678,19 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
             }
             let Some(operand) = inaccessible else { break };
-            let Some(depth) = self.scheduler.stack.find(operand) else {
-                if self.recover_lost_internal_stack_value(operand) {
-                    return;
-                }
-                panic!("stack-only CALL operand {operand:?} was lost before its use");
-            };
-            assert!(depth < stack_access_limit, "stack-only CALL operand exceeded DUP reach");
-            self.emit_stack_op(StackOp::Dup((depth + 1) as u8));
+            let depth = self.scheduler.stack.find(operand);
+            if depth.is_none_or(|depth| depth >= stack_access_limit)
+                && self.scheduler.reject_hazard_value_fallback(operand)
+            {
+                return false;
+            }
+            if !self.dup_resident_value(operand, |_| {
+                format!("stack-only CALL operand {operand:?} was lost or out of DUP reach")
+            }) {
+                return false;
+            }
         }
+        true
     }
 
     pub(in crate::backend::evm::codegen) fn stack_access_limit(&self) -> usize {
@@ -747,7 +752,10 @@ impl<'gcx> EvmCodegen<'gcx> {
         func: &Function,
         val: ValueId,
     ) {
-        if self.scheduler.is_stack_only_value(val) || !Self::can_own_spill_slot(func, val) {
+        if self.scheduler.is_stack_only_value(val)
+            || self.scheduler.memory_home_forbidden(val)
+            || !Self::can_own_spill_slot(func, val)
+        {
             return;
         }
         if self.scheduler.should_recompute_unstored_spill(val)
@@ -803,6 +811,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         val: ValueId,
     ) -> bool {
         if self.scheduler.is_stack_only_value(val)
+            || self.scheduler.memory_home_forbidden(val)
             || Self::is_rematerializable_value(func, val)
             || Self::is_reloadable_argument_address(func, val)
             || self.scheduler.spills.get(val).is_none()
@@ -1059,10 +1068,25 @@ impl<'gcx> EvmCodegen<'gcx> {
         let stack_access_limit = self.stack_access_limit();
         debug_assert!(depth >= stack_access_limit);
 
-        let mut saved_above = Vec::with_capacity(depth + 1 - stack_access_limit);
-        for _ in 0..(depth + 1 - stack_access_limit) {
+        let saved_above = self.save_stack_prefix(func, depth + 1 - stack_access_limit);
+
+        let Some(accessible_depth) = self.scheduler.stack.find(val) else {
+            panic!("cannot spill deep stack value {val:?}: value disappeared while exposing it");
+        };
+        self.spill_accessible_stack_value(func, val, slot, accessible_depth);
+
+        self.restore_stack_prefix(func, saved_above);
+    }
+
+    pub(in crate::backend::evm::codegen) fn save_stack_prefix(
+        &mut self,
+        func: &Function,
+        count: usize,
+    ) -> Vec<(ValueId, ScheduledOp)> {
+        let mut saved_above = Vec::with_capacity(count);
+        for _ in 0..count {
             let Some(top) = self.scheduler.stack.top() else {
-                panic!("cannot spill deep stack value {val:?}: untracked stack entry above it");
+                panic!("cannot save untracked stack entry");
             };
             let restore = if let Some(op) = Self::always_rematerializable_op(func, top) {
                 self.emit_stack_op(StackOp::Pop);
@@ -1079,11 +1103,14 @@ impl<'gcx> EvmCodegen<'gcx> {
             saved_above.push((top, restore));
         }
 
-        let Some(accessible_depth) = self.scheduler.stack.find(val) else {
-            panic!("cannot spill deep stack value {val:?}: value disappeared while exposing it");
-        };
-        self.spill_accessible_stack_value(func, val, slot, accessible_depth);
+        saved_above
+    }
 
+    pub(in crate::backend::evm::codegen) fn restore_stack_prefix(
+        &mut self,
+        func: &Function,
+        saved_above: Vec<(ValueId, ScheduledOp)>,
+    ) {
         for (saved, restore) in saved_above.into_iter().rev() {
             let stack_depth = self.scheduler.depth();
             self.record_scheduled_ops_peak(stack_depth, std::slice::from_ref(&restore));
@@ -1121,6 +1148,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     }
 
     fn store_stack_top_to_spill(&mut self, func: &Function, value: ValueId, slot: SpillSlot) {
+        self.scheduler.reject_hazard_value_fallback(value);
         // Store to spill slot: PUSH offset, MSTORE.
         // The PUSH creates an untracked stack entry, so we track it as unknown.
         self.emit_spill_slot_addr(func, slot);
@@ -1223,7 +1251,9 @@ impl<'gcx> EvmCodegen<'gcx> {
         inst_idx: usize,
         value: ValueId,
     ) {
-        if self.scheduler.is_stack_only_value(value) || Self::is_rematerializable_value(func, value)
+        if self.scheduler.is_stack_only_value(value)
+            || self.scheduler.memory_home_forbidden(value)
+            || Self::is_rematerializable_value(func, value)
         {
             return;
         }
@@ -1277,19 +1307,34 @@ impl<'gcx> EvmCodegen<'gcx> {
             while self.scheduler.stack.iter().filter(|slot| *slot == Some(operand)).count()
                 <= consumed
             {
-                let depth = self.scheduler.stack.find(operand).unwrap_or_else(|| {
-                    if self.recover_lost_internal_stack_value(operand) {
-                        return 0;
-                    }
-                    panic!("resident stack argument {operand:?} was lost before its final use")
+                self.dup_resident_value(operand, |_| {
+                    format!(
+                        "resident stack argument {operand:?} was lost or out of DUP reach before \
+                         its final use"
+                    )
                 });
-                assert!(
-                    depth < self.stack_access_limit(),
-                    "resident stack argument exceeded DUP reach"
-                );
-                self.emit_stack_op(StackOp::Dup((depth + 1) as u8));
             }
         }
+    }
+
+    /// Duplicates a resident stack-only value, or abandons the speculative internal stack ABI
+    /// when the value is lost or out of DUP reach. Returns `false` when it pushed a placeholder
+    /// instead of a copy.
+    pub(in crate::backend::evm::codegen) fn dup_resident_value(
+        &mut self,
+        value: ValueId,
+        unrecoverable: impl FnOnce(&Self) -> String,
+    ) -> bool {
+        if let Some(depth) = self.scheduler.stack.find(value)
+            && depth < self.stack_access_limit()
+        {
+            self.emit_stack_op(StackOp::Dup((depth + 1) as u8));
+            return true;
+        }
+        if self.recover_lost_internal_stack_value(value) {
+            return false;
+        }
+        panic!("{}", unrecoverable(self))
     }
 
     /// Abandons a speculative internal stack ABI after one of its values was lost or became
@@ -1303,7 +1348,9 @@ impl<'gcx> EvmCodegen<'gcx> {
         value: ValueId,
     ) -> bool {
         let Some(func_id) = self.current_internal_function else { return false };
-        self.disabled_stack_only_functions.insert(func_id);
+        if !self.scheduler.reject_hazard_value_fallback(value) {
+            self.disabled_stack_only_functions.insert(func_id);
+        }
         self.asm.emit_push(U256::ZERO);
         self.scheduler.stack.push(value);
         true

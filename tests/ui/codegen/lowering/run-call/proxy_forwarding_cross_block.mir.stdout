@@ -119,10 +119,196 @@ fn @fallback() [fallback] {
 @module ForwardingHarness
 @data
   ForwardingImplementation_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_cross_block.sol:ForwardingImplementation"
-  FixedRangeProxy_creation_code_1: creation_code "ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_cross_block.sol:FixedRangeProxy"
-  CrossBlockProxy_creation_code_2: creation_code "ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_cross_block.sol:CrossBlockProxy"
-  RevertingProducer_creation_code_3: creation_code "ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_cross_block.sol:RevertingProducer"
-  DynamicReturnWrapper_creation_code_4: creation_code "ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_cross_block.sol:DynamicReturnWrapper"
+  InternalForwardingProxy_creation_code_1: creation_code "ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_cross_block.sol:InternalForwardingProxy"
+  RevertingProducer_creation_code_2: creation_code "ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_cross_block.sol:RevertingProducer"
+  FixedRangeProxy_creation_code_3: creation_code "ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_cross_block.sol:FixedRangeProxy"
+  CrossBlockProxy_creation_code_4: creation_code "ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_cross_block.sol:CrossBlockProxy"
+  DynamicReturnWrapper_creation_code_5: creation_code "ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_cross_block.sol:DynamicReturnWrapper"
+
+fn @internalForward() -> i256 [selector=0xc276dce3, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = abi_encode []
+    v1 = datasize ForwardingImplementation_creation_code_0
+    v2 = datasize ForwardingImplementation_creation_code_0, 31, aligned
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    v4 = ptrtoint memptr v3 to i256
+    datacopy ForwardingImplementation_creation_code_0, v4, v1
+    v5 = slice_ptr v0
+    v6 = ptrtoint memptr v3 to i256
+    v7 = add v6, v1
+    mcopy v7, v5, 0 !metadata(memory=heap)
+    v8 = ptrtoint memptr v3 to i256
+    v9 = create 0, v8, v1
+    v10 = ne v9, i160 0
+    jumpi v10, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v11 = zext i160 v9 to i256
+    v12 = abi_encode [word<u160>], args v11
+    v13 = datasize InternalForwardingProxy_creation_code_1
+    v14 = datasize InternalForwardingProxy_creation_code_1, 32
+    v15 = datasize InternalForwardingProxy_creation_code_1, 63, aligned
+    v16 = alloc raw, exact, uninitialized, infallible, v15
+    v17 = ptrtoint memptr v16 to i256
+    datacopy InternalForwardingProxy_creation_code_1, v17, v13
+    v18 = slice_ptr v12
+    v19 = ptrtoint memptr v16 to i256
+    v20 = add v19, v13
+    mcopy v20, v18, 32 !metadata(memory=heap)
+    v21 = ptrtoint memptr v16 to i256
+    v22 = create 0, v21, v14
+    v23 = ne v22, i160 0
+    jumpi v23, bb4, bb3
+  bb3:
+    revert_returndata
+  bb4:
+    v24 = gas
+    v25 = not 31
+    v26 = and 0x303f, v25
+    v27 = alloc memorybytes, exact, zeroed, panic, v26
+    set_memory_object_len memorybytes, v27, 0x3000
+    v28 = abi_encode [word, word, word, memory_bytes], selector 0x5269df1a00000000000000000000000000000000000000000000000000000000, args 4, 5, 6, v27
+    v29 = slice_ptr v28
+    v30 = slice_len v28
+    v31 = zext i160 v22 to i256
+    v32 = extcodesize v31
+    v33 = eq v32, 0
+    icall revert_if<target_contract_has_no_code>, v33
+    v34 = zext i160 v22 to i256
+    v35 = call v24, v34, 0, v29, v30, 0, 0
+    jumpi v35, bb6, bb5
+  bb5:
+    revert_returndata
+  bb6:
+    v36 = gas
+    v37 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
+    v38 = slice_ptr v37
+    v39 = slice_len v37
+    v40 = zext i160 v22 to i256
+    v41 = staticcall v36, v40, v38, v39, 0, 32
+    jumpi v41, bb8, bb7
+  bb7:
+    revert_returndata
+  bb8:
+    v42 = returndatasize
+    v43 = lt v42, 32
+    icall revert_if<tuple_data_too_short>, v43
+    v44 = add 0, 0
+    v45 = mload v44
+    v46 = eq v45, 0x300f
+    v47 = eq v46, false
+    icall revert_if<empty>, v47
+    ret 1
+}
+
+fn @internalMissing() -> i256 [selector=0xf368f3a6, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = abi_encode [word<u160>], args 0
+    v1 = datasize InternalForwardingProxy_creation_code_1
+    v2 = datasize InternalForwardingProxy_creation_code_1, 32
+    v3 = datasize InternalForwardingProxy_creation_code_1, 63, aligned
+    v4 = alloc raw, exact, uninitialized, infallible, v3
+    v5 = ptrtoint memptr v4 to i256
+    datacopy InternalForwardingProxy_creation_code_1, v5, v1
+    v6 = slice_ptr v0
+    v7 = ptrtoint memptr v4 to i256
+    v8 = add v7, v1
+    mcopy v8, v6, 32 !metadata(memory=heap)
+    v9 = ptrtoint memptr v4 to i256
+    v10 = create 0, v9, v2
+    v11 = ne v10, i160 0
+    jumpi v11, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v12 = gas
+    v13 = not 31
+    v14 = and 0x303f, v13
+    v15 = alloc memorybytes, exact, zeroed, panic, v14
+    set_memory_object_len memorybytes, v15, 0x3000
+    v16 = address_call v10, v15, gas v12
+    v17 = icall returndata_bytes<>
+    v18 = eq v16, false
+    jumpi v18, bb3, bb4
+  bb4:
+    jump bb5
+  bb3:
+    v19 = keccak256_bytes v17
+    v20 = abi_encode [], object, selector 0xa4e7d70600000000000000000000000000000000000000000000000000000000
+    v21 = keccak256_bytes v20
+    v22 = eq v19, v21
+    jump bb5
+  bb5:
+    v23 = phi [bb3: v22], [bb4: false]
+    v24 = eq v23, false
+    icall revert_if<empty>, v24
+    ret 1
+}
+
+fn @internalRevert() -> i256 [selector=0xd2bb6e8d, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = abi_encode []
+    v1 = datasize RevertingProducer_creation_code_2
+    v2 = datasize RevertingProducer_creation_code_2, 31, aligned
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    v4 = ptrtoint memptr v3 to i256
+    datacopy RevertingProducer_creation_code_2, v4, v1
+    v5 = slice_ptr v0
+    v6 = ptrtoint memptr v3 to i256
+    v7 = add v6, v1
+    mcopy v7, v5, 0 !metadata(memory=heap)
+    v8 = ptrtoint memptr v3 to i256
+    v9 = create 0, v8, v1
+    v10 = ne v9, i160 0
+    jumpi v10, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v11 = zext i160 v9 to i256
+    v12 = abi_encode [word<u160>], args v11
+    v13 = datasize InternalForwardingProxy_creation_code_1
+    v14 = datasize InternalForwardingProxy_creation_code_1, 32
+    v15 = datasize InternalForwardingProxy_creation_code_1, 63, aligned
+    v16 = alloc raw, exact, uninitialized, infallible, v15
+    v17 = ptrtoint memptr v16 to i256
+    datacopy InternalForwardingProxy_creation_code_1, v17, v13
+    v18 = slice_ptr v12
+    v19 = ptrtoint memptr v16 to i256
+    v20 = add v19, v13
+    mcopy v20, v18, 32 !metadata(memory=heap)
+    v21 = ptrtoint memptr v16 to i256
+    v22 = create 0, v21, v14
+    v23 = ne v22, i160 0
+    jumpi v23, bb4, bb3
+  bb3:
+    revert_returndata
+  bb4:
+    v24 = gas
+    v25 = abi_encode [], object, selector 0xa9cc471800000000000000000000000000000000000000000000000000000000
+    v26 = address_call v22, v25, gas v24
+    v27 = icall returndata_bytes<>
+    v28 = eq v26, false
+    jumpi v28, bb5, bb6
+  bb6:
+    jump bb7
+  bb5:
+    v29 = memory_object_len memorybytes, v27
+    v30 = eq v29, 228
+    jump bb7
+  bb7:
+    v31 = phi [bb5: v30], [bb6: false]
+    v32 = eq v31, false
+    icall revert_if<empty>, v32
+    v33 = ptrtoint memptr v27 to i256
+    v34 = add v33, 32
+    v35 = mload v34
+    v36 = shl 0, 0x1234
+    v37 = eq v35, v36
+    v38 = eq v37, false
+    icall revert_if<empty>, v38
+    ret 1
+}
 
 fn @fixedRange() -> i256 [selector=0x5d040bd2, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
@@ -145,12 +331,12 @@ fn @fixedRange() -> i256 [selector=0x5d040bd2, abi_params=[], abi_returns=[word]
   bb2:
     v11 = zext i160 v9 to i256
     v12 = abi_encode [word<u160>], args v11
-    v13 = datasize FixedRangeProxy_creation_code_1
-    v14 = datasize FixedRangeProxy_creation_code_1, 32
-    v15 = datasize FixedRangeProxy_creation_code_1, 63, aligned
+    v13 = datasize FixedRangeProxy_creation_code_3
+    v14 = datasize FixedRangeProxy_creation_code_3, 32
+    v15 = datasize FixedRangeProxy_creation_code_3, 63, aligned
     v16 = alloc raw, exact, uninitialized, infallible, v15
     v17 = ptrtoint memptr v16 to i256
-    datacopy FixedRangeProxy_creation_code_1, v17, v13
+    datacopy FixedRangeProxy_creation_code_3, v17, v13
     v18 = slice_ptr v12
     v19 = ptrtoint memptr v16 to i256
     v20 = add v19, v13
@@ -221,12 +407,12 @@ fn @crossBlock() -> i256 [selector=0xb0694ed5, abi_params=[], abi_returns=[word]
   bb2:
     v11 = zext i160 v9 to i256
     v12 = abi_encode [word<u160>], args v11
-    v13 = datasize CrossBlockProxy_creation_code_2
-    v14 = datasize CrossBlockProxy_creation_code_2, 32
-    v15 = datasize CrossBlockProxy_creation_code_2, 63, aligned
+    v13 = datasize CrossBlockProxy_creation_code_4
+    v14 = datasize CrossBlockProxy_creation_code_4, 32
+    v15 = datasize CrossBlockProxy_creation_code_4, 63, aligned
     v16 = alloc raw, exact, uninitialized, infallible, v15
     v17 = ptrtoint memptr v16 to i256
-    datacopy CrossBlockProxy_creation_code_2, v17, v13
+    datacopy CrossBlockProxy_creation_code_4, v17, v13
     v18 = slice_ptr v12
     v19 = ptrtoint memptr v16 to i256
     v20 = add v19, v13
@@ -279,11 +465,11 @@ fn @crossBlock() -> i256 [selector=0xb0694ed5, abi_params=[], abi_returns=[word]
 fn @dynamicRevert() -> i256 [selector=0x5dbb0715, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_encode []
-    v1 = datasize RevertingProducer_creation_code_3
-    v2 = datasize RevertingProducer_creation_code_3, 31, aligned
+    v1 = datasize RevertingProducer_creation_code_2
+    v2 = datasize RevertingProducer_creation_code_2, 31, aligned
     v3 = alloc raw, exact, uninitialized, infallible, v2
     v4 = ptrtoint memptr v3 to i256
-    datacopy RevertingProducer_creation_code_3, v4, v1
+    datacopy RevertingProducer_creation_code_2, v4, v1
     v5 = slice_ptr v0
     v6 = ptrtoint memptr v3 to i256
     v7 = add v6, v1
@@ -297,12 +483,12 @@ fn @dynamicRevert() -> i256 [selector=0x5dbb0715, abi_params=[], abi_returns=[wo
   bb2:
     v11 = zext i160 v9 to i256
     v12 = abi_encode [word<u160>], args v11
-    v13 = datasize DynamicReturnWrapper_creation_code_4
-    v14 = datasize DynamicReturnWrapper_creation_code_4, 32
-    v15 = datasize DynamicReturnWrapper_creation_code_4, 63, aligned
+    v13 = datasize DynamicReturnWrapper_creation_code_5
+    v14 = datasize DynamicReturnWrapper_creation_code_5, 32
+    v15 = datasize DynamicReturnWrapper_creation_code_5, 63, aligned
     v16 = alloc raw, exact, uninitialized, infallible, v15
     v17 = ptrtoint memptr v16 to i256
-    datacopy DynamicReturnWrapper_creation_code_4, v17, v13
+    datacopy DynamicReturnWrapper_creation_code_5, v17, v13
     v18 = slice_ptr v12
     v19 = ptrtoint memptr v16 to i256
     v20 = add v19, v13
@@ -404,4 +590,76 @@ fn @forward(arg0: i256, arg1: calldataslice) -> i256 [selector=0x6fadcf72, abi_p
     v7 = call v6, arg0, 0, v0, v5, 0, 0
     v8 = zext i1 v7 to i256
     ret v8
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_cross_block.sol:InternalForwardingProxy ===
+@module InternalForwardingProxy
+fn @constructor(arg0: i256) [constructor, abi_params=[address]] {
+  bb0:
+    v0 = trunc i256 arg0 to i160
+    v1 = sload 0 !metadata(storage=slot(0))
+    v2 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v3 = and v1, v2
+    v4 = zext i160 v0 to i256
+    v5 = and v4, 0xffffffffffffffffffffffffffffffffffffffff
+    v6 = or v3, v5
+    sstore 0, v6 !metadata(storage=slot(0))
+    ret
+}
+
+fn @target() -> i256 [view] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = trunc i256 v0 to i160
+    v2 = zext i160 v1 to i256
+    ret v2
+}
+
+fn @fallback() [fallback] {
+  bb0:
+    icall @forward
+    ret
+}
+
+fn @forward() {
+  bb0:
+    v0 = icall @target
+    v1 = calldatasize
+    calldatacopy 0, 0, v1 !metadata(memory=scratch)
+    v2 = calldatasize
+    v3 = gas
+    v4 = delegatecall v3, v0, 0, v2, 0, 0
+    v5 = zext i1 v4 to i256
+    v6 = returndatasize
+    returndatacopy 0, 0, v6 !metadata(memory=scratch)
+    v7 = eq v5, 0
+    v8 = zext i1 v7 to i256
+    v9 = ne v8, 0
+    jumpi v9, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    v11 = returndatasize
+    v12 = ne v11, 0
+    jumpi v12, bb4, bb5
+  bb5:
+    jump bb6
+  bb6:
+    v14 = extcodesize v0
+    v15 = ne v14, 0
+    jumpi v15, bb7, bb8
+  bb8:
+    jump bb9
+  bb9:
+    icall require<custom_error []>, false, 0xa4e7d70600000000000000000000000000000000000000000000000000000000
+    invalid
+  bb7:
+    v16 = returndatasize
+    returndata 0, v16
+  bb4:
+    v13 = returndatasize
+    returndata 0, v13
+  bb1:
+    v10 = returndatasize
+    revert 0, v10
 }

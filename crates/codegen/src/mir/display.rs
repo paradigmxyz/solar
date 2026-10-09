@@ -906,6 +906,7 @@ fn display_metadata<'a>(
         Unchecked,
         DeferredAlloc,
         PreservesFmp,
+        PreservesValidFmp,
         Disjoint,
         LoopDepth(u16),
         Effect(EffectKind),
@@ -933,6 +934,7 @@ fn display_metadata<'a>(
             MetadataField::Unchecked => write!(f, "unchecked"),
             MetadataField::DeferredAlloc => write!(f, "deferred_alloc"),
             MetadataField::PreservesFmp => write!(f, "preserves_fmp"),
+            MetadataField::PreservesValidFmp => write!(f, "preserves_valid_fmp"),
             MetadataField::Disjoint => write!(f, "disjoint"),
             MetadataField::LoopDepth(loop_depth) => write!(f, "loop_depth={loop_depth}"),
             MetadataField::Effect(effect) => write!(f, "effect={}", effect.name()),
@@ -983,6 +985,9 @@ fn display_metadata<'a>(
         }
         if metadata.preserves_fmp() {
             fields.push(MetadataField::PreservesFmp);
+        }
+        if metadata.preserves_valid_fmp() {
+            fields.push(MetadataField::PreservesValidFmp);
         }
         if metadata.disjoint() {
             fields.push(MetadataField::Disjoint);

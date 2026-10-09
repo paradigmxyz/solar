@@ -12,6 +12,7 @@ use crate::{
     link::LibraryRelocation,
     mir::{MirPhase, analysis::cold_functions},
 };
+use solar_interface::diagnostics::ErrorGuaranteed;
 
 struct PreparedDeploymentPrefix {
     assembly: PreparedAssembly,
@@ -59,12 +60,10 @@ impl<'gcx> EvmCodegen<'gcx> {
         for func in &mut module.functions {
             Self::split_phi_critical_edges(func);
         }
-        if !matches!(self.gcx.sess.opts.optimization, OptimizationMode::None) {
-            for func in &mut module.functions {
-                func.canonicalize_argument_uses();
-                if matches!(self.gcx.sess.opts.optimization, OptimizationMode::Size) {
-                    func.canonicalize_immediate_uses();
-                }
+        for func in &mut module.functions {
+            func.canonicalize_argument_uses();
+            if matches!(self.gcx.sess.opts.optimization, OptimizationMode::Size) {
+                func.canonicalize_immediate_uses();
             }
         }
         let Ok(lowered) = module.as_lowered(self.gcx.dcx()) else {
@@ -74,7 +73,8 @@ impl<'gcx> EvmCodegen<'gcx> {
         // Runtime and constructor emission inspect the same final MIR. Compute module-wide facts
         // once instead of rebuilding them for each artifact and caller-stack retry.
         let call_graph = CallGraphInfo::new(module);
-        self.heap_pointer_return_functions = Self::collect_heap_pointer_return_functions(module);
+        (self.heap_pointer_return_functions, self.untrusted_memory_functions) =
+            Self::collect_heap_pointer_return_functions(module);
         self.cold_functions = if matches!(self.gcx.sess.opts.optimization, OptimizationMode::None) {
             DenseBitSet::new_empty(module.functions.len())
         } else {
@@ -84,6 +84,9 @@ impl<'gcx> EvmCodegen<'gcx> {
         // First schedule the runtime code and run its EVM IR pipeline. Only final
         // assembly waits for the bytecode of contracts it embeds.
         self.schedule_runtime_code(&lowered, &call_graph);
+        if self.gcx.dcx().has_errors().is_err() {
+            return false;
+        }
         self.asm.optimize();
         if self.gcx.dcx().has_errors().is_err() {
             return false;
@@ -118,13 +121,15 @@ impl<'gcx> EvmCodegen<'gcx> {
         // are appended after the generated deployment prefix, so their offset
         // and the runtime-code offset depend on its final push widths. Only
         // repeat final assembly while both offsets stabilize.
-        let (constructor_arg_offset, runtime_offset) = self.emit_deployment_prefix(
+        let Ok((constructor_arg_offset, runtime_offset)) = self.emit_deployment_prefix(
             module,
             &call_graph,
             runtime_len,
             copy_base,
             &immutable_refs,
-        );
+        ) else {
+            return EvmArtifact::default();
+        };
         self.asm.optimize();
         let assembly = self.asm.prepare_linked(
             bytecodes,
@@ -354,7 +359,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         runtime_len: usize,
         copy_base: u64,
         immutable_refs: &[ImmutableRef],
-    ) -> (Option<DeferredConst>, DeferredConst) {
+    ) -> Result<(Option<DeferredConst>, DeferredConst), ErrorGuaranteed> {
         self.asm.clear();
         self.asm.set_artifact_kind(ArtifactKind::Constructor);
         self.asm.set_evm_ir_name(module.name.name);
@@ -540,7 +545,8 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.asm.emit_push(U256::ZERO);
             self.asm.emit_op(op::REVERT);
         }
-        (constructor_arg_offset, runtime_offset)
+        self.gcx.dcx().has_errors()?;
+        Ok((constructor_arg_offset, runtime_offset))
     }
 
     fn assemble_deployment_prefix(

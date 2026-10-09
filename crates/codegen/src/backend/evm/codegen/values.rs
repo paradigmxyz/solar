@@ -135,6 +135,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
                 ScheduledOp::LoadArg(index) => {
                     if self.in_internal_function {
+                        self.scheduler.reject_hazard_arg_load(func, index);
                         self.emit_internal_arg_load(index);
                     } else if self.in_constructor {
                         self.emit_constructor_arg_load(index);
@@ -314,17 +315,13 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
             crate::mir::Value::Arg(index) => {
                 if self.scheduler.is_stack_only_value(val) {
-                    let depth = self.scheduler.stack.find(val).unwrap_or_else(|| {
-                        panic!(
-                            "stack-only argument {val:?} was lost before fresh emission in `{}`",
+                    self.dup_resident_value(val, |_| {
+                        format!(
+                            "stack-only argument {val:?} was lost or out of DUP reach before \
+                             fresh emission in `{}`",
                             func.name
                         )
                     });
-                    assert!(
-                        depth < self.stack_access_limit(),
-                        "stack-only argument exceeded DUP reach"
-                    );
-                    self.emit_stack_op(StackOp::Dup(depth as u8 + 1));
                     return;
                 }
                 if let Some(depth) = self.scheduler.stack.find(val)

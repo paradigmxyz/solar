@@ -28,6 +28,9 @@
 //! retain its counter across body branches. The extra stores amortize the
 //! transfers. Existing exit-shape, call, and stack-depth restrictions still
 //! apply.
+//! Required forwarding-buffer phis additionally get unconditional edge layouts even when optional
+//! loop planning declines the body. All phis travel together, and target reach still bounds
+//! layouts.
 
 use super::super::super::{
     BlockId, DenseBitSet, Function, FunctionId, FxHashMap, FxHashSet, GlobalStackPlan,
@@ -229,6 +232,70 @@ impl StackPhiPlan {
                 Self::merge_edge(edge, values);
             }
             branch.union = union_values(&branch.then_edge.sources, &branch.else_edge.sources);
+        }
+        true
+    }
+
+    /// Plans required phi transfers without optional loop profitability checks.
+    /// Every phi in the target travels together because emission replaces all its edge copies.
+    /// Conditional predecessors need an edge-specific branch plan and remain unsupported here.
+    pub(in crate::backend::evm::codegen) fn require_phis(
+        &mut self,
+        func: &Function,
+        required: &[ValueId],
+        stack_access_limit: usize,
+    ) -> bool {
+        if required.is_empty() {
+            return true;
+        }
+        for (block_id, block) in func.blocks.iter_enumerated() {
+            let phis = block
+                .instructions
+                .iter()
+                .filter_map(|&inst| {
+                    let InstKind::Phi(incoming) = &func.inst(inst).kind else { return None };
+                    Some((func.inst_result_value(inst)?, incoming))
+                })
+                .collect::<Vec<_>>();
+            if !phis.iter().any(|(result, _)| required.contains(result)) {
+                continue;
+            }
+            if self
+                .entries
+                .get(&block_id)
+                .is_some_and(|entry| phis.iter().all(|(result, _)| entry.contains(result)))
+            {
+                continue;
+            }
+            let mut results = self.entries.get(&block_id).cloned().unwrap_or_default();
+            for &(result, _) in &phis {
+                if !results.contains(&result) {
+                    results.push(result);
+                }
+            }
+            if results.len() > stack_access_limit {
+                return false;
+            }
+            for &pred in &block.predecessors {
+                if !matches!(func.blocks[pred].terminator, Some(Terminator::Jump(target)) if target == block_id)
+                {
+                    return false;
+                }
+                let mut sources = Vec::with_capacity(results.len());
+                for &result in &results {
+                    if let Some((_, incoming)) = phis.iter().find(|(phi, _)| *phi == result) {
+                        let Some(&(_, source)) = incoming.iter().find(|(block, _)| *block == pred)
+                        else {
+                            return false;
+                        };
+                        sources.push(source);
+                    } else {
+                        sources.push(result);
+                    }
+                }
+                self.edges.insert(pred, StackPhiEdge { sources, results: results.clone() });
+            }
+            self.entries.insert(block_id, results);
         }
         true
     }

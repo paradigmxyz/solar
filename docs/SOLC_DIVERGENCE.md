@@ -359,6 +359,10 @@ No intentional divergences documented yet.
   range, instead of allocating through the free memory pointer, can have it
   overwritten by any internal call, including the helpers the compiler
   generates for ABI encoding and pre-Cancun memory copies.
+  Full-word writes to the free-memory-pointer slot with a statically resolved
+  replacement address receive spill-free code generation where the stack can
+  hold all live values; otherwise compilation fails. Resets to dynamically computed addresses retain this
+  limitation and may overlap compiler frames.
 - Rationale: The Solidity documentation counts only scratch space, memory
   allocated through the free memory pointer, and memory past the free memory
   pointer within one assembly block as memory-safe. Static frames make internal
@@ -366,3 +370,6 @@ No intentional divergences documented yet.
   them.
 - Coverage: `tests/ui/codegen/lowering/run-call/pre_cancun_memory_copies.sol`
   encodes an object that assembly allocates through the shared copy helper.
+  `abi_array_reset_fmp.sol` and `abi_array_computed_reset_fmp.sol` in the same
+  directory cover ABI encoding after a reset to `0x80`, including a computed
+  address for the free-memory-pointer slot.

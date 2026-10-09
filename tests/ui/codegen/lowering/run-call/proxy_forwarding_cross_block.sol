@@ -1,4 +1,7 @@
 //@ codegen-matrix: standard
+//@ run-call: ForwardingHarness::internalForward => 1
+//@ run-call: ForwardingHarness::internalMissing => 1
+//@ run-call: ForwardingHarness::internalRevert => 1
 //@ run-call: ForwardingHarness::fixedRange => 1
 //@ run-call: ForwardingHarness::crossBlock => 1
 //@ run-call: ForwardingHarness::dynamicRevert => 1
@@ -66,6 +69,35 @@ contract CrossBlockProxy {
 }
 
 contract ForwardingHarness {
+    function internalForward() external returns (uint256) {
+        ForwardingImplementation implementation = new ForwardingImplementation();
+        InternalForwardingProxy proxy = new InternalForwardingProxy(address(implementation));
+        ForwardingImplementation(address(proxy)).set(4, 5, 6, new bytes(0x3000));
+        require(ForwardingImplementation(address(proxy)).value() == 0x300f);
+        return 1;
+    }
+
+    function internalMissing() external returns (uint256) {
+        InternalForwardingProxy proxy = new InternalForwardingProxy(address(0));
+        (bool success, bytes memory reason) = address(proxy).call(new bytes(0x3000));
+        require(
+            !success && keccak256(reason) ==
+                keccak256(abi.encodeWithSelector(InternalForwardingProxy.MissingImplementation.selector))
+        );
+        return 1;
+    }
+
+    function internalRevert() external returns (uint256) {
+        RevertingProducer producer = new RevertingProducer();
+        InternalForwardingProxy proxy = new InternalForwardingProxy(address(producer));
+        (bool success, bytes memory reason) = address(proxy).call(abi.encodeCall(producer.fail, ()));
+        require(!success && reason.length == 0xe4);
+        bytes32 first;
+        assembly { first := mload(add(reason, 32)) }
+        require(first == bytes32(uint256(0x1234)));
+        return 1;
+    }
+
     function fixedRange() external returns (uint256) {
         ForwardingImplementation implementation = new ForwardingImplementation();
         FixedRangeProxy proxy = new FixedRangeProxy(address(implementation));
@@ -145,5 +177,35 @@ contract HelperReturnedHeapBuffer {
             calldatacopy(add(result, 0x40), data.offset, data.length)
             success := call(gas(), target, 0, result, add(0x40, data.length), 0, 0)
         }
+    }
+}
+
+contract InternalForwardingProxy {
+    address private implementation;
+    error MissingImplementation();
+
+    constructor(address target) {
+        implementation = target;
+    }
+
+    function target() internal view returns (address) {
+        return implementation;
+    }
+
+    fallback() external {
+        forward();
+    }
+
+    function forward() internal {
+        address implementation = target();
+        assembly {
+            calldatacopy(0, 0, calldatasize())
+            let result := delegatecall(gas(), implementation, 0, calldatasize(), 0, 0)
+            returndatacopy(0, 0, returndatasize())
+            if iszero(result) { revert(0, returndatasize()) }
+            if returndatasize() { return(0, returndatasize()) }
+            if extcodesize(implementation) { return(0, returndatasize()) }
+        }
+        revert MissingImplementation();
     }
 }

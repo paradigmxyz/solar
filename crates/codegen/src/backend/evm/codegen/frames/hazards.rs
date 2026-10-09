@@ -1,14 +1,25 @@
 //! Memory provenance and writes that can clobber compiler spill slots.
+//!
+//! Heap-returning helpers are proved conditionally on a valid incoming free-memory pointer.
+//! A separate call-graph walk excludes helpers reached after arbitrary resets. Returning-path
+//! summaries ignore terminal failure paths, while caller-state propagation still visits them.
+//! Allocation lowering retains its valid-bump proof; dynamic stores need bounded arithmetic,
+//! a completed copy, or a loop whose preceding store bounds the next cursor. Unknown writes
+//! remain conservative, including cycles without a grounded heap origin.
 
 use super::{
     super::{
-        AliasAnalysis, DenseBitSet, EvmCodegen, EvmMemoryLayout, Function, FunctionId, FxHashMap,
-        FxHashSet, InstId, InstKind, MemoryBase, MemoryRegion, MirType, Module, Terminator, U256,
-        Value, ValueId,
+        AliasAnalysis, BlockId, DenseBitSet, EvmCodegen, EvmMemoryLayout, Function, FunctionId,
+        FxHashMap, FxHashSet, IndexVec, InstId, InstKind, MemoryBase, MemoryRegion, MirType,
+        Module, Terminator, U256, Value, ValueId,
     },
     SPILL_HAZARD_BOUND,
 };
-use crate::mir::Callee;
+use crate::mir::{
+    Callee,
+    analysis::{Access, CallGraphInfo, CfgInfo, Location},
+};
+use std::cell::{OnceCell, RefCell};
 
 impl<'gcx> EvmCodegen<'gcx> {
     /// Returns the destination of a symbolic memory write that can cover a
@@ -148,6 +159,30 @@ impl<'gcx> EvmCodegen<'gcx> {
         hazards
     }
 
+    /// Returns the blocks that contain a spill hazard or can reach one.
+    ///
+    /// A spill slot written in any other block stays valid for the rest of the function.
+    pub(in crate::backend::evm::codegen) fn spill_hazard_reaching_blocks(
+        &self,
+        func: &Function,
+    ) -> DenseBitSet<BlockId> {
+        let mut reaching = DenseBitSet::new_empty(func.blocks.len());
+        let mut pending = func
+            .blocks
+            .iter_enumerated()
+            .filter(|(_, block)| {
+                block.instructions.iter().any(|inst| self.spill_hazard_insts.contains(inst))
+            })
+            .map(|(id, _)| id)
+            .collect::<Vec<_>>();
+        while let Some(block) = pending.pop() {
+            if reaching.insert(block) {
+                pending.extend(func.blocks[block].predecessors.iter().copied());
+            }
+        }
+        reaching
+    }
+
     /// Whether a dynamic-length write's destination may overlap the spill area.
     /// A free-memory-pointer, allocation, or internal-frame destination stays
     /// in compiler-owned high memory; a symbolic low base (raw
@@ -181,56 +216,498 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
     }
 
-    /// Finds leaf helpers that return a pointer rooted at the free-memory pointer.
-    /// Calls through these helpers lose alias provenance in MIR, so remember the
-    /// narrow interprocedural fact needed by forwarding-buffer hazard analysis.
+    /// Finds helpers returning heap pointers, including chains of already-proven helpers.
+    /// Unknown calls and non-heap writes to the free-memory pointer exclude a function.
+    /// Iteration only adds proven functions, so recursive call cycles remain unknown.
+    /// Also returns functions that access allocations after an absolute FMP reset and
+    /// their callers, which cannot use memory-backed frames or spills.
     pub(in crate::backend::evm::codegen) fn collect_heap_pointer_return_functions(
         module: &Module,
-    ) -> DenseBitSet<FunctionId> {
+    ) -> (DenseBitSet<FunctionId>, DenseBitSet<FunctionId>) {
         let mut functions = DenseBitSet::new_empty(module.functions.len());
-        let no_helpers = DenseBitSet::new_empty(module.functions.len());
-        for (func_id, func) in module.functions.iter_enumerated() {
-            if func.instructions().any(|inst_id| {
-                matches!(func.inst(inst_id).kind, InstKind::ICall { .. } | InstKind::SetFmp(_))
-                    || matches!(
-                        func.inst(inst_id).kind,
-                        InstKind::MStore(address, _)
-                            if func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT)
-                    )
-            }) {
-                continue;
-            }
-
-            let aa = AliasAnalysis::new(func);
-            let mut saw_return = false;
-            let mut valid = true;
-            for block in &func.blocks {
-                let Some(Terminator::Return { values }) = &block.terminator else { continue };
-                saw_return = true;
-                if values.len() != 1 {
-                    valid = false;
-                    break;
+        let mut preserves_fmp = DenseBitSet::new_empty(module.functions.len());
+        loop {
+            let mut changed = false;
+            for (func_id, func) in module.functions.iter_enumerated() {
+                if functions.contains(func_id) {
+                    continue;
                 }
-                let mut visiting = DenseBitSet::new_empty(func.num_values());
-                let mut memo = FxHashMap::default();
-                if Self::heap_pointer_provenance_with_helpers(
-                    func,
-                    &aa,
-                    values[0],
-                    &no_helpers,
-                    &mut visiting,
-                    &mut memo,
-                ) != Some(true)
+                let mut returning_blocks = DenseBitSet::new_empty(func.blocks.len());
+                let mut worklist = func
+                    .blocks
+                    .iter_enumerated()
+                    .filter_map(|(block, data)| {
+                        matches!(
+                            data.terminator,
+                            Some(Terminator::Return { .. } | Terminator::TailCall { .. })
+                        )
+                        .then_some(block)
+                    })
+                    .collect::<Vec<_>>();
+                while let Some(block) = worklist.pop() {
+                    if returning_blocks.insert(block) {
+                        worklist.extend(func.blocks[block].predecessors.iter().copied());
+                    }
+                }
+                let inst_blocks = func.inst_blocks();
+                let resets = Self::fmp_reset_insts(func, &functions, &preserves_fmp);
+                if resets.iter().any(|inst| returning_blocks.contains(inst_blocks[inst]))
+                    || func.blocks.iter().any(|block| matches!(block.terminator,
+                        Some(Terminator::TailCall { function, .. }) if !preserves_fmp.contains(function)))
                 {
-                    valid = false;
-                    break;
+                    continue;
+                }
+                let aa = AliasAnalysis::new(func);
+                let is_heap_pointer = |value| {
+                    Self::heap_pointer_provenance_with_helpers(
+                        func,
+                        &aa,
+                        value,
+                        &functions,
+                        true,
+                        &mut DenseBitSet::new_empty(func.num_values()),
+                        &mut FxHashMap::default(),
+                    ) == Some(true)
+                };
+                changed |= preserves_fmp.insert(func_id);
+                let mut saw_return = false;
+                let mut valid = !func
+                    .blocks
+                    .iter()
+                    .any(|block| matches!(block.terminator, Some(Terminator::TailCall { .. })));
+                for block in &func.blocks {
+                    let Some(Terminator::Return { values }) = &block.terminator else { continue };
+                    saw_return = true;
+                    if values.len() != 1 {
+                        valid = false;
+                        break;
+                    }
+                    if !is_heap_pointer(values[0]) {
+                        valid = false;
+                        break;
+                    }
+                }
+                if saw_return && valid {
+                    functions.insert(func_id);
+                    changed = true;
                 }
             }
-            if saw_return && valid {
-                functions.insert(func_id);
+            if !changed {
+                break;
             }
         }
-        functions
+        // A helper's FMP-relative return needs a valid incoming heap. Seed unknown
+        // entry states only at calls reached after a reset, then propagate them.
+        let mut unknown_fmp = DenseBitSet::new_empty(module.functions.len());
+        for func in &module.functions {
+            let resets = Self::fmp_reset_insts(func, &functions, &preserves_fmp);
+            if resets.is_empty() {
+                continue;
+            }
+            let mut unknown_blocks = DenseBitSet::new_empty(func.blocks.len());
+            loop {
+                let mut changed = false;
+                for (block_id, block) in func.blocks.iter_enumerated() {
+                    let mut unknown = unknown_blocks.contains(block_id);
+                    for &inst in &block.instructions {
+                        if unknown
+                            && let InstKind::ICall { function: Callee::Function(callee), .. } =
+                                func.inst(inst).kind
+                        {
+                            unknown_fmp.insert(callee);
+                        }
+                        unknown |= resets.contains(&inst);
+                    }
+                    if unknown && let Some(terminator) = &block.terminator {
+                        if let Terminator::TailCall { function, .. } = terminator {
+                            unknown_fmp.insert(*function);
+                        }
+                        for successor in terminator.successors() {
+                            changed |= unknown_blocks.insert(successor);
+                        }
+                    }
+                }
+                if !changed {
+                    break;
+                }
+            }
+        }
+        let graph = CallGraphInfo::new(module);
+        unknown_fmp.union(&graph.reachable_callees_from(unknown_fmp.iter()));
+        let reset_insts = module
+            .functions
+            .iter()
+            .map(|func| {
+                let aa = AliasAnalysis::new(func);
+                Self::fmp_reset_insts(func, &functions, &preserves_fmp)
+                    .into_iter()
+                    .filter(|&inst| {
+                        let value = match func.inst(inst).kind {
+                            InstKind::SetFmp(value) => value,
+                            InstKind::MStore(address, value)
+                                if aa
+                                    .memory_address(func, address)
+                                    .and_then(|a| a.as_absolute())
+                                    == Some(EvmMemoryLayout::FMP_SLOT) =>
+                            {
+                                value
+                            }
+                            _ => return false,
+                        };
+                        aa.memory_address(func, value)
+                            .and_then(|address| address.as_absolute())
+                            .is_some()
+                    })
+                    .collect::<FxHashSet<_>>()
+            })
+            .collect::<Vec<_>>();
+        functions.subtract(&unknown_fmp);
+        let untrusted_memory = Self::collect_reset_memory_functions(module, &graph, &reset_insts);
+        (functions, untrusted_memory)
+    }
+
+    /// Tracks allocations rooted in an absolute FMP reset through internal calls.
+    /// A valid saved FMP can be restored while pointers into the reset heap remain live.
+    /// Analyze valid and tainted entries separately so a caller's reset does not poison
+    /// otherwise valid calls to the same allocator. Dynamic resets retain CODEGEN-009's
+    /// explicit-memory limitation.
+    fn collect_reset_memory_functions(
+        module: &Module,
+        graph: &CallGraphInfo,
+        reset_insts: &[FxHashSet<InstId>],
+    ) -> DenseBitSet<FunctionId> {
+        let mut untrusted_memory = DenseBitSet::new_empty(module.functions.len());
+        if reset_insts.iter().all(FxHashSet::is_empty) {
+            return untrusted_memory;
+        }
+        let mut invalid_entry = DenseBitSet::new_empty(module.functions.len());
+        let mut low_memory_entry = DenseBitSet::new_empty(module.functions.len());
+        let mut clobbers_valid_entry = DenseBitSet::new_empty(module.functions.len());
+        let mut invalid_return = DenseBitSet::new_empty(module.functions.len());
+        let mut invalid_result = DenseBitSet::new_empty(module.functions.len());
+        let mut invalid_args = module
+            .functions
+            .iter()
+            .map(|func| DenseBitSet::new_empty(func.arg_indices().count()))
+            .collect::<Vec<_>>();
+        loop {
+            let mut changed = false;
+            for (func_id, func) in module.functions.iter_enumerated() {
+                let resets = &reset_insts[func_id.index()];
+                let aa = AliasAnalysis::new(func);
+                if low_memory_entry.contains(func_id) {
+                    changed |= untrusted_memory.insert(func_id);
+                    for callee in graph.callees(func_id) {
+                        changed |= low_memory_entry.insert(callee);
+                    }
+                }
+                for propagated in [false, true] {
+                    if propagated
+                        && !invalid_entry.contains(func_id)
+                        && invalid_args[func_id.index()].is_empty()
+                    {
+                        continue;
+                    }
+                    let mut invalid_blocks = DenseBitSet::new_empty(func.blocks.len());
+                    let mut invalid_values = DenseBitSet::new_empty(func.num_values());
+                    if propagated && invalid_entry.contains(func_id) {
+                        invalid_blocks.insert(BlockId::ENTRY);
+                    }
+                    for value in func.live_values() {
+                        if propagated
+                            && let Value::Arg(index) = func.value(value)
+                            && invalid_args[func_id.index()].contains(index.index())
+                        {
+                            invalid_values.insert(value);
+                        }
+                    }
+                    loop {
+                        let mut blocks_changed = false;
+                        for (block_id, block) in func.blocks.iter_enumerated() {
+                            let mut invalid = invalid_blocks.contains(block_id);
+                            for &inst in &block.instructions {
+                                match &func.inst(inst).kind {
+                                    InstKind::ICall {
+                                        function: Callee::Function(callee),
+                                        args,
+                                        ..
+                                    } => {
+                                        let callee = *callee;
+                                        if invalid {
+                                            changed |= invalid_entry.insert(callee);
+                                        }
+                                        let mut tainted_args = false;
+                                        for (index, &arg) in args.iter().enumerate() {
+                                            if Self::value_depends_on(func, arg, &invalid_values) {
+                                                tainted_args = true;
+                                                changed |=
+                                                    invalid_args[callee.index()].insert(index);
+                                            }
+                                        }
+                                        if (invalid
+                                            || tainted_args
+                                            || invalid_result.contains(callee))
+                                            && let Some(value) = func.inst_result_value(inst)
+                                        {
+                                            blocks_changed |= invalid_values.insert(value);
+                                        }
+                                        invalid |= invalid_return.contains(callee);
+                                        if clobbers_valid_entry.contains(callee)
+                                            || ((invalid || tainted_args)
+                                                && untrusted_memory.contains(callee))
+                                        {
+                                            changed |= untrusted_memory.insert(func_id);
+                                            if !propagated {
+                                                changed |= clobbers_valid_entry.insert(func_id);
+                                            }
+                                        }
+                                        if !invalid_values.is_empty() {
+                                            changed |= low_memory_entry.insert(callee);
+                                            changed |= untrusted_memory.insert(func_id);
+                                            if !propagated {
+                                                changed |= clobbers_valid_entry.insert(func_id);
+                                            }
+                                        }
+                                    }
+                                    InstKind::Fmp if invalid => {
+                                        if let Some(value) = func.inst_result_value(inst) {
+                                            blocks_changed |= invalid_values.insert(value);
+                                        }
+                                    }
+                                    InstKind::MLoad(address)
+                                        if invalid
+                                            && aa
+                                                .memory_address(func, *address)
+                                                .and_then(|address| address.as_absolute())
+                                                == Some(EvmMemoryLayout::FMP_SLOT) =>
+                                    {
+                                        if let Some(value) = func.inst_result_value(inst) {
+                                            blocks_changed |= invalid_values.insert(value);
+                                        }
+                                    }
+                                    InstKind::SetFmp(value) if !resets.contains(&inst) => {
+                                        invalid =
+                                            Self::value_depends_on(func, *value, &invalid_values);
+                                    }
+                                    InstKind::MStore(address, value)
+                                        if aa
+                                            .memory_address(func, *address)
+                                            .and_then(|address| address.as_absolute())
+                                            == Some(EvmMemoryLayout::FMP_SLOT)
+                                            && !resets.contains(&inst) =>
+                                    {
+                                        invalid =
+                                            Self::value_depends_on(func, *value, &invalid_values);
+                                    }
+                                    InstKind::SetFmp(_) if resets.contains(&inst) => invalid = true,
+                                    InstKind::MStore(address, _)
+                                        if resets.contains(&inst)
+                                            && aa
+                                                .memory_address(func, *address)
+                                                .and_then(|address| address.as_absolute())
+                                                .is_some() =>
+                                    {
+                                        invalid = true
+                                    }
+                                    _ => {}
+                                }
+                                if !invalid_values.is_empty() {
+                                    let effects = aa.instruction_mod_ref(func, inst);
+                                    for access in effects.reads().iter().chain(effects.writes()) {
+                                        if let Access::Location(Location::Memory(location)) = access
+                                            && let MemoryBase::Value(dest) = location.address.base
+                                            && Self::value_depends_on(func, dest, &invalid_values)
+                                        {
+                                            changed |= untrusted_memory.insert(func_id);
+                                            if !propagated {
+                                                changed |= clobbers_valid_entry.insert(func_id);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            if !invalid_values.is_empty()
+                                && let Some(Terminator::TailCall { function, .. }) =
+                                    &block.terminator
+                            {
+                                changed |= low_memory_entry.insert(*function);
+                                changed |= untrusted_memory.insert(func_id);
+                                if !propagated {
+                                    changed |= clobbers_valid_entry.insert(func_id);
+                                }
+                            }
+                            if !propagated
+                                && let Some(Terminator::Return { values }) = &block.terminator
+                                && values.iter().any(|&value| {
+                                    Self::value_depends_on(func, value, &invalid_values)
+                                })
+                            {
+                                changed |= invalid_result.insert(func_id);
+                            }
+                            if invalid && let Some(terminator) = &block.terminator {
+                                match terminator {
+                                    Terminator::Return { .. } if !propagated => {
+                                        changed |= invalid_return.insert(func_id);
+                                    }
+                                    Terminator::TailCall { function, .. } => {
+                                        changed |= invalid_entry.insert(*function);
+                                    }
+                                    _ => {}
+                                }
+                                for successor in terminator.successors() {
+                                    blocks_changed |= invalid_blocks.insert(successor);
+                                }
+                            }
+                        }
+                        if !blocks_changed {
+                            break;
+                        }
+                    }
+                }
+            }
+            if !changed {
+                break;
+            }
+        }
+        untrusted_memory
+    }
+
+    fn value_depends_on(func: &Function, value: ValueId, invalid: &DenseBitSet<ValueId>) -> bool {
+        if invalid.is_empty() {
+            return false;
+        }
+        let mut seen = DenseBitSet::new_empty(func.num_values());
+        let mut pending = vec![value];
+        while let Some(value) = pending.pop() {
+            if invalid.contains(value) {
+                return true;
+            }
+            if seen.insert(value)
+                && let Value::Inst(inst) = func.value(value)
+            {
+                pending.extend(func.inst(*inst).kind.operands());
+            }
+        }
+        false
+    }
+
+    pub(in crate::backend::evm::codegen) fn requires_spill_free_execution(
+        &self,
+        func_id: FunctionId,
+    ) -> bool {
+        !self.untrusted_memory_functions.is_empty()
+            && self.untrusted_memory_functions.contains(func_id)
+    }
+
+    /// Instructions that can invalidate an initially compiler-owned free-memory pointer.
+    fn fmp_reset_insts(
+        func: &Function,
+        functions: &DenseBitSet<FunctionId>,
+        preserves_fmp: &DenseBitSet<FunctionId>,
+    ) -> FxHashSet<InstId> {
+        let aa = AliasAnalysis::new(func);
+        let is_heap_pointer = |value| {
+            Self::heap_pointer_provenance_with_helpers(
+                func,
+                &aa,
+                value,
+                functions,
+                true,
+                &mut DenseBitSet::new_empty(func.num_values()),
+                &mut FxHashMap::default(),
+            ) == Some(true)
+        };
+        let guard_facts = OnceCell::new();
+        let is_safe_update = |inst, value| {
+            is_heap_pointer(value) || {
+                let facts = guard_facts.get_or_init(|| HeapWriteProof::new(func));
+                Self::guarded_heap_pointer(
+                    func,
+                    &facts.cfg,
+                    facts.inst_blocks[inst],
+                    value,
+                    &is_heap_pointer,
+                )
+            }
+        };
+        func.instructions()
+            .filter(|&inst_id| !func.inst(inst_id).metadata.preserves_valid_fmp())
+            .filter(|&inst_id| match func.inst(inst_id).kind {
+                InstKind::ICall { function: Callee::Function(callee), .. } => {
+                    !preserves_fmp.contains(callee)
+                }
+                InstKind::ICall { .. } => true,
+                InstKind::SetFmp(value) => !is_safe_update(inst_id, value),
+                InstKind::MStore(address, value)
+                    if func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT) =>
+                {
+                    !is_safe_update(inst_id, value)
+                }
+                InstKind::MStore(dest, _)
+                | InstKind::MStore8(dest, _)
+                | InstKind::MCopy(dest, _, _)
+                | InstKind::CalldataCopy(dest, _, _)
+                | InstKind::DataCopy(_, dest, _)
+                | InstKind::CodeCopy(dest, _, _)
+                | InstKind::ReturnDataCopy(dest, _, _)
+                | InstKind::ExtCodeCopy(_, dest, _, _)
+                | InstKind::Call { ret_offset: dest, .. }
+                | InstKind::CallCode { ret_offset: dest, .. }
+                | InstKind::StaticCall { ret_offset: dest, .. }
+                | InstKind::DelegateCall { ret_offset: dest, .. }
+                    if is_heap_pointer(dest)
+                        || guard_facts
+                            .get_or_init(|| HeapWriteProof::new(func))
+                            .heap_destination(inst_id, dest, &is_heap_pointer, 0) =>
+                {
+                    false
+                }
+                _ => aa.instruction_may_reset_fmp(func, inst_id),
+            })
+            .collect()
+    }
+
+    /// Recognizes allocator updates guarded against wraparound and addresses above 64 bits.
+    fn guarded_heap_pointer(
+        func: &Function,
+        cfg: &CfgInfo,
+        write_block: BlockId,
+        value: ValueId,
+        is_heap_pointer: &impl Fn(ValueId) -> bool,
+    ) -> bool {
+        let mut lower = false;
+        let mut upper = false;
+        for (block_id, block) in func.blocks.iter_enumerated() {
+            let Some(Terminator::Branch { condition, then_block, else_block }) = block.terminator
+            else {
+                continue;
+            };
+            if then_block == else_block {
+                continue;
+            }
+            for (successor, truth) in [(then_block, true), (else_block, false)] {
+                if func.blocks[successor].predecessors.as_slice() != [block_id]
+                    || !cfg.dominators().dominates(successor, write_block)
+                {
+                    continue;
+                }
+                implied_conditions(func, condition, truth, |kind, truth| match *kind {
+                    InstKind::Lt(a, b) if !truth => {
+                        lower |= a == value && is_heap_pointer(b);
+                        upper |= b == value && func.value_u64(a).is_some();
+                    }
+                    InstKind::Gt(a, b) if !truth => {
+                        lower |= b == value && is_heap_pointer(a);
+                        upper |= a == value && func.value_u64(b).is_some();
+                    }
+                    InstKind::Shr(bits, a) if !truth && a == value => {
+                        upper |= func.value_u64(bits).is_some_and(|bits| bits <= 64);
+                    }
+                    _ => {}
+                });
+            }
+        }
+        lower && upper
     }
 
     /// Returns `Some(grounded)` for a heap-pointer derivation. Recursive phi
@@ -249,16 +726,20 @@ impl<'gcx> EvmCodegen<'gcx> {
             aa,
             value,
             &self.heap_pointer_return_functions,
+            false,
             visiting,
             memo,
         )
     }
 
+    /// Context-free return summaries require bounded offsets. Local write analysis also
+    /// accepts the memory-reference contracts supplied by typed arguments.
     fn heap_pointer_provenance_with_helpers(
         func: &Function,
         aa: &AliasAnalysis,
         value: ValueId,
         helper_returns: &DenseBitSet<FunctionId>,
+        bounded: bool,
         visiting: &mut DenseBitSet<ValueId>,
         memo: &mut FxHashMap<ValueId, bool>,
     ) -> Option<bool> {
@@ -272,7 +753,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         let aligned_mask = |value: ValueId| {
             func.value_u256(value).is_some_and(|mask| {
                 mask == U256::MAX - U256::from(31)
-                    || mask == U256::from(u64::MAX.saturating_sub(31))
+                    || (!bounded && mask == U256::from(u64::MAX.saturating_sub(31)))
             })
         };
         let derive = |value, visiting: &mut DenseBitSet<ValueId>, memo: &mut FxHashMap<_, _>| {
@@ -281,6 +762,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 aa,
                 value,
                 helper_returns,
+                bounded,
                 visiting,
                 memo,
             )
@@ -288,9 +770,12 @@ impl<'gcx> EvmCodegen<'gcx> {
 
         let provenance = aa
             .memory_address(func, value)
-            .and_then(|address| matches!(address.region, MemoryRegion::Heap).then_some(true))
+            .filter(|address| matches!(address.region, MemoryRegion::Heap))
+            .filter(|_| !bounded || !AliasAnalysis::range_may_overlap_fmp(func, value, None))
+            .map(|_| true)
             .or_else(|| {
-                if matches!(func.value(value), Value::Arg(_))
+                if !bounded
+                    && matches!(func.value(value), Value::Arg(_))
                     && func.value_ty(value).is_some_and(MirType::is_memory_reference)
                 {
                     return Some(true);
@@ -308,12 +793,19 @@ impl<'gcx> EvmCodegen<'gcx> {
                     {
                         Some(true)
                     }
-                    InstKind::Add(first, second) => {
+                    InstKind::Add(first, second) if !bounded => {
                         derive(*first, visiting, memo).or_else(|| derive(*second, visiting, memo))
                     }
-                    InstKind::Sub(base, _)
-                    | InstKind::IntToPtr(base)
-                    | InstKind::PtrToInt(base, 256) => derive(*base, visiting, memo),
+                    InstKind::Sub(base, _) if !bounded => derive(*base, visiting, memo),
+                    InstKind::Add(first, second) if func.value_u64(*second).is_some() => {
+                        derive(*first, visiting, memo)
+                    }
+                    InstKind::Add(first, second) if func.value_u64(*first).is_some() => {
+                        derive(*second, visiting, memo)
+                    }
+                    InstKind::PtrToInt(base, 256) | InstKind::IntToPtr(base) => {
+                        derive(*base, visiting, memo)
+                    }
                     InstKind::And(first, second) if aligned_mask(*second) => {
                         derive(*first, visiting, memo)
                     }
@@ -429,5 +921,313 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
         let Some(size) = size else { return true };
         offset.checked_add(size).is_none_or(|range_end| range_end > start)
+    }
+}
+
+/// Uses executed memory accesses and dominating bounds to prove heap writes cannot wrap low.
+///
+/// The function-wide facts are indexed once so that each query only visits the instructions
+/// and branches that mention its value.
+struct HeapWriteProof<'a> {
+    func: &'a Function,
+    cfg: CfgInfo,
+    /// Block and position of each placed instruction.
+    inst_blocks: IndexVec<InstId, BlockId>,
+    positions: IndexVec<InstId, u32>,
+    /// Word accesses by address.
+    accesses: FxHashMap<ValueId, Vec<InstId>>,
+    /// Copies by destination and length.
+    copies: FxHashMap<(ValueId, ValueId), Vec<InstId>>,
+    /// Upper bounds proved on entry to single-predecessor branch successors.
+    edge_bounds: FxHashMap<ValueId, Vec<(BlockId, U256)>>,
+    bounds: RefCell<FxHashMap<(InstId, ValueId, usize), Option<U256>>>,
+}
+
+impl<'a> HeapWriteProof<'a> {
+    fn new(func: &'a Function) -> Self {
+        let mut inst_blocks = IndexVec::from_vec(vec![BlockId::ENTRY; func.num_insts()]);
+        let mut positions = IndexVec::from_vec(vec![0; func.num_insts()]);
+        let mut accesses = FxHashMap::<_, Vec<_>>::default();
+        let mut copies = FxHashMap::<_, Vec<_>>::default();
+        let mut edge_bounds = FxHashMap::<_, Vec<_>>::default();
+        for (id, block) in func.blocks.iter_enumerated() {
+            for (position, &inst) in block.instructions.iter().enumerate() {
+                inst_blocks[inst] = id;
+                positions[inst] = position as u32;
+                match func.inst(inst).kind {
+                    InstKind::MStore(dest, _)
+                    | InstKind::MStore8(dest, _)
+                    | InstKind::MLoad(dest) => {
+                        accesses.entry(dest).or_default().push(inst);
+                    }
+                    InstKind::MCopy(dest, _, length)
+                    | InstKind::CalldataCopy(dest, _, length)
+                    | InstKind::CodeCopy(dest, _, length)
+                    | InstKind::ReturnDataCopy(dest, _, length) => {
+                        copies.entry((dest, length)).or_default().push(inst);
+                    }
+                    _ => {}
+                }
+            }
+            let Some(Terminator::Branch { condition, then_block, else_block }) = block.terminator
+            else {
+                continue;
+            };
+            if then_block == else_block {
+                continue;
+            }
+            for (successor, truth) in [(then_block, true), (else_block, false)] {
+                if func.blocks[successor].predecessors.as_slice() != [id] {
+                    continue;
+                }
+                implied_conditions(func, condition, truth, |kind, truth| {
+                    let (value, bound) = match (kind, truth) {
+                        // `gt x, c` false or `lt c, x` false: x <= c
+                        (&InstKind::Gt(x, c), false) | (&InstKind::Lt(c, x), false) => {
+                            (x, func.value_u256(c))
+                        }
+                        // `lt x, c` true or `gt c, x` true: x <= c - 1
+                        (&InstKind::Lt(x, c), true) | (&InstKind::Gt(c, x), true) => {
+                            (x, func.value_u256(c).and_then(|c| c.checked_sub(U256::from(1))))
+                        }
+                        _ => return,
+                    };
+                    if let Some(bound) = bound {
+                        edge_bounds.entry(value).or_default().push((successor, bound));
+                    }
+                });
+            }
+        }
+        Self {
+            func,
+            cfg: CfgInfo::new(func),
+            inst_blocks,
+            positions,
+            accesses,
+            copies,
+            edge_bounds,
+            bounds: Default::default(),
+        }
+    }
+
+    fn precedes(&self, first: InstId, second: InstId) -> bool {
+        let a = self.inst_blocks[first];
+        let b = self.inst_blocks[second];
+        if a != b {
+            return self.cfg.dominators().dominates(a, b);
+        }
+        self.positions[first] < self.positions[second]
+    }
+
+    fn completed_copy(&self, before: InstId, base: ValueId, size: ValueId) -> bool {
+        self.copies
+            .get(&(base, size))
+            .is_some_and(|copies| copies.iter().any(|&inst| self.precedes(inst, before)))
+    }
+
+    fn upper_bound(&self, before: InstId, value: ValueId, depth: usize) -> Option<U256> {
+        if depth > 16 {
+            return None;
+        }
+        if let Some(value) = self.func.value_u256(value) {
+            return Some(value);
+        }
+        let key = (before, value, depth);
+        if let Some(&bound) = self.bounds.borrow().get(&key) {
+            return bound;
+        }
+        let bound = self.compute_upper_bound(before, value, depth);
+        self.bounds.borrow_mut().insert(key, bound);
+        bound
+    }
+
+    fn compute_upper_bound(&self, before: InstId, value: ValueId, depth: usize) -> Option<U256> {
+        // A successful word access expands memory, so its address fits the EVM memory limit.
+        if self
+            .accesses
+            .get(&value)
+            .is_some_and(|accesses| accesses.iter().any(|&inst| self.precedes(inst, before)))
+        {
+            return Some(U256::from(u64::MAX));
+        }
+        let block = self.inst_blocks[before];
+        if let Some(bound) =
+            self.edge_bounds.get(&value).into_iter().flatten().find_map(|&(successor, bound)| {
+                self.cfg.dominators().dominates(successor, block).then_some(bound)
+            })
+        {
+            return Some(bound);
+        }
+        let Value::Inst(inst) = self.func.value(value) else {
+            return None;
+        };
+        match self.func.inst(*inst).kind {
+            InstKind::Add(a, b) => {
+                for (base, size) in [(a, b), (b, a)] {
+                    if self.completed_copy(before, base, size) {
+                        return Some(
+                            self.upper_bound(before, base, depth + 1)?.max(U256::from(u64::MAX)),
+                        );
+                    }
+                }
+                self.upper_bound(before, a, depth + 1)?.checked_add(self.upper_bound(
+                    before,
+                    b,
+                    depth + 1,
+                )?)
+            }
+            InstKind::And(a, b) => match (
+                self.upper_bound(before, a, depth + 1),
+                self.upper_bound(before, b, depth + 1),
+            ) {
+                (Some(a), Some(b)) => Some(a.min(b)),
+                (a, b) => a.or(b),
+            },
+            InstKind::IntToPtr(value) | InstKind::PtrToInt(value, 256) => {
+                self.upper_bound(before, value, depth + 1)
+            }
+            _ => None,
+        }
+    }
+
+    fn heap_destination(
+        &self,
+        before: InstId,
+        dest: ValueId,
+        is_heap: &impl Fn(ValueId) -> bool,
+        depth: usize,
+    ) -> bool {
+        if depth > 16 {
+            return false;
+        }
+        if is_heap(dest) {
+            return true;
+        }
+        let Value::Inst(inst) = self.func.value(dest) else {
+            return false;
+        };
+        let InstKind::Add(a, b) = self.func.inst(*inst).kind else {
+            return false;
+        };
+        for (base, offset) in [(a, b), (b, a)] {
+            if !self.heap_destination(before, base, is_heap, depth + 1) {
+                continue;
+            }
+            // A completed copy either has length zero or establishes a non-wrapping end.
+            if self.completed_copy(before, base, offset)
+                || self
+                    .upper_bound(before, base, 0)
+                    .zip(self.upper_bound(before, offset, 0))
+                    .is_some_and(|(base, offset)| base.checked_add(offset).is_some())
+                || self.inductive_store(before, base, offset)
+            {
+                return true;
+            }
+        }
+        false
+    }
+
+    fn inductive_store(&self, store: InstId, base: ValueId, offset: ValueId) -> bool {
+        let (InstKind::MStore(dest, _) | InstKind::MStore8(dest, _)) = self.func.inst(store).kind
+        else {
+            return false;
+        };
+        let Value::Inst(dest) = self.func.value(dest) else {
+            return false;
+        };
+        if !matches!(self.func.inst(*dest).kind, InstKind::Add(a, b) if (a == base && b == offset) || (b == base && a == offset))
+        {
+            return false;
+        }
+        let Value::Inst(phi) = self.func.value(offset) else {
+            return false;
+        };
+        let InstKind::Phi(incoming) = &self.func.inst(*phi).kind else {
+            return false;
+        };
+        let header = self.inst_blocks[*phi];
+        let body = self.inst_blocks[store];
+        let dom = self.cfg.dominators();
+        if !dom.dominates(header, body) {
+            return false;
+        }
+        let mut invariant = base;
+        if let Value::Inst(inst) = self.func.value(base)
+            && self.inst_blocks[*inst] == header
+            && let InstKind::Phi(incoming) = &self.func.inst(*inst).kind
+        {
+            let mut external =
+                incoming.iter().map(|&(_, value)| value).filter(|&value| value != base);
+            let Some(first) = external.next() else {
+                return false;
+            };
+            if !external.all(|value| value == first) {
+                return false;
+            }
+            invariant = first;
+        }
+        if let Value::Inst(base) = self.func.value(invariant) {
+            let block = self.inst_blocks[*base];
+            if block == header || !dom.dominates(block, header) {
+                return false;
+            }
+        }
+        let mut grounded = false;
+        for &(pred, value) in incoming {
+            if self.func.value_u64(value) == Some(0) {
+                grounded = true;
+                continue;
+            }
+            let Value::Inst(step) = self.func.value(value) else {
+                return false;
+            };
+            let InstKind::Add(a, b) = self.func.inst(*step).kind else {
+                return false;
+            };
+            if !((a == offset && self.func.value_u64(b).is_some())
+                || (b == offset && self.func.value_u64(a).is_some()))
+                || !dom.dominates(body, pred)
+            {
+                return false;
+            }
+        }
+        // The first store uses the base itself. Every backedge has already executed that
+        // store, bounding its address before the next constant increment can take effect.
+        grounded
+    }
+}
+
+/// Calls `leaf` with each condition and truth value implied by `condition` having value `truth`,
+/// looking through boolean wrappers, `or` on the false edge, and `and` on the true edge.
+fn implied_conditions(
+    func: &Function,
+    condition: ValueId,
+    truth: bool,
+    mut leaf: impl FnMut(&InstKind, bool),
+) {
+    let mut conditions = vec![(condition, truth)];
+    let mut seen = FxHashSet::default();
+    while let Some((condition, truth)) = conditions.pop() {
+        if !seen.insert((condition, truth)) {
+            continue;
+        }
+        let Value::Inst(inst) = func.value(condition) else { continue };
+        let kind = &func.inst(*inst).kind;
+        match *kind {
+            InstKind::Zext(inner) => conditions.push((inner, truth)),
+            InstKind::Ne(inner, zero) | InstKind::Ne(zero, inner)
+                if func.value_u64(zero) == Some(0) =>
+            {
+                conditions.push((inner, truth));
+            }
+            InstKind::Eq(inner, zero) | InstKind::Eq(zero, inner)
+                if func.value_u64(zero) == Some(0) =>
+            {
+                conditions.push((inner, !truth));
+            }
+            InstKind::Or(a, b) if !truth => conditions.extend([(a, false), (b, false)]),
+            InstKind::And(a, b) if truth => conditions.extend([(a, true), (b, true)]),
+            _ => leaf(kind, truth),
+        }
     }
 }

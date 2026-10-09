@@ -1,4 +1,11 @@
 //@ codegen-matrix: standard
+//@ run-call: ConditionalResetHelperCopy::check 7, 4096 => 39
+//@ run-call: ResetHelperCopy::check 7, 4096 => 39
+//@ run-call: MemoryHelperCopy::check 7, 4096, false => 9
+//@ run-call: MemoryHelperCopy::check 7, 4096, true => 9
+//@ run-call: OffsetCopy::check 7, 4096, false => 9
+//@ run-call: OffsetCopy::check 7, 4096, true => 9
+//@ run-call: AllocatingCopy::check 0x112233, 7 => 25
 //@ run-call: Harness::run => 1
 //@ run-call: HeapPrefixTuple::check 1 => 9
 //@ run-call: HeapPrefixTuple::checkSecond 1 => 9
@@ -146,5 +153,123 @@ contract HeapPrefixRecursive {
             mstore(sub(data, 288), 0xdeadbeef)
         }
         return seed;
+    }
+}
+
+contract AllocatingCopy {
+    function check(bytes calldata data, uint256 seed) external pure returns (uint256) {
+        uint256 live = increment(seed);
+        uint256 ptr = allocate(data.length);
+        assembly ("memory-safe") {
+            calldatacopy(ptr, data.offset, data.length)
+        }
+        if (data.length == 0) return live;
+        uint256 first;
+        assembly ("memory-safe") {
+            first := byte(0, mload(ptr))
+        }
+        return live + first;
+    }
+
+    function increment(uint256 value) internal pure returns (uint256) {
+        return value + 1;
+    }
+
+    function allocate(uint256 size) internal pure returns (uint256 ptr) {
+        assembly ("memory-safe") {
+            ptr := mload(0x40)
+            let end := add(ptr, and(add(size, 31), not(31)))
+            if or(gt(end, 0xffffffffffffffff), lt(end, ptr)) { revert(0, 0) }
+            mstore(0x40, end)
+        }
+    }
+}
+
+contract OffsetCopy {
+    function check(uint256 seed, uint256 length, bool wrap) external pure returns (uint256) {
+        uint256 delta;
+        assembly {
+            delta := sub(mload(0x40), 0x80)
+            if wrap { delta := sub(0, delta) }
+        }
+        uint256 ptr = offset(delta, wrap);
+        uint256 live = seed + 1;
+        assembly { calldatacopy(ptr, calldatasize(), length) }
+        if (length > 0) return live + 1;
+        return live + 2;
+    }
+    function offset(uint256 delta, bool wrap) internal pure returns (uint256 ptr) {
+        assembly {
+            switch wrap
+            case 0 { ptr := sub(mload(0x40), delta) }
+            default { ptr := add(mload(0x40), delta) }
+        }
+    }
+}
+
+contract MemoryHelperCopy {
+    function check(uint256 seed, uint256 length, bool wrap) external pure returns (uint256) {
+        uint256 delta;
+        assembly {
+            delta := sub(mload(0x40), 0x80)
+            if wrap { delta := sub(0, delta) }
+        }
+        bytes memory ptr = offset(delta, wrap);
+        uint256 live = seed + 1;
+        assembly { calldatacopy(ptr, calldatasize(), length) }
+        if (length > 0) return live + 1;
+        return live + 2;
+    }
+    function offset(uint256 delta, bool wrap) internal pure returns (bytes memory ptr) {
+        assembly {
+            switch wrap
+            case 0 { ptr := sub(mload(0x40), delta) }
+            default { ptr := add(mload(0x40), delta) }
+        }
+    }
+}
+
+contract ResetHelperCopy {
+    function check(uint256 seed, uint256 length) external pure returns (uint256) {
+        assembly { mstore(0x40, 0x80) }
+        uint256 ptr = allocate();
+        uint256 a = seed + 1;
+        uint256 b = seed + 2;
+        uint256 c = seed + 3;
+        uint256 d = seed + 4;
+        assembly { calldatacopy(ptr, calldatasize(), length) }
+        if (length > 0) return a + b + c + d + 1;
+        return a + b + c + d + 2;
+    }
+    function allocate() internal pure returns (uint256 ptr) {
+        assembly { ptr := mload(0x40) mstore(0x40, add(ptr, 64)) }
+    }
+}
+
+
+// A copy on one branch cannot prove the wrapping store safe on the other branch.
+contract ConditionalResetHelperCopy {
+    function check(uint256 seed, uint256 length) external pure returns (uint256) {
+        assembly {
+            let base := mload(0x40)
+            let offset := sub(0x40, base)
+            if iszero(seed) { calldatacopy(base, 0, offset) }
+            mstore(add(base, offset), 0x80)
+        }
+        uint256 ptr = allocate();
+        uint256 a = seed + 1;
+        uint256 b = seed + 2;
+        uint256 c = seed + 3;
+        uint256 d = seed + 4;
+        assembly { calldatacopy(ptr, calldatasize(), length) }
+        if (length > 0) return a + b + c + d + 1;
+        return a + b + c + d + 2;
+    }
+
+    function allocate() internal pure returns (uint256 ptr) {
+        assembly {
+            ptr := mload(0x40)
+            mstore(0x40, add(ptr, 64))
+        }
     }
 }

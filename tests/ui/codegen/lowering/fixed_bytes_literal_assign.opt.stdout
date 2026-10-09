@@ -13,7 +13,7 @@ fn @patch() [selector=0x7f603a02, abi_wrapper, pure] {
   bb5:
     v29 = mload 64 !metadata(memory=scratch)
     v30 = add v29, 64
-    mstore 64, v30 !metadata(memory=scratch)
+    mstore 64, v30 !metadata(memory=scratch, preserves_valid_fmp)
     mstore v29, 2
     v28 = add v29, 32
     mstore v28, 0x4142000000000000000000000000000000000000000000000000000000000000

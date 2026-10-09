@@ -10,7 +10,7 @@ fn @words() [selector=0xf2c31bd9, abi_wrapper, pure] {
     v76 = or v74, v75
     jumpi v76, bb6, bb5
   bb5:
-    mstore 64, v73
+    mstore 64, v73 !metadata(preserves_valid_fmp)
     v80 = calldatasize
     calldatacopy v72, v80, 128
     mstore v72, 3
@@ -79,7 +79,7 @@ fn @bytesTail() [selector=0x56818b01, abi_wrapper, pure] {
     v90 = or v88, v89
     jumpi v90, bb8, bb10
   bb10:
-    mstore 64, v87
+    mstore 64, v87 !metadata(preserves_valid_fmp)
     v95 = calldatasize
     calldatacopy v86, v95, 96
     mstore v86, 33
@@ -119,7 +119,7 @@ fn @bytesTail() [selector=0x56818b01, abi_wrapper, pure] {
     v71 = and v68, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v93 = mload 64
     v94 = add v93, v71
-    mstore 64, v94
+    mstore 64, v94 !metadata(preserves_valid_fmp)
     mstore v93, v66
     v18 = add v93, 128
     v19 = mload v18
@@ -155,7 +155,7 @@ fn @concat() [selector=0x6bdbf8e6, abi_wrapper, pure] {
   bb0:
     v153 = mload 64 !metadata(memory=scratch)
     v154 = add v153, 160
-    mstore 64, v154
+    mstore 64, v154 !metadata(preserves_valid_fmp)
     mstore v153, 33
     v50 = add v153, 32
     mstore v50, 0x102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20
@@ -176,7 +176,7 @@ fn @concat() [selector=0x6bdbf8e6, abi_wrapper, pure] {
     v151 = or v149, v150
     jumpi v151, bb21, bb20
   bb20:
-    mstore 64, v148
+    mstore 64, v148 !metadata(preserves_valid_fmp)
     mstore v147, v17
     v36 = add v147, 32
     v59 = eq v14, 0
@@ -345,7 +345,7 @@ fn @assembled() [selector=0xd1381062, abi_wrapper, pure] {
     v43 = and v40, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v48 = mload 64
     v49 = add v48, v43
-    mstore 64, v49
+    mstore 64, v49 !metadata(preserves_valid_fmp)
     mstore v48, v38
     v10 = add v48, 128
     v11 = keccak256 v10, 70
@@ -368,7 +368,7 @@ fn @recycled() [selector=0xa163996f, abi_wrapper, pure] {
     v86 = or v84, v85
     jumpi v86, bb14, bb13
   bb13:
-    mstore 64, v83
+    mstore 64, v83 !metadata(preserves_valid_fmp)
     v94 = calldatasize
     calldatacopy v82, v94, 96
     mstore v82, 64
@@ -387,7 +387,7 @@ fn @recycled() [selector=0xa163996f, abi_wrapper, pure] {
     v92 = or v90, v91
     jumpi v92, bb14, bb15
   bb15:
-    mstore 64, v89
+    mstore 64, v89 !metadata(preserves_valid_fmp)
     mstore v88, v14
     v30 = add v88, 32
     v38 = eq v14, 0
@@ -482,7 +482,7 @@ fn @fresh() [selector=0xb466b76f, abi_wrapper, pure] {
     v50 = or v48, v49
     jumpi v50, bb6, bb5
   bb5:
-    mstore 64, v47
+    mstore 64, v47 !metadata(preserves_valid_fmp)
     v52 = calldatasize
     calldatacopy v46, v52, 128
     mstore v46, 3
@@ -532,7 +532,7 @@ fn @freshEmpty() [selector=0x2f9cb906, abi_wrapper, pure] {
     v34 = or v32, v33
     jumpi v34, bb2, bb1
   bb1:
-    mstore 64, v31
+    mstore 64, v31 !metadata(preserves_valid_fmp)
     mstore v30, 0
     mstore v30, 0
     mstore v30, 32

@@ -1,0 +1,89 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/static_call_args_reset_fmp.sol:StaticCallArgsResetFmp ===
+@module StaticCallArgsResetFmp
+fn @run(arg0: i256) -> i256 [selector=0xa444f5e9, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = icall @mix, arg0, 1
+    v1 = icall @mix, arg0, 3
+    v2 = icall @mix, arg0, 5
+    v3 = icall @mix, arg0, 7
+    v4 = icall @mix, arg0, 11
+    v5 = icall @mix, arg0, 13
+    v6 = icall @mix, arg0, 17
+    v7 = icall @mix, arg0, 41
+    mstore 64, 128 !metadata(memory=scratch)
+    v8 = not 31
+    v9 = and 95, v8
+    v10 = alloc memorybytes, exact, zeroed, panic, v9
+    set_memory_object_len memorybytes, v10, 32
+    v11 = icall @combine, v0, v1, v2, v3, v4, v5, v6, v7
+    v12 = add v11, v0
+    v13 = add v12, v1
+    v14 = add v13, v2
+    v15 = add v14, v3
+    v16 = add v15, v4
+    v17 = add v16, v5
+    v18 = add v17, v6
+    v19 = memory_object_len memorybytes, v10
+    v20 = add v18, v19
+    ret v20
+}
+
+fn @runInternal(arg0: i256) -> i256 [selector=0xc19b8781, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = icall @inner, arg0
+    ret v0
+}
+
+fn @inner(arg0: i256) -> i256 [pure] {
+  bb0:
+    v0 = icall @mix, arg0, 1
+    v1 = icall @mix, arg0, 3
+    v2 = icall @mix, arg0, 5
+    v3 = icall @mix, arg0, 7
+    v4 = icall @mix, arg0, 11
+    v5 = icall @mix, arg0, 13
+    v6 = icall @mix, arg0, 17
+    v7 = icall @mix, arg0, 41
+    mstore 64, 128 !metadata(memory=scratch)
+    v8 = not 31
+    v9 = and 95, v8
+    v10 = alloc memorybytes, exact, zeroed, panic, v9
+    set_memory_object_len memorybytes, v10, 32
+    v11 = icall @combine, v0, v1, v2, v3, v4, v5, v6, v7
+    v12 = add v11, v0
+    v13 = add v12, v1
+    v14 = add v13, v2
+    v15 = add v14, v3
+    v16 = add v15, v4
+    v17 = add v16, v5
+    v18 = add v17, v6
+    v19 = memory_object_len memorybytes, v10
+    v20 = add v18, v19
+    ret v20
+}
+
+fn @mix(arg0: i256, arg1: i256) -> i256 [pure] {
+  bb0:
+    v0 = mul arg0, arg1
+    v1 = add v0, 1
+    ret v1
+}
+
+fn @combine(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256, arg5: i256, arg6: i256, arg7: i256) -> i256 [pure] {
+  bb0:
+    v0 = mul 2, arg1
+    v1 = add arg0, v0
+    v2 = mul 3, arg2
+    v3 = add v1, v2
+    v4 = mul 4, arg3
+    v5 = add v3, v4
+    v6 = mul 5, arg4
+    v7 = add v5, v6
+    v8 = mul 6, arg5
+    v9 = add v7, v8
+    v10 = mul 7, arg6
+    v11 = add v9, v10
+    v12 = mul 8, arg7
+    v13 = add v11, v12
+    ret v13
+}

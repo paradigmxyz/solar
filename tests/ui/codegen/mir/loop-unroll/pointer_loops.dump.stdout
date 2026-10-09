@@ -28,7 +28,7 @@ fn @toHex() [selector=0xc5bec6fc, abi_wrapper, pure] {
     v93 = or v91, v92
     jumpi v93, bb6, bb9
   bb9:
-    mstore 64, v90 !metadata(memory=scratch)
+    mstore 64, v90 !metadata(memory=scratch, preserves_valid_fmp)
     mstore v89, v42
     v49 = sub v33, v37
     v50 = gt v42, v49
@@ -96,7 +96,7 @@ fn @toHex() [selector=0xc5bec6fc, abi_wrapper, pure] {
     v79 = and v77, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v96 = mload 64 !metadata(memory=scratch)
     v97 = add v96, v79
-    mstore 64, v97 !metadata(memory=scratch)
+    mstore 64, v97 !metadata(memory=scratch, preserves_valid_fmp)
     returndata v96, v75
   bb3:
     v20 = add v13, 1
@@ -164,7 +164,7 @@ fn @sumWords() [selector=0x5a761098, abi_wrapper, pure] {
     v54 = or v52, v53
     jumpi v54, bb6, bb9
   bb9:
-    mstore 64, v51 !metadata(memory=scratch)
+    mstore 64, v51 !metadata(memory=scratch, preserves_valid_fmp)
     mstore v50, v27
     v39 = sub v18, v22
     v40 = shr 5, v39

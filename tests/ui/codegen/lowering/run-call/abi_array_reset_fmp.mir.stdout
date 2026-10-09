@@ -1,0 +1,82 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/abi_array_reset_fmp.sol:AbiArrayResetFmp ===
+@module AbiArrayResetFmp
+fn @encode(arg0: i256) -> i256 [selector=0xdeb21fa2, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = checked_add u256, arg0, 1
+    v1 = add arg0, 0x10000
+    mstore v1, 1
+    v2 = add v1, 64
+    v3 = add v1, 32
+    mstore v3, v2
+    v4 = add v1, 64
+    mstore v4, 20
+    v5 = add v1, 96
+    mstore v5, 3
+    v6 = add v1, 128
+    mstore v6, 5
+    mstore 64, 128 !metadata(memory=scratch)
+    v7 = inttoptr i256 v1 to memptr
+    v8 = inttoptr i256 v1 to memptr
+    v9 = abi_encode [memory_array<memory_array<word>>, memory_array<memory_array<word>>], object, args v7, v8
+    v10 = ptrtoint memptr v9 to i256
+    v11 = mload v10
+    v12 = ptrtoint memptr v9 to i256
+    v13 = add v12, 32
+    v14 = add v13, v11
+    v15 = ptrtoint memptr v9 to i256
+    v16 = add v15, 32
+    jump bb1
+  bb1:
+    v17 = phi [bb0: 0], [bb3: v29]
+    v18 = phi [bb0: v0], [bb3: v18]
+    v19 = phi [bb0: v14], [bb3: v19]
+    v20 = phi [bb0: v1], [bb3: v20]
+    v21 = phi [bb0: v16], [bb3: v30]
+    v22 = phi [bb0: arg0], [bb3: v22]
+    v23 = phi [bb0: v9], [bb3: v23]
+    v24 = phi [bb0: 0], [bb3: v24]
+    v25 = lt v21, v19
+    v26 = zext i1 v25 to i256
+    v27 = ne v26, 0
+    jumpi v27, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    v31 = memory_object_len memorybytes, v23
+    v32 = checked_add u256, v18, v31
+    v33 = checked_add u256, v32, v17
+    ret v33
+  bb4:
+    v28 = mload v21
+    v29 = add v17, v28
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v30 = add v21, 32
+    jump bb1
+}
+
+fn @encodeTwice(arg0: i256) -> i256 [selector=0xe0f7fc02, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = icall @encode, arg0
+    v1 = checked_add u256, arg0, 1
+    v2 = icall @encode, v1
+    v3 = checked_add u256, v0, v2
+    ret v3
+}
+
+fn @callVoidAfterReset(arg0: i256) -> i256 [selector=0xf23c32a9, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = checked_mul u256, arg0, 2
+    mstore 64, 128 !metadata(memory=scratch)
+    icall @writeAtFmp, arg0
+    ret v0
+}
+
+fn @writeAtFmp(arg0: i256) [selector=0xd8f11f1c, pure, abi_params=[u256], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    mstore v0, arg0
+    ret
+}
