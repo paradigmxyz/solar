@@ -385,29 +385,22 @@ No intentional divergences documented yet.
   slots and the frames it reaches above `0x2080`, and above the constant
   ranges assembly names there in the functions it runs or that an external
   function sharing those frames runs. This costs memory expansion gas; other
-  external functions keep their memory low unless they share those frames.
+  external functions keep their memory low unless they share those frames, or
+  a recursive helper places every frame above all external functions.
 - Rationale: The spill slots and internal-call frames below the initial free
-  memory pointer (CODEGEN-009) hold values that `solc` keeps on the stack. The
-  next allocation after a lowered pointer, or the absolute layout itself,
-  overwrote them. A pointer derived from the heap already lies above the
-  initial one and keeps its value. So does a store that only fills the slot
-  with data, such as an error argument before a revert or a hash input before
-  the pointer is restored, also when an assembly function writes or hashes the
-  slot; the search follows internal calls and returns, so a helper's scratch
-  word is raised only on the paths of the callers that allocate from it, and a
-  word a public function returns to its external callers as data is raised
-  only in the internal callers that use it as a pointer. An absolute pointer
-  that reaches the store through a parameter, memory, or a call keeps its
-  value. A read at a heap pointer plus a constant lies above the slot, while a
-  read at any other computed address, such as one loaded from memory or one
-  below a heap pointer, may read the slot as data, and so may a hash or copy
-  of a memory object that assembly points below the heap, or an element of
-  any memory object at an index the program computes, which can wrap around
-  when assembly forges the object's length. A layout that grows past
-  `0x2080`, or one indexed by a loop counter alone, can still reach the
-  compiler's memory; Seaport's basic orders with about 40 or more additional
-  recipients do.
+  memory pointer (CODEGEN-009) hold values that `solc` keeps on the stack, so
+  the next allocation after a lowered pointer, or the absolute layout itself,
+  would replace them. Raising only the pointer reads keeps the stored value for
+  code that uses the slot as scratch, such as an error argument before a revert
+  or a hash input before the pointer is restored. A pointer derived from the
+  heap already lies above the initial one, and an absolute pointer that reaches
+  the store through a parameter, memory, or a call keeps its value. The
+  `heap-floor` pass documents how it tells pointer reads from data reads. A
+  layout that grows past `0x2080`, or one indexed by a loop counter alone, can
+  still reach the compiler's memory; Seaport's basic orders with about 40 or
+  more additional recipients do.
 - Coverage: `tests/ui/codegen/lowering/run-call/assembly_low_memory_layouts.sol`,
   `tests/ui/codegen/lowering/run-call/assembly_low_memory_routes.sol`,
+  `tests/ui/codegen/lowering/run-call/assembly_low_memory_recursive_routes.sol`,
   `tests/ui/codegen/mir/heap-floor/heap_floor.mir`, and Seaport's own suite in
   `cargo tq foundry-external seaport`.

@@ -48,16 +48,15 @@
 
 // Memory-unsafe assembly can treat all memory from 0x80 up as its own. Seaport lays a basic
 // order's hashes and event data out at addresses that calldata sizes, moves the free memory
-// pointer just past them, and resets it to 0x80 after batch transfers. The backend keeps
-// spill slots and internal-call frames below the initial free memory pointer, so the next
-// allocation overwrote live words: a decoded signature replaced the offerer and the order
-// hash, and the event data replaced the offered item type. A store that would lower the
-// free memory pointer now keeps it at or above the initial one, and a layout sized by
-// calldata moves the spill area above low memory, and above the fixed memory the assembly names
-// there. Storing calldata into the pointer's slot as
-// an error argument or a hash input keeps its value, also across calls to assembly helpers and
-// checked arithmetic, and so does a load that reads the slot back as data. A caller that
-// allocates from a helper's scratch word clamps it on its own path.
+// pointer just past them, and resets it to 0x80 after batch transfers. The backend keeps spill
+// slots and internal-call frames below the initial free memory pointer, where the next allocation
+// would replace live words, such as a decoded signature over the offerer and the order hash. A
+// store that would lower the free memory pointer keeps it at or above the initial one, and a
+// layout sized by calldata moves the spill area above low memory and above the fixed memory the
+// assembly names there. Storing calldata into the pointer's slot as an error argument or a hash
+// input keeps its value, also across calls to assembly helpers and checked arithmetic, and so
+// does a load that reads the slot back as data. A caller that allocates from a helper's scratch
+// word clamps it on its own path.
 contract AssemblyLowMemoryLayouts {
     error ScratchWord(uint256 word);
 

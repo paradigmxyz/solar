@@ -12,8 +12,8 @@
 // A copy of dynamic length into the low forwarding buffer can cover every fixed spill slot, so
 // the loop's counter rides the stack across it. The counter's phi still arrives through the
 // copies its edges store to its slot, which the loop test reads before the copy can clobber it.
-// The emitter treated it as lost there and kept a placeholder zero, so every call skipped the
-// loop, as Seaport's conduit skipped the `NoContract` check of its batch transfers.
+// Losing it there leaves a placeholder zero, so every call skips the loop, as Seaport's conduit
+// skipped the `NoContract` check of its batch transfers.
 // The standard matrix's `mir` revision would snapshot the MIR without testing anything the
 // runtime calls do not.
 
