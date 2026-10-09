@@ -611,6 +611,9 @@ fn outline_parametric_machine_runs(
                     .sum::<usize>()
             })
             .sum::<usize>();
+        // The byte per parameter pays for no emitted instruction. It is a margin: groups are
+        // taken longest first, and without it a barely profitable long group can claim sites
+        // that a shorter group shares better.
         let site_size = (if free.len() >= 4 { 7 } else { 8 }) + parameters.len();
         let stub_size = 1 + lower_bound(gcx, &stub_body) + usize::from(first.outputs) + 1;
         if inline_size < parameter_bytes + free.len() * site_size + stub_size + 2 {
@@ -662,19 +665,18 @@ fn outline_parametric_machine_runs(
     for (group, stub) in chosen.into_iter().zip(stubs) {
         for site in group.sites {
             let source = &module.blocks[site.block].instructions;
-            let mut prefix = group
+            let mut parameters = group
                 .parameters
                 .iter()
                 .rev()
                 .map(|&index| source[site.start + index].clone())
                 .collect::<Vec<_>>();
-            clear_function_invokes(&mut prefix);
+            clear_function_invokes(&mut parameters);
             edits.entry(site.block).or_default().push(ParamEdit {
                 start: site.start,
                 len: site.len,
                 stub,
-                inputs: group.parameters.len() as u16,
-                prefix,
+                parameters,
             });
         }
     }
@@ -745,32 +747,10 @@ fn split_parametric_outline_site(
     edit: &ParamEdit,
     continuation_label: u32,
 ) {
-    let function_invoke = range_function_invoke(
-        &module.blocks[block].instructions[edit.start..edit.start + edit.len],
-    );
-    // prefix; parameters; push continuation; rotate return below inputs; jump stub
+    // prefix; push continuation; parameters; jump stub
     // continuation: suffix; original terminator
-    let mut continuation = Block::new(continuation_label);
-    continuation.metadata = module.blocks[block].metadata;
-    continuation.metadata.is_continuation = true;
-    continuation.instructions = module.blocks[block].instructions.split_off(edit.start + edit.len);
-    module.blocks[block].instructions.truncate(edit.start);
-    continuation.terminator = module.blocks[block].terminator.take();
-    let continuation = module.add_block(continuation);
-    module.blocks[block].instructions.extend_from_slice(&edit.prefix);
-    module.blocks[block]
-        .instructions
-        .push(Instruction::push_block(continuation).with_debug_info_dropped());
-    for depth in (1..=edit.inputs).rev() {
-        module.blocks[block]
-            .instructions
-            .push(Instruction::stack_op(op::StackOp::Swap(depth as u8)).with_debug_info_dropped());
-    }
-    let mut terminator = Terminator::new(TerminatorKind::Jump(edit.stub)).with_debug_info_dropped();
-    if let Some(function) = function_invoke {
-        terminator.metadata.set_function_invoke(function);
-    }
-    module.blocks[block].terminator = Some(terminator);
+    split_outline_site(module, block, edit.start, edit.len, edit.stub, 0, continuation_label);
+    module.blocks[block].instructions.extend_from_slice(&edit.parameters);
 }
 
 fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState) -> bool {
@@ -1032,8 +1012,7 @@ struct ParamEdit {
     start: usize,
     len: usize,
     stub: BlockId,
-    inputs: u16,
-    prefix: Vec<Instruction>,
+    parameters: Vec<Instruction>,
 }
 
 /// Instruction tables over all blocks: whether each instruction occurs more than
