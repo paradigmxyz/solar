@@ -188,7 +188,8 @@ impl FileLoader for RealFileLoader {
     }
 }
 
-/// The directories that source file names are displayed relative to.
+/// The directories that source file names are displayed relative to, and the current directory,
+/// whose drive they are displayed without.
 #[derive(Debug)]
 pub(crate) struct SourceRoots {
     pub(crate) base_path: Option<PathBuf>,
@@ -263,7 +264,7 @@ impl SourceMap {
         self.file_loader.get().map(std::ops::Deref::deref).unwrap_or(&RealFileLoader)
     }
 
-    /// Sets the base path and include paths for the source map.
+    /// Sets the base path, include paths and current directory for the source map.
     ///
     /// Source file names are displayed relative to them, and new file resolvers use the base path
     /// as their default.

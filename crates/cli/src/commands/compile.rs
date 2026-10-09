@@ -101,7 +101,10 @@ pub(crate) fn run_pipeline(
         let note = "if you wish to use the standard input, please specify `-` explicitly";
         return Err(sess.dcx.err(msg).note(note).emit());
     }
-    check_source_unit_names(sess, compiler.gcx().sources.iter().map(|source| &source.file))?;
+    // Standard JSON keys are unique names.
+    if !sess.opts.standard_json {
+        check_source_unit_names(sess, compiler.gcx().sources.iter().map(|source| &source.file))?;
+    }
 
     compiler.sources_mut().topo_sort();
     after_parsing(compiler);

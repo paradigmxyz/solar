@@ -241,7 +241,7 @@ impl<'a> FileResolver<'a> {
         self.source_map.file_loader().canonicalize_path(path)
     }
 
-    /// Normalizes a path removing unnecessary components.
+    /// Normalizes a path, removing `.` segments and applying `..` segments lexically.
     ///
     /// Does not perform I/O.
     pub fn normalize<'b>(&self, path: &'b Path) -> Cow<'b, Path> {
@@ -307,9 +307,6 @@ impl<'a> FileResolver<'a> {
         path: &Path,
         parent: &Path,
     ) -> Result<Option<Arc<SourceFile>>, ResolveError> {
-        let last_input = *self
-            .last_input
-            .get_or_init(|| self.source_map().files().last().map(|file| file.start_pos));
         let unit = self.import_source_unit_name(path, parent);
         if let Some(file) = self.get_source_unit(&unit) {
             return Ok(Some(file));
@@ -320,6 +317,10 @@ impl<'a> FileResolver<'a> {
         if roots.as_ref().and_then(|roots| roots.base_path.as_deref()) == Some(Path::new("")) {
             return self.read_source_unit(path, &unit);
         }
+
+        let last_input = *self
+            .last_input
+            .get_or_init(|| self.source_map().files().last().map(|file| file.start_pos));
 
         // Like solc, prefer an input file with this source unit name over searching the disk.
         // Files loaded for other imports don't count, so the result doesn't depend on their order.
@@ -338,10 +339,11 @@ impl<'a> FileResolver<'a> {
             }
         }
 
+        let allowed_dirs = self.allowed_dirs();
         let mut found = SmallVec::<[_; 1]>::new();
         for candidate in self.search_paths(&unit) {
             // Quick deduplication when include paths are duplicated.
-            if let Some(file) = self.load(&candidate, self.allowed_dirs())?
+            if let Some(file) = self.load(&candidate, allowed_dirs)?
                 && !found.iter().any(|f| Arc::ptr_eq(f, &file))
             {
                 found.push(file);
@@ -366,30 +368,30 @@ impl<'a> FileResolver<'a> {
         // Read inside the source map's insertion, so that concurrent imports of the same name
         // wait for one read. Spellings of the name that differ only in `.` and `..` segments or
         // repeated separators name one source, so name it by a normalized spelling.
-        let mut result = Ok(None);
-        let file = self.source_map().new_source_file_with(normalize_unit(unit).into(), || {
-            match self.read_roots(path, unit) {
-                Ok(Some(src)) => return Ok(src),
-                Ok(None) => {}
-                Err(e) => result = Err(e),
-            }
-            Err(io::ErrorKind::NotFound.into())
-        });
+        let mut error = None;
+        let file =
+            self.source_map().new_source_file_with(normalize_unit(unit).into(), || {
+                match self.read_roots(path, unit) {
+                    Ok(Some(src)) => Ok(src),
+                    Ok(None) => Err(io::ErrorKind::NotFound.into()),
+                    Err(e) => Err(io::Error::other(error.insert(e).to_string())),
+                }
+            });
         match file {
             Ok(file) => Ok(Some(file)),
-            Err(e) if result.is_ok() && e.kind() != io::ErrorKind::NotFound => {
-                Err(ResolveError::ReadFile(unit.into(), e))
-            }
-            Err(_) => result,
+            Err(_) if let Some(error) = error => Err(error),
+            Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(None),
+            Err(e) => Err(ResolveError::ReadFile(unit.into(), e)),
         }
     }
 
     /// Reads `unit` from each root once through the file loader, like solc's file reader.
     fn read_roots(&self, path: &Path, unit: &Path) -> Result<Option<String>, ResolveError> {
         let loader = self.source_map().file_loader();
-        // Like solc, give the loader an absolute name as is, and normalize it otherwise.
+        // Ask for the normalized name, which the source is keyed by, so that the result doesn't
+        // depend on which spelling of the name is read first.
         let candidates = if unit.has_root() {
-            vec![unit.to_path_buf()]
+            vec![normalize_unit(unit)]
         } else {
             self.roots().map(|root| normalize_unit(&root.join(unit))).collect()
         };
@@ -465,7 +467,7 @@ impl<'a> FileResolver<'a> {
     /// Returns the loaded source with the given source unit name.
     fn get_source_unit(&self, unit: &Path) -> Option<Arc<SourceFile>> {
         let source_map = self.source_map();
-        source_map.get_file(unit).or_else(|| source_map.get_file(lexical_normalize(unit)))
+        source_map.get_file(unit).or_else(|| source_map.get_file(normalize_unit(unit)))
     }
 
     /// Returns the paths that the host filesystem loader looks up for a source unit name.
@@ -474,19 +476,15 @@ impl<'a> FileResolver<'a> {
         let unit = unit.to_str().and_then(|s| s.strip_prefix("file://")).map_or(unit, Path::new);
         // Unlike solc, look up absolute paths as is, even with a base path.
         if unit.has_root() {
-            return smallvec![self.rooted(unit)];
+            // A path with a root but no drive, like `/a.sol` on Windows, is on the base path's
+            // drive.
+            let rooted = match self.try_base_path() {
+                Some(base_path) if !unit.is_absolute() => Cow::Owned(base_path.join(unit)),
+                _ => Cow::Borrowed(unit),
+            };
+            return smallvec![rooted];
         }
         self.roots().map(|root| Cow::Owned(root.join(unit))).collect()
-    }
-
-    /// Gives a path with a root but no drive, like `/a.sol` on Windows, the base path's drive.
-    fn rooted<'b>(&self, path: &'b Path) -> Cow<'b, Path> {
-        match self.try_base_path() {
-            Some(base_path) if path.has_root() && !path.is_absolute() => {
-                Cow::Owned(base_path.join(path))
-            }
-            _ => Cow::Borrowed(path),
-        }
     }
 
     /// Applies the import path mappings to `path`.
@@ -646,7 +644,7 @@ pub(crate) fn absolute_path(current_dir: Option<&Path>, path: &Path) -> PathBuf 
 }
 
 /// Strips the first root that strictly contains `path`.
-pub(crate) fn strip_root(path: &Path, roots: impl IntoIterator<Item: AsRef<Path>>) -> &Path {
+fn strip_root(path: &Path, roots: impl IntoIterator<Item: AsRef<Path>>) -> &Path {
     roots
         .into_iter()
         .filter(|root| !root.as_ref().as_os_str().is_empty())

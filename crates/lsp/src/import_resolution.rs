@@ -248,8 +248,9 @@ impl<'config, 'overlay> ImportResolver<'config, 'overlay> {
 
     fn file_resolver<'a>(&self, source_map: &'a SourceMap) -> FileResolver<'a> {
         let mut resolver = FileResolver::new(source_map);
-        resolver.configure_from_opts(self.context.compile_opts());
+        // Relative paths in the options are relative to the workspace.
         resolver.set_current_dir(self.context.workspace_root());
+        resolver.configure_from_opts(self.context.compile_opts());
         resolver
     }
 
