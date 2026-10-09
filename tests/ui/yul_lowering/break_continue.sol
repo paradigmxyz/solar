@@ -15,18 +15,16 @@ contract C {
 
     function outside() public {
         assembly {
-            break //~ ERROR: `break` outside of a loop
-            continue //~ ERROR: `continue` outside of a loop
+            break //~ ERROR: keyword `break` needs to be inside a for-loop body
+            continue //~ ERROR: keyword `continue` needs to be inside a for-loop body
         }
     }
 
-    // TODO: solc rejects break/continue in Yul for-loop init/post blocks.
-    // Solar only checks whether the lowered HIR statement is inside a loop.
-    function post_block_diverges_from_solc() public {
+    function post_block() public {
         assembly {
             for {} 1 {
-                break
-                continue
+                break //~ ERROR: keyword `break` in for-loop post block is not allowed
+                continue //~ ERROR: keyword `continue` in for-loop post block is not allowed
             } {}
         }
     }
@@ -51,8 +49,8 @@ contract C {
         assembly {
             for { let i := 0 } lt(i, n) { i := add(i, 1) } {
                 function bad() {
-                    break //~ ERROR: `break` outside of a loop
-                    continue //~ ERROR: `continue` outside of a loop
+                    break //~ ERROR: keyword `break` needs to be inside a for-loop body
+                    continue //~ ERROR: keyword `continue` needs to be inside a for-loop body
                 }
             }
         }
