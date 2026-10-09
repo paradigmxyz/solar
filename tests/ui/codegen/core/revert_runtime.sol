@@ -1,5 +1,4 @@
-//@ revisions: intrinsic portable
-//@[intrinsic] compile-flags: -Ogas
+//@ codegen-matrix: standard portable
 //@[portable] compile-flags: -Ogas -Zno-core-intrinsics
 //@ run-call-fail: boom 0xdeadbeef => 0xdeadbeef
 //@ run-call-fail: boom 0x0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f2021 => 0x0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f2021

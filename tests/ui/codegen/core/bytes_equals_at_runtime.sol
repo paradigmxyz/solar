@@ -1,5 +1,4 @@
-//@ revisions: intrinsic portable
-//@[intrinsic] compile-flags: -Ogas
+//@ codegen-matrix: standard portable
 //@[portable] compile-flags: -Ogas -Zno-core-intrinsics
 //@ run-call: at 0xe7eee7615ef35f30e49b482e15cae75007201e12617b0feda7e1647796ff022bea8ed02a82a175930f2337cd3794c52208006d6b1af0c0cbd625658aac2c9faa07d13c447e33051eeef95a60e56143d6c43bcad76c008a9b0a6b5fc933154a6de28404a8, 0, 0x => true
 //@ run-call: at 0xe7eee7615ef35f30e49b482e15cae75007201e12617b0feda7e1647796ff022bea8ed02a82a175930f2337cd3794c52208006d6b1af0c0cbd625658aac2c9faa07d13c447e33051eeef95a60e56143d6c43bcad76c008a9b0a6b5fc933154a6de28404a8, 1, 0x => true

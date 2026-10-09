@@ -1,5 +1,4 @@
-//@ revisions: intrinsic portable
-//@[intrinsic] compile-flags: -Ogas
+//@ codegen-matrix: standard portable
 //@[portable] compile-flags: -Ogas -Zno-core-intrinsics
 //@ run-call: whole 0x63deadbeef6000526004601cf3 => 0xdeadbeef
 //@ run-call: part 0x63deadbeef6000526004601cf3, 1, 2 => 0xadbe

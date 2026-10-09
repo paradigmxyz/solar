@@ -1,0 +1,277 @@
+// === <solar:core/Arrays.sol>:Arrays ===
+@module Arrays
+@library
+
+// === <solar:core/Bytes.sol>:Bytes ===
+@module Bytes
+@library
+
+// === <solar:core/Buffers.sol>:Buffers ===
+@module Buffers
+@library
+
+// === <solar:core/Strings.sol>:Strings ===
+@module Strings
+@library
+
+// === ROOT/tests/ui/codegen/core/strings_utf8_runtime.sol:Test ===
+@module Test
+fn @valid(arg0: memptr) -> i1 [selector=0x31dfea51, pure, abi_params=[bytes], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = icall @isValidUTF8, arg0
+    ret v0
+}
+
+fn @readBytes32(arg0: memptr, arg1: i256) -> i256 [pure] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb3: v14]
+    v1 = phi [bb0: arg0], [bb3: v1]
+    v2 = phi [bb0: 0], [bb3: v13]
+    v3 = phi [bb0: arg1], [bb3: v3]
+    v4 = lt v0, 32
+    jumpi v4, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    ret v2
+  bb4:
+    v5 = checked_add u256, v3, v0
+    v6 = memory_object_len memorybytes, v1
+    v7 = lt v5, v6
+    v8 = eq v7, false
+    icall panic_if<0x32>, v8
+    v9 = memory_object_load_byte memorybytes, v1, v5
+    v10 = shl 248, v9
+    v11 = checked_mul u256, 8, v0
+    v12 = shr v11, v10
+    v13 = or v2, v12
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v14 = checked_add u256, v0, 1
+    jump bb1
+}
+
+fn @isValidUTF8(arg0: memptr) -> i1 [pure] {
+  bb0:
+    v0 = memory_object_len memorybytes, arg0
+    jump bb1
+  bb1:
+    v1 = phi [bb0: v0], [bb5: v68], [bb9: v1], [bb12: v1]
+    v2 = phi [bb0: 0], [bb5: v73], [bb9: v2], [bb12: v2]
+    v3 = phi [bb0: arg0], [bb5: v70], [bb9: v3], [bb12: v3]
+    v4 = phi [bb0: arg0], [bb5: v76], [bb9: v4], [bb12: v4]
+    v5 = phi [bb0: 0], [bb5: v93], [bb9: v23], [bb12: v32]
+    v6 = lt v5, v1
+    jumpi v6, bb3, bb4
+  bb4:
+    jump bb2
+  bb2:
+    ret true
+  bb3:
+    v7 = checked_sub u256, v1, v5
+    v8 = lt v7, 32
+    v9 = eq v8, false
+    jumpi v9, bb6, bb7
+  bb7:
+    jump bb8
+  bb6:
+    v10 = memory_object_len memorybytes, v4
+    v11 = add v5, 32
+    v12 = lt v11, v5
+    v13 = gt v11, v10
+    v14 = or v12, v13
+    v15 = zext i1 v14 to i256
+    icall panic_if<0x32>, v14
+    v16 = memory_object_data memorybytes, v4
+    v17 = ptrtoint memptr v16 to i256
+    v18 = add v17, v5
+    v19 = mload v18
+    v20 = and v19, 0x8080808080808080808080808080808080808080808080808080808080808080
+    v21 = eq v20, 0
+    jump bb8
+  bb8:
+    v22 = phi [bb6: v21], [bb7: false]
+    jumpi v22, bb9, bb10
+  bb10:
+    jump bb11
+  bb11:
+    v24 = memory_object_len memorybytes, v4
+    v25 = lt v5, v24
+    v26 = eq v25, false
+    icall panic_if<0x32>, v26
+    v27 = memory_object_load_byte memorybytes, v4, v5
+    v28 = shl 248, v27
+    v29 = shr 248, v28
+    v30 = trunc i256 v29 to i8
+    v31 = lt v30, i8 128
+    jumpi v31, bb12, bb13
+  bb13:
+    jump bb14
+  bb14:
+    v33 = lt v30, i8 194
+    jumpi v33, bb15, bb16
+  bb16:
+    v34 = lt v30, i8 224
+    jumpi v34, bb18, bb19
+  bb19:
+    v35 = lt v30, i8 240
+    jumpi v35, bb21, bb22
+  bb22:
+    v41 = lt v30, i8 245
+    jumpi v41, bb30, bb31
+  bb31:
+    ret false
+  bb30:
+    v42 = eq v30, i8 240
+    jumpi v42, bb33, bb34
+  bb34:
+    v43 = eq v30, i8 244
+    jumpi v43, bb36, bb37
+  bb37:
+    jump bb38
+  bb36:
+    jump bb38
+  bb38:
+    v44 = phi [bb36: i8 143], [bb37: i8 191]
+    jump bb35
+  bb33:
+    jump bb35
+  bb35:
+    v45 = phi [bb33: i8 144], [bb38: i8 128]
+    v46 = phi [bb33: i8 191], [bb38: v44]
+    jump bb32
+  bb32:
+    jump bb23
+  bb21:
+    v36 = eq v30, i8 224
+    jumpi v36, bb24, bb25
+  bb25:
+    v37 = eq v30, i8 237
+    jumpi v37, bb27, bb28
+  bb28:
+    jump bb29
+  bb27:
+    jump bb29
+  bb29:
+    v38 = phi [bb27: i8 159], [bb28: i8 191]
+    jump bb26
+  bb24:
+    jump bb26
+  bb26:
+    v39 = phi [bb24: i8 160], [bb29: i8 128]
+    v40 = phi [bb24: i8 191], [bb29: v38]
+    jump bb23
+  bb23:
+    v47 = phi [bb26: v39], [bb32: v45]
+    v48 = phi [bb26: v40], [bb32: v46]
+    v49 = phi [bb26: 2], [bb32: 3]
+    jump bb20
+  bb18:
+    jump bb20
+  bb20:
+    v50 = phi [bb18: i8 128], [bb23: v47]
+    v51 = phi [bb18: i8 191], [bb23: v48]
+    v52 = phi [bb18: 1], [bb23: v49]
+    jump bb17
+  bb17:
+    v53 = checked_sub u256, v1, v5
+    v54 = gt v53, v52
+    v55 = eq v54, false
+    jumpi v55, bb39, bb40
+  bb40:
+    jump bb41
+  bb41:
+    v56 = checked_add u256, v5, 1
+    v57 = memory_object_len memorybytes, v4
+    v58 = lt v56, v57
+    v59 = eq v58, false
+    icall panic_if<0x32>, v59
+    v60 = memory_object_load_byte memorybytes, v4, v56
+    v61 = shl 248, v60
+    v62 = shr 248, v61
+    v63 = trunc i256 v62 to i8
+    v64 = lt v63, v50
+    jumpi v64, bb43, bb42
+  bb42:
+    v65 = gt v63, v51
+    jump bb44
+  bb43:
+    jump bb44
+  bb44:
+    v66 = phi [bb42: v65], [bb43: true]
+    jumpi v66, bb45, bb46
+  bb46:
+    jump bb47
+  bb47:
+    jump bb48
+  bb48:
+    v67 = phi [bb47: 2], [bb50: v91]
+    v68 = phi [bb47: v1], [bb50: v68]
+    v69 = phi [bb47: v50], [bb50: v69]
+    v70 = phi [bb47: v3], [bb50: v70]
+    v71 = phi [bb47: v5], [bb50: v71]
+    v72 = phi [bb47: v51], [bb50: v72]
+    v73 = phi [bb47: v2], [bb50: v73]
+    v74 = phi [bb47: v30], [bb50: v74]
+    v75 = phi [bb47: v63], [bb50: v75]
+    v76 = phi [bb47: v4], [bb50: v76]
+    v77 = phi [bb47: v52], [bb50: v77]
+    v78 = gt v67, v77
+    v79 = eq v78, false
+    jumpi v79, bb51, bb52
+  bb52:
+    jump bb49
+  bb49:
+    v92 = checked_add u256, v77, 1
+    v93 = checked_add u256, v71, v92
+    jump bb5
+  bb5:
+    jump bb1
+  bb51:
+    v80 = checked_add u256, v71, v67
+    v81 = memory_object_len memorybytes, v76
+    v82 = lt v80, v81
+    v83 = eq v82, false
+    icall panic_if<0x32>, v83
+    v84 = memory_object_load_byte memorybytes, v76, v80
+    v85 = shl 248, v84
+    v86 = shr 248, v85
+    v87 = trunc i256 v86 to i8
+    v88 = lt v87, i8 128
+    jumpi v88, bb55, bb54
+  bb54:
+    v89 = gt v87, i8 191
+    jump bb56
+  bb55:
+    jump bb56
+  bb56:
+    v90 = phi [bb54: v89], [bb55: true]
+    jumpi v90, bb57, bb58
+  bb58:
+    jump bb59
+  bb59:
+    jump bb53
+  bb53:
+    jump bb50
+  bb50:
+    v91 = checked_add u256, v67, 1
+    jump bb48
+  bb57:
+    ret false
+  bb45:
+    ret false
+  bb39:
+    ret false
+  bb15:
+    ret false
+  bb12:
+    v32 = checked_add u256, v5, 1
+    jump bb1
+  bb9:
+    v23 = checked_add u256, v5, 32
+    jump bb1
+}

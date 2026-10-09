@@ -1,7 +1,5 @@
-//@ revisions: intrinsic portable size
-//@[intrinsic] compile-flags: -Ogas
+//@ codegen-matrix: standard portable
 //@[portable] compile-flags: -Ogas -Zno-core-intrinsics
-//@[size] compile-flags: -Osize
 //@ run-call: indexOf "abcb", "b" => 1
 //@ run-call: attached "abcb", "b" => 3
 //@ run-call: read 0x0011223344 => 0x11223344

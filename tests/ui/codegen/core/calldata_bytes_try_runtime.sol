@@ -1,5 +1,4 @@
-//@ revisions: intrinsic portable
-//@[intrinsic] compile-flags: -Ogas
+//@ codegen-matrix: standard portable
 //@[portable] compile-flags: -Ogas -Zno-core-intrinsics
 //@ run-call: try4 0xdeadbeef01, 0 => true, 0xdeadbeef
 //@ run-call: try4 0xdeadbeef01, 1 => true, 0xadbeef01

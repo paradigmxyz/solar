@@ -1,5 +1,4 @@
-//@ revisions: intrinsic portable
-//@[intrinsic] compile-flags: -Ogas
+//@ codegen-matrix: standard portable
 //@[portable] compile-flags: -Ogas -Zno-core-intrinsics
 //@ run-call: attempt 0x63deadbeef6000526004601cf3, 8 => true, 0xdeadbeef, 0, 0, 0xffffffffffffffff
 //@ run-call: attempt 0x7f333333333333333333333333333333333333333333333333333333333333333360005260206000fd, 4 => false, 0x, 4, 32, 0x33333333

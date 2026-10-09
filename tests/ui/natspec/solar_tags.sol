@@ -14,7 +14,7 @@ contract Test {
         //~^ ERROR: `@custom:solar-view` must document a variable declaration statement
         x = 1;
         /// @custom:solar-veiw
-        //~^ ERROR: unknown Solar tag `@custom:solar-veiw`
+        //~^ ERROR: unknown tag `@custom:solar-veiw`
         uint256 y = 2;
         /// @custom:solar-view
         uint256 z = 3; //~ ERROR: `@custom:solar-view` requires a `bytes memory` variable initialized by `Bytes.slice`

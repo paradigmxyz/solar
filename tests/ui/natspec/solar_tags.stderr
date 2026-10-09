@@ -6,7 +6,7 @@ LL │         /// @custom:solar-view
    │
    ╰ help: put it on the statement `bytes memory v = Bytes.slice(source, offset, count);`, or on an internal function to name its view parameters
 
-error: unknown Solar tag `@custom:solar-veiw`
+error: unknown tag `@custom:solar-veiw`
    ╭▸ ROOT/tests/ui/natspec/solar_tags.sol:LL:CC
    │
 LL │         /// @custom:solar-veiw

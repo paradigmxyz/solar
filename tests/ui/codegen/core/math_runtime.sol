@@ -1,5 +1,4 @@
-//@ revisions: intrinsic portable
-//@[intrinsic] compile-flags: -Ogas
+//@ codegen-matrix: standard portable
 //@[portable] compile-flags: -Ogas -Zno-core-intrinsics
 //@ run-call: mul512 3, 5 => 0, 15
 //@ run-call: mul512 0, 115792089237316195423570985008687907853269984665640564039457584007913129639935 => 0, 0

@@ -1,0 +1,175 @@
+// === <solar:core/Bytes.sol>:Bytes ===
+@module Bytes
+@library
+
+// === <solar:core/Create.sol>:Create ===
+@module Create
+@library
+
+// === ROOT/tests/ui/codegen/core/create_into_runtime.sol:Test ===
+@module Test
+@types
+  struct0: {i1, memptr, i256, i256, memptr}
+  struct1: {i1, i160, i256, i256}
+  struct2: {i1, i256, i256, i256}
+
+fn @attempt(arg0: memptr, arg1: i256) -> struct0 [selector=0xf1f9ae8f, abi_params=[bytes, u256], abi_returns=[word<bool>, memory_bytes, word, word, memory_bytes], abi_return_params=[bool, bytes, u256, u256, bytes]] {
+  bb0:
+    v0 = add arg1, 63
+    v1 = lt v0, arg1
+    icall panic_if<0x41>, v1
+    v2 = not 31
+    v3 = and v0, v2
+    v4 = alloc memorybytes, exact, zeroed, panic, v3
+    set_memory_object_len memorybytes, v4, arg1
+    v5 = memory_object_len memorybytes, v4
+    v6 = add 0, arg1
+    v7 = lt v6, 0
+    v8 = gt v6, v5
+    v9 = or v7, v8
+    v10 = zext i1 v9 to i256
+    v11 = ne arg1, 0
+    v12 = zext i1 v11 to i256
+    v13 = and v12, v10
+    v14 = ne v13, 0
+    icall panic_if<0x32>, v14
+    v15 = memory_object_data memorybytes, v4
+    v16 = ptrtoint memptr v15 to i256
+    v17 = add v16, 0
+    v18 = shr 248, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v19 = mul v18, 0x101010101010101010101010101010101010101010101010101010101010101
+    v20 = shr 5, arg1
+    jump bb1
+  bb1:
+    v21 = phi [bb0: 0], [bb2: v25]
+    v22 = lt v21, v20
+    jumpi v22, bb2, bb3
+  bb3:
+    v26 = and arg1, 31
+    v27 = ne v26, 0
+    jumpi v27, bb4, bb5
+  bb4:
+    v28 = shl 3, v26
+    v29 = shr v28, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v30 = shl 5, v20
+    v31 = add v17, v30
+    v32 = mload v31
+    v33 = and v32, v29
+    v34 = not v29
+    v35 = and v19, v34
+    v36 = or v33, v35
+    mstore v31, v36
+    jump bb5
+  bb5:
+    v37 = memory_object_len memorybytes, v4
+    v38 = memory_object_data memorybytes, v4
+    v39 = memory_object_len memorybytes, arg0
+    v40 = memory_object_data memorybytes, arg0
+    v41 = ptrtoint memptr v40 to i256
+    v42 = create 0, v41, v39
+    v43 = returndatasize
+    v44 = lt v43, v37
+    v45 = select v44, v43, v37
+    v46 = ptrtoint memptr v38 to i256
+    returndatacopy v46, 0, v45 !metadata(memory=heap)
+    v47 = ne v42, i160 0
+    v48 = insert_value struct1, undef struct1, 0, v47
+    v49 = insert_value struct1, v48, 1, v42
+    v50 = insert_value struct1, v49, 2, v45
+    v51 = insert_value struct1, v50, 3, v43
+    v52 = extract_value struct1, v51, 0
+    v53 = extract_value struct1, v51, 1
+    v54 = extract_value struct1, v51, 2
+    v55 = extract_value struct1, v51, 3
+    v56 = zext i160 v53 to i256
+    v57 = zext i160 v53 to i256
+    v58 = extcodesize v57
+    v59 = add v58, 63
+    v60 = lt v59, v58
+    icall panic_if<0x41>, v60
+    v61 = not 31
+    v62 = and v59, v61
+    v63 = alloc memorybytes, exact, zeroed, panic, v62
+    set_memory_object_len memorybytes, v63, v58
+    v64 = memory_object_data memorybytes, v63
+    v65 = zext i160 v53 to i256
+    v66 = ptrtoint memptr v64 to i256
+    extcodecopy v65, v66, 0, v58 !metadata(memory=heap)
+    v67 = insert_value struct0, undef struct0, 0, v52
+    v68 = insert_value struct0, v67, 1, v63
+    v69 = insert_value struct0, v68, 2, v54
+    v70 = insert_value struct0, v69, 3, v55
+    v71 = insert_value struct0, v70, 4, v4
+    ret v71
+  bb2:
+    v23 = shl 5, v21
+    v24 = add v17, v23
+    mstore v24, v19
+    v25 = add v21, 1
+    jump bb1
+}
+
+fn @fill(arg0: memptr, arg1: i256, arg2: i256, arg3: i256) [pure] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: arg0], [bb3: v0]
+    v1 = phi [bb0: arg2], [bb3: v1]
+    v2 = phi [bb0: 0], [bb3: v11]
+    v3 = phi [bb0: arg1], [bb3: v3]
+    v4 = phi [bb0: arg3], [bb3: v4]
+    v5 = lt v2, v1
+    jumpi v5, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    ret
+  bb4:
+    v6 = checked_add u256, v3, v2
+    v7 = memory_object_len memorybytes, v0
+    v8 = lt v6, v7
+    v9 = eq v8, false
+    icall panic_if<0x32>, v9
+    v10 = byte 0, v4
+    memory_object_store_byte memorybytes, v0, v6, v10
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v11 = checked_add u256, v2, 1
+    jump bb1
+}
+
+fn @tryDeployInto(arg0: memptr, arg1: i256, arg2: memptr) -> struct2 [inline_assembly] {
+  bb0:
+    v0 = ptrtoint memptr arg0 to i256
+    v1 = mload v0
+    v2 = ptrtoint memptr arg0 to i256
+    v3 = add v2, 32
+    v4 = create arg1, v3, v1
+    v5 = zext i160 v4 to i256
+    v6 = returndatasize
+    v7 = ptrtoint memptr arg2 to i256
+    v8 = mload v7
+    v9 = gt v6, v8
+    v10 = zext i1 v9 to i256
+    v11 = ne v10, 0
+    jumpi v11, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    v12 = ptrtoint memptr arg2 to i256
+    v13 = mload v12
+    jump bb3
+  bb3:
+    v14 = phi [bb1: v13], [bb2: v6]
+    v15 = ptrtoint memptr arg2 to i256
+    v16 = add v15, 32
+    returndatacopy v16, 0, v14
+    v17 = ne v4, i160 0
+    v18 = insert_value struct2, undef struct2, 0, v17
+    v19 = insert_value struct2, v18, 1, v5
+    v20 = insert_value struct2, v19, 2, v14
+    v21 = insert_value struct2, v20, 3, v6
+    ret v21
+}

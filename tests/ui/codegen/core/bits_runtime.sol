@@ -1,5 +1,4 @@
-//@ revisions: intrinsic portable cancun
-//@[intrinsic] compile-flags: -Ogas
+//@ codegen-matrix: standard portable cancun
 //@[portable] compile-flags: -Ogas -Zno-core-intrinsics
 //@[cancun] compile-flags: -Ogas --evm-version=cancun
 //@ run-call: leading 0 => 256

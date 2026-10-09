@@ -1,5 +1,4 @@
-//@ revisions: intrinsic portable
-//@[intrinsic] compile-flags: -Ogas
+//@ codegen-matrix: standard portable
 //@[portable] compile-flags: -Ogas -Zno-core-intrinsics
 //@ run-call: hash 0x0102030405060708, 0, 8 => 0xfec062278915ba5c3c3af6ebf470b5afc94fedadf39fe78eea427b9aa5df9692
 //@ run-call: hash 0x0102030405060708, 2, 3 => 0xfe60c754eeb6f4271f086228744a2bb133832435a98f1d79b65583db7d2e406b

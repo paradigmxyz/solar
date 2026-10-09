@@ -1,7 +1,5 @@
-//@ revisions: intrinsic portable size
-//@[intrinsic] compile-flags: -Ogas
+//@ codegen-matrix: standard portable
 //@[portable] compile-flags: -Ogas -Zno-core-intrinsics
-//@[size] compile-flags: -Osize
 //@ run-call: word 7 => 7
 //@ run-call: signed -5 => -5
 //@ run-call: account 0xffffffffffffffffffffffff1234567890123456789012345678901234567890 => 0x1234567890123456789012345678901234567890

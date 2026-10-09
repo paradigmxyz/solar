@@ -1,5 +1,4 @@
-//@ revisions: intrinsic portable
-//@[intrinsic] compile-flags: -Ogas
+//@ codegen-matrix: standard portable
 //@[portable] compile-flags: -Ogas -Zno-core-intrinsics
 //@ run-call: shorten [44, 441], 2 => [44, 441]
 //@ run-call: shorten [392, 3, 117, 265, 854, 538], 5 => [392, 3, 117, 265, 854]

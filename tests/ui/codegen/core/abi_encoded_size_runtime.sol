@@ -1,7 +1,5 @@
-//@ revisions: intrinsic portable size
-//@[intrinsic] compile-flags: -Ogas
+//@ codegen-matrix: standard portable
 //@[portable] compile-flags: -Ogas -Zno-core-intrinsics
-//@[size] compile-flags: -Osize
 //@ run-call: values 7 => 128, 128
 //@ run-call: byteStrings 0x => 128, 128
 //@ run-call: byteStrings 0x01 => 192, 192

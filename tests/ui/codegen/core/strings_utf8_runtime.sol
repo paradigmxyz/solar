@@ -1,7 +1,4 @@
-//@ revisions: gas size none
-//@[gas] compile-flags: -Ogas
-//@[size] compile-flags: -Osize
-//@[none] compile-flags: -Onone
+//@ codegen-matrix: standard
 //@ run-call: valid 0x => true
 //@ run-call: valid 0x616263 => true
 //@ run-call: valid 0xc2a9e282acf09d849e => true

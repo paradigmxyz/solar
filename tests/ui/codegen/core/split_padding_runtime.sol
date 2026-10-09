@@ -1,7 +1,5 @@
-//@ revisions: intrinsic portable size
-//@[intrinsic] compile-flags: -Ogas
+//@ codegen-matrix: standard portable
 //@[portable] compile-flags: -Ogas -Zno-core-intrinsics
-//@[size] compile-flags: -Osize
 //@ run-call: payloads "abc" => [0x6100000000000000000000000000000000000000000000000000000000000000, 0x6200000000000000000000000000000000000000000000000000000000000000, 0x6300000000000000000000000000000000000000000000000000000000000000]
 //@ run-call: payloads "" => []
 import {Strings} from "solar:core/Strings.sol";

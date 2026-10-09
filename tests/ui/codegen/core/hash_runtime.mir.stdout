@@ -1,0 +1,99 @@
+// === <solar:core/Hash.sol>:Hash ===
+@module Hash
+@library
+
+// === ROOT/tests/ui/codegen/core/hash_runtime.sol:Test ===
+@module Test
+fn @hash(arg0: memptr, arg1: i256, arg2: i256) -> i256 [selector=0x00d07523, pure, abi_params=[bytes, u256, u256], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = memory_object_len memorybytes, arg0
+    v1 = add arg1, arg2
+    v2 = lt v1, arg1
+    v3 = gt v1, v0
+    v4 = or v2, v3
+    v5 = zext i1 v4 to i256
+    icall panic_if<0x32>, v4
+    v6 = memory_object_data memorybytes, arg0
+    v7 = ptrtoint memptr v6 to i256
+    v8 = add v7, arg1
+    v9 = keccak256 v8, arg2
+    ret v9
+}
+
+fn @keccak256Range(arg0: memptr, arg1: i256, arg2: i256) -> i256 [pure] {
+  bb0:
+    v0 = memory_object_len memorybytes, arg0
+    v1 = gt arg2, v0
+    jumpi v1, bb2, bb1
+  bb1:
+    v2 = memory_object_len memorybytes, arg0
+    v3 = checked_sub u256, v2, arg2
+    v4 = gt arg1, v3
+    jump bb3
+  bb2:
+    jump bb3
+  bb3:
+    v5 = phi [bb1: v4], [bb2: true]
+    jumpi v5, bb4, bb5
+  bb5:
+    jump bb6
+  bb4:
+    v6 = icall @_outOfBounds
+    jump bb6
+  bb6:
+    v7 = phi [bb4: v6], [bb5: arg2]
+    v8 = add v7, 63
+    v9 = lt v8, v7
+    icall panic_if<0x41>, v9
+    v10 = not 31
+    v11 = and v8, v10
+    v12 = alloc memorybytes, exact, zeroed, panic, v11
+    set_memory_object_len memorybytes, v12, v7
+    jump bb7
+  bb7:
+    v13 = phi [bb6: 0], [bb9: v13]
+    v14 = phi [bb6: 0], [bb9: v30]
+    v15 = phi [bb6: arg0], [bb9: v15]
+    v16 = phi [bb6: v7], [bb9: v16]
+    v17 = phi [bb6: v12], [bb9: v17]
+    v18 = phi [bb6: arg1], [bb9: v18]
+    v19 = lt v14, v16
+    jumpi v19, bb10, bb11
+  bb11:
+    jump bb8
+  bb8:
+    v31 = keccak256_bytes v17
+    ret v31
+  bb10:
+    v20 = checked_add u256, v18, v14
+    v21 = memory_object_len memorybytes, v15
+    v22 = lt v20, v21
+    v23 = eq v22, false
+    icall panic_if<0x32>, v23
+    v24 = memory_object_load_byte memorybytes, v15, v20
+    v25 = shl 248, v24
+    v26 = memory_object_len memorybytes, v17
+    v27 = lt v14, v26
+    v28 = eq v27, false
+    icall panic_if<0x32>, v28
+    v29 = byte 0, v25
+    memory_object_store_byte memorybytes, v17, v14, v29
+    jump bb12
+  bb12:
+    jump bb9
+  bb9:
+    v30 = checked_add u256, v14, 1
+    jump bb7
+}
+
+fn @_outOfBounds() -> i256 [pure] {
+  bb0:
+    v0 = alloc memoryarray<1>, exact, zeroed, panic, 32
+    set_memory_object_len memoryarray, v0, 0
+    v1 = memory_object_len memoryarray, v0
+    v2 = lt 0, v1
+    v3 = eq v2, false
+    icall panic_if<0x32>, v3
+    v4 = memory_object_load_element memoryarray<1>, v0, 0
+    ret v4
+}

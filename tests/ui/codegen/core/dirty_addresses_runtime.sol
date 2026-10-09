@@ -1,7 +1,5 @@
-//@ revisions: intrinsic portable size
-//@[intrinsic] compile-flags: -Ogas
+//@ codegen-matrix: standard portable
 //@[portable] compile-flags: -Ogas -Zno-core-intrinsics
-//@[size] compile-flags: -Osize
 //@ run-call: hasDuplicate [0x10000000000000000000000000000000000000001, 1] => true
 //@ run-call: hasDuplicate [0x10000000000000000000000000000000000000001, 2] => false
 //@ run-call: hasDuplicate [0x10000000000000000000000000000000000000001, 3, 5, 7, 9, 11, 13, 1] => true

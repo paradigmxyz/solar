@@ -1,5 +1,4 @@
-//@ revisions: intrinsic portable
-//@[intrinsic] compile-flags: -Ogas
+//@ codegen-matrix: standard portable
 //@[portable] compile-flags: -Ogas -Zno-core-intrinsics
 //@ run-call: read1 0x82, 0 => 0x82
 //@ run-call: read1 0xb70eee7f1a50, 3 => 0x7f

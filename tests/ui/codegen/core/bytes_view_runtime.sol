@@ -1,7 +1,5 @@
-//@ revisions: intrinsic portable size
-//@[intrinsic] compile-flags: -Ogas
+//@ codegen-matrix: standard portable
 //@[portable] compile-flags: -Ogas -Zno-core-intrinsics
-//@[size] compile-flags: -Osize
 //@ run-call: header 0x01a9059cbbfeed => 1, 0xa9059cbb, 0xf677149710826c7b4deb651d3e14cdb7645dc2fc876de193ad6f01bd7948796e, 2
 //@ run-call: header 0x01a9059cbb => 1, 0xa9059cbb, 0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470, 0
 //@ run-call-fail: header 0x01a9059c => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032

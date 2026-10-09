@@ -1,7 +1,5 @@
-//@ revisions: intrinsic portable size
-//@[intrinsic] compile-flags: -Ogas
+//@ codegen-matrix: standard portable
 //@[portable] compile-flags: -Ogas -Zno-core-intrinsics
-//@[size] compile-flags: -Osize
 //@ run-call: viewed 0x67010203040506070860005260086018f3, 0, 8 => 0x0102030405060708
 //@ run-call: viewed 0x67010203040506070860005260086018f3, 2, 3 => 0x030405
 //@ run-call: viewed 0x67010203040506070860005260086018f3, 8, 0 => 0x
