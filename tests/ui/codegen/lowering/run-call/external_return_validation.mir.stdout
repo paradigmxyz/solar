@@ -161,19 +161,10 @@ fn @dirtyUnusedStructField() -> i8 [selector=0xc1226a60, view, abi_params=[], ab
     icall revert_if<tuple_data_too_short>, v10
     v11 = ptrtoint memptr v5 to i256
     v12 = make_memory_slice v11, 64
-    v13 = slice_len v12
-    v14 = add v13, 63
-    v15 = lt v14, v13
-    icall panic_if<0x41>, v15
-    v16 = not 31
-    v17 = and v14, v16
-    v18 = alloc memorybytes, exact, uninitialized, infallible, v17
-    set_memory_object_len memorybytes, v18, v13
-    memory_object_copy_from_slice memorybytes, v18, v12
-    v19 = abi_decode [tuple<u8, bool>], v18
-    v20 = memory_object_load_field memorystruct<2>, v19, 0
-    v21 = trunc i256 v20 to i8
-    ret v21
+    v13 = abi_decode [tuple<u8, bool>], v12
+    v14 = memory_object_load_field memorystruct<2>, v13, 0
+    v15 = trunc i256 v14 to i8
+    ret v15
 }
 
 fn @dirtyUnusedStructFieldTarget() [selector=0x38a62c01, pure, abi_params=[], abi_returns=[tuple<word<u8>, word<bool>>], abi_return_params=[tuple<u8, bool>]] {
