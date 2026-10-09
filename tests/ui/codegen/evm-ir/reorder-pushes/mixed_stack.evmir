@@ -6,6 +6,8 @@
 //@[amsterdam] compile-flags: -Ogas --evm-version amsterdam -Zevm-ir-pipeline=reorder-pushes,peephole
 //@[amsterdam] filecheck: --check-prefixes=COMMON,AMSTERDAM,PEEPHOLE
 @module MixedStack
+@libraries
+  L_0: "a.sol:L"
 
 // COMMON-LABEL: bb0:
 // COMMON: -   dup 1
@@ -22,12 +24,12 @@ bb0:
 
 // COMMON-LABEL: bb1 [stack=15]:
 // COMMON: -   dup 15
-// COMMON: {{^[ +].*}}push_deferred 0
+// COMMON: {{^[ +].*}}push_library L_0
 // COMMON: -   swap 1
 // COMMON: +   dup 16
 bb1 [stack=15]:
   dup 15
-  push_deferred 0
+  push_library L_0
   swap 1
   sub
   stop

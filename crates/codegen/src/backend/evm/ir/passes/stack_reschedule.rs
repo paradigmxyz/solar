@@ -514,9 +514,6 @@ enum Constant {
 }
 
 fn constant(inst: &Instruction) -> Option<Constant> {
-    if inst.deferred_push().is_some() || inst.immutable_push().is_some() {
-        return None;
-    }
     if let Some(value) = inst.concrete_immediate() {
         return Some(Constant::Immediate(value));
     }

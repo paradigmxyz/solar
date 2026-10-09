@@ -143,12 +143,10 @@ pub(super) fn instruction_size_lower_bound(gcx: Gcx<'_>, inst: &Instruction) -> 
     if let Some(type_size) = inst.immutable_type_size() {
         return usize::from(type_size.bytes()) + 1;
     }
-    if inst.deferred_push().is_none()
-        && let Some(PushValue::Immediate(value)) = inst.value
-    {
+    if let Some(value) = inst.concrete_immediate() {
         return selected_len(gcx, value);
     }
-    // Labels, data offsets, and deferred relocations are address-sensitive. They may resolve to
+    // Labels and data offsets are address-sensitive. They may resolve to
     // zero, so one byte is the only safe lower bound before assembly.
     1
 }

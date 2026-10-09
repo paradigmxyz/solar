@@ -885,8 +885,8 @@ impl<'gcx> EvmCodegen<'gcx> {
             return;
         }
         // args_size = codesize - arg_offset
-        if let Some(arg_offset) = self.constructor_args_offset_const {
-            self.asm.emit_push_deferred(arg_offset);
+        if let Some(arg_offset) = self.constructor_args_offset {
+            self.asm.emit_push_data(arg_offset);
             self.asm.emit_op(op::CODESIZE);
             self.asm.emit_op(op::SUB);
         }

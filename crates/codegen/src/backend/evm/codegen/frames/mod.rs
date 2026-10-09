@@ -326,12 +326,12 @@ impl<'gcx> EvmCodegen<'gcx> {
 
     pub(in crate::backend::evm::codegen) fn emit_constructor_args_end(&mut self) {
         let offset = self
-            .constructor_args_offset_const
+            .constructor_args_offset
             .expect("constructor argument end used outside constructor codegen");
         // base = constructor_args_base
         // end = base + (codesize - constructor_args_offset)
         self.emit_constructor_args_base();
-        self.asm.emit_push_deferred(offset);
+        self.asm.emit_push_data(offset);
         self.asm.emit_op(op::CODESIZE);
         self.asm.emit_op(op::SUB);
         self.asm.emit_op(op::ADD);

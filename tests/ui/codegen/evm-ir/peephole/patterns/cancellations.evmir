@@ -182,20 +182,6 @@ bb12:
   mstore
   stop
 
-// Deferred pushes cannot be removed before assembly resolves them.
-// CHECK-LABEL: {{^[ +].*}}bb13:
-// CHECK-NEXT: {{^[ +].*}}calldatasize
-// CHECK-NEXT: {{^    push_deferred 0}}
-// CHECK-NEXT: {{^    pop}}
-// CHECK-NEXT: {{^    push 0}}
-bb13:
-  calldatasize
-  push_deferred 0
-  pop
-  push0
-  mstore
-  stop
-
 // Do not remove an identity that only holds with an unavailable stack prefix.
 // CHECK-LABEL: {{^[ +].*}}bb14:
 // CHECK: +   exchange 1, 2
