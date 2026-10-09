@@ -103,6 +103,9 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     }
 
     /// Parses a do-while statement.
+    ///
+    /// Kept out of line so that its locals take no space in other statements.
+    #[inline(never)]
     fn parse_stmt_do_while(&mut self) -> PResult<'sess, StmtKind<'ast>> {
         let stmt = self.parse_stmt()?;
         let stmt = self.alloc(stmt);
@@ -114,10 +117,18 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     }
 
     /// Parses a for statement.
+    ///
+    /// Kept out of line so that its locals take no space in other statements.
+    #[inline(never)]
     fn parse_stmt_for(&mut self) -> PResult<'sess, StmtKind<'ast>> {
         self.expect(TokenKind::OpenDelim(Delimiter::Parenthesis))?;
 
-        let init = if self.check(TokenKind::Semi) { None } else { Some(self.parse_simple_stmt()?) };
+        let init = if self.check(TokenKind::Semi) {
+            None
+        } else {
+            let init = self.parse_simple_stmt()?;
+            Some(self.alloc(init))
+        };
         self.expect(TokenKind::Semi)?;
 
         let cond = if self.check(TokenKind::Semi) { None } else { Some(self.parse_expr()?) };
@@ -130,7 +141,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         };
         self.expect(TokenKind::CloseDelim(Delimiter::Parenthesis))?;
         let body = self.parse_stmt_boxed()?;
-        Ok(StmtKind::For { init: init.map(|init| self.alloc(init)), cond, next, body })
+        Ok(StmtKind::For { init, cond, next, body })
     }
 
     /// Parses a try statement.
