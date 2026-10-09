@@ -136,9 +136,9 @@
       jumpi v2, bb4, bb3
     bb3:
       v3 = load_storage_bytes 0
-      v4 = memory_object_data memorybytes, v3
-      v5 = ptrtoint memptr v4 to i256
-      v6 = memory_object_len memorybytes, v3
+      v4 = memory_slice v3
+      v5 = slice_ptr v4
+      v6 = slice_len v4
       revert v5, v6
     bb4:
       jump bb1

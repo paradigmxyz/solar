@@ -12,14 +12,15 @@ fn @text(arg0: memptr) [selector=0x174e6c98, abi_params=[bytes], abi_returns=[],
 fn @literal() [selector=0x1373185e, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v0, 5
-    v1 = memory_object_data memorybytes, v0
-    v2 = ptrtoint memptr v1 to i256
-    mstore v2, 0x736f6c6172000000000000000000000000000000000000000000000000000000
-    v3 = abi_encode [memory_bytes, word], args v0, 9
-    v4 = slice_ptr v3
-    v5 = slice_len v3
-    log2 v4, v5, 0x1ec47f6be8a8bf4aa7aa1659aceb7cef3b607892101a00e4afd57e2ae4fbf3c4, 2
+    v1 = ptrtoint memptr v0 to i256
+    mstore v1, 5
+    v2 = ptrtoint memptr v0 to i256
+    v3 = add v2, 32
+    mstore v3, 0x736f6c6172000000000000000000000000000000000000000000000000000000
+    v4 = abi_encode [memory_bytes, word], args v0, 9
+    v5 = slice_ptr v4
+    v6 = slice_len v4
+    log2 v5, v6, 0x1ec47f6be8a8bf4aa7aa1659aceb7cef3b607892101a00e4afd57e2ae4fbf3c4, 2
     ret
 }
 

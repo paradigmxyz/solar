@@ -3,17 +3,17 @@
   @module MemoryObjectCse
   fn @reuse_projections(arg0: memptr, arg1: memptr, arg2: memptr, arg3: i256) -> i256 {
     bb0:
-      v0 = memory_object_data memorybytes, arg0
-      v1 = ptrtoint memptr v0 to i256
--     v2 = memory_object_data memorybytes, arg0
--     v3 = ptrtoint memptr v2 to i256
+      v0 = memory_slice arg0
+      v1 = slice_ptr v0
+-     v2 = memory_slice arg0
+-     v3 = slice_ptr v2
       v4 = memory_object_field_addr memorystruct<3>, arg1, 2
       v5 = ptrtoint memptr v4 to i256
 -     v6 = memory_object_field_addr memorystruct<3>, arg1, 2
 -     v7 = ptrtoint memptr v6 to i256
-      v8 = memory_object_element_addr memoryarray<2>, arg2, arg3
+      v8 = memory_object_element_addr memoryfixedarray<4, 2>, arg2, arg3
       v9 = ptrtoint memptr v8 to i256
--     v10 = memory_object_element_addr memoryarray<2>, arg2, arg3
+-     v10 = memory_object_element_addr memoryfixedarray<4, 2>, arg2, arg3
 -     v11 = ptrtoint memptr v10 to i256
 -     v12 = eq v1, v3
 -     v13 = eq v5, v7
@@ -31,43 +31,51 @@
   
   fn @invalidate_length(arg0: memptr) -> i256 {
     bb0:
-      v0 = memory_object_len memorybytes, arg0
--     v1 = memory_object_len memorybytes, arg0
-      set_memory_object_len memorybytes, arg0, 9
--     v2 = memory_object_len memorybytes, arg0
--     v3 = add v0, v1
--     v4 = add v3, v2
-+     v3 = add v0, v0
-+     v4 = add v3, 9
-      ret v4
+      v0 = memory_slice arg0
+      v1 = slice_len v0
+-     v2 = memory_slice arg0
+-     v3 = slice_len v2
+      v4 = ptrtoint memptr arg0 to i256
+      mstore v4, 9
+      v5 = memory_slice arg0
+      v6 = slice_len v5
+-     v7 = add v1, v3
++     v7 = add v1, v1
+      v8 = add v7, v6
+      ret v8
   }
   
   fn @keep_local_length() -> i256 {
     bb0:
       v0 = alloc memorybytes, exact, uninitialized, infallible, 32
-      v1 = memory_object_len memorybytes, v0
-      v2 = ne v1, 0
-      jumpi v2, bb1, bb2
+      v1 = memory_slice v0
+      v2 = slice_len v1
+      v3 = ne v2, 0
+      jumpi v3, bb1, bb2
     bb2:
       ret 0
     bb1:
-      v3 = memory_object_len memorybytes, v0
-      ret v3
+-     v4 = memory_slice v0
+-     v5 = slice_len v4
+-     ret v5
++     ret v2
   }
   
   fn @reuse_live_length() -> i256 {
     bb0:
       v0 = alloc memorybytes, exact, uninitialized, infallible, 32
-      v1 = memory_object_len memorybytes, v0
-      v2 = ne v1, 0
-      jumpi v2, bb1, bb2
+      v1 = memory_slice v0
+      v2 = slice_len v1
+      v3 = ne v2, 0
+      jumpi v3, bb1, bb2
     bb2:
       ret 0
     bb1:
--     v3 = memory_object_len memorybytes, v0
--     v4 = add v1, v3
-+     v4 = add v1, v1
-      ret v4
+-     v4 = memory_slice v0
+-     v5 = slice_len v4
+-     v6 = add v2, v5
++     v6 = add v2, v2
+      ret v6
   }
   
   fn @reuse_struct_field() -> i256 {
@@ -90,78 +98,89 @@
   fn @forward_initialized_length() -> i256 {
     bb0:
       v0 = alloc memorybytes, exact, uninitialized, infallible, 64
-      set_memory_object_len memorybytes, v0, 3
-      v1 = memory_object_data memorybytes, v0
-      v2 = ptrtoint memptr v1 to i256
-      mstore v2, 0
+      v1 = ptrtoint memptr v0 to i256
+      mstore v1, 3
+      v2 = memory_slice v0
+      v3 = slice_ptr v2
+      mstore v3, 0
       jump bb1
     bb1:
--     v3 = memory_object_len memorybytes, v0
--     ret v3
-+     ret 3
+-     v4 = memory_slice v0
+-     v5 = slice_len v4
++     v5 = slice_len v2
+      ret v5
   }
   
   fn @raw_header_clobber(arg0: memptr, arg1: i256) -> i256 {
     bb0:
-      set_memory_object_len memorybytes, arg0, 3
       v0 = ptrtoint memptr arg0 to i256
+      mstore v0, 3
       mstore v0, arg1
--     v1 = memory_object_len memorybytes, arg0
--     ret v1
-+     ret arg1
+      v1 = memory_slice arg0
+      v2 = slice_len v1
+      ret v2
   }
   
   fn @diamond_header_clobber(arg0: memptr, arg1: i256) -> i256 {
     bb0:
-      set_memory_object_len memorybytes, arg0, 3
-      v0 = ne arg1, 0
-      jumpi v0, bb1, bb2
+      v0 = ptrtoint memptr arg0 to i256
+      mstore v0, 3
+      v1 = ne arg1, 0
+      jumpi v1, bb1, bb2
     bb2:
       jump bb3
     bb1:
-      set_memory_object_len memorybytes, arg0, 4
+      mstore v0, 4
       jump bb3
     bb3:
-      v1 = memory_object_len memorybytes, arg0
-      ret v1
+      v2 = memory_slice arg0
+      v3 = slice_len v2
+      ret v3
   }
   
   fn @loop_header_clobber(arg0: memptr) -> i256 {
     bb0:
-      set_memory_object_len memorybytes, arg0, 7
+      v0 = ptrtoint memptr arg0 to i256
+      mstore v0, 7
       jump bb1
     bb1:
-      v0 = memory_object_len memorybytes, arg0
-      v1 = ne v0, 0
-      jumpi v1, bb2, bb3
+      v1 = memory_slice arg0
+      v2 = slice_len v1
+      v3 = ne v2, 0
+      jumpi v3, bb2, bb3
     bb3:
-      ret v0
+      ret v2
     bb2:
-      set_memory_object_len memorybytes, arg0, 0
+      mstore v0, 0
       jump bb1
   }
   
   fn @recycled_header_clobber() -> i256 {
     bb0:
       v0 = alloc memorybytes, exact, uninitialized, infallible, 32
-      set_memory_object_len memorybytes, v0, 3
       v1 = ptrtoint memptr v0 to i256
+      mstore v1, 3
       v2 = inttoptr i256 v1 to memptr
       set_fmp v2
       v3 = alloc memorybytes, exact, uninitialized, infallible, 32
-      set_memory_object_len memorybytes, v3, 4
-      v4 = memory_object_len memorybytes, v0
-      ret v4
+      v4 = ptrtoint memptr v3 to i256
+      mstore v4, 4
+      v5 = memory_slice v0
+      v6 = slice_len v5
+      ret v6
   }
   
   fn @parameter_may_overlap_allocation(arg0: memptr) -> i256 {
     bb0:
       v0 = alloc memorybytes, exact, uninitialized, infallible, 32
-      v1 = memory_object_len memorybytes, arg0
-      set_memory_object_len memorybytes, v0, 7
-      v2 = memory_object_len memorybytes, arg0
-      v3 = add v1, v2
-      ret v3
+      v1 = memory_slice arg0
+      v2 = slice_len v1
+      v3 = ptrtoint memptr v0 to i256
+      mstore v3, 7
+      v4 = memory_slice arg0
+      v5 = slice_len v4
+      v6 = add v2, v5
+      ret v6
   }
   
   fn @fabricated_parameter() -> i256 {

@@ -3,17 +3,17 @@
   @module MemoryObjectGvn
   fn @reuse_projections(arg0: memptr, arg1: memptr, arg2: memptr, arg3: i256) -> i256 {
     bb0:
-      v0 = memory_object_data memorybytes, arg0
-      v1 = ptrtoint memptr v0 to i256
--     v2 = memory_object_data memorybytes, arg0
--     v3 = ptrtoint memptr v2 to i256
+      v0 = ptrtoint memptr arg0 to i256
+      v1 = add v0, 32
+-     v2 = ptrtoint memptr arg0 to i256
+-     v3 = add v2, 32
       v4 = memory_object_field_addr memorystruct<3>, arg1, 2
       v5 = ptrtoint memptr v4 to i256
 -     v6 = memory_object_field_addr memorystruct<3>, arg1, 2
 -     v7 = ptrtoint memptr v6 to i256
-      v8 = memory_object_element_addr memoryarray<2>, arg2, arg3
+      v8 = memory_object_element_addr memoryfixedarray<4, 2>, arg2, arg3
       v9 = ptrtoint memptr v8 to i256
--     v10 = memory_object_element_addr memoryarray<2>, arg2, arg3
+-     v10 = memory_object_element_addr memoryfixedarray<4, 2>, arg2, arg3
 -     v11 = ptrtoint memptr v10 to i256
 -     v12 = eq v1, v3
 -     v13 = eq v5, v7

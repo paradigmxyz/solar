@@ -891,8 +891,12 @@ impl<'a> FunctionBuilder<'a> {
 
     /// Returns the payload address of a dynamic memory object or memory slice.
     pub(crate) fn memory_data(&mut self, value: ValueId) -> ValueId {
-        let view = self.memory_view(value);
-        self.slice_ptr(view)
+        if matches!(self.func.value_ty(value), Some(MirType::Slice(_))) {
+            return self.slice_ptr(value);
+        }
+        // data = add (ptrtoint value), DYNAMIC_HEADER_SIZE
+        let header = self.cast(value, MirType::I256);
+        self.add_u64_offset(header, EvmMemoryLayout::DYNAMIC_HEADER_SIZE)
     }
 
     /// Loads a direct struct field through the semantic object layout.

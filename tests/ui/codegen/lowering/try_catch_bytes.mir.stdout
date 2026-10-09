@@ -62,18 +62,17 @@ fn @success() -> i256 [selector=0x0b93381b, view, abi_params=[], abi_returns=[wo
     jumpi v10, bb1, bb2
   bb2:
     v11 = icall returndata_bytes<>
-    v12 = memory_object_data memorybytes, v11
-    v13 = memory_object_len memorybytes, v11
-    v14 = ptrtoint memptr v12 to i256
-    v15 = make_memory_slice v14, v13
-    v16 = memory_slice_load_word memory, v15, 0
-    v17 = shr 224, v16
+    v12 = memory_slice v11
+    v13 = slice_ptr v12
+    v14 = slice_len v12
+    v15 = memory_slice_load_word memory, v12, 0
+    v16 = shr 224, v15
     jumpi true, bb4, bb5
   bb5:
-    v19 = ptrtoint memptr v12 to i256
-    revert v19, v13
+    revert v13, v14
   bb4:
-    v18 = memory_object_len memorybytes, v11
+    v17 = memory_slice v11
+    v18 = slice_len v17
     ret v18
   bb1:
     jump bb3
@@ -98,18 +97,17 @@ fn @failure() -> i256 [selector=0x76ffb887, view, abi_params=[], abi_returns=[wo
     jumpi v10, bb1, bb2
   bb2:
     v11 = icall returndata_bytes<>
-    v12 = memory_object_data memorybytes, v11
-    v13 = memory_object_len memorybytes, v11
-    v14 = ptrtoint memptr v12 to i256
-    v15 = make_memory_slice v14, v13
-    v16 = memory_slice_load_word memory, v15, 0
-    v17 = shr 224, v16
+    v12 = memory_slice v11
+    v13 = slice_ptr v12
+    v14 = slice_len v12
+    v15 = memory_slice_load_word memory, v12, 0
+    v16 = shr 224, v15
     jumpi true, bb4, bb5
   bb5:
-    v19 = ptrtoint memptr v12 to i256
-    revert v19, v13
+    revert v13, v14
   bb4:
-    v18 = memory_object_len memorybytes, v11
+    v17 = memory_slice v11
+    v18 = slice_len v17
     ret v18
   bb1:
     jump bb3

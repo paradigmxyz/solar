@@ -91,19 +91,21 @@ fn @testInline() [selector=0x2bb29eb9, view, abi_params=[], abi_returns=[], abi_
 fn @fullyInitializedNamedStruct() -> memptr [selector=0x03e8d290, pure, abi_params=[], abi_returns=[tuple<memory_array<word>, memory_bytes>], abi_return_params=[tuple<array<_, u256>, bytes>]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
-    set_memory_object_len memoryarray, v0, 1
-    v1 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    memory_object_store_field memorystruct<2>, v1, 0, 96
-    memory_object_store_field memorystruct<2>, v1, 1, 96
-    v2 = ptrtoint memptr v0 to i256
-    memory_object_store_field memorystruct<2>, v1, 0, v2
-    v3 = not 31
-    v4 = and 64, v3
-    v5 = alloc memorybytes, exact, zeroed, panic, v4
-    set_memory_object_len memorybytes, v5, 1
-    v6 = ptrtoint memptr v5 to i256
-    memory_object_store_field memorystruct<2>, v1, 1, v6
-    ret v1
+    v1 = ptrtoint memptr v0 to i256
+    mstore v1, 1
+    v2 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    memory_object_store_field memorystruct<2>, v2, 0, 96
+    memory_object_store_field memorystruct<2>, v2, 1, 96
+    v3 = ptrtoint memptr v0 to i256
+    memory_object_store_field memorystruct<2>, v2, 0, v3
+    v4 = not 31
+    v5 = and 64, v4
+    v6 = alloc memorybytes, exact, zeroed, panic, v5
+    v7 = ptrtoint memptr v6 to i256
+    mstore v7, 1
+    v8 = ptrtoint memptr v6 to i256
+    memory_object_store_field memorystruct<2>, v2, 1, v8
+    ret v2
 }
 
 fn @reservedSpillFreshness(arg0: i1) -> i256 [selector=0x45f98aed, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {

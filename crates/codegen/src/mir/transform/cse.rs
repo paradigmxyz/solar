@@ -695,7 +695,7 @@ impl CommonSubexprEliminator {
                     && let Some(cached) = cache.get(key)
                     && func.value_ty(*result) == func.value_ty(*cached)
                 {
-                    if matches!(key, ExprKey::MLoad(_) | ExprKey::MemorySlice(_))
+                    if matches!(key, ExprKey::MLoad(_))
                         && !Self::memory_reuse_pays_off(func, ctx, block_id, *cached, kind)
                     {
                         // Reload instead of extending the cached value's live range.
@@ -831,7 +831,7 @@ impl CommonSubexprEliminator {
         ctx: &GlobalCseContext<'_>,
     ) {
         cache.retain_stateful(|key, value| {
-            !matches!(key, ExprKey::MLoad(location) | ExprKey::MemorySlice(location)
+            !matches!(key, ExprKey::MLoad(location)
                 if location.address.is_allocation_base())
                 || func.value_u256(*value).is_some()
                 || ctx

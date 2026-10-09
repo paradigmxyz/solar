@@ -8,26 +8,27 @@ fn @check(arg0: i256, arg1: i256, arg2: i256) -> struct0 [selector=0x4feb5714, p
     v0 = not 31
     v1 = and 127, v0
     v2 = alloc memorybytes, exact, zeroed, panic, v1
-    set_memory_object_len memorybytes, v2, 64
     v3 = ptrtoint memptr v2 to i256
-    v4 = add v3, 32
-    mstore v4, arg0
-    v5 = ptrtoint memptr v2 to i256
-    v6 = add v5, 64
-    mstore v6, arg1
-    v7 = icall @readTemporary, v2, arg2
+    mstore v3, 64
+    v4 = ptrtoint memptr v2 to i256
+    v5 = add v4, 32
+    mstore v5, arg0
+    v6 = ptrtoint memptr v2 to i256
+    v7 = add v6, 64
+    mstore v7, arg1
     v8 = icall @readTemporary, v2, arg2
-    v9 = checked_add u256, v7, v8
-    v10 = ptrtoint memptr v2 to i256
-    v11 = add v10, 32
-    v12 = mload v11
-    v13 = ptrtoint memptr v2 to i256
-    v14 = add v13, 64
-    v15 = mload v14
-    v16 = insert_value struct0, undef struct0, 0, v9
-    v17 = insert_value struct0, v16, 1, v12
-    v18 = insert_value struct0, v17, 2, v15
-    ret v18
+    v9 = icall @readTemporary, v2, arg2
+    v10 = checked_add u256, v8, v9
+    v11 = ptrtoint memptr v2 to i256
+    v12 = add v11, 32
+    v13 = mload v12
+    v14 = ptrtoint memptr v2 to i256
+    v15 = add v14, 64
+    v16 = mload v15
+    v17 = insert_value struct0, undef struct0, 0, v10
+    v18 = insert_value struct0, v17, 1, v13
+    v19 = insert_value struct0, v18, 2, v16
+    ret v19
 }
 
 fn @readTemporary(arg0: memptr, arg1: i256) -> i256 [pure] {

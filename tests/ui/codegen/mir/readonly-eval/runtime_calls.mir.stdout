@@ -3,21 +3,24 @@
 fn @emptyBytes() -> i256 [selector=0x55c4baff, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v0, 0
-    v1 = memory_object_data memorybytes, v0
-    v2 = icall @isEmpty, v0
-    ret v2
+    v1 = ptrtoint memptr v0 to i256
+    mstore v1, 0
+    v2 = ptrtoint memptr v0 to i256
+    v3 = add v2, 32
+    v4 = icall @isEmpty, v0
+    ret v4
 }
 
 fn @nonemptyBytes() -> i256 [selector=0xe23ba52c, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v0, 1
-    v1 = memory_object_data memorybytes, v0
-    v2 = ptrtoint memptr v1 to i256
-    mstore v2, 0x3100000000000000000000000000000000000000000000000000000000000000
-    v3 = icall @isEmpty, v0
-    ret v3
+    v1 = ptrtoint memptr v0 to i256
+    mstore v1, 1
+    v2 = ptrtoint memptr v0 to i256
+    v3 = add v2, 32
+    mstore v3, 0x3100000000000000000000000000000000000000000000000000000000000000
+    v4 = icall @isEmpty, v0
+    ret v4
 }
 
 fn @isEmpty(arg0: memptr) -> i256 [pure] {
@@ -34,12 +37,13 @@ fn @constantWord() -> i256 [selector=0xf7bfd103, pure, abi_params=[], abi_return
     v0 = not 31
     v1 = and 95, v0
     v2 = alloc memorybytes, exact, zeroed, panic, v1
-    set_memory_object_len memorybytes, v2, 32
     v3 = ptrtoint memptr v2 to i256
-    v4 = add v3, 32
-    mstore v4, 42
-    v5 = icall @read, v2
-    ret v5
+    mstore v3, 32
+    v4 = ptrtoint memptr v2 to i256
+    v5 = add v4, 32
+    mstore v5, 42
+    v6 = icall @read, v2
+    ret v6
 }
 
 fn @dynamicWord(arg0: i256) -> i256 [selector=0x0c872375, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
@@ -47,12 +51,13 @@ fn @dynamicWord(arg0: i256) -> i256 [selector=0x0c872375, pure, abi_params=[u256
     v0 = not 31
     v1 = and 95, v0
     v2 = alloc memorybytes, exact, zeroed, panic, v1
-    set_memory_object_len memorybytes, v2, 32
     v3 = ptrtoint memptr v2 to i256
-    v4 = add v3, 32
-    mstore v4, arg0
-    v5 = icall @read, v2
-    ret v5
+    mstore v3, 32
+    v4 = ptrtoint memptr v2 to i256
+    v5 = add v4, 32
+    mstore v5, arg0
+    v6 = icall @read, v2
+    ret v6
 }
 
 fn @afterOverwrite(arg0: i256) -> i256 [selector=0xb7519bca, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
@@ -60,24 +65,26 @@ fn @afterOverwrite(arg0: i256) -> i256 [selector=0xb7519bca, pure, abi_params=[u
     v0 = not 31
     v1 = and 95, v0
     v2 = alloc memorybytes, exact, zeroed, panic, v1
-    set_memory_object_len memorybytes, v2, 32
     v3 = ptrtoint memptr v2 to i256
-    v4 = add v3, 32
-    mstore v4, 42
+    mstore v3, 32
+    v4 = ptrtoint memptr v2 to i256
+    v5 = add v4, 32
+    mstore v5, 42
     icall @overwrite, v2, arg0
-    v5 = icall @read, v2
-    ret v5
+    v6 = icall @read, v2
+    ret v6
 }
 
 fn @constantShort() -> i256 [selector=0xe64f6587, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v0, 1
-    v1 = memory_object_data memorybytes, v0
-    v2 = ptrtoint memptr v1 to i256
-    mstore v2, 0x3100000000000000000000000000000000000000000000000000000000000000
-    v3 = icall @short, v0
-    ret v3
+    v1 = ptrtoint memptr v0 to i256
+    mstore v1, 1
+    v2 = ptrtoint memptr v0 to i256
+    v3 = add v2, 32
+    mstore v3, 0x3100000000000000000000000000000000000000000000000000000000000000
+    v4 = icall @short, v0
+    ret v4
 }
 
 fn @dynamicShort(arg0: memptr) -> i256 [selector=0x5def3fed, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[bytes32]] {
@@ -88,36 +95,38 @@ fn @dynamicShort(arg0: memptr) -> i256 [selector=0x5def3fed, pure, abi_params=[b
 
 fn @read(arg0: memptr) -> i256 [pure] {
   bb0:
-    v0 = memory_object_len memorybytes, arg0
-    v1 = eq v0, 32
-    v2 = eq v1, false
-    icall revert_if<empty>, v2
-    v3 = ptrtoint memptr arg0 to i256
-    v4 = add v3, 32
-    v5 = mload v4
-    ret v5
+    v0 = memory_slice arg0
+    v1 = slice_len v0
+    v2 = eq v1, 32
+    v3 = eq v2, false
+    icall revert_if<empty>, v3
+    v4 = ptrtoint memptr arg0 to i256
+    v5 = add v4, 32
+    v6 = mload v5
+    ret v6
 }
 
 fn @short(arg0: memptr) -> i256 [pure] {
   bb0:
-    v0 = memory_object_len memorybytes, arg0
-    v1 = lt v0, 32
-    v2 = eq v1, false
-    icall revert_if<empty>, v2
-    v3 = ptrtoint memptr arg0 to i256
-    v4 = mload v3
-    v5 = not 0
-    v6 = ptrtoint memptr arg0 to i256
-    v7 = mload v6
-    v8 = sub 32, v7
-    v9 = mul v8, 8
-    v10 = shl v9, v5
-    v11 = ptrtoint memptr arg0 to i256
-    v12 = add v11, 32
-    v13 = mload v12
-    v14 = and v13, v10
-    v15 = or v14, v4
-    ret v15
+    v0 = memory_slice arg0
+    v1 = slice_len v0
+    v2 = lt v1, 32
+    v3 = eq v2, false
+    icall revert_if<empty>, v3
+    v4 = ptrtoint memptr arg0 to i256
+    v5 = mload v4
+    v6 = not 0
+    v7 = ptrtoint memptr arg0 to i256
+    v8 = mload v7
+    v9 = sub 32, v8
+    v10 = mul v9, 8
+    v11 = shl v10, v6
+    v12 = ptrtoint memptr arg0 to i256
+    v13 = add v12, 32
+    v14 = mload v13
+    v15 = and v14, v11
+    v16 = or v15, v5
+    ret v16
 }
 
 fn @overwrite(arg0: memptr, arg1: i256) [pure] {

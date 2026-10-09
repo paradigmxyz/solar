@@ -12,9 +12,11 @@ fn @read(arg0: memptr, arg1: i256) -> i256 [selector=0x12345678, abi_params=[arr
 
 // CHECK: + fn @read_words()
 // CHECK: + {{v[0-9]+}} = calldataload
-// CHECK: + {{v[0-9]+}} = alloc memoryarray<1>
-// CHECK: + set_memory_object_len memoryarray
-// CHECK: + memory_object_copy_from_slice memoryarray
+// CHECK: + [[ARR:v[0-9]+]] = alloc memoryarray<1>
+// CHECK: + [[HDR:v[0-9]+]] = ptrtoint memptr [[ARR]] to i256
+// CHECK: + mstore [[HDR]],
+// CHECK: + [[VIEW:v[0-9]+]] = memory_slice [[ARR]]
+// CHECK: + slice_copy [[VIEW]], 0,
 // CHECK: + memory_object_store_field memorystruct<3>
 fn @read_words(arg0: memptr) -> i256 [selector=0x12345679, abi_params=[tuple<array<_, u256>, u256>], abi_returns=[word]] {
   bb0:
@@ -22,7 +24,8 @@ fn @read_words(arg0: memptr) -> i256 [selector=0x12345679, abi_params=[tuple<arr
     v0 = ptrtoint memptr v7 to i256
     v1 = mload v0
     v6 = inttoptr i256 v1 to memptr
-    v2 = memory_object_len memoryarray, v6
+    v9 = memory_slice v6
+    v2 = slice_len v9
     v8 = memory_object_field_addr memorystruct, arg0, 1
     v3 = ptrtoint memptr v8 to i256
     v4 = mload v3

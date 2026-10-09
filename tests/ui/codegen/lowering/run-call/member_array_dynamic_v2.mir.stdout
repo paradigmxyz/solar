@@ -38,13 +38,15 @@ fn @f(arg0: calldataslice) -> memptr [selector=0x59862edc, abi_params=[tuple<arr
     v28 = lt v27, 32
     icall panic_if<0x41>, v28
     v29 = alloc memoryarray<1>, exact, uninitialized, infallible, v27
-    set_memory_object_len memoryarray, v29, v12
-    v30 = make_calldata_slice v19, v20
-    memory_object_copy_from_slice memoryarray, v29, v30
-    v31 = ptrtoint memptr v29 to i256
-    memory_object_store_field memorystruct<1>, v1, 0, v31
-    v32 = abi_encode [tuple<memory_array<word>>], object, args v1
-    ret v32
+    v30 = ptrtoint memptr v29 to i256
+    mstore v30, v12
+    v31 = make_calldata_slice v19, v20
+    v32 = memory_slice v29
+    slice_copy v32, 0, v31
+    v33 = ptrtoint memptr v29 to i256
+    memory_object_store_field memorystruct<1>, v1, 0, v33
+    v34 = abi_encode [tuple<memory_array<word>>], object, args v1
+    ret v34
 }
 
 fn @g(arg0: calldataslice) -> memptr [selector=0x397cf2ca, abi_params=[tuple<array<_, u256>>], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
@@ -87,21 +89,23 @@ fn @g(arg0: calldataslice) -> memptr [selector=0x397cf2ca, abi_params=[tuple<arr
     v30 = lt v29, 32
     icall panic_if<0x41>, v30
     v31 = alloc memoryarray<1>, exact, uninitialized, infallible, v29
-    set_memory_object_len memoryarray, v31, v14
-    v32 = make_calldata_slice v21, v22
-    memory_object_copy_from_slice memoryarray, v31, v32
-    v33 = ptrtoint memptr v31 to i256
-    memory_object_store_field memorystruct<1>, v3, 0, v33
-    v34 = abi_encode [tuple<memory_array<word>>], selector 0x59862edc00000000000000000000000000000000000000000000000000000000, args v3
-    v35 = slice_ptr v34
-    v36 = slice_len v34
-    v37 = zext i160 v0 to i256
-    v38 = call v1, v37, 0, v35, v36, 0, 0
-    jumpi v38, bb2, bb1
+    v32 = ptrtoint memptr v31 to i256
+    mstore v32, v14
+    v33 = make_calldata_slice v21, v22
+    v34 = memory_slice v31
+    slice_copy v34, 0, v33
+    v35 = ptrtoint memptr v31 to i256
+    memory_object_store_field memorystruct<1>, v3, 0, v35
+    v36 = abi_encode [tuple<memory_array<word>>], selector 0x59862edc00000000000000000000000000000000000000000000000000000000, args v3
+    v37 = slice_ptr v36
+    v38 = slice_len v36
+    v39 = zext i160 v0 to i256
+    v40 = call v1, v39, 0, v37, v38, 0, 0
+    jumpi v40, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v39 = icall returndata_bytes<>
-    v40 = abi_decode [bytes], v39
-    ret v40
+    v41 = icall returndata_bytes<>
+    v42 = abi_decode [bytes], v41
+    ret v42
 }

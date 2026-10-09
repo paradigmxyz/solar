@@ -42,19 +42,21 @@ fn @delegate(arg0: calldataslice) -> struct0 [selector=0x0ccfac9e, pure, abi_par
     v6 = not 31
     v7 = and v4, v6
     v8 = alloc memorybytes, exact, uninitialized, infallible, v7
-    set_memory_object_len memorybytes, v8, v3
-    v9 = slice_ptr v2
-    v10 = slice_len v2
-    v11 = gt v10, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v11
-    v12 = calldatasize
-    v13 = sub v12, v10
-    v14 = sgt v9, v13
-    icall revert_if<calldata_tail_too_short>, v14
-    memory_object_copy_from_slice memorybytes, v8, v2
-    v15 = insert_value struct0, undef struct0, 0, v1
-    v16 = insert_value struct0, v15, 1, v8
-    ret v16
+    v9 = ptrtoint memptr v8 to i256
+    mstore v9, v3
+    v10 = slice_ptr v2
+    v11 = slice_len v2
+    v12 = gt v11, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v12
+    v13 = calldatasize
+    v14 = sub v13, v11
+    v15 = sgt v10, v14
+    icall revert_if<calldata_tail_too_short>, v15
+    v16 = memory_slice v8
+    slice_copy v16, 0, v2
+    v17 = insert_value struct0, undef struct0, 0, v1
+    v18 = insert_value struct0, v17, 1, v8
+    ret v18
 }
 
 fn @single(arg0: calldataslice) -> struct2 [selector=0xd61d3fe8, pure, abi_params=[bytes], abi_returns=[word<u160>, word, memory_bytes], abi_return_params=[address, u256, bytes]] {
@@ -70,20 +72,22 @@ fn @single(arg0: calldataslice) -> struct2 [selector=0xd61d3fe8, pure, abi_param
     v7 = not 31
     v8 = and v5, v7
     v9 = alloc memorybytes, exact, uninitialized, infallible, v8
-    set_memory_object_len memorybytes, v9, v4
-    v10 = slice_ptr v3
-    v11 = slice_len v3
-    v12 = gt v11, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v12
-    v13 = calldatasize
-    v14 = sub v13, v11
-    v15 = sgt v10, v14
-    icall revert_if<calldata_tail_too_short>, v15
-    memory_object_copy_from_slice memorybytes, v9, v3
-    v16 = insert_value struct2, undef struct2, 0, v1
-    v17 = insert_value struct2, v16, 1, v2
-    v18 = insert_value struct2, v17, 2, v9
-    ret v18
+    v10 = ptrtoint memptr v9 to i256
+    mstore v10, v4
+    v11 = slice_ptr v3
+    v12 = slice_len v3
+    v13 = gt v12, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v13
+    v14 = calldatasize
+    v15 = sub v14, v12
+    v16 = sgt v11, v15
+    icall revert_if<calldata_tail_too_short>, v16
+    v17 = memory_slice v9
+    slice_copy v17, 0, v3
+    v18 = insert_value struct2, undef struct2, 0, v1
+    v19 = insert_value struct2, v18, 1, v2
+    v20 = insert_value struct2, v19, 2, v9
+    ret v20
 }
 
 fn @nested(arg0: calldataslice) -> struct2 [selector=0xb26b18a9, pure, abi_params=[bytes], abi_returns=[word<u160>, word, memory_bytes], abi_return_params=[address, u256, bytes]] {
@@ -99,20 +103,22 @@ fn @nested(arg0: calldataslice) -> struct2 [selector=0xb26b18a9, pure, abi_param
     v7 = not 31
     v8 = and v5, v7
     v9 = alloc memorybytes, exact, uninitialized, infallible, v8
-    set_memory_object_len memorybytes, v9, v4
-    v10 = slice_ptr v3
-    v11 = slice_len v3
-    v12 = gt v11, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v12
-    v13 = calldatasize
-    v14 = sub v13, v11
-    v15 = sgt v10, v14
-    icall revert_if<calldata_tail_too_short>, v15
-    memory_object_copy_from_slice memorybytes, v9, v3
-    v16 = insert_value struct2, undef struct2, 0, v1
-    v17 = insert_value struct2, v16, 1, v2
-    v18 = insert_value struct2, v17, 2, v9
-    ret v18
+    v10 = ptrtoint memptr v9 to i256
+    mstore v10, v4
+    v11 = slice_ptr v3
+    v12 = slice_len v3
+    v13 = gt v12, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v13
+    v14 = calldatasize
+    v15 = sub v14, v12
+    v16 = sgt v11, v15
+    icall revert_if<calldata_tail_too_short>, v16
+    v17 = memory_slice v9
+    slice_copy v17, 0, v3
+    v18 = insert_value struct2, undef struct2, 0, v1
+    v19 = insert_value struct2, v18, 1, v2
+    v20 = insert_value struct2, v19, 2, v9
+    ret v20
 }
 
 fn @_nested(arg0: calldataslice) -> struct3 [pure] {
@@ -170,23 +176,25 @@ fn @_tryParseSlices(arg0: calldataslice) -> struct5 [pure] {
     v2 = extract_value struct6, v0, 1
     v3 = extract_value struct6, v0, 2
     v4 = extract_value struct6, v0, 3
-    v5 = memory_object_len memorybytes, v3
-    v6 = lt 0, v5
-    v7 = eq v6, false
-    icall panic_if<0x32>, v7
-    v8 = memory_object_load_byte memorybytes, v3, 0
-    v9 = shl 248, v8
-    v10 = shr 248, v9
-    v11 = trunc i256 v10 to i8
-    v12 = zext i8 v11 to i256
-    v13 = ptrtoint memptr v4 to i256
-    v14 = add v13, 32
-    v15 = mload v14
-    v16 = shr 96, v15
-    v17 = insert_value struct5, undef struct5, 0, v1
-    v18 = insert_value struct5, v17, 1, v12
-    v19 = insert_value struct5, v18, 2, v16
-    ret v19
+    v5 = memory_slice v3
+    v6 = slice_len v5
+    v7 = lt 0, v6
+    v8 = eq v7, false
+    icall panic_if<0x32>, v8
+    v9 = memory_slice v3
+    v10 = slice_load_byte v9, 0
+    v11 = shl 248, v10
+    v12 = shr 248, v11
+    v13 = trunc i256 v12 to i8
+    v14 = zext i8 v13 to i256
+    v15 = ptrtoint memptr v4 to i256
+    v16 = add v15, 32
+    v17 = mload v16
+    v18 = shr 96, v17
+    v19 = insert_value struct5, undef struct5, 0, v1
+    v20 = insert_value struct5, v19, 1, v14
+    v21 = insert_value struct5, v20, 2, v18
+    ret v21
 }
 
 fn @_splitSlices(arg0: calldataslice) -> struct6 [pure] {
@@ -216,40 +224,44 @@ fn @_splitSlices(arg0: calldataslice) -> struct6 [pure] {
     v18 = not 31
     v19 = and v16, v18
     v20 = alloc memorybytes, exact, uninitialized, infallible, v19
-    set_memory_object_len memorybytes, v20, v15
-    memory_object_copy_from_slice memorybytes, v20, v8
-    v21 = slice_ptr arg0
-    v22 = slice_len arg0
-    v23 = gt v22, v22
-    v24 = lt v22, 1
-    v25 = or v23, v24
-    v26 = zext i1 v25 to i256
-    icall revert_if<empty>, v25
-    v27 = sub v22, 1
-    v28 = add v21, 1
-    v29 = make_calldata_slice v28, v27
-    v30 = slice_ptr v29
-    v31 = slice_len v29
-    v32 = gt v31, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v32
-    v33 = calldatasize
-    v34 = sub v33, v31
-    v35 = sgt v30, v34
-    icall revert_if<calldata_tail_too_short>, v35
-    v36 = slice_len v29
-    v37 = add v36, 63
-    v38 = lt v37, v36
-    icall panic_if<0x41>, v38
-    v39 = not 31
-    v40 = and v37, v39
-    v41 = alloc memorybytes, exact, uninitialized, infallible, v40
-    set_memory_object_len memorybytes, v41, v36
-    memory_object_copy_from_slice memorybytes, v41, v29
-    v42 = insert_value struct6, undef struct6, 0, true
-    v43 = insert_value struct6, v42, 1, 0
-    v44 = insert_value struct6, v43, 2, v20
-    v45 = insert_value struct6, v44, 3, v41
-    ret v45
+    v21 = ptrtoint memptr v20 to i256
+    mstore v21, v15
+    v22 = memory_slice v20
+    slice_copy v22, 0, v8
+    v23 = slice_ptr arg0
+    v24 = slice_len arg0
+    v25 = gt v24, v24
+    v26 = lt v24, 1
+    v27 = or v25, v26
+    v28 = zext i1 v27 to i256
+    icall revert_if<empty>, v27
+    v29 = sub v24, 1
+    v30 = add v23, 1
+    v31 = make_calldata_slice v30, v29
+    v32 = slice_ptr v31
+    v33 = slice_len v31
+    v34 = gt v33, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v34
+    v35 = calldatasize
+    v36 = sub v35, v33
+    v37 = sgt v32, v36
+    icall revert_if<calldata_tail_too_short>, v37
+    v38 = slice_len v31
+    v39 = add v38, 63
+    v40 = lt v39, v38
+    icall panic_if<0x41>, v40
+    v41 = not 31
+    v42 = and v39, v41
+    v43 = alloc memorybytes, exact, uninitialized, infallible, v42
+    v44 = ptrtoint memptr v43 to i256
+    mstore v44, v38
+    v45 = memory_slice v43
+    slice_copy v45, 0, v31
+    v46 = insert_value struct6, undef struct6, 0, true
+    v47 = insert_value struct6, v46, 1, 0
+    v48 = insert_value struct6, v47, 2, v20
+    v49 = insert_value struct6, v48, 3, v43
+    ret v49
 }
 
 fn @_delegate(arg0: calldataslice) -> struct1 [pure] {

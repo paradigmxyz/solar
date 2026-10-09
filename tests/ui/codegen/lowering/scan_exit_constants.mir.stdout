@@ -12,52 +12,55 @@ fn @check(arg0: i256, arg1: i256) -> i256 [selector=0x8fefd8ea, pure, abi_params
     v5 = not 31
     v6 = and v3, v5
     v7 = alloc memorybytes, exact, zeroed, panic, v6
-    set_memory_object_len memorybytes, v7, arg0
+    v8 = ptrtoint memptr v7 to i256
+    mstore v8, arg0
     jump bb1
   bb1:
-    v8 = phi [bb0: v7], [bb3: v8]
-    v9 = phi [bb0: arg0], [bb3: v9]
-    v10 = phi [bb0: 0], [bb3: v20]
-    v11 = phi [bb0: 0], [bb3: v11]
-    v12 = phi [bb0: arg1], [bb3: v12]
-    v13 = lt v10, v9
-    jumpi v13, bb4, bb5
+    v9 = phi [bb0: v7], [bb3: v9]
+    v10 = phi [bb0: arg0], [bb3: v10]
+    v11 = phi [bb0: 0], [bb3: v23]
+    v12 = phi [bb0: 0], [bb3: v12]
+    v13 = phi [bb0: arg1], [bb3: v13]
+    v14 = lt v11, v10
+    jumpi v14, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    v21 = ptrtoint memptr v8 to i256
-    v22 = add v21, 32
-    v23 = add v22, v9
-    mstore v23, 0xdeadbeef
-    v24 = icall @scan, v8
-    v25 = ptrtoint memptr v8 to i256
-    v26 = add v25, 32
-    v27 = add v26, v9
-    v28 = mload v27
-    v29 = eq v28, 0xdeadbeef
-    v30 = eq v29, false
-    icall revert_if<empty>, v30
-    ret v24
+    v24 = ptrtoint memptr v9 to i256
+    v25 = add v24, 32
+    v26 = add v25, v10
+    mstore v26, 0xdeadbeef
+    v27 = icall @scan, v9
+    v28 = ptrtoint memptr v9 to i256
+    v29 = add v28, 32
+    v30 = add v29, v10
+    v31 = mload v30
+    v32 = eq v31, 0xdeadbeef
+    v33 = eq v32, false
+    icall revert_if<empty>, v33
+    ret v27
   bb4:
-    v14 = eq v10, v12
-    jumpi v14, bb7, bb8
+    v15 = eq v11, v13
+    jumpi v15, bb7, bb8
   bb8:
     jump bb9
   bb7:
     jump bb9
   bb9:
-    v15 = phi [bb7: 0x8000000000000000000000000000000000000000000000000000000000000000], [bb8: 0x4100000000000000000000000000000000000000000000000000000000000000]
-    v16 = memory_object_len memorybytes, v8
-    v17 = lt v10, v16
-    v18 = eq v17, false
-    icall panic_if<0x32>, v18
-    v19 = byte 0, v15
-    memory_object_store_byte memorybytes, v8, v10, v19
+    v16 = phi [bb7: 0x8000000000000000000000000000000000000000000000000000000000000000], [bb8: 0x4100000000000000000000000000000000000000000000000000000000000000]
+    v17 = memory_slice v9
+    v18 = slice_len v17
+    v19 = lt v11, v18
+    v20 = eq v19, false
+    icall panic_if<0x32>, v20
+    v21 = byte 0, v16
+    v22 = memory_slice v9
+    slice_store_byte v22, v11, v21
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v20 = checked_add u256, v10, 1
+    v23 = checked_add u256, v11, 1
     jump bb1
 }
 

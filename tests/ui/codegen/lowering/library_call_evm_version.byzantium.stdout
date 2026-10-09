@@ -62,14 +62,15 @@ fn @noret(arg0: i256) [selector=0x089b9644, pure, abi_params=[u256], abi_returns
 
 fn @six(arg0: memptr) -> struct1 [selector=0xb84d18fb, pure, abi_params=[bytes], abi_returns=[word, word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256, u256]] {
   bb0:
-    v0 = memory_object_len memorybytes, arg0
-    v1 = insert_value struct1, undef struct1, 0, v0
-    v2 = insert_value struct1, v1, 1, 1
-    v3 = insert_value struct1, v2, 2, 2
-    v4 = insert_value struct1, v3, 3, 3
-    v5 = insert_value struct1, v4, 4, 4
-    v6 = insert_value struct1, v5, 5, 5
-    ret v6
+    v0 = memory_slice arg0
+    v1 = slice_len v0
+    v2 = insert_value struct1, undef struct1, 0, v1
+    v3 = insert_value struct1, v2, 1, 1
+    v4 = insert_value struct1, v3, 2, 2
+    v5 = insert_value struct1, v4, 3, 3
+    v6 = insert_value struct1, v5, 4, 4
+    v7 = insert_value struct1, v6, 5, 5
+    ret v7
 }
 
 // === ROOT/tests/ui/codegen/lowering/library_call_evm_version.sol:C ===

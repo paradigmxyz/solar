@@ -10,18 +10,20 @@ fn @switchCallResult() -> i256 [selector=0x2e6d4117, abi_params=[], abi_returns=
   bb0:
     v0 = gas
     v1 = alloc memorybytes, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v1, 0
-    v2 = memory_object_data memorybytes, v1
-    v3 = address_call i160 0, v1, gas v0
-    v4 = zext i1 v3 to i256
-    switch v4, default bb3, [0 => bb2]
+    v2 = ptrtoint memptr v1 to i256
+    mstore v2, 0
+    v3 = ptrtoint memptr v1 to i256
+    v4 = add v3, 32
+    v5 = address_call i160 0, v1, gas v0
+    v6 = zext i1 v5 to i256
+    switch v6, default bb3, [0 => bb2]
   bb2:
     jump bb1
   bb3:
     jump bb1
   bb1:
-    v5 = phi [bb2: 7], [bb3: 11]
-    ret v5
+    v7 = phi [bb2: 7], [bb3: 11]
+    ret v7
 }
 
 fn @switchBool(arg0: i256) -> i256 [selector=0xec9b6d62, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[u256]] {

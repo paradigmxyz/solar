@@ -113,11 +113,13 @@ fn @staticAggregate() -> i256 [selector=0x9982aedb, abi_params=[], abi_returns=[
     v26 = not 31
     v27 = and v24, v26
     v28 = alloc memorybytes, exact, uninitialized, infallible, v27
-    set_memory_object_len memorybytes, v28, v23
-    memory_object_copy_from_slice memorybytes, v28, v22
-    v29 = abi_decode [tuple<tuple<array<2, u256>>, u256>], v28
-    v30 = icall @check, v29
-    ret v30
+    v29 = ptrtoint memptr v28 to i256
+    mstore v29, v23
+    v30 = memory_slice v28
+    slice_copy v30, 0, v22
+    v31 = abi_decode [tuple<tuple<array<2, u256>>, u256>], v28
+    v32 = icall @check, v31
+    ret v32
 }
 
 fn @projectedAggregate() -> i256 [selector=0xec2041b8, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
@@ -163,16 +165,18 @@ fn @projectedAggregate() -> i256 [selector=0xec2041b8, abi_params=[], abi_return
     v26 = not 31
     v27 = and v24, v26
     v28 = alloc memorybytes, exact, uninitialized, infallible, v27
-    set_memory_object_len memorybytes, v28, v23
-    memory_object_copy_from_slice memorybytes, v28, v22
-    v29 = abi_decode [tuple<tuple<array<2, u256>>, u256>], v28
-    v30 = memory_object_load_field memorystruct<2>, v29, 0, memptr
-    v31 = memory_object_load_field memorystruct<1>, v30, 0, memptr
-    v32 = lt 1, 2
-    v33 = eq v32, false
-    icall panic_if<0x32>, v33
-    v34 = memory_object_load_element memoryfixedarray<2, 1>, v31, 1
-    ret v34
+    v29 = ptrtoint memptr v28 to i256
+    mstore v29, v23
+    v30 = memory_slice v28
+    slice_copy v30, 0, v22
+    v31 = abi_decode [tuple<tuple<array<2, u256>>, u256>], v28
+    v32 = memory_object_load_field memorystruct<2>, v31, 0, memptr
+    v33 = memory_object_load_field memorystruct<1>, v32, 0, memptr
+    v34 = lt 1, 2
+    v35 = eq v34, false
+    icall panic_if<0x32>, v35
+    v36 = memory_object_load_element memoryfixedarray<2, 1>, v33, 1
+    ret v36
 }
 
 fn @functionPointerAggregate() -> i256 [selector=0xebe6d175, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
@@ -223,11 +227,13 @@ fn @functionPointerAggregate() -> i256 [selector=0xebe6d175, abi_params=[], abi_
     v31 = not 31
     v32 = and v29, v31
     v33 = alloc memorybytes, exact, uninitialized, infallible, v32
-    set_memory_object_len memorybytes, v33, v28
-    memory_object_copy_from_slice memorybytes, v33, v27
-    v34 = abi_decode [tuple<tuple<array<2, u256>>, u256>], v33
-    v35 = icall @check, v34
-    ret v35
+    v34 = ptrtoint memptr v33 to i256
+    mstore v34, v28
+    v35 = memory_slice v33
+    slice_copy v35, 0, v27
+    v36 = abi_decode [tuple<tuple<array<2, u256>>, u256>], v33
+    v37 = icall @check, v36
+    ret v37
 }
 
 fn @dirtyAddressBoundary() -> i256 [selector=0x2986c9cc, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
@@ -305,6 +311,7 @@ fn @truncated() -> i256 [selector=0xfc1dad0b, abi_params=[], abi_returns=[word],
   bb4:
     v17 = icall returndata_bytes<>
     v18 = abi_decode [bytes], v17
-    v19 = memory_object_len memorybytes, v18
-    ret v19
+    v19 = memory_slice v18
+    v20 = slice_len v19
+    ret v20
 }

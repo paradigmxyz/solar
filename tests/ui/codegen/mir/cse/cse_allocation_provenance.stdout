@@ -76,12 +76,16 @@
   fn @argument_header(arg0: memptr) -> i256 {
     bb0:
       v0 = alloc memorybytes, exact, uninitialized, infallible, 64
-      v1 = memory_object_len memorybytes, arg0
-      set_memory_object_len memorybytes, v0, 32
-      memory_object_store_byte memorybytes, v0, 0, 7
-      v2 = memory_object_len memorybytes, arg0
-      v3 = add v1, v2
-      ret v3
+      v1 = memory_slice arg0
+      v2 = slice_len v1
+      v3 = ptrtoint memptr v0 to i256
+      mstore v3, 32
+      v4 = memory_slice v0
+      slice_store_byte v4, 0, 7
+      v5 = memory_slice arg0
+      v6 = slice_len v5
+      v7 = add v2, v6
+      ret v7
   }
   
   fn @mapping_slot_memory_reset(arg0: i256, arg1: i256, arg2: memptr) -> i256 {

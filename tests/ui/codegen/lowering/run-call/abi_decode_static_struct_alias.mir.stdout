@@ -3,27 +3,31 @@
 fn @mutateFirst(arg0: memptr) -> i256 [selector=0x781f0687, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_decode [tuple<u256>], arg0
-    v1 = memory_object_len memorybytes, arg0
-    v2 = lt 31, v1
-    v3 = eq v2, false
-    icall panic_if<0x32>, v3
-    v4 = byte 0, 0x200000000000000000000000000000000000000000000000000000000000000
-    memory_object_store_byte memorybytes, arg0, 31, v4
-    v5 = memory_object_load_field memorystruct<1>, v0, 0
-    ret v5
+    v1 = memory_slice arg0
+    v2 = slice_len v1
+    v3 = lt 31, v2
+    v4 = eq v3, false
+    icall panic_if<0x32>, v4
+    v5 = byte 0, 0x200000000000000000000000000000000000000000000000000000000000000
+    v6 = memory_slice arg0
+    slice_store_byte v6, 31, v5
+    v7 = memory_object_load_field memorystruct<1>, v0, 0
+    ret v7
 }
 
 fn @mutateSecond(arg0: memptr) -> i256 [selector=0xe7eeece1, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = abi_decode [tuple<u256>], arg0
-    v1 = memory_object_len memorybytes, arg0
-    v2 = lt 31, v1
-    v3 = eq v2, false
-    icall panic_if<0x32>, v3
-    v4 = byte 0, 0x300000000000000000000000000000000000000000000000000000000000000
-    memory_object_store_byte memorybytes, arg0, 31, v4
-    v5 = memory_object_load_field memorystruct<1>, v0, 0
-    ret v5
+    v1 = memory_slice arg0
+    v2 = slice_len v1
+    v3 = lt 31, v2
+    v4 = eq v3, false
+    icall panic_if<0x32>, v4
+    v5 = byte 0, 0x300000000000000000000000000000000000000000000000000000000000000
+    v6 = memory_slice arg0
+    slice_store_byte v6, 31, v5
+    v7 = memory_object_load_field memorystruct<1>, v0, 0
+    ret v7
 }
 
 fn @mutateAlias(arg0: memptr) -> i256 [selector=0x60c81d20, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[u256]] {
@@ -35,20 +39,23 @@ fn @mutateAlias(arg0: memptr) -> i256 [selector=0x60c81d20, pure, abi_params=[by
 fn @mutateAliasInner(arg0: memptr, arg1: memptr) -> i256 [pure] {
   bb0:
     v0 = abi_decode [tuple<u256>], arg0
-    v1 = memory_object_len memorybytes, arg1
-    v2 = eq v1, 0
-    jumpi v2, bb1, bb2
+    v1 = memory_slice arg1
+    v2 = slice_len v1
+    v3 = eq v2, 0
+    jumpi v3, bb1, bb2
   bb2:
     jump bb3
   bb3:
-    v3 = memory_object_len memorybytes, arg1
-    v4 = lt 31, v3
-    v5 = eq v4, false
-    icall panic_if<0x32>, v5
-    v6 = byte 0, 0x400000000000000000000000000000000000000000000000000000000000000
-    memory_object_store_byte memorybytes, arg1, 31, v6
-    v7 = memory_object_load_field memorystruct<1>, v0, 0
-    ret v7
+    v4 = memory_slice arg1
+    v5 = slice_len v4
+    v6 = lt 31, v5
+    v7 = eq v6, false
+    icall panic_if<0x32>, v7
+    v8 = byte 0, 0x400000000000000000000000000000000000000000000000000000000000000
+    v9 = memory_slice arg1
+    slice_store_byte v9, 31, v8
+    v10 = memory_object_load_field memorystruct<1>, v0, 0
+    ret v10
   bb1:
     ret 0
 }

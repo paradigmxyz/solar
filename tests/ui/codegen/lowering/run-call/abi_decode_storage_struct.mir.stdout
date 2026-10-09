@@ -10,51 +10,63 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word,
     memory_object_store_field memorystruct<2>, v0, 1, 96
     memory_object_store_field memorystruct<2>, v0, 0, 8
     v1 = alloc memoryarray<1>, exact, zeroed, panic, 128
-    set_memory_object_len memoryarray, v1, 3
     v2 = ptrtoint memptr v1 to i256
-    memory_object_store_field memorystruct<2>, v0, 1, v2
-    v3 = memory_object_load_field memorystruct<2>, v0, 1, memptr
-    v4 = memory_object_len memoryarray, v3
-    v5 = lt 0, v4
-    v6 = eq v5, false
-    icall panic_if<0x32>, v6
-    memory_object_store_element memoryarray<1>, v3, 0, 9
-    v7 = memory_object_load_field memorystruct<2>, v0, 1, memptr
-    v8 = memory_object_len memoryarray, v7
-    v9 = lt 1, v8
-    v10 = eq v9, false
-    icall panic_if<0x32>, v10
-    memory_object_store_element memoryarray<1>, v7, 1, 10
-    v11 = memory_object_load_field memorystruct<2>, v0, 1, memptr
-    v12 = memory_object_len memoryarray, v11
-    v13 = lt 2, v12
+    mstore v2, 3
+    v3 = ptrtoint memptr v1 to i256
+    memory_object_store_field memorystruct<2>, v0, 1, v3
+    v4 = memory_object_load_field memorystruct<2>, v0, 1, memptr
+    v5 = memory_slice v4
+    v6 = slice_len v5
+    v7 = lt 0, v6
+    v8 = eq v7, false
+    icall panic_if<0x32>, v8
+    v9 = memory_slice v4
+    slice_store_element v9, 0, 9
+    v10 = memory_object_load_field memorystruct<2>, v0, 1, memptr
+    v11 = memory_slice v10
+    v12 = slice_len v11
+    v13 = lt 1, v12
     v14 = eq v13, false
     icall panic_if<0x32>, v14
-    memory_object_store_element memoryarray<1>, v11, 2, 11
-    v15 = abi_encode [tuple<word, memory_array<word>>], object, args v0
-    icall @store_storage_bytes, 0, v15
-    v16 = load_storage_bytes 0
-    v17 = abi_decode [tuple<u256, array<_, u256>>], v16
-    v18 = memory_object_load_field memorystruct<2>, v17, 0
-    v19 = memory_object_load_field memorystruct<2>, v17, 1, memptr
-    v20 = memory_object_len memoryarray, v19
-    v21 = memory_object_load_field memorystruct<2>, v17, 1, memptr
-    v22 = memory_object_len memoryarray, v21
-    v23 = lt 0, v22
-    v24 = eq v23, false
-    icall panic_if<0x32>, v24
-    v25 = memory_object_load_element memoryarray<1>, v21, 0
-    v26 = memory_object_load_field memorystruct<2>, v17, 1, memptr
-    v27 = memory_object_len memoryarray, v26
-    v28 = lt 2, v27
-    v29 = eq v28, false
-    icall panic_if<0x32>, v29
-    v30 = memory_object_load_element memoryarray<1>, v26, 2
-    v31 = insert_value struct0, undef struct0, 0, v18
-    v32 = insert_value struct0, v31, 1, v20
-    v33 = insert_value struct0, v32, 2, v25
-    v34 = insert_value struct0, v33, 3, v30
-    ret v34
+    v15 = memory_slice v10
+    slice_store_element v15, 1, 10
+    v16 = memory_object_load_field memorystruct<2>, v0, 1, memptr
+    v17 = memory_slice v16
+    v18 = slice_len v17
+    v19 = lt 2, v18
+    v20 = eq v19, false
+    icall panic_if<0x32>, v20
+    v21 = memory_slice v16
+    slice_store_element v21, 2, 11
+    v22 = abi_encode [tuple<word, memory_array<word>>], object, args v0
+    icall @store_storage_bytes, 0, v22
+    v23 = load_storage_bytes 0
+    v24 = abi_decode [tuple<u256, array<_, u256>>], v23
+    v25 = memory_object_load_field memorystruct<2>, v24, 0
+    v26 = memory_object_load_field memorystruct<2>, v24, 1, memptr
+    v27 = memory_slice v26
+    v28 = slice_len v27
+    v29 = memory_object_load_field memorystruct<2>, v24, 1, memptr
+    v30 = memory_slice v29
+    v31 = slice_len v30
+    v32 = lt 0, v31
+    v33 = eq v32, false
+    icall panic_if<0x32>, v33
+    v34 = memory_slice v29
+    v35 = slice_load_element v34, 0
+    v36 = memory_object_load_field memorystruct<2>, v24, 1, memptr
+    v37 = memory_slice v36
+    v38 = slice_len v37
+    v39 = lt 2, v38
+    v40 = eq v39, false
+    icall panic_if<0x32>, v40
+    v41 = memory_slice v36
+    v42 = slice_load_element v41, 2
+    v43 = insert_value struct0, undef struct0, 0, v25
+    v44 = insert_value struct0, v43, 1, v28
+    v45 = insert_value struct0, v44, 2, v35
+    v46 = insert_value struct0, v45, 3, v42
+    ret v46
 }
 
 fn @store_storage_bytes(arg0: i256, arg1: memptr) {

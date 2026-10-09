@@ -29,23 +29,28 @@ fn @test_storage_write() -> i256 [selector=0x66f2b6c3, abi_params=[], abi_return
 fn @test_multi() -> struct0 [selector=0x255f2946, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
-    set_memory_object_len memoryarray, v0, 2
-    v1 = memory_object_len memoryarray, v0
-    v2 = lt 0, v1
-    v3 = eq v2, false
-    icall panic_if<0x32>, v3
-    memory_object_store_element memoryarray<1>, v0, 0, 7
-    v4 = memory_object_len memoryarray, v0
-    v5 = lt 1, v4
-    v6 = eq v5, false
-    icall panic_if<0x32>, v6
-    memory_object_store_element memoryarray<1>, v0, 1, 8
-    v7 = icall @pick, v0
-    v8 = extract_value struct0, v7, 0
-    v9 = extract_value struct0, v7, 1
-    v10 = insert_value struct0, undef struct0, 0, v8
-    v11 = insert_value struct0, v10, 1, v9
-    ret v11
+    v1 = ptrtoint memptr v0 to i256
+    mstore v1, 2
+    v2 = memory_slice v0
+    v3 = slice_len v2
+    v4 = lt 0, v3
+    v5 = eq v4, false
+    icall panic_if<0x32>, v5
+    v6 = memory_slice v0
+    slice_store_element v6, 0, 7
+    v7 = memory_slice v0
+    v8 = slice_len v7
+    v9 = lt 1, v8
+    v10 = eq v9, false
+    icall panic_if<0x32>, v10
+    v11 = memory_slice v0
+    slice_store_element v11, 1, 8
+    v12 = icall @pick, v0
+    v13 = extract_value struct0, v12, 0
+    v14 = extract_value struct0, v12, 1
+    v15 = insert_value struct0, undef struct0, 0, v13
+    v16 = insert_value struct0, v15, 1, v14
+    ret v16
 }
 
 fn @test_calldata(arg0: calldataslice) -> i256 [selector=0x46370830, pure, abi_params=[array<_, u256>], abi_returns=[word], abi_return_params=[u256]] {
@@ -57,22 +62,27 @@ fn @test_calldata(arg0: calldataslice) -> i256 [selector=0x46370830, pure, abi_p
 fn @test_using() -> i256 [selector=0xd6c053d5, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
-    set_memory_object_len memoryarray, v0, 2
-    v1 = memory_object_len memoryarray, v0
-    v2 = lt 0, v1
-    v3 = eq v2, false
-    icall panic_if<0x32>, v3
-    memory_object_store_element memoryarray<1>, v0, 0, 7
-    v4 = memory_object_len memoryarray, v0
-    v5 = lt 1, v4
-    v6 = eq v5, false
-    icall panic_if<0x32>, v6
-    memory_object_store_element memoryarray<1>, v0, 1, 8
-    v7 = icall @pick, v0
-    v8 = extract_value struct0, v7, 0
-    v9 = extract_value struct0, v7, 1
-    v10 = checked_add u256, v8, v9
-    ret v10
+    v1 = ptrtoint memptr v0 to i256
+    mstore v1, 2
+    v2 = memory_slice v0
+    v3 = slice_len v2
+    v4 = lt 0, v3
+    v5 = eq v4, false
+    icall panic_if<0x32>, v5
+    v6 = memory_slice v0
+    slice_store_element v6, 0, 7
+    v7 = memory_slice v0
+    v8 = slice_len v7
+    v9 = lt 1, v8
+    v10 = eq v9, false
+    icall panic_if<0x32>, v10
+    v11 = memory_slice v0
+    slice_store_element v11, 1, 8
+    v12 = icall @pick, v0
+    v13 = extract_value struct0, v12, 0
+    v14 = extract_value struct0, v12, 1
+    v15 = checked_add u256, v13, v14
+    ret v15
 }
 
 fn @add(arg0: i256, arg1: i256) -> i256 [pure] {
@@ -97,19 +107,23 @@ fn @bump(arg0: i256) {
 
 fn @pick(arg0: memptr) -> struct0 [pure] {
   bb0:
-    v0 = memory_object_len memoryarray, arg0
-    v1 = lt 0, v0
-    v2 = eq v1, false
-    icall panic_if<0x32>, v2
-    v3 = memory_object_load_element memoryarray<1>, arg0, 0
-    v4 = memory_object_len memoryarray, arg0
-    v5 = lt 1, v4
-    v6 = eq v5, false
-    icall panic_if<0x32>, v6
-    v7 = memory_object_load_element memoryarray<1>, arg0, 1
-    v8 = insert_value struct0, undef struct0, 0, v3
-    v9 = insert_value struct0, v8, 1, v7
-    ret v9
+    v0 = memory_slice arg0
+    v1 = slice_len v0
+    v2 = lt 0, v1
+    v3 = eq v2, false
+    icall panic_if<0x32>, v3
+    v4 = memory_slice arg0
+    v5 = slice_load_element v4, 0
+    v6 = memory_slice arg0
+    v7 = slice_len v6
+    v8 = lt 1, v7
+    v9 = eq v8, false
+    icall panic_if<0x32>, v9
+    v10 = memory_slice arg0
+    v11 = slice_load_element v10, 1
+    v12 = insert_value struct0, undef struct0, 0, v5
+    v13 = insert_value struct0, v12, 1, v11
+    ret v13
 }
 
 fn @first(arg0: calldataslice) -> i256 [pure] {

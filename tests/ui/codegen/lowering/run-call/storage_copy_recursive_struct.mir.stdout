@@ -400,34 +400,36 @@ fn @load_storage_struct_array_0(arg0: i256) -> memptr {
     v9 = eq v8, 0
     icall panic_if<0x41>, v9
     v10 = alloc memoryarray<1>, exact, uninitialized, panic, v3
-    set_memory_object_len memoryarray, v10, v0
-    v11 = storage_array_data_slot arg0
+    v11 = ptrtoint memptr v10 to i256
+    mstore v11, v0
+    v12 = storage_array_data_slot arg0
     jump bb1
   bb1:
-    v12 = phi [bb0: 0], [bb2: v26]
-    v13 = phi [bb0: v11], [bb2: v27]
-    v14 = lt v12, v0
-    jumpi v14, bb2, bb3
+    v13 = phi [bb0: 0], [bb2: v28]
+    v14 = phi [bb0: v12], [bb2: v29]
+    v15 = lt v13, v0
+    jumpi v15, bb2, bb3
   bb3:
     ret v10
   bb2:
-    v15 = alloc memorystruct<3>, exact, uninitialized, panic, 96
-    v16 = sload v13 !metadata(storage=symbolic(v13))
-    v17 = trunc i256 v16 to i128
-    v18 = zext i128 v17 to i256
-    memory_object_store_field memorystruct<3>, v15, 0, v18
-    v19 = add v13, 1
-    v20 = icall @load_storage_bytes, v19
-    v21 = ptrtoint memptr v20 to i256
-    memory_object_store_field memorystruct<3>, v15, 1, v21
-    v22 = add v13, 2
-    v23 = icall @load_storage_struct_array_0, v22
-    v24 = ptrtoint memptr v23 to i256
-    memory_object_store_field memorystruct<3>, v15, 2, v24
-    v25 = ptrtoint memptr v15 to i256
-    memory_object_store_element memoryarray<1>, v10, v12, v25
-    v26 = add v12, 1
-    v27 = add v13, 3
+    v16 = alloc memorystruct<3>, exact, uninitialized, panic, 96
+    v17 = sload v14 !metadata(storage=symbolic(v14))
+    v18 = trunc i256 v17 to i128
+    v19 = zext i128 v18 to i256
+    memory_object_store_field memorystruct<3>, v16, 0, v19
+    v20 = add v14, 1
+    v21 = icall @load_storage_bytes, v20
+    v22 = ptrtoint memptr v21 to i256
+    memory_object_store_field memorystruct<3>, v16, 1, v22
+    v23 = add v14, 2
+    v24 = icall @load_storage_struct_array_0, v23
+    v25 = ptrtoint memptr v24 to i256
+    memory_object_store_field memorystruct<3>, v16, 2, v25
+    v26 = memory_slice v10
+    v27 = ptrtoint memptr v16 to i256
+    slice_store_element v26, v13, v27
+    v28 = add v13, 1
+    v29 = add v14, 3
     jump bb1
 }
 
@@ -447,53 +449,56 @@ fn @store_recursive_storage_0_0(arg0: i256, arg1: memptr) {
     v9 = add arg0, 2
     v10 = memory_object_load_field memorystruct<3>, arg1, 2
     v11 = inttoptr i256 v10 to memptr
-    v12 = memory_object_len memoryarray, v11
-    v13 = sload v9 !metadata(storage=offset(arg0, 2))
-    v14 = gt v13, v12
-    jumpi v14, bb1, bb2
+    v12 = memory_slice v11
+    v13 = slice_len v12
+    v14 = sload v9 !metadata(storage=offset(arg0, 2))
+    v15 = gt v14, v13
+    jumpi v15, bb1, bb2
   bb1:
     jump bb3
   bb3:
-    v15 = phi [bb1: v12], [bb4: v20]
-    v16 = lt v15, v13
-    jumpi v16, bb4, bb5
+    v16 = phi [bb1: v13], [bb4: v21]
+    v17 = lt v16, v14
+    jumpi v17, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    sstore v9, v12 !metadata(storage=offset(arg0, 2))
+    sstore v9, v13 !metadata(storage=offset(arg0, 2))
     jump bb6
   bb6:
-    v21 = phi [bb2: 0], [bb10: v34]
-    v22 = lt v21, v12
-    jumpi v22, bb7, bb8
+    v22 = phi [bb2: 0], [bb10: v37]
+    v23 = lt v22, v13
+    jumpi v23, bb7, bb8
   bb8:
     ret
   bb7:
-    v23 = inttoptr i256 v10 to memptr
-    v24 = memory_object_load_element memoryarray<1>, v23, v21
-    v25 = inttoptr i256 v24 to memptr
-    v26 = eq v24, 0
-    jumpi v26, bb9, bb10
+    v24 = inttoptr i256 v10 to memptr
+    v25 = memory_slice v24
+    v26 = slice_load_element v25, v22
+    v27 = inttoptr i256 v26 to memptr
+    v28 = eq v26, 0
+    jumpi v28, bb9, bb10
   bb9:
-    v27 = icall @default_struct_0
-    v28 = inttoptr i256 v10 to memptr
-    v29 = ptrtoint memptr v27 to i256
-    memory_object_store_element memoryarray<1>, v28, v21, v29
+    v29 = icall @default_struct_0
+    v30 = inttoptr i256 v10 to memptr
+    v31 = memory_slice v30
+    v32 = ptrtoint memptr v29 to i256
+    slice_store_element v31, v22, v32
     jump bb10
   bb10:
-    v30 = phi [bb7: v25], [bb9: v27]
-    v31 = storage_array_data_slot v9
-    v32 = mul v21, 3
-    v33 = add v31, v32
-    icall @store_recursive_storage_0_0, v33, v30
-    v34 = add v21, 1
+    v33 = phi [bb7: v27], [bb9: v29]
+    v34 = storage_array_data_slot v9
+    v35 = mul v22, 3
+    v36 = add v34, v35
+    icall @store_recursive_storage_0_0, v36, v33
+    v37 = add v22, 1
     jump bb6
   bb4:
-    v17 = storage_array_data_slot v9
-    v18 = mul v15, 3
-    v19 = add v17, v18
-    icall @clear_recursive_storage_0, v19
-    v20 = add v15, 1
+    v18 = storage_array_data_slot v9
+    v19 = mul v16, 3
+    v20 = add v18, v19
+    icall @clear_recursive_storage_0, v20
+    v21 = add v16, 1
     jump bb3
 }
 
@@ -547,12 +552,14 @@ fn @default_struct_0() -> memptr {
     v0 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
     memory_object_store_field memorystruct<3>, v0, 0, 0
     v1 = alloc memorybytes, exact, uninitialized, infallible, 32
-    set_memory_object_len memorybytes, v1, 0
     v2 = ptrtoint memptr v1 to i256
-    memory_object_store_field memorystruct<3>, v0, 1, v2
-    v3 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    set_memory_object_len memoryarray, v3, 0
-    v4 = ptrtoint memptr v3 to i256
-    memory_object_store_field memorystruct<3>, v0, 2, v4
+    mstore v2, 0
+    v3 = ptrtoint memptr v1 to i256
+    memory_object_store_field memorystruct<3>, v0, 1, v3
+    v4 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    v5 = ptrtoint memptr v4 to i256
+    mstore v5, 0
+    v6 = ptrtoint memptr v4 to i256
+    memory_object_store_field memorystruct<3>, v0, 2, v6
     ret v0
 }

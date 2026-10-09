@@ -78,20 +78,23 @@ fn @memoryStoreCleanup() -> i256 [selector=0xa32f54c2, pure, abi_params=[], abi_
   bb0:
     v0 = not 0
     v1 = alloc memoryarray<1>, exact, zeroed, panic, 64
-    set_memory_object_len memoryarray, v1, 1
-    v2 = memory_object_len memoryarray, v1
-    v3 = lt 0, v2
-    v4 = eq v3, false
-    icall panic_if<0x32>, v4
-    v5 = trunc i256 v0 to i160
-    v6 = zext i160 v5 to i256
-    memory_object_store_element memoryarray<1>, v1, 0, v6
-    v7 = shl 160, 1
-    v8 = sub v7, 1
-    v9 = ptrtoint memptr v1 to i256
-    v10 = add v9, 32
-    v11 = mload v10
-    v12 = eq v11, v8
-    v13 = zext i1 v12 to i256
-    ret v13
+    v2 = ptrtoint memptr v1 to i256
+    mstore v2, 1
+    v3 = memory_slice v1
+    v4 = slice_len v3
+    v5 = lt 0, v4
+    v6 = eq v5, false
+    icall panic_if<0x32>, v6
+    v7 = trunc i256 v0 to i160
+    v8 = zext i160 v7 to i256
+    v9 = memory_slice v1
+    slice_store_element v9, 0, v8
+    v10 = shl 160, 1
+    v11 = sub v10, 1
+    v12 = ptrtoint memptr v1 to i256
+    v13 = add v12, 32
+    v14 = mload v13
+    v15 = eq v14, v11
+    v16 = zext i1 v15 to i256
+    ret v16
 }

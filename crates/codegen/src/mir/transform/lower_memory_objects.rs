@@ -80,6 +80,7 @@ fn lower_function<P: MemoryLayoutPolicy>(func: &mut Function) -> bool {
     // unreachable definitions -> removed blocks and phi inputs
     let _ = super::cfg_simplify::remove_unreachable_blocks(func);
     materialize_mixed_byte_phis(func);
+    let views = local_views(func);
     let mut replacements = FxHashMap::default();
     let blocks = func.blocks.indices();
 
@@ -103,10 +104,37 @@ fn lower_function<P: MemoryLayoutPolicy>(func: &mut Function) -> bool {
                         instruction.kind =
                             InstKind::Alloc { size, kind: AllocationKind::Raw, semantics };
                     }
+                    // A view whose uses all lower here becomes its length load; each use
+                    // recomputes its data address from the object.
+                    InstKind::MemorySlice(object)
+                        if builder
+                            .func()
+                            .inst_result_value(inst)
+                            .is_some_and(|view| views.contains_key(&view)) =>
+                    {
+                        // header = ptrtoint object to i256
+                        // view = mload header
+                        let header = builder.cast(object, MirType::I256);
+                        let instruction = builder.func_mut().inst_mut(inst);
+                        instruction.kind = InstKind::MLoad(header);
+                        instruction.result_ty = Some(MirType::I256);
+                    }
+                    InstKind::SliceLen(slice) if views.contains_key(&slice) => {
+                        if let Some(result) = builder.func().inst_result_value(inst) {
+                            replacements.insert(result, slice);
+                        }
+                        return false;
+                    }
                     InstKind::MemorySlice(object) => {
                         let (ptr, len) = memory_slice_parts::<P>(&mut builder, object);
                         builder.func_mut().inst_mut(inst).kind =
                             InstKind::MakeSlice { ptr, len, location: SliceLocation::Memory };
+                    }
+                    InstKind::SlicePtr(slice) if let Some(&object) = views.get(&slice) => {
+                        // data = add (ptrtoint object), P::DYNAMIC_HEADER_SIZE
+                        let header = builder.cast(object, MirType::I256);
+                        let offset = builder.imm(P::DYNAMIC_HEADER_SIZE);
+                        builder.func_mut().inst_mut(inst).kind = InstKind::Add(header, offset);
                     }
                     InstKind::MLoad(object) => {
                         let Some(location) = builder.func().value_slice_location(object) else {
@@ -254,10 +282,11 @@ fn lower_function<P: MemoryLayoutPolicy>(func: &mut Function) -> bool {
                         builder.func_mut().inst_mut(inst).kind = InstKind::MStore(address, value);
                     }
                     InstKind::SliceLoadElement { slice, index } => {
-                        let Some(location) = builder.func().value_slice_location(slice) else {
+                        let Some(location) = slice_location(builder.func(), &views, slice) else {
                             return true;
                         };
-                        let address = slice_element_address::<P>(&mut builder, slice, index);
+                        let address =
+                            slice_element_address::<P>(&mut builder, &views, slice, index);
                         let Some(kind) = slice_load_kind(location, address) else {
                             return true;
                         };
@@ -272,10 +301,10 @@ fn lower_function<P: MemoryLayoutPolicy>(func: &mut Function) -> bool {
                         builder.func_mut().inst_mut(inst).kind = InstKind::MLoad(address);
                     }
                     InstKind::SliceLoadByte { slice, index } => {
-                        let Some(location) = builder.func().value_slice_location(slice) else {
+                        let Some(location) = slice_location(builder.func(), &views, slice) else {
                             return true;
                         };
-                        let source = builder.slice_ptr(slice);
+                        let source = slice_data::<P>(&mut builder, &views, slice);
                         let address = dynamic_offset_address(&mut builder, source, index);
                         let Some(load) = slice_load_kind(location, address) else {
                             return true;
@@ -297,33 +326,35 @@ fn lower_function<P: MemoryLayoutPolicy>(func: &mut Function) -> bool {
                         builder.func_mut().inst_mut(inst).kind = InstKind::MStore(address, value);
                     }
                     InstKind::SliceStoreElement { slice, index, value } => {
-                        let address = slice_element_address::<P>(&mut builder, slice, index);
+                        let address =
+                            slice_element_address::<P>(&mut builder, &views, slice, index);
                         builder.func_mut().inst_mut(inst).kind = InstKind::MStore(address, value);
                     }
                     InstKind::SliceStoreByte { slice, index, value } => {
-                        let base = builder.slice_ptr(slice);
+                        let base = slice_data::<P>(&mut builder, &views, slice);
                         let address = dynamic_offset_address(&mut builder, base, index);
                         builder.func_mut().inst_mut(inst).kind = InstKind::MStore8(address, value);
                     }
                     InstKind::SliceStoreWord { slice, offset, value } => {
-                        let base = builder.slice_ptr(slice);
+                        let base = slice_data::<P>(&mut builder, &views, slice);
                         let address = dynamic_offset_address(&mut builder, base, offset);
                         builder.func_mut().inst_mut(inst).kind = InstKind::MStore(address, value);
                     }
                     InstKind::MemorySliceLoadWord { slice, offset } => {
-                        let source = builder.slice_ptr(slice);
+                        let source = slice_data::<P>(&mut builder, &views, slice);
                         let address = dynamic_offset_address(&mut builder, source, offset);
                         builder.func_mut().inst_mut(inst).kind = InstKind::MLoad(address);
                     }
                     InstKind::CalldataSliceLoadWord { slice, offset } => {
-                        let source = builder.slice_ptr(slice);
+                        let source = slice_data::<P>(&mut builder, &views, slice);
                         let address = dynamic_offset_address(&mut builder, source, offset);
                         builder.func_mut().inst_mut(inst).kind = InstKind::CalldataLoad(address);
                     }
                     InstKind::SliceCopy { destination, offset, source } => {
-                        let base = builder.slice_ptr(destination);
+                        let base = slice_data::<P>(&mut builder, &views, destination);
                         let destination = dynamic_offset_address(&mut builder, base, offset);
-                        let Some(physical) = lower_slice_copy(&mut builder, destination, source)
+                        let Some(physical) =
+                            lower_slice_copy::<P>(&mut builder, &views, destination, source)
                         else {
                             return true;
                         };
@@ -399,6 +430,7 @@ fn coalesce_constant_allocations(func: &mut Function) {
                 let derived_owner = match &func.inst(next_id).kind {
                     InstKind::Add(lhs, rhs) if func.value_u64(*rhs).is_some() => owners[*lhs],
                     InstKind::Add(lhs, rhs) if func.value_u64(*lhs).is_some() => owners[*rhs],
+                    InstKind::PtrToInt(base, 256) => owners[*base],
                     _ => None,
                 };
                 let store_owner = match &func.inst(next_id).kind {
@@ -583,12 +615,75 @@ fn memory_slice_parts<P: MemoryLayoutPolicy>(
     (data, len)
 }
 
+/// Returns the `memory_slice` views whose every use lowers in this pass, by their objects.
+fn local_views(func: &Function) -> FxHashMap<crate::mir::ValueId, crate::mir::ValueId> {
+    let mut views: FxHashMap<_, _> = func
+        .instructions()
+        .filter_map(|inst| match func.inst(inst).kind {
+            InstKind::MemorySlice(object) => Some((func.inst_result_value(inst)?, object)),
+            _ => None,
+        })
+        .collect();
+    for inst in func.instructions() {
+        let kind = &func.inst(inst).kind;
+        let local = matches!(
+            kind,
+            InstKind::SliceLen(_)
+                | InstKind::SlicePtr(_)
+                | InstKind::SliceLoadElement { .. }
+                | InstKind::SliceLoadByte { .. }
+                | InstKind::SliceStoreElement { .. }
+                | InstKind::SliceStoreByte { .. }
+                | InstKind::SliceStoreWord { .. }
+                | InstKind::MemorySliceLoadWord { .. }
+                | InstKind::SliceCopy { .. }
+        );
+        if !local {
+            kind.visit_operands(|operand| {
+                views.remove(&operand);
+            });
+        }
+    }
+    for block in &func.blocks {
+        if let Some(terminator) = &block.terminator {
+            terminator.visit_operands(|operand| {
+                views.remove(&operand);
+            });
+        }
+    }
+    views
+}
+
+fn slice_location(
+    func: &Function,
+    views: &FxHashMap<crate::mir::ValueId, crate::mir::ValueId>,
+    slice: crate::mir::ValueId,
+) -> Option<SliceLocation> {
+    if views.contains_key(&slice) {
+        Some(SliceLocation::Memory)
+    } else {
+        func.value_slice_location(slice)
+    }
+}
+
+/// Returns a slice's data address, recomputing it at the use for a `memory_slice` view.
+fn slice_data<P: MemoryLayoutPolicy>(
+    builder: &mut FunctionBuilder<'_>,
+    views: &FxHashMap<crate::mir::ValueId, crate::mir::ValueId>,
+    slice: crate::mir::ValueId,
+) -> crate::mir::ValueId {
+    let Some(&object) = views.get(&slice) else { return builder.slice_ptr(slice) };
+    let header = builder.cast(object, MirType::I256);
+    builder.add_u64_offset(header, P::DYNAMIC_HEADER_SIZE)
+}
+
 fn slice_element_address<P: MemoryLayoutPolicy>(
     builder: &mut FunctionBuilder<'_>,
+    views: &FxHashMap<crate::mir::ValueId, crate::mir::ValueId>,
     slice: crate::mir::ValueId,
     index: crate::mir::ValueId,
 ) -> crate::mir::ValueId {
-    let base = builder.slice_ptr(slice);
+    let base = slice_data::<P>(builder, views, slice);
     if let Some(index) = builder.func().value_u64(index)
         && let Some(offset) = index.checked_mul(P::WORD_SIZE)
     {
@@ -632,14 +727,16 @@ fn memory_element_address_parts<P: MemoryLayoutPolicy>(
     }
 }
 
-fn lower_slice_copy(
+fn lower_slice_copy<P: MemoryLayoutPolicy>(
     builder: &mut FunctionBuilder<'_>,
+    views: &FxHashMap<crate::mir::ValueId, crate::mir::ValueId>,
     destination: crate::mir::ValueId,
     source: crate::mir::ValueId,
 ) -> Option<InstKind> {
-    let MirType::Slice(location) = builder.func().value_ty(source)? else { return None };
-    let source_ptr = builder.slice_ptr(source);
-    let length = builder.slice_len(source);
+    let location = slice_location(builder.func(), views, source)?;
+    let source_ptr = slice_data::<P>(builder, views, source);
+    // A local view becomes its own length load.
+    let length = if views.contains_key(&source) { source } else { builder.slice_len(source) };
     Some(match location {
         SliceLocation::Memory => InstKind::MCopy(destination, source_ptr, length),
         SliceLocation::Calldata => InstKind::CalldataCopy(destination, source_ptr, length),

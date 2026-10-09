@@ -12,72 +12,72 @@ fn @asValue() [selector=0x440a9300, abi_wrapper, pure] {
     v6 = eq v5, 0
     jumpi v6, bb3, bb1
   bb3:
-    v49 = mload 64 !metadata(memory=scratch)
-    v50 = add v49, 128
-    mstore 64, v50 !metadata(memory=scratch)
-    mstore v49, 68
-    v47 = add v49, 32
-    mstore v47, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
-    v14 = add v49, 36
+    v47 = mload 64 !metadata(memory=scratch)
+    v48 = add v47, 128
+    mstore 64, v48 !metadata(memory=scratch)
+    mstore v47, 68
+    v13 = add v47, 32
+    mstore v13, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
+    v14 = add v13, 4
     mstore v14, arg0
     v15 = add v14, 32
     mstore v15, arg1
-    v51 = mload 64 !metadata(memory=scratch)
-    v18 = add v51, 32
-    mstore v51, 32
-    v25 = ne v49, 0
-    v26 = zext i1 v25 to i256
-    v22 = mload v49
-    v27 = mul v22, v26
-    v29 = add v27, 31
-    v30 = and v29, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v31 = add v18, 32
-    v32 = add v18, v30
-    mstore v32, 0
-    mstore v18, v27
-    v34 = add v31, v30
-    mcopy v31, v47, v27 !metadata(disjoint)
-    v37 = sub v34, v51
-    v39 = add v37, 31
-    v41 = and v39, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v52 = mload 64 !metadata(memory=scratch)
-    v53 = add v52, v41
-    mstore 64, v53 !metadata(memory=scratch)
-    returndata v52, v37
+    v49 = mload 64 !metadata(memory=scratch)
+    v18 = add v49, 32
+    mstore v49, 32
+    v26 = ne v47, 0
+    v27 = zext i1 v26 to i256
+    v22 = mload v47
+    v28 = mul v22, v27
+    v30 = add v28, 31
+    v31 = and v30, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v32 = add v18, 32
+    v33 = add v18, v31
+    mstore v33, 0
+    mstore v18, v28
+    v36 = add v32, v31
+    mcopy v32, v13, v28 !metadata(disjoint)
+    v38 = sub v36, v49
+    v40 = add v38, 31
+    v42 = and v40, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v50 = mload 64 !metadata(memory=scratch)
+    v51 = add v50, v42
+    mstore 64, v51 !metadata(memory=scratch)
+    returndata v50, v38
   bb1:
     revert 0, 0
 }
 
 fn @viaCall() [selector=0x23d014a1, abi_wrapper] {
   bb0:
-    v9 = calldatasize
-    v10 = lt v9, 100
-    jumpi v10, bb1, bb2
+    v10 = calldatasize
+    v11 = lt v10, 100
+    jumpi v11, bb1, bb2
   bb2:
-    v11 = calldataload 4
-    v12 = shr 160, v11
-    v13 = eq v12, 0
-    jumpi v13, bb3, bb1
+    v12 = calldataload 4
+    v13 = shr 160, v12
+    v14 = eq v13, 0
+    jumpi v14, bb3, bb1
   bb3:
-    v14 = calldataload 36
-    v15 = shr 160, v14
-    v16 = eq v15, 0
-    jumpi v16, bb4, bb1
+    v15 = calldataload 36
+    v16 = shr 160, v15
+    v17 = eq v16, 0
+    jumpi v17, bb4, bb1
   bb4:
     v0 = gas
-    v31 = mload 64 !metadata(memory=scratch)
-    v32 = add v31, 128
-    mstore 64, v32 !metadata(memory=scratch)
-    mstore v31, 68
-    v30 = add v31, 32
-    mstore v30, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
-    v26 = add v31, 36
-    mstore v26, arg1
-    v27 = add v26, 32
-    mstore v27, arg2
-    v8 = call v0, arg0, 0, v30, 68, 0, 0
-    v19 = zext i1 v8 to i256
-    mstore 128, v19
+    v30 = mload 64 !metadata(memory=scratch)
+    v31 = add v30, 128
+    mstore 64, v31 !metadata(memory=scratch)
+    mstore v30, 68
+    v26 = add v30, 32
+    mstore v26, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
+    v27 = add v26, 4
+    mstore v27, arg1
+    v28 = add v27, 32
+    mstore v28, arg2
+    v9 = call v0, arg0, 0, v26, 68, 0, 0
+    v20 = zext i1 v9 to i256
+    mstore 128, v20
     returndata 128, 32
   bb1:
     revert 0, 0

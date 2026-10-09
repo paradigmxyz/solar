@@ -54,9 +54,12 @@ fn @h(arg0: calldataslice) -> memptr [selector=0x94e17704, pure, abi_params=[arr
     jumpi v6, bb2, bb3
   bb3:
     v14 = make_calldata_slice v0, 96
-    memory_object_copy_from_slice memoryfixedarray, v4, v14
-    v15 = abi_encode [array<3, word<u8>>], object, args v4
-    ret v15
+    v15 = ptrtoint memptr v4 to i256
+    v16 = slice_len v14
+    v17 = make_memory_slice v15, v16
+    slice_copy v17, 0, v14
+    v18 = abi_encode [array<3, word<u8>>], object, args v4
+    ret v18
   bb2:
     v7 = mul v5, 32
     v8 = add v0, v7

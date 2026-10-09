@@ -3,24 +3,29 @@
   @module MemoryObjectMemoryDse
   fn @forward_length(arg0: memptr) -> i256 {
     bb0:
-      set_memory_object_len memorybytes, arg0, 39
--     v0 = memory_object_len memorybytes, arg0
--     ret v0
-+     ret 39
+      v0 = ptrtoint memptr arg0 to i256
+      mstore v0, 39
+      v1 = memory_slice arg0
+      v2 = slice_len v1
+      ret v2
   }
   
   fn @keep_length_after_clobber(arg0: memptr, arg1: i256) -> i256 {
     bb0:
-      set_memory_object_len memorybytes, arg0, 39
+      v0 = ptrtoint memptr arg0 to i256
+      mstore v0, 39
       mstore arg1, 7
-      v0 = memory_object_len memorybytes, arg0
-      ret v0
+      v1 = memory_slice arg0
+      v2 = slice_len v1
+      ret v2
   }
   
   fn @store_bytes_reads_memory(arg0: i256, arg1: memptr) {
     bb0:
-      set_memory_object_len memorybytes, arg1, 32
-      memory_object_store_word memorybytes, arg1, 0, 7
+      v0 = ptrtoint memptr arg1 to i256
+      mstore v0, 32
+      v1 = memory_slice arg1
+      slice_store_word v1, 0, 7
       store_storage_bytes arg0, arg1
       ret
   }
@@ -31,15 +36,16 @@
       jumpi v0, bb3, bb1
     bb1:
       v1 = alloc memorybytes, exact, uninitialized, infallible, 64
-      set_memory_object_len memorybytes, v1, 39
-      v2 = memory_object_data memorybytes, v1
-      v3 = ptrtoint memptr v2 to i256
-      mstore v3, 7
--     v4 = memory_object_len memorybytes, v1
-      v5 = ne arg1, 0
-      jumpi v5, bb3, bb2
+      v2 = ptrtoint memptr v1 to i256
+      mstore v2, 39
+      v3 = memory_slice v1
+      v4 = slice_ptr v3
+      mstore v4, 7
+-     v5 = mload v2
+      v6 = ne arg1, 0
+      jumpi v6, bb3, bb2
     bb2:
--     ret v4
+-     ret v5
 +     ret 39
     bb3:
       ret 0
@@ -50,22 +56,29 @@
   @module MemoryObjectMemoryDse
   fn @forward_length(arg0: memptr) -> i256 {
     bb0:
-      set_memory_object_len memorybytes, arg0, 39
-      ret 39
+      v0 = ptrtoint memptr arg0 to i256
+      mstore v0, 39
+      v1 = memory_slice arg0
+      v2 = slice_len v1
+      ret v2
   }
   
   fn @keep_length_after_clobber(arg0: memptr, arg1: i256) -> i256 {
     bb0:
-      set_memory_object_len memorybytes, arg0, 39
+      v0 = ptrtoint memptr arg0 to i256
+      mstore v0, 39
       mstore arg1, 7
-      v0 = memory_object_len memorybytes, arg0
-      ret v0
+      v1 = memory_slice arg0
+      v2 = slice_len v1
+      ret v2
   }
   
   fn @store_bytes_reads_memory(arg0: i256, arg1: memptr) {
     bb0:
-      set_memory_object_len memorybytes, arg1, 32
-      memory_object_store_word memorybytes, arg1, 0, 7
+      v0 = ptrtoint memptr arg1 to i256
+      mstore v0, 32
+      v1 = memory_slice arg1
+      slice_store_word v1, 0, 7
       store_storage_bytes arg0, arg1
       ret
   }
@@ -76,12 +89,13 @@
       jumpi v0, bb3, bb1
     bb1:
       v1 = alloc memorybytes, exact, uninitialized, infallible, 64
-      set_memory_object_len memorybytes, v1, 39
-      v2 = memory_object_data memorybytes, v1
-      v3 = ptrtoint memptr v2 to i256
-      mstore v3, 7
-      v5 = ne arg1, 0
-      jumpi v5, bb3, bb2
+      v2 = ptrtoint memptr v1 to i256
+      mstore v2, 39
+      v3 = memory_slice v1
+      v4 = slice_ptr v3
+      mstore v4, 7
+      v6 = ne arg1, 0
+      jumpi v6, bb3, bb2
     bb2:
       ret 39
     bb3:

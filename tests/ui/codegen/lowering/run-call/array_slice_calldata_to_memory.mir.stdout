@@ -46,25 +46,31 @@ fn @copy(arg0: calldataslice, arg1: i256, arg2: i256) -> i256 [selector=0x65750e
     v36 = lt v35, 32
     icall panic_if<0x41>, v36
     v37 = alloc memoryarray<1>, exact, uninitialized, infallible, v35
-    set_memory_object_len memoryarray, v37, v16
-    v38 = make_calldata_slice v17, v28
-    memory_object_copy_from_slice memoryarray, v37, v38
-    v39 = memory_object_len memoryarray, v37
-    v40 = lt 0, v39
-    v41 = eq v40, false
-    icall panic_if<0x32>, v41
-    v42 = memory_object_load_element memoryarray<1>, v37, 0
-    ret v42
+    v38 = ptrtoint memptr v37 to i256
+    mstore v38, v16
+    v39 = make_calldata_slice v17, v28
+    v40 = memory_slice v37
+    slice_copy v40, 0, v39
+    v41 = memory_slice v37
+    v42 = slice_len v41
+    v43 = lt 0, v42
+    v44 = eq v43, false
+    icall panic_if<0x32>, v44
+    v45 = memory_slice v37
+    v46 = slice_load_element v45, 0
+    ret v46
 }
 
 fn @first(arg0: memptr) -> i256 [pure] {
   bb0:
-    v0 = memory_object_len memoryarray, arg0
-    v1 = lt 0, v0
-    v2 = eq v1, false
-    icall panic_if<0x32>, v2
-    v3 = memory_object_load_element memoryarray<1>, arg0, 0
-    ret v3
+    v0 = memory_slice arg0
+    v1 = slice_len v0
+    v2 = lt 0, v1
+    v3 = eq v2, false
+    icall panic_if<0x32>, v3
+    v4 = memory_slice arg0
+    v5 = slice_load_element v4, 0
+    ret v5
 }
 
 fn @forward(arg0: calldataslice, arg1: i256, arg2: i256) -> i256 [selector=0x4b1f0a4b, pure, abi_params=[array<_, u256>, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
@@ -113,11 +119,13 @@ fn @forward(arg0: calldataslice, arg1: i256, arg2: i256) -> i256 [selector=0x4b1
     v36 = lt v35, 32
     icall panic_if<0x41>, v36
     v37 = alloc memoryarray<1>, exact, uninitialized, infallible, v35
-    set_memory_object_len memoryarray, v37, v16
-    v38 = make_calldata_slice v17, v28
-    memory_object_copy_from_slice memoryarray, v37, v38
-    v39 = icall @first, v37
-    ret v39
+    v38 = ptrtoint memptr v37 to i256
+    mstore v38, v16
+    v39 = make_calldata_slice v17, v28
+    v40 = memory_slice v37
+    slice_copy v40, 0, v39
+    v41 = icall @first, v37
+    ret v41
 }
 
 fn @literal(arg0: calldataslice, arg1: i256, arg2: i256) -> i256 [selector=0x75a8bc6f, pure, abi_params=[array<_, u256>, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
@@ -167,30 +175,35 @@ fn @literal(arg0: calldataslice, arg1: i256, arg2: i256) -> i256 [selector=0x75a
     v37 = lt v36, 32
     icall panic_if<0x41>, v37
     v38 = alloc memoryarray<1>, exact, uninitialized, infallible, v36
-    set_memory_object_len memoryarray, v38, v17
-    v39 = make_calldata_slice v18, v29
-    memory_object_copy_from_slice memoryarray, v38, v39
-    v40 = ptrtoint memptr v38 to i256
-    memory_object_store_element memoryfixedarray<1, 1>, v0, 0, v40
-    v41 = lt 0, 1
-    v42 = eq v41, false
-    icall panic_if<0x32>, v42
-    v43 = memory_object_load_element memoryfixedarray<1, 1>, v0, 0
-    v44 = inttoptr i256 v43 to memptr
-    v45 = eq v43, 0
-    jumpi v45, bb1, bb2
+    v39 = ptrtoint memptr v38 to i256
+    mstore v39, v17
+    v40 = make_calldata_slice v18, v29
+    v41 = memory_slice v38
+    slice_copy v41, 0, v40
+    v42 = ptrtoint memptr v38 to i256
+    memory_object_store_element memoryfixedarray<1, 1>, v0, 0, v42
+    v43 = lt 0, 1
+    v44 = eq v43, false
+    icall panic_if<0x32>, v44
+    v45 = memory_object_load_element memoryfixedarray<1, 1>, v0, 0
+    v46 = inttoptr i256 v45 to memptr
+    v47 = eq v45, 0
+    jumpi v47, bb1, bb2
   bb1:
-    v46 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    set_memory_object_len memoryarray, v46, 0
-    v47 = ptrtoint memptr v46 to i256
-    memory_object_store_element memoryfixedarray<1, 1>, v0, 0, v47
+    v48 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    v49 = ptrtoint memptr v48 to i256
+    mstore v49, 0
+    v50 = ptrtoint memptr v48 to i256
+    memory_object_store_element memoryfixedarray<1, 1>, v0, 0, v50
     jump bb2
   bb2:
-    v48 = phi [bb0: v44], [bb1: v46]
-    v49 = memory_object_len memoryarray, v48
-    v50 = lt 0, v49
-    v51 = eq v50, false
-    icall panic_if<0x32>, v51
-    v52 = memory_object_load_element memoryarray<1>, v48, 0
-    ret v52
+    v51 = phi [bb0: v46], [bb1: v48]
+    v52 = memory_slice v51
+    v53 = slice_len v52
+    v54 = lt 0, v53
+    v55 = eq v54, false
+    icall panic_if<0x32>, v55
+    v56 = memory_slice v51
+    v57 = slice_load_element v56, 0
+    ret v57
 }

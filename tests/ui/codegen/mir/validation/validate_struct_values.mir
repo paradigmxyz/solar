@@ -130,17 +130,19 @@ fn @integer_ptrtoint(arg0: i256) -> i256 {
     ret v0
 }
 
-//~? ERROR: [fn18] [bb0, inst0] `memory_object_load_element` has incompatible scalar types; use an explicit cast
+//~? ERROR: [fn18] [bb0, inst1] `slice_load_element` has incompatible scalar types; use an explicit cast
 fn @implicit_object_index(arg0: memptr, arg1: i1) -> i256 {
   bb0:
-    v0 = memory_object_load_element memoryarray<1>, arg0, arg1
+    v1 = memory_slice arg0
+    v0 = slice_load_element v1, arg1
     ret v0
 }
 
-//~? ERROR: [fn19] [bb0, inst0] `memory_object_store_word` has incompatible scalar types; use an explicit cast
+//~? ERROR: [fn19] [bb0, inst1] `slice_store_word` has incompatible scalar types; use an explicit cast
 fn @implicit_object_value(arg0: memptr, arg1: i160) {
   bb0:
-    memory_object_store_word memorybytes, arg0, 0, arg1
+    v0 = memory_slice arg0
+    slice_store_word v0, 0, arg1
     ret
 }
 
@@ -185,10 +187,10 @@ fn @nested_calldata_array(arg0: calldataslice) -> memoryslice {
     ret v0
 }
 
-//~? ERROR: [fn26] [bb0, inst0] `memory_object_data` has incompatible scalar types; use an explicit cast
-fn @calldata_as_memory(arg0: calldataslice) -> memptr {
+//~? ERROR: [fn26] [bb0, inst0] `memory_slice` has incompatible scalar types; use an explicit cast
+fn @calldata_as_memory(arg0: calldataslice) -> memoryslice {
   bb0:
-    v0 = memory_object_data memorybytes, arg0
+    v0 = memory_slice arg0
     ret v0
 }
 

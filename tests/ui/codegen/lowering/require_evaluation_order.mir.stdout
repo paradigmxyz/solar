@@ -44,29 +44,34 @@ fn @stringFailure() [selector=0x6bf37af5, abi_params=[], abi_returns=[], abi_ret
 fn @nestedFailure() [selector=0x3e70e061, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
-    set_memory_object_len memoryarray, v0, 1
+    v1 = ptrtoint memptr v0 to i256
+    mstore v1, 1
     jump bb1
   bb1:
-    v1 = phi [bb0: 0], [bb2: v3]
-    v2 = lt v1, 1
-    jumpi v2, bb2, bb3
+    v2 = phi [bb0: 0], [bb2: v5]
+    v3 = lt v2, 1
+    jumpi v3, bb2, bb3
   bb3:
-    v4 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v4, 3
-    v5 = memory_object_data memorybytes, v4
-    v6 = ptrtoint memptr v5 to i256
-    mstore v6, 0x102030000000000000000000000000000000000000000000000000000000000
-    v7 = memory_object_len memoryarray, v0
-    v8 = lt 0, v7
-    v9 = eq v8, false
-    icall panic_if<0x32>, v9
-    v10 = ptrtoint memptr v4 to i256
-    memory_object_store_element memoryarray<1>, v0, 0, v10
+    v6 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    v7 = ptrtoint memptr v6 to i256
+    mstore v7, 3
+    v8 = ptrtoint memptr v6 to i256
+    v9 = add v8, 32
+    mstore v9, 0x102030000000000000000000000000000000000000000000000000000000000
+    v10 = memory_slice v0
+    v11 = slice_len v10
+    v12 = lt 0, v11
+    v13 = eq v12, false
+    icall panic_if<0x32>, v13
+    v14 = ptrtoint memptr v6 to i256
+    v15 = memory_slice v0
+    slice_store_element v15, 0, v14
     icall require<custom_error [memory_array<memory_bytes>]>, false, 0xae7687df00000000000000000000000000000000000000000000000000000000, v0
     ret
   bb2:
-    memory_object_store_element memoryarray<1>, v0, v1, 96
-    v3 = add v1, 1
+    v4 = memory_slice v0
+    slice_store_element v4, v2, 96
+    v5 = add v2, 1
     jump bb1
 }
 
@@ -84,10 +89,11 @@ fn @reason() -> memptr {
     v1 = checked_add u256, v0, 1
     sstore 0, v1 !metadata(storage=slot(0))
     v2 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v2, 1
-    v3 = memory_object_data memorybytes, v2
-    v4 = ptrtoint memptr v3 to i256
-    mstore v4, 0x7800000000000000000000000000000000000000000000000000000000000000
+    v3 = ptrtoint memptr v2 to i256
+    mstore v3, 1
+    v4 = ptrtoint memptr v2 to i256
+    v5 = add v4, 32
+    mstore v5, 0x7800000000000000000000000000000000000000000000000000000000000000
     ret v2
 }
 

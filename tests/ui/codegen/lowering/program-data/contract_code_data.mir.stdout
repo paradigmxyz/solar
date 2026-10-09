@@ -11,10 +11,11 @@ fn @value() -> i256 [selector=0x3fa4f245, pure, abi_params=[], abi_returns=[word
 fn @payload() -> memptr [selector=0xa878f858, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 160 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v0, 128
-    v1 = memory_object_data memorybytes, v0
-    v2 = ptrtoint memptr v1 to i256
-    datacopy literal_0, v2, 128
+    v1 = ptrtoint memptr v0 to i256
+    mstore v1, 128
+    v2 = ptrtoint memptr v0 to i256
+    v3 = add v2, 32
+    datacopy literal_0, v3, 128
     ret v0
 }
 
@@ -29,36 +30,37 @@ fn @deployCreationCode() -> i256 [selector=0x5986dddb, abi_params=[], abi_return
     v0 = datasize CodeTarget_creation_code_0
     v1 = datasize CodeTarget_creation_code_0, 63, aligned
     v2 = alloc memorybytes, exact, uninitialized, infallible, v1 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v2, v0
-    v3 = memory_object_data memorybytes, v2
-    v4 = datasize CodeTarget_creation_code_0, 31, aligned
-    v5 = ptrtoint memptr v2 to i256
-    v6 = add v5, v4
-    mstore v6, 0
-    v7 = ptrtoint memptr v3 to i256
-    datacopy CodeTarget_creation_code_0, v7, v0
-    v8 = ptrtoint memptr v2 to i256
-    v9 = mload v8
-    v10 = ptrtoint memptr v2 to i256
-    v11 = add v10, 32
-    v12 = create 0, v11, v9
-    v13 = zext i160 v12 to i256
-    v14 = gas
-    v15 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
-    v16 = slice_ptr v15
-    v17 = slice_len v15
-    v18 = zext i160 v12 to i256
-    v19 = staticcall v14, v18, v16, v17, 0, 32
-    jumpi v19, bb2, bb1
+    v3 = ptrtoint memptr v2 to i256
+    mstore v3, v0
+    v4 = ptrtoint memptr v2 to i256
+    v5 = add v4, 32
+    v6 = datasize CodeTarget_creation_code_0, 31, aligned
+    v7 = ptrtoint memptr v2 to i256
+    v8 = add v7, v6
+    mstore v8, 0
+    datacopy CodeTarget_creation_code_0, v5, v0
+    v9 = ptrtoint memptr v2 to i256
+    v10 = mload v9
+    v11 = ptrtoint memptr v2 to i256
+    v12 = add v11, 32
+    v13 = create 0, v12, v10
+    v14 = zext i160 v13 to i256
+    v15 = gas
+    v16 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
+    v17 = slice_ptr v16
+    v18 = slice_len v16
+    v19 = zext i160 v13 to i256
+    v20 = staticcall v15, v19, v17, v18, 0, 32
+    jumpi v20, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v20 = returndatasize
-    v21 = lt v20, 32
-    icall revert_if<tuple_data_too_short>, v21
-    v22 = add 0, 0
-    v23 = mload v22
-    ret v23
+    v21 = returndatasize
+    v22 = lt v21, 32
+    icall revert_if<tuple_data_too_short>, v22
+    v23 = add 0, 0
+    v24 = mload v23
+    ret v24
 }
 
 fn @runtimeCodeMatches() -> i1 [selector=0x337e11d0, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
@@ -83,17 +85,18 @@ fn @runtimeCodeMatches() -> i1 [selector=0x337e11d0, abi_params=[], abi_returns=
     v11 = datasize CodeTarget_runtime_code_1
     v12 = datasize CodeTarget_runtime_code_1, 63, aligned
     v13 = alloc memorybytes, exact, uninitialized, infallible, v12 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v13, v11
-    v14 = memory_object_data memorybytes, v13
-    v15 = datasize CodeTarget_runtime_code_1, 31, aligned
-    v16 = ptrtoint memptr v13 to i256
-    v17 = add v16, v15
-    mstore v17, 0
-    v18 = ptrtoint memptr v14 to i256
-    datacopy CodeTarget_runtime_code_1, v18, v11
-    v19 = keccak256_bytes v13
-    v20 = zext i160 v9 to i256
-    v21 = extcodehash v20
-    v22 = eq v19, v21
-    ret v22
+    v14 = ptrtoint memptr v13 to i256
+    mstore v14, v11
+    v15 = ptrtoint memptr v13 to i256
+    v16 = add v15, 32
+    v17 = datasize CodeTarget_runtime_code_1, 31, aligned
+    v18 = ptrtoint memptr v13 to i256
+    v19 = add v18, v17
+    mstore v19, 0
+    datacopy CodeTarget_runtime_code_1, v16, v11
+    v20 = keccak256_bytes v13
+    v21 = zext i160 v9 to i256
+    v22 = extcodehash v21
+    v23 = eq v20, v22
+    ret v23
 }

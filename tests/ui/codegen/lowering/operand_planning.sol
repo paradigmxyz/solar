@@ -27,10 +27,9 @@ contract ResidentLastUse {
 // `calldatasize` costs less to read again than to reload from a spill slot, so
 // the planner reads it again instead of loading the spilled copy.
 // CHECK-LABEL: @module SpilledNullary_runtime
-// CHECK: iszero
-// CHECK-NEXT: iszero
+// CHECK: push 63
 // CHECK-NEXT: calldatasize
-// CHECK-NEXT: mul
+// CHECK-NEXT: add
 contract SpilledNullary {
     function all() external pure returns (bytes memory) {
         return abi.encodePacked(msg.data);

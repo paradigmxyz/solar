@@ -50,27 +50,32 @@ fn @dynField() -> i256 [selector=0x3938b4c8, abi_params=[], abi_returns=[word], 
     memory_object_store_field memorystruct<2>, v34, 0, v36
     memory_object_store_field memorystruct<2>, v34, 1, v38
     v39 = memory_object_load_field memorystruct<2>, v34, 1, memptr
-    v40 = memory_object_len memoryarray, v39
-    v41 = eq v40, 2
-    icall require<short_string>, v41, 3, 0x6c656e0000000000000000000000000000000000000000000000000000000000
-    v42 = memory_object_load_field memorystruct<2>, v34, 1, memptr
-    v43 = memory_object_len memoryarray, v42
-    v44 = lt 0, v43
-    v45 = eq v44, false
-    icall panic_if<0x32>, v45
-    v46 = memory_object_load_element memoryarray<1>, v42, 0
-    v47 = and v46, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v48 = eq v47, 0x3938b4c800000000000000000000000000000000000000000000000000000000
-    icall require<short_string>, v48, 2, 0x6530000000000000000000000000000000000000000000000000000000000000
-    v49 = memory_object_load_field memorystruct<2>, v34, 1, memptr
-    v50 = memory_object_len memoryarray, v49
-    v51 = lt 1, v50
-    v52 = eq v51, false
-    icall panic_if<0x32>, v52
-    v53 = memory_object_load_element memoryarray<1>, v49, 1
-    v54 = and v53, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v55 = eq v54, 0x3442156e00000000000000000000000000000000000000000000000000000000
-    icall require<short_string>, v55, 2, 0x6531000000000000000000000000000000000000000000000000000000000000
+    v40 = memory_slice v39
+    v41 = slice_len v40
+    v42 = eq v41, 2
+    icall require<short_string>, v42, 3, 0x6c656e0000000000000000000000000000000000000000000000000000000000
+    v43 = memory_object_load_field memorystruct<2>, v34, 1, memptr
+    v44 = memory_slice v43
+    v45 = slice_len v44
+    v46 = lt 0, v45
+    v47 = eq v46, false
+    icall panic_if<0x32>, v47
+    v48 = memory_slice v43
+    v49 = slice_load_element v48, 0
+    v50 = and v49, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v51 = eq v50, 0x3938b4c800000000000000000000000000000000000000000000000000000000
+    icall require<short_string>, v51, 2, 0x6530000000000000000000000000000000000000000000000000000000000000
+    v52 = memory_object_load_field memorystruct<2>, v34, 1, memptr
+    v53 = memory_slice v52
+    v54 = slice_len v53
+    v55 = lt 1, v54
+    v56 = eq v55, false
+    icall panic_if<0x32>, v56
+    v57 = memory_slice v52
+    v58 = slice_load_element v57, 1
+    v59 = and v58, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v60 = eq v59, 0x3442156e00000000000000000000000000000000000000000000000000000000
+    icall require<short_string>, v60, 2, 0x6531000000000000000000000000000000000000000000000000000000000000
     ret 1
 }
 

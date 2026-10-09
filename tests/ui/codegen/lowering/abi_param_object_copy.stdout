@@ -19,40 +19,42 @@ fn @storedBytes() -> memptr [selector=0xbee7414c, view, abi_params=[], abi_retur
 
 fn @constructor(arg0: memptr, arg1: memptr) [constructor, abi_params=[array<_, u256>, bytes]] {
   bb0:
-    v0 = memory_object_len memoryarray, arg0
-    v1 = sload 0 !metadata(storage=slot(0))
-    v2 = gt v1, v0
-    jumpi v2, bb1, bb2
+    v0 = memory_slice arg0
+    v1 = slice_len v0
+    v2 = sload 0 !metadata(storage=slot(0))
+    v3 = gt v2, v1
+    jumpi v3, bb1, bb2
   bb1:
     jump bb3
   bb3:
-    v3 = phi [bb1: v0], [bb4: v7]
-    v4 = lt v3, v1
-    jumpi v4, bb4, bb5
+    v4 = phi [bb1: v1], [bb4: v8]
+    v5 = lt v4, v2
+    jumpi v5, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    sstore 0, v0 !metadata(storage=slot(0))
+    sstore 0, v1 !metadata(storage=slot(0))
     jump bb6
   bb6:
-    v8 = phi [bb2: 0], [bb7: v13]
-    v9 = lt v8, v0
-    jumpi v9, bb7, bb8
+    v9 = phi [bb2: 0], [bb7: v15]
+    v10 = lt v9, v1
+    jumpi v10, bb7, bb8
   bb8:
     icall @store_storage_bytes, 1, arg1
     ret
   bb7:
-    v10 = memory_object_load_element memoryarray<1>, arg0, v8
-    v11 = storage_array_data_slot 0
-    v12 = add v11, v8
-    sstore v12, v10 !metadata(storage=symbolic(v12))
-    v13 = add v8, 1
+    v11 = memory_slice arg0
+    v12 = slice_load_element v11, v9
+    v13 = storage_array_data_slot 0
+    v14 = add v13, v9
+    sstore v14, v12 !metadata(storage=symbolic(v14))
+    v15 = add v9, 1
     jump bb6
   bb4:
-    v5 = storage_array_data_slot 0
-    v6 = add v5, v3
-    sstore v6, 0 !metadata(storage=symbolic(v6))
-    v7 = add v3, 1
+    v6 = storage_array_data_slot 0
+    v7 = add v6, v4
+    sstore v7, 0 !metadata(storage=symbolic(v7))
+    v8 = add v4, 1
     jump bb3
 }
 

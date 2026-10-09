@@ -16,16 +16,18 @@ fn @runtimeLength() -> i256 [selector=0xb379b2a0, pure, abi_params=[], abi_retur
     v0 = datasize EmptyRuntime_runtime_code_0
     v1 = datasize EmptyRuntime_runtime_code_0, 63, aligned
     v2 = alloc memorybytes, exact, uninitialized, infallible, v1 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v2, v0
-    v3 = memory_object_data memorybytes, v2
-    v4 = datasize EmptyRuntime_runtime_code_0, 31, aligned
-    v5 = ptrtoint memptr v2 to i256
-    v6 = add v5, v4
-    mstore v6, 0
-    v7 = ptrtoint memptr v3 to i256
-    datacopy EmptyRuntime_runtime_code_0, v7, v0
-    v8 = memory_object_len memorybytes, v2
-    ret v8
+    v3 = ptrtoint memptr v2 to i256
+    mstore v3, v0
+    v4 = ptrtoint memptr v2 to i256
+    v5 = add v4, 32
+    v6 = datasize EmptyRuntime_runtime_code_0, 31, aligned
+    v7 = ptrtoint memptr v2 to i256
+    v8 = add v7, v6
+    mstore v8, 0
+    datacopy EmptyRuntime_runtime_code_0, v5, v0
+    v9 = memory_slice v2
+    v10 = slice_len v9
+    ret v10
 }
 
 fn @runtimeCode() -> memptr [selector=0x40e70806, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
@@ -33,14 +35,15 @@ fn @runtimeCode() -> memptr [selector=0x40e70806, pure, abi_params=[], abi_retur
     v0 = datasize EmptyRuntime_runtime_code_0
     v1 = datasize EmptyRuntime_runtime_code_0, 63, aligned
     v2 = alloc memorybytes, exact, uninitialized, infallible, v1 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v2, v0
-    v3 = memory_object_data memorybytes, v2
-    v4 = datasize EmptyRuntime_runtime_code_0, 31, aligned
-    v5 = ptrtoint memptr v2 to i256
-    v6 = add v5, v4
-    mstore v6, 0
-    v7 = ptrtoint memptr v3 to i256
-    datacopy EmptyRuntime_runtime_code_0, v7, v0
+    v3 = ptrtoint memptr v2 to i256
+    mstore v3, v0
+    v4 = ptrtoint memptr v2 to i256
+    v5 = add v4, 32
+    v6 = datasize EmptyRuntime_runtime_code_0, 31, aligned
+    v7 = ptrtoint memptr v2 to i256
+    v8 = add v7, v6
+    mstore v8, 0
+    datacopy EmptyRuntime_runtime_code_0, v5, v0
     ret v2
 }
 

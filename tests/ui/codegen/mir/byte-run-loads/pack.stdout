@@ -3,16 +3,16 @@
 @phase lowered
 fn @three() [selector=0x1158e167, abi_wrapper, pure] {
   bb0:
-    v32 = icall @decode_calldata_type
-    v52 = ptrtoint memptr v32 to i256
-    v0 = mload v52
-    v1 = lt v0, 3
-    jumpi v1, bb1, bb2
+    v39 = icall @decode_calldata_type
+    v44 = ptrtoint memptr v39 to i256
+    v0 = mload v44
+    v2 = lt v0, 3
+    jumpi v2, bb1, bb2
   bb2:
-    v38 = add v52, 32
-    v40 = mload v38
-    v29 = shr 232, v40
-    mstore 128, v29
+    v46 = add v44, 32
+    v47 = mload v46
+    v36 = shr 232, v47
+    mstore 128, v36
     returndata 128, 32
   bb1:
     mstore 128, 0
@@ -21,16 +21,16 @@ fn @three() [selector=0x1158e167, abi_wrapper, pure] {
 
 fn @two() [selector=0x65313149, abi_wrapper, pure] {
   bb0:
-    v22 = icall @decode_calldata_type
-    v37 = ptrtoint memptr v22 to i256
-    v0 = mload v37
-    v1 = lt v0, 2
-    jumpi v1, bb1, bb2
+    v27 = icall @decode_calldata_type
+    v32 = ptrtoint memptr v27 to i256
+    v0 = mload v32
+    v2 = lt v0, 2
+    jumpi v2, bb1, bb2
   bb2:
-    v28 = add v37, 32
-    v30 = mload v28
-    v19 = shr 240, v30
-    mstore 128, v19
+    v34 = add v32, 32
+    v35 = mload v34
+    v24 = shr 240, v35
+    mstore 128, v24
     returndata 128, 32
   bb1:
     mstore 128, 0
@@ -39,19 +39,19 @@ fn @two() [selector=0x65313149, abi_wrapper, pure] {
 
 fn @gapped() [selector=0x63cfbce4, abi_wrapper, pure] {
   bb0:
-    v22 = icall @decode_calldata_type
-    v37 = ptrtoint memptr v22 to i256
-    v0 = mload v37
-    v1 = lt v0, 3
-    jumpi v1, bb1, bb2
+    v27 = icall @decode_calldata_type
+    v32 = ptrtoint memptr v27 to i256
+    v0 = mload v32
+    v2 = lt v0, 3
+    jumpi v2, bb1, bb2
   bb2:
-    v28 = add v37, 32
-    v30 = mload v28
-    v31 = byte 0, v30
-    v10 = shl 8, v31
-    v36 = byte 2, v30
-    v19 = or v10, v36
-    mstore 128, v19
+    v34 = add v32, 32
+    v35 = mload v34
+    v36 = byte 0, v35
+    v13 = shl 8, v36
+    v41 = byte 2, v35
+    v24 = or v13, v41
+    mstore 128, v24
     returndata 128, 32
   bb1:
     mstore 128, 0
@@ -60,25 +60,25 @@ fn @gapped() [selector=0x63cfbce4, abi_wrapper, pure] {
 
 fn @stored() [selector=0xab0edd4e, abi_wrapper, pure] {
   bb0:
-    v36 = icall @decode_calldata_type
-    v59 = ptrtoint memptr v36 to i256
-    v0 = mload v59
-    v1 = lt v0, 3
-    jumpi v1, bb1, bb2
+    v45 = icall @decode_calldata_type
+    v50 = ptrtoint memptr v45 to i256
+    v0 = mload v50
+    v2 = lt v0, 3
+    jumpi v2, bb1, bb2
   bb2:
-    v42 = add v59, 32
-    v44 = mload v42
-    v45 = byte 0, v44
-    v10 = shl 16, v45
-    v48 = add v42, 1
-    mstore8 v48, 74
-    v52 = mload v48
-    v53 = byte 0, v52
-    v23 = shl 8, v53
-    v24 = or v10, v23
-    v58 = byte 1, v52
-    v33 = or v24, v58
-    mstore 128, v33
+    v52 = add v50, 32
+    v53 = mload v52
+    v54 = byte 0, v53
+    v13 = shl 16, v54
+    v57 = add v52, 1
+    mstore8 v57, 74
+    v61 = mload v57
+    v62 = byte 0, v61
+    v30 = shl 8, v62
+    v31 = or v13, v30
+    v67 = byte 1, v61
+    v42 = or v31, v67
+    mstore 128, v42
     returndata 128, 32
   bb1:
     mstore 128, 0
@@ -102,22 +102,22 @@ fn @decode_calldata_type() -> memptr [may_return_memory] {
     jumpi v11, bb3, bb4
   bb4:
     v13 = and v10, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v23 = mload 64 !metadata(memory=scratch)
-    v14 = inttoptr i256 v23 to memptr !metadata(memory=scratch)
-    v24 = add v23, v13
-    v25 = lt v24, v23
-    v26 = gt v24, 0xffffffffffffffff
-    v27 = or v25, v26
-    jumpi v27, bb3, bb6
+    v25 = mload 64 !metadata(memory=scratch)
+    v14 = inttoptr i256 v25 to memptr !metadata(memory=scratch)
+    v26 = add v25, v13
+    v27 = lt v26, v25
+    v28 = gt v26, 0xffffffffffffffff
+    v29 = or v27, v28
+    jumpi v29, bb3, bb6
   bb6:
-    mstore 64, v24 !metadata(memory=scratch)
-    mstore v23, v8
-    v15 = sub v0, v3
-    v16 = gt v8, v15
-    jumpi v16, bb1, bb5
+    mstore 64, v26 !metadata(memory=scratch)
+    mstore v25, v8
+    v16 = sub v0, v3
+    v17 = gt v8, v16
+    jumpi v17, bb1, bb5
   bb5:
-    v19 = add v23, 32
-    calldatacopy v19, v3, v8
+    v22 = add v25, 32
+    calldatacopy v22, v3, v8
     ret v14
   bb3:
     mstore 0, 0x4e487b71 !metadata(memory=scratch)

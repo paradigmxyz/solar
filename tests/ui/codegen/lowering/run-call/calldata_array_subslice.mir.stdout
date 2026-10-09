@@ -38,8 +38,10 @@ fn @word(arg0: calldataslice) -> memptr [selector=0x37948b05, pure, abi_params=[
     v29 = lt v28, 32
     icall panic_if<0x41>, v29
     v30 = alloc memoryarray<1>, exact, uninitialized, infallible, v28
-    set_memory_object_len memoryarray, v30, v9
-    v31 = make_calldata_slice v10, v21
-    memory_object_copy_from_slice memoryarray, v30, v31
+    v31 = ptrtoint memptr v30 to i256
+    mstore v31, v9
+    v32 = make_calldata_slice v10, v21
+    v33 = memory_slice v30
+    slice_copy v33, 0, v32
     ret v30
 }

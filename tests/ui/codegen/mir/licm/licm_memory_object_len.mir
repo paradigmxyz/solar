@@ -5,20 +5,23 @@
 // Element stores with a runtime index address the payload after the length
 // word, so the length read is loop-invariant and moves to the preheader.
 // CHECK-LABEL: @hoist_len_over_element_stores
-// CHECK: +     [[LEN:v[0-9]+]] = memory_object_len memoryarray, arg0
+// CHECK: +     [[VIEW:v[0-9]+]] = memory_slice arg0
+// CHECK-NEXT: +     [[LEN:v[0-9]+]] = slice_len [[VIEW]]
 // CHECK-NEXT: {{^ +}}jump [[HEADER:bb[0-9]+]]
 // CHECK: {{^ +}}[[HEADER]]:
-// CHECK: -     [[LEN]] = memory_object_len memoryarray, arg0
+// CHECK: -     [[VIEW]] = memory_slice arg0
+// CHECK-NEXT: -     [[LEN]] = slice_len [[VIEW]]
 fn @hoist_len_over_element_stores(arg0: memptr) {
   bb0:
     jump bb1
   bb1:
     v0 = phi [bb0: 0], [bb2: v3]
-    v1 = memory_object_len memoryarray, arg0
+    v4 = memory_slice arg0
+    v1 = slice_len v4
     v2 = lt v0, v1
     jumpi v2, bb2, bb3
   bb2:
-    memory_object_store_element memoryarray<1>, arg0, v0, v0
+    slice_store_element v4, v0, v0
     v3 = add v0, 1
     jump bb1
   bb3:
@@ -27,20 +30,23 @@ fn @hoist_len_over_element_stores(arg0: memptr) {
 
 // Byte stores also stay inside the payload of a bytes object.
 // CHECK-LABEL: @hoist_len_over_byte_stores
-// CHECK: +     [[LEN:v[0-9]+]] = memory_object_len memorybytes, arg0
+// CHECK: +     [[VIEW:v[0-9]+]] = memory_slice arg0
+// CHECK-NEXT: +     [[LEN:v[0-9]+]] = slice_len [[VIEW]]
 // CHECK-NEXT: {{^ +}}jump [[HEADER:bb[0-9]+]]
 // CHECK: {{^ +}}[[HEADER]]:
-// CHECK: -     [[LEN]] = memory_object_len memorybytes, arg0
+// CHECK: -     [[VIEW]] = memory_slice arg0
+// CHECK-NEXT: -     [[LEN]] = slice_len [[VIEW]]
 fn @hoist_len_over_byte_stores(arg0: memptr) {
   bb0:
     jump bb1
   bb1:
     v0 = phi [bb0: 0], [bb2: v3]
-    v1 = memory_object_len memorybytes, arg0
+    v4 = memory_slice arg0
+    v1 = slice_len v4
     v2 = lt v0, v1
     jumpi v2, bb2, bb3
   bb2:
-    memory_object_store_byte memorybytes, arg0, v0, 65
+    slice_store_byte v4, v0, 65
     v3 = add v0, 1
     jump bb1
   bb3:
@@ -51,17 +57,20 @@ fn @hoist_len_over_byte_stores(arg0: memptr) {
 // CHECK-LABEL: @keep_len_when_loop_resizes
 // CHECK: {{^ +}}bb1:
 // CHECK-NEXT: {{^ +}}{{v[0-9]+}} = phi
-// CHECK-NEXT: {{^ +}}{{v[0-9]+}} = memory_object_len memoryarray, arg0
+// CHECK-NEXT: {{^ +}}[[VIEW:v[0-9]+]] = memory_slice arg0
+// CHECK-NEXT: {{^ +}}{{v[0-9]+}} = slice_len [[VIEW]]
 fn @keep_len_when_loop_resizes(arg0: memptr) {
   bb0:
     jump bb1
   bb1:
     v0 = phi [bb0: 0], [bb2: v3]
-    v1 = memory_object_len memoryarray, arg0
+    v4 = memory_slice arg0
+    v1 = slice_len v4
     v2 = lt v0, v1
     jumpi v2, bb2, bb3
   bb2:
-    set_memory_object_len memoryarray, arg0, v0
+    v5 = ptrtoint memptr arg0 to i256
+    mstore v5, v0
     v3 = add v0, 1
     jump bb1
   bb3:
@@ -72,13 +81,15 @@ fn @keep_len_when_loop_resizes(arg0: memptr) {
 // CHECK-LABEL: @keep_len_under_unknown_store
 // CHECK: {{^ +}}bb1:
 // CHECK-NEXT: {{^ +}}{{v[0-9]+}} = phi
-// CHECK-NEXT: {{^ +}}{{v[0-9]+}} = memory_object_len memoryarray, arg0
+// CHECK-NEXT: {{^ +}}[[VIEW:v[0-9]+]] = memory_slice arg0
+// CHECK-NEXT: {{^ +}}{{v[0-9]+}} = slice_len [[VIEW]]
 fn @keep_len_under_unknown_store(arg0: memptr, arg1: i256) {
   bb0:
     jump bb1
   bb1:
     v0 = phi [bb0: 0], [bb2: v3]
-    v1 = memory_object_len memoryarray, arg0
+    v4 = memory_slice arg0
+    v1 = slice_len v4
     v2 = lt v0, v1
     jumpi v2, bb2, bb3
   bb2:
@@ -93,21 +104,25 @@ fn @keep_len_under_unknown_store(arg0: memptr, arg1: i256) {
 // CHECK-LABEL: @hoist_len_over_pure_call
 // CHECK: {{^ +}}bb1:
 // CHECK-NEXT: {{^ +}}{{v[0-9]+}} = phi
-// CHECK-NEXT: {{^ +}}{{v[0-9]+}} = memory_object_len memorybytes, arg0
+// CHECK-NEXT: {{^ +}}[[VIEW:v[0-9]+]] = memory_slice arg0
+// CHECK-NEXT: {{^ +}}{{v[0-9]+}} = slice_len [[VIEW]]
 fn @hoist_len_over_pure_call(arg0: memptr) -> memptr {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
-    set_memory_object_len memorybytes, v0, 32
+    v9 = ptrtoint memptr v0 to i256
+    mstore v9, 32
     jump bb1
   bb1:
     v1 = phi [bb0: 0], [bb2: v7]
-    v2 = memory_object_len memorybytes, arg0
+    v8 = memory_slice arg0
+    v2 = slice_len v8
     v3 = lt v1, v2
     jumpi v3, bb2, bb3
   bb2:
-    v4 = memory_object_load_byte memorybytes, arg0, v1
+    v4 = slice_load_byte v8, v1
     v5 = icall @mask_low, v4
-    memory_object_store_byte memorybytes, v0, v1, v5
+    v6 = memory_slice v0
+    slice_store_byte v6, v1, v5
     v7 = add v1, 1
     jump bb1
   bb3:
@@ -122,7 +137,8 @@ fn @mask_low(arg0: i256) -> i256 {
 // A zero-trip loop must not read an arbitrary nominal object's header.
 // CHECK-LABEL: @keep_unexecuted_header
 // CHECK: {{^ +}}bb2:
-// CHECK-NEXT: {{^ +}}{{v[0-9]+}} = memory_object_len memorybytes, arg0
+// CHECK-NEXT: {{^ +}}[[VIEW:v[0-9]+]] = memory_slice arg0
+// CHECK-NEXT: {{^ +}}{{v[0-9]+}} = slice_len [[VIEW]]
 fn @keep_unexecuted_header(arg0: memptr, arg1: i256) -> i256 {
   bb0:
     jump bb1
@@ -132,7 +148,8 @@ fn @keep_unexecuted_header(arg0: memptr, arg1: i256) -> i256 {
     v4 = lt v0, arg1
     jumpi v4, bb2, bb3
   bb2:
-    v2 = memory_object_len memorybytes, arg0
+    v5 = memory_slice arg0
+    v2 = slice_len v5
     v3 = add v0, 1
     jump bb1
   bb3:
@@ -143,14 +160,16 @@ fn @keep_unexecuted_header(arg0: memptr, arg1: i256) -> i256 {
 // CHECK-LABEL: @keep_header_after_size_call
 // CHECK: {{^ +}}bb1:
 // CHECK: {{^ +}}v1 = icall @observe_size
-// CHECK-NEXT: {{^ +}}v2 = memory_object_len memorybytes, arg0
+// CHECK-NEXT: {{^ +}}v2 = memory_slice arg0
+// CHECK-NEXT: {{^ +}}v3 = slice_len v2
 fn @keep_header_after_size_call(arg0: memptr, arg1: i256) -> i256 {
   bb0:
     jump bb1
   bb1:
     v0 = phi [bb0: 0], [bb1: v4]
     v1 = icall @observe_size
-    v2 = memory_object_len memorybytes, arg0
+    v6 = memory_slice arg0
+    v2 = slice_len v6
     v3 = add v1, v2
     v4 = add v0, 1
     v5 = lt v4, arg1

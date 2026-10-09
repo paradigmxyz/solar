@@ -3,16 +3,18 @@
   @module MemoryObjectSliceProjections
   fn @fixed_payload(arg0: memoryslice) -> i256 {
     bb0:
-      v0 = memory_object_data memorystruct, arg0
+      v0 = memory_object_field_addr memorystruct<2>, arg0, 0
       v1 = ptrtoint memptr v0 to i256
       ret v1
   }
   
   fn @dynamic_payload(arg0: memoryslice) -> i256 {
     bb0:
-      v0 = memory_object_data memorybytes, arg0
-      v1 = ptrtoint memptr v0 to i256
-      ret v1
+      v0 = slice_ptr arg0
+      v1 = inttoptr i256 v0 to memptr
+-     v2 = ptrtoint memptr v1 to i256
+-     ret v2
++     ret v0
   }
   
   fn @memory_field(arg0: memoryslice) -> i256 {
@@ -35,7 +37,7 @@
 - fn @fixed_payload(arg0: memoryslice) -> i256 {
 + fn @fixed_payload(arg0: memoryslice) -> i256 [may_return_memory] {
     bb0:
--     v0 = memory_object_data memorystruct, arg0
+-     v0 = memory_object_field_addr memorystruct<2>, arg0, 0
 -     v1 = ptrtoint memptr v0 to i256
 +     v2 = slice_ptr arg0
 +     v3 = inttoptr i256 v2 to memptr
@@ -46,12 +48,9 @@
 - fn @dynamic_payload(arg0: memoryslice) -> i256 {
 + fn @dynamic_payload(arg0: memoryslice) -> i256 [may_return_memory] {
     bb0:
--     v0 = memory_object_data memorybytes, arg0
--     v1 = ptrtoint memptr v0 to i256
-+     v2 = slice_ptr arg0
-+     v3 = inttoptr i256 v2 to memptr
-+     v1 = ptrtoint memptr v3 to i256
-      ret v1
+      v0 = slice_ptr arg0
+      v1 = inttoptr i256 v0 to memptr
+      ret v0
   }
   
 - fn @memory_field(arg0: memoryslice) -> i256 {
@@ -90,11 +89,11 @@
 - fn @dynamic_payload(arg0: memoryslice) -> i256 [may_return_memory] {
 + fn @dynamic_payload(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
     bb0:
--     v2 = slice_ptr arg0
--     v3 = inttoptr i256 v2 to memptr
-+     v3 = inttoptr i256 arg0 to memptr
-      v1 = ptrtoint memptr v3 to i256
-      ret v1
+-     v0 = slice_ptr arg0
+-     v1 = inttoptr i256 v0 to memptr
+-     ret v0
++     v1 = inttoptr i256 arg0 to memptr
++     ret arg0
   }
   
 - fn @memory_field(arg0: memoryslice) -> i256 [may_return_memory] {
@@ -130,10 +129,8 @@
   
   fn @dynamic_payload(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
     bb0:
-      v3 = inttoptr i256 arg0 to memptr
--     v1 = ptrtoint memptr v3 to i256
--     ret v1
-+     ret arg0
+      v1 = inttoptr i256 arg0 to memptr
+      ret arg0
   }
   
   fn @memory_field(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
@@ -162,7 +159,7 @@
   
   fn @dynamic_payload(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
     bb0:
--     v3 = inttoptr i256 arg0 to memptr
+-     v1 = inttoptr i256 arg0 to memptr
       ret arg0
   }
   

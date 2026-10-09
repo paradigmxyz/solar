@@ -89,20 +89,22 @@ fn @callReturnedField() -> i256 [selector=0xee2961ee, view, abi_params=[], abi_r
     v16 = not 31
     v17 = and v14, v16
     v18 = alloc memorybytes, exact, uninitialized, infallible, v17
-    set_memory_object_len memorybytes, v18, v13
-    memory_object_copy_from_slice memorybytes, v18, v12
-    v19 = abi_decode [tuple<function>], v18
-    v20 = memory_object_load_field memorystruct<1>, v19, 0
-    v21 = shr 64, v20
-    v22 = and v21, 0xffffffff
-    v23 = shl 224, v22
-    v24 = shr 32, v21
-    v25 = gas
-    v26 = abi_encode [], selector v23
-    v27 = slice_ptr v26
-    v28 = slice_len v26
-    v29 = staticcall v25, v24, v27, v28, 0, 0
-    jumpi v29, bb3, bb4
+    v19 = ptrtoint memptr v18 to i256
+    mstore v19, v13
+    v20 = memory_slice v18
+    slice_copy v20, 0, v12
+    v21 = abi_decode [tuple<function>], v18
+    v22 = memory_object_load_field memorystruct<1>, v21, 0
+    v23 = shr 64, v22
+    v24 = and v23, 0xffffffff
+    v25 = shl 224, v24
+    v26 = shr 32, v23
+    v27 = gas
+    v28 = abi_encode [], selector v25
+    v29 = slice_ptr v28
+    v30 = slice_len v28
+    v31 = staticcall v27, v26, v29, v30, 0, 0
+    jumpi v31, bb3, bb4
   bb4:
     jumpi true, bb6, bb7
   bb7:
@@ -111,9 +113,9 @@ fn @callReturnedField() -> i256 [selector=0xee2961ee, view, abi_params=[], abi_r
   bb6:
     ret 0
   bb3:
-    v30 = icall returndata_bytes<>
-    v31 = abi_decode [u256], v30
-    ret v31
+    v32 = icall returndata_bytes<>
+    v33 = abi_decode [u256], v32
+    ret v33
   bb5:
     ret 0
 }

@@ -27,118 +27,122 @@ fn @testTypedConstant() -> i1 [selector=0x62655512, pure, abi_params=[], abi_ret
   bb0:
     v0 = icall @auth
     v1 = memory_object_load_field memorystruct<6>, v0, 0, memptr
-    v2 = memory_object_len memorybytes, v1
-    v3 = lt 32, v2
-    v4 = eq v3, false
-    icall panic_if<0x32>, v4
-    v5 = memory_object_load_byte memorybytes, v1, 32
-    v6 = shl 248, v5
-    v7 = and v6, 0x100000000000000000000000000000000000000000000000000000000000000
-    v8 = and v7, 0xff00000000000000000000000000000000000000000000000000000000000000
-    v9 = eq v8, 0x100000000000000000000000000000000000000000000000000000000000000
-    ret v9
+    v2 = memory_slice v1
+    v3 = slice_len v2
+    v4 = lt 32, v3
+    v5 = eq v4, false
+    icall panic_if<0x32>, v5
+    v6 = memory_slice v1
+    v7 = slice_load_byte v6, 32
+    v8 = shl 248, v7
+    v9 = and v8, 0x100000000000000000000000000000000000000000000000000000000000000
+    v10 = and v9, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v11 = eq v10, 0x100000000000000000000000000000000000000000000000000000000000000
+    ret v11
 }
 
 fn @auth() -> memptr [pure] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v0, 62
-    v1 = memory_object_data memorybytes, v0
-    v2 = ptrtoint memptr v1 to i256
-    datacopy literal_0, v2, 64
-    v3 = alloc memorystruct<6>, exact, uninitialized, infallible, 192 !metadata(preserves_fmp)
-    v4 = ptrtoint memptr v3 to i256
-    memory_zero v4, 192
-    memory_object_store_field memorystruct<6>, v3, 0, 96
-    memory_object_store_field memorystruct<6>, v3, 1, 96
-    v5 = ptrtoint memptr v0 to i256
-    memory_object_store_field memorystruct<6>, v3, 0, v5
-    v6 = abi_encode_packed (data hex"7b252274797065223a22776562617574686e2e676574220ff9062c226368616c6c656e6765223a22466722d2df7d")
-    v7 = ptrtoint memptr v6 to i256
-    memory_object_store_field memorystruct<6>, v3, 1, v7
-    memory_object_store_field memorystruct<6>, v3, 2, 27
-    memory_object_store_field memorystruct<6>, v3, 3, 2
-    ret v3
+    v1 = ptrtoint memptr v0 to i256
+    mstore v1, 62
+    v2 = ptrtoint memptr v0 to i256
+    v3 = add v2, 32
+    datacopy literal_0, v3, 64
+    v4 = alloc memorystruct<6>, exact, uninitialized, infallible, 192 !metadata(preserves_fmp)
+    v5 = ptrtoint memptr v4 to i256
+    memory_zero v5, 192
+    memory_object_store_field memorystruct<6>, v4, 0, 96
+    memory_object_store_field memorystruct<6>, v4, 1, 96
+    v6 = ptrtoint memptr v0 to i256
+    memory_object_store_field memorystruct<6>, v4, 0, v6
+    v7 = abi_encode_packed (data hex"7b252274797065223a22776562617574686e2e676574220ff9062c226368616c6c656e6765223a22466722d2df7d")
+    v8 = ptrtoint memptr v7 to i256
+    memory_object_store_field memorystruct<6>, v4, 1, v8
+    memory_object_store_field memorystruct<6>, v4, 2, 27
+    memory_object_store_field memorystruct<6>, v4, 3, 2
+    ret v4
 }
 
 fn @check(arg0: i256, arg1: memptr) -> i256 [pure] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v0, 2
-    v1 = memory_object_data memorybytes, v0
-    v2 = ptrtoint memptr v1 to i256
-    mstore v2, 0x4667000000000000000000000000000000000000000000000000000000000000
-    v3 = ptrtoint memptr arg1 to i256
-    v4 = add v3, 32
-    v5 = mload v4
+    v1 = ptrtoint memptr v0 to i256
+    mstore v1, 2
+    v2 = ptrtoint memptr v0 to i256
+    v3 = add v2, 32
+    mstore v3, 0x4667000000000000000000000000000000000000000000000000000000000000
+    v4 = ptrtoint memptr arg1 to i256
+    v5 = add v4, 32
     v6 = mload v5
-    v7 = add v5, 32
-    v8 = ptrtoint memptr arg1 to i256
-    v9 = add v8, 64
-    v10 = mload v9
-    v11 = ptrtoint memptr arg1 to i256
-    v12 = add v11, 96
-    v13 = mload v12
-    v14 = ptrtoint memptr v0 to i256
-    v15 = mload v14
-    v16 = add v15, 13
-    v17 = shr 152, 0x226368616c6c656e6765223a2200000000000000000000000000000000000000
-    v18 = ptrtoint memptr v0 to i256
-    mstore v18, v17
-    v19 = add v16, v10
-    v20 = lt v19, v6
-    v21 = zext i1 v20 to i256
-    v22 = add v7, v10
-    v23 = add v22, v16
-    v24 = mload v23
-    v25 = byte 0, v24
-    v26 = eq v25, 34
-    v27 = zext i1 v26 to i256
-    v28 = and v27, v21
-    v29 = ptrtoint memptr v0 to i256
-    v30 = add v29, 19
-    v31 = keccak256 v30, v16
-    v32 = add v7, v10
-    v33 = keccak256 v32, v16
-    v34 = eq v33, v31
-    v35 = zext i1 v34 to i256
-    v36 = and v35, v28
-    v37 = add 20, v13
-    v38 = lt v37, v6
-    v39 = zext i1 v38 to i256
-    v40 = or v13, v10
-    v41 = shr 128, v40
-    v42 = lt v41, v39
-    v43 = zext i1 v42 to i256
-    v44 = shr 88, 0x2274797065223a22776562617574686e2e676574220000000000000000000000
-    v45 = add v7, v13
-    v46 = mload v45
-    v47 = shr 88, v46
-    v48 = eq v47, v44
-    v49 = zext i1 v48 to i256
-    v50 = and v49, v43
-    v51 = and v50, v36
-    v52 = ptrtoint memptr v0 to i256
-    mstore v52, v15
-    v53 = ptrtoint memptr arg1 to i256
-    v54 = mload v53
+    v7 = mload v6
+    v8 = add v6, 32
+    v9 = ptrtoint memptr arg1 to i256
+    v10 = add v9, 64
+    v11 = mload v10
+    v12 = ptrtoint memptr arg1 to i256
+    v13 = add v12, 96
+    v14 = mload v13
+    v15 = ptrtoint memptr v0 to i256
+    v16 = mload v15
+    v17 = add v16, 13
+    v18 = shr 152, 0x226368616c6c656e6765223a2200000000000000000000000000000000000000
+    v19 = ptrtoint memptr v0 to i256
+    mstore v19, v18
+    v20 = add v17, v11
+    v21 = lt v20, v7
+    v22 = zext i1 v21 to i256
+    v23 = add v8, v11
+    v24 = add v23, v17
+    v25 = mload v24
+    v26 = byte 0, v25
+    v27 = eq v26, 34
+    v28 = zext i1 v27 to i256
+    v29 = and v28, v22
+    v30 = ptrtoint memptr v0 to i256
+    v31 = add v30, 19
+    v32 = keccak256 v31, v17
+    v33 = add v8, v11
+    v34 = keccak256 v33, v17
+    v35 = eq v34, v32
+    v36 = zext i1 v35 to i256
+    v37 = and v36, v29
+    v38 = add 20, v14
+    v39 = lt v38, v7
+    v40 = zext i1 v39 to i256
+    v41 = or v14, v11
+    v42 = shr 128, v41
+    v43 = lt v42, v40
+    v44 = zext i1 v43 to i256
+    v45 = shr 88, 0x2274797065223a22776562617574686e2e676574220000000000000000000000
+    v46 = add v8, v14
+    v47 = mload v46
+    v48 = shr 88, v47
+    v49 = eq v48, v45
+    v50 = zext i1 v49 to i256
+    v51 = and v50, v44
+    v52 = and v51, v37
+    v53 = ptrtoint memptr v0 to i256
+    mstore v53, v16
+    v54 = ptrtoint memptr arg1 to i256
     v55 = mload v54
-    v56 = eq arg0, 0
-    v57 = zext i1 v56 to i256
-    v58 = eq v57, 0
-    v59 = zext i1 v58 to i256
-    v60 = shl 2, v59
-    v61 = or 1, v60
-    v62 = ptrtoint memptr arg1 to i256
-    v63 = mload v62
-    v64 = add v63, 33
-    v65 = mload v64
-    v66 = and v65, v61
-    v67 = eq v66, v61
-    v68 = zext i1 v67 to i256
-    v69 = gt v55, 32
-    v70 = zext i1 v69 to i256
-    v71 = and v51, v70
-    v72 = and v71, v68
-    ret v72
+    v56 = mload v55
+    v57 = eq arg0, 0
+    v58 = zext i1 v57 to i256
+    v59 = eq v58, 0
+    v60 = zext i1 v59 to i256
+    v61 = shl 2, v60
+    v62 = or 1, v61
+    v63 = ptrtoint memptr arg1 to i256
+    v64 = mload v63
+    v65 = add v64, 33
+    v66 = mload v65
+    v67 = and v66, v62
+    v68 = eq v67, v62
+    v69 = zext i1 v68 to i256
+    v70 = gt v56, 32
+    v71 = zext i1 v70 to i256
+    v72 = and v52, v71
+    v73 = and v72, v69
+    ret v73
 }

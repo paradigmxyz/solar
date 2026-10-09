@@ -16,29 +16,30 @@ fn @main() -> i1 [selector=0xdffeadd0, abi_params=[], abi_returns=[word<bool>], 
     v6 = shr 32, v3
     v7 = gas
     v8 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v8, 10
-    v9 = memory_object_data memorybytes, v8
-    v10 = ptrtoint memptr v9 to i256
-    mstore v10, 0x74657374537472696e6700000000000000000000000000000000000000000000
-    v11 = abi_encode [memory_bytes], selector v5, args v8
-    v12 = slice_ptr v11
-    v13 = slice_len v11
-    v14 = call v7, v6, 0, v12, v13, 0, 32
-    jumpi v14, bb2, bb1
+    v9 = ptrtoint memptr v8 to i256
+    mstore v9, 10
+    v10 = ptrtoint memptr v8 to i256
+    v11 = add v10, 32
+    mstore v11, 0x74657374537472696e6700000000000000000000000000000000000000000000
+    v12 = abi_encode [memory_bytes], selector v5, args v8
+    v13 = slice_ptr v12
+    v14 = slice_len v12
+    v15 = call v7, v6, 0, v13, v14, 0, 32
+    jumpi v15, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v15 = returndatasize
-    v16 = lt v15, 32
-    icall revert_if<tuple_data_too_short>, v16
-    v17 = add 0, 0
-    v18 = mload v17
-    v19 = eq v18, 0
-    v20 = eq v19, false
-    v21 = zext i1 v20 to i256
-    v22 = eq v18, v21
-    v23 = eq v22, false
-    icall revert_if<empty>, v23
-    v24 = ne v18, 0
-    ret v24
+    v16 = returndatasize
+    v17 = lt v16, 32
+    icall revert_if<tuple_data_too_short>, v17
+    v18 = add 0, 0
+    v19 = mload v18
+    v20 = eq v19, 0
+    v21 = eq v20, false
+    v22 = zext i1 v21 to i256
+    v23 = eq v19, v22
+    v24 = eq v23, false
+    icall revert_if<empty>, v24
+    v25 = ne v19, 0
+    ret v25
 }

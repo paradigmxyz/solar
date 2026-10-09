@@ -35,9 +35,11 @@ fn @newLength(arg0: i256) -> i256 [selector=0x09661d83, pure, abi_params=[u256],
     v18 = eq v17, 0
     icall panic_if<0x41>, v18
     v19 = alloc memoryarray<1>, exact, zeroed, panic, v12
-    set_memory_object_len memoryarray, v19, v2
-    v20 = memory_object_len memoryarray, v19
-    ret v20
+    v20 = ptrtoint memptr v19 to i256
+    mstore v20, v2
+    v21 = memory_slice v19
+    v22 = slice_len v21
+    ret v22
 }
 
 fn @newBytesLength(arg0: i256) -> i256 [selector=0x4f901bea, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
@@ -51,9 +53,11 @@ fn @newBytesLength(arg0: i256) -> i256 [selector=0x4f901bea, pure, abi_params=[u
     v5 = not 31
     v6 = and v3, v5
     v7 = alloc memorybytes, exact, zeroed, panic, v6
-    set_memory_object_len memorybytes, v7, v2
-    v8 = memory_object_len memorybytes, v7
-    ret v8
+    v8 = ptrtoint memptr v7 to i256
+    mstore v8, v2
+    v9 = memory_slice v7
+    v10 = slice_len v9
+    ret v10
 }
 
 fn @mappingKey(arg0: i256) -> i256 [selector=0xaf28bd9d, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {

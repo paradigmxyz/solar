@@ -30,8 +30,7 @@ contract ContractNames {
     string private constant NAME = type(ConcreteTarget).name;
 
     // SEMANTIC-LABEL: fn @concrete()
-    // SEMANTIC: [[VIEW:v[0-9]+]] = memory_slice
-    // SEMANTIC-NEXT: [[DATA:v[0-9]+]] = slice_ptr [[VIEW]]
+    // SEMANTIC: [[DATA:v[0-9]+]] = add {{v[0-9]+}}, 32
     // SEMANTIC-NEXT: mstore [[DATA]], 0x436f6e6372657465546172676574000000000000000000000000000000000000
     // CHECK-LABEL: @module ContractNames
     // CHECK: mstore 160, 36

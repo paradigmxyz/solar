@@ -8,25 +8,29 @@ fn @decode() -> struct0 [selector=0xc0f8940c, pure, abi_params=[], abi_returns=[
     v0 = not 31
     v1 = and 128, v0
     v2 = alloc memorybytes, exact, zeroed, panic, v1
-    set_memory_object_len memorybytes, v2, 65
     v3 = ptrtoint memptr v2 to i256
-    v4 = add v3, 32
-    mstore v4, 32
-    v5 = ptrtoint memptr v2 to i256
-    v6 = add v5, 64
-    mstore v6, 1
-    v7 = ptrtoint memptr v2 to i256
-    v8 = add v7, 96
-    mstore8 v8, 122
-    v9 = abi_decode [bytes], v2
-    v10 = memory_object_len memorybytes, v9
-    v11 = memory_object_len memorybytes, v9
-    v12 = lt 0, v11
-    v13 = eq v12, false
-    icall panic_if<0x32>, v13
-    v14 = memory_object_load_byte memorybytes, v9, 0
-    v15 = shl 248, v14
-    v16 = insert_value struct0, undef struct0, 0, v10
-    v17 = insert_value struct0, v16, 1, v15
-    ret v17
+    mstore v3, 65
+    v4 = ptrtoint memptr v2 to i256
+    v5 = add v4, 32
+    mstore v5, 32
+    v6 = ptrtoint memptr v2 to i256
+    v7 = add v6, 64
+    mstore v7, 1
+    v8 = ptrtoint memptr v2 to i256
+    v9 = add v8, 96
+    mstore8 v9, 122
+    v10 = abi_decode [bytes], v2
+    v11 = memory_slice v10
+    v12 = slice_len v11
+    v13 = memory_slice v10
+    v14 = slice_len v13
+    v15 = lt 0, v14
+    v16 = eq v15, false
+    icall panic_if<0x32>, v16
+    v17 = memory_slice v10
+    v18 = slice_load_byte v17, 0
+    v19 = shl 248, v18
+    v20 = insert_value struct0, undef struct0, 0, v12
+    v21 = insert_value struct0, v20, 1, v19
+    ret v21
 }

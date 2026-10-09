@@ -77,12 +77,14 @@ fn @signedModifier() -> i256 [selector=0xbea1d853, pure, abi_params=[], abi_retu
 fn @signedSource() -> struct0 [selector=0xeacc97f1, pure, abi_params=[], abi_returns=[word<i8>, memory_bytes], abi_return_params=[i8, bytes]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
-    set_memory_object_len memorybytes, v0, 0
-    v1 = memory_object_data memorybytes, v0
-    v2 = sext i8 255 to i256
-    v3 = insert_value struct0, undef struct0, 0, v2
-    v4 = insert_value struct0, v3, 1, v0
-    ret v4
+    v1 = ptrtoint memptr v0 to i256
+    mstore v1, 0
+    v2 = ptrtoint memptr v0 to i256
+    v3 = add v2, 32
+    v4 = sext i8 255 to i256
+    v5 = insert_value struct0, undef struct0, 0, v4
+    v6 = insert_value struct0, v5, 1, v0
+    ret v6
 }
 
 fn @signedTry(arg0: i1) -> i256 [selector=0x3ac87366, view, abi_params=[bool], abi_returns=[word], abi_return_params=[i256]] {

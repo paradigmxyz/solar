@@ -2,20 +2,24 @@
 @module UserDefinedOperators
 fn @addressEq(arg0: memptr) -> i1 [selector=0x83ede5a4, pure, abi_params=[array<_, address>], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = memory_object_len memoryarray, arg0
-    v1 = lt 0, v0
-    v2 = eq v1, false
-    icall panic_if<0x32>, v2
-    v3 = memory_object_load_element memoryarray<1>, arg0, 0
-    v4 = trunc i256 v3 to i160
-    v5 = memory_object_len memoryarray, arg0
-    v6 = lt 1, v5
-    v7 = eq v6, false
-    icall panic_if<0x32>, v7
-    v8 = memory_object_load_element memoryarray<1>, arg0, 1
-    v9 = trunc i256 v8 to i160
-    v10 = icall @sameAccount, v4, v9
-    ret v10
+    v0 = memory_slice arg0
+    v1 = slice_len v0
+    v2 = lt 0, v1
+    v3 = eq v2, false
+    icall panic_if<0x32>, v3
+    v4 = memory_slice arg0
+    v5 = slice_load_element v4, 0
+    v6 = trunc i256 v5 to i160
+    v7 = memory_slice arg0
+    v8 = slice_len v7
+    v9 = lt 1, v8
+    v10 = eq v9, false
+    icall panic_if<0x32>, v10
+    v11 = memory_slice arg0
+    v12 = slice_load_element v11, 1
+    v13 = trunc i256 v12 to i160
+    v14 = icall @sameAccount, v6, v13
+    ret v14
 }
 
 fn @add_(arg0: i256, arg1: i256) -> i256 [selector=0xd1cbf1c5, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {

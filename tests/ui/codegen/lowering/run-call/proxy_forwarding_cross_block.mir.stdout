@@ -166,37 +166,38 @@ fn @fixedRange() -> i256 [selector=0x5d040bd2, abi_params=[], abi_returns=[word]
     v25 = not 31
     v26 = and 223, v25
     v27 = alloc memorybytes, exact, zeroed, panic, v26
-    set_memory_object_len memorybytes, v27, 160
-    v28 = abi_encode [word, word, word, memory_bytes], selector 0x5269df1a00000000000000000000000000000000000000000000000000000000, args 1, 2, 3, v27
-    v29 = slice_ptr v28
-    v30 = slice_len v28
-    v31 = zext i160 v22 to i256
-    v32 = extcodesize v31
-    v33 = eq v32, 0
-    icall revert_if<target_contract_has_no_code>, v33
-    v34 = zext i160 v22 to i256
-    v35 = call v24, v34, 0, v29, v30, 0, 0
-    jumpi v35, bb6, bb5
+    v28 = ptrtoint memptr v27 to i256
+    mstore v28, 160
+    v29 = abi_encode [word, word, word, memory_bytes], selector 0x5269df1a00000000000000000000000000000000000000000000000000000000, args 1, 2, 3, v27
+    v30 = slice_ptr v29
+    v31 = slice_len v29
+    v32 = zext i160 v22 to i256
+    v33 = extcodesize v32
+    v34 = eq v33, 0
+    icall revert_if<target_contract_has_no_code>, v34
+    v35 = zext i160 v22 to i256
+    v36 = call v24, v35, 0, v30, v31, 0, 0
+    jumpi v36, bb6, bb5
   bb5:
     revert_returndata
   bb6:
-    v36 = gas
-    v37 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
-    v38 = slice_ptr v37
-    v39 = slice_len v37
-    v40 = zext i160 v22 to i256
-    v41 = staticcall v36, v40, v38, v39, 0, 32
-    jumpi v41, bb8, bb7
+    v37 = gas
+    v38 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
+    v39 = slice_ptr v38
+    v40 = slice_len v38
+    v41 = zext i160 v22 to i256
+    v42 = staticcall v37, v41, v39, v40, 0, 32
+    jumpi v42, bb8, bb7
   bb7:
     revert_returndata
   bb8:
-    v42 = returndatasize
-    v43 = lt v42, 32
-    icall revert_if<tuple_data_too_short>, v43
-    v44 = add 0, 0
-    v45 = mload v44
-    v46 = eq v45, 166
-    icall require<short_string>, v46, 5, 0x6669786564000000000000000000000000000000000000000000000000000000
+    v43 = returndatasize
+    v44 = lt v43, 32
+    icall revert_if<tuple_data_too_short>, v44
+    v45 = add 0, 0
+    v46 = mload v45
+    v47 = eq v46, 166
+    icall require<short_string>, v47, 5, 0x6669786564000000000000000000000000000000000000000000000000000000
     ret 1
 }
 
@@ -242,37 +243,38 @@ fn @crossBlock() -> i256 [selector=0xb0694ed5, abi_params=[], abi_returns=[word]
     v25 = not 31
     v26 = and 223, v25
     v27 = alloc memorybytes, exact, zeroed, panic, v26
-    set_memory_object_len memorybytes, v27, 160
-    v28 = abi_encode [word, word, word, memory_bytes], selector 0x5269df1a00000000000000000000000000000000000000000000000000000000, args 4, 5, 6, v27
-    v29 = slice_ptr v28
-    v30 = slice_len v28
-    v31 = zext i160 v22 to i256
-    v32 = extcodesize v31
-    v33 = eq v32, 0
-    icall revert_if<target_contract_has_no_code>, v33
-    v34 = zext i160 v22 to i256
-    v35 = call v24, v34, 0, v29, v30, 0, 0
-    jumpi v35, bb6, bb5
+    v28 = ptrtoint memptr v27 to i256
+    mstore v28, 160
+    v29 = abi_encode [word, word, word, memory_bytes], selector 0x5269df1a00000000000000000000000000000000000000000000000000000000, args 4, 5, 6, v27
+    v30 = slice_ptr v29
+    v31 = slice_len v29
+    v32 = zext i160 v22 to i256
+    v33 = extcodesize v32
+    v34 = eq v33, 0
+    icall revert_if<target_contract_has_no_code>, v34
+    v35 = zext i160 v22 to i256
+    v36 = call v24, v35, 0, v30, v31, 0, 0
+    jumpi v36, bb6, bb5
   bb5:
     revert_returndata
   bb6:
-    v36 = gas
-    v37 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
-    v38 = slice_ptr v37
-    v39 = slice_len v37
-    v40 = zext i160 v22 to i256
-    v41 = staticcall v36, v40, v38, v39, 0, 32
-    jumpi v41, bb8, bb7
+    v37 = gas
+    v38 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
+    v39 = slice_ptr v38
+    v40 = slice_len v38
+    v41 = zext i160 v22 to i256
+    v42 = staticcall v37, v41, v39, v40, 0, 32
+    jumpi v42, bb8, bb7
   bb7:
     revert_returndata
   bb8:
-    v42 = returndatasize
-    v43 = lt v42, 32
-    icall revert_if<tuple_data_too_short>, v43
-    v44 = add 0, 0
-    v45 = mload v44
-    v46 = eq v45, 175
-    icall require<short_string>, v46, 11, 0x63726f737320626c6f636b000000000000000000000000000000000000000000
+    v43 = returndatasize
+    v44 = lt v43, 32
+    icall revert_if<tuple_data_too_short>, v44
+    v45 = add 0, 0
+    v46 = mload v45
+    v47 = eq v46, 175
+    icall require<short_string>, v47, 11, 0x63726f737320626c6f636b000000000000000000000000000000000000000000
     ret 1
 }
 
@@ -320,15 +322,16 @@ fn @dynamicRevert() -> i256 [selector=0x5dbb0715, abi_params=[], abi_returns=[wo
     v27 = icall returndata_bytes<>
     v28 = eq v26, false
     icall require<short_string>, v28, 7, 0x7375636365737300000000000000000000000000000000000000000000000000
-    v29 = memory_object_len memorybytes, v27
-    v30 = eq v29, 228
-    icall require<short_string>, v30, 6, 0x6c656e6774680000000000000000000000000000000000000000000000000000
-    v31 = ptrtoint memptr v27 to i256
-    v32 = add v31, 32
-    v33 = mload v32
-    v34 = shl 0, 0x1234
-    v35 = eq v33, v34
-    icall require<short_string>, v35, 7, 0x7061796c6f616400000000000000000000000000000000000000000000000000
+    v29 = memory_slice v27
+    v30 = slice_len v29
+    v31 = eq v30, 228
+    icall require<short_string>, v31, 6, 0x6c656e6774680000000000000000000000000000000000000000000000000000
+    v32 = ptrtoint memptr v27 to i256
+    v33 = add v32, 32
+    v34 = mload v33
+    v35 = shl 0, 0x1234
+    v36 = eq v34, v35
+    icall require<short_string>, v36, 7, 0x7061796c6f616400000000000000000000000000000000000000000000000000
     ret 1
 }
 

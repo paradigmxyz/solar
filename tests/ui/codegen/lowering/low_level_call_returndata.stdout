@@ -11,20 +11,21 @@ fn @safeTransfer(arg0: i160, arg1: i160, arg2: i256) [selector=0xd1660f99, abi_p
   bb2:
     jump bb3
   bb1:
-    v5 = memory_object_len memorybytes, v4
-    v6 = eq v5, 0
-    jumpi v6, bb5, bb4
+    v5 = memory_slice v4
+    v6 = slice_len v5
+    v7 = eq v6, 0
+    jumpi v7, bb5, bb4
   bb4:
-    v7 = abi_decode [bool], v4
+    v8 = abi_decode [bool], v4
     jump bb6
   bb5:
     jump bb6
   bb6:
-    v8 = phi [bb4: v7], [bb5: true]
+    v9 = phi [bb4: v8], [bb5: true]
     jump bb3
   bb3:
-    v9 = phi [bb6: v8], [bb2: false]
-    icall require<short_string>, v9, 2, 0x5446000000000000000000000000000000000000000000000000000000000000
+    v10 = phi [bb6: v9], [bb2: false]
+    icall require<short_string>, v10, 2, 0x5446000000000000000000000000000000000000000000000000000000000000
     ret
 }
 

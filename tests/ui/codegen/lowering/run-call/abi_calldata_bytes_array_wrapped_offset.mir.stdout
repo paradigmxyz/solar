@@ -46,8 +46,10 @@ fn @first(arg0: calldataslice) -> memptr [selector=0xcf452bd8, pure, abi_params=
     v33 = not 31
     v34 = and v31, v33
     v35 = alloc memorybytes, exact, uninitialized, infallible, v34
-    set_memory_object_len memorybytes, v35, v30
-    memory_object_copy_from_slice memorybytes, v35, v23
+    v36 = ptrtoint memptr v35 to i256
+    mstore v36, v30
+    v37 = memory_slice v35
+    slice_copy v37, 0, v23
     ret v35
 }
 

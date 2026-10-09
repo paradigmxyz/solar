@@ -27,37 +27,41 @@ fn @slice(arg0: calldataslice, arg1: i256) -> memptr [selector=0x8b150516, pure,
     v18 = not 31
     v19 = and v16, v18
     v20 = alloc memorybytes, exact, uninitialized, infallible, v19
-    set_memory_object_len memorybytes, v20, v15
-    memory_object_copy_from_slice memorybytes, v20, v8
-    v21 = slice_ptr arg0
-    v22 = slice_len arg0
-    v23 = gt v22, v22
-    v24 = lt v22, arg1
-    v25 = or v23, v24
-    v26 = zext i1 v25 to i256
-    icall revert_if<empty>, v25
-    v27 = sub v22, arg1
-    v28 = add v21, arg1
-    v29 = make_calldata_slice v28, v27
-    v30 = slice_ptr v29
-    v31 = slice_len v29
-    v32 = gt v31, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v32
-    v33 = calldatasize
-    v34 = sub v33, v31
-    v35 = sgt v30, v34
-    icall revert_if<calldata_tail_too_short>, v35
-    v36 = slice_len v29
-    v37 = add v36, 63
-    v38 = lt v37, v36
-    icall panic_if<0x41>, v38
-    v39 = not 31
-    v40 = and v37, v39
-    v41 = alloc memorybytes, exact, uninitialized, infallible, v40
-    set_memory_object_len memorybytes, v41, v36
-    memory_object_copy_from_slice memorybytes, v41, v29
-    v42 = icall concat<memorybytes, memorybytes>, v20, v41
-    ret v42
+    v21 = ptrtoint memptr v20 to i256
+    mstore v21, v15
+    v22 = memory_slice v20
+    slice_copy v22, 0, v8
+    v23 = slice_ptr arg0
+    v24 = slice_len arg0
+    v25 = gt v24, v24
+    v26 = lt v24, arg1
+    v27 = or v25, v26
+    v28 = zext i1 v27 to i256
+    icall revert_if<empty>, v27
+    v29 = sub v24, arg1
+    v30 = add v23, arg1
+    v31 = make_calldata_slice v30, v29
+    v32 = slice_ptr v31
+    v33 = slice_len v31
+    v34 = gt v33, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v34
+    v35 = calldatasize
+    v36 = sub v35, v33
+    v37 = sgt v32, v36
+    icall revert_if<calldata_tail_too_short>, v37
+    v38 = slice_len v31
+    v39 = add v38, 63
+    v40 = lt v39, v38
+    icall panic_if<0x41>, v40
+    v41 = not 31
+    v42 = and v39, v41
+    v43 = alloc memorybytes, exact, uninitialized, infallible, v42
+    v44 = ptrtoint memptr v43 to i256
+    mstore v44, v38
+    v45 = memory_slice v43
+    slice_copy v45, 0, v31
+    v46 = icall concat<memorybytes, memorybytes>, v20, v43
+    ret v46
 }
 
 fn @segment(arg0: calldataslice, arg1: i256, arg2: i256) -> memptr [selector=0xdfcfbb62, pure, abi_params=[bytes, u256, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
@@ -87,8 +91,10 @@ fn @segment(arg0: calldataslice, arg1: i256, arg2: i256) -> memptr [selector=0xd
     v18 = not 31
     v19 = and v16, v18
     v20 = alloc memorybytes, exact, uninitialized, infallible, v19
-    set_memory_object_len memorybytes, v20, v15
-    memory_object_copy_from_slice memorybytes, v20, v8
+    v21 = ptrtoint memptr v20 to i256
+    mstore v21, v15
+    v22 = memory_slice v20
+    slice_copy v22, 0, v8
     ret v20
 }
 
@@ -129,7 +135,9 @@ fn @nested(arg0: calldataslice, arg1: i256, arg2: i256, arg3: i256, arg4: i256) 
     v27 = not 31
     v28 = and v25, v27
     v29 = alloc memorybytes, exact, uninitialized, infallible, v28
-    set_memory_object_len memorybytes, v29, v24
-    memory_object_copy_from_slice memorybytes, v29, v17
+    v30 = ptrtoint memptr v29 to i256
+    mstore v30, v24
+    v31 = memory_slice v29
+    slice_copy v31, 0, v17
     ret v29
 }

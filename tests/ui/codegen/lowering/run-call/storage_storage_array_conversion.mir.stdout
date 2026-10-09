@@ -107,48 +107,50 @@ fn @dynamic() -> i256 [selector=0x4bd54f04, abi_params=[], abi_returns=[word], a
     sstore 1, v82 !metadata(storage=slot(1))
     v85 = icall @load_storage_packed_array_8_0, 0
     v86 = ptrtoint memptr v85 to i256
-    v87 = memory_object_len memoryarray, v85
-    v88 = sload 1 !metadata(storage=slot(1))
-    v89 = gt v88, v87
-    jumpi v89, bb1, bb2
+    v87 = memory_slice v85
+    v88 = slice_len v87
+    v89 = sload 1 !metadata(storage=slot(1))
+    v90 = gt v89, v88
+    jumpi v90, bb1, bb2
   bb1:
     jump bb3
   bb3:
-    v90 = phi [bb1: v87], [bb4: v94]
-    v91 = lt v90, v88
-    jumpi v91, bb4, bb5
+    v91 = phi [bb1: v88], [bb4: v95]
+    v92 = lt v91, v89
+    jumpi v92, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    sstore 1, v87 !metadata(storage=slot(1))
+    sstore 1, v88 !metadata(storage=slot(1))
     jump bb6
   bb6:
-    v95 = phi [bb2: 0], [bb7: v100]
-    v96 = lt v95, v87
-    jumpi v96, bb7, bb8
+    v96 = phi [bb2: 0], [bb7: v102]
+    v97 = lt v96, v88
+    jumpi v97, bb7, bb8
   bb8:
-    v101 = sload 1 !metadata(storage=slot(1))
-    v102 = sload 1 !metadata(storage=slot(1))
-    v103 = lt 4, v102
-    v104 = eq v103, false
-    icall panic_if<0x32>, v104
-    v105 = storage_array_data_slot 1
-    v106 = add v105, 4
-    v107 = sload v106 !metadata(storage=offset(v105, 4))
-    v108 = checked_add u256, v101, v107
-    ret v108
+    v103 = sload 1 !metadata(storage=slot(1))
+    v104 = sload 1 !metadata(storage=slot(1))
+    v105 = lt 4, v104
+    v106 = eq v105, false
+    icall panic_if<0x32>, v106
+    v107 = storage_array_data_slot 1
+    v108 = add v107, 4
+    v109 = sload v108 !metadata(storage=offset(v107, 4))
+    v110 = checked_add u256, v103, v109
+    ret v110
   bb7:
-    v97 = memory_object_load_element memoryarray<1>, v85, v95
-    v98 = storage_array_data_slot 1
-    v99 = add v98, v95
-    sstore v99, v97 !metadata(storage=symbolic(v99))
-    v100 = add v95, 1
+    v98 = memory_slice v85
+    v99 = slice_load_element v98, v96
+    v100 = storage_array_data_slot 1
+    v101 = add v100, v96
+    sstore v101, v99 !metadata(storage=symbolic(v101))
+    v102 = add v96, 1
     jump bb6
   bb4:
-    v92 = storage_array_data_slot 1
-    v93 = add v92, v90
-    sstore v93, 0 !metadata(storage=symbolic(v93))
-    v94 = add v90, 1
+    v93 = storage_array_data_slot 1
+    v94 = add v93, v91
+    sstore v94, 0 !metadata(storage=symbolic(v94))
+    v95 = add v91, 1
     jump bb3
 }
 

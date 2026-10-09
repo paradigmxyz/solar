@@ -1,24 +1,28 @@
-//@compile-flags: -Zmir-pipeline=cse
-//@filecheck:
+//@ revisions: cse lowered
+//@[cse] compile-flags: -Zmir-pipeline=cse
+//@[cse] filecheck:
+//@[lowered] compile-flags: -Zmir-pipeline=lower-memory-objects,lower-slices,cse
+//@[lowered] filecheck: --check-prefix=LOWERED
 @module MemoryObjectCse
 
 // CHECK-LABEL: {{^[ +].*}}fn @reuse_projections{{[( ]}}
-// CHECK: - {{v[0-9]+}} = memory_object_data memorybytes, arg0
+// CHECK: - {{v[0-9]+}} = memory_slice arg0
+// CHECK: - {{v[0-9]+}} = slice_ptr
 // CHECK: - {{v[0-9]+}} = memory_object_field_addr memorystruct<3>, arg1, 2
-// CHECK: - {{v[0-9]+}} = memory_object_element_addr memoryarray<2>, arg2, arg3
+// CHECK: - {{v[0-9]+}} = memory_object_element_addr memoryfixedarray<4, 2>, arg2, arg3
 fn @reuse_projections(arg0: memptr, arg1: memptr, arg2: memptr, arg3: i256) -> i256 {
   bb0:
-    v18 = memory_object_data memorybytes, arg0
-    v4 = ptrtoint memptr v18 to i256
-    v19 = memory_object_data memorybytes, arg0
-    v5 = ptrtoint memptr v19 to i256
+    v18 = memory_slice arg0
+    v4 = slice_ptr v18
+    v19 = memory_slice arg0
+    v5 = slice_ptr v19
     v20 = memory_object_field_addr memorystruct<3>, arg1, 2
     v6 = ptrtoint memptr v20 to i256
     v21 = memory_object_field_addr memorystruct<3>, arg1, 2
     v7 = ptrtoint memptr v21 to i256
-    v22 = memory_object_element_addr memoryarray<2>, arg2, arg3
+    v22 = memory_object_element_addr memoryfixedarray<4, 2>, arg2, arg3
     v8 = ptrtoint memptr v22 to i256
-    v23 = memory_object_element_addr memoryarray<2>, arg2, arg3
+    v23 = memory_object_element_addr memoryfixedarray<4, 2>, arg2, arg3
     v9 = ptrtoint memptr v23 to i256
     v10 = eq v4, v5
     v11 = eq v6, v7
@@ -32,14 +36,18 @@ fn @reuse_projections(arg0: memptr, arg1: memptr, arg2: memptr, arg3: i256) -> i
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @invalidate_length{{[( ]}}
-// CHECK: - {{v[0-9]+}} = memory_object_len memorybytes, arg0
+// CHECK: - {{v[0-9]+}} = memory_slice arg0
 // CHECK: + {{v[0-9]+}} = add [[LENGTH:v[0-9]+]], [[LENGTH]]
 fn @invalidate_length(arg0: memptr) -> i256 {
   bb0:
-    v1 = memory_object_len memorybytes, arg0
-    v2 = memory_object_len memorybytes, arg0
-    set_memory_object_len memorybytes, arg0, 9
-    v3 = memory_object_len memorybytes, arg0
+    v6 = memory_slice arg0
+    v1 = slice_len v6
+    v7 = memory_slice arg0
+    v2 = slice_len v7
+    v8 = ptrtoint memptr arg0 to i256
+    mstore v8, 9
+    v9 = memory_slice arg0
+    v3 = slice_len v9
     v4 = add v1, v2
     v5 = add v4, v3
     ret v5
@@ -47,32 +55,37 @@ fn @invalidate_length(arg0: memptr) -> i256 {
 
 // CHECK-LABEL: {{^[ +].*}}fn @keep_local_length{{[( ]}}
 // CHECK:       bb1:
-// CHECK-NEXT:       [[LOCAL:v[0-9]+]] = memory_object_len memorybytes,
+// CHECK-NEXT:       [[VIEW:v[0-9]+]] = memory_slice
+// CHECK-NEXT:       [[LOCAL:v[0-9]+]] = slice_len [[VIEW]]
 // CHECK-NEXT:       ret [[LOCAL]]
 fn @keep_local_length() -> i256 {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 32
-    v1 = memory_object_len memorybytes, v0
+    v4 = memory_slice v0
+    v1 = slice_len v4
     v3 = ne v1, 0
     jumpi v3, bb1, bb2
   bb1:
-    v2 = memory_object_len memorybytes, v0
+    v5 = memory_slice v0
+    v2 = slice_len v5
     ret v2
   bb2:
     ret 0
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @reuse_live_length{{[( ]}}
-// CHECK: -     {{v[0-9]+}} = memory_object_len memorybytes,
+// CHECK: -     {{v[0-9]+}} = memory_slice
 // CHECK: +     {{v[0-9]+}} = add [[LIVE:v[0-9]+]], [[LIVE]]
 fn @reuse_live_length() -> i256 {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 32
-    v1 = memory_object_len memorybytes, v0
+    v5 = memory_slice v0
+    v1 = slice_len v5
     v4 = ne v1, 0
     jumpi v4, bb1, bb2
   bb1:
-    v2 = memory_object_len memorybytes, v0
+    v6 = memory_slice v0
+    v2 = slice_len v6
     v3 = add v1, v2
     ret v3
   bb2:
@@ -99,100 +112,126 @@ fn @reuse_struct_field() -> i256 {
     ret 0
 }
 
+// A view does not forward a stored length, so the forwarding happens once the
+// header read is a plain `mload`.
 // CHECK-LABEL: {{^[ +].*}}fn @forward_initialized_length{{[( ]}}
-// CHECK: -     {{v[0-9]+}} = memory_object_len memorybytes,
-// CHECK: +     ret 3
+// CHECK:       bb1:
+// CHECK-NEXT:       {{v[0-9]+}} = memory_slice
+// LOWERED-LABEL: (after cse)
+// LOWERED-LABEL: {{^[ +].*}}fn @forward_initialized_length{{[( ]}}
+// LOWERED:       bb1:
+// LOWERED:       -     {{v[0-9]+}} = mload
+// LOWERED:       +     ret 3
 fn @forward_initialized_length() -> i256 {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
-    set_memory_object_len memorybytes, v0, 3
-    v25 = memory_object_data memorybytes, v0
-    v1 = ptrtoint memptr v25 to i256
+    v26 = ptrtoint memptr v0 to i256
+    mstore v26, 3
+    v25 = memory_slice v0
+    v1 = slice_ptr v25
     mstore v1, 0
     jump bb1
   bb1:
-    v2 = memory_object_len memorybytes, v0
+    v27 = memory_slice v0
+    v2 = slice_len v27
     ret v2
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @raw_header_clobber{{[( ]}}
-// CHECK:       [[LENGTH:v[0-9]+]] = memory_object_len memorybytes,
+// CHECK:       [[VIEW:v[0-9]+]] = memory_slice
+// CHECK-NEXT:       [[LENGTH:v[0-9]+]] = slice_len [[VIEW]]
 // CHECK-NEXT:       ret [[LENGTH]]
 fn @raw_header_clobber(arg0: memptr, arg1: i256) -> i256 {
   bb0:
-    set_memory_object_len memorybytes, arg0, 3
     v2 = ptrtoint memptr arg0 to i256
+    mstore v2, 3
     mstore v2, arg1
-    v3 = memory_object_len memorybytes, arg0
+    v4 = memory_slice arg0
+    v3 = slice_len v4
     ret v3
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @diamond_header_clobber{{[( ]}}
 // CHECK:       bb3:
-// CHECK-NEXT:       [[LENGTH:v[0-9]+]] = memory_object_len memorybytes,
+// CHECK-NEXT:       [[VIEW:v[0-9]+]] = memory_slice
+// CHECK-NEXT:       [[LENGTH:v[0-9]+]] = slice_len [[VIEW]]
 // CHECK-NEXT:       ret [[LENGTH]]
 fn @diamond_header_clobber(arg0: memptr, arg1: i256) -> i256 {
   bb0:
-    set_memory_object_len memorybytes, arg0, 3
+    v4 = ptrtoint memptr arg0 to i256
+    mstore v4, 3
     v3 = ne arg1, 0
     jumpi v3, bb1, bb2
   bb1:
-    set_memory_object_len memorybytes, arg0, 4
+    mstore v4, 4
     jump bb3
   bb2:
     jump bb3
   bb3:
-    v2 = memory_object_len memorybytes, arg0
+    v5 = memory_slice arg0
+    v2 = slice_len v5
     ret v2
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @loop_header_clobber{{[( ]}}
 // CHECK:       bb1:
-// CHECK-NEXT:       [[LENGTH:v[0-9]+]] = memory_object_len memorybytes,
+// CHECK-NEXT:       [[VIEW:v[0-9]+]] = memory_slice
+// CHECK-NEXT:       [[LENGTH:v[0-9]+]] = slice_len [[VIEW]]
 // CHECK-NEXT:       [[COND:v[0-9]+]] = ne [[LENGTH]], 0
 // CHECK-NEXT:       jumpi [[COND]],
 fn @loop_header_clobber(arg0: memptr) -> i256 {
   bb0:
-    set_memory_object_len memorybytes, arg0, 7
+    v3 = ptrtoint memptr arg0 to i256
+    mstore v3, 7
     jump bb1
   bb1:
-    v1 = memory_object_len memorybytes, arg0
+    v4 = memory_slice arg0
+    v1 = slice_len v4
     v2 = ne v1, 0
     jumpi v2, bb2, bb3
   bb2:
-    set_memory_object_len memorybytes, arg0, 0
+    mstore v3, 0
     jump bb1
   bb3:
     ret v1
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @recycled_header_clobber{{[( ]}}
-// CHECK:       [[LENGTH:v[0-9]+]] = memory_object_len memorybytes,
+// CHECK:       [[VIEW:v[0-9]+]] = memory_slice
+// CHECK-NEXT:       [[LENGTH:v[0-9]+]] = slice_len [[VIEW]]
 // CHECK-NEXT:       ret [[LENGTH]]
 fn @recycled_header_clobber() -> i256 {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 32
-    set_memory_object_len memorybytes, v0, 3
     v1 = ptrtoint memptr v0 to i256
+    mstore v1, 3
     v4 = inttoptr i256 v1 to memptr
     set_fmp v4
     v2 = alloc memorybytes, exact, uninitialized, infallible, 32
-    set_memory_object_len memorybytes, v2, 4
-    v3 = memory_object_len memorybytes, v0
+    v5 = ptrtoint memptr v2 to i256
+    mstore v5, 4
+    v6 = memory_slice v0
+    v3 = slice_len v6
     ret v3
 }
 
 // A caller can fabricate an object at the next allocation address.
 // CHECK-LABEL: fn @parameter_may_overlap_allocation
-// CHECK: v1 = memory_object_len memorybytes, arg0
-// CHECK: set_memory_object_len memorybytes, v0, 7
-// CHECK: v2 = memory_object_len memorybytes, arg0
+// CHECK: [[VIEW:v[0-9]+]] = memory_slice arg0
+// CHECK: [[LEN:v[0-9]+]] = slice_len [[VIEW]]
+// CHECK: mstore {{v[0-9]+}}, 7
+// CHECK: [[AFTER_VIEW:v[0-9]+]] = memory_slice arg0
+// CHECK: [[AFTER:v[0-9]+]] = slice_len [[AFTER_VIEW]]
+// CHECK: add [[LEN]], [[AFTER]]
 fn @parameter_may_overlap_allocation(arg0: memptr) -> i256 {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 32
-    v1 = memory_object_len memorybytes, arg0
-    set_memory_object_len memorybytes, v0, 7
-    v2 = memory_object_len memorybytes, arg0
+    v4 = memory_slice arg0
+    v1 = slice_len v4
+    v5 = ptrtoint memptr v0 to i256
+    mstore v5, 7
+    v6 = memory_slice arg0
+    v2 = slice_len v6
     v3 = add v1, v2
     ret v3
 }

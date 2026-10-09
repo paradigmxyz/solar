@@ -3,29 +3,29 @@
 @phase lowered
 fn @patch() [selector=0x7f603a02, abi_wrapper, pure] {
   bb0:
-    v12 = calldatasize
-    v13 = lt v12, 36
-    jumpi v13, bb3, bb4
+    v17 = calldatasize
+    v18 = lt v17, 36
+    jumpi v18, bb3, bb4
   bb4:
-    v14 = calldataload 4
-    v15 = lt v14, 2
-    jumpi v15, bb5, bb3
+    v19 = calldataload 4
+    v20 = lt v19, 2
+    jumpi v20, bb5, bb3
   bb5:
-    v29 = mload 64 !metadata(memory=scratch)
-    v30 = add v29, 64
-    mstore 64, v30 !metadata(memory=scratch)
-    mstore v29, 2
-    v28 = add v29, 32
-    mstore v28, 0x4142000000000000000000000000000000000000000000000000000000000000
+    v31 = mload 64 !metadata(memory=scratch)
+    v32 = add v31, 64
+    mstore 64, v32 !metadata(memory=scratch)
+    mstore v31, 2
+    v3 = add v31, 32
+    mstore v3, 0x4142000000000000000000000000000000000000000000000000000000000000
     jumpi arg0, bb1, bb2
   bb1:
-    mstore8 v28, 45
+    mstore8 v3, 45
     jump bb2
   bb2:
-    v24 = mload v28
-    v25 = byte 0, v24
-    v11 = shl 248, v25
-    mstore 128, v11
+    v29 = mload v3
+    v30 = byte 0, v29
+    v16 = shl 248, v30
+    mstore 128, v16
     returndata 128, 32
   bb3:
     revert 0, 0
