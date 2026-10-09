@@ -776,13 +776,6 @@ impl<'gcx> BreakContinueChecker<'gcx> {
         Self { gcx, loop_depth: 0 }
     }
 
-    fn visit_block(&mut self, block: hir::Block<'gcx>) -> ControlFlow<Never> {
-        for stmt in block.stmts {
-            self.visit_stmt(stmt)?;
-        }
-        ControlFlow::Continue(())
-    }
-
     fn check_break_continue(&self, span: Span, kind: &str) {
         if self.loop_depth == 0 {
             let msg = format!("`{kind}` outside of a loop");
@@ -799,8 +792,13 @@ impl<'gcx> Visit<'gcx> for BreakContinueChecker<'gcx> {
     }
 
     fn visit_nested_function(&mut self, id: hir::FunctionId) -> ControlFlow<Self::BreakValue> {
+        let function = self.hir().function(id);
+        // The parser checks Yul `break` and `continue`.
+        if function.is_yul {
+            return ControlFlow::Continue(());
+        }
         let loop_depth = std::mem::replace(&mut self.loop_depth, 0);
-        let r = self.visit_function(self.hir().function(id));
+        let r = self.visit_function(function);
         self.loop_depth = loop_depth;
         r
     }
@@ -809,15 +807,13 @@ impl<'gcx> Visit<'gcx> for BreakContinueChecker<'gcx> {
         match stmt.kind {
             hir::StmtKind::Break => self.check_break_continue(stmt.span, "break"),
             hir::StmtKind::Continue => self.check_break_continue(stmt.span, "continue"),
-            hir::StmtKind::Loop(block, source) => {
+            hir::StmtKind::Loop(..) => {
                 self.loop_depth += 1;
-                self.visit_block(block)?;
-                if let hir::LoopSource::For { update: Some(update) } = source {
-                    self.visit_stmt(update)?;
-                }
+                let r = self.walk_stmt(stmt);
                 self.loop_depth -= 1;
-                return ControlFlow::Continue(());
+                return r;
             }
+            hir::StmtKind::AssemblyBlock(_) => return ControlFlow::Continue(()),
             _ => {}
         }
 

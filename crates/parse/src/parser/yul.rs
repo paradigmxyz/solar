@@ -119,6 +119,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     }
 
     /// Parses a Yul block, without setting `in_yul`.
+    #[inline(never)]
     pub fn parse_yul_block_unchecked(&mut self) -> PResult<'sess, Block<'ast>> {
         let lo = self.token.span;
         self.parse_block_seq(|this| &mut this.yul_stmts, Self::parse_yul_stmt_unchecked).map(
@@ -144,8 +145,10 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         } else if self.eat_keyword(kw::For) {
             self.parse_yul_stmt_for()
         } else if self.eat_keyword(kw::Break) {
+            self.check_yul_break_continue(kw::Break);
             Ok(StmtKind::Break)
         } else if self.eat_keyword(kw::Continue) {
+            self.check_yul_break_continue(kw::Continue);
             Ok(StmtKind::Continue)
         } else if self.eat_keyword(kw::Leave) {
             Ok(StmtKind::Leave)
@@ -214,6 +217,13 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     /// Kept out of line so that its locals take no space in other statements.
     #[inline(never)]
     fn parse_yul_function(&mut self) -> PResult<'sess, StmtKind<'ast>> {
+        if self.yul_for_part == ForPart::Init {
+            self.dcx()
+                .err("functions cannot be defined inside a for-loop init block")
+                .code(error_code!(3441))
+                .span(self.prev_token.span)
+                .emit();
+        }
         let name = self.parse_ident()?;
         let parameters = self.parse_paren_comma_seq(true, Self::parse_ident)?;
         let returns = if self.eat(TokenKind::Arrow) {
@@ -225,7 +235,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         } else {
             Default::default()
         };
-        let body = self.parse_yul_block_unchecked()?;
+        let body = self.in_yul_for_part(ForPart::None, Self::parse_yul_block_unchecked)?;
         Ok(StmtKind::FunctionDef(Function { name, parameters, returns, body }))
     }
 
@@ -319,10 +329,10 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     /// Kept out of line so that its locals take no space in other statements.
     #[inline(never)]
     fn parse_yul_stmt_for(&mut self) -> PResult<'sess, StmtKind<'ast>> {
-        let init = self.parse_yul_block_unchecked()?;
+        let init = self.in_yul_for_part(ForPart::Init, Self::parse_yul_block_unchecked)?;
         let cond = self.parse_yul_expr()?;
-        let step = self.parse_yul_block_unchecked()?;
-        let body = self.parse_yul_block_unchecked()?;
+        let step = self.in_yul_for_part(ForPart::Post, Self::parse_yul_block_unchecked)?;
+        let body = self.in_yul_for_part(ForPart::Body, Self::parse_yul_block_unchecked)?;
         Ok(StmtKind::For(self.alloc(StmtFor { init, cond, step, body })))
     }
 
@@ -410,4 +420,38 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         self.is_reserved_yul_ident(ident)
             && !(ident.name == kw::Difficulty && self.sess.opts.evm_version.has_prev_randao())
     }
+
+    /// Checks that the just parsed `break` or `continue` is inside a Yul `for` loop body.
+    #[inline]
+    fn check_yul_break_continue(&mut self, kw: Symbol) {
+        if self.yul_for_part != ForPart::Body {
+            self.misplaced_yul_break_continue(kw);
+        }
+    }
+
+    #[cold]
+    #[inline(never)]
+    fn misplaced_yul_break_continue(&mut self, kw: Symbol) {
+        let (code, msg) = match self.yul_for_part {
+            ForPart::None => (error_code!(2592), "needs to be inside a for-loop body"),
+            ForPart::Init => (error_code!(9615), "in for-loop init block is not allowed"),
+            ForPart::Post => (error_code!(2461), "in for-loop post block is not allowed"),
+            ForPart::Body => unreachable!(),
+        };
+        self.dcx()
+            .err(format!("keyword `{kw}` {msg}"))
+            .code(code)
+            .span(self.prev_token.span)
+            .emit();
+    }
+}
+
+/// The part of a Yul `for` loop that the parser is in.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum ForPart {
+    /// Outside of any `for` loop, or inside a function definition.
+    None,
+    Init,
+    Post,
+    Body,
 }

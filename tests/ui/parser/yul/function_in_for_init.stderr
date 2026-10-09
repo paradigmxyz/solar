@@ -1,0 +1,20 @@
+error[3441]: functions cannot be defined inside a for-loop init block
+   ╭▸ ROOT/tests/ui/parser/yul/function_in_for_init.yul:LL:CC
+   │
+LL │         for { function f() {} } 1 {} {}
+   ╰╴              ━━━━━━━━
+
+error[3441]: functions cannot be defined inside a for-loop init block
+   ╭▸ ROOT/tests/ui/parser/yul/function_in_for_init.yul:LL:CC
+   │
+LL │         for { for {function foo() {}} 1 {} {} } 1 {} {}
+   ╰╴                   ━━━━━━━━
+
+error[3441]: functions cannot be defined inside a for-loop init block
+   ╭▸ ROOT/tests/ui/parser/yul/function_in_for_init.yul:LL:CC
+   │
+LL │             {for {function foo() {}} 1 {} {} }
+   ╰╴                  ━━━━━━━━
+
+error: aborting due to 3 previous errors
+
