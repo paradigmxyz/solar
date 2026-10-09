@@ -33,9 +33,6 @@ pub mod signal_handler {
 
     /// No-op function.
     pub fn install() {}
-
-    /// No-op function.
-    pub fn install_alt_stack() {}
 }
 
 mod args;
@@ -57,19 +54,7 @@ pub fn main() -> ExitCode {
         Ok(args) => args,
         Err(e) => e.exit(),
     };
-    // A single-threaded thread pool runs on the current thread, so give it a large stack too.
-    std::thread::scope(|s| {
-        std::thread::Builder::new()
-            .name("solar".into())
-            .stack_size(solar_interface::thread_stack_size())
-            .spawn_scoped(s, || {
-                signal_handler::install_alt_stack();
-                commands::run(args)
-            })
-            .unwrap()
-            .join()
-            .unwrap_or_else(|e| std::panic::resume_unwind(e))
-    })
+    commands::run(args)
 }
 
 fn parse_args<I, T>(itr: I) -> Result<Args, clap::Error>
