@@ -11,8 +11,8 @@ contract C {
     uint8 constant S8 = 8;
     uint16 constant U16 = 1;
 
-    uint256 constant SHR = (1 << 256) >> ONE;
-    uint256 constant ADD = (1 << 256) + S8;
+    uint256 constant SHR = (1 << 256) >> ONE; //~ ERROR: cannot apply builtin operator
+    uint256 constant ADD = (1 << 256) + S8; //~ ERROR: cannot apply builtin operator
 
     function lengths() public pure {
         uint256[(1 << 256) >> ONE] memory shr; //~ ERROR: failed to evaluate constant: literal is too large for the type of the other operand

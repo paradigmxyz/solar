@@ -354,7 +354,7 @@ pub struct GlobalCtxt<'gcx> {
     interner: Interner<'gcx>,
     cache: Cache<'gcx>,
     pub(crate) eval_cache: FxOnceMap<hir::ExprId, Box<crate::eval::EvalResult>>,
-    pub(crate) eval_errors: FxOnceMap<hir::ExprId, ErrorGuaranteed>,
+    pub(crate) expr_errors: FxOnceMap<hir::ExprId, ErrorGuaranteed>,
     pub(crate) override_index: OnceLock<crate::typeck::override_checker::OverrideIndex<'gcx>>,
 }
 
@@ -391,7 +391,7 @@ impl<'gcx> GlobalCtxt<'gcx> {
             interner,
             cache: Cache::default(),
             eval_cache: FxOnceMap::default(),
-            eval_errors: FxOnceMap::default(),
+            expr_errors: FxOnceMap::default(),
             override_index: OnceLock::new(),
         }
     }
@@ -492,25 +492,23 @@ impl<'gcx> Gcx<'gcx> {
         self.mk_ty(TyKind::StringLiteral(std::str::from_utf8(s).is_ok(), s.len()))
     }
 
-    pub fn mk_ty_int_literal(self, negative: bool, bits: u64) -> Option<Ty<'gcx>> {
+    pub fn mk_ty_int_literal(self, negative: bool, bits: u64) -> Ty<'gcx> {
         self.mk_ty_int_literal_with_fixed_bytes(negative, bits, None)
     }
 
+    /// Creates an integer literal type.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `bits` does not fit in a `u16`, which literal arithmetic never needs.
     pub fn mk_ty_int_literal_with_fixed_bytes(
         self,
         negative: bool,
         bits: u64,
         compatible_fixed_bytes: Option<TypeSize>,
-    ) -> Option<Ty<'gcx>> {
-        let bits = bits.max(1);
-        if bits > TypeSize::MAX as u64 {
-            return None;
-        }
-        Some(self.mk_ty(TyKind::IntLiteral(
-            negative,
-            TypeSize::new_literal_bits(bits as u16),
-            compatible_fixed_bytes,
-        )))
+    ) -> Ty<'gcx> {
+        let bits = u16::try_from(bits.max(1)).expect("integer literal is too wide");
+        self.mk_ty(TyKind::IntLiteral(negative, bits, compatible_fixed_bytes))
     }
 
     pub fn mk_ty_fn(self, ptr: TyFn<'gcx>) -> Ty<'gcx> {
@@ -1129,11 +1127,6 @@ impl<'gcx> Gcx<'gcx> {
                     int.bit_len() as _,
                     compatible_fixed_bytes,
                 )
-                .unwrap_or_else(|| {
-                    self.mk_ty_err(
-                        self.dcx().emit_err(lit.span, "integer literal is greater than 2**256"),
-                    )
-                })
             }
             solar_ast::LitKind::Rational(_) => {
                 // The AST validator has already reported invalid underscores.

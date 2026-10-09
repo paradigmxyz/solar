@@ -35,8 +35,11 @@ pub fn eval_array_len(gcx: Gcx<'_>, size: &hir::Expr<'_>) -> Result<U256, ErrorG
     }
     let int = gcx.eval_const(size)?;
     let Some(int) = int.as_u256() else {
-        let msg = "array length cannot be negative";
-        return Err(gcx.dcx().emit_err(size.span, msg));
+        if int.is_negative() {
+            return Err(gcx.dcx().emit_err(size.span, "array length cannot be negative"));
+        }
+        let err = gcx.dcx().err("array length is too large").code(error_code!(1847));
+        return Err(err.span(size.span).note("the maximum is `2**256 - 1`").emit());
     };
     if int.is_zero() {
         let msg = "array length must be greater than zero";
@@ -93,12 +96,21 @@ impl<'gcx> Gcx<'gcx> {
     pub fn emit_const_eval_error(self, expr: &hir::Expr<'_>, err: EvalError) -> ErrorGuaranteed {
         match err.kind {
             EE::AlreadyEmitted(guar) => guar,
-            _ => self.eval_errors.insert_cloned(err.literal.unwrap_or(expr.id), |_| {
+            _ => self.emit_once(err.literal.unwrap_or(expr.id), || {
                 let msg = format!("failed to evaluate constant: {}", err.kind.msg());
                 let label = "evaluation of constant value failed here";
                 self.dcx().emit_err_label(expr.span, msg, err.span, label)
             }),
         }
+    }
+
+    /// Emits the error of the given expression once, however many checks find it.
+    pub(crate) fn emit_once(
+        self,
+        expr: hir::ExprId,
+        emit: impl FnOnce() -> ErrorGuaranteed,
+    ) -> ErrorGuaranteed {
+        self.expr_errors.insert_cloned(expr, |_| emit())
     }
 }
 

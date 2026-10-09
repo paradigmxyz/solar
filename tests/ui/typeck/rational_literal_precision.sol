@@ -16,7 +16,7 @@ contract MulLimit {
 }
 
 // Like solc, literal arithmetic keeps 4096 bits of precision in the numerator and denominator.
-// Integer intermediates may exceed every integer type, as long as the result fits. Exponents are
+// Intermediate values may exceed every integer type, as long as the result fits. Exponents are
 // bounded by the bit length of the base, so `2 ** 2049` fails although it needs fewer bits.
 contract Limits {
     uint[(1 << 4095) >> 4094] shiftFits;
