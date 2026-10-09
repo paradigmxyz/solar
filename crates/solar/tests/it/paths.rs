@@ -97,3 +97,38 @@ fn include_paths_without_base_path() {
     let names = output["contracts"].as_object().unwrap().keys().collect::<Vec<_>>();
     assert_eq!(names, ["lib/dep/C.sol:C", "src/A.sol:A"]);
 }
+
+/// Like solc, an import resolves to an input file with its source unit name before searching the
+/// base path and include paths.
+#[test]
+fn imports_prefer_input_files() {
+    let dir = project(&[
+        ("src/A.sol", "import \"X.sol\"; contract A {}"),
+        ("src/X.sol", "contract Y {}"),
+        ("lib/X.sol", "contract X {}"),
+    ]);
+    for args in [["lib/X.sol", "src/A.sol"], ["src/A.sol", "lib/X.sol"]] {
+        let output = compile(
+            dir.path(),
+            &[&["--base-path", "src", "--include-path", "lib"][..], &args].concat(),
+        );
+        assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+        let output = serde_json::from_slice::<Value>(&output.stdout).unwrap();
+        let names = output["contracts"].as_object().unwrap().keys().collect::<Vec<_>>();
+        assert_eq!(names, ["A.sol:A", "X.sol:X"]);
+    }
+}
+
+#[test]
+fn base_path_is_not_a_directory() {
+    let dir = project(&[("A.sol", "contract A {}")]);
+    let output = compile(dir.path(), &["--base-path", "A.sol", "A.sol"]);
+    assert!(!output.status.success());
+    snapbox::assert_data_eq!(
+        String::from_utf8(output.stderr).unwrap(),
+        snapbox::str![[r#"
+error: base path `A.sol` is not a directory
+...
+"#]]
+    );
+}

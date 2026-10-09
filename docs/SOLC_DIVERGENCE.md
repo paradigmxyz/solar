@@ -100,10 +100,11 @@ For a file named relative to an include path outside the base path, `solar`
 resolves relative imports against the file's absolute path. Remappings for
 source unit names then do not apply to them, they do not search the other
 roots, and `../` can leave the include path.
-Remapping contexts match both the file's name and its absolute path. Where
-`solc` would resolve an import to an input file of the same name, as with
-`--base-path src -I lib lib/X.sol src/A.sol` and `import "X.sol"`, `solar`
-reports an ambiguous import or a duplicate name instead.
+Remapping contexts match both the file's name and its absolute path. Like
+`solc`, an import resolves to an input file with its source unit name before
+searching the disk, but files loaded for other imports don't count, so where
+`solc` would reuse such a file, `solar` can report an ambiguous import or a
+duplicate name instead.
 
 Rationale: a name that depends only on the file's path is the same for every
 import of the file. It also keeps remapping contexts such as `lib/dep/` matching
@@ -124,8 +125,7 @@ Status: intentional.
 Difference: `solar` accepts `--include-path` without `--base-path`, using the
 current directory as the base path, and does not report an ambiguous import
 when several roots contain the same file, as with a repeated include path. It
-only checks that the base path exists, and not in Standard JSON mode, where
-`solc` also rejects a base path that is not a directory. It does not restrict
+does not check the base path in Standard JSON mode. It does not restrict
 imports to allowed paths, so `--allow-paths` has no effect.
 
 Rationale: these inputs have a single sensible meaning.

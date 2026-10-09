@@ -7,7 +7,7 @@
 //! on disk under the base path and the include paths.
 
 use super::SourceFile;
-use crate::{Session, SourceMap};
+use crate::{BytePos, Session, SourceMap};
 use itertools::Itertools;
 use normalize_path::NormalizePath;
 use solar_config::{CompileOpts, ImportRemapping};
@@ -49,6 +49,8 @@ pub struct FileResolver<'a> {
     custom_current_dir: Option<PathBuf>,
     /// [`std::env::current_dir`] cache. Unused if the current directory is set manually.
     env_current_dir: OnceLock<Option<PathBuf>>,
+    /// The start of the last source loaded before resolving the first import.
+    last_input: OnceLock<Option<BytePos>>,
 }
 
 impl<'a> FileResolver<'a> {
@@ -61,6 +63,7 @@ impl<'a> FileResolver<'a> {
             base_path: source_map.roots().as_ref().and_then(|roots| roots.base_path.clone()),
             custom_current_dir: None,
             env_current_dir: OnceLock::new(),
+            last_input: OnceLock::new(),
         }
     }
 
@@ -87,6 +90,7 @@ impl<'a> FileResolver<'a> {
         self.base_path = None;
         self.custom_current_dir = None;
         self.env_current_dir.take();
+        self.last_input.take();
     }
 
     /// Sets the current directory.
@@ -249,9 +253,28 @@ impl<'a> FileResolver<'a> {
         path: &Path,
         parent: &Path,
     ) -> Result<Option<Arc<SourceFile>>, ResolveError> {
+        let last_input = *self
+            .last_input
+            .get_or_init(|| self.source_map().files().last().map(|file| file.start_pos));
         let unit = self.import_source_unit_name(path, parent);
         if let Some(file) = self.get_source_unit(&unit) {
             return Ok(Some(file));
+        }
+        // Like solc, prefer an input file with this source unit name over searching the disk.
+        // Files loaded for other imports don't count, so the result doesn't depend on their order.
+        if let Some(last_input) = last_input
+            && !unit.has_root()
+        {
+            let unit = unit.normalize();
+            let input = self.roots().find_map(|root| {
+                let path = generic_path(root.join(&unit).normalize());
+                let file = self.source_map().get_file(&path)?;
+                (file.start_pos <= last_input && self.source_unit_name(&path) == unit)
+                    .then_some(file)
+            });
+            if input.is_some() {
+                return Ok(input);
+            }
         }
 
         let mut found = SmallVec::<[_; 1]>::new();

@@ -249,14 +249,18 @@ impl Session {
 
     fn validate_base_path(&self) -> crate::Result<()> {
         // Standard JSON mode does not access the file system.
-        if let Some(base_path) = &self.opts.base_path
-            && !self.opts.standard_json
-            && self.source_map().file_loader().canonicalize_path(base_path).is_err()
-        {
-            let msg = format!("base path `{}` does not exist", base_path.display());
-            return Err(self.dcx.err(msg).emit());
-        }
-        Ok(())
+        let Some(base_path) = self.opts.base_path.as_deref().filter(|_| !self.opts.standard_json)
+        else {
+            return Ok(());
+        };
+        let msg = if self.source_map().file_loader().canonicalize_path(base_path).is_err() {
+            "does not exist"
+        } else if std::fs::metadata(base_path).is_ok_and(|metadata| !metadata.is_dir()) {
+            "is not a directory"
+        } else {
+            return Ok(());
+        };
+        Err(self.dcx.err(format!("base path `{}` {msg}", base_path.display())).emit())
     }
 
     /// Reconfigures inner state to match any new options.
