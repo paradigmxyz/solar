@@ -540,13 +540,17 @@ impl<'gcx> EvmCodegen<'gcx> {
             .collect::<FxHashMap<_, _>>();
         // Compiler memory that starts at or above the bound must also clear the fixed memory
         // assembly names there: the entry's own, and that of every entry sharing a frame with it,
-        // since a shared frame sits above the highest end of the entries reaching it.
+        // since a shared frame sits above the highest end of the entries reaching it. A recursive
+        // frame places every frame above the highest end of all entries, so then every entry that
+        // reaches a frame shares one.
         let low_memory_bound = EvmMemoryLayout::HEAP_START + SPILL_HAZARD_BOUND;
         if reachable_memory_marks.values().any(|&mark| mark >= low_memory_bound) {
             let mut frame_owners = DenseBitSet::new_empty(module.functions.len());
             for &(func_id, _) in self.static_frame_addr_consts.keys() {
                 frame_owners.insert(func_id);
             }
+            let global_frames =
+                frame_owners.iter().any(|func_id| self.recursive_frame_functions.contains(func_id));
             let mut high_ends = index_vec![None; module.functions.len()];
             let mut entry_high_ends = FxHashMap::default();
             let mut entry_frames = FxHashMap::default();
@@ -573,7 +577,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 let shared_end = entry_frames
                     .iter()
                     .filter(|&(&other, other_frames)| {
-                        other == entry || {
+                        other == entry || (global_frames && !other_frames.is_empty()) || {
                             let mut shared = frames.clone();
                             shared.intersect(other_frames);
                             !shared.is_empty()
