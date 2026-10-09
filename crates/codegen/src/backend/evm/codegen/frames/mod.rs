@@ -29,6 +29,9 @@ use crate::mir::{
 /// `HEAP_START` is treated as possibly reaching the spill area.
 const SPILL_HAZARD_BOUND: u64 = 0x2000;
 
+/// The address `SPILL_HAZARD_BOUND` above `HEAP_START`, where low memory ends.
+const LOW_MEMORY_BOUND: u64 = EvmMemoryLayout::HEAP_START + SPILL_HAZARD_BOUND;
+
 mod hazards;
 
 #[derive(Default)]
@@ -543,8 +546,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         // since a shared frame sits above the highest end of the entries reaching it. A recursive
         // frame places every frame above the highest end of all entries, so then every entry that
         // reaches a frame shares one.
-        let low_memory_bound = EvmMemoryLayout::HEAP_START + SPILL_HAZARD_BOUND;
-        if reachable_memory_marks.values().any(|&mark| mark >= low_memory_bound) {
+        if reachable_memory_marks.values().any(|&mark| mark >= LOW_MEMORY_BOUND) {
             let mut frame_owners = DenseBitSet::new_empty(module.functions.len());
             for &(func_id, _) in self.static_frame_addr_consts.keys() {
                 frame_owners.insert(func_id);
@@ -570,7 +572,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 entry_frames.insert(entry, frames);
             }
             for (&entry, mark) in &mut reachable_memory_marks {
-                if *mark < low_memory_bound {
+                if *mark < LOW_MEMORY_BOUND {
                     continue;
                 }
                 let frames = &entry_frames[&entry];
@@ -1073,8 +1075,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         // frame through constant addresses; spill only above everything it
         // names, so a reload never reads a byte of the user's image and a
         // store never lands inside it.
-        let mark = Self::low_memory_high_water_mark(func).max(reachable_memory_mark);
-        base.max(mark.next_multiple_of(EvmMemoryLayout::WORD_SIZE))
+        base.max(reachable_memory_mark.next_multiple_of(EvmMemoryLayout::WORD_SIZE))
     }
 
     /// Returns the working-memory prefix a hand-written heap image needs.
@@ -1432,11 +1433,10 @@ impl<'gcx> EvmCodegen<'gcx> {
     pub(in crate::backend::evm::codegen) fn constant_memory_high_water_mark(
         func: &Function,
     ) -> u64 {
-        let bound = EvmMemoryLayout::HEAP_START + SPILL_HAZARD_BOUND;
         let mut mark = 0;
         Self::for_each_memory_range(func, |offset, size| {
             if let Some(start) = func.value_u64(offset)
-                && start < bound
+                && start < LOW_MEMORY_BOUND
                 && let Some(end) = size.and_then(|size| start.checked_add(size))
             {
                 mark = mark.max(end);
@@ -1458,11 +1458,10 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// NOTE: A range at a huge constant address in such a function still moves the spill area
     /// above it, and every call of the entry then pays for expanding memory that far.
     fn high_constant_memory_end(func: &Function) -> u64 {
-        let bound = EvmMemoryLayout::HEAP_START + SPILL_HAZARD_BOUND;
         let mut end = 0;
         Self::for_each_memory_range(func, |offset, size| {
             if let Some(start) = func.value_u64(offset)
-                && start >= bound
+                && start >= LOW_MEMORY_BOUND
                 && let Some(size) = size
                 && size != 0
                 && let Some(range_end) = start.checked_add(size)
@@ -1485,8 +1484,11 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// only by a loop counter is not recognized. See CODEGEN-010.
     pub(in crate::backend::evm::codegen) fn low_memory_high_water_mark(func: &Function) -> u64 {
         let mark = Self::constant_memory_high_water_mark(func);
-        let bound = EvmMemoryLayout::HEAP_START + SPILL_HAZARD_BOUND;
-        if mark < bound && Self::writes_absolute_dynamic_memory(func) { bound } else { mark }
+        if mark < LOW_MEMORY_BOUND && Self::writes_absolute_dynamic_memory(func) {
+            LOW_MEMORY_BOUND
+        } else {
+            mark
+        }
     }
 
     /// Returns whether `func` may write memory at an absolute address that is not a constant: a

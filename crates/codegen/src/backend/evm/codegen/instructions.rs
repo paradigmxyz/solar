@@ -1,8 +1,8 @@
 //! MIR instruction emission and physical opcode stack effects.
 
 use super::{
-    BlockId, EvmCodegen, EvmMemoryLayout, Function, FunctionId, InstId, InstKind, Liveness,
-    SmallVec, StackEffect, StackOp, StackPush, Terminator, U256, Value, ValueId, op,
+    BlockId, EvmCodegen, Function, FunctionId, InstId, InstKind, Liveness, SmallVec, StackEffect,
+    StackOp, StackPush, Terminator, Value, ValueId, op,
     select::{self, OpcodeLowering},
 };
 use crate::{mir::Callee, target::Target};
@@ -884,29 +884,13 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.fmp_floor_consts.push((func_id, floor));
             return;
         }
-        let (fixed_memory_end, heap_guard) = self
-            .constructor_heap_start
-            .expect("constructor heap start is recorded before its code");
-        // Mirrors the deployment prologue:
-        // heap_start = align32(fixed_memory_end + codesize - arg_offset) + heap_guard
-        //            | fixed_memory_end + heap_guard
+        // args_size = codesize - arg_offset
         if let Some(arg_offset) = self.constructor_args_offset_const {
             self.asm.emit_push_deferred(arg_offset);
             self.asm.emit_op(op::CODESIZE);
             self.asm.emit_op(op::SUB);
-            self.asm.emit_push_deferred(fixed_memory_end);
-            self.asm.emit_op(op::ADD);
-            self.asm.emit_push(U256::from(EvmMemoryLayout::WORD_SIZE - 1));
-            self.asm.emit_op(op::ADD);
-            self.asm.emit_push(U256::MAX - U256::from(EvmMemoryLayout::WORD_SIZE - 1));
-            self.asm.emit_op(op::AND);
-        } else {
-            self.asm.emit_push_deferred(fixed_memory_end);
         }
-        if heap_guard != 0 {
-            self.asm.emit_push(U256::from(heap_guard));
-            self.asm.emit_op(op::ADD);
-        }
+        self.emit_constructor_heap_start();
     }
 
     /// Emits a copy-style instruction (no result) with liveness awareness.
