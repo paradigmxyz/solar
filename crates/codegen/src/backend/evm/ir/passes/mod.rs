@@ -175,7 +175,7 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     // Data packing can add compactable immediates and local stack shuffles.
     &compact_pushes::CompactPushes,
     &peephole::Peephole::FINAL,
-    // Search the hot loops' straight-line code for cheaper stack shuffles once pushes are final.
+    // Search straight-line code for cheaper stack shuffles once pushes are final.
     &stack_reschedule::StackReschedule,
     &stack_normalize::StackDedup,
     &peephole::Cleanup(dce::Dce),

@@ -911,6 +911,20 @@ pub(crate) const fn writes_storage(op: u8) -> bool {
     }
 }
 
+/// Returns whether an opcode reads nothing but its operands and calldata, so it gives the same
+/// result wherever it runs within a transaction's frame.
+#[must_use]
+pub(crate) const fn reads_only_operands_or_calldata(op: u8) -> bool {
+    is_pure(op) || matches!(op, CALLDATALOAD | CALLDATASIZE)
+}
+
+/// Returns whether an opcode is a memory or storage load or store, or `KECCAK256`: an access
+/// whose only effect is on the words it names.
+#[must_use]
+pub(crate) const fn is_plain_access(op: u8) -> bool {
+    matches!(op, MLOAD | MSTORE | MSTORE8 | SLOAD | SSTORE | TLOAD | TSTORE | KECCAK256)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

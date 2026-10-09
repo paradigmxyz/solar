@@ -307,8 +307,7 @@ contract Rotated32 {
     // GAS: shl
     // GAS-NEXT: or
     // SIZE: mul
-    // SIZE-NEXT: dup 1
-    // SIZE-NEXT: push 1{{$}}
+    // SIZE: push 1{{$}}
     // SIZE-NEXT: shr
     // BYZ-NOT: {{^  (shr|shl|indexed_jump)$}}
     fallback() external {

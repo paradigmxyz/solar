@@ -241,7 +241,7 @@ fn place_loop_latches(gcx: Gcx<'_>, module: &mut Module) -> bool {
     true
 }
 
-/// The header a block jumps back to, and whether it does so with a conditional jump to inverted:
+/// The header a block jumps back to, and whether that jump is a conditional one to turn around:
 /// the target of its terminator's jump, or, when that jump enters a cold block, the target of the
 /// `iszero c; push header; jumpi` it ends with, as a loop body whose last test guards a panic
 /// does.
@@ -274,7 +274,7 @@ fn invert_latch(module: &mut Module, latch: BlockId, header: BlockId) {
     let mut push = Instruction::push_block(cold);
     push.metadata = std::mem::take(&mut block.instructions[len - 3].metadata);
     block.instructions[len - 3] = push;
-    block.instructions[len - 2].metadata.merge_source_spans(&test.metadata);
+    block.instructions[len - 2].metadata.absorb_debug_info(&test.metadata);
 }
 
 /// The natural loop of the back edge `latch -> header`: the header and every block that reaches

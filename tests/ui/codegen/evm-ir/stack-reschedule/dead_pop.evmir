@@ -1,4 +1,6 @@
-//@ compile-flags: -Zevm-ir-pipeline=stack-reschedule
+//@ revisions: gas size
+//@[gas] compile-flags: -Ogas -Zevm-ir-pipeline=stack-reschedule
+//@[size] compile-flags: -Osize -Zevm-ir-pipeline=stack-reschedule
 //@ filecheck:
 @module module
 

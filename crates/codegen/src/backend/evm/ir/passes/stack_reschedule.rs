@@ -1,5 +1,5 @@
-//! Search-based rescheduling of the stack operations around the computations of hot
-//! straight-line code.
+//! Search-based rescheduling of the stack operations around the computations of straight-line
+//! code.
 //!
 //! The stack scheduler places `DUP`, `SWAP` and `POP` greedily, one operation at a time, in the
 //! order MIR left the computations. Inside a loop's straight-line code that order can cost
@@ -75,12 +75,15 @@
 //! target right before its `JUMPI`. The gas left is observable as well: no operation moves above
 //! a check or an operation that depends on it, such as an `SSTORE` with its 2,300-gas sentry,
 //! and a schedule that would spend more gas before one of them keeps the original code, so each
-//! sees at least the gas it saw before. Runs end at every other instruction, including `GAS`,
-//! calls, other branches and an instruction glued to the next one. Performed operations and the
-//! original pushes keep their debug metadata, function events included, while the new stack
-//! operations carry none, which is marked as intentionally dropped, and the origins and events of
-//! the replaced stack operations move to the run's last instruction. Debug metadata decides
-//! nothing, so requesting it leaves the code unchanged.
+//! sees at least the gas it saw before within its window. When optimizing for size, a schedule
+//! that saves bytes may spend more gas, and a check or access after its window then sees less,
+//! as with other size optimizations. A run that ends in a label push keeps it last, so the jump
+//! after the run still sees its target pushed right before it. Runs end at every other instruction,
+//! including `GAS`, calls, other branches and an instruction glued to the next one. Performed
+//! operations and the original pushes keep their debug metadata, function events included, while
+//! the new stack operations carry none, which is marked as intentionally dropped, and the origins
+//! and events of the replaced stack operations move to the run's last instruction. Debug metadata
+//! decides nothing, so requesting it leaves the code unchanged.
 //!
 //! The pass runs after the late push compaction, so it sees the final pushes, and before the
 //! last stack cleanup and loop layout.
@@ -88,14 +91,14 @@
 use super::{EvmPass, utils::is_split_point};
 use crate::{
     backend::evm::{
-        ir::{Block, Instruction, Module, TerminatorKind},
-        op::{self, OpcodeTraits, StackOp},
+        ir::{Block, BlockId, Instruction, Module, TerminatorKind},
+        op::{self, StackOp},
     },
     target::{Cost, Target},
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
-use solar_data_structures::map::FxHashMap;
+use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 use solar_sema::Gcx;
 use std::collections::{BinaryHeap, hash_map::Entry};
 
@@ -141,14 +144,6 @@ const BLOCK_BUDGET: Budget = Budget {
 /// How many times its bound the search adds to a state's cost to order it: greedier than an
 /// exact search, it reaches cheaper schedules after far fewer states.
 const BOUND_WEIGHT: u64 = 3;
-/// An arena entry whose next operation was not yet checked for a swap.
-const UNKNOWN: u8 = 0;
-/// An arena entry whose next operation needs no swap the bound leaves out.
-const NO_SWAP: u8 = 1;
-/// An arena entry whose next operation needs a swap the bound leaves out.
-const SWAP: u8 = 2;
-/// An arena entry that a cheaper entry of its state replaced.
-const SUPERSEDED: u8 = 3;
 /// Deepest stack word a `DUP` or `SWAP` reaches.
 const REACH: usize = 16;
 /// Bits of a word's index in a packed stack.
@@ -165,7 +160,12 @@ impl EvmPass for StackReschedule {
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
         let target = Target::new(gcx);
-        let halts = module.blocks.iter().map(aborts_without_stack).collect::<Vec<_>>();
+        let mut halts = DenseBitSet::new_empty(module.blocks.len());
+        for (id, block) in module.blocks.iter_enumerated() {
+            if aborts_without_stack(block) {
+                halts.insert(id);
+            }
+        }
         let mut scratch = Scratch::default();
         let mut changed = false;
         for block in &mut module.blocks {
@@ -196,9 +196,9 @@ struct Operation {
     operands: SmallVec<[Word; 3]>,
     /// Whether the operation leaves a result word.
     produces: bool,
-    commutative: bool,
-    /// The comparison that computes the same result from swapped operands.
-    mirror: Option<u8>,
+    /// The opcode that computes the same result from swapped operands: the operation's own when
+    /// it is commutative, or the mirrored comparison.
+    swapped: Option<u8>,
     /// The operation that has to run before this one: the previous check, memory or storage
     /// access for one of those, and the last check or gas-dependent access for any other.
     after: Option<u8>,
@@ -210,8 +210,8 @@ struct Operation {
 /// The symbolic summary of a run.
 struct Run {
     operations: Vec<Operation>,
-    /// Position of each constant's first push in the run.
-    constants: SmallVec<[usize; 8]>,
+    /// Positions of each constant's pushes in the run.
+    pushes: SmallVec<[SmallVec<[usize; 4]>; 8]>,
     /// Price of pushing each constant.
     constant_costs: SmallVec<[u64; 8]>,
     /// Words on entry the run reads.
@@ -227,7 +227,7 @@ struct Run {
 /// A step of a schedule.
 #[derive(Clone, Copy, Debug)]
 enum Move {
-    Perform { operation: u8, mirrored: bool },
+    Perform { operation: u8, swapped: bool },
     Push(u8),
     Stack(StackOp),
 }
@@ -284,10 +284,11 @@ fn reschedule_block(
     instructions: &mut Vec<Instruction>,
     target: Target,
     budget: Budget,
-    halts: &[bool],
+    halts: &DenseBitSet<BlockId>,
     scratch: &mut Scratch,
 ) -> bool {
     let mut replacements = Vec::new();
+    let mut operations_before = Vec::new();
     let mut start = 0;
     while start < instructions.len() {
         // A run continues through checks that branch to a block aborting without the stack.
@@ -312,22 +313,26 @@ fn reschedule_block(
             continue;
         }
         // Search windows of at most the budget's operations, cut after the checks.
+        operations_before.clear();
+        operations_before.push(0);
+        for inst in &instructions[start..end] {
+            let count = *operations_before.last().unwrap();
+            operations_before.push(count + usize::from(is_operation(inst)));
+        }
+        let operations = |from: usize, to: usize| {
+            operations_before[to - start] - operations_before[from - start]
+        };
         let mut window_start = start;
         while window_start < end {
             let mut window_end = end;
-            if operation_count(&instructions[window_start..end]) > budget.operations {
-                window_end = cuts
-                    .iter()
-                    .copied()
-                    .rev()
-                    .find(|&cut| {
-                        cut > window_start
-                            && operation_count(&instructions[window_start..cut])
-                                <= budget.operations
-                    })
-                    .unwrap_or_else(|| {
-                        cuts.iter().copied().find(|&cut| cut > window_start).unwrap_or(end)
-                    });
+            if operations(window_start, end) > budget.operations {
+                let later = cuts.partition_point(|&cut| cut <= window_start);
+                let fitting = cuts[later..]
+                    .partition_point(|&cut| operations(window_start, cut) <= budget.operations);
+                window_end = match fitting {
+                    0 => cuts.get(later).copied().unwrap_or(end),
+                    fitting => cuts[later + fitting - 1],
+                };
             }
             let window = &instructions[window_start..window_end];
             // Spanning the checks gives the search more freedom, but a longer run can exhaust
@@ -357,6 +362,7 @@ fn reschedule_block(
     if replacements.is_empty() {
         return false;
     }
+    // prefix; window; suffix -> prefix; schedule; suffix
     let mut rebuilt = Vec::with_capacity(instructions.len());
     let mut cursor = 0;
     let mut old = std::mem::take(instructions).into_iter();
@@ -384,15 +390,37 @@ struct Scratch {
 /// The search's state storage, cleared and reused for every run.
 #[derive(Default)]
 struct Buffers {
-    /// Visited states: the state, its parent, the move into it, its cost and its bound.
-    arena: Vec<(State, u32, Option<Move>, u64, u64)>,
+    /// Visited states.
+    arena: Vec<Node>,
     /// The cheapest arena entry of each state.
     best: FxHashMap<State, u32>,
     /// Arena entries by priority.
     open: Queue,
-    /// For each arena entry, whether its next operation needs a swap the bound leaves out:
-    /// [`UNKNOWN`], [`NO_SWAP`] or [`SWAP`], or [`SUPERSEDED`].
-    refined: Vec<u8>,
+}
+
+/// A visited search state.
+#[derive(Clone, Copy)]
+struct Node {
+    state: State,
+    /// The arena entry this one was reached from.
+    parent: u32,
+    /// The move from the parent.
+    step: Option<Move>,
+    cost: u64,
+    /// The bound on the remaining cost.
+    bound: u64,
+    refined: Refined,
+}
+
+/// Whether an arena entry's next operation needs a swap the bound leaves out.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Refined {
+    /// Not yet checked.
+    Unknown,
+    NoSwap,
+    Swap,
+    /// A cheaper entry of the same state replaced this one.
+    Superseded,
 }
 
 /// Arena entries ordered by priority, then by larger cost, then by later entry. The first part
@@ -438,7 +466,7 @@ impl Queue {
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 enum RunKey {
     Stack(StackOp),
-    Block(u32),
+    Block(BlockId),
     /// An immediate by its first position among the run's immediates and its width.
     Immediate(u8, u8),
     Operation(u8),
@@ -451,15 +479,15 @@ fn run_key(inst: &Instruction, immediates: &mut SmallVec<[U256; 8]>) -> RunKey {
     if let Some(stack_op) = inst.as_stack_op() {
         return RunKey::Stack(stack_op);
     }
-    match constant_key(inst) {
-        Some((0, value)) => {
+    match constant(inst) {
+        Some(Constant::Immediate(value)) => {
             let index = immediates.iter().position(|&known| known == value).unwrap_or_else(|| {
                 immediates.push(value);
                 immediates.len() - 1
             });
             RunKey::Immediate(index as u8, value.byte_len() as u8)
         }
-        Some((_, block)) => RunKey::Block(block.to()),
+        Some(Constant::Block(block)) => RunKey::Block(block),
         None => RunKey::Operation(inst.opcode),
     }
 }
@@ -467,64 +495,66 @@ fn run_key(inst: &Instruction, immediates: &mut SmallVec<[U256; 8]>) -> RunKey {
 /// Whether an instruction may be part of a searched run.
 fn schedulable(inst: &Instruction) -> bool {
     if let Some(stack_op) = inst.as_stack_op() {
-        return !matches!(stack_op, StackOp::Exchange(..));
+        return stack_op.single_byte_evm_opcode().is_some();
     }
     if inst.is_encoded_push() {
-        return constant_key(inst).is_some();
+        return constant(inst).is_some();
     }
     let Some(definition) = inst.definition() else { return false };
     matches!(definition.stack_io, Some((_, outputs)) if outputs <= 1)
-        && (movable(definition.opcode, definition.traits) || ordered(definition.opcode))
+        && (op::reads_only_operands_or_calldata(definition.opcode)
+            || op::is_plain_access(definition.opcode))
 }
 
-/// Operations that read nothing a run's other operations can change.
-fn movable(opcode: u8, traits: OpcodeTraits) -> bool {
-    traits.contains(OpcodeTraits::PURE) || matches!(opcode, op::CALLDATALOAD | op::CALLDATASIZE)
+/// The constant a push pushes, when pushing it again is free of side conditions.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Constant {
+    Immediate(U256),
+    Block(BlockId),
 }
 
-/// Memory and storage accesses, which keep their relative order.
-fn ordered(opcode: u8) -> bool {
-    matches!(
-        opcode,
-        op::MLOAD
-            | op::MSTORE
-            | op::MSTORE8
-            | op::SLOAD
-            | op::SSTORE
-            | op::TLOAD
-            | op::TSTORE
-            | op::KECCAK256
-    )
-}
-
-/// What identifies a push's constant, when pushing it again is free of side conditions.
-fn constant_key(inst: &Instruction) -> Option<(u8, U256)> {
+fn constant(inst: &Instruction) -> Option<Constant> {
     if inst.deferred_push().is_some() || inst.immutable_push().is_some() {
         return None;
     }
     if let Some(value) = inst.concrete_immediate() {
-        return Some((0, value));
+        return Some(Constant::Immediate(value));
     }
-    inst.pushed_block().map(|block| (1, U256::from(block.index())))
+    inst.pushed_block().map(Constant::Block)
 }
 
 /// Price of a push as assembly encodes it: the narrowest `PUSH` of its value.
 fn push_cost(inst: &Instruction, target: Target) -> Cost {
-    let width = match inst.concrete_immediate() {
+    match inst.concrete_immediate() {
         Some(value) if value.is_zero() && target.evm_version().has_push0() => {
-            return target.opcode(op::PUSH0);
+            target.opcode(op::PUSH0)
         }
-        Some(value) => value.byte_len().max(1),
-        // Labels resolve to two-byte pushes in all but the largest contracts.
-        None => 2,
-    };
-    target.opcode(op::PUSH1 + (width as u8 - 1))
+        Some(value) => target.opcode(op::push(value.byte_len().max(1) as u8)),
+        None => target.label_push(),
+    }
 }
 
-fn stack_op_cost(stack_op: StackOp, target: Target) -> Cost {
-    stack_op
-        .single_byte_evm_opcode()
-        .map_or(Cost::new(u32::MAX, u32::MAX), |opcode| target.opcode(opcode))
+/// Price of an instruction a run holds.
+fn instruction_cost(inst: &Instruction, target: Target) -> Cost {
+    if let Some(stack_op) = inst.as_stack_op() {
+        target.opcode(stack_op.single_byte_evm_opcode().expect("runs hold one-byte stack ops"))
+    } else if inst.is_encoded_push() {
+        push_cost(inst, target)
+    } else {
+        target.opcode(inst.opcode)
+    }
+}
+
+/// Applies a stack operation to a run's symbolic stack.
+fn apply(stack: &mut SmallVec<[Word; 24]>, stack_op: StackOp) {
+    match stack_op {
+        StackOp::Dup(depth) => stack.insert(0, stack[usize::from(depth) - 1]),
+        StackOp::Swap(depth) => stack.swap(0, usize::from(depth)),
+        StackOp::Pop => {
+            stack.remove(0);
+        }
+        StackOp::Exchange(..) => unreachable!("runs hold one-byte stack ops"),
+    }
 }
 
 /// Orders costs under the objective as one number: gas first, then bytes.
@@ -538,14 +568,14 @@ fn summarize(
     run: &[Instruction],
     target: Target,
     max_operations: usize,
-    halts: &[bool],
+    halts: &DenseBitSet<BlockId>,
 ) -> Option<Run> {
     let mut stack = SmallVec::<[Word; 24]>::new();
     let mut entry = 0usize;
     let mut operations = Vec::new();
-    let mut constants = SmallVec::<[usize; 8]>::new();
+    let mut pushes = SmallVec::<[SmallVec<[usize; 4]>; 8]>::new();
     let mut constant_costs = SmallVec::<[u64; 8]>::new();
-    let mut keys = SmallVec::<[(u8, U256); 8]>::new();
+    let mut keys = SmallVec::<[Constant; 8]>::new();
     let mut cost = Cost::ZERO;
     let mut last_ordered = None;
     // The last check or gas-dependent access: the operations after it stay after it.
@@ -570,8 +600,7 @@ fn summarize(
                 position,
                 operands: SmallVec::from_slice(&[condition]),
                 produces: false,
-                commutative: false,
-                mirror: None,
+                swapped: None,
                 after: last_ordered,
                 branch: true,
             });
@@ -582,26 +611,20 @@ fn summarize(
         }
         if let Some(stack_op) = inst.as_stack_op() {
             deepen(&mut stack, &mut entry, stack_op.required_depth())?;
-            match stack_op {
-                StackOp::Dup(depth) => stack.insert(0, stack[usize::from(depth) - 1]),
-                StackOp::Swap(depth) => stack.swap(0, usize::from(depth)),
-                StackOp::Pop => {
-                    stack.remove(0);
-                }
-                StackOp::Exchange(..) => return None,
-            }
-            cost = cost.plus(stack_op_cost(stack_op, target));
+            apply(&mut stack, stack_op);
+            cost = cost.plus(instruction_cost(inst, target));
         } else if inst.is_encoded_push() {
-            let key = constant_key(inst)?;
+            let key = constant(inst)?;
             let index = match keys.iter().position(|&existing| existing == key) {
                 Some(index) => index,
                 None => {
                     keys.push(key);
-                    constants.push(position);
+                    pushes.push(SmallVec::new());
                     constant_costs.push(scalar(push_cost(inst, target), target));
                     keys.len() - 1
                 }
             };
+            pushes[index].push(position);
             stack.insert(0, Word::Constant(u8::try_from(index).ok()?));
             cost = cost.plus(push_cost(inst, target));
         } else {
@@ -610,19 +633,12 @@ fn summarize(
             deepen(&mut stack, &mut entry, usize::from(inputs))?;
             let operands = stack.drain(..usize::from(inputs)).collect::<SmallVec<[Word; 3]>>();
             let index = u8::try_from(operations.len()).ok()?;
-            let is_ordered = !movable(definition.opcode, definition.traits);
+            let is_ordered = !op::reads_only_operands_or_calldata(definition.opcode);
             operations.push(Operation {
                 position,
                 operands,
                 produces: outputs == 1,
-                commutative: definition.traits.contains(OpcodeTraits::COMMUTATIVE),
-                mirror: match definition.opcode {
-                    op::LT => Some(op::GT),
-                    op::GT => Some(op::LT),
-                    op::SLT => Some(op::SGT),
-                    op::SGT => Some(op::SLT),
-                    _ => None,
-                },
+                swapped: op::swapped_binary_opcode(definition.opcode),
                 after: if is_ordered { last_ordered } else { last_observed },
                 branch: false,
             });
@@ -643,7 +659,7 @@ fn summarize(
         && operations.len() <= max_operations
         && entry <= REACH
         && keys.len() <= 8)
-        .then_some(Run { operations, constants, constant_costs, entry, exit: stack, cost, peak })
+        .then_some(Run { operations, pushes, constant_costs, entry, exit: stack, cost, peak })
 }
 
 /// Dense indices of a run's words: entry words, then results, then constants.
@@ -667,7 +683,7 @@ impl Words {
 fn search(run: &Run, target: Target, limits: Budget, buffers: &mut Buffers) -> Option<Vec<Move>> {
     let operation_count = run.operations.len();
     let words = Words { entry: run.entry, operations: operation_count };
-    let word_count = run.entry + operation_count + run.constants.len();
+    let word_count = run.entry + operation_count + run.pushes.len();
     let height = run.peak.max(run.entry.max(run.exit.len()) + STACK_SLACK);
     if word_count > 64 || height > MAX_HEIGHT {
         return None;
@@ -836,9 +852,7 @@ fn search(run: &Run, target: Target, limits: Budget, buffers: &mut Buffers) -> O
                             [] => true,
                             &[a] => top(0) == Some(a) || owed(&counts, a, 1),
                             &[a, b] => {
-                                reaches(a, b)
-                                    || ((operation.commutative || operation.mirror.is_some())
-                                        && reaches(b, a))
+                                reaches(a, b) || (operation.swapped.is_some() && reaches(b, a))
                             }
                             _ => true,
                         };
@@ -856,14 +870,18 @@ fn search(run: &Run, target: Target, limits: Budget, buffers: &mut Buffers) -> O
             true
         };
 
-    // state, parent, move, cost, bound on the remaining cost
-    let Buffers { arena, best, open, refined } = buffers;
+    let Buffers { arena, best, open } = buffers;
     arena.clear();
     best.clear();
     open.clear();
-    refined.clear();
-    arena.push((start, u32::MAX, None, 0, estimate(start)));
-    refined.push(UNKNOWN);
+    arena.push(Node {
+        state: start,
+        parent: u32::MAX,
+        step: None,
+        cost: 0,
+        bound: estimate(start),
+        refined: Refined::Unknown,
+    });
     best.insert(start, 0);
     open.push(BOUND_WEIGHT * estimate(start), 0, 0);
     let mut expansions = 0;
@@ -871,11 +889,11 @@ fn search(run: &Run, target: Target, limits: Budget, buffers: &mut Buffers) -> O
     let mut found_at = 0;
     let mut successors = SmallVec::<[(State, Move, u64, u64); 48]>::new();
     while let Some((cost, node)) = open.pop() {
-        let (state, _, _, _, remaining) = arena[node as usize];
-        let raised = match refined[node as usize] {
-            SUPERSEDED => continue,
-            SWAP => swap,
-            _ => 0,
+        let Node { state, bound: remaining, refined, .. } = arena[node as usize];
+        let raised = match refined {
+            Refined::Superseded => continue,
+            Refined::Swap => swap,
+            Refined::Unknown | Refined::NoSwap => 0,
         };
         if cost + remaining + raised >= budget {
             continue;
@@ -899,15 +917,15 @@ fn search(run: &Run, target: Target, limits: Budget, buffers: &mut Buffers) -> O
         });
         // Raise the bound of a state that needs a swap before its next operation, and order
         // it again, before expanding it.
-        if refined[node as usize] == UNKNOWN {
+        if refined == Refined::Unknown {
             if needs_swap(state, stack, ready, &counts, &need) {
-                refined[node as usize] = SWAP;
+                arena[node as usize].refined = Refined::Swap;
                 if cost + remaining + swap < budget {
                     open.push(cost + BOUND_WEIGHT * (remaining + swap), cost, node);
                 }
                 continue;
             }
-            refined[node as usize] = NO_SWAP;
+            arena[node as usize].refined = Refined::NoSwap;
         }
         expansions += 1;
         let stalled = found.is_some() && expansions > found_at + limits.stall;
@@ -940,11 +958,11 @@ fn search(run: &Run, target: Target, limits: Budget, buffers: &mut Buffers) -> O
         let swaps = !surplus_top
             && (finishing
                 || !matches!(
-                    arena[node as usize].2,
+                    arena[node as usize].step,
                     Some(Move::Push(_) | Move::Stack(StackOp::Dup(_) | StackOp::Swap(_)))
                 ));
         successors.clear();
-        // perform a ready operation
+        // Perform a ready operation.
         for (index, operation) in run.operations.iter().enumerate() {
             let arity = operands[index].len();
             if ready & (1 << index) == 0
@@ -954,9 +972,12 @@ fn search(run: &Run, target: Target, limits: Budget, buffers: &mut Buffers) -> O
                 continue;
             }
             let in_order = (0..arity).all(|depth| at(depth) == operands[index][depth]);
-            let swapped = arity == 2 && at(0) == operands[index][1] && at(1) == operands[index][0];
-            let mirrored = !in_order && swapped && !operation.commutative;
-            if !(in_order || (swapped && (operation.commutative || operation.mirror.is_some()))) {
+            let swapped = !in_order
+                && operation.swapped.is_some()
+                && arity == 2
+                && at(0) == operands[index][1]
+                && at(1) == operands[index][0];
+            if !in_order && !swapped {
                 continue;
             }
             let mut next = state.drop(arity);
@@ -983,10 +1004,10 @@ fn search(run: &Run, target: Target, limits: Budget, buffers: &mut Buffers) -> O
                 bound = bound - term(result, counts[result], need[result], state.done)
                     + term(result, counts[result] + 1, need[result], next.done);
             }
-            successors.push((next, Move::Perform { operation: index as u8, mirrored }, 0, bound));
+            successors.push((next, Move::Perform { operation: index as u8, swapped }, 0, bound));
         }
         if len < height && !surplus_top {
-            // push a constant a ready operation, or the finished run, still needs
+            // Push a constant a ready operation, or the finished run, still needs.
             for (constant, &constant_cost) in run.constant_costs.iter().enumerate() {
                 let word = run.entry + operation_count + constant;
                 if (wanted & (1 << word) != 0 || (finishing && exit_uses[word] != 0))
@@ -1000,7 +1021,7 @@ fn search(run: &Run, target: Target, limits: Budget, buffers: &mut Buffers) -> O
                     ));
                 }
             }
-            // copy a word that has more uses than copies
+            // Copy a word that has more uses than copies.
             let mut seen = 0u64;
             for depth in 1..=len.min(REACH) {
                 let word = at(depth - 1);
@@ -1019,8 +1040,8 @@ fn search(run: &Run, target: Target, limits: Budget, buffers: &mut Buffers) -> O
             }
         }
         if swaps {
-            // swap up a word a ready operation reads, a surplus copy, or any word once all
-            // operations ran
+            // Swap up a word a ready operation reads, a surplus copy, or any word once all
+            // operations ran.
             for depth in 1..len.min(REACH + 1) {
                 let word = at(depth);
                 if word == at(0)
@@ -1041,33 +1062,40 @@ fn search(run: &Run, target: Target, limits: Budget, buffers: &mut Buffers) -> O
         }
         for &(successor, step, step_cost, remaining) in &successors {
             let next_cost = cost + step_cost;
-            if next_cost + remaining >= budget {
+            // An operation without operands, such as `CALLDATASIZE`, grows the stack like a push.
+            if usize::from(successor.len) > height || next_cost + remaining >= budget {
                 continue;
             }
             let id = arena.len() as u32;
             match best.entry(successor) {
                 Entry::Occupied(mut entry) => {
                     let known = *entry.get();
-                    if arena[known as usize].3 <= next_cost {
+                    if arena[known as usize].cost <= next_cost {
                         continue;
                     }
-                    refined[known as usize] = SUPERSEDED;
+                    arena[known as usize].refined = Refined::Superseded;
                     entry.insert(id);
                 }
                 Entry::Vacant(entry) => {
                     entry.insert(id);
                 }
             }
-            arena.push((successor, node, Some(step), next_cost, remaining));
-            refined.push(UNKNOWN);
+            arena.push(Node {
+                state: successor,
+                parent: node,
+                step: Some(step),
+                cost: next_cost,
+                bound: remaining,
+                refined: Refined::Unknown,
+            });
             open.push(next_cost + BOUND_WEIGHT * remaining, next_cost, id);
         }
     }
     let mut cursor = found?;
     let mut moves = Vec::new();
-    while let Some(step) = arena[cursor as usize].2 {
+    while let Some(step) = arena[cursor as usize].step {
         moves.push(step);
-        cursor = arena[cursor as usize].1;
+        cursor = arena[cursor as usize].parent;
     }
     moves.reverse();
     Some(moves)
@@ -1079,28 +1107,15 @@ fn emit(run: &[Instruction], summary: &Run, moves: &[Move]) -> Option<Vec<Instru
         (0..summary.entry).map(|depth| Word::Entry(depth as u8)).collect();
     let mut performed = 0u32;
     let mut instructions = Vec::with_capacity(moves.len());
-    // The original pushes of each constant, whose metadata the emitted pushes take in order.
-    let mut pushes = vec![SmallVec::<[usize; 4]>::new(); summary.constants.len()];
-    for (position, inst) in run.iter().enumerate() {
-        if inst.is_encoded_push()
-            && let Some(constant) = summary
-                .constants
-                .iter()
-                .position(|&first| constant_key(&run[first]) == constant_key(inst))
-        {
-            pushes[constant].push(position);
-        }
-    }
-    let mut placed = vec![false; run.len()];
+    let mut placed = DenseBitSet::<usize>::new_empty(run.len());
     for &step in moves {
         match step {
-            Move::Perform { operation, mirrored } => {
+            // operands -> op, or swapped operands -> swapped op
+            Move::Perform { operation, swapped } => {
                 let operation_info = &summary.operations[usize::from(operation)];
                 let arity = operation_info.operands.len();
                 let mut expected = operation_info.operands.clone();
-                if stack.len() >= arity
-                    && (mirrored || (operation_info.commutative && stack[..arity] != expected[..]))
-                {
+                if swapped {
                     expected.reverse();
                 }
                 if stack.len() < arity || stack[..arity] != expected[..] {
@@ -1113,26 +1128,27 @@ fn emit(run: &[Instruction], summary: &Run, moves: &[Move]) -> Option<Vec<Instru
                 }
                 performed |= 1 << operation;
                 let original = &run[operation_info.position];
-                placed[operation_info.position] = true;
+                placed.insert(operation_info.position);
                 if operation_info.branch {
-                    placed[operation_info.position + 1] = true;
+                    placed.insert(operation_info.position + 1);
                     instructions.push(original.clone());
                     instructions.push(run[operation_info.position + 1].clone());
                     continue;
                 }
-                instructions.push(match (mirrored, operation_info.mirror) {
-                    (true, Some(mirror)) => {
-                        Instruction::opcode(mirror).with_metadata(original.metadata.clone())
+                instructions.push(match operation_info.swapped {
+                    Some(opcode) if swapped && opcode != original.opcode => {
+                        Instruction::opcode(opcode).with_metadata(original.metadata.clone())
                     }
                     _ => original.clone(),
                 });
             }
+            // push constant
             Move::Push(constant) => {
                 stack.insert(0, Word::Constant(constant));
-                let originals = &pushes[usize::from(constant)];
-                match originals.iter().copied().find(|&position| !placed[position]) {
+                let originals = &summary.pushes[usize::from(constant)];
+                match originals.iter().copied().find(|&position| !placed.contains(position)) {
                     Some(position) => {
-                        placed[position] = true;
+                        placed.insert(position);
                         instructions.push(run[position].clone());
                     }
                     None => {
@@ -1146,15 +1162,9 @@ fn emit(run: &[Instruction], summary: &Run, moves: &[Move]) -> Option<Vec<Instru
                     }
                 }
             }
+            // dupN | swapN | pop
             Move::Stack(stack_op) => {
-                match stack_op {
-                    StackOp::Dup(depth) => stack.insert(0, stack[usize::from(depth) - 1]),
-                    StackOp::Swap(depth) => stack.swap(0, usize::from(depth)),
-                    StackOp::Pop => {
-                        stack.remove(0);
-                    }
-                    StackOp::Exchange(..) => return None,
-                }
+                apply(&mut stack, stack_op);
                 let mut inst = Instruction::stack_op(stack_op);
                 inst.metadata.mark_debug_info_dropped();
                 instructions.push(inst);
@@ -1171,7 +1181,7 @@ fn emit(run: &[Instruction], summary: &Run, moves: &[Move]) -> Option<Vec<Instru
     // instruction, so the run as a whole keeps every event it had.
     if let Some(last) = instructions.last_mut() {
         for (position, inst) in run.iter().enumerate() {
-            if !placed[position] {
+            if !placed.contains(position) {
                 last.metadata.absorb_debug_info(&inst.metadata);
             }
         }
@@ -1181,14 +1191,16 @@ fn emit(run: &[Instruction], summary: &Run, moves: &[Move]) -> Option<Vec<Instru
 
 /// Whether the instructions at `index` push a label and branch to it, where the target aborts
 /// without reading the stack: the branch then depends on its condition alone.
-fn is_branch_pair(instructions: &[Instruction], index: usize, halts: &[bool]) -> bool {
+fn is_branch_pair(
+    instructions: &[Instruction],
+    index: usize,
+    halts: &DenseBitSet<BlockId>,
+) -> bool {
     let (Some(push), Some(jumpi)) = (instructions.get(index), instructions.get(index + 1)) else {
         return false;
     };
-    push.pushed_block().is_some_and(|block| halts.get(block.index()).copied().unwrap_or(false))
-        && jumpi.as_stack_op().is_none()
-        && !jumpi.is_encoded_push()
-        && jumpi.opcode == op::JUMPI
+    push.pushed_block().is_some_and(|block| halts.contains(block))
+        && jumpi.as_evm_opcode() == Some(op::JUMPI)
         && is_split_point(instructions, index)
         && is_split_point(instructions, index + 1)
         && !jumpi.keeps_with_next()
@@ -1216,19 +1228,16 @@ fn aborts_without_stack(block: &Block) -> bool {
         depth = rest + usize::from(effect.outputs);
     }
     match block.terminator.as_ref().map(|terminator| &terminator.kind) {
-        Some(TerminatorKind::Op(opcode)) if matches!(*opcode, op::REVERT | op::INVALID) => {
-            op::stack_io(*opcode).is_some_and(|(inputs, _)| usize::from(inputs) <= depth)
+        Some(kind @ TerminatorKind::Op(op::REVERT | op::INVALID)) => {
+            kind.stack_io().is_some_and(|(inputs, _)| usize::from(inputs) <= depth)
         }
         _ => false,
     }
 }
 
-/// The operations a slice of a run performs: a branch pair's push is part of its `JUMPI`.
-fn operation_count(instructions: &[Instruction]) -> usize {
-    instructions
-        .iter()
-        .filter(|inst| inst.as_stack_op().is_none() && !inst.is_encoded_push())
-        .count()
+/// Whether an instruction of a run is an operation: a branch pair's push is part of its `JUMPI`.
+fn is_operation(inst: &Instruction) -> bool {
+    inst.as_stack_op().is_none() && !inst.is_encoded_push()
 }
 
 /// The cheapest schedule the search finds for a run, if it beats the run's own.
@@ -1236,9 +1245,19 @@ fn schedule(
     run: &[Instruction],
     target: Target,
     budget: Budget,
-    halts: &[bool],
+    halts: &DenseBitSet<BlockId>,
     scratch: &mut Scratch,
 ) -> Option<Vec<Instruction>> {
+    // A run that ends in a label push, the target of the jump after it, keeps the push last so
+    // the jump's edge stays visible.
+    // run; push label -> schedule; push label
+    if let [rest @ .., last] = run
+        && last.pushed_block().is_some()
+    {
+        let mut scheduled = schedule(rest, target, budget, halts, scratch)?;
+        scheduled.push(last.clone());
+        return Some(scheduled);
+    }
     let summary = summarize(run, target, budget.operations, halts)?;
     // Unrolled copies and repeated checks produce the same runs over and over, and runs that
     // only push other immediates of the same widths take the same schedule.
@@ -1261,7 +1280,7 @@ fn split_schedule(
     window: &[Instruction],
     target: Target,
     budget: Budget,
-    halts: &[bool],
+    halts: &DenseBitSet<BlockId>,
     scratch: &mut Scratch,
 ) -> Option<Vec<Instruction>> {
     let mut rebuilt = Vec::with_capacity(window.len());
@@ -1270,7 +1289,7 @@ fn split_schedule(
     let mut index = 0;
     while index < window.len() {
         if is_branch_pair(window, index, halts) {
-            // The pushed target closes the run before the `JUMPI`, which stays where it is.
+            // run; push target; jumpi -> schedule; push target; jumpi
             improved |= extend_scheduled(
                 &mut rebuilt,
                 &window[start..index + 1],
@@ -1282,7 +1301,7 @@ fn split_schedule(
             rebuilt.push(window[index + 1].clone());
             index += 2;
         } else if observes_gas(&window[index]) {
-            // The access closes the run it ends.
+            // run; access -> schedule ending in access
             improved |= extend_scheduled(
                 &mut rebuilt,
                 &window[start..index + 1],
@@ -1312,7 +1331,7 @@ fn extend_scheduled(
     run: &[Instruction],
     target: Target,
     budget: Budget,
-    halts: &[bool],
+    halts: &DenseBitSet<BlockId>,
     scratch: &mut Scratch,
 ) -> bool {
     match schedule(run, target, budget, halts, scratch) {
@@ -1329,15 +1348,10 @@ fn extend_scheduled(
 
 /// The price of a sequence's stack operations and pushes, which is all a schedule changes.
 fn price(instructions: &[Instruction], target: Target) -> u64 {
-    let cost = instructions.iter().fold(Cost::ZERO, |cost, inst| {
-        if let Some(stack_op) = inst.as_stack_op() {
-            cost.plus(stack_op_cost(stack_op, target))
-        } else if inst.is_encoded_push() {
-            cost.plus(push_cost(inst, target))
-        } else {
-            cost
-        }
-    });
+    let cost = instructions
+        .iter()
+        .filter(|inst| !is_operation(inst))
+        .fold(Cost::ZERO, |cost, inst| cost.plus(instruction_cost(inst, target)));
     scalar(cost, target)
 }
 
@@ -1361,17 +1375,10 @@ fn spends_no_more_before_observations(
         let mut spent = 0u64;
         let mut before = SmallVec::<[u64; 8]>::new();
         for inst in instructions {
-            let cost = if let Some(stack_op) = inst.as_stack_op() {
-                stack_op_cost(stack_op, target)
-            } else if inst.is_encoded_push() {
-                push_cost(inst, target)
-            } else {
-                if inst.opcode == op::JUMPI || observes_gas(inst) {
-                    before.push(spent);
-                }
-                target.opcode(inst.opcode)
-            };
-            spent += u64::from(cost.gas);
+            if is_operation(inst) && (inst.opcode == op::JUMPI || observes_gas(inst)) {
+                before.push(spent);
+            }
+            spent += u64::from(instruction_cost(inst, target).gas);
         }
         before
     };
