@@ -70,13 +70,14 @@ bb4 [cold]:
   push 0
   invalid
 bb9:
-  push 160
   push 64
+  push 160
+  dup 2
   mstore
   push 0
+  dup 1
   sload
-  push 0
-  push 64
+  swap 2
   mload
   push 32
   add

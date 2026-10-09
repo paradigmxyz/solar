@@ -206,28 +206,26 @@ bb16:
   dup 3
   calldatacopy
   push 0
-  sload
-  push 1
-  dup 2
-  and
-  push 1
-  dup 2
-  eq
-  swap 1
   push 0
+  sload
+  dup 1
+  push 1
+  and
+  dup 1
+  push 1
+  eq
+  swap 3
   sub
   push 127
   or
-  swap 2
+  swap 1
   push 1
   shr
-  swap 1
-  swap 2
   and
-  push 32
   dup 2
-  lt
-  dup 3
+  dup 2
+  push 32
+  gt
   eq
   push bb72
   jumpi
@@ -494,22 +492,21 @@ bb30:
   sstore
   jump bb31
 bb35:
+  dup 1
+  push 32
+  dup 1
   push 0
   push 0
   mstore
-  push 32
   push 0
   keccak256
-  push 32
-  dup 3
+  swap 3
   add
-  push 0
-  swap 5
+  swap 4
   pop
-  swap 1
   swap 2
   swap 3
-  swap 4
+  push 0
   jump bb36
 bb38 [loop]:
   dup 1

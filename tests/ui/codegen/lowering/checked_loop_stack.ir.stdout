@@ -236,22 +236,21 @@ bb12 [cold]:
   revert
 bb27 [cold]:
   pop
+  push 4
   push 160
   push 0x760769fe
   push 224
   shl
   dup 2
   mstore
-  push 4
-  dup 2
   add
-  swap 3
-  dup 4
-  mstore
   swap 2
+  dup 3
+  mstore
+  swap 1
   push 32
   add
   mstore
   push 68
-  swap 1
+  push 160
   revert

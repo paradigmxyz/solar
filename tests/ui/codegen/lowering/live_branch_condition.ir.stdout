@@ -39,12 +39,10 @@ bb12 [cold]:
   push 0
   revert
 bb2:
-  dup 1
   push 0xedd004e5
   sub
   push bb12
   jumpi
-  pop
   push 1
   add
   dup 1

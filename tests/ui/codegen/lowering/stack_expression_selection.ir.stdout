@@ -72,12 +72,11 @@ bb11:
   xor
   jump bb34
 bb34:
-  push 1
-  dup 2
-  add
-  swap 1
+  dup 1
   push 128
   mstore
+  push 1
+  add
   push 160
   mstore
   eq

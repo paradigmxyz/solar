@@ -37,9 +37,11 @@
 // SIZE-NEXT: push 64
 // SIZE-NEXT: mstore
 // SIZE: mload
-// SIZE-NEXT: push 32
+// SIZE-NOT: mstore
+// SIZE: push 64{{[[:space:]]+}}mstore
 // SIZE: mload
-// SIZE-NEXT: push 64
+// SIZE-NOT: mstore
+// SIZE: push 64{{[[:space:]]+}}mstore
 contract FmpBlockLocalSpills {
     function hashBranch(
         bool pair,

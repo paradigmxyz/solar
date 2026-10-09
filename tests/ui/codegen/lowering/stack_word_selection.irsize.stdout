@@ -82,19 +82,17 @@ bb3:
   and
   jump bb11
 bb4:
-  dup 1
   push 0xcad0899b
   sub
   push bb10
   jumpi
-  pop
   dup 2
   dup 2
-  or
-  swap 1
-  dup 3
+  dup 2
   dup 2
   add
-  swap 3
+  swap 4
+  or
+  swap 2
   and
   jump bb11

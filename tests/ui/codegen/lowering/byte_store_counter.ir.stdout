@@ -249,14 +249,13 @@ bb60 [loop]:
   jumpi
   push 1
   dup 4
+  push 2
+  add
+  swap 4
   add
   mstore8
   push 1
   add
-  swap 1
-  push 2
-  add
-  swap 1
   jump bb58
 bb58 [loop]:
   dup 7
@@ -373,11 +372,10 @@ bb69 [loop]:
   jumpi
   pop
   dup 1
-  mload
-  swap 1
   push 32
   add
   swap 1
+  mload
   jump bb72
 bb72:
   swap 1
@@ -594,15 +592,14 @@ bb49 [loop]:
   revert
 bb73 [loop]:
   dup 2
-  mload
-  swap 2
   push 32
   add
-  swap 2
+  dup 1
   push 32
-  dup 4
   add
   swap 3
+  mload
+  swap 1
   mload
   or
   push 0x8080808080808080808080808080808080808080808080808080808080808080

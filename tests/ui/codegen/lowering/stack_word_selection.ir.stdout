@@ -30,17 +30,15 @@ bb0:
   pop
   dup 2
   dup 2
-  xor
-  swap 1
-  dup 3
   dup 2
-  or
-  swap 3
+  dup 2
   and
   push 128
   mstore
+  xor
   push 160
   mstore
+  or
   push 192
   mstore
   push 96
@@ -51,25 +49,21 @@ bb11 [cold]:
   push 0
   revert
 bb2:
-  dup 1
   push 0xcad0899b
   sub
   push bb11
   jumpi
-  pop
   dup 2
   dup 2
-  or
-  swap 1
-  dup 3
   dup 2
-  add
-  swap 3
+  dup 2
   and
   push 128
   mstore
+  or
   push 160
   mstore
+  add
   push 192
   mstore
   push 96
@@ -84,42 +78,36 @@ bb4:
   pop
   dup 2
   dup 2
-  xor
-  swap 1
-  dup 3
   dup 2
-  and
-  swap 3
+  dup 2
   or
   push 128
   mstore
+  xor
   push 160
   mstore
+  and
   push 192
   mstore
   push 96
   push 128
   return
 bb5:
-  dup 1
   push 0x9ed41ba1
   sub
   push bb11
   jumpi
-  pop
   dup 2
   dup 2
-  or
-  swap 1
-  dup 3
   dup 2
-  xor
-  swap 3
+  dup 2
   and
   push 128
   mstore
+  or
   push 160
   mstore
+  xor
   push 192
   mstore
   push 96

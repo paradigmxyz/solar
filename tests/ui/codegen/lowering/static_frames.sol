@@ -23,7 +23,7 @@ contract SF {
     // CHECK: return
     // The entry's heap starts right above its return word.
     // CHECK: [[TOP]]:
-    // CHECK-NEXT: push 160
+    // CHECK: push 160
     // CHECK-NEXT: push 64
     // CHECK-NEXT: mstore
     uint256 public s;

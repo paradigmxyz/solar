@@ -405,20 +405,20 @@ bb28:
   push 64
   mload
   dup 1
+  dup 1
+  dup 1
   push 192
-  dup 3
   add
   push 64
   mstore
-  push 160
-  dup 3
-  mstore
-  swap 1
   push 32
-  add
-  calldatasize
   push 160
-  swap 2
+  dup 1
+  calldatasize
+  swap 4
+  mstore
+  swap 3
+  add
   calldatacopy
   swap 1
   jump
@@ -457,9 +457,9 @@ bb18 [continuation]:
   jump bb31
 bb19:
   push 32
+  dup 1
   push 128
   mstore
-  push 32
   push 160
   mstore
   push 0

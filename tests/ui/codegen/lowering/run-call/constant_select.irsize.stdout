@@ -245,17 +245,15 @@ bb26:
 bb24:
   push 0
   push 0
+  push 0
   mstore
   push 32
   push 0
   keccak256
   swap 3
+  swap 4
   pop
-  push 0
   swap 1
-  swap 3
-  swap 2
-  swap 3
   jump bb25
 bb25 [loop]:
   dup 4

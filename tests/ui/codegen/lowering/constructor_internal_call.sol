@@ -23,10 +23,10 @@ contract ConstructorICall {
     // EVMIR: iszero
     // EVMIR-NEXT: push [[BASE:bb[0-9]+]]
     // EVMIR-NEXT: jumpi
-    // EVMIR-NEXT: push 11
-    // EVMIR: mul
     // EVMIR: jumpi
     // EVMIR-NEXT: push 1
+    // EVMIR: push 11
+    // EVMIR-NEXT: mul
     // EVMIR: push {{bb[0-9]+}}
     // EVMIR-NEXT: jump [[HELPER]]
     // EVMIR: [[CTOR_CONT]] [continuation]:

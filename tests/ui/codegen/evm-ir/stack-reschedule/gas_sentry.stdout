@@ -1,0 +1,17 @@
+- // === ROOT/tests/ui/codegen/evm-ir/stack-reschedule/gas_sentry.evmir (before stack-reschedule) ===
++ // === ROOT/tests/ui/codegen/evm-ir/stack-reschedule/gas_sentry.evmir (after stack-reschedule) ===
+  @module module
+  bb0 [stack=2]:
+    dup 2
+    push 0
+    sstore
+-   swap 1
++   pop
+    push 1
+    add
+-   swap 1
+-   pop
+    push 0
+    mstore
+    stop
+  

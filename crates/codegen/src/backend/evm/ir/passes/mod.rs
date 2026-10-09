@@ -25,6 +25,7 @@ mod peephole;
 mod reorder_pushes;
 mod share_reverts;
 mod stack_normalize;
+mod stack_reschedule;
 mod tail_merge;
 mod terminal_dedup;
 mod terminal_layout;
@@ -98,6 +99,7 @@ pub static ALL_PASSES: &[&dyn EvmPass] = &[
     &stack_normalize::StackDedup,
     &stack_normalize::StackNormalize::EARLY,
     &stack_normalize::StackNormalize::FINAL,
+    &stack_reschedule::StackReschedule,
     &compact_pushes::CompactPushes,
     &constant_data::ConstantData,
     &coalesce_copies::CoalesceCopies,
@@ -174,6 +176,8 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     // Data packing can add compactable immediates and local stack shuffles.
     &compact_pushes::CompactPushes,
     &peephole::Peephole::FINAL,
+    // Search straight-line code for cheaper stack shuffles once pushes are final.
+    &stack_reschedule::StackReschedule,
     &stack_normalize::StackDedup,
     &peephole::Cleanup(dce::Dce),
     &late_structural::LateStructural,

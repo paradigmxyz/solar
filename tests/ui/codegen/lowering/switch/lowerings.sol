@@ -79,9 +79,7 @@ contract SwitchLowerings {
     // PERFECTSIZE: sub
     // PERFECTSIZE: push 3
     // PERFECTSIZE-NEXT: shr
-    // PERFECTSIZE-NEXT: swap 1
-    // PERFECTSIZE: push 253
-    // PERFECTSIZE-NEXT: shl
+    // PERFECTSIZE: shl
     // PERFECTSIZE-NEXT: or
     // PERFECTSIZE: indexed_jump
 

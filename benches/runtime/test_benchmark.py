@@ -93,7 +93,7 @@ class CorpusTests(unittest.TestCase):
             )
 
     def test_vendored_cases_and_projects_exist(self) -> None:
-        self.assertEqual(len(benchmark.TEST_CASES), 34)
+        self.assertEqual(len(benchmark.TEST_CASES), 35)
         repository_cases = [
             case for case in benchmark.TEST_CASES if case.suite == "repository"
         ]

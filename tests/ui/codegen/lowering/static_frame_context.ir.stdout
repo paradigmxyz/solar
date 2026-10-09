@@ -160,16 +160,15 @@ bb11 [continuation]:
 bb12 [continuation]:
   dup 2
   add
-  swap 1
-  dup 2
-  lt
   swap 2
-  dup 2
+  dup 3
   add
   swap 2
-  swap 1
   dup 3
-  lt
+  dup 2
+  gt
+  swap 2
+  gt
   or
   push bb14
   jumpi

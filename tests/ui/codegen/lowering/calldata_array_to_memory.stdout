@@ -409,14 +409,13 @@ bb19:
   jumpi
   swap 1
   mload
-  push 100
-  dup 2
-  mul
-  swap 1
+  dup 1
   push 0x28f5c28f5c28f5c28f5c28f5c28f5c28f5c28f5c28f5c28f5c28f5c28f5c28f
   lt
   push bb27
   jumpi
+  push 100
+  mul
   dup 2
   add
   swap 1

@@ -192,19 +192,16 @@ bb28 [loop]:
   dup 4
   push 0
   mstore
-  push 32
-  push 0
-  keccak256
-  swap 1
   push 255
   not
   and
   swap 1
-  swap 2
   push 0
   byte
   or
-  swap 1
+  push 32
+  push 0
+  keccak256
   sstore
   push 65
   dup 3
@@ -725,21 +722,20 @@ bb70:
   swap 1
   return
 bb68:
-  swap 3
+  dup 1
+  push 32
+  add
+  swap 4
   push 0
   mstore
   push 32
   push 0
   keccak256
-  push 32
-  dup 5
-  add
-  push 0
-  swap 4
-  pop
-  swap 1
   swap 2
   swap 3
+  pop
+  swap 3
+  push 0
   jump bb69
 bb71 [loop]:
   dup 1

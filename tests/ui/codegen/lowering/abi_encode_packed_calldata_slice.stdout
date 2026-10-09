@@ -72,29 +72,27 @@ bb15:
   swap 1
   jump
 bb7 [continuation]:
-  dup 1
-  calldataload
-  swap 1
+  dup 3
+  dup 3
+  lt
+  dup 3
+  dup 3
   push 32
   add
-  swap 1
-  dup 3
-  gt
-  dup 4
-  dup 4
+  swap 3
+  calldataload
   lt
   or
   push bb4
   jumpi
   dup 3
-  swap 1
-  swap 2
-  sub
-  swap 2
   add
-  swap 1
+  swap 2
   push 64
   mload
+  swap 2
+  sub
+  swap 1
   dup 2
   dup 4
   dup 3

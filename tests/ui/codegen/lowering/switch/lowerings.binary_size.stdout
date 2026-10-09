@@ -48,12 +48,10 @@ bb5:
   push 106
   jump bb22
 bb6:
-  dup 1
   push 64
   sub
   push bb21
   jumpi
-  pop
   push 107
   jump bb22
 bb8:
@@ -84,12 +82,10 @@ bb10:
   push 102
   jump bb22
 bb11:
-  dup 1
   push 32
   sub
   push bb21
   jumpi
-  pop
   push 103
   jump bb22
 // === ROOT/tests/ui/codegen/lowering/switch/lowerings.sol:SwitchLowerings (runtime) ===
@@ -101,7 +97,7 @@ CALLDATALOAD
 DUP1
 PUSH1 0x28
 GT
-PUSH1 0x4c ; bb5
+PUSH1 0x4a ; bb5
 JUMPI
 DUP1
 PUSH1 0x28
@@ -146,12 +142,10 @@ PUSH1 0x17 ; bb0
 JUMP
 ; bb4
 JUMPDEST
-DUP1
 PUSH1 0x40
 SUB
 PUSH1 0x1e ; bb1
 JUMPI
-POP
 PUSH1 0x6b
 PUSH1 0x17 ; bb0
 JUMP
@@ -160,7 +154,7 @@ JUMPDEST
 DUP1
 PUSH1 0x08
 SUB
-PUSH1 0x5a ; bb6
+PUSH1 0x58 ; bb6
 JUMPI
 POP
 PUSH1 0x64
@@ -171,7 +165,7 @@ JUMPDEST
 DUP1
 PUSH1 0x10
 SUB
-PUSH1 0x68 ; bb7
+PUSH1 0x66 ; bb7
 JUMPI
 POP
 PUSH1 0x65
@@ -182,7 +176,7 @@ JUMPDEST
 DUP1
 PUSH1 0x18
 SUB
-PUSH1 0x76 ; bb8
+PUSH1 0x74 ; bb8
 JUMPI
 POP
 PUSH1 0x66
@@ -190,12 +184,10 @@ PUSH1 0x17 ; bb0
 JUMP
 ; bb8
 JUMPDEST
-DUP1
 PUSH1 0x20
 SUB
 PUSH1 0x1e ; bb1
 JUMPI
-POP
 PUSH1 0x67
 PUSH1 0x17 ; bb0
 JUMP
