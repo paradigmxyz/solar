@@ -1,4 +1,3 @@
-use super::SeqSep;
 use crate::{PResult, Parser};
 use smallvec::SmallVec;
 use solar_ast::{
@@ -122,11 +121,12 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     /// Parses a Yul block, without setting `in_yul`.
     pub fn parse_yul_block_unchecked(&mut self) -> PResult<'sess, Block<'ast>> {
         let lo = self.token.span;
-        self.parse_delim_seq(Delimiter::Brace, SeqSep::none(), true, Self::parse_yul_stmt_unchecked)
-            .map(|stmts| {
+        self.parse_block_seq(|this| &mut this.yul_stmts, Self::parse_yul_stmt_unchecked).map(
+            |stmts| {
                 let span = lo.to(self.prev_token.span);
                 Block { span, stmts }
-            })
+            },
+        )
     }
 
     /// Parses a Yul statement kind.

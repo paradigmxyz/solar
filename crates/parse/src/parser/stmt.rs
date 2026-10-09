@@ -1,5 +1,5 @@
 use super::item::VarFlags;
-use crate::{PResult, Parser, parser::SeqSep};
+use crate::{PResult, Parser};
 use smallvec::SmallVec;
 use solar_ast::{token::*, *};
 use solar_data_structures::CollectAndApply;
@@ -79,7 +79,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     /// Parses a block of statements.
     pub(super) fn parse_block(&mut self) -> PResult<'sess, Block<'ast>> {
         let lo = self.token.span;
-        self.parse_delim_seq(Delimiter::Brace, SeqSep::none(), true, Self::parse_stmt)
+        self.parse_block_seq(|this| &mut this.stmts, Self::parse_stmt)
             .map(|stmts| Block { span: lo.to(self.prev_token.span), stmts })
     }
 

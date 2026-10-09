@@ -48,6 +48,13 @@ pub struct Parser<'sess, 'ast, 'cb> {
     last_unexpected_token_span: Option<Span>,
     /// The current doc-comments.
     docs: Vec<DocComment<'ast>>,
+    /// The statements of the blocks being parsed, innermost last.
+    ///
+    /// Blocks collect their statements here instead of in a buffer on the stack, which would take
+    /// space in every level of nesting.
+    stmts: Vec<ast::Stmt<'ast>>,
+    /// Like `stmts`, for Yul blocks.
+    yul_stmts: Vec<ast::yul::Stmt<'ast>>,
 
     /// The token stream.
     tokens: std::vec::IntoIter<Token>,
@@ -158,6 +165,8 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
             expected_tokens: Vec::with_capacity(8),
             last_unexpected_token_span: None,
             docs: Vec::with_capacity(4),
+            stmts: Vec::new(),
+            yul_stmts: Vec::new(),
             tokens: tokens.into_iter(),
             in_yul: false,
             pure_yul: false,
@@ -678,12 +687,52 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         ket: TokenKind,
         sep: SeqSep,
         allow_empty: bool,
-        mut f: impl FnMut(&mut Self) -> PResult<'sess, T>,
+        f: impl FnMut(&mut Self) -> PResult<'sess, T>,
     ) -> PResult<'sess, (BoxSlice<'ast, T>, Recovered)> {
+        let mut v = SmallVec::<[T; 8]>::new();
+        let recovered = self.parse_seq_into(ket, sep, allow_empty, f, |_, value| v.push(value))?;
+        Ok((self.alloc_smallvec(v), recovered))
+    }
+
+    /// Parses a brace-delimited block, collecting the items in `buf` instead of on the stack.
+    #[track_caller]
+    fn parse_block_seq<T>(
+        &mut self,
+        buf: impl Fn(&mut Self) -> &mut Vec<T> + Copy,
+        f: impl FnMut(&mut Self) -> PResult<'sess, T>,
+    ) -> PResult<'sess, BoxSlice<'ast, T>> {
+        self.expect(TokenKind::OpenDelim(Delimiter::Brace))?;
+        let start = buf(self).len();
+        let ket = TokenKind::CloseDelim(Delimiter::Brace);
+        let res =
+            self.parse_seq_into(ket, SeqSep::none(), true, f, |this, value| buf(this).push(value));
+        let arena = self.arena;
+        let items = buf(self);
+        // SAFETY: The moved elements are removed from `items` without being dropped.
+        let slice = unsafe {
+            let slice = arena.alloc_thin_slice_unchecked((), &items[start..]);
+            items.set_len(start);
+            slice
+        };
+        if res? == Recovered::No {
+            self.expect(ket)?;
+        }
+        Ok(slice)
+    }
+
+    /// Parses a sequence until the specified delimiters, passing each item to `push`.
+    #[track_caller]
+    fn parse_seq_into<T>(
+        &mut self,
+        ket: TokenKind,
+        sep: SeqSep,
+        allow_empty: bool,
+        mut f: impl FnMut(&mut Self) -> PResult<'sess, T>,
+        mut push: impl FnMut(&mut Self, T),
+    ) -> PResult<'sess, Recovered> {
         let mut first = true;
         let mut recovered = Recovered::No;
         let mut trailing = false;
-        let mut v = SmallVec::<[T; 8]>::new();
 
         loop {
             let required_first = first && !allow_empty;
@@ -713,7 +762,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
             }
 
             match f(self) {
-                Ok(value) => v.push(value),
+                Ok(value) => push(self, value),
                 Err(err) if self.can_recover_sequence(ket) => {
                     err.emit();
                     if ket == TokenKind::CloseDelim(Delimiter::Brace)
@@ -748,7 +797,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
             }
         }
 
-        Ok((self.alloc_smallvec(v), recovered))
+        Ok(recovered)
     }
 
     fn can_recover_sequence(&self, ket: TokenKind) -> bool {
