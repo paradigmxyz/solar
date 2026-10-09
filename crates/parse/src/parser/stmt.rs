@@ -1,5 +1,5 @@
 use super::item::VarFlags;
-use crate::{PResult, Parser, parser::SeqSep};
+use crate::{PResult, Parser};
 use smallvec::SmallVec;
 use solar_ast::{token::*, *};
 use solar_data_structures::CollectAndApply;
@@ -7,7 +7,6 @@ use solar_interface::{Ident, Span, SpannedOption, Symbol, error_code, kw, sym};
 
 impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     /// Parses a statement.
-    #[instrument(level = "trace", skip_all)]
     pub fn parse_stmt(&mut self) -> PResult<'sess, Stmt<'ast>> {
         self.with_recursion_limit("statement", |this| {
             let docs = this.parse_doc_comments();
@@ -79,7 +78,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     /// Parses a block of statements.
     pub(super) fn parse_block(&mut self) -> PResult<'sess, Block<'ast>> {
         let lo = self.token.span;
-        self.parse_delim_seq(Delimiter::Brace, SeqSep::none(), true, Self::parse_stmt)
+        self.parse_block_seq(|this| &mut this.stmts, Self::parse_stmt)
             .map(|stmts| Block { span: lo.to(self.prev_token.span), stmts })
     }
 
@@ -167,7 +166,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
             }
         }
 
-        let clauses = self.alloc_smallvec(clauses);
+        let clauses = self.alloc_drain(&mut clauses);
         Ok(StmtTry { expr, clauses })
     }
 
@@ -208,65 +207,68 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     fn parse_simple_stmt_kind(&mut self) -> PResult<'sess, StmtKind<'ast>> {
         let lo = self.token.span;
         if self.eat(TokenKind::OpenDelim(Delimiter::Parenthesis)) {
-            let mut none_elements = SmallVec::<[_; 8]>::new();
-            while self.eat(TokenKind::Comma) {
-                none_elements.push(self.prev_token.span.shrink_to_hi());
+            return self.parse_simple_stmt_tuple(lo);
+        }
+        let (statement_type, iap) = self.try_parse_iap()?;
+        match statement_type {
+            LookAheadInfo::VariableDeclaration => {
+                let ty = iap.into_ty(self);
+                self.parse_variable_definition_with(VarFlags::VAR, ty)
+                    .map(|var| StmtKind::DeclSingle(self.alloc(var)))
             }
+            LookAheadInfo::Expression => {
+                let expr = iap.into_expr(self);
+                self.parse_expr_with(expr).map(StmtKind::Expr)
+            }
+            LookAheadInfo::IndexAccessStructure => unreachable!(),
+        }
+    }
 
-            let (statement_type, iap) = self.try_parse_iap()?;
-            match statement_type {
-                LookAheadInfo::VariableDeclaration => {
-                    let mut variables = none_elements
-                        .into_iter()
-                        .map(SpannedOption::None)
-                        .collect::<SmallVec<[_; 8]>>();
-                    let ty = iap.into_ty(self);
-                    variables.push(SpannedOption::Some(
-                        self.parse_variable_definition_with(VarFlags::FUNCTION, ty)?,
-                    ));
-                    self.parse_optional_items_seq_required(
-                        Delimiter::Parenthesis,
-                        &mut variables,
-                        |this| this.parse_variable_definition(VarFlags::FUNCTION),
-                    )?;
-                    self.expect(TokenKind::Eq)?;
-                    let expr = self.parse_expr()?;
-                    Ok(StmtKind::DeclMulti(self.alloc_smallvec(variables), expr))
-                }
-                LookAheadInfo::Expression => {
-                    let mut components = none_elements
-                        .into_iter()
-                        .map(SpannedOption::None)
-                        .collect::<SmallVec<[_; 8]>>();
-                    let expr = iap.into_expr(self);
-                    components.push(SpannedOption::Some(self.parse_expr_with(expr)?));
-                    self.parse_optional_items_seq_required(
-                        Delimiter::Parenthesis,
-                        &mut components,
-                        Self::parse_expr,
-                    )?;
-                    let partially_parsed = Expr {
-                        span: lo.to(self.prev_token.span),
-                        kind: ExprKind::Tuple(self.alloc_smallvec(components)),
-                    };
-                    self.parse_expr_with(Some(self.alloc(partially_parsed))).map(StmtKind::Expr)
-                }
-                LookAheadInfo::IndexAccessStructure => unreachable!(),
+    /// Parses a simple statement that starts with a parenthesis, after the parenthesis.
+    ///
+    /// Kept out of line so that its buffers take no space in other statements.
+    #[inline(never)]
+    fn parse_simple_stmt_tuple(&mut self, lo: Span) -> PResult<'sess, StmtKind<'ast>> {
+        let mut none_elements = SmallVec::<[_; 8]>::new();
+        while self.eat(TokenKind::Comma) {
+            none_elements.push(self.prev_token.span.shrink_to_hi());
+        }
+
+        let (statement_type, iap) = self.try_parse_iap()?;
+        match statement_type {
+            LookAheadInfo::VariableDeclaration => {
+                let mut variables = SmallVec::<[_; 8]>::new();
+                variables.extend(none_elements.into_iter().map(SpannedOption::None));
+                let ty = iap.into_ty(self);
+                variables.push(SpannedOption::Some(
+                    self.parse_variable_definition_with(VarFlags::FUNCTION, ty)?,
+                ));
+                self.parse_optional_items_seq_required(
+                    Delimiter::Parenthesis,
+                    &mut variables,
+                    |this| this.parse_variable_definition(VarFlags::FUNCTION),
+                )?;
+                self.expect(TokenKind::Eq)?;
+                let expr = self.parse_expr()?;
+                Ok(StmtKind::DeclMulti(self.alloc_drain(&mut variables), expr))
             }
-        } else {
-            let (statement_type, iap) = self.try_parse_iap()?;
-            match statement_type {
-                LookAheadInfo::VariableDeclaration => {
-                    let ty = iap.into_ty(self);
-                    self.parse_variable_definition_with(VarFlags::VAR, ty)
-                        .map(|var| StmtKind::DeclSingle(self.alloc(var)))
-                }
-                LookAheadInfo::Expression => {
-                    let expr = iap.into_expr(self);
-                    self.parse_expr_with(expr).map(StmtKind::Expr)
-                }
-                LookAheadInfo::IndexAccessStructure => unreachable!(),
+            LookAheadInfo::Expression => {
+                let mut components = SmallVec::<[_; 8]>::new();
+                components.extend(none_elements.into_iter().map(SpannedOption::None));
+                let expr = iap.into_expr(self);
+                components.push(SpannedOption::Some(self.parse_expr_with(expr)?));
+                self.parse_optional_items_seq_required(
+                    Delimiter::Parenthesis,
+                    &mut components,
+                    Self::parse_expr,
+                )?;
+                let partially_parsed = Expr {
+                    span: lo.to(self.prev_token.span),
+                    kind: ExprKind::Tuple(self.alloc_drain(&mut components)),
+                };
+                self.parse_expr_with(Some(self.alloc(partially_parsed))).map(StmtKind::Expr)
             }
+            LookAheadInfo::IndexAccessStructure => unreachable!(),
         }
     }
 
@@ -275,14 +277,15 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     ///
     /// All elements are wrapped in a `SpannedOption<T>`, so that even for uninformed elements,
     /// AST consumers can be aware of the location of the separators.
+    ///
+    /// Appends the items to `out`.
     pub(super) fn parse_optional_items_seq<T>(
         &mut self,
         delim: Delimiter,
+        out: &mut SmallVec<[SpannedOption<T>; 8]>,
         mut f: impl FnMut(&mut Self) -> PResult<'sess, T>,
-    ) -> PResult<'sess, SmallVec<[SpannedOption<T>; 8]>> {
+    ) -> PResult<'sess, ()> {
         self.expect(TokenKind::OpenDelim(delim))?;
-
-        let mut out = SmallVec::<[_; 8]>::new();
 
         // Handle leading commas, e.g., `(, a, b)`.
         while self.eat(TokenKind::Comma) {
@@ -302,11 +305,10 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         }
 
         // Call the helper to parse the rest of the sequence.
-        self.parse_optional_items_seq_required(delim, &mut out, f)?;
-        Ok(out)
+        self.parse_optional_items_seq_required(delim, out, f)
     }
 
-    fn parse_optional_items_seq_required<T>(
+    pub(super) fn parse_optional_items_seq_required<T>(
         &mut self,
         delim: Delimiter,
         out: &mut SmallVec<[SpannedOption<T>; 8]>,
@@ -554,8 +556,13 @@ mod tests {
                     let mut parser =
                         Parser::from_source_code(&sess, &arena, FileName::Custom(name), s)?;
 
-                    let list = parser
-                        .parse_optional_items_seq(Delimiter::Parenthesis, Parser::parse_ident)
+                    let mut list = SmallVec::new();
+                    parser
+                        .parse_optional_items_seq(
+                            Delimiter::Parenthesis,
+                            &mut list,
+                            Parser::parse_ident,
+                        )
                         .map_err(|e| e.emit())
                         .unwrap_or_else(|_| panic!("src: {s:?}"));
                     sess.dcx.has_errors().unwrap();
