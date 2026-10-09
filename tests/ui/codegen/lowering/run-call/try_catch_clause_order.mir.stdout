@@ -59,25 +59,25 @@ fn @lowLevelFirst(arg0: i256) -> i256 [selector=0x7bb76e97, view, abi_params=[u2
     v21 = phi [bb4: v20], [bb5: false]
     jumpi v21, bb7, bb8
   bb8:
-    v35 = eq v17, 0x4e487b71
-    v36 = lt v13, 36
-    v37 = eq v36, false
-    v38 = and v35, v37
-    v39 = zext i1 v38 to i256
-    jumpi v38, bb9, bb10
+    v29 = eq v17, 0x4e487b71
+    v30 = lt v13, 36
+    v31 = eq v30, false
+    v32 = and v29, v31
+    v33 = zext i1 v32 to i256
+    jumpi v32, bb9, bb10
   bb10:
     jumpi true, bb11, bb12
   bb12:
-    v45 = ptrtoint memptr v12 to i256
-    revert v45, v13
+    v39 = ptrtoint memptr v12 to i256
+    revert v39, v13
   bb11:
     ret 100
   bb9:
-    v40 = memory_object_data memorybytes, v11
-    v41 = ptrtoint memptr v40 to i256
-    v42 = add v41, 4
-    v43 = make_memory_slice v42, 32
-    v44 = memory_slice_load_word memory, v43, 0
+    v34 = memory_object_data memorybytes, v11
+    v35 = ptrtoint memptr v34 to i256
+    v36 = add v35, 4
+    v37 = make_memory_slice v36, 32
+    v38 = memory_slice_load_word memory, v37, 0
     ret 300
   bb7:
     v22 = memory_object_data memorybytes, v11
@@ -86,16 +86,7 @@ fn @lowLevelFirst(arg0: i256) -> i256 [selector=0x7bb76e97, view, abi_params=[u2
     v25 = add v24, 4
     v26 = sub v23, 4
     v27 = make_memory_slice v25, v26
-    v28 = slice_len v27
-    v29 = add v28, 63
-    v30 = lt v29, v28
-    icall panic_if<0x41>, v30
-    v31 = not 31
-    v32 = and v29, v31
-    v33 = alloc memorybytes, exact, uninitialized, infallible, v32
-    set_memory_object_len memorybytes, v33, v28
-    memory_object_copy_from_slice memorybytes, v33, v27
-    v34 = abi_decode [bytes], v33
+    v28 = abi_decode [bytes], v27
     ret 200
   bb1:
     v7 = returndatasize
@@ -138,25 +129,25 @@ fn @typedFirst(arg0: i256) -> i256 [selector=0x90ba0c06, view, abi_params=[u256]
     v21 = phi [bb4: v20], [bb5: false]
     jumpi v21, bb7, bb8
   bb8:
-    v35 = eq v17, 0x4e487b71
-    v36 = lt v13, 36
-    v37 = eq v36, false
-    v38 = and v35, v37
-    v39 = zext i1 v38 to i256
-    jumpi v38, bb9, bb10
+    v29 = eq v17, 0x4e487b71
+    v30 = lt v13, 36
+    v31 = eq v30, false
+    v32 = and v29, v31
+    v33 = zext i1 v32 to i256
+    jumpi v32, bb9, bb10
   bb10:
     jumpi true, bb11, bb12
   bb12:
-    v45 = ptrtoint memptr v12 to i256
-    revert v45, v13
+    v39 = ptrtoint memptr v12 to i256
+    revert v39, v13
   bb11:
     ret 100
   bb9:
-    v40 = memory_object_data memorybytes, v11
-    v41 = ptrtoint memptr v40 to i256
-    v42 = add v41, 4
-    v43 = make_memory_slice v42, 32
-    v44 = memory_slice_load_word memory, v43, 0
+    v34 = memory_object_data memorybytes, v11
+    v35 = ptrtoint memptr v34 to i256
+    v36 = add v35, 4
+    v37 = make_memory_slice v36, 32
+    v38 = memory_slice_load_word memory, v37, 0
     ret 300
   bb7:
     v22 = memory_object_data memorybytes, v11
@@ -165,16 +156,7 @@ fn @typedFirst(arg0: i256) -> i256 [selector=0x90ba0c06, view, abi_params=[u256]
     v25 = add v24, 4
     v26 = sub v23, 4
     v27 = make_memory_slice v25, v26
-    v28 = slice_len v27
-    v29 = add v28, 63
-    v30 = lt v29, v28
-    icall panic_if<0x41>, v30
-    v31 = not 31
-    v32 = and v29, v31
-    v33 = alloc memorybytes, exact, uninitialized, infallible, v32
-    set_memory_object_len memorybytes, v33, v28
-    memory_object_copy_from_slice memorybytes, v33, v27
-    v34 = abi_decode [bytes], v33
+    v28 = abi_decode [bytes], v27
     ret 200
   bb1:
     v7 = returndatasize

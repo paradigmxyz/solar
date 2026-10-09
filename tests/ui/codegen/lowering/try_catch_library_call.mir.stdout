@@ -71,8 +71,8 @@ fn @direct(arg0: i1) -> i256 [selector=0xa8f96c85, pure, abi_params=[bool], abi_
     v20 = phi [bb4: v19], [bb5: false]
     jumpi v20, bb7, bb8
   bb8:
-    v34 = ptrtoint memptr v11 to i256
-    revert v34, v12
+    v28 = ptrtoint memptr v11 to i256
+    revert v28, v12
   bb7:
     v21 = memory_object_data memorybytes, v10
     v22 = memory_object_len memorybytes, v10
@@ -80,16 +80,7 @@ fn @direct(arg0: i1) -> i256 [selector=0xa8f96c85, pure, abi_params=[bool], abi_
     v24 = add v23, 4
     v25 = sub v22, 4
     v26 = make_memory_slice v24, v25
-    v27 = slice_len v26
-    v28 = add v27, 63
-    v29 = lt v28, v27
-    icall panic_if<0x41>, v29
-    v30 = not 31
-    v31 = and v28, v30
-    v32 = alloc memorybytes, exact, uninitialized, infallible, v31
-    set_memory_object_len memorybytes, v32, v27
-    memory_object_copy_from_slice memorybytes, v32, v26
-    v33 = abi_decode [bytes], v32
+    v27 = abi_decode [bytes], v26
     ret 18
   bb1:
     v6 = returndatasize
@@ -131,8 +122,8 @@ fn @attached(arg0: i1) -> i256 [selector=0x42425916, abi_params=[bool], abi_retu
     v20 = phi [bb4: v19], [bb5: false]
     jumpi v20, bb7, bb8
   bb8:
-    v34 = ptrtoint memptr v11 to i256
-    revert v34, v12
+    v28 = ptrtoint memptr v11 to i256
+    revert v28, v12
   bb7:
     v21 = memory_object_data memorybytes, v10
     v22 = memory_object_len memorybytes, v10
@@ -140,16 +131,7 @@ fn @attached(arg0: i1) -> i256 [selector=0x42425916, abi_params=[bool], abi_retu
     v24 = add v23, 4
     v25 = sub v22, 4
     v26 = make_memory_slice v24, v25
-    v27 = slice_len v26
-    v28 = add v27, 63
-    v29 = lt v28, v27
-    icall panic_if<0x41>, v29
-    v30 = not 31
-    v31 = and v28, v30
-    v32 = alloc memorybytes, exact, uninitialized, infallible, v31
-    set_memory_object_len memorybytes, v32, v27
-    memory_object_copy_from_slice memorybytes, v32, v26
-    v33 = abi_decode [bytes], v32
+    v27 = abi_decode [bytes], v26
     ret 19
   bb1:
     v6 = returndatasize
@@ -191,8 +173,8 @@ fn @attachedValue(arg0: i256, arg1: i1) -> i256 [selector=0xcece4c7f, pure, abi_
     v20 = phi [bb4: v19], [bb5: false]
     jumpi v20, bb7, bb8
   bb8:
-    v34 = ptrtoint memptr v11 to i256
-    revert v34, v12
+    v28 = ptrtoint memptr v11 to i256
+    revert v28, v12
   bb7:
     v21 = memory_object_data memorybytes, v10
     v22 = memory_object_len memorybytes, v10
@@ -200,16 +182,7 @@ fn @attachedValue(arg0: i256, arg1: i1) -> i256 [selector=0xcece4c7f, pure, abi_
     v24 = add v23, 4
     v25 = sub v22, 4
     v26 = make_memory_slice v24, v25
-    v27 = slice_len v26
-    v28 = add v27, 63
-    v29 = lt v28, v27
-    icall panic_if<0x41>, v29
-    v30 = not 31
-    v31 = and v28, v30
-    v32 = alloc memorybytes, exact, uninitialized, infallible, v31
-    set_memory_object_len memorybytes, v32, v27
-    memory_object_copy_from_slice memorybytes, v32, v26
-    v33 = abi_decode [bytes], v32
+    v27 = abi_decode [bytes], v26
     ret 20
   bb1:
     v6 = returndatasize

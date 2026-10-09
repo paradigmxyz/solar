@@ -57,25 +57,25 @@ fn @typed(arg0: i160) -> i256 [selector=0x18d9eb38, abi_params=[address], abi_re
     v20 = phi [bb4: v19], [bb5: false]
     jumpi v20, bb7, bb8
   bb8:
-    v34 = eq v16, 0x4e487b71
-    v35 = lt v12, 36
-    v36 = eq v35, false
-    v37 = and v34, v36
-    v38 = zext i1 v37 to i256
-    jumpi v37, bb9, bb10
+    v28 = eq v16, 0x4e487b71
+    v29 = lt v12, 36
+    v30 = eq v29, false
+    v31 = and v28, v30
+    v32 = zext i1 v31 to i256
+    jumpi v31, bb9, bb10
   bb10:
     jumpi true, bb11, bb12
   bb12:
-    v44 = ptrtoint memptr v11 to i256
-    revert v44, v12
+    v38 = ptrtoint memptr v11 to i256
+    revert v38, v12
   bb11:
     jump bb3
   bb9:
-    v39 = memory_object_data memorybytes, v10
-    v40 = ptrtoint memptr v39 to i256
-    v41 = add v40, 4
-    v42 = make_memory_slice v41, 32
-    v43 = memory_slice_load_word memory, v42, 0
+    v33 = memory_object_data memorybytes, v10
+    v34 = ptrtoint memptr v33 to i256
+    v35 = add v34, 4
+    v36 = make_memory_slice v35, 32
+    v37 = memory_slice_load_word memory, v36, 0
     jump bb3
   bb7:
     v21 = memory_object_data memorybytes, v10
@@ -84,16 +84,7 @@ fn @typed(arg0: i160) -> i256 [selector=0x18d9eb38, abi_params=[address], abi_re
     v24 = add v23, 4
     v25 = sub v22, 4
     v26 = make_memory_slice v24, v25
-    v27 = slice_len v26
-    v28 = add v27, 63
-    v29 = lt v28, v27
-    icall panic_if<0x41>, v29
-    v30 = not 31
-    v31 = and v28, v30
-    v32 = alloc memorybytes, exact, uninitialized, infallible, v31
-    set_memory_object_len memorybytes, v32, v27
-    memory_object_copy_from_slice memorybytes, v32, v26
-    v33 = abi_decode [bytes], v32
+    v27 = abi_decode [bytes], v26
     jump bb3
   bb1:
     v6 = returndatasize
@@ -103,8 +94,8 @@ fn @typed(arg0: i160) -> i256 [selector=0x18d9eb38, abi_params=[address], abi_re
     v9 = mload v8
     jump bb3
   bb3:
-    v45 = phi [bb1: v9], [bb7: 1], [bb9: 2], [bb11: 3]
-    ret v45
+    v39 = phi [bb1: v9], [bb7: 1], [bb9: 2], [bb11: 3]
+    ret v39
 }
 
 fn @try_decode_error_message(arg0: i256, arg1: i256) -> i1 {

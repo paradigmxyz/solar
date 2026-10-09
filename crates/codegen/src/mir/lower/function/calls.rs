@@ -8,7 +8,8 @@ use crate::{
 
 #[derive(Clone, Copy)]
 pub(super) struct ExternalReturnPlan {
-    static_buffer: Option<(ValueId, ValueId, ValueId)>,
+    /// The buffer of `size` bytes that static aggregate return values decode from.
+    static_buffer: Option<ValueId>,
     offset: ValueId,
     size: ValueId,
     /// Whether the output area overlays the input area, as it does before Byzantium.
@@ -1220,13 +1221,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn alloc_overlay_return_buffer(
         &mut self,
         return_tys: &[Ty<'gcx>],
-    ) -> Option<(ValueId, ValueId, ValueId)> {
+    ) -> Option<ValueId> {
         if self.cx.gcx.sess.opts.evm_version.supports_returndata() {
             return None;
         }
-        // buffer = bytes(head_size(static))
         let layout = self.static_aggregate_return_layout(return_tys.iter().copied())?;
-        self.alloc_static_return_buffer(&layout)
+        self.alloc_static_return_buffer(&layout).map(|(data, _)| data)
     }
 
     pub(super) fn plan_return_buffer(
@@ -1234,7 +1234,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         input: ValueId,
         zero: ValueId,
         return_tys: &[Ty<'gcx>],
-        overlay_buffer: Option<(ValueId, ValueId, ValueId)>,
+        overlay_buffer: Option<ValueId>,
     ) -> ExternalReturnPlan {
         let returns = return_tys.len();
         let static_return = self.static_aggregate_return_layout(return_tys.iter().copied());
@@ -1270,8 +1270,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // size = static.size ? static.size : (decode ? 0 : returns * 32)
         let static_return_buffer =
             static_return.as_ref().and_then(|layout| self.alloc_static_return_buffer(layout));
-        let (ret_offset, ret_size) = if let Some((_, data, size)) = static_return_buffer {
-            (data, size)
+        let (ret_offset, ret_size) = if let Some(buffer) = static_return_buffer {
+            buffer
         } else if decode_returndata {
             (zero, zero)
         } else {
@@ -1279,7 +1279,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             (offset, self.builder.imm(words))
         };
         ExternalReturnPlan {
-            static_buffer: static_return_buffer,
+            static_buffer: static_return_buffer.map(|(data, _)| data),
             offset: ret_offset,
             size: ret_size,
             overlays_input: false,
@@ -1419,12 +1419,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         mode: ExternalReturnMode,
         unsupported_returndata: &'static str,
     ) -> Option<Vec<ValueId>> {
-        let ExternalReturnPlan { static_buffer, offset, decode_returndata, .. } = plan;
+        let ExternalReturnPlan { static_buffer, offset, size, decode_returndata, .. } = plan;
         let returns = return_tys.len();
         if returns == 0 {
             return Some(Vec::new());
         }
-        let source = if let Some((object, data, size)) = static_buffer {
+        let source = if let Some(data) = static_buffer {
             self.revert_if_short_returndata(size);
             if plan.overlays_input {
                 // The output area overlays the arguments, so the values move out of it before the
@@ -1432,7 +1432,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 // mcopy(data, ret_offset, ret_size)
                 self.builder.mcopy(data, offset, size);
             }
-            Some(object)
+            // source = make_slice(data, size)
+            Some(self.builder.make_slice(data, size, SliceLocation::Memory))
         } else if decode_returndata {
             if !self.cx.gcx.sess.opts.evm_version.supports_returndata() {
                 return report_error(self.cx.gcx, span, unsupported_returndata);
@@ -1476,25 +1477,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some(self.pack_return_values(values, &decoded_types))
     }
 
-    /// Allocates the bytes object a call decodes its static aggregate return values from in place.
+    /// Allocates the raw buffer a call decodes its static aggregate return values from, as a
+    /// memory slice whose length is the constant head size.
     fn alloc_static_return_buffer(
         &mut self,
         layout: &AbiParamLayout,
-    ) -> Option<(ValueId, ValueId, ValueId)> {
+    ) -> Option<(ValueId, ValueId)> {
         // size = head_size(layout)
-        // buffer = bytes(size)
-        // return (buffer, buffer.data, size)
-        let size = layout.checked_head_size()?;
-        let object_size = self.builder.imm(size.checked_add(EvmMemoryLayout::WORD_SIZE)?);
-        let object = self.builder.alloc_object(
-            object_size,
-            MemoryObjectLayout::Bytes,
-            AllocationSemantics::INTERNAL,
-        );
-        let size = self.builder.imm(size);
-        self.builder.set_memory_object_len(object, size, MemoryObjectKind::Bytes);
-        let data = self.builder.memory_object_data(object, MemoryObjectKind::Bytes);
-        Some((object, data, size))
+        // data = raw(size)
+        let size = self.builder.imm(layout.checked_head_size()?);
+        let data = self.builder.alloc_raw(size, AllocationSemantics::INTERNAL);
+        Some((data, size))
     }
 
     fn revert_if_short_returndata(&mut self, expected: ValueId) {

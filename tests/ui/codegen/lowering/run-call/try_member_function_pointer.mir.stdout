@@ -72,31 +72,31 @@ fn @callReturnedField() -> i256 [selector=0xee2961ee, view, abi_params=[], abi_r
     v2 = abi_encode [], selector 0x8525855d00000000000000000000000000000000000000000000000000000000
     v3 = slice_ptr v2
     v4 = slice_len v2
-    v5 = alloc memorybytes, exact, uninitialized, infallible, 64
-    set_memory_object_len memorybytes, v5, 32
-    v6 = memory_object_data memorybytes, v5
-    v7 = zext i160 v0 to i256
-    v8 = ptrtoint memptr v6 to i256
-    v9 = staticcall v1, v7, v3, v4, v8, 32
-    jumpi v9, bb2, bb1
+    v5 = alloc raw, exact, uninitialized, infallible, 32
+    v6 = zext i160 v0 to i256
+    v7 = ptrtoint memptr v5 to i256
+    v8 = staticcall v1, v6, v3, v4, v7, 32
+    jumpi v8, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v10 = returndatasize
-    v11 = lt v10, 32
-    icall revert_if<tuple_data_too_short>, v11
-    v12 = abi_decode [tuple<function>], v5
-    v13 = memory_object_load_field memorystruct<1>, v12, 0
-    v14 = shr 64, v13
-    v15 = and v14, 0xffffffff
-    v16 = shl 224, v15
-    v17 = shr 32, v14
-    v18 = gas
-    v19 = abi_encode [], selector v16
-    v20 = slice_ptr v19
-    v21 = slice_len v19
-    v22 = staticcall v18, v17, v20, v21, 0, 32
-    jumpi v22, bb3, bb4
+    v9 = returndatasize
+    v10 = lt v9, 32
+    icall revert_if<tuple_data_too_short>, v10
+    v11 = ptrtoint memptr v5 to i256
+    v12 = make_memory_slice v11, 32
+    v13 = abi_decode [tuple<function>], v12
+    v14 = memory_object_load_field memorystruct<1>, v13, 0
+    v15 = shr 64, v14
+    v16 = and v15, 0xffffffff
+    v17 = shl 224, v16
+    v18 = shr 32, v15
+    v19 = gas
+    v20 = abi_encode [], selector v17
+    v21 = slice_ptr v20
+    v22 = slice_len v20
+    v23 = staticcall v19, v18, v21, v22, 0, 32
+    jumpi v23, bb3, bb4
   bb4:
     jumpi true, bb6, bb7
   bb7:
@@ -105,12 +105,12 @@ fn @callReturnedField() -> i256 [selector=0xee2961ee, view, abi_params=[], abi_r
   bb6:
     ret 0
   bb3:
-    v23 = returndatasize
-    v24 = lt v23, 32
-    icall revert_if<tuple_data_too_short>, v24
-    v25 = add 0, 0
-    v26 = mload v25
-    ret v26
+    v24 = returndatasize
+    v25 = lt v24, 32
+    icall revert_if<tuple_data_too_short>, v25
+    v26 = add 0, 0
+    v27 = mload v26
+    ret v27
   bb5:
     ret 0
 }

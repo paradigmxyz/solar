@@ -133,20 +133,20 @@ fn @aggregate(arg0: i256) -> memptr [selector=0x407b7269, pure, abi_params=[u256
     v3 = slice_ptr v2
     v4 = slice_len v2
     v5 = gas
-    v6 = alloc memorybytes, exact, uninitialized, infallible, 96
-    set_memory_object_len memorybytes, v6, 64
-    v7 = memory_object_data memorybytes, v6
-    v8 = ptrtoint memptr v7 to i256
-    v9 = delegatecall v5, 0x1111111111111111111111111111111111111111, v3, v4, v8, 64
-    jumpi v9, bb2, bb1
+    v6 = alloc raw, exact, uninitialized, infallible, 64
+    v7 = ptrtoint memptr v6 to i256
+    v8 = delegatecall v5, 0x1111111111111111111111111111111111111111, v3, v4, v7, 64
+    jumpi v8, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v10 = returndatasize
-    v11 = lt v10, 64
-    icall revert_if<tuple_data_too_short>, v11
-    v12 = abi_decode [array<2, u256>], v6
-    ret v12
+    v9 = returndatasize
+    v10 = lt v9, 64
+    icall revert_if<tuple_data_too_short>, v10
+    v11 = ptrtoint memptr v6 to i256
+    v12 = make_memory_slice v11, 64
+    v13 = abi_decode [array<2, u256>], v12
+    ret v13
 }
 
 fn @boolean(arg0: i256) -> i1 [selector=0xbc586ed6, pure, abi_params=[u256], abi_returns=[word<bool>], abi_return_params=[bool]] {
@@ -184,20 +184,20 @@ fn @structBool(arg0: i256) -> memptr [selector=0x199436a8, pure, abi_params=[u25
     v2 = slice_ptr v1
     v3 = slice_len v1
     v4 = gas
-    v5 = alloc memorybytes, exact, uninitialized, infallible, 96
-    set_memory_object_len memorybytes, v5, 64
-    v6 = memory_object_data memorybytes, v5
-    v7 = ptrtoint memptr v6 to i256
-    v8 = delegatecall v4, 0x1111111111111111111111111111111111111111, v2, v3, v7, 64
-    jumpi v8, bb2, bb1
+    v5 = alloc raw, exact, uninitialized, infallible, 64
+    v6 = ptrtoint memptr v5 to i256
+    v7 = delegatecall v4, 0x1111111111111111111111111111111111111111, v2, v3, v6, 64
+    jumpi v7, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v9 = returndatasize
-    v10 = lt v9, 64
-    icall revert_if<tuple_data_too_short>, v10
-    v11 = abi_decode [tuple<bool, u256>], v5
-    ret v11
+    v8 = returndatasize
+    v9 = lt v8, 64
+    icall revert_if<tuple_data_too_short>, v9
+    v10 = ptrtoint memptr v5 to i256
+    v11 = make_memory_slice v10, 64
+    v12 = abi_decode [tuple<bool, u256>], v11
+    ret v12
 }
 
 fn @attached() -> i256 [selector=0xd9e6b370, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {

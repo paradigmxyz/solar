@@ -95,24 +95,24 @@ fn @aggregate() -> i256 [selector=0xaf36778b, abi_params=[], abi_returns=[word],
     v1 = abi_encode [], selector 0xa8aa1b3100000000000000000000000000000000000000000000000000000000
     v2 = slice_ptr v1
     v3 = slice_len v1
-    v4 = alloc memorybytes, exact, uninitialized, infallible, 96
-    set_memory_object_len memorybytes, v4, 64
-    v5 = memory_object_data memorybytes, v4
-    v6 = ptrtoint memptr v5 to i256
-    v7 = call v0, 0, 0, v2, v3, v6, 64
-    jumpi v7, bb2, bb1
+    v4 = alloc raw, exact, uninitialized, infallible, 64
+    v5 = ptrtoint memptr v4 to i256
+    v6 = call v0, 0, 0, v2, v3, v5, 64
+    jumpi v6, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v8 = returndatasize
-    v9 = lt v8, 64
-    icall revert_if<tuple_data_too_short>, v9
-    v10 = abi_decode [array<2, u256>], v4
-    v11 = lt 0, 2
-    v12 = eq v11, false
-    icall panic_if<0x32>, v12
-    v13 = memory_object_load_element memoryfixedarray<2, 1>, v10, 0
-    ret v13
+    v7 = returndatasize
+    v8 = lt v7, 64
+    icall revert_if<tuple_data_too_short>, v8
+    v9 = ptrtoint memptr v4 to i256
+    v10 = make_memory_slice v9, 64
+    v11 = abi_decode [array<2, u256>], v10
+    v12 = lt 0, 2
+    v13 = eq v12, false
+    icall panic_if<0x32>, v13
+    v14 = memory_object_load_element memoryfixedarray<2, 1>, v11, 0
+    ret v14
 }
 
 fn @directNoReturn() [selector=0xda4f8e3a, abi_params=[], abi_returns=[], abi_return_params=[]] {
@@ -212,29 +212,29 @@ fn @liveAggregate() -> struct0 [selector=0xc64a4ee9, abi_params=[], abi_returns=
     v12 = abi_encode [], selector 0xa8aa1b3100000000000000000000000000000000000000000000000000000000
     v13 = slice_ptr v12
     v14 = slice_len v12
-    v15 = alloc memorybytes, exact, uninitialized, infallible, 96
-    set_memory_object_len memorybytes, v15, 64
-    v16 = memory_object_data memorybytes, v15
-    v17 = zext i160 v9 to i256
-    v18 = ptrtoint memptr v16 to i256
-    v19 = call v11, v17, 0, v13, v14, v18, 64
-    jumpi v19, bb4, bb3
+    v15 = alloc raw, exact, uninitialized, infallible, 64
+    v16 = zext i160 v9 to i256
+    v17 = ptrtoint memptr v15 to i256
+    v18 = call v11, v16, 0, v13, v14, v17, 64
+    jumpi v18, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v20 = returndatasize
-    v21 = lt v20, 64
-    icall revert_if<tuple_data_too_short>, v21
-    v22 = abi_decode [array<2, u256>], v15
-    v23 = lt 0, 2
-    v24 = eq v23, false
-    icall panic_if<0x32>, v24
-    v25 = memory_object_load_element memoryfixedarray<2, 1>, v22, 0
-    v26 = lt 1, 2
-    v27 = eq v26, false
-    icall panic_if<0x32>, v27
-    v28 = memory_object_load_element memoryfixedarray<2, 1>, v22, 1
-    v29 = insert_value struct0, undef struct0, 0, v25
-    v30 = insert_value struct0, v29, 1, v28
-    ret v30
+    v19 = returndatasize
+    v20 = lt v19, 64
+    icall revert_if<tuple_data_too_short>, v20
+    v21 = ptrtoint memptr v15 to i256
+    v22 = make_memory_slice v21, 64
+    v23 = abi_decode [array<2, u256>], v22
+    v24 = lt 0, 2
+    v25 = eq v24, false
+    icall panic_if<0x32>, v25
+    v26 = memory_object_load_element memoryfixedarray<2, 1>, v23, 0
+    v27 = lt 1, 2
+    v28 = eq v27, false
+    icall panic_if<0x32>, v28
+    v29 = memory_object_load_element memoryfixedarray<2, 1>, v23, 1
+    v30 = insert_value struct0, undef struct0, 0, v26
+    v31 = insert_value struct0, v30, 1, v29
+    ret v31
 }

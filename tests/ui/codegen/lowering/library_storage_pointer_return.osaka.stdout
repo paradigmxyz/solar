@@ -203,33 +203,33 @@ fn @agg() -> struct0 [selector=0xf5e34bfa, view, abi_params=[], abi_returns=[wor
     v1 = slice_ptr v0
     v2 = slice_len v0
     v3 = gas
-    v4 = alloc memorybytes, exact, uninitialized, infallible, 128
-    set_memory_object_len memorybytes, v4, 96
-    v5 = memory_object_data memorybytes, v4
-    v6 = ptrtoint memptr v5 to i256
-    v7 = delegatecall v3, 0x1111111111111111111111111111111111111111, v1, v2, v6, 96
-    jumpi v7, bb2, bb1
+    v4 = alloc raw, exact, uninitialized, infallible, 96
+    v5 = ptrtoint memptr v4 to i256
+    v6 = delegatecall v3, 0x1111111111111111111111111111111111111111, v1, v2, v5, 96
+    jumpi v6, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v8 = returndatasize
-    v9 = lt v8, 96
-    icall revert_if<tuple_data_too_short>, v9
-    v10 = abi_decode [storageptr, array<2, u256>], v4
-    v11 = extract_value struct1, v10, 0
-    v12 = extract_value struct1, v10, 1
-    v13 = insert_value struct1, undef struct1, 0, v11
-    v14 = insert_value struct1, v13, 1, v12
-    v15 = extract_value struct1, v14, 0
-    v16 = extract_value struct1, v14, 1
-    v17 = sload v15 !metadata(storage=symbolic(v15))
-    v18 = lt 1, 2
-    v19 = eq v18, false
-    icall panic_if<0x32>, v19
-    v20 = memory_object_load_element memoryfixedarray<2, 1>, v16, 1
-    v21 = insert_value struct0, undef struct0, 0, v17
-    v22 = insert_value struct0, v21, 1, v20
-    ret v22
+    v7 = returndatasize
+    v8 = lt v7, 96
+    icall revert_if<tuple_data_too_short>, v8
+    v9 = ptrtoint memptr v4 to i256
+    v10 = make_memory_slice v9, 96
+    v11 = abi_decode [storageptr, array<2, u256>], v10
+    v12 = extract_value struct1, v11, 0
+    v13 = extract_value struct1, v11, 1
+    v14 = insert_value struct1, undef struct1, 0, v12
+    v15 = insert_value struct1, v14, 1, v13
+    v16 = extract_value struct1, v15, 0
+    v17 = extract_value struct1, v15, 1
+    v18 = sload v16 !metadata(storage=symbolic(v16))
+    v19 = lt 1, 2
+    v20 = eq v19, false
+    icall panic_if<0x32>, v20
+    v21 = memory_object_load_element memoryfixedarray<2, 1>, v17, 1
+    v22 = insert_value struct0, undef struct0, 0, v18
+    v23 = insert_value struct0, v22, 1, v21
+    ret v23
 }
 
 fn @attached() -> i256 [selector=0xd9e6b370, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
