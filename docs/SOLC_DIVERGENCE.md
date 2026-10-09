@@ -69,6 +69,20 @@ Coverage: `tests/ui/typeck/unchecked_as_single_statement.sol`; the upstream
 `unchecked_while_body` parse-only fixture remains excluded from solc parity
 testing.
 
+### PARSE-002: Number literals wider than 256 bits
+
+Status: parity debt.
+
+Difference: solc accepts number literals whose value, numerator or denominator
+needs more than 256 bits, such as `1e78 / 10` or `1.5e78 / 1e10`. Solar rejects
+such a literal as "integer part too large" or "rational part too large",
+although literal arithmetic on smaller literals keeps solc's 4096-bit
+precision.
+
+Rationale: the AST stores number literals as 256-bit values.
+
+Coverage: `tests/ui/parser/big_literal.sol`.
+
 ## AST Validation
 
 No intentional divergences documented yet.

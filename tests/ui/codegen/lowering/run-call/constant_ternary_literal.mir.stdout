@@ -17,10 +17,30 @@ fn @widened() -> i256 [selector=0xd3eaa7aa, pure, abi_params=[], abi_returns=[wo
 
 fn @castBranch() -> i256 [selector=0x7ad66a6a, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
-    v0 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
-    v1 = ptrtoint memptr v0 to i256
-    memory_zero v1, 32
-    ret 1
+    jumpi true, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    jump bb3
+  bb3:
+    v0 = phi [bb1: 1], [bb2: 2]
+    v1 = checked_mul u256, v0, 2
+    ret v1
+}
+
+fn @signedOverflow() -> i256 [selector=0x3a415f03, pure, abi_params=[], abi_returns=[word], abi_return_params=[i256]] {
+  bb0:
+    jumpi true, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    jump bb3
+  bb3:
+    v0 = phi [bb1: 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff], [bb2: 2]
+    v1 = checked_mul i256, v0, 0x4000000000000000000000000000000000000000000000000000000000000000
+    v2 = checked_mul i256, v1, 4
+    v3 = checked_div i256, v2, 8
+    ret v3
 }
 
 fn @overflow() -> i256 [selector=0x004264c3, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {

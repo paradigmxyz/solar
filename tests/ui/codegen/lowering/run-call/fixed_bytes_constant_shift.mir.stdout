@@ -14,9 +14,14 @@ fn @high() -> i256 [selector=0x713658f3, pure, abi_params=[], abi_returns=[word]
 
 fn @kept() -> i256 [selector=0xacc3e84f, pure, abi_params=[], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {
   bb0:
-    v0 = shr 4, 0xff00000000000000000000000000000000000000000000000000000000000000
+    ret 0xf000000000000000000000000000000000000000000000000000000000000000
+}
+
+fn @dropped() -> i256 [selector=0x8286e567, pure, abi_params=[], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {
+  bb0:
+    v0 = shl 4, 0xff00000000000000000000000000000000000000000000000000000000000000
     v1 = and v0, 0xff00000000000000000000000000000000000000000000000000000000000000
-    v2 = shl 0, v1
+    v2 = shr 4, v1
     v3 = and v2, 0xff00000000000000000000000000000000000000000000000000000000000000
     ret v3
 }

@@ -92,7 +92,7 @@ impl<'gcx> Gcx<'gcx> {
     /// Emits a diagnostic for the given constant evaluation error.
     ///
     /// Like its value, the error of an expression is reported once, however many checks
-    /// evaluate it. A failed literal operation is reported once for the expression that contains
+    /// evaluate it. A failed literal operation is reported once, however many expressions contain
     /// it, as type checking reports it too.
     pub fn emit_const_eval_error(self, expr: &hir::Expr<'_>, err: EvalError) -> ErrorGuaranteed {
         match err.kind {
@@ -211,23 +211,16 @@ impl<'gcx> ConstantEvaluator<'gcx> {
                     return Err(EE::UnsupportedExpr.into());
                 };
                 let (taken, other) = if cond { (t, f) } else { (f, t) };
-                let value = self.try_eval_value(taken)?;
-                // The result has the common mobile type of both branches, so a literal branch
-                // leaves the rationals, like at runtime.
-                match value {
-                    ConstValue::Integer(value) if value.ty.is_none() => {
-                        let mut ty = value.mobile_ty()?;
-                        // A branch that is not a constant, such as a conversion, leaves the
-                        // narrower type of the literal, which can only reject a valid value.
-                        if let Ok(ConstValue::Integer(other)) = self.eval_operand(other) {
-                            let other = other.ty.map_or_else(|| other.mobile_ty(), Ok)?;
-                            ty = ty.common(other).ok_or(EE::UnsupportedExpr)?;
-                        }
-                        Ok(ConstValue::Integer(value.typed(Some(ty))))
-                    }
-                    ConstValue::Rational(_) => Err(EE::UnsupportedExpr.into()),
-                    value => Ok(value),
-                }
+                let value = match self.eval_operand(taken)? {
+                    ConstValue::Integer(value) => value,
+                    ConstValue::Rational(_) => return Err(EE::UnsupportedExpr.into()),
+                    value => return Ok(value),
+                };
+                // Like at runtime, the result has the common type of both branches, so both must
+                // be constants.
+                let other = self.eval_operand(other)?.into_integer()?;
+                let ty = value.int_ty()?.common(other.int_ty()?).ok_or(EE::UnsupportedExpr)?;
+                Ok(ConstValue::Integer(value.typed(Some(ty))))
             }
             // hir::ExprKind::Tuple(_) => unimplemented!(),
             // hir::ExprKind::TypeCall(_) => unimplemented!(),
@@ -298,6 +291,15 @@ pub enum ConstValue {
 }
 
 impl ConstValue {
+    /// Creates the value of literal arithmetic.
+    fn literal(value: Ratio<BigInt>) -> Self {
+        if value.is_integer() {
+            Self::Integer(IntScalar { data: value.into_raw().0, ty: None })
+        } else {
+            Self::Rational(value)
+        }
+    }
+
     /// Returns the non-negative integer value as unsigned data.
     pub fn as_u256(&self) -> Option<U256> {
         match self {
@@ -376,15 +378,6 @@ impl ConstValue {
                 return literal_binop(lhs, rhs, op);
             }
         })
-    }
-
-    /// Creates the value of literal arithmetic.
-    fn literal(value: Ratio<BigInt>) -> Self {
-        if value.is_integer() {
-            Self::Integer(IntScalar { data: value.into_raw().0, ty: None })
-        } else {
-            Self::Rational(value)
-        }
     }
 
     /// Returns `true` if this is a fraction too large for any fixed-point type, which solc's
@@ -479,7 +472,8 @@ fn literal_shift(value: BigInt, amount: BigInt, op: hir::BinOpKind) -> Result<Bi
 
 /// Raises a literal number to an integer power, like solc.
 ///
-/// The numerator and denominator are raised separately, so `0 ** -1` is `0`.
+/// The numerator and denominator are raised separately. Like solc, `0` raised to a negative
+/// power is `0`.
 fn literal_pow(base: Ratio<BigInt>, exp: Ratio<BigInt>) -> Result<Ratio<BigInt>, EE> {
     if !exp.is_integer() {
         return Err(EE::UnsupportedBinaryOp);
@@ -541,8 +535,8 @@ impl PartialEq for IntTy {
 impl IntTy {
     /// Returns the integer type denoted by the given type, if it is an integer type.
     ///
-    /// A `bytesN` value is computed like a `uintN`, so a shift that drops bits fails instead of
-    /// keeping them, and lowering computes it at runtime.
+    /// A `bytesN` value is computed like a `uintN`, so a left shift that drops bits fails instead
+    /// of keeping them, and lowering computes it at runtime.
     fn from_hir_ty(ty: &hir::Type<'_>) -> Option<Self> {
         match ty.kind {
             hir::TypeKind::Elementary(ElementaryType::Int(size)) => {
@@ -761,6 +755,11 @@ impl IntScalar {
             hir::UnOpKind::Neg => self.negate()?,
         };
         value.retype(ty)
+    }
+
+    /// Returns the type of the value: its declared type, or the mobile type of a literal.
+    fn int_ty(&self) -> Result<IntTy, EE> {
+        self.ty.map_or_else(|| self.mobile_ty(), Ok)
     }
 
     /// Returns the mobile type of a literal operand.

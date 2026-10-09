@@ -1184,6 +1184,7 @@ fn resolve_call_target(
     }
     gcx.resolve_virtual_function(contract, function)
 }
+
 /// Reinterprets a one-word value that inline assembly retyped from `source` to `target`.
 fn reinterpret_word(
     builder: &mut FunctionBuilder<'_>,

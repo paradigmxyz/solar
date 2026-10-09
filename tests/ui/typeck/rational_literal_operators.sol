@@ -39,8 +39,8 @@ contract NegativeNumeratorNegativeExponent {
     }
 }
 
-// Only negation, arithmetic and comparisons apply to fractions, and only together with other
-// literals.
+// Fractions only support negation and arithmetic with other literals, with whole exponents, and
+// comparisons with other fractions.
 contract Operators {
     function f(uint x, int y) public pure {
         -0.5;

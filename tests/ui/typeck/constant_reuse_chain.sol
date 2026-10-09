@@ -1,4 +1,3 @@
-//@ check-pass
 // Each constant uses the previous one three times, so evaluating every use again would take
 // 3**39 steps. Constant evaluation computes each constant once.
 contract ConstantReuseChain {
