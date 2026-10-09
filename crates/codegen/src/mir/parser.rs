@@ -1150,6 +1150,17 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
     /// Parses a memory-object layout whose kind identifier `name` has already
     /// been consumed, with optional `<...>` layout arguments.
+    /// Dynamic objects have no element layout: their elements are accessed through a
+    /// `memory_slice` view.
+    fn check_static_element_layout(layout: MemoryObjectLayout) -> Result<(), &'static str> {
+        match layout {
+            MemoryObjectLayout::Bytes | MemoryObjectLayout::DynamicArray { .. } => Err(
+                "dynamic memory objects are accessed through `memory_slice` views; use `slice_*` operations",
+            ),
+            MemoryObjectLayout::FixedArray { .. } | MemoryObjectLayout::Struct { .. } => Ok(()),
+        }
+    }
+
     fn parse_memory_object_layout(&mut self, name: Symbol) -> PResult<'sess, MemoryObjectLayout> {
         let layout = match name {
             sym::memorybytes => MemoryObjectLayout::Bytes,
@@ -1723,6 +1734,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             sym::memory_object_element_addr => {
                 let name = self.parser.parse_ident()?;
                 let layout = self.parse_memory_object_layout(name)?;
+                Self::check_static_element_layout(layout).map_err(|msg| self.parser.error(msg))?;
                 self.parser.expect(TokenKind::Comma)?;
                 let object = self.parse_value(builder)?;
                 self.parser.expect(TokenKind::Comma)?;
@@ -1769,6 +1781,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             sym::memory_object_load_element => {
                 let name = self.parser.parse_ident()?;
                 let layout = self.parse_memory_object_layout(name)?;
+                Self::check_static_element_layout(layout).map_err(|msg| self.parser.error(msg))?;
                 self.parser.expect(TokenKind::Comma)?;
                 let object = self.parse_value(builder)?;
                 self.parser.expect(TokenKind::Comma)?;
@@ -1804,6 +1817,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             sym::memory_object_store_element => {
                 let name = self.parser.parse_ident()?;
                 let layout = self.parse_memory_object_layout(name)?;
+                Self::check_static_element_layout(layout).map_err(|msg| self.parser.error(msg))?;
                 self.parser.expect(TokenKind::Comma)?;
                 let object = self.parse_value(builder)?;
                 self.parser.expect(TokenKind::Comma)?;
