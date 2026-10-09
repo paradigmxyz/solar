@@ -219,23 +219,6 @@ impl Session {
         Self::builder().opts(opts).build()
     }
 
-    /// Creates a session that shares this session's globals, including the symbol interner, but
-    /// reports its diagnostics to `dcx`.
-    ///
-    /// Symbols are the same in both sessions, so code running inside this session's
-    /// [`enter`](Self::enter) can parse through the fork and keep what it parses, while every
-    /// diagnostic stays in `dcx`, for example a buffer the caller inspects instead of failing the
-    /// compilation. Files a caller adds to the source map of `dcx` are only used to render those
-    /// diagnostics; they are not visible through [`source_map`](Self::source_map).
-    pub fn with_diagnostics(&self, dcx: DiagCtxt) -> Self {
-        Self {
-            opts: self.opts.clone(),
-            dcx,
-            globals: self.globals.clone(),
-            thread_pool: OnceLock::new(),
-        }
-    }
-
     /// Validates the session options.
     pub fn validate(&self) -> crate::Result<()> {
         let mut result = Ok(());
@@ -806,19 +789,5 @@ mod tests {
                 ..Default::default()
             })
             .build();
-    }
-
-    #[test]
-    fn with_diagnostics() {
-        let sess = enter_tests_session();
-        let fork = sess.with_diagnostics(DiagCtxt::with_buffer_emitter(None, ColorChoice::Never));
-        sess.enter(|| {
-            assert!(fork.is_entered());
-            assert_eq!(fork.intern("shared"), sess.intern("shared"));
-            fork.dcx.err("private").emit();
-        });
-        assert!(sess.dcx.emitted_errors().unwrap().is_ok());
-        let err = fork.dcx.emitted_errors().unwrap().unwrap_err();
-        assert!(err.to_string().contains("error: private"), "{err:?}");
     }
 }
