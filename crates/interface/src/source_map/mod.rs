@@ -266,8 +266,8 @@ impl SourceMap {
 
     /// Sets the base path, include paths and current directory for the source map.
     ///
-    /// Source file names are displayed relative to them, and new file resolvers use the base path
-    /// as their default.
+    /// Source file names are displayed relative to the base path or include paths, without the
+    /// current directory's drive, and new file resolvers use the base path as their default.
     pub(crate) fn set_roots(
         &self,
         base_path: Option<PathBuf>,

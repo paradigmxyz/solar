@@ -50,7 +50,7 @@ pub struct FileResolver<'a> {
     custom_current_dir: Option<PathBuf>,
     /// [`std::env::current_dir`] cache. Unused if the current directory is set manually.
     env_current_dir: OnceLock<Option<PathBuf>>,
-    /// The start of the last source loaded before resolving the first import.
+    /// The start of the last source loaded before the first import that searches the disk.
     last_input: OnceLock<Option<BytePos>>,
     /// The paths that imports can load files from, in addition to the default ones, if restricted.
     allowed_paths: Option<Vec<PathBuf>>,
@@ -388,8 +388,8 @@ impl<'a> FileResolver<'a> {
     /// Reads `unit` from each root once through the file loader, like solc's file reader.
     fn read_roots(&self, path: &Path, unit: &Path) -> Result<Option<String>, ResolveError> {
         let loader = self.source_map().file_loader();
-        // Ask for the normalized name, which the source is keyed by, so that the result doesn't
-        // depend on which spelling of the name is read first.
+        // Ask for a normalized path in each root, so that the result doesn't depend on which
+        // spelling of the name is read first.
         let candidates = if unit.has_root() {
             vec![normalize_unit(unit)]
         } else {

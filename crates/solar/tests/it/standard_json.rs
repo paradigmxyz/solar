@@ -252,16 +252,23 @@ fn callback_imports_merge_spellings() {
         }
     }
 
-    let sources = ["lib//X.sol", "lib/X.sol", "lib/./X.sol", "lib/sub/../X.sol"]
-        .iter()
-        .enumerate()
-        .map(|(i, import)| {
-            (
-                format!("S{i}.sol"),
-                json!({"content": format!("import \"{import}\"; contract S{i} {{}}")}),
-            )
-        })
-        .collect::<serde_json::Map<_, _>>();
+    let sources = [
+        "lib//X.sol",
+        "lib/X.sol",
+        "lib/./X.sol",
+        "lib/sub/../X.sol",
+        "/abs/./x//X.sol",
+        "/abs/y/../x/X.sol",
+    ]
+    .iter()
+    .enumerate()
+    .map(|(i, import)| {
+        (
+            format!("S{i}.sol"),
+            json!({"content": format!("import \"{import}\"; contract S{i} {{}}")}),
+        )
+    })
+    .collect::<serde_json::Map<_, _>>();
     let input =
         json!({"language": "Solidity", "sources": sources, "settings": {"outputSelection": {}}});
     let callback = Arc::new(Callback::default());
@@ -276,6 +283,10 @@ fn callback_imports_merge_spellings() {
     let output = serde_json::from_slice::<Value>(&output).unwrap();
     let mut names = output["sources"].as_object().unwrap().keys().collect::<Vec<_>>();
     names.sort();
-    assert_eq!(names, ["S0.sol", "S1.sol", "S2.sol", "S3.sol", "lib/X.sol"], "{output}");
-    assert_eq!(callback.0.load(Ordering::Relaxed), 1);
+    assert_eq!(
+        names,
+        ["/abs/x/X.sol", "S0.sol", "S1.sol", "S2.sol", "S3.sol", "S4.sol", "S5.sol", "lib/X.sol"],
+        "{output}"
+    );
+    assert_eq!(callback.0.load(Ordering::Relaxed), 2);
 }
