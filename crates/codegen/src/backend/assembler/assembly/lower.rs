@@ -24,7 +24,6 @@ impl Assembler<'_> {
     )]
     pub(in crate::backend) fn optimize(&mut self) {
         let Some((mut program, labels)) = self.finish_evm_ir() else { return };
-        ir::builder::resolve_known_deferred_constants(&mut program, &self.deferred_values);
         let failed = !self.run_pipeline(&mut program);
         self.optimized = Some(OptimizedProgram { program, labels, failed });
     }
@@ -357,9 +356,6 @@ fn lower_instruction(
     module: &ir::Module,
     labels: &mut Vec<Option<Label>>,
 ) {
-    if let Some(id) = inst.deferred_push() {
-        panic!("deferred constant {id:?} was never resolved");
-    }
     let inst = if let Some(id) = inst.immutable_push() {
         let type_size = inst.immutable_type_size().expect("validated immutable width");
         assembler.immutable_push_inst(id, type_size)

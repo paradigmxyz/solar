@@ -11,7 +11,7 @@ newtype_index! {
     ///
     /// Deferred constants are immediates whose final value is only known after
     /// bytecode emission has observed lazy backend state, such as exact spill
-    /// slot allocation. They must be resolved before assembly.
+    /// slot allocation. They must be resolved before the EVM IR pipeline.
     pub(crate) struct DeferredConst;
 
     /// A deferred heap allocation identifier.
