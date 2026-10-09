@@ -106,7 +106,7 @@ fn windows_backslash_keys_and_callback_imports() {
     assert_eq!(
         output,
         json!({
-            "sources": {"contracts\\A.sol": {"id": 0}, "contracts/B.sol": {"id": 1}},
+            "sources": {"contracts\\A.sol": {"id": 1}, "contracts/B.sol": {"id": 0}},
             "contracts": {"contracts\\A.sol": {"A": {"abi": []}}}
         })
     );
