@@ -708,7 +708,7 @@ class MemoryAddressTests(unittest.TestCase):
             if form[0] == "rule"
             and any(name in repr(form) for name in MemoryAddresses.SHAPES)
         ]
-        self.assertEqual(len(rules), 3)
+        self.assertEqual(len(rules), 2)
         for rule in rules:
             cx = Context()
             lhs, rhs = cx.obligation(rule)
@@ -729,24 +729,13 @@ class MemoryAddressTests(unittest.TestCase):
         self.assertTrue(lean_evaluates(value, values, expected))
         self.assertEqual(concrete(value, values), expected)
 
-    def test_data_headers_and_slice_payload_pointers(self):
+    def test_data_headers(self):
         cx = Context()
-        object, kind = map(Expr.var, ("object", "kind"))
-        value = cx.operation("Op.MemoryObjectData", [object, kind])
-        flag = cx.memory.slices[object].args[0]
+        layout = Expr.var("layout")
+        value = cx.memory.constructor("object_data_offset", (layout,))
+        shape = cx.memory.layouts[layout]
         for tag, header in ((0, 32), (1, 32), (2, 0), (3, 0)):
-            for is_slice in (0, 1):
-                for pointer in (0, 128, MASK):
-                    self.assert_concrete_and_symbolic(
-                        value,
-                        {"object": pointer, "kind": tag, flag: is_slice},
-                        (pointer + (0 if is_slice else header)) & MASK,
-                    )
-        # Adding a header to a slice pointer is wrong, even for dynamic data.
-        wrong = expression("add", object, cx.memory.data_offset(kind))
-        result = check(value, wrong, cx.assumptions)
-        self.assertEqual(result["status"], "counterexample")
-        self.assertEqual(int(result["inputs"][flag], 16), 1)
+            self.assert_concrete_and_symbolic(value, {shape.kind.args[0]: tag}, header)
 
     def test_field_offsets_saturate_before_full_word_address_addition(self):
         cx = Context()
@@ -790,7 +779,7 @@ class MemoryAddressTests(unittest.TestCase):
 
     def test_generated_schema_drift_and_wrong_arity_fail_closed(self):
         cx = Context()
-        object, kind = map(Expr.var, ("object", "kind"))
+        object, layout, field = map(Expr.var, ("object", "layout", "field"))
         with (
             patch(
                 "evm_rules.isle.forms",
@@ -803,9 +792,10 @@ class MemoryAddressTests(unittest.TestCase):
                             (
                                 "enum",
                                 (
-                                    "MemoryObjectData",
-                                    ("kind", "MemoryObjectKind"),
+                                    "MemoryObjectFieldAddr",
+                                    ("layout", "MemoryObjectLayout"),
                                     ("object", "Value"),
+                                    ("field", "u64"),
                                 ),
                             ),
                         ),
@@ -815,12 +805,9 @@ class MemoryAddressTests(unittest.TestCase):
             ),
             self.assertRaisesRegex(Unsupported, "changed memory address schema"),
         ):
-            cx.operation("Op.MemoryObjectData", [object, kind])
+            cx.operation("Op.MemoryObjectFieldAddr", [object, layout, field])
         with self.assertRaises(Unsupported):
-            cx.operation("Op.MemoryObjectData", [object])
-        cx.memory.kind(kind)
-        with self.assertRaises(Unsupported):
-            cx.memory.layout(kind)
+            cx.operation("Op.MemoryObjectFieldAddr", [object, layout])
 
 
 class RuleTests(unittest.TestCase):

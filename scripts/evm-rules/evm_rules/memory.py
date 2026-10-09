@@ -1,6 +1,6 @@
 """Pure address projections under the selected EVM memory-layout policy.
 
-Object operands denote their leading pointer word, including slices. This is
+Object operands denote their leading pointer word. This is
 an address-equality model, not a proof of typed slice erasure, memory effects,
 allocation, or bounds checks. Valid layout/field constraints are structural
 preconditions; the Rust policy and lowering remain fingerprinted trusted code.
@@ -29,7 +29,6 @@ class MemoryAddresses:
     """Model all four object kinds and every u32/u64 layout parameter."""
 
     SHAPES: ClassVar[dict[str, tuple[tuple[str, str], ...]]] = {
-        "Op.MemoryObjectData": (("object", "Value"), ("kind", "MemoryObjectKind")),
         "Op.MemoryObjectFieldAddr": (
             ("object", "Value"),
             ("layout", "MemoryObjectLayout"),
@@ -45,27 +44,17 @@ class MemoryAddresses:
     def __init__(self, context):
         self.context = context
         self.layouts = {}
-        self.kinds = set()
-        self.slices = {}
 
     def bounded(self, value, maximum):
         self.context.assumptions.append(Cond("ule", (value, Expr.const(maximum))))
         return value
 
-    def kind(self, value):
-        if value in self.layouts:
-            raise Unsupported("memory layout used as an object kind")
-        self.kinds.add(value)
-        # 0 = bytes, 1 = dynamic array, 2 = fixed array, 3 = struct.
-        return self.bounded(value, 3)
-
     def layout(self, value):
-        if value in self.kinds:
-            raise Unsupported("memory object kind used as a layout")
         if value not in self.layouts:
             cx = self.context
             self.layouts[value] = Layout(
-                self.kind(cx.fresh()),
+                # 0 = bytes, 1 = dynamic array, 2 = fixed array, 3 = struct.
+                self.bounded(cx.fresh(), 3),
                 self.bounded(cx.fresh(), (1 << 32) - 1),
                 self.bounded(cx.fresh(), (1 << 64) - 1),
             )
@@ -74,7 +63,7 @@ class MemoryAddresses:
     def data_offset(self, kind):
         # Bytes and dynamic arrays have one header word; fixed arrays and
         # structs start directly at their payload. No equality is assumed.
-        return expr("select", expr("lt", self.kind(kind), 2), 32, 0)
+        return expr("select", expr("lt", kind, 2), 32, 0)
 
     def field_offset(self, layout, field):
         layout = self.layout(layout)
@@ -97,17 +86,6 @@ class MemoryAddresses:
             "memory addresses: leading pointer words under EvmMemoryLayout; valid layouts and typed lowering are trusted"
         )
         match name, args:
-            case "Op.MemoryObjectData", (object, kind):
-                if object not in self.slices:
-                    self.slices[object] = self.bounded(cx.fresh(), 1)
-                # A slice already carries its payload pointer. Object references
-                # include their layout's header before the payload.
-                return expr(
-                    "select",
-                    self.slices[object],
-                    object,
-                    expr("add", object, self.data_offset(kind)),
-                )
             case "Op.MemoryObjectFieldAddr", (object, layout, field):
                 return expr("add", object, self.field_offset(layout, field))
             case "Op.MemoryObjectElementAddr", (object, layout, index):
@@ -129,12 +107,10 @@ class MemoryAddresses:
 
     def constructor(self, name, args):
         match name, args:
-            case "object_data_offset", (kind,):
-                return self.data_offset(kind)
+            case "object_data_offset", (layout,):
+                return self.data_offset(self.layout(layout).kind)
             case "field_offset", (layout, field):
                 return self.field_offset(layout, field)
-            case "layout_kind", (layout,):
-                return self.layout(layout).kind
         raise Unsupported(
             f"unmodeled memory layout constructor or arity: {name}/{len(args)}"
         )
