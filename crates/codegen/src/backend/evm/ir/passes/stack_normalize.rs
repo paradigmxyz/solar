@@ -49,6 +49,9 @@ use std::cell::RefCell;
 
 const MAX_STACK_RUN_LEN: usize = 24;
 
+/// Most constant pushes before a run whose words resynthesis may treat as equal.
+const MAX_EQUAL_WORDS: usize = 8;
+
 pub(super) struct StackNormalize {
     /// Whether this is the final instance, which may introduce `EXCHANGE`.
     exchanges: bool,
@@ -128,7 +131,7 @@ impl SharedNormalizations {
         if let Some(output) = entries.get(input) {
             return output.clone();
         }
-        let output = compute_normalization(input, key);
+        let output = compute_normalization(input, &[], key);
         if entries.len() == MAX_SHARED_NORMALIZATIONS {
             entries.clear();
         }
@@ -180,8 +183,11 @@ impl Normalizer {
                 .filter(|inst| !inst.keeps_with_next())
                 .and_then(Instruction::as_evm_opcode)
                 .and_then(op::swapped_binary_opcode);
+            let equal = equal_words(instructions, run_start);
             let mut start = run_start;
             while start < cursor {
+                // Only the first piece of a run starts right after the pushes.
+                let equal = if start == run_start { &equal[..] } else { &[] };
                 let remaining = cursor - start;
                 let len = if remaining == MAX_STACK_RUN_LEN + 1 {
                     MAX_STACK_RUN_LEN - 1
@@ -196,8 +202,8 @@ impl Normalizer {
                         && !instructions[start..end].iter().any(Instruction::keeps_with_next)
                 });
                 if input.len() >= 2 {
-                    let mut best =
-                        normalization(&input, key, &mut self.cache).map(|output| (output, None));
+                    let mut best = normalization(&input, equal, key, &mut self.cache)
+                        .map(|output| (output, None));
                     if let Some(consumer) = consumer {
                         // run; consumer => run; swap 1; mirrored consumer
                         let cost = lowered_stack_cost(
@@ -205,7 +211,7 @@ impl Normalizer {
                             key.0,
                         );
                         input.push(StackOp::Swap(1));
-                        if let Some(output) = normalization(&input, key, &mut self.cache)
+                        if let Some(output) = normalization(&input, equal, key, &mut self.cache)
                             && improves(lowered_stack_cost(&output, key.0), cost)
                         {
                             best = Some((output, Some(consumer)));
@@ -270,9 +276,15 @@ impl Normalizer {
 
 fn normalization(
     input: &StackRun,
+    equal: &[u8],
     key: NormalizationKey,
     cache: &mut NormalizationCache,
 ) -> Option<StackRun> {
+    // Runs right after equal constant pushes skip these caches; the shuffler still caches its
+    // exact searches.
+    if !equal.is_empty() {
+        return compute_normalization(input, equal, key);
+    }
     if let Some(output) = cache.get(input) {
         output.clone()
     } else {
@@ -282,12 +294,34 @@ fn normalization(
     }
 }
 
+/// For each word a run at `start` finds on the stack, the shallowest word that holds the same
+/// value, as far as the constant pushes right before the run show; empty when those words are
+/// distinct.
+fn equal_words(instructions: &[Instruction], start: usize) -> SmallVec<[u8; MAX_EQUAL_WORDS]> {
+    let pushed = instructions[..start]
+        .iter()
+        .rev()
+        .map_while(Instruction::concrete_immediate)
+        .take(MAX_EQUAL_WORDS)
+        .collect::<SmallVec<[_; MAX_EQUAL_WORDS]>>();
+    let equal = pushed
+        .iter()
+        .map(|value| pushed.iter().position(|other| other == value).unwrap() as u8)
+        .collect::<SmallVec<[_; MAX_EQUAL_WORDS]>>();
+    if equal.iter().enumerate().all(|(depth, &same)| usize::from(same) == depth) {
+        SmallVec::new()
+    } else {
+        equal
+    }
+}
+
 fn compute_normalization(
     input: &StackRun,
+    equal: &[u8],
     (evm_version, exchanges): NormalizationKey,
 ) -> Option<StackRun> {
     let input_cost = lowered_stack_cost(input, evm_version);
-    let resynthesized = resynthesize_physical_ops(input, evm_version, exchanges)
+    let resynthesized = resynthesize_physical_ops(input, evm_version, exchanges, equal)
         .map(StackRun::from_vec)
         .filter(|output| improves(lowered_stack_cost(output, evm_version), input_cost));
     if !exchanges {

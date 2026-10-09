@@ -128,7 +128,6 @@ bb3:
   push 0
   swap 2
   swap 1
-  swap 2
   jump bb7
 bb9 [loop]:
   dup 2

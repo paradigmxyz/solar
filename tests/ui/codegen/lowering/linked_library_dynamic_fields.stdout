@@ -728,14 +728,12 @@ bb9:
   push 64
   mstore
   push 0
-  push 0
   push 0x1000000000000000000000000000000000000001
-  swap 2
+  push 0
   swap 4
-  swap 1
+  swap 2
   swap 3
   swap 1
-  swap 2
   gas
   delegatecall
   iszero

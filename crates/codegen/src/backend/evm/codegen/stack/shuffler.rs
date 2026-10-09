@@ -22,7 +22,8 @@
 //! Swaps between equal values are omitted. A transition is returned only when the modeled
 //! source reaches the exact target. Equal-multiplicity layouts need no pushes or pops. Unique
 //! permutations use the direct cycle solver up to the target's SWAP reach; permutations with
-//! duplicates use exact search through six words (at most 720 permutations). The greedy result
+//! duplicates use exact search through eight words (at most 20,160 arrangements with one repeated
+//! word). Runs whose source words are known to repeat always take this path. The greedy result
 //! wins cost ties. Exact results are cached by complete symbolic layout and EVM version within
 //! each worker; generated wrappers and repeated cleanup passes frequently ask the same bounded
 //! question.
@@ -40,6 +41,7 @@ use std::{cell::RefCell, collections::VecDeque, ops::ControlFlow};
 const MAX_LAYOUT_SEARCH_STATES: usize = 100_000;
 const MAX_SHARED_EXACT_SEARCHES: usize = 2_048;
 const EXACT_LAYOUT_OPTIMIZATION_LIMIT: usize = 4;
+const EXACT_PERMUTATION_LIMIT: usize = 8;
 const MAX_ENUMERATED_PHYSICAL_REMOVALS: usize = 7;
 const PHYSICAL_RESYNTHESIS_LAYOUT_LIMIT: usize = 236;
 
@@ -82,11 +84,14 @@ pub(crate) fn lowered_stack_cost(
 
 /// Resynthesizes a bounded physical stack operation sequence from its symbolic result.
 ///
-/// The result contains `EXCHANGE` only when `exchanges` is set.
+/// `equal[i]` names, for the word at depth `i` before the run, the shallowest word known to hold
+/// the same value; words past its end are distinct. The result contains `EXCHANGE` only when
+/// `exchanges` is set.
 pub(crate) fn resynthesize_physical_ops(
     ops: &[StackOp],
     evm_version: EvmVersion,
     exchanges: bool,
+    equal: &[u8],
 ) -> Option<Vec<StackOp>> {
     let mut source_depth = 0usize;
     let mut available = 0usize;
@@ -103,18 +108,31 @@ pub(crate) fn resynthesize_physical_ops(
         return None;
     }
 
-    let source = StackModel::from_top_to_bottom((0..source_depth).map(ValueId::from_usize));
+    let source = StackModel::from_top_to_bottom((0..source_depth).map(|depth| {
+        ValueId::from_usize(equal.get(depth).map_or(depth, |&same| usize::from(same)))
+    }));
     let mut target = source.clone();
     for &stack_op in ops {
         target.apply(stack_op);
     }
     let target = target.as_slice();
-    let permutation = synthesize_unique_layout(source.as_slice(), target, evm_version);
+    // The permutation solver assumes distinct source words.
+    let distinct = equal
+        .iter()
+        .take(source_depth)
+        .enumerate()
+        .all(|(depth, &same)| usize::from(same) == depth);
+    let permutation = distinct
+        .then(|| synthesize_unique_layout(source.as_slice(), target, evm_version))
+        .flatten();
     if !evm_version.has_extended_stack_ops() && permutation.is_some() {
         return permutation;
     }
     let mut shuffler = StackShuffler::new(source.as_slice(), target, evm_version, exchanges);
-    let shuffled = if source_depth.max(target.len()) <= EXACT_LAYOUT_OPTIMIZATION_LIMIT {
+    let words = source_depth.max(target.len());
+    let shuffled = if words <= EXACT_LAYOUT_OPTIMIZATION_LIMIT
+        || (!distinct && words <= EXACT_PERMUTATION_LIMIT)
+    {
         shuffler.shuffle()
     } else {
         shuffler.run_greedy()
@@ -356,7 +374,7 @@ impl<'a> StackShuffler<'a> {
             .max(usize::from(original.as_slice() != self.target));
         if (original.len().max(self.target.len()) <= EXACT_LAYOUT_OPTIMIZATION_LIMIT
             || unique
-            || (permutation && original.len() <= 6))
+            || (permutation && original.len() <= EXACT_PERMUTATION_LIMIT))
             && greedy.as_ref().is_none_or(|result| {
                 lowered_stack_cost(result, self.evm_version).0 > operation_lower_bound
             })
