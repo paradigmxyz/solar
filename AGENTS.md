@@ -356,3 +356,10 @@ bytecode size, then compile time and memory; reject changes that only speed up
 compilation. Record a baseline before editing, and follow the
 [local build workflow](benches/runtime/README.md#comparing-local-builds). For
 parser benchmarks, see [benches/README.md](benches/README.md).
+
+- Reuse the frozen baseline's results; do not rerun it.
+- Narrow with `--tests` while iterating.
+- Check output identity with compile-only runs and output fingerprints.
+- Use release binaries for corpus-wide compiles.
+- Make a local WIP commit before scripted bulk edits.
+- Delete your own `target/` and worktree when done; keep evidence elsewhere.
