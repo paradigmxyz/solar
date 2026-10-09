@@ -838,6 +838,14 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
             }
             if !preserve_branch_targets.is_empty() {
+                if let Some(Terminator::Branch { condition, .. }) = block.terminator.as_ref()
+                    && let Some(depth) =
+                        self.buried_branch_condition(liveness, block_id, *condition)
+                {
+                    // swap depth(condition)
+                    // jumpi condition, then, else
+                    self.emit_stack_op(StackOp::Swap(depth as u8));
+                }
                 // Junk-terminal siblings may have argument padding in their global plan,
                 // but every planned value must be dead here; no phi layout may be bypassed.
                 debug_assert!(block.terminator.as_ref().is_none_or(|term| {
@@ -1099,12 +1107,15 @@ impl<'gcx> EvmCodegen<'gcx> {
 
         // A freshly computed condition is the top word and JUMPI consumes it. A condition
         // carried below the top is a loop invariant the successors still read; the terminator
-        // duplicates it for JUMPI, so the whole stack survives the branch. A reloadable
-        // argument can instead be pushed above the carried words immediately before JUMPI.
+        // duplicates it for JUMPI, so the whole stack survives the branch. A buried condition
+        // the successors do not read is swapped to the top by the caller. A reloadable argument
+        // can instead be pushed above the carried words immediately before JUMPI.
         let condition_on_top = self.scheduler.stack.top() == Some(*condition);
+        let buried_condition = self.buried_branch_condition(liveness, block_id, *condition);
         let reload_condition = Self::is_rematerializable_value(func, *condition)
             && !self.scheduler.is_stack_only_value(*condition);
         if !condition_on_top
+            && buried_condition.is_none()
             && !reload_condition
             && !(liveness.live_out(block_id).contains(*condition)
                 && self
@@ -1120,12 +1131,14 @@ impl<'gcx> EvmCodegen<'gcx> {
             return Vec::new();
         }
 
+        let jumpi_depth = if condition_on_top { Some(0) } else { buried_condition };
         let Some(mut carried) = self
             .scheduler
             .stack
             .iter()
-            .skip(usize::from(condition_on_top))
-            .map(|slot| {
+            .enumerate()
+            .filter(|&(depth, _)| Some(depth) != jumpi_depth)
+            .map(|(_, slot)| {
                 let value = slot?;
                 liveness.live_out(block_id).contains(value).then_some(value)
             })
@@ -1218,6 +1231,22 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
 
         preserved
+    }
+
+    /// Returns the depth of a branch condition below the top of the stack that no successor
+    /// reads. Dropping dead operand copies from under a call result can bury its status word;
+    /// one `SWAP` raises it for `JUMPI` and leaves the successors the same carried words.
+    fn buried_branch_condition(
+        &self,
+        liveness: &Liveness,
+        block_id: BlockId,
+        condition: ValueId,
+    ) -> Option<usize> {
+        let depth = self.scheduler.stack.find(condition)?;
+        (depth > 0
+            && depth <= self.stack_access_limit()
+            && !liveness.live_out(block_id).contains(condition))
+        .then_some(depth)
     }
 
     fn is_junk_tolerant_terminal(
