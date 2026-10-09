@@ -15,35 +15,33 @@ fn @ascii(arg0: i8) -> i1 [selector=0x394abd12, pure, abi_params=[u8], abi_retur
     v9 = eq v8, false
     icall panic_if<0x32>, v9
     v10 = byte 0, v5
-    v11 = memory_slice v2
-    slice_store_byte v11, 0, v10
+    slice_store_byte v6, 0, v10
     jump bb1
   bb1:
-    v12 = phi [bb0: 0], [bb3: v29]
-    v13 = phi [bb0: arg0], [bb3: v13]
-    v14 = phi [bb0: v2], [bb3: v14]
-    v15 = phi [bb0: 0], [bb3: v15]
-    v16 = memory_slice v14
-    v17 = slice_len v16
-    v18 = lt v12, v17
-    jumpi v18, bb4, bb5
+    v11 = phi [bb0: 0], [bb3: v27]
+    v12 = phi [bb0: arg0], [bb3: v12]
+    v13 = phi [bb0: v2], [bb3: v13]
+    v14 = phi [bb0: 0], [bb3: v14]
+    v15 = memory_slice v13
+    v16 = slice_len v15
+    v17 = lt v11, v16
+    jumpi v17, bb4, bb5
   bb5:
     jump bb2
   bb2:
     ret true
   bb4:
-    v19 = memory_slice v14
-    v20 = slice_len v19
-    v21 = lt v12, v20
-    v22 = eq v21, false
-    icall panic_if<0x32>, v22
-    v23 = memory_slice v14
-    v24 = slice_load_byte v23, v12
-    v25 = shl 248, v24
-    v26 = shr 248, v25
-    v27 = trunc i256 v26 to i8
-    v28 = gt v27, i8 127
-    jumpi v28, bb7, bb8
+    v18 = memory_slice v13
+    v19 = slice_len v18
+    v20 = lt v11, v19
+    v21 = eq v20, false
+    icall panic_if<0x32>, v21
+    v22 = slice_load_byte v18, v11
+    v23 = shl 248, v22
+    v24 = shr 248, v23
+    v25 = trunc i256 v24 to i8
+    v26 = gt v25, i8 127
+    jumpi v26, bb7, bb8
   bb8:
     jump bb9
   bb9:
@@ -51,7 +49,7 @@ fn @ascii(arg0: i8) -> i1 [selector=0x394abd12, pure, abi_params=[u8], abi_retur
   bb6:
     jump bb3
   bb3:
-    v29 = checked_add u256, v12, 1
+    v27 = checked_add u256, v11, 1
     jump bb1
   bb7:
     ret false
@@ -62,8 +60,8 @@ fn @sum(arg0: memptr) -> i256 [selector=0x0194db8e, pure, abi_params=[array<_, u
     jump bb1
   bb1:
     v0 = phi [bb0: arg0], [bb3: v0]
-    v1 = phi [bb0: 0], [bb3: v13]
-    v2 = phi [bb0: 0], [bb3: v12]
+    v1 = phi [bb0: 0], [bb3: v12]
+    v2 = phi [bb0: 0], [bb3: v11]
     v3 = memory_slice v0
     v4 = slice_len v3
     v5 = lt v1, v4
@@ -78,14 +76,13 @@ fn @sum(arg0: memptr) -> i256 [selector=0x0194db8e, pure, abi_params=[array<_, u
     v8 = lt v1, v7
     v9 = eq v8, false
     icall panic_if<0x32>, v9
-    v10 = memory_slice v0
-    v11 = slice_load_element v10, v1
-    v12 = checked_add u256, v2, v11
+    v10 = slice_load_element v6, v1
+    v11 = checked_add u256, v2, v10
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v13 = checked_add u256, v1, 1
+    v12 = checked_add u256, v1, 1
     jump bb1
 }
 
@@ -98,9 +95,9 @@ fn @shrinkingLoop() -> i256 [selector=0x99f5cf3a, pure, abi_params=[], abi_retur
     mstore v3, 1
     jump bb1
   bb1:
-    v4 = phi [bb0: 0], [bb3: v21]
+    v4 = phi [bb0: 0], [bb3: v20]
     v5 = phi [bb0: v2], [bb3: v5]
-    v6 = phi [bb0: 0], [bb3: v22]
+    v6 = phi [bb0: 0], [bb3: v21]
     v7 = memory_slice v5
     v8 = slice_len v7
     v9 = lt v6, v8
@@ -117,18 +114,17 @@ fn @shrinkingLoop() -> i256 [selector=0x99f5cf3a, pure, abi_params=[], abi_retur
     v13 = lt v6, v12
     v14 = eq v13, false
     icall panic_if<0x32>, v14
-    v15 = memory_slice v5
-    v16 = slice_load_byte v15, v6
-    v17 = shl 248, v16
-    v18 = shr 248, v17
-    v19 = trunc i256 v18 to i8
-    v20 = zext i8 v19 to i256
-    v21 = checked_add u256, v4, v20
+    v15 = slice_load_byte v11, v6
+    v16 = shl 248, v15
+    v17 = shr 248, v16
+    v18 = trunc i256 v17 to i8
+    v19 = zext i8 v18 to i256
+    v20 = checked_add u256, v4, v19
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v22 = checked_add u256, v6, 1
+    v21 = checked_add u256, v6, 1
     jump bb1
 }
 
@@ -172,7 +168,6 @@ fn @shrink(arg0: i256, arg1: i256) -> i256 [selector=0xefab6938, pure, abi_param
     v28 = lt 0, v27
     v29 = eq v28, false
     icall panic_if<0x32>, v29
-    v30 = memory_slice v19
-    v31 = slice_load_element v30, 0
-    ret v31
+    v30 = slice_load_element v26, 0
+    ret v30
 }

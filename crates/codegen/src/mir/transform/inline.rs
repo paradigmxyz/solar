@@ -1422,7 +1422,15 @@ fn surviving_call_words(func: &Function, liveness: &Liveness, site: CallSite) ->
 }
 
 fn live_word_count(func: &Function, live: &DenseBitSet<ValueId>) -> usize {
-    live.iter().filter(|&value| matches!(func.value(value), Value::Arg(_) | Value::Inst(_))).count()
+    live.iter()
+        .filter(|&value| match func.value(value) {
+            Value::Arg(_) => true,
+            // A `memory_slice` view lowers to its length word, so its length takes no other word.
+            Value::Inst(inst) => !matches!(func.inst(*inst).kind,
+                InstKind::SliceLen(view) if func.memory_slice_object(view).is_some()),
+            _ => false,
+        })
+        .count()
 }
 
 /// A call followed by bounded physical word operations, with no allocation or frame locals.
@@ -1837,7 +1845,13 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> (Cost, 
         }
     };
     let instructions = match kind {
-        InstKind::Zext(_) | InstKind::IntToPtr(..) => 0,
+        // Casts and slice projections emit no code of their own.
+        InstKind::Zext(_)
+        | InstKind::IntToPtr(..)
+        | InstKind::PtrToInt(_, 256)
+        | InstKind::MakeSlice { .. }
+        | InstKind::SlicePtr(_)
+        | InstKind::SliceLen(_) => 0,
         InstKind::MappingSlot(..) | InstKind::StorageArrayDataSlot(..) => 3,
         InstKind::MappingSlotMemory(..) => 8,
         InstKind::MappingSlotCalldata(..) => 9,

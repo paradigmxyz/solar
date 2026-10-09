@@ -13,7 +13,8 @@ contract MsgData {
 
     // CHECK-LABEL: fn @copy{{[( ]}}
     // CHECK: calldatasize
-    // CHECK: memory_object_copy_from_slice memorybytes
+    // CHECK: [[DST:v[0-9]+]] = memory_slice
+    // CHECK-NEXT: slice_copy [[DST]], 0,
     function copy() external pure returns (bytes memory) {
         return msg.data;
     }
@@ -50,7 +51,8 @@ contract MsgData {
     // CHECK-LABEL: fn @tail{{[( ]}}
     // CHECK: calldatasize
     // CHECK: make_calldata_slice
-    // CHECK: memory_object_copy_from_slice memorybytes
+    // CHECK: [[DST:v[0-9]+]] = memory_slice
+    // CHECK-NEXT: slice_copy [[DST]], 0,
     function tail(uint256 a, uint256 b) external pure returns (bytes memory) {
         return msg.data[a:b];
     }

@@ -13,18 +13,16 @@ fn @alloc() -> i256 [selector=0xbbc001c3, pure, abi_params=[], abi_returns=[word
     v7 = eq v6, false
     icall panic_if<0x32>, v7
     v8 = byte 0, 0xaa00000000000000000000000000000000000000000000000000000000000000
+    slice_store_byte v4, 5, v8
     v9 = memory_slice v2
-    slice_store_byte v9, 5, v8
-    v10 = memory_slice v2
-    v11 = slice_len v10
-    v12 = lt 95, v11
-    v13 = eq v12, false
-    icall panic_if<0x32>, v13
-    v14 = byte 0, 0xff00000000000000000000000000000000000000000000000000000000000000
-    v15 = memory_slice v2
-    slice_store_byte v15, 95, v14
-    v16 = keccak256_bytes v2
-    ret v16
+    v10 = slice_len v9
+    v11 = lt 95, v10
+    v12 = eq v11, false
+    icall panic_if<0x32>, v12
+    v13 = byte 0, 0xff00000000000000000000000000000000000000000000000000000000000000
+    slice_store_byte v9, 95, v13
+    v14 = keccak256_bytes v2
+    ret v14
 }
 
 fn @literal() -> i256 [selector=0x1373185e, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
@@ -41,10 +39,9 @@ fn @literal() -> i256 [selector=0x1373185e, pure, abi_params=[], abi_returns=[wo
     v7 = eq v6, false
     icall panic_if<0x32>, v7
     v8 = byte 0, 0xaa00000000000000000000000000000000000000000000000000000000000000
-    v9 = memory_slice v0
-    slice_store_byte v9, 5, v8
-    v10 = keccak256_bytes v0
-    ret v10
+    slice_store_byte v4, 5, v8
+    v9 = keccak256_bytes v0
+    ret v9
 }
 
 fn @allocDynamic(arg0: i256) -> i256 [selector=0x2ab2abe8, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
@@ -70,15 +67,13 @@ fn @readWrite(arg0: memptr, arg1: i256, arg2: i256) -> i256 [selector=0x4b25a5a7
     v3 = eq v2, false
     icall panic_if<0x32>, v3
     v4 = byte 0, arg2
+    slice_store_byte v0, arg1, v4
     v5 = memory_slice arg0
-    slice_store_byte v5, arg1, v4
-    v6 = memory_slice arg0
-    v7 = slice_len v6
-    v8 = lt arg1, v7
-    v9 = eq v8, false
-    icall panic_if<0x32>, v9
-    v10 = memory_slice arg0
-    v11 = slice_load_byte v10, arg1
-    v12 = shl 248, v11
-    ret v12
+    v6 = slice_len v5
+    v7 = lt arg1, v6
+    v8 = eq v7, false
+    icall panic_if<0x32>, v8
+    v9 = slice_load_byte v5, arg1
+    v10 = shl 248, v9
+    ret v10
 }

@@ -19,62 +19,56 @@ fn @probe(arg0: i256) -> struct0 [selector=0xdb082440, pure, abi_params=[u256], 
     v10 = eq v9, false
     icall panic_if<0x32>, v10
     v11 = byte 0, v6
+    slice_store_byte v7, 0, v11
     v12 = memory_slice v2
-    slice_store_byte v12, 0, v11
-    v13 = memory_slice v2
-    v14 = slice_len v13
-    v15 = lt 1, v14
-    v16 = eq v15, false
-    icall panic_if<0x32>, v16
-    v17 = byte 0, 0x2200000000000000000000000000000000000000000000000000000000000000
-    v18 = memory_slice v2
-    slice_store_byte v18, 1, v17
-    v19 = memory_slice v2
-    v20 = slice_len v19
-    v21 = lt 2, v20
-    v22 = eq v21, false
-    icall panic_if<0x32>, v22
-    v23 = byte 0, 0x3300000000000000000000000000000000000000000000000000000000000000
-    v24 = memory_slice v2
-    slice_store_byte v24, 2, v23
-    v25 = icall @copy, v2, 34
-    v26 = memory_slice v25
-    v27 = slice_len v26
-    v28 = lt 0, v27
-    v29 = eq v28, false
-    icall panic_if<0x32>, v29
-    v30 = memory_slice v25
-    v31 = slice_load_byte v30, 0
-    v32 = shl 248, v31
-    v33 = shr 248, v32
-    v34 = trunc i256 v33 to i8
-    v35 = zext i8 v34 to i256
-    v36 = memory_slice v25
-    v37 = slice_len v36
-    v38 = lt 1, v37
-    v39 = eq v38, false
-    icall panic_if<0x32>, v39
-    v40 = memory_slice v25
-    v41 = slice_load_byte v40, 1
-    v42 = shl 248, v41
-    v43 = shr 248, v42
-    v44 = trunc i256 v43 to i8
-    v45 = zext i8 v44 to i256
-    v46 = memory_slice v25
-    v47 = slice_len v46
-    v48 = lt 2, v47
-    v49 = eq v48, false
-    icall panic_if<0x32>, v49
-    v50 = memory_slice v25
-    v51 = slice_load_byte v50, 2
-    v52 = shl 248, v51
-    v53 = shr 248, v52
-    v54 = trunc i256 v53 to i8
-    v55 = zext i8 v54 to i256
-    v56 = insert_value struct0, undef struct0, 0, v35
-    v57 = insert_value struct0, v56, 1, v45
-    v58 = insert_value struct0, v57, 2, v55
-    ret v58
+    v13 = slice_len v12
+    v14 = lt 1, v13
+    v15 = eq v14, false
+    icall panic_if<0x32>, v15
+    v16 = byte 0, 0x2200000000000000000000000000000000000000000000000000000000000000
+    slice_store_byte v12, 1, v16
+    v17 = memory_slice v2
+    v18 = slice_len v17
+    v19 = lt 2, v18
+    v20 = eq v19, false
+    icall panic_if<0x32>, v20
+    v21 = byte 0, 0x3300000000000000000000000000000000000000000000000000000000000000
+    slice_store_byte v17, 2, v21
+    v22 = icall @copy, v2, 34
+    v23 = memory_slice v22
+    v24 = slice_len v23
+    v25 = lt 0, v24
+    v26 = eq v25, false
+    icall panic_if<0x32>, v26
+    v27 = slice_load_byte v23, 0
+    v28 = shl 248, v27
+    v29 = shr 248, v28
+    v30 = trunc i256 v29 to i8
+    v31 = zext i8 v30 to i256
+    v32 = memory_slice v22
+    v33 = slice_len v32
+    v34 = lt 1, v33
+    v35 = eq v34, false
+    icall panic_if<0x32>, v35
+    v36 = slice_load_byte v32, 1
+    v37 = shl 248, v36
+    v38 = shr 248, v37
+    v39 = trunc i256 v38 to i8
+    v40 = zext i8 v39 to i256
+    v41 = memory_slice v22
+    v42 = slice_len v41
+    v43 = lt 2, v42
+    v44 = eq v43, false
+    icall panic_if<0x32>, v44
+    v45 = slice_load_byte v41, 2
+    v46 = shl 248, v45
+    v47 = shr 248, v46
+    v48 = trunc i256 v47 to i8
+    v49 = zext i8 v48 to i256
+    v50 = insert_value struct0, undef struct0, 0, v31
+    v51 = insert_value struct0, v50, 1, v40
+    v52 = insert_value struct0, v51, 2, v49
+    ret v52
 }
 
 fn @doubleProbe() -> i256 [selector=0xf770a1a3, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
@@ -92,13 +86,12 @@ fn @doubleProbe() -> i256 [selector=0xf770a1a3, pure, abi_params=[], abi_returns
     v8 = lt 1, v7
     v9 = eq v8, false
     icall panic_if<0x32>, v9
-    v10 = memory_slice v5
-    v11 = slice_load_byte v10, 1
-    v12 = shl 248, v11
-    v13 = shr 248, v12
-    v14 = trunc i256 v13 to i8
-    v15 = zext i8 v14 to i256
-    ret v15
+    v10 = slice_load_byte v6, 1
+    v11 = shl 248, v10
+    v12 = shr 248, v11
+    v13 = trunc i256 v12 to i8
+    v14 = zext i8 v13 to i256
+    ret v14
 }
 
 fn @run(arg0: memptr, arg1: i256) -> memptr [selector=0x194e10ce, pure, abi_params=[bytes, u256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {

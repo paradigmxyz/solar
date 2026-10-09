@@ -175,26 +175,24 @@ fn @rawAssemblyPointers() -> struct3 [selector=0x46fec25e, pure, abi_params=[], 
     v5 = lt 0, v4
     v6 = eq v5, false
     icall panic_if<0x32>, v6
-    v7 = memory_slice v1
-    v8 = slice_load_byte v7, 0
-    v9 = shl 248, v8
-    v10 = shr 248, v9
-    v11 = trunc i256 v10 to i8
-    v12 = zext i8 v11 to i256
-    v13 = memory_slice v2
-    v14 = slice_len v13
-    v15 = lt 0, v14
-    v16 = eq v15, false
-    icall panic_if<0x32>, v16
-    v17 = memory_slice v2
-    v18 = slice_load_byte v17, 0
-    v19 = shl 248, v18
-    v20 = shr 248, v19
-    v21 = trunc i256 v20 to i8
-    v22 = zext i8 v21 to i256
-    v23 = insert_value struct3, undef struct3, 0, v12
-    v24 = insert_value struct3, v23, 1, v22
-    ret v24
+    v7 = slice_load_byte v3, 0
+    v8 = shl 248, v7
+    v9 = shr 248, v8
+    v10 = trunc i256 v9 to i8
+    v11 = zext i8 v10 to i256
+    v12 = memory_slice v2
+    v13 = slice_len v12
+    v14 = lt 0, v13
+    v15 = eq v14, false
+    icall panic_if<0x32>, v15
+    v16 = slice_load_byte v12, 0
+    v17 = shl 248, v16
+    v18 = shr 248, v17
+    v19 = trunc i256 v18 to i8
+    v20 = zext i8 v19 to i256
+    v21 = insert_value struct3, undef struct3, 0, v11
+    v22 = insert_value struct3, v21, 1, v20
+    ret v22
 }
 
 fn @isEmpty(arg0: memptr) -> i1 [pure] {

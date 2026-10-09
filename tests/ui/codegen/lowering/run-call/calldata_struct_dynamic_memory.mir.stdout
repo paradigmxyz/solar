@@ -43,51 +43,48 @@ fn @copy(arg0: calldataslice) -> i256 [selector=0x2f4f3794, pure, abi_params=[ar
     v77 = lt 0, v76
     v78 = eq v77, false
     icall panic_if<0x32>, v78
-    v79 = memory_slice v21
-    v80 = slice_load_element v79, 0
-    v81 = inttoptr i256 v80 to memptr
-    v82 = eq v80, 0
-    jumpi v82, bb4, bb5
+    v79 = slice_load_element v75, 0
+    v80 = inttoptr i256 v79 to memptr
+    v81 = eq v79, 0
+    jumpi v81, bb4, bb5
   bb4:
-    v83 = icall @default_struct_0
-    v84 = memory_slice v21
-    v85 = ptrtoint memptr v83 to i256
-    slice_store_element v84, 0, v85
+    v82 = icall @default_struct_0
+    v83 = memory_slice v21
+    v84 = ptrtoint memptr v82 to i256
+    slice_store_element v83, 0, v84
     jump bb5
   bb5:
-    v86 = phi [bb3: v81], [bb4: v83]
-    v87 = memory_object_load_field memorystruct<1>, v86, 0, memptr
-    v88 = memory_slice v87
-    v89 = slice_len v88
-    v90 = checked_add u256, v74, v89
-    v91 = memory_slice v21
-    v92 = slice_len v91
-    v93 = lt 1, v92
-    v94 = eq v93, false
-    icall panic_if<0x32>, v94
-    v95 = memory_slice v21
-    v96 = slice_load_element v95, 1
-    v97 = inttoptr i256 v96 to memptr
-    v98 = eq v96, 0
-    jumpi v98, bb6, bb7
+    v85 = phi [bb3: v80], [bb4: v82]
+    v86 = memory_object_load_field memorystruct<1>, v85, 0, memptr
+    v87 = memory_slice v86
+    v88 = slice_len v87
+    v89 = checked_add u256, v74, v88
+    v90 = memory_slice v21
+    v91 = slice_len v90
+    v92 = lt 1, v91
+    v93 = eq v92, false
+    icall panic_if<0x32>, v93
+    v94 = slice_load_element v90, 1
+    v95 = inttoptr i256 v94 to memptr
+    v96 = eq v94, 0
+    jumpi v96, bb6, bb7
   bb6:
-    v99 = icall @default_struct_0
-    v100 = memory_slice v21
-    v101 = ptrtoint memptr v99 to i256
-    slice_store_element v100, 1, v101
+    v97 = icall @default_struct_0
+    v98 = memory_slice v21
+    v99 = ptrtoint memptr v97 to i256
+    slice_store_element v98, 1, v99
     jump bb7
   bb7:
-    v102 = phi [bb5: v97], [bb6: v99]
-    v103 = memory_object_load_field memorystruct<1>, v102, 0, memptr
-    v104 = memory_slice v103
-    v105 = slice_len v104
-    v106 = lt 0, v105
-    v107 = eq v106, false
-    icall panic_if<0x32>, v107
-    v108 = memory_slice v103
-    v109 = slice_load_element v108, 0
-    v110 = checked_add u256, v90, v109
-    ret v110
+    v100 = phi [bb5: v95], [bb6: v97]
+    v101 = memory_object_load_field memorystruct<1>, v100, 0, memptr
+    v102 = memory_slice v101
+    v103 = slice_len v102
+    v104 = lt 0, v103
+    v105 = eq v104, false
+    icall panic_if<0x32>, v105
+    v106 = slice_load_element v102, 0
+    v107 = checked_add u256, v89, v106
+    ret v107
   bb2:
     v25 = mul v23, 32
     v26 = add v1, v25

@@ -121,17 +121,24 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             };
         }
         let layout = self.types.memory_layout(receiver_ty)?;
+        // One view serves both the bounds check and the access.
+        let target = match layout {
+            MemoryObjectLayout::DynamicArray { .. } | MemoryObjectLayout::Bytes => {
+                self.builder.memory_view(object)
+            }
+            _ => object,
+        };
         match layout {
             MemoryObjectLayout::DynamicArray { .. } | MemoryObjectLayout::FixedArray { .. } => {
                 // bounds_check(index, object.length)
                 // value = load_element(object, index)
                 let Some((element, length)) =
-                    self.array_element_and_length(receiver_ty, object, layout)
+                    self.array_element_and_length(receiver_ty, target, layout)
                 else {
                     return self.cx.report_unsupported(expr.span, "array index");
                 };
                 self.builder.bounds_check(index, length);
-                let value = self.builder.memory_object_load_element(object, layout, index);
+                let value = self.builder.memory_object_load_element(target, layout, index);
                 if self.types.memory_layout(element).is_some() {
                     return self.materialize_array_element(object, layout, index, element, value);
                 }
@@ -140,9 +147,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             MemoryObjectLayout::Bytes => {
                 // bounds_check(index, object.length)
                 // value = load_byte(object, index)
-                let length = self.builder.memory_len(object);
+                let length = self.builder.memory_len(target);
                 self.builder.bounds_check(index, length);
-                let value = self.builder.memory_load_byte(object, index);
+                let value = self.builder.memory_load_byte(target, index);
                 Some(self.normalize_byte_value(expr, value))
             }
             MemoryObjectLayout::Struct { .. } => {

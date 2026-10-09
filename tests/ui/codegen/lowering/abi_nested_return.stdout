@@ -21,8 +21,7 @@ fn @structArray(arg0: i256) -> memptr [selector=0x0f634b74, pure, abi_params=[u2
     v13 = eq v12, false
     icall panic_if<0x32>, v13
     v14 = ptrtoint memptr v8 to i256
-    v15 = memory_slice v0
-    slice_store_element v15, 0, v14
+    slice_store_element v10, 0, v14
     ret v0
   bb2:
     v4 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
@@ -74,8 +73,7 @@ fn @nestedArray(arg0: i256) -> memptr [selector=0x5abcbd75, pure, abi_params=[u2
     v27 = eq v26, false
     icall panic_if<0x32>, v27
     v28 = ptrtoint memptr v22 to i256
-    v29 = memory_slice v0
-    slice_store_element v29, 0, v28
+    slice_store_element v24, 0, v28
     ret v0
   bb2:
     v4 = memory_slice v0

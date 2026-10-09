@@ -45,7 +45,7 @@ fn @copy(arg0: memptr) -> memptr [pure] {
     jump bb1
   bb1:
     v8 = phi [bb0: v6], [bb3: v8]
-    v9 = phi [bb0: 0], [bb3: v27]
+    v9 = phi [bb0: 0], [bb3: v25]
     v10 = phi [bb0: arg0], [bb3: v10]
     v11 = memory_slice v10
     v12 = slice_len v11
@@ -61,21 +61,19 @@ fn @copy(arg0: memptr) -> memptr [pure] {
     v16 = lt v9, v15
     v17 = eq v16, false
     icall panic_if<0x32>, v17
-    v18 = memory_slice v10
-    v19 = slice_load_byte v18, v9
-    v20 = shl 248, v19
-    v21 = memory_slice v8
-    v22 = slice_len v21
-    v23 = lt v9, v22
-    v24 = eq v23, false
-    icall panic_if<0x32>, v24
-    v25 = byte 0, v20
-    v26 = memory_slice v8
-    slice_store_byte v26, v9, v25
+    v18 = slice_load_byte v14, v9
+    v19 = shl 248, v18
+    v20 = memory_slice v8
+    v21 = slice_len v20
+    v22 = lt v9, v21
+    v23 = eq v22, false
+    icall panic_if<0x32>, v23
+    v24 = byte 0, v19
+    slice_store_byte v20, v9, v24
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v27 = checked_add u256, v9, 1
+    v25 = checked_add u256, v9, 1
     jump bb1
 }

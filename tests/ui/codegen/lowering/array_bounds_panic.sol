@@ -57,7 +57,9 @@ contract ArrayBoundsPanic {
     }
 
     // CHECK-LABEL: fn @memDyn{{[( ]}}
-    // CHECK: [[LEN:v[0-9]+]] = memory_object_len memoryarray
+    // CHECK: [[ARR:v[0-9]+]] = alloc memoryarray<1>
+    // CHECK: [[VIEW:v[0-9]+]] = memory_slice [[ARR]]
+    // CHECK: [[LEN:v[0-9]+]] = slice_len [[VIEW]]
     // CHECK: {{v[0-9]+}} = lt arg1, [[LEN]]
     // CHECK: icall panic_if<0x32>, {{v[0-9]+}}
     function memDyn(uint256 n, uint256 i) public pure returns (uint256) {

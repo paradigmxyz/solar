@@ -50,64 +50,61 @@ fn @constructor() [constructor] {
     v30 = lt 0, v29
     v31 = eq v30, false
     icall panic_if<0x32>, v31
+    slice_store_element v28, 0, 7
     v32 = memory_slice v26
-    slice_store_element v32, 0, 7
-    v33 = memory_slice v26
-    v34 = slice_len v33
-    v35 = lt 1, v34
-    v36 = eq v35, false
-    icall panic_if<0x32>, v36
-    v37 = memory_slice v26
-    slice_store_element v37, 1, 8
-    v38 = memory_slice v26
-    v39 = slice_len v38
-    v40 = lt 2, v39
-    v41 = eq v40, false
-    icall panic_if<0x32>, v41
-    v42 = memory_slice v26
-    slice_store_element v42, 2, 9
-    v43 = sload 5 !metadata(storage=slot(5))
-    v44 = gt v43, 0xffffffffffffffff
-    icall panic_if<0x41>, v44
-    v45 = add v43, 1
-    v46 = storage_array_data_slot 5
-    v47 = add v46, v43
-    v48 = memory_slice v26
-    v49 = slice_len v48
-    v50 = sload v47 !metadata(storage=symbolic(v47))
-    v51 = gt v50, v49
-    jumpi v51, bb7, bb8
+    v33 = slice_len v32
+    v34 = lt 1, v33
+    v35 = eq v34, false
+    icall panic_if<0x32>, v35
+    slice_store_element v32, 1, 8
+    v36 = memory_slice v26
+    v37 = slice_len v36
+    v38 = lt 2, v37
+    v39 = eq v38, false
+    icall panic_if<0x32>, v39
+    slice_store_element v36, 2, 9
+    v40 = sload 5 !metadata(storage=slot(5))
+    v41 = gt v40, 0xffffffffffffffff
+    icall panic_if<0x41>, v41
+    v42 = add v40, 1
+    v43 = storage_array_data_slot 5
+    v44 = add v43, v40
+    v45 = memory_slice v26
+    v46 = slice_len v45
+    v47 = sload v44 !metadata(storage=symbolic(v44))
+    v48 = gt v47, v46
+    jumpi v48, bb7, bb8
   bb7:
     jump bb9
   bb9:
-    v52 = phi [bb7: v49], [bb10: v56]
-    v53 = lt v52, v50
-    jumpi v53, bb10, bb11
+    v49 = phi [bb7: v46], [bb10: v53]
+    v50 = lt v49, v47
+    jumpi v50, bb10, bb11
   bb11:
     jump bb8
   bb8:
-    sstore v47, v49 !metadata(storage=symbolic(v47))
+    sstore v44, v46 !metadata(storage=symbolic(v44))
     jump bb12
   bb12:
-    v57 = phi [bb8: 0], [bb13: v63]
-    v58 = lt v57, v49
-    jumpi v58, bb13, bb14
+    v54 = phi [bb8: 0], [bb13: v60]
+    v55 = lt v54, v46
+    jumpi v55, bb13, bb14
   bb14:
-    sstore 5, v45 !metadata(storage=slot(5))
+    sstore 5, v42 !metadata(storage=slot(5))
     ret
   bb13:
-    v59 = memory_slice v26
-    v60 = slice_load_element v59, v57
-    v61 = storage_array_data_slot v47
-    v62 = add v61, v57
-    sstore v62, v60 !metadata(storage=symbolic(v62))
-    v63 = add v57, 1
+    v56 = memory_slice v26
+    v57 = slice_load_element v56, v54
+    v58 = storage_array_data_slot v44
+    v59 = add v58, v54
+    sstore v59, v57 !metadata(storage=symbolic(v59))
+    v60 = add v54, 1
     jump bb12
   bb10:
-    v54 = storage_array_data_slot v47
-    v55 = add v54, v52
-    sstore v55, 0 !metadata(storage=symbolic(v55))
-    v56 = add v52, 1
+    v51 = storage_array_data_slot v44
+    v52 = add v51, v49
+    sstore v52, 0 !metadata(storage=symbolic(v52))
+    v53 = add v49, 1
     jump bb9
   bb2:
     v3 = add 1, v1
@@ -284,10 +281,10 @@ fn @arrLenAndSum() -> struct0 [selector=0x3dc68ceb, abi_params=[], abi_returns=[
     v20 = slice_len v19
     jump bb5
   bb5:
-    v21 = phi [bb4: 0], [bb7: v35]
+    v21 = phi [bb4: 0], [bb7: v34]
     v22 = phi [bb4: v20], [bb7: v22]
     v23 = phi [bb4: v18], [bb7: v23]
-    v24 = phi [bb4: 0], [bb7: v34]
+    v24 = phi [bb4: 0], [bb7: v33]
     v25 = memory_slice v23
     v26 = slice_len v25
     v27 = lt v21, v26
@@ -295,23 +292,22 @@ fn @arrLenAndSum() -> struct0 [selector=0x3dc68ceb, abi_params=[], abi_returns=[
   bb9:
     jump bb6
   bb6:
-    v36 = insert_value struct0, undef struct0, 0, v22
-    v37 = insert_value struct0, v36, 1, v24
-    ret v37
+    v35 = insert_value struct0, undef struct0, 0, v22
+    v36 = insert_value struct0, v35, 1, v24
+    ret v36
   bb8:
     v28 = memory_slice v23
     v29 = slice_len v28
     v30 = lt v21, v29
     v31 = eq v30, false
     icall panic_if<0x32>, v31
-    v32 = memory_slice v23
-    v33 = slice_load_element v32, v21
-    v34 = checked_add u256, v24, v33
+    v32 = slice_load_element v28, v21
+    v33 = checked_add u256, v24, v32
     jump bb10
   bb10:
     jump bb7
   bb7:
-    v35 = checked_add u256, v21, 1
+    v34 = checked_add u256, v21, 1
     jump bb5
 }
 
@@ -359,14 +355,13 @@ fn @strFirstAndLen() -> struct0 [selector=0x2b10ead6, abi_params=[], abi_returns
     v21 = lt 0, v20
     v22 = eq v21, false
     icall panic_if<0x32>, v22
-    v23 = memory_slice v18
-    v24 = slice_load_byte v23, 0
-    v25 = shl 248, v24
-    v26 = memory_slice v18
-    v27 = slice_len v26
-    v28 = insert_value struct0, undef struct0, 0, v25
-    v29 = insert_value struct0, v28, 1, v27
-    ret v29
+    v23 = slice_load_byte v19, 0
+    v24 = shl 248, v23
+    v25 = memory_slice v18
+    v26 = slice_len v25
+    v27 = insert_value struct0, undef struct0, 0, v24
+    v28 = insert_value struct0, v27, 1, v26
+    ret v28
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/dynamic_return_decode.sol:BytesCaller ===
@@ -562,27 +557,25 @@ fn @nestedSum() -> i256 [selector=0x002c8096, abi_params=[], abi_returns=[word],
     v21 = lt 0, v20
     v22 = eq v21, false
     icall panic_if<0x32>, v22
-    v23 = memory_slice v18
-    v24 = slice_load_element v23, 0
-    v25 = inttoptr i256 v24 to memptr
-    v26 = eq v24, 0
-    jumpi v26, bb5, bb6
+    v23 = slice_load_element v19, 0
+    v24 = inttoptr i256 v23 to memptr
+    v25 = eq v23, 0
+    jumpi v25, bb5, bb6
   bb5:
-    v27 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    v28 = ptrtoint memptr v27 to i256
-    mstore v28, 0
-    v29 = memory_slice v18
-    v30 = ptrtoint memptr v27 to i256
-    slice_store_element v29, 0, v30
+    v26 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    v27 = ptrtoint memptr v26 to i256
+    mstore v27, 0
+    v28 = memory_slice v18
+    v29 = ptrtoint memptr v26 to i256
+    slice_store_element v28, 0, v29
     jump bb6
   bb6:
-    v31 = phi [bb4: v25], [bb5: v27]
-    v32 = memory_slice v31
-    v33 = slice_len v32
-    v34 = lt 0, v33
-    v35 = eq v34, false
-    icall panic_if<0x32>, v35
-    v36 = memory_slice v31
-    v37 = slice_load_element v36, 0
-    ret v37
+    v30 = phi [bb4: v24], [bb5: v26]
+    v31 = memory_slice v30
+    v32 = slice_len v31
+    v33 = lt 0, v32
+    v34 = eq v33, false
+    icall panic_if<0x32>, v34
+    v35 = slice_load_element v31, 0
+    ret v35
 }

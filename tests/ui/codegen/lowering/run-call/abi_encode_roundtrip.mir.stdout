@@ -29,25 +29,22 @@ fn @wordsRoundtrip(arg0: memptr) -> i256 [selector=0x285417c3, pure, abi_params=
     v4 = lt 0, v3
     v5 = eq v4, false
     icall panic_if<0x32>, v5
-    v6 = memory_slice v1
-    v7 = slice_load_element v6, 0
-    v8 = memory_slice v1
-    v9 = slice_len v8
-    v10 = lt 1, v9
-    v11 = eq v10, false
-    icall panic_if<0x32>, v11
-    v12 = memory_slice v1
-    v13 = slice_load_element v12, 1
-    v14 = checked_add u256, v7, v13
-    v15 = memory_slice v1
-    v16 = slice_len v15
-    v17 = lt 2, v16
-    v18 = eq v17, false
-    icall panic_if<0x32>, v18
-    v19 = memory_slice v1
-    v20 = slice_load_element v19, 2
-    v21 = checked_add u256, v14, v20
-    ret v21
+    v6 = slice_load_element v2, 0
+    v7 = memory_slice v1
+    v8 = slice_len v7
+    v9 = lt 1, v8
+    v10 = eq v9, false
+    icall panic_if<0x32>, v10
+    v11 = slice_load_element v7, 1
+    v12 = checked_add u256, v6, v11
+    v13 = memory_slice v1
+    v14 = slice_len v13
+    v15 = lt 2, v14
+    v16 = eq v15, false
+    icall panic_if<0x32>, v16
+    v17 = slice_load_element v13, 2
+    v18 = checked_add u256, v12, v17
+    ret v18
 }
 
 fn @nestedWordsRoundtrip(arg0: memptr) -> i256 [selector=0xd8828f2f, pure, abi_params=[array<_, array<_, u256>>], abi_returns=[word], abi_return_params=[u256]] {
@@ -59,29 +56,27 @@ fn @nestedWordsRoundtrip(arg0: memptr) -> i256 [selector=0xd8828f2f, pure, abi_p
     v4 = lt 1, v3
     v5 = eq v4, false
     icall panic_if<0x32>, v5
-    v6 = memory_slice v1
-    v7 = slice_load_element v6, 1
-    v8 = inttoptr i256 v7 to memptr
-    v9 = eq v7, 0
-    jumpi v9, bb1, bb2
+    v6 = slice_load_element v2, 1
+    v7 = inttoptr i256 v6 to memptr
+    v8 = eq v6, 0
+    jumpi v8, bb1, bb2
   bb1:
-    v10 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    v11 = ptrtoint memptr v10 to i256
-    mstore v11, 0
-    v12 = memory_slice v1
-    v13 = ptrtoint memptr v10 to i256
-    slice_store_element v12, 1, v13
+    v9 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    v10 = ptrtoint memptr v9 to i256
+    mstore v10, 0
+    v11 = memory_slice v1
+    v12 = ptrtoint memptr v9 to i256
+    slice_store_element v11, 1, v12
     jump bb2
   bb2:
-    v14 = phi [bb0: v8], [bb1: v10]
-    v15 = memory_slice v14
-    v16 = slice_len v15
-    v17 = lt 0, v16
-    v18 = eq v17, false
-    icall panic_if<0x32>, v18
-    v19 = memory_slice v14
-    v20 = slice_load_element v19, 0
-    ret v20
+    v13 = phi [bb0: v7], [bb1: v9]
+    v14 = memory_slice v13
+    v15 = slice_len v14
+    v16 = lt 0, v15
+    v17 = eq v16, false
+    icall panic_if<0x32>, v17
+    v18 = slice_load_element v14, 0
+    ret v18
 }
 
 fn @mixedRoundtrip() -> struct0 [selector=0xb3f929db, pure, abi_params=[], abi_returns=[word, word, word<u8>], abi_return_params=[u256, u256, u8]] {
@@ -140,173 +135,161 @@ fn @nestedMixedRoundtrip() -> struct2 [selector=0x337c7ce0, pure, abi_params=[],
     v11 = eq v10, false
     icall panic_if<0x32>, v11
     v12 = ptrtoint memptr v6 to i256
+    slice_store_element v8, 0, v12
     v13 = memory_slice v0
-    slice_store_element v13, 0, v12
-    v14 = memory_slice v0
-    v15 = slice_len v14
-    v16 = lt 0, v15
-    v17 = eq v16, false
-    icall panic_if<0x32>, v17
-    v18 = memory_slice v0
-    v19 = slice_load_element v18, 0
-    v20 = inttoptr i256 v19 to memptr
-    v21 = eq v19, 0
-    jumpi v21, bb4, bb5
+    v14 = slice_len v13
+    v15 = lt 0, v14
+    v16 = eq v15, false
+    icall panic_if<0x32>, v16
+    v17 = slice_load_element v13, 0
+    v18 = inttoptr i256 v17 to memptr
+    v19 = eq v17, 0
+    jumpi v19, bb4, bb5
   bb4:
-    v22 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    v23 = ptrtoint memptr v22 to i256
-    mstore v23, 0
-    v24 = memory_slice v0
-    v25 = ptrtoint memptr v22 to i256
-    slice_store_element v24, 0, v25
+    v20 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    v21 = ptrtoint memptr v20 to i256
+    mstore v21, 0
+    v22 = memory_slice v0
+    v23 = ptrtoint memptr v20 to i256
+    slice_store_element v22, 0, v23
     jump bb5
   bb5:
-    v26 = phi [bb3: v20], [bb4: v22]
-    v27 = memory_slice v26
-    v28 = slice_len v27
-    v29 = lt 0, v28
-    v30 = eq v29, false
-    icall panic_if<0x32>, v30
-    v31 = memory_slice v26
-    slice_store_element v31, 0, 7
-    v32 = memory_slice v0
-    v33 = slice_len v32
-    v34 = lt 0, v33
-    v35 = eq v34, false
-    icall panic_if<0x32>, v35
-    v36 = memory_slice v0
-    v37 = slice_load_element v36, 0
-    v38 = inttoptr i256 v37 to memptr
-    v39 = eq v37, 0
-    jumpi v39, bb6, bb7
+    v24 = phi [bb3: v18], [bb4: v20]
+    v25 = memory_slice v24
+    v26 = slice_len v25
+    v27 = lt 0, v26
+    v28 = eq v27, false
+    icall panic_if<0x32>, v28
+    slice_store_element v25, 0, 7
+    v29 = memory_slice v0
+    v30 = slice_len v29
+    v31 = lt 0, v30
+    v32 = eq v31, false
+    icall panic_if<0x32>, v32
+    v33 = slice_load_element v29, 0
+    v34 = inttoptr i256 v33 to memptr
+    v35 = eq v33, 0
+    jumpi v35, bb6, bb7
   bb6:
-    v40 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    v41 = ptrtoint memptr v40 to i256
-    mstore v41, 0
-    v42 = memory_slice v0
-    v43 = ptrtoint memptr v40 to i256
-    slice_store_element v42, 0, v43
+    v36 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    v37 = ptrtoint memptr v36 to i256
+    mstore v37, 0
+    v38 = memory_slice v0
+    v39 = ptrtoint memptr v36 to i256
+    slice_store_element v38, 0, v39
     jump bb7
   bb7:
-    v44 = phi [bb5: v38], [bb6: v40]
-    v45 = memory_slice v44
-    v46 = slice_len v45
-    v47 = lt 1, v46
-    v48 = eq v47, false
-    icall panic_if<0x32>, v48
-    v49 = memory_slice v44
-    slice_store_element v49, 1, 8
-    v50 = alloc memoryarray<1>, exact, zeroed, panic, 64
-    v51 = ptrtoint memptr v50 to i256
-    mstore v51, 1
+    v40 = phi [bb5: v34], [bb6: v36]
+    v41 = memory_slice v40
+    v42 = slice_len v41
+    v43 = lt 1, v42
+    v44 = eq v43, false
+    icall panic_if<0x32>, v44
+    slice_store_element v41, 1, 8
+    v45 = alloc memoryarray<1>, exact, zeroed, panic, 64
+    v46 = ptrtoint memptr v45 to i256
+    mstore v46, 1
+    v47 = memory_slice v0
+    v48 = slice_len v47
+    v49 = lt 1, v48
+    v50 = eq v49, false
+    icall panic_if<0x32>, v50
+    v51 = ptrtoint memptr v45 to i256
+    slice_store_element v47, 1, v51
     v52 = memory_slice v0
     v53 = slice_len v52
     v54 = lt 1, v53
     v55 = eq v54, false
     icall panic_if<0x32>, v55
-    v56 = ptrtoint memptr v50 to i256
-    v57 = memory_slice v0
-    slice_store_element v57, 1, v56
-    v58 = memory_slice v0
-    v59 = slice_len v58
-    v60 = lt 1, v59
-    v61 = eq v60, false
-    icall panic_if<0x32>, v61
-    v62 = memory_slice v0
-    v63 = slice_load_element v62, 1
-    v64 = inttoptr i256 v63 to memptr
-    v65 = eq v63, 0
-    jumpi v65, bb8, bb9
+    v56 = slice_load_element v52, 1
+    v57 = inttoptr i256 v56 to memptr
+    v58 = eq v56, 0
+    jumpi v58, bb8, bb9
   bb8:
-    v66 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    v67 = ptrtoint memptr v66 to i256
-    mstore v67, 0
-    v68 = memory_slice v0
-    v69 = ptrtoint memptr v66 to i256
-    slice_store_element v68, 1, v69
+    v59 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    v60 = ptrtoint memptr v59 to i256
+    mstore v60, 0
+    v61 = memory_slice v0
+    v62 = ptrtoint memptr v59 to i256
+    slice_store_element v61, 1, v62
     jump bb9
   bb9:
-    v70 = phi [bb7: v64], [bb8: v66]
-    v71 = memory_slice v70
-    v72 = slice_len v71
-    v73 = lt 0, v72
-    v74 = eq v73, false
-    icall panic_if<0x32>, v74
-    v75 = memory_slice v70
-    slice_store_element v75, 0, 3
-    v76 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    v77 = ptrtoint memptr v76 to i256
-    mstore v77, 4
-    v78 = ptrtoint memptr v76 to i256
-    v79 = add v78, 32
-    mstore v79, 0x102030400000000000000000000000000000000000000000000000000000000
-    v80 = abi_encode [memory_array<memory_array<word>>, memory_bytes], object, args v0, v76
-    v81 = abi_decode [array<_, array<_, u256>>, bytes], v80
-    v82 = extract_value struct3, v81, 0
-    v83 = extract_value struct3, v81, 1
-    v84 = memory_slice v82
-    v85 = slice_len v84
-    v86 = memory_slice v82
-    v87 = slice_len v86
-    v88 = lt 0, v87
-    v89 = eq v88, false
-    icall panic_if<0x32>, v89
-    v90 = memory_slice v82
-    v91 = slice_load_element v90, 0
-    v92 = inttoptr i256 v91 to memptr
-    v93 = eq v91, 0
-    jumpi v93, bb10, bb11
+    v63 = phi [bb7: v57], [bb8: v59]
+    v64 = memory_slice v63
+    v65 = slice_len v64
+    v66 = lt 0, v65
+    v67 = eq v66, false
+    icall panic_if<0x32>, v67
+    slice_store_element v64, 0, 3
+    v68 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    v69 = ptrtoint memptr v68 to i256
+    mstore v69, 4
+    v70 = ptrtoint memptr v68 to i256
+    v71 = add v70, 32
+    mstore v71, 0x102030400000000000000000000000000000000000000000000000000000000
+    v72 = abi_encode [memory_array<memory_array<word>>, memory_bytes], object, args v0, v68
+    v73 = abi_decode [array<_, array<_, u256>>, bytes], v72
+    v74 = extract_value struct3, v73, 0
+    v75 = extract_value struct3, v73, 1
+    v76 = memory_slice v74
+    v77 = slice_len v76
+    v78 = memory_slice v74
+    v79 = slice_len v78
+    v80 = lt 0, v79
+    v81 = eq v80, false
+    icall panic_if<0x32>, v81
+    v82 = slice_load_element v78, 0
+    v83 = inttoptr i256 v82 to memptr
+    v84 = eq v82, 0
+    jumpi v84, bb10, bb11
   bb10:
-    v94 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    v95 = ptrtoint memptr v94 to i256
-    mstore v95, 0
-    v96 = memory_slice v82
-    v97 = ptrtoint memptr v94 to i256
-    slice_store_element v96, 0, v97
+    v85 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    v86 = ptrtoint memptr v85 to i256
+    mstore v86, 0
+    v87 = memory_slice v74
+    v88 = ptrtoint memptr v85 to i256
+    slice_store_element v87, 0, v88
     jump bb11
   bb11:
-    v98 = phi [bb9: v92], [bb10: v94]
-    v99 = memory_slice v98
-    v100 = slice_len v99
-    v101 = lt 1, v100
-    v102 = eq v101, false
-    icall panic_if<0x32>, v102
-    v103 = memory_slice v98
-    v104 = slice_load_element v103, 1
-    v105 = memory_slice v82
-    v106 = slice_len v105
-    v107 = lt 1, v106
-    v108 = eq v107, false
-    icall panic_if<0x32>, v108
-    v109 = memory_slice v82
-    v110 = slice_load_element v109, 1
-    v111 = inttoptr i256 v110 to memptr
-    v112 = eq v110, 0
-    jumpi v112, bb12, bb13
+    v89 = phi [bb9: v83], [bb10: v85]
+    v90 = memory_slice v89
+    v91 = slice_len v90
+    v92 = lt 1, v91
+    v93 = eq v92, false
+    icall panic_if<0x32>, v93
+    v94 = slice_load_element v90, 1
+    v95 = memory_slice v74
+    v96 = slice_len v95
+    v97 = lt 1, v96
+    v98 = eq v97, false
+    icall panic_if<0x32>, v98
+    v99 = slice_load_element v95, 1
+    v100 = inttoptr i256 v99 to memptr
+    v101 = eq v99, 0
+    jumpi v101, bb12, bb13
   bb12:
-    v113 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    v114 = ptrtoint memptr v113 to i256
-    mstore v114, 0
-    v115 = memory_slice v82
-    v116 = ptrtoint memptr v113 to i256
-    slice_store_element v115, 1, v116
+    v102 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    v103 = ptrtoint memptr v102 to i256
+    mstore v103, 0
+    v104 = memory_slice v74
+    v105 = ptrtoint memptr v102 to i256
+    slice_store_element v104, 1, v105
     jump bb13
   bb13:
-    v117 = phi [bb11: v111], [bb12: v113]
-    v118 = memory_slice v117
-    v119 = slice_len v118
-    v120 = lt 0, v119
-    v121 = eq v120, false
-    icall panic_if<0x32>, v121
-    v122 = memory_slice v117
-    v123 = slice_load_element v122, 0
-    v124 = memory_slice v83
-    v125 = slice_len v124
-    v126 = insert_value struct2, undef struct2, 0, v85
-    v127 = insert_value struct2, v126, 1, v104
-    v128 = insert_value struct2, v127, 2, v123
-    v129 = insert_value struct2, v128, 3, v125
-    ret v129
+    v106 = phi [bb11: v100], [bb12: v102]
+    v107 = memory_slice v106
+    v108 = slice_len v107
+    v109 = lt 0, v108
+    v110 = eq v109, false
+    icall panic_if<0x32>, v110
+    v111 = slice_load_element v107, 0
+    v112 = memory_slice v75
+    v113 = slice_len v112
+    v114 = insert_value struct2, undef struct2, 0, v77
+    v115 = insert_value struct2, v114, 1, v94
+    v116 = insert_value struct2, v115, 2, v111
+    v117 = insert_value struct2, v116, 3, v113
+    ret v117
   bb2:
     v4 = memory_slice v0
     slice_store_element v4, v2, 96

@@ -54,6 +54,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let index = self.lower_typed_expr(index, self.cx.gcx.types.uint(256))?;
                 let receiver_ty = self.type_of_expr_or_variable(receiver)?;
                 let layout = self.types.memory_layout(receiver_ty)?;
+                // One view serves both the bounds check and the access.
+                let object = match layout {
+                    MemoryObjectLayout::DynamicArray { .. } | MemoryObjectLayout::Bytes => {
+                        self.builder.memory_view(object)
+                    }
+                    _ => object,
+                };
                 match layout {
                     MemoryObjectLayout::DynamicArray { .. }
                     | MemoryObjectLayout::FixedArray { .. } => {

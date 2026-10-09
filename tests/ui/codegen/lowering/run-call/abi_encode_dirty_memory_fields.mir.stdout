@@ -52,26 +52,24 @@ fn @encodeArray() -> i256 [selector=0x7a13e494, pure, abi_params=[], abi_returns
     v4 = lt 0, v3
     v5 = eq v4, false
     icall panic_if<0x32>, v5
+    slice_store_element v2, 0, 3
     v6 = memory_slice v0
-    slice_store_element v6, 0, 3
-    v7 = memory_slice v0
-    v8 = slice_len v7
-    v9 = lt 1, v8
-    v10 = eq v9, false
-    icall panic_if<0x32>, v10
-    v11 = memory_slice v0
-    slice_store_element v11, 1, 4
+    v7 = slice_len v6
+    v8 = lt 1, v7
+    v9 = eq v8, false
+    icall panic_if<0x32>, v9
+    slice_store_element v6, 1, 4
+    v10 = ptrtoint memptr v0 to i256
+    v11 = add v10, 32
+    mstore v11, 0xff03
     v12 = ptrtoint memptr v0 to i256
-    v13 = add v12, 32
-    mstore v13, 0xff03
-    v14 = ptrtoint memptr v0 to i256
-    v15 = add v14, 64
-    mstore v15, 260
-    v16 = abi_encode [memory_array<word<u8>>], scratch, args v0
-    v17 = slice_ptr v16
-    v18 = slice_len v16
-    v19 = keccak256 v17, v18
-    ret v19
+    v13 = add v12, 64
+    mstore v13, 260
+    v14 = abi_encode [memory_array<word<u8>>], scratch, args v0
+    v15 = slice_ptr v14
+    v16 = slice_len v14
+    v17 = keccak256 v15, v16
+    ret v17
 }
 
 fn @encodeBadEnum() -> memptr [selector=0xc72bddb9, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {

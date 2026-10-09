@@ -175,12 +175,11 @@ fn @preserveInput() -> struct0 [selector=0xd24f7044, abi_params=[], abi_returns=
     v13 = eq v12, false
     icall panic_if<0x32>, v13
     v14 = byte 0, 0x9900000000000000000000000000000000000000000000000000000000000000
-    v15 = memory_slice v0
-    slice_store_byte v15, 0, v14
-    v16 = abi_decode [bytes], v8
-    v17 = insert_value struct0, undef struct0, 0, v16
-    v18 = insert_value struct0, v17, 1, v0
-    ret v18
+    slice_store_byte v10, 0, v14
+    v15 = abi_decode [bytes], v8
+    v16 = insert_value struct0, undef struct0, 0, v15
+    v17 = insert_value struct0, v16, 1, v0
+    ret v17
 }
 
 fn @failedCapture() -> struct1 [selector=0x5ee5463d, abi_params=[], abi_returns=[word<bool>, memory_bytes], abi_return_params=[bool, bytes]] {

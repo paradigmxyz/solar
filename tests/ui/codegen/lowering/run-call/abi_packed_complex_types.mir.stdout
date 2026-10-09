@@ -16,107 +16,104 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word,
     v7 = eq v6, false
     icall panic_if<0x32>, v7
     v8 = zext i120 v3 to i256
-    v9 = memory_slice v0
-    slice_store_element v9, 0, v8
-    v10 = lt 0, 3
-    v11 = eq v10, false
-    icall panic_if<0x32>, v11
-    v12 = div 0, 2
-    v13 = add 0, v12
-    v14 = mod 0, 2
-    v15 = mul v14, 15
-    v16 = mul v15, 8
-    v17 = shl v16, 0xffffffffffffffffffffffffffffff
-    v18 = sload v13 !metadata(storage=symbolic(v12))
-    v19 = not v17
-    v20 = and v18, v19
-    v21 = zext i120 v3 to i256
-    v22 = and v21, 0xffffffffffffffffffffffffffffff
-    v23 = shl v16, v22
-    v24 = or v20, v23
-    sstore v13, v24 !metadata(storage=symbolic(v12))
-    v25 = checked_sub u256, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 2
-    v26 = trunc i256 v25 to i120
-    v27 = memory_slice v0
-    v28 = slice_len v27
-    v29 = lt 1, v28
-    v30 = eq v29, false
-    icall panic_if<0x32>, v30
-    v31 = zext i120 v26 to i256
-    v32 = memory_slice v0
-    slice_store_element v32, 1, v31
-    v33 = lt 1, 3
-    v34 = eq v33, false
-    icall panic_if<0x32>, v34
-    v35 = div 1, 2
-    v36 = add 0, v35
-    v37 = mod 1, 2
-    v38 = mul v37, 15
-    v39 = mul v38, 8
-    v40 = shl v39, 0xffffffffffffffffffffffffffffff
-    v41 = sload v36 !metadata(storage=symbolic(v35))
-    v42 = not v40
-    v43 = and v41, v42
-    v44 = zext i120 v26 to i256
-    v45 = and v44, 0xffffffffffffffffffffffffffffff
-    v46 = shl v39, v45
-    v47 = or v43, v46
-    sstore v36, v47 !metadata(storage=symbolic(v35))
-    v48 = checked_sub u256, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 3
-    v49 = trunc i256 v48 to i120
-    v50 = memory_slice v0
-    v51 = slice_len v50
-    v52 = lt 2, v51
-    v53 = eq v52, false
-    icall panic_if<0x32>, v53
-    v54 = zext i120 v49 to i256
-    v55 = memory_slice v0
-    slice_store_element v55, 2, v54
-    v56 = lt 2, 3
-    v57 = eq v56, false
-    icall panic_if<0x32>, v57
-    v58 = div 2, 2
-    v59 = add 0, v58
-    v60 = mod 2, 2
-    v61 = mul v60, 15
-    v62 = mul v61, 8
-    v63 = shl v62, 0xffffffffffffffffffffffffffffff
-    v64 = sload v59 !metadata(storage=symbolic(v58))
-    v65 = not v63
-    v66 = and v64, v65
-    v67 = zext i120 v49 to i256
-    v68 = and v67, 0xffffffffffffffffffffffffffffff
-    v69 = shl v62, v68
-    v70 = or v66, v69
-    sstore v59, v70 !metadata(storage=symbolic(v58))
-    v71 = alloc memoryfixedarray<3, 1>, exact, uninitialized, panic, 96
+    slice_store_element v4, 0, v8
+    v9 = lt 0, 3
+    v10 = eq v9, false
+    icall panic_if<0x32>, v10
+    v11 = div 0, 2
+    v12 = add 0, v11
+    v13 = mod 0, 2
+    v14 = mul v13, 15
+    v15 = mul v14, 8
+    v16 = shl v15, 0xffffffffffffffffffffffffffffff
+    v17 = sload v12 !metadata(storage=symbolic(v11))
+    v18 = not v16
+    v19 = and v17, v18
+    v20 = zext i120 v3 to i256
+    v21 = and v20, 0xffffffffffffffffffffffffffffff
+    v22 = shl v15, v21
+    v23 = or v19, v22
+    sstore v12, v23 !metadata(storage=symbolic(v11))
+    v24 = checked_sub u256, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 2
+    v25 = trunc i256 v24 to i120
+    v26 = memory_slice v0
+    v27 = slice_len v26
+    v28 = lt 1, v27
+    v29 = eq v28, false
+    icall panic_if<0x32>, v29
+    v30 = zext i120 v25 to i256
+    slice_store_element v26, 1, v30
+    v31 = lt 1, 3
+    v32 = eq v31, false
+    icall panic_if<0x32>, v32
+    v33 = div 1, 2
+    v34 = add 0, v33
+    v35 = mod 1, 2
+    v36 = mul v35, 15
+    v37 = mul v36, 8
+    v38 = shl v37, 0xffffffffffffffffffffffffffffff
+    v39 = sload v34 !metadata(storage=symbolic(v33))
+    v40 = not v38
+    v41 = and v39, v40
+    v42 = zext i120 v25 to i256
+    v43 = and v42, 0xffffffffffffffffffffffffffffff
+    v44 = shl v37, v43
+    v45 = or v41, v44
+    sstore v34, v45 !metadata(storage=symbolic(v33))
+    v46 = checked_sub u256, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 3
+    v47 = trunc i256 v46 to i120
+    v48 = memory_slice v0
+    v49 = slice_len v48
+    v50 = lt 2, v49
+    v51 = eq v50, false
+    icall panic_if<0x32>, v51
+    v52 = zext i120 v47 to i256
+    slice_store_element v48, 2, v52
+    v53 = lt 2, 3
+    v54 = eq v53, false
+    icall panic_if<0x32>, v54
+    v55 = div 2, 2
+    v56 = add 0, v55
+    v57 = mod 2, 2
+    v58 = mul v57, 15
+    v59 = mul v58, 8
+    v60 = shl v59, 0xffffffffffffffffffffffffffffff
+    v61 = sload v56 !metadata(storage=symbolic(v55))
+    v62 = not v60
+    v63 = and v61, v62
+    v64 = zext i120 v47 to i256
+    v65 = and v64, 0xffffffffffffffffffffffffffffff
+    v66 = shl v59, v65
+    v67 = or v63, v66
+    sstore v56, v67 !metadata(storage=symbolic(v55))
+    v68 = alloc memoryfixedarray<3, 1>, exact, uninitialized, panic, 96
     jump bb1
   bb1:
-    v72 = phi [bb0: 0], [bb2: v83]
-    v73 = lt v72, 3
-    jumpi v73, bb2, bb3
+    v69 = phi [bb0: 0], [bb2: v80]
+    v70 = lt v69, 3
+    jumpi v70, bb2, bb3
   bb3:
-    v84 = abi_encode_packed (array<word<u120>> memoryfixedarray<3, 1> v71)
-    v85 = keccak256_bytes v84
-    v86 = abi_encode_packed (array<word<u120>> memoryarray<1> v0)
-    v87 = keccak256_bytes v86
-    v88 = keccak256_packed (u160 i160 0x1234)
-    v89 = insert_value struct0, undef struct0, 0, v85
-    v90 = insert_value struct0, v89, 1, v87
-    v91 = insert_value struct0, v90, 2, v88
-    ret v91
+    v81 = abi_encode_packed (array<word<u120>> memoryfixedarray<3, 1> v68)
+    v82 = keccak256_bytes v81
+    v83 = abi_encode_packed (array<word<u120>> memoryarray<1> v0)
+    v84 = keccak256_bytes v83
+    v85 = keccak256_packed (u160 i160 0x1234)
+    v86 = insert_value struct0, undef struct0, 0, v82
+    v87 = insert_value struct0, v86, 1, v84
+    v88 = insert_value struct0, v87, 2, v85
+    ret v88
   bb2:
-    v74 = div v72, 2
-    v75 = add 0, v74
-    v76 = mod v72, 2
-    v77 = mul v76, 15
-    v78 = sload v75 !metadata(storage=symbolic(v74))
-    v79 = mul v77, 8
-    v80 = shr v79, v78
-    v81 = trunc i256 v80 to i120
-    v82 = zext i120 v81 to i256
-    memory_object_store_element memoryfixedarray<3, 1>, v71, v72, v82
-    v83 = add v72, 1
+    v71 = div v69, 2
+    v72 = add 0, v71
+    v73 = mod v69, 2
+    v74 = mul v73, 15
+    v75 = sload v72 !metadata(storage=symbolic(v71))
+    v76 = mul v74, 8
+    v77 = shr v76, v75
+    v78 = trunc i256 v77 to i120
+    v79 = zext i120 v78 to i256
+    memory_object_store_element memoryfixedarray<3, 1>, v68, v69, v79
+    v80 = add v69, 1
     jump bb1
 }
 
@@ -133,33 +130,30 @@ fn @hashAbi() -> i256 [selector=0x7f75b06e, pure, abi_params=[], abi_returns=[wo
     v7 = eq v6, false
     icall panic_if<0x32>, v7
     v8 = zext i120 v3 to i256
-    v9 = memory_slice v0
-    slice_store_element v9, 0, v8
-    v10 = checked_sub u256, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 2
-    v11 = trunc i256 v10 to i120
-    v12 = memory_slice v0
-    v13 = slice_len v12
-    v14 = lt 1, v13
-    v15 = eq v14, false
-    icall panic_if<0x32>, v15
-    v16 = zext i120 v11 to i256
-    v17 = memory_slice v0
-    slice_store_element v17, 1, v16
-    v18 = checked_sub u256, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 3
-    v19 = trunc i256 v18 to i120
-    v20 = memory_slice v0
-    v21 = slice_len v20
-    v22 = lt 2, v21
-    v23 = eq v22, false
-    icall panic_if<0x32>, v23
-    v24 = zext i120 v19 to i256
-    v25 = memory_slice v0
-    slice_store_element v25, 2, v24
-    v26 = abi_encode [memory_array<word<u120>>], scratch, args v0
-    v27 = slice_ptr v26
-    v28 = slice_len v26
-    v29 = keccak256 v27, v28
-    ret v29
+    slice_store_element v4, 0, v8
+    v9 = checked_sub u256, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 2
+    v10 = trunc i256 v9 to i120
+    v11 = memory_slice v0
+    v12 = slice_len v11
+    v13 = lt 1, v12
+    v14 = eq v13, false
+    icall panic_if<0x32>, v14
+    v15 = zext i120 v10 to i256
+    slice_store_element v11, 1, v15
+    v16 = checked_sub u256, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 3
+    v17 = trunc i256 v16 to i120
+    v18 = memory_slice v0
+    v19 = slice_len v18
+    v20 = lt 2, v19
+    v21 = eq v20, false
+    icall panic_if<0x32>, v21
+    v22 = zext i120 v17 to i256
+    slice_store_element v18, 2, v22
+    v23 = abi_encode [memory_array<word<u120>>], scratch, args v0
+    v24 = slice_ptr v23
+    v25 = slice_len v23
+    v26 = keccak256 v24, v25
+    ret v26
 }
 
 fn @hashNestedAbi() -> i256 [selector=0x821258ba, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
@@ -180,58 +174,56 @@ fn @hashNestedAbi() -> i256 [selector=0x821258ba, pure, abi_params=[], abi_retur
     v13 = lt 0, v12
     v14 = eq v13, false
     icall panic_if<0x32>, v14
-    v15 = memory_slice v0
-    v16 = slice_load_element v15, 0
-    v17 = inttoptr i256 v16 to memptr
-    v18 = eq v16, 0
-    jumpi v18, bb4, bb5
+    v15 = slice_load_element v11, 0
+    v16 = inttoptr i256 v15 to memptr
+    v17 = eq v15, 0
+    jumpi v17, bb4, bb5
   bb4:
-    v19 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
-    v20 = ptrtoint memptr v19 to i256
-    memory_zero v20, 64
-    v21 = memory_slice v0
-    v22 = ptrtoint memptr v19 to i256
-    slice_store_element v21, 0, v22
+    v18 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v19 = ptrtoint memptr v18 to i256
+    memory_zero v19, 64
+    v20 = memory_slice v0
+    v21 = ptrtoint memptr v18 to i256
+    slice_store_element v20, 0, v21
     jump bb5
   bb5:
-    v23 = phi [bb3: v17], [bb4: v19]
-    v24 = lt 0, 2
-    v25 = eq v24, false
-    icall panic_if<0x32>, v25
-    v26 = zext i120 v10 to i256
-    memory_object_store_element memoryfixedarray<2, 1>, v23, 0, v26
-    v27 = checked_sub u256, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 2
-    v28 = trunc i256 v27 to i120
-    v29 = memory_slice v0
-    v30 = slice_len v29
-    v31 = lt 0, v30
-    v32 = eq v31, false
-    icall panic_if<0x32>, v32
-    v33 = memory_slice v0
-    v34 = slice_load_element v33, 0
-    v35 = inttoptr i256 v34 to memptr
-    v36 = eq v34, 0
-    jumpi v36, bb6, bb7
+    v22 = phi [bb3: v16], [bb4: v18]
+    v23 = lt 0, 2
+    v24 = eq v23, false
+    icall panic_if<0x32>, v24
+    v25 = zext i120 v10 to i256
+    memory_object_store_element memoryfixedarray<2, 1>, v22, 0, v25
+    v26 = checked_sub u256, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 2
+    v27 = trunc i256 v26 to i120
+    v28 = memory_slice v0
+    v29 = slice_len v28
+    v30 = lt 0, v29
+    v31 = eq v30, false
+    icall panic_if<0x32>, v31
+    v32 = slice_load_element v28, 0
+    v33 = inttoptr i256 v32 to memptr
+    v34 = eq v32, 0
+    jumpi v34, bb6, bb7
   bb6:
-    v37 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
-    v38 = ptrtoint memptr v37 to i256
-    memory_zero v38, 64
-    v39 = memory_slice v0
-    v40 = ptrtoint memptr v37 to i256
-    slice_store_element v39, 0, v40
+    v35 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v36 = ptrtoint memptr v35 to i256
+    memory_zero v36, 64
+    v37 = memory_slice v0
+    v38 = ptrtoint memptr v35 to i256
+    slice_store_element v37, 0, v38
     jump bb7
   bb7:
-    v41 = phi [bb5: v35], [bb6: v37]
-    v42 = lt 1, 2
-    v43 = eq v42, false
-    icall panic_if<0x32>, v43
-    v44 = zext i120 v28 to i256
-    memory_object_store_element memoryfixedarray<2, 1>, v41, 1, v44
-    v45 = abi_encode [memory_array<array<2, word<u120>>>], scratch, args v0
-    v46 = slice_ptr v45
-    v47 = slice_len v45
-    v48 = keccak256 v46, v47
-    ret v48
+    v39 = phi [bb5: v33], [bb6: v35]
+    v40 = lt 1, 2
+    v41 = eq v40, false
+    icall panic_if<0x32>, v41
+    v42 = zext i120 v27 to i256
+    memory_object_store_element memoryfixedarray<2, 1>, v39, 1, v42
+    v43 = abi_encode [memory_array<array<2, word<u120>>>], scratch, args v0
+    v44 = slice_ptr v43
+    v45 = slice_len v43
+    v46 = keccak256 v44, v45
+    ret v46
   bb2:
     v4 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     v5 = ptrtoint memptr v4 to i256

@@ -56,9 +56,8 @@ fn @copy(arg0: calldataslice, arg1: i256, arg2: i256) -> i256 [selector=0x65750e
     v43 = lt 0, v42
     v44 = eq v43, false
     icall panic_if<0x32>, v44
-    v45 = memory_slice v37
-    v46 = slice_load_element v45, 0
-    ret v46
+    v45 = slice_load_element v41, 0
+    ret v45
 }
 
 fn @first(arg0: memptr) -> i256 [pure] {
@@ -68,9 +67,8 @@ fn @first(arg0: memptr) -> i256 [pure] {
     v2 = lt 0, v1
     v3 = eq v2, false
     icall panic_if<0x32>, v3
-    v4 = memory_slice arg0
-    v5 = slice_load_element v4, 0
-    ret v5
+    v4 = slice_load_element v0, 0
+    ret v4
 }
 
 fn @forward(arg0: calldataslice, arg1: i256, arg2: i256) -> i256 [selector=0x4b1f0a4b, pure, abi_params=[array<_, u256>, u256, u256], abi_returns=[word], abi_return_params=[u256]] {
@@ -203,7 +201,6 @@ fn @literal(arg0: calldataslice, arg1: i256, arg2: i256) -> i256 [selector=0x75a
     v54 = lt 0, v53
     v55 = eq v54, false
     icall panic_if<0x32>, v55
-    v56 = memory_slice v51
-    v57 = slice_load_element v56, 0
-    ret v57
+    v56 = slice_load_element v52, 0
+    ret v56
 }

@@ -37,7 +37,6 @@ fn @at(arg0: memptr, arg1: i256) -> i256 [selector=0xc78126ad, pure, abi_params=
     v2 = lt arg1, v1
     v3 = eq v2, false
     icall panic_if<0x32>, v3
-    v4 = memory_slice arg0
-    v5 = slice_load_element v4, arg1
-    ret v5
+    v4 = slice_load_element v0, arg1
+    ret v4
 }

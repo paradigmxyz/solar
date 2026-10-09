@@ -20,7 +20,7 @@ fn @_fill(arg0: i256) {
   bb1:
     v6 = phi [bb0: arg0], [bb3: v6]
     v7 = phi [bb0: v4], [bb3: v7]
-    v8 = phi [bb0: 0], [bb3: v20]
+    v8 = phi [bb0: 0], [bb3: v19]
     v9 = lt v8, v6
     jumpi v9, bb4, bb5
   bb5:
@@ -39,13 +39,12 @@ fn @_fill(arg0: i256) {
     v17 = eq v16, false
     icall panic_if<0x32>, v17
     v18 = byte 0, v13
-    v19 = memory_slice v7
-    slice_store_byte v19, v8, v18
+    slice_store_byte v14, v8, v18
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v20 = checked_add u256, v8, 1
+    v19 = checked_add u256, v8, 1
     jump bb1
 }
 

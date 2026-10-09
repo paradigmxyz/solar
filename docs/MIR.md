@@ -13,6 +13,16 @@ slices. A `memptr` carries a 256-bit memory address without implying validity,
 heap provenance, or non-wrapping pointer arithmetic. Memory objects are `memptr`
 values too: an access such as `memory_object_load_field memorystruct<3>, v0, 2`
 names the object layout itself, as LLVM loads name their type.
+
+A dynamic memory object (`bytes`, `string`, `T[] memory`) is a `memptr` to its
+length word, which assembly can read and rewrite. Code reads it through a
+`slice<memory>` view: `memory_slice v0` loads the length word and yields the
+payload pointer and length, and `slice_len`, `slice_load_element`,
+`slice_store_byte`, `slice_copy`, and the other slice operations work on views,
+calldata, and returndata alike. A view captures the length when it is made, so
+lowering builds one at each use rather than carrying the length in SSA across
+calls or assembly. A fresh object's length is a plain `mstore` to the
+`ptrtoint` of its pointer.
 An `i256` carries 256 bits and does not imply heap provenance or non-wrapping
 address arithmetic. Signedness and ABI encoding rules belong to operation and
 layout metadata. `void` denotes no function result.

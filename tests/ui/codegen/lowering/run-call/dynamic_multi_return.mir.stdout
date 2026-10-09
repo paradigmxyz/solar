@@ -61,18 +61,17 @@ fn @mixed() -> struct3 [selector=0x354df1f9, pure, abi_params=[], abi_returns=[m
     v4 = lt 0, v3
     v5 = eq v4, false
     icall panic_if<0x32>, v5
-    v6 = memory_slice v0
-    slice_store_element v6, 0, 7
-    v7 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
-    v8 = ptrtoint memptr v7 to i256
-    mstore v8, 1
-    v9 = ptrtoint memptr v7 to i256
-    v10 = add v9, 32
-    mstore v10, 0xcc00000000000000000000000000000000000000000000000000000000000000
-    v11 = insert_value struct3, undef struct3, 0, v0
-    v12 = insert_value struct3, v11, 1, 7
-    v13 = insert_value struct3, v12, 2, v7
-    ret v13
+    slice_store_element v2, 0, 7
+    v6 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    v7 = ptrtoint memptr v6 to i256
+    mstore v7, 1
+    v8 = ptrtoint memptr v6 to i256
+    v9 = add v8, 32
+    mstore v9, 0xcc00000000000000000000000000000000000000000000000000000000000000
+    v10 = insert_value struct3, undef struct3, 0, v0
+    v11 = insert_value struct3, v10, 1, 7
+    v12 = insert_value struct3, v11, 2, v6
+    ret v12
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/dynamic_multi_return.sol:Caller ===
@@ -269,14 +268,13 @@ fn @mixed() -> struct4 [selector=0x354df1f9, abi_params=[], abi_returns=[word, w
     v32 = lt 0, v31
     v33 = eq v32, false
     icall panic_if<0x32>, v33
-    v34 = memory_slice v25
-    v35 = slice_load_element v34, 0
-    v36 = checked_sub u256, v26, 7
-    v37 = checked_add u256, v35, v36
-    v38 = memory_slice v27
-    v39 = slice_len v38
-    v40 = insert_value struct4, undef struct4, 0, v29
-    v41 = insert_value struct4, v40, 1, v37
-    v42 = insert_value struct4, v41, 2, v39
-    ret v42
+    v34 = slice_load_element v30, 0
+    v35 = checked_sub u256, v26, 7
+    v36 = checked_add u256, v34, v35
+    v37 = memory_slice v27
+    v38 = slice_len v37
+    v39 = insert_value struct4, undef struct4, 0, v29
+    v40 = insert_value struct4, v39, 1, v36
+    v41 = insert_value struct4, v40, 2, v38
+    ret v41
 }

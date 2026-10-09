@@ -46,7 +46,8 @@ fn @edge(arg0: i1, arg1: memptr, arg2: memptr) -> memptr {
 }
 
 // CHECK-LABEL: fn @prefixed_array(
-// CHECK: [[LENGTH:v[0-9]+]] = memory_object_len memoryarray, arg0
+// CHECK: [[VIEW:v[0-9]+]] = memory_slice arg0
+// CHECK-NEXT: {{.*}}[[LENGTH:v[0-9]+]] = slice_len [[VIEW]]
 // CHECK: [[BYTES:v[0-9]+]] = mul [[LENGTH]], 32
 // CHECK: div [[BYTES]], 32
 // CHECK: alloc memorybytes
@@ -59,7 +60,8 @@ fn @edge(arg0: i1, arg1: memptr, arg2: memptr) -> memptr {
 // CHECK: [[BODY]]:
 // CHECK-NEXT: {{.*}}[[OFFSET:v[0-9]+]] = mul [[INDEX]], 32
 // CHECK-NEXT: {{.*}}[[DEST:v[0-9]+]] = add 1, [[OFFSET]]
-// CHECK-NEXT: {{.*}}memory_object_load_element memoryarray<1>, arg0, [[INDEX]]
+// CHECK-NEXT: {{.*}}[[ELEMENT_VIEW:v[0-9]+]] = memory_slice arg0
+// CHECK-NEXT: {{.*}}slice_load_element [[ELEMENT_VIEW]], [[INDEX]]
 fn @prefixed_array(arg0: memptr) -> memptr {
   bb0:
     v0 = abi_encode_packed (data hex"ab", array<word<u8>> memoryarray<1> arg0)

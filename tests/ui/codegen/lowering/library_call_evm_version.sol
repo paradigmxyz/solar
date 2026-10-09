@@ -108,10 +108,11 @@ contract C {
     // before the arguments, which the decoding then reads.
     // HOMESTEAD-LABEL: fn @aggregate
     // HOMESTEAD: [[BUF:v[0-9]+]] = alloc memorybytes
-    // HOMESTEAD: [[DATA_PTR:v[0-9]+]] = memory_object_data memorybytes, [[BUF]]
+    // HOMESTEAD: mstore {{v[0-9]+}}, 64
+    // HOMESTEAD: [[HEAD:v[0-9]+]] = ptrtoint memptr [[BUF]] to i256
+    // HOMESTEAD-NEXT: [[DATA:v[0-9]+]] = add [[HEAD]], 32
     // HOMESTEAD: [[IN:v[0-9]+]] = slice_ptr
     // HOMESTEAD: delegatecall {{.*}}, [[IN]], 64
-    // HOMESTEAD: [[DATA:v[0-9]+]] = ptrtoint memptr [[DATA_PTR]] to i256
     // HOMESTEAD: mcopy [[DATA]], [[IN]], 64
     // HOMESTEAD: abi_decode {{.*}}, [[BUF]]
     // BYZANTIUM-LABEL: fn @aggregate
@@ -142,10 +143,11 @@ contract C {
     // is validated too.
     // HOMESTEAD-LABEL: fn @structBool
     // HOMESTEAD: [[BUF:v[0-9]+]] = alloc memorybytes
-    // HOMESTEAD: [[DATA_PTR:v[0-9]+]] = memory_object_data memorybytes, [[BUF]]
+    // HOMESTEAD: mstore {{v[0-9]+}}, 64
+    // HOMESTEAD: [[HEAD:v[0-9]+]] = ptrtoint memptr [[BUF]] to i256
+    // HOMESTEAD-NEXT: [[DATA:v[0-9]+]] = add [[HEAD]], 32
     // HOMESTEAD: [[IN:v[0-9]+]] = slice_ptr
     // HOMESTEAD: delegatecall {{.*}}, [[IN]], 64
-    // HOMESTEAD: [[DATA:v[0-9]+]] = ptrtoint memptr [[DATA_PTR]] to i256
     // HOMESTEAD: mcopy [[DATA]], [[IN]], 64
     // HOMESTEAD: abi_decode [tuple<bool, u256>], [[BUF]]
     // BYZANTIUM-LABEL: fn @structBool

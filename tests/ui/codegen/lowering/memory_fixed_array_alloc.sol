@@ -46,7 +46,7 @@ contract MemoryFixedArrayAlloc {
     // CHECK: {{v[0-9]+}} = alloc memoryfixedarray<3, 1>
     // CHECK: memory_object_store_element memoryfixedarray<3, 1>, {{v[0-9]+}}, 2, 7
     // CHECK: {{v[0-9]+}} = alloc memoryarray<1>
-    // CHECK: memory_object_store_element memoryarray<1>, {{v[0-9]+}}, 0, 9
+    // CHECK: slice_store_element {{v[0-9]+}}, 0, 9
     // CHECK: [[RET_0:v[0-9]+]] = insert_value [[RET_TY:struct[0-9]+]], undef [[RET_TY]], 0, {{v[0-9]+}}
     // CHECK: [[RET_1:v[0-9]+]] = insert_value [[RET_TY]], [[RET_0]], 1, {{v[0-9]+}}
     // CHECK: ret [[RET_1]]
@@ -97,7 +97,7 @@ contract NamedReturnAndDelete {
     // CHECK: memory_object_store_element memoryfixedarray<3, 1>, {{v[0-9]+}}, 0, 1
     // CHECK: memory_object_store_element memoryfixedarray<3, 1>, {{v[0-9]+}}, 2, 3
     // CHECK: {{v[0-9]+}} = alloc memorybytes
-    // CHECK: memory_object_store_byte memorybytes, {{.*}}, {{.*}}, {{.*}}
+    // CHECK: slice_store_byte {{.*}}, {{.*}}, {{.*}}
     // CHECK: [[RET_0:v[0-9]+]] = insert_value [[RET_TY:struct[0-9]+]], undef [[RET_TY]], 0, {{v[0-9]+}}
     // CHECK: [[RET_1:v[0-9]+]] = insert_value [[RET_TY]], [[RET_0]], 1, {{v[0-9]+}}
     // CHECK: ret [[RET_1]]
@@ -114,8 +114,10 @@ contract NamedReturnAndDelete {
     // CHECK: [[STRUCT:v[0-9]+]] = alloc memorystruct<2>
     // CHECK: memory_object_store_field memorystruct<2>, [[STRUCT]], 0, 96
     // CHECK: memory_object_store_field memorystruct<2>, [[STRUCT]], 1, 96
-    // CHECK: memory_object_len memoryarray, memptr 96
-    // CHECK: memory_object_len memorybytes, memptr 96
+    // CHECK: [[VALUES:v[0-9]+]] = memory_slice memptr 96
+    // CHECK-NEXT: slice_len [[VALUES]]
+    // CHECK-NEXT: [[DATA:v[0-9]+]] = memory_slice memptr 96
+    // CHECK-NEXT: slice_len [[DATA]]
     function emptyMemoryReferences() public pure returns (uint256) {
         uint256[] memory values;
         bytes memory data;
@@ -149,7 +151,9 @@ contract NamedReturnAndDelete {
     // CHECK: [[STRUCT:v[0-9]+]] = alloc memorystruct<2>
     // CHECK: memory_object_store_field memorystruct<2>, [[STRUCT]], 0, 96
     // CHECK: memory_object_store_field memorystruct<2>, [[STRUCT]], 1, 96
-    // CHECK: set_memory_object_len memorybytes, {{v[0-9]+}}, 1
+    // CHECK: [[BYTES:v[0-9]+]] = alloc memorybytes
+    // CHECK-NEXT: [[BYTES_PTR:v[0-9]+]] = ptrtoint memptr [[BYTES]] to i256
+    // CHECK-NEXT: mstore [[BYTES_PTR]], 1
     function fullyInitializedNamedStruct()
         public
         pure

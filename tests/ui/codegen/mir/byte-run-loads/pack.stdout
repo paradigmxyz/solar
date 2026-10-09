@@ -3,16 +3,16 @@
 @phase lowered
 fn @three() [selector=0x1158e167, abi_wrapper, pure] {
   bb0:
-    v39 = icall @decode_calldata_type
-    v44 = ptrtoint memptr v39 to i256
-    v0 = mload v44
+    v36 = icall @decode_calldata_type
+    v41 = ptrtoint memptr v36 to i256
+    v0 = mload v41
     v2 = lt v0, 3
     jumpi v2, bb1, bb2
   bb2:
-    v46 = add v44, 32
-    v47 = mload v46
-    v36 = shr 232, v47
-    mstore 128, v36
+    v43 = add v41, 32
+    v44 = mload v43
+    v33 = shr 232, v44
+    mstore 128, v33
     returndata 128, 32
   bb1:
     mstore 128, 0
@@ -21,16 +21,16 @@ fn @three() [selector=0x1158e167, abi_wrapper, pure] {
 
 fn @two() [selector=0x65313149, abi_wrapper, pure] {
   bb0:
-    v27 = icall @decode_calldata_type
-    v32 = ptrtoint memptr v27 to i256
-    v0 = mload v32
+    v25 = icall @decode_calldata_type
+    v30 = ptrtoint memptr v25 to i256
+    v0 = mload v30
     v2 = lt v0, 2
     jumpi v2, bb1, bb2
   bb2:
-    v34 = add v32, 32
-    v35 = mload v34
-    v24 = shr 240, v35
-    mstore 128, v24
+    v32 = add v30, 32
+    v33 = mload v32
+    v22 = shr 240, v33
+    mstore 128, v22
     returndata 128, 32
   bb1:
     mstore 128, 0
@@ -39,19 +39,19 @@ fn @two() [selector=0x65313149, abi_wrapper, pure] {
 
 fn @gapped() [selector=0x63cfbce4, abi_wrapper, pure] {
   bb0:
-    v27 = icall @decode_calldata_type
-    v32 = ptrtoint memptr v27 to i256
-    v0 = mload v32
+    v25 = icall @decode_calldata_type
+    v30 = ptrtoint memptr v25 to i256
+    v0 = mload v30
     v2 = lt v0, 3
     jumpi v2, bb1, bb2
   bb2:
-    v34 = add v32, 32
-    v35 = mload v34
-    v36 = byte 0, v35
-    v13 = shl 8, v36
-    v41 = byte 2, v35
-    v24 = or v13, v41
-    mstore 128, v24
+    v32 = add v30, 32
+    v33 = mload v32
+    v34 = byte 0, v33
+    v12 = shl 8, v34
+    v39 = byte 2, v33
+    v22 = or v12, v39
+    mstore 128, v22
     returndata 128, 32
   bb1:
     mstore 128, 0
@@ -60,25 +60,25 @@ fn @gapped() [selector=0x63cfbce4, abi_wrapper, pure] {
 
 fn @stored() [selector=0xab0edd4e, abi_wrapper, pure] {
   bb0:
-    v45 = icall @decode_calldata_type
-    v50 = ptrtoint memptr v45 to i256
-    v0 = mload v50
+    v41 = icall @decode_calldata_type
+    v46 = ptrtoint memptr v41 to i256
+    v0 = mload v46
     v2 = lt v0, 3
     jumpi v2, bb1, bb2
   bb2:
-    v52 = add v50, 32
-    v53 = mload v52
-    v54 = byte 0, v53
-    v13 = shl 16, v54
-    v57 = add v52, 1
-    mstore8 v57, 74
-    v61 = mload v57
-    v62 = byte 0, v61
-    v30 = shl 8, v62
-    v31 = or v13, v30
-    v67 = byte 1, v61
-    v42 = or v31, v67
-    mstore 128, v42
+    v48 = add v46, 32
+    v49 = mload v48
+    v50 = byte 0, v49
+    v12 = shl 16, v50
+    v53 = add v48, 1
+    mstore8 v53, 74
+    v57 = mload v53
+    v58 = byte 0, v57
+    v27 = shl 8, v58
+    v28 = or v12, v27
+    v63 = byte 1, v57
+    v38 = or v28, v63
+    mstore 128, v38
     returndata 128, 32
   bb1:
     mstore 128, 0

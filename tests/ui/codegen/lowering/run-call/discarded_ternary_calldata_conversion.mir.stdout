@@ -126,51 +126,48 @@ fn @test(arg0: i1, arg1: i1) -> i1 [selector=0x7442b287, abi_params=[bool, bool]
     v11 = eq v10, false
     icall panic_if<0x32>, v11
     v12 = ptrtoint memptr v6 to i256
+    slice_store_element v8, 0, v12
     v13 = memory_slice v0
-    slice_store_element v13, 0, v12
-    v14 = memory_slice v0
-    v15 = slice_len v14
-    v16 = lt 0, v15
-    v17 = eq v16, false
-    icall panic_if<0x32>, v17
-    v18 = memory_slice v0
-    v19 = slice_load_element v18, 0
-    v20 = inttoptr i256 v19 to memptr
-    v21 = eq v19, 0
-    jumpi v21, bb4, bb5
+    v14 = slice_len v13
+    v15 = lt 0, v14
+    v16 = eq v15, false
+    icall panic_if<0x32>, v16
+    v17 = slice_load_element v13, 0
+    v18 = inttoptr i256 v17 to memptr
+    v19 = eq v17, 0
+    jumpi v19, bb4, bb5
   bb4:
-    v22 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    v23 = ptrtoint memptr v22 to i256
-    mstore v23, 0
-    v24 = memory_slice v0
-    v25 = ptrtoint memptr v22 to i256
-    slice_store_element v24, 0, v25
+    v20 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    v21 = ptrtoint memptr v20 to i256
+    mstore v21, 0
+    v22 = memory_slice v0
+    v23 = ptrtoint memptr v20 to i256
+    slice_store_element v22, 0, v23
     jump bb5
   bb5:
-    v26 = phi [bb3: v20], [bb4: v22]
-    v27 = memory_slice v26
-    v28 = slice_len v27
-    v29 = lt 0, v28
-    v30 = eq v29, false
-    icall panic_if<0x32>, v30
-    v31 = memory_slice v26
-    slice_store_element v31, 0, 7
-    v32 = zext i1 arg0 to i256
-    v33 = abi_encode [word<bool>, memory_array<memory_array<word>>], object, selector 0xfbc4674700000000000000000000000000000000000000000000000000000000, args v32, v0
+    v24 = phi [bb3: v18], [bb4: v20]
+    v25 = memory_slice v24
+    v26 = slice_len v25
+    v27 = lt 0, v26
+    v28 = eq v27, false
+    icall panic_if<0x32>, v28
+    slice_store_element v25, 0, 7
+    v29 = zext i1 arg0 to i256
+    v30 = abi_encode [word<bool>, memory_array<memory_array<word>>], object, selector 0xfbc4674700000000000000000000000000000000000000000000000000000000, args v29, v0
     jumpi arg1, bb6, bb7
   bb7:
     jump bb8
   bb6:
-    v34 = not 0
-    v35 = ptrtoint memptr v33 to i256
-    v36 = add v35, 132
-    mstore v36, v34
+    v31 = not 0
+    v32 = ptrtoint memptr v30 to i256
+    v33 = add v32, 132
+    mstore v33, v31
     jump bb8
   bb8:
-    v37 = address
-    v38 = gas
-    v39 = address_call v37, v33, gas v38
-    ret v39
+    v34 = address
+    v35 = gas
+    v36 = address_call v34, v30, gas v35
+    ret v36
   bb2:
     v4 = memory_slice v0
     slice_store_element v4, v2, 96

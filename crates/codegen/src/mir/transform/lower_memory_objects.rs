@@ -683,6 +683,16 @@ fn slice_element_address<P: MemoryLayoutPolicy>(
     slice: crate::mir::ValueId,
     index: crate::mir::ValueId,
 ) -> crate::mir::ValueId {
+    if let Some(&object) = views.get(&slice)
+        && let Some(offset) = builder
+            .func()
+            .value_u64(index)
+            .and_then(|index| index.checked_mul(P::WORD_SIZE)?.checked_add(P::DYNAMIC_HEADER_SIZE))
+    {
+        // address = add (ptrtoint object), header + index * stride
+        let header = builder.cast(object, MirType::I256);
+        return builder.add_u64_offset(header, offset);
+    }
     let base = slice_data::<P>(builder, views, slice);
     if let Some(index) = builder.func().value_u64(index)
         && let Some(offset) = index.checked_mul(P::WORD_SIZE)

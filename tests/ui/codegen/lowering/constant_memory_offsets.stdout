@@ -78,14 +78,14 @@ bb6:
   push 3
   dup 2
   mstore
-  push 32
-  add
-  push 64
+  push 96
   dup 2
   add
   push 7
   swap 1
   mstore
+  push 32
+  add
   push 96
   swap 1
   keccak256

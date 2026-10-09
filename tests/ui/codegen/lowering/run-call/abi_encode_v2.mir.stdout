@@ -34,31 +34,28 @@ fn @f3() -> memptr [selector=0xaaf05f3d, pure, abi_params=[], abi_returns=[memor
     v8 = lt 0, v7
     v9 = eq v8, false
     icall panic_if<0x32>, v9
-    v10 = memory_slice v2
-    v11 = slice_load_byte v10, 0
-    v12 = shl 248, v11
-    v13 = eq v12, 0x6400000000000000000000000000000000000000000000000000000000000000
-    v14 = eq v13, false
-    icall revert_if<empty>, v14
-    v15 = memory_slice v2
-    v16 = slice_len v15
-    v17 = lt 0, v16
-    v18 = eq v17, false
-    icall panic_if<0x32>, v18
-    v19 = byte 0, 0x6500000000000000000000000000000000000000000000000000000000000000
-    v20 = memory_slice v2
-    slice_store_byte v20, 0, v19
-    v21 = memory_slice v2
-    v22 = slice_len v21
-    v23 = lt 0, v22
-    v24 = eq v23, false
-    icall panic_if<0x32>, v24
-    v25 = memory_slice v2
-    v26 = slice_load_byte v25, 0
-    v27 = shl 248, v26
-    v28 = eq v27, 0x6500000000000000000000000000000000000000000000000000000000000000
-    v29 = eq v28, false
-    icall revert_if<empty>, v29
+    v10 = slice_load_byte v6, 0
+    v11 = shl 248, v10
+    v12 = eq v11, 0x6400000000000000000000000000000000000000000000000000000000000000
+    v13 = eq v12, false
+    icall revert_if<empty>, v13
+    v14 = memory_slice v2
+    v15 = slice_len v14
+    v16 = lt 0, v15
+    v17 = eq v16, false
+    icall panic_if<0x32>, v17
+    v18 = byte 0, 0x6500000000000000000000000000000000000000000000000000000000000000
+    slice_store_byte v14, 0, v18
+    v19 = memory_slice v2
+    v20 = slice_len v19
+    v21 = lt 0, v20
+    v22 = eq v21, false
+    icall panic_if<0x32>, v22
+    v23 = slice_load_byte v19, 0
+    v24 = shl 248, v23
+    v25 = eq v24, 0x6500000000000000000000000000000000000000000000000000000000000000
+    v26 = eq v25, false
+    icall revert_if<empty>, v26
     ret v1
 }
 
@@ -103,31 +100,28 @@ fn @f4() -> memptr [selector=0xc3f90202, abi_params=[], abi_returns=[memory_byte
     v25 = lt 0, v24
     v26 = eq v25, false
     icall panic_if<0x32>, v26
-    v27 = memory_slice v19
-    v28 = slice_load_byte v27, 0
-    v29 = shl 248, v28
-    v30 = eq v29, 0x6400000000000000000000000000000000000000000000000000000000000000
-    v31 = eq v30, false
-    icall revert_if<empty>, v31
-    v32 = memory_slice v19
-    v33 = slice_len v32
-    v34 = lt 0, v33
-    v35 = eq v34, false
-    icall panic_if<0x32>, v35
-    v36 = byte 0, 0x6500000000000000000000000000000000000000000000000000000000000000
-    v37 = memory_slice v19
-    slice_store_byte v37, 0, v36
-    v38 = memory_slice v19
-    v39 = slice_len v38
-    v40 = lt 0, v39
-    v41 = eq v40, false
-    icall panic_if<0x32>, v41
-    v42 = memory_slice v19
-    v43 = slice_load_byte v42, 0
-    v44 = shl 248, v43
-    v45 = eq v44, 0x6500000000000000000000000000000000000000000000000000000000000000
-    v46 = eq v45, false
-    icall revert_if<empty>, v46
+    v27 = slice_load_byte v23, 0
+    v28 = shl 248, v27
+    v29 = eq v28, 0x6400000000000000000000000000000000000000000000000000000000000000
+    v30 = eq v29, false
+    icall revert_if<empty>, v30
+    v31 = memory_slice v19
+    v32 = slice_len v31
+    v33 = lt 0, v32
+    v34 = eq v33, false
+    icall panic_if<0x32>, v34
+    v35 = byte 0, 0x6500000000000000000000000000000000000000000000000000000000000000
+    slice_store_byte v31, 0, v35
+    v36 = memory_slice v19
+    v37 = slice_len v36
+    v38 = lt 0, v37
+    v39 = eq v38, false
+    icall panic_if<0x32>, v39
+    v40 = slice_load_byte v36, 0
+    v41 = shl 248, v40
+    v42 = eq v41, 0x6500000000000000000000000000000000000000000000000000000000000000
+    v43 = eq v42, false
+    icall revert_if<empty>, v43
     ret v18
 }
 

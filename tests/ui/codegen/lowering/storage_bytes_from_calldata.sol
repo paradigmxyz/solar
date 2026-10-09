@@ -6,14 +6,16 @@ contract StorageBytesFromCalldata {
     bytes blob;
 
     // CHECK-LABEL: fn @setText{{[( ]}}
-    // CHECK: memory_object_copy_from_slice memorybytes, [[TEXT:v[0-9]+]], arg0
+    // CHECK: [[TEXT_VIEW:v[0-9]+]] = memory_slice [[TEXT:v[0-9]+]]
+    // CHECK-NEXT: slice_copy [[TEXT_VIEW]], 0, arg0
     // CHECK: icall @store_storage_bytes, 0, [[TEXT]]
     function setText(string calldata value) external {
         text = value;
     }
 
     // CHECK-LABEL: fn @setBlob{{[( ]}}
-    // CHECK: memory_object_copy_from_slice memorybytes, [[BLOB:v[0-9]+]], arg0
+    // CHECK: [[BLOB_VIEW:v[0-9]+]] = memory_slice [[BLOB:v[0-9]+]]
+    // CHECK-NEXT: slice_copy [[BLOB_VIEW]], 0, arg0
     // CHECK: icall @store_storage_bytes, 1, [[BLOB]]
     function setBlob(bytes calldata value) external {
         blob = value;

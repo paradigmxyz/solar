@@ -115,8 +115,9 @@ contract ShortReturns {
     // the overlaid area cannot run into memory the decoding allocates above it.
     // HOMESTEAD-LABEL: fn @emptyAgg
     // HOMESTEAD: [[BUFFER:v[0-9]+]] = alloc memorybytes
-    // HOMESTEAD: [[DATA_PTR:v[0-9]+]] = memory_object_data memorybytes, [[BUFFER]]
-    // HOMESTEAD: [[DATA:v[0-9]+]] = ptrtoint memptr [[DATA_PTR]] to i256
+    // HOMESTEAD: mstore {{v[0-9]+}}, 64
+    // HOMESTEAD: [[BUFFER_PTR:v[0-9]+]] = ptrtoint memptr [[BUFFER]] to i256
+    // HOMESTEAD-NEXT: [[DATA:v[0-9]+]] = add [[BUFFER_PTR]], 32
     // HOMESTEAD: [[INPUT:v[0-9]+]] = slice_ptr
     // HOMESTEAD: call {{v[0-9]+}}, {{v[0-9]+}}, 0, [[INPUT]], {{v[0-9]+}}, [[INPUT]], 64
     // HOMESTEAD: mcopy [[DATA]], [[INPUT]], 64

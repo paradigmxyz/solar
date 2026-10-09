@@ -54,14 +54,13 @@ fn @dynamicArrayElement() -> i8 [selector=0xff96177b, pure, abi_params=[], abi_r
     v6 = lt 0, v5
     v7 = eq v6, false
     icall panic_if<0x32>, v7
-    v8 = memory_slice v0
-    v9 = slice_load_element v8, 0
-    v10 = lt v9, 2
-    v11 = eq v10, false
-    icall panic_if<0x21>, v11
-    v12 = trunc i256 v9 to i8
-    v13 = lt v12, i8 2
-    v14 = eq v13, false
-    icall panic_if<0x21>, v14
-    ret v12
+    v8 = slice_load_element v4, 0
+    v9 = lt v8, 2
+    v10 = eq v9, false
+    icall panic_if<0x21>, v10
+    v11 = trunc i256 v8 to i8
+    v12 = lt v11, i8 2
+    v13 = eq v12, false
+    icall panic_if<0x21>, v13
+    ret v11
 }

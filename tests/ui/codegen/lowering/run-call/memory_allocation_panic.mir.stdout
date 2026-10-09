@@ -55,16 +55,14 @@ fn @makeArrayTooLarge() -> i256 [selector=0x821e5729, pure, abi_params=[], abi_r
     v4 = lt 1, v3
     v5 = eq v4, false
     icall panic_if<0x32>, v5
+    slice_store_element v2, 1, 42
     v6 = memory_slice v0
-    slice_store_element v6, 1, 42
-    v7 = memory_slice v0
-    v8 = slice_len v7
-    v9 = lt 1, v8
-    v10 = eq v9, false
-    icall panic_if<0x32>, v10
-    v11 = memory_slice v0
-    v12 = slice_load_element v11, 1
-    ret v12
+    v7 = slice_len v6
+    v8 = lt 1, v7
+    v9 = eq v8, false
+    icall panic_if<0x32>, v9
+    v10 = slice_load_element v6, 1
+    ret v10
 }
 
 fn @makeNestedArray(arg0: i256) -> i256 [selector=0x95572958, pure, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
@@ -106,31 +104,29 @@ fn @makeNestedArray(arg0: i256) -> i256 [selector=0x95572958, pure, abi_params=[
     v27 = eq v26, false
     icall panic_if<0x32>, v27
     v28 = ptrtoint memptr v22 to i256
+    slice_store_element v24, 0, v28
     v29 = memory_slice v0
-    slice_store_element v29, 0, v28
-    v30 = memory_slice v0
-    v31 = slice_len v30
-    v32 = lt 0, v31
-    v33 = eq v32, false
-    icall panic_if<0x32>, v33
-    v34 = memory_slice v0
-    v35 = slice_load_element v34, 0
-    v36 = inttoptr i256 v35 to memptr
-    v37 = eq v35, 0
-    jumpi v37, bb4, bb5
+    v30 = slice_len v29
+    v31 = lt 0, v30
+    v32 = eq v31, false
+    icall panic_if<0x32>, v32
+    v33 = slice_load_element v29, 0
+    v34 = inttoptr i256 v33 to memptr
+    v35 = eq v33, 0
+    jumpi v35, bb4, bb5
   bb4:
-    v38 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    v39 = ptrtoint memptr v38 to i256
-    mstore v39, 0
-    v40 = memory_slice v0
-    v41 = ptrtoint memptr v38 to i256
-    slice_store_element v40, 0, v41
+    v36 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    v37 = ptrtoint memptr v36 to i256
+    mstore v37, 0
+    v38 = memory_slice v0
+    v39 = ptrtoint memptr v36 to i256
+    slice_store_element v38, 0, v39
     jump bb5
   bb5:
-    v42 = phi [bb3: v36], [bb4: v38]
-    v43 = memory_slice v42
-    v44 = slice_len v43
-    ret v44
+    v40 = phi [bb3: v34], [bb4: v36]
+    v41 = memory_slice v40
+    v42 = slice_len v41
+    ret v42
   bb2:
     v4 = memory_slice v0
     slice_store_element v4, v2, 96

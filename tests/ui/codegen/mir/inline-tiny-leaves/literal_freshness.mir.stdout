@@ -4,7 +4,7 @@ fn @freshInLoop(arg0: i256) -> i1 [selector=0x533a7d1b, pure, abi_params=[bytes1
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: 0], [bb3: v35]
+    v0 = phi [bb0: 0], [bb3: v32]
     v1 = phi [bb0: arg0], [bb3: v1]
     v2 = phi [bb0: memptr 96], [bb3: v5]
     v3 = phi [bb0: 0], [bb3: v3]
@@ -26,54 +26,51 @@ fn @freshInLoop(arg0: i256) -> i1 [selector=0x533a7d1b, pure, abi_params=[bytes1
     v11 = lt 0, v10
     v12 = eq v11, false
     icall panic_if<0x32>, v12
-    v13 = memory_slice v5
-    v14 = slice_load_byte v13, 0
-    v15 = shl 248, v14
-    v16 = ne v15, 0x3100000000000000000000000000000000000000000000000000000000000000
+    v13 = slice_load_byte v9, 0
+    v14 = shl 248, v13
+    v15 = ne v14, 0x3100000000000000000000000000000000000000000000000000000000000000
     jump bb9
   bb8:
     jump bb9
   bb9:
-    v17 = phi [bb7: v16], [bb8: true]
-    jumpi v17, bb10, bb11
+    v16 = phi [bb7: v15], [bb8: true]
+    jumpi v16, bb10, bb11
   bb11:
     jump bb12
   bb12:
-    v18 = ne v0, 0
-    jumpi v18, bb13, bb14
+    v17 = ne v0, 0
+    jumpi v17, bb13, bb14
   bb14:
     jump bb15
   bb13:
-    v19 = memory_slice v2
-    v20 = slice_len v19
-    v21 = lt 0, v20
-    v22 = eq v21, false
-    icall panic_if<0x32>, v22
-    v23 = memory_slice v2
-    v24 = slice_load_byte v23, 0
-    v25 = shl 248, v24
-    v26 = and v1, 0xff00000000000000000000000000000000000000000000000000000000000000
-    v27 = ne v25, v26
+    v18 = memory_slice v2
+    v19 = slice_len v18
+    v20 = lt 0, v19
+    v21 = eq v20, false
+    icall panic_if<0x32>, v21
+    v22 = slice_load_byte v18, 0
+    v23 = shl 248, v22
+    v24 = and v1, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v25 = ne v23, v24
     jump bb15
   bb15:
-    v28 = phi [bb13: v27], [bb14: false]
-    jumpi v28, bb16, bb17
+    v26 = phi [bb13: v25], [bb14: false]
+    jumpi v26, bb16, bb17
   bb17:
     jump bb18
   bb18:
-    v29 = memory_slice v5
-    v30 = slice_len v29
-    v31 = lt 0, v30
-    v32 = eq v31, false
-    icall panic_if<0x32>, v32
-    v33 = byte 0, v1
-    v34 = memory_slice v5
-    slice_store_byte v34, 0, v33
+    v27 = memory_slice v5
+    v28 = slice_len v27
+    v29 = lt 0, v28
+    v30 = eq v29, false
+    icall panic_if<0x32>, v30
+    v31 = byte 0, v1
+    slice_store_byte v27, 0, v31
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v35 = checked_add u256, v0, 1
+    v32 = checked_add u256, v0, 1
     jump bb1
   bb16:
     ret false

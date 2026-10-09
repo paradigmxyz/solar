@@ -4,7 +4,7 @@ fn @ascii(arg0: memptr) -> i1 [selector=0x6f11c5d5, pure, abi_params=[bytes], ab
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: 0], [bb3: v14]
+    v0 = phi [bb0: 0], [bb3: v13]
     v1 = phi [bb0: 0], [bb3: v1]
     v2 = phi [bb0: arg0], [bb3: v2]
     v3 = memory_slice v2
@@ -21,11 +21,10 @@ fn @ascii(arg0: memptr) -> i1 [selector=0x6f11c5d5, pure, abi_params=[bytes], ab
     v8 = lt v0, v7
     v9 = eq v8, false
     icall panic_if<0x32>, v9
-    v10 = memory_slice v2
-    v11 = slice_load_byte v10, v0
-    v12 = shl 248, v11
-    v13 = gt v12, 0x7f00000000000000000000000000000000000000000000000000000000000000
-    jumpi v13, bb7, bb8
+    v10 = slice_load_byte v6, v0
+    v11 = shl 248, v10
+    v12 = gt v11, 0x7f00000000000000000000000000000000000000000000000000000000000000
+    jumpi v12, bb7, bb8
   bb8:
     jump bb9
   bb9:
@@ -33,7 +32,7 @@ fn @ascii(arg0: memptr) -> i1 [selector=0x6f11c5d5, pure, abi_params=[bytes], ab
   bb6:
     jump bb3
   bb3:
-    v14 = checked_add u256, v0, 1
+    v13 = checked_add u256, v0, 1
     jump bb1
   bb7:
     ret false
@@ -44,8 +43,8 @@ fn @zeroBytes(arg0: memptr) -> i256 [selector=0xea4c6f7d, pure, abi_params=[byte
     jump bb1
   bb1:
     v0 = phi [bb0: arg0], [bb3: v0]
-    v1 = phi [bb0: 0], [bb3: v16]
-    v2 = phi [bb0: 0], [bb3: v15]
+    v1 = phi [bb0: 0], [bb3: v15]
+    v2 = phi [bb0: 0], [bb3: v14]
     v3 = memory_slice v0
     v4 = slice_len v3
     v5 = lt v1, v4
@@ -60,23 +59,22 @@ fn @zeroBytes(arg0: memptr) -> i256 [selector=0xea4c6f7d, pure, abi_params=[byte
     v8 = lt v1, v7
     v9 = eq v8, false
     icall panic_if<0x32>, v9
-    v10 = memory_slice v0
-    v11 = slice_load_byte v10, v1
-    v12 = shl 248, v11
-    v13 = eq v12, 0
-    jumpi v13, bb7, bb8
+    v10 = slice_load_byte v6, v1
+    v11 = shl 248, v10
+    v12 = eq v11, 0
+    jumpi v12, bb7, bb8
   bb8:
     jump bb9
   bb7:
-    v14 = checked_add u256, v2, 1
+    v13 = checked_add u256, v2, 1
     jump bb9
   bb9:
-    v15 = phi [bb7: v14], [bb8: v2]
+    v14 = phi [bb7: v13], [bb8: v2]
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v16 = checked_add u256, v1, 1
+    v15 = checked_add u256, v1, 1
     jump bb1
 }
 

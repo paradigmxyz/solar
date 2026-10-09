@@ -64,8 +64,7 @@ fn @nestedFailure() [selector=0x3e70e061, pure, abi_params=[], abi_returns=[], a
     v13 = eq v12, false
     icall panic_if<0x32>, v13
     v14 = ptrtoint memptr v6 to i256
-    v15 = memory_slice v0
-    slice_store_element v15, 0, v14
+    slice_store_element v10, 0, v14
     icall require<custom_error [memory_array<memory_bytes>]>, false, 0xae7687df00000000000000000000000000000000000000000000000000000000, v0
     ret
   bb2:

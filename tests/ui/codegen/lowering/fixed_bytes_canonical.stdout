@@ -22,12 +22,11 @@ fn @compareElement(arg0: memptr) -> i1 [selector=0x6c07068b, pure, abi_params=[b
     v2 = lt 0, v1
     v3 = eq v2, false
     icall panic_if<0x32>, v3
-    v4 = memory_slice arg0
-    v5 = slice_load_byte v4, 0
-    v6 = shl 248, v5
-    v7 = shl 248, 1
-    v8 = eq v6, v7
-    ret v8
+    v4 = slice_load_byte v0, 0
+    v5 = shl 248, v4
+    v6 = shl 248, 1
+    v7 = eq v5, v6
+    ret v7
 }
 
 fn @narrow(arg0: i256) -> i256 [selector=0xb6234141, pure, abi_params=[bytes4], abi_returns=[word<bytes2>], abi_return_params=[bytes2]] {

@@ -60,21 +60,19 @@ fn @arrayElement() -> i8 [selector=0x050651a8, pure, abi_params=[], abi_returns=
     v7 = lt v2, 3
     v8 = eq v7, false
     icall panic_if<0x21>, v8
+    slice_store_element v3, 0, v2
     v9 = memory_slice v0
-    slice_store_element v9, 0, v2
-    v10 = memory_slice v0
-    v11 = slice_len v10
-    v12 = lt 0, v11
-    v13 = eq v12, false
-    icall panic_if<0x32>, v13
-    v14 = memory_slice v0
-    v15 = slice_load_element v14, 0
-    v16 = lt v15, 3
-    v17 = eq v16, false
-    icall panic_if<0x21>, v17
-    v18 = trunc i256 v15 to i8
-    v19 = lt v18, i8 3
-    v20 = eq v19, false
-    icall panic_if<0x21>, v20
-    ret v18
+    v10 = slice_len v9
+    v11 = lt 0, v10
+    v12 = eq v11, false
+    icall panic_if<0x32>, v12
+    v13 = slice_load_element v9, 0
+    v14 = lt v13, 3
+    v15 = eq v14, false
+    icall panic_if<0x21>, v15
+    v16 = trunc i256 v13 to i8
+    v17 = lt v16, i8 3
+    v18 = eq v17, false
+    icall panic_if<0x21>, v18
+    ret v16
 }

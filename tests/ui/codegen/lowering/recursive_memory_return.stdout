@@ -56,7 +56,7 @@ fn @mkArr(arg0: i256) -> memptr [selector=0xfb67dbf3, pure, abi_params=[u256], a
     v18 = phi [bb0: arg0], [bb3: v18]
     v19 = phi [bb0: v16], [bb3: v19]
     v20 = phi [bb0: memptr 96], [bb3: v20]
-    v21 = phi [bb0: 0], [bb3: v29]
+    v21 = phi [bb0: 0], [bb3: v28]
     v22 = lt v21, v18
     jumpi v22, bb4, bb5
   bb5:
@@ -70,13 +70,12 @@ fn @mkArr(arg0: i256) -> memptr [selector=0xfb67dbf3, pure, abi_params=[u256], a
     v26 = lt v21, v25
     v27 = eq v26, false
     icall panic_if<0x32>, v27
-    v28 = memory_slice v19
-    slice_store_element v28, v21, v23
+    slice_store_element v24, v21, v23
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v29 = checked_add u256, v21, 1
+    v28 = checked_add u256, v21, 1
     jump bb1
 }
 
@@ -95,11 +94,10 @@ fn @fillImpl(arg0: memptr, arg1: i256) -> memptr [pure] {
     v6 = lt arg1, v5
     v7 = eq v6, false
     icall panic_if<0x32>, v7
-    v8 = memory_slice arg0
-    slice_store_element v8, arg1, v3
-    v9 = checked_add u256, arg1, 1
-    v10 = icall @fillImpl, arg0, v9
-    ret v10
+    slice_store_element v4, arg1, v3
+    v8 = checked_add u256, arg1, 1
+    v9 = icall @fillImpl, arg0, v8
+    ret v9
   bb1:
     ret arg0
 }

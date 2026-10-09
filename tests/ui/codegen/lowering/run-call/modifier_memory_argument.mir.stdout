@@ -38,18 +38,17 @@ fn @f(arg0: calldataslice) -> i256 [selector=0x7bc5bbbf, pure, abi_params=[array
     v27 = lt 0, v26
     v28 = eq v27, false
     icall panic_if<0x32>, v28
-    v29 = memory_slice v21
-    slice_store_element v29, 0, 9
-    v30 = slice_len arg0
-    v31 = lt 0, v30
-    v32 = eq v31, false
-    icall panic_if<0x32>, v32
-    v33 = slice_ptr arg0
-    v34 = add v33, 0
-    v35 = calldataload v34
+    slice_store_element v25, 0, 9
+    v29 = slice_len arg0
+    v30 = lt 0, v29
+    v31 = eq v30, false
+    icall panic_if<0x32>, v31
+    v32 = slice_ptr arg0
+    v33 = add v32, 0
+    v34 = calldataload v33
     jump bb2
   bb2:
     jump bb1
   bb1:
-    ret v35
+    ret v34
 }

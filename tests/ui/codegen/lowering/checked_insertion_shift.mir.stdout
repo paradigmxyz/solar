@@ -4,9 +4,9 @@ fn @sort(arg0: memptr) -> memptr [selector=0x9ec8b026, pure, abi_params=[array<_
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: 1], [bb3: v45]
-    v1 = phi [bb0: memptr 96], [bb3: v16]
-    v2 = phi [bb0: arg0], [bb3: v13]
+    v0 = phi [bb0: 1], [bb3: v40]
+    v1 = phi [bb0: memptr 96], [bb3: v15]
+    v2 = phi [bb0: arg0], [bb3: v12]
     v3 = memory_slice v2
     v4 = slice_len v3
     v5 = lt v0, v4
@@ -21,66 +21,61 @@ fn @sort(arg0: memptr) -> memptr [selector=0x9ec8b026, pure, abi_params=[array<_
     v8 = lt v0, v7
     v9 = eq v8, false
     icall panic_if<0x32>, v9
-    v10 = memory_slice v2
-    v11 = slice_load_element v10, v0
+    v10 = slice_load_element v6, v0
     jump bb7
   bb7:
-    v12 = phi [bb4: v11], [bb14: v12]
-    v13 = phi [bb4: v2], [bb14: v13]
-    v14 = phi [bb4: v0], [bb14: v14]
-    v15 = phi [bb4: v0], [bb14: v39]
-    v16 = phi [bb4: v1], [bb14: v16]
-    v17 = ne v15, 0
-    jumpi v17, bb9, bb10
+    v11 = phi [bb4: v10], [bb14: v11]
+    v12 = phi [bb4: v2], [bb14: v12]
+    v13 = phi [bb4: v0], [bb14: v13]
+    v14 = phi [bb4: v0], [bb14: v35]
+    v15 = phi [bb4: v1], [bb14: v15]
+    v16 = ne v14, 0
+    jumpi v16, bb9, bb10
   bb10:
     jump bb11
   bb9:
-    v18 = checked_sub u256, v15, 1
-    v19 = memory_slice v13
-    v20 = slice_len v19
-    v21 = lt v18, v20
-    v22 = eq v21, false
-    icall panic_if<0x32>, v22
-    v23 = memory_slice v13
-    v24 = slice_load_element v23, v18
-    v25 = gt v24, v12
+    v17 = checked_sub u256, v14, 1
+    v18 = memory_slice v12
+    v19 = slice_len v18
+    v20 = lt v17, v19
+    v21 = eq v20, false
+    icall panic_if<0x32>, v21
+    v22 = slice_load_element v18, v17
+    v23 = gt v22, v11
     jump bb11
   bb11:
-    v26 = phi [bb9: v25], [bb10: false]
-    jumpi v26, bb12, bb13
+    v24 = phi [bb9: v23], [bb10: false]
+    jumpi v24, bb12, bb13
   bb13:
     jump bb8
   bb8:
-    v40 = memory_slice v13
-    v41 = slice_len v40
-    v42 = lt v15, v41
-    v43 = eq v42, false
-    icall panic_if<0x32>, v43
-    v44 = memory_slice v13
-    slice_store_element v44, v15, v12
+    v36 = memory_slice v12
+    v37 = slice_len v36
+    v38 = lt v14, v37
+    v39 = eq v38, false
+    icall panic_if<0x32>, v39
+    slice_store_element v36, v14, v11
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v45 = checked_add u256, v14, 1
+    v40 = checked_add u256, v13, 1
     jump bb1
   bb12:
-    v27 = checked_sub u256, v15, 1
-    v28 = memory_slice v13
-    v29 = slice_len v28
-    v30 = lt v27, v29
-    v31 = eq v30, false
-    icall panic_if<0x32>, v31
-    v32 = memory_slice v13
-    v33 = slice_load_element v32, v27
-    v34 = memory_slice v13
-    v35 = slice_len v34
-    v36 = lt v15, v35
-    v37 = eq v36, false
-    icall panic_if<0x32>, v37
-    v38 = memory_slice v13
-    slice_store_element v38, v15, v33
-    v39 = checked_sub u256, v15, 1
+    v25 = checked_sub u256, v14, 1
+    v26 = memory_slice v12
+    v27 = slice_len v26
+    v28 = lt v25, v27
+    v29 = eq v28, false
+    icall panic_if<0x32>, v29
+    v30 = slice_load_element v26, v25
+    v31 = memory_slice v12
+    v32 = slice_len v31
+    v33 = lt v14, v32
+    v34 = eq v33, false
+    icall panic_if<0x32>, v34
+    slice_store_element v31, v14, v30
+    v35 = checked_sub u256, v14, 1
     jump bb14
   bb14:
     jump bb7
@@ -99,15 +94,13 @@ fn @shiftAt(arg0: memptr, arg1: i256) -> memptr [selector=0xa227bfd8, pure, abi_
     v4 = lt v1, v3
     v5 = eq v4, false
     icall panic_if<0x32>, v5
-    v6 = memory_slice arg0
-    v7 = slice_load_element v6, v1
-    v8 = memory_slice arg0
-    v9 = slice_len v8
-    v10 = lt arg1, v9
-    v11 = eq v10, false
-    icall panic_if<0x32>, v11
-    v12 = memory_slice arg0
-    slice_store_element v12, arg1, v7
+    v6 = slice_load_element v2, v1
+    v7 = memory_slice arg0
+    v8 = slice_len v7
+    v9 = lt arg1, v8
+    v10 = eq v9, false
+    icall panic_if<0x32>, v10
+    slice_store_element v7, arg1, v6
     jump bb3
   bb3:
     ret arg0

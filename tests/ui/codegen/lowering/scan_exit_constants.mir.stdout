@@ -18,7 +18,7 @@ fn @check(arg0: i256, arg1: i256) -> i256 [selector=0x8fefd8ea, pure, abi_params
   bb1:
     v9 = phi [bb0: v7], [bb3: v9]
     v10 = phi [bb0: arg0], [bb3: v10]
-    v11 = phi [bb0: 0], [bb3: v23]
+    v11 = phi [bb0: 0], [bb3: v22]
     v12 = phi [bb0: 0], [bb3: v12]
     v13 = phi [bb0: arg1], [bb3: v13]
     v14 = lt v11, v10
@@ -26,19 +26,19 @@ fn @check(arg0: i256, arg1: i256) -> i256 [selector=0x8fefd8ea, pure, abi_params
   bb5:
     jump bb2
   bb2:
-    v24 = ptrtoint memptr v9 to i256
-    v25 = add v24, 32
-    v26 = add v25, v10
-    mstore v26, 0xdeadbeef
-    v27 = icall @scan, v9
-    v28 = ptrtoint memptr v9 to i256
-    v29 = add v28, 32
-    v30 = add v29, v10
-    v31 = mload v30
-    v32 = eq v31, 0xdeadbeef
-    v33 = eq v32, false
-    icall revert_if<empty>, v33
-    ret v27
+    v23 = ptrtoint memptr v9 to i256
+    v24 = add v23, 32
+    v25 = add v24, v10
+    mstore v25, 0xdeadbeef
+    v26 = icall @scan, v9
+    v27 = ptrtoint memptr v9 to i256
+    v28 = add v27, 32
+    v29 = add v28, v10
+    v30 = mload v29
+    v31 = eq v30, 0xdeadbeef
+    v32 = eq v31, false
+    icall revert_if<empty>, v32
+    ret v26
   bb4:
     v15 = eq v11, v13
     jumpi v15, bb7, bb8
@@ -54,13 +54,12 @@ fn @check(arg0: i256, arg1: i256) -> i256 [selector=0x8fefd8ea, pure, abi_params
     v20 = eq v19, false
     icall panic_if<0x32>, v20
     v21 = byte 0, v16
-    v22 = memory_slice v9
-    slice_store_byte v22, v11, v21
+    slice_store_byte v17, v11, v21
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v23 = checked_add u256, v11, 1
+    v22 = checked_add u256, v11, 1
     jump bb1
 }
 

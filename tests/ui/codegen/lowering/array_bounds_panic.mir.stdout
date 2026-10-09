@@ -73,9 +73,8 @@ fn @memDyn(arg0: i256, arg1: i256) -> i256 [selector=0x24828414, pure, abi_param
     v20 = lt arg1, v19
     v21 = eq v20, false
     icall panic_if<0x32>, v21
-    v22 = memory_slice v16
-    v23 = slice_load_element v22, arg1
-    ret v23
+    v22 = slice_load_element v18, arg1
+    ret v22
 }
 
 fn @stDyn(arg0: i256) -> i256 [selector=0x392580ee, view, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {

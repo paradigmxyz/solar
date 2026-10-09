@@ -10,29 +10,26 @@ fn @words() -> i1 [selector=0xf2c31bd9, pure, abi_params=[], abi_returns=[word<b
     v4 = lt 0, v3
     v5 = eq v4, false
     icall panic_if<0x32>, v5
+    slice_store_element v2, 0, 1
     v6 = memory_slice v0
-    slice_store_element v6, 0, 1
-    v7 = memory_slice v0
-    v8 = slice_len v7
-    v9 = lt 1, v8
-    v10 = eq v9, false
-    icall panic_if<0x32>, v10
-    v11 = memory_slice v0
-    slice_store_element v11, 1, 2
-    v12 = memory_slice v0
-    v13 = slice_len v12
-    v14 = lt 2, v13
-    v15 = eq v14, false
-    icall panic_if<0x32>, v15
-    v16 = memory_slice v0
-    slice_store_element v16, 2, 3
-    v17 = abi_encode [memory_array<word>], scratch, args v0
-    v18 = slice_ptr v17
-    v19 = slice_len v17
-    v20 = keccak256 v18, v19
-    v21 = keccak256_packed (u256 32, u256 3, u256 1, u256 2, u256 3)
-    v22 = eq v20, v21
-    ret v22
+    v7 = slice_len v6
+    v8 = lt 1, v7
+    v9 = eq v8, false
+    icall panic_if<0x32>, v9
+    slice_store_element v6, 1, 2
+    v10 = memory_slice v0
+    v11 = slice_len v10
+    v12 = lt 2, v11
+    v13 = eq v12, false
+    icall panic_if<0x32>, v13
+    slice_store_element v10, 2, 3
+    v14 = abi_encode [memory_array<word>], scratch, args v0
+    v15 = slice_ptr v14
+    v16 = slice_len v14
+    v17 = keccak256 v15, v16
+    v18 = keccak256_packed (u256 32, u256 3, u256 1, u256 2, u256 3)
+    v19 = eq v17, v18
+    ret v19
 }
 
 fn @bytesTail() -> i1 [selector=0x56818b01, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
@@ -45,46 +42,45 @@ fn @bytesTail() -> i1 [selector=0x56818b01, pure, abi_params=[], abi_returns=[wo
     jump bb1
   bb1:
     v4 = phi [bb0: v2], [bb3: v4]
-    v5 = phi [bb0: 0], [bb3: v18]
+    v5 = phi [bb0: 0], [bb3: v17]
     v6 = phi [bb0: 0], [bb3: v6]
     v7 = lt v5, 33
     jumpi v7, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    v19 = abi_encode [memory_bytes], object, args v4
-    v20 = ptrtoint memptr v19 to i256
-    v21 = add v20, 128
-    v22 = mload v21
-    v23 = memory_slice v19
-    v24 = slice_len v23
-    v25 = eq v24, 128
-    jumpi v25, bb7, bb8
+    v18 = abi_encode [memory_bytes], object, args v4
+    v19 = ptrtoint memptr v18 to i256
+    v20 = add v19, 128
+    v21 = mload v20
+    v22 = memory_slice v18
+    v23 = slice_len v22
+    v24 = eq v23, 128
+    jumpi v24, bb7, bb8
   bb8:
     jump bb9
   bb7:
-    v26 = memory_slice v19
-    v27 = slice_len v26
-    v28 = lt 64, v27
-    v29 = eq v28, false
-    icall panic_if<0x32>, v29
-    v30 = memory_slice v19
-    v31 = slice_load_byte v30, 64
-    v32 = shl 248, v31
-    v33 = eq v32, 0x100000000000000000000000000000000000000000000000000000000000000
+    v25 = memory_slice v18
+    v26 = slice_len v25
+    v27 = lt 64, v26
+    v28 = eq v27, false
+    icall panic_if<0x32>, v28
+    v29 = slice_load_byte v25, 64
+    v30 = shl 248, v29
+    v31 = eq v30, 0x100000000000000000000000000000000000000000000000000000000000000
     jump bb9
   bb9:
-    v34 = phi [bb7: v33], [bb8: false]
-    jumpi v34, bb10, bb11
+    v32 = phi [bb7: v31], [bb8: false]
+    jumpi v32, bb10, bb11
   bb11:
     jump bb12
   bb10:
-    v35 = shl 248, 33
-    v36 = eq v22, v35
+    v33 = shl 248, 33
+    v34 = eq v21, v33
     jump bb12
   bb12:
-    v37 = phi [bb10: v36], [bb11: false]
-    ret v37
+    v35 = phi [bb10: v34], [bb11: false]
+    ret v35
   bb4:
     v8 = checked_add u256, v5, 1
     v9 = trunc i256 v8 to i8
@@ -96,13 +92,12 @@ fn @bytesTail() -> i1 [selector=0x56818b01, pure, abi_params=[], abi_returns=[wo
     v15 = eq v14, false
     icall panic_if<0x32>, v15
     v16 = byte 0, v11
-    v17 = memory_slice v4
-    slice_store_byte v17, v5, v16
+    slice_store_byte v12, v5, v16
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v18 = checked_add u256, v5, 1
+    v17 = checked_add u256, v5, 1
     jump bb1
 }
 
@@ -195,22 +190,19 @@ fn @fresh() -> memptr [selector=0xb466b76f, pure, abi_params=[], abi_returns=[me
     v4 = lt 0, v3
     v5 = eq v4, false
     icall panic_if<0x32>, v5
+    slice_store_element v2, 0, 1
     v6 = memory_slice v0
-    slice_store_element v6, 0, 1
-    v7 = memory_slice v0
-    v8 = slice_len v7
-    v9 = lt 1, v8
-    v10 = eq v9, false
-    icall panic_if<0x32>, v10
-    v11 = memory_slice v0
-    slice_store_element v11, 1, 2
-    v12 = memory_slice v0
-    v13 = slice_len v12
-    v14 = lt 2, v13
-    v15 = eq v14, false
-    icall panic_if<0x32>, v15
-    v16 = memory_slice v0
-    slice_store_element v16, 2, 3
+    v7 = slice_len v6
+    v8 = lt 1, v7
+    v9 = eq v8, false
+    icall panic_if<0x32>, v9
+    slice_store_element v6, 1, 2
+    v10 = memory_slice v0
+    v11 = slice_len v10
+    v12 = lt 2, v11
+    v13 = eq v12, false
+    icall panic_if<0x32>, v13
+    slice_store_element v10, 2, 3
     ret v0
 }
 

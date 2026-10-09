@@ -17,7 +17,8 @@ fn @static(arg0: i256) -> memoryslice {
 
 // CHECK-LABEL: {{^[ +].*}}fn @static_bytes{{[( ]}}
 // CHECK: + [[OBJECT:v[0-9]+]] = alloc memorybytes, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
-// CHECK: + set_memory_object_len memorybytes, [[OBJECT]], 64
+// CHECK-NEXT: + [[OBJECT_PTR:v[0-9]+]] = ptrtoint memptr [[OBJECT]] to i256
+// CHECK-NEXT: + mstore [[OBJECT_PTR]], 64
 fn @static_bytes(arg0: i256, arg1: i256) -> memptr {
   bb0:
     v0 = abi_encode [word, word], object, args arg0, arg1
@@ -26,7 +27,8 @@ fn @static_bytes(arg0: i256, arg1: i256) -> memptr {
 
 // CHECK-LABEL: {{^[ +].*}}fn @selector_bytes{{[( ]}}
 // CHECK: + [[SELECTOR_OBJECT:v[0-9]+]] = alloc memorybytes, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
-// CHECK: + set_memory_object_len memorybytes, [[SELECTOR_OBJECT]], 36
+// CHECK-NEXT: + [[SELECTOR_OBJECT_PTR:v[0-9]+]] = ptrtoint memptr [[SELECTOR_OBJECT]] to i256
+// CHECK-NEXT: + mstore [[SELECTOR_OBJECT_PTR]], 36
 fn @selector_bytes(arg0: i256) -> memptr {
   bb0:
     v0 = abi_encode [word], selector 0x1234567800000000000000000000000000000000000000000000000000000000, object, args arg0
@@ -64,8 +66,11 @@ fn @dynamic(arg0: calldataslice) -> memoryslice {
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @nested_dynamic_array{{[( ]}}
-// CHECK: + {{v[0-9]+}} = memory_object_len memoryarray, arg0
-// CHECK: + {{v[0-9]+}} = memory_object_data memoryarray, arg0
+// CHECK: + [[VIEW:v[0-9]+]] = memory_slice arg0
+// CHECK-NEXT: + {{v[0-9]+}} = slice_len [[VIEW]]
+// CHECK: + {{v[0-9]+}} = zext i1
+// CHECK: + [[HEAD:v[0-9]+]] = ptrtoint memptr arg0 to i256
+// CHECK-NEXT: + {{v[0-9]+}} = add [[HEAD]], 32
 fn @nested_dynamic_array(arg0: memptr) -> memoryslice {
   bb0:
     v0 = abi_encode [memory_array<memory_array<word>>], args arg0

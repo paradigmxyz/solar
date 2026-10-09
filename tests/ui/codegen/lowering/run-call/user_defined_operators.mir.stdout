@@ -7,19 +7,17 @@ fn @addressEq(arg0: memptr) -> i1 [selector=0x83ede5a4, pure, abi_params=[array<
     v2 = lt 0, v1
     v3 = eq v2, false
     icall panic_if<0x32>, v3
-    v4 = memory_slice arg0
-    v5 = slice_load_element v4, 0
-    v6 = trunc i256 v5 to i160
-    v7 = memory_slice arg0
-    v8 = slice_len v7
-    v9 = lt 1, v8
-    v10 = eq v9, false
-    icall panic_if<0x32>, v10
-    v11 = memory_slice arg0
-    v12 = slice_load_element v11, 1
-    v13 = trunc i256 v12 to i160
-    v14 = icall @sameAccount, v6, v13
-    ret v14
+    v4 = slice_load_element v0, 0
+    v5 = trunc i256 v4 to i160
+    v6 = memory_slice arg0
+    v7 = slice_len v6
+    v8 = lt 1, v7
+    v9 = eq v8, false
+    icall panic_if<0x32>, v9
+    v10 = slice_load_element v6, 1
+    v11 = trunc i256 v10 to i160
+    v12 = icall @sameAccount, v5, v11
+    ret v12
 }
 
 fn @add_(arg0: i256, arg1: i256) -> i256 [selector=0xd1cbf1c5, pure, abi_params=[u256, u256], abi_returns=[word], abi_return_params=[u256]] {

@@ -108,22 +108,20 @@ fn @fmpIntegrity() -> struct0 [selector=0xe547cb4d, pure, abi_params=[], abi_ret
     v8 = lt 0, v7
     v9 = eq v8, false
     icall panic_if<0x32>, v9
-    v10 = memory_slice v4
-    slice_store_element v10, 0, 9
-    v11 = lt 2, 3
-    v12 = eq v11, false
-    icall panic_if<0x32>, v12
-    v13 = memory_object_load_element memoryfixedarray<3, 1>, v0, 2
-    v14 = memory_slice v4
-    v15 = slice_len v14
-    v16 = lt 0, v15
-    v17 = eq v16, false
-    icall panic_if<0x32>, v17
-    v18 = memory_slice v4
-    v19 = slice_load_element v18, 0
-    v20 = insert_value struct0, undef struct0, 0, v13
-    v21 = insert_value struct0, v20, 1, v19
-    ret v21
+    slice_store_element v6, 0, 9
+    v10 = lt 2, 3
+    v11 = eq v10, false
+    icall panic_if<0x32>, v11
+    v12 = memory_object_load_element memoryfixedarray<3, 1>, v0, 2
+    v13 = memory_slice v4
+    v14 = slice_len v13
+    v15 = lt 0, v14
+    v16 = eq v15, false
+    icall panic_if<0x32>, v16
+    v17 = slice_load_element v13, 0
+    v18 = insert_value struct0, undef struct0, 0, v12
+    v19 = insert_value struct0, v18, 1, v17
+    ret v19
 }
 
 fn @literal() -> i256 [selector=0x1373185e, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
@@ -182,22 +180,20 @@ fn @namedReturn() -> struct0 [selector=0xf76de570, pure, abi_params=[], abi_retu
     v13 = eq v12, false
     icall panic_if<0x32>, v13
     v14 = byte 0, 0xee00000000000000000000000000000000000000000000000000000000000000
+    slice_store_byte v10, 0, v14
     v15 = memory_slice v8
-    slice_store_byte v15, 0, v14
-    v16 = memory_slice v8
-    v17 = slice_len v16
-    v18 = lt 0, v17
-    v19 = eq v18, false
-    icall panic_if<0x32>, v19
-    v20 = memory_slice v8
-    v21 = slice_load_byte v20, 0
-    v22 = shl 248, v21
-    v23 = shr 248, v22
-    v24 = trunc i256 v23 to i8
-    v25 = zext i8 v24 to i256
-    v26 = insert_value struct0, undef struct0, 0, v0
-    v27 = insert_value struct0, v26, 1, v25
-    ret v27
+    v16 = slice_len v15
+    v17 = lt 0, v16
+    v18 = eq v17, false
+    icall panic_if<0x32>, v18
+    v19 = slice_load_byte v15, 0
+    v20 = shl 248, v19
+    v21 = shr 248, v20
+    v22 = trunc i256 v21 to i8
+    v23 = zext i8 v22 to i256
+    v24 = insert_value struct0, undef struct0, 0, v0
+    v25 = insert_value struct0, v24, 1, v23
+    ret v25
 }
 
 fn @emptyMemoryReferences() -> i256 [selector=0xc82d0745, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
