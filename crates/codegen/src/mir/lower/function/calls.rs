@@ -134,7 +134,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         hir::ItemId::Contract(_) | hir::ItemId::Enum(_) | hir::ItemId::Udvt(_)
                     )
                 )
-            });
+            })
+            || self
+                .cx
+                .gcx
+                .type_of_expr(callee.id)
+                .is_some_and(|ty| matches!(ty.kind, TyKind::Type(_)));
         if is_type_conversion {
             // result = convert(callee, args)
             if args.len() != 1 {
@@ -177,6 +182,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     return self.cx.report_unsupported(arg.span, "storage access");
                 };
                 self.load_storage_bytes(access.slot)
+            } else if target_ty.is_ref_at(DataLocation::Storage) {
+                // NOTE: The result still refers to storage, so lowering the argument as a
+                // memory copy would redirect writes through it.
+                return self.cx.report_unsupported(arg.span, "storage reference conversion");
             } else {
                 self.lower_expr(arg)?
             };
@@ -514,18 +523,26 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             "named internal function argument",
             |this, index, argument| {
                 let parameter = function.parameters[index];
-                let value = this.lower_typed_expr(argument, parameter)?;
-                if parameter.is_value_type() {
-                    let ty = this.cx.state.pointer_carrier(types::TypeLowerer::mir_type(parameter));
-                    Some(raw_scalars::cast_carrier(
-                        &mut this.builder,
-                        value,
-                        types::TypeLowerer::value_layout(parameter),
-                        ty,
-                    ))
+                let value = if Self::is_storage_parameter(parameter) {
+                    // argument = slot of the storage argument
+                    let Some(access) = this.storage_access(argument) else {
+                        return this.cx.report_unsupported(argument.span, "storage access");
+                    };
+                    access.slot
                 } else {
-                    this.materialize_call_argument(parameter, value, argument.span)
-                }
+                    let value = this.lower_typed_expr(argument, parameter)?;
+                    if !parameter.is_value_type() {
+                        return this.materialize_call_argument(parameter, value, argument.span);
+                    }
+                    value
+                };
+                let ty = this.cx.state.pointer_carrier(types::TypeLowerer::mir_type(parameter));
+                Some(raw_scalars::cast_carrier(
+                    &mut this.builder,
+                    value,
+                    types::TypeLowerer::value_layout(parameter),
+                    ty,
+                ))
             },
         )?;
         values.insert(0, function_value);
@@ -969,9 +986,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
 
         let saved = self.snapshot_bindings(function.parameters);
-        for (&id, &value) in function.parameters.iter().zip(values) {
-            self.values.insert(id, value);
-        }
+        self.bind_inlined_parameters(function.parameters, values);
         let result = self.lower_struct_constructor(return_expr, struct_id, *args);
         self.restore_bindings(&saved);
         result

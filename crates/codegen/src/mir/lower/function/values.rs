@@ -64,9 +64,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
         match &expr.kind {
             ExprKind::Tuple(values) => {
-                values.iter().flatten().map(|expr| self.lower_expr(expr)).collect()
+                values.iter().flatten().map(|expr| self.lower_component(expr)).collect()
             }
-            _ => Some(vec![self.lower_expr(expr)?]),
+            _ => Some(vec![self.lower_component(expr)?]),
         }
     }
 
@@ -191,6 +191,20 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         })
     }
 
+    /// Lowers one component of a multi-value expression in the shape `convert_tuple_component`
+    /// expects: a storage reference as its slot word, like one returned by a call.
+    pub(super) fn lower_component(&mut self, expr: &hir::Expr<'_>) -> Option<ValueId> {
+        // `lower_expr` copies a storage state variable to memory, unlike any other storage
+        // reference.
+        if self.cx.gcx.type_of_expr(expr.id).is_some_and(|ty| ty.is_ref_at(DataLocation::Storage)) {
+            let Some(access) = self.storage_access(expr) else {
+                return self.cx.report_unsupported(expr.span, "storage access");
+            };
+            return Some(access.slot);
+        }
+        self.lower_expr(expr)
+    }
+
     pub(super) fn lower_tuple_assignment<'hir>(
         &mut self,
         elements: &[Option<&'hir hir::Expr<'hir>>],
@@ -205,7 +219,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 || self.type_of_expr_or_variable(element).is_some_and(|ty| {
                     ty.is_ref_at(DataLocation::Storage) || ty.is_ref_at(DataLocation::Memory)
                 })
-        }) && let Some(values) = self.lower_storage_reference_call(rhs)
+        }) && let Some(values) = self.lower_storage_reference_values(rhs)
         {
             if values.len() != elements.len() {
                 return self.cx.report_unsupported(rhs.span, "storage reference tuple");
@@ -516,38 +530,29 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some(())
     }
 
-    pub(super) fn lower_storage_reference_call(
+    /// Lowers a call or conditional whose values include storage references, pairing each value
+    /// with its source type and, for a storage reference, the slot it refers to.
+    pub(super) fn lower_storage_reference_values(
         &mut self,
         expr: &hir::Expr<'_>,
     ) -> Option<Vec<(ValueId, Ty<'gcx>, Option<StorageAccess>)>> {
-        let (callee, _, _) = expr.as_call()?;
-        let return_types = if let Some(function_id) = self.cx.gcx.resolved_function(callee) {
-            self.cx
-                .gcx
-                .hir
-                .function(function_id)
-                .returns
-                .iter()
-                .map(|&id| self.cx.gcx.type_of_item(id.into()))
-                .collect::<Vec<_>>()
-        } else {
-            let TyKind::Fn(function) = self.cx.gcx.type_of_expr(callee.id)?.kind else {
-                return None;
-            };
-            function.returns.to_vec()
-        };
-        if return_types.is_empty() {
+        if expr.as_call().is_none() && !matches!(expr.kind, ExprKind::Ternary(..)) {
             return None;
         }
-        if !return_types.iter().any(|ty| ty.is_ref_at(DataLocation::Storage)) {
+        let ty = self.cx.gcx.type_of_expr(expr.id)?;
+        let types = match ty.kind {
+            TyKind::Tuple(types) => types,
+            _ => std::slice::from_ref(&ty),
+        };
+        if !types.iter().any(|ty| ty.is_ref_at(DataLocation::Storage)) {
             return None;
         }
         let values = self.lower_values(expr)?;
-        (values.len() == return_types.len()).then(|| {
+        (values.len() == types.len()).then(|| {
             values
                 .into_iter()
-                .zip(return_types)
-                .map(|(value, ty)| {
+                .zip(types)
+                .map(|(value, &ty)| {
                     let access = ty.is_ref_at(DataLocation::Storage).then(|| StorageAccess {
                         slot: value,
                         location: StorageLocation::word(U256::ZERO),

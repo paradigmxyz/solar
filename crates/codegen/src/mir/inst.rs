@@ -1033,9 +1033,9 @@ impl InstKind {
                     && ty(a) == result
                     && ty(b) == result
             }
+            Self::AbiDecode { ref layout, .. } => result.is_some() != layout.types.is_empty(),
             Self::InsertValue { .. }
             | Self::ExtractValue { .. }
-            | Self::AbiDecode { .. }
             | Self::StorageBytesLoad(..)
             | Self::StorageArrayLoad { .. }
             | Self::AbiEncodePacked { .. }

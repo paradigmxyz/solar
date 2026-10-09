@@ -10,6 +10,11 @@ a separate test in this crate that runs in the workspace's default
 `cargo tq solc-solidity`, or `cargo tq foundry`. Set `SOLAR_FOUNDRY_PROJECT` to
 run one discovered project.
 
+Arguments after a UI-mode suite name (`ui`, `mir`, `evm-ir`, `standard-json`,
+`solc-solidity`, `solc-yul`) filter tests by path substring, as in
+`cargo uitest tests/ui/typeck` or `cargo uibless tests/ui/typeck`. Filtered runs
+use `cargo test`, since nextest would read the filters as test names.
+
 ## Runtime directives
 
 UI tests can run one isolated entry-point call per `run-call` or `run-call-fail`

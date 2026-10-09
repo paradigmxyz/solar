@@ -1843,6 +1843,7 @@ define_mir_ops! {
     ///
     /// The instruction result is the first tuple value. Additional values are
     /// published through the multi-return buffer, matching ordinary MIR calls.
+    /// An empty tuple has no result and only checks the data length.
     #[mir_op(
         mnemonic = "abi_decode",
         result = Custom,
