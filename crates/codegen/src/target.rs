@@ -277,6 +277,9 @@ impl Cost {
     /// Nothing emitted.
     pub(crate) const ZERO: Self = Self::new(0, 0);
 
+    /// More than any real code costs.
+    pub(crate) const MAX: Self = Self::new(u32::MAX, u32::MAX);
+
     /// Creates a cost.
     pub(crate) const fn new(gas: u32, bytes: u32) -> Self {
         Self { gas, bytes }
@@ -349,6 +352,10 @@ impl Target {
     /// run per invocation when weighing code growth inside it: GCC's estimate
     /// for such loops.
     pub(crate) const UNCOUNTED_LOOP_ITERATIONS: u64 = 10;
+    /// How many times more often the stack planner counts a block for each loop around it.
+    pub(crate) const LOOP_BLOCK_WEIGHT: u32 = 8;
+    /// The most the stack planner counts any block, however deeply nested.
+    pub(crate) const MAX_BLOCK_WEIGHT: u32 = 512;
     /// The optimizer runs from which loop transformations that copy a loop's
     /// body, unrolling and peeling, may run: below them, as at the default 200,
     /// a build still values its code size, and the copies grow a contract built
@@ -392,6 +399,12 @@ impl Target {
 
     pub(crate) fn expected_executions(self) -> u64 {
         self.expected_executions
+    }
+
+    /// The weight of a block inside one more loop than a block of weight `weight`.
+    pub(crate) const fn nested_block_weight(weight: u32) -> u32 {
+        let weight = weight.saturating_mul(Self::LOOP_BLOCK_WEIGHT);
+        if weight < Self::MAX_BLOCK_WEIGHT { weight } else { Self::MAX_BLOCK_WEIGHT }
     }
 
     /// Whether the build expects enough executions to copy loop bodies for runtime gas.
@@ -902,6 +915,13 @@ mod tests {
         assert!(Cost::new(9, 2).dominates(Cost::new(9, 3)));
         assert!(!Cost::new(9, 3).dominates(Cost::new(9, 3)));
         assert!(!Cost::new(3, 4).dominates(Cost::new(9, 3)));
+    }
+
+    #[test]
+    fn nested_block_weights() {
+        assert_eq!(Target::nested_block_weight(1), 8);
+        assert_eq!(Target::nested_block_weight(64), 512);
+        assert_eq!(Target::nested_block_weight(512), 512);
     }
 
     #[test]

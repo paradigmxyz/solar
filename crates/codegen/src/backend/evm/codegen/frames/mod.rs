@@ -232,7 +232,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
     }
 
-    /// Removes the dynamic-frame header that MIR frame offsets include but fixed frames omit.
+    /// Removes the frame header that MIR frame offsets include but fixed frames omit.
     pub(in crate::backend::evm::codegen) fn compact_static_frame_offset(&self, offset: u64) -> u64 {
         offset
             .checked_sub(EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE)
@@ -1350,8 +1350,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         if self.spill_addr_consts.is_empty() {
             return;
         }
-        let mut slots: Vec<(u32, (DeferredConst, usize))> =
-            self.spill_addr_consts.drain().collect();
+        let mut slots: Vec<_> = self.spill_addr_consts.drain().collect();
         slots.sort_unstable_by(|a, b| b.1.1.cmp(&a.1.1).then(a.0.cmp(&b.0)));
         self.external_spill_addr_consts
             .insert(func_id, slots.into_iter().map(|(_, deferred)| deferred).collect());

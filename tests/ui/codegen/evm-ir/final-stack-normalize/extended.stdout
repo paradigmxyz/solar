@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/stack-normalize/extended.evmir (before final-stack-normalize) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/stack-normalize/extended.evmir (after final-stack-normalize) ===
+- // === ROOT/tests/ui/codegen/evm-ir/final-stack-normalize/extended.evmir (before final-stack-normalize) ===
++ // === ROOT/tests/ui/codegen/evm-ir/final-stack-normalize/extended.evmir (after final-stack-normalize) ===
   @module extended
   bb0:
     push 0

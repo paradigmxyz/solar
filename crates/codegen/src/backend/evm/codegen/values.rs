@@ -51,12 +51,12 @@ pub(super) fn late_gas_reads(func: &Function) -> Vec<LateGasRead> {
     let mut reads = Vec::new();
     for block in &func.blocks {
         for &inst_id in &block.instructions {
-            let gas = match func.inst(inst_id).kind {
-                InstKind::Call { gas, .. }
-                | InstKind::CallCode { gas, .. }
-                | InstKind::StaticCall { gas, .. }
-                | InstKind::DelegateCall { gas, .. } => gas,
-                _ => continue,
+            let (InstKind::Call { gas, .. }
+            | InstKind::CallCode { gas, .. }
+            | InstKind::StaticCall { gas, .. }
+            | InstKind::DelegateCall { gas, .. }) = func.inst(inst_id).kind
+            else {
+                continue;
             };
             if use_counts[gas] != 1 {
                 continue;

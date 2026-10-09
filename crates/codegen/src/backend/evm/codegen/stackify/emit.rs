@@ -182,7 +182,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
             }
         }
-        // Blocks in an empty cycle are emitted as they are.
+        // Emit blocks in an empty cycle as they are.
         let cyclic: Vec<BlockId> = forward
             .iter()
             .filter(|(_, target)| forward.contains_key(*target))
@@ -316,10 +316,12 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
             }
             Exit::Return => {
+                // [results, return] -> jump
                 self.asm.emit_op(op::JUMP);
                 self.mark_debug_function_exit(func, DebugFunctionExit::Return);
             }
             Exit::TailCall(callee) => {
+                // push callee; jump
                 self.asm.emit_push_label(self.function_labels[callee]);
                 self.asm.emit_op(op::JUMP);
                 self.mark_debug_function_exit(func, DebugFunctionExit::Return);
@@ -372,6 +374,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             Step::ReloadRet => {
                 self.emit_spill_load(func, self.ret_spill_slot.expect("return slot"))
             }
+            // push 0
             Step::Filler => self.asm.emit_push(U256::ZERO),
             Step::Begin(inst) => {
                 if self.capture_debug_info {
@@ -425,6 +428,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// Jumps to `target` unless it is the next block in the layout.
     fn emit_stackified_jump(&mut self, target: BlockId, next: Option<BlockId>) {
         if next != Some(target) {
+            // push target; jump
             self.asm.emit_push_label(self.block_labels[&target]);
             self.asm.emit_op(op::JUMP);
         }
@@ -444,6 +448,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 | InstKind::PtrToInt(operand, _)
                 | InstKind::IntToPtr(operand) => self.emit_materialized(func, *operand),
                 InstKind::CalldataLoad(offset) => {
+                    // <offset>; calldataload
                     self.emit_materialized(func, *offset);
                     self.asm.emit_op(op::CALLDATALOAD);
                 }

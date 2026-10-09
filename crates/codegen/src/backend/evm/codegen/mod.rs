@@ -44,6 +44,7 @@ use solar_data_structures::{
     map::{FxHashMap, FxHashSet},
 };
 use solar_sema::Gcx;
+
 mod stack;
 pub(super) use stack::{
     MAX_STACK_DEPTH, StackModel, StackOp, lowered_stack_cost, resynthesize_physical_ops,

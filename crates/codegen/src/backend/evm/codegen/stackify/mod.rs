@@ -48,10 +48,11 @@
 //! the other, so the colder edge pays for its own inputs. A branch on `eq x, 0` or `ne x, 0`
 //! branches on `x` with the targets swapped.
 //!
-//! Instruction operands are prepared by duplicating values that remain live, consuming values at
-//! their last use in place, materializing immediates and stable reads, and then moving each
-//! operand to its position with at most two swaps, or one `EXCHANGE` where the target makes that
-//! cheaper, or by copying operands on top of a prefix already in place; the cheaper strategy wins.
+//! The planner prepares instruction operands by duplicating values that remain live, consuming
+//! values at their last use in place, materializing immediates and stable reads, and then moving
+//! each operand to its position with at most two swaps, or one `EXCHANGE` where the target makes
+//! that cheaper, or by copying operands on top of a prefix already in place; the cheaper strategy
+//! wins.
 //! A shuffle's cycle through the top that leaves the top in place, `SWAPa SWAPb ... SWAPa`,
 //! becomes one `EXCHANGE a, b` per inner swap when that is cheaper. Commutative and mirrored
 //! comparisons try both operand orders. Two short trials refine these local choices: before a chain
@@ -91,20 +92,19 @@
 
 use super::{
     BlockId, CallGraphInfo, CfgInfo, DenseBitSet, EvmCodegen, Function, FunctionId, FxHashMap,
-    IndexVec, InstId, InstKind, Liveness, LoopAnalyzer, MAX_STACK_DEPTH, Module, StackOp,
-    Terminator, Value, ValueId, index_vec, select::rematerializable_nullary_value,
+    FxHashSet, IndexVec, InstId, InstKind, Liveness, LoopAnalyzer, MAX_STACK_DEPTH, Module,
+    StackOp, Terminator, Value, ValueId, index_vec, select::rematerializable_nullary_value,
 };
 use crate::{
     mir::{ArgIdx, Callee, analysis::LoopInfo},
     target::{Cost, Target},
 };
+use plan::{Planned, Planner};
 use smallvec::SmallVec;
 
 mod emit;
 mod plan;
 mod shuffle;
-
-use plan::{Planned, Planner};
 
 /// One word of the modeled stack.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -263,6 +263,9 @@ struct Analysis {
     liveness: Liveness,
     cfg: CfgInfo,
     loops: LoopInfo,
+    /// Whether the function has a write that may overwrite spill slots. The return address is
+    /// live across every such write, so it cannot spill.
+    low_memory_writes: bool,
     /// Values live across a write that may overwrite spill slots; they cannot spill.
     pinned: DenseBitSet<ValueId>,
     /// Values that stable arithmetic recomputes from fresh words, with the cost and number of
@@ -464,12 +467,66 @@ impl<'gcx> EvmCodegen<'gcx> {
             emitting_entry,
         };
 
-        let mut analyses: IndexVec<FunctionId, Option<Analysis>> =
-            (0..functions).map(|_| None).collect();
-        let mut plans: IndexVec<FunctionId, Option<FunctionPlan>> =
-            (0..functions).map(|_| None).collect();
+        // Writes that may reach the spill area. A call into a function that may make one, itself
+        // or through its callees, and then return makes one in the caller too; a write on a path
+        // that never returns, such as a revert forwarder's, cannot reach the caller.
+        let mut hazards = (0..functions)
+            .map(|_| FxHashSet::default())
+            .collect::<IndexVec<FunctionId, FxHashSet<InstId>>>();
+        // For each function that returns: whether it writes on a path that returns, and the
+        // functions it calls or tail-calls on such paths.
+        let mut summaries =
+            IndexVec::<FunctionId, Option<(bool, SmallVec<[FunctionId; 4]>)>>::new();
+        summaries.resize(functions, None);
         for &func_id in &bodies {
-            let analysis = analyses[func_id].insert(self.analyze(module, &info, func_id));
+            let func = &module.functions[func_id];
+            hazards[func_id] = self.compute_spill_hazard_insts(func);
+            if !info.returning.contains(func_id) {
+                continue;
+            }
+            let mut writes = false;
+            let mut callees = SmallVec::new();
+            for block in returning_blocks(func, &info.returning).iter() {
+                let data = &func.blocks[block];
+                for &inst in &data.instructions {
+                    writes |= hazards[func_id].contains(&inst);
+                    callees.extend(icall(&func.inst(inst).kind).map(|(callee, _)| callee));
+                }
+                if let Some(Terminator::TailCall { function, .. }) = data.terminator {
+                    callees.push(function);
+                }
+            }
+            summaries[func_id] = Some((writes, callees));
+        }
+        let mut writers = DenseBitSet::new_empty(functions);
+        loop {
+            let mut changed = false;
+            for (func_id, summary) in summaries.iter_enumerated() {
+                if let Some((writes, callees)) = summary
+                    && !writers.contains(func_id)
+                    && (*writes || callees.iter().any(|&callee| writers.contains(callee)))
+                {
+                    writers.insert(func_id);
+                    changed = true;
+                }
+            }
+            if !changed {
+                break;
+            }
+        }
+
+        let mut analyses =
+            (0..functions).map(|_| None).collect::<IndexVec<FunctionId, Option<Analysis>>>();
+        let mut plans =
+            (0..functions).map(|_| None).collect::<IndexVec<FunctionId, Option<FunctionPlan>>>();
+        for &func_id in &bodies {
+            let analysis = analyses[func_id].insert(self.analyze(
+                module,
+                &info,
+                func_id,
+                &hazards[func_id],
+                &writers,
+            ));
             plans[func_id] = Some(self.plan_function_stackified(
                 module,
                 &info,
@@ -510,20 +567,40 @@ impl<'gcx> EvmCodegen<'gcx> {
         Ok((info, plans))
     }
 
-    fn analyze(&self, module: &Module, info: &ModuleInfo, func_id: FunctionId) -> Analysis {
+    /// Computes the facts every planning attempt of a function shares. `hazards` are its writes
+    /// that may reach the spill area, and `writers` the functions that may make one and return.
+    fn analyze(
+        &self,
+        module: &Module,
+        info: &ModuleInfo,
+        func_id: FunctionId,
+        hazards: &FxHashSet<InstId>,
+        writers: &DenseBitSet<FunctionId>,
+    ) -> Analysis {
         let func = &module.functions[func_id];
         let liveness = Liveness::compute_live_sets(func);
         let cfg = CfgInfo::new(func);
         let loops = LoopAnalyzer::new().analyze_structure(func);
-        // Spill slots live in low memory, which these writes may overwrite.
-        let hazards = self.compute_spill_hazard_insts(func);
-        let pinned = live_after(func, &liveness, |inst| hazards.contains(&inst));
+        // Spill slots live in low memory, which these writes may overwrite. A call's results
+        // appear after the callee's writes.
+        let hazard_call = |inst: InstId| {
+            icall(&func.inst(inst).kind).is_some_and(|(callee, _)| writers.contains(callee))
+        };
+        let mut pinned = live_after(func, &liveness, |inst| hazards.contains(&inst));
+        pinned.union(&live_across(func, &liveness, hazard_call));
         let recomputable = if pinned.is_empty() {
             FxHashMap::default()
         } else {
             plan::recomputable(func, &cfg, info.internal.contains(func_id), Target::new(self.gcx))
         };
-        Analysis { liveness, cfg, loops, pinned, recomputable }
+        Analysis {
+            liveness,
+            cfg,
+            loops,
+            low_memory_writes: !hazards.is_empty() || func.instructions().any(hazard_call),
+            pinned,
+            recomputable,
+        }
     }
 
     fn plan_function_stackified(
@@ -547,7 +624,8 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
             }
         }
-        let mut ret_spilled = call_spill == CallSpill::ValuesAndReturn;
+        let mut ret_spilled =
+            call_spill == CallSpill::ValuesAndReturn && !analysis.low_memory_writes;
         let mut restarts = 0;
         // More live words than reach and the single spills can hold: spill in batches from the
         // start.
@@ -601,8 +679,11 @@ impl<'gcx> EvmCodegen<'gcx> {
                                     }
                                 }
                             }
-                            Some(Victim::Ret) if !ret_spilled => ret_spilled = true,
-                            _ if !analysis.pinned.is_empty() => {
+                            // The return address is live across every low-memory write.
+                            Some(Victim::Ret) if !ret_spilled && !analysis.low_memory_writes => {
+                                ret_spilled = true;
+                            }
+                            _ if analysis.low_memory_writes => {
                                 return Err(Decline::Pinned(func_id));
                             }
                             _ => return Err(Decline::Unsupported(func_id, "stack too deep")),
@@ -642,8 +723,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         plans: &IndexVec<FunctionId, Option<FunctionPlan>>,
     ) -> Option<Vec<FunctionId>> {
         // height(f) = peak(f) max over calls (base + height(callee))
-        let mut memo: IndexVec<FunctionId, Option<(usize, Option<FunctionId>)>> =
-            index_vec![None; module.functions.len()];
+        let mut memo = index_vec![None; module.functions.len()];
         fn height(
             func_id: FunctionId,
             call_graph: &CallGraphInfo,
@@ -744,6 +824,24 @@ fn live_after(
     liveness: &Liveness,
     select: impl Fn(InstId) -> bool,
 ) -> DenseBitSet<ValueId> {
+    live_around(func, liveness, select, true)
+}
+
+/// The values live across any instruction that `select` accepts, without its results.
+fn live_across(
+    func: &Function,
+    liveness: &Liveness,
+    select: impl Fn(InstId) -> bool,
+) -> DenseBitSet<ValueId> {
+    live_around(func, liveness, select, false)
+}
+
+fn live_around(
+    func: &Function,
+    liveness: &Liveness,
+    select: impl Fn(InstId) -> bool,
+    with_results: bool,
+) -> DenseBitSet<ValueId> {
     let mut result = DenseBitSet::new_empty(func.num_values());
     let mut live = DenseBitSet::new_empty(func.num_values());
     for (block, data) in func.blocks.iter_enumerated() {
@@ -758,11 +856,15 @@ fn live_after(
             });
         }
         for (index, &inst) in data.instructions.iter().enumerate().skip(first).rev() {
-            if index == first || select(inst) {
+            let selected = index == first || select(inst);
+            if selected && with_results {
                 result.union(&live);
             }
             if let Some(value) = func.inst_result_value(inst) {
                 live.remove(value);
+            }
+            if selected && !with_results {
+                result.union(&live);
             }
             func.inst(inst).kind.visit_operands(|value| {
                 live.insert(value);
@@ -770,6 +872,31 @@ fn live_after(
         }
     }
     result
+}
+
+/// The blocks of `func` from which control may return to its caller: those that reach a
+/// return or a tail call into a function that returns.
+fn returning_blocks(func: &Function, returning: &DenseBitSet<FunctionId>) -> DenseBitSet<BlockId> {
+    let mut blocks = DenseBitSet::new_empty(func.blocks.len());
+    let mut work = Vec::new();
+    for (block, data) in func.blocks.iter_enumerated() {
+        let exits = match &data.terminator {
+            Some(Terminator::Return { .. }) => true,
+            Some(Terminator::TailCall { function, .. }) => returning.contains(*function),
+            _ => false,
+        };
+        if exits && blocks.insert(block) {
+            work.push(block);
+        }
+    }
+    while let Some(block) = work.pop() {
+        for &pred in &func.blocks[block].predecessors {
+            if blocks.insert(pred) {
+                work.push(pred);
+            }
+        }
+    }
+    blocks
 }
 
 /// Returns the internal callee of an instruction, if it is a call.

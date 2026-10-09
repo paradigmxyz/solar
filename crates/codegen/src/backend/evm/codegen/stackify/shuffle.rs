@@ -53,7 +53,7 @@ pub(super) fn shuffle(
     let mut state = State { stack: stack.to_vec(), moves: Vec::new(), reach };
     let n = target.len();
 
-    let mut need: FxHashMap<Slot, usize> = FxHashMap::default();
+    let mut need = FxHashMap::<Slot, usize>::default();
     let mut open = 0usize;
     for want in target {
         match *want {
@@ -66,7 +66,7 @@ pub(super) fn shuffle(
 
     // Phase 1: counts.
     let surplus_count = |stack: &[Slot]| -> usize {
-        let mut seen: FxHashMap<Slot, usize> = FxHashMap::default();
+        let mut seen = FxHashMap::<Slot, usize>::default();
         stack
             .iter()
             .filter(|&&slot| {
@@ -103,7 +103,7 @@ pub(super) fn shuffle(
         state.pop();
     }
     // Create missing words.
-    let mut missing: Vec<Slot> = Vec::new();
+    let mut missing = Vec::<Slot>::new();
     for (&slot, &count) in &need {
         let have = state.stack.iter().filter(|&&s| s == slot).count();
         for _ in have..count {
@@ -115,14 +115,11 @@ pub(super) fn shuffle(
         target.iter().position(|want| want.accepts(*slot)).unwrap_or(usize::MAX)
     });
     for slot in missing {
-        match slot {
-            slot if fresh(slot) => state.push(Move::Fresh(slot), slot),
-            _ => {
-                let Some(depth) = state.depth_of(slot) else {
-                    return Err(Unreachable(None));
-                };
-                state.dup(depth)?;
-            }
+        if fresh(slot) {
+            state.push(Move::Fresh(slot), slot);
+        } else {
+            let Some(depth) = state.depth_of(slot) else { return Err(Unreachable(None)) };
+            state.dup(depth)?;
         }
     }
     while state.stack.len() < n {
@@ -274,7 +271,7 @@ impl State {
 mod tests {
     use super::*;
     use crate::mir::ValueId;
-    use std::collections::{HashMap, VecDeque};
+    use std::collections::{HashMap, HashSet, VecDeque, hash_map::Entry};
 
     fn value(i: usize) -> Slot {
         Slot::Value(ValueId::from_usize(i))
@@ -338,8 +335,8 @@ mod tests {
             for mv in next {
                 let mut s = state.clone();
                 apply(&mut s, mv);
-                if !seen.contains_key(&s) {
-                    seen.insert(s.clone(), dist + 1);
+                if let Entry::Vacant(entry) = seen.entry(s.clone()) {
+                    entry.insert(dist + 1);
                     queue.push_back(s);
                 }
             }
@@ -374,7 +371,7 @@ mod tests {
             }
             sources.extend(longer);
         }
-        let mut unique = std::collections::HashSet::new();
+        let mut unique = HashSet::new();
         sources.retain(|source| unique.insert(source.clone()));
         let mut targets = vec![vec![]];
         for _ in 0..3 {

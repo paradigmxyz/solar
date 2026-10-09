@@ -1,12 +1,27 @@
-//@ codegen-matrix: standard
+//@ codegen-matrix: standard ir
+//@[ir] compile-flags: -Ogas -Zdump=evm-ir-runtime
+//@[ir] filecheck:
+//@[ir] normalize-stdout-test: "(?s).+" -> ""
 //@ run-call: toHexStringNoPrefix 0x => ""
 //@ run-call: toHexStringNoPrefix 0x00abff => "00abff"
 //@ run-call: prefixed 0x => "0x"
 //@ run-call: prefixed 0x00abff => "0x00abff"
 
 // The shared helper keeps its free-memory pointer, result, and loop end on the
-// stack across its loop.
+// stack across its loop: the loop test copies the end and the cursor without a load.
 // Reduced from Solady v0.1.26 LibString.toHexStringNoPrefix (MIT).
+//
+// CHECK: [[RETURN:bb[0-9]+]] [continuation]:
+// CHECK-NEXT: push {{bb[0-9]+}}
+// CHECK-NEXT: jump [[HELPER:bb[0-9]+]]
+// CHECK-NEXT: [[HELPER]]:
+// CHECK: jump [[HEADER:bb[0-9]+]]
+// CHECK: [[HEADER]] [loop]:
+// CHECK-NEXT: dup 5
+// CHECK-NEXT: dup 3
+// CHECK-NEXT: sub
+// CHECK-NEXT: push {{bb[0-9]+}}
+// CHECK-NEXT: jumpi
 contract EntrySpillCleanup {
     function prefixed(bytes memory raw) external pure returns (string memory result) {
         result = toHexStringNoPrefix(raw);

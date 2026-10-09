@@ -3,8 +3,7 @@
 //@ normalize-stdout-test: "(?s).+" -> ""
 
 // After `returndatacopy`, twenty live values sit on the stack with no dead word
-// below them out of `SWAP16` reach, so the reduction starts at once instead of
-// first clearing such a word with `SWAPN` and `POP`.
+// below them out of `SWAP16` reach, so the reduction starts at once.
 // CHECK: returndatacopy
 // CHECK-NEXT: and
 contract ExtendedStackDeadValues {

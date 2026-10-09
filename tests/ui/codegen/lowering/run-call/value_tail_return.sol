@@ -1,4 +1,6 @@
 //@ codegen-matrix: standard
+//@[size] compile-flags: -Zdump=evm-ir-runtime
+//@[size] filecheck:
 //@ run-call: run 0 => 12
 //@ run-call: run 2 => 17
 //@ run-call: run 5 => 47
@@ -10,6 +12,13 @@ contract ValueTailReturn {
         return forward(n) + forward(n + 1);
     }
 
+    // The loop's words die before the inlined `leaf` reads storage for the returned value.
+    // CHECK-LABEL: @module ValueTailReturn_runtime
+    // CHECK: pop
+    // CHECK-NEXT: swap 1
+    // CHECK-NEXT: pop
+    // CHECK-NEXT: push 0
+    // CHECK-NEXT: sload
     function forward(uint256 n) internal returns (uint256) {
         unchecked {
             for (uint256 i; i < n; ++i) state += i;
