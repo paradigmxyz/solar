@@ -105,7 +105,7 @@ the other way around.
 For a file named relative to an include path outside the base path, `solar`
 resolves relative imports against the file's absolute path. Remappings for
 source unit names then do not apply to them, they do not search the other
-roots, and `../` can leave the include path, into the allowed directories.
+roots, and `../` can leave the include path.
 Remapping contexts match both the file's name and its absolute path. Like
 `solc`, an import resolves to an input file with its source unit name before
 searching the disk, but files loaded for other imports don't count, so where
@@ -132,7 +132,8 @@ Difference: `solar` accepts `--include-path` without `--base-path`, using the
 current directory as the base path, and does not report an ambiguous import
 when several roots contain the same file, as with a repeated include path. In
 Standard JSON mode, which does not access the file system, it does not check the
-base path and does not restrict imports to allowed paths.
+base path. It does not restrict imports to allowed paths, so `--allow-paths` has
+no effect.
 
 Rationale: these inputs have a single sensible meaning, and Standard JSON reads
 imports only through the read callback.
