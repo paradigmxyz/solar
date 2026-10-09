@@ -267,20 +267,21 @@ impl Session {
     ///
     /// Call this after updating options.
     pub fn reconfigure(&self) {
-        let (base_path, include_paths) = if self.opts.unstable.ui_testing {
+        let (base_path, include_paths, current_dir) = if self.opts.unstable.ui_testing {
             // `ui_test` relies on absolute paths.
-            (None, Vec::new())
+            (None, Vec::new(), None)
         } else if self.opts.standard_json {
             // Standard JSON keys are source unit names, so display them verbatim. An empty
             // base path also makes imports resolve by source unit name without `--base-path`.
-            (Some(PathBuf::new()), Vec::new())
+            (Some(PathBuf::new()), Vec::new(), None)
         } else {
             let current_dir = std::env::current_dir().ok();
             let absolute = |path: &Path| absolute_path(current_dir.as_deref(), path);
             let include_paths = self.opts.include_paths.iter().map(|path| absolute(path)).collect();
-            (self.opts.base_path.as_deref().map(absolute).or(current_dir), include_paths)
+            let base_path = self.opts.base_path.as_deref().map(absolute).or(current_dir.clone());
+            (base_path, include_paths, current_dir)
         };
-        self.source_map().set_roots(base_path, include_paths);
+        self.source_map().set_roots(base_path, include_paths, current_dir);
     }
 
     fn check_unique<T: Eq + std::hash::Hash + std::fmt::Display>(

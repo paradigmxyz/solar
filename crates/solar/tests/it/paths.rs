@@ -150,3 +150,29 @@ fn input_files_keep_leading_parent_segments() {
     assert_eq!(names.len(), 3, "{names:?}");
     assert!(names.iter().any(|name| name.ends_with("/shared/X.sol:Outer")), "{names:?}");
 }
+
+/// Like solc, imports only load files from the allowed directories: those of the input files and
+/// remapping targets, the base path, the include paths, and `--allow-paths`.
+#[test]
+fn allowed_paths() {
+    let dir = project(&[
+        ("proj/src/A.sol", "import \"o/O.sol\"; contract A {}"),
+        ("outside/O.sol", "contract O {}"),
+    ]);
+    let outside = dir.path().join("outside/O.sol");
+    let source = format!("import \"{}\"; contract B {{}}", outside.display());
+    std::fs::write(dir.path().join("proj/src/B.sol"), source).unwrap();
+    let proj = dir.path().join("proj");
+    let compiles = |args: &[&str]| compile(&proj, args).status.success();
+    assert!(compiles(&["src/A.sol", "o/=../outside/"]));
+    assert!(compiles(&["src/B.sol", "--allow-paths", "../outside"]));
+
+    let output = compile(&proj, &["src/B.sol"]);
+    snapbox::assert_data_eq!(
+        String::from_utf8(output.stderr).unwrap(),
+        snapbox::str![[r#"
+error: [..]/outside/O.sol is outside of the allowed directories
+...
+"#]]
+    );
+}

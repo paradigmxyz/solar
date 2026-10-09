@@ -149,6 +149,9 @@ fn config(cmd: &'static Path, args: &ui_test::Args, mode: Mode) -> ui_test::Conf
                 }
                 if mode.is_solc() {
                     args.push("--stop-after=parsing".into());
+                    // Multi-file tests import files outside of the directories that solc allows
+                    // by default.
+                    args.extend(["--allow-paths".into(), root.join(path).into()]);
                 }
                 args
             },

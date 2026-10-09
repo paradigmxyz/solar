@@ -132,3 +132,28 @@ fn leading_parent_segments_keep_source_unit_names() {
         "couldn't read ../shared/X.sol: File import callback not supported"
     );
 }
+
+/// The read callback receives a path in the base path, and the file keeps its source unit name, as
+/// with solc's file reader.
+#[test]
+fn callback_imports_with_base_path() {
+    struct Callback;
+
+    impl StandardJsonReadCallback for Callback {
+        fn read(&self, kind: &str, data: &str) -> ReadCallbackResult {
+            assert_eq!((kind, data), ("source", "lib/X.sol"));
+            ReadCallbackResult::Success("contract X {}".to_string())
+        }
+    }
+
+    let input = json!({
+        "language": "Solidity",
+        "sources": {"A.sol": {"content": "import \"X.sol\"; contract A {}"}},
+        "settings": {"outputSelection": {}}
+    });
+    let opts = CompileOpts { base_path: Some("lib".into()), ..Default::default() };
+    let mut output = Vec::new();
+    compile_standard_json(&input.to_string(), opts, Some(Arc::new(Callback)), &mut output).unwrap();
+    let output = serde_json::from_slice::<Value>(&output).unwrap();
+    assert_eq!(output, json!({"sources": {"A.sol": {"id": 1}, "X.sol": {"id": 0}}}));
+}

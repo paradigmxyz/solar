@@ -10,8 +10,6 @@ use std::{num::NonZeroUsize, path::PathBuf};
 #[cfg(feature = "clap")]
 use clap::{Parser, ValueHint};
 
-// TODO: implement `allow_paths`.
-
 /// Compilation configuration.
 #[derive(Clone, Debug, Default)]
 #[cfg_attr(feature = "clap", derive(Parser))]

@@ -69,8 +69,7 @@ Normalizing names has other effects. Remapping contexts match the normalized
 name, so a file reached through the target `./lib/` has the context `lib/...`
 in `solar` and `./lib/...` in `solc`. `solar` applies `..` segments before
 following symbolic links, so `link/../x.sol` names `x.sol` next to `link`, not
-next to its target. On Windows, names keep the drive letter, where `solc`
-drops it when it matches the current directory's drive.
+next to its target.
 
 Rationale: duplicate copies of one file only produce spurious conflicts. Build
 tools such as Foundry preload sources under relative names and pass absolute
@@ -124,11 +123,12 @@ Status: intentional.
 
 Difference: `solar` accepts `--include-path` without `--base-path`, using the
 current directory as the base path, and does not report an ambiguous import
-when several roots contain the same file, as with a repeated include path. It
-does not check the base path in Standard JSON mode. It does not restrict
-imports to allowed paths, so `--allow-paths` has no effect.
+when several roots contain the same file, as with a repeated include path. In
+Standard JSON mode, which does not access the file system, it does not check the
+base path and does not restrict imports to allowed paths.
 
-Rationale: these inputs have a single sensible meaning.
+Rationale: these inputs have a single sensible meaning, and Standard JSON reads
+imports only through the read callback.
 
 Coverage: `include_paths_without_base_path` in `crates/solar/tests/it/paths.rs`.
 

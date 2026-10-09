@@ -193,12 +193,14 @@ impl FileLoader for RealFileLoader {
 pub(crate) struct SourceRoots {
     pub(crate) base_path: Option<PathBuf>,
     pub(crate) include_paths: Vec<PathBuf>,
+    current_dir: Option<PathBuf>,
 }
 
 impl SourceRoots {
     /// Returns the source unit name of `path`, like solc does for command-line paths.
     pub(crate) fn source_unit_name<'a>(&self, path: &'a Path) -> &'a Path {
-        file_resolver::strip_root(path, self.base_path.iter().chain(&self.include_paths))
+        let roots = self.base_path.iter().chain(&self.include_paths);
+        file_resolver::source_unit_name(path, roots, self.current_dir.as_deref())
     }
 }
 
@@ -265,8 +267,13 @@ impl SourceMap {
     ///
     /// Source file names are displayed relative to them, and new file resolvers use the base path
     /// as their default.
-    pub(crate) fn set_roots(&self, base_path: Option<PathBuf>, include_paths: Vec<PathBuf>) {
-        self.roots.store(Some(Arc::new(SourceRoots { base_path, include_paths })));
+    pub(crate) fn set_roots(
+        &self,
+        base_path: Option<PathBuf>,
+        include_paths: Vec<PathBuf>,
+        current_dir: Option<PathBuf>,
+    ) {
+        self.roots.store(Some(Arc::new(SourceRoots { base_path, include_paths, current_dir })));
     }
 
     pub(crate) fn roots(&self) -> arc_swap::Guard<Option<Arc<SourceRoots>>> {
