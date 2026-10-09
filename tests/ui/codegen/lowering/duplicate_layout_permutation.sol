@@ -1,18 +1,19 @@
-//@ compile-flags: -O gas -Zdump=evm-ir-runtime -Zlegacy-stack-lowering
+//@ compile-flags: -O gas -Zdump=evm-ir-runtime
 //@ filecheck:
 //@ normalize-stdout-test: "(?s).+" -> ""
 
-// The stack entering the outer loop holds one value twice. Gas mode searches
-// such permutations exactly up to six words, so three swaps reach the loop
-// layout instead of two `exchange` pseudo-ops that lower to six swaps.
+// The stack entering the outer loop holds one value twice. The edge drops the
+// surplus copy and follows the layout's permutation cycle through the top with
+// plain swaps, instead of `exchange` pseudo-ops that lower to three swaps each.
 // CHECK-LABEL: @module Test_runtime
 // CHECK: calldatacopy
-// CHECK: dup 4
+// CHECK-NOT: exchange
+// CHECK: pop
+// CHECK-NEXT: swap 1
 // CHECK-NEXT: swap 2
 // CHECK-NEXT: swap 3
 // CHECK-NEXT: swap 4
 // CHECK-NEXT: jump bb{{[0-9]+}}
-// CHECK-NOT: exchange
 contract Test {
     function sort(uint256[] memory a) external pure returns (uint256[] memory) {
         assembly {

@@ -1,15 +1,14 @@
 //@ codegen-matrix: standard instructions
 //@ compile-flags: --evm-version amsterdam
-//@[instructions] compile-flags: -O gas -Zdump=disasm-runtime -Zlegacy-stack-lowering
+//@[instructions] compile-flags: -O gas -Zdump=disasm-runtime
 //@[instructions] filecheck:
 //@ run-call: check => true
 
 // Keep distinct, non-rematerializable values live beyond the legacy stack
 // window, then consume them in two different orders. Execute the same bytecode
-// whose disassembly requires all three EIP-8024 instructions.
+// whose disassembly requires the EIP-8024 `DUPN` and `SWAPN` instructions.
 // CHECK: DUPN
 // CHECK: SWAPN
-// CHECK: EXCHANGE
 
 contract ExtendedStack {
     function check() external view returns (bool result) {

@@ -1,6 +1,6 @@
 //@ revisions: ir run
-//@[ir] compile-flags: -Ogas -Zdump=evm-ir-runtime -Zlegacy-stack-lowering
-//@[ir] filecheck:
+//@[ir] compile-flags: -Ogas -Zdump=evm-ir-runtime
+//@[ir] filecheck: --implicit-check-not=mload
 //@[run] compile-flags: -Ogas
 //@ run-call: first 1, 2, 3, 4, 5, 6 => 49
 //@ run-call: second 1, 2, 3, 4, 5, 6 => 49
@@ -20,25 +20,17 @@ contract ResidentArgsExternalCall {
         return callAndSum(address(4), gasleft(), a, b, c, d, e, f);
     }
 
-    // Keep each argument and its derived value live while the shared helper reloads CALL's
-    // saved target and gas. Both entrypoints must preserve these values through the call.
+    // Keep each argument and its derived value live across CALL. Both entrypoints keep
+    // these values, CALL's target and its gas on the stack; nothing goes through memory.
     // CHECK-LABEL: @module ResidentArgsExternalCall_runtime
-    // CHECK: gas
-    // CHECK-NEXT: push 4
-    // CHECK-NEXT: push [[TARGET:[0-9]+]]
-    // CHECK-NEXT: mstore
-    // CHECK-NEXT: push [[GAS:[0-9]+]]
-    // CHECK-NEXT: mstore
     // CHECK-COUNT-6: {{^  add$}}
     // CHECK-NEXT: push 0
     // CHECK-NEXT: push 0
     // CHECK-NEXT: push 0
     // CHECK-NEXT: push 0
     // CHECK-NEXT: push 0
-    // CHECK-NEXT: push [[TARGET]]
-    // CHECK-NEXT: mload
-    // CHECK-NEXT: push [[GAS]]
-    // CHECK-NEXT: mload
+    // CHECK-NEXT: dup {{[0-9]+}}
+    // CHECK-NEXT: dup {{[0-9]+}}
     // CHECK-NEXT: call
     function callAndSum(
         address target,

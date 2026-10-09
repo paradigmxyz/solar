@@ -7,8 +7,8 @@ use crate::{
         evm::{
             DebugFunctionExit,
             codegen::{
-                EvmCodegen, StackModel, StackOp, select::opcode_lowering,
-                stack::rematerializable_nullary_value,
+                Body, EvmCodegen, StackOp, select::rematerializable_nullary_value,
+                values::gas_minus,
             },
             op::{self, WORD_BYTES},
         },
@@ -31,25 +31,9 @@ impl<'gcx> EvmCodegen<'gcx> {
         mut plans: IndexVec<FunctionId, Option<FunctionPlan>>,
     ) {
         let entry = info.entry;
-        // The switch planner prices tail calls to empty bodies as shared terminals.
-        self.collect_empty_stop_functions(module);
-        // Spill words and frame objects of non-recursive internal functions live at fixed
-        // addresses; recursive functions own no frame.
-        for func_id in info.internal.iter() {
-            if !call_graph.is_recursive(func_id) {
-                self.static_frame_functions.insert(func_id);
-            }
-        }
-        self.runtime_stack_args = true;
-        for (func_id, plan) in plans.iter_enumerated() {
-            if plan.is_some() && func_id != entry {
-                let label = self.new_function_label(func_id);
-                self.function_labels.insert(func_id, label);
-            }
-        }
+        self.register_stackified_functions(call_graph, info, &plans);
 
         self.record_runtime_entry_reachability(call_graph, entry);
-        self.in_internal_function = false;
         self.emitting_entry = info.emitting_entry;
         let plan = plans[entry].take().expect("entry plan");
         self.emit_stackified_body(entry, &module.functions[entry], plan);
@@ -63,23 +47,12 @@ impl<'gcx> EvmCodegen<'gcx> {
             let Some(plan) = plans[func_id].take() else { continue };
             self.asm.define_label(self.function_labels[&func_id]);
             self.mark_debug_function_invoke(func);
-            self.in_internal_function = false;
             self.emit_entry_free_memory_start(module, call_graph, func_id);
             self.emit_stackified_body(func_id, func, plan);
             self.runtime_entry_funcs.push(func_id);
         }
 
-        for func_id in info.internal.iter() {
-            let Some(plan) = plans[func_id].take() else { continue };
-            let func = &module.functions[func_id];
-            self.asm.define_label(self.function_labels[&func_id]);
-            self.mark_debug_function_invoke(func);
-            self.in_internal_function = true;
-            self.current_internal_function = Some(func_id);
-            self.emit_stackified_body(func_id, func, plan);
-            self.in_internal_function = false;
-            self.current_internal_function = None;
-        }
+        self.emit_internal_bodies(module, info, &mut plans);
 
         self.pack_scalar_static_frames(module);
         self.resolve_static_frames(module);
@@ -96,43 +69,25 @@ impl<'gcx> EvmCodegen<'gcx> {
         mut plans: IndexVec<FunctionId, Option<FunctionPlan>>,
     ) {
         let constructor = info.entry;
-        self.collect_empty_stop_functions(module);
-        self.runtime_stack_args = true;
         self.static_frame_functions.insert(constructor);
-        for func_id in info.internal.iter() {
-            self.static_frame_functions.insert(func_id);
-            if call_graph.is_recursive(func_id) {
-                self.recursive_frame_functions.insert(func_id);
-            }
-            let label = self.new_function_label(func_id);
-            self.function_labels.insert(func_id, label);
-        }
+        self.register_stackified_functions(call_graph, info, &plans);
 
         // push constructor; jump; <helpers>; constructor:
         let constructor_label = self.asm.new_label();
         if !info.internal.is_empty() {
-            self.emit_push_label(constructor_label);
+            self.asm.emit_push_label(constructor_label);
             self.asm.emit_op(op::JUMP);
         }
-        for func_id in info.internal.iter() {
-            let Some(plan) = plans[func_id].take() else { continue };
-            let func = &module.functions[func_id];
-            self.asm.define_label(self.function_labels[&func_id]);
-            self.mark_debug_function_invoke(func);
-            self.in_internal_function = true;
-            self.current_internal_function = Some(func_id);
-            self.emit_stackified_body(func_id, func, plan);
-            self.in_internal_function = false;
-        }
+        self.emit_internal_bodies(module, info, &mut plans);
         if !info.internal.is_empty() {
             self.asm.define_label(constructor_label);
         }
         let func = &module.functions[constructor];
         self.mark_debug_function_invoke(func);
-        self.current_internal_function = Some(constructor);
+        self.body = Body::Constructor(constructor);
         let plan = plans[constructor].take().expect("constructor plan");
         self.emit_stackified_body(constructor, func, plan);
-        self.current_internal_function = None;
+        self.body = Body::External;
 
         self.pack_scalar_static_frames(module);
         // Allocations stay dynamic: the constructor's heap starts above its argument copy.
@@ -143,17 +98,52 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
     }
 
+    /// Gives every internal function a fixed frame, and every planned function but the entry a
+    /// label. A recursive function's frame lies apart from the others: its callers keep the
+    /// words they still need on the stack across calls that may reenter it.
+    fn register_stackified_functions(
+        &mut self,
+        call_graph: &CallGraphInfo,
+        info: &ModuleInfo,
+        plans: &IndexVec<FunctionId, Option<FunctionPlan>>,
+    ) {
+        for func_id in info.internal.iter() {
+            self.static_frame_functions.insert(func_id);
+            if call_graph.is_recursive(func_id) {
+                self.recursive_frame_functions.insert(func_id);
+            }
+        }
+        for (func_id, plan) in plans.iter_enumerated() {
+            if plan.is_some() && func_id != info.entry {
+                let label = self.new_function_label(func_id);
+                self.function_labels.insert(func_id, label);
+            }
+        }
+    }
+
+    fn emit_internal_bodies(
+        &mut self,
+        module: &Module,
+        info: &ModuleInfo,
+        plans: &mut IndexVec<FunctionId, Option<FunctionPlan>>,
+    ) {
+        for func_id in info.internal.iter() {
+            let Some(plan) = plans[func_id].take() else { continue };
+            let func = &module.functions[func_id];
+            self.asm.define_label(self.function_labels[&func_id]);
+            self.mark_debug_function_invoke(func);
+            self.body = Body::Internal(func_id);
+            self.emit_stackified_body(func_id, func, plan);
+        }
+        self.body = Body::External;
+    }
+
     fn emit_stackified_body(&mut self, func_id: FunctionId, func: &Function, plan: FunctionPlan) {
-        self.scheduler.reset();
+        // Spill slots: the spilled values in value order, then the return address.
+        self.spill_slots.clear();
+        self.spill_slots.extend(plan.spilled.iter().zip(0..));
+        self.ret_spill_slot = plan.ret_spilled.then_some(self.spill_slots.len() as u32);
         self.spill_addr_consts.clear();
-        self.spill_stores.clear();
-        self.spill_loads.clear();
-        for value in plan.spilled.iter() {
-            self.scheduler.spills.reserve(value);
-        }
-        if plan.ret_spilled {
-            self.scheduler.spills.reserve(ret_slot_key(func));
-        }
         self.cold_blocks = self.collect_cold_blocks(func);
         self.block_labels.clear();
         let cfg = CfgInfo::new(func);
@@ -251,8 +241,8 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.asm.set_modifier_depth(0);
         }
 
-        self.function_stack_peaks.insert(func_id, plan.peak);
-        self.record_function_spill_size(func_id);
+        let spill_words = self.spill_slots.len() + usize::from(plan.ret_spilled);
+        self.function_spill_sizes.insert(func_id, spill_words as u64 * EvmMemoryLayout::WORD_SIZE);
         self.assign_ranked_spill_addrs(func_id);
     }
 
@@ -310,10 +300,9 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
                 self.emit_stackified_jump(resolve(fall.target), next);
             }
-            Exit::Switch { value, default, cases, trampolines: switch_trampolines } => {
-                // The switch emitter reads the physical stack model: the scrutinee on top of
-                // words it must preserve for every target. Targets with trampolines jump to
-                // them instead of the block.
+            Exit::Switch { default, cases, trampolines: switch_trampolines } => {
+                // The scrutinee is on top of the words every target expects below it. Targets
+                // with trampolines jump to them instead of the block.
                 let mut restore = Vec::new();
                 for (target, steps) in switch_trampolines {
                     let label = self.asm.new_label();
@@ -321,11 +310,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     restore.push((*target, self.block_labels.insert(*target, label).unwrap()));
                 }
                 let next = next.filter(|next| !restore.iter().any(|(target, _)| target == next));
-                let mut stack = StackModel::new();
-                stack.push(*value);
-                self.scheduler.stack = stack;
-                self.emit_switch_terminator(func, *value, *default, cases, next, true);
-                self.scheduler.clear_stack();
+                self.emit_switch_terminator(func, *default, cases, next);
                 for (target, label) in restore {
                     self.block_labels.insert(target, label);
                 }
@@ -357,10 +342,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     self.mark_debug_function_exit(func, DebugFunctionExit::Return);
                 }
                 Terminator::Invalid => self.asm.emit_op(op::INVALID),
-                Terminator::RevertReturndata => {
-                    self.emit_revert_returndata();
-                    self.scheduler.clear_stack();
-                }
+                Terminator::RevertReturndata => self.emit_revert_returndata(),
                 Terminator::Return { .. } => self.emit_external_return(func),
                 Terminator::Jump(_)
                 | Terminator::Branch { .. }
@@ -376,25 +358,19 @@ impl<'gcx> EvmCodegen<'gcx> {
         match *step {
             Step::Stack(op) => self.asm.emit_stack_op(op),
             Step::Materialize(value) => self.emit_materialized(func, value),
-            Step::Reload(value) => {
-                let slot = self.scheduler.spills.get(value).expect("reserved spill slot");
-                self.emit_spill_load(func, slot);
-            }
+            Step::Reload(value) => self.emit_spill_load(func, self.spill_slots[&value]),
             Step::Spill(value) => {
                 // push slot; mstore
-                let slot = self.scheduler.spills.get(value).expect("reserved spill slot");
-                self.emit_spill_slot_addr(func, slot);
+                self.emit_spill_slot_addr(func, self.spill_slots[&value]);
                 self.asm.emit_op(op::MSTORE);
             }
             Step::SpillRet => {
                 // push slot; mstore
-                let slot = self.scheduler.spills.get(ret_slot_key(func)).expect("return slot");
-                self.emit_spill_slot_addr(func, slot);
+                self.emit_spill_slot_addr(func, self.ret_spill_slot.expect("return slot"));
                 self.asm.emit_op(op::MSTORE);
             }
             Step::ReloadRet => {
-                let slot = self.scheduler.spills.get(ret_slot_key(func)).expect("return slot");
-                self.emit_spill_load(func, slot);
+                self.emit_spill_load(func, self.ret_spill_slot.expect("return slot"))
             }
             Step::Filler => self.asm.emit_push(U256::ZERO),
             Step::Begin(inst) => {
@@ -461,8 +437,8 @@ impl<'gcx> EvmCodegen<'gcx> {
             Value::Inst(inst) => match &func.inst(*inst).kind {
                 InstKind::DataSize(size) => self.asm.emit_push_data_size(*size),
                 InstKind::Gas => self.asm.emit_op(op::GAS),
-                InstKind::Sub(_, reserve) => {
-                    self.emit_gas_minus(func.value_u256(*reserve).expect("constant gas reserve"));
+                InstKind::Sub(..) if let Some((_, reserve)) = gas_minus(func, value) => {
+                    self.emit_gas_minus(reserve);
                 }
                 InstKind::Zext(operand)
                 | InstKind::PtrToInt(operand, _)
@@ -477,12 +453,11 @@ impl<'gcx> EvmCodegen<'gcx> {
                         return;
                     }
                     // A recomputed value: its operands in push order, then its opcode.
-                    let lowering =
-                        opcode_lowering(&kind.op()).expect("recomputed value has an opcode");
+                    let opcode = kind.evm_opcode().expect("recomputed value has an opcode");
                     for &operand in kind.operands().iter().rev() {
                         self.emit_materialized(func, operand);
                     }
-                    self.asm.emit_op(lowering.opcode());
+                    self.asm.emit_op(opcode);
                 }
             },
             Value::Arg(index) if self.in_constructor => self.emit_constructor_arg_load(*index),
@@ -526,9 +501,4 @@ impl<'gcx> EvmCodegen<'gcx> {
             kind => unreachable!("instruction `{}` has no custom stack lowering", kind.mnemonic()),
         }
     }
-}
-
-/// The spill-slot key of a function's return address: one past its values.
-fn ret_slot_key(func: &Function) -> ValueId {
-    ValueId::from_usize(func.num_values())
 }

@@ -1,6 +1,4 @@
-//@ codegen-matrix: standard legacy-stack
-//@[legacy-stack] compile-flags: -O size -Zlegacy-stack-lowering -Zdump=evm-ir-runtime
-//@[legacy-stack] filecheck:
+//@ codegen-matrix: standard
 //@[size] compile-flags: -Zdump=evm-ir-runtime
 //@[size] filecheck: --check-prefix=STACK
 //@ run-call: run 2 => 63
@@ -9,12 +7,6 @@
 contract RepeatedStackArgs {
     uint256 private state;
 
-    // CHECK-LABEL: @module RepeatedStackArgs_runtime
-    // CHECK: add
-    // CHECK-NEXT: dup 1
-    // CHECK-NEXT: push [[RETURN:bb[0-9]+]]
-    // CHECK-NEXT: swap 2
-    // CHECK-NEXT: jump
     // STACK-LABEL: @module RepeatedStackArgs_runtime
     // STACK: add
     // STACK-NEXT: dup 1

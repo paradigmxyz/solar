@@ -1,15 +1,14 @@
-//@ compile-flags: -O gas -Zdump=evm-ir-runtime -Zlegacy-stack-lowering
+//@ compile-flags: -O gas -Zdump=evm-ir-runtime
 //@ filecheck:
 //@ normalize-stdout-test: "(?s).+" -> ""
 
-// Keeping both arrays on the stack across the low-memory copy leaves a
-// redundant copy of a word on top. Gas mode pops it while arranging the next
-// operands, so staging the child's creation code needs no deeper `dup`s.
+// Both arrays stay on the stack across the low-memory copy, so staging the
+// child's creation code reaches its size and destination with shallow `dup`s.
 // CHECK: push_data Child_creation_code_0
 // CHECK-NEXT: dup 3
 // CHECK-NEXT: codecopy
-// CHECK-NEXT: swap 2
-// CHECK-NEXT: dup 3
+// CHECK-NEXT: push {{[0-9]+}}
+// CHECK-NEXT: dup 2
 // CHECK-NEXT: add
 contract Child {
     constructor(address[] memory, uint256[] memory, uint256) {}

@@ -1,34 +1,12 @@
-//@ codegen-matrix: standard legacy-stack
-//@[legacy-stack] compile-flags: -O gas -Zlegacy-stack-lowering -Zdump=evm-ir-runtime
-//@[legacy-stack] filecheck:
-//@[legacy-stack] normalize-stdout-test: "(?s).+" -> ""
+//@ codegen-matrix: standard
 //@ run-call: toHexStringNoPrefix 0x => ""
 //@ run-call: toHexStringNoPrefix 0x00abff => "00abff"
 //@ run-call: prefixed 0x => "0x"
 //@ run-call: prefixed 0x00abff => "0x00abff"
 
 // The shared helper keeps its free-memory pointer, result, and loop end on the
-// stack. Its entry block must participate in spill cleanup, even though the
-// caller created that EVM IR block before generating the function body.
+// stack across its loop.
 // Reduced from Solady v0.1.26 LibString.toHexStringNoPrefix (MIT).
-//
-// CHECK: [[RETURN:bb[0-9]+]] [continuation]:
-// CHECK-NEXT: push {{bb[0-9]+}}
-// CHECK-NEXT: swap 1
-// CHECK-NEXT: jump [[HELPER:bb[0-9]+]]
-// CHECK-NEXT: [[HELPER]]:
-// CHECK-NEXT: dup 1
-// CHECK-NEXT: dup 1
-// CHECK-NEXT: mload
-// CHECK-NEXT: push 64
-// CHECK-NEXT: mload
-// CHECK: push 2
-// CHECK-NEXT: add
-// CHECK-NEXT: dup 2
-// CHECK-NEXT: dup 1
-// CHECK-NEXT: add
-// CHECK-NEXT: dup 2
-// CHECK-NEXT: mstore
 contract EntrySpillCleanup {
     function prefixed(bytes memory raw) external pure returns (string memory result) {
         result = toHexStringNoPrefix(raw);

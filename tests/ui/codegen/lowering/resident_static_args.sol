@@ -1,6 +1,6 @@
 //@ revisions: ir run
-//@[ir] compile-flags: -Ogas -Zdump=evm-ir-runtime -Zlegacy-stack-lowering
-//@[ir] filecheck:
+//@[ir] compile-flags: -Ogas -Zdump=evm-ir-runtime
+//@[ir] filecheck: --implicit-check-not=mload
 //@[run] compile-flags: -Ogas
 //@ run-call: run 40, false => 126
 //@ run-call: run 40, true => 123
@@ -27,28 +27,12 @@ contract ResidentStaticArgs {
     // CHECK-NEXT: lt
     // CHECK-NEXT: push {{bb[0-9]+}}
     // CHECK-NEXT: jumpi
-    // CHECK-NEXT: push [[RET:bb[0-9]+]]
-    // CHECK-NEXT: push 4
-    // CHECK-NEXT: calldataload
     // CHECK-NEXT: push 36
     // CHECK-NEXT: calldataload
-    // CHECK-NEXT: jump [[CHOOSE:bb[0-9]+]]
-    // CHECK-NEXT: [[CHOOSE]]:
-    // CHECK-NEXT: push [[OTHER:bb[0-9]+]]
-    // CHECK-NEXT: jumpi
-    // CHECK-NEXT: push 2
-    // CHECK-NEXT: dup 2
-    // CHECK-NEXT: add
-    // CHECK-NEXT: swap 1
-    // CHECK-NEXT: dup 2
-    // CHECK-NEXT: lt
+    // CHECK-NEXT: push 4
+    // CHECK-NEXT: calldataload
     // CHECK-NEXT: push {{bb[0-9]+}}
-    // CHECK-NEXT: jumpi
-    // CHECK-NOT: mload
-    // CHECK-NOT: mstore
-    // CHECK: swap 1
-    // CHECK-NEXT: jump
-    // CHECK-NEXT: [[RET]] [continuation]:
+    // CHECK-NEXT: jump {{bb[0-9]+}}
     function run(uint256 value, bool first) external pure returns (uint256) {
         return choose(value, first) * 3;
     }

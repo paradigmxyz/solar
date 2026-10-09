@@ -447,11 +447,6 @@ pub struct UnstableOpts {
     #[cfg_attr(feature = "clap", arg(long))]
     pub assert_planned_edge_spill_home: bool,
 
-    /// Lower runtime code with the frame-backed stack scheduler instead of keeping values
-    /// stack-resident across blocks and calls.
-    #[cfg_attr(feature = "clap", arg(long))]
-    pub legacy_stack_lowering: bool,
-
     /// Drop the compiler context after compilation.
     /// Library callers can enable this to reclaim memory between compilations.
     #[cfg_attr(feature = "clap", arg(skip))]

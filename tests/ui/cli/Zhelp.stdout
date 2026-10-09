@@ -75,9 +75,6 @@ Options:
       -Zassert-planned-edge-spill-home
           Assert instead of logging when a value is live across a planned stack edge into an already-emitted block without a spill home
 
-      -Zlegacy-stack-lowering
-          Lower runtime code with the frame-backed stack scheduler instead of keeping values stack-resident across blocks and calls
-
       -Zhelp
           Print help
 

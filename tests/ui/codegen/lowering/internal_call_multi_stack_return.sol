@@ -1,6 +1,6 @@
 //@ revisions: ir run size
-//@[ir] compile-flags: -Ogas -Zdump=evm-ir-runtime -Zlegacy-stack-lowering
-//@[ir] filecheck:
+//@[ir] compile-flags: -Ogas -Zdump=evm-ir-runtime
+//@[ir] filecheck: --implicit-check-not=mload
 //@[run] compile-flags: -Ogas
 //@[size] compile-flags: -Osize
 //@ run-call: pair 2 => 209, 364
@@ -11,16 +11,16 @@
 //@ run-call: sumSix 2 => 10599
 
 contract ICallMultiStackReturn {
-    // A two-word stack return rotates the hidden return label above both results.
+    // Multi-word results return on the stack, with the return address moved on top of
+    // them; no caller reads results back from memory.
     // CHECK-LABEL: @module ICallMultiStackReturn_runtime
-    // CHECK: push 192
-    // CHECK-NEXT: push 64
-    // CHECK-NEXT: mstore
-    // CHECK: push [[PAIR_RETURN:bb[0-9]+]]
-    // CHECK: jump [[PAIR_HELPER:bb[0-9]+]]
-    // CHECK: [[PAIR_HELPER]]:
-    // CHECK: swap 2
-    // CHECK-NEXT: jump
+    // A two-word return swaps the return address above both results.
+    // CHECK: mul{{[[:space:]]+}}swap 1{{[[:space:]]+}}jump{{$}}
+    // Three results reach their order and the return address in three swaps.
+    // CHECK: swap 1{{[[:space:]]+}}swap 3{{[[:space:]]+}}swap 2{{[[:space:]]+}}jump{{$}}
+    // Six results are already live on the stack; the return reuses those words in place
+    // instead of duplicating the tuple.
+    // CHECK: swap 6{{[[:space:]]+}}swap 2{{[[:space:]]+}}swap 4{{[[:space:]]+}}swap 6{{[[:space:]]+}}jump{{$}}
     function pair(uint256 x) external pure returns (uint256, uint256) {
         return pairHelper(x);
     }
@@ -46,15 +46,6 @@ contract ICallMultiStackReturn {
         }
     }
 
-    // Three results exercise the complete SWAP1..SWAP3 return-label rotation.
-    // CHECK: push 224
-    // CHECK-NEXT: push 64
-    // CHECK-NEXT: mstore
-    // CHECK: push [[TRIPLE_RETURN:bb[0-9]+]]
-    // CHECK: jump [[TRIPLE_HELPER:bb[0-9]+]]
-    // CHECK: [[TRIPLE_HELPER]]:
-    // CHECK: swap 3
-    // CHECK-NEXT: jump
     function triple(uint256 x) external pure returns (uint256, uint256, uint256) {
         return tripleHelper(x);
     }
@@ -90,19 +81,6 @@ contract ICallMultiStackReturn {
         }
     }
 
-    // Six results exercise a return whose values are already live on the physical stack. The
-    // return shuffler must reuse those words instead of duplicating the entire tuple beyond its
-    // requested layout.
-    // CHECK: push 320
-    // CHECK-NEXT: push 64
-    // CHECK-NEXT: mstore
-    // CHECK: push [[SIX_RETURN:bb[0-9]+]]
-    // CHECK: jump [[SIX_HELPER:bb[0-9]+]]
-    // CHECK: [[SIX_HELPER]]:
-    // CHECK: swap 6
-    // CHECK-NEXT: exchange 1, 4
-    // CHECK-NEXT: exchange 2, 3
-    // CHECK-NEXT: jump
     function six(uint256 x)
         external
         pure

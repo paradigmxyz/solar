@@ -3,9 +3,7 @@
 //! This lowering keeps every MIR value on the EVM stack for its whole lifetime, across blocks
 //! and internal calls, and uses memory only for values that would otherwise fall out of `DUP`
 //! and `SWAP` reach. It plans the runtime, and separately the constructor with the helpers it
-//! calls, at every optimization level. A shape it does not implement keeps the general emitter
-//! for that whole artifact, so the two calling conventions never meet; `-Zlegacy-stack-lowering`
-//! always uses the general emitter.
+//! calls, at every optimization level. A shape it does not implement is a codegen error.
 //!
 //! ## Calling convention
 //!
@@ -71,7 +69,7 @@
 //! room, the return address moves to a slot on entry and is reloaded to return, and a shuffle
 //! that still cannot move a deep word instead pops down to the words already in place and pushes
 //! the rest of its target. A join that no incoming edge can propose a layout for takes its live
-//! words by value. Spill slots reuse the general emitter's frame and spill-area placement. A
+//! words by value. Spill slots use the frame and spill-area placement in `frames`. A
 //! value live across a write that may reach the low spill area, such as a copy to a computed
 //! address, stays on the stack unless stable arithmetic over calldata, constants and stable
 //! reads recomputes it at each use.
@@ -86,15 +84,18 @@
 //! then with their return addresses in memory too, until it fits.
 //!
 //! The plan of a function is complete before any code is emitted, so a failure leaves no partial
-//! output. Emission follows the general emitter's block order. Blocks that only jump on are
+//! output. Emission follows the block order of `function`. Blocks that only jump on are
 //! skipped, and a branch whose successors both need a jump falls through into a trampoline.
 
 use super::{
-    BlockId, CallGraphInfo, CfgInfo, DenseBitSet, EvmCodegen, FunctionId, FxHashMap, IndexVec,
-    InstId, InstKind, LoopAnalyzer, MAX_STACK_DEPTH, Module, StackOp, Terminator, Value, ValueId,
-    index_vec, stack::rematerializable_nullary_value,
+    BlockId, CallGraphInfo, CfgInfo, DenseBitSet, EvmCodegen, Function, FunctionId, FxHashMap,
+    IndexVec, InstId, InstKind, Liveness, LoopAnalyzer, MAX_STACK_DEPTH, Module, StackOp,
+    Terminator, Value, ValueId, index_vec, select::rematerializable_nullary_value,
 };
-use crate::{mir::Callee, target::Cost};
+use crate::{
+    mir::{ArgIdx, Callee, analysis::LoopInfo},
+    target::{Cost, Target},
+};
 use smallvec::SmallVec;
 
 mod emit;
@@ -182,7 +183,6 @@ enum Exit {
     /// Dispatches on the top word through the switch emitter. Targets with trampolines are
     /// entered through them.
     Switch {
-        value: ValueId,
         default: BlockId,
         cases: Vec<(ValueId, BlockId)>,
         trampolines: Vec<(BlockId, Vec<Step>)>,
@@ -215,8 +215,8 @@ enum Victim {
 #[derive(Clone, Debug)]
 enum Fail {
     /// A word is beyond reach. Spilling the victim, when given, may make the function
-    /// plannable. The other spillable values beyond reach at that point, deepest first, are
-    /// spilled along with it once single spills stop converging.
+    /// plannable. Once spills come in batches, the failure also lists the other spillable
+    /// values beyond reach at that point, deepest first.
     Deep(Option<Victim>, SmallVec<[ValueId; 8]>),
     /// The function uses a shape this lowering does not implement.
     Unsupported(&'static str),
@@ -242,8 +242,6 @@ struct ModuleInfo {
     /// Internal functions entered with a return address. The others never return and are only
     /// entered through tail calls.
     returning: DenseBitSet<FunctionId>,
-    /// Functions that are part of a recursive call cycle.
-    recursive: DenseBitSet<FunctionId>,
     /// The recursive component of each recursive function, by its smallest member. A call
     /// within a component can start another activation of the caller, which reuses the
     /// caller's fixed frame.
@@ -253,7 +251,22 @@ struct ModuleInfo {
     /// Parameters of each function.
     params: IndexVec<FunctionId, usize>,
     entry: FunctionId,
+    /// Whether `entry` is the runtime dispatch entry, whose switch leaves its selector on the
+    /// stack.
     emitting_entry: bool,
+}
+
+/// Facts about one function that every planning attempt shares.
+struct Analysis {
+    liveness: Liveness,
+    cfg: CfgInfo,
+    loops: LoopInfo,
+    /// Values live across a write that may overwrite spill slots; they cannot spill.
+    pinned: DenseBitSet<ValueId>,
+    /// Values that stable arithmetic recomputes from fresh words, with the cost and number of
+    /// opcodes of doing so. A pinned one of them leaves the stack this way instead of through
+    /// memory.
+    recomputable: FxHashMap<ValueId, (Cost, u32)>,
 }
 
 /// What a function moves to memory to shorten the stack it keeps below its calls, raised for
@@ -267,6 +280,17 @@ enum CallSpill {
     ValuesAndReturn,
 }
 
+/// Why an artifact could not be lowered.
+enum Decline {
+    /// The non-recursive call graph cannot fit the EVM stack.
+    StackLimit,
+    /// A word beyond reach cannot spill because it is live across a write that may reach the
+    /// spill area.
+    Pinned(FunctionId),
+    /// The function uses a shape this lowering does not implement.
+    Unsupported(FunctionId, &'static str),
+}
+
 /// Planning restarts that spill one value each before spills come in batches.
 const SINGLE_SPILL_RESTARTS: u32 = 64;
 
@@ -274,18 +298,18 @@ const SINGLE_SPILL_RESTARTS: u32 = 64;
 const LAYOUT_ROUNDS: usize = 4;
 
 impl<'gcx> EvmCodegen<'gcx> {
-    /// Emits the runtime with the stack-resident lowering. Returns `false`, with no code
-    /// emitted, when some function needs the general emitter.
-    pub(super) fn try_emit_runtime_stackified(
-        &mut self,
-        module: &Module,
-        call_graph: &CallGraphInfo,
-    ) -> bool {
-        if self.gcx.sess.opts.unstable.legacy_stack_lowering {
-            return false;
-        }
-        let Some(entry) = module.dispatch_entry() else { return false };
+    /// Emits the runtime: the dispatch entry, the external entries, and the internal functions
+    /// they call.
+    pub(super) fn emit_runtime(&mut self, module: &Module, call_graph: &CallGraphInfo) {
+        let Some(entry) = module.dispatch_entry() else {
+            assert!(
+                !module.functions.iter().any(Self::is_external_entry),
+                "evm-shaped module with a runtime interface must have a MIR `entry` function"
+            );
+            return;
+        };
         let internal_targets = Self::internal_call_targets(module, call_graph, entry);
+        let emitting_entry = Liveness::is_block_local(&module.functions[entry]);
         let bodies = module
             .functions
             .iter_enumerated()
@@ -297,40 +321,46 @@ impl<'gcx> EvmCodegen<'gcx> {
             })
             .map(|(func_id, _)| func_id)
             .collect();
-        match self.plan_stackified(module, call_graph, entry, bodies) {
-            Ok((info, plans)) => {
-                self.emit_runtime_stackified(module, call_graph, &info, plans);
-                true
-            }
-            Err(reason) => {
-                tracing::debug!(module = %module.name, reason, "stack-resident lowering declined");
-                false
-            }
+        match self.plan_stackified(module, call_graph, entry, emitting_entry, bodies) {
+            Ok((info, plans)) => self.emit_runtime_stackified(module, call_graph, &info, plans),
+            Err(decline) => self.report_decline(module, decline),
         }
     }
 
-    /// Emits the constructor and the helpers it calls with the stack-resident lowering.
-    /// Returns `false`, with no code emitted, when some function needs the general emitter.
-    pub(super) fn try_emit_constructor_stackified(
+    /// Emits the constructor and the helpers it calls.
+    pub(super) fn emit_constructor(
         &mut self,
         module: &Module,
         call_graph: &CallGraphInfo,
         constructor: FunctionId,
-    ) -> bool {
-        if self.gcx.sess.opts.unstable.legacy_stack_lowering {
-            return false;
+        internal_targets: &DenseBitSet<FunctionId>,
+    ) {
+        let bodies = std::iter::once(constructor).chain(internal_targets.iter()).collect();
+        match self.plan_stackified(module, call_graph, constructor, false, bodies) {
+            Ok((info, plans)) => self.emit_constructor_stackified(module, call_graph, &info, plans),
+            Err(decline) => self.report_decline(module, decline),
         }
-        let bodies = std::iter::once(constructor)
-            .chain(call_graph.reachable_callees_from([constructor]).iter())
-            .collect();
-        match self.plan_stackified(module, call_graph, constructor, bodies) {
-            Ok((info, plans)) => {
-                self.emit_constructor_stackified(module, call_graph, &info, plans);
-                true
+    }
+
+    fn report_decline(&self, module: &Module, decline: Decline) {
+        match decline {
+            Decline::StackLimit => self.report_stack_limit_error(),
+            Decline::Pinned(func) => {
+                self.gcx
+                    .dcx()
+                    .err(format!(
+                        "codegen cannot preserve values across a low-memory forwarding buffer in `{}`",
+                        module.functions[func].name
+                    ))
+                    .emit();
             }
-            Err(reason) => {
-                tracing::debug!(module = %module.name, reason, "stack-resident lowering declined");
-                false
+            Decline::Unsupported(func, reason) => {
+                let func = &module.functions[func];
+                self.gcx
+                    .dcx()
+                    .err(format!("codegen cannot lower `{}`: {reason}", func.name))
+                    .span(func.name_span)
+                    .emit();
             }
         }
     }
@@ -342,8 +372,9 @@ impl<'gcx> EvmCodegen<'gcx> {
         module: &Module,
         call_graph: &CallGraphInfo,
         entry: FunctionId,
+        emitting_entry: bool,
         bodies: Vec<FunctionId>,
-    ) -> Result<(ModuleInfo, IndexVec<FunctionId, Option<FunctionPlan>>), &'static str> {
+    ) -> Result<(ModuleInfo, IndexVec<FunctionId, Option<FunctionPlan>>), Decline> {
         let functions = module.functions.len();
         let mut internal = DenseBitSet::new_empty(functions);
         for &func_id in &bodies {
@@ -356,10 +387,16 @@ impl<'gcx> EvmCodegen<'gcx> {
                         .instructions()
                         .any(|inst| matches!(func.inst(inst).kind, InstKind::InternalFrameAddr(_)))
                     {
-                        return Err("recursive function with a frame object");
+                        return Err(Decline::Unsupported(
+                            func_id,
+                            "recursive function with a frame object",
+                        ));
                     }
                 } else if !Self::static_frame_offsets_are_local(func) {
-                    return Err("frame address outside the local region");
+                    return Err(Decline::Unsupported(
+                        func_id,
+                        "frame address outside the local region",
+                    ));
                 }
             }
         }
@@ -405,38 +442,39 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
         returning.intersect(&internal);
 
-        let mut recursive = DenseBitSet::new_empty(functions);
+        // Recursive components, numbered by their smallest member. A component's members are
+        // all bodies, since bodies are closed under calls.
         let mut components = index_vec![None; functions];
-        for func_id in module.functions.indices() {
-            if call_graph.is_recursive(func_id) {
-                recursive.insert(func_id);
-                if components[func_id].is_none() {
-                    let component = call_graph.recursive_component(func_id);
-                    for member in component.iter() {
-                        components[member] = Some(func_id);
-                    }
+        for &func_id in &bodies {
+            if components[func_id].is_none() && call_graph.is_recursive(func_id) {
+                for member in call_graph.recursive_component(func_id).iter() {
+                    components[member] = Some(func_id);
                 }
             }
         }
         let info = ModuleInfo {
             internal,
             returning,
-            recursive,
             components,
             returns: module.functions.iter().map(|func| func.return_components().len()).collect(),
             params: module.functions.iter().map(|func| func.params.len()).collect(),
             entry,
-            emitting_entry: super::Liveness::compute_block_local_for_codegen(
-                &module.functions[entry],
-            )
-            .is_some(),
+            emitting_entry,
         };
 
+        let mut analyses: IndexVec<FunctionId, Option<Analysis>> =
+            (0..functions).map(|_| None).collect();
         let mut plans: IndexVec<FunctionId, Option<FunctionPlan>> =
             (0..functions).map(|_| None).collect();
         for &func_id in &bodies {
-            plans[func_id] =
-                Some(self.plan_function_stackified(module, &info, func_id, CallSpill::None)?);
+            let analysis = analyses[func_id].insert(self.analyze(module, &info, func_id));
+            plans[func_id] = Some(self.plan_function_stackified(
+                module,
+                &info,
+                func_id,
+                analysis,
+                CallSpill::None,
+            )?);
         }
 
         // A call chain deeper than the EVM stack: its callers move words to memory, values
@@ -444,23 +482,46 @@ impl<'gcx> EvmCodegen<'gcx> {
         let mut call_spills = index_vec![CallSpill::None; functions];
         while let Some(chain) = Self::overflowing_chain(module, call_graph, &plans) {
             let Some(level) = chain.iter().map(|&func_id| call_spills[func_id]).min() else {
-                return Err("stack limit");
+                return Err(Decline::StackLimit);
             };
             let next = match level {
                 CallSpill::None => CallSpill::Values,
                 CallSpill::Values => CallSpill::ValuesAndReturn,
-                CallSpill::ValuesAndReturn => return Err("stack limit"),
+                CallSpill::ValuesAndReturn => return Err(Decline::StackLimit),
             };
-            tracing::debug!(module = %module.name, callers = chain.len(), ?next, "call chain deeper than the EVM stack");
+            tracing::debug!(
+                module = %module.name,
+                callers = chain.len(),
+                ?next,
+                "call chain deeper than the EVM stack"
+            );
             for &func_id in &chain {
                 if call_spills[func_id] == level {
                     call_spills[func_id] = next;
-                    plans[func_id] =
-                        Some(self.plan_function_stackified(module, &info, func_id, next)?);
+                    let analysis = analyses[func_id].as_ref().expect("planned body");
+                    plans[func_id] = Some(
+                        self.plan_function_stackified(module, &info, func_id, analysis, next)?,
+                    );
                 }
             }
         }
         Ok((info, plans))
+    }
+
+    fn analyze(&self, module: &Module, info: &ModuleInfo, func_id: FunctionId) -> Analysis {
+        let func = &module.functions[func_id];
+        let liveness = Liveness::compute_live_sets(func);
+        let cfg = CfgInfo::new(func);
+        let loops = LoopAnalyzer::new().analyze_structure(func);
+        // Spill slots live in low memory, which these writes may overwrite.
+        let hazards = self.compute_spill_hazard_insts(func);
+        let pinned = live_after(func, &liveness, |inst| hazards.contains(&inst));
+        let recomputable = if pinned.is_empty() {
+            FxHashMap::default()
+        } else {
+            plan::recomputable(func, &cfg, info.internal.contains(func_id), Target::new(self.gcx))
+        };
+        Analysis { liveness, cfg, loops, pinned, recomputable }
     }
 
     fn plan_function_stackified(
@@ -468,27 +529,18 @@ impl<'gcx> EvmCodegen<'gcx> {
         module: &Module,
         info: &ModuleInfo,
         func_id: FunctionId,
+        analysis: &Analysis,
         call_spill: CallSpill,
-    ) -> Result<FunctionPlan, &'static str> {
+    ) -> Result<FunctionPlan, Decline> {
         let func = &module.functions[func_id];
         let internal = info.internal.contains(func_id);
-        let liveness = &super::Liveness::compute(func);
-        let target = crate::target::Target::new(self.gcx);
-        let hazards = self.compute_spill_hazard_insts(func);
+        let target = Target::new(self.gcx);
         let mut spilled = DenseBitSet::new_empty(func.num_values());
         if call_spill >= CallSpill::Values {
-            let pinned = live_after(func, liveness, |inst| hazards.contains(&inst));
-            let across = live_after(func, liveness, |inst| icall(&func.inst(inst).kind).is_some());
+            let across =
+                live_after(func, &analysis.liveness, |inst| icall(&func.inst(inst).kind).is_some());
             for value in across.iter() {
-                let spillable = match func.value(value) {
-                    Value::Arg(_) => internal,
-                    Value::Inst(inst) => {
-                        rematerializable_nullary_value(func, value).is_none()
-                            && !matches!(func.inst(*inst).kind, InstKind::DataSize(_))
-                    }
-                    _ => false,
-                };
-                if spillable && !pinned.contains(value) {
+                if !materialized_at_use(func, internal, value) && !analysis.pinned.contains(value) {
                     spilled.insert(value);
                 }
             }
@@ -498,14 +550,13 @@ impl<'gcx> EvmCodegen<'gcx> {
         // More live words than reach and the single spills can hold: spill in batches from the
         // start.
         let reach = self.gcx.sess.opts.evm_version.reachable_stack_depth();
-        let single_spills =
-            if stack_pressure(func, internal, liveness) > reach + SINGLE_SPILL_RESTARTS as usize {
-                0
-            } else {
-                SINGLE_SPILL_RESTARTS
-            };
-        let cfg = CfgInfo::new(func);
-        let loops = LoopAnalyzer::new().analyze_structure(func);
+        let single_spills = if stack_pressure(func, internal, &analysis.liveness)
+            > reach + SINGLE_SPILL_RESTARTS as usize
+        {
+            0
+        } else {
+            SINGLE_SPILL_RESTARTS
+        };
         let mut best: Option<FunctionPlan> = None;
         // Candidate loop header layouts: as the preheader leaves its stack, by first use in the
         // loop, and then repeatedly as the best plan's latches leave their stacks.
@@ -524,19 +575,14 @@ impl<'gcx> EvmCodegen<'gcx> {
                     module,
                     info,
                     func_id,
-                    liveness,
+                    analysis,
                     target,
                     &spilled,
                     ret_spilled,
+                    restarts >= single_spills,
                     &hints,
-                    &hazards,
-                    &cfg,
-                    &loops,
                 )
-                .map_err(|fail| match fail {
-                    Fail::Unsupported(reason) => reason,
-                    Fail::Deep(..) => "deep stack",
-                })?;
+                .map_err(|reason| Decline::Unsupported(func_id, reason))?;
                 match planner.plan() {
                     Ok(planned) => break planned,
                     Err(Fail::Deep(victim, beyond)) => {
@@ -554,10 +600,15 @@ impl<'gcx> EvmCodegen<'gcx> {
                                 }
                             }
                             Some(Victim::Ret) if !ret_spilled => ret_spilled = true,
-                            _ => return Err("stack too deep"),
+                            _ if !analysis.pinned.is_empty() => {
+                                return Err(Decline::Pinned(func_id));
+                            }
+                            _ => return Err(Decline::Unsupported(func_id, "stack too deep")),
                         }
                     }
-                    Err(Fail::Unsupported(reason)) => return Err(reason),
+                    Err(Fail::Unsupported(reason)) => {
+                        return Err(Decline::Unsupported(func_id, reason));
+                    }
                 }
             };
             if round == 1 {
@@ -632,20 +683,18 @@ impl<'gcx> EvmCodegen<'gcx> {
 }
 
 /// Collects the value used for each argument, requiring one identity per argument.
-fn argument_values(
-    func: &crate::mir::Function,
-) -> Result<IndexVec<crate::mir::ArgIdx, Option<ValueId>>, Fail> {
+fn argument_values(func: &Function) -> Result<IndexVec<ArgIdx, Option<ValueId>>, &'static str> {
     let mut args = index_vec![None; func.params.len()];
     let mut result = Ok(());
     let mut visit = |value: ValueId| {
         if let Value::Arg(index) = *func.value(value) {
             if index.index() >= args.len() {
-                result = Err(Fail::Unsupported("argument outside the signature"));
+                result = Err("argument outside the signature");
                 return;
             }
             match args[index] {
                 Some(existing) if existing != value => {
-                    result = Err(Fail::Unsupported("non-canonical argument"));
+                    result = Err("non-canonical argument");
                 }
                 _ => args[index] = Some(value),
             }
@@ -662,51 +711,52 @@ fn argument_values(
     result.map(|()| args)
 }
 
-/// The most words live into any block that the planner must keep on the stack or spill. It
-/// leaves out every value the planner may materialize at its uses instead: immediates, stable
-/// reads and an external entry's calldata arguments.
-fn stack_pressure(
-    func: &crate::mir::Function,
-    internal: bool,
-    liveness: &super::Liveness,
-) -> usize {
-    let held = |value: ValueId| match func.value(value) {
-        Value::Arg(_) => internal,
+/// Whether the planner pushes a fresh copy of `value` at each use instead of keeping it:
+/// immediates, stable reads, and an external entry's calldata arguments.
+fn materialized_at_use(func: &Function, internal: bool, value: ValueId) -> bool {
+    match func.value(value) {
+        Value::Immediate(_) | Value::Undef(_) | Value::Error(_) => true,
+        Value::Arg(_) => !internal,
         Value::Inst(inst) => {
-            rematerializable_nullary_value(func, value).is_none()
-                && !matches!(func.inst(*inst).kind, InstKind::DataSize(_))
+            rematerializable_nullary_value(func, value).is_some()
+                || matches!(func.inst(*inst).kind, InstKind::DataSize(_))
         }
-        _ => false,
-    };
+    }
+}
+
+/// The most words live into any block that the planner must keep on the stack or spill.
+fn stack_pressure(func: &Function, internal: bool, liveness: &Liveness) -> usize {
     func.blocks
         .indices()
-        .map(|block| liveness.live_in(block).iter().filter(|&value| held(value)).count())
+        .map(|block| {
+            let live = liveness.live_in(block);
+            live.iter().filter(|&value| !materialized_at_use(func, internal, value)).count()
+        })
         .max()
         .unwrap_or(0)
 }
 
 /// The values live right after any instruction that `select` accepts.
 fn live_after(
-    func: &crate::mir::Function,
-    liveness: &super::Liveness,
+    func: &Function,
+    liveness: &Liveness,
     select: impl Fn(InstId) -> bool,
 ) -> DenseBitSet<ValueId> {
     let mut result = DenseBitSet::new_empty(func.num_values());
+    let mut live = DenseBitSet::new_empty(func.num_values());
     for (block, data) in func.blocks.iter_enumerated() {
-        if !data.instructions.iter().any(|&inst| select(inst)) {
+        let Some(first) = data.instructions.iter().position(|&inst| select(inst)) else {
             continue;
-        }
-        let mut live = DenseBitSet::new_empty(func.num_values());
-        for value in liveness.live_out(block).iter() {
-            live.insert(value);
-        }
+        };
+        live.clear();
+        live.union(&liveness.live_out(block));
         if let Some(term) = &data.terminator {
             term.visit_operands(|value| {
                 live.insert(value);
             });
         }
-        for &inst in data.instructions.iter().rev() {
-            if select(inst) {
+        for (index, &inst) in data.instructions.iter().enumerate().skip(first).rev() {
+            if index == first || select(inst) {
                 result.union(&live);
             }
             if let Some(value) = func.inst_result_value(inst) {

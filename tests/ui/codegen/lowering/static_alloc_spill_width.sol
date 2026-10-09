@@ -1,10 +1,9 @@
-//@ compile-flags: -O size -Zdump=disasm-runtime -Zlegacy-stack-lowering
+//@ compile-flags: -O size -Zdump=disasm-runtime
 //@ filecheck:
 //@ run-call: f => 5, 6, 0
 
-// Placing `other` in front of the spill slots would move the loop index slot
-// from 0xe0 to 0x120 and widen each of its pushes to `PUSH2`. The layout puts
-// `other` after the spills instead, so the index keeps its `PUSH1` address.
+// The values the copy loop needs stay on the stack, so no spill slot competes
+// with `other` for a short static address: it takes 0xe0 with a `PUSH1`.
 contract C {
     uint256[3][] private triples;
 
@@ -17,10 +16,8 @@ contract C {
     }
 }
 
-// CHECK: PUSH2 0x0180
+// CHECK: PUSH1 0x06
+// CHECK: PUSH1 0xe0
 // CHECK-NEXT: PUSH1 0x09
-// CHECK-LABEL: ; bb0
-// CHECK-NEXT: JUMPDEST
-// CHECK-NEXT: PUSH1 0x03
-// CHECK-NEXT: PUSH1 0xe0
-// CHECK-NEXT: MLOAD
+// CHECK-NEXT: DUP2
+// CHECK-NEXT: MSTORE

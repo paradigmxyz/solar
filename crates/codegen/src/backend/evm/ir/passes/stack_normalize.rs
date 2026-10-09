@@ -277,9 +277,7 @@ fn find_redundant_permutations(
         }
     }
     let source_depth = required as usize;
-    let mut stack = StackModel::from_top_to_bottom(
-        (0..source_depth).map(|index| Some(ValueId::from_usize(index))),
-    );
+    let mut stack = StackModel::from_top_to_bottom((0..source_depth).map(ValueId::from_usize));
     let mut next_value = source_depth;
     for (index, op) in instructions.iter().filter_map(symbolic_stack_op).enumerate() {
         match op {
@@ -288,7 +286,7 @@ fn find_redundant_permutations(
                 next_value += 1;
             }
             SymbolicStackOp::Physical(StackOp::Swap(depth))
-                if stack.top() == stack.peek(usize::from(depth)) =>
+                if stack.peek(0) == stack.peek(usize::from(depth)) =>
             {
                 remove.push(offset + index);
             }

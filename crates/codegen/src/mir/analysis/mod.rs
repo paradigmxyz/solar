@@ -33,10 +33,8 @@ pub(crate) use cold::{aborts, cold_functions};
 mod liveness;
 pub(crate) use liveness::Liveness;
 
-mod phi_elimination;
-pub(crate) use phi_elimination::{CopyDest, CopySource, ParallelCopy, PhiEliminator};
-
 mod loop_analysis;
+mod phi_elimination;
 pub(crate) use loop_analysis::{InductionVariable, Loop, LoopAnalyzer, LoopInfo};
 
 mod scalar_evolution;

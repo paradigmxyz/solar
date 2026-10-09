@@ -16,10 +16,7 @@ use crate::{
     mir::{ImmutableId, Module as MirModule, TypeSize, memory::EvmMemoryLayout},
 };
 use alloy_primitives::U256;
-use solar_data_structures::{
-    index::index_vec,
-    map::{FxHashMap, FxHashSet},
-};
+use solar_data_structures::{index::index_vec, map::FxHashMap};
 use solar_sema::Gcx;
 
 impl<'gcx> Assembler<'gcx> {
@@ -246,79 +243,9 @@ impl<'gcx> Assembler<'gcx> {
         }
     }
 
-    /// Number of blocks the program holds so far; the next defined label starts block `len`.
-    pub(crate) fn block_count(&self) -> usize {
-        self.program.blocks.len()
-    }
-
     fn debug_assert_dataflow_relocations_sorted(&self) {
         debug_assert!(self.label_relocations.is_sorted_by_key(|r| (r.0, r.1)));
         debug_assert!(self.indexed_jump_relocations.is_sorted_by_key(|r| r.0));
-    }
-
-    /// Control-flow edges among the blocks in `range` before EVM IR finalization.
-    ///
-    /// Known returns end the current activation. Other indirect jumps conservatively reach every
-    /// address-taken block in the range. Return facts come from MIR terminator lowering and are
-    /// independent of optional debug metadata.
-    pub(crate) fn dataflow_edges(
-        &self,
-        range: std::ops::Range<usize>,
-        function_returns: &FxHashSet<(ir::BlockId, usize)>,
-    ) -> Vec<(ir::BlockId, ir::BlockId)> {
-        self.debug_assert_dataflow_relocations_sorted();
-        let in_range = |block: ir::BlockId| range.contains(&block.index());
-        let mut edges = Vec::new();
-        let mut address_taken = Vec::new();
-        let mut push_edge = |edges: &mut Vec<_>, source, target| {
-            if in_range(source) && in_range(target) {
-                edges.push((source, target));
-                if !address_taken.contains(&target) {
-                    address_taken.push(target);
-                }
-            }
-        };
-        // Relocations follow emission order, including after instruction deletion. Restrict
-        // this function's analysis to its own blocks instead of rescanning earlier functions.
-        let start =
-            self.label_relocations.partition_point(|&(block, _, _)| block.index() < range.start);
-        let end =
-            self.label_relocations.partition_point(|&(block, _, _)| block.index() < range.end);
-        for &(source, _, label) in &self.label_relocations[start..end] {
-            if let Some(&target) = self.label_blocks.get(&label) {
-                push_edge(&mut edges, source, target);
-            }
-        }
-        for (source, targets, _) in &self.indexed_jump_relocations {
-            for label in targets {
-                if let Some(&target) = self.label_blocks.get(label) {
-                    push_edge(&mut edges, *source, target);
-                }
-            }
-        }
-        for index in range.clone() {
-            let block = ir::BlockId::from_usize(index);
-            let instructions = &self.program.blocks[block].instructions;
-            let dynamic = instructions.iter().enumerate().any(|(position, inst)| {
-                !inst.is_encoded_push()
-                    && matches!(inst.opcode, op::JUMP | op::JUMPI)
-                    && !function_returns.contains(&(block, position))
-                    && !position
-                        .checked_sub(1)
-                        .and_then(|previous| instructions.get(previous))
-                        .is_some_and(ir::Instruction::is_encoded_push)
-            });
-            if dynamic {
-                edges.extend(address_taken.iter().map(|&target| (block, target)));
-            }
-            if !self.block_has_explicit_terminator(block)
-                && self.explicit_jump_target(block).is_none()
-                && range.contains(&(index + 1))
-            {
-                edges.push((block, ir::BlockId::from_usize(index + 1)));
-            }
-        }
-        edges
     }
 
     fn explicit_jump_target(&self, block: ir::BlockId) -> Option<ir::BlockId> {
@@ -533,76 +460,6 @@ impl<'gcx> Assembler<'gcx> {
     /// Deferred constants still referenced after instruction deletion.
     pub(crate) fn referenced_deferred_constants(&self) -> impl Iterator<Item = DeferredConst> + '_ {
         self.deferred_relocations.iter().map(|&(_, _, constant)| constant)
-    }
-
-    /// Removes disjoint instruction ranges and adjusts their relocation indices.
-    /// Ranges may be unsorted but must lie within their blocks.
-    pub(crate) fn remove_instructions(
-        &mut self,
-        removals: &mut [(ir::BlockId, std::ops::Range<usize>)],
-    ) {
-        self.debug_assert_dataflow_relocations_sorted();
-        if removals.is_empty() {
-            return;
-        }
-        removals.sort_unstable_by_key(|(block, range)| (*block, range.start));
-        let first = removals[0].0;
-        let mut per_block =
-            FxHashMap::<ir::BlockId, Vec<(std::ops::Range<usize>, usize)>>::default();
-        for (block, range) in removals.iter() {
-            assert!(
-                range.start <= range.end
-                    && range.end <= self.program.blocks[*block].instructions.len(),
-                "instruction removal range is out of bounds"
-            );
-            let ranges = per_block.entry(*block).or_default();
-            assert!(
-                ranges.last().is_none_or(|(previous, _)| previous.end <= range.start),
-                "instruction removal ranges overlap"
-            );
-            let before = ranges.last().map_or(0, |(range, before)| before + range.len());
-            ranges.push((range.clone(), before));
-        }
-        // Relocations before the first edited block stay as they are.
-        fn shift<T>(
-            relocations: &mut Vec<(ir::BlockId, usize, T)>,
-            first: ir::BlockId,
-            ranges: &FxHashMap<ir::BlockId, Vec<(std::ops::Range<usize>, usize)>>,
-        ) {
-            relocations.retain_mut(|(block, index, _)| {
-                if *block < first {
-                    return true;
-                }
-                if let Some(ranges) = ranges.get(block)
-                    && let Some(position) =
-                        ranges.partition_point(|(range, _)| range.start <= *index).checked_sub(1)
-                {
-                    let (range, before) = &ranges[position];
-                    if range.contains(index) {
-                        return false;
-                    }
-                    *index -= before + range.len();
-                }
-                true
-            });
-        }
-        shift(&mut self.label_relocations, first, &per_block);
-        shift(&mut self.deferred_relocations, first, &per_block);
-        shift(&mut self.alloc_relocations, first, &per_block);
-        for (block, ranges) in per_block {
-            let instructions = &mut self.program.blocks[block].instructions;
-            let mut ranges = ranges.into_iter().peekable();
-            let mut index = 0;
-            instructions.retain(|_| {
-                while ranges.peek().is_some_and(|(range, _)| range.end <= index) {
-                    ranges.next();
-                }
-                let keep = ranges.peek().is_none_or(|(range, _)| !range.contains(&index));
-                index += 1;
-                keep
-            });
-        }
-        self.debug_assert_dataflow_relocations_sorted();
     }
 
     pub(in crate::backend) fn finish_evm_ir(&mut self) -> Option<(ir::Module, Vec<Option<Label>>)> {

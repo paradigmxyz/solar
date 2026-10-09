@@ -431,6 +431,12 @@ impl Target {
         self.opcode(op::DUP1)
     }
 
+    /// Cost of a stack operation as the target lowers it.
+    pub(crate) fn stack_op(self, op: op::StackOp) -> Cost {
+        let metrics = op.metrics(self.evm_version).expect("stack operation must be supported");
+        Cost::new(metrics.static_gas as u32, metrics.assembled_len as u32)
+    }
+
     /// Cost of pushing `value` through its cheapest materialization.
     pub(crate) fn push(self, value: U256) -> Cost {
         let (bytes, gas) = compact_pushes::immediate_materialization_cost(self.evm_version, value);
@@ -879,6 +885,12 @@ mod tests {
         assert_eq!(target.data_copy_gas(64), 18);
         let legacy = Target::with(EvmVersion::Paris, OptimizationMode::Gas, 200);
         assert_eq!(legacy.push(U256::ZERO), Cost::new(3, 2));
+        assert_eq!(target.stack_op(op::StackOp::Swap(16)), Cost::new(3, 1));
+        assert_eq!(target.stack_op(op::StackOp::Pop), Cost::new(2, 1));
+        assert_eq!(target.stack_op(op::StackOp::Exchange(1, 2)), Cost::new(9, 3));
+        let extended = Target::with(EvmVersion::Amsterdam, OptimizationMode::Gas, 200);
+        assert_eq!(extended.stack_op(op::StackOp::Dup(17)), Cost::new(3, 2));
+        assert_eq!(extended.stack_op(op::StackOp::Exchange(1, 2)), Cost::new(3, 2));
     }
 
     #[test]

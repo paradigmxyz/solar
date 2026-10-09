@@ -200,7 +200,7 @@ pub(super) fn rebuild(
     target: &[Want],
     reach: usize,
     fresh: &dyn Fn(Slot) -> bool,
-) -> Result<Vec<Move>, Option<Slot>> {
+) -> Result<Vec<Move>, Slot> {
     let kept = stack.iter().zip(target).take_while(|&(&slot, want)| want.accepts(slot)).count();
     let mut state = State { stack: stack.to_vec(), moves: Vec::new(), reach };
     while state.stack.len() > kept {
@@ -222,7 +222,7 @@ pub(super) fn rebuild(
         {
             state.push(Move::Dup(depth), slot);
         } else {
-            return Err(Some(slot));
+            return Err(slot);
         }
     }
     Ok(state.moves)
