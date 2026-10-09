@@ -1,9 +1,9 @@
 //! Runtime emission, retry policies, and whole-program stack limits.
 
 use super::{
-    ArtifactKind, BlockId, CallGraphInfo, DenseBitSet, DynamicFrame, EmbeddedBytecodes, EvmCodegen,
-    FunctionId, GeneratedCode, IndexVec, LibraryTable, Liveness, MAX_STACK_DEPTH, MirPhase, Module,
-    OptimizationMode, Terminator, index_vec, run_pipeline,
+    ArtifactKind, BlockId, CallGraphInfo, DenseBitSet, DynamicFrame, EvmCodegen, FunctionId,
+    IndexVec, Liveness, MAX_STACK_DEPTH, MirPhase, Module, OptimizationMode, Terminator, index_vec,
+    run_pipeline,
 };
 
 impl<'gcx> EvmCodegen<'gcx> {
@@ -79,33 +79,8 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
     }
 
-    /// Links embedded bytecode into the optimized runtime code and assembles it.
-    pub(super) fn assemble_runtime_code(
-        &mut self,
-        module: &Module,
-        bytecodes: &EmbeddedBytecodes,
-        libraries: &mut LibraryTable,
-    ) -> GeneratedCode {
-        let result = self.asm.assemble_linked(
-            bytecodes,
-            libraries,
-            self.capture_evm_ir,
-            self.capture_debug_info,
-        );
-        self.runtime_immutable_refs = result.immutable_refs;
-        let dynamic_frames =
-            if self.capture_mir { self.dynamic_frames(module) } else { Vec::new() };
-        GeneratedCode {
-            bytecode: result.bytecode,
-            library_relocations: result.library_relocations,
-            evm_ir: result.evm_ir,
-            debug_info: result.debug_info,
-            dynamic_frames,
-        }
-    }
-
     /// Returns the dynamic frames of the runtime's internal calls, ordered by callee.
-    fn dynamic_frames(&self, module: &Module) -> Vec<DynamicFrame> {
+    pub(super) fn dynamic_frames(&self, module: &Module) -> Vec<DynamicFrame> {
         let mut callees = self.dynamic_frame_extents.keys().copied().collect::<Vec<_>>();
         callees.sort_unstable();
         callees

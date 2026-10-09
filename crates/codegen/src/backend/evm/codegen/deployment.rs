@@ -1,9 +1,9 @@
 //! Deployment bytecode, constructor arguments, and immutable patching.
 
 use super::{
-    ArtifactKind, CallGraphInfo, DenseBitSet, EmbeddedBytecodes, EvmArtifact, EvmCodegen,
-    EvmMemoryLayout, ImmutableEncoding, ImmutableId, ImmutableRef, MAX_STACK_DEPTH, Module,
-    OptimizationMode, PendingRuntime, StackOp, U256, WORD_BYTES, immutable_push_type_size,
+    ArtifactKind, AssembledCode, CallGraphInfo, DenseBitSet, EmbeddedBytecodes, EvmArtifact,
+    EvmCodegen, EvmMemoryLayout, ImmutableEncoding, ImmutableId, ImmutableRef, MAX_STACK_DEPTH,
+    Module, OptimizationMode, PendingRuntime, StackOp, U256, WORD_BYTES, immutable_push_type_size,
     immutable_staging_addr, immutable_staging_base, immutable_staging_end, ir, op,
 };
 use crate::{
@@ -99,14 +99,26 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.pending_runtime.take().expect("module must be scheduled first");
         debug_assert_eq!(module.phase(), MirPhase::Lowered);
         let mut libraries = module.libraries.clone();
-        let mut runtime_code = self.assemble_runtime_code(module, bytecodes, &mut libraries);
-        let runtime_bytecode = Bytes::from(std::mem::take(&mut runtime_code.bytecode));
+        let AssembledCode {
+            bytecode: runtime_bytecode,
+            immutable_refs,
+            library_relocations: runtime_library_relocations,
+            evm_ir: runtime_evm_ir,
+            debug_info: runtime_debug_info,
+        } = self.asm.assemble_linked(
+            bytecodes,
+            &mut libraries,
+            self.capture_evm_ir,
+            self.capture_debug_info,
+        );
+        let runtime_bytecode = Bytes::from(runtime_bytecode);
+        let runtime_dynamic_frames =
+            if self.capture_mir { self.dynamic_frames(module) } else { Vec::new() };
         let runtime_len = runtime_bytecode.len();
-        let immutable_refs = std::mem::take(&mut self.runtime_immutable_refs);
         let runtime_name =
             Symbol::intern(&format!("{}_{}", module.name.name, CodeKind::Runtime.keyword()));
         let runtime_data = ir::Data {
-            library_relocations: runtime_code.library_relocations.clone(),
+            library_relocations: runtime_library_relocations.clone(),
             ..ir::Data::new(runtime_bytecode.clone(), Some(runtime_name))
         };
 
@@ -164,13 +176,13 @@ impl<'gcx> EvmCodegen<'gcx> {
             deployment: deploy_code.bytecode,
             runtime: runtime_bytecode.into(),
             deployment_library_relocations: deploy_code.library_relocations,
-            runtime_library_relocations: runtime_code.library_relocations,
+            runtime_library_relocations,
             immutable_references: immutable_refs,
             deployment_evm_ir: deploy_code.evm_ir,
-            runtime_evm_ir: runtime_code.evm_ir,
+            runtime_evm_ir,
             deployment_debug_info: deploy_code.debug_info,
-            runtime_debug_info: runtime_code.debug_info,
-            runtime_dynamic_frames: runtime_code.dynamic_frames,
+            runtime_debug_info,
+            runtime_dynamic_frames,
         }
     }
 

@@ -87,7 +87,7 @@ bb85:
   push 128
   return
 bb15:
-  push 576
+  push 544
   push 64
   mstore
   push 36
@@ -179,24 +179,17 @@ bb20 [continuation]:
   swap 2
   dup 3
   mstore
-  dup 4
-  push 256
-  mstore
-  push 160
-  mstore
-  pop
-  swap 1
-  pop
+  swap 2
   push bb24
   jumpi
+  swap 2
   push 255
   not
-  push 256
-  mload
   and
+  swap 1
+  pop
   push 32
-  push 128
-  mload
+  dup 3
   add
   mstore
   jump bb26
@@ -250,22 +243,24 @@ bb24:
   push 0
   push 0
   mstore
+  swap 2
+  pop
   push 32
   push 0
   keccak256
-  push 160
-  mload
-  push 128
-  mload
   push 0
   swap 2
+  exchange 1, 3
   jump bb25
 bb25 [loop]:
   dup 3
-  push 192
+  push 160
+  mstore
+  dup 1
+  push 224
   mstore
   swap 3
-  push 224
+  push 192
   mstore
   pop
   lt
@@ -273,10 +268,10 @@ bb25 [loop]:
   jumpi
   jump bb26
 bb27 [loop]:
-  push 224
+  push 192
   mload
   sload
-  push 192
+  push 160
   mload
   push 5
   shl
@@ -287,14 +282,14 @@ bb27 [loop]:
   add
   mstore
   push 1
-  push 192
+  push 160
   mload
   add
   push 1
-  push 224
+  push 192
   mload
   add
-  push 160
+  push 224
   mload
   push 128
   mload
@@ -569,11 +564,11 @@ bb48:
   push 0xe2179b8e
   jump bb90
 bb63 [continuation]:
-  push 352
+  push 320
   mload
   push bb69
   jumpi
-  push 288
+  push 256
   mload
   dup 1
   not
@@ -588,17 +583,17 @@ bb63 [continuation]:
   push 0
   keccak256
   dup 1
-  push 480
+  push 448
   mstore
   dup 2
   push 5
   shr
   dup 1
-  push 416
+  push 384
   mstore
   swap 2
   pop
-  push 512
+  push 480
   mload
   push 0
   swap 3
@@ -613,27 +608,27 @@ bb65 [loop]:
   pop
   pop
   pop
-  push 288
+  push 256
   mload
   push 31
   and
   dup 1
-  push 448
+  push 416
   mstore
   iszero
   push bb70
   jumpi
-  push 416
+  push 384
   mload
   push 5
   shl
-  push 512
+  push 480
   mload
   add
   mload
   push 0
   not
-  push 448
+  push 416
   mload
   push 32
   sub
@@ -641,9 +636,9 @@ bb65 [loop]:
   shl
   shl
   and
-  push 416
+  push 384
   mload
-  push 480
+  push 448
   mload
   add
   sstore
@@ -667,12 +662,12 @@ bb68 [loop]:
   swap 3
   jump bb65
 bb69:
-  push 512
+  push 480
   mload
   mload
   push 0
   not
-  push 288
+  push 256
   mload
   push 32
   sub
@@ -680,7 +675,7 @@ bb69:
   shl
   shl
   and
-  push 288
+  push 256
   mload
   dup 1
   add
@@ -717,7 +712,7 @@ bb76 [loop]:
   swap 1
   jump bb74
 bb74 [loop]:
-  push 544
+  push 512
   mload
   dup 2
   lt
@@ -876,36 +871,36 @@ bb93 [continuation]:
   jumpi
   dup 4
   dup 1
-  push 288
+  push 256
   mstore
   push 32
   gt
   dup 1
-  push 352
+  push 320
   mstore
   iszero
   swap 1
   push 5
   shr
   mul
-  push 384
+  push 352
   mstore
-  push 320
+  push 288
   mstore
   swap 3
   gt
   and
   swap 1
-  push 512
+  push 480
   mstore
   iszero
   push bb63
   jumpi
-  push 320
+  push 288
   mload
-  push 544
+  push 512
   mstore
-  push 384
+  push 352
   mload
   dup 1
   push 0

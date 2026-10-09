@@ -43,7 +43,7 @@ bb0:
   sub
   push bb4
   jumpi
-  push 192
+  push 160
   push 64
   mstore
   push 0
@@ -71,7 +71,7 @@ bb4 [cold]:
   invalid
 bb9:
   push 64
-  push 192
+  push 160
   dup 2
   mstore
   push 0
@@ -90,9 +90,6 @@ bb12 [continuation]:
   iszero
   push bb4
   jumpi
-  dup 1
-  push 160
-  mstore
   push 32
   dup 2
   push 4
@@ -106,10 +103,6 @@ bb10:
   iszero
   push bb4
   jumpi
-  pop
-  pop
-  push 160
-  mload
   mload
   push 128
   mstore
@@ -124,9 +117,6 @@ bb13 [continuation]:
   iszero
   push bb4
   jumpi
-  dup 1
-  push 160
-  mstore
   push 32
   dup 2
   push 4
