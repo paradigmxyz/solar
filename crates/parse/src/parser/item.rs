@@ -185,26 +185,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         };
 
         if flags.contains(FunctionFlags::NAME) {
-            // Allow and warn on `function fallback` or `function receive`.
-            let ident;
-            if flags == FunctionFlags::FUNCTION
-                && self.token.is_keyword_any(&[kw::Fallback, kw::Receive])
-            {
-                let kw_span = self.prev_token.span;
-                ident = self.parse_ident_any()?;
-                let msg = format!("function named `{ident}`");
-                let mut warn = self.dcx().warn(msg).span(ident.span).code(error_code!(3445));
-                if self.in_contract {
-                    let help = format!(
-                        "remove the `function` keyword if you intend this to be a contract's {ident} function"
-                    );
-                    warn = warn.span_help(kw_span, help);
-                }
-                warn.emit();
-            } else {
-                ident = self.parse_ident()?;
-            }
-            header.name = Some(ident);
+            header.name = Some(self.parse_function_name(flags)?);
         } else if self.token.is_non_reserved_ident(false) {
             let msg = "function names are not allowed here";
             self.dcx().emit_err(self.token.span, msg);
@@ -219,6 +200,54 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
             header.parameters = self.parse_parameter_list(true, var_flags)?;
         }
 
+        self.parse_function_attributes(flags, &mut header)?;
+
+        if flags.contains(FunctionFlags::RETURNS) && self.eat_keyword(kw::Returns) {
+            header.returns = Some(self.parse_parameter_list(false, var_flags)?);
+        }
+
+        header.span = lo.to(self.prev_token.span);
+
+        Ok(header)
+    }
+
+    /// Parses the name of a function definition.
+    ///
+    /// Kept out of line so that its diagnostics take no space while parsing parameters.
+    #[inline(never)]
+    fn parse_function_name(&mut self, flags: FunctionFlags) -> PResult<'sess, Ident> {
+        // Allow and warn on `function fallback` or `function receive`.
+        if flags == FunctionFlags::FUNCTION
+            && self.token.is_keyword_any(&[kw::Fallback, kw::Receive])
+        {
+            let kw_span = self.prev_token.span;
+            let ident = self.parse_ident_any()?;
+            let msg = format!("function named `{ident}`");
+            let mut warn = self.dcx().warn(msg).span(ident.span).code(error_code!(3445));
+            if self.in_contract {
+                let help = format!(
+                    "remove the `function` keyword if you intend this to be a contract's {ident} function"
+                );
+                warn = warn.span_help(kw_span, help);
+            }
+            warn.emit();
+            Ok(ident)
+        } else {
+            self.parse_ident()
+        }
+    }
+
+    /// Parses the visibility, state mutability, `virtual`, `override` and modifiers of a function
+    /// header.
+    ///
+    /// Kept out of line so that its locals take no space while parsing parameters, which can
+    /// recurse through function types.
+    #[inline(never)]
+    fn parse_function_attributes(
+        &mut self,
+        flags: FunctionFlags,
+        header: &mut FunctionHeader<'ast>,
+    ) -> PResult<'sess, ()> {
         let mut modifiers = Vec::new();
         loop {
             // This is needed to skip parsing surrounding variable's visibility in function types.
@@ -290,17 +319,13 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         }
 
         header.modifiers = self.alloc_vec(modifiers);
-
-        if flags.contains(FunctionFlags::RETURNS) && self.eat_keyword(kw::Returns) {
-            header.returns = Some(self.parse_parameter_list(false, var_flags)?);
-        }
-
-        header.span = lo.to(self.prev_token.span);
-
-        Ok(header)
+        Ok(())
     }
 
     /// Parses a struct definition.
+    ///
+    /// Kept out of line so that its buffer takes no space while parsing contract bodies.
+    #[inline(never)]
     fn parse_struct(&mut self) -> PResult<'sess, ItemStruct<'ast>> {
         let name = self.parse_ident()?;
         let fields = self.parse_delim_seq(
@@ -573,6 +598,9 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     }
 
     /// Parses an import directive.
+    ///
+    /// Kept out of line so that its buffer takes no space in other items.
+    #[inline(never)]
     fn parse_import(&mut self) -> PResult<'sess, ImportDirective<'ast>> {
         let path;
         let items = if self.eat(TokenKind::BinOp(BinOpToken::Star)) {
@@ -709,7 +737,20 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
             }
             None => self.parse_type()?,
         };
+        self.parse_variable_definition_rest(flags, lo, ty)
+    }
 
+    /// Parses the rest of a variable definition, after its type.
+    ///
+    /// Kept out of line so that its locals take no space while parsing the type, which can recurse
+    /// through function types.
+    #[inline(never)]
+    fn parse_variable_definition_rest(
+        &mut self,
+        flags: VarFlags,
+        lo: Span,
+        ty: Type<'ast>,
+    ) -> PResult<'sess, VariableDefinition<'ast>> {
         if ty.is_function()
             && flags == VarFlags::STATE_VAR
             && self.check_noexpect(TokenKind::OpenDelim(Delimiter::Brace))
@@ -862,12 +903,22 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         flags: VarFlags,
     ) -> PResult<'sess, ParameterList<'ast>> {
         let lo = self.token.span;
-        let vars =
-            self.parse_paren_comma_seq(allow_empty, |this| this.parse_variable_definition(flags))?;
+        // Parameter lists are short and function types recurse through here, so keep the inline
+        // buffer small.
+        let vars = self.parse_unspanned_seq::<_, 4>(
+            TokenKind::OpenDelim(Delimiter::Parenthesis),
+            TokenKind::CloseDelim(Delimiter::Parenthesis),
+            SeqSep::trailing_disallowed(TokenKind::Comma),
+            allow_empty,
+            |this| this.parse_variable_definition(flags),
+        )?;
         Ok(ParameterList { vars, span: lo.to(self.prev_token.span) })
     }
 
     /// Parses a list of inheritance specifiers.
+    ///
+    /// Kept out of line so that its buffer takes no space while parsing contract bodies.
+    #[inline(never)]
     fn parse_inheritance(&mut self) -> PResult<'sess, BoxSlice<'ast, Modifier<'ast>>> {
         let mut list = SmallVec::<[_; 8]>::new();
         loop {
@@ -876,7 +927,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
                 break;
             }
         }
-        Ok(self.alloc_smallvec(list))
+        Ok(self.alloc_drain(&mut list))
     }
 
     /// Parses a storage layout specifier.

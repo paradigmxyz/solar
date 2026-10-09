@@ -519,7 +519,12 @@ impl LowerAbiCx {
                         return value;
                     };
                     if return_types.get(index) == Some(&MirType::Slice(SliceLocation::Calldata))
-                        && matches!(ty, AbiParamType::Tuple(_) | AbiParamType::FixedArray { .. })
+                        && match &ty {
+                            AbiParamType::Tuple(_) | AbiParamType::FixedArray { .. } => true,
+                            AbiParamType::DynamicArray(_) => !layout.types[index]
+                                .accepts_input_type(MirType::Slice(SliceLocation::Calldata)),
+                            _ => false,
+                        }
                     {
                         return materialize_calldata_return(
                             &mut builder,
@@ -2003,57 +2008,9 @@ impl LowerAbiCx {
                     return ptr;
                 }
 
-                // Dynamic ABI arrays use a head of one word per element. The
-                // element value may itself be dynamic, so nested objects are
-                // decoded recursively and stored as pointers in this array.
-                // Keep the three loop-carried words as MIR phis; materializing
-                // a temporary semantic object would add a heap allocation and
-                // three loads/stores on every iteration.
-                let zero = builder.imm(0);
-                let preheader = builder.current_block();
-                let cond = builder.create_block();
-                let body = builder.create_block();
-                let done = builder.create_block();
-                builder.jump(cond);
-
-                builder.switch_to_block(cond);
-                let remaining = builder.phi(vec![(preheader, len)]);
-                let source = builder.phi(vec![(preheader, data_base)]);
-                let destination_index = builder.phi(vec![(preheader, zero)]);
-                let has_next = builder.gt(remaining, zero);
-                builder.branch(has_next, body, done);
-
-                builder.switch_to_block(body);
-                let mut element_current = builder.current_block();
-                let value = Self::decode_aggregate_argument(
-                    builder,
-                    element,
-                    element.mir_type(),
-                    source,
-                    data_base,
-                    &mut element_current,
-                    options.checked().nested(RevertReason::InvalidCalldataArrayOffset),
+                Self::decode_array_elements(
+                    builder, element, ptr, len, data_base, current, options,
                 );
-                let value = Self::encode_memory_scalar(builder, element, value);
-                builder.memory_object_store_element(ptr, layout, destination_index, value);
-                let one = builder.imm(1);
-                let next_remaining = builder.sub(remaining, one);
-                let element_head_size = builder
-                    .imm(element.checked_head_size().expect("ABI head size exceeds u64 range"));
-                let next_source = builder.add(source, element_head_size);
-                let next_destination_index = builder.add(destination_index, one);
-                builder.switch_to_block(element_current);
-                builder.jump(cond);
-                builder.add_phi_incoming(remaining, element_current, next_remaining);
-                builder.add_phi_incoming(source, element_current, next_source);
-                builder.add_phi_incoming(
-                    destination_index,
-                    element_current,
-                    next_destination_index,
-                );
-
-                builder.switch_to_block(done);
-                *current = done;
                 ptr
             }
             crate::mir::AbiParamType::Bytes if matches!(arg_type, MirType::Slice(_)) => {
@@ -2202,6 +2159,71 @@ impl LowerAbiCx {
             builder.switch_to_block(element_current);
         });
         *current = builder.current_block();
+    }
+
+    /// Decodes `len` ABI elements whose heads start at `data_base` into the
+    /// memory array `ptr`.
+    fn decode_array_elements(
+        builder: &mut FunctionBuilder<'_>,
+        element: &crate::mir::AbiParamType,
+        ptr: ValueId,
+        len: ValueId,
+        data_base: ValueId,
+        current: &mut BlockId,
+        options: DecodeOptions<'_>,
+    ) {
+        // Dynamic ABI arrays use a head of one word per element. The
+        // element value may itself be dynamic, so nested objects are
+        // decoded recursively and stored as pointers in this array.
+        // Keep the three loop-carried words as MIR phis; materializing
+        // a temporary semantic object would add a heap allocation and
+        // three loads/stores on every iteration.
+        let zero = builder.imm(0);
+        let preheader = builder.current_block();
+        let cond = builder.create_block();
+        let body = builder.create_block();
+        let done = builder.create_block();
+        builder.jump(cond);
+
+        builder.switch_to_block(cond);
+        let remaining = builder.phi(vec![(preheader, len)]);
+        let source = builder.phi(vec![(preheader, data_base)]);
+        let destination_index = builder.phi(vec![(preheader, zero)]);
+        let has_next = builder.gt(remaining, zero);
+        builder.branch(has_next, body, done);
+
+        builder.switch_to_block(body);
+        let mut element_current = builder.current_block();
+        let value = Self::decode_aggregate_argument(
+            builder,
+            element,
+            element.mir_type(),
+            source,
+            data_base,
+            &mut element_current,
+            options.checked().nested(RevertReason::InvalidCalldataArrayOffset),
+        );
+        let value = Self::encode_memory_scalar(builder, element, value);
+        builder.memory_object_store_element(
+            ptr,
+            crate::mir::MemoryObjectLayout::WORD_ARRAY,
+            destination_index,
+            value,
+        );
+        let one = builder.imm(1);
+        let next_remaining = builder.sub(remaining, one);
+        let element_head_size =
+            builder.imm(element.checked_head_size().expect("ABI head size exceeds u64 range"));
+        let next_source = builder.add(source, element_head_size);
+        let next_destination_index = builder.add(destination_index, one);
+        builder.switch_to_block(element_current);
+        builder.jump(cond);
+        builder.add_phi_incoming(remaining, element_current, next_remaining);
+        builder.add_phi_incoming(source, element_current, next_source);
+        builder.add_phi_incoming(destination_index, element_current, next_destination_index);
+
+        builder.switch_to_block(done);
+        *current = done;
     }
 
     fn decode_static_aggregate(
@@ -4438,6 +4460,29 @@ fn materialize_calldata_return(
     base: ValueId,
     has_bitwise_shifting: bool,
 ) -> ValueId {
+    if let AbiParamType::DynamicArray(element) = ty {
+        // len = slice_len returned_slice
+        // data = slice_ptr returned_slice
+        // object = alloc word_array(len)
+        // object[0..len] = decode elements from data
+        let len = builder.slice_len(base);
+        let data = builder.slice_ptr(base);
+        let input_end = builder.calldatasize();
+        let (object, _) =
+            builder.alloc_dynamic_word_array(len, AllocationSemantics::SOLIDITY_UNINITIALIZED);
+        let mut current = builder.current_block();
+        let options = DecodeOptions::new(false, input_end, has_bitwise_shifting);
+        LowerAbiCx::decode_array_elements(
+            builder,
+            element,
+            object,
+            len,
+            data,
+            &mut current,
+            options,
+        );
+        return object;
+    }
     // base = slice_ptr returned_slice
     let base = builder.slice_ptr(base);
     let input_end = builder.calldatasize();

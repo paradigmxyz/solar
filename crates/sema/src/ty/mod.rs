@@ -1964,6 +1964,17 @@ fn var_type<'gcx>(gcx: Gcx<'gcx>, var: &'gcx hir::Variable<'gcx>, ty: Ty<'gcx>) 
         // enclosing callable's, so the enclosing function's kind and visibility do not widen
         // its locations: the decoder always writes the value into a fresh memory object.
         &[Some(Memory)]
+    } else if let hir::VarKind::FunctionTyParam(vis) | hir::VarKind::FunctionTyReturn(vis) =
+        var.kind
+    {
+        // The locations of a function type parameter depend on the visibility of the function
+        // type, not of the enclosing function.
+        // Reference: <https://github.com/argotorg/solidity/blob/v0.8.37/libsolidity/ast/AST.cpp#L831-L841>
+        if vis == hir::Visibility::Internal {
+            &[Some(Memory), Some(Storage), Some(Calldata)]
+        } else {
+            &[Some(Memory), Some(Calldata)]
+        }
     } else if var.is_callable_or_catch_parameter() {
         locs = SmallVec::<[_; 3]>::new();
         locs.push(Some(Memory));

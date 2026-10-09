@@ -19,6 +19,7 @@ import sys
 import tempfile
 import time
 from collections.abc import Sequence
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from functools import cache, lru_cache
 from pathlib import Path, PureWindowsPath
@@ -2002,6 +2003,18 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="Compile each test this many times and record the median time (default: 1)",
     )
     parser.add_argument(
+        "-j",
+        "--jobs",
+        type=int,
+        default=1,
+        help="Run this many test cases at once without recording compile times; not with --gas (default: 1)",
+    )
+    parser.add_argument(
+        "--ignore-compile-time",
+        action="store_true",
+        help="Compile each case once and record no compile times; lets --jobs run compile-time mode",
+    )
+    parser.add_argument(
         "--repeat-long-compiles",
         action="store_true",
         help="Do not stop repeats after a compile takes at least 10 seconds",
@@ -2073,6 +2086,16 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if args.oksolc_jobs < 1:
         parser.error("--oksolc-jobs must be positive")
+    if args.jobs < 1:
+        parser.error("--jobs must be positive")
+    if args.jobs > 1:
+        if args.gas:
+            parser.error("--jobs cannot be combined with --gas")
+        if "compile-time" in args.mode and not args.ignore_compile_time:
+            parser.error("--jobs skews compile-time mode; pass --ignore-compile-time")
+        args.ignore_compile_time = True
+    if args.ignore_compile_time:
+        args.compile_repeats = 1
     if args.reference_results and (args.solc or args.solx):
         parser.error("--reference-results cannot be combined with --solc or --solx")
     try:
@@ -2276,10 +2299,41 @@ def main(argv: Sequence[str] | None = None) -> int:
             f"Forcing optimizer runs {args.optimizer_runs} ({objective} objective for Solar)"
         )
     print(f"Running {len(tests)} tests")
+    if args.jobs > 1:
+        print(f"Running {args.jobs} tests at a time without compile times")
+
+    def run_case(test: TestCase) -> dict[str, Any]:
+        try:
+            result = run_test_case(
+                test,
+                specs,
+                args.gas,
+                args.gas_profile,
+                args.rpc_url,
+                args.private_key,
+                args.verbose,
+                args.compile_repeats,
+                args.evm_version,
+                args.repeat_long_compiles,
+                args.artifacts,
+                args.optimizer_runs,
+            )
+        except Exception as exc:
+            print(
+                _color(f"[{test.test_id}] Unexpected benchmark failure: {exc}", RED),
+                file=sys.stderr,
+            )
+            result = failed_test_result(test, specs, args.gas_profile, exc)
+        if args.ignore_compile_time:
+            for data in result["compilers"].values():
+                data["compile_time_seconds"] = None
+                data.pop("compile_time_samples", None)
+        return result
 
     results = []
     timings = {}
     anvil_proc = None
+    executor = ThreadPoolExecutor(args.jobs) if args.jobs > 1 else None
     try:
         if args.gas and args.start_anvil:
             print("Starting anvil...")
@@ -2294,9 +2348,11 @@ def main(argv: Sequence[str] | None = None) -> int:
                 tests = []
         current_suite = None
         suite_started = None
+        # `Executor.map` yields results in input order, so output stays deterministic.
+        parallel_results = executor.map(run_case, tests) if executor else None
         for test in tests:
             suite = test.suite
-            if suite != current_suite:
+            if parallel_results is None and suite != current_suite:
                 if current_suite is not None and suite_started is not None:
                     timings[current_suite] = (
                         timings.get(current_suite, 0.0)
@@ -2305,29 +2361,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                     )
                 current_suite = suite
                 suite_started = time.monotonic()
-            try:
-                result = run_test_case(
-                    test,
-                    specs,
-                    args.gas,
-                    args.gas_profile,
-                    args.rpc_url,
-                    args.private_key,
-                    args.verbose,
-                    args.compile_repeats,
-                    args.evm_version,
-                    args.repeat_long_compiles,
-                    args.artifacts,
-                    args.optimizer_runs,
-                )
-            except Exception as exc:
-                print(
-                    _color(
-                        f"[{test.test_id}] Unexpected benchmark failure: {exc}", RED
-                    ),
-                    file=sys.stderr,
-                )
-                result = failed_test_result(test, specs, args.gas_profile, exc)
+            result = (
+                run_case(test) if parallel_results is None else next(parallel_results)
+            )
             merged_specs = []
             for reference_spec in reference_specs:
                 compiler_id = reference_spec.compiler_id
@@ -2365,6 +2401,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 timings.get(current_suite, 0.0) + time.monotonic() - suite_started
             )
     finally:
+        if executor is not None:
+            executor.shutdown(cancel_futures=True)
         if anvil_proc:
             print("Stopping anvil...")
             try:

@@ -774,13 +774,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         ty: Ty<'gcx>,
     ) -> Option<ValueId> {
         let source_ty = self.cx.gcx.type_of_expr(expr.id)?;
-        let value = self.lower_expr(expr)?;
-        let value = if ty.is_ref_at(DataLocation::Memory) {
-            self.materialize_memory_argument(ty, value, expr.span)?
-        } else {
-            value
-        };
-        Some(self.coerce_value(value, source_ty, ty))
+        let value = self.lower_component(expr)?;
+        self.convert_tuple_component(value, source_ty, ty, expr.span)
     }
 
     pub(super) fn lower_logical(
