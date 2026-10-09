@@ -370,6 +370,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
         let return_types = self.external_return_types(&target.return_types);
 
+        // Several return words come back over the input area and may reach past it into free
+        // memory, so the defaults are allocated before the call rather than over its output.
+        self.materialize_default_bindings();
         let (success, creation_value, ret_plan) = if let TryCallee::Creation { ty, contract_id } =
             target.callee
         {
@@ -468,7 +471,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let success_block = self.builder.create_block();
         let catch_block = self.builder.create_block();
         let merge_block = self.builder.create_block();
-        self.materialize_default_bindings();
         let before = self.values.clone();
         let before_storage_refs = self.storage_refs.clone();
         // branch(ok, success, catch)
