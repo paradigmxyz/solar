@@ -6,7 +6,6 @@ use std::{fmt, ops::RangeInclusive};
 
 impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     /// Parses a type.
-    #[instrument(level = "trace", skip_all)]
     pub fn parse_type(&mut self) -> PResult<'sess, Type<'ast>> {
         let mut ty = self
             .parse_spanned(Self::parse_basic_ty_kind)
@@ -34,25 +33,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         if self.check_elementary_type() {
             self.parse_elementary_type().map(TypeKind::Elementary)
         } else if self.eat_keyword(kw::Function) {
-            self.parse_function_header(FunctionFlags::FUNCTION_TY).map(|f| {
-                let FunctionHeader {
-                    span: _,
-                    name: _,
-                    parameters,
-                    visibility,
-                    state_mutability,
-                    modifiers: _,
-                    virtual_: _,
-                    override_: _,
-                    returns,
-                } = f;
-                TypeKind::Function(self.alloc(TypeFunction {
-                    parameters,
-                    visibility,
-                    state_mutability,
-                    returns,
-                }))
-            })
+            self.parse_function_type()
         } else if self.eat_keyword(kw::Mapping) {
             self.parse_mapping_type().map(|x| TypeKind::Mapping(self.alloc(x)))
         } else if self.check_path() {
@@ -62,12 +43,37 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         }
     }
 
+    /// Parses a function type, after the `function` keyword.
+    ///
+    /// Kept out of line so that the header takes no space in other types.
+    #[inline(never)]
+    fn parse_function_type(&mut self) -> PResult<'sess, TypeKind<'ast>> {
+        self.parse_function_header(FunctionFlags::FUNCTION_TY).map(|f| {
+            let FunctionHeader {
+                span: _,
+                name: _,
+                parameters,
+                visibility,
+                state_mutability,
+                modifiers: _,
+                virtual_: _,
+                override_: _,
+                returns,
+            } = f;
+            TypeKind::Function(self.alloc(TypeFunction {
+                parameters,
+                visibility,
+                state_mutability,
+                returns,
+            }))
+        })
+    }
+
     /// Parses an elementary type.
     ///
     /// Must be used after checking that the next token is an elementary type.
     pub(super) fn parse_elementary_type(&mut self) -> PResult<'sess, ElementaryType> {
         let id = self.parse_ident_any()?;
-        debug_assert!(id.is_elementary_type());
         let mut ty = match id.name {
             kw::Address => ElementaryType::Address(false),
             kw::Bool => ElementaryType::Bool,
@@ -89,7 +95,8 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
                 let bytes = s.as_u32() - kw::Bytes1.as_u32() + 1;
                 ElementaryType::FixedBytes(TypeSize::new_fb_bytes(bytes as u8))
             }
-            s => unreachable!("unexpected elementary type: {s}"),
+            s => ElementaryType::parse_fixed_mxn(s)
+                .unwrap_or_else(|| unreachable!("unexpected elementary type: {s}")),
         };
 
         let sm = self.parse_state_mutability();
@@ -138,7 +145,6 @@ enum ParseTySizeError {
     TryFrom(std::num::TryFromIntError),
     NotMultipleOf8,
     OutOfRange(RangeInclusive<u16>),
-    FixedX,
 }
 
 impl fmt::Display for ParseTySizeError {
@@ -150,30 +156,8 @@ impl fmt::Display for ParseTySizeError {
             Self::OutOfRange(range) => {
                 write!(f, "size is out of range of {}:{} (inclusive)", range.start(), range.end())
             }
-            Self::FixedX => f.write_str("`fixed` sizes must be separated by exactly one 'x'"),
         }
     }
-}
-
-/// Parses `fixedMxN` or `ufixedMxN`.
-#[allow(dead_code)]
-fn parse_fixed_type(original: &str) -> Result<Option<ElementaryType>, ParseTySizeError> {
-    let s = original;
-    let tmp = s.strip_prefix('u');
-    let unsigned = tmp.is_some();
-    let s = tmp.unwrap_or(s);
-
-    if let Some(s) = s.strip_prefix("fixed") {
-        debug_assert!(!s.is_empty());
-        let (m, n) = parse_fixed_size(s)?;
-        return Ok(Some(if unsigned {
-            ElementaryType::UFixed(m, n)
-        } else {
-            ElementaryType::Fixed(m, n)
-        }));
-    }
-
-    Ok(None)
 }
 
 #[allow(dead_code)]
@@ -184,15 +168,6 @@ fn parse_fb_size(s: &str) -> Result<TypeSize, ParseTySizeError> {
 #[allow(dead_code)]
 fn parse_int_size(s: &str) -> Result<TypeSize, ParseTySizeError> {
     parse_ty_size_u8(s, 1..=32, true).map(|x| TypeSize::new_int_bits(x as u16 * 8))
-}
-
-#[allow(dead_code)]
-fn parse_fixed_size(s: &str) -> Result<(TypeSize, TypeFixedSize), ParseTySizeError> {
-    let (m, n) = s.split_once('x').ok_or(ParseTySizeError::FixedX)?;
-    let m = parse_int_size(m)?;
-    let n = parse_ty_size_u8(n, 0..=80, false)?;
-    let n = TypeFixedSize::new(n).unwrap();
-    Ok((m, n))
 }
 
 /// Parses a type size.

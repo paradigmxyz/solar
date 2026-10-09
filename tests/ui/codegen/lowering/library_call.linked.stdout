@@ -182,15 +182,8 @@ bb0:
   dup 3
   returndatacopy
   swap 1
-  dup 2
-  dup 2
-  dup 2
-  add
-  lt
-  swap 1
   push 32
-  gt
-  or
+  sgt
   push bb3
   jumpi
   mload

@@ -119,49 +119,46 @@ fn @castCallOperands(arg0: i1) -> i256 [selector=0x8ac59a7e, abi_params=[bool], 
     v27 = or v25, v26
     sstore v22, v27 !metadata(storage=offset(v16, 1))
     v28 = add v16, 1
-    v29 = sub 0, 2
-    v30 = trunc i256 v29 to i24
-    v31 = shl 160, 0xffffff
-    v32 = sload v28 !metadata(storage=offset(v16, 1))
-    v33 = not v31
-    v34 = and v32, v33
-    v35 = zext i24 v30 to i256
-    v36 = and v35, 0xffffff
-    v37 = shl 160, v36
-    v38 = or v34, v37
-    sstore v28, v38 !metadata(storage=offset(v16, 1))
-    v39 = add v16, 1
-    v40 = shl 184, 0xffffff
-    v41 = sload v39 !metadata(storage=offset(v16, 1))
-    v42 = not v40
-    v43 = and v41, v42
-    v44 = and 4, 0xffffff
-    v45 = shl 184, v44
-    v46 = or v43, v45
-    sstore v39, v46 !metadata(storage=offset(v16, 1))
-    v47 = add v16, 2
-    sstore v47, 7 !metadata(storage=offset(v16, 2))
-    v48 = add v16, 3
-    sstore v48, 11 !metadata(storage=offset(v16, 3))
+    v29 = shl 160, 0xffffff
+    v30 = sload v28 !metadata(storage=offset(v16, 1))
+    v31 = not v29
+    v32 = and v30, v31
+    v33 = and 0xfffffe, 0xffffff
+    v34 = shl 160, v33
+    v35 = or v32, v34
+    sstore v28, v35 !metadata(storage=offset(v16, 1))
+    v36 = add v16, 1
+    v37 = shl 184, 0xffffff
+    v38 = sload v36 !metadata(storage=offset(v16, 1))
+    v39 = not v37
+    v40 = and v38, v39
+    v41 = and 4, 0xffffff
+    v42 = shl 184, v41
+    v43 = or v40, v42
+    sstore v36, v43 !metadata(storage=offset(v16, 1))
+    v44 = add v16, 2
+    sstore v44, 7 !metadata(storage=offset(v16, 2))
+    v45 = add v16, 3
+    sstore v45, 11 !metadata(storage=offset(v16, 3))
     jumpi arg0, bb6, bb7
   bb7:
     jump bb8
   bb6:
     jump bb8
   bb8:
-    v49 = phi [bb6: v15], [bb7: v14]
+    v46 = phi [bb6: v15], [bb7: v14]
     jumpi arg0, bb9, bb10
   bb10:
     jump bb11
   bb9:
     jump bb11
   bb11:
-    v50 = phi [bb9: v14], [bb10: v15]
-    icall @invokeWideCall, v49, v50, 0
-    v51 = zext i160 v49 to i256
-    v52 = mapping_slot v51, 2
-    v53 = sload v52 !metadata(storage=symbolic(v52))
-    ret v53
+    v47 = phi [bb9: v14], [bb10: v15]
+    icall @invokeWideCall, v46, v47, 0
+    v48 = zext i160 v46 to i256
+    v49 = mapping_slot v48, 2
+    v50 = sload v49 !metadata(storage=symbolic(v49))
+    ret v50
 }
 
 fn @invokeWideCall(arg0: i160, arg1: i160, arg2: i256) {

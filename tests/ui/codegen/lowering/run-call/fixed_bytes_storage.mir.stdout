@@ -30,26 +30,23 @@ fn @constructor() [constructor] {
     v19 = shl 8, v18
     v20 = or v17, v19
     sstore 0, v20 !metadata(storage=slot(0))
-    v21 = sub 0, 2
-    v22 = trunc i256 v21 to i8
-    v23 = shl 32, 255
-    v24 = sload 0 !metadata(storage=slot(0))
-    v25 = not v23
-    v26 = and v24, v25
-    v27 = zext i8 v22 to i256
-    v28 = and v27, 255
-    v29 = shl 32, v28
-    v30 = or v26, v29
-    sstore 0, v30 !metadata(storage=slot(0))
-    v31 = shl 40, 0xffffff
-    v32 = sload 0 !metadata(storage=slot(0))
-    v33 = not v31
-    v34 = and v32, v33
-    v35 = shr 232, 0xddeeff0000000000000000000000000000000000000000000000000000000000
-    v36 = and v35, 0xffffff
-    v37 = shl 40, v36
-    v38 = or v34, v37
-    sstore 0, v38 !metadata(storage=slot(0))
+    v21 = shl 32, 255
+    v22 = sload 0 !metadata(storage=slot(0))
+    v23 = not v21
+    v24 = and v22, v23
+    v25 = and 254, 255
+    v26 = shl 32, v25
+    v27 = or v24, v26
+    sstore 0, v27 !metadata(storage=slot(0))
+    v28 = shl 40, 0xffffff
+    v29 = sload 0 !metadata(storage=slot(0))
+    v30 = not v28
+    v31 = and v29, v30
+    v32 = shr 232, 0xddeeff0000000000000000000000000000000000000000000000000000000000
+    v33 = and v32, 0xffffff
+    v34 = shl 40, v33
+    v35 = or v31, v34
+    sstore 0, v35 !metadata(storage=slot(0))
     ret
 }
 
