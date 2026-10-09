@@ -242,3 +242,23 @@ contract TwoTags {
         unchecked { return a - 1; } //~ ERROR: `TwoTags` is tagged `@custom:solar-safe` but runs an `unchecked` block
     }
 }
+
+// A constant that trusted code reads is still traced for the untrusted code
+// that reads it too.
+function wrapped(uint256 a) pure returns (uint256 r) {
+    unchecked { r = a - 1; } //~ ERROR: `SafeConstant` is tagged `@custom:solar-safe` but runs an `unchecked` block
+}
+
+/// @custom:solar-safe
+contract SafeConstant {
+    uint256 internal constant K = wrapped(0);
+
+    /// @custom:solar-trusted
+    function reviewed() external pure returns (uint256) {
+        return K;
+    }
+
+    function open() external pure returns (uint256) {
+        return K;
+    }
+}

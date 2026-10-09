@@ -282,5 +282,19 @@ LL │ /// @custom:solar-safe memory
    ├ note: it runs this through `TwoTags.f`
    ╰ help: use checked arithmetic, or review it and tag its function `@custom:solar-trusted`
 
-error: aborting due to 22 previous errors
+error: `SafeConstant` is tagged `@custom:solar-safe` but runs an `unchecked` block
+   ╭▸ ROOT/tests/ui/typeck/solar_safe.sol:LL:CC
+   │
+LL │     unchecked { r = a - 1; }
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: the tag is here
+   ╭▸ ROOT/tests/ui/typeck/solar_safe.sol:LL:CC
+   │
+LL │ /// @custom:solar-safe
+   │      ━━━━━━━━━━━━━━━━━
+   ├ note: it runs this through `SafeConstant.open` → `wrapped`
+   ╰ help: use checked arithmetic, or review it and tag its function `@custom:solar-trusted`
+
+error: aborting due to 23 previous errors
 

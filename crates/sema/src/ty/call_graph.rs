@@ -255,6 +255,11 @@ impl<'gcx, 's> CallGraphBuilder<'gcx, 's> {
     }
 
     fn collect_constant_reference(&mut self, expr: &'gcx hir::Expr<'gcx>) {
+        // A stopped body does not reach what a constant's initializer names; leave it unvisited so
+        // other readers can reach it.
+        if self.stopped {
+            return;
+        }
         let Some(id) = self.gcx.resolved_variable(expr) else { return };
         let variable = self.gcx.hir.variable(id);
         if variable.is_constant()
