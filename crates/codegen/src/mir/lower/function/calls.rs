@@ -17,18 +17,6 @@ pub(super) struct ExternalReturnPlan {
 }
 
 impl ExternalReturnPlan {
-    /// A plan for a call that declares no output area and decodes its return values from the
-    /// return data, which only exists from Byzantium on.
-    fn returndata(zero: ValueId) -> Self {
-        Self {
-            static_buffer: None,
-            offset: zero,
-            size: zero,
-            overlays_input: false,
-            decode_returndata: true,
-        }
-    }
-
     /// The `(offset, size)` output-area operands of the call the plan was built for.
     pub(super) fn output_area(&self) -> (ValueId, ValueId) {
         (self.offset, self.size)
@@ -1199,7 +1187,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             types.insert(0, ty);
         }
 
-        let evm_version = self.cx.gcx.sess.opts.evm_version;
         let return_types = function
             .returns
             .iter()
@@ -1219,16 +1206,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let input = self.builder.slice_ptr(encoded);
         let input_size = self.builder.slice_len(encoded);
         let zero = self.builder.imm(U256::ZERO);
-        let gas = evm_version.can_overcharge_gas_for_call().then(|| self.builder.gas());
-        // From Byzantium on the return values come out of the return data; before it the
-        // delegatecall writes them into an output area overlaying its input and the success path
-        // reads them back from there, as solc's static output size does.
+        let can_overcharge = self.cx.gcx.sess.opts.evm_version.can_overcharge_gas_for_call();
+        let gas = can_overcharge.then(|| self.builder.gas());
         // ret_offset, ret_size = plan_return_buffer(returns)
-        let return_plan = if evm_version.supports_returndata() {
-            ExternalReturnPlan::returndata(zero)
-        } else {
-            self.plan_return_buffer(input, zero, &return_types, overlay_buffer)
-        };
+        let return_plan = self.plan_return_buffer(input, zero, &return_types, overlay_buffer);
         if self.needs_code_check(return_types.len()) {
             self.revert_if_no_code(address);
         }

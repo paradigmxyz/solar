@@ -2,6 +2,7 @@
 //@[mir] filecheck:
 //@ run-call: ExternalStaticAggregateReturn::structReturn 7 => 15
 //@ run-call: ExternalStaticAggregateReturn::arrayReturn 7 => 24
+//@ run-call: ExternalStaticAggregateReturn::tryStructReturn 7 => 15
 
 // An external call that returns one static aggregate decodes it in place from
 // the bytes object it returns into.
@@ -35,5 +36,17 @@ contract ExternalStaticAggregateReturn {
     function arrayReturn(uint256 x) external view returns (uint256) {
         uint256[3] memory a = this.makeArray(x);
         return a[0] + a[1] + a[2];
+    }
+
+    // CHECK-LABEL: fn @tryStructReturn{{[( ]}}
+    // CHECK: [[BUF:v[0-9]+]] = alloc memorybytes, exact, uninitialized, infallible, 96
+    // CHECK-NOT: returndata_bytes
+    // CHECK: abi_decode [tuple<u256, u256>], [[BUF]]
+    function tryStructReturn(uint256 x) external view returns (uint256) {
+        try this.makeStruct(x) returns (S memory s) {
+            return s.a + s.b;
+        } catch {
+            return 0;
+        }
     }
 }
