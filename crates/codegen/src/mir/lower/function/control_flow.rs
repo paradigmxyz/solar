@@ -48,8 +48,8 @@ struct TryTarget<'a, 'gcx> {
     return_types: Vec<Ty<'gcx>>,
     /// Parameter names for named-argument resolution.
     parameter_names: Option<CallableParamNames>,
-    /// Whether the call must use STATICCALL.
-    static_call: bool,
+    /// The call opcode; unused for a contract creation.
+    kind: AddressCallKind,
 }
 
 impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
@@ -232,7 +232,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     .collect(),
                 return_types: Vec::new(),
                 parameter_names: Some(parameter_names),
-                static_call: false,
+                kind: AddressCallKind::Call,
             }
         } else if let ExprKind::Member(receiver, _) = callee.kind
             && let Some(function_id) = self.cx.gcx.resolved_function(callee)
@@ -244,7 +244,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 function.visibility,
                 hir::Visibility::Public | hir::Visibility::External
             );
-            let (callee, parameter_types, parameter_names, static_call) = if is_external_library {
+            let (callee, parameter_types, parameter_names, kind) = if is_external_library {
                 let address = self.library_address(function_id);
                 let attached =
                     self.cx.gcx.resolved_callee(callee.id).is_some_and(|callee| callee.attached);
@@ -264,7 +264,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         .gcx
                         .call_param_source(callee)
                         .map(|source| self.cx.gcx.callable_param_names(source)),
-                    false,
+                    AddressCallKind::Delegate,
                 )
             } else {
                 (
@@ -281,7 +281,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         id: function_id,
                         skips_receiver: false,
                     })),
-                    self.uses_static_call(function.state_mutability),
+                    self.external_call_kind(function.state_mutability),
                 )
             };
             TryTarget {
@@ -293,7 +293,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     .map(|&return_id| self.cx.gcx.type_of_item(return_id.into()))
                     .collect(),
                 parameter_names,
-                static_call,
+                kind,
             }
         } else if let Some(TyKind::Fn(function)) =
             self.cx.gcx.type_of_expr(callee.id).map(|ty| ty.kind)
@@ -307,7 +307,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 parameter_types: function.parameters.to_vec(),
                 return_types: function.returns.to_vec(),
                 parameter_names: None,
-                static_call: self.uses_static_call(function.state_mutability),
+                kind: self.external_call_kind(function.state_mutability),
             }
         } else {
             return self.cx.report_unsupported(try_stmt.expr.span, "try target");
@@ -390,7 +390,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 TryCallee::Creation { .. } => unreachable!(),
             };
             let options = self.lower_call_options(call_opts, true, "try call option")?;
-            let (call_value, zero) = (options.value, options.zero);
             let (mut values, mut types) =
                 if let TryCallee::LinkedLibrary { function, receiver, .. } = target.callee {
                     let capacity = args.len() + usize::from(receiver.is_some());
@@ -433,38 +432,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 TryCallee::FunctionPointer { selector, .. } => selector,
                 TryCallee::Creation { .. } => unreachable!(),
             };
-            // buffer = alloc_overlay_return_buffer(returns)
-            // input = abi_encode(selector, args)
-            let overlay_buffer = self.alloc_overlay_return_buffer(&return_types);
-            // mstore(add(fmp(), ret_size), 0)
-            self.touch_call_output_area(options.gas, &return_types, overlay_buffer.is_some());
-            let layout = Arc::new(AbiLayout::new(types.into_boxed_slice()));
-            let encoded =
-                self.builder.abi_encode(layout, Some(selector), values.into_boxed_slice());
-            let input = self.builder.slice_ptr(encoded);
-            let input_size = self.builder.slice_len(encoded);
-            // ret_offset, ret_size = plan_return_buffer(returns)
-            let ret_plan = self.plan_return_buffer(input, zero, &return_types, overlay_buffer);
-            let (ret_offset, ret_size) = ret_plan.output_area();
-            if self.needs_code_check(return_types.len()) {
-                self.revert_if_no_code(address);
-            }
-            // The code check above is emitted at every version that needs the reserve, so the
-            // call cannot create the callee's account.
-            // gas = gas() | sub(gas(), reserve)
-            let gas = self.call_gas(options.gas, options.value_set, false);
-            // ok = delegatecall|staticcall|call(gas, address, input, ret_offset, ret_size)
-            let success = match target.callee {
-                TryCallee::LinkedLibrary { .. } => {
-                    self.builder.delegatecall(gas, address, input, input_size, ret_offset, ret_size)
-                }
-                _ if target.static_call => {
-                    self.builder.staticcall(gas, address, input, input_size, ret_offset, ret_size)
-                }
-                _ => self
-                    .builder
-                    .call(gas, address, call_value, input, input_size, ret_offset, ret_size),
-            };
+            // ok = delegatecall|staticcall|call(address, selector, args)
+            let (success, ret_plan) = self.emit_external_call(
+                target.kind,
+                address,
+                selector,
+                (values, types),
+                &return_types,
+                Some(options),
+            );
             (success, None, Some(ret_plan))
         };
 
