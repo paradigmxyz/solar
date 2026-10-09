@@ -6,7 +6,6 @@ use std::{fmt, ops::RangeInclusive};
 
 impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     /// Parses a type.
-    #[instrument(level = "trace", skip_all)]
     pub fn parse_type(&mut self) -> PResult<'sess, Type<'ast>> {
         let mut ty = self
             .parse_spanned(Self::parse_basic_ty_kind)
@@ -34,25 +33,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         if self.check_elementary_type() {
             self.parse_elementary_type().map(TypeKind::Elementary)
         } else if self.eat_keyword(kw::Function) {
-            self.parse_function_header(FunctionFlags::FUNCTION_TY).map(|f| {
-                let FunctionHeader {
-                    span: _,
-                    name: _,
-                    parameters,
-                    visibility,
-                    state_mutability,
-                    modifiers: _,
-                    virtual_: _,
-                    override_: _,
-                    returns,
-                } = f;
-                TypeKind::Function(self.alloc(TypeFunction {
-                    parameters,
-                    visibility,
-                    state_mutability,
-                    returns,
-                }))
-            })
+            self.parse_function_type()
         } else if self.eat_keyword(kw::Mapping) {
             self.parse_mapping_type().map(|x| TypeKind::Mapping(self.alloc(x)))
         } else if self.check_path() {
@@ -60,6 +41,32 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         } else {
             self.unexpected()
         }
+    }
+
+    /// Parses a function type, after the `function` keyword.
+    ///
+    /// Kept out of line so that the header takes no space in other types.
+    #[inline(never)]
+    fn parse_function_type(&mut self) -> PResult<'sess, TypeKind<'ast>> {
+        self.parse_function_header(FunctionFlags::FUNCTION_TY).map(|f| {
+            let FunctionHeader {
+                span: _,
+                name: _,
+                parameters,
+                visibility,
+                state_mutability,
+                modifiers: _,
+                virtual_: _,
+                override_: _,
+                returns,
+            } = f;
+            TypeKind::Function(self.alloc(TypeFunction {
+                parameters,
+                visibility,
+                state_mutability,
+                returns,
+            }))
+        })
     }
 
     /// Parses an elementary type.

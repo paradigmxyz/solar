@@ -275,6 +275,19 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         self.arena.alloc_smallvec_thin((), values)
     }
 
+    /// Moves the elements of `values` into a list on the AST arena.
+    ///
+    /// Unlike [`alloc_smallvec`](Self::alloc_smallvec), this does not move `values` itself, which
+    /// would copy its inline buffer when its address has escaped.
+    fn alloc_drain<A: smallvec::Array>(&self, values: &mut SmallVec<A>) -> BoxSlice<'ast, A::Item> {
+        self.arena.alloc_smallvec_drain_thin((), values)
+    }
+
+    /// Allocates a list of objects on the AST arena.
+    pub fn alloc_from_iter<T>(&self, values: impl Iterator<Item = T>) -> BoxSlice<'ast, T> {
+        self.arena.alloc_from_iter_thin((), values)
+    }
+
     /// Returns an "unexpected token" error in a [`PResult`] for the current token.
     #[inline]
     #[track_caller]
@@ -618,7 +631,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         allow_empty: bool,
         f: impl FnMut(&mut Self) -> PResult<'sess, T>,
     ) -> PResult<'sess, BoxSlice<'ast, T>> {
-        self.parse_unspanned_seq(
+        self.parse_unspanned_seq::<_, 8>(
             TokenKind::OpenDelim(delim),
             TokenKind::CloseDelim(delim),
             sep,
@@ -631,8 +644,8 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     /// `f` must consume tokens until reaching the next separator or
     /// closing bracket.
     #[track_caller]
-    #[inline]
-    fn parse_unspanned_seq<T>(
+    #[inline(always)]
+    fn parse_unspanned_seq<T, const N: usize>(
         &mut self,
         bra: TokenKind,
         ket: TokenKind,
@@ -641,22 +654,22 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         f: impl FnMut(&mut Self) -> PResult<'sess, T>,
     ) -> PResult<'sess, BoxSlice<'ast, T>> {
         self.expect(bra)?;
-        self.parse_seq_to_end(ket, sep, allow_empty, f)
+        self.parse_seq_to_end::<_, N>(ket, sep, allow_empty, f)
     }
 
     /// Parses a sequence, including only the closing delimiter. The function
     /// `f` must consume tokens until reaching the next separator or
     /// closing bracket.
     #[track_caller]
-    #[inline]
-    fn parse_seq_to_end<T>(
+    #[inline(always)]
+    fn parse_seq_to_end<T, const N: usize>(
         &mut self,
         ket: TokenKind,
         sep: SeqSep,
         allow_empty: bool,
         f: impl FnMut(&mut Self) -> PResult<'sess, T>,
     ) -> PResult<'sess, BoxSlice<'ast, T>> {
-        let (val, recovered) = self.parse_seq_to_before_end(ket, sep, allow_empty, f)?;
+        let (val, recovered) = self.parse_seq_to_before_tokens::<_, N>(ket, sep, allow_empty, f)?;
         if recovered == Recovered::No {
             self.expect(ket)?;
         }
@@ -675,23 +688,23 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         allow_empty: bool,
         f: impl FnMut(&mut Self) -> PResult<'sess, T>,
     ) -> PResult<'sess, (BoxSlice<'ast, T>, Recovered)> {
-        self.parse_seq_to_before_tokens(ket, sep, allow_empty, f)
+        self.parse_seq_to_before_tokens::<_, 8>(ket, sep, allow_empty, f)
     }
 
     /// Parses a sequence until the specified delimiters. The function
     /// `f` must consume tokens until reaching the next separator or
     /// closing bracket.
     #[track_caller]
-    fn parse_seq_to_before_tokens<T>(
+    fn parse_seq_to_before_tokens<T, const N: usize>(
         &mut self,
         ket: TokenKind,
         sep: SeqSep,
         allow_empty: bool,
         f: impl FnMut(&mut Self) -> PResult<'sess, T>,
     ) -> PResult<'sess, (BoxSlice<'ast, T>, Recovered)> {
-        let mut v = SmallVec::<[T; 8]>::new();
+        let mut v = SmallVec::<[T; N]>::new();
         let recovered = self.parse_seq_into(ket, sep, allow_empty, f, |_, value| v.push(value))?;
-        Ok((self.alloc_smallvec(v), recovered))
+        Ok((self.alloc_drain(&mut v), recovered))
     }
 
     /// Parses a brace-delimited block, collecting the items in `buf` instead of on the stack.
@@ -850,10 +863,10 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         self.prev_token = std::mem::replace(&mut self.token, next);
         while let Some((is_doc, kind, symbol)) = self.token.comment() {
             if is_doc {
-                let natspec = if let Some(items) =
+                let natspec = if let Some(mut items) =
                     parse_natspec(self.token.span, symbol, kind, self.in_yul, self.dcx())
                 {
-                    self.alloc_smallvec(items)
+                    self.alloc_drain(&mut items)
                 } else {
                     BoxSlice::default()
                 };
