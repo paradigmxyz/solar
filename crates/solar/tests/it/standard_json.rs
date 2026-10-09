@@ -198,3 +198,39 @@ fn callback_imports_search_include_paths() {
     let message = output["errors"][0]["message"].as_str().unwrap();
     assert!(message.starts_with("multiple files match X.sol: "), "{message}");
 }
+
+/// Files read through the callback keep their exact source unit names, a repeated include path is
+/// not ambiguous, and sources named like a root-relative path are not mistaken for matches.
+#[test]
+fn callback_imports_keep_exact_names() {
+    struct Callback;
+
+    impl StandardJsonReadCallback for Callback {
+        fn read(&self, _kind: &str, data: &str) -> ReadCallbackResult {
+            match data {
+                "https://example.com/B.sol" => ReadCallbackResult::Success("contract B {}".into()),
+                "inc/X.sol" => ReadCallbackResult::Success("contract X {}".into()),
+                _ => ReadCallbackResult::Error(format!("`{data}` not found")),
+            }
+        }
+    }
+
+    let input = json!({
+        "language": "Solidity",
+        "sources": {
+            "A.sol": {"content": "import \"https://example.com/B.sol\"; import \"X.sol\"; contract A {}"},
+            "sub/X.sol": {"content": "contract Y {}"}
+        },
+        "settings": {"outputSelection": {}}
+    });
+    let opts = CompileOpts {
+        include_paths: vec!["inc".into(), "inc".into(), "sub".into()],
+        ..Default::default()
+    };
+    let mut output = Vec::new();
+    compile_standard_json(&input.to_string(), opts, Some(Arc::new(Callback)), &mut output).unwrap();
+    let output = serde_json::from_slice::<Value>(&output).unwrap();
+    let mut names = output["sources"].as_object().unwrap().keys().collect::<Vec<_>>();
+    names.sort();
+    assert_eq!(names, ["A.sol", "X.sol", "https://example.com/B.sol", "sub/X.sol"], "{output}");
+}

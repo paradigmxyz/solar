@@ -27,8 +27,8 @@ pub enum ResolveError {
     ReadFile(PathBuf, #[source] io::Error),
     #[error("file {0} not found")]
     NotFound(PathBuf),
-    #[error("multiple files match {}: {}", .0.display(), .1.iter().map(|f| real_path(f).display()).format(", "))]
-    MultipleMatches(PathBuf, Vec<Arc<SourceFile>>),
+    #[error("multiple files match {}: {}", .0.display(), .1.iter().map(|path| path.display()).format(", "))]
+    MultipleMatches(PathBuf, Vec<PathBuf>),
     #[error("{} is outside of the allowed directories", .0.display())]
     NotAllowed(PathBuf),
 }
@@ -52,8 +52,10 @@ pub struct FileResolver<'a> {
     env_current_dir: OnceLock<Option<PathBuf>>,
     /// The start of the last source loaded before resolving the first import.
     last_input: OnceLock<Option<BytePos>>,
-    /// The directories that files can be loaded from, with symbolic links resolved.
+    /// The paths that imports can load files from, in addition to the default ones, if restricted.
     allowed_paths: Option<Vec<PathBuf>>,
+    /// All the directories that imports can load files from, with symbolic links resolved.
+    allowed_dirs: OnceLock<Vec<PathBuf>>,
 }
 
 impl<'a> FileResolver<'a> {
@@ -69,6 +71,7 @@ impl<'a> FileResolver<'a> {
             env_current_dir: OnceLock::new(),
             last_input: OnceLock::new(),
             allowed_paths: None,
+            allowed_dirs: OnceLock::new(),
         }
     }
 
@@ -85,6 +88,7 @@ impl<'a> FileResolver<'a> {
         self.add_import_remappings(opts.import_remappings.iter().cloned());
         if let Some(base_path) = &opts.base_path {
             self.base_path = Some(self.absolute(base_path));
+            self.allowed_dirs.take();
         }
     }
 
@@ -97,6 +101,7 @@ impl<'a> FileResolver<'a> {
         self.env_current_dir.take();
         self.last_input.take();
         self.allowed_paths = None;
+        self.allowed_dirs.take();
     }
 
     /// Sets the current directory.
@@ -110,6 +115,7 @@ impl<'a> FileResolver<'a> {
             panic!("current_dir must be an absolute path");
         }
         self.custom_current_dir = Some(current_dir.to_path_buf());
+        self.allowed_dirs.take();
     }
 
     /// Sets the base path.
@@ -123,6 +129,7 @@ impl<'a> FileResolver<'a> {
             panic!("base_path must be an absolute path");
         }
         self.base_path = Some(base_path.to_path_buf());
+        self.allowed_dirs.take();
     }
 
     /// Adds include paths.
@@ -139,43 +146,60 @@ impl<'a> FileResolver<'a> {
     /// Relative paths are relative to the current directory.
     pub fn add_include_path(&mut self, path: PathBuf) {
         let path = self.absolute(&path);
-        self.include_paths.push(path)
+        self.include_paths.push(path);
+        self.allowed_dirs.take();
     }
 
-    /// Only loads files inside `paths`, the base path, the include paths and the directories of
-    /// the remapping targets, like solc's allowed paths. Paths that don't exist are ignored.
-    ///
-    /// Call this after configuring the base path, include paths and remappings.
+    /// Only lets imports load files inside `paths`, the base path, the include paths and the
+    /// directories of the remapping targets, like solc's allowed paths. Paths that don't exist are
+    /// ignored.
     pub fn set_allowed_paths(&mut self, paths: impl IntoIterator<Item = PathBuf>) {
-        // Remapping targets that name a directory, and the directories of the others.
-        let targets = self.remappings.iter().filter(|r| !r.path.is_empty()).map(|r| {
-            let target = sanitize_path(&r.path);
-            let path = Path::new(&*target);
-            let is_dir = target.ends_with('/') || target.ends_with("/.") || path.ends_with("..");
-            if is_dir { path } else { path.parent().unwrap_or(Path::new("")) }.to_path_buf()
-        });
-        let roots = self.roots().map(Path::to_path_buf).collect_vec();
-        let mut allowed = paths
-            .into_iter()
-            .chain(roots)
-            .chain(targets.collect_vec())
-            .filter_map(|path| self.canonicalize(&path).ok())
-            .map(without_verbatim_prefix)
-            .collect_vec();
-        // Keep only the outermost directories.
-        allowed.sort();
-        allowed.dedup_by(|path, outer| path.starts_with(outer));
-        self.allowed_paths = Some(allowed);
+        self.allowed_paths = Some(paths.into_iter().collect());
+        self.allowed_dirs.take();
+    }
+
+    /// Returns the directories that imports can load files from, if restricted.
+    fn allowed_dirs(&self) -> Option<&[PathBuf]> {
+        let paths = self.allowed_paths.as_ref()?;
+        Some(self.allowed_dirs.get_or_init(|| {
+            // Remapping targets that name a directory, and the directories of the others.
+            let targets = self.remappings.iter().filter(|r| !r.path.is_empty()).map(|r| {
+                let target = sanitize_path(&r.path);
+                let path = Path::new(&*target);
+                let is_dir =
+                    target.ends_with('/') || target.ends_with("/.") || path.ends_with("..");
+                if is_dir { path } else { path.parent().unwrap_or(Path::new("")) }.to_path_buf()
+            });
+            let mut paths = paths
+                .iter()
+                .cloned()
+                .chain(self.roots().map(Path::to_path_buf))
+                .chain(targets)
+                .collect_vec();
+            paths.sort();
+            paths.dedup();
+            let mut dirs = paths
+                .iter()
+                .filter_map(|path| self.canonicalize(path).ok())
+                .map(|dir| without_verbatim_prefix(&dir).into_owned())
+                .collect_vec();
+            // Keep only the outermost directories.
+            dirs.sort();
+            dirs.dedup_by(|dir, outer| dir.starts_with(outer));
+            dirs
+        }))
     }
 
     /// Adds import remappings.
     pub fn add_import_remappings(&mut self, remappings: impl IntoIterator<Item = ImportRemapping>) {
         self.remappings.extend(remappings);
+        self.allowed_dirs.take();
     }
 
     /// Adds an import remapping.
     pub fn add_import_remapping(&mut self, remapping: ImportRemapping) {
         self.remappings.push(remapping);
+        self.allowed_dirs.take();
     }
 
     /// Returns the source map.
@@ -290,6 +314,13 @@ impl<'a> FileResolver<'a> {
         if let Some(file) = self.get_source_unit(&unit) {
             return Ok(Some(file));
         }
+        // An empty base path in the source map means that file names are source unit names, as in
+        // Standard JSON.
+        let roots = self.source_map().roots();
+        if roots.as_ref().and_then(|roots| roots.base_path.as_deref()) == Some(Path::new("")) {
+            return self.read_source_unit(path, &unit);
+        }
+
         // Like solc, prefer an input file with this source unit name over searching the disk.
         // Files loaded for other imports don't count, so the result doesn't depend on their order.
         if let Some(last_input) = last_input
@@ -307,34 +338,61 @@ impl<'a> FileResolver<'a> {
             }
         }
 
-        // An empty base path in the source map means that file names are source unit names, as in
-        // Standard JSON.
-        let roots = self.source_map().roots();
-        let base_path = roots.as_ref().and_then(|roots| roots.base_path.as_deref());
-        let name = base_path
-            .is_some_and(|path| path.as_os_str().is_empty())
-            .then(|| generic_path(lexical_normalize(&unit)));
         let mut found = SmallVec::<[_; 1]>::new();
-        let mut read_error = None;
         for candidate in self.search_paths(&unit) {
-            // After a match, load the other candidates under their own names, so that matches in
-            // several roots are reported as ambiguous.
-            let candidate_name = if found.is_empty() { name.as_deref() } else { None };
-            match self.load(&candidate, candidate_name, self.allowed_paths.as_deref()) {
-                // Quick deduplication when include paths are duplicated.
-                Ok(Some(file)) if !found.iter().any(|f| Arc::ptr_eq(f, &file)) => found.push(file),
-                Ok(_) => {}
+            // Quick deduplication when include paths are duplicated.
+            if let Some(file) = self.load(&candidate, self.allowed_dirs())?
+                && !found.iter().any(|f| Arc::ptr_eq(f, &file))
+            {
+                found.push(file);
+            }
+        }
+        match found.len() {
+            0 | 1 => Ok(found.pop()),
+            _ => {
+                let paths = found.iter().map(|file| real_path(file).to_path_buf()).collect();
+                Err(ResolveError::MultipleMatches(path.into(), paths))
+            }
+        }
+    }
+
+    /// Reads a source unit through the file loader, like solc's file reader, and names it by the
+    /// source unit name. This is how Standard JSON uses its read callback.
+    fn read_source_unit(
+        &self,
+        path: &Path,
+        unit: &Path,
+    ) -> Result<Option<Arc<SourceFile>>, ResolveError> {
+        let loader = self.source_map().file_loader();
+        let mut found = SmallVec::<[(PathBuf, String); 1]>::new();
+        let mut read_error = None;
+        for candidate in self.search_paths(unit) {
+            let Ok(path) = loader.canonicalize_path(&generic_path(candidate.into_owned())) else {
+                continue;
+            };
+            if found.iter().any(|(found, _)| *found == path) {
+                continue;
+            }
+            match loader.load_file(&path) {
+                Ok(src) => found.push((path, src)),
                 // A read callback need not serve every root.
-                Err(e @ ResolveError::ReadFile(..)) if name.is_some() => {
-                    read_error.get_or_insert(e);
+                Err(e) => {
+                    read_error.get_or_insert(ResolveError::ReadFile(path, e));
                 }
-                Err(e) => return Err(e),
             }
         }
         match found.len() {
             0 => read_error.map_or(Ok(None), Err),
-            1 => Ok(found.pop()),
-            _ => Err(ResolveError::MultipleMatches(path.into(), found.into_vec())),
+            1 => {
+                let (path, src) = found.pop().unwrap();
+                let name = generic_path(unit.to_path_buf());
+                let file = self.source_map().new_source_file(name, src);
+                file.map(Some).map_err(|e| ResolveError::ReadFile(path, e))
+            }
+            _ => {
+                let paths = found.into_iter().map(|(path, _)| path).collect();
+                Err(ResolveError::MultipleMatches(path.into(), paths))
+            }
         }
     }
 
@@ -440,25 +498,22 @@ impl<'a> FileResolver<'a> {
             return Ok(Some(file));
         }
         // Like solc, don't restrict input files to the allowed paths.
-        self.load(&self.make_absolute(path), None, None)
+        self.load(&self.make_absolute(path), None)
     }
 
-    /// Loads the file at `path`, named by `name` or else its normalized path, if it is inside
-    /// `allowed_paths`.
+    /// Loads the file at `path`, named by its normalized path, if it is inside `allowed_dirs`.
     fn load(
         &self,
         path: &Path,
-        name: Option<&Path>,
-        allowed_paths: Option<&[PathBuf]>,
+        allowed_dirs: Option<&[PathBuf]>,
     ) -> Result<Option<Arc<SourceFile>>, ResolveError> {
         let path = generic_path(lexical_normalize(path));
         // A file inside the base path may be loaded under its relative name, like the ones a build
-        // tool preloads. A given name was already looked up.
+        // tool preloads.
         let source_map = self.source_map();
-        if name.is_none()
-            && let Some(file) = source_map
-                .get_file(&path)
-                .or_else(|| source_map.get_file(strip_root(&path, self.try_base_path())))
+        if let Some(file) = source_map
+            .get_file(&path)
+            .or_else(|| source_map.get_file(strip_root(&path, self.try_base_path())))
         {
             return Ok(Some(file));
         }
@@ -467,15 +522,14 @@ impl<'a> FileResolver<'a> {
             trace!(path=%path.display(), "not found");
             return Ok(None);
         };
-        if let Some(allowed_paths) = allowed_paths
-            && let canonical = without_verbatim_prefix(canonical.clone())
-            && !allowed_paths.iter().any(|allowed| canonical.starts_with(allowed))
+        if let Some(allowed_dirs) = allowed_dirs
+            && let plain = without_verbatim_prefix(&canonical)
+            && !allowed_dirs.iter().any(|dir| plain.starts_with(dir))
         {
             return Err(ResolveError::NotAllowed(path));
         }
-        let name = name.map_or_else(|| path.clone(), Path::to_path_buf);
         self.source_map()
-            .load_file_with_name(name.into(), &canonical)
+            .load_file_with_name(path.into(), &canonical)
             .map(Some)
             .map_err(|e| ResolveError::ReadFile(canonical, e))
     }
@@ -590,9 +644,11 @@ pub(crate) fn source_unit_name<'a>(
 
 /// Drops the drive of a Windows path on the current directory's drive, like solc.
 fn strip_current_drive<'a>(path: &'a Path, current_dir: Option<&Path>) -> &'a Path {
+    if !cfg!(windows) {
+        return path;
+    }
     let mut components = path.components();
-    if cfg!(windows)
-        && let Some(Component::Prefix(prefix)) = components.next()
+    if let Some(Component::Prefix(prefix)) = components.next()
         && matches!(prefix.kind(), Prefix::Disk(_))
         && current_dir.and_then(|dir| dir.components().next()) == Some(Component::Prefix(prefix))
     {
@@ -642,21 +698,19 @@ fn lexical_normalize(path: &Path) -> PathBuf {
 
 /// Replaces a verbatim `\\?\` Windows prefix with the plain prefix, which canonical paths keep when
 /// they are too long, so that they compare equal to other canonical paths.
-fn without_verbatim_prefix(path: PathBuf) -> PathBuf {
+fn without_verbatim_prefix(path: &Path) -> Cow<'_, Path> {
     let mut components = path.components();
-    let prefix = match components.next() {
-        Some(Component::Prefix(prefix)) => match prefix.kind() {
-            Prefix::VerbatimDisk(drive) => format!("{}:", char::from(drive)),
-            Prefix::VerbatimUNC(server, share) => {
-                format!(r"\\{}\{}", server.to_string_lossy(), share.to_string_lossy())
-            }
-            _ => return path,
-        },
-        _ => return path,
+    let Some(Component::Prefix(prefix)) = components.next() else { return Cow::Borrowed(path) };
+    let prefix = match prefix.kind() {
+        Prefix::VerbatimDisk(drive) => format!("{}:", char::from(drive)),
+        Prefix::VerbatimUNC(server, share) => {
+            format!(r"\\{}\{}", server.to_string_lossy(), share.to_string_lossy())
+        }
+        _ => return Cow::Borrowed(path),
     };
     let mut plain = PathBuf::from(prefix);
     plain.push(components.as_path());
-    plain
+    Cow::Owned(plain)
 }
 
 fn real_path(file: &SourceFile) -> &Path {

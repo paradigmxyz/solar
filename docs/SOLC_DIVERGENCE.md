@@ -58,8 +58,9 @@ Difference: `solc` treats source unit names as opaque strings, so `src/B.sol`,
 absolute path to the same file are separate source units. `solar` names a file
 that it loads from disk by its normalized path, shown relative to the base
 path, so all of these are one source unit named `src/B.sol`. In Standard JSON,
-a file loaded through the read callback is named by its normalized source unit
-name. A file that
+a file loaded through the read callback keeps the source unit name of the
+import that loaded it first, so spellings such as `lib/X.sol` and `lib//X.sol`
+also name one source unit. A file that
 imports both `src/B.sol` and `src//B.sol` fails with `Identifier already
 declared` in `solc` and compiles in `solar`. `solar` also looks up absolute
 import paths and remapping targets as they are, where `solc` prepends a
