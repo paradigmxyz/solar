@@ -21,6 +21,7 @@ mod file;
 pub use file::*;
 
 mod file_resolver;
+pub(crate) use file_resolver::absolute_path;
 pub use file_resolver::{FileResolver, ResolveError, apply_import_remappings};
 
 #[cfg(test)]
@@ -187,6 +188,20 @@ impl FileLoader for RealFileLoader {
     }
 }
 
+/// The directories that source file names are displayed relative to.
+#[derive(Debug)]
+pub(crate) struct SourceRoots {
+    pub(crate) base_path: Option<PathBuf>,
+    pub(crate) include_paths: Vec<PathBuf>,
+}
+
+impl SourceRoots {
+    /// Returns the source unit name of `path`, like solc does for command-line paths.
+    pub(crate) fn source_unit_name<'a>(&self, path: &'a Path) -> &'a Path {
+        file_resolver::strip_root(path, self.base_path.iter().chain(&self.include_paths))
+    }
+}
+
 /// Stores all the sources of the current compilation session.
 #[derive(derive_more::Debug)]
 pub struct SourceMap {
@@ -195,7 +210,7 @@ pub struct SourceMap {
     #[debug(skip)]
     id_to_file: OnceMap<SourceFileId, Arc<SourceFile>, FxBuildHasher>,
 
-    base_path: ArcSwapOption<PathBuf>,
+    roots: ArcSwapOption<SourceRoots>,
     #[debug(skip)]
     file_loader: OnceLock<Box<dyn FileLoader>>,
 }
@@ -212,7 +227,7 @@ impl SourceMap {
         Self {
             source_files: Default::default(),
             id_to_file: Default::default(),
-            base_path: Default::default(),
+            roots: Default::default(),
             file_loader: Default::default(),
         }
     }
@@ -246,16 +261,16 @@ impl SourceMap {
         self.file_loader.get().map(std::ops::Deref::deref).unwrap_or(&RealFileLoader)
     }
 
-    /// Sets the base path for the source map.
+    /// Sets the base path and include paths for the source map.
     ///
-    /// Source file names are displayed relative to it, and new file resolvers use it as their
-    /// default base path and current directory.
-    pub(crate) fn set_base_path(&self, base_path: Option<PathBuf>) {
-        self.base_path.store(base_path.map(Arc::new));
+    /// Source file names are displayed relative to them, and new file resolvers use the base path
+    /// as their default.
+    pub(crate) fn set_roots(&self, base_path: Option<PathBuf>, include_paths: Vec<PathBuf>) {
+        self.roots.store(Some(Arc::new(SourceRoots { base_path, include_paths })));
     }
 
-    pub(crate) fn base_path(&self) -> arc_swap::Guard<Option<Arc<PathBuf>>> {
-        self.base_path.load()
+    pub(crate) fn roots(&self) -> arc_swap::Guard<Option<Arc<SourceRoots>>> {
+        self.roots.load()
     }
 
     /// Returns `true` if the source map is empty.
@@ -271,7 +286,13 @@ impl SourceMap {
                 FileName::Custom(s[1..s.len() - 1].to_string())
             }
             s => {
-                if let Some(file) = FileResolver::new(self).get_file(s.as_ref()) {
+                if let Some(file) = FileResolver::new(self).get_file(s.as_ref()).or_else(|| {
+                    let files = self.files();
+                    files
+                        .iter()
+                        .find(|file| self.filename_for_diagnostics(&file.name).to_string() == s)
+                        .cloned()
+                }) {
                     file.name.clone()
                 } else {
                     FileName::Custom(s.to_string())
@@ -379,7 +400,7 @@ impl SourceMap {
 
     /// Display the filename for diagnostics.
     pub fn filename_for_diagnostics<'a>(&self, filename: &'a FileName) -> FileNameDisplay<'a> {
-        FileNameDisplay { inner: filename, base_path: self.base_path() }
+        FileNameDisplay { inner: filename, roots: self.roots() }
     }
 
     /// Returns `true` if the given span is multi-line.

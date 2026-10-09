@@ -1,8 +1,11 @@
+use rayon::prelude::*;
 use solar_codegen::ContractSelection;
 use solar_config::CompileOpts;
-use solar_interface::{Result, Session, error_code};
+use solar_interface::{
+    Result, Session, data_structures::map::FxHashMap, error_code, source_map::SourceFile,
+};
 use solar_sema::{CompilerRef, ParsingContext};
-use std::{ops::ControlFlow, process::ExitCode};
+use std::{ops::ControlFlow, path::Path, process::ExitCode, sync::Arc};
 
 pub(super) fn run(opts: CompileOpts) -> ExitCode {
     match run_compiler_args(opts) {
@@ -47,7 +50,10 @@ fn run_default(compiler: &mut CompilerRef<'_>) -> Result {
                 paths.push(arg);
             }
 
-            pcx.par_load_files(paths)
+            let files = pcx.par_resolve_files(paths).collect::<Result<Vec<_>>>()?;
+            check_source_unit_names(pcx.sess, &files)?;
+            pcx.add_files(files);
+            Ok(())
         },
         |_| {},
     )?;
@@ -69,6 +75,28 @@ fn run_default(compiler: &mut CompilerRef<'_>) -> Result {
         };
     crate::emit::emit_requested(compiler, bytecode_contracts, None, capture_debug_info)?;
     Ok(())
+}
+
+/// Rejects input files that get the same source unit name, like solc.
+fn check_source_unit_names(sess: &Session, files: &[Arc<SourceFile>]) -> Result {
+    let mut names = FxHashMap::<String, &Arc<SourceFile>>::default();
+    let mut result = Ok(());
+    for file in files {
+        let name = file.name.display().to_string();
+        if let Some(other) = names.insert(name.clone(), file)
+            && !Arc::ptr_eq(other, file)
+        {
+            let note =
+                format!("`{}` and `{}`", real_path(other).display(), real_path(file).display());
+            let msg = format!("source unit name `{name}` matches multiple files");
+            result = Err(sess.dcx.err(msg).note(note).emit());
+        }
+    }
+    result
+}
+
+fn real_path(file: &SourceFile) -> &Path {
+    file.name.as_real().unwrap_or(Path::new(""))
 }
 
 pub(crate) fn run_pipeline(

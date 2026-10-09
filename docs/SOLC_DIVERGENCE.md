@@ -47,6 +47,67 @@ Solc-specific pass controls have no equivalent meaning in Solar's pipeline.
 Coverage: `tests/ui/standard-json/metadata/options/test.jsonc` and
 `tests/ui/standard-json/debug/unknown-key/test.jsonc`.
 
+## Import Resolution
+
+### IMPORT-001: Files on disk are one source unit each
+
+Status: intentional.
+
+Difference: `solc` treats source unit names as opaque strings, so `src/B.sol`,
+`src//B.sol`, `src/./B.sol`, `./src/B.sol` from a remapping target, and an
+absolute path to the same file are separate source units. `solar` names a file
+that it loads from disk by its normalized path, shown relative to the base
+path, so all of these are one source unit named `src/B.sol`. A file that
+imports both `src/B.sol` and `src//B.sol` fails with `Identifier already
+declared` in `solc` and compiles in `solar`. `solar` also looks up absolute
+import paths and remapping targets as they are, where `solc` prepends a
+non-empty base path to them.
+
+Rationale: duplicate copies of one file only produce spurious conflicts. Build
+tools such as Foundry preload sources under relative names and pass absolute
+remapping targets, which must resolve to the preloaded sources
+([#1628](https://github.com/paradigmxyz/solar/pull/1628)).
+
+Coverage: `absolute_remapping_reuses_preloaded_source_unit_name` and
+`direct_import_reuses_preloaded_source_unit_name` in
+`crates/interface/src/source_map/file_resolver.rs`.
+
+### IMPORT-002: Names of files in include paths inside the base path
+
+Status: intentional.
+
+Difference: `solar` names every file from disk the way `solc` names files given
+on the command line: relative to the base path, else to the first include path
+that contains it. `solc` names an imported file by the import's source unit
+name instead. The two agree unless an include path is inside the base path:
+with `--base-path . --include-path node_modules`, `solc` names an import of
+`@oz/A.sol` `@oz/A.sol`, and `solar` names it `node_modules/@oz/A.sol`. The
+importing file's name is also the context that remappings match, so in this
+setup a context-dependent remapping such as `@oz/:x/=y/` applies in `solc` and
+not in `solar`, and `node_modules/@oz/:x/=y/` the other way around.
+
+Rationale: a name that depends only on the file's path is the same for every
+import of the file. It also keeps remapping contexts such as `lib/dep/` matching
+files in Foundry's `lib` include path, as `solc` does for files that remappings
+route through the base path.
+
+Coverage: `nested_include_paths_name_by_base_path` and
+`include_paths_name_source_units` in
+`crates/interface/src/source_map/file_resolver.rs`, and
+`crates/solar/tests/it/paths.rs`.
+
+### IMPORT-003: Lenient path options
+
+Status: intentional.
+
+Difference: `solar` accepts `--include-path` without `--base-path`, using the
+current directory as the base path, and does not report an ambiguous import
+when several roots contain the same file, as with a repeated include path.
+
+Rationale: these inputs have a single sensible meaning.
+
+Coverage: no dedicated tests.
+
 ## Parsing
 
 ### PARSE-001: Validation stage differences
