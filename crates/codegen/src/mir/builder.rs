@@ -1216,38 +1216,21 @@ impl<'a> FunctionBuilder<'a> {
         result
     }
 
-    /// Decodes a memory-backed ABI tuple into semantic values.
-    ///
-    /// `data` is a bytes object, or a raw word addressing a static head.
+    /// Decodes an ABI tuple from a bytes object into semantic values.
     pub(crate) fn abi_decode(
         &mut self,
         layout: crate::mir::AbiParamLayoutRef,
         data: ValueId,
         result_ty: MirType,
     ) -> ValueId {
-        let data = self.abi_decode_input(&layout, data);
         // result = abi_decode data
         self.emit_inst(InstKind::AbiDecode { data, layout }, Some(result_ty))
     }
 
     /// Checks the length of the data for an empty ABI tuple, which decodes to no values.
     pub(crate) fn abi_decode_void(&mut self, layout: crate::mir::AbiParamLayoutRef, data: ValueId) {
-        let data = self.abi_decode_input(&layout, data);
         // abi_decode data
         self.emit_void_inst(InstKind::AbiDecode { data, layout });
-    }
-
-    fn abi_decode_input(&mut self, layout: &crate::mir::AbiParamLayout, data: ValueId) -> ValueId {
-        if self.func.value_ty(data) != Some(MirType::I256) {
-            return data;
-        }
-        // object = alloc_bytes static_head_size
-        // memory_object_copy_from_slice object, make_memory_slice(data, static_head_size)
-        let size = self.imm(layout.checked_head_size().expect("static ABI layout"));
-        let object = self.alloc_bytes_object(size, AllocationSemantics::INTERNAL);
-        let source = self.make_slice(data, size, SliceLocation::Memory);
-        self.memory_object_copy_from_slice(object, MemoryObjectKind::Bytes, source);
-        object
     }
 
     /// Emits an mcopy whose destination is proven to be in the heap.

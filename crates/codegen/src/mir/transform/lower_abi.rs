@@ -669,11 +669,6 @@ impl LowerAbiCx {
                     let layout = layout.clone();
 
                     let result = builder.func().inst_result_value(inst);
-                    let data = if matches!(builder.func().value_ty(data), Some(MirType::I256)) {
-                        Self::materialize_static_decode_bytes(&mut builder, data, &layout)
-                    } else {
-                        data
-                    };
                     if let Some(&helper) = decode_helpers.get(layout.as_ref()) {
                         // result = icall decode_helper(data)
                         let result = result.expect("decode helpers have outputs");
@@ -912,18 +907,6 @@ impl LowerAbiCx {
             builder.ret(values);
         }
         module.add_function(function)
-    }
-
-    fn materialize_static_decode_bytes(
-        builder: &mut FunctionBuilder<'_>,
-        data: ValueId,
-        layout: &AbiParamLayout,
-    ) -> ValueId {
-        let size = builder.imm(layout.checked_head_size().expect("static ABI layout"));
-        let object = builder.alloc_bytes_object(size, AllocationSemantics::INTERNAL);
-        let source = builder.make_slice(data, size, SliceLocation::Memory);
-        builder.memory_object_copy_from_slice(object, MemoryObjectKind::Bytes, source);
-        object
     }
 
     fn validate_memory_tuple_input(
