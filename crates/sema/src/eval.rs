@@ -4,6 +4,7 @@ use num_bigint::{BigInt, BigUint, Sign};
 use num_rational::Ratio;
 use num_traits::{One, Signed, Zero};
 use solar_ast::{ElementaryType, LitKind, StrKind, TypeSize};
+use solar_data_structures::map::FxHashMap;
 use solar_interface::{ByteSymbol, Span, diagnostics::ErrorGuaranteed, error_code};
 use std::fmt;
 
@@ -126,13 +127,15 @@ pub(crate) fn eval_const(gcx: Gcx<'_>, expr: &hir::Expr<'_>) -> EvalResult {
 struct ConstantEvaluator<'gcx> {
     gcx: Gcx<'gcx>,
     depth: usize,
+    /// The values of the constants evaluated so far, as constants can use each other many times.
+    constants: FxHashMap<hir::VariableId, EvalResult>,
 }
 
 pub(crate) type EvalResult = Result<ConstValue, EvalError>;
 
 impl<'gcx> ConstantEvaluator<'gcx> {
     fn new(gcx: Gcx<'gcx>) -> Self {
-        Self { gcx, depth: 0 }
+        Self { gcx, depth: 0, constants: FxHashMap::default() }
     }
 
     fn try_eval_value(&mut self, expr: &hir::Expr<'_>) -> EvalResult {
@@ -152,31 +155,39 @@ impl<'gcx> ConstantEvaluator<'gcx> {
             // hir::ExprKind::Array(_) => unimplemented!(),
             // hir::ExprKind::Assign(_, _, _) => unimplemented!(),
             hir::ExprKind::Binary(l, bin_op, r) => {
-                let l = self.try_eval_value(l)?;
-                let r = self.try_eval_value(r)?;
+                let l = self.eval_operand(l)?;
+                let r = self.eval_operand(r)?;
                 l.binop(r, bin_op.kind).map_err(Into::into)
             }
             hir::ExprKind::Call(callee, ref args) => self.eval_call(callee, args),
             // hir::ExprKind::Delete(_) => unimplemented!(),
             hir::ExprKind::Ident(res) => {
                 // Ignore invalid overloads since they will get correctly detected later.
-                let Some(v) = res.iter().find_map(|res| res.as_variable()) else {
+                let Some(id) = res.iter().find_map(|res| res.as_variable()) else {
                     return Err(EE::NonConstantVar.into());
                 };
 
-                let v = self.gcx.hir.variable(v);
+                let v = self.gcx.hir.variable(id);
                 if v.mutability != Some(hir::VarMut::Constant) {
                     return Err(EE::NonConstantVar.into());
                 }
-                // Like solc, only constants count towards the limit, which stops cyclic
-                // definitions.
-                self.depth += 1;
-                if self.depth > RECURSION_LIMIT {
-                    return Err(EE::RecursionLimitReached.spanned(expr.span));
-                }
-                let value = self
-                    .try_eval_value(v.initializer.expect("constant variable has no initializer"));
-                self.depth -= 1;
+                let value = match self.constants.get(&id) {
+                    Some(value) => value.clone(),
+                    None => {
+                        // Like solc, only constants count towards the limit, which stops cyclic
+                        // definitions.
+                        self.depth += 1;
+                        if self.depth > RECURSION_LIMIT {
+                            return Err(EE::RecursionLimitReached.spanned(expr.span));
+                        }
+                        let initializer =
+                            v.initializer.expect("constant variable has no initializer");
+                        let value = self.try_eval_value(initializer);
+                        self.depth -= 1;
+                        self.constants.insert(id, value.clone());
+                        value
+                    }
+                };
                 // Each use of a failing constant is reported separately.
                 let value = value.map_err(|err| EvalError { literal: None, ..err })?;
                 // The constant's declared type carries over into the surrounding expression, so
@@ -205,9 +216,13 @@ impl<'gcx> ConstantEvaluator<'gcx> {
                 // leaves the rationals, like at runtime.
                 match value {
                     ConstValue::Integer(value) if value.ty.is_none() => {
-                        let other = self.try_eval_value(other)?.into_integer()?;
-                        let other = other.ty.map_or_else(|| other.mobile_ty(), Ok)?;
-                        let ty = value.mobile_ty()?.common(other).ok_or(EE::UnsupportedExpr)?;
+                        let mut ty = value.mobile_ty()?;
+                        // A branch that is not a constant, such as a conversion, leaves the
+                        // narrower type of the literal, which can only reject a valid value.
+                        if let Ok(ConstValue::Integer(other)) = self.eval_operand(other) {
+                            let other = other.ty.map_or_else(|| other.mobile_ty(), Ok)?;
+                            ty = ty.common(other).ok_or(EE::UnsupportedExpr)?;
+                        }
                         Ok(ConstValue::Integer(value.typed(Some(ty))))
                     }
                     ConstValue::Rational(_) => Err(EE::UnsupportedExpr.into()),
@@ -218,11 +233,22 @@ impl<'gcx> ConstantEvaluator<'gcx> {
             // hir::ExprKind::TypeCall(_) => unimplemented!(),
             // hir::ExprKind::Type(_) => unimplemented!(),
             hir::ExprKind::Unary(un_op, v) => {
-                let v = self.try_eval_value(v)?;
+                let v = self.eval_operand(v)?;
                 v.unop(un_op.kind).map_err(Into::into)
             }
             hir::ExprKind::Err(guar) => Err(EE::AlreadyEmitted(guar).into()),
             _ => Err(EE::UnsupportedExpr.into()),
+        }
+    }
+
+    /// Evaluates an operand, reusing its cached value.
+    ///
+    /// Type checking evaluates literal arithmetic at every operation, from the operands up, so
+    /// evaluating the operands again would take quadratic time in long literal chains.
+    fn eval_operand(&mut self, expr: &hir::Expr<'_>) -> EvalResult {
+        match self.gcx.eval_cache.get(&expr.peel_parens().id) {
+            Some(result) => result.clone(),
+            None => self.try_eval_value(expr),
         }
     }
 
@@ -257,7 +283,7 @@ impl<'gcx> ConstantEvaluator<'gcx> {
 }
 
 /// A typed Solidity constant value.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum ConstValue {
     /// Integer-like constant value.
     Integer(IntScalar),
@@ -359,6 +385,15 @@ impl ConstValue {
         } else {
             Self::Rational(value)
         }
+    }
+
+    /// Returns `true` if this is a fraction too large for any fixed-point type, which solc's
+    /// `RationalNumberType::fixedPointType` uses as its mobile type.
+    pub fn is_fraction_too_large(&self) -> bool {
+        let Self::Rational(value) = self else { return false };
+        let max =
+            if value.is_negative() { BigInt::one() << 255 } else { (BigInt::one() << 256) - 1 };
+        value.abs() > Ratio::from_integer(max)
     }
 
     /// Returns the exact value of a literal number, which has no declared type.
@@ -505,14 +540,17 @@ impl PartialEq for IntTy {
 
 impl IntTy {
     /// Returns the integer type denoted by the given type, if it is an integer type.
+    ///
+    /// A `bytesN` value is computed like a `uintN`, so a shift that drops bits fails instead of
+    /// keeping them, and lowering computes it at runtime.
     fn from_hir_ty(ty: &hir::Type<'_>) -> Option<Self> {
         match ty.kind {
             hir::TypeKind::Elementary(ElementaryType::Int(size)) => {
                 Some(Self { signed: true, size })
             }
-            hir::TypeKind::Elementary(ElementaryType::UInt(size)) => {
-                Some(Self { signed: false, size })
-            }
+            hir::TypeKind::Elementary(
+                ElementaryType::UInt(size) | ElementaryType::FixedBytes(size),
+            ) => Some(Self { signed: false, size }),
             _ => None,
         }
     }
@@ -569,7 +607,7 @@ impl IntTy {
 }
 
 /// Represents an integer value for constant evaluation.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct IntScalar {
     data: BigInt,
     /// The declared type the value was computed in, if it came from a typed constant.

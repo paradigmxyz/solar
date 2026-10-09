@@ -15,6 +15,14 @@ fn @widened() -> i256 [selector=0xd3eaa7aa, pure, abi_params=[], abi_returns=[wo
     ret 600
 }
 
+fn @castBranch() -> i256 [selector=0x7ad66a6a, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
+    v1 = ptrtoint memptr v0 to i256
+    memory_zero v1, 32
+    ret 1
+}
+
 fn @overflow() -> i256 [selector=0x004264c3, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     jumpi true, bb1, bb2

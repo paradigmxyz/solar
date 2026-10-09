@@ -1,0 +1,26 @@
+error[4828]: invalid number literal
+   ╭▸ ROOT/tests/ui/parser/yul/invalid_number_literals_assembly.sol:LL:CC
+   │
+LL │             switch 0.5
+   ╰╴                   ━━━
+
+error[4828]: invalid number literal
+   ╭▸ ROOT/tests/ui/parser/yul/invalid_number_literals_assembly.sol:LL:CC
+   │
+LL │             case 2e1 { r := 1 }
+   ╰╴                 ━━━
+
+error[4828]: invalid number literal
+   ╭▸ ROOT/tests/ui/parser/yul/invalid_number_literals_assembly.sol:LL:CC
+   │
+LL │             r := add(r, 1_000)
+   ╰╴                        ━━━━━
+
+error[4828]: invalid number literal
+   ╭▸ ROOT/tests/ui/parser/yul/invalid_number_literals_assembly.sol:LL:CC
+   │
+LL │             r := add(r, 0x1_0)
+   ╰╴                        ━━━━━
+
+error: aborting due to 4 previous errors
+

@@ -1844,9 +1844,7 @@ impl<'hir> Expr<'hir> {
             ExprKind::Unary(op, inner) if matches!(op.kind, UnOpKind::Neg | UnOpKind::BitNot) => {
                 inner.is_numeric_literal()
             }
-            ExprKind::Binary(lhs, op, rhs)
-                if !op.kind.is_cmp() && !matches!(op.kind, BinOpKind::Or | BinOpKind::And) =>
-            {
+            ExprKind::Binary(lhs, op, rhs) if !op.kind.is_cmp() && !op.kind.is_logical() => {
                 lhs.is_numeric_literal() && rhs.is_numeric_literal()
             }
             ExprKind::Tuple([Some(inner)]) => inner.is_numeric_literal(),

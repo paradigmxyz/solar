@@ -73,3 +73,15 @@ contract Uses {
         a; b; c; d; e; f;
     }
 }
+
+// solc gives a fraction a fixed-point mobile type, which a fraction beyond 256 integer bits does
+// not have.
+contract FractionsTooLarge {
+    function f() public pure {
+        2**256 + 0.5; //~ ERROR: literal is too large for any fixed-point type
+        (1, 2**256 - 0.5); //~ ERROR: literal is too large for any fixed-point type
+        (1, -(2**255) - 0.5); //~ ERROR: literal is too large for any fixed-point type
+        (1, 2**256 - 1.5);
+        (1, -(2**255) + 0.5);
+    }
+}

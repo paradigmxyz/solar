@@ -1,0 +1,20 @@
+error[4828]: invalid number literal
+   ╭▸ ROOT/tests/ui/parser/yul/invalid_number_literals.yul:LL:CC
+   │
+LL │     let x := .1
+   ╰╴             ━━
+
+error[4828]: invalid number literal
+   ╭▸ ROOT/tests/ui/parser/yul/invalid_number_literals.yul:LL:CC
+   │
+LL │     let y := 1e5
+   ╰╴             ━━━
+
+error[4828]: invalid number literal
+   ╭▸ ROOT/tests/ui/parser/yul/invalid_number_literals.yul:LL:CC
+   │
+LL │     let z := 67.235
+   ╰╴             ━━━━━━
+
+error: aborting due to 3 previous errors
+

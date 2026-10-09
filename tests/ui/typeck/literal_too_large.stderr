@@ -154,5 +154,23 @@ error: invalid mobile type
 LL │         uint[2] memory i = [1, 2**300];
    ╰╴                               ━━━━━━
 
-error: aborting due to 22 previous errors
+error[3757]: literal is too large for any fixed-point type
+   ╭▸ ROOT/tests/ui/typeck/literal_too_large.sol:LL:CC
+   │
+LL │         2**256 + 0.5;
+   ╰╴        ━━━━━━━━━━━━
+
+error[3390]: literal is too large for any fixed-point type
+   ╭▸ ROOT/tests/ui/typeck/literal_too_large.sol:LL:CC
+   │
+LL │         (1, 2**256 - 0.5);
+   ╰╴            ━━━━━━━━━━━━
+
+error[3390]: literal is too large for any fixed-point type
+   ╭▸ ROOT/tests/ui/typeck/literal_too_large.sol:LL:CC
+   │
+LL │         (1, -(2**255) - 0.5);
+   ╰╴            ━━━━━━━━━━━━━━━
+
+error: aborting due to 25 previous errors
 

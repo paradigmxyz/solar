@@ -621,6 +621,11 @@ impl<'gcx> Ty<'gcx> {
         )
     }
 
+    /// Returns `true` if the type is an integer or fractional number literal.
+    pub fn is_number_literal(self) -> bool {
+        matches!(self.kind, TyKind::IntLiteral(..) | TyKind::RationalLiteral)
+    }
+
     /// Returns `true` if the type is a signed integer, including negative literals.
     pub fn is_signed(self) -> bool {
         matches!(

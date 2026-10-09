@@ -404,10 +404,12 @@ impl<'gcx> TypeChecker<'gcx> {
                 let lhs = self.check_expr(lhs_e);
                 let rhs = self.check_expr(rhs_e);
 
-                // Literal arithmetic is exact, and its type comes from the resulting value.
-                if let TyKind::IntLiteral(..) | TyKind::RationalLiteral = lhs.kind
-                    && let TyKind::IntLiteral(..) | TyKind::RationalLiteral = rhs.kind
-                    && expr.is_numeric_literal()
+                // Literal arithmetic is exact, and its type comes from the resulting value. Only
+                // literal arithmetic has literal types, so checking the operand types is enough.
+                if lhs.is_number_literal()
+                    && rhs.is_number_literal()
+                    && !op.kind.is_cmp()
+                    && !op.kind.is_logical()
                 {
                     match self.gcx.try_eval_const_value(expr) {
                         Ok(value) => {
@@ -860,8 +862,7 @@ impl<'gcx> TypeChecker<'gcx> {
                         if ty.is_unit() {
                             empty_err(self, expr.span)
                         } else if exprs.len() > 1
-                            && let Err(guar) =
-                                self.check_literal_fits(expr.span, ty, error_code!(3390))
+                            && let Err(guar) = self.check_literal_fits(expr, ty, error_code!(3390))
                         {
                             self.gcx.mk_ty_err(guar)
                         } else {
@@ -911,7 +912,7 @@ impl<'gcx> TypeChecker<'gcx> {
                     self.check_expr(inner)
                 };
                 if valid_unop(ty, op.kind) {
-                    if let TyKind::IntLiteral(..) | TyKind::RationalLiteral = ty.kind
+                    if ty.is_number_literal()
                         && let Ok(value) = self.gcx.try_eval_const_value(expr)
                         && let Some(lit_ty) = self.literal_value_ty(value)
                     {
@@ -1100,20 +1101,26 @@ impl<'gcx> TypeChecker<'gcx> {
         from.can_copy_to_storage_value(to, self.gcx)
     }
 
-    /// Rejects an integer literal too large for any integer type, where its value is needed.
+    /// Rejects a literal value too large for any type, where its value is needed.
     ///
-    /// Such literals only exist as operands of literal arithmetic.
+    /// Such values only exist as operands of literal arithmetic. solc reports them as invalid
+    /// rational numbers.
     fn check_literal_fits(
         &self,
-        span: Span,
+        expr: &'gcx hir::Expr<'gcx>,
         ty: Ty<'gcx>,
         code: DiagId,
     ) -> Result<(), ErrorGuaranteed> {
-        if !is_literal_too_large(ty) {
+        let msg = if is_literal_too_large(ty) {
+            "literal is too large for any integer type"
+        } else if ty.kind == TyKind::RationalLiteral
+            && self.gcx.try_eval_const_value(expr).is_ok_and(|v| v.is_fraction_too_large())
+        {
+            "literal is too large for any fixed-point type"
+        } else {
             return Ok(());
-        }
-        let msg = "literal is too large for any integer type";
-        Err(self.dcx().err(msg).code(code).span(span).emit())
+        };
+        Err(self.dcx().err(msg).code(code).span(expr.span).emit())
     }
 
     /// Returns the type of the value of literal arithmetic, which is a number.
@@ -2044,7 +2051,7 @@ impl<'gcx> TypeChecker<'gcx> {
                     .emit()));
                 continue;
             }
-            if let Err(guar) = self.check_literal_fits(expr.span, ty, error_code!(8009)) {
+            if let Err(guar) = self.check_literal_fits(expr, ty, error_code!(8009)) {
                 result = Err(guar);
                 continue;
             }
@@ -3690,7 +3697,7 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
                 // An expression statement discards its value.
                 self.discard(expr, Discarded::All);
                 let ty = self.check_expr(expr);
-                let _ = self.check_literal_fits(expr.span, ty, error_code!(3757));
+                let _ = self.check_literal_fits(expr, ty, error_code!(3757));
                 return ControlFlow::Continue(());
             }
             hir::StmtKind::Return(expr) if !self.in_yul => {
