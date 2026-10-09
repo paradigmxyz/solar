@@ -47,48 +47,45 @@ fn @execute(arg0: i160, arg1: i160, arg2: i256, arg3: calldataslice) [selector=0
     icall revert_if<tuple_data_too_short>, v22
     v23 = add 0, 0
     v24 = mload v23
-    v25 = eq v24, 0
+    v25 = lt v24, 2
     v26 = eq v25, false
-    v27 = zext i1 v26 to i256
-    v28 = eq v24, v27
-    v29 = eq v28, false
-    icall revert_if<empty>, v29
-    v30 = gas
-    v31 = zext i160 arg1 to i256
-    v32 = abi_encode [word<u160>, word, calldata_bytes], selector 0x794dca5300000000000000000000000000000000000000000000000000000000, args v31, arg2, arg3
-    v33 = slice_ptr v32
-    v34 = slice_len v32
+    icall revert_if<empty>, v26
+    v27 = gas
+    v28 = zext i160 arg1 to i256
+    v29 = abi_encode [word<u160>, word, calldata_bytes], selector 0x794dca5300000000000000000000000000000000000000000000000000000000, args v28, arg2, arg3
+    v30 = slice_ptr v29
+    v31 = slice_len v29
+    v32 = zext i160 arg0 to i256
+    v33 = extcodesize v32
+    v34 = eq v33, 0
+    icall revert_if<target_contract_has_no_code>, v34
     v35 = zext i160 arg0 to i256
-    v36 = extcodesize v35
-    v37 = eq v36, 0
-    icall revert_if<target_contract_has_no_code>, v37
-    v38 = zext i160 arg0 to i256
-    v39 = call v30, v38, 0, v33, v34, 0, 0
-    jumpi v39, bb6, bb5
+    v36 = call v27, v35, 0, v30, v31, 0, 0
+    jumpi v36, bb6, bb5
   bb5:
     revert_returndata
   bb6:
-    v40 = icall @getFee, arg1, arg2
-    v41 = checked_add u256, v11, v40
-    v42 = gas
-    v43 = address
-    v44 = zext i160 v43 to i256
-    v45 = abi_encode [word<u160>], selector 0x70a0823100000000000000000000000000000000000000000000000000000000, args v44
-    v46 = slice_ptr v45
-    v47 = slice_len v45
-    v48 = zext i160 arg1 to i256
-    v49 = staticcall v42, v48, v46, v47, 0, 32
-    jumpi v49, bb8, bb7
+    v37 = icall @getFee, arg1, arg2
+    v38 = checked_add u256, v11, v37
+    v39 = gas
+    v40 = address
+    v41 = zext i160 v40 to i256
+    v42 = abi_encode [word<u160>], selector 0x70a0823100000000000000000000000000000000000000000000000000000000, args v41
+    v43 = slice_ptr v42
+    v44 = slice_len v42
+    v45 = zext i160 arg1 to i256
+    v46 = staticcall v39, v45, v43, v44, 0, 32
+    jumpi v46, bb8, bb7
   bb7:
     revert_returndata
   bb8:
-    v50 = returndatasize
-    v51 = lt v50, 32
-    icall revert_if<tuple_data_too_short>, v51
-    v52 = add 0, 0
-    v53 = mload v52
-    v54 = gt v41, v53
-    jumpi v54, bb9, bb10
+    v47 = returndatasize
+    v48 = lt v47, 32
+    icall revert_if<tuple_data_too_short>, v48
+    v49 = add 0, 0
+    v50 = mload v49
+    v51 = gt v38, v50
+    jumpi v51, bb9, bb10
   bb10:
     jump bb11
   bb11:

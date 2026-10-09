@@ -15,17 +15,22 @@
 use super::{
     ArgIdx, CallGraphInfo, DebugFunction, DebugFunctionExit, DeferredConst, DenseBitSet,
     EvmCodegen, EvmMemoryLayout, Function, FunctionId, FxHashMap, FxHashSet, IndexVec, InstKind,
-    MirType, Module, RelayoutAddress, SpillSlot, StackEffect, StackOp, StackPush, Terminator, U256,
-    Value, ValueId, WORD_BYTES, immutable_staging_end, op, preserves_push_width,
+    MemoryRegion, MirType, Module, RelayoutAddress, SpillSlot, StackEffect, StackOp, StackPush,
+    Terminator, U256, Value, ValueId, WORD_BYTES, immutable_staging_end, index_vec, op,
+    preserves_push_width,
 };
 use crate::mir::{
-    Callee,
+    Callee, RawMemoryAccess,
+    analysis::{AddressInput, absolute_address_inputs},
     utils::{eval::eval_inst, u256_to_u64},
 };
 
 /// A dynamic-length write to a low absolute base below this bound above
 /// `HEAP_START` is treated as possibly reaching the spill area.
 const SPILL_HAZARD_BOUND: u64 = 0x2000;
+
+/// The address `SPILL_HAZARD_BOUND` above `HEAP_START`, where low memory ends.
+const LOW_MEMORY_BOUND: u64 = EvmMemoryLayout::HEAP_START + SPILL_HAZARD_BOUND;
 
 mod hazards;
 
@@ -321,12 +326,12 @@ impl<'gcx> EvmCodegen<'gcx> {
 
     pub(in crate::backend::evm::codegen) fn emit_constructor_args_end(&mut self) {
         let offset = self
-            .constructor_args_offset_const
+            .constructor_args_offset
             .expect("constructor argument end used outside constructor codegen");
         // base = constructor_args_base
         // end = base + (codesize - constructor_args_offset)
         self.emit_constructor_args_base();
-        self.asm.emit_push_deferred(offset);
+        self.asm.emit_push_data(offset);
         self.asm.emit_op(op::CODESIZE);
         self.asm.emit_op(op::SUB);
         self.asm.emit_op(op::ADD);
@@ -500,22 +505,92 @@ impl<'gcx> EvmCodegen<'gcx> {
             runtime_entries.iter().all(|entry| self.runtime_entry_reachability.contains_key(entry)),
             "runtime entry reachability must be recorded before frame placement"
         );
-        let reachable_memory_marks = runtime_entries
+        // Entries reach mostly the same functions, so each function's marks are computed once.
+        let mut constant_memory_marks = index_vec![None; module.functions.len()];
+        let mut low_memory_marks = index_vec![None; module.functions.len()];
+        // An entry's spill area stays above every constant image the functions it reaches lay
+        // out, but only a calldata-sized layout it runs before control passes to another entry
+        // moves it above low memory. The dispatcher's tail calls into the external functions
+        // never return, so neither its spill area nor the frames its end bounds take that move
+        // from the routes it dispatches to.
+        let own_reach = runtime_entries
             .iter()
-            .copied()
-            .map(|entry| {
-                let mark = self.runtime_entry_reachability[&entry]
+            .map(|&entry| (entry, Self::entry_own_reach(module, entry, &runtime_entries)))
+            .collect::<FxHashMap<_, _>>();
+        let mut reachable_memory_marks = own_reach
+            .iter()
+            .map(|(&entry, reach)| {
+                let images = self.runtime_entry_reachability[&entry]
                     .iter()
                     .map(|func_id| {
-                        Self::constant_memory_high_water_mark(&module.functions[func_id])
+                        *constant_memory_marks[func_id].get_or_insert_with(|| {
+                            Self::constant_memory_high_water_mark(&module.functions[func_id])
+                        })
                     })
                     .max()
-                    .unwrap_or_else(|| {
-                        Self::constant_memory_high_water_mark(&module.functions[entry])
-                    });
-                (entry, mark)
+                    .unwrap_or(0);
+                let own = reach
+                    .iter()
+                    .map(|func_id| {
+                        *low_memory_marks[func_id].get_or_insert_with(|| {
+                            Self::low_memory_high_water_mark(&module.functions[func_id])
+                        })
+                    })
+                    .max()
+                    .unwrap_or(0);
+                (entry, images.max(own))
             })
             .collect::<FxHashMap<_, _>>();
+        // Compiler memory that starts at or above the bound must also clear the fixed memory
+        // assembly names there: the entry's own, and that of every entry sharing a frame with it,
+        // since a shared frame sits above the highest end of the entries reaching it. A recursive
+        // frame places every frame above the highest end of all entries, so then every entry that
+        // reaches a frame shares one.
+        if reachable_memory_marks.values().any(|&mark| mark >= LOW_MEMORY_BOUND) {
+            let mut frame_owners = DenseBitSet::new_empty(module.functions.len());
+            for &(func_id, _) in self.static_frame_addr_consts.keys() {
+                frame_owners.insert(func_id);
+            }
+            let global_frames =
+                frame_owners.iter().any(|func_id| self.recursive_frame_functions.contains(func_id));
+            let mut high_ends = index_vec![None; module.functions.len()];
+            let mut entry_high_ends = FxHashMap::default();
+            let mut entry_frames = FxHashMap::default();
+            for (&entry, reach) in &own_reach {
+                let high_end = reach
+                    .iter()
+                    .map(|func_id| {
+                        *high_ends[func_id].get_or_insert_with(|| {
+                            Self::high_constant_memory_end(&module.functions[func_id])
+                        })
+                    })
+                    .max()
+                    .unwrap_or(0);
+                entry_high_ends.insert(entry, high_end);
+                let mut frames = reach.clone();
+                frames.intersect(&frame_owners);
+                entry_frames.insert(entry, frames);
+            }
+            for (&entry, mark) in &mut reachable_memory_marks {
+                if *mark < LOW_MEMORY_BOUND {
+                    continue;
+                }
+                let frames = &entry_frames[&entry];
+                let shared_end = entry_frames
+                    .iter()
+                    .filter(|&(&other, other_frames)| {
+                        other == entry || (global_frames && !other_frames.is_empty()) || {
+                            let mut shared = frames.clone();
+                            shared.intersect(other_frames);
+                            !shared.is_empty()
+                        }
+                    })
+                    .map(|(other, _)| entry_high_ends[other])
+                    .max()
+                    .unwrap_or(0);
+                *mark = (*mark).max(shared_end);
+            }
+        }
         let entry_bases: FxHashMap<FunctionId, u64> = runtime_entries
             .iter()
             .copied()
@@ -934,7 +1009,54 @@ impl<'gcx> EvmCodegen<'gcx> {
             let floor = free_memory_floors[&entry];
             self.asm.set_deferred_const(id, U256::from(floor));
         }
+        // A clamped free-memory-pointer store keeps the highest initial pointer of the entries
+        // that reach its function; one that no entry reaches never runs.
+        for (func_id, id) in std::mem::take(&mut self.fmp_floor_consts) {
+            let floor = free_memory_floors
+                .iter()
+                .filter(|&(entry, _)| {
+                    self.runtime_entry_reachability
+                        .get(entry)
+                        .is_some_and(|reachable| reachable.contains(func_id))
+                })
+                .map(|(_, &floor)| floor)
+                .max()
+                .unwrap_or(low_memory_end);
+            self.asm.set_deferred_const(id, U256::from(floor));
+        }
         self.runtime_entry_reachability.clear();
+    }
+
+    /// Returns the functions `entry` runs before control passes to another runtime entry: its
+    /// calls, and its tail calls into functions that are not entries.
+    fn entry_own_reach(
+        module: &Module,
+        entry: FunctionId,
+        entries: &[FunctionId],
+    ) -> DenseBitSet<FunctionId> {
+        let mut reach = DenseBitSet::new_empty(module.functions.len());
+        let mut pending = vec![entry];
+        while let Some(func_id) = pending.pop() {
+            if !reach.insert(func_id) {
+                continue;
+            }
+            let func = &module.functions[func_id];
+            for inst_id in func.instructions() {
+                if let InstKind::ICall { function: Callee::Function(callee), .. } =
+                    func.inst(inst_id).kind
+                {
+                    pending.push(callee);
+                }
+            }
+            for block in &func.blocks {
+                if let Some(Terminator::TailCall { function, .. }) = &block.terminator
+                    && !entries.contains(function)
+                {
+                    pending.push(*function);
+                }
+            }
+        }
+        reach
     }
 
     fn external_spill_base(
@@ -953,8 +1075,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         // frame through constant addresses; spill only above everything it
         // names, so a reload never reads a byte of the user's image and a
         // store never lands inside it.
-        let mark = Self::constant_memory_high_water_mark(func).max(reachable_memory_mark);
-        base.max(mark.next_multiple_of(EvmMemoryLayout::WORD_SIZE))
+        base.max(reachable_memory_mark.next_multiple_of(EvmMemoryLayout::WORD_SIZE))
     }
 
     /// Returns the working-memory prefix a hand-written heap image needs.
@@ -1306,16 +1427,16 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// absolute accesses (the external return buffer, frame locals) never
     /// exceed the base they are placed under, so they never raise it. Ranges
     /// starting at or above `SPILL_HAZARD_BOUND` above `HEAP_START` are not low
-    /// memory and are ignored. A range that starts below the bound still owns
-    /// its complete extent, even when its end lies above the bound.
+    /// memory and are ignored, unless compiler memory moves there; see
+    /// [`Self::high_constant_memory_end`]. A range that starts below the bound
+    /// still owns its complete extent, even when its end lies above the bound.
     pub(in crate::backend::evm::codegen) fn constant_memory_high_water_mark(
         func: &Function,
     ) -> u64 {
-        let bound = EvmMemoryLayout::HEAP_START + SPILL_HAZARD_BOUND;
         let mut mark = 0;
         Self::for_each_memory_range(func, |offset, size| {
             if let Some(start) = func.value_u64(offset)
-                && start < bound
+                && start < LOW_MEMORY_BOUND
                 && let Some(end) = size.and_then(|size| start.checked_add(size))
             {
                 mark = mark.max(end);
@@ -1324,41 +1445,88 @@ impl<'gcx> EvmCodegen<'gcx> {
         mark
     }
 
+    /// Returns the highest end address of a constant memory range in `func` that starts at or
+    /// above `SPILL_HAZARD_BOUND` above `HEAP_START`, or zero without one.
+    ///
+    /// Compiler memory normally ends below these ranges. Once a calldata-sized layout or a low
+    /// image reaching past the bound moves the spill area there, it is placed above them, so a
+    /// fixed copy cannot overwrite live spills or frames and the heap starts above the buffer.
+    ///
+    /// Only the ranges in the functions an entry runs, or that an entry sharing a frame with it
+    /// runs, move its spill area.
+    ///
+    /// NOTE: A range at a huge constant address in such a function still moves the spill area
+    /// above it, and every call of the entry then pays for expanding memory that far.
+    fn high_constant_memory_end(func: &Function) -> u64 {
+        let mut end = 0;
+        Self::for_each_memory_range(func, |offset, size| {
+            if let Some(start) = func.value_u64(offset)
+                && start >= LOW_MEMORY_BOUND
+                && let Some(size) = size
+                && size != 0
+                && let Some(range_end) = start.checked_add(size)
+            {
+                end = end.max(range_end);
+            }
+        });
+        end
+    }
+
+    /// Returns the highest low-memory end address hand-written assembly in `func` can name.
+    ///
+    /// Constant ranges give their exact ends. A write through an address computed from
+    /// constants and calldata, such as Seaport's event data at `0x180 + 32 * recipients`, lays
+    /// out absolute memory whose extent only the input fixes, so it owns all low memory below
+    /// `SPILL_HAZARD_BOUND` above `HEAP_START`. The compiler's own absolute buffers, such as the
+    /// static return buffer an encoding loop fills, never depend on calldata.
+    ///
+    /// NOTE: A layout that grows past the bound can still reach the spill area, and one indexed
+    /// only by a loop counter is not recognized. See CODEGEN-010.
+    pub(in crate::backend::evm::codegen) fn low_memory_high_water_mark(func: &Function) -> u64 {
+        let mark = Self::constant_memory_high_water_mark(func);
+        if mark < LOW_MEMORY_BOUND && Self::writes_absolute_dynamic_memory(func) {
+            LOW_MEMORY_BOUND
+        } else {
+            mark
+        }
+    }
+
+    /// Returns whether `func` may write memory at an absolute address that is not a constant: a
+    /// write whose length is not the constant zero.
+    fn writes_absolute_dynamic_memory(func: &Function) -> bool {
+        let mut destinations = Vec::new();
+        for inst_id in func.instructions() {
+            let inst = func.inst(inst_id);
+            if matches!(
+                inst.metadata.memory_region(),
+                Some(MemoryRegion::AbiReturn | MemoryRegion::Heap | MemoryRegion::InternalFrame)
+            ) {
+                continue;
+            }
+            inst.kind.visit_raw_memory(|access, dest, size| {
+                // A copy of no bytes writes no memory, wherever its destination points.
+                if access != RawMemoryAccess::Read
+                    && size.constant(func) != Some(0)
+                    && func.value_u64(dest).is_none()
+                {
+                    destinations.push(dest);
+                }
+            });
+        }
+        if destinations.is_empty() {
+            return false;
+        }
+        let inputs = absolute_address_inputs(func);
+        destinations.into_iter().any(|dest| inputs[dest] == AddressInput::Calldata)
+    }
+
     /// Visits physical memory ranges used by instructions and terminators.
     /// Unknown lengths still expose their base to heap-prefix analysis.
     fn for_each_memory_range(func: &Function, mut visit: impl FnMut(ValueId, Option<u64>)) {
         for inst_id in func.instructions() {
-            match func.inst(inst_id).kind {
-                InstKind::MLoad(addr) | InstKind::MStore(addr, _) => {
-                    visit(addr, Some(EvmMemoryLayout::WORD_SIZE));
-                }
-                InstKind::MStore8(addr, _) => visit(addr, Some(1)),
-                InstKind::MCopy(dest, src, size) => {
-                    visit(dest, func.value_u64(size));
-                    visit(src, func.value_u64(size));
-                }
-                InstKind::CalldataCopy(dest, _, size)
-                | InstKind::DataCopy(_, dest, size)
-                | InstKind::CodeCopy(dest, _, size)
-                | InstKind::ReturnDataCopy(dest, _, size)
-                | InstKind::ExtCodeCopy(_, dest, _, size)
-                | InstKind::Keccak256(dest, size)
-                | InstKind::Log0(dest, size)
-                | InstKind::Log1(dest, size, _)
-                | InstKind::Log2(dest, size, _, _)
-                | InstKind::Log3(dest, size, _, _, _)
-                | InstKind::Log4(dest, size, _, _, _, _)
-                | InstKind::Create(_, dest, size)
-                | InstKind::Create2(_, dest, size, _) => visit(dest, func.value_u64(size)),
-                InstKind::Call { args_offset, args_size, ret_offset, ret_size, .. }
-                | InstKind::CallCode { args_offset, args_size, ret_offset, ret_size, .. }
-                | InstKind::StaticCall { args_offset, args_size, ret_offset, ret_size, .. }
-                | InstKind::DelegateCall { args_offset, args_size, ret_offset, ret_size, .. } => {
-                    visit(args_offset, func.value_u64(args_size));
-                    visit(ret_offset, func.value_u64(ret_size));
-                }
-                _ => {}
-            }
+            func.inst(inst_id)
+                .kind
+                .visit_raw_memory(|_, offset, size| visit(offset, size.constant(func)));
         }
         for block in &func.blocks {
             if let Some(

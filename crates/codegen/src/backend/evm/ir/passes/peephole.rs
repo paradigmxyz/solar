@@ -19,7 +19,7 @@
 //! improvement under the target's immediate materialization costs. A known-false
 //! inline conditional jump then disappears with its two pushes. These rules
 //! preserve protected instruction boundaries, and never treat symbolic label
-//! addresses or deferred values as literal constants.
+//! addresses or immutable placeholders as literal constants.
 //!
 //! The separate `late-word` entry point runs only after structural cleanup. It
 //! replaces a low-mask construction with a shorter complement/shift form. A closed
@@ -505,23 +505,8 @@ fn raw_opcode(inst: &Instruction) -> Option<u8> {
     inst.as_evm_opcode()
 }
 
-pub(super) fn push_value(inst: &Instruction) -> Option<U256> {
-    if !inst.is_encoded_push() || inst.deferred_push().is_some() || inst.immutable_push().is_some()
-    {
-        return None;
-    }
-    match &inst.value {
-        Some(PushValue::Immediate(value)) => Some(*value),
-        _ => None,
-    }
-}
-
 fn is_block_push(inst: &Instruction) -> bool {
     inst.is_encoded_push() && matches!(inst.value, Some(PushValue::Block(_)))
-}
-
-fn is_removable_push(inst: &Instruction) -> bool {
-    inst.is_encoded_push() && inst.deferred_push().is_none()
 }
 
 struct InstructionSequence<'a>(&'a [Instruction]);
@@ -532,11 +517,9 @@ impl fmt::Display for InstructionSequence<'_> {
             if index != 0 {
                 f.write_str(" ")?;
             }
-            if inst.deferred_push().is_some() {
-                f.write_str("push_deferred")?;
-            } else if inst.immutable_push().is_some() {
+            if inst.immutable_push().is_some() {
                 f.write_str("push_immutable")?;
-            } else if let Some(value) = push_value(inst) {
+            } else if let Some(value) = inst.concrete_immediate() {
                 write!(f, "push {value:#x}")?;
             } else if inst.is_encoded_push() {
                 f.write_str("push_ref")?;

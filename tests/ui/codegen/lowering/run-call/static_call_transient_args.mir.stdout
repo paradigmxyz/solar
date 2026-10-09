@@ -124,8 +124,8 @@ fn @scheduleBatch(arg0: calldataslice, arg1: calldataslice, arg2: calldataslice,
     icall panic_if<0x41>, v42
     v43 = add v35, v36
     v44 = calldataload v43
-    v45 = and v44, 0xffffffffffffffffffffffffffffffffffffffff
-    v46 = eq v44, v45
+    v45 = shr 160, v44
+    v46 = eq v45, 0
     v47 = eq v46, false
     icall revert_if<empty>, v47
     v48 = trunc i256 v44 to i160

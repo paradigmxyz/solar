@@ -291,10 +291,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 let (addend, aligned) = self.parser.parse_data_size_operands()?;
                 Instruction::push_data_size(DataSize { data, addend, aligned })
             }
-            sym::push_deferred => {
-                let id = self.parse_assembly_id("deferred constant")?;
-                Instruction::push_deferred(assembly::DeferredConst::from_usize(id as usize))
-            }
             sym::push_immutable => {
                 let id = self.parse_immutable_id()?;
                 self.parser.expect(TokenKind::Comma)?;
@@ -411,12 +407,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             return Ok(PushValue::Block(self.block_id(module, label, span)?));
         }
         Err(self.parser.error("expected push value"))
-    }
-
-    fn parse_assembly_id(&mut self, name: &str) -> PResult<'sess, u32> {
-        let span = self.parser.token().span;
-        let value = self.parser.parse_uint()?;
-        self.check_assembly_id(name, span, value)
     }
 
     fn check_assembly_id(&self, name: &str, span: Span, value: U256) -> PResult<'sess, u32> {

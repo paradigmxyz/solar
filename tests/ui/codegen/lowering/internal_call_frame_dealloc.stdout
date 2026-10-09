@@ -158,10 +158,10 @@ bb8 [continuation]:
   add
   mload
   push 160
+  dup 1
   mload
   push 64
   mstore
-  push 160
   mload
   push 32
   add

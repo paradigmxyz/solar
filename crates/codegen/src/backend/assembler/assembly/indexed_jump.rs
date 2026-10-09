@@ -771,9 +771,7 @@ fn estimated_block_size(
 ) -> usize {
     let mut size = 1usize;
     for inst in &block.instructions {
-        let inst_size = if inst.deferred_push().is_some() {
-            33
-        } else if let Some(type_size) = inst.immutable_type_size() {
+        let inst_size = if let Some(type_size) = inst.immutable_type_size() {
             usize::from(type_size.bytes()) + 1
         } else if inst.is_encoded_push() {
             if inst.pushed_library().is_some() {

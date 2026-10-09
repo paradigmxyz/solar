@@ -1216,7 +1216,7 @@ impl<'a> FunctionBuilder<'a> {
         result
     }
 
-    /// Decodes an ABI tuple from a bytes object into semantic values.
+    /// Decodes an ABI tuple from a bytes object or a memory slice into semantic values.
     pub(crate) fn abi_decode(
         &mut self,
         layout: crate::mir::AbiParamLayoutRef,

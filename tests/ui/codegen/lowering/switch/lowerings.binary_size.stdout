@@ -51,12 +51,10 @@ bb5:
   push 106
   jump bb22
 bb6:
-  dup 1
   push 64
   sub
   push bb21
   jumpi
-  pop
   push 107
   jump bb22
 bb8:
@@ -87,12 +85,10 @@ bb10:
   push 102
   jump bb22
 bb11:
-  dup 1
   push 32
   sub
   push bb21
   jumpi
-  pop
   push 103
   jump bb22
 // === ROOT/tests/ui/codegen/lowering/switch/lowerings.sol:SwitchLowerings (runtime) ===
@@ -107,7 +103,7 @@ MSTORE
 DUP1
 PUSH1 0x28
 GT
-PUSH1 0x50 ; bb5
+PUSH1 0x4e ; bb5
 JUMPI
 DUP1
 PUSH1 0x28
@@ -152,12 +148,10 @@ PUSH1 0x1b ; bb0
 JUMP
 ; bb4
 JUMPDEST
-DUP1
 PUSH1 0x40
 SUB
 PUSH1 0x22 ; bb1
 JUMPI
-POP
 PUSH1 0x6b
 PUSH1 0x1b ; bb0
 JUMP
@@ -166,7 +160,7 @@ JUMPDEST
 DUP1
 PUSH1 0x08
 SUB
-PUSH1 0x5e ; bb6
+PUSH1 0x5c ; bb6
 JUMPI
 POP
 PUSH1 0x64
@@ -177,7 +171,7 @@ JUMPDEST
 DUP1
 PUSH1 0x10
 SUB
-PUSH1 0x6c ; bb7
+PUSH1 0x6a ; bb7
 JUMPI
 POP
 PUSH1 0x65
@@ -188,7 +182,7 @@ JUMPDEST
 DUP1
 PUSH1 0x18
 SUB
-PUSH1 0x7a ; bb8
+PUSH1 0x78 ; bb8
 JUMPI
 POP
 PUSH1 0x66
@@ -196,12 +190,10 @@ PUSH1 0x1b ; bb0
 JUMP
 ; bb8
 JUMPDEST
-DUP1
 PUSH1 0x20
 SUB
 PUSH1 0x22 ; bb1
 JUMPI
-POP
 PUSH1 0x67
 PUSH1 0x1b ; bb0
 JUMP

@@ -128,13 +128,6 @@
 -   push 0
     mstore
     stop
-  bb13:
-    calldatasize
-    push_deferred 0
-    pop
-    push 0
-    mstore
-    stop
   bb14:
     push 0
     push 1

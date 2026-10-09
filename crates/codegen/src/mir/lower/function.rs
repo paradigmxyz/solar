@@ -380,13 +380,31 @@ impl InternalFunctionPointerShape {
             && self.returns == target.returns
     }
 
-    fn helper_name(&self) -> Symbol {
+    /// Returns whether a pointer of this shape can hold a `target` function retyped by inline
+    /// assembly: every parameter and return either keeps its layout or stays one word, which
+    /// the dispatcher reinterprets.
+    ///
+    /// NOTE: Calldata references travel as `(offset, length)` slices, so a one-slot calldata
+    /// struct retyped to a word, which solc dispatches by stack arity, reaches no target.
+    fn is_word_compatible_with(&self, target: &Self) -> bool {
+        let compatible = |lhs: &[crate::mir::ValueLayout], rhs: &[crate::mir::ValueLayout]| {
+            lhs.len() == rhs.len()
+                && lhs
+                    .iter()
+                    .zip(rhs)
+                    .all(|(&lhs, &rhs)| lhs == rhs || (lhs.is_word() && rhs.is_word()))
+        };
+        compatible(&self.params, &target.params) && compatible(&self.returns, &target.returns)
+    }
+
+    fn helper_name(&self, from_assembly: bool) -> Symbol {
         let params = self.params.iter().map(ToString::to_string).collect::<Vec<_>>().join("_");
         let returns = self.returns.iter().map(ToString::to_string).collect::<Vec<_>>().join("_");
         helper_name(
             sym::internal_dispatcher,
             format!(
-                "p_{}_r_{}",
+                "{}p_{}_r_{}",
+                if from_assembly { "asm_" } else { "" },
                 if params.is_empty() { "none" } else { &params },
                 if returns.is_empty() { "none" } else { &returns },
             ),
@@ -401,7 +419,35 @@ fn helper_name(prefix: Symbol, suffix: impl Display) -> Symbol {
 #[derive(Default)]
 pub(super) struct InternalFunctionPointerRegistry {
     targets: FxHashSet<hir::FunctionId>,
-    dispatchers: FxHashMap<FunctionId, InternalFunctionPointerShape>,
+    dispatchers: FxHashMap<FunctionId, InternalFunctionPointerDispatch>,
+    /// Functions whose pointers may reach inline assembly, which can retype them.
+    assembly_exposed: FxHashSet<hir::FunctionId>,
+    /// Pointer calls whose callee may hold a pointer retyped by inline assembly.
+    assembly_calls: FxHashSet<hir::ExprId>,
+}
+
+impl InternalFunctionPointerRegistry {
+    /// Returns whether a pointer of this shape that inline assembly retyped can hold an exposed
+    /// function that the per-type dispatcher does not select.
+    fn assembly_widens(&self, gcx: Gcx<'_>, shape: &InternalFunctionPointerShape) -> bool {
+        self.assembly_exposed.iter().any(|&function_id| {
+            let TyKind::Fn(function) = gcx.type_of_item(function_id.into()).kind else {
+                return false;
+            };
+            let candidate = InternalFunctionPointerShape::from_ty(function);
+            !shape.is_assembly_cast_compatible_with(&candidate)
+                && shape.is_word_compatible_with(&candidate)
+        })
+    }
+}
+
+/// The pointers one internal function pointer dispatcher selects a callee for.
+#[derive(Clone)]
+pub(super) struct InternalFunctionPointerDispatch {
+    shape: InternalFunctionPointerShape,
+    /// Whether the pointers may come from inline assembly, which also makes the functions
+    /// exposed to assembly with a word-compatible shape reachable.
+    from_assembly: bool,
 }
 
 fn internal_function_pointer_id(function_id: hir::FunctionId) -> u64 {
@@ -556,24 +602,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         allow_value: bool,
         diagnostic: &'static str,
     ) -> Option<LoweredCallOptions> {
-        // zero = 0
-        // gas = gas() if can_overcharge_gas_for_call
-        // value = zero
         // for option { gas/value = lower(option.value) }
-        let zero = self.builder.imm(U256::ZERO);
-        let evm_version = self.cx.gcx.sess.opts.evm_version;
-        let mut gas = evm_version.can_overcharge_gas_for_call().then(|| self.builder.gas());
-        let mut value = zero;
-        let mut value_set = false;
+        let mut lowered = self.default_call_options();
         if let Some(options) = options {
             for option in options.args {
                 let option_value =
                     self.lower_typed_expr(&option.value, self.cx.gcx.types.uint(256))?;
                 match option.name.name {
-                    kw::Gas => gas = Some(option_value),
+                    kw::Gas => lowered.gas = Some(option_value),
                     sym::value if allow_value => {
-                        value = option_value;
-                        value_set = true;
+                        lowered.value = option_value;
+                        lowered.value_set = true;
                     }
                     _ => {
                         return self.cx.report_unsupported(option.name.span, diagnostic);
@@ -581,7 +620,18 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }
             }
         }
-        Some(LoweredCallOptions { gas, value, value_set, zero })
+        Some(lowered)
+    }
+
+    /// Lowers the options of a call that sets none.
+    fn default_call_options(&mut self) -> LoweredCallOptions {
+        // zero = 0
+        // gas = gas() if can_overcharge_gas_for_call
+        // value = zero
+        let zero = self.builder.imm(U256::ZERO);
+        let evm_version = self.cx.gcx.sess.opts.evm_version;
+        let gas = evm_version.can_overcharge_gas_for_call().then(|| self.builder.gas());
+        LoweredCallOptions { gas, value: zero, value_set: false, zero }
     }
 
     fn validate_enum(&mut self, ty: Ty<'gcx>, value: ValueId) {
@@ -950,7 +1000,7 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
         .filter(|(_, function)| function.attributes.is_function_pointer_dispatcher)
         .map(|(id, _)| (state.pointer_registry.dispatchers[&id].clone(), id))
         .collect::<Vec<_>>();
-    for (shape, dispatcher) in dispatchers {
+    for (InternalFunctionPointerDispatch { shape, from_assembly }, dispatcher) in dispatchers {
         let mut candidates = state
             .pointer_registry
             .targets
@@ -960,9 +1010,11 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
                     return None;
                 };
                 let candidate_shape = InternalFunctionPointerShape::from_ty(function);
-                shape
-                    .is_assembly_cast_compatible_with(&candidate_shape)
-                    .then_some((function_id, candidate_shape))
+                (shape.is_assembly_cast_compatible_with(&candidate_shape)
+                    || (from_assembly
+                        && state.pointer_registry.assembly_exposed.contains(&function_id)
+                        && shape.is_word_compatible_with(&candidate_shape)))
+                .then_some((function_id, candidate_shape))
             })
             .filter_map(|(function_id, candidate_shape)| {
                 function_ids
@@ -993,8 +1045,8 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
 
             // for target {
             //     if function_id == target {
-            //         results = icall(target, arguments)
-            //         return results
+            //         results = icall(target, reinterpret(arguments))
+            //         return reinterpret(results)
             //     }
             // }
             for (function_id, mir_id, candidate_shape) in candidates {
@@ -1013,19 +1065,12 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
                     .zip(&candidate_shape.params)
                     .zip(gcx.hir.function(function_id).parameters)
                     .map(|(((argument, &source), &target), &parameter)| {
-                        let argument = if source == target {
-                            argument
+                        let carrier = state.scalar_carrier(gcx, parameter);
+                        if source == target {
+                            raw_scalars::cast_carrier(&mut builder, argument, source, carrier)
                         } else {
-                            AbiWordValidator::from_layout(target).map_or(argument, |validator| {
-                                validator.cleanup(&mut builder, argument)
-                            })
-                        };
-                        raw_scalars::cast_carrier(
-                            &mut builder,
-                            argument,
-                            source,
-                            state.scalar_carrier(gcx, parameter),
-                        )
+                            reinterpret_word(&mut builder, argument, source, target, carrier)
+                        }
                     })
                     .collect::<Vec<_>>();
                 if shape.returns.is_empty() {
@@ -1036,6 +1081,15 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
                     // ret result
                     let result_ty = module.function(mir_id).return_type();
                     let result = builder.icall(mir_id, call_arguments, result_ty);
+                    let cast_return = |builder: &mut FunctionBuilder<'_>, value, index, ty| {
+                        let (source, target) =
+                            (candidate_shape.returns[index], shape.returns[index]);
+                        if source == target {
+                            raw_scalars::cast_carrier(builder, value, target, ty)
+                        } else {
+                            reinterpret_word(builder, value, source, target, ty)
+                        }
+                    };
                     let result = if let (MirType::Struct(source), MirType::Struct(target)) =
                         (result_ty, builder.func().return_type())
                         && source != target
@@ -1049,18 +1103,13 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
                             .map(|(index, (from, to))| {
                                 let value =
                                     builder.extract_value(source, result, index as u32, from);
-                                raw_scalars::cast_carrier(
-                                    &mut builder,
-                                    value,
-                                    shape.returns[index],
-                                    to,
-                                )
+                                cast_return(&mut builder, value, index, to)
                             })
                             .collect::<Vec<_>>();
                         builder.make_struct(target, values)
                     } else if shape.returns.len() == 1 {
                         let ty = builder.func().return_type();
-                        raw_scalars::cast_carrier(&mut builder, result, shape.returns[0], ty)
+                        cast_return(&mut builder, result, 0, ty)
                     } else {
                         result
                     };
@@ -1126,4 +1175,29 @@ fn resolve_call_target(
         };
     }
     gcx.resolve_virtual_function(contract, function)
+}
+
+/// Reinterprets a one-word value that inline assembly retyped from `source` to `target`.
+fn reinterpret_word(
+    builder: &mut FunctionBuilder<'_>,
+    value: ValueId,
+    source: crate::mir::ValueLayout,
+    target: crate::mir::ValueLayout,
+    carrier: MirType,
+) -> ValueId {
+    // word = zext | sext | ptrtoint value to i256
+    // word = canonical(target, word), unless the carrier is a raw word
+    // value = trunc | ne 0 | inttoptr word to carrier
+    let word = raw_scalars::cast_carrier(builder, value, source, MirType::I256);
+    // A raw word carrier passes the bits on as a direct call would: the receiver cleans them where
+    // Solidity reads the value, and its assembly sees them as they are. Internal function pointers
+    // are small identifiers: the ABI's left-aligned cleanup of external function words does not
+    // apply to them.
+    let word = if carrier == MirType::I256 || target == crate::mir::ValueLayout::Function {
+        word
+    } else {
+        AbiWordValidator::from_layout(target)
+            .map_or(word, |validator| validator.cleanup(builder, word))
+    };
+    builder.cast(word, carrier)
 }

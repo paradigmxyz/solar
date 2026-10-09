@@ -684,9 +684,7 @@ fn outline_parametric_machine_runs(
 }
 
 fn parameterizable_push(inst: &Instruction) -> bool {
-    inst.is_encoded_push()
-        && inst.immutable_push().is_none()
-        && matches!(inst.value, Some(PushValue::Immediate(_)))
+    inst.concrete_immediate().is_some()
 }
 
 fn parameterize_body(body: &[Instruction], parameters: &[usize]) -> Option<Vec<Instruction>> {
@@ -780,14 +778,11 @@ fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunSta
             continue;
         }
         for (index, inst) in block.instructions.iter().enumerate() {
-            if inst.is_encoded_push()
-                && inst.deferred_push().is_none()
-                && inst.immutable_push().is_none()
+            if let Some(value) = inst.concrete_immediate()
                 && is_split_point(&block.instructions, index)
                 && is_split_point(&block.instructions, index + 1)
-                && let Some(PushValue::Immediate(value)) = &inst.value
             {
-                sites.entry(*value).or_default().push((block_id, index));
+                sites.entry(value).or_default().push((block_id, index));
             }
         }
     }

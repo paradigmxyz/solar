@@ -431,6 +431,12 @@ impl Target {
         self.opcode(op::DUP1)
     }
 
+    /// Cost of pushing a block label, which resolves to a two-byte push in all but the largest
+    /// contracts.
+    pub(crate) fn label_push(self) -> Cost {
+        self.opcode(op::PUSH2)
+    }
+
     /// Cost of pushing `value` through its cheapest materialization.
     pub(crate) fn push(self, value: U256) -> Cost {
         let (bytes, gas) = compact_pushes::immediate_materialization_cost(self.evm_version, value);
@@ -609,7 +615,7 @@ impl Target {
         }
         let edges = block.terminator.as_ref().map_or(0, |terminator| terminator.successors().len());
         for _ in 0..edges {
-            cost += self.opcode(op::PUSH2);
+            cost += self.label_push();
             cost += self.opcode(op::JUMPI);
             cost += self.opcode(op::JUMPDEST);
         }
@@ -874,6 +880,7 @@ mod tests {
         assert_eq!(target.dup(), Cost::new(3, 1));
         assert_eq!(target.opcode(op::POP), Cost::new(2, 1));
         assert_eq!(target.opcode(op::PUSH2), Cost::new(3, 3));
+        assert_eq!(target.label_push(), Cost::new(3, 3));
         assert_eq!(target.push(U256::ZERO), Cost::new(2, 1));
         assert_eq!(target.push(U256::from(0x1234)), Cost::new(3, 3));
         assert_eq!(target.data_copy_gas(64), 18);

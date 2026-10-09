@@ -108,8 +108,8 @@ fn @structFirst() -> i8 [selector=0x2165fa18, pure, abi_params=[], abi_returns=[
     v1 = slice_ptr v0
     v2 = add v1, 0
     v3 = calldataload v2
-    v4 = and v3, 255
-    v5 = eq v3, v4
+    v4 = shr 8, v3
+    v5 = eq v4, 0
     v6 = eq v5, false
     icall revert_if<empty>, v6
     v7 = trunc i256 v3 to i8

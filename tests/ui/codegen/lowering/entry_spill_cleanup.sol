@@ -20,14 +20,21 @@
 // CHECK-NEXT: dup 1
 // CHECK-NEXT: dup 1
 // CHECK-NEXT: mload
-// CHECK-NEXT: push 64
-// CHECK-NEXT: mload
-// CHECK: push 2
-// CHECK-NEXT: add
-// CHECK-NEXT: dup 2
+// CHECK-NEXT: dup 1
 // CHECK-NEXT: dup 1
 // CHECK-NEXT: add
-// CHECK-NEXT: dup 2
+// CHECK-NEXT: push 64
+// CHECK-NEXT: mload
+// CHECK-NEXT: push 2
+// CHECK-NEXT: add
+// CHECK-NEXT: swap 4
+// CHECK-NEXT: dup 5
+// CHECK-NEXT: push 32
+// CHECK-NEXT: add
+// CHECK-NEXT: swap 3
+// CHECK-NEXT: add
+// CHECK-NEXT: swap 1
+// CHECK-NEXT: dup 5
 // CHECK-NEXT: mstore
 contract EntrySpillCleanup {
     function prefixed(bytes memory raw) external pure returns (string memory result) {
