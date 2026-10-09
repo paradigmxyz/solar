@@ -12,6 +12,7 @@ use crate::{
             select::{OpcodeLowering, opcode_lowering, rematerializable_nullary_value},
             values::{gas_minus, late_gas_reads},
         },
+        ir::INDEXED_JUMP_STACK_GROWTH,
         op,
     },
     mir::{
@@ -103,6 +104,10 @@ const FORK_HEADROOM: usize = 8;
 
 /// Most opcodes recomputing one value live across a write that may reach the spill area.
 const MAX_RECOMPUTED_OPS: u32 = 4;
+
+/// Most words a switch dispatch holds above its selector: the jump-table index computed from a
+/// copy of the selector, and the words the indexed jump holds above that index.
+const SWITCH_DISPATCH_WORDS: usize = 1 + INDEXED_JUMP_STACK_GROWTH;
 
 /// A planned function together with the layouts its loop latches would choose.
 pub(super) struct Planned {
@@ -2478,6 +2483,7 @@ impl<'a> Planner<'a> {
             }
         }
         self.prepare(sim, &[value], &dying)?;
+        sim.observe(SWITCH_DISPATCH_WORDS);
         if entry_mode {
             *sim.stack.last_mut().unwrap() = Slot::Junk;
         } else {
@@ -2508,7 +2514,6 @@ impl<'a> Planner<'a> {
                 trampolines.push((target, trampoline.steps));
             }
         }
-        sim.observe(2);
         Ok(Exit::Switch { default, cases: cases.to_vec(), trampolines })
     }
 }
