@@ -192,21 +192,16 @@ pub(crate) fn display_function_dot<'a>(
 ///     ret arg0
 /// }
 /// ```
-///
-/// Without `metadata`, instructions and terminators print without their `!metadata(...)`
-/// annotations: the form [`Module::parse_function`] accepts for candidate replacements.
 pub(crate) fn display_function_text<'a>(
     func: &'a Function,
     module: Option<&'a Module>,
     is_dispatch_entry: bool,
-    metadata: bool,
 ) -> impl fmt::Display + 'a {
     fn display_text_block<'a>(
         func: &'a Function,
         module: Option<&'a Module>,
         block_id: BlockId,
         block: &'a BasicBlock,
-        metadata: bool,
     ) -> impl fmt::Display + 'a {
         fmt::from_fn(move |f| {
             writeln!(f, "  bb{}:", block_id.index())?;
@@ -217,16 +212,17 @@ pub(crate) fn display_function_text<'a>(
                 block.instructions.iter().format_with("", |f, inst_id| write!(
                     f,
                     "{}",
-                    display_text_instruction(func, module, *inst_id, metadata)
+                    display_text_instruction(func, module, *inst_id)
                 ))
             )?;
 
             if let Some(term) = &block.terminator {
-                write!(f, "    {}", display_terminator(term, func, module))?;
-                if metadata {
-                    write!(f, "{}", display_metadata(&block.terminator_metadata, None, func))?;
-                }
-                writeln!(f)?;
+                writeln!(
+                    f,
+                    "    {}{}",
+                    display_terminator(term, func, module),
+                    display_metadata(&block.terminator_metadata, None, func)
+                )?;
             }
             Ok(())
         })
@@ -236,19 +232,15 @@ pub(crate) fn display_function_text<'a>(
         func: &'a Function,
         module: Option<&'a Module>,
         inst_id: InstId,
-        metadata: bool,
     ) -> impl fmt::Display + 'a {
         fmt::from_fn(move |f| {
             let inst = func.inst(inst_id);
-            write!(f, "    {}", display_instruction(func, module, inst_id))?;
-            if metadata {
-                write!(
-                    f,
-                    "{}",
-                    display_metadata(&inst.metadata, Some(inst.kind.effect_kind()), func)
-                )?;
-            }
-            writeln!(f)
+            writeln!(
+                f,
+                "    {}{}",
+                display_instruction(func, module, inst_id),
+                display_metadata(&inst.metadata, Some(inst.kind.effect_kind()), func)
+            )
         })
     }
 
@@ -273,12 +265,11 @@ pub(crate) fn display_function_text<'a>(
 
         let cfg = CfgInfo::new(func);
         for &block_id in cfg.rpo() {
-            let block = &func.blocks[block_id];
-            write!(f, "{}", display_text_block(func, module, block_id, block, metadata))?;
+            write!(f, "{}", display_text_block(func, module, block_id, &func.blocks[block_id]))?;
         }
         for (block_id, block) in func.blocks.iter_enumerated() {
             if !cfg.is_reachable(block_id) {
-                write!(f, "{}", display_text_block(func, module, block_id, block, metadata))?;
+                write!(f, "{}", display_text_block(func, module, block_id, block))?;
             }
         }
 

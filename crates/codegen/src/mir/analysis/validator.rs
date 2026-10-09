@@ -749,10 +749,6 @@ impl<'a> Validator<'a> {
         if !module.functions.iter().any(|func| func.return_abi().is_some()) {
             return;
         }
-        self.count_return_fields(module);
-    }
-
-    fn count_return_fields(&mut self, module: &Module) {
         for (id, structure) in module.struct_types.iter_enumerated() {
             let count = structure.fields.iter().try_fold(0usize, |count, &field| {
                 let fields = match field {
@@ -1470,26 +1466,6 @@ pub(crate) fn validate_phase(
 ) -> solar_interface::Result<()> {
     let mut validator = Validator::new(dcx);
     validator.validate_module_at_phase(module, phase);
-    validator.error.map_or(Ok(()), Err)
-}
-
-/// Checks `function` against the requested phase as a replacement for function `id` of `module`.
-///
-/// Calls resolve against the rest of the module, which is not checked again.
-pub(crate) fn validate_function_at_phase(
-    dcx: &DiagCtxt,
-    module: &Module,
-    id: FunctionId,
-    function: &Function,
-    phase: MirPhase,
-) -> solar_interface::Result<()> {
-    let mut validator = Validator::new(dcx);
-    validator.returning_functions = Some(module.returning_functions());
-    if function.return_abi().is_some() {
-        validator.count_return_fields(module);
-    }
-    validator.function = Some(id);
-    validator.validate_function(module, function, phase);
     validator.error.map_or(Ok(()), Err)
 }
 
