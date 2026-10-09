@@ -207,7 +207,7 @@ bb16:
   add
   dup 2
   dup 1
-  push 192
+  push 128
   mstore
   dup 4
   dup 3
@@ -243,7 +243,7 @@ bb16:
   add
   push 5
   shr
-  push 224
+  push 160
   mstore
   push 31
   dup 4
@@ -254,27 +254,27 @@ bb16:
   dup 5
   lt
   dup 1
-  push 256
+  push 288
   mstore
   iszero
   mul
-  push 128
+  push 320
   mstore
   dup 3
   lt
   and
   swap 2
-  push 288
+  push 192
   mstore
   pop
   iszero
   push bb24
   jumpi
-  push 224
+  push 160
   mload
   push 352
   mstore
-  push 128
+  push 320
   mload
   dup 1
   push 0
@@ -309,11 +309,11 @@ bb67 [loop]:
   pop
   jump
 bb24 [continuation]:
-  push 256
+  push 288
   mload
   push bb30
   jumpi
-  push 192
+  push 128
   mload
   dup 1
   not
@@ -331,9 +331,9 @@ bb24 [continuation]:
   keccak256
   dup 2
   dup 2
-  push 224
-  mstore
   push 160
+  mstore
+  push 224
   mstore
   push 0
   exchange 1, 2
@@ -342,7 +342,7 @@ bb29 [loop]:
   dup 1
   push 5
   shl
-  push 288
+  push 192
   mload
   add
   mload
@@ -362,27 +362,27 @@ bb26 [loop]:
   pop
   pop
   pop
-  push 192
+  push 128
   mload
   push 31
   and
   dup 1
-  push 320
+  push 256
   mstore
   iszero
   push bb31
   jumpi
-  push 160
+  push 224
   mload
   push 5
   shl
-  push 288
+  push 192
   mload
   add
   mload
   push 0
   not
-  push 320
+  push 256
   mload
   push 32
   sub
@@ -390,9 +390,9 @@ bb26 [loop]:
   shl
   shl
   and
-  push 160
-  mload
   push 224
+  mload
+  push 160
   mload
   add
   sstore
@@ -452,34 +452,22 @@ bb31:
   jumpi
   push 64
   mstore
-  dup 1
-  push 128
-  mstore
   swap 2
   dup 3
   mstore
-  dup 4
-  push 160
-  mstore
-  push 256
-  mstore
-  pop
-  swap 1
-  pop
+  swap 2
   push bb35
   jumpi
+  swap 2
   push 255
   not
-  push 160
-  mload
   and
+  swap 1
+  pop
   push 32
-  push 128
-  mload
+  dup 3
   add
   mstore
-  push 128
-  mload
   jump bb37
 bb37:
   dup 1
@@ -522,12 +510,12 @@ bb37:
   dup 2
   return
 bb30:
-  push 288
+  push 192
   mload
   mload
   push 0
   not
-  push 192
+  push 128
   mload
   push 32
   sub
@@ -535,7 +523,7 @@ bb30:
   shl
   shl
   and
-  push 192
+  push 128
   mload
   dup 1
   add
@@ -547,21 +535,16 @@ bb35:
   push 0
   push 0
   mstore
+  swap 2
+  pop
   push 32
   push 0
   keccak256
   push 32
-  push 128
-  mload
+  dup 4
   add
   push 0
-  push 128
-  mload
-  push 256
-  mload
-  swap 4
-  swap 2
-  exchange 1, 3
+  exchange 3, 4
   jump bb36
 bb38 [loop]:
   dup 1
