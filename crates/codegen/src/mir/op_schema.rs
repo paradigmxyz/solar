@@ -739,7 +739,7 @@ macro_rules! define_mir_ops {
             }
 
             /// Visits each raw memory range the operation reads or writes at an `i256` address,
-            /// with its offset and size. Operations that reach memory only through memory objects,
+            /// with its offset and size, reads before writes. Operations that reach memory only through memory objects,
             /// slices, frames, or the free memory pointer have none.
             #[allow(unused_variables)]
             pub(crate) fn visit_raw_memory(
