@@ -1274,10 +1274,11 @@ fn analyze(template: &Template, pruned: &DenseBitSet<NodeId>) -> Analysis {
             DenseBitSet::new_empty(template.locals.len());
             num_nodes
         ]);
-        let mut queued = DenseBitSet::new_empty(num_nodes);
+        // Visit every reachable node once, since a declaration can follow an edge that carries
+        // no state.
+        let mut queued = reachable.clone();
         let mut state = DenseBitSet::new_empty(template.locals.len());
-        worklist.push(ENTRY);
-        queued.insert(ENTRY);
+        worklist.extend(reachable.iter());
         while let Some(node) = worklist.pop() {
             queued.remove(node);
             state.clone_from(&unassigned[node]);
