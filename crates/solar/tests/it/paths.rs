@@ -39,6 +39,23 @@ fn base_and_include_paths_name_sources() {
 }
 
 #[test]
+fn imported_source_unit_name_collision() {
+    let dir = project(&[
+        ("src/Main.sol", "import \"x/A.sol\"; contract M {}"),
+        ("lib/x/A.sol", "import \"../Main.sol\"; contract A {}"),
+        ("lib/Main.sol", "contract N {}"),
+    ]);
+    let args = ["--base-path", "src", "--include-path", "lib", "src/Main.sol"];
+    let output = compile(dir.path(), &args);
+    assert!(!output.status.success());
+    let stderr = String::from_utf8(output.stderr).unwrap();
+    assert_eq!(
+        stderr.lines().next(),
+        Some("error: source unit name `Main.sol` matches multiple files")
+    );
+}
+
+#[test]
 fn source_unit_name_collision() {
     let dir = project(&[("src/X.sol", "contract X {}"), ("lib/X.sol", "contract Y {}")]);
     let args = ["--base-path", "src", "--include-path", "lib", "src/X.sol", "lib/X.sol"];

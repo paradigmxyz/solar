@@ -267,14 +267,17 @@ impl<'a> FileResolver<'a> {
 
     /// Returns the source unit name that `path` refers to when imported from `parent`.
     fn import_source_unit_name<'b>(&self, path: &'b Path, parent: &Path) -> Cow<'b, Path> {
-        let parent = self.source_unit_name(parent);
         // Only paths starting with `./` or `../` are relative to the importing source unit;
         // `import "b.sol";` is looked up in the base path and include paths.
         let path = if path.starts_with("./") || path.starts_with("../") {
+            // Unlike solc, keep files outside the base path absolute here, so that `../` can leave
+            // an include path.
+            let parent = strip_root(parent, self.try_base_path());
             Cow::Owned(join_relative_import(parent, path))
         } else {
             Cow::Borrowed(path)
         };
+        let parent = self.source_unit_name(parent);
         match self.remap_path(&path, Some(parent)) {
             Cow::Owned(remapped) => Cow::Owned(remapped),
             Cow::Borrowed(_) => path,
@@ -946,6 +949,23 @@ mod tests {
         // solc names this file `dep/C.sol`, by its import path.
         let c = resolver.resolve_file(Path::new("dep/C.sol"), Some(&root.join("src/A.sol")));
         assert_eq!(sm.filename_for_diagnostics(&c.unwrap().name).to_string(), "lib/dep/C.sol");
+    }
+
+    #[test]
+    fn relative_imports_leave_include_paths() {
+        let tmp = tempfile::Builder::new().prefix("solar-file-resolver-test").tempdir().unwrap();
+        let root = tmp.path();
+        write_files(root, &["Events/Event.sol", "Tokens/Token.sol"]);
+
+        let sm = SourceMap::empty();
+        let mut resolver = FileResolver::new(&sm);
+        resolver.set_base_path(&root.join("base"));
+        resolver.add_include_path(root.join("Events"));
+
+        let token = resolver
+            .resolve_file(Path::new("../Tokens/Token.sol"), Some(&root.join("Events/Event.sol")))
+            .unwrap();
+        assert_eq!(token.name.as_real(), Some(root.join("Tokens/Token.sol").as_path()));
     }
 
     #[test]

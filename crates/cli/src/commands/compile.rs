@@ -1,4 +1,3 @@
-use rayon::prelude::*;
 use solar_codegen::ContractSelection;
 use solar_config::CompileOpts;
 use solar_interface::{
@@ -50,10 +49,7 @@ fn run_default(compiler: &mut CompilerRef<'_>) -> Result {
                 paths.push(arg);
             }
 
-            let files = pcx.par_resolve_files(paths).collect::<Result<Vec<_>>>()?;
-            check_source_unit_names(pcx.sess, &files)?;
-            pcx.add_files(files);
-            Ok(())
+            pcx.par_load_files(paths)
         },
         |_| {},
     )?;
@@ -77,8 +73,11 @@ fn run_default(compiler: &mut CompilerRef<'_>) -> Result {
     Ok(())
 }
 
-/// Rejects input files that get the same source unit name, like solc.
-fn check_source_unit_names(sess: &Session, files: &[Arc<SourceFile>]) -> Result {
+/// Rejects different files with the same source unit name, which solc reports for input files.
+fn check_source_unit_names<'a>(
+    sess: &Session,
+    files: impl IntoIterator<Item = &'a Arc<SourceFile>>,
+) -> Result {
     let mut names = FxHashMap::<String, &Arc<SourceFile>>::default();
     let mut result = Ok(());
     for file in files {
@@ -118,6 +117,7 @@ pub(crate) fn run_pipeline(
         let note = "if you wish to use the standard input, please specify `-` explicitly";
         return Err(sess.dcx.err(msg).note(note).emit());
     }
+    check_source_unit_names(sess, compiler.gcx().sources.iter().map(|source| &source.file))?;
 
     compiler.sources_mut().topo_sort();
     after_parsing(compiler);

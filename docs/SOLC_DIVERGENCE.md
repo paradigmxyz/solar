@@ -84,7 +84,9 @@ with `--base-path . --include-path node_modules`, `solc` names an import of
 `@oz/A.sol` `@oz/A.sol`, and `solar` names it `node_modules/@oz/A.sol`. The
 importing file's name is also the context that remappings match, so in this
 setup a context-dependent remapping such as `@oz/:x/=y/` applies in `solc` and
-not in `solar`, and `node_modules/@oz/:x/=y/` the other way around.
+not in `solar`, and `node_modules/@oz/:x/=y/` the other way around. A relative
+import in a file outside the base path is resolved against the file's path, so
+`../` can leave an include path, where `solc` would drop the `..` segment.
 
 Rationale: a name that depends only on the file's path is the same for every
 import of the file. It also keeps remapping contexts such as `lib/dep/` matching
