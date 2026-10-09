@@ -143,8 +143,8 @@ pub struct EvmCodegen<'gcx> {
     immutable_staging_base: u64,
     /// Deferred absolute base of the copied constructor ABI argument blob.
     constructor_args_base_const: Option<DeferredConst>,
-    /// Deferred code offset of the copied constructor ABI argument blob.
-    constructor_args_offset_const: Option<DeferredConst>,
+    /// Code offset of the constructor ABI argument blob: the end of the runtime code data.
+    constructor_args_offset: Option<ir::DataRef>,
     /// The deferred end of the constructor's fixed compiler-owned memory and the heap prefix
     /// guard, from which the constructor derives its initial free memory pointer.
     constructor_heap_start: Option<(DeferredConst, u64)>,
@@ -202,7 +202,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             immutable_staging_base: EvmMemoryLayout::INTERNAL_FRAME_PTR_SLOT
                 + EvmMemoryLayout::WORD_SIZE,
             constructor_args_base_const: None,
-            constructor_args_offset_const: None,
+            constructor_args_offset: None,
             constructor_heap_start: None,
             in_constructor: false,
             constructor_exit: None,
@@ -227,7 +227,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.immutable_staging_base =
             EvmMemoryLayout::INTERNAL_FRAME_PTR_SLOT + EvmMemoryLayout::WORD_SIZE;
         self.constructor_args_base_const = None;
-        self.constructor_args_offset_const = None;
+        self.constructor_args_offset = None;
         self.constructor_heap_start = None;
         self.in_constructor = false;
         self.constructor_exit = None;

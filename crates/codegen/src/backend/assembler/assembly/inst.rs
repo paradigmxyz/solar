@@ -11,7 +11,7 @@ newtype_index! {
     ///
     /// Deferred constants are immediates whose final value is only known after
     /// bytecode emission has observed lazy backend state, such as exact spill
-    /// slot allocation. They must be resolved before assembly.
+    /// slot allocation. They must be resolved before the EVM IR pipeline.
     pub(crate) struct DeferredConst;
 
     /// A deferred heap allocation identifier.
@@ -93,7 +93,6 @@ impl AsmInst {
     const OP_IMMEDIATE_FLAG: u32 = 0x0001_0000;
     const TAG_PUSH: u32 = 0x9000_0000;
     const TAG_PUSH_LABEL: u32 = 0xa000_0000;
-    const TAG_PUSH_DEFERRED: u32 = 0xb000_0000;
     const TAG_PUSH_IMMUTABLE: u32 = 0xc000_0000;
     const TAG_LABEL: u32 = 0xd000_0000;
     const TAG_PUSH_LABEL_FIXED: u32 = 0xe000_0000;
@@ -148,10 +147,6 @@ impl AsmInst {
         Self::extended(Self::EXTENDED_PUSH_PACKED_LABELS, labels.inst_payload())
     }
 
-    pub(in crate::backend) fn push_deferred(id: DeferredConst) -> Self {
-        Self::tagged(Self::TAG_PUSH_DEFERRED, id.inst_payload())
-    }
-
     pub(in crate::backend) fn push_immutable(id: ImmutablePushId) -> Self {
         Self::tagged(Self::TAG_PUSH_IMMUTABLE, id.inst_payload())
     }
@@ -196,9 +191,6 @@ impl AsmInst {
             }
             Self::TAG_PUSH => AsmInstKind::Push(PushValueId::from_inst_payload(payload)),
             Self::TAG_PUSH_LABEL => AsmInstKind::PushLabel(Label::from_inst_payload(payload)),
-            Self::TAG_PUSH_DEFERRED => {
-                AsmInstKind::PushDeferred(DeferredConst::from_inst_payload(payload))
-            }
             Self::TAG_PUSH_IMMUTABLE => {
                 AsmInstKind::PushImmutable(ImmutablePushId::from_inst_payload(payload))
             }
@@ -238,7 +230,6 @@ pub(in crate::backend) enum AsmInstKind {
     PushLabel(Label),
     PushLabelFixed(Label, u8),
     PushPackedLabels(PackedLabelsId),
-    PushDeferred(DeferredConst),
     PushImmutable(ImmutablePushId),
     PushLibrary(LibraryId),
     Label(Label),

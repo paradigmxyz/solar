@@ -12,11 +12,11 @@ use crate::{
             op::{self, push_len},
         },
     },
-    link::LibraryId,
+    link::{LibraryId, LibraryTable},
     mir::{ImmutableId, Module as MirModule, TypeSize, memory::EvmMemoryLayout},
 };
 use alloy_primitives::U256;
-use solar_data_structures::{index::index_vec, map::FxHashMap};
+use solar_data_structures::index::index_vec;
 use solar_sema::Gcx;
 
 impl<'gcx> Assembler<'gcx> {
@@ -25,16 +25,6 @@ impl<'gcx> Assembler<'gcx> {
         gcx: Gcx<'gcx>,
         mut module: ir::Module,
     ) -> solar_interface::Result<Self> {
-        if module
-            .blocks
-            .iter()
-            .any(|block| block.instructions.iter().any(|inst| inst.deferred_push().is_some()))
-        {
-            return Err(gcx
-                .dcx()
-                .err("cannot assemble unresolved `push_deferred` instruction")
-                .emit());
-        }
         if module.data.iter().any(|data| data.bytes.known().is_none()) {
             return Err(gcx.dcx().err("cannot assemble unlinked deferred program data").emit());
         }
@@ -135,6 +125,18 @@ impl<'gcx> Assembler<'gcx> {
                 data.emit_in_runtime = false;
             }
         }
+    }
+
+    /// Appends deployed runtime code as the last data entry of creation code.
+    pub(crate) fn append_runtime_code(
+        &mut self,
+        runtime: ir::Data,
+        libraries: &LibraryTable,
+    ) -> ir::DataId {
+        debug_assert_eq!(self.artifact_kind, ArtifactKind::Constructor);
+        // Runtime relocations can name libraries that runtime linking interned.
+        self.program.libraries.clone_from(libraries);
+        self.program.data.push(runtime)
     }
 
     /// Emits a relocatable constant-data address push.
@@ -482,7 +484,12 @@ impl<'gcx> Assembler<'gcx> {
             module.blocks[block].instructions[instruction].replace_preserving_metadata(replacement);
         }
         for (block, instruction, id) in self.deferred_relocations.drain(..) {
-            let replacement = ir::Instruction::push_deferred(id);
+            let value = self
+                .deferred_values
+                .get(&id)
+                .copied()
+                .unwrap_or_else(|| panic!("deferred constant {id:?} was never resolved"));
+            let replacement = ir::Instruction::push_value(value);
             module.blocks[block].instructions[instruction].replace_preserving_metadata(replacement);
         }
         // Allocation placeholders expand to more than one instruction, so they
@@ -601,20 +608,6 @@ impl<'gcx> Assembler<'gcx> {
             let mut terminator = ir::Terminator::new(ir::TerminatorKind::IndexedJump(targets));
             terminator.metadata = metadata;
             module.blocks[block].terminator = Some(terminator);
-        }
-    }
-}
-
-pub(in crate::backend) fn resolve_known_deferred_constants(
-    module: &mut ir::Module,
-    values: &FxHashMap<DeferredConst, U256>,
-) {
-    for block in &mut module.blocks {
-        for inst in &mut block.instructions {
-            let Some(id) = inst.deferred_push() else { continue };
-            if let Some(&value) = values.get(&id) {
-                inst.replace_preserving_metadata(ir::Instruction::push_value(value));
-            }
         }
     }
 }

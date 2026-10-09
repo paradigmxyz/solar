@@ -295,9 +295,6 @@ impl<'a> Verifier<'a> {
                         );
                     }
                 }
-                encoding if encoding == Instruction::ENCODED_PUSH | Instruction::DEFERRED => {
-                    self.verify_assembly_id(block_id, inst, value, "deferred constant");
-                }
                 encoding if encoding == Instruction::ENCODED_PUSH | Instruction::IMMUTABLE => {
                     self.verify_immutable_id(block_id, inst, value);
                 }
@@ -398,25 +395,6 @@ impl<'a> Verifier<'a> {
                 block_id,
                 format_args!("instruction `{}` has no known stack effect", inst.mnemonic()),
             );
-        }
-    }
-
-    fn verify_assembly_id(
-        &self,
-        block_id: BlockId,
-        inst: &Instruction,
-        value: &PushValue,
-        name: &str,
-    ) {
-        let PushValue::Immediate(value) = value else {
-            self.error_in_block(
-                block_id,
-                format_args!("`{}` must carry an immediate {name} ID", inst.mnemonic()),
-            );
-            return;
-        };
-        if u32::try_from(*value).ok().is_none_or(|value| value > assembly::AsmInst::PAYLOAD_MASK) {
-            self.error_in_block(block_id, format_args!("{name} ID exceeds the assembler limit"));
         }
     }
 

@@ -16,7 +16,7 @@ use super::{
     ArgIdx, Body, CallGraphInfo, DebugFunction, DebugFunctionExit, DeferredConst, DenseBitSet,
     EvmCodegen, EvmMemoryLayout, Function, FunctionId, FxHashMap, FxHashSet, IndexVec, InstKind,
     MemoryRegion, MirType, Module, RelayoutAddress, Terminator, U256, Value, ValueId, WORD_BYTES,
-    immutable_staging_end, index_vec, op, preserves_push_width,
+    immutable_staging_end, index_vec, ir, op, preserves_push_width,
 };
 use crate::mir::{
     BlockId, Callee, EffectKind, RawMemoryAccess,
@@ -200,7 +200,7 @@ impl<'gcx> EvmCodegen<'gcx> {
 
     pub(in crate::backend::evm::codegen) fn emit_constructor_args_end(&mut self) {
         let offset = self
-            .constructor_args_offset_const
+            .constructor_args_offset
             .expect("constructor argument end used outside constructor codegen");
         // base = constructor_args_base
         // end = base + (codesize - constructor_args_offset)
@@ -213,10 +213,10 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// of the code.
     pub(in crate::backend::evm::codegen) fn emit_constructor_args_size(
         &mut self,
-        offset: DeferredConst,
+        offset: ir::DataRef,
     ) {
         // push offset; codesize; sub
-        self.asm.emit_push_deferred(offset);
+        self.asm.emit_push_data(offset);
         self.asm.emit_op(op::CODESIZE);
         self.asm.emit_op(op::SUB);
     }
@@ -235,7 +235,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.fmp_floor_consts.push((func_id, floor));
             return;
         }
-        if let Some(arg_offset) = self.constructor_args_offset_const {
+        if let Some(arg_offset) = self.constructor_args_offset {
             self.emit_constructor_args_size(arg_offset);
         }
         self.emit_constructor_heap_start();
