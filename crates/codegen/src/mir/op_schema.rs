@@ -1839,9 +1839,9 @@ define_mir_ops! {
         side_effects = true,
         category = Some("ABI decoding")
     )]
-    #[operand_types(func => Some(smallvec![MirType::MemPtr]))]
+    #[operand_types(func => Some(smallvec![typing::memory_object(func, *data)]))]
     AbiDecode {
-        /// ABI-encoded bytes object.
+        /// ABI-encoded bytes object, or a memory slice of the encoding.
         data: ValueId,
         /// Interned ABI input layout, including scalar validation types.
         layout: AbiParamLayoutRef,

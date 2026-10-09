@@ -107,13 +107,14 @@ contract C {
     // A statically encoded aggregate is copied out of the overlaid output area into a buffer taken
     // before the arguments, which the decoding then reads.
     // HOMESTEAD-LABEL: fn @aggregate
-    // HOMESTEAD: [[BUF:v[0-9]+]] = alloc memorybytes
-    // HOMESTEAD: [[DATA_PTR:v[0-9]+]] = memory_object_data memorybytes, [[BUF]]
+    // HOMESTEAD: [[BUF:v[0-9]+]] = alloc raw, {{.*}}, 64
     // HOMESTEAD: [[IN:v[0-9]+]] = slice_ptr
     // HOMESTEAD: delegatecall {{.*}}, [[IN]], 64
-    // HOMESTEAD: [[DATA:v[0-9]+]] = ptrtoint memptr [[DATA_PTR]] to i256
+    // HOMESTEAD: [[DATA:v[0-9]+]] = ptrtoint memptr [[BUF]] to i256
     // HOMESTEAD: mcopy [[DATA]], [[IN]], 64
-    // HOMESTEAD: abi_decode {{.*}}, [[BUF]]
+    // HOMESTEAD: [[PTR:v[0-9]+]] = ptrtoint memptr [[BUF]] to i256
+    // HOMESTEAD: [[SLICE:v[0-9]+]] = make_memory_slice [[PTR]], 64
+    // HOMESTEAD: abi_decode {{.*}}, [[SLICE]]
     // BYZANTIUM-LABEL: fn @aggregate
     // BYZANTIUM-NOT: extcodesize
     // BYZANTIUM: delegatecall {{.*}}, 0, 0
@@ -141,13 +142,14 @@ contract C {
     // A static struct is decoded out of the output area with its member types, so its `bool` member
     // is validated too.
     // HOMESTEAD-LABEL: fn @structBool
-    // HOMESTEAD: [[BUF:v[0-9]+]] = alloc memorybytes
-    // HOMESTEAD: [[DATA_PTR:v[0-9]+]] = memory_object_data memorybytes, [[BUF]]
+    // HOMESTEAD: [[BUF:v[0-9]+]] = alloc raw, {{.*}}, 64
     // HOMESTEAD: [[IN:v[0-9]+]] = slice_ptr
     // HOMESTEAD: delegatecall {{.*}}, [[IN]], 64
-    // HOMESTEAD: [[DATA:v[0-9]+]] = ptrtoint memptr [[DATA_PTR]] to i256
+    // HOMESTEAD: [[DATA:v[0-9]+]] = ptrtoint memptr [[BUF]] to i256
     // HOMESTEAD: mcopy [[DATA]], [[IN]], 64
-    // HOMESTEAD: abi_decode [tuple<bool, u256>], [[BUF]]
+    // HOMESTEAD: [[PTR:v[0-9]+]] = ptrtoint memptr [[BUF]] to i256
+    // HOMESTEAD: [[SLICE:v[0-9]+]] = make_memory_slice [[PTR]], 64
+    // HOMESTEAD: abi_decode [tuple<bool, u256>], [[SLICE]]
     // BYZANTIUM-LABEL: fn @structBool
     // BYZANTIUM: delegatecall {{.*}}, 0, 0
     // BYZANTIUM: icall returndata_bytes<>

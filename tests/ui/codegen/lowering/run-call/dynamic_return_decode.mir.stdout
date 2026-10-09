@@ -429,31 +429,22 @@ fn @fixedSum() -> i256 [selector=0x1f080ca7, abi_params=[], abi_returns=[word], 
     icall revert_if<tuple_data_too_short>, v20
     v21 = ptrtoint memptr v15 to i256
     v22 = make_memory_slice v21, 96
-    v23 = slice_len v22
-    v24 = add v23, 63
-    v25 = lt v24, v23
-    icall panic_if<0x41>, v25
-    v26 = not 31
-    v27 = and v24, v26
-    v28 = alloc memorybytes, exact, uninitialized, infallible, v27
-    set_memory_object_len memorybytes, v28, v23
-    memory_object_copy_from_slice memorybytes, v28, v22
-    v29 = abi_decode [array<3, u256>], v28
-    v30 = lt 0, 3
-    v31 = eq v30, false
-    icall panic_if<0x32>, v31
-    v32 = memory_object_load_element memoryfixedarray<3, 1>, v29, 0
-    v33 = lt 1, 3
-    v34 = eq v33, false
-    icall panic_if<0x32>, v34
-    v35 = memory_object_load_element memoryfixedarray<3, 1>, v29, 1
-    v36 = checked_add u256, v32, v35
-    v37 = lt 2, 3
-    v38 = eq v37, false
-    icall panic_if<0x32>, v38
-    v39 = memory_object_load_element memoryfixedarray<3, 1>, v29, 2
-    v40 = checked_add u256, v36, v39
-    ret v40
+    v23 = abi_decode [array<3, u256>], v22
+    v24 = lt 0, 3
+    v25 = eq v24, false
+    icall panic_if<0x32>, v25
+    v26 = memory_object_load_element memoryfixedarray<3, 1>, v23, 0
+    v27 = lt 1, 3
+    v28 = eq v27, false
+    icall panic_if<0x32>, v28
+    v29 = memory_object_load_element memoryfixedarray<3, 1>, v23, 1
+    v30 = checked_add u256, v26, v29
+    v31 = lt 2, 3
+    v32 = eq v31, false
+    icall panic_if<0x32>, v32
+    v33 = memory_object_load_element memoryfixedarray<3, 1>, v23, 2
+    v34 = checked_add u256, v30, v33
+    ret v34
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/dynamic_return_decode.sol:StringElementCaller ===
