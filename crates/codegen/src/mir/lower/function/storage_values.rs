@@ -199,15 +199,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 Some(())
             }
             _ => {
+                let expr_ty = self.cx.gcx.type_of_expr(expr.id)?;
                 let constant = match self.cx.gcx.try_eval_const_value(expr) {
                     Ok(ConstValue::Bool(value)) => Some(self.builder.imm_bool(*value)),
                     Ok(ConstValue::Integer(value)) => {
-                        value.as_u256().map(|value| self.builder.imm(value))
+                        value.as_u256().map(|value| self.lower_const_integer(expr_ty, value))
                     }
                     _ => None,
                 };
                 let value = if let Some(value) = constant {
-                    self.coerce_value(value, self.cx.gcx.type_of_expr(expr.id)?, ty)
+                    self.coerce_value(value, expr_ty, ty)
                 } else {
                     self.lower_typed_expr(expr, ty)?
                 };

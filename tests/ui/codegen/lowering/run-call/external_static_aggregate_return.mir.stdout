@@ -3,26 +3,45 @@
 @types
   struct0: {memptr, i256}
 
-fn @get() -> memptr [selector=0x6d4ce63c, pure, abi_params=[], abi_returns=[tuple<word, word>], abi_return_params=[tuple<u256, u256>]] {
+fn @makeStruct(arg0: i256) -> memptr [selector=0x62dc8436, pure, abi_params=[u256], abi_returns=[tuple<word, word>], abi_return_params=[tuple<u256, u256>]] {
   bb0:
     v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<2>, v0, 0, 0
     memory_object_store_field memorystruct<2>, v0, 1, 0
-    memory_object_store_field memorystruct<2>, v0, 0, 1
-    memory_object_store_field memorystruct<2>, v0, 1, 2
-    ret v0
+    v1 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    v2 = checked_add u256, arg0, 1
+    memory_object_store_field memorystruct<2>, v1, 0, arg0
+    memory_object_store_field memorystruct<2>, v1, 1, v2
+    ret v1
 }
 
-fn @getPair() -> struct0 [selector=0xc1f1b1b5, pure, abi_params=[], abi_returns=[tuple<word, word>, word], abi_return_params=[tuple<u256, u256>, u256]] {
+fn @makeArray(arg0: i256) -> memptr [selector=0x9510f212, pure, abi_params=[u256], abi_returns=[array<3, word>], abi_return_params=[array<3, u256>]] {
+  bb0:
+    v0 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
+    v1 = ptrtoint memptr v0 to i256
+    memory_zero v1, 96
+    v2 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
+    memory_object_store_element memoryfixedarray<3, 1>, v2, 0, arg0
+    v3 = checked_add u256, arg0, 1
+    memory_object_store_element memoryfixedarray<3, 1>, v2, 1, v3
+    v4 = checked_add u256, arg0, 2
+    memory_object_store_element memoryfixedarray<3, 1>, v2, 2, v4
+    ret v2
+}
+
+fn @makePair(arg0: i256) -> struct0 [selector=0xf4d7be11, pure, abi_params=[u256], abi_returns=[tuple<word, word>, word], abi_return_params=[tuple<u256, u256>, u256]] {
   bb0:
     v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<2>, v0, 0, 0
     memory_object_store_field memorystruct<2>, v0, 1, 0
-    memory_object_store_field memorystruct<2>, v0, 0, 1
-    memory_object_store_field memorystruct<2>, v0, 1, 2
-    v1 = insert_value struct0, undef struct0, 0, v0
-    v2 = insert_value struct0, v1, 1, 3
-    ret v2
+    v1 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    v2 = checked_add u256, arg0, 1
+    memory_object_store_field memorystruct<2>, v1, 0, arg0
+    memory_object_store_field memorystruct<2>, v1, 1, v2
+    v3 = checked_add u256, arg0, 2
+    v4 = insert_value struct0, undef struct0, 0, v1
+    v5 = insert_value struct0, v4, 1, v3
+    ret v5
 }
 
 fn @narrow() -> i256 [selector=0xe3b21a7a, pure, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
@@ -30,11 +49,11 @@ fn @narrow() -> i256 [selector=0xe3b21a7a, pure, abi_params=[], abi_returns=[wor
     ret 1
 }
 
-fn @single() -> i256 [selector=0xde3e828e, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @structReturn(arg0: i256) -> i256 [selector=0xc3f9a16c, view, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = address
     v1 = gas
-    v2 = abi_encode [], selector 0x6d4ce63c00000000000000000000000000000000000000000000000000000000
+    v2 = abi_encode [word], selector 0x62dc843600000000000000000000000000000000000000000000000000000000, args arg0
     v3 = slice_ptr v2
     v4 = slice_len v2
     v5 = alloc raw, exact, uninitialized, infallible, 64
@@ -57,11 +76,83 @@ fn @single() -> i256 [selector=0xde3e828e, view, abi_params=[], abi_returns=[wor
     ret v16
 }
 
-fn @pair() -> i256 [selector=0xa8aa1b31, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @arrayReturn(arg0: i256) -> i256 [selector=0xad0cb941, view, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = address
     v1 = gas
-    v2 = abi_encode [], selector 0xc1f1b1b500000000000000000000000000000000000000000000000000000000
+    v2 = abi_encode [word], selector 0x9510f21200000000000000000000000000000000000000000000000000000000, args arg0
+    v3 = slice_ptr v2
+    v4 = slice_len v2
+    v5 = alloc raw, exact, uninitialized, infallible, 96
+    v6 = zext i160 v0 to i256
+    v7 = ptrtoint memptr v5 to i256
+    v8 = staticcall v1, v6, v3, v4, v7, 96
+    jumpi v8, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v9 = returndatasize
+    v10 = lt v9, 96
+    icall revert_if<tuple_data_too_short>, v10
+    v11 = ptrtoint memptr v5 to i256
+    v12 = make_memory_slice v11, 96
+    v13 = abi_decode [array<3, u256>], v12
+    v14 = lt 0, 3
+    v15 = eq v14, false
+    icall panic_if<0x32>, v15
+    v16 = memory_object_load_element memoryfixedarray<3, 1>, v13, 0
+    v17 = lt 1, 3
+    v18 = eq v17, false
+    icall panic_if<0x32>, v18
+    v19 = memory_object_load_element memoryfixedarray<3, 1>, v13, 1
+    v20 = checked_add u256, v16, v19
+    v21 = lt 2, 3
+    v22 = eq v21, false
+    icall panic_if<0x32>, v22
+    v23 = memory_object_load_element memoryfixedarray<3, 1>, v13, 2
+    v24 = checked_add u256, v20, v23
+    ret v24
+}
+
+fn @tryStructReturn(arg0: i256) -> i256 [selector=0xcc20ef0a, view, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = address
+    v1 = gas
+    v2 = abi_encode [word], selector 0x62dc843600000000000000000000000000000000000000000000000000000000, args arg0
+    v3 = slice_ptr v2
+    v4 = slice_len v2
+    v5 = alloc raw, exact, uninitialized, infallible, 64
+    v6 = zext i160 v0 to i256
+    v7 = ptrtoint memptr v5 to i256
+    v8 = staticcall v1, v6, v3, v4, v7, 64
+    jumpi v8, bb1, bb2
+  bb2:
+    jumpi true, bb4, bb5
+  bb5:
+    icall revert_if<empty>, true
+    invalid
+  bb4:
+    ret 0
+  bb1:
+    v9 = returndatasize
+    v10 = lt v9, 64
+    icall revert_if<tuple_data_too_short>, v10
+    v11 = ptrtoint memptr v5 to i256
+    v12 = make_memory_slice v11, 64
+    v13 = abi_decode [tuple<u256, u256>], v12
+    v14 = memory_object_load_field memorystruct<2>, v13, 0
+    v15 = memory_object_load_field memorystruct<2>, v13, 1
+    v16 = checked_add u256, v14, v15
+    ret v16
+  bb3:
+    ret 0
+}
+
+fn @pairReturn(arg0: i256) -> i256 [selector=0xc6630f71, view, abi_params=[u256], abi_returns=[word], abi_return_params=[u256]] {
+  bb0:
+    v0 = address
+    v1 = gas
+    v2 = abi_encode [word], selector 0xf4d7be1100000000000000000000000000000000000000000000000000000000, args arg0
     v3 = slice_ptr v2
     v4 = slice_len v2
     v5 = alloc raw, exact, uninitialized, infallible, 96
@@ -91,7 +182,7 @@ fn @pair() -> i256 [selector=0xa8aa1b31, view, abi_params=[], abi_returns=[word]
     ret v23
 }
 
-fn @short() -> i256 [selector=0x38bea4cb, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
+fn @shortReturn() -> i256 [selector=0xc41518f3, view, abi_params=[], abi_returns=[word], abi_return_params=[u256]] {
   bb0:
     v0 = address
     v1 = gas
