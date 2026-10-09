@@ -37,13 +37,20 @@ struct Sim {
     stack: Layout,
     steps: Vec<Step>,
     cost: Cost,
+    /// The highest physical stack seen, counting the words below `stack`.
     peak: usize,
+    /// Physical words below `stack` that a floating block's layout leaves out.
+    below: usize,
 }
 
 impl Sim {
     fn new(stack: Layout) -> Self {
-        let peak = stack.len();
-        Self { stack, steps: Vec::new(), cost: Cost::ZERO, peak }
+        Self::with_below(stack, 0)
+    }
+
+    fn with_below(stack: Layout, below: usize) -> Self {
+        let peak = below + stack.len();
+        Self { stack, steps: Vec::new(), cost: Cost::ZERO, peak, below }
     }
 
     fn height(&self) -> usize {
@@ -61,14 +68,14 @@ impl Sim {
     }
 
     fn observe(&mut self, extra: usize) {
-        self.peak = self.peak.max(self.stack.len() + extra);
+        self.peak = self.peak.max(self.below + self.stack.len() + extra);
     }
 
     /// Copies the state without the steps recorded so far.
     fn fork(&self) -> Self {
         let mut stack = Layout::with_capacity(self.stack.len() + FORK_HEADROOM);
         stack.extend_from_slice(&self.stack);
-        Self { stack, steps: Vec::new(), cost: self.cost, peak: self.peak }
+        Self { stack, steps: Vec::new(), cost: self.cost, peak: self.peak, below: self.below }
     }
 
     /// Makes this a fork of `other`, reusing its buffers.
@@ -79,6 +86,7 @@ impl Sim {
         self.steps.clear();
         self.cost = other.cost;
         self.peak = other.peak;
+        self.below = other.below;
     }
 
     /// Continues with a fork's state, appending its steps.
@@ -169,7 +177,8 @@ pub(super) struct Planner<'a> {
     /// Blocks that never return through the caller's address and leave no loop: their layouts
     /// constrain only the words at the top of the stack.
     floating: DenseBitSet<BlockId>,
-    /// Words below a floating block's layout on its deepest entry.
+    /// Physical words below a floating block's layout on its deepest entry, which stack heights
+    /// planned from that layout leave out.
     floating_below: IndexVec<BlockId, usize>,
     /// Number of forward (non-back) edges into each block.
     forward_preds: IndexVec<BlockId, u32>,
@@ -530,7 +539,7 @@ impl<'a> Planner<'a> {
                 None if block == BlockId::ENTRY => self.entry_layout(),
                 None => return Err(Fail::Unsupported("block without a planned predecessor")),
             };
-            let mut sim = Sim::new(layout);
+            let mut sim = Sim::with_below(layout, self.floating_below[block]);
             if block == BlockId::ENTRY {
                 if self.ret_spilled {
                     // [args, return] -> [args]
@@ -549,8 +558,7 @@ impl<'a> Planner<'a> {
             self.plan_body(&mut sim, block)?;
             let terminator_start = sim.steps.len();
             let exit = self.plan_terminator(&mut sim, block)?;
-            self.peak = self.peak.max(sim.peak + self.floating_below[block]);
-            self.cost += self.weigh(sim.cost, block);
+            self.charge(&sim, block);
             self.calls.extend(sim.steps.iter().filter_map(|step| match *step {
                 Step::Call(callee, base) => Some((callee, base)),
                 _ => None,
@@ -859,6 +867,12 @@ impl<'a> Planner<'a> {
     /// Scales the gas of code in `block` by how often the block runs; its bytes count once.
     fn weigh(&self, cost: Cost, block: BlockId) -> Cost {
         Cost::new(cost.gas.saturating_mul(self.executions[block]), cost.bytes)
+    }
+
+    /// Adds the cost of code planned in `block` and raises the peak to its stack.
+    fn charge(&mut self, sim: &Sim, block: BlockId) {
+        self.cost += self.weigh(sim.cost, block);
+        self.peak = self.peak.max(sim.peak);
     }
 
     fn entry_layout(&self) -> Layout {
@@ -1519,7 +1533,7 @@ impl<'a> Planner<'a> {
             self.prepare(sim, &ops, &dying)?;
             let base = sim.height() - args.len();
             sim.observe(2);
-            sim.steps.push(Step::Call(callee, base));
+            sim.steps.push(Step::Call(callee, sim.below + base));
             sim.cost += StackCosts::INTERNAL_CALL;
             sim.stack.truncate(base);
             let arity = self.info.returns[callee];
@@ -1815,7 +1829,7 @@ impl<'a> Planner<'a> {
                         self.filler(sim);
                     }
                 }
-                self.calls.push((callee, base));
+                self.calls.push((callee, sim.below + base));
                 sim.observe(1);
                 Ok(Exit::TailCall(callee))
             }
@@ -1980,12 +1994,12 @@ impl<'a> Planner<'a> {
         } else {
             let layout = self.adopt(sim, pred, succ)?;
             self.layouts[succ] = Some(layout);
-            self.note_entry(succ, sim.height());
+            self.note_entry(succ, sim);
             return Ok(());
         };
         let target = self.edge_target(pred, succ, &layout, sim.height());
         self.shuffle_edge(sim, pred, succ, target)?;
-        self.note_entry(succ, sim.height());
+        self.note_entry(succ, sim);
         Ok(())
     }
 
@@ -1999,11 +2013,11 @@ impl<'a> Planner<'a> {
         }
     }
 
-    /// Records the physical height on an edge into a floating block, whose layout omits the
-    /// words below it.
-    fn note_entry(&mut self, succ: BlockId, height: usize) {
+    /// Raises the physical words below the layout of `succ` to cover an edge that leaves the
+    /// stack of `sim`.
+    fn note_entry(&mut self, succ: BlockId, sim: &Sim) {
         if let Some(layout) = &self.layouts[succ] {
-            let below = height.saturating_sub(layout.len());
+            let below = sim.below + sim.height().saturating_sub(layout.len());
             self.floating_below[succ] = self.floating_below[succ].max(below);
         }
     }
@@ -2087,21 +2101,19 @@ impl<'a> Planner<'a> {
             match edge.side {
                 None => {
                     self.shuffle_edge(&mut sim, edge.pred, join, target)?;
-                    self.note_entry(join, sim.height());
-                    self.peak = self.peak.max(sim.peak);
-                    self.cost += self.weigh(sim.cost, edge.pred);
+                    self.note_entry(join, &sim);
+                    self.charge(&sim, edge.pred);
                     let plan = self.blocks[edge.pred].as_mut().expect("planned predecessor");
                     plan.steps.extend(sim.steps);
                 }
                 Some(then) => {
                     if self.satisfies(&sim, edge.pred, join) {
-                        self.note_entry(join, sim.height());
+                        self.note_entry(join, &sim);
                         continue;
                     }
                     self.jump_edge(&mut sim, edge.pred, join)?;
                     sim.cost += StackCosts::EDGE_JUMP;
-                    self.cost += self.weigh(sim.cost, edge.pred);
-                    self.peak = self.peak.max(sim.peak);
+                    self.charge(&sim, edge.pred);
                     let plan = self.blocks[edge.pred].as_mut().expect("planned predecessor");
                     let Exit::Branch { then_edge, else_edge } = &mut plan.exit else {
                         unreachable!("deferred branch edge from a non-branch block")
@@ -2288,21 +2300,20 @@ impl<'a> Planner<'a> {
         }
         if self.layouts[succ].is_some() {
             if self.satisfies(sim, pred, succ) {
-                self.note_entry(succ, sim.height());
+                self.note_entry(succ, sim);
                 return Ok(Edge { target: succ, trampoline: None });
             }
         } else if let Some(mut view) = self.view(sim, pred, succ) {
             let cut = self.floating_cut(succ, &view);
             view.drain(..cut);
             self.layouts[succ] = Some(view);
-            self.note_entry(succ, sim.height());
+            self.note_entry(succ, sim);
             return Ok(Edge { target: succ, trampoline: None });
         }
-        let mut trampoline = Sim::new(sim.stack.clone());
+        let mut trampoline = Sim::with_below(sim.stack.clone(), sim.below);
         self.jump_edge(&mut trampoline, pred, succ)?;
         trampoline.cost += StackCosts::EDGE_JUMP;
-        self.cost += self.weigh(trampoline.cost, pred);
-        self.peak = self.peak.max(trampoline.peak);
+        self.charge(&trampoline, pred);
         Ok(Edge { target: succ, trampoline: Some(trampoline.steps) })
     }
 
@@ -2504,13 +2515,12 @@ impl<'a> Planner<'a> {
                 },
             };
             if direct {
-                self.note_entry(target, sim.height());
+                self.note_entry(target, sim);
             } else {
-                let mut trampoline = Sim::new(sim.stack.clone());
+                let mut trampoline = Sim::with_below(sim.stack.clone(), sim.below);
                 self.jump_edge(&mut trampoline, block, target)?;
                 trampoline.cost += StackCosts::EDGE_JUMP;
-                self.cost += self.weigh(trampoline.cost, block);
-                self.peak = self.peak.max(trampoline.peak);
+                self.charge(&trampoline, block);
                 trampolines.push((target, trampoline.steps));
             }
         }

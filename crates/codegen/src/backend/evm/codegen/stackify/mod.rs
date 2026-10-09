@@ -163,8 +163,8 @@ enum Step {
     Op(u8),
     /// Emits the remaining code of an instruction whose operands are prepared.
     Inst(InstId),
-    /// Calls an internal function whose arguments are prepared, with the height of the stack
-    /// below its arguments.
+    /// Calls an internal function whose arguments are prepared, with the physical height of the
+    /// stack below its arguments.
     Call(FunctionId, usize),
     /// Stores the extra results below the first result of a call to the callee's return area
     /// and publishes it as the multi-return buffer.
@@ -246,7 +246,7 @@ struct FunctionPlan {
     ret_spilled: bool,
     /// Highest modeled stack height above the function's base.
     peak: usize,
-    /// Internal calls and the modeled height below each callee's arguments.
+    /// Internal calls and the physical height below each callee's arguments.
     calls: Vec<(FunctionId, usize)>,
     cost: Cost,
 }
