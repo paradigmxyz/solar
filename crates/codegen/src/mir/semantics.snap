@@ -47,6 +47,7 @@ memory_zero: -
 msize: opcode(MSIZE)
 fmp: -
 set_fmp: -
+heap_floor: -
 alloc: allocate(size, kind, semantics)
 memory_object_len: -
 set_memory_object_len: -
