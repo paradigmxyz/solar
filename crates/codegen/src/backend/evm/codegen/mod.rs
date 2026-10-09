@@ -128,6 +128,8 @@ pub struct EvmCodegen<'gcx> {
     /// Leaf helpers whose sole returned word is derived from the free-memory pointer.
     /// Their callers may safely use the result as a dynamic forwarding-buffer base.
     heap_pointer_return_functions: DenseBitSet<FunctionId>,
+    /// Memory-reference arguments that every internal call site passes a heap pointer.
+    heap_pointer_args: IndexVec<FunctionId, DenseBitSet<ArgIdx>>,
     /// Runtime code of a scheduled module, waiting for embedded bytecode to be linked in.
     pending_runtime: Option<PendingRuntime>,
     /// Immutable `PUSH<N>` placeholders in the last assembled runtime code.
@@ -186,6 +188,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             runtime_entry_funcs: Vec::new(),
             body: Body::External,
             heap_pointer_return_functions: DenseBitSet::new_empty(0),
+            heap_pointer_args: IndexVec::new(),
             pending_runtime: None,
             runtime_immutable_refs: Vec::new(),
             immutable_encodings: IndexVec::new(),
@@ -210,6 +213,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.cold_functions.clear_to(module.functions.len());
         self.empty_stop_functions.clear_to(module.functions.len());
         self.heap_pointer_return_functions.clear_to(module.functions.len());
+        self.heap_pointer_args.clear();
         self.runtime_immutable_refs.clear();
         self.immutable_encodings.clear();
         self.immutable_staging_base =

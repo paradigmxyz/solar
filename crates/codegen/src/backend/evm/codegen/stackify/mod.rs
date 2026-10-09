@@ -72,10 +72,12 @@
 //! room, the return address moves to a slot on entry and is reloaded to return, and a shuffle
 //! that still cannot move a deep word instead pops down to the words already in place and pushes
 //! the rest of its target. A join that no incoming edge can propose a layout for takes its live
-//! words by value. Spill slots use the frame and spill-area placement in `frames`. A
-//! value live across a write that may reach the low spill area, such as a copy to a computed
-//! address, stays on the stack unless stable arithmetic over calldata, constants and stable
-//! reads recomputes it at each use.
+//! words by value. Spill slots use the frame and spill-area placement in `frames`. A write that
+//! may reach the low spill area, such as a copy to a computed address, and a call into a function
+//! that makes one keep the spilled words still needed afterwards, the return address among them,
+//! on the stack across them and store them back after. A value live across such a write is
+//! recomputed at each use instead of spilled when stable arithmetic over calldata, constants and
+//! stable reads can rebuild it.
 //!
 //! A recursive function spills to a fixed frame like any other. A call that can start another
 //! activation of it, one into its own recursive component, would overwrite that frame, so the
@@ -213,6 +215,17 @@ enum Victim {
     Ret,
 }
 
+impl Victim {
+    /// The stack word that holds this one while it rides the stack across an instruction that
+    /// overwrites its slot.
+    fn saved_slot(self) -> Slot {
+        match self {
+            Self::Value(value) => Slot::Saved(value),
+            Self::Ret => Slot::Ret,
+        }
+    }
+}
+
 /// Why a function could not be planned.
 #[derive(Clone, Debug)]
 enum Fail {
@@ -263,10 +276,13 @@ struct Analysis {
     liveness: Liveness,
     cfg: CfgInfo,
     loops: LoopInfo,
-    /// Whether the function has a write that may overwrite spill slots. The return address is
-    /// live across every such write, so it cannot spill.
-    low_memory_writes: bool,
-    /// Values live across a write that may overwrite spill slots; they cannot spill.
+    /// The instructions that overwrite this function's fixed frame, with the values live across
+    /// each: writes that may reach the spill area, calls into functions that make one, and calls
+    /// into the function's own recursive component. The spilled words still needed afterwards
+    /// ride the stack across them.
+    saved: FxHashMap<InstId, DenseBitSet<ValueId>>,
+    /// Values live across a write that may reach the spill area or a call into a function that
+    /// makes one.
     pinned: DenseBitSet<ValueId>,
     /// Values that stable arithmetic recomputes from fresh words, with the cost and number of
     /// opcodes of doing so. A pinned one of them leaves the stack this way instead of through
@@ -289,9 +305,6 @@ enum CallSpill {
 enum Decline {
     /// The non-recursive call graph cannot fit the EVM stack.
     StackLimit,
-    /// A word beyond reach cannot spill because it is live across a write that may reach the
-    /// spill area.
-    Pinned(FunctionId),
     /// The function uses a shape this lowering does not implement.
     Unsupported(FunctionId, &'static str),
 }
@@ -350,15 +363,6 @@ impl<'gcx> EvmCodegen<'gcx> {
     fn report_decline(&self, module: &Module, decline: Decline) {
         match decline {
             Decline::StackLimit => self.report_stack_limit_error(),
-            Decline::Pinned(func) => {
-                self.gcx
-                    .dcx()
-                    .err(format!(
-                        "codegen cannot preserve values across a low-memory forwarding buffer in `{}`",
-                        module.functions[func].name
-                    ))
-                    .emit();
-            }
             Decline::Unsupported(func, reason) => {
                 let func = &module.functions[func];
                 self.gcx
@@ -480,7 +484,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         summaries.resize(functions, None);
         for &func_id in &bodies {
             let func = &module.functions[func_id];
-            hazards[func_id] = self.compute_spill_hazard_insts(func);
+            hazards[func_id] = self.compute_spill_hazard_insts(func_id, func);
             if !info.returning.contains(func_id) {
                 continue;
             }
@@ -586,21 +590,27 @@ impl<'gcx> EvmCodegen<'gcx> {
         let hazard_call = |inst: InstId| {
             icall(&func.inst(inst).kind).is_some_and(|(callee, _)| writers.contains(callee))
         };
-        let mut pinned = live_after(func, &liveness, |inst| hazards.contains(&inst));
-        pinned.union(&live_across(func, &liveness, hazard_call));
+        let clobber = |inst: InstId| hazards.contains(&inst) || hazard_call(inst);
+        // Another activation of this function reuses its fixed frame.
+        let component = info.components[func_id];
+        let recursive_call = |inst: InstId| {
+            component.is_some()
+                && icall(&func.inst(inst).kind)
+                    .is_some_and(|(callee, _)| info.components[callee] == component)
+        };
+        let saved = live_across_each(func, &liveness, |inst| clobber(inst) || recursive_call(inst));
+        let mut pinned = DenseBitSet::new_empty(func.num_values());
+        for (&inst, across) in &saved {
+            if clobber(inst) {
+                pinned.union(across);
+            }
+        }
         let recomputable = if pinned.is_empty() {
             FxHashMap::default()
         } else {
             plan::recomputable(func, &cfg, info.internal.contains(func_id), Target::new(self.gcx))
         };
-        Analysis {
-            liveness,
-            cfg,
-            loops,
-            low_memory_writes: !hazards.is_empty() || func.instructions().any(hazard_call),
-            pinned,
-            recomputable,
-        }
+        Analysis { liveness, cfg, loops, saved, pinned, recomputable }
     }
 
     fn plan_function_stackified(
@@ -616,16 +626,17 @@ impl<'gcx> EvmCodegen<'gcx> {
         let target = Target::new(self.gcx);
         let mut spilled = DenseBitSet::new_empty(func.num_values());
         if call_spill >= CallSpill::Values {
-            let across =
-                live_after(func, &analysis.liveness, |inst| icall(&func.inst(inst).kind).is_some());
+            // The stack keeps spilled words across a call that overwrites their slots anyway.
+            let across = live_after(func, &analysis.liveness, |inst| {
+                icall(&func.inst(inst).kind).is_some() && !analysis.saved.contains_key(&inst)
+            });
             for value in across.iter() {
-                if !materialized_at_use(func, internal, value) && !analysis.pinned.contains(value) {
+                if !materialized_at_use(func, internal, value) {
                     spilled.insert(value);
                 }
             }
         }
-        let mut ret_spilled =
-            call_spill == CallSpill::ValuesAndReturn && !analysis.low_memory_writes;
+        let mut ret_spilled = call_spill == CallSpill::ValuesAndReturn;
         let mut restarts = 0;
         // More live words than reach and the single spills can hold: spill in batches from the
         // start.
@@ -679,13 +690,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                                     }
                                 }
                             }
-                            // The return address is live across every low-memory write.
-                            Some(Victim::Ret) if !ret_spilled && !analysis.low_memory_writes => {
-                                ret_spilled = true;
-                            }
-                            _ if analysis.low_memory_writes => {
-                                return Err(Decline::Pinned(func_id));
-                            }
+                            Some(Victim::Ret) if !ret_spilled => ret_spilled = true,
                             _ => return Err(Decline::Unsupported(func_id, "stack too deep")),
                         }
                     }
@@ -824,24 +829,6 @@ fn live_after(
     liveness: &Liveness,
     select: impl Fn(InstId) -> bool,
 ) -> DenseBitSet<ValueId> {
-    live_around(func, liveness, select, true)
-}
-
-/// The values live across any instruction that `select` accepts, without its results.
-fn live_across(
-    func: &Function,
-    liveness: &Liveness,
-    select: impl Fn(InstId) -> bool,
-) -> DenseBitSet<ValueId> {
-    live_around(func, liveness, select, false)
-}
-
-fn live_around(
-    func: &Function,
-    liveness: &Liveness,
-    select: impl Fn(InstId) -> bool,
-    with_results: bool,
-) -> DenseBitSet<ValueId> {
     let mut result = DenseBitSet::new_empty(func.num_values());
     let mut live = DenseBitSet::new_empty(func.num_values());
     for (block, data) in func.blocks.iter_enumerated() {
@@ -856,15 +843,11 @@ fn live_around(
             });
         }
         for (index, &inst) in data.instructions.iter().enumerate().skip(first).rev() {
-            let selected = index == first || select(inst);
-            if selected && with_results {
+            if index == first || select(inst) {
                 result.union(&live);
             }
             if let Some(value) = func.inst_result_value(inst) {
                 live.remove(value);
-            }
-            if selected && !with_results {
-                result.union(&live);
             }
             func.inst(inst).kind.visit_operands(|value| {
                 live.insert(value);
@@ -872,6 +855,40 @@ fn live_around(
         }
     }
     result
+}
+
+/// The values live across each instruction that `select` accepts, without its results.
+fn live_across_each(
+    func: &Function,
+    liveness: &Liveness,
+    select: impl Fn(InstId) -> bool,
+) -> FxHashMap<InstId, DenseBitSet<ValueId>> {
+    let mut sets = FxHashMap::default();
+    let mut live = DenseBitSet::new_empty(func.num_values());
+    for (block, data) in func.blocks.iter_enumerated() {
+        let Some(first) = data.instructions.iter().position(|&inst| select(inst)) else {
+            continue;
+        };
+        live.clear();
+        live.union(&liveness.live_out(block));
+        if let Some(term) = &data.terminator {
+            term.visit_operands(|value| {
+                live.insert(value);
+            });
+        }
+        for (index, &inst) in data.instructions.iter().enumerate().skip(first).rev() {
+            if let Some(value) = func.inst_result_value(inst) {
+                live.remove(value);
+            }
+            if index == first || select(inst) {
+                sets.insert(inst, live.clone());
+            }
+            func.inst(inst).kind.visit_operands(|value| {
+                live.insert(value);
+            });
+        }
+    }
+    sets
 }
 
 /// The blocks of `func` from which control may return to its caller: those that reach a

@@ -70,7 +70,8 @@ impl<'gcx> EvmCodegen<'gcx> {
         // Runtime and constructor emission inspect the same final MIR. Compute module-wide facts
         // once instead of rebuilding them for each artifact and caller-stack retry.
         let call_graph = CallGraphInfo::new(module);
-        self.heap_pointer_return_functions = Self::collect_heap_pointer_return_functions(module);
+        (self.heap_pointer_return_functions, self.heap_pointer_args) =
+            Self::collect_heap_pointer_facts(module);
         // The switch planner prices tail calls to empty bodies as shared terminals.
         self.empty_stop_functions = Self::empty_stop_functions(module);
         self.cold_functions = if matches!(self.gcx.sess.opts.optimization, OptimizationMode::None) {

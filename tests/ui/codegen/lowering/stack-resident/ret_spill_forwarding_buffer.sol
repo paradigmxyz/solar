@@ -1,11 +1,12 @@
-//@ compile-flags: -O gas --emit=bin
+//@ codegen-matrix: standard
+//@ run-call: g 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17 => 195
+//@ run-call: g2 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17 => 196
 
-// Seventeen arguments and the return address exceed `DUP` reach, and the arguments cannot
-// spill because they live across a copy that may overwrite low memory. The return address
-// must not move to a spill slot there either: the copy overwrites it and the return jumps to
-// a calldata word. `-O size` behaves the same; `-O none` finds a stack-only plan.
+// Seventeen arguments and the return address exceed `DUP` reach across a copy that may
+// overwrite low memory. Spilled words, the return address among them, ride the stack across the
+// copy and go back to their slots after it; a slot the copy overwrote would make the result
+// wrong or the return jump to a calldata word.
 
-//~? ERROR: codegen cannot preserve values across a low-memory forwarding buffer in `h`
 contract C {
     function h(uint256 a1, uint256 a2, uint256 a3, uint256 a4, uint256 a5, uint256 a6, uint256 a7, uint256 a8, uint256 a9, uint256 a10, uint256 a11, uint256 a12, uint256 a13, uint256 a14, uint256 a15, uint256 a16, uint256 a17) internal pure returns (uint256 r) {
         assembly {

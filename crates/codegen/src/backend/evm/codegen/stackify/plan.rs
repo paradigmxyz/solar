@@ -95,7 +95,7 @@ const MAX_PLACEMENT_WINDOW: usize = 4;
 /// Most dying words a result placement tries to swap with.
 const MAX_PLACEMENT_CANDIDATES: usize = 2;
 
-/// Most opcodes recomputing one value that cannot spill.
+/// Most opcodes recomputing one value live across a write that may reach the spill area.
 const MAX_RECOMPUTED_OPS: u32 = 4;
 
 /// A planned function together with the layouts its loop latches would choose.
@@ -125,11 +125,9 @@ pub(super) struct Planner<'a> {
     remat: DenseBitSet<ValueId>,
     /// The cost of pushing each value of `remat`.
     remat_costs: IndexVec<ValueId, Cost>,
-    /// Values live across a write that may overwrite spill slots; they cannot spill.
-    pinned: &'a DenseBitSet<ValueId>,
-    /// Values that stable arithmetic recomputes from fresh words, with the cost of doing so.
-    /// A pinned one of them leaves the stack this way instead of through memory.
-    recomputable: &'a FxHashMap<ValueId, (Cost, u32)>,
+    /// The instructions that overwrite this function's fixed frame, with the values live across
+    /// each.
+    saved: &'a FxHashMap<InstId, DenseBitSet<ValueId>>,
     /// Whether a failure lists every spillable value beyond reach, for spilling in batches.
     batch_spills: bool,
     /// Instructions with no code of their own.
@@ -186,7 +184,7 @@ impl<'a> Planner<'a> {
         batch_spills: bool,
         hints: &'a FxHashMap<BlockId, Layout>,
     ) -> Result<Self, &'static str> {
-        let Analysis { liveness, cfg, loops, pinned, recomputable, .. } = analysis;
+        let Analysis { liveness, cfg, loops, pinned, recomputable, saved, .. } = analysis;
         let func = &module.functions[func_id];
         let internal = info.internal.contains(func_id);
         let has_ret = info.returning.contains(func_id);
@@ -484,8 +482,7 @@ impl<'a> Planner<'a> {
                 costs
             },
             remat,
-            pinned,
-            recomputable,
+            saved,
             batch_spills,
             skipped,
             projections,
@@ -852,54 +849,62 @@ impl<'a> Planner<'a> {
         Ok(())
     }
 
-    /// The words in this function's fixed frame that a call can overwrite before they are read
-    /// again: with a callee in this function's recursive component, the spilled values live
-    /// after the call and a spilled return address. The call's own results are stored after it
-    /// returns, so they are not saved.
-    fn saved_across(
-        &self,
-        block: BlockId,
-        uses: &Uses,
-        call: InstId,
-        callee: FunctionId,
-    ) -> SmallVec<[Victim; 4]> {
+    /// The words in this function's fixed frame that `inst` overwrites before they are read
+    /// again: the spilled values live across it and a spilled return address.
+    fn saved_across(&self, inst: InstId) -> SmallVec<[Victim; 4]> {
         let mut saved = SmallVec::new();
-        let component = self.info.components[self.func_id];
-        if component.is_none() || self.info.components[callee] != component {
-            return saved;
-        }
+        let Some(across) = self.saved.get(&inst) else { return saved };
         if self.ret_spilled {
             saved.push(Victim::Ret);
         }
-        let operands = self.func.inst(call).kind.operands();
-        let result = self.func.inst_result_value(call);
-        let extras = self.projections.get(&call).map_or(&[][..], |extras| extras.as_slice());
-        for value in self.spilled.iter() {
-            if !self.remat.contains(value)
-                && !self.dies(block, uses, &operands, value)
-                && result != Some(value)
-                && !extras.contains(&Some(value))
-            {
-                saved.push(Victim::Value(value));
-            }
-        }
+        saved.extend(
+            self.spilled
+                .iter()
+                .filter(|&value| across.contains(value) && !self.remat.contains(value))
+                .map(Victim::Value),
+        );
         saved
     }
 
-    /// Stores a word saved across a call back into its slot.
-    fn restore_in_place(&self, sim: &mut Sim, victim: Victim) -> Result<(), Fail> {
-        let slot = match victim {
-            Victim::Value(value) => Slot::Saved(value),
-            Victim::Ret => Slot::Ret,
-        };
-        let depth = sim.depth_of(slot).expect("saved word");
-        self.swap_up(sim, depth)?;
-        match victim {
-            Victim::Value(value) => {
-                *sim.stack.last_mut().unwrap() = Slot::Value(value);
-                self.spill_top(sim, value);
+    /// Pushes the words saved across an instruction, each marked so that operand preparation
+    /// does not consume it.
+    fn push_saved(&self, sim: &mut Sim, saved: &[Victim]) {
+        for &victim in saved {
+            match victim {
+                Victim::Value(value) => {
+                    self.fresh(sim, value);
+                    *sim.stack.last_mut().unwrap() = victim.saved_slot();
+                }
+                Victim::Ret => self.fresh_slot(sim, Slot::Ret),
             }
-            Victim::Ret => self.spill_ret_top(sim),
+        }
+    }
+
+    /// Stores the words saved across an instruction back into their slots: a saved word on top
+    /// as it is, else the deepest one in reach, which leaves the next ones on top.
+    fn restore_saved(&self, sim: &mut Sim, saved: &[Victim]) -> Result<(), Fail> {
+        let mut pending = SmallVec::<[Victim; 4]>::from_slice(saved);
+        while !pending.is_empty() {
+            let (index, depth) = pending
+                .iter()
+                .map(|victim| sim.depth_of(victim.saved_slot()).expect("saved word"))
+                .enumerate()
+                .max_by_key(|&(_, depth)| match depth {
+                    0 => usize::MAX,
+                    depth if depth <= self.reach => depth,
+                    // Beyond reach: the swap fails and names a word to spill.
+                    _ => 0,
+                })
+                .expect("pending saved words");
+            // swap saved; store
+            self.swap_up(sim, depth)?;
+            match pending.swap_remove(index) {
+                Victim::Value(value) => {
+                    *sim.stack.last_mut().unwrap() = Slot::Value(value);
+                    self.spill_top(sim, value);
+                }
+                Victim::Ret => self.spill_ret_top(sim),
+            }
         }
         Ok(())
     }
@@ -1015,17 +1020,7 @@ impl<'a> Planner<'a> {
     fn can_spill(&self, value: ValueId) -> bool {
         !self.remat.contains(value)
             && !self.spilled.contains(value)
-            && (!self.pinned.contains(value) || self.leaves_without_memory(value))
             && matches!(self.func.value(value), Value::Inst(_) | Value::Arg(_))
-    }
-
-    /// Whether a spilled value is pushed fresh without its memory slot: a calldata argument
-    /// or a recomputable value.
-    fn leaves_without_memory(&self, value: ValueId) -> bool {
-        match self.func.value(value) {
-            Value::Arg(_) => !self.info.internal.contains(self.func_id),
-            _ => self.recomputable.contains_key(&value),
-        }
     }
 
     /// Pushes a fresh copy of a value that is not kept on the stack.
@@ -1469,21 +1464,14 @@ impl<'a> Planner<'a> {
         let push_order: Operands = operands.iter().rev().copied().collect();
         let pushes = |result: Option<ValueId>| result.map_or(0, |_| 1);
 
+        // A write that may reach the spill area, or another activation of this function reusing
+        // its fixed frame, would overwrite the spilled words still needed afterwards, so the stack
+        // keeps them across the instruction.
+        // [...] -> [..., saved]
+        let saved = self.saved_across(inst);
+        self.push_saved(sim, &saved);
+
         if let Some((callee, args)) = icall(kind) {
-            // Another activation of this function reuses its fixed frame, so the stack keeps
-            // the spilled words still needed afterwards across the call.
-            // [...] -> [..., saved]
-            let saved = self.saved_across(block, uses, inst, callee);
-            for &victim in &saved {
-                match victim {
-                    Victim::Value(value) => {
-                        self.fresh(sim, value);
-                        // Operand preparation must not consume the saved copy.
-                        *sim.stack.last_mut().unwrap() = Slot::Saved(value);
-                    }
-                    Victim::Ret => self.fresh_slot(sim, Slot::Ret),
-                }
-            }
             // Arguments go in reverse, so the first argument sits just below the return address.
             let ops: Operands = args.iter().rev().copied().collect();
             self.prepare(sim, &ops, &dying)?;
@@ -1527,9 +1515,7 @@ impl<'a> Planner<'a> {
                 }
             }
             // [saved, results] -> [results]; each saved word goes back to its slot
-            for &victim in &saved {
-                self.restore_in_place(sim, victim)?;
-            }
+            self.restore_saved(sim, &saved)?;
             self.finish_inst(sim, &operands, block, uses, None)?;
             return Ok(());
         }
@@ -1666,7 +1652,9 @@ impl<'a> Planner<'a> {
                 self.set_top_result(sim, result);
             }
         }
-        self.finish_inst(sim, &operands, block, uses, result)
+        self.finish_inst(sim, &operands, block, uses, result)?;
+        // [saved, result] -> [result]
+        self.restore_saved(sim, &saved)
     }
 
     /// Records an opcode with its stack effect; the result word is anonymous until named.
