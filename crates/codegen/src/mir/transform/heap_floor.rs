@@ -488,11 +488,13 @@ fn object_access_index(kind: &InstKind) -> Option<ValueId> {
     match *kind {
         InstKind::MemoryObjectLoadElement { index, .. }
         | InstKind::MemoryObjectStoreElement { index, .. }
-        | InstKind::MemoryObjectLoadByte { index, .. }
-        | InstKind::MemoryObjectStoreByte { index, .. } => Some(index),
-        InstKind::MemoryObjectStoreWord { offset, .. }
+        | InstKind::SliceLoadElement { index, .. }
+        | InstKind::SliceStoreElement { index, .. }
+        | InstKind::SliceLoadByte { index, .. }
+        | InstKind::SliceStoreByte { index, .. } => Some(index),
+        InstKind::SliceStoreWord { offset, .. }
         | InstKind::MemorySliceLoadWord { offset, .. }
-        | InstKind::MemoryObjectCopyFromSliceAt { offset, .. } => Some(offset),
+        | InstKind::SliceCopy { offset, .. } => Some(offset),
         _ => None,
     }
 }
@@ -507,18 +509,17 @@ fn lowered_reads_pointer(kind: &InstKind) -> bool {
             InstKind::FrameLoad { .. }
                 | InstKind::FrameStore { .. }
                 | InstKind::MemoryZero(..)
-                | InstKind::MemoryObjectLen(..)
-                | InstKind::SetMemoryObjectLen(..)
+                | InstKind::MemorySlice(..)
                 | InstKind::MemoryObjectLoadField { .. }
                 | InstKind::MemoryObjectStoreField { .. }
                 | InstKind::MemoryObjectLoadElement { .. }
-                | InstKind::MemoryObjectLoadByte { .. }
                 | InstKind::MemoryObjectStoreElement { .. }
-                | InstKind::MemoryObjectStoreByte { .. }
-                | InstKind::MemoryObjectStoreWord { .. }
-                | InstKind::MemoryObjectCopy { .. }
-                | InstKind::MemoryObjectCopyFromSlice { .. }
-                | InstKind::MemoryObjectCopyFromSliceAt { .. }
+                | InstKind::SliceLoadElement { .. }
+                | InstKind::SliceStoreElement { .. }
+                | InstKind::SliceLoadByte { .. }
+                | InstKind::SliceStoreByte { .. }
+                | InstKind::SliceStoreWord { .. }
+                | InstKind::SliceCopy { .. }
                 | InstKind::MemorySliceLoadWord { .. }
                 | InstKind::CalldataSliceLoadWord { .. }
                 | InstKind::Keccak256Bytes(..)
@@ -671,7 +672,8 @@ fn may_compute_heap_address(func: &Function, inst: InstId) -> bool {
         | InstKind::Zext(_)
         | InstKind::IntToPtr(_)
         | InstKind::PtrToInt(..)
-        | InstKind::MemoryObjectData(..)
+        | InstKind::MemorySlice(..)
+        | InstKind::SlicePtr(..)
         | InstKind::MemoryObjectFieldAddr { .. }
         | InstKind::MemoryObjectElementAddr { .. } => true,
         InstKind::MLoad(address) => is_slot(func, address),
@@ -692,9 +694,9 @@ fn computes_heap_address(func: &Function, kind: &InstKind, heap: &DenseBitSet<Va
         InstKind::Phi(incoming) => incoming.iter().all(|&(_, value)| heap.contains(value)),
         InstKind::Zext(operand) | InstKind::IntToPtr(operand) => heap.contains(*operand),
         InstKind::PtrToInt(operand, bits) => *bits >= 64 && heap.contains(*operand),
-        InstKind::MemoryObjectData(object, _) | InstKind::MemoryObjectFieldAddr { object, .. } => {
-            heap.contains(*object)
-        }
+        InstKind::MemorySlice(object)
+        | InstKind::SlicePtr(object)
+        | InstKind::MemoryObjectFieldAddr { object, .. } => heap.contains(*object),
         InstKind::MemoryObjectElementAddr { object, index, .. } => {
             heap.contains(*object) && func.value_u64(*index).is_some()
         }
