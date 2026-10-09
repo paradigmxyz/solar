@@ -1,5 +1,6 @@
 //! Solar version information.
 
+#[cfg(feature = "version")]
 use std::sync::OnceLock;
 
 /// The short version information.
@@ -71,12 +72,13 @@ fn solc_version_override() -> Option<&'static str> {
 /// Returns the solc version number selected for the current environment.
 ///
 /// With `SOLC_WRAPPER=1`, `SOLC_WRAPPER_VERSION` overrides [`SOLC_SEMVER_VERSION`].
-pub fn solc_semver_version() -> &'static str {
-    static VERSION: OnceLock<Option<String>> = OnceLock::new();
-    VERSION
-        .get_or_init(|| {
-            solc_wrapper().then(|| std::env::var("SOLC_WRAPPER_VERSION").ok()).flatten()
-        })
-        .as_deref()
-        .unwrap_or(SOLC_SEMVER_VERSION)
+/// This reads the environment on every call.
+pub fn solc_semver_version() -> String {
+    if solc_wrapper()
+        && let Ok(version) = std::env::var("SOLC_WRAPPER_VERSION")
+    {
+        version
+    } else {
+        SOLC_SEMVER_VERSION.to_string()
+    }
 }

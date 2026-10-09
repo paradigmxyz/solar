@@ -190,8 +190,7 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
                 {
                     let msg = format!(
                         "source file requires different compiler version \
-                         (current compiler is {})",
-                        solc_semver_version()
+                         (current compiler is {version})"
                     );
                     self.dcx().warn(msg).code(error_code!(5333)).span(self.item_span).emit();
                 }
@@ -527,6 +526,6 @@ enum YulForPart {
 /// Returns the solc version that version pragmas are checked against.
 fn current_solc_version() -> Option<&'static ast::SemverVersion> {
     static VERSION: LazyLock<Option<ast::SemverVersion>> =
-        LazyLock::new(|| semver::Version::parse(solc_semver_version()).ok().map(Into::into));
+        LazyLock::new(|| semver::Version::parse(&solc_semver_version()).ok().map(Into::into));
     VERSION.as_ref()
 }
