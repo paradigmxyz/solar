@@ -244,14 +244,39 @@ impl Normalizer {
             while source.peek().is_some_and(|&(index, _)| index < normalization.start) {
                 instructions.push(source.next().unwrap().1);
             }
-            // Replacements take the replaced operations' debug information positionally; a
-            // longer output repeats the last original's, a shorter one absorbs the leftovers.
-            let mut original = source.by_ref().take(normalization.end - normalization.start);
+            let run = source
+                .by_ref()
+                .take(normalization.end - normalization.start)
+                .map(|(_, inst)| inst)
+                .collect::<SmallVec<[_; MAX_STACK_RUN_LEN]>>();
+            let input = run.iter().filter_map(Instruction::as_stack_op).collect::<StackRun>();
+            // Folded cycles keep the debug information of the swaps they replace, and untouched
+            // operations keep their own.
+            if key.1
+                && let Some(origins) = fold_origins(&input, &normalization.output)
+            {
+                let mut run = run.into_iter();
+                for (op, origin) in normalization.output.into_iter().zip(origins) {
+                    let mut replacement = Instruction::stack_op(op);
+                    let mut replaced = run.by_ref().take(usize::from(origin));
+                    if let Some(mut inst) = replaced.next() {
+                        replacement.metadata = std::mem::take(&mut inst.metadata);
+                    }
+                    for inst in replaced {
+                        replacement.metadata.absorb_debug_info(&inst.metadata);
+                    }
+                    instructions.push(replacement);
+                }
+                continue;
+            }
+            // Other replacements take the replaced operations' debug information positionally;
+            // a longer output repeats the last original's, a shorter one absorbs the leftovers.
+            let mut original = run.into_iter();
             let first = instructions.len();
             for op in normalization.output {
                 let mut replacement = Instruction::stack_op(op);
                 match original.next() {
-                    Some((_, mut inst)) => {
+                    Some(mut inst) => {
                         replacement.metadata = std::mem::take(&mut inst.metadata);
                     }
                     None => match instructions.last() {
@@ -263,7 +288,7 @@ impl Normalizer {
                 }
                 instructions.push(replacement);
             }
-            for (_, inst) in original {
+            for inst in original {
                 if let Some(last) = instructions.last_mut() {
                     last.metadata.absorb_debug_info(&inst.metadata);
                 }
@@ -335,6 +360,34 @@ fn compute_normalization(
 /// Whether `cost` weakly improves every lowered objective of `than` and strictly improves one.
 fn improves(cost: (usize, usize, usize), than: (usize, usize, usize)) -> bool {
     cost.0 <= than.0 && cost.1 <= than.1 && cost.2 <= than.2 && cost != than
+}
+
+/// When `output` is `input` with some cycles through the top folded into exchanges, the number
+/// of input operations each output operation replaces: a cycle's first exchange takes the
+/// swaps the cycle saves along with its own, so every input operation has exactly one owner.
+fn fold_origins(
+    input: &[StackOp],
+    output: &[StackOp],
+) -> Option<SmallVec<[u8; MAX_STACK_RUN_LEN]>> {
+    let mut origins = SmallVec::new();
+    let (mut i, mut j) = (0, 0);
+    while j < output.len() {
+        if input.get(i) == Some(&output[j]) {
+            origins.push(1);
+            i += 1;
+            j += 1;
+            continue;
+        }
+        let (exchanges, len) = StackOp::exchange_cycle(input.get(i..)?.iter().copied())?;
+        if output.get(j..j + exchanges.len())? != exchanges.as_slice() {
+            return None;
+        }
+        origins.push((len + 1 - exchanges.len()) as u8);
+        origins.extend(std::iter::repeat_n(1, exchanges.len() - 1));
+        i += len;
+        j += exchanges.len();
+    }
+    (i == input.len()).then_some(origins)
 }
 
 /// Rewrites each `SWAPa SWAPb1 ... SWAPbj SWAPa`, a cycle through the top that leaves the top in
