@@ -92,9 +92,6 @@ pub(crate) fn should_skip(path: &Path) -> Result<(), &'static str> {
         // We allow named modifier and base-constructor arguments, which solc rejects.
         | "inherited_constructor_named_parameters"
         | "named_parameters_invocation"
-
-        // We have no parser recursion limit.
-        | "max_depth_reached_4"
     ) {
         return Err("manually skipped");
     };

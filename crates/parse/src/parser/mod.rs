@@ -20,6 +20,9 @@ mod stmt;
 mod ty;
 mod yul;
 
+/// Maximum allowed recursive descent depth for selected parser entry points.
+const PARSER_RECURSION_LIMIT: usize = 256;
+
 /// Solidity and Yul parser.
 ///
 /// # Examples
@@ -60,6 +63,8 @@ pub struct Parser<'sess, 'ast, 'cb> {
     /// Whether incomplete input should be recovered into a partial AST.
     recover_incomplete_input: bool,
 
+    /// Current recursion depth for recursive parsing operations.
+    recursion_depth: usize,
     /// Callback invoked after a top-level import directive is parsed.
     #[allow(clippy::type_complexity)]
     import_callback:
@@ -159,6 +164,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
             in_contract: false,
             in_modifier: false,
             recover_incomplete_input: sess.opts.unstable.recover_incomplete_input,
+            recursion_depth: 0,
             import_callback: None,
         };
         parser.bump();
@@ -877,6 +883,32 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         let res = f(self);
         self.pure_yul = old;
         res
+    }
+
+    /// Runs `f` with recursion depth tracking and limit enforcement.
+    #[inline]
+    pub fn with_recursion_limit<T>(
+        &mut self,
+        context: &str,
+        f: impl FnOnce(&mut Self) -> PResult<'sess, T>,
+    ) -> PResult<'sess, T> {
+        self.recursion_depth += 1;
+        let res = if self.recursion_depth > PARSER_RECURSION_LIMIT {
+            Err(self.recursion_limit_reached(context))
+        } else {
+            f(self)
+        };
+        self.recursion_depth -= 1;
+        res
+    }
+
+    #[cold]
+    fn recursion_limit_reached(&mut self, context: &str) -> PErr<'sess> {
+        let mut err = self.dcx().err("recursion limit reached").span(self.token.span);
+        if !self.prev_token.span.is_dummy() {
+            err = err.span_label(self.prev_token.span, format!("while parsing {context}"));
+        }
+        err
     }
 }
 
