@@ -2003,6 +2003,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="Compile each test this many times and record the median time (default: 1)",
     )
     parser.add_argument(
+        "-j",
         "--jobs",
         type=int,
         default=1,

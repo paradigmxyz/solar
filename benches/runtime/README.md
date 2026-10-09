@@ -27,9 +27,9 @@ scripts directly.
 
 `--evm-version VERSION` overrides every case's EVM target.
 
-`--jobs N` runs N cases at once when compile time does not matter. It records no compile times or
-suite timings, keeps results in case order, and refuses `--gas`, whose transactions share one
-sender. Compile-time mode also needs `--ignore-compile-time`, which compiles each case once and
+`-j N` (`--jobs N`) runs N cases at once when compile time does not matter. It records no compile
+times or suite timings, keeps results in case order, and refuses `--gas`, whose transactions share
+one sender. Compile-time mode also needs `--ignore-compile-time`, which compiles each case once and
 drops compile times from any run.
 
 `--optimizer-runs N` overrides every case's `optimizer.runs` for all compilers. We optimize for size
@@ -175,7 +175,7 @@ commits.
 
 To check that a change leaves compiler output identical across the whole corpus, make compile-only
 runs of both builds with release binaries and no `--gas`, using
-`--mode runtime compile-time --suite all --jobs 8 --ignore-compile-time`. The comparison
+`--mode runtime compile-time --suite all -j 8 --ignore-compile-time`. The comparison
 lists each case whose Standard JSON output, bytecode included, differs as `compiler output
 fingerprint changed` under "Artifact changes and availability"; no such rows means identical
 output. When a comparison ignores compile time, gas and size runs (`--optimizer-runs 1`) can run at
