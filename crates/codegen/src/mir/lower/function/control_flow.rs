@@ -370,6 +370,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
         let return_types = self.external_return_types(&target.return_types);
 
+        // Several return words come back over the input area and may reach past it into free
+        // memory, so the defaults are allocated before the call rather than over its output.
+        self.materialize_default_bindings();
         let (success, creation_value, ret_plan) = if let TryCallee::Creation { ty, contract_id } =
             target.callee
         {
@@ -440,16 +443,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.builder.abi_encode(layout, Some(selector), values.into_boxed_slice());
             let input = self.builder.slice_ptr(encoded);
             let input_size = self.builder.slice_len(encoded);
-            // From Byzantium on the return values come out of the return data, which the catch
-            // clauses need anyway; before it the call writes them into an output area overlaying
-            // its input and the success path reads them back from there.
             // ret_offset, ret_size = plan_return_buffer(returns)
-            let ret_plan = (!supports_returndata)
-                .then(|| self.plan_return_buffer(input, zero, &return_types, overlay_buffer));
-            let (ret_offset, ret_size) = match &ret_plan {
-                Some(plan) => plan.output_area(),
-                None => (zero, self.builder.imm(0)),
-            };
+            let ret_plan = self.plan_return_buffer(input, zero, &return_types, overlay_buffer);
+            let (ret_offset, ret_size) = ret_plan.output_area();
             if self.needs_code_check(return_types.len()) {
                 self.revert_if_no_code(address);
             }
@@ -469,13 +465,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     .builder
                     .call(gas, address, call_value, input, input_size, ret_offset, ret_size),
             };
-            (success, None, ret_plan)
+            (success, None, Some(ret_plan))
         };
 
         let success_block = self.builder.create_block();
         let catch_block = self.builder.create_block();
         let merge_block = self.builder.create_block();
-        self.materialize_default_bindings();
         let before = self.values.clone();
         let before_storage_refs = self.storage_refs.clone();
         // branch(ok, success, catch)
@@ -489,21 +484,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             };
             let value = self.materialize_raw_scalar(binding, value);
             self.values.insert(binding, value);
-        } else if !return_types.is_empty() {
-            let values = if let Some(plan) = ret_plan {
-                // success.returns = load_words(ret_offset) | abi_decode(buffer)
-                self.finish_external_call(
-                    plan,
-                    &return_types,
-                    returns_clause.span,
-                    ExternalReturnMode::All,
-                    "codegen cannot decode try/catch returndata before Byzantium",
-                )?
-            } else {
-                // success.returns = abi_decode(returndata)
-                let data = self.materialize_returndata_bytes();
-                self.lower_abi_decode_values(data, &return_types, returns_clause.span)?
-            };
+        } else if let Some(plan) = ret_plan {
+            // success.returns = load_words | abi_decode(buffer) | abi_decode(returndata)
+            let values = self.finish_external_call(
+                plan,
+                &return_types,
+                returns_clause.span,
+                ExternalReturnMode::All,
+                "codegen cannot decode try/catch returndata before Byzantium",
+            )?;
             for (&binding, value) in returns_clause.args.iter().zip(values) {
                 let value = self.materialize_raw_scalar(binding, value);
                 self.values.insert(binding, value);
