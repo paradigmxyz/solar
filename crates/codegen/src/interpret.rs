@@ -19,6 +19,7 @@
 
 use crate::mir::{
     BlockId, Callee, Function, InstId, InstKind, MirPhase, Module, Terminator, Value, ValueId,
+    analysis::validate_phase,
     display::{display_instruction, display_terminator, display_val},
     memory::EvmMemoryLayout,
     utils::interp::{
@@ -103,7 +104,7 @@ pub struct DumpedModule {
 }
 
 /// Runs a transaction with `calldata` on the contract whose lowered MIR module `mir` holds, asking
-/// `host` for its context. Fails when `mir` is not a lowered module.
+/// `host` for its context. Fails when `mir` is not a valid lowered module.
 pub fn transact(
     mir: &str,
     calldata: &[u8],
@@ -129,7 +130,8 @@ pub fn transact(
 /// Runs internal function `function` of the lowered MIR module `mir` on the words `args`, asking
 /// `host` for its context. Memory starts zeroed except for the free memory pointer, which holds
 /// the heap start the host reports, and calls take no heap frames. Fails when `mir` is not a
-/// lowered module, it has no such function, or the function reads its arguments from calldata.
+/// valid lowered module, it has no such function, or the function reads its arguments from
+/// calldata.
 pub fn call(
     mir: &str,
     function: &str,
@@ -242,6 +244,11 @@ fn with_module(
         };
         if module.phase() != MirPhase::Lowered {
             return Err("the MIR was dumped before lowering, as `-O none` dumps it".into());
+        }
+        // Run only what the backend would compile.
+        if validate_phase(&sess.dcx, &module, MirPhase::Lowered).is_err() {
+            let diagnostics = sess.dcx.emitted_diagnostics().map(|d| d.to_string());
+            return Err(format!("invalid lowered MIR: {}", diagnostics.unwrap_or_default()));
         }
         f(&module)
     })

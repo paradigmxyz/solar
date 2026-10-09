@@ -1,0 +1,35 @@
+- // === ROOT/tests/ui/codegen/mir/none/bytecode.mir (before none) ===
++ // === ROOT/tests/ui/codegen/mir/none/bytecode.mir (after none) ===
+  @module Bytecode
+  @phase lowered
+  fn @entry() [entry] {
+    bb0:
+      v0 = calldataload 0
+      v1 = add v0, 1
+      mstore 0, v1
+      returndata 0, 32
+  }
+  
+// === ROOT/tests/ui/codegen/mir/none/bytecode.mir:Bytecode (runtime) ===
+@module Bytecode_runtime
+bb0:
+  push 0
+  calldataload
+  push 1
+  add
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+// === ROOT/tests/ui/codegen/mir/none/bytecode.mir:Bytecode (runtime) ===
+PUSH0
+CALLDATALOAD
+PUSH1 0x01
+ADD
+PUSH0
+MSTORE
+PUSH1 0x20
+PUSH0
+RETURN
+{"contracts":{"ROOT/tests/ui/codegen/mir/none/bytecode.mir:Bytecode":{"abi":[],"bin-runtime":"5f356001015f5260205ff3"}},"version":"VERSION"}

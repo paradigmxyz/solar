@@ -508,6 +508,11 @@ impl Module {
         self.functions.iter_enumerated()
     }
 
+    /// Returns the module's name, which its `@module` line declares.
+    pub fn name(&self) -> Ident {
+        self.name
+    }
+
     /// Returns the human-readable textual MIR representation of this module.
     pub fn to_text(&self) -> impl fmt::Display + '_ {
         fmt::from_fn(move |f| {

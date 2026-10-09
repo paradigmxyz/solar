@@ -1,4 +1,5 @@
-//! Checks each `run-call` against the MIR interpreter when `SOLAR_RUN_CALL_MIR` is set.
+//! Checks each `run-call` against the MIR interpreter when `SOLAR_RUN_CALL_MIR` is set, and always
+//! in a test written in MIR.
 //!
 //! The test runner executes a call in an EVM as usual, then compiles the test again with
 //! `-Zdump=mir-final` and runs the same call on the called contract's dumped MIR through
@@ -14,6 +15,9 @@
 //! With `SOLAR_RUN_CALL_MIR=1`, only a disagreement is reported, as a test failure. Any other
 //! value names a file that also receives one line per call: `checked`, `skipped` with the reason,
 //! or `mismatch`.
+//!
+//! A test written in MIR exists to run its calls both ways, so it is checked without the variable,
+//! and a call the interpreter cannot run fails it instead of being skipped.
 
 use super::CALLER;
 use alloy_primitives::{Address, B256, Log, U256, hex};
@@ -68,6 +72,17 @@ pub(super) struct Call<'a> {
 /// Returns whether the check is enabled.
 pub(super) fn enabled() -> bool {
     std::env::var_os(VARIABLE).is_some_and(|value| !value.is_empty())
+}
+
+/// Returns whether the check runs for the test: always for a test written in MIR, and for every
+/// other test when the check is enabled.
+pub(super) fn applies(config: &TestConfig) -> bool {
+    enabled() || is_mir(config)
+}
+
+/// Returns whether the test is written in MIR.
+fn is_mir(config: &TestConfig) -> bool {
+    config.status.path().extension().is_some_and(|extension| extension == "mir")
 }
 
 /// An account as the called contract sees it.
@@ -234,6 +249,13 @@ pub(super) fn check(
     trace: &Trace,
 ) -> Result<(), String> {
     let report = |status: &str, detail: &str| record(config, call.name, status, detail);
+    let skip = |reason: &str| {
+        report("skipped", reason);
+        if is_mir(config) {
+            return Err(format!("the MIR interpreter cannot check `{}`: {reason}", call.name));
+        }
+        Ok(())
+    };
     let expected = match trace.stop {
         stop if stop.is_success() => Outcome::Success(trace.output.clone()),
         InstrStop::Revert => Outcome::Revert(trace.output.clone()),
@@ -244,8 +266,7 @@ pub(super) fn check(
         | InstrStop::InvalidOperandOOG
         | InstrStop::StackOverflow
         | InstrStop::CallTooDeep => {
-            report("skipped", &format!("the EVM ended with {:?}", trace.stop));
-            return Ok(());
+            return skip(&format!("the EVM ended with {:?}", trace.stop));
         }
         _ => Outcome::Halt,
     };
@@ -253,19 +274,20 @@ pub(super) fn check(
     let dump = match dumps.as_ref() {
         Ok(dump) => dump,
         Err(error) => {
-            report("skipped", error);
-            return Ok(());
+            return skip(error);
         }
     };
     let Some(module) = dump.modules.get(call.contract) else {
-        report("skipped", "the MIR dump has no module for the contract");
-        return Ok(());
+        return skip("the MIR dump has no module for the contract");
+    };
+    // Every contract a call deploys has a runtime: a dump without it would skip every call.
+    let Some(runtime) = dump.runtimes.get(call.contract) else {
+        return Err(format!("the MIR dump has no runtime for `{}`", call.contract));
     };
     // A constructor may deploy other code, and deployment patches immutables into the runtime.
     let deployed = trace.before.accounts.get(&trace.before.contract).map(|account| &account.code);
-    if dump.runtimes.get(call.contract) != deployed {
-        report("skipped", "the deployed code is not the compiled runtime");
-        return Ok(());
+    if deployed != Some(runtime) {
+        return skip("the deployed code is not the compiled runtime");
     }
     let block = BlockEnv::<BaseEvmTypes>::default();
     let heap_start = trace.heap_start;
@@ -275,13 +297,11 @@ pub(super) fn check(
     let execution = match interpret::transact(module, call.input, &mut host, options) {
         Ok(execution) => execution,
         Err(reason) => {
-            report("skipped", &reason);
-            return Ok(());
+            return skip(&reason);
         }
     };
     if let Outcome::Unsupported(reason) = &execution.outcome {
-        report("skipped", reason);
-        return Ok(());
+        return skip(reason);
     }
 
     let mut differences = Vec::new();
@@ -306,7 +326,11 @@ pub(super) fn check(
             .map(|log| (log.topics.clone(), log.data.clone()))
             .collect::<Vec<_>>();
         if logs != mir_logs {
-            differences.push(format!("the EVM logged {logs:x?}, the MIR {mir_logs:x?}"));
+            differences.push(format!(
+                "the EVM logged {}, the MIR {}",
+                describe_logs(&logs),
+                describe_logs(&mir_logs)
+            ));
         }
         let written = execution.storage.iter().copied().collect::<HashMap<_, _>>();
         for (&slot, &value) in &written {
@@ -344,6 +368,15 @@ fn describe(outcome: &Outcome, stop: Option<InstrStop>) -> String {
         (Outcome::Halt, None) => "halted".into(),
         (Outcome::Unsupported(reason), _) => format!("could not run: {reason}"),
     }
+}
+
+/// Describes events as their topics and data, in hex.
+fn describe_logs(logs: &[(Vec<U256>, Vec<u8>)]) -> String {
+    let logs = logs.iter().map(|(topics, data)| {
+        let topics = topics.iter().map(|topic| format!("{topic:#x}")).collect::<Vec<_>>();
+        format!("topics [{}] data 0x{}", topics.join(", "), hex::encode(data))
+    });
+    format!("[{}]", logs.collect::<Vec<_>>().join("; "))
 }
 
 /// Appends one line about `call` to the log file the environment variable names, if any.
@@ -390,7 +423,8 @@ fn dump_command(command: &Command) -> Command {
     let mut args = command.get_args().peekable();
     while let Some(arg) = args.next() {
         let text = arg.to_string_lossy();
-        if text.starts_with("-Zdump=") {
+        // The JSON stays compact, one line among the dump's.
+        if text.starts_with("-Zdump=") || text == "--pretty-json" {
             continue;
         }
         if text == "-Z"
@@ -431,22 +465,50 @@ fn run_dump(mut command: Command) -> Result<Dump, String> {
     if !output.status.success() {
         return Err("the MIR dump failed".into());
     }
-    let stdout = String::from_utf8_lossy(&output.stdout);
+    parse_dump(&output.stdout)
+}
+
+/// Splits what a dump command printed into modules, heap frames, and runtime bytecode by contract.
+fn parse_dump(stdout: &[u8]) -> Result<Dump, String> {
     let mut dump = Dump::default();
-    for module in interpret::parse_dump(&stdout) {
+    for module in interpret::parse_dump(&String::from_utf8_lossy(stdout)) {
         dump.frames.insert(module.name.clone(), module.frames);
         dump.modules.insert(module.name, module.mir);
     }
-    if let Some(line) = stdout.lines().find(|line| line.starts_with(r#"{"contracts""#)) {
-        let json = serde_json::from_str::<serde_json::Value>(line)
-            .map_err(|error| format!("unreadable compiler output: {error}"))?;
-        let contracts = json.get("contracts").and_then(serde_json::Value::as_object);
-        for (name, contract) in contracts.into_iter().flatten() {
-            let runtime = contract.get("bin-runtime").and_then(serde_json::Value::as_str);
-            if let Some(runtime) = runtime.and_then(|runtime| hex::decode(runtime).ok()) {
-                dump.runtimes.insert(name.clone(), runtime);
-            }
+    let json = super::compiler_json(stdout)?;
+    let contracts = json.get("contracts").and_then(serde_json::Value::as_object);
+    for (name, contract) in contracts.into_iter().flatten() {
+        let runtime = contract.get("bin-runtime").and_then(serde_json::Value::as_str);
+        if let Some(runtime) = runtime.and_then(|runtime| hex::decode(runtime).ok()) {
+            dump.runtimes.insert(name.clone(), runtime);
         }
     }
     Ok(dump)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn dumps_keep_compact_json() {
+        let mut command = Command::new("solar");
+        command.args(["--pretty-json", "--emit=abi", "-Zdump=evm-ir", "test.sol"]);
+        let args = dump_command(&command)
+            .get_args()
+            .map(|arg| arg.to_string_lossy().into_owned())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            args,
+            ["--emit=abi,bin-runtime", "test.sol", "-Zdump=mir-final", "--color=never"]
+        );
+    }
+
+    #[test]
+    fn dumps_read_pretty_json() {
+        let stdout =
+            b"{\n  \"contracts\": {\n    \"a.sol:A\": {\"bin-runtime\": \"6001\"}\n  }\n}\n";
+        let dump = parse_dump(stdout).unwrap();
+        assert_eq!(dump.runtimes["a.sol:A"], [0x60, 0x01]);
+    }
 }

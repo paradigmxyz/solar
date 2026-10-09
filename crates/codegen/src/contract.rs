@@ -1,11 +1,11 @@
 //! Contract bytecode generation and dependency orchestration.
 
 use crate::{
-    EvmCodegen,
+    Backend, EvmCodegen,
     backend::evm::{DebugInfo, DynamicFrame, EvmArtifact, ir},
     link::{
-        ContractBytecodes, EmbeddedBytecodes, LibraryRelocation, LibraryTable, QualifiedName,
-        RelocatableBytecode,
+        ContractBytecodes, DataBytes, EmbeddedBytecodes, LibraryRelocation, LibraryTable,
+        QualifiedName, RelocatableBytecode,
     },
     mir::{Module, lower, pass::run_pipeline},
 };
@@ -245,6 +245,31 @@ pub fn generate_contract_bytecodes(
         }
     }
     Ok(generated)
+}
+
+/// Generates the bytecode of a lowered MIR module given as input. Its pipeline already ran, so
+/// the backend runs no passes of its own, and `module` ends as the final MIR the backend compiled.
+/// The artifact also reports the heap frames of the runtime's internal calls and keeps the final
+/// EVM IR of both programs, which dumps of MIR input print.
+///
+/// A module given as input comes with no other contract, so data holding another contract's
+/// bytecode has nothing to link it to, and is an error.
+pub fn generate_mir_input_bytecode(gcx: Gcx<'_>, module: &mut Module) -> Result<EvmArtifact> {
+    if let Some(code) = module.data.iter().find_map(|data| match data.bytes {
+        DataBytes::Deferred(code) => Some(code),
+        DataBytes::Known(_) => None,
+    }) {
+        let message = "MIR input that embeds another contract's code has no bytecode to emit";
+        let note = format!("its data holds `{code}`, which only compiling that contract generates");
+        return Err(gcx.dcx().err(message).note(note).emit());
+    }
+    let mut codegen = EvmCodegen::new(gcx);
+    codegen.set_run_pipeline(false);
+    codegen.set_capture_mir(true);
+    codegen.set_capture_evm_ir(true);
+    let artifact = codegen.lower_module(module, &EmbeddedBytecodes::default());
+    gcx.dcx().has_errors()?;
+    Ok(artifact)
 }
 
 #[derive(Clone, Copy)]

@@ -9,7 +9,7 @@ use evm2::{
     evm::{AccountInfo, InMemoryDB},
 };
 use serde_json::Value;
-use std::{cell::Cell, path::Path, rc::Rc};
+use std::{borrow::Cow, cell::Cell, path::Path, rc::Rc};
 use ui_test::{
     CommentParser, Errored, Revisioned,
     build_manager::BuildManager,
@@ -67,7 +67,7 @@ struct Outcome {
 
 struct ResolvedCall<'a> {
     artifact: &'a Artifact,
-    function: Option<&'a Function>,
+    function: Option<Cow<'a, Function>>,
     constructor_args: Vec<u8>,
     input: Vec<u8>,
     expected: Vec<u8>,
@@ -134,20 +134,11 @@ impl RunCall {
         let test_path = config.status.path();
         let call =
             resolve_call(&artifacts, test_path, &self.call, &self.expected, &self.settings, false)?;
-        let setup = setup_call(call.artifact, call.function)?;
-        let actual = execute(
-            &call.artifact.bytecode,
-            &call.constructor_args,
-            setup,
-            &call.input,
-            call.gas_limit.unwrap_or_else(|| default_gas_limit(spec_id)),
-            call.value,
-            spec_id,
-        )?;
+        let actual = execute(&call, spec_id, oracle::applies(config))?;
         if !actual.success {
             return Err(format!(
                 "`{}` failed with {}: 0x{}",
-                display_call(&self.call, call.function),
+                display_call(&self.call, call.function.as_deref()),
                 actual.stop,
                 hex::display(actual.output)
             ));
@@ -155,7 +146,7 @@ impl RunCall {
         if actual.output != call.expected {
             return Err(format!(
                 "`{}` returned 0x{}, expected 0x{}",
-                display_call(&self.call, call.function),
+                display_call(&self.call, call.function.as_deref()),
                 hex::display(actual.output),
                 hex::display(call.expected)
             ));
@@ -198,27 +189,18 @@ impl RunCallFail {
         let test_path = config.status.path();
         let call =
             resolve_call(&artifacts, test_path, &self.call, &self.expected, &self.settings, true)?;
-        let setup = setup_call(call.artifact, call.function)?;
-        let actual = execute(
-            &call.artifact.bytecode,
-            &call.constructor_args,
-            setup,
-            &call.input,
-            call.gas_limit.unwrap_or_else(|| default_gas_limit(spec_id)),
-            call.value,
-            spec_id,
-        )?;
+        let actual = execute(&call, spec_id, oracle::applies(config))?;
         if actual.success {
             return Err(format!(
                 "`{}` succeeded with 0x{}, expected failure",
-                display_call(&self.call, call.function),
+                display_call(&self.call, call.function.as_deref()),
                 hex::display(actual.output)
             ));
         }
         if actual.output != call.expected {
             return Err(format!(
                 "`{}` reverted with 0x{}, expected 0x{}",
-                display_call(&self.call, call.function),
+                display_call(&self.call, call.function.as_deref()),
                 hex::display(actual.output),
                 hex::display(call.expected)
             ));
@@ -264,7 +246,7 @@ fn check_mir(
     actual: &Outcome,
 ) -> Result<(), String> {
     let Some(trace) = &actual.trace else { return Ok(()) };
-    let name = display_call(directive, call.function);
+    let name = display_call(directive, call.function.as_deref());
     let evm_version = evm_version(config)?
         .parse()
         .map_err(|error| format!("unsupported EVM version for the MIR interpreter: {error}"))?;
@@ -391,13 +373,14 @@ fn resolve_call<'a>(
     }
 
     let (function_name, args) = call.split_once(char::is_whitespace).unwrap_or((call, ""));
-    let (artifact, function) = find_function(artifacts, function_name)?;
+    let mir = test_path.extension().is_some_and(|extension| extension == "mir");
+    let (artifact, function) = find_function(artifacts, function_name, mir)?;
     let constructor_args = encode_constructor(artifact, settings.constructor.as_deref())?;
-    let input = encode_values(function, args, false)?;
+    let input = encode_values(&function, args, false)?;
     let expected = if failure {
         encode_revert_data(expected)?
     } else {
-        encode_values(function, expected, true)?
+        encode_values(&function, expected, true)?
     };
     Ok(ResolvedCall {
         artifact,
@@ -419,30 +402,34 @@ fn flag_error(command: &str, message: String) -> Errored {
     }
 }
 
+/// Returns the JSON document of `--emit` outputs in `output`, compact or pretty, which a dump the
+/// compiler prints may precede or follow.
+fn compiler_json(output: &[u8]) -> Result<Value, String> {
+    let err = match serde_json::from_slice(output) {
+        Ok(output) => return Ok(output),
+        Err(err) => err,
+    };
+    let marker = br#""contracts""#;
+    let Some(contracts) = output.windows(marker.len()).rposition(|window| window == marker) else {
+        return Err(format!("failed to parse compiler output: {err}"));
+    };
+    let Some(start) = output[..contracts].iter().rposition(|&byte| byte == b'{') else {
+        return Err(format!("failed to parse compiler output: {err}"));
+    };
+    serde_json::Deserializer::from_slice(&output[start..])
+        .into_iter()
+        .next()
+        .transpose()
+        .map_err(|_| format!("failed to parse compiler output: {err}"))?
+        .ok_or_else(|| format!("failed to parse compiler output: {err}"))
+}
+
 fn display_call(call: &str, function: Option<&Function>) -> String {
     function.map_or_else(|| call.to_owned(), Function::signature)
 }
 
 fn parse_artifacts(output: &[u8]) -> Result<Vec<Artifact>, String> {
-    let output: Value = match serde_json::from_slice(output) {
-        Ok(output) => output,
-        Err(err) => {
-            let marker = br#""contracts""#;
-            let Some(contracts) = output.windows(marker.len()).rposition(|window| window == marker)
-            else {
-                return Err(format!("failed to parse compiler output: {err}"));
-            };
-            let Some(start) = output[..contracts].iter().rposition(|&byte| byte == b'{') else {
-                return Err(format!("failed to parse compiler output: {err}"));
-            };
-            serde_json::Deserializer::from_slice(&output[start..])
-                .into_iter()
-                .next()
-                .transpose()
-                .map_err(|_| format!("failed to parse compiler output: {err}"))?
-                .ok_or_else(|| format!("failed to parse compiler output: {err}"))?
-        }
-    };
+    let output = compiler_json(output)?;
     let contracts = output
         .get("contracts")
         .and_then(Value::as_object)
@@ -482,27 +469,48 @@ fn only_artifact<'a>(artifacts: &'a [Artifact], test_path: &Path) -> Result<&'a 
     }
 }
 
+/// Finds the function `name` names in `artifacts`. In a test of MIR input, whose modules have no
+/// ABI, a full signature names a function without one.
 fn find_function<'a>(
     artifacts: &'a [Artifact],
     name: &str,
-) -> Result<(&'a Artifact, &'a Function), String> {
+    mir: bool,
+) -> Result<(&'a Artifact, Cow<'a, Function>), String> {
     let (contract_name, function_name) = name
         .split_once("::")
         .map_or((None, name), |(contract, function)| (Some(contract), function));
-    let mut matches = artifacts.iter().flat_map(|artifact| {
-        let contract_matches =
-            contract_name.is_none_or(|name| artifact.name.ends_with(&format!(":{name}")));
-        artifact
-            .abi
-            .functions()
-            .filter(move |function| {
-                contract_matches
-                    && (function.signature() == function_name
-                        || (!function_name.contains('(') && function.name == function_name))
+    let contract_matches = |artifact: &Artifact| {
+        contract_name.is_none_or(|name| artifact.name.ends_with(&format!(":{name}")))
+    };
+    let mut matches =
+        artifacts.iter().filter(|artifact| contract_matches(artifact)).flat_map(|artifact| {
+            artifact
+                .abi
+                .functions()
+                .filter(move |function| {
+                    function.signature() == function_name
+                        || (!function_name.contains('(') && function.name == function_name)
+                })
+                .map(move |function| (artifact, function))
+        });
+    let Some((artifact, function)) = matches.next() else {
+        // A MIR module has no ABI, so a call to it gives the function's full signature. A
+        // Solidity contract without functions only has a fallback, which a call naming a missing
+        // function would reach.
+        if !mir {
+            return Err(format!("function `{name}` was not found in compiler output"));
+        }
+        let abi_less = artifacts
+            .iter()
+            .filter(|artifact| {
+                contract_matches(artifact) && artifact.abi.functions().next().is_none()
             })
-            .map(move |function| (artifact, function))
-    });
-    let Some(found) = matches.next() else {
+            .collect::<Vec<_>>();
+        if function_name.contains('(')
+            && let [artifact] = abi_less[..]
+        {
+            return Ok((artifact, Cow::Owned(parse_signature(function_name)?)));
+        }
         return Err(format!("function `{name}` was not found in compiler output"));
     };
     if matches.next().is_some() {
@@ -511,7 +519,26 @@ fn find_function<'a>(
              `Contract::{function_name}`"
         ));
     }
-    Ok(found)
+    Ok((artifact, Cow::Borrowed(function)))
+}
+
+/// Parses the signature `name(inputs)` of a function, or `name(inputs)(outputs)` when it returns
+/// values, for a contract without an ABI.
+fn parse_signature(signature: &str) -> Result<Function, String> {
+    let invalid = |detail: String| format!("invalid function signature `{signature}`: {detail}");
+    let open = signature.find('(').ok_or_else(|| invalid("expected `(`".to_owned()))?;
+    let (name, rest) = signature.split_at(open);
+    let (inputs, rest) = split_parenthesized(rest).map_err(invalid)?;
+    let text = if rest.is_empty() {
+        format!("function {name}({inputs})")
+    } else {
+        let (outputs, rest) = split_parenthesized(rest).map_err(invalid)?;
+        if !rest.is_empty() {
+            return Err(invalid(format!("unexpected `{rest}` after the outputs")));
+        }
+        format!("function {name}({inputs}) returns ({outputs})")
+    };
+    Function::parse(&text).map_err(|error| invalid(error.to_string()))
 }
 
 fn encode_values(function: &Function, values: &str, output: bool) -> Result<Vec<u8>, String> {
@@ -726,15 +753,10 @@ fn setup_call(artifact: &Artifact, function: Option<&Function>) -> Result<Option
         .transpose()
 }
 
-fn execute(
-    initcode: &[u8],
-    constructor_args: &[u8],
-    setup: Option<Vec<u8>>,
-    input: &[u8],
-    gas_limit: u64,
-    value: U256,
-    spec_id: SpecId,
-) -> Result<Outcome, String> {
+/// Deploys the called contract, runs its `setUp()` when the call needs one, and executes the call,
+/// recording what it did for the MIR interpreter to check when `check_mir` is set.
+fn execute(call: &ResolvedCall<'_>, spec_id: SpecId, check_mir: bool) -> Result<Outcome, String> {
+    let setup = setup_call(call.artifact, call.function.as_deref())?;
     let mut database = InMemoryDB::default();
     database.insert_account_info(&CALLER, AccountInfo::default().with_balance(U256::MAX));
     let mut evm = Evm::<BaseEvmTypes>::new(
@@ -744,7 +766,8 @@ fn execute(
         database,
         Precompiles::base(spec_id),
     );
-    let initcode = Bytes::from_iter(initcode.iter().chain(constructor_args).copied());
+    let initcode =
+        Bytes::from_iter(call.artifact.bytecode.iter().chain(&call.constructor_args).copied());
     let result =
         transact(&mut evm, 0, TxKind::Create, initcode, default_gas_limit(spec_id), U256::ZERO)?;
     if !result.status {
@@ -777,13 +800,14 @@ fn execute(
             ));
         }
     }
-    let before = oracle::enabled().then(|| oracle::Chain::capture(&evm, contract));
+    let before = check_mir.then(|| oracle::Chain::capture(&evm, contract));
     let heap_start = Rc::new(Cell::new(None));
     if before.is_some() {
         evm.set_inspector(oracle::HeapStart(heap_start.clone()));
     }
-    let input = Bytes::copy_from_slice(input);
-    let result = transact(&mut evm, nonce, TxKind::Call(contract), input, gas_limit, value)?;
+    let input = Bytes::copy_from_slice(&call.input);
+    let gas_limit = call.gas_limit.unwrap_or_else(|| default_gas_limit(spec_id));
+    let result = transact(&mut evm, nonce, TxKind::Call(contract), input, gas_limit, call.value)?;
     let trace = before.map(|before| {
         evm.clear_inspector();
         let (stop, output, logs) = (result.stop, &result.output, &result.logs);
@@ -969,5 +993,39 @@ mod tests {
         assert!(encode_revert_data("E(uint256)").is_err());
         assert!(encode_revert_data("E(uint256)(1) extra").is_err());
         assert!(encode_revert_data("E(uint256)(1").is_err());
+    }
+
+    #[test]
+    fn signatures_name_functions_only_in_mir() {
+        let artifact = |abi: &str| Artifact {
+            name: "source:Test".into(),
+            abi: serde_json::from_str(abi).unwrap(),
+            bytecode: vec![0],
+        };
+        let fallback_only = [artifact(r#"[{"type":"fallback","stateMutability":"nonpayable"}]"#)];
+        let signature = "missing(uint256)(uint256)";
+        let error = find_function(&fallback_only, signature, false).unwrap_err();
+        assert_eq!(error, "function `missing(uint256)(uint256)` was not found in compiler output");
+        let module = [artifact("[]")];
+        let (_, function) = find_function(&module, signature, true).unwrap();
+        assert_eq!(function.signature(), "missing(uint256)");
+    }
+
+    #[test]
+    fn parses_abi_less_signatures() {
+        let add = parse_signature("add(uint256,uint256)(uint256)").unwrap();
+        assert_eq!(add.signature(), "add(uint256,uint256)");
+        assert_eq!(
+            add.outputs.iter().map(|output| output.ty.as_str()).collect::<Vec<_>>(),
+            ["uint256"]
+        );
+        let increment = parse_signature("increment()").unwrap();
+        assert_eq!(increment.signature(), "increment()");
+        assert!(increment.outputs.is_empty());
+        assert_eq!(
+            parse_signature("f()(uint256)x").unwrap_err(),
+            "invalid function signature `f()(uint256)x`: unexpected `x` after the outputs"
+        );
+        assert!(parse_signature("f(uint256").is_err());
     }
 }
