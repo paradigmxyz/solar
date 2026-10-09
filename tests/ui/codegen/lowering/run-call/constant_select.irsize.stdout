@@ -494,22 +494,20 @@ bb44:
   lt
   push bb11
   jumpi
+  push 0xe2179b8e
+  push 224
+  shl
   push 4
   calldataload
   iszero
   iszero
-  push 0xe2179b8e
-  push 224
-  shl
   push 0x26121ff0
   jump bb91
 bb91:
   push 224
   shl
+  dup 3
   swap 1
-  dup 1
-  swap 3
-  swap 2
   sub
   mul
   add
@@ -542,13 +540,13 @@ bb48:
   lt
   push bb11
   jumpi
+  push 0x26121ff0
+  push 224
+  shl
   push 4
   calldataload
   iszero
   iszero
-  push 0x26121ff0
-  push 224
-  shl
   push 0xe2179b8e
   jump bb91
 bb62 [continuation]:

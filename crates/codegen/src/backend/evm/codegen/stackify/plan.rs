@@ -789,9 +789,7 @@ impl<'a> Planner<'a> {
             trial.states.push((trial.sim.stack.clone(), trial.sim.cost));
             trial.steps.push(PlainStep {
                 price: trial.sim.cost.plus(self.dead_word_removal().times(trial.sim.junk())),
-                swapped: trial.sim.steps.iter().any(|step| {
-                    matches!(step, Step::Stack(StackOp::Swap(_) | StackOp::Exchange(..)))
-                }),
+                swapped: trial.sim.steps.iter().any(Step::is_swap),
             });
         }
         let trial = self.plain_trial.insert(trial);
@@ -1192,8 +1190,8 @@ impl<'a> Planner<'a> {
         Ok(())
     }
 
-    /// Arranges `ops`, in push order, on top of the stack, trying both preparation strategies
-    /// and keeping the cheaper.
+    /// Arranges `ops`, in push order, on top of the stack, trying each preparation strategy and
+    /// keeping the cheapest.
     fn prepare(
         &self,
         sim: &mut Sim,
@@ -1229,17 +1227,36 @@ impl<'a> Planner<'a> {
                 return Ok(index);
             }
         }
+        #[derive(Clone, Copy, PartialEq, Eq)]
+        enum Strategy {
+            Reorder,
+            Build,
+            Cycles,
+        }
+        let consumable = dying_ops.iter().any(|&value| !self.is_fresh(value));
         let mut best: Option<(Cost, usize)> = None;
         let mut best_sim = Sim::new(Layout::new());
         let mut candidate = sim.fork();
         let mut failure = None;
         for (index, ops) in orders.iter().enumerate() {
-            for build in [false, true] {
+            let in_place = self.consumed_in_place(&sim.stack, ops, dying);
+            for strategy in [Strategy::Reorder, Strategy::Build, Strategy::Cycles] {
+                // Following cycles only saves swaps when an operand is consumed in place and the
+                // cheapest arrangement so far needs at least two.
+                if strategy == Strategy::Cycles
+                    && !(consumable
+                        && best_sim.steps.iter().filter(|step| step.is_swap()).nth(1).is_some())
+                {
+                    continue;
+                }
                 candidate.refork(sim);
-                let result = if build {
-                    self.prepare_build(&mut candidate, ops, dying)
-                } else {
-                    self.prepare_reorder(&mut candidate, ops, dying)
+                let result = match strategy {
+                    Strategy::Reorder => self.prepare_reorder(&mut candidate, ops, &in_place),
+                    Strategy::Build => self.prepare_build(&mut candidate, ops, dying),
+                    Strategy::Cycles => {
+                        let budget = best.map(|(price, _)| price);
+                        self.prepare_cycles(&mut candidate, ops, &in_place, budget)
+                    }
                 };
                 if let Err(fail) = result {
                     failure.get_or_insert(fail);
@@ -1309,26 +1326,39 @@ impl<'a> Planner<'a> {
         })
     }
 
-    /// Consumes each value whose last use this is in place, copies every other operand, and
-    /// then moves each operand to its position with at most two swaps.
+    /// The stack position of the word each operand consumes in place: the shallowest copy of a
+    /// value whose last use this is, at its first occurrence. Copies only push, so these
+    /// positions hold while the other operands are copied.
+    fn consumed_in_place(
+        &self,
+        stack: &[Slot],
+        ops: &[ValueId],
+        dying: &dyn Fn(ValueId) -> bool,
+    ) -> SmallVec<[Option<usize>; 8]> {
+        ops.iter()
+            .enumerate()
+            .map(|(i, &value)| {
+                (!self.is_fresh(value) && !ops[..i].contains(&value) && dying(value))
+                    .then(|| stack.iter().rposition(|&slot| slot == Slot::Value(value)))
+                    .flatten()
+            })
+            .collect()
+    }
+
+    /// Consumes the operands `in_place` names in place, copies every other operand, and then
+    /// moves each operand to its position with at most two swaps.
     fn prepare_reorder(
         &self,
         sim: &mut Sim,
         ops: &[ValueId],
-        dying: &dyn Fn(ValueId) -> bool,
+        in_place: &[Option<usize>],
     ) -> Result<(), Fail> {
         let k = ops.len();
-        // The stack position of each operand's word. Copies only push, so a word consumed in
-        // place keeps its position while later operands are copied.
+        // The stack position of each operand's word.
         let mut positions = SmallVec::<[usize; 8]>::new();
-        let mut consumed = SmallVec::<[ValueId; 8]>::new();
-        for &value in ops {
-            let in_place = (!self.is_fresh(value) && !consumed.contains(&value) && dying(value))
-                .then(|| sim.stack.iter().rposition(|&slot| slot == Slot::Value(value)))
-                .flatten();
-            if let Some(position) = in_place {
+        for (&value, &position) in ops.iter().zip(in_place) {
+            if let Some(position) = position {
                 positions.push(position);
-                consumed.push(value);
             } else {
                 self.copy(sim, value)?;
                 positions.push(sim.stack.len() - 1);
@@ -1382,6 +1412,79 @@ impl<'a> Planner<'a> {
                 *position = a;
             }
         }
+    }
+
+    /// Consumes the operands `in_place` names in place, like [`Self::prepare_reorder`], but
+    /// follows permutation cycles through the top and pushes each copy only when it lands in its
+    /// position or takes the place of a word that has to move up. Copying every operand first
+    /// leaves the copies nothing to displace, so each cycle that misses the top costs one more
+    /// `SWAP` to open. Stops once the arrangement costs at least `budget`.
+    fn prepare_cycles(
+        &self,
+        sim: &mut Sim,
+        ops: &[ValueId],
+        in_place: &[Option<usize>],
+        budget: Option<Cost>,
+    ) -> Result<(), Fail> {
+        // Operand `i` ends at `base + i`; every other word ends anywhere below `base`.
+        let base = sim.stack.len() - in_place.iter().flatten().count();
+        // The final position of each stack word that is an operand, and the operands to copy.
+        let mut dests = SmallVec::<[Option<usize>; 16]>::from_elem(None, sim.stack.len());
+        let mut pending = SmallVec::<[usize; 8]>::new();
+        for (i, &position) in in_place.iter().enumerate() {
+            match position {
+                Some(position) => dests[position] = Some(base + i),
+                None => pending.push(i),
+            }
+        }
+        let settled = |dests: &[Option<usize>], position: usize| {
+            dests[position].map_or(position < base, |dest| dest == position)
+        };
+        // Prefers a word that lands on top, then one that can move on from there.
+        let order = |dest: usize, top: usize| (dest != top, dest > top);
+        // Each step settles a word, pushes a copy, or opens a cycle, which the next steps close.
+        for _ in 0..4 * (base + ops.len()) {
+            if budget.is_some_and(|budget| !self.target.cmp(sim.cost, budget).is_lt()) {
+                return Err(Fail::Unsupported("operand cycles cost more than another arrangement"));
+            }
+            let len = sim.stack.len();
+            // Move the top word to its position when that lies below it.
+            if let Some(top) = len.checked_sub(1)
+                && !settled(&dests, top)
+            {
+                let target = match dests[top] {
+                    Some(dest) => (dest < top).then_some(dest),
+                    // Displace an operand below `base`.
+                    None => (0..base)
+                        .filter(|&p| !settled(&dests, p))
+                        .min_by_key(|&p| order(dests[p].unwrap_or(usize::MAX), top)),
+                };
+                if let Some(target) = target {
+                    self.swap_up(sim, top - target)?;
+                    dests.swap(top, target);
+                    continue;
+                }
+            }
+            // Push the copy that lands in place, or else the one whose displaced word does.
+            if !pending.is_empty() {
+                let index = (0..pending.len())
+                    .min_by_key(|&index| {
+                        let dest = base + pending[index];
+                        let displaced = dests.get(dest).copied().flatten().unwrap_or(0);
+                        (order(dest, len), order(displaced, len))
+                    })
+                    .unwrap();
+                let i = pending.remove(index);
+                self.copy(sim, ops[i])?;
+                dests.push(Some(base + i));
+                continue;
+            }
+            // Open the next cycle with the deepest unsettled word.
+            let Some(position) = (0..len).find(|&p| !settled(&dests, p)) else { return Ok(()) };
+            self.swap_up(sim, len - 1 - position)?;
+            dests.swap(len - 1, position);
+        }
+        Err(Fail::Unsupported("operand cycles did not settle"))
     }
 
     /// Rearranges the whole stack into `target`, bottom to top.

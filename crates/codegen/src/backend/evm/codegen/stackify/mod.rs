@@ -51,8 +51,9 @@
 //! The planner prepares instruction operands by duplicating values that remain live, consuming
 //! values at their last use in place, materializing immediates and stable reads, and then moving
 //! each operand to its position with at most two swaps, or one `EXCHANGE` where the target makes
-//! that cheaper, or by copying operands on top of a prefix already in place; the cheaper strategy
-//! wins.
+//! that cheaper, or by copying operands on top of a prefix already in place, or by following
+//! permutation cycles through the top and pushing each copy where it displaces a word that has to
+//! move up; the cheapest strategy wins.
 //! A shuffle's cycle through the top that leaves the top in place, `SWAPa SWAPb ... SWAPa`,
 //! becomes one `EXCHANGE a, b` per inner swap when that is cheaper. Commutative and mirrored
 //! comparisons try both operand orders. Two short trials refine these local choices: before a chain
@@ -169,6 +170,13 @@ enum Step {
     /// Stores the extra results below the first result of a call to the callee's return area
     /// and publishes it as the multi-return buffer.
     Publish { callee: FunctionId, arity: usize, params: usize },
+}
+
+impl Step {
+    /// Whether this step exchanges stack words.
+    fn is_swap(&self) -> bool {
+        matches!(self, Self::Stack(StackOp::Swap(_) | StackOp::Exchange(..)))
+    }
 }
 
 /// A control-flow edge, optionally through a trampoline that rearranges the stack.

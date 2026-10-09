@@ -103,10 +103,9 @@ bb8 [loop]:
   push_data RuntimeChild_creation_code_0
   dup 3
   codecopy
-  push 0
   push 50
-  swap 2
   swap 1
+  push 0
   create
   dup 1
   iszero

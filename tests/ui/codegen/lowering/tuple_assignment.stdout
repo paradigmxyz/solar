@@ -110,16 +110,13 @@ bb6:
   dup 3
   calldatacopy
   push 0
+  swap 3
+  swap 1
   push 0
   push 4
   calldataload
   push 0
-  swap 2
   swap 5
-  swap 3
-  swap 6
-  swap 4
-  swap 3
   call
   push 128
   mstore

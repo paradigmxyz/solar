@@ -143,10 +143,9 @@ bb6:
   push_data Child_creation_code_0
   dup 3
   codecopy
-  push 0
   push 252
-  swap 2
   swap 1
+  push 0
   create
   dup 1
   iszero
@@ -164,14 +163,11 @@ bb6:
   shl
   dup 2
   mstore
-  push 32
-  push 0
   push 4
+  push 0
   swap 2
+  push 32
   swap 4
-  swap 1
-  swap 3
-  swap 1
   gas
   staticcall
   iszero
@@ -207,10 +203,9 @@ bb18:
   push_data Child_creation_code_0
   dup 3
   codecopy
-  push 0
   push 252
-  swap 2
   swap 1
+  push 0
   create
   dup 1
   iszero
@@ -230,10 +225,9 @@ bb18:
   push_data Child_creation_code_0
   dup 3
   codecopy
-  push 0
   push 252
-  swap 2
   swap 1
+  push 0
   create
   dup 1
   iszero
@@ -251,14 +245,11 @@ bb18:
   shl
   dup 2
   mstore
-  push 32
-  push 0
   push 4
+  push 0
   swap 2
+  push 32
   swap 4
-  swap 1
-  swap 3
-  swap 1
   swap 5
   gas
   staticcall
@@ -284,14 +275,11 @@ bb18:
   shl
   dup 2
   mstore
-  push 32
-  push 0
   push 4
+  push 0
   swap 2
+  push 32
   swap 4
-  swap 1
-  swap 3
-  swap 1
   swap 5
   gas
   staticcall

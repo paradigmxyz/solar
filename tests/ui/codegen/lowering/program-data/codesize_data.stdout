@@ -208,12 +208,10 @@ bb7:
   jump bb9
 bb8:
   push 1
+  dup 1
   codesize
   sub
   push 0
-  push 1
-  swap 2
-  swap 1
   codecopy
   push 0
   mload

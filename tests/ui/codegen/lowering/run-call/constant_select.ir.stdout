@@ -257,12 +257,9 @@ bb16:
   iszero
   push bb42
   jumpi
-  push 0
-  swap 1
-  swap 2
   swap 1
   push bb23
-  swap 1
+  push 0
   push 0
   mstore
   push 32
@@ -789,6 +786,9 @@ bb56:
   lt
   push bb12
   jumpi
+  push 0xe2179b8e
+  push 224
+  shl
   push 4
   calldataload
   iszero
@@ -796,12 +796,8 @@ bb56:
   push 0x26121ff0
   push 224
   shl
-  push 0xe2179b8e
-  push 224
-  shl
-  dup 1
-  swap 3
-  swap 2
+  dup 3
+  swap 1
   sub
   mul
   jump bb77
